@@ -20,7 +20,7 @@
 #include <haproxy/list.h>
 #include <common/net_helper.h>
 #include <common/standard.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 
 #include <import/ebmbtree.h>
 #include <import/ebsttree.h>

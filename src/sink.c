@@ -22,7 +22,7 @@
 #include <common/cfgparse.h>
 #include <import/ist.h>
 #include <haproxy/list.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <proto/cli.h>
 #include <proto/log.h>
 #include <proto/ring.h>

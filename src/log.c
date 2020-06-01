@@ -26,7 +26,7 @@
 
 #include <haproxy/api.h>
 #include <common/standard.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <haproxy/version.h>
 
 #include <types/cli.h>

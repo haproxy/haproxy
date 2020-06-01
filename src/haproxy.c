@@ -92,7 +92,7 @@
 #include <haproxy/openssl-compat.h>
 #include <common/regex.h>
 #include <common/standard.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <common/uri_auth.h>
 #include <haproxy/version.h>
 #include <haproxy/thread.h>

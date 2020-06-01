@@ -19,7 +19,7 @@
 #include <lualib.h>
 
 #include <common/net_helper.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <common/uri_auth.h>
 
 #include <types/cli.h>

@@ -25,7 +25,7 @@
 #include <haproxy/api.h>
 #include <common/chunk.h>
 #include <common/standard.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 
 #include <types/global.h>
 

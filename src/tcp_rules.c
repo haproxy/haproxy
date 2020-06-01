@@ -14,7 +14,7 @@
 #include <haproxy/list.h>
 #include <common/standard.h>
 #include <common/ticks.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 
 #include <types/arg.h>
 #include <types/capture.h>

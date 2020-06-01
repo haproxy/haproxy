@@ -50,7 +50,7 @@
 #include <haproxy/openssl-compat.h>
 #include <common/standard.h>
 #include <common/ticks.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <haproxy/base64.h>
 
 #include <import/ebpttree.h>

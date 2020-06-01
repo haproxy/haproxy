@@ -23,7 +23,7 @@
 #include <common/buffer.h>
 #include <common/standard.h>
 #include <common/ticks.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 
 #include <proto/applet.h>
 #include <proto/channel.h>

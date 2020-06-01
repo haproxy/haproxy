@@ -16,7 +16,7 @@
 #include <common/memory.h>
 #include <haproxy/list.h>
 #include <common/standard.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 

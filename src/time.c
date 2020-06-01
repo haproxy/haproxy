@@ -15,7 +15,7 @@
 
 #include <haproxy/api.h>
 #include <common/standard.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <haproxy/thread-t.h>
 
 THREAD_LOCAL unsigned int   ms_left_scaled;  /* milliseconds left for current second (0..2^32-1) */

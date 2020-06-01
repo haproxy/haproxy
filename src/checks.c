@@ -35,7 +35,7 @@
 #include <common/chunk.h>
 #include <haproxy/list.h>
 #include <common/standard.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <haproxy/thread.h>
 #include <common/http.h>
 #include <common/h1.h>

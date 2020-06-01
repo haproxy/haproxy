@@ -25,7 +25,7 @@
 
 #include <haproxy/errors.h>
 #include <common/ticks.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <types/stick_table.h>
 #include <types/dict.h>
 

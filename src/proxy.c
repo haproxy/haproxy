@@ -21,7 +21,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
 #include <common/memory.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 
 #include <import/eb32tree.h>
 #include <import/ebistree.h>

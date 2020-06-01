@@ -24,7 +24,7 @@
 
 #include <haproxy/api.h>
 #include <common/ticks.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <proto/connection.h>
 #include <types/stream.h>
 #include <types/peers.h>

@@ -1,8 +1,8 @@
 /*
- * include/common/time.h
+ * include/haproxy/time.h
  * Time calculation functions and macros.
  *
- * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,15 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_TIME_H
-#define _COMMON_TIME_H
+#ifndef _HAPROXY_TIME_H
+#define _HAPROXY_TIME_H
 
-#include <stdlib.h>
-#include <unistd.h>
 #include <sys/time.h>
+#include <time.h>
 #include <haproxy/api.h>
 #include <haproxy/thread.h>
-#include <common/standard.h>
 
 /* eternity when exprimed in timeval */
 #ifndef TV_ETERNITY
@@ -82,16 +80,6 @@ int tv_ms_cmp(const struct timeval *tv1, const struct timeval *tv2);
  */
 int tv_ms_cmp2(const struct timeval *tv1, const struct timeval *tv2);
 
-/**** general purpose functions and macros *******************************/
-
-
-/* tv_now: sets <tv> to the current time */
-static inline struct timeval *tv_now(struct timeval *tv)
-{
-	gettimeofday(tv, NULL);
-	return tv;
-}
-
 /* tv_udpate_date: sets <date> to system time, and sets <now> to something as
  * close as possible to real time, following a monotonic function. The main
  * principle consists in detecting backwards and forwards time jumps and adjust
@@ -103,6 +91,16 @@ static inline struct timeval *tv_now(struct timeval *tv)
 void tv_update_date(int max_wait, int interrupted);
 
 char *timeofday_as_iso_us(int pad);
+
+/**** general purpose functions and macros *******************************/
+
+
+/* tv_now: sets <tv> to the current time */
+static inline struct timeval *tv_now(struct timeval *tv)
+{
+	gettimeofday(tv, NULL);
+	return tv;
+}
 
 /*
  * sets a struct timeval to its highest value so that it can never happen
@@ -602,7 +600,7 @@ static inline void tv_leaving_poll(int timeout, int interrupted)
 	ti->prev_mono_time = now_mono_time();
 }
 
-#endif /* _COMMON_TIME_H */
+#endif /* _HAPROXY_TIME_H */
 
 /*
  * Local variables:

@@ -24,7 +24,7 @@
 
 #include <haproxy/api.h>
 #include <common/ticks.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <types/applet.h>
 #include <types/global.h>
 #include <types/proxy.h>

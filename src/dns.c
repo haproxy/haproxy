@@ -22,7 +22,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <common/ticks.h>
 #include <common/net_helper.h>
 

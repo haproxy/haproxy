@@ -25,7 +25,7 @@
 #include <haproxy/atomic.h>
 #include <haproxy/api.h>
 #include <common/standard.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <types/freq_ctr.h>
 
 

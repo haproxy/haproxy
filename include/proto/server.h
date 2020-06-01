@@ -25,7 +25,7 @@
 #include <unistd.h>
 
 #include <haproxy/api.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <types/applet.h>
 #include <types/dns.h>
 #include <types/proxy.h>

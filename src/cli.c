@@ -32,7 +32,7 @@
 #include <haproxy/list.h>
 #include <common/standard.h>
 #include <common/ticks.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <common/uri_auth.h>
 #include <haproxy/version.h>
 #include <haproxy/base64.h>

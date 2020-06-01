@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include <common/time.h>
+#include <haproxy/time.h>
 
 #include <types/global.h>
 #include <types/stream.h>

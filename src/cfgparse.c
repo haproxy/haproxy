@@ -39,7 +39,7 @@
 #include <haproxy/errors.h>
 #include <common/memory.h>
 #include <common/standard.h>
-#include <common/time.h>
+#include <haproxy/time.h>
 #include <common/uri_auth.h>
 #include <common/namespace.h>
 #include <haproxy/thread.h>
