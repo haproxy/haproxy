@@ -28,6 +28,7 @@
 #include <haproxy/thread.h>
 #include <common/xref.h>
 #include <common/h1.h>
+#include <common/standard.h>
 
 #include <types/cli.h>
 #include <types/hlua.h>

@@ -12,7 +12,6 @@
  */
 
 #include <signal.h>
-#include <common/standard.h>
 #include <haproxy/thread.h>
 
 #include <types/signal.h>

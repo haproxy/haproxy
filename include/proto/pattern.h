@@ -25,7 +25,6 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <common/standard.h>
 #include <types/pattern.h>
 
 /* pattern management function arrays */

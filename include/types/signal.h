@@ -18,7 +18,6 @@
 #include <signal.h>
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
-#include <common/standard.h>
 
 /* flags for -> flags */
 #define SIG_F_ONE_SHOOT         0x0001  /* unregister handler before calling it */

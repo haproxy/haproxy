@@ -28,7 +28,7 @@
 #define _COMMON_NET_HELPER_H
 
 #include <haproxy/api.h>
-#include <common/standard.h>
+#include <haproxy/intops.h>
 #include <arpa/inet.h>
 
 /* Functions to read/write various integers that may be unaligned */

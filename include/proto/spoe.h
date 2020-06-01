@@ -22,7 +22,7 @@
 #ifndef _PROTO_SPOE_H
 #define _PROTO_SPOE_H
 
-#include <common/standard.h>
+#include <haproxy/intops.h>
 
 #include <types/spoe.h>
 

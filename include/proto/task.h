@@ -27,8 +27,8 @@
 
 #include <haproxy/api.h>
 #include <common/memory.h>
+#include <haproxy/intops.h>
 #include <haproxy/list.h>
-#include <common/standard.h>
 #include <common/ticks.h>
 #include <haproxy/thread.h>
 

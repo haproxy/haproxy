@@ -24,6 +24,7 @@
 
 #include <haproxy/api.h>
 #include <common/buffer.h>
+#include <common/standard.h>
 #include <import/ist.h>
 #include <haproxy/list.h>
 #include <types/log.h>

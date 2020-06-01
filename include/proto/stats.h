@@ -23,6 +23,7 @@
 #ifndef _PROTO_STATS_H
 #define _PROTO_STATS_H
 
+#include <common/standard.h>
 #include <haproxy/api.h>
 #include <types/applet.h>
 #include <types/stream_interface.h>

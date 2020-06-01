@@ -26,9 +26,9 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <import/ist.h>
+#include <common/chunk.h>
 #include <common/http.h>
 #include <common/http-hdr.h>
-#include <common/standard.h>
 
 /*
  * The internal representation of an HTTP message, called HTX, is a structure

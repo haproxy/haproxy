@@ -23,11 +23,11 @@
 #define _COMMON_H1_H
 
 #include <haproxy/api.h>
+#include <haproxy/intops.h>
 #include <common/buffer.h>
 #include <common/http.h>
 #include <common/http-hdr.h>
 #include <import/ist.h>
-#include <common/standard.h>
 
 
 /* Possible states while parsing HTTP/1 messages (request|response) */

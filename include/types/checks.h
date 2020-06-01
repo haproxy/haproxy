@@ -16,7 +16,6 @@
 #include <haproxy/api-t.h>
 #include <import/ebpttree.h>
 
-#include <common/standard.h>
 #include <import/ist.h>
 #include <haproxy/list-t.h>
 #include <common/regex.h>
