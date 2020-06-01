@@ -32,6 +32,7 @@
 #include <haproxy/thread.h>
 
 extern struct pool_cache_head pool_cache[][MAX_BASE_POOLS];
+extern struct list pool_lru_head[MAX_THREADS];
 extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
 extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 extern struct pool_head pool_base_start[MAX_BASE_POOLS];
@@ -250,27 +251,25 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
 }
 
-/* frees an object to the local cache, possibly pushing oldest objects to the
+void pool_evict_from_cache();
+
+/* Frees an object to the local cache, possibly pushing oldest objects to the
  * global pool.
  */
-void __pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx);
-static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
+static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx)
 {
-	ssize_t idx = pool_get_index(pool);
+	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
+	struct pool_cache_head *ph = &pool_cache[tid][idx];
 
-	/* pool not in cache or too many objects for this pool (more than
-	 * half of the cache is used and this pool uses more than 1/8 of
-	 * the cache size).
-	 */
-	if (idx < 0 ||
-	    (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 &&
-	     pool_cache[tid][idx].count >= 16 + pool_cache_count / 8)) {
-		__pool_free(pool, ptr);
-		return;
-	}
-	__pool_put_to_cache(pool, ptr, idx);
+	LIST_ADD(&ph->list, &item->by_pool);
+	LIST_ADD(&pool_lru_head[tid], &item->by_lru);
+	ph->count++;
+	pool_cache_count++;
+	pool_cache_bytes += ph->size;
+
+	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
+		pool_evict_from_cache(pool, ptr, idx);
 }
-
 /*
  * Puts a memory area back to the corresponding pool.
  * Items are chained directly through a pointer that
@@ -283,6 +282,8 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
 static inline void pool_free(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
+		ssize_t idx __maybe_unused;
+
 #ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
@@ -290,7 +291,20 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 #endif
 		if (mem_poison_byte >= 0)
 			memset(ptr, mem_poison_byte, pool->size);
-		pool_put_to_cache(pool, ptr);
+
+		/* put the object back into the cache only if there are not too
+		 * many objects yet in this pool (no more than half of the cached
+		 * is used or this pool uses no more than 1/8 of the cache size).
+		 */
+		idx = pool_get_index(pool);
+		if (idx >= 0 &&
+		    (pool_cache_bytes <= CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 ||
+		     pool_cache[tid][idx].count < 16 + pool_cache_count / 8)) {
+			pool_put_to_cache(pool, ptr, idx);
+			return;
+		}
+
+		__pool_free(pool, ptr);
 	}
 }
 

@@ -40,7 +40,7 @@ unsigned int pool_base_count = 0;
 
 /* These ones are initialized per-thread on startup by init_pools() */
 struct pool_cache_head pool_cache[MAX_THREADS][MAX_BASE_POOLS];
-static struct list pool_lru_head[MAX_THREADS];           /* oldest objects   */
+struct list pool_lru_head[MAX_THREADS];                  /* oldest objects   */
 THREAD_LOCAL size_t pool_cache_bytes = 0;                /* total cache size */
 THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 
@@ -278,22 +278,13 @@ void pool_gc(struct pool_head *pool_ctx)
 		thread_release();
 }
 
-/* frees an object to the local cache, possibly pushing oldest objects to the
- * global pool. Must not be called directly.
+/* Evicts some of the oldest objects from the local cache, pushing them to the
+ * global pool.
  */
-void __pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx)
+void pool_evict_from_cache()
 {
-	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
-	struct pool_cache_head *ph = &pool_cache[tid][idx];
-
-	LIST_ADD(&ph->list, &item->by_pool);
-	LIST_ADD(&pool_lru_head[tid], &item->by_lru);
-	ph->count++;
-	pool_cache_count++;
-	pool_cache_bytes += ph->size;
-
-	if (pool_cache_bytes <= CONFIG_HAP_POOL_CACHE_SIZE)
-		return;
+	struct pool_cache_item *item;
+	struct pool_cache_head *ph;
 
 	do {
 		item = LIST_PREV(&pool_lru_head[tid], struct pool_cache_item *, by_lru);
