@@ -372,6 +372,35 @@ static inline void *pool_alloc(struct pool_head *pool)
 	return p;
 }
 
+/* unconditionally stores the object as-is into the global pool. The object
+ * must not be NULL. Use pool_free() instead.
+ */
+static inline void __pool_free(struct pool_head *pool, void *ptr)
+{
+#ifndef DEBUG_UAF /* normal pool behaviour */
+	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
+	pool->used--;
+	if (pool_is_crowded(pool)) {
+		pool_free_area(ptr, pool->size + POOL_EXTRA);
+		pool->allocated--;
+	} else {
+		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
+		pool->free_list = (void *)ptr;
+	}
+	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+#else  /* release the entry for real to detect use after free */
+	/* ensure we crash on double free or free of a const area*/
+	*(uint32_t *)ptr = 0xDEADADD4;
+	pool_free_area(ptr, pool->size + POOL_EXTRA);
+	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
+	pool->allocated--;
+	pool->used--;
+	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+#endif /* DEBUG_UAF */
+}
+
 /*
  * Puts a memory area back to the corresponding pool.
  * Items are chained directly through a pointer that
@@ -389,29 +418,10 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
 			*DISGUISE((volatile int *)0) = 0;
 #endif
+		if (mem_poison_byte >= 0)
+			memset(ptr, mem_poison_byte, pool->size);
 
-#ifndef DEBUG_UAF /* normal pool behaviour */
-		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-		pool->used--;
-		if (pool_is_crowded(pool)) {
-			pool_free_area(ptr, pool->size + POOL_EXTRA);
-			pool->allocated--;
-		} else {
-			*POOL_LINK(pool, ptr) = (void *)pool->free_list;
-			pool->free_list = (void *)ptr;
-		}
-		swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
-		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-#else  /* release the entry for real to detect use after free */
-		/* ensure we crash on double free or free of a const area*/
-		*(uint32_t *)ptr = 0xDEADADD4;
-		pool_free_area(ptr, pool->size + POOL_EXTRA);
-		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-		pool->allocated--;
-		pool->used--;
-		swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
-		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-#endif /* DEBUG_UAF */
+		__pool_free(pool, ptr);
 	}
 }
 #endif /* CONFIG_HAP_LOCKLESS_POOLS */
