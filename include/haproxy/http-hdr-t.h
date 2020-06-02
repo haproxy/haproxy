@@ -1,7 +1,8 @@
 /*
+ * include/haproxy/http-hdr-t.h
  * HTTP header management (new model) - type definitions
  *
- * Copyright (C) 2014-2017 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2020 Willy Tarreau <willy@haproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -24,10 +25,9 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#ifndef _COMMON_HTTP_HDR_H
-#define _COMMON_HTTP_HDR_H
+#ifndef _HAPROXY_HTTP_HDR_T_H
+#define _HAPROXY_HTTP_HDR_T_H
 
-#include <inttypes.h>
 #include <import/ist.h>
 
 /* a header field made of a name and a value. Such structure stores 4 longs so
@@ -38,30 +38,4 @@ struct http_hdr {
 	struct ist v; /* value */
 };
 
-/* sets an http_hdr <hdr> to name <n> and value <v>. Useful to avoid casts in
- * immediate assignments.
- */
-static inline void http_set_hdr(struct http_hdr *hdr, const struct ist n, const struct ist v)
-{
-	hdr->n = n;
-	hdr->v = v;
-}
-
-/* removes all occurrences of header name <n> in list <hdr> and returns the new count. The
- * list must be terminated by the empty header.
- */
-static inline int http_del_hdr(struct http_hdr *hdr, const struct ist n)
-{
-	int src = 0, dst = 0;
-
-	do {
-		if (!isteqi(hdr[src].n, n)) {
-			if (src != dst)
-				hdr[dst] = hdr[src];
-			dst++;
-		}
-	} while (hdr[src++].n.len);
-
-	return dst;
-}
-#endif /* _COMMON_HTTP_HDR_H */
+#endif /* _HAPROXY_HTTP_HDR_T_H */

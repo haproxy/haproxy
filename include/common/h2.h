@@ -30,7 +30,7 @@
 #define _COMMON_H2_H
 
 #include <haproxy/api.h>
-#include <common/http-hdr.h>
+#include <haproxy/http-hdr-t.h>
 #include <common/htx.h>
 #include <import/ist.h>
 

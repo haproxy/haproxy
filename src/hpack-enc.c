@@ -31,7 +31,7 @@
 #include <string.h>
 
 #include <common/hpack-enc.h>
-#include <common/http-hdr.h>
+#include <haproxy/http-hdr-t.h>
 #include <import/ist.h>
 
 #include <types/global.h>
