@@ -23,7 +23,7 @@
 #define _TYPES_CHANNEL_H
 
 #include <haproxy/api-t.h>
-#include <common/buffer.h>
+#include <haproxy/buf-t.h>
 
 /* The CF_* macros designate Channel Flags, which may be ORed in the bit field
  * member 'flags' in struct channel. Here we have several types of flags :

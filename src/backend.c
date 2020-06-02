@@ -20,7 +20,6 @@
 #include <sys/types.h>
 
 #include <haproxy/api.h>
-#include <common/buffer.h>
 #include <haproxy/hash.h>
 #include <common/htx.h>
 #include <common/ticks.h>

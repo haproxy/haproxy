@@ -11,7 +11,7 @@
  */
 
 #include <haproxy/api.h>
-#include <common/buffer.h>
+#include <haproxy/dynbuf.h>
 #include <common/cfgparse.h>
 #include <common/htx.h>
 #include <haproxy/list.h>

@@ -1,8 +1,8 @@
 /*
- * include/common/buffer.h
- * Buffer management definitions, macros and inline functions.
+ * include/haproxy/dynbuf.h
+ * Buffer management functions.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,29 +19,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_BUFFER_H
-#define _COMMON_BUFFER_H
+#ifndef _HAPROXY_DYNBUF_H
+#define _HAPROXY_DYNBUF_H
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <import/ist.h>
+#include <haproxy/activity.h>
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
-#include <import/ist.h>
-#include <haproxy/istbuf.h>
+#include <haproxy/dynbuf-t.h>
+#include <haproxy/list-t.h>
 #include <haproxy/pool.h>
-
-#include <haproxy/activity.h>
-
-/* an element of the <buffer_wq> list. It represents an object that need to
- * acquire a buffer to continue its process. */
-struct buffer_wait {
-	void *target;              /* The waiting object that should be woken up */
-	int (*wakeup_cb)(void *);  /* The function used to wake up the <target>, passed as argument */
-	struct mt_list list;        /* Next element in the <buffer_wq> list */
-};
 
 extern struct pool_head *pool_head_buffer;
 extern struct mt_list buffer_wq;
@@ -210,7 +202,7 @@ static inline void offer_buffers(void *from, unsigned int threshold)
 }
 
 
-#endif /* _COMMON_BUFFER_H */
+#endif /* _HAPROXY_DYNBUF_H */
 
 /*
  * Local variables:

@@ -16,7 +16,7 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <common/buffer.h>
+#include <haproxy/buf.h>
 
 #include <proto/channel.h>
 

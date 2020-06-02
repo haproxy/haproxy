@@ -32,7 +32,7 @@
 #include <zlib.h>
 #endif
 
-#include <common/buffer.h>
+#include <haproxy/buf-t.h>
 
 struct comp {
 	struct comp_algo *algos;

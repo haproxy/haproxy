@@ -18,9 +18,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <haproxy/api.h>
-#include <common/buffer.h>
 #include <import/ist.h>
+#include <haproxy/api.h>
+#include <haproxy/buf.h>
+#include <haproxy/istbuf.h>
 #include <haproxy/list.h>
 #include <proto/cli.h>
 #include <proto/log.h>

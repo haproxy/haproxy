@@ -31,7 +31,7 @@
 #include <types/ssl_ckch.h>
 #include <types/ssl_crtlist.h>
 
-#include <common/buffer.h>
+#include <haproxy/buf-t.h>
 #include <haproxy/thread.h>
 #include <haproxy/list-t.h>
 #include <haproxy/openssl-compat.h>

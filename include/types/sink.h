@@ -23,8 +23,8 @@
 #define _TYPES_SINK_H
 
 #include <haproxy/api-t.h>
-#include <common/buffer.h>
 #include <import/ist.h>
+#include <haproxy/api.h>
 
 /* A sink may be of 4 distinct types :
  *   - file descriptor (such as stdout)

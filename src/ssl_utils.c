@@ -12,7 +12,8 @@
  */
 
 
-#include <common/buffer.h>
+#include <haproxy/api.h>
+#include <haproxy/buf-t.h>
 #include <haproxy/openssl-compat.h>
 
 #include <proto/ssl_sock.h>

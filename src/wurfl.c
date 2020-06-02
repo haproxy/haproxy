@@ -2,9 +2,9 @@
 #include <stdarg.h>
 
 #include <haproxy/api.h>
+#include <haproxy/buf-t.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
-#include <common/buffer.h>
 #include <haproxy/errors.h>
 #include <types/global.h>
 #include <proto/arg.h>

@@ -23,13 +23,13 @@
 #define _TYPES_APPLET_H
 
 #include <haproxy/api-t.h>
+#include <haproxy/buf.h>
+#include <haproxy/dynbuf-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <types/hlua.h>
 #include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/stream.h>
-#include <common/buffer.h>
-#include <haproxy/chunk.h>
 #include <common/xref.h>
 
 struct appctx;

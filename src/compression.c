@@ -27,6 +27,7 @@
 #endif /* USE_ZLIB */
 
 #include <haproxy/api.h>
+#include <haproxy/dynbuf.h>
 #include <common/cfgparse.h>
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>

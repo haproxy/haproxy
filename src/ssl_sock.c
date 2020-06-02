@@ -44,7 +44,7 @@
 #include <import/lru.h>
 #include <import/xxhash.h>
 
-#include <common/buffer.h>
+#include <haproxy/dynbuf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/openssl-compat.h>

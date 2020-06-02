@@ -21,7 +21,7 @@
 #include <unistd.h>
 
 #include <haproxy/api.h>
-#include <common/buffer.h>
+#include <haproxy/buf-t.h>
 #include <haproxy/openssl-compat.h>
 #include <common/standard.h>
 

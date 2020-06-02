@@ -24,7 +24,7 @@
 
 #include <sys/time.h>
 
-#include <common/buffer.h>
+#include <haproxy/dynbuf-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/thread.h>
 

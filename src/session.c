@@ -11,7 +11,6 @@
  */
 
 #include <haproxy/api.h>
-#include <common/buffer.h>
 #include <common/http.h>
 #include <haproxy/pool.h>
 

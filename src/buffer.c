@@ -15,7 +15,8 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <common/buffer.h>
+#include <haproxy/dynbuf.h>
+#include <haproxy/list.h>
 #include <haproxy/pool.h>
 
 #include <types/global.h>

@@ -20,7 +20,7 @@
 #include <sys/types.h>
 
 #include <haproxy/api.h>
-#include <common/buffer.h>
+#include <haproxy/dynbuf.h>
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <haproxy/time.h>

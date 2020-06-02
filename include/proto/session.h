@@ -23,7 +23,6 @@
 #define _PROTO_SESSION_H
 
 #include <haproxy/api.h>
-#include <common/buffer.h>
 #include <haproxy/pool.h>
 
 #include <types/global.h>

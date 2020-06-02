@@ -23,7 +23,6 @@
 #define _TYPES_TRACE_H
 
 #include <haproxy/api-t.h>
-#include <common/buffer.h>
 #include <import/ist.h>
 #include <haproxy/list-t.h>
 #include <types/sink.h>
