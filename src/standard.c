@@ -37,7 +37,7 @@
 #include <arpa/inet.h>
 
 #include <haproxy/api.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/standard.h>
 #include <types/global.h>
 #include <proto/applet.h>

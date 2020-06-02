@@ -20,7 +20,7 @@
 
 #include <haproxy/api.h>
 #include <common/standard.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <haproxy/time.h>
 
 #include <proto/spoe.h>

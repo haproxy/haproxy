@@ -15,7 +15,7 @@
 #include <arpa/inet.h>
 
 #include <common/standard.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <types/global.h>
 #include <proto/arg.h>
 

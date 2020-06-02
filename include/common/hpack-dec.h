@@ -29,7 +29,7 @@
 #define _COMMON_HPACK_DEC_H
 
 #include <haproxy/api.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/hpack-tbl.h>
 
 int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,

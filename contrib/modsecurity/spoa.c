@@ -37,7 +37,7 @@
 #include <event2/thread.h>
 
 #include <haproxy/list.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 
 #include <proto/spoe.h>
 

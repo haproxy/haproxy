@@ -10,7 +10,7 @@
  *
  */
 
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/htx.h>
 
 struct htx htx_empty = { .size = 0, .data = 0, .head  = -1, .tail = -1, .first = -1 };

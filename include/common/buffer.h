@@ -28,7 +28,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <import/ist.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/pool.h>

@@ -11,7 +11,7 @@
  */
 
 #include <haproxy/api.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
 #include <common/standard.h>

@@ -83,7 +83,7 @@
 
 #include <haproxy/base64.h>
 #include <common/cfgparse.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>

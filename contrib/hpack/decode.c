@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/hpack-dec.h>
 
 #define MAX_RQ_SIZE 65536

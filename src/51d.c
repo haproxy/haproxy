@@ -2,7 +2,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/buffer.h>
 #include <haproxy/errors.h>
 #include <haproxy/thread.h>

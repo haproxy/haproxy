@@ -29,7 +29,7 @@
 #include <types/proxy.h>
 #include <types/stream.h>
 #include <common/buffer.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/xref.h>
 
 struct appctx;

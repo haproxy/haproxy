@@ -19,7 +19,7 @@
 #include <haproxy/api.h>
 #include <types/global.h>
 
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <haproxy/hash.h>
 #include <common/http.h>
 #include <common/net_helper.h>

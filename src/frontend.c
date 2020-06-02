@@ -23,7 +23,7 @@
 #include <netinet/tcp.h>
 
 #include <haproxy/api.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/standard.h>
 #include <haproxy/time.h>
 

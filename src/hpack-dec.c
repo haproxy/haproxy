@@ -34,7 +34,7 @@
 #include <common/hpack-dec.h>
 #include <common/hpack-huff.h>
 #include <common/hpack-tbl.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/h2.h>
 #include <import/ist.h>
 

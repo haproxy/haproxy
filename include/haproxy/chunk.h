@@ -1,5 +1,5 @@
 /*
- * include/common/chunk.h
+ * include/haproxy/chunk.h
  * Chunk management definitions, macros and inline functions.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_CHUNK_H
-#define _TYPES_CHUNK_H
+#ifndef _HAPROXY_CHUNK_H
+#define _HAPROXY_CHUNK_H
 
 #include <stdlib.h>
 #include <string.h>
@@ -298,7 +298,7 @@ static inline char *chunk_dup(struct buffer *dst, const struct buffer *src)
 	return dst->area;
 }
 
-#endif /* _TYPES_CHUNK_H */
+#endif /* _HAPROXY_CHUNK_H */
 
 /*
  * Local variables:

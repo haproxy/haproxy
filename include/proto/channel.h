@@ -28,7 +28,7 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/htx.h>
 #include <common/ticks.h>
 #include <haproxy/time.h>

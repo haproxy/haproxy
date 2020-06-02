@@ -25,7 +25,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <haproxy/list-t.h>
 
 #include <types/vars.h>

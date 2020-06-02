@@ -35,7 +35,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/pool.h>
 #include <common/standard.h>

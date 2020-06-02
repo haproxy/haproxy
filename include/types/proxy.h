@@ -28,7 +28,7 @@
 #include <arpa/inet.h>
 
 #include <haproxy/api-t.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <common/http.h>
 #include <haproxy/list-t.h>
 #include <common/regex.h>

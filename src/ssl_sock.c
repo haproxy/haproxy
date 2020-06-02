@@ -45,7 +45,7 @@
 #include <import/xxhash.h>
 
 #include <common/buffer.h>
-#include <common/chunk.h>
+#include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/openssl-compat.h>
 #include <common/standard.h>
