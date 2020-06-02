@@ -12,7 +12,7 @@
 
 #include <ctype.h>
 #include <haproxy/api.h>
-#include <common/h1.h>
+#include <haproxy/h1.h>
 #include <haproxy/http-hdr.h>
 
 #include <proto/channel.h>

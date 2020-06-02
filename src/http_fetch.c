@@ -19,7 +19,7 @@
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
 #include <haproxy/chunk.h>
-#include <common/h1.h>
+#include <haproxy/h1.h>
 #include <haproxy/http.h>
 #include <common/htx.h>
 #include <haproxy/pool.h>

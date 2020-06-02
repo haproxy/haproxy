@@ -28,7 +28,7 @@
 #include <haproxy/thread.h>
 #include <haproxy/regex.h>
 #include <haproxy/xref.h>
-#include <common/h1.h>
+#include <haproxy/h1.h>
 #include <common/standard.h>
 
 #include <types/cli.h>

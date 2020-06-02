@@ -1,8 +1,8 @@
 /*
- * include/common/h1.h
+ * include/haproxy/h1.h
  * This file contains HTTP/1 protocol definitions.
  *
- * Copyright (C) 2000-2017 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,15 +19,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_H1_H
-#define _COMMON_H1_H
+#ifndef _HAPROXY_H1_H
+#define _HAPROXY_H1_H
 
+#include <import/ist.h>
 #include <haproxy/api.h>
-#include <haproxy/dynbuf.h>
-#include <haproxy/intops.h>
+#include <haproxy/buf.h>
 #include <haproxy/http.h>
 #include <haproxy/http-hdr-t.h>
-#include <import/ist.h>
+#include <haproxy/intops.h>
 
 
 /* Possible states while parsing HTTP/1 messages (request|response) */
@@ -356,4 +356,4 @@ static inline struct h1m *h1m_init_res(struct h1m *h1m)
 	return h1m;
 }
 
-#endif /* _COMMON_H1_H */
+#endif /* _HAPROXY_H1_H */

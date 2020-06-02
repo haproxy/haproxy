@@ -40,7 +40,7 @@
 #include <haproxy/time.h>
 #include <haproxy/thread.h>
 #include <haproxy/http.h>
-#include <common/h1.h>
+#include <haproxy/h1.h>
 #include <common/htx.h>
 
 #include <types/global.h>

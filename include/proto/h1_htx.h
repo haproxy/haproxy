@@ -25,7 +25,7 @@
 
 #include <haproxy/buf.h>
 #include <import/ist.h>
-#include <common/h1.h>
+#include <haproxy/h1.h>
 
 int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 		      struct buffer *srcbuf, size_t ofs, size_t max);

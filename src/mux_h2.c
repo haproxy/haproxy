@@ -13,7 +13,7 @@
 #include <haproxy/api.h>
 #include <haproxy/istbuf.h>
 #include <common/cfgparse.h>
-#include <common/h1.h>
+#include <haproxy/h1.h>
 #include <common/h2.h>
 #include <common/hpack-dec.h>
 #include <common/hpack-enc.h>
