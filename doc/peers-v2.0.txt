@@ -191,11 +191,11 @@ between the "Sender Table ID" to identify it directly in case of "Table Switch M
 
 Table Type present the numeric type of key used to store stick table entries:
 integer
- 0: signed integer
- 1: IPv4 address
- 2: IPv6 address
- 3: string
- 4: binary
+ 2: signed integer
+ 4: IPv4 address
+ 5: IPv6 address
+ 6: string
+ 7: binary
 
 Table Keylen present the key length or max length in case of strings or binary (padded with 0).
 
