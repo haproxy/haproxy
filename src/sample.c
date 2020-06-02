@@ -21,7 +21,7 @@
 
 #include <haproxy/chunk.h>
 #include <haproxy/hash.h>
-#include <common/http.h>
+#include <haproxy/http.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
 #include <common/standard.h>

@@ -3,7 +3,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
-#include <common/http.h>
+#include <haproxy/http.h>
 #include <types/global.h>
 #include <proto/arg.h>
 #include <proto/http_fetch.h>

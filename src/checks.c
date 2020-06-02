@@ -39,7 +39,7 @@
 #include <common/standard.h>
 #include <haproxy/time.h>
 #include <haproxy/thread.h>
-#include <common/http.h>
+#include <haproxy/http.h>
 #include <common/h1.h>
 #include <common/htx.h>
 

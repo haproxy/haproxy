@@ -2,7 +2,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/http.h>
+#include <haproxy/http.h>
 #include <haproxy/list.h>
 
 #include <types/vars.h>

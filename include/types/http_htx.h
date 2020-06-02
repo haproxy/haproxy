@@ -26,7 +26,7 @@
 #include <import/ebistree.h>
 
 #include <haproxy/buf-t.h>
-#include <common/http.h>
+#include <haproxy/http-t.h>
 #include <common/htx.h>
 #include <import/ist.h>
 

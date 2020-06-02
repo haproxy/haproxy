@@ -27,7 +27,7 @@
 #include <haproxy/buf.h>
 #include <import/ist.h>
 #include <haproxy/chunk.h>
-#include <common/http.h>
+#include <haproxy/http-t.h>
 #include <common/http-hdr.h>
 
 /*

@@ -12,6 +12,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
+#include <haproxy/http.h>
 #include <common/htx.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>

@@ -29,7 +29,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/chunk.h>
-#include <common/http.h>
+#include <haproxy/http-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/thread.h>
 

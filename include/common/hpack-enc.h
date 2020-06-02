@@ -31,7 +31,7 @@
 #include <string.h>
 #include <haproxy/api.h>
 #include <haproxy/buf-t.h>
-#include <common/http.h>
+#include <haproxy/http-t.h>
 #include <import/ist.h>
 
 int hpack_encode_header(struct buffer *out, const struct ist n,

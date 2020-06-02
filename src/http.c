@@ -12,7 +12,7 @@
 
 #include <ctype.h>
 #include <haproxy/api.h>
-#include <common/http.h>
+#include <haproxy/http.h>
 #include <common/standard.h>
 
 /* It is about twice as fast on recent architectures to lookup a byte in a

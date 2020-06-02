@@ -27,6 +27,7 @@
 
 #include <inttypes.h>
 #include <haproxy/api.h>
+#include <haproxy/http.h>
 #include <common/h2.h>
 #include <common/http-hdr.h>
 #include <import/ist.h>
