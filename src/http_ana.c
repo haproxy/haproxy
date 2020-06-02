@@ -13,7 +13,7 @@
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
 #include <common/htx.h>
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 #include <common/uri_auth.h>
 
 #include <types/capture.h>

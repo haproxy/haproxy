@@ -18,7 +18,7 @@
 #include <lua.h>
 #include <lualib.h>
 
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 #include <haproxy/time.h>
 #include <common/uri_auth.h>
 

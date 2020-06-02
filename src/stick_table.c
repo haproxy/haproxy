@@ -18,7 +18,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 #include <common/standard.h>
 #include <haproxy/time.h>
 

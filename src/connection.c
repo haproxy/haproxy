@@ -16,7 +16,7 @@
 #include <common/cfgparse.h>
 #include <common/namespace.h>
 #include <haproxy/hash.h>
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 
 #include <proto/connection.h>
 #include <proto/fd.h>

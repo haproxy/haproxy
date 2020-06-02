@@ -1,9 +1,9 @@
 /*
- * include/common/net_helper.h
+ * include/haproxy/net_helper.h
  * This file contains miscellaneous network helper functions.
  *
  * Copyright (C) 2017 Olivier Houchard
- * Copyright (C) 2017 Willy Tarreau
+ * Copyright (C) 2017-2020 Willy Tarreau
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,12 +24,12 @@
  * SOFTWARE.
  */
 
-#ifndef _COMMON_NET_HELPER_H
-#define _COMMON_NET_HELPER_H
+#ifndef _HAPROXY_NET_HELPER_H
+#define _HAPROXY_NET_HELPER_H
 
+#include <arpa/inet.h>
 #include <haproxy/api.h>
 #include <haproxy/intops.h>
-#include <arpa/inet.h>
 
 /* Functions to read/write various integers that may be unaligned */
 
@@ -368,4 +368,4 @@ static inline void writev_n64(void *p1, size_t s1, void *p2, const uint64_t u64)
 	writev_u64(p1, s1, p2, my_htonll(u64));
 }
 
-#endif /* COMMON_NET_HELPER_H */
+#endif /* HAPROXY_NET_HELPER_H */

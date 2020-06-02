@@ -22,7 +22,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/hash.h>
 #include <common/http.h>
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
 #include <haproxy/base64.h>

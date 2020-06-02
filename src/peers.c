@@ -21,7 +21,7 @@
 #include <sys/types.h>
 
 #include <haproxy/api.h>
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 #include <haproxy/time.h>
 #include <common/standard.h>
 #include <haproxy/thread.h>

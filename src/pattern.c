@@ -15,7 +15,7 @@
 #include <errno.h>
 
 #include <haproxy/api.h>
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 #include <common/standard.h>
 
 #include <types/global.h>

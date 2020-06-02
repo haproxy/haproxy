@@ -19,7 +19,7 @@
 #include <common/hpack-enc.h>
 #include <common/hpack-tbl.h>
 #include <common/htx.h>
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 #include <proto/connection.h>
 #include <proto/http_htx.h>
 #include <proto/trace.h>

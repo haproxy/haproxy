@@ -17,7 +17,7 @@
 #include <common/htx.h>
 #include <import/ist.h>
 #include <haproxy/list.h>
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 
 #include <types/proxy.h>
 #include <types/session.h>

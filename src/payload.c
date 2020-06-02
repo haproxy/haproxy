@@ -14,7 +14,7 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 #include <common/htx.h>
 #include <proto/acl.h>
 #include <proto/arg.h>

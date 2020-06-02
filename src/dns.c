@@ -24,7 +24,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/time.h>
 #include <common/ticks.h>
-#include <common/net_helper.h>
+#include <haproxy/net_helper.h>
 
 #include <types/action.h>
 #include <types/applet.h>
