@@ -12568,13 +12568,16 @@ ssl
 
 ssl-max-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
   This option enforces use of <version> or lower on SSL connections instantiated
-  from this listener. This option is also available on global statement
+  from this listener. Using this setting without "ssl-min-ver" can be
+  ambiguous because the default ssl-min-ver value could change in future HAProxy
+  versions. This option is also available on global statement
   "ssl-default-bind-options". See also "ssl-min-ver".
 
 ssl-min-ver [ SSLv3 | TLSv1.0 | TLSv1.1 | TLSv1.2 | TLSv1.3 ]
-  This option enforces use of <version> or upper on SSL connections instantiated
-  from this listener. This option is also available on global statement
-  "ssl-default-bind-options". See also "ssl-max-ver".
+  This option enforces use of <version> or upper on SSL connections
+  instantiated from this listener. The default value is "TLSv1.2". This option
+  is also available on global statement "ssl-default-bind-options".
+  See also "ssl-max-ver".
 
 strict-sni
   This setting is only available when support for OpenSSL was built in. The

@@ -3650,6 +3650,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	int i, min, max, hole;
 	int flags = MC_SSL_O_ALL;
 	int cfgerr = 0;
+	const int default_min_ver = CONF_TLSV12;
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	bind_conf->initial_ctx = ctx;
@@ -3663,9 +3664,18 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 
 	min = conf_ssl_methods->min;
 	max = conf_ssl_methods->max;
-	/* start with TLSv12 to remove SSLv3,TLSv10,TLSv11 per default */
-	if (!min && (!max || max >= CONF_TLSV12))
-		min = CONF_TLSV12;
+
+	/* default minimum is TLSV12,  */
+	if (!min) {
+		if (!max || (max >= default_min_ver)) {
+			min = default_min_ver;
+		} else {
+			ha_warning("Proxy '%s': Ambiguous configuration for bind '%s' at [%s:%d]: the ssl-min-ver value is not configured and the ssl-max-ver value is lower than the default ssl-min-ver value (%s). "
+			           "Setting the ssl-min-ver to %s. Use 'ssl-min-ver' to fix this.\n",
+			           bind_conf->frontend->id, bind_conf->arg, bind_conf->file, bind_conf->line, methodVersions[default_min_ver].name, methodVersions[max].name);
+			min = max;
+		}
+	}
 	/* Real min and max should be determinate with configuration and openssl's capabilities */
 	if (min)
 		flags |= (methodVersions[min].flag - 1);
