@@ -22,7 +22,7 @@
 #ifndef _TYPES_ACTION_H
 #define _TYPES_ACTION_H
 
-#include <common/regex.h>
+#include <haproxy/regex-t.h>
 
 #include <types/applet.h>
 #include <types/stick_table.h>

@@ -29,7 +29,6 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
-#include <common/regex.h>
 #include <import/eb32tree.h>
 
 #include <types/dict.h>

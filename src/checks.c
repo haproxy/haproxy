@@ -35,6 +35,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
+#include <haproxy/regex.h>
 #include <common/standard.h>
 #include <haproxy/time.h>
 #include <haproxy/thread.h>

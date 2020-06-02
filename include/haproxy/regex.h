@@ -1,8 +1,8 @@
 /*
- * include/common/regex.h
- * This file defines everything related to regular expressions.
+ * include/haproxy/regex.h
+ * Compatibility layer for various regular expression engines
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,54 +19,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_REGEX_H
-#define _COMMON_REGEX_H
+#ifndef _HAPROXY_REGEX_H
+#define _HAPROXY_REGEX_H
 
 #include <stdlib.h>
 #include <string.h>
 
 #include <haproxy/api.h>
+#include <haproxy/regex-t.h>
 #include <haproxy/thread-t.h>
-
-#ifdef USE_PCRE
-#include <pcre.h>
-#include <pcreposix.h>
-
-/* For pre-8.20 PCRE compatibility */
-#ifndef PCRE_STUDY_JIT_COMPILE
-#define PCRE_STUDY_JIT_COMPILE 0
-#endif
-
-#elif USE_PCRE2
-#include <pcre2.h>
-#include <pcre2posix.h>
-
-#else /* no PCRE, nor PCRE2 */
-#include <regex.h>
-#endif
-
-struct my_regex {
-#ifdef USE_PCRE
-	pcre *reg;
-	pcre_extra *extra;
-#ifdef USE_PCRE_JIT
-#ifndef PCRE_CONFIG_JIT
-#error "The PCRE lib doesn't support JIT. Change your lib, or remove the option USE_PCRE_JIT."
-#endif
-#endif
-#elif USE_PCRE2
-	pcre2_code *reg;
-#else /* no PCRE */
-	regex_t regex;
-#endif
-};
-
-struct hdr_exp {
-    struct hdr_exp *next;
-    struct my_regex *preg;		/* expression to look for */
-    const char *replace;		/* expression to set instead */
-    void *cond;				/* a possible condition or NULL */
-};
 
 extern THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];
 
@@ -83,10 +44,16 @@ extern THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];
 struct my_regex *regex_comp(const char *str, int cs, int cap, char **err);
 int exp_replace(char *dst, unsigned int dst_size, char *src, const char *str, const regmatch_t *matches);
 const char *check_replace_string(const char *str);
+int regex_exec_match(const struct my_regex *preg, const char *subject,
+                     size_t nmatch, regmatch_t pmatch[], int flags);
+int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
+                      size_t nmatch, regmatch_t pmatch[], int flags);
+
 
 /* If the function doesn't match, it returns false, else it returns true.
  */
-static inline int regex_exec(const struct my_regex *preg, char *subject) {
+static inline int regex_exec(const struct my_regex *preg, char *subject)
+{
 #if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	if (pcre_exec(preg->reg, preg->extra, subject, strlen(subject), 0, 0, NULL, 0) < 0)
 		return 0;
@@ -117,7 +84,8 @@ static inline int regex_exec(const struct my_regex *preg, char *subject) {
  *
  * If the function doesn't match, it returns false, else it returns true.
  */
-static inline int regex_exec2(const struct my_regex *preg, char *subject, int length) {
+static inline int regex_exec2(const struct my_regex *preg, char *subject, int length)
+{
 #if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	if (pcre_exec(preg->reg, preg->extra, subject, length, 0, 0, NULL, 0) < 0)
 		return 0;
@@ -145,12 +113,8 @@ static inline int regex_exec2(const struct my_regex *preg, char *subject, int le
 #endif
 }
 
-int regex_exec_match(const struct my_regex *preg, const char *subject,
-                     size_t nmatch, regmatch_t pmatch[], int flags);
-int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
-                      size_t nmatch, regmatch_t pmatch[], int flags);
-
-static inline void regex_free(struct my_regex *preg) {
+static inline void regex_free(struct my_regex *preg)
+{
 	if (!preg)
 		return;
 #if defined(USE_PCRE) || defined(USE_PCRE_JIT)
@@ -171,7 +135,7 @@ static inline void regex_free(struct my_regex *preg) {
 	free(preg);
 }
 
-#endif /* _COMMON_REGEX_H */
+#endif /* _HAPROXY_REGEX_H */
 
 /*
  * Local variables:

@@ -21,6 +21,7 @@
 #include <haproxy/chunk.h>
 #include <common/http.h>
 #include <haproxy/pool.h>
+#include <haproxy/regex.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
 #include <haproxy/version.h>

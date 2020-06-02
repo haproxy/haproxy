@@ -23,6 +23,7 @@
 #include <haproxy/hash.h>
 #include <common/http.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/regex.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
 #include <haproxy/base64.h>

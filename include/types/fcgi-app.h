@@ -26,7 +26,7 @@
 #include <import/ist.h>
 #include <common/fcgi.h>
 #include <haproxy/list-t.h>
-#include <common/regex.h>
+#include <haproxy/regex-t.h>
 
 #include <import/ebistree.h>
 

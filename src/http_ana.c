@@ -14,6 +14,7 @@
 #include <haproxy/base64.h>
 #include <common/htx.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/regex.h>
 #include <common/uri_auth.h>
 
 #include <types/capture.h>

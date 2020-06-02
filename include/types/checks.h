@@ -18,7 +18,7 @@
 
 #include <import/ist.h>
 #include <haproxy/list-t.h>
-#include <common/regex.h>
+#include <haproxy/regex-t.h>
 #include <haproxy/buf-t.h>
 
 #include <types/connection.h>

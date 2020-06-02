@@ -6,7 +6,7 @@
 #include <lua.h>
 #include <lauxlib.h>
 
-#include <common/regex.h>
+#include <haproxy/regex-t.h>
 #include <common/xref.h>
 
 #include <types/http_ana.h>

@@ -13,6 +13,7 @@
 #include <stdio.h>
 
 #include <haproxy/api.h>
+#include <haproxy/regex.h>
 #include <common/standard.h>
 
 #include <types/applet.h>

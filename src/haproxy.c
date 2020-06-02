@@ -91,7 +91,7 @@
 #include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
-#include <common/regex.h>
+#include <haproxy/regex.h>
 #include <common/standard.h>
 #include <haproxy/time.h>
 #include <common/uri_auth.h>

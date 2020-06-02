@@ -14,6 +14,7 @@
 #include <haproxy/chunk.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
+#include <haproxy/regex.h>
 #include <common/standard.h>
 
 #include <types/global.h>

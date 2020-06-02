@@ -25,7 +25,7 @@
 
 #include <haproxy/buf.h>
 #include <import/ist.h>
-#include <common/regex.h>
+#include <haproxy/regex-t.h>
 
 #include <types/http_htx.h>
 
