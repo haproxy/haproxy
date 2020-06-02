@@ -14,7 +14,7 @@
 #include <common/cfgparse.h>
 #include <common/standard.h>
 #include <haproxy/thread-t.h>
-#include <types/activity.h>
+#include <haproxy/activity-t.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
 #include <haproxy/freq_ctr.h>

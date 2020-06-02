@@ -31,7 +31,7 @@
 #include <common/ticks.h>
 #include <haproxy/time.h>
 #include <types/fd.h>
-#include <proto/activity.h>
+#include <haproxy/activity.h>
 
 /* public variables */
 

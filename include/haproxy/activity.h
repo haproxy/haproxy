@@ -1,8 +1,8 @@
 /*
- * include/proto/activity.h
+ * include/haproxy/activity.h
  * This file contains macros and inline functions for activity measurements.
  *
- * Copyright (C) 2000-2018 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,25 +19,18 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_ACTIVITY_H
-#define _PROTO_ACTIVITY_H
+#ifndef _HAPROXY_ACTIVITY_H
+#define _HAPROXY_ACTIVITY_H
 
 #include <haproxy/atomic.h>
 #include <haproxy/api.h>
 #include <haproxy/time.h>
-#include <types/activity.h>
+#include <haproxy/activity-t.h>
 #include <haproxy/freq_ctr.h>
-
-/* bit fields for "profiling" */
-#define HA_PROF_TASKS_OFF   0x00000000     /* per-task CPU profiling forced disabled */
-#define HA_PROF_TASKS_AUTO  0x00000001     /* per-task CPU profiling automatic */
-#define HA_PROF_TASKS_ON    0x00000002     /* per-task CPU profiling forced enabled */
-#define HA_PROF_TASKS_MASK  0x00000003     /* per-task CPU profiling mask */
 
 extern unsigned int profiling;
 extern unsigned long task_profiling_mask;
 extern struct activity activity[MAX_THREADS];
-
 
 void report_stolen_time(uint64_t stolen);
 
@@ -99,7 +92,7 @@ static inline void activity_count_runtime()
 }
 
 
-#endif /* _PROTO_ACTIVITY_H */
+#endif /* _HAPROXY_ACTIVITY_H */
 
 /*
  * Local variables:

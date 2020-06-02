@@ -23,7 +23,7 @@
 #include <haproxy/list.h>
 #include <common/standard.h>
 
-#include <types/activity.h>
+#include <haproxy/activity-t.h>
 
 #include <proto/applet.h>
 #include <proto/cli.h>

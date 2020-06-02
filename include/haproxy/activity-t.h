@@ -1,8 +1,8 @@
 /*
- * include/types/activity.h
+ * include/haproxy/activity-t.h
  * This file contains structure declarations for activity measurements.
  *
- * Copyright (C) 2000-2018 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,11 +19,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_ACTIVITY_H
-#define _TYPES_ACTIVITY_H
+#ifndef _HAPROXY_ACTIVITY_T_H
+#define _HAPROXY_ACTIVITY_T_H
 
 #include <haproxy/api-t.h>
 #include <haproxy/freq_ctr-t.h>
+
+/* bit fields for the "profiling" global variable */
+#define HA_PROF_TASKS_OFF   0x00000000     /* per-task CPU profiling forced disabled */
+#define HA_PROF_TASKS_AUTO  0x00000001     /* per-task CPU profiling automatic */
+#define HA_PROF_TASKS_ON    0x00000002     /* per-task CPU profiling forced enabled */
+#define HA_PROF_TASKS_MASK  0x00000003     /* per-task CPU profiling mask */
 
 /* per-thread activity reports. It's important that it's aligned on cache lines
  * because some elements will be updated very often. Most counters are OK on
@@ -65,7 +71,7 @@ struct activity {
 	char __end[0] __attribute__((aligned(64))); // align size to 64.
 };
 
-#endif /* _TYPES_ACTIVITY_H */
+#endif /* _HAPROXY_ACTIVITY_T_H */
 
 /*
  * Local variables:

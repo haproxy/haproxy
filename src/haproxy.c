@@ -105,7 +105,7 @@
 #include <types/peers.h>
 
 #include <proto/acl.h>
-#include <proto/activity.h>
+#include <haproxy/activity.h>
 #include <proto/arg.h>
 #include <proto/auth.h>
 #include <proto/backend.h>

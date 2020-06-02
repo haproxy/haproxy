@@ -33,7 +33,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/pool.h>
 
-#include <proto/activity.h>
+#include <haproxy/activity.h>
 
 /* an element of the <buffer_wq> list. It represents an object that need to
  * acquire a buffer to continue its process. */
