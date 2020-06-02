@@ -61,18 +61,9 @@ struct my_regex {
 #endif
 };
 
-/* what to do when a header matches a regex */
-#define ACT_ALLOW	0	/* allow the request */
-#define ACT_REPLACE	1	/* replace the matching header */
-#define ACT_REMOVE	2	/* remove the matching header */
-#define ACT_DENY	3	/* deny the request */
-#define ACT_PASS	4	/* pass this header without allowing or denying the request */
-#define ACT_TARPIT	5	/* tarpit the connection matching this request */
-
 struct hdr_exp {
     struct hdr_exp *next;
     struct my_regex *preg;		/* expression to look for */
-    int action;				/* ACT_ALLOW, ACT_REPLACE, ACT_REMOVE, ACT_DENY */
     const char *replace;		/* expression to set instead */
     void *cond;				/* a possible condition or NULL */
 };
@@ -92,8 +83,6 @@ extern THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];
 struct my_regex *regex_comp(const char *str, int cs, int cap, char **err);
 int exp_replace(char *dst, unsigned int dst_size, char *src, const char *str, const regmatch_t *matches);
 const char *check_replace_string(const char *str);
-const char *chain_regex(struct hdr_exp **head, struct my_regex *preg,
-			int action, const char *replace, void *cond);
 
 /* If the function doesn't match, it returns false, else it returns true.
  */
