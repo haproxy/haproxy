@@ -146,8 +146,7 @@ enum PR_SRV_STATE_FILE {
 
 #define PR_O2_H1_ADJ_BUGCLI 0x00008000 /* adjust the case of h1 headers of the response for bogus clients */
 #define PR_O2_H1_ADJ_BUGSRV 0x00004000 /* adjust the case of h1 headers of the request for bogus servers */
-
-/* unused:  0x00010000 */
+#define PR_O2_NO_H2_UPGRADE 0x00010000 /* disable the implicit H2 upgrades from H1 client connections */
 
 #define PR_O2_NODELAY   0x00020000      /* fully interactive mode, never delay outgoing data */
 #define PR_O2_USE_PXHDR 0x00040000      /* use Proxy-Connection for proxy requests */

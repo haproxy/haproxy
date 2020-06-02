@@ -2797,6 +2797,7 @@ option allbackups                    (*)  X          -         X         X
 option checkcache                    (*)  X          -         X         X
 option clitcpka                      (*)  X          X         X         -
 option contstats                     (*)  X          X         X         -
+option disable-h2-upgrade            (*)  X          X         X         -
 option dontlog-normal                (*)  X          X         X         -
 option dontlognull                   (*)  X          X         X         -
 -- keyword -------------------------- defaults - frontend - listen -- backend -
@@ -7196,6 +7197,25 @@ option contstats
   not enabled by default, as it can cause a lot of wakeups for very large
   session counts and cause a small performance drop.
 
+option disable-h2-upgrade
+no option disable-h2-upgrade
+  Enable or disable the implicit HTTP/2 upgrade from an HTTP/1.x client
+  connection.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  By default, HAProxy is able to implicitly upgrade an HTTP/1.x client
+  connection to an HTTP/2 connection if the first request it receives from a
+  given HTTP connection matches the HTTP/2 connection preface (i.e. the string
+  "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"). This way, it is possible to support
+  HTTP/1.x and HTTP/2 clients on a non-SSL connections. This option must be used to
+  disable the implicit upgrade. Note this implicit upgrade is only supported
+  for HTTP proxies, thus this option too. Note also it is possible to force the
+  HTTP/2 on clear connections by specifying "proto h2" on the bind line.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
 
 option dontlog-normal
 no option dontlog-normal
