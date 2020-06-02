@@ -11,7 +11,7 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <common/namespace.h>
+#include <haproxy/namespace.h>
 #include <haproxy/hash.h>
 #include <haproxy/errors.h>
 #include <proto/log.h>

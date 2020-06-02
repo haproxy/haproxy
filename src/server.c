@@ -19,7 +19,7 @@
 
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
-#include <common/namespace.h>
+#include <haproxy/namespace.h>
 #include <haproxy/time.h>
 
 #include <types/applet.h>

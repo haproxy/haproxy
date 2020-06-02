@@ -15,7 +15,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
 #include <common/htx.h>
-#include <common/namespace.h>
+#include <haproxy/namespace.h>
 #include <common/standard.h>
 
 #include <types/filters.h>

@@ -34,7 +34,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
 #include <common/standard.h>
-#include <common/namespace.h>
+#include <haproxy/namespace.h>
 
 #include <types/action.h>
 #include <types/connection.h>

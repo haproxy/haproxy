@@ -88,7 +88,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
-#include <common/namespace.h>
+#include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
 #include <common/regex.h>

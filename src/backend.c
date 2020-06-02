@@ -24,7 +24,7 @@
 #include <common/htx.h>
 #include <common/ticks.h>
 #include <haproxy/time.h>
-#include <common/namespace.h>
+#include <haproxy/namespace.h>
 
 #include <types/global.h>
 

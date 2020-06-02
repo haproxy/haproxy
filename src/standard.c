@@ -38,6 +38,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
+#include <haproxy/namespace.h>
 #include <common/standard.h>
 #include <types/global.h>
 #include <proto/applet.h>

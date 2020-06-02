@@ -14,7 +14,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/namespace.h>
+#include <haproxy/namespace.h>
 #include <haproxy/hash.h>
 #include <haproxy/net_helper.h>
 
