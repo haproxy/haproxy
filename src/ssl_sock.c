@@ -49,7 +49,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/openssl-compat.h>
 #include <common/standard.h>
-#include <common/ticks.h>
+#include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <haproxy/base64.h>
 

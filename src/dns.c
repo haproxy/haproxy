@@ -23,7 +23,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/time.h>
-#include <common/ticks.h>
+#include <haproxy/ticks.h>
 #include <haproxy/net_helper.h>
 
 #include <types/action.h>

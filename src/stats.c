@@ -32,7 +32,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <common/standard.h>
-#include <common/ticks.h>
+#include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <common/uri_auth.h>
 #include <haproxy/version.h>

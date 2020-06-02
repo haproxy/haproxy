@@ -22,7 +22,7 @@
 #include <haproxy/api.h>
 #include <haproxy/dynbuf.h>
 #include <common/standard.h>
-#include <common/ticks.h>
+#include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
 #include <proto/applet.h>

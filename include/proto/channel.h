@@ -31,7 +31,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/dynbuf.h>
 #include <common/htx.h>
-#include <common/ticks.h>
+#include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
 #include <types/channel.h>

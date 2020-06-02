@@ -23,7 +23,7 @@
 #define _PROTO_PROXY_H
 
 #include <haproxy/api.h>
-#include <common/ticks.h>
+#include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <types/applet.h>
 #include <types/global.h>

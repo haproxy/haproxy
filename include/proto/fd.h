@@ -28,7 +28,7 @@
 #include <unistd.h>
 
 #include <haproxy/api.h>
-#include <common/ticks.h>
+#include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <types/fd.h>
 #include <haproxy/activity.h>

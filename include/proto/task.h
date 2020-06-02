@@ -29,7 +29,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/intops.h>
 #include <haproxy/list.h>
-#include <common/ticks.h>
+#include <haproxy/ticks.h>
 #include <haproxy/thread.h>
 
 #include <import/eb32sctree.h>
