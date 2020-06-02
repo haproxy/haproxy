@@ -6618,6 +6618,15 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		s->hlua->max_time = hlua_timeout_session;
 	}
 
+	/* Always reset the analyse expiration timeout for the corresponding
+	 * channel in case the lua script yield, to be sure to not keep an
+	 * expired timeout.
+	 */
+	if (dir == SMP_OPT_DIR_REQ)
+		s->req.analyse_exp = TICK_ETERNITY;
+	else
+		s->res.analyse_exp = TICK_ETERNITY;
+
 	/* Execute the function. */
 	switch (hlua_ctx_resume(s->hlua, !(flags & ACT_OPT_FINAL))) {
 	/* finished. */
