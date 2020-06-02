@@ -701,7 +701,6 @@ static void dump_crtlist_sslconf(struct buffer *buf, const struct ssl_bind_conf 
 	}
 
 	/* the crt-lists only support ssl-min-ver and ssl-max-ver */
-	/* XXX: this part need to be revamp so we don't dump the default settings */
 	if (conf->ssl_methods_cfg.min) {
 		if (space) chunk_appendf(buf, " ");
 		chunk_appendf(buf, "ssl-min-ver %s", methodVersions[conf->ssl_methods_cfg.min].name);
