@@ -26,11 +26,11 @@
 #include <haproxy/buf.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/freq_ctr-t.h>
+#include <haproxy/xref-t.h>
 #include <types/hlua.h>
 #include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/stream.h>
-#include <common/xref.h>
 
 struct appctx;
 

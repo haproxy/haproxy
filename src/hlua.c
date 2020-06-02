@@ -27,7 +27,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/thread.h>
 #include <haproxy/regex.h>
-#include <common/xref.h>
+#include <haproxy/xref.h>
 #include <common/h1.h>
 #include <common/standard.h>
 

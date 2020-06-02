@@ -7,7 +7,7 @@
 #include <lauxlib.h>
 
 #include <haproxy/regex-t.h>
-#include <common/xref.h>
+#include <haproxy/xref-t.h>
 
 #include <types/http_ana.h>
 #include <types/proxy.h>
