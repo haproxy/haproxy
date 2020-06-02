@@ -802,7 +802,7 @@ OBJS = src/mux_h2.o src/stream.o src/mux_fcgi.o src/cfgparse-listen.o         \
        src/payload.o src/vars.o src/debug.o src/mux_pt.o src/http_act.o       \
        src/h2.o src/queue.o src/fd.o src/proto_uxst.o src/lb_chash.o          \
        src/ring.o src/frontend.o src/raw_sock.o src/xprt_handshake.o          \
-       src/htx.o src/memory.o src/applet.o src/channel.o src/signal.o         \
+       src/htx.o src/pool.o src/applet.o src/channel.o src/signal.o           \
        src/lb_fwrr.o src/ev_select.o src/sink.o src/http_conv.o               \
        src/proto_sockpair.o src/mworker-prog.o src/activity.o src/lb_fwlc.o   \
        src/http.o src/lb_fas.o src/uri_auth.o src/thread.o src/regex.o        \

@@ -26,7 +26,7 @@
 #include <sys/time.h>
 
 #include <haproxy/api.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 #include <haproxy/intops.h>
 #include <haproxy/list.h>
 #include <common/ticks.h>

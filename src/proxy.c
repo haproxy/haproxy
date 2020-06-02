@@ -20,7 +20,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 #include <haproxy/time.h>
 
 #include <import/eb32tree.h>

@@ -11,7 +11,7 @@
  */
 
 #include <haproxy/api.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <common/standard.h>
 

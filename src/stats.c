@@ -29,7 +29,7 @@
 #include <haproxy/debug.h>
 #include <common/http.h>
 #include <common/htx.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <common/standard.h>
 #include <common/ticks.h>

@@ -31,7 +31,7 @@
 #include <haproxy/api.h>
 #include <common/http-hdr.h>
 #include <import/ist.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 
 /* Dynamic Headers Table, usable for tables up to 4GB long and values of 64kB-1.
  * The model can be improved by using offsets relative to the table entry's end

@@ -19,7 +19,7 @@
 #include <common/buffer.h>
 #include <haproxy/thread.h>
 #include <common/htx.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 
 #include <types/applet.h>
 #include <types/capture.h>

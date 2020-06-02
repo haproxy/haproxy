@@ -17,7 +17,7 @@
 #include <common/cfgparse.h>
 #include <common/buffer.h>
 #include <common/htx.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 #include <haproxy/list.h>
 
 #include <types/global.h>

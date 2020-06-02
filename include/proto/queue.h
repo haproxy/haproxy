@@ -23,7 +23,7 @@
 #define _PROTO_QUEUE_H
 
 #include <haproxy/api.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 
 #include <types/proxy.h>
 #include <types/queue.h>

@@ -24,7 +24,7 @@
 
 #include <haproxy/api.h>
 #include <import/ist.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 #include <types/connection.h>
 #include <types/listener.h>
 #include <proto/fd.h>

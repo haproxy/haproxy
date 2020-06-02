@@ -31,7 +31,7 @@
 #include <common/chunk.h>
 #include <import/ist.h>
 #include <haproxy/istbuf.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 
 #include <proto/activity.h>
 

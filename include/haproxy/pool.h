@@ -1,8 +1,8 @@
 /*
- * include/common/memory.h
+ * include/haproxy/pool.h
  * Memory management definitions..
  *
- * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_MEMORY_H
-#define _COMMON_MEMORY_H
+#ifndef _HAPROXY_POOL_H
+#define _HAPROXY_POOL_H
 
 #include <string.h>
 
@@ -30,36 +30,6 @@
 #include <haproxy/pool-os.h>
 #include <haproxy/pool-t.h>
 #include <haproxy/thread.h>
-
-#ifdef CONFIG_HAP_LOCAL_POOLS
-extern struct pool_head pool_base_start[MAX_BASE_POOLS];
-extern unsigned int pool_base_count;
-extern struct pool_cache_head pool_cache[][MAX_BASE_POOLS];
-extern struct list pool_lru_head[MAX_THREADS];
-extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
-extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
-#endif
-
-/* poison each newly allocated area with this byte if >= 0 */
-extern int mem_poison_byte;
-
-/* Allocates new entries for pool <pool> until there are at least <avail> + 1
- * available, then returns the last one for immediate use, so that at least
- * <avail> are left available in the pool upon return. NULL is returned if the
- * last entry could not be allocated. It's important to note that at least one
- * allocation is always performed even if there are enough entries in the pool.
- * A call to the garbage collector is performed at most once in case malloc()
- * returns an error, before returning NULL.
- */
-void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail);
-void *pool_refill_alloc(struct pool_head *pool, unsigned int avail);
-
-/* Try to find an existing shared pool with the same characteristics and
- * returns it, otherwise creates this one. NULL is returned if no memory
- * is available for a new creation.
- */
-struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags);
-void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size);
 
 /* This registers a call to create_pool_callback(ptr, name, size) */
 #define REGISTER_POOL(ptr, name, size)  \
@@ -75,48 +45,23 @@ void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size)
 	static struct pool_head *(ptr);      \
 	REGISTER_POOL(&ptr, name, size)
 
-/* Dump statistics on pools usage.
- */
+/* poison each newly allocated area with this byte if >= 0 */
+extern int mem_poison_byte;
+
+void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail);
+void *pool_refill_alloc(struct pool_head *pool, unsigned int avail);
 void dump_pools_to_trash();
 void dump_pools(void);
 int pool_total_failures();
 unsigned long pool_total_allocated();
 unsigned long pool_total_used();
-
-/*
- * This function frees whatever can be freed in pool <pool>.
- */
 void pool_flush(struct pool_head *pool);
-
-/*
- * This function frees whatever can be freed in all pools, but respecting
- * the minimum thresholds imposed by owners.
- *
- * <pool_ctx> is used when pool_gc is called to release resources to allocate
- * an element in __pool_refill_alloc. It is important because <pool_ctx> is
- * already locked, so we need to skip the lock here.
- */
 void pool_gc(struct pool_head *pool_ctx);
-
-/*
- * This function destroys a pull by freeing it completely.
- * This should be called only under extreme circumstances.
- */
+struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags);
+void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size);
 void *pool_destroy(struct pool_head *pool);
 void pool_destroy_all();
 
-/* returns the pool index for pool <pool>, or -1 if this pool has no index */
-static inline ssize_t pool_get_index(const struct pool_head *pool)
-{
-#ifdef CONFIG_HAP_LOCAL_POOLS
-	size_t idx;
-
-	idx = pool - pool_base_start;
-	if (idx < MAX_BASE_POOLS)
-		return idx;
-#endif
-	return -1;
-}
 
 /* returns true if the pool is considered to have too many free objects */
 static inline int pool_is_crowded(const struct pool_head *pool)
@@ -125,8 +70,30 @@ static inline int pool_is_crowded(const struct pool_head *pool)
 	       (int)(pool->allocated - pool->used) >= pool->minavail;
 }
 
+
 #ifdef CONFIG_HAP_LOCAL_POOLS
+
+/****************** Thread-local cache management ******************/
+
+extern struct pool_head pool_base_start[MAX_BASE_POOLS];
+extern unsigned int pool_base_count;
+extern struct pool_cache_head pool_cache[][MAX_BASE_POOLS];
+extern struct list pool_lru_head[MAX_THREADS];
+extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
+extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
+
 void pool_evict_from_cache();
+
+/* returns the pool index for pool <pool>, or -1 if this pool has no index */
+static inline ssize_t pool_get_index(const struct pool_head *pool)
+{
+	size_t idx;
+
+	idx = pool - pool_base_start;
+	if (idx < MAX_BASE_POOLS)
+		return idx;
+	return -1;
+}
 
 /* Tries to retrieve an object from the local pool cache corresponding to pool
  * <pool>. Returns NULL if none is available.
@@ -175,9 +142,19 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t 
 	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
 		pool_evict_from_cache(pool, ptr, idx);
 }
+
+#else // CONFIG_HAP_LOCAL_POOLS
+
+/* always return index -1 when thread-local pools are disabled */
+#define pool_get_index(pool) ((ssize_t)-1)
+
 #endif // CONFIG_HAP_LOCAL_POOLS
 
+
 #ifdef CONFIG_HAP_LOCKLESS_POOLS
+
+/****************** Lockless pools implementation ******************/
+
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> if
  * available, otherwise returns NULL. No malloc() is attempted, and poisonning
@@ -232,6 +209,9 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 }
 
 #else /* CONFIG_HAP_LOCKLESS_POOLS */
+
+/****************** Locked pools implementation ******************/
+
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> if
  * available, otherwise returns NULL. No malloc() is attempted, and poisonning
@@ -283,6 +263,8 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 
 #endif /* CONFIG_HAP_LOCKLESS_POOLS */
 
+
+/****************** Common high-level code ******************/
 
 static inline void *pool_get_first(struct pool_head *pool)
 {
@@ -384,8 +366,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 	}
 }
 
-
-#endif /* _COMMON_MEMORY_H */
+#endif /* _HAPROXY_POOL_H */
 
 /*
  * Local variables:

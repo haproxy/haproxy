@@ -85,7 +85,7 @@
 #include <common/cfgparse.h>
 #include <common/chunk.h>
 #include <haproxy/errors.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <common/namespace.h>
 #include <common/net_helper.h>

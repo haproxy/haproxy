@@ -23,7 +23,7 @@
 #define _PROTO_STREAM_H
 
 #include <haproxy/api.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 #include <types/action.h>
 #include <types/stream.h>
 #include <proto/fd.h>

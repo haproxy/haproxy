@@ -15,7 +15,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/thread.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 
 #include <types/global.h>
 #include <types/pipe.h>

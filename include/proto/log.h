@@ -27,7 +27,7 @@
 #include <syslog.h>
 
 #include <haproxy/api.h>
-#include <common/memory.h>
+#include <haproxy/pool.h>
 #include <haproxy/thread-t.h>
 
 #include <types/log.h>
