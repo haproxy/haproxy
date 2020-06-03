@@ -24,7 +24,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <common/fcgi.h>
+#include <haproxy/fcgi.h>
 #include <haproxy/buf.h>
 #include <haproxy/istbuf.h>
 

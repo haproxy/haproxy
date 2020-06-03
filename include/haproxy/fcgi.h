@@ -1,5 +1,5 @@
 /*
- * include/common/fcgi.h
+ * include/haproxy/fcgi.h
  * This file contains FastCGI protocol definitions.
  *
  * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
@@ -19,13 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_FCGI_H
-#define _COMMON_FCGI_H
+#ifndef _HAPROXY_FCGI_H
+#define _HAPROXY_FCGI_H
 
-#include <stdio.h>
+#include <import/ist.h>
 #include <haproxy/api.h>
 #include <haproxy/buf-t.h>
-#include <import/ist.h>
 
 /* FCGI protocol version */
 #define FCGI_VERSION    0x1
@@ -90,7 +89,7 @@ struct fcgi_end_request {
 };
 
 struct fcgi_unknown_type {
-    uint8_t type;
+	uint8_t type;
 };
 
 
@@ -124,7 +123,7 @@ size_t fcgi_aligned_decode_param(const struct buffer *in, size_t o, struct fcgi_
 
 size_t fcgi_decode_end_request(const struct buffer *in, size_t o, struct fcgi_end_request *r);
 
-#endif /* _COMMON_FCGI_H */
+#endif /* _HAPROXY_FCGI_H */
 
 /*
  * Local variables:

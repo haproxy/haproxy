@@ -12,7 +12,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/fcgi.h>
+#include <haproxy/fcgi.h>
 #include <haproxy/h1.h>
 #include <haproxy/htx.h>
 #include <import/ist.h>
