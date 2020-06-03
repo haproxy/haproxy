@@ -15,9 +15,9 @@
 #include <common/cfgparse.h>
 #include <haproxy/h1.h>
 #include <common/h2.h>
-#include <common/hpack-dec.h>
-#include <common/hpack-enc.h>
-#include <common/hpack-tbl.h>
+#include <haproxy/hpack-dec.h>
+#include <haproxy/hpack-enc.h>
+#include <haproxy/hpack-tbl.h>
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 #include <proto/connection.h>

@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <import/ist.h>
-#include <common/hpack-tbl.h>
+#include <haproxy/hpack-tbl-t.h>
 #include "../../src/hpack-tbl.c"
 
 struct idxhdr {

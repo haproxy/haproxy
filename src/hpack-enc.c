@@ -30,7 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <common/hpack-enc.h>
+#include <haproxy/hpack-enc.h>
 #include <haproxy/http-hdr-t.h>
 #include <import/ist.h>
 

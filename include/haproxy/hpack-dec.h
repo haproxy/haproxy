@@ -1,7 +1,7 @@
 /*
- * Huffman decoding and encoding for HPACK (RFC7541)
+ * HPACK decompressor (RFC7541)
  *
- * Copyright (C) 2014-2017 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2020 Willy Tarreau <willy@haproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -24,12 +24,16 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#ifndef _PROTO_HPACK_HUFF_H
-#define _PROTO_HPACK_HUFF_H
 
-#include <inttypes.h>
+#ifndef _COMMON_HPACK_DEC_H
+#define _COMMON_HPACK_DEC_H
 
-int huff_enc(const char *s, char *out);
-int huff_dec(const uint8_t *huff, int hlen, char *out, int olen);
+#include <haproxy/api.h>
+#include <haproxy/chunk.h>
+#include <haproxy/hpack-tbl.h>
 
-#endif
+int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
+                       struct http_hdr *list, int list_size,
+                       struct buffer *tmp);
+
+#endif /* _COMMON_HPACK_DEC_H */

@@ -30,8 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <common/hpack-huff.h>
-#include <common/hpack-tbl.h>
+#include <haproxy/hpack-huff.h>
+#include <haproxy/hpack-tbl.h>
 #include <import/ist.h>
 
 #include <types/global.h>

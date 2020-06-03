@@ -30,7 +30,7 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <common/hpack-huff.h>
+#include <haproxy/hpack-huff.h>
 
 struct huff {
 	uint32_t c; /* code point */
