@@ -20,7 +20,7 @@
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>

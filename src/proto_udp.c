@@ -11,10 +11,10 @@
  */
 
 #include <types/global.h>
-#include <types/fd.h>
+#include <haproxy/fd-t.h>
 #include <types/proto_udp.h>
 
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 
 /* datagram handler callback */
 void dgram_fd_handler(int fd)

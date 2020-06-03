@@ -25,7 +25,7 @@
 #include <types/global.h>
 
 #include <haproxy/activity.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 
 
 #ifndef POLLRDHUP

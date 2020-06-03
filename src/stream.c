@@ -41,7 +41,7 @@
 #include <proto/connection.h>
 #include <proto/dns.h>
 #include <proto/stats.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/frontend.h>

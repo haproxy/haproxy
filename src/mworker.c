@@ -28,7 +28,7 @@
 #include <types/signal.h>
 
 #include <proto/cli.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/mworker.h>

@@ -19,7 +19,7 @@
 #include <haproxy/net_helper.h>
 
 #include <proto/connection.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/frontend.h>
 #include <proto/proto_tcp.h>
 #include <proto/stream_interface.h>

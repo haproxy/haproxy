@@ -36,7 +36,7 @@
 #include <types/global.h>
 
 #include <proto/connection.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>

@@ -36,7 +36,7 @@
 #include <proto/applet.h>
 #include <proto/cli.h>
 #include <proto/backend.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <proto/listener.h>
 #include <proto/log.h>

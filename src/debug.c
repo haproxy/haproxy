@@ -31,7 +31,7 @@
 #include <types/signal.h>
 
 #include <proto/cli.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/hlua.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>

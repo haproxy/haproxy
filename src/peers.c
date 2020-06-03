@@ -37,7 +37,7 @@
 #include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/mux_pt.h>

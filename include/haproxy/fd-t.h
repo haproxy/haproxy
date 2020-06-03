@@ -1,5 +1,5 @@
 /*
- * include/types/fd.h
+ * include/haproxy/fd-t.h
  * File descriptors states - check src/fd.c for explanations.
  *
  * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
@@ -19,11 +19,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_FD_H
-#define _TYPES_FD_H
+#ifndef _HAPROXY_FD_T_H
+#define _HAPROXY_FD_T_H
 
 #include <haproxy/api-t.h>
-#include <import/ist.h>
 #include <haproxy/port_range-t.h>
 
 /* Direction for each FD event update */
@@ -107,13 +106,13 @@ enum {
 struct fdlist_entry {
 	int next;
 	int prev;
-} __attribute__ ((aligned(8)));
+} ALIGNED(8);
 
 /* head of the fd cache */
 struct fdlist {
 	int first;
 	int last;
-} __attribute__ ((aligned(8)));
+} ALIGNED(8);
 
 /* info about one given fd */
 struct fdtab {
@@ -133,9 +132,15 @@ struct fdtab {
 /* only align on cache lines when using threads; 32-bit small archs
  * can put everything in 32-bytes when threads are disabled.
  */
-__attribute__((aligned(64)))
+ALIGNED(64)
 #endif
 ;
+
+/* polled mask, one bit per thread and per direction for each FD */
+struct polled_mask {
+	unsigned long poll_recv;
+	unsigned long poll_send;
+};
 
 /* less often used information */
 struct fdinfo {
@@ -174,17 +179,7 @@ struct poller {
 	int    pref;                                         /* try pollers with higher preference first */
 };
 
-extern struct poller cur_poller; /* the current poller */
-extern int nbpollers;
-#define MAX_POLLERS	10
-extern struct poller pollers[MAX_POLLERS];   /* all registered pollers */
-
-extern struct fdtab *fdtab;             /* array of all the file descriptors */
-extern struct fdinfo *fdinfo;           /* less-often used infos for file descriptors */
-extern int totalconn;                   /* total # of terminated sessions */
-extern int actconn;                     /* # of active sessions */
-
-#endif /* _TYPES_FD_H */
+#endif /* _HAPROXY_FD_T_H */
 
 /*
  * Local variables:

@@ -347,4 +347,9 @@
 #define DEFAULT_PAT_LRU_SIZE 10000
 #endif
 
+/* maximum number of pollers that may be registered */
+#ifndef MAX_POLLERS
+#define MAX_POLLERS	10
+#endif
+
 #endif /* _HAPROXY_DEFAULTS_H */

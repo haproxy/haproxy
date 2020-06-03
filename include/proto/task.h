@@ -38,7 +38,7 @@
 #include <types/global.h>
 #include <types/task.h>
 
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 
 /* Principle of the wait queue.
  *

@@ -44,7 +44,7 @@
 #include <proto/arg.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/log.h>

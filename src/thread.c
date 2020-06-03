@@ -27,7 +27,7 @@
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 #include <types/global.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 
 struct thread_info ha_thread_info[MAX_THREADS] = { };
 THREAD_LOCAL struct thread_info *ti = &ha_thread_info[0];

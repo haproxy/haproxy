@@ -32,7 +32,7 @@
 #include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/channel.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/proto_tcp.h>

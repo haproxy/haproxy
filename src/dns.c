@@ -38,7 +38,7 @@
 #include <proto/cli.h>
 #include <proto/checks.h>
 #include <proto/dns.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/http_ana.h>
 #include <proto/http_rules.h>
 #include <proto/log.h>

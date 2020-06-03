@@ -48,7 +48,7 @@
 #include <proto/cli.h>
 #include <proto/compression.h>
 #include <proto/stats.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/log.h>

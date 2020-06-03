@@ -1,8 +1,8 @@
 /*
- * include/proto/fd.h
- * File descriptors states.
+ * include/haproxy/fd.h
+ * File descriptors states - exported variables and functions
  *
- * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,29 +19,33 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef _PROTO_FD_H
-#define _PROTO_FD_H
+#ifndef _HAPROXY_FD_H
+#define _HAPROXY_FD_H
 
-#include <stdio.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <stdio.h>
 #include <unistd.h>
-
+#include <import/ist.h>
+#include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/fd-t.h>
+#include <haproxy/thread.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <types/fd.h>
-#include <haproxy/activity.h>
 
 /* public variables */
 
+extern struct poller cur_poller; /* the current poller */
+extern int nbpollers;
+extern struct poller pollers[MAX_POLLERS];   /* all registered pollers */
+extern struct fdtab *fdtab;             /* array of all the file descriptors */
+extern struct fdinfo *fdinfo;           /* less-often used infos for file descriptors */
+extern int totalconn;                   /* total # of terminated sessions */
+extern int actconn;                     /* # of active sessions */
+
 extern volatile struct fdlist update_list;
-
-
-extern struct polled_mask {
-	unsigned long poll_recv;
-	unsigned long poll_send;
-} *polled_mask;
+extern struct polled_mask *polled_mask;
 
 extern THREAD_LOCAL int *fd_updt;  // FD updates list
 extern THREAD_LOCAL int fd_nbupdt; // number of updates in the list
@@ -66,6 +70,7 @@ void fd_remove(int fd);
  */
 int fd_takeover(int fd, void *expected_owner);
 
+/* lock used by FD migration */
 #ifndef HA_HAVE_CAS_DW
 __decl_thread(extern HA_RWLOCK_T fd_mig_lock);
 #endif
@@ -497,7 +502,7 @@ static inline void wake_thread(int tid)
 }
 
 
-#endif /* _PROTO_FD_H */
+#endif /* _HAPROXY_FD_H */
 
 /*
  * Local variables:

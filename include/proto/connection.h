@@ -27,7 +27,7 @@
 #include <haproxy/pool.h>
 #include <types/connection.h>
 #include <types/listener.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/obj_type.h>
 #include <proto/session.h>
 #include <proto/task.h>

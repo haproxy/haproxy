@@ -26,7 +26,7 @@
 #include <haproxy/pool.h>
 #include <types/action.h>
 #include <types/stream.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/obj_type.h>
 #include <proto/queue.h>

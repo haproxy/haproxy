@@ -26,7 +26,7 @@
 #include <types/global.h>
 
 #include <haproxy/activity.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/log.h>
 #include <proto/signal.h>
 

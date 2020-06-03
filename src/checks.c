@@ -52,7 +52,7 @@
 #include <proto/backend.h>
 #include <proto/checks.h>
 #include <proto/stats.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/mux_pt.h>

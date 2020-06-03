@@ -113,7 +113,7 @@
 #include <proto/channel.h>
 #include <proto/cli.h>
 #include <proto/connection.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <proto/hlua.h>
 #include <proto/http_rules.h>

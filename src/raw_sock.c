@@ -29,7 +29,7 @@
 #include <haproxy/time.h>
 
 #include <proto/connection.h>
-#include <proto/fd.h>
+#include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>
 #include <proto/pipe.h>
