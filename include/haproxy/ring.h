@@ -1,6 +1,6 @@
 /*
- * include/proto/ring.h
- * This file provides definitions for ring buffers used for disposable data.
+ * include/haproxy/ring.h
+ * Exported functions for ring buffers used for disposable data.
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
  *
@@ -19,12 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_RING_H
-#define _PROTO_RING_H
+#ifndef _HAPROXY_RING_H
+#define _HAPROXY_RING_H
 
 #include <stdlib.h>
 #include <import/ist.h>
-#include <types/ring.h>
+#include <haproxy/ring-t.h>
 
 struct ring *ring_new(size_t size);
 struct ring *ring_resize(struct ring *ring, size_t size);
@@ -36,7 +36,7 @@ int ring_attach_cli(struct ring *ring, struct appctx *appctx);
 int cli_io_handler_show_ring(struct appctx *appctx);
 void cli_io_release_show_ring(struct appctx *appctx);
 
-#endif /* _PROTO_RING_H */
+#endif /* _HAPROXY_RING_H */
 
 /*
  * Local variables:

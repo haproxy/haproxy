@@ -28,7 +28,7 @@
 #include <haproxy/api-t.h>
 #include <haproxy/thread.h>
 #include <haproxy/list-t.h>
-#include <types/ring.h>
+#include <haproxy/ring-t.h>
 
 #define NB_LOG_FACILITIES       24
 #define NB_LOG_LEVELS           8

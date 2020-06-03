@@ -24,7 +24,7 @@
 #include <haproxy/thread.h>
 #include <types/applet.h>
 #include <proto/cli.h>
-#include <proto/ring.h>
+#include <haproxy/ring.h>
 #include <proto/stream_interface.h>
 
 /* Creates and returns a ring buffer of size <size> bytes. Returns NULL on

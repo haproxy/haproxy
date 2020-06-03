@@ -25,7 +25,7 @@
 #include <haproxy/time.h>
 #include <proto/cli.h>
 #include <proto/log.h>
-#include <proto/ring.h>
+#include <haproxy/ring.h>
 #include <proto/signal.h>
 #include <proto/sink.h>
 #include <proto/stream_interface.h>

@@ -39,7 +39,7 @@
 #include <haproxy/fd.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
-#include <proto/ring.h>
+#include <haproxy/ring.h>
 #include <proto/sample.h>
 #include <proto/sink.h>
 #include <proto/ssl_sock.h>

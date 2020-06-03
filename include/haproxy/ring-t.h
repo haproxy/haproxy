@@ -1,5 +1,5 @@
 /*
- * include/types/ring.h
+ * include/haproxy/ring-t.h
  * This file provides definitions for ring buffers used for disposable data.
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -19,12 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_RING_H
-#define _TYPES_RING_H
+#ifndef _HAPROXY_RING_T_H
+#define _HAPROXY_RING_T_H
 
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
-#include <import/ist.h>
+#include <haproxy/list-t.h>
+#include <haproxy/thread.h>
 
 /* The code below handles circular buffers with single-producer and multiple
  * readers (up to 255). The buffer storage area must remain always allocated.
@@ -100,7 +101,7 @@ struct ring {
 	int readers_count;
 };
 
-#endif /* _TYPES_RING_H */
+#endif /* _HAPROXY_RING_T_H */
 
 /*
  * Local variables:
