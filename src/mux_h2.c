@@ -14,7 +14,7 @@
 #include <haproxy/istbuf.h>
 #include <common/cfgparse.h>
 #include <haproxy/h1.h>
-#include <common/h2.h>
+#include <haproxy/h2.h>
 #include <haproxy/hpack-dec.h>
 #include <haproxy/hpack-enc.h>
 #include <haproxy/hpack-tbl.h>

@@ -13,7 +13,7 @@
 #include <haproxy/istbuf.h>
 #include <common/cfgparse.h>
 #include <haproxy/h1.h>
-#include <common/h2.h>
+#include <haproxy/h2.h>
 #include <haproxy/htx.h>
 
 #include <import/ebistree.h>
