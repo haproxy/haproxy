@@ -71,7 +71,7 @@
 #include <proto/lb_map.h>
 #include <proto/listener.h>
 #include <proto/log.h>
-#include <proto/protocol.h>
+#include <haproxy/protocol.h>
 #include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/peers.h>

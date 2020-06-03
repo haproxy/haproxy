@@ -1,8 +1,8 @@
 /*
- * include/types/protocol.h
+ * include/haproxy/protocol-t.h
  * This file defines the structures used by generic network protocols.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,15 +19,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_PROTOCOL_H
-#define _TYPES_PROTOCOL_H
+#ifndef _HAPROXY_PROTOCOL_T_H
+#define _HAPROXY_PROTOCOL_T_H
 
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#include <import/eb32tree.h>
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
-#include <import/eb32tree.h>
 
 /* some pointer types referenced below */
 struct listener;
@@ -37,7 +37,6 @@ struct connection;
  * Custom network family for str2sa parsing.  Should be ok to do this since
  * sa_family_t is standardized as an unsigned integer
  */
-
 #define AF_CUST_SOCKPAIR     (AF_MAX + 1)
 #define AF_CUST_MAX          (AF_MAX + 2)
 
@@ -48,10 +47,14 @@ struct connection;
 # error "Can't build on the target system, AF_CUST_MAX overflow"
 #endif
 
-
-
 /* max length of a protocol name, including trailing zero */
 #define PROTO_NAME_LEN 16
+
+/* flags for ->connect() */
+#define CONNECT_HAS_DATA                        0x00000001 /* There's data available to be sent */
+#define CONNECT_DELACK_SMART_CONNECT            0x00000002 /* Use a delayed ACK if the backend has tcp-smart-connect */
+#define CONNECT_DELACK_ALWAYS                   0x00000004 /* Use a delayed ACK */
+#define CONNECT_CAN_USE_TFO                     0x00000008 /* We can use TFO for this connection */
 
 /* This structure contains all information needed to easily handle a protocol.
  * Its primary goal is to ease listeners maintenance. Specifically, the
@@ -85,11 +88,7 @@ struct protocol {
 	struct list list;				/* list of registered protocols (under proto_lock) */
 };
 
-#define CONNECT_HAS_DATA                        0x00000001 /* There's data available to be sent */
-#define CONNECT_DELACK_SMART_CONNECT            0x00000002 /* Use a delayed ACK if the backend has tcp-smart-connect */
-#define CONNECT_DELACK_ALWAYS                   0x00000004 /* Use a delayed ACK */
-#define CONNECT_CAN_USE_TFO                     0x00000008 /* We can use TFO for this connection */
-#endif /* _TYPES_PROTOCOL_H */
+#endif /* _HAPROXY_PROTOCOL_T_H */
 
 /*
  * Local variables:

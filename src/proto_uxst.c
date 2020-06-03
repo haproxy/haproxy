@@ -39,7 +39,7 @@
 #include <proto/fd.h>
 #include <proto/listener.h>
 #include <proto/log.h>
-#include <proto/protocol.h>
+#include <haproxy/protocol.h>
 #include <proto/task.h>
 
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);

@@ -45,7 +45,7 @@
 #include <proto/mux_pt.h>
 #include <proto/obj_type.h>
 #include <proto/payload.h>
-#include <proto/protocol.h>
+#include <haproxy/protocol.h>
 #include <proto/http_ana.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>

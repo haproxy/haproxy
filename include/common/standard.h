@@ -43,7 +43,7 @@
 #include <haproxy/namespace-t.h>
 #include <import/eb32tree.h>
 #include <import/eb32sctree.h>
-#include <types/protocol.h>
+#include <haproxy/protocol-t.h>
 
 /* size used for max length of decimal representation of long long int. */
 #define NB_LLMAX_STR (sizeof("-9223372036854775807")-1)

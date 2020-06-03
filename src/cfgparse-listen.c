@@ -24,7 +24,7 @@
 #include <proto/http_htx.h>
 #include <proto/http_rules.h>
 #include <proto/listener.h>
-#include <proto/protocol.h>
+#include <haproxy/protocol.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/stick_table.h>

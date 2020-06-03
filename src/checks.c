@@ -59,7 +59,7 @@
 #include <proto/queue.h>
 #include <proto/port_range.h>
 #include <proto/proto_tcp.h>
-#include <proto/protocol.h>
+#include <haproxy/protocol.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/signal.h>

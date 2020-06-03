@@ -1,8 +1,8 @@
 /*
- * include/proto/protocol.h
+ * include/haproxy/protocol.h
  * This file declares generic protocol management primitives.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,12 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_PROTOCOL_H
-#define _PROTO_PROTOCOL_H
+#ifndef _HAPROXY_PROTOCOL_H
+#define _HAPROXY_PROTOCOL_H
 
 #include <sys/socket.h>
+#include <haproxy/protocol-t.h>
 #include <haproxy/thread.h>
-#include <types/protocol.h>
 
 extern struct protocol *__protocol_by_family[AF_CUST_MAX];
 __decl_thread(extern HA_SPINLOCK_T proto_lock);
@@ -63,7 +63,7 @@ static inline struct protocol *protocol_by_family(int family)
 	return NULL;
 }
 
-#endif /* _PROTO_PROTOCOL_H */
+#endif /* _HAPROXY_PROTOCOL_H */
 
 /*
  * Local variables:

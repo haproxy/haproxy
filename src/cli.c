@@ -54,7 +54,7 @@
 #include <proto/log.h>
 #include <proto/pattern.h>
 #include <proto/pipe.h>
-#include <proto/protocol.h>
+#include <haproxy/protocol.h>
 #include <proto/listener.h>
 #include <proto/map.h>
 #include <proto/proxy.h>

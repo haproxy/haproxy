@@ -26,7 +26,7 @@
 #include <haproxy/time.h>
 
 #include <types/global.h>
-#include <types/protocol.h>
+#include <haproxy/protocol-t.h>
 
 #include <proto/acl.h>
 #include <proto/connection.h>
@@ -34,7 +34,7 @@
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>
 #include <proto/listener.h>
-#include <proto/protocol.h>
+#include <haproxy/protocol.h>
 #include <proto/proto_sockpair.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
