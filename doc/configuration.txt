@@ -12287,8 +12287,11 @@ crt-list <file>
   natively supported, avoid multi-cert bundling. RSA and ECDSA certificates can
   be declared in a row, and set different ssl and filter parameter.
 
+  Empty lines as well as lines beginning with a hash ('#') will be ignored.
+
   crt-list file example:
         cert1.pem
+        # comment
         cert2.pem [alpn h2,http/1.1]
         certW.pem                   *.domain.tld !secure.domain.tld
         certS.pem [curves X25519:P-256 ciphers ECDHE-ECDSA-AES256-GCM-SHA384] secure.domain.tld
