@@ -1,5 +1,5 @@
 /*
- * include/types/sink.h
+ * include/haproxy/sink-t.h
  * This file provides definitions for event sinks
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -19,12 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_SINK_H
-#define _TYPES_SINK_H
+#ifndef _HAPROXY_SINK_T_H
+#define _HAPROXY_SINK_T_H
 
-#include <haproxy/api-t.h>
 #include <import/ist.h>
-#include <haproxy/api.h>
+#include <haproxy/list-t.h>
+#include <haproxy/api-t.h>
 
 /* A sink may be of 4 distinct types :
  *   - file descriptor (such as stdout)
@@ -76,7 +76,7 @@ struct sink {
 	} ctx;
 };
 
-#endif /* _TYPES_SINK_H */
+#endif /* _HAPROXY_SINK_T_H */
 
 /*
  * Local variables:

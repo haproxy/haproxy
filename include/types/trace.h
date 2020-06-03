@@ -25,7 +25,7 @@
 #include <haproxy/api-t.h>
 #include <import/ist.h>
 #include <haproxy/list-t.h>
-#include <types/sink.h>
+#include <haproxy/sink-t.h>
 
 /* the macros below define an optional type for each of the 4 args passed to
  * the trace() call. When such a type is set, the caller commits to exclusively

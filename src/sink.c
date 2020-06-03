@@ -27,7 +27,7 @@
 #include <proto/log.h>
 #include <haproxy/ring.h>
 #include <proto/signal.h>
-#include <proto/sink.h>
+#include <haproxy/sink.h>
 #include <proto/stream_interface.h>
 
 struct list sink_list = LIST_HEAD_INIT(sink_list);

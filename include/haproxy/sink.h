@@ -1,5 +1,5 @@
 /*
- * include/proto/sink.h
+ * include/haproxy/sink.h
  * This file provides declarations for event sinks management
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -19,11 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_SINK_H
-#define _PROTO_SINK_H
+#ifndef _HAPROXY_SINK_H
+#define _HAPROXY_SINK_H
 
+#include <sys/types.h>
 #include <haproxy/list-t.h>
-#include <types/sink.h>
+#include <haproxy/sink-t.h>
+#include <haproxy/thread.h>
 
 extern struct list sink_list;
 
@@ -78,7 +80,7 @@ static inline ssize_t sink_write(struct sink *sink, const struct ist msg[], size
 	return sent;
 }
 
-#endif /* _PROTO_SINK_H */
+#endif /* _HAPROXY_SINK_H */
 
 /*
  * Local variables:

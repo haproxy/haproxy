@@ -27,7 +27,7 @@
 #include <import/ist.h>
 #include <haproxy/list.h>
 #include <types/log.h>
-#include <types/sink.h>
+#include <haproxy/sink-t.h>
 #include <types/trace.h>
 
 /* Make a string from the location of the trace producer as "file:line" */

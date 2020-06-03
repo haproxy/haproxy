@@ -35,7 +35,7 @@
 #include <proto/proxy.h>
 #include <proto/protocol_buffers.h>
 #include <proto/sample.h>
-#include <proto/sink.h>
+#include <haproxy/sink.h>
 #include <proto/stick_table.h>
 #include <proto/vars.h>
 

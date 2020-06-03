@@ -41,7 +41,7 @@
 #include <proto/log.h>
 #include <haproxy/ring.h>
 #include <proto/sample.h>
-#include <proto/sink.h>
+#include <haproxy/sink.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
