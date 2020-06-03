@@ -93,7 +93,7 @@
 
 #include <proto/fd.h>
 #include <proto/log.h>
-#include <proto/port_range.h>
+#include <haproxy/port_range.h>
 
 struct fdtab *fdtab = NULL;     /* array of all the file descriptors */
 struct polled_mask *polled_mask = NULL; /* Array for the polled_mask of each fd */

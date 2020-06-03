@@ -48,7 +48,7 @@
 #include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/log.h>
-#include <proto/port_range.h>
+#include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
 #include <proto/http_ana.h>
 #include <proto/proto_tcp.h>

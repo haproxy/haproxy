@@ -30,7 +30,7 @@
 
 #include <types/listener.h>
 #include <types/obj_type.h>
-#include <types/port_range.h>
+#include <haproxy/port_range-t.h>
 #include <haproxy/protocol-t.h>
 
 #include <netinet/in_systm.h>

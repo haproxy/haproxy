@@ -1,28 +1,31 @@
 /*
-  include/proto/port_range.h
-  This file defines everything needed to manage port ranges
+ * include/haproxy/port_range.h
+ * This file defines everything needed to manage port ranges
+ *
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
-  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
-  
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
+#ifndef _HAPROXY_PORT_RANGE_H
+#define _HAPROXY_PORT_RANGE_H
 
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
-
-#ifndef _PROTO_PORT_RANGE_H
-#define _PROTO_PORT_RANGE_H
-
-#include <types/port_range.h>
+#include <stdlib.h>
+#include <haproxy/atomic.h>
+#include <haproxy/api.h>
+#include <haproxy/port_range-t.h>
 
 #define GET_NEXT_OFF(range, off) ((off) == (range)->size - 1 ? 0 : (off) + 1)
 
@@ -91,7 +94,7 @@ static inline struct port_range *port_range_alloc_range(int n)
 	return ret;
 }
 
-#endif /* _PROTO_PORT_RANGE_H */
+#endif /* _HAPROXY_PORT_RANGE_H */
 
 /*
  * Local variables:

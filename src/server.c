@@ -34,7 +34,7 @@
 #include <proto/cli.h>
 #include <proto/checks.h>
 #include <proto/connection.h>
-#include <proto/port_range.h>
+#include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
 #include <proto/queue.h>
 #include <proto/sample.h>
