@@ -1,9 +1,8 @@
 #include <string.h>
 
-#include <proto/dict.h>
-
 #include <import/eb32tree.h>
 #include <import/ebistree.h>
+#include <haproxy/dict.h>
 
 struct dict *new_dict(const char *name)
 {

@@ -23,12 +23,12 @@
 #ifndef _PROTO_STICK_TABLE_H
 #define _PROTO_STICK_TABLE_H
 
+#include <haproxy/dict-t.h>
 #include <haproxy/errors.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <types/stick_table.h>
-#include <types/dict.h>
 
 extern struct stktable *stktables_list;
 

@@ -29,8 +29,8 @@
 #include <import/ebtree.h>
 #include <import/ebmbtree.h>
 #include <import/eb32tree.h>
+#include <haproxy/dict-t.h>
 #include <haproxy/pool-t.h>
-#include <types/dict.h>
 #include <haproxy/freq_ctr-t.h>
 #include <types/peers.h>
 #include <types/sample.h>

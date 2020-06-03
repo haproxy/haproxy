@@ -18,13 +18,13 @@
 #include <import/xxhash.h>
 
 #include <common/cfgparse.h>
+#include <haproxy/dict-t.h>
 #include <haproxy/errors.h>
 #include <haproxy/namespace.h>
 #include <haproxy/time.h>
 
 #include <types/applet.h>
 #include <types/cli.h>
-#include <types/dict.h>
 #include <types/global.h>
 #include <types/cli.h>
 #include <types/dns.h>

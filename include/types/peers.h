@@ -27,11 +27,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <haproxy/dict-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
 #include <import/eb32tree.h>
 
-#include <types/dict.h>
 
 struct shared_table {
 	struct stktable *table;       /* stick table to sync */

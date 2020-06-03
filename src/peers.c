@@ -21,6 +21,7 @@
 #include <sys/types.h>
 
 #include <haproxy/api.h>
+#include <haproxy/dict.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
@@ -36,7 +37,6 @@
 #include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
-#include <proto/dict.h>
 #include <proto/fd.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
