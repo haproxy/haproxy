@@ -31,7 +31,6 @@
 #define _HAPROXY_BASE_H
 
 #include <common/initcall.h>
-#include <common/tools.h>
 #include <haproxy/api-t.h>
 
 #endif
