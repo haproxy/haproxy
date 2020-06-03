@@ -16,7 +16,7 @@
 #include <import/ebmbtree.h>
 #include <types/global.h>
 #include <haproxy/list.h>
-#include "proto/shctx.h"
+#include <haproxy/shctx.h>
 
 #if !defined (USE_PRIVATE_CACHE)
 

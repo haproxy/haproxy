@@ -1,5 +1,5 @@
 /*
- * shctx.h - shared context management functions for SSL
+ * include/haproxy/shctx.h - shared context management functions for SSL
  *
  * Copyright (C) 2011-2012 EXCELIANCE
  *
@@ -11,13 +11,12 @@
  * 2 of the License, or (at your option) any later version.
  */
 
-#ifndef SHCTX_H
-#define SHCTX_H
+#ifndef __HAPROXY_SHCTX_H
+#define __HAPROXY_SHCTX_H
 
+#include <haproxy/api-t.h>
 #include <haproxy/list.h>
-#include <types/shctx.h>
-
-#include <inttypes.h>
+#include <haproxy/shctx-t.h>
 
 #ifndef USE_PRIVATE_CACHE
 #ifdef USE_PTHREAD_PSHARED
@@ -215,5 +214,5 @@ static inline void shctx_block_set_avail(struct shared_context *shctx,
 	LIST_ADDQ(&shctx->avail, &s->list);
 }
 
-#endif /* SHCTX_H */
+#endif /* __HAPROXY_SHCTX_H */
 

@@ -11,6 +11,7 @@
  */
 
 #include <haproxy/api.h>
+#include <haproxy/shctx.h>
 #include <import/eb32tree.h>
 #include <import/sha1.h>
 
@@ -18,7 +19,6 @@
 #include <types/cli.h>
 #include <types/filters.h>
 #include <types/proxy.h>
-#include <types/shctx.h>
 
 #include <proto/channel.h>
 #include <proto/cli.h>
@@ -30,7 +30,6 @@
 #include <proto/log.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/shctx.h>
 
 
 #include <common/cfgparse.h>
