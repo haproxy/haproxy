@@ -22,16 +22,6 @@
 #ifndef _COMMON_TOOLS_H
 #define _COMMON_TOOLS_H
 
-#include <sys/param.h>
-
-#ifndef MIN
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#endif
-
-#ifndef MAX
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#endif
-
 #define SWAP(a, b) do { typeof(a) t; t = a; a = b; b = t; } while(0)
 
 /* return an integer of type <ret> with only the highest bit set. <ret> may be

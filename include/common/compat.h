@@ -58,6 +58,14 @@ typedef struct { } empty_t;
 #define BITS_PER_INT    (8*sizeof(int))
 #endif
 
+#ifndef MIN
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+
+#ifndef MAX
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#endif
+
 /* this is for libc5 for example */
 #ifndef TCP_NODELAY
 #define TCP_NODELAY     1
