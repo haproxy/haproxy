@@ -65,6 +65,16 @@
  * power of 2, and 0 otherwise */
 #define POWEROF2(x) (((x) & ((x)-1)) == 0)
 
+#define SWAP(a, b) do { typeof(a) t; t = a; a = b; b = t; } while(0)
+
+/* return an integer of type <ret> with only the highest bit set. <ret> may be
+ * both a variable or a type.
+ */
+#define MID_RANGE(ret) ((typeof(ret))1 << (8*sizeof(ret) - 1))
+
+/* return the largest possible integer of type <ret>, with all bits set */
+#define MAX_RANGE(ret) (~(typeof(ret))0)
+
 /* rotate left a 64-bit integer by <bits:[0-5]> bits */
 static inline uint64_t rotl64(uint64_t v, uint8_t bits)
 {

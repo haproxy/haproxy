@@ -22,16 +22,6 @@
 #ifndef _COMMON_TOOLS_H
 #define _COMMON_TOOLS_H
 
-#define SWAP(a, b) do { typeof(a) t; t = a; a = b; b = t; } while(0)
-
-/* return an integer of type <ret> with only the highest bit set. <ret> may be
- * both a variable or a type.
- */
-#define MID_RANGE(ret) ((typeof(ret))1 << (8*sizeof(ret) - 1))
-
-/* return the largest possible integer of type <ret>, with all bits set */
-#define MAX_RANGE(ret) (~(typeof(ret))0)
-
 #endif /* _COMMON_TOOLS_H */
 
 /*
