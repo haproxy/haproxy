@@ -18,7 +18,7 @@
 #include <common/hpack-dec.h>
 #include <common/hpack-enc.h>
 #include <common/hpack-tbl.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 #include <proto/connection.h>
 #include <proto/http_htx.h>

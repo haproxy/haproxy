@@ -28,7 +28,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/debug.h>
 #include <haproxy/http.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <common/standard.h>

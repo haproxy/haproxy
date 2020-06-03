@@ -14,7 +14,7 @@
 #include <haproxy/buf-t.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/namespace.h>
 #include <common/standard.h>
 

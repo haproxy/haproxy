@@ -21,7 +21,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/h1.h>
 #include <haproxy/http.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/pool.h>
 #include <common/standard.h>
 #include <haproxy/version.h>

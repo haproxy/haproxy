@@ -22,7 +22,7 @@
 #include <haproxy/api.h>
 #include <haproxy/hash.h>
 #include <haproxy/http.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <haproxy/namespace.h>

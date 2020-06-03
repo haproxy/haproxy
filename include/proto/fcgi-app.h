@@ -22,7 +22,7 @@
 #ifndef _PROTO_HTTP_FCGI_H
 #define _PROTO_HTTP_FCGI_H
 
-#include <common/htx.h>
+#include <haproxy/htx.h>
 
 #include <types/fcgi-app.h>
 #include <types/proxy.h>

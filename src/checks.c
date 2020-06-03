@@ -41,7 +41,7 @@
 #include <haproxy/thread.h>
 #include <haproxy/http.h>
 #include <haproxy/h1.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 
 #include <types/global.h>
 #include <types/dns.h>

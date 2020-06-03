@@ -19,7 +19,7 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/thread.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/pool.h>
 
 #include <types/applet.h>

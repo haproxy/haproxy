@@ -14,7 +14,7 @@
 #include <common/cfgparse.h>
 #include <common/fcgi.h>
 #include <haproxy/h1.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <import/ist.h>
 #include <haproxy/list.h>
 #include <haproxy/net_helper.h>

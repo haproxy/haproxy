@@ -14,7 +14,7 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/http.h>
 #include <common/cfgparse.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/list.h>
 #include <common/standard.h>
 

@@ -35,7 +35,7 @@
 
 #include <common/cfgparse.h>
 #include <haproxy/hash.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 
 #define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without

@@ -27,7 +27,7 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/http-t.h>
-#include <common/htx.h>
+#include <haproxy/htx-t.h>
 #include <import/ist.h>
 
 /* Context used to find/remove an HTTP header. */

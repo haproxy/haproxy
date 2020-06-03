@@ -30,7 +30,7 @@
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
 #include <haproxy/dynbuf.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 

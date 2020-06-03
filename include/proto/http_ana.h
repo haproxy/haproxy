@@ -23,7 +23,7 @@
 #define _PROTO_PROTO_HTTP_H
 
 #include <haproxy/api.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <types/channel.h>
 #include <types/http_ana.h>
 #include <types/stream.h>

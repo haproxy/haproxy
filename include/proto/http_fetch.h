@@ -23,7 +23,7 @@
 #define _PROTO_HTTP_FETCH_H
 
 #include <haproxy/api.h>
-#include <common/htx.h>
+#include <haproxy/htx.h>
 #include <types/arg.h>
 #include <types/channel.h>
 #include <types/checks.h>
