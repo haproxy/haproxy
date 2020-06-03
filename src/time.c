@@ -14,7 +14,7 @@
 #include <sys/time.h>
 
 #include <haproxy/api.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/thread-t.h>
 

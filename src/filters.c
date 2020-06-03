@@ -16,7 +16,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/htx.h>
 #include <haproxy/namespace.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 
 #include <types/filters.h>
 #include <types/http_ana.h>

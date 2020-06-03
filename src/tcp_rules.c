@@ -12,7 +12,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/list.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 

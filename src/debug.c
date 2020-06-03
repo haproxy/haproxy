@@ -25,7 +25,7 @@
 #include <haproxy/thread.h>
 #include <import/ist.h>
 #include <haproxy/net_helper.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 
 #include <types/global.h>
 #include <types/signal.h>

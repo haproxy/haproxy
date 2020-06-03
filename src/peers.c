@@ -23,7 +23,7 @@
 #include <haproxy/api.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/time.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/thread.h>
 
 #include <types/global.h>

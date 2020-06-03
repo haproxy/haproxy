@@ -11,7 +11,7 @@
  */
 
 #include <haproxy/api.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/freq_ctr.h>
 

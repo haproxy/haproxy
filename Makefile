@@ -792,7 +792,7 @@ endif
 OBJS = src/mux_h2.o src/stream.o src/mux_fcgi.o src/cfgparse-listen.o         \
        src/http_ana.o src/stats.o src/mux_h1.o src/flt_spoe.o src/server.o    \
        src/cfgparse.o src/checks.o src/backend.o src/log.o src/peers.o        \
-       src/cli.o src/haproxy.o src/stick_table.o src/standard.o src/sample.o  \
+       src/cli.o src/haproxy.o src/stick_table.o src/tools.o src/sample.o     \
        src/proxy.o src/stream_interface.o src/pattern.o src/dns.o             \
        src/proto_tcp.o src/listener.o src/cfgparse-global.o src/h1.o          \
        src/http_rules.o src/http_fetch.o src/cache.o src/session.o            \

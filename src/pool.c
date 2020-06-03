@@ -21,7 +21,7 @@
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 
 #include <haproxy/activity-t.h>
 

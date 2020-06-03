@@ -38,7 +38,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/pool.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <common/uri_auth.h>
 #include <haproxy/namespace.h>

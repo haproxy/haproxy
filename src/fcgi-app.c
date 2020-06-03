@@ -15,7 +15,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/regex.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 
 #include <types/global.h>
 

@@ -23,7 +23,7 @@
 #include <haproxy/http.h>
 #include <haproxy/htx.h>
 #include <haproxy/pool.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/version.h>
 
 #include <types/global.h>

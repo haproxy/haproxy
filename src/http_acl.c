@@ -20,7 +20,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/http.h>
 #include <haproxy/pool.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/version.h>
 
 #include <types/global.h>

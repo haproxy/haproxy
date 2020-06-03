@@ -17,7 +17,7 @@
 #include <haproxy/api.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 
 #include <types/global.h>
 #include <types/pattern.h>

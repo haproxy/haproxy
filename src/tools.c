@@ -36,10 +36,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <import/eb32tree.h>
+#include <import/eb32sctree.h>
+
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
 #include <haproxy/namespace.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <types/global.h>
 #include <proto/applet.h>
 #include <proto/dns.h>
@@ -49,9 +52,6 @@
 #include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
-
-#include <import/eb32tree.h>
-#include <import/eb32sctree.h>
 
 /* This macro returns false if the test __x is false. Many
  * of the following parsing function must be abort the processing

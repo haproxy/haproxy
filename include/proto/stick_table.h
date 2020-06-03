@@ -24,7 +24,7 @@
 #define _PROTO_STICK_TABLE_H
 
 #include <haproxy/errors.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <types/stick_table.h>

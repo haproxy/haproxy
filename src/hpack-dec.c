@@ -30,7 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/hpack-dec.h>
 #include <haproxy/hpack-huff.h>
 #include <haproxy/hpack-tbl.h>

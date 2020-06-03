@@ -23,7 +23,7 @@
 #include <haproxy/api.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/openssl-compat.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 
 #include <types/sample.h>
 #include <types/ssl_sock.h>

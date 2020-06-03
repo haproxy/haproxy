@@ -16,7 +16,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/htx.h>
 #include <haproxy/list.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 
 #include <types/compression.h>
 #include <types/filters.h>

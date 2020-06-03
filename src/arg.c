@@ -14,7 +14,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/chunk.h>
 #include <types/global.h>
 #include <proto/arg.h>

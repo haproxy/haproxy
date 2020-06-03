@@ -29,7 +29,7 @@
 #include <haproxy/regex.h>
 #include <haproxy/xref.h>
 #include <haproxy/h1.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 
 #include <types/cli.h>
 #include <types/hlua.h>

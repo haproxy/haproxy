@@ -16,7 +16,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/list.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <common/uri_auth.h>
 
 #include <types/global.h>

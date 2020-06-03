@@ -19,7 +19,7 @@
 #include <stdarg.h>
 
 #include <haproxy/api.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/chunk.h>
 #include <haproxy/time.h>
 

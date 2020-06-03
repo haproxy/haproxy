@@ -22,7 +22,7 @@
 #include <haproxy/http.h>
 #include <haproxy/pool.h>
 #include <haproxy/regex.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <common/uri_auth.h>
 #include <haproxy/version.h>
 

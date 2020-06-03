@@ -12,7 +12,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/thread-t.h>
 #include <haproxy/activity-t.h>
 #include <proto/channel.h>

@@ -48,7 +48,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/openssl-compat.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <haproxy/base64.h>

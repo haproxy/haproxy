@@ -25,7 +25,7 @@
 
 #include <common/cfgparse.h>
 #include <haproxy/thread.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <types/global.h>
 #include <proto/fd.h>
 

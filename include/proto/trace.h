@@ -23,7 +23,7 @@
 #define _PROTO_TRACE_H
 
 #include <haproxy/api.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <import/ist.h>
 #include <haproxy/list.h>
 #include <types/log.h>

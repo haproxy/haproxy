@@ -24,7 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 

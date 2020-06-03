@@ -16,7 +16,7 @@
 #include <sys/types.h>
 
 #include <haproxy/errors.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 
 #include <dirent.h>
 #include <import/ebpttree.h>

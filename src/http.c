@@ -13,7 +13,7 @@
 #include <ctype.h>
 #include <haproxy/api.h>
 #include <haproxy/http.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 
 /* It is about twice as fast on recent architectures to lookup a byte in a
  * table than to perform a boolean AND or OR between two tests. Refer to

@@ -14,7 +14,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/htx.h>
-#include <common/standard.h>
+#include <haproxy/tools.h>
 #include <haproxy/time.h>
 
 #include <types/channel.h>
