@@ -2511,7 +2511,7 @@ int check_config_validity()
 		}
 
 		if ((curproxy->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
-		    (curproxy->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
+		    (curproxy->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_HTTP_CHK) {
 			if (curproxy->options & PR_O_DISABLE404) {
 				ha_warning("config : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
 					   "disable-on-404", proxy_type_str(curproxy), curproxy->id);
