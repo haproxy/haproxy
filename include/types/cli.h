@@ -20,8 +20,8 @@
 #ifndef _TYPES_CLI_H
 #define _TYPES_CLI_H
 
+#include <haproxy/applet-t.h>
 #include <haproxy/list-t.h>
-#include <types/applet.h>
 
 /* Access level for a stats socket */
 #define ACCESS_LVL_NONE     0
@@ -35,6 +35,11 @@
 #define ACCESS_MASTER_ONLY  0x10 /* only works with the worker */
 
 #define ACCESS_EXPERT       0x20 /* access to dangerous commands reserved to experts */
+
+/* flags for appctx->st1 */
+#define APPCTX_CLI_ST1_PROMPT  (1 << 0)
+#define APPCTX_CLI_ST1_PAYLOAD (1 << 1)
+#define APPCTX_CLI_ST1_NOLF    (1 << 2)
 
 struct cli_kw {
 	const char *str_kw[5];   /* keywords ended by NULL, limited to 5

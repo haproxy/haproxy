@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <haproxy/applet.h>
 #include <haproxy/api.h>
 #include <haproxy/dict.h>
 #include <haproxy/frontend.h>
@@ -35,7 +36,6 @@
 
 #include <types/stats.h>
 
-#include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
 #include <haproxy/fd.h>

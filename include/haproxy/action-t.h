@@ -24,7 +24,7 @@
 
 #include <haproxy/regex-t.h>
 
-#include <types/applet.h>
+#include <haproxy/applet-t.h>
 #include <haproxy/stick_table-t.h>
 
 enum act_from {

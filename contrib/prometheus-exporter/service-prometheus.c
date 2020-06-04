@@ -14,6 +14,7 @@
  */
 
 #include <haproxy/action-t.h>
+#include <haproxy/applet.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/frontend.h>
@@ -25,7 +26,6 @@
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 
-#include <proto/applet.h>
 #include <proto/backend.h>
 #include <haproxy/compression.h>
 #include <haproxy/pipe.h>

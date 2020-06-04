@@ -1,8 +1,8 @@
 /*
- * include/types/applet.h
+ * include/haproxy/applet-t.h
  * This file describes the applet struct and associated constants.
  *
- * Copyright (C) 2000-2015 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,18 +19,22 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_APPLET_H
-#define _TYPES_APPLET_H
+#ifndef _HAPROXY_APPLET_T_H
+#define _HAPROXY_APPLET_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/buf.h>
+#include <haproxy/buf-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/hlua-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/api-t.h>
 #include <haproxy/xref-t.h>
+
 #include <types/proxy.h>
 #include <types/stream.h>
+
+/* flags for appctx->state */
+#define APPLET_WANT_DIE     0x01  /* applet was running and requested to die */
 
 struct appctx;
 
@@ -45,12 +49,6 @@ struct applet {
 	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
 	unsigned int timeout;              /* execution timeout. */
 };
-
-#define APPLET_WANT_DIE     0x01  /* applet was running and requested to die */
-
-#define APPCTX_CLI_ST1_PROMPT  (1 << 0)
-#define APPCTX_CLI_ST1_PAYLOAD (1 << 1)
-#define APPCTX_CLI_ST1_NOLF    (1 << 2)
 
 /* Context of a running applet. */
 struct appctx {
@@ -188,7 +186,7 @@ struct appctx {
 	} ctx;					/* context-specific variables used by any applet */
 };
 
-#endif /* _TYPES_APPLET_H */
+#endif /* _HAPROXY_APPLET_T_H */
 
 /*
  * Local variables:

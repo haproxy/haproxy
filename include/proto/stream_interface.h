@@ -24,11 +24,11 @@
 
 #include <stdlib.h>
 
+#include <haproxy/applet.h>
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
-#include <proto/applet.h>
 #include <proto/channel.h>
 
 

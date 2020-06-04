@@ -1,5 +1,5 @@
 /*
- * include/proto/applet.h
+ * include/haproxy/applet.h
  * This file contains applet function prototypes
  *
  * Copyright (C) 2000-2015 Willy Tarreau - w@1wt.eu
@@ -19,22 +19,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_APPLET_H
-#define _PROTO_APPLET_H
+#ifndef _HAPROXY_APPLET_H
+#define _HAPROXY_APPLET_H
 
 #include <stdlib.h>
 
+#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
-#include <haproxy/pool.h>
 #include <haproxy/list.h>
-#include <types/applet.h>
+#include <haproxy/pool.h>
 #include <haproxy/task.h>
 
 extern unsigned int nb_applets;
 extern struct pool_head *pool_head_appctx;
 
 struct task *task_run_applet(struct task *t, void *context, unsigned short state);
-
 int appctx_buf_available(void *arg);
 
 
@@ -117,7 +116,7 @@ static inline void appctx_wakeup(struct appctx *appctx)
 	task_wakeup(appctx->t, TASK_WOKEN_OTHER);
 }
 
-#endif /* _PROTO_APPLET_H */
+#endif /* _HAPROXY_APPLET_H */
 
 /*
  * Local variables:

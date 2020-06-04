@@ -19,10 +19,10 @@
  */
 
 #include <stdlib.h>
+#include <haproxy/applet.h>
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/thread.h>
-#include <types/applet.h>
 #include <proto/cli.h>
 #include <haproxy/ring.h>
 #include <proto/stream_interface.h>

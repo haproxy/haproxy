@@ -24,10 +24,10 @@
 
 #include <unistd.h>
 
+#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
 #include <haproxy/dns-t.h>
 #include <haproxy/time.h>
-#include <types/applet.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>

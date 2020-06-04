@@ -14,6 +14,7 @@
 #include <ctype.h>
 #include <errno.h>
 
+#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
 #include <import/xxhash.h>
 
@@ -29,12 +30,10 @@
 #include <haproxy/task.h>
 #include <haproxy/time.h>
 
-#include <types/applet.h>
 #include <types/cli.h>
 #include <types/cli.h>
 #include <types/stats.h>
 
-#include <proto/applet.h>
 #include <proto/cli.h>
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>

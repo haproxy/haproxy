@@ -34,7 +34,6 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/vars.h>
 
-#include <types/applet.h>
 #include <types/cli.h>
 #include <haproxy/global.h>
 #include <types/stats.h>

@@ -22,11 +22,11 @@
 #ifndef _PROTO_PROXY_H
 #define _PROTO_PROXY_H
 
+#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <types/applet.h>
 #include <haproxy/global-t.h>
 #include <types/proxy.h>
 #include <haproxy/freq_ctr.h>

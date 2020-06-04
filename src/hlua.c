@@ -21,6 +21,7 @@
 #error "Requires Lua 5.3 or later."
 #endif
 
+#include <haproxy/applet.h>
 #include <haproxy/api.h>
 #include <import/ebpttree.h>
 
@@ -51,7 +52,6 @@
 #include <types/stats.h>
 
 #include <haproxy/arg.h>
-#include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
 #include <proto/stats.h>

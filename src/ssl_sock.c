@@ -67,7 +67,6 @@
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
 
-#include <types/applet.h>
 #include <types/cli.h>
 #include <types/ssl_sock.h>
 #include <types/stats.h>

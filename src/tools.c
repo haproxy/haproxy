@@ -48,7 +48,6 @@
 #include <haproxy/namespace.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
-#include <proto/applet.h>
 #include <haproxy/proto_udp.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>

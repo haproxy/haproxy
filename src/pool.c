@@ -11,8 +11,8 @@
  */
 #include <errno.h>
 
+#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
-#include <types/applet.h>
 #include <types/cli.h>
 #include <haproxy/global.h>
 #include <types/stats.h>
@@ -25,7 +25,6 @@
 
 #include <haproxy/activity-t.h>
 
-#include <proto/applet.h>
 #include <proto/cli.h>
 #include <proto/channel.h>
 #include <proto/log.h>

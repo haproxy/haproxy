@@ -17,6 +17,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 
+#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
@@ -35,7 +36,6 @@
 #include <types/cli.h>
 #include <types/stats.h>
 
-#include <proto/applet.h>
 #include <proto/cli.h>
 #include <proto/backend.h>
 #include <haproxy/fd.h>

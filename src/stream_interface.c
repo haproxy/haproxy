@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <haproxy/applet.h>
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
@@ -28,7 +29,6 @@
 #include <haproxy/time.h>
 #include <haproxy/task.h>
 
-#include <proto/applet.h>
 #include <proto/channel.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>
