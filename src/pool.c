@@ -13,7 +13,7 @@
 
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
-#include <types/cli.h>
+#include <haproxy/cli.h>
 #include <haproxy/global.h>
 
 #include <common/cfgparse.h>
@@ -25,7 +25,6 @@
 
 #include <haproxy/activity-t.h>
 
-#include <proto/cli.h>
 #include <proto/channel.h>
 #include <proto/log.h>
 #include <proto/stream_interface.h>

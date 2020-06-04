@@ -12,18 +12,17 @@
 
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
+#include <haproxy/cli.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/shctx.h>
 #include <import/eb32tree.h>
 #include <import/sha1.h>
 
-#include <types/cli.h>
 #include <types/filters.h>
 #include <types/proxy.h>
 
 #include <proto/channel.h>
-#include <proto/cli.h>
 #include <proto/proxy.h>
 #include <proto/filters.h>
 #include <proto/http_ana.h>

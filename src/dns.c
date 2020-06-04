@@ -23,6 +23,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/check.h>
+#include <haproxy/cli.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/http_rules.h>
@@ -35,11 +36,9 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/vars.h>
 
-#include <types/cli.h>
 #include <haproxy/global.h>
 
 #include <proto/channel.h>
-#include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <proto/http_ana.h>
 #include <proto/log.h>

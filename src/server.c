@@ -20,6 +20,7 @@
 
 #include <common/cfgparse.h>
 #include <haproxy/check.h>
+#include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/dict-t.h>
 #include <haproxy/dns.h>
@@ -31,10 +32,6 @@
 #include <haproxy/task.h>
 #include <haproxy/time.h>
 
-#include <types/cli.h>
-#include <types/cli.h>
-
-#include <proto/cli.h>
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
 #include <proto/queue.h>

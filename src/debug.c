@@ -21,6 +21,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
+#include <haproxy/cli.h>
 #include <haproxy/debug.h>
 #include <haproxy/hlua.h>
 #include <haproxy/task.h>
@@ -31,7 +32,6 @@
 
 #include <haproxy/global.h>
 
-#include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <proto/stream_interface.h>
 

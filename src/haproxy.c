@@ -86,6 +86,7 @@
 #include <haproxy/base64.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
+#include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
@@ -114,7 +115,6 @@
 #include <haproxy/vars.h>
 
 #include <haproxy/capture-t.h>
-#include <types/cli.h>
 #include <types/filters.h>
 #include <haproxy/global.h>
 
@@ -122,7 +122,6 @@
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
-#include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <proto/log.h>

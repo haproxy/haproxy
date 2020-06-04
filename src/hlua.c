@@ -26,6 +26,7 @@
 #include <import/ebpttree.h>
 
 #include <common/cfgparse.h>
+#include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/thread.h>
@@ -48,12 +49,10 @@
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
 
-#include <types/cli.h>
 #include <types/proxy.h>
 
 #include <haproxy/arg.h>
 #include <proto/channel.h>
-#include <proto/cli.h>
 #include <proto/queue.h>
 #include <proto/http_ana.h>
 #include <proto/server.h>

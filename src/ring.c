@@ -22,8 +22,8 @@
 #include <haproxy/applet.h>
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
+#include <haproxy/cli.h>
 #include <haproxy/thread.h>
-#include <proto/cli.h>
 #include <haproxy/ring.h>
 #include <proto/stream_interface.h>
 

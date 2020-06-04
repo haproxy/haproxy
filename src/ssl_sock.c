@@ -46,6 +46,7 @@
 
 #include <haproxy/dynbuf.h>
 #include <haproxy/chunk.h>
+#include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/frontend.h>
@@ -68,12 +69,10 @@
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
 
-#include <types/cli.h>
 #include <types/ssl_sock.h>
 
 #include <haproxy/arg.h>
 #include <proto/channel.h>
-#include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/proto_tcp.h>

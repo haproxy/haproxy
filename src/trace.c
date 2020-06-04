@@ -21,9 +21,9 @@
 #include <import/ist.h>
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
+#include <haproxy/cli.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
-#include <proto/cli.h>
 #include <proto/log.h>
 #include <haproxy/sink.h>
 #include <haproxy/trace.h>

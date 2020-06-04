@@ -16,6 +16,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/cli.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
@@ -31,10 +32,7 @@
 #include <import/ebmbtree.h>
 #include <import/ebsttree.h>
 
-#include <types/cli.h>
-
 #include <haproxy/arg.h>
-#include <proto/cli.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
 #include <haproxy/proto_tcp.h>

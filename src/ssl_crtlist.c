@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_crtlist.h>
@@ -24,11 +25,9 @@
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
 
-#include <types/cli.h>
 #include <types/ssl_sock.h>
 
 #include <proto/channel.h>
-#include <proto/cli.h>
 #include <proto/stream_interface.h>
 #include <proto/ssl_sock.h>
 

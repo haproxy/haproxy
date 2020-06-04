@@ -26,17 +26,16 @@
 
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/cli.h>
 #include <haproxy/frontend.h>
 #include <haproxy/http.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/version.h>
 
-#include <types/cli.h>
 #include <haproxy/global.h>
 #include <types/log.h>
 
-#include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <proto/log.h>
 #include <haproxy/ring.h>

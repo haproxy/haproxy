@@ -1,6 +1,8 @@
 /*
- * include/types/cli.h
+ * include/haproxy/cli-t.h
  * This file provides structures and types for CLI.
+ *
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_CLI_H
-#define _TYPES_CLI_H
+#ifndef _HAPROXY_CLI_T_H
+#define _HAPROXY_CLI_T_H
 
 #include <haproxy/applet-t.h>
 #include <haproxy/list-t.h>
@@ -40,22 +42,6 @@
 #define APPCTX_CLI_ST1_PROMPT  (1 << 0)
 #define APPCTX_CLI_ST1_PAYLOAD (1 << 1)
 #define APPCTX_CLI_ST1_NOLF    (1 << 2)
-
-struct cli_kw {
-	const char *str_kw[5];   /* keywords ended by NULL, limited to 5
-				 separated keywords combination */
-	const char *usage;   /* usage message */
-	int (*parse)(char **args, char *payload, struct appctx *appctx, void *private);
-	int (*io_handler)(struct appctx *appctx);
-	void (*io_release)(struct appctx *appctx);
-	void *private;
-	int level; /* this is the level needed to show the keyword usage and to use it */
-};
-
-struct cli_kw_list {
-	struct list list;
-	struct cli_kw kw[VAR_ARRAY];
-};
 
 /* CLI states */
 enum {
@@ -80,4 +66,20 @@ enum {
 };
 
 
-#endif /* _TYPES_CLI_H */
+struct cli_kw {
+	const char *str_kw[5];   /* keywords ended by NULL, limited to 5
+				 separated keywords combination */
+	const char *usage;   /* usage message */
+	int (*parse)(char **args, char *payload, struct appctx *appctx, void *private);
+	int (*io_handler)(struct appctx *appctx);
+	void (*io_release)(struct appctx *appctx);
+	void *private;
+	int level; /* this is the level needed to show the keyword usage and to use it */
+};
+
+struct cli_kw_list {
+	struct list list;
+	struct cli_kw kw[VAR_ARRAY];
+};
+
+#endif /* _HAPROXY_CLI_T_H */

@@ -14,16 +14,14 @@
 
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/cli.h>
 #include <haproxy/map.h>
 #include <haproxy/pattern.h>
 #include <haproxy/regex.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/tools.h>
 
-#include <types/cli.h>
-
 #include <haproxy/arg.h>
-#include <proto/cli.h>
 #include <proto/log.h>
 #include <proto/stream_interface.h>
 #include <haproxy/sample.h>

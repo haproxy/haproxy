@@ -20,6 +20,7 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/listener.h>
@@ -34,9 +35,7 @@
 #include <import/ebistree.h>
 
 #include <haproxy/capture-t.h>
-#include <types/cli.h>
 
-#include <proto/cli.h>
 #include <proto/backend.h>
 #include <haproxy/fd.h>
 #include <proto/filters.h>

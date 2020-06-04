@@ -26,9 +26,9 @@
 #include <string.h>
 
 #include <haproxy/api.h>
+#include <haproxy/cli-t.h>
 #include <haproxy/list.h>
 #include <haproxy/listener-t.h>
-#include <types/cli.h>
 
 /* This function tries to temporarily disable a listener, depending on the OS
  * capabilities. Linux unbinds the listen socket after a SHUT_RD, and ignores

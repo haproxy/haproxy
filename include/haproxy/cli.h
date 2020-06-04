@@ -1,5 +1,5 @@
 /*
- * include/proto/cli.h
+ * include/haproxy/cli.h
  * This file contains definitions of some primitives to dedicated to
  * statistics output.
  *
@@ -20,13 +20,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_CLI_H
-#define _PROTO_CLI_H
+#ifndef _HAPROXY_CLI_H
+#define _HAPROXY_CLI_H
 
 #include <haproxy/applet-t.h>
+#include <haproxy/cli-t.h>
 #include <haproxy/global.h>
 #include <types/channel.h>
-#include <types/cli.h>
 #include <types/stream.h>
 
 
@@ -96,5 +96,5 @@ static inline int cli_dynerr(struct appctx *appctx, char *err)
 }
 
 
-#endif /* _PROTO_CLI_H */
+#endif /* _HAPROXY_CLI_H */
 

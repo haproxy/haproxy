@@ -21,6 +21,7 @@
 #include <haproxy/capture.h>
 #include <common/cfgparse.h>
 #include <haproxy/check.h>
+#include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/dict.h>
 #include <haproxy/dns.h>
@@ -39,14 +40,12 @@
 #include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
 
-#include <types/cli.h>
 #include <types/filters.h>
 
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
-#include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>
