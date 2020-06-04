@@ -1334,37 +1334,105 @@ out:
 
 /*
  * copy and cleanup the current argv
- * Remove the -sf /-st parameters
+ * Remove the -sf /-st / -x parameters
  * Return an allocated copy of argv
  */
 
 static char **copy_argv(int argc, char **argv)
 {
-	char **newargv;
-	int i = 0, j = 0;
+	char **newargv, **retargv;
 
 	newargv = calloc(argc + 2, sizeof(char *));
 	if (newargv == NULL) {
 		ha_warning("Cannot allocate memory\n");
 		return NULL;
 	}
+	retargv = newargv;
 
-	while (i < argc) {
-		/* -sf or -st or -x */
-		if (i > 0 && argv[i][0] == '-' &&
-		    ((argv[i][1] == 's' && (argv[i][2] == 'f' || argv[i][2] == 't')) || argv[i][1] == 'x' )) {
-			/* list of pids to finish ('f') or terminate ('t') or unix socket (-x) */
-			i++;
-			while (i < argc && argv[i][0] != '-') {
-				i++;
+	/* first copy argv[0] */
+	*newargv++ = *argv++;
+	argc--;
+
+	while (argc > 0) {
+		if (**argv != '-') {
+			/* non options are copied but will fail in the argument parser */
+			*newargv++ = *argv++;
+			argc--;
+
+		} else  {
+			char *flag;
+
+			flag = *argv + 1;
+
+			if (flag[0] == '-' && flag[1] == 0) {
+				/* "--\0" copy every arguments till the end of argv */
+				*newargv++ = *argv++;
+				argc--;
+
+				while (argc > 0) {
+					*newargv++ = *argv++;
+					argc--;
+				}
+			} else {
+				switch (*flag) {
+					case 's':
+						/* -sf / -st and their parameters are ignored */
+						if (flag[1] == 'f' || flag[1] == 't') {
+							argc--;
+							argv++;
+							/* The list can't contain a negative value since the only
+							way to know the end of this list is by looking for the
+							next option or the end of the options */
+							while (argc > 0 && argv[0][0] != '-') {
+								argc--;
+								argv++;
+							}
+						}
+						break;
+
+					case 'x':
+						/* this option and its parameter are ignored */
+						argc--;
+						argv++;
+						if (argc > 0) {
+							argc--;
+							argv++;
+						}
+						break;
+
+					case 'C':
+					case 'n':
+					case 'm':
+					case 'N':
+					case 'L':
+					case 'f':
+					case 'p':
+					case 'S':
+						/* these options have only 1 parameter which must be copied and can start with a '-' */
+						*newargv++ = *argv++;
+						argc--;
+						if (argc == 0)
+							goto error;
+						*newargv++ = *argv++;
+						argc--;
+						break;
+					default:
+						/* for other options just copy them without parameters, this is also done
+						 * for options like "--foo", but this  will fail in the argument parser.
+						 * */
+						*newargv++ = *argv++;
+						argc--;
+						break;
+				}
 			}
-			continue;
 		}
-
-		newargv[j++] = argv[i++];
 	}
 
-	return newargv;
+	return retargv;
+
+error:
+	free(retargv);
+	return NULL;
 }
 
 
@@ -1644,6 +1712,10 @@ static void init(int argc, char **argv)
 
 	global.mode = MODE_STARTING;
 	next_argv = copy_argv(argc, argv);
+	if (!next_argv) {
+		ha_alert("failed to copy argv.\n");
+		exit(1);
+	}
 
 	if (!init_trash_buffers(1)) {
 		ha_alert("failed to initialize trash buffers.\n");
