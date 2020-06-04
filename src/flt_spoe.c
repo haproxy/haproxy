@@ -16,6 +16,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/frontend.h>
+#include <haproxy/http_rules.h>
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
 #include <haproxy/time.h>
@@ -29,7 +30,6 @@
 #include <proto/backend.h>
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/http_rules.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
 #include <proto/proxy.h>

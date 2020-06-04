@@ -89,6 +89,7 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
 #include <haproxy/hlua.h>
+#include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <haproxy/namespace.h>
@@ -117,7 +118,6 @@
 #include <proto/connection.h>
 #include <haproxy/fd.h>
 #include <proto/filters.h>
-#include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/mworker.h>

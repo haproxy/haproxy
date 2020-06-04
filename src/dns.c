@@ -24,6 +24,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
+#include <haproxy/http_rules.h>
 #include <haproxy/time.h>
 #include <haproxy/ticks.h>
 #include <haproxy/net_helper.h>
@@ -38,7 +39,6 @@
 #include <proto/checks.h>
 #include <haproxy/fd.h>
 #include <proto/http_ana.h>
-#include <proto/http_rules.h>
 #include <proto/log.h>
 #include <proto/sample.h>
 #include <proto/server.h>

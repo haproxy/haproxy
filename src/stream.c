@@ -23,6 +23,7 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/frontend.h>
 #include <haproxy/hlua.h>
+#include <haproxy/http_rules.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/thread.h>
 #include <haproxy/htx.h>
@@ -46,7 +47,6 @@
 #include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/session.h>

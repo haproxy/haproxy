@@ -1,5 +1,5 @@
 /*
- * include/proto/http_rules.h
+ * include/haproxy/http_rules.h
  * This file contains "http" rules definitions
  *
  * Copyright (C) 2000-2018 Willy Tarreau - w@1wt.eu
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_HTTP_RULES_H
-#define _PROTO_HTTP_RULES_H
+#ifndef _HAPROXY_HTTP_RULES_H
+#define _HAPROXY_HTTP_RULES_H
 
 #include <haproxy/api.h>
 #include <haproxy/list.h>
@@ -52,7 +52,7 @@ static inline void http_after_res_keywords_register(struct action_kw_list *kw_li
 	LIST_ADDQ(&http_after_res_keywords.list, &kw_list->list);
 }
 
-#endif /* _PROTO_HTTP_RULES_H */
+#endif /* _HAPROXY_HTTP_RULES_H */
 
 /*
  * Local variables:

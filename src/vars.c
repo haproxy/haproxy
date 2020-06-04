@@ -3,12 +3,12 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/http.h>
+#include <haproxy/http_rules.h>
 #include <haproxy/list.h>
 
 #include <types/vars.h>
 
 #include <haproxy/arg.h>
-#include <proto/http_rules.h>
 #include <proto/http_ana.h>
 #include <proto/sample.h>
 #include <proto/stream.h>

@@ -70,12 +70,12 @@
  */
 
 #include <haproxy/api.h>
+#include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
 #include <haproxy/time.h>
 #include <haproxy/thread.h>
 #include <import/eb32tree.h>
 
-#include <proto/http_rules.h>
 #include <proto/http_ana.h>
 #include <proto/queue.h>
 #include <proto/sample.h>

@@ -22,6 +22,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
+#include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
 #include <haproxy/regex.h>
 #include <haproxy/tools.h>
@@ -33,7 +34,6 @@
 
 #include <proto/acl.h>
 #include <haproxy/arg.h>
-#include <proto/http_rules.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
 #include <proto/pattern.h>
