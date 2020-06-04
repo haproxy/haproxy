@@ -55,7 +55,6 @@
 #include <proto/stats.h>
 #include <haproxy/fd.h>
 #include <proto/log.h>
-#include <proto/mux_pt.h>
 #include <proto/queue.h>
 #include <haproxy/port_range.h>
 #include <proto/proto_tcp.h>

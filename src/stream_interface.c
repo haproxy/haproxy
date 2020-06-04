@@ -29,7 +29,6 @@
 #include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
-#include <proto/mux_pt.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>

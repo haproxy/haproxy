@@ -40,7 +40,6 @@
 #include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <proto/log.h>
-#include <proto/mux_pt.h>
 #include <proto/peers.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
