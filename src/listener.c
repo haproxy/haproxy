@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/connection.h>
@@ -31,7 +32,6 @@
 
 #include <haproxy/protocol-t.h>
 
-#include <proto/acl.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>

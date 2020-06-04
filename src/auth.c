@@ -32,7 +32,6 @@
 #include <haproxy/pattern-t.h>
 #include <haproxy/thread.h>
 
-#include <proto/acl.h>
 #include <proto/log.h>
 
 struct userlist *userlist = NULL;    /* list of all existing userlists */

@@ -1,5 +1,5 @@
 /*
- * include/proto/acl.h
+ * include/haproxy/acl.h
  * This file provides interface definitions for ACL manipulation.
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
@@ -19,11 +19,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_ACL_H
-#define _PROTO_ACL_H
+#ifndef _HAPROXY_ACL_H
+#define _HAPROXY_ACL_H
 
+#include <haproxy/acl-t.h>
+#include <haproxy/arg-t.h>
 #include <haproxy/api.h>
-#include <types/acl.h>
+
+struct stream;
 
 /*
  * FIXME: we need destructor functions too !
@@ -144,7 +147,7 @@ void acl_unregister_keywords(struct acl_kw_list *kwl);
 int init_acl();
 
 
-#endif /* _PROTO_ACL_H */
+#endif /* _HAPROXY_ACL_H */
 
 /*
  * Local variables:

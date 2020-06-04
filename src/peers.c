@@ -35,7 +35,6 @@
 
 #include <types/stats.h>
 
-#include <proto/acl.h>
 #include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/cli.h>

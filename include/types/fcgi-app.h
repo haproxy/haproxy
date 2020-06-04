@@ -22,6 +22,7 @@
 #ifndef _TYPES_HTTP_FCGI_H
 #define _TYPES_HTTP_FCGI_H
 
+#include <haproxy/acl-t.h>
 #include <haproxy/api-t.h>
 #include <import/ist.h>
 #include <haproxy/fcgi.h>
@@ -30,7 +31,6 @@
 
 #include <import/ebistree.h>
 
-#include <types/acl.h>
 #include <types/filters.h>
 
 #define FCGI_APP_FL_KEEP_CONN     0x00000001 /* Keep the connection alive */

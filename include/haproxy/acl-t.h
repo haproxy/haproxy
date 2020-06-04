@@ -1,8 +1,8 @@
 /*
- * include/types/acl.h
+ * include/haproxy/acl-t.h
  * This file provides structures and types for ACLs.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,19 +19,18 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_ACL_H
-#define _TYPES_ACL_H
+#ifndef _HAPROXY_ACL_T_H
+#define _HAPROXY_ACL_T_H
 
-#include <haproxy/auth-t.h>
+#include <import/ebmbtree.h>
+
+#include <haproxy/list-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/api-t.h>
-#include <haproxy/list-t.h>
 
-#include <haproxy/arg-t.h>
 #include <types/proxy.h>
 #include <types/server.h>
 
-#include <import/ebmbtree.h>
 
 /* ACL test result.
  *
@@ -69,10 +68,6 @@ enum acl_cond_pol {
 	ACL_COND_IF,		/* positive condition (after 'if') */
 	ACL_COND_UNLESS,	/* negative condition (after 'unless') */
 };
-
-/* some dummy declarations to silent the compiler */
-struct proxy;
-struct stream;
 
 /*
  * ACL keyword: Associates keywords with parsers, methods to retrieve the value and testers.
@@ -157,7 +152,7 @@ struct acl_cond {
 	int line;                   /* line in the config file where the condition is declared */
 };
 
-#endif /* _TYPES_ACL_H */
+#endif /* _HAPROXY_ACL_T_H */
 
 /*
  * Local variables:

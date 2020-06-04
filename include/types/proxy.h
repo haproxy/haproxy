@@ -27,6 +27,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <haproxy/arg-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/check-t.h>
 #include <haproxy/chunk.h>
@@ -39,7 +40,7 @@
 #include <import/eb32tree.h>
 #include <import/ebistree.h>
 
-#include <types/acl.h>
+#include <haproxy/acl-t.h>
 #include <types/backend.h>
 #include <types/filters.h>
 #include <haproxy/freq_ctr-t.h>

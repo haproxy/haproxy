@@ -16,6 +16,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
@@ -28,7 +29,6 @@
 
 #include <haproxy/capture-t.h>
 
-#include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/http_ana.h>
 #include <haproxy/sample.h>

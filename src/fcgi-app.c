@@ -10,6 +10,7 @@
  *
  */
 
+#include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
 #include <common/cfgparse.h>
@@ -23,7 +24,6 @@
 
 #include <haproxy/global.h>
 
-#include <proto/acl.h>
 #include <proto/fcgi-app.h>
 #include <proto/filters.h>
 #include <proto/log.h>

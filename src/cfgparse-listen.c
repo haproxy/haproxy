@@ -14,6 +14,7 @@
 #include <common/cfgparse.h>
 #include <common/uri_auth.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/capture-t.h>
 #include <haproxy/check.h>
 #include <haproxy/compression-t.h>
@@ -25,7 +26,6 @@
 #include <haproxy/sample.h>
 #include <types/stats.h>
 
-#include <proto/acl.h>
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>
 #include <proto/server.h>

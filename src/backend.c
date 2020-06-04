@@ -19,6 +19,7 @@
 #include <ctype.h>
 #include <sys/types.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/check.h>
 #include <haproxy/frontend.h>
@@ -40,7 +41,6 @@
 
 #include <haproxy/global.h>
 
-#include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>

@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <errno.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
@@ -31,7 +32,6 @@
 #include <haproxy/global.h>
 #include <types/spoe.h>
 
-#include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/filters.h>

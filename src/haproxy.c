@@ -78,6 +78,7 @@
 #include <systemd/sd-daemon.h>
 #endif
 
+#include <haproxy/acl.h>
 #include <haproxy/auth.h>
 #include <haproxy/api.h>
 #include <import/sha1.h>
@@ -116,9 +117,7 @@
 #include <types/cli.h>
 #include <types/filters.h>
 #include <haproxy/global.h>
-#include <types/acl.h>
 
-#include <proto/acl.h>
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
 #include <proto/backend.h>

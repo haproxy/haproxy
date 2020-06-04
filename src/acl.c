@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/auth.h>
 #include <haproxy/api.h>
 #include <haproxy/list.h>
@@ -23,7 +24,6 @@
 
 #include <haproxy/global.h>
 
-#include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <proto/log.h>

@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <haproxy/capture.h>
@@ -41,7 +42,6 @@
 #include <types/filters.h>
 #include <types/stats.h>
 
-#include <proto/acl.h>
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
 #include <proto/backend.h>

@@ -20,6 +20,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/obj_type.h>
@@ -30,7 +31,6 @@
 
 #include <types/ssl_sock.h>
 
-#include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/ssl_sock.h>
 

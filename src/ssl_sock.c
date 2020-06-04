@@ -72,7 +72,6 @@
 #include <types/ssl_sock.h>
 #include <types/stats.h>
 
-#include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <proto/cli.h>

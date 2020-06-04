@@ -22,6 +22,7 @@
 
 #include <netinet/tcp.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
 #include <haproxy/frontend.h>
@@ -32,7 +33,6 @@
 
 #include <haproxy/global.h>
 
-#include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <haproxy/fd.h>

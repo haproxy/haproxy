@@ -16,6 +16,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/auth.h>
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
@@ -25,7 +26,6 @@
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
-#include <proto/acl.h>
 #include <haproxy/arg.h>
 
 

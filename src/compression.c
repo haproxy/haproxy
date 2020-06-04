@@ -35,7 +35,6 @@
 #include <haproxy/global.h>
 #include <haproxy/compression-t.h>
 
-#include <proto/acl.h>
 #include <haproxy/compression.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/stream.h>
