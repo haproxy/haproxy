@@ -42,6 +42,7 @@
 #include <haproxy/peers.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample-t.h>
+#include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
@@ -61,7 +62,6 @@
 #include <haproxy/pipe.h>
 #include <haproxy/protocol.h>
 #include <proto/stream.h>
-#include <proto/server.h>
 
 #define PAYLOAD_PATTERN "<<"
 

@@ -1,5 +1,5 @@
 /*
- * include/proto/server.h
+ * include/haproxy/server.h
  * This file defines everything related to servers.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -19,20 +19,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_SERVER_H
-#define _PROTO_SERVER_H
+#ifndef _HAPROXY_SERVER_H
+#define _HAPROXY_SERVER_H
 
 #include <unistd.h>
+
 
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
 #include <haproxy/dns-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/task.h>
-#include <haproxy/time.h>
-#include <types/server.h>
-
 #include <haproxy/freq_ctr.h>
+#include <haproxy/proxy-t.h>
+#include <haproxy/server-t.h>
+#include <haproxy/task.h>
+#include <haproxy/thread-t.h>
+#include <haproxy/time.h>
 
 
 __decl_thread(extern HA_SPINLOCK_T idle_conn_srv_lock);
@@ -40,6 +41,7 @@ extern struct eb_root idle_conn_srv;
 extern struct task *idle_conn_task;
 extern struct task *idle_conn_cleanup[MAX_THREADS];
 extern struct mt_list toremove_connections[MAX_THREADS];
+extern struct dict server_name_dict;
 
 int srv_downtime(const struct server *s);
 int srv_lastsession(const struct server *s);
@@ -66,20 +68,6 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 struct task *srv_cleanup_idle_connections(struct task *task, void *ctx, unsigned short state);
 struct task *srv_cleanup_toremove_connections(struct task *task, void *context, unsigned short state);
 
-/* increase the number of cumulated connections on the designated server */
-static inline void srv_inc_sess_ctr(struct server *s)
-{
-	_HA_ATOMIC_ADD(&s->counters.cum_sess, 1);
-	HA_ATOMIC_UPDATE_MAX(&s->counters.sps_max,
-			     update_freq_ctr(&s->sess_per_sec, 1));
-}
-
-/* set the time of last session on the designated server */
-static inline void srv_set_sess_last(struct server *s)
-{
-	s->counters.last_sess = now.tv_sec;
-}
-
 /*
  * Registers the server keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.
@@ -97,20 +85,6 @@ void srv_dump_kws(char **out);
  * state is automatically disabled if the time is elapsed.
  */
 void server_recalc_eweight(struct server *sv, int must_update);
-
-/* returns the current server throttle rate between 0 and 100% */
-static inline unsigned int server_throttle_rate(struct server *sv)
-{
-	struct proxy *px = sv->proxy;
-
-	/* when uweight is 0, we're in soft-stop so that cannot be a slowstart,
-	 * thus the throttle is 100%.
-	 */
-	if (!sv->uweight)
-		return 100;
-
-	return (100U * px->lbprm.wmult * sv->cur_eweight + px->lbprm.wdiv - 1) / (px->lbprm.wdiv * sv->uweight);
-}
 
 /*
  * Parses weight_str and configures sv accordingly.
@@ -133,15 +107,6 @@ const char *server_parse_addr_change_request(struct server *sv,
  */
 const char *server_parse_maxconn_change_request(struct server *sv,
 					       const char *maxconn_str);
-
-/*
- * Return true if the server has a zero user-weight, meaning it's in draining
- * mode (ie: not taking new non-persistent connections).
- */
-static inline int server_is_draining(const struct server *s)
-{
-	return !s->uweight || (s->cur_admin & SRV_ADMF_DRAIN);
-}
 
 /* Shutdown all connections of a server. The caller must pass a termination
  * code in <why>, which must be one of SF_ERR_* indicating the reason for the
@@ -184,6 +149,43 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode);
  * been provided.
  */
 void srv_set_dyncookie(struct server *s);
+
+/* increase the number of cumulated connections on the designated server */
+static inline void srv_inc_sess_ctr(struct server *s)
+{
+	_HA_ATOMIC_ADD(&s->counters.cum_sess, 1);
+	HA_ATOMIC_UPDATE_MAX(&s->counters.sps_max,
+			     update_freq_ctr(&s->sess_per_sec, 1));
+}
+
+/* set the time of last session on the designated server */
+static inline void srv_set_sess_last(struct server *s)
+{
+	s->counters.last_sess = now.tv_sec;
+}
+
+/* returns the current server throttle rate between 0 and 100% */
+static inline unsigned int server_throttle_rate(struct server *sv)
+{
+	struct proxy *px = sv->proxy;
+
+	/* when uweight is 0, we're in soft-stop so that cannot be a slowstart,
+	 * thus the throttle is 100%.
+	 */
+	if (!sv->uweight)
+		return 100;
+
+	return (100U * px->lbprm.wmult * sv->cur_eweight + px->lbprm.wdiv - 1) / (px->lbprm.wdiv * sv->uweight);
+}
+
+/*
+ * Return true if the server has a zero user-weight, meaning it's in draining
+ * mode (ie: not taking new non-persistent connections).
+ */
+static inline int server_is_draining(const struct server *s)
+{
+	return !s->uweight || (s->cur_admin & SRV_ADMF_DRAIN);
+}
 
 /* Puts server <s> into maintenance mode, and propagate that status down to all
  * tracking servers.
@@ -294,7 +296,7 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 	return 0;
 }
 
-#endif /* _PROTO_SERVER_H */
+#endif /* _HAPROXY_SERVER_H */
 
 /*
  * Local variables:

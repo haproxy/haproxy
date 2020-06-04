@@ -25,8 +25,8 @@
 #include <haproxy/backend-t.h>
 #include <haproxy/api.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/server-t.h>
 #include <haproxy/time.h>
-#include <types/server.h>
 #include <types/stream.h>
 
 int assign_server(struct stream *s);

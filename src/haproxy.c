@@ -107,6 +107,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/regex.h>
+#include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/signal.h>
 #include <haproxy/ssl_sock.h>
@@ -125,7 +126,6 @@
 #include <haproxy/arg.h>
 #include <haproxy/fd.h>
 #include <haproxy/protocol.h>
-#include <proto/server.h>
 #include <proto/stream.h>
 
 /* array of init calls for older platforms */

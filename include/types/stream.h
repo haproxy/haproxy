@@ -38,11 +38,11 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/queue-t.h>
+#include <haproxy/server-t.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stream_interface-t.h>
 #include <haproxy/vars-t.h>
 
-#include <types/server.h>
 #include <haproxy/task-t.h>
 #include <haproxy/stick_table-t.h>
 

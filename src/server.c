@@ -30,6 +30,7 @@
 #include <haproxy/namespace.h>
 #include <haproxy/queue.h>
 #include <haproxy/sample.h>
+#include <haproxy/server.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -37,7 +38,6 @@
 
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
-#include <proto/server.h>
 #include <proto/stream.h>
 #include <netinet/tcp.h>
 

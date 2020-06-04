@@ -27,7 +27,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/queue-t.h>
-#include <types/server.h>
+#include <haproxy/server-t.h>
 #include <types/stream.h>
 
 extern struct pool_head *pool_head_pendconn;

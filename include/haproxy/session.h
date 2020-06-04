@@ -26,9 +26,9 @@
 #include <haproxy/global-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
+#include <haproxy/server.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stick_table.h>
-#include <proto/server.h>
 
 extern struct pool_head *pool_head_session;
 extern struct pool_head *pool_head_sess_srv_list;

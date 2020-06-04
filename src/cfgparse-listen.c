@@ -25,10 +25,10 @@
 #include <haproxy/peers.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
+#include <haproxy/server.h>
 #include <haproxy/stats-t.h>
 
 #include <haproxy/protocol.h>
-#include <proto/server.h>
 #include <haproxy/stick_table.h>
 
 /* Report a warning if a rule is placed after a 'tcp-request session' rule.

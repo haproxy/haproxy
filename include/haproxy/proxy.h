@@ -27,9 +27,9 @@
 #include <haproxy/freq_ctr.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/server-t.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <types/server.h>
 
 extern struct proxy *proxies_list;
 extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */

@@ -27,9 +27,9 @@
 #include <haproxy/lb_fwlc-t.h>
 #include <haproxy/lb_fwrr-t.h>
 #include <haproxy/lb_map-t.h>
+#include <haproxy/server-t.h>
 #include <haproxy/thread-t.h>
 #include <haproxy/api-t.h>
-#include <types/server.h>
 
 /* Parameters for lbprm.algo */
 

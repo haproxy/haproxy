@@ -57,6 +57,7 @@
 #include <haproxy/openssl-compat.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/proxy.h>
+#include <haproxy/server.h>
 #include <haproxy/shctx.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_crtlist.h>
@@ -78,7 +79,6 @@
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/proto_tcp.h>
-#include <proto/server.h>
 #include <proto/stream.h>
 
 /* ***** READ THIS before adding code here! *****

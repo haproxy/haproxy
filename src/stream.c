@@ -43,6 +43,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
+#include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
@@ -56,7 +57,6 @@
 #include <haproxy/freq_ctr.h>
 #include <proto/stream.h>
 #include <haproxy/pipe.h>
-#include <proto/server.h>
 #include <haproxy/stick_table.h>
 
 DECLARE_POOL(pool_head_stream, "stream", sizeof(struct stream));

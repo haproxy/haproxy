@@ -45,6 +45,7 @@
 #include <haproxy/payload.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
+#include <haproxy/server-t.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
@@ -54,7 +55,6 @@
 #include <haproxy/vars.h>
 
 #include <haproxy/arg.h>
-#include <proto/server.h>
 #include <proto/stream.h>
 
 /* Lua uses longjmp to perform yield or throwing errors. This

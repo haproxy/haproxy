@@ -10,13 +10,12 @@
  *
  */
 
+#include <import/eb32tree.h>
 #include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/lb_map.h>
 #include <haproxy/queue.h>
-#include <import/eb32tree.h>
-
-#include <types/server.h>
+#include <haproxy/server-t.h>
 
 /* this function updates the map according to server <srv>'s new state.
  *

@@ -27,6 +27,7 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
+#include <haproxy/server-t.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/uri_auth-t.h>
@@ -34,7 +35,6 @@
 
 #include <haproxy/capture-t.h>
 
-#include <proto/server.h>
 #include <proto/stream.h>
 
 #define TRACE_SOURCE &trace_strm

@@ -23,12 +23,11 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
+#include <haproxy/server-t.h>
 #include <haproxy/session.h>
 #include <haproxy/tools.h>
 
 #include <haproxy/global.h>
-
-#include <proto/server.h>
 
 /* Global list of all FCGI applications */
 static struct fcgi_app *fcgi_apps = NULL;

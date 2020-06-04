@@ -27,7 +27,7 @@
 #include <haproxy/list-t.h>
 #include <haproxy/mailers.h>
 #include <haproxy/proxy-t.h>
-#include <types/server.h>
+#include <haproxy/server-t.h>
 
 const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);

@@ -1,5 +1,5 @@
 /*
- * include/types/server.h
+ * include/haproxy/server-t.h
  * This file defines everything related to servers.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -19,28 +19,28 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_SERVER_H
-#define _TYPES_SERVER_H
+#ifndef _HAPROXY_SERVER_T_H
+#define _HAPROXY_SERVER_T_H
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <import/eb32tree.h>
+#include <import/ebmbtree.h>
+
 #include <haproxy/check-t.h>
+#include <haproxy/connection-t.h>
 #include <haproxy/counters-t.h>
 #include <haproxy/dns-t.h>
-#include <haproxy/api-t.h>
+#include <haproxy/freq_ctr-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
-#include <haproxy/ssl_sock-t.h>
-#include <haproxy/thread.h>
 #include <haproxy/openssl-compat.h>
-
-#include <import/eb32tree.h>
-
-#include <haproxy/connection-t.h>
-#include <haproxy/freq_ctr-t.h>
+#include <haproxy/ssl_sock-t.h>
 #include <haproxy/task-t.h>
+#include <haproxy/thread-t.h>
+#include <haproxy/api-t.h>
 
 
 /* server states. Only SRV_ST_STOPPED indicates a down server. */
@@ -168,22 +168,17 @@ enum srv_initaddr {
 #define SRV_EWGHT_RANGE (SRV_UWGHT_RANGE * BE_WEIGHT_SCALE)
 #define SRV_EWGHT_MAX   (SRV_UWGHT_MAX   * BE_WEIGHT_SCALE)
 
-#ifdef USE_OPENSSL
 /* server ssl options */
-#define SRV_SSL_O_NONE         0x0000
+#define SRV_SSL_O_NONE           0x0000
 #define SRV_SSL_O_NO_TLS_TICKETS 0x0100 /* disable session resumption tickets */
-#define SRV_SSL_O_NO_REUSE     0x200  /* disable session reuse */
-#define SRV_SSL_O_EARLY_DATA   0x400  /* Allow using early data */
-#endif
+#define SRV_SSL_O_NO_REUSE       0x200  /* disable session reuse */
+#define SRV_SSL_O_EARLY_DATA     0x400  /* Allow using early data */
 
 /* log servers ring's protocols options */
 enum srv_log_proto {
         SRV_LOG_PROTO_LEGACY,         // messages on TCP separated by LF
         SRV_LOG_PROTO_OCTET_COUNTING, // TCP frames: MSGLEN SP MSG
 };
-
-/* The server names dictionary */
-extern struct dict server_name_dict;
 
 struct pid_list {
 	struct list list;
@@ -394,7 +389,7 @@ struct srv_kw_list {
 	struct srv_kw kw[VAR_ARRAY];
 };
 
-#endif /* _TYPES_SERVER_H */
+#endif /* _HAPROXY_SERVER_T_H */
 
 /*
  * Local variables:

@@ -30,7 +30,7 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy-t.h>
-#include <types/server.h>
+#include <haproxy/server-t.h>
 #include <types/stream.h>
 #include <haproxy/stream_interface-t.h>
 

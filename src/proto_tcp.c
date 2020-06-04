@@ -42,6 +42,7 @@
 #include <haproxy/log.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
+#include <haproxy/server.h>
 #include <haproxy/tools.h>
 #include <haproxy/namespace.h>
 
@@ -52,7 +53,6 @@
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proto_tcp.h>
-#include <proto/server.h>
 #include <haproxy/tcp_rules.h>
 
 static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);

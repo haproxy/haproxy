@@ -26,10 +26,10 @@
 #include <haproxy/pattern-t.h>
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
+#include <haproxy/server.h>
 #include <haproxy/stats.h>
 #include <haproxy/time.h>
 
-#include <proto/server.h>
 #include <haproxy/stick_table.h>
 
 /* Contains the class reference of the concat object. */

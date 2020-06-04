@@ -24,7 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/proxy-t.h>
-#include <types/server.h>
+#include <haproxy/server-t.h>
 
 void recalc_server_map(struct proxy *px);
 void init_server_map(struct proxy *p);
