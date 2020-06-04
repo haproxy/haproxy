@@ -25,7 +25,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/thread.h>
 #include <haproxy/ring.h>
-#include <proto/stream_interface.h>
+#include <haproxy/stream_interface.h>
 
 /* Creates and returns a ring buffer of size <size> bytes. Returns NULL on
  * allocation failure.

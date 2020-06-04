@@ -18,6 +18,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/namespace.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 #include <types/filters.h>
@@ -27,7 +28,6 @@
 #include <proto/filters.h>
 #include <proto/http_ana.h>
 #include <proto/stream.h>
-#include <proto/stream_interface.h>
 
 #define TRACE_SOURCE &trace_strm
 

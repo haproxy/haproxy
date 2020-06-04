@@ -28,6 +28,7 @@
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/time.h>
 
@@ -46,7 +47,6 @@
 #include <proto/server.h>
 #include <haproxy/signal.h>
 #include <proto/stream.h>
-#include <proto/stream_interface.h>
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse */

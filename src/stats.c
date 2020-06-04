@@ -45,6 +45,7 @@
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stats.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -62,7 +63,6 @@
 #include <proto/proxy.h>
 #include <proto/stream.h>
 #include <proto/server.h>
-#include <proto/stream_interface.h>
 
 /* status codes available for the stats admin page (strictly 4 chars length) */
 const char *stat_status_codes[STAT_STATUS_SIZE] = {

@@ -24,13 +24,13 @@
 #include <haproxy/regex.h>
 #include <haproxy/session-t.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stream_interface.h>
 
 #include <types/proxy.h>
 
 #include <proto/fcgi-app.h>
 #include <proto/log.h>
 #include <proto/stream.h>
-#include <proto/stream_interface.h>
 #include <haproxy/trace.h>
 
 /* FCGI Connection flags (32 bits) */

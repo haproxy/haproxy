@@ -23,6 +23,7 @@
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
 #include <haproxy/session.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/time.h>
@@ -41,7 +42,6 @@
 #include <proto/proxy.h>
 #include <proto/spoe.h>
 #include <proto/stream.h>
-#include <proto/stream_interface.h>
 
 #if defined(DEBUG_SPOE) || defined(DEBUG_FULL)
 #define SPOE_PRINTF(x...) fprintf(x)

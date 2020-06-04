@@ -28,7 +28,7 @@
 #include <haproxy/ring.h>
 #include <haproxy/signal.h>
 #include <haproxy/sink.h>
-#include <proto/stream_interface.h>
+#include <haproxy/stream_interface.h>
 
 struct list sink_list = LIST_HEAD_INIT(sink_list);
 

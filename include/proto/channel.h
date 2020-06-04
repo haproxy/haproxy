@@ -32,12 +32,12 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/global.h>
 #include <haproxy/htx.h>
+#include <haproxy/stream_interface-t.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
 #include <types/channel.h>
 #include <types/stream.h>
-#include <types/stream_interface.h>
 
 #include <proto/stream.h>
 #include <haproxy/task.h>

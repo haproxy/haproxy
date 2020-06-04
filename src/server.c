@@ -29,6 +29,7 @@
 #include <haproxy/namespace.h>
 #include <haproxy/sample.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/time.h>
 
@@ -37,7 +38,6 @@
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/stream.h>
-#include <proto/stream_interface.h>
 #include <netinet/tcp.h>
 
 #include <import/ebsttree.h>

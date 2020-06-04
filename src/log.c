@@ -30,6 +30,7 @@
 #include <haproxy/frontend.h>
 #include <haproxy/http.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/version.h>
@@ -43,7 +44,6 @@
 #include <haproxy/sample.h>
 #include <haproxy/sink.h>
 #include <proto/stream.h>
-#include <proto/stream_interface.h>
 
 struct log_fmt {
 	char *name;

@@ -24,6 +24,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/debug.h>
 #include <haproxy/hlua.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
 #include <import/ist.h>
@@ -33,7 +34,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/fd.h>
-#include <proto/stream_interface.h>
 
 /* mask of threads still having to dump, used to respect ordering. Only used
  * when USE_THREAD_DUMP is set.

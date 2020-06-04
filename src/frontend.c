@@ -27,6 +27,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/frontend.h>
 #include <haproxy/sample.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
@@ -41,7 +42,6 @@
 #include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>
-#include <proto/stream_interface.h>
 
 /* Finish a stream accept() for a proxy (TCP or HTTP). It returns a negative
  * value in case of a critical failure which must cause the listener to be

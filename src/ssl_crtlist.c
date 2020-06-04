@@ -20,6 +20,7 @@
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_crtlist.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 #include <dirent.h>
@@ -27,7 +28,6 @@
 #include <import/ebsttree.h>
 
 #include <proto/channel.h>
-#include <proto/stream_interface.h>
 
 /* release ssl bind conf */
 void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)

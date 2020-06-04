@@ -13,12 +13,12 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/cli.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/thread-t.h>
 #include <haproxy/activity-t.h>
 #include <proto/channel.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/stream_interface.h>
 
 
 /* bit field of profiling options. Beware, may be modified at runtime! */

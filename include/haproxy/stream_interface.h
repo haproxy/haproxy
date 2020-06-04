@@ -1,5 +1,5 @@
 /*
- * include/proto/stream_interface.h
+ * include/haproxy/stream_interface.h
  * This file contains stream_interface function prototypes
  *
  * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
@@ -19,17 +19,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_STREAM_INTERFACE_H
-#define _PROTO_STREAM_INTERFACE_H
-
-#include <stdlib.h>
+#ifndef _HAPROXY_STREAM_INTERFACE_H
+#define _HAPROXY_STREAM_INTERFACE_H
 
 #include <haproxy/applet.h>
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
-#include <types/stream.h>
-#include <types/stream_interface.h>
+#include <haproxy/stream_interface-t.h>
 #include <proto/channel.h>
+#include <types/stream.h>
 
 
 extern struct si_ops si_embedded_ops;
@@ -567,7 +565,7 @@ static inline const char *si_state_str(int state)
 	}
 }
 
-#endif /* _PROTO_STREAM_INTERFACE_H */
+#endif /* _HAPROXY_STREAM_INTERFACE_H */
 
 /*
  * Local variables:

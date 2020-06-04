@@ -29,6 +29,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/version.h>
@@ -38,7 +39,6 @@
 #include <haproxy/arg.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
-#include <proto/stream_interface.h>
 
 /* Release memory allocated by most of HTTP actions. Concretly, it releases
  * <arg.http>.

@@ -21,13 +21,13 @@
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 #include <haproxy/activity-t.h>
 
 #include <proto/channel.h>
 #include <proto/log.h>
-#include <proto/stream_interface.h>
 
 #ifdef CONFIG_HAP_LOCAL_POOLS
 /* These are the most common pools, expected to be initialized first. These

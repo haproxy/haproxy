@@ -23,9 +23,9 @@
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/session-t.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/trace.h>
 #include <proto/stream.h>
-#include <proto/stream_interface.h>
 #include <import/eb32tree.h>
 
 

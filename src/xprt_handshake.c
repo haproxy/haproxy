@@ -11,7 +11,7 @@
  */
 
 #include <haproxy/connection.h>
-#include <proto/stream_interface.h>
+#include <haproxy/stream_interface.h>
 
 struct xprt_handshake_ctx {
 	struct connection *conn;

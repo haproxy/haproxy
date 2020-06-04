@@ -25,6 +25,7 @@
 #include <haproxy/mworker.h>
 #include <haproxy/peers.h>
 #include <haproxy/signal.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/version.h>
 
 #include <haproxy/global.h>
@@ -33,7 +34,6 @@
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>
-#include <proto/stream_interface.h>
 
 
 #if defined(USE_SYSTEMD)

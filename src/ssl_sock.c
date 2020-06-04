@@ -60,6 +60,7 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -77,7 +78,6 @@
 #include <haproxy/proto_tcp.h>
 #include <proto/http_ana.h>
 #include <proto/server.h>
-#include <proto/stream_interface.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>

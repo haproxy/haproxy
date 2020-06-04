@@ -32,6 +32,7 @@
 #include <haproxy/session-t.h>
 #include <haproxy/signal.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/thread.h>
@@ -42,7 +43,6 @@
 #include <proto/proxy.h>
 #include <proto/stream.h>
 #include <haproxy/stick_table.h>
-#include <proto/stream_interface.h>
 
 
 /*******************************/

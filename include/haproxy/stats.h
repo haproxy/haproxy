@@ -25,9 +25,9 @@
 
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/stream_interface-t.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/tools-t.h>
-#include <types/stream_interface.h>
 
 
 /* These two structs contains all field names and descriptions according to

@@ -27,7 +27,7 @@
 #include <proto/log.h>
 #include <haproxy/session-t.h>
 #include <proto/stream.h>
-#include <proto/stream_interface.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/trace.h>
 
 /*

@@ -1,5 +1,5 @@
 /*
- * include/types/stream_interface.h
+ * include/haproxy/stream_interface-t.h
  * This file describes the stream_interface struct and associated constants.
  *
  * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
@@ -19,10 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_STREAM_INTERFACE_H
-#define _TYPES_STREAM_INTERFACE_H
+#ifndef _HAPROXY_STREAM_INTERFACE_T_H
+#define _HAPROXY_STREAM_INTERFACE_T_H
 
 #include <haproxy/api-t.h>
+#include <haproxy/buf-t.h>
+#include <haproxy/connection-t.h>
 #include <haproxy/obj_type-t.h>
 
 /* A stream interface must have its own errors independently of the buffer's,
@@ -142,7 +144,7 @@ struct si_ops {
 	void (*shutw)(struct stream_interface *);   /* shut write function, may not be null */
 };
 
-#endif /* _TYPES_STREAM_INTERFACE_H */
+#endif /* _HAPROXY_STREAM_INTERFACE_T_H */
 
 /*
  * Local variables:

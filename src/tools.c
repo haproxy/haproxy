@@ -47,10 +47,10 @@
 #include <haproxy/listener.h>
 #include <haproxy/namespace.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/proto_udp.h>
-#include <proto/stream_interface.h>
 
 /* This macro returns false if the test __x is false. Many
  * of the following parsing function must be abort the processing

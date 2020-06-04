@@ -19,11 +19,11 @@
 #include <haproxy/pattern.h>
 #include <haproxy/regex.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 #include <haproxy/arg.h>
 #include <proto/log.h>
-#include <proto/stream_interface.h>
 #include <haproxy/sample.h>
 
 /* Parse an IPv4 or IPv6 address and store it into the sample.

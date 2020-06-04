@@ -27,12 +27,12 @@
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 #include <import/ebsttree.h>
 
 #include <proto/channel.h>
-#include <proto/stream_interface.h>
 
 /* Uncommitted CKCH transaction */
 
