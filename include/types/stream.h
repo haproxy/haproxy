@@ -33,6 +33,7 @@
 #include <haproxy/hlua-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/vars-t.h>
 
 #include <types/channel.h>
 #include <types/filters.h>
@@ -44,7 +45,6 @@
 #include <types/stream_interface.h>
 #include <types/task.h>
 #include <types/stick_table.h>
-#include <types/vars.h>
 
 /* Various Stream Flags, bits values 0x01 to 0x100 (shift 0) */
 #define SF_DIRECT	0x00000001	/* connection made on the server matching the client cookie */

@@ -18,6 +18,7 @@
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
+#include <haproxy/vars.h>
 #include <common/uri_auth.h>
 
 #include <haproxy/capture-t.h>
@@ -34,7 +35,6 @@
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/stats.h>
-#include <proto/vars.h>
 
 #define TRACE_SOURCE &trace_strm
 

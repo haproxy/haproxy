@@ -105,6 +105,7 @@
 #include <common/uri_auth.h>
 #include <haproxy/version.h>
 #include <haproxy/thread.h>
+#include <haproxy/vars.h>
 
 #include <haproxy/capture-t.h>
 #include <types/cli.h>
@@ -132,7 +133,6 @@
 #include <proto/stream.h>
 #include <proto/signal.h>
 #include <proto/task.h>
-#include <proto/vars.h>
 #include <proto/ssl_sock.h>
 
 /* array of init calls for older platforms */

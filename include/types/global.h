@@ -26,11 +26,11 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/thread.h>
+#include <haproxy/vars-t.h>
 
 #include <haproxy/freq_ctr-t.h>
 #include <types/proxy.h>
 #include <types/task.h>
-#include <types/vars.h>
 
 #ifndef UNIX_MAX_PATH
 #define UNIX_MAX_PATH 108

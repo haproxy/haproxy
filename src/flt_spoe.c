@@ -21,6 +21,7 @@
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
 #include <haproxy/time.h>
+#include <haproxy/vars.h>
 
 #include <haproxy/arg-t.h>
 #include <types/global.h>
@@ -41,7 +42,6 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 #include <proto/tcp_rules.h>
-#include <proto/vars.h>
 
 #if defined(DEBUG_SPOE) || defined(DEBUG_FULL)
 #define SPOE_PRINTF(x...) fprintf(x)

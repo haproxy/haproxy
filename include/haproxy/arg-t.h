@@ -28,8 +28,8 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/protobuf-t.h>
+#include <haproxy/vars-t.h>
 
-#include <types/vars.h>
 #include <types/stick_table.h>
 
 /* encoding of each arg type : up to 31 types are supported */

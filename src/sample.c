@@ -29,6 +29,7 @@
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
+#include <haproxy/vars.h>
 #include <common/uri_auth.h>
 #include <haproxy/base64.h>
 
@@ -37,7 +38,6 @@
 #include <proto/proxy.h>
 #include <haproxy/sink.h>
 #include <proto/stick_table.h>
-#include <proto/vars.h>
 
 #include <import/sha1.h>
 #include <import/xxhash.h>

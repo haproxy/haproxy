@@ -28,6 +28,7 @@
 #include <haproxy/thread.h>
 #include <haproxy/htx.h>
 #include <haproxy/pool.h>
+#include <haproxy/vars.h>
 
 #include <types/applet.h>
 #include <types/cli.h>
@@ -59,7 +60,6 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 #include <proto/tcp_rules.h>
-#include <proto/vars.h>
 
 DECLARE_POOL(pool_head_stream, "stream", sizeof(struct stream));
 DECLARE_POOL(pool_head_uniqueid, "uniqueid", UNIQUEID_LEN);

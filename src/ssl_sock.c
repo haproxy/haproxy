@@ -59,6 +59,7 @@
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <haproxy/base64.h>
+#include <haproxy/vars.h>
 
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
@@ -85,7 +86,6 @@
 #include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/task.h>
-#include <proto/vars.h>
 
 /* ***** READ THIS before adding code here! *****
  *
