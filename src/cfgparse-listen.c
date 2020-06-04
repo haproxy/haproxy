@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 #include <common/cfgparse.h>
-#include <common/uri_auth.h>
+#include <haproxy/uri_auth.h>
 
 #include <haproxy/acl.h>
 #include <haproxy/capture-t.h>

@@ -29,8 +29,8 @@
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
+#include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>
-#include <common/uri_auth.h>
 #include <haproxy/base64.h>
 
 #include <haproxy/arg.h>

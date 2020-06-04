@@ -20,7 +20,6 @@
 #include <haproxy/list.h>
 #include <haproxy/pattern.h>
 #include <haproxy/tools.h>
-#include <common/uri_auth.h>
 
 #include <haproxy/global.h>
 

@@ -58,7 +58,7 @@
 #include <haproxy/session.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
-#include <common/uri_auth.h>
+#include <haproxy/uri_auth-t.h>
 #include <haproxy/namespace.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>

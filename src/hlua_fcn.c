@@ -23,7 +23,6 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
 #include <haproxy/time.h>
-#include <common/uri_auth.h>
 
 #include <types/cli.h>
 #include <types/proxy.h>

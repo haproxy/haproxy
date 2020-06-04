@@ -21,8 +21,8 @@
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
+#include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>
-#include <common/uri_auth.h>
 
 #include <haproxy/capture-t.h>
 

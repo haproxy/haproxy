@@ -1,7 +1,8 @@
 /*
- * URI-based user authentication using the HTTP basic method.
+ * include/haproxy/uri_auth-t.h
+ * Definitions for URI-based user authentication using the HTTP basic method.
  *
- * Copyright 2006-2011 Willy Tarreau <w@1wt.eu>
+ * Copyright 2006-2020 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -10,12 +11,12 @@
  *
  */
 
-#ifndef _COMMON_URI_AUTH_H
-#define _COMMON_URI_AUTH_H
+#ifndef _HAPROXY_URI_AUTH_T_H
+#define _HAPROXY_URI_AUTH_T_H
 
-
+#include <haproxy/acl-t.h>
 #include <haproxy/auth-t.h>
-#include <haproxy/api.h>
+#include <haproxy/list-t.h>
 
 /* This is a list of proxies we are allowed to see. Later, it should go in the
  * user list, but before this we need to support de/re-authentication.
@@ -46,25 +47,7 @@ struct stats_admin_rule {
 	struct acl_cond *cond;	/* acl condition to meet */
 };
 
-
-/* Various functions used to set the fields during the configuration parsing.
- * Please that all those function can initialize the root entry in order not to
- * force the user to respect a certain order in the configuration file.
- *
- * Default values are used during initialization. Check STATS_DEFAULT_* for
- * more information.
- */
-struct uri_auth *stats_check_init_uri_auth(struct uri_auth **root);
-struct uri_auth *stats_set_uri(struct uri_auth **root, char *uri);
-struct uri_auth *stats_set_realm(struct uri_auth **root, char *realm);
-struct uri_auth *stats_set_refresh(struct uri_auth **root, int interval);
-struct uri_auth *stats_set_flag(struct uri_auth **root, int flag);
-struct uri_auth *stats_add_auth(struct uri_auth **root, char *user);
-struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope);
-struct uri_auth *stats_set_node(struct uri_auth **root, char *name);
-struct uri_auth *stats_set_desc(struct uri_auth **root, char *desc);
-
-#endif /* _COMMON_URI_AUTH_H */
+#endif /* _HAPROXY_URI_AUTH_T_H */
 
 /*
  * Local variables:

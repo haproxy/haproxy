@@ -15,7 +15,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
-#include <common/uri_auth.h>
+#include <haproxy/uri_auth.h>
 
 #include <types/stats.h>
 #include <proto/log.h>

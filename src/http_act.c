@@ -30,7 +30,7 @@
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
-#include <common/uri_auth.h>
+#include <haproxy/uri_auth-t.h>
 #include <haproxy/version.h>
 
 #include <haproxy/capture-t.h>
