@@ -23,6 +23,7 @@
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/pattern.h>
 #include <haproxy/pool.h>
 #include <haproxy/regex.h>
 #include <haproxy/tools.h>
@@ -36,7 +37,6 @@
 #include <haproxy/arg.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
-#include <proto/pattern.h>
 #include <proto/stream_interface.h>
 
 /* Release memory allocated by most of HTTP actions. Concretly, it releases

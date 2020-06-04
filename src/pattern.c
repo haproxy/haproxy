@@ -16,14 +16,13 @@
 
 #include <haproxy/api.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/pattern.h>
 #include <haproxy/regex.h>
 #include <haproxy/tools.h>
 
 #include <types/global.h>
-#include <types/pattern.h>
 
 #include <proto/log.h>
-#include <proto/pattern.h>
 #include <proto/sample.h>
 
 #include <import/ebsttree.h>

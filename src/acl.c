@@ -17,6 +17,7 @@
 #include <haproxy/auth.h>
 #include <haproxy/api.h>
 #include <haproxy/list.h>
+#include <haproxy/pattern.h>
 #include <haproxy/tools.h>
 #include <common/uri_auth.h>
 
@@ -26,7 +27,6 @@
 #include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <proto/log.h>
-#include <proto/pattern.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/stick_table.h>

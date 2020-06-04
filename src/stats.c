@@ -36,6 +36,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/pattern-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -56,7 +57,6 @@
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>
-#include <proto/pattern.h>
 #include <haproxy/pipe.h>
 #include <proto/map.h>
 #include <proto/proxy.h>

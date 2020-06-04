@@ -15,12 +15,12 @@
 
 #include <haproxy/api.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/pattern.h>
 #include <haproxy/htx.h>
 #include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
-#include <proto/pattern.h>
 #include <proto/payload.h>
 #include <proto/sample.h>
 #include <proto/http_ana.h>

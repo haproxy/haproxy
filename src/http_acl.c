@@ -20,6 +20,7 @@
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
 #include <haproxy/http.h>
+#include <haproxy/pattern.h>
 #include <haproxy/pool.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
@@ -28,7 +29,6 @@
 
 #include <proto/acl.h>
 #include <haproxy/arg.h>
-#include <proto/pattern.h>
 
 
 /* We use the pre-parsed method if it is known, and store its number as an

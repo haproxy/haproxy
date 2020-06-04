@@ -1,5 +1,5 @@
 /*
- * include/proto/pattern.h
+ * include/haproxy/pattern.h
  * This file provides structures and types for pattern matching.
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
@@ -19,22 +19,26 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_PATTERN_H
-#define _PROTO_PATTERN_H
+#ifndef _HAPROXY_PATTERN_H
+#define _HAPROXY_PATTERN_H
 
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <types/pattern.h>
+#include <haproxy/pattern-t.h>
 
 /* pattern management function arrays */
 extern char *pat_match_names[PAT_MATCH_NUM];
+extern int pat_match_types[PAT_MATCH_NUM];
+
 extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char **);
 extern int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
 extern void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt *);
 extern void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *);
 extern struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int);
-extern int pat_match_types[PAT_MATCH_NUM];
+
+/* This is the root of the list of all pattern_ref avalaibles. */
+extern struct list pattern_reference;
 
 int pattern_finalize_config(void);
 

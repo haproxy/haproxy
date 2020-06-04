@@ -1,5 +1,5 @@
 /*
- * include/types/pattern.h
+ * include/haproxy/pattern-t.h
  * This file provides structures and types for ACLs.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -19,16 +19,18 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_PATTERN_H
-#define _TYPES_PATTERN_H
+#ifndef _HAPROXY_PATTERN_T_H
+#define _HAPROXY_PATTERN_T_H
 
-#include <haproxy/api-t.h>
+#include <import/ebmbtree.h>
+
 #include <haproxy/list-t.h>
 #include <haproxy/regex-t.h>
+#include <haproxy/thread-t.h>
+#include <haproxy/api-t.h>
 
 #include <types/sample.h>
 
-#include <import/ebmbtree.h>
 
 /* Pattern matching function result.
  *
@@ -217,7 +219,4 @@ struct pattern_head {
 	struct list head; /* This is a list of struct pattern_expr_list. */
 };
 
-/* This is the root of the list of all pattern_ref avalaibles. */
-extern struct list pattern_reference;
-
-#endif /* _TYPES_PATTERN_H */
+#endif /* _HAPROXY_PATTERN_T_H */

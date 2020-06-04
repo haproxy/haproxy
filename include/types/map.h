@@ -22,7 +22,7 @@
 #ifndef _TYPES_MAP_H
 #define _TYPES_MAP_H
 
-#include <types/pattern.h>
+#include <haproxy/pattern-t.h>
 #include <types/sample.h>
 
 struct map_descriptor {
