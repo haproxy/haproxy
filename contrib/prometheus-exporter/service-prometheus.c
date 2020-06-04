@@ -29,7 +29,7 @@
 #include <proto/frontend.h>
 #include <proto/listener.h>
 #include <proto/http_htx.h>
-#include <proto/pipe.h>
+#include <haproxy/pipe.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/server.h>

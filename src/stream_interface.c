@@ -30,13 +30,13 @@
 #include <proto/connection.h>
 #include <proto/http_htx.h>
 #include <proto/mux_pt.h>
-#include <proto/pipe.h>
+#include <haproxy/pipe.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
-#include <types/pipe.h>
+#include <haproxy/pipe-t.h>
 
 /* functions used by default on a detached stream-interface */
 static void stream_int_shutr(struct stream_interface *si);

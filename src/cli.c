@@ -53,7 +53,7 @@
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
-#include <proto/pipe.h>
+#include <haproxy/pipe.h>
 #include <haproxy/protocol.h>
 #include <proto/listener.h>
 #include <proto/map.h>

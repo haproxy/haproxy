@@ -57,7 +57,7 @@
 #include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
-#include <proto/pipe.h>
+#include <haproxy/pipe.h>
 #include <proto/listener.h>
 #include <proto/map.h>
 #include <proto/proxy.h>

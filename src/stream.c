@@ -52,7 +52,7 @@
 #include <proto/raw_sock.h>
 #include <proto/session.h>
 #include <proto/stream.h>
-#include <proto/pipe.h>
+#include <haproxy/pipe.h>
 #include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>

@@ -18,7 +18,7 @@
 
 #include <import/ebistree.h>
 
-#include <types/pipe.h>
+#include <haproxy/pipe-t.h>
 #include <types/proxy.h>
 #include <types/session.h>
 
