@@ -1,5 +1,5 @@
 /*
- * include/types/counters.h
+ * include/haproxy/counters-t.h
  * This file contains structure declarations for statistics counters.
  *
  * Copyright 2008-2009 Krzysztof Piotr Oledzki <ole@ans.pl>
@@ -20,8 +20,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_COUNTERS_H
-#define _TYPES_COUNTERS_H
+#ifndef _HAPROXY_COUNTERS_T_H
+#define _HAPROXY_COUNTERS_T_H
 
 /* counters used by listeners and frontends */
 struct fe_counters {
@@ -115,7 +115,7 @@ struct be_counters {
 	} p;                                    /* protocol-specific stats */
 };
 
-#endif /* _TYPES_COUNTERS_H */
+#endif /* _HAPROXY_COUNTERS_T_H */
 
 /*
  * Local variables:

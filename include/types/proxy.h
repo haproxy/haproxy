@@ -29,6 +29,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/chunk.h>
+#include <haproxy/counters-t.h>
 #include <haproxy/http-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/thread.h>
@@ -39,7 +40,6 @@
 #include <types/acl.h>
 #include <types/backend.h>
 #include <types/checks.h>
-#include <types/counters.h>
 #include <types/filters.h>
 #include <haproxy/freq_ctr-t.h>
 #include <types/listener.h>
