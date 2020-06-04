@@ -1,5 +1,5 @@
 /*
- * include/proto/lb_chash.h
+ * include/haproxy/lb_chash.h
  * Function declarations for Consistent Hash LB algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -19,10 +19,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_LB_CHASH_H
-#define _PROTO_LB_CHASH_H
+#ifndef _HAPROXY_LB_CHASH_H
+#define _HAPROXY_LB_CHASH_H
 
 #include <haproxy/api.h>
+#include <haproxy/lb_chash-t.h>
 #include <types/proxy.h>
 #include <types/server.h>
 
@@ -30,7 +31,7 @@ void chash_init_server_tree(struct proxy *p);
 struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid);
 struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const struct server *avoid);
 
-#endif /* _PROTO_LB_CHASH_H */
+#endif /* _HAPROXY_LB_CHASH_H */
 
 /*
  * Local variables:

@@ -1,5 +1,5 @@
 /*
- * include/types/lb_chash.h
+ * include/haproxy/lb_chash-t.h
  * Types for Consistent Hash LB algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -19,10 +19,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_LB_CHASH_H
-#define _TYPES_LB_CHASH_H
+#ifndef _HAPROXY_LB_CHASH_T_H
+#define _HAPROXY_LB_CHASH_T_H
 
-#include <haproxy/api-t.h>
 #include <import/ebtree.h>
 #include <import/eb32tree.h>
 
@@ -32,7 +31,7 @@ struct lb_chash {
 	struct eb32_node *last;	/* last node found in case of round robin (or NULL) */
 };
 
-#endif /* _TYPES_LB_CHASH_H */
+#endif /* _HAPROXY_LB_CHASH_T_H */
 
 /*
  * Local variables:

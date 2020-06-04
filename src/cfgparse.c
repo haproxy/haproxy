@@ -43,6 +43,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/frontend.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/lb_chash.h>
 #include <haproxy/mailers-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
@@ -63,7 +64,6 @@
 #include <proto/checks.h>
 #include <proto/stats.h>
 #include <proto/filters.h>
-#include <proto/lb_chash.h>
 #include <proto/lb_fas.h>
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>

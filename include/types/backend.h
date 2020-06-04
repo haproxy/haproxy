@@ -22,10 +22,10 @@
 #ifndef _TYPES_BACKEND_H
 #define _TYPES_BACKEND_H
 
+#include <haproxy/lb_chash-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/thread.h>
 
-#include <types/lb_chash.h>
 #include <types/lb_fas.h>
 #include <types/lb_fwlc.h>
 #include <types/lb_fwrr.h>
