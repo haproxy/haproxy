@@ -35,7 +35,7 @@
 #include <proto/log.h>
 #include <proto/listener.h>
 #include <haproxy/protocol.h>
-#include <proto/proto_sockpair.h>
+#include <haproxy/proto_sockpair.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
 #include <proto/task.h>

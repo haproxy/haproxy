@@ -18,11 +18,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_PROTO_SOCKPAIR_H
-# define _PROTO_PROTO_SOCKPAIR_H
+#ifndef _HAPROXY_PROTO_SOCKPAIR_H
+#define _HAPROXY_PROTO_SOCKPAIR_H
 
 int recv_fd_uxst(int sock);
 int send_fd_uxst(int fd, int send_fd);
 
-#endif /* _PROTO_PROTO_SOCKPAIR_H  */
+#endif /* _HAPROXY_PROTO_SOCKPAIR_H  */
 
