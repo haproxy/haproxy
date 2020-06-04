@@ -40,7 +40,7 @@
 #include <types/stream_interface.h>
 
 #include <proto/stream.h>
-#include <proto/task.h>
+#include <haproxy/task.h>
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_channel();

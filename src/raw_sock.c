@@ -35,7 +35,6 @@
 #include <proto/log.h>
 #include <haproxy/pipe.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
 
 
 #if defined(USE_LINUX_SPLICE)

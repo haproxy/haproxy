@@ -24,7 +24,6 @@
 
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
-#include <types/task.h>
 #include <proto/stick_table.h>
 
 int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit);

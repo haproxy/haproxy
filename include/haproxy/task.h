@@ -1,8 +1,8 @@
 /*
- * include/proto/task.h
+ * include/haproxy/task.h
  * Functions for task management.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,26 +19,25 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_TASK_H
-#define _PROTO_TASK_H
+#ifndef _HAPROXY_TASK_H
+#define _HAPROXY_TASK_H
 
 
 #include <sys/time.h>
 
-#include <haproxy/api.h>
-#include <haproxy/pool.h>
-#include <haproxy/global.h>
-#include <haproxy/intops.h>
-#include <haproxy/list.h>
-#include <haproxy/ticks.h>
-#include <haproxy/thread.h>
-
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 
-#include <types/task.h>
-
+#include <haproxy/api.h>
 #include <haproxy/fd.h>
+#include <haproxy/global.h>
+#include <haproxy/intops.h>
+#include <haproxy/list.h>
+#include <haproxy/pool.h>
+#include <haproxy/task-t.h>
+#include <haproxy/thread.h>
+#include <haproxy/ticks.h>
+
 
 /* Principle of the wait queue.
  *
@@ -83,6 +82,10 @@
 /* The farthest we can look back in a timer tree */
 #define TIMER_LOOK_BACK       (1U << 31)
 
+/* tasklets are recognized with nice==-32768 */
+#define TASK_IS_TASKLET(t) ((t)->nice == -32768)
+
+
 /* a few exported variables */
 extern unsigned int nb_tasks;     /* total number of tasks */
 extern volatile unsigned long global_tasks_mask; /* Mask of threads with tasks in the global runqueue */
@@ -94,6 +97,7 @@ extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
 extern struct pool_head *pool_head_notification;
 extern THREAD_LOCAL struct task_per_thread *sched; /* current's thread scheduler context */
+
 #ifdef USE_THREAD
 extern struct eb_root timers;      /* sorted timers tree, global */
 extern struct eb_root rqueue;      /* tree constituting the run queue */
@@ -105,8 +109,42 @@ extern struct task_per_thread task_per_thread[MAX_THREADS];
 __decl_thread(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_thread(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait queue */
 
-static inline struct task *task_unlink_wq(struct task *t);
-static inline void task_queue(struct task *task);
+void __task_wakeup(struct task *t, struct eb_root *);
+void __task_queue(struct task *task, struct eb_root *wq);
+
+struct work_list *work_list_create(int nbthread,
+                                   struct task *(*fct)(struct task *, void *, unsigned short),
+                                   void *arg);
+void work_list_destroy(struct work_list *work, int nbthread);
+int run_tasks_from_list(struct list *list, int max);
+
+/*
+ * This does 3 things :
+ *   - wake up all expired tasks
+ *   - call all runnable tasks
+ *   - return the date of next event in <next> or eternity.
+ */
+
+void process_runnable_tasks();
+
+/*
+ * Extract all expired timers from the timer queue, and wakes up all
+ * associated tasks.
+ */
+void wake_expired_tasks();
+
+/* Checks the next timer for the current thread by looking into its own timer
+ * list and the global one. It may return TICK_ETERNITY if no timer is present.
+ * Note that the next timer might very well be slightly in the past.
+ */
+int next_timer_expiry();
+
+/*
+ * Delete every tasks before running the master polling loop
+ */
+void mworker_cleantasks();
+
+
 
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
@@ -123,11 +161,21 @@ static inline int task_in_wq(struct task *t)
 	return t->wq.node.leaf_p != NULL;
 }
 
+/* returns true if the current thread has some work to do */
+static inline int thread_has_tasks(void)
+{
+	return (!!(global_tasks_mask & tid_bit) |
+	        (sched->rqueue_size > 0) |
+	        !LIST_ISEMPTY(&sched->tasklets[TL_URGENT]) |
+	        !LIST_ISEMPTY(&sched->tasklets[TL_NORMAL]) |
+	        !LIST_ISEMPTY(&sched->tasklets[TL_BULK])   |
+		!MT_LIST_ISEMPTY(&sched->shared_tasklet_list));
+}
+
 /* puts the task <t> in run queue with reason flags <f>, and returns <t> */
 /* This will put the task in the local runqueue if the task is only runnable
  * by the current thread, in the global runqueue otherwies.
  */
-void __task_wakeup(struct task *t, struct eb_root *);
 static inline void task_wakeup(struct task *t, unsigned int f)
 {
 	unsigned short state;
@@ -150,24 +198,6 @@ static inline void task_wakeup(struct task *t, unsigned int f)
 			break;
 		}
 	}
-}
-
-/* change the thread affinity of a task to <thread_mask>.
- * This may only be done from within the running task itself or during its
- * initialization. It will unqueue and requeue the task from the wait queue
- * if it was in it. This is safe against a concurrent task_queue() call because
- * task_queue() itself will unlink again if needed after taking into account
- * the new thread_mask.
- */
-static inline void task_set_affinity(struct task *t, unsigned long thread_mask)
-{
-	if (unlikely(task_in_wq(t))) {
-		task_unlink_wq(t);
-		t->thread_mask = thread_mask;
-		task_queue(t);
-	}
-	else
-		t->thread_mask = thread_mask;
 }
 
 /*
@@ -199,6 +229,59 @@ static inline struct task *task_unlink_wq(struct task *t)
 			HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	}
 	return t;
+}
+
+/* Place <task> into the wait queue, where it may already be. If the expiration
+ * timer is infinite, do nothing and rely on wake_expired_task to clean up.
+ * If the task uses a shared wait queue, it's queued into the global wait queue,
+ * protected by the global wq_lock, otherwise by it necessarily belongs to the
+ * current thread'sand is queued without locking.
+ */
+static inline void task_queue(struct task *task)
+{
+	/* If we already have a place in the wait queue no later than the
+	 * timeout we're trying to set, we'll stay there, because it is very
+	 * unlikely that we will reach the timeout anyway. If the timeout
+	 * has been disabled, it's useless to leave the queue as well. We'll
+	 * rely on wake_expired_tasks() to catch the node and move it to the
+	 * proper place should it ever happen. Finally we only add the task
+	 * to the queue if it was not there or if it was further than what
+	 * we want.
+	 */
+	if (!tick_isset(task->expire))
+		return;
+
+#ifdef USE_THREAD
+	if (task->state & TASK_SHARED_WQ) {
+		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
+		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
+			__task_queue(task, &timers);
+		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
+	} else
+#endif
+	{
+		BUG_ON((task->thread_mask & tid_bit) == 0); // should have TASK_SHARED_WQ
+		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
+			__task_queue(task, &sched->timers);
+	}
+}
+
+/* change the thread affinity of a task to <thread_mask>.
+ * This may only be done from within the running task itself or during its
+ * initialization. It will unqueue and requeue the task from the wait queue
+ * if it was in it. This is safe against a concurrent task_queue() call because
+ * task_queue() itself will unlink again if needed after taking into account
+ * the new thread_mask.
+ */
+static inline void task_set_affinity(struct task *t, unsigned long thread_mask)
+{
+	if (unlikely(task_in_wq(t))) {
+		task_unlink_wq(t);
+		t->thread_mask = thread_mask;
+		task_queue(t);
+	}
+	else
+		t->thread_mask = thread_mask;
 }
 
 /*
@@ -419,43 +502,6 @@ static inline void tasklet_set_tid(struct tasklet *tl, int tid)
 	tl->tid = tid;
 }
 
-void __task_queue(struct task *task, struct eb_root *wq);
-
-/* Place <task> into the wait queue, where it may already be. If the expiration
- * timer is infinite, do nothing and rely on wake_expired_task to clean up.
- * If the task uses a shared wait queue, it's queued into the global wait queue,
- * protected by the global wq_lock, otherwise by it necessarily belongs to the
- * current thread'sand is queued without locking.
- */
-static inline void task_queue(struct task *task)
-{
-	/* If we already have a place in the wait queue no later than the
-	 * timeout we're trying to set, we'll stay there, because it is very
-	 * unlikely that we will reach the timeout anyway. If the timeout
-	 * has been disabled, it's useless to leave the queue as well. We'll
-	 * rely on wake_expired_tasks() to catch the node and move it to the
-	 * proper place should it ever happen. Finally we only add the task
-	 * to the queue if it was not there or if it was further than what
-	 * we want.
-	 */
-	if (!tick_isset(task->expire))
-		return;
-
-#ifdef USE_THREAD
-	if (task->state & TASK_SHARED_WQ) {
-		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
-		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
-			__task_queue(task, &timers);
-		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
-	} else
-#endif
-	{
-		BUG_ON((task->thread_mask & tid_bit) == 0); // should have TASK_SHARED_WQ
-		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
-			__task_queue(task, &sched->timers);
-	}
-}
-
 /* Ensure <task> will be woken up at most at <when>. If the task is already in
  * the run queue (but not running), nothing is done. It may be used that way
  * with a delay :  task_schedule(task, tick_add(now_ms, delay));
@@ -586,16 +632,6 @@ static inline int notification_registered(struct list *wake)
 	return !LIST_ISEMPTY(wake);
 }
 
-static inline int thread_has_tasks(void)
-{
-	return (!!(global_tasks_mask & tid_bit) |
-	        (sched->rqueue_size > 0) |
-	        !LIST_ISEMPTY(&sched->tasklets[TL_URGENT]) |
-	        !LIST_ISEMPTY(&sched->tasklets[TL_NORMAL]) |
-	        !LIST_ISEMPTY(&sched->tasklets[TL_BULK])   |
-		!MT_LIST_ISEMPTY(&sched->shared_tasklet_list));
-}
-
 /* adds list item <item> to work list <work> and wake up the associated task */
 static inline void work_list_add(struct work_list *work, struct mt_list *item)
 {
@@ -603,40 +639,7 @@ static inline void work_list_add(struct work_list *work, struct mt_list *item)
 	task_wakeup(work->task, TASK_WOKEN_OTHER);
 }
 
-struct work_list *work_list_create(int nbthread,
-                                   struct task *(*fct)(struct task *, void *, unsigned short),
-                                   void *arg);
-
-void work_list_destroy(struct work_list *work, int nbthread);
-int run_tasks_from_list(struct list *list, int max);
-
-/*
- * This does 3 things :
- *   - wake up all expired tasks
- *   - call all runnable tasks
- *   - return the date of next event in <next> or eternity.
- */
-
-void process_runnable_tasks();
-
-/*
- * Extract all expired timers from the timer queue, and wakes up all
- * associated tasks.
- */
-void wake_expired_tasks();
-
-/* Checks the next timer for the current thread by looking into its own timer
- * list and the global one. It may return TICK_ETERNITY if no timer is present.
- * Note that the next timer might very well be slightly in the past.
- */
-int next_timer_expiry();
-
-/*
- * Delete every tasks before running the master polling loop
- */
-void mworker_cleantasks();
-
-#endif /* _PROTO_TASK_H */
+#endif /* _HAPROXY_TASK_H */
 
 /*
  * Local variables:

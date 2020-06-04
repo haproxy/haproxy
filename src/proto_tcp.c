@@ -55,7 +55,6 @@
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
-#include <proto/task.h>
 #include <proto/tcp_rules.h>
 
 static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);

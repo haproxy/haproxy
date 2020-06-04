@@ -6,7 +6,7 @@
 #include <types/http_ana.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
-#include <types/task.h>
+#include <haproxy/task-t.h>
 
 // 1 bit per flag, no hole permitted here
 #define SHOW_AS_ANA   0x00000001

@@ -30,7 +30,7 @@
 
 #include <types/connection.h>
 #include <haproxy/proto_udp-t.h>
-#include <types/task.h>
+#include <haproxy/task-t.h>
 
 extern struct pool_head *dns_requester_pool;
 

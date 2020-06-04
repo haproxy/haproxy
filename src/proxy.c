@@ -24,6 +24,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
+#include <haproxy/task.h>
 #include <haproxy/time.h>
 
 #include <import/eb32tree.h>
@@ -47,7 +48,6 @@
 #include <proto/signal.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse */

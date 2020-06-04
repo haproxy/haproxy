@@ -23,7 +23,6 @@
 #define _PROTO_PROTO_TCP_H
 
 #include <haproxy/api.h>
-#include <types/task.h>
 #include <proto/stick_table.h>
 
 int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote);

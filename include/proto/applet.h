@@ -28,7 +28,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <types/applet.h>
-#include <proto/task.h>
+#include <haproxy/task.h>
 
 extern unsigned int nb_applets;
 extern struct pool_head *pool_head_appctx;

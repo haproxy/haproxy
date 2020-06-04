@@ -25,6 +25,7 @@
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
+#include <haproxy/task.h>
 
 #include <proto/applet.h>
 #include <proto/channel.h>
@@ -33,7 +34,6 @@
 #include <proto/proxy.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
 
 #include <haproxy/pipe-t.h>
 

@@ -31,6 +31,7 @@
 #include <haproxy/lb_fwrr.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/payload.h>
+#include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <haproxy/namespace.h>
@@ -55,7 +56,6 @@
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/ssl_sock.h>
-#include <proto/task.h>
 
 #define TRACE_SOURCE &trace_strm
 

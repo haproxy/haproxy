@@ -39,7 +39,6 @@
 #include <haproxy/fd.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>
-#include <proto/task.h>
 
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int uxst_bind_listeners(struct protocol *proto, char *errmsg, int errlen);

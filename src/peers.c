@@ -25,6 +25,7 @@
 #include <haproxy/frontend.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/task.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/thread.h>
@@ -45,7 +46,6 @@
 #include <proto/signal.h>
 #include <proto/stick_table.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
 
 
 /*******************************/

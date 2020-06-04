@@ -40,7 +40,6 @@
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>
-#include <proto/task.h>
 
 static void sockpair_add_listener(struct listener *listener, int port);
 static int sockpair_bind_listener(struct listener *listener, char *errmsg, int errlen);

@@ -55,6 +55,7 @@
 #include <haproxy/time.h>
 #include <common/uri_auth.h>
 #include <haproxy/namespace.h>
+#include <haproxy/task.h>
 #include <haproxy/thread.h>
 
 #include <types/filters.h>
@@ -79,7 +80,6 @@
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stick_table.h>
-#include <proto/task.h>
 #include <proto/tcp_rules.h>
 #include <proto/connection.h>
 

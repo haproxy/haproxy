@@ -25,7 +25,7 @@
 #include <types/connection.h>
 #include <haproxy/sample-t.h>
 #include <types/session.h>
-#include <types/task.h>
+#include <haproxy/task-t.h>
 
 /* enum used by check->result. Must remain in this order, as some code uses
  * result >= CHK_RES_PASSED to declare success.

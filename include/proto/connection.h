@@ -30,7 +30,7 @@
 #include <types/connection.h>
 #include <haproxy/fd.h>
 #include <proto/session.h>
-#include <proto/task.h>
+#include <haproxy/task.h>
 
 extern struct pool_head *pool_head_connection;
 extern struct pool_head *pool_head_connstream;

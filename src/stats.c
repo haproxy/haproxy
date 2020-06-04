@@ -39,6 +39,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/map-t.h>
 #include <haproxy/pattern-t.h>
+#include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -65,7 +66,6 @@
 #include <proto/stream.h>
 #include <proto/server.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
 
 /* status codes available for the stats admin page (strictly 4 chars length) */
 const char *stat_status_codes[STAT_STATUS_SIZE] = {

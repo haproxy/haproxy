@@ -21,6 +21,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 
@@ -40,7 +41,6 @@
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/stick_table.h>
-#include <proto/task.h>
 #include <proto/peers.h>
 #include <proto/tcp_rules.h>
 

@@ -24,6 +24,7 @@
 #include <haproxy/global.h>
 #include <haproxy/namespace.h>
 #include <haproxy/sample.h>
+#include <haproxy/task.h>
 #include <haproxy/time.h>
 
 #include <types/applet.h>
@@ -42,7 +43,6 @@
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/stats.h>
-#include <proto/task.h>
 #include <netinet/tcp.h>
 
 #include <import/ebsttree.h>

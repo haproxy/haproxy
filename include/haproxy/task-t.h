@@ -1,5 +1,5 @@
 /*
- * include/types/task.h
+ * include/haproxy/task-t.h
  * Macros, variables and structures for task management.
  *
  * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
@@ -19,15 +19,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_TASK_H
-#define _TYPES_TASK_H
+#ifndef _HAPROXY_TASK_T_H
+#define _HAPROXY_TASK_T_H
 
 #include <sys/time.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/list-t.h>
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
+
+#include <haproxy/list-t.h>
+#include <haproxy/thread-t.h>
+#include <haproxy/api-t.h>
 
 /* values for task->state */
 #define TASK_SLEEPING     0x0000  /* task sleeping */
@@ -110,8 +112,6 @@ struct tasklet {
 	int tid;                        /* TID of the tasklet owner, <0 if local */
 };
 
-#define TASK_IS_TASKLET(t) ((t)->nice == -32768)
-
 /*
  * The task callback (->process) is responsible for updating ->expire. It must
  * return a pointer to the task itself, except if the task has been deleted, in
@@ -136,7 +136,7 @@ struct work_list {
 	void *arg;
 };
 
-#endif /* _TYPES_TASK_H */
+#endif /* _HAPROXY_TASK_T_H */
 
 /*
  * Local variables:

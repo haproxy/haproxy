@@ -34,7 +34,7 @@
 #include <types/proxy.h>
 #include <haproxy/sample-t.h>
 #include <types/stream.h>
-#include <types/task.h>
+#include <haproxy/task-t.h>
 
 /* Type of list of messages */
 #define SPOE_MSGS_BY_EVENT 0x01

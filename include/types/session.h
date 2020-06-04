@@ -34,7 +34,7 @@
 #include <haproxy/vars-t.h>
 
 #include <types/stick_table.h>
-#include <types/task.h>
+#include <haproxy/task-t.h>
 
 struct sess_srv_list {
 	void *target;

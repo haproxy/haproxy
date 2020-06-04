@@ -29,7 +29,6 @@
 #include <types/queue.h>
 #include <types/stream.h>
 #include <types/server.h>
-#include <types/task.h>
 
 #include <proto/backend.h>
 

@@ -43,7 +43,7 @@
 #include <types/server.h>
 #include <types/session.h>
 #include <types/stream_interface.h>
-#include <types/task.h>
+#include <haproxy/task-t.h>
 #include <types/stick_table.h>
 
 /* Various Stream Flags, bits values 0x01 to 0x100 (shift 0) */

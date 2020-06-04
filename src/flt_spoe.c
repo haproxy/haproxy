@@ -20,6 +20,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
+#include <haproxy/task.h>
 #include <haproxy/time.h>
 #include <haproxy/vars.h>
 
@@ -40,7 +41,6 @@
 #include <proto/spoe.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
 #include <proto/tcp_rules.h>
 
 #if defined(DEBUG_SPOE) || defined(DEBUG_FULL)

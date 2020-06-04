@@ -36,7 +36,7 @@
 #include <proto/stats.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
+#include <haproxy/task.h>
 
 /* Prometheus exporter applet states (appctx->st0) */
 enum {

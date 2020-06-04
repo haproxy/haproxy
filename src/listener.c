@@ -24,6 +24,7 @@
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 
@@ -38,7 +39,6 @@
 #include <haproxy/proto_sockpair.h>
 #include <haproxy/sample.h>
 #include <proto/stream.h>
-#include <proto/task.h>
 
 /* List head of all known bind keywords */
 static struct bind_kw_list bind_keywords = {

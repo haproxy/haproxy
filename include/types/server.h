@@ -40,7 +40,7 @@
 #include <haproxy/freq_ctr-t.h>
 #include <types/queue.h>
 #include <types/ssl_sock.h>
-#include <types/task.h>
+#include <haproxy/task-t.h>
 #include <types/checks.h>
 
 

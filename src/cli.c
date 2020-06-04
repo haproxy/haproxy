@@ -35,6 +35,7 @@
 #include <haproxy/mworker-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/sample-t.h>
+#include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -63,7 +64,6 @@
 #include <proto/stream.h>
 #include <proto/server.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
 
 #define PAYLOAD_PATTERN "<<"
 

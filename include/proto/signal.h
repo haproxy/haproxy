@@ -15,7 +15,7 @@
 #include <haproxy/thread.h>
 
 #include <types/signal.h>
-#include <types/task.h>
+#include <haproxy/task-t.h>
 
 extern int signal_queue_len;
 extern struct signal_descriptor signal_state[];

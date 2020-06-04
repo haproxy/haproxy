@@ -15,11 +15,11 @@
 
 #include <haproxy/api.h>
 #include <haproxy/list.h>
+#include <haproxy/task.h>
 #include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
 
 unsigned int nb_applets = 0;
 

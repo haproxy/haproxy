@@ -73,6 +73,7 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
 #include <haproxy/sample.h>
+#include <haproxy/task.h>
 #include <haproxy/time.h>
 #include <haproxy/thread.h>
 #include <import/eb32tree.h>
@@ -82,7 +83,6 @@
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/task.h>
 #include <proto/tcp_rules.h>
 
 

@@ -31,7 +31,7 @@
 #include <haproxy/obj_type.h>
 #include <proto/queue.h>
 #include <proto/stick_table.h>
-#include <proto/task.h>
+#include <haproxy/task.h>
 #include <proto/trace.h>
 
 extern struct trace_source trace_strm;
