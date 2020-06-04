@@ -29,7 +29,7 @@
 #include <types/global.h>
 #include <types/stats.h>
 
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/cli.h>
 #include <proto/http_rules.h>
 #include <proto/log.h>

@@ -41,7 +41,7 @@
 #include <types/global.h>
 #include <types/stream.h>
 
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
 #include <haproxy/fd.h>

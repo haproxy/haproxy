@@ -8,7 +8,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/thread.h>
 #include <types/global.h>
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/http_fetch.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>

@@ -26,7 +26,7 @@
 #include <types/capture.h>
 #include <types/global.h>
 
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
 

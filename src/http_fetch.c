@@ -30,7 +30,7 @@
 
 #include <types/global.h>
 
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/auth.h>
 #include <proto/channel.h>
 #include <proto/connection.h>

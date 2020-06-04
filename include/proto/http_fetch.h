@@ -24,7 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/htx.h>
-#include <types/arg.h>
+#include <haproxy/arg-t.h>
 #include <types/channel.h>
 #include <types/checks.h>
 #include <types/sample.h>

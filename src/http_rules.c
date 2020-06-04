@@ -29,7 +29,7 @@
 #include <types/global.h>
 
 #include <proto/acl.h>
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/http_rules.h>
 #include <proto/http_ana.h>
 #include <proto/sample.h>

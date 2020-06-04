@@ -108,7 +108,7 @@
 
 #include <proto/acl.h>
 #include <haproxy/activity.h>
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/auth.h>
 #include <proto/backend.h>
 #include <proto/channel.h>

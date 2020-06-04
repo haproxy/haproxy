@@ -31,7 +31,7 @@
 #include <types/global.h>
 
 #include <proto/acl.h>
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>

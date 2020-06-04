@@ -38,7 +38,7 @@
 #include <types/proxy.h>
 #include <types/stats.h>
 
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/cli.h>

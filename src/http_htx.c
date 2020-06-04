@@ -24,7 +24,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/http_fetch.h>
 #include <proto/sample.h>
 

@@ -64,7 +64,7 @@
 #include <types/stats.h>
 
 #include <proto/acl.h>
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
 #include <proto/cli.h>

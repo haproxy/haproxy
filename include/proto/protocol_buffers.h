@@ -23,7 +23,7 @@
 #define _PROTO_PROTOCOL_BUFFERS_H
 
 #include <inttypes.h>
-#include <types/arg.h>
+#include <haproxy/arg-t.h>
 #include <types/protocol_buffers.h>
 #include <proto/sample.h>
 

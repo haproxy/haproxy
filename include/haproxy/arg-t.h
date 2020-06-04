@@ -1,5 +1,5 @@
 /*
- * include/types/arg.h
+ * include/haproxy/arg-t.h
  * This file contains structure declarations for generaic argument parsing.
  *
  * Copyright 2012 Willy Tarreau <w@1wt.eu>
@@ -19,13 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef _TYPES_ARG_H
-#define _TYPES_ARG_H
+#ifndef _HAPROXY_ARG_T_H
+#define _HAPROXY_ARG_T_H
 
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include <haproxy/chunk.h>
+#include <haproxy/buf-t.h>
 #include <haproxy/list-t.h>
 
 #include <types/vars.h>
@@ -133,7 +133,7 @@ struct arg_list {
 	int line;                 /* line number where the args are referenced */
 };
 
-#endif /* _TYPES_ARG_H */
+#endif /* _HAPROXY_ARG_T_H */
 
 /*
  * Local variables:

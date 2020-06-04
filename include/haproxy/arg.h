@@ -1,5 +1,5 @@
 /*
- * include/proto/arg.h
+ * include/haproxy/arg.h
  * This file contains functions and macros declarations for generic argument parsing.
  *
  * Copyright 2012 Willy Tarreau <w@1wt.eu>
@@ -19,10 +19,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef _PROTO_ARG_H
-#define _PROTO_ARG_H
+#ifndef _HAPROXY_ARG_H
+#define _HAPROXY_ARG_H
 
-#include <types/arg.h>
+#include <haproxy/arg-t.h>
 
 /* Some macros used to build some arg list. We can declare various argument
  * combinations from 0 to 7 args using a single 32-bit integer. The first
@@ -83,7 +83,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
                   char **err_msg, const char **end_ptr, int *err_arg,
                   struct arg_list *al);
 
-#endif /* _PROTO_ARG_H */
+#endif /* _HAPROXY_ARG_H */
 
 /*
  * Local variables:

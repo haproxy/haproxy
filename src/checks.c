@@ -49,7 +49,7 @@
 #include <types/dns.h>
 #include <types/stats.h>
 
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/checks.h>
 #include <proto/stats.h>

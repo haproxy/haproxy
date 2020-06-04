@@ -19,12 +19,12 @@
 #include <haproxy/pool.h>
 #include <haproxy/time.h>
 
-#include <types/arg.h>
+#include <haproxy/arg-t.h>
 #include <types/global.h>
 #include <types/spoe.h>
 
 #include <proto/acl.h>
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>

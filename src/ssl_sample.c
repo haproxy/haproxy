@@ -29,7 +29,7 @@
 #include <types/ssl_sock.h>
 
 #include <proto/acl.h>
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/obj_type.h>
 #include <proto/ssl_sock.h>
 #include <proto/ssl_utils.h>

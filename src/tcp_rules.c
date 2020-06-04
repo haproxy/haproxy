@@ -17,7 +17,7 @@
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
-#include <types/arg.h>
+#include <haproxy/arg-t.h>
 #include <types/capture.h>
 #include <types/connection.h>
 #include <types/global.h>

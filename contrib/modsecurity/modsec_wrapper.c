@@ -22,7 +22,7 @@
 #include <types/global.h>
 #include <types/stream.h>
 
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/log.h>
 #include <proto/spoe.h>
 

@@ -25,7 +25,7 @@
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
 
-#include <types/arg.h>
+#include <haproxy/arg-t.h>
 #include <types/auth.h>
 #include <types/pattern.h>
 #include <types/proxy.h>

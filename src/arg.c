@@ -17,7 +17,7 @@
 #include <haproxy/tools.h>
 #include <haproxy/chunk.h>
 #include <types/global.h>
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 
 const char *arg_type_names[ARGT_NBTYPES] = {
 	[ARGT_STOP] = "end of arguments",

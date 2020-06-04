@@ -29,7 +29,7 @@
 #include <common/uri_auth.h>
 #include <haproxy/base64.h>
 
-#include <proto/arg.h>
+#include <haproxy/arg.h>
 #include <proto/auth.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
