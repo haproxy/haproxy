@@ -18,11 +18,11 @@
 
 #include <import/ist.h>
 #include <haproxy/list-t.h>
+#include <haproxy/obj_type-t.h>
 #include <haproxy/regex-t.h>
 #include <haproxy/buf-t.h>
 
 #include <types/connection.h>
-#include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/sample.h>
 #include <types/server.h>

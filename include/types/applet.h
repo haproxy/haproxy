@@ -27,8 +27,8 @@
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/hlua-t.h>
+#include <haproxy/obj_type-t.h>
 #include <haproxy/xref-t.h>
-#include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/stream.h>
 

@@ -23,12 +23,12 @@
 #define _PROTO_SESSION_H
 
 #include <haproxy/api.h>
+#include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
 
 #include <types/global.h>
 #include <types/session.h>
 
-#include <proto/obj_type.h>
 #include <proto/stick_table.h>
 #include <proto/server.h>
 

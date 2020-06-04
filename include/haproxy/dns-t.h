@@ -24,11 +24,11 @@
 
 #include <import/eb32tree.h>
 
+#include <haproxy/obj_type-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/thread.h>
 
 #include <types/connection.h>
-#include <types/obj_type.h>
 #include <haproxy/proto_udp-t.h>
 #include <types/proxy.h>
 #include <types/server.h>

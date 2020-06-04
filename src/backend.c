@@ -25,6 +25,7 @@
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
+#include <haproxy/obj_type.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <haproxy/namespace.h>
@@ -43,7 +44,6 @@
 #include <proto/lb_map.h>
 #include <proto/log.h>
 #include <proto/mux_pt.h>
-#include <proto/obj_type.h>
 #include <proto/payload.h>
 #include <haproxy/protocol.h>
 #include <proto/http_ana.h>

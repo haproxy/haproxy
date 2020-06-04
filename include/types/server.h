@@ -29,6 +29,7 @@
 #include <haproxy/dns-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
+#include <haproxy/obj_type-t.h>
 #include <haproxy/thread.h>
 #include <haproxy/openssl-compat.h>
 
@@ -36,7 +37,6 @@
 
 #include <types/connection.h>
 #include <haproxy/freq_ctr-t.h>
-#include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/ssl_sock.h>

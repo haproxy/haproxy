@@ -31,9 +31,9 @@
 #endif
 
 #include <haproxy/list-t.h>
+#include <haproxy/obj_type-t.h>
 #include <haproxy/thread.h>
 
-#include <types/obj_type.h>
 #include <import/eb32tree.h>
 
 /* Some pointer types reference below */

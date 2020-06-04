@@ -25,6 +25,7 @@
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
+#include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
@@ -36,7 +37,6 @@
 #include <proto/connection.h>
 #include <proto/http_fetch.h>
 #include <proto/log.h>
-#include <proto/obj_type.h>
 #include <proto/http_ana.h>
 #include <proto/sample.h>
 #include <proto/stream.h>

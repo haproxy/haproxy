@@ -22,13 +22,13 @@
 #ifndef _PROTO_CONNECTION_H
 #define _PROTO_CONNECTION_H
 
-#include <haproxy/api.h>
 #include <import/ist.h>
+#include <haproxy/api.h>
+#include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
 #include <types/connection.h>
 #include <types/listener.h>
 #include <haproxy/fd.h>
-#include <proto/obj_type.h>
 #include <proto/session.h>
 #include <proto/task.h>
 

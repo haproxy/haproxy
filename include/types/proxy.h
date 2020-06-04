@@ -32,6 +32,7 @@
 #include <haproxy/counters-t.h>
 #include <haproxy/http-t.h>
 #include <haproxy/list-t.h>
+#include <haproxy/obj_type-t.h>
 #include <haproxy/thread.h>
 
 #include <import/eb32tree.h>
@@ -44,7 +45,6 @@
 #include <haproxy/freq_ctr-t.h>
 #include <types/listener.h>
 #include <types/log.h>
-#include <types/obj_type.h>
 #include <types/sample.h>
 #include <types/server.h>
 #include <types/stick_table.h>

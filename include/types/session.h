@@ -30,8 +30,8 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
+#include <haproxy/obj_type-t.h>
 
-#include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/stick_table.h>
 #include <types/task.h>

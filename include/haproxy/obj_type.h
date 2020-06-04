@@ -1,5 +1,5 @@
 /*
- * include/proto/obj_type.h
+ * include/haproxy/obj_type.h
  * This file contains function prototypes to manipulate object types
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
@@ -19,15 +19,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_OBJ_TYPE_H
-#define _PROTO_OBJ_TYPE_H
+#ifndef _HAPROXY_OBJ_TYPE_H
+#define _HAPROXY_OBJ_TYPE_H
 
 #include <haproxy/api.h>
+#include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
 #include <types/applet.h>
 #include <types/connection.h>
 #include <types/listener.h>
-#include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/server.h>
 #include <types/stream.h>
@@ -204,7 +204,7 @@ static inline void *obj_base_ptr(enum obj_type *t)
 	}
 }
 
-#endif /* _PROTO_OBJ_TYPE_H */
+#endif /* _HAPROXY_OBJ_TYPE_H */
 
 /*
  * Local variables:
