@@ -1,5 +1,5 @@
 /*
- * include/types/listener.h
+ * include/haproxy/listener-t.h
  * This file defines the structures needed to manage listeners.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -19,22 +19,22 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_LISTENER_H
-#define _TYPES_LISTENER_H
+#ifndef _HAPROXY_LISTENER_T_H
+#define _HAPROXY_LISTENER_T_H
 
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#ifdef USE_OPENSSL
-#include <haproxy/api-t.h>
-#include <haproxy/openssl-compat.h>
-#endif
+#include <import/eb32tree.h>
 
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/thread.h>
+#include <haproxy/api-t.h>
 
-#include <import/eb32tree.h>
+#ifdef USE_OPENSSL
+#include <haproxy/openssl-compat.h>
+#endif
 
 /* Some pointer types reference below */
 struct task;
@@ -304,7 +304,7 @@ struct accept_queue_ring {
 };
 
 
-#endif /* _TYPES_LISTENER_H */
+#endif /* _HAPROXY_LISTENER_T_H */
 
 /*
  * Local variables:

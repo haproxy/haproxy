@@ -22,6 +22,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
+#include <haproxy/listener.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 
@@ -33,7 +34,6 @@
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>
-#include <proto/listener.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proto_sockpair.h>
 #include <proto/sample.h>

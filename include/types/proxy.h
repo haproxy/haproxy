@@ -43,7 +43,6 @@
 #include <types/checks.h>
 #include <types/filters.h>
 #include <haproxy/freq_ctr-t.h>
-#include <types/listener.h>
 #include <types/log.h>
 #include <types/sample.h>
 #include <types/server.h>

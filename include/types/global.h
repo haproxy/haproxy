@@ -28,7 +28,6 @@
 #include <haproxy/thread.h>
 
 #include <haproxy/freq_ctr-t.h>
-#include <types/listener.h>
 #include <types/proxy.h>
 #include <types/task.h>
 #include <types/vars.h>

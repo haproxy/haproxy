@@ -75,7 +75,6 @@
 #include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/listener.h>
 #include <proto/pattern.h>
 #include <proto/proto_tcp.h>
 #include <proto/http_ana.h>

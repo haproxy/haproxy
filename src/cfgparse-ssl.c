@@ -34,11 +34,11 @@
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
 #include <common/cfgparse.h>
+#include <haproxy/listener.h>
 #include <haproxy/openssl-compat.h>
 
 #include <types/ssl_sock.h>
 
-#include <proto/listener.h>
 #include <proto/ssl_sock.h>
 
 

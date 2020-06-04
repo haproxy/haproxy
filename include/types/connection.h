@@ -28,8 +28,8 @@
 #include <haproxy/api-t.h>
 #include <import/ist.h>
 
-#include <types/listener.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/listener-t.h>
 #include <haproxy/port_range-t.h>
 #include <haproxy/protocol-t.h>
 

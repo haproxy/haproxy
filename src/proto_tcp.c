@@ -35,6 +35,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/list.h>
+#include <haproxy/listener.h>
 #include <haproxy/tools.h>
 #include <haproxy/namespace.h>
 
@@ -46,7 +47,6 @@
 #include <proto/channel.h>
 #include <proto/connection.h>
 #include <haproxy/fd.h>
-#include <proto/listener.h>
 #include <proto/log.h>
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>

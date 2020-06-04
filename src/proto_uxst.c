@@ -29,6 +29,7 @@
 #include <haproxy/api.h>
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
+#include <haproxy/listener.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/version.h>
@@ -37,7 +38,6 @@
 
 #include <proto/connection.h>
 #include <haproxy/fd.h>
-#include <proto/listener.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>
 #include <proto/task.h>

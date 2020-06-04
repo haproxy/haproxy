@@ -23,12 +23,12 @@
 #define _PROTO_PROXY_H
 
 #include <haproxy/api.h>
+#include <haproxy/listener-t.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <types/applet.h>
 #include <types/global.h>
 #include <types/proxy.h>
-#include <types/listener.h>
 #include <haproxy/freq_ctr.h>
 
 extern struct proxy *proxies_list;

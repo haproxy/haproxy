@@ -20,6 +20,7 @@
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
+#include <haproxy/listener.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 
@@ -28,7 +29,6 @@
 #include <proto/applet.h>
 #include <proto/backend.h>
 #include <haproxy/compression.h>
-#include <proto/listener.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>

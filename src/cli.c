@@ -31,6 +31,7 @@
 #include <haproxy/dns-t.h>
 #include <haproxy/frontend.h>
 #include <haproxy/list.h>
+#include <haproxy/listener.h>
 #include <haproxy/mworker-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -56,7 +57,6 @@
 #include <proto/pattern.h>
 #include <haproxy/pipe.h>
 #include <haproxy/protocol.h>
-#include <proto/listener.h>
 #include <proto/map.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>

@@ -1,5 +1,5 @@
 /*
- * include/proto/listener.h
+ * include/haproxy/listener.h
  * This file declares listener management primitives.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -19,12 +19,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_LISTENER_H
-#define _PROTO_LISTENER_H
+#ifndef _HAPROXY_LISTENER_H
+#define _HAPROXY_LISTENER_H
 
+#include <stdlib.h>
 #include <string.h>
 
-#include <types/listener.h>
+#include <haproxy/api.h>
+#include <haproxy/list.h>
+#include <haproxy/listener-t.h>
 #include <types/cli.h>
 
 /* This function tries to temporarily disable a listener, depending on the OS
@@ -185,7 +188,7 @@ extern struct xfer_sock_list *xfer_sock_list;
 
 extern struct accept_queue_ring accept_queue_rings[MAX_THREADS] __attribute__((aligned(64)));
 
-#endif /* _PROTO_LISTENER_H */
+#endif /* _HAPROXY_LISTENER_H */
 
 /*
  * Local variables:

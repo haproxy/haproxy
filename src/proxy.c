@@ -20,6 +20,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
+#include <haproxy/listener.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
 #include <haproxy/time.h>
@@ -38,7 +39,6 @@
 #include <proto/backend.h>
 #include <haproxy/fd.h>
 #include <proto/filters.h>
-#include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/proto_tcp.h>
 #include <proto/http_ana.h>

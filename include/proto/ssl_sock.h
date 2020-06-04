@@ -26,7 +26,6 @@
 #include <haproxy/openssl-compat.h>
 
 #include <types/connection.h>
-#include <types/listener.h>
 #include <types/proxy.h>
 #include <types/ssl_sock.h>
 #include <types/stream_interface.h>

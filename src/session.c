@@ -12,13 +12,13 @@
 
 #include <haproxy/api.h>
 #include <haproxy/http.h>
+#include <haproxy/listener.h>
 #include <haproxy/pool.h>
 
 #include <types/global.h>
 #include <types/session.h>
 
 #include <proto/connection.h>
-#include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/session.h>

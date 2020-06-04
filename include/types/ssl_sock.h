@@ -32,6 +32,7 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/thread.h>
 #include <haproxy/list-t.h>
+#include <haproxy/listener-t.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ssl_ckch-t.h>
 #include <haproxy/ssl_crtlist-t.h>

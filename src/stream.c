@@ -47,7 +47,6 @@
 #include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/session.h>
 #include <proto/stream.h>

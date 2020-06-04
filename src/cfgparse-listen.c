@@ -18,12 +18,12 @@
 #include <haproxy/compression-t.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/listener.h>
 #include <types/stats.h>
 
 #include <proto/acl.h>
 #include <proto/checks.h>
 #include <proto/connection.h>
-#include <proto/listener.h>
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>
 #include <proto/server.h>

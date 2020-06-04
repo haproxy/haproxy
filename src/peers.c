@@ -30,7 +30,6 @@
 #include <haproxy/thread.h>
 
 #include <types/global.h>
-#include <types/listener.h>
 #include <types/peers.h>
 #include <types/stats.h>
 
