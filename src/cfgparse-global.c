@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 #include <common/cfgparse.h>
-#include <proto/compression.h>
+#include <haproxy/compression.h>
 
 /*
  * parse a line in a <global> section. Returns the error code, 0 if OK, or

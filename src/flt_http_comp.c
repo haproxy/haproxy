@@ -11,6 +11,7 @@
  */
 
 #include <haproxy/api.h>
+#include <haproxy/compression.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/http.h>
 #include <common/cfgparse.h>
@@ -18,12 +19,10 @@
 #include <haproxy/list.h>
 #include <haproxy/tools.h>
 
-#include <types/compression.h>
 #include <types/filters.h>
 #include <types/proxy.h>
 #include <types/sample.h>
 
-#include <proto/compression.h>
 #include <proto/filters.h>
 #include <proto/http_htx.h>
 #include <proto/http_ana.h>

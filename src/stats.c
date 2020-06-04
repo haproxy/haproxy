@@ -26,6 +26,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/compression.h>
 #include <haproxy/debug.h>
 #include <haproxy/http.h>
 #include <haproxy/htx.h>
@@ -48,7 +49,6 @@
 #include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/cli.h>
-#include <proto/compression.h>
 #include <proto/dns.h>
 #include <proto/stats.h>
 #include <haproxy/fd.h>

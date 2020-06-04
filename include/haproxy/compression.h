@@ -1,5 +1,5 @@
 /*
- * include/proto/compression.h
+ * include/haproxy/compression.h
  * This file defines function prototypes for compression.
  *
  * Copyright 2012 (C) Exceliance, David Du Colombier <dducolombier@exceliance.fr>
@@ -20,10 +20,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_COMP_H
-#define _PROTO_COMP_H
+#ifndef _HAPROXY_COMP_H
+#define _HAPROXY_COMP_H
 
-#include <types/compression.h>
+#include <haproxy/compression-t.h>
 
 extern unsigned int compress_min_idle;
 
@@ -34,7 +34,7 @@ int comp_append_algo(struct comp *comp, const char *algo);
 extern long zlib_used_memory;
 #endif /* USE_ZLIB */
 
-#endif /* _PROTO_COMP_H */
+#endif /* _HAPROXY_COMP_H */
 
 /*
  * Local variables:

@@ -46,7 +46,7 @@
 #include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/cli.h>
-#include <proto/compression.h>
+#include <haproxy/compression.h>
 #include <proto/stats.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>

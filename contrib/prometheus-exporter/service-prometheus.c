@@ -25,7 +25,7 @@
 #include <proto/action.h>
 #include <proto/applet.h>
 #include <proto/backend.h>
-#include <proto/compression.h>
+#include <haproxy/compression.h>
 #include <proto/frontend.h>
 #include <proto/listener.h>
 #include <proto/http_htx.h>

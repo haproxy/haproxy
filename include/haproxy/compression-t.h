@@ -1,5 +1,5 @@
 /*
- * include/types/compression.h
+ * include/haproxy/compression-t.h
  * This file defines everything related to compression.
  *
  * Copyright 2012 Exceliance, David Du Colombier <dducolombier@exceliance.fr>
@@ -20,8 +20,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_COMP_H
-#define _TYPES_COMP_H
+#ifndef _HAPROXY_COMP_T_H
+#define _HAPROXY_COMP_T_H
 
 #if defined(USE_SLZ)
 #ifdef USE_ZLIB
@@ -85,7 +85,7 @@ struct comp_type {
 };
 
 
-#endif /* _TYPES_COMP_H */
+#endif /* _HAPROXY_COMP_T_H */
 
 /*
  * Local variables:

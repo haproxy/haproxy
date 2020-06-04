@@ -33,10 +33,10 @@
 #include <haproxy/pool.h>
 
 #include <types/global.h>
-#include <types/compression.h>
+#include <haproxy/compression-t.h>
 
 #include <proto/acl.h>
-#include <proto/compression.h>
+#include <haproxy/compression.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/stream.h>
 

@@ -15,7 +15,7 @@
 #include <common/uri_auth.h>
 
 #include <types/capture.h>
-#include <types/compression.h>
+#include <haproxy/compression-t.h>
 #include <types/stats.h>
 
 #include <proto/acl.h>

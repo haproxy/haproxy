@@ -21,7 +21,7 @@
 #include <types/filters.h>
 #include <types/http_ana.h>
 
-#include <proto/compression.h>
+#include <haproxy/compression.h>
 #include <proto/filters.h>
 #include <proto/flt_http_comp.h>
 #include <proto/http_htx.h>
