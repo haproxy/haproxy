@@ -52,6 +52,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/mailers-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/peers-t.h>
 #include <haproxy/pool.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
@@ -62,7 +63,6 @@
 
 #include <types/filters.h>
 #include <haproxy/global.h>
-#include <types/peers.h>
 #include <types/stats.h>
 
 #include <proto/acl.h>
@@ -75,7 +75,7 @@
 #include <haproxy/protocol.h>
 #include <proto/http_ana.h>
 #include <proto/proxy.h>
-#include <proto/peers.h>
+#include <haproxy/peers.h>
 #include <haproxy/sample.h>
 #include <proto/session.h>
 #include <proto/server.h>

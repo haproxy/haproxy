@@ -99,6 +99,7 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/pattern.h>
+#include <haproxy/peers.h>
 #include <haproxy/sample.h>
 #include <haproxy/regex.h>
 #include <haproxy/signal.h>
@@ -115,7 +116,6 @@
 #include <types/filters.h>
 #include <haproxy/global.h>
 #include <types/acl.h>
-#include <types/peers.h>
 
 #include <proto/acl.h>
 #include <haproxy/activity.h>

@@ -1,5 +1,5 @@
 /*
- * include/types/peers.h
+ * include/haproxy/peers-t.h
  * This file defines everything related to peers.
  *
  * Copyright 2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -19,18 +19,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_PEERS_H
-#define _TYPES_PEERS_H
+#ifndef _HAPROXY_PEERS_T_H
+#define _HAPROXY_PEERS_T_H
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <import/eb32tree.h>
+
 #include <haproxy/dict-t.h>
+#include <haproxy/thread-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
-#include <import/eb32tree.h>
 
 
 struct shared_table {
@@ -131,7 +133,5 @@ struct dcache {
 	size_t max_entries;
 };
 
-extern struct peers *cfg_peers;
-
-#endif /* _TYPES_PEERS_H */
+#endif /* _HAPROXY_PEERS_T_H */
 

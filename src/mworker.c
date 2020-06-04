@@ -22,12 +22,12 @@
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/mworker.h>
+#include <haproxy/peers.h>
 #include <haproxy/signal.h>
 #include <haproxy/version.h>
 
 #include <types/cli.h>
 #include <haproxy/global.h>
-#include <types/peers.h>
 
 #include <proto/cli.h>
 #include <haproxy/fd.h>

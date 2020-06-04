@@ -32,7 +32,7 @@
 #include <haproxy/dict-t.h>
 #include <haproxy/pool-t.h>
 #include <haproxy/freq_ctr-t.h>
-#include <types/peers.h>
+#include <haproxy/peers-t.h>
 #include <haproxy/sample-t.h>
 
 /* The types of extra data we can store in a stick table */

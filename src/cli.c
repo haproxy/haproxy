@@ -35,6 +35,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/mworker-t.h>
 #include <haproxy/pattern-t.h>
+#include <haproxy/peers.h>
 #include <haproxy/sample-t.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>

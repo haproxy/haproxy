@@ -23,6 +23,7 @@
 #include <haproxy/global.h>
 #include <haproxy/listener.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/peers.h>
 #include <haproxy/pool.h>
 #include <haproxy/task.h>
 #include <haproxy/time.h>
@@ -32,7 +33,6 @@
 
 #include <haproxy/capture-t.h>
 #include <types/cli.h>
-#include <types/peers.h>
 #include <types/stats.h>
 
 #include <proto/applet.h>

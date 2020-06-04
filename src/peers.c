@@ -25,13 +25,13 @@
 #include <haproxy/frontend.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/peers.h>
 #include <haproxy/task.h>
 #include <haproxy/signal.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/thread.h>
 
-#include <types/peers.h>
 #include <types/stats.h>
 
 #include <proto/acl.h>
@@ -40,7 +40,6 @@
 #include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <proto/log.h>
-#include <proto/peers.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
 #include <proto/stream.h>

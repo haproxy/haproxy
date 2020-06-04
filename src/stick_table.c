@@ -21,6 +21,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/peers.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
@@ -42,7 +43,6 @@
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/stick_table.h>
-#include <proto/peers.h>
 
 /* structure used to return a table key built from a sample */
 static THREAD_LOCAL struct stktable_key static_table_key;

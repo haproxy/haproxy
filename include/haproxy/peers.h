@@ -1,5 +1,5 @@
 /*
- * include/proto/peers.h
+ * include/haproxy/peers.h
  * This file defines function prototypes for peers management.
  *
  * Copyright 2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -19,15 +19,25 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_PEERS_H
-#define _PROTO_PEERS_H
+#ifndef _HAPROXY_PEERS_H
+#define _HAPROXY_PEERS_H
 
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
-#include <haproxy/ticks.h>
+#include <haproxy/obj_type.h>
+#include <haproxy/peers-t.h>
 #include <haproxy/time.h>
+
+#include <types/proxy.h>
+#include <types/stick_table.h>
 #include <types/stream.h>
-#include <types/peers.h>
+
+extern struct peers *cfg_peers;
+
+int peers_init_sync(struct peers *peers);
+int peers_alloc_dcache(struct peers *peers);
+void peers_register_table(struct peers *, struct stktable *table);
+void peers_setup_frontend(struct proxy *fe);
 
 #if defined(USE_OPENSSL)
 static inline enum obj_type *peer_session_target(struct peer *p, struct stream *s)
@@ -54,10 +64,5 @@ static inline struct xprt_ops *peer_xprt(struct peer *p)
 }
 #endif
 
-int peers_init_sync(struct peers *peers);
-int peers_alloc_dcache(struct peers *peers);
-void peers_register_table(struct peers *, struct stktable *table);
-void peers_setup_frontend(struct proxy *fe);
-
-#endif /* _PROTO_PEERS_H */
+#endif /* _HAPROXY_PEERS_H */
 
