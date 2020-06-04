@@ -25,10 +25,10 @@
 #include <haproxy/lb_chash-t.h>
 #include <haproxy/lb_fas-t.h>
 #include <haproxy/lb_fwlc-t.h>
+#include <haproxy/lb_fwrr-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/thread.h>
 
-#include <types/lb_fwrr.h>
 #include <types/lb_map.h>
 #include <types/server.h>
 

@@ -1,5 +1,5 @@
 /*
- * include/types/lb_fwrr.h
+ * include/haproxy/lb_fwrr-t.h
  * Types for Fast Weighted Round Robin load balancing algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -19,10 +19,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_LB_FWRR_H
-#define _TYPES_LB_FWRR_H
+#ifndef _HAPROXY_LB_FWRR_T_H
+#define _HAPROXY_LB_FWRR_T_H
 
-#include <haproxy/api-t.h>
 #include <import/ebtree.h>
 
 /* This structure is used to apply fast weighted round robin on a server group */
@@ -41,7 +40,7 @@ struct lb_fwrr {
 	struct fwrr_group bck;	/* weighted round robin on the backup servers */
 };
 
-#endif /* _TYPES_LB_FWRR_H */
+#endif /* _HAPROXY_LB_FWRR_T_H */
 
 /*
  * Local variables:
