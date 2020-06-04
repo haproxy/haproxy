@@ -17,10 +17,10 @@
 #include <haproxy/map.h>
 #include <haproxy/pattern.h>
 #include <haproxy/regex.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/tools.h>
 
 #include <types/cli.h>
-#include <types/stats.h>
 
 #include <haproxy/arg.h>
 #include <proto/cli.h>

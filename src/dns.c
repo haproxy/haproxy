@@ -27,6 +27,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/sample.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/time.h>
@@ -36,7 +37,6 @@
 
 #include <types/cli.h>
 #include <haproxy/global.h>
-#include <types/stats.h>
 
 #include <proto/channel.h>
 #include <proto/cli.h>

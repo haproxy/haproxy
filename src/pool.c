@@ -15,12 +15,12 @@
 #include <haproxy/api.h>
 #include <types/cli.h>
 #include <haproxy/global.h>
-#include <types/stats.h>
 
 #include <common/cfgparse.h>
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/tools.h>
 
 #include <haproxy/activity-t.h>
@@ -29,7 +29,6 @@
 #include <proto/channel.h>
 #include <proto/log.h>
 #include <proto/stream_interface.h>
-#include <proto/stats.h>
 
 #ifdef CONFIG_HAP_LOCAL_POOLS
 /* These are the most common pools, expected to be initialized first. These

@@ -1,6 +1,8 @@
 /*
- * include/types/stats.h
+ * include/haproxy/stats-t.h
  * This file provides structures and types for stats.
+ *
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,8 +19,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_STATS_H
-#define _TYPES_STATS_H
+#ifndef _HAPROXY_STATS_T_H
+#define _HAPROXY_STATS_T_H
+
+#include <haproxy/api-t.h>
 
 /* Flags for applet.ctx.stats.flags */
 #define STAT_FMT_HTML   0x00000001      /* dump the stats in HTML format */
@@ -242,22 +246,6 @@ enum field_scope {
 	FS_MASK     = 0xFF000000,
 };
 
-/* Please consider updating stats_dump_fields_*(),
- * stats_dump_.*_info_fields() and stats_*_schema()
- * when modifying struct field or related enums.
- */
-struct field {
-	uint32_t type;
-	union {
-		int32_t     s32; /* FF_S32 */
-		uint32_t    u32; /* FF_U32 */
-		int64_t     s64; /* FF_S64 */
-		uint64_t    u64; /* FF_U64 */
-		double      flt; /* FF_FLT */
-		const char *str; /* FF_STR */
-	} u;
-};
-
 /* Show Info fields for CLI output. For any field added here, please add the text
  * representation in the info_field_names array below. Please only append at the end,
  * before the INF_TOTAL_FIELDS entry, and never insert anything in the middle
@@ -440,5 +428,21 @@ enum stat_field {
 	ST_F_TOTAL_FIELDS
 };
 
+/* Please consider updating stats_dump_fields_*(),
+ * stats_dump_.*_info_fields() and stats_*_schema()
+ * when modifying struct field or related enums.
+ */
+struct field {
+	uint32_t type;
+	union {
+		int32_t     s32; /* FF_S32 */
+		uint32_t    u32; /* FF_U32 */
+		int64_t     s64; /* FF_S64 */
+		uint64_t    u64; /* FF_U64 */
+		double      flt; /* FF_FLT */
+		const char *str; /* FF_STR */
+	} u;
+};
 
-#endif /* _TYPES_STATS_H */
+
+#endif /* _HAPROXY_STATS_T_H */

@@ -47,15 +47,14 @@
 #include <haproxy/h1.h>
 #include <haproxy/htx.h>
 #include <haproxy/signal.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/task.h>
 #include <haproxy/vars.h>
 
 #include <haproxy/global.h>
-#include <types/stats.h>
 
 #include <haproxy/arg.h>
 #include <proto/backend.h>
-#include <proto/stats.h>
 #include <haproxy/fd.h>
 #include <proto/log.h>
 #include <proto/queue.h>

@@ -1,9 +1,9 @@
 /*
- * include/proto/stats.h
+ * include/haproxy/stats.h
  * This file contains definitions of some primitives to dedicated to
  * statistics output.
  *
- * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,14 +20,38 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_STATS_H
-#define _PROTO_STATS_H
+#ifndef _HAPROXY_STATS_H
+#define _HAPROXY_STATS_H
 
 #include <haproxy/applet-t.h>
-#include <haproxy/tools.h>
 #include <haproxy/api.h>
+#include <haproxy/stats-t.h>
+#include <haproxy/tools-t.h>
 #include <types/stream_interface.h>
-#include <types/stats.h>
+
+
+/* These two structs contains all field names and descriptions according to
+ * the the number of entries in "enum stat_field" and "enum info_field"
+ */
+extern const struct name_desc stat_fields[];
+extern const struct name_desc info_fields[];
+extern const char *stat_status_codes[];
+extern struct applet http_stats_applet;
+
+
+int stats_fill_info(struct field *info, int len);
+int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len);
+int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
+                        struct field *stats, int len);
+int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
+                        struct field *stats, int len);
+int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len);
+
+void stats_io_handler(struct stream_interface *si);
+int stats_emit_raw_data_field(struct buffer *out, const struct field *f);
+int stats_emit_typed_data_field(struct buffer *out, const struct field *f);
+int stats_emit_field_tags(struct buffer *out, const struct field *f,
+			  char delim);
 
 
 static inline enum field_format field_format(const struct field *f, int e)
@@ -91,31 +115,7 @@ static inline struct field mkf_flt(uint32_t type, double value)
 	return f;
 }
 
-extern const char *stat_status_codes[];
-
-/* These two structs contains all field names and descriptions according to
- * the the number of entries in "enum stat_field" and "enum info_field"
- */
-extern const struct name_desc stat_fields[];
-extern const struct name_desc info_fields[];
-
-int stats_fill_info(struct field *info, int len);
-int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len);
-int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
-                        struct field *stats, int len);
-int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
-                        struct field *stats, int len);
-int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len);
-
-extern struct applet http_stats_applet;
-
-void stats_io_handler(struct stream_interface *si);
-int stats_emit_raw_data_field(struct buffer *out, const struct field *f);
-int stats_emit_typed_data_field(struct buffer *out, const struct field *f);
-int stats_emit_field_tags(struct buffer *out, const struct field *f,
-			  char delim);
-
-#endif /* _PROTO_STATS_H */
+#endif /* _HAPROXY_STATS_H */
 
 /*
  * Local variables:

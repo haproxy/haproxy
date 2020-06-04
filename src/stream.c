@@ -34,20 +34,19 @@
 #include <haproxy/htx.h>
 #include <haproxy/pool.h>
 #include <haproxy/session.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
 
 #include <types/cli.h>
 #include <types/filters.h>
-#include <types/stats.h>
 
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
-#include <proto/stats.h>
 #include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>

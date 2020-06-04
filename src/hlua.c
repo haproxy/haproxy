@@ -42,6 +42,7 @@
 #include <haproxy/payload.h>
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
@@ -49,12 +50,10 @@
 
 #include <types/cli.h>
 #include <types/proxy.h>
-#include <types/stats.h>
 
 #include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
-#include <proto/stats.h>
 #include <proto/queue.h>
 #include <proto/http_ana.h>
 #include <proto/server.h>

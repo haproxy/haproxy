@@ -33,7 +33,7 @@
 #include <haproxy/sample.h>
 #include <proto/server.h>
 #include <proto/ssl_sock.h>
-#include <proto/stats.h>
+#include <haproxy/stats.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <haproxy/task.h>

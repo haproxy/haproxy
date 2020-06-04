@@ -56,6 +56,7 @@
 #include <haproxy/peers-t.h>
 #include <haproxy/pool.h>
 #include <haproxy/session.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/uri_auth-t.h>
@@ -65,11 +66,9 @@
 
 #include <types/filters.h>
 #include <haproxy/global.h>
-#include <types/stats.h>
 
 #include <proto/backend.h>
 #include <proto/channel.h>
-#include <proto/stats.h>
 #include <proto/filters.h>
 #include <proto/lb_map.h>
 #include <proto/log.h>

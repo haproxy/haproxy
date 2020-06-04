@@ -27,12 +27,12 @@
 #include <haproxy/global.h>
 #include <haproxy/namespace.h>
 #include <haproxy/sample.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/task.h>
 #include <haproxy/time.h>
 
 #include <types/cli.h>
 #include <types/cli.h>
-#include <types/stats.h>
 
 #include <proto/cli.h>
 #include <haproxy/port_range.h>
@@ -41,7 +41,6 @@
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/stats.h>
 #include <netinet/tcp.h>
 
 #include <import/ebsttree.h>

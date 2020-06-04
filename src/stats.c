@@ -42,6 +42,7 @@
 #include <haproxy/map-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/session.h>
+#include <haproxy/stats.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -51,12 +52,10 @@
 #include <haproxy/base64.h>
 
 #include <types/cli.h>
-#include <types/stats.h>
 
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
-#include <proto/stats.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>

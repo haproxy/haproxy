@@ -30,11 +30,10 @@
 #include <haproxy/task.h>
 #include <haproxy/session-t.h>
 #include <haproxy/signal.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/thread.h>
-
-#include <types/stats.h>
 
 #include <proto/channel.h>
 #include <proto/cli.h>

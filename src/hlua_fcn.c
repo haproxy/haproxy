@@ -22,15 +22,14 @@
 #include <haproxy/http.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
+#include <haproxy/stats.h>
 #include <haproxy/time.h>
 
 #include <types/cli.h>
 #include <types/proxy.h>
-#include <types/stats.h>
 
 #include <proto/proxy.h>
 #include <proto/server.h>
-#include <proto/stats.h>
 #include <haproxy/stick_table.h>
 
 /* Contains the class reference of the concat object. */

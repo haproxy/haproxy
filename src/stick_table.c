@@ -22,6 +22,7 @@
 #include <haproxy/list.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/peers.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
@@ -31,7 +32,6 @@
 #include <import/ebsttree.h>
 
 #include <types/cli.h>
-#include <types/stats.h>
 
 #include <haproxy/arg.h>
 #include <proto/cli.h>

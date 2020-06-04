@@ -57,6 +57,7 @@
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_crtlist.h>
 #include <haproxy/ssl_utils.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -69,7 +70,6 @@
 
 #include <types/cli.h>
 #include <types/ssl_sock.h>
-#include <types/stats.h>
 
 #include <haproxy/arg.h>
 #include <proto/channel.h>
