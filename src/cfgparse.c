@@ -40,6 +40,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
+#include <haproxy/mailers-t.h>
 #include <haproxy/pool.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
@@ -52,7 +53,6 @@
 #include <types/global.h>
 #include <types/obj_type.h>
 #include <types/peers.h>
-#include <types/mailers.h>
 #include <types/stats.h>
 
 #include <proto/acl.h>

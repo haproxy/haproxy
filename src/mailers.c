@@ -12,6 +12,6 @@
 
 #include <stdlib.h>
 
-#include <types/mailers.h>
+#include <haproxy/mailers-t.h>
 
 struct mailers *mailers = NULL;

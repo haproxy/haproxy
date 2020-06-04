@@ -23,7 +23,7 @@
 #define _PROTO_CHECKS_H
 
 #include <haproxy/action-t.h>
-#include <types/mailers.h>
+#include <haproxy/mailers.h>
 #include <types/checks.h>
 
 const char *get_check_status_description(short check_status);

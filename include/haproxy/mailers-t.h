@@ -1,10 +1,10 @@
 /*
- * include/types/mailer.h
+ * include/haproxy/mailer-t.h
  * This file defines everything related to mailer.
  *
  * Copyright 2015 Horms Solutions Ltd., Simon Horman <horms@verge.net.au>
  *
- * Based on include/types/peers.h
+ * Based on include/haproxy/peers-t.h
  *
  * Copyright 2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
  *
@@ -23,8 +23,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_MAILERS_H
-#define _TYPES_MAILERS_H
+#ifndef _HAPROXY_MAILERS_T_H
+#define _HAPROXY_MAILERS_T_H
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -61,8 +61,5 @@ struct mailers {
 	} timeout;
 };
 
-
-extern struct mailers *mailers;
-
-#endif /* _TYPES_MAILERS_H */
+#endif /* _HAPROXY_MAILERS_T_H */
 
