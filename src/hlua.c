@@ -36,6 +36,7 @@
 #include <haproxy/map.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/pattern.h>
+#include <haproxy/payload.h>
 #include <haproxy/tools.h>
 
 #include <types/cli.h>
@@ -50,7 +51,6 @@
 #include <proto/stats.h>
 #include <proto/http_fetch.h>
 #include <proto/queue.h>
-#include <proto/payload.h>
 #include <proto/http_ana.h>
 #include <proto/sample.h>
 #include <proto/server.h>

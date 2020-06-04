@@ -1,5 +1,5 @@
 /*
- * include/proto/payload.h
+ * include/haproxy/payload.h
  * Definitions for payload-based sample fetches and ACLs
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_PROTO_PAYLOAD_H
-#define _PROTO_PROTO_PAYLOAD_H
+#ifndef _HAPROXY_PAYLOAD_H
+#define _HAPROXY_PAYLOAD_H
 
 #include <haproxy/api.h>
 #include <types/sample.h>
@@ -29,7 +29,7 @@
 int fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, int clen);
 int val_payload_lv(struct arg *arg, char **err_msg);
 
-#endif /* _PROTO_PROTO_PAYLOAD_H */
+#endif /* _HAPROXY_PAYLOAD_H */
 
 /*
  * Local variables:
