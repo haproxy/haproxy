@@ -47,6 +47,7 @@
 #include <haproxy/h1.h>
 #include <haproxy/htx.h>
 #include <haproxy/signal.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/task.h>
 #include <haproxy/vars.h>
@@ -66,7 +67,6 @@
 #include <proto/stream_interface.h>
 #include <proto/log.h>
 #include <haproxy/proto_udp.h>
-#include <proto/ssl_sock.h>
 #include <haproxy/sample.h>
 
 static int tcpcheck_get_step_id(struct check *, struct tcpcheck_rule *);

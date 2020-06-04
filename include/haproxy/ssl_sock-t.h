@@ -1,5 +1,5 @@
 /*
- * include/types/ssl_sock.h
+ * include/haproxy/ssl_sock-t.h
  * SSL settings for listeners and servers
  *
  * Copyright (C) 2012 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -19,18 +19,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_SSL_SOCK_H
-#define _TYPES_SSL_SOCK_H
+#ifndef _HAPROXY_SSL_SOCK_T_H
+#define _HAPROXY_SSL_SOCK_T_H
 #ifdef USE_OPENSSL
 
-#include <import/ebpttree.h>
-#include <import/ebmbtree.h>
 #include <import/eb64tree.h>
-
-#include <haproxy/connection-t.h> /* struct wait_event */
+#include <import/ebmbtree.h>
+#include <import/ebpttree.h>
 
 #include <haproxy/buf-t.h>
-#include <haproxy/thread.h>
+#include <haproxy/connection-t.h> /* struct wait_event */
+#include <haproxy/thread-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/openssl-compat.h>
@@ -95,6 +94,22 @@ enum {
 	CONF_TLSV_MAX  = 5,
 };
 
+/* server and bind verify method, it uses a global value as default */
+enum {
+	SSL_SOCK_VERIFY_DEFAULT  = 0,
+	SSL_SOCK_VERIFY_REQUIRED = 1,
+	SSL_SOCK_VERIFY_OPTIONAL = 2,
+	SSL_SOCK_VERIFY_NONE     = 3,
+};
+
+/* states of the CLI IO handler for 'set ssl cert' */
+enum {
+	SETCERT_ST_INIT = 0,
+	SETCERT_ST_GEN,
+	SETCERT_ST_INSERT,
+	SETCERT_ST_FIN,
+};
+
 #if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
 typedef enum { SET_CLIENT, SET_SERVER } set_context_func;
 #else /* openssl >= 1.1.0 */
@@ -107,14 +122,6 @@ struct methodVersions {
 	void   (*ctx_set_version)(SSL_CTX *, set_context_func);
 	void   (*ssl_set_version)(SSL *, set_context_func);
 	const char *name;
-};
-
-/* server and bind verify method, it uses a global value as default */
-enum {
-	SSL_SOCK_VERIFY_DEFAULT  = 0,
-	SSL_SOCK_VERIFY_REQUIRED = 1,
-	SSL_SOCK_VERIFY_OPTIONAL = 2,
-	SSL_SOCK_VERIFY_NONE     = 3,
 };
 
 struct pkey_info {
@@ -133,8 +140,6 @@ struct sni_ctx {
 	struct ckch_inst *ckch_inst; /* instance used to create this sni_ctx */
 	struct ebmb_node name;    /* node holding the servername value */
 };
-
-extern struct list tlskeys_reference;
 
 struct tls_sess_key_128 {
 	unsigned char name[16];
@@ -169,14 +174,6 @@ struct tls_keys_ref {
 struct sh_ssl_sess_hdr {
 	struct ebmb_node key;
 	unsigned char key_data[SSL_MAX_SSL_SESSION_ID_LENGTH];
-};
-
-/* states of the CLI IO handler for 'set ssl cert' */
-enum {
-	SETCERT_ST_INIT = 0,
-	SETCERT_ST_GEN,
-	SETCERT_ST_INSERT,
-	SETCERT_ST_FIN,
 };
 
 #if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
@@ -287,4 +284,4 @@ extern const char *SSL_SOCK_KEYTYPE_NAMES[];
 #endif
 
 #endif /* USE_OPENSSL */
-#endif /* _TYPES_SSL_SOCK_H */
+#endif /* _HAPROXY_SSL_SOCK_T_H */

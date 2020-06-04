@@ -24,7 +24,7 @@
 #include <haproxy/proto_tcp.h>
 #include <proto/stream_interface.h>
 #include <haproxy/sample.h>
-#include <proto/ssl_sock.h>
+#include <haproxy/ssl_sock.h>
 
 
 DECLARE_POOL(pool_head_connection, "connection",  sizeof(struct connection));

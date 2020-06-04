@@ -1,5 +1,5 @@
 /*
- * include/proto/ssl_sock.h
+ * include/haproxy/ssl_sock.h
  * This file contains definition for ssl stream socket operations
  *
  * Copyright (C) 2012 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -19,18 +19,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_SSL_SOCK_H
-#define _PROTO_SSL_SOCK_H
+#ifndef _HAPROXY_SSL_SOCK_H
+#define _HAPROXY_SSL_SOCK_H
 #ifdef USE_OPENSSL
+
 
 #include <haproxy/connection.h>
 #include <haproxy/openssl-compat.h>
+#include <haproxy/ssl_sock-t.h>
+#include <haproxy/pool-t.h>
+#include <haproxy/thread.h>
 
 #include <types/proxy.h>
-#include <types/ssl_sock.h>
-#include <types/stream_interface.h>
 
-
+extern struct list tlskeys_reference;
 extern int sslconns;
 extern int totalsslconns;
 extern struct eb_root ckchs_tree;
@@ -45,16 +47,6 @@ extern unsigned int openssl_engines_initialized;
 extern int nb_engines;
 extern struct xprt_ops ssl_sock;
 extern int ssl_capture_ptr_index;
-
-/* boolean, returns true if connection is over SSL */
-static inline
-int ssl_sock_is_ssl(struct connection *conn)
-{
-	if (!conn || conn->xprt != xprt_get(XPRT_SSL) || !conn->xprt_ctx)
-		return 0;
-	else
-		return 1;
-}
 
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *, SSL_CTX *ctx, char **err);
 int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf);
@@ -129,8 +121,19 @@ int ssl_sock_register_msg_callback(ssl_sock_msg_callback_func func);
 
 SSL *ssl_sock_get_ssl_object(struct connection *conn);
 
+/* boolean, returns true if connection is over SSL */
+static inline
+int ssl_sock_is_ssl(struct connection *conn)
+{
+	if (!conn || conn->xprt != xprt_get(XPRT_SSL) || !conn->xprt_ctx)
+		return 0;
+	else
+		return 1;
+}
+
+
 #endif /* USE_OPENSSL */
-#endif /* _PROTO_SSL_SOCK_H */
+#endif /* _HAPROXY_SSL_SOCK_H */
 
 /*
  * Local variables:

@@ -57,6 +57,7 @@
 #include <haproxy/shctx.h>
 #include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_crtlist.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/task.h>
@@ -69,8 +70,6 @@
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
 
-#include <types/ssl_sock.h>
-
 #include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <haproxy/fd.h>
@@ -81,7 +80,6 @@
 #include <proto/stream_interface.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
-#include <proto/ssl_sock.h>
 #include <proto/stream.h>
 
 /* ***** READ THIS before adding code here! *****

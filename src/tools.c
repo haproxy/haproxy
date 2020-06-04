@@ -46,10 +46,10 @@
 #include <haproxy/hlua.h>
 #include <haproxy/listener.h>
 #include <haproxy/namespace.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/proto_udp.h>
-#include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>
 
 /* This macro returns false if the test __x is false. Many

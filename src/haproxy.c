@@ -106,6 +106,7 @@
 #include <haproxy/regex.h>
 #include <haproxy/session.h>
 #include <haproxy/signal.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/uri_auth-t.h>
@@ -131,7 +132,6 @@
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/stream.h>
-#include <proto/ssl_sock.h>
 
 /* array of init calls for older platforms */
 DECLARE_INIT_STAGES;

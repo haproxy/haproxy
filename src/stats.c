@@ -43,6 +43,7 @@
 #include <haproxy/map-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/session.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/stats.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
@@ -59,7 +60,6 @@
 #include <proto/log.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>
-#include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/server.h>
 #include <proto/stream_interface.h>

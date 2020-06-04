@@ -36,10 +36,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/listener.h>
 #include <haproxy/openssl-compat.h>
-
-#include <types/ssl_sock.h>
-
-#include <proto/ssl_sock.h>
+#include <haproxy/ssl_sock.h>
 
 
 /****************** Global Section Parsing ********************************************/

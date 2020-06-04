@@ -32,6 +32,7 @@
 #include <haproxy/list-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/ssl_sock-t.h>
 #include <haproxy/thread.h>
 #include <haproxy/openssl-compat.h>
 
@@ -40,7 +41,6 @@
 #include <haproxy/connection-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <types/queue.h>
-#include <types/ssl_sock.h>
 #include <haproxy/task-t.h>
 
 
