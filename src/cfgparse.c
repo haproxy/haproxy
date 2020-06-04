@@ -80,7 +80,7 @@
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stick_table.h>
-#include <proto/tcp_rules.h>
+#include <haproxy/tcp_rules.h>
 #include <proto/connection.h>
 
 

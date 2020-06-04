@@ -74,6 +74,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/sample.h>
 #include <haproxy/task.h>
+#include <haproxy/tcp_rules.h>
 #include <haproxy/time.h>
 #include <haproxy/thread.h>
 #include <import/eb32tree.h>
@@ -83,7 +84,6 @@
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/tcp_rules.h>
 
 
 #define NOW_OFFSET_BOUNDARY()          ((now_ms - (TIMER_LOOK_BACK >> 12)) & 0xfffff)

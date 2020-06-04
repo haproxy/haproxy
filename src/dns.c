@@ -27,6 +27,7 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/sample.h>
 #include <haproxy/task.h>
+#include <haproxy/tcp_rules.h>
 #include <haproxy/time.h>
 #include <haproxy/ticks.h>
 #include <haproxy/net_helper.h>
@@ -47,7 +48,6 @@
 #include <haproxy/proto_udp.h>
 #include <proto/proxy.h>
 #include <proto/stream_interface.h>
-#include <proto/tcp_rules.h>
 
 struct list dns_resolvers  = LIST_HEAD_INIT(dns_resolvers);
 struct list dns_srvrq_list = LIST_HEAD_INIT(dns_srvrq_list);

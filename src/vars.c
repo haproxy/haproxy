@@ -6,12 +6,12 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/list.h>
 #include <haproxy/sample.h>
+#include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
 
 #include <haproxy/arg.h>
 #include <proto/http_ana.h>
 #include <proto/stream.h>
-#include <proto/tcp_rules.h>
 #include <proto/checks.h>
 
 /* This contains a pool of struct vars */

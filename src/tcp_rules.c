@@ -16,6 +16,7 @@
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/sample.h>
+#include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -31,7 +32,6 @@
 #include <proto/stick_table.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/tcp_rules.h>
 
 #define TRACE_SOURCE &trace_strm
 
