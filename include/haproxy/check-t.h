@@ -1,7 +1,9 @@
 /*
- * Health-checks.
+ * include/haproxy/check-t.h
+ * Health-checks definitions, enums, macros and bitfields.
  *
  * Copyright 2008-2009 Krzysztof Piotr Oledzki <ole@ans.pl>
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -10,22 +12,25 @@
  *
  */
 
-#ifndef _TYPES_CHECKS_H
-#define _TYPES_CHECKS_H
+#ifndef _HAPROXY_CHECKS_T_H
+#define _HAPROXY_CHECKS_T_H
 
-#include <haproxy/api-t.h>
 #include <import/ebpttree.h>
-
 #include <import/ist.h>
+#include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
-#include <haproxy/regex-t.h>
-#include <haproxy/buf-t.h>
+#include <haproxy/api-t.h>
+#include <haproxy/vars-t.h>
 
-#include <haproxy/sample-t.h>
-#include <types/session.h>
-#include <haproxy/task-t.h>
+/* Please note: this file tends to commonly be part of circular dependencies,
+ * so it is important to keep its includes list to the minimum possible (i.e.
+ * only types whose size needs to be known). Since there are no function
+ * prototypes nor pointers here, forward declarations are not really necessary.
+ * This file oughtt to be split into multiple parts, at least regular checks vs
+ * tcp-checks.
+ */
 
 /* enum used by check->result. Must remain in this order, as some code uses
  * result >= CHK_RES_PASSED to declare success.
@@ -131,46 +136,7 @@ enum {
 	HANA_OBS_SIZE
 };
 
-struct proxy;
-struct server;
-struct check {
-	enum obj_type obj_type;                 /* object type == OBJ_TYPE_CHECK */
-	struct session *sess;			/* Health check session. */
-	struct vars vars;			/* Health check dynamic variables. */
-	struct xprt_ops *xprt;			/* transport layer operations for health checks */
-	struct conn_stream *cs;			/* conn_stream state for health checks */
-	struct buffer bi, bo;			/* input and output buffers to send/recv check */
-	struct task *task;			/* the task associated to the health check processing, NULL if disabled */
-	struct timeval start;			/* last health check start time */
-	long duration;				/* time in ms took to finish last health check */
-	short status, code;			/* check result, check code */
-	unsigned short port;			/* the port to use for the health checks */
-	char desc[HCHK_DESC_LEN];		/* health check description */
-	signed char use_ssl;			/* use SSL for health checks (1: on, 0: server mode, -1: off) */
-	int send_proxy;				/* send a PROXY protocol header with checks */
-	struct tcpcheck_rules *tcpcheck_rules;	/* tcp-check send / expect rules */
-	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
-	int inter, fastinter, downinter;        /* checks: time in milliseconds */
-	enum chk_result result;                 /* health-check result : CHK_RES_* */
-	int state;				/* state of the check : CHK_ST_*   */
-	int health;				/* 0 to rise-1 = bad;
-						 * rise to rise+fall-1 = good */
-	int rise, fall;				/* time in iterations */
-	int type;				/* Check type, one of PR_O2_*_CHK */
-	struct server *server;			/* back-pointer to server */
-	struct proxy *proxy;                    /* proxy to be used */
-	char **argv;				/* the arguments to use if running a process-based check */
-	char **envp;				/* the environment to use if running a process-based check */
-	struct pid_list *curpid;		/* entry in pid_list used for current process-based test, or -1 if not in test */
-	struct sockaddr_storage addr;   	/* the address to check */
-	struct wait_event wait_list;            /* Waiting for I/O events */
-	char *sni;				/* Server name */
-	char *alpn_str;                         /* ALPN to use for checks */
-	int alpn_len;                           /* ALPN string length */
-	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
-	int via_socks4;                         /* check the connection via socks4 proxy */
-};
-
+/* options for tcp-check connect */
 #define TCPCHK_OPT_NONE            0x0000  /* no options specified, default */
 #define TCPCHK_OPT_SEND_PROXY      0x0001  /* send proxy-protocol string */
 #define TCPCHK_OPT_SSL             0x0002  /* SSL connection */
@@ -178,17 +144,6 @@ struct check {
 #define TCPCHK_OPT_DEFAULT_CONNECT 0x0008  /* Do a connect using server params */
 #define TCPCHK_OPT_IMPLICIT        0x0010  /* Implicit connect */
 #define TCPCHK_OPT_SOCKS4          0x0020  /* check the connection via socks4 proxy */
-
-struct tcpcheck_connect {
-	char *sni;                     /* server name to use for SSL connections */
-	char *alpn;                    /* ALPN to use for the SSL connection */
-	int alpn_len;                  /* ALPN string length */
-	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
-	uint16_t options;              /* options when setting up a new connection */
-	uint16_t port;                 /* port to connect to */
-	struct sample_expr *port_expr; /* sample expr to determine the port, may be NULL */
-	struct sockaddr_storage addr;  /* the address to the connect */
-};
 
 enum tcpcheck_send_type {
 	TCPCHK_SEND_UNDEF = 0,  /* Send is not parsed. */
@@ -199,42 +154,10 @@ enum tcpcheck_send_type {
 	TCPCHK_SEND_HTTP,       /* Send an HTTP request */
 };
 
-struct tcpcheck_http_hdr {
-	struct ist  name;  /* the header name */
-	struct list value; /* the log-format string value */
-	struct list list;  /* header chained list */
-};
-
-struct tcpcheck_codes {
-	unsigned int (*codes)[2]; /* an array of roange of codes: [0]=min [1]=max */
-	size_t num;               /* number of entry in the array */
-};
-
+/* flags for tcp-check send */
 #define TCPCHK_SND_HTTP_FL_URI_FMT    0x0001 /* Use a log-format string for the uri */
 #define TCPCHK_SND_HTTP_FL_BODY_FMT   0x0002 /* Use a log-format string for the body */
 #define TCPCHK_SND_HTTP_FROM_OPT      0x0004 /* Send rule coming from "option httpck" directive */
-
-struct tcpcheck_send {
-	enum tcpcheck_send_type type;
-	union {
-		struct ist  data; /* an ASCII string or a binary sequence */
-		struct list fmt;  /* an ASCII or hexa log-format string */
-		struct {
-			unsigned int flags;             /* TCPCHK_SND_HTTP_FL_* */
-			struct http_meth meth;          /* the HTTP request method */
-			union {
-				struct ist  uri;        /* the HTTP request uri is a string  */
-				struct list uri_fmt;    /* or a log-format string */
-			};
-			struct ist vsn;                 /* the HTTP request version string */
-			struct list hdrs;               /* the HTTP request header list */
-			union {
-				struct ist   body;      /* the HTTP request payload is a string */
-				struct list  body_fmt;  /* or a log-format string */
-			};
-		} http;           /* Info about the HTTP request to send */
-	};
-};
 
 enum tcpcheck_eval_ret {
 	TCPCHK_EVAL_WAIT = 0,
@@ -279,6 +202,115 @@ enum tcpcheck_expect_type {
 #define TCPCHK_EXPT_FL_HTTP_HNAME_TYPE 0x003E /* Mask to get matching method on header name */
 #define TCPCHK_EXPT_FL_HTTP_HVAL_TYPE  0x1F00 /* Mask to get matching method on header value */
 
+/* possible actions for tcpcheck_rule->action */
+enum tcpcheck_rule_type {
+	TCPCHK_ACT_SEND = 0, /* send action, regular string format */
+	TCPCHK_ACT_EXPECT, /* expect action, either regular or binary string */
+	TCPCHK_ACT_CONNECT, /* connect action, to probe a new port */
+	TCPCHK_ACT_COMMENT, /* no action, simply a comment used for logs */
+	TCPCHK_ACT_ACTION_KW, /* custom registered action_kw rule. */
+};
+
+#define TCPCHK_RULES_NONE           0x00000000
+#define TCPCHK_RULES_UNUSED_TCP_RS  0x00000001 /* An unused tcp-check ruleset exists */
+#define TCPCHK_RULES_UNUSED_HTTP_RS 0x00000002 /* An unused http-check ruleset exists */
+#define TCPCHK_RULES_UNUSED_RS      0x00000003 /* Mask for unused ruleset */
+
+#define TCPCHK_RULES_PGSQL_CHK   0x00000010
+#define TCPCHK_RULES_REDIS_CHK   0x00000020
+#define TCPCHK_RULES_SMTP_CHK    0x00000030
+#define TCPCHK_RULES_HTTP_CHK    0x00000040
+#define TCPCHK_RULES_MYSQL_CHK   0x00000050
+#define TCPCHK_RULES_LDAP_CHK    0x00000060
+#define TCPCHK_RULES_SSL3_CHK    0x00000070
+#define TCPCHK_RULES_AGENT_CHK   0x00000080
+#define TCPCHK_RULES_SPOP_CHK    0x00000090
+/* Unused 0x000000A0..0x00000FF0 (reserverd for futur proto) */
+#define TCPCHK_RULES_TCP_CHK     0x00000FF0
+#define TCPCHK_RULES_PROTO_CHK   0x00000FF0 /* Mask to cover protocol check */
+
+struct check {
+	enum obj_type obj_type;                 /* object type == OBJ_TYPE_CHECK */
+	struct session *sess;			/* Health check session. */
+	struct vars vars;			/* Health check dynamic variables. */
+	struct xprt_ops *xprt;			/* transport layer operations for health checks */
+	struct conn_stream *cs;			/* conn_stream state for health checks */
+	struct buffer bi, bo;			/* input and output buffers to send/recv check */
+	struct task *task;			/* the task associated to the health check processing, NULL if disabled */
+	struct timeval start;			/* last health check start time */
+	long duration;				/* time in ms took to finish last health check */
+	short status, code;			/* check result, check code */
+	unsigned short port;			/* the port to use for the health checks */
+	char desc[HCHK_DESC_LEN];		/* health check description */
+	signed char use_ssl;			/* use SSL for health checks (1: on, 0: server mode, -1: off) */
+	int send_proxy;				/* send a PROXY protocol header with checks */
+	struct tcpcheck_rules *tcpcheck_rules;	/* tcp-check send / expect rules */
+	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
+	int inter, fastinter, downinter;        /* checks: time in milliseconds */
+	enum chk_result result;                 /* health-check result : CHK_RES_* */
+	int state;				/* state of the check : CHK_ST_*   */
+	int health;				/* 0 to rise-1 = bad;
+						 * rise to rise+fall-1 = good */
+	int rise, fall;				/* time in iterations */
+	int type;				/* Check type, one of PR_O2_*_CHK */
+	struct server *server;			/* back-pointer to server */
+	struct proxy *proxy;                    /* proxy to be used */
+	char **argv;				/* the arguments to use if running a process-based check */
+	char **envp;				/* the environment to use if running a process-based check */
+	struct pid_list *curpid;		/* entry in pid_list used for current process-based test, or -1 if not in test */
+	struct sockaddr_storage addr;   	/* the address to check */
+	struct wait_event wait_list;            /* Waiting for I/O events */
+	char *sni;				/* Server name */
+	char *alpn_str;                         /* ALPN to use for checks */
+	int alpn_len;                           /* ALPN string length */
+	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
+	int via_socks4;                         /* check the connection via socks4 proxy */
+};
+
+struct tcpcheck_connect {
+	char *sni;                     /* server name to use for SSL connections */
+	char *alpn;                    /* ALPN to use for the SSL connection */
+	int alpn_len;                  /* ALPN string length */
+	const struct mux_proto_list *mux_proto; /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
+	uint16_t options;              /* options when setting up a new connection */
+	uint16_t port;                 /* port to connect to */
+	struct sample_expr *port_expr; /* sample expr to determine the port, may be NULL */
+	struct sockaddr_storage addr;  /* the address to the connect */
+};
+
+struct tcpcheck_http_hdr {
+	struct ist  name;  /* the header name */
+	struct list value; /* the log-format string value */
+	struct list list;  /* header chained list */
+};
+
+struct tcpcheck_codes {
+	unsigned int (*codes)[2]; /* an array of roange of codes: [0]=min [1]=max */
+	size_t num;               /* number of entry in the array */
+};
+
+struct tcpcheck_send {
+	enum tcpcheck_send_type type;
+	union {
+		struct ist  data; /* an ASCII string or a binary sequence */
+		struct list fmt;  /* an ASCII or hexa log-format string */
+		struct {
+			unsigned int flags;             /* TCPCHK_SND_HTTP_FL_* */
+			struct http_meth meth;          /* the HTTP request method */
+			union {
+				struct ist  uri;        /* the HTTP request uri is a string  */
+				struct list uri_fmt;    /* or a log-format string */
+			};
+			struct ist vsn;                 /* the HTTP request version string */
+			struct list hdrs;               /* the HTTP request header list */
+			union {
+				struct ist   body;      /* the HTTP request payload is a string */
+				struct list  body_fmt;  /* or a log-format string */
+			};
+		} http;           /* Info about the HTTP request to send */
+	};
+};
+
 struct tcpcheck_expect {
 	enum tcpcheck_expect_type type;   /* Type of pattern used for matching. */
 	unsigned int flags;               /* TCPCHK_EXPT_FL_* */
@@ -318,15 +350,6 @@ struct tcpcheck_action_kw {
 	struct act_rule *rule;
 };
 
-/* possible actions for tcpcheck_rule->action */
-enum tcpcheck_rule_type {
-	TCPCHK_ACT_SEND = 0, /* send action, regular string format */
-	TCPCHK_ACT_EXPECT, /* expect action, either regular or binary string */
-	TCPCHK_ACT_CONNECT, /* connect action, to probe a new port */
-	TCPCHK_ACT_COMMENT, /* no action, simply a comment used for logs */
-	TCPCHK_ACT_ACTION_KW, /* custom registered action_kw rule. */
-};
-
 struct tcpcheck_rule {
 	struct list list;                       /* list linked to from the proxy */
 	enum tcpcheck_rule_type action;         /* type of the rule. */
@@ -339,24 +362,6 @@ struct tcpcheck_rule {
 		struct tcpcheck_action_kw action_kw;  /* Custom action. */
 	};
 };
-
-#define TCPCHK_RULES_NONE           0x00000000
-#define TCPCHK_RULES_UNUSED_TCP_RS  0x00000001 /* An unused tcp-check ruleset exists */
-#define TCPCHK_RULES_UNUSED_HTTP_RS 0x00000002 /* An unused http-check ruleset exists */
-#define TCPCHK_RULES_UNUSED_RS      0x00000003 /* Mask for unused ruleset */
-
-#define TCPCHK_RULES_PGSQL_CHK   0x00000010
-#define TCPCHK_RULES_REDIS_CHK   0x00000020
-#define TCPCHK_RULES_SMTP_CHK    0x00000030
-#define TCPCHK_RULES_HTTP_CHK    0x00000040
-#define TCPCHK_RULES_MYSQL_CHK   0x00000050
-#define TCPCHK_RULES_LDAP_CHK    0x00000060
-#define TCPCHK_RULES_SSL3_CHK    0x00000070
-#define TCPCHK_RULES_AGENT_CHK   0x00000080
-#define TCPCHK_RULES_SPOP_CHK    0x00000090
-/* Unused 0x000000A0..0x00000FF0 (reserverd for futur proto) */
-#define TCPCHK_RULES_TCP_CHK     0x00000FF0
-#define TCPCHK_RULES_PROTO_CHK   0x00000FF0 /* Mask to cover protocol check */
 
 /* A list of tcp-check vars, to be registered before executing a ruleset */
 struct tcpcheck_var {
@@ -379,4 +384,4 @@ struct tcpcheck_ruleset {
 };
 
 
-#endif /* _TYPES_CHECKS_H */
+#endif /* _HAPROXY_CHECKS_T_H */

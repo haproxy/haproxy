@@ -18,6 +18,7 @@
 #include <haproxy/api.h>
 #include <haproxy/capture.h>
 #include <common/cfgparse.h>
+#include <haproxy/check.h>
 #include <haproxy/connection.h>
 #include <haproxy/dict.h>
 #include <haproxy/dns.h>
@@ -44,7 +45,6 @@
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
-#include <proto/checks.h>
 #include <proto/cli.h>
 #include <proto/stats.h>
 #include <haproxy/fd.h>

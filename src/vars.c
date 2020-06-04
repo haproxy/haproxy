@@ -2,6 +2,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/check.h>
 #include <haproxy/http.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/list.h>
@@ -12,7 +13,6 @@
 #include <haproxy/arg.h>
 #include <proto/http_ana.h>
 #include <proto/stream.h>
-#include <proto/checks.h>
 
 /* This contains a pool of struct vars */
 DECLARE_STATIC_POOL(var_pool, "vars", sizeof(struct var));

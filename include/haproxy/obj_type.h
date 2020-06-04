@@ -23,6 +23,7 @@
 #define _HAPROXY_OBJ_TYPE_H
 
 #include <haproxy/api.h>
+#include <haproxy/check-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
@@ -32,7 +33,6 @@
 #include <types/server.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
-#include <types/checks.h>
 
 static inline enum obj_type obj_type(const enum obj_type *t)
 {

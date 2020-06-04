@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <haproxy/check-t.h>
 #include <haproxy/counters-t.h>
 #include <haproxy/dns-t.h>
 #include <haproxy/api-t.h>
@@ -41,7 +42,6 @@
 #include <types/queue.h>
 #include <types/ssl_sock.h>
 #include <haproxy/task-t.h>
-#include <types/checks.h>
 
 
 /* server states. Only SRV_ST_STOPPED indicates a down server. */

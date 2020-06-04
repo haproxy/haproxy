@@ -23,10 +23,10 @@
 #define _PROTO_HTTP_FETCH_H
 
 #include <haproxy/api.h>
+#include <haproxy/check-t.h>
 #include <haproxy/htx.h>
 #include <haproxy/arg-t.h>
 #include <types/channel.h>
-#include <types/checks.h>
 #include <haproxy/sample-t.h>
 
 struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct check *check, int vol);

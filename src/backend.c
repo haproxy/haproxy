@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <haproxy/api.h>
+#include <haproxy/check.h>
 #include <haproxy/frontend.h>
 #include <haproxy/hash.h>
 #include <haproxy/http.h>
@@ -42,7 +43,6 @@
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
-#include <proto/checks.h>
 #include <proto/lb_map.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>

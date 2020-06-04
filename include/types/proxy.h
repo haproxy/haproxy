@@ -28,6 +28,7 @@
 #include <arpa/inet.h>
 
 #include <haproxy/api-t.h>
+#include <haproxy/check-t.h>
 #include <haproxy/chunk.h>
 #include <haproxy/counters-t.h>
 #include <haproxy/http-t.h>
@@ -40,7 +41,6 @@
 
 #include <types/acl.h>
 #include <types/backend.h>
-#include <types/checks.h>
 #include <types/filters.h>
 #include <haproxy/freq_ctr-t.h>
 #include <types/log.h>

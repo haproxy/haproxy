@@ -1,30 +1,33 @@
 /*
-  include/proto/checks.h
-  Functions prototypes for the checks.
+ * include/haproxy/check.h
+ * Functions prototypes for the checks.
+ *
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
-  Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
-
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
-
-#ifndef _PROTO_CHECKS_H
-#define _PROTO_CHECKS_H
+#ifndef _HAPROXY_CHECKS_H
+#define _HAPROXY_CHECKS_H
 
 #include <haproxy/action-t.h>
+#include <haproxy/check-t.h>
+#include <haproxy/list-t.h>
 #include <haproxy/mailers.h>
-#include <types/checks.h>
+#include <types/proxy.h>
+#include <types/server.h>
 
 const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
@@ -88,7 +91,7 @@ int proxy_parse_external_check_opt(char **args, int cur_arg, struct proxy *curpx
 
 int set_srv_agent_send(struct server *srv, const char *send);
 
-#endif /* _PROTO_CHECKS_H */
+#endif /* _HAPROXY_CHECKS_H */
 
 /*
  * Local variables:
