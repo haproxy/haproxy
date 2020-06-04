@@ -20,6 +20,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/list.h>
+#include <haproxy/mworker.h>
 #include <haproxy/version.h>
 
 #include <types/cli.h>
@@ -31,7 +32,6 @@
 #include <haproxy/fd.h>
 #include <proto/listener.h>
 #include <proto/log.h>
-#include <proto/mworker.h>
 #include <proto/proxy.h>
 #include <proto/signal.h>
 #include <proto/stream.h>

@@ -92,6 +92,7 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
+#include <haproxy/mworker.h>
 #include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
@@ -120,7 +121,6 @@
 #include <proto/filters.h>
 #include <proto/listener.h>
 #include <proto/log.h>
-#include <proto/mworker.h>
 #include <proto/pattern.h>
 #include <haproxy/protocol.h>
 #include <proto/http_ana.h>

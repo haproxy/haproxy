@@ -31,6 +31,7 @@
 #include <haproxy/dns-t.h>
 #include <haproxy/frontend.h>
 #include <haproxy/list.h>
+#include <haproxy/mworker-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>

@@ -1,5 +1,6 @@
 /*
- * Master Worker
+ * include/haproxy/mworker-t.h
+ * Master Worker function prototypes.
  *
  * Copyright HAProxy Technologies 2019 - William Lallemand <wlallemand@haproxy.com>
  *
@@ -10,9 +11,10 @@
  *
  */
 
-#ifndef PROTO_MWORKER_H_
-#define PROTO_MWORKER_H_
+#ifndef _HAPROXY_MWORKER_H_
+#define _HAPROXY_MWORKER_H_
 
+#include <haproxy/mworker-t.h>
 #include <types/signal.h>
 
 void mworker_proc_list_to_env();
@@ -39,4 +41,4 @@ void mworker_kill_max_reloads(int sig);
 
 void mworker_free_child(struct mworker_proc *);
 
-#endif /* PROTO_MWORKER_H_ */
+#endif /* _HAPROXY_MWORKER_H_ */
