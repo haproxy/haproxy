@@ -1,5 +1,5 @@
 /*
- * include/types/ssl_ckch.h
+ * include/haproxy/ssl_ckch-t.h
  * ckch structures
  *
  * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
@@ -29,10 +29,12 @@
  */
 
 
-#ifndef _TYPES_SSL_CKCH_H
-#define _TYPES_SSL_CKCH_H
+#ifndef _HAPROXY_SSL_CKCH_T_H
+#define _HAPROXY_SSL_CKCH_T_H
 #ifdef USE_OPENSSL
 
+#include <import/ebmbtree.h>
+#include <haproxy/buf-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/openssl-compat.h>
 
@@ -93,4 +95,4 @@ struct ckch_inst {
 };
 
 #endif /* USE_OPENSSL */
-#endif /* _TYPES_SSL_CKCH_H */
+#endif /* _HAPROXY_SSL_CKCH_T_H */

@@ -1,5 +1,5 @@
 /*
- * include/proto/ssl_ckch.h
+ * include/haproxy/ssl_ckch.h
  * ckch function prototypes
  *
  * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
@@ -19,9 +19,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_SSL_CKCH_H
-#define _PROTO_SSL_CKCH_H
+#ifndef _HAPROXY_SSL_CKCH_H
+#define _HAPROXY_SSL_CKCH_H
 #ifdef USE_OPENSSL
+
+#include <haproxy/ssl_ckch-t.h>
 
 /* cert_key_and_chain functions */
 
@@ -60,4 +62,4 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
                              struct ssl_bind_conf *ssl_conf, char **sni_filter, int fcount, struct ckch_inst **ckchi, char **err);
 
 #endif /* USE_OPENSSL */
-#endif /* _PROTO_SSL_CRTLIST_H */
+#endif /* _HAPROXY_SSL_CRTLIST_H */

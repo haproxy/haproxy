@@ -23,18 +23,17 @@
 
 #include <haproxy/base64.h>
 #include <haproxy/errors.h>
+#include <haproxy/ssl_ckch.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
 
 #include <import/ebsttree.h>
 
 #include <types/cli.h>
-#include <types/ssl_ckch.h>
 #include <types/ssl_sock.h>
 
 #include <proto/cli.h>
 #include <proto/channel.h>
-#include <proto/ssl_ckch.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>
 
