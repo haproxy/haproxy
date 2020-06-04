@@ -32,7 +32,7 @@
 #include <proto/queue.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/task.h>
-#include <proto/trace.h>
+#include <haproxy/trace.h>
 
 extern struct trace_source trace_strm;
 

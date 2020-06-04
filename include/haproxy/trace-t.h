@@ -1,5 +1,5 @@
 /*
- * include/types/trace.h
+ * include/haproxy/trace-t.h
  * This file provides definitions for runtime tracing
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -19,13 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_TRACE_H
-#define _TYPES_TRACE_H
+#ifndef _HAPROXY_TRACE_T_H
+#define _HAPROXY_TRACE_T_H
 
-#include <haproxy/api-t.h>
 #include <import/ist.h>
 #include <haproxy/list-t.h>
 #include <haproxy/sink-t.h>
+#include <haproxy/api-t.h>
 
 /* the macros below define an optional type for each of the 4 args passed to
  * the trace() call. When such a type is set, the caller commits to exclusively
@@ -148,7 +148,7 @@ struct trace_source {
 	const void *lockon_ptr;  // what to lockon when lockon is set
 };
 
-#endif /* _TYPES_TRACE_H */
+#endif /* _HAPROXY_TRACE_T_H */
 
 /*
  * Local variables:

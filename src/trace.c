@@ -26,7 +26,7 @@
 #include <proto/cli.h>
 #include <proto/log.h>
 #include <haproxy/sink.h>
-#include <proto/trace.h>
+#include <haproxy/trace.h>
 
 struct list trace_sources = LIST_HEAD_INIT(trace_sources);
 THREAD_LOCAL struct buffer trace_buf = { };

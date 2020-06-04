@@ -31,7 +31,7 @@
 #include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/trace.h>
+#include <haproxy/trace.h>
 
 /* FCGI Connection flags (32 bits) */
 #define FCGI_CF_NONE           0x00000000

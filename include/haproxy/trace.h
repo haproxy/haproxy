@@ -1,5 +1,5 @@
 /*
- * include/proto/trace.h
+ * include/haproxy/trace.h
  * This file provides functions for runtime tracing
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -19,16 +19,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_TRACE_H
-#define _PROTO_TRACE_H
+#ifndef _HAPROXY_TRACE_H
+#define _HAPROXY_TRACE_H
 
-#include <haproxy/api.h>
-#include <haproxy/tools.h>
 #include <import/ist.h>
+#include <haproxy/api.h>
 #include <haproxy/list.h>
-#include <types/log.h>
 #include <haproxy/sink-t.h>
-#include <types/trace.h>
+#include <haproxy/thread-t.h>
+#include <haproxy/tools.h>
+#include <haproxy/trace-t.h>
+#include <types/log.h>
 
 /* Make a string from the location of the trace producer as "file:line" */
 #define TRC_LOC  _TRC_LOC(__FILE__, __LINE__)
@@ -151,7 +152,7 @@ static inline void trace(enum trace_level level, uint64_t mask, struct trace_sou
 		__trace(level, mask, src, where, func, a1, a2, a3, a4, cb, msg);
 }
 
-#endif /* _PROTO_TRACE_H */
+#endif /* _HAPROXY_TRACE_H */
 
 /*
  * Local variables:

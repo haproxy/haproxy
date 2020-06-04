@@ -28,7 +28,7 @@
 #include <haproxy/session-t.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/trace.h>
+#include <haproxy/trace.h>
 
 /*
  *  H1 Connection flags (32 bits)
