@@ -45,6 +45,7 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/lb_chash.h>
 #include <haproxy/lb_fas.h>
+#include <haproxy/lb_fwlc.h>
 #include <haproxy/mailers-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
@@ -65,7 +66,6 @@
 #include <proto/checks.h>
 #include <proto/stats.h>
 #include <proto/filters.h>
-#include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
 #include <proto/listener.h>

@@ -1,5 +1,5 @@
 /*
- * include/types/lb_fwlc.h
+ * include/haproxy/lb_fwlc-t.h
  * Types for Fast Weighted Least Connection load balancing algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -19,10 +19,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_LB_FWLC_H
-#define _TYPES_LB_FWLC_H
+#ifndef _HAPROXY_LB_FWLC_T_H
+#define _HAPROXY_LB_FWLC_T_H
 
-#include <haproxy/api-t.h>
 #include <import/ebtree.h>
 
 struct lb_fwlc {
@@ -30,7 +29,7 @@ struct lb_fwlc {
 	struct eb_root bck;	/* weighted least conns on the backup servers */
 };
 
-#endif /* _TYPES_LB_FWLC_H */
+#endif /* _HAPROXY_LB_FWLC_T_H */
 
 /*
  * Local variables:
