@@ -27,6 +27,7 @@
 #include <haproxy/dict.h>
 #include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/filters.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
@@ -43,13 +44,10 @@
 #include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
 
-#include <types/filters.h>
-
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <haproxy/fd.h>
-#include <proto/filters.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>
 #include <proto/stream.h>

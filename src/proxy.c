@@ -22,6 +22,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
+#include <haproxy/filters.h>
 #include <haproxy/global.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/listener.h>
@@ -40,7 +41,6 @@
 
 #include <proto/backend.h>
 #include <haproxy/fd.h>
-#include <proto/filters.h>
 #include <proto/log.h>
 #include <haproxy/proto_tcp.h>
 #include <proto/proxy.h>

@@ -25,10 +25,10 @@
 #include <sys/time.h>
 
 #include <haproxy/dynbuf-t.h>
+#include <haproxy/filters-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/thread.h>
 
-#include <types/filters.h>
 #include <haproxy/freq_ctr-t.h>
 #include <types/log.h>
 #include <types/proxy.h>

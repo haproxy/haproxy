@@ -1,5 +1,5 @@
 /*
- * include/proto/filters.h
+ * include/haproxy/filters.h
  * This file defines function prototypes for stream filters management.
  *
  * Copyright (C) 2015 Qualys Inc., Christopher Faulet <cfaulet@qualys.com>
@@ -18,11 +18,11 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-#ifndef _PROTO_FILTERS_H
-#define _PROTO_FILTERS_H
+#ifndef _HAPROXY_FILTERS_H
+#define _HAPROXY_FILTERS_H
 
 #include <haproxy/channel.h>
-#include <types/filters.h>
+#include <haproxy/filters-t.h>
 #include <haproxy/http_ana-t.h>
 #include <types/proxy.h>
 #include <types/stream.h>
@@ -186,5 +186,4 @@ flt_update_offsets(struct filter *filter, struct channel *chn, int len)
 	}
 }
 
-
-#endif /* _PROTO_FILTERS_H */
+#endif /* _HAPROXY_FILTERS_H */

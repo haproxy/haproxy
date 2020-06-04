@@ -14,18 +14,17 @@
 
 #include <haproxy/api.h>
 #include <haproxy/channel-t.h>
+#include <haproxy/filters.h>
 #include <haproxy/http_ana-t.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 
-#include <types/filters.h>
 #include <haproxy/global.h>
 #include <types/proxy.h>
 #include <types/stream.h>
 
-#include <proto/filters.h>
 #include <proto/log.h>
 #include <proto/stream.h>
 

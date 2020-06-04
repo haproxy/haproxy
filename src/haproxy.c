@@ -91,6 +91,7 @@
 #include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
+#include <haproxy/filters.h>
 #include <haproxy/hlua.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
@@ -116,14 +117,12 @@
 #include <haproxy/vars.h>
 
 #include <haproxy/capture-t.h>
-#include <types/filters.h>
 #include <haproxy/global.h>
 
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <haproxy/fd.h>
-#include <proto/filters.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>

@@ -14,6 +14,7 @@
 #include <haproxy/buf-t.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
+#include <haproxy/filters.h>
 #include <haproxy/flt_http_comp.h>
 #include <haproxy/http_ana-t.h>
 #include <haproxy/http_htx.h>
@@ -22,10 +23,7 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
-#include <types/filters.h>
-
 #include <haproxy/compression.h>
-#include <proto/filters.h>
 #include <haproxy/http_ana.h>
 #include <proto/stream.h>
 

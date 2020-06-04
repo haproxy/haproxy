@@ -17,6 +17,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/connection.h>
+#include <haproxy/filters.h>
 #include <haproxy/http.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
@@ -30,7 +31,6 @@
 
 #include <haproxy/capture-t.h>
 
-#include <proto/filters.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/server.h>

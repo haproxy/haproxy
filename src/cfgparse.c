@@ -45,6 +45,7 @@
 #include <haproxy/connection.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
+#include <haproxy/filters.h>
 #include <haproxy/frontend.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_rules.h>
@@ -67,11 +68,9 @@
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
 
-#include <types/filters.h>
 #include <haproxy/global.h>
 
 #include <proto/backend.h>
-#include <proto/filters.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>

@@ -1,5 +1,5 @@
 /*
- * include/types/filteers.h
+ * include/haproxy/filteers-t.h
  * This file defines everything related to stream filters.
  *
  * Copyright (C) 2015 Qualys Inc., Christopher Faulet <cfaulet@qualys.com>
@@ -18,11 +18,23 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-#ifndef _TYPES_FILTERS_H
-#define _TYPES_FILTERS_H
+#ifndef _HAPROXY_FILTERS_T_H
+#define _HAPROXY_FILTERS_T_H
 
-#include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
+#include <haproxy/api-t.h>
+
+/* Flags set on a filter config */
+#define FLT_CFG_FL_HTX    0x00000001  /* The filter can filter HTX streams */
+
+/* Flags set on a filter instance */
+#define FLT_FL_IS_BACKEND_FILTER  0x0001 /* The filter is a backend filter */
+#define FLT_FL_IS_REQ_DATA_FILTER 0x0002 /* The filter will parse data on the request channel */
+#define FLT_FL_IS_RSP_DATA_FILTER 0x0004 /* The filter will parse data on the response channel */
+
+/* Flags set on the stream, common to all filters attached to its stream */
+#define STRM_FLT_FL_HAS_FILTERS          0x0001 /* The stream has at least one filter */
+
 
 struct http_msg;
 struct proxy;
@@ -189,17 +201,6 @@ struct flt_ops {
 				    unsigned int offset, unsigned int len);
 };
 
-/* Flags set on a filter config */
-#define FLT_CFG_FL_HTX    0x00000001  /* The filter can filter HTX streams */
-
-/* Flags set on a filter instance */
-#define FLT_FL_IS_BACKEND_FILTER  0x0001 /* The filter is a backend filter */
-#define FLT_FL_IS_REQ_DATA_FILTER 0x0002 /* The filter will parse data on the request channel */
-#define FLT_FL_IS_RSP_DATA_FILTER 0x0004 /* The filter will parse data on the response channel */
-
-/* Flags set on the stream, common to all filters attached to its stream */
-#define STRM_FLT_FL_HAS_FILTERS          0x0001 /* The stream has at least one filter */
-
 /*
  * Structure representing the filter configuration, attached to a proxy and
  * accessible from a filter when instantiated in a stream
@@ -247,7 +248,7 @@ struct strm_flt {
 	unsigned long long offset[2];
 };
 
-#endif /* _TYPES_FILTERS_H */
+#endif /* _HAPROXY_FILTERS_T_H */
 
 /*
  * Local variables:
