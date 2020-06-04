@@ -6,12 +6,12 @@
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
+#include <haproxy/http_htx.h>
 #include <types/global.h>
 #include <proto/arg.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
 #include <proto/http_fetch.h>
-#include <proto/http_htx.h>
 #include <proto/sample.h>
 #include <import/ebsttree.h>
 #include <import/ebmbtree.h>

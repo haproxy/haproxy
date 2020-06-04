@@ -21,10 +21,10 @@
 #include <common/cfgparse.h>
 #include <haproxy/h1.h>
 #include <haproxy/http.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 
 #include <proto/arg.h>
-#include <proto/http_htx.h>
 #include <proto/http_fetch.h>
 #include <proto/sample.h>
 

@@ -40,6 +40,7 @@
 #include <haproxy/time.h>
 #include <haproxy/thread.h>
 #include <haproxy/http.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/h1.h>
 #include <haproxy/htx.h>
 
@@ -53,7 +54,6 @@
 #include <proto/checks.h>
 #include <proto/stats.h>
 #include <haproxy/fd.h>
-#include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/mux_pt.h>
 #include <proto/queue.h>

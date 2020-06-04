@@ -24,7 +24,7 @@
 #include <types/session.h>
 
 #include <proto/connection.h>
-#include <proto/http_htx.h>
+#include <haproxy/http_htx.h>
 #include <proto/log.h>
 #include <proto/session.h>
 #include <proto/stream.h>

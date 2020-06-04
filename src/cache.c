@@ -11,6 +11,7 @@
  */
 
 #include <haproxy/api.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/shctx.h>
 #include <import/eb32tree.h>
 #include <import/sha1.h>
@@ -23,7 +24,6 @@
 #include <proto/channel.h>
 #include <proto/cli.h>
 #include <proto/proxy.h>
-#include <proto/http_htx.h>
 #include <proto/filters.h>
 #include <proto/http_rules.h>
 #include <proto/http_ana.h>

@@ -13,6 +13,7 @@
 #include <ctype.h>
 
 #include <haproxy/api.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
@@ -24,7 +25,6 @@
 #include <types/stream.h>
 
 #include <proto/filters.h>
-#include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
 #include <proto/stream.h>

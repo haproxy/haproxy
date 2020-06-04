@@ -22,6 +22,7 @@
 #include <haproxy/api.h>
 #include <haproxy/hash.h>
 #include <haproxy/http.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -35,7 +36,6 @@
 #include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/frontend.h>
-#include <proto/http_htx.h>
 #include <proto/lb_chash.h>
 #include <proto/lb_fas.h>
 #include <proto/lb_fwlc.h>

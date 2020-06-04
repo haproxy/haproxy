@@ -1,5 +1,5 @@
 /*
- * include/types/http_htx.h
+ * include/haproxy/http_htx-t.h
  * This file defines function prototypes for HTTP manipulation using the
  * internal representation.
  *
@@ -20,14 +20,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_HTTP_HTX_H
-#define _PROTO_HTTP_HTX_H
+#ifndef _HAPROXY_HTTP_HTX_H
+#define _HAPROXY_HTTP_HTX_H
 
-#include <haproxy/buf.h>
 #include <import/ist.h>
+#include <haproxy/buf-t.h>
+#include <haproxy/http_htx-t.h>
 #include <haproxy/regex-t.h>
-
-#include <types/http_htx.h>
+#include <types/proxy.h>
 
 extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
 extern struct http_reply http_err_replies[HTTP_ERR_SIZE];
@@ -73,4 +73,4 @@ struct buffer *http_parse_errorloc(int errloc, int status, const char *url, char
 int proxy_dup_default_conf_errors(struct proxy *curpx, struct proxy *defpx, char **errmsg);
 void proxy_release_conf_errors(struct proxy *px);
 
-#endif /* _PROTO_HTTP_HTX_H */
+#endif /* _HAPROXY_HTTP_HTX_H */

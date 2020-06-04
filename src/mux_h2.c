@@ -18,10 +18,10 @@
 #include <haproxy/hpack-dec.h>
 #include <haproxy/hpack-enc.h>
 #include <haproxy/hpack-tbl.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 #include <proto/connection.h>
-#include <proto/http_htx.h>
 #include <proto/trace.h>
 #include <proto/session.h>
 #include <proto/stream.h>

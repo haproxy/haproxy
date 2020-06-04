@@ -16,12 +16,12 @@
 
 #include <types/capture.h>
 #include <haproxy/compression-t.h>
+#include <haproxy/http_htx.h>
 #include <types/stats.h>
 
 #include <proto/acl.h>
 #include <proto/checks.h>
 #include <proto/connection.h>
-#include <proto/http_htx.h>
 #include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <haproxy/protocol.h>

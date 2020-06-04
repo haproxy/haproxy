@@ -26,7 +26,7 @@
 #include <haproxy/http-t.h>
 
 #include <types/channel.h>
-#include <types/http_htx.h>
+#include <haproxy/http_htx-t.h>
 
 /* These are the flags that are found in txn->flags */
 

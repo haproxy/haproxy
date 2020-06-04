@@ -25,6 +25,7 @@
 #include <import/ebpttree.h>
 
 #include <common/cfgparse.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/thread.h>
 #include <haproxy/regex.h>
 #include <haproxy/xref.h>
@@ -45,7 +46,6 @@
 #include <proto/hlua.h>
 #include <proto/hlua_fcn.h>
 #include <proto/http_fetch.h>
-#include <proto/http_htx.h>
 #include <proto/http_rules.h>
 #include <proto/map.h>
 #include <proto/obj_type.h>

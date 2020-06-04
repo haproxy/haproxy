@@ -1,5 +1,5 @@
 /*
- * include/types/http_htx.h
+ * include/haproxy/http_htx-t.h
  * This file defines everything related to HTTP manipulation using the internal
  * representation.
  *
@@ -20,15 +20,16 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_HTTP_HTX_H
-#define _TYPES_HTTP_HTX_H
+#ifndef _HAPROXY_HTTP_HTX_T_H
+#define _HAPROXY_HTTP_HTX_T_H
 
 #include <import/ebistree.h>
 
 #include <haproxy/buf-t.h>
+#include <import/ist.h>
 #include <haproxy/http-t.h>
 #include <haproxy/htx-t.h>
-#include <import/ist.h>
+#include <haproxy/list-t.h>
 
 /* Context used to find/remove an HTTP header. */
 struct http_hdr_ctx {
@@ -92,4 +93,4 @@ struct http_errors {
 	struct list list;                     /* http-errors list */
 };
 
-#endif /* _TYPES_HTTP_HTX_H */
+#endif /* _HAPROXY_HTTP_HTX_T_H */

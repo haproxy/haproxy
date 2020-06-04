@@ -15,6 +15,7 @@
 #include <haproxy/fcgi.h>
 #include <haproxy/h1.h>
 #include <haproxy/h1_htx.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <import/ist.h>
 #include <haproxy/list.h>
@@ -26,7 +27,6 @@
 
 #include <proto/connection.h>
 #include <proto/fcgi-app.h>
-#include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/session.h>
 #include <proto/ssl_sock.h>

@@ -26,7 +26,6 @@
 
 #include <types/applet.h>
 #include <types/stick_table.h>
-#include <types/http_htx.h>
 
 enum act_from {
 	ACT_F_TCP_REQ_CON, /* tcp-request connection */

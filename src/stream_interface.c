@@ -21,6 +21,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -28,7 +29,6 @@
 #include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
-#include <proto/http_htx.h>
 #include <proto/mux_pt.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>

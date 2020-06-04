@@ -14,6 +14,7 @@
 #include <haproxy/compression.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/http.h>
+#include <haproxy/http_htx.h>
 #include <common/cfgparse.h>
 #include <haproxy/htx.h>
 #include <haproxy/list.h>
@@ -24,7 +25,6 @@
 #include <types/sample.h>
 
 #include <proto/filters.h>
-#include <proto/http_htx.h>
 #include <proto/http_ana.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
