@@ -1,5 +1,5 @@
 /*
- * include/proto/fcgi-app.h
+ * include/haproxy/fcgi-app.h
  * This file defines function prototypes for FCGI applications.
  *
  * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
@@ -19,12 +19,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_HTTP_FCGI_H
-#define _PROTO_HTTP_FCGI_H
+#ifndef _HAPROXY_HTTP_FCGI_H
+#define _HAPROXY_HTTP_FCGI_H
 
-#include <haproxy/htx.h>
-
-#include <types/fcgi-app.h>
+#include <haproxy/fcgi-app-t.h>
 #include <types/proxy.h>
 #include <types/stream.h>
 
@@ -34,7 +32,7 @@ struct fcgi_flt_ctx *find_strm_fcgi_ctx(struct stream *s);
 struct fcgi_app *get_px_fcgi_app(struct proxy *px);
 struct fcgi_app *get_strm_fcgi_app(struct stream *s);
 
-#endif /* _PROTO_HTTP_FCGI_H */
+#endif /* _HAPROXY_HTTP_FCGI_H */
 
 /*
  * Local variables:

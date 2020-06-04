@@ -1,5 +1,5 @@
 /*
- * include/types/fcgi-app.h
+ * include/haproxy/fcgi-app-t.h
  * This file defines everything related to FCGI applications.
  *
  * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
@@ -19,18 +19,19 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_HTTP_FCGI_H
-#define _TYPES_HTTP_FCGI_H
+#ifndef _HAPROXY_HTTP_FCGI_T_H
+#define _HAPROXY_HTTP_FCGI_T_H
+
+#include <import/ebpttree.h>
+#include <import/ist.h>
 
 #include <haproxy/acl-t.h>
-#include <haproxy/api-t.h>
-#include <import/ist.h>
+#include <haproxy/arg-t.h>
 #include <haproxy/fcgi.h>
 #include <haproxy/filters-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/regex-t.h>
-
-#include <import/ebistree.h>
+#include <haproxy/api-t.h>
 
 #define FCGI_APP_FL_KEEP_CONN     0x00000001 /* Keep the connection alive */
 #define FCGI_APP_FL_GET_VALUES    0x00000002 /* Retrieve FCGI variables on connection establishment */
@@ -113,7 +114,7 @@ struct fcgi_flt_ctx {
 	struct fcgi_app *app;
 };
 
-#endif /* _TYPES_HTTP_FCGI_H */
+#endif /* _HAPROXY_HTTP_FCGI_T_H */
 
 /*
  * Local variables:

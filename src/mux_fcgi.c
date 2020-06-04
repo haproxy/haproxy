@@ -14,6 +14,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/fcgi.h>
+#include <haproxy/fcgi-app.h>
 #include <haproxy/h1.h>
 #include <haproxy/h1_htx.h>
 #include <haproxy/http_htx.h>
@@ -28,7 +29,6 @@
 
 #include <types/proxy.h>
 
-#include <proto/fcgi-app.h>
 #include <proto/log.h>
 #include <proto/stream.h>
 #include <haproxy/trace.h>
