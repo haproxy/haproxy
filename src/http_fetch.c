@@ -20,6 +20,7 @@
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
 #include <haproxy/chunk.h>
+#include <haproxy/global.h>
 #include <haproxy/h1.h>
 #include <haproxy/h1_htx.h>
 #include <haproxy/http.h>
@@ -30,8 +31,6 @@
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
-
-#include <types/global.h>
 
 #include <haproxy/arg.h>
 #include <proto/channel.h>

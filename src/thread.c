@@ -26,7 +26,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <haproxy/fd.h>
 
 struct thread_info ha_thread_info[MAX_THREADS] = { };

@@ -29,7 +29,6 @@
 #include <haproxy/tools.h>
 #include <haproxy/thread.h>
 
-#include <types/global.h>
 #include <types/peers.h>
 #include <types/stats.h>
 

@@ -19,7 +19,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
 
-#include <types/global.h>
+#include <haproxy/global.h>
 
 #include <proto/acl.h>
 #include <proto/fcgi-app.h>

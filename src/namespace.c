@@ -16,7 +16,6 @@
 #include <haproxy/errors.h>
 #include <proto/log.h>
 #include <proto/signal.h>
-#include <types/global.h>
 
 /* Opens the namespace <ns_name> and returns the FD or -1 in case of error
  * (check errno).

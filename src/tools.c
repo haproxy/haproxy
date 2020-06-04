@@ -42,11 +42,11 @@
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
 #include <haproxy/dns.h>
+#include <haproxy/global.h>
 #include <haproxy/hlua.h>
 #include <haproxy/listener.h>
 #include <haproxy/namespace.h>
 #include <haproxy/tools.h>
-#include <types/global.h>
 #include <proto/applet.h>
 #include <haproxy/proto_udp.h>
 #include <proto/ssl_sock.h>

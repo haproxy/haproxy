@@ -20,7 +20,6 @@
 
 #include <types/applet.h>
 #include <types/cli.h>
-#include <types/global.h>
 #include <types/stats.h>
 
 #include <proto/applet.h>

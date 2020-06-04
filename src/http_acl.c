@@ -25,8 +25,6 @@
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
-#include <types/global.h>
-
 #include <proto/acl.h>
 #include <haproxy/arg.h>
 

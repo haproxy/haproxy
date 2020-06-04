@@ -33,6 +33,7 @@
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
@@ -41,7 +42,6 @@
 #include <haproxy/namespace.h>
 
 #include <types/connection.h>
-#include <types/global.h>
 #include <types/stream.h>
 
 #include <haproxy/arg.h>

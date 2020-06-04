@@ -19,7 +19,7 @@
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
 
-#include <types/global.h>
+#include <haproxy/global.h>
 
 struct pool_head *pool_head_buffer;
 

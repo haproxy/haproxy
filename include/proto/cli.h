@@ -23,10 +23,10 @@
 #ifndef _PROTO_CLI_H
 #define _PROTO_CLI_H
 
+#include <haproxy/global.h>
 #include <types/applet.h>
 #include <types/channel.h>
 #include <types/cli.h>
-#include <types/global.h>
 #include <types/stream.h>
 
 

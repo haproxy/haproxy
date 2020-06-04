@@ -58,7 +58,7 @@
 #include <haproxy/thread.h>
 
 #include <types/filters.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <types/peers.h>
 #include <types/stats.h>
 

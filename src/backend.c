@@ -35,7 +35,7 @@
 #include <haproxy/time.h>
 #include <haproxy/namespace.h>
 
-#include <types/global.h>
+#include <haproxy/global.h>
 
 #include <proto/acl.h>
 #include <haproxy/arg.h>

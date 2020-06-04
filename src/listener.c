@@ -21,12 +21,12 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 
-#include <types/global.h>
 #include <haproxy/protocol-t.h>
 
 #include <proto/acl.h>

@@ -34,8 +34,6 @@
 #include <haproxy/hpack-tbl.h>
 #include <import/ist.h>
 
-#include <types/global.h>
-
 /* static header table as in RFC7541 Appendix A. [0] unused. */
 const struct http_hdr hpack_sht[HPACK_SHT_SIZE] = {
 	[ 1] = { .n = IST(":authority"),                   .v = IST("")              },

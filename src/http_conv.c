@@ -25,7 +25,6 @@
 #include <haproxy/version.h>
 
 #include <haproxy/capture-t.h>
-#include <types/global.h>
 
 #include <haproxy/arg.h>
 #include <proto/stream.h>

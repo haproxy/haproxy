@@ -38,7 +38,6 @@
 
 #include <types/connection.h>
 #include <haproxy/freq_ctr-t.h>
-#include <types/proxy.h>
 #include <types/queue.h>
 #include <types/ssl_sock.h>
 #include <types/task.h>
@@ -204,6 +203,7 @@ struct tree_occ {
 	struct eb32_node node;
 };
 
+struct proxy;
 struct server {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
 	enum srv_state next_state, cur_state;   /* server state among SRV_ST_* */

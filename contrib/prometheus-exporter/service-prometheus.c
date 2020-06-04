@@ -17,14 +17,13 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/frontend.h>
+#include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/listener.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
-
-#include <types/global.h>
 
 #include <proto/applet.h>
 #include <proto/backend.h>

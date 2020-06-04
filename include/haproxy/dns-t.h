@@ -30,8 +30,6 @@
 
 #include <types/connection.h>
 #include <haproxy/proto_udp-t.h>
-#include <types/proxy.h>
-#include <types/server.h>
 #include <types/task.h>
 
 extern struct pool_head *dns_requester_pool;
@@ -346,6 +344,7 @@ enum {
 	DNS_UPD_OBSOLETE_IP,      /* The server IP was obsolete, and no other IP was found */
 };
 
+struct proxy;
 struct dns_srvrq {
 	enum obj_type         obj_type;         /* object type == OBJ_TYPE_SRVRQ */
 	struct dns_resolvers *resolvers;        /* pointer to the resolvers structure used for this server template */

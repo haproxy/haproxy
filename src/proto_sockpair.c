@@ -28,13 +28,12 @@
 
 #include <haproxy/api.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/version.h>
-
-#include <types/global.h>
 
 #include <proto/connection.h>
 #include <haproxy/fd.h>

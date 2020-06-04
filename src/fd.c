@@ -89,7 +89,7 @@
 
 
 #include <haproxy/api.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 
 #include <haproxy/fd.h>
 #include <proto/log.h>

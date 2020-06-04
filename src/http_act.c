@@ -20,6 +20,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
+#include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
@@ -32,7 +33,6 @@
 #include <haproxy/version.h>
 
 #include <haproxy/capture-t.h>
-#include <types/global.h>
 
 #include <proto/acl.h>
 #include <haproxy/arg.h>

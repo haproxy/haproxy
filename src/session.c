@@ -11,12 +11,12 @@
  */
 
 #include <haproxy/api.h>
+#include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/listener.h>
 #include <haproxy/pool.h>
 #include <haproxy/vars.h>
 
-#include <types/global.h>
 #include <types/session.h>
 
 #include <proto/connection.h>

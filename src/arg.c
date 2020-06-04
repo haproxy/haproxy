@@ -16,7 +16,7 @@
 
 #include <haproxy/tools.h>
 #include <haproxy/chunk.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <haproxy/arg.h>
 
 const char *arg_type_names[ARGT_NBTYPES] = {

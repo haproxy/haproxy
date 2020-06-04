@@ -15,7 +15,6 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <types/global.h>
 #include <haproxy/regex.h>
 #include <haproxy/tools.h>
 #include <proto/log.h>

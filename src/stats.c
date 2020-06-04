@@ -30,6 +30,7 @@
 #include <haproxy/debug.h>
 #include <haproxy/dns.h>
 #include <haproxy/frontend.h>
+#include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
@@ -47,7 +48,6 @@
 
 #include <types/applet.h>
 #include <types/cli.h>
-#include <types/global.h>
 #include <types/stats.h>
 
 #include <proto/backend.h>

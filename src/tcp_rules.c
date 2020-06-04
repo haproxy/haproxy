@@ -13,6 +13,7 @@
 #include <haproxy/api.h>
 #include <haproxy/capture-t.h>
 #include <common/cfgparse.h>
+#include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
@@ -21,7 +22,6 @@
 
 #include <haproxy/arg-t.h>
 #include <types/connection.h>
-#include <types/global.h>
 
 #include <proto/acl.h>
 #include <proto/channel.h>

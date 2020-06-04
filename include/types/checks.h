@@ -23,9 +23,7 @@
 #include <haproxy/buf-t.h>
 
 #include <types/connection.h>
-#include <types/proxy.h>
 #include <haproxy/sample-t.h>
-#include <types/server.h>
 #include <types/session.h>
 #include <types/task.h>
 
@@ -133,6 +131,8 @@ enum {
 	HANA_OBS_SIZE
 };
 
+struct proxy;
+struct server;
 struct check {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_CHECK */
 	struct session *sess;			/* Health check session. */

@@ -10,7 +10,6 @@
  *
  */
 
-#include <types/global.h>
 #include <haproxy/fd-t.h>
 #include <haproxy/proto_udp-t.h>
 

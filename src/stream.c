@@ -22,6 +22,7 @@
 #include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/frontend.h>
+#include <haproxy/global.h>
 #include <haproxy/hlua.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/istbuf.h>
@@ -33,7 +34,6 @@
 #include <types/applet.h>
 #include <types/cli.h>
 #include <types/filters.h>
-#include <types/global.h>
 #include <types/stats.h>
 
 #include <proto/acl.h>

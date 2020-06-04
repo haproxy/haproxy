@@ -20,7 +20,7 @@
 
 #include <types/channel.h>
 #include <types/filters.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <types/proxy.h>
 #include <types/stream.h>
 

@@ -22,7 +22,7 @@
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
-#include <types/global.h>
+#include <haproxy/global.h>
 
 #include <haproxy/activity.h>
 #include <haproxy/fd.h>

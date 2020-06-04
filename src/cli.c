@@ -43,7 +43,7 @@
 #include <haproxy/base64.h>
 
 #include <types/applet.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <types/stats.h>
 
 #include <haproxy/activity.h>

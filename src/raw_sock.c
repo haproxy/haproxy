@@ -24,6 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
+#include <haproxy/global.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -35,8 +36,6 @@
 #include <haproxy/pipe.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
-
-#include <types/global.h>
 
 
 #if defined(USE_LINUX_SPLICE)

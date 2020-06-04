@@ -1,8 +1,8 @@
 /*
- * include/types/global.h
- * Global variables.
+ * include/haproxy/global-t.h
+ * Global types and macros. Please avoid adding more stuff here!
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,22 +19,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_GLOBAL_H
-#define _TYPES_GLOBAL_H
+#ifndef _HAPROXY_GLOBAL_T_H
+#define _HAPROXY_GLOBAL_T_H
 
-#include <netinet/in.h>
-
-#include <haproxy/api-t.h>
-#include <haproxy/thread.h>
-#include <haproxy/vars-t.h>
-
+#include <haproxy/buf-t.h>
 #include <haproxy/freq_ctr-t.h>
-#include <types/proxy.h>
-#include <types/task.h>
-
-#ifndef UNIX_MAX_PATH
-#define UNIX_MAX_PATH 108
-#endif
+#include <haproxy/list-t.h>
+#include <haproxy/thread-t.h>
+#include <haproxy/api-t.h>
+#include <haproxy/vars-t.h>
 
 /* modes of operation (global.mode) */
 #define	MODE_DEBUG	0x01
@@ -81,6 +74,14 @@ enum {
 	SSL_SERVER_VERIFY_NONE = 0,
 	SSL_SERVER_VERIFY_REQUIRED = 1,
 };
+
+/* bit values to go with "warned" above */
+#define WARN_ANY                    0x00000001 /* any warning was emitted */
+#define WARN_FORCECLOSE_DEPRECATED  0x00000002
+#define WARN_EXEC_PATH              0x00000004 /* executable path already reported */
+
+/* put there the forward declarations needed for global.h */
+struct proxy;
 
 /* FIXME : this will have to be redefined correctly */
 struct global {
@@ -180,130 +181,7 @@ struct global {
 #endif
 };
 
-extern struct global global;
-extern int  pid;                /* current process id */
-extern int  relative_pid;       /* process id starting at 1 */
-extern unsigned long pid_bit;   /* bit corresponding to the process id */
-extern unsigned long all_proc_mask; /* mask of all processes */
-extern int  actconn;            /* # of active sessions */
-extern int  listeners;
-extern int  jobs;               /* # of active jobs (listeners, sessions, open devices) */
-extern int  unstoppable_jobs;   /* # of active jobs that can't be stopped during a soft stop */
-extern int  active_peers;       /* # of active peers (connection attempts and successes) */
-extern int  connected_peers;    /* # of really connected peers */
-extern THREAD_LOCAL struct buffer trash;
-extern int nb_oldpids;          /* contains the number of old pids found */
-extern const int zero;
-extern const int one;
-extern const struct linger nolinger;
-extern int stopping;	/* non zero means stopping in progress */
-extern int killed;	/* >0 means a hard-stop is triggered, >1 means hard-stop immediately */
-extern char hostname[MAX_HOSTNAME_LEN];
-extern char localpeer[MAX_HOSTNAME_LEN];
-extern unsigned int warned;     /* bitfield of a few warnings to emit just once */
-extern volatile unsigned long sleeping_thread_mask;
-extern struct list proc_list; /* list of process in mworker mode */
-extern struct mworker_proc *proc_self; /* process structure of current process */
-extern int master; /* 1 if in master, 0 otherwise */
-extern unsigned int rlim_fd_cur_at_boot;
-extern unsigned int rlim_fd_max_at_boot;
-extern int atexit_flag;
-extern unsigned char boot_seed[20];  // per-boot random seed (160 bits initially)
-
-/* bit values to go with "warned" above */
-#define WARN_ANY                    0x00000001 /* any warning was emitted */
-#define WARN_FORCECLOSE_DEPRECATED  0x00000002
-#define WARN_EXEC_PATH              0x00000004 /* executable path already reported */
-
-
-/* to be used with warned and WARN_* */
-static inline int already_warned(unsigned int warning)
-{
-	if (warned & warning)
-		return 1;
-	warned |= warning;
-	return 0;
-}
-
-/* returns a mask if set, otherwise all_proc_mask */
-static inline unsigned long proc_mask(unsigned long mask)
-{
-	return mask ? mask : all_proc_mask;
-}
-
-/* returns a mask if set, otherwise all_threads_mask */
-static inline unsigned long thread_mask(unsigned long mask)
-{
-	return mask ? mask : all_threads_mask;
-}
-
-int tell_old_pids(int sig);
-int delete_oldpid(int pid);
-
-int main(int argc, char **argv);
-void deinit(void);
-void run_poll_loop(void);
-void hap_register_build_opts(const char *str, int must_free);
-void hap_register_post_check(int (*fct)());
-void hap_register_post_proxy_check(int (*fct)(struct proxy *));
-void hap_register_post_server_check(int (*fct)(struct server *));
-void hap_register_post_deinit(void (*fct)());
-void hap_register_proxy_deinit(void (*fct)(struct proxy *));
-void hap_register_server_deinit(void (*fct)(struct server *));
-
-void hap_register_per_thread_alloc(int (*fct)());
-void hap_register_per_thread_init(int (*fct)());
-void hap_register_per_thread_deinit(void (*fct)());
-void hap_register_per_thread_free(int (*fct)());
-
-void mworker_accept_wrapper(int fd);
-void mworker_reload();
-
-/* simplified way to declare static build options in a file */
-#define REGISTER_BUILD_OPTS(str) \
-	INITCALL2(STG_REGISTER, hap_register_build_opts, (str), 0)
-
-/* simplified way to declare a post-check callback in a file */
-#define REGISTER_POST_CHECK(fct) \
-	INITCALL1(STG_REGISTER, hap_register_post_check, (fct))
-
-/* simplified way to declare a post-proxy-check callback in a file */
-#define REGISTER_POST_PROXY_CHECK(fct) \
-	INITCALL1(STG_REGISTER, hap_register_post_proxy_check, (fct))
-
-/* simplified way to declare a post-server-check callback in a file */
-#define REGISTER_POST_SERVER_CHECK(fct) \
-	INITCALL1(STG_REGISTER, hap_register_post_server_check, (fct))
-
-/* simplified way to declare a post-deinit callback in a file */
-#define REGISTER_POST_DEINIT(fct) \
-	INITCALL1(STG_REGISTER, hap_register_post_deinit, (fct))
-
-/* simplified way to declare a proxy-deinit callback in a file */
-#define REGISTER_PROXY_DEINIT(fct) \
-	INITCALL1(STG_REGISTER, hap_register_proxy_deinit, (fct))
-
-/* simplified way to declare a proxy-deinit callback in a file */
-#define REGISTER_SERVER_DEINIT(fct) \
-	INITCALL1(STG_REGISTER, hap_register_server_deinit, (fct))
-
-/* simplified way to declare a per-thread allocation callback in a file */
-#define REGISTER_PER_THREAD_ALLOC(fct) \
-	INITCALL1(STG_REGISTER, hap_register_per_thread_alloc, (fct))
-
-/* simplified way to declare a per-thread init callback in a file */
-#define REGISTER_PER_THREAD_INIT(fct) \
-	INITCALL1(STG_REGISTER, hap_register_per_thread_init, (fct))
-
-/* simplified way to declare a per-thread deinit callback in a file */
-#define REGISTER_PER_THREAD_DEINIT(fct) \
-	INITCALL1(STG_REGISTER, hap_register_per_thread_deinit, (fct))
-
-/* simplified way to declare a per-thread free callback in a file */
-#define REGISTER_PER_THREAD_FREE(fct) \
-	INITCALL1(STG_REGISTER, hap_register_per_thread_free, (fct))
-
-#endif /* _TYPES_GLOBAL_H */
+#endif /* _HAPROXY_GLOBAL_T_H */
 
 /*
  * Local variables:

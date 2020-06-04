@@ -21,7 +21,7 @@
 #include <haproxy/tools.h>
 #include <common/uri_auth.h>
 
-#include <types/global.h>
+#include <haproxy/global.h>
 
 #include <proto/acl.h>
 #include <haproxy/arg.h>

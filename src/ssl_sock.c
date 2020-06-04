@@ -48,6 +48,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/frontend.h>
+#include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/pattern-t.h>
@@ -66,7 +67,6 @@
 
 #include <types/applet.h>
 #include <types/cli.h>
-#include <types/global.h>
 #include <types/ssl_sock.h>
 #include <types/stats.h>
 

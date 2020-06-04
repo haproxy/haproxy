@@ -27,7 +27,7 @@
 
 #include <haproxy/auth-t.h>
 #include <haproxy/api.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <haproxy/errors.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/thread.h>

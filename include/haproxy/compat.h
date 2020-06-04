@@ -108,6 +108,11 @@ typedef struct { } empty_t;
 #define MAXPATHLEN 128
 #endif
 
+/* longest UNIX socket name */
+#ifndef UNIX_MAX_PATH
+#define UNIX_MAX_PATH 108
+#endif
+
 /* On Linux, allows pipes to be resized */
 #ifndef F_SETPIPE_SZ
 #define F_SETPIPE_SZ (1024 + 7)

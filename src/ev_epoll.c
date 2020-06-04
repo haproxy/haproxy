@@ -15,12 +15,11 @@
 #include <sys/types.h>
 
 #include <haproxy/api.h>
+#include <haproxy/global.h>
 #include <haproxy/thread-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-
-#include <types/global.h>
 
 #include <haproxy/activity.h>
 #include <haproxy/fd.h>

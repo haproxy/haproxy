@@ -27,7 +27,7 @@
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <types/applet.h>
-#include <types/global.h>
+#include <haproxy/global-t.h>
 #include <types/proxy.h>
 #include <haproxy/freq_ctr.h>
 

@@ -26,7 +26,7 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
 
-#include <types/global.h>
+#include <haproxy/global-t.h>
 #include <types/session.h>
 
 #include <proto/stick_table.h>

@@ -110,7 +110,7 @@
 #include <haproxy/capture-t.h>
 #include <types/cli.h>
 #include <types/filters.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <types/acl.h>
 #include <types/peers.h>
 

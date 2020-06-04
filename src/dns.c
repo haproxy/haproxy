@@ -33,7 +33,7 @@
 
 #include <types/applet.h>
 #include <types/cli.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <types/stats.h>
 
 #include <proto/channel.h>

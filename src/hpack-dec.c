@@ -38,8 +38,6 @@
 #include <haproxy/h2.h>
 #include <import/ist.h>
 
-#include <types/global.h>
-
 
 #if defined(DEBUG_HPACK)
 #define hpack_debug_printf printf

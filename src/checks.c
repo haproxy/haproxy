@@ -47,7 +47,7 @@
 #include <haproxy/htx.h>
 #include <haproxy/vars.h>
 
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <types/stats.h>
 
 #include <haproxy/arg.h>

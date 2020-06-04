@@ -34,8 +34,6 @@
 #include <haproxy/http-hdr-t.h>
 #include <import/ist.h>
 
-#include <types/global.h>
-
 /*
  * HPACK encoding: these tables were generated using gen-enc.c
  */

@@ -28,7 +28,7 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/tools.h>
 
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <types/signal.h>
 
 #include <proto/cli.h>

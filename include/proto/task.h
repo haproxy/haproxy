@@ -27,6 +27,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/pool.h>
+#include <haproxy/global.h>
 #include <haproxy/intops.h>
 #include <haproxy/list.h>
 #include <haproxy/ticks.h>
@@ -35,7 +36,6 @@
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 
-#include <types/global.h>
 #include <types/task.h>
 
 #include <haproxy/fd.h>

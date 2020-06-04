@@ -25,7 +25,7 @@
 #include <haproxy/version.h>
 
 #include <types/cli.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <types/peers.h>
 #include <types/signal.h>
 

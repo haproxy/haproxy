@@ -16,10 +16,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#include <haproxy/global.h>
 #include <haproxy/hlua.h>
 #include <haproxy/time.h>
 
-#include <types/global.h>
 #include <types/stream.h>
 
 #include <haproxy/arg.h>

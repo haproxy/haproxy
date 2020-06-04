@@ -32,7 +32,7 @@
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
 
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <haproxy/compression-t.h>
 
 #include <proto/acl.h>

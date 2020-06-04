@@ -33,7 +33,6 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/vars-t.h>
 
-#include <types/proxy.h>
 #include <types/stick_table.h>
 #include <types/task.h>
 
@@ -51,6 +50,7 @@ enum {
 	SESS_FL_PREFER_LAST   = 0x00000001, /* NTML authent, we should reuse last conn */
 };
 
+struct proxy;
 struct session {
 	struct proxy *fe;               /* the proxy this session depends on for the client side */
 	struct listener *listener;      /* the listener by which the request arrived */

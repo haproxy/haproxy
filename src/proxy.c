@@ -20,6 +20,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/listener.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
@@ -30,7 +31,6 @@
 
 #include <haproxy/capture-t.h>
 #include <types/cli.h>
-#include <types/global.h>
 #include <types/peers.h>
 #include <types/stats.h>
 

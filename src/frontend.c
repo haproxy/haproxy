@@ -29,7 +29,7 @@
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 
-#include <types/global.h>
+#include <haproxy/global.h>
 
 #include <proto/acl.h>
 #include <haproxy/arg.h>

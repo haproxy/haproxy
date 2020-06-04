@@ -21,13 +21,13 @@
 #include <haproxy/dict-t.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/namespace.h>
 #include <haproxy/sample.h>
 #include <haproxy/time.h>
 
 #include <types/applet.h>
 #include <types/cli.h>
-#include <types/global.h>
 #include <types/cli.h>
 #include <types/stats.h>
 

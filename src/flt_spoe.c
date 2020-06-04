@@ -24,7 +24,7 @@
 #include <haproxy/vars.h>
 
 #include <haproxy/arg-t.h>
-#include <types/global.h>
+#include <haproxy/global.h>
 #include <types/spoe.h>
 
 #include <proto/acl.h>

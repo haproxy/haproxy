@@ -14,7 +14,6 @@
 #include <sys/mman.h>
 #include <arpa/inet.h>
 #include <import/ebmbtree.h>
-#include <types/global.h>
 #include <haproxy/list.h>
 #include <haproxy/shctx.h>
 

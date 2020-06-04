@@ -27,7 +27,6 @@
 #include <haproxy/version.h>
 
 #include <haproxy/capture-t.h>
-#include <types/global.h>
 
 #include <proto/acl.h>
 #include <haproxy/arg.h>
