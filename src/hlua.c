@@ -31,6 +31,7 @@
 #include <haproxy/xref.h>
 #include <haproxy/h1.h>
 #include <haproxy/hlua.h>
+#include <haproxy/hlua_fcn.h>
 #include <haproxy/tools.h>
 
 #include <types/cli.h>
@@ -43,7 +44,6 @@
 #include <proto/cli.h>
 #include <proto/connection.h>
 #include <proto/stats.h>
-#include <proto/hlua_fcn.h>
 #include <proto/http_fetch.h>
 #include <proto/http_rules.h>
 #include <proto/map.h>
