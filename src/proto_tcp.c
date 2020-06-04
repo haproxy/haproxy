@@ -52,7 +52,7 @@
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
 #include <proto/http_ana.h>
-#include <proto/proto_tcp.h>
+#include <haproxy/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/tcp_rules.h>

@@ -47,7 +47,7 @@
 #include <proto/log.h>
 #include <haproxy/protocol.h>
 #include <proto/http_ana.h>
-#include <proto/proto_tcp.h>
+#include <haproxy/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <haproxy/sample.h>

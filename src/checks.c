@@ -59,7 +59,7 @@
 #include <proto/log.h>
 #include <proto/queue.h>
 #include <haproxy/port_range.h>
-#include <proto/proto_tcp.h>
+#include <haproxy/proto_tcp.h>
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>
 #include <proto/server.h>

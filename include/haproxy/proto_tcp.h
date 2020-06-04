@@ -1,5 +1,5 @@
 /*
- * include/proto/proto_tcp.h
+ * include/haproxy/proto_tcp.h
  * This file contains TCP socket protocol definitions.
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
@@ -19,11 +19,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_PROTO_TCP_H
-#define _PROTO_PROTO_TCP_H
+#ifndef _HAPROXY_PROTO_TCP_H
+#define _HAPROXY_PROTO_TCP_H
 
+#include <haproxy/arg-t.h>
 #include <haproxy/api.h>
-#include <proto/stick_table.h>
+#include <haproxy/listener-t.h>
+#include <haproxy/sample-t.h>
+#include <types/connection.h>
 
 int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote);
 int tcp_pause_listener(struct listener *l);
@@ -34,7 +37,7 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 /* Export some samples. */
 int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private);
 
-#endif /* _PROTO_PROTO_TCP_H */
+#endif /* _HAPROXY_PROTO_TCP_H */
 
 /*
  * Local variables:

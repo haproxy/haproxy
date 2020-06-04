@@ -35,7 +35,7 @@
 #include <proto/cli.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
-#include <proto/proto_tcp.h>
+#include <haproxy/proto_tcp.h>
 #include <proto/proxy.h>
 #include <haproxy/sample.h>
 #include <proto/stream.h>

@@ -41,7 +41,7 @@
 #include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <proto/log.h>
-#include <proto/proto_tcp.h>
+#include <haproxy/proto_tcp.h>
 #include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
