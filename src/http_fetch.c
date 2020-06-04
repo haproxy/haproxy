@@ -16,6 +16,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <haproxy/auth.h>
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
 #include <haproxy/chunk.h>
@@ -31,7 +32,6 @@
 #include <types/global.h>
 
 #include <haproxy/arg.h>
-#include <proto/auth.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
 #include <proto/http_fetch.h>

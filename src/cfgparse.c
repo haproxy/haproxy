@@ -34,6 +34,7 @@
 #include <unistd.h>
 
 #include <haproxy/action-t.h>
+#include <haproxy/auth.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
@@ -55,7 +56,6 @@
 #include <types/stats.h>
 
 #include <proto/acl.h>
-#include <proto/auth.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>

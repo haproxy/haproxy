@@ -223,6 +223,20 @@
 #define STATS_VERSION_STRING " version " HAPROXY_VERSION ", released " HAPROXY_DATE
 #endif
 
+/* This is the default statistics URI */
+#ifdef CONFIG_STATS_DEFAULT_URI
+#define STATS_DEFAULT_URI CONFIG_STATS_DEFAULT_URI
+#else
+#define STATS_DEFAULT_URI "/haproxy?stats"
+#endif
+
+/* This is the default statistics realm */
+#ifdef CONFIG_STATS_DEFAULT_REALM
+#define STATS_DEFAULT_REALM CONFIG_STATS_DEFAULT_REALM
+#else
+#define STATS_DEFAULT_REALM "HAProxy Statistics"
+#endif
+
 /* Maximum signal queue size, and also number of different signals we can
  * handle.
  */

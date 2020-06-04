@@ -25,6 +25,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <haproxy/auth-t.h>
 #include <haproxy/api.h>
 #include <types/global.h>
 #include <haproxy/errors.h>
@@ -33,7 +34,6 @@
 #include <proto/acl.h>
 #include <proto/log.h>
 
-#include <types/auth.h>
 #include <types/pattern.h>
 
 struct userlist *userlist = NULL;    /* list of all existing userlists */

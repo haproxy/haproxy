@@ -19,6 +19,7 @@
 #include <haproxy/api.h>
 #include <types/global.h>
 
+#include <haproxy/auth.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/hash.h>
@@ -30,7 +31,6 @@
 #include <haproxy/base64.h>
 
 #include <haproxy/arg.h>
-#include <proto/auth.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/protocol_buffers.h>

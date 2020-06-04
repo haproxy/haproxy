@@ -14,8 +14,8 @@
 #define _COMMON_URI_AUTH_H
 
 
+#include <haproxy/auth-t.h>
 #include <haproxy/api.h>
-#include <types/auth.h>
 
 /* This is a list of proxies we are allowed to see. Later, it should go in the
  * user list, but before this we need to support de/re-authentication.
@@ -40,21 +40,6 @@ struct uri_auth {
 	struct list admin_rules;	/* 'stats admin' rules (chained) */
 	struct uri_auth *next;		/* Used at deinit() to build a list of unique elements */
 };
-
-/* This is the default statistics URI */
-#ifdef CONFIG_STATS_DEFAULT_URI
-#define STATS_DEFAULT_URI CONFIG_STATS_DEFAULT_URI
-#else
-#define STATS_DEFAULT_URI "/haproxy?stats"
-#endif
-
-/* This is the default statistics realm */
-#ifdef CONFIG_STATS_DEFAULT_REALM
-#define STATS_DEFAULT_REALM CONFIG_STATS_DEFAULT_REALM
-#else
-#define STATS_DEFAULT_REALM "HAProxy Statistics"
-#endif
-
 
 struct stats_admin_rule {
 	struct list list;	/* list linked to from the proxy */

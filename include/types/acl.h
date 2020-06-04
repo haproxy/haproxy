@@ -22,11 +22,11 @@
 #ifndef _TYPES_ACL_H
 #define _TYPES_ACL_H
 
+#include <haproxy/auth-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
 
 #include <haproxy/arg-t.h>
-#include <types/auth.h>
 #include <types/pattern.h>
 #include <types/proxy.h>
 #include <types/server.h>

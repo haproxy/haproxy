@@ -1,5 +1,6 @@
 /*
- * User authentication & authorization.
+ * include/haproxy/auth-t.h
+ * Types definitions for user authentication & authorization.
  *
  * Copyright 2010 Krzysztof Piotr Oledzki <ole@ans.pl>
  *
@@ -10,13 +11,12 @@
  *
  */
 
-#ifndef _TYPES_AUTH_H
-#define _TYPES_AUTH_H
+#ifndef _HAPROXY_AUTH_T_H
+#define _HAPROXY_AUTH_T_H
 
+#include <haproxy/auth-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
-
-#include <types/auth.h>
 
 #define AU_O_INSECURE	0x00000001		/* insecure, unencrypted password */
 
@@ -48,7 +48,7 @@ struct userlist {
 	struct auth_groups *groups;
 };
 
-#endif /* _TYPES_AUTH_H */
+#endif /* _HAPROXY_AUTH_T_H */
 
 /*
  * Local variables:

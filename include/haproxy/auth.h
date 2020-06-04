@@ -1,5 +1,6 @@
 /*
- * User authentication & authorization.
+ * include/haproxy/auth.h
+ * Functions for user authentication & authorization.
  *
  * Copyright 2010 Krzysztof Piotr Oledzki <ole@ans.pl>
  *
@@ -10,11 +11,13 @@
  *
  */
 
-#ifndef _PROTO_AUTH_H
-#define _PROTO_AUTH_H
+#ifndef _HAPROXY_AUTH_H
+#define _HAPROXY_AUTH_H
 
+#include <haproxy/auth-t.h>
 #include <haproxy/api.h>
-#include <types/auth.h>
+#include <types/pattern.h>
+#include <types/sample.h>
 
 extern struct userlist *userlist;
 
@@ -26,7 +29,7 @@ struct pattern *pat_match_auth(struct sample *smp, struct pattern_expr *expr, in
 int check_user(struct userlist *ul, const char *user, const char *pass);
 int check_group(struct userlist *ul, char *name);
 
-#endif /* _PROTO_AUTH_H */
+#endif /* _HAPROXY_AUTH_H */
 
 /*
  * Local variables:
