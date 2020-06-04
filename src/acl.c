@@ -24,7 +24,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/arg.h>
-#include <proto/channel.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <haproxy/sample.h>

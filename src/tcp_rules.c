@@ -14,6 +14,7 @@
 #include <haproxy/api.h>
 #include <haproxy/capture-t.h>
 #include <common/cfgparse.h>
+#include <haproxy/channel.h>
 #include <haproxy/connection.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
@@ -26,7 +27,6 @@
 
 #include <haproxy/arg-t.h>
 
-#include <proto/channel.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <haproxy/stick_table.h>

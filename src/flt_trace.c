@@ -13,12 +13,12 @@
 #include <ctype.h>
 
 #include <haproxy/api.h>
+#include <haproxy/channel-t.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 
-#include <types/channel.h>
 #include <types/filters.h>
 #include <haproxy/global.h>
 #include <types/proxy.h>

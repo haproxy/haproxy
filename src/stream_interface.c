@@ -21,6 +21,7 @@
 
 #include <haproxy/applet.h>
 #include <haproxy/api.h>
+#include <haproxy/channel.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/http_htx.h>
@@ -30,7 +31,6 @@
 #include <haproxy/time.h>
 #include <haproxy/task.h>
 
-#include <proto/channel.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>

@@ -15,8 +15,6 @@
 #include <haproxy/h1.h>
 #include <haproxy/http-hdr.h>
 
-#include <proto/channel.h>
-
 /* Parse the Content-Length header field of an HTTP/1 request. The function
  * checks all possible occurrences of a comma-delimited value, and verifies
  * if any of them doesn't match a previous value. It returns <0 if a value

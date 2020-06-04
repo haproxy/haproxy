@@ -1,8 +1,8 @@
 /*
- * include/proto/channel.h
+ * include/haproxy/channel.h
  * Channel management definitions, macros and inline functions.
  *
- * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,28 +19,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_CHANNEL_H
-#define _PROTO_CHANNEL_H
-
-#include <inttypes.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#ifndef _HAPROXY_CHANNEL_H
+#define _HAPROXY_CHANNEL_H
 
 #include <haproxy/api.h>
-#include <haproxy/chunk.h>
+#include <haproxy/channel-t.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/global.h>
 #include <haproxy/htx.h>
 #include <haproxy/stream_interface-t.h>
+#include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
-#include <types/channel.h>
-#include <types/stream.h>
-
 #include <proto/stream.h>
-#include <haproxy/task.h>
+#include <types/stream.h>
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_channel();
@@ -1020,7 +1013,7 @@ static inline int co_getchr(struct channel *chn)
 }
 
 
-#endif /* _PROTO_CHANNEL_H */
+#endif /* _HAPROXY_CHANNEL_H */
 
 /*
  * Local variables:

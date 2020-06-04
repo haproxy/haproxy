@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/ssl_ckch.h>
@@ -26,8 +27,6 @@
 #include <dirent.h>
 #include <import/ebpttree.h>
 #include <import/ebsttree.h>
-
-#include <proto/channel.h>
 
 /* release ssl bind conf */
 void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)

@@ -22,6 +22,7 @@
 #include <sys/types.h>
 
 #include <haproxy/base64.h>
+#include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/ssl_ckch.h>
@@ -31,8 +32,6 @@
 #include <haproxy/tools.h>
 
 #include <import/ebsttree.h>
-
-#include <proto/channel.h>
 
 /* Uncommitted CKCH transaction */
 

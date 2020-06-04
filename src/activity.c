@@ -12,12 +12,12 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/thread-t.h>
 #include <haproxy/activity-t.h>
-#include <proto/channel.h>
 #include <haproxy/freq_ctr.h>
 
 

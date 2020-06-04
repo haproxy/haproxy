@@ -21,13 +21,11 @@
 #ifndef _PROTO_FILTERS_H
 #define _PROTO_FILTERS_H
 
-#include <types/channel.h>
+#include <haproxy/channel.h>
 #include <types/filters.h>
 #include <types/http_ana.h>
 #include <types/proxy.h>
 #include <types/stream.h>
-
-#include <proto/channel.h>
 
 extern const char *trace_flt_id;
 extern const char *http_comp_flt_id;

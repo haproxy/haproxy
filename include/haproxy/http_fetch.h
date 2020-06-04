@@ -24,9 +24,9 @@
 
 #include <haproxy/arg-t.h>
 #include <haproxy/api.h>
+#include <haproxy/channel-t.h>
 #include <haproxy/check-t.h>
 #include <haproxy/sample-t.h>
-#include <types/channel.h>
 
 struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct check *check, int vol);
 int val_hdr(struct arg *arg, char **err_msg);

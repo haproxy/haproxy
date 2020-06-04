@@ -24,9 +24,9 @@
 #define _HAPROXY_CLI_H
 
 #include <haproxy/applet-t.h>
+#include <haproxy/channel-t.h>
 #include <haproxy/cli-t.h>
 #include <haproxy/global.h>
-#include <types/channel.h>
 #include <types/stream.h>
 
 

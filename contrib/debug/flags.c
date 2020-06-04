@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <types/channel.h>
+#include <haproxy/channel-t.h>
 #include <haproxy/connection-t.h>
 #include <types/http_ana.h>
 #include <types/stream.h>

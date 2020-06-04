@@ -20,6 +20,7 @@
 #include <haproxy/api.h>
 #include <haproxy/capture.h>
 #include <common/cfgparse.h>
+#include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
@@ -46,7 +47,6 @@
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
 #include <proto/backend.h>
-#include <proto/channel.h>
 #include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>

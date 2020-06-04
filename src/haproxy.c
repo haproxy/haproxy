@@ -122,7 +122,6 @@
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
 #include <proto/backend.h>
-#include <proto/channel.h>
 #include <haproxy/fd.h>
 #include <proto/filters.h>
 #include <proto/log.h>

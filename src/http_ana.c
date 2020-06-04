@@ -14,6 +14,7 @@
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
+#include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/connection.h>
 #include <haproxy/http.h>
@@ -28,7 +29,6 @@
 
 #include <haproxy/capture-t.h>
 
-#include <proto/channel.h>
 #include <proto/filters.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>

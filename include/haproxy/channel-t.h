@@ -1,5 +1,5 @@
 /*
- * include/types/channel.h
+ * include/haproxy/channel-t.h
  * Channel management definitions, macros and inline functions.
  *
  * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
@@ -19,11 +19,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_CHANNEL_H
-#define _TYPES_CHANNEL_H
+#ifndef _HAPROXY_CHANNEL_T_H
+#define _HAPROXY_CHANNEL_T_H
 
-#include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
+#include <haproxy/api-t.h>
 
 /* The CF_* macros designate Channel Flags, which may be ORed in the bit field
  * member 'flags' in struct channel. Here we have several types of flags :
@@ -301,7 +301,7 @@ struct channel {
        long.
  */
 
-#endif /* _TYPES_CHANNEL_H */
+#endif /* _HAPROXY_CHANNEL_T_H */
 
 /*
  * Local variables:

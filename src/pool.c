@@ -13,6 +13,7 @@
 
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/global.h>
 
@@ -26,7 +27,6 @@
 
 #include <haproxy/activity-t.h>
 
-#include <proto/channel.h>
 #include <proto/log.h>
 
 #ifdef CONFIG_HAP_LOCAL_POOLS

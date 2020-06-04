@@ -29,6 +29,7 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
 #include <haproxy/dns-t.h>
@@ -53,7 +54,6 @@
 
 #include <haproxy/activity.h>
 #include <proto/backend.h>
-#include <proto/channel.h>
 #include <haproxy/compression.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>

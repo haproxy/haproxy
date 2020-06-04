@@ -29,6 +29,7 @@
 #include <arpa/inet.h>
 
 #include <haproxy/api-t.h>
+#include <haproxy/channel-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/hlua-t.h>
 #include <haproxy/list-t.h>
@@ -37,7 +38,6 @@
 #include <haproxy/stream_interface-t.h>
 #include <haproxy/vars-t.h>
 
-#include <types/channel.h>
 #include <types/filters.h>
 #include <types/http_ana.h>
 #include <types/proxy.h>

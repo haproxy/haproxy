@@ -35,7 +35,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/arg.h>
-#include <proto/channel.h>
 #include <haproxy/fd.h>
 #include <proto/log.h>
 #include <haproxy/proto_tcp.h>

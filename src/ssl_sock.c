@@ -45,6 +45,7 @@
 #include <import/xxhash.h>
 
 #include <haproxy/dynbuf.h>
+#include <haproxy/channel.h>
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
@@ -72,7 +73,6 @@
 #include <import/ebsttree.h>
 
 #include <haproxy/arg.h>
-#include <proto/channel.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/proto_tcp.h>

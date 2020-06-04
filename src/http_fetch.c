@@ -19,6 +19,7 @@
 #include <haproxy/auth.h>
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
+#include <haproxy/channel.h>
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
 #include <haproxy/global.h>
@@ -35,7 +36,6 @@
 #include <haproxy/version.h>
 
 #include <haproxy/arg.h>
-#include <proto/channel.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
 #include <proto/stream.h>

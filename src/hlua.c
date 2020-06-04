@@ -26,6 +26,7 @@
 #include <import/ebpttree.h>
 
 #include <common/cfgparse.h>
+#include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/http_htx.h>
@@ -53,7 +54,6 @@
 #include <types/proxy.h>
 
 #include <haproxy/arg.h>
-#include <proto/channel.h>
 #include <proto/queue.h>
 #include <proto/http_ana.h>
 #include <proto/server.h>
