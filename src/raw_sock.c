@@ -33,7 +33,6 @@
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>
 #include <haproxy/pipe.h>
-#include <proto/raw_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 

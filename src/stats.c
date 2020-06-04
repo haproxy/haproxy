@@ -66,7 +66,6 @@
 #include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/server.h>
-#include <proto/raw_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 

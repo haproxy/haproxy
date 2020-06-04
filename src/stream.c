@@ -49,7 +49,6 @@
 #include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/log.h>
-#include <proto/raw_sock.h>
 #include <proto/session.h>
 #include <proto/stream.h>
 #include <haproxy/pipe.h>
