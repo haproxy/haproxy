@@ -48,7 +48,7 @@
 #include <proto/dns.h>
 #include <proto/hlua.h>
 #include <proto/listener.h>
-#include <proto/proto_udp.h>
+#include <haproxy/proto_udp.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>

@@ -12,7 +12,7 @@
 
 #include <types/global.h>
 #include <haproxy/fd-t.h>
-#include <types/proto_udp.h>
+#include <haproxy/proto_udp-t.h>
 
 #include <haproxy/fd.h>
 

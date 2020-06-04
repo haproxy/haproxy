@@ -29,7 +29,7 @@
 
 #include <types/connection.h>
 #include <types/obj_type.h>
-#include <types/proto_udp.h>
+#include <haproxy/proto_udp-t.h>
 #include <types/proxy.h>
 #include <types/server.h>
 #include <types/task.h>

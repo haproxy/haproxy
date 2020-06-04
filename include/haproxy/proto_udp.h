@@ -1,5 +1,5 @@
 /*
- * include/proto/proto_udp.h
+ * include/haproxy/proto_udp.h
  * This file provides functions related to UDP protocol.
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>
@@ -19,9 +19,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_PROTO_UDP_H
-#define _PROTO_PROTO_UDP_H
+#ifndef _HAPROXY_PROTO_UDP_H
+#define _HAPROXY_PROTO_UDP_H
 
 void dgram_fd_handler(int);
 
-#endif // _PROTO_PROTO_UDP_H
+#endif // _HAPROXY_PROTO_UDP_H
