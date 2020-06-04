@@ -38,8 +38,7 @@
 
 #include <haproxy/list.h>
 #include <haproxy/chunk.h>
-
-#include <proto/spoe.h>
+#include <haproxy/spoe.h>
 
 #include "spoa.h"
 #include "modsec_wrapper.h"

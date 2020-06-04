@@ -21,9 +21,8 @@
 #include <haproxy/api.h>
 #include <haproxy/tools.h>
 #include <haproxy/chunk.h>
+#include <haproxy/spoe.h>
 #include <haproxy/time.h>
-
-#include <proto/spoe.h>
 
 #include <http_core.h>
 #include <http_main.h>

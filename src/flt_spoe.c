@@ -26,6 +26,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/proxy.h>
 #include <haproxy/session.h>
+#include <haproxy/spoe.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
@@ -34,12 +35,10 @@
 
 #include <haproxy/arg-t.h>
 #include <haproxy/global.h>
-#include <types/spoe.h>
 
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/spoe.h>
 #include <proto/stream.h>
 
 #if defined(DEBUG_SPOE) || defined(DEBUG_FULL)

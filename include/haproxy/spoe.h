@@ -1,5 +1,5 @@
 /*
- * include/proto/spoe.h
+ * include/haproxy/spoe.h
  * Encoding/Decoding functions for the SPOE filters (and other helpers).
  *
  * Copyright (C) 2017 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
@@ -19,13 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_SPOE_H
-#define _PROTO_SPOE_H
+#ifndef _HAPROXY_SPOE_H
+#define _HAPROXY_SPOE_H
 
+#include <haproxy/api.h>
 #include <haproxy/intops.h>
 #include <haproxy/sample-t.h>
-
-#include <types/spoe.h>
+#include <haproxy/spoe-t.h>
 
 
 /* Encode a buffer. Its length <len> is encoded as a varint, followed by a copy
@@ -348,4 +348,4 @@ spoe_decode_data(char **buf, char *end, struct sample *smp)
 	return r;
 }
 
-#endif /* _PROTO_SPOE_H */
+#endif /* _HAPROXY_SPOE_H */
