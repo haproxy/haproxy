@@ -31,6 +31,7 @@
 #include <haproxy/lb_fas.h>
 #include <haproxy/lb_fwlc.h>
 #include <haproxy/lb_fwrr.h>
+#include <haproxy/lb_map.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/payload.h>
 #include <haproxy/session.h>
@@ -44,7 +45,6 @@
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
-#include <proto/lb_map.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>
 #include <proto/http_ana.h>

@@ -50,6 +50,7 @@
 #include <haproxy/lb_fas.h>
 #include <haproxy/lb_fwlc.h>
 #include <haproxy/lb_fwrr.h>
+#include <haproxy/lb_map.h>
 #include <haproxy/listener.h>
 #include <haproxy/mailers-t.h>
 #include <haproxy/obj_type-t.h>
@@ -70,7 +71,6 @@
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/filters.h>
-#include <proto/lb_map.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>
 #include <proto/http_ana.h>

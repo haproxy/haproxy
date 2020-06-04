@@ -1,5 +1,5 @@
 /*
- * include/proto/lb_map.h
+ * include/haproxy/lb_map.h
  * Map-based load-balancing (RR and HASH)
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_LB_MAP_H
-#define _PROTO_LB_MAP_H
+#ifndef _HAPROXY_LB_MAP_H
+#define _HAPROXY_LB_MAP_H
 
 #include <haproxy/api.h>
 #include <types/proxy.h>
@@ -31,7 +31,7 @@ void init_server_map(struct proxy *p);
 struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid);
 struct server *map_get_server_hash(struct proxy *px, unsigned int hash);
 
-#endif /* _PROTO_LB_MAP_H */
+#endif /* _HAPROXY_LB_MAP_H */
 
 /*
  * Local variables:

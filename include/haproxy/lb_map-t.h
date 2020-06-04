@@ -1,5 +1,5 @@
 /*
- * include/types/lb_map.h
+ * include/haproxy/lb_map-t.h
  * Types for map-based load-balancing (RR and HASH)
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_LB_MAP_H
-#define _TYPES_LB_MAP_H
+#ifndef _HAPROXY_LB_MAP_T_H
+#define _HAPROXY_LB_MAP_T_H
 
 #include <haproxy/api-t.h>
 #include <types/server.h>
@@ -30,7 +30,7 @@ struct lb_map {
 	int rr_idx;		/* next server to be elected in round robin mode */
 };
 
-#endif /* _TYPES_LB_MAP_H */
+#endif /* _HAPROXY_LB_MAP_T_H */
 
 /*
  * Local variables:
