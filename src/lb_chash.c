@@ -18,11 +18,11 @@
 
 #include <haproxy/backend.h>
 #include <haproxy/api.h>
+#include <haproxy/queue.h>
 #include <haproxy/tools.h>
 #include <import/eb32tree.h>
 
 #include <types/server.h>
-#include <proto/queue.h>
 
 /* Return next tree node after <node> which must still be in the tree, or be
  * NULL. Lookup wraps around the end to the beginning. If the next node is the

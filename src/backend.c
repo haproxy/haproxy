@@ -39,6 +39,7 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/payload.h>
 #include <haproxy/proxy.h>
+#include <haproxy/queue.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream_interface.h>
@@ -52,7 +53,6 @@
 #include <haproxy/arg.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proto_tcp.h>
-#include <proto/queue.h>
 #include <haproxy/sample.h>
 #include <proto/server.h>
 #include <proto/stream.h>

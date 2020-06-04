@@ -30,10 +30,8 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/task.h>
 #include <haproxy/time.h>
-#include <types/queue.h>
 #include <types/server.h>
 
-#include <proto/queue.h>
 #include <haproxy/freq_ctr.h>
 
 

@@ -40,7 +40,6 @@
 
 #include <haproxy/connection-t.h>
 #include <haproxy/freq_ctr-t.h>
-#include <types/queue.h>
 #include <haproxy/task-t.h>
 
 

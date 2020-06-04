@@ -73,6 +73,7 @@ s *     queue's lock.
 #include <haproxy/api.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
+#include <haproxy/queue.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -81,7 +82,6 @@ s *     queue's lock.
 #include <haproxy/thread.h>
 #include <import/eb32tree.h>
 
-#include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/stream.h>
 

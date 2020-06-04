@@ -54,7 +54,6 @@
 #include <haproxy/vars.h>
 
 #include <haproxy/arg.h>
-#include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/stream.h>
 

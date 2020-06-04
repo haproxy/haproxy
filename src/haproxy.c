@@ -125,7 +125,6 @@
 #include <haproxy/arg.h>
 #include <haproxy/fd.h>
 #include <haproxy/protocol.h>
-#include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/stream.h>
 

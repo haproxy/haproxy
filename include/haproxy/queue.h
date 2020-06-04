@@ -1,8 +1,8 @@
 /*
- * include/proto/queue.h
+ * include/haproxy/queue.h
  * This file defines everything related to queues.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,17 +19,16 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_QUEUE_H
-#define _PROTO_QUEUE_H
+#ifndef _HAPROXY_QUEUE_H
+#define _HAPROXY_QUEUE_H
 
 #include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy-t.h>
-
-#include <types/queue.h>
-#include <types/stream.h>
+#include <haproxy/queue-t.h>
 #include <types/server.h>
+#include <types/stream.h>
 
 extern struct pool_head *pool_head_pendconn;
 
@@ -105,7 +104,7 @@ static inline int queue_limit_offset(int offset)
 }
 
 
-#endif /* _PROTO_QUEUE_H */
+#endif /* _HAPROXY_QUEUE_H */
 
 /*
  * Local variables:

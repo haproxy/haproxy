@@ -38,6 +38,7 @@
 #include <haproxy/dns.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
+#include <haproxy/queue.h>
 #include <haproxy/regex.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
@@ -59,7 +60,6 @@
 
 #include <haproxy/arg.h>
 #include <haproxy/fd.h>
-#include <proto/queue.h>
 #include <haproxy/port_range.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/protocol.h>

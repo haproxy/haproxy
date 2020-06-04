@@ -42,6 +42,7 @@
 #include <haproxy/log.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy.h>
+#include <haproxy/queue.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
@@ -55,7 +56,6 @@
 #include <haproxy/freq_ctr.h>
 #include <proto/stream.h>
 #include <haproxy/pipe.h>
-#include <proto/queue.h>
 #include <proto/server.h>
 #include <haproxy/stick_table.h>
 
