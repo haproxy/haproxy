@@ -15,6 +15,7 @@
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/frontend.h>
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
 #include <haproxy/time.h>
@@ -28,7 +29,6 @@
 #include <proto/backend.h>
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/frontend.h>
 #include <proto/http_rules.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>

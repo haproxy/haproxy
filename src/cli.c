@@ -29,6 +29,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/dns-t.h>
+#include <haproxy/frontend.h>
 #include <haproxy/list.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -50,7 +51,6 @@
 #include <proto/stats.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
 #include <haproxy/pipe.h>

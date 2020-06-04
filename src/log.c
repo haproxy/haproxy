@@ -25,6 +25,7 @@
 #include <sys/uio.h>
 
 #include <haproxy/api.h>
+#include <haproxy/frontend.h>
 #include <haproxy/http.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
@@ -37,7 +38,6 @@
 #include <proto/applet.h>
 #include <proto/cli.h>
 #include <haproxy/fd.h>
-#include <proto/frontend.h>
 #include <proto/log.h>
 #include <haproxy/ring.h>
 #include <proto/sample.h>

@@ -47,6 +47,7 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
+#include <haproxy/frontend.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/shctx.h>
 #include <haproxy/tools.h>
@@ -70,7 +71,6 @@
 #include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/frontend.h>
 #include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/pattern.h>

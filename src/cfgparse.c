@@ -41,6 +41,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
+#include <haproxy/frontend.h>
 #include <haproxy/mailers-t.h>
 #include <haproxy/pool.h>
 #include <haproxy/tools.h>
@@ -61,7 +62,6 @@
 #include <proto/checks.h>
 #include <proto/stats.h>
 #include <proto/filters.h>
-#include <proto/frontend.h>
 #include <proto/http_rules.h>
 #include <proto/lb_chash.h>
 #include <proto/lb_fas.h>

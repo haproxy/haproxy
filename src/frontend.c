@@ -24,6 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
+#include <haproxy/frontend.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 
@@ -33,7 +34,6 @@
 #include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <haproxy/fd.h>
-#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/proto_tcp.h>
 #include <proto/http_ana.h>

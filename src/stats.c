@@ -29,6 +29,7 @@
 #include <haproxy/compression.h>
 #include <haproxy/debug.h>
 #include <haproxy/dns.h>
+#include <haproxy/frontend.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
@@ -53,7 +54,6 @@
 #include <proto/stats.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
 #include <haproxy/pipe.h>

@@ -1,5 +1,5 @@
 /*
- * include/proto/frontend.h
+ * include/haproxy/frontend.h
  * This file declares frontend-specific functions.
  *
  * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
@@ -19,16 +19,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_FRONTEND_H
-#define _PROTO_FRONTEND_H
+#ifndef _HAPROXY_FRONTEND_H
+#define _HAPROXY_FRONTEND_H
 
-#include <haproxy/api.h>
 #include <types/stream.h>
 
 int frontend_accept(struct stream *s);
 
 
-#endif /* _PROTO_FRONTEND_H */
+#endif /* _HAPROXY_FRONTEND_H */
 
 /*
  * Local variables:

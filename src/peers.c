@@ -22,6 +22,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/dict.h>
+#include <haproxy/frontend.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
@@ -38,7 +39,6 @@
 #include <proto/channel.h>
 #include <proto/cli.h>
 #include <haproxy/fd.h>
-#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/mux_pt.h>
 #include <proto/peers.h>

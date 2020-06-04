@@ -16,6 +16,7 @@
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/frontend.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
@@ -27,7 +28,6 @@
 #include <proto/applet.h>
 #include <proto/backend.h>
 #include <haproxy/compression.h>
-#include <proto/frontend.h>
 #include <proto/listener.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>
