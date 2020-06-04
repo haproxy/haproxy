@@ -30,9 +30,9 @@
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
+#include <haproxy/session.h>
 #include <haproxy/task-t.h>
 
-#include <proto/session.h>
 
 extern struct pool_head *pool_head_connection;
 extern struct pool_head *pool_head_connstream;

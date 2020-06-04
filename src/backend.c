@@ -32,6 +32,7 @@
 #include <haproxy/lb_fwrr.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/payload.h>
+#include <haproxy/session.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -52,7 +53,6 @@
 #include <proto/queue.h>
 #include <haproxy/sample.h>
 #include <proto/server.h>
-#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/ssl_sock.h>

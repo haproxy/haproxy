@@ -33,6 +33,7 @@
 #include <haproxy/hlua-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/session-t.h>
 #include <haproxy/vars-t.h>
 
 #include <types/channel.h>
@@ -41,7 +42,6 @@
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>
-#include <types/session.h>
 #include <types/stream_interface.h>
 #include <haproxy/task-t.h>
 #include <haproxy/stick_table-t.h>

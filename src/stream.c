@@ -31,6 +31,7 @@
 #include <haproxy/thread.h>
 #include <haproxy/htx.h>
 #include <haproxy/pool.h>
+#include <haproxy/session.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
@@ -51,7 +52,6 @@
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>
-#include <proto/session.h>
 #include <proto/stream.h>
 #include <haproxy/pipe.h>
 #include <proto/http_ana.h>

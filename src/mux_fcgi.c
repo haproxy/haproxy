@@ -22,13 +22,12 @@
 #include <haproxy/list.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
+#include <haproxy/session-t.h>
 
 #include <types/proxy.h>
-#include <types/session.h>
 
 #include <proto/fcgi-app.h>
 #include <proto/log.h>
-#include <proto/session.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>

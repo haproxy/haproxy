@@ -54,6 +54,7 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers-t.h>
 #include <haproxy/pool.h>
+#include <haproxy/session.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <common/uri_auth.h>
@@ -77,7 +78,6 @@
 #include <proto/proxy.h>
 #include <haproxy/peers.h>
 #include <haproxy/sample.h>
-#include <proto/session.h>
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <haproxy/stick_table.h>

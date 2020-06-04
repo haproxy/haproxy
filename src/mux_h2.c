@@ -22,11 +22,10 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/session-t.h>
 #include <proto/trace.h>
-#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <types/session.h>
 #include <import/eb32tree.h>
 
 

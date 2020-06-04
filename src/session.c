@@ -16,14 +16,12 @@
 #include <haproxy/http.h>
 #include <haproxy/listener.h>
 #include <haproxy/pool.h>
+#include <haproxy/session.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
 
-#include <types/session.h>
-
 #include <proto/log.h>
 #include <proto/proxy.h>
-#include <proto/session.h>
 #include <proto/stream.h>
 
 DECLARE_POOL(pool_head_session, "session", sizeof(struct session));

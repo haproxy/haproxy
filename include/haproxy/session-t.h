@@ -1,8 +1,8 @@
 /*
- * include/types/session.h
+ * include/haproxy/session-t.h
  * This file defines everything related to sessions.
  *
- * Copyright (C) 2000-2015 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_SESSION_H
-#define _TYPES_SESSION_H
+#ifndef _HAPROXY_SESSION_T_H
+#define _HAPROXY_SESSION_T_H
 
 
 #include <sys/time.h>
@@ -31,18 +31,10 @@
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
-#include <haproxy/vars-t.h>
-
 #include <haproxy/stick_table-t.h>
 #include <haproxy/task-t.h>
+#include <haproxy/vars-t.h>
 
-struct sess_srv_list {
-	void *target;
-	struct list conn_list; /* Head of the connections list */
-	struct list srv_list; /* Next element of the server list */
-};
-
-#define MAX_SRV_LIST	5
 
 /* session flags */
 enum {
@@ -50,7 +42,9 @@ enum {
 	SESS_FL_PREFER_LAST   = 0x00000001, /* NTML authent, we should reuse last conn */
 };
 
-struct proxy;
+/* max number of idle server connections kept attached to a session */
+#define MAX_SRV_LIST	5
+
 struct session {
 	struct proxy *fe;               /* the proxy this session depends on for the client side */
 	struct listener *listener;      /* the listener by which the request arrived */
@@ -66,7 +60,13 @@ struct session {
 	unsigned int flags;             /* session flags, SESS_FL_* */
 };
 
-#endif /* _TYPES_SESSION_H */
+struct sess_srv_list {
+	void *target;
+	struct list conn_list;          /* Head of the connections list */
+	struct list srv_list;           /* Next element of the server list */
+};
+
+#endif /* _HAPROXY_SESSION_T_H */
 
 /*
  * Local variables:

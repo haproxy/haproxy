@@ -40,6 +40,7 @@
 #include <haproxy/pattern.h>
 #include <haproxy/payload.h>
 #include <haproxy/sample.h>
+#include <haproxy/session.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
@@ -57,7 +58,6 @@
 #include <proto/queue.h>
 #include <proto/http_ana.h>
 #include <proto/server.h>
-#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 

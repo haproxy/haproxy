@@ -102,6 +102,7 @@
 #include <haproxy/peers.h>
 #include <haproxy/sample.h>
 #include <haproxy/regex.h>
+#include <haproxy/session.h>
 #include <haproxy/signal.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
@@ -131,7 +132,6 @@
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
-#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/ssl_sock.h>
 

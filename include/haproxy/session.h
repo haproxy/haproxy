@@ -1,8 +1,8 @@
 /*
- * include/proto/session.h
- * This file defines everything related to sessions.
+ * include/haproxy/session.h
+ * This file contains functions used to manage sessions.
  *
- * Copyright (C) 2000-2015 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,16 +19,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_SESSION_H
-#define _PROTO_SESSION_H
+#ifndef _HAPROXY_SESSION_H
+#define _HAPROXY_SESSION_H
 
 #include <haproxy/api.h>
-#include <haproxy/obj_type.h>
-#include <haproxy/pool.h>
-
 #include <haproxy/global-t.h>
-#include <types/session.h>
-
+#include <haproxy/obj_type-t.h>
+#include <haproxy/pool.h>
+#include <haproxy/session-t.h>
 #include <haproxy/stick_table.h>
 #include <proto/server.h>
 
@@ -133,7 +131,7 @@ static inline int session_check_idle_conn(struct session *sess, struct connectio
 	return 0;
 }
 
-#endif /* _PROTO_SESSION_H */
+#endif /* _HAPROXY_SESSION_H */
 
 /*
  * Local variables:

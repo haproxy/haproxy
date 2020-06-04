@@ -24,8 +24,8 @@
 
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
+#include <haproxy/session-t.h>
 #include <types/stream.h>
-#include <types/session.h>
 
 int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit);
 int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit);

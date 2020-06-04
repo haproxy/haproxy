@@ -37,6 +37,7 @@
 #include <haproxy/pattern-t.h>
 #include <haproxy/peers.h>
 #include <haproxy/sample-t.h>
+#include <haproxy/session.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -61,7 +62,6 @@
 #include <haproxy/pipe.h>
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>
-#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/server.h>
 #include <proto/stream_interface.h>

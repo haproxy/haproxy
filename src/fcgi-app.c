@@ -18,6 +18,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
+#include <haproxy/session.h>
 #include <haproxy/tools.h>
 
 #include <haproxy/global.h>
@@ -28,7 +29,6 @@
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
-#include <proto/session.h>
 
 /* Global list of all FCGI applications */
 static struct fcgi_app *fcgi_apps = NULL;

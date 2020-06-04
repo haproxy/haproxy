@@ -21,6 +21,7 @@
 #include <haproxy/signal.h>
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
+#include <haproxy/session.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/time.h>
@@ -38,7 +39,6 @@
 #include <proto/log.h>
 #include <proto/http_ana.h>
 #include <proto/proxy.h>
-#include <proto/session.h>
 #include <proto/spoe.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
