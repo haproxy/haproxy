@@ -85,6 +85,7 @@
 #include <haproxy/base64.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
+#include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
 #include <haproxy/hlua.h>
@@ -130,7 +131,6 @@
 #include <proto/stream.h>
 #include <proto/signal.h>
 #include <proto/task.h>
-#include <proto/dns.h>
 #include <proto/vars.h>
 #include <proto/ssl_sock.h>
 

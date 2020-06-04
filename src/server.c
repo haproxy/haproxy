@@ -19,6 +19,7 @@
 
 #include <common/cfgparse.h>
 #include <haproxy/dict-t.h>
+#include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/namespace.h>
 #include <haproxy/time.h>
@@ -27,7 +28,6 @@
 #include <types/cli.h>
 #include <types/global.h>
 #include <types/cli.h>
-#include <types/dns.h>
 #include <types/stats.h>
 
 #include <proto/applet.h>
@@ -43,7 +43,6 @@
 #include <proto/stream_interface.h>
 #include <proto/stats.h>
 #include <proto/task.h>
-#include <proto/dns.h>
 #include <netinet/tcp.h>
 
 #include <import/ebsttree.h>

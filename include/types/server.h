@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <haproxy/dns-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/thread.h>
@@ -34,7 +35,6 @@
 
 #include <types/connection.h>
 #include <types/counters.h>
-#include <types/dns.h>
 #include <haproxy/freq_ctr-t.h>
 #include <types/obj_type.h>
 #include <types/proxy.h>

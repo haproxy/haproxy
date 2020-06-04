@@ -28,6 +28,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/compression.h>
 #include <haproxy/debug.h>
+#include <haproxy/dns.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
@@ -43,14 +44,12 @@
 #include <types/applet.h>
 #include <types/cli.h>
 #include <types/global.h>
-#include <types/dns.h>
 #include <types/stats.h>
 
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/cli.h>
-#include <proto/dns.h>
 #include <proto/stats.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>

@@ -1,5 +1,5 @@
 /*
- * include/proto/dns.h
+ * include/haproxy/dns.h
  * This file provides functions related to DNS protocol
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>
@@ -19,11 +19,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_DNS_H
-#define _PROTO_DNS_H
+#ifndef _HAPROXY_DNS_H
+#define _HAPROXY_DNS_H
 
 #include <haproxy/action-t.h>
-#include <types/dns.h>
+#include <haproxy/dns-t.h>
 
 extern struct list dns_resolvers;
 extern unsigned int dns_failed_resolutions;
@@ -49,4 +49,4 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err);
 
 
-#endif // _PROTO_DNS_H
+#endif // _HAPROXY_DNS_H

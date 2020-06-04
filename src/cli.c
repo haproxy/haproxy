@@ -28,6 +28,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/dns-t.h>
 #include <haproxy/list.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -38,7 +39,6 @@
 
 #include <types/applet.h>
 #include <types/global.h>
-#include <types/dns.h>
 #include <types/stats.h>
 
 #include <haproxy/activity.h>

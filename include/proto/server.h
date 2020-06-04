@@ -25,9 +25,9 @@
 #include <unistd.h>
 
 #include <haproxy/api.h>
+#include <haproxy/dns-t.h>
 #include <haproxy/time.h>
 #include <types/applet.h>
-#include <types/dns.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>

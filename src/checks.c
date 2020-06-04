@@ -34,6 +34,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
+#include <haproxy/dns.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
 #include <haproxy/regex.h>
@@ -46,7 +47,6 @@
 #include <haproxy/htx.h>
 
 #include <types/global.h>
-#include <types/dns.h>
 #include <types/stats.h>
 
 #include <haproxy/arg.h>
@@ -67,7 +67,6 @@
 #include <proto/task.h>
 #include <proto/vars.h>
 #include <proto/log.h>
-#include <proto/dns.h>
 #include <haproxy/proto_udp.h>
 #include <proto/ssl_sock.h>
 #include <proto/sample.h>

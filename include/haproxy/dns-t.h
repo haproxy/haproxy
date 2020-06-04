@@ -1,5 +1,5 @@
 /*
- * include/types/dns.h
+ * include/haproxy/dns-t.h
  * This file provides structures and types for DNS.
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_DNS_H
-#define _TYPES_DNS_H
+#ifndef _HAPROXY_DNS_T_H
+#define _HAPROXY_DNS_T_H
 
 #include <import/eb32tree.h>
 
@@ -357,4 +357,4 @@ struct dns_srvrq {
 	struct list list;                       /* Next SRV RQ for the same proxy */
 };
 
-#endif /* _TYPES_DNS_H */
+#endif /* _HAPROXY_DNS_T_H */

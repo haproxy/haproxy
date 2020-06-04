@@ -38,6 +38,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
+#include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/pool.h>
 #include <haproxy/tools.h>
@@ -52,14 +53,12 @@
 #include <types/obj_type.h>
 #include <types/peers.h>
 #include <types/mailers.h>
-#include <types/dns.h>
 #include <types/stats.h>
 
 #include <proto/acl.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
-#include <proto/dns.h>
 #include <proto/stats.h>
 #include <proto/filters.h>
 #include <proto/frontend.h>

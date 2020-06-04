@@ -18,6 +18,7 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/dict.h>
+#include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/hlua.h>
 #include <haproxy/istbuf.h>
@@ -40,7 +41,6 @@
 #include <proto/checks.h>
 #include <proto/cli.h>
 #include <proto/connection.h>
-#include <proto/dns.h>
 #include <proto/stats.h>
 #include <haproxy/fd.h>
 #include <proto/filters.h>
