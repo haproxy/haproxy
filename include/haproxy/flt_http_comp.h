@@ -1,5 +1,5 @@
 /*
- * include/proto/flt_http_comp.h
+ * include/haproxy/flt_http_comp.h
  * This file defines function prototypes for the compression filter.
  *
  * Copyright (C) 2015 Qualys Inc., Christopher Faulet <cfaulet@qualys.com>
@@ -18,11 +18,11 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-#ifndef _PROTO_FLT_HTTP_COMP_H
-#define _PROTO_FLT_HTTP_COMP_H
+#ifndef _HAPROXY_FLT_HTTP_COMP_H
+#define _HAPROXY_FLT_HTTP_COMP_H
 
 #include <types/proxy.h>
 
 int check_implicit_http_comp_flt(struct proxy *proxy);
 
-#endif // _PROTO_FLT_HTTP_COMP_H
+#endif // _HAPROXY_FLT_HTTP_COMP_H
