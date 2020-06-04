@@ -30,10 +30,10 @@
 #include <haproxy/regex.h>
 #include <haproxy/xref.h>
 #include <haproxy/h1.h>
+#include <haproxy/hlua.h>
 #include <haproxy/tools.h>
 
 #include <types/cli.h>
-#include <types/hlua.h>
 #include <types/proxy.h>
 #include <types/stats.h>
 
@@ -43,7 +43,6 @@
 #include <proto/cli.h>
 #include <proto/connection.h>
 #include <proto/stats.h>
-#include <proto/hlua.h>
 #include <proto/hlua_fcn.h>
 #include <proto/http_fetch.h>
 #include <proto/http_rules.h>

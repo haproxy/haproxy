@@ -18,6 +18,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/dict.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/hlua.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/thread.h>
 #include <haproxy/htx.h>
@@ -45,7 +46,6 @@
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/frontend.h>
-#include <proto/hlua.h>
 #include <proto/http_rules.h>
 #include <proto/listener.h>
 #include <proto/log.h>

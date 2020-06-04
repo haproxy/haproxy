@@ -1,11 +1,30 @@
-#ifndef _PROTO_HLUA_H
-#define _PROTO_HLUA_H
+/*
+ * include/haproxy/hlua.h
+ * Lua core management functions
+ *
+ * Copyright (C) 2015-2016 Thierry Fournier <tfournier@arpalert.org>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+#ifndef _HAPROXY_HLUA_H
+#define _HAPROXY_HLUA_H
+
+#include <haproxy/hlua-t.h>
 
 #ifdef USE_LUA
-
-#include <lua.h>
-
-#include <types/hlua.h>
 
 /* The following macros are used to set flags. */
 #define HLUA_SET_RUN(__hlua)         do {(__hlua)->flags |= HLUA_RUN;} while(0)
@@ -33,6 +52,8 @@ struct task *hlua_process_task(struct task *task, void *context, unsigned short 
 
 #else /* USE_LUA */
 
+/************************ For use when Lua is disabled ********************/
+
 #define HLUA_IS_RUNNING(__hlua) 0
 
 #define HLUA_INIT(__hlua)
@@ -44,4 +65,4 @@ static inline void hlua_ctx_destroy(struct hlua *lua) { }
 
 #endif /* USE_LUA */
 
-#endif /* _PROTO_HLUA_H */
+#endif /* _HAPROXY_HLUA_H */

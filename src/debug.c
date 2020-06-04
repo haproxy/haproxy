@@ -22,6 +22,7 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/debug.h>
+#include <haproxy/hlua.h>
 #include <haproxy/thread.h>
 #include <import/ist.h>
 #include <haproxy/net_helper.h>
@@ -32,7 +33,6 @@
 
 #include <proto/cli.h>
 #include <haproxy/fd.h>
-#include <proto/hlua.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 

@@ -1,11 +1,35 @@
-#ifndef _TYPES_HLUA_H
-#define _TYPES_HLUA_H
+/*
+ * include/haproxy/hlua-t.h
+ * Lua core types definitions
+ *
+ * Copyright (C) 2015-2016 Thierry Fournier <tfournier@arpalert.org>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+#ifndef _HAPROXY_HLUA_T_H
+#define _HAPROXY_HLUA_T_H
 
 #ifdef USE_LUA
 
 #include <lua.h>
 #include <lauxlib.h>
 
+#include <import/ebpttree.h>
+
+#include <haproxy/list-t.h>
 #include <haproxy/regex-t.h>
 #include <haproxy/xref-t.h>
 
@@ -168,6 +192,7 @@ struct hlua_addr {
 };
 
 #else /* USE_LUA */
+/************************ For use when Lua is disabled ********************/
 
 /* Empty struct for compilation compatibility */
 struct hlua { };
@@ -176,4 +201,4 @@ struct hlua_rule { };
 
 #endif /* USE_LUA */
 
-#endif /* _TYPES_HLUA_H */
+#endif /* _HAPROXY_HLUA_T_H */

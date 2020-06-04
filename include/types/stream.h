@@ -30,11 +30,11 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/dynbuf-t.h>
+#include <haproxy/hlua-t.h>
 #include <haproxy/list-t.h>
 
 #include <types/channel.h>
 #include <types/filters.h>
-#include <types/hlua.h>
 #include <types/obj_type.h>
 #include <types/http_ana.h>
 #include <types/proxy.h>

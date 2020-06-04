@@ -18,6 +18,7 @@
 #include <lua.h>
 #include <lualib.h>
 
+#include <haproxy/hlua-t.h>
 #include <haproxy/http.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
@@ -25,7 +26,6 @@
 #include <common/uri_auth.h>
 
 #include <types/cli.h>
-#include <types/hlua.h>
 #include <types/proxy.h>
 #include <types/stats.h>
 
