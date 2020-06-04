@@ -32,6 +32,7 @@
 #include <haproxy/channel-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/hlua-t.h>
+#include <haproxy/http_ana-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/session-t.h>
@@ -39,7 +40,6 @@
 #include <haproxy/vars-t.h>
 
 #include <types/filters.h>
-#include <types/http_ana.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>

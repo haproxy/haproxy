@@ -26,6 +26,7 @@
 #include <haproxy/frontend.h>
 #include <haproxy/hash.h>
 #include <haproxy/http.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/lb_chash.h>
@@ -49,7 +50,6 @@
 #include <proto/backend.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>
-#include <proto/http_ana.h>
 #include <haproxy/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>

@@ -1,5 +1,5 @@
 /*
- * include/proto/http_ana.h
+ * include/haproxy/http_ana.h
  * This file contains HTTP protocol definitions.
  *
  * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
@@ -19,16 +19,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_PROTO_HTTP_H
-#define _PROTO_PROTO_HTTP_H
+#ifndef _HAPROXY_PROTO_HTTP_H
+#define _HAPROXY_PROTO_HTTP_H
 
 #include <haproxy/api.h>
 #include <haproxy/channel-t.h>
-#include <haproxy/htx.h>
-#include <types/http_ana.h>
+#include <haproxy/http_ana-t.h>
+#include <haproxy/htx-t.h>
 #include <types/stream.h>
 
 extern struct pool_head *pool_head_uniqueid;
+extern struct pool_head *pool_head_http_txn;
 
 int http_wait_for_request(struct stream *s, struct channel *req, int an_bit);
 int http_process_req_common(struct stream *s, struct channel *req, int an_bit, struct proxy *px);
@@ -78,7 +79,7 @@ static inline const char *h1_msg_state_str(enum h1_state msg_state)
 	}
 }
 
-#endif /* _PROTO_PROTO_HTTP_H */
+#endif /* _HAPROXY_PROTO_HTTP_H */
 
 /*
  * Local variables:

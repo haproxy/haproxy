@@ -14,6 +14,7 @@
 #include <haproxy/compression.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/http.h>
+#include <haproxy/http_ana-t.h>
 #include <haproxy/http_htx.h>
 #include <common/cfgparse.h>
 #include <haproxy/htx.h>
@@ -25,7 +26,6 @@
 #include <types/proxy.h>
 
 #include <proto/filters.h>
-#include <proto/http_ana.h>
 #include <proto/stream.h>
 
 const char *http_comp_flt_id = "compression filter";

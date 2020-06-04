@@ -23,6 +23,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/listener.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers.h>
@@ -42,7 +43,6 @@
 #include <proto/filters.h>
 #include <proto/log.h>
 #include <haproxy/proto_tcp.h>
-#include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <haproxy/signal.h>

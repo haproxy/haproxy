@@ -36,6 +36,7 @@
 #include <haproxy/h1.h>
 #include <haproxy/hlua.h>
 #include <haproxy/hlua_fcn.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/map.h>
@@ -55,7 +56,6 @@
 
 #include <haproxy/arg.h>
 #include <proto/queue.h>
-#include <proto/http_ana.h>
 #include <proto/server.h>
 #include <proto/stream.h>
 

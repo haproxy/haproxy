@@ -33,7 +33,6 @@
 #include <haproxy/regex-t.h>
 #include <haproxy/xref-t.h>
 
-#include <types/http_ana.h>
 #include <types/proxy.h>
 #include <types/server.h>
 #include <haproxy/stick_table-t.h>

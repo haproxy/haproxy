@@ -46,6 +46,7 @@
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/frontend.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/lb_chash.h>
 #include <haproxy/lb_fas.h>
@@ -73,7 +74,6 @@
 #include <proto/filters.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>
-#include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <haproxy/peers.h>
 #include <haproxy/sample.h>

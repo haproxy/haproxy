@@ -126,7 +126,6 @@
 #include <proto/filters.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>
-#include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>

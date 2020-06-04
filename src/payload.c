@@ -23,7 +23,6 @@
 #include <haproxy/htx.h>
 #include <haproxy/arg.h>
 #include <haproxy/sample.h>
-#include <proto/http_ana.h>
 
 
 /************************************************************************/

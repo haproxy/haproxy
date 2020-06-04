@@ -5,13 +5,13 @@
 #include <haproxy/chunk.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/errors.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/thread.h>
 #include <haproxy/global.h>
 #include <haproxy/arg.h>
 #include <proto/log.h>
-#include <proto/http_ana.h>
 #include <haproxy/sample.h>
 #include <import/xxhash.h>
 #include <import/lru.h>

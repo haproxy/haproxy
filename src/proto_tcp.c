@@ -50,7 +50,6 @@
 #include <proto/log.h>
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
-#include <proto/http_ana.h>
 #include <haproxy/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/server.h>

@@ -38,7 +38,6 @@
 #include <proto/filters.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>
-#include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/spoe.h>
 #include <proto/stream.h>

@@ -26,6 +26,7 @@
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
 #include <haproxy/frontend.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -38,7 +39,6 @@
 #include <haproxy/fd.h>
 #include <proto/log.h>
 #include <haproxy/proto_tcp.h>
-#include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>
 

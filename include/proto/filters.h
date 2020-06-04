@@ -23,7 +23,7 @@
 
 #include <haproxy/channel.h>
 #include <types/filters.h>
-#include <types/http_ana.h>
+#include <haproxy/http_ana-t.h>
 #include <types/proxy.h>
 #include <types/stream.h>
 

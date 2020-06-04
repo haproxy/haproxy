@@ -18,6 +18,7 @@
 #include <haproxy/check.h>
 #include <haproxy/connection.h>
 #include <haproxy/http.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
@@ -31,7 +32,6 @@
 
 #include <proto/filters.h>
 #include <proto/log.h>
-#include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/stream.h>

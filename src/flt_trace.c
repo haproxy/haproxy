@@ -14,6 +14,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/channel-t.h>
+#include <haproxy/http_ana-t.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/tools.h>
@@ -26,7 +27,6 @@
 
 #include <proto/filters.h>
 #include <proto/log.h>
-#include <proto/http_ana.h>
 #include <proto/stream.h>
 
 const char *trace_flt_id = "trace filter";

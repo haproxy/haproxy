@@ -30,7 +30,6 @@
 #include <haproxy/capture-t.h>
 
 #include <haproxy/arg.h>
-#include <proto/http_ana.h>
 #include <haproxy/sample.h>
 
 

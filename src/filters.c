@@ -15,6 +15,7 @@
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/flt_http_comp.h>
+#include <haproxy/http_ana-t.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/namespace.h>
@@ -22,11 +23,10 @@
 #include <haproxy/tools.h>
 
 #include <types/filters.h>
-#include <types/http_ana.h>
 
 #include <haproxy/compression.h>
 #include <proto/filters.h>
-#include <proto/http_ana.h>
+#include <haproxy/http_ana.h>
 #include <proto/stream.h>
 
 #define TRACE_SOURCE &trace_strm

@@ -80,7 +80,6 @@
 #include <haproxy/thread.h>
 #include <import/eb32tree.h>
 
-#include <proto/http_ana.h>
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/stream.h>

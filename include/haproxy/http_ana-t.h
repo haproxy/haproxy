@@ -1,5 +1,5 @@
 /*
- * include/types/http_ana.h
+ * include/haproxy/http_ana-t.h
  * This file contains HTTP protocol definitions.
  *
  * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
@@ -19,13 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_PROTO_HTTP_H
-#define _TYPES_PROTO_HTTP_H
+#ifndef _HAPROXY_PROTO_HTTP_T_H
+#define _HAPROXY_PROTO_HTTP_T_H
 
 #include <haproxy/channel-t.h>
-#include <haproxy/api-t.h>
 #include <haproxy/http-t.h>
-#include <haproxy/http_htx-t.h>
+#include <haproxy/api-t.h>
 
 /* These are the flags that are found in txn->flags */
 
@@ -186,9 +185,7 @@ struct http_txn {
 	struct http_auth_data auth;	/* HTTP auth data */
 };
 
-extern struct pool_head *pool_head_http_txn;
-
-#endif /* _TYPES_PROTO_HTTP_H */
+#endif /* _HAPROXY_PROTO_HTTP_T_H */
 
 /*
  * Local variables:

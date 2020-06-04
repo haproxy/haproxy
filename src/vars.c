@@ -11,7 +11,6 @@
 #include <haproxy/vars.h>
 
 #include <haproxy/arg.h>
-#include <proto/http_ana.h>
 #include <proto/stream.h>
 
 /* This contains a pool of struct vars */

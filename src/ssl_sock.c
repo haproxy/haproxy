@@ -76,7 +76,6 @@
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/proto_tcp.h>
-#include <proto/http_ana.h>
 #include <proto/server.h>
 #include <proto/log.h>
 #include <proto/proxy.h>

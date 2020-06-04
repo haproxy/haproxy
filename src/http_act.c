@@ -23,6 +23,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/pattern.h>
@@ -38,7 +39,6 @@
 
 #include <haproxy/arg.h>
 #include <proto/log.h>
-#include <proto/http_ana.h>
 
 /* Release memory allocated by most of HTTP actions. Concretly, it releases
  * <arg.http>.

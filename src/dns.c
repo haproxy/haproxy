@@ -41,7 +41,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/fd.h>
-#include <proto/http_ana.h>
 #include <proto/log.h>
 #include <proto/server.h>
 #include <haproxy/proto_udp.h>

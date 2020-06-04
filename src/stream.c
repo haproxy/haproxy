@@ -30,6 +30,7 @@
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/thread.h>
@@ -53,7 +54,6 @@
 #include <proto/log.h>
 #include <proto/stream.h>
 #include <haproxy/pipe.h>
-#include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
