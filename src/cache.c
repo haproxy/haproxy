@@ -10,13 +10,13 @@
  * 2 of the License, or (at your option) any later version.
  */
 
+#include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/shctx.h>
 #include <import/eb32tree.h>
 #include <import/sha1.h>
 
-#include <types/action.h>
 #include <types/cli.h>
 #include <types/filters.h>
 #include <types/proxy.h>

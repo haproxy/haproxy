@@ -10,6 +10,7 @@
  *
  */
 
+#include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
 #include <haproxy/http.h>
@@ -22,7 +23,6 @@
 #include <types/capture.h>
 
 #include <proto/acl.h>
-#include <proto/action.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/connection.h>

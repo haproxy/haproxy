@@ -22,8 +22,8 @@
 #ifndef _PROTO_TCP_RULES_H
 #define _PROTO_TCP_RULES_H
 
+#include <haproxy/action-t.h>
 #include <haproxy/api.h>
-#include <types/action.h>
 #include <types/task.h>
 #include <proto/stick_table.h>
 

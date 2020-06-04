@@ -1,5 +1,5 @@
 /*
- * include/proto/action.h
+ * include/haproxy/action.h
  * This file contains actions prototypes.
  *
  * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
@@ -19,10 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_ACTION_H
-#define _PROTO_ACTION_H
+#ifndef _HAPROXY_ACTION_H
+#define _HAPROXY_ACTION_H
 
-#include <types/action.h>
+#include <stdio.h>
+#include <haproxy/action-t.h>
+#include <haproxy/list.h>
 
 int act_resolution_cb(struct dns_requester *requester, struct dns_nameserver *nameserver);
 int act_resolution_error_cb(struct dns_requester *requester, int error_code);
@@ -88,4 +90,4 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err);
  */
 int check_capture(struct act_rule *rule, struct proxy *px, char **err);
 
-#endif /* _PROTO_ACTION_H */
+#endif /* _HAPROXY_ACTION_H */

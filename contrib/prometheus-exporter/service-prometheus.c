@@ -13,6 +13,7 @@
  *
  */
 
+#include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/http.h>
@@ -23,7 +24,6 @@
 
 #include <types/global.h>
 
-#include <proto/action.h>
 #include <proto/applet.h>
 #include <proto/backend.h>
 #include <haproxy/compression.h>

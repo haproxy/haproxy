@@ -10,12 +10,12 @@
  *
  */
 
+#include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <haproxy/tools.h>
 
-#include <proto/action.h>
 #include <proto/log.h>
 #include <proto/obj_type.h>
 #include <proto/proxy.h>

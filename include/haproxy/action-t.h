@@ -1,5 +1,5 @@
 /*
- * include/types/action.h
+ * include/haproxy/action-t.h
  * This file contains actions definitions.
  *
  * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_ACTION_H
-#define _TYPES_ACTION_H
+#ifndef _HAPROXY_ACTION_T_H
+#define _HAPROXY_ACTION_T_H
 
 #include <haproxy/regex-t.h>
 
@@ -173,4 +173,4 @@ struct action_kw_list {
 	struct action_kw kw[VAR_ARRAY];
 };
 
-#endif /* _TYPES_ACTION_H */
+#endif /* _HAPROXY_ACTION_T_H */

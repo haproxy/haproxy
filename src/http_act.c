@@ -16,6 +16,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
@@ -32,7 +33,6 @@
 
 #include <proto/acl.h>
 #include <proto/arg.h>
-#include <proto/action.h>
 #include <proto/http_rules.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>

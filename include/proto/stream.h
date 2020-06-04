@@ -22,9 +22,9 @@
 #ifndef _PROTO_STREAM_H
 #define _PROTO_STREAM_H
 
+#include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <haproxy/pool.h>
-#include <types/action.h>
 #include <types/stream.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>

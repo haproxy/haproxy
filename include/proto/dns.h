@@ -22,7 +22,7 @@
 #ifndef _PROTO_DNS_H
 #define _PROTO_DNS_H
 
-#include <types/action.h>
+#include <haproxy/action-t.h>
 #include <types/dns.h>
 
 extern struct list dns_resolvers;

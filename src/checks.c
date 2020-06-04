@@ -30,6 +30,7 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 
+#include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
@@ -48,7 +49,6 @@
 #include <types/dns.h>
 #include <types/stats.h>
 
-#include <proto/action.h>
 #include <proto/arg.h>
 #include <proto/backend.h>
 #include <proto/checks.h>

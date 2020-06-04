@@ -22,7 +22,7 @@
 #ifndef _PROTO_CHECKS_H
 #define _PROTO_CHECKS_H
 
-#include <types/action.h>
+#include <haproxy/action-t.h>
 #include <types/mailers.h>
 #include <types/checks.h>
 

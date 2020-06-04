@@ -9,6 +9,7 @@
  * 2 of the License, or (at your option) any later version.
  *
  */
+#include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/list.h>
@@ -22,7 +23,6 @@
 #include <types/global.h>
 
 #include <proto/acl.h>
-#include <proto/action.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
 #include <proto/log.h>

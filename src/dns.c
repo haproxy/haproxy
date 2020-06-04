@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 
+#include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
@@ -26,14 +27,12 @@
 #include <haproxy/ticks.h>
 #include <haproxy/net_helper.h>
 
-#include <types/action.h>
 #include <types/applet.h>
 #include <types/cli.h>
 #include <types/global.h>
 #include <types/dns.h>
 #include <types/stats.h>
 
-#include <proto/action.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
 #include <proto/checks.h>
