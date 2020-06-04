@@ -26,7 +26,7 @@
 #include <import/eb32tree.h>
 #include <import/ebistree.h>
 
-#include <types/capture.h>
+#include <haproxy/capture-t.h>
 #include <types/cli.h>
 #include <types/global.h>
 #include <types/obj_type.h>

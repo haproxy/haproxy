@@ -28,7 +28,7 @@
 #include <common/uri_auth.h>
 #include <haproxy/version.h>
 
-#include <types/capture.h>
+#include <haproxy/capture-t.h>
 #include <types/global.h>
 
 #include <proto/acl.h>

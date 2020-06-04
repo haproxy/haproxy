@@ -11,6 +11,7 @@
  */
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/capture-t.h>
 #include <common/cfgparse.h>
 #include <haproxy/list.h>
 #include <haproxy/tools.h>
@@ -18,7 +19,6 @@
 #include <haproxy/time.h>
 
 #include <haproxy/arg-t.h>
-#include <types/capture.h>
 #include <types/connection.h>
 #include <types/global.h>
 

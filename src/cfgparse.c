@@ -36,6 +36,7 @@
 #include <haproxy/action-t.h>
 #include <haproxy/auth.h>
 #include <haproxy/api.h>
+#include <haproxy/capture.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/dns.h>
@@ -48,7 +49,6 @@
 #include <haproxy/namespace.h>
 #include <haproxy/thread.h>
 
-#include <types/capture.h>
 #include <types/filters.h>
 #include <types/global.h>
 #include <types/obj_type.h>

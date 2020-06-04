@@ -20,7 +20,7 @@
 #include <haproxy/regex.h>
 #include <common/uri_auth.h>
 
-#include <types/capture.h>
+#include <haproxy/capture-t.h>
 
 #include <proto/acl.h>
 #include <proto/channel.h>

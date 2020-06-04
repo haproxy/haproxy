@@ -16,6 +16,7 @@
 
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/capture.h>
 #include <common/cfgparse.h>
 #include <haproxy/dict.h>
 #include <haproxy/dns.h>
@@ -27,7 +28,6 @@
 #include <haproxy/pool.h>
 
 #include <types/applet.h>
-#include <types/capture.h>
 #include <types/cli.h>
 #include <types/filters.h>
 #include <types/global.h>

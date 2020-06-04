@@ -14,7 +14,7 @@
 #include <common/cfgparse.h>
 #include <common/uri_auth.h>
 
-#include <types/capture.h>
+#include <haproxy/capture-t.h>
 #include <haproxy/compression-t.h>
 #include <haproxy/http_htx.h>
 #include <types/stats.h>

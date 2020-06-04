@@ -101,7 +101,7 @@
 #include <haproxy/version.h>
 #include <haproxy/thread.h>
 
-#include <types/capture.h>
+#include <haproxy/capture-t.h>
 #include <types/cli.h>
 #include <types/filters.h>
 #include <types/global.h>

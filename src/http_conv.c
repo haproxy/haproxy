@@ -23,7 +23,7 @@
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
-#include <types/capture.h>
+#include <haproxy/capture-t.h>
 #include <types/global.h>
 
 #include <haproxy/arg.h>
