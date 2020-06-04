@@ -11,13 +11,13 @@
  */
 
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/compression.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/filters.h>
 #include <haproxy/http.h>
 #include <haproxy/http_ana-t.h>
 #include <haproxy/http_htx.h>
-#include <common/cfgparse.h>
 #include <haproxy/htx.h>
 #include <haproxy/list.h>
 #include <haproxy/proxy-t.h>

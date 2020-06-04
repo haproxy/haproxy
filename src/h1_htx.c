@@ -11,7 +11,7 @@
  */
 
 #include <haproxy/api.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/global.h>
 #include <haproxy/h1.h>
 #include <haproxy/h1_htx.h>

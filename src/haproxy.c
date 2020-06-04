@@ -84,7 +84,7 @@
 #include <import/sha1.h>
 
 #include <haproxy/base64.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>

@@ -11,7 +11,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/compression.h>
 #include <haproxy/global.h>
 

@@ -17,7 +17,7 @@
 #include <haproxy/applet.h>
 #include <haproxy/backend.h>
 #include <haproxy/api.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>

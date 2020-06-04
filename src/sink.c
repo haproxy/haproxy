@@ -19,7 +19,7 @@
  */
 
 #include <haproxy/api.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <import/ist.h>
 #include <haproxy/list.h>

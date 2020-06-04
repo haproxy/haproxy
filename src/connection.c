@@ -13,7 +13,7 @@
 #include <errno.h>
 
 #include <haproxy/api.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/frontend.h>
 #include <haproxy/namespace.h>

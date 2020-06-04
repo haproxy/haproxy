@@ -1,8 +1,8 @@
 /*
- * include/common/cfgparse.h
+ * include/haproxy/cfgparse.h
  * Configuration parsing functions.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _COMMON_CFGPARSE_H
-#define _COMMON_CFGPARSE_H
+#ifndef _HAPROXY_CFGPARSE_H
+#define _HAPROXY_CFGPARSE_H
 
 #include <haproxy/api.h>
 #include <haproxy/list-t.h>
@@ -148,7 +148,7 @@ static inline int warnifnotcap(struct proxy *proxy, int cap, const char *file, i
 #define REGISTER_CONFIG_POSTPARSER(name, parser)                              \
 	INITCALL2(STG_REGISTER, cfg_register_postparser, (name), (parser))
 
-#endif /* _COMMON_CFGPARSE_H */
+#endif /* _HAPROXY_CFGPARSE_H */
 
 /*
  * Local variables:

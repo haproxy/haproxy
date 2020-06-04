@@ -12,6 +12,7 @@
 
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/filters.h>
@@ -27,7 +28,6 @@
 #include <import/sha1.h>
 
 
-#include <common/cfgparse.h>
 #include <haproxy/hash.h>
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>

@@ -21,7 +21,7 @@
 
 #include <haproxy/action.h>
 #include <haproxy/api.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>

@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #include <haproxy/api.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/errors.h>

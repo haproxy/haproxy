@@ -18,7 +18,7 @@
 #include <sys/wait.h>
 
 #include <haproxy/api.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>

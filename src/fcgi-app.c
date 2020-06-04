@@ -12,8 +12,8 @@
 
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
-#include <common/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/fcgi-app.h>
 #include <haproxy/filters.h>

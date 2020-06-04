@@ -19,7 +19,7 @@
 
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>

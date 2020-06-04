@@ -20,7 +20,7 @@
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/h1.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>

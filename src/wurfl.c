@@ -3,7 +3,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf-t.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>

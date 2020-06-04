@@ -15,7 +15,7 @@
 #include <errno.h>
 
 #include <haproxy/api.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>

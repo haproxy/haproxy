@@ -16,7 +16,7 @@
 #include <haproxy/action-t.h>
 #include <haproxy/arg.h>
 #include <haproxy/api.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/filters.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>

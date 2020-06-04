@@ -13,7 +13,7 @@
 #include <import/eb32tree.h>
 #include <haproxy/api.h>
 #include <haproxy/istbuf.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/h1.h>
 #include <haproxy/h2.h>

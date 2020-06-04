@@ -14,7 +14,7 @@
 #include <haproxy/arg-t.h>
 #include <haproxy/api.h>
 #include <haproxy/capture-t.h>
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
 #include <haproxy/global.h>

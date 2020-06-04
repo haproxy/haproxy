@@ -11,11 +11,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <common/cfgparse.h>
 #include <haproxy/uri_auth.h>
 
 #include <haproxy/acl.h>
 #include <haproxy/capture-t.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
 #include <haproxy/compression-t.h>
 #include <haproxy/connection.h>

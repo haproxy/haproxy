@@ -13,11 +13,11 @@
 
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/global.h>
 
-#include <common/cfgparse.h>
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>

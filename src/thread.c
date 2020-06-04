@@ -23,7 +23,7 @@
 #include <sys/cpuset.h>
 #endif
 
-#include <common/cfgparse.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 #include <haproxy/global.h>
