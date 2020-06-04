@@ -1882,7 +1882,7 @@ static void init(int argc, char **argv)
 			else if (*flag == 'S') {
 				struct wordlist *c;
 
-				if (argc <= 1 || argv[1][0] == '-') {
+				if (argc <= 1) {
 					ha_alert("Socket and optional bind parameters expected with the -S flag\n");
 					usage(progname);
 				}
