@@ -36,11 +36,11 @@
 #include <haproxy/http_ana-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stream_interface-t.h>
 #include <haproxy/vars-t.h>
 
-#include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>
 #include <haproxy/task-t.h>

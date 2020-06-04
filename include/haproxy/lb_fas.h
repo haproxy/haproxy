@@ -24,7 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/lb_fas-t.h>
-#include <types/proxy.h>
+#include <haproxy/proxy-t.h>
 #include <types/server.h>
 
 struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid);

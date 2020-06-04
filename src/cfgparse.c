@@ -60,6 +60,7 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers-t.h>
 #include <haproxy/pool.h>
+#include <haproxy/proxy.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/tools.h>
@@ -73,7 +74,6 @@
 
 #include <proto/backend.h>
 #include <haproxy/protocol.h>
-#include <proto/proxy.h>
 #include <haproxy/peers.h>
 #include <haproxy/sample.h>
 #include <proto/server.h>

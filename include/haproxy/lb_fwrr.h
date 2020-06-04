@@ -24,7 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/lb_fwrr-t.h>
-#include <types/proxy.h>
+#include <haproxy/proxy-t.h>
 #include <types/server.h>
 
 void fwrr_init_server_groups(struct proxy *p);

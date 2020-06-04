@@ -20,12 +20,12 @@
 #include <haproxy/list.h>
 #include <haproxy/log.h>
 #include <haproxy/pattern.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/tools.h>
 
 #include <haproxy/global.h>
 
 #include <haproxy/arg.h>
-#include <proto/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stick_table.h>
 

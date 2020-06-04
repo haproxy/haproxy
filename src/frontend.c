@@ -28,6 +28,7 @@
 #include <haproxy/frontend.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/log.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -39,7 +40,6 @@
 #include <haproxy/arg.h>
 #include <haproxy/fd.h>
 #include <haproxy/proto_tcp.h>
-#include <proto/proxy.h>
 #include <proto/stream.h>
 
 /* Finish a stream accept() for a proxy (TCP or HTTP). It returns a negative

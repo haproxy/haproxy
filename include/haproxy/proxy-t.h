@@ -1,5 +1,5 @@
 /*
- * include/types/proxy.h
+ * include/haproxy/proxy-t.h
  * This file defines everything related to proxies.
  *
  * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
@@ -19,33 +19,27 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_PROXY_H
-#define _TYPES_PROXY_H
+#ifndef _HAPROXY_PROXY_T_H
+#define _HAPROXY_PROXY_T_H
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <import/eb32tree.h>
+#include <import/ebpttree.h>
+
 #include <haproxy/arg-t.h>
-#include <haproxy/api-t.h>
 #include <haproxy/check-t.h>
-#include <haproxy/chunk.h>
 #include <haproxy/counters-t.h>
-#include <haproxy/http-t.h>
+#include <haproxy/freq_ctr-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
-#include <haproxy/thread.h>
-
-#include <import/eb32tree.h>
-#include <import/ebistree.h>
-
-#include <haproxy/acl-t.h>
+#include <haproxy/thread-t.h>
+#include <haproxy/api-t.h>
 #include <types/backend.h>
-#include <haproxy/freq_ctr-t.h>
-#include <haproxy/sample-t.h>
 #include <types/server.h>
-#include <haproxy/stick_table-t.h>
 
 /* values for proxy->state */
 enum pr_state {
@@ -532,7 +526,7 @@ struct cfg_opt {
 	unsigned int mode;
 };
 
-#endif /* _TYPES_PROXY_H */
+#endif /* _HAPROXY_PROXY_T_H */
 
 /*
  * Local variables:

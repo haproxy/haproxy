@@ -24,6 +24,7 @@
 #include <haproxy/signal.h>
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
+#include <haproxy/proxy.h>
 #include <haproxy/session.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -38,7 +39,6 @@
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/proxy.h>
 #include <proto/spoe.h>
 #include <proto/stream.h>
 

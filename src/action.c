@@ -16,10 +16,10 @@
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
+#include <haproxy/proxy.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 
-#include <proto/proxy.h>
 #include <haproxy/stick_table.h>
 
 

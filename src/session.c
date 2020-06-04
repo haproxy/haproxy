@@ -17,11 +17,11 @@
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/pool.h>
+#include <haproxy/proxy.h>
 #include <haproxy/session.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
 
-#include <proto/proxy.h>
 #include <proto/stream.h>
 
 DECLARE_POOL(pool_head_session, "session", sizeof(struct session));

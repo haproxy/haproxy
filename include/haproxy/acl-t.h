@@ -24,11 +24,11 @@
 
 #include <import/ebmbtree.h>
 
+#include <haproxy/arg-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/api-t.h>
 
-#include <types/proxy.h>
 #include <types/server.h>
 
 

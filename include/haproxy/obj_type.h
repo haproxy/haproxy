@@ -29,7 +29,7 @@
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
-#include <types/proxy.h>
+#include <haproxy/proxy-t.h>
 #include <types/server.h>
 #include <types/stream.h>
 #include <haproxy/stream_interface-t.h>

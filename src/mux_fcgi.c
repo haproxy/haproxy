@@ -23,12 +23,11 @@
 #include <haproxy/list.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/regex.h>
 #include <haproxy/session-t.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream_interface.h>
-
-#include <types/proxy.h>
 
 #include <proto/stream.h>
 #include <haproxy/trace.h>

@@ -27,9 +27,9 @@
 #include <haproxy/api.h>
 #include <haproxy/log-t.h>
 #include <haproxy/pool-t.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/thread-t.h>
 #include <proto/stream.h>
-#include <types/proxy.h>
 
 extern struct pool_head *pool_head_requri;
 extern struct pool_head *pool_head_uniqueid;

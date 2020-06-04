@@ -27,10 +27,10 @@
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/hlua-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/xref-t.h>
 
-#include <types/proxy.h>
 #include <types/stream.h>
 
 /* flags for appctx->state */

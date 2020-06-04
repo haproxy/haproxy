@@ -30,6 +30,7 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers.h>
+#include <haproxy/proxy.h>
 #include <haproxy/task.h>
 #include <haproxy/session-t.h>
 #include <haproxy/signal.h>
@@ -40,7 +41,6 @@
 #include <haproxy/thread.h>
 
 #include <haproxy/fd.h>
-#include <proto/proxy.h>
 #include <proto/stream.h>
 #include <haproxy/stick_table.h>
 

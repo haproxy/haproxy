@@ -29,6 +29,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
@@ -44,7 +45,6 @@
 #include <haproxy/fd.h>
 #include <proto/server.h>
 #include <haproxy/proto_udp.h>
-#include <proto/proxy.h>
 
 struct list dns_resolvers  = LIST_HEAD_INIT(dns_resolvers);
 struct list dns_srvrq_list = LIST_HEAD_INIT(dns_srvrq_list);

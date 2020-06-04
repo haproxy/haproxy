@@ -21,7 +21,7 @@
 #ifndef _HAPROXY_FLT_HTTP_COMP_H
 #define _HAPROXY_FLT_HTTP_COMP_H
 
-#include <types/proxy.h>
+#include <haproxy/proxy-t.h>
 
 int check_implicit_http_comp_flt(struct proxy *proxy);
 

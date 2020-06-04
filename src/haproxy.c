@@ -104,6 +104,7 @@
 #include <haproxy/openssl-compat.h>
 #include <haproxy/pattern.h>
 #include <haproxy/peers.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/regex.h>
 #include <haproxy/session.h>
@@ -125,7 +126,6 @@
 #include <proto/backend.h>
 #include <haproxy/fd.h>
 #include <haproxy/protocol.h>
-#include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/stream.h>

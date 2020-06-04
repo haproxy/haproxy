@@ -28,9 +28,8 @@
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/pool-t.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/thread.h>
-
-#include <types/proxy.h>
 
 extern struct list tlskeys_reference;
 extern int sslconns;

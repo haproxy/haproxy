@@ -27,10 +27,10 @@
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/filters-t.h>
 #include <haproxy/list-t.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/thread.h>
 
 #include <haproxy/freq_ctr-t.h>
-#include <types/proxy.h>
 #include <haproxy/sample-t.h>
 #include <types/stream.h>
 #include <haproxy/task-t.h>

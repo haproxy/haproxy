@@ -23,13 +23,12 @@
 #include <haproxy/http.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
+#include <haproxy/pattern-t.h>
+#include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/stats.h>
 #include <haproxy/time.h>
 
-#include <types/proxy.h>
-
-#include <proto/proxy.h>
 #include <proto/server.h>
 #include <haproxy/stick_table.h>
 

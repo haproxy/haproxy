@@ -43,6 +43,7 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/pattern.h>
 #include <haproxy/payload.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
@@ -51,8 +52,6 @@
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
-
-#include <types/proxy.h>
 
 #include <haproxy/arg.h>
 #include <proto/queue.h>

@@ -14,6 +14,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <import/ebistree.h>
+
 #include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/applet.h>
@@ -38,6 +40,7 @@
 #include <haproxy/htx.h>
 #include <haproxy/log.h>
 #include <haproxy/pool.h>
+#include <haproxy/proxy.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
@@ -52,7 +55,6 @@
 #include <haproxy/freq_ctr.h>
 #include <proto/stream.h>
 #include <haproxy/pipe.h>
-#include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <haproxy/stick_table.h>

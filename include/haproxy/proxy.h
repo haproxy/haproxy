@@ -1,5 +1,5 @@
 /*
- * include/proto/proxy.h
+ * include/haproxy/proxy.h
  * This file defines function prototypes for proxy management.
  *
  * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
@@ -19,17 +19,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_PROXY_H
-#define _PROTO_PROXY_H
+#ifndef _HAPROXY_PROXY_H
+#define _HAPROXY_PROXY_H
 
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/freq_ctr.h>
 #include <haproxy/listener-t.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <haproxy/global-t.h>
-#include <types/proxy.h>
-#include <haproxy/freq_ctr.h>
+#include <types/server.h>
 
 extern struct proxy *proxies_list;
 extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */
@@ -191,7 +191,7 @@ static inline int in_proxies_list(struct proxy *list, struct proxy *proxy)
 	return 0;
 }
 
-#endif /* _PROTO_PROXY_H */
+#endif /* _HAPROXY_PROXY_H */
 
 /*
  * Local variables:

@@ -30,6 +30,7 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
+#include <haproxy/proxy.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -43,7 +44,6 @@
 #include <proto/backend.h>
 #include <haproxy/fd.h>
 #include <haproxy/proto_tcp.h>
-#include <proto/proxy.h>
 #include <proto/server.h>
 #include <haproxy/signal.h>
 #include <proto/stream.h>

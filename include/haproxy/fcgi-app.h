@@ -23,7 +23,7 @@
 #define _HAPROXY_HTTP_FCGI_H
 
 #include <haproxy/fcgi-app-t.h>
-#include <types/proxy.h>
+#include <haproxy/proxy-t.h>
 #include <types/stream.h>
 
 struct fcgi_app *fcgi_app_find_by_name(const char *name);

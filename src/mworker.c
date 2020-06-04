@@ -25,6 +25,7 @@
 #include <haproxy/log.h>
 #include <haproxy/mworker.h>
 #include <haproxy/peers.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/signal.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/version.h>
@@ -32,7 +33,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/fd.h>
-#include <proto/proxy.h>
 #include <proto/stream.h>
 
 

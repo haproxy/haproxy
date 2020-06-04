@@ -20,10 +20,9 @@
 #include <common/cfgparse.h>
 #include <haproxy/htx.h>
 #include <haproxy/list.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
-
-#include <types/proxy.h>
 
 #include <proto/stream.h>
 

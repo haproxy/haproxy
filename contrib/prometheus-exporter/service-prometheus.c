@@ -29,7 +29,7 @@
 #include <proto/backend.h>
 #include <haproxy/compression.h>
 #include <haproxy/pipe.h>
-#include <proto/proxy.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <proto/server.h>
 #include <haproxy/ssl_sock.h>

@@ -24,6 +24,7 @@
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/peers.h>
+#include <haproxy/proxy.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -33,10 +34,10 @@
 
 #include <import/ebmbtree.h>
 #include <import/ebsttree.h>
+#include <import/ebistree.h>
 
 #include <haproxy/arg.h>
 #include <haproxy/proto_tcp.h>
-#include <proto/proxy.h>
 #include <haproxy/sample.h>
 #include <proto/stream.h>
 #include <haproxy/stick_table.h>

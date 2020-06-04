@@ -23,11 +23,11 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/listener.h>
 #include <haproxy/peers.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stats-t.h>
 
 #include <haproxy/protocol.h>
-#include <proto/proxy.h>
 #include <proto/server.h>
 #include <haproxy/stick_table.h>
 

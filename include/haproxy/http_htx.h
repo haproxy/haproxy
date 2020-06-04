@@ -26,8 +26,8 @@
 #include <import/ist.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/http_htx-t.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/regex-t.h>
-#include <types/proxy.h>
 
 extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
 extern struct http_reply http_err_replies[HTTP_ERR_SIZE];

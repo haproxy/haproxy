@@ -20,6 +20,7 @@
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/log.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
@@ -27,7 +28,6 @@
 
 #include <haproxy/global.h>
 
-#include <proto/proxy.h>
 #include <proto/server.h>
 
 /* Global list of all FCGI applications */

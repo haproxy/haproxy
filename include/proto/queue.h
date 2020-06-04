@@ -24,8 +24,8 @@
 
 #include <haproxy/api.h>
 #include <haproxy/pool.h>
+#include <haproxy/proxy-t.h>
 
-#include <types/proxy.h>
 #include <types/queue.h>
 #include <types/stream.h>
 #include <types/server.h>

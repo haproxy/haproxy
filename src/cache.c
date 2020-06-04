@@ -19,14 +19,12 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
+#include <haproxy/proxy.h>
 #include <haproxy/shctx.h>
 #include <haproxy/stream_interface.h>
 #include <import/eb32tree.h>
 #include <import/sha1.h>
 
-#include <types/proxy.h>
-
-#include <proto/proxy.h>
 #include <proto/stream.h>
 
 

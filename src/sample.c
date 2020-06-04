@@ -27,6 +27,7 @@
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/protobuf.h>
+#include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
@@ -35,7 +36,6 @@
 #include <haproxy/base64.h>
 
 #include <haproxy/arg.h>
-#include <proto/proxy.h>
 #include <haproxy/sink.h>
 #include <haproxy/stick_table.h>
 

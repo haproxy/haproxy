@@ -30,10 +30,10 @@
 #include <import/ebpttree.h>
 
 #include <haproxy/list-t.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/regex-t.h>
 #include <haproxy/xref-t.h>
 
-#include <types/proxy.h>
 #include <types/server.h>
 #include <haproxy/stick_table-t.h>
 

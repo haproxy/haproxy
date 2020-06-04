@@ -23,7 +23,7 @@
 #define _HAPROXY_LB_MAP_H
 
 #include <haproxy/api.h>
-#include <types/proxy.h>
+#include <haproxy/proxy-t.h>
 #include <types/server.h>
 
 void recalc_server_map(struct proxy *px);

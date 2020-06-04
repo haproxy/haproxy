@@ -25,7 +25,7 @@
 #include <haproxy/api.h>
 #include <haproxy/list.h>
 #include <haproxy/action-t.h>
-#include <types/proxy.h>
+#include <haproxy/proxy-t.h>
 
 extern struct action_kw_list http_req_keywords;
 extern struct action_kw_list http_res_keywords;

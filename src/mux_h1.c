@@ -21,7 +21,7 @@
 #include <import/ebistree.h>
 
 #include <haproxy/pipe-t.h>
-#include <types/proxy.h>
+#include <haproxy/proxy-t.h>
 
 #include <haproxy/http_htx.h>
 #include <haproxy/log.h>

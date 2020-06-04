@@ -23,10 +23,10 @@
 #define _PROTO_BACKEND_H
 
 #include <haproxy/api.h>
+#include <haproxy/proxy-t.h>
 #include <haproxy/time.h>
 
 #include <types/backend.h>
-#include <types/proxy.h>
 #include <types/server.h>
 #include <types/stream.h>
 

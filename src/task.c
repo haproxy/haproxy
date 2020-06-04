@@ -23,7 +23,6 @@
 
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/proxy.h>
 #include <proto/stream.h>
 
 DECLARE_POOL(pool_head_task,    "task",    sizeof(struct task));

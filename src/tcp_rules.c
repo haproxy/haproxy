@@ -19,6 +19,7 @@
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tcp_rules.h>
@@ -28,7 +29,6 @@
 
 #include <haproxy/arg-t.h>
 
-#include <proto/proxy.h>
 #include <haproxy/stick_table.h>
 #include <proto/stream.h>
 

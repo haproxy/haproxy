@@ -44,6 +44,7 @@
 #include <haproxy/log.h>
 #include <haproxy/map-t.h>
 #include <haproxy/pattern-t.h>
+#include <haproxy/proxy.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stats.h>
@@ -60,7 +61,6 @@
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/pipe.h>
-#include <proto/proxy.h>
 #include <proto/stream.h>
 #include <proto/server.h>
 

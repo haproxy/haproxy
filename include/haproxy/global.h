@@ -28,7 +28,7 @@
 #include <haproxy/vars-t.h>
 #include <haproxy/mworker-t.h>
 
-#include <types/proxy.h>
+#include <haproxy/proxy-t.h>
 
 extern struct global global;
 extern int  pid;                /* current process id */
