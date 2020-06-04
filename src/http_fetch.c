@@ -20,6 +20,7 @@
 #include <haproxy/base64.h>
 #include <haproxy/chunk.h>
 #include <haproxy/h1.h>
+#include <haproxy/h1_htx.h>
 #include <haproxy/http.h>
 #include <haproxy/htx.h>
 #include <haproxy/pool.h>
@@ -33,7 +34,6 @@
 #include <proto/channel.h>
 #include <proto/connection.h>
 #include <proto/http_fetch.h>
-#include <proto/h1_htx.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/obj_type.h>

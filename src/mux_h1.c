@@ -13,6 +13,7 @@
 #include <haproxy/istbuf.h>
 #include <common/cfgparse.h>
 #include <haproxy/h1.h>
+#include <haproxy/h1_htx.h>
 #include <haproxy/h2.h>
 #include <haproxy/htx.h>
 
@@ -23,7 +24,6 @@
 #include <types/session.h>
 
 #include <proto/connection.h>
-#include <proto/h1_htx.h>
 #include <proto/http_htx.h>
 #include <proto/log.h>
 #include <proto/session.h>

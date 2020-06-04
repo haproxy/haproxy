@@ -1,5 +1,5 @@
 /*
- * include/types/h1_htx.h
+ * include/haproxy/h1_htx.h
  * This file defines function prototypes for H1 manipulation using the
  * internal representation.
  *
@@ -20,12 +20,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_H1_HTX_H
-#define _PROTO_H1_HTX_H
+#ifndef _HAPROXY_H1_HTX_H
+#define _HAPROXY_H1_HTX_H
 
-#include <haproxy/buf.h>
 #include <import/ist.h>
+#include <haproxy/api-t.h>
+#include <haproxy/buf-t.h>
 #include <haproxy/h1.h>
+#include <haproxy/htx-t.h>
 
 int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 		      struct buffer *srcbuf, size_t ofs, size_t max);
@@ -41,7 +43,7 @@ int h1_format_htx_stline(const struct htx_sl *sl, struct buffer *chk);
 int h1_format_htx_hdr(const struct ist n, const struct ist v, struct buffer *chk);
 int h1_format_htx_data(const struct ist data, struct buffer *chk, int chunked);
 
-#endif /* _PROTO_H1_HTX_H */
+#endif /* _HAPROXY_H1_HTX_H */
 
 /*
  * Local variables:
