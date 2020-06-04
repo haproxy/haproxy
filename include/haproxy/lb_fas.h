@@ -1,9 +1,9 @@
 /*
- * include/types/lb_fash
- * Types for First Available Server load balancing algorithm.
+ * include/haproxy/lb_fas.h
+ * First Available Server load balancing algorithm.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
- *
+ * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * 
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation, version 2.1
@@ -19,18 +19,18 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_LB_FAS_H
-#define _TYPES_LB_FAS_H
+#ifndef _HAPROXY_LB_FAS_H
+#define _HAPROXY_LB_FAS_H
 
-#include <haproxy/api-t.h>
-#include <import/ebtree.h>
+#include <haproxy/api.h>
+#include <haproxy/lb_fas-t.h>
+#include <types/proxy.h>
+#include <types/server.h>
 
-struct lb_fas {
-	struct eb_root act;	/* weighted least conns on the active servers */
-	struct eb_root bck;	/* weighted least conns on the backup servers */
-};
+struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid);
+void fas_init_server_tree(struct proxy *p);
 
-#endif /* _TYPES_LB_FAS_H */
+#endif /* _HAPROXY_LB_FAS_H */
 
 /*
  * Local variables:

@@ -26,6 +26,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/lb_chash.h>
+#include <haproxy/lb_fas.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -38,7 +39,6 @@
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
-#include <proto/lb_fas.h>
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
