@@ -11,10 +11,11 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <haproxy/namespace.h>
-#include <haproxy/hash.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
+#include <haproxy/hash.h>
 #include <haproxy/log.h>
+#include <haproxy/namespace.h>
 #include <haproxy/signal.h>
 
 /* Opens the namespace <ns_name> and returns the FD or -1 in case of error

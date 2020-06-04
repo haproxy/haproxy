@@ -13,8 +13,8 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
+#include <haproxy/stream.h>
 #include <haproxy/task.h>
-#include <proto/stream.h>
 
 struct mux_pt_ctx {
 	struct conn_stream *cs;

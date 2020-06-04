@@ -27,13 +27,13 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/global.h>
 #include <haproxy/htx.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface-t.h>
 #include <haproxy/task.h>
+#include <haproxy/tools-t.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
-#include <proto/stream.h>
-#include <types/stream.h>
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_channel();

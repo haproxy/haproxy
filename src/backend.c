@@ -43,10 +43,12 @@
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
+#include <haproxy/trace.h>
 #include <haproxy/namespace.h>
 
 #include <haproxy/global.h>
@@ -55,7 +57,6 @@
 #include <haproxy/protocol.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/sample.h>
-#include <proto/stream.h>
 
 #define TRACE_SOURCE &trace_strm
 

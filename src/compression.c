@@ -29,6 +29,7 @@
 #include <haproxy/api.h>
 #include <haproxy/dynbuf.h>
 #include <common/cfgparse.h>
+#include <haproxy/stream.h>
 #include <haproxy/thread.h>
 #include <haproxy/pool.h>
 
@@ -37,7 +38,6 @@
 
 #include <haproxy/compression.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/stream.h>
 
 
 #if defined(USE_ZLIB)

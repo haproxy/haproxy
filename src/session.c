@@ -22,7 +22,6 @@
 #include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
 
-#include <proto/stream.h>
 
 DECLARE_POOL(pool_head_session, "session", sizeof(struct session));
 DECLARE_POOL(pool_head_sess_srv_list, "session server list",

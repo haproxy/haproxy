@@ -77,8 +77,8 @@
 #include <haproxy/protocol.h>
 #include <haproxy/peers.h>
 #include <haproxy/sample.h>
-#include <proto/stream.h>
 #include <haproxy/stick_table.h>
+#include <haproxy/stream.h>
 #include <haproxy/tcp_rules.h>
 
 

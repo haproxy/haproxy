@@ -69,6 +69,7 @@ s *     queue's lock.
  *   - a pendconn doesn't switch between queues, it stays where it is.
  */
 
+#include <import/eb32tree.h>
 #include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/http_rules.h>
@@ -76,14 +77,12 @@ s *     queue's lock.
 #include <haproxy/queue.h>
 #include <haproxy/sample.h>
 #include <haproxy/server-t.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/time.h>
 #include <haproxy/thread.h>
-#include <import/eb32tree.h>
-
-#include <proto/stream.h>
 
 
 #define NOW_OFFSET_BOUNDARY()          ((now_ms - (TIMER_LOOK_BACK >> 12)) & 0xfffff)

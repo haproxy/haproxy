@@ -27,7 +27,7 @@
 #include <haproxy/channel-t.h>
 #include <haproxy/cli-t.h>
 #include <haproxy/global.h>
-#include <types/stream.h>
+#include <haproxy/stream-t.h>
 
 
 void cli_register_kw(struct cli_kw_list *kw_list);

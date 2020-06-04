@@ -20,6 +20,8 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/cli.h>
+#include <haproxy/fd.h>
+#include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
@@ -27,13 +29,9 @@
 #include <haproxy/peers.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/signal.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/version.h>
-
-#include <haproxy/global.h>
-
-#include <haproxy/fd.h>
-#include <proto/stream.h>
 
 
 #if defined(USE_SYSTEMD)

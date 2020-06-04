@@ -23,8 +23,10 @@
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/log.h>
 #include <haproxy/mworker.h>
+#include <haproxy/task.h>
 
 
 static int use_program = 0; /* do we use the program section ? */

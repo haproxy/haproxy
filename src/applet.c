@@ -17,9 +17,9 @@
 #include <haproxy/api.h>
 #include <haproxy/channel.h>
 #include <haproxy/list.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
-#include <proto/stream.h>
 
 unsigned int nb_applets = 0;
 

@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_FRONTEND_H
 #define _HAPROXY_FRONTEND_H
 
-#include <types/stream.h>
+#include <haproxy/stream-t.h>
 
 int frontend_accept(struct stream *s);
 

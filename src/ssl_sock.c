@@ -64,6 +64,7 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
@@ -79,7 +80,6 @@
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/proto_tcp.h>
-#include <proto/stream.h>
 
 /* ***** READ THIS before adding code here! *****
  *

@@ -25,7 +25,7 @@
 #include <haproxy/filters-t.h>
 #include <haproxy/http_ana-t.h>
 #include <haproxy/proxy-t.h>
-#include <types/stream.h>
+#include <haproxy/stream-t.h>
 
 extern const char *trace_flt_id;
 extern const char *http_comp_flt_id;

@@ -46,16 +46,17 @@
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/trace.h>
 #include <haproxy/vars.h>
 
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/stream.h>
 #include <haproxy/pipe.h>
 #include <haproxy/stick_table.h>
 

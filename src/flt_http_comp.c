@@ -22,9 +22,8 @@
 #include <haproxy/list.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
+#include <haproxy/stream.h>
 #include <haproxy/tools.h>
-
-#include <proto/stream.h>
 
 const char *http_comp_flt_id = "compression filter";
 

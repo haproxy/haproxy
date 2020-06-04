@@ -1,8 +1,8 @@
 /*
- * include/types/stream.h
+ * include/haproxy/stream-t.h
  * This file defines everything related to streams.
  *
- * Copyright (C) 2000-2015 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,16 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_STREAM_H
-#define _TYPES_STREAM_H
-
+#ifndef _HAPROXY_STREAM_T_H
+#define _HAPROXY_STREAM_T_H
 
 #include <sys/time.h>
-#include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <haproxy/api-t.h>
 #include <haproxy/channel-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/filters-t.h>
@@ -40,11 +37,12 @@
 #include <haproxy/queue-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/session-t.h>
+#include <haproxy/stick_table-t.h>
 #include <haproxy/stream_interface-t.h>
+#include <haproxy/task-t.h>
+#include <haproxy/api-t.h>
 #include <haproxy/vars-t.h>
 
-#include <haproxy/task-t.h>
-#include <haproxy/stick_table-t.h>
 
 /* Various Stream Flags, bits values 0x01 to 0x100 (shift 0) */
 #define SF_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
@@ -195,7 +193,7 @@ struct stream {
 	} dns_ctx;                              /* context information for DNS resolution */
 };
 
-#endif /* _TYPES_STREAM_H */
+#endif /* _HAPROXY_STREAM_T_H */
 
 /*
  * Local variables:

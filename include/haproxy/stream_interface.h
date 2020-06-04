@@ -26,8 +26,8 @@
 #include <haproxy/api.h>
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
+#include <haproxy/stream-t.h>
 #include <haproxy/stream_interface-t.h>
-#include <types/stream.h>
 
 
 extern struct si_ops si_embedded_ops;

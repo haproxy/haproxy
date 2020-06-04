@@ -10,6 +10,7 @@
  *
  */
 
+#include <import/eb32tree.h>
 #include <haproxy/api.h>
 #include <haproxy/istbuf.h>
 #include <common/cfgparse.h>
@@ -23,10 +24,9 @@
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/session-t.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/trace.h>
-#include <proto/stream.h>
-#include <import/eb32tree.h>
 
 
 /* dummy streams returned for closed, error, refused, idle and states */

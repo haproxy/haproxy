@@ -14,10 +14,13 @@
 
 #include <haproxy/acl.h>
 #include <haproxy/action-t.h>
+#include <haproxy/arg.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/filters.h>
+#include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
+#include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
 #include <haproxy/sample.h>
@@ -27,18 +30,13 @@
 #include <haproxy/proxy.h>
 #include <haproxy/session.h>
 #include <haproxy/spoe.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/time.h>
 #include <haproxy/vars.h>
 
-#include <haproxy/arg-t.h>
-#include <haproxy/global.h>
-
-#include <haproxy/arg.h>
-#include <haproxy/freq_ctr.h>
-#include <proto/stream.h>
 
 #if defined(DEBUG_SPOE) || defined(DEBUG_FULL)
 #define SPOE_PRINTF(x...) fprintf(x)

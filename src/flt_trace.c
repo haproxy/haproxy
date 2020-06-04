@@ -15,18 +15,15 @@
 #include <haproxy/api.h>
 #include <haproxy/channel-t.h>
 #include <haproxy/filters.h>
+#include <haproxy/global.h>
 #include <haproxy/http_ana-t.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/log.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/stream.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
-
-#include <haproxy/global.h>
-#include <types/stream.h>
-
-#include <proto/stream.h>
 
 const char *trace_flt_id = "trace filter";
 

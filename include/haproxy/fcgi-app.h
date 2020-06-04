@@ -24,7 +24,7 @@
 
 #include <haproxy/fcgi-app-t.h>
 #include <haproxy/proxy-t.h>
-#include <types/stream.h>
+#include <haproxy/stream-t.h>
 
 struct fcgi_app *fcgi_app_find_by_name(const char *name);
 struct fcgi_flt_conf *find_px_fcgi_conf(struct proxy *px);

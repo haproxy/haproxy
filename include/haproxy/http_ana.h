@@ -26,7 +26,7 @@
 #include <haproxy/channel-t.h>
 #include <haproxy/http_ana-t.h>
 #include <haproxy/htx-t.h>
-#include <types/stream.h>
+#include <haproxy/stream-t.h>
 
 extern struct pool_head *pool_head_uniqueid;
 extern struct pool_head *pool_head_http_txn;

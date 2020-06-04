@@ -13,6 +13,7 @@
 
 #include <common/cfgparse.h>
 #include <haproxy/compression.h>
+#include <haproxy/global.h>
 
 /*
  * parse a line in a <global> section. Returns the error code, 0 if OK, or

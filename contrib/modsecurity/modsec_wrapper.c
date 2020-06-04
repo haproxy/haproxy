@@ -16,15 +16,13 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#include <haproxy/arg.h>
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
 #include <haproxy/log.h>
 #include <haproxy/spoe.h>
+#include <haproxy/stream-t.h>
 #include <haproxy/time.h>
-
-#include <types/stream.h>
-
-#include <haproxy/arg.h>
 
 #include <api.h>
 

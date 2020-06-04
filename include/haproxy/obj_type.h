@@ -31,7 +31,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
-#include <types/stream.h>
+#include <haproxy/stream-t.h>
 #include <haproxy/stream_interface-t.h>
 
 static inline enum obj_type obj_type(const enum obj_type *t)

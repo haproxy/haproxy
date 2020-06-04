@@ -111,6 +111,7 @@
 #include <haproxy/session.h>
 #include <haproxy/signal.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stream.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/uri_auth-t.h>
@@ -126,7 +127,6 @@
 #include <haproxy/arg.h>
 #include <haproxy/fd.h>
 #include <haproxy/protocol.h>
-#include <proto/stream.h>
 
 /* array of init calls for older platforms */
 DECLARE_INIT_STAGES;

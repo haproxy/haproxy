@@ -25,6 +25,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/dict.h>
+#include <haproxy/fd.h>
 #include <haproxy/frontend.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
@@ -35,14 +36,12 @@
 #include <haproxy/session-t.h>
 #include <haproxy/signal.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stick_table.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/thread.h>
-
-#include <haproxy/fd.h>
-#include <proto/stream.h>
-#include <haproxy/stick_table.h>
 
 
 /*******************************/

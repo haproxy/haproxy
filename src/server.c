@@ -32,13 +32,13 @@
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/time.h>
 
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
-#include <proto/stream.h>
 #include <netinet/tcp.h>
 
 #include <import/ebsttree.h>

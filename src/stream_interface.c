@@ -26,6 +26,7 @@
 #include <haproxy/dynbuf.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/proxy.h>
+#include <haproxy/stream-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -33,7 +34,6 @@
 #include <haproxy/task.h>
 
 #include <haproxy/pipe.h>
-#include <proto/stream.h>
 
 #include <haproxy/pipe-t.h>
 

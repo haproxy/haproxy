@@ -16,18 +16,16 @@
 #include <string.h>
 #include <time.h>
 
+#include <haproxy/arg.h>
 #include <haproxy/api.h>
+#include <haproxy/capture-t.h>
 #include <haproxy/chunk.h>
 #include <haproxy/http.h>
 #include <haproxy/pool.h>
 #include <haproxy/sample.h>
+#include <haproxy/stream.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
-
-#include <haproxy/capture-t.h>
-
-#include <haproxy/arg.h>
-#include <proto/stream.h>
 
 static int smp_check_http_date_unit(struct arg *args, struct sample_conv *conv,
                                     const char *file, int line, char **err)

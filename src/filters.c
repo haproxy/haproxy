@@ -13,19 +13,19 @@
 #include <haproxy/api.h>
 #include <haproxy/buf-t.h>
 #include <common/cfgparse.h>
+#include <haproxy/compression.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/flt_http_comp.h>
-#include <haproxy/http_ana-t.h>
+#include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/namespace.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
+#include <haproxy/trace.h>
 
-#include <haproxy/compression.h>
-#include <haproxy/http_ana.h>
-#include <proto/stream.h>
 
 #define TRACE_SOURCE &trace_strm
 

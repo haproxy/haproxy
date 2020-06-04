@@ -1,17 +1,18 @@
 #include <ctype.h>
 
+#include <haproxy/arg.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/check.h>
+#include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/list.h>
 #include <haproxy/sample.h>
+#include <haproxy/stream-t.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
 
-#include <haproxy/arg.h>
-#include <proto/stream.h>
 
 /* This contains a pool of struct vars */
 DECLARE_STATIC_POOL(var_pool, "vars", sizeof(struct var));

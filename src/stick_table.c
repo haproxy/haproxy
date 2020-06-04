@@ -26,6 +26,7 @@
 #include <haproxy/peers.h>
 #include <haproxy/proxy.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
@@ -39,7 +40,6 @@
 #include <haproxy/arg.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/sample.h>
-#include <proto/stream.h>
 #include <haproxy/stick_table.h>
 
 /* structure used to return a table key built from a sample */

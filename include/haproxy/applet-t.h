@@ -28,10 +28,9 @@
 #include <haproxy/hlua-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/stream-t.h>
 #include <haproxy/api-t.h>
 #include <haproxy/xref-t.h>
-
-#include <types/stream.h>
 
 /* flags for appctx->state */
 #define APPLET_WANT_DIE     0x01  /* applet was running and requested to die */

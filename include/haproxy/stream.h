@@ -1,8 +1,8 @@
 /*
- * include/proto/stream.h
+ * include/haproxy/stream.h
  * This file defines everything related to streams.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,20 +19,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_STREAM_H
-#define _PROTO_STREAM_H
+#ifndef _HAPROXY_STREAM_H
+#define _HAPROXY_STREAM_H
 
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
-#include <haproxy/pool.h>
-#include <types/stream.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/obj_type.h>
+#include <haproxy/pool-t.h>
 #include <haproxy/queue.h>
 #include <haproxy/stick_table.h>
-#include <haproxy/task.h>
-#include <haproxy/trace.h>
+#include <haproxy/stream-t.h>
+#include <haproxy/task-t.h>
+#include <haproxy/trace-t.h>
 
 extern struct trace_source trace_strm;
 
@@ -418,7 +418,7 @@ static inline void stream_choose_redispatch(struct stream *s)
 void service_keywords_register(struct action_kw_list *kw_list);
 void list_services(FILE *out);
 
-#endif /* _PROTO_STREAM_H */
+#endif /* _HAPROXY_STREAM_H */
 
 /*
  * Local variables:

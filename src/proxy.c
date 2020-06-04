@@ -33,6 +33,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/time.h>
@@ -45,7 +46,6 @@
 #include <haproxy/fd.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/signal.h>
-#include <proto/stream.h>
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse */

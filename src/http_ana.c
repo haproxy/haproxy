@@ -15,6 +15,7 @@
 #include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
+#include <haproxy/capture-t.h>
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/connection.h>
@@ -29,13 +30,12 @@
 #include <haproxy/regex.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stats.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
+#include <haproxy/trace.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>
 
-#include <haproxy/capture-t.h>
-
-#include <proto/stream.h>
 
 #define TRACE_SOURCE &trace_strm
 

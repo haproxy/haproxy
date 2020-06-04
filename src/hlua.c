@@ -25,6 +25,7 @@
 #include <haproxy/api.h>
 #include <import/ebpttree.h>
 
+#include <haproxy/arg.h>
 #include <common/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
@@ -48,14 +49,12 @@
 #include <haproxy/server-t.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
-
-#include <haproxy/arg.h>
-#include <proto/stream.h>
 
 /* Lua uses longjmp to perform yield or throwing errors. This
  * macro is used only for identifying the function that can

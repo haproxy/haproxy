@@ -43,10 +43,9 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
+#include <haproxy/stream-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/namespace.h>
-
-#include <types/stream.h>
 
 #include <haproxy/arg.h>
 #include <haproxy/fd.h>

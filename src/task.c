@@ -15,6 +15,7 @@
 #include <haproxy/api.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
+#include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
@@ -23,7 +24,6 @@
 
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/stream.h>
 
 DECLARE_POOL(pool_head_task,    "task",    sizeof(struct task));
 DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));

@@ -16,6 +16,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <haproxy/arg.h>
 #include <haproxy/auth.h>
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
@@ -33,11 +34,9 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
 #include <haproxy/sample.h>
+#include <haproxy/stream.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
-
-#include <haproxy/arg.h>
-#include <proto/stream.h>
 
 
 /* this struct is used between calls to smp_fetch_hdr() or smp_fetch_cookie() */

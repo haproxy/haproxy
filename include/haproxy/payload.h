@@ -24,7 +24,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/sample-t.h>
-#include <types/stream.h>
+#include <haproxy/stream-t.h>
 
 int fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, int clen);
 int val_payload_lv(struct arg *arg, char **err_msg);

@@ -21,11 +21,10 @@
 #include <haproxy/log.h>
 #include <haproxy/proxy.h>
 #include <haproxy/shctx.h>
+#include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <import/eb32tree.h>
 #include <import/sha1.h>
-
-#include <proto/stream.h>
 
 
 #include <common/cfgparse.h>
