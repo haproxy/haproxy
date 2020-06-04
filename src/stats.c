@@ -25,6 +25,7 @@
 #include <sys/types.h>
 
 #include <haproxy/applet-t.h>
+#include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
 #include <haproxy/channel.h>
@@ -57,7 +58,6 @@
 #include <haproxy/version.h>
 #include <haproxy/base64.h>
 
-#include <proto/backend.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/pipe.h>

@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <haproxy/acl.h>
+#include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
@@ -49,7 +50,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/arg.h>
-#include <proto/backend.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proto_tcp.h>
 #include <proto/queue.h>

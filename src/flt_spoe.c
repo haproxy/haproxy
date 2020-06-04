@@ -37,7 +37,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/arg.h>
-#include <proto/backend.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/stream.h>
 

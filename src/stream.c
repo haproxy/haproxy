@@ -19,6 +19,7 @@
 #include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/applet.h>
+#include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/capture.h>
 #include <common/cfgparse.h>
@@ -50,7 +51,6 @@
 
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
-#include <proto/backend.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/stream.h>

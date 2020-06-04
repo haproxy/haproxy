@@ -36,6 +36,7 @@
 #include <haproxy/acl.h>
 #include <haproxy/action-t.h>
 #include <haproxy/auth.h>
+#include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/capture.h>
 #include <common/cfgparse.h>
@@ -72,7 +73,6 @@
 
 #include <haproxy/global.h>
 
-#include <proto/backend.h>
 #include <haproxy/protocol.h>
 #include <haproxy/peers.h>
 #include <haproxy/sample.h>

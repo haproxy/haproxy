@@ -123,7 +123,6 @@
 
 #include <haproxy/activity.h>
 #include <haproxy/arg.h>
-#include <proto/backend.h>
 #include <haproxy/fd.h>
 #include <haproxy/protocol.h>
 #include <proto/queue.h>

@@ -15,6 +15,7 @@
 #include <errno.h>
 
 #include <haproxy/applet-t.h>
+#include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <import/xxhash.h>
 

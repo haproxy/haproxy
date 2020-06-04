@@ -1,5 +1,5 @@
 /*
- * include/types/backend.h
+ * include/haproxy/backend-t.h
  * This file assembles definitions for backends
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -19,17 +19,16 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_BACKEND_H
-#define _TYPES_BACKEND_H
+#ifndef _HAPROXY_BACKEND_T_H
+#define _HAPROXY_BACKEND_T_H
 
 #include <haproxy/lb_chash-t.h>
 #include <haproxy/lb_fas-t.h>
 #include <haproxy/lb_fwlc-t.h>
 #include <haproxy/lb_fwrr-t.h>
 #include <haproxy/lb_map-t.h>
+#include <haproxy/thread-t.h>
 #include <haproxy/api-t.h>
-#include <haproxy/thread.h>
-
 #include <types/server.h>
 
 /* Parameters for lbprm.algo */
@@ -168,7 +167,7 @@ struct lbprm {
 	void (*server_drop_conn)(struct server *);       /* to be called when connection is dropped */
 };
 
-#endif /* _TYPES_BACKEND_H */
+#endif /* _HAPROXY_BACKEND_T_H */
 
 /*
  * Local variables:

@@ -1,5 +1,5 @@
 /*
- * include/proto/backend.h
+ * include/haproxy/backend.h
  * Functions prototypes for the backend.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -19,14 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_BACKEND_H
-#define _PROTO_BACKEND_H
+#ifndef _HAPROXY_BACKEND_H
+#define _HAPROXY_BACKEND_H
 
+#include <haproxy/backend-t.h>
 #include <haproxy/api.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/time.h>
-
-#include <types/backend.h>
 #include <types/server.h>
 #include <types/stream.h>
 
@@ -144,7 +143,7 @@ static inline int srv_lb_status_changed(const struct server *srv)
  */
 void set_backend_down(struct proxy *be);
 
-#endif /* _PROTO_BACKEND_H */
+#endif /* _HAPROXY_BACKEND_H */
 
 /*
  * Local variables:

@@ -22,6 +22,7 @@
 #ifndef _PROTO_QUEUE_H
 #define _PROTO_QUEUE_H
 
+#include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy-t.h>
@@ -29,8 +30,6 @@
 #include <types/queue.h>
 #include <types/stream.h>
 #include <types/server.h>
-
-#include <proto/backend.h>
 
 extern struct pool_head *pool_head_pendconn;
 

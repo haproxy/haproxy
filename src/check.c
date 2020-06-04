@@ -58,7 +58,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/arg.h>
-#include <proto/backend.h>
 #include <haproxy/fd.h>
 #include <proto/queue.h>
 #include <haproxy/port_range.h>

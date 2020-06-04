@@ -31,6 +31,7 @@
 #include <import/ebpttree.h>
 
 #include <haproxy/arg-t.h>
+#include <haproxy/backend-t.h>
 #include <haproxy/check-t.h>
 #include <haproxy/counters-t.h>
 #include <haproxy/freq_ctr-t.h>
@@ -38,7 +39,6 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/thread-t.h>
 #include <haproxy/api-t.h>
-#include <types/backend.h>
 #include <types/server.h>
 
 /* values for proxy->state */

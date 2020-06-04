@@ -41,7 +41,6 @@
 
 #include <haproxy/capture-t.h>
 
-#include <proto/backend.h>
 #include <haproxy/fd.h>
 #include <haproxy/proto_tcp.h>
 #include <proto/server.h>

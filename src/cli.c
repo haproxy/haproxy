@@ -55,7 +55,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/activity.h>
-#include <proto/backend.h>
 #include <haproxy/compression.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>

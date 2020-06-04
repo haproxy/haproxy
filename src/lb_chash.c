@@ -16,13 +16,12 @@
  *
  */
 
+#include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/tools.h>
 #include <import/eb32tree.h>
 
 #include <types/server.h>
-
-#include <proto/backend.h>
 #include <proto/queue.h>
 
 /* Return next tree node after <node> which must still be in the tree, or be

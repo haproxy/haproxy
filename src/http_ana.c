@@ -12,6 +12,7 @@
 
 #include <haproxy/acl.h>
 #include <haproxy/action-t.h>
+#include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
 #include <haproxy/channel.h>

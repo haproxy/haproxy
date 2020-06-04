@@ -44,7 +44,7 @@
  *   - a pendconn_add() is only performed by the stream which will own the
  *     pendconn ; the pendconn is allocated at this moment and returned ; it is
  *     added to either the server or the proxy's queue while holding this
- *     queue's lock.
+s *     queue's lock.
  *
  *   - the pendconn is then met by a thread walking over the proxy or server's
  *     queue with the respective lock held. This lock is exclusive and the
@@ -69,6 +69,7 @@
  *   - a pendconn doesn't switch between queues, it stays where it is.
  */
 
+#include <haproxy/backend.h>
 #include <haproxy/api.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
