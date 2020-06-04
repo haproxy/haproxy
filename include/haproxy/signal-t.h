@@ -1,5 +1,5 @@
 /*
- * include/types/signal.h
+ * include/haproxy/signal-t.h
  * Asynchronous signal delivery functions descriptors.
  *
  * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
@@ -11,9 +11,8 @@
  *
  */
 
-#ifndef _TYPES_SIGNAL_H
-#define _TYPES_SIGNAL_H
-
+#ifndef _HAPROXY_SIGNAL_T_H
+#define _HAPROXY_SIGNAL_T_H
 
 #include <signal.h>
 #include <haproxy/api-t.h>
@@ -58,7 +57,7 @@ struct signal_descriptor {
 	struct list handlers;           /* sig_handler */
 };
 
-#endif /* _TYPES_SIGNAL_H */
+#endif /* _HAPROXY_SIGNAL_T_H */
 
 /*
  * Local variables:

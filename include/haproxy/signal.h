@@ -1,5 +1,5 @@
 /*
- * include/proto/signal.h
+ * include/haproxy/signal.h
  * Asynchronous signal delivery functions.
  *
  * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
@@ -12,10 +12,11 @@
  */
 
 #include <signal.h>
-#include <haproxy/thread.h>
 
-#include <types/signal.h>
+#include <haproxy/api.h>
+#include <haproxy/signal-t.h>
 #include <haproxy/task-t.h>
+#include <haproxy/thread.h>
 
 extern int signal_queue_len;
 extern struct signal_descriptor signal_state[];

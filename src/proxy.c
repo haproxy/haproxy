@@ -45,7 +45,7 @@
 #include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
-#include <proto/signal.h>
+#include <haproxy/signal.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 

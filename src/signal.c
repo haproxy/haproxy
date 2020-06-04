@@ -14,7 +14,7 @@
 #include <string.h>
 
 #include <haproxy/task.h>
-#include <proto/signal.h>
+#include <haproxy/signal.h>
 #include <proto/log.h>
 
 /* Principle : we keep an in-order list of the first occurrence of all received

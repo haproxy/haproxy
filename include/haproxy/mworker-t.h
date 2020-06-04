@@ -15,7 +15,7 @@
 #define _HAPROXY_MWORKER_T_H_
 
 #include <haproxy/list.h>
-#include <types/signal.h>
+#include <haproxy/signal-t.h>
 
 /* options for mworker_proc */
 

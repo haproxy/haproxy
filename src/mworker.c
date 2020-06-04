@@ -22,18 +22,17 @@
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/mworker.h>
+#include <haproxy/signal.h>
 #include <haproxy/version.h>
 
 #include <types/cli.h>
 #include <haproxy/global.h>
 #include <types/peers.h>
-#include <types/signal.h>
 
 #include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
-#include <proto/signal.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 

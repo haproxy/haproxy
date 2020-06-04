@@ -45,6 +45,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/h1.h>
 #include <haproxy/htx.h>
+#include <haproxy/signal.h>
 #include <haproxy/task.h>
 #include <haproxy/vars.h>
 
@@ -63,7 +64,6 @@
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
-#include <proto/signal.h>
 #include <proto/stream_interface.h>
 #include <proto/log.h>
 #include <haproxy/proto_udp.h>

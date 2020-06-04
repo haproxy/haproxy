@@ -30,7 +30,6 @@
 #include <haproxy/tools.h>
 
 #include <haproxy/global.h>
-#include <types/signal.h>
 
 #include <proto/cli.h>
 #include <haproxy/fd.h>

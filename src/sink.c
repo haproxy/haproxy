@@ -26,7 +26,7 @@
 #include <proto/cli.h>
 #include <proto/log.h>
 #include <haproxy/ring.h>
-#include <proto/signal.h>
+#include <haproxy/signal.h>
 #include <haproxy/sink.h>
 #include <proto/stream_interface.h>
 

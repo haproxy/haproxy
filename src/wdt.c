@@ -17,7 +17,6 @@
 #include <haproxy/global.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
-#include <types/signal.h>
 #include <proto/log.h>
 
 

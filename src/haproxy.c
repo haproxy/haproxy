@@ -100,6 +100,7 @@
 #include <haproxy/pattern.h>
 #include <haproxy/sample.h>
 #include <haproxy/regex.h>
+#include <haproxy/signal.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <common/uri_auth.h>
@@ -132,7 +133,6 @@
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/stream.h>
-#include <proto/signal.h>
 #include <proto/ssl_sock.h>
 
 /* array of init calls for older platforms */
