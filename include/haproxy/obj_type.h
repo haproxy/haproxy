@@ -23,11 +23,11 @@
 #define _HAPROXY_OBJ_TYPE_H
 
 #include <haproxy/api.h>
+#include <haproxy/connection-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/pool.h>
 #include <types/applet.h>
-#include <types/connection.h>
 #include <types/proxy.h>
 #include <types/server.h>
 #include <types/stream.h>

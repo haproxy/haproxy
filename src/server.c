@@ -18,6 +18,7 @@
 #include <import/xxhash.h>
 
 #include <common/cfgparse.h>
+#include <haproxy/connection.h>
 #include <haproxy/dict-t.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
@@ -35,7 +36,6 @@
 #include <proto/applet.h>
 #include <proto/cli.h>
 #include <proto/checks.h>
-#include <proto/connection.h>
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
 #include <proto/queue.h>

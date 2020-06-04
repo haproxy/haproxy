@@ -27,7 +27,7 @@
 #include <import/ebmbtree.h>
 #include <import/eb64tree.h>
 
-#include <types/connection.h> /* struct wait_event */
+#include <haproxy/connection-t.h> /* struct wait_event */
 
 #include <haproxy/buf-t.h>
 #include <haproxy/thread.h>

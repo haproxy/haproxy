@@ -36,7 +36,7 @@
 
 #include <import/eb32tree.h>
 
-#include <types/connection.h>
+#include <haproxy/connection-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <types/queue.h>
 #include <types/ssl_sock.h>

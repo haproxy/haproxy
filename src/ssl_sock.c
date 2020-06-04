@@ -46,6 +46,7 @@
 
 #include <haproxy/dynbuf.h>
 #include <haproxy/chunk.h>
+#include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
@@ -74,7 +75,6 @@
 #include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/channel.h>
-#include <proto/connection.h>
 #include <proto/cli.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>

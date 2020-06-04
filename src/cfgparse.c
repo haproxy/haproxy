@@ -39,6 +39,7 @@
 #include <haproxy/capture.h>
 #include <common/cfgparse.h>
 #include <haproxy/chunk.h>
+#include <haproxy/connection.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/frontend.h>
@@ -81,7 +82,6 @@
 #include <proto/stream.h>
 #include <proto/stick_table.h>
 #include <haproxy/tcp_rules.h>
-#include <proto/connection.h>
 
 
 /* Used to chain configuration sections definitions. This list

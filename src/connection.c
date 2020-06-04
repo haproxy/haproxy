@@ -14,12 +14,12 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/connection.h>
 #include <haproxy/frontend.h>
 #include <haproxy/namespace.h>
 #include <haproxy/hash.h>
 #include <haproxy/net_helper.h>
 
-#include <proto/connection.h>
 #include <haproxy/fd.h>
 #include <haproxy/proto_tcp.h>
 #include <proto/stream_interface.h>

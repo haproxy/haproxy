@@ -1,5 +1,5 @@
 /*
- * include/types/connection.h
+ * include/haproxy/connection-t.h
  * This file describes the connection struct and associated constants.
  *
  * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
@@ -19,23 +19,23 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_CONNECTION_H
-#define _TYPES_CONNECTION_H
+#ifndef _HAPROXY_CONNECTION_T_H
+#define _HAPROXY_CONNECTION_T_H
 
 #include <stdlib.h>
 #include <sys/socket.h>
-
-#include <haproxy/api-t.h>
-#include <import/ist.h>
-
-#include <haproxy/obj_type-t.h>
-#include <haproxy/listener-t.h>
-#include <haproxy/port_range-t.h>
-#include <haproxy/protocol-t.h>
-
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
+
+#include <import/ist.h>
+
+#include <haproxy/list-t.h>
+#include <haproxy/listener-t.h>
+#include <haproxy/obj_type-t.h>
+#include <haproxy/port_range-t.h>
+#include <haproxy/protocol-t.h>
+#include <haproxy/api-t.h>
 
 /* referenced below */
 struct connection;
@@ -47,38 +47,12 @@ struct server;
 struct session;
 struct pipe;
 
-/* socks4 upstream proxy definitions */
-struct socks4_request {
-	uint8_t version;	/* SOCKS version number, 1 byte, must be 0x04 for this version */
-	uint8_t command;	/* 0x01 = establish a TCP/IP stream connection */
-	uint16_t port;		/* port number, 2 bytes (in network byte order) */
-	uint32_t ip;		/* IP address, 4 bytes (in network byte order) */
-	char user_id[8];	/* the user ID string, variable length, terminated with a null (0x00); Using "HAProxy\0" */
-};
-
 /* Note: subscribing to these events is only valid after the caller has really
  * attempted to perform the operation, and failed to proceed or complete.
  */
 enum sub_event_type {
 	SUB_RETRY_RECV       = 0x00000001,  /* Schedule the tasklet when we can attempt to recv again */
 	SUB_RETRY_SEND       = 0x00000002,  /* Schedule the tasklet when we can attempt to send again */
-};
-
-/* Describes a set of subscriptions. Multiple events may be registered at the
- * same time. The callee should assume everything not pending for completion is
- * implicitly possible. It's illegal to change the tasklet if events are still
- * registered.
- */
-struct wait_event {
-	struct tasklet *tasklet;
-	int events;             /* set of enum sub_event_type above */
-};
-
-/* A connection handle is how we differentiate two connections on the lower
- * layers. It usually is a file descriptor but can be a connection id.
- */
-union conn_handle {
-	int fd;                 /* file descriptor, for regular sockets */
 };
 
 /* conn_stream flags */
@@ -310,6 +284,58 @@ enum {
 	MX_FL_HTX         = 0x00000002, /* set if it is an HTX multiplexer */
 };
 
+/* PROTO token registration */
+enum proto_proxy_mode {
+	PROTO_MODE_NONE = 0,
+	PROTO_MODE_TCP  = 1 << 0, // must not be changed!
+	PROTO_MODE_HTTP = 1 << 1, // must not be changed!
+	PROTO_MODE_ANY  = PROTO_MODE_TCP | PROTO_MODE_HTTP,
+};
+
+enum proto_proxy_side {
+	PROTO_SIDE_NONE = 0,
+	PROTO_SIDE_FE   = 1, // same as PR_CAP_FE
+	PROTO_SIDE_BE   = 2, // same as PR_CAP_BE
+	PROTO_SIDE_BOTH = PROTO_SIDE_FE | PROTO_SIDE_BE,
+};
+
+/* ctl command used by mux->ctl() */
+enum mux_ctl_type {
+	MUX_STATUS, /* Expects an int as output, sets it to a combinaison of MUX_STATUS flags */
+};
+
+/* response for ctl MUX_STATUS */
+#define MUX_STATUS_READY (1 << 0)
+
+/* socks4 response length */
+#define SOCKS4_HS_RSP_LEN 8
+
+/* socks4 upstream proxy definitions */
+struct socks4_request {
+	uint8_t version;	/* SOCKS version number, 1 byte, must be 0x04 for this version */
+	uint8_t command;	/* 0x01 = establish a TCP/IP stream connection */
+	uint16_t port;		/* port number, 2 bytes (in network byte order) */
+	uint32_t ip;		/* IP address, 4 bytes (in network byte order) */
+	char user_id[8];	/* the user ID string, variable length, terminated with a null (0x00); Using "HAProxy\0" */
+};
+
+/* Describes a set of subscriptions. Multiple events may be registered at the
+ * same time. The callee should assume everything not pending for completion is
+ * implicitly possible. It's illegal to change the tasklet if events are still
+ * registered.
+ */
+struct wait_event {
+	struct tasklet *tasklet;
+	int events;             /* set of enum sub_event_type above */
+};
+
+/* A connection handle is how we differentiate two connections on the lower
+ * layers. It usually is a file descriptor but can be a connection id.
+ */
+union conn_handle {
+	int fd;                 /* file descriptor, for regular sockets */
+};
+
 /* xprt_ops describes transport-layer operations for a connection. They
  * generally run over a socket-based control layer, but not always. Some
  * of them are used for data transfer with the upper layer (rcv_*, snd_*)
@@ -335,12 +361,6 @@ struct xprt_ops {
 	int (*remove_xprt)(struct connection *conn, void *xprt_ctx, void *toremove_ctx, const struct xprt_ops *newops, void *newctx); /* Remove an xprt from the connection, used by temporary xprt such as the handshake one */
 	int (*add_xprt)(struct connection *conn, void *xprt_ctx, void *toadd_ctx, const struct xprt_ops *toadd_ops, void **oldxprt_ctx, const struct xprt_ops **oldxprt_ops); /* Add a new XPRT as the new xprt, and return the old one */
 };
-
-enum mux_ctl_type {
-	MUX_STATUS, /* Expects an int as output, sets it to a combinaison of MUX_STATUS flags */
-};
-
-#define MUX_STATUS_READY (1 << 0)
 
 /* mux_ops describes the mux operations, which are to be performed at the
  * connection level after data are exchanged with the transport layer in order
@@ -396,7 +416,6 @@ struct my_tcphdr {
 /* a connection source profile defines all the parameters needed to properly
  * bind an outgoing connection for a server or proxy.
  */
-
 struct conn_src {
 	unsigned int opts;                   /* CO_SRC_* */
 	int iface_len;                       /* bind interface name length */
@@ -475,21 +494,6 @@ struct connection {
 	struct ist proxy_unique_id;  /* Value of the unique ID TLV received via PROXYv2 */
 };
 
-/* PROTO token registration */
-enum proto_proxy_mode {
-	PROTO_MODE_NONE = 0,
-	PROTO_MODE_TCP  = 1 << 0, // must not be changed!
-	PROTO_MODE_HTTP = 1 << 1, // must not be changed!
-	PROTO_MODE_ANY  = PROTO_MODE_TCP | PROTO_MODE_HTTP,
-};
-
-enum proto_proxy_side {
-	PROTO_SIDE_NONE = 0,
-	PROTO_SIDE_FE   = 1, // same as PR_CAP_FE
-	PROTO_SIDE_BE   = 2, // same as PR_CAP_BE
-	PROTO_SIDE_BOTH = PROTO_SIDE_FE | PROTO_SIDE_BE,
-};
-
 struct mux_proto_list {
 	const struct ist token;    /* token name and length. Empty is catch-all */
 	enum proto_proxy_mode mode;
@@ -497,6 +501,8 @@ struct mux_proto_list {
 	const struct mux_ops *mux;
 	struct list list;
 };
+
+/* proxy protocol stuff below */
 
 /* proxy protocol v2 definitions */
 #define PP2_SIGNATURE        "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A"
@@ -533,6 +539,28 @@ struct mux_proto_list {
 #define PP2_HDR_LEN_INET6    (PP2_HEADER_LEN + PP2_ADDR_LEN_INET6)
 #define PP2_HDR_LEN_UNIX     (PP2_HEADER_LEN + PP2_ADDR_LEN_UNIX)
 
+#define PP2_TYPE_ALPN           0x01
+#define PP2_TYPE_AUTHORITY      0x02
+#define PP2_TYPE_CRC32C         0x03
+#define PP2_TYPE_NOOP           0x04
+#define PP2_TYPE_UNIQUE_ID      0x05
+#define PP2_TYPE_SSL            0x20
+#define PP2_SUBTYPE_SSL_VERSION 0x21
+#define PP2_SUBTYPE_SSL_CN      0x22
+#define PP2_SUBTYPE_SSL_CIPHER  0x23
+#define PP2_SUBTYPE_SSL_SIG_ALG 0x24
+#define PP2_SUBTYPE_SSL_KEY_ALG 0x25
+#define PP2_TYPE_NETNS          0x30
+
+#define PP2_CLIENT_SSL           0x01
+#define PP2_CLIENT_CERT_CONN     0x02
+#define PP2_CLIENT_CERT_SESS     0x04
+
+/* Max length of the authority TLV */
+#define PP2_AUTHORITY_MAX 255
+
+#define TLV_HEADER_SIZE      3
+
 struct proxy_hdr_v2 {
 	uint8_t sig[12];   /* hex 0D 0A 0D 0A 00 0D 0A 51 55 49 54 0A */
 	uint8_t ver_cmd;   /* protocol version and command */
@@ -558,20 +586,6 @@ struct proxy_hdr_v2 {
 	} addr;
 };
 
-#define PP2_TYPE_ALPN           0x01
-#define PP2_TYPE_AUTHORITY      0x02
-#define PP2_TYPE_CRC32C         0x03
-#define PP2_TYPE_NOOP           0x04
-#define PP2_TYPE_UNIQUE_ID      0x05
-#define PP2_TYPE_SSL            0x20
-#define PP2_SUBTYPE_SSL_VERSION 0x21
-#define PP2_SUBTYPE_SSL_CN      0x22
-#define PP2_SUBTYPE_SSL_CIPHER  0x23
-#define PP2_SUBTYPE_SSL_SIG_ALG 0x24
-#define PP2_SUBTYPE_SSL_KEY_ALG 0x25
-#define PP2_TYPE_NETNS          0x30
-
-#define TLV_HEADER_SIZE      3
 struct tlv {
 	uint8_t type;
 	uint8_t length_hi;
@@ -586,23 +600,8 @@ struct tlv_ssl {
 	uint8_t sub_tlv[0];
 }__attribute__((packed));
 
-#define PP2_CLIENT_SSL           0x01
-#define PP2_CLIENT_CERT_CONN     0x02
-#define PP2_CLIENT_CERT_SESS     0x04
 
-/* Max length of the authority TLV */
-#define PP2_AUTHORITY_MAX 255
-
-/*
- * Linux seems to be able to send 253 fds per sendmsg(), not sure
- * about the other OSes.
- */
-/* Max number of file descriptors we send in one sendmsg() */
-#define MAX_SEND_FD 253
-
-#define SOCKS4_HS_RSP_LEN 8
-
-#endif /* _TYPES_CONNECTION_H */
+#endif /* _HAPROXY_CONNECTION_T_H */
 
 /*
  * Local variables:

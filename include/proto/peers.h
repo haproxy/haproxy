@@ -23,9 +23,9 @@
 #define _PROTO_PEERS_H
 
 #include <haproxy/api.h>
+#include <haproxy/connection.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <proto/connection.h>
 #include <types/stream.h>
 #include <types/peers.h>
 

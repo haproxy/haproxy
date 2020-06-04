@@ -240,6 +240,11 @@ typedef struct { } empty_t;
 #endif
 #endif
 
+/* Max number of file descriptors we send in one sendmsg(). Linux seems to be
+ * able to send 253 fds per sendmsg(), not sure about the other OSes.
+ */
+#define MAX_SEND_FD 253
+
 #endif /* _HAPROXY_COMPAT_H */
 
 /*

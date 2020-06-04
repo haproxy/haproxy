@@ -23,14 +23,13 @@
 #define _PROTO_SSL_SOCK_H
 #ifdef USE_OPENSSL
 
+#include <haproxy/connection.h>
 #include <haproxy/openssl-compat.h>
 
-#include <types/connection.h>
 #include <types/proxy.h>
 #include <types/ssl_sock.h>
 #include <types/stream_interface.h>
 
-#include <proto/connection.h>
 
 extern int sslconns;
 extern int totalsslconns;

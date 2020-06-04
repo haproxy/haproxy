@@ -1,8 +1,8 @@
 /*
- * include/proto/connection.h
+ * include/haproxy/connection.h
  * This file contains connection function prototypes
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2002 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,18 +19,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_CONNECTION_H
-#define _PROTO_CONNECTION_H
+#ifndef _HAPROXY_CONNECTION_H
+#define _HAPROXY_CONNECTION_H
 
 #include <import/ist.h>
+
 #include <haproxy/api.h>
+#include <haproxy/connection-t.h>
+#include <haproxy/fd.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
-#include <types/connection.h>
-#include <haproxy/fd.h>
+#include <haproxy/task-t.h>
+
 #include <proto/session.h>
-#include <haproxy/task.h>
 
 extern struct pool_head *pool_head_connection;
 extern struct pool_head *pool_head_connstream;
@@ -1084,7 +1086,7 @@ static inline int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct
 	return 0;
 }
 
-#endif /* _PROTO_CONNECTION_H */
+#endif /* _HAPROXY_CONNECTION_H */
 
 /*
  * Local variables:

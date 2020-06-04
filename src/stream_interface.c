@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <haproxy/api.h>
+#include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/tools.h>
@@ -29,7 +30,6 @@
 
 #include <proto/applet.h>
 #include <proto/channel.h>
-#include <proto/connection.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>

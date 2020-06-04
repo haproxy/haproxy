@@ -13,6 +13,7 @@
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
+#include <haproxy/connection.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
@@ -26,7 +27,6 @@
 #include <proto/acl.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
-#include <proto/connection.h>
 #include <proto/filters.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>

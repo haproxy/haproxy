@@ -16,6 +16,7 @@
 
 #include <haproxy/capture-t.h>
 #include <haproxy/compression-t.h>
+#include <haproxy/connection.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/listener.h>
@@ -24,7 +25,6 @@
 
 #include <proto/acl.h>
 #include <proto/checks.h>
-#include <proto/connection.h>
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>
 #include <proto/server.h>

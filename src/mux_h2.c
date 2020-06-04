@@ -13,6 +13,7 @@
 #include <haproxy/api.h>
 #include <haproxy/istbuf.h>
 #include <common/cfgparse.h>
+#include <haproxy/connection.h>
 #include <haproxy/h1.h>
 #include <haproxy/h2.h>
 #include <haproxy/hpack-dec.h>
@@ -21,7 +22,6 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
-#include <proto/connection.h>
 #include <proto/trace.h>
 #include <proto/session.h>
 #include <proto/stream.h>

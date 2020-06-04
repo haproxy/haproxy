@@ -27,6 +27,7 @@
 #include <sys/un.h>
 
 #include <haproxy/api.h>
+#include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
@@ -35,7 +36,6 @@
 #include <haproxy/time.h>
 #include <haproxy/version.h>
 
-#include <proto/connection.h>
 #include <haproxy/fd.h>
 #include <proto/log.h>
 #include <haproxy/protocol.h>

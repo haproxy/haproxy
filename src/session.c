@@ -11,6 +11,7 @@
  */
 
 #include <haproxy/api.h>
+#include <haproxy/connection.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/listener.h>
@@ -20,7 +21,6 @@
 
 #include <types/session.h>
 
-#include <proto/connection.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/session.h>

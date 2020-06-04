@@ -20,6 +20,7 @@
 
 #include <haproxy/api.h>
 #include <common/cfgparse.h>
+#include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
@@ -31,7 +32,6 @@
 #include <haproxy/protocol-t.h>
 
 #include <proto/acl.h>
-#include <proto/connection.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>

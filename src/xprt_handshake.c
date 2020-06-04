@@ -10,7 +10,7 @@
  *
  */
 
-#include <proto/connection.h>
+#include <haproxy/connection.h>
 #include <proto/stream_interface.h>
 
 struct xprt_handshake_ctx {

@@ -24,9 +24,9 @@
 
 #include <haproxy/arg-t.h>
 #include <haproxy/api.h>
+#include <haproxy/connection-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/sample-t.h>
-#include <types/connection.h>
 
 int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote);
 int tcp_pause_listener(struct listener *l);

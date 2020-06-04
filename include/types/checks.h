@@ -17,12 +17,12 @@
 #include <import/ebpttree.h>
 
 #include <import/ist.h>
+#include <haproxy/connection-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/regex-t.h>
 #include <haproxy/buf-t.h>
 
-#include <types/connection.h>
 #include <haproxy/sample-t.h>
 #include <types/session.h>
 #include <haproxy/task-t.h>

@@ -25,6 +25,7 @@
 #include <import/ebpttree.h>
 
 #include <common/cfgparse.h>
+#include <haproxy/connection.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/thread.h>
 #include <haproxy/regex.h>
@@ -51,7 +52,6 @@
 #include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/cli.h>
-#include <proto/connection.h>
 #include <proto/stats.h>
 #include <proto/http_fetch.h>
 #include <proto/queue.h>

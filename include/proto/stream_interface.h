@@ -25,11 +25,11 @@
 #include <stdlib.h>
 
 #include <haproxy/api.h>
+#include <haproxy/connection.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
 #include <proto/applet.h>
 #include <proto/channel.h>
-#include <proto/connection.h>
 
 
 extern struct si_ops si_embedded_ops;

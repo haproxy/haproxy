@@ -24,12 +24,12 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
+#include <haproxy/connection.h>
 #include <haproxy/global.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
-#include <proto/connection.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <proto/log.h>
