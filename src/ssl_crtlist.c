@@ -17,6 +17,7 @@
 
 #include <haproxy/errors.h>
 #include <haproxy/ssl_ckch.h>
+#include <haproxy/ssl_crtlist.h>
 #include <haproxy/tools.h>
 
 #include <dirent.h>
@@ -24,13 +25,11 @@
 #include <import/ebsttree.h>
 
 #include <types/cli.h>
-#include <types/ssl_crtlist.h>
 #include <types/ssl_sock.h>
 
 #include <proto/channel.h>
 #include <proto/cli.h>
 #include <proto/stream_interface.h>
-#include <proto/ssl_crtlist.h>
 #include <proto/ssl_sock.h>
 
 /* release ssl bind conf */

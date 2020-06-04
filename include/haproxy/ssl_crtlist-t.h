@@ -1,5 +1,5 @@
 /*
- * include/types/ssl_crtlist.h
+ * include/haproxy/ssl_crtlist-t.h
  * crt-list structures
  *
  * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
@@ -19,11 +19,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_SSL_CRTLIST_H
-#define _TYPES_SSL_CRTLIST_H
+#ifndef _HAPROXY_SSL_CRTLIST_T_H
+#define _HAPROXY_SSL_CRTLIST_T_H
 #ifdef USE_OPENSSL
 
 #include <import/ebmbtree.h>
+#include <import/ebpttree.h>
 
 #include <haproxy/list-t.h>
 
@@ -61,4 +62,4 @@ struct crtlist_entry {
 };
 
 #endif /* USE_OPENSSL */
-#endif /* _TYPES_SSL_CRTLIST_H */
+#endif /* _HAPROXY_SSL_CRTLIST_T_H */

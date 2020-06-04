@@ -52,6 +52,7 @@
 #include <haproxy/openssl-compat.h>
 #include <haproxy/shctx.h>
 #include <haproxy/ssl_ckch.h>
+#include <haproxy/ssl_crtlist.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -82,7 +83,6 @@
 #include <proto/stream_interface.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
-#include <proto/ssl_crtlist.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream.h>
 #include <proto/task.h>

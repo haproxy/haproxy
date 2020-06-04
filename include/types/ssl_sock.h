@@ -28,13 +28,13 @@
 #include <import/eb64tree.h>
 
 #include <types/connection.h> /* struct wait_event */
-#include <types/ssl_crtlist.h>
 
 #include <haproxy/buf-t.h>
 #include <haproxy/thread.h>
 #include <haproxy/list-t.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ssl_ckch-t.h>
+#include <haproxy/ssl_crtlist-t.h>
 
 /* ***** READ THIS before adding code here! *****
  *
