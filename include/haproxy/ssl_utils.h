@@ -1,5 +1,5 @@
 /*
- * include/proto/ssl_utils.h
+ * include/haproxy/ssl_utils.h
  *
  * Utility functions for SSL:
  * Mostly generic functions that retrieve information from certificates
@@ -22,9 +22,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_SSL_UTILS_H
-#define _TYPES_SSL_UTILS_H
+#ifndef _HAPROXY_SSL_UTILS_H
+#define _HAPROXY_SSL_UTILS_H
+
 #ifdef USE_OPENSSL
+
+#include <haproxy/buf-t.h>
+#include <haproxy/openssl-compat.h>
 
 int cert_get_pkey_algo(X509 *crt, struct buffer *out);
 int ssl_sock_get_serial(X509 *crt, struct buffer *out);
@@ -35,6 +39,6 @@ int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
 int ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out);
 int ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out);
 
-#endif /* _TYPES_SSL_UTILS_H */
+#endif /* _HAPROXY_SSL_UTILS_H */
 #endif /* USE_OPENSSL */
 

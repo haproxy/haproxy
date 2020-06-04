@@ -24,6 +24,7 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/openssl-compat.h>
+#include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
 
 #include <types/sample.h>
@@ -32,7 +33,6 @@
 #include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/ssl_sock.h>
-#include <proto/ssl_utils.h>
 #include <proto/sample.h>
 
 
