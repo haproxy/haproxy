@@ -13,6 +13,7 @@
 #include <stdio.h>
 
 #include <haproxy/api.h>
+#include <haproxy/map.h>
 #include <haproxy/pattern.h>
 #include <haproxy/regex.h>
 #include <haproxy/tools.h>
@@ -20,14 +21,12 @@
 #include <types/applet.h>
 #include <types/cli.h>
 #include <types/global.h>
-#include <types/map.h>
 #include <types/stats.h>
 
 #include <proto/applet.h>
 #include <haproxy/arg.h>
 #include <proto/cli.h>
 #include <proto/log.h>
-#include <proto/map.h>
 #include <proto/stream_interface.h>
 #include <proto/sample.h>
 

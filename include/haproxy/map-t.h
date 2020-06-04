@@ -1,8 +1,8 @@
 /*
- * include/proto/map.h
- * This file provides structures and types for pattern matching.
+ * include/haproxy/map-t.h
+ * This file provides structures and types for MAPs.
  *
- * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,20 +19,16 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_MAP_H
-#define _PROTO_MAP_H
+#ifndef _HAPROXY_MAP_T_H
+#define _HAPROXY_MAP_T_H
 
-#include <types/map.h>
+#include <haproxy/pattern-t.h>
+#include <types/sample.h>
 
-/* maps output sample parser */
-int map_parse_ip(const char *text, struct sample_data *data);
-int map_parse_ip6(const char *text, struct sample_data *data);
-int map_parse_str(const char *text, struct sample_data *data);
-int map_parse_int(const char *text, struct sample_data *data);
+struct map_descriptor {
+	struct sample_conv *conv;      /* original converter descriptor */
+	struct pattern_head pat;       /* the pattern matching associated to the map */
+	int do_free;                   /* set if <pat> is the original pat and must be freed */
+};
 
-struct map_reference *map_get_reference(const char *reference);
-
-int sample_load_map(struct arg *arg, struct sample_conv *conv,
-                    const char *file, int line, char **err);
-
-#endif /* _PROTO_PATTERN_H */
+#endif /* _HAPROXY_MAP_T_H */

@@ -33,6 +33,7 @@
 #include <haproxy/hlua.h>
 #include <haproxy/hlua_fcn.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/map.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/pattern.h>
 #include <haproxy/tools.h>
@@ -48,7 +49,6 @@
 #include <proto/connection.h>
 #include <proto/stats.h>
 #include <proto/http_fetch.h>
-#include <proto/map.h>
 #include <proto/queue.h>
 #include <proto/payload.h>
 #include <proto/http_ana.h>

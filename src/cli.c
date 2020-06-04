@@ -57,7 +57,6 @@
 #include <proto/log.h>
 #include <haproxy/pipe.h>
 #include <haproxy/protocol.h>
-#include <proto/map.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/session.h>
