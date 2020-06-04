@@ -19,6 +19,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/listener.h>
+#include <haproxy/sample.h>
 #include <types/stats.h>
 
 #include <proto/acl.h>

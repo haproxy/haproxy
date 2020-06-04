@@ -24,7 +24,7 @@
 
 #include <types/connection.h>
 #include <types/proxy.h>
-#include <types/sample.h>
+#include <haproxy/sample-t.h>
 #include <types/server.h>
 #include <types/session.h>
 #include <types/task.h>

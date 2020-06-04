@@ -23,7 +23,7 @@
 #include <types/global.h>
 
 #include <proto/log.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 
 #include <import/ebsttree.h>
 #include <import/lru.h>

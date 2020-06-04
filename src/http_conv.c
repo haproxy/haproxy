@@ -20,6 +20,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/http.h>
 #include <haproxy/pool.h>
+#include <haproxy/sample.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
@@ -27,7 +28,6 @@
 #include <types/global.h>
 
 #include <haproxy/arg.h>
-#include <proto/sample.h>
 #include <proto/stream.h>
 
 static int smp_check_http_date_unit(struct arg *args, struct sample_conv *conv,

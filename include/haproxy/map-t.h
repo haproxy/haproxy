@@ -23,7 +23,7 @@
 #define _HAPROXY_MAP_T_H
 
 #include <haproxy/pattern-t.h>
-#include <types/sample.h>
+#include <haproxy/sample-t.h>
 
 struct map_descriptor {
 	struct sample_conv *conv;      /* original converter descriptor */

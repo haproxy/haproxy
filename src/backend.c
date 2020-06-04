@@ -49,7 +49,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/stream.h>

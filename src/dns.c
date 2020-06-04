@@ -25,6 +25,7 @@
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/sample.h>
 #include <haproxy/time.h>
 #include <haproxy/ticks.h>
 #include <haproxy/net_helper.h>
@@ -40,7 +41,6 @@
 #include <haproxy/fd.h>
 #include <proto/http_ana.h>
 #include <proto/log.h>
-#include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/task.h>
 #include <haproxy/proto_udp.h>

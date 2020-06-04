@@ -22,6 +22,7 @@
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/namespace.h>
+#include <haproxy/sample.h>
 #include <haproxy/time.h>
 
 #include <types/applet.h>
@@ -37,7 +38,6 @@
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
 #include <proto/queue.h>
-#include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>

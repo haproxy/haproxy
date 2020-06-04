@@ -23,7 +23,7 @@
 #include <haproxy/fd.h>
 #include <proto/proto_tcp.h>
 #include <proto/stream_interface.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 #include <proto/ssl_sock.h>
 
 

@@ -12,7 +12,7 @@
 #include <proto/log.h>
 #include <proto/http_ana.h>
 #include <proto/http_fetch.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 #include <import/ebsttree.h>
 #include <import/ebmbtree.h>
 

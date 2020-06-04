@@ -68,6 +68,7 @@ struct pbuf_fid {
 	size_t sz;
 };
 
+struct sample;
 struct protobuf_parser_def {
 	int (*skip)(unsigned char **pos, size_t *left, size_t vlen);
 	int (*smp_store)(struct sample *, int type,

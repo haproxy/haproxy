@@ -60,7 +60,6 @@
 #include <proto/log.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>
-#include <proto/sample.h>
 #include <proto/session.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream.h>

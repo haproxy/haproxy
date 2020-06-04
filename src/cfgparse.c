@@ -74,7 +74,7 @@
 #include <proto/http_ana.h>
 #include <proto/proxy.h>
 #include <proto/peers.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 #include <proto/session.h>
 #include <proto/server.h>
 #include <proto/stream.h>

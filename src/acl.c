@@ -28,7 +28,7 @@
 #include <proto/channel.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 #include <proto/stick_table.h>
 
 #include <import/ebsttree.h>

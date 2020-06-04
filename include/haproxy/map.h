@@ -23,7 +23,7 @@
 #define _HAPROXY_MAP_H
 
 #include <haproxy/map-t.h>
-#include <types/sample.h>
+#include <haproxy/sample-t.h>
 
 /* maps output sample parser */
 int map_parse_ip(const char *text, struct sample_data *data);

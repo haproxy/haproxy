@@ -18,15 +18,14 @@
 #include <common/cfgparse.h>
 #include <haproxy/htx.h>
 #include <haproxy/list.h>
+#include <haproxy/sample.h>
 #include <haproxy/tools.h>
 
 #include <types/filters.h>
 #include <types/proxy.h>
-#include <types/sample.h>
 
 #include <proto/filters.h>
 #include <proto/http_ana.h>
-#include <proto/sample.h>
 #include <proto/stream.h>
 
 const char *http_comp_flt_id = "compression filter";

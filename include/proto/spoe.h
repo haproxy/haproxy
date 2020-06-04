@@ -23,10 +23,9 @@
 #define _PROTO_SPOE_H
 
 #include <haproxy/intops.h>
+#include <haproxy/sample-t.h>
 
 #include <types/spoe.h>
-
-#include <proto/sample.h>
 
 
 /* Encode a buffer. Its length <len> is encoded as a varint, followed by a copy

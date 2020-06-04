@@ -17,7 +17,7 @@
 #include <haproxy/auth-t.h>
 #include <haproxy/api.h>
 #include <haproxy/pattern-t.h>
-#include <types/sample.h>
+#include <haproxy/sample-t.h>
 
 extern struct userlist *userlist;
 

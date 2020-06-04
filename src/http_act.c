@@ -26,6 +26,7 @@
 #include <haproxy/pattern.h>
 #include <haproxy/pool.h>
 #include <haproxy/regex.h>
+#include <haproxy/sample.h>
 #include <haproxy/tools.h>
 #include <common/uri_auth.h>
 #include <haproxy/version.h>

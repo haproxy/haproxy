@@ -24,8 +24,8 @@
 
 #include <inttypes.h>
 #include <haproxy/arg-t.h>
+#include <haproxy/sample-t.h>
 #include <types/protocol_buffers.h>
-#include <proto/sample.h>
 
 #define PBUF_VARINT_DONT_STOP_BIT       7
 #define PBUF_VARINT_DONT_STOP_BITMASK  (1 << PBUF_VARINT_DONT_STOP_BIT)

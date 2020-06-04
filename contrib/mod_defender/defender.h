@@ -12,7 +12,7 @@
 #ifndef __DEFENDER_H__
 #define __DEFENDER_H__
 
-#include <types/sample.h>
+#include <haproxy/sample-t.h>
 
 struct defender_request {
 	struct sample clientip;

@@ -4,7 +4,7 @@
 #include <haproxy/list-t.h>
 #include <haproxy/thread.h>
 
-#include <types/sample.h>
+#include <haproxy/sample-t.h>
 
 enum vars_scope {
 	SCOPE_SESS = 0,

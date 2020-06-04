@@ -23,7 +23,7 @@
 #define _HAPROXY_PAYLOAD_H
 
 #include <haproxy/api.h>
-#include <types/sample.h>
+#include <haproxy/sample-t.h>
 #include <types/stream.h>
 
 int fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, int clen);

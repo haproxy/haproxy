@@ -26,6 +26,7 @@
 #include <haproxy/http.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
+#include <haproxy/sample.h>
 #include <haproxy/tools.h>
 #include <common/uri_auth.h>
 #include <haproxy/base64.h>
@@ -34,7 +35,6 @@
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/protocol_buffers.h>
-#include <proto/sample.h>
 #include <haproxy/sink.h>
 #include <proto/stick_table.h>
 #include <proto/vars.h>

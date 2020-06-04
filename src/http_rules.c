@@ -32,7 +32,7 @@
 #include <proto/acl.h>
 #include <haproxy/arg.h>
 #include <proto/http_ana.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 
 
 /* List head of all known action keywords for "http-request" */

@@ -36,6 +36,7 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/sample.h>
 #include <haproxy/tools.h>
 #include <haproxy/namespace.h>
 
@@ -53,7 +54,6 @@
 #include <proto/http_ana.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
-#include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/task.h>
 #include <proto/tcp_rules.h>

@@ -16,6 +16,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/regex.h>
+#include <haproxy/sample.h>
 #include <types/global.h>
 
 #include <common/cfgparse.h>
@@ -26,7 +27,6 @@
 
 #include <haproxy/arg.h>
 #include <proto/http_fetch.h>
-#include <proto/sample.h>
 
 struct buffer http_err_chunks[HTTP_ERR_SIZE];
 struct http_reply http_err_replies[HTTP_ERR_SIZE];

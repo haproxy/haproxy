@@ -28,7 +28,7 @@
 #include <proto/cli.h>
 #include <proto/log.h>
 #include <proto/stream_interface.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 
 /* Parse an IPv4 or IPv6 address and store it into the sample.
  * The output type is IPv4 or IPv6.

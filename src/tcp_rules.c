@@ -14,6 +14,7 @@
 #include <haproxy/capture-t.h>
 #include <common/cfgparse.h>
 #include <haproxy/list.h>
+#include <haproxy/sample.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -27,7 +28,6 @@
 #include <proto/connection.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
-#include <proto/sample.h>
 #include <proto/stick_table.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>

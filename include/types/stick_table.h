@@ -33,7 +33,7 @@
 #include <haproxy/pool-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <types/peers.h>
-#include <types/sample.h>
+#include <haproxy/sample-t.h>
 
 /* The types of extra data we can store in a stick table */
 enum {

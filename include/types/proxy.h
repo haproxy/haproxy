@@ -44,7 +44,7 @@
 #include <types/filters.h>
 #include <haproxy/freq_ctr-t.h>
 #include <types/log.h>
-#include <types/sample.h>
+#include <haproxy/sample-t.h>
 #include <types/server.h>
 #include <types/stick_table.h>
 

@@ -22,7 +22,7 @@
 #include <haproxy/arg.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 #include <proto/http_ana.h>
 
 

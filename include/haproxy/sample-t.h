@@ -1,5 +1,5 @@
 /*
- * include/types/sample.h
+ * include/haproxy/sample-t.h
  * Macros, variables and structures for sample management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -20,17 +20,16 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_SAMPLE_H
-#define _TYPES_SAMPLE_H
+#ifndef _HAPROXY_SAMPLE_T_H
+#define _HAPROXY_SAMPLE_T_H
 
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/http-t.h>
 #include <haproxy/list-t.h>
-
-struct arg;
 
 /* input and output sample types */
 enum {
@@ -179,8 +178,6 @@ enum {
 	                     SMP_VAL_BE_CHK_RUL,
 };
 
-extern const unsigned int fetch_cap[SMP_SRC_ENTRIES];
-
 /* Sample fetch options are passed to sample fetch functions to add precision
  * about what is desired :
  *   - fetch direction (req/resp)
@@ -213,6 +210,7 @@ enum {
 /* needed below */
 struct session;
 struct stream;
+struct arg;
 
 /* a sample context might be used by any sample fetch function in order to
  * store information needed across multiple calls (eg: restart point for a
@@ -326,6 +324,5 @@ struct sample_conv_kw_list {
 };
 
 typedef int (*sample_cast_fct)(struct sample *smp);
-extern sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES];
 
-#endif /* _TYPES_SAMPLE_H */
+#endif /* _HAPROXY_SAMPLE_T_H */

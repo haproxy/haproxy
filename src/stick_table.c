@@ -36,7 +36,7 @@
 #include <proto/http_ana.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/stick_table.h>

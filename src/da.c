@@ -10,7 +10,7 @@
 #include <proto/http_fetch.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 #include <dac.h>
 
 static struct {

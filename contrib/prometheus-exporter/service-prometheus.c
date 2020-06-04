@@ -31,7 +31,7 @@
 #include <haproxy/compression.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>
-#include <proto/sample.h>
+#include <haproxy/sample.h>
 #include <proto/server.h>
 #include <proto/ssl_sock.h>
 #include <proto/stats.h>

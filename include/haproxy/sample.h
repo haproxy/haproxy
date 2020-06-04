@@ -1,5 +1,5 @@
 /*
- * include/proto/sample.h
+ * include/haproxy/sample.h
  * Functions for samples management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -20,12 +20,16 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_SAMPLE_H
-#define _PROTO_SAMPLE_H
+#ifndef _HAPROXY_SAMPLE_H
+#define _HAPROXY_SAMPLE_H
 
-#include <types/sample.h>
+#include <haproxy/arg-t.h>
+#include <haproxy/api.h>
+#include <haproxy/sample-t.h>
 #include <types/stick_table.h>
 
+extern sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES];
+extern const unsigned int fetch_cap[SMP_SRC_ENTRIES];
 extern const char *smp_to_type[SMP_TYPES];
 
 struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, int line, char **err, struct arg_list *al, char **endptr);
@@ -170,4 +174,4 @@ int smp_make_rw(struct sample *smp)
 	return smp && (smp_is_rw(smp) || smp_dup(smp));
 }
 
-#endif /* _PROTO_SAMPLE_H */
+#endif /* _HAPROXY_SAMPLE_H */

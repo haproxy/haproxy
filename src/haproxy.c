@@ -98,6 +98,7 @@
 #include <haproxy/net_helper.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/pattern.h>
+#include <haproxy/sample.h>
 #include <haproxy/regex.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
