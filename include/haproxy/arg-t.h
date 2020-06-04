@@ -27,9 +27,9 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/list-t.h>
+#include <haproxy/protobuf-t.h>
 
 #include <types/vars.h>
-#include <types/protocol_buffers.h>
 #include <types/stick_table.h>
 
 /* encoding of each arg type : up to 31 types are supported */

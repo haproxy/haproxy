@@ -1,5 +1,5 @@
 /*
- * include/types/protocol_buffers.h
+ * include/haproxy/protobuf-t.h
  * This file contains structure declarations for protocol buffers.
  *
  * Copyright 2012 Willy Tarreau <w@1wt.eu>
@@ -19,8 +19,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef _TYPES_PROTOCOL_BUFFERS_H
-#define _TYPES_PROTOCOL_BUFFERS_H
+#ifndef _HAPROXY_PROTOBUF_T_H
+#define _HAPROXY_PROTOBUF_T_H
+
+#include <haproxy/api-t.h>
 
 enum protobuf_wire_type {
 	PBUF_TYPE_VARINT,
@@ -75,7 +77,7 @@ struct protobuf_parser_def {
 	                 unsigned char *pos, size_t left, size_t vlen);
 };
 
-#endif /* _TYPES_PROTOCOL_BUFFERS_H */
+#endif /* _HAPROXY_PROTOBUF_T_H */
 
 /*
  * Local variables:

@@ -1,5 +1,5 @@
 /*
- * include/proto/protocol_buffers.h
+ * include/haproxy/protobuf.h
  * This file contains functions and macros declarations for protocol buffers decoding.
  *
  * Copyright 2012 Willy Tarreau <w@1wt.eu>
@@ -19,13 +19,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef _PROTO_PROTOCOL_BUFFERS_H
-#define _PROTO_PROTOCOL_BUFFERS_H
+#ifndef _HAPROXY_PROTOBUF_H
+#define _HAPROXY_PROTOBUF_H
 
-#include <inttypes.h>
+#include <haproxy/api-t.h>
 #include <haproxy/arg-t.h>
+#include <haproxy/protobuf-t.h>
 #include <haproxy/sample-t.h>
-#include <types/protocol_buffers.h>
 
 #define PBUF_VARINT_DONT_STOP_BIT       7
 #define PBUF_VARINT_DONT_STOP_BITMASK  (1 << PBUF_VARINT_DONT_STOP_BIT)
@@ -567,7 +567,7 @@ static inline int protobuf_field_lookup(const struct arg *arg_p, struct sample *
 	return 0;
 }
 
-#endif /* _PROTO_PROTOCOL_BUFFERS_H */
+#endif /* _HAPROXY_PROTOBUF_H */
 
 /*
  * Local variables:
