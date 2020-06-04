@@ -25,7 +25,7 @@
 #include <haproxy/regex-t.h>
 
 #include <types/applet.h>
-#include <types/stick_table.h>
+#include <haproxy/stick_table-t.h>
 
 enum act_from {
 	ACT_F_TCP_REQ_CON, /* tcp-request connection */

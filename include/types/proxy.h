@@ -46,7 +46,7 @@
 #include <types/log.h>
 #include <haproxy/sample-t.h>
 #include <types/server.h>
-#include <types/stick_table.h>
+#include <haproxy/stick_table-t.h>
 
 /* values for proxy->state */
 enum pr_state {

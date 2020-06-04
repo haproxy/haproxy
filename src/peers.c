@@ -43,7 +43,7 @@
 #include <proto/proxy.h>
 #include <proto/session.h>
 #include <proto/stream.h>
-#include <proto/stick_table.h>
+#include <haproxy/stick_table.h>
 #include <proto/stream_interface.h>
 
 

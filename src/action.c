@@ -20,7 +20,7 @@
 
 #include <proto/log.h>
 #include <proto/proxy.h>
-#include <proto/stick_table.h>
+#include <haproxy/stick_table.h>
 
 
 /* Find and check the target table used by an action track-sc*. This

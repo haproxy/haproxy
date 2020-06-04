@@ -29,7 +29,7 @@
 #include <haproxy/global-t.h>
 #include <types/session.h>
 
-#include <proto/stick_table.h>
+#include <haproxy/stick_table.h>
 #include <proto/server.h>
 
 extern struct pool_head *pool_head_session;

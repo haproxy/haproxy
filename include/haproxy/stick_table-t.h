@@ -1,5 +1,5 @@
 /*
- * include/types/stick_table.h
+ * include/haproxy/stick_table-t.h
  * Macros, variables and structures for stick tables management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -20,20 +20,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_STICK_TABLE_H
-#define _TYPES_STICK_TABLE_H
+#ifndef _HAPROXY_STICK_TABLE_T_H
+#define _HAPROXY_STICK_TABLE_T_H
 
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include <import/ebtree.h>
-#include <import/ebmbtree.h>
 #include <import/eb32tree.h>
-#include <haproxy/dict-t.h>
-#include <haproxy/pool-t.h>
+#include <import/ebmbtree.h>
+#include <import/ebpttree.h>
+
 #include <haproxy/freq_ctr-t.h>
-#include <haproxy/peers-t.h>
-#include <haproxy/sample-t.h>
+#include <haproxy/thread-t.h>
+#include <haproxy/api-t.h>
+
 
 /* The types of extra data we can store in a stick table */
 enum {
@@ -80,6 +80,27 @@ enum {
 	ARG_T_DELAY,              /* a delay which supports time units */
 };
 
+/* stick table key type flags */
+#define STK_F_CUSTOM_KEYSIZE      0x00000001   /* this table's key size is configurable */
+
+/* WARNING: if new fields are added, they must be initialized in stream_accept()
+ * and freed in stream_free() !
+ *
+ * What's the purpose of there two macro:
+ *   - STKCTR_TRACK_BACKEND indicates that a tracking pointer was set from the backend
+ *    and thus that when a keep-alive request goes to another backend, the track
+ *    must cease.
+ *
+ *   - STKCTR_TRACK_CONTENT indicates that the tracking pointer was set in a
+ *    content-aware rule (tcp-request content or http-request) and that the
+ *    tracking has to be performed in the stream and not in the session, and
+ *    will cease for a new keep-alive request over the same connection.
+ *
+ * These values are mixed with the stksess pointer in stkctr->entry.
+ */
+#define STKCTR_TRACK_BACKEND 1
+#define STKCTR_TRACK_CONTENT 2
+
 /* stick_table extra data. This is mainly used for casting or size computation */
 union stktable_data {
 	/* standard types for easy casting */
@@ -119,17 +140,12 @@ struct stktable_data_type {
 	int arg_type;     /* type of optional argument, ARG_T_* */
 };
 
-/* stick table key type flags */
-#define STK_F_CUSTOM_KEYSIZE      0x00000001   /* this table's key size is configurable */
-
 /* stick table keyword type */
 struct stktable_type {
 	const char *kw;           /* keyword string */
 	int flags;                /* type flags */
 	size_t default_size;      /* default key size */
 };
-
-extern struct stktable_type stktable_types[];
 
 /* Sticky session.
  * Any additional data related to the stuck session is installed *before*
@@ -202,22 +218,6 @@ struct stktable_key {
 	size_t key_len;                 /* data len to read in buff in case of null terminated string */
 };
 
-/* WARNING: if new fields are added, they must be initialized in stream_accept()
- * and freed in stream_free() !
- *
- * What's the purpose of there two macro:
- *   - STKCTR_TRACK_BACKEND indicates that a tracking pointer was set from the backend
- *    and thus that when a keep-alive request goes to another backend, the track
- *    must cease.
- *
- *   - STKCTR_TRACK_CONTENT indicates that the tracking pointer was set in a
- *    content-aware rule (tcp-request content or http-request) and that the
- *    tracking has to be performed in the stream and not in the session, and
- *    will cease for a new keep-alive request over the same connection.
- */
-#define STKCTR_TRACK_BACKEND 1
-#define STKCTR_TRACK_CONTENT 2
-
 /* stick counter. The <entry> member is a composite address (caddr) made of a
  * pointer to an stksess struct, and two flags among STKCTR_TRACK_* above.
  */
@@ -235,4 +235,4 @@ struct track_ctr_prm {
 	} table;
 };
 
-#endif /* _TYPES_STICK_TABLE_H */
+#endif /* _HAPROXY_STICK_TABLE_T_H */

@@ -33,7 +33,7 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/vars-t.h>
 
-#include <types/stick_table.h>
+#include <haproxy/stick_table-t.h>
 #include <haproxy/task-t.h>
 
 struct sess_srv_list {

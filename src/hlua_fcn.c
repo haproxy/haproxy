@@ -32,7 +32,7 @@
 #include <proto/proxy.h>
 #include <proto/server.h>
 #include <proto/stats.h>
-#include <proto/stick_table.h>
+#include <haproxy/stick_table.h>
 
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;

@@ -29,7 +29,7 @@
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <haproxy/sample.h>
-#include <proto/stick_table.h>
+#include <haproxy/stick_table.h>
 
 #include <import/ebsttree.h>
 

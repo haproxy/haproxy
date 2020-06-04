@@ -28,7 +28,7 @@
 #include <proto/channel.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
-#include <proto/stick_table.h>
+#include <haproxy/stick_table.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
 

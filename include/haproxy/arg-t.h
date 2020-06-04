@@ -30,7 +30,7 @@
 #include <haproxy/protobuf-t.h>
 #include <haproxy/vars-t.h>
 
-#include <types/stick_table.h>
+#include <haproxy/stick_table-t.h>
 
 /* encoding of each arg type : up to 31 types are supported */
 #define ARGT_BITS      5

@@ -21,6 +21,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/listener.h>
+#include <haproxy/peers.h>
 #include <haproxy/sample.h>
 #include <types/stats.h>
 
@@ -28,7 +29,7 @@
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
-#include <proto/stick_table.h>
+#include <haproxy/stick_table.h>
 
 /* Report a warning if a rule is placed after a 'tcp-request session' rule.
  * Return 1 if the warning has been emitted, otherwise 0.

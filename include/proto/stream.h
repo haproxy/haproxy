@@ -30,7 +30,7 @@
 #include <haproxy/freq_ctr.h>
 #include <haproxy/obj_type.h>
 #include <proto/queue.h>
-#include <proto/stick_table.h>
+#include <haproxy/stick_table.h>
 #include <haproxy/task.h>
 #include <proto/trace.h>
 

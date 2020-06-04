@@ -42,7 +42,7 @@
 #include <haproxy/sample.h>
 #include <proto/stream.h>
 #include <proto/stream_interface.h>
-#include <proto/stick_table.h>
+#include <haproxy/stick_table.h>
 
 /* structure used to return a table key built from a sample */
 static THREAD_LOCAL struct stktable_key static_table_key;

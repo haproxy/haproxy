@@ -58,7 +58,7 @@
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
-#include <proto/stick_table.h>
+#include <haproxy/stick_table.h>
 #include <proto/stream_interface.h>
 
 DECLARE_POOL(pool_head_stream, "stream", sizeof(struct stream));

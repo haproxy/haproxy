@@ -29,7 +29,7 @@
 #include <haproxy/time.h>
 
 #include <types/proxy.h>
-#include <types/stick_table.h>
+#include <haproxy/stick_table-t.h>
 #include <types/stream.h>
 
 extern struct peers *cfg_peers;

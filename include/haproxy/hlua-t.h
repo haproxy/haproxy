@@ -36,7 +36,7 @@
 #include <types/http_ana.h>
 #include <types/proxy.h>
 #include <types/server.h>
-#include <types/stick_table.h>
+#include <haproxy/stick_table-t.h>
 
 #define CLASS_CORE         "Core"
 #define CLASS_TXN          "TXN"

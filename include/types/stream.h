@@ -44,7 +44,7 @@
 #include <types/session.h>
 #include <types/stream_interface.h>
 #include <haproxy/task-t.h>
-#include <types/stick_table.h>
+#include <haproxy/stick_table-t.h>
 
 /* Various Stream Flags, bits values 0x01 to 0x100 (shift 0) */
 #define SF_DIRECT	0x00000001	/* connection made on the server matching the client cookie */

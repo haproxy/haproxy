@@ -1,5 +1,5 @@
 /*
- * include/proto/stick_table.h
+ * include/haproxy/stick_table.h
  * Functions for stick tables management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -20,17 +20,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_STICK_TABLE_H
-#define _PROTO_STICK_TABLE_H
+#ifndef _HAPROXY_STICK_TABLE_H
+#define _HAPROXY_STICK_TABLE_H
 
+#include <haproxy/api.h>
 #include <haproxy/dict-t.h>
 #include <haproxy/errors.h>
+#include <haproxy/sample-t.h>
+#include <haproxy/stick_table-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <types/stick_table.h>
 
 extern struct stktable *stktables_list;
+extern struct stktable_type stktable_types[];
 
 #define stktable_data_size(type) (sizeof(((union stktable_data*)0)->type))
 #define stktable_data_cast(ptr, type) ((union stktable_data*)(ptr))->type
@@ -200,4 +203,4 @@ static inline void stkctr_clr_flags(struct stkctr *stkctr, unsigned int flags)
 	stkctr->entry = caddr_clr_flags(stkctr->entry, flags);
 }
 
-#endif /* _PROTO_STICK_TABLE_H */
+#endif /* _HAPROXY_STICK_TABLE_H */

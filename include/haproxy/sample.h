@@ -26,7 +26,7 @@
 #include <haproxy/arg-t.h>
 #include <haproxy/api.h>
 #include <haproxy/sample-t.h>
-#include <types/stick_table.h>
+#include <haproxy/stick_table-t.h>
 
 extern sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES];
 extern const unsigned int fetch_cap[SMP_SRC_ENTRIES];
