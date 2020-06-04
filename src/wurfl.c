@@ -7,11 +7,11 @@
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
+#include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/arg.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
-#include <proto/http_fetch.h>
 #include <haproxy/sample.h>
 #include <import/ebsttree.h>
 #include <import/ebmbtree.h>

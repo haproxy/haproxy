@@ -14,6 +14,7 @@
 #include <haproxy/chunk.h>
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
+#include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
@@ -24,7 +25,6 @@
 #include <proto/acl.h>
 #include <proto/fcgi-app.h>
 #include <proto/filters.h>
-#include <proto/http_fetch.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/server.h>

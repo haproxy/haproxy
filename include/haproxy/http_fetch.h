@@ -1,5 +1,5 @@
 /*
- * include/proto/http_fetch.h
+ * include/haproxy/http_fetch.h
  * This file contains the minimally required http sample fetch declarations.
  *
  * Copyright (C) 2000-2018 Willy Tarreau - w@1wt.eu
@@ -19,21 +19,19 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_HTTP_FETCH_H
-#define _PROTO_HTTP_FETCH_H
+#ifndef _HAPROXY_HTTP_FETCH_H
+#define _HAPROXY_HTTP_FETCH_H
 
+#include <haproxy/arg-t.h>
 #include <haproxy/api.h>
 #include <haproxy/check-t.h>
-#include <haproxy/htx.h>
-#include <haproxy/arg-t.h>
-#include <types/channel.h>
 #include <haproxy/sample-t.h>
+#include <types/channel.h>
 
 struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct check *check, int vol);
 int val_hdr(struct arg *arg, char **err_msg);
 
-
-#endif /* _PROTO_HTTP_FETCH_H */
+#endif /* _HAPROXY_HTTP_FETCH_H */
 
 /*
  * Local variables:

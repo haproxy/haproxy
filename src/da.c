@@ -4,10 +4,10 @@
 #include <common/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/http.h>
+#include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/global.h>
 #include <haproxy/arg.h>
-#include <proto/http_fetch.h>
 #include <proto/log.h>
 #include <proto/http_ana.h>
 #include <haproxy/sample.h>
