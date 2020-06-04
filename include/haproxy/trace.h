@@ -29,7 +29,6 @@
 #include <haproxy/thread-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/trace-t.h>
-#include <types/log.h>
 
 /* Make a string from the location of the trace producer as "file:line" */
 #define TRC_LOC  _TRC_LOC(__FILE__, __LINE__)

@@ -15,10 +15,10 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
+#include <haproxy/log.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 
-#include <proto/log.h>
 #include <proto/proxy.h>
 #include <haproxy/stick_table.h>
 

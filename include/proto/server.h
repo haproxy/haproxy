@@ -27,13 +27,13 @@
 #include <haproxy/applet-t.h>
 #include <haproxy/api.h>
 #include <haproxy/dns-t.h>
+#include <haproxy/task.h>
 #include <haproxy/time.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>
 
 #include <proto/queue.h>
-#include <proto/log.h>
 #include <haproxy/freq_ctr.h>
 
 

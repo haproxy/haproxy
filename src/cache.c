@@ -18,6 +18,7 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/log.h>
 #include <haproxy/shctx.h>
 #include <haproxy/stream_interface.h>
 #include <import/eb32tree.h>
@@ -26,7 +27,6 @@
 #include <types/proxy.h>
 
 #include <proto/proxy.h>
-#include <proto/log.h>
 #include <proto/stream.h>
 
 

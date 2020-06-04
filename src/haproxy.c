@@ -97,6 +97,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/mworker.h>
 #include <haproxy/namespace.h>
 #include <haproxy/net_helper.h>
@@ -123,7 +124,6 @@
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <haproxy/fd.h>
-#include <proto/log.h>
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>

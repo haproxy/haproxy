@@ -21,6 +21,7 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
+#include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/peers.h>
 #include <haproxy/stats-t.h>
@@ -34,7 +35,6 @@
 #include <import/ebsttree.h>
 
 #include <haproxy/arg.h>
-#include <proto/log.h>
 #include <haproxy/proto_tcp.h>
 #include <proto/proxy.h>
 #include <haproxy/sample.h>

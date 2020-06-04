@@ -92,7 +92,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/fd.h>
-#include <proto/log.h>
 #include <haproxy/port_range.h>
 
 struct fdtab *fdtab = NULL;     /* array of all the file descriptors */

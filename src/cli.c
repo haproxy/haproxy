@@ -36,6 +36,7 @@
 #include <haproxy/frontend.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/mworker-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/peers.h>
@@ -57,7 +58,6 @@
 #include <haproxy/compression.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/log.h>
 #include <haproxy/pipe.h>
 #include <haproxy/protocol.h>
 #include <proto/proxy.h>

@@ -15,9 +15,9 @@
 #include <string.h>
 
 #include <haproxy/api.h>
+#include <haproxy/log.h>
 #include <haproxy/regex.h>
 #include <haproxy/tools.h>
-#include <proto/log.h>
 
 /* regex trash buffer used by various regex tests */
 THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */

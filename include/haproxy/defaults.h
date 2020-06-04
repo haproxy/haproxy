@@ -74,6 +74,11 @@
 #define MAX_SYSLOG_LEN          1024
 #endif
 
+/* 64kB to archive startup-logs seems way more than enough */
+#ifndef STARTUP_LOG_SIZE
+#define STARTUP_LOG_SIZE        65536
+#endif
+
 // maximum line size when parsing config
 #ifndef LINESIZE
 #define LINESIZE	2048

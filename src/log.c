@@ -29,6 +29,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/frontend.h>
 #include <haproxy/http.h>
+#include <haproxy/log.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
@@ -36,10 +37,8 @@
 #include <haproxy/version.h>
 
 #include <haproxy/global.h>
-#include <types/log.h>
 
 #include <haproxy/fd.h>
-#include <proto/log.h>
 #include <haproxy/ring.h>
 #include <haproxy/sample.h>
 #include <haproxy/sink.h>

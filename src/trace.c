@@ -24,7 +24,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
-#include <proto/log.h>
+#include <haproxy/log.h>
 #include <haproxy/sink.h>
 #include <haproxy/trace.h>
 

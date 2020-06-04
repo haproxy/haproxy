@@ -26,6 +26,7 @@
 #include <haproxy/global.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
@@ -41,7 +42,6 @@
 
 #include <proto/backend.h>
 #include <haproxy/fd.h>
-#include <proto/log.h>
 #include <haproxy/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/server.h>

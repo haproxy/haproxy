@@ -28,7 +28,6 @@
 
 #include <haproxy/activity.h>
 #include <haproxy/fd.h>
-#include <proto/log.h>
 
 /*
  * Private data:

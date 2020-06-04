@@ -24,7 +24,7 @@
 #include <types/proxy.h>
 
 #include <haproxy/http_htx.h>
-#include <proto/log.h>
+#include <haproxy/log.h>
 #include <haproxy/session-t.h>
 #include <proto/stream.h>
 #include <haproxy/stream_interface.h>

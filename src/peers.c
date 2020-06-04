@@ -26,6 +26,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/dict.h>
 #include <haproxy/frontend.h>
+#include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers.h>
@@ -39,7 +40,6 @@
 #include <haproxy/thread.h>
 
 #include <haproxy/fd.h>
-#include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>
 #include <haproxy/stick_table.h>

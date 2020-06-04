@@ -18,12 +18,12 @@
 
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
+#include <haproxy/log.h>
 #include <haproxy/time.h>
 
 #include <types/stream.h>
 
 #include <haproxy/arg.h>
-#include <proto/log.h>
 #include <proto/spoe.h>
 
 #include <api.h>

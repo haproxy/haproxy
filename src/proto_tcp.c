@@ -39,6 +39,7 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
 #include <haproxy/namespace.h>
@@ -47,7 +48,6 @@
 
 #include <haproxy/arg.h>
 #include <haproxy/fd.h>
-#include <proto/log.h>
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proto_tcp.h>

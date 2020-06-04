@@ -32,13 +32,13 @@
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/version.h>
 
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/log.h>
 #include <haproxy/protocol.h>
 
 static void sockpair_add_listener(struct listener *listener, int port);

@@ -30,7 +30,6 @@
 #include <haproxy/thread.h>
 
 #include <haproxy/freq_ctr-t.h>
-#include <types/log.h>
 #include <types/proxy.h>
 #include <haproxy/sample-t.h>
 #include <types/stream.h>

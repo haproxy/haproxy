@@ -36,6 +36,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/thread.h>
 #include <haproxy/htx.h>
+#include <haproxy/log.h>
 #include <haproxy/pool.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
@@ -49,7 +50,6 @@
 #include <proto/backend.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/log.h>
 #include <proto/stream.h>
 #include <haproxy/pipe.h>
 #include <proto/proxy.h>

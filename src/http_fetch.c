@@ -37,7 +37,6 @@
 #include <haproxy/version.h>
 
 #include <haproxy/arg.h>
-#include <proto/log.h>
 #include <proto/stream.h>
 
 

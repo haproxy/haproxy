@@ -23,7 +23,6 @@
 #include <haproxy/tools.h>
 
 #include <haproxy/arg.h>
-#include <proto/log.h>
 #include <haproxy/sample.h>
 
 /* Parse an IPv4 or IPv6 address and store it into the sample.

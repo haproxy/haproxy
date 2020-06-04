@@ -8,9 +8,9 @@
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
+#include <haproxy/log.h>
 #include <haproxy/global.h>
 #include <haproxy/arg.h>
-#include <proto/log.h>
 #include <haproxy/sample.h>
 #include <dac.h>
 

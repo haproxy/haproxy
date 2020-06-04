@@ -1,34 +1,36 @@
 /*
-  include/types/log.h
-  This file contains definitions of log-related structures and macros.
+ * include/haproxy/log-t.h
+ * This file contains definitions of log-related structures and macros.
+ *
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
-  Copyright (C) 2000-2006 Willy Tarreau - w@1wt.eu
-  
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
-
-#ifndef _TYPES_LOG_H
-#define _TYPES_LOG_H
+#ifndef _HAPROXY_LOG_T_H
+#define _HAPROXY_LOG_T_H
 
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
-#include <haproxy/api-t.h>
-#include <haproxy/thread.h>
+
 #include <haproxy/list-t.h>
 #include <haproxy/ring-t.h>
+#include <haproxy/thread-t.h>
+#include <haproxy/api-t.h>
+
 
 #define NB_LOG_FACILITIES       24
 #define NB_LOG_LEVELS           8
@@ -36,13 +38,35 @@
 #define SYSLOG_PORT             514
 #define UNIQUEID_LEN            128
 
-/* 64kB to archive startup-logs seems way more than enough */
-#ifndef STARTUP_LOG_SIZE
-#define STARTUP_LOG_SIZE        65536
-#endif
+/* flags used in logformat_node->options */
+#define LOG_OPT_HEXA            0x00000001
+#define LOG_OPT_MANDATORY       0x00000002
+#define LOG_OPT_QUOTE           0x00000004
+#define LOG_OPT_REQ_CAP         0x00000008
+#define LOG_OPT_RES_CAP         0x00000010
+#define LOG_OPT_HTTP            0x00000020
+#define LOG_OPT_ESC             0x00000040
 
-/* The array containing the names of the log levels. */
-extern const char *log_levels[];
+
+/* Fields that need to be extracted from the incoming connection or request for
+ * logging or for sending specific header information. They're set in px->to_log
+ * and appear as flags in session->logs.logwait, which are removed once the
+ * required information has been collected.
+ */
+#define LW_INIT             1        /* anything */
+#define LW_CLIP             2        /* CLient IP */
+#define LW_SVIP             4        /* SerVer IP */
+#define LW_SVID             8        /* server ID */
+#define LW_REQ             16        /* http REQuest */
+#define LW_RESP            32        /* http RESPonse */
+#define LW_BYTES          256        /* bytes read from server */
+#define LW_COOKIE         512        /* captured cookie */
+#define LW_REQHDR        1024        /* request header(s) */
+#define LW_RSPHDR        2048        /* response header(s) */
+#define LW_BCKIP         4096        /* backend IP */
+#define LW_FRTIP         8192        /* frontend IP */
+#define LW_XPRT         16384        /* transport layer information (eg: SSL) */
+
 
 /* enum for log format */
 enum {
@@ -60,7 +84,7 @@ enum log_tgt {
 	LOG_TARGET_BUFFER,    // ring buffer
 };
 
-/* lists of fields that can be logged */
+/* lists of fields that can be logged, for logformat_node->type */
 enum {
 
 	LOG_FMT_TEXT = 0, /* raw text */
@@ -156,34 +180,6 @@ struct logformat_node {
 	void *expr;    // for use with LOG_FMT_EXPR
 };
 
-#define LOG_OPT_HEXA		0x00000001
-#define LOG_OPT_MANDATORY	0x00000002
-#define LOG_OPT_QUOTE		0x00000004
-#define LOG_OPT_REQ_CAP         0x00000008
-#define LOG_OPT_RES_CAP         0x00000010
-#define LOG_OPT_HTTP            0x00000020
-#define LOG_OPT_ESC             0x00000040
-
-
-/* Fields that need to be extracted from the incoming connection or request for
- * logging or for sending specific header information. They're set in px->to_log
- * and appear as flags in session->logs.logwait, which are removed once the
- * required information has been collected.
- */
-#define LW_INIT		1	/* anything */
-#define LW_CLIP		2	/* CLient IP */
-#define LW_SVIP		4	/* SerVer IP */
-#define LW_SVID		8	/* server ID */
-#define	LW_REQ		16	/* http REQuest */
-#define LW_RESP		32	/* http RESPonse */
-#define LW_BYTES	256	/* bytes read from server */
-#define LW_COOKIE	512	/* captured cookie */
-#define LW_REQHDR	1024	/* request header(s) */
-#define LW_RSPHDR	2048	/* response header(s) */
-#define LW_BCKIP	4096	/* backend IP */
-#define LW_FRTIP 	8192	/* frontend IP */
-#define LW_XPRT		16384	/* transport layer information (eg: SSL) */
-
 /* Range of indexes for log sampling. */
 struct smp_log_range {
 	unsigned int low;        /* Low limit of the indexes of this range. */
@@ -223,7 +219,7 @@ struct logsrv {
 	__decl_thread(HA_SPINLOCK_T lock);
 };
 
-#endif /* _TYPES_LOG_H */
+#endif /* _HAPROXY_LOG_T_H */
 
 /*
  * Local variables:

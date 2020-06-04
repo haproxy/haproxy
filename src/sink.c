@@ -23,8 +23,8 @@
 #include <haproxy/cli.h>
 #include <import/ist.h>
 #include <haproxy/list.h>
+#include <haproxy/log.h>
 #include <haproxy/time.h>
-#include <proto/log.h>
 #include <haproxy/ring.h>
 #include <haproxy/signal.h>
 #include <haproxy/sink.h>

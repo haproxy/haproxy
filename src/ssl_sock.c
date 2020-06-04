@@ -53,6 +53,7 @@
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/log.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/shctx.h>
@@ -77,7 +78,6 @@
 #include <haproxy/freq_ctr.h>
 #include <haproxy/proto_tcp.h>
 #include <proto/server.h>
-#include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>
 

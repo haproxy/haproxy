@@ -43,7 +43,6 @@
 #include <haproxy/acl-t.h>
 #include <types/backend.h>
 #include <haproxy/freq_ctr-t.h>
-#include <types/log.h>
 #include <haproxy/sample-t.h>
 #include <types/server.h>
 #include <haproxy/stick_table-t.h>

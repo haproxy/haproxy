@@ -26,6 +26,7 @@
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
 #include <haproxy/global.h>
+#include <haproxy/log.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
@@ -33,7 +34,6 @@
 
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/log.h>
 #include <haproxy/pipe.h>
 
 

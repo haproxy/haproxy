@@ -15,10 +15,10 @@
 
 #include <haproxy/api.h>
 #include <haproxy/base64.h>
+#include <haproxy/log.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/uri_auth.h>
 
-#include <proto/log.h>
 
 /*
  * Initializes a basic uri_auth structure header and returns a pointer to it.

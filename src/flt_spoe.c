@@ -19,6 +19,7 @@
 #include <haproxy/filters.h>
 #include <haproxy/frontend.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/log.h>
 #include <haproxy/sample.h>
 #include <haproxy/signal.h>
 #include <haproxy/thread.h>
@@ -37,7 +38,6 @@
 #include <haproxy/arg.h>
 #include <proto/backend.h>
 #include <haproxy/freq_ctr.h>
-#include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/spoe.h>
 #include <proto/stream.h>

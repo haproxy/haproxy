@@ -10,8 +10,8 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
+#include <haproxy/log.h>
 #include <haproxy/arg.h>
-#include <proto/log.h>
 #include <haproxy/sample.h>
 #include <import/ebsttree.h>
 #include <import/ebmbtree.h>

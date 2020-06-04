@@ -16,6 +16,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <syslog.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -24,6 +25,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/debug.h>
 #include <haproxy/hlua.h>
+#include <haproxy/log.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>

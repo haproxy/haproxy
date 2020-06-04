@@ -18,13 +18,13 @@
 #include <haproxy/auth.h>
 #include <haproxy/api.h>
 #include <haproxy/list.h>
+#include <haproxy/log.h>
 #include <haproxy/pattern.h>
 #include <haproxy/tools.h>
 
 #include <haproxy/global.h>
 
 #include <haproxy/arg.h>
-#include <proto/log.h>
 #include <proto/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stick_table.h>

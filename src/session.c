@@ -15,12 +15,12 @@
 #include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/pool.h>
 #include <haproxy/session.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
 
-#include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/stream.h>
 

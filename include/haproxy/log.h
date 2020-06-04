@@ -1,44 +1,40 @@
 /*
-  include/proto/log.h
-  This file contains definitions of log-related functions, structures,
-  and macros.
+ * include/haproxy/log.h
+ * This file contains definitions of log-related functions.
+ *
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
+#ifndef _HAPROXY_LOG_H
+#define _HAPROXY_LOG_H
 
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
-
-#ifndef _PROTO_LOG_H
-#define _PROTO_LOG_H
-
-#include <stdio.h>
 #include <syslog.h>
 
 #include <haproxy/api.h>
-#include <haproxy/pool.h>
+#include <haproxy/log-t.h>
+#include <haproxy/pool-t.h>
 #include <haproxy/thread-t.h>
-
-#include <types/log.h>
-#include <types/proxy.h>
-#include <types/stream.h>
-
 #include <proto/stream.h>
+#include <types/proxy.h>
 
 extern struct pool_head *pool_head_requri;
 extern struct pool_head *pool_head_uniqueid;
 
+extern const char *log_levels[];
 extern char *log_format;
 extern char default_tcp_log_format[];
 extern char default_http_log_format[];
@@ -54,31 +50,12 @@ extern THREAD_LOCAL char *logline;
 extern THREAD_LOCAL char *logline_rfc5424;
 
 
-/*
- * Test if <idx> index numbered from 0 is in <rg> range with low and high
- * limits of indexes numbered from 1.
- */
-static inline int in_smp_log_range(struct smp_log_range *rg, unsigned int idx)
-{
-       if (idx + 1 <= rg->high && idx + 1 >= rg->low)
-               return 1;
-       return 0;
-}
-
 /* Initialize/Deinitialize log buffers used for syslog messages */
 int init_log_buffers();
 void deinit_log_buffers();
 
-/*
- * Builds a log line.
- */
+/* build a log line for the session and an optional stream */
 int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t maxsize, struct list *list_format);
-
-static inline int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format)
-{
-	return sess_build_logline(strm_sess(s), s, dst, maxsize, list_format);
-}
-
 
 /*
  * send a log for the stream when we have enough info about it.
@@ -191,7 +168,26 @@ char *update_log_hdr(const time_t time);
 char * get_format_pid_sep1(int format, size_t *len);
 char * get_format_pid_sep2(int format, size_t *len);
 
-#endif /* _PROTO_LOG_H */
+/*
+ * Test if <idx> index numbered from 0 is in <rg> range with low and high
+ * limits of indexes numbered from 1.
+ */
+static inline int in_smp_log_range(struct smp_log_range *rg, unsigned int idx)
+{
+       if (idx + 1 <= rg->high && idx + 1 >= rg->low)
+               return 1;
+       return 0;
+}
+
+/*
+ * Builds a log line for the stream (must be valid).
+ */
+static inline int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format)
+{
+	return sess_build_logline(strm_sess(s), s, dst, maxsize, list_format);
+}
+
+#endif /* _HAPROXY_LOG_H */
 
 /*
  * Local variables:

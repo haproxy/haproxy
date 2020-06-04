@@ -19,6 +19,7 @@
 #include <haproxy/filters.h>
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
+#include <haproxy/log.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
@@ -26,7 +27,6 @@
 
 #include <haproxy/global.h>
 
-#include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/server.h>
 

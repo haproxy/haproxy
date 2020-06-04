@@ -38,7 +38,6 @@
 #include <haproxy/capture-t.h>
 
 #include <haproxy/arg.h>
-#include <proto/log.h>
 
 /* Release memory allocated by most of HTTP actions. Concretly, it releases
  * <arg.http>.

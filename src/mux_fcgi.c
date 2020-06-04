@@ -21,6 +21,7 @@
 #include <haproxy/htx.h>
 #include <import/ist.h>
 #include <haproxy/list.h>
+#include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
 #include <haproxy/session-t.h>
@@ -29,7 +30,6 @@
 
 #include <types/proxy.h>
 
-#include <proto/log.h>
 #include <proto/stream.h>
 #include <haproxy/trace.h>
 

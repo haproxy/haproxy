@@ -28,6 +28,7 @@
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/log.h>
 #include <haproxy/sample.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
@@ -41,7 +42,6 @@
 #include <haproxy/global.h>
 
 #include <haproxy/fd.h>
-#include <proto/log.h>
 #include <proto/server.h>
 #include <haproxy/proto_udp.h>
 #include <proto/proxy.h>

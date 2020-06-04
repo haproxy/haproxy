@@ -21,6 +21,7 @@
 #include <haproxy/cli-t.h>
 #include <haproxy/hlua-t.h>
 #include <haproxy/http.h>
+#include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/regex.h>
 #include <haproxy/stats.h>
