@@ -161,7 +161,7 @@ struct tls_keys_ref {
 	union tls_sess_key *tlskeys;
 	int tls_ticket_enc_index;
 	int key_size_bits;
-	__decl_hathreads(HA_RWLOCK_T lock); /* lock used to protect the ref */
+	__decl_thread(HA_RWLOCK_T lock); /* lock used to protect the ref */
 };
 
 /* shared ssl session */

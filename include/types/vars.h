@@ -19,7 +19,7 @@ struct vars {
 	struct list head;
 	enum vars_scope scope;
 	unsigned int size;
-	__decl_hathreads(HA_RWLOCK_T rwlock);
+	__decl_thread(HA_RWLOCK_T rwlock);
 };
 
 /* This struct describes a variable. */

@@ -41,7 +41,7 @@ extern int sctl_ex_index;
 extern struct global_ssl global_ssl;
 extern struct ssl_bind_kw ssl_bind_kws[];
 extern struct methodVersions methodVersions[];
-__decl_hathreads(extern HA_SPINLOCK_T ckch_lock);
+__decl_thread(extern HA_SPINLOCK_T ckch_lock);
 extern struct pool_head *pool_head_ssl_capture;
 extern unsigned int openssl_engines_initialized;
 extern int nb_engines;

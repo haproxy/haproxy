@@ -13,7 +13,7 @@ struct dict_entry {
 struct dict {
 	const char *name;
 	struct eb_root values;
-	__decl_hathreads(HA_RWLOCK_T rwlock);
+	__decl_thread(HA_RWLOCK_T rwlock);
 };
 
 #endif /* _TYPES_DICT_H */

@@ -44,7 +44,7 @@
 #define MAX_THREADS_MASK 1
 
 /* These macros allow to make some struct fields or local variables optional */
-#define __decl_hathreads(decl)
+#define __decl_thread(decl)
 #define __decl_spinlock(lock)
 #define __decl_aligned_spinlock(lock)
 #define __decl_rwlock(lock)
@@ -62,7 +62,7 @@
 
 #define MAX_THREADS_MASK (~0UL >> (LONGBITS - MAX_THREADS))
 
-#define __decl_hathreads(decl) decl
+#define __decl_thread(decl) decl
 
 /* declare a self-initializing spinlock */
 #define __decl_spinlock(lock)                               \
@@ -97,7 +97,7 @@
  * the pthread identifier which does not exist).
  */
 struct thread_info {
-	__decl_hathreads(pthread_t pthread);
+	__decl_thread(pthread_t pthread);
 	clockid_t clock_id;
 	timer_t wd_timer;          /* valid timer or TIMER_INVALID if not set */
 	uint64_t prev_cpu_time;    /* previous per thread CPU time */

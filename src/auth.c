@@ -44,7 +44,7 @@ struct userlist *userlist = NULL;    /* list of all existing userlists */
 static THREAD_LOCAL struct crypt_data crypt_data = { .initialized = 0 };
 #else
 /* lock for crypt() */
-__decl_hathreads(static HA_SPINLOCK_T auth_lock);
+__decl_thread(static HA_SPINLOCK_T auth_lock);
 #endif
 #endif
 

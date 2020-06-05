@@ -87,7 +87,7 @@ struct pool_head {
 #ifdef CONFIG_HAP_LOCKLESS_POOLS
 	uintptr_t seq;
 #endif
-	__decl_hathreads(HA_SPINLOCK_T lock); /* the spin lock */
+	__decl_thread(HA_SPINLOCK_T lock); /* the spin lock */
 	unsigned int used;	/* how many chunks are currently in use */
 	unsigned int needed_avg;/* floating indicator between used and allocated */
 	unsigned int allocated;	/* how many chunks have been allocated */

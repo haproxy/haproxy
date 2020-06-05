@@ -2949,8 +2949,8 @@ static void *run_thread_poll_loop(void *data)
 	struct per_thread_deinit_fct *ptdf;
 	struct per_thread_free_fct   *ptff;
 	static int init_left = 0;
-	__decl_hathreads(static pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER);
-	__decl_hathreads(static pthread_cond_t  init_cond  = PTHREAD_COND_INITIALIZER);
+	__decl_thread(static pthread_mutex_t init_mutex = PTHREAD_MUTEX_INITIALIZER);
+	__decl_thread(static pthread_cond_t  init_cond  = PTHREAD_COND_INITIALIZER);
 
 	ha_set_tid((unsigned long)data);
 	sched = &task_per_thread[tid];

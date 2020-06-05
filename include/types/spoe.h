@@ -275,7 +275,7 @@ struct spoe_agent {
 		struct list     applets;        /* all SPOE applets for this agent */
 		struct list     sending_queue;  /* Queue of streams waiting to send data */
 		struct list     waiting_queue;  /* Queue of streams waiting for a ack, in async mode */
-		__decl_hathreads(HA_SPINLOCK_T lock);
+		__decl_thread(HA_SPINLOCK_T lock);
 	} *rt;
 
 	struct {

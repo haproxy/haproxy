@@ -45,7 +45,7 @@ struct buffer_wait {
 
 extern struct pool_head *pool_head_buffer;
 extern struct mt_list buffer_wq;
-__decl_hathreads(extern HA_SPINLOCK_T buffer_wq_lock);
+__decl_thread(extern HA_SPINLOCK_T buffer_wq_lock);
 
 int init_buffer();
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);

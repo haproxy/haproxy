@@ -158,7 +158,7 @@ struct lbprm {
 	int   arg_opt2;			/* extra option 2 for the LB algo (algo-specific) */
 	int   arg_opt3;			/* extra option 3 for the LB algo (algo-specific) */
 	struct server *fbck;		/* first backup server when !PR_O_USE_ALL_BK, or NULL */
-	__decl_hathreads(HA_SPINLOCK_T lock);
+	__decl_thread(HA_SPINLOCK_T lock);
 
 	/* Call backs for some actions. Any of them may be NULL (thus should be ignored). */
 	void (*update_server_eweight)(struct server *);  /* to be called after eweight change */

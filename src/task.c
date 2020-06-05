@@ -162,7 +162,7 @@ void wake_expired_tasks()
 	struct task_per_thread * const tt = sched; // thread's tasks
 	struct task *task;
 	struct eb32_node *eb;
-	__decl_hathreads(int key);
+	__decl_thread(int key);
 
 	while (1) {
   lookup_next_local:
@@ -284,7 +284,7 @@ int next_timer_expiry()
 	struct task_per_thread * const tt = sched; // thread's tasks
 	struct eb32_node *eb;
 	int ret = TICK_ETERNITY;
-	__decl_hathreads(int key);
+	__decl_thread(int key);
 
 	/* first check in the thread-local timers */
 	eb = eb32_lookup_ge(&tt->timers, now_ms - TIMER_LOOK_BACK);

@@ -102,8 +102,8 @@ extern int global_rqueue_size; /* Number of element sin the global runqueue */
 
 extern struct task_per_thread task_per_thread[MAX_THREADS];
 
-__decl_hathreads(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
-__decl_hathreads(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait queue */
+__decl_thread(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
+__decl_thread(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait queue */
 
 static inline struct task *task_unlink_wq(struct task *t);
 static inline void task_queue(struct task *task);

@@ -139,7 +139,7 @@ extern struct stktable_type stktable_types[];
 struct stksess {
 	unsigned int expire;      /* session expiration date */
 	unsigned int ref_cnt;     /* reference count, can only purge when zero */
-	__decl_hathreads(HA_RWLOCK_T lock); /* lock related to the table entry */
+	__decl_thread(HA_RWLOCK_T lock); /* lock related to the table entry */
 	struct eb32_node exp;     /* ebtree node used to hold the session in expiration tree */
 	struct eb32_node upd;     /* ebtree node used to hold the update sequence tree */
 	struct ebmb_node key;     /* ebtree node used to hold the session in table */
@@ -163,7 +163,7 @@ struct stktable {
 	struct eb_root exps;      /* head of sticky session expiration tree */
 	struct eb_root updates;   /* head of sticky updates sequence tree */
 	struct pool_head *pool;   /* pool used to allocate sticky sessions */
-	__decl_hathreads(HA_SPINLOCK_T lock); /* spin lock related to the table */
+	__decl_thread(HA_SPINLOCK_T lock); /* spin lock related to the table */
 	struct task *exp_task;    /* expiration task */
 	struct task *sync_task;   /* sync task */
 	unsigned int update;

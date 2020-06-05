@@ -21,7 +21,7 @@
 extern int signal_queue_len;
 extern struct signal_descriptor signal_state[];
 
-__decl_hathreads(extern HA_SPINLOCK_T signals_lock);
+__decl_thread(extern HA_SPINLOCK_T signals_lock);
 
 void signal_handler(int sig);
 void __signal_process_queue();

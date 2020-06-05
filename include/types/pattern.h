@@ -106,7 +106,7 @@ struct pat_ref {
 	char *display; /* String displayed to identify the pattern origin. */
 	struct list head; /* The head of the list of struct pat_ref_elt. */
 	struct list pat; /* The head of the list of struct pattern_expr. */
-	__decl_hathreads(HA_SPINLOCK_T lock); /* Lock used to protect pat ref elements */
+	__decl_thread(HA_SPINLOCK_T lock); /* Lock used to protect pat ref elements */
 };
 
 /* This is a part of struct pat_ref. Each entry contain one
@@ -191,7 +191,7 @@ struct pattern_expr {
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 	struct eb_root pattern_tree_2;  /* may be used for different types */
 	int mflags;                     /* flags relative to the parsing or matching method. */
-	__decl_hathreads(HA_RWLOCK_T lock);               /* lock used to protect patterns */
+	__decl_thread(HA_RWLOCK_T lock);               /* lock used to protect patterns */
 };
 
 /* This is a list of expression. A struct pattern_expr can be used by

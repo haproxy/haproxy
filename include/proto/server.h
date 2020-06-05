@@ -37,7 +37,7 @@
 #include <proto/freq_ctr.h>
 
 
-__decl_hathreads(extern HA_SPINLOCK_T idle_conn_srv_lock);
+__decl_thread(extern HA_SPINLOCK_T idle_conn_srv_lock);
 extern struct eb_root idle_conn_srv;
 extern struct task *idle_conn_task;
 extern struct task *idle_conn_cleanup[MAX_THREADS];

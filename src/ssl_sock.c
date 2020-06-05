@@ -272,7 +272,7 @@ static int ssl_locking_init(void)
 
 #endif
 
-__decl_hathreads(HA_SPINLOCK_T ckch_lock);
+__decl_thread(HA_SPINLOCK_T ckch_lock);
 
 
 /*

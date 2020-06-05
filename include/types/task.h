@@ -64,7 +64,7 @@ struct notification {
 	struct list wake_me; /* Part of list of signals to be targeted if an
 	                        event occurs. */
 	struct task *task; /* The task to be wake if an event occurs. */
-	__decl_hathreads(HA_SPINLOCK_T lock);
+	__decl_thread(HA_SPINLOCK_T lock);
 };
 
 /* force to split per-thread stuff into separate cache lines */

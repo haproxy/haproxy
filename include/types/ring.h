@@ -96,7 +96,7 @@ struct ring {
 	struct buffer buf;   // storage area
 	size_t ofs;          // absolute offset in history of the buffer's head
 	struct list waiters; // list of waiters, for now, CLI "show event"
-	__decl_hathreads(HA_RWLOCK_T lock);
+	__decl_thread(HA_RWLOCK_T lock);
 	int readers_count;
 };
 

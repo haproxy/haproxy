@@ -61,12 +61,12 @@ static struct srv_kw_list srv_keywords = {
 	.list = LIST_HEAD_INIT(srv_keywords.list)
 };
 
-__decl_hathreads(HA_SPINLOCK_T idle_conn_srv_lock);
+__decl_thread(HA_SPINLOCK_T idle_conn_srv_lock);
 struct eb_root idle_conn_srv = EB_ROOT;
 struct task *idle_conn_task = NULL;
 struct task *idle_conn_cleanup[MAX_THREADS] = { NULL };
 struct mt_list toremove_connections[MAX_THREADS];
-__decl_hathreads(HA_SPINLOCK_T toremove_lock[MAX_THREADS]);
+__decl_thread(HA_SPINLOCK_T toremove_lock[MAX_THREADS]);
 
 /* The server names dictionary */
 struct dict server_name_dict = {

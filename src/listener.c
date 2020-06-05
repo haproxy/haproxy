@@ -735,7 +735,7 @@ void listener_accept(int fd)
 		struct sockaddr_storage addr;
 		socklen_t laddr = sizeof(addr);
 		unsigned int count;
-		__decl_hathreads(unsigned long mask);
+		__decl_thread(unsigned long mask);
 
 		/* pre-increase the number of connections without going too far.
 		 * We process the listener, then the proxy, then the process.

@@ -156,7 +156,7 @@ struct bind_conf {
 	struct ssl_bind_conf *default_ssl_conf; /* custom SSL conf of default_ctx */
 	int strict_sni;            /* refuse negotiation if sni doesn't match a certificate */
 	int ssl_options;           /* ssl options */
-	__decl_hathreads(HA_RWLOCK_T sni_lock); /* lock the SNI trees during add/del operations */
+	__decl_thread(HA_RWLOCK_T sni_lock); /* lock the SNI trees during add/del operations */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
 	struct tls_keys_ref *keys_ref; /* TLS ticket keys reference */
@@ -217,7 +217,7 @@ struct listener {
 	char *interface;		/* interface name or NULL */
 	char *name;			/* listener's name */
 
-	__decl_hathreads(HA_SPINLOCK_T lock);
+	__decl_thread(HA_SPINLOCK_T lock);
 
 	const struct netns_entry *netns; /* network namespace of the listener*/
 

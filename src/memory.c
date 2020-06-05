@@ -600,7 +600,7 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 #define MEM_FAIL_MAX_STR 128
 static int mem_fail_cur_idx;
 static char mem_fail_str[MEM_FAIL_MAX_CHAR * MEM_FAIL_MAX_STR];
-__decl_hathreads(static HA_SPINLOCK_T mem_fail_lock);
+__decl_thread(static HA_SPINLOCK_T mem_fail_lock);
 
 int mem_should_fail(const struct pool_head *pool)
 {

@@ -197,7 +197,7 @@ struct dns_resolvers {
 	struct eb_root query_ids;           /* tree to quickly lookup/retrieve query ids currently in use
                                              * used by each nameserver, but stored in resolvers since there must
                                              * be a unique relation between an eb_root and an eb_node (resolution) */
-	__decl_hathreads(HA_SPINLOCK_T lock);
+	__decl_thread(HA_SPINLOCK_T lock);
 	struct list list;                   /* resolvers list */
 };
 

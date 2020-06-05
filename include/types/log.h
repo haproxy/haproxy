@@ -220,7 +220,7 @@ struct logsrv {
 	int minlvl;
 	int maxlen;
 	struct logsrv *ref;
-	__decl_hathreads(HA_SPINLOCK_T lock);
+	__decl_thread(HA_SPINLOCK_T lock);
 };
 
 #endif /* _TYPES_LOG_H */
