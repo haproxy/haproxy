@@ -813,7 +813,7 @@ OBJS = src/mux_h2.o src/stream.o src/mux_fcgi.o src/cfgparse-listen.o         \
        src/protocol.o src/freq_ctr.o src/lru.o src/hpack-huff.o src/dict.o    \
        src/eb32sctree.o src/eb32tree.o src/eb64tree.o src/ebmbtree.o          \
        src/ebsttree.o src/ebimtree.o src/ebistree.o src/ebtree.o              \
-       src/hash.o src/mailers.o src/version.o
+       src/extcheck.o src/hash.o src/mailers.o src/version.o
 
 ifneq ($(TRACE),)
 OBJS += src/calltrace.o

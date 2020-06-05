@@ -36,6 +36,9 @@ int httpchk_build_status_header(struct server *s, struct buffer *buf);
 void __health_adjust(struct server *s, short status);
 void set_server_check_status(struct check *check, short status, const char *desc);
 void chk_report_conn_err(struct check *check, int errno_bck, int expired);
+void check_notify_failure(struct check *check);
+void check_notify_stopping(struct check *check);
+void check_notify_success(struct check *check);
 struct task *process_chk(struct task *t, void *context, unsigned short state);
 
 const char *init_check(struct check *check, int type);
@@ -63,8 +66,6 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 			       const char *file, int line);
 int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
 			    const char *file, int line);
-int proxy_parse_external_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-				   const char *file, int line);
 
 int set_srv_agent_send(struct server *srv, const char *send);
 

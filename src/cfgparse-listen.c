@@ -19,6 +19,7 @@
 #include <haproxy/check.h>
 #include <haproxy/compression-t.h>
 #include <haproxy/connection.h>
+#include <haproxy/extcheck.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/listener.h>
