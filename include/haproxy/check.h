@@ -22,29 +22,24 @@
 #ifndef _HAPROXY_CHECKS_H
 #define _HAPROXY_CHECKS_H
 
-#include <haproxy/action-t.h>
 #include <haproxy/check-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 
-extern struct action_kw_list tcp_check_keywords;
-extern struct pool_head *pool_head_tcpcheck_rule;
+extern struct data_cb check_conn_cb;
+extern struct proxy checks_fe;
 
 const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
+int httpchk_build_status_header(struct server *s, struct buffer *buf);
 void __health_adjust(struct server *s, short status);
+void set_server_check_status(struct check *check, short status, const char *desc);
+void chk_report_conn_err(struct check *check, int errno_bck, int expired);
 struct task *process_chk(struct task *t, void *context, unsigned short state);
 
 const char *init_check(struct check *check, int type);
 void free_check(struct check *check);
-void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool);
-
-void deinit_proxy_tcpcheck(struct proxy *px);
-int dup_tcpcheck_vars(struct list *dst, struct list *src);
-void free_tcpcheck_vars(struct list *vars);
-int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str);
-int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *strs);
 
 /* Declared here, but the definitions are in flt_spoe.c */
 int spoe_prepare_healthcheck_request(char **req, int *len);
@@ -87,11 +82,6 @@ static inline void health_adjust(struct server *s, short status)
 
 	__health_adjust(s, status);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
-}
-
-static inline void tcp_check_keywords_register(struct action_kw_list *kw_list)
-{
-	LIST_ADDQ(&tcp_check_keywords.list, &kw_list->list);
 }
 
 #endif /* _HAPROXY_CHECKS_H */

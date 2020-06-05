@@ -26,6 +26,7 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/task.h>
+#include <haproxy/tcpcheck.h>
 
 
 struct mailers *mailers = NULL;

@@ -10,6 +10,7 @@
 #include <haproxy/list.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream-t.h>
+#include <haproxy/tcpcheck.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/vars.h>
 

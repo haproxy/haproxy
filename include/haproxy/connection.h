@@ -33,6 +33,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/session.h>
 #include <haproxy/task-t.h>
+#include <haproxy/tcpcheck-t.h>
 
 
 extern struct pool_head *pool_head_connection;

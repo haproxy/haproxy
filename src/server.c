@@ -36,6 +36,7 @@
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
+#include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
 
 #include <haproxy/port_range.h>
