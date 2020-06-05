@@ -2149,13 +2149,12 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *si, struct htx *htx)
 {
 	int ret;
-	int flags = appctx->ctx.stats.flags;
 
 	switch (appctx->st1) {
 		case PROMEX_DUMPER_INIT:
 			appctx->ctx.stats.px = NULL;
 			appctx->ctx.stats.sv = NULL;
-			appctx->ctx.stats.flags = (flags|PROMEX_FL_METRIC_HDR|PROMEX_FL_INFO_METRIC);
+			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_INFO_METRIC);
 			appctx->st2 = promex_global_metrics[INF_NAME];
 			appctx->st1 = PROMEX_DUMPER_GLOBAL;
 			/* fall through */
@@ -2172,7 +2171,8 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 
 			appctx->ctx.stats.px = proxies_list;
 			appctx->ctx.stats.sv = NULL;
-			appctx->ctx.stats.flags = (flags|PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
+			appctx->ctx.stats.flags &= ~PROMEX_FL_INFO_METRIC;
+			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
 			appctx->st2 = promex_front_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_FRONT;
 			/* fall through */
@@ -2189,7 +2189,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 
 			appctx->ctx.stats.px = proxies_list;
 			appctx->ctx.stats.sv = NULL;
-			appctx->ctx.stats.flags = (flags|PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
+			appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
 			appctx->st2 = promex_back_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_BACK;
 			/* fall through */
@@ -2206,7 +2206,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 
 			appctx->ctx.stats.px = proxies_list;
 			appctx->ctx.stats.sv = (appctx->ctx.stats.px ? appctx->ctx.stats.px->srv : NULL);
-			appctx->ctx.stats.flags = (flags|PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
+			appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
 			appctx->st2 = promex_srv_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_SRV;
 			/* fall through */
@@ -2223,7 +2223,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 
 			appctx->ctx.stats.px = NULL;
 			appctx->ctx.stats.sv = NULL;
-			appctx->ctx.stats.flags = flags;
+			appctx->ctx.stats.flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_INFO_METRIC|PROMEX_FL_STATS_METRIC);
 			appctx->st2 = 0;
 			appctx->st1 = PROMEX_DUMPER_DONE;
 			/* fall through */
