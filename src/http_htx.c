@@ -17,6 +17,7 @@
 #include <haproxy/api.h>
 #include <haproxy/global.h>
 #include <haproxy/http_fetch.h>
+#include <haproxy/log.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 

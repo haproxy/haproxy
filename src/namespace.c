@@ -11,10 +11,10 @@
 #include <string.h>
 
 #include <haproxy/api.h>
+#include <haproxy/chunk.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/hash.h>
-#include <haproxy/log.h>
 #include <haproxy/namespace.h>
 #include <haproxy/signal.h>
 

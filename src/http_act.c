@@ -26,6 +26,7 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/log.h>
 #include <haproxy/pattern.h>
 #include <haproxy/pool.h>
 #include <haproxy/regex.h>

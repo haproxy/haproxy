@@ -15,11 +15,11 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
+#include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
-#include <haproxy/log.h>
 #include <haproxy/proxy.h>
 #include <haproxy/shctx.h>
 #include <haproxy/stream.h>

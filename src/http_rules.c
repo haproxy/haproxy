@@ -24,6 +24,7 @@
 #include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/log.h>
 #include <haproxy/pool.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>

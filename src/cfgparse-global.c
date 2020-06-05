@@ -14,6 +14,8 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/compression.h>
 #include <haproxy/global.h>
+#include <haproxy/log.h>
+#include <haproxy/tools.h>
 
 /*
  * parse a line in a <global> section. Returns the error code, 0 if OK, or

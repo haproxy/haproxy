@@ -20,11 +20,11 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
+#include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
-#include <haproxy/log.h>
 #include <haproxy/mworker.h>
 #include <haproxy/peers.h>
 #include <haproxy/proxy-t.h>

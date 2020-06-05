@@ -25,8 +25,8 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
+#include <haproxy/errors.h>
 #include <haproxy/global.h>
-#include <haproxy/log.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>

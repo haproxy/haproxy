@@ -8,6 +8,7 @@
 #include <haproxy/http.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/list.h>
+#include <haproxy/log.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/tcpcheck.h>

@@ -17,6 +17,7 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
+#include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/pool.h>

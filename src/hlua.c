@@ -40,6 +40,7 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/log.h>
 #include <haproxy/map.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/pattern.h>

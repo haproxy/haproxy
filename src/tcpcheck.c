@@ -39,6 +39,7 @@
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
+#include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/h1.h>
 #include <haproxy/http.h>

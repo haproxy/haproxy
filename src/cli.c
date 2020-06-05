@@ -33,6 +33,7 @@
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
 #include <haproxy/dns-t.h>
+#include <haproxy/errors.h>
 #include <haproxy/frontend.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>

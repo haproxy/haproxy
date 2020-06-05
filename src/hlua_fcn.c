@@ -19,9 +19,9 @@
 #include <lualib.h>
 
 #include <haproxy/cli-t.h>
+#include <haproxy/errors.h>
 #include <haproxy/hlua-t.h>
 #include <haproxy/http.h>
-#include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/proxy.h>

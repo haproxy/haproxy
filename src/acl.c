@@ -17,8 +17,8 @@
 #include <haproxy/acl.h>
 #include <haproxy/auth.h>
 #include <haproxy/api.h>
+#include <haproxy/errors.h>
 #include <haproxy/list.h>
-#include <haproxy/log.h>
 #include <haproxy/pattern.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/tools.h>

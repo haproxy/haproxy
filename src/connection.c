@@ -16,6 +16,7 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/frontend.h>
+#include <haproxy/log-t.h>
 #include <haproxy/namespace.h>
 #include <haproxy/hash.h>
 #include <haproxy/net_helper.h>

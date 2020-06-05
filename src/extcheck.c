@@ -30,9 +30,9 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
+#include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
-#include <haproxy/log.h>
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
 #include <haproxy/signal.h>

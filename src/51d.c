@@ -8,11 +8,11 @@
 #include <haproxy/http_ana.h>
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
-#include <haproxy/log.h>
 #include <haproxy/thread.h>
 #include <haproxy/global.h>
 #include <haproxy/arg.h>
 #include <haproxy/sample.h>
+#include <haproxy/tools.h>
 #include <import/xxhash.h>
 #include <import/lru.h>
 #include <51Degrees.h>

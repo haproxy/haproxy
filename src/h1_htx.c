@@ -17,6 +17,7 @@
 #include <haproxy/h1_htx.h>
 #include <haproxy/http.h>
 #include <haproxy/htx.h>
+#include <haproxy/tools.h>
 
 /* Estimate the size of the HTX headers after the parsing, including the EOH. */
 static size_t h1_eval_htx_hdrs_size(const struct http_hdr *hdrs)

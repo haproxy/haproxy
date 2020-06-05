@@ -23,6 +23,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/peers.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>

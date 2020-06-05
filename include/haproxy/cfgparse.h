@@ -23,8 +23,8 @@
 #define _HAPROXY_CFGPARSE_H
 
 #include <haproxy/api.h>
+#include <haproxy/errors.h>
 #include <haproxy/list-t.h>
-#include <haproxy/log.h>
 #include <haproxy/proxy.h>
 
 /* configuration sections */

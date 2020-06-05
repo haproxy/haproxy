@@ -84,31 +84,6 @@ int parse_logformat_string(const char *str, struct proxy *curproxy, struct list 
 int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err);
 
 /*
- * Displays the message on stderr with the date and pid. Overrides the quiet
- * mode during startup.
- */
-void ha_alert(const char *fmt, ...)
-	__attribute__ ((format(printf, 1, 2)));
-
-/*
- * Displays the message on stderr with the date and pid.
- */
-void ha_warning(const char *fmt, ...)
-	__attribute__ ((format(printf, 1, 2)));
-
-/*
- * Displays the message on stderr with the date and pid.
- */
-void ha_notice(const char *fmt, ...)
-	__attribute__ ((format(printf, 1, 2)));
-
-/*
- * Displays the message on <out> only if quiet mode is not set.
- */
-void qfprintf(FILE *out, const char *fmt, ...)
-	__attribute__ ((format(printf, 2, 3)));
-
-/*
  * This function adds a header to the message and sends the syslog message
  * using a printf format string
  */

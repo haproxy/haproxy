@@ -12,10 +12,10 @@
 
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/errors.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
-#include <haproxy/log.h>
 #include <haproxy/proxy.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>

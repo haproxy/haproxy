@@ -16,13 +16,13 @@
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <haproxy/check.h>
+#include <haproxy/errors.h>
 #include <haproxy/list.h>
 #include <haproxy/mailers.h>
 #include <haproxy/pool.h>
 #include <haproxy/tools.h>
 #include <haproxy/time.h>
 #include <haproxy/thread.h>
-#include <haproxy/log.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/task.h>

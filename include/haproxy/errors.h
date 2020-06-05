@@ -22,6 +22,8 @@
 #ifndef _HAPROXY_ERRORS_H
 #define _HAPROXY_ERRORS_H
 
+#include <stdio.h>
+
 /* These flags may be used in various functions which are called from within
  * loops (eg: to start all listeners from all proxies). They provide enough
  * information to let the caller decide what to do. ERR_WARN and ERR_ALERT
@@ -55,6 +57,34 @@ enum {
 	PE_ARG_INVC_PTR,  /* invalid char in argument (pointer provided) */
 	PE_ARG_NOT_FOUND, /* argument references something not found */
 };
+
+
+/************ Error reporting functions from log.c ***********/
+
+/*
+ * Displays the message on stderr with the date and pid. Overrides the quiet
+ * mode during startup.
+ */
+void ha_alert(const char *fmt, ...)
+	__attribute__ ((format(printf, 1, 2)));
+
+/*
+ * Displays the message on stderr with the date and pid.
+ */
+void ha_warning(const char *fmt, ...)
+	__attribute__ ((format(printf, 1, 2)));
+
+/*
+ * Displays the message on stderr with the date and pid.
+ */
+void ha_notice(const char *fmt, ...)
+	__attribute__ ((format(printf, 1, 2)));
+
+/*
+ * Displays the message on <out> only if quiet mode is not set.
+ */
+void qfprintf(FILE *out, const char *fmt, ...)
+	__attribute__ ((format(printf, 2, 3)));
 
 #endif /* _HAPROXY_ERRORS_H */
 

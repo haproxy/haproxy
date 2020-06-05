@@ -21,10 +21,10 @@
 #include <haproxy/auth.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
+#include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/hash.h>
 #include <haproxy/http.h>
-#include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/protobuf.h>
 #include <haproxy/proxy.h>

@@ -19,6 +19,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/connection.h>
+#include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/http.h>
 #include <haproxy/http_ana.h>

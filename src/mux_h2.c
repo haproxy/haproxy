@@ -22,6 +22,7 @@
 #include <haproxy/hpack-tbl.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
+#include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stream.h>

@@ -22,6 +22,7 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/cli.h>
+#include <haproxy/errors.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>

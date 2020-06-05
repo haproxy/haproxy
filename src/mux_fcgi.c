@@ -13,6 +13,7 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
+#include <haproxy/errors.h>
 #include <haproxy/fcgi.h>
 #include <haproxy/fcgi-app.h>
 #include <haproxy/h1.h>

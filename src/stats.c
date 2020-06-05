@@ -34,6 +34,7 @@
 #include <haproxy/compression.h>
 #include <haproxy/debug.h>
 #include <haproxy/dns.h>
+#include <haproxy/errors.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
@@ -41,8 +42,8 @@
 #include <haproxy/htx.h>
 #include <haproxy/pool.h>
 #include <haproxy/list.h>
-#include <haproxy/listener.h>
 #include <haproxy/log.h>
+#include <haproxy/listener.h>
 #include <haproxy/map-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/proxy.h>

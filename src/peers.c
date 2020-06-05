@@ -25,9 +25,9 @@
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/dict.h>
+#include <haproxy/errors.h>
 #include <haproxy/fd.h>
 #include <haproxy/frontend.h>
-#include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers.h>
