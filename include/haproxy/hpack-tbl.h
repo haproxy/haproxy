@@ -49,8 +49,13 @@
 extern const struct http_hdr hpack_sht[HPACK_SHT_SIZE];
 extern struct pool_head *pool_head_hpack_tbl;
 
-extern int __hpack_dht_make_room(struct hpack_dht *dht, unsigned int needed);
-extern int hpack_dht_insert(struct hpack_dht *dht, struct ist name, struct ist value);
+int __hpack_dht_make_room(struct hpack_dht *dht, unsigned int needed);
+int hpack_dht_insert(struct hpack_dht *dht, struct ist name, struct ist value);
+
+#ifdef DEBUG_HPACK
+void hpack_dht_dump(FILE *out, const struct hpack_dht *dht);
+void hpack_dht_check_consistency(const struct hpack_dht *dht);
+#endif
 
 /* return a pointer to the entry designated by index <idx> (starting at 1) or
  * NULL if this index is not there.
@@ -124,6 +129,14 @@ static inline struct ist hpack_idx_to_value(const struct hpack_dht *dht, uint32_
 		return ist("### ERR ###"); // error
 
 	return hpack_get_value(dht, dte);
+}
+
+/* returns the slot number of the oldest entry (tail). Must not be used on an
+ * empty table.
+ */
+static inline unsigned int hpack_dht_get_tail(const struct hpack_dht *dht)
+{
+	return ((dht->head + 1U < dht->used) ? dht->wrap : 0) + dht->head + 1U - dht->used;
 }
 
 /* Purges table dht until a header field of <needed> bytes fits according to

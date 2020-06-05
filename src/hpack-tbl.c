@@ -101,17 +101,9 @@ const struct http_hdr hpack_sht[HPACK_SHT_SIZE] = {
 
 struct pool_head *pool_head_hpack_tbl = NULL;
 
-/* returns the slot number of the oldest entry (tail). Must not be used on an
- * empty table.
- */
-static inline unsigned int hpack_dht_get_tail(const struct hpack_dht *dht)
-{
-	return ((dht->head + 1U < dht->used) ? dht->wrap : 0) + dht->head + 1U - dht->used;
-}
-
 #ifdef DEBUG_HPACK
 /* dump the whole dynamic header table */
-static void hpack_dht_dump(FILE *out, const struct hpack_dht *dht)
+void hpack_dht_dump(FILE *out, const struct hpack_dht *dht)
 {
 	unsigned int i;
 	unsigned int slot;
@@ -128,7 +120,7 @@ static void hpack_dht_dump(FILE *out, const struct hpack_dht *dht)
 }
 
 /* check for the whole dynamic header table consistency, abort on failures */
-static void hpack_dht_check_consistency(const struct hpack_dht *dht)
+void hpack_dht_check_consistency(const struct hpack_dht *dht)
 {
 	unsigned slot = hpack_dht_get_tail(dht);
 	unsigned used2 = dht->used;
