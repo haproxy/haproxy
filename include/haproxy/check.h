@@ -25,44 +25,26 @@
 #include <haproxy/action-t.h>
 #include <haproxy/check-t.h>
 #include <haproxy/list-t.h>
-#include <haproxy/mailers.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
+
+extern struct action_kw_list tcp_check_keywords;
+extern struct pool_head *pool_head_tcpcheck_rule;
 
 const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
 void __health_adjust(struct server *s, short status);
+struct task *process_chk(struct task *t, void *context, unsigned short state);
 
-/* Use this one only. This inline version only ensures that we don't
- * call the function when the observe mode is disabled.
- */
-static inline void health_adjust(struct server *s, short status)
-{
-	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
-	/* return now if observing nor health check is not enabled */
-	if (!s->observe || !s->check.task) {
-		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
-		return;
-	}
-
-	__health_adjust(s, status);
-	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
-}
-
+const char *init_check(struct check *check, int type);
 void free_check(struct check *check);
-
-int init_email_alert(struct mailers *mailers, struct proxy *p, char **err);
-void send_email_alert(struct server *s, int priority, const char *format, ...)
-	__attribute__ ((format(printf, 3, 4)));
-
-extern struct action_kw_list tcp_check_keywords;
-static inline void tcp_check_keywords_register(struct action_kw_list *kw_list)
-{
-	LIST_ADDQ(&tcp_check_keywords.list, &kw_list->list);
-}
+void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool);
 
 void deinit_proxy_tcpcheck(struct proxy *px);
 int dup_tcpcheck_vars(struct list *dst, struct list *src);
+void free_tcpcheck_vars(struct list *vars);
+int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str);
+int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *strs);
 
 /* Declared here, but the definitions are in flt_spoe.c */
 int spoe_prepare_healthcheck_request(char **req, int *len);
@@ -90,6 +72,27 @@ int proxy_parse_external_check_opt(char **args, int cur_arg, struct proxy *curpx
 				   const char *file, int line);
 
 int set_srv_agent_send(struct server *srv, const char *send);
+
+/* Use this one only. This inline version only ensures that we don't
+ * call the function when the observe mode is disabled.
+ */
+static inline void health_adjust(struct server *s, short status)
+{
+	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
+	/* return now if observing nor health check is not enabled */
+	if (!s->observe || !s->check.task) {
+		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+		return;
+	}
+
+	__health_adjust(s, status);
+	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+}
+
+static inline void tcp_check_keywords_register(struct action_kw_list *kw_list)
+{
+	LIST_ADDQ(&tcp_check_keywords.list, &kw_list->list);
+}
 
 #endif /* _HAPROXY_CHECKS_H */
 

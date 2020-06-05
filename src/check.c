@@ -38,6 +38,7 @@
 #include <haproxy/dns.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
+#include <haproxy/mailers.h>
 #include <haproxy/queue.h>
 #include <haproxy/regex.h>
 #include <haproxy/tools.h>
@@ -79,8 +80,7 @@ struct data_cb check_conn_cb = {
 struct eb_root shared_tcpchecks = EB_ROOT;
 
 
-DECLARE_STATIC_POOL(pool_head_email_alert,   "email_alert",   sizeof(struct email_alert));
-DECLARE_STATIC_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", sizeof(struct tcpcheck_rule));
+DECLARE_POOL(pool_head_tcpcheck_rule, "tcpcheck_rule", sizeof(struct tcpcheck_rule));
 
 /* Dummy frontend used to create all checks sessions. */
 static struct proxy checks_fe;
@@ -751,7 +751,7 @@ static void free_tcpcheck_http_hdrs(struct list *hdrs)
  * tcp-check was allocated using a memory pool (it is used to instantiate email
  * alerts).
  */
-static void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
+void free_tcpcheck(struct tcpcheck_rule *rule, int in_pool)
 {
 	if (!rule)
 		return;
@@ -883,7 +883,7 @@ static void free_tcpcheck_var(struct tcpcheck_var *var)
 }
 
 /* Releases a list of preset tcp-check variables */
-static void free_tcpcheck_vars(struct list *vars)
+void free_tcpcheck_vars(struct list *vars)
 {
 	struct tcpcheck_var *var, *back;
 
@@ -4939,7 +4939,7 @@ static int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rul
 /**************************************************************************/
 /************************** Init/deinit checks ****************************/
 /**************************************************************************/
-static const char *init_check(struct check *check, int type)
+const char *init_check(struct check *check, int type)
 {
 	check->type = type;
 
@@ -4980,7 +4980,7 @@ void free_check(struct check *check)
 /* manages a server health-check. Returns the time the task accepts to wait, or
  * TIME_ETERNITY for infinity.
  */
-static struct task *process_chk(struct task *t, void *context, unsigned short state)
+struct task *process_chk(struct task *t, void *context, unsigned short state)
 {
 	struct check *check = context;
 
@@ -5531,153 +5531,7 @@ static void deinit_tcpchecks()
 	}
 }
 
-
-REGISTER_POST_SERVER_CHECK(init_srv_check);
-REGISTER_POST_SERVER_CHECK(init_srv_agent_check);
-REGISTER_POST_PROXY_CHECK(check_proxy_tcpcheck);
-REGISTER_POST_CHECK(start_checks);
-
-REGISTER_SERVER_DEINIT(deinit_srv_check);
-REGISTER_SERVER_DEINIT(deinit_srv_agent_check);
-REGISTER_PROXY_DEINIT(deinit_proxy_tcpcheck);
-REGISTER_POST_DEINIT(deinit_tcpchecks);
-
-/**************************************************************************/
-/****************************** Email alerts ******************************/
-/* NOTE: It may be pertinent to use an applet to handle email alerts      */
-/*        instead of a tcp-check ruleset                                  */
-/**************************************************************************/
-void email_alert_free(struct email_alert *alert)
-{
-	struct tcpcheck_rule *rule, *back;
-
-	if (!alert)
-		return;
-
-	if (alert->rules.list) {
-		list_for_each_entry_safe(rule, back, alert->rules.list, list) {
-			LIST_DEL(&rule->list);
-			free_tcpcheck(rule, 1);
-		}
-		free_tcpcheck_vars(&alert->rules.preset_vars);
-		free(alert->rules.list);
-		alert->rules.list = NULL;
-	}
-	pool_free(pool_head_email_alert, alert);
-}
-
-static struct task *process_email_alert(struct task *t, void *context, unsigned short state)
-{
-	struct check        *check = context;
-	struct email_alertq *q;
-	struct email_alert  *alert;
-
-	q = container_of(check, typeof(*q), check);
-
-	HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
-	while (1) {
-		if (!(check->state & CHK_ST_ENABLED)) {
-			if (LIST_ISEMPTY(&q->email_alerts)) {
-				/* All alerts processed, queue the task */
-				t->expire = TICK_ETERNITY;
-				task_queue(t);
-				goto end;
-			}
-
-			alert = LIST_NEXT(&q->email_alerts, typeof(alert), list);
-			LIST_DEL(&alert->list);
-			t->expire             = now_ms;
-			check->tcpcheck_rules = &alert->rules;
-			check->status         = HCHK_STATUS_INI;
-			check->state         |= CHK_ST_ENABLED;
-		}
-
-		process_chk(t, context, state);
-		if (check->state & CHK_ST_INPROGRESS)
-			break;
-
-		alert = container_of(check->tcpcheck_rules, typeof(*alert), rules);
-		email_alert_free(alert);
-		check->tcpcheck_rules = NULL;
-		check->server         = NULL;
-		check->state         &= ~CHK_ST_ENABLED;
-	}
-  end:
-	HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
-	return t;
-}
-
-/* Initializes mailer alerts for the proxy <p> using <mls> parameters.
- *
- * The function returns 1 in success case, otherwise, it returns 0 and err is
- * filled.
- */
-int init_email_alert(struct mailers *mls, struct proxy *p, char **err)
-{
-	struct mailer       *mailer;
-	struct email_alertq *queues;
-	const char          *err_str;
-	int                  i = 0;
-
-	if ((queues = calloc(mls->count, sizeof(*queues))) == NULL) {
-		memprintf(err, "out of memory while allocating mailer alerts queues");
-		goto fail_no_queue;
-	}
-
-	for (mailer = mls->mailer_list; mailer; i++, mailer = mailer->next) {
-		struct email_alertq *q     = &queues[i];
-		struct check        *check = &q->check;
-		struct task         *t;
-
-		LIST_INIT(&q->email_alerts);
-		HA_SPIN_INIT(&q->lock);
-		check->inter = mls->timeout.mail;
-		check->rise = DEF_AGENT_RISETIME;
-		check->proxy = p;
-		check->fall = DEF_AGENT_FALLTIME;
-		if ((err_str = init_check(check, PR_O2_TCPCHK_CHK))) {
-			memprintf(err, "%s", err_str);
-			goto error;
-		}
-
-		check->xprt = mailer->xprt;
-		check->addr = mailer->addr;
-		check->port = get_host_port(&mailer->addr);
-
-		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
-			memprintf(err, "out of memory while allocating mailer alerts task");
-			goto error;
-		}
-
-		check->task = t;
-		t->process = process_email_alert;
-		t->context = check;
-
-		/* check this in one ms */
-		t->expire    = TICK_ETERNITY;
-		check->start = now;
-		task_queue(t);
-	}
-
-	mls->users++;
-	free(p->email_alert.mailers.name);
-	p->email_alert.mailers.m = mls;
-	p->email_alert.queues    = queues;
-	return 0;
-
-  error:
-	for (i = 0; i < mls->count; i++) {
-		struct email_alertq *q     = &queues[i];
-		struct check        *check = &q->check;
-
-		free_check(check);
-	}
-	free(queues);
-  fail_no_queue:
-	return 1;
-}
-
-static int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str)
+int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str)
 {
 	struct tcpcheck_rule *tcpcheck, *prev_check;
 	struct tcpcheck_expect *expect;
@@ -5717,7 +5571,7 @@ static int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str
 	return 1;
 }
 
-static int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *strs)
+int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *strs)
 {
 	struct tcpcheck_rule *tcpcheck;
 	struct tcpcheck_send *send;
@@ -5751,159 +5605,16 @@ static int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * con
 	return 1;
 }
 
-static int enqueue_one_email_alert(struct proxy *p, struct server *s,
-				   struct email_alertq *q, const char *msg)
-{
-	struct email_alert   *alert;
-	struct tcpcheck_rule *tcpcheck;
-	struct check *check = &q->check;
+REGISTER_POST_SERVER_CHECK(init_srv_check);
+REGISTER_POST_SERVER_CHECK(init_srv_agent_check);
+REGISTER_POST_PROXY_CHECK(check_proxy_tcpcheck);
+REGISTER_POST_CHECK(start_checks);
 
-	if ((alert = pool_alloc(pool_head_email_alert)) == NULL)
-		goto error;
-	LIST_INIT(&alert->list);
-	alert->rules.flags = TCPCHK_RULES_TCP_CHK;
-	alert->rules.list = calloc(1, sizeof(*alert->rules.list));
-	if (!alert->rules.list)
-		goto error;
-	LIST_INIT(alert->rules.list);
-	LIST_INIT(&alert->rules.preset_vars); /* unused for email alerts */
-	alert->srv = s;
+REGISTER_SERVER_DEINIT(deinit_srv_check);
+REGISTER_SERVER_DEINIT(deinit_srv_agent_check);
+REGISTER_PROXY_DEINIT(deinit_proxy_tcpcheck);
+REGISTER_POST_DEINIT(deinit_tcpchecks);
 
-	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
-		goto error;
-	memset(tcpcheck, 0, sizeof(*tcpcheck));
-	tcpcheck->action       = TCPCHK_ACT_CONNECT;
-	tcpcheck->comment      = NULL;
-
-	LIST_ADDQ(alert->rules.list, &tcpcheck->list);
-
-	if (!add_tcpcheck_expect_str(&alert->rules, "220 "))
-		goto error;
-
-	{
-		const char * const strs[4] = { "EHLO ", p->email_alert.myhostname, "\r\n" };
-		if (!add_tcpcheck_send_strs(&alert->rules, strs))
-			goto error;
-	}
-
-	if (!add_tcpcheck_expect_str(&alert->rules, "250 "))
-		goto error;
-
-	{
-		const char * const strs[4] = { "MAIL FROM:<", p->email_alert.from, ">\r\n" };
-		if (!add_tcpcheck_send_strs(&alert->rules, strs))
-			goto error;
-	}
-
-	if (!add_tcpcheck_expect_str(&alert->rules, "250 "))
-		goto error;
-
-	{
-		const char * const strs[4] = { "RCPT TO:<", p->email_alert.to, ">\r\n" };
-		if (!add_tcpcheck_send_strs(&alert->rules, strs))
-			goto error;
-	}
-
-	if (!add_tcpcheck_expect_str(&alert->rules, "250 "))
-		goto error;
-
-	{
-		const char * const strs[2] = { "DATA\r\n" };
-		if (!add_tcpcheck_send_strs(&alert->rules, strs))
-			goto error;
-	}
-
-	if (!add_tcpcheck_expect_str(&alert->rules, "354 "))
-		goto error;
-
-	{
-		struct tm tm;
-		char datestr[48];
-		const char * const strs[18] = {
-			"From: ", p->email_alert.from, "\r\n",
-			"To: ", p->email_alert.to, "\r\n",
-			"Date: ", datestr, "\r\n",
-			"Subject: [HAproxy Alert] ", msg, "\r\n",
-			"\r\n",
-			msg, "\r\n",
-			"\r\n",
-			".\r\n",
-			NULL
-		};
-
-		get_localtime(date.tv_sec, &tm);
-
-		if (strftime(datestr, sizeof(datestr), "%a, %d %b %Y %T %z (%Z)", &tm) == 0) {
-			goto error;
-		}
-
-		if (!add_tcpcheck_send_strs(&alert->rules, strs))
-			goto error;
-	}
-
-	if (!add_tcpcheck_expect_str(&alert->rules, "250 "))
-		goto error;
-
-	{
-		const char * const strs[2] = { "QUIT\r\n" };
-		if (!add_tcpcheck_send_strs(&alert->rules, strs))
-			goto error;
-	}
-
-	if (!add_tcpcheck_expect_str(&alert->rules, "221 "))
-		goto error;
-
-	HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
-	task_wakeup(check->task, TASK_WOKEN_MSG);
-	LIST_ADDQ(&q->email_alerts, &alert->list);
-	HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
-	return 1;
-
-error:
-	email_alert_free(alert);
-	return 0;
-}
-
-static void enqueue_email_alert(struct proxy *p, struct server *s, const char *msg)
-{
-	int i;
-	struct mailer *mailer;
-
-	for (i = 0, mailer = p->email_alert.mailers.m->mailer_list;
-	     i < p->email_alert.mailers.m->count; i++, mailer = mailer->next) {
-		if (!enqueue_one_email_alert(p, s, &p->email_alert.queues[i], msg)) {
-			ha_alert("Email alert [%s] could not be enqueued: out of memory\n", p->id);
-			return;
-		}
-	}
-
-	return;
-}
-
-/*
- * Send email alert if configured.
- */
-void send_email_alert(struct server *s, int level, const char *format, ...)
-{
-	va_list argp;
-	char buf[1024];
-	int len;
-	struct proxy *p = s->proxy;
-
-	if (!p->email_alert.mailers.m || level > p->email_alert.level || format == NULL)
-		return;
-
-	va_start(argp, format);
-	len = vsnprintf(buf, sizeof(buf), format, argp);
-	va_end(argp);
-
-	if (len < 0 || len >= sizeof(buf)) {
-		ha_alert("Email alert [%s] could not format message\n", p->id);
-		return;
-	}
-
-	enqueue_email_alert(p, s, buf);
-}
 
 /**************************************************************************/
 /************************** Check sample fetches **************************/

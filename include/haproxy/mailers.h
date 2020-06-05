@@ -28,7 +28,14 @@
 #define _HAPROXY_MAILERS_H
 
 #include <haproxy/mailers-t.h>
+#include <haproxy/proxy-t.h>
+#include <haproxy/server-t.h>
 
 extern struct mailers *mailers;
+
+int init_email_alert(struct mailers *mailers, struct proxy *p, char **err);
+void send_email_alert(struct server *s, int priority, const char *format, ...)
+	__attribute__ ((format(printf, 3, 4)));
+
 
 #endif /* _HAPROXY_MAILERS_H */

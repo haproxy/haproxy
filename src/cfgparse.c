@@ -57,7 +57,7 @@
 #include <haproxy/lb_map.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
-#include <haproxy/mailers-t.h>
+#include <haproxy/mailers.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers-t.h>
 #include <haproxy/pool.h>

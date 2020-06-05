@@ -27,6 +27,7 @@
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
+#include <haproxy/mailers.h>
 #include <haproxy/namespace.h>
 #include <haproxy/queue.h>
 #include <haproxy/sample.h>
