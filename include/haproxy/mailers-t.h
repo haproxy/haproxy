@@ -31,6 +31,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <haproxy/check-t.h>
+#include <haproxy/list-t.h>
+#include <haproxy/tcpcheck-t.h>
+#include <haproxy/thread-t.h>
+
 struct mailer {
 	char *id;
 	struct mailers *mailers;
@@ -45,7 +50,6 @@ struct mailer {
 	struct mailer *next;		/* next mailer in the list */
 };
 
-
 struct mailers {
 	char *id;			/* mailers section name */
 	struct mailer *mailer_list;	/* mailers in this mailers section */
@@ -59,6 +63,21 @@ struct mailers {
 	struct {			/* time to: */
 		int mail;		/*   try connecting to mailserver and sending a email */
 	} timeout;
+};
+
+struct email_alert {
+	struct list list;
+	struct tcpcheck_rules rules;
+	struct server *srv;
+};
+
+struct email_alertq {
+	struct list email_alerts;
+	struct check check;		/* Email alerts are implemented using existing check
+					 * code even though they are not checks. This structure
+					 * is as a parameter to the check code.
+					 * Each check corresponds to a mailer */
+	__decl_thread(HA_SPINLOCK_T lock);
 };
 
 #endif /* _HAPROXY_MAILERS_T_H */
