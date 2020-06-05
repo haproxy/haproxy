@@ -29,7 +29,7 @@
 #include <haproxy/thread-t.h>
 #include <haproxy/api-t.h>
 
-#include <haproxy/sample-t.h>
+#include <haproxy/sample_data-t.h>
 
 
 /* Pattern matching function result.
@@ -206,7 +206,9 @@ struct pattern_expr_list {
 	struct pattern_expr *expr; /* The used expr. */
 };
 
-/* This struct contain a list of pattern expr */
+
+/* This struct contains a list of pattern expr */
+struct sample;
 struct pattern_head {
 	int (*parse)(const char *text, struct pattern *pattern, int flags, char **err);
 	int (*parse_smp)(const char *text, struct sample_data *data);

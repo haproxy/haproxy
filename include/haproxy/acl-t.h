@@ -22,14 +22,9 @@
 #ifndef _HAPROXY_ACL_T_H
 #define _HAPROXY_ACL_T_H
 
-#include <import/ebmbtree.h>
-
-#include <haproxy/arg-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/pattern-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/api-t.h>
-
+#include <haproxy/sample-t.h>
 
 /* ACL test result.
  *

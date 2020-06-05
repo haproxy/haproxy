@@ -26,6 +26,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/pattern-t.h>
+#include <haproxy/sample-t.h>
 
 /* pattern management function arrays */
 extern char *pat_match_names[PAT_MATCH_NUM];
