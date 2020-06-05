@@ -28,7 +28,7 @@
 #ifndef _HAPROXY_BUF_T_H
 #define _HAPROXY_BUF_T_H
 
-#include <stddef.h>
+#include <haproxy/api-t.h>
 
 /* Structure defining a buffer's head */
 struct buffer {

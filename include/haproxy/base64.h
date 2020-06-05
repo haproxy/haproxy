@@ -14,7 +14,7 @@
 #ifndef _HAPROXY_BASE64_H
 #define _HAPROXY_BASE64_H
 
-#include <stddef.h>
+#include <haproxy/api.h>
 
 int a2base64(char *in, int ilen, char *out, int olen);
 int base64dec(const char *in, size_t ilen, char *out, size_t olen);

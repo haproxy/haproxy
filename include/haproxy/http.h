@@ -23,9 +23,9 @@
 #ifndef _HAPROXY_HTTP_H
 #define _HAPROXY_HTTP_H
 
-#include <stddef.h>
 #include <string.h>
 #include <import/ist.h>
+#include <haproxy/api.h>
 #include <haproxy/http-t.h>
 
 extern const int http_err_codes[HTTP_ERR_SIZE];
