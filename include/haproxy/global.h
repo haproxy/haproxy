@@ -28,8 +28,6 @@
 #include <haproxy/vars-t.h>
 #include <haproxy/mworker-t.h>
 
-#include <haproxy/proxy-t.h>
-
 extern struct global global;
 extern int  pid;                /* current process id */
 extern int  relative_pid;       /* process id starting at 1 */
@@ -60,6 +58,8 @@ extern int atexit_flag;
 extern unsigned char boot_seed[20];  // per-boot random seed (160 bits initially)
 extern THREAD_LOCAL struct buffer trash;
 
+struct proxy;
+struct server;
 int main(int argc, char **argv);
 void deinit(void);
 void run_poll_loop(void);
