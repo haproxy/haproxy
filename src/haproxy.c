@@ -226,7 +226,7 @@ const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
 char hostname[MAX_HOSTNAME_LEN];
 char localpeer[MAX_HOSTNAME_LEN];
 
-static char **next_argv = NULL;
+static char **old_argv = NULL; /* previous argv but cleaned up */
 
 struct list proc_list = LIST_HEAD_INIT(proc_list);
 
@@ -755,7 +755,10 @@ static void get_cur_unixsocket()
  */
 void mworker_reload()
 {
+	char **next_argv = NULL;
+	int old_argc = 0; /* previous number of argument */
 	int next_argc = 0;
+	int i = 0;
 	char *msg = NULL;
 	struct rlimit limit;
 	struct per_thread_deinit_fct *ptdf;
@@ -799,13 +802,18 @@ void mworker_reload()
 	}
 
 	/* compute length  */
-	while (next_argv[next_argc])
-		next_argc++;
+	while (old_argv[old_argc])
+		old_argc++;
 
 	/* 1 for haproxy -sf, 2 for -x /socket */
-	next_argv = realloc(next_argv, (next_argc + 1 + 2 + mworker_child_nb() + nb_oldpids + 1) * sizeof(char *));
+	next_argv = calloc(old_argc + 1 + 2 + mworker_child_nb() + nb_oldpids + 1, sizeof(char *));
 	if (next_argv == NULL)
 		goto alloc_error;
+
+	/* copy the program name */
+	next_argv[next_argc++] = old_argv[0];
+
+	/* insert the new options just after argv[0] in case we have a -- */
 
 	/* add -sf <PID>*  to argv */
 	if (mworker_child_nb() > 0) {
@@ -816,23 +824,20 @@ void mworker_reload()
 		list_for_each_entry(child, &proc_list, list) {
 			if (!(child->options & (PROC_O_TYPE_WORKER|PROC_O_TYPE_PROG)) || child->pid <= -1 )
 				continue;
-			next_argv[next_argc] = memprintf(&msg, "%d", child->pid);
-			if (next_argv[next_argc] == NULL)
+			if ((next_argv[next_argc++] = memprintf(&msg, "%d", child->pid)) == NULL)
 				goto alloc_error;
 			msg = NULL;
-			next_argc++;
 		}
 	}
-
-	next_argv[next_argc] = NULL;
-
 	/* add the -x option with the stat socket */
 	if (cur_unixsocket) {
-
 		next_argv[next_argc++] = "-x";
 		next_argv[next_argc++] = (char *)cur_unixsocket;
-		next_argv[next_argc++] = NULL;
 	}
+
+	/* copy the previous options */
+	for (i = 1; i < old_argc; i++)
+		next_argv[next_argc++] = old_argv[i];
 
 	ha_warning("Reexecuting Master process\n");
 	signal(SIGPROF, SIG_IGN);
@@ -842,6 +847,8 @@ void mworker_reload()
 	return;
 
 alloc_error:
+	free(next_argv);
+	next_argv = NULL;
 	ha_warning("Failed to reexecute the master process [%d]: Cannot allocate memory\n", pid);
 	return;
 }
@@ -1711,8 +1718,8 @@ static void init(int argc, char **argv)
 	int ideal_maxconn;
 
 	global.mode = MODE_STARTING;
-	next_argv = copy_argv(argc, argv);
-	if (!next_argv) {
+	old_argv = copy_argv(argc, argv);
+	if (!old_argv) {
 		ha_alert("failed to copy argv.\n");
 		exit(1);
 	}
