@@ -844,6 +844,8 @@ void mworker_reload()
 	execvp(next_argv[0], next_argv);
 
 	ha_warning("Failed to reexecute the master process [%d]: %s\n", pid, strerror(errno));
+	free(next_argv);
+	next_argv = NULL;
 	return;
 
 alloc_error:
