@@ -1552,9 +1552,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if ((buf = alloc_trash_chunk()) == NULL)
-		return cli_err(appctx, "Can't allocate memory\n");
-
 	if (!*args[3] || !payload)
 		return cli_err(appctx, "'set ssl cert expects a filename and a certificate as a payload\n");
 
@@ -1562,6 +1559,9 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	 * manipulate ckch_store and ckch_inst */
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return cli_err(appctx, "Can't update the certificate!\nOperations on certificates are currently locked!\n");
+
+	if ((buf = alloc_trash_chunk()) == NULL)
+		return cli_err(appctx, "Can't allocate memory\n");
 
 	if (!chunk_strcpy(buf, args[3])) {
 		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
