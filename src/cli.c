@@ -526,7 +526,18 @@ static int cli_parse_request(struct appctx *appctx)
 			break;
 
 		args[i] = p;
-		p += strcspn(p, " \t");
+		while (1) {
+			p += strcspn(p, " \t\\");
+			/* escaped chars using backlashes (\) */
+			if (*p == '\\') {
+				if (!*++p)
+					break;
+				if (!*++p)
+					break;
+			} else {
+				break;
+			}
+		}
 		*p++ = 0;
 
 		/* unescape backslashes (\) */
