@@ -15148,6 +15148,24 @@ sdbm([<avalanche>])
   32-bit hash is trivial to break. See also "crc32", "djb2", "wt6", "crc32c",
   and the "hash-type" directive.
 
+secure_memcmp(<var>)
+  Compares the contents of <var> with the input value. Both values are treated
+  as a binary string. Returns a boolean indicating whether both binary strings
+  match.
+
+  If both binary strings have the same length then the comparison will be
+  performed in constant time.
+
+  Please note that this converter is only available when haproxy has been
+  compiled with USE_OPENSSL.
+
+  Example :
+
+     http-request set-var(txn.token) hdr(token)
+     # Check whether the token sent by the client matches the secret token
+     # value, without leaking the contents using a timing attack.
+     acl token_given str(my_secret_token),secure_memcmp(txn.token)
+
 set-var(<var name>)
   Sets a variable with the input content and returns the content on the output
   as-is. The variable keeps the value and the associated input type. The name of
@@ -15189,6 +15207,9 @@ strcmp(<var>)
   smaller than the right string or if the left string is shorter. A value greater
   than 0 otherwise (right string greater than left string or the right string is
   shorter).
+
+  See also the secure_memcmp converter if you need to compare two binary
+  strings in constant time.
 
   Example :
 

@@ -1,0 +1,137 @@
+varnishtest "secure_memcmp converter Test"
+
+#REQUIRE_VERSION=2.2
+#REQUIRE_OPTION=OPENSSL
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 4 -start
+
+server s2 {
+	rxreq
+	txresp
+} -repeat 7 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    frontend fe
+	# This frontend matches two base64 encoded values and does not need to
+	# handle null bytes.
+
+	bind "fd@${fe}"
+
+	#### requests
+	http-request  set-var(txn.hash) req.hdr(hash)
+	http-request  set-var(txn.raw) req.hdr(raw)
+
+	acl is_match var(txn.raw),sha1,base64,secure_memcmp(txn.hash)
+
+	http-response set-header Match true  if  is_match
+	http-response set-header Match false if !is_match
+
+	default_backend be
+
+    frontend fe2
+	# This frontend matches two binary values, needing to handle null
+	# bytes.
+	bind "fd@${fe2}"
+
+	#### requests
+	http-request  set-var(txn.hash) req.hdr(hash),b64dec
+	http-request  set-var(txn.raw) req.hdr(raw)
+
+	acl is_match var(txn.raw),sha1,secure_memcmp(txn.hash)
+
+	http-response set-header Match true  if  is_match
+	http-response set-header Match false if !is_match
+
+	default_backend be2
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+
+    backend be2
+	server s2 ${s2_addr}:${s2_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/" \
+	  -hdr "Raw: 1" \
+	  -hdr "Hash: NWoZK3kTsExUV00Ywo1G5jlUKKs="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "true"
+	txreq -url "/" \
+	  -hdr "Raw: 2" \
+	  -hdr "Hash: 2kuSN7rMzfGcB2DKt67EqDWQELA="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "true"
+	txreq -url "/" \
+	  -hdr "Raw: 2" \
+	  -hdr "Hash: 2kuSN7rMzfGcB2DKt67EqDWQELX="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "false"
+	txreq -url "/" \
+	  -hdr "Raw: 3" \
+	  -hdr "Hash: 2kuSN7rMzfGcB2DKt67EqDWQELA="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "false"
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+	txreq -url "/" \
+	  -hdr "Raw: 1" \
+	  -hdr "Hash: NWoZK3kTsExUV00Ywo1G5jlUKKs="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "true"
+	txreq -url "/" \
+	  -hdr "Raw: 2" \
+	  -hdr "Hash: 2kuSN7rMzfGcB2DKt67EqDWQELA="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "true"
+	txreq -url "/" \
+	  -hdr "Raw: 2" \
+	  -hdr "Hash: 2kuSN7rMzfGcB2DKt67EqDWQELX="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "false"
+	txreq -url "/" \
+	  -hdr "Raw: 3" \
+	  -hdr "Hash: 2kuSN7rMzfGcB2DKt67EqDWQELA="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "false"
+
+	# Test for values with leading nullbytes.
+	txreq -url "/" \
+	  -hdr "Raw: 6132845" \
+	  -hdr "Hash: AAAAVaeL9nNcSok1j6sd40EEw8s="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "true"
+	txreq -url "/" \
+	  -hdr "Raw: 49177200" \
+	  -hdr "Hash: AAAA9GLglTNv2JoMv2n/w9Xadhc="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "true"
+	txreq -url "/" \
+	  -hdr "Raw: 6132845" \
+	  -hdr "Hash: AAAA9GLglTNv2JoMv2n/w9Xadhc="
+	rxresp
+	expect resp.status == 200
+	expect resp.http.match == "false"
+} -run

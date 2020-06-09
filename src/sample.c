@@ -3065,7 +3065,7 @@ static int smp_check_concat(struct arg *args, struct sample_conv *conv,
 	return 1;
 }
 
-/* compares string with a variable containing a string. Return value
+/* Compares string with a variable containing a string. Return value
  * is compatible with strcmp(3)'s return value.
  */
 static int sample_conv_strcmp(const struct arg *arg_p, struct sample *smp, void *private)
@@ -3098,6 +3098,41 @@ static int sample_conv_strcmp(const struct arg *arg_p, struct sample *smp, void 
 	smp->data.type = SMP_T_SINT;
 	return 1;
 }
+
+#ifdef USE_OPENSSL
+/* Compares bytestring with a variable containing a bytestring. Return value
+ * is `true` if both bytestrings are bytewise identical and `false` otherwise.
+ *
+ * Comparison will be performed in constant time if both bytestrings are of
+ * the same length. If the lengths differ execution time will not be constant.
+ */
+static int sample_conv_secure_memcmp(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct sample tmp;
+	int result;
+
+	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
+	if (arg_p[0].type != ARGT_VAR)
+		return 0;
+	if (!vars_get_by_desc(&arg_p[0].data.var, &tmp))
+		return 0;
+	if (!sample_casts[tmp.data.type][SMP_T_BIN](&tmp))
+		return 0;
+
+	if (smp->data.u.str.data != tmp.data.u.str.data) {
+		smp->data.u.sint = 0;
+		smp->data.type = SMP_T_BOOL;
+		return 1;
+	}
+
+	/* The following comparison is performed in constant time. */
+	result = CRYPTO_memcmp(smp->data.u.str.area, tmp.data.u.str.area, smp->data.u.str.data);
+
+	smp->data.u.sint = result == 0;
+	smp->data.type = SMP_T_BOOL;
+	return 1;
+}
+#endif
 
 #define GRPC_MSG_COMPRESS_FLAG_SZ 1 /* 1 byte */
 #define GRPC_MSG_LENGTH_SZ        4 /* 4 bytes */
@@ -3185,6 +3220,23 @@ static int smp_check_strcmp(struct arg *args, struct sample_conv *conv,
 		  args[0].data.str.area);
 	return 0;
 }
+
+#ifdef USE_OPENSSL
+/* This function checks the "secure_memcmp" converter's arguments and extracts the
+ * variable name and its scope.
+ */
+static int smp_check_secure_memcmp(struct arg *args, struct sample_conv *conv,
+                           const char *file, int line, char **err)
+{
+	/* Try to decode a variable. */
+	if (vars_check_arg(&args[0], NULL))
+		return 1;
+
+	memprintf(err, "failed to register variable name '%s'",
+		  args[0].data.str.area);
+	return 0;
+}
+#endif
 
 /**/
 static int sample_conv_htonl(const struct arg *arg_p, struct sample *smp, void *private)
@@ -3727,6 +3779,9 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 #endif
 	{ "concat", sample_conv_concat,    ARG3(1,STR,STR,STR), smp_check_concat, SMP_T_STR,  SMP_T_STR },
 	{ "strcmp", sample_conv_strcmp,    ARG1(1,STR), smp_check_strcmp, SMP_T_STR,  SMP_T_SINT },
+#ifdef USE_OPENSSL
+	{ "secure_memcmp", sample_conv_secure_memcmp,    ARG1(1,STR), smp_check_secure_memcmp, SMP_T_BIN,  SMP_T_BOOL },
+#endif
 
 	/* gRPC converters. */
 	{ "ungrpc", sample_conv_ungrpc,    ARG2(1,PBUF_FNUM,STR), sample_conv_protobuf_check, SMP_T_BIN, SMP_T_BIN  },
