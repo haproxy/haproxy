@@ -10,10 +10,8 @@
  *
  */
 
-#include <haproxy/fd-t.h>
-#include <haproxy/proto_udp-t.h>
-
 #include <haproxy/fd.h>
+#include <haproxy/proto_udp-t.h>
 
 /* datagram handler callback */
 void dgram_fd_handler(int fd)

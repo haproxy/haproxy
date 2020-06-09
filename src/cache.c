@@ -10,6 +10,9 @@
  * 2 of the License, or (at your option) any later version.
  */
 
+#include <import/eb32tree.h>
+#include <import/sha1.h>
+
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
@@ -17,20 +20,16 @@
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
+#include <haproxy/hash.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
+#include <haproxy/htx.h>
+#include <haproxy/net_helper.h>
 #include <haproxy/proxy.h>
 #include <haproxy/shctx.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
-#include <import/eb32tree.h>
-#include <import/sha1.h>
-
-
-#include <haproxy/hash.h>
-#include <haproxy/htx.h>
-#include <haproxy/net_helper.h>
 
 #define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without
 					       * the filter keyword) */

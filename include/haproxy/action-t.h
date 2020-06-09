@@ -22,9 +22,8 @@
 #ifndef _HAPROXY_ACTION_T_H
 #define _HAPROXY_ACTION_T_H
 
-#include <haproxy/regex-t.h>
-
 #include <haproxy/applet-t.h>
+#include <haproxy/regex-t.h>
 #include <haproxy/stick_table-t.h>
 
 enum act_from {

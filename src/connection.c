@@ -15,13 +15,12 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
+#include <haproxy/fd.h>
 #include <haproxy/frontend.h>
+#include <haproxy/hash.h>
 #include <haproxy/log-t.h>
 #include <haproxy/namespace.h>
-#include <haproxy/hash.h>
 #include <haproxy/net_helper.h>
-
-#include <haproxy/fd.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/sample.h>
 #include <haproxy/ssl_sock.h>

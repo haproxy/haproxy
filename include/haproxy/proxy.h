@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_PROXY_H
 #define _HAPROXY_PROXY_H
 
-#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/applet-t.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/proxy-t.h>

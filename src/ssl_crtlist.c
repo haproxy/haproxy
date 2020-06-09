@@ -8,13 +8,17 @@
  * 2 of the License, or (at your option) any later version.
  *
  */
+#include <sys/stat.h>
+#include <sys/types.h>
 
+#include <dirent.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
-#include <sys/stat.h>
-#include <sys/types.h>
+
+#include <import/ebpttree.h>
+#include <import/ebsttree.h>
 
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
@@ -25,9 +29,6 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
-#include <dirent.h>
-#include <import/ebpttree.h>
-#include <import/ebsttree.h>
 
 /* release ssl bind conf */
 void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)

@@ -24,23 +24,22 @@
 
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/chunk.h>
+#include <haproxy/fd.h>
 #include <haproxy/frontend.h>
+#include <haproxy/global.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/log.h>
+#include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
-#include <haproxy/tools.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
-#include <haproxy/global.h>
-
-#include <haproxy/arg.h>
-#include <haproxy/fd.h>
-#include <haproxy/proto_tcp.h>
 
 /* Finish a stream accept() for a proxy (TCP or HTTP). It returns a negative
  * value in case of a critical failure which must cause the listener to be

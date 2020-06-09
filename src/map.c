@@ -12,18 +12,18 @@
 
 #include <stdio.h>
 
-#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/applet-t.h>
+#include <haproxy/arg.h>
 #include <haproxy/cli.h>
 #include <haproxy/map.h>
 #include <haproxy/pattern.h>
 #include <haproxy/regex.h>
+#include <haproxy/sample.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
-#include <haproxy/arg.h>
-#include <haproxy/sample.h>
 
 /* Parse an IPv4 or IPv6 address and store it into the sample.
  * The output type is IPv4 or IPv6.

@@ -30,9 +30,9 @@
 #include <import/ebmbtree.h>
 #include <import/ebpttree.h>
 
+#include <haproxy/api-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/thread-t.h>
-#include <haproxy/api-t.h>
 
 
 /* The types of extra data we can store in a stick table */

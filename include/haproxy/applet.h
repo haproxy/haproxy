@@ -24,8 +24,8 @@
 
 #include <stdlib.h>
 
-#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/applet-t.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
 #include <haproxy/task.h>

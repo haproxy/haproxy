@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_GLOBAL_H
 #define _HAPROXY_GLOBAL_H
 
-#include <haproxy/global-t.h>
 #include <haproxy/api-t.h>
-#include <haproxy/vars-t.h>
+#include <haproxy/global-t.h>
 #include <haproxy/mworker-t.h>
+#include <haproxy/vars-t.h>
 
 extern struct global global;
 extern int  pid;                /* current process id */

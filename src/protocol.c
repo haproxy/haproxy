@@ -16,9 +16,9 @@
 #include <haproxy/api.h>
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
+#include <haproxy/protocol.h>
 #include <haproxy/tools.h>
 
-#include <haproxy/protocol.h>
 
 /* List head of all registered protocols */
 static struct list protocols = LIST_HEAD_INIT(protocols);

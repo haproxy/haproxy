@@ -24,9 +24,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/backend.h>
-#include <haproxy/api.h>
+#include <haproxy/base64.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
@@ -35,17 +36,20 @@
 #include <haproxy/debug.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
+#include <haproxy/fd.h>
+#include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
-#include <haproxy/pool.h>
 #include <haproxy/list.h>
-#include <haproxy/log.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/map-t.h>
 #include <haproxy/pattern-t.h>
+#include <haproxy/pipe.h>
+#include <haproxy/pool.h>
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
@@ -54,16 +58,12 @@
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
-#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/version.h>
-#include <haproxy/base64.h>
 
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/pipe.h>
 
 /* status codes available for the stats admin page (strictly 4 chars length) */
 const char *stat_status_codes[STAT_STATUS_SIZE] = {

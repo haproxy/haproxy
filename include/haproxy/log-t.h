@@ -26,10 +26,10 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 
+#include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/ring-t.h>
 #include <haproxy/thread-t.h>
-#include <haproxy/api-t.h>
 
 
 #define NB_LOG_FACILITIES       24

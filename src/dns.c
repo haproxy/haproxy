@@ -22,13 +22,17 @@
 #include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
-#include <haproxy/check.h>
 #include <haproxy/channel.h>
+#include <haproxy/check.h>
 #include <haproxy/cli.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
+#include <haproxy/fd.h>
+#include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
+#include <haproxy/net_helper.h>
+#include <haproxy/proto_udp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
@@ -36,15 +40,10 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
-#include <haproxy/time.h>
 #include <haproxy/ticks.h>
-#include <haproxy/net_helper.h>
+#include <haproxy/time.h>
 #include <haproxy/vars.h>
 
-#include <haproxy/global.h>
-
-#include <haproxy/fd.h>
-#include <haproxy/proto_udp.h>
 
 struct list dns_resolvers  = LIST_HEAD_INIT(dns_resolvers);
 struct list dns_srvrq_list = LIST_HEAD_INIT(dns_srvrq_list);

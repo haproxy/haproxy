@@ -18,9 +18,11 @@
 
 #include <haproxy/acl.h>
 #include <haproxy/action.h>
-#include <haproxy/applet.h>
-#include <haproxy/backend.h>
+#include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
+#include <haproxy/arg.h>
+#include <haproxy/backend.h>
 #include <haproxy/capture.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
@@ -30,35 +32,33 @@
 #include <haproxy/dict.h>
 #include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/fd.h>
 #include <haproxy/filters.h>
+#include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/hlua.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_rules.h>
-#include <haproxy/istbuf.h>
-#include <haproxy/thread.h>
 #include <haproxy/htx.h>
+#include <haproxy/istbuf.h>
 #include <haproxy/log.h>
+#include <haproxy/pipe.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stick_table.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/thread.h>
 #include <haproxy/trace.h>
 #include <haproxy/vars.h>
 
-#include <haproxy/activity.h>
-#include <haproxy/arg.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/pipe.h>
-#include <haproxy/stick_table.h>
 
 DECLARE_POOL(pool_head_stream, "stream", sizeof(struct stream));
 DECLARE_POOL(pool_head_uniqueid, "uniqueid", UNIQUEID_LEN);

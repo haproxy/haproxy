@@ -28,16 +28,14 @@
 
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/compression-t.h>
+#include <haproxy/compression.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/freq_ctr.h>
+#include <haproxy/global.h>
+#include <haproxy/pool.h>
 #include <haproxy/stream.h>
 #include <haproxy/thread.h>
-#include <haproxy/pool.h>
-
-#include <haproxy/global.h>
-#include <haproxy/compression-t.h>
-
-#include <haproxy/compression.h>
-#include <haproxy/freq_ctr.h>
 
 
 #if defined(USE_ZLIB)

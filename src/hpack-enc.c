@@ -30,9 +30,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <import/ist.h>
 #include <haproxy/hpack-enc.h>
 #include <haproxy/http-hdr-t.h>
-#include <import/ist.h>
 
 /*
  * HPACK encoding: these tables were generated using gen-enc.c

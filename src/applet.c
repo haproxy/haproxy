@@ -13,8 +13,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <haproxy/applet.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/channel.h>
 #include <haproxy/list.h>
 #include <haproxy/stream.h>

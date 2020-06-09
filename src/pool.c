@@ -11,22 +11,20 @@
  */
 #include <errno.h>
 
-#include <haproxy/applet-t.h>
+#include <haproxy/activity-t.h>
 #include <haproxy/api.h>
+#include <haproxy/applet-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
-
-#include <haproxy/thread.h>
-#include <haproxy/pool.h>
 #include <haproxy/list.h>
+#include <haproxy/pool.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
+#include <haproxy/thread.h>
 #include <haproxy/tools.h>
-
-#include <haproxy/activity-t.h>
 
 
 #ifdef CONFIG_HAP_LOCAL_POOLS

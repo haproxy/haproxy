@@ -24,18 +24,17 @@
 #include <haproxy/buf.h>
 #include <haproxy/cli.h>
 #include <haproxy/debug.h>
+#include <haproxy/fd.h>
+#include <haproxy/global.h>
 #include <haproxy/hlua.h>
 #include <haproxy/log.h>
+#include <haproxy/net_helper.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
-#include <import/ist.h>
-#include <haproxy/net_helper.h>
 #include <haproxy/tools.h>
+#include <import/ist.h>
 
-#include <haproxy/global.h>
-
-#include <haproxy/fd.h>
 
 /* mask of threads still having to dump, used to respect ordering. Only used
  * when USE_THREAD_DUMP is set.

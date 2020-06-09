@@ -11,8 +11,8 @@
  */
 #include <haproxy/acl.h>
 #include <haproxy/action.h>
-#include <haproxy/arg-t.h>
 #include <haproxy/api.h>
+#include <haproxy/arg-t.h>
 #include <haproxy/capture-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
@@ -26,9 +26,9 @@
 #include <haproxy/stream-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tcp_rules.h>
-#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 #include <haproxy/trace.h>
 
 

@@ -23,10 +23,10 @@
 #ifndef _HAPROXY_STATS_H
 #define _HAPROXY_STATS_H
 
-#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
-#include <haproxy/stream_interface-t.h>
+#include <haproxy/applet-t.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stream_interface-t.h>
 #include <haproxy/tools-t.h>
 
 

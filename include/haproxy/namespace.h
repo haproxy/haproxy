@@ -25,8 +25,8 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <haproxy/namespace-t.h>
 #include <import/ebistree.h>
+#include <haproxy/namespace-t.h>
 
 #ifdef USE_NS
 

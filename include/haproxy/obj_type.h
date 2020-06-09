@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_OBJ_TYPE_H
 #define _HAPROXY_OBJ_TYPE_H
 
-#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/applet-t.h>
 #include <haproxy/check-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/listener-t.h>

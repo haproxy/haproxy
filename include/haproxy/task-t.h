@@ -27,9 +27,9 @@
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 
+#include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/thread-t.h>
-#include <haproxy/api-t.h>
 
 /* values for task->state */
 #define TASK_SLEEPING     0x0000  /* task sleeping */

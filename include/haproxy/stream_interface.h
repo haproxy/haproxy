@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_STREAM_INTERFACE_H
 #define _HAPROXY_STREAM_INTERFACE_H
 
-#include <haproxy/applet.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
 #include <haproxy/stream-t.h>

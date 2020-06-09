@@ -78,12 +78,15 @@
 #include <systemd/sd-daemon.h>
 #endif
 
-#include <haproxy/acl.h>
-#include <haproxy/auth.h>
-#include <haproxy/api.h>
 #include <import/sha1.h>
 
+#include <haproxy/acl.h>
+#include <haproxy/activity.h>
+#include <haproxy/api.h>
+#include <haproxy/arg.h>
+#include <haproxy/auth.h>
 #include <haproxy/base64.h>
+#include <haproxy/capture-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
@@ -91,10 +94,11 @@
 #include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
+#include <haproxy/fd.h>
 #include <haproxy/filters.h>
+#include <haproxy/global.h>
 #include <haproxy/hlua.h>
 #include <haproxy/http_rules.h>
-#include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
@@ -104,29 +108,24 @@
 #include <haproxy/openssl-compat.h>
 #include <haproxy/pattern.h>
 #include <haproxy/peers.h>
+#include <haproxy/pool.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
-#include <haproxy/sample.h>
 #include <haproxy/regex.h>
+#include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/signal.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream.h>
-#include <haproxy/tools.h>
-#include <haproxy/time.h>
-#include <haproxy/uri_auth-t.h>
-#include <haproxy/version.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
+#include <haproxy/time.h>
+#include <haproxy/tools.h>
+#include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>
+#include <haproxy/version.h>
 
-#include <haproxy/capture-t.h>
-#include <haproxy/global.h>
-
-#include <haproxy/activity.h>
-#include <haproxy/arg.h>
-#include <haproxy/fd.h>
-#include <haproxy/protocol.h>
 
 /* array of init calls for older platforms */
 DECLARE_INIT_STAGES;

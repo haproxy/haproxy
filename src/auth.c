@@ -25,10 +25,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <haproxy/auth-t.h>
 #include <haproxy/api.h>
-#include <haproxy/global.h>
+#include <haproxy/auth-t.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/sample-t.h>
 #include <haproxy/thread.h>

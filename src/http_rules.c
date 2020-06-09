@@ -19,6 +19,8 @@
 #include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
+#include <haproxy/capture-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/global.h>
@@ -26,13 +28,9 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
 #include <haproxy/pool.h>
+#include <haproxy/sample.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
-
-#include <haproxy/capture-t.h>
-
-#include <haproxy/arg.h>
-#include <haproxy/sample.h>
 
 
 /* List head of all known action keywords for "http-request" */

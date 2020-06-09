@@ -37,11 +37,11 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <import/eb32tree.h>
 #include <import/eb32sctree.h>
+#include <import/eb32tree.h>
 #include <haproxy/api.h>
-#include <haproxy/intops.h>
 #include <haproxy/chunk.h>
+#include <haproxy/intops.h>
 #include <haproxy/namespace-t.h>
 #include <haproxy/protocol-t.h>
 #include <haproxy/tools-t.h>

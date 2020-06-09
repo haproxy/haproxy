@@ -24,9 +24,9 @@
 #define _HAPROXY_HTTP_HTX_T_H
 
 #include <import/ebistree.h>
+#include <import/ist.h>
 
 #include <haproxy/buf-t.h>
-#include <import/ist.h>
 #include <haproxy/http-t.h>
 #include <haproxy/htx-t.h>
 #include <haproxy/list-t.h>

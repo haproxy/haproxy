@@ -18,15 +18,13 @@
 #include <errno.h>
 #include <syslog.h>
 
+#include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/fd.h>
+#include <haproxy/global.h>
 #include <haproxy/signal.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-
-#include <haproxy/global.h>
-
-#include <haproxy/activity.h>
-#include <haproxy/fd.h>
 
 /*
  * Private data:

@@ -14,8 +14,8 @@
 
 #include <haproxy/acl.h>
 #include <haproxy/action-t.h>
-#include <haproxy/arg.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/filters.h>
 #include <haproxy/freq_ctr.h>
@@ -23,17 +23,17 @@
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
-#include <haproxy/sample.h>
-#include <haproxy/signal.h>
-#include <haproxy/thread.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy.h>
+#include <haproxy/sample.h>
 #include <haproxy/session.h>
+#include <haproxy/signal.h>
 #include <haproxy/spoe.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/thread.h>
 #include <haproxy/time.h>
 #include <haproxy/vars.h>
 

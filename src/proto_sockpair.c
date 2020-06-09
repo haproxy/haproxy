@@ -29,16 +29,16 @@
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
+#include <haproxy/fd.h>
+#include <haproxy/freq_ctr.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
-#include <haproxy/tools.h>
+#include <haproxy/protocol.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 #include <haproxy/version.h>
 
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/protocol.h>
 
 static void sockpair_add_listener(struct listener *listener, int port);
 static int sockpair_bind_listener(struct listener *listener, char *errmsg, int errlen);

@@ -14,10 +14,11 @@
  */
 
 #include <haproxy/action-t.h>
+#include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/backend.h>
-#include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/compression.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
@@ -26,10 +27,8 @@
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
-#include <haproxy/pool.h>
-
-#include <haproxy/compression.h>
 #include <haproxy/pipe.h>
+#include <haproxy/pool.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>

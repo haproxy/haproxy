@@ -12,7 +12,6 @@
 
 #include <import/eb32tree.h>
 #include <haproxy/api.h>
-#include <haproxy/istbuf.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/h1.h>
@@ -22,6 +21,7 @@
 #include <haproxy/hpack-tbl.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
+#include <haproxy/istbuf.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/session-t.h>

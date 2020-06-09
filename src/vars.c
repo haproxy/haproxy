@@ -1,7 +1,7 @@
 #include <ctype.h>
 
-#include <haproxy/arg.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
 #include <haproxy/global.h>
@@ -11,8 +11,8 @@
 #include <haproxy/log.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream-t.h>
-#include <haproxy/tcpcheck.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/tcpcheck.h>
 #include <haproxy/vars.h>
 
 

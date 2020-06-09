@@ -17,8 +17,8 @@
  */
 
 #include <import/eb32tree.h>
-#include <haproxy/backend.h>
 #include <haproxy/api.h>
+#include <haproxy/backend.h>
 #include <haproxy/queue.h>
 #include <haproxy/server-t.h>
 #include <haproxy/tools.h>

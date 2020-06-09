@@ -22,9 +22,9 @@
 #ifndef _HAPROXY_HTTP_RULES_H
 #define _HAPROXY_HTTP_RULES_H
 
+#include <haproxy/action-t.h>
 #include <haproxy/api.h>
 #include <haproxy/list.h>
-#include <haproxy/action-t.h>
 #include <haproxy/proxy-t.h>
 
 extern struct action_kw_list http_req_keywords;

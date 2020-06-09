@@ -26,21 +26,29 @@
 
 #include <net/if.h>
 
-#include <haproxy/applet-t.h>
+#include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/applet-t.h>
+#include <haproxy/base64.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
+#include <haproxy/compression.h>
 #include <haproxy/dns-t.h>
 #include <haproxy/errors.h>
+#include <haproxy/fd.h>
+#include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
+#include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/mworker-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/peers.h>
+#include <haproxy/pipe.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample-t.h>
 #include <haproxy/server.h>
@@ -49,20 +57,10 @@
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
-#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 #include <haproxy/version.h>
-#include <haproxy/base64.h>
-
-#include <haproxy/global.h>
-
-#include <haproxy/activity.h>
-#include <haproxy/compression.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/pipe.h>
-#include <haproxy/protocol.h>
 
 #define PAYLOAD_PATTERN "<<"
 

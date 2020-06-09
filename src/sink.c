@@ -25,11 +25,11 @@
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
-#include <haproxy/time.h>
 #include <haproxy/ring.h>
 #include <haproxy/signal.h>
 #include <haproxy/sink.h>
 #include <haproxy/stream_interface.h>
+#include <haproxy/time.h>
 
 struct list sink_list = LIST_HEAD_INIT(sink_list);
 

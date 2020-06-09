@@ -15,19 +15,18 @@
 #include <unistd.h>
 
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/global.h>
+#include <haproxy/h1.h>
+#include <haproxy/http.h>
 #include <haproxy/http_fetch.h>
+#include <haproxy/http_htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/log.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 
-#include <haproxy/cfgparse.h>
-#include <haproxy/h1.h>
-#include <haproxy/http.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-
-#include <haproxy/arg.h>
 
 struct buffer http_err_chunks[HTTP_ERR_SIZE];
 struct http_reply http_err_replies[HTTP_ERR_SIZE];

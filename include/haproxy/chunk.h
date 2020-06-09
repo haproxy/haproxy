@@ -25,9 +25,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <import/ist.h>
 #include <haproxy/api.h>
 #include <haproxy/buf-t.h>
-#include <import/ist.h>
 #include <haproxy/pool.h>
 
 

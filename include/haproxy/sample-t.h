@@ -23,8 +23,8 @@
 #ifndef _HAPROXY_SAMPLE_T_H
 #define _HAPROXY_SAMPLE_T_H
 
-#include <haproxy/list-t.h>
 #include <haproxy/api-t.h>
+#include <haproxy/list-t.h>
 #include <haproxy/sample_data-t.h>
 
 /* input and output sample types */

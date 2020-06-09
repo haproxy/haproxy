@@ -30,6 +30,7 @@
 #include <import/eb32tree.h>
 #include <import/ebpttree.h>
 
+#include <haproxy/api-t.h>
 #include <haproxy/arg-t.h>
 #include <haproxy/backend-t.h>
 #include <haproxy/counters-t.h>
@@ -39,7 +40,6 @@
 #include <haproxy/server-t.h>
 #include <haproxy/tcpcheck-t.h>
 #include <haproxy/thread-t.h>
-#include <haproxy/api-t.h>
 
 /* values for proxy->state */
 enum pr_state {

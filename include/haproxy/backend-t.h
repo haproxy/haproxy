@@ -22,6 +22,7 @@
 #ifndef _HAPROXY_BACKEND_T_H
 #define _HAPROXY_BACKEND_T_H
 
+#include <haproxy/api-t.h>
 #include <haproxy/lb_chash-t.h>
 #include <haproxy/lb_fas-t.h>
 #include <haproxy/lb_fwlc-t.h>
@@ -29,7 +30,6 @@
 #include <haproxy/lb_map-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/thread-t.h>
-#include <haproxy/api-t.h>
 
 /* Parameters for lbprm.algo */
 

@@ -1,15 +1,15 @@
 #include <stdio.h>
 
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
-#include <haproxy/global.h>
-#include <haproxy/arg.h>
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
 #include <dac.h>

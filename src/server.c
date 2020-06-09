@@ -11,14 +11,16 @@
  *
  */
 
+#include <netinet/tcp.h>
 #include <ctype.h>
 #include <errno.h>
 
+#include <import/ebsttree.h>
 #include <import/xxhash.h>
 
+#include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/backend.h>
-#include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
@@ -30,6 +32,8 @@
 #include <haproxy/log.h>
 #include <haproxy/mailers.h>
 #include <haproxy/namespace.h>
+#include <haproxy/port_range.h>
+#include <haproxy/protocol.h>
 #include <haproxy/queue.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
@@ -40,11 +44,6 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
 
-#include <haproxy/port_range.h>
-#include <haproxy/protocol.h>
-#include <netinet/tcp.h>
-
-#include <import/ebsttree.h>
 
 static void srv_update_status(struct server *s);
 static void srv_update_state(struct server *srv, int version, char **params);

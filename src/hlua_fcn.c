@@ -28,9 +28,8 @@
 #include <haproxy/regex.h>
 #include <haproxy/server.h>
 #include <haproxy/stats.h>
-#include <haproxy/time.h>
-
 #include <haproxy/stick_table.h>
+#include <haproxy/time.h>
 
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;

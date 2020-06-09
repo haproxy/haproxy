@@ -22,8 +22,8 @@
 #include <haproxy/htx.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/stream.h>
-#include <haproxy/tools.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 const char *trace_flt_id = "trace filter";
 

@@ -14,22 +14,20 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <import/ebsttree.h>
+
 #include <haproxy/acl.h>
-#include <haproxy/auth.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
+#include <haproxy/auth.h>
 #include <haproxy/errors.h>
+#include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/pattern.h>
 #include <haproxy/proxy-t.h>
-#include <haproxy/tools.h>
-
-#include <haproxy/global.h>
-
-#include <haproxy/arg.h>
 #include <haproxy/sample.h>
 #include <haproxy/stick_table.h>
-
-#include <import/ebsttree.h>
+#include <haproxy/tools.h>
 
 /* List head of all known ACL keywords */
 static struct acl_kw_list acl_keywords = {

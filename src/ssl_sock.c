@@ -40,22 +40,29 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 
-#include <haproxy/api.h>
+#include <import/ebpttree.h>
+#include <import/ebsttree.h>
 #include <import/lru.h>
 #include <import/xxhash.h>
 
-#include <haproxy/dynbuf.h>
+#include <haproxy/api.h>
+#include <haproxy/arg.h>
+#include <haproxy/base64.h>
 #include <haproxy/channel.h>
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
+#include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
+#include <haproxy/fd.h>
+#include <haproxy/freq_ctr.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/pattern-t.h>
+#include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
 #include <haproxy/shctx.h>
@@ -67,19 +74,11 @@
 #include <haproxy/stream-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
-#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <haproxy/base64.h>
+#include <haproxy/tools.h>
 #include <haproxy/vars.h>
 
-#include <import/ebpttree.h>
-#include <import/ebsttree.h>
-
-#include <haproxy/arg.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/proto_tcp.h>
 
 /* ***** READ THIS before adding code here! *****
  *

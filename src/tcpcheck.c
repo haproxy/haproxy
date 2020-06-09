@@ -48,16 +48,16 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
-#include <haproxy/regex.h>
-#include <haproxy/tools.h>
-#include <haproxy/time.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/regex.h>
+#include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock.h>
-#include <haproxy/sample.h>
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
+#include <haproxy/time.h>
+#include <haproxy/tools.h>
 #include <haproxy/vars.h>
 
 

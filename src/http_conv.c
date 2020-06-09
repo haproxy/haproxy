@@ -16,8 +16,8 @@
 #include <string.h>
 #include <time.h>
 
-#include <haproxy/arg.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/capture-t.h>
 #include <haproxy/chunk.h>
 #include <haproxy/http.h>

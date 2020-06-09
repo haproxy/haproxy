@@ -36,8 +36,8 @@
 #include <event2/event_struct.h>
 #include <event2/thread.h>
 
-#include <haproxy/list.h>
 #include <haproxy/chunk.h>
+#include <haproxy/list.h>
 #include <haproxy/spoe.h>
 
 #include "spoa.h"

@@ -24,25 +24,24 @@
 #include <sys/time.h>
 #include <sys/uio.h>
 
-#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/applet-t.h>
 #include <haproxy/cli.h>
+#include <haproxy/fd.h>
 #include <haproxy/frontend.h>
+#include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/log.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/tools.h>
-#include <haproxy/time.h>
-#include <haproxy/version.h>
-
-#include <haproxy/global.h>
-
-#include <haproxy/fd.h>
 #include <haproxy/ring.h>
 #include <haproxy/sample.h>
 #include <haproxy/sink.h>
+#include <haproxy/ssl_sock.h>
+#include <haproxy/stream.h>
+#include <haproxy/stream_interface.h>
+#include <haproxy/time.h>
+#include <haproxy/tools.h>
+#include <haproxy/version.h>
+
 
 struct log_fmt {
 	char *name;

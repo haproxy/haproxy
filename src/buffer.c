@@ -16,10 +16,9 @@
 
 #include <haproxy/api.h>
 #include <haproxy/dynbuf.h>
+#include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
-
-#include <haproxy/global.h>
 
 struct pool_head *pool_head_buffer;
 

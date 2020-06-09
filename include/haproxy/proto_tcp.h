@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_PROTO_TCP_H
 #define _HAPROXY_PROTO_TCP_H
 
-#include <haproxy/arg-t.h>
 #include <haproxy/api.h>
+#include <haproxy/arg-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/sample-t.h>

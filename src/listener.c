@@ -23,22 +23,21 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
+#include <haproxy/fd.h>
+#include <haproxy/freq_ctr.h>
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
+#include <haproxy/proto_sockpair.h>
+#include <haproxy/protocol-t.h>
+#include <haproxy/protocol.h>
+#include <haproxy/sample.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
-#include <haproxy/tools.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
-#include <haproxy/protocol-t.h>
-
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proto_sockpair.h>
-#include <haproxy/sample.h>
 
 /* List head of all known bind keywords */
 static struct bind_kw_list bind_keywords = {

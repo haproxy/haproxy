@@ -17,6 +17,10 @@
 #include <string.h>
 #include <sys/wait.h>
 
+#if defined(USE_SYSTEMD)
+#include <systemd/sd-daemon.h>
+#endif
+
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
@@ -33,10 +37,6 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/version.h>
 
-
-#if defined(USE_SYSTEMD)
-#include <systemd/sd-daemon.h>
-#endif
 
 static int exitcode = -1;
 static int max_reloads = -1; /* number max of reloads a worker can have until they are killed */

@@ -22,6 +22,7 @@
 #ifndef _HAPROXY_APPLET_T_H
 #define _HAPROXY_APPLET_T_H
 
+#include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/freq_ctr-t.h>
@@ -29,7 +30,6 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/stream-t.h>
-#include <haproxy/api-t.h>
 #include <haproxy/xref-t.h>
 
 /* flags for appctx->state */

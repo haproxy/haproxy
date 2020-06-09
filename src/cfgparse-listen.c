@@ -11,8 +11,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <haproxy/uri_auth.h>
-
 #include <haproxy/acl.h>
 #include <haproxy/capture-t.h>
 #include <haproxy/cfgparse.h>
@@ -25,14 +23,14 @@
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/peers.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/stats-t.h>
-#include <haproxy/tcpcheck.h>
-
-#include <haproxy/protocol.h>
 #include <haproxy/stick_table.h>
+#include <haproxy/tcpcheck.h>
+#include <haproxy/uri_auth.h>
 
 /* Report a warning if a rule is placed after a 'tcp-request session' rule.
  * Return 1 if the warning has been emitted, otherwise 0.

@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_LB_MAP_T_H
 #define _HAPROXY_LB_MAP_T_H
 
-#include <haproxy/server-t.h>
 #include <haproxy/api-t.h>
+#include <haproxy/server-t.h>
 
 struct lb_map {
 	struct server **srv;	/* the server map used to apply weights */

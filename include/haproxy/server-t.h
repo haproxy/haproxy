@@ -28,6 +28,7 @@
 #include <import/eb32tree.h>
 #include <import/ebmbtree.h>
 
+#include <haproxy/api-t.h>
 #include <haproxy/check-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/counters-t.h>
@@ -40,7 +41,6 @@
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/thread-t.h>
-#include <haproxy/api-t.h>
 
 
 /* server states. Only SRV_ST_STOPPED indicates a down server. */

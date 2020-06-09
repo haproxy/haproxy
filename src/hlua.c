@@ -21,24 +21,21 @@
 #error "Requires Lua 5.3 or later."
 #endif
 
-#include <haproxy/applet.h>
-#include <haproxy/api.h>
 #include <import/ebpttree.h>
 
+#include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/thread.h>
-#include <haproxy/regex.h>
-#include <haproxy/xref.h>
 #include <haproxy/h1.h>
 #include <haproxy/hlua.h>
 #include <haproxy/hlua_fcn.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_fetch.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
 #include <haproxy/map.h>
@@ -46,6 +43,7 @@
 #include <haproxy/pattern.h>
 #include <haproxy/payload.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/server-t.h>
 #include <haproxy/session.h>
@@ -54,8 +52,11 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/thread.h>
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
+#include <haproxy/xref.h>
+
 
 /* Lua uses longjmp to perform yield or throwing errors. This
  * macro is used only for identifying the function that can

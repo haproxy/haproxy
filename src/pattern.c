@@ -14,19 +14,19 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include <import/ebsttree.h>
+#include <import/lru.h>
+#include <import/xxhash.h>
+
 #include <haproxy/api.h>
 #include <haproxy/global.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/pattern.h>
 #include <haproxy/regex.h>
+#include <haproxy/sample.h>
 #include <haproxy/tools.h>
 
-#include <haproxy/sample.h>
-
-#include <import/ebsttree.h>
-#include <import/lru.h>
-#include <import/xxhash.h>
 
 char *pat_match_names[PAT_MATCH_NUM] = {
 	[PAT_MATCH_FOUND] = "found",

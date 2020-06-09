@@ -32,27 +32,27 @@
 
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
+#include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
+#include <haproxy/namespace.h>
+#include <haproxy/port_range.h>
+#include <haproxy/proto_tcp.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/stream-t.h>
-#include <haproxy/tools.h>
-#include <haproxy/namespace.h>
-
-#include <haproxy/arg.h>
-#include <haproxy/fd.h>
-#include <haproxy/port_range.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proto_tcp.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/tools.h>
+
 
 static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);

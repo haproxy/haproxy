@@ -24,9 +24,8 @@
 
 #include <unistd.h>
 
-
-#include <haproxy/applet-t.h>
 #include <haproxy/api.h>
+#include <haproxy/applet-t.h>
 #include <haproxy/dns-t.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/proxy-t.h>

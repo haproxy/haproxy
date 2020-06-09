@@ -17,11 +17,16 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 
-#include <haproxy/applet-t.h>
+#include <import/eb32tree.h>
+#include <import/ebistree.h>
+
 #include <haproxy/api.h>
+#include <haproxy/applet-t.h>
+#include <haproxy/capture-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
+#include <haproxy/fd.h>
 #include <haproxy/filters.h>
 #include <haproxy/global.h>
 #include <haproxy/http_ana.h>
@@ -30,22 +35,15 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
+#include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/server-t.h>
+#include <haproxy/signal.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/time.h>
-
-#include <import/eb32tree.h>
-#include <import/ebistree.h>
-
-#include <haproxy/capture-t.h>
-
-#include <haproxy/fd.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/signal.h>
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse */

@@ -14,10 +14,10 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include <haproxy/tools.h>
+#include <haproxy/arg.h>
 #include <haproxy/chunk.h>
 #include <haproxy/global.h>
-#include <haproxy/arg.h>
+#include <haproxy/tools.h>
 
 const char *arg_type_names[ARGT_NBTYPES] = {
 	[ARGT_STOP] = "end of arguments",

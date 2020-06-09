@@ -26,12 +26,12 @@
 #include <import/ist.h>
 
 #include <haproxy/acl-t.h>
+#include <haproxy/api-t.h>
 #include <haproxy/arg-t.h>
 #include <haproxy/fcgi.h>
 #include <haproxy/filters-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/regex-t.h>
-#include <haproxy/api-t.h>
 
 #define FCGI_APP_FL_KEEP_CONN     0x00000001 /* Keep the connection alive */
 #define FCGI_APP_FL_GET_VALUES    0x00000002 /* Retrieve FCGI variables on connection establishment */

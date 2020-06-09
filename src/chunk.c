@@ -17,9 +17,8 @@
 
 #include <haproxy/api.h>
 #include <haproxy/chunk.h>
-#include <haproxy/tools.h>
-
 #include <haproxy/global.h>
+#include <haproxy/tools.h>
 
 /* trash chunks used for various conversions */
 static THREAD_LOCAL struct buffer *trash_chunk;

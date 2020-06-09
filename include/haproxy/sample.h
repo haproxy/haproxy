@@ -23,8 +23,8 @@
 #ifndef _HAPROXY_SAMPLE_H
 #define _HAPROXY_SAMPLE_H
 
-#include <haproxy/arg-t.h>
 #include <haproxy/api.h>
+#include <haproxy/arg-t.h>
 #include <haproxy/sample-t.h>
 #include <haproxy/stick_table-t.h>
 

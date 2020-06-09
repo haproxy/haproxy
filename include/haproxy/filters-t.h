@@ -21,8 +21,8 @@
 #ifndef _HAPROXY_FILTERS_T_H
 #define _HAPROXY_FILTERS_T_H
 
-#include <haproxy/list-t.h>
 #include <haproxy/api-t.h>
+#include <haproxy/list-t.h>
 
 /* Flags set on a filter config */
 #define FLT_CFG_FL_HTX    0x00000001  /* The filter can filter HTX streams */

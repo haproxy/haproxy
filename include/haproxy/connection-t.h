@@ -30,12 +30,12 @@
 
 #include <import/ist.h>
 
+#include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/port_range-t.h>
 #include <haproxy/protocol-t.h>
-#include <haproxy/api-t.h>
 
 /* referenced below */
 struct connection;

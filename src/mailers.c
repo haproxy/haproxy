@@ -20,13 +20,13 @@
 #include <haproxy/list.h>
 #include <haproxy/mailers.h>
 #include <haproxy/pool.h>
-#include <haproxy/tools.h>
-#include <haproxy/time.h>
-#include <haproxy/thread.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
+#include <haproxy/thread.h>
+#include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 
 struct mailers *mailers = NULL;

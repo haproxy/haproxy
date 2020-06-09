@@ -22,6 +22,7 @@
 
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/openssl-compat.h>
@@ -29,8 +30,6 @@
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
 #include <haproxy/tools.h>
-
-#include <haproxy/arg.h>
 
 
 /***** Below are some sample fetching functions for ACL/patterns *****/

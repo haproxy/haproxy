@@ -22,9 +22,9 @@
 #ifndef _HAPROXY_PROTO_HTTP_T_H
 #define _HAPROXY_PROTO_HTTP_T_H
 
+#include <haproxy/api-t.h>
 #include <haproxy/channel-t.h>
 #include <haproxy/http-t.h>
-#include <haproxy/api-t.h>
 
 /* These are the flags that are found in txn->flags */
 

@@ -19,23 +19,22 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <haproxy/applet.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/http_htx.h>
+#include <haproxy/pipe-t.h>
+#include <haproxy/pipe.h>
 #include <haproxy/proxy.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/stream_interface.h>
-#include <haproxy/tools.h>
+#include <haproxy/task.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-#include <haproxy/task.h>
+#include <haproxy/tools.h>
 
-#include <haproxy/pipe.h>
-
-#include <haproxy/pipe-t.h>
 
 /* functions used by default on a detached stream-interface */
 static void stream_int_shutr(struct stream_interface *si);

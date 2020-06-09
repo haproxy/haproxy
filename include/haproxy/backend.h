@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_BACKEND_H
 #define _HAPROXY_BACKEND_H
 
-#include <haproxy/backend-t.h>
 #include <haproxy/api.h>
+#include <haproxy/backend-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stream-t.h>

@@ -15,13 +15,13 @@
 
 #include <haproxy/acl.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/channel.h>
 #include <haproxy/connection.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/payload.h>
-#include <haproxy/pattern.h>
 #include <haproxy/htx.h>
-#include <haproxy/arg.h>
+#include <haproxy/net_helper.h>
+#include <haproxy/pattern.h>
+#include <haproxy/payload.h>
 #include <haproxy/sample.h>
 
 

@@ -19,22 +19,20 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
 #include <netinet/tcp.h>
 
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/tools.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
-
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
+#include <haproxy/global.h>
 #include <haproxy/pipe.h>
+#include <haproxy/stream_interface.h>
+#include <haproxy/ticks.h>
+#include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 
 #if defined(USE_LINUX_SPLICE)

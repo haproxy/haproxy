@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_HTTP_FETCH_H
 #define _HAPROXY_HTTP_FETCH_H
 
-#include <haproxy/arg-t.h>
 #include <haproxy/api.h>
+#include <haproxy/arg-t.h>
 #include <haproxy/channel-t.h>
 #include <haproxy/check-t.h>
 #include <haproxy/sample-t.h>

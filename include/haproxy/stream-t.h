@@ -26,6 +26,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <haproxy/api-t.h>
 #include <haproxy/channel-t.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/filters-t.h>
@@ -40,7 +41,6 @@
 #include <haproxy/stick_table-t.h>
 #include <haproxy/stream_interface-t.h>
 #include <haproxy/task-t.h>
-#include <haproxy/api-t.h>
 #include <haproxy/vars-t.h>
 
 

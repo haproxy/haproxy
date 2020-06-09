@@ -15,10 +15,10 @@
 
 #include <haproxy/api.h>
 #include <haproxy/global.h>
-#include <haproxy/thread.h>
-#include <haproxy/pool.h>
-
 #include <haproxy/pipe-t.h>
+#include <haproxy/pool.h>
+#include <haproxy/thread.h>
+
 
 DECLARE_STATIC_POOL(pool_head_pipe, "pipe", sizeof(struct pipe));
 

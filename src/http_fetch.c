@@ -16,9 +16,9 @@
 #include <string.h>
 #include <time.h>
 
+#include <haproxy/api.h>
 #include <haproxy/arg.h>
 #include <haproxy/auth.h>
-#include <haproxy/api.h>
 #include <haproxy/base64.h>
 #include <haproxy/channel.h>
 #include <haproxy/chunk.h>

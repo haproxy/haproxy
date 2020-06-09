@@ -16,9 +16,13 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 
-#include <haproxy/api.h>
+#include <import/sha1.h>
+#include <import/xxhash.h>
 
+#include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/auth.h>
+#include <haproxy/base64.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
@@ -30,17 +34,11 @@
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
+#include <haproxy/sink.h>
+#include <haproxy/stick_table.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/vars.h>
-#include <haproxy/base64.h>
-
-#include <haproxy/arg.h>
-#include <haproxy/sink.h>
-#include <haproxy/stick_table.h>
-
-#include <import/sha1.h>
-#include <import/xxhash.h>
 
 /* sample type names */
 const char *smp_to_type[SMP_TYPES] = {

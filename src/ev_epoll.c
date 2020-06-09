@@ -14,15 +14,14 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
+#include <haproxy/activity.h>
 #include <haproxy/api.h>
+#include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/signal.h>
-#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
-
-#include <haproxy/activity.h>
-#include <haproxy/fd.h>
+#include <haproxy/tools.h>
 
 
 /* private data */

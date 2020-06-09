@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_ACTIVITY_H
 #define _HAPROXY_ACTIVITY_H
 
-#include <haproxy/api.h>
-#include <haproxy/time.h>
 #include <haproxy/activity-t.h>
+#include <haproxy/api.h>
 #include <haproxy/freq_ctr.h>
+#include <haproxy/time.h>
 
 extern unsigned int profiling;
 extern unsigned long task_profiling_mask;

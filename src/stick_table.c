@@ -14,34 +14,34 @@
 #include <string.h>
 #include <errno.h>
 
+#include <import/ebmbtree.h>
+#include <import/ebsttree.h>
+#include <import/ebistree.h>
+
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
-#include <haproxy/pool.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/peers.h>
+#include <haproxy/pool.h>
+#include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
+#include <haproxy/sample.h>
 #include <haproxy/stats-t.h>
+#include <haproxy/stick_table.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
-#include <haproxy/tools.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
-#include <import/ebmbtree.h>
-#include <import/ebsttree.h>
-#include <import/ebistree.h>
-
-#include <haproxy/arg.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/sample.h>
-#include <haproxy/stick_table.h>
 
 /* structure used to return a table key built from a sample */
 static THREAD_LOCAL struct stktable_key static_table_key;

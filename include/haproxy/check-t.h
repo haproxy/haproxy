@@ -17,11 +17,11 @@
 
 #include <import/ebpttree.h>
 #include <import/ist.h>
+#include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
-#include <haproxy/api-t.h>
 #include <haproxy/vars-t.h>
 
 /* Please note: this file tends to commonly be part of circular dependencies,

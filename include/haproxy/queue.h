@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_QUEUE_H
 #define _HAPROXY_QUEUE_H
 
-#include <haproxy/backend.h>
 #include <haproxy/api.h>
+#include <haproxy/backend.h>
 #include <haproxy/pool.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/queue-t.h>

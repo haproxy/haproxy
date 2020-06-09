@@ -27,10 +27,10 @@
 
 #include <import/eb32tree.h>
 
+#include <haproxy/api-t.h>
 #include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/thread.h>
-#include <haproxy/api-t.h>
 
 #ifdef USE_OPENSSL
 #include <haproxy/openssl-compat.h>

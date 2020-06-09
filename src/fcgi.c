@@ -24,8 +24,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <haproxy/fcgi.h>
 #include <haproxy/buf.h>
+#include <haproxy/fcgi.h>
 #include <haproxy/istbuf.h>
 
 /* Encodes header of a FCGI record into the chunk <out>. It returns non-zero on

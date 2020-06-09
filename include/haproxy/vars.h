@@ -22,9 +22,9 @@
 #ifndef _HAPROXY_VARS_H
 #define _HAPROXY_VARS_H
 
+#include <haproxy/api-t.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stream-t.h>
-#include <haproxy/api-t.h>
 #include <haproxy/vars-t.h>
 
 void vars_init(struct vars *vars, enum vars_scope scope);

@@ -19,6 +19,8 @@
 #include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
+#include <haproxy/capture-t.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/global.h>
@@ -36,9 +38,6 @@
 #include <haproxy/uri_auth-t.h>
 #include <haproxy/version.h>
 
-#include <haproxy/capture-t.h>
-
-#include <haproxy/arg.h>
 
 /* Release memory allocated by most of HTTP actions. Concretly, it releases
  * <arg.http>.

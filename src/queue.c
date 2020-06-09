@@ -70,8 +70,8 @@ s *     queue's lock.
  */
 
 #include <import/eb32tree.h>
-#include <haproxy/backend.h>
 #include <haproxy/api.h>
+#include <haproxy/backend.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/pool.h>
 #include <haproxy/queue.h>
@@ -81,8 +81,8 @@ s *     queue's lock.
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
-#include <haproxy/time.h>
 #include <haproxy/thread.h>
+#include <haproxy/time.h>
 
 
 #define NOW_OFFSET_BOUNDARY()          ((now_ms - (TIMER_LOOK_BACK >> 12)) & 0xfffff)

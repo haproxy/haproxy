@@ -19,13 +19,13 @@
  */
 
 #include <stdlib.h>
-#include <haproxy/applet.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/buf.h>
 #include <haproxy/cli.h>
-#include <haproxy/thread.h>
 #include <haproxy/ring.h>
 #include <haproxy/stream_interface.h>
+#include <haproxy/thread.h>
 
 /* Creates and returns a ring buffer of size <size> bytes. Returns NULL on
  * allocation failure.

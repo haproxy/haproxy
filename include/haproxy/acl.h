@@ -23,8 +23,8 @@
 #define _HAPROXY_ACL_H
 
 #include <haproxy/acl-t.h>
-#include <haproxy/arg-t.h>
 #include <haproxy/api.h>
+#include <haproxy/arg-t.h>
 
 struct stream;
 

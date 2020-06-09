@@ -20,11 +20,13 @@
 #include <sys/types.h>
 
 #include <haproxy/acl.h>
-#include <haproxy/backend.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
+#include <haproxy/backend.h>
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/frontend.h>
+#include <haproxy/global.h>
 #include <haproxy/hash.h>
 #include <haproxy/http.h>
 #include <haproxy/http_ana.h>
@@ -36,10 +38,14 @@
 #include <haproxy/lb_fwrr.h>
 #include <haproxy/lb_map.h>
 #include <haproxy/log.h>
+#include <haproxy/namespace.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/payload.h>
+#include <haproxy/proto_tcp.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
+#include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/ssl_sock.h>
@@ -49,14 +55,6 @@
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 #include <haproxy/trace.h>
-#include <haproxy/namespace.h>
-
-#include <haproxy/global.h>
-
-#include <haproxy/arg.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/sample.h>
 
 #define TRACE_SOURCE &trace_strm
 

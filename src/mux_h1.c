@@ -9,22 +9,20 @@
  * 2 of the License, or (at your option) any later version.
  *
  */
+#include <import/ebistree.h>
+
 #include <haproxy/api.h>
-#include <haproxy/istbuf.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/h1.h>
 #include <haproxy/h1_htx.h>
 #include <haproxy/h2.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
-
-#include <import/ebistree.h>
-
+#include <haproxy/istbuf.h>
+#include <haproxy/log.h>
 #include <haproxy/pipe-t.h>
 #include <haproxy/proxy-t.h>
-
-#include <haproxy/http_htx.h>
-#include <haproxy/log.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>

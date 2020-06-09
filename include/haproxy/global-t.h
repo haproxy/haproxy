@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_GLOBAL_T_H
 #define _HAPROXY_GLOBAL_T_H
 
+#include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/list-t.h>
-#include <haproxy/api-t.h>
 #include <haproxy/vars-t.h>
 
 /* modes of operation (global.mode) */

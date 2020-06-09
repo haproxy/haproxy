@@ -26,8 +26,8 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
-#include <haproxy/http-t.h>
 #include <haproxy/http-hdr-t.h>
+#include <haproxy/http-t.h>
 #include <haproxy/htx-t.h>
 
 extern struct htx htx_empty;

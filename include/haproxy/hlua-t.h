@@ -33,9 +33,8 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/regex-t.h>
 #include <haproxy/server-t.h>
-#include <haproxy/xref-t.h>
-
 #include <haproxy/stick_table-t.h>
+#include <haproxy/xref-t.h>
 
 #define CLASS_CORE         "Core"
 #define CLASS_TXN          "TXN"

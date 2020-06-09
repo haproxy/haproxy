@@ -30,9 +30,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <import/ist.h>
 #include <haproxy/hpack-huff.h>
 #include <haproxy/hpack-tbl.h>
-#include <import/ist.h>
 
 /* static header table as in RFC7541 Appendix A. [0] unused. */
 const struct http_hdr hpack_sht[HPACK_SHT_SIZE] = {

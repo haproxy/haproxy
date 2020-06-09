@@ -14,8 +14,8 @@
 #ifndef _HAPROXY_AUTH_H
 #define _HAPROXY_AUTH_H
 
-#include <haproxy/auth-t.h>
 #include <haproxy/api.h>
+#include <haproxy/auth-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/sample-t.h>
 

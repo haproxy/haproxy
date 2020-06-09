@@ -13,14 +13,13 @@
 #include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <haproxy/errors.h>
+#include <haproxy/list.h>
 #include <haproxy/obj_type.h>
 #include <haproxy/pool.h>
-#include <haproxy/list.h>
 #include <haproxy/proxy.h>
+#include <haproxy/stick_table.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
-
-#include <haproxy/stick_table.h>
 
 
 /* Find and check the target table used by an action track-sc*. This

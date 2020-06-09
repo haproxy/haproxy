@@ -28,9 +28,9 @@
 #include <haproxy/errors.h>
 #include <haproxy/sample-t.h>
 #include <haproxy/stick_table-t.h>
-#include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 extern struct stktable *stktables_list;
 extern struct stktable_type stktable_types[];

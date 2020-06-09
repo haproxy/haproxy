@@ -24,10 +24,10 @@
 #endif
 
 #include <haproxy/cfgparse.h>
+#include <haproxy/fd.h>
+#include <haproxy/global.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
-#include <haproxy/global.h>
-#include <haproxy/fd.h>
 
 struct thread_info ha_thread_info[MAX_THREADS] = { };
 THREAD_LOCAL struct thread_info *ti = &ha_thread_info[0];

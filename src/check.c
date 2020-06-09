@@ -31,42 +31,41 @@
 
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
 #include <haproxy/dns.h>
 #include <haproxy/extcheck.h>
-#include <haproxy/istbuf.h>
-#include <haproxy/list.h>
-#include <haproxy/mailers.h>
-#include <haproxy/queue.h>
-#include <haproxy/regex.h>
-#include <haproxy/tools.h>
-#include <haproxy/time.h>
-#include <haproxy/thread.h>
+#include <haproxy/fd.h>
+#include <haproxy/global.h>
+#include <haproxy/h1.h>
 #include <haproxy/http.h>
 #include <haproxy/http_htx.h>
-#include <haproxy/h1.h>
 #include <haproxy/htx.h>
+#include <haproxy/istbuf.h>
+#include <haproxy/list.h>
 #include <haproxy/log.h>
+#include <haproxy/mailers.h>
+#include <haproxy/port_range.h>
+#include <haproxy/proto_tcp.h>
+#include <haproxy/proto_udp.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
+#include <haproxy/queue.h>
+#include <haproxy/regex.h>
+#include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
+#include <haproxy/thread.h>
+#include <haproxy/time.h>
+#include <haproxy/tools.h>
 #include <haproxy/vars.h>
 
-#include <haproxy/global.h>
-
-#include <haproxy/arg.h>
-#include <haproxy/fd.h>
-#include <haproxy/port_range.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proto_udp.h>
-#include <haproxy/sample.h>
 
 static int wake_srv_chk(struct conn_stream *cs);
 struct data_cb check_conn_cb = {

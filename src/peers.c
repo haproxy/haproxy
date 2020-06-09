@@ -20,8 +20,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <haproxy/applet.h>
 #include <haproxy/api.h>
+#include <haproxy/applet.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
 #include <haproxy/dict.h>
@@ -32,16 +32,16 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers.h>
 #include <haproxy/proxy.h>
-#include <haproxy/task.h>
 #include <haproxy/session-t.h>
 #include <haproxy/signal.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
+#include <haproxy/task.h>
+#include <haproxy/thread.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
-#include <haproxy/thread.h>
 
 
 /*******************************/

@@ -35,9 +35,9 @@
 
 #include <haproxy/acl.h>
 #include <haproxy/action-t.h>
+#include <haproxy/api.h>
 #include <haproxy/auth.h>
 #include <haproxy/backend.h>
-#include <haproxy/api.h>
 #include <haproxy/capture.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
@@ -48,6 +48,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/frontend.h>
+#include <haproxy/global.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/lb_chash.h>
@@ -58,28 +59,25 @@
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/mailers.h>
+#include <haproxy/namespace.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers-t.h>
+#include <haproxy/peers.h>
 #include <haproxy/pool.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
+#include <haproxy/sample.h>
+#include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
-#include <haproxy/tools.h>
-#include <haproxy/time.h>
-#include <haproxy/uri_auth-t.h>
-#include <haproxy/namespace.h>
-#include <haproxy/server.h>
-#include <haproxy/task.h>
-#include <haproxy/thread.h>
-
-#include <haproxy/global.h>
-
-#include <haproxy/protocol.h>
-#include <haproxy/peers.h>
-#include <haproxy/sample.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/stream.h>
+#include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/thread.h>
+#include <haproxy/time.h>
+#include <haproxy/tools.h>
+#include <haproxy/uri_auth-t.h>
 
 
 /* Used to chain configuration sections definitions. This list

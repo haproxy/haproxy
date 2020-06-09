@@ -30,9 +30,9 @@
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface-t.h>
 #include <haproxy/task.h>
-#include <haproxy/tools-t.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
+#include <haproxy/tools-t.h>
 
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
