@@ -1,0 +1,51 @@
+varnishtest "Test the errofile directive in proxy sections"
+
+# This config tests the errorfile directive in proxy sections (including the
+# defaults section).
+
+feature ignore_unknown_macro
+
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+        errorfile 400  ${testdir}/errors/400.http
+        errorfile 403  ${testdir}/errors/403.http
+        errorfile 408  /dev/null
+
+    frontend fe1
+        bind "fd@${fe1}"
+
+        errorfile 403  ${testdir}/errors/403-1.http
+        errorfile 500 /dev/null
+
+        http-request deny deny_status 400 if { path /400 }
+        http-request deny deny_status 403 if { path /403 }
+        http-request deny deny_status 408 if { path /408 }
+        http-request deny deny_status 500 if { path /500 }
+
+} -start
+
+client c1r1  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /400
+        rxresp
+        expect resp.status == 400
+        expect resp.http.x-err-type == "default"
+} -run
+client c1r2  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /403
+        rxresp
+        expect resp.status == 403
+        expect resp.http.x-err-type == "errors-1"
+} -run
+client c1r3  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /408
+        expect_close
+} -run
+client c1r4  -connect ${h1_fe1_sock} {
+        txreq -req GET -url /500
+        expect_close
+} -run
