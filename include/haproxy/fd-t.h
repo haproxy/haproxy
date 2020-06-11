@@ -114,7 +114,9 @@ struct fdlist {
 	int last;
 } ALIGNED(8);
 
-/* info about one given fd */
+/* info about one given fd. Note: only align on cache lines when using threads;
+ * 32-bit small archs can put everything in 32-bytes when threads are disabled.
+ */
 struct fdtab {
 	unsigned long running_mask;          /* mask of thread IDs currently using the fd */
 	unsigned long thread_mask;           /* mask of thread IDs authorized to process the fd */
@@ -127,14 +129,7 @@ struct fdtab {
 	unsigned char linger_risk:1;         /* 1 if we must kill lingering before closing */
 	unsigned char cloned:1;              /* 1 if a cloned socket, requires EPOLL_CTL_DEL on close */
 	unsigned char initialized:1;         /* 1 if init phase was done on this fd (e.g. set non-blocking) */
-}
-#ifdef USE_THREAD
-/* only align on cache lines when using threads; 32-bit small archs
- * can put everything in 32-bytes when threads are disabled.
- */
-ALIGNED(64)
-#endif
-;
+} THREAD_ALIGNED(64);
 
 /* polled mask, one bit per thread and per direction for each FD */
 struct polled_mask {

@@ -173,6 +173,17 @@
 #endif
 #endif
 
+/* sets alignment for current field or variable only when threads are enabled.
+ * Typically used to respect cache line alignment to avoid false sharing.
+ */
+#ifndef THREAD_ALIGNED
+#ifdef USE_THREAD
+#define THREAD_ALIGNED(x) __attribute__((aligned(x)))
+#else
+#define THREAD_ALIGNED(x)
+#endif
+#endif
+
 /* add a mandatory alignment for next fields in a structure */
 #ifndef ALWAYS_ALIGN
 #define ALWAYS_ALIGN(x)  union { } ALIGNED(x)
@@ -197,6 +208,18 @@
 #define ATOMIC_ALIGN(x)  union { } ALIGNED(x)
 #else
 #define ATOMIC_ALIGN(x)
+#endif
+#endif
+
+/* add an optional alignment for next fields in a structure, only when threads
+ * are enabled. Typically used to respect cache line alignment to avoid false
+ * sharing.
+ */
+#ifndef THREAD_ALIGN
+#ifdef USE_THREAD
+#define THREAD_ALIGN(x) union { } ALIGNED(x)
+#else
+#define THREAD_ALIGN(x)
 #endif
 #endif
 
