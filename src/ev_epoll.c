@@ -17,7 +17,6 @@
 #include <haproxy/api.h>
 #include <haproxy/global.h>
 #include <haproxy/signal.h>
-#include <haproxy/thread-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>

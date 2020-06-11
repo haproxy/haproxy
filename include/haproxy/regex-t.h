@@ -26,7 +26,6 @@
 #include <string.h>
 
 #include <haproxy/api.h>
-#include <haproxy/thread-t.h>
 
 #ifdef USE_PCRE
 #include <pcre.h>

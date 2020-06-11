@@ -40,10 +40,7 @@
 
 /********************** THREADS DISABLED ************************/
 
-#define THREAD_LOCAL  /* empty */
-
 /* These macros allow to make some struct fields or local variables optional */
-#define __decl_thread(decl)
 #define __decl_spinlock(lock)
 #define __decl_aligned_spinlock(lock)
 #define __decl_rwlock(lock)
@@ -52,10 +49,6 @@
 #else /* !USE_THREAD */
 
 /********************** THREADS ENABLED ************************/
-
-#define THREAD_LOCAL __thread
-
-#define __decl_thread(decl) decl
 
 /* declare a self-initializing spinlock */
 #define __decl_spinlock(lock)                               \

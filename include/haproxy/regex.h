@@ -27,7 +27,6 @@
 
 #include <haproxy/api.h>
 #include <haproxy/regex-t.h>
-#include <haproxy/thread-t.h>
 
 extern THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];
 

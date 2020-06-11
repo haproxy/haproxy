@@ -26,7 +26,6 @@
 #include <haproxy/api.h>
 #include <haproxy/list.h>
 #include <haproxy/sink-t.h>
-#include <haproxy/thread-t.h>
 #include <haproxy/tools.h>
 #include <haproxy/trace-t.h>
 

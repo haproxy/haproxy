@@ -29,7 +29,7 @@
 
 #include <import/ebpttree.h>
 #include <haproxy/api-t.h>
-#include <haproxy/thread.h>
+#include <haproxy/thread-t.h>
 
 struct dict_entry {
 	struct ebpt_node value;

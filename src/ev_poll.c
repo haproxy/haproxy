@@ -18,7 +18,6 @@
 #include <sys/types.h>
 
 #include <haproxy/api.h>
-#include <haproxy/thread-t.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
 

@@ -24,7 +24,6 @@
 
 #include <haproxy/global-t.h>
 #include <haproxy/api-t.h>
-#include <haproxy/thread.h>
 #include <haproxy/vars-t.h>
 #include <haproxy/mworker-t.h>
 

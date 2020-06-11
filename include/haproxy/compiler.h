@@ -223,4 +223,24 @@
 #endif
 #endif
 
+/* The THREAD_LOCAL type attribute defines thread-local storage and is defined
+ * to __thread when threads are enabled or empty when disabled.
+ */
+#ifdef USE_THREAD
+#define THREAD_LOCAL __thread
+#else
+#define THREAD_LOCAL
+#endif
+
+/* The __decl_thread() statement is shows the argument when threads are enabled
+ * or hides it when disabled. The purpose is to condition the presence of some
+ * variables or struct members to the fact that threads are enabled, without
+ * having to enclose them inside a #ifdef USE_THREAD/#endif clause.
+ */
+#ifdef USE_THREAD
+#define __decl_thread(decl) decl
+#else
+#define __decl_thread(decl)
+#endif
+
 #endif /* _HAPROXY_COMPILER_H */
