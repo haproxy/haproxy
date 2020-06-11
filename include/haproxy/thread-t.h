@@ -28,6 +28,7 @@
 #endif
 #include <time.h>
 
+#include <haproxy/defaults.h>
 
 /* Note: this file mainly contains 3 sections:
  *   - one used solely when USE_THREAD is *not* set
@@ -40,8 +41,6 @@
 /********************** THREADS DISABLED ************************/
 
 #define THREAD_LOCAL  /* empty */
-#define MAX_THREADS 1
-#define MAX_THREADS_MASK 1
 
 /* These macros allow to make some struct fields or local variables optional */
 #define __decl_thread(decl)
@@ -55,12 +54,6 @@
 /********************** THREADS ENABLED ************************/
 
 #define THREAD_LOCAL __thread
-
-#ifndef MAX_THREADS
-#define MAX_THREADS LONGBITS
-#endif
-
-#define MAX_THREADS_MASK (~0UL >> (LONGBITS - MAX_THREADS))
 
 #define __decl_thread(decl) decl
 

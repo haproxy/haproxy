@@ -30,6 +30,23 @@
 #define MAX_PROCS LONGBITS
 #endif
 
+/* MAX_THREADS defines the highest limit for the global nbthread value. It
+ * defaults to the number of bits in a long integer when threads are enabled
+ * but may be lowered to save resources on embedded systems.
+*/
+#ifndef USE_THREAD
+/* threads disabled, 1 thread max */
+#define MAX_THREADS 1
+#define MAX_THREADS_MASK 1
+
+#else
+/* threads enabled, max_threads defaults to long bits */
+#ifndef MAX_THREADS
+#define MAX_THREADS LONGBITS
+#endif
+#define MAX_THREADS_MASK (~0UL >> (LONGBITS - MAX_THREADS))
+#endif
+
 /*
  * BUFSIZE defines the size of a read and write buffer. It is the maximum
  * amount of bytes which can be stored by the proxy for each stream. However,
