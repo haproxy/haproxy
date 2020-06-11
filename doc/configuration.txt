@@ -2788,6 +2788,7 @@ http-check comment                        X          -         X         X
 http-check connect                        X          -         X         X
 http-check disable-on-404                 X          -         X         X
 http-check expect                         X          -         X         X
+http-check send                           X          -         X         X
 http-check send-state                     X          -         X         X
 http-check set-var                        X          -         X         X
 http-check unset-var                      X          -         X         X
