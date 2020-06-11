@@ -28,7 +28,6 @@
 #ifndef __HAPROXY_XREF_H__
 #define __HAPROXY_XREF_H__
 
-#include <haproxy/atomic.h>
 #include <haproxy/xref-t.h>
 
 /* xref is used to create relation between two elements.

@@ -22,7 +22,6 @@
 #ifndef _HAPROXY_ACTIVITY_H
 #define _HAPROXY_ACTIVITY_H
 
-#include <haproxy/atomic.h>
 #include <haproxy/api.h>
 #include <haproxy/time.h>
 #include <haproxy/activity-t.h>

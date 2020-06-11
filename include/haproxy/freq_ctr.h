@@ -22,7 +22,6 @@
 #ifndef _HAPROXY_FREQ_CTR_H
 #define _HAPROXY_FREQ_CTR_H
 
-#include <haproxy/atomic.h>
 #include <haproxy/api.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/intops.h>

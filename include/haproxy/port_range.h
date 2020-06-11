@@ -23,7 +23,6 @@
 #define _HAPROXY_PORT_RANGE_H
 
 #include <stdlib.h>
-#include <haproxy/atomic.h>
 #include <haproxy/api.h>
 #include <haproxy/port_range-t.h>
 

@@ -29,7 +29,6 @@
 #include <sched.h>
 #endif
 
-#include <haproxy/atomic.h>
 #include <haproxy/api.h>
 #include <haproxy/thread-t.h>
 
