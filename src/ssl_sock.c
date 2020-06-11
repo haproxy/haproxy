@@ -3711,9 +3711,15 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	if (min == max)
 		methodVersions[min].ctx_set_version(ctx, SET_SERVER);
 	else
-		for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
+		for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++) {
+			/* clear every version flags in case SSL_CTX_new()
+			 * returns an SSL_CTX with disabled versions */
+			SSL_CTX_clear_options(ctx, methodVersions[i].option);
+
 			if (flags & methodVersions[i].flag)
 				options |= methodVersions[i].option;
+
+		}
 #else   /* openssl >= 1.1.0 */
 	/* set the max_version is required to cap TLS version or activate new TLS (v1.3) */
         methodVersions[min].ctx_set_version(ctx, SET_MIN);
