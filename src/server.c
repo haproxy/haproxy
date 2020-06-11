@@ -11,6 +11,7 @@
  *
  */
 
+#include <sys/types.h>
 #include <netinet/tcp.h>
 #include <ctype.h>
 #include <errno.h>
