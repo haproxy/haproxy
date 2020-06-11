@@ -2557,17 +2557,22 @@ struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp
 						if (static_sample_data.u.str.data >= static_sample_data.u.str.size)
 							static_sample_data.u.str.data = static_sample_data.u.str.size - 1;
 						memcpy(static_sample_data.u.str.area,
-						       pat->data->u.str.area,
-						       static_sample_data.u.str.data);
+						       pat->data->u.str.area, static_sample_data.u.str.data);
 						static_sample_data.u.str.area[static_sample_data.u.str.data] = 0;
+						pat->data = &static_sample_data;
+						break;
+
 					case SMP_T_IPV4:
 					case SMP_T_IPV6:
 					case SMP_T_SINT:
 						memcpy(&static_sample_data, pat->data, sizeof(struct sample_data));
+						pat->data = &static_sample_data;
+						break;
 					default:
+						/* unimplemented pattern type */
 						pat->data = NULL;
+						break;
 				}
-				pat->data = &static_sample_data;
 			}
 			HA_RWLOCK_RDUNLOCK(PATEXP_LOCK, &list->expr->lock);
 			return pat;
