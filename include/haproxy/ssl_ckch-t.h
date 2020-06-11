@@ -35,7 +35,6 @@
 
 #include <import/ebmbtree.h>
 #include <haproxy/buf-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/openssl-compat.h>
 
 /* This is used to preload the certificate, private key

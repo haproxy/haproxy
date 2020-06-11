@@ -29,7 +29,6 @@
 #include <haproxy/buf-t.h>
 #include <haproxy/http-t.h>
 #include <haproxy/htx-t.h>
-#include <haproxy/list-t.h>
 
 /* Context used to find/remove an HTTP header. */
 struct http_hdr_ctx {

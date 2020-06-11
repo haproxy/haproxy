@@ -29,7 +29,6 @@
 
 #include <import/ebpttree.h>
 
-#include <haproxy/list-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/regex-t.h>
 #include <haproxy/server-t.h>

@@ -22,7 +22,6 @@
 #ifndef _HAPROXY_ACL_T_H
 #define _HAPROXY_ACL_T_H
 
-#include <haproxy/list-t.h>
 #include <haproxy/pattern-t.h>
 #include <haproxy/sample-t.h>
 

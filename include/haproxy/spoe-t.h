@@ -28,7 +28,6 @@
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/filters-t.h>
 #include <haproxy/freq_ctr-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sample-t.h>
 #include <haproxy/stream-t.h>

@@ -20,7 +20,6 @@
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/vars-t.h>
 

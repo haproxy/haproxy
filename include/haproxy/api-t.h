@@ -35,5 +35,6 @@
 #include <haproxy/compat.h>
 #include <haproxy/compiler.h>
 #include <haproxy/defaults.h>
+#include <haproxy/list-t.h>
 
 #endif /* _HAPROXY_TYPES_H */

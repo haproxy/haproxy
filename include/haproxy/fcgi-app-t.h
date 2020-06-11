@@ -30,7 +30,6 @@
 #include <haproxy/arg-t.h>
 #include <haproxy/fcgi.h>
 #include <haproxy/filters-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/regex-t.h>
 
 #define FCGI_APP_FL_KEEP_CONN     0x00000001 /* Keep the connection alive */

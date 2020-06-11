@@ -23,7 +23,6 @@
 #define _HAPROXY_CHECKS_H
 
 #include <haproxy/check-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
 

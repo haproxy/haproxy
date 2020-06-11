@@ -32,7 +32,6 @@
 #include <arpa/inet.h>
 
 #include <haproxy/check-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/tcpcheck-t.h>
 #include <haproxy/thread-t.h>
 

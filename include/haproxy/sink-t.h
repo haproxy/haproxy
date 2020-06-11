@@ -24,7 +24,6 @@
 
 #include <import/ist.h>
 #include <haproxy/api-t.h>
-#include <haproxy/list-t.h>
 
 /* A sink may be of 4 distinct types :
  *   - file descriptor (such as stdout)

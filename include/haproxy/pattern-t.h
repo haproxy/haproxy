@@ -25,7 +25,6 @@
 #include <import/ebmbtree.h>
 
 #include <haproxy/api-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/regex-t.h>
 #include <haproxy/sample_data-t.h>
 #include <haproxy/thread-t.h>

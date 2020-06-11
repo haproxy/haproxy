@@ -29,7 +29,6 @@
 #include <arpa/inet.h>
 
 #include <haproxy/api-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/stick_table-t.h>
 #include <haproxy/task-t.h>

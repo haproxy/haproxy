@@ -26,7 +26,6 @@
 #include <netinet/in.h>
 
 #include <haproxy/buf-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/protobuf-t.h>
 #include <haproxy/stick_table-t.h>
 #include <haproxy/vars-t.h>

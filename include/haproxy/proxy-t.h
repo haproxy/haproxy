@@ -35,7 +35,6 @@
 #include <haproxy/backend-t.h>
 #include <haproxy/counters-t.h>
 #include <haproxy/freq_ctr-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/tcpcheck-t.h>

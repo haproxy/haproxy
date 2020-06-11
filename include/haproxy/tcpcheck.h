@@ -28,7 +28,6 @@
 
 #include <haproxy/action.h>
 #include <haproxy/check-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/pool-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/tcpcheck-t.h>

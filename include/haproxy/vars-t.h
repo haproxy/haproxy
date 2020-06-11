@@ -22,7 +22,6 @@
 #ifndef _HAPROXY_VARS_T_H
 #define _HAPROXY_VARS_T_H
 
-#include <haproxy/list-t.h>
 #include <haproxy/sample_data-t.h>
 #include <haproxy/thread-t.h>
 

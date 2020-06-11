@@ -34,7 +34,6 @@
 #include <haproxy/counters-t.h>
 #include <haproxy/dns-t.h>
 #include <haproxy/freq_ctr-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/openssl-compat.h>

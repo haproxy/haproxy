@@ -32,7 +32,6 @@
 #include <haproxy/filters-t.h>
 #include <haproxy/hlua-t.h>
 #include <haproxy/http_ana-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/queue-t.h>

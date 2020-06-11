@@ -23,7 +23,6 @@
 #define _HAPROXY_SINK_H
 
 #include <sys/types.h>
-#include <haproxy/list-t.h>
 #include <haproxy/sink-t.h>
 #include <haproxy/thread.h>
 

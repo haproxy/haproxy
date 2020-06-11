@@ -32,7 +32,6 @@
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/dynbuf-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/pool.h>
 
 extern struct pool_head *pool_head_buffer;

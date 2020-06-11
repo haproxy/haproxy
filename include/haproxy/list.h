@@ -23,7 +23,6 @@
 #define _HAPROXY_LIST_H
 
 #include <haproxy/api.h>
-#include <haproxy/list-t.h>
 #include <haproxy/thread.h>
 
 /* First undefine some macros which happen to also be defined on OpenBSD,

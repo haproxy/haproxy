@@ -25,7 +25,6 @@
 #include <import/eb32tree.h>
 
 #include <haproxy/connection-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/proto_udp-t.h>
 #include <haproxy/task-t.h>

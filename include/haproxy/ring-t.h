@@ -24,7 +24,6 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/thread.h>
 
 /* The code below handles circular buffers with single-producer and multiple

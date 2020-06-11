@@ -24,7 +24,6 @@
 
 #include <import/ist.h>
 #include <haproxy/api-t.h>
-#include <haproxy/list-t.h>
 #include <haproxy/sink-t.h>
 
 /* the macros below define an optional type for each of the 4 args passed to

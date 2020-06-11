@@ -23,7 +23,6 @@
 #define _HAPROXY_CLI_T_H
 
 #include <haproxy/applet-t.h>
-#include <haproxy/list-t.h>
 
 /* Access level for a stats socket */
 #define ACCESS_LVL_NONE     0

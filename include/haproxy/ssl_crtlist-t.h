@@ -26,7 +26,6 @@
 #include <import/ebmbtree.h>
 #include <import/ebpttree.h>
 
-#include <haproxy/list-t.h>
 
 /* forward declarations for structures below */
 struct bind_conf;

@@ -16,7 +16,6 @@
 
 #include <haproxy/acl-t.h>
 #include <haproxy/auth-t.h>
-#include <haproxy/list-t.h>
 
 /* This is a list of proxies we are allowed to see. Later, it should go in the
  * user list, but before this we need to support de/re-authentication.

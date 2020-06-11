@@ -29,7 +29,6 @@
 
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h> /* struct wait_event */
-#include <haproxy/list-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ssl_ckch-t.h>
