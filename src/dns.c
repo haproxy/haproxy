@@ -25,6 +25,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/cli.h>
+#include <haproxy/dgram.h>
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
@@ -32,7 +33,6 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
-#include <haproxy/proto_udp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>

@@ -1,5 +1,5 @@
 /*
- * UDP protocol related functions
+ * Datagram processing functions
  *
  * Copyright 2014 Baptiste Assmann <bedis9@gmail.com>
  *
@@ -11,7 +11,7 @@
  */
 
 #include <haproxy/fd.h>
-#include <haproxy/proto_udp-t.h>
+#include <haproxy/dgram.h>
 
 /* datagram handler callback */
 void dgram_fd_handler(int fd)

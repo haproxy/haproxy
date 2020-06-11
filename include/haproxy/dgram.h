@@ -1,6 +1,6 @@
 /*
- * include/haproxy/proto_udp.h
- * This file provides functions related to UDP protocol.
+ * include/haproxy/proto_dgram.h
+ * This file provides functions related to DGRAM processing.
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>
  *
@@ -19,9 +19,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _HAPROXY_PROTO_UDP_H
-#define _HAPROXY_PROTO_UDP_H
+#ifndef _HAPROXY_PROTO_DGRAM_H
+#define _HAPROXY_PROTO_DGRAM_H
+
+#include <haproxy/dgram-t.h>
 
 void dgram_fd_handler(int);
 
-#endif // _HAPROXY_PROTO_UDP_H
+#endif // _HAPROXY_PROTO_DGRAM_H

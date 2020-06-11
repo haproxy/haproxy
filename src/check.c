@@ -35,6 +35,7 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
+#include <haproxy/dgram.h>
 #include <haproxy/dns.h>
 #include <haproxy/extcheck.h>
 #include <haproxy/fd.h>
@@ -49,7 +50,6 @@
 #include <haproxy/mailers.h>
 #include <haproxy/port_range.h>
 #include <haproxy/proto_tcp.h>
-#include <haproxy/proto_udp.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>

@@ -1,6 +1,6 @@
 /*
- * include/haproxy/proto_udp-t.h
- * This file provides structures and types for UDP protocol.
+ * include/haproxy/dgram-t.h
+ * This file provides structures and types for datagram processing
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>
  *
@@ -19,8 +19,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _HAPROXY_HAPROXY_UDP_T_H
-#define _HAPROXY_HAPROXY_UDP_T_H
+#ifndef _HAPROXY_HAPROXY_DGRAM_T_H
+#define _HAPROXY_HAPROXY_DGRAM_T_H
 
 #include <arpa/inet.h>
 
@@ -49,4 +49,4 @@ struct dgram_data_cb {
 	void (*send)(struct dgram_conn *dgram); /* send callback */
 };
 
-#endif /* _HAPROXY_HAPROXY_UDP_T_H */
+#endif /* _HAPROXY_HAPROXY_DGRAM_T_H */
