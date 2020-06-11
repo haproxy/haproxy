@@ -1,6 +1,213 @@
 ChangeLog :
 ===========
 
+2020/06/11 : 2.2-dev9
+    - BUG/MINOR: http-htx: Don't forget to release the http reply in release function
+    - BUG/MINOR: http-htx: Fix a leak on error path during http reply parsing
+    - MINOR: checks: Remove dead code from process_chk_conn()
+    - REGTESTS: checks: Fix tls_health_checks when IPv6 addresses are used
+    - REGTESTS: Add missing OPENSSL to REQUIRE_OPTIONS for lua/txn_get_priv
+    - MINOR: lua: Use vars_unset_by_name_ifexist()
+    - CLEANUP: vars: Remove void vars_unset_by_name(const char*, size_t, struct sample*)
+    - MINOR: vars: Make vars_(un|)set_by_name(_ifexist|) return a success value
+    - MINOR: lua: Make `set_var()` and `unset_var()` return success
+    - MEDIUM: lua: Add `ifexist` parameter to `set_var`
+    - MEDIUM: ring: new section ring to declare custom ring buffers.
+    - REGTESTS: Add missing OPENSSL to REQUIRE_OPTIONS for compression/lua_validation
+    - REGTESTS: Require the version 2.2 to execute lua/set_var
+    - BUG/MEDIUM: checks: Refresh the conn-stream and the connection after a connect
+    - MINOR: checks: Remove useless tests on the connection and conn-stream
+    - BUG/MEDIUM: contrib/spoa: do not register python3.8 if --embed fail
+    - BUG/MEDIUM: connection: Ignore PP2 unique ID for stream-less connections
+    - BUG/MINOR: connection: Always get the stream when available to send PP2 line
+    - BUG/MEDIUM: backend: set the connection owner to the session when using alpn.
+    - MINOR: pools: compute an estimate of each pool's average needed objects
+    - MEDIUM: pools: directly free objects when pools are too much crowded
+    - REGTEST: Add connection/proxy_protocol_send_unique_id_alpn
+    - MINOR: http-ana: Make the function http_reply_to_htx() public
+    - MINOR: http-ana: Use proxy's error replies to emit 401/407 responses
+    - MINOR: http-rules: Use an action function to eval http-request auth rules
+    - CLEANUP: http: Remove unused HTTP message templates
+    - BUG/MEDIUM: checks: Don't blindly subscribe for receive if waiting for connect
+    - MINOR: checks: I/O callback function only rely on the data layer wake callback
+    - BUG/MINOR: lua: Add missing string length for lua sticktable lookup
+    - BUG/MEDIUM: logs: fix trailing zeros on log message.
+    - CI: cirrus-ci: skip reg-tests/connection/proxy_protocol_send_unique_id_alpn.vtc on CentOS 6
+    - BUG/MINOR: nameservers: fix error handling in parsing of resolv.conf
+    - BUG/MEDIUM: checks: Don't add a tcpcheck ruleset twice in the shared tree
+    - MEDIUM: ssl: use TLSv1.2 as the minimum default on bind lines
+    - CLEANUP: pools: use the regular lock for the flush operation on lockless pools
+    - SCRIPTS: publish-release: pass -n to gzip to remove timestamp
+    - MINOR: ring: re-work ring attach generic API.
+    - BUG/MINOR: error on unknown statement in ring section.
+    - MEDIUM: ring: add server statement to forward messages from a ring
+    - MEDIUM: ring: add new srv statement to support octet counting forward
+    - MINOR: ssl: set ssl-min-ver in ambiguous configurations
+    - CLEANUP: ssl: remove comment from dump_crtlist_sslconf()
+    - BUILD: sink: address build warning on 32-bit architectures
+    - BUG/MINOR: peers: fix internal/network key type mapping.
+    - CLEANUP: regex: remove outdated support for regex actions
+    - Revert "MINOR: ssl: rework add cert chain to CTX to be libssl independent"
+    - MINOR: mux-h1/proxy: Add a proxy option to disable clear h2 upgrade
+    - BUG/MEDIUM: lua: Reset analyse expiration timeout before executing a lua action
+    - DOC: add a line about comments in crt-list
+    - BUG/MEDIUM: hlua: Lock pattern references to perform set/add/del operations
+    - BUG/MINOR: checks: Fix test on http-check rulesets during config validity check
+    - BUG/MEDIUM: contrib/prometheus-exporter: Properly set flags to dump metrics
+    - BUG/MEDIUM: mworker: fix the copy of options in copy_argv()
+    - BUG/MINOR: init: -x can have a parameter starting with a dash
+    - BUG/MINOR: init: -S can have a parameter starting with a dash
+    - BUG/MEDIUM: mworker: fix the reload with an -- option
+    - BUG/MINOR: ssl: fix a trash buffer leak in some error cases
+    - BUG/MINOR: mworker: fix a memleak when execvp() failed
+    - MINOR: sample: Add secure_memcmp converter
+    - REORG: ebtree: move the C files from ebtree/ to src/
+    - REORG: ebtree: move the include files from ebtree to include/import/
+    - REORG: ebtree: clean up remains of the ebtree/ directory
+    - REORG: include: create new file haproxy/api-t.h
+    - REORG: include: create new file haproxy/api.h
+    - REORG: include: update all files to use haproxy/api.h or api-t.h if needed
+    - CLEANUP: include: remove common/config.h
+    - CLEANUP: include: remove unused template.h
+    - REORG: include: move MIN/MAX from tools.h to compat.h
+    - REORG: include: move SWAP/MID_RANGE/MAX_RANGE from tools.h to standard.h
+    - CLEANUP: include: remove unused common/tools.h
+    - REORG: include: move the base files from common/ to haproxy/
+    - REORG: include: move version.h to haproxy/
+    - REORG: include: move base64.h, errors.h and hash.h from common to to haproxy/
+    - REORG: include: move openssl-compat.h from common/ to haproxy/
+    - REORG: include: move ist.h from common/ to import/
+    - REORG: include: move the BUG_ON() code to haproxy/bug.h
+    - REORG: include: move debug.h from common/ to haproxy/
+    - CLEANUP: debug: drop unused function p_malloc()
+    - REORG: include: split buf.h into haproxy/buf-t.h and haproxy/buf.h
+    - REORG: include: move istbuf.h to haproxy/
+    - REORG: include: split mini-clist into haproxy/list and list-t.h
+    - REORG: threads: extract atomic ops from hathreads.h
+    - CLEANUP: threads: remove a few needless includes of hathreads.h
+    - REORG: include: split hathreads into haproxy/thread.h and haproxy/thread-t.h
+    - CLEANUP: thread: rename __decl_hathreads() to __decl_thread()
+    - REORG: include: move time.h from common/ to haproxy/
+    - REORG: include: move integer manipulation functions from standard.h to intops.h
+    - CLEANUP: include: remove excessive includes of common/standard.h
+    - REORG: include: move freq_ctr to haproxy/
+    - CLEANUP: pool: include freq_ctr.h and remove locally duplicated functions
+    - REORG: memory: move the pool type definitions to haproxy/pool-t.h
+    - REORG: memory: move the OS-level allocator to haproxy/pool-os.h
+    - MINOR: memory: don't let __pool_get_first() pick from the cache
+    - MEDIUM: memory: don't let pool_put_to_cache() free the objects itself
+    - MINOR: memory: move pool-specific path of the locked pool_free() to __pool_free()
+    - MEDIUM: memory: make local pools independent on lockless pools
+    - REORG: include: move common/memory.h to haproxy/pool.h
+    - REORG: include: move common/chunk.h to haproxy/chunk.h
+    - REORG: include: move activity to haproxy/
+    - REORG: include: move common/buffer.h to haproxy/dynbuf{,-t}.h
+    - REORG: include: move common/net_helper.h to haproxy/net_helper.h
+    - REORG: include: move common/namespace.h to haproxy/namespace{,-t}.h
+    - REORG: include: split common/regex.h into haproxy/regex{,-t}.h
+    - REORG: include: split common/xref.h into haproxy/xref{,-t}.h
+    - REORG: include: move common/ticks.h to haproxy/ticks.h
+    - REORG: include: split common/http.h into haproxy/http{,-t}.h
+    - REORG: include: split common/http-hdr.h into haproxy/http-hdr{,-t}.h
+    - REORG: include: move common/h1.h to haproxy/h1.h
+    - REORG: include: split common/htx.h into haproxy/htx{,-t}.h
+    - REORG: include: move hpack*.h to haproxy/ and split hpack-tbl
+    - REORG: include: move common/h2.h to haproxy/h2.h
+    - REORG: include: move common/fcgi.h to haproxy/
+    - REORG: include: move protocol.h to haproxy/protocol{,-t}.h
+    - REORG: tools: split common/standard.h into haproxy/tools{,-t}.h
+    - REORG: include: move dict.h to hparoxy/dict{,-t}.h
+    - REORG: include: move shctx to haproxy/shctx{,-t}.h
+    - REORG: include: move port_range.h to haproxy/port_range{,-t}.h
+    - REORG: include: move fd.h to haproxy/fd{,-t}.h
+    - REORG: include: move ring to haproxy/ring{,-t}.h
+    - REORG: include: move sink.h to haproxy/sink{,-t}.h
+    - REORG: include: move pipe.h to haproxy/pipe{,-t}.h
+    - CLEANUP: include: remove empty raw_sock.h
+    - REORG: include: move proto_udp.h to haproxy/proto_udp{,-t}.h
+    - REORG: include: move proto/proto_sockpair.h to haproxy/proto_sockpair.h
+    - REORG: include: move compression.h to haproxy/compression{,-t}.h
+    - REORG: include: move h1_htx.h to haproxy/h1_htx.h
+    - REORG: include: move http_htx.h to haproxy/http_htx{,-t}.h
+    - REORG: include: move hlua.h to haproxy/hlua{,-t}.h
+    - REORG: include: move hlua_fcn.h to haproxy/hlua_fcn.h
+    - REORG: include: move action.h to haproxy/action{,-t}.h
+    - REORG: include: move arg.h to haproxy/arg{,-t}.h
+    - REORG: include: move auth.h to haproxy/auth{,-t}.h
+    - REORG: include: move dns.h to haproxy/dns{,-t}.h
+    - REORG: include: move flt_http_comp.h to haproxy/
+    - REORG: include: move counters.h to haproxy/counters-t.h
+    - REORG: include: split mailers.h into haproxy/mailers{,-t}.h
+    - REORG: include: move capture.h to haproxy/capture{,-t}.h
+    - REORG: include: move frontend.h to haproxy/frontend.h
+    - REORG: include: move obj_type.h to haproxy/obj_type{,-t}.h
+    - REORG: include: move http_rules.h to haproxy/http_rules.h
+    - CLEANUP: include: remove unused mux_pt.h
+    - REORG: include: move mworker.h to haproxy/mworker{,-t}.h
+    - REORG: include: move ssl_utils.h to haproxy/ssl_utils.h
+    - REORG: include: move ssl_ckch.h to haproxy/ssl_ckch{,-t}.h
+    - REORG: move ssl_crtlist.h to haproxy/ssl_crtlist{,-t}.h
+    - REORG: include: move lb_chash.h to haproxy/lb_chash{,-t}.h
+    - REORG: include: move lb_fas.h to haproxy/lb_fas{,-t}.h
+    - REORG: include: move lb_fwlc.h to haproxy/lb_fwlc{,-t}.h
+    - REORG: include: move lb_fwrr.h to haproxy/lb_fwrr{,-t}.h
+    - REORG: include: move listener.h to haproxy/listener{,-t}.h
+    - REORG: include: move pattern.h to haproxy/pattern{,-t}.h
+    - REORG: include: move map to haproxy/map{,-t}.h
+    - REORG: include: move payload.h to haproxy/payload.h
+    - REORG: include: move sample.h to haproxy/sample{,-t}.h
+    - REORG: include: move protocol_buffers.h to haproxy/protobuf{,-t}.h
+    - REORG: include: move vars.h to haproxy/vars{,-t}.h
+    - REORG: include: split global.h into haproxy/global{,-t}.h
+    - REORG: include: move task.h to haproxy/task{,-t}.h
+    - REORG: include: move proto_tcp.h to haproxy/proto_tcp.h
+    - REORG: include: move signal.h to haproxy/signal{,-t}.h
+    - REORG: include: move tcp_rules.h to haproxy/tcp_rules.h
+    - REORG: include: move connection.h to haproxy/connection{,-t}.h
+    - REORG: include: move checks.h to haproxy/check{,-t}.h
+    - REORG: include: move http_fetch.h to haproxy/http_fetch.h
+    - REORG: include: move peers.h to haproxy/peers{,-t}.h
+    - REORG: include: move stick_table.h to haproxy/stick_table{,-t}.h
+    - REORG: include: move session.h to haproxy/session{,-t}.h
+    - REORG: include: move trace.h to haproxy/trace{,-t}.h
+    - REORG: include: move acl.h to haproxy/acl.h{,-t}.h
+    - REORG: include: split common/uri_auth.h into haproxy/uri_auth{,-t}.h
+    - REORG: move applet.h to haproxy/applet{,-t}.h
+    - REORG: include: move stats.h to haproxy/stats{,-t}.h
+    - REORG: include: move cli.h to haproxy/cli{,-t}.h
+    - REORG: include: move lb_map.h to haproxy/lb_map{,-t}.h
+    - REORG: include: move ssl_sock.h to haproxy/ssl_sock{,-t}.h
+    - REORG: include: move stream_interface.h to haproxy/stream_interface{,-t}.h
+    - REORG: include: move channel.h to haproxy/channel{,-t}.h
+    - REORG: include: move http_ana.h to haproxy/http_ana{,-t}.h
+    - REORG: include: move filters.h to haproxy/filters{,-t}.h
+    - REORG: include: move fcgi-app.h to haproxy/fcgi-app{,-t}.h
+    - REORG: include: move log.h to haproxy/log{,-t}.h
+    - REORG: include: move proxy.h to haproxy/proxy{,-t}.h
+    - REORG: include: move spoe.h to haproxy/spoe{,-t}.h
+    - REORG: include: move backend.h to haproxy/backend{,-t}.h
+    - REORG: include: move queue.h to haproxy/queue{,-t}.h
+    - REORG: include: move server.h to haproxy/server{,-t}.h
+    - REORG: include: move stream.h to haproxy/stream{,-t}.h
+    - REORG: include: move cfgparse.h to haproxy/cfgparse.h
+    - CLEANUP: hpack: export debug functions and move inlines to .h
+    - REORG: check: move the e-mail alerting code to mailers.c
+    - REORG: check: move tcpchecks away from check.c
+    - REORG: check: move email_alert* from proxy-t.h to mailers-t.h
+    - REORG: check: extract the external checks from check.{c,h}
+    - CLEANUP: include: don't include stddef.h directly
+    - CLEANUP: include: don't include proxy-t.h in global-t.h
+    - CLEANUP: include: move sample_data out of sample-t.h
+    - REORG: include: move the error reporting functions to from log.h to errors.h
+    - BUILD: reorder objects in the Makefile for faster builds
+    - CLEANUP: compiler: add a THREAD_ALIGNED macro and use it where appropriate
+    - CLEANUP: include: make atomic.h part of the base API
+    - REORG: include: move MAX_THREADS to defaults.h
+    - REORG: include: move THREAD_LOCAL and __decl_thread() to compiler.h
+    - CLEANUP: include: tree-wide alphabetical sort of include files
+    - REORG: include: make list-t.h part of the base API
+    - REORG: dgram: rename proto_udp to dgram
+
 2020/05/22 : 2.2-dev8
     - MINOR: checks: Improve report of unexpected errors for expect rules
     - MEDIUM: checks: Add matching on log-format string for expect rules
