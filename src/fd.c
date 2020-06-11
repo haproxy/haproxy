@@ -446,6 +446,7 @@ ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t
 	size_t totlen = 0;
 	size_t sent = 0;
 	int vec = 0;
+	int attempts = 0;
 
 	if (!maxlen)
 		maxlen = ~0;
@@ -481,16 +482,31 @@ ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t
 		vec++;
 	}
 
+	/* make sure we never interleave writes and we never block. This means
+	 * we prefer to fail on collision than to block. But we don't want to
+	 * lose too many logs so we just perform a few lock attempts then give
+	 * up.
+	 */
+
+	while (HA_SPIN_TRYLOCK(OTHER_LOCK, &log_lock) != 0) {
+		if (++attempts >= 200) {
+			/* so that the caller knows the message couldn't be delivered */
+			sent = -1;
+			errno = EAGAIN;
+			goto leave;
+		}
+		ha_thread_relax();
+	}
+
 	if (unlikely(!fdtab[fd].initialized)) {
 		fdtab[fd].initialized = 1;
 		if (!isatty(fd))
 			fcntl(fd, F_SETFL, O_NONBLOCK);
 	}
-
-	HA_SPIN_LOCK(OTHER_LOCK, &log_lock);
 	sent = writev(fd, iovec, vec);
 	HA_SPIN_UNLOCK(OTHER_LOCK, &log_lock);
 
+ leave:
 	/* sent > 0 if the message was delivered */
 	return sent;
 }
