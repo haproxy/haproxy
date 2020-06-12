@@ -215,7 +215,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 
 	if (path[0]) {
 		ret = snprintf(tempname, maxpathlen, "%s.%d.tmp", path, pid);
-		if (ret < 0 || ret >= maxpathlen) {
+		if (ret < 0 || ret >= sizeof(addr.sun_path)) {
 			err |= ERR_FATAL | ERR_ALERT;
 			msg = "name too long for UNIX socket (limit usually 97)";
 			goto err_return;
@@ -245,6 +245,18 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		if (link(path, backname) < 0 && errno != ENOENT) {
 			err |= ERR_FATAL | ERR_ALERT;
 			msg = "error when trying to preserve previous UNIX socket";
+			goto err_return;
+		}
+
+		/* Note: this test is redundant with the snprintf one above and
+		 * will never trigger, it's just added as the only way to shut
+		 * gcc's painfully dumb warning about possibly truncated output
+		 * during strncpy(). Don't move it above or smart gcc will not
+		 * see it!
+		 */
+		if (strlen(tempname) >= sizeof(addr.sun_path)) {
+			err |= ERR_FATAL | ERR_ALERT;
+			msg = "name too long for UNIX socket (limit usually 97)";
 			goto err_return;
 		}
 
