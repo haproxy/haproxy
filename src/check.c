@@ -1794,7 +1794,8 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	cur_arg += 2;
 	if (*args[cur_arg] && *args[cur_arg+1] &&
 	    (strcmp(args[cur_arg], "EHLO") == 0 || strcmp(args[cur_arg], "HELO") == 0)) {
-		cmd = calloc(strlen(args[cur_arg]) + strlen(args[cur_arg+1]) + 1, sizeof(*cmd));
+		/* <EHLO|HELO> + space (1) + <host> + null byte (1) */
+		cmd = calloc(strlen(args[cur_arg]) + 1 + strlen(args[cur_arg+1]) + 1, sizeof(*cmd));
 		if (cmd)
 			sprintf(cmd, "%s %s", args[cur_arg], args[cur_arg+1]);
 	}
