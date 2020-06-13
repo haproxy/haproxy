@@ -2202,7 +2202,7 @@ static void init(int argc, char **argv)
 		if (pr || px) {
 			/* At least one peer or one listener has been found */
 			qfprintf(stdout, "Configuration file is valid\n");
-			exit(0);
+			deinit_and_exit(0);
 		}
 		qfprintf(stdout, "Configuration file has no error but will not start (no listener) => exit(2).\n");
 		exit(2);
@@ -3770,10 +3770,7 @@ int main(int argc, char **argv)
 	run_thread_poll_loop(0);
 #endif
 
-	/* Do some cleanup */
-	deinit();
-
-	exit(0);
+	deinit_and_exit(0);
 }
 
 #if defined(__clang_version__)
