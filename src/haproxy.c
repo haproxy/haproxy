@@ -2865,6 +2865,11 @@ void deinit(void)
 	deinit_pollers();
 } /* end deinit() */
 
+void deinit_and_exit(int status)
+{
+	deinit();
+	exit(status);
+}
 
 /* Runs the polling loop */
 void run_poll_loop()
