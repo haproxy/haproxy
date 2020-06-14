@@ -689,6 +689,11 @@ static enum act_return action_clear(struct act_rule *rule, struct proxy *px,
 	return ACT_RET_CONT;
 }
 
+static void release_store_rule(struct act_rule *rule)
+{
+	release_sample_expr(rule->arg.vars.expr);
+}
+
 /* This two function checks the variable name and replace the
  * configuration string name by the global string name. its
  * the same string, but the global pointer can be easy to
@@ -758,6 +763,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	if (!set_var) {
 		rule->action     = ACT_CUSTOM;
 		rule->action_ptr = action_clear;
+		rule->release_ptr = release_store_rule;
 		return ACT_RET_PRS_OK;
 	}
 
@@ -791,6 +797,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 
 	rule->action     = ACT_CUSTOM;
 	rule->action_ptr = action_store;
+	rule->release_ptr = release_store_rule;
 	return ACT_RET_PRS_OK;
 }
 
