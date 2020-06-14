@@ -490,6 +490,11 @@ static void free_zlib(void *opaque, void *ptr)
 		pool = zlib_pool_head;
 	else if (ptr == ctx->zlib_pending_buf)
 		pool = zlib_pool_pending_buf;
+	else {
+		// never matched, just to silence gcc
+		ABORT_NOW();
+		return;
+	}
 
 	pool_free(pool, ptr);
 	_HA_ATOMIC_SUB(&zlib_used_memory, pool->size);
