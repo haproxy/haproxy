@@ -597,6 +597,10 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 	smp->data.type = SMP_T_BIN;
 	smp->data.u.str = *temp;
 	smp->flags = SMP_F_VOL_TEST;
+
+	if (!channel_full(chn, global.tune.maxrewrite) && !(chn->flags & (CF_EOI|CF_SHUTR|CF_READ_ERROR)))
+		smp->flags |= SMP_F_MAY_CHANGE;
+
 	return 1;
 }
 
