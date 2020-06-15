@@ -2866,7 +2866,7 @@ void deinit(void)
 	deinit_pollers();
 } /* end deinit() */
 
-void deinit_and_exit(int status)
+__attribute__((noreturn)) void deinit_and_exit(int status)
 {
 	deinit();
 	exit(status);

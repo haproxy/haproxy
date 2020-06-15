@@ -61,7 +61,7 @@ struct proxy;
 struct server;
 int main(int argc, char **argv);
 void deinit(void);
-void deinit_and_exit(int);
+__attribute__((noreturn)) void deinit_and_exit(int);
 void run_poll_loop(void);
 int tell_old_pids(int sig);
 int delete_oldpid(int pid);
