@@ -682,7 +682,7 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 		}
 
 		/* Check "version" K/V item */
-		if (!memcmp(str, VERSION_KEY, sz)) {
+		if (sz >= strlen(VERSION_KEY) && !memcmp(str, VERSION_KEY, strlen(VERSION_KEY))) {
 			int i, type = *p++;
 
 			/* The value must be a string */
@@ -711,7 +711,7 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 			}
 		}
 		/* Check "max-frame-size" K/V item */
-		else if (!memcmp(str, MAX_FRAME_SIZE_KEY, sz)) {
+		else if (sz >= strlen(MAX_FRAME_SIZE_KEY) && !memcmp(str, MAX_FRAME_SIZE_KEY, strlen(MAX_FRAME_SIZE_KEY))) {
 			int type = *p++;
 
 			/* The value must be integer */
@@ -734,7 +734,7 @@ spoe_handle_agenthello_frame(struct appctx *appctx, char *frame, size_t size)
 			max_frame_size = sz;
 		}
 		/* Check "capabilities" K/V item */
-		else if (!memcmp(str, CAPABILITIES_KEY, sz)) {
+		else if (sz >= strlen(CAPABILITIES_KEY) && !memcmp(str, CAPABILITIES_KEY, strlen(CAPABILITIES_KEY))) {
 			int type = *p++;
 
 			/* The value must be a string */
@@ -868,7 +868,7 @@ spoe_handle_agentdiscon_frame(struct appctx *appctx, char *frame, size_t size)
 		}
 
 		/* Check "status-code" K/V item */
-		if (!memcmp(str, STATUS_CODE_KEY, sz)) {
+		if (sz >= strlen(STATUS_CODE_KEY) && !memcmp(str, STATUS_CODE_KEY, strlen(STATUS_CODE_KEY))) {
 			int type = *p++;
 
 			/* The value must be an integer */
@@ -887,7 +887,7 @@ spoe_handle_agentdiscon_frame(struct appctx *appctx, char *frame, size_t size)
 		}
 
 		/* Check "message" K/V item */
-		else if (!memcmp(str, MSG_KEY, sz)) {
+		else if (sz >= strlen(MSG_KEY) && !memcmp(str, MSG_KEY, strlen(MSG_KEY))) {
 			int type = *p++;
 
 			/* The value must be a string */
