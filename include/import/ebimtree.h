@@ -62,7 +62,7 @@ __ebim_lookup(struct eb_root *root, const void *x, unsigned int len)
 		if (eb_gettag(troot) == EB_LEAF) {
 			node = container_of(eb_untag(troot, EB_LEAF),
 					    struct ebpt_node, node.branches);
-			if (memcmp(node->key + pos, x, len) != 0)
+			if (eb_memcmp(node->key + pos, x, len) != 0)
 				goto ret_null;
 			else
 				goto ret_node;
@@ -76,7 +76,7 @@ __ebim_lookup(struct eb_root *root, const void *x, unsigned int len)
 			 * value, and we walk down left, or it's a different
 			 * one and we don't have our key.
 			 */
-			if (memcmp(node->key + pos, x, len) != 0)
+			if (eb_memcmp(node->key + pos, x, len) != 0)
 				goto ret_null;
 			else
 				goto walk_left;

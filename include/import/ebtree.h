@@ -908,6 +908,7 @@ static forceinline int get_bit(const unsigned char *a, unsigned int pos)
 /* These functions are declared in ebtree.c */
 void eb_delete(struct eb_node *node);
 struct eb_node *eb_insert_dup(struct eb_node *sub, struct eb_node *new);
+int eb_memcmp(const void *m1, const void *m2, size_t len);
 
 #endif /* _EB_TREE_H */
 
