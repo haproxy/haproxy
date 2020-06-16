@@ -4,6 +4,7 @@
  * code version.
  */
 
+#include <haproxy/global.h>
 #include <haproxy/version.h>
 
 /* These ones are made variables and not constants so that they are stored into
