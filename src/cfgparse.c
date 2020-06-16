@@ -1955,6 +1955,7 @@ next_line:
 				ha_alert("parsing [%s:%d]: truncated or invalid hexadecimal sequence below:\n"
 					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
 				err_code |= ERR_ALERT | ERR_FATAL;
+				fatal++;
 				goto next_line;
 			}
 
