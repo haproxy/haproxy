@@ -243,4 +243,12 @@
 #define __decl_thread(decl)
 #endif
 
+/* clang has a __has_feature() macro which reports true/false on a number of
+ * internally supported features. Let's make sure this macro is always defined
+ * and returns zero when not supported.
+ */
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+
 #endif /* _HAPROXY_COMPILER_H */
