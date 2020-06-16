@@ -1850,6 +1850,9 @@ int readcfgfile(const char *file)
 	struct cfg_section *cs = NULL, *pcs = NULL;
 	struct cfg_section *ics;
 	int readbytes = 0;
+	char *outline = NULL;
+	size_t outlen = 0;
+	size_t outlinesize = 0;
 
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
 		ha_alert("parsing [%s] : out of memory.\n", file);
@@ -1867,8 +1870,6 @@ next_line:
 		char *end;
 		char *args[MAX_LINE_ARGS + 1];
 		char *line = thisline;
-		int dquote = 0;  /* double quote */
-		int squote = 0;  /* simple quote */
 
 		linenum++;
 
@@ -1897,224 +1898,82 @@ next_line:
 
 		readbytes = 0;
 
+		/* kill trailing LF */
+		*(end - 1) = 0;
+
 		/* skip leading spaces */
 		while (isspace((unsigned char)*line))
 			line++;
-
 
 		if (*line == '[') {/* This is the beginning if a scope */
 			err_code |= cfg_parse_scope(file, linenum, line);
 			goto next_line;
 		}
 
-		arg = 0;
-		args[arg] = line;
+		while (1) {
+			uint32_t err;
+			char *errptr;
 
-		while (*line && arg < MAX_LINE_ARGS) {
-			if (*line == '"' && !squote) {  /* double quote outside single quotes */
-				if (dquote)
-					dquote = 0;
-				else
-					dquote = 1;
-				memmove(line, line + 1, end - line);
-				end--;
-			}
-			else if (*line == '\'' && !dquote) { /* single quote outside double quotes */
-				if (squote)
-					squote = 0;
-				else
-					squote = 1;
-				memmove(line, line + 1, end - line);
-				end--;
-			}
-			else if (*line == '\\' && !squote) {
-			/* first, we'll replace \\, \<space>, \#, \r, \n, \t, \xXX with their
-			 * C equivalent value. Other combinations left unchanged (eg: \1).
-			 */
-				int skip = 0;
-				if (line[1] == ' ' || line[1] == '\\' || line[1] == '#') {
-					*line = line[1];
-					skip = 1;
-				}
-				else if (line[1] == 'r') {
-					*line = '\r';
-					skip = 1;
-				}
-				else if (line[1] == 'n') {
-					*line = '\n';
-					skip = 1;
-				}
-				else if (line[1] == 't') {
-					*line = '\t';
-					skip = 1;
-				}
-				else if (line[1] == 'x') {
-					if ((line + 3 < end) && ishex(line[2]) && ishex(line[3])) {
-						unsigned char hex1, hex2;
-						hex1 = toupper(line[2]) - '0';
-						hex2 = toupper(line[3]) - '0';
-						if (hex1 > 9) hex1 -= 'A' - '9' - 1;
-						if (hex2 > 9) hex2 -= 'A' - '9' - 1;
-						*line = (hex1<<4) + hex2;
-						skip = 3;
-					}
-					else {
-						ha_alert("parsing [%s:%d] : invalid or incomplete '\\x' sequence '%.*s' in '%s'.\n", file, linenum, 4, line, args[0]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto next_line;
-					}
-				} else if (line[1] == '"') {
-					*line = '"';
-					skip = 1;
-				} else if (line[1] == '\'') {
-					*line = '\'';
-					skip = 1;
-				} else if (line[1] == '$' && dquote) { /* escaping of $ only inside double quotes */
-					*line = '$';
-					skip = 1;
-				}
-				if (skip) {
-					memmove(line + 1, line + 1 + skip, end - (line + skip));
-					end -= skip;
-				}
-				line++;
-			}
-			else if ((!squote && !dquote && *line == '#') || *line == '\n' || *line == '\r') {
-				/* end of string, end of loop */
-				*line = 0;
-				break;
-			}
-			else if (!squote && !dquote && isspace((unsigned char)*line)) {
-				/* a non-escaped space is an argument separator */
-				*line++ = '\0';
-				while (isspace((unsigned char)*line))
-					line++;
-				args[++arg] = line;
-			}
-			else if (dquote && *line == '$') {
-				/* environment variables are evaluated inside double quotes */
-				char *var_beg;
-				char *var_end;
-				char save_char;
-				char *value;
-				int val_len;
-				int newlinesize;
-				int braces = 0;
+			arg = MAX_LINE_ARGS;
+			outlen = outlinesize;
+			err = parse_line(line, outline, &outlen, args, &arg,
+					 PARSE_OPT_ENV | PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE |
+					 PARSE_OPT_BKSLASH | PARSE_OPT_SHARP, &errptr);
 
-				var_beg = line + 1;
-				var_end = var_beg;
+			if (err & PARSE_ERR_QUOTE) {
+				ha_alert("parsing [%s:%d]: unmatched quote below:\n"
+					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto next_line;
+			}
 
-				if (*var_beg == '{') {
-					var_beg++;
-					var_end++;
-					braces = 1;
-				}
+			if (err & PARSE_ERR_BRACE) {
+				ha_alert("parsing [%s:%d]: unmatched brace in environment variable name below:\n"
+					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto next_line;
+			}
 
-				if (!isalpha((unsigned char)*var_beg) && *var_beg != '_') {
-					ha_alert("parsing [%s:%d] : Variable expansion: Unrecognized character '%c' in variable name.\n", file, linenum, *var_beg);
+			if (err & PARSE_ERR_VARNAME) {
+				ha_alert("parsing [%s:%d]: forbidden first char in environment variable name below:\n"
+					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto next_line;
+			}
+
+			if (err & PARSE_ERR_HEX) {
+				ha_alert("parsing [%s:%d]: truncated or invalid hexadecimal sequence below:\n"
+					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto next_line;
+			}
+
+			if (err & PARSE_ERR_TOOMANY) {
+				ha_alert("parsing [%s:%d]: too many words, truncating at word %d, position %ld: <%s>.\n",
+					 file, linenum, arg, (long)(args[arg-1] - thisline + 1), args[arg-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto next_line;
+			}
+
+			if (err & (PARSE_ERR_TOOLARGE|PARSE_ERR_OVERLAP)) {
+				outlinesize = (outlen + 1023) & -1024;
+				outline = realloc(outline, outlinesize);
+				if (outline == NULL) {
+					ha_alert("parsing [%s:%d]: line too long, cannot allocate memory.\n",
+						 file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL;
-					goto next_line; /* skip current line */
+					goto next_line;
 				}
-
-				while (isalnum((unsigned char)*var_end) || *var_end == '_')
-					var_end++;
-
-				save_char = *var_end;
-				*var_end = '\0';
-				value = getenv(var_beg);
-				*var_end = save_char;
-				val_len = value ? strlen(value) : 0;
-
-				if (braces) {
-					if (*var_end == '}') {
-						var_end++;
-						braces = 0;
-					} else {
-						ha_alert("parsing [%s:%d] : Variable expansion: Mismatched braces.\n", file, linenum);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto next_line; /* skip current line */
-					}
-				}
-
-				newlinesize = (end - thisline) - (var_end - line) + val_len + 1;
-
-				/* if not enough space in thisline */
-				if (newlinesize  > linesize) {
-					char *newline;
-
-					newline = realloc(thisline, newlinesize * sizeof(*thisline));
-					if (newline == NULL) {
-						ha_alert("parsing [%s:%d] : Variable expansion: Not enough memory.\n", file, linenum);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto next_line; /* slip current line */
-					}
-					/* recompute pointers if realloc returns a new pointer */
-					if (newline != thisline) {
-						int i;
-						int diff;
-
-						for (i = 0; i <= arg; i++) {
-							diff = args[i] - thisline;
-							args[i] = newline + diff;
-						}
-
-						diff = var_end - thisline;
-						var_end = newline + diff;
-						diff = end - thisline;
-						end = newline + diff;
-						diff = line - thisline;
-						line = newline + diff;
-						thisline = newline;
-					}
-					linesize = newlinesize;
-				}
-
-				/* insert value inside the line */
-				memmove(line + val_len, var_end, end - var_end + 1);
-				memcpy(line, value, val_len);
-				end += val_len - (var_end - line);
-				line += val_len;
+				/* try again */
+				continue;
 			}
-			else {
-				line++;
-			}
-		}
-
-		if (dquote) {
-			ha_alert("parsing [%s:%d] : Mismatched double quotes.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
-		}
-
-		if (squote) {
-			ha_alert("parsing [%s:%d] : Mismatched simple quotes.\n", file, linenum);
-			err_code |= ERR_ALERT | ERR_FATAL;
+			/* everything's OK */
+			break;
 		}
 
 		/* empty line */
 		if (!**args)
 			continue;
-
-		if (*line) {
-			/* we had to stop due to too many args.
-			 * Let's terminate the string, print the offending part then cut the
-			 * last arg.
-			 */
-			while (*line && *line != '#' && *line != '\n' && *line != '\r')
-				line++;
-			*line = '\0';
-
-			ha_alert("parsing [%s:%d]: line too long, truncating at word %d, position %ld: <%s>.\n",
-				 file, linenum, arg + 1, (long)(args[arg] - thisline + 1), args[arg]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			args[arg] = line;
-		}
-
-		/* zero out remaining args and ensure that at least one entry
-		 * is zeroed out.
-		 */
-		while (++arg <= MAX_LINE_ARGS) {
-			args[arg] = line;
-		}
 
 		/* check for keyword modifiers "no" and "default" */
 		if (!strcmp(args[0], "no")) {
@@ -2178,6 +2037,7 @@ err:
 	cfg_scope = NULL;
 	cursection = NULL;
 	free(thisline);
+	free(outline);
 	fclose(f);
 	return err_code;
 }
