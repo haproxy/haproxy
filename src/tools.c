@@ -4717,6 +4717,269 @@ void ha_generate_uuid(struct buffer *output)
 }
 
 
+/* only used by parse_line() below. It supports writing in place provided that
+ * <in> is updated to the next location before calling it. In that case, the
+ * char at <in> may be overwritten.
+ */
+#define EMIT_CHAR(x)						       \
+	do {							       \
+		char __c = (char)(x);				       \
+		if ((opts & PARSE_OPT_INPLACE) && out+outpos > in)     \
+			err |= PARSE_ERR_OVERLAP;		       \
+		if (outpos >= outmax)				       \
+			err |= PARSE_ERR_TOOLARGE;		       \
+		if (!err)					       \
+			out[outpos] = __c;			       \
+		outpos++;					       \
+	} while (0)
+
+/* Parse <in>, copy it into <out> splitted into isolated words whose pointers
+ * are put in <args>. If more than <outlen> bytes have to be emitted, the
+ * extraneous ones are not emitted but <outlen> is updated so that the caller
+ * knows how much to realloc. Similarly, <args> are not updated beyond <nbargs>
+ * but the returned <nbargs> indicates how many were found. All trailing args
+ * up to <nbargs> point to the trailing zero.
+ *
+ * <out> may overlap with <in> provided that it never goes further, in which
+ * case the parser will accept to perform in-place parsing and unquoting/
+ * unescaping but only if environment variables do not lead to expansion that
+ * causes overlapping, otherwise the input string being destroyed, the error
+ * will not be recoverable. Note that even during out-of-place <in> will
+ * experience temporary modifications in-place for variable resolution and must
+ * be writable, and will also receive zeroes to delimit words when using
+ * in-place copy. Parsing options <opts> taken from PARSE_OPT_*. Return value
+ * is zero on success otherwise a bitwise-or of PARSE_ERR_*. Upon error, the
+ * starting point of the first invalid character sequence or unmatched
+ * quote/brace is reported in <errptr> if not NULL. When using in-place parsing
+ * error reporting might be difficult since zeroes will have been inserted into
+ * the string. One solution for the caller may consist in replacing all args
+ * delimiters with spaces in this case.
+ */
+uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbargs, uint32_t opts, char **errptr)
+{
+	char *quote = NULL;
+	char *brace = NULL;
+	unsigned char hex1, hex2;
+	size_t outmax = *outlen;
+	int argsmax = *nbargs;
+	size_t outpos = 0;
+	int squote = 0;
+	int dquote = 0;
+	int arg = 0;
+	uint32_t err = 0;
+
+	*nbargs = 0;
+	*outlen = 0;
+
+	args[arg] = out;
+	while (1) {
+		if (*in >= '-' && *in != '\\') {
+			/* speedup: directly send all regular chars starting
+			 * with '-', '.', '/', alnum etc...
+			 */
+			EMIT_CHAR(*in++);
+			continue;
+		}
+		else if (*in == '\0' || *in == '\n' || *in == '\r') {
+			/* end of line */
+			break;
+		}
+		else if (*in == '#' && (opts & PARSE_OPT_SHARP) && !squote && !dquote) {
+			/* comment */
+			break;
+		}
+		else if (*in == '"' && !squote && (opts & PARSE_OPT_DQUOTE)) {  /* double quote outside single quotes */
+			if (dquote) {
+				dquote = 0;
+				quote = NULL;
+			}
+			else {
+				dquote = 1;
+				quote = in;
+			}
+			in++;
+			continue;
+		}
+		else if (*in == '\'' && !dquote && (opts & PARSE_OPT_SQUOTE)) { /* single quote outside double quotes */
+			if (squote) {
+				squote = 0;
+				quote = NULL;
+			}
+			else {
+				squote = 1;
+				quote = in;
+			}
+			in++;
+			continue;
+		}
+		else if (*in == '\\' && !squote && (opts & PARSE_OPT_BKSLASH)) {
+			/* first, we'll replace \\, \<space>, \#, \r, \n, \t, \xXX with their
+			 * C equivalent value but only when they have a special meaning and within
+			 * double quotes for some of them. Other combinations left unchanged (eg: \1).
+			 */
+			char tosend = *in;
+
+			switch (in[1]) {
+			case ' ':
+			case '\\':
+				tosend = in[1];
+				in++;
+				break;
+
+			case 't':
+				tosend = '\t';
+				in++;
+				break;
+
+			case 'n':
+				tosend = '\n';
+				in++;
+				break;
+
+			case 'r':
+				tosend = '\r';
+				in++;
+				break;
+
+			case '#':
+				/* escaping of "#" only if comments are supported */
+				if (opts & PARSE_OPT_SHARP)
+					in++;
+				tosend = *in;
+				break;
+
+			case '\'':
+				/* escaping of "'" only outside single quotes and only if single quotes are supported */
+				if (opts & PARSE_OPT_SQUOTE && !squote)
+					in++;
+				tosend = *in;
+				break;
+
+			case '"':
+				/* escaping of '"' only outside single quotes and only if double quotes are supported */
+				if (opts & PARSE_OPT_DQUOTE && !squote)
+					in++;
+				tosend = *in;
+				break;
+
+			case '$':
+				/* escaping of '$' only inside double quotes and only if env supported */
+				if (opts & PARSE_OPT_ENV && dquote)
+					in++;
+				tosend = *in;
+				break;
+
+			case 'x':
+				if (!ishex(in[2]) || !ishex(in[3])) {
+					/* invalid or incomplete hex sequence */
+					err |= PARSE_ERR_HEX;
+					if (errptr)
+						*errptr = in;
+					goto leave;
+				}
+				hex1 = toupper(in[2]) - '0';
+				hex2 = toupper(in[3]) - '0';
+				if (hex1 > 9) hex1 -= 'A' - '9' - 1;
+				if (hex2 > 9) hex2 -= 'A' - '9' - 1;
+				tosend = (hex1 << 4) + hex2;
+				in += 3;
+				break;
+
+			default:
+				/* other combinations are not escape sequences */
+				break;
+			}
+
+			in++;
+			EMIT_CHAR(tosend);
+		}
+		else if (isspace((unsigned char)*in) && !squote && !dquote) {
+			/* a non-escaped space is an argument separator */
+			while (isspace((unsigned char)*in))
+				in++;
+			EMIT_CHAR(0);
+			arg++;
+			if (arg < argsmax)
+				args[arg] = out + outpos;
+			else
+				err |= PARSE_ERR_TOOMANY;
+		}
+		else if (*in == '$' && (opts & PARSE_OPT_ENV) && (dquote || !(opts & PARSE_OPT_DQUOTE))) {
+			/* environment variables are evaluated anywhere, or only
+			 * inside double quotes if they are supported.
+			 */
+			char *var_name;
+			char save_char;
+			char *value;
+
+			in++;
+
+			if (*in == '{')
+				brace = in++;
+
+			if (!isalpha((unsigned char)*in) && *in != '_') {
+				/* unacceptable character in variable name */
+				err |= PARSE_ERR_VARNAME;
+				if (errptr)
+					*errptr = in;
+				goto leave;
+			}
+
+			var_name = in;
+			while (isalnum((unsigned char)*in) || *in == '_')
+				in++;
+
+			save_char = *in;
+			*in = '\0';
+			value = getenv(var_name);
+			*in = save_char;
+
+			if (brace) {
+				if (*in != '}') {
+					/* unmatched brace */
+					err |= PARSE_ERR_BRACE;
+					if (errptr)
+						*errptr = brace;
+					goto leave;
+				}
+				in++;
+				brace = NULL;
+			}
+
+			if (value) {
+				while (*value)
+					EMIT_CHAR(*value++);
+			}
+		}
+		else {
+			/* any other regular char */
+			EMIT_CHAR(*in++);
+		}
+	}
+
+	/* end of output string */
+	EMIT_CHAR(0);
+	arg++;
+
+	if (quote) {
+		/* unmatched quote */
+		err |= PARSE_ERR_QUOTE;
+		if (errptr)
+			*errptr = quote;
+		goto leave;
+	}
+ leave:
+	*nbargs = arg;
+	*outlen = outpos;
+
+	/* empty all trailing args by making them point to the trailing zero */
+	while (arg < argsmax)
+		args[arg++] = out + outpos - 1;
+
+	return err;
+}
+#undef EMIT_CHAR
+
 /*
  * Local variables:
  *  c-indent-level: 8
