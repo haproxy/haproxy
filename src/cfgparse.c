@@ -1853,6 +1853,7 @@ int readcfgfile(const char *file)
 	char *outline = NULL;
 	size_t outlen = 0;
 	size_t outlinesize = 0;
+	int fatal = 0;
 
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
 		ha_alert("parsing [%s] : out of memory.\n", file);
@@ -1873,6 +1874,11 @@ next_line:
 
 		linenum++;
 
+		if (fatal >= 50) {
+			ha_alert("parsing [%s:%d]: too many fatal errors (%d), stopping now.\n", file, linenum, fatal);
+			break;
+		}
+
 		end = line + strlen(line);
 
 		if (end-line == linesize-1 && *(end-1) != '\n') {
@@ -1887,6 +1893,7 @@ next_line:
 				ha_alert("parsing [%s:%d]: line too long, cannot allocate memory.\n",
 					 file, linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
+				fatal++;
 				continue;
 			}
 
@@ -1924,6 +1931,7 @@ next_line:
 				ha_alert("parsing [%s:%d]: unmatched quote below:\n"
 					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
 				err_code |= ERR_ALERT | ERR_FATAL;
+				fatal++;
 				goto next_line;
 			}
 
@@ -1931,6 +1939,7 @@ next_line:
 				ha_alert("parsing [%s:%d]: unmatched brace in environment variable name below:\n"
 					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
 				err_code |= ERR_ALERT | ERR_FATAL;
+				fatal++;
 				goto next_line;
 			}
 
@@ -1938,6 +1947,7 @@ next_line:
 				ha_alert("parsing [%s:%d]: forbidden first char in environment variable name below:\n"
 					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
 				err_code |= ERR_ALERT | ERR_FATAL;
+				fatal++;
 				goto next_line;
 			}
 
@@ -1952,6 +1962,7 @@ next_line:
 				ha_alert("parsing [%s:%d]: too many words, truncating at word %d, position %ld: <%s>.\n",
 					 file, linenum, arg, (long)(args[arg-1] - thisline + 1), args[arg-1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
+				fatal++;
 				goto next_line;
 			}
 
@@ -1962,6 +1973,7 @@ next_line:
 					ha_alert("parsing [%s:%d]: line too long, cannot allocate memory.\n",
 						 file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL;
+					fatal++;
 					goto next_line;
 				}
 				/* try again */
@@ -2000,6 +2012,7 @@ next_line:
 				 "supported only for options, log, busy-polling, "
 				 "set-dumpable, strict-limits, and insecure-fork-wanted.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			fatal++;
 		}
 
 		/* detect section start */
@@ -2013,7 +2026,13 @@ next_line:
 		}
 
 		if (pcs && pcs->post_section_parser) {
-			err_code |= pcs->post_section_parser();
+			int status;
+
+			status = pcs->post_section_parser();
+			err_code |= status;
+			if (status & ERR_FATAL)
+				fatal++;
+
 			if (err_code & ERR_ABORT)
 				goto err;
 		}
@@ -2022,8 +2041,15 @@ next_line:
 		if (!cs) {
 			ha_alert("parsing [%s:%d]: unknown keyword '%s' out of section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			fatal++;
 		} else {
-			err_code |= cs->section_parser(file, linenum, args, kwm);
+			int status;
+
+			status = cs->section_parser(file, linenum, args, kwm);
+			err_code |= status;
+			if (status & ERR_FATAL)
+				fatal++;
+
 			if (err_code & ERR_ABORT)
 				goto err;
 		}
