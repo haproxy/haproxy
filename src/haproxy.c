@@ -3773,12 +3773,6 @@ int main(int argc, char **argv)
 	deinit_and_exit(0);
 }
 
-#if defined(__clang_version__)
-REGISTER_BUILD_OPTS("Built with clang compiler version " __clang_version__);
-#elif defined(__VERSION__)
-REGISTER_BUILD_OPTS("Built with gcc compiler version " __VERSION__);
-#endif
-
 /*
  * Local variables:
  *  c-indent-level: 8
