@@ -44,7 +44,6 @@ struct activity {
 	unsigned int poll_drop;    // poller dropped a dead FD from the update list
 	unsigned int poll_dead;    // poller woke up with a dead FD
 	unsigned int poll_skip;    // poller skipped another thread's FD
-	unsigned int fd_lock;      // fd cache skipped a locked FD
 	unsigned int conn_dead;    // conn_fd_handler woke up on an FD indicating a dead connection
 	unsigned int stream;       // calls to process_stream()
 	unsigned int ctxsw;        // total number of context switches
@@ -52,7 +51,9 @@ struct activity {
 	unsigned int empty_rq;     // calls to process_runnable_tasks() with nothing for the thread
 	unsigned int long_rq;      // process_runnable_tasks() left with tasks in the run queue
 	unsigned int cpust_total;  // sum of half-ms stolen per thread
-	/* one cache line */
+	/* two unused entries left before end of first cache line */
+	ALWAYS_ALIGN(64);
+
 	struct freq_ctr cpust_1s;  // avg amount of half-ms stolen over last second
 	struct freq_ctr_period cpust_15s; // avg amount of half-ms stolen over last 15s
 	unsigned int avg_loop_us;  // average run time per loop over last 1024 runs

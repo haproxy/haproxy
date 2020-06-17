@@ -1133,7 +1133,6 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "poll_drop:");    SHOW_TOT(thr, activity[thr].poll_drop);
 	chunk_appendf(&trash, "poll_dead:");    SHOW_TOT(thr, activity[thr].poll_dead);
 	chunk_appendf(&trash, "poll_skip:");    SHOW_TOT(thr, activity[thr].poll_skip);
-	chunk_appendf(&trash, "fd_lock:");      SHOW_TOT(thr, activity[thr].fd_lock);
 	chunk_appendf(&trash, "conn_dead:");    SHOW_TOT(thr, activity[thr].conn_dead);
 	chunk_appendf(&trash, "stream:");       SHOW_TOT(thr, activity[thr].stream);
 	chunk_appendf(&trash, "pool_fail:");    SHOW_TOT(thr, activity[thr].pool_fail);
