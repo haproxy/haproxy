@@ -1495,7 +1495,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC, s);
 
-	activity[tid].stream++;
+	activity[tid].stream_calls++;
 
 	req = &s->req;
 	res = &s->res;

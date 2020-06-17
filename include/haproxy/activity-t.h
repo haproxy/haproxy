@@ -46,7 +46,7 @@ struct activity {
 	unsigned int poll_dead_fd; // poller woke up with a dead FD
 	unsigned int poll_skip_fd; // poller skipped another thread's FD
 	unsigned int conn_dead;    // conn_fd_handler woke up on an FD indicating a dead connection
-	unsigned int stream;       // calls to process_stream()
+	unsigned int stream_calls; // calls to process_stream()
 	unsigned int ctxsw;        // total number of context switches
 	unsigned int tasksw;       // total number of task switches
 	unsigned int empty_rq;     // calls to process_runnable_tasks() with nothing for the thread
