@@ -142,7 +142,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 		_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
 		if (!fdtab[fd].owner) {
-			activity[tid].poll_drop++;
+			activity[tid].poll_drop_fd++;
 			continue;
 		}
 
@@ -208,13 +208,13 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		fd = epoll_events[count].data.fd;
 
 		if (!fdtab[fd].owner) {
-			activity[tid].poll_dead++;
+			activity[tid].poll_dead_fd++;
 			continue;
 		}
 
 		if (!(fdtab[fd].thread_mask & tid_bit)) {
 			/* FD has been migrated */
-			activity[tid].poll_skip++;
+			activity[tid].poll_skip_fd++;
 			epoll_ctl(epoll_fd[tid], EPOLL_CTL_DEL, fd, &ev);
 			_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
 			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);

@@ -101,7 +101,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 		_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
 		if (!fdtab[fd].owner) {
-			activity[tid].poll_drop++;
+			activity[tid].poll_drop_fd++;
 			continue;
 		}
 		changes = _update_fd(fd, changes);
@@ -184,12 +184,12 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		fd = kev[count].ident;
 
 		if (!fdtab[fd].owner) {
-			activity[tid].poll_dead++;
+			activity[tid].poll_dead_fd++;
 			continue;
 		}
 
 		if (!(fdtab[fd].thread_mask & tid_bit)) {
-			activity[tid].poll_skip++;
+			activity[tid].poll_skip_fd++;
 			continue;
 		}
 
