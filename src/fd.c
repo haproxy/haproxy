@@ -300,7 +300,7 @@ static void fd_dodelete(int fd, int do_close)
 	int locked = fdtab[fd].running_mask != tid_bit;
 
 	/* We're just trying to protect against a concurrent fd_insert()
-	 * here, not against fd_takeother(), because either we're called
+	 * here, not against fd_takeover(), because either we're called
 	 * directly from the iocb(), and we're already locked, or we're
 	 * called from the mux tasklet, but then the mux is responsible for
 	 * making sure the tasklet does nothing, and the connection is never
