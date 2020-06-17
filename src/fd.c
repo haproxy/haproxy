@@ -389,6 +389,12 @@ end:
 	} while (!(_HA_ATOMIC_DWCAS(&fdtab[fd].running_mask, &old_masks,
 		   &new_masks)));
 	_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+	/* Make sure the FD doesn't have the active bit. It is possible that
+	 * the fd is polled by the thread that used to own it, the new thread
+	 * is supposed to call subscribe() later, to activate polling.
+	 */
+	fd_stop_recv(fd);
+
 	return 0;
 #endif /* HW_HAVE_CAS_DW */
 }
