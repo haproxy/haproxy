@@ -1129,6 +1129,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "loops:");        SHOW_TOT(thr, activity[thr].loops);
 	chunk_appendf(&trash, "wake_tasks:");   SHOW_TOT(thr, activity[thr].wake_tasks);
 	chunk_appendf(&trash, "wake_signal:");  SHOW_TOT(thr, activity[thr].wake_signal);
+	chunk_appendf(&trash, "poll_io:");      SHOW_TOT(thr, activity[thr].poll_io);
 	chunk_appendf(&trash, "poll_exp:");     SHOW_TOT(thr, activity[thr].poll_exp);
 	chunk_appendf(&trash, "poll_drop:");    SHOW_TOT(thr, activity[thr].poll_drop);
 	chunk_appendf(&trash, "poll_dead:");    SHOW_TOT(thr, activity[thr].poll_dead);

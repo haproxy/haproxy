@@ -188,6 +188,8 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	if (status <= 0)
 		return;
 
+	activity[tid].poll_io++;
+
 	for (fds = 0; (fds * BITS_PER_INT) < maxfd; fds++) {
 		if ((((int *)(tmp_evts[DIR_RD]))[fds] | ((int *)(tmp_evts[DIR_WR]))[fds]) == 0)
 			continue;

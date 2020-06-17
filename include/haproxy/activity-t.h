@@ -40,6 +40,7 @@ struct activity {
 	unsigned int loops;        // complete loops in run_poll_loop()
 	unsigned int wake_tasks;   // active tasks prevented poll() from sleeping
 	unsigned int wake_signal;  // pending signal prevented poll() from sleeping
+	unsigned int poll_io;      // number of times poll() reported I/O events
 	unsigned int poll_exp;     // number of times poll() sees an expired timeout (includes wake_*)
 	unsigned int poll_drop;    // poller dropped a dead FD from the update list
 	unsigned int poll_dead;    // poller woke up with a dead FD
@@ -51,7 +52,7 @@ struct activity {
 	unsigned int empty_rq;     // calls to process_runnable_tasks() with nothing for the thread
 	unsigned int long_rq;      // process_runnable_tasks() left with tasks in the run queue
 	unsigned int cpust_total;  // sum of half-ms stolen per thread
-	/* two unused entries left before end of first cache line */
+	/* one unused entry left before end of first cache line */
 	ALWAYS_ALIGN(64);
 
 	struct freq_ctr cpust_1s;  // avg amount of half-ms stolen over last second

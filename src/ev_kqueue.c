@@ -161,8 +161,10 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		                &timeout_ts); // const struct timespec *timeout
 		tv_update_date(timeout, status);
 
-		if (status)
+		if (status) {
+			activity[tid].poll_io++;
 			break;
+		}
 		if (timeout || !wait_time)
 			break;
 		if (signal_queue_len || wake)

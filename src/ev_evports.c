@@ -207,6 +207,9 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 	thread_harmless_end();
 
+	if (nevlist > 0)
+		activity[tid].poll_io++;
+
 	for (i = 0; i < nevlist; i++) {
 		unsigned int n = 0;
 		int events, rebind_events;

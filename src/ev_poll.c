@@ -211,6 +211,9 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 	thread_harmless_end();
 
+	if (status > 0)
+		activity[tid].poll_io++;
+
 	for (count = 0; status > 0 && count < nbfd; count++) {
 		unsigned int n;
 		int e = poll_events[count].revents;
