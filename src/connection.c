@@ -133,15 +133,7 @@ void conn_fd_handler(int fd)
 			if (!conn->subs->events)
 				conn->subs = NULL;
 		}
-		else if (tasks_run_queue_cur >= 16*global.tune.runqueue_depth) {
-			/* In order to save syscalls especially with epoll, we
-			 * prefer *not* to disable receiving and instead let
-			 * the handler do its job. But if the run queue becomes
-			 * high, the excess of events may cause extra wakeups
-			 * and in this case we'd rather flow-control ourselves.
-			 */
-			fd_stop_recv(fd);
-		}
+		fd_stop_recv(fd);
 	}
 
  leave:
