@@ -362,7 +362,8 @@ end:
 	 * the fd is polled by the thread that used to own it, the new thread
 	 * is supposed to call subscribe() later, to activate polling.
 	 */
-	fd_stop_recv(fd);
+	if (ret != -1)
+		fd_stop_recv(fd);
 	return ret;
 #else
 	unsigned long old_masks[2];
