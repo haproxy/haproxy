@@ -66,6 +66,7 @@
 #define GTUNE_STRICT_LIMITS      (1<<15)
 #define GTUNE_INSECURE_FORK      (1<<16)
 #define GTUNE_INSECURE_SETUID    (1<<17)
+#define GTUNE_FD_ET              (1<<18)
 
 /* SSL server verify mode */
 enum {

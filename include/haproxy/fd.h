@@ -30,6 +30,7 @@
 #include <haproxy/activity.h>
 #include <haproxy/api.h>
 #include <haproxy/fd-t.h>
+#include <haproxy/global.h>
 #include <haproxy/thread.h>
 #include <haproxy/ticks.h>
 #include <haproxy/time.h>
@@ -435,6 +436,7 @@ static inline void fd_update_events(int fd, unsigned char evts)
 static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned long thread_mask)
 {
 	int locked = fdtab[fd].running_mask != tid_bit;
+	extern void conn_fd_handler(int);
 
 	if (locked)
 		fd_set_running_excl(fd);
@@ -443,6 +445,12 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	fdtab[fd].ev = 0;
 	fdtab[fd].linger_risk = 0;
 	fdtab[fd].cloned = 0;
+	fdtab[fd].et_possible = 0;
+
+	/* conn_fd_handler should support edge-triggered FDs */
+	if ((global.tune.options & GTUNE_FD_ET) && fdtab[fd].iocb == conn_fd_handler)
+		fdtab[fd].et_possible = 1;
+
 	fdtab[fd].thread_mask = thread_mask;
 	/* note: do not reset polled_mask here as it indicates which poller
 	 * still knows this FD from a possible previous round.

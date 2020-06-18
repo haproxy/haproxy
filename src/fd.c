@@ -88,9 +88,11 @@
 #endif
 
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
 #include <haproxy/port_range.h>
+#include <haproxy/tools.h>
 
 
 struct fdtab *fdtab = NULL;     /* array of all the file descriptors */
@@ -806,6 +808,33 @@ int fork_poller()
 	}
 	return 1;
 }
+
+/* config parser for global "tune.fd.edge-triggered", accepts "on" or "off" */
+static int cfg_parse_tune_fd_edge_triggered(char **args, int section_type, struct proxy *curpx,
+                                      struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global.tune.options |= GTUNE_FD_ET;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.options &= ~GTUNE_FD_ET;
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.fd.edge-triggered", cfg_parse_tune_fd_edge_triggered },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 REGISTER_PER_THREAD_ALLOC(alloc_pollers_per_thread);
 REGISTER_PER_THREAD_INIT(init_pollers_per_thread);

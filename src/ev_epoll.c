@@ -59,6 +59,20 @@ static void _update_fd(int fd)
 
 	en = fdtab[fd].state;
 
+	/* Try to force EPOLLET on FDs that support it */
+	if (fdtab[fd].et_possible) {
+		/* already done ? */
+		if (polled_mask[fd].poll_recv & polled_mask[fd].poll_send & tid_bit)
+			return;
+
+		/* enable ET polling in both directions */
+		_HA_ATOMIC_OR(&polled_mask[fd].poll_recv, tid_bit);
+		_HA_ATOMIC_OR(&polled_mask[fd].poll_send, tid_bit);
+		opcode = EPOLL_CTL_ADD;
+		ev.events = EPOLLIN | EPOLLRDHUP | EPOLLOUT | EPOLLET;
+		goto done;
+	}
+
 	/* if we're already polling or are going to poll for this FD and it's
 	 * neither active nor ready, force it to be active so that we don't
 	 * needlessly unsubscribe then re-subscribe it.
@@ -120,6 +134,7 @@ static void _update_fd(int fd)
 	if (en & FD_EV_ACTIVE_W)
 		ev.events |= EPOLLOUT;
 
+ done:
 	ev.data.fd = fd;
 	epoll_ctl(epoll_fd[tid], opcode, fd, &ev);
 }
