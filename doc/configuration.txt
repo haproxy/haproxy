@@ -603,6 +603,7 @@ The following keywords are supported in the "global" section :
    - insecure-fork-wanted
    - insecure-setuid-wanted
    - issuers-chain-path
+   - localpeer
    - log
    - log-tag
    - log-send-hostname
@@ -968,6 +969,15 @@ issuers-chain-path <dir>
   chain if a file with IntermediateCA2+IntermediateCA1 is present in
   "issuers-chain-path" directory. All other certificates with the same issuer
   will share the chain in memory.
+
+localpeer <name>
+  Sets the local instance's peer name. It will be ignored if the "-L"
+  command line argument is specified or if used after "peers" section
+  definitions. In such cases, a warning message will be emitted during
+  the configuration parsing.
+
+  This option will also set the HAPROXY_LOCALPEER environment variable.
+  See also "-L" in the management guide and "peers" section below.
 
 log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
     <facility> [max level [min level]]
@@ -2323,18 +2333,19 @@ log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
 peer <peername> <ip>:<port> [param*]
   Defines a peer inside a peers section.
   If <peername> is set to the local peer name (by default hostname, or forced
-  using "-L" command line option), haproxy will listen for incoming remote peer
-  connection on <ip>:<port>. Otherwise, <ip>:<port> defines where to connect to
-  to join the remote peer, and <peername> is used at the protocol level to
-  identify and validate the remote peer on the server side.
+  using "-L" command line option or "localpeer" global configuration setting),
+  haproxy will listen for incoming remote peer connection on <ip>:<port>.
+  Otherwise, <ip>:<port> defines where to connect to in order to join the
+  remote peer, and <peername> is used at the protocol level to identify and
+  validate the remote peer on the server side.
 
   During a soft restart, local peer <ip>:<port> is used by the old instance to
   connect the new one and initiate a complete replication (teaching process).
 
   It is strongly recommended to have the exact same peers declaration on all
-  peers and to only rely on the "-L" command line argument to change the local
-  peer name. This makes it easier to maintain coherent configuration files
-  across all peers.
+  peers and to only rely on the "-L" command line argument or the "localpeer"
+  global configuration setting to change the local peer name. This makes it
+  easier to maintain coherent configuration files across all peers.
 
   You may want to reference some environment variables in the address
   parameter, see section 2.3 about environment variables.

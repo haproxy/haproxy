@@ -1964,6 +1964,7 @@ static void init(int argc, char **argv)
 						exit(EXIT_FAILURE);
 					}
 					setenv("HAPROXY_LOCALPEER", localpeer, 1);
+					global.localpeer_cmdline = 1;
 					break;
 				case 'f' :
 					if (!list_append_word(&cfg_cfgfiles, *argv, &err_msg)) {

@@ -127,6 +127,7 @@ struct global {
 	char *chroot;
 	char *pidfile;
 	char *node, *desc;		/* node name & description */
+	int localpeer_cmdline;		/* whether or not the commandline "-L" was set */
 	struct buffer log_tag;           /* name for syslog */
 	struct list logsrvs;
 	char *log_send_hostname;   /* set hostname in syslog header */

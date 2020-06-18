@@ -15,6 +15,7 @@
 #include <haproxy/compression.h>
 #include <haproxy/global.h>
 #include <haproxy/log.h>
+#include <haproxy/peers.h>
 #include <haproxy/tools.h>
 
 /*
@@ -1206,6 +1207,40 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			global.tune.options &= ~GTUNE_STRICT_LIMITS;
 		else
 			global.tune.options |= GTUNE_STRICT_LIMITS;
+	}
+	else if (!strcmp(args[0], "localpeer")) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		if (*(args[1]) == 0) {
+			ha_alert("parsing [%s:%d] : '%s' expects a name as an argument.\n",
+			         file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (global.localpeer_cmdline != 0) {
+			ha_warning("parsing [%s:%d] : '%s' ignored since it is already set by using the '-L' "
+			           "command line argument.\n", file, linenum, args[0]);
+			err_code |= ERR_WARN;
+			goto out;
+		}
+
+		if (cfg_peers) {
+			ha_warning("parsing [%s:%d] : '%s' ignored since it is used after 'peers' section.\n",
+			           file, linenum, args[0]);
+			err_code |= ERR_WARN;
+			goto out;
+		}
+
+		free(localpeer);
+		if ((localpeer = strdup(args[1])) == NULL) {
+			ha_alert("parsing [%s:%d]: cannot allocate memory for '%s'.\n",
+			         file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		setenv("HAPROXY_LOCALPEER", localpeer, 1);
 	}
 	else {
 		struct cfg_kw_list *kwl;
