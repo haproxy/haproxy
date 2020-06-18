@@ -1,0 +1,52 @@
+varnishtest "haproxy ACL, CLI and spaces"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=1.6
+
+server s1 {
+   rxreq
+   expect req.method == "GET"
+   txresp
+} -repeat 2 -start
+
+haproxy h1 -conf {
+  defaults
+    mode http
+    ${no-htx} option http-use-htx
+    log global
+    option httplog
+    timeout connect         15ms
+    timeout client          20ms
+    timeout server          20ms
+
+  frontend fe1
+    bind "fd@${fe1}"
+
+    http-request deny if { req.hdr(user-agent) -i -m str -f ${testdir}/agents.acl }
+
+    default_backend be1
+
+  backend be1
+    server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -hdr "User-Agent: Mon User Agent"
+    rxresp
+    expect resp.status == 200
+} -run
+
+haproxy h1 -cli {
+  send "add acl ${testdir}/agents.acl Mon\\ User\\ Agent\\;"
+  expect ~ .*
+
+  send "show acl ${testdir}/agents.acl"
+  expect ~ ".*Mon User Agent.*"
+}
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -hdr "User-Agent: Mon User Agent;"
+    rxresp
+    expect resp.status == 403
+} -run
