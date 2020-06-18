@@ -344,20 +344,18 @@ __decl_thread(__decl_rwlock(fd_mig_lock));
 int fd_takeover(int fd, void *expected_owner)
 {
 #ifndef HA_HAVE_CAS_DW
-	int ret;
+	int ret = -1;
 
-	HA_RWLOCK_WRLOCK(OTHER_LOCK, &fd_mig_lock);
-	_HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
-	if (fdtab[fd].running_mask != tid_bit || fdtab[fd].owner != expected_owner) {
-		ret = -1;
-		_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
-		goto end;
+	if (_HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit) == tid_bit) {
+		HA_RWLOCK_WRLOCK(OTHER_LOCK, &fd_mig_lock);
+		if (fdtab[fd].owner == expected_owner) {
+			fdtab[fd].thread_mask = tid_bit;
+			ret = 0;
+		}
+		HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &fd_mig_lock);
 	}
-	fdtab[fd].thread_mask = tid_bit;
+
 	_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
-	ret = 0;
-end:
-	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &fd_mig_lock);
 	/* Make sure the FD doesn't have the active bit. It is possible that
 	 * the fd is polled by the thread that used to own it, the new thread
 	 * is supposed to call subscribe() later, to activate polling.
