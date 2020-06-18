@@ -215,7 +215,7 @@ const int one = 1;
 const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
 
 char hostname[MAX_HOSTNAME_LEN];
-char localpeer[MAX_HOSTNAME_LEN];
+char *localpeer = NULL;
 
 static char **old_argv = NULL; /* previous argv but cleaned up */
 
@@ -1728,8 +1728,11 @@ static void init(int argc, char **argv)
 	 */
 	memset(hostname, 0, sizeof(hostname));
 	gethostname(hostname, sizeof(hostname) - 1);
-	memset(localpeer, 0, sizeof(localpeer));
-	memcpy(localpeer, hostname, (sizeof(hostname) > sizeof(localpeer) ? sizeof(localpeer) : sizeof(hostname)) - 1);
+
+	if ((localpeer = strdup(hostname)) == NULL) {
+		ha_alert("Cannot allocate memory for local peer.\n");
+		exit(EXIT_FAILURE);
+	}
 	setenv("HAPROXY_LOCALPEER", localpeer, 1);
 
 	/* we were in mworker mode, we should restart in mworker mode */
@@ -1955,7 +1958,11 @@ static void init(int argc, char **argv)
 				case 'm' : global.rlimit_memmax_all = atol(*argv); break;
 				case 'N' : cfg_maxpconn = atol(*argv); break;
 				case 'L' :
-					strncpy(localpeer, *argv, sizeof(localpeer) - 1);
+					free(localpeer);
+					if ((localpeer = strdup(*argv)) == NULL) {
+						ha_alert("Cannot allocate memory for local peer.\n");
+						exit(EXIT_FAILURE);
+					}
 					setenv("HAPROXY_LOCALPEER", localpeer, 1);
 					break;
 				case 'f' :
@@ -2840,6 +2847,7 @@ void deinit(void)
 	free(global.node);    global.node = NULL;
 	free(global.desc);    global.desc = NULL;
 	free(oldpids);        oldpids = NULL;
+	free(localpeer);      localpeer = NULL;
 	task_destroy(idle_conn_task);
 	idle_conn_task = NULL;
 
