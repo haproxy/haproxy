@@ -343,9 +343,9 @@ __decl_thread(__decl_rwlock(fd_mig_lock));
  */
 int fd_takeover(int fd, void *expected_owner)
 {
-#ifndef HA_HAVE_CAS_DW
 	int ret = -1;
 
+#ifndef HA_HAVE_CAS_DW
 	if (_HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit) == tid_bit) {
 		HA_RWLOCK_WRLOCK(OTHER_LOCK, &fd_mig_lock);
 		if (fdtab[fd].owner == expected_owner) {
@@ -354,15 +354,6 @@ int fd_takeover(int fd, void *expected_owner)
 		}
 		HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &fd_mig_lock);
 	}
-
-	_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
-	/* Make sure the FD doesn't have the active bit. It is possible that
-	 * the fd is polled by the thread that used to own it, the new thread
-	 * is supposed to call subscribe() later, to activate polling.
-	 */
-	if (ret != -1)
-		fd_stop_recv(fd);
-	return ret;
 #else
 	unsigned long old_masks[2];
 	unsigned long new_masks[2];
@@ -376,26 +367,25 @@ int fd_takeover(int fd, void *expected_owner)
 	 * if it happens, then the owner will no longer be the expected
 	 * connection.
 	 */
-	if (fdtab[fd].owner != expected_owner) {
-		_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
-		return -1;
-	}
-	do {
-		if (old_masks[0] != tid_bit || !old_masks[1]) {
-			_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
-			return -1;
+	if (fdtab[fd].owner == expected_owner) {
+		while (old_masks[0] == tid_bit && old_masks[1]) {
+			if (_HA_ATOMIC_DWCAS(&fdtab[fd].running_mask, &old_masks, &new_masks)) {
+				ret = 0;
+				break;
+			}
 		}
-	} while (!(_HA_ATOMIC_DWCAS(&fdtab[fd].running_mask, &old_masks,
-		   &new_masks)));
+	}
+#endif /* HW_HAVE_CAS_DW */
+
 	_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+
 	/* Make sure the FD doesn't have the active bit. It is possible that
 	 * the fd is polled by the thread that used to own it, the new thread
 	 * is supposed to call subscribe() later, to activate polling.
 	 */
-	fd_stop_recv(fd);
-
-	return 0;
-#endif /* HW_HAVE_CAS_DW */
+	if (likely(ret == 0))
+		fd_stop_recv(fd);
+	return ret;
 }
 
 /* Deletes an FD from the fdsets.
