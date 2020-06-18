@@ -367,14 +367,15 @@ int fd_takeover(int fd, void *expected_owner)
 	unsigned long old_masks[2];
 	unsigned long new_masks[2];
 
-	old_masks[0] = tid_bit;
-	old_masks[1] = fdtab[fd].thread_mask;
 	new_masks[0] = new_masks[1] = tid_bit;
+
+	old_masks[0] = _HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
+	old_masks[1] = fdtab[fd].thread_mask;
+
 	/* protect ourself against a delete then an insert for the same fd,
 	 * if it happens, then the owner will no longer be the expected
 	 * connection.
 	 */
-	_HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
 	if (fdtab[fd].owner != expected_owner) {
 		_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
 		return -1;
