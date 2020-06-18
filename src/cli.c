@@ -2074,29 +2074,25 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 
 	/* splits the command in words */
 	while (i < MAX_STATS_ARGS && p < end) {
-		int j, k;
-
 		/* skip leading spaces/tabs */
 		p += strspn(p, " \t");
 		if (!*p)
 			break;
 
 		args[i] = p;
-		p += strcspn(p, " \t");
-		*p++ = 0;
-
-		/* unescape backslashes (\) */
-		for (j = 0, k = 0; args[i][k]; k++) {
-			if (args[i][k] == '\\') {
-				if (args[i][k + 1] == '\\')
-					k++;
-				else
-					continue;
+		while (1) {
+			p += strcspn(p, " \t\\");
+			/* escaped chars using backlashes (\) */
+			if (*p == '\\') {
+				if (!*++p)
+					break;
+				if (!*++p)
+					break;
+			} else {
+				break;
 			}
-			args[i][j] = args[i][k];
-			j++;
 		}
-		args[i][j] = 0;
+		*p++ = 0;
 		i++;
 	}
 
