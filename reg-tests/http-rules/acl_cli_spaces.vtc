@@ -1,7 +1,7 @@
-varnishtest "haproxy ACL, CLI and spaces"
+varnishtest "haproxy ACL, CLI and mCLI spaces"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=1.6
+#REQUIRE_VERSION=2.0
 
 server s1 {
    rxreq
@@ -9,7 +9,7 @@ server s1 {
    txresp
 } -repeat 2 -start
 
-haproxy h1 -conf {
+haproxy h1 -W -S -conf {
   defaults
     mode http
     ${no-htx} option http-use-htx
@@ -43,6 +43,34 @@ haproxy h1 -cli {
 
   send "show acl ${testdir}/agents.acl"
   expect ~ ".*Mon User Agent.*"
+}
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -hdr "User-Agent: Mon User Agent;"
+    rxresp
+    expect resp.status == 403
+} -run
+
+
+haproxy h1 -cli {
+  send "del acl ${testdir}/agents.acl Mon\\ User\\ Agent\\;"
+  expect ~ .*
+
+  send "show acl ${testdir}/agents.acl"
+  expect ~ .*
+}
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -hdr "User-Agent: Mon User Agent;"
+    rxresp
+    expect resp.status == 200
+} -run
+
+
+# Try it with the master CLI
+haproxy h1 -mcli {
+  send "@1 add acl ${testdir}/agents.acl Mon\\ User\\ Agent\\;;@1 show acl ${testdir}/agents.acl"
+  expect ~ ".*Mon User Agent;.*"
 }
 
 client c1 -connect ${h1_fe1_sock} {
