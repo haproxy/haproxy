@@ -427,23 +427,25 @@ void process_runnable_tasks()
 
 	ti->flags &= ~TI_FL_STUCK; // this thread is still running
 
-	if (!thread_has_tasks()) {
-		activity[tid].empty_rq++;
-		return;
-	}
-	/* Merge the list of tasklets waken up by other threads to the
-	 * main list.
-	 */
-	tmp_list = MT_LIST_BEHEAD(&sched->shared_tasklet_list);
-	if (tmp_list)
-		LIST_SPLICE_END_DETACHED(&sched->tasklets[TL_URGENT], (struct list *)tmp_list);
-
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
 	max_processed = global.tune.runqueue_depth;
 
 	if (likely(niced_tasks))
 		max_processed = (max_processed + 3) / 4;
+
+	if (!thread_has_tasks()) {
+		activity[tid].empty_rq++;
+		return;
+	}
+
+ not_done_yet:
+	/* Merge the list of tasklets waken up by other threads to the
+	 * main list.
+	 */
+	tmp_list = MT_LIST_BEHEAD(&sched->shared_tasklet_list);
+	if (tmp_list)
+		LIST_SPLICE_END_DETACHED(&sched->tasklets[TL_URGENT], (struct list *)tmp_list);
 
 	/* run up to max_processed/3 urgent tasklets */
 	done = run_tasks_from_list(&tt->tasklets[TL_URGENT], (max_processed + 2) / 3);
@@ -522,6 +524,10 @@ void process_runnable_tasks()
 	/* run between max_processed/4 and max_processed bulk tasklets */
 	done = run_tasks_from_list(&tt->tasklets[TL_BULK], max_processed);
 	max_processed -= done;
+
+	/* some tasks may have woken other ones up */
+	if (max_processed && thread_has_tasks())
+		goto not_done_yet;
 
 	if (!LIST_ISEMPTY(&sched->tasklets[TL_URGENT]) |
 	    !LIST_ISEMPTY(&sched->tasklets[TL_NORMAL]) |
