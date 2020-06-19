@@ -165,6 +165,8 @@ void show_conn_flags(unsigned int f)
 	SHOW_FLAG(f, CO_FL_WAIT_ROOM);
 	SHOW_FLAG(f, CO_FL_XPRT_READY);
 	SHOW_FLAG(f, CO_FL_CTRL_READY);
+	SHOW_FLAG(f, CO_FL_IDLE_LIST);
+	SHOW_FLAG(f, CO_FL_SAFE_LIST);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);
