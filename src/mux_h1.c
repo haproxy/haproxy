@@ -2734,6 +2734,10 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			ret = h1_process_output(h1c, buf, count);
 		else
 			TRACE_DEVEL("h1c obuf not allocated", H1_EV_STRM_SEND|H1_EV_H1S_BLK, h1c->conn, h1s);
+
+		if ((count - ret) > 0)
+			h1c->flags |= H1C_F_CO_MSG_MORE;
+
 		if (!ret)
 			break;
 		total += ret;
