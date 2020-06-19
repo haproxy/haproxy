@@ -2421,6 +2421,8 @@ static void init(int argc, char **argv)
 
 	global.maxsock = compute_ideal_maxsock(global.maxconn);
 	global.hardmaxconn = global.maxconn;
+	if (!global.maxpipes)
+		global.maxpipes = compute_ideal_maxpipes();
 
 	/* update connection pool thresholds */
 	global.tune.pool_low_count  = ((long long)global.maxsock * global.tune.pool_low_ratio  + 99) / 100;
