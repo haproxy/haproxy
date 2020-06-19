@@ -1,6 +1,70 @@
 ChangeLog :
 ===========
 
+2020/06/19 : 2.2-dev10
+    - BUILD: include: add sys/types before netinet/tcp.h
+    - BUG/MEDIUM: log: don't hold the log lock during writev() on a file descriptor
+    - BUILD: Remove nowarn for warnings that do not trigger
+    - BUG/MEDIUM: pattern: fix thread safety of pattern matching
+    - BUILD: Re-enable -Wimplicit-fallthrough
+    - BUG/MINOR: ssl: fix ssl-{min,max}-ver with openssl < 1.1.0
+    - BUILD: thread: add parenthesis around values of locking macros
+    - BUILD: proto_uxst: shut up yet another gcc's absurd warning
+    - BUG/MEDIUM: checks: Fix off-by-one in allocation of SMTP greeting cmd
+    - CI: travis-ci: use "-O1" for clang builds
+    - MINOR: haproxy: Add void deinit_and_exit(int)
+    - MINOR: haproxy: Make use of deinit_and_exit() for clean exits
+    - BUG/MINOR: haproxy: Free rule->arg.vars.expr during deinit_act_rules
+    - BUILD: compression: make gcc 10 happy with free_zlib()
+    - BUILD: atomic: add string.h for memcpy() on ARM64
+    - BUG/MINOR: http: make smp_fetch_body() report that the contents may change
+    - BUG/MINOR: tcp-rules: tcp-response must check the buffer's fullness
+    - BUILD: haproxy: mark deinit_and_exit() as noreturn
+    - BUG/MAJOR: vars: Fix bogus free() during deinit() for http-request rules
+    - BUG/MEDIUM: ebtree: use a byte-per-byte memcmp() to compare memory blocks
+    - MINOR: tools: add a new configurable line parse, parse_line()
+    - BUG/MEDIUM: cfgparse: use parse_line() to expand/unquote/unescape config lines
+    - BUG/MEDIUM: cfgparse: stop after a reasonable amount of fatal error
+    - MINOR: http: do not close connections anymore after internal responses
+    - BUG/MINOR: cfgparse: Add missing fatal++ in PARSE_ERR_HEX case
+    - BUG/MINOR: spoe: add missing key length check before checking key names
+    - MINOR: version: put the compiler version output into version.c not haproxy.c
+    - MINOR: compiler: always define __has_feature()
+    - MINOR: version: report the presence of the compiler's address sanitizer
+    - BUILD: Fix build by including haproxy/global.h
+    - BUG/MAJOR: connection: always disable ready events once reported
+    - CLEANUP: activity: remove unused counter fd_lock
+    - DOC: fd: make it clear that some fields ordering must absolutely be respected
+    - MINOR: activity: report the number of times poll() reports I/O
+    - MINOR: activity: rename confusing poll_* fields in the output
+    - MINOR: fd: Fix a typo in a coment.
+    - BUG/MEDIUM: fd: Don't fd_stop_recv() a fd we don't own.
+    - BUG/MEDIUM: fd: Call fd_stop_recv() when we just got a fd.
+    - MINOR: activity: group the per-loop counters at the top
+    - MINOR: activity: rename the "stream" field to "stream_calls"
+    - MEDIUM: fd: refine the fd_takeover() migration lock
+    - MINOR: fd: slightly optimize the fd_takeover double-CAS loop
+    - MINOR: fd: factorize the fd_takeover() exit path to make it safer
+    - MINOR: peers: do not use localpeer as an array anymore
+    - MEDIUM: peers: add the "localpeer" global option
+    - MEDIUM: fd: add experimental support for edge-triggered polling
+    - CONTRIB: debug: add the missing flags CO_FL_SAFE_LIST and CO_FL_IDLE_LIST
+    - MINOR: haproxy: process signals before runnable tasks
+    - MEDIUM: tasks: clean up the front side of the wait queue in wake_expired_tasks()
+    - MEDIUM: tasks: also process late wakeups in process_runnable_tasks()
+    - BUG/MINOR: cli: allow space escaping on the CLI
+    - BUG/MINOR: mworker/cli: fix the escaping in the master CLI
+    - BUG/MINOR: mworker/cli: fix semicolon escaping in master CLI
+    - REGTEST: http-rules: test spaces in ACLs
+    - REGTEST: http-rules: test spaces in ACLs with master CLI
+    - BUG/MAJOR: init: properly compute the default global.maxpipes value
+    - MEDIUM: map: make the "clear map" operation yield
+    - BUG/MEDIUM: stream-int: fix loss of CO_SFL_MSG_MORE flag in forwarding
+    - MINOR: mux_h1: Set H1_F_CO_MSG_MORE if we know we have more to send.
+    - BUG/MINOR: systemd: Wait for network to be online
+    - DOC: configuration: Unindent non-code sentences in the protobuf example
+    - DOC: configuration: http-check send was missing from matrix
+
 2020/06/11 : 2.2-dev9
     - BUG/MINOR: http-htx: Don't forget to release the http reply in release function
     - BUG/MINOR: http-htx: Fix a leak on error path during http reply parsing
