@@ -2889,13 +2889,15 @@ void run_poll_loop()
 	while (1) {
 		wake_expired_tasks();
 
-		/* Process a few tasks */
-		process_runnable_tasks();
-
 		/* check if we caught some signals and process them in the
 		 first thread */
-		if (tid == 0)
+		if (signal_queue_len && tid == 0) {
+			activity[tid].wake_signal++;
 			signal_process_queue();
+		}
+
+		/* Process a few tasks */
+		process_runnable_tasks();
 
 		/* also stop  if we failed to cleanly stop all tasks */
 		if (killed > 1)
@@ -2905,8 +2907,6 @@ void run_poll_loop()
 		wake = 1;
 		if (thread_has_tasks())
 			activity[tid].wake_tasks++;
-		else if (signal_queue_len && tid == 0)
-			activity[tid].wake_signal++;
 		else {
 			_HA_ATOMIC_OR(&sleeping_thread_mask, tid_bit);
 			__ha_barrier_atomic_store();
