@@ -177,13 +177,6 @@ void wake_expired_tasks()
 				break;
 		}
 
-		if (tick_is_lt(now_ms, eb->key))
-			break;
-
-		/* timer looks expired, detach it from the queue */
-		task = eb32_entry(eb, struct task, wq);
-		__task_unlink_wq(task);
-
 		/* It is possible that this task was left at an earlier place in the
 		 * tree because a recent call to task_queue() has not moved it. This
 		 * happens when the new expiration date is later than the old one.
@@ -195,14 +188,31 @@ void wake_expired_tasks()
 		 * the same place, before <eb>, so we have to check if this happens,
 		 * and adjust <eb>, otherwise we may skip it which is not what we want.
 		 * We may also not requeue the task (and not point eb at it) if its
-		 * expiration time is not set.
+		 * expiration time is not set. We also make sure we leave the real
+		 * expiration date for the next task in the queue so that when calling
+		 * next_timer_expiry() we're guaranteed to see the next real date and
+		 * not the next apparent date. This is in order to avoid useless
+		 * wakeups.
 		 */
-		if (!tick_is_expired(task->expire, now_ms)) {
+
+		task = eb32_entry(eb, struct task, wq);
+		if (tick_is_expired(task->expire, now_ms)) {
+			/* expired task, wake it up */
+			__task_unlink_wq(task);
+			task_wakeup(task, TASK_WOKEN_TIMER);
+		}
+		else if (task->expire != eb->key) {
+			/* task is not expired but its key doesn't match so let's
+			 * update it and skip to next apparently expired task.
+			 */
+			__task_unlink_wq(task);
 			if (tick_isset(task->expire))
 				__task_queue(task, &tt->timers);
-			goto lookup_next_local;
 		}
-		task_wakeup(task, TASK_WOKEN_TIMER);
+		else {
+			/* task not expired and correctly placed */
+			break;
+		}
 	}
 
 #ifdef USE_THREAD
@@ -240,32 +250,25 @@ void wake_expired_tasks()
 				break;
 		}
 
-		if (tick_is_lt(now_ms, eb->key))
-			break;
-
-		/* timer looks expired, detach it from the queue */
 		task = eb32_entry(eb, struct task, wq);
-		__task_unlink_wq(task);
-
-		/* It is possible that this task was left at an earlier place in the
-		 * tree because a recent call to task_queue() has not moved it. This
-		 * happens when the new expiration date is later than the old one.
-		 * Since it is very unlikely that we reach a timeout anyway, it's a
-		 * lot cheaper to proceed like this because we almost never update
-		 * the tree. We may also find disabled expiration dates there. Since
-		 * we have detached the task from the tree, we simply call task_queue
-		 * to take care of this. Note that we might occasionally requeue it at
-		 * the same place, before <eb>, so we have to check if this happens,
-		 * and adjust <eb>, otherwise we may skip it which is not what we want.
-		 * We may also not requeue the task (and not point eb at it) if its
-		 * expiration time is not set.
-		 */
-		if (!tick_is_expired(task->expire, now_ms)) {
+		if (tick_is_expired(task->expire, now_ms)) {
+			/* expired task, wake it up */
+			__task_unlink_wq(task);
+			task_wakeup(task, TASK_WOKEN_TIMER);
+		}
+		else if (task->expire != eb->key) {
+			/* task is not expired but its key doesn't match so let's
+			 * update it and skip to next apparently expired task.
+			 */
+			__task_unlink_wq(task);
 			if (tick_isset(task->expire))
-				__task_queue(task, &timers);
+				__task_queue(task, &tt->timers);
 			goto lookup_next;
 		}
-		task_wakeup(task, TASK_WOKEN_TIMER);
+		else {
+			/* task not expired and correctly placed */
+			break;
+		}
 		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	}
 
