@@ -81,6 +81,9 @@ static inline void X509_ALGOR_get0(ASN1_OBJECT **paobj, int *pptype, const void 
 
 #endif // OpenSSL < 0.9.8
 
+#if (((HA_OPENSSL_VERSION_NUMBER < 0x1000000fL) || defined(OPENSSL_IS_BORINGSSL)) && !defined(X509_get_X509_PUBKEY))
+#define X509_get_X509_PUBKEY(x) ((x)->cert_info->key)
+#endif
 
 #if (HA_OPENSSL_VERSION_NUMBER < 0x1000000fL)
 /* Functions introduced in OpenSSL 1.0.0 */
@@ -97,10 +100,6 @@ static inline int X509_PUBKEY_get0_param(ASN1_OBJECT **ppkalg, const unsigned ch
 	*ppkalg = pub->algor->algorithm;
 	return 1;
 }
-
-#ifndef X509_get_X509_PUBKEY
-#define X509_get_X509_PUBKEY(x) ((x)->cert_info->key
-#endif
 
 #endif
 
