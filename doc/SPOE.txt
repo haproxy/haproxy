@@ -41,7 +41,7 @@ SUMMARY
 
 * SPOE : Stream Processing Offload Engine.
 
-    A SPOE is a filter talking to servers managed ba a SPOA to offload the
+    A SPOE is a filter talking to servers managed by a SPOA to offload the
     stream processing. An engine is attached to a proxy. A proxy can have
     several engines. Each engine is linked to an agent and only one.
 
@@ -253,7 +253,7 @@ option continue-on-error
 
   By default, for a specific stream, when an abnormal/unexpected error occurs,
   the SPOE is disabled for all the transaction. So if you have several events
-  configured, such error on an event will disabled all followings. For TCP
+  configured, such error on an event will disabled all following. For TCP
   streams, this will disable the SPOE for the whole session. For HTTP streams,
   this will disable it for the transaction (request and response).
 
@@ -980,7 +980,7 @@ HAProxy sends a HAPROXY-DISCONNECT frame with the corresponding error.
 
 If "healthcheck" item was set to TRUE in the HAPROXY-HELLO frame, the agent can
 safely close the connection without DISCONNECT frame. In all cases, HAProxy
-will close the connexion at the end of the health check.
+will close the connection at the end of the health check.
 
 3.2.6. Frame: NOTIFY
 ---------------------
@@ -1176,7 +1176,7 @@ An agent can define its own errors using a not yet assigned status code.
 IMPORTANT NOTE: By default, for a specific stream, when an abnormal/unexpected
                 error occurs, the SPOE is disabled for all the transaction. So
                 if you have several events configured, such error on an event
-                will disabled all followings. For TCP streams, this will
+                will disabled all following. For TCP streams, this will
                 disable the SPOE for the whole session. For HTTP streams, this
                 will disable it for the transaction (request and response).
                 See 'option continue-on-error' to bypass this limitation.

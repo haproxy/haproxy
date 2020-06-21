@@ -147,7 +147,7 @@ Because the payloads part may wrap, there are 2 usable free spaces:
         free space                                        free space
 
 
-Finally, when the usable free space is not enough to store a new block, unsuable
+Finally, when the usable free space is not enough to store a new block, unusable
 parts may be get back with a full defragmentation. The payloads part is then
 realigned at the beginning of the blocks array and the free space becomes
 continuous again.

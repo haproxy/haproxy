@@ -5007,7 +5007,7 @@ http-error status <code> [content-type <type>]
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments :
-    staus <code>         is the HTTP status code. It must be specified.
+    status <code>        is the HTTP status code. It must be specified.
                          Currently, HAProxy is capable of generating codes
                          200, 400, 401, 403, 404, 405, 407, 408, 410, 425, 429,
                          500, 502, 503, and 504.
@@ -5233,7 +5233,7 @@ http-request deny [ { status | deny_status } <code>] [content-type <type>]
   This stops the evaluation of the rules and immediately rejects the request.
   By default an HTTP 403 error is returned. But the response may be customized
   using same syntax than "http-request return" rules. Thus, see "http-request
-  return" for details. For compatiblity purpose, when no argument is defined,
+  return" for details. For compatibility purpose, when no argument is defined,
   or only "deny_status", the argument "default-errorfiles" is implied. It means
   "http-request deny [deny_status <status>]" is an alias of
   "http-request deny [status <status>] default-errorfiles".
@@ -5490,7 +5490,7 @@ http-request return [status <code>] [content-type <type>]
 
   Note that the generated response must be smaller than a buffer. And to avoid
   any warning, when an errorfile or a raw file is loaded, the buffer space
-  reserved to the headers rewritting should also be free.
+  reserved to the headers rewriting should also be free.
 
   No further "http-request" rules are evaluated.
 
@@ -5832,7 +5832,7 @@ http-request tarpit [ { status | deny_status } <code>] [content-type <type>]
   number of concurrent connections. By default an HTTP error 500 is returned.
   But the response may be customized using same syntax than
   "http-request return" rules. Thus, see "http-request return" for details.
-  For compatiblity purpose, when no argument is defined, or only "deny_status",
+  For compatibility purpose, when no argument is defined, or only "deny_status",
   the argument "default-errorfiles" is implied. It means
   "http-request tarpit [deny_status <status>]" is an alias of
   "http-request tarpit [status <status>] default-errorfiles".
@@ -6031,7 +6031,7 @@ http-response deny [ { status | deny_status } <code>] [content-type <type>]
   This stops the evaluation of the rules and immediately rejects the response.
   By default an HTTP 502 error is returned. But the response may be customized
   using same syntax than "http-response return" rules. Thus, see
-  "http-response return" for details. For compatiblity purpose, when no
+  "http-response return" for details. For compatibility purpose, when no
   argument is defined, or only "deny_status", the argument "default-errorfiles"
   is implied. It means "http-response deny [deny_status <status>]" is an alias
   of "http-response deny [status <status>] default-errorfiles".
@@ -6137,7 +6137,7 @@ http-response return [status <code>] [content-type <type>]
 
   Note that the generated response must be smaller than a buffer. And to avoid
   any warning, when an errorfile or a raw file is loaded, the buffer space
-  reserved to the headers rewritting should also be free.
+  reserved to the headers rewriting should also be free.
 
   No further "http-response" rules are evaluated.
 
@@ -12026,7 +12026,7 @@ use-server <server> unless <condition>
   configuration and an error is reported if the specified server does not exist.
   If it is a log-format, no check is performed when parsing the configuration,
   and if we can't resolve a valid server name at runtime but the use-server rule
-  was conditionned by an ACL returning true, no other use-server rule is applied
+  was conditioned by an ACL returning true, no other use-server rule is applied
   and we fall back to load balancing.
 
   See also: "use_backend", section 5 about server and section 7 about ACLs.
@@ -19937,7 +19937,7 @@ no option get-values
                         "1" otherwise.
 
   Some FastCGI applications does not support this feature. Some others close
-  the connexion immediately after sending their response. So, by default, this
+  the connection immediately after sending their response. So, by default, this
   option is disabled.
 
   Note that the maximum number of concurrent requests accepted by a FastCGI

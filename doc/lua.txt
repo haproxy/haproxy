@@ -371,7 +371,7 @@ behaviour is the following:
 The behaviour of the point 5 represents the inheritance.
 
 In HAProxy all the provided objects are tables, the entry "[0]" contains private
-data, there are often userdata or lightuserdata. The matatable is registered in
+data, there are often userdata or lightuserdata. The metatable is registered in
 the global part of the main Lua stack, and it is called with the case sensitive
 class name. A great part of these class must not be used directly because it
 requires an initialisation using the HAProxy internal structs.

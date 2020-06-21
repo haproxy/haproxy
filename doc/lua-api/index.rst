@@ -2488,7 +2488,7 @@ AppletHTTP class
 
   :param class_AppletHTTP applet: An :ref:`applethttp_class`
   :param integer size: the required read size.
-  :returns: always return a string,the string can be empty is the connexion is
+  :returns: always return a string,the string can be empty is the connection is
             closed.
 
 .. js:function:: AppletHTTP.send(applet, msg)
@@ -2603,7 +2603,7 @@ AppletTCP class
 
   :param class_AppletTCP applet: An :ref:`applettcp_class`
   :param integer size: the required read size.
-  :returns: always return a string,the string can be empty is the connexion is
+  :returns: always return a string,the string can be empty is the connection is
             closed.
 
 .. js:function:: AppletTCP.send(appletmsg)
