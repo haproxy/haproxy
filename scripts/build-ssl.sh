@@ -100,8 +100,8 @@ if [ ! -z ${BORINGSSL+x} ]; then
         if [ -d build ]; then rm -rf build; fi
 	mkdir build
 	cd build
-	cmake -DCMAKE_BUILD_TYPE=release -DBUILD_SHARED_LIBS=1 ..
-	make
+	cmake  -GNinja -DCMAKE_BUILD_TYPE=release -DBUILD_SHARED_LIBS=1 ..
+	ninja
 
 	rm -rf ${SSL_LIB} || exit 0
 	rm -rf ${SSL_INC} || exit 0

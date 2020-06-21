@@ -21,7 +21,7 @@ env:
 addons:
   apt:
     update: true
-    packages: [ liblua5.3-dev, libsystemd-dev, libpcre2-dev, clang-9, socat ]
+    packages: [ liblua5.3-dev, libsystemd-dev, libpcre2-dev, clang-9, socat, ninja-build ]
   homebrew:
     update: true
     packages: [ socat ]
