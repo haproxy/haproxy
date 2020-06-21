@@ -108,7 +108,7 @@ struct h1s {
 	struct h1m req;
 	struct h1m res;
 
-	enum http_meth_t meth; /* HTTP resquest method */
+	enum http_meth_t meth; /* HTTP request method  */
 	uint16_t status;       /* HTTP response status */
 };
 
@@ -627,8 +627,8 @@ static const struct cs_info *h1_get_cs_info(struct conn_stream *cs)
 
 /*
  * Initialize the mux once it's attached. It is expected that conn->ctx points
- * to the existing conn_stream (for outgoing connections or for incoming onces
- * during a mux upgrade) or NULL (for incoming ones during the connexion
+ * to the existing conn_stream (for outgoing connections or for incoming ones
+ * during a mux upgrade) or NULL (for incoming ones during the connection
  * establishment). <input> is always used as Input buffer and may contain
  * data. It is the caller responsibility to not reuse it anymore. Returns < 0 on
  * error.

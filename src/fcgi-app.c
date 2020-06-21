@@ -62,7 +62,7 @@ static struct ist fcgi_param_name(char *dst, const struct ist name)
 	return ist2(dst, ofs1);
 }
 
-/* Returns a pointer to the FCGi applicatrion mathing the name <name>. NULL is
+/* Returns a pointer to the FCGi application matching the name <name>. NULL is
  * returned if no match found.
  */
 struct fcgi_app *fcgi_app_find_by_name(const char *name)

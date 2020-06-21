@@ -1626,7 +1626,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 		}
 		if (reply->ctype && !b_data(&reply->body.obj)) {
 			ha_warning("parsing [%s:%d] : content-type '%s' ignored by the http reply when used "
-				   "with an emtpy payload.\n",
+				   "with an empty payload.\n",
 				   px->conf.args.file, px->conf.args.line, reply->ctype);
 			free(reply->ctype);
 			reply->ctype = NULL;
@@ -1997,7 +1997,7 @@ static int post_check_errors()
 		htx = htxbuf(&http_errmsg->msg);
 		if (htx_free_data_space(htx) < global.tune.maxrewrite) {
 			ha_warning("config: errorfile '%s' runs over the buffer space"
-				   " reserved to headers rewritting. It may lead to internal errors if "
+				   " reserved to headers rewriting. It may lead to internal errors if "
 				   " http-after-response rules are evaluated on this message.\n",
 				   (char *)node->key);
 			err_code |= ERR_WARN;

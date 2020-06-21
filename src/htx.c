@@ -198,13 +198,13 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 /* Prepares the block to an expansion of its payload. The payload will be
  * expanded by <delta> bytes and we need find where this expansion will be
  * performed. It can be a compression if <delta> is negative. This function only
- * updates all addresses. The caller have the responsibility to performe the
+ * updates all addresses. The caller have the responsibility to perform the
  * expansion and update the block and the HTX message accordingly. No error must
- * occurr. It returns following values:
+ * occur. It returns following values:
  *
  *  0: The expansion cannot be performed, there is not enough space.
  *
- *  1: the expansion must be performed in place, there is enougth space after
+ *  1: the expansion must be performed in place, there is enough space after
  *      the block's payload to handle it. This is especially true if it is a
  *      compression and not an expension.
  *
@@ -362,7 +362,7 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 
 	if (htx->head == htx->tail) {
 		/* If there is just one block in the HTX message, free space can
-		 * be ajusted. This operation could save some defrags. */
+		 * be adjusted. This operation could save some defrags. */
 		struct htx_blk *lastblk = htx_get_blk(htx, htx->tail);
 
 		htx->head_addr = 0;
@@ -394,7 +394,7 @@ struct htx_blk *htx_remove_blk(struct htx *htx, struct htx_blk *blk)
 /* Looks for the HTX block containing the offset <offset>, starting at the HTX
  * message's head. The function returns an htx_ret with the found HTX block and
  * the position inside this block where the offset is. If the offset <offset> is
- * ouside of the HTX message, htx_ret.blk is set to NULL.
+ * outside of the HTX message, htx_ret.blk is set to NULL.
  */
 struct htx_ret htx_find_offset(struct htx *htx, uint32_t offset)
 {
@@ -436,7 +436,7 @@ void htx_truncate(struct htx *htx, uint32_t offset)
 /* Drains <count> bytes from the HTX message <htx>. If the last block is a DATA
  * block, it will be cut if necessary. Others blocks will be removed at once if
  * <count> is large enough. The function returns an htx_ret with the first block
- * remaing in the messsage and the amount of data drained. If everything is
+ * remaining in the message and the amount of data drained. If everything is
  * removed, htx_ret.blk is set to NULL.
  */
 struct htx_ret htx_drain(struct htx *htx, uint32_t count)
@@ -455,7 +455,7 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 		uint32_t sz = htx_get_blksz(blk);
 		enum htx_blk_type type = htx_get_blk_type(blk);
 
-		/* Ingore unused block */
+		/* Ignore unused block */
 		if (type == HTX_BLK_UNUSED)
 			goto next;
 
@@ -631,7 +631,7 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 
 		blk = htx_defrag(htx, blk);
 
-		/* Finaly, copy data. */
+		/* Finally, copy data. */
 		memcpy(htx_get_blk_ptr(htx, blk), tmp->area, tmp->data);
 	}
 	return blk;
@@ -657,7 +657,7 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 	while (blk && count) {
 		type = htx_get_blk_type(blk);
 
-		/* Ingore unused block */
+		/* Ignore unused block */
 		if (type == HTX_BLK_UNUSED)
 			goto next;
 
@@ -752,7 +752,7 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 	if (ret == 3)
 		blk = htx_defrag(htx, blk);
 
-	/* Finaly, copy data. */
+	/* Finally, copy data. */
 	ptr = htx_get_blk_ptr(htx, blk);
 	ist2bin_lc(ptr, name);
 	memcpy(ptr + name.len, value.ptr, value.len);
@@ -890,7 +890,7 @@ struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist name,
 }
 
 /* Add all headers from the list <hdrs> into the HTX message <htx>, followed by
- * the EOH. On sucess, it returns the last block inserted (the EOH), otherwise
+ * the EOH. On success, it returns the last block inserted (the EOH), otherwise
  * NULL is returned. */
 struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs)
 {
@@ -904,7 +904,7 @@ struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs
 }
 
 /* Add all trailers from the list <hdrs> into the HTX message <htx>, followed by
- * the EOT. On sucess, it returns the last block inserted (the EOT), otherwise
+ * the EOT. On success, it returns the last block inserted (the EOT), otherwise
  * NULL is returned. */
 struct htx_blk *htx_add_all_trailers(struct htx *htx, const struct http_hdr *hdrs)
 {

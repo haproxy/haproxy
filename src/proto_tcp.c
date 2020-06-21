@@ -1583,7 +1583,7 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	return 1;
 }
 
-/* get the mean rtt of a client connexion */
+/* get the mean rtt of a client connection */
 static int
 smp_fetch_fc_rtt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1597,7 +1597,7 @@ smp_fetch_fc_rtt(const struct arg *args, struct sample *smp, const char *kw, voi
 	return 1;
 }
 
-/* get the variance of the mean rtt of a client connexion */
+/* get the variance of the mean rtt of a client connection */
 static int
 smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1613,7 +1613,7 @@ smp_fetch_fc_rttvar(const struct arg *args, struct sample *smp, const char *kw, 
 
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__)
 
-/* get the unacked counter on a client connexion */
+/* get the unacked counter on a client connection */
 static int
 smp_fetch_fc_unacked(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1622,7 +1622,7 @@ smp_fetch_fc_unacked(const struct arg *args, struct sample *smp, const char *kw,
 	return 1;
 }
 
-/* get the sacked counter on a client connexion */
+/* get the sacked counter on a client connection */
 static int
 smp_fetch_fc_sacked(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1631,7 +1631,7 @@ smp_fetch_fc_sacked(const struct arg *args, struct sample *smp, const char *kw, 
 	return 1;
 }
 
-/* get the lost counter on a client connexion */
+/* get the lost counter on a client connection */
 static int
 smp_fetch_fc_lost(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1649,7 +1649,7 @@ smp_fetch_fc_retrans(const struct arg *args, struct sample *smp, const char *kw,
 	return 1;
 }
 
-/* get the fackets counter on a client connexion */
+/* get the fackets counter on a client connection */
 static int
 smp_fetch_fc_fackets(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1658,7 +1658,7 @@ smp_fetch_fc_fackets(const struct arg *args, struct sample *smp, const char *kw,
 	return 1;
 }
 
-/* get the reordering counter on a client connexion */
+/* get the reordering counter on a client connection */
 static int
 smp_fetch_fc_reordering(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {

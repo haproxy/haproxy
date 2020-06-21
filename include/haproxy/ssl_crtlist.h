@@ -1,6 +1,6 @@
 /*
  * include/haproxy/ssl_crtlist.h
- * crt-list function prototyes
+ * crt-list function prototypes
  *
  * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
  *

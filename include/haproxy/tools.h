@@ -568,12 +568,12 @@ char *my_strndup(const char *src, int n);
  */
 const void *my_memmem(const void *, size_t, const void *, size_t);
 
-/* get length of the initial segment consiting entirely of bytes within a given
+/* get length of the initial segment consisting entirely of bytes within a given
  * mask
  */
 size_t my_memspn(const void *, size_t, const void *, size_t);
 
-/* get length of the initial segment consiting entirely of bytes not within a
+/* get length of the initial segment consisting entirely of bytes not within a
  * given mask
  */
 size_t my_memcspn(const void *, size_t, const void *, size_t);

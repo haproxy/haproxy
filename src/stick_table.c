@@ -2183,7 +2183,7 @@ smp_fetch_table_avl(const struct arg *args, struct sample *smp, const char *kw, 
  * the sc_* and sc[0-9]_* forms, an optional table argument may be
  * passed. When present, the currently tracked key is then looked up
  * in the specified table instead of the current table. The purpose is
- * to be able to convery multiple values per key (eg: have gpc0 from
+ * to be able to convert multiple values per key (eg: have gpc0 from
  * multiple tables). <strm> is allowed to be NULL, in which case only
  * the session will be consulted.
  */

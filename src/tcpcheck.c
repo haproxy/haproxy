@@ -3388,9 +3388,9 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rules *rul
 
 	/* the implicit send rule coming from an "option httpchk" line must be
 	 * merged with the first explici http-check send rule, if
-	 * any. Depdending the declaration order some tests are required.
+	 * any. Depending on the declaration order some tests are required.
 	 *
-	 * Some tests is also required for other kinds of http-check rules to be
+	 * Some tests are also required for other kinds of http-check rules to be
 	 * sure the ruleset remains valid.
 	 */
 

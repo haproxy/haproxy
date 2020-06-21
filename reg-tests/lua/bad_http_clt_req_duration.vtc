@@ -4,7 +4,7 @@
 # HTTP LUA applet callback should not update the date on which the HTTP client requests
 # arrive. This was done just after the LUA applet has completed its job.
 #
-# This patch simply removes the affected statement. The same fixe has been applied
+# This patch simply removes the affected statement. The same fix has been applied
 # to TCP LUA applet callback.
 #
 # To reproduce this issue, as reported by Patrick Hemmer, implement an HTTP LUA applet

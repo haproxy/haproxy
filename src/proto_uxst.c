@@ -133,7 +133,7 @@ static int uxst_find_compatible_fd(struct listener *l)
 		    strlen(un1->sun_path)) == 0) {
 			char *after_sockname = un2->sun_path +
 			    strlen(un1->sun_path);
-			/* Make a reasonnable effort to check that
+			/* Make a reasonable effort to check that
 			 * it is indeed a haproxy-generated temporary
 			 * name, it's not perfect, but probably good enough.
 			 */
@@ -332,7 +332,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	}
 
 	/* Point of no return: we are ready, we'll switch the sockets. We don't
-	 * fear loosing the socket <path> because we have a copy of it in
+	 * fear losing the socket <path> because we have a copy of it in
 	 * backname. Abstract sockets are not renamed.
 	 */
 	if (!ext && path[0] && rename(tempname, path) < 0) {

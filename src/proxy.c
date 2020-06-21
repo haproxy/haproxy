@@ -1476,7 +1476,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		else if (IS_HTX_STRM(s) && be->mode != PR_MODE_HTTP) {
 			/* If a TCP backend is assgiend to an HTX stream, return
 			 * an error. It may happens for a new stream on a
-			 * previously upgraded connnections. */
+			 * previously upgraded connections. */
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_INTERNAL;
 			return 0;
@@ -1593,7 +1593,7 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
  * default. This avoids the common mistake consisting in setting maxconn only
  * in the global section and discovering the hard way that it doesn't propagate
  * through the frontends. These values are also propagated through the various
- * targetted backends, whose fullconn is finally calculated if not yet set.
+ * targeted backends, whose fullconn is finally calculated if not yet set.
  */
 void proxy_adjust_all_maxconn()
 {

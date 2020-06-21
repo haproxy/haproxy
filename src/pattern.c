@@ -1901,7 +1901,7 @@ int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line)
 /* This function create sample found in <elt>, parse the pattern also
  * found in <elt> and insert it in <expr>. The function copy <patflags>
  * in <expr>. If the function fails, it returns0 and <err> is filled.
- * In succes case, the function returns 1.
+ * In success case, the function returns 1.
  */
 static inline
 int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
@@ -2267,7 +2267,7 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
  *      |       `------------------------ key
  *      `-------------------------------- leading spaces ignored
  *
- * Return non-zero in case of succes, otherwise 0.
+ * Return non-zero in case of success, otherwise 0.
  */
 int pat_ref_read_from_file_smp(struct pat_ref *ref, const char *filename, char **err)
 {
@@ -2343,7 +2343,7 @@ int pat_ref_read_from_file_smp(struct pat_ref *ref, const char *filename, char *
 				filename, strerror(errno));
 		goto out_close;
 	}
-	/* succes */
+	/* success */
 	ret = 1;
 
  out_close:

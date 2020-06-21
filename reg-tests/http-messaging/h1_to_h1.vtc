@@ -242,7 +242,7 @@ client c3h1 -connect ${h1_feh1_sock} {
 	expect resp.status == 200
 	expect resp.body == "response 2"
 
-	# third request is valid and advertises (and sends) somme contents
+	# third request is valid and advertises (and sends) some contents
 	txreq \
 	  -req "POST" \
 	  -url "/test23.html" \

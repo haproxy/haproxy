@@ -116,7 +116,7 @@ enum tcpcheck_rule_type {
 #define TCPCHK_RULES_SSL3_CHK    0x00000070
 #define TCPCHK_RULES_AGENT_CHK   0x00000080
 #define TCPCHK_RULES_SPOP_CHK    0x00000090
-/* Unused 0x000000A0..0x00000FF0 (reserverd for futur proto) */
+/* Unused 0x000000A0..0x00000FF0 (reserved for future proto) */
 #define TCPCHK_RULES_TCP_CHK     0x00000FF0
 #define TCPCHK_RULES_PROTO_CHK   0x00000FF0 /* Mask to cover protocol check */
 

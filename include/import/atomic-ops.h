@@ -434,7 +434,7 @@
 	})                                                                    \
 )
 
-/* exchage value <x> with integer value pointed to by pointer <ptr>, and return
+/* exchange value <x> with integer value pointed to by pointer <ptr>, and return
  * previous <*ptr> value. <x> must be of the same size as <*ptr>.
  */
 #define pl_xchg(ptr, x) (                                                     \

@@ -317,7 +317,7 @@ static int cli_parse_show_events(char **args, char *payload, struct appctx *appc
 	return ring_attach_cli(sink->ctx.ring, appctx);
 }
 
-/* Pre-configures a ring proxy to emmit connections */
+/* Pre-configures a ring proxy to emit connections */
 void sink_setup_proxy(struct proxy *px)
 {
 	px->last_change = now.tv_sec;
@@ -347,7 +347,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	size_t len, cnt, ofs;
 	int ret = 0;
 
-	/* if stopping was requested, close immediatly */
+	/* if stopping was requested, close immediately */
 	if (unlikely(stopping))
 		goto close;
 
@@ -487,7 +487,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	int ret = 0;
 	char *p;
 
-	/* if stopping was requested, close immediatly */
+	/* if stopping was requested, close immediately */
 	if (unlikely(stopping))
 		goto close;
 
@@ -1054,7 +1054,7 @@ int post_sink_resolve()
 		if (logsrv->type == LOG_TARGET_BUFFER) {
 			sink = sink_find(logsrv->ring_name);
 			if (!sink || sink->type != SINK_TYPE_BUFFER) {
-				ha_alert("global log server uses unkown ring named '%s'.\n", logsrv->ring_name);
+				ha_alert("global log server uses unknown ring named '%s'.\n", logsrv->ring_name);
 				err_code |= ERR_ALERT | ERR_FATAL;
 			}
 			logsrv->sink = sink;
@@ -1066,7 +1066,7 @@ int post_sink_resolve()
 			if (logsrv->type == LOG_TARGET_BUFFER) {
 				sink = sink_find(logsrv->ring_name);
 				if (!sink || sink->type != SINK_TYPE_BUFFER) {
-					ha_alert("proxy '%s' log server uses unkown ring named '%s'.\n", px->id, logsrv->ring_name);
+					ha_alert("proxy '%s' log server uses unknown ring named '%s'.\n", px->id, logsrv->ring_name);
 					err_code |= ERR_ALERT | ERR_FATAL;
 				}
 				logsrv->sink = sink;

@@ -45,7 +45,7 @@ static size_t h1_eval_htx_size(const struct ist p1, const struct ist p2, const s
 
 /* Switch the message to tunnel mode. On the request, it must only be called for
  * a CONNECT method. On the response, this function must only be called on
- * successfull replies to CONNECT requests or on protocol switching.
+ * successful replies to CONNECT requests or on protocol switching.
  */
 static void h1_set_tunnel_mode(struct h1m *h1m)
 {
@@ -202,7 +202,7 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		if (uri.len > 4 && (uri.ptr[0] | 0x20) == 'h')
 			sl->flags |= ((uri.ptr[4] == ':') ? HTX_SL_F_SCHM_HTTP : HTX_SL_F_SCHM_HTTPS);
 	}
-	/* Set bytes used in the HTX mesage for the headers now */
+	/* Set bytes used in the HTX message for the headers now */
 	sl->hdrs_bytes = htx_used_space(htx) - used;
 
 	/* If body length cannot be determined, set htx->extra to
@@ -277,7 +277,7 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	}
 
 	if (((h1m->flags & H1_MF_METH_CONNECT) && code == 200) || code == 101) {
-		/* Switch successfull replies to CONNECT requests and
+		/* Switch successful replies to CONNECT requests and
 		 * protocol switching to tunnel mode. */
 		h1_set_tunnel_mode(h1m);
 	}
@@ -304,7 +304,7 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		goto error;
 	sl->info.res.status = code;
 
-	/* Set bytes used in the HTX mesage for the headers now */
+	/* Set bytes used in the HTX message for the headers now */
 	sl->hdrs_bytes = htx_used_space(htx) - used;
 
 	/* If body length cannot be determined, set htx->extra to
@@ -699,7 +699,7 @@ int h1_format_htx_stline(const struct htx_sl *sl, struct buffer *chk)
 	return 0;
 }
 
-/* Appends the H1 representation of the header <n> witht the value <v> to the
+/* Appends the H1 representation of the header <n> with the value <v> to the
  * chunk <chk>. It returns 1 if data are successfully appended, otherwise it
  * returns 0.
  */

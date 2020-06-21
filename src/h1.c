@@ -33,7 +33,7 @@ int h1_parse_cont_len_header(struct h1m *h1m, struct ist *value)
 	e = value->ptr + value->len;
 
 	while (++word.ptr < e) {
-		/* skip leading delimitor and blanks */
+		/* skip leading delimiter and blanks */
 		if (unlikely(HTTP_IS_LWS(*word.ptr)))
 			continue;
 
@@ -106,7 +106,7 @@ void h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value)
 	e = value.ptr + value.len;
 
 	while (++word.ptr < e) {
-		/* skip leading delimitor and blanks */
+		/* skip leading delimiter and blanks */
 		if (HTTP_IS_LWS(*word.ptr))
 			continue;
 
@@ -145,7 +145,7 @@ void h1_parse_connection_header(struct h1m *h1m, struct ist *value)
 		value->len = 0;
 
 	while (++word.ptr < e) {
-		/* skip leading delimitor and blanks */
+		/* skip leading delimiter and blanks */
 		if (HTTP_IS_LWS(*word.ptr))
 			continue;
 

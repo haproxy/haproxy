@@ -86,7 +86,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	list_for_each_entry(entry, &pools, list) {
 		if (entry->size == size) {
 			/* either we can share this place and we take it, or
-			 * we look for a sharable one or for the next position
+			 * we look for a shareable one or for the next position
 			 * before which we will insert a new one.
 			 */
 			if (flags & entry->flags & MEM_F_SHARED) {
