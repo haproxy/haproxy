@@ -1854,6 +1854,7 @@ int readcfgfile(const char *file)
 	size_t outlen = 0;
 	size_t outlinesize = 0;
 	int fatal = 0;
+	int missing_lf = -1;
 
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
 		ha_alert("parsing [%s] : out of memory.\n", file);
@@ -1871,6 +1872,14 @@ next_line:
 		char *end;
 		char *args[MAX_LINE_ARGS + 1];
 		char *line = thisline;
+
+		if (missing_lf != -1) {
+			ha_warning("parsing [%s:%d]: Stray NUL character at position %d. "
+			           "This will become a hard error in HAProxy 2.3.\n",
+			           file, linenum, (missing_lf + 1));
+			err_code |= ERR_WARN;
+			missing_lf = -1;
+		}
 
 		linenum++;
 
@@ -1908,6 +1917,10 @@ next_line:
 		if (*(end-1) == '\n') {
 			/* kill trailing LF */
 			*(end - 1) = 0;
+		}
+		else {
+			/* mark this line as truncated */
+			missing_lf = end - line;
 		}
 
 		/* skip leading spaces */
@@ -2056,6 +2069,13 @@ next_line:
 			if (err_code & ERR_ABORT)
 				goto err;
 		}
+	}
+
+	if (missing_lf != -1) {
+		ha_warning("parsing [%s:%d]: Missing LF on last line, file might have been truncated at position %d. "
+		           "This will become a hard error in HAProxy 2.3.\n",
+		           file, linenum, (missing_lf + 1));
+		err_code |= ERR_WARN;
 	}
 
 	if (cs && cs->post_section_parser)
