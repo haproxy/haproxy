@@ -1905,8 +1905,10 @@ next_line:
 
 		readbytes = 0;
 
-		/* kill trailing LF */
-		*(end - 1) = 0;
+		if (*(end-1) == '\n') {
+			/* kill trailing LF */
+			*(end - 1) = 0;
+		}
 
 		/* skip leading spaces */
 		while (isspace((unsigned char)*line))
