@@ -2010,7 +2010,7 @@ spoe_queue_context(struct spoe_context *ctx)
 
 	/* Check if we need to create a new SPOE applet or not. */
 	if (!eb_is_empty(&agent->rt[tid].idle_applets) &&
-	    agent->rt[tid].processing < read_freq_ctr(&agent->rt[tid].processing_per_sec))
+	    (agent->rt[tid].processing == 1 || agent->rt[tid].processing < read_freq_ctr(&agent->rt[tid].processing_per_sec)))
 		goto end;
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
