@@ -134,7 +134,7 @@ struct sni_ctx {
 	unsigned int neg:1;       /* reject if match */
 	unsigned int wild:1;      /* wildcard sni */
 	struct pkey_info kinfo;   /* pkey info */
-	struct ssl_bind_conf *conf; /* ssl "bind" conf for the certificate */
+	struct ssl_bind_conf *conf; /* ptr to a crtlist's ssl_conf, must not be free from here */
 	struct list by_ckch_inst; /* chained in ckch_inst's list of sni_ctx */
 	struct ckch_inst *ckch_inst; /* instance used to create this sni_ctx */
 	struct ebmb_node name;    /* node holding the servername value */
