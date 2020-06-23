@@ -1976,7 +1976,7 @@ next_line:
 
 			if (err & PARSE_ERR_TOOMANY) {
 				ha_alert("parsing [%s:%d]: too many words, truncating at word %d, position %ld: <%s>.\n",
-					 file, linenum, MAX_LINE_ARGS, (long)(args[MAX_LINE_ARGS-1] - thisline + 1), args[MAX_LINE_ARGS-1]);
+					 file, linenum, MAX_LINE_ARGS, (long)(args[MAX_LINE_ARGS-1] - outline + 1), args[MAX_LINE_ARGS-1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
 				goto next_line;
