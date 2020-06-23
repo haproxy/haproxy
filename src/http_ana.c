@@ -1532,7 +1532,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			/* Check to see if the server refused the early data.
 			 * If so, just send a 425
 			 */
-			if (conn->err_code == CO_ER_SSL_EARLY_FAILED) {
+			if (conn && conn->err_code == CO_ER_SSL_EARLY_FAILED) {
 				if ((s->be->retry_type & PR_RE_EARLY_ERROR) &&
 				    (si_b->flags & SI_FL_L7_RETRY) &&
 				    do_l7_retry(s, si_b) == 0) {
