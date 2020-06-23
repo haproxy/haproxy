@@ -2785,6 +2785,10 @@ void deinit(void)
 			free(l);
 		}
 
+		/* SSL storage */
+		crtlist_deinit(); /* must be free'd before the ckchs */
+		ckch_deinit();
+
 		/* Release unused SSL configs. */
 		list_for_each_entry_safe(bind_conf, bind_back, &p->conf.bind, by_fe) {
 			if (bind_conf->xprt->destroy_bind_conf)

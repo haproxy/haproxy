@@ -1889,6 +1889,19 @@ error:
 	return cli_dynerr(appctx, err);
 }
 
+void ckch_deinit()
+{
+	struct eb_node *node, *next;
+	struct ckch_store *store;
+
+	node = eb_first(&ckchs_tree);
+	while (node) {
+		next = eb_next(node);
+		store = ebmb_entry(node, struct ckch_store, node);
+		ckch_store_free(store);
+		node = next;
+	}
+}
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{

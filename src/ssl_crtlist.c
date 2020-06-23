@@ -1265,6 +1265,21 @@ error:
 }
 
 
+/* unlink and free all crt-list and crt-list entries */
+void crtlist_deinit()
+{
+	struct eb_node *node, *next;
+	struct crtlist *crtlist;
+
+	node = eb_first(&crtlists_tree);
+	while (node) {
+		next = eb_next(node);
+		crtlist = ebmb_entry(node, struct crtlist, node);
+		crtlist_free(crtlist);
+		node = next;
+	}
+}
+
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{

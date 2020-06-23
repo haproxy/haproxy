@@ -61,5 +61,7 @@ int ckch_inst_new_load_multi_store(const char *path, struct ckch_store *ckchs,
 int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct bind_conf *bind_conf,
                              struct ssl_bind_conf *ssl_conf, char **sni_filter, int fcount, struct ckch_inst **ckchi, char **err);
 
+void ckch_deinit();
+
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CRTLIST_H */
