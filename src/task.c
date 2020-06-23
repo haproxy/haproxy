@@ -448,8 +448,10 @@ void process_runnable_tasks()
 		LIST_SPLICE_END_DETACHED(&sched->tasklets[TL_URGENT], (struct list *)tmp_list);
 
 	/* run up to max_processed/3 urgent tasklets */
-	done = run_tasks_from_list(&tt->tasklets[TL_URGENT], (max_processed + 2) / 3);
-	max_processed -= done;
+	if (max_processed > 0) {
+		done = run_tasks_from_list(&tt->tasklets[TL_URGENT], (max_processed + 2) / 3);
+		max_processed -= done;
+	}
 
 	/* pick up to max_processed/2 (~=3/4*(max_processed-done)) regular tasks from prio-ordered run queues */
 
@@ -518,15 +520,19 @@ void process_runnable_tasks()
 	}
 
 	/* run between 0.4*max_processed and max_processed/2 regular tasks */
-	done = run_tasks_from_list(&tt->tasklets[TL_NORMAL], (3 * max_processed + 3) / 4);
-	max_processed -= done;
+	if (max_processed > 0) {
+		done = run_tasks_from_list(&tt->tasklets[TL_NORMAL], (3 * max_processed + 3) / 4);
+		max_processed -= done;
+	}
 
 	/* run between max_processed/4 and max_processed bulk tasklets */
-	done = run_tasks_from_list(&tt->tasklets[TL_BULK], max_processed);
-	max_processed -= done;
+	if (max_processed > 0) {
+		done = run_tasks_from_list(&tt->tasklets[TL_BULK], max_processed);
+		max_processed -= done;
+	}
 
 	/* some tasks may have woken other ones up */
-	if (max_processed && thread_has_tasks())
+	if (max_processed > 0 && thread_has_tasks())
 		goto not_done_yet;
 
 	if (!LIST_ISEMPTY(&sched->tasklets[TL_URGENT]) |
