@@ -700,8 +700,13 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 		if (cformat == LF_INIT) { /* resynchronize state to text/sep/startvar */
 			switch (*str) {
 			case '%': cformat = LF_STARTVAR;  break;
-			case ' ': cformat = LF_SEPARATOR; break;
 			case  0 : cformat = LF_END;       break;
+			case ' ':
+				if (options & LOG_OPT_MERGE_SPACES) {
+					cformat = LF_SEPARATOR;
+					break;
+				}
+				/* fall through */
 			default : cformat = LF_TEXT;      break;
 			}
 		}

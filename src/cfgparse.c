@@ -2927,7 +2927,8 @@ out_uri_auth_compat:
 			curproxy->conf.args.file = curproxy->conf.lfs_file;
 			curproxy->conf.args.line = curproxy->conf.lfs_line;
 			err = NULL;
-			if (!parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat, LOG_OPT_MANDATORY,
+			if (!parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat,
+			                            LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
 			                            SMP_VAL_FE_LOG_END, &err)) {
 				ha_alert("Parsing [%s:%d]: failed to parse log-format : %s.\n",
 					 curproxy->conf.lfs_file, curproxy->conf.lfs_line, err);
@@ -2943,7 +2944,8 @@ out_uri_auth_compat:
 			curproxy->conf.args.file = curproxy->conf.lfsd_file;
 			curproxy->conf.args.line = curproxy->conf.lfsd_line;
 			err = NULL;
-			if (!parse_logformat_string(curproxy->conf.logformat_sd_string, curproxy, &curproxy->logformat_sd, LOG_OPT_MANDATORY,
+			if (!parse_logformat_string(curproxy->conf.logformat_sd_string, curproxy, &curproxy->logformat_sd,
+			                            LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
 			                            SMP_VAL_FE_LOG_END, &err)) {
 				ha_alert("Parsing [%s:%d]: failed to parse log-format-sd : %s.\n",
 					 curproxy->conf.lfs_file, curproxy->conf.lfs_line, err);
@@ -2964,8 +2966,11 @@ out_uri_auth_compat:
 			curproxy->conf.args.file = curproxy->conf.uif_file;
 			curproxy->conf.args.line = curproxy->conf.uif_line;
 			err = NULL;
-			if (!parse_logformat_string(curproxy->conf.uniqueid_format_string, curproxy, &curproxy->format_unique_id, LOG_OPT_HTTP,
-			                            (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR, &err)) {
+			if (!parse_logformat_string(curproxy->conf.uniqueid_format_string, curproxy, &curproxy->format_unique_id,
+			                            LOG_OPT_HTTP|LOG_OPT_MERGE_SPACES,
+			                            (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR
+			                                                        : SMP_VAL_BE_HRQ_HDR,
+			                            &err)) {
 				ha_alert("Parsing [%s:%d]: failed to parse unique-id : %s.\n",
 					 curproxy->conf.uif_file, curproxy->conf.uif_line, err);
 				free(err);

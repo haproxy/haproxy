@@ -18767,9 +18767,10 @@ as a sample expression rule (see section 7.3). This it useful to add some
 less common information such as the client's SSL certificate's DN, or to log
 the key that would be used to store an entry into a stick table.
 
-Note: spaces must be escaped. A space character is considered as a separator.
-In order to emit a verbatim '%', it must be preceded by another '%' resulting
-in '%%'. HAProxy will automatically merge consecutive separators.
+Note: spaces must be escaped. In configuration directives "log-format",
+"log-format-sd" and "unique-id-format", spaces are considered as
+delimiters and are merged. In order to emit a verbatim '%', it must be
+preceded by another '%' resulting in '%%'.
 
 Note: when using the RFC5424 syslog message format, the characters '"',
 '\' and ']' inside PARAM-VALUE should be escaped with '\' as prefix (see
