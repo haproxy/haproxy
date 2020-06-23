@@ -446,6 +446,9 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	fdtab[fd].linger_risk = 0;
 	fdtab[fd].cloned = 0;
 	fdtab[fd].et_possible = 0;
+#ifdef DEBUG_FD
+	fdtab[fd].event_count = 0;
+#endif
 
 	/* conn_fd_handler should support edge-triggered FDs */
 	if ((global.tune.options & GTUNE_FD_ET) && fdtab[fd].iocb == conn_fd_handler)

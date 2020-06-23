@@ -222,6 +222,9 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
 
+#ifdef DEBUG_FD
+		_HA_ATOMIC_ADD(&fdtab[fd].event_count, 1);
+#endif
 		if (!fdtab[fd].owner) {
 			activity[tid].poll_dead_fd++;
 			continue;

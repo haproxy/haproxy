@@ -213,7 +213,8 @@ SMALL_OPTS =
 # You can enable debugging on specific code parts by setting DEBUG=-DDEBUG_xxx.
 # Currently defined DEBUG macros include DEBUG_FULL, DEBUG_MEMORY, DEBUG_FSM,
 # DEBUG_HASH, DEBUG_AUTH, DEBUG_SPOE, DEBUG_UAF and DEBUG_THREAD, DEBUG_STRICT,
-# DEBUG_DEV. Please check sources for exact meaning or do not use at all.
+# DEBUG_DEV, DEBUG_FD. Please check sources for exact meaning or do not use at
+# all.
 DEBUG =
 
 #### Trace options

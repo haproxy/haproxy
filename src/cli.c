@@ -1002,7 +1002,14 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 
 		fdt = fdtab[fd];
 
-		if (!fdt.owner)
+		/* When DEBUG_FD is set, we also report closed FDs that have a
+		 * non-null event count to detect stuck ones.
+		 */
+		if (!fdt.owner
+#ifdef DEBUG_FD
+		    && !fdt.event_count
+#endif
+		    )
 			goto skip; // closed
 
 		if (fdt.iocb == conn_fd_handler) {
@@ -1038,7 +1045,10 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     fdt.iocb);
 		resolve_sym_name(&trash, NULL, fdt.iocb);
 
-		if (fdt.iocb == conn_fd_handler) {
+		if (!fdt.owner) {
+			chunk_appendf(&trash, ")");
+		}
+		else if (fdt.iocb == conn_fd_handler) {
 			chunk_appendf(&trash, ") back=%d cflg=0x%08x", is_back, conn_flags);
 			if (px)
 				chunk_appendf(&trash, " px=%s", px->id);
@@ -1061,6 +1071,9 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			              li->bind_conf->frontend->id);
 		}
 
+#ifdef DEBUG_FD
+		chunk_appendf(&trash, " evcnt=%u", fdtab[fd].event_count);
+#endif
 		chunk_appendf(&trash, ")\n");
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {

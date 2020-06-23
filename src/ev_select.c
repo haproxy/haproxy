@@ -197,6 +197,9 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		for (count = BITS_PER_INT, fd = fds * BITS_PER_INT; count && fd < maxfd; count--, fd++) {
 			unsigned int n = 0;
 
+#ifdef DEBUG_FD
+			_HA_ATOMIC_ADD(&fdtab[fd].event_count, 1);
+#endif
 			if (!fdtab[fd].owner) {
 				activity[tid].poll_dead_fd++;
 				continue;

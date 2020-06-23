@@ -219,6 +219,9 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		int e = poll_events[count].revents;
 		fd = poll_events[count].fd;
 
+#ifdef DEBUG_FD
+		_HA_ATOMIC_ADD(&fdtab[fd].event_count, 1);
+#endif
 		if (!(e & ( POLLOUT | POLLIN | POLLERR | POLLHUP | POLLRDHUP )))
 			continue;
 

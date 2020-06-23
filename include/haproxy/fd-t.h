@@ -134,6 +134,9 @@ struct fdtab {
 	unsigned char cloned:1;              /* 1 if a cloned socket, requires EPOLL_CTL_DEL on close */
 	unsigned char initialized:1;         /* 1 if init phase was done on this fd (e.g. set non-blocking) */
 	unsigned char et_possible:1;         /* 1 if edge-triggered is possible on this FD */
+#ifdef DEBUG_FD
+	unsigned int event_count;            /* number of events reported */
+#endif
 } THREAD_ALIGNED(64);
 
 /* polled mask, one bit per thread and per direction for each FD */

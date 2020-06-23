@@ -183,6 +183,9 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		unsigned int n = 0;
 		fd = kev[count].ident;
 
+#ifdef DEBUG_FD
+		_HA_ATOMIC_ADD(&fdtab[fd].event_count, 1);
+#endif
 		if (!fdtab[fd].owner) {
 			activity[tid].poll_dead_fd++;
 			continue;
