@@ -952,6 +952,8 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 					chunk_appendf(trash, ".");
 					i++;
 					LIST_ADDQ(&store->ckch_inst, &new_inst->by_ckchs);
+					LIST_ADDQ(&entry->ckch_inst, &new_inst->by_crtlist_entry);
+					new_inst->crtlist_entry = entry;
 				}
 				appctx->st2 = SETCERT_ST_INSERT;
 				/* fallthrough */
