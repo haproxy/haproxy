@@ -116,6 +116,8 @@
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/signal.h>
+#include <haproxy/ssl_ckch.h>
+#include <haproxy/ssl_crtlist.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
