@@ -148,9 +148,17 @@ struct crtlist_entry *crtlist_entry_new()
 void crtlist_free(struct crtlist *crtlist)
 {
 	struct crtlist_entry *entry, *s_entry;
+	struct bind_conf_list *bind_conf_node;
 
 	if (crtlist == NULL)
 		return;
+
+	bind_conf_node = crtlist->bind_conf;
+	while (bind_conf_node) {
+		struct bind_conf_list *next = bind_conf_node->next;
+		free(bind_conf_node);
+		bind_conf_node = next;
+	}
 
 	list_for_each_entry_safe(entry, s_entry, &crtlist->ord_entries, by_crtlist) {
 		crtlist_entry_free(entry);
