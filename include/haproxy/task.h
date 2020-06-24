@@ -166,9 +166,7 @@ static inline int thread_has_tasks(void)
 {
 	return (!!(global_tasks_mask & tid_bit) |
 	        (sched->rqueue_size > 0) |
-	        !LIST_ISEMPTY(&sched->tasklets[TL_URGENT]) |
-	        !LIST_ISEMPTY(&sched->tasklets[TL_NORMAL]) |
-	        !LIST_ISEMPTY(&sched->tasklets[TL_BULK])   |
+	        !!sched->tl_class_mask |
 		!MT_LIST_ISEMPTY(&sched->shared_tasklet_list));
 }
 
@@ -330,16 +328,20 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 		if (LIST_ISEMPTY(&tl->list)) {
 			if (tl->state & TASK_SELF_WAKING) {
 				LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
+				sched->tl_class_mask |= 1 << TL_BULK;
 			}
 			else if ((struct task *)tl == sched->current) {
 				_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
 				LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
+				sched->tl_class_mask |= 1 << TL_BULK;
 			}
 			else if (sched->current_queue < 0) {
 				LIST_ADDQ(&sched->tasklets[TL_URGENT], &tl->list);
+				sched->tl_class_mask |= 1 << TL_URGENT;
 			}
 			else {
 				LIST_ADDQ(&sched->tasklets[sched->current_queue], &tl->list);
+				sched->tl_class_mask |= 1 << sched->current_queue;
 			}
 
 			_HA_ATOMIC_ADD(&tasks_run_queue, 1);

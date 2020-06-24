@@ -452,17 +452,17 @@ void process_runnable_tasks()
 	max[TL_URGENT] = max[TL_NORMAL] = max[TL_BULK] = 0;
 
 	/* urgent tasklets list gets a default weight of ~50% */
-	if (!LIST_ISEMPTY(&tt->tasklets[TL_URGENT]) ||
+	if ((tt->tl_class_mask & (1 << TL_URGENT)) ||
 	    !MT_LIST_ISEMPTY(&tt->shared_tasklet_list))
 		max[TL_URGENT] = default_weights[TL_URGENT];
 
 	/* normal tasklets list gets a default weight of ~37% */
-	if (!LIST_ISEMPTY(&tt->tasklets[TL_NORMAL]) ||
+	if ((tt->tl_class_mask & (1 << TL_NORMAL)) ||
 	    (sched->rqueue_size > 0) || (global_tasks_mask & tid_bit))
 		max[TL_NORMAL] = default_weights[TL_NORMAL];
 
 	/* bulk tasklets list gets a default weight of ~13% */
-	if (!LIST_ISEMPTY(&tt->tasklets[TL_BULK]))
+	if ((tt->tl_class_mask & (1 << TL_BULK)))
 		max[TL_BULK] = default_weights[TL_BULK];
 
 	/* Now compute a fair share of the weights. Total may slightly exceed
@@ -530,6 +530,7 @@ void process_runnable_tasks()
 		LIST_INIT(&((struct tasklet *)t)->list);
 		/* And add it to the local task list */
 		tasklet_insert_into_tasklet_list(&tt->tasklets[TL_NORMAL], (struct tasklet *)t);
+		tt->tl_class_mask |= 1 << TL_NORMAL;
 		tt->task_list_size++;
 		activity[tid].tasksw++;
 	}
@@ -544,8 +545,11 @@ void process_runnable_tasks()
 	 * main list.
 	 */
 	tmp_list = MT_LIST_BEHEAD(&tt->shared_tasklet_list);
-	if (tmp_list)
+	if (tmp_list) {
 		LIST_SPLICE_END_DETACHED(&tt->tasklets[TL_URGENT], (struct list *)tmp_list);
+		if (!LIST_ISEMPTY(&tt->tasklets[TL_URGENT]))
+			tt->tl_class_mask |= 1 << TL_URGENT;
+	}
 
 	/* execute tasklets in each queue */
 	for (queue = 0; queue < TL_CLASSES; queue++) {
@@ -553,6 +557,8 @@ void process_runnable_tasks()
 			tt->current_queue = queue;
 			max_processed -= run_tasks_from_list(&tt->tasklets[queue], max[queue]);
 			tt->current_queue = -1;
+			if (LIST_ISEMPTY(&tt->tasklets[queue]))
+				tt->tl_class_mask &= ~(1 << queue);
 		}
 	}
 
@@ -560,9 +566,7 @@ void process_runnable_tasks()
 	if (max_processed > 0 && thread_has_tasks())
 		goto not_done_yet;
 
-	if (!LIST_ISEMPTY(&sched->tasklets[TL_URGENT]) |
-	    !LIST_ISEMPTY(&sched->tasklets[TL_NORMAL]) |
-	    !LIST_ISEMPTY(&sched->tasklets[TL_BULK]))
+	if (tt->tl_class_mask)
 		activity[tid].long_rq++;
 }
 
