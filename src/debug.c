@@ -142,7 +142,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 
 			if (dump == 2) {
 				/* dumping */
-				if (addr == run_poll_loop || addr == main || addr == run_tasks_from_list) {
+				if (addr == run_poll_loop || addr == main || addr == run_tasks_from_lists) {
 					dump = 3;
 					*buf = bak;
 					break;

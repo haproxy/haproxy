@@ -116,7 +116,7 @@ struct work_list *work_list_create(int nbthread,
                                    struct task *(*fct)(struct task *, void *, unsigned short),
                                    void *arg);
 void work_list_destroy(struct work_list *work, int nbthread);
-int run_tasks_from_list(unsigned int queue, int max);
+unsigned int run_tasks_from_lists(unsigned int budgets[]);
 
 /*
  * This does 3 things :

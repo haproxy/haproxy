@@ -318,30 +318,36 @@ int next_timer_expiry()
 	return ret;
 }
 
-/* Walks over tasklet list sched->tasklets[queue] and run at most <max> of
- * them. Returns the number of entries effectively processed (tasks and
- * tasklets merged). The count of tasks in the list for the current thread
- * is adjusted.
+/* Walks over tasklet lists sched->tasklets[0..TL_CLASSES-1] and run at most
+ * budget[TL_*] of them. Returns the number of entries effectively processed
+ * (tasks and tasklets merged). The count of tasks in the list for the current
+ * thread is adjusted.
  */
-int run_tasks_from_list(unsigned int queue, int max)
+unsigned int run_tasks_from_lists(unsigned int budgets[])
 {
 	struct task *(*process)(struct task *t, void *ctx, unsigned short state);
 	struct list *tl_queues = sched->tasklets;
 	struct task *t;
+	unsigned int done = 0;
+	unsigned int queue;
 	unsigned short state;
 	void *ctx;
-	int done = 0;
 
-	sched->current_queue = queue;
-	while (1) {
+	for (queue = 0; queue < TL_CLASSES;) {
+		sched->current_queue = queue;
+
 		if (LIST_ISEMPTY(&tl_queues[queue])) {
 			sched->tl_class_mask &= ~(1 << queue);
-			break;
+			queue++;
+			continue;
 		}
 
-		if (done >= max)
-			break;
+		if (!budgets[queue]) {
+			queue++;
+			continue;
+		}
 
+		budgets[queue]--;
 		t = (struct task *)LIST_ELEM(tl_queues[queue].n, struct tasklet *, list);
 		state = (t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING));
 
@@ -564,10 +570,7 @@ void process_runnable_tasks()
 	}
 
 	/* execute tasklets in each queue */
-	for (queue = 0; queue < TL_CLASSES; queue++) {
-		if (max[queue] > 0)
-			max_processed -= run_tasks_from_list(queue, max[queue]);
-	}
+	max_processed -= run_tasks_from_lists(max);
 
 	/* some tasks may have woken other ones up */
 	if (max_processed > 0 && thread_has_tasks())
