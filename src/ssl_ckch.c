@@ -1495,6 +1495,12 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 		int n;
 
 		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+			/* if a certificate is here, a private key must be here too */
+			if (ckchs_transaction.new_ckchs->ckch[n].cert && !ckchs_transaction.new_ckchs->ckch[n].key) {
+				memprintf(&err, "The transaction must contain at least a certificate and a private key!\n");
+				goto error;
+			}
+
 			if (ckchs_transaction.new_ckchs->ckch[n].cert && !X509_check_private_key(ckchs_transaction.new_ckchs->ckch[n].cert, ckchs_transaction.new_ckchs->ckch[n].key)) {
 				memprintf(&err, "inconsistencies between private key and certificate loaded '%s'.\n", ckchs_transaction.path);
 				goto error;
@@ -1503,6 +1509,12 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 	} else
 #endif
 	{
+		/* if a certificate is here, a private key must be here too */
+		if (ckchs_transaction.new_ckchs->ckch->cert && !ckchs_transaction.new_ckchs->ckch->key) {
+			memprintf(&err, "The transaction must contain at least a certificate and a private key!\n");
+			goto error;
+		}
+
 		if (!X509_check_private_key(ckchs_transaction.new_ckchs->ckch->cert, ckchs_transaction.new_ckchs->ckch->key)) {
 			memprintf(&err, "inconsistencies between private key and certificate loaded '%s'.\n", ckchs_transaction.path);
 			goto error;
