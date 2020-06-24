@@ -329,17 +329,17 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 		/* this tasklet runs on the caller thread */
 		if (LIST_ISEMPTY(&tl->list)) {
 			if (tl->state & TASK_SELF_WAKING) {
-				LIST_ADDQ(&task_per_thread[tid].tasklets[TL_BULK], &tl->list);
+				LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
 			}
 			else if ((struct task *)tl == sched->current) {
 				_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
-				LIST_ADDQ(&task_per_thread[tid].tasklets[TL_BULK], &tl->list);
+				LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
 			}
-			else if (!sched->current) {
-				LIST_ADDQ(&task_per_thread[tid].tasklets[TL_URGENT], &tl->list);
+			else if (sched->current_queue < 0) {
+				LIST_ADDQ(&sched->tasklets[TL_URGENT], &tl->list);
 			}
 			else {
-				LIST_ADDQ(sched->current_queue, &tl->list);
+				LIST_ADDQ(&sched->tasklets[sched->current_queue], &tl->list);
 			}
 
 			_HA_ATOMIC_ADD(&tasks_run_queue, 1);

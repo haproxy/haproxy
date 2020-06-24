@@ -330,7 +330,6 @@ int run_tasks_from_list(struct list *list, int max)
 	void *ctx;
 	int done = 0;
 
-	sched->current_queue = list;
 	while (done < max && !LIST_ISEMPTY(list)) {
 		t = (struct task *)LIST_ELEM(list->n, struct tasklet *, list);
 		state = (t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING));
@@ -402,7 +401,6 @@ int run_tasks_from_list(struct list *list, int max)
 		done++;
 	}
 
-	sched->current_queue = NULL;
 	return done;
 }
 
@@ -551,8 +549,11 @@ void process_runnable_tasks()
 
 	/* execute tasklets in each queue */
 	for (queue = 0; queue < TL_CLASSES; queue++) {
-		if (max[queue] > 0)
+		if (max[queue] > 0) {
+			tt->current_queue = queue;
 			max_processed -= run_tasks_from_list(&tt->tasklets[queue], max[queue]);
+			tt->current_queue = -1;
+		}
 	}
 
 	/* some tasks may have woken other ones up */
