@@ -67,6 +67,7 @@
 #define GTUNE_INSECURE_FORK      (1<<16)
 #define GTUNE_INSECURE_SETUID    (1<<17)
 #define GTUNE_FD_ET              (1<<18)
+#define GTUNE_SCHED_LOW_LATENCY  (1<<19)
 
 /* SSL server verify mode */
 enum {

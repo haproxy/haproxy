@@ -16,6 +16,7 @@
 #include <import/eb32tree.h>
 
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/list.h>
@@ -328,6 +329,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 	struct task *(*process)(struct task *t, void *ctx, unsigned short state);
 	struct list *tl_queues = sched->tasklets;
 	struct task *t;
+	uint8_t budget_mask = (1 << TL_CLASSES) - 1;
 	unsigned int done = 0;
 	unsigned int queue;
 	unsigned short state;
@@ -336,6 +338,33 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 	for (queue = 0; queue < TL_CLASSES;) {
 		sched->current_queue = queue;
 
+		/* global.tune.sched.low-latency is set */
+		if (global.tune.options & GTUNE_SCHED_LOW_LATENCY) {
+			if (unlikely(sched->tl_class_mask & budget_mask & ((1 << queue) - 1))) {
+				/* a lower queue index has tasks again and still has a
+				 * budget to run them. Let's switch to it now.
+				 */
+				queue = (sched->tl_class_mask & 1) ? 0 :
+					(sched->tl_class_mask & 2) ? 1 : 2;
+				continue;
+			}
+
+			if (unlikely(queue > TL_URGENT &&
+				     budget_mask & (1 << TL_URGENT) &&
+				     !MT_LIST_ISEMPTY(&sched->shared_tasklet_list))) {
+				/* an urgent tasklet arrived from another thread */
+				break;
+			}
+
+			if (unlikely(queue > TL_NORMAL &&
+				     budget_mask & (1 << TL_NORMAL) &&
+				     ((sched->rqueue_size > 0) ||
+				      (global_tasks_mask & tid_bit)))) {
+				/* a task was woken up by a bulk tasklet or another thread */
+				break;
+			}
+		}
+
 		if (LIST_ISEMPTY(&tl_queues[queue])) {
 			sched->tl_class_mask &= ~(1 << queue);
 			queue++;
@@ -343,6 +372,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		}
 
 		if (!budgets[queue]) {
+			budget_mask &= ~(1 << queue);
 			queue++;
 			continue;
 		}
@@ -687,6 +717,32 @@ static void init_task()
 	}
 }
 
+/* config parser for global "tune.sched.low-latency", accepts "on" or "off" */
+static int cfg_parse_tune_sched_low_latency(char **args, int section_type, struct proxy *curpx,
+                                      struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global.tune.options |= GTUNE_SCHED_LOW_LATENCY;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.options &= ~GTUNE_SCHED_LOW_LATENCY;
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+
+/* config keyword parsers */
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.sched.low-latency", cfg_parse_tune_sched_low_latency },
+	{ 0, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 INITCALL0(STG_PREPARE, init_task);
 
 /*

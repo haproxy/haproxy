@@ -697,6 +697,7 @@ The following keywords are supported in the "global" section :
    - tune.rcvbuf.server
    - tune.recv_enough
    - tune.runqueue-depth
+   - tune.sched.low-latency
    - tune.sndbuf.client
    - tune.sndbuf.server
    - tune.ssl.cachesize
@@ -2095,7 +2096,20 @@ tune.recv_enough <number>
 tune.runqueue-depth <number>
   Sets the maximum amount of task that can be processed at once when running
   tasks. The default value is 200. Increasing it may incur latency when
-  dealing with I/Os, making it too small can incur extra overhead.
+  dealing with I/Os, making it too small can incur extra overhead. When
+  experimenting with much larger values, it may be useful to also enable
+  tune.sched.low-latency to limit the maximum latency to the lowest possible.
+
+tune.sched.low-latency { on | off }
+  Enables ('on') or disables ('off') the low-latency task scheduler. By default
+  haproxy processes tasks from several classes one class at a time as this is
+  the most efficient. But when running with large values of tune.runqueue-depth
+  this can have a measurable effect on request or connection latency. When this
+  low-latency setting is enabled, tasks of lower priority classes will always
+  be executed before other ones if they exist. This will permit to lower the
+  maximum latency experienced by new requests or connections in the middle of
+  massive traffic, at the expense of a higher impact on this large traffic.
+  For regular usage it is better to leave this off. The default value is off.
 
 tune.sndbuf.client <number>
 tune.sndbuf.server <number>
@@ -15838,11 +15852,12 @@ lat_ns_avg : integer
   the value low, it is possible to reduce the scheduler's run queue depth using
   "tune.runqueue-depth", to reduce the number of concurrent events processed at
   once using "tune.maxpollevents", to decrease the stream's nice value using
-  the "nice" option on the "bind" lines or in the frontend, or to look for
-  other heavy requests in logs (those exhibiting large values of "cpu_ns_avg"),
-  whose processing needs to be adjusted or fixed. Compression of large buffers
-  could be a culprit, like heavy regex or long lists of regex.
-  Note: this value is exactly lat_ns_tot divided by cpu_calls.
+  the "nice" option on the "bind" lines or in the frontend, to enable low
+  latency scheduling using "tune.sched.low-latency", or to look for other heavy
+  requests in logs (those exhibiting large values of "cpu_ns_avg"), whose
+  processing needs to be adjusted or fixed. Compression of large buffers could
+  be a culprit, like heavy regex or long lists of regex. Note: this value is
+  exactly lat_ns_tot divided by cpu_calls.
 
 lat_ns_tot : integer
   Returns the total number of nanoseconds spent between the moment the task
@@ -15854,10 +15869,11 @@ lat_ns_tot : integer
   the value low, it is possible to reduce the scheduler's run queue depth using
   "tune.runqueue-depth", to reduce the number of concurrent events processed at
   once using "tune.maxpollevents", to decrease the stream's nice value using
-  the "nice" option on the "bind" lines or in the frontend, or to look for
-  other heavy requests in logs (those exhibiting large values of "cpu_ns_avg"),
-  whose processing needs to be adjusted or fixed. Compression of large buffers
-  could be a culprit, like heavy regex or long lists of regex. Note: while it
+  the "nice" option on the "bind" lines or in the frontend, to enable low
+  latency scheduling using "tune.sched.low-latency", or to look for other heavy
+  requests in logs (those exhibiting large values of "cpu_ns_avg"), whose
+  processing needs to be adjusted or fixed. Compression of large buffers could
+  be a culprit, like heavy regex or long lists of regex. Note: while it
   may intuitively seem that the total latency adds to a transfer time, it is
   almost never true because while a task waits for the CPU, network buffers
   continue to fill up and the next call will process more at once. The value
