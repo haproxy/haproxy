@@ -4763,6 +4763,7 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 		back = ebmb_next(node);
 		ebmb_delete(node);
 		SSL_CTX_free(sni->ctx);
+		LIST_DEL(&sni->by_ckch_inst);
 		free(sni);
 		node = back;
 	}
@@ -4778,15 +4779,25 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 			free(sni->conf);
 			sni->conf = NULL;
 		}
+		LIST_DEL(&sni->by_ckch_inst);
 		free(sni);
 		node = back;
 	}
+
 	SSL_CTX_free(bind_conf->initial_ctx);
 	bind_conf->initial_ctx = NULL;
 	SSL_CTX_free(bind_conf->default_ctx);
 	bind_conf->default_ctx = NULL;
 	bind_conf->default_ssl_conf = NULL;
 }
+
+
+void ssl_sock_deinit()
+{
+	crtlist_deinit(); /* must be free'd before the ckchs */
+	ckch_deinit();
+}
+REGISTER_POST_DEINIT(ssl_sock_deinit);
 
 /* Destroys all the contexts for a bind_conf. This is used during deinit(). */
 void ssl_sock_destroy_bind_conf(struct bind_conf *bind_conf)

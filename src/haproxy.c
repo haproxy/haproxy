@@ -116,8 +116,6 @@
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/signal.h>
-#include <haproxy/ssl_ckch.h>
-#include <haproxy/ssl_crtlist.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
@@ -2786,10 +2784,6 @@ void deinit(void)
 			free(l->counters);
 			free(l);
 		}
-
-		/* SSL storage */
-		crtlist_deinit(); /* must be free'd before the ckchs */
-		ckch_deinit();
 
 		/* Release unused SSL configs. */
 		list_for_each_entry_safe(bind_conf, bind_back, &p->conf.bind, by_fe) {
