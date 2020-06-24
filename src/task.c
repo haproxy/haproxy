@@ -422,13 +422,26 @@ int run_tasks_from_list(struct list *list, int max)
 void process_runnable_tasks()
 {
 	struct task_per_thread * const tt = sched;
-	struct eb32sc_node *lrq = NULL; // next local run queue entry
-	struct eb32sc_node *grq = NULL; // next global run queue entry
+	struct eb32sc_node *lrq; // next local run queue entry
+	struct eb32sc_node *grq; // next global run queue entry
 	struct task *t;
-	int max_processed, done;
+	const unsigned int default_weights[TL_CLASSES] = {
+		[TL_URGENT] = 64, // ~50% of CPU bandwidth for I/O
+		[TL_NORMAL] = 48, // ~37% of CPU bandwidth for tasks
+		[TL_BULK]   = 16, // ~13% of CPU bandwidth for self-wakers
+	};
+	unsigned int max[TL_CLASSES]; // max to be run per class
+	unsigned int max_total;       // sum of max above
 	struct mt_list *tmp_list;
+	unsigned int queue;
+	int max_processed;
 
 	ti->flags &= ~TI_FL_STUCK; // this thread is still running
+
+	if (!thread_has_tasks()) {
+		activity[tid].empty_rq++;
+		return;
+	}
 
 	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
@@ -437,30 +450,37 @@ void process_runnable_tasks()
 	if (likely(niced_tasks))
 		max_processed = (max_processed + 3) / 4;
 
-	if (!thread_has_tasks()) {
-		activity[tid].empty_rq++;
-		return;
-	}
-
  not_done_yet:
-	/* Merge the list of tasklets waken up by other threads to the
-	 * main list.
+	max[TL_URGENT] = max[TL_NORMAL] = max[TL_BULK] = 0;
+
+	/* urgent tasklets list gets a default weight of ~50% */
+	if (!LIST_ISEMPTY(&tt->tasklets[TL_URGENT]) ||
+	    !MT_LIST_ISEMPTY(&tt->shared_tasklet_list))
+		max[TL_URGENT] = default_weights[TL_URGENT];
+
+	/* normal tasklets list gets a default weight of ~37% */
+	if (!LIST_ISEMPTY(&tt->tasklets[TL_NORMAL]) ||
+	    (sched->rqueue_size > 0) || (global_tasks_mask & tid_bit))
+		max[TL_NORMAL] = default_weights[TL_NORMAL];
+
+	/* bulk tasklets list gets a default weight of ~13% */
+	if (!LIST_ISEMPTY(&tt->tasklets[TL_BULK]))
+		max[TL_BULK] = default_weights[TL_BULK];
+
+	/* Now compute a fair share of the weights. Total may slightly exceed
+	 * 100% due to rounding, this is not a problem. Note that by design
+	 * the sum cannot be NULL as we cannot get there without tasklets to
+	 * process.
 	 */
-	tmp_list = MT_LIST_BEHEAD(&sched->shared_tasklet_list);
-	if (tmp_list)
-		LIST_SPLICE_END_DETACHED(&sched->tasklets[TL_URGENT], (struct list *)tmp_list);
+	max_total = max[TL_URGENT] + max[TL_NORMAL] + max[TL_BULK];
+	for (queue = 0; queue < TL_CLASSES; queue++)
+		max[queue]  = ((unsigned)max_processed * max[queue] + max_total - 1) / max_total;
 
-	/* run up to max_processed/3 urgent tasklets */
-	if (max_processed > 0) {
-		done = run_tasks_from_list(&tt->tasklets[TL_URGENT], (max_processed + 2) / 3);
-		max_processed -= done;
-	}
+	lrq = grq = NULL;
 
-	/* pick up to max_processed/2 (~=3/4*(max_processed-done)) regular tasks from prio-ordered run queues */
-
+	/* pick up to max[TL_NORMAL] regular tasks from prio-ordered run queues */
 	/* Note: the grq lock is always held when grq is not null */
-
-	while (tt->task_list_size < (3 * max_processed + 3) / 4) {
+	while (tt->task_list_size < max[TL_NORMAL]) {
 		if ((global_tasks_mask & tid_bit) && !grq) {
 #ifdef USE_THREAD
 			HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
@@ -522,16 +542,17 @@ void process_runnable_tasks()
 		grq = NULL;
 	}
 
-	/* run between 0.4*max_processed and max_processed/2 regular tasks */
-	if (max_processed > 0) {
-		done = run_tasks_from_list(&tt->tasklets[TL_NORMAL], (3 * max_processed + 3) / 4);
-		max_processed -= done;
-	}
+	/* Merge the list of tasklets waken up by other threads to the
+	 * main list.
+	 */
+	tmp_list = MT_LIST_BEHEAD(&tt->shared_tasklet_list);
+	if (tmp_list)
+		LIST_SPLICE_END_DETACHED(&tt->tasklets[TL_URGENT], (struct list *)tmp_list);
 
-	/* run between max_processed/4 and max_processed bulk tasklets */
-	if (max_processed > 0) {
-		done = run_tasks_from_list(&tt->tasklets[TL_BULK], max_processed);
-		max_processed -= done;
+	/* execute tasklets in each queue */
+	for (queue = 0; queue < TL_CLASSES; queue++) {
+		if (max[queue] > 0)
+			max_processed -= run_tasks_from_list(&tt->tasklets[queue], max[queue]);
 	}
 
 	/* some tasks may have woken other ones up */
