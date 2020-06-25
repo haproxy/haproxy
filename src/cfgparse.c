@@ -1903,12 +1903,14 @@ next_line:
 					 file, linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
+				linenum--;
 				continue;
 			}
 
 			readbytes = linesize - 1;
 			linesize = newlinesize;
 			thisline = newline;
+			linenum--;
 			continue;
 		}
 
