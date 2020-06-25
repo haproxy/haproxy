@@ -698,7 +698,7 @@ int si_cs_send(struct conn_stream *cs)
 		if ((!(oc->flags & (CF_NEVER_WAIT|CF_SEND_DONTWAIT)) &&
 		     ((oc->to_forward && oc->to_forward != CHN_INFINITE_FORWARD) ||
 		      (oc->flags & CF_EXPECT_MORE) ||
-		      (IS_HTX_STRM(si_strm(si)) && !(oc->flags & CF_EOI)))) ||
+		      (IS_HTX_STRM(si_strm(si)) && !(oc->flags & (CF_EOI|CF_SHUTR))))) ||
 		    ((oc->flags & CF_ISRESP) &&
 		     ((oc->flags & (CF_AUTO_CLOSE|CF_SHUTW_NOW)) == (CF_AUTO_CLOSE|CF_SHUTW_NOW))))
 			send_flag |= CO_SFL_MSG_MORE;
