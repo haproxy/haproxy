@@ -824,6 +824,7 @@ static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *app
 	struct ebmb_node *lnode;
 	char *filename = NULL;
 	int mode;
+	char *end;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -843,6 +844,12 @@ static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *app
 		return cli_err(appctx, "'show ssl crt-list -n' expects a filename or a directory\n");
 
 	if (filename && *filename) {
+
+
+		/* strip trailing slashes, including first one */
+		for (end = filename + strlen(filename) - 1; end >= filename && *end == '/'; end--)
+			*end = 0;
+
 		lnode = ebst_lookup(&crtlists_tree, filename);
 		if (lnode == NULL)
 			return cli_err(appctx, "didn't find the specified filename\n");
@@ -1017,6 +1024,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 	struct ebpt_node *inserted;
 	struct crtlist *crtlist;
 	struct crtlist_entry *entry = NULL;
+	char *end;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -1025,6 +1033,10 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		return cli_err(appctx, "'add ssl crtlist' expects a filename and a certificate name\n");
 
 	crtlist_path = args[3];
+
+	/* strip trailing slashes, including first one */
+	for (end = crtlist_path + strlen(crtlist_path) - 1; end >= crtlist_path && *end == '/'; end--)
+		*end = 0;
 
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return cli_err(appctx, "Operations on certificates are currently locked!\n");
@@ -1151,6 +1163,7 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 	struct ckch_inst *inst, *inst_s;
 	int linenum = 0;
 	char *colons;
+	char *end;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -1175,6 +1188,11 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 		}
 		*colons = '\0';
 	}
+
+	/* strip trailing slashes, including first one */
+	for (end = crtlist_path + strlen(crtlist_path) - 1; end >= crtlist_path && *end == '/'; end--)
+		*end = 0;
+
 	/* look for crtlist */
 	ebmb = ebst_lookup(&crtlists_tree, crtlist_path);
 	if (!ebmb) {
