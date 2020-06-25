@@ -1976,14 +1976,6 @@ next_line:
 				goto next_line;
 			}
 
-			if (err & PARSE_ERR_TOOMANY) {
-				ha_alert("parsing [%s:%d]: too many words, truncating after word %d, position %ld: <%s>.\n",
-					 file, linenum, MAX_LINE_ARGS, (long)(args[MAX_LINE_ARGS-1] - outline + 1), args[MAX_LINE_ARGS-1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				fatal++;
-				goto next_line;
-			}
-
 			if (err & (PARSE_ERR_TOOLARGE|PARSE_ERR_OVERLAP)) {
 				outlinesize = (outlen + 1023) & -1024;
 				outline = realloc(outline, outlinesize);
@@ -1997,6 +1989,16 @@ next_line:
 				/* try again */
 				continue;
 			}
+
+			if (err & PARSE_ERR_TOOMANY) {
+				/* only check this *after* being sure the output is allocated */
+				ha_alert("parsing [%s:%d]: too many words, truncating after word %d, position %ld: <%s>.\n",
+					 file, linenum, MAX_LINE_ARGS, (long)(args[MAX_LINE_ARGS-1] - outline + 1), args[MAX_LINE_ARGS-1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				fatal++;
+				goto next_line;
+			}
+
 			/* everything's OK */
 			break;
 		}
