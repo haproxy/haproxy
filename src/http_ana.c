@@ -4573,6 +4573,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 		channel_auto_read(res);
 		channel_auto_close(res);
 		channel_shutr_now(res);
+		res->flags |= CF_EOI; /* The response is terminated, add EOI */
 	}
 
 	data = htx->data - co_data(res);
