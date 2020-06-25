@@ -91,14 +91,20 @@ smp_fetch_ssl_fc_has_crt(const struct arg *args, struct sample *smp, const char 
 static int
 smp_fetch_ssl_x_der(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
+
 	X509 *crt = NULL;
 	int ret = 0;
 	struct buffer *smp_trash;
 	struct connection *conn;
 	SSL *ssl;
 
-	conn = objt_conn(smp->sess->origin);
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
+
 	ssl = ssl_sock_get_ssl_object(conn);
 	if (!ssl)
 		return 0;
@@ -137,14 +143,18 @@ out:
 static int
 smp_fetch_ssl_x_serial(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
 	X509 *crt = NULL;
 	int ret = 0;
 	struct buffer *smp_trash;
 	struct connection *conn;
 	SSL *ssl;
 
-	conn = objt_conn(smp->sess->origin);
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
 	ssl = ssl_sock_get_ssl_object(conn);
 	if (!ssl)
 		return 0;
@@ -183,7 +193,8 @@ out:
 static int
 smp_fetch_ssl_x_sha1(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
 	X509 *crt = NULL;
 	const EVP_MD *digest;
 	int ret = 0;
@@ -192,7 +203,11 @@ smp_fetch_ssl_x_sha1(const struct arg *args, struct sample *smp, const char *kw,
 	struct connection *conn;
 	SSL *ssl;
 
-	conn = objt_conn(smp->sess->origin);
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
+
 	ssl = ssl_sock_get_ssl_object(conn);
 	if (!ssl)
 		return 0;
@@ -230,14 +245,19 @@ out:
 static int
 smp_fetch_ssl_x_notafter(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
 	X509 *crt = NULL;
 	int ret = 0;
 	struct buffer *smp_trash;
 	struct connection *conn;
 	SSL *ssl;
 
-	conn = objt_conn(smp->sess->origin);
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
+
 	ssl = ssl_sock_get_ssl_object(conn);
 	if (!ssl)
 		return 0;
@@ -275,7 +295,8 @@ out:
 static int
 smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
 	X509 *crt = NULL;
 	X509_NAME *name;
 	int ret = 0;
@@ -283,7 +304,11 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 	struct connection *conn;
 	SSL *ssl;
 
-	conn = objt_conn(smp->sess->origin);
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
+
 	ssl = ssl_sock_get_ssl_object(conn);
 	if (!ssl)
 		return 0;
@@ -338,14 +363,19 @@ out:
 static int
 smp_fetch_ssl_x_notbefore(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
 	X509 *crt = NULL;
 	int ret = 0;
 	struct buffer *smp_trash;
 	struct connection *conn;
 	SSL *ssl;
 
-	conn = objt_conn(smp->sess->origin);
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
+
 	ssl = ssl_sock_get_ssl_object(conn);
 	if (!ssl)
 		return 0;
@@ -383,7 +413,8 @@ out:
 static int
 smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
 	X509 *crt = NULL;
 	X509_NAME *name;
 	int ret = 0;
@@ -391,7 +422,11 @@ smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw,
 	struct connection *conn;
 	SSL *ssl;
 
-	conn = objt_conn(smp->sess->origin);
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
+
 	ssl = ssl_sock_get_ssl_object(conn);
 	if (!ssl)
 		return 0;
@@ -475,12 +510,17 @@ smp_fetch_ssl_c_used(const struct arg *args, struct sample *smp, const char *kw,
 static int
 smp_fetch_ssl_x_version(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
+
 	X509 *crt;
 	struct connection *conn;
 	SSL *ssl;
 
-	conn = objt_conn(smp->sess->origin);
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
 	ssl = ssl_sock_get_ssl_object(conn);
 	if (!ssl)
 		return 0;
@@ -513,14 +553,19 @@ smp_fetch_ssl_x_version(const struct arg *args, struct sample *smp, const char *
 static int
 smp_fetch_ssl_x_sig_alg(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
 	X509 *crt;
 	__OPENSSL_110_CONST__ ASN1_OBJECT *algorithm;
 	int nid;
 	struct connection *conn;
 	SSL *ssl;
 
-	conn = objt_conn(smp->sess->origin);
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
+
 	ssl = ssl_sock_get_ssl_object(conn);
 	if (!ssl)
 		return 0;
@@ -565,14 +610,18 @@ smp_fetch_ssl_x_sig_alg(const struct arg *args, struct sample *smp, const char *
 static int
 smp_fetch_ssl_x_key_alg(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
 	X509 *crt;
 	ASN1_OBJECT *algorithm;
 	int nid;
 	struct connection *conn;
 	SSL *ssl;
 
-	conn = objt_conn(smp->sess->origin);
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
 	ssl = ssl_sock_get_ssl_object(conn);
 	if (!ssl)
 		return 0;
@@ -1337,6 +1386,18 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_cipherlist_hex",  smp_fetch_ssl_fc_cl_hex,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_str",  smp_fetch_ssl_fc_cl_str,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_xxh",  smp_fetch_ssl_fc_cl_xxh64,    0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
+
+/* SSL server certificate fetches */
+	{ "ssl_s_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+	{ "ssl_s_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_s_notafter",         smp_fetch_ssl_x_notafter,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_s_notbefore",        smp_fetch_ssl_x_notbefore,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_s_sig_alg",          smp_fetch_ssl_x_sig_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_s_s_dn",             smp_fetch_ssl_x_s_dn,         ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_s_i_dn",             smp_fetch_ssl_x_i_dn,         ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_s_serial",           smp_fetch_ssl_x_serial,       0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+	{ "ssl_s_sha1",             smp_fetch_ssl_x_sha1,         0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+	{ "ssl_s_version",          smp_fetch_ssl_x_version,      0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
