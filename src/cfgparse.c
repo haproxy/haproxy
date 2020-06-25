@@ -1938,7 +1938,7 @@ next_line:
 			uint32_t err;
 			char *errptr;
 
-			arg = MAX_LINE_ARGS;
+			arg = MAX_LINE_ARGS + 1;
 			outlen = outlinesize;
 			err = parse_line(line, outline, &outlen, args, &arg,
 					 PARSE_OPT_ENV | PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE |
@@ -1977,7 +1977,7 @@ next_line:
 			}
 
 			if (err & PARSE_ERR_TOOMANY) {
-				ha_alert("parsing [%s:%d]: too many words, truncating at word %d, position %ld: <%s>.\n",
+				ha_alert("parsing [%s:%d]: too many words, truncating after word %d, position %ld: <%s>.\n",
 					 file, linenum, MAX_LINE_ARGS, (long)(args[MAX_LINE_ARGS-1] - outline + 1), args[MAX_LINE_ARGS-1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
