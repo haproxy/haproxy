@@ -1945,32 +1945,40 @@ next_line:
 					 PARSE_OPT_BKSLASH | PARSE_OPT_SHARP, &errptr);
 
 			if (err & PARSE_ERR_QUOTE) {
-				ha_alert("parsing [%s:%d]: unmatched quote below:\n"
-					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
+				size_t newpos = sanitize_for_printing(line, errptr - line, 80);
+
+				ha_alert("parsing [%s:%d]: unmatched quote at position %d:\n"
+					 "  %s\n  %*s\n", file, linenum, (int)(errptr-thisline+1), line, (int)(newpos+1), "^");
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
 				goto next_line;
 			}
 
 			if (err & PARSE_ERR_BRACE) {
-				ha_alert("parsing [%s:%d]: unmatched brace in environment variable name below:\n"
-					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
+				size_t newpos = sanitize_for_printing(line, errptr - line, 80);
+
+				ha_alert("parsing [%s:%d]: unmatched brace in environment variable name at position %d:\n"
+					 "  %s\n  %*s\n", file, linenum, (int)(errptr-thisline+1), line, (int)(newpos+1), "^");
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
 				goto next_line;
 			}
 
 			if (err & PARSE_ERR_VARNAME) {
-				ha_alert("parsing [%s:%d]: forbidden first char in environment variable name below:\n"
-					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
+				size_t newpos = sanitize_for_printing(line, errptr - line, 80);
+
+				ha_alert("parsing [%s:%d]: forbidden first char in environment variable name at position %d:\n"
+					 "  %s\n  %*s\n", file, linenum, (int)(errptr-thisline+1), line, (int)(newpos+1), "^");
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
 				goto next_line;
 			}
 
 			if (err & PARSE_ERR_HEX) {
-				ha_alert("parsing [%s:%d]: truncated or invalid hexadecimal sequence below:\n"
-					 "  %s\n  %*s\n", file, linenum, line, (int)(errptr-line+1), "^");
+				size_t newpos = sanitize_for_printing(line, errptr - line, 80);
+
+				ha_alert("parsing [%s:%d]: truncated or invalid hexadecimal sequence at position %d:\n"
+					 "  %s\n  %*s\n", file, linenum, (int)(errptr-thisline+1), line, (int)(newpos+1), "^");
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
 				goto next_line;

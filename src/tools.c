@@ -4990,6 +4990,51 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 }
 #undef EMIT_CHAR
 
+/* This is used to sanitize an input line that's about to be used for error reporting.
+ * It will adjust <line> to print approximately <width> chars around <pos>, trying to
+ * preserve the beginning, with leading or trailing "..." when the line is truncated.
+ * If non-printable chars are present in the output. It returns the new offset <pos>
+ * in the modified line. Non-printable characters are replaced with '?'. <width> must
+ * be at least 6 to support two "..." otherwise the result is undefined. The line
+ * itself must have at least 7 chars allocated for the same reason.
+ */
+size_t sanitize_for_printing(char *line, size_t pos, size_t width)
+{
+	size_t shift = 0;
+	char *out = line;
+	char *in = line;
+	char *end = line + width;
+
+	if (pos >= width) {
+		/* if we have to shift, we'll be out of context, so let's
+		 * try to put <pos> at the center of width.
+		 */
+		shift = pos - width / 2;
+		in += shift + 3;
+		end = out + width - 3;
+		out[0] = out[1] = out[2] = '.';
+		out += 3;
+	}
+
+	while (out < end && *in) {
+		if (isspace((unsigned char)*in))
+			*out++ = ' ';
+		else if (isprint((unsigned char)*in))
+			*out++ = *in;
+		else
+			*out++ = '?';
+		in++;
+	}
+
+	if (end < line + width) {
+		out[0] = out[1] = out[2] = '.';
+		out += 3;
+	}
+
+	*out++ = 0;
+	return pos - shift;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
