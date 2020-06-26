@@ -1500,14 +1500,23 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
     >>> # table: http_proxy, type: ip, size:204800, used:1
 
 commit ssl cert <filename>
-  Commit and apply a temporary SSL certificate update transaction.
-  Generate every SSL contextes and SNIs it needs, insert them, and remove
-  the previous ones. Replace in memory the previous SSL certificates
-  everywhere the <filename> was used in the configuration.
-  Upon failure it doesn't remove or insert anything. Once the temporary
-  transaction is committed, it is destroyed.
+  Commit a temporary SSL certificate update transaction.
 
-  See also "ssl set cert" and "abort ssl cert".
+  In the case of an existing certificate (in a "Used" state in "show ssl
+  cert"), generate every SSL contextes and SNIs it need, insert them, and
+  remove the previous ones. Replace in memory the previous SSL certificates
+  everywhere the <filename> was used in the configuration. Upon failure it
+  doesn't remove or insert anything. Once the temporary transaction is
+  committed, it is destroyed.
+
+  In the case of a new certificate (after a "new ssl cert" and in a "Unused"
+  state in "show ssl cert"), the certificate will be commited in a certificate
+  storage, but it won't be used anywhere in haproxy. To use it and generate
+  its SNIs you will need to add it to a crt-list or a directory with "add ssl
+  crt-list".
+
+  See also "new ssl cert", "ssl set cert", "abort ssl cert" and
+  "add ssl crt-list".
 
 debug dev <command> [args]*
   Call a developer-specific command. Only supported on a CLI connection running
