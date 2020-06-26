@@ -1916,7 +1916,7 @@ next_line:
 
 		readbytes = 0;
 
-		if (*(end-1) == '\n') {
+		if (end > line && *(end-1) == '\n') {
 			/* kill trailing LF */
 			*(end - 1) = 0;
 		}
