@@ -1,0 +1,72 @@
+#REGTEST_TYPE=devel
+
+varnishtest "Test the ssl_f_* sample fetches"
+#REQUIRE_VERSION=1.5
+#REQUIRE_OPTIONS=OPENSSL
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        crt-base ${testdir}
+
+    defaults
+        mode http
+        option httplog
+        ${no-htx} option http-use-htx
+        log stderr local0 debug err
+        option logasap
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        server s1 "${tmpdir}/ssl.sock" ssl verify none
+
+    listen ssl-lst
+        mode http
+        ${no-htx} option http-use-htx
+
+        http-response add-header x-ssl-der %[ssl_f_der,hex]
+        http-response add-header x-ssl-sha1 %[ssl_f_sha1,hex]
+        http-response add-header x-ssl-notafter %[ssl_f_notafter]
+        http-response add-header x-ssl-notbefore %[ssl_f_notbefore]
+        http-response add-header x-ssl-sig_alg %[ssl_f_sig_alg]
+        http-response add-header x-ssl-i_dn %[ssl_f_i_dn]
+        http-response add-header x-ssl-s_dn %[ssl_f_s_dn]
+        http-response add-header x-ssl-s_serial %[ssl_f_serial,hex]
+        http-response add-header x-ssl-key_alg %[ssl_f_key_alg]
+        http-response add-header x-ssl-version %[ssl_f_version]
+
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl-der ~ 3082067930820461A0030201020201.*207B5E3D4498BB847BC4DE093F9AD1AD3661C93EE43EB
+    expect resp.http.x-ssl-sha1 == "2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
+    expect resp.http.x-ssl-notafter == "180116230238Z"
+    expect resp.http.x-ssl-notbefore == "160117230238Z"
+    expect resp.http.x-ssl-sig_alg == "RSA-SHA256"
+    expect resp.http.x-ssl-i_dn == "/C=FR/ST=Ile-de-France/L=Paris/O=ozon.io/CN=Ozon Test CA/emailAddress=support@ozon.io"
+    expect resp.http.x-ssl-s_dn  == "/C=FR/ST=Ile-de-France/L=Neuilly-sur-Seine/O=TOAD Consulting/OU=eParapher Team/CN=www.test1.com/emailAddress=arnault.michel@toad-consulting.fr"
+    expect resp.http.x-ssl-s_serial == "02"
+    expect resp.http.x-ssl-key_alg == "rsaEncryption"
+    expect resp.http.x-ssl-version == "3"
+} -run
+
+
