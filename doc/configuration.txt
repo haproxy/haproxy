@@ -17104,8 +17104,8 @@ ssl_s_i_dn([<entry>[,<occ>[,<format>]]]) : string
   first given entry found from the beginning of the DN. If a positive/negative
   occurrence number is specified as the optional second argument, it returns
   the value of the nth given entry value from the beginning/end of the DN.
-  For instance, "ssl_f_i_dn(OU,2)" the second organization unit, and
-  "ssl_f_i_dn(CN)" retrieves the common name.
+  For instance, "ssl_s_i_dn(OU,2)" the second organization unit, and
+  "ssl_s_i_dn(CN)" retrieves the common name.
   The <format> parameter allows you to receive the DN suitable for
   consumption by different protocols. Currently supported is rfc2253 for
   LDAP v3.
@@ -17119,8 +17119,8 @@ ssl_s_s_dn([<entry>[,<occ>[,<format>]]]) : string
   first given entry found from the beginning of the DN. If a positive/negative
   occurrence number is specified as the optional second argument, it returns
   the value of the nth given entry value from the beginning/end of the DN.
-  For instance, "ssl_f_s_dn(OU,2)" the second organization unit, and
-  "ssl_f_s_dn(CN)" retrieves the common name.
+  For instance, "ssl_s_s_dn(OU,2)" the second organization unit, and
+  "ssl_s_s_dn(CN)" retrieves the common name.
   The <format> parameter allows you to receive the DN suitable for
   consumption by different protocols. Currently supported is rfc2253 for
   LDAP v3.
