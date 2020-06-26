@@ -990,21 +990,19 @@ static int smp_fetch_hdr_val(const struct arg *args, struct sample *smp, const c
 static int smp_fetch_hdr_ip(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int ret;
+	struct buffer *temp = get_trash_chunk();
 
 	while ((ret = smp_fetch_hdr(args, smp, kw, private)) > 0) {
-		if (url2ipv4((char *) smp->data.u.str.area, &smp->data.u.ipv4)) {
-			smp->data.type = SMP_T_IPV4;
-			break;
-		} else {
-			struct buffer *temp = get_trash_chunk();
-			if (smp->data.u.str.data < temp->size - 1) {
-				memcpy(temp->area, smp->data.u.str.area,
-				       smp->data.u.str.data);
-				temp->area[smp->data.u.str.data] = '\0';
-				if (inet_pton(AF_INET6, temp->area, &smp->data.u.ipv6)) {
-					smp->data.type = SMP_T_IPV6;
-					break;
-				}
+		if (smp->data.u.str.data < temp->size - 1) {
+			memcpy(temp->area, smp->data.u.str.area,
+			       smp->data.u.str.data);
+			temp->area[smp->data.u.str.data] = '\0';
+			if (url2ipv4((char *) temp->area, &smp->data.u.ipv4)) {
+				smp->data.type = SMP_T_IPV4;
+				break;
+			} else if (inet_pton(AF_INET6, temp->area, &smp->data.u.ipv6)) {
+				smp->data.type = SMP_T_IPV6;
+				break;
 			}
 		}
 
