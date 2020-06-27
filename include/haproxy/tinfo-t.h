@@ -24,6 +24,7 @@
 
 #include <time.h>
 #include <haproxy/api-t.h>
+#include <haproxy/pool-t.h>
 
 /* thread info flags, for ha_thread_info[].flags */
 #define TI_FL_STUCK             0x00000001
@@ -40,6 +41,10 @@ struct thread_info {
 	uint64_t prev_mono_time;   /* previous system wide monotonic time  */
 	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */
 	unsigned int flags;        /* thread info flags, TI_FL_* */
+
+#ifdef CONFIG_HAP_LOCAL_POOLS
+	struct list pool_lru_head;                         /* oldest objects   */
+#endif
 	/* pad to cache line (64B) */
 	char __pad[0];            /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));

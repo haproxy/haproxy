@@ -36,7 +36,6 @@ unsigned int pool_base_count = 0;
 
 /* These ones are initialized per-thread on startup by init_pools() */
 struct pool_cache_head pool_cache[MAX_THREADS][MAX_BASE_POOLS];
-struct list pool_lru_head[MAX_THREADS];                  /* oldest objects   */
 THREAD_LOCAL size_t pool_cache_bytes = 0;                /* total cache size */
 THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 #endif
@@ -156,7 +155,7 @@ void pool_evict_from_cache()
 	struct pool_cache_head *ph;
 
 	do {
-		item = LIST_PREV(&pool_lru_head[tid], struct pool_cache_item *, by_lru);
+		item = LIST_PREV(&ti->pool_lru_head, struct pool_cache_item *, by_lru);
 		/* note: by definition we remove oldest objects so they also are the
 		 * oldest in their own pools, thus their next is the pool's head.
 		 */
@@ -581,7 +580,7 @@ static void init_pools()
 			LIST_INIT(&pool_cache[thr][idx].list);
 			pool_cache[thr][idx].size = 0;
 		}
-		LIST_INIT(&pool_lru_head[thr]);
+		LIST_INIT(&ha_thread_info[thr].pool_lru_head);
 	}
 #endif
 }

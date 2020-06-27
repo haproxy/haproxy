@@ -78,7 +78,6 @@ static inline int pool_is_crowded(const struct pool_head *pool)
 extern struct pool_head pool_base_start[MAX_BASE_POOLS];
 extern unsigned int pool_base_count;
 extern struct pool_cache_head pool_cache[][MAX_BASE_POOLS];
-extern struct list pool_lru_head[MAX_THREADS];
 extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
 extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 
@@ -134,7 +133,7 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t 
 	struct pool_cache_head *ph = &pool_cache[tid][idx];
 
 	LIST_ADD(&ph->list, &item->by_pool);
-	LIST_ADD(&pool_lru_head[tid], &item->by_lru);
+	LIST_ADD(&ti->pool_lru_head, &item->by_lru);
 	ph->count++;
 	pool_cache_count++;
 	pool_cache_bytes += ph->size;
