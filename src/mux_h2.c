@@ -3532,7 +3532,7 @@ static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 		 */
 		HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
 		tasklet_free(tl);
-		return NULL;
+		goto leave;
 	}
 	h2c = ctx;
 	conn = h2c->conn;
@@ -3570,6 +3570,7 @@ static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
 	}
 
+leave:
 	TRACE_LEAVE(H2_EV_H2C_WAKE);
 	return NULL;
 }
