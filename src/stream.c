@@ -3137,6 +3137,15 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	appctx->ctx.sess.section = 0; /* start with stream status */
 	appctx->ctx.sess.pos = 0;
 
+	/* we need to put an end marker into the streams list. We're just moving
+	 * ourselves there, so that once we found ourselves we know we've reached
+	 * the end. Without this we can run forever if new streams arrive faster
+	 * than we can dump them.
+	 */
+	HA_SPIN_LOCK(STRMS_LOCK, &streams_lock);
+	LIST_DEL(&si_strm(appctx->owner)->list);
+	LIST_ADDQ(&streams, &si_strm(appctx->owner)->list);
+	HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 	return 0;
 }
 
@@ -3188,8 +3197,8 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			LIST_INIT(&appctx->ctx.sess.bref.users);
 		}
 
-		/* and start from where we stopped */
-		while (appctx->ctx.sess.bref.ref != &streams) {
+		/* and start from where we stopped, never going further than ourselves */
+		while (appctx->ctx.sess.bref.ref != si_strm(appctx->owner)->list.n) {
 			char pn[INET6_ADDRSTRLEN];
 			struct stream *curr_strm;
 

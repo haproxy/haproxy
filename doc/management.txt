@@ -2390,7 +2390,11 @@ show servers state [<backend>]
 show sess
   Dump all known sessions. Avoid doing this on slow connections as this can
   be huge. This command is restricted and can only be issued on sockets
-  configured for levels "operator" or "admin".
+  configured for levels "operator" or "admin". Note that on machines with
+  quickly recycled connections, it is possible that this output reports less
+  entries than really exist because it will dump all existing sessions up to
+  the last one that was created before the command was entered; those which
+  die in the mean time will not appear.
 
 show sess <id>
   Display a lot of internal information about the specified session identifier.
