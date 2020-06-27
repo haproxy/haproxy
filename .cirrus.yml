@@ -11,7 +11,7 @@ FreeBSD_task:
     - gmake CC=clang V=1 ERR=1 TARGET=freebsd USE_ZLIB=1 USE_PCRE=1 USE_OPENSSL=1 USE_LUA=1 LUA_INC=/usr/local/include/lua53 LUA_LIB=/usr/local/lib LUA_LIB_NAME=lua-5.3
     - ./haproxy -vv
     - ldd haproxy
-    - env VTEST_PROGRAM=../vtest/vtest gmake reg-tests || (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && exit 1)
+    - env VTEST_PROGRAM=../vtest/vtest gmake reg-tests REGTESTS_TYPES=default,bug,devel || (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && exit 1)
 
 centos_6_task:
   container:
@@ -28,4 +28,4 @@ centos_6_task:
     - ldd haproxy
     # remove some reg-tests (CentOS 6 does not support alpn)
     - rm reg-tests/{connection/proxy_protocol_random_fail,checks/tcp-check-ssl,connection/proxy_protocol_send_unique_id_alpn}.vtc
-    - env VTEST_PROGRAM=../vtest/vtest make reg-tests || (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && exit 1)
+    - env VTEST_PROGRAM=../vtest/vtest make reg-tests REGTESTS_TYPES=default,bug,devel || (for folder in /tmp/*regtest*/vtc.*; do cat $folder/INFO $folder/LOG; done && exit 1)
