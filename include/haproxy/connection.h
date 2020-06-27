@@ -77,7 +77,7 @@ int conn_recv_socks4_proxy_response(struct connection *conn);
 /* If we delayed the mux creation because we were waiting for the handshake, do it now */
 int conn_create_mux(struct connection *conn);
 
-__decl_thread(extern HA_SPINLOCK_T toremove_lock[MAX_THREADS]);
+extern struct idle_conns idle_conns[MAX_THREADS];
 
 /* returns true is the transport layer is ready */
 static inline int conn_xprt_ready(const struct connection *conn)
@@ -494,9 +494,9 @@ static inline void conn_free(struct connection *conn)
 	}
 
 	conn_force_unsubscribe(conn);
-	HA_SPIN_LOCK(OTHER_LOCK, &toremove_lock[tid]);
+	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
 	MT_LIST_DEL((struct mt_list *)&conn->list);
-	HA_SPIN_UNLOCK(OTHER_LOCK, &toremove_lock[tid]);
+	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
 	pool_free(pool_head_connection, conn);
 }
 

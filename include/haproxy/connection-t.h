@@ -600,6 +600,16 @@ struct tlv_ssl {
 }__attribute__((packed));
 
 
+/* This structure is used to manage idle connections, their locking, and the
+ * list of such idle connections to be removed. It is per-thread and must be
+ * accessible from foreign threads.
+ */
+struct idle_conns {
+	struct mt_list toremove_conns;
+	__decl_thread(HA_SPINLOCK_T toremove_lock);
+	struct task *cleanup_task;
+} THREAD_ALIGNED(64);
+
 #endif /* _HAPROXY_CONNECTION_T_H */
 
 /*

@@ -3566,12 +3566,12 @@ out_uri_auth_compat:
 					idle_conn_task->context = NULL;
 
 					for (i = 0; i < global.nbthread; i++) {
-						idle_conn_cleanup[i] = task_new(1UL << i);
-						if (!idle_conn_cleanup[i])
+						idle_conns[i].cleanup_task = task_new(1UL << i);
+						if (!idle_conns[i].cleanup_task)
 							goto err;
-						idle_conn_cleanup[i]->process = srv_cleanup_toremove_connections;
-						idle_conn_cleanup[i]->context = NULL;
-						MT_LIST_INIT(&toremove_connections[i]);
+						idle_conns[i].cleanup_task->process = srv_cleanup_toremove_connections;
+						idle_conns[i].cleanup_task->context = NULL;
+						MT_LIST_INIT(&idle_conns[i].toremove_conns);
 					}
 				}
 

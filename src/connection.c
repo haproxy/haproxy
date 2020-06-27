@@ -32,6 +32,7 @@ DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
 DECLARE_POOL(pool_head_sockaddr,   "sockaddr",    sizeof(struct sockaddr_storage));
 DECLARE_POOL(pool_head_authority,  "authority",   PP2_AUTHORITY_MAX);
 
+struct idle_conns idle_conns[MAX_THREADS] = { };
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
 
 /* List head of all known muxes for PROTO */
