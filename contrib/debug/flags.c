@@ -252,6 +252,8 @@ void show_si_flags(unsigned int f)
 	SHOW_FLAG(f, SI_FL_RXBLK_ROOM);
 	SHOW_FLAG(f, SI_FL_RXBLK_SHUT);
 	SHOW_FLAG(f, SI_FL_RX_WAIT_EP);
+	SHOW_FLAG(f, SI_FL_L7_RETRY);
+	SHOW_FLAG(f, SI_FL_D_L7_RETRY);
 
 	if (f) {
 		printf("EXTRA(0x%08x)", f);
