@@ -1150,6 +1150,7 @@ int connect_server(struct stream *s)
 	int reuse_orphan = 0;
 	int init_mux = 0;
 	int err;
+	int was_unused = 0;
 
 
 	/* This will catch some corner cases such as lying connections resulting from
@@ -1208,17 +1209,20 @@ int connect_server(struct stream *s)
 			     s->txn && (s->txn->flags & TX_NOT_FIRST)) &&
 			    srv->curr_idle_nb > 0) {
 				srv_conn = conn_backend_get(srv, 0);
+				was_unused = 1;
 			}
 			else if (srv->safe_conns &&
 			         ((s->txn && (s->txn->flags & TX_NOT_FIRST)) ||
 				  (s->be->options & PR_O_REUSE_MASK) >= PR_O_REUSE_AGGR) &&
 				 srv->curr_safe_nb > 0) {
 				srv_conn = conn_backend_get(srv, 1);
+				was_unused = 1;
 			}
 			else if (srv->idle_conns &&
 			         ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 				 srv->curr_idle_nb > 0) {
 				srv_conn = conn_backend_get(srv, 0);
+				was_unused = 1;
 			}
 			/* If we've picked a connection from the pool, we now have to
 			 * detach it. We may have to get rid of the previous idle
@@ -1340,12 +1344,13 @@ int connect_server(struct stream *s)
 	/* no reuse or failed to reuse the connection above, pick a new one */
 	if (!srv_conn) {
 		srv_conn = conn_new();
+		was_unused = 1;
 		if (srv_conn)
 			srv_conn->target = s->target;
 		srv_cs = NULL;
 	}
 
-	if (srv_conn && srv) {
+	if (srv_conn && srv && was_unused) {
 		_HA_ATOMIC_ADD(&srv->curr_used_conns, 1);
 		/* It's ok not to do that atomically, we don't need an
 		 * exact max.
