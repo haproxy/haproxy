@@ -143,6 +143,9 @@ static inline struct buffer *b_alloc_margin(struct buffer *buf, int margin)
 
 	cached = 0;
 #ifdef CONFIG_HAP_LOCAL_POOLS
+	if (likely(area = __pool_get_from_cache(pool_head_buffer)))
+		goto done;
+
 	idx = pool_get_index(pool_head_buffer);
 	if (idx >= 0)
 		cached = pool_cache[tid][idx].count;
