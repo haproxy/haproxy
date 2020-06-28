@@ -24,7 +24,6 @@ struct pool_head *pool_head_buffer;
 
 /* list of objects waiting for at least one buffer */
 struct mt_list buffer_wq = LIST_HEAD_INIT(buffer_wq);
-__decl_aligned_spinlock(buffer_wq_lock);
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
