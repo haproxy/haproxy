@@ -5187,8 +5187,9 @@ static void srv_cleanup_connections(struct server *srv)
 	int i;
 	int j;
 
+	/* check all threads starting with ours */
 	HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
-	for (i = 0; i < global.nbthread; i++) {
+	for (i = tid;;) {
 		did_remove = 0;
 		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
 		for (j = 0; j < srv->curr_idle_conns; j++) {
@@ -5204,6 +5205,9 @@ static void srv_cleanup_connections(struct server *srv)
 		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
 		if (did_remove)
 			task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
+
+		if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
+			break;
 	}
 	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
 }
@@ -5255,7 +5259,8 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 		exceed_conns = to_kill = exceed_conns / 2 + (exceed_conns & 1);
 		srv->max_used_conns = srv->curr_used_conns;
 
-		for (i = 0; i < global.nbthread && to_kill > 0; i++) {
+		/* check all threads starting with ours */
+		for (i = tid;;) {
 			int max_conn;
 			int j;
 			int did_remove = 0;
@@ -5278,6 +5283,9 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 				srv_is_empty = 0;
 			if (did_remove)
 				task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
+
+			if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
+				break;
 		}
 remove:
 		eb32_delete(&srv->idle_node);

@@ -1274,10 +1274,7 @@ int connect_server(struct stream *s)
 		else {
 			int i;
 
-			for (i = 0; i < global.nbthread; i++) {
-				if (i == tid)
-					continue;
-
+			for (i = tid; (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != tid;) {
 				// just silence stupid gcc which reports an absurd
 				// out-of-bounds warning for <i> which is always
 				// exactly zero without threads, but it seems to
