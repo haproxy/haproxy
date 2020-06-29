@@ -3571,7 +3571,7 @@ out_uri_auth_compat:
 							goto err;
 						idle_conns[i].cleanup_task->process = srv_cleanup_toremove_connections;
 						idle_conns[i].cleanup_task->context = NULL;
-						HA_SPIN_INIT(&idle_conns[i].toremove_lock);
+						HA_SPIN_INIT(&idle_conns[i].takeover_lock);
 						MT_LIST_INIT(&idle_conns[i].toremove_conns);
 					}
 				}

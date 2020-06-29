@@ -5207,7 +5207,7 @@ static void srv_cleanup_connections(struct server *srv)
 	HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
 	for (i = tid;;) {
 		did_remove = 0;
-		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
+		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 		for (j = 0; j < srv->curr_idle_conns; j++) {
 			conn = MT_LIST_POP(&srv->idle_conns[i], struct connection *, list);
 			if (!conn)
@@ -5218,7 +5218,7 @@ static void srv_cleanup_connections(struct server *srv)
 			did_remove = 1;
 			MT_LIST_ADDQ(&idle_conns[i].toremove_conns, (struct mt_list *)&conn->list);
 		}
-		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
+		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 		if (did_remove)
 			task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
 
@@ -5287,7 +5287,7 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 
 			max_conn = (exceed_conns * srv->curr_idle_thr[i]) /
 			           curr_idle + 1;
-			HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
+			HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 			for (j = 0; j < max_conn; j++) {
 				struct connection *conn = MT_LIST_POP(&srv->idle_conns[i], struct connection *, list);
 				if (!conn)
@@ -5298,7 +5298,7 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 				did_remove = 1;
 				MT_LIST_ADDQ(&idle_conns[i].toremove_conns, (struct mt_list *)&conn->list);
 			}
-			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
+			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 			if (did_remove && max_conn < srv->curr_idle_thr[i])
 				srv_is_empty = 0;
 			if (did_remove)

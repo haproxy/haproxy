@@ -1086,7 +1086,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	 * to end up with two threads using the same connection.
 	 */
 	i = tid;
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 	conn = MT_LIST_POP(&mt_list[tid], struct connection *, list);
 
 	/* If we failed to pick a connection from the idle list, let's try again with
@@ -1099,7 +1099,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 			mt_list = srv->safe_conns;
 		}
 	}
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 
 	/* If we found a connection in our own list, and we don't have to
 	 * steal one from another thread, then we're done.
@@ -1129,7 +1129,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 		if (!srv->curr_idle_thr[i] || i == tid)
 			continue;
 
-		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
+		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 		mt_list_for_each_entry_safe(conn, &mt_list[i], list, elt1, elt2) {
 			if (conn->mux->takeover && conn->mux->takeover(conn) == 0) {
 				MT_LIST_DEL_SAFE(elt1);
@@ -1151,7 +1151,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 				}
 			}
 		}
-		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
+		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 	}
 
 	if (!found)
@@ -1328,7 +1328,7 @@ int connect_server(struct stream *s)
 				// see it possibly larger.
 				ALREADY_CHECKED(i);
 
-				HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+				HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 				tokill_conn = MT_LIST_POP(&srv->idle_conns[i],
 				    struct connection *, list);
 				if (!tokill_conn)
@@ -1340,10 +1340,10 @@ int connect_server(struct stream *s)
 					MT_LIST_ADDQ(&idle_conns[i].toremove_conns,
 					    (struct mt_list *)&tokill_conn->list);
 					task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
-					HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+					HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 					break;
 				}
-				HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+				HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 			}
 		}
 

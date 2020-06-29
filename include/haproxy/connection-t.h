@@ -606,7 +606,7 @@ struct tlv_ssl {
  */
 struct idle_conns {
 	struct mt_list toremove_conns;
-	__decl_thread(HA_SPINLOCK_T toremove_lock);
+	__decl_thread(HA_SPINLOCK_T takeover_lock);
 	struct task *cleanup_task;
 } THREAD_ALIGNED(64);
 

@@ -2918,13 +2918,13 @@ static struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
 	int ret = 0;
 
 
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 	if (tl->context == NULL) {
 		/* The connection has been taken over by another thread,
 		 * we're no longer responsible for it, so just free the
 		 * tasklet, and do nothing.
 		 */
-		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 		tasklet_free(tl);
 		return NULL;
 
@@ -2938,7 +2938,7 @@ static struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
 	if (conn_in_list)
 		MT_LIST_DEL(&conn->list);
 
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 
 	if (!(fconn->wait_event.events & SUB_RETRY_SEND))
 		ret = fcgi_send(fconn);
@@ -3093,7 +3093,7 @@ static struct task *fcgi_timeout_task(struct task *t, void *context, unsigned sh
 		/* We're about to destroy the connection, so make sure nobody attempts
 		 * to steal it from us.
 		 */
-		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 
 		if (fconn->conn->flags & CO_FL_LIST_MASK)
 			MT_LIST_DEL(&fconn->conn->list);
@@ -3104,7 +3104,7 @@ static struct task *fcgi_timeout_task(struct task *t, void *context, unsigned sh
 		if (!t->context)
 			fconn = NULL;
 
-		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 	}
 
 	task_destroy(t);
