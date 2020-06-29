@@ -494,9 +494,7 @@ static inline void conn_free(struct connection *conn)
 	}
 
 	conn_force_unsubscribe(conn);
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 	MT_LIST_DEL((struct mt_list *)&conn->list);
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 	pool_free(pool_head_connection, conn);
 }
 
