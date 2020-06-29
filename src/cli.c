@@ -1174,6 +1174,7 @@ static int cli_io_handler_show_activity(struct appctx *appctx)
 	chunk_appendf(&trash, "accq_full:");    SHOW_TOT(thr, activity[thr].accq_full);
 #ifdef USE_THREAD
 	chunk_appendf(&trash, "accq_ring:");    SHOW_TOT(thr, (accept_queue_rings[thr].tail - accept_queue_rings[thr].head + ACCEPT_QUEUE_SIZE) % ACCEPT_QUEUE_SIZE);
+	chunk_appendf(&trash, "fd_takeover:");  SHOW_TOT(thr, activity[thr].fd_takeover);
 #endif
 
 #if defined(DEBUG_DEV)

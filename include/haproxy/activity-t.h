@@ -52,7 +52,7 @@ struct activity {
 	unsigned int empty_rq;     // calls to process_runnable_tasks() with nothing for the thread
 	unsigned int long_rq;      // process_runnable_tasks() left with tasks in the run queue
 	unsigned int cpust_total;  // sum of half-ms stolen per thread
-	/* one unused entry left before end of first cache line */
+	unsigned int fd_takeover;  // number of times this thread stole another one's FD
 	ALWAYS_ALIGN(64);
 
 	struct freq_ctr cpust_1s;  // avg amount of half-ms stolen over last second

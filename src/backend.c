@@ -1103,6 +1103,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 		mt_list_for_each_entry_safe(conn, &mt_list[i], list, elt1, elt2) {
 			if (conn->mux->takeover && conn->mux->takeover(conn) == 0) {
 				MT_LIST_DEL_SAFE(elt1);
+				_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 				found = 1;
 				break;
 			}
