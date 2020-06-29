@@ -2926,7 +2926,7 @@ void run_poll_loop()
 				if (_HA_ATOMIC_OR(&stopping_thread_mask, tid_bit) == tid_bit) {
 					/* notify all threads that stopping was just set */
 					for (i = 0; i < global.nbthread; i++)
-						if ((all_threads_mask >> i) & 1)
+						if (((all_threads_mask & ~stopping_thread_mask) >> i) & 1)
 							wake_thread(i);
 				}
 			}
