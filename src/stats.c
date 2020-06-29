@@ -247,6 +247,7 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_IDLE_CONN_CUR]                 = { .name = "idle_conn_cur",               .desc = "Current number of unsafe idle connections"},
 	[ST_F_SAFE_CONN_CUR]                 = { .name = "safe_conn_cur",               .desc = "Current number of safe idle connections"},
 	[ST_F_USED_CONN_CUR]                 = { .name = "used_conn_cur",               .desc = "Current number of connections in use"},
+	[ST_F_NEED_CONN_EST]                 = { .name = "need_conn_est",               .desc = "Estimated needed number of connections"},
 };
 
 /* one line of info */
@@ -997,6 +998,7 @@ static int stats_dump_fields_html(struct buffer *out,
 		                "<tr><th>Current idle connections:</th><td>%s</td></tr>"
 		                "<tr><th>- unsafe:</th><td>%s</td></tr>"
 		                "<tr><th>- safe:</th><td>%s</td></tr>"
+		                "<tr><th>Estimated need of connections:</th><td>%s</td></tr>"
 		                "<tr><th>Active connections limit:</th><td>%s</td></tr>"
 		                "<tr><th>Idle connections limit:</th><td>%s</td></tr>"
 			        "</table></div></u>"
@@ -1010,6 +1012,7 @@ static int stats_dump_fields_html(struct buffer *out,
 			      U2H(stats[ST_F_SRV_ICUR].u.u32),
 			      U2H(stats[ST_F_IDLE_CONN_CUR].u.u32),
 			      U2H(stats[ST_F_SAFE_CONN_CUR].u.u32),
+			      U2H(stats[ST_F_NEED_CONN_EST].u.u32),
 
 			        LIM2A(stats[ST_F_SLIM].u.u32, "-"),
 		                stats[ST_F_SRV_ILIM].type ? U2H(stats[ST_F_SRV_ILIM].u.u32) : "-",
@@ -1703,6 +1706,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	stats[ST_F_IDLE_CONN_CUR] = mkf_u32(0, sv->curr_idle_nb);
 	stats[ST_F_SAFE_CONN_CUR] = mkf_u32(0, sv->curr_safe_nb);
 	stats[ST_F_USED_CONN_CUR] = mkf_u32(0, sv->curr_used_conns);
+	stats[ST_F_NEED_CONN_EST] = mkf_u32(0, sv->est_need_conns);
 
 	/* status */
 	fld_status = chunk_newstr(out);

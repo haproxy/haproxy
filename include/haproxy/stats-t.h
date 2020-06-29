@@ -426,6 +426,7 @@ enum stat_field {
 	ST_F_IDLE_CONN_CUR,
 	ST_F_SAFE_CONN_CUR,
 	ST_F_USED_CONN_CUR,
+	ST_F_NEED_CONN_EST,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS
