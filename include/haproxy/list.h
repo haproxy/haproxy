@@ -299,6 +299,39 @@
     })
 
 /*
+ * Add an item at the end of a list.
+ * It is assumed the element can't already be in a list, so it isn't checked
+ */
+#define MT_LIST_ADDQ_NOCHECK(_lh, _el)                                     \
+    ({                                                                     \
+	int _ret = 0;                                                      \
+	struct mt_list *lh = (_lh), *el = (_el);                           \
+	while (1) {                                                        \
+		struct mt_list *n;                                         \
+		struct mt_list *p;                                         \
+		p = _HA_ATOMIC_XCHG(&(lh)->prev, MT_LIST_BUSY);            \
+		if (p == MT_LIST_BUSY)                                     \
+		        continue;                                          \
+		n = _HA_ATOMIC_XCHG(&p->next, MT_LIST_BUSY);               \
+		if (n == MT_LIST_BUSY) {                                   \
+			(lh)->prev = p;                                    \
+			__ha_barrier_store();                              \
+			continue;                                          \
+		}                                                          \
+		(el)->next = n;                                            \
+		(el)->prev = p;                                            \
+		__ha_barrier_store();                                      \
+		p->next = (el);                                            \
+		__ha_barrier_store();                                      \
+		n->prev = (el);                                            \
+		__ha_barrier_store();                                      \
+		_ret = 1;                                                  \
+		break;                                                     \
+	}                                                                  \
+	(_ret);                                                            \
+    })
+
+/*
  * Detach a list from its head. A pointer to the first element is returned
  * and the list is closed. If the list was empty, NULL is returned. This may
  * exclusively be used with lists modified by MT_LIST_ADD/MT_LIST_ADDQ. This
@@ -621,6 +654,12 @@
 		struct mt_list *el = (_el);                                \
 		(el)->prev = (el);                                         \
 		(el)->next = (el);                                         \
+		(_el) = NULL;                                              \
+	} while (0)
+
+/* Safe as MT_LIST_DEL_SAFE, but it won't reinit the element */
+#define MT_LIST_DEL_SAFE_NOINIT(_el)                                       \
+	do {                                                               \
 		(_el) = NULL;                                              \
 	} while (0)
 
