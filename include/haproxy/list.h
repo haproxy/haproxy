@@ -230,8 +230,8 @@
         int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
 	while (1) {                                                        \
-		struct mt_list *n;                                         \
-		struct mt_list *p;                                         \
+		struct mt_list *n, *n2;                                    \
+		struct mt_list *p, *p2;                                    \
 		n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);            \
 		if (n == MT_LIST_BUSY)                                     \
 		        continue;                                          \
@@ -241,9 +241,23 @@
 			__ha_barrier_store();                              \
 			continue;                                          \
 		}                                                          \
-		if ((el)->next != (el) || (el)->prev != (el)) {            \
+		n2 = _HA_ATOMIC_XCHG(&(el)->next, MT_LIST_BUSY);           \
+		if (n2 != (el)) {                                          \
 			(n)->prev = p;                                     \
 			(lh)->next = n;                                    \
+			(el)->next = n2;                                   \
+			if (n2 == MT_LIST_BUSY)                            \
+				continue;                                  \
+			break;                                             \
+		}                                                          \
+		p2 = _HA_ATOMIC_XCHG(&(el)->prev, MT_LIST_BUSY);           \
+		if (p2 != (el)) {                                          \
+			n->prev = p;                                       \
+			(lh)->next = n;                                    \
+			(el)->next = n2;                                   \
+			(el)->prev = p2;                                   \
+			if (p2 == MT_LIST_BUSY)                            \
+				continue;                                  \
 			break;                                             \
 		}                                                          \
 		(el)->next = n;                                            \
@@ -269,8 +283,8 @@
 	int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
 	while (1) {                                                        \
-		struct mt_list *n;                                         \
-		struct mt_list *p;                                         \
+		struct mt_list *n, *n2;                                    \
+		struct mt_list *p, *p2;                                    \
 		p = _HA_ATOMIC_XCHG(&(lh)->prev, MT_LIST_BUSY);            \
 		if (p == MT_LIST_BUSY)                                     \
 		        continue;                                          \
@@ -280,9 +294,23 @@
 			__ha_barrier_store();                              \
 			continue;                                          \
 		}                                                          \
-		if ((el)->next != (el) || (el)->prev != (el)) {            \
+		n2 = _HA_ATOMIC_XCHG(&(el)->next, MT_LIST_BUSY);            \
+		if (n2 != (el)) {                                          \
 			p->next = n;                                       \
 			(lh)->prev = p;                                    \
+			(el)->next = n2;                                   \
+			if (n2 == MT_LIST_BUSY)                            \
+				continue;                                  \
+			break;                                             \
+		}                                                          \
+		p2 = _HA_ATOMIC_XCHG(&(el)->prev, MT_LIST_BUSY);            \
+		if (p2 != (el)) {                                          \
+			p->next = n;                                       \
+			(lh)->prev = p;                                    \
+			(el)->next = n2;                                   \
+			(el)->prev = p2;                                   \
+			if (p2 == MT_LIST_BUSY)                            \
+				continue;                                  \
 			break;                                             \
 		}                                                          \
 		(el)->next = n;                                            \
