@@ -423,6 +423,9 @@ enum stat_field {
 	ST_F_RT_MAX,
 	ST_F_TT_MAX,
 	ST_F_EINT,
+	ST_F_IDLE_CONN_CUR,
+	ST_F_SAFE_CONN_CUR,
+	ST_F_USED_CONN_CUR,
 
 	/* must always be the last one */
 	ST_F_TOTAL_FIELDS

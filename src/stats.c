@@ -244,6 +244,9 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_RT_MAX]                        = { .name = "rtime_max",                   .desc = "Maximum observed time spent waiting for a server response, in milliseconds (backend/server)" },
 	[ST_F_TT_MAX]                        = { .name = "ttime_max",                   .desc = "Maximum observed total request+response time (request+queue+connect+response+processing), in milliseconds (backend/server)" },
 	[ST_F_EINT]                          = { .name = "eint",                        .desc = "Total number of internal errors since process started"},
+	[ST_F_IDLE_CONN_CUR]                 = { .name = "idle_conn_cur",               .desc = "Current number of unsafe idle connections"},
+	[ST_F_SAFE_CONN_CUR]                 = { .name = "safe_conn_cur",               .desc = "Current number of safe idle connections"},
+	[ST_F_USED_CONN_CUR]                 = { .name = "used_conn_cur",               .desc = "Current number of connections in use"},
 };
 
 /* one line of info */
@@ -990,7 +993,10 @@ static int stats_dump_fields_html(struct buffer *out,
 		              "<td><u>%s<div class=tips>"
 			        "<table class=det>"
 		                "<tr><th>Current active connections:</th><td>%s</td></tr>"
+		                "<tr><th>Current used connections:</th><td>%s</td></tr>"
 		                "<tr><th>Current idle connections:</th><td>%s</td></tr>"
+		                "<tr><th>- unsafe:</th><td>%s</td></tr>"
+		                "<tr><th>- safe:</th><td>%s</td></tr>"
 		                "<tr><th>Active connections limit:</th><td>%s</td></tr>"
 		                "<tr><th>Idle connections limit:</th><td>%s</td></tr>"
 			        "</table></div></u>"
@@ -999,8 +1005,12 @@ static int stats_dump_fields_html(struct buffer *out,
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
 		              U2H(stats[ST_F_SCUR].u.u32),
-		                U2H(stats[ST_F_SCUR].u.u32),
-		                U2H(stats[ST_F_SRV_ICUR].u.u32),
+			      U2H(stats[ST_F_SCUR].u.u32),
+			      U2H(stats[ST_F_USED_CONN_CUR].u.u32),
+			      U2H(stats[ST_F_SRV_ICUR].u.u32),
+			      U2H(stats[ST_F_IDLE_CONN_CUR].u.u32),
+			      U2H(stats[ST_F_SAFE_CONN_CUR].u.u32),
+
 			        LIM2A(stats[ST_F_SLIM].u.u32, "-"),
 		                stats[ST_F_SRV_ILIM].type ? U2H(stats[ST_F_SRV_ILIM].u.u32) : "-",
 			      U2H(stats[ST_F_SMAX].u.u32), LIM2A(stats[ST_F_SLIM].u.u32, "-"),
@@ -1689,6 +1699,10 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	stats[ST_F_EINT]     = mkf_u64(FN_COUNTER, sv->counters.internal_errors);
 	stats[ST_F_CONNECT]  = mkf_u64(FN_COUNTER, sv->counters.connect);
 	stats[ST_F_REUSE]    = mkf_u64(FN_COUNTER, sv->counters.reuse);
+
+	stats[ST_F_IDLE_CONN_CUR] = mkf_u32(0, sv->curr_idle_nb);
+	stats[ST_F_SAFE_CONN_CUR] = mkf_u32(0, sv->curr_safe_nb);
+	stats[ST_F_USED_CONN_CUR] = mkf_u32(0, sv->curr_used_conns);
 
 	/* status */
 	fld_status = chunk_newstr(out);
