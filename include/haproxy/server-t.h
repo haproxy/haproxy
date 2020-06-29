@@ -232,6 +232,7 @@ struct server {
 	unsigned int curr_safe_nb;              /* Current number of connections in the safe list */
 	unsigned int curr_used_conns;           /* Current number of used connections */
 	unsigned int max_used_conns;            /* Max number of used connections (the counter is reset at each connection purges */
+	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
 	unsigned int *curr_idle_thr;            /* Current number of orphan idling connections per thread */
 	int max_reuse;                          /* Max number of requests on a same connection */
 	struct eb32_node idle_node;             /* When to next do cleanup in the idle connections */

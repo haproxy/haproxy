@@ -5254,9 +5254,13 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 		curr_idle = srv->curr_idle_conns;
 		if (curr_idle == 0)
 			goto remove;
-		exceed_conns = srv->curr_used_conns + curr_idle -
-		               srv->max_used_conns;
+		exceed_conns = srv->curr_used_conns + curr_idle - MAX(srv->max_used_conns, srv->est_need_conns);
 		exceed_conns = to_kill = exceed_conns / 2 + (exceed_conns & 1);
+
+		srv->est_need_conns = (srv->est_need_conns + srv->max_used_conns + 1) / 2;
+		if (srv->est_need_conns < srv->max_used_conns)
+			srv->est_need_conns = srv->max_used_conns;
+
 		srv->max_used_conns = srv->curr_used_conns;
 
 		/* check all threads starting with ours */

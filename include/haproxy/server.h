@@ -244,9 +244,16 @@ static inline enum srv_initaddr srv_get_next_initaddr(unsigned int *list)
  */
 static inline int srv_add_to_idle_list(struct server *srv, struct connection *conn, int is_safe)
 {
+	/* we try to keep the connection in the server's idle list
+	 * if we don't have too many FD in use, and if the number of
+	 * idle+current conns is lower than what was observed before
+	 * last purge, or if we already don't have idle conns for the
+	 * current thread and we don't exceed last count by global.nbthread.
+	 */
 	if (srv && srv->pool_purge_delay > 0 &&
 	    (srv->max_idle_conns == -1 || srv->max_idle_conns > srv->curr_idle_conns) &&
-	    (srv->cur_sess + srv->curr_idle_conns <= srv->counters.cur_sess_max) &&
+	    (srv->curr_used_conns + srv->curr_idle_conns < MAX(srv->curr_used_conns, srv->est_need_conns) +
+	     (MT_LIST_ISEMPTY(&srv->safe_conns[tid]) && MT_LIST_ISEMPTY(&srv->idle_conns[tid])) ? global.nbthread : 0) &&
 	    !(conn->flags & CO_FL_PRIVATE) &&
 	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn) &&

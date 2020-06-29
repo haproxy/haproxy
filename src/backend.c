@@ -1355,6 +1355,9 @@ int connect_server(struct stream *s)
 		 */
 		if (srv->max_used_conns < srv->curr_used_conns)
 			srv->max_used_conns = srv->curr_used_conns;
+
+		if (srv->est_need_conns < srv->curr_used_conns)
+			srv->est_need_conns = srv->curr_used_conns;
 	}
 	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst)) {
 		if (srv_conn)
