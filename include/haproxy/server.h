@@ -253,7 +253,7 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 	if (srv && srv->pool_purge_delay > 0 &&
 	    (srv->max_idle_conns == -1 || srv->max_idle_conns > srv->curr_idle_conns) &&
 	    (srv->curr_used_conns + srv->curr_idle_conns < MAX(srv->curr_used_conns, srv->est_need_conns) +
-	     (MT_LIST_ISEMPTY(&srv->safe_conns[tid]) && MT_LIST_ISEMPTY(&srv->idle_conns[tid])) ? global.nbthread : 0) &&
+	     (MT_LIST_ISEMPTY(&srv->safe_conns[tid]) && MT_LIST_ISEMPTY(&srv->idle_conns[tid])) ? global.nbthread : 1) &&
 	    !(conn->flags & CO_FL_PRIVATE) &&
 	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn) &&
