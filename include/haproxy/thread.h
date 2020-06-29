@@ -31,6 +31,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/thread-t.h>
+#include <haproxy/tinfo.h>
 
 
 /* Note: this file mainly contains 5 sections:
@@ -47,8 +48,6 @@
 int parse_nbthread(const char *arg, char **err);
 int thread_get_default_count();
 extern int thread_cpus_enabled_at_boot;
-extern struct thread_info ha_thread_info[MAX_THREADS];
-extern THREAD_LOCAL struct thread_info *ti; /* thread_info for the current thread */
 
 
 #ifndef USE_THREAD

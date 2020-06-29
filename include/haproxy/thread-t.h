@@ -26,7 +26,6 @@
 #ifdef USE_THREAD
 #include <pthread.h>
 #endif
-#include <time.h>
 
 #include <haproxy/defaults.h>
 
@@ -74,26 +73,6 @@
 
 
 /*** Common parts below ***/
-
-/* thread info flags, for ha_thread_info[].flags */
-#define TI_FL_STUCK             0x00000001
-
-/* This structure describes all the per-thread info we need. When threads are
- * disabled, it contains the same info for the single running thread (except
- * the pthread identifier which does not exist).
- */
-struct thread_info {
-	__decl_thread(pthread_t pthread);
-	clockid_t clock_id;
-	timer_t wd_timer;          /* valid timer or TIMER_INVALID if not set */
-	uint64_t prev_cpu_time;    /* previous per thread CPU time */
-	uint64_t prev_mono_time;   /* previous system wide monotonic time  */
-	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */
-	unsigned int flags;        /* thread info flags, TI_FL_* */
-	/* pad to cache line (64B) */
-	char __pad[0];            /* unused except to check remaining room */
-	char __end[0] __attribute__((aligned(64)));
-};
 
 /* storage types used by spinlocks and RW locks */
 #define __HA_SPINLOCK_T     unsigned long
