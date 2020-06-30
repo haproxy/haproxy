@@ -379,7 +379,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		budgets[queue]--;
 		t = (struct task *)LIST_ELEM(tl_queues[queue].n, struct tasklet *, list);
-		state = (t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING));
+		state = t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING|TASK_KILLED);
 
 		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
@@ -414,11 +414,18 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		}
 
 		__ha_barrier_store();
-		if (likely(process == process_stream))
+
+		/* Note for below: if TASK_KILLED arrived before we've read the state, we
+		 * directly free the task. Otherwise it will be seen after processing and
+		 * it's freed on the exit path.
+		 */
+		if (likely(!(state & TASK_KILLED) && process == process_stream))
 			t = process_stream(t, ctx, state);
-		else if (process != NULL)
+		else if (!(state & TASK_KILLED) && process != NULL)
 			t = process(t, ctx, state);
 		else {
+			if (task_in_wq(t))
+				__task_unlink_wq(t);
 			__task_free(t);
 			sched->current = NULL;
 			__ha_barrier_store();
@@ -440,7 +447,12 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			}
 
 			state = _HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
-			if (state & TASK_WOKEN_ANY)
+			if (unlikely(state & TASK_KILLED)) {
+				if (task_in_wq(t))
+					__task_unlink_wq(t);
+				__task_free(t);
+			}
+			else if (state & TASK_WOKEN_ANY)
 				task_wakeup(t, 0);
 			else
 				task_queue(t);

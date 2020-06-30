@@ -38,6 +38,7 @@
 #define TASK_SHARED_WQ    0x0008  /* The task's expiration may be updated by other
                                    * threads, must be set before first queue/wakeup */
 #define TASK_SELF_WAKING  0x0010  /* task/tasklet found waking itself */
+#define TASK_KILLED       0x0020  /* task/tasklet killed, may now be freed */
 
 #define TASK_WOKEN_INIT   0x0100  /* woken up for initialisation purposes */
 #define TASK_WOKEN_TIMER  0x0200  /* woken up because of expired timer */
