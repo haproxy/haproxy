@@ -683,6 +683,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 					memprintf(err, "expected ']' after '%s', but found '%c'", var, c);
 				else
 					memprintf(err, "missing ']' after '%s'", var);
+				goto fail;
 			}
 			break;
 
