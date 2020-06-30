@@ -3084,26 +3084,28 @@ static struct task *fcgi_timeout_task(struct task *t, void *context, unsigned sh
 
 	TRACE_ENTER(FCGI_EV_FCONN_WAKE, (fconn ? fconn->conn : NULL));
 
-	if (!expired && fconn) {
-		TRACE_DEVEL("leaving (not expired)", FCGI_EV_FCONN_WAKE, fconn->conn);
-		return t;
+	if (fconn) {
+		if (!expired) {
+			TRACE_DEVEL("leaving (not expired)", FCGI_EV_FCONN_WAKE, fconn->conn);
+			return t;
+		}
+
+		/* We're about to destroy the connection, so make sure nobody attempts
+		 * to steal it from us.
+		 */
+		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+
+		if (fconn->conn->flags & CO_FL_LIST_MASK)
+			MT_LIST_DEL(&fconn->conn->list);
+
+		/* Somebody already stole the connection from us, so we should not
+		 * free it, we just have to free the task.
+		 */
+		if (!t->context)
+			fconn = NULL;
+
+		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
 	}
-
-	/* We're about to destroy the connection, so make sure nobody attempts
-	 * to steal it from us.
-	 */
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
-
-	if (fconn && fconn->conn->flags & CO_FL_LIST_MASK)
-		MT_LIST_DEL(&fconn->conn->list);
-
-	/* Somebody already stole the connection from us, so we should not
-	 * free it, we just have to free the task.
-	 */
-	if (!t->context)
-		fconn = NULL;
-
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
 
 	task_destroy(t);
 
