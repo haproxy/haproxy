@@ -1529,12 +1529,12 @@ int connect_server(struct stream *s)
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
-		/* If we're doing http-reuse always, and the connection
-		 * is an http2 connection, add it to the available list,
-		 * so that others can use it right away.
+		/* If we're doing http-reuse always, and the connection is not
+		 * private with available streams (an http2 connection), add it
+		 * to the available list, so that others can use it right away.
 		 */
 		if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
-		    srv_conn->mux->avail_streams(srv_conn) > 0)
+		    !(srv_conn->flags & CO_FL_PRIVATE) && srv_conn->mux->avail_streams(srv_conn) > 0)
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
 	}
 	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,
