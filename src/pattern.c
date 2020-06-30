@@ -453,7 +453,6 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 {
 	int icase;
 	struct ebmb_node *node;
-	char prev;
 	struct pattern_tree *elt;
 	struct pattern_list *lst;
 	struct pattern *pattern;
@@ -462,14 +461,27 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
-		/* we may have to force a trailing zero on the test pattern */
-		prev = smp->data.u.str.area[smp->data.u.str.data];
-		if (prev)
-			smp->data.u.str.area[smp->data.u.str.data] = '\0';
+		char prev = 0;
+
+		if (smp->data.u.str.data < smp->data.u.str.size) {
+			/* we may have to force a trailing zero on the test pattern and
+			 * the buffer is large enough to accommodate it.
+			 */
+			prev = smp->data.u.str.area[smp->data.u.str.data];
+			if (prev)
+				smp->data.u.str.area[smp->data.u.str.data] = '\0';
+		}
+		else {
+			/* Otherwise, the sample is duplicated. A trailing zero
+			 * is automatically added to the string.
+			 */
+			if (!smp_dup(smp))
+				return NULL;
+		}
+
 		node = ebst_lookup(&expr->pattern_tree, smp->data.u.str.area);
 		if (prev)
 			smp->data.u.str.area[smp->data.u.str.data] = prev;
-
 		if (node) {
 			if (fill) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
@@ -618,7 +630,6 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 {
 	int icase;
 	struct ebmb_node *node;
-	char prev;
 	struct pattern_tree *elt;
 	struct pattern_list *lst;
 	struct pattern *pattern;
@@ -627,10 +638,24 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
-		/* we may have to force a trailing zero on the test pattern */
-		prev = smp->data.u.str.area[smp->data.u.str.data];
-		if (prev)
-			smp->data.u.str.area[smp->data.u.str.data] = '\0';
+		char prev = 0;
+
+		if (smp->data.u.str.data < smp->data.u.str.size) {
+			/* we may have to force a trailing zero on the test pattern and
+			 * the buffer is large enough to accommodate it.
+			 */
+			prev = smp->data.u.str.area[smp->data.u.str.data];
+			if (prev)
+				smp->data.u.str.area[smp->data.u.str.data] = '\0';
+		}
+		else {
+			/* Otherwise, the sample is duplicated. A trailing zero
+			 * is automatically added to the string.
+			 */
+			if (!smp_dup(smp))
+				return NULL;
+		}
+
 		node = ebmb_lookup_longest(&expr->pattern_tree,
 					   smp->data.u.str.area);
 		if (prev)
