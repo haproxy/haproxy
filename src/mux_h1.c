@@ -2300,26 +2300,28 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 
 	TRACE_POINT(H1_EV_H1C_WAKE, h1c ? h1c->conn : NULL);
 
-	if (!expired && h1c) {
-		TRACE_DEVEL("leaving (not expired)", H1_EV_H1C_WAKE, h1c->conn);
-		return t;
+	if (h1c) {
+		if (!expired) {
+			TRACE_DEVEL("leaving (not expired)", H1_EV_H1C_WAKE, h1c->conn);
+			return t;
+		}
+
+		/* We're about to destroy the connection, so make sure nobody attempts
+		 * to steal it from us.
+		 */
+		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
+
+		if (h1c->conn->flags & CO_FL_LIST_MASK)
+			MT_LIST_DEL(&h1c->conn->list);
+
+		/* Somebody already stole the connection from us, so we should not
+		 * free it, we just have to free the task.
+		 */
+		if (!t->context)
+			h1c = NULL;
+
+		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
 	}
-
-	/* We're about to destroy the connection, so make sure nobody attempts
-	 * to steal it from us.
-	 */
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
-
-	if (h1c && h1c->conn->flags & CO_FL_LIST_MASK)
-		MT_LIST_DEL(&h1c->conn->list);
-
-	/* Somebody already stole the connection from us, so we should not
-	 * free it, we just have to free the task.
-	 */
-	if (!t->context)
-		h1c = NULL;
-
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
 
 	task_destroy(t);
 
