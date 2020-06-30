@@ -34,7 +34,7 @@ haproxy h1 -conf {
     frontend fe1
         bind "fd@${fe1}"
         http-request deny deny_status 400 if { path /400 }
-        http-request deny deny_status 403 if { path /403 }
+        http-request deny if { path /403 }
         http-request deny deny_status 404 if { path /404 }
         http-request deny deny_status 500 if { path /500 }
 
@@ -43,7 +43,7 @@ haproxy h1 -conf {
         errorfiles errors-1
         errorfile 500  ${testdir}/errors/500.http
         http-request deny deny_status 400 if { path /400 }
-        http-request deny deny_status 403 if { path /403 }
+        http-request deny if { path /403 }
         http-request deny deny_status 404 if { path /404 }
         http-request deny deny_status 500 if { path /500 }
 
@@ -53,7 +53,7 @@ haproxy h1 -conf {
         errorfiles errors-1 500
         errorfiles errors-3 400
         http-request deny deny_status 400 if { path /400 }
-        http-request deny deny_status 403 if { path /403 }
+        http-request deny if { path /403 }
         http-request deny deny_status 404 if { path /404 }
         http-request deny deny_status 500 if { path /500 }
 } -start

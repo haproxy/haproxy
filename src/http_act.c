@@ -855,14 +855,13 @@ static enum act_parse_ret parse_http_deny(const char **args, int *orig_arg, stru
 	/* Prepare parsing of log-format strings */
 	px->conf.args.ctx = ((rule->from == ACT_F_HTTP_REQ) ? ARGC_HRQ : ARGC_HRS);
 
-	if (!*(args[cur_arg])) {
+	if (!*(args[cur_arg]) || strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0) {
 		rule->arg.http_reply = http_parse_http_reply((const char *[]){"default-errorfiles", ""}, &arg, px, default_status, err);
 		goto end;
 	}
 
 	if (strcmp(args[cur_arg], "deny_status") == 0) {
-		if (!*(args[cur_arg+2]) ||
-		    (strcmp(args[cur_arg+2], "errorfile") != 0 && strcmp(args[cur_arg+2], "errorfiles") != 0)) {
+		if (!*(args[cur_arg+2]) || strcmp(args[cur_arg+2], "if") == 0 || strcmp(args[cur_arg+2], "unless") == 0) {
 			rule->arg.http_reply = http_parse_http_reply((const char *[]){"status", args[cur_arg+1], "default-errorfiles", ""},
 								     &arg, px, default_status, err);
 			*orig_arg += 2;
