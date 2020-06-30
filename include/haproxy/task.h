@@ -109,6 +109,7 @@ extern struct task_per_thread task_per_thread[MAX_THREADS];
 __decl_thread(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_thread(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait queue */
 
+void task_kill(struct task *t);
 void __task_wakeup(struct task *t, struct eb_root *);
 void __task_queue(struct task *task, struct eb_root *wq);
 
