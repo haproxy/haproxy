@@ -514,11 +514,17 @@ void process_runnable_tasks()
 		max[TL_BULK] = default_weights[TL_BULK];
 
 	/* Now compute a fair share of the weights. Total may slightly exceed
-	 * 100% due to rounding, this is not a problem. Note that by design
-	 * the sum cannot be NULL as we cannot get there without tasklets to
-	 * process.
+	 * 100% due to rounding, this is not a problem. Note that while in
+	 * theory the sum cannot be NULL as we cannot get there without tasklets
+	 * to process, in practice it seldom happens when multiple writers
+	 * conflict and rollback on MT_LIST_ADDQ(shared_tasklet_list), causing
+	 * a first MT_LIST_ISEMPTY() to succeed for thread_has_task() and the
+	 * one above to finally fail. This is extremely rare and not a problem.
 	 */
 	max_total = max[TL_URGENT] + max[TL_NORMAL] + max[TL_BULK];
+	if (!max_total)
+		return;
+
 	for (queue = 0; queue < TL_CLASSES; queue++)
 		max[queue]  = ((unsigned)max_processed * max[queue] + max_total - 1) / max_total;
 
