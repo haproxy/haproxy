@@ -405,7 +405,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		/* OK then this is a regular task */
 
-		task_per_thread[tid].task_list_size--;
+		_HA_ATOMIC_SUB(&task_per_thread[tid].task_list_size, 1);
 		if (unlikely(t->call_date)) {
 			uint64_t now_ns = now_mono_time();
 
@@ -585,7 +585,7 @@ void process_runnable_tasks()
 		/* And add it to the local task list */
 		tasklet_insert_into_tasklet_list(&tt->tasklets[TL_NORMAL], (struct tasklet *)t);
 		tt->tl_class_mask |= 1 << TL_NORMAL;
-		tt->task_list_size++;
+		_HA_ATOMIC_ADD(&tt->task_list_size, 1);
 		activity[tid].tasksw++;
 	}
 
