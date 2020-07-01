@@ -1107,6 +1107,10 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	if (conn)
 		goto done;
 
+	/* pool sharing globally disabled ? */
+	if (!(global.tune.options & GTUNE_IDLE_POOL_SHARED))
+		goto done;
+
 	/* Are we allowed to pick from another thread ? We'll still try
 	 * it if we're running low on FDs as we don't want to create
 	 * extra conns in this case, otherwise we can give up if we have

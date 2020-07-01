@@ -682,6 +682,7 @@ The following keywords are supported in the "global" section :
    - tune.http.cookielen
    - tune.http.logurilen
    - tune.http.maxhdr
+   - tune.idle-pool.shared
    - tune.idletimer
    - tune.lua.forced-yield
    - tune.lua.maxmem
@@ -1948,6 +1949,15 @@ tune.http.maxhdr <number>
   a buggy application to work by the time it gets fixed. The accepted range is
   1..32767. Keep in mind that each new header consumes 32bits of memory for
   each session, so don't push this limit too high.
+
+tune.idle-pool.shared { on | off }
+  Enables ('on') or disables ('off') sharing of idle connection pools between
+  threads for a same server. The default is to share them between threads in
+  order to minimize the number of persistent connections to a server, and to
+  optimize the connection reuse rate. But to help with debugging or when
+  suspecting a bug in HAProxy around connection reuse, it can be convenient to
+  forcefully disable this idle pool sharing between multiple threads, and force
+  this option to "off". The default is on.
 
 tune.idletimer <timeout>
   Sets the duration after which haproxy will consider that an empty buffer is

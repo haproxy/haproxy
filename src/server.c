@@ -5333,6 +5333,25 @@ remove:
 	return task;
 }
 
+/* config parser for global "tune.idle-pool.shared", accepts "on" or "off" */
+static int cfg_parse_idle_pool_shared(char **args, int section_type, struct proxy *curpx,
+                                      struct proxy *defpx, const char *file, int line,
+                                      char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global.tune.options |= GTUNE_IDLE_POOL_SHARED;
+	else if (strcmp(args[1], "off") == 0)
+		global.tune.options &= ~GTUNE_IDLE_POOL_SHARED;
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+
 /* config parser for global "tune.pool-{low,high}-fd-ratio" */
 static int cfg_parse_pool_fd_ratio(char **args, int section_type, struct proxy *curpx,
                                    struct proxy *defpx, const char *file, int line,
@@ -5360,6 +5379,7 @@ static int cfg_parse_pool_fd_ratio(char **args, int section_type, struct proxy *
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "tune.idle-pool.shared",       cfg_parse_idle_pool_shared },
 	{ CFG_GLOBAL, "tune.pool-high-fd-ratio",     cfg_parse_pool_fd_ratio },
 	{ CFG_GLOBAL, "tune.pool-low-fd-ratio",      cfg_parse_pool_fd_ratio },
 	{ 0, NULL, NULL }

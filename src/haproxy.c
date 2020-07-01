@@ -1788,6 +1788,9 @@ static void init(int argc, char **argv)
 #if defined(SO_REUSEPORT)
 	global.tune.options |= GTUNE_USE_REUSEPORT;
 #endif
+#ifdef USE_THREAD
+	global.tune.options |= GTUNE_IDLE_POOL_SHARED;
+#endif
 
 	pid = getpid();
 	progname = *argv;
