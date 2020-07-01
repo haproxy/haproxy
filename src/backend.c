@@ -1070,7 +1070,8 @@ static void assign_tproxy_address(struct stream *s)
 }
 
 /* Attempt to get a backend connection from the specified mt_list array
- * (safe or idle connections).
+ * (safe or idle connections). The <is_safe> argument means what type of
+ * connection the caller wants.
  */
 static struct connection *conn_backend_get(struct server *srv, int is_safe)
 {
@@ -1086,6 +1087,17 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	i = tid;
 	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
 	conn = MT_LIST_POP(&mt_list[tid], struct connection *, list);
+
+	/* If we failed to pick a connection from the idle list, let's try again with
+	 * the safe list.
+	 */
+	if (!conn && !is_safe && srv->curr_safe_nb > 0) {
+		conn = MT_LIST_POP(&srv->safe_conns[tid], struct connection *, list);
+		if (conn) {
+			is_safe = 1;
+			mt_list = srv->safe_conns;
+		}
+	}
 	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
 
 	/* If we found a connection in our own list, and we don't have to
@@ -1104,7 +1116,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 		goto done;
 
 	/* Lookup all other threads for an idle connection, starting from tid + 1 */
-	for (i = tid; !found && (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != tid;) {
+	while (!found && (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != tid) {
 		struct mt_list *elt1, elt2;
 
 		if (!srv->curr_idle_thr[i])
@@ -1117,6 +1129,19 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 				_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 				found = 1;
 				break;
+			}
+		}
+
+		if (!found && !is_safe && srv->curr_safe_nb > 0) {
+			mt_list_for_each_entry_safe(conn, &srv->safe_conns[i], list, elt1, elt2) {
+				if (conn->mux->takeover && conn->mux->takeover(conn) == 0) {
+					MT_LIST_DEL_SAFE(elt1);
+					_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
+					found = 1;
+					is_safe = 1;
+					mt_list = srv->safe_conns;
+					break;
+				}
 			}
 		}
 		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
@@ -1216,10 +1241,13 @@ int connect_server(struct stream *s)
 			    reuse = 1;
 		}
 		else if (!srv_conn && srv->curr_idle_conns > 0) {
-			if (srv->idle_conns &&
+			if (srv->idle_conns && srv->safe_conns &&
 			    ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR &&
 			     s->txn && (s->txn->flags & TX_NOT_FIRST)) &&
-			    srv->curr_idle_nb > 0) {
+			    srv->curr_idle_nb + srv->curr_safe_nb > 0) {
+				/* we're on the second column of the tables above, let's
+				 * try idle then safe.
+				 */
 				srv_conn = conn_backend_get(srv, 0);
 				was_unused = 1;
 			}
