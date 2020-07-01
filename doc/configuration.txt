@@ -2063,12 +2063,6 @@ tune.pipesize <number>
   performed. This has an impact on the kernel's memory footprint, so this must
   not be changed if impacts are not understood.
 
-tune.pool-low-fd-ratio <number>
-  This setting sets the max number of file descriptors (in percentage) used by
-  haproxy globally against the maximum number of file descriptors haproxy can
-  use before we stop putting connection into the idle pool for reuse. The
-  default is 20.
-
 tune.pool-high-fd-ratio <number>
   This setting sets the max number of file descriptors (in percentage) used by
   haproxy globally against the maximum number of file descriptors haproxy can
@@ -2077,6 +2071,12 @@ tune.pool-high-fd-ratio <number>
   descriptor will mean that roughly half of the maximum front connections can
   keep an idle connection behind, anything beyond this probably doesn't make
   much sense in the general case when targeting connection reuse).
+
+tune.pool-low-fd-ratio <number>
+  This setting sets the max number of file descriptors (in percentage) used by
+  haproxy globally against the maximum number of file descriptors haproxy can
+  use before we stop putting connection into the idle pool for reuse. The
+  default is 20.
 
 tune.rcvbuf.client <number>
 tune.rcvbuf.server <number>
