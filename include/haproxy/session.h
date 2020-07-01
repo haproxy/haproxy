@@ -145,6 +145,35 @@ static inline int session_check_idle_conn(struct session *sess, struct connectio
 	return 0;
 }
 
+/* Look for an available connection matching the target <target> in the server
+ * list of the session <sess>. It returns a connection if found. Otherwise it
+ * returns NULL.
+ */
+static inline struct connection *session_get_conn(struct session *sess, void *target)
+{
+	struct connection *srv_conn = NULL;
+	struct sess_srv_list *srv_list;
+
+	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
+		if (srv_list->target == target) {
+			list_for_each_entry(srv_conn, &srv_list->conn_list, session_list) {
+				if (srv_conn->mux && (srv_conn->mux->avail_streams(srv_conn) > 0)) {
+					if (srv_conn->flags & CO_FL_SESS_IDLE) {
+						srv_conn->flags &= ~CO_FL_SESS_IDLE;
+						sess->idle_conns--;
+					}
+					goto end;
+				}
+			}
+			srv_conn = NULL; /* No available connection found */
+			goto end;
+		}
+	}
+
+  end:
+	return srv_conn;
+}
+
 #endif /* _HAPROXY_SESSION_H */
 
 /*

@@ -1197,10 +1197,8 @@ int connect_server(struct stream *s)
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 	struct connection *srv_conn = NULL;
 	struct conn_stream *srv_cs = NULL;
-	struct sess_srv_list *srv_list;
 	struct server *srv;
 	int reuse = 0;
-	int reuse_orphan = 0;
 	int init_mux = 0;
 	int err;
 	int was_unused = 0;
@@ -1212,21 +1210,9 @@ int connect_server(struct stream *s)
 	si_release_endpoint(&s->si[1]);
 
 	/* first, search for a matching connection in the session's idle conns */
-	list_for_each_entry(srv_list, &s->sess->srv_list, srv_list) {
-		if (srv_list->target == s->target) {
-			list_for_each_entry(srv_conn, &srv_list->conn_list, session_list) {
-				if (conn_xprt_ready(srv_conn) &&
-				    srv_conn->mux && (srv_conn->mux->avail_streams(srv_conn) > 0)) {
-					reuse = 1;
-					break;
-				}
-			}
-			break;
-		}
-	}
-
-	if (!reuse)
-		srv_conn = NULL;
+	srv_conn = session_get_conn(s->sess, s->target);
+	if (srv_conn)
+		reuse = 1;
 
 	srv = objt_server(s->target);
 
@@ -1287,7 +1273,6 @@ int connect_server(struct stream *s)
 			 * pick.
 			 */
 			if (srv_conn) {
-				reuse_orphan = 1;
 				reuse = 1;
 				srv_conn->flags &= ~CO_FL_LIST_MASK;
 			}
@@ -1355,19 +1340,6 @@ int connect_server(struct stream *s)
 			}
 		}
 
-	}
-	/* If we're really reusing the connection, remove it from the orphan
-	 * list and add it back to the idle list.
-	 */
-	if (reuse) {
-		if (!reuse_orphan) {
-			if (srv_conn->flags & CO_FL_SESS_IDLE) {
-				struct session *sess = srv_conn->owner;
-
-				srv_conn->flags &= ~CO_FL_SESS_IDLE;
-				sess->idle_conns--;
-			}
-		}
 	}
 
 	if (reuse) {
