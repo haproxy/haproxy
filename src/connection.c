@@ -60,7 +60,7 @@ int conn_create_mux(struct connection *conn)
 		else if (conn_install_mux_be(conn, conn->ctx, conn->owner) < 0)
 			goto fail;
 		srv = objt_server(conn->target);
-		if (srv && ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
+		if (srv && ((srv->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 		    !(conn->flags & CO_FL_PRIVATE) && conn->mux->avail_streams(conn) > 0)
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
 		return 0;
