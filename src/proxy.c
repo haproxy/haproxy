@@ -1794,7 +1794,7 @@ static int dump_servers_state(struct stream_interface *si)
 		if (srv->srvrq && srv->srvrq->name)
 			srvrecord = srv->srvrq->name;
 
-		chunk_appendf(&trash,
+		chunk_printf(&trash,
 				"%d %s "
 				"%d %s %s "
 				"%d %d %d %d %ld "
