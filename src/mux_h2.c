@@ -6050,6 +6050,7 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 static int h2_takeover(struct connection *conn)
 {
 	struct h2c *h2c = conn->ctx;
+	struct task *task;
 
 	if (fd_takeover(conn->handle.fd, conn) != 0)
 		return -1;
@@ -6061,10 +6062,13 @@ static int h2_takeover(struct connection *conn)
 	 */
 	h2c->wait_event.tasklet->context = NULL;
 	tasklet_wakeup(h2c->wait_event.tasklet);
-	if (h2c->task) {
-		h2c->task->context = NULL;
-		/* Wake the task, to let it free itself */
-		task_wakeup(h2c->task, TASK_WOKEN_OTHER);
+
+	task = h2c->task;
+	if (task) {
+		task->context = NULL;
+		h2c->task = NULL;
+		__ha_barrier_store();
+		task_kill(task);
 
 		h2c->task = task_new(tid_bit);
 		if (!h2c->task) {
