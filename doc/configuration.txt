@@ -693,6 +693,8 @@ The following keywords are supported in the "global" section :
    - tune.maxrewrite
    - tune.pattern.cache-size
    - tune.pipesize
+   - tune.pool-high-fd-ratio
+   - tune.pool-low-fd-ratio
    - tune.rcvbuf.client
    - tune.rcvbuf.server
    - tune.recv_enough
