@@ -1838,7 +1838,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			if ((ctx.value.len >= 4 && strncasecmp(ctx.value.ptr, "Nego", 4) == 0) ||
 			    (ctx.value.len >= 4 && strncasecmp(ctx.value.ptr, "NTLM", 4) == 0)) {
 				sess->flags |= SESS_FL_PREFER_LAST;
+				conn_set_owner(srv_conn, sess, NULL);
 				conn_set_private(srv_conn);
+				/* If it fail now, the same will be done in mux->detach() callack */
+				session_add_conn(srv_conn->owner, srv_conn, srv_conn->target);
 				break;
 			}
 		}

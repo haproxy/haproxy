@@ -3943,18 +3943,16 @@ static void h2_detach(struct conn_stream *cs)
 		if (!(h2c->conn->flags &
 		    (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
 			if (h2c->conn->flags & CO_FL_PRIVATE) {
-				if (!h2c->conn->owner) {
-					h2c->conn->owner = sess;
-					if (!session_add_conn(sess, h2c->conn, h2c->conn->target)) {
-						h2c->conn->owner = NULL;
-						if (eb_is_empty(&h2c->streams_by_id)) {
-							h2c->conn->mux->destroy(h2c);
-							TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
-							return;
-						}
+				/* Add the connection in the session server list, if not already done */
+				if (!session_add_conn(sess, h2c->conn, h2c->conn->target)) {
+					h2c->conn->owner = NULL;
+					if (eb_is_empty(&h2c->streams_by_id)) {
+						h2c->conn->mux->destroy(h2c);
+						TRACE_DEVEL("leaving on error after killing outgoing connection", H2_EV_STRM_END|H2_EV_H2C_ERR);
+						return;
 					}
 				}
-				if (eb_is_empty(&h2c->streams_by_id) && h2c->conn->owner == sess) {
+				if (eb_is_empty(&h2c->streams_by_id)) {
 					if (session_check_idle_conn(h2c->conn->owner, h2c->conn) != 0) {
 						/* At this point either the connection is destroyed, or it's been added to the server idle list, just stop */
 						TRACE_DEVEL("leaving without reusable idle connection", H2_EV_STRM_END);

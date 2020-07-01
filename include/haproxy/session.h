@@ -90,10 +90,19 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 	}
 }
 
+/* Add the connection <conn> to the server list of the session <sess>. This
+ * function is called only if the connection is private. Nothing is performed if
+ * the connection is already in the session sever list or if the session does
+ * not own the connection.
+ */
 static inline int session_add_conn(struct session *sess, struct connection *conn, void *target)
 {
 	struct sess_srv_list *srv_list = NULL;
 	int found = 0;
+
+	/* Already attach to the session or not the connection owner */
+	if (!LIST_ISEMPTY(&conn->session_list) || conn->owner != sess)
+		return 1;
 
 	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
 		if (srv_list->target == target) {
@@ -114,11 +123,16 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 	return 1;
 }
 
-/* Returns 0 if the session can keep the idle conn, -1 if it was destroyed, or 1 if it was added to the server list */
+/* Returns 0 if the session can keep the idle conn, -1 if it was destroyed. The
+ * connection must be private.
+ */
 static inline int session_check_idle_conn(struct session *sess, struct connection *conn)
 {
-	if (!(conn->flags & CO_FL_PRIVATE) ||
-	    sess->idle_conns >= sess->fe->max_out_conns) {
+	/* Another session owns this connection */
+	if (conn->owner != sess)
+		return 0;
+
+	if (sess->idle_conns >= sess->fe->max_out_conns) {
 		session_unown_conn(sess, conn);
 		conn->owner = NULL;
 		conn->flags &= ~CO_FL_SESS_IDLE;

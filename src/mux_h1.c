@@ -2453,20 +2453,21 @@ static void h1_detach(struct conn_stream *cs)
 			goto release;
 		}
 
-		if (!(h1c->conn->owner) && (h1c->conn->flags & CO_FL_PRIVATE)) {
-			h1c->conn->owner = sess;
+		if (h1c->conn->flags & CO_FL_PRIVATE) {
+			/* Add the connection in the session server list, if not already done */
 			if (!session_add_conn(sess, h1c->conn, h1c->conn->target)) {
 				h1c->conn->owner = NULL;
 				h1c->conn->mux->destroy(h1c);
 				goto end;
 			}
+			/* Always idle at this step */
 			if (session_check_idle_conn(sess, h1c->conn)) {
 				/* The connection got destroyed, let's leave */
 				TRACE_DEVEL("outgoing connection killed", H1_EV_STRM_END|H1_EV_H1C_END);
 				goto end;
 			}
 		}
-		if (!(h1c->conn->flags & CO_FL_PRIVATE)) {
+		else {
 			if (h1c->conn->owner == sess)
 				h1c->conn->owner = NULL;
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);

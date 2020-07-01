@@ -3541,19 +3541,17 @@ static void fcgi_detach(struct conn_stream *cs)
 	if (!(fconn->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) &&
 	    (fconn->flags & FCGI_CF_KEEP_CONN)) {
 		if (fconn->conn->flags & CO_FL_PRIVATE) {
-			if (!fconn->conn->owner) {
-				fconn->conn->owner = sess;
-				if (!session_add_conn(sess, fconn->conn, fconn->conn->target)) {
-					fconn->conn->owner = NULL;
-					if (eb_is_empty(&fconn->streams_by_id)) {
-						/* let's kill the connection right away */
-						fconn->conn->mux->destroy(fconn);
-						TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
-						return;
-					}
+			/* Add the connection in the session serverlist, if not already done */
+			if (!session_add_conn(sess, fconn->conn, fconn->conn->target)) {
+				fconn->conn->owner = NULL;
+				if (eb_is_empty(&fconn->streams_by_id)) {
+					/* let's kill the connection right away */
+					fconn->conn->mux->destroy(fconn);
+					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);
+					return;
 				}
 			}
-			if (eb_is_empty(&fconn->streams_by_id) && fconn->conn->owner == sess) {
+			if (eb_is_empty(&fconn->streams_by_id)) {
 				if (session_check_idle_conn(fconn->conn->owner, fconn->conn) != 0) {
 					/* The connection is destroyed, let's leave */
 					TRACE_DEVEL("outgoing connection killed", FCGI_EV_STRM_END|FCGI_EV_FCONN_ERR);

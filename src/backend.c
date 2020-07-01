@@ -1402,6 +1402,7 @@ int connect_server(struct stream *s)
 			srv_conn->target = s->target;
 		srv_cs = NULL;
 
+		srv_conn->owner = s->sess;
 		if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
 			conn_set_private(srv_conn);
 	}
@@ -1466,10 +1467,7 @@ int connect_server(struct stream *s)
 		    srv->mux_proto || s->be->mode != PR_MODE_HTTP))
 #endif
 			init_mux = 1;
-#if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
-		else
-			srv_conn->owner = s->sess;
-#endif
+
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
 
@@ -1547,11 +1545,17 @@ int connect_server(struct stream *s)
 		}
 		/* If we're doing http-reuse always, and the connection is not
 		 * private with available streams (an http2 connection), add it
-		 * to the available list, so that others can use it right away.
+		 * to the available list, so that others can use it right
+		 * away. If the connection is private, add it in the session
+		 * server list.
 		 */
 		if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 		    !(srv_conn->flags & CO_FL_PRIVATE) && srv_conn->mux->avail_streams(srv_conn) > 0)
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
+		else if (srv_conn->flags & CO_FL_PRIVATE) {
+			/* If it fail now, the same will be done in mux->detach() callack */
+			session_add_conn(srv_conn->owner, srv_conn, srv_conn->target);
+		}
 	}
 	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,
 	 * if so, add our handshake pseudo-XPRT now.

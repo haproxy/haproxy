@@ -60,9 +60,20 @@ int conn_create_mux(struct connection *conn)
 		else if (conn_install_mux_be(conn, conn->ctx, conn->owner) < 0)
 			goto fail;
 		srv = objt_server(conn->target);
+
+		/* If we're doing http-reuse always, and the connection is not
+		 * private with available streams (an http2 connection), add it
+		 * to the available list, so that others can use it right
+		 * away. If the connection is private, add it in the session
+		 * server list.
+		 */
 		if (srv && ((srv->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 		    !(conn->flags & CO_FL_PRIVATE) && conn->mux->avail_streams(conn) > 0)
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
+		else if (conn->flags & CO_FL_PRIVATE) {
+			/* If it fail now, the same will be done in mux->detach() callack */
+			session_add_conn(conn->owner, conn, conn->target);
+		}
 		return 0;
 fail:
 		/* let the upper layer know the connection failed */
