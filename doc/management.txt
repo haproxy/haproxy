@@ -2290,6 +2290,21 @@ show profiling
   Dumps the current profiling settings, one per line, as well as the command
   needed to change them.
 
+show servers conn [<backend>]
+  Dump the current and idle connections state of the servers belonging to the
+  designated backend (or all backends if none specified). A backend name or
+  identifier may be used.
+
+  The output consists in a header line showing the fields titles, then one
+  server per line with for each, the backend name and ID, server name and ID,
+  the address, port and a series or values. The number of fields varies
+  depending on thread count.
+
+  Given the threaded nature of idle connections, it's important to understand
+  that some values may change once read, and that as such, consistency within a
+  line isn't granted. This output is mostly provided as a debugging tool and is
+  not relevant to be routinely monitored nor graphed.
+
 show servers state [<backend>]
   Dump the state of the servers found in the running configuration. A backend
   name or identifier may be provided to limit the output to this backend only.

@@ -1723,13 +1723,16 @@ struct proxy *cli_find_backend(struct appctx *appctx, const char *arg)
 }
 
 
-/* parse a "show servers" CLI line, returns 0 if it wants to start the dump or
- * 1 if it stops immediately. If an argument is specified, it will set the proxy
- * pointer into cli.p0 and its ID into cli.i0.
+/* parse a "show servers [state|conn]" CLI line, returns 0 if it wants to start
+ * the dump or 1 if it stops immediately. If an argument is specified, it will
+ * set the proxy pointer into cli.p0 and its ID into cli.i0. It sets cli.o0 to
+ * 0 for "state", or 1 for "conn".
  */
 static int cli_parse_show_servers(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct proxy *px;
+
+	appctx->ctx.cli.o0 = *args[2] == 'c'; // "conn" vs "state"
 
 	/* check if a backend name has been provided */
 	if (*args[3]) {
@@ -1794,19 +1797,38 @@ static int dump_servers_state(struct stream_interface *si)
 		if (srv->srvrq && srv->srvrq->name)
 			srvrecord = srv->srvrq->name;
 
-		chunk_printf(&trash,
-				"%d %s "
-				"%d %s %s "
-				"%d %d %d %d %ld "
-				"%d %d %d %d %d "
-				"%d %d %s %u %s"
-				"\n",
-				px->uuid, px->id,
-				srv->puid, srv->id, srv_addr,
-				srv->cur_state, srv->cur_admin, srv->uweight, srv->iweight, (long int)srv_time_since_last_change,
-				srv->check.status, srv->check.result, srv->check.health, srv->check.state, srv->agent.state,
-				bk_f_forced_id, srv_f_forced_id, srv->hostname ? srv->hostname : "-", srv->svc_port,
-				srvrecord ? srvrecord : "-");
+		if (appctx->ctx.cli.o0 == 0) {
+			/* show servers state */
+			chunk_printf(&trash,
+			             "%d %s "
+			             "%d %s %s "
+			             "%d %d %d %d %ld "
+			             "%d %d %d %d %d "
+			             "%d %d %s %u %s"
+			             "\n",
+			             px->uuid, px->id,
+			             srv->puid, srv->id, srv_addr,
+			             srv->cur_state, srv->cur_admin, srv->uweight, srv->iweight, (long int)srv_time_since_last_change,
+			             srv->check.status, srv->check.result, srv->check.health, srv->check.state, srv->agent.state,
+			             bk_f_forced_id, srv_f_forced_id, srv->hostname ? srv->hostname : "-", srv->svc_port,
+			             srvrecord ? srvrecord : "-");
+		} else {
+			/* show servers conn */
+			int thr;
+
+			chunk_printf(&trash,
+			             "%s/%s %d/%d %s %u - %u %u %u %u %u %u %d %u",
+			             px->id, srv->id, px->uuid, srv->puid, srv_addr,srv->svc_port,
+			             srv->pool_purge_delay,
+			             srv->curr_used_conns, srv->max_used_conns, srv->est_need_conns,
+			             srv->curr_idle_nb, srv->curr_safe_nb, (int)srv->max_idle_conns, srv->curr_idle_conns);
+
+			for (thr = 0; thr < global.nbthread; thr++)
+				chunk_appendf(&trash, " %u", srv->curr_idle_thr[thr]);
+
+			chunk_appendf(&trash, "\n");
+		}
+
 		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_rx_room_blk(si);
 			return 0;
@@ -1833,7 +1855,13 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 	}
 
 	if (appctx->st2 == STAT_ST_HEAD) {
-		chunk_printf(&trash, "%d\n# %s\n", SRV_STATE_FILE_VERSION, SRV_STATE_FILE_FIELD_NAMES);
+		if (appctx->ctx.cli.o0 == 0)
+			chunk_printf(&trash, "%d\n# %s\n", SRV_STATE_FILE_VERSION, SRV_STATE_FILE_FIELD_NAMES);
+		else
+			chunk_printf(&trash,
+			             "# bkname/svname bkid/svid addr port - purge_delay used_cur used_max need_est unsafe_nb safe_nb idle_lim idle_cur idle_per_thr[%d]\n",
+			             global.nbthread);
+
 		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_rx_room_blk(si);
 			return 0;
@@ -2343,6 +2371,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "disable", "frontend",  NULL }, "disable frontend : temporarily disable specific frontend", cli_parse_disable_frontend, NULL, NULL },
 	{ { "enable", "frontend",  NULL }, "enable frontend : re-enable specific frontend", cli_parse_enable_frontend, NULL, NULL },
 	{ { "set", "maxconn", "frontend",  NULL }, "set maxconn frontend : change a frontend's maxconn setting", cli_parse_set_maxconn_frontend, NULL },
+	{ { "show","servers", "conn",  NULL }, "show servers conn [id]: dump server connections status (for backend <id>)", cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show","servers", "state",  NULL }, "show servers state [id]: dump volatile server information (for backend <id>)", cli_parse_show_servers, cli_io_handler_servers_state },
 	{ { "show", "backend", NULL }, "show backend   : list backends in the current running config", NULL, cli_io_handler_show_backend },
 	{ { "shutdown", "frontend",  NULL }, "shutdown frontend : stop a specific frontend", cli_parse_shutdown_frontend, NULL, NULL },
