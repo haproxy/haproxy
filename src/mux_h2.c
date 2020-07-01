@@ -3961,10 +3961,6 @@ static void h2_detach(struct conn_stream *cs)
 						return;
 					}
 				}
-
-				/* Be sure to remove the connection from the available_conns list */
-				if (!MT_LIST_ISEMPTY(&h2c->conn->list))
-					MT_LIST_DEL(&h2c->conn->list);
 			}
 			else {
 				if (eb_is_empty(&h2c->streams_by_id)) {

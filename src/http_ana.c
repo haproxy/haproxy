@@ -1838,7 +1838,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			if ((ctx.value.len >= 4 && strncasecmp(ctx.value.ptr, "Nego", 4) == 0) ||
 			    (ctx.value.len >= 4 && strncasecmp(ctx.value.ptr, "NTLM", 4) == 0)) {
 				sess->flags |= SESS_FL_PREFER_LAST;
-				srv_conn->flags |= CO_FL_PRIVATE;
+				conn_set_private(srv_conn);
 				break;
 			}
 		}

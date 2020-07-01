@@ -1403,7 +1403,7 @@ int connect_server(struct stream *s)
 		srv_cs = NULL;
 
 		if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
-			conn->flags |= CO_FL_PRIVATE;
+			conn_set_private(srv_conn);
 	}
 
 	if (srv_conn && srv && was_unused) {
@@ -1474,7 +1474,7 @@ int connect_server(struct stream *s)
 		srv_conn->send_proxy_ofs = 0;
 
 		if (srv && srv->pp_opts) {
-			srv_conn->flags |= CO_FL_PRIVATE;
+			conn_set_private(srv_conn);
 			srv_conn->flags |= CO_FL_SEND_PROXY;
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
 			if (cli_conn)
@@ -1530,7 +1530,7 @@ int connect_server(struct stream *s)
 					   srv->ssl_ctx.sni, SMP_T_STR);
 		if (smp_make_safe(smp)) {
 			ssl_sock_set_servername(srv_conn, smp->data.u.str.area);
-			srv_conn->flags |= CO_FL_PRIVATE;
+			conn_set_private(srv_conn);
 		}
 	}
 #endif /* USE_OPENSSL */

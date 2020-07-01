@@ -342,6 +342,17 @@ static inline void conn_set_owner(struct connection *conn, void *owner, void (*c
 	conn->destroy_cb = cb;
 }
 
+
+/* Mark the connection <conn> as private and remove it from the available connection list */
+static inline void conn_set_private(struct connection *conn)
+{
+	conn->flags |= CO_FL_PRIVATE;
+
+	/* Be sure to remove the connection from the available_conns list */
+	if (!MT_LIST_ISEMPTY(&conn->list))
+		MT_LIST_DEL(&conn->list);
+}
+
 /* Allocates a struct sockaddr from the pool if needed, assigns it to *sap and
  * returns it. If <sap> is NULL, the address is always allocated and returned.
  * if <sap> is non-null, an address will only be allocated if it points to a

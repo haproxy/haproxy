@@ -3560,10 +3560,6 @@ static void fcgi_detach(struct conn_stream *cs)
 					return;
 				}
 			}
-
-			/* Be sure to remove the connection from the available_conns list */
-			if (!MT_LIST_ISEMPTY(&fconn->conn->list))
-				MT_LIST_DEL(&fconn->conn->list);
 		}
 		else {
 			if (eb_is_empty(&fconn->streams_by_id)) {

@@ -415,14 +415,14 @@ int tcp_connect_server(struct connection *conn, int flags)
 		if (conn->src && is_inet_addr(conn->src)) {
 			switch (src->opts & CO_SRC_TPROXY_MASK) {
 			case CO_SRC_TPROXY_CLI:
-				conn->flags |= CO_FL_PRIVATE;
+				conn_set_private(conn);
 				/* fall through */
 			case CO_SRC_TPROXY_ADDR:
 				flags = 3;
 				break;
 			case CO_SRC_TPROXY_CIP:
 			case CO_SRC_TPROXY_DYN:
-				conn->flags |= CO_FL_PRIVATE;
+				conn_set_private(conn);
 				flags = 1;
 				break;
 			}

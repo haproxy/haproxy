@@ -1093,7 +1093,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	if (status != SF_ERR_NONE)
 		goto fail_check;
 
-	conn->flags |= CO_FL_PRIVATE;
+	conn_set_private(conn);
 	conn->ctx = cs;
 
 	/* The mux may be initialized now if there isn't server attached to the
