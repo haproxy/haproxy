@@ -1745,14 +1745,14 @@ static int cli_parse_show_servers(char **args, char *payload, struct appctx *app
 	return 0;
 }
 
-/* dumps server state information into <buf> for all the servers found in backend cli.p0.
+/* dumps server state information for all the servers found in backend cli.p0.
  * These information are all the parameters which may change during HAProxy runtime.
  * By default, we only export to the last known server state file format.
  * These information can be used at next startup to recover same level of server state.
  * It uses the proxy pointer from cli.p0, the proxy's id from cli.i0 and the server's
  * pointer from cli.p1.
  */
-static int dump_servers_state(struct stream_interface *si, struct buffer *buf)
+static int dump_servers_state(struct stream_interface *si)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct proxy *px = appctx->ctx.cli.p0;
@@ -1794,7 +1794,7 @@ static int dump_servers_state(struct stream_interface *si, struct buffer *buf)
 		if (srv->srvrq && srv->srvrq->name)
 			srvrecord = srv->srvrq->name;
 
-		chunk_appendf(buf,
+		chunk_appendf(&trash,
 				"%d %s "
 				"%d %s %s "
 				"%d %d %d %d %ld "
@@ -1846,7 +1846,7 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 		curproxy = appctx->ctx.cli.p0;
 		/* servers are only in backends */
 		if (curproxy->cap & PR_CAP_BE) {
-			if (!dump_servers_state(si, &trash))
+			if (!dump_servers_state(si))
 				return 0;
 		}
 		/* only the selected proxy is dumped */
