@@ -13404,6 +13404,19 @@ on-marked-up <action>
 
   Actions are disabled by default
 
+pool-low-conn <max>
+  Set a low threshold on the number of idling connections for a server, below
+  which a thread will not try to steal a connection from another thread. This
+  can be useful to improve CPU usage patterns in scenarios involving many very
+  fast servers, in order to ensure all threads will keep a few idle connections
+  all the time instead of letting them accumulate over one thread and migrating
+  them from thread to thread. Typical values of twice the number of threads
+  seem to show very good performance already with sub-millisecond response
+  times. The default is zero, indicating that any idle connection can be used
+  at any time. It is the recommended setting for normal use. This only applies
+  to connections that can be shared according to the same principles as those
+  applying to "http-reuse".
+
 pool-max-conn <max>
   Set the maximum number of idling connections for a server. -1 means unlimited
   connections, 0 means no idle connections. The default is -1. When idle

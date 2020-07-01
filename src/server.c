@@ -356,6 +356,20 @@ static int srv_parse_pool_purge_delay(char **args, int *cur_arg, struct proxy *c
 	return 0;
 }
 
+static int srv_parse_pool_low_conn(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *arg;
+
+	arg = args[*cur_arg + 1];
+	if (!*arg) {
+		memprintf(err, "'%s' expects <value> as argument.\n", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	newsrv->low_idle_conns = atoi(arg);
+	return 0;
+}
+
 static int srv_parse_pool_max_conn(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
 {
 	char *arg;
@@ -1256,6 +1270,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "no-tfo",              srv_parse_no_tfo,              0,  1 }, /* Disable use of TCP Fast Open */
 	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
 	{ "observe",             srv_parse_observe,             1,  1 }, /* Enables health adjusting based on observing communication with the server */
+	{ "pool-low-conn",       srv_parse_pool_low_conn,       1,  1 }, /* Set the min number of orphan idle connecbefore being allowed to pick from other threads */
 	{ "pool-max-conn",       srv_parse_pool_max_conn,       1,  1 }, /* Set the max number of orphan idle connections, 0 means unlimited */
 	{ "pool-purge-delay",    srv_parse_pool_purge_delay,    1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 1s */
 	{ "proto",               srv_parse_proto,               1,  1 }, /* Set the proto to use for all outgoing connections */
@@ -1730,6 +1745,7 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 #endif
 	srv->mux_proto = src->mux_proto;
 	srv->pool_purge_delay = src->pool_purge_delay;
+	srv->low_idle_conns = src->low_idle_conns;
 	srv->max_idle_conns = src->max_idle_conns;
 	srv->max_reuse = src->max_reuse;
 

@@ -258,8 +258,8 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 	    ((MT_LIST_ISEMPTY(&srv->safe_conns[tid]) &&
 	      (is_safe || MT_LIST_ISEMPTY(&srv->idle_conns[tid]))) ||
 	     (ha_used_fds < global.tune.pool_low_count &&
-	      (srv->curr_used_conns + srv->curr_idle_conns <
-	       MAX(srv->curr_used_conns, srv->est_need_conns) + global.nbthread))) &&
+	      (srv->curr_used_conns + srv->curr_idle_conns <=
+	       MAX(srv->curr_used_conns, srv->est_need_conns) + srv->low_idle_conns))) &&
 	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn)) {
 		int retadd;
 

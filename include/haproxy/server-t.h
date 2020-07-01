@@ -226,6 +226,7 @@ struct server {
 	struct mt_list *safe_conns;		/* safe idle connections */
 	struct list *available_conns;           /* Connection in used, but with still new streams available */
 	unsigned int pool_purge_delay;          /* Delay before starting to purge the idle conns pool */
+	unsigned int low_idle_conns;            /* min idle connection count to start picking from other threads */
 	unsigned int max_idle_conns;            /* Max number of connection allowed in the orphan connections list */
 	unsigned int curr_idle_conns;           /* Current number of orphan idling connections, both the idle and the safe lists */
 	unsigned int curr_idle_nb;              /* Current number of connections in the idle list */

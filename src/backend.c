@@ -1076,13 +1076,14 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 {
 	struct mt_list *mt_list = is_safe ? srv->safe_conns : srv->idle_conns;
 	struct connection *conn;
-	int i;
+	int i; // thread number
 	int found = 0;
 
 	/* We need to lock even if this is our own list, because another
 	 * thread may be trying to migrate that connection, and we don't want
 	 * to end up with two threads using the same connection.
 	 */
+	i = tid;
 	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
 	conn = MT_LIST_POP(&mt_list[tid], struct connection *, list);
 	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].toremove_lock);
@@ -1090,10 +1091,17 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	/* If we found a connection in our own list, and we don't have to
 	 * steal one from another thread, then we're done.
 	 */
-	if (conn) {
-		i = tid;
-		goto fix_conn;
-	}
+	if (conn)
+		goto done;
+
+	/* Are we allowed to pick from another thread ? We'll still try
+	 * it if we're running low on FDs as we don't want to create
+	 * extra conns in this case, otherwise we can give up if we have
+	 * too few idle conns.
+	 */
+	if (srv->curr_idle_conns < srv->low_idle_conns &&
+	    ha_used_fds < global.tune.pool_low_count)
+		goto done;
 
 	/* Lookup all other threads for an idle connection, starting from tid + 1 */
 	for (i = tid; !found && (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != tid;) {
@@ -1116,8 +1124,8 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 
 	if (!found)
 		conn = NULL;
-	else {
-fix_conn:
+ done:
+	if (conn) {
 		conn->idle_time = 0;
 		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 		_HA_ATOMIC_SUB(&srv->curr_idle_thr[i], 1);
