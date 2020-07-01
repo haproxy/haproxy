@@ -3540,9 +3540,6 @@ static void fcgi_detach(struct conn_stream *cs)
 
 	if (!(fconn->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) &&
 	    (fconn->flags & FCGI_CF_KEEP_CONN)) {
-		/* Never ever allow to reuse a connection from a non-reuse backend */
-		if ((fconn->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
-			fconn->conn->flags |= CO_FL_PRIVATE;
 		if (fconn->conn->flags & CO_FL_PRIVATE) {
 			if (!fconn->conn->owner) {
 				fconn->conn->owner = sess;

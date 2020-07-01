@@ -1401,6 +1401,9 @@ int connect_server(struct stream *s)
 		if (srv_conn)
 			srv_conn->target = s->target;
 		srv_cs = NULL;
+
+		if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
+			conn->flags |= CO_FL_PRIVATE;
 	}
 
 	if (srv_conn && srv && was_unused) {

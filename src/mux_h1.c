@@ -2453,10 +2453,6 @@ static void h1_detach(struct conn_stream *cs)
 			goto release;
 		}
 
-		/* Never ever allow to reuse a connection from a non-reuse backend */
-		if ((h1c->px->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
-			h1c->conn->flags |= CO_FL_PRIVATE;
-
 		if (!(h1c->conn->owner) && (h1c->conn->flags & CO_FL_PRIVATE)) {
 			h1c->conn->owner = sess;
 			if (!session_add_conn(sess, h1c->conn, h1c->conn->target)) {

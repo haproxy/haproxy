@@ -3942,9 +3942,6 @@ static void h2_detach(struct conn_stream *cs)
 	if (h2c->flags & H2_CF_IS_BACK) {
 		if (!(h2c->conn->flags &
 		    (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))) {
-			/* Never ever allow to reuse a connection from a non-reuse backend */
-			if ((h2c->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
-				h2c->conn->flags |= CO_FL_PRIVATE;
 			if (h2c->conn->flags & CO_FL_PRIVATE) {
 				if (!h2c->conn->owner) {
 					h2c->conn->owner = sess;
