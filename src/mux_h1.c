@@ -2926,6 +2926,7 @@ static int add_hdr_case_adjust(const char *from, const char *to, char **err)
 static int h1_takeover(struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
+	struct task *task;
 
 	if (fd_takeover(conn->handle.fd, conn) != 0)
 		return -1;
@@ -2937,10 +2938,13 @@ static int h1_takeover(struct connection *conn)
 	 */
 	h1c->wait_event.tasklet->context = NULL;
 	tasklet_wakeup(h1c->wait_event.tasklet);
-	if (h1c->task) {
-		h1c->task->context = NULL;
-		/* Wake the task, to let it free itself */
-		task_wakeup(h1c->task, TASK_WOKEN_OTHER);
+
+	task = h1c->task;
+	if (task) {
+		task->context = NULL;
+		h1c->task = NULL;
+		__ha_barrier_store();
+		task_kill(task);
 
 		h1c->task = task_new(tid_bit);
 		if (!h1c->task) {
