@@ -1099,6 +1099,9 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	for (i = tid; !found && (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != tid;) {
 		struct mt_list *elt1, elt2;
 
+		if (!srv->curr_idle_thr[i])
+			continue;
+
 		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
 		mt_list_for_each_entry_safe(conn, &mt_list[i], list, elt1, elt2) {
 			if (conn->mux->takeover && conn->mux->takeover(conn) == 0) {
