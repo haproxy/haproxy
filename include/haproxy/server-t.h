@@ -235,6 +235,7 @@ struct server {
 	unsigned int max_used_conns;            /* Max number of used connections (the counter is reset at each connection purges */
 	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
 	unsigned int *curr_idle_thr;            /* Current number of orphan idling connections per thread */
+	unsigned int next_takeover;             /* thread ID to try to steal connections from next time */
 	int max_reuse;                          /* Max number of requests on a same connection */
 	struct eb32_node idle_node;             /* When to next do cleanup in the idle connections */
 	struct task *warmup;                    /* the task dedicated to the warmup when slowstart is set */

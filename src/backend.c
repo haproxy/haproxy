@@ -1079,6 +1079,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	struct connection *conn;
 	int i; // thread number
 	int found = 0;
+	int stop;
 
 	/* We need to lock even if this is our own list, because another
 	 * thread may be trying to migrate that connection, and we don't want
@@ -1115,11 +1116,17 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	    ha_used_fds < global.tune.pool_low_count)
 		goto done;
 
-	/* Lookup all other threads for an idle connection, starting from tid + 1 */
-	while (!found && (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != tid) {
+	/* Lookup all other threads for an idle connection, starting from last
+	 * unvisited thread.
+	 */
+	stop = srv->next_takeover;
+	if (stop >= global.nbthread)
+		stop = 0;
+
+	for (i = stop; !found && (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != stop;) {
 		struct mt_list *elt1, elt2;
 
-		if (!srv->curr_idle_thr[i])
+		if (!srv->curr_idle_thr[i] || i == tid)
 			continue;
 
 		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].toremove_lock);
@@ -1152,6 +1159,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
  done:
 	if (conn) {
 		conn->idle_time = 0;
+		_HA_ATOMIC_STORE(&srv->next_takeover, (i + 1 == global.nbthread) ? 0 : i + 1);
 		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 		_HA_ATOMIC_SUB(&srv->curr_idle_thr[i], 1);
 		_HA_ATOMIC_SUB(is_safe ? &srv->curr_safe_nb : &srv->curr_idle_nb, 1);
