@@ -4082,6 +4082,7 @@ static void fcgi_show_fd(struct buffer *msg, struct connection *conn)
 static int fcgi_takeover(struct connection *conn)
 {
 	struct fcgi_conn *fcgi = conn->ctx;
+	struct task *task;
 
 	if (fd_takeover(conn->handle.fd, conn) != 0)
 		return -1;
@@ -4093,10 +4094,13 @@ static int fcgi_takeover(struct connection *conn)
 	 */
 	fcgi->wait_event.tasklet->context = NULL;
 	tasklet_wakeup(fcgi->wait_event.tasklet);
-	if (fcgi->task) {
-		fcgi->task->context = NULL;
-		/* Wake the task, to let it free itself */
-		task_wakeup(fcgi->task, TASK_WOKEN_OTHER);
+
+	task = fcgi->task;
+	if (task) {
+		task->context = NULL;
+		fcgi->task = NULL;
+		__ha_barrier_store();
+		task_kill(task);
 
 		fcgi->task = task_new(tid_bit);
 		if (!fcgi->task) {
