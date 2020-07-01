@@ -1519,6 +1519,19 @@ int connect_server(struct stream *s)
 	if (err != SF_ERR_NONE)
 		return err;
 
+#ifdef USE_OPENSSL
+	if (srv && srv->ssl_ctx.sni) {
+		struct sample *smp;
+
+		smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+					   srv->ssl_ctx.sni, SMP_T_STR);
+		if (smp_make_safe(smp)) {
+			ssl_sock_set_servername(srv_conn, smp->data.u.str.area);
+			srv_conn->flags |= CO_FL_PRIVATE;
+		}
+	}
+#endif /* USE_OPENSSL */
+
 	/* We have to defer the mux initialization until after si_connect()
 	 * has been called, as we need the xprt to have been properly
 	 * initialized, or any attempt to recv during the mux init may
@@ -1576,21 +1589,6 @@ int connect_server(struct stream *s)
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.cur_sess_max, count);
 		if (s->be->lbprm.server_take_conn)
 			s->be->lbprm.server_take_conn(srv);
-
-#ifdef USE_OPENSSL
-		if (srv->ssl_ctx.sni) {
-			struct sample *smp;
-
-			smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-						   srv->ssl_ctx.sni, SMP_T_STR);
-			if (smp_make_safe(smp)) {
-				ssl_sock_set_servername(srv_conn,
-							smp->data.u.str.area);
-				srv_conn->flags |= CO_FL_PRIVATE;
-			}
-		}
-#endif /* USE_OPENSSL */
-
 	}
 
 	/* Now handle synchronously connected sockets. We know the stream-int
