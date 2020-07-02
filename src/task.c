@@ -97,8 +97,8 @@ void task_kill(struct task *t)
 
 			/* Beware: tasks that have never run don't have their ->list empty yet! */
 			LIST_INIT(&((struct tasklet *)t)->list);
-			BUG_ON(!MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list,
-			                     (struct mt_list *)&((struct tasklet *)t)->list));
+			MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list,
+			             (struct mt_list *)&((struct tasklet *)t)->list);
 			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 			_HA_ATOMIC_ADD(&task_per_thread[thr].task_list_size, 1);
 			if (sleeping_thread_mask & (1UL << thr)) {
