@@ -182,7 +182,7 @@ ssize_t __sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
         }
 	else if (sink->fmt == SINK_FMT_RFC5424) {
 		pfx[npfx].ptr = logheader_rfc5424;
-                pfx[npfx].len = update_log_hdr_rfc5424(date.tv_sec) - pfx[npfx].ptr;
+		pfx[npfx].len = update_log_hdr_rfc5424(date.tv_sec, date.tv_usec) - pfx[npfx].ptr;
 		log_format = LOG_FORMAT_RFC5424;
 	}
 	else {

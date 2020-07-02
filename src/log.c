@@ -1483,10 +1483,11 @@ char *update_log_hdr(const time_t time)
  * the beginning of logheader_rfc5424 once a second and return the pointer
  * to the first character after it.
  */
-char *update_log_hdr_rfc5424(const time_t time)
+char *update_log_hdr_rfc5424(const time_t time, const suseconds_t frac)
 {
 	static THREAD_LOCAL long tvsec;
 	const char *gmt_offset;
+	char c;
 
 	if (unlikely(time != tvsec || logheader_rfc5424_end == NULL)) {
 		/* this string is rebuild only once a second */
@@ -1498,7 +1499,7 @@ char *update_log_hdr_rfc5424(const time_t time)
 		gmt_offset = get_gmt_offset(time, &tm);
 
 		hdr_len = snprintf(logheader_rfc5424, global.max_syslog_len,
-				   "<<<<>1 %4d-%02d-%02dT%02d:%02d:%02d%.3s:%.2s %s ",
+				   "<<<<>1 %4d-%02d-%02dT%02d:%02d:%02d.000000%.3s:%.2s %s ",
 				   tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
 				   tm.tm_hour, tm.tm_min, tm.tm_sec,
 				   gmt_offset, gmt_offset+3,
@@ -1512,6 +1513,11 @@ char *update_log_hdr_rfc5424(const time_t time)
 
 		logheader_rfc5424_end = logheader_rfc5424 + hdr_len;
 	}
+
+	/* utoa_pad add a trailing '\0' so we save the char to restore */
+	c = logheader_rfc5424[33];
+	utoa_pad(frac, logheader_rfc5424 + 27, 7);
+	logheader_rfc5424[33] = c;
 
 	logheader_rfc5424_end[0] = 0; // ensure we get rid of any previous attempt
 
@@ -1629,7 +1635,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 
 	case LOG_FORMAT_RFC5424:
 		hdr = logheader_rfc5424;
-		hdr_ptr = update_log_hdr_rfc5424(time);
+		hdr_ptr = update_log_hdr_rfc5424(time, date.tv_usec);
 		sd_max = sd_size; /* the SD part allowed only in RFC5424 */
 		break;
 

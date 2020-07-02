@@ -137,7 +137,7 @@ char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const str
 /*
  * Function to handle log header building (exported for sinks)
  */
-char *update_log_hdr_rfc5424(const time_t time);
+char *update_log_hdr_rfc5424(const time_t time, suseconds_t frac);
 char *update_log_hdr(const time_t time);
 char * get_format_pid_sep1(int format, size_t *len);
 char * get_format_pid_sep2(int format, size_t *len);
