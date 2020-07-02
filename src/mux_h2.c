@@ -3706,7 +3706,21 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 	TRACE_ENTER(H2_EV_H2C_WAKE, h2c ? h2c->conn : NULL);
 
 	if (h2c) {
+		 /* Make sure nobody stole the connection from us */
+		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+
+		/* Somebody already stole the connection from us, so we should not
+		 * free it, we just have to free the task.
+		 */
+		if (!t->context) {
+			h2c = NULL;
+			HA_SPIN_UNLOCK(&OTHER_LOCK, &idle_conns[tid].takeover_lock);
+			goto do_leave;
+		}
+
+
 		if (!expired) {
+			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 			TRACE_DEVEL("leaving (not expired)", H2_EV_H2C_WAKE, h2c->conn);
 			return t;
 		}
@@ -3715,6 +3729,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 			/* we do still have streams but all of them are idle, waiting
 			 * for the data layer, so we must not enforce the timeout here.
 			 */
+			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 			t->expire = TICK_ETERNITY;
 			return t;
 		}
@@ -3722,20 +3737,13 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 		/* We're about to destroy the connection, so make sure nobody attempts
 		 * to steal it from us.
 		 */
-		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
-
 		if (h2c->conn->flags & CO_FL_LIST_MASK)
 			MT_LIST_DEL(&h2c->conn->list);
-
-		/* Somebody already stole the connection from us, so we should not
-		 * free it, we just have to free the task.
-		 */
-		if (!t->context)
-			h2c = NULL;
 
 		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 	}
 
+do_leave:
 	task_destroy(t);
 
 	if (!h2c) {

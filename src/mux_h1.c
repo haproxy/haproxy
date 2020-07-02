@@ -2311,14 +2311,13 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 		 */
 		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 
-		if (h1c->conn->flags & CO_FL_LIST_MASK)
-			MT_LIST_DEL(&h1c->conn->list);
-
 		/* Somebody already stole the connection from us, so we should not
 		 * free it, we just have to free the task.
 		 */
 		if (!t->context)
 			h1c = NULL;
+		else if (h1c->conn->flags & CO_FL_LIST_MASK)
+			MT_LIST_DEL(&h1c->conn->list);
 
 		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 	}
