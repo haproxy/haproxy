@@ -3204,7 +3204,7 @@ int main(int argc, char **argv)
 					exit(1);
 			}
 			else
-				ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.",
+				ha_warning("[%s.main()] Cannot fix MEM limit to %d megs."
 					   "This will fail in >= v2.3\n",
 					   argv[0], global.rlimit_memmax);
 		}
