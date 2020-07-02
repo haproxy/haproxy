@@ -3436,7 +3436,7 @@ static struct conn_stream *fcgi_attach(struct connection *conn, struct session *
 	struct fcgi_conn *fconn = conn->ctx;
 
 	TRACE_ENTER(FCGI_EV_FSTRM_NEW, conn);
-	cs = cs_new(conn);
+	cs = cs_new(conn, conn->target);
 	if (!cs) {
 		TRACE_DEVEL("leaving on CS allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR, conn);
 		return NULL;

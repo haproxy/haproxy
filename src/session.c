@@ -144,7 +144,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 
 	ret = -1; /* assume unrecoverable error by default */
 
-	if (unlikely((cli_conn = conn_new()) == NULL))
+	if (unlikely((cli_conn = conn_new(&l->obj_type)) == NULL))
 		goto out_close;
 
 	if (!sockaddr_alloc(&cli_conn->src))
@@ -153,7 +153,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	cli_conn->handle.fd = cfd;
 	*cli_conn->src = *addr;
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
-	cli_conn->target = &l->obj_type;
 	cli_conn->proxy_netns = l->netns;
 
 	conn_prepare(cli_conn, l->proto, l->bind_conf->xprt);

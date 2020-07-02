@@ -100,7 +100,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 	ctx->conn = conn;
 
 	if (!cs) {
-		cs = cs_new(conn);
+		cs = cs_new(conn, conn->target);
 		if (!cs)
 			goto fail_free_ctx;
 
@@ -167,7 +167,7 @@ static struct conn_stream *mux_pt_attach(struct connection *conn, struct session
 
 	if (ctx->wait_event.events)
 		conn->xprt->unsubscribe(ctx->conn, conn->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
-	cs = cs_new(conn);
+	cs = cs_new(conn, conn->target);
 	if (!cs)
 		goto fail;
 

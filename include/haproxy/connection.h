@@ -312,7 +312,7 @@ static inline void cs_init(struct conn_stream *cs, struct connection *conn)
  * is about to be reused. It also leaves the addresses untouched, which makes
  * it usable across connection retries to reset a connection to a known state.
  */
-static inline void conn_init(struct connection *conn)
+static inline void conn_init(struct connection *conn, void *target)
 {
 	conn->obj_type = OBJ_TYPE_CONN;
 	conn->flags = CO_FL_NONE;
@@ -322,7 +322,7 @@ static inline void conn_init(struct connection *conn)
 	conn->send_proxy_ofs = 0;
 	conn->handle.fd = DEAD_FD_MAGIC;
 	conn->err_code = CO_ER_NONE;
-	conn->target = NULL;
+	conn->target = target;
 	conn->destroy_cb = NULL;
 	conn->proxy_netns = NULL;
 	MT_LIST_INIT(&conn->list);
@@ -388,13 +388,13 @@ static inline void sockaddr_free(struct sockaddr_storage **sap)
  * connection is returned on success, NULL on failure. The connection must
  * be released using pool_free() or conn_free().
  */
-static inline struct connection *conn_new()
+static inline struct connection *conn_new(void *target)
 {
 	struct connection *conn;
 
 	conn = pool_alloc(pool_head_connection);
 	if (likely(conn != NULL))
-		conn_init(conn);
+		conn_init(conn, target);
 	return conn;
 }
 
@@ -414,7 +414,7 @@ static inline void cs_free(struct conn_stream *cs)
  * to the mux's stream list on success, then returned. On failure, nothing is
  * allocated and NULL is returned.
  */
-static inline struct conn_stream *cs_new(struct connection *conn)
+static inline struct conn_stream *cs_new(struct connection *conn, void *target)
 {
 	struct conn_stream *cs;
 
@@ -423,12 +423,11 @@ static inline struct conn_stream *cs_new(struct connection *conn)
 		return NULL;
 
 	if (!conn) {
-		conn = conn_new();
+		conn = conn_new(target);
 		if (unlikely(!conn)) {
 			cs_free(cs);
 			return NULL;
 		}
-		conn_init(conn);
 	}
 
 	cs_init(cs, conn);

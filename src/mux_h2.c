@@ -1352,7 +1352,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
 	if (!h2s)
 		goto out;
 
-	cs = cs_new(h2c->conn);
+	cs = cs_new(h2c->conn, h2c->conn->target);
 	if (!cs)
 		goto out_close;
 
@@ -3818,7 +3818,7 @@ static struct conn_stream *h2_attach(struct connection *conn, struct session *se
 	struct h2c *h2c = conn->ctx;
 
 	TRACE_ENTER(H2_EV_H2S_NEW, conn);
-	cs = cs_new(conn);
+	cs = cs_new(conn, conn->target);
 	if (!cs) {
 		TRACE_DEVEL("leaving on CS allocation failure", H2_EV_H2S_NEW|H2_EV_H2S_ERR, conn);
 		return NULL;

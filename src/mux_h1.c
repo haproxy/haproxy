@@ -473,7 +473,7 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s)
 	struct conn_stream *cs;
 
 	TRACE_ENTER(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
-	cs = cs_new(h1s->h1c->conn);
+	cs = cs_new(h1s->h1c->conn, h1s->h1c->conn->target);
 	if (!cs) {
 		TRACE_DEVEL("leaving on CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
 		goto err;
@@ -2372,7 +2372,7 @@ static struct conn_stream *h1_attach(struct connection *conn, struct session *se
 		goto end;
 	}
 
-	cs = cs_new(h1c->conn);
+	cs = cs_new(h1c->conn, h1c->conn->target);
 	if (!cs) {
 		TRACE_DEVEL("leaving on CS allocation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
 		goto end;

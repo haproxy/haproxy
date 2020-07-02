@@ -372,7 +372,7 @@ static inline struct conn_stream *si_alloc_cs(struct stream_interface *si, struc
 
 	si_release_endpoint(si);
 
-	cs = cs_new(conn);
+	cs = cs_new(conn, conn->target);
 	if (cs)
 		si_attach_cs(si, cs);
 

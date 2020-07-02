@@ -994,7 +994,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	 */
 
 	/* 2- prepare new connection */
-	cs = cs_new(NULL);
+	cs = cs_new(NULL, (s ? &s->obj_type : &proxy->obj_type));
 	if (!cs) {
 		chunk_printf(&trash, "TCPCHK error allocating connection at step %d",
 			     tcpcheck_get_step_id(check, rule));
@@ -1028,9 +1028,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	check->wait_list.events = 0;
 	if (s) {
 		_HA_ATOMIC_ADD(&s->curr_used_conns, 1);
-		conn->target = &s->obj_type;
-	} else
-		conn->target = &proxy->obj_type;
+	}
 
 	/* no client address */
 	if (!sockaddr_alloc(&conn->dst)) {
