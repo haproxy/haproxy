@@ -5288,6 +5288,9 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 
 		srv->max_used_conns = srv->curr_used_conns;
 
+		if (exceed_conns <= 0)
+			goto remove;
+
 		/* check all threads starting with ours */
 		for (i = tid;;) {
 			int max_conn;
