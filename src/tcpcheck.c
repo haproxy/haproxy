@@ -1026,9 +1026,6 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 	/* Maybe there were an older connection we were waiting on */
 	check->wait_list.events = 0;
-	if (s) {
-		_HA_ATOMIC_ADD(&s->curr_used_conns, 1);
-	}
 
 	/* no client address */
 	if (!sockaddr_alloc(&conn->dst)) {

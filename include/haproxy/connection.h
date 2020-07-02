@@ -393,8 +393,11 @@ static inline struct connection *conn_new(void *target)
 	struct connection *conn;
 
 	conn = pool_alloc(pool_head_connection);
-	if (likely(conn != NULL))
+	if (likely(conn != NULL)) {
 		conn_init(conn, target);
+		if (obj_type(target) == OBJ_TYPE_SERVER)
+			srv_use_idle_conn(__objt_server(target), conn);
+	}
 	return conn;
 }
 

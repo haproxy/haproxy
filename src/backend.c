@@ -1166,13 +1166,8 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 		conn = NULL;
  done:
 	if (conn) {
-		conn->idle_time = 0;
 		_HA_ATOMIC_STORE(&srv->next_takeover, (i + 1 == global.nbthread) ? 0 : i + 1);
-		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
-		_HA_ATOMIC_SUB(&srv->curr_idle_thr[i], 1);
-		_HA_ATOMIC_SUB(is_safe ? &srv->curr_safe_nb : &srv->curr_idle_nb, 1);
-		__ha_barrier_atomic_store();
-		LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
+		srv_use_idle_conn(srv, conn);
 	}
 	return conn;
 }
@@ -1201,7 +1196,6 @@ int connect_server(struct stream *s)
 	int reuse = 0;
 	int init_mux = 0;
 	int err;
-	int was_unused = 0;
 
 
 	/* This will catch some corner cases such as lying connections resulting from
@@ -1251,20 +1245,17 @@ int connect_server(struct stream *s)
 				 * try idle then safe.
 				 */
 				srv_conn = conn_backend_get(srv, 0);
-				was_unused = 1;
 			}
 			else if (srv->safe_conns &&
 			         ((s->txn && (s->txn->flags & TX_NOT_FIRST)) ||
 				  (s->be->options & PR_O_REUSE_MASK) >= PR_O_REUSE_AGGR) &&
 				 srv->curr_safe_nb > 0) {
 				srv_conn = conn_backend_get(srv, 1);
-				was_unused = 1;
 			}
 			else if (srv->idle_conns &&
 			         ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 				 srv->curr_idle_nb > 0) {
 				srv_conn = conn_backend_get(srv, 0);
-				was_unused = 1;
 			}
 			/* If we've picked a connection from the pool, we now have to
 			 * detach it. We may have to get rid of the previous idle
@@ -1272,10 +1263,8 @@ int connect_server(struct stream *s)
 			 * other owner's. That way it may remain alive for others to
 			 * pick.
 			 */
-			if (srv_conn) {
+			if (srv_conn)
 				reuse = 1;
-				srv_conn->flags &= ~CO_FL_LIST_MASK;
-			}
 		}
 	}
 
@@ -1369,7 +1358,6 @@ int connect_server(struct stream *s)
 	/* no reuse or failed to reuse the connection above, pick a new one */
 	if (!srv_conn) {
 		srv_conn = conn_new(s->target);
-		was_unused = 1;
 		srv_cs = NULL;
 
 		srv_conn->owner = s->sess;
@@ -1377,17 +1365,6 @@ int connect_server(struct stream *s)
 			conn_set_private(srv_conn);
 	}
 
-	if (srv_conn && srv && was_unused) {
-		_HA_ATOMIC_ADD(&srv->curr_used_conns, 1);
-		/* It's ok not to do that atomically, we don't need an
-		 * exact max.
-		 */
-		if (srv->max_used_conns < srv->curr_used_conns)
-			srv->max_used_conns = srv->curr_used_conns;
-
-		if (srv->est_need_conns < srv->curr_used_conns)
-			srv->est_need_conns = srv->curr_used_conns;
-	}
 	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst)) {
 		if (srv_conn)
 			conn_free(srv_conn);

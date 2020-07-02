@@ -239,6 +239,30 @@ static inline enum srv_initaddr srv_get_next_initaddr(unsigned int *list)
 	return ret;
 }
 
+static inline void srv_use_idle_conn(struct server *srv, struct connection *conn)
+{
+	if (conn->flags & CO_FL_LIST_MASK) {
+		conn->idle_time = 0;
+		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
+		_HA_ATOMIC_SUB(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb, 1);
+		_HA_ATOMIC_SUB(&srv->curr_idle_thr[tid], 1);
+		conn->flags &= ~CO_FL_LIST_MASK;
+		__ha_barrier_atomic_store();
+		LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
+	}
+
+	_HA_ATOMIC_ADD(&srv->curr_used_conns, 1);
+
+	/* It's ok not to do that atomically, we don't need an
+	 * exact max.
+	 */
+	if (srv->max_used_conns < srv->curr_used_conns)
+		srv->max_used_conns = srv->curr_used_conns;
+
+	if (srv->est_need_conns < srv->curr_used_conns)
+		srv->est_need_conns = srv->curr_used_conns;
+}
+
 /* This adds an idle connection to the server's list if the connection is
  * reusable, not held by any owner anymore, but still has available streams.
  */
