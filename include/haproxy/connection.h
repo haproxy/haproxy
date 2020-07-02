@@ -463,10 +463,7 @@ static inline void conn_free(struct connection *conn)
 {
 	/* Remove ourself from the session's connections list, if any. */
 	if (!LIST_ISEMPTY(&conn->session_list)) {
-		struct session *sess = conn->owner;
-		if (conn->flags & CO_FL_SESS_IDLE)
-			sess->idle_conns--;
-		session_unown_conn(sess, conn);
+		session_unown_conn(conn->owner, conn);
 	}
 
 	sockaddr_free(&conn->src);
