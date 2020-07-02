@@ -673,6 +673,107 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 	return 1;
 }
 
+#if defined(DEBUG_MEM_STATS)
+/* CLI parser for the "debug dev memstats" command */
+static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	extern __attribute__((__weak__)) struct mem_stats __start_mem_stats;
+	extern __attribute__((__weak__)) struct mem_stats __stop_mem_stats;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	if (strcmp(args[3], "reset") == 0) {
+		struct mem_stats *ptr;
+
+		if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+			return 1;
+
+		for (ptr = &__start_mem_stats; ptr < &__stop_mem_stats; ptr++) {
+			_HA_ATOMIC_STORE(&ptr->calls, 0);
+			_HA_ATOMIC_STORE(&ptr->size, 0);
+		}
+		return 1;
+	}
+
+	if (strcmp(args[3], "all") == 0)
+		appctx->ctx.cli.i0 = 1;
+
+	/* otherwise proceed with the dump from p0 to p1 */
+	appctx->ctx.cli.p0 = &__start_mem_stats;
+	appctx->ctx.cli.p1 = &__stop_mem_stats;
+	return 0;
+}
+
+/* CLI I/O handler for the "debug dev memstats" command. Dumps all mem_stats
+ * structs referenced by pointers located between p0 and p1. Dumps all entries
+ * if i0 > 0, otherwise only non-zero calls.
+ */
+static int debug_iohandler_memstats(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct mem_stats *ptr = appctx->ctx.cli.p0;
+	int ret = 1;
+
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+		goto end;
+
+	chunk_reset(&trash);
+
+	/* we have two inner loops here, one for the proxy, the other one for
+	 * the buffer.
+	 */
+	for (ptr = appctx->ctx.cli.p0; ptr != appctx->ctx.cli.p1; ptr++) {
+		const char *type;
+		const char *name;
+		const char *p;
+
+		if (!ptr->size && !ptr->calls && !appctx->ctx.cli.i0)
+			continue;
+
+		/* basename only */
+		for (p = name = ptr->file; *p; p++) {
+			if (*p == '/')
+				name = p + 1;
+		}
+
+		switch (ptr->type) {
+		case MEM_STATS_TYPE_CALLOC:  type = "CALLOC";  break;
+		case MEM_STATS_TYPE_FREE:    type = "FREE";    break;
+		case MEM_STATS_TYPE_MALLOC:  type = "MALLOC";  break;
+		case MEM_STATS_TYPE_REALLOC: type = "REALLOC"; break;
+		case MEM_STATS_TYPE_STRDUP:  type = "STRDUP";  break;
+		default:                     type = "UNSET";   break;
+		}
+
+		//chunk_printf(&trash,
+		//	     "%20s:%-5d %7s size: %12lu calls: %9lu size/call: %6lu\n",
+		//	     name, ptr->line, type,
+		//	     (unsigned long)ptr->size, (unsigned long)ptr->calls,
+		//	     (unsigned long)(ptr->calls ? (ptr->size / ptr->calls) : 0));
+
+		chunk_printf(&trash, "%s:%d", name, ptr->line);
+		while (trash.data < 25)
+			trash.area[trash.data++] = ' ';
+		chunk_appendf(&trash, "%7s  size: %12lu  calls: %9lu  size/call: %6lu\n",
+			     type,
+			     (unsigned long)ptr->size, (unsigned long)ptr->calls,
+			     (unsigned long)(ptr->calls ? (ptr->size / ptr->calls) : 0));
+
+		if (ci_putchk(si_ic(si), &trash) == -1) {
+			si_rx_room_blk(si);
+			appctx->ctx.cli.p0 = ptr;
+			ret = 0;
+			break;
+		}
+	}
+
+ end:
+	return ret;
+}
+
+#endif
+
 #ifndef USE_THREAD_DUMP
 
 /* This function dumps all threads' state to the trash. This version is the
@@ -810,6 +911,9 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "hex",   NULL }, "debug dev hex   <addr> [len]: dump a memory area",              debug_parse_cli_hex,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "log",   NULL }, "debug dev log   [msg] ...   : send this msg to global logs",    debug_parse_cli_log,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "loop",  NULL }, "debug dev loop  [ms]        : loop this long",                  debug_parse_cli_loop,  NULL, NULL, NULL, ACCESS_EXPERT },
+#if defined(DEBUG_MEM_STATS)
+	{{ "debug", "dev", "memstats", NULL }, "debug dev memstats [reset|all] : dump/reset memory statistics",    debug_parse_cli_memstats, debug_iohandler_memstats, NULL, NULL, ACCESS_EXPERT },
+#endif
 	{{ "debug", "dev", "panic", NULL }, "debug dev panic             : immediately trigger a panic",     debug_parse_cli_panic, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "stream",NULL }, "debug dev stream ...        : show/manipulate stream flags",    debug_parse_cli_stream,NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "tkill", NULL }, "debug dev tkill [thr] [sig] : send signal to thread",           debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },

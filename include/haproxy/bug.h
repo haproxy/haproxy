@@ -68,6 +68,96 @@
 #define BUG_ON(cond)
 #endif
 
+
+#if defined(DEBUG_MEM_STATS)
+#include <stdlib.h>
+#include <string.h>
+
+/* Memory allocation statistics are centralized into a global "mem_stats"
+ * section. This will not work with some linkers.
+ */
+enum {
+	MEM_STATS_TYPE_UNSET  = 0,
+	MEM_STATS_TYPE_CALLOC,
+	MEM_STATS_TYPE_FREE,
+	MEM_STATS_TYPE_MALLOC,
+	MEM_STATS_TYPE_REALLOC,
+	MEM_STATS_TYPE_STRDUP,
+};
+
+struct mem_stats {
+	size_t calls;
+	size_t size;
+	const char *file;
+	int line;
+	int type;
+};
+
+#define calloc(x,y)  ({							\
+	size_t __x = (x); size_t __y = (y);				\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+		.file = __FILE__, .line = __LINE__,			\
+		.type = MEM_STATS_TYPE_CALLOC,				\
+	};								\
+	__asm__(".globl __start_mem_stats");				\
+	__asm__(".globl __stop_mem_stats");				\
+	_HA_ATOMIC_ADD(&_.calls, 1);					\
+	_HA_ATOMIC_ADD(&_.size, __x * __y);				\
+	calloc(__x,__y);						\
+})
+
+#define __free(x)  ({							\
+	void *__x = (x);						\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+		.file = __FILE__, .line = __LINE__,			\
+		.type = MEM_STATS_TYPE_FREE,				\
+	};								\
+	__asm__(".globl __start_mem_stats");				\
+	__asm__(".globl __stop_mem_stats");				\
+	_HA_ATOMIC_ADD(&_.calls, 1);					\
+	free(__x);							\
+})
+
+#define malloc(x)  ({							\
+	size_t __x = (x);						\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+		.file = __FILE__, .line = __LINE__,			\
+		.type = MEM_STATS_TYPE_MALLOC,				\
+	};								\
+	__asm__(".globl __start_mem_stats");				\
+	__asm__(".globl __stop_mem_stats");				\
+	_HA_ATOMIC_ADD(&_.calls, 1);					\
+	_HA_ATOMIC_ADD(&_.size, __x);					\
+	malloc(__x);							\
+})
+
+#define realloc(x,y)  ({						\
+	void *__x = (x); size_t __y = (y);				\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+		.file = __FILE__, .line = __LINE__,			\
+		.type = MEM_STATS_TYPE_REALLOC,				\
+	};								\
+	__asm__(".globl __start_mem_stats");				\
+	__asm__(".globl __stop_mem_stats");				\
+	_HA_ATOMIC_ADD(&_.calls, 1);					\
+	_HA_ATOMIC_ADD(&_.size, __y);					\
+	realloc(__x,__y);						\
+})
+
+#define strdup(x)  ({							\
+	const char *__x = (x); size_t __y = strlen(__x); 		\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+		.file = __FILE__, .line = __LINE__,			\
+		.type = MEM_STATS_TYPE_STRDUP,				\
+	};								\
+	__asm__(".globl __start_mem_stats");				\
+	__asm__(".globl __stop_mem_stats");				\
+	_HA_ATOMIC_ADD(&_.calls, 1);					\
+	_HA_ATOMIC_ADD(&_.size, __y);					\
+	strdup(__x);							\
+})
+#endif /* DEBUG_MEM_STATS*/
+
 #endif /* _HAPROXY_BUG_H */
 
 /*
