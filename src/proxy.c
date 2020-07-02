@@ -1823,7 +1823,7 @@ static int dump_servers_state(struct stream_interface *si)
 			             srv->curr_used_conns, srv->max_used_conns, srv->est_need_conns,
 			             srv->curr_idle_nb, srv->curr_safe_nb, (int)srv->max_idle_conns, srv->curr_idle_conns);
 
-			for (thr = 0; thr < global.nbthread; thr++)
+			for (thr = 0; thr < global.nbthread && srv->curr_idle_thr; thr++)
 				chunk_appendf(&trash, " %u", srv->curr_idle_thr[thr]);
 
 			chunk_appendf(&trash, "\n");
