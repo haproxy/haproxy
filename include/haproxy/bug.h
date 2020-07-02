@@ -93,6 +93,7 @@ struct mem_stats {
 	int type;
 };
 
+#undef calloc
 #define calloc(x,y)  ({							\
 	size_t __x = (x); size_t __y = (y);				\
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
@@ -106,6 +107,10 @@ struct mem_stats {
 	calloc(__x,__y);						\
 })
 
+/* note: we can't redefine free() because we have a few variables and struct
+ * members called like this.
+ */
+#undef __free
 #define __free(x)  ({							\
 	void *__x = (x);						\
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
@@ -118,6 +123,7 @@ struct mem_stats {
 	free(__x);							\
 })
 
+#undef malloc
 #define malloc(x)  ({							\
 	size_t __x = (x);						\
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
@@ -131,6 +137,7 @@ struct mem_stats {
 	malloc(__x);							\
 })
 
+#undef realloc
 #define realloc(x,y)  ({						\
 	void *__x = (x); size_t __y = (y);				\
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
@@ -144,6 +151,7 @@ struct mem_stats {
 	realloc(__x,__y);						\
 })
 
+#undef strdup
 #define strdup(x)  ({							\
 	const char *__x = (x); size_t __y = strlen(__x); 		\
 	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
