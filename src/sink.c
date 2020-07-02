@@ -176,7 +176,7 @@ ssize_t __sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
 
 	if (sink->fmt == SINK_FMT_ISO || sink->fmt == SINK_FMT_TIMED) {
 		pfx[npfx].ptr = timeofday_as_iso_us(1);
-		pfx[npfx].len = 27;
+		pfx[npfx].len = 33;
 		npfx++;
 		goto send;
         }

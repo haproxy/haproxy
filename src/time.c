@@ -31,7 +31,7 @@ static THREAD_LOCAL struct timeval tv_offset;  /* per-thread time ofsset relativ
 static volatile unsigned long long global_now; /* common date between all threads (32:32) */
 
 static THREAD_LOCAL unsigned int iso_time_sec;     /* last iso time value for this thread */
-static THREAD_LOCAL char         iso_time_str[28]; /* ISO time representation of gettimeofday() */
+static THREAD_LOCAL char         iso_time_str[34]; /* ISO time representation of gettimeofday() */
 
 /*
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
@@ -267,25 +267,36 @@ void tv_update_date(int max_wait, int interrupted)
  * format. It uses a thread-local static variable that the reader can consume
  * for as long as it wants until next call. Thus, do not call it from a signal
  * handler. If <pad> is non-0, a trailing space will be added. It will always
- * return exactly 26 or 27 characters (depending on padding) and will always be
- * zero-terminated, thus it will always fit into a 28 bytes buffer.
+ * return exactly 32 or 33 characters (depending on padding) and will always be
+ * zero-terminated, thus it will always fit into a 34 bytes buffer.
+ * This also always include the local timezone (in +/-HH:mm format) .
  */
 char *timeofday_as_iso_us(int pad)
 {
 	struct timeval new_date;
 	struct tm tm;
-
+	const char *offset;
+	char c;
 	gettimeofday(&new_date, NULL);
 	if (new_date.tv_sec != iso_time_sec || !new_date.tv_sec) {
 		get_localtime(new_date.tv_sec, &tm);
-		if (unlikely(strftime(iso_time_str, sizeof(iso_time_str), "%Y-%m-%dT%H:%M:%S.000000", &tm) != 26))
-			strcpy(iso_time_str, "YYYY-mm-ddTHH:MM:SS.000000"); // make the failure visible but respect format.
+		offset = get_gmt_offset(new_date.tv_sec, &tm);
+		if (unlikely(strftime(iso_time_str, sizeof(iso_time_str), "%Y-%m-%dT%H:%M:%S.000000+00:00", &tm) != 32))
+			strcpy(iso_time_str, "YYYY-mm-ddTHH:MM:SS.000000-00:00"); // make the failure visible but respect format.
+		iso_time_str[26] = offset[0];
+		iso_time_str[27] = offset[1];
+		iso_time_str[28] = offset[2];
+		iso_time_str[30] = offset[3];
+		iso_time_str[31] = offset[4];
 		iso_time_sec = new_date.tv_sec;
 	}
+	/* utoa_pad adds a trailing 0 so we save the char for restore */
+	c = iso_time_str[26];
 	utoa_pad(new_date.tv_usec, iso_time_str + 20, 7);
+	iso_time_str[26] = c;
 	if (pad) {
-		iso_time_str[26] = ' ';
-		iso_time_str[27] = 0;
+		iso_time_str[32] = ' ';
+		iso_time_str[33] = 0;
 	}
 	return iso_time_str;
 }
