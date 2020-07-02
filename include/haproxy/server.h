@@ -263,6 +263,27 @@ static inline void srv_use_idle_conn(struct server *srv, struct connection *conn
 		srv->est_need_conns = srv->curr_used_conns;
 }
 
+static inline void srv_del_conn_from_list(struct server *srv, struct connection *conn)
+{
+	if (conn->flags & CO_FL_LIST_MASK) {
+		/* The connection is currently in the server's idle list, so tell it
+		 * there's one less connection available in that list.
+		 */
+		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
+		_HA_ATOMIC_SUB(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb, 1);
+		_HA_ATOMIC_SUB(&srv->curr_idle_thr[tid], 1);
+	}
+	else {
+		/* The connction is not private and not in any server's idle
+		 * list, so decrement the current number of used connections
+		 */
+		_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);
+	}
+
+	/* Remove the connection from any list (safe, idle or available) */
+	MT_LIST_DEL((struct mt_list *)&conn->list);
+}
+
 /* This adds an idle connection to the server's list if the connection is
  * reusable, not held by any owner anymore, but still has available streams.
  */

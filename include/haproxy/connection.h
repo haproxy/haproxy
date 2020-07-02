@@ -346,11 +346,12 @@ static inline void conn_set_owner(struct connection *conn, void *owner, void (*c
 /* Mark the connection <conn> as private and remove it from the available connection list */
 static inline void conn_set_private(struct connection *conn)
 {
-	conn->flags |= CO_FL_PRIVATE;
+	if (!(conn->flags & CO_FL_PRIVATE)) {
+		conn->flags |= CO_FL_PRIVATE;
 
-	/* Be sure to remove the connection from the available_conns list */
-	if (!MT_LIST_ISEMPTY(&conn->list))
-		MT_LIST_DEL(&conn->list);
+		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
+			srv_del_conn_from_list(__objt_server(conn->target), conn);
+	}
 }
 
 /* Allocates a struct sockaddr from the pool if needed, assigns it to *sap and
@@ -464,9 +465,16 @@ static inline void conn_force_unsubscribe(struct connection *conn)
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
-	/* Remove ourself from the session's connections list, if any. */
-	if (!LIST_ISEMPTY(&conn->session_list)) {
-		session_unown_conn(conn->owner, conn);
+	if (conn->flags & CO_FL_PRIVATE) {
+		/* The connection is private, so remove it from the session's
+		 * connections list, if any.
+		 */
+		if (!LIST_ISEMPTY(&conn->session_list))
+			session_unown_conn(conn->owner, conn);
+	}
+	else {
+		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
+			srv_del_conn_from_list(__objt_server(conn->target), conn);
 	}
 
 	sockaddr_free(&conn->src);
@@ -488,23 +496,7 @@ static inline void conn_free(struct connection *conn)
 	if (conn->ctx != NULL && conn->mux == NULL)
 		*(void **)conn->ctx = NULL;
 
-	/* The connection is currently in the server's idle list, so tell it
-	 * there's one less connection available in that list.
-	 */
-	if (conn->idle_time > 0) {
-		struct server *srv = __objt_server(conn->target);
-		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
-		_HA_ATOMIC_SUB(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb, 1);
-		_HA_ATOMIC_SUB(&srv->curr_idle_thr[tid], 1);
-	} else {
-		struct server *srv = objt_server(conn->target);
-
-		if (srv)
-			_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);
-	}
-
 	conn_force_unsubscribe(conn);
-	MT_LIST_DEL((struct mt_list *)&conn->list);
 	pool_free(pool_head_connection, conn);
 }
 
