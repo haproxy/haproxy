@@ -242,7 +242,6 @@ static inline enum srv_initaddr srv_get_next_initaddr(unsigned int *list)
 static inline void srv_use_idle_conn(struct server *srv, struct connection *conn)
 {
 	if (conn->flags & CO_FL_LIST_MASK) {
-		conn->idle_time = 0;
 		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 		_HA_ATOMIC_SUB(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb, 1);
 		_HA_ATOMIC_SUB(&srv->curr_idle_thr[tid], 1);
@@ -315,7 +314,6 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 		}
 		_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);
 		MT_LIST_DEL(&conn->list);
-		conn->idle_time = now_ms;
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
 			MT_LIST_ADDQ(&srv->safe_conns[tid], (struct mt_list *)&conn->list);

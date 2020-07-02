@@ -328,7 +328,6 @@ static inline void conn_init(struct connection *conn, void *target)
 	MT_LIST_INIT(&conn->list);
 	LIST_INIT(&conn->session_list);
 	conn->subs = NULL;
-	conn->idle_time = 0;
 	conn->src = NULL;
 	conn->dst = NULL;
 	conn->proxy_authority = NULL;

@@ -489,7 +489,6 @@ struct connection {
 	struct sockaddr_storage *src; /* source address (pool), when known, otherwise NULL */
 	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
 	char *proxy_authority;	      /* Value of authority TLV received via PROXYv2 */
-	unsigned int idle_time;                 /* Time the connection was added to the idle list, or 0 if not in the idle list */
 	uint8_t proxy_authority_len;  /* Length of authority TLV received via PROXYv2 */
 	struct ist proxy_unique_id;  /* Value of the unique ID TLV received via PROXYv2 */
 };
