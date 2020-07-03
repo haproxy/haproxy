@@ -6055,7 +6055,7 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
  * Return 0 if successful, non-zero otherwise.
  * Expected to be called with the old thread lock held.
  */
-static int h2_takeover(struct connection *conn)
+static int h2_takeover(struct connection *conn, int orig_tid)
 {
 	struct h2c *h2c = conn->ctx;
 	struct task *task;
@@ -6069,7 +6069,7 @@ static int h2_takeover(struct connection *conn)
 	 * set its context to NULL.
 	 */
 	h2c->wait_event.tasklet->context = NULL;
-	tasklet_wakeup(h2c->wait_event.tasklet);
+	tasklet_wakeup_on(h2c->wait_event.tasklet, orig_tid);
 
 	task = h2c->task;
 	if (task) {

@@ -4084,7 +4084,7 @@ static void fcgi_show_fd(struct buffer *msg, struct connection *conn)
  * Return 0 if successful, non-zero otherwise.
  * Expected to be called with the old thread lock held.
  */
-static int fcgi_takeover(struct connection *conn)
+static int fcgi_takeover(struct connection *conn, int orig_tid)
 {
 	struct fcgi_conn *fcgi = conn->ctx;
 	struct task *task;
@@ -4098,7 +4098,7 @@ static int fcgi_takeover(struct connection *conn)
 	 * set its context to NULL;
 	 */
 	fcgi->wait_event.tasklet->context = NULL;
-	tasklet_wakeup(fcgi->wait_event.tasklet);
+	tasklet_wakeup_on(fcgi->wait_event.tasklet, orig_tid);
 
 	task = fcgi->task;
 	if (task) {

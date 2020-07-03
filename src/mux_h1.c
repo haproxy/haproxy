@@ -2922,7 +2922,7 @@ static int add_hdr_case_adjust(const char *from, const char *to, char **err)
  * Return 0 if successful, non-zero otherwise.
  * Expected to be called with the old thread lock held.
  */
-static int h1_takeover(struct connection *conn)
+static int h1_takeover(struct connection *conn, int orig_tid)
 {
 	struct h1c *h1c = conn->ctx;
 	struct task *task;
@@ -2936,7 +2936,7 @@ static int h1_takeover(struct connection *conn)
 	 * set its context to NULL.
 	 */
 	h1c->wait_event.tasklet->context = NULL;
-	tasklet_wakeup(h1c->wait_event.tasklet);
+	tasklet_wakeup_on(h1c->wait_event.tasklet, orig_tid);
 
 	task = h1c->task;
 	if (task) {

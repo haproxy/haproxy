@@ -1135,7 +1135,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 
 		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 		mt_list_for_each_entry_safe(conn, &mt_list[i], list, elt1, elt2) {
-			if (conn->mux->takeover && conn->mux->takeover(conn) == 0) {
+			if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
 				MT_LIST_DEL_SAFE(elt1);
 				_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 				found = 1;
@@ -1145,7 +1145,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 
 		if (!found && !is_safe && srv->curr_safe_nb > 0) {
 			mt_list_for_each_entry_safe(conn, &srv->safe_conns[i], list, elt1, elt2) {
-				if (conn->mux->takeover && conn->mux->takeover(conn) == 0) {
+				if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
 					MT_LIST_DEL_SAFE(elt1);
 					_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 					found = 1;
