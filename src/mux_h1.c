@@ -2688,7 +2688,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		}
 	}
 	else {
-		if (h1s->flags & H1S_F_SPLICED_DATA) {
+		if (ret && h1s->flags & H1S_F_SPLICED_DATA) {
 			h1s->flags &= ~H1S_F_SPLICED_DATA;
 			TRACE_STATE("disable splicing", H1_EV_STRM_RECV, h1c->conn, h1s);
 		}
