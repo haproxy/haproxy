@@ -5425,6 +5425,27 @@ static int ssl_unsubscribe(struct connection *conn, void *xprt_ctx, int event_ty
 	return 0;
 }
 
+/* The connection has been taken over, so destroy the old tasklet and create
+ * a new one. The original thread ID must be passed into orig_tid
+ * It should be called with the takeover lock for the old thread held.
+ * Returns 0 on success, and -1 on failure
+ */
+static int ssl_takeover(struct connection *conn, void *xprt_ctx, int orig_tid)
+{
+	struct ssl_sock_ctx *ctx = xprt_ctx;
+	struct tasklet *tl = tasklet_new();
+
+	if (!tl)
+		return -1;
+
+	ctx->wait_event.tasklet->context = NULL;
+	tasklet_wakeup_on(ctx->wait_event.tasklet, orig_tid);
+	ctx->wait_event.tasklet = tl;
+	ctx->wait_event.tasklet->process = ssl_sock_io_cb;
+	ctx->wait_event.tasklet->context = ctx;
+	return 0;
+}
+
 /* Use the provided XPRT as an underlying XPRT, and provide the old one.
  * Returns 0 on success, and non-zero on failure.
  */
@@ -5459,8 +5480,23 @@ static int ssl_remove_xprt(struct connection *conn, void *xprt_ctx, void *toremo
 
 static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short state)
 {
+	struct tasklet *tl = (struct tasklet *)t;
 	struct ssl_sock_ctx *ctx = context;
+	struct connection *conn;
+	int conn_in_list;
+	int ret = 0;
 
+	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+	if (tl->context == NULL) {
+		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+		tasklet_free(tl);
+		return NULL;
+	}
+	conn = ctx->conn;
+	conn_in_list = conn->flags & CO_FL_LIST_MASK;
+	if (conn_in_list)
+		MT_LIST_DEL(&conn->list);
+	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 	/* First if we're doing an handshake, try that */
 	if (ctx->conn->flags & CO_FL_SSL_WAIT_HS)
 		ssl_sock_handshake(ctx->conn, CO_FL_SSL_WAIT_HS);
@@ -5471,7 +5507,6 @@ static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short
 	 */
 	if ((ctx->conn->flags & CO_FL_ERROR) ||
 	    !(ctx->conn->flags & CO_FL_SSL_WAIT_HS)) {
-		int ret = 0;
 		int woke = 0;
 
 		/* On error, wake any waiter */
@@ -5491,8 +5526,8 @@ static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short
 			if (!ctx->conn->mux)
 				ret = conn_create_mux(ctx->conn);
 			if (ret >= 0 && !woke && ctx->conn->mux && ctx->conn->mux->wake)
-				ctx->conn->mux->wake(ctx->conn);
-			return NULL;
+				ret = ctx->conn->mux->wake(ctx->conn);
+			goto leave;
 		}
 	}
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
@@ -5505,6 +5540,15 @@ static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short
 			ctx->subs = NULL;
 	}
 #endif
+leave:
+	if (!ret && conn_in_list) {
+		struct server *srv = objt_server(conn->target);
+
+		if (conn_in_list == CO_FL_SAFE_LIST)
+			MT_LIST_ADDQ(&srv->safe_conns[tid], &conn->list);
+		else
+			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
+	}
 	return NULL;
 }
 
@@ -6494,6 +6538,7 @@ struct xprt_ops ssl_sock = {
 	.prepare_srv = ssl_sock_prepare_srv_ctx,
 	.destroy_srv = ssl_sock_free_srv_ctx,
 	.get_alpn = ssl_sock_get_alpn,
+	.takeover = ssl_takeover,
 	.name     = "SSL",
 };
 

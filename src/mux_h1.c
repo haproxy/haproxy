@@ -2929,6 +2929,18 @@ static int h1_takeover(struct connection *conn, int orig_tid)
 
 	if (fd_takeover(conn->handle.fd, conn) != 0)
 		return -1;
+
+	if (conn->xprt->takeover && conn->xprt->takeover(conn, conn->xprt_ctx, orig_tid) != 0) {
+		/* We failed to takeover the xprt, even if the connection may
+		 * still be valid, flag it as error'd, as we have already
+		 * taken over the fd, and wake the tasklet, so that it will
+		 * destroy it.
+		 */
+		conn->flags |= CO_FL_ERROR;
+		tasklet_wakeup_on(h1c->wait_event.tasklet, orig_tid);
+		return -1;
+	}
+
 	if (h1c->wait_event.events)
 		h1c->conn->xprt->unsubscribe(h1c->conn, h1c->conn->xprt_ctx,
 		    h1c->wait_event.events, &h1c->wait_event);
