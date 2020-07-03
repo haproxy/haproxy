@@ -378,7 +378,7 @@ endif
 # OpenBSD 5.7 and above
 ifeq ($(TARGET),openbsd)
   set_target_defaults = $(call default_opts, \
-    USE_POLL USE_TPROXY USE_THREAD USE_KQUEUE USE_ACCEPT4)
+    USE_POLL USE_TPROXY USE_KQUEUE USE_ACCEPT4)
 endif
 
 # NetBSD
