@@ -995,12 +995,14 @@ static inline int peer_send_updatemsg(struct shared_table *st, struct appctx *ap
                                       unsigned int updateid, int use_identifier, int use_timed)
 {
 	struct peer_prep_params p = {
-		.updt.stksess = ts,
-		.updt.shared_table = st,
-		.updt.updateid = updateid,
-		.updt.use_identifier = use_identifier,
-		.updt.use_timed = use_timed,
-		.updt.peer = appctx->ctx.peers.ptr,
+		.updt = {
+			.stksess = ts,
+			.shared_table = st,
+			.updateid = updateid,
+			.use_identifier = use_identifier,
+			.use_timed = use_timed,
+			.peer = appctx->ctx.peers.ptr,
+		},
 	};
 
 	return peer_send_msg(appctx, peer_prepare_updatemsg, &p);
