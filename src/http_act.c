@@ -723,7 +723,10 @@ static int check_http_res_capture(struct act_rule *rule, struct proxy *px, char 
 	if (rule->action_ptr != http_action_res_capture_by_id)
 		return 1;
 
-	if (rule->arg.capid.idx >= px->nb_rsp_cap) {
+	/* capture slots can only be declared in frontends, so we can't check their
+	 * existence in backends at configuration parsing step
+	 */
+	if (px->cap & PR_CAP_FE && rule->arg.capid.idx >= px->nb_rsp_cap) {
 		memprintf(err, "unable to find capture id '%d' referenced by http-response capture rule",
 			  rule->arg.capid.idx);
 		return 0;
