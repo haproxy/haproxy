@@ -484,8 +484,10 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s)
 	if (h1s->flags & H1S_F_NOT_FIRST)
 		cs->flags |= CS_FL_NOT_FIRST;
 
-	if (global.tune.options & GTUNE_USE_SPLICE)
+	if (global.tune.options & GTUNE_USE_SPLICE) {
+		TRACE_STATE("notify the mux can use splicing", H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 		cs->flags |= CS_FL_MAY_SPLICE;
+	}
 
 	if (stream_create_from_cs(cs) < 0) {
 		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
@@ -1282,10 +1284,14 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 	}
 
 	if (h1s->cs && !(h1m->flags & H1_MF_CHNK) &&
-	    ((h1m->state == H1_MSG_DATA && h1m->curr_len) || (h1m->state == H1_MSG_TUNNEL)))
+	    ((h1m->state == H1_MSG_DATA && h1m->curr_len) || (h1m->state == H1_MSG_TUNNEL))) {
+		TRACE_STATE("notify the mux can use splicing", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
 		h1s->cs->flags |= CS_FL_MAY_SPLICE;
-	else if (h1s->cs)
+	}
+	else if (h1s->cs) {
+		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
 		h1s->cs->flags &= ~CS_FL_MAY_SPLICE;
+	}
 
 	*ofs += ret;
 
@@ -2778,9 +2784,11 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 		goto end;
 	}
 
-	h1s->flags &= ~H1S_F_BUF_FLUSH;
-	h1s->flags |= H1S_F_SPLICED_DATA;
-	TRACE_STATE("enable splicing", H1_EV_STRM_RECV, cs->conn, h1s);
+	if (!(h1s->flags & H1S_F_SPLICED_DATA)) {
+		h1s->flags &= ~H1S_F_BUF_FLUSH;
+		h1s->flags |= H1S_F_SPLICED_DATA;
+		TRACE_STATE("enable splicing", H1_EV_STRM_RECV, cs->conn, h1s);
+	}
 
 	if (!h1_recv_allowed(h1s->h1c)) {
 		TRACE_DEVEL("leaving on !recv_allowed", H1_EV_STRM_RECV, cs->conn, h1s);
@@ -2807,10 +2815,12 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 
 	if ((h1s->flags & H1S_F_REOS) ||
 	    (h1m->state != H1_MSG_TUNNEL && h1m->state != H1_MSG_DATA) ||
-	    (h1m->state == H1_MSG_DATA && !h1m->curr_len))
+	    (h1m->state == H1_MSG_DATA && !h1m->curr_len)) {
+		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_STRM_RECV, h1s->h1c->conn, h1s);
 		cs->flags &= ~CS_FL_MAY_SPLICE;
+	}
 
-	TRACE_LEAVE(H1_EV_STRM_RECV, cs->conn, h1s);
+	TRACE_LEAVE(H1_EV_STRM_RECV, cs->conn, h1s,, (size_t[]){ret});
 	return ret;
 }
 
@@ -2833,7 +2843,7 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 		}
 	}
 
-	TRACE_LEAVE(H1_EV_STRM_SEND, cs->conn, h1s);
+	TRACE_LEAVE(H1_EV_STRM_SEND, cs->conn, h1s,, (size_t[]){ret});
 	return ret;
 }
 #endif
