@@ -2712,6 +2712,13 @@ void deinit(void)
 			free(lf);
 		}
 
+		list_for_each_entry_safe(lf, lfb, &p->format_unique_id, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
+		}
+
 		deinit_act_rules(&p->tcp_req.inspect_rules);
 		deinit_act_rules(&p->tcp_rep.inspect_rules);
 		deinit_act_rules(&p->tcp_req.l4_rules);
