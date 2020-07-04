@@ -857,6 +857,15 @@ static int vars_max_size_check(char **args, int section_type, struct proxy *curp
 	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_check_limit);
 }
 
+static void vars_deinit()
+{
+	while (var_names_nb-- > 0)
+		free(var_names[var_names_nb]);
+	free(var_names);
+}
+
+REGISTER_POST_DEINIT(vars_deinit);
+
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 
 	{ "var", smp_fetch_var, ARG1(1,STR), smp_check_var, SMP_T_STR, SMP_USE_L4CLI },
