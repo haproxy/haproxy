@@ -211,10 +211,13 @@ SMALL_OPTS =
 
 #### Debug settings
 # You can enable debugging on specific code parts by setting DEBUG=-DDEBUG_xxx.
-# Currently defined DEBUG macros include DEBUG_FULL, DEBUG_MEMORY, DEBUG_FSM,
-# DEBUG_HASH, DEBUG_AUTH, DEBUG_SPOE, DEBUG_UAF and DEBUG_THREAD, DEBUG_STRICT,
-# DEBUG_DEV, DEBUG_FD. Please check sources for exact meaning or do not use at
-# all.
+# Use quotes and spaces if multiple options are needed (the DEBUG variables is
+# passed as-is to CFLAGS). Please check sources for their exact meaning or do
+# not use them at all. Some even more obscure ones might also be available
+# without appearing here. Currently defined DEBUG macros include DEBUG_FULL,
+# DEBUG_MEM_STATS, DEBUG_DONT_SHARE_POOLS, DEBUG_NO_LOCKLESS_POOLS, DEBUG_FD,
+# DEBUG_NO_LOCAL_POOLS, DEBUG_FAIL_ALLOC, DEBUG_STRICT_NOCRASH, DEBUG_HPACK,
+# DEBUG_AUTH, DEBUG_SPOE, DEBUG_UAF, DEBUG_THREAD, DEBUG_STRICT, DEBUG_DEV.
 DEBUG =
 
 #### Trace options
