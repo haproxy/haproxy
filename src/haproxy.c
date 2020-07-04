@@ -2605,7 +2605,7 @@ void deinit(void)
 	struct bind_conf *bind_conf, *bind_back;
 	struct build_opts_str *bol, *bolb;
 	struct post_deinit_fct *pdf;
-	struct proxy_deinit_fct *pxdf;
+	struct proxy_deinit_fct *pxdf, *pxdfb;
 	struct server_deinit_fct *srvdf;
 
 	deinit_signals();
@@ -2890,6 +2890,11 @@ void deinit(void)
 			free((void *)bol->str);
 		LIST_DEL(&bol->list);
 		free(bol);
+	}
+
+	list_for_each_entry_safe(pxdf, pxdfb, &proxy_deinit_list, list) {
+		LIST_DEL(&pxdf->list);
+		free(pxdf);
 	}
 
 	vars_prune(&global.vars, NULL, NULL);
