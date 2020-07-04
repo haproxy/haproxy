@@ -1424,8 +1424,12 @@ void release_sample_expr(struct sample_expr *expr)
 	if (!expr)
 		return;
 
-	list_for_each_entry_safe(conv_expr, conv_exprb, &expr->conv_exprs, list)
+	list_for_each_entry_safe(conv_expr, conv_exprb, &expr->conv_exprs, list) {
+		LIST_DEL(&conv_expr->list);
 		release_sample_arg(conv_expr->arg_p);
+		free(conv_expr);
+	}
+
 	release_sample_arg(expr->arg_p);
 	free(expr);
 }
