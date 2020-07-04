@@ -1,6 +1,80 @@
 ChangeLog :
 ===========
 
+2020/07/04 : 2.2-dev12
+    - BUG/MINOR: mux_h2: don't lose the leaving trace in h2_io_cb()
+    - MINOR: cli: make "show sess" stop at the last known session
+    - CLEANUP: buffers: remove unused buffer_wq_lock lock
+    - BUG/MEDIUM: buffers: always allocate from the local cache first
+    - MINOR: connection: align toremove_{lock,connections} and cleanup into idle_conns
+    - CONTRIB: debug: add missing flags SI_FL_L7_RETRY & SI_FL_D_L7_RETRY
+    - BUG/MEDIUM: connections: Don't increase curr_used_conns for shared connections.
+    - BUG/MEDIUM: checks: Increment the server's curr_used_conns
+    - REORG: buffer: rename buffer.c to dynbuf.c
+    - REORG: includes: create tinfo.h for the thread_info struct
+    - CLEANUP: pool: only include the type files from types
+    - MINOR: pools: move the LRU cache heads to thread_info
+    - BUG/MINOR: debug: fix "show fd" null-deref when built with DEBUG_FD
+    - MINOR: stats: add 3 new output values for the per-server idle conn state
+    - MINOR: activity: add per-thread statistics on FD takeover
+    - BUG/MINOR: server: start cleaning idle connections from various points
+    - MEDIUM: server: improve estimate of the need for idle connections
+    - MINOR: stats: add the estimated need of concurrent connections per server
+    - BUG/MINOR: threads: Don't forget to init each thread toremove_lock.
+    - BUG/MEDIUM: lists: Lock the element while we check if it is in a list.
+    - Revert "BUG/MEDIUM: lists: Lock the element while we check if it is in a list."
+    - BUG/MINOR: haproxy: don't wake already stopping threads on exit
+    - BUG/MINOR: server: always count one idle slot for current thread
+    - MEDIUM: server: use the two thresholds for the connection release algorithm
+    - BUG/MINOR: http-rules: Fix ACLs parsing for http deny rules
+    - BUG/MINOR: sched: properly cover for a rare MT_LIST_ADDQ() race
+    - MINOR: mux-h1: avoid taking the toremove_lock in on dying tasks
+    - MINOR: mux-h2: avoid taking the toremove_lock in on dying tasks
+    - MINOR: mux-fcgi: avoid taking the toremove_lock in on dying tasks
+    - MINOR: pools: increase MAX_BASE_POOLS to 64
+    - DOC: ssl: add "allow-0rtt" and "ciphersuites" in crt-list
+    - BUG/MEDIUM: pattern: Add a trailing \0 to match strings only if possible
+    - BUG/MEDIUM: log-format: fix possible endless loop in parse_logformat_string()
+    - BUG/MINOR: proxy: fix dump_server_state()'s misuse of the trash
+    - BUG/MINOR: proxy: always initialize the trash in show servers state
+    - MINOR: cli/proxy: add a new "show servers conn" command
+    - MINOR: server: skip servers with no idle conns earlier
+    - BUG/MINOR: server: fix the connection release logic regarding nearly full conditions
+    - MEDIUM: server: add a new pool-low-conn server setting
+    - BUG/MEDIUM: backend: always search in the safe list after failing on the idle one
+    - MINOR: backend: don't always takeover from the same threads
+    - MINOR: sched: make sched->task_list_size atomic
+    - MEDIUM: sched: create a new TASK_KILLED task flag
+    - MEDIUM: sched: implement task_kill() to kill a task
+    - MEDIUM: mux-h1: use task_kill() during h1_takeover() instead of task_wakeup()
+    - MEDIUM: mux-h2: use task_kill() during h2_takeover() instead of task_wakeup()
+    - MEDIUM: mux-fcgi: use task_kill() during fcgi_takeover() instead of task_wakeup()
+    - MINOR: list: Add MT_LIST_DEL_SAFE_NOINIT() and MT_LIST_ADDQ_NOCHECK()
+    - CLEANUP: connections: rename the toremove_lock to takeover_lock
+    - MEDIUM: connections: Don't use a lock when moving connections to remove.
+    - DOC: configuration: add missing index entries for tune.pool-{low,high}-fd-ratio
+    - DOC: configuration: fix alphabetical ordering for tune.pool-{high,low}-fd-ratio
+    - MINOR: config: add a new tune.idle-pool.shared global setting.
+    - MINOR: 51d: silence a warning about null pointer dereference
+    - MINOR: debug: add a new "debug dev memstats" command
+    - MINOR: log-format: allow to preserve spacing in log format strings
+    - BUILD: debug: avoid build warnings with DEBUG_MEM_STATS
+    - BUG/MAJOR: sched: make sure task_kill() always queues the task
+    - BUG/MEDIUM: muxes: Make sure nobody stole the connection before using it.
+    - BUG/MEDIUM: cli/proxy: don't try to dump idle connection state if there's none
+    - BUILD: haproxy: fix build error when RLIMIT_AS is not set
+    - BUG/MAJOR: sched: make it work also when not building with DEBUG_STRICT
+    - MINOR: log: add time second fraction field to rfc5424 log timestamp.
+    - BUG/MINOR: log: missing timezone on iso dates.
+    - BUG/MEDIUM: server: don't kill all idle conns when there are not enough
+    - MINOR: sched: split tasklet_wakeup() into tasklet_wakeup_on()
+    - BUG/MEDIUM: connections: Set the tid for the old tasklet on takeover.
+    - BUG/MEDIUM: connections: Let the xprt layer know a takeover happened.
+    - BUG/MINOR: http_act: don't check capture id in backend (2)
+    - BUILD: makefile: disable threads by default on OpenBSD
+    - BUILD: peers: fix build warning with gcc 4.2.1
+    - CI: cirrus-ci: exclude slow reg-tests
+
 2020/06/26 : 2.2-dev11
     - REGTEST: Add a simple script to tests errorfile directives in proxy sections
     - BUG/MEDIUM: fcgi-app: Resolve the sink if a fcgi-app logs in a ring buffer
