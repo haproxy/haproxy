@@ -3714,7 +3714,7 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 		 */
 		if (!t->context) {
 			h2c = NULL;
-			HA_SPIN_UNLOCK(&OTHER_LOCK, &idle_conns[tid].takeover_lock);
+			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 			goto do_leave;
 		}
 
