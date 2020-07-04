@@ -2607,6 +2607,7 @@ void deinit(void)
 	struct post_deinit_fct *pdf, *pdfb;
 	struct proxy_deinit_fct *pxdf, *pxdfb;
 	struct server_deinit_fct *srvdf, *srvdfb;
+	struct post_server_check_fct *pscf, *pscfb;
 
 	deinit_signals();
 	while (p) {
@@ -2905,6 +2906,11 @@ void deinit(void)
 	list_for_each_entry_safe(srvdf, srvdfb, &server_deinit_list, list) {
 		LIST_DEL(&srvdf->list);
 		free(srvdf);
+	}
+
+	list_for_each_entry_safe(pscf, pscfb, &post_server_check_list, list) {
+		LIST_DEL(&pscf->list);
+		free(pscf);
 	}
 
 	vars_prune(&global.vars, NULL, NULL);
