@@ -2626,6 +2626,7 @@ void deinit(void)
 
 		free(p->conf.lfs_file);
 		free(p->conf.uniqueid_format_string);
+		istfree(&p->header_unique_id);
 		free(p->conf.uif_file);
 		if ((p->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_MAP)
 			free(p->lbprm.map.srv);
