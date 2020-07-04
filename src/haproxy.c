@@ -2606,7 +2606,7 @@ void deinit(void)
 	struct build_opts_str *bol, *bolb;
 	struct post_deinit_fct *pdf, *pdfb;
 	struct proxy_deinit_fct *pxdf, *pxdfb;
-	struct server_deinit_fct *srvdf;
+	struct server_deinit_fct *srvdf, *srvdfb;
 
 	deinit_signals();
 	while (p) {
@@ -2900,6 +2900,11 @@ void deinit(void)
 	list_for_each_entry_safe(pdf, pdfb, &post_deinit_list, list) {
 		LIST_DEL(&pdf->list);
 		free(pdf);
+	}
+
+	list_for_each_entry_safe(srvdf, srvdfb, &server_deinit_list, list) {
+		LIST_DEL(&srvdf->list);
+		free(srvdf);
 	}
 
 	vars_prune(&global.vars, NULL, NULL);
