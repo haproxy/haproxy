@@ -8617,6 +8617,13 @@ void hlua_init(void)
 	RESET_SAFE_LJMP(gL.T);
 }
 
+static void hlua_deinit()
+{
+	lua_close(gL.T);
+}
+
+REGISTER_POST_DEINIT(hlua_deinit);
+
 static void hlua_register_build_options(void)
 {
 	char *ptr = NULL;
