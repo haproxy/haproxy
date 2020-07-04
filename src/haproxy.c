@@ -2666,6 +2666,12 @@ void deinit(void)
 		list_for_each_entry_safe(srule, sruleb, &p->server_rules, list) {
 			LIST_DEL(&srule->list);
 			prune_acl_cond(srule->cond);
+			list_for_each_entry_safe(lf, lfb, &srule->expr, list) {
+				LIST_DEL(&lf->list);
+				release_sample_expr(lf->expr);
+				free(lf->arg);
+				free(lf);
+			}
 			free(srule->file);
 			free(srule->cond);
 			free(srule);
