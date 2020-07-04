@@ -117,8 +117,8 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 		}
 	}
 
-	if (expr->smp->arg_p != empty_arg_list && !unresolved)
-		free(expr->smp->arg_p);
+	release_sample_expr(expr->smp);
+
 	return expr;
 }
 
