@@ -15,7 +15,6 @@
 #define _HAPROXY_AUTH_T_H
 
 #include <haproxy/api-t.h>
-#include <haproxy/auth-t.h>
 
 #define AU_O_INSECURE	0x00000001		/* insecure, unencrypted password */
 
