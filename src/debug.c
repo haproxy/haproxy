@@ -98,7 +98,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 		struct buffer bak;
 		void *callers[100];
 		int j, nptrs;
-		void *addr;
+		const void *addr;
 		int dump = 0;
 
 		nptrs = my_backtrace(callers, sizeof(callers)/sizeof(*callers));
