@@ -57,12 +57,12 @@ int exp_replace(char *dst, unsigned int dst_size, char *src, const char *str, co
 				if (!*str)
 					return -1;
 
-				hex1 = toupper(*str++) - '0';
+				hex1 = toupper((unsigned char)*str++) - '0';
 
 				if (!*str)
 					return -1;
 
-				hex2 = toupper(*str++) - '0';
+				hex2 = toupper((unsigned char)*str++) - '0';
 
 				if (hex1 > 9) hex1 -= 'A' - '9' - 1;
 				if (hex2 > 9) hex2 -= 'A' - '9' - 1;

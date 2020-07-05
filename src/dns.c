@@ -79,7 +79,7 @@ static __inline int dns_hostname_cmp(const char *name1, const char *name2, int l
 	int i;
 
 	for (i = 0; i < len; i++)
-		if (tolower(name1[i]) != tolower(name2[i]))
+		if (tolower((unsigned char)name1[i]) != tolower((unsigned char)name2[i]))
 			return -1;
 	return 0;
 }

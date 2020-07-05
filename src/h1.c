@@ -662,7 +662,7 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 			if (!skip_update) {
 				/* turn it to lower case if needed */
 				if (isupper((unsigned char)*ptr) && h1m->flags & H1_MF_TOLOWER)
-					*ptr = tolower(*ptr);
+					*ptr = tolower((unsigned char)*ptr);
 			}
 			EAT_AND_JUMP_OR_RETURN(ptr, end, http_msg_hdr_name, http_msg_ood, state, H1_MSG_HDR_NAME);
 		}

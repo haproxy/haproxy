@@ -3921,7 +3921,7 @@ const char *strnistr(const char *str1, int len_str1, const char *str2, int len_s
 		return NULL;
 
 	for (tmp1 = 0, start = (char *)str1, pptr = (char *)str2, slen = len_str1, plen = len_str2; slen >= plen; start++, slen--) {
-		while (toupper(*start) != toupper(*str2)) {
+		while (toupper((unsigned char)*start) != toupper((unsigned char)*str2)) {
 			start++;
 			slen--;
 			tmp1++;
@@ -3938,7 +3938,7 @@ const char *strnistr(const char *str1, int len_str1, const char *str2, int len_s
 		pptr = (char *)str2;
 
 		tmp2 = 0;
-		while (toupper(*sptr) == toupper(*pptr)) {
+		while (toupper((unsigned char)*sptr) == toupper((unsigned char)*pptr)) {
 			sptr++;
 			pptr++;
 			tmp2++;
@@ -4882,8 +4882,8 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 						*errptr = in;
 					goto leave;
 				}
-				hex1 = toupper(in[2]) - '0';
-				hex2 = toupper(in[3]) - '0';
+				hex1 = toupper((unsigned char)in[2]) - '0';
+				hex2 = toupper((unsigned char)in[3]) - '0';
 				if (hex1 > 9) hex1 -= 'A' - '9' - 1;
 				if (hex2 > 9) hex2 -= 'A' - '9' - 1;
 				tosend = (hex1 << 4) + hex2;

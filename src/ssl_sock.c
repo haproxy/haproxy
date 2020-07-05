@@ -2386,7 +2386,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *priv)
 	for (i = 0; i < trash.size; i++) {
 		if (!servername[i])
 			break;
-		trash.area[i] = tolower(servername[i]);
+		trash.area[i] = tolower((unsigned char)servername[i]);
 		if (!wildp && (trash.area[i] == '.'))
 			wildp = &trash.area[i];
 	}
@@ -2681,7 +2681,7 @@ static int ckch_inst_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
 		int j, len;
 		len = strlen(name);
 		for (j = 0; j < len && j < trash.size; j++)
-			trash.area[j] = tolower(name[j]);
+			trash.area[j] = tolower((unsigned char)name[j]);
 		if (j >= trash.size)
 			return -1;
 		trash.area[j] = 0;
@@ -2985,7 +2985,7 @@ static int ssl_sock_populate_sni_keytypes_hplr(const char *str, struct eb_root *
 	for (i = 0; i < trash.size; i++) {
 		if (!str[i])
 			break;
-		trash.area[i] = tolower(str[i]);
+		trash.area[i] = tolower((unsigned char)str[i]);
 	}
 	trash.area[i] = 0;
 	node = ebst_lookup(sni_keytypes, trash.area);

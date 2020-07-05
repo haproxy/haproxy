@@ -782,7 +782,7 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 		icase = expr->mflags & PAT_MF_IGNORE_CASE;
 		if (icase) {
 			for (c = smp->data.u.str.area; c <= end; c++) {
-				if (tolower(*c) != tolower(*pattern->ptr.str))
+				if (tolower((unsigned char)*c) != tolower((unsigned char)*pattern->ptr.str))
 					continue;
 				if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0) {
 					ret = pattern;
@@ -847,7 +847,7 @@ static int match_word(struct sample *smp, struct pattern *pattern, int mflags, u
 			continue;
 
 		if (icase) {
-			if ((tolower(*c) == tolower(*ps)) &&
+			if ((tolower((unsigned char)*c) == tolower((unsigned char)*ps)) &&
 			    (strncasecmp(ps, c, pl) == 0) &&
 			    (c == end || is_delimiter(c[pl], delimiters)))
 				return PAT_MATCH;
