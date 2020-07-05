@@ -141,7 +141,7 @@ struct sink *sink_new_buf(const char *name, const char *desc, enum sink_fmt fmt,
 }
 
 /* tries to send <nmsg> message parts (up to 8, ignored above) from message
- * array <msg> to sink <sink>. Formating according to the sink's preference is
+ * array <msg> to sink <sink>. Formatting according to the sink's preference is
  * done here. Lost messages are NOT accounted for. It is preferable to call
  * sink_write() instead which will also try to emit the number of dropped
  * messages when there are any. It returns >0 if it could write anything,

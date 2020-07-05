@@ -773,7 +773,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		 * uri.ptr and path.ptr (excluded). If it was not found, we need
 		 * to replace from all the uri by a single "/".
 		 *
-		 * Instead of rewritting the whole start line, we just update
+		 * Instead of rewriting the whole start line, we just update
 		 * the star-line URI. Some space will be lost but it should be
 		 * insignificant.
 		 */

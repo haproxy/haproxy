@@ -189,7 +189,7 @@ void vars_prune_per_sess(struct vars *vars)
 	_HA_ATOMIC_SUB(&var_global_size, size);
 }
 
-/* This function init a list of variabes. */
+/* This function init a list of variables. */
 void vars_init(struct vars *vars, enum vars_scope scope)
 {
 	LIST_INIT(&vars->head);

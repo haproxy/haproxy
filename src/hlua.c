@@ -94,7 +94,7 @@
  *  - The converters wrapper function
  *  - The sample-fetch wrapper functions
  *
- * It is tolerated that the initilisation function returns an abort.
+ * It is tolerated that the initialisation function returns an abort.
  * Before each Lua abort, an error message is written on stderr.
  *
  * The macro SET_SAFE_LJMP initialise the longjmp. The Macro
@@ -994,7 +994,7 @@ static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
 	/* Copy data between the coroutines. */
 	lua_rawgeti(lua->T, LUA_REGISTRYINDEX, lua->Mref);
 	lua_xmove(lua->T, T, 1);
-	new_ref = luaL_ref(T, LUA_REGISTRYINDEX); /* Valur poped. */
+	new_ref = luaL_ref(T, LUA_REGISTRYINDEX); /* Value popped. */
 
 	/* Destroy old data. */
 	luaL_unref(lua->T, LUA_REGISTRYINDEX, lua->Mref);

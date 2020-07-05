@@ -1640,7 +1640,7 @@ smp_fetch_fc_lost(const struct arg *args, struct sample *smp, const char *kw, vo
 	return 1;
 }
 
-/* get the retrans counter on a client connexion */
+/* get the retrans counter on a client connection */
 static int
 smp_fetch_fc_retrans(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {

@@ -144,7 +144,7 @@ int regex_exec_match(const struct my_regex *preg, const char *subject,
 
 	/* Silently limit the number of allowed matches. max
 	 * match i the maximum value for match, in fact this
-	 * limit is not applyied.
+	 * limit is not applied.
 	 */
 
 	enmatch = nmatch;
@@ -218,7 +218,7 @@ int regex_exec_match(const struct my_regex *preg, const char *subject,
  * <subject> can be modified during the processing. If the function doesn't
  * match, it returns false, else it returns true.
  * When it is compiled with standard POSIX regex or PCRE, this function add
- * a temporary null chracters at the end of the <subject>. The <subject> must
+ * a temporary null characters at the end of the <subject>. The <subject> must
  * have a real length of <length> + 1. Currently the only supported flag is
  * REG_NOTBOL.
  */
@@ -238,7 +238,7 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
 
 	/* Silently limit the number of allowed matches. max
 	 * match i the maximum value for match, in fact this
-	 * limit is not applyied.
+	 * limit is not applied.
 	 */
 	enmatch = nmatch;
 	if (enmatch > MAX_MATCH)

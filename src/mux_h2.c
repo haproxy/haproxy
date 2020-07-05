@@ -1883,7 +1883,7 @@ static int h2_send_empty_data_es(struct h2s *h2s)
 	return ret;
 }
 
-/* wake a specific stream and assign its conn_stream som CS_FL_* flags among
+/* wake a specific stream and assign its conn_stream some CS_FL_* flags among
  * CS_FL_ERR_PENDING and CS_FL_ERROR if needed. The stream's state
  * is automatically updated accordingly. If the stream is orphaned, it is
  * destroyed.
@@ -2829,7 +2829,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 			 * sending RST_STREAM (aborted stream).
 			 *
 			 * In addition, since our CLOSED streams always carry the
-			 * RST_RCVD bit, we don't want to accidently catch valid
+			 * RST_RCVD bit, we don't want to accidentally catch valid
 			 * frames for a closed stream, i.e. RST/PRIO/WU.
 			 */
 			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
@@ -3100,7 +3100,7 @@ static void h2_process_demux(struct h2c *h2c)
 			break;
 
 		case H2_FT_CONTINUATION:
-			/* RFC7540#6.10: CONTINUATION may only be preceeded by
+			/* RFC7540#6.10: CONTINUATION may only be preceded by
 			 * a HEADERS/PUSH_PROMISE/CONTINUATION frame. These
 			 * frames' parsers consume all following CONTINUATION
 			 * frames so this one is out of sequence.
@@ -6181,7 +6181,7 @@ static int h2_parse_max_frame_size(char **args, int section_type, struct proxy *
 
 
 /****************************************/
-/* MUX initialization and instanciation */
+/* MUX initialization and instantiation */
 /***************************************/
 
 /* The mux operations */

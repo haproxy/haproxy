@@ -80,7 +80,7 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
 /* Initialize the mux once it's attached. It is expected that conn->ctx
  * points to the existing conn_stream (for outgoing connections) or NULL (for
  * incoming ones, in which case one will be allocated and a new stream will be
- * instanciated). Returns < 0 on error.
+ * instantiated). Returns < 0 on error.
  */
 static int mux_pt_init(struct connection *conn, struct proxy *prx, struct session *sess,
 		       struct buffer *input)
@@ -148,7 +148,7 @@ static int mux_pt_wake(struct connection *conn)
 	}
 
 	/* If we had early data, and we're done with the handshake
-	 * then whe know the data are safe, and we can remove the flag.
+	 * then we know the data are safe, and we can remove the flag.
 	 */
 	if ((conn->flags & (CO_FL_EARLY_DATA | CO_FL_EARLY_SSL_HS | CO_FL_WAIT_XPRT)) ==
 	    CO_FL_EARLY_DATA)

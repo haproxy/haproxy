@@ -2141,7 +2141,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 
 	/* if current peer is local */
 	if (peer->local) {
-		/* if current host need resyncfrom local and no process assined  */
+		/* if current host need resyncfrom local and no process assigned  */
 		if ((peers->flags & PEERS_RESYNC_STATEMASK) == PEERS_RESYNC_FROMLOCAL &&
 		    !(peers->flags & PEERS_F_RESYNC_ASSIGN)) {
 			/* assign local peer for a lesson, consider lesson already requested */
@@ -2195,7 +2195,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 }
 
 /*
- * IO Handler to handle message exchance with a peer
+ * IO Handler to handle message exchange with a peer
  */
 static void peer_io_handler(struct appctx *appctx)
 {

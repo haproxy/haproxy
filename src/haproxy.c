@@ -7,8 +7,8 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *
- * Please refer to RFC7230 - RFC7235 informations about HTTP protocol, and
- * RFC6265 for informations about cookies usage. More generally, the IETF HTTP
+ * Please refer to RFC7230 - RFC7235 information about HTTP protocol, and
+ * RFC6265 for information about cookies usage. More generally, the IETF HTTP
  * Working Group's web site should be consulted for protocol related changes :
  *
  *     http://ftp.ics.uci.edu/pub/ietf/http/
@@ -194,7 +194,7 @@ int unstoppable_jobs = 0;  /* number of active jobs that can't be stopped during
 int active_peers = 0; /* number of active peers (connection attempts and connected) */
 int connected_peers = 0; /* number of connected peers (verified ones) */
 
-/* Here we store informations about the pids of the processes we may pause
+/* Here we store information about the pids of the processes we may pause
  * or kill. We will send them a signal every 10 ms until we can bind to all
  * our ports. With 200 retries, that's about 2 seconds.
  */
@@ -1215,7 +1215,7 @@ static int get_old_sockets(const char *unixsocket)
 				}
 				/*
 				 * Be paranoid and use memcpy() to avoid any
-				 * potential alignement issue.
+				 * potential alignment issue.
 				 */
 				memcpy(&tmpfd[got_fd], CMSG_DATA(cmsg), totlen);
 				got_fd += totlen / sizeof(int);

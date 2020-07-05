@@ -119,7 +119,7 @@ static int sample_conv_q_preferred(const struct arg *args, struct sample *smp, v
 		if (al >= end)
 			break;
 
-		/* Start of the fisrt word. */
+		/* Start of the first word. */
 		token = al;
 
 		/* Look for separator: isspace(), ',' or ';'. Next value if 0 length word. */

@@ -1273,7 +1273,7 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 		/* Check for preferred network. */
 		for (j = 0; j < dns_opts->pref_net_nb; j++) {
 
-			/* Compare only the same adresses class. */
+			/* Compare only the same addresses class. */
 			if (dns_opts->pref_net[j].family != ip_type)
 				continue;
 
@@ -1698,7 +1698,7 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 	return -1;
 }
 
-/* Removes a requester from a DNS resoltion. It takes takes care of all the
+/* Removes a requester from a DNS resolution. It takes takes care of all the
  * consequences. It also cleans up some parameters from the requester.
  */
 void dns_unlink_resolution(struct dns_requester *requester)

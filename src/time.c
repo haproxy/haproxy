@@ -169,7 +169,7 @@ int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
  * An offset is used to adjust the current time (date), to have a monotonic time
  * (now). It must be global and thread-safe. But a timeval cannot be atomically
  * updated. So instead, we store it in a 64-bits integer (offset) whose 32 MSB
- * contain the signed seconds adjustment andthe 32 LSB contain the unsigned
+ * contain the signed seconds adjustment and the 32 LSB contain the unsigned
  * microsecond adjustment. We cannot use a timeval for this since it's never
  * clearly specified whether a timeval may hold negative values or not.
  */

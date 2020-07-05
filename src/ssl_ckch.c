@@ -153,7 +153,7 @@ end:
 
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 /*
- * This function load the OCSP Resonse in DER format contained in file at
+ * This function load the OCSP Response in DER format contained in file at
  * path 'ocsp_path' or base64 in a buffer <buf>
  *
  * Returns 0 on success, 1 in error case.

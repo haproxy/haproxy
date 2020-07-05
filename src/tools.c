@@ -4518,7 +4518,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr)
 
 /*
  * Allocate an array of unsigned int with <nums> as address from <str> string
- * made of integer sepereated by dot characters.
+ * made of integer separated by dot characters.
  *
  * First, initializes the value with <sz> as address to 0 and initializes the
  * array with <nums> as address to NULL. Then allocates the array with <nums> as
@@ -4733,7 +4733,7 @@ void ha_generate_uuid(struct buffer *output)
 		outpos++;					       \
 	} while (0)
 
-/* Parse <in>, copy it into <out> splitted into isolated words whose pointers
+/* Parse <in>, copy it into <out> split into isolated words whose pointers
  * are put in <args>. If more than <outlen> bytes have to be emitted, the
  * extraneous ones are not emitted but <outlen> is updated so that the caller
  * knows how much to realloc. Similarly, <args> are not updated beyond <nbargs>

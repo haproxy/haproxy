@@ -1034,7 +1034,7 @@ out_error:
  *
  * Note: the fetch functions are required to properly set the return type. The
  * conversion functions must do so too. However the cast functions do not need
- * to since they're made to cast mutiple types according to what is required.
+ * to since they're made to cast multiple types according to what is required.
  *
  * The caller may indicate in <opt> if it considers the result final or not.
  * The caller needs to check the SMP_F_MAY_CHANGE flag in p->flags to verify
@@ -2772,7 +2772,7 @@ static inline long long int arith_add(long long int a, long long int b)
 	 * +------+----------+----------+
 	 */
 	if ((a ^ b) >= 0) {
-		/* signs are differents. */
+		/* signs are different. */
 		if (a < 0) {
 			if (LLONG_MIN - a > b)
 				return LLONG_MIN;
@@ -2849,7 +2849,7 @@ static int sample_conv_arith_mul(const struct arg *arg_p,
 	}
 
 	/* The multiply between LLONG_MIN and -1 returns a
-	 * "floting point exception".
+	 * "floating point exception".
 	 */
 	if (smp->data.u.sint == LLONG_MIN && tmp.data.u.sint == -1) {
 		smp->data.u.sint = LLONG_MAX;
@@ -2888,7 +2888,7 @@ static int sample_conv_arith_div(const struct arg *arg_p,
 
 	if (tmp.data.u.sint) {
 		/* The divide between LLONG_MIN and -1 returns a
-		 * "floting point exception".
+		 * "floating point exception".
 		 */
 		if (smp->data.u.sint == LLONG_MIN && tmp.data.u.sint == -1) {
 			smp->data.u.sint = LLONG_MAX;
@@ -2916,7 +2916,7 @@ static int sample_conv_arith_mod(const struct arg *arg_p,
 
 	if (tmp.data.u.sint) {
 		/* The divide between LLONG_MIN and -1 returns a
-		 * "floting point exception".
+		 * "floating point exception".
 		 */
 		if (smp->data.u.sint == LLONG_MIN && tmp.data.u.sint == -1) {
 			smp->data.u.sint = 0;

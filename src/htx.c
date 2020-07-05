@@ -235,7 +235,7 @@ static int htx_prepare_blk_expansion(struct htx *htx, struct htx_blk *blk, int32
 		ret = 1;
 	}
 	else if (delta > htx_free_space(htx)) {
-		/* There is not enought space to handle the expansion */
+		/* There is not enough space to handle the expansion */
 		ret = 0;
 	}
 	else if (blk->addr+sz == htx->tail_addr) {

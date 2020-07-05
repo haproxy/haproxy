@@ -289,12 +289,12 @@ struct server {
 	struct dns_resolvers *resolvers;	/* pointer to the resolvers structure used by this server */
 	char *lastaddr;				/* the address string provided by the server-state file */
 	struct dns_options dns_opts;
-	int hostname_dn_len;			/* sting length of the server hostname in Domain Name format */
+	int hostname_dn_len;			/* string length of the server hostname in Domain Name format */
 	char *hostname_dn;			/* server hostname in Domain Name format */
 	char *hostname;				/* server hostname */
 	struct sockaddr_storage init_addr;	/* plain IP address specified on the init-addr line */
 	unsigned int init_addr_methods;		/* initial address setting, 3-bit per method, ends at 0, enough to store 10 entries */
-	enum srv_log_proto log_proto;		/* used proto to emmit messages on server lines from ring section */
+	enum srv_log_proto log_proto;		/* used proto to emit messages on server lines from ring section */
 
 #ifdef USE_OPENSSL
 	char *sni_expr;             /* Temporary variable to store a sample expression for SNI */

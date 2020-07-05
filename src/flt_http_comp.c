@@ -458,7 +458,7 @@ select_compression_request_header(struct comp_state *st, struct stream *s, struc
 }
 
 /*
- * Selects a comression algorithm depending of the server response.
+ * Selects a compression algorithm depending of the server response.
  */
 static int
 select_compression_response_header(struct comp_state *st, struct stream *s, struct http_msg *msg)

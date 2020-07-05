@@ -262,7 +262,7 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 			return NULL;
 		}
 
-		/* OK we just got a valid HTTP mesage. We have to convert it
+		/* OK we just got a valid HTTP message. We have to convert it
 		 * into an HTX message.
 		 */
 		if (unlikely(h1sl.rq.v.len == 0)) {
@@ -1726,7 +1726,7 @@ static int smp_fetch_cookie_val(const struct arg *args, struct sample *smp, cons
 /************************************************************************/
 
 /* This scans a URL-encoded query string. It takes an optionally wrapping
- * string whose first contigous chunk has its beginning in ctx->a[0] and end
+ * string whose first contiguous chunk has its beginning in ctx->a[0] and end
  * in ctx->a[1], and the optional second part in (ctx->a[2]..ctx->a[3]). The
  * pointers are updated for next iteration before leaving.
  */
@@ -1830,7 +1830,7 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 /* This function iterates over each parameter of the body. This requires
  * that the body has been waited for using http-buffer-request. It uses
  * ctx->a[0] and ctx->a[1] to store the beginning and end of the first
- * contigous part of the body, and optionally ctx->a[2..3] to reference the
+ * contiguous part of the body, and optionally ctx->a[2..3] to reference the
  * optional second part if the body wraps at the end of the buffer. An optional
  * parameter name is passed in args[0], otherwise any parameter is considered.
  */

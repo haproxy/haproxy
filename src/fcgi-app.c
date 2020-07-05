@@ -702,7 +702,7 @@ static int cfg_fcgi_apps_postparser()
 				struct sink *sink = sink_find(logsrv->ring_name);
 
 				if (!sink || sink->type != SINK_TYPE_BUFFER) {
-					ha_alert("config : fcgi-app '%s' : log server uses unkown ring named '%s'.\n",
+					ha_alert("config : fcgi-app '%s' : log server uses unknown ring named '%s'.\n",
 						 curapp->name, logsrv->ring_name);
 					err_code |= ERR_ALERT | ERR_FATAL;
 				}

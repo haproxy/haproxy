@@ -288,7 +288,7 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"Cache-Control: no-cache\r\n"
 	"Content-Type: text/html\r\n"
 	"\r\n"
-	"<html><body><h1>500 Internal Server Error</h1>\nAn internal server error occured.\n</body></html>\n",
+	"<html><body><h1>500 Internal Server Error</h1>\nAn internal server error occurred.\n</body></html>\n",
 
 	[HTTP_ERR_502] =
 	"HTTP/1.1 502 Bad Gateway\r\n"
@@ -439,7 +439,7 @@ const char *http_get_reason(unsigned int status)
 	case 503: return "Service Unavailable";
 	case 504: return "Gateway Time-out";
 	case 505: return "HTTP Version not supported";
-	case 506: return "Variant also negociate";
+	case 506: return "Variant also negotiate";
 	case 507: return "Insufficient storage";
 	case 508: return "Loop detected";
 	case 509: return "Bandwidth Limit Exceeded";
@@ -691,7 +691,7 @@ char *http_extract_cookie_value(char *hdr, const char *hdr_end,
 			att_end = equal;
 		}
 
-		/* here, <equal> points to '=', a delimitor or the end. <att_end>
+		/* here, <equal> points to '=', a delimiter or the end. <att_end>
 		 * is between <att_beg> and <equal>, both may be identical.
 		 */
 
@@ -705,7 +705,7 @@ char *http_extract_cookie_value(char *hdr, const char *hdr_end,
 			/* find the end of the value, respecting quotes */
 			next = http_find_cookie_value_end(val_beg, hdr_end);
 
-			/* make val_end point to the first white space or delimitor after the value */
+			/* make val_end point to the first white space or delimiter after the value */
 			val_end = next;
 			while (val_end > val_beg && HTTP_IS_SPHT(*(val_end - 1)))
 				val_end--;
@@ -1010,7 +1010,7 @@ int http_parse_stline(const struct ist line, struct ist *p1, struct ist *p2, str
         /* Skip spaces between p2 and p3 */
         for (; p < end && HTTP_IS_SPHT(*p); p++);
 
-        /* The remaing is the third value */
+        /* The remaining is the third value */
         p3->ptr = p;
         p3->len = end - p;
 

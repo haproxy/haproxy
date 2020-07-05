@@ -362,7 +362,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 		memprintf(err_msg, "expected ')' before '%s'", word);
 		if (len > 0)
 			free(word);
-		/* when we're missing a right paren, the empty part preceeding
+		/* when we're missing a right paren, the empty part preceding
 		 * already created an empty arg, adding one to the position, so
 		 * let's fix the reporting to avoid being confusing.
 		 */
