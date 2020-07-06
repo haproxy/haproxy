@@ -717,10 +717,6 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 				if (!parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options, err))
 					goto fail;
 				break;
-			case LF_STEXPR:
-				if (!add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap, err, &sp))
-					goto fail;
-				break;
 			case LF_TEXT:
 			case LF_SEPARATOR:
 				if (!add_to_logformat_list(sp, str, pformat, list_format, err))
