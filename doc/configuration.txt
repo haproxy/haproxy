@@ -1051,11 +1051,25 @@ log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
     rfc5424   The RFC5424 syslog message format.
               (https://tools.ietf.org/html/rfc5424)
 
+    priority  A message containing only a level plus syslog facility between
+              angle brackets such as '<63>', followed by the text. The PID,
+              date, time, process name and system name are omitted. This is
+              designed to be used with a local log server.
+
     short     A message containing only a level between angle brackets such as
               '<3>', followed by the text. The PID, date, time, process name
               and system name are omitted. This is designed to be used with a
               local log server. This format is compatible with what the systemd
               logger consumes.
+
+    timed     A message containing only a level between angle brackets such as
+             '<3>', followed by ISO date and by the text. The PID, process
+              name and system name are omitted. This is designed to be
+              used with a local log server.
+
+    iso       A message containing only the ISO date, followed by the text.
+              The PID, process name and system name are omitted. This is
+              designed to be used with a local log server.
 
     raw       A message containing only the text. The level, PID, date, time,
               process name and system name are omitted. This is designed to be
@@ -2662,6 +2676,11 @@ format <format>
               and system name are omitted. This is designed to be used with a
               local log server. This format is compatible with what the systemd
               logger consumes.
+
+     priority A message containing only a level plus syslog facility between angle
+              brackets such as '<63>', followed by the text. The PID, date, time,
+              process name and system name are omitted. This is designed to be used
+              with a local log server.
 
       timed   A message containing only a level between angle brackets such as
               '<3>', followed by ISO date and by the text. The PID, process
@@ -6778,11 +6797,25 @@ no log
       rfc5424   The RFC5424 syslog message format.
                 (https://tools.ietf.org/html/rfc5424)
 
+      priority  A message containing only a level plus syslog facility between
+                angle brackets such as '<63>', followed by the text. The PID,
+                date, time, process name and system name are omitted. This is
+                designed to be used with a local log server.
+
       short     A message containing only a level between angle brackets such as
                 '<3>', followed by the text. The PID, date, time, process name
                 and system name are omitted. This is designed to be used with a
                 local log server. This format is compatible with what the
                 systemd logger consumes.
+
+      timed     A message containing only a level between angle brackets such as
+                '<3>', followed by ISO date and by the text. The PID, process
+                name and system name are omitted. This is designed to be
+                used with a local log server.
+
+      iso       A message containing only the ISO date, followed by the text.
+                The PID, process name and system name are omitted. This is
+                designed to be used with a local log server.
 
       raw       A message containing only the text. The level, PID, date, time,
                 process name and system name are omitted. This is designed to

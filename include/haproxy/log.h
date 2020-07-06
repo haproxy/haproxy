@@ -43,8 +43,6 @@ extern char default_rfc5424_sd_log_format[];
 
 extern unsigned int dropped_logs;
 
-extern THREAD_LOCAL char *logheader;
-extern THREAD_LOCAL char *logheader_rfc5424;
 extern THREAD_LOCAL char *logline;
 extern THREAD_LOCAL char *logline_rfc5424;
 
@@ -99,9 +97,9 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 void __send_log(struct list *logsrvs, struct buffer *tag, int level, char *message, size_t size, char *sd, size_t sd_size);
 
 /*
- * returns log format for <fmt> or -1 if not found.
+ * returns log format for <fmt> or LOG_FORMAT_UNSPEC if not found.
  */
-int get_log_format(const char *fmt);
+enum log_fmt get_log_format(const char *fmt);
 
 /*
  * returns log level for <lev> or -1 if not found.
@@ -161,6 +159,7 @@ static inline int build_logline(struct stream *s, char *dst, size_t maxsize, str
 	return sess_build_logline(strm_sess(s), s, dst, maxsize, list_format);
 }
 
+struct ist *build_log_header(enum log_fmt format, int level, int facility, struct ist *metadata, size_t *nbelem);
 #endif /* _HAPROXY_LOG_H */
 
 /*

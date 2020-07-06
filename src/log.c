@@ -43,56 +43,33 @@
 #include <haproxy/version.h>
 
 
-struct log_fmt {
+struct log_fmt_st {
 	char *name;
-	struct {
-		struct buffer sep1; /* first pid separator */
-		struct buffer sep2; /* second pid separator */
-	} pid;
 };
 
-static const struct log_fmt log_formats[LOG_FORMATS] = {
+static const struct log_fmt_st log_formats[LOG_FORMATS] = {
 	[LOG_FORMAT_RFC3164] = {
 		.name = "rfc3164",
-		.pid = {
-			.sep1 = { .area = "[",   .data = 1 },
-			.sep2 = { .area = "]: ", .data = 3 }
-		}
 	},
 	[LOG_FORMAT_RFC5424] = {
 		.name = "rfc5424",
-		.pid = {
-			.sep1 = { .area = " ",   .data = 1 },
-			.sep2 = { .area = " - ", .data = 3 }
-		}
+	},
+	[LOG_FORMAT_PRIO] = {
+		.name = "priority",
 	},
 	[LOG_FORMAT_SHORT] = {
 		.name = "short",
-		.pid = {
-			.sep1 = { .area = "",  .data = 0 },
-			.sep2 = { .area = " ", .data = 1 },
-		}
+	},
+	[LOG_FORMAT_TIMED] = {
+		.name = "timed",
+	},
+	[LOG_FORMAT_ISO] = {
+		.name = "iso",
 	},
 	[LOG_FORMAT_RAW] = {
 		.name = "raw",
-		.pid = {
-			.sep1 = { .area = "", .data = 0 },
-			.sep2 = { .area = "", .data = 0 },
-		}
 	},
 };
-
-char *get_format_pid_sep1(int format, size_t *len)
-{
-	*len = log_formats[format].pid.sep1.data;
-	return log_formats[format].pid.sep1.area;
-}
-
-char *get_format_pid_sep2(int format, size_t *len)
-{
-	*len = log_formats[format].pid.sep2.data;
-	return log_formats[format].pid.sep2.area;
-}
 
 /*
  * This map is used with all the FD_* macros to check whether a particular bit
@@ -232,19 +209,6 @@ char default_rfc5424_sd_log_format[] = "- ";
 
 /* total number of dropped logs */
 unsigned int dropped_logs = 0;
-
-/* This is a global syslog header, common to all outgoing messages in
- * RFC3164 format. It begins with time-based part and is updated by
- * update_log_hdr().
- */
-THREAD_LOCAL char *logheader = NULL;
-THREAD_LOCAL char *logheader_end = NULL;
-
-/* This is a global syslog header for messages in RFC5424 format. It is
- * updated by update_log_hdr_rfc5424().
- */
-THREAD_LOCAL char *logheader_rfc5424 = NULL;
-THREAD_LOCAL char *logheader_rfc5424_end = NULL;
 
 /* This is a global syslog message buffer, common to all outgoing
  * messages. It contains only the data part.
@@ -922,7 +886,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 	/* after the length, a format may be specified */
 	if (strcmp(args[cur_arg], "format") == 0) {
 		logsrv->format = get_log_format(args[cur_arg+1]);
-		if (logsrv->format < 0) {
+		if (logsrv->format == LOG_FORMAT_UNSPEC) {
 			memprintf(err, "unknown log format '%s'", args[cur_arg+1]);
 			goto error;
 		}
@@ -1179,16 +1143,18 @@ void qfprintf(FILE *out, const char *fmt, ...)
 }
 
 /*
- * returns log format for <fmt> or -1 if not found.
+ * returns log format, LOG_FORMAT_UNSPEC is return if not found.
  */
-int get_log_format(const char *fmt)
+enum log_fmt get_log_format(const char *fmt)
 {
-	int format;
+	enum log_fmt format;
 
 	format = LOG_FORMATS - 1;
-	while (format >= 0 && strcmp(log_formats[format].name, fmt))
+	while (format > 0 && log_formats[format].name
+	                  && strcmp(log_formats[format].name, fmt))
 		format--;
 
+	/* Note: 0 is LOG_FORMAT_UNSPEC */
 	return format;
 }
 
@@ -1431,94 +1397,6 @@ char *lf_port(char *dst, const struct sockaddr *sockaddr, size_t size, const str
 	return ret;
 }
 
-/* Re-generate time-based part of the syslog header in RFC3164 format at
- * the beginning of logheader once a second and return the pointer to the
- * first character after it.
- */
-char *update_log_hdr(const time_t time)
-{
-	static THREAD_LOCAL long tvsec;
-	static THREAD_LOCAL struct buffer host = { };
-	static THREAD_LOCAL int sep = 0;
-
-	if (unlikely(time != tvsec || logheader_end == NULL)) {
-		/* this string is rebuild only once a second */
-		struct tm tm;
-		int hdr_len;
-
-		tvsec = time;
-		get_localtime(tvsec, &tm);
-
-		if (unlikely(global.log_send_hostname != host.area)) {
-			host.area = global.log_send_hostname;
-			host.data = host.area ? strlen(host.area) : 0;
-			sep = host.data ? 1 : 0;
-		}
-
-		hdr_len = snprintf(logheader, global.max_syslog_len,
-				   "<<<<>%s %2d %02d:%02d:%02d %.*s%*s",
-				   monthname[tm.tm_mon],
-				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
-				   (int)host.data, host.area, sep, "");
-		/* WARNING: depending upon implementations, snprintf may return
-		 * either -1 or the number of bytes that would be needed to store
-		 * the total message. In both cases, we must adjust it.
-		 */
-		if (hdr_len < 0 || hdr_len > global.max_syslog_len)
-			hdr_len = global.max_syslog_len;
-
-		logheader_end = logheader + hdr_len;
-	}
-
-	logheader_end[0] = 0; // ensure we get rid of any previous attempt
-
-	return logheader_end;
-}
-
-/* Re-generate time-based part of the syslog header in RFC5424 format at
- * the beginning of logheader_rfc5424 once a second and return the pointer
- * to the first character after it.
- */
-char *update_log_hdr_rfc5424(const time_t time, const suseconds_t frac)
-{
-	static THREAD_LOCAL long tvsec;
-	const char *gmt_offset;
-	char c;
-
-	if (unlikely(time != tvsec || logheader_rfc5424_end == NULL)) {
-		/* this string is rebuild only once a second */
-		struct tm tm;
-		int hdr_len;
-
-		tvsec = time;
-		get_localtime(tvsec, &tm);
-		gmt_offset = get_gmt_offset(time, &tm);
-
-		hdr_len = snprintf(logheader_rfc5424, global.max_syslog_len,
-				   "<<<<>1 %4d-%02d-%02dT%02d:%02d:%02d.000000%.3s:%.2s %s ",
-				   tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
-				   tm.tm_hour, tm.tm_min, tm.tm_sec,
-				   gmt_offset, gmt_offset+3,
-				   global.log_send_hostname ? global.log_send_hostname : hostname);
-		/* WARNING: depending upon implementations, snprintf may return
-		 * either -1 or the number of bytes that would be needed to store
-		 * the total message. In both cases, we must adjust it.
-		 */
-		if (hdr_len < 0 || hdr_len > global.max_syslog_len)
-			hdr_len = global.max_syslog_len;
-
-		logheader_rfc5424_end = logheader_rfc5424 + hdr_len;
-	}
-
-	/* utoa_pad add a trailing '\0' so we save the char to restore */
-	c = logheader_rfc5424[33];
-	utoa_pad(frac, logheader_rfc5424 + 27, 7);
-	logheader_rfc5424[33] = c;
-
-	logheader_rfc5424_end[0] = 0; // ensure we get rid of any previous attempt
-
-	return logheader_rfc5424_end;
-}
 
 /*
  * This function sends the syslog message using a printf format string. It
@@ -1541,52 +1419,325 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 	__send_log((p ? &p->logsrvs : NULL), (p ? &p->log_tag : NULL), level,
 		   logline, data_len, default_rfc5424_sd_log_format, 2);
 }
+/*
+ * This function builds a log header of given format using given
+ * metadata, if format is set to LOF_FORMAT_UNSPEC, it tries
+ * to determine format based on given metadas. It is useful
+ * for log-forwarding to be able to forward any format without
+ * settings.
+ * This function returns a struct ist array of elements of the header
+ * nbelem is set to the number of available elements.
+ * Thos function returns currently a maximum of NB_LOG_HDR_IST_ELEMENTS
+ * elements.
+ */
+struct ist *build_log_header(enum log_fmt format, int level, int facility,
+                             struct ist *metadata, size_t *nbelem)
+{
+	static THREAD_LOCAL struct {
+		struct ist ist_vector[NB_LOG_HDR_MAX_ELEMENTS];
+		char timestamp_buffer[LOG_LEGACYTIME_LEN+1+1];
+		time_t cur_legacy_time;
+		char priority_buffer[6];
+	} hdr_ctx = { .priority_buffer = "<<<<>" };
+
+	struct tm logtime;
+	int len;
+	int fac_level = 0;
+	time_t time = date.tv_sec;
+
+	*nbelem = 0;
+
+
+	if (format == LOG_FORMAT_UNSPEC) {
+		format = LOG_FORMAT_RAW;
+		if (metadata) {
+			/* If a hostname is set, it appears we want to perform syslog
+			 * because only rfc5427 or rfc3164 support an hostname.
+			 */
+			if (metadata[LOG_META_HOST].len) {
+				/* If a rfc5424 compliant timestamp is used we consider
+				 * that output format is rfc5424, else legacy format
+				 * is used as specified default for local logs
+				 * in documentation.
+				 */
+				if ((metadata[LOG_META_TIME].len == 1 && metadata[LOG_META_TIME].ptr[0] == '-')
+				    || (metadata[LOG_META_TIME].len >= LOG_ISOTIME_MINLEN))
+					format = LOG_FORMAT_RFC5424;
+				else
+					format = LOG_FORMAT_RFC3164;
+			}
+			else if (metadata[LOG_META_PRIO].len) {
+				/* the source seems a parsed message
+				 * offering a valid level/prio prefix
+				 * so we consider this format.
+				 */
+				format = LOG_FORMAT_PRIO;
+			}
+		}
+	}
+
+	/* prepare priority, stored into 1 single elem */
+	switch (format) {
+		case LOG_FORMAT_RFC3164:
+		case LOG_FORMAT_RFC5424:
+		case LOG_FORMAT_PRIO:
+			fac_level = facility << 3;
+			/* further format ignore the facility */
+			/* fall through */
+		case LOG_FORMAT_TIMED:
+		case LOG_FORMAT_SHORT:
+			fac_level += level;
+			hdr_ctx.ist_vector[*nbelem].ptr = &hdr_ctx.priority_buffer[3]; /* last digit of the log level */
+			do {
+				*hdr_ctx.ist_vector[*nbelem].ptr = '0' + fac_level % 10;
+				fac_level /= 10;
+				hdr_ctx.ist_vector[*nbelem].ptr--;
+			} while (fac_level && hdr_ctx.ist_vector[*nbelem].ptr > &hdr_ctx.priority_buffer[0]);
+			*hdr_ctx.ist_vector[*nbelem].ptr = '<';
+			hdr_ctx.ist_vector[(*nbelem)++].len = &hdr_ctx.priority_buffer[5] - hdr_ctx.ist_vector[0].ptr;
+			break;
+		case LOG_FORMAT_ISO:
+		case LOG_FORMAT_RAW:
+			break;
+		case LOG_FORMAT_UNSPEC:
+		case LOG_FORMATS:
+			ABORT_NOW();
+	}
+
+
+	/* prepare timestamp, stored into a max of 4 elems */
+	switch (format) {
+		case LOG_FORMAT_RFC3164:
+			/* rfc3164 ex: 'Jan  1 00:00:00 ' */
+			if (metadata && metadata[LOG_META_TIME].len == LOG_LEGACYTIME_LEN) {
+				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_TIME];
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
+				/* time is set, break immediatly */
+				break;
+			}
+			else if (metadata && metadata[LOG_META_TIME].len >= LOG_ISOTIME_MINLEN) {
+				int month;
+				char *timestamp = metadata[LOG_META_TIME].ptr;
+
+				/* iso time always begins like this: '1970-01-01T00:00:00' */
+
+				/* compute month */
+				month = 10*(timestamp[5] - '0') + (timestamp[6] - '0');
+				if (month)
+					month--;
+				if (month <= 11) {
+					/* builds log prefix ex: 'Jan  1 ' */
+					len = snprintf(hdr_ctx.timestamp_buffer, sizeof(hdr_ctx.timestamp_buffer),
+					               "%s %c%c ", monthname[month],
+					               timestamp[8] != '0' ? timestamp[8] : ' ',
+					               timestamp[9]);
+					/* we reused the timestamp_buffer, signal that it does not
+					 * contain local time anymore
+					 */
+					hdr_ctx.cur_legacy_time = 0;
+					if (len == 7) {
+						hdr_ctx.ist_vector[(*nbelem)++] = ist2(&hdr_ctx.timestamp_buffer[0], len);
+						/* adds 'HH:MM:SS' from iso time */
+						hdr_ctx.ist_vector[(*nbelem)++] = ist2(&timestamp[11], 8);
+						hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
+						/* we successfully reuse iso time, we can break */
+						break;
+					}
+				}
+				/* Failed to reuse isotime time, fallback to local legacy time */
+			}
+
+			if (unlikely(time != hdr_ctx.cur_legacy_time)) {
+				/* re-builds timestamp from the current local time */
+				get_localtime(time, &logtime);
+
+				len = snprintf(hdr_ctx.timestamp_buffer, sizeof(hdr_ctx.timestamp_buffer),
+				               "%s %2d %02d:%02d:%02d ",
+				               monthname[logtime.tm_mon],
+				               logtime.tm_mday, logtime.tm_hour, logtime.tm_min, logtime.tm_sec);
+				if (len != LOG_LEGACYTIME_LEN+1)
+					hdr_ctx.cur_legacy_time = 0;
+				else
+					hdr_ctx.cur_legacy_time = time;
+			}
+			if (likely(hdr_ctx.cur_legacy_time))
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2(&hdr_ctx.timestamp_buffer[0], LOG_LEGACYTIME_LEN+1);
+			else
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2("Jan  1 00:00:00 ", LOG_LEGACYTIME_LEN+1);
+			break;
+		case LOG_FORMAT_RFC5424:
+			/* adds rfc5425 version prefix */
+			hdr_ctx.ist_vector[(*nbelem)++] = ist2("1 ", 2);
+			if (metadata && metadata[LOG_META_TIME].len == 1 && metadata[LOG_META_TIME].ptr[0] == '-') {
+				/* submited len is NILVALUE, it is a valid timestamp for rfc5425 */
+				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_TIME];
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
+				break;
+			}
+			/* let continue as 'timed' and 'iso' format for usual timestamp */
+			/* fall through */
+		case LOG_FORMAT_TIMED:
+		case LOG_FORMAT_ISO:
+			/* ISO format ex: '1900:01:01T12:00:00.123456Z'
+			 *                '1900:01:01T14:00:00+02:00'
+			 *                '1900:01:01T10:00:00.123456-02:00'
+			 */
+			if (metadata && metadata[LOG_META_TIME].len >= LOG_ISOTIME_MINLEN) {
+				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_TIME];
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
+				/* time is set, break immediatly */
+				break;
+			}
+			else if (metadata && metadata[LOG_META_TIME].len == LOG_LEGACYTIME_LEN) {
+				int month;
+				char *timestamp = metadata[LOG_META_TIME].ptr;
+
+				for (month = 0; month < 12; month++)
+					if (!memcmp(monthname[month], timestamp, 3))
+						break;
+
+				if (month < 12) {
+
+					/* get local time to retrieve year */
+					get_localtime(time, &logtime);
+
+					/* year seems changed since log */
+					if (logtime.tm_mon < month)
+						logtime.tm_year--;
+
+					/* builds rfc5424 prefix ex: '1900-01-01T' */
+					len = snprintf(hdr_ctx.timestamp_buffer, sizeof(hdr_ctx.timestamp_buffer),
+							   "%4d-%02d-%c%cT",
+							   logtime.tm_year+1900, month+1,
+							   timestamp[4] != ' ' ? timestamp[4] : '0',
+							   timestamp[5]);
+
+					/* we reused the timestamp_buffer, signal that it does not
+					 * contain local time anymore
+					 */
+					hdr_ctx.cur_legacy_time = 0;
+					if (len == 11) {
+						hdr_ctx.ist_vector[(*nbelem)++] = ist2(&hdr_ctx.timestamp_buffer[0], len);
+						/* adds HH:MM:SS from legacy timestamp */
+						hdr_ctx.ist_vector[(*nbelem)++] = ist2(&timestamp[7], 8);
+						/* skip secfraq because optionnal */
+						/* according to rfc: -00:00 means we don't know the timezone */
+						hdr_ctx.ist_vector[(*nbelem)++] = ist2("-00:00 ", 7);
+						/* we successfully reuse legacy time, we can break */
+						break;
+					}
+				}
+				/* Failed to reuse legacy time, fallback to local iso time */
+			}
+			hdr_ctx.ist_vector[(*nbelem)++] = ist2(timeofday_as_iso_us(1), LOG_ISOTIME_MAXLEN + 1);
+			break;
+		case LOG_FORMAT_PRIO:
+		case LOG_FORMAT_SHORT:
+		case LOG_FORMAT_RAW:
+			break;
+		case LOG_FORMAT_UNSPEC:
+		case LOG_FORMATS:
+			ABORT_NOW();
+	}
+
+	/* prepare other meta data, stored into a max of 10 elems */
+	switch (format) {
+		case LOG_FORMAT_RFC3164:
+			if (metadata && metadata[LOG_META_HOST].len) {
+				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_HOST];
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
+			}
+			else /* the caller MUST fill the hostname */
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2("localhost ", 10);
+
+			if (!metadata || !metadata[LOG_META_TAG].len)
+				break;
+
+			hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_TAG];
+			if (metadata[LOG_META_PID].len) {
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2("[", 1);
+				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_PID];
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2("]", 1);
+			}
+			hdr_ctx.ist_vector[(*nbelem)++] = ist2(": ", 2);
+			break;
+		case LOG_FORMAT_RFC5424:
+			if (metadata && metadata[LOG_META_HOST].len) {
+				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_HOST];
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
+			}
+			else
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2("- ", 2);
+
+			if (metadata && metadata[LOG_META_TAG].len) {
+				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_TAG];
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
+			}
+			else
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2("- ", 2);
+
+			if (metadata && metadata[LOG_META_PID].len) {
+				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_PID];
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
+			}
+			else
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2("- ", 2);
+
+			if (metadata && metadata[LOG_META_MSGID].len) {
+				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_MSGID];
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
+			}
+			else
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2("- ", 2);
+
+			if (metadata && metadata[LOG_META_STDATA].len) {
+				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_STDATA];
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
+			}
+			else
+				hdr_ctx.ist_vector[(*nbelem)++] = ist2("- ", 2);
+			break;
+		case LOG_FORMAT_PRIO:
+		case LOG_FORMAT_SHORT:
+		case LOG_FORMAT_TIMED:
+		case LOG_FORMAT_ISO:
+		case LOG_FORMAT_RAW:
+			break;
+		case LOG_FORMAT_UNSPEC:
+		case LOG_FORMATS:
+			ABORT_NOW();
+	}
+
+	return hdr_ctx.ist_vector;
+}
 
 /*
  * This function sends a syslog message to <logsrv>.
- * <pid_str> is the string to be used for the PID of the caller, <pid_size> is length.
- * Same thing for <sd> and <sd_size> which are used for the structured-data part
- * in RFC5424 formatted syslog messages, and <tag_str> and <tag_size> the syslog tag.
+ * The argument <metadata> MUST be an array of size
+ * LOG_META_FIELDS*sizeof(struct ist) containing data to build the header.
  * It overrides the last byte of the message vector with an LF character.
  * Does not return any error,
  */
-static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_str, size_t pid_size,
-                                 int level, char *message, size_t size, char *sd, size_t sd_size,
-                                 char *tag_str, size_t tag_size)
+static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level, int facility, struct ist *metadata, char *message, size_t size)
 {
-	static THREAD_LOCAL struct iovec iovec[NB_MSG_IOVEC_ELEMENTS] = { };
+	static THREAD_LOCAL struct iovec iovec[NB_LOG_HDR_MAX_ELEMENTS+1+1] = { }; /* header elements + message + LF */
 	static THREAD_LOCAL struct msghdr msghdr = {
 		//.msg_iov = iovec,
-		.msg_iovlen = NB_MSG_IOVEC_ELEMENTS
+		.msg_iovlen = NB_LOG_HDR_MAX_ELEMENTS+2
 	};
 	static THREAD_LOCAL int logfdunix = -1;	/* syslog to AF_UNIX socket */
 	static THREAD_LOCAL int logfdinet = -1;	/* syslog to AF_INET socket */
-	static THREAD_LOCAL char *dataptr = NULL;
-	time_t time = date.tv_sec;
-	char *hdr, *hdr_ptr = NULL;
-	size_t hdr_size;
-	int fac_level;
 	int *plogfd;
-	char *pid_sep1 = "", *pid_sep2 = "";
-	char logheader_short[3];
 	int sent;
-	int maxlen;
-	int hdr_max = 0;
-	int tag_max = 0;
-	int pid_sep1_max = 0;
-	int pid_max = 0;
-	int pid_sep2_max = 0;
-	int sd_max = 0;
-	int max = 0;
+	size_t nbelem;
+	struct ist *msg_header = NULL;
 
 	msghdr.msg_iov = iovec;
-
-	dataptr = message;
 
 	/* historically some messages used to already contain the trailing LF
 	 * or Zero. Let's remove all trailing LF or Zero
 	 */
-	while (size && ((dataptr[size-1] == '\n' || (dataptr[size-1] == 0))))
+	while (size && (message[size-1] == '\n' || (message[size-1] == 0)))
 		size--;
 
 	if (logsrv->type == LOG_TARGET_FD) {
@@ -1623,161 +1774,47 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, char *pid_
 		}
 	}
 
-	switch (logsrv->format) {
-	case LOG_FORMAT_RFC3164:
-		hdr = logheader;
-		hdr_ptr = update_log_hdr(time);
-		break;
-
-	case LOG_FORMAT_RFC5424:
-		hdr = logheader_rfc5424;
-		hdr_ptr = update_log_hdr_rfc5424(time, date.tv_usec);
-		sd_max = sd_size; /* the SD part allowed only in RFC5424 */
-		break;
-
-	case LOG_FORMAT_SHORT:
-		/* all fields are known, skip the header generation */
-		hdr = logheader_short;
-		hdr[0] = '<';
-		hdr[1] = '0' + MAX(level, logsrv->minlvl);
-		hdr[2] = '>';
-		hdr_ptr = hdr;
-		hdr_max = 3;
-		maxlen = logsrv->maxlen - hdr_max;
-		max = MIN(size, maxlen - 1);
-		goto send;
-
-	case LOG_FORMAT_RAW:
-		/* all fields are known, skip the header generation */
-		hdr_ptr = hdr = "";
-		hdr_max = 0;
-		maxlen = logsrv->maxlen;
-		max = MIN(size, maxlen - 1);
-		goto send;
-
-	default:
-		return; /* must never happen */
-	}
-
-	hdr_size = hdr_ptr - hdr;
-
-	/* For each target, we may have a different facility.
-	 * We can also have a different log level for each message.
-	 * This induces variations in the message header length.
-	 * Since we don't want to recompute it each time, nor copy it every
-	 * time, we only change the facility in the pre-computed header,
-	 * and we change the pointer to the header accordingly.
-	 */
-	fac_level = (logsrv->facility << 3) + MAX(level, logsrv->minlvl);
-	hdr_ptr = hdr + 3; /* last digit of the log level */
-	do {
-		*hdr_ptr = '0' + fac_level % 10;
-		fac_level /= 10;
-		hdr_ptr--;
-	} while (fac_level && hdr_ptr > hdr);
-	*hdr_ptr = '<';
-
-	hdr_max = hdr_size - (hdr_ptr - hdr);
-
-	/* time-based header */
-	if (unlikely(hdr_size >= logsrv->maxlen)) {
-		hdr_max = MIN(hdr_max, logsrv->maxlen) - 1;
-		sd_max = 0;
-		goto send;
-	}
-
-	maxlen = logsrv->maxlen - hdr_max;
-
-	/* tag */
-	tag_max = tag_size;
-	if (unlikely(tag_max >= maxlen)) {
-		tag_max = maxlen - 1;
-		sd_max = 0;
-		goto send;
-	}
-
-	maxlen -= tag_max;
-
-	/* first pid separator */
-	pid_sep1_max = log_formats[logsrv->format].pid.sep1.data;
-	if (unlikely(pid_sep1_max >= maxlen)) {
-		pid_sep1_max = maxlen - 1;
-		sd_max = 0;
-		goto send;
-	}
-
-	pid_sep1 = log_formats[logsrv->format].pid.sep1.area;
-	maxlen -= pid_sep1_max;
-
-	/* pid */
-	pid_max = pid_size;
-	if (unlikely(pid_size >= maxlen)) {
-		pid_size = maxlen - 1;
-		sd_max = 0;
-		goto send;
-	}
-
-	maxlen -= pid_size;
-
-	/* second pid separator */
-	pid_sep2_max = log_formats[logsrv->format].pid.sep2.data;
-	if (unlikely(pid_sep2_max >= maxlen)) {
-		pid_sep2_max = maxlen - 1;
-		sd_max = 0;
-		goto send;
-	}
-
-	pid_sep2 = log_formats[logsrv->format].pid.sep2.area;
-	maxlen -= pid_sep2_max;
-
-	/* structured-data */
-	if (sd_max >= maxlen) {
-		sd_max = maxlen - 1;
-		goto send;
-	}
-
-	max = MIN(size, maxlen - sd_max - 1);
-send:
+	msg_header = build_log_header(logsrv->format, level, facility, metadata, &nbelem);
+ send:
 	if (logsrv->addr.ss_family == AF_UNSPEC) {
-		/* the target is a file descriptor or a ring buffer */
-		struct ist msg[7];
+		struct ist msg;
+
+		msg = ist2(message, size);
+		if (msg.len > logsrv->maxlen)
+			msg.len = logsrv->maxlen;
 
 		if (logsrv->type == LOG_TARGET_BUFFER) {
-			msg[0] = ist2(message, MIN(size, logsrv->maxlen));
-			msg[1] = ist2(tag_str, tag_size);
-			msg[2] = ist2(pid_str, pid_size);
-			msg[3] = ist2(sd, sd_size);
-			sent = sink_write(logsrv->sink, msg, 1, level, logsrv->facility, &msg[1], &msg[2], &msg[3]);
+			sent = sink_write(logsrv->sink, &msg, 1, level, logsrv->facility, metadata);
 		}
-		else /* LOG_TARGET_FD */ {
-			msg[0] = ist2(hdr_ptr, hdr_max);
-			msg[1] = ist2(tag_str, tag_max);
-			msg[2] = ist2(pid_sep1, pid_sep1_max);
-			msg[3] = ist2(pid_str, pid_max);
-			msg[4] = ist2(pid_sep2, pid_sep2_max);
-			msg[5] = ist2(sd, sd_max);
-			msg[6] = ist2(dataptr, max);
-			sent = fd_write_frag_line(*plogfd, ~0, NULL, 0, msg, 7, 1);
-		}
+		else /* LOG_TARGET_FD */
+			sent = fd_write_frag_line(*plogfd, logsrv->maxlen, msg_header, nbelem, &msg, 1, 1);
 	}
 	else {
-		iovec[0].iov_base = hdr_ptr;
-		iovec[0].iov_len  = hdr_max;
-		iovec[1].iov_base = tag_str;
-		iovec[1].iov_len  = tag_max;
-		iovec[2].iov_base = pid_sep1;
-		iovec[2].iov_len  = pid_sep1_max;
-		iovec[3].iov_base = pid_str;
-		iovec[3].iov_len  = pid_max;
-		iovec[4].iov_base = pid_sep2;
-		iovec[4].iov_len  = pid_sep2_max;
-		iovec[5].iov_base = sd;
-		iovec[5].iov_len  = sd_max;
-		iovec[6].iov_base = dataptr;
-		iovec[6].iov_len  = max;
-		iovec[7].iov_base = "\n"; /* insert a \n at the end of the message */
-		iovec[7].iov_len  = 1;
+		int i = 0;
+		int totlen = logsrv->maxlen;
 
+		for (i = 0 ; i < nbelem ; i++ ) {
+			iovec[i].iov_base = msg_header[i].ptr;
+			iovec[i].iov_len  = msg_header[i].len;
+			if (totlen <= iovec[i].iov_len) {
+				iovec[i].iov_len = totlen;
+				totlen = 0;
+				break;
+			}
+			totlen -= iovec[i].iov_len;
+		}
+		if (totlen) {
+			iovec[i].iov_base = message;
+			iovec[i].iov_len  = size;
+			if (totlen <= iovec[i].iov_len)
+				iovec[i].iov_len = totlen;
+			i++;
+		}
+		iovec[i].iov_base = "\n"; /* insert a \n at the end of the message */
+		iovec[i].iov_len = 1;
+		i++;
+
+		msghdr.msg_iovlen = i;
 		msghdr.msg_name = (struct sockaddr *)&logsrv->addr;
 		msghdr.msg_namelen = get_addr_len(&logsrv->addr);
 
@@ -1800,34 +1837,15 @@ send:
 /*
  * This function sends a syslog message.
  * It doesn't care about errors nor does it report them.
- * The arguments <sd> and <sd_size> are used for the structured-data part
- * in RFC5424 formatted syslog messages.
+ * The argument <metadata> MUST be an array of size
+ * LOG_META_FIELDS*sizeof(struct ist)  containing
+ * data to build the header.
  */
-void __send_log(struct list *logsrvs, struct buffer *tag, int level,
-		char *message, size_t size, char *sd, size_t sd_size)
+void process_send_log(struct list *logsrvs, int level, int facility,
+	                struct ist *metadata, char *message, size_t size)
 {
 	struct logsrv *logsrv;
 	int nblogger;
-	static THREAD_LOCAL int curr_pid;
-	static THREAD_LOCAL char pidstr[100];
-	static THREAD_LOCAL struct buffer pid;
-
-	if (logsrvs == NULL) {
-		if (!LIST_ISEMPTY(&global.logsrvs)) {
-			logsrvs = &global.logsrvs;
-		}
-	}
-	if (!tag || !tag->area)
-		tag = &global.log_tag;
-
-	if (!logsrvs || LIST_ISEMPTY(logsrvs))
-		return;
-
-	if (unlikely(curr_pid != getpid())) {
-		curr_pid = getpid();
-		ltoa_o(curr_pid, pidstr, sizeof(pidstr));
-		chunk_initstr(&pid, pidstr);
-	}
 
 	/* Send log messages to syslog server. */
 	nblogger = 0;
@@ -1856,11 +1874,63 @@ void __send_log(struct list *logsrvs, struct buffer *tag, int level,
 			HA_SPIN_UNLOCK(LOGSRV_LOCK, &logsrv->lock);
 		}
 		if (in_range)
-			__do_send_log(logsrv, ++nblogger, pid.area, pid.data, level,
-			              message, size, sd, sd_size, tag->area, tag->data);
+			__do_send_log(logsrv, ++nblogger,  MAX(level, logsrv->minlvl),
+			              (facility == -1) ? logsrv->facility : facility,
+			              metadata, message, size);
 	}
 }
 
+/*
+ * This function sends a syslog message.
+ * It doesn't care about errors nor does it report them.
+ * The arguments <sd> and <sd_size> are used for the structured-data part
+ * in RFC5424 formatted syslog messages.
+ */
+void __send_log(struct list *logsrvs, struct buffer *tagb, int level,
+		char *message, size_t size, char *sd, size_t sd_size)
+{
+	static THREAD_LOCAL pid_t curr_pid;
+	static THREAD_LOCAL char pidstr[16];
+	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
+
+	if (logsrvs == NULL) {
+		if (!LIST_ISEMPTY(&global.logsrvs)) {
+			logsrvs = &global.logsrvs;
+		}
+	}
+	if (!logsrvs || LIST_ISEMPTY(logsrvs))
+		return;
+
+	if (!metadata[LOG_META_HOST].len) {
+		if (global.log_send_hostname)
+			metadata[LOG_META_HOST] = ist2(global.log_send_hostname, strlen(global.log_send_hostname));
+		else
+			metadata[LOG_META_HOST] = ist2(hostname, strlen(hostname));
+	}
+
+	if (!tagb || !tagb->area)
+		tagb = &global.log_tag;
+
+	if (tagb)
+		metadata[LOG_META_TAG] = ist2(tagb->area, tagb->data);
+
+	if (unlikely(curr_pid != getpid()))
+		metadata[LOG_META_PID].len = 0;
+
+	if (!metadata[LOG_META_PID].len) {
+		curr_pid = getpid();
+		ltoa_o(curr_pid, pidstr, sizeof(pidstr));
+		metadata[LOG_META_PID] = ist2(pidstr, strlen(pidstr));
+	}
+
+	metadata[LOG_META_STDATA] = ist2(sd, sd_size);
+
+	/* Remove trailing space of structured data */
+	while (metadata[LOG_META_STDATA].len && metadata[LOG_META_STDATA].ptr[metadata[LOG_META_STDATA].len-1] == ' ')
+		metadata[LOG_META_STDATA].len--;
+
+	return process_send_log(logsrvs, level, -1, metadata, message, size);
+}
 
 const char sess_cookie[8]     = "NIDVEOU7";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie, Unused, unknown */
 const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found and left unchanged (passive),
@@ -1958,13 +2028,9 @@ INITCALL0(STG_PREPARE, init_log);
 /* Initialize log buffers used for syslog messages */
 int init_log_buffers()
 {
-	logheader = my_realloc2(logheader, global.max_syslog_len + 1);
-	logheader_end = NULL;
-	logheader_rfc5424 = my_realloc2(logheader_rfc5424, global.max_syslog_len + 1);
-	logheader_rfc5424_end = NULL;
 	logline = my_realloc2(logline, global.max_syslog_len + 1);
 	logline_rfc5424 = my_realloc2(logline_rfc5424, global.max_syslog_len + 1);
-	if (!logheader || !logline_rfc5424 || !logline || !logline_rfc5424)
+	if (!logline || !logline_rfc5424)
 		return 0;
 	return 1;
 }
@@ -1972,13 +2038,9 @@ int init_log_buffers()
 /* Deinitialize log buffers used for syslog messages */
 void deinit_log_buffers()
 {
-	free(logheader);
-	free(logheader_rfc5424);
 	free(logline);
 	free(logline_rfc5424);
 	ring_free(_HA_ATOMIC_XCHG(&startup_logs, NULL));
-	logheader         = NULL;
-	logheader_rfc5424 = NULL;
 	logline           = NULL;
 	logline_rfc5424   = NULL;
 }

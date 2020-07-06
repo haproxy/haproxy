@@ -1483,7 +1483,7 @@ static int sample_conv_debug(const struct arg *arg_p, struct sample *smp, void *
 
  done:
 	line = ist2(buf->area, buf->data);
-	sink_write(sink, &line, 1, 0, 0, NULL, NULL, NULL);
+	sink_write(sink, &line, 1, 0, 0, NULL);
  end:
 	free_trash_chunk(buf);
 	return 1;

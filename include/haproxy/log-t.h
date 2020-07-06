@@ -33,7 +33,7 @@
 
 #define NB_LOG_FACILITIES       24
 #define NB_LOG_LEVELS           8
-#define NB_MSG_IOVEC_ELEMENTS   8
+#define NB_LOG_HDR_MAX_ELEMENTS 15
 #define SYSLOG_PORT             514
 #define UNIQUEID_LEN            128
 
@@ -67,14 +67,33 @@
 #define LW_FRTIP         8192        /* frontend IP */
 #define LW_XPRT         16384        /* transport layer information (eg: SSL) */
 
+#define LOG_LEGACYTIME_LEN 15
+#define LOG_ISOTIME_MINLEN 20
+#define LOG_ISOTIME_MAXLEN 32
 
 /* enum for log format */
-enum {
-	LOG_FORMAT_RFC3164 = 0,
+enum log_fmt {
+	LOG_FORMAT_UNSPEC = 0,
+	LOG_FORMAT_RFC3164,
 	LOG_FORMAT_RFC5424,
+	LOG_FORMAT_PRIO,
 	LOG_FORMAT_SHORT,
+	LOG_FORMAT_TIMED,
+	LOG_FORMAT_ISO,
 	LOG_FORMAT_RAW,
-	LOG_FORMATS,          /* number of supported log formats, must always be last */
+	LOG_FORMATS           /* number of supported log formats, must always be last */
+};
+
+/* enum log header meta data */
+enum log_meta {
+        LOG_META_PRIO,
+        LOG_META_TIME,
+        LOG_META_HOST,
+        LOG_META_TAG,
+        LOG_META_PID,
+        LOG_META_MSGID,
+        LOG_META_STDATA,
+        LOG_META_FIELDS  /* must always be the last */
 };
 
 /* log target types */
@@ -210,7 +229,7 @@ struct logsrv {
 	struct sink *sink;
 	char *ring_name;
 	enum log_tgt type;
-	int format;
+	enum log_fmt format;
 	int facility;
 	int level;
 	int minlvl;

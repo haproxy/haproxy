@@ -230,7 +230,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	}
 
 	if (src->sink)
-		sink_write(src->sink, line, words, 0, 0, NULL, NULL, NULL);
+		sink_write(src->sink, line, words, 0, 0, NULL);
 
  end:
 	/* check if we need to stop the trace now */

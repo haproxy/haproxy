@@ -24,6 +24,7 @@
 
 #include <import/ist.h>
 #include <haproxy/api-t.h>
+#include <haproxy/log-t.h>
 
 /* A sink may be of 4 distinct types :
  *   - file descriptor (such as stdout)
@@ -33,18 +34,6 @@ enum sink_type {
 	SINK_TYPE_NEW,      // not yet initialized
 	SINK_TYPE_FD,       // events sent to a file descriptor
 	SINK_TYPE_BUFFER,   // events sent to a ring buffer
-};
-
-/* This indicates the default event format, which is the destination's
- * preferred format, but may be overridden by the source.
- */
-enum sink_fmt {
-	SINK_FMT_RAW,       // raw text sent as-is
-	SINK_FMT_SHORT,     // raw text prefixed with a syslog level
-	SINK_FMT_ISO,       // raw text prefixed with ISO time
-	SINK_FMT_TIMED,     // syslog level then ISO
-	SINK_FMT_RFC3164,   // regular syslog
-	SINK_FMT_RFC5424,   // extended syslog
 };
 
 struct sink_forward_target {
@@ -60,7 +49,7 @@ struct sink {
 	struct list sink_list;     // position in the sink list
 	char *name;                // sink name
 	char *desc;                // sink description
-	enum sink_fmt fmt;         // format expected by the sink
+	enum log_fmt fmt;          // format expected by the sink
 	enum sink_type type;       // type of storage
 	uint32_t maxlen;           // max message length (truncated above)
 	struct proxy* forward_px;  // proxy used to forward

@@ -50,7 +50,7 @@ struct sink *sink_find(const char *name)
  * exists with the same name, it will be returned. The caller can detect it as
  * a newly created one has type SINK_TYPE_NEW.
  */
-static struct sink *__sink_new(const char *name, const char *desc, enum sink_fmt fmt)
+static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 {
 	struct sink *sink;
 
@@ -80,7 +80,7 @@ static struct sink *__sink_new(const char *name, const char *desc, enum sink_fmt
  * and description <desc>. Returns NULL on allocation failure or conflict.
  * Perfect duplicates are merged (same type, fd, and name).
  */
-struct sink *sink_new_fd(const char *name, const char *desc, enum sink_fmt fmt, int fd)
+struct sink *sink_new_fd(const char *name, const char *desc, enum log_fmt fmt, int fd)
 {
 	struct sink *sink;
 
@@ -104,7 +104,7 @@ struct sink *sink_new_fd(const char *name, const char *desc, enum sink_fmt fmt, 
  * Perfect duplicates are merged (same type and name). If sizes differ, the
  * largest one is kept.
  */
-struct sink *sink_new_buf(const char *name, const char *desc, enum sink_fmt fmt, size_t size)
+struct sink *sink_new_buf(const char *name, const char *desc, enum log_fmt fmt, size_t size)
 {
 	struct sink *sink;
 
@@ -147,87 +147,16 @@ struct sink *sink_new_buf(const char *name, const char *desc, enum sink_fmt fmt,
  * messages when there are any. It returns >0 if it could write anything,
  * <=0 otherwise.
  */
-ssize_t __sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
-	             int level, int facility, struct ist *tag,
-		     struct ist *pid, struct ist *sd)
-{
-	int log_format;
-	char short_hdr[4];
-	struct ist pfx[6];
+ ssize_t __sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
+	             int level, int facility, struct ist *metadata)
+ {
+	struct ist *pfx = NULL;
 	size_t npfx = 0;
-	char *hdr_ptr;
-	int fac_level;
 
-	if (sink->fmt == SINK_FMT_RAW)
+	if (sink->fmt == LOG_FORMAT_RAW)
 		goto send;
 
-	if (sink->fmt == SINK_FMT_SHORT || sink->fmt == SINK_FMT_TIMED) {
-		short_hdr[0] = '<';
-		short_hdr[1] = '0' + level;
-		short_hdr[2] = '>';
-
-		pfx[npfx].ptr = short_hdr;
-		pfx[npfx].len = 3;
-		npfx++;
-		if (sink->fmt == SINK_FMT_SHORT)
-			goto send;
-        }
-
-
-	if (sink->fmt == SINK_FMT_ISO || sink->fmt == SINK_FMT_TIMED) {
-		pfx[npfx].ptr = timeofday_as_iso_us(1);
-		pfx[npfx].len = 33;
-		npfx++;
-		goto send;
-        }
-	else if (sink->fmt == SINK_FMT_RFC5424) {
-		pfx[npfx].ptr = logheader_rfc5424;
-		pfx[npfx].len = update_log_hdr_rfc5424(date.tv_sec, date.tv_usec) - pfx[npfx].ptr;
-		log_format = LOG_FORMAT_RFC5424;
-	}
-	else {
-		pfx[npfx].ptr = logheader;
-                pfx[npfx].len = update_log_hdr(date.tv_sec) - pfx[npfx].ptr;
-		log_format = LOG_FORMAT_RFC3164;
-		sd = NULL;
-	}
-
-	fac_level = (facility << 3) + level;
-	hdr_ptr = pfx[npfx].ptr + 3; /* last digit of the log level */
-        do {
-		*hdr_ptr = '0' + fac_level % 10;
-		fac_level /= 10;
-                hdr_ptr--;
-	} while (fac_level && hdr_ptr > pfx[npfx].ptr);
-	*hdr_ptr = '<';
-	pfx[npfx].len -= hdr_ptr - pfx[npfx].ptr;
-	pfx[npfx].ptr = hdr_ptr;
-	npfx++;
-
-	if (tag && tag->len) {
-		pfx[npfx].ptr = tag->ptr;
-		pfx[npfx].len = tag->len;
-		npfx++;
-	}
-	pfx[npfx].ptr = get_format_pid_sep1(log_format, &pfx[npfx].len);
-	if (pfx[npfx].len)
-		npfx++;
-
-	if (pid && pid->len) {
-		pfx[npfx].ptr = pid->ptr;
-		pfx[npfx].len = pid->len;
-		npfx++;
-	}
-
-	pfx[npfx].ptr = get_format_pid_sep2(log_format, &pfx[npfx].len);
-	if (pfx[npfx].len)
-		npfx++;
-
-	if (sd && sd->len) {
-		pfx[npfx].ptr = sd->ptr;
-		pfx[npfx].len = sd->len;
-		npfx++;
-	}
+	pfx = build_log_header(sink->fmt, level, facility, metadata, &npfx);
 
 send:
 	if (sink->type == SINK_TYPE_FD) {
@@ -244,25 +173,41 @@ send:
  * called under an exclusive lock on the sink to avoid multiple produces doing
  * the same. On success, >0 is returned, otherwise <=0 on failure.
  */
-int sink_announce_dropped(struct sink *sink, int facility, struct ist *pid)
+int sink_announce_dropped(struct sink *sink, int facility)
 {
+	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
+	static THREAD_LOCAL pid_t curr_pid;
+	static THREAD_LOCAL char pidstr[16];
 	unsigned int dropped;
 	struct buffer msg;
 	struct ist msgvec[1];
 	char logbuf[64];
-	struct ist sd;
-	struct ist tag;
 
 	while (unlikely((dropped = sink->ctx.dropped) > 0)) {
 		chunk_init(&msg, logbuf, sizeof(logbuf));
 		chunk_printf(&msg, "%u event%s dropped", dropped, dropped > 1 ? "s" : "");
 		msgvec[0] = ist2(msg.area, msg.data);
 
-		sd.ptr = default_rfc5424_sd_log_format;
-		sd.len = 2;
-		tag.ptr = global.log_tag.area;
-		tag.len = global.log_tag.data;
-		if (__sink_write(sink, msgvec, 1, LOG_NOTICE, facility, &tag, pid, &sd) <= 0)
+		if (!metadata[LOG_META_HOST].len) {
+			if (global.log_send_hostname)
+				metadata[LOG_META_HOST] = ist2(global.log_send_hostname, strlen(global.log_send_hostname));
+			else
+				metadata[LOG_META_HOST] = ist2(hostname, strlen(hostname));
+		}
+
+		if (!metadata[LOG_META_TAG].len)
+			metadata[LOG_META_TAG] = ist2(global.log_tag.area, global.log_tag.data);
+
+		if (unlikely(curr_pid != getpid()))
+			 metadata[LOG_META_PID].len = 0;
+
+		if (!metadata[LOG_META_PID].len) {
+			curr_pid = getpid();
+			ltoa_o(curr_pid, pidstr, sizeof(pidstr));
+			metadata[LOG_META_PID] = ist2(pidstr, strlen(pidstr));
+		}
+
+		if (__sink_write(sink, msgvec, 1, LOG_NOTICE, facility, metadata) <= 0)
 			return 0;
 		/* success! */
 		HA_ATOMIC_SUB(&sink->ctx.dropped, dropped);
@@ -818,7 +763,7 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 
-		cfg_sink = sink_new_buf(args[1], args[1] , SINK_FMT_RAW, size);
+		cfg_sink = sink_new_buf(args[1], args[1], LOG_FORMAT_RAW, size);
 		if (!cfg_sink || cfg_sink->type != SINK_TYPE_BUFFER) {
 			ha_alert("parsing [%s:%d] : unable to create a new sink buffer for ring '%s'.\n", file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -909,25 +854,8 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 			goto err;
 		}
 
-		if (strcmp(args[1], "raw") == 0) {
-			cfg_sink->fmt = SINK_FMT_RAW;
-		}
-		else if (strcmp(args[1], "short") == 0) {
-			cfg_sink->fmt = SINK_FMT_SHORT;
-		}
-		else if (strcmp(args[1], "iso") == 0) {
-			cfg_sink->fmt = SINK_FMT_ISO;
-		}
-		else if (strcmp(args[1], "timed") == 0) {
-			cfg_sink->fmt = SINK_FMT_TIMED;
-		}
-		else if (strcmp(args[1], "rfc3164") == 0) {
-			cfg_sink->fmt = SINK_FMT_RFC3164;
-		}
-		else if (strcmp(args[1], "rfc5424") == 0) {
-			cfg_sink->fmt = SINK_FMT_RFC5424;
-		}
-		else {
+		cfg_sink->fmt = get_log_format(args[1]);
+		if (cfg_sink->fmt == LOG_FORMAT_UNSPEC) {
 			ha_alert("parsing [%s:%d] : unknown format '%s'.\n", file, linenum, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
@@ -1079,9 +1007,9 @@ int post_sink_resolve()
 
 static void sink_init()
 {
-	sink_new_fd("stdout", "standard output (fd#1)", SINK_FMT_RAW, 1);
-	sink_new_fd("stderr", "standard output (fd#2)", SINK_FMT_RAW, 2);
-	sink_new_buf("buf0",  "in-memory ring buffer", SINK_FMT_TIMED, 1048576);
+	sink_new_fd("stdout", "standard output (fd#1)", LOG_FORMAT_RAW, 1);
+	sink_new_fd("stderr", "standard output (fd#2)", LOG_FORMAT_RAW, 2);
+	sink_new_buf("buf0",  "in-memory ring buffer", LOG_FORMAT_TIMED, 1048576);
 }
 
 static void sink_deinit()

@@ -29,11 +29,10 @@
 extern struct list sink_list;
 
 struct sink *sink_find(const char *name);
-struct sink *sink_new_fd(const char *name, const char *desc, enum sink_fmt fmt, int fd);
+struct sink *sink_new_fd(const char *name, const char *desc, enum log_fmt, int fd);
 ssize_t __sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
-                     int level, int facility, struct ist * tag,
-                     struct ist *pid, struct ist *sd);
-int sink_announce_dropped(struct sink *sink, int facility, struct ist *pid);
+                     int level, int facility, struct ist * metadata);
+int sink_announce_dropped(struct sink *sink, int facility);
 
 
 /* tries to send <nmsg> message parts (up to 8, ignored above) from message
@@ -44,8 +43,7 @@ int sink_announce_dropped(struct sink *sink, int facility, struct ist *pid);
  * or <= 0 in other cases.
  */
 static inline ssize_t sink_write(struct sink *sink, const struct ist msg[], size_t nmsg,
-                              int level, int facility, struct ist * tag,
-                              struct ist *pid, struct ist *sd)
+                                 int level, int facility, struct ist *metadata)
 {
 	ssize_t sent;
 
@@ -57,7 +55,7 @@ static inline ssize_t sink_write(struct sink *sink, const struct ist msg[], size
 		 * position.
 		 */
 		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &sink->ctx.lock);
-		sent = sink_announce_dropped(sink, facility, pid);
+		sent = sink_announce_dropped(sink, facility);
 		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &sink->ctx.lock);
 
 		if (!sent) {
@@ -69,7 +67,7 @@ static inline ssize_t sink_write(struct sink *sink, const struct ist msg[], size
 	}
 
 	HA_RWLOCK_RDLOCK(LOGSRV_LOCK, &sink->ctx.lock);
-	sent = __sink_write(sink, msg, nmsg, level, facility, tag, pid, sd);
+	sent = __sink_write(sink, msg, nmsg, level, facility, metadata);
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &sink->ctx.lock);
 
  fail:
