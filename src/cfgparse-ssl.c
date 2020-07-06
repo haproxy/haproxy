@@ -317,6 +317,44 @@ static int ssl_parse_global_capture_cipherlist(char **args, int section_type, st
 	return 0;
 }
 
+/* init the SSLKEYLOGFILE pool */
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *curpx,
+                                       struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		global_ssl.keylog = 1;
+	else if (strcmp(args[1], "off") == 0)
+		global_ssl.keylog = 0;
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+
+	if (pool_head_ssl_keylog) /* already configured */
+		return 0;
+
+	pool_head_ssl_keylog = create_pool("ssl-keylogfile", sizeof(struct ssl_keylog), MEM_F_SHARED);
+	if (!pool_head_ssl_keylog) {
+		memprintf(err, "Out of memory error.");
+		return -1;
+	}
+
+	pool_head_ssl_keylog_str = create_pool("ssl-keylogfile-str", sizeof(char) * SSL_KEYLOG_MAX_SECRET_SIZE, MEM_F_SHARED);
+	if (!pool_head_ssl_keylog_str) {
+		memprintf(err, "Out of memory error.");
+		return -1;
+	}
+
+	return 0;
+}
+#endif
+
 /* parse "ssl.force-private-cache".
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
@@ -1820,6 +1858,9 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.maxrecord", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.ssl-ctx-cache-size", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_cipherlist },
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	{ CFG_GLOBAL, "tune.ssl.keylog", ssl_parse_global_keylog },
+#endif
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },
 	{ CFG_GLOBAL, "ssl-default-server-ciphers", ssl_parse_global_ciphers },
 #if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))

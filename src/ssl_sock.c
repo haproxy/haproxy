@@ -129,6 +129,9 @@ struct global_ssl global_ssl = {
 	.ctx_cache = DEFAULT_SSL_CTX_CACHE,
 	.capture_cipherlist = 0,
 	.extra_files = SSL_GF_ALL,
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	.keylog = 0
+#endif
 };
 
 static BIO_METHOD *ha_meth;
@@ -433,6 +436,12 @@ struct pool_head *pool_head_ssl_capture = NULL;
 int ssl_capture_ptr_index = -1;
 static int ssl_app_data_index = -1;
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+int ssl_keylog_index = -1;
+struct pool_head *pool_head_ssl_keylog = NULL;
+struct pool_head *pool_head_ssl_keylog_str = NULL;
+#endif
+
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
 #endif
@@ -505,6 +514,12 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
                                        int content_type, const void *buf, size_t len,
                                        SSL *ssl);
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+static void ssl_init_keylog(struct connection *conn, int write_p, int version,
+                            int content_type, const void *buf, size_t len,
+                            SSL *ssl);
+#endif
+
 /* List head of all registered SSL/TLS protocol message callbacks. */
 struct list ssl_sock_msg_callbacks = LIST_HEAD_INIT(ssl_sock_msg_callbacks);
 
@@ -544,6 +559,13 @@ static int ssl_sock_register_msg_callbacks(void)
 		if (!ssl_sock_register_msg_callback(ssl_sock_parse_clienthello))
 			return ERR_ABORT;
 	}
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	if (global_ssl.keylog > 0) {
+		if (!ssl_sock_register_msg_callback(ssl_init_keylog))
+			return ERR_ABORT;
+	}
+#endif
+
 	return 0;
 }
 
@@ -1679,6 +1701,30 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 
 	SSL_set_ex_data(ssl, ssl_capture_ptr_index, capture);
 }
+
+
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+static void ssl_init_keylog(struct connection *conn, int write_p, int version,
+                            int content_type, const void *buf, size_t len,
+                            SSL *ssl)
+{
+	struct ssl_keylog *keylog;
+
+	if (SSL_get_ex_data(ssl, ssl_keylog_index))
+		return;
+
+	keylog = pool_alloc(pool_head_ssl_keylog);
+	if (!keylog)
+		return;
+
+	memset(keylog, 0, sizeof(*keylog));
+
+	if (!SSL_set_ex_data(ssl, ssl_keylog_index, keylog)) {
+		pool_free(pool_head_ssl_keylog, keylog);
+		return;
+	}
+}
+#endif
 
 /* Callback is called for ssl protocol analyse */
 void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
@@ -4021,6 +4067,88 @@ void ssl_set_shctx(SSL_CTX *ctx)
 }
 
 /*
+ * https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format
+ *
+ * The format is:
+ * * <Label> <space> <ClientRandom> <space> <Secret>
+ * We only need to copy the secret as there is a sample fetch for the ClientRandom
+ */
+
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+void SSL_CTX_keylog(const SSL *ssl, const char *line)
+{
+	struct ssl_keylog *keylog;
+	char *lastarg = NULL;
+	char *dst = NULL;
+
+	keylog = SSL_get_ex_data(ssl, ssl_keylog_index);
+	if (!keylog)
+		return;
+
+	lastarg = strrchr(line, ' ');
+	if (lastarg == NULL || ++lastarg == NULL)
+		return;
+
+	dst = pool_alloc(pool_head_ssl_keylog_str);
+	if (!dst)
+		return;
+
+	strncpy(dst, lastarg, SSL_KEYLOG_MAX_SECRET_SIZE-1);
+	dst[SSL_KEYLOG_MAX_SECRET_SIZE-1] = '\0';
+
+	if (strncmp(line, "CLIENT_RANDOM ", strlen("CLIENT RANDOM ")) == 0) {
+		if (keylog->client_random)
+			goto error;
+		keylog->client_random = dst;
+
+	} else if (strncmp(line, "CLIENT_EARLY_TRAFFIC_SECRET ", strlen("CLIENT_EARLY_TRAFFIC_SECRET ")) == 0) {
+		if (keylog->client_early_traffic_secret)
+			goto error;
+		keylog->client_early_traffic_secret = dst;
+
+	} else if (strncmp(line, "CLIENT_HANDSHAKE_TRAFFIC_SECRET ", strlen("CLIENT_HANDSHAKE_TRAFFIC_SECRET ")) == 0) {
+		if(keylog->client_handshake_traffic_secret)
+			goto error;
+		keylog->client_handshake_traffic_secret = dst;
+
+	} else if (strncmp(line, "SERVER_HANDSHAKE_TRAFFIC_SECRET ", strlen("SERVER_HANDSHAKE_TRAFFIC_SECRET ")) == 0) {
+		if (keylog->server_handshake_traffic_secret)
+			goto error;
+		keylog->server_handshake_traffic_secret = dst;
+
+	} else if (strncmp(line, "CLIENT_TRAFFIC_SECRET_0 ", strlen("CLIENT_TRAFFIC_SECRET_0 ")) == 0) {
+		if (keylog->client_traffic_secret_0)
+			goto error;
+		keylog->client_traffic_secret_0 = dst;
+
+	} else if (strncmp(line, "SERVER_TRAFFIC_SECRET_0 ", strlen("SERVER_TRAFFIC_SECRET_0 ")) == 0) {
+		if (keylog->server_traffic_secret_0)
+			goto error;
+		keylog->server_traffic_secret_0 = dst;
+
+	} else if (strncmp(line, "EARLY_EXPORTER_SECRET ", strlen("EARLY_EXPORTER_SECRET ")) == 0) {
+		if (keylog->early_exporter_secret)
+			goto error;
+		keylog->early_exporter_secret = dst;
+
+	} else if (strncmp(line, "EXPORTER_SECRET ", strlen("EXPORTER_SECRET ")) == 0) {
+		if (keylog->exporter_secret)
+			goto error;
+		keylog->exporter_secret = dst;
+	} else {
+		goto error;
+	}
+
+	return;
+
+error:
+	pool_free(pool_head_ssl_keylog_str, dst);
+
+	return;
+}
+#endif
+
+/*
  * This function applies the SSL configuration on a SSL_CTX
  * It returns an error code and fills the <err> buffer
  */
@@ -4181,6 +4309,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	SSL_CTX_set_info_callback(ctx, ssl_sock_infocbk);
 #if HA_OPENSSL_VERSION_NUMBER >= 0x00907000L
 	SSL_CTX_set_msg_callback(ctx, ssl_sock_msgcbk);
+#endif
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	SSL_CTX_set_keylog_callback(ctx, SSL_CTX_keylog);
 #endif
 
 #if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
@@ -6591,6 +6722,29 @@ static void ssl_sock_capture_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *
 	pool_free(pool_head_ssl_capture, ptr);
 }
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+static void ssl_sock_keylog_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
+{
+	struct ssl_keylog *keylog;
+
+	if (!ptr)
+		return;
+
+	keylog = ptr;
+
+	pool_free(pool_head_ssl_keylog_str, keylog->client_random);
+	pool_free(pool_head_ssl_keylog_str, keylog->client_early_traffic_secret);
+	pool_free(pool_head_ssl_keylog_str, keylog->client_handshake_traffic_secret);
+	pool_free(pool_head_ssl_keylog_str, keylog->server_handshake_traffic_secret);
+	pool_free(pool_head_ssl_keylog_str, keylog->client_traffic_secret_0);
+	pool_free(pool_head_ssl_keylog_str, keylog->server_traffic_secret_0);
+	pool_free(pool_head_ssl_keylog_str, keylog->exporter_secret);
+	pool_free(pool_head_ssl_keylog_str, keylog->early_exporter_secret);
+
+	pool_free(pool_head_ssl_keylog, ptr);
+}
+#endif
+
 __attribute__((constructor))
 static void __ssl_sock_init(void)
 {
@@ -6630,6 +6784,9 @@ static void __ssl_sock_init(void)
 #endif
 	ssl_app_data_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 	ssl_capture_ptr_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_capture_free_func);
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	ssl_keylog_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_keylog_free_func);
+#endif
 #ifndef OPENSSL_NO_ENGINE
 	ENGINE_load_builtin_engines();
 	hap_register_post_check(ssl_check_async_engine_count);

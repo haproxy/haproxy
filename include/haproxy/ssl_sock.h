@@ -46,6 +46,9 @@ extern unsigned int openssl_engines_initialized;
 extern int nb_engines;
 extern struct xprt_ops ssl_sock;
 extern int ssl_capture_ptr_index;
+extern int ssl_keylog_index;
+extern struct pool_head *pool_head_ssl_keylog;
+extern struct pool_head *pool_head_ssl_keylog_str;
 
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *, SSL_CTX *ctx, char **err);
 int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf);

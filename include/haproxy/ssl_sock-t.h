@@ -226,6 +226,26 @@ struct ssl_capture {
 	char ciphersuite[0];
 };
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#define SSL_KEYLOG_MAX_SECRET_SIZE 129
+
+struct ssl_keylog {
+	/*
+	 * https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format
+	 */
+	char *client_random;
+
+	/* TLS 1.3 */
+	char *client_early_traffic_secret;
+	char *client_handshake_traffic_secret;
+	char *server_handshake_traffic_secret;
+	char *client_traffic_secret_0;
+	char *server_traffic_secret_0;
+	char *exporter_secret;
+	char *early_exporter_secret;
+};
+#endif
+
 struct ssl_sock_ctx {
 	struct connection *conn;
 	SSL *ssl;
@@ -268,6 +288,7 @@ struct global_ssl {
 	unsigned int default_dh_param; /* SSL maximum DH parameter size */
 	int ctx_cache; /* max number of entries in the ssl_ctx cache. */
 	int capture_cipherlist; /* Size of the cipherlist buffer. */
+	int keylog; /* activate keylog  */
 	int extra_files; /* which files not defined in the configuration file are we looking for */
 };
 

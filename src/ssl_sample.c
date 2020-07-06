@@ -1108,6 +1108,63 @@ smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char
 	return 1;
 }
 
+/* Dump the SSL keylog, it only works with "tune.ssl.keylog 1" */
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+static int smp_fetch_ssl_x_keylog(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	struct ssl_keylog *keylog;
+	SSL *ssl;
+	char *src = NULL;
+	const char *sfx;
+
+	conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+	       smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+
+	if (conn->flags & CO_FL_WAIT_XPRT) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	keylog = SSL_get_ex_data(ssl, ssl_keylog_index);
+	if (!keylog)
+		return 0;
+
+	sfx = kw + strlen("ssl_xx_");
+
+	if (strcmp(sfx, "client_early_traffic_secret") == 0) {
+		src = keylog->client_early_traffic_secret;
+	} else if (strcmp(sfx, "client_handshake_traffic_secret") == 0) {
+		src = keylog->client_handshake_traffic_secret;
+	} else if (strcmp(sfx, "server_handshake_traffic_secret") == 0) {
+		src = keylog->server_handshake_traffic_secret;
+	} else if (strcmp(sfx, "client_traffic_secret_0") == 0) {
+		src = keylog->client_traffic_secret_0;
+	} else if (strcmp(sfx, "server_traffic_secret_0") == 0) {
+		src = keylog->server_traffic_secret_0;
+	} else if (strcmp(sfx, "exporter_secret") == 0) {
+		src = keylog->exporter_secret;
+	} else if (strcmp(sfx, "early_exporter_secret") == 0) {
+		src = keylog->early_exporter_secret;
+	}
+
+	if (!src || !*src)
+		return 0;
+
+	smp->data.u.str.area = src;
+	smp->data.type = SMP_T_STR;
+	smp->flags |= SMP_F_CONST;
+	smp->data.u.str.data = strlen(smp->data.u.str.area);
+	return 1;
+/*	log-format "CLIENT_RANDOM %[ssl_fc_client_random,hex] %[ssl_fc_session_key,hex]" */
+
+}
+#endif
+
 static int
 smp_fetch_ssl_fc_cl_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1379,6 +1436,17 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_server_random",   smp_fetch_ssl_fc_random,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 #endif
+
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	{ "ssl_fc_client_early_traffic_secret",     smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_client_handshake_traffic_secret", smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_server_handshake_traffic_secret", smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_client_traffic_secret_0",         smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_server_traffic_secret_0",         smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_exporter_secret",                 smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_early_exporter_secret",           smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+#endif
+
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 #endif
