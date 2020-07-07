@@ -122,7 +122,7 @@ Exported metrics
 | haproxy_process_max_ssl_rate                   | Maximum observed number of SSL sessions per second.                           |
 | haproxy_process_current_frontend_ssl_key_rate  | Current frontend SSL Key computation per second over last elapsed second.     |
 | haproxy_process_max_frontend_ssl_key_rate      | Maximum observed frontend SSL Key computation per second.                     |
-| haproxy_process_frontent_ssl_reuse             | SSL session reuse ratio (percent).                                            |
+| haproxy_process_frontend_ssl_reuse             | SSL session reuse ratio (percent).                                            |
 | haproxy_process_current_backend_ssl_key_rate   | Current backend SSL Key computation per second over last elapsed second.      |
 | haproxy_process_max_backend_ssl_key_rate       | Maximum observed backend SSL Key computation per second.                      |
 | haproxy_process_ssl_cache_lookups_total        | Total number of SSL session cache lookups.                                    |
