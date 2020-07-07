@@ -1121,6 +1121,9 @@ static int smp_fetch_ssl_x_keylog(const struct arg *args, struct sample *smp, co
 	conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
 	       smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
+	if (!conn)
+		return 0;
+
 	if (conn->flags & CO_FL_WAIT_XPRT) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
