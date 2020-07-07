@@ -1163,8 +1163,6 @@ static int smp_fetch_ssl_x_keylog(const struct arg *args, struct sample *smp, co
 	smp->flags |= SMP_F_CONST;
 	smp->data.u.str.data = strlen(smp->data.u.str.area);
 	return 1;
-/*	log-format "CLIENT_RANDOM %[ssl_fc_client_random,hex] %[ssl_fc_session_key,hex]" */
-
 }
 #endif
 
