@@ -201,11 +201,6 @@ HAProxy supports 4 connection modes :
   - server close  : the server-facing connection is closed after the response.
   - close         : the connection is actively closed after end of response.
 
-For HTTP/2, the connection mode resembles more the "server close" mode : given
-the independence of all streams, there is currently no place to hook the idle
-server connection after a response, so it is closed after the response. HTTP/2
-is only supported for incoming connections, not on connections going to
-servers.
 
 
 1.2. HTTP request
@@ -274,10 +269,6 @@ specific to the language, framework or application in use.
 
 HTTP/2 doesn't convey a version information with the request, so the version is
 assumed to be the same as the one of the underlying protocol (i.e. "HTTP/2").
-However, haproxy natively processes HTTP/1.x requests and headers, so requests
-received over an HTTP/2 connection are transcoded to HTTP/1.1 before being
-processed. This explains why they still appear as "HTTP/1.1" in haproxy's logs
-as well as in server logs.
 
 
 1.2.2. The request headers
@@ -295,7 +286,10 @@ define a total of 3 values for the "Accept:" header.
 Contrary to a common misconception, header names are not case-sensitive, and
 their values are not either if they refer to other header names (such as the
 "Connection:" header). In HTTP/2, header names are always sent in lower case,
-as can be seen when running in debug mode.
+as can be seen when running in debug mode. Internally, all header names are
+normalized to lower case so that HTTP/1.x and HTTP/2 use the exact same
+representation, and they are sent as-is on the other side. This explains why an
+HTTP/1.x request typed with camel case is delivered in lower case.
 
 The end of the headers is indicated by the first empty line. People often say
 that it's a double line feed, which is not exact, even if a double line feed
