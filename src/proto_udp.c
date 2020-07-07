@@ -303,9 +303,14 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	listener->fd = fd;
 	listener->state = LI_LISTEN;
 
-	err |= ERR_FATAL | ERR_ALERT;
-	msg = "UDP is not yet supported on this proxy mode";
-	goto udp_close_return;
+	if (listener->bind_conf->frontend->mode == PR_MODE_SYSLOG)
+		fd_insert(fd, listener, syslog_fd_handler,
+		          thread_mask(listener->bind_conf->bind_thread) & all_threads_mask);
+	else {
+		err |= ERR_FATAL | ERR_ALERT;
+		msg = "UDP is not yet supported on this proxy mode";
+		goto udp_close_return;
+	}
 
  udp_return:
 	if (msg && errlen) {

@@ -2377,6 +2377,13 @@ int check_config_validity()
 		case PR_MODE_CLI:
 			cfgerr += proxy_cfg_ensure_no_http(curproxy);
 			break;
+		case PR_MODE_SYSLOG:
+		case PR_MODES:
+			/* should not happen, bug gcc warn missing switch statement */
+			ha_alert("config : %s '%s' cannot use syslog mode for this proxy.\n",
+				 proxy_type_str(curproxy), curproxy->id);
+			cfgerr++;
+			break;
 		}
 
 		if (curproxy != global.stats_fe && (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners)) {

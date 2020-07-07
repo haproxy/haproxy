@@ -3166,6 +3166,382 @@ void app_log(struct list *logsrvs, struct buffer *tag, int level, const char *fo
 
 	__send_log(logsrvs, tag, level, logline, data_len, default_rfc5424_sd_log_format, 2);
 }
+/*
+ * This function parse a received log message <buf>, of size <buflen>
+ * it fills <level>, <facility> and <metadata> depending of the detected
+ * header format and message will point on remaining payload of <size>
+ *
+ * <metadata> must point on a preallocated array of LOG_META_FIELDS*sizeof(struct ist)
+ * struct ist len will be set to 0 if field is not found
+ * <level> and <facility> will be set to -1 if not found.
+ */
+void parse_log_message(char *buf, size_t buflen, int *level, int *facility,
+                       struct ist *metadata, char **message, size_t *size)
+{
+
+	char *p;
+	int fac_level = 0;
+
+	*level = *facility = -1;
+
+	*message = buf;
+	*size = buflen;
+
+	memset(metadata, 0, LOG_META_FIELDS*sizeof(struct ist));
+
+	p = buf;
+	if (*size < 2 || *p != '<')
+		return;
+
+	p++;
+	while (*p != '>') {
+		if (*p > '9' || *p < '0')
+			return;
+		fac_level = 10*fac_level + (*p - '0');
+		p++;
+		if ((p - buf) > buflen)
+			return;
+	}
+
+	*facility = fac_level >> 3;
+	*level = fac_level & 0x7;
+	p++;
+
+	metadata[LOG_META_PRIO] = ist2(buf, p - buf);
+
+	buflen -= p - buf;
+	buf = p;
+
+	*size = buflen;
+	*message = buf;
+
+	/* for rfc5424, prio is always followed by '1' and ' ' */
+	if ((*size > 2) && (p[0] == '1') && (p[1] == ' ')) {
+		/* format is always '1 TIMESTAMP HOSTNAME TAG PID MSGID STDATA '
+		 * followed by message.
+		 * Each header field can present NILVALUE: '-'
+		 */
+
+		p += 2;
+		/* timestamp is NILVALUE '-' */
+		if (*size > 2 && (p[0] == '-') && p[1] == ' ') {
+			metadata[LOG_META_TIME] = ist2(p, 1);
+			p++;
+		}
+		else if (*size > LOG_ISOTIME_MINLEN) {
+			metadata[LOG_META_TIME].ptr = p;
+
+			/* check if optionnal secfrac is present
+			 * in timestamp.
+			 * possible format are:
+			 * ex: '1970-01-01T00:00:00.000000Z'
+			 *     '1970-01-01T00:00:00.000000+00:00'
+			 *     '1970-01-01T00:00:00.000000-00:00'
+			 *     '1970-01-01T00:00:00Z'
+			 *     '1970-01-01T00:00:00+00:00'
+			 *     '1970-01-01T00:00:00-00:00'
+			 */
+			p += 19;
+			if (*p == '.') {
+				p++;
+				if ((p - buf) >= buflen)
+					goto bad_format;
+				while (*p != 'Z' && *p != '+' && *p != '-') {
+					if ((unsigned char)(*p - '0') > 9)
+						goto bad_format;
+
+					p++;
+					if ((p - buf) >= buflen)
+						goto bad_format;
+				}
+			}
+
+			if (*p == 'Z')
+				p++;
+			else
+				p += 6; /* case of '+00:00 or '-00:00' */
+
+			if ((p - buf) >= buflen || *p != ' ')
+				goto bad_format;
+			metadata[LOG_META_TIME].len = p - metadata[LOG_META_TIME].ptr;
+		}
+		else
+			goto bad_format;
+
+
+		p++;
+		if ((p - buf) >= buflen || *p == ' ')
+			goto bad_format;
+
+		metadata[LOG_META_HOST].ptr = p;
+		while (*p != ' ') {
+			p++;
+			if ((p - buf) >= buflen)
+				goto bad_format;
+		}
+		metadata[LOG_META_HOST].len = p - metadata[LOG_META_HOST].ptr;
+		if (metadata[LOG_META_HOST].len == 1 && metadata[LOG_META_HOST].ptr[0] == '-')
+			metadata[LOG_META_HOST].len = 0;
+
+		p++;
+		if ((p - buf) >= buflen || *p == ' ')
+			goto bad_format;
+
+		metadata[LOG_META_TAG].ptr = p;
+		while (*p != ' ') {
+			p++;
+			if ((p - buf) >= buflen)
+				goto bad_format;
+		}
+		metadata[LOG_META_TAG].len = p - metadata[LOG_META_TAG].ptr;
+		if (metadata[LOG_META_TAG].len == 1 && metadata[LOG_META_TAG].ptr[0] == '-')
+			metadata[LOG_META_TAG].len = 0;
+
+		p++;
+		if ((p - buf) >= buflen || *p == ' ')
+			goto bad_format;
+
+		metadata[LOG_META_PID].ptr = p;
+		while (*p != ' ') {
+			p++;
+			if ((p - buf) >= buflen)
+				goto bad_format;
+		}
+		metadata[LOG_META_PID].len = p - metadata[LOG_META_PID].ptr;
+		if (metadata[LOG_META_PID].len == 1 && metadata[LOG_META_PID].ptr[0] == '-')
+			metadata[LOG_META_PID].len = 0;
+
+		p++;
+		if ((p - buf) >= buflen || *p == ' ')
+			goto bad_format;
+
+		metadata[LOG_META_MSGID].ptr = p;
+		while (*p != ' ') {
+			p++;
+			if ((p - buf) >= buflen)
+				goto bad_format;
+		}
+		metadata[LOG_META_MSGID].len = p - metadata[LOG_META_MSGID].ptr;
+		if (metadata[LOG_META_MSGID].len == 1 && metadata[LOG_META_MSGID].ptr[0] == '-')
+			metadata[LOG_META_MSGID].len = 0;
+
+		p++;
+		if ((p - buf) >= buflen || *p == ' ')
+			goto bad_format;
+
+		/* structured data format is:
+		 * ex:
+		 *    '[key1=value1 key2=value2][key3=value3]'
+		 *
+		 * space is invalid outside [] because
+		 * considered as the end of structured data field
+		 */
+		metadata[LOG_META_STDATA].ptr = p;
+		if (*p == '[') {
+			int elem = 0;
+
+			while (1) {
+				if (elem) {
+					/* according to rfc this char is escaped in param values */
+					if (*p == ']' && *(p-1) != '\\')
+						elem = 0;
+				}
+				else {
+					if (*p == '[')
+						elem = 1;
+					else if (*p == ' ')
+						break;
+					else
+						goto bad_format;
+				}
+				p++;
+				if ((p - buf) >= buflen)
+					goto bad_format;
+			}
+		}
+		else if (*p == '-') {
+			/* case of NILVALUE */
+			p++;
+			if ((p - buf) >= buflen || *p != ' ')
+				goto bad_format;
+		}
+		else
+			goto bad_format;
+
+		metadata[LOG_META_STDATA].len = p - metadata[LOG_META_STDATA].ptr;
+		if (metadata[LOG_META_STDATA].len == 1 && metadata[LOG_META_STDATA].ptr[0] == '-')
+			metadata[LOG_META_STDATA].len = 0;
+
+		p++;
+
+		buflen -= p - buf;
+		buf = p;
+
+		*size = buflen;
+		*message = p;
+	}
+	else if (*size > LOG_LEGACYTIME_LEN) {
+		int m;
+
+		/* supported header format according to rfc3164.
+		 * ex:
+		 *  'Jan  1 00:00:00 HOSTNAME TAG[PID]: '
+		 *  or 'Jan  1 00:00:00 HOSTNAME TAG: '
+		 *  or 'Jan  1 00:00:00 HOSTNAME '
+		 * Note: HOSTNAME is mandatory, and day
+		 * of month uses a single space prefix if
+		 * less than 10 to ensure hour offset is
+		 * always the same.
+		 */
+
+		/* Check month to see if it correspond to a rfc3164
+		 * header ex 'Jan  1 00:00:00' */
+		for (m = 0; m < 12; m++)
+			if (!memcmp(monthname[m], p, 3))
+				break;
+		/* Month not found */
+		if (m == 12)
+			goto bad_format;
+
+		metadata[LOG_META_TIME] = ist2(p, LOG_LEGACYTIME_LEN);
+
+		p += LOG_LEGACYTIME_LEN;
+		if ((p - buf) >= buflen || *p != ' ')
+			goto bad_format;
+
+		p++;
+		if ((p - buf) >= buflen || *p == ' ')
+			goto bad_format;
+
+		metadata[LOG_META_HOST].ptr = p;
+		while (*p != ' ') {
+			p++;
+			if ((p - buf) >= buflen)
+				goto bad_format;
+		}
+		metadata[LOG_META_HOST].len = p - metadata[LOG_META_HOST].ptr;
+
+		/* TAG seems to no be mandatory */
+		p++;
+
+		buflen -= p - buf;
+		buf = p;
+
+		*size = buflen;
+		*message = buf;
+
+		if (!buflen)
+			return;
+
+		while (((p  - buf) < buflen) && *p != ' ' && *p != ':')
+			p++;
+
+		/* a tag must present a trailing ':' */
+		if (((p - buf) >= buflen) || *p != ':')
+			return;
+		p++;
+		/* followed by a space */
+		if (((p - buf) >= buflen) || *p != ' ')
+			return;
+
+		/* rewind to parse tag and pid */
+		p = buf;
+		metadata[LOG_META_TAG].ptr = p;
+		/* we have the guarantee that ':' will be reach before size limit */
+		while (*p != ':') {
+			if (*p == '[') {
+				metadata[LOG_META_TAG].len = p - metadata[LOG_META_TAG].ptr;
+				metadata[LOG_META_PID].ptr = p + 1;
+			}
+			else if (*p == ']' && metadata[LOG_META_PID].ptr) {
+				if (p[1] != ':')
+					return;
+				metadata[LOG_META_PID].len = p - metadata[LOG_META_PID].ptr;
+			}
+			p++;
+		}
+		if (!metadata[LOG_META_TAG].len)
+			metadata[LOG_META_TAG].len = p - metadata[LOG_META_TAG].ptr;
+
+		/* let pass ':' and ' ', we still have warranty size is large enought */
+		p += 2;
+
+		buflen -= p - buf;
+		buf = p;
+
+		*size = buflen;
+		*message = buf;
+	}
+
+	return;
+
+bad_format:
+	/* bad syslog format, we reset all parsed syslog fields
+	 * but priority is kept because we are able to re-build
+	 * this message using LOF_FORMAT_PRIO.
+	 */
+	metadata[LOG_META_TIME].len = 0;
+	metadata[LOG_META_HOST].len = 0;
+	metadata[LOG_META_TAG].len = 0;
+	metadata[LOG_META_PID].len = 0;
+	metadata[LOG_META_MSGID].len = 0;
+	metadata[LOG_META_STDATA].len = 0;
+
+	return;
+}
+
+/*
+ * UDP syslog fd handler
+ */
+void syslog_fd_handler(int fd)
+{
+	static THREAD_LOCAL struct ist metadata[LOG_META_FIELDS];
+	ssize_t ret = 0;
+	struct buffer *buf = get_trash_chunk();
+	size_t size;
+	char *message;
+	int level;
+	int facility;
+	struct listener *l = objt_listener(fdtab[fd].owner);
+	int max_accept;
+
+	if(!l)
+		ABORT_NOW();
+
+	if (fdtab[fd].ev & FD_POLL_IN) {
+
+		if (!fd_recv_ready(fd))
+			return;
+
+		max_accept = l->maxaccept ? l->maxaccept : 1;
+
+		do {
+			/* Source address */
+			struct sockaddr_storage saddr = {0};
+			socklen_t saddrlen;
+
+			saddrlen = sizeof(saddr);
+
+			ret = recvfrom(fd, buf->area, buf->size, 0, (struct sockaddr *)&saddr, &saddrlen);
+			if (ret < 0) {
+				if (errno == EINTR)
+					continue;
+				if (errno == EAGAIN)
+					fd_cant_recv(fd);
+				goto out;
+			}
+			buf->data = ret;
+
+			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
+
+			process_send_log(&l->bind_conf->frontend->logsrvs, level, facility, metadata, message, size);
+
+		} while (--max_accept);
+	}
+
+out:
+	return;
+}
 
 /* parse the "show startup-logs" command, returns 1 if a message is returned, otherwise zero */
 static int cli_parse_show_startup_logs(char **args, char *payload, struct appctx *appctx, void *private)

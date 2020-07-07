@@ -56,6 +56,8 @@ enum pr_mode {
 	PR_MODE_HTTP,
 	PR_MODE_HEALTH,
 	PR_MODE_CLI,
+	PR_MODE_SYSLOG,
+	PR_MODES
 } __attribute__((packed));
 
 enum PR_SRV_STATE_FILE {

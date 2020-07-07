@@ -46,6 +46,8 @@ extern unsigned int dropped_logs;
 extern THREAD_LOCAL char *logline;
 extern THREAD_LOCAL char *logline_rfc5424;
 
+/* syslog UDP message handler */
+void syslog_fd_handler(int fd);
 
 /* Initialize/Deinitialize log buffers used for syslog messages */
 int init_log_buffers();
