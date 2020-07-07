@@ -1,4 +1,4 @@
-2015/09/21 - HAProxy coding style - Willy Tarreau <w@1wt.eu>
+2020/07/07 - HAProxy coding style - Willy Tarreau <w@1wt.eu>
 ------------------------------------------------------------
 
 A number of contributors are often embarrassed with coding style issues, they
@@ -1149,11 +1149,10 @@ is to be used :
 ------------
 
 Includes are as much as possible listed in alphabetically ordered groups :
-  - the libc-standard includes (those without any path component)
   - the includes more or less system-specific (sys/*, netinet/*, ...)
-  - includes from the local "common" subdirectory
-  - includes from the local "types" subdirectory
-  - includes from the local "proto" subdirectory
+  - the libc-standard includes (those without any path component)
+  - includes from the local "import" subdirectory
+  - includes from the local "haproxy" subdirectory
 
 Each section is just visually delimited from the other ones using an empty
 line. The two first ones above may be merged into a single section depending on
@@ -1163,19 +1162,17 @@ hard to find which ones are needed later. Just include what you need and if
 possible in alphabetical order so that when something is missing, it becomes
 obvious where to look for it and where to add it.
 
-All files should include <common/config.h> because this is where build options
+All files should include <haproxy/api.h> because this is where build options
 are prepared.
 
-Header files are split in two directories ("types" and "proto") depending on
-what they provide. Types, structures, enums and #defines must go into the
-"types" directory. Function prototypes and inlined functions must go into the
-"proto" directory. This split is because of inlined functions which
-cross-reference types from other files, which cause a chicken-and-egg problem
-if the functions and types are declared at the same place.
-
-All headers which do not depend on anything currently go to the "common"
-subdirectory, but are equally well placed into the "proto" directory. It is
-possible that one day the "common" directory will disappear.
+Haproxy header files are split in two, those exporting the types only (named
+with a trailing "-t") and those exporting variables, functions and inline
+functions. Types, structures, enums and #defines must go into the types files
+which are the only ones that may be included by othertype files. Function
+prototypes and inlined functions must go into the main files. This split is
+because of inlined functions which cross-reference types from other files,
+which cause a chicken-and-egg problem if the functions and types are declared
+at the same place.
 
 Include files must be protected against multiple inclusion using the common
 #ifndef/#define/#endif trick with a tag derived from the include file and its
