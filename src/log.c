@@ -26,12 +26,15 @@
 
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
 #include <haproxy/fd.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
+#include <haproxy/listener.h>
 #include <haproxy/log.h>
+#include <haproxy/proxy.h>
 #include <haproxy/ring.h>
 #include <haproxy/sample.h>
 #include <haproxy/sink.h>
@@ -42,6 +45,9 @@
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
+
+/* log forward proxy list */
+struct proxy *cfg_log_forward;
 
 struct log_fmt_st {
 	char *name;
@@ -3543,6 +3549,144 @@ out:
 	return;
 }
 
+/*
+ * Parse "log-forward" section and create corresponding sink buffer.
+ *
+ * The function returns 0 in success case, otherwise, it returns error
+ * flags.
+ */
+int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
+{
+	int err_code = 0;
+	struct proxy *px;
+	char *errmsg = NULL;
+	const char *err = NULL;
+
+	if (strcmp(args[0], "log-forward") == 0) {
+		if (!*args[1]) {
+			ha_alert("parsing [%s:%d] : missing name for ip-forward section.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
+		err = invalid_char(args[1]);
+		if (err) {
+			ha_alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+			         file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		for (px = cfg_log_forward ; px ; px = px->next) {
+			if (strcmp(px->id, args[1]) == 0) {
+				ha_alert("Parsing [%s:%d]: log-forward section '%s' has the same name as another log-forward section declared at %s:%d.\n",
+					 file, linenum, args[1], px->conf.file, px->conf.line);
+				err_code |= ERR_ALERT | ERR_FATAL;
+			}
+		}
+
+		px = calloc(1, sizeof *px);
+		if (!px) {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		px->next = cfg_log_forward;
+		cfg_log_forward = px;
+
+		init_new_proxy(px);
+		px->conf.file = strdup(file);
+		px->conf.line = linenum;
+		px->mode = PR_MODE_SYSLOG;
+		px->id = strdup(args[1]);
+
+	}
+	else if (strcmp(args[0], "bind") == 0) {
+		int cur_arg;
+		static int kws_dumped;
+		struct bind_conf *bind_conf;
+		struct bind_kw *kw;
+		struct listener *l;
+
+		cur_arg = 1;
+
+		bind_conf = bind_conf_alloc(cfg_log_forward, file, linenum,
+		                            NULL, xprt_get(XPRT_RAW));
+
+		if (!str2listener(args[1], cfg_log_forward, bind_conf, file, linenum, &errmsg)) {
+			if (errmsg && *errmsg) {
+				indent_msg(&errmsg, 2);
+				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
+			}
+			else {
+				ha_alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address %s.\n",
+				         file, linenum, args[0], args[1], args[2]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
+		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+			/* Currently, only UDP handlers are allowed */
+			if (l->proto->sock_domain != AF_CUST_UDP4 && l->proto->sock_domain != AF_CUST_UDP6) {
+				ha_alert("parsing [%s:%d] : '%s %s' : error,  listening address must be prefixed using 'udp@', 'udp4@' or 'udp6@' %s.\n",
+				         file, linenum, args[0], args[1], args[2]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			l->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : 64;
+			global.maxsock++;
+		}
+		cur_arg++;
+
+		while (*args[cur_arg] && (kw = bind_find_kw(args[cur_arg]))) {
+			int ret;
+
+			ret = kw->parse(args, cur_arg, cfg_log_forward, bind_conf, &errmsg);
+			err_code |= ret;
+			if (ret) {
+				if (errmsg && *errmsg) {
+					indent_msg(&errmsg, 2);
+					ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+				}
+				else
+					ha_alert("parsing [%s:%d]: error encountered while processing '%s'\n",
+					         file, linenum, args[cur_arg]);
+				if (ret & ERR_FATAL)
+					goto out;
+			}
+			cur_arg += 1 + kw->skip;
+		}
+		if (*args[cur_arg] != 0) {
+			char *kws = NULL;
+
+			if (!kws_dumped) {
+				kws_dumped = 1;
+				bind_dump_kws(&kws);
+				indent_msg(&kws, 4);
+			}
+			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section.%s%s\n",
+			         file, linenum, args[cur_arg], cursection,
+				 kws ? " Registered keywords :" : "", kws ? kws: "");
+			free(kws);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+	else if (strcmp(args[0], "log") == 0) {
+		if (!parse_logsrv(args, &cfg_log_forward->logsrvs, (kwm == KWM_NO), &errmsg)) {
+			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
+			         err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+out:
+	return err_code;
+}
+
+
 /* parse the "show startup-logs" command, returns 1 if a message is returned, otherwise zero */
 static int cli_parse_show_startup_logs(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -3563,6 +3707,9 @@ static struct cli_kw_list cli_kws = {{ },{
 }};
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
+/* config parsers for this section */
+REGISTER_CONFIG_SECTION("log-forward", cfg_parse_log_forward, NULL);
 
 REGISTER_PER_THREAD_ALLOC(init_log_buffers);
 REGISTER_PER_THREAD_FREE(deinit_log_buffers);

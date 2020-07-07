@@ -2738,6 +2738,57 @@ timeout server <timeout>
         timeout server 10s
         server mysyslogsrv 127.0.0.1:6514 log-proto octet-count
 
+3.10. Log forwarding
+-------------------
+
+It is possible to declare one or multiple log forwarding section,
+haproxy will forward all received log messages to a log servers list.
+
+log-forward <name>
+  Creates a new log forwarder proxy identified as <name>.
+
+bind <addr> [param*]
+  Used to configure a log udp listener to receive messages to forward.
+  Only udp listeners are allowed, address must be prefixed using
+  'udp@', 'udp4@' or 'udp6@'. This supports for all "bind" parameters
+  found in 5.1 paragraph but most of them are irrelevant for udp/syslog case.
+
+log global
+log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
+    <facility> [<level> [<minlevel>]]
+  Used to configure target log servers. See more details on proxies
+  documentation.
+  If no format specified, haproxy tries to keep the incoming log format.
+  Configured facility is ignored, except if incoming message does not
+  present a facility but one is mandatory on the outgoing format.
+  If there is no timestamp available in the input format, but the field
+  exists in output format, haproxy will use the local date.
+
+  Example:
+    global
+       log stderr format iso local7
+
+    ring myring
+        description "My local buffer"
+        format rfc5424
+        maxlen 1200
+        size 32764
+        timeout connect 5s
+        timeout server 10s
+        # syslog tcp server
+        server mysyslogsrv 127.0.0.1:514 log-proto octet-count
+
+    log-forward sylog-loadb
+        bind udp4@127.0.0.1:1514
+        # all messages on stderr
+        log global
+        # all messages on local tcp syslog server
+        log ring@myring local0
+        # load balance messages on 4 udp syslog servers
+        log 127.0.0.1:10001 sample 1:4 local0
+        log 127.0.0.1:10002 sample 2:4 local0
+        log 127.0.0.1:10003 sample 3:4 local0
+        log 127.0.0.1:10004 sample 4:4 local0
 
 4. Proxies
 ----------
@@ -3323,14 +3374,14 @@ bind /<path> [, ...] [param*]
                     - 'ipv4@'  -> address is always IPv4
                     - 'ipv6@'  -> address is always IPv6
                     - 'udp@'   -> address is resolved as IPv4 or IPv6 and
-                      protocol UDP is used. Currently there is no proxy
-                      mode supporting those listeners.
+                      protocol UDP is used. Currently those listeners are
+                      supported only in log-forward sections.
                     - 'udp4@'  -> address is always IPv4 and protocol UDP
-                      is used. Currently there is no proxy mode supporting
-                      those listeners.
+                      is used. Currently those listeners are supported
+                      only in log-forward sections.
                     - 'udp6@'  -> address is always IPv6 and protocol UDP
-                      is used. Currently there is no proxy mode supporting
-                      those listeners.
+                      is used. Currently those listeners are supported
+                      only in log-forward sections.
                     - 'unix@'  -> address is a path to a local unix socket
                     - 'abns@'  -> address is in abstract namespace (Linux only).
                       Note: since abstract sockets are not "rebindable", they

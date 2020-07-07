@@ -1001,6 +1001,19 @@ int post_sink_resolve()
 			}
 		}
 	}
+
+	for (px = cfg_log_forward; px; px = px->next) {
+		list_for_each_entry_safe(logsrv, logb, &px->logsrvs, list) {
+			if (logsrv->type == LOG_TARGET_BUFFER) {
+				sink = sink_find(logsrv->ring_name);
+				if (!sink || sink->type != SINK_TYPE_BUFFER) {
+					ha_alert("log-forward '%s' log server uses unknown ring named '%s'.\n", px->id, logsrv->ring_name);
+					err_code |= ERR_ALERT | ERR_FATAL;
+				}
+				logsrv->sink = sink;
+			}
+		}
+	}
 	return err_code;
 }
 

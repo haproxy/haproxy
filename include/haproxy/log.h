@@ -43,6 +43,9 @@ extern char default_rfc5424_sd_log_format[];
 
 extern unsigned int dropped_logs;
 
+/* lof forward proxy list */
+extern struct proxy *cfg_log_forward;
+
 extern THREAD_LOCAL char *logline;
 extern THREAD_LOCAL char *logline_rfc5424;
 
