@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2020/07/07 : 2.3-dev0
+    - exact copy of 2.2.0
+
 2020/07/07 : 2.2.0
     - BUILD: mux-h2: fix typo breaking build when using DEBUG_LOCK
     - CLEANUP: makefile: update the outdated list of DEBUG_xxx options
