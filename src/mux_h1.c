@@ -2805,7 +2805,8 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 		TRACE_STATE("read0 on connection", H1_EV_STRM_RECV, cs->conn, h1s);
 	}
 
-	if ((h1m->state != H1_MSG_TUNNEL && h1m->state != H1_MSG_DATA) ||
+	if ((h1s->flags & H1S_F_REOS) ||
+	    (h1m->state != H1_MSG_TUNNEL && h1m->state != H1_MSG_DATA) ||
 	    (h1m->state == H1_MSG_DATA && !h1m->curr_len))
 		cs->flags &= ~CS_FL_MAY_SPLICE;
 
