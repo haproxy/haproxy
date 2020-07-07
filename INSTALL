@@ -1,15 +1,16 @@
 Installation instructions for HAProxy
 =====================================
 
-This is a development version, so it is expected to break from time to time,
-to add and remove features without prior notification and it should not be used
-in production. If you are not used to build from sources or if you are not used
-to follow updates then it is recommended that instead you use the packages
-provided by your software vendor or Linux distribution. Most of them are taking
-this task seriously and are doing a good job at backporting important fixes. If
-for any reason you'd prefer to use a different version than the one packaged
-for your system, you want to be certain to have all the fixes or to get some
-commercial support, other choices are available at http://www.haproxy.com/.
+HAProxy 2.2 is a long-term supported version, which means that it will get
+fixes for bugs as they are discovered till around Q2 2025 and will not receive
+new features. This version is suitable for general deployment as it is expected
+to receive less frequent updates than regular stable branches which have an odd
+digit in the minor version number. New users are strongly advised encouraged to
+use only such long-term supported versions such as the ones provided by their
+software vendor or Linux distribution. If for any reason you would prefer a
+different version than the one packaged for your system, you want to be certain
+to have all the fixes or to get some commercial support, other choices are
+available at http://www.haproxy.com/.
 
 
 Areas covered in this document
@@ -90,12 +91,12 @@ HAProxy requires a working GCC or Clang toolchain and GNU make :
     may want to retry with "gmake" which is the name commonly used for GNU make
     on BSD systems.
 
-  - GCC >= 3.4 (up to 8.1 tested). Older versions can be made to work with a
+  - GCC >= 3.4 (up to 10.1 tested). Older versions can be made to work with a
     few minor adaptations if really needed. Newer versions may sometimes break
     due to compiler regressions or behaviour changes. The version shipped with
     your operating system is very likely to work with no trouble. Clang >= 3.0
     is also known to work as an alternative solution. Recent versions may emit
-    a bit more warnings that are worth reporting.
+    a bit more warnings that are worth reporting as they may reveal real bugs.
 
   - GNU ld (binutils package), with no particular version. Other linkers might
     work but were not tested.
@@ -339,6 +340,7 @@ are the extra libraries that may be referenced at build time :
                   allowing better integration with systemd on Linux systems
                   which come with it. It is never enabled by default so there
                   is no need to disable it.
+
 
 4.10) Common errors
 -------------------
