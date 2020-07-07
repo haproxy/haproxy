@@ -1411,7 +1411,7 @@ ssl-server-verify [none|required]
   forced using cmdline option '-dV'.
 
 ssl-skip-self-issued-ca
-  Self issued CA, aka x509 root CA, is the enchor for chain validation: as a
+  Self issued CA, aka x509 root CA, is the anchor for chain validation: as a
   server is useless to send it, client must have it. Standard configuration
   need to not include such CA in PEM file. This option allows you to keep such
   CA in PEM file without sending it to the client. Use case is to provide
@@ -2504,7 +2504,7 @@ table <tablename> type {ip | integer | string [len <length>] | binary [len <leng
       backend t1
           stick-table type string size 10m store gpc0 peers mypeers
 
-  Here "t1" table declared in "mypeeers" section has "mypeers/t1" as global name.
+  Here "t1" table declared in "mypeers" section has "mypeers/t1" as global name.
   "t1" table declared as a backend as "t1" as global name. But at peer protocol
   level the former table is named "/t1", the latter is again named "t1".
 
@@ -2638,7 +2638,7 @@ ring <ringname>
   Creates a new ring-buffer with name <ringname>.
 
 description <text>
-  The descritpition is an optional description string of the ring. It will
+  The description is an optional description string of the ring. It will
   appear on CLI. By default, <name> is reused to fill this field.
 
 format <format>
@@ -4034,7 +4034,7 @@ errorfiles <name> [<code> ...]
   http-errors section are imported. Otherwise, only error files associated to
   the listed status code are imported. Those error files override the already
   defined custom errors for the proxy. And they may be overridden by following
-  ones. Fonctionnly, it is exactly the same than declaring all error files by
+  ones. Functionally, it is exactly the same as declaring all error files by
   hand using "errorfile" directives.
 
   See also : "http-error", "errorfile", "errorloc", "errorloc302" ,
@@ -4579,7 +4579,7 @@ http-after-response strict-mode { on | off }
 
   By default, the strict rewriting mode is enabled. Its value is also reset
   when a ruleset evaluation ends. So, for instance, if you change the mode on
-  the bacnkend, the default mode is restored when HAProxy starts the frontend
+  the backend, the default mode is restored when HAProxy starts the frontend
   rules evaluation.
 
 http-after-response unset-var(<var-name>) [ { if | unless } <condition> ]
@@ -4604,7 +4604,7 @@ http-check comment <string>
   It only works for connect, send and expect rules. It is useful to make
   user-friendly error reporting.
 
-  See also : "option httpchk", "http-check conncet", "http-check send" and
+  See also : "option httpchk", "http-check connect", "http-check send" and
              "http-check expect".
 
 
@@ -4619,7 +4619,7 @@ http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
     comment <msg>  defines a message to report if the rule evaluation fails.
 
     default      Use default options of the server line to do the health
-                 checks. The server options are used only if not redifined.
+                 checks. The server options are used only if not redefined.
 
     port <expr>  if not set, check port or server port is used.
                  It tells HAProxy where to open the connection to.
@@ -4913,7 +4913,7 @@ http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
 
     ver <version>  is the optional HTTP version string. It defaults to
                    "HTTP/1.0" but some servers might behave incorrectly in HTTP
-                   1.0, so turningit to HTTP/1.1 may sometimes help. Note that
+                   1.0, so turning it to HTTP/1.1 may sometimes help. Note that
                    the Host field is mandatory in HTTP/1.1, use "hdr" argument
                    to add it.
 
@@ -4938,7 +4938,7 @@ http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
   "http-check send". If so, it will be ignored. The old trick consisting to add
   headers after the version string on the "option httpchk" line is now
   deprecated. Note also the "Connection: close" header is still added if a
-  "http-check expect" direcive is defined independently of this directive, just
+  "http-check expect" directive is defined independently of this directive, just
   like the state header if the directive "http-check send-state" is defined.
 
   Also "http-check send" doesn't support HTTP keep-alive. Keep in mind that it
@@ -5492,7 +5492,7 @@ http-request return [status <code>] [content-type <type>]
   This stops the evaluation of the rules and immediately returns a response. The
   default status code used for the response is 200. It can be optionally
   specified as an arguments to "status". The response content-type may also be
-  specified as an argument to "content-type". Finally the response itselft may
+  specified as an argument to "content-type". Finally the response itself may
   be defined. If can be a full HTTP response specifying the errorfile to use,
   or the response payload specifying the file or the string to use. These rules
   are followed to create the response :
@@ -5504,20 +5504,20 @@ http-request return [status <code>] [content-type <type>]
 
   * If "default-errorfiles" argument is set, the proxy's errorfiles are
     considered.  If the "status" argument is defined, it must be one of the
-    status code handled by hparoxy (200, 400, 403, 404, 405, 408, 410, 413,
+    status code handled by haproxy (200, 400, 403, 404, 405, 408, 410, 413,
     425, 429, 500, 502, 503, and 504). The "content-type" argument, if any,
     is ignored.
 
   * If a specific errorfile is defined, with an "errorfile" argument, the
     corresponding file, containing a full HTTP response, is returned. Only the
     "status" argument is considered. It must be one of the status code handled
-    by hparoxy (200, 400, 403, 404, 405, 408, 410, 413, 425, 429, 500, 502, 503,
+    by haproxy (200, 400, 403, 404, 405, 408, 410, 413, 425, 429, 500, 502, 503,
     and 504). The "content-type" argument, if any, is ignored.
 
   * If an http-errors section is defined, with an "errorfiles" argument, the
     corresponding file in the specified http-errors section, containing a full
     HTTP response, is returned. Only the "status" argument is considered. It
-    must be one of the status code handled by hparoxy (200, 400, 403, 404, 405,
+    must be one of the status code handled by haproxy (200, 400, 403, 404, 405,
     408, 410, 413, 425, 429, 500, 502, 503, and 504). The "content-type"
     argument, if any, is ignored.
 
@@ -5546,7 +5546,7 @@ http-request return [status <code>] [content-type <type>]
   No further "http-request" rules are evaluated.
 
   Example:
-    http-request return errorfile /etc/haproy/errorfiles/200.http \
+    http-request return errorfile /etc/haproxy/errorfiles/200.http \
         if { path /ping }
 
     http-request return content-type image/x-icon file /var/www/favicon.ico  \
@@ -6139,7 +6139,7 @@ http-response return [status <code>] [content-type <type>]
   This stops the evaluation of the rules and immediately returns a response. The
   default status code used for the response is 200. It can be optionally
   specified as an arguments to "status". The response content-type may also be
-  specified as an argument to "content-type". Finally the response itselft may
+  specified as an argument to "content-type". Finally the response itself may
   be defined. If can be a full HTTP response specifying the errorfile to use,
   or the response payload specifying the file or the string to use. These rules
   are followed to create the response :
@@ -6151,20 +6151,20 @@ http-response return [status <code>] [content-type <type>]
 
   * If "default-errorfiles" argument is set, the proxy's errorfiles are
     considered.  If the "status" argument is defined, it must be one of the
-    status code handled by hparoxy (200, 400, 403, 404, 405, 408, 410, 413,
+    status code handled by haproxy (200, 400, 403, 404, 405, 408, 410, 413,
     425, 429, 500, 502, 503, and 504). The "content-type" argument, if any,
     is ignored.
 
   * If a specific errorfile is defined, with an "errorfile" argument, the
     corresponding file, containing a full HTTP response, is returned. Only the
     "status" argument is considered. It must be one of the status code handled
-    by hparoxy (200, 400, 403, 404, 405, 408, 410, 413, 425, 429, 500, 502, 503,
+    by haproxy (200, 400, 403, 404, 405, 408, 410, 413, 425, 429, 500, 502, 503,
     and 504). The "content-type" argument, if any, is ignored.
 
   * If an http-errors section is defined, with an "errorfiles" argument, the
     corresponding file in the specified http-errors section, containing a full
     HTTP response, is returned. Only the "status" argument is considered. It
-    must be one of the status code handled by hparoxy (200, 400, 403, 404, 405,
+    must be one of the status code handled by haproxy (200, 400, 403, 404, 405,
     408, 410, 413, 425, 429, 500, 502, 503, and 504). The "content-type"
     argument, if any, is ignored.
 
@@ -6193,7 +6193,7 @@ http-response return [status <code>] [content-type <type>]
   No further "http-response" rules are evaluated.
 
   Example:
-    http-response return errorfile /etc/haproy/errorfiles/200.http \
+    http-response return errorfile /etc/haproxy/errorfiles/200.http \
         if { status eq 404 }
 
     http-response return content-type text/plain  \
@@ -6359,7 +6359,7 @@ http-response strict-mode { on | off }
 
   By default, the strict rewriting mode is enabled. Its value is also reset
   when a ruleset evaluation ends. So, for instance, if you change the mode on
-  the bacnkend, the default mode is restored when HAProxy starts the frontend
+  the backend, the default mode is restored when HAProxy starts the frontend
   rules evaluation.
 
 http-response track-sc0 <key> [table <table>] [ { if | unless } <condition> ]
@@ -7789,7 +7789,7 @@ option httpchk <method> <uri> <version>
   "httpchk" option does not necessarily require an HTTP backend, it also works
   with plain TCP backends. This is particularly useful to check simple scripts
   bound to some dedicated ports using the inetd daemon. However, it will always
-  internally relies on an HTX mutliplexer. Thus, it means the request
+  internally relies on an HTX multiplexer. Thus, it means the request
   formatting and the response parsing will be strict.
 
   Note : For a while, there was no way to add headers or body in the request
@@ -10430,7 +10430,7 @@ tcp-check connect [default] [port <expr>] [addr <ip>] [send-proxy] [via-socks4]
     comment <msg>  defines a message to report if the rule evaluation fails.
 
     default      Use default options of the server line to do the health
-                 checks. The server options are used only if not redifined.
+                 checks. The server options are used only if not redefined.
 
     port <expr>  if not set, check port or server port is used.
                  It tells HAProxy where to open the connection to.
@@ -12662,7 +12662,7 @@ proto <name>
   must be compatible with the mode of the frontend (TCP or HTTP). It must also
   be usable on the frontend side. The list of available protocols is reported
   in haproxy -vv.
-  Idea behind this optipon is to bypass the selection of the best multiplexer's
+  Idea behind this option is to bypass the selection of the best multiplexer's
   protocol for all connections instantiated from this listening socket. For
   instance, it is possible to force the http/2 on clear TCP by specifying "proto
   h2" on the bind line.
@@ -13012,7 +13012,7 @@ check-proto <name>
   connections. It must be compatible with the health-check type (TCP or
   HTTP). It must also be usable on the backend side. The list of available
   protocols is reported in haproxy -vv.
-  Idea behind this optipon is to bypass the selection of the best multiplexer's
+  Idea behind this option is to bypass the selection of the best multiplexer's
   protocol for health-check connections established to this server.
   If not defined, the server one will be used, if set.
 
@@ -13494,7 +13494,7 @@ proto <name>
   server. It must be compatible with the mode of the backend (TCP or HTTP). It
   must also be usable on the backend side. The list of available protocols is
   reported in haproxy -vv.
-  Idea behind this optipon is to bypass the selection of the best multiplexer's
+  Idea behind this option is to bypass the selection of the best multiplexer's
   protocol for all connections established to this server.
 
 redir <prefix>
@@ -14772,7 +14772,7 @@ concat([<start>],[<var>],[<end>])
   allow to concatenate variables with delimiters to an existing set of
   variables. This can be used to build new variables made of a succession of
   other variables, such as colon-delimited values. If commas or closing
-  parethesis are needed as delimiters, they must be protected by quotes or
+  parenthesis are needed as delimiters, they must be protected by quotes or
   backslashes, themselves protected so that they are not stripped by the first
   level parser. See examples below.
 
@@ -19943,7 +19943,7 @@ See also : section 9.2 about the compression filter, section 9.5 about the
 9.5. Fcgi-app
 -------------
 
-filter fcg-app <name>
+filter fcgi-app <name>
 
   Arguments :
 
@@ -20056,7 +20056,7 @@ option get-values
 no option get-values
   Enable or disable the retrieve of variables about connection management.
 
-  HAproxy is able to send the record FCGI_GET_VALUES on connection
+  HAProxy is able to send the record FCGI_GET_VALUES on connection
   establishment to retrieve the value for following variables:
 
     * FCGI_MAX_REQS     The maximum number of concurrent requests this
