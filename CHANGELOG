@@ -2,6 +2,10 @@ ChangeLog :
 ===========
 
 2020/07/07 : 2.3-dev0
+    - [RELEASE] Released version 2.3-dev0
+    - MINOR: version: back to development, update status message
+
+2020/07/07 : 2.3-dev0
     - exact copy of 2.2.0
 
 2020/07/07 : 2.2.0
