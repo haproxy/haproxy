@@ -1,6 +1,32 @@
 ChangeLog :
 ===========
 
+2020/07/07 : 2.2.0
+    - BUILD: mux-h2: fix typo breaking build when using DEBUG_LOCK
+    - CLEANUP: makefile: update the outdated list of DEBUG_xxx options
+    - BUILD: tools: make resolve_sym_name() return a const
+    - CLEANUP: auth: fix useless self-include of auth-t.h
+    - BUILD: tree-wide: cast arguments to tolower/toupper to unsigned char
+    - CLEANUP: assorted typo fixes in the code and comments
+    - WIP/MINOR: ssl: add sample fetches for keylog in frontend
+    - DOC: fix tune.ssl.keylog sample fetches array
+    - BUG/MINOR: ssl: check conn in keylog sample fetch
+    - DOC: configuration: various typo fixes
+    - MINOR: log: Remove unused case statement during the log-format string parsing
+    - BUG/MINOR: mux-h1: Fix the splicing in TUNNEL mode
+    - BUG/MINOR: mux-h1: Don't read data from a pipe if the mux is unable to receive
+    - BUG/MINOR: mux-h1: Disable splicing only if input data was processed
+    - BUG/MEDIUM: mux-h1: Disable splicing for the conn-stream if read0 is received
+    - MINOR: mux-h1: Improve traces about the splicing
+    - BUG/MINOR: backend: Remove CO_FL_SESS_IDLE if a client remains on the last server
+    - BUG/MEDIUM: connection: Don't consider new private connections as available
+    - BUG/MINOR: connection: See new connection as available only on reuse always
+    - DOC: configuration: remove obsolete mentions of H2 being converted to HTTP/1.x
+    - CLEANUP: ssl: remove unrelevant comment in smp_fetch_ssl_x_keylog()
+    - DOC: update INSTALL with new compiler versions
+    - DOC: minor update to coding style file
+    - MINOR: version: mention that it's an LTS release now
+
 2020/07/04 : 2.2-dev12
     - BUG/MINOR: mux_h2: don't lose the leaving trace in h2_io_cb()
     - MINOR: cli: make "show sess" stop at the last known session
