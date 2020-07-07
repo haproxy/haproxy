@@ -3303,6 +3303,15 @@ bind /<path> [, ...] [param*]
                   no slash ('/'). Currently supported prefixes are :
                     - 'ipv4@'  -> address is always IPv4
                     - 'ipv6@'  -> address is always IPv6
+                    - 'udp@'   -> address is resolved as IPv4 or IPv6 and
+                      protocol UDP is used. Currently there is no proxy
+                      mode supporting those listeners.
+                    - 'udp4@'  -> address is always IPv4 and protocol UDP
+                      is used. Currently there is no proxy mode supporting
+                      those listeners.
+                    - 'udp6@'  -> address is always IPv6 and protocol UDP
+                      is used. Currently there is no proxy mode supporting
+                      those listeners.
                     - 'unix@'  -> address is a path to a local unix socket
                     - 'abns@'  -> address is in abstract namespace (Linux only).
                       Note: since abstract sockets are not "rebindable", they

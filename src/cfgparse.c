@@ -133,7 +133,9 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		if (!ss2)
 			goto fail;
 
-		if (ss2->ss_family == AF_INET || ss2->ss_family == AF_INET6) {
+		if (ss2->ss_family == AF_INET || ss2->ss_family == AF_INET6
+		                              || ss2->ss_family == AF_CUST_UDP4
+					      || ss2->ss_family == AF_CUST_UDP6) {
 			if (!port && !end) {
 				memprintf(err, "missing port number: '%s'\n", str);
 				goto fail;

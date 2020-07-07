@@ -871,6 +871,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	char *port1, *port2;
 	int portl, porth, porta;
 	int abstract = 0;
+	int is_udp = 0;
 
 	portl = porth = porta = 0;
 	if (fqdn)
@@ -906,6 +907,21 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	else if (strncmp(str2, "ipv6@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET6;
+	}
+	else if (strncmp(str2, "udp4@", 5) == 0) {
+		str2 += 5;
+		ss.ss_family = AF_INET;
+		is_udp = 1;
+	}
+	else if (strncmp(str2, "udp6@", 5) == 0) {
+		str2 += 5;
+		ss.ss_family = AF_INET6;
+		is_udp = 1;
+	}
+	else if (strncmp(str2, "udp@", 4) == 0) {
+		str2 += 4;
+		ss.ss_family = AF_UNSPEC;
+		is_udp = 1;
 	}
 	else if (*str2 == '/') {
 		ss.ss_family = AF_UNIX;
@@ -1037,6 +1053,13 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			}
 		}
 		set_host_port(&ss, porta);
+		if (is_udp) {
+			if (ss.ss_family == AF_INET6)
+				ss.ss_family = AF_CUST_UDP6;
+			else
+				ss.ss_family = AF_CUST_UDP4;
+		}
+
 	}
 
 	ret = &ss;
