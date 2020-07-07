@@ -2186,8 +2186,8 @@ tune.ssl.keylog { on | off }
   SERVER_HANDSHAKE_TRAFFIC_SECRET |  %[ssl_fc_server_handshake_traffic_secret]
   CLIENT_TRAFFIC_SECRET_0         |  %[ssl_fc_client_traffic_secret_0]
   SERVER_TRAFFIC_SECRET_0         |  %[ssl_fc_server_traffic_secret_0]
-  EARLY_EXPORTER_SECRET           |  %[ssl_fc_exporter_secret]
-  EXPORTER_SECRET                 |  %[ssl_fc_early_exporter_secret]
+  EXPORTER_SECRET                 |  %[ssl_fc_exporter_secret]
+  EARLY_EXPORTER_SECRET           |  %[ssl_fc_early_exporter_secret]
 
   This is only available with OpenSSL 1.1.1, and useful with TLS1.3 session.
 
