@@ -349,6 +349,7 @@
 		        continue;                                   \
 		if (_p == (lh)) {                                   \
 			(lh)->prev = _p;                            \
+			__ha_barrier_store();                       \
 			_n = NULL;                                  \
 			break;                                      \
 		}                                                   \
@@ -361,12 +362,15 @@
 		if (_n == (lh)) {                                   \
 			(lh)->next = _n;                            \
 			(lh)->prev = _p;                            \
+			__ha_barrier_store();                       \
 			_n = NULL;                                  \
 			break;                                      \
 		}                                                   \
 		(lh)->next = (lh);                                  \
 		(lh)->prev = (lh);                                  \
+		__ha_barrier_store();                               \
 		_n->prev = _p;                                      \
+		__ha_barrier_store();                               \
 		_p->next = NULL;                                    \
 		__ha_barrier_store();                               \
 		break;                                              \
