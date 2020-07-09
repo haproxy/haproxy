@@ -317,6 +317,7 @@ enum info_field {
 	INF_TOTAL_SPLICED_BYTES_OUT,
 	INF_BYTES_OUT_RATE,
 	INF_DEBUG_COMMANDS_ISSUED,
+	INF_CUM_LOG_MSGS,
 
 	/* must always be the last one */
 	INF_TOTAL_FIELDS

@@ -147,6 +147,7 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_TOTAL_SPLICED_BYTES_OUT]        = { .name = "TotalSplicdedBytesOut",       .desc = "Total number of bytes emitted by current worker process through a kernel pipe since started" },
 	[INF_BYTES_OUT_RATE]                 = { .name = "BytesOutRate",                .desc = "Number of bytes emitted by current worker process over the last second" },
 	[INF_DEBUG_COMMANDS_ISSUED]          = { .name = "DebugCommandsIssued",         .desc = "Number of debug commands issued on this process (anything > 0 is unsafe)" },
+	[INF_CUM_LOG_MSGS]                   = { .name = "CumRecvLogs",                 .desc = "Total number of log messages received by log-forwarding listeners on this worker process since started" },
 };
 
 const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
@@ -3523,6 +3524,7 @@ int stats_fill_info(struct field *info, int len)
 	info[INF_TOTAL_SPLICED_BYTES_OUT]        = mkf_u64(0, global.spliced_out_bytes);
 	info[INF_BYTES_OUT_RATE]                 = mkf_u64(FN_RATE, (unsigned long long)read_freq_ctr(&global.out_32bps) * 32);
 	info[INF_DEBUG_COMMANDS_ISSUED]          = mkf_u32(0, debug_commands_issued);
+	info[INF_CUM_LOG_MSGS]                   = mkf_u32(FN_COUNTER, cum_log_messages);
 
 	return 1;
 }

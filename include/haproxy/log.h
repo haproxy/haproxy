@@ -49,6 +49,9 @@ extern struct proxy *cfg_log_forward;
 extern THREAD_LOCAL char *logline;
 extern THREAD_LOCAL char *logline_rfc5424;
 
+/* global syslog message counter */
+extern int cum_log_messages;
+
 /* syslog UDP message handler */
 void syslog_fd_handler(int fd);
 
@@ -165,6 +168,7 @@ static inline int build_logline(struct stream *s, char *dst, size_t maxsize, str
 }
 
 struct ist *build_log_header(enum log_fmt format, int level, int facility, struct ist *metadata, size_t *nbelem);
+
 #endif /* _HAPROXY_LOG_H */
 
 /*

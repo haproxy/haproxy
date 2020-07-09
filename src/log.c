@@ -45,6 +45,8 @@
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
 
+/* global recv logs counter */
+int cum_log_messages;
 
 /* log forward proxy list */
 struct proxy *cfg_log_forward;
@@ -3537,6 +3539,10 @@ void syslog_fd_handler(int fd)
 				goto out;
 			}
 			buf->data = ret;
+
+			/* update counters */
+			_HA_ATOMIC_ADD(&cum_log_messages, 1);
+			proxy_inc_fe_conn_ctr(l, l->bind_conf->frontend);
 
 			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
