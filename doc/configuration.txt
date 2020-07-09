@@ -3588,6 +3588,8 @@ clitcpka-cnt <count>
 
   This keyword corresponds to the socket option TCP_KEEPCNT. If this keyword
   is not specified, system-wide TCP parameter (tcp_keepalive_probes) is used.
+  The availability of this setting depends on the operating system. It is
+  known to work on Linux.
 
   See also : "option clitcpka", "clitcpka-idle", "clitcpka-intvl".
 
@@ -3606,6 +3608,8 @@ clitcpka-idle <timeout>
 
   This keyword corresponds to the socket option TCP_KEEPIDLE. If this keyword
   is not specified, system-wide TCP parameter (tcp_keepalive_time) is used.
+  The availability of this setting depends on the operating system. It is
+  known to work on Linux.
 
   See also : "option clitcpka", "clitcpka-cnt", "clitcpka-intvl".
 
@@ -3622,6 +3626,8 @@ clitcpka-intvl <timeout>
 
   This keyword corresponds to the socket option TCP_KEEPINTVL. If this keyword
   is not specified, system-wide TCP parameter (tcp_keepalive_intvl) is used.
+  The availability of this setting depends on the operating system. It is
+  known to work on Linux.
 
   See also : "option clitcpka", "clitcpka-cnt", "clitcpka-idle".
 
@@ -9471,6 +9477,8 @@ srvtcpka-cnt <count>
 
   This keyword corresponds to the socket option TCP_KEEPCNT. If this keyword
   is not specified, system-wide TCP parameter (tcp_keepalive_probes) is used.
+  The availability of this setting depends on the operating system. It is
+  known to work on Linux.
 
   See also : "option srvtcpka", "srvtcpka-idle", "srvtcpka-intvl".
 
@@ -9489,6 +9497,8 @@ srvtcpka-idle <timeout>
 
   This keyword corresponds to the socket option TCP_KEEPIDLE. If this keyword
   is not specified, system-wide TCP parameter (tcp_keepalive_time) is used.
+  The availability of this setting depends on the operating system. It is
+  known to work on Linux.
 
   See also : "option srvtcpka", "srvtcpka-cnt", "srvtcpka-intvl".
 
@@ -9505,6 +9515,8 @@ srvtcpka-intvl <timeout>
 
   This keyword corresponds to the socket option TCP_KEEPINTVL. If this keyword
   is not specified, system-wide TCP parameter (tcp_keepalive_intvl) is used.
+  The availability of this setting depends on the operating system. It is
+  known to work on Linux.
 
   See also : "option srvtcpka", "srvtcpka-cnt", "srvtcpka-idle".
 

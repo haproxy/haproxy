@@ -570,6 +570,7 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 	return 0;
 }
 
+#ifdef TCP_KEEPCNT
 /* This function parses "{cli|srv}tcpka-cnt" statements */
 static int proxy_parse_tcpka_cnt(char **args, int section, struct proxy *proxy,
                                     struct proxy *defpx, const char *file, int line,
@@ -614,7 +615,9 @@ static int proxy_parse_tcpka_cnt(char **args, int section, struct proxy *proxy,
 
 	return retval;
 }
+#endif
 
+#ifdef TCP_KEEPIDLE
 /* This function parses "{cli|srv}tcpka-idle" statements */
 static int proxy_parse_tcpka_idle(char **args, int section, struct proxy *proxy,
                                   struct proxy *defpx, const char *file, int line,
@@ -668,7 +671,9 @@ static int proxy_parse_tcpka_idle(char **args, int section, struct proxy *proxy,
 
 	return retval;
 }
+#endif
 
+#ifdef TCP_KEEPINTVL
 /* This function parses "{cli|srv}tcpka-intvl" statements */
 static int proxy_parse_tcpka_intvl(char **args, int section, struct proxy *proxy,
 		                   struct proxy *defpx, const char *file, int line,
@@ -722,6 +727,7 @@ static int proxy_parse_tcpka_intvl(char **args, int section, struct proxy *proxy
 
 	return retval;
 }
+#endif
 
 /* This function inserts proxy <px> into the tree of known proxies. The proxy's
  * name is used as the storing key so it must already have been initialized.
@@ -1828,12 +1834,18 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "max-keep-alive-queue", proxy_parse_max_ka_queue },
 	{ CFG_LISTEN, "declare", proxy_parse_declare },
 	{ CFG_LISTEN, "retry-on", proxy_parse_retry_on },
+#ifdef TCP_KEEPCNT
 	{ CFG_LISTEN, "clitcpka-cnt", proxy_parse_tcpka_cnt },
-	{ CFG_LISTEN, "clitcpka-idle", proxy_parse_tcpka_idle },
-	{ CFG_LISTEN, "clitcpka-intvl", proxy_parse_tcpka_intvl },
 	{ CFG_LISTEN, "srvtcpka-cnt", proxy_parse_tcpka_cnt },
+#endif
+#ifdef TCP_KEEPIDLE
+	{ CFG_LISTEN, "clitcpka-idle", proxy_parse_tcpka_idle },
 	{ CFG_LISTEN, "srvtcpka-idle", proxy_parse_tcpka_idle },
+#endif
+#ifdef TCP_KEEPINTVL
+	{ CFG_LISTEN, "clitcpka-intvl", proxy_parse_tcpka_intvl },
 	{ CFG_LISTEN, "srvtcpka-intvl", proxy_parse_tcpka_intvl },
+#endif
 	{ 0, NULL, NULL },
 }};
 

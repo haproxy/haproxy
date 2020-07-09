@@ -382,14 +382,20 @@ int tcp_connect_server(struct connection *conn, int flags)
 	if (be->options & PR_O_TCP_SRV_KA) {
 		setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof(one));
 
+#ifdef TCP_KEEPCNT
 		if (be->srvtcpka_cnt)
 			setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &be->srvtcpka_cnt, sizeof(be->srvtcpka_cnt));
+#endif
 
+#ifdef TCP_KEEPIDLE
 		if (be->srvtcpka_idle)
 			setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &be->srvtcpka_idle, sizeof(be->srvtcpka_idle));
+#endif
 
+#ifdef TCP_KEEPINTVL
 		if (be->srvtcpka_intvl)
 			setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &be->srvtcpka_intvl, sizeof(be->srvtcpka_intvl));
+#endif
 	}
 
 	/* allow specific binding :
