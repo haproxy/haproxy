@@ -224,8 +224,18 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6) {
 		setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
 
-		if (p->options & PR_O_TCP_CLI_KA)
+		if (p->options & PR_O_TCP_CLI_KA) {
 			setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
+
+			if (p->clitcpka_cnt)
+				setsockopt(cfd, IPPROTO_TCP, TCP_KEEPCNT, &p->clitcpka_cnt, sizeof(p->clitcpka_cnt));
+
+			if (p->clitcpka_idle)
+				setsockopt(cfd, IPPROTO_TCP, TCP_KEEPIDLE, &p->clitcpka_idle, sizeof(p->clitcpka_idle));
+
+			if (p->clitcpka_intvl)
+				setsockopt(cfd, IPPROTO_TCP, TCP_KEEPINTVL, &p->clitcpka_intvl, sizeof(p->clitcpka_intvl));
+		}
 
 		if (p->options & PR_O_TCP_NOLING)
 			fdtab[cfd].linger_risk = 1;

@@ -570,6 +570,159 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 	return 0;
 }
 
+/* This function parses "{cli|srv}tcpka-cnt" statements */
+static int proxy_parse_tcpka_cnt(char **args, int section, struct proxy *proxy,
+                                    struct proxy *defpx, const char *file, int line,
+                                    char **err)
+{
+	int retval;
+	char *res;
+	unsigned int tcpka_cnt;
+
+	retval = 0;
+
+	if (*args[1] == 0) {
+		memprintf(err, "'%s' expects an integer value", args[0]);
+		return -1;
+	}
+
+	tcpka_cnt = strtol(args[1], &res, 0);
+	if (*res) {
+		memprintf(err, "'%s' : unexpected character '%c' in integer value '%s'", args[0], *res, args[1]);
+		return -1;
+	}
+
+	if (!strcmp(args[0], "clitcpka-cnt")) {
+		if (!(proxy->cap & PR_CAP_FE)) {
+			memprintf(err, "%s will be ignored because %s '%s' has no frontend capability",
+			          args[0], proxy_type_str(proxy), proxy->id);
+			retval = 1;
+		}
+		proxy->clitcpka_cnt = tcpka_cnt;
+	} else if (!strcmp(args[0], "srvtcpka-cnt")) {
+		if (!(proxy->cap & PR_CAP_BE)) {
+			memprintf(err, "%s will be ignored because %s '%s' has no backend capability",
+			          args[0], proxy_type_str(proxy), proxy->id);
+			retval = 1;
+		}
+		proxy->srvtcpka_cnt = tcpka_cnt;
+	} else {
+		/* unreachable */
+		memprintf(err, "'%s': unknown keyword", args[0]);
+		return -1;
+	}
+
+	return retval;
+}
+
+/* This function parses "{cli|srv}tcpka-idle" statements */
+static int proxy_parse_tcpka_idle(char **args, int section, struct proxy *proxy,
+                                  struct proxy *defpx, const char *file, int line,
+                                  char **err)
+{
+	int retval;
+	const char *res;
+	unsigned int tcpka_idle;
+
+	retval = 0;
+
+	if (*args[1] == 0) {
+		memprintf(err, "'%s' expects an integer value", args[0]);
+		return -1;
+	}
+	res = parse_time_err(args[1], &tcpka_idle, TIME_UNIT_S);
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to '%s' (minimum non-null value is 1 ms)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res) {
+		memprintf(err, "unexpected character '%c' in argument to <%s>.\n", *res, args[0]);
+		return -1;
+	}
+
+	if (!strcmp(args[0], "clitcpka-idle")) {
+		if (!(proxy->cap & PR_CAP_FE)) {
+			memprintf(err, "%s will be ignored because %s '%s' has no frontend capability",
+			          args[0], proxy_type_str(proxy), proxy->id);
+			retval = 1;
+		}
+		proxy->clitcpka_idle = tcpka_idle;
+	} else if (!strcmp(args[0], "srvtcpka-idle")) {
+		if (!(proxy->cap & PR_CAP_BE)) {
+			memprintf(err, "%s will be ignored because %s '%s' has no backend capability",
+			          args[0], proxy_type_str(proxy), proxy->id);
+			retval = 1;
+		}
+		proxy->srvtcpka_idle = tcpka_idle;
+	} else {
+		/* unreachable */
+		memprintf(err, "'%s': unknown keyword", args[0]);
+		return -1;
+	}
+
+	return retval;
+}
+
+/* This function parses "{cli|srv}tcpka-intvl" statements */
+static int proxy_parse_tcpka_intvl(char **args, int section, struct proxy *proxy,
+		                   struct proxy *defpx, const char *file, int line,
+                                   char **err)
+{
+	int retval;
+	const char *res;
+	unsigned int tcpka_intvl;
+
+	retval = 0;
+
+	if (*args[1] == 0) {
+		memprintf(err, "'%s' expects an integer value", args[0]);
+		return -1;
+	}
+	res = parse_time_err(args[1], &tcpka_intvl, TIME_UNIT_S);
+	if (res == PARSE_TIME_OVER) {
+		memprintf(err, "timer overflow in argument '%s' to '%s' (maximum value is 2147483647 ms or ~24.8 days)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res == PARSE_TIME_UNDER) {
+		memprintf(err, "timer underflow in argument '%s' to '%s' (minimum non-null value is 1 ms)",
+			  args[1], args[0]);
+		return -1;
+	}
+	else if (res) {
+		memprintf(err, "unexpected character '%c' in argument to <%s>.\n", *res, args[0]);
+		return -1;
+	}
+
+	if (!strcmp(args[0], "clitcpka-intvl")) {
+		if (!(proxy->cap & PR_CAP_FE)) {
+			memprintf(err, "%s will be ignored because %s '%s' has no frontend capability",
+			          args[0], proxy_type_str(proxy), proxy->id);
+			retval = 1;
+		}
+		proxy->clitcpka_intvl = tcpka_intvl;
+	} else if (!strcmp(args[0], "srvtcpka-intvl")) {
+		if (!(proxy->cap & PR_CAP_BE)) {
+			memprintf(err, "%s will be ignored because %s '%s' has no backend capability",
+			          args[0], proxy_type_str(proxy), proxy->id);
+			retval = 1;
+		}
+		proxy->srvtcpka_intvl = tcpka_intvl;
+	} else {
+		/* unreachable */
+		memprintf(err, "'%s': unknown keyword", args[0]);
+		return -1;
+	}
+
+	return retval;
+}
+
 /* This function inserts proxy <px> into the tree of known proxies. The proxy's
  * name is used as the storing key so it must already have been initialized.
  */
@@ -1675,6 +1828,12 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "max-keep-alive-queue", proxy_parse_max_ka_queue },
 	{ CFG_LISTEN, "declare", proxy_parse_declare },
 	{ CFG_LISTEN, "retry-on", proxy_parse_retry_on },
+	{ CFG_LISTEN, "clitcpka-cnt", proxy_parse_tcpka_cnt },
+	{ CFG_LISTEN, "clitcpka-idle", proxy_parse_tcpka_idle },
+	{ CFG_LISTEN, "clitcpka-intvl", proxy_parse_tcpka_intvl },
+	{ CFG_LISTEN, "srvtcpka-cnt", proxy_parse_tcpka_cnt },
+	{ CFG_LISTEN, "srvtcpka-idle", proxy_parse_tcpka_idle },
+	{ CFG_LISTEN, "srvtcpka-intvl", proxy_parse_tcpka_intvl },
 	{ 0, NULL, NULL },
 }};
 

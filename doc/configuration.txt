@@ -2816,6 +2816,9 @@ bind-process                              X          X         X         X
 capture cookie                            -          X         X         -
 capture request header                    -          X         X         -
 capture response header                   -          X         X         -
+clitcpka-cnt                              X          X         X         -
+clitcpka-idle                             X          X         X         -
+clitcpka-intvl                            X          X         X         -
 compression                               X          X         X         X
 cookie                                    X          -         X         X
 declare capture                           -          X         X         -
@@ -2934,6 +2937,9 @@ server                                    -          -         X         X
 server-state-file-name                    X          -         X         X
 server-template                           -          -         X         X
 source                                    X          -         X         X
+srvtcpka-cnt                              X          -         X         X
+srvtcpka-idle                             X          -         X         X
+srvtcpka-intvl                            X          -         X         X
 stats admin                               -          X         X         X
 stats auth                                X          X         X         X
 stats enable                              X          X         X         X
@@ -3570,6 +3576,54 @@ capture response header <name> len <length>
 
   See also : "capture cookie", "capture request header" as well as section 8
              about logging.
+
+
+clitcpka-cnt <count>
+  Sets the maximum number of keepalive probes TCP should send before dropping
+  the connection on the client side.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments :
+    <count>   is the maximum number of keepalive probes.
+
+  This keyword corresponds to the socket option TCP_KEEPCNT. If this keyword
+  is not specified, system-wide TCP parameter (tcp_keepalive_probes) is used.
+
+  See also : "option clitcpka", "clitcpka-idle", "clitcpka-intvl".
+
+
+clitcpka-idle <timeout>
+  Sets the time the connection needs to remain idle before TCP starts sending
+  keepalive probes, if enabled the sending of TCP keepalive packets on the
+  client side.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments :
+    <timeout> is the time the connection needs to remain idle before TCP starts
+              sending keepalive probes. It is specified in seconds by default,
+              but can be in any other unit if the number is suffixed by the
+              unit, as explained at the top of this document.
+
+  This keyword corresponds to the socket option TCP_KEEPIDLE. If this keyword
+  is not specified, system-wide TCP parameter (tcp_keepalive_time) is used.
+
+  See also : "option clitcpka", "clitcpka-cnt", "clitcpka-intvl".
+
+
+clitcpka-intvl <timeout>
+  Sets the time between individual keepalive probes on the client side.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments :
+    <timeout> is the time between individual keepalive probes. It is specified
+              in seconds by default, but can be in any other unit if the number
+              is suffixed by the unit, as explained at the top of this
+              document.
+
+  This keyword corresponds to the socket option TCP_KEEPINTVL. If this keyword
+  is not specified, system-wide TCP parameter (tcp_keepalive_intvl) is used.
+
+  See also : "option clitcpka", "clitcpka-cnt", "clitcpka-idle".
 
 
 compression algo <algorithm> ...
@@ -9405,6 +9459,54 @@ source <addr>[:<port>] [interface <name>]
 
   See also : the "source" server option in section 5, the Tproxy patches for
              the Linux kernel on www.balabit.com, the "bind" keyword.
+
+
+srvtcpka-cnt <count>
+  Sets the maximum number of keepalive probes TCP should send before dropping
+  the connection on the server side.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <count>   is the maximum number of keepalive probes.
+
+  This keyword corresponds to the socket option TCP_KEEPCNT. If this keyword
+  is not specified, system-wide TCP parameter (tcp_keepalive_probes) is used.
+
+  See also : "option srvtcpka", "srvtcpka-idle", "srvtcpka-intvl".
+
+
+srvtcpka-idle <timeout>
+  Sets the time the connection needs to remain idle before TCP starts sending
+  keepalive probes, if enabled the sending of TCP keepalive packets on the
+  server side.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <timeout> is the time the connection needs to remain idle before TCP starts
+              sending keepalive probes. It is specified in seconds by default,
+              but can be in any other unit if the number is suffixed by the
+              unit, as explained at the top of this document.
+
+  This keyword corresponds to the socket option TCP_KEEPIDLE. If this keyword
+  is not specified, system-wide TCP parameter (tcp_keepalive_time) is used.
+
+  See also : "option srvtcpka", "srvtcpka-cnt", "srvtcpka-intvl".
+
+
+srvtcpka-intvl <timeout>
+  Sets the time between individual keepalive probes on the server side.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <timeout> is the time between individual keepalive probes. It is specified
+              in seconds by default, but can be in any other unit if the number
+              is suffixed by the unit, as explained at the top of this
+              document.
+
+  This keyword corresponds to the socket option TCP_KEEPINTVL. If this keyword
+  is not specified, system-wide TCP parameter (tcp_keepalive_intvl) is used.
+
+  See also : "option srvtcpka", "srvtcpka-cnt", "srvtcpka-idle".
 
 
 stats admin { if | unless } <cond>
