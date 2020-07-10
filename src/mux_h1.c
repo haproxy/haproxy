@@ -1456,8 +1456,10 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 			else if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE) {
 				h1c->flags |= H1C_F_IN_BUSY;
 				TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1c->conn, h1s);
+				break;
 			}
-			break;
+			else
+				break;
 		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
 			TRACE_PROTO("parsing tunneled data", H1_EV_RX_DATA, h1c->conn, h1s);
