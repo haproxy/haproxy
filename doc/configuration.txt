@@ -16160,6 +16160,21 @@ srv_sess_rate([<backend>/]<server>) : integer
         acl srv2_full srv_sess_rate(be1/srv2) gt 50
         use_backend be2 if srv1_full or srv2_full
 
+srv_iweight([<backend>/]<server>): integer
+  Returns an integer corresponding to the server's initial weight. If <backend>
+  is omitted, then the server is looked up in the current backend. See also
+  "srv_weight" and "srv_uweight".
+
+srv_uweight([<backend>/]<server>): integer
+  Returns an integer corresponding to the user visible server's weight. If
+  <backend> is omitted, then the server is looked up in the current
+  backend. See also "srv_weight" and "srv_iweight".
+
+srv_weight([<backend>/]<server>): integer
+  Returns an integer corresponding to the current (or effective) server's
+  weight. If <backend> is omitted, then the server is looked up in the current
+  backend. See also "srv_iweight" and "srv_uweight".
+
 stopping : boolean
   Returns TRUE if the process calling the function is currently stopping. This
   can be useful for logging, or for relaxing certain checks or helping close

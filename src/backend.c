@@ -2810,6 +2810,48 @@ smp_fetch_srv_sess_rate(const struct arg *args, struct sample *smp, const char *
 	return 1;
 }
 
+/* set temp integer to the server weight.
+ * Accepts exactly 1 argument. Argument is a server, other types will lead to
+ * undefined behaviour.
+ */
+static int
+smp_fetch_srv_weight(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct server *srv = args->data.srv;
+	struct proxy *px = srv->proxy;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = (srv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv;
+	return 1;
+}
+
+/* set temp integer to the server initial weight.
+ * Accepts exactly 1 argument. Argument is a server, other types will lead to
+ * undefined behaviour.
+ */
+static int
+smp_fetch_srv_iweight(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = args->data.srv->iweight;
+	return 1;
+}
+
+/* set temp integer to the server user-specified weight.
+ * Accepts exactly 1 argument. Argument is a server, other types will lead to
+ * undefined behaviour.
+ */
+static int
+smp_fetch_srv_uweight(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = args->data.srv->uweight;
+	return 1;
+}
+
 static int sample_conv_nbsrv(const struct arg *args, struct sample *smp, void *private)
 {
 
@@ -2881,6 +2923,9 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "srv_name",      smp_fetch_srv_name,       0,           NULL, SMP_T_STR,  SMP_USE_SERVR, },
 	{ "srv_queue",     smp_fetch_srv_queue,      ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "srv_sess_rate", smp_fetch_srv_sess_rate,  ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "srv_weight",    smp_fetch_srv_weight,     ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "srv_iweight",   smp_fetch_srv_iweight,    ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "srv_uweight",   smp_fetch_srv_uweight,    ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ /* END */ },
 }};
 
