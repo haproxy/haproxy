@@ -19,6 +19,7 @@
 #include <haproxy/backend.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/compression.h>
+#include <haproxy/dns.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
@@ -143,7 +144,12 @@ const int promex_global_metrics[INF_TOTAL_FIELDS] = {
 	[INF_ACTIVE_PEERS]                   = INF_CONNECTED_PEERS,
 	[INF_CONNECTED_PEERS]                = INF_DROPPED_LOGS,
 	[INF_DROPPED_LOGS]                   = INF_BUSY_POLLING,
-	[INF_BUSY_POLLING]                   = 0,
+	[INF_BUSY_POLLING]                   = INF_FAILED_RESOLUTIONS,
+	[INF_FAILED_RESOLUTIONS]             = INF_TOTAL_BYTES_OUT,
+	[INF_TOTAL_BYTES_OUT]                = INF_TOTAL_SPLICED_BYTES_OUT,
+	[INF_TOTAL_SPLICED_BYTES_OUT]        = INF_BYTES_OUT_RATE,
+	[INF_BYTES_OUT_RATE]                 = 0,
+	[INF_DEBUG_COMMANDS_ISSUED]          = 0,
 };
 
 /* Matrix used to dump frontend metrics. Each metric points to the next one to be
@@ -244,6 +250,10 @@ const int promex_front_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_RT_MAX]         = 0,
 	[ST_F_TT_MAX]         = 0,
 	[ST_F_EINT]           = ST_F_REQ_RATE_MAX,
+	[ST_F_IDLE_CONN_CUR]  = 0,
+	[ST_F_SAFE_CONN_CUR]  = 0,
+	[ST_F_USED_CONN_CUR]  = 0,
+	[ST_F_NEED_CONN_EST]  = 0,
 };
 
 /* Matrix used to dump backend metrics. Each metric points to the next one to be
@@ -344,6 +354,10 @@ const int promex_back_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_RT_MAX]         = ST_F_TT_MAX,
 	[ST_F_TT_MAX]         = ST_F_DREQ,
 	[ST_F_EINT]           = ST_F_CLI_ABRT,
+	[ST_F_IDLE_CONN_CUR]  = 0,
+	[ST_F_SAFE_CONN_CUR]  = 0,
+	[ST_F_USED_CONN_CUR]  = 0,
+	[ST_F_NEED_CONN_EST]  = 0,
 };
 
 /* Matrix used to dump server metrics. Each metric points to the next one to be
@@ -438,12 +452,16 @@ const int promex_srv_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CACHE_LOOKUPS]  = 0,
 	[ST_F_CACHE_HITS]     = 0,
 	[ST_F_SRV_ICUR]       = ST_F_SRV_ILIM,
-	[ST_F_SRV_ILIM]       = 0,
+	[ST_F_SRV_ILIM]       = ST_F_IDLE_CONN_CUR,
 	[ST_F_QT_MAX]         = ST_F_CT_MAX,
 	[ST_F_CT_MAX]         = ST_F_RT_MAX,
 	[ST_F_RT_MAX]         = ST_F_TT_MAX,
 	[ST_F_TT_MAX]         = ST_F_CONNECT,
 	[ST_F_EINT]           = ST_F_CLI_ABRT,
+	[ST_F_IDLE_CONN_CUR]  = ST_F_SAFE_CONN_CUR,
+	[ST_F_SAFE_CONN_CUR]  = ST_F_USED_CONN_CUR,
+	[ST_F_USED_CONN_CUR]  = ST_F_NEED_CONN_EST,
+	[ST_F_NEED_CONN_EST]  = 0,
 };
 
 /* Name of all info fields */
@@ -508,6 +526,11 @@ const struct ist promex_inf_metric_names[INF_TOTAL_FIELDS] = {
 	[INF_CONNECTED_PEERS]                = IST("connected_peers"),
 	[INF_DROPPED_LOGS]                   = IST("dropped_logs_total"),
 	[INF_BUSY_POLLING]                   = IST("busy_polling_enabled"),
+	[INF_FAILED_RESOLUTIONS]             = IST("failed_resolutions"),
+	[INF_TOTAL_BYTES_OUT]                = IST("bytes_out_total"),
+	[INF_TOTAL_SPLICED_BYTES_OUT]        = IST("spliced_bytes_out_total"),
+	[INF_BYTES_OUT_RATE]                 = IST("bytes_out_rate"),
+	[INF_DEBUG_COMMANDS_ISSUED]          = IST("debug_commands_issued"),
 };
 
 /* Name of all stats fields */
@@ -600,13 +623,17 @@ const struct ist promex_st_metric_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = IST("connection_reuses_total"),
 	[ST_F_CACHE_LOOKUPS]  = IST("http_cache_lookups_total"),
 	[ST_F_CACHE_HITS]     = IST("http_cache_hits_total"),
-	[ST_F_SRV_ICUR]       = IST("server_idle_connections_current"),
-	[ST_F_SRV_ILIM]       = IST("server_idle_connections_limit"),
+	[ST_F_SRV_ICUR]       = IST("idle_connections_current"),
+	[ST_F_SRV_ILIM]       = IST("idle_connections_limit"),
 	[ST_F_QT_MAX]         = IST("max_queue_time_seconds"),
 	[ST_F_CT_MAX]         = IST("max_connect_time_seconds"),
 	[ST_F_RT_MAX]         = IST("max_response_time_seconds"),
 	[ST_F_TT_MAX]         = IST("max_total_time_seconds"),
 	[ST_F_EINT]           = IST("internal_errors_total"),
+	[ST_F_IDLE_CONN_CUR]  = IST("unsafe_idle_connections_current"),
+	[ST_F_SAFE_CONN_CUR]  = IST("safe_idle_connections_current"),
+	[ST_F_USED_CONN_CUR]  = IST("used_connections_current"),
+	[ST_F_NEED_CONN_EST]  = IST("need_connections_current"),
 };
 
 /* Description of all info fields */
@@ -671,6 +698,11 @@ const struct ist promex_inf_metric_desc[INF_TOTAL_FIELDS] = {
 	[INF_CONNECTED_PEERS]                = IST("Current number of connected peers."),
 	[INF_DROPPED_LOGS]                   = IST("Total number of dropped logs."),
 	[INF_BUSY_POLLING]                   = IST("Non zero if the busy polling is enabled."),
+	[INF_FAILED_RESOLUTIONS]             = IST("Total number of failed DNS resolutions."),
+	[INF_TOTAL_BYTES_OUT]                = IST("Total number of bytes emitted."),
+	[INF_TOTAL_SPLICED_BYTES_OUT]        = IST("Total number of bytes emitted through a kernel pipe."),
+	[INF_BYTES_OUT_RATE]                 = IST("Number of bytes emitted over the last elapsed second."),
+	[INF_DEBUG_COMMANDS_ISSUED]          = IST("Number of debug commands issued on this process (anything > 0 is unsafe)."),
 };
 
 /* Description of all stats fields */
@@ -770,6 +802,10 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_RT_MAX]         = IST("Maximum observed time spent waiting for a server response"),
 	[ST_F_TT_MAX]         = IST("Maximum observed total request+response time (request+queue+connect+response+processing)"),
 	[ST_F_EINT]           = IST("Total number of internal errors."),
+	[ST_F_IDLE_CONN_CUR]  = IST("Current number of unsafe idle connections."),
+	[ST_F_SAFE_CONN_CUR]  = IST("Current number of safe idle connections."),
+	[ST_F_USED_CONN_CUR]  = IST("Current number of connections in use."),
+	[ST_F_NEED_CONN_EST]  = IST("Estimated needed number of connections."),
 };
 
 /* Specific labels for all info fields. Empty by default. */
@@ -834,6 +870,11 @@ const struct ist promex_inf_metric_labels[INF_TOTAL_FIELDS] = {
 	[INF_CONNECTED_PEERS]                = IST(""),
 	[INF_DROPPED_LOGS]                   = IST(""),
 	[INF_BUSY_POLLING]                   = IST(""),
+	[INF_FAILED_RESOLUTIONS]             = IST(""),
+	[INF_TOTAL_BYTES_OUT]                = IST(""),
+	[INF_TOTAL_SPLICED_BYTES_OUT]        = IST(""),
+	[INF_BYTES_OUT_RATE]                 = IST(""),
+	[INF_DEBUG_COMMANDS_ISSUED]          = IST(""),
 };
 
 /* Specific labels for all stats fields. Empty by default. */
@@ -926,6 +967,10 @@ const struct ist promex_st_metric_labels[ST_F_TOTAL_FIELDS] = {
 	[ST_F_REUSE]          = IST(""),
 	[ST_F_CACHE_LOOKUPS]  = IST(""),
 	[ST_F_CACHE_HITS]     = IST(""),
+	[ST_F_IDLE_CONN_CUR]  = IST(""),
+	[ST_F_SAFE_CONN_CUR]  = IST(""),
+	[ST_F_USED_CONN_CUR]  = IST(""),
+	[ST_F_NEED_CONN_EST]  = IST(""),
 };
 
 /* Type for all info fields. "untyped" is used for unsupported field. */
@@ -990,6 +1035,11 @@ const struct ist promex_inf_metric_types[INF_TOTAL_FIELDS] = {
 	[INF_CONNECTED_PEERS]                = IST("gauge"),
 	[INF_DROPPED_LOGS]                   = IST("counter"),
 	[INF_BUSY_POLLING]                   = IST("gauge"),
+	[INF_FAILED_RESOLUTIONS]             = IST("counter"),
+	[INF_TOTAL_BYTES_OUT]                = IST("counter"),
+	[INF_TOTAL_SPLICED_BYTES_OUT]        = IST("counter"),
+	[INF_BYTES_OUT_RATE]                 = IST("gauge"),
+	[INF_DEBUG_COMMANDS_ISSUED]          = IST(""),
 };
 
 /* Type for all stats fields. "untyped" is used for unsupported field. */
@@ -1089,6 +1139,10 @@ const struct ist promex_st_metric_types[ST_F_TOTAL_FIELDS] = {
 	[ST_F_RT_MAX]         = IST("gauge"),
 	[ST_F_TT_MAX]         = IST("gauge"),
 	[ST_F_EINT]           = IST("counter"),
+	[ST_F_IDLE_CONN_CUR]  = IST("gauge"),
+	[ST_F_SAFE_CONN_CUR]  = IST("gauge"),
+	[ST_F_USED_CONN_CUR]  = IST("gauge"),
+	[ST_F_NEED_CONN_EST]  = IST("gauge"),
 };
 
 /* Return the server status: 0=DOWN, 1=UP, 2=MAINT, 3=DRAIN, 4=NOLB. */
@@ -1437,6 +1491,18 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 				break;
 			case INF_BUSY_POLLING:
 				metric = mkf_u32(0, !!(global.tune.options & GTUNE_BUSY_POLLING));
+				break;
+			case INF_FAILED_RESOLUTIONS:
+				metric = mkf_u32(0, dns_failed_resolutions);
+				break;
+			case INF_TOTAL_BYTES_OUT:
+				metric = mkf_u64(0, global.out_bytes);
+				break;
+			case INF_TOTAL_SPLICED_BYTES_OUT:
+				metric = mkf_u64(0, global.spliced_out_bytes);
+				break;
+			case INF_BYTES_OUT_RATE:
+				metric = mkf_u64(FN_RATE, (unsigned long long)read_freq_ctr(&global.out_32bps) * 32);
 				break;
 
 			default:
@@ -2104,6 +2170,18 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						break;
 					case ST_F_SRV_ILIM:
 						metric = mkf_u32(FO_CONFIG|FN_LIMIT, (sv->max_idle_conns == -1) ? 0 : sv->max_idle_conns);
+						break;
+					case ST_F_IDLE_CONN_CUR:
+						metric = mkf_u32(0, sv->curr_idle_nb);
+						break;
+					case ST_F_SAFE_CONN_CUR:
+						metric = mkf_u32(0, sv->curr_safe_nb);
+						break;
+					case ST_F_USED_CONN_CUR:
+						metric = mkf_u32(0, sv->curr_used_conns);
+						break;
+					case ST_F_NEED_CONN_EST:
+						metric = mkf_u32(0, sv->est_need_conns);
 						break;
 
 					default:

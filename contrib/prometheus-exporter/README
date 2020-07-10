@@ -143,6 +143,10 @@ Exported metrics
 | haproxy_process_connected_peers                | Current number of connected peers.                                            |
 | haproxy_process_dropped_logs_total             | Total number of dropped logs.                                                 |
 | haproxy_process_busy_polling_enabled           | Non zero if the busy polling is enabled.                                      |
+| haproxy_process_failed_resolutions             | Total number of failed DNS resolutions.                                       |
+| haproxy_process_bytes_out_total                | Total number of bytes emitted.                                                |
+| haproxy_process_spliced_bytes_out_total        | Total number of bytes emitted through a kernel pipe.                          |
+| haproxy_process_bytes_out_rate                 | Number of bytes emitted over the last elapsed second.                         |
 +------------------------------------------------+-------------------------------------------------------------------------------+
 
 * Frontend metrics
@@ -283,6 +287,10 @@ Exported metrics
 | haproxy_server_idle_connections_current            | Current number of idle connections available for reuse.                   |
 | haproxy_server_idle_connections_limit              | Limit on the number of available idle connections.                        |
 | haproxy_server_internal_errors_total               | Total number of internal errors.                                          |
+| haproxy_server_unsafe_idle_connections_current     | Current number of unsafe idle connections.                                |
+| haproxy_server_safe_idle_connections_current       | Current number of safe idle connections.                                  |
+| haproxy_server_used_connections_current            | Current number of connections in use.                                     |
+| haproxy_server_need_connections_current            | Estimated needed number of connections.                                   |
 +----------------------------------------------------+---------------------------------------------------------------------------+
 
 Mapping of health check status :
