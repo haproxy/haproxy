@@ -109,6 +109,7 @@ struct global {
 	struct freq_ctr comp_bps_out;	/* bytes per second, after http compression */
 	struct freq_ctr out_32bps;      /* #of 32-byte blocks emitted per second */
 	unsigned long long out_bytes;   /* total #of bytes emitted */
+	unsigned long long spliced_out_bytes; /* total #of bytes emitted though a kernel pipe */
 	int cps_lim, cps_max;
 	int sps_lim, sps_max;
 	int ssl_lim, ssl_max;
