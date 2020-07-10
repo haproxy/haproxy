@@ -1345,7 +1345,7 @@ int connect_server(struct stream *s)
 				if (tokill_conn) {
 					/* We got one, put it into the concerned thread's to kill list, and wake it's kill task */
 
-					MT_LIST_ADDQ(&idle_conns[i].toremove_conns,
+					MT_LIST_TRY_ADDQ(&idle_conns[i].toremove_conns,
 					    (struct mt_list *)&tokill_conn->list);
 					task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
 					HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);

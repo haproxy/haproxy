@@ -273,11 +273,11 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 		conn->idle_time = now_ms;
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
-			MT_LIST_ADDQ(&srv->safe_conns[tid], (struct mt_list *)&conn->list);
+			MT_LIST_TRY_ADDQ(&srv->safe_conns[tid], (struct mt_list *)&conn->list);
 			_HA_ATOMIC_ADD(&srv->curr_safe_nb, 1);
 		} else {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_IDLE_LIST;
-			MT_LIST_ADDQ(&srv->idle_conns[tid], (struct mt_list *)&conn->list);
+			MT_LIST_TRY_ADDQ(&srv->idle_conns[tid], (struct mt_list *)&conn->list);
 			_HA_ATOMIC_ADD(&srv->curr_idle_nb, 1);
 		}
 		_HA_ATOMIC_ADD(&srv->curr_idle_thr[tid], 1);

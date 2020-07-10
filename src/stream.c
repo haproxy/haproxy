@@ -728,7 +728,7 @@ static int stream_alloc_work_buffer(struct stream *s)
 	if (b_alloc_margin(&s->res.buf, 0))
 		return 1;
 
-	MT_LIST_ADDQ(&buffer_wq, &s->buffer_wait.list);
+	MT_LIST_TRY_ADDQ(&buffer_wq, &s->buffer_wait.list);
 	return 0;
 }
 

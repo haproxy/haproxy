@@ -5207,7 +5207,7 @@ static int srv_migrate_conns_to_remove(struct mt_list *idle_list, struct mt_list
 		if (toremove_nb != -1 && i >= toremove_nb)
 			break;
 		MT_LIST_DEL_SAFE_NOINIT(elt1);
-		MT_LIST_ADDQ_NOCHECK(toremove_list, &conn->list);
+		MT_LIST_ADDQ(toremove_list, &conn->list);
 		i++;
 	}
 	return i;

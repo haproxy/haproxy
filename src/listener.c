@@ -424,7 +424,7 @@ static void limit_listener(struct listener *l, struct mt_list *list)
 {
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 	if (l->state == LI_READY) {
-		MT_LIST_ADDQ(list, &l->wait_queue);
+		MT_LIST_TRY_ADDQ(list, &l->wait_queue);
 		fd_stop_recv(l->fd);
 		l->state = LI_LIMITED;
 	}

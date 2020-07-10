@@ -416,7 +416,7 @@ static inline struct buffer *h1_get_buf(struct h1c *h1c, struct buffer *bptr)
 	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
 		h1c->buf_wait.target = h1c;
 		h1c->buf_wait.wakeup_cb = h1_buf_available;
-		MT_LIST_ADDQ(&buffer_wq, &h1c->buf_wait.list);
+		MT_LIST_TRY_ADDQ(&buffer_wq, &h1c->buf_wait.list);
 	}
 	return buf;
 }
@@ -2265,9 +2265,9 @@ static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 		struct server *srv = objt_server(conn->target);
 
 		if (conn_in_list == CO_FL_SAFE_LIST)
-			MT_LIST_ADDQ(&srv->safe_conns[tid], &conn->list);
+			MT_LIST_TRY_ADDQ(&srv->safe_conns[tid], &conn->list);
 		else
-			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
+			MT_LIST_TRY_ADDQ(&srv->idle_conns[tid], &conn->list);
 	}
 	return NULL;
 }

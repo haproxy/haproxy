@@ -33,12 +33,12 @@ void *thread(void *pouet)
 		case 0:
 			lol = malloc(sizeof(*lol));
 			MT_LIST_INIT(&lol->list_elt);
-			MT_LIST_ADD(&pouet_list, &lol->list_elt);
+			MT_LIST_TRY_ADD(&pouet_list, &lol->list_elt);
 			break;
 		case 1:
 			lol = malloc(sizeof(*lol));
 			MT_LIST_INIT(&lol->list_elt);
-			MT_LIST_ADDQ(&pouet_list, &lol->list_elt);
+			MT_LIST_TRY_ADDQ(&pouet_list, &lol->list_elt);
 			break;
 
 		case 2:

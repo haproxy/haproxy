@@ -225,7 +225,7 @@
  * Returns 1 if we added the item, 0 otherwise (because it was already in a
  * list).
  */
-#define MT_LIST_ADD(_lh, _el)                                              \
+#define MT_LIST_TRY_ADD(_lh, _el)                                              \
      ({                                                                    \
         int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
@@ -265,7 +265,7 @@
  * Returns 1 if we added the item, 0 otherwise (because it was already in a
  * list).
  */
-#define MT_LIST_ADDQ(_lh, _el)                                             \
+#define MT_LIST_TRY_ADDQ(_lh, _el)                                             \
     ({                                                                     \
 	int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
@@ -301,10 +301,43 @@
     })
 
 /*
+ * Add an item at the beginning of a list.
+ * It is assumed the element can't already be in a list, so it isn't checked.
+ */
+#define MT_LIST_ADD(_lh, _el)                                              \
+     ({                                                                    \
+        int _ret = 0;                                                      \
+	struct mt_list *lh = (_lh), *el = (_el);                           \
+	while (1) {                                                        \
+		struct mt_list *n;                                         \
+		struct mt_list *p;                                         \
+		n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);            \
+		if (n == MT_LIST_BUSY)                                     \
+		        continue;                                          \
+		p = _HA_ATOMIC_XCHG(&n->prev, MT_LIST_BUSY);               \
+		if (p == MT_LIST_BUSY) {                                   \
+			(lh)->next = n;                                    \
+			__ha_barrier_store();                              \
+			continue;                                          \
+		}                                                          \
+		(el)->next = n;                                            \
+		(el)->prev = p;                                            \
+		__ha_barrier_store();                                      \
+		n->prev = (el);                                            \
+		__ha_barrier_store();                                      \
+		p->next = (el);                                            \
+		__ha_barrier_store();                                      \
+		_ret = 1;                                                  \
+		break;                                                     \
+	}                                                                  \
+	(_ret);                                                            \
+     })
+
+/*
  * Add an item at the end of a list.
  * It is assumed the element can't already be in a list, so it isn't checked
  */
-#define MT_LIST_ADDQ_NOCHECK(_lh, _el)                                     \
+#define MT_LIST_ADDQ(_lh, _el)                                     \
     ({                                                                     \
 	int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
@@ -336,7 +369,7 @@
 /*
  * Detach a list from its head. A pointer to the first element is returned
  * and the list is closed. If the list was empty, NULL is returned. This may
- * exclusively be used with lists modified by MT_LIST_ADD/MT_LIST_ADDQ. This
+ * exclusively be used with lists modified by MT_LIST_TRY_ADD/MT_LIST_TRY_ADDQ. This
  * is incompatible with MT_LIST_DEL run concurrently.
  * If there's at least one element, the next of the last element will always
  * be NULL.

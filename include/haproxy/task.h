@@ -352,7 +352,7 @@ static inline void tasklet_wakeup_on(struct tasklet *tl, int thr)
 		}
 	} else {
 		/* this tasklet runs on a specific thread */
-		if (MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list, (struct mt_list *)&tl->list) == 1) {
+		if (MT_LIST_TRY_ADDQ(&task_per_thread[thr].shared_tasklet_list, (struct mt_list *)&tl->list) == 1) {
 			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 			if (sleeping_thread_mask & (1UL << thr)) {
 				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
@@ -652,7 +652,7 @@ static inline int notification_registered(struct list *wake)
 /* adds list item <item> to work list <work> and wake up the associated task */
 static inline void work_list_add(struct work_list *work, struct mt_list *item)
 {
-	MT_LIST_ADDQ(&work->head, item);
+	MT_LIST_TRY_ADDQ(&work->head, item);
 	task_wakeup(work->task, TASK_WOKEN_OTHER);
 }
 
