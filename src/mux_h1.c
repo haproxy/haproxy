@@ -2265,9 +2265,9 @@ static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 		struct server *srv = objt_server(conn->target);
 
 		if (conn_in_list == CO_FL_SAFE_LIST)
-			MT_LIST_TRY_ADDQ(&srv->safe_conns[tid], &conn->list);
+			MT_LIST_ADDQ(&srv->safe_conns[tid], &conn->list);
 		else
-			MT_LIST_TRY_ADDQ(&srv->idle_conns[tid], &conn->list);
+			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
 	}
 	return NULL;
 }
