@@ -63,8 +63,9 @@ da_atlas_compile(void *ctx, da_read_fn readfn, da_setpos_fn rewind, void **ptr, 
 da_status_t
 da_atlas_open(da_atlas_t *atlas, da_property_decl_t *extraprops, const void *ptr, size_t len)
 {
-    ptr = malloc(len);
-    return ptr ? DA_OK : DA_NOMEM;
+    void *ptr2 = malloc(len);
+    free(ptr2);
+    return ptr2 ? DA_OK : DA_NOMEM;
 }
 
 void
