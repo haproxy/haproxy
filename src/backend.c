@@ -1360,9 +1360,11 @@ int connect_server(struct stream *s)
 		srv_conn = conn_new(s->target);
 		srv_cs = NULL;
 
-		srv_conn->owner = s->sess;
-		if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
-			conn_set_private(srv_conn);
+		if (srv_conn) {
+			srv_conn->owner = s->sess;
+			if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
+				conn_set_private(srv_conn);
+		}
 	}
 
 	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst)) {
