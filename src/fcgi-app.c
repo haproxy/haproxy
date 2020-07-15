@@ -448,8 +448,10 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 
 		b_reset(value);
 		value->data = build_logline(s, value->area, value->size, param_rule->value);
-		if (!value->data)
+		if (!value->data) {
+			pool_free(pool_head_fcgi_param_rule, param_rule);
 			continue;
+		}
 		if (!http_add_header(htx, param_rule->name, ist2(value->area, value->data)))
 			goto rewrite_err;
 		pool_free(pool_head_fcgi_param_rule, param_rule);
