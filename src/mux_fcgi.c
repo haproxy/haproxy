@@ -2355,7 +2355,7 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	dbuf = &fconn->dbuf;
 
 	/* Only padding remains */
-	if (fconn->state == FCGI_CS_RECORD_P)
+	if (fconn->state == FCGI_CS_RECORD_P || !fconn->drl)
 		goto end_transfer;
 
 	if (b_data(dbuf) < (fconn->drl + fconn->drp) &&
