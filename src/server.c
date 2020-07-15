@@ -3268,6 +3268,11 @@ void apply_server_state(void)
 	}
  out_load_server_state_in_tree:
 
+	if (f) {
+		fclose(f);
+		f = NULL;
+	}
+
 	/* parse all proxies and load states form tree (global file) or from local file */
 	for (curproxy = proxies_list; curproxy != NULL; curproxy = curproxy->next) {
 		/* servers are only in backends */
@@ -3447,9 +3452,11 @@ void apply_server_state(void)
 				/* now we can proceed with server's state update */
 				srv_update_state(srv, version, srv_params);
 			}
+
+			fileclose:
+				fclose(f);
+
 		}
-fileclose:
-		fclose(f);
 	}
 
 	/* now free memory allocated for the tree */
