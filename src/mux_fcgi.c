@@ -2336,7 +2336,7 @@ static int fcgi_strm_handle_empty_stdout(struct fcgi_conn *fconn, struct fcgi_st
 		return 0;
 	}
 	fconn->state = FCGI_CS_RECORD_H;
-	fstrm->state |= FCGI_SF_ES_RCVD;
+	fstrm->flags |= FCGI_SF_ES_RCVD;
 	TRACE_PROTO("FCGI STDOUT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm,, (size_t[]){0});
 	TRACE_STATE("stdout data fully send, switching to RECORD_H", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_EOI, fconn->conn, fstrm);
 	TRACE_LEAVE(FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm);
