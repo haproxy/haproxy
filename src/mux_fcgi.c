@@ -2295,6 +2295,7 @@ static int fcgi_strm_handle_stdout(struct fcgi_conn *fconn, struct fcgi_strm *fs
 		goto fail;
 
   end_transfer:
+	fconn->state = FCGI_CS_RECORD_P;
 	fconn->drl += fconn->drp;
 	fconn->drp = 0;
 	ret = MIN(b_data(&fconn->dbuf), fconn->drl);
@@ -2379,6 +2380,7 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 		goto fail;
 
   end_transfer:
+	fconn->state = FCGI_CS_RECORD_P;
 	fconn->drl += fconn->drp;
 	fconn->drp = 0;
 	ret = MIN(b_data(&fconn->dbuf), fconn->drl);
