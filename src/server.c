@@ -3162,7 +3162,7 @@ void apply_server_state(void)
 	struct state_line *st;
 	struct ebmb_node *node, *next_node;
 
-
+	f = NULL;
 	global_file_version = 0;
 	globalfilepathlen = 0;
 	/* create the globalfilepath variable */
