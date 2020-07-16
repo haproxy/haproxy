@@ -259,7 +259,7 @@ int co_getblk(const struct channel *chn, char *blk, int len, int offset)
 int co_getblk_nc(const struct channel *chn, const char **blk1, size_t *len1, const char **blk2, size_t *len2)
 {
 	if (unlikely(co_data(chn) == 0)) {
-		if (chn->flags & CF_SHUTW)
+		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW))
 			return -1;
 		return 0;
 	}
@@ -301,7 +301,7 @@ int co_getline_nc(const struct channel *chn,
 		}
 	}
 
-	if (chn->flags & CF_SHUTW) {
+	if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
 		/* If we have found no LF and the buffer is shut, then
 		 * the resulting string is made of the concatenation of
 		 * the pending blocks (1 or 2).
