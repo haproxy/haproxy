@@ -3590,7 +3590,7 @@ out_uri_auth_compat:
 					}
 				}
 
-				newsrv->idle_conns = calloc(global.nbthread, sizeof(*newsrv->idle_conns));
+				newsrv->idle_conns = calloc((unsigned short)global.nbthread, sizeof(*newsrv->idle_conns));
 				if (!newsrv->idle_conns) {
 					ha_alert("parsing [%s:%d] : failed to allocate idle connections for server '%s'.\n",
 					    newsrv->conf.file, newsrv->conf.line, newsrv->id);
