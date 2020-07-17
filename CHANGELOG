@@ -1,6 +1,68 @@
 ChangeLog :
 ===========
 
+2020/07/17 : 2.3-dev1
+    - MINOR: config: make strict limits enabled by default
+    - BUG/MINOR: acl: Fix freeing of expr->smp in prune_acl_expr
+    - BUG/MINOR: sample: Fix freeing of conv_exprs in release_sample_expr
+    - BUG/MINOR: haproxy: Free proxy->format_unique_id during deinit
+    - BUG/MINOR: haproxy: Add missing free of server->(hostname|resolvers_id)
+    - BUG/MINOR: haproxy: Free proxy->unique_id_header during deinit
+    - BUG/MINOR: haproxy: Free srule->file during deinit
+    - BUG/MINOR: haproxy: Free srule->expr during deinit
+    - BUG/MINOR: sample: Free str.area in smp_check_const_bool
+    - BUG/MINOR: sample: Free str.area in smp_check_const_meth
+    - CLEANUP: haproxy: Free proxy_deinit_list in deinit()
+    - CLEANUP: haproxy: Free post_deinit_list in deinit()
+    - CLEANUP: haproxy: Free server_deinit_list in deinit()
+    - CLEANUP: haproxy: Free post_server_check_list in deinit()
+    - CLEANUP: Add static void vars_deinit()
+    - CLEANUP: Add static void hlua_deinit()
+    - CLEANUP: contrib/prometheus-exporter: typo fixes for ssl reuse metric
+    - BUG/MEDIUM: lists: add missing store barrier on MT_LIST_BEHEAD()
+    - BUG/MEDIUM: lists: add missing store barrier in MT_LIST_ADD/MT_LIST_ADDQ
+    - MINOR: tcp: Support TCP keepalive parameters customization
+    - BUILD: tcp: condition TCP keepalive settings to platforms providing them
+    - MINOR: lists: rename some MT_LIST operations to clarify them
+    - MINOR: buffer: use MT_LIST_ADDQ() for buffer_wait lists additions
+    - MINOR: connection: use MT_LIST_ADDQ() to add connections to idle lists
+    - MINOR: tasks: use MT_LIST_ADDQ() when killing tasks.
+    - CONTRIB: da: fix memory leak in dummy function da_atlas_open()
+    - CI: travis-ci: speed up osx build by running brew scripted, switch to latest osx image
+    - BUG/MEDIUM: mux-h2: Don't add private connections in available connection list
+    - BUG/MEDIUM: mux-fcgi: Don't add private connections in available connection list
+    - MINOR: connection: Set the SNI on server connections before installing the mux
+    - MINOR: connection: Set new connection as private on reuse never
+    - MINOR: connection: Add a wrapper to mark a connection as private
+    - MEDIUM: connection: Add private connections synchronously in session server list
+    - MINOR: connection: Use a dedicated function to look for a session's connection
+    - MINOR: connection: Set the conncetion target during its initialisation
+    - MINOR: session: Take care to decrement idle_conns counter in session_unown_conn
+    - MINOR: server: Factorize code to deal with reuse of server idle connections
+    - MINOR: server: Factorize code to deal with connections removed from an idle list
+    - CLEANUP: connection: remove unused field idle_time from the connection struct
+    - BUG/MEDIUM: mux-h1: Continue to process request when switching in tunnel mode
+    - MINOR: raw_sock: Report the number of bytes emitted using the splicing
+    - MINOR: contrib/prometheus-exporter: Add missing global and per-server metrics
+    - MINOR: backend: Add sample fetches to get the server's weight
+    - BUG/MINOR: mux-fcgi: Handle empty STDERR record
+    - BUG/MINOR: mux-fcgi: Set conn state to RECORD_P when skipping the record padding
+    - BUG/MINOR: mux-fcgi: Set flags on the right stream field for empty FCGI_STDOUT
+    - BUG/MINOR: backend: fix potential null deref on srv_conn
+    - BUG/MEDIUM: log: issue mixing sampled to not sampled log servers.
+    - MEDIUM: udp: adds minimal proto udp support for message listeners.
+    - MEDIUM: log/sink: re-work and merge of build message API.
+    - MINOR: log: adds syslog udp message handler and parsing.
+    - MEDIUM: log: adds log forwarding section.
+    - MINOR: log: adds counters on received syslog messages.
+    - BUG/MEDIUM: fcgi-app: fix memory leak in fcgi_flt_http_headers
+    - BUG/MEDIUM: server: resolve state file handle leak on reload
+    - BUG/MEDIUM: server: fix possibly uninitialized state file on close
+    - BUG/MEDIUM: channel: Be aware of SHUTW_NOW flag when output data are peeked
+    - BUILD: config: address build warning on raspbian+rpi4
+    - BUG/MAJOR: tasks: make sure to always lock the shared wait queue if needed
+    - BUILD: config: fix again bugs gcc warnings on calloc
+
 2020/07/07 : 2.3-dev0
     - [RELEASE] Released version 2.3-dev0
     - MINOR: version: back to development, update status message
