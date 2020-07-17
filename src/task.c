@@ -476,8 +476,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		else if (!(state & TASK_KILLED) && process != NULL)
 			t = process(t, ctx, state);
 		else {
-			if (task_in_wq(t))
-				__task_unlink_wq(t);
+			task_unlink_wq(t);
 			__task_free(t);
 			sched->current = NULL;
 			__ha_barrier_store();
@@ -500,8 +499,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 			state = _HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
 			if (unlikely(state & TASK_KILLED)) {
-				if (task_in_wq(t))
-					__task_unlink_wq(t);
+				task_unlink_wq(t);
 				__task_free(t);
 			}
 			else if (state & TASK_WOKEN_ANY)
