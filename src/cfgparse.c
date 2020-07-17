@@ -3558,7 +3558,7 @@ out_uri_auth_compat:
 		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
 			int i;
 
-			newsrv->available_conns = calloc((unsigned)global.nbthread, sizeof(*newsrv->available_conns));
+			newsrv->available_conns = calloc(global.nbthread, sizeof(*newsrv->available_conns));
 
 			if (!newsrv->available_conns) {
 				ha_alert("parsing [%s:%d] : failed to allocate idle connections for server '%s'.\n",
@@ -3590,7 +3590,7 @@ out_uri_auth_compat:
 					}
 				}
 
-				newsrv->idle_conns = calloc((unsigned)global.nbthread, sizeof(*newsrv->idle_conns));
+				newsrv->idle_conns = calloc(global.nbthread, sizeof(*newsrv->idle_conns));
 				if (!newsrv->idle_conns) {
 					ha_alert("parsing [%s:%d] : failed to allocate idle connections for server '%s'.\n",
 					    newsrv->conf.file, newsrv->conf.line, newsrv->id);
@@ -3601,7 +3601,7 @@ out_uri_auth_compat:
 				for (i = 0; i < global.nbthread; i++)
 					MT_LIST_INIT(&newsrv->idle_conns[i]);
 
-				newsrv->safe_conns = calloc((unsigned)global.nbthread, sizeof(*newsrv->safe_conns));
+				newsrv->safe_conns = calloc(global.nbthread, sizeof(*newsrv->safe_conns));
 				if (!newsrv->safe_conns) {
 					ha_alert("parsing [%s:%d] : failed to allocate idle connections for server '%s'.\n",
 					    newsrv->conf.file, newsrv->conf.line, newsrv->id);
