@@ -395,6 +395,14 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	return -1;
 
  empty_err:
+	/* If we've only got an empty set of parenthesis with nothing
+	 * in between, there is no arg at all.
+	 */
+	if (!pos) {
+		free(*argp);
+		*argp = NULL;
+	}
+
 	if (pos >= min_arg)
 		goto end_parse;
 
