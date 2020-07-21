@@ -1937,7 +1937,8 @@ static int server_template_init(struct server *srv, struct proxy *px)
 	return i - srv->tmpl_info.nb_low;
 }
 
-int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy, int parse_addr, int in_peers_section)
+int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy,
+                 struct proxy *defproxy, int parse_addr, int in_peers_section, int initial_resolve)
 {
 	struct server *newsrv = NULL;
 	const char *err = NULL;
@@ -2053,7 +2054,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			if (!parse_addr)
 				goto skip_addr;
 
-			sk = str2sa_range(args[cur_arg], &port, &port1, &port2, &errmsg, NULL, &fqdn, 0);
+			sk = str2sa_range(args[cur_arg], &port, &port1, &port2, &errmsg, NULL, &fqdn, initial_resolve);
 			if (!sk) {
 				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;

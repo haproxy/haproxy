@@ -802,7 +802,7 @@ int cfg_parse_ring(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (strcmp(args[0],"server") == 0) {
-		err_code |= parse_server(file, linenum, args, cfg_sink->forward_px, NULL, 1, 0);
+		err_code |= parse_server(file, linenum, args, cfg_sink->forward_px, NULL, 1, 0, 1);
 	}
 	else if (strcmp(args[0],"timeout") == 0) {
 		if (!cfg_sink || !cfg_sink->forward_px) {

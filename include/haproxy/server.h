@@ -43,7 +43,7 @@ extern struct dict server_name_dict;
 int srv_downtime(const struct server *s);
 int srv_lastsession(const struct server *s);
 int srv_getinter(const struct check *check);
-int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy, int parse_addr, int in_peers_section);
+int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy, int parse_addr, int in_peers_section, int initial_resolve);
 int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char *updater);
 const char *update_server_addr_port(struct server *s, const char *addr, const char *port, char *updater);
 struct server *server_find_by_id(struct proxy *bk, int id);
