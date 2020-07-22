@@ -473,6 +473,7 @@ static inline void __task_free(struct task *t)
 		sched->current = NULL;
 		__ha_barrier_store();
 	}
+	BUG_ON(task_in_wq(t) || task_in_rq(t));
 	pool_free(pool_head_task, t);
 	if (unlikely(stopping))
 		pool_flush(pool_head_task);
