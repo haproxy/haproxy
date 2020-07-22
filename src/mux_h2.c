@@ -4452,6 +4452,7 @@ next_frame:
 
 	if ((h2c->dff & H2_F_HEADERS_END_STREAM)) {
 		/* Mark the end of message using EOM */
+		htx->flags |= HTX_FL_EOI; /* no more data are expected. Only EOM remains to add now */
 		if (!htx_add_endof(htx, HTX_BLK_EOM)) {
 			TRACE_STATE("failed to append HTX EOM block into rxbuf", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR, h2c->conn);
 			goto fail;
@@ -4587,6 +4588,7 @@ try_again:
 	 */
 
 	if (h2c->dff & H2_F_DATA_END_STREAM) {
+		htx->flags |= HTX_FL_EOI; /* no more data are expected. Only EOM remains to add now */
 		if (!htx_add_endof(htx, HTX_BLK_EOM)) {
 			TRACE_STATE("h2s rxbuf is full, failed to add EOM", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
 			h2c->flags |= H2_CF_DEM_SFULL;
@@ -5778,6 +5780,8 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		if (htx_is_empty(buf_htx))
 			cs->flags |= CS_FL_EOI;
 	}
+	else if (htx_is_empty(h2s_htx))
+		buf_htx->flags |= (h2s_htx->flags & HTX_FL_EOI);
 
 	buf_htx->extra = (h2s_htx->extra ? (h2s_htx->data + h2s_htx->extra) : 0);
 	htx_to_buf(buf_htx, buf);

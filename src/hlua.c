@@ -4582,6 +4582,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	}
 
 	/* Finalize headers. */
+	htx->flags |= HTX_FL_EOI; /* no more data are expected. Only EOM remains to add now */
 	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
 		hlua_pusherror(L, "Lua applet http '%s': Failed create the response.\n",
 			       appctx->appctx->rule->arg.hlua_rule->fcn.name);

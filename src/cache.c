@@ -926,6 +926,7 @@ static void http_cache_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == HTX_CACHE_EOM) {
+		res_htx->flags |= HTX_FL_EOI; /* no more data are expected. Only EOM remains to add now */
 		if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
 			si_rx_room_blk(si);
 			goto out;

@@ -585,6 +585,15 @@ static inline int htx_is_not_empty(const struct htx *htx)
 	return (htx->head != -1);
 }
 
+/* Returns 1 if no more data are expected for the message <htx>. Otherwise it
+ * returns 0. Note that it is illegal to call this with htx == NULL. Note also
+ * the EOM block may be missing.
+ */
+static inline int htx_expect_more(const struct htx *htx)
+{
+	return !(htx->flags & HTX_FL_EOI);
+}
+
 /* Copy an HTX message stored in the buffer <msg> to <htx>. We take care to
  * not overwrite existing data. All the message is copied or nothing. It returns
  * 1 on success and 0 on error.

@@ -616,6 +616,8 @@ int h1_parse_msg_eom(struct h1m *h1m, struct htx *dsthtx, size_t max)
 		dsthtx->flags |= HTX_FL_PARSING_ERROR;
 		return 0;
 	}
+
+	dsthtx->flags |= HTX_FL_EOI; /* no more data are expected. Only EOM remains to add now */
 	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(dsthtx, HTX_BLK_EOM))
 		return 0;
 

@@ -4577,6 +4577,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 		channel_auto_close(res);
 		channel_shutr_now(res);
 		res->flags |= CF_EOI; /* The response is terminated, add EOI */
+		htxbuf(&res->buf)->flags |= HTX_FL_EOI; /* no more data are expected */
 	}
 	else {
 		/* Send ASAP informational messages. Rely on CF_EOI for final
