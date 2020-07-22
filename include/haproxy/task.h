@@ -259,7 +259,7 @@ static inline void task_queue(struct task *task)
 	} else
 #endif
 	{
-		BUG_ON((task->thread_mask & tid_bit) == 0); // should have TASK_SHARED_WQ
+		BUG_ON(task->thread_mask != tid_bit); // should have TASK_SHARED_WQ
 		if (!task_in_wq(task) || tick_is_lt(task->expire, task->wq.key))
 			__task_queue(task, &sched->timers);
 	}
