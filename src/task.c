@@ -315,7 +315,7 @@ void wake_expired_tasks()
 			 */
 			__task_unlink_wq(task);
 			if (tick_isset(task->expire))
-				__task_queue(task, &tt->timers);
+				__task_queue(task, &timers);
 			goto lookup_next;
 		}
 		else {
