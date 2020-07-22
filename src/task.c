@@ -192,6 +192,12 @@ void __task_wakeup(struct task *t, struct eb_root *root)
  */
 void __task_queue(struct task *task, struct eb_root *wq)
 {
+#ifdef USE_THREAD
+	BUG_ON((wq == &timers && !(task->state & TASK_SHARED_WQ)) ||
+	       (wq == &sched->timers && (task->state & TASK_SHARED_WQ)) ||
+	       (wq != &timers && wq != &sched->timers));
+#endif
+
 	if (likely(task_in_wq(task)))
 		__task_unlink_wq(task);
 

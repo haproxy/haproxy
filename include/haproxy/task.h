@@ -221,6 +221,7 @@ static inline struct task *task_unlink_wq(struct task *t)
 
 	if (likely(task_in_wq(t))) {
 		locked = t->state & TASK_SHARED_WQ;
+		BUG_ON(!locked && t->thread_mask != tid_bit);
 		if (locked)
 			HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
 		__task_unlink_wq(t);
