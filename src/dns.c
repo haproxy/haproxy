@@ -2396,14 +2396,23 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	struct dns_requester *req;
 	struct dns_resolvers  *resolvers;
 	struct dns_resolution *res;
-	int exp;
+	int exp, locked = 0;
+	enum act_return ret = ACT_RET_CONT;
+
+	resolvers = rule->arg.dns.resolvers;
 
 	/* we have a response to our DNS resolution */
  use_cache:
 	if (s->dns_ctx.dns_requester && s->dns_ctx.dns_requester->resolution != NULL) {
 		resolution = s->dns_ctx.dns_requester->resolution;
+		if (!locked) {
+			HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
+			locked = 1;
+		}
+
 		if (resolution->step == RSLV_STEP_RUNNING) {
-			return ACT_RET_YIELD;
+			ret = ACT_RET_YIELD;
+			goto end;
 		}
 		if (resolution->step == RSLV_STEP_NONE) {
 			/* We update the variable only if we have a valid response. */
@@ -2445,29 +2454,33 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 		pool_free(dns_requester_pool, s->dns_ctx.dns_requester);
 		s->dns_ctx.dns_requester = NULL;
 
-		return ACT_RET_CONT;
+		goto end;
 	}
 
 	/* need to configure and start a new DNS resolution */
 	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.dns.expr, SMP_T_STR);
 	if (smp == NULL)
-		return ACT_RET_CONT;
+		goto end;
 
 	fqdn = smp->data.u.str.area;
 	if (action_prepare_for_resolution(s, fqdn) == -1)
-		return ACT_RET_CONT; /* on error, ignore the action */
+		goto end; /* on error, ignore the action */
 
 	s->dns_ctx.parent = rule;
+
+	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
+	locked = 1;
+
 	dns_link_resolution(s, OBJ_TYPE_STREAM, 0);
 
 	/* Check if there is a fresh enough response in the cache of our associated resolution */
 	req = s->dns_ctx.dns_requester;
 	if (!req || !req->resolution) {
 		dns_trigger_resolution(s->dns_ctx.dns_requester);
-		return ACT_RET_YIELD;
+		ret = ACT_RET_YIELD;
+		goto end;
 	}
-	res       = req->resolution;
-	resolvers = res->resolvers;
+	res = req->resolution;
 
 	exp = tick_add(res->last_resolution, resolvers->hold.valid);
 	if (resolvers->t && res->status == RSLV_STATUS_VALID && tick_isset(res->last_resolution)
@@ -2476,7 +2489,12 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	}
 
 	dns_trigger_resolution(s->dns_ctx.dns_requester);
-	return ACT_RET_YIELD;
+	ret = ACT_RET_YIELD;
+
+  end:
+	if (locked)
+		HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
+	return ret;
 }
 
 static void release_dns_action(struct act_rule *rule)
