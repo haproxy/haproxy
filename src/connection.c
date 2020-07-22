@@ -71,7 +71,7 @@ int conn_create_mux(struct connection *conn)
 		    !(conn->flags & CO_FL_PRIVATE) && conn->mux->avail_streams(conn) > 0)
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
 		else if (conn->flags & CO_FL_PRIVATE) {
-			/* If it fail now, the same will be done in mux->detach() callack */
+			/* If it fail now, the same will be done in mux->detach() callback */
 			session_add_conn(conn->owner, conn, conn->target);
 		}
 		return 0;

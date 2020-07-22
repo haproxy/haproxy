@@ -197,7 +197,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	/* TODO: Implement reuse fd. Take care that to identify fd to reuse
 	 * listeners uses a special AF_CUST_ family and we MUST consider
-	 * IPPROTO (sockaddr is not enought
+	 * IPPROTO (sockaddr is not enough)
 	 */
 
 	fd = my_socketat(listener->netns, listener->proto->sock_family, listener->proto->sock_type, listener->proto->sock_prot);

@@ -67,8 +67,8 @@ enum {
 
 
 	CS_FL_ERROR         = 0x00000100,  /* a fatal error was reported */
-	CS_FL_RCV_MORE      = 0x00000200,  /* We may have more bytes to transfert */
-	CS_FL_WANT_ROOM     = 0x00000400,  /* More bytes to transfert, but not enough room */
+	CS_FL_RCV_MORE      = 0x00000200,  /* We may have more bytes to transfer */
+	CS_FL_WANT_ROOM     = 0x00000400,  /* More bytes to transfer, but not enough room */
 	CS_FL_ERR_PENDING   = 0x00000800,  /* An error is pending, but there's still data to be read */
 	CS_FL_EOS           = 0x00001000,  /* End of stream delivered to data layer */
 	/* unused: 0x00002000 */

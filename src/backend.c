@@ -1512,7 +1512,7 @@ int connect_server(struct stream *s)
 		    !(srv_conn->flags & CO_FL_PRIVATE) && srv_conn->mux->avail_streams(srv_conn) > 0)
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
 		else if (srv_conn->flags & CO_FL_PRIVATE) {
-			/* If it fail now, the same will be done in mux->detach() callack */
+			/* If it fail now, the same will be done in mux->detach() callback */
 			session_add_conn(srv_conn->owner, srv_conn, srv_conn->target);
 		}
 	}

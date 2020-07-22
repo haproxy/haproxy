@@ -273,7 +273,7 @@ static inline void srv_del_conn_from_list(struct server *srv, struct connection 
 		_HA_ATOMIC_SUB(&srv->curr_idle_thr[tid], 1);
 	}
 	else {
-		/* The connction is not private and not in any server's idle
+		/* The connection is not private and not in any server's idle
 		 * list, so decrement the current number of used connections
 		 */
 		_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);

@@ -1435,7 +1435,7 @@ void send_log(struct proxy *p, int level, const char *format, ...)
  * settings.
  * This function returns a struct ist array of elements of the header
  * nbelem is set to the number of available elements.
- * Thos function returns currently a maximum of NB_LOG_HDR_IST_ELEMENTS
+ * This function returns currently a maximum of NB_LOG_HDR_IST_ELEMENTS
  * elements.
  */
 struct ist *build_log_header(enum log_fmt format, int level, int facility,
@@ -1520,7 +1520,7 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 			if (metadata && metadata[LOG_META_TIME].len == LOG_LEGACYTIME_LEN) {
 				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_TIME];
 				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
-				/* time is set, break immediatly */
+				/* time is set, break immediately */
 				break;
 			}
 			else if (metadata && metadata[LOG_META_TIME].len >= LOG_ISOTIME_MINLEN) {
@@ -1577,7 +1577,7 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 			/* adds rfc5425 version prefix */
 			hdr_ctx.ist_vector[(*nbelem)++] = ist2("1 ", 2);
 			if (metadata && metadata[LOG_META_TIME].len == 1 && metadata[LOG_META_TIME].ptr[0] == '-') {
-				/* submited len is NILVALUE, it is a valid timestamp for rfc5425 */
+				/* submitted len is NILVALUE, it is a valid timestamp for rfc5425 */
 				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_TIME];
 				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
 				break;
@@ -1593,7 +1593,7 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 			if (metadata && metadata[LOG_META_TIME].len >= LOG_ISOTIME_MINLEN) {
 				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_TIME];
 				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
-				/* time is set, break immediatly */
+				/* time is set, break immediately */
 				break;
 			}
 			else if (metadata && metadata[LOG_META_TIME].len == LOG_LEGACYTIME_LEN) {
@@ -1628,7 +1628,7 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 						hdr_ctx.ist_vector[(*nbelem)++] = ist2(&hdr_ctx.timestamp_buffer[0], len);
 						/* adds HH:MM:SS from legacy timestamp */
 						hdr_ctx.ist_vector[(*nbelem)++] = ist2(&timestamp[7], 8);
-						/* skip secfraq because optionnal */
+						/* skip secfraq because it is optional */
 						/* according to rfc: -00:00 means we don't know the timezone */
 						hdr_ctx.ist_vector[(*nbelem)++] = ist2("-00:00 ", 7);
 						/* we successfully reuse legacy time, we can break */
@@ -3239,7 +3239,7 @@ void parse_log_message(char *buf, size_t buflen, int *level, int *facility,
 		else if (*size > LOG_ISOTIME_MINLEN) {
 			metadata[LOG_META_TIME].ptr = p;
 
-			/* check if optionnal secfrac is present
+			/* check if optional secfrac is present
 			 * in timestamp.
 			 * possible format are:
 			 * ex: '1970-01-01T00:00:00.000000Z'
@@ -3471,7 +3471,7 @@ void parse_log_message(char *buf, size_t buflen, int *level, int *facility,
 		if (!metadata[LOG_META_TAG].len)
 			metadata[LOG_META_TAG].len = p - metadata[LOG_META_TAG].ptr;
 
-		/* let pass ':' and ' ', we still have warranty size is large enought */
+		/* let pass ':' and ' ', we still have warranty size is large enough */
 		p += 2;
 
 		buflen -= p - buf;

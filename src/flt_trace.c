@@ -195,7 +195,7 @@ trace_init(struct proxy *px, struct flt_conf *fconf)
 	return 0;
 }
 
-/* Free ressources allocated by the trace filter. */
+/* Free resources allocated by the trace filter. */
 static void
 trace_deinit(struct proxy *px, struct flt_conf *fconf)
 {
@@ -227,7 +227,7 @@ trace_init_per_thread(struct proxy *px, struct flt_conf *fconf)
 	return 0;
 }
 
-/* Free ressources allocate by the trace filter for each thread. */
+/* Free resources allocate by the trace filter for each thread. */
 static void
 trace_deinit_per_thread(struct proxy *px, struct flt_conf *fconf)
 {
