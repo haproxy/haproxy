@@ -1573,6 +1573,7 @@ static struct dns_resolution *dns_pick_resolution(struct dns_resolvers *resolver
 static void dns_free_resolution(struct dns_resolution *resolution)
 {
 	struct dns_requester *req, *reqback;
+	struct dns_answer_item *item, *itemback;
 
 	/* clean up configuration */
 	dns_reset_resolution(resolution);
@@ -1582,6 +1583,16 @@ static void dns_free_resolution(struct dns_resolution *resolution)
 	list_for_each_entry_safe(req, reqback, &resolution->requesters, list) {
 		LIST_DEL(&req->list);
 		req->resolution = NULL;
+	}
+
+	list_for_each_entry_safe(item, itemback, &resolution->response.ar_list, list) {
+		LIST_DEL(&item->list);
+		pool_free(dns_answer_item_pool, item);
+	}
+
+	list_for_each_entry_safe(item, itemback, &resolution->response.answer_list, list) {
+		LIST_DEL(&item->list);
+		pool_free(dns_answer_item_pool, item);
 	}
 
 	LIST_DEL(&resolution->list);
