@@ -9868,7 +9868,7 @@ stats refresh <delay>
   This statement is useful on monitoring displays with a permanent page
   reporting the load balancer's activity. When set, the HTML report page will
   include a link "refresh"/"stop refresh" so that the user can select whether
-  he wants automatic refresh of the page or not.
+  they want automatic refresh of the page or not.
 
   Though this statement alone is enough to enable statistics reporting, it is
   recommended to set all other settings in order to avoid relying on default

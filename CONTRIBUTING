@@ -279,7 +279,7 @@ do not think about them anymore after a few patches.
      error handling roughly represents half of the code, and that's about 3/4 of
      the configuration parser. Take the time to do something you're proud of. A
      good rule of thumb is to keep in mind that your code talks to a human and
-     tries to teach him/her how to proceed. It must then speak like a human.
+     tries to teach them how to proceed. It must then speak like a human.
 
    - The third most important level is the code and its accompanying comments,
      including the commit message which is a complement to your code and

@@ -49,7 +49,7 @@ load across the new boxes.
 
 Config on haproxy (LB1) :
 -------------------------
-       
+
     listen webfarm 192.168.1.1:80
        mode http
        balance roundrobin
@@ -59,7 +59,7 @@ Config on haproxy (LB1) :
        server webB 192.168.1.12:80 cookie B check
        server webC 192.168.1.13:80 cookie C check
        server webD 192.168.1.14:80 cookie D check
-       
+
 
 Description :
 -------------
@@ -165,7 +165,7 @@ precedence over load balancing :
        server webB 192.168.1.12:80 cookie B check
        server webC 192.168.1.13:80 cookie C check
        server webD 192.168.1.14:80 cookie D check
-       
+
 
 ==================================================================
 2. HTTP load-balancing with cookie prefixing and high availability
@@ -201,7 +201,7 @@ proxy to bind to the shared IP on Linux 2.4, you must enable it in /proc :
 
 
 Config on both proxies (LB1 and LB2) :
---------------------------------------       
+--------------------------------------
 
     listen webfarm 192.168.1.1:80
        mode http
@@ -214,7 +214,7 @@ Config on both proxies (LB1 and LB2) :
        server webB 192.168.1.12:80 cookie B check
        server webC 192.168.1.13:80 cookie C check
        server webD 192.168.1.14:80 cookie D check
-       
+
 
 Notes: the proxy will modify EVERY cookie sent by the client and the server,
 so it is important that it can access to ALL cookies in ALL requests for
@@ -338,7 +338,7 @@ which will also check that the services run fine on both proxies :
 
 Config on both proxies (LB1 and LB2) :
 --------------------------------------
-       
+
     listen webfarm 0.0.0.0:80
        mode http
        balance roundrobin
@@ -356,7 +356,7 @@ Config on both proxies (LB1 and LB2) :
 The "dontlognull" option is used to prevent the proxy from logging the health
 checks from the Alteon. If a session exchanges no data, then it will not be
 logged.
-       
+
 Config on the Alteon :
 ----------------------
 
@@ -419,7 +419,7 @@ than or equal to 1.1.32 or 1.2.6.
 
 Config on both proxies (LB1 and LB2) :
 --------------------------------------
-       
+
     listen tse-proxy
        bind :3389,:1494,:5900  # TSE, ICA and VNC at once.
        mode tcp
@@ -522,12 +522,12 @@ measures must be taken to ensure that inserted cookies will not be cached.
      +-----+      +---+ +---+ +---+ +---+    (___)
      apache         4 cheap web servers
      mod_ssl
-     haproxy 
+     haproxy
 
 
 Config on haproxy (LB1) :
 -------------------------
-       
+
     listen 127.0.0.1:8000
        mode http
        balance roundrobin
@@ -537,7 +537,7 @@ Config on haproxy (LB1) :
        server webB 192.168.1.12:80 cookie B check
        server webC 192.168.1.13:80 cookie C check
        server webD 192.168.1.14:80 cookie D check
-       
+
 
 Description :
 -------------
@@ -614,7 +614,7 @@ haproxy that connections from local host already have a valid header.
      | LB1 |      | A | | B | | C | | D |    (___)
      +-----+      +---+ +---+ +---+ +---+    (___)
      stunnel        4 cheap web servers
-     haproxy 
+     haproxy
 
 
 Config on stunnel (LB1) :
@@ -635,7 +635,7 @@ Config on stunnel (LB1) :
 
 Config on haproxy (LB1) :
 -------------------------
-       
+
     listen 192.168.1.1:80
        mode http
        balance roundrobin
@@ -680,7 +680,7 @@ file. The proxy will see the server as failed, and will not send it any new
 session, only the old ones if the "persist" option is used. Wait a bit then
 stop the server when it does not receive anymore connections.
 
-       
+
     listen 192.168.1.1:80
        mode http
        balance roundrobin
@@ -703,7 +703,7 @@ Description :
  - if a request does not contain a cookie, it will be forwarded to a valid
    server
  - if a request contains a cookie for a failed server, haproxy will insist
-   on trying to reach the server anyway, to let the user finish what he was
+   on trying to reach the server anyway, to let the user finish what they were
    doing. ("persist" option)
  - if the server is totally stopped, the connection will fail and the proxy
    will rebalance the client to another server ("redispatch")
@@ -739,7 +739,7 @@ A better solution which covers every situation is to use backup servers.
 Version 1.1.30 fixed a bug which prevented a backup server from sharing
 the same cookie as a standard server.
 
-       
+
     listen 192.168.1.1:80
        mode http
        balance roundrobin
@@ -798,7 +798,7 @@ once you see that the server does not receive any traffic, simply stop it :
   # /etc/init.d/httpd stop
 
 The associated backup server will in turn fail, and if any client still tries
-to access this particular server, he will be redispatched to any other valid
+to access this particular server, they will be redispatched to any other valid
 server because of the "redispatch" option.
 
 This method has an advantage : you never touch the proxy when doing server
@@ -986,7 +986,7 @@ The main constraints are :
     traffic to the second site. These proxies will be called "OP1".."OPXX"
     for "Office Proxy #XX".
 
-  
+
 5.3 Network diagram
 ===================
 
@@ -999,34 +999,34 @@ Note : offices 1 and 2 are on the same continent as site 1, while
         Office1         Office2                          Office3
          users           users                            users
 192.168  # # #   192.168 # # #                            # # #
-.1.0/24  | | |   .2.0/24 | | |             192.168.3.0/24 | | |	  
-  --+----+-+-+-   --+----+-+-+-                   ---+----+-+-+- 
+.1.0/24  | | |   .2.0/24 | | |             192.168.3.0/24 | | |
+  --+----+-+-+-   --+----+-+-+-                   ---+----+-+-+-
     |      | .1     |      | .1                      |      | .1
     |    +-+-+      |    +-+-+                       |    +-+-+
     |    |OP1|      |    |OP2|                       |    |OP3|  ...
   ,-:-.  +---+    ,-:-.  +---+                     ,-:-.  +---+
- (  X  )         (  X  )                          (  X  )        
-  `-:-'           `-:-'             ,---.          `-:-'         
+ (  X  )         (  X  )                          (  X  )
+  `-:-'           `-:-'             ,---.          `-:-'
   --+---------------+------+----~~~(  X  )~~~~-------+---------+-
-                           |        `---'                      |    
-                           |                                   |    
-                 +---+   ,-:-.                       +---+   ,-:-.  
+                           |        `---'                      |
+                           |                                   |
+                 +---+   ,-:-.                       +---+   ,-:-.
                  |SD1|  (  X  )                      |SD2|  (  X  )
    ( SITE 1 )    +-+-+   `-:-'         ( SITE 2 )    +-+-+   `-:-'
-                   |.1     |                           |.1     |    
-   10.1.1.0/24     |       |     ,---. 10.2.1.0/24     |       |    
+                   |.1     |                           |.1     |
+   10.1.1.0/24     |       |     ,---. 10.2.1.0/24     |       |
         -+-+-+-+-+-+-+-----+-+--(  X  )------+-+-+-+-+-+-+-----+-+--
          | | | | |   |       |   `---'       | | | | |   |       |
       ...# # # # #   |.11    |.12         ...# # # # #   |.11    |.12
-          Site 1   +-+--+  +-+--+              Site 2  +-+--+  +-+--+   
-          Local    |S1L1|  |S1L2|              Local   |S2L1|  |S2L2|   
-          users    +-+--+  +--+-+              users   +-+--+  +--+-+   
-                     |        |	                         |        |     
-   10.1.2.0/24    -+-+-+--+--++--      10.2.2.0/24    -+-+-+--+--++--   
+          Site 1   +-+--+  +-+--+              Site 2  +-+--+  +-+--+
+          Local    |S1L1|  |S1L2|              Local   |S2L1|  |S2L2|
+          users    +-+--+  +--+-+              users   +-+--+  +--+-+
+                     |        |	                         |        |
+   10.1.2.0/24    -+-+-+--+--++--      10.2.2.0/24    -+-+-+--+--++--
                    |.1       |.4                       |.1       |.4
-                 +-+-+     +-+-+                     +-+-+     +-+-+    
-                 |W11| ~~~ |W14|                     |W21| ~~~ |W24|    
-                 +---+     +---+                     +---+     +---+    
+                 +-+-+     +-+-+                     +-+-+     +-+-+
+                 |W11| ~~~ |W14|                     |W21| ~~~ |W24|
+                 +---+     +---+                     +---+     +---+
               4 application servers               4 application servers
                     on site 1                           on site 2
 
@@ -1359,7 +1359,7 @@ very fast response times.
 
 Config on haproxy (LB1) :
 -------------------------
-       
+
     listen appfarm 192.168.1.1:80
        mode http
        maxconn 10000
@@ -1430,7 +1430,7 @@ normal loads, and availability under very high loads.
 
 Example :
 ---------
-       
+
     listen appfarm 192.168.1.1:80
        mode http
        maxconn 10000
@@ -1444,5 +1444,3 @@ Example :
        server railsB 192.168.1.12:80 minconn 4 maxconn 12 check
        server railsC 192.168.1.13:80 minconn 4 maxconn 12 check
        contimeout 60000
-
-
