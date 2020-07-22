@@ -250,7 +250,7 @@ Encoded Remote Table Id | Update Id
 Remote Table Id is the numeric identifier of the table on the remote side.
 Update Id is the id of the last update locally committed.
 
-If a re-connection occurred, the sender should know he will have to restart the push of updates from this point.
+If a re-connection occurred, the sender should know they will have to restart the push of updates from this point.
 
 III) Initial full resync process.
 
@@ -261,7 +261,7 @@ An old soft-stopped process will close all established sessions with remote peer
 local process to push all known ending with a Resync Finished Message or a Resync Partial Message (if it it does not consider itself as full updated).
 
 A new process will wait for a an incoming connection from a local process during 5 seconds. It will learn the updates from this
-process until he will receive a Resync Finished Message or a Resync Partial Message. If it receive a  Resync Finished Message it will consider itself
+process until it receives a Resync Finished Message or a Resync Partial Message. If it receive a  Resync Finished Message it will consider itself
 as fully updated and stops to ask for resync. If it receive a Resync Partial Message it will wait once again for 5 seconds for an other incoming connection from a local process.
 Same thing if the session was broken before receiving any "Resync Partial Message" or "Resync Finished Message".
 

@@ -381,7 +381,7 @@ In most cases, an HAProxy Lua object needs some private data. These are always
 set in the index [0] of the array. The metatable entry "__tostring" returns the
 object name.
 
-The Lua developer can add entries to the HAProxy object. He just works carefully
+The Lua developer can add entries to the HAProxy object. They just work carefully
 and prevent to modify the index [0].
 
 Common HAproxy objects are:

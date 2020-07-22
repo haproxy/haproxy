@@ -3370,8 +3370,8 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	/* If the user is not root, we'll still let him try the configuration
-	 * but we inform him that unexpected behaviour may occur.
+	/* If the user is not root, we'll still let them try the configuration
+	 * but we inform them that unexpected behaviour may occur.
 	 */
 	if ((global.last_checks & LSTCHK_NETADM) && getuid())
 		ha_warning("[%s.main()] Some options which require full privileges"

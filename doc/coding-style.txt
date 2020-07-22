@@ -986,7 +986,7 @@ Wrong :
 It is very common for macros to do the wrong thing when used in a way their
 author did not have in mind. For this reason, macros must always be named with
 uppercase letters only. This is the only way to catch the developer's eye when
-using them, so that he double-checks whether he's taking risks or not. First,
+using them, so that they double-check whether they are taking a risk or not. First,
 macros must never ever be terminated by a semi-colon, or they will close the
 wrong block once in a while. For instance, the following will cause a build
 error before the "else" due to the double semi-colon :

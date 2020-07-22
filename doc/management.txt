@@ -467,7 +467,7 @@ To understand better how these signals are used, it is important to understand
 the whole restart mechanism.
 
 First, an existing haproxy process is running. The administrator uses a system
-specific command such as "/etc/init.d/haproxy reload" to indicate he wants to
+specific command such as "/etc/init.d/haproxy reload" to indicate they want to
 take the new configuration file into effect. What happens then is the following.
 First, the service script (/etc/init.d/haproxy or equivalent) will verify that
 the configuration file parses correctly using "haproxy -c". After that it will

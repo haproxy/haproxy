@@ -529,8 +529,8 @@ bytes specified by the length.
             uint8_t value[0];
         };
 
-A receiver may choose to skip over and ignore the TLVs he is not interested in
-or he does not understand. Senders can generate the TLVs only for
+A receiver may choose to skip over and ignore the TLVs it is not interested in
+or it does not understand. Senders can generate the TLVs only for
 the information they choose to publish.
 
 The following types have already been registered for the <type> field :
@@ -854,8 +854,8 @@ time, it ensures that improperly configured servers are quickly detected.
 Implementers should be very careful about not trying to automatically detect
 whether they have to decode the header or not, but rather they must only rely
 on a configuration parameter. Indeed, if the opportunity is left to a normal
-client to use the protocol, he will be able to hide his activities or make them
-appear as coming from someone else. However, accepting the header only from a
+client to use the protocol, it will be able to hide its activities or make them
+appear as coming from somewhere else. However, accepting the header only from a
 number of known sources should be safe.
 
 

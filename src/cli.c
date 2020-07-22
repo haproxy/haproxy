@@ -1725,7 +1725,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	memset(&msghdr, 0, sizeof(msghdr));
 	/*
 	 * First, calculates the total number of FD, so that we can let
-	 * the caller know how much he should expects.
+	 * the caller know how much it should expect.
 	 */
 	px = proxies_list;
 	while (px) {

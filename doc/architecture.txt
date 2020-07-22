@@ -703,7 +703,7 @@ Description :
  - if a request does not contain a cookie, it will be forwarded to a valid
    server
  - if a request contains a cookie for a failed server, haproxy will insist
-   on trying to reach the server anyway, to let the user finish what he was
+   on trying to reach the server anyway, to let the user finish what they were
    doing. ("persist" option)
  - if the server is totally stopped, the connection will fail and the proxy
    will rebalance the client to another server ("redispatch")
@@ -798,7 +798,7 @@ once you see that the server does not receive any traffic, simply stop it :
   # /etc/init.d/httpd stop
 
 The associated backup server will in turn fail, and if any client still tries
-to access this particular server, he will be redispatched to any other valid
+to access this particular server, they will be redispatched to any other valid
 server because of the "redispatch" option.
 
 This method has an advantage : you never touch the proxy when doing server
