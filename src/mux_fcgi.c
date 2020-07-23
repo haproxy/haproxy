@@ -1303,27 +1303,21 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		struct ist path = http_get_path(params->uri);
 		int len;
 
-		/* Decode the path. it must first be copied to keep the URI
-		 * untouched.
-		 */
-		chunk_memcat(params->p, path.ptr, path.len);
-		path.ptr = b_tail(params->p) - path.len;
-		path.ptr[path.len] = '\0';
-		len = url_decode(path.ptr, 0);
-		if (len < 0)
-			goto error;
-		path.len = len;
-
 		/* No scrit_name set but no valid path ==> error */
 		if (!(params->mask & FCGI_SP_SCRIPT_NAME) && !istlen(path))
 			goto error;
 
-		/* Find limit between the path and the query-string */
-		for (len = 0; len < path.len && *(path.ptr + len) != '?'; len++);
-
 		/* If there is a query-string, Set it if not already set */
-		if (!(params->mask & FCGI_SP_REQ_QS) && len < path.len)
-			params->qs = ist2(path.ptr+len+1, path.len-len-1);
+		if (!(params->mask & FCGI_SP_REQ_QS)) {
+			struct ist qs = istfind(path, '?');
+
+			/* Update the path length */
+			path.len -= qs.len;
+
+			/* Set the query-string skipping the '?', if any */
+			if (istlen(qs))
+				params->qs = istnext(qs);
+		}
 
 		/* If the script_name is set, don't try to deduce the path_info
 		 * too. The opposite is not true.
@@ -1333,8 +1327,18 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 			goto end;
 		}
 
+		/* Decode the path. it must first be copied to keep the URI
+		 * untouched.
+		 */
+		chunk_memcat(params->p, path.ptr, path.len);
+		path.ptr = b_tail(params->p) - path.len;
+		len = url_decode(ist0(path), 0);
+		if (len < 0)
+			goto error;
+		path.len = len;
+
 		/* script_name not set, preset it with the path for now */
-		params->scriptname = ist2(path.ptr, len);
+		params->scriptname = path;
 
 		/* If there is no regex to match the pathinfo, just to the last
 		 * part and see if the index must be used.
