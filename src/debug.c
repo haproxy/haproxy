@@ -222,11 +222,13 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 		chunk_appendf(buf, "%sCurrent executing a Lua HTTP service -- ", pfx);
 	}
 
-	if (hlua) {
+	if (hlua && hlua->T) {
 		luaL_traceback(hlua->T, hlua->T, NULL, 0);
 		if (!append_prefixed_str(buf, lua_tostring(hlua->T, -1), pfx, '\n', 1))
 			b_putchr(buf, '\n');
 	}
+	else
+		b_putchr(buf, '\n');
 #endif
 }
 
