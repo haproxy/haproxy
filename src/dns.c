@@ -1044,6 +1044,34 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	if (dns_query->type != DNS_RTYPE_SRV)
 		goto skip_parsing_additional_records;
 
+	/* if we find Authority records, just skip them */
+	for (i = 0; i < dns_p->header.nscount; i++) {
+		offset = 0;
+		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE,
+		                    &offset, 0);
+		if (len == 0)
+			continue;
+
+		if (reader + offset + 10 >= bufend)
+			goto invalid_resp;
+
+		reader += offset;
+		/* skip 2 bytes for class */
+		reader += 2;
+		/* skip 2 bytes for type */
+		reader += 2;
+		/* skip 4 bytes for ttl */
+		reader += 4;
+		/* read data len */
+		len = reader[0] * 256 + reader[1];
+		reader += 2;
+
+		if (reader + len >= bufend)
+			goto invalid_resp;
+
+		reader += len;
+	}
+
 	nb_saved_records = 0;
 	for (i = 0; i < dns_p->header.arcount; i++) {
 		if (reader >= bufend)
