@@ -161,6 +161,12 @@ resume_execution:
 						goto end;
 					case ACT_RET_YIELD:
 						s->current_rule = rule;
+						if (partial & SMP_OPT_FINAL) {
+							send_log(s->be, LOG_WARNING,
+								 "Internal error: yield not allowed if the inspect-delay expired "
+								 "for the tcp-request content actions.");
+							goto internal;
+						}
 						goto missing_data;
 					case ACT_RET_DENY:
 						goto deny;
@@ -313,6 +319,12 @@ resume_execution:
 						goto end;
 					case ACT_RET_YIELD:
 						s->current_rule = rule;
+						if (partial & SMP_OPT_FINAL) {
+							send_log(s->be, LOG_WARNING,
+								 "Internal error: yield not allowed if the inspect-delay expired "
+								 "for the tcp-response content actions.");
+							goto internal;
+						}
 						goto missing_data;
 					case ACT_RET_DENY:
 						goto deny;
