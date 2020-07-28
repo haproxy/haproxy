@@ -3731,6 +3731,15 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 	struct dns_resolution *resolution = s->dns_requester->resolution;
 	int exp;
 
+	/* If resolution is NULL we're dealing with SRV records Additional records */
+	if (resolution == NULL) {
+		if (s->next_admin & SRV_ADMF_RMAINT)
+			return 1;
+
+		srv_set_admin_flag(s, SRV_ADMF_RMAINT, "entry removed from SRV record");
+		return 0;
+	}
+
 	switch (resolution->status) {
 		case RSLV_STATUS_NONE:
 			/* status when HAProxy has just (re)started.
