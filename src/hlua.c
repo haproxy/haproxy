@@ -6649,11 +6649,16 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			act_ret = lua_tointeger(s->hlua->T, -1);
 
 		/* Set timeout in the required channel. */
-		if (act_ret == ACT_RET_YIELD && s->hlua->wake_time != TICK_ETERNITY) {
-			if (dir == SMP_OPT_DIR_REQ)
-				s->req.analyse_exp = s->hlua->wake_time;
-			else
-				s->res.analyse_exp = s->hlua->wake_time;
+		if (act_ret == ACT_RET_YIELD) {
+			if (flags & ACT_OPT_FINAL)
+				goto err_yield;
+
+			if (s->hlua->wake_time != TICK_ETERNITY) {
+				if (dir == SMP_OPT_DIR_REQ)
+					s->req.analyse_exp = s->hlua->wake_time;
+				else
+					s->res.analyse_exp = s->hlua->wake_time;
+			}
 		}
 		goto end;
 
@@ -6694,6 +6699,8 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		goto end;
 
 	case HLUA_E_YIELD:
+	  err_yield:
+		act_ret = ACT_RET_CONT;
 		SEND_ERR(px, "Lua function '%s': aborting Lua processing on expired timeout.\n",
 		         rule->arg.hlua_rule->fcn.name);
 		goto end;
