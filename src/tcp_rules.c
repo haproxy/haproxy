@@ -401,7 +401,7 @@ resume_execution:
 	channel_abort(&s->req);
 
   abort:
-	rep->analysers &= AN_REQ_FLT_END;
+	rep->analysers &= AN_RES_FLT_END;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
