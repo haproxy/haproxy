@@ -180,6 +180,7 @@ struct stream {
 	/* These two pointers are used to resume the execution of the rule lists. */
 	struct list *current_rule_list;         /* this is used to store the current executed rule list. */
 	void *current_rule;                     /* this is used to store the current rule to be resumed. */
+	int rules_exp;                          /* expiration date for current rules execution */
 	struct hlua *hlua;                      /* lua runtime context */
 
 	/* Context */

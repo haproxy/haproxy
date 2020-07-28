@@ -113,7 +113,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 
 	if ((req->flags & CF_SHUTR) || channel_full(req, global.tune.maxrewrite) ||
-	    !s->be->tcp_req.inspect_delay || tick_is_expired(req->analyse_exp, now_ms))
+	    !s->be->tcp_req.inspect_delay || tick_is_expired(s->rules_exp, now_ms))
 		partial = SMP_OPT_FINAL;
 	else
 		partial = 0;
@@ -195,15 +195,16 @@ resume_execution:
 	 * we have an explicit accept, so we apply the default accept.
 	 */
 	req->analysers &= ~an_bit;
-	req->analyse_exp = TICK_ETERNITY;
+	req->analyse_exp = s->rules_exp = TICK_ETERNITY;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
 
  missing_data:
 	channel_dont_connect(req);
 	/* just set the request timeout once at the beginning of the request */
-	if (!tick_isset(req->analyse_exp) && s->be->tcp_req.inspect_delay)
-		req->analyse_exp = tick_add(now_ms, s->be->tcp_req.inspect_delay);
+	if (!tick_isset(s->rules_exp) && s->be->tcp_req.inspect_delay)
+		s->rules_exp = tick_add(now_ms, s->be->tcp_req.inspect_delay);
+	req->analyse_exp = tick_first((tick_is_expired(req->analyse_exp, now_ms) ? 0 : req->analyse_exp), s->rules_exp);
 	DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 0;
 
@@ -267,7 +268,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	 * - if one rule returns KO, then return KO
 	 */
 	if ((rep->flags & CF_SHUTR) || channel_full(rep, global.tune.maxrewrite) ||
-	    !s->be->tcp_rep.inspect_delay || tick_is_expired(rep->analyse_exp, now_ms))
+	    !s->be->tcp_rep.inspect_delay || tick_is_expired(s->rules_exp, now_ms))
 		partial = SMP_OPT_FINAL;
 	else
 		partial = 0;
@@ -284,19 +285,15 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 			goto resume_execution;
 	}
 	s->current_rule_list = &s->be->tcp_rep.inspect_rules;
+	s->rules_exp = TICK_ETERNITY;
 
 	list_for_each_entry(rule, &s->be->tcp_rep.inspect_rules, list) {
 		enum acl_test_res ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
 			ret = acl_exec_cond(rule->cond, s->be, sess, s, SMP_OPT_DIR_RES | partial);
-			if (ret == ACL_TEST_MISS) {
-				/* just set the analyser timeout once at the beginning of the response */
-				if (!tick_isset(rep->analyse_exp) && s->be->tcp_rep.inspect_delay)
-					rep->analyse_exp = tick_add(now_ms, s->be->tcp_rep.inspect_delay);
-				DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
-				return 0;
-			}
+			if (ret == ACL_TEST_MISS)
+				goto missing_data;
 
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
@@ -325,6 +322,7 @@ resume_execution:
 								 "for the tcp-response content actions.");
 							goto internal;
 						}
+						channel_dont_close(rep);
 						goto missing_data;
 					case ACT_RET_DENY:
 						goto deny;
@@ -360,15 +358,15 @@ resume_execution:
 	 * we have an explicit accept, so we apply the default accept.
 	 */
 	rep->analysers &= ~an_bit;
-	rep->analyse_exp = TICK_ETERNITY;
+	rep->analyse_exp = s->rules_exp = TICK_ETERNITY;
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 1;
 
  missing_data:
-	channel_dont_close(rep);
 	/* just set the analyser timeout once at the beginning of the response */
-	if (!tick_isset(rep->analyse_exp) && s->be->tcp_rep.inspect_delay)
-		rep->analyse_exp = tick_add(now_ms, s->be->tcp_rep.inspect_delay);
+	if (!tick_isset(s->rules_exp) && s->be->tcp_rep.inspect_delay)
+		s->rules_exp = tick_add(now_ms, s->be->tcp_rep.inspect_delay);
+	rep->analyse_exp = tick_first((tick_is_expired(rep->analyse_exp, now_ms) ? 0 : rep->analyse_exp), s->rules_exp);
 	DBG_TRACE_DEVEL("waiting for more data", STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
 	return 0;
 

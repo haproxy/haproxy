@@ -371,6 +371,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	 */
 	s->current_rule_list = NULL;
 	s->current_rule = NULL;
+	s->rules_exp = TICK_ETERNITY;
 
 	/* Copy SC counters for the stream. We don't touch refcounts because
 	 * any reference we have is inherited from the session. Since the stream
