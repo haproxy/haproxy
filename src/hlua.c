@@ -6534,7 +6534,6 @@ __LJMP static int hlua_set_wake_time(lua_State *L)
 	return 0;
 }
 
-
 /* This function is a wrapper to execute each LUA function declared as an action
  * wrapper during the initialisation period. This function may return any
  * ACT_RET_* value. On error ACT_RET_CONT is returned and the action is
@@ -6631,15 +6630,6 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		s->hlua->max_time = hlua_timeout_session;
 	}
 
-	/* Always reset the analyse expiration timeout for the corresponding
-	 * channel in case the lua script yield, to be sure to not keep an
-	 * expired timeout.
-	 */
-	if (dir == SMP_OPT_DIR_REQ)
-		s->req.analyse_exp = TICK_ETERNITY;
-	else
-		s->res.analyse_exp = TICK_ETERNITY;
-
 	/* Execute the function. */
 	switch (hlua_ctx_resume(s->hlua, !(flags & ACT_OPT_FINAL))) {
 	/* finished. */
@@ -6653,24 +6643,25 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			if (flags & ACT_OPT_FINAL)
 				goto err_yield;
 
-			if (s->hlua->wake_time != TICK_ETERNITY) {
-				if (dir == SMP_OPT_DIR_REQ)
-					s->req.analyse_exp = s->hlua->wake_time;
-				else
-					s->res.analyse_exp = s->hlua->wake_time;
-			}
+			if (dir == SMP_OPT_DIR_REQ)
+				s->req.analyse_exp = tick_first((tick_is_expired(s->req.analyse_exp, now_ms) ? 0 : s->req.analyse_exp),
+								s->hlua->wake_time);
+			else
+				s->res.analyse_exp = tick_first((tick_is_expired(s->res.analyse_exp, now_ms) ? 0 : s->res.analyse_exp),
+								s->hlua->wake_time);
 		}
 		goto end;
 
 	/* yield. */
 	case HLUA_E_AGAIN:
 		/* Set timeout in the required channel. */
-		if (s->hlua->wake_time != TICK_ETERNITY) {
-			if (dir == SMP_OPT_DIR_REQ)
-				s->req.analyse_exp = s->hlua->wake_time;
-			else
-				s->res.analyse_exp = s->hlua->wake_time;
-		}
+		if (dir == SMP_OPT_DIR_REQ)
+			s->req.analyse_exp = tick_first((tick_is_expired(s->req.analyse_exp, now_ms) ? 0 : s->req.analyse_exp),
+							s->hlua->wake_time);
+		else
+			s->res.analyse_exp = tick_first((tick_is_expired(s->res.analyse_exp, now_ms) ? 0 : s->res.analyse_exp),
+							s->hlua->wake_time);
+
 		/* Some actions can be wake up when a "write" event
 		 * is detected on a response channel. This is useful
 		 * only for actions targeted on the requests.
@@ -6715,6 +6706,8 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	}
 
  end:
+	if (act_ret != ACT_RET_YIELD)
+		s->hlua->wake_time = TICK_ETERNITY;
 	return act_ret;
 }
 
