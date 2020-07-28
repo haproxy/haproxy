@@ -1,0 +1,14 @@
+{
+	"problemMatcher": [
+		{
+			"owner": "vtest",
+			"pattern": [
+				{
+					"regexp": "^#(\\s+top\\s+TEST\\s+(.*)\\s+FAILED.*)",
+					"file": 2,
+					"message": 1
+				}
+			]
+		}
+	]
+}
