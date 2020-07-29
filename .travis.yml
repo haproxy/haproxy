@@ -12,8 +12,6 @@ branches:
 env:
   global:
     - FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=contrib/wurfl WURFL_LIB=contrib/wurfl USE_DEVICEATLAS=1 DEVICEATLAS_SRC=contrib/deviceatlas USE_51DEGREES=1"
-    - SSL_LIB=${HOME}/opt/lib
-    - SSL_INC=${HOME}/opt/include
     - TMPDIR=/tmp
     - FIFTYONEDEGREES_SRC="contrib/51d/src/pattern"
     - DEBUG_OPTIONS="DEBUG_STRICT=1"
@@ -41,15 +39,10 @@ matrix:
     compiler: clang
     env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9
   - os: linux
-    # The ARM64 build uses openssl and libssl-dev from Ubuntu repository. They come preinstalled by TravisCI!
     arch: arm64
     if: type == push
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.1f CC=clang-9 SSL_LIB=/usr/lib SSL_INC=/usr/include
-    install:
-      - git clone https://github.com/VTest/VTest.git ../vtest
-      # Special flags due to: https://github.com/vtest/VTest/issues/12
-      - make -C ../vtest FLAGS="-O2 -s -Wall"
+    env: TARGET=linux-glibc CC=clang-9
   - os: linux
     arch: s390x
     if: type == push
@@ -115,12 +108,16 @@ install:
   - git clone https://github.com/VTest/VTest.git ../vtest
   # Special flags due to: https://github.com/vtest/VTest/issues/12
   - make -C ../vtest FLAGS="-O2 -s -Wall"
-  - travis_wait bash -c 'scripts/build-ssl.sh >build-ssl.log 2>&1' || (cat build-ssl.log && exit 1)
+  - |
+    if [ ! -z ${OPENSSL_VERSION+x} ] || [ ! -z ${LIBRESSL_VERSION+x} ] || [ ! -z ${BORINGSSL+x} ]; then
+       travis_wait bash -c 'scripts/build-ssl.sh >build-ssl.log 2>&1' || (cat build-ssl.log && exit 1)
+       export SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include
+    fi
 
 script:
   - if [ "${CC%-*}"  = "clang" ]; then export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" DEBUG_CFLAGS="-g -fsanitize=address" LDFLAGS="-fsanitize=address"; fi
   - make -C contrib/wurfl
-  - make -j3 CC=$CC CPU_CFLAGS.generic="-O1" V=1 ERR=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" ADDLIB="-Wl,-rpath,$SSL_LIB" 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS" $DEBUG_OPTIONS
+  - make -j3 CC=$CC CPU_CFLAGS.generic="-O1" V=1 ERR=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" $([ ! -z ${SSL_LIB+x} ] && echo ADDLIB="-Wl,-rpath,$SSL_LIB") 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS" $DEBUG_OPTIONS
   - ./haproxy -vv
   - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then ldd haproxy; fi
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then otool -L haproxy; fi
