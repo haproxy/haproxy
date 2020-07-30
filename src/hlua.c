@@ -6706,7 +6706,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	}
 
  end:
-	if (act_ret != ACT_RET_YIELD)
+	if (act_ret != ACT_RET_YIELD && s->hlua)
 		s->hlua->wake_time = TICK_ETERNITY;
 	return act_ret;
 }
