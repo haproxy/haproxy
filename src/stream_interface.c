@@ -661,6 +661,10 @@ int si_cs_send(struct conn_stream *cs)
 	if (oc->flags & CF_SHUTW)
 		return 1;
 
+	/* we must wait because the mux is not installed yet */
+	if (!conn->mux)
+		return 0;
+
 	if (oc->pipe && conn->xprt->snd_pipe && conn->mux->snd_pipe) {
 		ret = conn->mux->snd_pipe(cs, oc->pipe);
 		if (ret > 0)
@@ -1219,6 +1223,10 @@ int si_cs_recv(struct conn_stream *cs)
 	/* maybe we were called immediately after an asynchronous shutr */
 	if (ic->flags & CF_SHUTR)
 		return 1;
+
+	/* we must wait because the mux is not installed yet */
+	if (!conn->mux)
+		return 0;
 
 	/* stop here if we reached the end of data */
 	if (cs->flags & CS_FL_EOS)
