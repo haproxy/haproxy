@@ -62,7 +62,7 @@ matrix:
           make -C contrib/wurfl
           curl -s "https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh" | bash || true
         fi
-    name: openssl-1.1.1
+    name: Coverity scan | openssl-1.1.1
   - os: linux
     if: type == cron
     compiler: clang
