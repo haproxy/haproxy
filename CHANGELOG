@@ -1,6 +1,52 @@
 ChangeLog :
 ===========
 
+2020/07/31 : 2.3-dev2
+    - DOC: ssl: req_ssl_sni needs implicit TLS
+    - BUG/MEDIUM: arg: empty args list must be dropped
+    - BUG/MEDIUM: resolve: fix init resolving for ring and peers section.
+    - BUG/MAJOR: tasks: don't requeue global tasks into the local queue
+    - MINOR: tasks/debug: make the thread affinity BUG_ON check a bit stricter
+    - MINOR: tasks/debug: add a few BUG_ON() to detect use of wrong timer queue
+    - MINOR: tasks/debug: add a BUG_ON() check to detect requeued task on free
+    - BUG/MAJOR: dns: Make the do-resolve action thread-safe
+    - BUG/MEDIUM: dns: Release answer items when a DNS resolution is freed
+    - MEDIUM: htx: Add a flag on a HTX message when no more data are expected
+    - BUG/MEDIUM: stream-int: Don't set MSG_MORE flag if no more data are expected
+    - BUG/MEDIUM: http-ana: Only set CF_EXPECT_MORE flag on data filtering
+    - CLEANUP: dns: remove 45 "return" statements from dns_validate_dns_response()
+    - BUG/MINOR: htx: add two missing HTX_FL_EOI and remove an unexpected one
+    - BUG/MINOR: mux-fcgi: Don't url-decode the QUERY_STRING parameter anymore
+    - BUILD: tools: fix build with static only toolchains
+    - DOC: Use gender neutral language
+    - BUG/MINOR: debug: Don't dump the lua stack if it is not initialized
+    - BUG/MAJOR: dns: fix null pointer dereference in snr_update_srv_status
+    - BUG/MAJOR: dns: don't treat Authority records as an error
+    - CI : travis-ci : prepare for using stock OpenSSL
+    - CI: travis-ci : switch to stock openssl when openssl-1.1.1 is used
+    - MEDIUM: lua: Add support for the Lua 5.4
+    - BUG/MEDIUM: dns: Don't yield in do-resolve action on a final evaluation
+    - BUG/MINOR: lua: Abort execution of actions that yield on a final evaluation
+    - MINOR: tcp-rules: Return an internal error if an action yields on a final eval
+    - BUG/MINOR: tcp-rules: Preserve the right filter analyser on content eval abort
+    - BUG/MINOR: tcp-rules: Set the inspect-delay when a tcp-response action yields
+    - MEDIUM: tcp-rules: Use a dedicated expiration date for tcp ruleset
+    - MEDIUM: lua: Set the analyse expiration date with smaller wake_time only
+    - BUG/MEDIUM: connection: Be sure to always install a mux for sync connect
+    - MINOR: connection: Preinstall the mux for non-ssl connect
+    - MINOR: stream-int: Be sure to have a mux to do sends and receives
+    - BUG/MINOR: lua: Fix a possible null pointer deref on lua ctx
+    - SCRIPTS: announce-release: add the link to the wiki in the announce messages
+    - CI: travis-ci: use better name for Coverity scan job
+    - CI: travis-ci: use proper linking flags for SLZ build
+    - BUG/MEDIUM: backend: always attach the transport before installing the mux
+    - BUG/MEDIUM: tcp-checks: always attach the transport before installing the mux
+    - MINOR: connection: avoid a useless recvfrom() on outgoing connections
+    - MINOR: mux-h1: do not even try to receive if the connection is not fully set up
+    - MINOR: mux-h1: do not try to receive on backend before sending a request
+    - CLEANUP: assorted typo fixes in the code and comments
+    - BUG/MEDIUM: ssl: check OCSP calloc in ssl_sock_load_ocsp()
+
 2020/07/17 : 2.3-dev1
     - MINOR: config: make strict limits enabled by default
     - BUG/MINOR: acl: Fix freeing of expr->smp in prune_acl_expr
