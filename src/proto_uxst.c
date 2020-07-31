@@ -588,6 +588,7 @@ static int uxst_connect_server(struct connection *conn, int flags)
 	if (conn->flags & CO_FL_WAIT_L4_CONN) {
 		fd_want_send(fd);
 		fd_cant_send(fd);
+		fd_cant_recv(fd);
 	}
 
 	if (conn_xprt_init(conn) < 0) {
