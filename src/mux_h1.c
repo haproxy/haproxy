@@ -368,6 +368,11 @@ static inline int h1_recv_allowed(const struct h1c *h1c)
 		return 0;
 	}
 
+	if (conn_is_back(h1c->conn) && h1c->h1s && h1c->h1s->req.state == H1_MSG_RQBEFORE) {
+		TRACE_DEVEL("recv not allowed because back and request not sent yet", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
+		return 0;
+	}
+
 	if (!(h1c->flags & (H1C_F_IN_ALLOC|H1C_F_IN_FULL|H1C_F_IN_BUSY)))
 		return 1;
 
