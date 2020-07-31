@@ -1091,31 +1091,6 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	conn_set_private(conn);
 	conn->ctx = cs;
 
-	/* The mux may be initialized now if there isn't server attached to the
-	 * check (email alerts) or if there is a mux proto specified or if there
-	 * is no alpn.
-	 */
-	if (!s || ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto) ||
-	    connect->mux_proto || (!connect->alpn && !check->alpn_str)) {
-		const struct mux_ops *mux_ops;
-
-		if (connect->mux_proto)
-			mux_ops = connect->mux_proto->mux;
-		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto)
-			mux_ops = check->mux_proto->mux;
-		else {
-			int mode = ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK
-				    ? PROTO_MODE_HTTP
-				    : PROTO_MODE_TCP);
-
-			mux_ops = conn_get_best_mux(conn, IST_NULL, PROTO_SIDE_BE, mode);
-		}
-		if (mux_ops && conn_install_mux(conn, mux_ops, cs, proxy, check->sess) < 0) {
-			status = SF_ERR_INTERNAL;
-			goto fail_check;
-		}
-	}
-
 #ifdef USE_OPENSSL
 	if (connect->sni)
 		ssl_sock_set_servername(conn, connect->sni);
@@ -1153,6 +1128,31 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	if (conn_ctrl_ready(conn) && (conn->flags & (CO_FL_SEND_PROXY | CO_FL_SOCKS4))) {
 		if (xprt_add_hs(conn) < 0)
 			status = SF_ERR_RESOURCE;
+	}
+
+	/* The mux may be initialized now if there isn't server attached to the
+	 * check (email alerts) or if there is a mux proto specified or if there
+	 * is no alpn.
+	 */
+	if (!s || ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto) ||
+	    connect->mux_proto || (!connect->alpn && !check->alpn_str)) {
+		const struct mux_ops *mux_ops;
+
+		if (connect->mux_proto)
+			mux_ops = connect->mux_proto->mux;
+		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto)
+			mux_ops = check->mux_proto->mux;
+		else {
+			int mode = ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK
+				    ? PROTO_MODE_HTTP
+				    : PROTO_MODE_TCP);
+
+			mux_ops = conn_get_best_mux(conn, IST_NULL, PROTO_SIDE_BE, mode);
+		}
+		if (mux_ops && conn_install_mux(conn, mux_ops, cs, proxy, check->sess) < 0) {
+			status = SF_ERR_INTERNAL;
+			goto fail_check;
+		}
 	}
 
   fail_check:
