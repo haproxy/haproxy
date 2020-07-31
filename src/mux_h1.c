@@ -363,8 +363,8 @@ static inline int h1_recv_allowed(const struct h1c *h1c)
 		return 0;
 	}
 
-	if (h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH)) {
-		TRACE_DEVEL("recv not allowed because of (error|read0) on connection", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
+	if (h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN)) {
+		TRACE_DEVEL("recv not allowed because of (error|read0|waitl4|waitl6) on connection", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		return 0;
 	}
 
