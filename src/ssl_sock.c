@@ -1342,8 +1342,12 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 	SSL_CTX_get_tlsext_status_cb(ctx, &callback);
 
 	if (!callback) {
-		struct ocsp_cbk_arg *cb_arg = calloc(1, sizeof(*cb_arg));
+		struct ocsp_cbk_arg *cb_arg;
 		EVP_PKEY *pkey;
+
+		cb_arg = calloc(1, sizeof(*cb_arg));
+		if (!cb_arg)
+			goto out;
 
 		cb_arg->is_single = 1;
 		cb_arg->s_ocsp = iocsp;
