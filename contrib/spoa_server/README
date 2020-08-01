@@ -23,7 +23,7 @@ It's recommended to use python version 3 where possible due to python 2 deprecat
   Compilation
 ---------------
 
-Actually, the server support Lua and Python. Type "make" with the options:
+The server currently supports Lua and Python. Type "make" with the options:
 USE_LUA=1 and/or USE_PYTHON=1.
 
 You can add LUA_INC=.. LUA_LIB=.. to the make command to set the paths to
