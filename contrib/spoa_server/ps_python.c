@@ -66,7 +66,7 @@ static int ps_python_check_overflow(Py_ssize_t len)
 	 */
 	if (len >= (Py_ssize_t)INT_MAX) {
 		PyErr_Format(spoa_error,
-				"%d is over 2GB. Please split in smaller pieces.", \
+				"%zd is over 2GB. Please split in smaller pieces.", \
 				len);
 		return -1;
 	} else {
