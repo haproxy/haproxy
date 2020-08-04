@@ -634,10 +634,10 @@ static void dns_check_dns_response(struct dns_resolution *res)
 
 					switch (item->ar_item->type) {
 						case DNS_RTYPE_A:
-							update_server_addr(srv, &(((struct sockaddr_in*)&item->ar_item->address)->sin_addr), AF_INET, "DNS additional recrd");
+							update_server_addr(srv, &(((struct sockaddr_in*)&item->ar_item->address)->sin_addr), AF_INET, "DNS additional record");
 						break;
 						case DNS_RTYPE_AAAA:
-							update_server_addr(srv, &(((struct sockaddr_in6*)&item->ar_item->address)->sin6_addr), AF_INET6, "DNS additional recrd");
+							update_server_addr(srv, &(((struct sockaddr_in6*)&item->ar_item->address)->sin6_addr), AF_INET6, "DNS additional record");
 						break;
 					}
 
