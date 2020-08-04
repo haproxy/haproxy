@@ -533,6 +533,8 @@ OPTIONS_LDFLAGS += -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic)
 endif
 
 ifneq ($(USE_OPENSSL),)
+SSL_INC =
+SSL_LIB =
 # OpenSSL is packaged in various forms and with various dependencies.
 # In general -lssl is enough, but on some platforms, -lcrypto may be needed,
 # reason why it's added by default. Some even need -lz, then you'll need to
