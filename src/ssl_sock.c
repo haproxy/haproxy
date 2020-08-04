@@ -852,6 +852,7 @@ struct certificate_ocsp {
 	struct ebmb_node key;
 	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
 	struct buffer response;
+	int refcount;
 	long expire;
 };
 
@@ -1203,6 +1204,8 @@ static int tlskeys_finalize_config(void)
 #endif /* SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB */
 
 #ifndef OPENSSL_NO_OCSP
+int ocsp_ex_index = -1;
+
 int ssl_sock_get_ocsp_arg_kt_index(int evp_keytype)
 {
 	switch (evp_keytype) {
@@ -1225,11 +1228,18 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 	struct certificate_ocsp *ocsp;
 	struct ocsp_cbk_arg *ocsp_arg;
 	char *ssl_buf;
+	SSL_CTX *ctx;
 	EVP_PKEY *ssl_pkey;
 	int key_type;
 	int index;
 
-	ocsp_arg = arg;
+	ctx = SSL_get_SSL_CTX(ssl);
+	if (!ctx)
+		return SSL_TLSEXT_ERR_NOACK;
+
+	ocsp_arg = SSL_CTX_get_ex_data(ctx, ocsp_ex_index);
+	if (!ocsp_arg)
+		return SSL_TLSEXT_ERR_NOACK;
 
 	ssl_pkey = SSL_get_privatekey(ssl);
 	if (!ssl_pkey)
@@ -1271,6 +1281,26 @@ int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
 #endif
 
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+
+
+/*
+ * Decrease the refcount of the struct ocsp_response and frees it if it's not
+ * used anymore. Also removes it from the tree if free'd.
+ */
+static void ssl_sock_free_ocsp(struct certificate_ocsp *ocsp)
+{
+	if (!ocsp)
+		return;
+
+	ocsp->refcount--;
+	if (ocsp->refcount <= 0) {
+		ebmb_delete(&ocsp->key);
+		chunk_destroy(&ocsp->response);
+		free(ocsp);
+	}
+}
+
+
 /*
  * This function enables the handling of OCSP status extension on 'ctx' if a
  * ocsp_response buffer was found in the cert_key_and_chain.  To enable OCSP
@@ -1351,13 +1381,15 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 
 		cb_arg->is_single = 1;
 		cb_arg->s_ocsp = iocsp;
+		iocsp->refcount++;
 
 		pkey = X509_get_pubkey(x);
 		cb_arg->single_kt = EVP_PKEY_base_id(pkey);
 		EVP_PKEY_free(pkey);
 
 		SSL_CTX_set_tlsext_status_cb(ctx, ssl_sock_ocsp_stapling_cbk);
-		SSL_CTX_set_tlsext_status_arg(ctx, cb_arg);
+		SSL_CTX_set_ex_data(ctx, ocsp_ex_index, cb_arg); /* we use the ex_data instead of the cb_arg function here, so we can use the cleanup callback to free */
+
 	} else {
 		/*
 		 * If the ctx has a status CB, then we have previously set an OCSP staple for this ctx
@@ -1369,11 +1401,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 		int key_type;
 		EVP_PKEY *pkey;
 
-#ifdef SSL_CTX_get_tlsext_status_arg
-		SSL_CTX_ctrl(ctx, SSL_CTRL_GET_TLSEXT_STATUS_REQ_CB_ARG, 0, &cb_arg);
-#else
-		cb_arg = ctx->tlsext_status_arg;
-#endif
+		cb_arg = SSL_CTX_get_ex_data(ctx, ocsp_ex_index);
 
 		/*
 		 * The following few lines will convert cb_arg from a single ocsp to multi ocsp
@@ -1391,9 +1419,10 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 		EVP_PKEY_free(pkey);
 
 		index = ssl_sock_get_ocsp_arg_kt_index(key_type);
-		if (index >= 0 && !cb_arg->m_ocsp[index])
+		if (index >= 0 && !cb_arg->m_ocsp[index]) {
 			cb_arg->m_ocsp[index] = iocsp;
-
+			iocsp->refcount++;
+		}
 	}
 
 	ret = 0;
@@ -6721,6 +6750,31 @@ static void ssl_sock_sctl_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad,
 }
 
 #endif
+
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+static void ssl_sock_ocsp_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
+{
+	struct ocsp_cbk_arg *ocsp_arg;
+
+	if (ptr) {
+		ocsp_arg = ptr;
+
+		if (ocsp_arg->is_single) {
+			ssl_sock_free_ocsp(ocsp_arg->s_ocsp);
+			ocsp_arg->s_ocsp = NULL;
+		} else {
+			int i;
+
+			for (i = 0; i < SSL_SOCK_NUM_KEYTYPES; i++) {
+				ssl_sock_free_ocsp(ocsp_arg->m_ocsp[i]);
+				ocsp_arg->m_ocsp[i] = NULL;
+			}
+		}
+		free(ocsp_arg);
+	}
+}
+#endif
+
 static void ssl_sock_capture_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
 {
 	pool_free(pool_head_ssl_capture, ptr);
@@ -6786,6 +6840,11 @@ static void __ssl_sock_init(void)
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
 	sctl_ex_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_sctl_free_func);
 #endif
+
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
+	ocsp_ex_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_ocsp_free_func);
+#endif
+
 	ssl_app_data_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 	ssl_capture_ptr_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_capture_free_func);
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
