@@ -648,6 +648,9 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				if (msg)
 					send_log(srv->proxy, LOG_NOTICE, "%s", msg);
 
+				/* now we have an IP address associated to this server, we can update its status */
+				snr_update_srv_status(srv, 0);
+
 				srv->svc_port = item->port;
 				srv->flags   &= ~SRV_F_MAPPORTS;
 				if ((srv->check.state & CHK_ST_CONFIGURED) &&

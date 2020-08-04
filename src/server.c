@@ -3733,6 +3733,12 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 
 	/* If resolution is NULL we're dealing with SRV records Additional records */
 	if (resolution == NULL) {
+		/* since this server has an IP, it can go back in production */
+		if (has_no_ip == 0) {
+			srv_clr_admin_flag(s, SRV_ADMF_RMAINT);
+			return 1;
+		}
+
 		if (s->next_admin & SRV_ADMF_RMAINT)
 			return 1;
 
