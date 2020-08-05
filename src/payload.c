@@ -1102,17 +1102,21 @@ int val_payload_lv(struct arg *arg, char **err_msg)
 	}
 
 	if (arg[2].type == ARGT_STR && arg[2].data.str.data > 0) {
+		long long int i;
+
 		if (arg[2].data.str.area[0] == '+' || arg[2].data.str.area[0] == '-')
 			relative = 1;
 		str = arg[2].data.str.area;
-		arg[2].type = ARGT_SINT;
-		arg[2].data.sint = read_int64(&str,
-					      str + arg[2].data.str.data);
+		i = read_int64(&str, str + arg[2].data.str.data);
 		if (*str != '\0') {
 			memprintf(err_msg, "payload offset2 is not a number");
 			return 0;
 		}
-	   if (arg[0].data.sint + arg[1].data.sint + arg[2].data.sint < 0) {
+		free(arg[2].data.str.area);
+		arg[2].type = ARGT_SINT;
+		arg[2].data.sint = i;
+
+		if (arg[0].data.sint + arg[1].data.sint + arg[2].data.sint < 0) {
 			memprintf(err_msg, "payload offset2 too negative");
 			return 0;
 		}
@@ -1310,6 +1314,7 @@ int val_distcc(struct arg *arg, char **err_msg)
 	token = (arg[0].data.str.area[0] << 24) + (arg[0].data.str.area[1] << 16) +
 		(arg[0].data.str.area[2] << 8) + (arg[0].data.str.area[3] << 0);
 
+	free(arg[0].data.str.area);
 	arg[0].type      = ARGT_SINT;
 	arg[0].data.sint = token;
 

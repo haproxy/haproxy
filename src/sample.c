@@ -1514,6 +1514,7 @@ static int smp_check_debug(struct arg *args, struct sample_conv *conv,
 		return 0;
 	}
 
+	free(args[1].data.str.area);
 	args[1].type = ARGT_PTR;
 	args[1].data.ptr = sink;
 	return 1;
@@ -2143,6 +2144,8 @@ enum input_type {
 static int sample_conv_json_check(struct arg *arg, struct sample_conv *conv,
                                   const char *file, int line, char **err)
 {
+	enum input_type type;
+
 	if (!arg) {
 		memprintf(err, "Unexpected empty arg list");
 		return 0;
@@ -2153,45 +2156,28 @@ static int sample_conv_json_check(struct arg *arg, struct sample_conv *conv,
 		return 0;
 	}
 
-	if (strcmp(arg->data.str.area, "") == 0) {
-		arg->type = ARGT_SINT;
-		arg->data.sint = IT_ASCII;
-		return 1;
+	if (strcmp(arg->data.str.area, "") == 0)
+		type = IT_ASCII;
+	else if (strcmp(arg->data.str.area, "ascii") == 0)
+		type = IT_ASCII;
+	else if (strcmp(arg->data.str.area, "utf8") == 0)
+		type = IT_UTF8;
+	else if (strcmp(arg->data.str.area, "utf8s") == 0)
+		type = IT_UTF8S;
+	else if (strcmp(arg->data.str.area, "utf8p") == 0)
+		type = IT_UTF8P;
+	else if (strcmp(arg->data.str.area, "utf8ps") == 0)
+		type = IT_UTF8PS;
+	else {
+		memprintf(err, "Unexpected input code type. "
+			  "Allowed value are 'ascii', 'utf8', 'utf8s', 'utf8p' and 'utf8ps'");
+		return 0;
 	}
 
-	else if (strcmp(arg->data.str.area, "ascii") == 0) {
-		arg->type = ARGT_SINT;
-		arg->data.sint = IT_ASCII;
-		return 1;
-	}
-
-	else if (strcmp(arg->data.str.area, "utf8") == 0) {
-		arg->type = ARGT_SINT;
-		arg->data.sint = IT_UTF8;
-		return 1;
-	}
-
-	else if (strcmp(arg->data.str.area, "utf8s") == 0) {
-		arg->type = ARGT_SINT;
-		arg->data.sint = IT_UTF8S;
-		return 1;
-	}
-
-	else if (strcmp(arg->data.str.area, "utf8p") == 0) {
-		arg->type = ARGT_SINT;
-		arg->data.sint = IT_UTF8P;
-		return 1;
-	}
-
-	else if (strcmp(arg->data.str.area, "utf8ps") == 0) {
-		arg->type = ARGT_SINT;
-		arg->data.sint = IT_UTF8PS;
-		return 1;
-	}
-
-	memprintf(err, "Unexpected input code type. "
-	               "Allowed value are 'ascii', 'utf8', 'utf8s', 'utf8p' and 'utf8ps'");
-	return 0;
+	free(arg->data.str.area);
+	arg->type = ARGT_SINT;
+	arg->data.sint = type;
+	return 1;
 }
 
 static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *private)
@@ -2666,6 +2652,7 @@ static int check_operator(struct arg *args, struct sample_conv *conv,
 {
 	const char *str;
 	const char *end;
+	long long int i;
 
 	/* Try to decode a variable. */
 	if (vars_check_arg(&args[0], NULL))
@@ -2674,12 +2661,15 @@ static int check_operator(struct arg *args, struct sample_conv *conv,
 	/* Try to convert an integer */
 	str = args[0].data.str.area;
 	end = str + strlen(str);
-	args[0].data.sint = read_int64(&str, end);
+	i = read_int64(&str, end);
 	if (*str != '\0') {
 		memprintf(err, "expects an integer or a variable name");
 		return 0;
 	}
+
+	free(args[0].data.str.area);
 	args[0].type = ARGT_SINT;
+	args[0].data.sint = i;
 	return 1;
 }
 
@@ -3203,6 +3193,7 @@ static int sample_conv_protobuf_check(struct arg *args, struct sample_conv *conv
 			return 0;
 		}
 
+		free(args[1].data.str.area);
 		args[1].type = ARGT_SINT;
 		args[1].data.sint = pbuf_type;
 	}
@@ -3368,23 +3359,26 @@ smp_fetch_env(const struct arg *args, struct sample *smp, const char *kw, void *
 int smp_check_date_unit(struct arg *args, char **err)
 {
         if (args[1].type == ARGT_STR) {
+		long long int unit;
+
                 if (strcmp(args[1].data.str.area, "s") == 0) {
-                        args[1].data.sint = TIME_UNIT_S;
+                        unit = TIME_UNIT_S;
                 }
                 else if (strcmp(args[1].data.str.area, "ms") == 0) {
-                        args[1].data.sint = TIME_UNIT_MS;
+                        unit = TIME_UNIT_MS;
                 }
                 else if (strcmp(args[1].data.str.area, "us") == 0) {
-                        args[1].data.sint = TIME_UNIT_US;
+                        unit = TIME_UNIT_US;
                 }
                 else {
                         memprintf(err, "expects 's', 'ms' or 'us', got '%s'",
                                   args[1].data.str.area);
                         return 0;
                 }
-                free(args[1].data.str.area);
-                args[1].data.str.area = NULL;
+
+		free(args[1].data.str.area);
                 args[1].type = ARGT_SINT;
+		args[1].data.sint = unit;
         }
         else if (args[1].type != ARGT_STOP) {
                 memprintf(err, "Unexpected arg type");
@@ -3622,6 +3616,7 @@ static int smp_check_const_bin(struct arg *args, char **err)
 
 	if (!parse_binary(args[0].data.str.area, &binstr, &binstrlen, err))
 		return 0;
+	free(args[0].data.str.area);
 	args[0].type = ARGT_STR;
 	args[0].data.str.area = binstr;
 	args[0].data.str.data = binstrlen;

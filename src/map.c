@@ -151,6 +151,7 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 				  arg[1].data.str.area);
 			return 0;
 		}
+		free(arg[1].data.str.area);
 		if (data.type == SMP_T_IPV4) {
 			arg[1].type = ARGT_IPV4;
 			arg[1].data.ipv4 = data.u.ipv4;
@@ -161,6 +162,7 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	}
 
 	/* replace the first argument by this definition */
+	free(arg[0].data.str.area);
 	arg[0].type = ARGT_MAP;
 	arg[0].data.map = desc;
 
