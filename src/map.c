@@ -98,6 +98,11 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 {
 	struct map_descriptor *desc;
 
+	if (!(global.mode & MODE_STARTING)) {
+		memprintf(err, "map: cannot load map at runtime");
+		return 0;
+	}
+
 	/* create new map descriptor */
 	desc = map_create_descriptor(conv);
 	if (!desc) {
