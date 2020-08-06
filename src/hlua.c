@@ -26,6 +26,7 @@
 #include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/arg.h>
+#include <haproxy/auth.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/cli.h>
@@ -593,6 +594,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 	int min_arg;
 	int i, idx;
 	struct proxy *px;
+	struct userlist *ul;
 	const char *msg = NULL;
 	char *sname, *pname;
 
@@ -821,11 +823,23 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			argp[idx].type = ARGT_MSK6;
 			break;
 
-		case ARGT_MAP:
-		case ARGT_REG:
 		case ARGT_USR:
-			msg = "type not yet supported";
-			goto error;
+			if (argp[idx].type != ARGT_STR) {
+				msg = "string expected";
+				goto error;
+			}
+			if (p->uri_auth && p->uri_auth->userlist &&
+			    !strcmp(p->uri_auth->userlist->name, argp[idx].data.str.area))
+				ul = p->uri_auth->userlist;
+			else
+				ul = auth_find_userlist(argp[idx].data.str.area);
+
+			if (!ul) {
+				msg = lua_pushfstring(L, "unable to find userlist '%s'", argp[idx].data.str.area);
+				goto error;
+			}
+			argp[idx].type = ARGT_USR;
+			argp[idx].data.usr = ul;
 			break;
 
 		case ARGT_STR:
@@ -834,6 +848,12 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 				goto error;
 			}
 			argp[idx].data.str = tmp;
+			break;
+
+		case ARGT_MAP:
+		case ARGT_REG:
+			msg = "type not yet supported";
+			goto error;
 			break;
 
 		}

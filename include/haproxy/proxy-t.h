@@ -39,6 +39,7 @@
 #include <haproxy/server-t.h>
 #include <haproxy/tcpcheck-t.h>
 #include <haproxy/thread-t.h>
+#include <haproxy/uri_auth-t.h>
 
 /* values for proxy->state */
 enum pr_state {
