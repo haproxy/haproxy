@@ -136,6 +136,73 @@ out:
 	return ret;
 }
 
+/* binary, returns a chain certificate in a binary chunk (der/raw).
+ * The 5th keyword char is used to support only peer cert
+ */
+static int
+smp_fetch_ssl_x_chain_der(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	int cert_peer = (kw[4] == 'c' || kw[4] == 's') ? 1 : 0;
+	int conn_server = (kw[4] == 's') ? 1 : 0;
+	struct buffer *smp_trash;
+	struct buffer *tmp_trash = NULL;
+	struct connection *conn;
+	STACK_OF(X509) *certs = NULL;
+	X509 *crt = NULL;
+	SSL *ssl;
+	int ret = 0;
+	int num_certs;
+	int i;
+
+	if (conn_server)
+		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+	else
+		conn = objt_conn(smp->sess->origin);
+
+	if (!conn)
+		return 0;
+
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	if (conn->flags & CO_FL_WAIT_XPRT) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (!cert_peer)
+		return 0;
+
+	certs = SSL_get_peer_cert_chain(ssl);
+	if (!certs)
+		return 0;
+
+	num_certs = sk_X509_num(certs);
+	if (!num_certs)
+		goto out;
+	smp_trash = get_trash_chunk();
+	tmp_trash = alloc_trash_chunk();
+	if (!tmp_trash)
+		goto out;
+	for (i = 0; i < num_certs; i++) {
+		crt = sk_X509_value(certs, i);
+		if (ssl_sock_crt2der(crt, tmp_trash) <= 0)
+			goto out;
+		chunk_cat(smp_trash, tmp_trash);
+	}
+
+	smp->data.u.str = *smp_trash;
+	smp->data.type = SMP_T_BIN;
+	ret = 1;
+out:
+	if (tmp_trash)
+		free_trash_chunk(tmp_trash);
+	if (certs)
+		sk_X509_pop_free(certs, X509_free);
+	return ret;
+}
+
 /* binary, returns serial of certificate in a binary chunk.
  * The 5th keyword char is used to know if SSL_get_certificate or SSL_get_peer_certificate
  * should be use.
@@ -1389,6 +1456,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+	{ "ssl_c_chain_der",        smp_fetch_ssl_x_chain_der,    0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_c_err",              smp_fetch_ssl_c_err,          0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_i_dn",             smp_fetch_ssl_x_i_dn,         ARG3(0,STR,SINT,STR),val_dnfmt,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
@@ -1458,6 +1526,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 
 /* SSL server certificate fetches */
 	{ "ssl_s_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+	{ "ssl_s_chain_der",        smp_fetch_ssl_x_chain_der,    0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_s_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_s_notafter",         smp_fetch_ssl_x_notafter,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_s_notbefore",        smp_fetch_ssl_x_notbefore,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },

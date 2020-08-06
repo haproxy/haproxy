@@ -37,6 +37,7 @@ haproxy h1 -conf {
         ${no-htx} option http-use-htx
 
         http-response add-header x-ssl-der %[ssl_c_der,hex]
+        http-response add-header x-ssl-chain-der %[ssl_c_chain_der,hex]
         http-response add-header x-ssl-sha1 %[ssl_c_sha1,hex]
         http-response add-header x-ssl-notafter %[ssl_c_notafter]
         http-response add-header x-ssl-notbefore %[ssl_c_notbefore]
@@ -58,6 +59,7 @@ client c1 -connect ${h1_clearlst_sock} {
     rxresp
     expect resp.status == 200
     expect resp.http.x-ssl-der ~ 3082052D30820315020102300D0.*995ED3BE2BFB923A3EB71FA07002E
+    expect resp.http.x-ssl-chain-der ~ 3082096B30820553A0030201020.*0237D08F425C8414A23D436415502
     expect resp.http.x-ssl-sha1 == "D9C3BAE37EA5A7EDB7B3C9BDD4DCB2FE58A412E4"
     expect resp.http.x-ssl-notafter == "500421185942Z"
     expect resp.http.x-ssl-notbefore == "200428185942Z"

@@ -40,6 +40,7 @@ haproxy h1 -conf {
         http-response add-header x-ssl-s_serial %[ssl_s_serial,hex]
         http-response add-header x-ssl-key_alg %[ssl_s_key_alg]
         http-response add-header x-ssl-der %[ssl_s_der,hex]
+        http-response add-header x-ssl-chain-der %[ssl_s_chain_der,hex]
         http-response add-header x-ssl-version %[ssl_s_version]
 
         server s1 "${tmpdir}/ssl.sock" ssl verify none sni str(www.test1.com)
@@ -67,7 +68,8 @@ client c1 -connect ${h1_clearlst_sock} {
     expect resp.http.x-ssl-s_serial == "02"
     expect resp.http.x-ssl-key_alg == "rsaEncryption"
     expect resp.http.x-ssl-version == "3"
-    expect resp.http.x-ssl-der ~ 3082067930820461A0030201020201.*
+    expect resp.http.x-ssl-der ~ 3082067930820461A0030201020201.*5E3D4498BB847BC4DE093F9AD1AD3
+    expect resp.http.x-ssl-chain-der ~ 3082067930820461A0030201020201.*527A6D6780A610484CE356C4C4E1C
 } -run
 
 
