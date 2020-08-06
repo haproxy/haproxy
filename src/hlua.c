@@ -591,8 +591,9 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
                               uint64_t mask, struct proxy *p)
 {
 	int min_arg;
-	int idx;
+	int i, idx;
 	struct proxy *px;
+	const char *msg = NULL;
 	char *sname, *pname;
 
 	idx = 0;
@@ -600,10 +601,12 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 	mask >>= ARGM_BITS;
 
 	while (1) {
+		struct buffer tmp = BUF_NULL;
 
 		/* Check oversize. */
 		if (idx >= ARGM_NBARGS && argp[idx].type != ARGT_STOP) {
-			WILL_LJMP(luaL_argerror(L, first + idx, "Malformed argument mask"));
+			msg = "Malformed argument mask";
+			goto error;
 		}
 
 		/* Check for mandatory arguments. */
@@ -611,8 +614,10 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			if (idx < min_arg) {
 
 				/* If miss other argument than the first one, we return an error. */
-				if (idx > 0)
-					WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
+				if (idx > 0) {
+					msg = "Mandatory argument expected";
+					goto error;
+				}
 
 				/* If first argument have a certain type, some default values
 				 * may be used. See the function smp_resolve_args().
@@ -620,16 +625,20 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 				switch (mask & ARGT_MASK) {
 
 				case ARGT_FE:
-					if (!(p->cap & PR_CAP_FE))
-						WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
+					if (!(p->cap & PR_CAP_FE)) {
+						msg = "Mandatory argument expected";
+						goto error;
+					}
 					argp[idx].data.prx = p;
 					argp[idx].type = ARGT_FE;
 					argp[idx+1].type = ARGT_STOP;
 					break;
 
 				case ARGT_BE:
-					if (!(p->cap & PR_CAP_BE))
-						WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
+					if (!(p->cap & PR_CAP_BE)) {
+						msg = "Mandatory argument expected";
+						goto error;
+					}
 					argp[idx].data.prx = p;
 					argp[idx].type = ARGT_BE;
 					argp[idx+1].type = ARGT_STOP;
@@ -642,97 +651,129 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 					break;
 
 				default:
-					WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
+					msg = "Mandatory argument expected";
+					goto error;
 					break;
 				}
 			}
-			return 0;
+			break;
 		}
 
 		/* Check for exceed the number of required argument. */
 		if ((mask & ARGT_MASK) == ARGT_STOP &&
 		    argp[idx].type != ARGT_STOP) {
-			WILL_LJMP(luaL_argerror(L, first + idx, "Last argument expected"));
+			msg = "Last argument expected";
+			goto error;
 		}
 
 		if ((mask & ARGT_MASK) == ARGT_STOP &&
 		    argp[idx].type == ARGT_STOP) {
-			return 0;
+			break;
 		}
 
-		/* Convert some argument types. */
+		/* Convert some argument types. All string in argp[] are for not
+		 * duplicated yet.
+		 */
 		switch (mask & ARGT_MASK) {
 		case ARGT_SINT:
-			if (argp[idx].type != ARGT_SINT)
-				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
+			if (argp[idx].type != ARGT_SINT) {
+				msg = "integer expected";
+				goto error;
+			}
 			argp[idx].type = ARGT_SINT;
 			break;
 
 		case ARGT_TIME:
-			if (argp[idx].type != ARGT_SINT)
-				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
+			if (argp[idx].type != ARGT_SINT) {
+				msg = "integer expected";
+				goto error;
+			}
 			argp[idx].type = ARGT_TIME;
 			break;
 
 		case ARGT_SIZE:
-			if (argp[idx].type != ARGT_SINT)
-				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
+			if (argp[idx].type != ARGT_SINT) {
+				msg = "integer expected";
+				goto error;
+			}
 			argp[idx].type = ARGT_SIZE;
 			break;
 
 		case ARGT_FE:
-			if (argp[idx].type != ARGT_STR)
-				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
+			if (argp[idx].type != ARGT_STR) {
+				msg = "string expected";
+				goto error;
+			}
 			argp[idx].data.prx = proxy_fe_by_name(argp[idx].data.str.area);
-			if (!argp[idx].data.prx)
-				WILL_LJMP(luaL_argerror(L, first + idx, "frontend doesn't exist"));
+			if (!argp[idx].data.prx) {
+				msg = "frontend doesn't exist";
+				goto error;
+			}
 			argp[idx].type = ARGT_FE;
 			break;
 
 		case ARGT_BE:
-			if (argp[idx].type != ARGT_STR)
-				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
+			if (argp[idx].type != ARGT_STR) {
+				msg = "string expected";
+				goto error;
+			}
 			argp[idx].data.prx = proxy_be_by_name(argp[idx].data.str.area);
-			if (!argp[idx].data.prx)
-				WILL_LJMP(luaL_argerror(L, first + idx, "backend doesn't exist"));
+			if (!argp[idx].data.prx) {
+				msg = "backend doesn't exist";
+				goto error;
+			}
 			argp[idx].type = ARGT_BE;
 			break;
 
 		case ARGT_TAB:
-			if (argp[idx].type != ARGT_STR)
-				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
+			if (argp[idx].type != ARGT_STR) {
+				msg = "string expected";
+				goto error;
+			}
 			argp[idx].data.t = stktable_find_by_name(argp[idx].data.str.area);
-			if (!argp[idx].data.t)
-				WILL_LJMP(luaL_argerror(L, first + idx, "table doesn't exist"));
+			if (!argp[idx].data.t) {
+				msg = "table doesn't exist";
+				goto error;
+			}
 			argp[idx].type = ARGT_TAB;
 			break;
 
 		case ARGT_SRV:
-			if (argp[idx].type != ARGT_STR)
-				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
+			if (argp[idx].type != ARGT_STR) {
+				msg = "string expected";
+				goto error;
+			}
 			sname = strrchr(argp[idx].data.str.area, '/');
 			if (sname) {
 				*sname++ = '\0';
 				pname = argp[idx].data.str.area;
 				px = proxy_be_by_name(pname);
-				if (!px)
-					WILL_LJMP(luaL_argerror(L, first + idx, "backend doesn't exist"));
+				if (!px) {
+					msg = "backend doesn't exist";
+					goto error;
+				}
 			}
 			else {
 				sname = argp[idx].data.str.area;
 				px = p;
 			}
 			argp[idx].data.srv = findserver(px, sname);
-			if (!argp[idx].data.srv)
-				WILL_LJMP(luaL_argerror(L, first + idx, "server doesn't exist"));
+			if (!argp[idx].data.srv) {
+				msg = "server doesn't exist";
+				goto error;
+			}
 			argp[idx].type = ARGT_SRV;
 			break;
 
 		case ARGT_IPV4:
-			if (argp[idx].type != ARGT_STR)
-				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
-			if (inet_pton(AF_INET, argp[idx].data.str.area, &argp[idx].data.ipv4))
-				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv4 address"));
+			if (argp[idx].type != ARGT_STR) {
+				msg = "string expected";
+				goto error;
+			}
+			if (inet_pton(AF_INET, argp[idx].data.str.area, &argp[idx].data.ipv4)) {
+				msg = "invalid IPv4 address";
+				goto error;
+			}
 			argp[idx].type = ARGT_IPV4;
 			break;
 
@@ -740,19 +781,27 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			if (argp[idx].type == ARGT_SINT)
 				len2mask4(argp[idx].data.sint, &argp[idx].data.ipv4);
 			else if (argp[idx].type == ARGT_STR) {
-				if (!str2mask(argp[idx].data.str.area, &argp[idx].data.ipv4))
-					WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv4 mask"));
+				if (!str2mask(argp[idx].data.str.area, &argp[idx].data.ipv4)) {
+					msg = "invalid IPv4 mask";
+					goto error;
+				}
 			}
-			else
-				WILL_LJMP(luaL_argerror(L, first + idx, "integer or string expected"));
+			else  {
+				msg = "integer or string expected";
+				goto error;
+			}
 			argp[idx].type = ARGT_MSK4;
 			break;
 
 		case ARGT_IPV6:
-			if (argp[idx].type != ARGT_STR)
-				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
-			if (inet_pton(AF_INET6, argp[idx].data.str.area, &argp[idx].data.ipv6))
-				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv6 address"));
+			if (argp[idx].type != ARGT_STR) {
+				msg = "string expected";
+				goto error;
+			}
+			if (inet_pton(AF_INET6, argp[idx].data.str.area, &argp[idx].data.ipv6)) {
+				msg = "invalid IPv6 address";
+				goto error;
+			}
 			argp[idx].type = ARGT_IPV6;
 			break;
 
@@ -760,33 +809,56 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			if (argp[idx].type == ARGT_SINT)
 				len2mask6(argp[idx].data.sint, &argp[idx].data.ipv6);
 			else if (argp[idx].type == ARGT_STR) {
-				if (!str2mask6(argp[idx].data.str.area, &argp[idx].data.ipv6))
-					WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv6 mask"));
+				if (!str2mask6(argp[idx].data.str.area, &argp[idx].data.ipv6)) {
+					msg = "invalid IPv6 mask";
+					goto error;
+				}
 			}
-			else
-				WILL_LJMP(luaL_argerror(L, first + idx, "integer or string expected"));
+			else {
+				msg = "integer or string expected";
+				goto error;
+			}
 			argp[idx].type = ARGT_MSK6;
 			break;
 
 		case ARGT_MAP:
 		case ARGT_REG:
 		case ARGT_USR:
-			WILL_LJMP(luaL_argerror(L, first + idx, "type not yet supported"));
+			msg = "type not yet supported";
+			goto error;
 			break;
+
+		case ARGT_STR:
+			if (!chunk_dup(&tmp, &argp[idx].data.str)) {
+				msg = "unable to duplicate string arg";
+				goto error;
+			}
+			argp[idx].data.str = tmp;
+			break;
+
 		}
 
 		/* Check for type of argument. */
 		if ((mask & ARGT_MASK) != argp[idx].type) {
-			const char *msg = lua_pushfstring(L, "'%s' expected, got '%s'",
-			                                  arg_type_names[(mask & ARGT_MASK)],
-			                                  arg_type_names[argp[idx].type & ARGT_MASK]);
-			WILL_LJMP(luaL_argerror(L, first + idx, msg));
+			msg = lua_pushfstring(L, "'%s' expected, got '%s'",
+					      arg_type_names[(mask & ARGT_MASK)],
+					      arg_type_names[argp[idx].type & ARGT_MASK]);
+			goto error;
 		}
 
 		/* Next argument. */
 		mask >>= ARGT_BITS;
 		idx++;
 	}
+	return 0;
+
+  error:
+	for (i = 0; i < idx; i++) {
+		if (argp[i].type == ARGT_STR)
+			chunk_destroy(&argp[i].data.str);
+	}
+	WILL_LJMP(luaL_argerror(L, first + idx, msg));
+	return 0; /* Never reached */
 }
 
 /*
@@ -3255,7 +3327,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	/* Run the special args checker. */
 	if (f->val_args && !f->val_args(args, NULL)) {
 		lua_pushfstring(L, "error in arguments");
-		WILL_LJMP(lua_error(L));
+		goto error;
 	}
 
 	/* Initialise the sample. */
@@ -3268,7 +3340,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 			lua_pushstring(L, "");
 		else
 			lua_pushnil(L);
-		return 1;
+		goto end;
 	}
 
 	/* Convert the returned sample in lua value. */
@@ -3276,7 +3348,21 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 		hlua_smp2lua_str(L, &smp);
 	else
 		hlua_smp2lua(L, &smp);
+
+  end:
+	for (i = 0; args[i].type != ARGT_STOP; i++) {
+		if (args[i].type == ARGT_STR)
+			chunk_destroy(&args[i].data.str);
+	}
 	return 1;
+
+  error:
+	for (i = 0; args[i].type != ARGT_STOP; i++) {
+		if (args[i].type == ARGT_STR)
+			chunk_destroy(&args[i].data.str);
+	}
+	WILL_LJMP(lua_error(L));
+	return 0; /* Never reached */
 }
 
 /*
@@ -3361,13 +3447,13 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	/* Run the special args checker. */
 	if (conv->val_args && !conv->val_args(args, conv, "", 0, NULL)) {
 		hlua_pusherror(L, "error in arguments");
-		WILL_LJMP(lua_error(L));
+		goto error;
 	}
 
 	/* Initialise the sample. */
 	if (!hlua_lua2smp(L, 2, &smp)) {
 		hlua_pusherror(L, "error in the input argument");
-		WILL_LJMP(lua_error(L));
+		goto error;
 	}
 
 	smp_set_owner(&smp, hsmp->p, hsmp->s->sess, hsmp->s, hsmp->dir & SMP_OPT_DIR);
@@ -3376,12 +3462,12 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	if (!sample_casts[smp.data.type][conv->in_type]) {
 		hlua_pusherror(L, "invalid input argument: cannot cast '%s' to '%s'",
 		               smp_to_type[smp.data.type], smp_to_type[conv->in_type]);
-		WILL_LJMP(lua_error(L));
+		goto error;
 	}
 	if (sample_casts[smp.data.type][conv->in_type] != c_none &&
 	    !sample_casts[smp.data.type][conv->in_type](&smp)) {
 		hlua_pusherror(L, "error during the input argument casting");
-		WILL_LJMP(lua_error(L));
+		goto error;
 	}
 
 	/* Run the sample conversion process. */
@@ -3390,7 +3476,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 			lua_pushstring(L, "");
 		else
 			lua_pushnil(L);
-		return 1;
+		goto end;
 	}
 
 	/* Convert the returned sample in lua value. */
@@ -3398,7 +3484,20 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 		hlua_smp2lua_str(L, &smp);
 	else
 		hlua_smp2lua(L, &smp);
+  end:
+	for (i = 0; args[i].type != ARGT_STOP; i++) {
+		if (args[i].type == ARGT_STR)
+			chunk_destroy(&args[i].data.str);
+	}
 	return 1;
+
+  error:
+	for (i = 0; args[i].type != ARGT_STOP; i++) {
+		if (args[i].type == ARGT_STR)
+			chunk_destroy(&args[i].data.str);
+	}
+	WILL_LJMP(lua_error(L));
+	return 0; /* Never reached */
 }
 
 /*
