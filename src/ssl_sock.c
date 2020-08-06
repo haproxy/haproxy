@@ -1399,7 +1399,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 	ret = 0;
 
 	warn = NULL;
-	if (ssl_sock_load_ocsp_response(ckch->ocsp_response, ocsp, cid, &warn)) {
+	if (ssl_sock_load_ocsp_response(ckch->ocsp_response, iocsp, cid, &warn)) {
 		memprintf(&warn, "Loading: %s. Content will be ignored", warn ? warn : "failure");
 		ha_warning("%s.\n", warn);
 	}
