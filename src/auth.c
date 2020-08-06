@@ -36,6 +36,7 @@
 struct userlist *userlist = NULL;    /* list of all existing userlists */
 
 #ifdef USE_LIBCRYPT
+#define CRYPT_STATE_MSG "yes"
 #ifdef HA_HAVE_CRYPT_R
 /* context for crypt_r() */
 static THREAD_LOCAL struct crypt_data crypt_data = { .initialized = 0 };
@@ -43,6 +44,8 @@ static THREAD_LOCAL struct crypt_data crypt_data = { .initialized = 0 };
 /* lock for crypt() */
 __decl_thread(static HA_SPINLOCK_T auth_lock);
 #endif
+#else /* USE_LIBCRYPT */
+#define CRYPT_STATE_MSG "no"
 #endif
 
 /* find targets for selected groups. The function returns pointer to
@@ -310,4 +313,4 @@ pat_match_auth(struct sample *smp, struct pattern_expr *expr, int fill)
 	return NULL;
 }
 
-REGISTER_BUILD_OPTS("Encrypted password support via crypt(3): yes");
+REGISTER_BUILD_OPTS("Encrypted password support via crypt(3): "CRYPT_STATE_MSG);
