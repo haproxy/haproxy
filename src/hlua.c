@@ -8333,15 +8333,6 @@ void hlua_init(void)
 	 */
 	sf = NULL;
 	while ((sf = sample_fetch_getnext(sf, &idx)) != NULL) {
-
-		/* Dont register the keywork if the arguments check function are
-		 * not safe during the runtime.
-		 */
-		if ((sf->val_args != NULL) &&
-		    (sf->val_args != val_payload_lv) &&
-			 (sf->val_args != val_hdr))
-			continue;
-
 		/* gL.Tua doesn't support '.' and '-' in the function names, replace it
 		 * by an underscore.
 		 */
@@ -8381,12 +8372,6 @@ void hlua_init(void)
 	 */
 	sc = NULL;
 	while ((sc = sample_conv_getnext(sc, &idx)) != NULL) {
-		/* Dont register the keywork if the arguments check function are
-		 * not safe during the runtime.
-		 */
-		if (sc->val_args != NULL)
-			continue;
-
 		/* gL.Tua doesn't support '.' and '-' in the function names, replace it
 		 * by an underscore.
 		 */
