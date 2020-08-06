@@ -87,16 +87,16 @@ int ssl_sock_get_serial(X509 *crt, struct buffer *out)
 int ssl_sock_crt2der(X509 *crt, struct buffer *out)
 {
 	int len;
-	unsigned char *p = (unsigned char *) out->area;;
+	unsigned char *p = (unsigned char *) out->area;
 
-	len =i2d_X509(crt, NULL);
+	len = i2d_X509(crt, NULL);
 	if (len <= 0)
 		return 1;
 
 	if (out->size < len)
 		return -1;
 
-	i2d_X509(crt,&p);
+	i2d_X509(crt, &p);
 	out->data = len;
 	return 1;
 }
