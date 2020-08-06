@@ -595,8 +595,9 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 	int i, idx;
 	struct proxy *px;
 	struct userlist *ul;
+	struct my_regex *reg;
 	const char *msg = NULL;
-	char *sname, *pname;
+	char *sname, *pname, *err = NULL;
 
 	idx = 0;
 	min_arg = ARGM(mask);
@@ -823,6 +824,22 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			argp[idx].type = ARGT_MSK6;
 			break;
 
+		case ARGT_REG:
+			if (argp[idx].type != ARGT_STR) {
+				msg = "string expected";
+				goto error;
+			}
+			reg = regex_comp(argp[idx].data.str.area, !(argp[idx].type_flags & ARGF_REG_ICASE), 1, &err);
+			if (!reg) {
+				msg = lua_pushfstring(L, "error compiling regex '%s' : '%s'",
+						      argp[idx].data.str.area, err);
+				free(err);
+				goto error;
+			}
+			argp[idx].type = ARGT_REG;
+			argp[idx].data.reg = reg;
+			break;
+
 		case ARGT_USR:
 			if (argp[idx].type != ARGT_STR) {
 				msg = "string expected";
@@ -851,7 +868,6 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			break;
 
 		case ARGT_MAP:
-		case ARGT_REG:
 			msg = "type not yet supported";
 			goto error;
 			break;
@@ -876,6 +892,8 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 	for (i = 0; i < idx; i++) {
 		if (argp[i].type == ARGT_STR)
 			chunk_destroy(&argp[i].data.str);
+		else if (argp[i].type == ARGT_REG)
+			regex_free(argp[i].data.reg);
 	}
 	WILL_LJMP(luaL_argerror(L, first + idx, msg));
 	return 0; /* Never reached */
@@ -3373,6 +3391,8 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	for (i = 0; args[i].type != ARGT_STOP; i++) {
 		if (args[i].type == ARGT_STR)
 			chunk_destroy(&args[i].data.str);
+		else if (args[i].type == ARGT_REG)
+			regex_free(args[i].data.reg);
 	}
 	return 1;
 
@@ -3380,6 +3400,8 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	for (i = 0; args[i].type != ARGT_STOP; i++) {
 		if (args[i].type == ARGT_STR)
 			chunk_destroy(&args[i].data.str);
+		else if (args[i].type == ARGT_REG)
+			regex_free(args[i].data.reg);
 	}
 	WILL_LJMP(lua_error(L));
 	return 0; /* Never reached */
@@ -3508,6 +3530,8 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	for (i = 0; args[i].type != ARGT_STOP; i++) {
 		if (args[i].type == ARGT_STR)
 			chunk_destroy(&args[i].data.str);
+		else if (args[i].type == ARGT_REG)
+			regex_free(args[i].data.reg);
 	}
 	return 1;
 
@@ -3515,6 +3539,8 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	for (i = 0; args[i].type != ARGT_STOP; i++) {
 		if (args[i].type == ARGT_STR)
 			chunk_destroy(&args[i].data.str);
+		else if (args[i].type == ARGT_REG)
+			regex_free(args[i].data.reg);
 	}
 	WILL_LJMP(lua_error(L));
 	return 0; /* Never reached */
