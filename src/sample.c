@@ -1452,7 +1452,7 @@ static int sample_conv_debug(const struct arg *arg_p, struct sample *smp, void *
 	if (!buf)
 		goto end;
 
-	sink = (struct sink *)arg_p[1].data.str.area;
+	sink = (struct sink *)arg_p[1].data.ptr;
 	BUG_ON(!sink);
 
 	pfx = arg_p[0].data.str.area;
@@ -1514,8 +1514,8 @@ static int smp_check_debug(struct arg *args, struct sample_conv *conv,
 		return 0;
 	}
 
-	args[1].data.str.area = (char *)sink;
-	args[1].data.str.data = 0; // that's not a string anymore
+	args[1].type = ARGT_PTR;
+	args[1].data.ptr = sink;
 	return 1;
 }
 
