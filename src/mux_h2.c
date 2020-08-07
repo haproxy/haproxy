@@ -926,7 +926,7 @@ static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id)
  */
 static void h2_release(struct h2c *h2c)
 {
-	struct connection *conn = NULL;;
+	struct connection *conn = NULL;
 
 	TRACE_ENTER(H2_EV_H2C_END);
 

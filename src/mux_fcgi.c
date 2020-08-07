@@ -825,7 +825,7 @@ static inline struct fcgi_strm *fcgi_conn_st_by_id(struct fcgi_conn *fconn, int 
  */
 static void fcgi_release(struct fcgi_conn *fconn)
 {
-	struct connection *conn = NULL;;
+	struct connection *conn = NULL;
 
 	TRACE_POINT(FCGI_EV_FCONN_END);
 

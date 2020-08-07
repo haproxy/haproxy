@@ -186,7 +186,7 @@ ssize_t ring_write(struct ring *ring, size_t maxlen, const struct ist pfx[], siz
 		totlen += len;
 	}
 
-	*b_tail(buf) = 0; buf->data++;; // new read counter
+	*b_tail(buf) = 0; buf->data++; // new read counter
 	sent = lenlen + totlen + 1;
 
 	/* notify potential readers */
