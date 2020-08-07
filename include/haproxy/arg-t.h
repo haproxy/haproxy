@@ -61,6 +61,7 @@ enum {
 	ARGT_REG,      /* a pointer to a regex */
 	ARGT_VAR,      /* contains a variable description. */
 	ARGT_PBUF_FNUM, /* a protocol buffer field number */
+	ARGT_PTR,       /* a pointer to opaque data */
 	/* please update arg_type_names[] in args.c if you add entries here */
 };
 
@@ -106,6 +107,7 @@ union arg_data {
 	struct my_regex *reg;
 	struct pbuf_fid fid;
 	struct var_desc var;
+	void *ptr;
 };
 
 struct arg {
