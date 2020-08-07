@@ -1628,7 +1628,7 @@ __LJMP static int hlua_map_new(struct lua_State *L)
 		lua_pushfstring(L, "'new': %s.", err);
 		lua_concat(L, 2);
 		free(err);
-		free(args[0].data.str.area);
+		chunk_destroy(&args[0].data.str);
 		WILL_LJMP(lua_error(L));
 	}
 

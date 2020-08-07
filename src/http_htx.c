@@ -2618,17 +2618,17 @@ int val_blk_arg(struct arg *arg, char **err_msg)
 		return 0;
 	}
 	if (arg[0].data.str.data == 4 && !strncmp(arg[0].data.str.area, "head", 4)) {
-		free(arg[0].data.str.area);
+		chunk_destroy(&arg[0].data.str);
 		arg[0].type = ARGT_SINT;
 		arg[0].data.sint = -1;
 	}
 	else if (arg[0].data.str.data == 4 && !strncmp(arg[0].data.str.area, "tail", 4)) {
-		free(arg[0].data.str.area);
+		chunk_destroy(&arg[0].data.str);
 		arg[0].type = ARGT_SINT;
 		arg[0].data.sint = -2;
 	}
 	else if (arg[0].data.str.data == 5 && !strncmp(arg[0].data.str.area, "first", 5)) {
-		free(arg[0].data.str.area);
+		chunk_destroy(&arg[0].data.str);
 		arg[0].type = ARGT_SINT;
 		arg[0].data.sint = -3;
 	}
@@ -2647,7 +2647,7 @@ int val_blk_arg(struct arg *arg, char **err_msg)
 			memprintf(err_msg, "block position must not be negative");
 			return 0;
 		}
-		free(arg[0].data.str.area);
+		chunk_destroy(&arg[0].data.str);
 		arg[0].type = ARGT_SINT;
 		arg[0].data.sint = pos;
 	}

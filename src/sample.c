@@ -1177,8 +1177,7 @@ int smp_resolve_args(struct proxy *p)
 				break;
 			}
 
-			free(arg->data.str.area);
-			arg->data.str.area = NULL;
+			chunk_destroy(&arg->data.str);
 			arg->unresolved = 0;
 			arg->data.srv = srv;
 			break;
@@ -1205,8 +1204,7 @@ int smp_resolve_args(struct proxy *p)
 				break;
 			}
 
-			free(arg->data.str.area);
-			arg->data.str.area = NULL;
+			chunk_destroy(&arg->data.str);
 			arg->unresolved = 0;
 			arg->data.prx = px;
 			break;
@@ -1233,8 +1231,7 @@ int smp_resolve_args(struct proxy *p)
 				break;
 			}
 
-			free(arg->data.str.area);
-			arg->data.str.area = NULL;
+			chunk_destroy(&arg->data.str);
 			arg->unresolved = 0;
 			arg->data.prx = px;
 			break;
@@ -1274,8 +1271,7 @@ int smp_resolve_args(struct proxy *p)
 				t->proxies_list = p;
 			}
 
-			free(arg->data.str.area);
-			arg->data.str.area = NULL;
+			chunk_destroy(&arg->data.str);
 			arg->unresolved = 0;
 			arg->data.t = t;
 			break;
@@ -1304,8 +1300,7 @@ int smp_resolve_args(struct proxy *p)
 				break;
 			}
 
-			free(arg->data.str.area);
-			arg->data.str.area = NULL;
+			chunk_destroy(&arg->data.str);
 			arg->unresolved = 0;
 			arg->data.usr = ul;
 			break;
@@ -1332,8 +1327,7 @@ int smp_resolve_args(struct proxy *p)
 				continue;
 			}
 
-			free(arg->data.str.area);
-			arg->data.str.area = NULL;
+			chunk_destroy(&arg->data.str);
 			arg->unresolved = 0;
 			arg->data.reg = reg;
 			break;
@@ -1402,8 +1396,7 @@ static void release_sample_arg(struct arg *p)
 
 	while (p->type != ARGT_STOP) {
 		if (p->type == ARGT_STR || p->unresolved) {
-			free(p->data.str.area);
-			p->data.str.area = NULL;
+			chunk_destroy(&p->data.str);
 			p->unresolved = 0;
 		}
 		else if (p->type == ARGT_REG) {
@@ -1514,7 +1507,7 @@ static int smp_check_debug(struct arg *args, struct sample_conv *conv,
 		return 0;
 	}
 
-	free(args[1].data.str.area);
+	chunk_destroy(&args[1].data.str);
 	args[1].type = ARGT_PTR;
 	args[1].data.ptr = sink;
 	return 1;
@@ -2174,7 +2167,7 @@ static int sample_conv_json_check(struct arg *arg, struct sample_conv *conv,
 		return 0;
 	}
 
-	free(arg->data.str.area);
+	chunk_destroy(&arg->data.str);
 	arg->type = ARGT_SINT;
 	arg->data.sint = type;
 	return 1;
@@ -2667,7 +2660,7 @@ static int check_operator(struct arg *args, struct sample_conv *conv,
 		return 0;
 	}
 
-	free(args[0].data.str.area);
+	chunk_destroy(&args[0].data.str);
 	args[0].type = ARGT_SINT;
 	args[0].data.sint = i;
 	return 1;
@@ -3193,7 +3186,7 @@ static int sample_conv_protobuf_check(struct arg *args, struct sample_conv *conv
 			return 0;
 		}
 
-		free(args[1].data.str.area);
+		chunk_destroy(&args[1].data.str);
 		args[1].type = ARGT_SINT;
 		args[1].data.sint = pbuf_type;
 	}
@@ -3376,7 +3369,7 @@ int smp_check_date_unit(struct arg *args, char **err)
                         return 0;
                 }
 
-		free(args[1].data.str.area);
+		chunk_destroy(&args[1].data.str);
                 args[1].type = ARGT_SINT;
 		args[1].data.sint = unit;
         }
@@ -3565,14 +3558,14 @@ static int smp_check_const_bool(struct arg *args, char **err)
 {
 	if (strcasecmp(args[0].data.str.area, "true") == 0 ||
 	    strcasecmp(args[0].data.str.area, "1") == 0) {
-		free(args[0].data.str.area);
+		chunk_destroy(&args[0].data.str);
 		args[0].type = ARGT_SINT;
 		args[0].data.sint = 1;
 		return 1;
 	}
 	if (strcasecmp(args[0].data.str.area, "false") == 0 ||
 	    strcasecmp(args[0].data.str.area, "0") == 0) {
-		free(args[0].data.str.area);
+		chunk_destroy(&args[0].data.str);
 		args[0].type = ARGT_SINT;
 		args[0].data.sint = 0;
 		return 1;
@@ -3616,7 +3609,7 @@ static int smp_check_const_bin(struct arg *args, char **err)
 
 	if (!parse_binary(args[0].data.str.area, &binstr, &binstrlen, err))
 		return 0;
-	free(args[0].data.str.area);
+	chunk_destroy(&args[0].data.str);
 	args[0].type = ARGT_STR;
 	args[0].data.str.area = binstr;
 	args[0].data.str.data = binstrlen;
@@ -3639,8 +3632,7 @@ static int smp_check_const_meth(struct arg *args, char **err)
 
 	meth = find_http_meth(args[0].data.str.area, args[0].data.str.data);
 	if (meth != HTTP_METH_OTHER) {
-		free(args[0].data.str.area);
-
+		chunk_destroy(&args[0].data.str);
 		args[0].type = ARGT_SINT;
 		args[0].data.sint = meth;
 	} else {

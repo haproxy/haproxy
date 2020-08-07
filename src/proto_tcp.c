@@ -1502,12 +1502,12 @@ static int val_fc_time_value(struct arg *args, char **err)
 {
 	if (args[0].type == ARGT_STR) {
 		if (strcmp(args[0].data.str.area, "us") == 0) {
-			free(args[0].data.str.area);
+			chunk_destroy(&args[0].data.str);
 			args[0].type = ARGT_SINT;
 			args[0].data.sint = TIME_UNIT_US;
 		}
 		else if (strcmp(args[0].data.str.area, "ms") == 0) {
-			free(args[0].data.str.area);
+			chunk_destroy(&args[0].data.str);
 			args[0].type = ARGT_SINT;
 			args[0].data.sint = TIME_UNIT_MS;
 		}
@@ -1536,7 +1536,7 @@ static int var_fc_counter(struct arg *args, char **err)
 	if (args[0].type != ARGT_STOP) {
 		ha_warning("no argument supported for 'fc_*' sample expressions returning counters.\n");
 		if (args[0].type == ARGT_STR)
-			free(args[0].data.str.area);
+			chunk_destroy(&args[0].data.str);
 		args[0].type = ARGT_STOP;
 	}
 

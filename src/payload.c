@@ -1112,7 +1112,7 @@ int val_payload_lv(struct arg *arg, char **err_msg)
 			memprintf(err_msg, "payload offset2 is not a number");
 			return 0;
 		}
-		free(arg[2].data.str.area);
+		chunk_destroy(&arg[2].data.str);
 		arg[2].type = ARGT_SINT;
 		arg[2].data.sint = i;
 
@@ -1314,7 +1314,7 @@ int val_distcc(struct arg *arg, char **err_msg)
 	token = (arg[0].data.str.area[0] << 24) + (arg[0].data.str.area[1] << 16) +
 		(arg[0].data.str.area[2] << 8) + (arg[0].data.str.area[3] << 0);
 
-	free(arg[0].data.str.area);
+	chunk_destroy(&arg[0].data.str);
 	arg[0].type      = ARGT_SINT;
 	arg[0].data.sint = token;
 
