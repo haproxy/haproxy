@@ -2620,6 +2620,8 @@ void deinit(void)
 		free(p->capture_name);
 		free(p->monitor_uri);
 		free(p->rdp_cookie_name);
+		free(p->invalid_rep);
+		free(p->invalid_req);
 		if (p->conf.logformat_string != default_http_log_format &&
 		    p->conf.logformat_string != default_tcp_log_format &&
 		    p->conf.logformat_string != clf_http_log_format)
