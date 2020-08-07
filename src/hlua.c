@@ -752,11 +752,17 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			break;
 
 		case ARGT_MSK4:
-			memcpy(trash.area, argp[idx].data.str.area,
-			       argp[idx].data.str.data);
-			trash.area[argp[idx].data.str.data] = 0;
-			if (!str2mask(trash.area, &argp[idx].data.ipv4))
-				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv4 mask"));
+			if (argp[idx].type == ARGT_SINT)
+				len2mask4(argp[idx].data.sint, &argp[idx].data.ipv4);
+			else if (argp[idx].type == ARGT_STR) {
+				memcpy(trash.area, argp[idx].data.str.area,
+				       argp[idx].data.str.data);
+				trash.area[argp[idx].data.str.data] = 0;
+				if (!str2mask(trash.area, &argp[idx].data.ipv4))
+					WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv4 mask"));
+			}
+			else
+				WILL_LJMP(luaL_argerror(L, first + idx, "integer or string expected"));
 			argp[idx].type = ARGT_MSK4;
 			break;
 
@@ -772,11 +778,17 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 			break;
 
 		case ARGT_MSK6:
-			memcpy(trash.area, argp[idx].data.str.area,
-			       argp[idx].data.str.data);
-			trash.area[argp[idx].data.str.data] = 0;
-			if (!str2mask6(trash.area, &argp[idx].data.ipv6))
-				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv6 mask"));
+			if (argp[idx].type == ARGT_SINT)
+				len2mask6(argp[idx].data.sint, &argp[idx].data.ipv6);
+			else if (argp[idx].type == ARGT_STR) {
+				memcpy(trash.area, argp[idx].data.str.area,
+				       argp[idx].data.str.data);
+				trash.area[argp[idx].data.str.data] = 0;
+				if (!str2mask6(trash.area, &argp[idx].data.ipv6))
+					WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv6 mask"));
+			}
+			else
+				WILL_LJMP(luaL_argerror(L, first + idx, "integer or string expected"));
 			argp[idx].type = ARGT_MSK6;
 			break;
 
