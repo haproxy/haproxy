@@ -3011,6 +3011,16 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	}
 #endif
 
+	/* remove the Root CA from the SSL_CTX if the option is activated */
+	if (global_ssl.skip_self_issued_ca) {
+		if (!SSL_CTX_build_cert_chain(ctx, SSL_BUILD_CHAIN_FLAG_NO_ROOT|SSL_BUILD_CHAIN_FLAG_UNTRUSTED|SSL_BUILD_CHAIN_FLAG_IGNORE_ERROR)) {
+			memprintf(err, "%sunable to load chain certificate into SSL Context '%s'.\n",
+				  err && *err ? *err : "", path);
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+	}
+
 #ifndef OPENSSL_NO_DH
 	/* store a NULL pointer to indicate we have not yet loaded
 	   a custom DH param file */
