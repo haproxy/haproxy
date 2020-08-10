@@ -3011,6 +3011,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	}
 #endif
 
+#ifdef SSL_CTX_build_cert_chain
 	/* remove the Root CA from the SSL_CTX if the option is activated */
 	if (global_ssl.skip_self_issued_ca) {
 		if (!SSL_CTX_build_cert_chain(ctx, SSL_BUILD_CHAIN_FLAG_NO_ROOT|SSL_BUILD_CHAIN_FLAG_UNTRUSTED|SSL_BUILD_CHAIN_FLAG_IGNORE_ERROR)) {
@@ -3020,6 +3021,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 			goto end;
 		}
 	}
+#endif
 
 #ifndef OPENSSL_NO_DH
 	/* store a NULL pointer to indicate we have not yet loaded

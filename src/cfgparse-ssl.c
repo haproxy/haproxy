@@ -1698,8 +1698,13 @@ static int ssl_parse_skip_self_issued_ca(char **args, int section_type, struct p
 					 struct proxy *defpx, const char *file, int line,
 					 char **err)
 {
+#ifdef SSL_CTX_build_cert_chain
 	global_ssl.skip_self_issued_ca = 1;
 	return 0;
+#else
+	memprintf(err, "global statement '%s' requires at least OpenSSL 1.0.2.", args[0]);
+	return -1;
+#endif
 }
 
 

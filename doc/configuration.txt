@@ -1426,7 +1426,7 @@ ssl-skip-self-issued-ca
   issuer for ocsp without the need for '.issuer' file and be able to share it
   with 'issuers-chain-path'. This concerns all certificates without intermediate
   certificates. It's useless for BoringSSL, .issuer is ignored because ocsp
-  bits does not need it.
+  bits does not need it. Requires at least OpenSSL 1.0.2.
 
 stats socket [<address:port>|<path>] [param*]
   Binds a UNIX socket to <path> or a TCPv4/v6 address to <address:port>.
