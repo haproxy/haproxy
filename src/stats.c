@@ -935,7 +935,7 @@ static int stats_dump_fields_html(struct buffer *out,
 			style = "going_down";
 		}
 
-		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0)
+		if (strncmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0)
 			chunk_appendf(out, "<tr class=\"maintain\">");
 		else
 			chunk_appendf(out,
@@ -1107,15 +1107,15 @@ static int stats_dump_fields_html(struct buffer *out,
 		 */
 
 
-		if (memcmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0) {
+		if (strncmp(field_str(stats, ST_F_STATUS), "MAINT", 5) == 0) {
 			chunk_appendf(out, "%s MAINT", human_time(stats[ST_F_LASTCHG].u.u32, 1));
 		}
-		else if (memcmp(field_str(stats, ST_F_STATUS), "no check", 5) == 0) {
+		else if (strcmp(field_str(stats, ST_F_STATUS), "no check") == 0) {
 			chunk_strcat(out, "<i>no check</i>");
 		}
 		else {
 			chunk_appendf(out, "%s %s", human_time(stats[ST_F_LASTCHG].u.u32, 1), field_str(stats, ST_F_STATUS));
-			if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) {
+			if (strncmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0) {
 				if (stats[ST_F_CHECK_HEALTH].u.u32)
 					chunk_strcat(out, " &uarr;");
 			}
@@ -1123,7 +1123,7 @@ static int stats_dump_fields_html(struct buffer *out,
 				chunk_strcat(out, " &darr;");
 		}
 
-		if (memcmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
+		if (strncmp(field_str(stats, ST_F_STATUS), "DOWN", 4) == 0 &&
 		    stats[ST_F_AGENT_STATUS].type && !stats[ST_F_AGENT_HEALTH].u.u32) {
 			chunk_appendf(out,
 			              "</td><td class=ac><u> %s",
