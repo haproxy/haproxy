@@ -198,8 +198,6 @@ smp_fetch_ssl_x_chain_der(const struct arg *args, struct sample *smp, const char
 out:
 	if (tmp_trash)
 		free_trash_chunk(tmp_trash);
-	if (certs)
-		sk_X509_pop_free(certs, X509_free);
 	return ret;
 }
 
