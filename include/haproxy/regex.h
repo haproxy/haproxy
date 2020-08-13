@@ -62,7 +62,7 @@ static inline int regex_exec(const struct my_regex *preg, char *subject)
 	int ret;
 
 	pm = pcre2_match_data_create_from_pattern(preg->reg, NULL);
-	ret = pcre2_match(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)strlen(subject),
+	ret = preg->mfn(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)strlen(subject),
 		0, 0, pm, NULL);
 	pcre2_match_data_free(pm);
 	if (ret < 0)
@@ -94,7 +94,7 @@ static inline int regex_exec2(const struct my_regex *preg, char *subject, int le
 	int ret;
 
 	pm = pcre2_match_data_create_from_pattern(preg->reg, NULL);
-	ret = pcre2_match(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)length,
+	ret = preg->mfn(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)length,
 		0, 0, pm, NULL);
 	pcre2_match_data_free(pm);
 	if (ret < 0)

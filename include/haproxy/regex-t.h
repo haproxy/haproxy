@@ -54,6 +54,7 @@ struct my_regex {
 #endif
 #endif
 #elif USE_PCRE2
+	int(*mfn)(const pcre2_code *, PCRE2_SPTR, PCRE2_SIZE, PCRE2_SIZE, uint32_t, pcre2_match_data *, pcre2_match_context *);
 	pcre2_code *reg;
 #else /* no PCRE */
 	regex_t regex;

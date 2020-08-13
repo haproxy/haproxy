@@ -170,7 +170,7 @@ int regex_exec_match(const struct my_regex *preg, const char *subject,
 	 */
 #ifdef USE_PCRE2
 	pm = pcre2_match_data_create_from_pattern(preg->reg, NULL);
-	ret = pcre2_match(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)strlen(subject), 0, options, pm, NULL);
+	ret = preg->mfn(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)strlen(subject), 0, options, pm, NULL);
 
 	if (ret < 0) {
 		pcre2_match_data_free(pm);
@@ -252,7 +252,7 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
 		options |= PCRE_NOTBOL;
 #endif
 
-	/* The value returned by pcre_exec()/pcre2_match() is one more than the highest numbered
+	/* The value returned by pcre_exec()/pcre2_(jit)_match() is one more than the highest numbered
 	 * pair that has been set. For example, if two substrings have been captured,
 	 * the returned value is 3. If there are no capturing subpatterns, the return
 	 * value from a successful match is 1, indicating that just the first pair of
@@ -263,7 +263,7 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
 	 */
 #ifdef USE_PCRE2
 	pm = pcre2_match_data_create_from_pattern(preg->reg, NULL);
-	ret = pcre2_match(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)length, 0, options, pm, NULL);
+	ret = preg->mfn(preg->reg, (PCRE2_SPTR)subject, (PCRE2_SIZE)length, 0, options, pm, NULL);
 
 	if (ret < 0) {
 		pcre2_match_data_free(pm);
@@ -365,6 +365,7 @@ struct my_regex *regex_comp(const char *str, int cs, int cap, char **err)
 		goto out_fail_alloc;
 	}
 
+	regex->mfn = &pcre2_match;
 #if defined(USE_PCRE2_JIT)
 	jit = pcre2_jit_compile(regex->reg, PCRE2_JIT_COMPLETE);
 	/*
@@ -375,6 +376,8 @@ struct my_regex *regex_comp(const char *str, int cs, int cap, char **err)
 		pcre2_code_free(regex->reg);
 		memprintf(err, "regex '%s' jit compilation failed", str);
 		goto out_fail_alloc;
+	} else {
+		regex->mfn = &pcre2_jit_match;
 	}
 #endif
 
