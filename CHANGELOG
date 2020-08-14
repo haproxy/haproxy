@@ -1,6 +1,46 @@
 ChangeLog :
 ===========
 
+2020/08/14 : 2.3-dev3
+    - SCRIPTS: git-show-backports: make -m most only show the left branch
+    - SCRIPTS: git-show-backports: emit the shell command to backport a commit
+    - BUILD: Makefile: require SSL_LIB, SSL_INC to be explicitly set
+    - CI: travis-ci: specify SLZ_LIB, SLZ_INC for travis builds
+    - BUG/MEDIUM: mux-h1: Refresh H1 connection timeout after a synchronous send
+    - CLEANUP: dns: typo in reported error message
+    - BUG/MAJOR: dns: disabled servers through SRV records never recover
+    - BUG/MINOR: spoa-server: fix size_t format printing
+    - DOC: spoa-server: fix false friends `actually`
+    - BUG/MINOR: ssl: fix memory leak at OCSP loading
+    - BUG/MEDIUM: ssl: memory leak of ocsp data at SSL_CTX_free()
+    - BUG/MEDIUM: map/lua: Return an error if a map is loaded during runtime
+    - MINOR: arg: Add an argument type to keep a reference on opaque data
+    - BUG/MINOR: converters: Store the sink in an arg pointer for debug() converter
+    - BUG/MINOR: lua: Duplicate map name to load it when a new Map object is created
+    - BUG/MINOR: arg: Fix leaks during arguments validation for fetches/converters
+    - BUG/MINOR: lua: Check argument type to convert it to IPv4/IPv6 arg validation
+    - BUG/MINOR: lua: Check argument type to convert it to IP mask in arg validation
+    - MINOR: hlua: Don't needlessly copy lua strings in trash during args validation
+    - BUG/MINOR: lua: Duplicate lua strings in sample fetches/converters arg array
+    - MEDIUM: lua: Don't filter exported fetches and converters
+    - MINOR: lua: Add support for userlist as fetches and converters arguments
+    - MINOR: lua: Add support for regex as fetches and converters arguments
+    - MINOR: arg: Use chunk_destroy() to release string arguments
+    - BUG/MINOR: snapshots: leak of snapshots on deinit()
+    - CLEANUP: ssl: ssl_sock_crt2der semicolon and spaces
+    - MINOR: ssl: add ssl_{c,s}_chain_der fetch methods
+    - CLEANUP: fix all duplicated semicolons
+    - BUG/MEDIUM: ssl: fix the ssl-skip-self-issued-ca option
+    - BUG/MINOR: ssl: ssl-skip-self-issued-ca requires >= 1.0.2
+    - BUG/MINOR: stats: use strncmp() instead of memcmp() on health states
+    - BUILD: makefile: don't disable -Wstringop-overflow anymore
+    - BUG/MINOR: ssl: double free w/ smp_fetch_ssl_x_chain_der()
+    - BUG/MEDIUM: htx: smp_prefetch_htx() must always validate the direction
+    - BUG/MEDIUM: ssl: never generates the chain from the verify store
+    - OPTIM: regex: PCRE2 use JIT match when JIT optimisation occured.
+    - BUG/MEDIUM: ssl: does not look for all SNIs before chosing a certificate
+    - CLEANUP: ssl: remove poorly readable nested ternary
+
 2020/07/31 : 2.3-dev2
     - DOC: ssl: req_ssl_sni needs implicit TLS
     - BUG/MEDIUM: arg: empty args list must be dropped
