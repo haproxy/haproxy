@@ -2384,12 +2384,17 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	/* Once the certificates are found, select them depending on what is
 	 * supported in the client and by key_signature priority order: EDSA >
 	 * RSA > DSA */
-	node = (has_ecdsa_sig && node_ecdsa) ? node_ecdsa
-		: ((has_rsa_sig && node_rsa) ? node_rsa
-		   : (node_anonymous ? node_anonymous
-		      : (node_ecdsa ? node_ecdsa      /* no ecdsa signature case (< TLSv1.2) */
-			 : node_rsa                   /* no rsa signature case (far far away) */
-			)));
+	if (has_ecdsa_sig && node_ecdsa)
+		node = node_ecdsa;
+	else if (has_rsa_sig && node_rsa)
+		node = node_rsa;
+	else if (node_anonymous)
+		node = node_anonymous;
+	else if (node_ecdsa)
+		node = node_ecdsa;      /* no ecdsa signature case (< TLSv1.2) */
+	else
+		node = node_rsa;        /* no rsa signature case (far far away) */
+
 	if (node) {
 		/* switch ctx */
 		struct ssl_bind_conf *conf = container_of(node, struct sni_ctx, name)->conf;
