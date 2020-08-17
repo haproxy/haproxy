@@ -25,26 +25,21 @@ Thanks for understanding, and for contributing to the project!
 
 -->
 
-## Output of `haproxy -vv` and `uname -a`
 
-<!-- Put it in code blocks ```: -->
-
-```
-(paste your output here)
-```
-
-## What's the configuration?
+## Detailed description of the problem
 
 <!--
-Include as much configuration as possible, including global and default sections.
-Replace confidential data like domain names and IP addresses.
-
-Put it in code blocks ```:
+In this section, please try to concentrate on observations. Only describe what you
+observed directly.
 -->
 
-```
-(paste your output here)
-```
+## Expected behavior
+
+<!--
+Explain why you consider the described behavior (above) to be wrong. What did you expect instead?
+
+Most likely this is a mismatch between HAProxy's documentation and HAProxy's behavior.
+-->
 
 ## Steps to reproduce the behavior
 
@@ -57,20 +52,52 @@ this is possible), the easier it is for the project developers to fix it!
 2. 
 3. 
 
-## Actual behavior
-
-<!--
-In this section, please try to concentrate on observations, so only describe
-what you observed directly.
--->
-
-## Expected behavior
-
-<!--
-Describe what you would like HAProxy to do differently.
--->
-
 ## Do you have any idea what may have caused this?
 
 ## Do you have an idea how to solve the issue?
 
+## What is your configuration?
+
+<!--
+Include as much configuration as possible, including global and default sections.
+Replace confidential data like domain names and IP addresses.
+
+Put it in code blocks ```:
+-->
+
+```
+(paste your output here)
+```
+
+## Output of `haproxy -vv` and `uname -a`
+
+<!-- Put it in code blocks ```: -->
+
+```
+(paste your output here)
+```
+
+## If HAProxy crashed: Last outputs and backtraces
+
+<!--
+If HAProxy crashed then please provide:
+
+  1. The last output from your HAProxy logs (e.g. from journalctl or syslog).
+  2. A backtrace from a coredump (`t a a bt full`).
+
+Put all results in code blocks ```:
+-->
+
+```
+(paste your output here)
+```
+
+## Additional information (if helpful)
+
+<!--
+Any additional information about your environment that may be useful to know about. For example:
+  - Any local patches applied.
+  - Environment specificities
+  - Unusual workload
+  - Interesting observations or coindidences with events on other components
+-->

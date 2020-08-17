@@ -1,7 +1,7 @@
 ---
-name: Feature Request
-about: Suggest a new feature or enhancement for HAProxy.
-labels: 'type: feature'
+name: Code Report
+about: File a Code Report (for example from coverity or valgrind)
+labels: 'type: code-report'
 ---
 
 <!--
@@ -25,18 +25,20 @@ Thanks for understanding, and for contributing to the project!
 
 -->
 
-## What should haproxy do differently? Which functionality do you think we should add?
+## Code Report
 
 <!--
-Please describe the feature you would like us to add here.
+In this section please provide:
+  1. Information about the tool that generated the report (e.g. valgrind-3.11.0 or Coverity).
+  2. Provide the full output of the tool in code blocks (```).
 -->
 
-## What are you trying to do?
+Tool: (tool name goes here)
 
-<!--
-This section should contain a brief description what you're trying to do, which
-would be possible after implementing the new feature.
--->
+```
+(paste your output here)
+```
+
 
 ## Output of `haproxy -vv` and `uname -a`
 
@@ -44,8 +46,6 @@ would be possible after implementing the new feature.
 Please add the output of haproxy -vv you are currently using here, this helps us
 later to see what has changed in HAProxy when we revisit this issue after some
 time.
-
-*PLEASE DO NOT LEAVE THIS OUT*
 
 Put it in code blocks ```:
 -->
