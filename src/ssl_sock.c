@@ -2357,13 +2357,31 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	for (i = 0; i < 2; i++) {
 		if (i == 0) 	/* lookup in full qualified names */
 			node = ebst_lookup(&s->sni_ctx, trash.area);
-		else if (i == 1 && wildp) /* lookup in wildcards names */
+		else if (i == 1 && wildp)  /* lookup in wildcards names */
 			node = ebst_lookup(&s->sni_w_ctx, wildp);
 		else
 			break;
+
 		for (n = node; n; n = ebmb_next_dup(n)) {
+
 			/* lookup a not neg filter */
 			if (!container_of(n, struct sni_ctx, name)->neg) {
+				struct sni_ctx *sni, *sni_tmp;
+				int skip = 0;
+
+				if (i == 1 && wildp) { /* wildcard */
+					/* If this is a wildcard, look for an exclusion on the same crt-list line */
+					sni = container_of(n, struct sni_ctx, name);
+					list_for_each_entry(sni_tmp, &sni->ckch_inst->sni_ctx, by_ckch_inst) {
+						if (sni_tmp->neg && (!strcmp((const char *)sni_tmp->name.key, trash.area))) {
+							skip = 1;
+							break;
+						}
+					}
+					if (skip)
+						continue;
+				}
+
 				switch(container_of(n, struct sni_ctx, name)->kinfo.sig) {
 				case TLSEXT_signature_ecdsa:
 					if (!node_ecdsa)
