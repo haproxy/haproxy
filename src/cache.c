@@ -1407,7 +1407,7 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 
 	/* Get the cache filter name. <pos> point on "cache" keyword */
 	if (!*args[pos + 1]) {
-		memprintf(err, "%s : expects an <id> argument", args[pos]);
+		memprintf(err, "%s : expects a <name> argument", args[pos]);
 		goto error;
 	}
 	name = strdup(args[pos + 1]);
