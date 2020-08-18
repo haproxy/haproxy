@@ -1176,7 +1176,7 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 	if (strcmp(args[0], "cache") == 0) { /* new cache section */
 
 		if (!*args[1]) {
-			ha_alert("parsing [%s:%d] : '%s' expects an <id> argument\n",
+			ha_alert("parsing [%s:%d] : '%s' expects a <name> argument\n",
 				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -1188,6 +1188,8 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (tmp_cache_config == NULL) {
+			struct cache *cache_config;
+
 			tmp_cache_config = calloc(1, sizeof(*tmp_cache_config));
 			if (!tmp_cache_config) {
 				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
@@ -1197,10 +1199,20 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 
 			strlcpy2(tmp_cache_config->id, args[1], 33);
 			if (strlen(args[1]) > 32) {
-				ha_warning("parsing [%s:%d]: cache id is limited to 32 characters, truncate to '%s'.\n",
+				ha_warning("parsing [%s:%d]: cache name is limited to 32 characters, truncate to '%s'.\n",
 					   file, linenum, tmp_cache_config->id);
 				err_code |= ERR_WARN;
 			}
+
+			list_for_each_entry(cache_config, &caches_config, list) {
+				if (strcmp(tmp_cache_config->id, cache_config->id) == 0) {
+					ha_alert("parsing [%s:%d]: Duplicate cache name '%s'.\n",
+					         file, linenum, tmp_cache_config->id);
+					err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
+			}
+
 			tmp_cache_config->maxage = 60;
 			tmp_cache_config->maxblocks = 0;
 			tmp_cache_config->maxobjsz = 0;
