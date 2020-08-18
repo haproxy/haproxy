@@ -1876,11 +1876,11 @@ next_line:
 		char *line = thisline;
 
 		if (missing_lf != -1) {
-			ha_warning("parsing [%s:%d]: Stray NUL character at position %d. "
-			           "This will become a hard error in HAProxy 2.3.\n",
-			           file, linenum, (missing_lf + 1));
-			err_code |= ERR_WARN;
+			ha_alert("parsing [%s:%d]: Stray NUL character at position %d.\n",
+			         file, linenum, (missing_lf + 1));
+			err_code |= ERR_ALERT | ERR_FATAL;
 			missing_lf = -1;
+			break;
 		}
 
 		linenum++;
@@ -2086,10 +2086,9 @@ next_line:
 	}
 
 	if (missing_lf != -1) {
-		ha_warning("parsing [%s:%d]: Missing LF on last line, file might have been truncated at position %d. "
-		           "This will become a hard error in HAProxy 2.3.\n",
-		           file, linenum, (missing_lf + 1));
-		err_code |= ERR_WARN;
+		ha_alert("parsing [%s:%d]: Missing LF on last line, file might have been truncated at position %d.\n",
+		         file, linenum, (missing_lf + 1));
+		err_code |= ERR_ALERT | ERR_FATAL;
 	}
 
 	if (cs && cs->post_section_parser)
