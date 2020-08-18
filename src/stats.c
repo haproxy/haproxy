@@ -2335,6 +2335,7 @@ static void stats_dump_html_head(struct appctx *appctx, struct uri_auth *uri)
 	              "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n"
 	              "\"http://www.w3.org/TR/html4/loose.dtd\">\n"
 	              "<html><head><title>Statistics Report for " PRODUCT_NAME "%s%s</title>\n"
+		      "<link rel=\"icon\" href=\"data:,\">\n"
 	              "<meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
 	              "<style type=\"text/css\"><!--\n"
 	              "body {"
