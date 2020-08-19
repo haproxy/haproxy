@@ -59,7 +59,7 @@ haproxy h1 -conf {
         http-request redirect location https://${s1_addr}:${s1_port}/ if { req.hdr(X-Forwarded-For),table_sess_cnt(http1) -m int lt 0  }
         http-request redirect location https://${s1_addr}:${s1_port}/ if { req.hdr(X-Forwarded-For),table_sess_rate(http1) -m int lt 0  }
         http-request redirect location https://${s1_addr}:${s1_port}/ if { req.hdr(X-Forwarded-For),table_trackers(http1) -m int lt 0  }
-    } -start
+} -start
 
 client c1 -connect ${h1_my_frontend_fd_sock} {
     txreq -url "/" -hdr "X-Forwarded-For: 127.0.0.1"
