@@ -329,6 +329,7 @@ void fd_delete(int fd)
 	fdinfo[fd].port_range = NULL;
 	fdtab[fd].owner = NULL;
 	fdtab[fd].thread_mask = 0;
+	fdtab[fd].exported = 0;
 	close(fd);
 	_HA_ATOMIC_SUB(&ha_used_fds, 1);
 	if (locked)

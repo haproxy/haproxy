@@ -441,6 +441,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	fdtab[fd].linger_risk = 0;
 	fdtab[fd].cloned = 0;
 	fdtab[fd].et_possible = 0;
+	fdtab[fd].exported = 0;
 #ifdef DEBUG_FD
 	fdtab[fd].event_count = 0;
 #endif

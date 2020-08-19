@@ -1114,6 +1114,10 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	fd_insert(fd, listener, listener->proto->accept,
 	          thread_mask(listener->bind_conf->bind_thread) & all_threads_mask);
 
+	/* for now, all regularly bound TCP listeners are exportable */
+	if (!(listener->options & LI_O_INHERITED))
+		fdtab[fd].exported = 1;
+
  tcp_return:
 	if (msg && errlen) {
 		char pn[INET6_ADDRSTRLEN];

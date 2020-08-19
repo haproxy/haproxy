@@ -134,6 +134,7 @@ struct fdtab {
 	unsigned char cloned:1;              /* 1 if a cloned socket, requires EPOLL_CTL_DEL on close */
 	unsigned char initialized:1;         /* 1 if init phase was done on this fd (e.g. set non-blocking) */
 	unsigned char et_possible:1;         /* 1 if edge-triggered is possible on this FD */
+	unsigned char exported:1;            /* 1 if the FD is exported and must not be closed */
 #ifdef DEBUG_FD
 	unsigned int event_count;            /* number of events reported */
 #endif

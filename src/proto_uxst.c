@@ -352,6 +352,10 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	fd_insert(fd, listener, listener->proto->accept,
 	          thread_mask(listener->bind_conf->bind_thread) & all_threads_mask);
 
+	/* for now, all regularly bound UNIX listeners are exportable */
+	if (!(listener->options & LI_O_INHERITED))
+		fdtab[fd].exported = 1;
+
 	return err;
 
  err_rename:
