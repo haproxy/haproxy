@@ -1598,82 +1598,6 @@ static int bind_parse_severity_output(char **args, int cur_arg, struct proxy *px
 	}
 }
 
-/*
- * For one proxy, fill the iov and send the msghdr. Also update fd_it and offset.
- * Return -1 upon error, otherwise 0.
- *
- * This function is only meant to deduplicate the code between the peers and
- * the proxy list in _getsocks(), not to be used anywhere else.
- */
-inline static int _getsocks_gen_send(struct proxy *px, int sendfd, int *tmpfd, struct iovec *iov,
-                                     int tot_fd_nb, int *fd_it, int *offset, struct msghdr *msghdr)
-{
-	int i = *fd_it;
-	int curoff = *offset;
-	struct listener *l;
-	unsigned char *tmpbuf = iov->iov_base;
-
-	list_for_each_entry(l, &px->conf.listeners, by_fe) {
-		int ret;
-		/* Only transfer IPv4/IPv6 sockets */
-		if (l->state >= LI_ZOMBIE &&
-		    (l->proto->sock_family == AF_INET ||
-		     l->proto->sock_family == AF_INET6 ||
-		     l->proto->sock_family == AF_UNIX)) {
-			memcpy(&tmpfd[i % MAX_SEND_FD], &l->fd, sizeof(l->fd));
-			if (!l->netns)
-				tmpbuf[curoff++] = 0;
-#ifdef USE_NS
-			else {
-				char *name = l->netns->node.key;
-				unsigned char len = l->netns->name_len;
-				tmpbuf[curoff++] = len;
-				memcpy(tmpbuf + curoff, name, len);
-				curoff += len;
-			}
-#endif
-			if (l->interface) {
-				unsigned char len = strlen(l->interface);
-				tmpbuf[curoff++] = len;
-				memcpy(tmpbuf + curoff, l->interface, len);
-				curoff += len;
-			} else
-				tmpbuf[curoff++] = 0;
-
-			/* we used to send the listener options here before 2.3 */
-			memset(tmpbuf + curoff, 0, sizeof(int));
-			curoff += sizeof(int);
-
-			i++;
-		} else
-			continue;
-		/* if it reaches the max number of fd per msghdr */
-		if ((!(i % MAX_SEND_FD))) {
-			iov->iov_len = curoff;
-			if (sendmsg(sendfd, msghdr, 0) != curoff) {
-				ha_warning("Failed to transfer sockets\n");
-				return -1;
-			}
-			/* Wait for an ack */
-			do {
-				ret = recv(sendfd, &tot_fd_nb,
-				           sizeof(tot_fd_nb), 0);
-			} while (ret == -1 && errno == EINTR);
-			if (ret <= 0) {
-				ha_warning("Unexpected error while transferring sockets\n");
-				return -1;
-			}
-			curoff = 0;
-		}
-	}
-
-	*fd_it = i;
-	*offset = curoff;
-
-	return 0;
-}
-
-
 /* Send all the bound sockets, always returns 1 */
 static int _getsocks(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1686,11 +1610,12 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	struct msghdr msghdr;
 	struct iovec iov;
 	struct timeval tv = { .tv_sec = 1, .tv_usec = 0 };
+	const char *ns_name, *if_name;
+	unsigned char ns_nlen, if_nlen;
+	int nb_queued;
+	int cur_fd = 0;
 	int *tmpfd;
 	int tot_fd_nb = 0;
-	struct proxy *px;
-	struct peers *prs;
-	int i = 0;
 	int fd = -1;
 	int curoff = 0;
 	int old_fcntl = -1;
@@ -1728,36 +1653,9 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	 * First, calculates the total number of FD, so that we can let
 	 * the caller know how much it should expect.
 	 */
-	px = proxies_list;
-	while (px) {
-		struct listener *l;
+	for (cur_fd = 0;cur_fd < global.maxsock; cur_fd++)
+		tot_fd_nb += fdtab[cur_fd].exported;
 
-		list_for_each_entry(l, &px->conf.listeners, by_fe) {
-			/* Only transfer IPv4/IPv6/UNIX sockets */
-			if (l->state >= LI_ZOMBIE &&
-			    (l->proto->sock_family == AF_INET ||
-			    l->proto->sock_family == AF_INET6 ||
-			    l->proto->sock_family == AF_UNIX))
-				tot_fd_nb++;
-		}
-		px = px->next;
-	}
-	prs = cfg_peers;
-	while (prs) {
-		if (prs->peers_fe) {
-			struct listener *l;
-
-			list_for_each_entry(l, &prs->peers_fe->conf.listeners, by_fe) {
-				/* Only transfer IPv4/IPv6/UNIX sockets */
-				if (l->state >= LI_ZOMBIE &&
-				    (l->proto->sock_family == AF_INET ||
-				     l->proto->sock_family == AF_INET6 ||
-				     l->proto->sock_family == AF_UNIX))
-					tot_fd_nb++;
-			}
-		}
-		prs = prs->next;
-	}
 	if (tot_fd_nb == 0)
 		goto out;
 
@@ -1796,28 +1694,81 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 		ha_warning("Failed to allocate memory to transfer socket information\n");
 		goto out;
 	}
+
+	nb_queued = 0;
 	iov.iov_base = tmpbuf;
-	px = proxies_list;
-	while (px) {
-		if (_getsocks_gen_send(px, fd, tmpfd, &iov,
-		                   tot_fd_nb, &i, &curoff, &msghdr) < 0)
-			goto out;
-		px = px->next;
-	}
-	/* should be done for peers too */
-	prs = cfg_peers;
-	while (prs) {
-		if (prs->peers_fe)
-			if (_getsocks_gen_send(prs->peers_fe, fd, tmpfd, &iov,
-			                       tot_fd_nb, &i, &curoff, &msghdr) < 0)
-				goto out;
-		prs = prs->next;
+	for (cur_fd = 0; cur_fd < global.maxsock; cur_fd++) {
+		if (!(fdtab[cur_fd].exported))
+			continue;
+
+		ns_name = if_name = "";
+		ns_nlen = if_nlen = 0;
+
+		/* for now we can only retrieve namespaces and interfaces from
+		 * pure listeners.
+		 */
+		if (fdtab[cur_fd].iocb == listener_accept) {
+			const struct listener *l = fdtab[cur_fd].owner;
+
+			if (l->interface) {
+				if_name = l->interface;
+				if_nlen = strlen(if_name);
+			}
+
+#ifdef USE_NS
+			if (l->netns) {
+				ns_name = l->netns->node.key;
+				ns_nlen = l->netns->name_len;
+			}
+#endif
+		}
+
+		/* put the FD into the CMSG_DATA */
+		tmpfd[nb_queued++] = cur_fd;
+
+		/* first block is <ns_name_len> <ns_name> */
+		tmpbuf[curoff++] = ns_nlen;
+		if (ns_nlen)
+			memcpy(tmpbuf + curoff, ns_name, ns_nlen);
+		curoff += ns_nlen;
+
+		/* second block is <if_name_len> <if_name> */
+		tmpbuf[curoff++] = if_nlen;
+		if (if_nlen)
+			memcpy(tmpbuf + curoff, if_name, if_nlen);
+		curoff += if_nlen;
+
+		/* we used to send the listener options here before 2.3 */
+		memset(tmpbuf + curoff, 0, sizeof(int));
+		curoff += sizeof(int);
+
+		/* there's a limit to how many FDs may be sent at once */
+		if (nb_queued == MAX_SEND_FD) {
+			iov.iov_len = curoff;
+			if (sendmsg(fd, &msghdr, 0) != curoff) {
+				ha_warning("Failed to transfer sockets\n");
+				return -1;
+			}
+
+			/* Wait for an ack */
+			do {
+				ret = recv(fd, &tot_fd_nb, sizeof(tot_fd_nb), 0);
+			} while (ret == -1 && errno == EINTR);
+
+			if (ret <= 0) {
+				ha_warning("Unexpected error while transferring sockets\n");
+				return -1;
+			}
+			curoff = 0;
+			nb_queued = 0;
+		}
 	}
 
-	if (i % MAX_SEND_FD) {
+	/* flush pending stuff */
+	if (nb_queued) {
 		iov.iov_len = curoff;
-		cmsg->cmsg_len = CMSG_LEN((i % MAX_SEND_FD) * sizeof(int));
-		msghdr.msg_controllen = CMSG_SPACE(sizeof(int) *  (i % MAX_SEND_FD));
+		cmsg->cmsg_len = CMSG_LEN(nb_queued * sizeof(int));
+		msghdr.msg_controllen = CMSG_SPACE(nb_queued * sizeof(int));
 		if (sendmsg(fd, &msghdr, 0) != curoff) {
 			ha_warning("Failed to transfer sockets\n");
 			goto out;
