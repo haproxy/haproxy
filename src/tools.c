@@ -16,10 +16,6 @@
 #include <link.h>
 #endif
 
-#if (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
-#include <sys/auxv.h>
-#endif
-
 #include <ctype.h>
 #include <errno.h>
 #include <netdb.h>
@@ -35,6 +31,10 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#if (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
+#include <sys/auxv.h>
+#endif
 
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
