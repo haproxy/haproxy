@@ -1829,8 +1829,8 @@ static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
 static SSL_CTX *
 ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL *ssl)
 {
-	X509         *cacert  = bind_conf->ca_sign_cert;
-	EVP_PKEY     *capkey  = bind_conf->ca_sign_pkey;
+	X509         *cacert  = bind_conf->ca_sign_ckch->cert;
+	EVP_PKEY     *capkey  = bind_conf->ca_sign_ckch->key;
 	SSL_CTX      *ssl_ctx = NULL;
 	X509         *newcrt  = NULL;
 	EVP_PKEY     *pkey    = NULL;
@@ -1943,6 +1943,22 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	if (!SSL_CTX_check_private_key(ssl_ctx))
 		goto mkcert_error;
 
+	/* Build chaining the CA cert and the rest of the chain, keep these order */
+#if defined(SSL_CTX_add1_chain_cert)
+	if (!SSL_CTX_add1_chain_cert(ssl_ctx, bind_conf->ca_sign_ckch->cert)) {
+		goto mkcert_error;
+	}
+
+	if (bind_conf->ca_sign_ckch->chain) {
+		for (i = 0; i < sk_X509_num(bind_conf->ca_sign_ckch->chain); i++) {
+			X509 *chain_cert = sk_X509_value(bind_conf->ca_sign_ckch->chain, i);
+			if (!SSL_CTX_add1_chain_cert(ssl_ctx, chain_cert)) {
+				goto mkcert_error;
+			}
+		}
+	}
+#endif
+
 	if (newcrt) X509_free(newcrt);
 
 #ifndef OPENSSL_NO_DH
@@ -1991,7 +2007,7 @@ ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SS
 
 	if (ssl_ctx_lru_tree) {
 		HA_RWLOCK_WRLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
-		lru = lru64_lookup(key, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
+		lru = lru64_lookup(key, ssl_ctx_lru_tree, bind_conf->ca_sign_ckch->cert, 0);
 		if (lru && lru->domain) {
 			if (ssl)
 				SSL_set_SSL_CTX(ssl, (SSL_CTX *)lru->data);
@@ -2022,14 +2038,14 @@ ssl_sock_set_generated_cert(SSL_CTX *ssl_ctx, unsigned int key, struct bind_conf
 
 	if (ssl_ctx_lru_tree) {
 		HA_RWLOCK_WRLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
-		lru = lru64_get(key, ssl_ctx_lru_tree, bind_conf->ca_sign_cert, 0);
+		lru = lru64_get(key, ssl_ctx_lru_tree, bind_conf->ca_sign_ckch->cert, 0);
 		if (!lru) {
 			HA_RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 			return -1;
 		}
 		if (lru->domain && lru->data)
 			lru->free((SSL_CTX *)lru->data);
-		lru64_commit(lru, ssl_ctx, bind_conf->ca_sign_cert, 0, (void (*)(void *))SSL_CTX_free);
+		lru64_commit(lru, ssl_ctx, bind_conf->ca_sign_ckch->cert, 0, (void (*)(void *))SSL_CTX_free);
 		HA_RWLOCK_WRUNLOCK(SSL_GEN_CERTS_LOCK, &ssl_ctx_lru_rwlock);
 		return 0;
 	}
@@ -2049,7 +2065,7 @@ ssl_sock_generated_cert_key(const void *data, size_t len)
 static int
 ssl_sock_generate_certificate(const char *servername, struct bind_conf *bind_conf, SSL *ssl)
 {
-	X509         *cacert  = bind_conf->ca_sign_cert;
+	X509         *cacert  = bind_conf->ca_sign_ckch->cert;
 	SSL_CTX      *ssl_ctx = NULL;
 	struct lru64 *lru     = NULL;
 	unsigned int  key;
@@ -5031,13 +5047,12 @@ int
 ssl_sock_load_ca(struct bind_conf *bind_conf)
 {
 	struct proxy *px = bind_conf->frontend;
-	FILE     *fp;
-	X509     *cacert = NULL;
-	EVP_PKEY *capkey = NULL;
-	int       err    = 0;
+	struct cert_key_and_chain *ckch = NULL;
+	int ret = 0;
+	char *err = NULL;
 
 	if (!bind_conf->generate_certs)
-		return err;
+		return ret;
 
 #if (defined SSL_CTRL_SET_TLSEXT_HOSTNAME && !defined SSL_NO_GENERATE_CERTIFICATES)
 	if (global_ssl.ctx_cache) {
@@ -5051,52 +5066,56 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 		ha_alert("Proxy '%s': cannot enable certificate generation, "
 			 "no CA certificate File configured at [%s:%d].\n",
 			 px->id, bind_conf->file, bind_conf->line);
-		goto load_error;
+		goto failed;
 	}
 
-	/* read in the CA certificate */
-	if (!(fp = fopen(bind_conf->ca_sign_file, "r"))) {
-		ha_alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d].\n",
-			 px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
-		goto load_error;
-	}
-	if (!(cacert = PEM_read_X509(fp, NULL, NULL, NULL))) {
-		ha_alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d].\n",
-			 px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
-		goto read_error;
-	}
-	rewind(fp);
-	if (!(capkey = PEM_read_PrivateKey(fp, NULL, NULL, bind_conf->ca_sign_pass))) {
-		ha_alert("Proxy '%s': Failed to read CA private key file '%s' at [%s:%d].\n",
-			 px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
-		goto read_error;
+	/* Allocate cert structure */
+	ckch = calloc(1, sizeof(struct cert_key_and_chain));
+	if (!ckch) {
+		ha_alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d]. Chain allocation failure\n",
+			px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
+		goto failed;
 	}
 
-	fclose (fp);
-	bind_conf->ca_sign_cert = cacert;
-	bind_conf->ca_sign_pkey = capkey;
-	return err;
+	/* Try to parse file */
+	if (ssl_sock_load_files_into_ckch(bind_conf->ca_sign_file, ckch, &err)) {
+		ha_alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d]. Chain loading failed: %s\n",
+			px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line, err);
+		if (err) free(err);
+		goto failed;
+	}
 
- read_error:
-	fclose (fp);
-	if (capkey) EVP_PKEY_free(capkey);
-	if (cacert) X509_free(cacert);
- load_error:
+	/* Fail if missing cert or pkey */
+	if ((!ckch->cert) || (!ckch->key)) {
+		ha_alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d]. Chain missing certificate or private key\n",
+			px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
+		goto failed;
+	}
+
+	/* Final assignment to bind */
+	bind_conf->ca_sign_ckch = ckch;
+	return ret;
+
+ failed:
+	if (ckch) {
+		ssl_sock_free_cert_key_and_chain_contents(ckch);
+		free(ckch);
+	}
+
 	bind_conf->generate_certs = 0;
-	err++;
-	return err;
+	ret++;
+	return ret;
 }
 
 /* Release CA cert and private key used to generate certificated */
 void
 ssl_sock_free_ca(struct bind_conf *bind_conf)
 {
-	if (bind_conf->ca_sign_pkey)
-		EVP_PKEY_free(bind_conf->ca_sign_pkey);
-	if (bind_conf->ca_sign_cert)
-		X509_free(bind_conf->ca_sign_cert);
-	bind_conf->ca_sign_pkey = NULL;
-	bind_conf->ca_sign_cert = NULL;
+	if (bind_conf->ca_sign_ckch) {
+		ssl_sock_free_cert_key_and_chain_contents(bind_conf->ca_sign_ckch);
+		free(bind_conf->ca_sign_ckch);
+		bind_conf->ca_sign_ckch = NULL;
+	}
 }
 
 /*
