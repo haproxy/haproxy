@@ -244,6 +244,8 @@ static PyObject *ps_python_set_var_ipv4(PyObject *self, PyObject *args)
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
+	/* Once we set the IP value in the worker, we don't need it anymore... */
+	Py_XDECREF(value);
 	return Py_None;
 }
 
@@ -279,6 +281,8 @@ static PyObject *ps_python_set_var_ipv6(PyObject *self, PyObject *args)
 		PyErr_SetString(spoa_error, "No space left available");
 		return NULL;
 	}
+	/* Once we set the IP value in the worker, we don't need it anymore... */
+	Py_XDECREF(value);
 	return Py_None;
 }
 
