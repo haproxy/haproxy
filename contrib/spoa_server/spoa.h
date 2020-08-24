@@ -17,7 +17,10 @@
 #include <netinet/in.h>
 #include <sys/time.h>
 
+#ifndef MAX_FRAME_SIZE
 #define MAX_FRAME_SIZE    16384
+#endif
+
 #define SPOP_VERSION      "2.0"
 #define SPOA_CAPABILITIES ""
 
