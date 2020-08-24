@@ -558,7 +558,6 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 		ent = PyDict_New();
 		if (ent == NULL) {
 			Py_DECREF(kw_args);
-			Py_DECREF(ent);
 			PyErr_Print();
 			return 0;
 		}
