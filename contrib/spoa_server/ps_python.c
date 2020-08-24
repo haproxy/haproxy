@@ -415,7 +415,7 @@ static int ps_python_start_worker(struct worker *w)
 	}
 
 	ipv6_address = PyObject_GetAttrString(module_ipaddress, "IPv6Address");
-	if (ipv4_address == NULL) {
+	if (ipv6_address == NULL) {
 		PyErr_Print();
 		return 0;
 	}
