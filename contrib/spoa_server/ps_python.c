@@ -738,9 +738,13 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 	}
 
 	result = PyObject_Call(python_ref, empty_array, fkw);
+	Py_DECREF(fkw);
 	if (result == NULL) {
 		PyErr_Print();
 		return 0;
+	}
+	if (result != Py_None) {
+		Py_DECREF(result);
 	}
 
 	return 1;
