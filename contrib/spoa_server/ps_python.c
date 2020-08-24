@@ -567,6 +567,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 		key = PY_STRING_FROM_STRING("name");
 		if (key == NULL) {
 			Py_DECREF(kw_args);
+			Py_DECREF(ent);
 			PyErr_Print();
 			return 0;
 		}
@@ -632,6 +633,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 			if (func == NULL) {
 				Py_DECREF(kw_args);
 				Py_DECREF(ent);
+				Py_DECREF(key);
 				PyErr_Print();
 				return 0;
 			}
@@ -639,6 +641,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 			if (ip_dict == NULL) {
 				Py_DECREF(kw_args);
 				Py_DECREF(ent);
+				Py_DECREF(key);
 				Py_DECREF(func);
 				PyErr_Print();
 				return 0;
@@ -647,6 +650,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 			if (ip_name == NULL) {
 				Py_DECREF(kw_args);
 				Py_DECREF(ent);
+				Py_DECREF(key);
 				Py_DECREF(func);
 				Py_DECREF(ip_dict);
 				PyErr_Print();
@@ -656,6 +660,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 			if (ip_value == NULL) {
 				Py_DECREF(kw_args);
 				Py_DECREF(ent);
+				Py_DECREF(key);
 				Py_DECREF(func);
 				Py_DECREF(ip_dict);
 				Py_DECREF(ip_name);
@@ -666,6 +671,10 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 			Py_DECREF(ip_name);
 			Py_DECREF(ip_value);
 			if (ret == -1) {
+				Py_DECREF(kw_args);
+				Py_DECREF(ent);
+				Py_DECREF(key);
+				Py_DECREF(func);
 				Py_DECREF(ip_dict);
 				PyErr_Print();
 				return 0;
