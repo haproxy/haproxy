@@ -110,6 +110,7 @@
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
 #include <haproxy/protocol.h>
+#include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
@@ -1297,6 +1298,11 @@ static int get_old_sockets(const char *unixsocket)
 		memcpy(&xfer_sock->options, &tmpbuf[curoff],
 		    sizeof(xfer_sock->options));
 		curoff += sizeof(xfer_sock->options);
+
+		/* determine the foreign status directly from the socket itself */
+		xfer_sock->options &= ~LI_O_FOREIGN;
+		if (tcp_is_foreign(fd, xfer_sock->addr.ss_family))
+			xfer_sock->options |= LI_O_FOREIGN;
 
 		/* keep only the v6only flag depending on what's currently
 		 * active on the socket, and always drop the v4v6 one.
