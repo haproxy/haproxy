@@ -5040,11 +5040,6 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 		back = ebmb_next(node);
 		ebmb_delete(node);
 		SSL_CTX_free(sni->ctx);
-		if (!sni->order) { /* only free the SSL conf its first occurrence */
-			ssl_sock_free_ssl_conf(sni->conf);
-			free(sni->conf);
-			sni->conf = NULL;
-		}
 		LIST_DEL(&sni->by_ckch_inst);
 		free(sni);
 		node = back;
