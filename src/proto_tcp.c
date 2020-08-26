@@ -974,9 +974,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	}
 #endif
 #if defined(IPV6_V6ONLY)
-	if (listener->options & LI_O_V6ONLY)
+	if (!ext && listener->options & LI_O_V6ONLY)
                 setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one));
-	else if (listener->options & LI_O_V4V6)
+	else if (!ext && listener->options & LI_O_V4V6)
                 setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
 #endif
 
