@@ -297,7 +297,7 @@ done:
 /* Deletes an FD from the fdsets.
  * The file descriptor is also closed.
  */
-static void fd_dodelete(int fd, int do_close)
+void fd_delete(int fd)
 {
 	int locked = fdtab[fd].running_mask != tid_bit;
 
@@ -329,10 +329,8 @@ static void fd_dodelete(int fd, int do_close)
 	fdinfo[fd].port_range = NULL;
 	fdtab[fd].owner = NULL;
 	fdtab[fd].thread_mask = 0;
-	if (do_close) {
-		close(fd);
-		_HA_ATOMIC_SUB(&ha_used_fds, 1);
-	}
+	close(fd);
+	_HA_ATOMIC_SUB(&ha_used_fds, 1);
 	if (locked)
 		fd_clr_running(fd);
 }
@@ -391,22 +389,6 @@ int fd_takeover(int fd, void *expected_owner)
 	if (likely(ret == 0))
 		fd_stop_recv(fd);
 	return ret;
-}
-
-/* Deletes an FD from the fdsets.
- * The file descriptor is also closed.
- */
-void fd_delete(int fd)
-{
-	fd_dodelete(fd, 1);
-}
-
-/* Deletes an FD from the fdsets.
- * The file descriptor is kept open.
- */
-void fd_remove(int fd)
-{
-	fd_dodelete(fd, 0);
 }
 
 void updt_fd_polling(const int fd)

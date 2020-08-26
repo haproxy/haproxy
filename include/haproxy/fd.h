@@ -60,11 +60,6 @@ extern volatile int ha_used_fds; // Number of FDs we're currently using
  */
 void fd_delete(int fd);
 
-/* Deletes an FD from the fdsets.
- * The file descriptor is kept open.
- */
-void fd_remove(int fd);
-
 /*
  * Take over a FD belonging to another thread.
  * Returns 0 on success, and -1 on failure.
