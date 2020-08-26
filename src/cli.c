@@ -1639,9 +1639,10 @@ inline static int _getsocks_gen_send(struct proxy *px, int sendfd, int *tmpfd, s
 				curoff += len;
 			} else
 				tmpbuf[curoff++] = 0;
-			memcpy(tmpbuf + curoff, &l->options,
-			       sizeof(l->options));
-			curoff += sizeof(l->options);
+
+			/* we used to send the listener options here before 2.3 */
+			memset(tmpbuf + curoff, 0, sizeof(int));
+			curoff += sizeof(int);
 
 			i++;
 		} else
@@ -1785,7 +1786,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	 *  The namespace name, if any
 	 *  Size of the interface name (or 0 if none), as an unsigned char
 	 *  The interface name, if any
-	 *  Listener options, as an int.
+	 *  32 bits of zeroes (used to be listener options).
 	 */
 	/* We will send sockets MAX_SEND_FD per MAX_SEND_FD, allocate a
 	 * buffer big enough to store the socket information.

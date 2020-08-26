@@ -1295,34 +1295,30 @@ static int get_old_sockets(const char *unixsocket)
 			ha_warning("Inconsistency while transferring sockets\n");
 			goto out;
 		}
-		memcpy(&xfer_sock->options, &tmpbuf[curoff],
-		    sizeof(xfer_sock->options));
-		curoff += sizeof(xfer_sock->options);
+
+		/* we used to have 32 bits of listener options here but we don't
+		 * use them anymore.
+		 */
+		curoff += sizeof(int);
 
 		/* determine the foreign status directly from the socket itself */
-		xfer_sock->options &= ~LI_O_FOREIGN;
 		if (tcp_is_foreign(fd, xfer_sock->addr.ss_family))
 			xfer_sock->options |= LI_O_FOREIGN;
 
 		/* keep only the v6only flag depending on what's currently
 		 * active on the socket, and always drop the v4v6 one.
 		 */
+#if defined(IPV6_V6ONLY)
 		{
 			int val = 0;
-#if defined(IPV6_V6ONLY)
 			socklen_t len = sizeof(val);
 
 			if (xfer_sock->addr.ss_family == AF_INET6 &&
-			    getsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, &len) != 0)
-				val = 0;
-#endif
-
-			if (val)
+			    getsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, &len) == 0 &&
+			    val > 0)
 				xfer_sock->options |= LI_O_V6ONLY;
-			else
-				xfer_sock->options &= ~LI_O_V6ONLY;
-			xfer_sock->options &= ~LI_O_V4V6;
 		}
+#endif
 
 		xfer_sock->fd = fd;
 		if (xfer_sock_list)
