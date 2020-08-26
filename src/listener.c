@@ -503,13 +503,12 @@ void do_unbind_listener(struct listener *listener, int do_close)
 	MT_LIST_DEL(&listener->wait_queue);
 
 	if (listener->state >= LI_PAUSED) {
+		listener->state = LI_ASSIGNED;
+		fd_stop_both(listener->fd);
 		if (do_close) {
 			fd_delete(listener->fd);
 			listener->fd = -1;
 		}
-		else
-			fd_remove(listener->fd);
-		listener->state = LI_ASSIGNED;
 	}
 }
 

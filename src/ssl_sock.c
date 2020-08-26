@@ -700,7 +700,7 @@ void ssl_async_fd_free(int fd)
 
 	SSL_get_all_async_fds(ssl, all_fd, &num_all_fds);
 	for (i=0 ; i < num_all_fds ; i++)
-		fd_remove(all_fd[i]);
+		fd_stop_both(all_fd[i]);
 
 	/* Now we can safely call SSL_free, no more pending job in engines */
 	SSL_free(ssl);
@@ -731,7 +731,7 @@ static inline void ssl_async_process_fds(struct ssl_sock_ctx *ctx)
 
 	/* We remove unused fds from the fdtab */
 	for (i=0 ; i < num_del_fds ; i++)
-		fd_remove(del_fd[i]);
+		fd_stop_both(del_fd[i]);
 
 	/* We add new fds to the fdtab */
 	for (i=0 ; i < num_add_fds ; i++) {
@@ -6137,12 +6137,12 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 			}
 			/* Else we can remove the fds from the fdtab
 			 * and call SSL_free.
-			 * note: we do a fd_remove and not a delete
+			 * note: we do a fd_stop_both and not a delete
 			 * because the fd is  owned by the engine.
 			 * the engine is responsible to close
 			 */
 			for (i=0 ; i < num_all_fds ; i++)
-				fd_remove(all_fd[i]);
+				fd_stop_both(all_fd[i]);
 		}
 #endif
 		SSL_free(ctx->ssl);
