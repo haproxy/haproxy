@@ -1199,9 +1199,10 @@ nbthread <number>
   value is reported in the output of "haproxy -vv". See also "nbproc".
 
 pidfile <pidfile>
-  Writes PIDs of all daemons into file <pidfile>. This option is equivalent to
-  the "-p" command line argument. The file must be accessible to the user
-  starting the process. See also "daemon".
+  Writes PIDs of all daemons into file <pidfile> when daemon mode or writes PID
+  of master process into file <pidfile> when master-worker mode. This option is
+  equivalent to the "-p" command line argument. The file must be accessible to
+  the user starting the process. See also "daemon" and "master-worker".
 
 pp2-never-send-local
   A bug in the PROXY protocol v2 implementation was present in HAProxy up to
