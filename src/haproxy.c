@@ -1298,6 +1298,26 @@ static int get_old_sockets(const char *unixsocket)
 		    sizeof(xfer_sock->options));
 		curoff += sizeof(xfer_sock->options);
 
+		/* keep only the v6only flag depending on what's currently
+		 * active on the socket, and always drop the v4v6 one.
+		 */
+		{
+			int val = 0;
+#if defined(IPV6_V6ONLY)
+			socklen_t len = sizeof(val);
+
+			if (xfer_sock->addr.ss_family == AF_INET6 &&
+			    getsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, &len) != 0)
+				val = 0;
+#endif
+
+			if (val)
+				xfer_sock->options |= LI_O_V6ONLY;
+			else
+				xfer_sock->options &= ~LI_O_V6ONLY;
+			xfer_sock->options &= ~LI_O_V4V6;
+		}
+
 		xfer_sock->fd = fd;
 		if (xfer_sock_list)
 			xfer_sock_list->prev = xfer_sock;

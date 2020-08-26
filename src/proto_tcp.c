@@ -115,6 +115,11 @@ static THREAD_LOCAL int default_tcp_maxseg = -1;
 static THREAD_LOCAL int default_tcp6_maxseg = -1;
 #endif
 
+/* determine if the operating system uses IPV6_V6ONLY by default.
+ * -1=unknown, 0=no, 1=yes.
+ */
+static int v6only_default = -1;
+
 /* Binds ipv4/ipv6 address <local> to socket <fd>, unless <flags> is set, in which
  * case we try to bind <remote>. <flags> is a 2-bit field consisting of :
  *  - 0 : ignore remote address (may even be a NULL pointer)
@@ -676,22 +681,60 @@ static int compare_sockaddr(struct sockaddr_storage *a, struct sockaddr_storage 
 
 }
 
-#define LI_MANDATORY_FLAGS	(LI_O_FOREIGN | LI_O_V6ONLY | LI_O_V4V6)
+/* sets the v6only_default flag according to the OS' default settings; for
+ * simplicity it's set to zero if not supported.
+ */
+static inline void tcp_test_v6only_default()
+{
+	if (v6only_default == -1) {
+#if defined(IPV6_V6ONLY)
+		int fd, val;
+		socklen_t len = sizeof(val);
+
+		v6only_default = 0;
+
+		fd = socket(AF_INET6, SOCK_STREAM, 0);
+		if (fd < 0)
+			return;
+
+		if (getsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, &len) == 0 && val > 0)
+			v6only_default = 1;
+
+		close(fd);
+#else
+		v6only_default = 0;
+#endif
+	}
+}
+
+#define LI_MANDATORY_FLAGS	(LI_O_FOREIGN | LI_O_V6ONLY)
 /* When binding the listeners, check if a socket has been sent to us by the
  * previous process that we could reuse, instead of creating a new one.
  */
 static int tcp_find_compatible_fd(struct listener *l)
 {
 	struct xfer_sock_list *xfer_sock = xfer_sock_list;
+	int options = l->options & (LI_MANDATORY_FLAGS | LI_O_V4V6);
 	int ret = -1;
+
+	tcp_test_v6only_default();
+
+	/* Prepare to match the v6only option against what we really want. Note
+	 * that sadly the two options are not exclusive to each other and that
+	 * v6only is stronger than v4v6.
+	 */
+	if ((options & LI_O_V6ONLY) || (v6only_default && !(options & LI_O_V4V6)))
+		options |= LI_O_V6ONLY;
+	else if ((options & LI_O_V4V6) || !v6only_default)
+		options &= ~LI_O_V6ONLY;
+	options &= ~LI_O_V4V6;
 
 	while (xfer_sock) {
 		if (!compare_sockaddr(&xfer_sock->addr, &l->addr)) {
 			if ((l->interface == NULL && xfer_sock->iface == NULL) ||
 			    (l->interface != NULL && xfer_sock->iface != NULL &&
 			     !strcmp(l->interface, xfer_sock->iface))) {
-				if ((l->options & LI_MANDATORY_FLAGS) ==
-				    (xfer_sock->options & LI_MANDATORY_FLAGS)) {
+				if (options == (xfer_sock->options & LI_MANDATORY_FLAGS)) {
 					if ((xfer_sock->namespace == NULL &&
 					    l->netns == NULL)
 #ifdef USE_NS
