@@ -93,7 +93,7 @@ static void sockpair_add_listener(struct listener *listener, int port)
  */
 static int sockpair_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
-	int fd = listener->fd;
+	int fd = listener->rx.fd;
 	int err;
 	const char *msg = NULL;
 
@@ -106,7 +106,7 @@ static int sockpair_bind_listener(struct listener *listener, char *errmsg, int e
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
 
-	if (listener->fd == -1) {
+	if (listener->rx.fd == -1) {
 		err |= ERR_FATAL | ERR_ALERT;
 		msg = "sockpair can be only used with inherited FDs";
 		goto err_return;

@@ -569,15 +569,15 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	err = ERR_NONE;
 
-	if (listener->fd == -1)
-		listener->fd = sock_find_compatible_fd(listener);
+	if (listener->rx.fd == -1)
+		listener->rx.fd = sock_find_compatible_fd(listener);
 
 	/* if the listener already has an fd assigned, then we were offered the
 	 * fd by an external process (most likely the parent), and we don't want
 	 * to create a new socket. However we still want to set a few flags on
 	 * the socket.
 	 */
-	fd = listener->fd;
+	fd = listener->rx.fd;
 	ext = (fd >= 0);
 
 	if (!ext) {
@@ -765,7 +765,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 #endif
 
 	/* the socket is ready */
-	listener->fd = fd;
+	listener->rx.fd = fd;
 	listener->state = LI_LISTEN;
 
 	fd_insert(fd, listener, listener->proto->accept,
@@ -830,13 +830,13 @@ static void tcpv6_add_listener(struct listener *listener, int port)
  */
 int tcp_pause_listener(struct listener *l)
 {
-	if (shutdown(l->fd, SHUT_WR) != 0)
+	if (shutdown(l->rx.fd, SHUT_WR) != 0)
 		return -1; /* Solaris dies here */
 
-	if (listen(l->fd, listener_backlog(l)) != 0)
+	if (listen(l->rx.fd, listener_backlog(l)) != 0)
 		return -1; /* OpenBSD dies here */
 
-	if (shutdown(l->fd, SHUT_RD) != 0)
+	if (shutdown(l->rx.fd, SHUT_RD) != 0)
 		return -1; /* should always be OK */
 	return 1;
 }

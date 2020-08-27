@@ -275,7 +275,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	}
 
 	/* the socket is ready */
-	listener->fd = fd;
+	listener->rx.fd = fd;
 	listener->state = LI_LISTEN;
 
 	if (listener->bind_conf->frontend->mode == PR_MODE_SYSLOG)
