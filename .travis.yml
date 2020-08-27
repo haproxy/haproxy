@@ -131,13 +131,18 @@ install:
     fi
 
 script:
-  - if [ "${CC%-*}"  = "clang" ]; then export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" DEBUG_CFLAGS="-g -fsanitize=address" LDFLAGS="-fsanitize=address"; fi
+  - if [ "${CC%-*}"  = "clang" ]; then export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" DEBUG_CFLAGS="-g -fsanitize=address" LDFLAGS="-fsanitize=address" ASAN_OPTIONS="log_path=asan.log"; fi
   - make -C contrib/wurfl
   - make -j3 CC=$CC CPU_CFLAGS.generic="-O1" V=1 ERR=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" ADDLIB="$ADDLIB" SSL_LIB="$SSL_LIB" SSL_INC="$SSL_INC" SLZ_LIB="$SLZ_LIB" SLZ_INC="$SLZ_INC" 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS" $DEBUG_OPTIONS
   - ./haproxy -vv
   - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then ldd haproxy; fi
   - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then otool -L haproxy; fi
   - make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+  - |
+    if ls asan.log* 1>/dev/null 2>&1; then
+       cat asan.log*
+       exit 1
+    fi
 
 after_failure:
   - |
