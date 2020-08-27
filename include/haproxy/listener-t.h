@@ -187,6 +187,11 @@ struct bind_conf {
 	} ux;
 };
 
+/* This describes a receiver with all its characteristics (address, options, etc) */
+struct receiver {
+	int options;                     /* receiver options (RX_O_*) */
+};
+
 /* The listener will be directly referenced by the fdtab[] which holds its
  * socket. The listener provides the protocol-specific accept() function to
  * the fdtab.
@@ -228,6 +233,7 @@ struct listener {
 	struct list by_bind;            /* chaining in bind_conf's list of listeners */
 	struct bind_conf *bind_conf;	/* "bind" line settings, include SSL settings among other things */
 	struct list proto_list;         /* list in the protocol header */
+	struct receiver rx;             /* network receiver parts */
 
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;	/* the address we listen to */
