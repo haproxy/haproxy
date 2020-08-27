@@ -2588,7 +2588,7 @@ void deinit(void)
 			 * Close it and give the listener its real state.
 			 */
 			if (p->state == PR_STSTOPPED && l->state >= LI_ZOMBIE) {
-				close(l->fd);
+				close(l->rx.fd);
 				l->state = LI_INIT;
 			}
 			unbind_listener(l);

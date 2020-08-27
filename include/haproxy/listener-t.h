@@ -189,8 +189,8 @@ struct bind_conf {
 
 /* This describes a receiver with all its characteristics (address, options, etc) */
 struct receiver {
+	int fd;                          /* handle we receive from (fd only for now) */
 	int options;                     /* receiver options (RX_O_*) */
-
 	char *interface;                 /* interface name or NULL */
 	const struct netns_entry *netns; /* network namespace of the receiving socket */
 	/* warning: this struct is huge, keep it at the bottom */
@@ -205,7 +205,6 @@ struct listener {
 	enum obj_type obj_type;         /* object type = OBJ_TYPE_LISTENER */
 	enum li_state state;            /* state: NEW, INIT, ASSIGNED, LISTEN, READY, FULL */
 	short int nice;                 /* nice value to assign to the instantiated tasks */
-	int fd;				/* the listen socket */
 	int luid;			/* listener universally unique ID, used for SNMP */
 	int options;			/* socket options : LI_O_* */
 	struct fe_counters *counters;	/* statistics counters */

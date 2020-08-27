@@ -113,9 +113,8 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
 		
-	if (listener->fd == -1)
-		listener->fd = sock_find_compatible_fd(listener);
-
+	if (listener->rx.fd == -1)
+		listener->rx.fd = sock_find_compatible_fd(listener);
 	path = ((struct sockaddr_un *)&listener->rx.addr)->sun_path;
 
 	maxpathlen = MIN(MAXPATHLEN, sizeof(addr.sun_path));
@@ -125,7 +124,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	 * to create a new socket. However we still want to set a few flags on
 	 * the socket.
 	 */
-	fd = listener->fd;
+	fd = listener->rx.fd;
 	ext = (fd >= 0);
 	if (ext)
 		goto fd_ready;
@@ -263,7 +262,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		unlink(backname);
 
 	/* the socket is now listening */
-	listener->fd = fd;
+	listener->rx.fd = fd;
 	listener->state = LI_LISTEN;
 
 	fd_insert(fd, listener, listener->proto->accept,

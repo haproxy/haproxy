@@ -247,7 +247,7 @@ static void enable_listener(struct listener *listener)
 			}
 		}
 		else if (!listener->maxconn || listener->nbconn < listener->maxconn) {
-			fd_want_recv(listener->fd);
+			fd_want_recv(listener->rx.fd);
 			listener->state = LI_READY;
 		}
 		else {
@@ -273,7 +273,7 @@ static void disable_listener(struct listener *listener)
 	if (listener->state < LI_READY)
 		goto end;
 	if (listener->state == LI_READY)
-		fd_stop_recv(listener->fd);
+		fd_stop_recv(listener->rx.fd);
 	MT_LIST_DEL(&listener->wait_queue);
 	listener->state = LI_LISTEN;
   end:
@@ -312,7 +312,7 @@ int pause_listener(struct listener *l)
 
 	MT_LIST_DEL(&l->wait_queue);
 
-	fd_stop_recv(l->fd);
+	fd_stop_recv(l->rx.fd);
 	l->state = LI_PAUSED;
   end:
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
@@ -368,7 +368,7 @@ int resume_listener(struct listener *l)
 
 	if (l->proto->sock_prot == IPPROTO_TCP &&
 	    l->state == LI_PAUSED &&
-	    listen(l->fd, listener_backlog(l)) != 0) {
+	    listen(l->rx.fd, listener_backlog(l)) != 0) {
 		ret = 0;
 		goto end;
 	}
@@ -392,7 +392,7 @@ int resume_listener(struct listener *l)
 		goto end;
 	}
 
-	fd_want_recv(l->fd);
+	fd_want_recv(l->rx.fd);
 	l->state = LI_READY;
   end:
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
@@ -408,7 +408,7 @@ static void listener_full(struct listener *l)
 	if (l->state >= LI_READY) {
 		MT_LIST_DEL(&l->wait_queue);
 		if (l->state != LI_FULL) {
-			fd_stop_recv(l->fd);
+			fd_stop_recv(l->rx.fd);
 			l->state = LI_FULL;
 		}
 	}
@@ -423,7 +423,7 @@ static void limit_listener(struct listener *l, struct mt_list *list)
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 	if (l->state == LI_READY) {
 		MT_LIST_TRY_ADDQ(list, &l->wait_queue);
-		fd_stop_recv(l->fd);
+		fd_stop_recv(l->rx.fd);
 		l->state = LI_LIMITED;
 	}
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
@@ -496,16 +496,16 @@ void dequeue_proxy_listeners(struct proxy *px)
 void do_unbind_listener(struct listener *listener, int do_close)
 {
 	if (listener->state == LI_READY && fd_updt)
-		fd_stop_recv(listener->fd);
+		fd_stop_recv(listener->rx.fd);
 
 	MT_LIST_DEL(&listener->wait_queue);
 
 	if (listener->state >= LI_PAUSED) {
 		listener->state = LI_ASSIGNED;
-		fd_stop_both(listener->fd);
+		fd_stop_both(listener->rx.fd);
 		if (do_close) {
-			fd_delete(listener->fd);
-			listener->fd = -1;
+			fd_delete(listener->rx.fd);
+			listener->rx.fd = -1;
 		}
 	}
 }
@@ -580,7 +580,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		LIST_ADDQ(&bc->listeners, &l->by_bind);
 		l->bind_conf = bc;
 
-		l->fd = fd;
+		l->rx.fd = fd;
 		memcpy(&l->rx.addr, ss, sizeof(*ss));
 		MT_LIST_INIT(&l->wait_queue);
 		l->state = LI_INIT;
@@ -1075,7 +1075,7 @@ void listener_accept(int fd)
 		else
 			fd_done_recv(fd);
 	} else if (l->state > LI_ASSIGNED) {
-		fd_stop_recv(l->fd);
+		fd_stop_recv(l->rx.fd);
 	}
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 	return;

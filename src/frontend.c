@@ -111,20 +111,20 @@ int frontend_accept(struct stream *s)
 
 		if (!conn_get_src(conn)) {
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [listener:%d] ALPN=%s\n",
-			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)conn->handle.fd,
+			             s->uniq_id, fe->id, (unsigned short)l->rx.fd, (unsigned short)conn->handle.fd,
 			             l->luid, alpn);
 		}
 		else switch (addr_to_str(conn->src, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [%s:%d] ALPN=%s\n",
-			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)conn->handle.fd,
+			             s->uniq_id, fe->id, (unsigned short)l->rx.fd, (unsigned short)conn->handle.fd,
 			             pn, get_host_port(conn->src), alpn);
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [unix:%d] ALPN=%s\n",
-			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)conn->handle.fd,
+			             s->uniq_id, fe->id, (unsigned short)l->rx.fd, (unsigned short)conn->handle.fd,
 			             l->luid, alpn);
 			break;
 		}
