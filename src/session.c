@@ -153,7 +153,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	cli_conn->handle.fd = cfd;
 	*cli_conn->src = *addr;
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
-	cli_conn->proxy_netns = l->netns;
+	cli_conn->proxy_netns = l->rx.netns;
 
 	conn_prepare(cli_conn, l->proto, l->bind_conf->xprt);
 	conn_ctrl_init(cli_conn);

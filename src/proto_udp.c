@@ -205,7 +205,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	 * IPPROTO (sockaddr is not enough)
 	 */
 
-	fd = my_socketat(listener->netns, listener->proto->sock_family, listener->proto->sock_type, listener->proto->sock_prot);
+	fd = my_socketat(listener->rx.netns, listener->proto->sock_family, listener->proto->sock_type, listener->proto->sock_prot);
 	if (fd == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot create listening socket";

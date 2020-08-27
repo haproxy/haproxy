@@ -208,12 +208,12 @@ static int bind_parse_namespace(char **args, int cur_arg, struct proxy *px, stru
 	namespace = args[cur_arg + 1];
 
 	list_for_each_entry(l, &conf->listeners, by_bind) {
-		l->netns = netns_store_lookup(namespace, strlen(namespace));
+		l->rx.netns = netns_store_lookup(namespace, strlen(namespace));
 
-		if (l->netns == NULL)
-			l->netns = netns_store_insert(namespace);
+		if (l->rx.netns == NULL)
+			l->rx.netns = netns_store_insert(namespace);
 
-		if (l->netns == NULL) {
+		if (l->rx.netns == NULL) {
 			ha_alert("Cannot open namespace '%s'.\n", args[cur_arg + 1]);
 			return ERR_ALERT | ERR_FATAL;
 		}

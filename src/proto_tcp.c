@@ -586,7 +586,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	ext = (fd >= 0);
 
 	if (!ext) {
-		fd = my_socketat(listener->netns, listener->rx.addr.ss_family, SOCK_STREAM, IPPROTO_TCP);
+		fd = my_socketat(listener->rx.netns, listener->rx.addr.ss_family, SOCK_STREAM, IPPROTO_TCP);
 
 		if (fd == -1) {
 			err |= ERR_RETRYABLE | ERR_ALERT;

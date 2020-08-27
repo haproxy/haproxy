@@ -1716,9 +1716,9 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 			}
 
 #ifdef USE_NS
-			if (l->netns) {
-				ns_name = l->netns->node.key;
-				ns_nlen = l->netns->name_len;
+			if (l->rx.netns) {
+				ns_name = l->rx.netns->node.key;
+				ns_nlen = l->rx.netns->name_len;
 			}
 #endif
 		}

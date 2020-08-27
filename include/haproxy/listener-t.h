@@ -191,8 +191,9 @@ struct bind_conf {
 struct receiver {
 	int options;                     /* receiver options (RX_O_*) */
 
+	const struct netns_entry *netns; /* network namespace of the receiving socket */
 	/* warning: this struct is huge, keep it at the bottom */
-	struct sockaddr_storage addr;	/* the address the socket is bound to */
+	struct sockaddr_storage addr;    /* the address the socket is bound to */
 };
 
 /* The listener will be directly referenced by the fdtab[] which holds its
@@ -225,12 +226,7 @@ struct listener {
 
 	__decl_thread(HA_SPINLOCK_T lock);
 
-	const struct netns_entry *netns; /* network namespace of the listener*/
-
-	/* cache line boundary */
 	unsigned int thr_conn[MAX_THREADS]; /* number of connections per thread */
-
-	/* cache line boundary */
 
 	struct list by_fe;              /* chaining in frontend's list of listeners */
 	struct list by_bind;            /* chaining in bind_conf's list of listeners */
