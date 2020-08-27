@@ -401,25 +401,25 @@ int listeners_setenv(struct proxy *frontend, const char *varname)
 				if (trash->data)
 					chunk_appendf(trash, ";");
 
-				if (l->addr.ss_family == AF_UNIX) {
+				if (l->rx.addr.ss_family == AF_UNIX) {
 					const struct sockaddr_un *un;
 
-					un = (struct sockaddr_un *)&l->addr;
+					un = (struct sockaddr_un *)&l->rx.addr;
 					if (un->sun_path[0] == '\0') {
 						chunk_appendf(trash, "abns@%s", un->sun_path+1);
 					} else {
 						chunk_appendf(trash, "unix@%s", un->sun_path);
 					}
-				} else if (l->addr.ss_family == AF_INET) {
-					addr_to_str(&l->addr, addr, sizeof(addr));
-					port_to_str(&l->addr, port, sizeof(port));
+				} else if (l->rx.addr.ss_family == AF_INET) {
+					addr_to_str(&l->rx.addr, addr, sizeof(addr));
+					port_to_str(&l->rx.addr, port, sizeof(port));
 					chunk_appendf(trash, "ipv4@%s:%s", addr, port);
-				} else if (l->addr.ss_family == AF_INET6) {
-					addr_to_str(&l->addr, addr, sizeof(addr));
-					port_to_str(&l->addr, port, sizeof(port));
+				} else if (l->rx.addr.ss_family == AF_INET6) {
+					addr_to_str(&l->rx.addr, addr, sizeof(addr));
+					port_to_str(&l->rx.addr, port, sizeof(port));
 					chunk_appendf(trash, "ipv6@[%s]:%s", addr, port);
-				} else if (l->addr.ss_family == AF_CUST_SOCKPAIR) {
-					chunk_appendf(trash, "sockpair@%d", ((struct sockaddr_in *)&l->addr)->sin_addr.s_addr);
+				} else if (l->rx.addr.ss_family == AF_CUST_SOCKPAIR) {
+					chunk_appendf(trash, "sockpair@%d", ((struct sockaddr_in *)&l->rx.addr)->sin_addr.s_addr);
 				}
 			}
 		}
@@ -1239,25 +1239,25 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 						char addr[46];
 						char port[6];
 
-						if (l->addr.ss_family == AF_UNIX) {
+						if (l->rx.addr.ss_family == AF_UNIX) {
 							const struct sockaddr_un *un;
 
-							un = (struct sockaddr_un *)&l->addr;
+							un = (struct sockaddr_un *)&l->rx.addr;
 							if (un->sun_path[0] == '\0') {
 								chunk_appendf(&trash, "abns@%s ", un->sun_path+1);
 							} else {
 								chunk_appendf(&trash, "unix@%s ", un->sun_path);
 							}
-						} else if (l->addr.ss_family == AF_INET) {
-							addr_to_str(&l->addr, addr, sizeof(addr));
-							port_to_str(&l->addr, port, sizeof(port));
+						} else if (l->rx.addr.ss_family == AF_INET) {
+							addr_to_str(&l->rx.addr, addr, sizeof(addr));
+							port_to_str(&l->rx.addr, port, sizeof(port));
 							chunk_appendf(&trash, "ipv4@%s:%s ", addr, port);
-						} else if (l->addr.ss_family == AF_INET6) {
-							addr_to_str(&l->addr, addr, sizeof(addr));
-							port_to_str(&l->addr, port, sizeof(port));
+						} else if (l->rx.addr.ss_family == AF_INET6) {
+							addr_to_str(&l->rx.addr, addr, sizeof(addr));
+							port_to_str(&l->rx.addr, port, sizeof(port));
 							chunk_appendf(&trash, "ipv6@[%s]:%s ", addr, port);
-						} else if (l->addr.ss_family == AF_CUST_SOCKPAIR) {
-							chunk_appendf(&trash, "sockpair@%d ", ((struct sockaddr_in *)&l->addr)->sin_addr.s_addr);
+						} else if (l->rx.addr.ss_family == AF_CUST_SOCKPAIR) {
+							chunk_appendf(&trash, "sockpair@%d ", ((struct sockaddr_in *)&l->rx.addr)->sin_addr.s_addr);
 						} else
 							chunk_appendf(&trash, "unknown ");
 

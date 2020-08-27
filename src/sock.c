@@ -369,13 +369,13 @@ int sock_find_compatible_fd(const struct listener *l)
 	/* WT: this is not the right way to do it, it is temporary for the
 	 *     transition to receivers.
 	 */
-	if (l->addr.ss_family == AF_CUST_UDP4 || l->addr.ss_family == AF_CUST_UDP6)
+	if (l->rx.addr.ss_family == AF_CUST_UDP4 || l->rx.addr.ss_family == AF_CUST_UDP6)
 		options |= SOCK_XFER_OPT_DGRAM;
 
 	if (l->options & LI_O_FOREIGN)
 		options |= SOCK_XFER_OPT_FOREIGN;
 
-	if (l->addr.ss_family == AF_INET6) {
+	if (l->rx.addr.ss_family == AF_INET6) {
 		/* Prepare to match the v6only option against what we really want. Note
 		 * that sadly the two options are not exclusive to each other and that
 		 * v6only is stronger than v4v6.
@@ -400,7 +400,7 @@ int sock_find_compatible_fd(const struct listener *l)
 #ifdef USE_NS
 		    (!ns_namelen || strcmp(l->netns->node.key, xfer_sock->namespace) == 0) &&
 #endif
-		    l->proto->addrcmp(&xfer_sock->addr, &l->addr) == 0)
+		    l->proto->addrcmp(&xfer_sock->addr, &l->rx.addr) == 0)
 			break;
 		xfer_sock = xfer_sock->next;
 	}

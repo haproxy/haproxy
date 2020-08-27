@@ -266,9 +266,9 @@ int prepare_external_check(struct check *check)
 
 	list_for_each_entry(l, &px->conf.listeners, by_fe)
 		/* Use the first INET, INET6 or UNIX listener */
-		if (l->addr.ss_family == AF_INET ||
-		    l->addr.ss_family == AF_INET6 ||
-		    l->addr.ss_family == AF_UNIX) {
+		if (l->rx.addr.ss_family == AF_INET ||
+		    l->rx.addr.ss_family == AF_INET6 ||
+		    l->rx.addr.ss_family == AF_UNIX) {
 			listener = l;
 			break;
 		}
@@ -292,17 +292,17 @@ int prepare_external_check(struct check *check)
 		check->argv[1] = strdup("NOT_USED");
 		check->argv[2] = strdup("NOT_USED");
 	}
-	else if (listener->addr.ss_family == AF_INET ||
-	    listener->addr.ss_family == AF_INET6) {
-		addr_to_str(&listener->addr, buf, sizeof(buf));
+	else if (listener->rx.addr.ss_family == AF_INET ||
+	    listener->rx.addr.ss_family == AF_INET6) {
+		addr_to_str(&listener->rx.addr, buf, sizeof(buf));
 		check->argv[1] = strdup(buf);
-		port_to_str(&listener->addr, buf, sizeof(buf));
+		port_to_str(&listener->rx.addr, buf, sizeof(buf));
 		check->argv[2] = strdup(buf);
 	}
-	else if (listener->addr.ss_family == AF_UNIX) {
+	else if (listener->rx.addr.ss_family == AF_UNIX) {
 		const struct sockaddr_un *un;
 
-		un = (struct sockaddr_un *)&listener->addr;
+		un = (struct sockaddr_un *)&listener->rx.addr;
 		check->argv[1] = strdup(un->sun_path);
 		check->argv[2] = strdup("NOT_USED");
 	}

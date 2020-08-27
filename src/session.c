@@ -220,7 +220,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	}
 
 	/* Adjust some socket options */
-	if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6) {
+	if (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6) {
 		setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
 
 		if (p->options & PR_O_TCP_CLI_KA) {

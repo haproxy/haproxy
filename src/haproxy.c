@@ -719,11 +719,11 @@ static void get_cur_unixsocket()
 
 			list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 
-				if (l->addr.ss_family == AF_UNIX &&
+				if (l->rx.addr.ss_family == AF_UNIX &&
 				    (bind_conf->level & ACCESS_FD_LISTENERS)) {
 					const struct sockaddr_un *un;
 
-					un = (struct sockaddr_un *)&l->addr;
+					un = (struct sockaddr_un *)&l->rx.addr;
 					/* priority to old_unixsocket */
 					if (!cur_unixsocket) {
 						cur_unixsocket = strdup(un->sun_path);

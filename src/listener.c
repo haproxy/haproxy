@@ -581,7 +581,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		l->bind_conf = bc;
 
 		l->fd = fd;
-		memcpy(&l->addr, ss, sizeof(*ss));
+		memcpy(&l->rx.addr, ss, sizeof(*ss));
 		MT_LIST_INIT(&l->wait_queue);
 		l->state = LI_INIT;
 
@@ -781,7 +781,7 @@ void listener_accept(int fd)
 		}
 
 		/* with sockpair@ we don't want to do an accept */
-		if (unlikely(l->addr.ss_family == AF_CUST_SOCKPAIR)) {
+		if (unlikely(l->rx.addr.ss_family == AF_CUST_SOCKPAIR)) {
 			if ((cfd = recv_fd_uxst(fd)) != -1)
 				fcntl(cfd, F_SETFL, O_NONBLOCK);
 			/* just like with UNIX sockets, only the family is filled */

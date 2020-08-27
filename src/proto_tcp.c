@@ -586,7 +586,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	ext = (fd >= 0);
 
 	if (!ext) {
-		fd = my_socketat(listener->netns, listener->addr.ss_family, SOCK_STREAM, IPPROTO_TCP);
+		fd = my_socketat(listener->netns, listener->rx.addr.ss_family, SOCK_STREAM, IPPROTO_TCP);
 
 		if (fd == -1) {
 			err |= ERR_RETRYABLE | ERR_ALERT;
@@ -636,7 +636,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 #endif
 
 	if (!ext && (listener->options & LI_O_FOREIGN)) {
-		switch (listener->addr.ss_family) {
+		switch (listener->rx.addr.ss_family) {
 		case AF_INET:
 			if (!sock_inet4_make_foreign(fd)) {
 				msg = "cannot make listening socket transparent";
@@ -674,7 +674,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		int defaultmss;
 		socklen_t len = sizeof(tmpmaxseg);
 
-		if (listener->addr.ss_family == AF_INET)
+		if (listener->rx.addr.ss_family == AF_INET)
 			defaultmss = sock_inet_tcp_maxseg_default;
 		else
 			defaultmss = sock_inet6_tcp_maxseg_default;
@@ -743,7 +743,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
                 setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
 #endif
 
-	if (!ext && bind(fd, (struct sockaddr *)&listener->addr, listener->proto->sock_addrlen) == -1) {
+	if (!ext && bind(fd, (struct sockaddr *)&listener->rx.addr, listener->proto->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot bind socket";
 		goto tcp_close_return;
@@ -783,8 +783,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (msg && errlen) {
 		char pn[INET6_ADDRSTRLEN];
 
-		addr_to_str(&listener->addr, pn, sizeof(pn));
-		snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, get_host_port(&listener->addr));
+		addr_to_str(&listener->rx.addr, pn, sizeof(pn));
+		snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, get_host_port(&listener->rx.addr));
 	}
 	return err;
 
@@ -829,7 +829,7 @@ static void tcpv4_add_listener(struct listener *listener, int port)
 		return;
 	listener->state = LI_ASSIGNED;
 	listener->proto = &proto_tcpv4;
-	((struct sockaddr_in *)(&listener->addr))->sin_port = htons(port);
+	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_tcpv4.listeners, &listener->proto_list);
 	proto_tcpv4.nb_listeners++;
 }
@@ -847,7 +847,7 @@ static void tcpv6_add_listener(struct listener *listener, int port)
 		return;
 	listener->state = LI_ASSIGNED;
 	listener->proto = &proto_tcpv6;
-	((struct sockaddr_in *)(&listener->addr))->sin_port = htons(port);
+	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_tcpv6.listeners, &listener->proto_list);
 	proto_tcpv6.nb_listeners++;
 }
