@@ -635,7 +635,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 			}
-			newpeer->addr = l->addr;
+			newpeer->addr = l->rx.addr;
 			newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
 			cur_arg++;
 		}

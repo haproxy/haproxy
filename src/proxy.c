@@ -1405,7 +1405,7 @@ int resume_proxy(struct proxy *p)
 		if (!resume_listener(l)) {
 			int port;
 
-			port = get_host_port(&l->addr);
+			port = get_host_port(&l->rx.addr);
 			if (port) {
 				ha_warning("Port %d busy while trying to enable %s %s.\n",
 					   port, proxy_cap_str(p->cap), p->id);

@@ -112,7 +112,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	if (listener->fd == -1)
 		listener->fd = sock_find_compatible_fd(listener);
 
-	path = ((struct sockaddr_un *)&listener->addr)->sun_path;
+	path = ((struct sockaddr_un *)&listener->rx.addr)->sun_path;
 
 	maxpathlen = MIN(MAXPATHLEN, sizeof(addr.sun_path));
 
@@ -316,7 +316,7 @@ static void uxst_add_listener(struct listener *listener, int port)
  */
 static int uxst_pause_listener(struct listener *l)
 {
-	if (((struct sockaddr_un *)&l->addr)->sun_path[0])
+	if (((struct sockaddr_un *)&l->rx.addr)->sun_path[0])
 		return 1;
 
 	/* Listener's lock already held. Call lockless version of

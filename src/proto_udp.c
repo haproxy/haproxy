@@ -181,7 +181,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	int fd, err;
 	const char *msg = NULL;
 	/* copy listener addr because sometimes we need to switch family */
-	struct sockaddr_storage addr_inet = listener->addr;
+	struct sockaddr_storage addr_inet = listener->rx.addr;
 
 	/* force to classic sock family */
 	addr_inet.ss_family = listener->proto->sock_family;
@@ -311,7 +311,7 @@ static void udp4_add_listener(struct listener *listener, int port)
 		return;
 	listener->state = LI_ASSIGNED;
 	listener->proto = &proto_udp4;
-	((struct sockaddr_in *)(&listener->addr))->sin_port = htons(port);
+	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_udp4.listeners, &listener->proto_list);
 	proto_udp4.nb_listeners++;
 }
@@ -326,7 +326,7 @@ static void udp6_add_listener(struct listener *listener, int port)
 		return;
 	listener->state = LI_ASSIGNED;
 	listener->proto = &proto_udp6;
-	((struct sockaddr_in *)(&listener->addr))->sin_port = htons(port);
+	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_udp6.listeners, &listener->proto_list);
 	proto_udp6.nb_listeners++;
 }
