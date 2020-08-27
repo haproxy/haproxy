@@ -1710,8 +1710,8 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 		if (fdtab[cur_fd].iocb == listener_accept) {
 			const struct listener *l = fdtab[cur_fd].owner;
 
-			if (l->interface) {
-				if_name = l->interface;
+			if (l->rx.interface) {
+				if_name = l->rx.interface;
 				if_nlen = strlen(if_name);
 			}
 

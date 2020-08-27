@@ -654,9 +654,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 #ifdef SO_BINDTODEVICE
 	/* Note: this might fail if not CAP_NET_RAW */
-	if (!ext && listener->interface) {
+	if (!ext && listener->rx.interface) {
 		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
-			       listener->interface, strlen(listener->interface) + 1) == -1) {
+			       listener->rx.interface, strlen(listener->rx.interface) + 1) == -1) {
 			msg = "cannot bind listener to device";
 			err |= ERR_WARN;
 		}

@@ -191,6 +191,7 @@ struct bind_conf {
 struct receiver {
 	int options;                     /* receiver options (RX_O_*) */
 
+	char *interface;                 /* interface name or NULL */
 	const struct netns_entry *netns; /* network namespace of the receiving socket */
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;    /* the address the socket is bound to */
@@ -221,7 +222,6 @@ struct listener {
 	unsigned int analysers;		/* bitmap of required protocol analysers */
 	int maxseg;			/* for TCP, advertised MSS */
 	int tcp_ut;                     /* for TCP, user timeout */
-	char *interface;		/* interface name or NULL */
 	char *name;			/* listener's name */
 
 	__decl_thread(HA_SPINLOCK_T lock);

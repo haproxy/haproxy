@@ -385,8 +385,8 @@ int sock_find_compatible_fd(const struct listener *l)
 			options |= SOCK_XFER_OPT_V6ONLY;
 	}
 
-	if (l->interface)
-		if_namelen = strlen(l->interface);
+	if (l->rx.interface)
+		if_namelen = strlen(l->rx.interface);
 #ifdef USE_NS
 	if (l->rx.netns)
 		ns_namelen = l->rx.netns->name_len;
@@ -396,7 +396,7 @@ int sock_find_compatible_fd(const struct listener *l)
 		if ((options == xfer_sock->options) &&
 		    (if_namelen == xfer_sock->if_namelen) &&
 		    (ns_namelen == xfer_sock->ns_namelen) &&
-		    (!if_namelen || strcmp(l->interface, xfer_sock->iface) == 0) &&
+		    (!if_namelen || strcmp(l->rx.interface, xfer_sock->iface) == 0) &&
 #ifdef USE_NS
 		    (!ns_namelen || strcmp(l->rx.netns->node.key, xfer_sock->namespace) == 0) &&
 #endif

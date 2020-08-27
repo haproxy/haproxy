@@ -187,7 +187,7 @@ static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, stru
 
 	list_for_each_entry(l, &conf->listeners, by_bind) {
 		if (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6)
-			l->interface = strdup(args[cur_arg + 1]);
+			l->rx.interface = strdup(args[cur_arg + 1]);
 	}
 
 	return 0;
