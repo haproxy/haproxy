@@ -155,7 +155,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->proxy_netns = l->bind_conf->settings.netns;
 
-	conn_prepare(cli_conn, l->proto, l->bind_conf->xprt);
+	conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt);
 	conn_ctrl_init(cli_conn);
 
 	/* wait for a PROXY protocol header */
@@ -207,8 +207,8 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		 *  - HEALTH mode without HTTP check => just send "OK"
 		 *  - TCP mode from monitoring address => just close
 		 */
-		if (l->proto->drain)
-			l->proto->drain(cfd);
+		if (l->rx.proto->drain)
+			l->rx.proto->drain(cfd);
 		if (p->mode == PR_MODE_HTTP ||
 		    (p->mode == PR_MODE_HEALTH && (p->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
 		     (p->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK))

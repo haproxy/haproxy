@@ -80,8 +80,8 @@ static void sockpair_add_listener(struct listener *listener, int port)
 	if (listener->state != LI_INIT)
 		return;
 	listener->state = LI_ASSIGNED;
-	listener->proto = &proto_sockpair;
-	LIST_ADDQ(&proto_sockpair.listeners, &listener->proto_list);
+	listener->rx.proto = &proto_sockpair;
+	LIST_ADDQ(&proto_sockpair.listeners, &listener->rx.proto_list);
 	proto_sockpair.nb_listeners++;
 }
 
@@ -125,7 +125,7 @@ static int sockpair_bind_listener(struct listener *listener, char *errmsg, int e
 
 	listener->state = LI_LISTEN;
 
-	fd_insert(fd, listener, listener->proto->accept,
+	fd_insert(fd, listener, listener->rx.proto->accept,
 	          thread_mask(listener->bind_conf->settings.bind_thread) & all_threads_mask);
 
 	return err;

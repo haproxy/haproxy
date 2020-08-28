@@ -195,6 +195,8 @@ struct bind_conf {
 struct receiver {
 	int fd;                          /* handle we receive from (fd only for now) */
 	unsigned int flags;              /* receiver options (RX_F_*) */
+	struct protocol *proto;          /* protocol this receiver belongs to */
+	struct list proto_list;          /* list in the protocol header */
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;    /* the address the socket is bound to */
 };
@@ -210,7 +212,6 @@ struct listener {
 	int luid;			/* listener universally unique ID, used for SNMP */
 	int options;			/* socket options : LI_O_* */
 	struct fe_counters *counters;	/* statistics counters */
-	struct protocol *proto;		/* protocol this listener belongs to */
 	int nbconn;			/* current number of connections on this listener */
 	int maxconn;			/* maximum connections allowed on this listener */
 	unsigned int backlog;		/* if set, listen backlog */
@@ -235,7 +236,6 @@ struct listener {
 	struct list by_fe;              /* chaining in frontend's list of listeners */
 	struct list by_bind;            /* chaining in bind_conf's list of listeners */
 	struct bind_conf *bind_conf;	/* "bind" line settings, include SSL settings among other things */
-	struct list proto_list;         /* list in the protocol header */
 	struct receiver rx;             /* network receiver parts */
 	struct {
 		struct eb32_node id;	/* place in the tree of used IDs */

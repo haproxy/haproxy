@@ -363,7 +363,7 @@ int sock_find_compatible_fd(const struct listener *l)
 	int ns_namelen = 0;
 	int ret = -1;
 
-	if (!l->proto->addrcmp)
+	if (!l->rx.proto->addrcmp)
 		return -1;
 
 	/* WT: this is not the right way to do it, it is temporary for the
@@ -400,7 +400,7 @@ int sock_find_compatible_fd(const struct listener *l)
 #ifdef USE_NS
 		    (!ns_namelen || strcmp(l->bind_conf->settings.netns->node.key, xfer_sock->namespace) == 0) &&
 #endif
-		    l->proto->addrcmp(&xfer_sock->addr, &l->rx.addr) == 0)
+		    l->rx.proto->addrcmp(&xfer_sock->addr, &l->rx.addr) == 0)
 			break;
 		xfer_sock = xfer_sock->next;
 	}

@@ -66,7 +66,7 @@ int protocol_bind_all(int verbose)
 	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		list_for_each_entry(listener, &proto->listeners, proto_list) {
+		list_for_each_entry(listener, &proto->listeners, rx.proto_list) {
 			lerr = proto->bind(listener, msg, sizeof(msg));
 
 			/* errors are reported if <verbose> is set or if they are fatal */
@@ -106,7 +106,7 @@ int protocol_unbind_all(void)
 	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		list_for_each_entry(listener, &proto->listeners, proto_list)
+		list_for_each_entry(listener, &proto->listeners, rx.proto_list)
 			unbind_listener(listener);
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
