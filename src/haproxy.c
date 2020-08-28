@@ -117,6 +117,7 @@
 #include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/signal.h>
+#include <haproxy/sock_inet.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
@@ -1306,7 +1307,7 @@ static int get_old_sockets(const char *unixsocket)
 		curoff += sizeof(int);
 
 		/* determine the foreign status directly from the socket itself */
-		if (tcp_is_foreign(fd, xfer_sock->addr.ss_family))
+		if (sock_inet_is_foreign(fd, xfer_sock->addr.ss_family))
 			xfer_sock->options |= LI_O_FOREIGN;
 
 		/* keep only the v6only flag depending on what's currently

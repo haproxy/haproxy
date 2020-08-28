@@ -581,65 +581,6 @@ int tcp_connect_server(struct connection *conn, int flags)
 	return SF_ERR_NONE;  /* connection is OK */
 }
 
-/* Returns true if the passed FD corresponds to a socket bound with LI_O_FOREIGN
- * according to the various supported socket options. The socket's address family
- * must be passed in <family>.
- */
-int tcp_is_foreign(int fd, sa_family_t family)
-{
-	int val __maybe_unused;
-	socklen_t len __maybe_unused;
-
-	switch (family) {
-	case AF_INET:
-#if defined(IP_TRANSPARENT)
-		val = 0; len = sizeof(val);
-		if (getsockopt(fd, SOL_IP, IP_TRANSPARENT, &val, &len) == 0 && val)
-			return 1;
-#endif
-#if defined(IP_FREEBIND)
-		val = 0; len = sizeof(val);
-		if (getsockopt(fd, SOL_IP, IP_FREEBIND, &val, &len) == 0 && val)
-			return 1;
-#endif
-#if defined(IP_BINDANY)
-		val = 0; len = sizeof(val);
-		if (getsockopt(fd, IPPROTO_IP, IP_BINDANY, &val, &len) == 0 && val)
-			return 1;
-#endif
-#if defined(SO_BINDANY)
-		val = 0; len = sizeof(val);
-		if (getsockopt(fd, SOL_SOCKET, SO_BINDANY, &val, &len) == 0 && val)
-			return 1;
-#endif
-		break;
-
-	case AF_INET6:
-#if defined(IPV6_TRANSPARENT) && defined(SOL_IPV6)
-		val = 0; len = sizeof(val);
-		if (getsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &val, &len) == 0 && val)
-			return 1;
-#endif
-#if defined(IP_FREEBIND)
-		val = 0; len = sizeof(val);
-		if (getsockopt(fd, SOL_IP, IP_FREEBIND, &val, &len) == 0 && val)
-			return 1;
-#endif
-#if defined(IPV6_BINDANY)
-		val = 0; len = sizeof(val);
-		if (getsockopt(fd, IPPROTO_IPV6, IPV6_BINDANY, &val, &len) == 0 && val)
-			return 1;
-#endif
-#if defined(SO_BINDANY)
-		val = 0; len = sizeof(val);
-		if (getsockopt(fd, SOL_SOCKET, SO_BINDANY, &val, &len) == 0 && val)
-			return 1;
-#endif
-		break;
-	}
-	return 0;
-}
-
 /* sets the v6only_default flag according to the OS' default settings; for
  * simplicity it's set to zero if not supported.
  */
