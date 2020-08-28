@@ -265,7 +265,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	listener->rx.fd = fd;
 	listener->state = LI_LISTEN;
 
-	fd_insert(fd, listener, listener->proto->accept,
+	fd_insert(fd, listener, listener->rx.proto->accept,
 	          thread_mask(listener->bind_conf->bind_thread) & all_threads_mask);
 
 	/* for now, all regularly bound UNIX listeners are exportable */
@@ -318,8 +318,8 @@ static void uxst_add_listener(struct listener *listener, int port)
 	if (listener->state != LI_INIT)
 		return;
 	listener->state = LI_ASSIGNED;
-	listener->proto = &proto_unix;
-	LIST_ADDQ(&proto_unix.listeners, &listener->proto_list);
+	listener->rx.proto = &proto_unix;
+	LIST_ADDQ(&proto_unix.listeners, &listener->rx.proto_list);
 	proto_unix.nb_listeners++;
 }
 
@@ -541,7 +541,7 @@ static int uxst_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
 	struct listener *listener;
 	int err = ERR_NONE;
 
-	list_for_each_entry(listener, &proto->listeners, proto_list) {
+	list_for_each_entry(listener, &proto->listeners, rx.proto_list) {
 		err |= uxst_bind_listener(listener, errmsg, errlen);
 		if (err & ERR_ABORT)
 			break;
@@ -561,7 +561,7 @@ static int uxst_unbind_listeners(struct protocol *proto)
 {
 	struct listener *listener;
 
-	list_for_each_entry(listener, &proto->listeners, proto_list)
+	list_for_each_entry(listener, &proto->listeners, rx.proto_list)
 		uxst_unbind_listener(listener);
 	return ERR_NONE;
 }

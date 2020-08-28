@@ -2823,7 +2823,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(strm->logs.accept_date.tv_usec),
 			     strm->uniq_id,
-			     strm_li(strm) ? strm_li(strm)->proto->name : "?");
+			     strm_li(strm) ? strm_li(strm)->rx.proto->name : "?");
 
 		conn = objt_conn(strm_orig(strm));
 		switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {
@@ -3232,7 +3232,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			chunk_appendf(&trash,
 				     "%p: proto=%s",
 				     curr_strm,
-				     strm_li(curr_strm) ? strm_li(curr_strm)->proto->name : "?");
+				     strm_li(curr_strm) ? strm_li(curr_strm)->rx.proto->name : "?");
 
 			conn = objt_conn(strm_orig(curr_strm));
 			switch (conn && conn_get_src(conn) ? addr_to_str(conn->src, pn, sizeof(pn)) : AF_UNSPEC) {

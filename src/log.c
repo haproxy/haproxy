@@ -3636,7 +3636,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		}
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			/* Currently, only UDP handlers are allowed */
-			if (l->proto->sock_domain != AF_CUST_UDP4 && l->proto->sock_domain != AF_CUST_UDP6) {
+			if (l->rx.proto->sock_domain != AF_CUST_UDP4 && l->rx.proto->sock_domain != AF_CUST_UDP6) {
 				ha_alert("parsing [%s:%d] : '%s %s' : error,  listening address must be prefixed using 'udp@', 'udp4@' or 'udp6@' %s.\n",
 				         file, linenum, args[0], args[1], args[2]);
 				err_code |= ERR_ALERT | ERR_FATAL;

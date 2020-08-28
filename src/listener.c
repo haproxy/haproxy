@@ -296,11 +296,11 @@ int pause_listener(struct listener *l)
 	if (l->state <= LI_ZOMBIE)
 		goto end;
 
-	if (l->proto->pause) {
+	if (l->rx.proto->pause) {
 		/* Returns < 0 in case of failure, 0 if the listener
 		 * was totally stopped, or > 0 if correctly paused.
 		 */
-		int ret = l->proto->pause(l);
+		int ret = l->rx.proto->pause(l);
 
 		if (ret < 0) {
 			ret = 0;
@@ -349,7 +349,7 @@ int resume_listener(struct listener *l)
 		char msg[100];
 		int err;
 
-		err = l->proto->bind(l, msg, sizeof(msg));
+		err = l->rx.proto->bind(l, msg, sizeof(msg));
 		if (err & ERR_ALERT)
 			ha_alert("Resuming listener: %s\n", msg);
 		else if (err & ERR_WARN)
@@ -366,7 +366,7 @@ int resume_listener(struct listener *l)
 		goto end;
 	}
 
-	if (l->proto->sock_prot == IPPROTO_TCP &&
+	if (l->rx.proto->sock_prot == IPPROTO_TCP &&
 	    l->state == LI_PAUSED &&
 	    listen(l->rx.fd, listener_backlog(l)) != 0) {
 		ret = 0;
@@ -442,7 +442,7 @@ int enable_all_listeners(struct protocol *proto)
 {
 	struct listener *listener;
 
-	list_for_each_entry(listener, &proto->listeners, proto_list)
+	list_for_each_entry(listener, &proto->listeners, rx.proto_list)
 		enable_listener(listener);
 	return ERR_NONE;
 }
@@ -459,7 +459,7 @@ int disable_all_listeners(struct protocol *proto)
 {
 	struct listener *listener;
 
-	list_for_each_entry(listener, &proto->listeners, proto_list)
+	list_for_each_entry(listener, &proto->listeners, rx.proto_list)
 		disable_listener(listener);
 	return ERR_NONE;
 }
@@ -543,7 +543,7 @@ int unbind_all_listeners(struct protocol *proto)
 {
 	struct listener *listener;
 
-	list_for_each_entry(listener, &proto->listeners, proto_list)
+	list_for_each_entry(listener, &proto->listeners, rx.proto_list)
 		unbind_listener(listener);
 	return ERR_NONE;
 }
@@ -612,8 +612,8 @@ void delete_listener(struct listener *listener)
 	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state == LI_ASSIGNED) {
 		listener->state = LI_INIT;
-		LIST_DEL(&listener->proto_list);
-		listener->proto->nb_listeners--;
+		LIST_DEL(&listener->rx.proto_list);
+		listener->rx.proto->nb_listeners--;
 		_HA_ATOMIC_SUB(&jobs, 1);
 		_HA_ATOMIC_SUB(&listeners, 1);
 	}

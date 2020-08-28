@@ -189,7 +189,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	struct sockaddr_storage addr_inet = listener->rx.addr;
 
 	/* force to classic sock family */
-	addr_inet.ss_family = listener->proto->sock_family;
+	addr_inet.ss_family = listener->rx.proto->sock_family;
 
 	/* ensure we never return garbage */
 	if (errlen)
@@ -205,7 +205,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	 * IPPROTO (sockaddr is not enough)
 	 */
 
-	fd = my_socketat(listener->rx.netns, listener->proto->sock_family, listener->proto->sock_type, listener->proto->sock_prot);
+	fd = my_socketat(listener->rx.netns, listener->rx.proto->sock_family, listener->rx.proto->sock_type, listener->rx.proto->sock_prot);
 	if (fd == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot create listening socket";
@@ -272,7 +272,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
                 setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
 #endif
 
-	if (bind(fd, (struct sockaddr *)&addr_inet, listener->proto->sock_addrlen) < 0) {
+	if (bind(fd, (struct sockaddr *)&addr_inet, listener->rx.proto->sock_addrlen) < 0) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot bind socket";
 		goto udp_close_return;
@@ -316,7 +316,7 @@ static int udp_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
 	struct listener *listener;
 	int err = ERR_NONE;
 
-	list_for_each_entry(listener, &proto->listeners, proto_list) {
+	list_for_each_entry(listener, &proto->listeners, rx.proto_list) {
 		err |= udp_bind_listener(listener, errmsg, errlen);
 		if (err & ERR_ABORT)
 			break;
@@ -334,9 +334,9 @@ static void udp4_add_listener(struct listener *listener, int port)
 	if (listener->state != LI_INIT)
 		return;
 	listener->state = LI_ASSIGNED;
-	listener->proto = &proto_udp4;
+	listener->rx.proto = &proto_udp4;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
-	LIST_ADDQ(&proto_udp4.listeners, &listener->proto_list);
+	LIST_ADDQ(&proto_udp4.listeners, &listener->rx.proto_list);
 	proto_udp4.nb_listeners++;
 }
 
@@ -349,9 +349,9 @@ static void udp6_add_listener(struct listener *listener, int port)
 	if (listener->state != LI_INIT)
 		return;
 	listener->state = LI_ASSIGNED;
-	listener->proto = &proto_udp6;
+	listener->rx.proto = &proto_udp6;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
-	LIST_ADDQ(&proto_udp6.listeners, &listener->proto_list);
+	LIST_ADDQ(&proto_udp6.listeners, &listener->rx.proto_list);
 	proto_udp6.nb_listeners++;
 }
 

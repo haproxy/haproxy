@@ -743,7 +743,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
                 setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
 #endif
 
-	if (!ext && bind(fd, (struct sockaddr *)&listener->rx.addr, listener->proto->sock_addrlen) == -1) {
+	if (!ext && bind(fd, (struct sockaddr *)&listener->rx.addr, listener->rx.proto->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot bind socket";
 		goto tcp_close_return;
@@ -772,7 +772,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	listener->rx.fd = fd;
 	listener->state = LI_LISTEN;
 
-	fd_insert(fd, listener, listener->proto->accept,
+	fd_insert(fd, listener, listener->rx.proto->accept,
 	          thread_mask(listener->bind_conf->bind_thread) & all_threads_mask);
 
 	/* for now, all regularly bound TCP listeners are exportable */
@@ -807,7 +807,7 @@ static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
 	struct listener *listener;
 	int err = ERR_NONE;
 
-	list_for_each_entry(listener, &proto->listeners, proto_list) {
+	list_for_each_entry(listener, &proto->listeners, rx.proto_list) {
 		err |= tcp_bind_listener(listener, errmsg, errlen);
 		if (err & ERR_ABORT)
 			break;
@@ -828,9 +828,9 @@ static void tcpv4_add_listener(struct listener *listener, int port)
 	if (listener->state != LI_INIT)
 		return;
 	listener->state = LI_ASSIGNED;
-	listener->proto = &proto_tcpv4;
+	listener->rx.proto = &proto_tcpv4;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
-	LIST_ADDQ(&proto_tcpv4.listeners, &listener->proto_list);
+	LIST_ADDQ(&proto_tcpv4.listeners, &listener->rx.proto_list);
 	proto_tcpv4.nb_listeners++;
 }
 
@@ -846,9 +846,9 @@ static void tcpv6_add_listener(struct listener *listener, int port)
 	if (listener->state != LI_INIT)
 		return;
 	listener->state = LI_ASSIGNED;
-	listener->proto = &proto_tcpv6;
+	listener->rx.proto = &proto_tcpv6;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
-	LIST_ADDQ(&proto_tcpv6.listeners, &listener->proto_list);
+	LIST_ADDQ(&proto_tcpv6.listeners, &listener->rx.proto_list);
 	proto_tcpv6.nb_listeners++;
 }
 
