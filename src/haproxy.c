@@ -1275,6 +1275,7 @@ static int get_old_sockets(const char *unixsocket)
 			}
 			memcpy(xfer_sock->namespace, &tmpbuf[curoff], len);
 			xfer_sock->namespace[len] = 0;
+			xfer_sock->ns_namelen = len;
 			curoff += len;
 		}
 		if (curoff >= maxoff) {
@@ -1295,6 +1296,7 @@ static int get_old_sockets(const char *unixsocket)
 			}
 			memcpy(xfer_sock->iface, &tmpbuf[curoff], len);
 			xfer_sock->iface[len] = 0;
+			xfer_sock->if_namelen = len;
 			curoff += len;
 		}
 		if (curoff + sizeof(int) > maxoff) {

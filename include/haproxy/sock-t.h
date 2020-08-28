@@ -33,6 +33,8 @@ struct xfer_sock_list {
 	int options; /* socket options as LI_O_* */
 	char *iface;
 	char *namespace;
+	int if_namelen;
+	int ns_namelen;
 	struct xfer_sock_list *prev;
 	struct xfer_sock_list *next;
 	struct sockaddr_storage addr;
