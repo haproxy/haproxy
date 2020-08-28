@@ -29,6 +29,7 @@
 
 #define SOCK_XFER_OPT_FOREIGN 0x000000001
 #define SOCK_XFER_OPT_V6ONLY  0x000000002
+#define SOCK_XFER_OPT_DGRAM   0x000000004
 
 /* The list used to transfer sockets between old and new processes */
 struct xfer_sock_list {

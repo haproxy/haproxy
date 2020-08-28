@@ -296,6 +296,10 @@ int sock_get_old_sockets(const char *unixsocket)
 		if (sock_inet_is_foreign(fd, xfer_sock->addr.ss_family))
 			xfer_sock->options |= SOCK_XFER_OPT_FOREIGN;
 
+		socklen = sizeof(val);
+		if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &val, &socklen) == 0 && val == SOCK_DGRAM)
+			xfer_sock->options |= SOCK_XFER_OPT_DGRAM;
+
 #if defined(IPV6_V6ONLY)
 		/* keep only the v6only flag depending on what's currently
 		 * active on the socket, and always drop the v4v6 one.
@@ -361,6 +365,12 @@ int sock_find_compatible_fd(const struct listener *l)
 
 	if (!l->proto->addrcmp)
 		return -1;
+
+	/* WT: this is not the right way to do it, it is temporary for the
+	 *     transition to receivers.
+	 */
+	if (l->addr.ss_family == AF_CUST_UDP4 || l->addr.ss_family == AF_CUST_UDP6)
+		options |= SOCK_XFER_OPT_DGRAM;
 
 	if (l->options & LI_O_FOREIGN)
 		options |= SOCK_XFER_OPT_FOREIGN;
