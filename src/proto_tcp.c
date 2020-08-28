@@ -1211,7 +1211,8 @@ int tcp_pause_listener(struct listener *l)
 /************************************************************************/
 
 /* fetch the connection's source IPv4/IPv6 address */
-int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
+static int
+smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *cli_conn = objt_conn(smp->sess->origin);
 

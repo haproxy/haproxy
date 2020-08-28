@@ -35,9 +35,6 @@ int tcp_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int tcp_is_foreign(int fd, sa_family_t family);
 
-/* Export some samples. */
-int smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private);
-
 #endif /* _HAPROXY_PROTO_TCP_H */
 
 /*

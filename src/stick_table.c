@@ -45,6 +45,7 @@
 
 /* structure used to return a table key built from a sample */
 static THREAD_LOCAL struct stktable_key static_table_key;
+static int (*smp_fetch_src)(const struct arg *, struct sample *, const char *, void *);
 
 struct stktable *stktables_list;
 struct eb_root stktable_by_name = EB_ROOT;
@@ -2211,7 +2212,7 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 		smp.px = NULL;
 		smp.sess = sess;
 		smp.strm = strm;
-		if (!smp_fetch_src(NULL, &smp, NULL, NULL))
+		if (!smp_fetch_src || !smp_fetch_src(NULL, &smp, NULL, NULL))
 			return NULL;
 
 		/* Converts into key. */
@@ -2276,7 +2277,7 @@ smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct ar
 	smp.px = NULL;
 	smp.sess = sess;
 	smp.strm = strm;
-	if (!smp_fetch_src(NULL, &smp, NULL, NULL))
+	if (!smp_fetch_src || !smp_fetch_src(NULL, &smp, NULL, NULL))
 		return NULL;
 
 	/* Converts into key. */
@@ -2808,7 +2809,7 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 		return 0;
 
 	/* Fetch source address in a sample. */
-	if (!smp_fetch_src(NULL, smp, NULL, NULL))
+	if (!smp_fetch_src || !smp_fetch_src(NULL, smp, NULL, NULL))
 		return 0;
 
 	/* Converts into key. */
@@ -3855,6 +3856,17 @@ static void cli_release_show_table(struct appctx *appctx)
 		stksess_kill_if_expired(appctx->ctx.table.t, appctx->ctx.table.entry, 1);
 	}
 }
+
+static void stkt_late_init(void)
+{
+	struct sample_fetch *f;
+
+	f = find_sample_fetch("src", strlen("src"));
+	if (f)
+		smp_fetch_src = f->process;
+}
+
+INITCALL0(STG_INIT, stkt_late_init);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
