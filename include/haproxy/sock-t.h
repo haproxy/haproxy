@@ -27,10 +27,13 @@
 
 #include <haproxy/api-t.h>
 
+#define SOCK_XFER_OPT_FOREIGN 0x000000001
+#define SOCK_XFER_OPT_V6ONLY  0x000000002
+
 /* The list used to transfer sockets between old and new processes */
 struct xfer_sock_list {
 	int fd;
-	int options; /* socket options as LI_O_* */
+	int options; /* socket options as SOCK_XFER_OPT_* */
 	char *iface;
 	char *namespace;
 	int if_namelen;

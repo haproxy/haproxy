@@ -294,7 +294,7 @@ int sock_get_old_sockets(const char *unixsocket)
 
 		/* determine the foreign status directly from the socket itself */
 		if (sock_inet_is_foreign(fd, xfer_sock->addr.ss_family))
-			xfer_sock->options |= LI_O_FOREIGN;
+			xfer_sock->options |= SOCK_XFER_OPT_FOREIGN;
 
 #if defined(IPV6_V6ONLY)
 		/* keep only the v6only flag depending on what's currently
@@ -303,7 +303,7 @@ int sock_get_old_sockets(const char *unixsocket)
 		socklen = sizeof(val);
 		if (xfer_sock->addr.ss_family == AF_INET6 &&
 		    getsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, &socklen) == 0 && val > 0)
-			xfer_sock->options |= LI_O_V6ONLY;
+			xfer_sock->options |= SOCK_XFER_OPT_V6ONLY;
 #endif
 
 		xfer_sock->fd = fd;
@@ -354,7 +354,7 @@ out:
 int sock_find_compatible_fd(const struct listener *l)
 {
 	struct xfer_sock_list *xfer_sock = xfer_sock_list;
-	int options = l->options & (LI_O_FOREIGN | LI_O_V6ONLY | LI_O_V4V6);
+	int options = 0;
 	int if_namelen = 0;
 	int ns_namelen = 0;
 	int ret = -1;
@@ -362,17 +362,18 @@ int sock_find_compatible_fd(const struct listener *l)
 	if (!l->proto->addrcmp)
 		return -1;
 
+	if (l->options & LI_O_FOREIGN)
+		options |= SOCK_XFER_OPT_FOREIGN;
+
 	if (l->addr.ss_family == AF_INET6) {
 		/* Prepare to match the v6only option against what we really want. Note
 		 * that sadly the two options are not exclusive to each other and that
 		 * v6only is stronger than v4v6.
 		 */
-		if ((options & LI_O_V6ONLY) || (sock_inet6_v6only_default && !(options & LI_O_V4V6)))
-			options |= LI_O_V6ONLY;
-		else if ((options & LI_O_V4V6) || !sock_inet6_v6only_default)
-			options &= ~LI_O_V6ONLY;
+		if ((l->options & LI_O_V6ONLY) ||
+		    (sock_inet6_v6only_default && !(l->options & LI_O_V4V6)))
+			options |= SOCK_XFER_OPT_V6ONLY;
 	}
-	options &= ~LI_O_V4V6;
 
 	if (l->interface)
 		if_namelen = strlen(l->interface);
@@ -382,7 +383,7 @@ int sock_find_compatible_fd(const struct listener *l)
 #endif
 
 	while (xfer_sock) {
-		if (((options ^ xfer_sock->options) & (LI_O_FOREIGN | LI_O_V6ONLY)) == 0 &&
+		if ((options == xfer_sock->options) &&
 		    (if_namelen == xfer_sock->if_namelen) &&
 		    (ns_namelen == xfer_sock->ns_namelen) &&
 		    (!if_namelen || strcmp(l->interface, xfer_sock->iface) == 0) &&
