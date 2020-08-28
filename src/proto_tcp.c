@@ -65,7 +65,7 @@ static struct protocol proto_tcpv4 = {
 	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
 	.get_src = sock_get_src,
-	.get_dst = tcp_get_dst,
+	.get_dst = sock_inet_get_dst,
 	.pause = tcp_pause_listener,
 	.add = tcpv4_add_listener,
 	.addrcmp = sock_inet4_addrcmp,
@@ -91,7 +91,7 @@ static struct protocol proto_tcpv6 = {
 	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
 	.get_src = sock_get_src,
-	.get_dst = tcp_get_dst,
+	.get_dst = sock_get_dst,
 	.pause = tcp_pause_listener,
 	.add = tcpv6_add_listener,
 	.addrcmp = sock_inet6_addrcmp,
@@ -579,38 +579,6 @@ int tcp_connect_server(struct connection *conn, int flags)
 	}
 
 	return SF_ERR_NONE;  /* connection is OK */
-}
-
-
-/*
- * Retrieves the original destination address for the socket <fd>, with <dir>
- * indicating if we're a listener (=0) or an initiator (!=0). In the case of a
- * listener, if the original destination address was translated, the original
- * address is retrieved. It returns 0 in case of success, -1 in case of error.
- * The socket's source address is stored in <sa> for <salen> bytes.
- */
-int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
-{
-	if (dir)
-		return getpeername(fd, sa, &salen);
-	else {
-		int ret = getsockname(fd, sa, &salen);
-
-		if (ret < 0)
-			return ret;
-
-#if defined(USE_TPROXY) && defined(SO_ORIGINAL_DST)
-		/* For TPROXY and Netfilter's NAT, we can retrieve the original
-		 * IPv4 address before DNAT/REDIRECT. We must not do that with
-		 * other families because v6-mapped IPv4 addresses are still
-		 * reported as v4.
-		 */
-		if (((struct sockaddr_storage *)sa)->ss_family == AF_INET
-		    && getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, sa, &salen) == 0)
-			return 0;
-#endif
-		return ret;
-	}
 }
 
 /* Returns true if the passed FD corresponds to a socket bound with LI_O_FOREIGN

@@ -75,3 +75,34 @@ int sock_inet6_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_s
 
 	return memcmp(&a6->sin6_addr, &b6->sin6_addr, sizeof(a6->sin6_addr));
 }
+
+/*
+ * Retrieves the original destination address for the socket <fd> which must be
+ * of family AF_INET (not AF_INET6), with <dir> indicating if we're a listener
+ * (=0) or an initiator (!=0). In the case of a listener, if the original
+ * destination address was translated, the original address is retrieved. It
+ * returns 0 in case of success, -1 in case of error. The socket's source
+ * address is stored in <sa> for <salen> bytes.
+ */
+int sock_inet_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
+{
+	if (dir)
+		return getpeername(fd, sa, &salen);
+	else {
+		int ret = getsockname(fd, sa, &salen);
+
+		if (ret < 0)
+			return ret;
+
+#if defined(USE_TPROXY) && defined(SO_ORIGINAL_DST)
+		/* For TPROXY and Netfilter's NAT, we can retrieve the original
+		 * IPv4 address before DNAT/REDIRECT. We must not do that with
+		 * other families because v6-mapped IPv4 addresses are still
+		 * reported as v4.
+		 */
+		if (getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, sa, &salen) == 0)
+			return 0;
+#endif
+		return ret;
+	}
+}

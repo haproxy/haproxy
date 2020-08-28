@@ -87,7 +87,7 @@ static struct protocol proto_udp6 = {
 	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
 	.get_src = udp6_get_src,
-	.get_dst = udp_get_dst,
+	.get_dst = udp6_get_dst,
 	.pause = udp_pause_listener,
 	.add = udp6_add_listener,
 	.addrcmp = sock_inet6_addrcmp,
@@ -142,34 +142,27 @@ int udp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 {
 	int ret;
 
-	if (dir)
-		ret = getpeername(fd, sa, &salen);
-	else {
-		ret = getsockname(fd, sa, &salen);
+	ret = sock_inet_get_dst(fd, sa, salen, dir);
+	if (!ret)
+		sa->sa_family = AF_CUST_UDP4;
 
-		if (ret < 0)
-			return ret;
+	return ret;
+}
 
-#if defined(USE_TPROXY) && defined(SO_ORIGINAL_DST)
-		/* For TPROXY and Netfilter's NAT, we can retrieve the original
-		 * IPv4 address before DNAT/REDIRECT. We must not do that with
-		 * other families because v6-mapped IPv4 addresses are still
-		 * reported as v4.
-		 */
-		if (((struct sockaddr_storage *)sa)->ss_family == AF_INET
-		    && getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, sa, &salen) == 0) {
-			sa->sa_family = AF_CUST_UDP4;
-			return 0;
-		}
-#endif
-	}
+/*
+ * Retrieves the original destination address for the socket <fd>, with <dir>
+ * indicating if we're a listener (=0) or an initiator (!=0). In the case of a
+ * listener, if the original destination address was translated, the original
+ * address is retrieved. It returns 0 in case of success, -1 in case of error.
+ * The socket's source address is stored in <sa> for <salen> bytes.
+ */
+int udp6_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
+{
+	int ret;
 
-	if (!ret) {
-		if (sa->sa_family == AF_INET)
-			sa->sa_family = AF_CUST_UDP4;
-		else if (sa->sa_family == AF_INET6)
-			sa->sa_family = AF_CUST_UDP6;
-	}
+	ret = sock_get_dst(fd, sa, salen, dir);
+	if (!ret)
+		sa->sa_family = AF_CUST_UDP6;
 
 	return ret;
 }

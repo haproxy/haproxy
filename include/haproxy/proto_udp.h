@@ -29,6 +29,7 @@ int udp_pause_listener(struct listener *l);
 int udp_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int udp6_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int udp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
+int udp6_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 
 #endif /* _PROTO_PROTO_UDP_H */
 
