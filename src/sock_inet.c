@@ -40,6 +40,10 @@
  */
 int sock_inet6_v6only_default = 0;
 
+/* Default TCPv4/TCPv6 MSS settings. -1=unknown. */
+int sock_inet_tcp_maxseg_default = -1;
+int sock_inet6_tcp_maxseg_default = -1;
+
 /* Compares two AF_INET sockaddr addresses. Returns 0 if they match or non-zero
  * if they do not match.
  */
@@ -175,6 +179,17 @@ static void sock_inet_prepare()
 	int fd, val;
 	socklen_t len;
 
+	fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (fd >= 0) {
+#ifdef TCP_MAXSEG
+		/* retrieve the OS' default mss for TCPv4 */
+		len = sizeof(val);
+		if (getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &val, &len) == 0)
+			sock_inet_tcp_maxseg_default = val;
+#endif
+		close(fd);
+	}
+
 	fd = socket(AF_INET6, SOCK_STREAM, 0);
 	if (fd >= 0) {
 #if defined(IPV6_V6ONLY)
@@ -182,6 +197,13 @@ static void sock_inet_prepare()
 		len = sizeof(val);
 		if (getsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, &len) == 0 && val > 0)
 			sock_inet6_v6only_default = 1;
+#endif
+
+#ifdef TCP_MAXSEG
+		/* retrieve the OS' default mss for TCPv6 */
+		len = sizeof(val);
+		if (getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &val, &len) == 0)
+			sock_inet6_tcp_maxseg_default = val;
 #endif
 		close(fd);
 	}

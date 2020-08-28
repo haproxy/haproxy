@@ -28,6 +28,8 @@
 #include <haproxy/api.h>
 
 extern int sock_inet6_v6only_default;
+extern int sock_inet_tcp_maxseg_default;
+extern int sock_inet6_tcp_maxseg_default;
 
 int sock_inet4_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 int sock_inet6_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);

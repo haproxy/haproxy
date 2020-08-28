@@ -101,12 +101,6 @@ static struct protocol proto_tcpv6 = {
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_tcpv6);
 
-/* Default TCP parameters, got by opening a temporary TCP socket. */
-#ifdef TCP_MAXSEG
-static THREAD_LOCAL int default_tcp_maxseg = -1;
-static THREAD_LOCAL int default_tcp6_maxseg = -1;
-#endif
-
 /* Binds ipv4/ipv6 address <local> to socket <fd>, unless <flags> is set, in which
  * case we try to bind <remote>. <flags> is a 2-bit field consisting of :
  *  - 0 : ignore remote address (may even be a NULL pointer)
@@ -655,36 +649,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	int ext, ready;
 	socklen_t ready_len;
 	const char *msg = NULL;
-#ifdef TCP_MAXSEG
-
-	/* Create a temporary TCP socket to get default parameters we can't
-	 * guess.
-	 * */
-	ready_len = sizeof(default_tcp_maxseg);
-	if (default_tcp_maxseg == -1) {
-		default_tcp_maxseg = -2;
-		fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-		if (fd < 0)
-			ha_warning("Failed to create a temporary socket!\n");
-		else {
-			if (getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &default_tcp_maxseg,
-			    &ready_len) == -1)
-				ha_warning("Failed to get the default value of TCP_MAXSEG\n");
-			close(fd);
-		}
-	}
-	if (default_tcp6_maxseg == -1) {
-		default_tcp6_maxseg = -2;
-		fd = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
-		if (fd >= 0) {
-			if (getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &default_tcp6_maxseg,
-			    &ready_len) == -1)
-				ha_warning("Failed ot get the default value of TCP_MAXSEG for IPv6\n");
-			close(fd);
-		}
-	}
-#endif
-
 
 	/* ensure we never return garbage */
 	if (errlen)
@@ -822,9 +786,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		socklen_t len = sizeof(tmpmaxseg);
 
 		if (listener->addr.ss_family == AF_INET)
-			defaultmss = default_tcp_maxseg;
+			defaultmss = sock_inet_tcp_maxseg_default;
 		else
-			defaultmss = default_tcp6_maxseg;
+			defaultmss = sock_inet6_tcp_maxseg_default;
 
 		getsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &tmpmaxseg, &len);
 		if (defaultmss > 0 &&
