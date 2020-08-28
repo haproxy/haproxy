@@ -20,6 +20,7 @@
 #include <netinet/in.h>
 
 #include <haproxy/api.h>
+#include <haproxy/global.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/tools.h>
 
@@ -174,6 +175,52 @@ int sock_inet_is_foreign(int fd, sa_family_t family)
 	return 0;
 }
 
+/* Attempt all known socket options to prepare an AF_INET4 socket to be bound
+ * to a foreign address. The socket must already exist and must not be bound.
+ * 1 is returned on success, 0 on failure. The caller must check the address
+ * family before calling this function.
+ */
+int sock_inet4_make_foreign(int fd)
+{
+	return
+#if defined(IP_TRANSPARENT)
+		setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == 0 ||
+#endif
+#if defined(IP_FREEBIND)
+		setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0 ||
+#endif
+#if defined(IP_BINDANY)
+		setsockopt(fd, IPPROTO_IP, IP_BINDANY, &one, sizeof(one)) == 0 ||
+#endif
+#if defined(SO_BINDANY)
+		setsockopt(fd, SOL_SOCKET, SO_BINDANY, &one, sizeof(one)) == 0 ||
+#endif
+		0;
+}
+
+/* Attempt all known socket options to prepare an AF_INET6 socket to be bound
+ * to a foreign address. The socket must already exist and must not be bound.
+ * 1 is returned on success, 0 on failure. The caller must check the address
+ * family before calling this function.
+ */
+int sock_inet6_make_foreign(int fd)
+{
+	return
+#if defined(IPV6_TRANSPARENT) && defined(SOL_IPV6)
+		setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == 0 ||
+#endif
+#if defined(IP_FREEBIND)
+		setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0 ||
+#endif
+#if defined(IPV6_BINDANY)
+		setsockopt(fd, IPPROTO_IPV6, IPV6_BINDANY, &one, sizeof(one)) == 0 ||
+#endif
+#if defined(SO_BINDANY)
+		setsockopt(fd, SOL_SOCKET, SO_BINDANY, &one, sizeof(one)) == 0 ||
+#endif
+		0;
+}
+
 static void sock_inet_prepare()
 {
 	int fd, val;
@@ -210,3 +257,25 @@ static void sock_inet_prepare()
 }
 
 INITCALL0(STG_PREPARE, sock_inet_prepare);
+
+
+REGISTER_BUILD_OPTS("Built with transparent proxy support using:"
+#if defined(IP_TRANSPARENT)
+		    " IP_TRANSPARENT"
+#endif
+#if defined(IPV6_TRANSPARENT)
+		    " IPV6_TRANSPARENT"
+#endif
+#if defined(IP_FREEBIND)
+		    " IP_FREEBIND"
+#endif
+#if defined(IP_BINDANY)
+		    " IP_BINDANY"
+#endif
+#if defined(IPV6_BINDANY)
+		    " IPV6_BINDANY"
+#endif
+#if defined(SO_BINDANY)
+		    " SO_BINDANY"
+#endif
+		    "");

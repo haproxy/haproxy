@@ -241,39 +241,13 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->options & LI_O_FOREIGN) {
 		switch (addr_inet.ss_family) {
 		case AF_INET:
-			if (1
-#if defined(IP_TRANSPARENT)
-			    && (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == -1)
-#endif
-#if defined(IP_FREEBIND)
-			    && (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == -1)
-#endif
-#if defined(IP_BINDANY)
-			    && (setsockopt(fd, IPPROTO_IP, IP_BINDANY, &one, sizeof(one)) == -1)
-#endif
-#if defined(SO_BINDANY)
-			    && (setsockopt(fd, SOL_SOCKET, SO_BINDANY, &one, sizeof(one)) == -1)
-#endif
-			    ) {
+			if (!sock_inet4_make_foreign(fd)) {
 				msg = "cannot make listening socket transparent";
 				err |= ERR_ALERT;
 			}
 		break;
 		case AF_INET6:
-			if (1
-#if defined(IPV6_TRANSPARENT) && defined(SOL_IPV6)
-			    && (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == -1)
-#endif
-#if defined(IP_FREEBIND)
-			    && (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == -1)
-#endif
-#if defined(IPV6_BINDANY)
-			    && (setsockopt(fd, IPPROTO_IPV6, IPV6_BINDANY, &one, sizeof(one)) == -1)
-#endif
-#if defined(SO_BINDANY)
-			    && (setsockopt(fd, SOL_SOCKET, SO_BINDANY, &one, sizeof(one)) == -1)
-#endif
-			    ) {
+			if (!sock_inet6_make_foreign(fd)) {
 				msg = "cannot make listening socket transparent";
 				err |= ERR_ALERT;
 			}

@@ -35,5 +35,7 @@ int sock_inet4_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_s
 int sock_inet6_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 int sock_inet_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int sock_inet_is_foreign(int fd, sa_family_t family);
+int sock_inet4_make_foreign(int fd);
+int sock_inet6_make_foreign(int fd);
 
 #endif /* _HAPROXY_SOCK_INET_H */

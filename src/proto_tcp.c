@@ -129,20 +129,7 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 			 * multiple combinations of certain methods, so we try the
 			 * supported ones until one succeeds.
 			 */
-			if (0
-#if defined(IP_TRANSPARENT)
-			    || (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == 0)
-#endif
-#if defined(IP_FREEBIND)
-			    || (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0)
-#endif
-#if defined(IP_BINDANY)
-			    || (setsockopt(fd, IPPROTO_IP, IP_BINDANY, &one, sizeof(one)) == 0)
-#endif
-#if defined(SO_BINDANY)
-			    || (setsockopt(fd, SOL_SOCKET, SO_BINDANY, &one, sizeof(one)) == 0)
-#endif
-			    )
+			if (sock_inet4_make_foreign(fd))
 				foreign_ok = 1;
 			else
 				ip_transp_working = 0;
@@ -150,20 +137,7 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 		break;
 	case AF_INET6:
 		if (flags && ip6_transp_working) {
-			if (0
-#if defined(IPV6_TRANSPARENT) && defined(SOL_IPV6)
-			    || (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == 0)
-#endif
-#if defined(IP_FREEBIND)
-			    || (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0)
-#endif
-#if defined(IPV6_BINDANY)
-			    || (setsockopt(fd, IPPROTO_IPV6, IPV6_BINDANY, &one, sizeof(one)) == 0)
-#endif
-#if defined(SO_BINDANY)
-			    || (setsockopt(fd, SOL_SOCKET, SO_BINDANY, &one, sizeof(one)) == 0)
-#endif
-			    )
+			if (sock_inet6_make_foreign(fd))
 				foreign_ok = 1;
 			else
 				ip6_transp_working = 0;
@@ -664,39 +638,13 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (!ext && (listener->options & LI_O_FOREIGN)) {
 		switch (listener->addr.ss_family) {
 		case AF_INET:
-			if (1
-#if defined(IP_TRANSPARENT)
-			    && (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == -1)
-#endif
-#if defined(IP_FREEBIND)
-			    && (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == -1)
-#endif
-#if defined(IP_BINDANY)
-			    && (setsockopt(fd, IPPROTO_IP, IP_BINDANY, &one, sizeof(one)) == -1)
-#endif
-#if defined(SO_BINDANY)
-			    && (setsockopt(fd, SOL_SOCKET, SO_BINDANY, &one, sizeof(one)) == -1)
-#endif
-			    ) {
+			if (!sock_inet4_make_foreign(fd)) {
 				msg = "cannot make listening socket transparent";
 				err |= ERR_ALERT;
 			}
 		break;
 		case AF_INET6:
-			if (1
-#if defined(IPV6_TRANSPARENT) && defined(SOL_IPV6)
-			    && (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == -1)
-#endif
-#if defined(IP_FREEBIND)
-			    && (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == -1)
-#endif
-#if defined(IPV6_BINDANY)
-			    && (setsockopt(fd, IPPROTO_IPV6, IPV6_BINDANY, &one, sizeof(one)) == -1)
-#endif
-#if defined(SO_BINDANY)
-			    && (setsockopt(fd, SOL_SOCKET, SO_BINDANY, &one, sizeof(one)) == -1)
-#endif
-			    ) {
+			if (!sock_inet6_make_foreign(fd)) {
 				msg = "cannot make listening socket transparent";
 				err |= ERR_ALERT;
 			}
@@ -919,27 +867,6 @@ int tcp_pause_listener(struct listener *l)
 		return -1; /* should always be OK */
 	return 1;
 }
-
-REGISTER_BUILD_OPTS("Built with transparent proxy support using:"
-#if defined(IP_TRANSPARENT)
-		    " IP_TRANSPARENT"
-#endif
-#if defined(IPV6_TRANSPARENT)
-		    " IPV6_TRANSPARENT"
-#endif
-#if defined(IP_FREEBIND)
-		    " IP_FREEBIND"
-#endif
-#if defined(IP_BINDANY)
-		    " IP_BINDANY"
-#endif
-#if defined(IPV6_BINDANY)
-		    " IPV6_BINDANY"
-#endif
-#if defined(SO_BINDANY)
-		    " SO_BINDANY"
-#endif
-		    "");
 
 
 /*
