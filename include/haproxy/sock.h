@@ -1,8 +1,8 @@
 /*
- * include/haproxy/proto_tcp.h
- * This file contains TCP socket protocol definitions.
+ * include/haproxy/sock.h
+ * This file contains declarations for native (BSD-compatible) sockets.
  *
- * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,22 +19,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _HAPROXY_PROTO_TCP_H
-#define _HAPROXY_PROTO_TCP_H
+#ifndef _HAPROXY_SOCK_H
+#define _HAPROXY_SOCK_H
+
+#include <sys/socket.h>
+#include <sys/types.h>
 
 #include <haproxy/api.h>
-#include <haproxy/arg-t.h>
 #include <haproxy/connection-t.h>
-#include <haproxy/listener-t.h>
-#include <haproxy/sample-t.h>
 
-int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote);
-int tcp_pause_listener(struct listener *l);
-int tcp_connect_server(struct connection *conn, int flags);
-int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
-int tcp_is_foreign(int fd, sa_family_t family);
+int sock_create_server_socket(struct connection *conn);
+int sock_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
+int sock_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 
-#endif /* _HAPROXY_PROTO_TCP_H */
+#endif /* _HAPROXY_SOCK_H */
 
 /*
  * Local variables:

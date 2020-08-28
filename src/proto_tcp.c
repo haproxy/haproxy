@@ -39,6 +39,7 @@
 #include <haproxy/proto_tcp.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/sock.h>
 #include <haproxy/tools.h>
 
 
@@ -62,7 +63,7 @@ static struct protocol proto_tcpv4 = {
 	.bind_all = tcp_bind_listeners,
 	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
-	.get_src = tcp_get_src,
+	.get_src = sock_get_src,
 	.get_dst = tcp_get_dst,
 	.pause = tcp_pause_listener,
 	.add = tcpv4_add_listener,
@@ -87,7 +88,7 @@ static struct protocol proto_tcpv6 = {
 	.bind_all = tcp_bind_listeners,
 	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
-	.get_src = tcp_get_src,
+	.get_src = sock_get_src,
 	.get_dst = tcp_get_dst,
 	.pause = tcp_pause_listener,
 	.add = tcpv6_add_listener,
@@ -226,22 +227,6 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 	return 0;
 }
 
-/* conn->dst MUST be valid */
-static int create_server_socket(struct connection *conn)
-{
-	const struct netns_entry *ns = NULL;
-
-#ifdef USE_NS
-	if (objt_server(conn->target)) {
-		if (__objt_server(conn->target)->flags & SRV_F_USE_NS_FROM_PP)
-			ns = conn->proxy_netns;
-		else
-			ns = __objt_server(conn->target)->netns;
-	}
-#endif
-	return my_socketat(ns, conn->dst->ss_family, SOCK_STREAM, IPPROTO_TCP);
-}
-
 /*
  * This function initiates a TCP connection establishment to the target assigned
  * to connection <conn> using (si->{target,dst}). A source address may be
@@ -310,7 +295,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 		return SF_ERR_INTERNAL;
 	}
 
-	fd = conn->handle.fd = create_server_socket(conn);
+	fd = conn->handle.fd = sock_create_server_socket(conn);
 
 	if (fd == -1) {
 		qfprintf(stderr, "Cannot get a server socket.\n");
@@ -591,21 +576,6 @@ int tcp_connect_server(struct connection *conn, int flags)
 	}
 
 	return SF_ERR_NONE;  /* connection is OK */
-}
-
-
-/*
- * Retrieves the source address for the socket <fd>, with <dir> indicating
- * if we're a listener (=0) or an initiator (!=0). It returns 0 in case of
- * success, -1 in case of error. The socket's source address is stored in
- * <sa> for <salen> bytes.
- */
-int tcp_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
-{
-	if (dir)
-		return getsockname(fd, sa, &salen);
-	else
-		return getpeername(fd, sa, &salen);
 }
 
 

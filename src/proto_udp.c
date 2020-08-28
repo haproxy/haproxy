@@ -36,6 +36,7 @@
 #include <haproxy/proto_udp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
+#include <haproxy/sock.h>
 #include <haproxy/task.h>
 
 static int udp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
@@ -83,7 +84,7 @@ static struct protocol proto_udp6 = {
 	.bind_all = udp_bind_listeners,
 	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
-	.get_src = udp_get_src,
+	.get_src = udp6_get_src,
 	.get_dst = udp_get_dst,
 	.pause = udp_pause_listener,
 	.add = udp6_add_listener,
@@ -103,21 +104,29 @@ int udp_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 {
 	int ret;
 
-	if (dir)
-		ret = getsockname(fd, sa, &salen);
-	else
-		ret = getpeername(fd, sa, &salen);
-
-	if (!ret) {
-		if (sa->sa_family == AF_INET)
-			sa->sa_family = AF_CUST_UDP4;
-		else if (sa->sa_family == AF_INET6)
-			sa->sa_family = AF_CUST_UDP6;
-	}
+	ret = sock_get_src(fd, sa, salen, dir);
+	if (!ret)
+		sa->sa_family = AF_CUST_UDP4;
 
 	return ret;
 }
 
+/*
+ * Retrieves the source address for the socket <fd>, with <dir> indicating
+ * if we're a listener (=0) or an initiator (!=0). It returns 0 in case of
+ * success, -1 in case of error. The socket's source address is stored in
+ * <sa> for <salen> bytes.
+ */
+int udp6_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
+{
+	int ret;
+
+	ret = sock_get_src(fd, sa, salen, dir);
+	if (!ret)
+		sa->sa_family = AF_CUST_UDP6;
+
+	return ret;
+}
 
 /*
  * Retrieves the original destination address for the socket <fd>, with <dir>

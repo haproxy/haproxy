@@ -33,6 +33,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/protocol.h>
+#include <haproxy/sock.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
@@ -44,8 +45,6 @@ static int uxst_unbind_listeners(struct protocol *proto);
 static int uxst_connect_server(struct connection *conn, int flags);
 static void uxst_add_listener(struct listener *listener, int port);
 static int uxst_pause_listener(struct listener *l);
-static int uxst_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
-static int uxst_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_unix = {
@@ -63,8 +62,8 @@ static struct protocol proto_unix = {
 	.unbind_all = uxst_unbind_listeners,
 	.enable_all = enable_all_listeners,
 	.disable_all = disable_all_listeners,
-	.get_src = uxst_get_src,
-	.get_dst = uxst_get_dst,
+	.get_src = sock_get_src,
+	.get_dst = sock_get_dst,
 	.pause = uxst_pause_listener,
 	.add = uxst_add_listener,
 	.listeners = LIST_HEAD_INIT(proto_unix.listeners),
@@ -76,35 +75,6 @@ INITCALL1(STG_REGISTER, protocol_register, &proto_unix);
 /********************************
  * 1) low-level socket functions
  ********************************/
-
-/*
- * Retrieves the source address for the socket <fd>, with <dir> indicating
- * if we're a listener (=0) or an initiator (!=0). It returns 0 in case of
- * success, -1 in case of error. The socket's source address is stored in
- * <sa> for <salen> bytes.
- */
-static int uxst_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
-{
-	if (dir)
-		return getsockname(fd, sa, &salen);
-	else
-		return getpeername(fd, sa, &salen);
-}
-
-
-/*
- * Retrieves the original destination address for the socket <fd>, with <dir>
- * indicating if we're a listener (=0) or an initiator (!=0). It returns 0 in
- * case of success, -1 in case of error. The socket's source address is stored
- * in <sa> for <salen> bytes.
- */
-static int uxst_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
-{
-	if (dir)
-		return getpeername(fd, sa, &salen);
-	else
-		return getsockname(fd, sa, &salen);
-}
 
 
 /********************************
