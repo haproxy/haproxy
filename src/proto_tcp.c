@@ -570,65 +570,6 @@ int tcp_connect_server(struct connection *conn, int flags)
 	return SF_ERR_NONE;  /* connection is OK */
 }
 
-#define LI_MANDATORY_FLAGS	(LI_O_FOREIGN | LI_O_V6ONLY)
-/* When binding the listeners, check if a socket has been sent to us by the
- * previous process that we could reuse, instead of creating a new one.
- */
-static int tcp_find_compatible_fd(struct listener *l)
-{
-	struct xfer_sock_list *xfer_sock = xfer_sock_list;
-	int options = l->options & (LI_MANDATORY_FLAGS | LI_O_V4V6);
-	int ret = -1;
-
-	/* Prepare to match the v6only option against what we really want. Note
-	 * that sadly the two options are not exclusive to each other and that
-	 * v6only is stronger than v4v6.
-	 */
-	if ((options & LI_O_V6ONLY) || (sock_inet6_v6only_default && !(options & LI_O_V4V6)))
-		options |= LI_O_V6ONLY;
-	else if ((options & LI_O_V4V6) || !sock_inet6_v6only_default)
-		options &= ~LI_O_V6ONLY;
-	options &= ~LI_O_V4V6;
-
-	while (xfer_sock) {
-		if (!l->proto->addrcmp(&xfer_sock->addr, &l->addr)) {
-			if ((l->interface == NULL && xfer_sock->iface == NULL) ||
-			    (l->interface != NULL && xfer_sock->iface != NULL &&
-			     !strcmp(l->interface, xfer_sock->iface))) {
-				if (options == (xfer_sock->options & LI_MANDATORY_FLAGS)) {
-					if ((xfer_sock->namespace == NULL &&
-					    l->netns == NULL)
-#ifdef USE_NS
-					    || (xfer_sock->namespace != NULL &&
-					    l->netns != NULL &&
-					    !strcmp(xfer_sock->namespace,
-					    l->netns->node.key))
-#endif
-					   ) {
-						break;
-					}
-
-				}
-			}
-		}
-		xfer_sock = xfer_sock->next;
-	}
-	if (xfer_sock != NULL) {
-		ret = xfer_sock->fd;
-		if (xfer_sock == xfer_sock_list)
-			xfer_sock_list = xfer_sock->next;
-		if (xfer_sock->prev)
-			xfer_sock->prev->next = xfer_sock->next;
-		if (xfer_sock->next)
-			xfer_sock->next->prev = xfer_sock->prev;
-		free(xfer_sock->iface);
-		free(xfer_sock->namespace);
-		free(xfer_sock);
-	}
-	return ret;
-}
-#undef L1_MANDATORY_FLAGS
-
 /* This function tries to bind a TCPv4/v6 listener. It may return a warning or
  * an error message in <errmsg> if the message is at most <errlen> bytes long
  * (including '\0'). Note that <errmsg> may be NULL if <errlen> is also zero.
@@ -660,7 +601,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	err = ERR_NONE;
 
 	if (listener->fd == -1)
-		listener->fd = tcp_find_compatible_fd(listener);
+		listener->fd = sock_find_compatible_fd(listener);
 
 	/* if the listener already has an fd assigned, then we were offered the
 	 * fd by an external process (most likely the parent), and we don't want

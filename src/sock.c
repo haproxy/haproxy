@@ -27,6 +27,7 @@
 #include <haproxy/listener-t.h>
 #include <haproxy/namespace.h>
 #include <haproxy/sock.h>
+#include <haproxy/sock_inet.h>
 #include <haproxy/tools.h>
 
 /* the list of remaining sockets transferred from an older process */
@@ -78,6 +79,72 @@ int sock_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 		return getpeername(fd, sa, &salen);
 	else
 		return getsockname(fd, sa, &salen);
+}
+
+/* When binding the listeners, check if a socket has been sent to us by the
+ * previous process that we could reuse, instead of creating a new one. Note
+ * that some address family-specific options are checked on the listener and
+ * on the socket. Typically for AF_INET and AF_INET6, we check for transparent
+ * mode, and for AF_INET6 we also check for "v4v6" or "v6only". The reused
+ * socket is automatically removed from the list so that it's not proposed
+ * anymore.
+ */
+int sock_find_compatible_fd(const struct listener *l)
+{
+	struct xfer_sock_list *xfer_sock = xfer_sock_list;
+	int options = l->options & (LI_O_FOREIGN | LI_O_V6ONLY | LI_O_V4V6);
+	int if_namelen = 0;
+	int ns_namelen = 0;
+	int ret = -1;
+
+	if (!l->proto->addrcmp)
+		return -1;
+
+	if (l->addr.ss_family == AF_INET6) {
+		/* Prepare to match the v6only option against what we really want. Note
+		 * that sadly the two options are not exclusive to each other and that
+		 * v6only is stronger than v4v6.
+		 */
+		if ((options & LI_O_V6ONLY) || (sock_inet6_v6only_default && !(options & LI_O_V4V6)))
+			options |= LI_O_V6ONLY;
+		else if ((options & LI_O_V4V6) || !sock_inet6_v6only_default)
+			options &= ~LI_O_V6ONLY;
+	}
+	options &= ~LI_O_V4V6;
+
+	if (l->interface)
+		if_namelen = strlen(l->interface);
+#ifdef USE_NS
+	if (l->netns)
+		ns_namelen = l->netns->name_len;
+#endif
+
+	while (xfer_sock) {
+		if (((options ^ xfer_sock->options) & (LI_O_FOREIGN | LI_O_V6ONLY)) == 0 &&
+		    (if_namelen == xfer_sock->if_namelen) &&
+		    (ns_namelen == xfer_sock->ns_namelen) &&
+		    (!if_namelen || strcmp(l->interface, xfer_sock->iface) == 0) &&
+#ifdef USE_NS
+		    (!ns_namelen || strcmp(l->netns->node.key, xfer_sock->namespace) == 0) &&
+#endif
+		    l->proto->addrcmp(&xfer_sock->addr, &l->addr) == 0)
+			break;
+		xfer_sock = xfer_sock->next;
+	}
+
+	if (xfer_sock != NULL) {
+		ret = xfer_sock->fd;
+		if (xfer_sock == xfer_sock_list)
+			xfer_sock_list = xfer_sock->next;
+		if (xfer_sock->prev)
+			xfer_sock->prev->next = xfer_sock->next;
+		if (xfer_sock->next)
+			xfer_sock->next->prev = xfer_sock->prev;
+		free(xfer_sock->iface);
+		free(xfer_sock->namespace);
+		free(xfer_sock);
+	}
+	return ret;
 }
 
 /*

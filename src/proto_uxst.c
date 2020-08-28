@@ -83,36 +83,6 @@ INITCALL1(STG_REGISTER, protocol_register, &proto_unix);
  * 2) listener-oriented functions
  ********************************/
 
-
-static int uxst_find_compatible_fd(struct listener *l)
-{
-	struct xfer_sock_list *xfer_sock = xfer_sock_list;
-	int ret = -1;
-
-	while (xfer_sock) {
-		/*
-		 * The bound socket's path as returned by getsockaddr
-		 * will be the temporary name <sockname>.XXXXX.tmp,
-		 * so we can't just compare the two names
-		 */
-		if (!l->proto->addrcmp(&xfer_sock->addr, &l->addr))
-				break;
-		xfer_sock = xfer_sock->next;
-	}
-	if (xfer_sock != NULL) {
-		ret = xfer_sock->fd;
-		if (xfer_sock == xfer_sock_list)
-			xfer_sock_list = xfer_sock->next;
-		if (xfer_sock->prev)
-			xfer_sock->prev->next = xfer_sock->next;
-		if (xfer_sock->next)
-			xfer_sock->next->prev = xfer_sock->prev;
-		free(xfer_sock);
-	}
-	return ret;
-
-}
-
 /* This function creates a UNIX socket associated to the listener. It changes
  * the state from ASSIGNED to LISTEN. The socket is NOT enabled for polling.
  * The return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL. It
@@ -144,7 +114,8 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		return ERR_NONE; /* already bound */
 		
 	if (listener->fd == -1)
-		listener->fd = uxst_find_compatible_fd(listener);
+		listener->fd = sock_find_compatible_fd(listener);
+
 	path = ((struct sockaddr_un *)&listener->addr)->sun_path;
 
 	maxpathlen = MIN(MAXPATHLEN, sizeof(addr.sun_path));
