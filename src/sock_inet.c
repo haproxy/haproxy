@@ -35,6 +35,10 @@
  * mentioned in the comment before the function definition.
  */
 
+/* determine if the operating system uses IPV6_V6ONLY by default. 0=no, 1=yes.
+ * It also remains if IPv6 is not enabled/configured.
+ */
+int sock_inet6_v6only_default = 0;
 
 /* Compares two AF_INET sockaddr addresses. Returns 0 if they match or non-zero
  * if they do not match.
@@ -165,3 +169,22 @@ int sock_inet_is_foreign(int fd, sa_family_t family)
 	}
 	return 0;
 }
+
+static void sock_inet_prepare()
+{
+	int fd, val;
+	socklen_t len;
+
+	fd = socket(AF_INET6, SOCK_STREAM, 0);
+	if (fd >= 0) {
+#if defined(IPV6_V6ONLY)
+		/* retrieve the OS' bindv6only value */
+		len = sizeof(val);
+		if (getsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, &len) == 0 && val > 0)
+			sock_inet6_v6only_default = 1;
+#endif
+		close(fd);
+	}
+}
+
+INITCALL0(STG_PREPARE, sock_inet_prepare);

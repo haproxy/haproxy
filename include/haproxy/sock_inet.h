@@ -27,6 +27,8 @@
 
 #include <haproxy/api.h>
 
+extern int sock_inet6_v6only_default;
+
 int sock_inet4_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 int sock_inet6_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 int sock_inet_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
