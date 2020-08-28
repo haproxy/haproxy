@@ -37,6 +37,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
 #include <haproxy/sock.h>
+#include <haproxy/sock_inet.h>
 #include <haproxy/task.h>
 
 static int udp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
@@ -63,6 +64,7 @@ static struct protocol proto_udp4 = {
 	.get_dst = udp_get_dst,
 	.pause = udp_pause_listener,
 	.add = udp4_add_listener,
+	.addrcmp = sock_inet4_addrcmp,
 	.listeners = LIST_HEAD_INIT(proto_udp4.listeners),
 	.nb_listeners = 0,
 };
@@ -88,6 +90,7 @@ static struct protocol proto_udp6 = {
 	.get_dst = udp_get_dst,
 	.pause = udp_pause_listener,
 	.add = udp6_add_listener,
+	.addrcmp = sock_inet6_addrcmp,
 	.listeners = LIST_HEAD_INIT(proto_udp6.listeners),
 	.nb_listeners = 0,
 };

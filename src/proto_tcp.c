@@ -40,6 +40,7 @@
 #include <haproxy/protocol.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/sock.h>
+#include <haproxy/sock_inet.h>
 #include <haproxy/tools.h>
 
 
@@ -67,6 +68,7 @@ static struct protocol proto_tcpv4 = {
 	.get_dst = tcp_get_dst,
 	.pause = tcp_pause_listener,
 	.add = tcpv4_add_listener,
+	.addrcmp = sock_inet4_addrcmp,
 	.listeners = LIST_HEAD_INIT(proto_tcpv4.listeners),
 	.nb_listeners = 0,
 };
@@ -92,6 +94,7 @@ static struct protocol proto_tcpv6 = {
 	.get_dst = tcp_get_dst,
 	.pause = tcp_pause_listener,
 	.add = tcpv6_add_listener,
+	.addrcmp = sock_inet6_addrcmp,
 	.listeners = LIST_HEAD_INIT(proto_tcpv6.listeners),
 	.nb_listeners = 0,
 };
@@ -610,35 +613,6 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 	}
 }
 
-/* XXX: Should probably be elsewhere */
-static int compare_sockaddr(struct sockaddr_storage *a, struct sockaddr_storage *b)
-{
-	if (a->ss_family != b->ss_family) {
-		return (-1);
-	}
-	switch (a->ss_family) {
-	case AF_INET:
-		{
-			struct sockaddr_in *a4 = (void *)a, *b4 = (void *)b;
-			if (a4->sin_port != b4->sin_port)
-				return (-1);
-			return (memcmp(&a4->sin_addr, &b4->sin_addr,
-			    sizeof(a4->sin_addr)));
-		}
-	case AF_INET6:
-		{
-			struct sockaddr_in6 *a6 = (void *)a, *b6 = (void *)b;
-			if (a6->sin6_port != b6->sin6_port)
-				return (-1);
-			return (memcmp(&a6->sin6_addr, &b6->sin6_addr,
-			    sizeof(a6->sin6_addr)));
-		}
-	default:
-		return (-1);
-	}
-
-}
-
 /* Returns true if the passed FD corresponds to a socket bound with LI_O_FOREIGN
  * according to the various supported socket options. The socket's address family
  * must be passed in <family>.
@@ -747,7 +721,7 @@ static int tcp_find_compatible_fd(struct listener *l)
 	options &= ~LI_O_V4V6;
 
 	while (xfer_sock) {
-		if (!compare_sockaddr(&xfer_sock->addr, &l->addr)) {
+		if (!l->proto->addrcmp(&xfer_sock->addr, &l->addr)) {
 			if ((l->interface == NULL && xfer_sock->iface == NULL) ||
 			    (l->interface != NULL && xfer_sock->iface != NULL &&
 			     !strcmp(l->interface, xfer_sock->iface))) {

@@ -83,6 +83,7 @@ struct protocol {
 	int (*drain)(int fd);                           /* indicates whether we can safely close the fd */
 	int (*pause)(struct listener *l);               /* temporarily pause this listener for a soft restart */
 	void (*add)(struct listener *l, int port);      /* add a listener for this protocol and port */
+	int (*addrcmp)(const struct sockaddr_storage *, const struct sockaddr_storage *); /* compare addresses (like memcmp) */
 
 	struct list listeners;				/* list of listeners using this protocol (under proto_lock) */
 	int nb_listeners;				/* number of listeners (under proto_lock) */

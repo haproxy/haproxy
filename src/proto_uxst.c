@@ -34,6 +34,7 @@
 #include <haproxy/log.h>
 #include <haproxy/protocol.h>
 #include <haproxy/sock.h>
+#include <haproxy/sock_unix.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
@@ -66,6 +67,7 @@ static struct protocol proto_unix = {
 	.get_dst = sock_get_dst,
 	.pause = uxst_pause_listener,
 	.add = uxst_add_listener,
+	.addrcmp = sock_unix_addrcmp,
 	.listeners = LIST_HEAD_INIT(proto_unix.listeners),
 	.nb_listeners = 0,
 };
@@ -88,37 +90,13 @@ static int uxst_find_compatible_fd(struct listener *l)
 	int ret = -1;
 
 	while (xfer_sock) {
-		struct sockaddr_un *un1 = (void *)&l->addr;
-		struct sockaddr_un *un2 = (void *)&xfer_sock->addr;
-
 		/*
 		 * The bound socket's path as returned by getsockaddr
 		 * will be the temporary name <sockname>.XXXXX.tmp,
 		 * so we can't just compare the two names
 		 */
-		if (xfer_sock->addr.ss_family == AF_UNIX &&
-		    strncmp(un1->sun_path, un2->sun_path,
-		    strlen(un1->sun_path)) == 0) {
-			char *after_sockname = un2->sun_path +
-			    strlen(un1->sun_path);
-			/* Make a reasonable effort to check that
-			 * it is indeed a haproxy-generated temporary
-			 * name, it's not perfect, but probably good enough.
-			 */
-			if (after_sockname[0] == '.') {
-				after_sockname++;
-				while (after_sockname[0] >= '0' &&
-				    after_sockname[0] <= '9')
-					after_sockname++;
-				if (!strcmp(after_sockname, ".tmp"))
-					break;
-			/* abns sockets sun_path starts with a \0 */
-			} else if (un1->sun_path[0] == 0
-			    && un2->sun_path[0] == 0
-			    && !memcmp(&un1->sun_path[1], &un2->sun_path[1],
-			    sizeof(un1->sun_path) - 1))
+		if (!l->proto->addrcmp(&xfer_sock->addr, &l->addr))
 				break;
-		}
 		xfer_sock = xfer_sock->next;
 	}
 	if (xfer_sock != NULL) {
