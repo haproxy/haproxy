@@ -1122,6 +1122,10 @@ next_dir_entry:
 	free(err);
 }
 
+/* Retrieves old sockets from worker process running the CLI at address
+ * <unixsocket>. Fills xfer_sock_list with what is found. Returns 0 on
+ * success, -1 on failure.
+ */
 static int get_old_sockets(const char *unixsocket)
 {
 	char *cmsgbuf = NULL, *tmpbuf = NULL;
@@ -1173,7 +1177,7 @@ static int get_old_sockets(const char *unixsocket)
 		goto out;
 	}
 	if (fd_nb == 0) {
-		ret = 0;
+		ret2 = 0;
 		goto out;
 	}
 	tmpbuf = malloc(fd_nb * (1 + MAXPATHLEN + 1 + IFNAMSIZ + sizeof(int)));
