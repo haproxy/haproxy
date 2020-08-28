@@ -1,6 +1,6 @@
 /*
- * include/haproxy/sock.h
- * This file contains declarations for native (BSD-compatible) sockets.
+ * include/haproxy/sock-t.h
+ * This file contains type definitions for native (BSD-compatible) sockets.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
  *
@@ -19,23 +19,26 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _HAPROXY_SOCK_H
-#define _HAPROXY_SOCK_H
+#ifndef _HAPROXY_SOCK_T_H
+#define _HAPROXY_SOCK_T_H
 
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <haproxy/api.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/sock-t.h>
+#include <haproxy/api-t.h>
 
-extern struct xfer_sock_list *xfer_sock_list;
+/* The list used to transfer sockets between old and new processes */
+struct xfer_sock_list {
+	int fd;
+	int options; /* socket options as LI_O_* */
+	char *iface;
+	char *namespace;
+	struct xfer_sock_list *prev;
+	struct xfer_sock_list *next;
+	struct sockaddr_storage addr;
+};
 
-int sock_create_server_socket(struct connection *conn);
-int sock_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
-int sock_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
-
-#endif /* _HAPROXY_SOCK_H */
+#endif /* _HAPROXY_SOCK_T_H */
 
 /*
  * Local variables:

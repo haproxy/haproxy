@@ -24,10 +24,13 @@
 
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
+#include <haproxy/listener-t.h>
 #include <haproxy/namespace.h>
 #include <haproxy/sock.h>
 #include <haproxy/tools.h>
 
+/* the list of remaining sockets transferred from an older process */
+struct xfer_sock_list *xfer_sock_list = NULL;
 
 /* Create a socket to connect to the server in conn->dst (which MUST be valid),
  * using the configured namespace if needed, or the one passed by the proxy

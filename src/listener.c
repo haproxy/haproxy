@@ -44,8 +44,6 @@ static struct bind_kw_list bind_keywords = {
 	.list = LIST_HEAD_INIT(bind_keywords.list)
 };
 
-struct xfer_sock_list *xfer_sock_list = NULL;
-
 /* there is one listener queue per thread so that a thread unblocking the
  * global queue can wake up listeners bound only to foreign threads by
  * moving them to the remote queues and waking up the associated tasklet.

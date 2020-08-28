@@ -265,17 +265,6 @@ struct bind_kw_list {
 	struct bind_kw kw[VAR_ARRAY];
 };
 
-
-struct xfer_sock_list {
-	int fd;
-	char *iface;
-	char *namespace;
-	int options; /* socket options LI_O_* */
-	struct xfer_sock_list *prev;
-	struct xfer_sock_list *next;
-	struct sockaddr_storage addr;
-};
-
 /* This is used to create the accept queue, optimized to be 64 bytes long. */
 struct accept_queue_entry {
 	struct listener *listener;          // 8 bytes

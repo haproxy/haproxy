@@ -184,8 +184,6 @@ static inline const char *listener_state_str(const struct listener *l)
 	return states[st];
 }
 
-extern struct xfer_sock_list *xfer_sock_list;
-
 extern struct accept_queue_ring accept_queue_rings[MAX_THREADS] __attribute__((aligned(64)));
 
 #endif /* _HAPROXY_LISTENER_H */
