@@ -80,7 +80,7 @@ int sock_unix_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_st
 
 	/* First, check in path "a" */
 	if (au->sun_path[idx] != 0) {
-		for (idx2 = dot + 1; idx2 && isdigit(au->sun_path[idx2]);)
+		for (idx2 = dot + 1; idx2 && isdigit((unsigned char)au->sun_path[idx2]);)
 			idx2++;
 		if (strcmp(au->sun_path + idx2, ".tmp") != 0)
 			return -1;
@@ -88,7 +88,7 @@ int sock_unix_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_st
 
 	/* Then check in path "b" */
 	if (bu->sun_path[idx] != 0) {
-		for (idx2 = dot + 1; idx2 && isdigit(bu->sun_path[idx2]); idx2++)
+		for (idx2 = dot + 1; idx2 && isdigit((unsigned char)bu->sun_path[idx2]); idx2++)
 			;
 		if (strcmp(bu->sun_path + idx2, ".tmp") != 0)
 			return -1;
