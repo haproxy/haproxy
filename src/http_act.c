@@ -214,8 +214,8 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 		goto fail_alloc;
 	uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 
-	if (rule->action == 1) // replace-path
-		uri = iststop(http_get_path(uri), '?');
+	if (rule->action == 4) // replace-path
+		uri = http_get_path(uri);
 
 	if (!regex_exec_match2(rule->arg.http.re, uri.ptr, uri.len, MAX_MATCH, pmatch, 0))
 		goto leave;
@@ -273,7 +273,7 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 	char *error = NULL;
 
 	if (strcmp(args[cur_arg-1], "replace-path") == 0)
-		rule->action = 1; // replace-path, same as set-path
+		rule->action = 4; // replace-path
 	else
 		rule->action = 3; // replace-uri, same as set-uri
 
