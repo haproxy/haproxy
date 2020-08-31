@@ -1757,6 +1757,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		msg->flags = 0;
 		txn->status = 0;
 		s->logs.t_data = -1; /* was not a response yet */
+		rep->flags |= CF_SEND_DONTWAIT; /* Send ASAP informational messages */
 		goto next_one;
 	}
 
