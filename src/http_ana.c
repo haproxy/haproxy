@@ -2771,7 +2771,7 @@ int http_req_replace_stline(int action, const char *replace, int len,
 			break;
 
 		case 1: // path
-			if (!http_replace_req_path(htx, ist2(replace, len)))
+			if (!http_replace_req_path(htx, ist2(replace, len), 0))
 				return -1;
 			break;
 
