@@ -487,11 +487,11 @@ int http_replace_req_query(struct htx *htx, const struct ist query)
 /* Replace the response status in the HTX message <htx> by <status>. It returns
  * 1 on success, otherwise 0.
 */
-int http_replace_res_status(struct htx *htx, const struct ist status)
+int http_replace_res_status(struct htx *htx, const struct ist status, const struct ist reason)
 {
 	struct buffer *temp = get_trash_chunk();
 	struct htx_sl *sl = http_get_stline(htx);
-	struct ist vsn, reason;
+	struct ist vsn, r;
 
 	if (!sl)
 		return 0;
@@ -499,13 +499,15 @@ int http_replace_res_status(struct htx *htx, const struct ist status)
 	/* Start by copying old uri and version */
 	chunk_memcat(temp, HTX_SL_RES_VPTR(sl), HTX_SL_RES_VLEN(sl)); /* vsn */
 	vsn = ist2(temp->area, HTX_SL_RES_VLEN(sl));
-
-	chunk_memcat(temp, HTX_SL_RES_RPTR(sl), HTX_SL_RES_RLEN(sl)); /* reason */
-	reason = ist2(temp->area + vsn.len, HTX_SL_RES_RLEN(sl));
+	r = reason;
+	if (!isttest(r)) {
+		chunk_memcat(temp, HTX_SL_RES_RPTR(sl), HTX_SL_RES_RLEN(sl)); /* reason */
+		r = ist2(temp->area + vsn.len, HTX_SL_RES_RLEN(sl));
+	}
 
 	/* create the new start line */
 	sl->info.res.status = strl2ui(status.ptr, status.len);
-	return http_replace_stline(htx, vsn, status, reason);
+	return http_replace_stline(htx, vsn, status, r);
 }
 
 /* Replace the response reason in the HTX message <htx> by <reason>. It returns

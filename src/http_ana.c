@@ -2815,9 +2815,7 @@ int http_res_set_status(unsigned int status, struct ist reason, struct stream *s
 		reason = ist2(str, strlen(str));
 	}
 
-	if (!http_replace_res_status(htx, ist2(trash.area, trash.data)))
-		return -1;
-	if (!http_replace_res_reason(htx, reason))
+	if (!http_replace_res_status(htx, ist2(trash.area, trash.data), reason))
 		return -1;
 	return 0;
 }

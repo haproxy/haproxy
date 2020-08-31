@@ -47,7 +47,7 @@ int http_replace_req_meth(struct htx *htx, const struct ist meth);
 int http_replace_req_uri(struct htx *htx, const struct ist uri);
 int http_replace_req_path(struct htx *htx, const struct ist path, int with_qs);
 int http_replace_req_query(struct htx *htx, const struct ist query);
-int http_replace_res_status(struct htx *htx, const struct ist status);
+int http_replace_res_status(struct htx *htx, const struct ist status, const struct ist reason);
 int http_replace_res_reason(struct htx *htx, const struct ist reason);
 int http_replace_header_value(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist data);
 int http_replace_header(struct htx *htx, struct http_hdr_ctx *ctx, const struct ist name, const struct ist value);
