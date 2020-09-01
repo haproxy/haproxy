@@ -10,7 +10,9 @@
  *
  */
 
+#include <fcntl.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -20,7 +22,12 @@
 #include <netinet/in.h>
 
 #include <haproxy/api.h>
+#include <haproxy/errors.h>
+#include <haproxy/fd.h>
 #include <haproxy/global.h>
+#include <haproxy/namespace.h>
+#include <haproxy/receiver-t.h>
+#include <haproxy/sock.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/tools.h>
 
@@ -219,6 +226,151 @@ int sock_inet6_make_foreign(int fd)
 		setsockopt(fd, SOL_SOCKET, SO_BINDANY, &one, sizeof(one)) == 0 ||
 #endif
 		0;
+}
+
+/* Binds receiver <rx>, and assigns <handler> and rx->owner as the callback and
+ * context, respectively. Returns and error code made of ERR_* bits on failure
+ * or ERR_NONE on success. On failure, an error message may be passed into
+ * <errmsg>.
+ */
+int sock_inet_bind_receiver(struct receiver *rx, void (*handler)(int fd), char **errmsg)
+{
+	int fd, err, ext;
+	/* copy listener addr because sometimes we need to switch family */
+	struct sockaddr_storage addr_inet = rx->addr;
+
+	/* force to classic sock family, not AF_CUST_* */
+	addr_inet.ss_family = rx->proto->sock_family;
+
+	/* ensure we never return garbage */
+	if (errmsg)
+		*errmsg = 0;
+
+	err = ERR_NONE;
+
+	if (rx->flags & RX_F_BOUND)
+		return ERR_NONE;
+
+	/* if no FD was assigned yet, we'll have to either find a compatible
+	 * one or create a new one.
+	 */
+	if (rx->fd == -1)
+		rx->fd = sock_find_compatible_fd(rx);
+
+	/* if the receiver now has an fd assigned, then we were offered the fd
+	 * by an external process (most likely the parent), and we don't want
+	 * to create a new socket. However we still want to set a few flags on
+	 * the socket.
+	 */
+	fd = rx->fd;
+	ext = (fd >= 0);
+
+	if (!ext) {
+		fd = my_socketat(rx->settings->netns, rx->proto->sock_family,
+		                 rx->proto->sock_type, rx->proto->sock_prot);
+		if (fd == -1) {
+			err |= ERR_RETRYABLE | ERR_ALERT;
+			memprintf(errmsg, "cannot create receiving socket");
+			goto bind_return;
+		}
+	}
+
+	if (fd >= global.maxsock) {
+		err |= ERR_FATAL | ERR_ABORT | ERR_ALERT;
+		memprintf(errmsg, "not enough free sockets (raise '-n' parameter)");
+		goto bind_close_return;
+	}
+
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
+		err |= ERR_FATAL | ERR_ALERT;
+		memprintf(errmsg, "cannot make socket non-blocking");
+		goto bind_close_return;
+	}
+
+	if (!ext && setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
+		/* not fatal but should be reported */
+		memprintf(errmsg, "cannot do so_reuseaddr");
+		err |= ERR_ALERT;
+	}
+
+#ifdef SO_REUSEPORT
+	/* OpenBSD and Linux 3.9 support this. As it's present in old libc versions of
+	 * Linux, it might return an error that we will silently ignore.
+	 */
+	if (!ext && (global.tune.options & GTUNE_USE_REUSEPORT))
+		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+#endif
+
+	if (!ext && (rx->settings->options & RX_O_FOREIGN)) {
+		switch (addr_inet.ss_family) {
+		case AF_INET:
+			if (!sock_inet4_make_foreign(fd)) {
+				memprintf(errmsg, "cannot make receiving socket transparent");
+				err |= ERR_ALERT;
+			}
+		break;
+		case AF_INET6:
+			if (!sock_inet6_make_foreign(fd)) {
+				memprintf(errmsg, "cannot make receiving socket transparent");
+				err |= ERR_ALERT;
+			}
+		break;
+		}
+	}
+
+#ifdef SO_BINDTODEVICE
+	/* Note: this might fail if not CAP_NET_RAW */
+	if (!ext && rx->settings->interface) {
+		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
+		               rx->settings->interface,
+		               strlen(rx->settings->interface) + 1) == -1) {
+			memprintf(errmsg, "cannot bind receiver to device");
+			err |= ERR_WARN;
+		}
+	}
+#endif
+
+#if defined(IPV6_V6ONLY)
+	if (addr_inet.ss_family == AF_INET6 && !ext) {
+		/* Prepare to match the v6only option against what we really want. Note
+		 * that sadly the two options are not exclusive to each other and that
+		 * v6only is stronger than v4v6.
+		 */
+		if ((rx->settings->options & RX_O_V6ONLY) ||
+		    (sock_inet6_v6only_default && !(rx->settings->options & RX_O_V4V6)))
+			setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one));
+		else
+			setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
+	}
+#endif
+
+	if (!ext && bind(fd, (struct sockaddr *)&addr_inet, rx->proto->sock_addrlen) == -1) {
+		err |= ERR_RETRYABLE | ERR_ALERT;
+		memprintf(errmsg, "cannot bind socket");
+		goto bind_close_return;
+	}
+
+	rx->fd = fd;
+	rx->flags |= RX_F_BOUND;
+
+	fd_insert(fd, rx->owner, handler, thread_mask(rx->settings->bind_thread) & all_threads_mask);
+
+	/* for now, all regularly bound TCP listeners are exportable */
+	if (!(rx->flags & RX_F_INHERITED))
+		fdtab[fd].exported = 1;
+
+ bind_return:
+	if (errmsg && *errmsg) {
+		char pn[INET6_ADDRSTRLEN];
+
+		addr_to_str(&addr_inet, pn, sizeof(pn));
+		memprintf(errmsg, "%s [%s:%d]", *errmsg, pn, get_host_port(&addr_inet));
+	}
+	return err;
+
+ bind_close_return:
+	close(fd);
+	goto bind_return;
 }
 
 static void sock_inet_prepare()
