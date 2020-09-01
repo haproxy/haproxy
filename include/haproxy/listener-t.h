@@ -29,7 +29,8 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/obj_type-t.h>
-#include <haproxy/thread.h>
+#include <haproxy/receiver-t.h>
+#include <haproxy/thread-t.h>
 
 #ifdef USE_OPENSSL
 #include <haproxy/openssl-compat.h>
@@ -178,27 +179,7 @@ struct bind_conf {
 	char *arg;                 /* argument passed to "bind" for better error reporting */
 	char *file;                /* file where the section appears */
 	int line;                  /* line where the section appears */
-	struct {
-		unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
-		unsigned long bind_thread; /* bitmask of threads allowed to use these listeners */
-		struct {                   /* UNIX socket permissions */
-			uid_t uid;         /* -1 to leave unchanged */
-			gid_t gid;         /* -1 to leave unchanged */
-			mode_t mode;       /* 0 to leave unchanged */
-		} ux;
-		char *interface;           /* interface name or NULL */
-		const struct netns_entry *netns; /* network namespace of the listener*/
-	} settings;                /* all the settings needed for the listening socket */
-};
-
-/* This describes a receiver with all its characteristics (address, status, etc) */
-struct receiver {
-	int fd;                          /* handle we receive from (fd only for now) */
-	unsigned int flags;              /* receiver options (RX_F_*) */
-	struct protocol *proto;          /* protocol this receiver belongs to */
-	struct list proto_list;          /* list in the protocol header */
-	/* warning: this struct is huge, keep it at the bottom */
-	struct sockaddr_storage addr;    /* the address the socket is bound to */
+	struct rx_settings settings; /* all the settings needed for the listening socket */
 };
 
 /* The listener will be directly referenced by the fdtab[] which holds its
