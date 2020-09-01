@@ -573,7 +573,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto bound;
 
 	if (listener->rx.fd == -1)
-		listener->rx.fd = sock_find_compatible_fd(listener);
+		listener->rx.fd = sock_find_compatible_fd(&listener->rx);
 
 	/* if the listener already has an fd assigned, then we were offered the
 	 * fd by an external process (most likely the parent), and we don't want

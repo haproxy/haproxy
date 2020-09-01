@@ -113,7 +113,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto bound;
 
 	if (listener->rx.fd == -1)
-		listener->rx.fd = sock_find_compatible_fd(listener);
+		listener->rx.fd = sock_find_compatible_fd(&listener->rx);
 	path = ((struct sockaddr_un *)&listener->rx.addr)->sun_path;
 
 	maxpathlen = MIN(MAXPATHLEN, sizeof(addr.sun_path));

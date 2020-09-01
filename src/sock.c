@@ -347,7 +347,7 @@ out:
 	return (ret2);
 }
 
-/* When binding the listeners, check if a socket has been sent to us by the
+/* When binding the receivers, check if a socket has been sent to us by the
  * previous process that we could reuse, instead of creating a new one. Note
  * that some address family-specific options are checked on the listener and
  * on the socket. Typically for AF_INET and AF_INET6, we check for transparent
@@ -355,7 +355,7 @@ out:
  * socket is automatically removed from the list so that it's not proposed
  * anymore.
  */
-int sock_find_compatible_fd(const struct listener *l)
+int sock_find_compatible_fd(const struct receiver *rx)
 {
 	struct xfer_sock_list *xfer_sock = xfer_sock_list;
 	int options = 0;
@@ -363,41 +363,41 @@ int sock_find_compatible_fd(const struct listener *l)
 	int ns_namelen = 0;
 	int ret = -1;
 
-	if (!l->rx.proto->addrcmp)
+	if (!rx->proto->addrcmp)
 		return -1;
 
-	if (l->rx.proto->sock_type == SOCK_DGRAM)
+	if (rx->proto->sock_type == SOCK_DGRAM)
 		options |= SOCK_XFER_OPT_DGRAM;
 
-	if (l->rx.settings->options & RX_O_FOREIGN)
+	if (rx->settings->options & RX_O_FOREIGN)
 		options |= SOCK_XFER_OPT_FOREIGN;
 
-	if (l->rx.addr.ss_family == AF_INET6) {
+	if (rx->addr.ss_family == AF_INET6) {
 		/* Prepare to match the v6only option against what we really want. Note
 		 * that sadly the two options are not exclusive to each other and that
 		 * v6only is stronger than v4v6.
 		 */
-		if ((l->rx.settings->options & RX_O_V6ONLY) ||
-		    (sock_inet6_v6only_default && !(l->rx.settings->options & RX_O_V4V6)))
+		if ((rx->settings->options & RX_O_V6ONLY) ||
+		    (sock_inet6_v6only_default && !(rx->settings->options & RX_O_V4V6)))
 			options |= SOCK_XFER_OPT_V6ONLY;
 	}
 
-	if (l->rx.settings->interface)
-		if_namelen = strlen(l->rx.settings->interface);
+	if (rx->settings->interface)
+		if_namelen = strlen(rx->settings->interface);
 #ifdef USE_NS
-	if (l->rx.settings->netns)
-		ns_namelen = l->rx.settings->netns->name_len;
+	if (rx->settings->netns)
+		ns_namelen = rx->settings->netns->name_len;
 #endif
 
 	while (xfer_sock) {
 		if ((options == xfer_sock->options) &&
 		    (if_namelen == xfer_sock->if_namelen) &&
 		    (ns_namelen == xfer_sock->ns_namelen) &&
-		    (!if_namelen || strcmp(l->rx.settings->interface, xfer_sock->iface) == 0) &&
+		    (!if_namelen || strcmp(rx->settings->interface, xfer_sock->iface) == 0) &&
 #ifdef USE_NS
-		    (!ns_namelen || strcmp(l->rx.settings->netns->node.key, xfer_sock->namespace) == 0) &&
+		    (!ns_namelen || strcmp(rx->settings->netns->node.key, xfer_sock->namespace) == 0) &&
 #endif
-		    l->rx.proto->addrcmp(&xfer_sock->addr, &l->rx.addr) == 0)
+		    rx->proto->addrcmp(&xfer_sock->addr, &rx->addr) == 0)
 			break;
 		xfer_sock = xfer_sock->next;
 	}
