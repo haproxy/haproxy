@@ -508,11 +508,8 @@ select_compression_response_header(struct comp_state *st, struct stream *s, stru
 	/* no compression when ETag is malformed */
 	ctx.blk = NULL;
 	if (http_find_header(htx, ist("ETag"), &ctx, 1)) {
-		if (!(((ctx.value.len >= 4 && memcmp(ctx.value.ptr, "W/\"", 3) == 0) || /* Either a weak ETag */
-		       (ctx.value.len >= 2 && ctx.value.ptr[0] == '"')) &&              /* or strong ETag */
-		      ctx.value.ptr[ctx.value.len - 1] == '"')) {
+		if (http_get_etag_type(ctx.value) == ETAG_INVALID)
 			goto fail;
-		}
 	}
 	/* no compression when multiple ETags are present
 	 * Note: Do not reset ctx.blk!
