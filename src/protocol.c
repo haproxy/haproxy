@@ -16,6 +16,7 @@
 #include <haproxy/api.h>
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
+#include <haproxy/listener.h>
 #include <haproxy/protocol.h>
 #include <haproxy/tools.h>
 
@@ -57,14 +58,15 @@ void protocol_unregister(struct protocol *proto)
 int protocol_bind_all(char *errmsg, int errlen)
 {
 	struct protocol *proto;
+	struct listener *listener;
 	int err;
 
 	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		if (proto->bind_all) {
-			err |= proto->bind_all(proto, errmsg, errlen);
-			if ( err & ERR_ABORT )
+		list_for_each_entry(listener, &proto->listeners, proto_list) {
+			err |= proto->bind(listener, errmsg, errlen);
+			if (err & ERR_ABORT)
 				break;
 		}
 	}
