@@ -369,7 +369,7 @@ int sock_find_compatible_fd(const struct listener *l)
 	if (l->rx.proto->sock_type == SOCK_DGRAM)
 		options |= SOCK_XFER_OPT_DGRAM;
 
-	if (l->options & LI_O_FOREIGN)
+	if (l->rx.settings->options & RX_O_FOREIGN)
 		options |= SOCK_XFER_OPT_FOREIGN;
 
 	if (l->rx.addr.ss_family == AF_INET6) {
@@ -377,8 +377,8 @@ int sock_find_compatible_fd(const struct listener *l)
 		 * that sadly the two options are not exclusive to each other and that
 		 * v6only is stronger than v4v6.
 		 */
-		if ((l->options & LI_O_V6ONLY) ||
-		    (sock_inet6_v6only_default && !(l->options & LI_O_V4V6)))
+		if ((l->rx.settings->options & RX_O_V6ONLY) ||
+		    (sock_inet6_v6only_default && !(l->rx.settings->options & RX_O_V4V6)))
 			options |= SOCK_XFER_OPT_V6ONLY;
 	}
 

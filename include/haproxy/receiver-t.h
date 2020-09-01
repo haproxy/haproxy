@@ -33,6 +33,11 @@
 #define RX_F_BOUND              0x00000001  /* receiver already bound */
 #define RX_F_INHERITED          0x00000002  /* inherited FD from the parent process (fd@) */
 
+/* Bit values for rx_settings->options */
+#define RX_O_FOREIGN            0x00000001  /* receives on foreign addresses */
+#define RX_O_V4V6               0x00000002  /* binds to both IPv4 and IPv6 addresses if !V6ONLY */
+#define RX_O_V6ONLY             0x00000004  /* binds to IPv6 addresses only */
+
 /* All the settings that are used to configure a receiver */
 struct rx_settings {
 	unsigned long bind_proc;          /* bitmask of processes allowed to use these listeners */
@@ -44,6 +49,7 @@ struct rx_settings {
 	} ux;
 	char *interface;                  /* interface name or NULL */
 	const struct netns_entry *netns;  /* network namespace of the listener*/
+	unsigned int options;             /* receiver options (RX_O_*) */
 };
 
 /* This describes a receiver with all its characteristics (address, options, etc) */

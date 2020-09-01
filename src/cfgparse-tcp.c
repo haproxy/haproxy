@@ -40,26 +40,14 @@
 /* parse the "v4v6" bind keyword */
 static int bind_parse_v4v6(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
-
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->rx.addr.ss_family == AF_INET6)
-			l->options |= LI_O_V4V6;
-	}
-
+	conf->settings.options |= RX_O_V4V6;
 	return 0;
 }
 
 /* parse the "v6only" bind keyword */
 static int bind_parse_v6only(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
-
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->rx.addr.ss_family == AF_INET6)
-			l->options |= LI_O_V6ONLY;
-	}
-
+	conf->settings.options |= RX_O_V6ONLY;
 	return 0;
 }
 #endif
@@ -68,13 +56,7 @@ static int bind_parse_v6only(char **args, int cur_arg, struct proxy *px, struct 
 /* parse the "transparent" bind keyword */
 static int bind_parse_transparent(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
-
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6)
-			l->options |= LI_O_FOREIGN;
-	}
-
+	conf->settings.options |= RX_O_FOREIGN;
 	return 0;
 }
 #endif

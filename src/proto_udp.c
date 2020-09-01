@@ -239,7 +239,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
 #endif
 
-	if (listener->options & LI_O_FOREIGN) {
+	if (listener->rx.settings->options & RX_O_FOREIGN) {
 		switch (addr_inet.ss_family) {
 		case AF_INET:
 			if (!sock_inet4_make_foreign(fd)) {
@@ -268,10 +268,17 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	}
 #endif
 #if defined(IPV6_V6ONLY)
-	if (listener->options & LI_O_V6ONLY)
-                setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one));
-	else if (listener->options & LI_O_V4V6)
-                setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
+	if (listener->rx.addr.ss_family == AF_INET6) {
+		/* Prepare to match the v6only option against what we really want. Note
+		 * that sadly the two options are not exclusive to each other and that
+		 * v6only is stronger than v4v6.
+		 */
+		if ((listener->rx.settings->options & RX_O_V6ONLY) ||
+		    (sock_inet6_v6only_default && !(listener->rx.settings->options & RX_O_V4V6)))
+			setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one));
+		else
+			setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
+	}
 #endif
 
 	if (bind(fd, (struct sockaddr *)&addr_inet, listener->rx.proto->sock_addrlen) < 0) {

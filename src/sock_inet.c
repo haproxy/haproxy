@@ -116,7 +116,7 @@ int sock_inet_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 	}
 }
 
-/* Returns true if the passed FD corresponds to a socket bound with LI_O_FOREIGN
+/* Returns true if the passed FD corresponds to a socket bound with RX_O_FOREIGN
  * according to the various supported socket options. The socket's address family
  * must be passed in <family>.
  */
