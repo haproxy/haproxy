@@ -556,11 +556,10 @@ int tcp_connect_server(struct connection *conn, int flags)
  */
 int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
-	__label__ tcp_return, tcp_close_return;
 	int fd, err;
-	int ext, ready;
+	int ready;
 	socklen_t ready_len;
-	const char *msg = NULL;
+	char *msg = NULL;
 
 	/* ensure we never return garbage */
 	if (errlen)
@@ -569,49 +568,14 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
 
-	err = ERR_NONE;
+	err = sock_inet_bind_receiver(&listener->rx, listener->rx.proto->accept, &msg);
+	if (err != ERR_NONE) {
+		snprintf(errmsg, errlen, "%s", msg);
+		free(msg); msg = NULL;
+		return err;
+	}
 
-	if (listener->rx.flags & RX_F_BOUND)
-		goto bound;
-
-	if (listener->rx.fd == -1)
-		listener->rx.fd = sock_find_compatible_fd(&listener->rx);
-
-	/* if the listener already has an fd assigned, then we were offered the
-	 * fd by an external process (most likely the parent), and we don't want
-	 * to create a new socket. However we still want to set a few flags on
-	 * the socket.
-	 */
 	fd = listener->rx.fd;
-	ext = (fd >= 0);
-
-	if (!ext) {
-		fd = my_socketat(listener->rx.settings->netns, listener->rx.addr.ss_family, SOCK_STREAM, IPPROTO_TCP);
-
-		if (fd == -1) {
-			err |= ERR_RETRYABLE | ERR_ALERT;
-			msg = "cannot create listening socket";
-			goto tcp_return;
-		}
-	}
-
-	if (fd >= global.maxsock) {
-		err |= ERR_FATAL | ERR_ABORT | ERR_ALERT;
-		msg = "not enough free sockets (raise '-n' parameter)";
-		goto tcp_close_return;
-	}
-
-	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
-		err |= ERR_FATAL | ERR_ALERT;
-		msg = "cannot make socket non-blocking";
-		goto tcp_close_return;
-	}
-
-	if (!ext && setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
-		/* not fatal but should be reported */
-		msg = "cannot do so_reuseaddr";
-		err |= ERR_ALERT;
-	}
 
 	if (listener->options & LI_O_NOLINGER)
 		setsockopt(fd, SOL_SOCKET, SO_LINGER, &nolinger, sizeof(struct linger));
@@ -627,42 +591,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 
-#ifdef SO_REUSEPORT
-	/* OpenBSD and Linux 3.9 support this. As it's present in old libc versions of
-	 * Linux, it might return an error that we will silently ignore.
-	 */
-	if (!ext && (global.tune.options & GTUNE_USE_REUSEPORT))
-		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
-#endif
-
-	if (!ext && (listener->rx.settings->options & RX_O_FOREIGN)) {
-		switch (listener->rx.addr.ss_family) {
-		case AF_INET:
-			if (!sock_inet4_make_foreign(fd)) {
-				msg = "cannot make listening socket transparent";
-				err |= ERR_ALERT;
-			}
-		break;
-		case AF_INET6:
-			if (!sock_inet6_make_foreign(fd)) {
-				msg = "cannot make listening socket transparent";
-				err |= ERR_ALERT;
-			}
-		break;
-		}
-	}
-
-#ifdef SO_BINDTODEVICE
-	/* Note: this might fail if not CAP_NET_RAW */
-	if (!ext && listener->rx.settings->interface) {
-		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
-		               listener->rx.settings->interface,
-		               strlen(listener->rx.settings->interface) + 1) == -1) {
-			msg = "cannot bind listener to device";
-			err |= ERR_WARN;
-		}
-	}
-#endif
 #if defined(TCP_MAXSEG)
 	if (listener->maxseg > 0) {
 		if (setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG,
@@ -670,7 +598,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 			msg = "cannot set MSS";
 			err |= ERR_WARN;
 		}
-	} else if (ext) {
+	} else {
+		/* we may want to try to restore the default MSS if the socket was inherited */
 		int tmpmaxseg = -1;
 		int defaultmss;
 		socklen_t len = sizeof(tmpmaxseg);
@@ -737,34 +666,12 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
-#if defined(IPV6_V6ONLY)
-	if (!ext && listener->rx.addr.ss_family == AF_INET6) {
-		/* Prepare to match the v6only option against what we really want. Note
-		 * that sadly the two options are not exclusive to each other and that
-		 * v6only is stronger than v4v6.
-		 */
-		if ((listener->rx.settings->options & RX_O_V6ONLY) ||
-		    (sock_inet6_v6only_default && !(listener->rx.settings->options & RX_O_V4V6)))
-			setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one));
-		else
-			setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
-	}
-#endif
-
-	if (!ext && bind(fd, (struct sockaddr *)&listener->rx.addr, listener->rx.proto->sock_addrlen) == -1) {
-		err |= ERR_RETRYABLE | ERR_ALERT;
-		msg = "cannot bind socket";
-		goto tcp_close_return;
-	}
-	listener->rx.flags |= RX_F_BOUND;
-
- bound:
 	ready = 0;
 	ready_len = sizeof(ready);
 	if (getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &ready, &ready_len) == -1)
 		ready = 0;
 
-	if (!(ext && ready) && /* only listen if not already done by external process */
+	if (!ready && /* only listen if not already done by external process */
 	    listen(fd, listener_backlog(listener)) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot listen to socket";
@@ -779,17 +686,11 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 #endif
 
 	/* the socket is ready */
-	listener->rx.fd = fd;
 	listener->state = LI_LISTEN;
+	return err;
 
-	fd_insert(fd, listener, listener->rx.proto->accept,
-	          thread_mask(listener->rx.settings->bind_thread) & all_threads_mask);
-
-	/* for now, all regularly bound TCP listeners are exportable */
-	if (!(listener->rx.flags & RX_F_INHERITED))
-		fdtab[fd].exported = 1;
-
- tcp_return:
+ tcp_close_return:
+	close(fd);
 	if (msg && errlen) {
 		char pn[INET6_ADDRSTRLEN];
 
@@ -797,10 +698,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, get_host_port(&listener->rx.addr));
 	}
 	return err;
-
- tcp_close_return:
-	close(fd);
-	goto tcp_return;
 }
 
 /* Add <listener> to the list of tcpv4 listeners, on port <port>. The
