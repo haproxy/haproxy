@@ -179,14 +179,9 @@ int udp6_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
  */
 int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
-	__label__ udp_return, udp_close_return;
-	int fd, err;
-	const char *msg = NULL;
-	/* copy listener addr because sometimes we need to switch family */
-	struct sockaddr_storage addr_inet = listener->rx.addr;
-
-	/* force to classic sock family */
-	addr_inet.ss_family = listener->rx.proto->sock_family;
+	int err = ERR_NONE;
+	void *handler = NULL;
+	char *msg = NULL;
 
 	/* ensure we never return garbage */
 	if (errlen)
@@ -195,127 +190,33 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
 
-	err = ERR_NONE;
-
-	if (listener->rx.flags & RX_F_BOUND)
-		goto bound;
-
-	/* TODO: Implement reuse fd. Take care that to identify fd to reuse
-	 * listeners uses a special AF_CUST_ family and we MUST consider
-	 * IPPROTO (sockaddr is not enough)
-	 */
-
-	fd = my_socketat(listener->rx.settings->netns,
-	                 listener->rx.proto->sock_family,
-	                 listener->rx.proto->sock_type,
-	                 listener->rx.proto->sock_prot);
-	if (fd == -1) {
-		err |= ERR_RETRYABLE | ERR_ALERT;
-		msg = "cannot create listening socket";
+	switch (listener->bind_conf->frontend->mode) {
+	case PR_MODE_SYSLOG:
+		handler = syslog_fd_handler;
+		break;
+	default:
+		err |= ERR_FATAL | ERR_ALERT;
+		msg = "UDP is not yet supported on this proxy mode";
 		goto udp_return;
 	}
 
-	if (fd >= global.maxsock) {
-		err |= ERR_FATAL | ERR_ABORT | ERR_ALERT;
-		msg = "not enough free sockets (raise '-n' parameter)";
-		goto udp_close_return;
-	}
+	err = sock_inet_bind_receiver(&listener->rx, handler, &msg);
 
-	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
-		err |= ERR_FATAL | ERR_ALERT;
-		msg = "cannot make socket non-blocking";
-		goto udp_close_return;
+	if (err != ERR_NONE) {
+		snprintf(errmsg, errlen, "%s", msg);
+		free(msg); msg = NULL;
+		return err;
 	}
-
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
-		/* not fatal but should be reported */
-		msg = "cannot do so_reuseaddr";
-		err |= ERR_ALERT;
-	}
-
-#ifdef SO_REUSEPORT
-	/* OpenBSD and Linux 3.9 support this. As it's present in old libc versions of
-	 * Linux, it might return an error that we will silently ignore.
-	 */
-	if (global.tune.options & GTUNE_USE_REUSEPORT)
-		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
-#endif
-
-	if (listener->rx.settings->options & RX_O_FOREIGN) {
-		switch (addr_inet.ss_family) {
-		case AF_INET:
-			if (!sock_inet4_make_foreign(fd)) {
-				msg = "cannot make listening socket transparent";
-				err |= ERR_ALERT;
-			}
-		break;
-		case AF_INET6:
-			if (!sock_inet6_make_foreign(fd)) {
-				msg = "cannot make listening socket transparent";
-				err |= ERR_ALERT;
-			}
-		break;
-		}
-	}
-
-#ifdef SO_BINDTODEVICE
-	/* Note: this might fail if not CAP_NET_RAW */
-	if (listener->rx.settings->interface) {
-		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
-		               listener->rx.settings->interface,
-		               strlen(listener->rx.settings->interface) + 1) == -1) {
-			msg = "cannot bind listener to device";
-			err |= ERR_WARN;
-		}
-	}
-#endif
-#if defined(IPV6_V6ONLY)
-	if (listener->rx.addr.ss_family == AF_INET6) {
-		/* Prepare to match the v6only option against what we really want. Note
-		 * that sadly the two options are not exclusive to each other and that
-		 * v6only is stronger than v4v6.
-		 */
-		if ((listener->rx.settings->options & RX_O_V6ONLY) ||
-		    (sock_inet6_v6only_default && !(listener->rx.settings->options & RX_O_V4V6)))
-			setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one));
-		else
-			setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
-	}
-#endif
-
-	if (bind(fd, (struct sockaddr *)&addr_inet, listener->rx.proto->sock_addrlen) < 0) {
-		err |= ERR_RETRYABLE | ERR_ALERT;
-		msg = "cannot bind socket";
-		goto udp_close_return;
-	}
-	listener->rx.flags |= RX_F_BOUND;
-
- bound:
-	/* the socket is ready */
-	listener->rx.fd = fd;
 	listener->state = LI_LISTEN;
-
-	if (listener->bind_conf->frontend->mode == PR_MODE_SYSLOG)
-		fd_insert(fd, listener, syslog_fd_handler,
-		          thread_mask(listener->rx.settings->bind_thread) & all_threads_mask);
-	else {
-		err |= ERR_FATAL | ERR_ALERT;
-		msg = "UDP is not yet supported on this proxy mode";
-		goto udp_close_return;
-	}
 
  udp_return:
 	if (msg && errlen) {
 		char pn[INET6_ADDRSTRLEN];
 
-		addr_to_str(&addr_inet, pn, sizeof(pn));
-		snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, get_host_port(&addr_inet));
+		addr_to_str(&listener->rx.addr, pn, sizeof(pn));
+		snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, get_host_port(&listener->rx.addr));
 	}
 	return err;
-
- udp_close_return:
-	close(fd);
-	goto udp_return;
 }
 
 /* Add <listener> to the list of udp4 listeners, on port <port>. The
