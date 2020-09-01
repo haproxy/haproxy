@@ -40,7 +40,6 @@
 #include <haproxy/sock_inet.h>
 #include <haproxy/task.h>
 
-static int udp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int udp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static void udp4_add_listener(struct listener *listener, int port);
 static void udp6_add_listener(struct listener *listener, int port);
@@ -57,8 +56,6 @@ static struct protocol proto_udp4 = {
 	.accept = NULL,
 	.connect = NULL,
 	.bind = udp_bind_listener,
-	.bind_all = udp_bind_listeners,
-	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
 	.get_src = udp_get_src,
 	.get_dst = udp_get_dst,
@@ -83,8 +80,6 @@ static struct protocol proto_udp6 = {
 	.accept = NULL,
 	.connect = NULL,
 	.bind = udp_bind_listener,
-	.bind_all = udp_bind_listeners,
-	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
 	.get_src = udp6_get_src,
 	.get_dst = udp6_get_dst,
@@ -303,26 +298,6 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
  udp_close_return:
 	close(fd);
 	goto udp_return;
-}
-
-/* This function creates all UDP sockets bound to the protocol entry <proto>.
- * It is intended to be used as the protocol's bind_all() function.
- * The sockets will be registered but not added to any fd_set, in order not to
- * loose them across the fork(). A call to enable_all_listeners() is needed
- * to complete initialization. The return value is composed from ERR_*.
- */
-static int udp_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
-{
-	struct listener *listener;
-	int err = ERR_NONE;
-
-	list_for_each_entry(listener, &proto->listeners, proto_list) {
-		err |= udp_bind_listener(listener, errmsg, errlen);
-		if (err & ERR_ABORT)
-			break;
-	}
-
-	return err;
 }
 
 /* Add <listener> to the list of udp4 listeners, on port <port>. The

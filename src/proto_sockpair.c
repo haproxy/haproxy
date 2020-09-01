@@ -42,7 +42,6 @@
 
 static void sockpair_add_listener(struct listener *listener, int port);
 static int sockpair_bind_listener(struct listener *listener, char *errmsg, int errlen);
-static int sockpair_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int sockpair_connect_server(struct connection *conn, int flags);
 
 /* Note: must not be declared <const> as its list will be overwritten */
@@ -57,8 +56,6 @@ static struct protocol proto_sockpair = {
 	.accept = &listener_accept,
 	.connect = &sockpair_connect_server,
 	.bind = sockpair_bind_listener,
-	.bind_all = sockpair_bind_listeners,
-	.unbind_all = NULL,
 	.enable_all = enable_all_listeners,
 	.disable_all = disable_all_listeners,
 	.get_src = NULL,
@@ -86,29 +83,6 @@ static void sockpair_add_listener(struct listener *listener, int port)
 	listener->proto = &proto_sockpair;
 	LIST_ADDQ(&proto_sockpair.listeners, &listener->proto_list);
 	proto_sockpair.nb_listeners++;
-}
-
-/* This function creates all UNIX sockets bound to the protocol entry <proto>.
- * It is intended to be used as the protocol's bind_all() function.
- * The sockets will be registered but not added to any fd_set, in order not to
- * loose them across the fork(). A call to uxst_enable_listeners() is needed
- * to complete initialization.
- *
- * Must be called with proto_lock held.
- *
- * The return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
- */
-static int sockpair_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
-{
-	struct listener *listener;
-	int err = ERR_NONE;
-
-	list_for_each_entry(listener, &proto->listeners, proto_list) {
-		err |= sockpair_bind_listener(listener, errmsg, errlen);
-		if (err & ERR_ABORT)
-			break;
-	}
-	return err;
 }
 
 /* This function changes the state from ASSIGNED to LISTEN. The socket is NOT

@@ -44,7 +44,6 @@
 #include <haproxy/tools.h>
 
 
-static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static void tcpv4_add_listener(struct listener *listener, int port);
 static void tcpv6_add_listener(struct listener *listener, int port);
@@ -61,8 +60,6 @@ static struct protocol proto_tcpv4 = {
 	.accept = &listener_accept,
 	.connect = tcp_connect_server,
 	.bind = tcp_bind_listener,
-	.bind_all = tcp_bind_listeners,
-	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
 	.get_src = sock_get_src,
 	.get_dst = sock_inet_get_dst,
@@ -87,8 +84,6 @@ static struct protocol proto_tcpv6 = {
 	.accept = &listener_accept,
 	.connect = tcp_connect_server,
 	.bind = tcp_bind_listener,
-	.bind_all = tcp_bind_listeners,
-	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
 	.get_src = sock_get_src,
 	.get_dst = sock_get_dst,
@@ -791,29 +786,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
  tcp_close_return:
 	close(fd);
 	goto tcp_return;
-}
-
-/* This function creates all TCP sockets bound to the protocol entry <proto>.
- * It is intended to be used as the protocol's bind_all() function.
- * The sockets will be registered but not added to any fd_set, in order not to
- * loose them across the fork(). A call to enable_all_listeners() is needed
- * to complete initialization. The return value is composed from ERR_*.
- *
- * Must be called with proto_lock held.
- *
- */
-static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen)
-{
-	struct listener *listener;
-	int err = ERR_NONE;
-
-	list_for_each_entry(listener, &proto->listeners, proto_list) {
-		err |= tcp_bind_listener(listener, errmsg, errlen);
-		if (err & ERR_ABORT)
-			break;
-	}
-
-	return err;
 }
 
 /* Add <listener> to the list of tcpv4 listeners, on port <port>. The

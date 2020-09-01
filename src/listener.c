@@ -532,22 +532,6 @@ void unbind_listener_no_close(struct listener *listener)
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
-/* This function closes all listening sockets bound to the protocol <proto>,
- * and the listeners end in LI_ASSIGNED state if they were higher. It does not
- * detach them from the protocol. It always returns ERR_NONE.
- *
- * Must be called with proto_lock held.
- *
- */
-int unbind_all_listeners(struct protocol *proto)
-{
-	struct listener *listener;
-
-	list_for_each_entry(listener, &proto->listeners, proto_list)
-		unbind_listener(listener);
-	return ERR_NONE;
-}
-
 /* creates one or multiple listeners for bind_conf <bc> on sockaddr <ss> on port
  * range <portl> to <porth>, and possibly attached to fd <fd> (or -1 for auto
  * allocation). The address family is taken from ss->ss_family. The number of
