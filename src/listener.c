@@ -574,7 +574,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		proto->add(l, port);
 
 		if (inherited)
-			l->options |= LI_O_INHERITED;
+			l->rx.flags |= RX_F_INHERITED;
 
 		HA_SPIN_INIT(&l->lock);
 		_HA_ATOMIC_ADD(&jobs, 1);

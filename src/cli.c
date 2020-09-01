@@ -2671,7 +2671,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 		l->default_target = global.stats_fe->default_target;
 		l->options |= (LI_O_UNLIMITED | LI_O_NOSTOP);
 		/* it's a sockpair but we don't want to keep the fd in the master */
-		l->options &= ~LI_O_INHERITED;
+		l->rx.flags &= ~RX_F_INHERITED;
 		l->nice = -64;  /* we want to boost priority for local stats */
 		global.maxsock++; /* for the listening socket */
 	}

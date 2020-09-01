@@ -777,7 +777,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	          thread_mask(listener->rx.settings->bind_thread) & all_threads_mask);
 
 	/* for now, all regularly bound TCP listeners are exportable */
-	if (!(listener->options & LI_O_INHERITED))
+	if (!(listener->rx.flags & RX_F_INHERITED))
 		fdtab[fd].exported = 1;
 
  tcp_return:

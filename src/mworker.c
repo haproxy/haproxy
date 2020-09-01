@@ -426,7 +426,7 @@ void mworker_cleanlisteners()
 				/* unbind the listener but does not close if
 				   the FD is inherited with fd@ from the parent
 				   process */
-				if (l->options & LI_O_INHERITED)
+				if (l->rx.flags & RX_F_INHERITED)
 					unbind_listener_no_close(l);
 				else
 					unbind_listener(l);

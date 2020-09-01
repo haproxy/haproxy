@@ -31,6 +31,7 @@
 
 /* Bit values for receiver->options */
 #define RX_F_BOUND              0x00000001  /* receiver already bound */
+#define RX_F_INHERITED          0x00000002  /* inherited FD from the parent process (fd@) */
 
 /* All the settings that are used to configure a receiver */
 struct rx_settings {

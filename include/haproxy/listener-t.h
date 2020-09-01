@@ -97,7 +97,7 @@ enum li_state {
 #define LI_O_V6ONLY             0x0400  /* bind to IPv6 only on Linux >= 2.4.21 */
 #define LI_O_V4V6               0x0800  /* bind to IPv4/IPv6 on Linux >= 2.4.21 */
 #define LI_O_ACC_CIP            0x1000  /* find the proxied address in the NetScaler Client IP header */
-#define LI_O_INHERITED          0x2000  /* inherited FD from the parent process (fd@) */
+/* unused                       0x2000 */
 #define LI_O_MWORKER            0x4000  /* keep the FD open in the master but close it in the children */
 #define LI_O_NOSTOP             0x8000  /* keep the listener active even after a soft stop */
 
