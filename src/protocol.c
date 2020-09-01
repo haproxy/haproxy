@@ -67,7 +67,7 @@ int protocol_bind_all(int verbose)
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		list_for_each_entry(listener, &proto->listeners, rx.proto_list) {
-			lerr = proto->bind(listener, msg, sizeof(msg));
+			lerr = proto->listen(listener, msg, sizeof(msg));
 
 			/* errors are reported if <verbose> is set or if they are fatal */
 			if (verbose || (lerr & (ERR_FATAL | ERR_ABORT))) {

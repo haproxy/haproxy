@@ -349,7 +349,7 @@ int resume_listener(struct listener *l)
 		char msg[100];
 		int err;
 
-		err = l->rx.proto->bind(l, msg, sizeof(msg));
+		err = l->rx.proto->listen(l, msg, sizeof(msg));
 		if (err & ERR_ALERT)
 			ha_alert("Resuming listener: %s\n", msg);
 		else if (err & ERR_WARN)
