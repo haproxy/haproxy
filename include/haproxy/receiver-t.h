@@ -29,6 +29,9 @@
 #include <haproxy/namespace-t.h>
 #include <haproxy/thread.h>
 
+/* Bit values for receiver->options */
+#define RX_F_BOUND              0x00000001  /* receiver already bound */
+
 /* All the settings that are used to configure a receiver */
 struct rx_settings {
 	unsigned long bind_proc;          /* bitmask of processes allowed to use these listeners */

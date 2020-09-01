@@ -195,6 +195,9 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	err = ERR_NONE;
 
+	if (listener->rx.flags & RX_F_BOUND)
+		goto bound;
+
 	/* TODO: Implement reuse fd. Take care that to identify fd to reuse
 	 * listeners uses a special AF_CUST_ family and we MUST consider
 	 * IPPROTO (sockaddr is not enough)
@@ -276,7 +279,9 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		msg = "cannot bind socket";
 		goto udp_close_return;
 	}
+	listener->rx.flags |= RX_F_BOUND;
 
+ bound:
 	/* the socket is ready */
 	listener->rx.fd = fd;
 	listener->state = LI_LISTEN;

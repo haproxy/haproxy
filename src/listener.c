@@ -505,6 +505,7 @@ void do_unbind_listener(struct listener *listener, int do_close)
 		fd_stop_both(listener->rx.fd);
 		if (do_close) {
 			fd_delete(listener->rx.fd);
+			listener->rx.flags &= ~RX_F_BOUND;
 			listener->rx.fd = -1;
 		}
 	}

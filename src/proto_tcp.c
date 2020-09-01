@@ -569,6 +569,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	err = ERR_NONE;
 
+	if (listener->rx.flags & RX_F_BOUND)
+		goto bound;
+
 	if (listener->rx.fd == -1)
 		listener->rx.fd = sock_find_compatible_fd(listener);
 
@@ -744,7 +747,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		msg = "cannot bind socket";
 		goto tcp_close_return;
 	}
+	listener->rx.flags |= RX_F_BOUND;
 
+ bound:
 	ready = 0;
 	ready_len = sizeof(ready);
 	if (getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &ready, &ready_len) == -1)
