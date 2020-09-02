@@ -113,10 +113,10 @@ static int get_http_auth(struct sample *smp, struct htx *htx)
 	if (!http_find_header(htx, hdr, &ctx, 0))
 		return 0;
 
-	p   = memchr(ctx.value.ptr, ' ', ctx.value.len);
-	len = p - ctx.value.ptr;
-	if (!p || len <= 0)
+	p = memchr(ctx.value.ptr, ' ', ctx.value.len);
+	if (!p || p == ctx.value.ptr) /* if no space was found or if the space is the first character */
 		return 0;
+	len = p - ctx.value.ptr;
 
 	if (chunk_initlen(&auth_method, ctx.value.ptr, 0, len) != 1)
 		return 0;
