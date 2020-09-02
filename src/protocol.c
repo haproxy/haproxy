@@ -18,6 +18,7 @@
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/protocol.h>
+#include <haproxy/proxy.h>
 #include <haproxy/tools.h>
 
 
@@ -55,20 +56,37 @@ void protocol_unregister(struct protocol *proto)
 /* binds all listeners of all registered protocols. Returns a composition
  * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.
  */
-int protocol_bind_all(char *errmsg, int errlen)
+int protocol_bind_all(int verbose)
 {
 	struct protocol *proto;
 	struct listener *listener;
-	int err;
+	char msg[100];
+	int err, lerr;
 
 	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		list_for_each_entry(listener, &proto->listeners, proto_list) {
-			err |= proto->bind(listener, errmsg, errlen);
-			if (err & ERR_ABORT)
+			lerr = proto->bind(listener, msg, sizeof(msg));
+
+			/* errors are reported if <verbose> is set or if they are fatal */
+			if (verbose || (lerr & (ERR_FATAL | ERR_ABORT))) {
+				struct proxy *px = listener->bind_conf->frontend;
+
+				if (lerr & ERR_ALERT)
+					ha_alert("Starting %s %s: %s\n",
+						 proxy_type_str(px), px->id, msg);
+				else if (lerr & ERR_WARN)
+					ha_warning("Starting %s %s: %s\n",
+						   proxy_type_str(px), px->id, msg);
+			}
+
+			err |= lerr;
+			if (lerr & ERR_ABORT)
 				break;
 		}
+		if (err & ERR_ABORT)
+			break;
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 	return err;

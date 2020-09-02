@@ -2941,7 +2941,6 @@ int main(int argc, char **argv)
 {
 	int err, retry;
 	struct rlimit limit;
-	char errmsg[100];
 	int pidfd = -1;
 
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -3059,7 +3058,7 @@ int main(int argc, char **argv)
 	err = ERR_NONE;
 	while (retry >= 0) {
 		struct timeval w;
-		err = start_proxies(retry == 0 || nb_oldpids == 0);
+		err = protocol_bind_all(retry == 0 || nb_oldpids == 0);
 		/* exit the loop on no error or fatal error */
 		if ((err & (ERR_RETRYABLE|ERR_FATAL)) != ERR_RETRYABLE)
 			break;
@@ -3082,14 +3081,17 @@ int main(int argc, char **argv)
 		retry--;
 	}
 
-	/* Note: start_proxies() sends an alert when it fails. */
+	/* Note: protocol_bind_all() sends an alert when it fails. */
 	if ((err & ~ERR_WARN) != ERR_NONE) {
+		ha_alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", argv[0]);
 		if (retry != MAX_START_RETRIES && nb_oldpids) {
 			protocol_unbind_all(); /* cleanup everything we can */
 			tell_old_pids(SIGTTIN);
 		}
 		exit(1);
 	}
+
+	start_proxies();
 
 	if (!(global.mode & MODE_MWORKER_WAIT) && listeners == 0) {
 		ha_alert("[%s.main()] No enabled listener found (check for 'bind' directives) ! Exiting.\n", argv[0]);
@@ -3098,20 +3100,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	err = protocol_bind_all(errmsg, sizeof(errmsg));
-	if ((err & ~ERR_WARN) != ERR_NONE) {
-		if ((err & ERR_ALERT) || (err & ERR_WARN))
-			ha_alert("[%s.main()] %s.\n", argv[0], errmsg);
-
-		ha_alert("[%s.main()] Some protocols failed to start their listeners! Exiting.\n", argv[0]);
-		protocol_unbind_all(); /* cleanup everything we can */
-		if (nb_oldpids)
-			tell_old_pids(SIGTTIN);
-		exit(1);
-	} else if (err & ERR_WARN) {
-		ha_alert("[%s.main()] %s.\n", argv[0], errmsg);
-	}
-	/* Ok, all listener should now be bound, close any leftover sockets
+	/* Ok, all listeners should now be bound, close any leftover sockets
 	 * the previous process gave us, we don't need them anymore
 	 */
 	while (xfer_sock_list != NULL) {

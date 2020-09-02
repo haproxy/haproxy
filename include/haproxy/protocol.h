@@ -38,9 +38,9 @@ void protocol_register(struct protocol *proto);
 void protocol_unregister(struct protocol *proto);
 
 /* binds all listeners of all registered protocols. Returns a composition
- * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.
+ * of ERR_NONE, ERR_RETRYABLE, ERR_FATAL, ERR_ABORT.
  */
-int protocol_bind_all(char *errmsg, int errlen);
+int protocol_bind_all(int verbose);
 
 /* unbinds all listeners of all registered protocols. They are also closed.
  * This must be performed before calling exit() in order to get a chance to

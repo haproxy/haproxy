@@ -1046,65 +1046,18 @@ void init_new_proxy(struct proxy *p)
 }
 
 /*
- * This function creates all proxy sockets. It should be done very early,
- * typically before privileges are dropped. The sockets will be registered
- * but not added to any fd_set, in order not to loose them across the fork().
- * The proxies also start in READY state because they all have their listeners
- * bound.
- *
- * Its return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
- * Retryable errors will only be printed if <verbose> is not zero.
- */
-int start_proxies(int verbose)
+ * This function finishes the startup of proxies by marking them ready. */
+void start_proxies(void)
 {
 	struct proxy *curproxy;
-	struct listener *listener;
-	int lerr, err = ERR_NONE;
-	int pxerr;
-	char msg[100];
 
 	for (curproxy = proxies_list; curproxy != NULL; curproxy = curproxy->next) {
 		if (curproxy->state != PR_STNEW)
 			continue; /* already initialized */
 
-		pxerr = 0;
-		list_for_each_entry(listener, &curproxy->conf.listeners, by_fe) {
-			if (listener->state != LI_ASSIGNED)
-				continue; /* already started */
-
-			lerr = listener->proto->bind(listener, msg, sizeof(msg));
-
-			/* errors are reported if <verbose> is set or if they are fatal */
-			if (verbose || (lerr & (ERR_FATAL | ERR_ABORT))) {
-				if (lerr & ERR_ALERT)
-					ha_alert("Starting %s %s: %s\n",
-						 proxy_type_str(curproxy), curproxy->id, msg);
-				else if (lerr & ERR_WARN)
-					ha_warning("Starting %s %s: %s\n",
-						   proxy_type_str(curproxy), curproxy->id, msg);
-			}
-
-			err |= lerr;
-			if (lerr & (ERR_ABORT | ERR_FATAL)) {
-				pxerr |= 1;
-				break;
-			}
-			else if (lerr & ERR_CODE) {
-				pxerr |= 1;
-				continue;
-			}
-		}
-
-		if (!pxerr) {
-			curproxy->state = PR_STREADY;
-			send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
-		}
-
-		if (err & ERR_ABORT)
-			break;
+		curproxy->state = PR_STREADY;
+		send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
 	}
-
-	return err;
 }
 
 
