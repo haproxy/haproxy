@@ -5549,8 +5549,9 @@ http-request replace-path <match-regex> <replace-fmt>
 
   This works like "replace-header" except that it works on the request's path
   component instead of a header. The path component starts at the first '/'
-  after an optional scheme+authority. It does contain the query string if any
-  is present. The replacement does not modify the scheme nor authority.
+  after an optional scheme+authority and ends before the question mark. Thus,
+  the replacement does not modify the scheme, the authority and the
+  query-string.
 
   It is worth noting that regular expressions may be more expensive to evaluate
   than certain ACLs, so rare replacements may benefit from a condition to avoid
@@ -5559,9 +5560,6 @@ http-request replace-path <match-regex> <replace-fmt>
   Example:
     # prefix /foo : turn /bar?q=1 into /foo/bar?q=1 :
     http-request replace-path (.*) /foo\1
-
-    # suffix /foo : turn /bar?q=1 into /bar/foo?q=1 :
-    http-request replace-path ([^?]*)(\?(.*))? \1/foo\2
 
     # strip /foo : turn /foo/bar?q=1 into /bar?q=1
     http-request replace-path /foo/(.*) /\1
