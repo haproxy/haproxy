@@ -82,14 +82,14 @@ int protocol_bind_all(char *errmsg, int errlen)
 int protocol_unbind_all(void)
 {
 	struct protocol *proto;
+	struct listener *listener;
 	int err;
 
 	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		if (proto->unbind_all) {
-			err |= proto->unbind_all(proto);
-		}
+		list_for_each_entry(listener, &proto->listeners, proto_list)
+			unbind_listener(listener);
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 	return err;
