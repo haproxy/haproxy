@@ -23,6 +23,7 @@
 
 int recv_fd_uxst(int sock);
 int send_fd_uxst(int fd, int send_fd);
+int sockpair_bind_receiver(struct receiver *rx, void (*handler)(int fd), char **errmsg);
 
 #endif /* _HAPROXY_PROTO_SOCKPAIR_H  */
 
