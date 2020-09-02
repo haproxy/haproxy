@@ -5566,6 +5566,17 @@ http-request replace-path <match-regex> <replace-fmt>
     # or more efficient if only some requests match :
     http-request replace-path /foo/(.*) /\1 if { url_beg /foo/ }
 
+http-request replace-pathq <match-regex> <replace-fmt>
+                           [ { if | unless } <condition> ]
+
+  This does the same as "http-request replace-path" except that the path
+  contains the query-string if any is present. Thus, the path and the
+  query-string are replaced.
+
+  Example:
+    # suffix /foo : turn /bar?q=1 into /bar/foo?q=1 :
+    http-request replace-pathq ([^?]*)(\?(.*))? \1/foo\2
+
 http-request replace-uri <match-regex> <replace-fmt>
                            [ { if | unless } <condition> ]
 
@@ -5818,6 +5829,12 @@ http-request set-path <fmt> [ { if | unless } <condition> ]
     Example :
       # prepend the host name before the path
       http-request set-path /%[hdr(host)]%[path]
+
+http-request set-pathq <fmt> [ { if | unless } <condition> ]
+
+  This does the same as "http-request set-path" except that the query-string is
+  also rewritten. It may be used to remove the query-string, including the
+  question mark (it is not possible using "http-request set-query").
 
 http-request set-priority-class <expr> [ { if | unless } <condition> ]
 

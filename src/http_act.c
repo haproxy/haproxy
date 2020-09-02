@@ -140,6 +140,7 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 /* parse an http-request action among :
  *   set-method
  *   set-path
+ *   set-pathq
  *   set-query
  *   set-uri
  *
@@ -158,7 +159,10 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
 		rule->action = 0; // set-method
 		break;
 	case 'p' :
-		rule->action = 1; // set-path
+		if (args[0][8] == 'q')
+			rule->action = 4; // set-pathq
+		else
+			rule->action = 1; // set-path
 		break;
 	case 'q' :
 		rule->action = 2; // set-query
@@ -216,6 +220,8 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 
 	if (rule->action == 1) // replace-path
 		uri = iststop(http_get_path(uri), '?');
+	else if (rule->action == 4) // replace-pathq
+		uri = http_get_path(uri);
 
 	if (!regex_exec_match2(rule->arg.http.re, uri.ptr, uri.len, MAX_MATCH, pmatch, 0))
 		goto leave;
@@ -260,7 +266,8 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	goto leave;
 }
 
-/* parse a "replace-uri" or "replace-path" http-request action.
+/* parse a "replace-uri", "replace-path" or "replace-pathq"
+ * http-request action.
  * This action takes 2 arguments (a regex and a replacement format string).
  * The resulting rule makes use of <.action> to store the action (1/3 for now),
  * <http.re> to store the compiled regex, and <http.fmt> to store the log-format
@@ -272,10 +279,20 @@ static enum act_parse_ret parse_replace_uri(const char **args, int *orig_arg, st
 	int cur_arg = *orig_arg;
 	char *error = NULL;
 
-	if (strcmp(args[cur_arg-1], "replace-path") == 0)
-		rule->action = 1; // replace-path, same as set-path
-	else
+	switch (args[0][8]) {
+	case 'p':
+		if (args[0][12] == 'q')
+			rule->action = 4; // replace-pathq, same as set-pathq
+		else
+			rule->action = 1; // replace-path, same as set-path
+		break;
+	case 'u':
 		rule->action = 3; // replace-uri, same as set-uri
+		break;
+	default:
+		memprintf(err, "internal error: unhandled action '%s'", args[0]);
+		return ACT_RET_PRS_ERR;
+	}
 
 	rule->action_ptr = http_action_replace_uri;
 	rule->release_ptr = release_http_action;
@@ -1926,6 +1943,7 @@ static struct action_kw_list http_req_actions = {
 		{ "reject",           parse_http_action_reject,        0 },
 		{ "replace-header",   parse_http_replace_header,       0 },
 		{ "replace-path",     parse_replace_uri,               0 },
+		{ "replace-pathq",    parse_replace_uri,               0 },
 		{ "replace-uri",      parse_replace_uri,               0 },
 		{ "replace-value",    parse_http_replace_header,       0 },
 		{ "return",           parse_http_return,               0 },
@@ -1936,6 +1954,7 @@ static struct action_kw_list http_req_actions = {
 		{ "set-mark",         parse_http_set_mark,             0 },
 		{ "set-nice",         parse_http_set_nice,             0 },
 		{ "set-path",         parse_set_req_line,              0 },
+		{ "set-pathq",        parse_set_req_line,              0 },
 		{ "set-query",        parse_set_req_line,              0 },
 		{ "set-tos",          parse_http_set_tos,              0 },
 		{ "set-uri",          parse_set_req_line,              0 },

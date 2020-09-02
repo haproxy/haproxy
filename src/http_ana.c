@@ -2754,7 +2754,7 @@ int http_replace_hdrs(struct stream* s, struct htx *htx, struct ist name,
  * error, though this can be revisited when this code is finally exploited.
  *
  * 'action' can be '0' to replace method, '1' to replace path, '2' to replace
- * query string and 3 to replace uri.
+ * query string, 3 to replace uri or 4 to replace the path+query.
  *
  * In query string case, the mark question '?' must be set at the start of the
  * string by the caller, event if the replacement query string is empty.
@@ -2782,6 +2782,11 @@ int http_req_replace_stline(int action, const char *replace, int len,
 
 		case 3: // uri
 			if (!http_replace_req_uri(htx, ist2(replace, len)))
+				return -1;
+			break;
+
+		case 4: // path + query
+			if (!http_replace_req_path(htx, ist2(replace, len), 1))
 				return -1;
 			break;
 
