@@ -2785,11 +2785,6 @@ int http_req_replace_stline(int action, const char *replace, int len,
 				return -1;
 			break;
 
-		case 4: // path + query
-			if (!http_replace_req_path(htx, ist2(replace, len), 1))
-				return -1;
-			break;
-
 		default:
 			return -1;
 	}
