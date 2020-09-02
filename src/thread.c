@@ -201,6 +201,18 @@ static void __thread_init(void)
 		exit(1);
 	}
 
+#if defined(__GNUC__) && (__GNUC__ >= 3) && !defined(__clang__)
+	/* make sure libgcc_s is already loaded, because pthread_exit() may
+	 * may need it on exit after the chroot! _Unwind_Find_FDE() is defined
+	 * there since gcc 3.0, has no side effect, doesn't take any argument
+	 * and seems to be present on all supported platforms.
+	 */
+	{
+		extern void _Unwind_Find_FDE(void);
+		_Unwind_Find_FDE();
+	}
+#endif
+
 	thread_cpus_enabled_at_boot = thread_cpus_enabled();
 
 	memprintf(&ptr, "Built with multi-threading support (MAX_THREADS=%d, default=%d).",
