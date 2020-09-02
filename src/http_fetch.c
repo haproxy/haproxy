@@ -1025,8 +1025,9 @@ static int smp_fetch_hdr_ip(const struct arg *args, struct sample *smp, const ch
 	return ret;
 }
 
-/* 8. Check on URI PATH. A pointer to the PATH is stored. The path starts at
- * the first '/' after the possible hostname, and ends before the possible '?'.
+/* 8. Check on URI PATH. A pointer to the PATH is stored. The path starts at the
+ * first '/' after the possible hostname. It ends before the possible '?' except
+ * for 'pathq' keyword.
  */
 static int smp_fetch_path(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1039,7 +1040,13 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
 		return 0;
 
 	sl = http_get_stline(htx);
-	path = iststop(http_get_path(htx_sl_req_uri(sl)), '?');
+	path = http_get_path(htx_sl_req_uri(sl));
+
+	if (kw[0] == 'p' && kw[4] == 'q') // pathq
+		path = http_get_path(htx_sl_req_uri(sl));
+	else
+		path = iststop(http_get_path(htx_sl_req_uri(sl)), '?');
+
 	if (!isttest(path))
 		return 0;
 
@@ -2071,6 +2078,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "http_first_req",     smp_fetch_http_first_req,     0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
 	{ "method",             smp_fetch_meth,               0,                NULL,    SMP_T_METH, SMP_USE_HRQHP },
 	{ "path",               smp_fetch_path,               0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "pathq",              smp_fetch_path,               0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "query",              smp_fetch_query,              0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 
 	/* HTTP protocol on the request path */

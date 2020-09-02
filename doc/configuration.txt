@@ -18116,6 +18116,14 @@ path : string
     path_reg : regex match
     path_sub : substring match
 
+pathq : string
+  This extracts the request's URL path with the query-string, which starts at
+  the first slash. This sample fetch is pretty handy to always retrieve a
+  relative URI, excluding the scheme and the authority part, if any. Indeed,
+  while it is the common representation for an HTTP/1.1 request target, in
+  HTTP/2, an absolute URI is often used. This sample fetch will return the same
+  result in both cases.
+
 query : string
   This extracts the request's query string, which starts after the first
   question mark. If no question mark is present, this fetch returns nothing. If
