@@ -89,17 +89,10 @@ INITCALL1(STG_REGISTER, protocol_register, &proto_unix);
  */
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
-	int fd;
-	char tempname[MAXPATHLEN];
-	char backname[MAXPATHLEN];
-	struct sockaddr_un addr;
-	const char *msg = NULL;
-	const char *path;
-	int maxpathlen;
-	int ext, ready;
+	int fd, err;
+	int ready;
 	socklen_t ready_len;
-	int err;
-	int ret;
+	char *msg = NULL;
 
 	err = ERR_NONE;
 
@@ -109,190 +102,37 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
-		
-	if (listener->rx.flags & RX_F_BOUND)
-		goto bound;
 
-	if (listener->rx.fd == -1)
-		listener->rx.fd = sock_find_compatible_fd(&listener->rx);
-	path = ((struct sockaddr_un *)&listener->rx.addr)->sun_path;
+	err = sock_unix_bind_receiver(&listener->rx, listener->rx.proto->accept, &msg);
+	if (err != ERR_NONE) {
+		snprintf(errmsg, errlen, "%s", msg);
+		free(msg); msg = NULL;
+		return err;
+	}
 
-	maxpathlen = MIN(MAXPATHLEN, sizeof(addr.sun_path));
-
-	/* if the listener already has an fd assigned, then we were offered the
-	 * fd by an external process (most likely the parent), and we don't want
-	 * to create a new socket. However we still want to set a few flags on
-	 * the socket.
-	 */
 	fd = listener->rx.fd;
-	ext = (fd >= 0);
-	if (ext)
-		goto fd_ready;
 
-	if (path[0]) {
-		ret = snprintf(tempname, maxpathlen, "%s.%d.tmp", path, pid);
-		if (ret < 0 || ret >= sizeof(addr.sun_path)) {
-			err |= ERR_FATAL | ERR_ALERT;
-			msg = "name too long for UNIX socket (limit usually 97)";
-			goto err_return;
-		}
-
-		ret = snprintf(backname, maxpathlen, "%s.%d.bak", path, pid);
-		if (ret < 0 || ret >= maxpathlen) {
-			err |= ERR_FATAL | ERR_ALERT;
-			msg = "name too long for UNIX socket (limit usually 97)";
-			goto err_return;
-		}
-
-		/* 2. clean existing orphaned entries */
-		if (unlink(tempname) < 0 && errno != ENOENT) {
-			err |= ERR_FATAL | ERR_ALERT;
-			msg = "error when trying to unlink previous UNIX socket";
-			goto err_return;
-		}
-
-		if (unlink(backname) < 0 && errno != ENOENT) {
-			err |= ERR_FATAL | ERR_ALERT;
-			msg = "error when trying to unlink previous UNIX socket";
-			goto err_return;
-		}
-
-		/* 3. backup existing socket */
-		if (link(path, backname) < 0 && errno != ENOENT) {
-			err |= ERR_FATAL | ERR_ALERT;
-			msg = "error when trying to preserve previous UNIX socket";
-			goto err_return;
-		}
-
-		/* Note: this test is redundant with the snprintf one above and
-		 * will never trigger, it's just added as the only way to shut
-		 * gcc's painfully dumb warning about possibly truncated output
-		 * during strncpy(). Don't move it above or smart gcc will not
-		 * see it!
-		 */
-		if (strlen(tempname) >= sizeof(addr.sun_path)) {
-			err |= ERR_FATAL | ERR_ALERT;
-			msg = "name too long for UNIX socket (limit usually 97)";
-			goto err_return;
-		}
-
-		strncpy(addr.sun_path, tempname, sizeof(addr.sun_path) - 1);
-		addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
-	}
-	else {
-		/* first char is zero, it's an abstract socket whose address
-		 * is defined by all the bytes past this zero.
-		 */
-		memcpy(addr.sun_path, path, sizeof(addr.sun_path));
-	}
-	addr.sun_family = AF_UNIX;
-
-	fd = socket(PF_UNIX, SOCK_STREAM, 0);
-	if (fd < 0) {
-		err |= ERR_FATAL | ERR_ALERT;
-		msg = "cannot create UNIX socket";
-		goto err_unlink_back;
-	}
-
- fd_ready:
-	if (fd >= global.maxsock) {
-		err |= ERR_FATAL | ERR_ALERT;
-		msg = "socket(): not enough free sockets, raise -n argument";
-		goto err_unlink_temp;
-	}
-	
-	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
-		err |= ERR_FATAL | ERR_ALERT;
-		msg = "cannot make UNIX socket non-blocking";
-		goto err_unlink_temp;
-	}
-	
-	if (!ext && bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-		/* note that bind() creates the socket <tempname> on the file system */
-		if (errno == EADDRINUSE) {
-			/* the old process might still own it, let's retry */
-			err |= ERR_RETRYABLE | ERR_ALERT;
-			msg = "cannot listen to socket";
-		}
-		else {
-			err |= ERR_FATAL | ERR_ALERT;
-			msg = "cannot bind UNIX socket";
-		}
-		goto err_unlink_temp;
-	}
-
-	/* <uid> and <gid> different of -1 will be used to change the socket owner.
-	 * If <mode> is not 0, it will be used to restrict access to the socket.
-	 * While it is known not to be portable on every OS, it's still useful
-	 * where it works. We also don't change permissions on abstract sockets.
-	 */
-	if (!ext && path[0] &&
-	    (((listener->rx.settings->ux.uid != -1 || listener->rx.settings->ux.gid != -1) &&
-	      (chown(tempname, listener->rx.settings->ux.uid, listener->rx.settings->ux.gid) == -1)) ||
-	     (listener->rx.settings->ux.mode != 0 && chmod(tempname, listener->rx.settings->ux.mode) == -1))) {
-		err |= ERR_FATAL | ERR_ALERT;
-		msg = "cannot change UNIX socket ownership";
-		goto err_unlink_temp;
-	}
-	listener->rx.flags |= RX_F_BOUND;
-
- bound:
 	ready = 0;
 	ready_len = sizeof(ready);
 	if (getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &ready, &ready_len) == -1)
 		ready = 0;
 
-	if (!(ext && ready) && /* only listen if not already done by external process */
+	if (!ready && /* only listen if not already done by external process */
 	    listen(fd, listener_backlog(listener)) < 0) {
 		err |= ERR_FATAL | ERR_ALERT;
 		msg = "cannot listen to UNIX socket";
-		goto err_unlink_temp;
+		goto uxst_close_return;
 	}
-
-	/* Point of no return: we are ready, we'll switch the sockets. We don't
-	 * fear losing the socket <path> because we have a copy of it in
-	 * backname. Abstract sockets are not renamed.
-	 */
-	if (!ext && path[0] && rename(tempname, path) < 0) {
-		err |= ERR_FATAL | ERR_ALERT;
-		msg = "cannot switch final and temporary UNIX sockets";
-		goto err_rename;
-	}
-
-	/* Cleanup: only unlink if we didn't inherit the fd from the parent */
-	if (!ext && path[0])
-		unlink(backname);
 
 	/* the socket is now listening */
-	listener->rx.fd = fd;
 	listener->state = LI_LISTEN;
-
-	fd_insert(fd, listener, listener->rx.proto->accept,
-	          thread_mask(listener->rx.settings->bind_thread) & all_threads_mask);
-
-	/* for now, all regularly bound UNIX listeners are exportable */
-	if (!(listener->rx.flags & RX_F_INHERITED))
-		fdtab[fd].exported = 1;
-
 	return err;
 
- err_rename:
-	ret = rename(backname, path);
-	if (ret < 0 && errno == ENOENT)
-		unlink(path);
- err_unlink_temp:
-	if (!ext && path[0])
-		unlink(tempname);
+ uxst_close_return:
 	close(fd);
- err_unlink_back:
-	if (!ext && path[0])
-		unlink(backname);
- err_return:
 	if (msg && errlen) {
-		if (!ext)
-			snprintf(errmsg, errlen, "%s [%s]", msg, path);
-		else
-			snprintf(errmsg, errlen, "%s [fd %d]", msg, fd);
+		const char *path = ((struct sockaddr_un *)&listener->rx.addr)->sun_path;
+		snprintf(errmsg, errlen, "%s [%s]", msg, path);
 	}
 	return err;
 }
