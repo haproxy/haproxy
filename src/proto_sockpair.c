@@ -162,12 +162,11 @@ static int sockpair_bind_listener(struct listener *listener, char *errmsg, int e
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
 
-	err = sockpair_bind_receiver(&listener->rx, listener->rx.proto->accept, &msg);
-	if (err != ERR_NONE) {
-		snprintf(errmsg, errlen, "%s", msg);
-		free(msg); msg = NULL;
-		return err;
+	if (!(listener->rx.flags & RX_F_BOUND)) {
+		msg = "receiving socket not bound";
+		goto err_return;
 	}
+
 	listener->state = LI_LISTEN;
 	return err;
 

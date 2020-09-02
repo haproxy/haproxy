@@ -103,11 +103,9 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
 
-	err = sock_unix_bind_receiver(&listener->rx, listener->rx.proto->accept, &msg);
-	if (err != ERR_NONE) {
-		snprintf(errmsg, errlen, "%s", msg);
-		free(msg); msg = NULL;
-		return err;
+	if (!(listener->rx.flags & RX_F_BOUND)) {
+		msg = "receiving socket not bound";
+		goto uxst_return;
 	}
 
 	fd = listener->rx.fd;
@@ -130,6 +128,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 
  uxst_close_return:
 	close(fd);
+ uxst_return:
 	if (msg && errlen) {
 		const char *path = ((struct sockaddr_un *)&listener->rx.addr)->sun_path;
 		snprintf(errmsg, errlen, "%s [%s]", msg, path);

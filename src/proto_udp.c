@@ -180,7 +180,6 @@ int udp6_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
 	int err = ERR_NONE;
-	void *handler = NULL;
 	char *msg = NULL;
 
 	/* ensure we never return garbage */
@@ -190,23 +189,11 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
 
-	switch (listener->bind_conf->frontend->mode) {
-	case PR_MODE_SYSLOG:
-		handler = syslog_fd_handler;
-		break;
-	default:
-		err |= ERR_FATAL | ERR_ALERT;
-		msg = "UDP is not yet supported on this proxy mode";
+	if (!(listener->rx.flags & RX_F_BOUND)) {
+		msg = "receiving socket not bound";
 		goto udp_return;
 	}
 
-	err = sock_inet_bind_receiver(&listener->rx, handler, &msg);
-
-	if (err != ERR_NONE) {
-		snprintf(errmsg, errlen, "%s", msg);
-		free(msg); msg = NULL;
-		return err;
-	}
 	listener->state = LI_LISTEN;
 
  udp_return:

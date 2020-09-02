@@ -561,6 +561,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	socklen_t ready_len;
 	char *msg = NULL;
 
+	err = ERR_NONE;
+
 	/* ensure we never return garbage */
 	if (errlen)
 		*errmsg = 0;
@@ -568,11 +570,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->state != LI_ASSIGNED)
 		return ERR_NONE; /* already bound */
 
-	err = sock_inet_bind_receiver(&listener->rx, listener->rx.proto->accept, &msg);
-	if (err != ERR_NONE) {
-		snprintf(errmsg, errlen, "%s", msg);
-		free(msg); msg = NULL;
-		return err;
+	if (!(listener->rx.flags & RX_F_BOUND)) {
+		msg = "receiving socket not bound";
+		goto tcp_return;
 	}
 
 	fd = listener->rx.fd;
@@ -691,6 +691,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
  tcp_close_return:
 	close(fd);
+ tcp_return:
 	if (msg && errlen) {
 		char pn[INET6_ADDRSTRLEN];
 
