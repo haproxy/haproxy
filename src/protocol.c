@@ -60,16 +60,54 @@ int protocol_bind_all(int verbose)
 {
 	struct protocol *proto;
 	struct listener *listener;
+	struct receiver *receiver;
 	char msg[100];
+	char *errmsg;
+	void *handler;
 	int err, lerr;
 
 	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		list_for_each_entry(listener, &proto->listeners, rx.proto_list) {
-			lerr = proto->listen(listener, msg, sizeof(msg));
+		list_for_each_entry(receiver, &proto->listeners, proto_list) {
+			listener = LIST_ELEM(receiver, struct listener *, rx);
+
+			/* FIXME: horrible hack, we don't have a way to register
+			 * a handler when creating the receiver yet, so we still
+			 * have to take care of special cases here.
+			 */
+			handler = listener->rx.proto->accept;
+			if (!handler && listener->bind_conf->frontend->mode == PR_MODE_SYSLOG) {
+				extern void syslog_fd_handler(int);
+				handler = syslog_fd_handler;
+			}
+
+			lerr = proto->bind(receiver, handler, &errmsg);
+			err |= lerr;
 
 			/* errors are reported if <verbose> is set or if they are fatal */
+			if (verbose || (lerr & (ERR_FATAL | ERR_ABORT))) {
+				struct proxy *px = listener->bind_conf->frontend;
+
+				if (lerr & ERR_ALERT)
+					ha_alert("Starting %s %s: %s\n",
+						 proxy_type_str(px), px->id, errmsg);
+				else if (lerr & ERR_WARN)
+					ha_warning("Starting %s %s: %s\n",
+						   proxy_type_str(px), px->id, errmsg);
+				free(errmsg); errmsg = NULL;
+			}
+			if (lerr & ERR_ABORT)
+				break;
+
+			if (lerr & ~ERR_WARN)
+				continue;
+
+			/* for now there's still always a listening function */
+			BUG_ON(!proto->listen);
+			lerr = proto->listen(listener, msg, sizeof(msg));
+			err |= lerr;
+
 			if (verbose || (lerr & (ERR_FATAL | ERR_ABORT))) {
 				struct proxy *px = listener->bind_conf->frontend;
 
@@ -80,8 +118,6 @@ int protocol_bind_all(int verbose)
 					ha_warning("Starting %s %s: %s\n",
 						   proxy_type_str(px), px->id, msg);
 			}
-
-			err |= lerr;
 			if (lerr & ERR_ABORT)
 				break;
 		}
