@@ -10,8 +10,10 @@
  *
  */
 
+#include <fcntl.h>
 #include <ctype.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -23,8 +25,13 @@
 #include <sys/un.h>
 
 #include <haproxy/api.h>
+#include <haproxy/errors.h>
+#include <haproxy/fd.h>
+#include <haproxy/global.h>
 #include <haproxy/listener.h>
+#include <haproxy/receiver-t.h>
 #include <haproxy/namespace.h>
+#include <haproxy/sock.h>
 #include <haproxy/sock_unix.h>
 #include <haproxy/tools.h>
 
@@ -96,4 +103,205 @@ int sock_unix_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_st
 
 	/* OK that's a match */
 	return 0;
+}
+
+/* Binds receiver <rx>, and assigns <handler> and rx-> as the callback and
+ * context, respectively, with <tm> as the thread mask. Returns and error code
+ * made of ERR_* bits on failure or ERR_NONE on success. On failure, an error
+ * message may be passed into <errmsg>.
+ */
+int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char **errmsg)
+{
+	char tempname[MAXPATHLEN];
+	char backname[MAXPATHLEN];
+	struct sockaddr_un addr;
+	const char *path;
+	int maxpathlen;
+	int fd, err, ext, ret;
+
+	/* ensure we never return garbage */
+	if (errmsg)
+		*errmsg = 0;
+
+	err = ERR_NONE;
+
+	if (rx->flags & RX_F_BOUND)
+		return ERR_NONE;
+
+	/* if no FD was assigned yet, we'll have to either find a compatible
+	 * one or create a new one.
+	 */
+	if (rx->fd == -1)
+		rx->fd = sock_find_compatible_fd(rx);
+
+	path = ((struct sockaddr_un *)&rx->addr)->sun_path;
+	maxpathlen = MIN(MAXPATHLEN, sizeof(addr.sun_path));
+
+	/* if the listener already has an fd assigned, then we were offered the
+	 * fd by an external process (most likely the parent), and we don't want
+	 * to create a new socket. However we still want to set a few flags on
+	 * the socket.
+	 */
+	fd = rx->fd;
+	ext = (fd >= 0);
+	if (ext)
+		goto fd_ready;
+
+	if (path[0]) {
+		ret = snprintf(tempname, maxpathlen, "%s.%d.tmp", path, pid);
+		if (ret < 0 || ret >= sizeof(addr.sun_path)) {
+			err |= ERR_FATAL | ERR_ALERT;
+			memprintf(errmsg, "name too long for UNIX socket (limit usually 97)");
+			goto bind_return;
+		}
+
+		ret = snprintf(backname, maxpathlen, "%s.%d.bak", path, pid);
+		if (ret < 0 || ret >= maxpathlen) {
+			err |= ERR_FATAL | ERR_ALERT;
+			memprintf(errmsg, "name too long for UNIX socket (limit usually 97)");
+			goto bind_return;
+		}
+
+		/* 2. clean existing orphaned entries */
+		if (unlink(tempname) < 0 && errno != ENOENT) {
+			err |= ERR_FATAL | ERR_ALERT;
+			memprintf(errmsg, "error when trying to unlink previous UNIX socket");
+			goto bind_return;
+		}
+
+		if (unlink(backname) < 0 && errno != ENOENT) {
+			err |= ERR_FATAL | ERR_ALERT;
+			memprintf(errmsg, "error when trying to unlink previous UNIX socket");
+			goto bind_return;
+		}
+
+		/* 3. backup existing socket */
+		if (link(path, backname) < 0 && errno != ENOENT) {
+			err |= ERR_FATAL | ERR_ALERT;
+			memprintf(errmsg, "error when trying to preserve previous UNIX socket");
+			goto bind_return;
+		}
+
+		/* Note: this test is redundant with the snprintf one above and
+		 * will never trigger, it's just added as the only way to shut
+		 * gcc's painfully dumb warning about possibly truncated output
+		 * during strncpy(). Don't move it above or smart gcc will not
+		 * see it!
+		 */
+		if (strlen(tempname) >= sizeof(addr.sun_path)) {
+			err |= ERR_FATAL | ERR_ALERT;
+			memprintf(errmsg, "name too long for UNIX socket (limit usually 97)");
+			goto bind_return;
+		}
+
+		strncpy(addr.sun_path, tempname, sizeof(addr.sun_path) - 1);
+		addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
+	}
+	else {
+		/* first char is zero, it's an abstract socket whose address
+		 * is defined by all the bytes past this zero.
+		 */
+		memcpy(addr.sun_path, path, sizeof(addr.sun_path));
+	}
+	addr.sun_family = AF_UNIX;
+
+	/* WT: shouldn't we use my_socketat(rx->netns) here instead ? */
+	fd = socket(PF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0) {
+		err |= ERR_FATAL | ERR_ALERT;
+		memprintf(errmsg, "cannot create receiving socket");
+		goto bind_return;
+	}
+
+ fd_ready:
+	if (fd >= global.maxsock) {
+		err |= ERR_FATAL | ERR_ABORT | ERR_ALERT;
+		memprintf(errmsg, "not enough free sockets (raise '-n' parameter)");
+		goto bind_close_return;
+	}
+
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
+		err |= ERR_FATAL | ERR_ALERT;
+		memprintf(errmsg, "cannot make socket non-blocking");
+		goto bind_close_return;
+	}
+
+	if (!ext && bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		/* note that bind() creates the socket <tempname> on the file system */
+		if (errno == EADDRINUSE) {
+			/* the old process might still own it, let's retry */
+			err |= ERR_RETRYABLE | ERR_ALERT;
+			memprintf(errmsg, "cannot bind UNIX socket (already in use)");
+			goto bind_close_return;
+		}
+		else {
+			err |= ERR_FATAL | ERR_ALERT;
+			memprintf(errmsg, "cannot bind UNIX socket");
+			goto bind_close_return;
+		}
+		goto err_unlink_temp;
+	}
+
+	/* <uid> and <gid> different of -1 will be used to change the socket owner.
+	 * If <mode> is not 0, it will be used to restrict access to the socket.
+	 * While it is known not to be portable on every OS, it's still useful
+	 * where it works. We also don't change permissions on abstract sockets.
+	 */
+	if (!ext && path[0] &&
+	    (((rx->settings->ux.uid != -1 || rx->settings->ux.gid != -1) &&
+	      (chown(tempname, rx->settings->ux.uid, rx->settings->ux.gid) == -1)) ||
+	     (rx->settings->ux.mode != 0 && chmod(tempname, rx->settings->ux.mode) == -1))) {
+		err |= ERR_FATAL | ERR_ALERT;
+		memprintf(errmsg, "cannot change UNIX socket ownership");
+		goto err_unlink_temp;
+	}
+
+	/* Point of no return: we are ready, we'll switch the sockets. We don't
+	 * fear losing the socket <path> because we have a copy of it in
+	 * backname. Abstract sockets are not renamed.
+	 */
+	if (!ext && path[0] && rename(tempname, path) < 0) {
+		err |= ERR_FATAL | ERR_ALERT;
+		memprintf(errmsg, "cannot switch final and temporary UNIX sockets");
+		goto err_rename;
+	}
+
+	/* Cleanup: only unlink if we didn't inherit the fd from the parent */
+	if (!ext && path[0])
+		unlink(backname);
+
+	rx->fd = fd;
+	rx->flags |= RX_F_BOUND;
+
+	fd_insert(fd, rx->owner, handler, thread_mask(rx->settings->bind_thread) & all_threads_mask);
+
+	/* for now, all regularly bound TCP listeners are exportable */
+	if (!(rx->flags & RX_F_INHERITED))
+		fdtab[fd].exported = 1;
+
+	return err;
+
+ err_rename:
+	ret = rename(backname, path);
+	if (ret < 0 && errno == ENOENT)
+		unlink(path);
+ err_unlink_temp:
+	if (!ext && path[0])
+		unlink(tempname);
+	close(fd);
+ err_unlink_back:
+	if (!ext && path[0])
+		unlink(backname);
+ bind_return:
+	if (errmsg && *errmsg) {
+		if (!ext)
+			memprintf(errmsg, "%s [%s]", *errmsg, path);
+		else
+			memprintf(errmsg, "%s [fd %d]", *errmsg, fd);
+	}
+	return err;
+
+ bind_close_return:
+	close(fd);
+	goto bind_return;
 }

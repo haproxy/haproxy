@@ -56,6 +56,7 @@ static struct protocol proto_unix = {
 	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),/* path len */
 	.accept = &listener_accept,
 	.connect = &uxst_connect_server,
+	.bind = sock_unix_bind_receiver,
 	.listen = uxst_bind_listener,
 	.enable_all = enable_all_listeners,
 	.disable_all = disable_all_listeners,

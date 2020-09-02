@@ -26,7 +26,9 @@
 #include <sys/types.h>
 
 #include <haproxy/api.h>
+#include <haproxy/receiver-t.h>
 
 int sock_unix_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
+int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char **errmsg);
 
 #endif /* _HAPROXY_SOCK_UNIX_H */
