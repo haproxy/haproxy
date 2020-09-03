@@ -192,7 +192,6 @@ static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, stru
 /* parse the "namespace" bind keyword */
 static int bind_parse_namespace(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
 	char *namespace = NULL;
 
 	if (!*args[cur_arg + 1]) {
@@ -201,16 +200,14 @@ static int bind_parse_namespace(char **args, int cur_arg, struct proxy *px, stru
 	}
 	namespace = args[cur_arg + 1];
 
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		l->netns = netns_store_lookup(namespace, strlen(namespace));
+	conf->settings.netns = netns_store_lookup(namespace, strlen(namespace));
 
-		if (l->netns == NULL)
-			l->netns = netns_store_insert(namespace);
+	if (conf->settings.netns == NULL)
+		conf->settings.netns = netns_store_insert(namespace);
 
-		if (l->netns == NULL) {
-			ha_alert("Cannot open namespace '%s'.\n", args[cur_arg + 1]);
-			return ERR_ALERT | ERR_FATAL;
-		}
+	if (conf->settings.netns == NULL) {
+		ha_alert("Cannot open namespace '%s'.\n", args[cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
 	}
 	return 0;
 }

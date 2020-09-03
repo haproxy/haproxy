@@ -187,6 +187,7 @@ struct bind_conf {
 			mode_t mode;       /* 0 to leave unchanged */
 		} ux;
 		char *interface;           /* interface name or NULL */
+		const struct netns_entry *netns; /* network namespace of the listener*/
 	} settings;                /* all the settings needed for the listening socket */
 };
 
@@ -218,8 +219,6 @@ struct listener {
 	char *name;			/* listener's name */
 
 	__decl_thread(HA_SPINLOCK_T lock);
-
-	const struct netns_entry *netns; /* network namespace of the listener*/
 
 	/* cache line boundary */
 	unsigned int thr_conn[MAX_THREADS]; /* number of connections per thread */

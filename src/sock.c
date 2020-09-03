@@ -388,8 +388,8 @@ int sock_find_compatible_fd(const struct listener *l)
 	if (l->bind_conf->settings.interface)
 		if_namelen = strlen(l->bind_conf->settings.interface);
 #ifdef USE_NS
-	if (l->netns)
-		ns_namelen = l->netns->name_len;
+	if (l->bind_conf->settings.netns)
+		ns_namelen = l->bind_conf->settings.netns->name_len;
 #endif
 
 	while (xfer_sock) {
@@ -398,7 +398,7 @@ int sock_find_compatible_fd(const struct listener *l)
 		    (ns_namelen == xfer_sock->ns_namelen) &&
 		    (!if_namelen || strcmp(l->bind_conf->settings.interface, xfer_sock->iface) == 0) &&
 #ifdef USE_NS
-		    (!ns_namelen || strcmp(l->netns->node.key, xfer_sock->namespace) == 0) &&
+		    (!ns_namelen || strcmp(l->bind_conf->settings.netns->node.key, xfer_sock->namespace) == 0) &&
 #endif
 		    l->proto->addrcmp(&xfer_sock->addr, &l->addr) == 0)
 			break;
