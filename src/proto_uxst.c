@@ -224,9 +224,9 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	 * where it works. We also don't change permissions on abstract sockets.
 	 */
 	if (!ext && path[0] &&
-	    (((listener->bind_conf->ux.uid != -1 || listener->bind_conf->ux.gid != -1) &&
-	      (chown(tempname, listener->bind_conf->ux.uid, listener->bind_conf->ux.gid) == -1)) ||
-	     (listener->bind_conf->ux.mode != 0 && chmod(tempname, listener->bind_conf->ux.mode) == -1))) {
+	    (((listener->bind_conf->settings.ux.uid != -1 || listener->bind_conf->settings.ux.gid != -1) &&
+	      (chown(tempname, listener->bind_conf->settings.ux.uid, listener->bind_conf->settings.ux.gid) == -1)) ||
+	     (listener->bind_conf->settings.ux.mode != 0 && chmod(tempname, listener->bind_conf->settings.ux.mode) == -1))) {
 		err |= ERR_FATAL | ERR_ALERT;
 		msg = "cannot change UNIX socket ownership";
 		goto err_unlink_temp;

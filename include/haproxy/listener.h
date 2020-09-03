@@ -150,9 +150,9 @@ static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *fi
 	if (arg)
 		bind_conf->arg = strdup(arg);
 
-	bind_conf->ux.uid = -1;
-	bind_conf->ux.gid = -1;
-	bind_conf->ux.mode = 0;
+	bind_conf->settings.ux.uid = -1;
+	bind_conf->settings.ux.gid = -1;
+	bind_conf->settings.ux.mode = 0;
 	bind_conf->xprt = xprt;
 	bind_conf->frontend = fe;
 	bind_conf->severity_output = CLI_SEVERITY_NONE;

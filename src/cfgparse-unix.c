@@ -43,7 +43,7 @@ static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct bi
 {
 	char *endptr;
 
-	conf->ux.mode = strtol(args[cur_arg + 1], &endptr, 8);
+	conf->settings.ux.mode = strtol(args[cur_arg + 1], &endptr, 8);
 
 	if (!*args[cur_arg + 1] || *endptr) {
 		memprintf(err, "'%s' : missing or invalid mode '%s' (octal integer expected)", args[cur_arg], args[cur_arg + 1]);
@@ -61,7 +61,7 @@ static int bind_parse_gid(char **args, int cur_arg, struct proxy *px, struct bin
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	conf->ux.gid = atol(args[cur_arg + 1]);
+	conf->settings.ux.gid = atol(args[cur_arg + 1]);
 	return 0;
 }
 
@@ -81,7 +81,7 @@ static int bind_parse_group(char **args, int cur_arg, struct proxy *px, struct b
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	conf->ux.gid = group->gr_gid;
+	conf->settings.ux.gid = group->gr_gid;
 	return 0;
 }
 
@@ -93,7 +93,7 @@ static int bind_parse_uid(char **args, int cur_arg, struct proxy *px, struct bin
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	conf->ux.uid = atol(args[cur_arg + 1]);
+	conf->settings.ux.uid = atol(args[cur_arg + 1]);
 	return 0;
 }
 
@@ -113,7 +113,7 @@ static int bind_parse_user(char **args, int cur_arg, struct proxy *px, struct bi
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	conf->ux.uid = user->pw_uid;
+	conf->settings.ux.uid = user->pw_uid;
 	return 0;
 }
 
