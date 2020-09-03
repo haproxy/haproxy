@@ -3464,7 +3464,7 @@ int main(int argc, char **argv)
 
 			list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
 				if (bind_conf->level & ACCESS_FD_LISTENERS) {
-					if (!bind_conf->bind_proc || bind_conf->bind_proc & (1UL << proc)) {
+					if (!bind_conf->settings.bind_proc || bind_conf->settings.bind_proc & (1UL << proc)) {
 						global.tune.options |= GTUNE_SOCKET_TRANSFER;
 						break;
 					}

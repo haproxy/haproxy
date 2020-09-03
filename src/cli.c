@@ -1270,10 +1270,10 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 						else
 							chunk_appendf(&trash, "  ");
 
-						if (bind_conf->bind_proc != 0) {
+						if (bind_conf->settings.bind_proc != 0) {
 							int pos;
-							for (pos = 0; pos < 8 * sizeof(bind_conf->bind_proc); pos++) {
-								if (bind_conf->bind_proc & (1UL << pos)) {
+							for (pos = 0; pos < 8 * sizeof(bind_conf->settings.bind_proc); pos++) {
+								if (bind_conf->settings.bind_proc & (1UL << pos)) {
 									chunk_appendf(&trash, "%d,", pos+1);
 								}
 							}
@@ -2650,7 +2650,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	bind_conf->level &= ~ACCESS_LVL_MASK;
 	bind_conf->level |= ACCESS_LVL_ADMIN; /* TODO: need to lower the rights with a CLI keyword*/
 
-	bind_conf->bind_proc = 1UL << proc;
+	bind_conf->settings.bind_proc = 1UL << proc;
 	global.stats_fe->bind_proc = 0; /* XXX: we should be careful with that, it can be removed by configuration */
 
 	if (!memprintf(&path, "sockpair@%d", mworker_proc->ipc_fd[1])) {

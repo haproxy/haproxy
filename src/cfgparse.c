@@ -2323,7 +2323,7 @@ int check_config_validity()
 #endif
 
 			/* detect and address thread affinity inconsistencies */
-			mask = thread_mask(bind_conf->bind_thread);
+			mask = thread_mask(bind_conf->settings.bind_thread);
 			if (!(mask & all_threads_mask)) {
 				unsigned long new_mask = 0;
 
@@ -2332,27 +2332,27 @@ int check_config_validity()
 					mask >>= global.nbthread;
 				}
 
-				bind_conf->bind_thread = new_mask;
+				bind_conf->settings.bind_thread = new_mask;
 				ha_warning("Proxy '%s': the thread range specified on the 'process' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range defined by the global 'nbthread' directive. The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
 					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line, new_mask);
 			}
 
 			/* detect process and nbproc affinity inconsistencies */
-			mask = proc_mask(bind_conf->bind_proc) & proc_mask(curproxy->bind_proc);
+			mask = proc_mask(bind_conf->settings.bind_proc) & proc_mask(curproxy->bind_proc);
 			if (!(mask & all_proc_mask)) {
 				mask = proc_mask(curproxy->bind_proc) & all_proc_mask;
-				nbproc = my_popcountl(bind_conf->bind_proc);
-				bind_conf->bind_proc = proc_mask(bind_conf->bind_proc) & mask;
+				nbproc = my_popcountl(bind_conf->settings.bind_proc);
+				bind_conf->settings.bind_proc = proc_mask(bind_conf->settings.bind_proc) & mask;
 
-				if (!bind_conf->bind_proc && nbproc == 1) {
+				if (!bind_conf->settings.bind_proc && nbproc == 1) {
 					ha_warning("Proxy '%s': the process number specified on the 'process' directive of 'bind %s' at [%s:%d] refers to a process not covered by the proxy. This has been fixed by forcing it to run on the proxy's first process only.\n",
 						   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-					bind_conf->bind_proc = mask & ~(mask - 1);
+					bind_conf->settings.bind_proc = mask & ~(mask - 1);
 				}
-				else if (!bind_conf->bind_proc && nbproc > 1) {
+				else if (!bind_conf->settings.bind_proc && nbproc > 1) {
 					ha_warning("Proxy '%s': the process range specified on the 'process' directive of 'bind %s' at [%s:%d] only refers to processes not covered by the proxy. The directive was ignored so that all of the proxy's processes are used.\n",
 						   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-					bind_conf->bind_proc = 0;
+					bind_conf->settings.bind_proc = 0;
 				}
 			}
 		}
@@ -3641,7 +3641,7 @@ out_uri_auth_compat:
 			unsigned long mask;
 
 			mask  = proc_mask(global.stats_fe->bind_proc) && all_proc_mask;
-			mask &= proc_mask(bind_conf->bind_proc);
+			mask &= proc_mask(bind_conf->settings.bind_proc);
 
 			/* stop here if more than one process is used */
 			if (atleast2(mask))
@@ -3660,7 +3660,7 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			unsigned long mask;
 
-			mask = proc_mask(bind_conf->bind_proc);
+			mask = proc_mask(bind_conf->settings.bind_proc);
 			curproxy->bind_proc |= mask;
 		}
 		curproxy->bind_proc = proc_mask(curproxy->bind_proc);
@@ -3670,7 +3670,7 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
 			unsigned long mask;
 
-			mask = bind_conf->bind_proc ? bind_conf->bind_proc : 0;
+			mask = bind_conf->settings.bind_proc ? bind_conf->settings.bind_proc : 0;
 			global.stats_fe->bind_proc |= mask;
 		}
 		global.stats_fe->bind_proc = proc_mask(global.stats_fe->bind_proc);
@@ -3716,7 +3716,7 @@ out_uri_auth_compat:
 			int nbproc;
 
 			nbproc = my_popcountl(curproxy->bind_proc &
-			                      (listener->bind_conf->bind_proc ? listener->bind_conf->bind_proc : curproxy->bind_proc) &
+			                      (listener->bind_conf->settings.bind_proc ? listener->bind_conf->settings.bind_proc : curproxy->bind_proc) &
 			                      all_proc_mask);
 
 			if (!nbproc) /* no intersection between listener and frontend */
@@ -3787,7 +3787,7 @@ out_uri_auth_compat:
 				int count, maxproc = 0;
 
 				list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-					count = my_popcountl(bind_conf->bind_proc);
+					count = my_popcountl(bind_conf->settings.bind_proc);
 					if (count > maxproc)
 						maxproc = count;
 				}

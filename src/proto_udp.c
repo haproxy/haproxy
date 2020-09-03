@@ -279,7 +279,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	if (listener->bind_conf->frontend->mode == PR_MODE_SYSLOG)
 		fd_insert(fd, listener, syslog_fd_handler,
-		          thread_mask(listener->bind_conf->bind_thread) & all_threads_mask);
+		          thread_mask(listener->bind_conf->settings.bind_thread) & all_threads_mask);
 	else {
 		err |= ERR_FATAL | ERR_ALERT;
 		msg = "UDP is not yet supported on this proxy mode";

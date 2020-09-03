@@ -173,14 +173,14 @@ struct bind_conf {
 	int level;                 /* stats access level (ACCESS_LVL_*) */
 	int severity_output;       /* default severity output format in cli feedback messages */
 	struct list listeners;     /* list of listeners using this bind config */
-	unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
-	unsigned long bind_thread; /* bitmask of threads allowed to use these listeners */
 	uint32_t ns_cip_magic;     /* Excepted NetScaler Client IP magic number */
 	struct list by_fe;         /* next binding for the same frontend, or NULL */
 	char *arg;                 /* argument passed to "bind" for better error reporting */
 	char *file;                /* file where the section appears */
 	int line;                  /* line where the section appears */
 	struct {
+		unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
+		unsigned long bind_thread; /* bitmask of threads allowed to use these listeners */
 		struct {                   /* UNIX socket permissions */
 			uid_t uid;         /* -1 to leave unchanged */
 			gid_t gid;         /* -1 to leave unchanged */

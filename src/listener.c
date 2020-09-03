@@ -235,7 +235,7 @@ static void enable_listener(struct listener *listener)
 	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state == LI_LISTEN) {
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
-		    !(proc_mask(listener->bind_conf->bind_proc) & pid_bit)) {
+		    !(proc_mask(listener->bind_conf->settings.bind_proc) & pid_bit)) {
 			/* we don't want to enable this listener and don't
 			 * want any fd event to reach it.
 			 */
@@ -342,7 +342,7 @@ int resume_listener(struct listener *l)
 		goto end;
 
 	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
-	    !(proc_mask(l->bind_conf->bind_proc) & pid_bit))
+	    !(proc_mask(l->bind_conf->settings.bind_proc) & pid_bit))
 		goto end;
 
 	if (l->state == LI_ASSIGNED) {
@@ -383,11 +383,11 @@ int resume_listener(struct listener *l)
 		goto end;
 	}
 
-	if (!(thread_mask(l->bind_conf->bind_thread) & tid_bit)) {
+	if (!(thread_mask(l->bind_conf->settings.bind_thread) & tid_bit)) {
 		/* we're not allowed to touch this listener's FD, let's requeue
 		 * the listener into one of its owning thread's queue instead.
 		 */
-		int first_thread = my_flsl(thread_mask(l->bind_conf->bind_thread) & all_threads_mask) - 1;
+		int first_thread = my_flsl(thread_mask(l->bind_conf->settings.bind_thread) & all_threads_mask) - 1;
 		work_list_add(&local_listener_queue[first_thread], &l->wait_queue);
 		goto end;
 	}
@@ -874,7 +874,7 @@ void listener_accept(int fd)
 		next_actconn = 0;
 
 #if defined(USE_THREAD)
-		mask = thread_mask(l->bind_conf->bind_thread) & all_threads_mask;
+		mask = thread_mask(l->bind_conf->settings.bind_thread) & all_threads_mask;
 		if (atleast2(mask) && (global.tune.options & GTUNE_LISTENER_MQ) && !stopping) {
 			struct accept_queue_ring *ring;
 			unsigned int t, t0, t1, t2;
@@ -1472,8 +1472,8 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 		*slash = '/';
 	}
 
-	conf->bind_proc |= proc;
-	conf->bind_thread |= thread;
+	conf->settings.bind_proc |= proc;
+	conf->settings.bind_thread |= thread;
 	return 0;
 }
 
