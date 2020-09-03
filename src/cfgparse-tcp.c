@@ -178,18 +178,12 @@ static int bind_parse_tcp_ut(char **args, int cur_arg, struct proxy *px, struct 
 /* parse the "interface" bind keyword */
 static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
-
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing interface name", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6)
-			l->interface = strdup(args[cur_arg + 1]);
-	}
-
+	conf->settings.interface = strdup(args[cur_arg + 1]);
 	return 0;
 }
 #endif

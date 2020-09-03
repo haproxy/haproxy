@@ -186,6 +186,7 @@ struct bind_conf {
 			gid_t gid;         /* -1 to leave unchanged */
 			mode_t mode;       /* 0 to leave unchanged */
 		} ux;
+		char *interface;           /* interface name or NULL */
 	} settings;                /* all the settings needed for the listening socket */
 };
 
@@ -214,7 +215,6 @@ struct listener {
 	unsigned int analysers;		/* bitmap of required protocol analysers */
 	int maxseg;			/* for TCP, advertised MSS */
 	int tcp_ut;                     /* for TCP, user timeout */
-	char *interface;		/* interface name or NULL */
 	char *name;			/* listener's name */
 
 	__decl_thread(HA_SPINLOCK_T lock);
