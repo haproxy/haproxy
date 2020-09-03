@@ -137,7 +137,7 @@ int smp_fetch_dst_is_local(const struct arg *args, struct sample *smp, const cha
 
 	smp->data.type = SMP_T_BOOL;
 	smp->flags = 0;
-	smp->data.u.sint = addr_is_local(li->bind_conf->settings.netns, conn->dst);
+	smp->data.u.sint = addr_is_local(li->rx.settings->netns, conn->dst);
 	return smp->data.u.sint >= 0;
 }
 
@@ -157,7 +157,7 @@ int smp_fetch_src_is_local(const struct arg *args, struct sample *smp, const cha
 
 	smp->data.type = SMP_T_BOOL;
 	smp->flags = 0;
-	smp->data.u.sint = addr_is_local(li->bind_conf->settings.netns, conn->src);
+	smp->data.u.sint = addr_is_local(li->rx.settings->netns, conn->src);
 	return smp->data.u.sint >= 0;
 }
 

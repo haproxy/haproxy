@@ -126,7 +126,7 @@ static int sockpair_bind_listener(struct listener *listener, char *errmsg, int e
 	listener->state = LI_LISTEN;
 
 	fd_insert(fd, listener, listener->rx.proto->accept,
-	          thread_mask(listener->bind_conf->settings.bind_thread) & all_threads_mask);
+	          thread_mask(listener->rx.settings->bind_thread) & all_threads_mask);
 
 	return err;
 

@@ -200,7 +200,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	 * IPPROTO (sockaddr is not enough)
 	 */
 
-	fd = my_socketat(listener->bind_conf->settings.netns,
+	fd = my_socketat(listener->rx.settings->netns,
 	                 listener->rx.proto->sock_family,
 	                 listener->rx.proto->sock_type,
 	                 listener->rx.proto->sock_prot);
@@ -255,10 +255,10 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 #ifdef SO_BINDTODEVICE
 	/* Note: this might fail if not CAP_NET_RAW */
-	if (listener->bind_conf->settings.interface) {
+	if (listener->rx.settings->interface) {
 		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
-		               listener->bind_conf->settings.interface,
-		               strlen(listener->bind_conf->settings.interface) + 1) == -1) {
+		               listener->rx.settings->interface,
+		               strlen(listener->rx.settings->interface) + 1) == -1) {
 			msg = "cannot bind listener to device";
 			err |= ERR_WARN;
 		}
@@ -283,7 +283,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	if (listener->bind_conf->frontend->mode == PR_MODE_SYSLOG)
 		fd_insert(fd, listener, syslog_fd_handler,
-		          thread_mask(listener->bind_conf->settings.bind_thread) & all_threads_mask);
+		          thread_mask(listener->rx.settings->bind_thread) & all_threads_mask);
 	else {
 		err |= ERR_FATAL | ERR_ALERT;
 		msg = "UDP is not yet supported on this proxy mode";

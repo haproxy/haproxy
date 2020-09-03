@@ -1710,15 +1710,15 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 		if (fdtab[cur_fd].iocb == listener_accept) {
 			const struct listener *l = fdtab[cur_fd].owner;
 
-			if (l->bind_conf->settings.interface) {
-				if_name = l->bind_conf->settings.interface;
+			if (l->rx.settings->interface) {
+				if_name = l->rx.settings->interface;
 				if_nlen = strlen(if_name);
 			}
 
 #ifdef USE_NS
-			if (l->bind_conf->settings.netns) {
-				ns_name = l->bind_conf->settings.netns->node.key;
-				ns_nlen = l->bind_conf->settings.netns->name_len;
+			if (l->rx.settings->netns) {
+				ns_name = l->rx.settings->netns->node.key;
+				ns_nlen = l->rx.settings->netns->name_len;
 			}
 #endif
 		}

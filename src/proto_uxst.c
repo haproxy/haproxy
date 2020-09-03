@@ -223,9 +223,9 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	 * where it works. We also don't change permissions on abstract sockets.
 	 */
 	if (!ext && path[0] &&
-	    (((listener->bind_conf->settings.ux.uid != -1 || listener->bind_conf->settings.ux.gid != -1) &&
-	      (chown(tempname, listener->bind_conf->settings.ux.uid, listener->bind_conf->settings.ux.gid) == -1)) ||
-	     (listener->bind_conf->settings.ux.mode != 0 && chmod(tempname, listener->bind_conf->settings.ux.mode) == -1))) {
+	    (((listener->rx.settings->ux.uid != -1 || listener->rx.settings->ux.gid != -1) &&
+	      (chown(tempname, listener->rx.settings->ux.uid, listener->rx.settings->ux.gid) == -1)) ||
+	     (listener->rx.settings->ux.mode != 0 && chmod(tempname, listener->rx.settings->ux.mode) == -1))) {
 		err |= ERR_FATAL | ERR_ALERT;
 		msg = "cannot change UNIX socket ownership";
 		goto err_unlink_temp;
@@ -262,7 +262,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	listener->state = LI_LISTEN;
 
 	fd_insert(fd, listener, listener->rx.proto->accept,
-	          thread_mask(listener->bind_conf->settings.bind_thread) & all_threads_mask);
+	          thread_mask(listener->rx.settings->bind_thread) & all_threads_mask);
 
 	/* for now, all regularly bound UNIX listeners are exportable */
 	if (!(listener->options & LI_O_INHERITED))

@@ -382,20 +382,20 @@ int sock_find_compatible_fd(const struct listener *l)
 			options |= SOCK_XFER_OPT_V6ONLY;
 	}
 
-	if (l->bind_conf->settings.interface)
-		if_namelen = strlen(l->bind_conf->settings.interface);
+	if (l->rx.settings->interface)
+		if_namelen = strlen(l->rx.settings->interface);
 #ifdef USE_NS
-	if (l->bind_conf->settings.netns)
-		ns_namelen = l->bind_conf->settings.netns->name_len;
+	if (l->rx.settings->netns)
+		ns_namelen = l->rx.settings->netns->name_len;
 #endif
 
 	while (xfer_sock) {
 		if ((options == xfer_sock->options) &&
 		    (if_namelen == xfer_sock->if_namelen) &&
 		    (ns_namelen == xfer_sock->ns_namelen) &&
-		    (!if_namelen || strcmp(l->bind_conf->settings.interface, xfer_sock->iface) == 0) &&
+		    (!if_namelen || strcmp(l->rx.settings->interface, xfer_sock->iface) == 0) &&
 #ifdef USE_NS
-		    (!ns_namelen || strcmp(l->bind_conf->settings.netns->node.key, xfer_sock->namespace) == 0) &&
+		    (!ns_namelen || strcmp(l->rx.settings->netns->node.key, xfer_sock->namespace) == 0) &&
 #endif
 		    l->rx.proto->addrcmp(&xfer_sock->addr, &l->rx.addr) == 0)
 			break;

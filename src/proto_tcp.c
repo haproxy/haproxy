@@ -581,7 +581,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	ext = (fd >= 0);
 
 	if (!ext) {
-		fd = my_socketat(listener->bind_conf->settings.netns, listener->rx.addr.ss_family, SOCK_STREAM, IPPROTO_TCP);
+		fd = my_socketat(listener->rx.settings->netns, listener->rx.addr.ss_family, SOCK_STREAM, IPPROTO_TCP);
 
 		if (fd == -1) {
 			err |= ERR_RETRYABLE | ERR_ALERT;
@@ -649,10 +649,10 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 #ifdef SO_BINDTODEVICE
 	/* Note: this might fail if not CAP_NET_RAW */
-	if (!ext && listener->bind_conf->settings.interface) {
+	if (!ext && listener->rx.settings->interface) {
 		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
-		               listener->bind_conf->settings.interface,
-		               strlen(listener->bind_conf->settings.interface) + 1) == -1) {
+		               listener->rx.settings->interface,
+		               strlen(listener->rx.settings->interface) + 1) == -1) {
 			msg = "cannot bind listener to device";
 			err |= ERR_WARN;
 		}
@@ -769,7 +769,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	listener->state = LI_LISTEN;
 
 	fd_insert(fd, listener, listener->rx.proto->accept,
-	          thread_mask(listener->bind_conf->settings.bind_thread) & all_threads_mask);
+	          thread_mask(listener->rx.settings->bind_thread) & all_threads_mask);
 
 	/* for now, all regularly bound TCP listeners are exportable */
 	if (!(listener->options & LI_O_INHERITED))
