@@ -47,6 +47,7 @@ struct receiver {
 	int fd;                          /* handle we receive from (fd only for now) */
 	unsigned int flags;              /* receiver options (RX_F_*) */
 	struct protocol *proto;          /* protocol this receiver belongs to */
+	struct rx_settings *settings;    /* points to the settings used by this receiver */
 	struct list proto_list;          /* list in the protocol header */
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;    /* the address the socket is bound to */
