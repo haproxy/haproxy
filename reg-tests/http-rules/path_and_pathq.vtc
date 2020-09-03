@@ -1,0 +1,64 @@
+varnishtest "path vs pathq tests"
+#REQUIRE_VERSION=2.2
+
+# This config tests various http request rules (set/replace) manipulating the
+# path, with or without the query-string. It also test path and pathq sample
+# fetches.
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.url          == /regtest/foo/fe/req1/bar?param1=val1&param2=val2
+    expect req.http.x-path  == /req1
+    expect req.http.x-pathq == /req1?param1=val1&param2=val2
+    expect req.http.x-query == param1=val1&param2=val2
+    expect req.http.x-url   == /req1?param1=val1&param2=val2
+    txresp
+
+    rxreq
+    expect req.url          == http://127.0.0.1/regtest/foo/fe/req2/bar?param1=val1&param2=val2
+    expect req.http.x-path  == /req2
+    expect req.http.x-pathq == /req2?param1=val1&param2=val2
+    expect req.http.x-query == param1=val1&param2=val2
+    expect req.http.x-url   == http://127.0.0.1/req2?param1=val1&param2=val2
+    txresp
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe
+        bind "fd@${fe}"
+
+        http-request add-header x-path  %[path]
+        http-request add-header x-pathq %[pathq]
+        http-request add-header x-query %[query]
+        http-request add-header x-url   %[url]
+
+        http-request set-path /fe%[path]
+        http-request replace-path (.*) /foo\1
+        http-request replace-path (.*) \1/bar
+	http-request set-pathq %[path]?app=regtest&%[query]
+	http-request replace-pathq /([^?]*)\?app=([^&]*)&?(.*) /\2/\1?\3
+
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -req GET -url /req1?param1=val1&param2=val2
+    rxresp
+    expect resp.status == 200
+
+    txreq -req GET -url http://127.0.0.1/req2?param1=val1&param2=val2
+    rxresp
+    expect resp.status == 200
+} -run
