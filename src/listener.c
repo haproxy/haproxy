@@ -564,6 +564,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		LIST_ADDQ(&bc->listeners, &l->by_bind);
 		l->bind_conf = bc;
 		l->rx.settings = &bc->settings;
+		l->rx.owner = l;
 		l->rx.fd = fd;
 		memcpy(&l->rx.addr, ss, sizeof(*ss));
 		MT_LIST_INIT(&l->wait_queue);
