@@ -45,9 +45,22 @@ static void sockpair_add_listener(struct listener *listener, int port);
 static int sockpair_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int sockpair_connect_server(struct connection *conn, int flags);
 
+struct proto_fam proto_fam_sockpair = {
+	.name = "sockpair",
+	.sock_domain = AF_CUST_SOCKPAIR,
+	.sock_family = AF_UNIX,
+	.sock_addrlen = sizeof(struct sockaddr_un),
+	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),
+	.addrcmp = NULL,
+	.bind = sockpair_bind_receiver,
+	.get_src = NULL,
+	.get_dst = NULL,
+};
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_sockpair = {
 	.name = "sockpair",
+	.fam = &proto_fam_sockpair,
 	.sock_domain = AF_CUST_SOCKPAIR,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = 0,

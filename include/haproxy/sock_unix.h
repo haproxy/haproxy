@@ -28,6 +28,8 @@
 #include <haproxy/api.h>
 #include <haproxy/receiver-t.h>
 
+extern struct proto_fam proto_fam_unix;
+
 int sock_unix_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char **errmsg);
 

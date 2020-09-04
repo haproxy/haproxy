@@ -58,6 +58,21 @@ struct connection;
 #define CONNECT_DELACK_ALWAYS                   0x00000004 /* Use a delayed ACK */
 #define CONNECT_CAN_USE_TFO                     0x00000008 /* We can use TFO for this connection */
 
+/* protocol families define standard functions acting on a given address family
+ * for a socket implementation, such as AF_INET/PF_INET for example.
+ */
+struct proto_fam {
+	char name[PROTO_NAME_LEN];                      /* family name, zero-terminated */
+	int sock_domain;				/* socket domain, as passed to socket()   */
+	sa_family_t sock_family;			/* socket family, for sockaddr */
+	socklen_t sock_addrlen;				/* socket address length, used by bind() */
+	int l3_addrlen;					/* layer3 address length, used by hashes */
+	int (*addrcmp)(const struct sockaddr_storage *, const struct sockaddr_storage *); /* compare addresses (like memcmp) */
+	int (*bind)(struct receiver *rx, void (*handler)(int fd), char **errmsg); /* bind a receiver */
+	int (*get_src)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve src addr */
+	int (*get_dst)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve dst addr */
+};
+
 /* This structure contains all information needed to easily handle a protocol.
  * Its primary goal is to ease listeners maintenance. Specifically, the
  * bind() primitive must be used before any fork(), and the enable_all()
@@ -65,6 +80,7 @@ struct connection;
  */
 struct protocol {
 	char name[PROTO_NAME_LEN];			/* protocol name, zero-terminated */
+	struct proto_fam *fam;                          /* protocol family */
 	int sock_domain;				/* socket domain, as passed to socket()   */
 	int sock_type;					/* socket type, as passed to socket()     */
 	int sock_prot;					/* socket protocol, as passed to socket() */

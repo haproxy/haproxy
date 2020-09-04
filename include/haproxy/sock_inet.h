@@ -31,6 +31,9 @@ extern int sock_inet6_v6only_default;
 extern int sock_inet_tcp_maxseg_default;
 extern int sock_inet6_tcp_maxseg_default;
 
+extern struct proto_fam proto_fam_inet4;
+extern struct proto_fam proto_fam_inet6;
+
 int sock_inet4_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 int sock_inet6_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 int sock_inet_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);

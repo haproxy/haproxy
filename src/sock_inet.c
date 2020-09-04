@@ -31,6 +31,29 @@
 #include <haproxy/sock_inet.h>
 #include <haproxy/tools.h>
 
+struct proto_fam proto_fam_inet4 = {
+	.name = "inet4",
+	.sock_domain = PF_INET,
+	.sock_family = AF_INET,
+	.sock_addrlen = sizeof(struct sockaddr_in),
+	.l3_addrlen = 32/8,
+	.addrcmp = sock_inet4_addrcmp,
+	.bind = sock_inet_bind_receiver,
+	.get_src = sock_get_src,
+	.get_dst = sock_inet_get_dst,
+};
+
+struct proto_fam proto_fam_inet6 = {
+	.name = "inet6",
+	.sock_domain = PF_INET6,
+	.sock_family = AF_INET6,
+	.sock_addrlen = sizeof(struct sockaddr_in6),
+	.l3_addrlen = 128/8,
+	.addrcmp = sock_inet6_addrcmp,
+	.bind = sock_inet_bind_receiver,
+	.get_src = sock_get_src,
+	.get_dst = sock_get_dst,
+};
 
 /* PLEASE NOTE for function below:
  *   - sock_inet4_* is solely for AF_INET (IPv4)
