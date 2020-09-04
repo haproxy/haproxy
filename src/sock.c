@@ -363,7 +363,7 @@ int sock_find_compatible_fd(const struct receiver *rx)
 	int ns_namelen = 0;
 	int ret = -1;
 
-	if (!rx->proto->addrcmp)
+	if (!rx->proto->fam->addrcmp)
 		return -1;
 
 	if (rx->proto->sock_type == SOCK_DGRAM)
@@ -397,7 +397,7 @@ int sock_find_compatible_fd(const struct receiver *rx)
 #ifdef USE_NS
 		    (!ns_namelen || strcmp(rx->settings->netns->node.key, xfer_sock->namespace) == 0) &&
 #endif
-		    rx->proto->addrcmp(&xfer_sock->addr, &rx->addr) == 0)
+		    rx->proto->fam->addrcmp(&xfer_sock->addr, &rx->addr) == 0)
 			break;
 		xfer_sock = xfer_sock->next;
 	}

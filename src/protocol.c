@@ -82,7 +82,7 @@ int protocol_bind_all(int verbose)
 				handler = syslog_fd_handler;
 			}
 
-			lerr = proto->bind(receiver, handler, &errmsg);
+			lerr = proto->fam->bind(receiver, handler, &errmsg);
 			err |= lerr;
 
 			/* errors are reported if <verbose> is set or if they are fatal */

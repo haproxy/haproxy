@@ -534,13 +534,13 @@ static inline int conn_get_src(struct connection *conn)
 	if (conn->flags & CO_FL_ADDR_FROM_SET)
 		return 1;
 
-	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_src)
+	if (!conn_ctrl_ready(conn) || !conn->ctrl->fam->get_src)
 		return 0;
 
 	if (!sockaddr_alloc(&conn->src))
 		return 0;
 
-	if (conn->ctrl->get_src(conn->handle.fd, (struct sockaddr *)conn->src,
+	if (conn->ctrl->fam->get_src(conn->handle.fd, (struct sockaddr *)conn->src,
 	                        sizeof(*conn->src),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return 0;
@@ -557,13 +557,13 @@ static inline int conn_get_dst(struct connection *conn)
 	if (conn->flags & CO_FL_ADDR_TO_SET)
 		return 1;
 
-	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_dst)
+	if (!conn_ctrl_ready(conn) || !conn->ctrl->fam->get_dst)
 		return 0;
 
 	if (!sockaddr_alloc(&conn->dst))
 		return 0;
 
-	if (conn->ctrl->get_dst(conn->handle.fd, (struct sockaddr *)conn->dst,
+	if (conn->ctrl->fam->get_dst(conn->handle.fd, (struct sockaddr *)conn->dst,
 	                        sizeof(*conn->dst),
 	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return 0;

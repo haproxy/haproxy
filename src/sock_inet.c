@@ -263,7 +263,7 @@ int sock_inet_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 	struct sockaddr_storage addr_inet = rx->addr;
 
 	/* force to classic sock family, not AF_CUST_* */
-	addr_inet.ss_family = rx->proto->sock_family;
+	addr_inet.ss_family = rx->proto->fam->sock_family;
 
 	/* ensure we never return garbage */
 	if (errmsg)
@@ -289,7 +289,7 @@ int sock_inet_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 	ext = (fd >= 0);
 
 	if (!ext) {
-		fd = my_socketat(rx->settings->netns, rx->proto->sock_family,
+		fd = my_socketat(rx->settings->netns, rx->proto->fam->sock_domain,
 		                 rx->proto->sock_type, rx->proto->sock_prot);
 		if (fd == -1) {
 			err |= ERR_RETRYABLE | ERR_ALERT;
@@ -367,7 +367,7 @@ int sock_inet_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 	}
 #endif
 
-	if (!ext && bind(fd, (struct sockaddr *)&addr_inet, rx->proto->sock_addrlen) == -1) {
+	if (!ext && bind(fd, (struct sockaddr *)&addr_inet, rx->proto->fam->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		memprintf(errmsg, "cannot bind socket");
 		goto bind_close_return;
