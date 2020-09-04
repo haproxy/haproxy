@@ -924,16 +924,22 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_UNSPEC;
 		is_udp = 1;
 	}
+	else if (strncmp(str2, "fd@", 3) == 0) {
+		str2 += 3;
+		ss.ss_family = AF_CUST_EXISTING_FD;
+	}
+	else if (strncmp(str2, "sockpair@", 9) == 0) {
+		str2 += 9;
+		ss.ss_family = AF_CUST_SOCKPAIR;
+	}
 	else if (*str2 == '/') {
 		ss.ss_family = AF_UNIX;
 	}
 	else
 		ss.ss_family = AF_UNSPEC;
 
-	if (ss.ss_family == AF_UNSPEC && strncmp(str2, "sockpair@", 9) == 0) {
+	if (ss.ss_family == AF_CUST_SOCKPAIR) {
 		char *endptr;
-
-		str2 += 9;
 
 		((struct sockaddr_in *)&ss)->sin_addr.s_addr = strtol(str2, &endptr, 10);
 		((struct sockaddr_in *)&ss)->sin_port = 0;
@@ -942,14 +948,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
 			goto out;
 		}
-
-		ss.ss_family = AF_CUST_SOCKPAIR;
-
 	}
-	else if (ss.ss_family == AF_UNSPEC && strncmp(str2, "fd@", 3) == 0) {
+	else if (ss.ss_family == AF_CUST_EXISTING_FD) {
 		char *endptr;
 
-		str2 += 3;
 		((struct sockaddr_in *)&ss)->sin_addr.s_addr = strtol(str2, &endptr, 10);
 		((struct sockaddr_in *)&ss)->sin_port = 0;
 
@@ -957,9 +959,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
 			goto out;
 		}
-
-		/* we return AF_CUST_EXISTING_FD if we use a file descriptor number */
-		ss.ss_family = AF_CUST_EXISTING_FD;
 	}
 	else if (ss.ss_family == AF_UNIX) {
 		struct sockaddr_un *un = (struct sockaddr_un *)&ss;
