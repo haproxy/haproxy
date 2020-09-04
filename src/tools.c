@@ -855,16 +855,16 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
  *     that the caller will have to free(),
  *   - NULL if there was an explicit address that doesn't require resolution.
  *
- * Hostnames are only resolved if <resolve> is non-null. Note that if <resolve>
- * is null, <fqdn> is still honnored so it is possible for the caller to know
- * whether a resolution failed by setting <resolve> to null and checking if
- * <fqdn> was filled, indicating the need for a resolution.
+ * Hostnames are only resolved if <opts> has PA_O_RESOLVE. Otherwise <fqdn> is
+ * still honored so it is possible for the caller to know whether a resolution
+ * failed by clearing this flag and checking if <fqdn> was filled, indicating
+ * the need for a resolution.
  *
  * When a file descriptor is passed, its value is put into the s_addr part of
  * the address when cast to sockaddr_in and the address family is
  * AF_CUST_EXISTING_FD.
  */
-struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, char **err, const char *pfx, char **fqdn, int resolve)
+struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, char **err, const char *pfx, char **fqdn, unsigned int opts)
 {
 	static THREAD_LOCAL struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
@@ -1036,11 +1036,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		/* first try to parse the IP without resolving. If it fails, it
 		 * tells us we need to keep a copy of the FQDN to resolve later
 		 * and to enable DNS. In this case we can proceed if <fqdn> is
-		 * set or if resolve is set, otherwise it's an error.
+		 * set or if PA_O_RESOLVE is set, otherwise it's an error.
 		 */
 		if (str2ip2(str2, &ss, 0) == NULL) {
-			if ((!resolve && !fqdn) ||
-				 (resolve && str2ip2(str2, &ss, 1) == NULL)) {
+			if ((!(opts & PA_O_RESOLVE) && !fqdn) ||
+			    ((opts & PA_O_RESOLVE) && str2ip2(str2, &ss, 1) == NULL)) {
 				memprintf(err, "invalid address: '%s' in '%s'\n", str2, str);
 				goto out;
 			}

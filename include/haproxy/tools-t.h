@@ -85,6 +85,9 @@
 #define HOUR (60 * MINUTE)
 #define DAY (24 * HOUR)
 
+/* Address parsing options for use with str2sa_range() */
+#define PA_O_RESOLVE            0x00000001   /* do resolve the FQDN to an IP address */
+
 /* UTF-8 decoder status */
 #define UTF8_CODE_OK       0x00
 #define UTF8_CODE_OVERLONG 0x10

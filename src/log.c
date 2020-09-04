@@ -1021,7 +1021,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 	if (strncmp(args[1], "fd@", 3) == 0)
 		logsrv->type = LOG_TARGET_FD;
 
-	sk = str2sa_range(args[1], NULL, &port1, &port2, err, NULL, NULL, 1);
+	sk = str2sa_range(args[1], NULL, &port1, &port2, err, NULL, NULL, PA_O_RESOLVE);
 	if (!sk)
 		goto error;
 	logsrv->addr = *sk;

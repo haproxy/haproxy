@@ -659,7 +659,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 	}
 
 	/* 'sk' is statically allocated (no need to be freed). */
-	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, &errmsg, NULL, NULL, 1);
+	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, &errmsg, NULL, NULL, PA_O_RESOLVE);
 	if (!sk) {
 		memprintf(err, "'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
 		goto err;
@@ -756,7 +756,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 				int port1, port2;
 
 				/* 'sk' is statically allocated (no need to be freed). */
-				sk = str2sa_range(args[*cur_arg + 1], NULL, &port1, &port2, &errmsg, NULL, NULL, 1);
+				sk = str2sa_range(args[*cur_arg + 1], NULL, &port1, &port2, &errmsg, NULL, NULL, PA_O_RESOLVE);
 				if (!sk) {
 					ha_alert("'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
 					goto err;
@@ -857,7 +857,7 @@ static int srv_parse_socks4(char **args, int *cur_arg,
 	}
 
 	/* 'sk' is statically allocated (no need to be freed). */
-	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, &errmsg, NULL, NULL, 1);
+	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, &errmsg, NULL, NULL, PA_O_RESOLVE);
 	if (!sk) {
 		memprintf(err, "'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
 		goto err;
@@ -2054,7 +2054,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			if (!parse_addr)
 				goto skip_addr;
 
-			sk = str2sa_range(args[cur_arg], &port, &port1, &port2, &errmsg, NULL, &fqdn, initial_resolve);
+			sk = str2sa_range(args[cur_arg], &port, &port1, &port2, &errmsg, NULL, &fqdn, initial_resolve ? PA_O_RESOLVE : 0);
 			if (!sk) {
 				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;

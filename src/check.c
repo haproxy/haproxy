@@ -2638,7 +2638,7 @@ static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct
 		goto error;
 	}
 
-	sk = str2sa_range(args[*cur_arg+1], NULL, &port1, &port2, errmsg, NULL, NULL, 1);
+	sk = str2sa_range(args[*cur_arg+1], NULL, &port1, &port2, errmsg, NULL, NULL, PA_O_RESOLVE);
 	if (!sk) {
 		memprintf(errmsg, "'%s' : %s", args[*cur_arg], *errmsg);
 		goto error;
