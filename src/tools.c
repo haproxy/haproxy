@@ -861,7 +861,8 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
  * <fqdn> was filled, indicating the need for a resolution.
  *
  * When a file descriptor is passed, its value is put into the s_addr part of
- * the address when cast to sockaddr_in and the address family is AF_UNSPEC.
+ * the address when cast to sockaddr_in and the address family is
+ * AF_CUST_EXISTING_FD.
  */
 struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, char **err, const char *pfx, char **fqdn, int resolve)
 {
@@ -957,8 +958,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			goto out;
 		}
 
-		/* we return AF_UNSPEC if we use a file descriptor number */
-		ss.ss_family = AF_UNSPEC;
+		/* we return AF_CUST_EXISTING_FD if we use a file descriptor number */
+		ss.ss_family = AF_CUST_EXISTING_FD;
 	}
 	else if (ss.ss_family == AF_UNIX) {
 		struct sockaddr_un *un = (struct sockaddr_un *)&ss;

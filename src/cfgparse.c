@@ -156,7 +156,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 				goto fail;
 			}
 		}
-		else if (ss2->ss_family == AF_UNSPEC) {
+		else if (ss2->ss_family == AF_CUST_EXISTING_FD) {
 			socklen_t addr_len;
 			inherited = 1;
 

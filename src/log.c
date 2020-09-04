@@ -1754,13 +1754,13 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 	while (size && (message[size-1] == '\n' || (message[size-1] == 0)))
 		size--;
 
-	if (logsrv->type == LOG_TARGET_FD) {
-		/* the socket's address is a file descriptor */
-		plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
-	}
-	else if (logsrv->type == LOG_TARGET_BUFFER) {
+	if (logsrv->type == LOG_TARGET_BUFFER) {
 		plogfd = NULL;
 		goto send;
+	}
+	else if (logsrv->addr.ss_family == AF_CUST_EXISTING_FD) {
+		/* the socket's address is a file descriptor */
+		plogfd = (int *)&((struct sockaddr_in *)&logsrv->addr)->sin_addr.s_addr;
 	}
 	else if (logsrv->addr.ss_family == AF_UNIX)
 		plogfd = &logfdunix;
@@ -1790,18 +1790,23 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 
 	msg_header = build_log_header(logsrv->format, level, facility, metadata, &nbelem);
  send:
-	if (logsrv->addr.ss_family == AF_UNSPEC) {
+	if (logsrv->type == LOG_TARGET_BUFFER) {
 		struct ist msg;
 
 		msg = ist2(message, size);
 		if (msg.len > logsrv->maxlen)
 			msg.len = logsrv->maxlen;
 
-		if (logsrv->type == LOG_TARGET_BUFFER) {
-			sent = sink_write(logsrv->sink, &msg, 1, level, logsrv->facility, metadata);
-		}
-		else /* LOG_TARGET_FD */
-			sent = fd_write_frag_line(*plogfd, logsrv->maxlen, msg_header, nbelem, &msg, 1, 1);
+		sent = sink_write(logsrv->sink, &msg, 1, level, logsrv->facility, metadata);
+	}
+	else if (logsrv->addr.ss_family == AF_CUST_EXISTING_FD) {
+		struct ist msg;
+
+		msg = ist2(message, size);
+		if (msg.len > logsrv->maxlen)
+			msg.len = logsrv->maxlen;
+
+		sent = fd_write_frag_line(*plogfd, logsrv->maxlen, msg_header, nbelem, &msg, 1, 1);
 	}
 	else {
 		int i = 0;
