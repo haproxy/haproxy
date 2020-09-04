@@ -129,7 +129,8 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 
 		ss2 = str2sa_range(str, NULL, &port, &end, err,
 		                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix,
-		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE);
+		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
+		                          PA_O_SOCKET_FD | PA_O_DGRAM | PA_O_STREAM | PA_O_XPRT);
 		if (!ss2)
 			goto fail;
 
@@ -1011,7 +1012,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		newnameserver->conf.line = linenum;
 		newnameserver->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], NULL, &port1, &port2, &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND);
+		sk = str2sa_range(args[2], NULL, &port1, &port2, &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_DGRAM);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1387,7 +1388,7 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 
 		newmailer->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], NULL, &port1, &port2, &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND);
+		sk = str2sa_range(args[2], NULL, &port1, &port2, &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;

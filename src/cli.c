@@ -2475,7 +2475,7 @@ int mworker_cli_proxy_create()
 		newsrv->conf.line = 0;
 
 		memprintf(&msg, "sockpair@%d", child->ipc_fd[0]);
-		if ((sk = str2sa_range(msg, &port, &port1, &port2, &errmsg, NULL, NULL, 0)) == 0) {
+		if ((sk = str2sa_range(msg, &port, &port1, &port2, &errmsg, NULL, NULL, PA_O_STREAM)) == 0) {
 			goto error;
 		}
 		free(msg);

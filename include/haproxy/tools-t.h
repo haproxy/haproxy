@@ -91,6 +91,11 @@
 #define PA_O_PORT_MAND          0x00000004   /* ports are mandatory */
 #define PA_O_PORT_RANGE         0x00000008   /* port ranges are supported */
 #define PA_O_PORT_OFS           0x00000010   /* port offsets are supported */
+#define PA_O_SOCKET_FD          0x00000020   /* inherited socket FDs are supported */
+#define PA_O_RAW_FD             0x00000040   /* inherited raw FDs are supported (pipes, ttys, ...) */
+#define PA_O_DGRAM              0x00000080   /* the address will be used for a datagram socket (in or out) */
+#define PA_O_STREAM             0x00000100   /* the address will be used for streams (in or out) */
+#define PA_O_XPRT               0x00000200   /* transport protocols may be specified */
 
 /* UTF-8 decoder status */
 #define UTF8_CODE_OK       0x00
