@@ -55,23 +55,6 @@
 
 #define SWAP(a, b) do { typeof(a) t; t = a; a = b; b = t; } while(0)
 
-/* options flags for parse_line() */
-#define PARSE_OPT_SHARP         0x00000001      // '#' ends the line
-#define PARSE_OPT_BKSLASH       0x00000002      // '\' escapes chars
-#define PARSE_OPT_SQUOTE        0x00000004      // "'" encloses a string
-#define PARSE_OPT_DQUOTE        0x00000008      // '"' encloses a string
-#define PARSE_OPT_ENV           0x00000010      // '$' is followed by environment variables
-#define PARSE_OPT_INPLACE       0x00000020      // parse and tokenize in-place (src == dst)
-
-/* return error flags from parse_line() */
-#define PARSE_ERR_TOOLARGE      0x00000001      // result is too large for initial outlen
-#define PARSE_ERR_TOOMANY       0x00000002      // more words than initial nbargs
-#define PARSE_ERR_QUOTE         0x00000004      // unmatched quote (offending one at errptr)
-#define PARSE_ERR_BRACE         0x00000008      // unmatched brace (offending one at errptr)
-#define PARSE_ERR_HEX           0x00000010      // unparsable hex sequence (at errptr)
-#define PARSE_ERR_VARNAME       0x00000020      // invalid variable name (at errptr)
-#define PARSE_ERR_OVERLAP       0x00000040      // output overlaps with input, need to allocate
-
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
  * set to 0, unless <size> is 0. The number of chars copied is returned
