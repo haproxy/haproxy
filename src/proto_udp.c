@@ -51,19 +51,12 @@ static struct protocol proto_udp4 = {
 	.sock_domain = AF_CUST_UDP4,
 	.sock_type = SOCK_DGRAM,
 	.sock_prot = IPPROTO_UDP,
-	.sock_family = AF_INET,
-	.sock_addrlen = sizeof(struct sockaddr_in),
-	.l3_addrlen = 32/8,
 	.accept = NULL,
 	.connect = NULL,
-	.bind = sock_inet_bind_receiver,
 	.listen = udp_bind_listener,
 	.enable_all = enable_all_listeners,
-	.get_src = udp_get_src,
-	.get_dst = udp_get_dst,
 	.pause = udp_pause_listener,
 	.add = udp4_add_listener,
-	.addrcmp = sock_inet4_addrcmp,
 	.listeners = LIST_HEAD_INIT(proto_udp4.listeners),
 	.nb_listeners = 0,
 };
@@ -77,94 +70,17 @@ static struct protocol proto_udp6 = {
 	.sock_domain = AF_CUST_UDP6,
 	.sock_type = SOCK_DGRAM,
 	.sock_prot = IPPROTO_UDP,
-	.sock_family = AF_INET6,
-	.sock_addrlen = sizeof(struct sockaddr_in6),
-	.l3_addrlen = 128/8,
 	.accept = NULL,
 	.connect = NULL,
-	.bind = sock_inet_bind_receiver,
 	.listen = udp_bind_listener,
 	.enable_all = enable_all_listeners,
-	.get_src = udp6_get_src,
-	.get_dst = udp6_get_dst,
 	.pause = udp_pause_listener,
 	.add = udp6_add_listener,
-	.addrcmp = sock_inet6_addrcmp,
 	.listeners = LIST_HEAD_INIT(proto_udp6.listeners),
 	.nb_listeners = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_udp6);
-
-/*
- * Retrieves the source address for the socket <fd>, with <dir> indicating
- * if we're a listener (=0) or an initiator (!=0). It returns 0 in case of
- * success, -1 in case of error. The socket's source address is stored in
- * <sa> for <salen> bytes.
- */
-int udp_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
-{
-	int ret;
-
-	ret = sock_get_src(fd, sa, salen, dir);
-	if (!ret)
-		sa->sa_family = AF_CUST_UDP4;
-
-	return ret;
-}
-
-/*
- * Retrieves the source address for the socket <fd>, with <dir> indicating
- * if we're a listener (=0) or an initiator (!=0). It returns 0 in case of
- * success, -1 in case of error. The socket's source address is stored in
- * <sa> for <salen> bytes.
- */
-int udp6_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
-{
-	int ret;
-
-	ret = sock_get_src(fd, sa, salen, dir);
-	if (!ret)
-		sa->sa_family = AF_CUST_UDP6;
-
-	return ret;
-}
-
-/*
- * Retrieves the original destination address for the socket <fd>, with <dir>
- * indicating if we're a listener (=0) or an initiator (!=0). In the case of a
- * listener, if the original destination address was translated, the original
- * address is retrieved. It returns 0 in case of success, -1 in case of error.
- * The socket's source address is stored in <sa> for <salen> bytes.
- */
-int udp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
-{
-	int ret;
-
-	ret = sock_inet_get_dst(fd, sa, salen, dir);
-	if (!ret)
-		sa->sa_family = AF_CUST_UDP4;
-
-	return ret;
-}
-
-/*
- * Retrieves the original destination address for the socket <fd>, with <dir>
- * indicating if we're a listener (=0) or an initiator (!=0). In the case of a
- * listener, if the original destination address was translated, the original
- * address is retrieved. It returns 0 in case of success, -1 in case of error.
- * The socket's source address is stored in <sa> for <salen> bytes.
- */
-int udp6_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
-{
-	int ret;
-
-	ret = sock_get_dst(fd, sa, salen, dir);
-	if (!ret)
-		sa->sa_family = AF_CUST_UDP6;
-
-	return ret;
-}
 
 /* This function tries to bind a UDPv4/v6 listener. It may return a warning or
  * an error message in <errmsg> if the message is at most <errlen> bytes long

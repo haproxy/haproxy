@@ -84,21 +84,14 @@ struct protocol {
 	int sock_domain;				/* socket domain, as passed to socket()   */
 	int sock_type;					/* socket type, as passed to socket()     */
 	int sock_prot;					/* socket protocol, as passed to socket() */
-	sa_family_t sock_family;			/* socket family, for sockaddr */
-	socklen_t sock_addrlen;				/* socket address length, used by bind() */
-	int l3_addrlen;					/* layer3 address length, used by hashes */
 	void (*accept)(int fd);				/* generic accept function */
-	int (*bind)(struct receiver *rx, void (*handler)(int fd), char **errmsg); /* bind a receiver */
 	int (*listen)(struct listener *l, char *errmsg, int errlen); /* start a listener */
 	int (*enable_all)(struct protocol *proto);	/* enable all bound listeners */
 	int (*disable_all)(struct protocol *proto);	/* disable all bound listeners */
 	int (*connect)(struct connection *, int flags); /* connect function if any, see below for flags values */
-	int (*get_src)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve src addr */
-	int (*get_dst)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve dst addr */
 	int (*drain)(int fd);                           /* indicates whether we can safely close the fd */
 	int (*pause)(struct listener *l);               /* temporarily pause this listener for a soft restart */
 	void (*add)(struct listener *l, int port);      /* add a listener for this protocol and port */
-	int (*addrcmp)(const struct sockaddr_storage *, const struct sockaddr_storage *); /* compare addresses (like memcmp) */
 
 	struct list listeners;				/* list of listeners using this protocol (under proto_lock) */
 	int nb_listeners;				/* number of listeners (under proto_lock) */
