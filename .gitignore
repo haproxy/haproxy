@@ -2,7 +2,11 @@
 # than blocking about 500 different test files and bug report outputs.
 /.*
 /*
+!/.cirrus.yml
+!/.gitattributes
+!/.github
 !/.gitignore
+!/.travis.yml
 !/CHANGELOG
 !/LICENSE
 !/BRANCHES
