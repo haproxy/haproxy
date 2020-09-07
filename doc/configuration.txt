@@ -1373,7 +1373,8 @@ ssl-dh-param-file <file>
 
 ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
   This setting alters the way HAProxy will look for unspecified files during
-  the loading of the SSL certificates.
+  the loading of the SSL certificates associated to "bind" lines. It does not
+  apply to certificates used for client authentication on "server" lines.
 
   By default, HAProxy discovers automatically a lot of files not specified in
   the configuration, and you may want to disable this behavior if you want to
