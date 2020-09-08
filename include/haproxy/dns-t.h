@@ -155,7 +155,6 @@ struct dns_response_packet {
 	struct dns_header header;
 	struct list       query_list;
 	struct list       answer_list;
-	struct list       ar_list;         /* additional records */
 	/* authority ignored for now */
 };
 

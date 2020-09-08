@@ -523,15 +523,14 @@ static void dns_check_dns_response(struct dns_resolution *res)
 	struct server          *srv;
 	struct dns_srvrq       *srvrq;
 
-	/* clean up obsolete Additional records */
-	list_for_each_entry_safe(item, itemback, &res->response.ar_list, list) {
-		if ((item->last_seen + resolvers->hold.obsolete / 1000) < now.tv_sec) {
-			LIST_DEL(&item->list);
-			pool_free(dns_answer_item_pool, item);
-		}
-	}
-
 	list_for_each_entry_safe(item, itemback, &res->response.answer_list, list) {
+		struct dns_answer_item *ar_item = item->ar_item;
+
+		/* clean up obsolete Additional record */
+		if (ar_item && (ar_item->last_seen + resolvers->hold.obsolete / 1000) < now.tv_sec) {
+			pool_free(dns_answer_item_pool, ar_item);
+			item->ar_item = NULL;
+		}
 
 		/* Remove obsolete items */
 		if ((item->last_seen + resolvers->hold.obsolete / 1000) < now.tv_sec) {
@@ -562,6 +561,10 @@ static void dns_check_dns_response(struct dns_resolution *res)
 
 		  rm_obselete_item:
 			LIST_DEL(&item->list);
+			if (item->ar_item) {
+				pool_free(dns_answer_item_pool, item->ar_item);
+				item->ar_item = NULL;
+			}
 			pool_free(dns_answer_item_pool, item);
 			continue;
 		}
@@ -1213,17 +1216,17 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 			// looking for the SRV record in the response list linked to this additional record
 			list_for_each_entry(tmp_record, &dns_p->answer_list, list) {
-				if ( !(
-					(tmp_record->type == DNS_RTYPE_SRV) &&
-					(tmp_record->ar_item == NULL) &&
-					(dns_hostname_cmp(tmp_record->target, dns_answer_record->name, tmp_record->data_len) == 0)
-				      )
-				   )
-					continue;
-				tmp_record->ar_item = dns_answer_record;
+				if (tmp_record->type == DNS_RTYPE_SRV &&
+				    !dns_hostname_cmp(tmp_record->target, dns_answer_record->name, tmp_record->data_len)) {
+					/* Always use the received additional record to refresh info */
+					if (tmp_record->ar_item)
+						pool_free(dns_answer_item_pool, tmp_record->ar_item);
+					tmp_record->ar_item = dns_answer_record;
+					break;
+				}
 			}
-
-			LIST_ADDQ(&dns_p->ar_list, &dns_answer_record->list);
+			if (tmp_record->ar_item != dns_answer_record)
+				pool_free(dns_answer_item_pool, dns_answer_record);
 			dns_answer_record = NULL;
 		}
 	} /* for i 0 to arcount */
@@ -1592,7 +1595,6 @@ static struct dns_resolution *dns_pick_resolution(struct dns_resolvers *resolver
 
 		LIST_INIT(&res->requesters);
 		LIST_INIT(&res->response.answer_list);
-		LIST_INIT(&res->response.ar_list);
 
 		res->prefered_query_type = query_type;
 		res->query_type          = query_type;
@@ -1623,13 +1625,12 @@ static void dns_free_resolution(struct dns_resolution *resolution)
 		req->resolution = NULL;
 	}
 
-	list_for_each_entry_safe(item, itemback, &resolution->response.ar_list, list) {
-		LIST_DEL(&item->list);
-		pool_free(dns_answer_item_pool, item);
-	}
-
 	list_for_each_entry_safe(item, itemback, &resolution->response.answer_list, list) {
 		LIST_DEL(&item->list);
+		if (item->ar_item) {
+			pool_free(dns_answer_item_pool, item->ar_item);
+			item->ar_item = NULL;
+		}
 		pool_free(dns_answer_item_pool, item);
 	}
 
