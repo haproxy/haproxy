@@ -3485,6 +3485,20 @@ void apply_server_state(void)
  */
 int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char *updater)
 {
+	/* save the new IP family & address if necessary */
+	switch (ip_sin_family) {
+	case AF_INET:
+		if (s->addr.ss_family == ip_sin_family &&
+		    !memcmp(ip, &((struct sockaddr_in *)&s->addr)->sin_addr.s_addr, 4))
+			return 0;
+		break;
+	case AF_INET6:
+		if (s->addr.ss_family == ip_sin_family &&
+		    !memcmp(ip, &((struct sockaddr_in6 *)&s->addr)->sin6_addr.s6_addr, 16))
+			return 0;
+		break;
+	};
+
 	/* generates a log line and a warning on stderr */
 	if (1) {
 		/* book enough space for both IPv4 and IPv6 */

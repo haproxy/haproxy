@@ -582,50 +582,24 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 				if (srv->srvrq == srvrq && srv->svc_port == item->port &&
 				    item->data_len == srv->hostname_dn_len &&
-				    !dns_hostname_cmp(srv->hostname_dn, item->target, item->data_len) &&
-				    !srv->dns_opts.ignore_weight) {
-					int ha_weight;
-
-					/* DNS weight range if from 0 to 65535
-					 * HAProxy weight is from 0 to 256
-					 * The rule below ensures that weight 0 is well respected
-					 * while allowing a "mapping" from DNS weight into HAProxy's one.
-					 */
-					ha_weight = (item->weight + 255) / 256;
-					if (srv->uweight != ha_weight) {
-						char weight[9];
-
-						snprintf(weight, sizeof(weight), "%d", ha_weight);
-						server_parse_weight_change_request(srv, weight);
-					}
-					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+				    !dns_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
 					break;
 				}
 				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 			}
-			if (srv)
-				continue;
 
 			/* If not, try to find a server with undefined hostname */
-			for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
-				HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-				if (srv->srvrq == srvrq && !srv->hostname_dn)
-					break;
-				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
-			}
-			/* And update this server, if found */
-			if (srv) {
-				const char *msg = NULL;
-				char weight[9];
-				int ha_weight;
-				char hostname[DNS_MAX_NAME_SIZE];
-
-				if (dns_dn_label_to_str(item->target, item->data_len+1,
-							hostname, DNS_MAX_NAME_SIZE) == -1) {
+			if (!srv) {
+				for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+					HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+					if (srv->srvrq == srvrq && !srv->hostname_dn)
+						break;
 					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
-					continue;
 				}
+			}
 
+			/* And update this server, if found (srv is locked here) */
+			if (srv) {
 				/* Check if an Additional Record is associated to this SRV record.
 				 * Perform some sanity checks too to ensure the record can be used.
 				 * If all fine, we simply pick up the IP address found and associate
@@ -647,9 +621,19 @@ static void dns_check_dns_response(struct dns_resolution *res)
 					srv->flags |= SRV_F_NO_RESOLUTION;
 				}
 
-				msg = update_server_fqdn(srv, hostname, "SRV record", 1);
-				if (msg)
-					send_log(srv->proxy, LOG_NOTICE, "%s", msg);
+				if (!srv->hostname_dn) {
+					const char *msg = NULL;
+					char hostname[DNS_MAX_NAME_SIZE];
+
+					if (dns_dn_label_to_str(item->target, item->data_len+1,
+								hostname, DNS_MAX_NAME_SIZE) == -1) {
+						HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+						continue;
+					}
+					msg = update_server_fqdn(srv, hostname, "SRV record", 1);
+					if (msg)
+						send_log(srv->proxy, LOG_NOTICE, "%s", msg);
+				}
 
 				/* now we have an IP address associated to this server, we can update its status */
 				snr_update_srv_status(srv, 0);
@@ -661,6 +645,9 @@ static void dns_check_dns_response(struct dns_resolution *res)
 					srv->check.port = item->port;
 
 				if (!srv->dns_opts.ignore_weight) {
+					char weight[9];
+					int ha_weight;
+
 					/* DNS weight range if from 0 to 65535
 					 * HAProxy weight is from 0 to 256
 					 * The rule below ensures that weight 0 is well respected
