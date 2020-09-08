@@ -461,11 +461,19 @@ static void h1_refresh_timeout(struct h1c *h1c)
 {
 	if (h1c->task) {
 		h1c->task->expire = TICK_ETERNITY;
-		if ((!h1c->h1s && !conn_is_back(h1c->conn)) || b_data(&h1c->obuf)) {
+		if (h1c->flags & H1C_F_CS_SHUTDOWN) {
+			/* half-closed connections switch to clientfin/serverfin
+			 * timeouts so that we don't hang too long on clients
+			 * that have gone away (especially in tunnel mode).
+			 */
+			h1c->task->expire = tick_add(now_ms, h1c->shut_timeout);
+			task_queue(h1c->task);
+			TRACE_DEVEL("refreshing connection's timeout (half-closed)", H1_EV_H1C_SEND, h1c->conn);
+		} else if ((!h1c->h1s && !conn_is_back(h1c->conn)) || b_data(&h1c->obuf)) {
 			/* front connections waiting for a stream, as well as any connection with
 			 * pending data, need a timeout.
 			 */
-			h1c->task->expire = tick_add(now_ms, ((h1c->flags & (H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN))
+			h1c->task->expire = tick_add(now_ms, ((h1c->flags & H1C_F_CS_SHUTW_NOW)
 							      ? h1c->shut_timeout
 							      : h1c->timeout));
 			task_queue(h1c->task);
