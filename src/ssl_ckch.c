@@ -1352,10 +1352,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 						fcount = ckchi->crtlist_entry->fcount;
 					}
 
-					if (new_ckchs->multi)
-						errcode |= ckch_inst_new_load_multi_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, &new_inst, &err);
-					else
-						errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, &new_inst, &err);
+					errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, &new_inst, &err);
 
 					if (errcode & ERR_CODE)
 						goto error;
@@ -1550,7 +1547,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	struct ckch_store *old_ckchs = NULL;
 	char *err = NULL;
 	int i;
-	int bundle = -1; /* TRUE if >= 0 (ckch index) */
 	int errcode = 0;
 	char *end;
 	int type = CERT_TYPE_PEM;
@@ -1592,30 +1588,6 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 
 	/* if there is an ongoing transaction */
 	if (ckchs_transaction.path) {
-		/* if the ongoing transaction is a bundle, we need to find which part of the bundle need to be updated */
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-		if (ckchs_transaction.new_ckchs->multi) {
-			char *end;
-			int j;
-
-			/* check if it was used in a bundle by removing the
-			 *   .dsa/.rsa/.ecdsa at the end of the filename */
-			end = strrchr(buf->area, '.');
-			for (j = 0; end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
-				if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
-					bundle = j; /* keep the type of certificate so we insert it at the right place */
-					*end = '\0'; /* it's a bundle let's end the string*/
-					break;
-				}
-			}
-			if (bundle < 0) {
-				memprintf(&err, "The ongoing transaction is the '%s' bundle. You need to specify which part of the bundle you want to update ('%s.{rsa,ecdsa,dsa}')\n", ckchs_transaction.path, buf->area);
-				errcode |= ERR_ALERT | ERR_FATAL;
-				goto end;
-			}
-		}
-#endif
-
 		/* if there is an ongoing transaction, check if this is the same file */
 		if (strcmp(ckchs_transaction.path, buf->area) != 0) {
 			memprintf(&err, "The ongoing transaction is about '%s' but you are trying to set '%s'\n", ckchs_transaction.path, buf->area);
@@ -1626,62 +1598,9 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		appctx->ctx.ssl.old_ckchs = ckchs_transaction.new_ckchs;
 
 	} else {
-		struct ckch_store *find_ckchs[2] = { NULL, NULL };
 
-		/* lookup for the certificate in the tree:
-		 * check if this is used as a bundle AND as a unique certificate */
-		for (i = 0; i < 2; i++) {
-
-			if ((find_ckchs[i] = ckchs_lookup(buf->area)) != NULL) {
-				/* only the bundle name is in the tree and you should
-				 * never update a bundle name, only a filename */
-				if (bundle < 0 && find_ckchs[i]->multi) {
-					/* we tried to look for a non-bundle and we found a bundle */
-					memprintf(&err, "%s%s is a multi-cert bundle. Try updating %s.{dsa,rsa,ecdsa}\n",
-						  err ? err : "", args[3], args[3]);
-					errcode |= ERR_ALERT | ERR_FATAL;
-					goto end;
-				}
-				/* If we want a bundle but this is not a bundle
-				 * example: When you try to update <file>.rsa, but
-				 * <file> is a regular file */
-				if (bundle >= 0 && find_ckchs[i]->multi == 0) {
-					find_ckchs[i] = NULL;
-					break;
-				}
-			}
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-			{
-				char *end;
-				int j;
-
-				/* check if it was used in a bundle by removing the
-				 *   .dsa/.rsa/.ecdsa at the end of the filename */
-				end = strrchr(buf->area, '.');
-				for (j = 0; end && j < SSL_SOCK_NUM_KEYTYPES; j++) {
-					if (!strcmp(end + 1, SSL_SOCK_KEYTYPE_NAMES[j])) {
-						bundle = j; /* keep the type of certificate so we insert it at the right place */
-						*end = '\0'; /* it's a bundle let's end the string*/
-						break;
-					}
-				}
-				if (bundle < 0) /* we didn't find a bundle extension */
-					break;
-			}
-#else
-			/* bundles are not supported here, so we don't need to lookup again */
-			break;
-#endif
-		}
-
-		if (find_ckchs[0] && find_ckchs[1]) {
-			memprintf(&err, "%sUpdating a certificate which is used in the HAProxy configuration as a bundle and as a unique certificate is not supported. ('%s' and '%s')\n",
-			          err ? err : "", find_ckchs[0]->path, find_ckchs[1]->path);
-			errcode |= ERR_ALERT | ERR_FATAL;
-			goto end;
-		}
-
-		appctx->ctx.ssl.old_ckchs = find_ckchs[0] ? find_ckchs[0] : find_ckchs[1];
+		/* lookup for the certificate in the tree */
+		appctx->ctx.ssl.old_ckchs = ckchs_lookup(buf->area);
 	}
 
 	if (!appctx->ctx.ssl.old_ckchs) {
@@ -1712,10 +1631,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		goto end;
 	}
 
-	if (!new_ckchs->multi)
-		ckch = new_ckchs->ckch;
-	else
-		ckch = &new_ckchs->ckch[bundle];
+	ckch = new_ckchs->ckch;
 
 	/* appply the change on the duplicate */
 	if (cert_exts[type].load(buf->area, payload, ckch, &err) != 0) {
