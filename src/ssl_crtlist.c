@@ -61,6 +61,79 @@ void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 	}
 }
 
+/*
+ * Allocate and copy a ssl_bind_conf structure
+ */
+struct ssl_bind_conf *crtlist_dup_ssl_conf(struct ssl_bind_conf *src)
+{
+	struct ssl_bind_conf *dst;
+
+	if (!src)
+		return NULL;
+
+	dst = calloc(1, sizeof(*dst));
+	if (!dst)
+		return NULL;
+
+#if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
+	if (src->npn_str) {
+		dst->npn_str = strdup(src->npn_str);
+		if (!dst->npn_str)
+			goto error;
+	}
+#endif
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	if (src->alpn_str) {
+		dst->alpn_str = strdup(src->alpn_str);
+		if (!dst->alpn_str)
+			goto error;
+	}
+#endif
+	if (src->ca_file) {
+		dst->ca_file = strdup(src->ca_file);
+		if (!dst->ca_file)
+			goto error;
+	}
+	if (src->ca_verify_file) {
+		dst->ca_verify_file = strdup(src->ca_verify_file);
+		if (!dst->ca_verify_file)
+			goto error;
+	}
+	if (src->crl_file) {
+		dst->crl_file = strdup(src->crl_file);
+		if (!dst->crl_file)
+			goto error;
+	}
+	if (src->ciphers) {
+		dst->ciphers = strdup(src->ciphers);
+		if (!dst->ciphers)
+			goto error;
+	}
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	if (src->ciphersuites) {
+		dst->ciphersuites = strdup(src->ciphersuites);
+		if (!dst->ciphersuites)
+			goto error;
+	}
+#endif
+	if (src->curves) {
+		dst->curves = strdup(src->curves);
+		if (!dst->curves)
+			goto error;
+	}
+	if (src->ecdhe) {
+		dst->ecdhe = strdup(src->ecdhe);
+		if (!dst->ecdhe)
+			goto error;
+	}
+	return dst;
+
+error:
+	ssl_sock_free_ssl_conf(dst);
+	free(dst);
+
+	return NULL;
+}
 
 /* free sni filters */
 void crtlist_free_filters(char **args)
