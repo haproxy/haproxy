@@ -2407,6 +2407,7 @@ void deinit(void)
 	struct per_thread_alloc_fct *taf, *tafb;
 	struct per_thread_free_fct *tff, *tffb;
 	struct post_server_check_fct *pscf, *pscfb;
+	struct post_check_fct *pcf, *pcfb;
 	struct post_proxy_check_fct *ppcf, *ppcfb;
 
 	deinit_signals();
@@ -2720,6 +2721,11 @@ void deinit(void)
 	list_for_each_entry_safe(srvdf, srvdfb, &server_deinit_list, list) {
 		LIST_DEL(&srvdf->list);
 		free(srvdf);
+	}
+
+	list_for_each_entry_safe(pcf, pcfb, &post_check_list, list) {
+		LIST_DEL(&pcf->list);
+		free(pcf);
 	}
 
 	list_for_each_entry_safe(pscf, pscfb, &post_server_check_list, list) {
