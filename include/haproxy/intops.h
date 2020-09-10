@@ -220,7 +220,7 @@ static inline unsigned long nbits(int bits)
 static inline unsigned long long my_htonll(unsigned long long a)
 {
 #if defined(__x86_64__)
-	__asm__ volatile("bswap %0" : "=r"(a) : "0"(a));
+	__asm__ volatile("bswapq %0" : "=r"(a) : "0"(a));
 	return a;
 #else
 	union {
