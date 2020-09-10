@@ -34,6 +34,15 @@
 #endif
 #endif
 
+#if !defined(__GNUC__)
+/* Some versions of glibc irresponsibly redefine __attribute__() to empty for
+ * non-gcc compilers, and as such, silently break all constructors with other
+ * other compilers. Let's make sure such incompatibilities are detected if any,
+ * or that the attribute is properly enforced.
+ */
+#undef __attribute__
+#define __attribute__(x) __attribute__(x)
+#endif
 
 /* By default, gcc does not inline large chunks of code, but we want it to
  * respect our choices.
