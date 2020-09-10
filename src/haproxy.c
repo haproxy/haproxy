@@ -2637,6 +2637,8 @@ void deinit(void)
 	}/* end while(p) */
 
 	while (ua) {
+		struct stat_scope *scope, *scopep;
+
 		uap = ua;
 		ua = ua->next;
 
@@ -2647,6 +2649,15 @@ void deinit(void)
 
 		userlist_free(uap->userlist);
 		deinit_act_rules(&uap->http_req_rules);
+
+		scope = uap->scope;
+		while (scope) {
+			scopep = scope;
+			scope = scope->next;
+
+			free(scopep->px_id);
+			free(scopep);
+		}
 
 		free(uap);
 	}
