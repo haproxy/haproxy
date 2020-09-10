@@ -34,8 +34,10 @@
 #define _TRC_LOC(f,l) __TRC_LOC(f, ":", l)
 #define __TRC_LOC(f,c,l) f c #l
 
-/* truncate a macro arg list to exactly 5 args and replace missing ones with NULL */
-#define TRC_5ARGS(a1,a2,a3,a4,a5,...) DEFNULL(a1),DEFNULL(a2),DEFNULL(a3),DEFNULL(a4),DEFNULL(a5)
+/* truncate a macro arg list to exactly 5 args and replace missing ones with NULL.
+ * The first one (a0) is always ignored.
+ */
+#define TRC_5ARGS(a0,a1,a2,a3,a4,a5,...) DEFNULL(a1),DEFNULL(a2),DEFNULL(a3),DEFNULL(a4),DEFNULL(a5)
 
 /* For convenience, TRACE() alone uses the file's default TRACE_LEVEL, most
  * likely TRACE_LEVEL_DEVELOPER, though the other explicit variants specify
@@ -48,53 +50,53 @@
  * change the message at the beginning. Only TRACE_DEVEL(), TRACE_ENTER() and
  * TRACE_LEAVE() will report the calling function's name.
  */
-#define TRACE(msg, mask, ...)    \
-	trace(TRACE_LEVEL,           (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+#define TRACE(msg, mask, args...)    \
+	trace(TRACE_LEVEL,           (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
-#define TRACE_USER(msg, mask, ...)			\
-	trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+#define TRACE_USER(msg, mask, args...)			\
+	trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
-#define TRACE_DATA(msg, mask, ...)  \
-	trace(TRACE_LEVEL_DATA,   (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+#define TRACE_DATA(msg, mask, args...)  \
+	trace(TRACE_LEVEL_DATA,   (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
-#define TRACE_PROTO(msg, mask, ...)    \
-	trace(TRACE_LEVEL_PROTO,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+#define TRACE_PROTO(msg, mask, args...)    \
+	trace(TRACE_LEVEL_PROTO,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
-#define TRACE_STATE(msg, mask, ...)    \
-	trace(TRACE_LEVEL_STATE,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+#define TRACE_STATE(msg, mask, args...)    \
+	trace(TRACE_LEVEL_STATE,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
-#define TRACE_DEVEL(msg, mask, ...)    \
-	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(__VA_ARGS__,,,,,), ist(msg))
+#define TRACE_DEVEL(msg, mask, args...)    \
+	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
-#define TRACE_ENTER(mask, ...)  \
-	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(__VA_ARGS__,,,,,), ist("entering"))
+#define TRACE_ENTER(mask, args...)  \
+	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("entering"))
 
-#define TRACE_LEAVE(mask, ...)  \
-	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(__VA_ARGS__,,,,,), ist("leaving"))
+#define TRACE_LEAVE(mask, args...)  \
+	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("leaving"))
 
-#define TRACE_POINT(mask, ...)  \
-	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(__VA_ARGS__,,,,,), ist("in"))
+#define TRACE_POINT(mask, args...)  \
+	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("in"))
 
 #if defined(DEBUG_DEV) || defined(DEBUG_FULL)
-#    define DBG_TRACE(msg, mask, ...)        TRACE(msg, mask, __VA_ARGS__)
-#    define DBG_TRACE_USER(msg, mask, ...)   TRACE_USER(msg, mask, __VA_ARGS__)
-#    define DBG_TRACE_DATA(msg, mask, ...)   TRACE_DATA(msg, mask, __VA_ARGS__)
-#    define DBG_TRACE_PROTO(msg, mask, ...)  TRACE_PROTO(msg, mask, __VA_ARGS__)
-#    define DBG_TRACE_STATE(msg, mask, ...)  TRACE_STATE(msg, mask, __VA_ARGS__)
-#    define DBG_TRACE_DEVEL(msg, mask, ...)  TRACE_DEVEL(msg, mask, __VA_ARGS__)
-#    define DBG_TRACE_ENTER(mask, ...)       TRACE_ENTER(mask, __VA_ARGS__)
-#    define DBG_TRACE_LEAVE(mask, ...)       TRACE_LEAVE(mask, __VA_ARGS__)
-#    define DBG_TRACE_POINT(mask, ...)       TRACE_POINT(mask, __VA_ARGS__)
+#    define DBG_TRACE(msg, mask, args...)        TRACE(msg, mask, ##args)
+#    define DBG_TRACE_USER(msg, mask, args...)   TRACE_USER(msg, mask, ##args)
+#    define DBG_TRACE_DATA(msg, mask, args...)   TRACE_DATA(msg, mask, ##args)
+#    define DBG_TRACE_PROTO(msg, mask, args...)  TRACE_PROTO(msg, mask, ##args)
+#    define DBG_TRACE_STATE(msg, mask, args...)  TRACE_STATE(msg, mask, ##args)
+#    define DBG_TRACE_DEVEL(msg, mask, args...)  TRACE_DEVEL(msg, mask, ##args)
+#    define DBG_TRACE_ENTER(mask, args...)       TRACE_ENTER(mask, ##args)
+#    define DBG_TRACE_LEAVE(mask, args...)       TRACE_LEAVE(mask, ##args)
+#    define DBG_TRACE_POINT(mask, args...)       TRACE_POINT(mask, ##args)
 #else
-#    define DBG_TRACE(msg, mask, ...)        do { /* do nothing */ } while(0)
-#    define DBG_TRACE_USER(msg, mask, ...)   do { /* do nothing */ } while(0)
-#    define DBG_TRACE_DATA(msg, mask, ...)   do { /* do nothing */ } while(0)
-#    define DBG_TRACE_PROTO(msg, mask, ...)  do { /* do nothing */ } while(0)
-#    define DBG_TRACE_STATE(msg, mask, ...)  do { /* do nothing */ } while(0)
-#    define DBG_TRACE_DEVEL(msg, mask, ...)  do { /* do nothing */ } while(0)
-#    define DBG_TRACE_ENTER(mask, ...)       do { /* do nothing */ } while(0)
-#    define DBG_TRACE_LEAVE(mask, ...)       do { /* do nothing */ } while(0)
-#    define DBG_TRACE_POINT(mask, ...)       do { /* do nothing */ } while(0)
+#    define DBG_TRACE(msg, mask, args...)        do { /* do nothing */ } while(0)
+#    define DBG_TRACE_USER(msg, mask, args...)   do { /* do nothing */ } while(0)
+#    define DBG_TRACE_DATA(msg, mask, args...)   do { /* do nothing */ } while(0)
+#    define DBG_TRACE_PROTO(msg, mask, args...)  do { /* do nothing */ } while(0)
+#    define DBG_TRACE_STATE(msg, mask, args...)  do { /* do nothing */ } while(0)
+#    define DBG_TRACE_DEVEL(msg, mask, args...)  do { /* do nothing */ } while(0)
+#    define DBG_TRACE_ENTER(mask, args...)       do { /* do nothing */ } while(0)
+#    define DBG_TRACE_LEAVE(mask, args...)       do { /* do nothing */ } while(0)
+#    define DBG_TRACE_POINT(mask, args...)       do { /* do nothing */ } while(0)
 #endif
 
 extern struct list trace_sources;
