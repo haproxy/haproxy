@@ -2402,6 +2402,10 @@ void deinit(void)
 	struct post_deinit_fct *pdf, *pdfb;
 	struct proxy_deinit_fct *pxdf, *pxdfb;
 	struct server_deinit_fct *srvdf, *srvdfb;
+	struct per_thread_init_fct *tif, *tifb;
+	struct per_thread_deinit_fct *tdf, *tdfb;
+	struct per_thread_alloc_fct *taf, *tafb;
+	struct per_thread_free_fct *tff, *tffb;
 	struct post_server_check_fct *pscf, *pscfb;
 	struct post_proxy_check_fct *ppcf, *ppcfb;
 
@@ -2726,6 +2730,26 @@ void deinit(void)
 	list_for_each_entry_safe(ppcf, ppcfb, &post_proxy_check_list, list) {
 		LIST_DEL(&ppcf->list);
 		free(ppcf);
+	}
+
+	list_for_each_entry_safe(tif, tifb, &per_thread_init_list, list) {
+		LIST_DEL(&tif->list);
+		free(tif);
+	}
+
+	list_for_each_entry_safe(tdf, tdfb, &per_thread_deinit_list, list) {
+		LIST_DEL(&tdf->list);
+		free(tdf);
+	}
+
+	list_for_each_entry_safe(taf, tafb, &per_thread_alloc_list, list) {
+		LIST_DEL(&taf->list);
+		free(taf);
+	}
+
+	list_for_each_entry_safe(tff, tffb, &per_thread_free_list, list) {
+		LIST_DEL(&tff->list);
+		free(tff);
 	}
 
 	vars_prune(&global.vars, NULL, NULL);
