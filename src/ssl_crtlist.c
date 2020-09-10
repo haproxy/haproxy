@@ -519,22 +519,71 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 		/* Look for a ckch_store or create one */
 		ckchs = ckchs_lookup(crt_path);
 		if (ckchs == NULL) {
-			if (stat(crt_path, &buf) == 0)
-				ckchs = ckchs_load_cert_file(crt_path, 0,  err);
-			else
-				ckchs = ckchs_load_cert_file(crt_path, 1,  err);
-		}
-		if (ckchs == NULL)
-			cfgerr |= ERR_ALERT | ERR_FATAL;
+			if (stat(crt_path, &buf) == 0) {
 
+				ckchs = ckchs_load_cert_file(crt_path, 0,  err);
+				if (ckchs == NULL) {
+					cfgerr |= ERR_ALERT | ERR_FATAL;
+					goto error;
+				}
+
+				entry->node.key = ckchs;
+				entry->crtlist = newlist;
+				ebpt_insert(&newlist->entries, &entry->node);
+				LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
+				LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
+
+			} else {
+				/* If we didn't find the file, this could be a
+				bundle, since 2.3 we don't support OpenSSL
+				multi-certificate bundle, so we emulate it by
+				loading each file separately. To do so we need
+				to duplicate the entry in the crt-list because
+				it becomes independent */
+				char fp[MAXPATHLEN+1] = {0};
+				int n = 0;
+				struct crtlist_entry *entry_dup = entry; /* use the previous created entry */
+				for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+					struct stat buf;
+					int ret;
+
+					ret = snprintf(fp, sizeof(fp), "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
+					if (ret > sizeof(fp))
+						continue;
+
+					ckchs = ckchs_lookup(fp);
+					if (!ckchs && stat(fp, &buf) == 0) {
+
+						ckchs = ckchs_load_cert_file(fp, 0,  err);
+						if (ckchs == NULL) {
+							cfgerr |= ERR_ALERT | ERR_FATAL;
+							goto error;
+						}
+
+						linenum++; /* we duplicate the line for this entry in the bundle */
+						if (!entry_dup) { /* if the entry was used, duplicate one */
+							linenum++;
+							entry_dup = crtlist_entry_dup(entry);
+							if (!entry_dup) {
+								cfgerr |= ERR_ALERT | ERR_FATAL;
+								goto error;
+							}
+							entry_dup->linenum = linenum;
+						}
+
+						entry_dup->node.key = ckchs;
+						entry_dup->crtlist = newlist;
+						ebpt_insert(&newlist->entries, &entry_dup->node);
+						LIST_ADDQ(&newlist->ord_entries, &entry_dup->by_crtlist);
+						LIST_ADDQ(&ckchs->crtlist_entry, &entry_dup->by_ckch_store);
+
+						entry_dup = NULL; /* the entry was used, we need a new one next round */
+					}
+				}
+			}
+		}
 		if (cfgerr & ERR_CODE)
 			goto error;
-
-		entry->node.key = ckchs;
-		entry->crtlist = newlist;
-		ebpt_insert(&newlist->entries, &entry->node);
-		LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
-		LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
 
 		entry = NULL;
 	}
