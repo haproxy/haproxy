@@ -2403,6 +2403,7 @@ void deinit(void)
 	struct proxy_deinit_fct *pxdf, *pxdfb;
 	struct server_deinit_fct *srvdf, *srvdfb;
 	struct post_server_check_fct *pscf, *pscfb;
+	struct post_proxy_check_fct *ppcf, *ppcfb;
 
 	deinit_signals();
 	while (p) {
@@ -2720,6 +2721,11 @@ void deinit(void)
 	list_for_each_entry_safe(pscf, pscfb, &post_server_check_list, list) {
 		LIST_DEL(&pscf->list);
 		free(pscf);
+	}
+
+	list_for_each_entry_safe(ppcf, ppcfb, &post_proxy_check_list, list) {
+		LIST_DEL(&ppcf->list);
+		free(ppcf);
 	}
 
 	vars_prune(&global.vars, NULL, NULL);
