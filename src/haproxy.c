@@ -2680,6 +2680,7 @@ void deinit(void)
 	free(global.node);    global.node = NULL;
 	free(global.desc);    global.desc = NULL;
 	free(oldpids);        oldpids = NULL;
+	free(old_argv);       old_argv = NULL;
 	free(localpeer);      localpeer = NULL;
 	task_destroy(idle_conn_task);
 	idle_conn_task = NULL;
