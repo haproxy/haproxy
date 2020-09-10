@@ -196,6 +196,45 @@ void crtlist_entry_free(struct crtlist_entry *entry)
 	}
 	free(entry);
 }
+/*
+ * Duplicate a crt_list entry and its content (ssl_conf, filters/fcount)
+ * Return a pointer to the new entry
+ */
+struct crtlist_entry *crtlist_entry_dup(struct crtlist_entry *src)
+{
+	struct crtlist_entry *entry;
+
+	if (src == NULL)
+		return NULL;
+
+	entry = crtlist_entry_new();
+	if (entry == NULL)
+		return NULL;
+
+	if (src->filters) {
+		entry->filters = crtlist_dup_filters(src->filters, src->fcount);
+		if (!entry->filters)
+			goto error;
+	}
+	entry->fcount = src->fcount;
+	if (src->ssl_conf) {
+		entry->ssl_conf = crtlist_dup_ssl_conf(src->ssl_conf);
+		if (!entry->ssl_conf)
+			goto error;
+	}
+	entry->crtlist = src->crtlist;
+
+	return entry;
+
+error:
+
+	crtlist_free_filters(entry->filters);
+	ssl_sock_free_ssl_conf(entry->ssl_conf);
+	free(entry->ssl_conf);
+	free(entry);
+
+	return NULL;
+}
 
 /*
  * Allocate and initialize a crtlist_entry
