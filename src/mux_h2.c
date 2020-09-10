@@ -1007,7 +1007,7 @@ static inline __maybe_unused int h2c_mux_busy(const struct h2c *h2c, const struc
 /* marks an error on the connection */
 static inline __maybe_unused void h2c_error(struct h2c *h2c, enum h2_err err)
 {
-	TRACE_POINT(H2_EV_H2C_ERR, h2c->conn,,, (void *)(long)(err));
+	TRACE_POINT(H2_EV_H2C_ERR, h2c->conn, 0, 0, (void *)(long)(err));
 	h2c->errcode = err;
 	h2c->st0 = H2_CS_ERROR;
 }
@@ -1018,7 +1018,7 @@ static inline __maybe_unused void h2c_error(struct h2c *h2c, enum h2_err err)
 static inline __maybe_unused void h2s_error(struct h2s *h2s, enum h2_err err)
 {
 	if (h2s->id && h2s->st != H2_SS_ERROR) {
-		TRACE_POINT(H2_EV_H2S_ERR, h2s->h2c->conn, h2s,, (void *)(long)(err));
+		TRACE_POINT(H2_EV_H2S_ERR, h2s->h2c->conn, h2s, 0, (void *)(long)(err));
 		h2s->errcode = err;
 		if (h2s->st < H2_SS_ERROR)
 			h2s->st = H2_SS_ERROR;
@@ -2538,7 +2538,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->id > h2c->max_id)
 		h2c->max_id = h2s->id;
 
-	TRACE_USER("rcvd H2 request ", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW, h2c->conn,, &rxbuf);
+	TRACE_USER("rcvd H2 request ", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW, h2c->conn, 0, &rxbuf);
 	return h2s;
 
  conn_err:
@@ -2558,7 +2558,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	h2_release_buf(h2c, &rxbuf);
 	h2c->st0 = H2_CS_FRAME_E;
 
-	TRACE_USER("rejected H2 request", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn,, &rxbuf);
+	TRACE_USER("rejected H2 request", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0, &rxbuf);
 	TRACE_DEVEL("leaving on error", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	return h2s;
 }
@@ -2629,7 +2629,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			h2s_close(h2s);
 	}
 
-	TRACE_USER("rcvd H2 response", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn,, &h2s->rxbuf);
+	TRACE_USER("rcvd H2 response", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, 0, &h2s->rxbuf);
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	return h2s;
  fail:
@@ -2644,7 +2644,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	h2_release_buf(h2c, &rxbuf);
 	h2c->st0 = H2_CS_FRAME_E;
 
-	TRACE_USER("rejected H2 response", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn,, &rxbuf);
+	TRACE_USER("rejected H2 response", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW|H2_EV_STRM_END, h2c->conn, 0, &rxbuf);
 	TRACE_DEVEL("leaving on error", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	return h2s;
 }
@@ -3386,7 +3386,7 @@ static int h2_recv(struct h2c *h2c)
 		TRACE_DATA("failed to receive data, subscribing", H2_EV_H2C_RECV, h2c->conn);
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h2c->wait_event);
 	} else if (ret)
-		TRACE_DATA("received data", H2_EV_H2C_RECV, h2c->conn,,, (void*)(long)ret);
+		TRACE_DATA("received data", H2_EV_H2C_RECV, h2c->conn, 0, 0, (void*)(long)ret);
 
 	if (!b_data(buf)) {
 		h2_release_buf(h2c, &h2c->dbuf);
@@ -3470,7 +3470,7 @@ static int h2_send(struct h2c *h2c)
 					break;
 				}
 				sent = 1;
-				TRACE_DATA("sent data", H2_EV_H2C_SEND, h2c->conn,, buf, (void*)(long)ret);
+				TRACE_DATA("sent data", H2_EV_H2C_SEND, h2c->conn, 0, buf, (void*)(long)ret);
 				b_del(buf, ret);
 				if (b_data(buf)) {
 					done = 1;
@@ -4562,7 +4562,7 @@ try_again:
 		flen = block;
 
 	sent = htx_add_data(htx, ist2(b_head(&h2c->dbuf), flen));
-	TRACE_DATA("move some data to h2s rxbuf", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s,, (void *)(long)sent);
+	TRACE_DATA("move some data to h2s rxbuf", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s, 0, (void *)(long)sent);
 
 	b_del(&h2c->dbuf, sent);
 	h2c->dfl    -= sent;

@@ -1540,7 +1540,7 @@ static int fcgi_conn_send_get_values(struct fcgi_conn *fconn)
 		goto full;
 
 	/* update the record's size now */
-	TRACE_PROTO("FCGI GET_VALUES record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_GETVAL, fconn->conn,,, (size_t[]){outbuf.data-8});
+	TRACE_PROTO("FCGI GET_VALUES record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_GETVAL, fconn->conn, 0, 0, (size_t[]){outbuf.data-8});
 	fcgi_set_record_size(outbuf.area, outbuf.data - 8);
 	b_add(mbuf, outbuf.data);
 	ret = 1;
@@ -1615,17 +1615,17 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 
 		if (isteqi(p.n, ist("FCGI_MPXS_CONNS"))) {
 			if (isteq(p.v, ist("1"))) {
-				TRACE_STATE("set mpxs param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,,, (size_t[]){1});
+				TRACE_STATE("set mpxs param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn, 0, 0, (size_t[]){1});
 				fconn->flags |= FCGI_CF_MPXS_CONNS;
 			}
 			else {
-				TRACE_STATE("set mpxs param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,,, (size_t[]){0});
+				TRACE_STATE("set mpxs param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn, 0, 0, (size_t[]){0});
 				fconn->flags &= ~FCGI_CF_MPXS_CONNS;
 			}
 		}
 		else if (isteqi(p.n, ist("FCGI_MAX_REQS"))) {
 			fconn->streams_limit = strl2ui(p.v.ptr, p.v.len);
-			TRACE_STATE("set streams_limit", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,,, (size_t[]){fconn->streams_limit});
+			TRACE_STATE("set streams_limit", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn, 0, 0, (size_t[]){fconn->streams_limit});
 		}
 		/*
 		 * Ignore all other params
@@ -1646,7 +1646,7 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 	if (offset != fconn->drl)
 		goto fail;
 
-	TRACE_PROTO("FCGI GET_VALUES_RESULT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn,,, (size_t[]){fconn->drl});
+	TRACE_PROTO("FCGI GET_VALUES_RESULT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn, 0, 0, (size_t[]){fconn->drl});
 	b_del(&fconn->dbuf, fconn->drl + fconn->drp);
 	fconn->drl = 0;
 	fconn->drp = 0;
@@ -1736,7 +1736,7 @@ static int fcgi_strm_send_begin_request(struct fcgi_conn *fconn, struct fcgi_str
 		goto full;
 
 	/* commit the record */
-	TRACE_PROTO("FCGI BEGIN_REQUEST record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_BEGREQ, fconn->conn, fstrm,, (size_t[]){0});
+	TRACE_PROTO("FCGI BEGIN_REQUEST record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_BEGREQ, fconn->conn, fstrm, 0, (size_t[]){0});
 	b_add(mbuf, outbuf.data);
 	fstrm->flags |= FCGI_SF_BEGIN_SENT;
 	fstrm->state = FCGI_SS_OPEN;
@@ -1824,7 +1824,7 @@ static int fcgi_strm_send_empty_params(struct fcgi_conn *fconn, struct fcgi_strm
 	TRACE_POINT(FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm);
 	ret = fcgi_strm_send_empty_record(fconn, fstrm, FCGI_PARAMS);
 	if (ret)
-		TRACE_PROTO("FCGI PARAMS record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm,, (size_t[]){0});
+		TRACE_PROTO("FCGI PARAMS record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, 0, (size_t[]){0});
 	return ret;
 }
 
@@ -1839,7 +1839,7 @@ static int fcgi_strm_send_empty_stdin(struct fcgi_conn *fconn, struct fcgi_strm 
 	ret = fcgi_strm_send_empty_record(fconn, fstrm, FCGI_STDIN);
 	if (ret) {
 		fstrm->flags |= FCGI_SF_ES_SENT;
-		TRACE_PROTO("FCGI STDIN record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm,, (size_t[]){0});
+		TRACE_PROTO("FCGI STDIN record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, 0, (size_t[]){0});
 		TRACE_USER("FCGI request fully xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN|FCGI_EV_TX_EOI, fconn->conn, fstrm);
 		TRACE_STATE("stdin data fully sent", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN|FCGI_EV_TX_EOI, fconn->conn, fstrm);
 	}
@@ -1857,7 +1857,7 @@ static int fcgi_strm_send_abort(struct fcgi_conn *fconn, struct fcgi_strm *fstrm
 	ret = fcgi_strm_send_empty_record(fconn, fstrm, FCGI_ABORT_REQUEST);
 	if (ret) {
 		fstrm->flags |= FCGI_SF_ABRT_SENT;
-		TRACE_PROTO("FCGI ABORT record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm,, (size_t[]){0});
+		TRACE_PROTO("FCGI ABORT record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm, 0, (size_t[]){0});
 		TRACE_USER("FCGI request aborted", FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm);
 		TRACE_STATE("abort sent", FCGI_EV_TX_RECORD|FCGI_EV_TX_ABORT, fconn->conn, fstrm);
 	}
@@ -2053,7 +2053,7 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 		goto error;
 
 	/* update the record's size */
-	TRACE_PROTO("FCGI PARAMS record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm,, (size_t[]){outbuf.data - 8});
+	TRACE_PROTO("FCGI PARAMS record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, 0, (size_t[]){outbuf.data - 8});
 	fcgi_set_record_size(outbuf.area, outbuf.data - 8);
 	b_add(mbuf, outbuf.data);
 
@@ -2231,7 +2231,7 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 
   done:
 	/* update the record's size */
-	TRACE_PROTO("FCGI STDIN record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm,, (size_t[]){outbuf.data - 8});
+	TRACE_PROTO("FCGI STDIN record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, 0, (size_t[]){outbuf.data - 8});
 	fcgi_set_record_size(outbuf.area, outbuf.data - 8);
 	b_add(mbuf, outbuf.data);
 
@@ -2287,8 +2287,8 @@ static int fcgi_strm_handle_stdout(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	if (!ret)
 		goto fail;
 	fconn->drl -= ret;
-	TRACE_DATA("move some data to fstrm rxbuf", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm,, (size_t[]){ret});
-	TRACE_PROTO("FCGI STDOUT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm,, (size_t[]){ret});
+	TRACE_DATA("move some data to fstrm rxbuf", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm, 0, (size_t[]){ret});
+	TRACE_PROTO("FCGI STDOUT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm, 0, (size_t[]){ret});
 
 	if (!buf_room_for_htx_data(&fstrm->rxbuf)) {
 		fconn->flags |= FCGI_CF_DEM_SFULL;
@@ -2341,7 +2341,7 @@ static int fcgi_strm_handle_empty_stdout(struct fcgi_conn *fconn, struct fcgi_st
 	}
 	fconn->state = FCGI_CS_RECORD_H;
 	fstrm->flags |= FCGI_SF_ES_RCVD;
-	TRACE_PROTO("FCGI STDOUT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm,, (size_t[]){0});
+	TRACE_PROTO("FCGI STDOUT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm, 0, (size_t[]){0});
 	TRACE_STATE("stdout data fully send, switching to RECORD_H", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_EOI, fconn->conn, fstrm);
 	TRACE_LEAVE(FCGI_EV_RX_RECORD|FCGI_EV_RX_STDOUT, fconn->conn, fstrm);
 	return 1;
@@ -2373,7 +2373,7 @@ static int fcgi_strm_handle_stderr(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	if (!ret)
 		goto fail;
 	fconn->drl -= ret;
-	TRACE_PROTO("FCGI STDERR record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm,, (size_t[]){ret});
+	TRACE_PROTO("FCGI STDERR record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_STDERR, fconn->conn, fstrm, 0, (size_t[]){ret});
 
 	trash.area[ret]   = '\n';
 	trash.area[ret+1] = '\0';
@@ -2441,7 +2441,7 @@ static int fcgi_strm_handle_end_request(struct fcgi_conn *fconn, struct fcgi_str
 
 	fstrm->flags |= FCGI_SF_ES_RCVD;
 	TRACE_STATE("end of script reported", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ|FCGI_EV_RX_EOI, fconn->conn, fstrm);
-	TRACE_PROTO("FCGI END_REQUEST record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ, fconn->conn, fstrm,, (size_t[]){fconn->drl});
+	TRACE_PROTO("FCGI END_REQUEST record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ, fconn->conn, fstrm, 0, (size_t[]){fconn->drl});
 	fstrm->proto_status = endreq.errcode;
 	fcgi_strm_close(fstrm);
 
@@ -2585,7 +2585,7 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 				fconn->drl += fconn->drp;
 				fconn->drp = 0;
 				ret = MIN(b_data(&fconn->dbuf), fconn->drl);
-				TRACE_PROTO("receiving FCGI ignored record", FCGI_EV_RX_RECORD, fconn->conn, fstrm,, (size_t[]){ret});
+				TRACE_PROTO("receiving FCGI ignored record", FCGI_EV_RX_RECORD, fconn->conn, fstrm, 0, (size_t[]){ret});
 				TRACE_STATE("switching to RECORD_P", FCGI_EV_RX_RECORD, fconn->conn, fstrm);
 				b_del(&fconn->dbuf, ret);
 				fconn->drl -= ret;
@@ -2750,7 +2750,7 @@ static int fcgi_recv(struct fcgi_conn *fconn)
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &fconn->wait_event);
 	}
 	else
-		TRACE_DATA("recv data", FCGI_EV_FCONN_RECV, conn,,, (size_t[]){ret});
+		TRACE_DATA("recv data", FCGI_EV_FCONN_RECV, conn, 0, 0, (size_t[]){ret});
 
 	if (!b_data(buf)) {
 		fcgi_release_buf(fconn, &fconn->dbuf);
@@ -2838,7 +2838,7 @@ static int fcgi_send(struct fcgi_conn *fconn)
 					break;
 				}
 				sent = 1;
-				TRACE_DATA("send data", FCGI_EV_FCONN_SEND, conn,,, (size_t[]){ret});
+				TRACE_DATA("send data", FCGI_EV_FCONN_SEND, conn, 0, 0, (size_t[]){ret});
 				b_del(buf, ret);
 				if (b_data(buf)) {
 					done = 1;
@@ -3236,7 +3236,7 @@ static size_t fcgi_strm_parse_headers(struct fcgi_strm *fstrm, struct h1m *h1m, 
 {
 	int ret;
 
-	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm,, (size_t[]){max});
+	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm, 0, (size_t[]){max});
 	ret = h1_parse_msg_hdrs(h1m, NULL, htx, buf, *ofs, max);
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm);
@@ -3250,7 +3250,7 @@ static size_t fcgi_strm_parse_headers(struct fcgi_strm *fstrm, struct h1m *h1m, 
 
 	*ofs += ret;
   end:
-	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
+	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm, 0, (size_t[]){ret});
 	return ret;
 
 }
@@ -3260,7 +3260,7 @@ static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, str
 {
 	int ret;
 
-	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm,, (size_t[]){max});
+	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm, 0, (size_t[]){max});
 	ret = h1_parse_msg_data(h1m, htx, buf, *ofs, max, htxbuf);
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm);
@@ -3273,7 +3273,7 @@ static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, str
 	}
 	*ofs += ret;
   end:
-	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
+	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm, 0, (size_t[]){ret});
 	return ret;
 }
 
@@ -3282,7 +3282,7 @@ static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m,
 {
 	int ret;
 
-	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm,, (size_t[]){max});
+	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm, 0, (size_t[]){max});
 	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm);
@@ -3295,7 +3295,7 @@ static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m,
 	}
 	*ofs += ret;
   end:
-	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
+	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm, 0, (size_t[]){ret});
 	return ret;
 }
 
@@ -3304,7 +3304,7 @@ static size_t fcgi_strm_add_eom(struct fcgi_strm *fstrm, struct h1m *h1m, struct
 {
 	int ret;
 
-	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm,, (size_t[]){max});
+	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm, 0, (size_t[]){max});
 	ret = h1_parse_msg_eom(h1m, htx, max);
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm);
@@ -3317,7 +3317,7 @@ static size_t fcgi_strm_add_eom(struct fcgi_strm *fstrm, struct h1m *h1m, struct
 	}
 	fstrm->flags |= FCGI_SF_H1_PARSING_DONE;
   end:
-	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm,, (size_t[]){ret});
+	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm, 0, (size_t[]){ret});
 	return ret;
 }
 
@@ -3887,7 +3887,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 	struct htx_blk *blk;
 	uint32_t bsize;
 
-	TRACE_ENTER(FCGI_EV_STRM_SEND, fconn->conn, fstrm,, (size_t[]){count});
+	TRACE_ENTER(FCGI_EV_STRM_SEND, fconn->conn, fstrm, 0, (size_t[]){count});
 
 	/* If we were not just woken because we wanted to send but couldn't,
 	 * and there's somebody else that is waiting to send, do nothing,

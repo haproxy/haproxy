@@ -1210,7 +1210,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	union h1_sl h1sl;
 	int ret = 0;
 
-	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s,, (size_t[]){max});
+	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s, 0, (size_t[]){max});
 
 	if (!(h1s->h1c->px->options2 & PR_O2_NO_H2_UPGRADE) && /* H2 upgrade supported by the proxy */
 	    !(h1s->flags & H1S_F_NOT_FIRST) &&                 /* It is the first transaction */
@@ -1270,7 +1270,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	*ofs += ret;
 
   end:
-	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s,, (size_t[]){ret});
+	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 
   h2c_upgrade:
@@ -1292,7 +1292,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 {
 	int ret;
 
-	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s,, (size_t[]){max});
+	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s, 0, (size_t[]){max});
 	ret = h1_parse_msg_data(h1m, htx, buf, *ofs, max, htxbuf);
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
@@ -1325,7 +1325,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 	*ofs += ret;
 
   end:
-	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s,, (size_t[]){ret});
+	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 }
 
@@ -1340,7 +1340,7 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 {
 	int ret;
 
-	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s,, (size_t[]){max});
+	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s, 0, (size_t[]){max});
 	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
@@ -1363,7 +1363,7 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 	*ofs += ret;
 
   end:
-	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s,, (size_t[]){ret});
+	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 }
 
@@ -1377,7 +1377,7 @@ static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 {
 	int ret;
 
-	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s,, (size_t[]){max});
+	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s, 0, (size_t[]){max});
 	ret = h1_parse_msg_eom(h1m, htx, max);
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s);
@@ -1400,7 +1400,7 @@ static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 	h1s->flags |= H1S_F_PARSING_DONE;
 	h1s->cs->flags |= CS_FL_EOI;
   end:
-	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s,, (size_t[]){ret});
+	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 }
 
@@ -1637,10 +1637,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			total += count;
 			if (h1m->state == H1_MSG_DATA)
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request payload data xferred" : "H1 response payload data xferred"),
-					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s,, (size_t[]){count});
+					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){count});
 			else
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
-					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s,, (size_t[]){count});
+					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){count});
 			goto out;
 		}
 		tmp.area = h1c->obuf.area + h1c->obuf.head;
@@ -1888,10 +1888,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 				if (h1m->state == H1_MSG_DATA)
 					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request payload data xferred" : "H1 response payload data xferred"),
-						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s,, (size_t[]){v.len});
+						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){v.len});
 				else
 					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
-						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s,, (size_t[]){v.len});
+						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){v.len});
 				break;
 
 			case H1_MSG_TRAILERS:
@@ -2081,7 +2081,7 @@ static int h1_recv(struct h1c *h1c)
 		ret = conn->xprt->rcv_buf(conn, conn->xprt_ctx, &h1c->ibuf, max, flags);
 	}
 	if (ret > 0) {
-		TRACE_DATA("data received", H1_EV_H1C_RECV, h1c->conn,,, (size_t[]){ret});
+		TRACE_DATA("data received", H1_EV_H1C_RECV, h1c->conn, 0, 0, (size_t[]){ret});
 		rcvd = 1;
 		if (h1s && h1s->cs) {
 			h1s->cs->flags |= (CS_FL_READ_PARTIAL|CS_FL_RCV_MORE);
@@ -2147,7 +2147,7 @@ static int h1_send(struct h1c *h1c)
 
 	ret = conn->xprt->snd_buf(conn, conn->xprt_ctx, &h1c->obuf, b_data(&h1c->obuf), flags);
 	if (ret > 0) {
-		TRACE_DATA("data sent", H1_EV_H1C_SEND, h1c->conn,,, (size_t[]){ret});
+		TRACE_DATA("data sent", H1_EV_H1C_SEND, h1c->conn, 0, 0, (size_t[]){ret});
 		if (h1c->flags & H1C_F_OUT_FULL) {
 			h1c->flags &= ~H1C_F_OUT_FULL;
 			TRACE_STATE("h1c obuf not full anymore", H1_EV_STRM_SEND|H1_EV_H1S_BLK, h1c->conn);
@@ -2689,7 +2689,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->req : &h1s->res);
 	size_t ret = 0;
 
-	TRACE_ENTER(H1_EV_STRM_RECV, h1c->conn, h1s,, (size_t[]){count});
+	TRACE_ENTER(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){count});
 	if (!(h1c->flags & H1C_F_IN_ALLOC))
 		ret = h1_process_input(h1c, buf, count);
 	else
@@ -2709,7 +2709,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		if (h1m->state != H1_MSG_DONE && !(h1c->wait_event.events & SUB_RETRY_RECV))
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 	}
-	TRACE_LEAVE(H1_EV_STRM_RECV, h1c->conn, h1s,, (size_t[]){ret});
+	TRACE_LEAVE(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 }
 
@@ -2725,7 +2725,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		return 0;
 	h1c = h1s->h1c;
 
-	TRACE_ENTER(H1_EV_STRM_SEND, h1c->conn, h1s,, (size_t[]){count});
+	TRACE_ENTER(H1_EV_STRM_SEND, h1c->conn, h1s, 0, (size_t[]){count});
 
 	/* If we're not connected yet, or we're waiting for a handshake, stop
 	 * now, as we don't want to remove everything from the channel buffer
@@ -2762,7 +2762,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			break;
 	}
 	h1_refresh_timeout(h1c);
-	TRACE_LEAVE(H1_EV_STRM_SEND, h1c->conn, h1s,, (size_t[]){total});
+	TRACE_LEAVE(H1_EV_STRM_SEND, h1c->conn, h1s, 0, (size_t[]){total});
 	return total;
 }
 
@@ -2774,7 +2774,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	struct h1m *h1m = (!conn_is_back(cs->conn) ? &h1s->req : &h1s->res);
 	int ret = 0;
 
-	TRACE_ENTER(H1_EV_STRM_RECV, cs->conn, h1s,, (size_t[]){count});
+	TRACE_ENTER(H1_EV_STRM_RECV, cs->conn, h1s, 0, (size_t[]){count});
 
 	if ((h1m->flags & H1_MF_CHNK) || (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL)) {
 		h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
@@ -2828,7 +2828,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 		cs->flags &= ~CS_FL_MAY_SPLICE;
 	}
 
-	TRACE_LEAVE(H1_EV_STRM_RECV, cs->conn, h1s,, (size_t[]){ret});
+	TRACE_LEAVE(H1_EV_STRM_RECV, cs->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 }
 
@@ -2837,7 +2837,7 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 	struct h1s *h1s = cs->ctx;
 	int ret = 0;
 
-	TRACE_ENTER(H1_EV_STRM_SEND, cs->conn, h1s,, (size_t[]){pipe->data});
+	TRACE_ENTER(H1_EV_STRM_SEND, cs->conn, h1s, 0, (size_t[]){pipe->data});
 
 	if (b_data(&h1s->h1c->obuf))
 		goto end;
@@ -2851,7 +2851,7 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 		}
 	}
 
-	TRACE_LEAVE(H1_EV_STRM_SEND, cs->conn, h1s,, (size_t[]){ret});
+	TRACE_LEAVE(H1_EV_STRM_SEND, cs->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 }
 #endif
