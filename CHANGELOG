@@ -1,6 +1,97 @@
 ChangeLog :
 ===========
 
+2020/09/11 : 2.3-dev4
+    - MINOR: hlua: Add error message relative to the Channel manipulation and HTTP mode
+    - BUG/MEDIUM: ssl: crt-list negative filters don't work
+    - DOC: overhauling github issue templates
+    - MEDIUM: cfgparse: Emit hard error on truncated lines
+    - DOC: cache: Use '<name>' instead of '<id>' in error message
+    - MINOR: cache: Reject duplicate cache names
+    - REGTEST: remove stray leading spaces in converteers_ref_cnt_never_dec.vtc
+    - MINOR: stats: prevent favicon.ico requests for stats page
+    - BUILD: tools: include auxv a bit later
+    - BUILD: task: work around a bogus warning in gcc 4.7/4.8 at -O1
+    - MEDIUM: ssl: Support certificate chaining for certificate generation
+    - MINOR: ssl: Support SAN extension for certificate generation
+    - MINOR: tcp: don't try to set/clear v6only on inherited sockets
+    - BUG/MINOR: reload: detect the OS's v6only status before choosing an old socket
+    - MINOR: reload: determine the foreing binding status from the socket
+    - MEDIUM: reload: stop passing listener options along with FDs
+    - BUG/MEDIUM: ssl: fix ssl_bind_conf double free w/ wildcards
+    - MEDIUM: fd: replace usages of fd_remove() with fd_stop_both()
+    - CLEANUP: fd: remove fd_remove() and rename fd_dodelete() to fd_delete()
+    - MINOR: fd: add a new "exported" flag and use it for all regular listeners
+    - MEDIUM: reload: pass all exportable FDs, not just listeners
+    - DOC: add description of pidfile in master-worker mode
+    - BUG/MINOR: reload: do not fail when no socket is sent
+    - REORG: tcp: move TCP actions from proto_tcp.c to tcp_act.c
+    - CLEANUP: tcp: stop exporting smp_fetch_src()
+    - REORG: tcp: move TCP sample fetches from proto_tcp.c to tcp_sample.c
+    - REORG: tcp: move TCP bind/server keywords from proto_tcp.c to cfgparse-tcp.c
+    - REORG: unix: move UNIX bind/server keywords from proto_uxst.c to cfgparse-unix.c
+    - REORG: sock: start to move some generic socket code to sock.c
+    - MINOR: sock: introduce sock_inet and sock_unix
+    - MINOR: tcp/udp/unix: make use of proto->addrcmp() to compare addresses
+    - MINOR: sock_inet: implement sock_inet_get_dst()
+    - REORG: inet: replace tcp_is_foreign() with sock_inet_is_foreign()
+    - REORG: sock_inet: move v6only_default from proto_tcp.c to sock_inet.c
+    - REORG: sock_inet: move default_tcp_maxseg from proto_tcp.c
+    - REORG: listener: move xfer_sock_list to sock.{c,h}.
+    - MINOR: sock: add interface and namespace length to xfer_sock_list
+    - MINOR: sock: implement sock_find_compatible_fd()
+    - MINOR: sock_inet: move the IPv4/v6 transparent mode code to sock_inet
+    - REORG: sock: move get_old_sockets() from haproxy.c
+    - MINOR: sock: do not use LI_O_* in xfer_sock_list anymore
+    - MINOR: sock: distinguish dgram from stream types when retrieving old sockets
+    - BUILD: sock_unix: fix build issue with isdigit()
+    - BUG/MEDIUM: http-ana: Don't wait to send 1xx responses received from servers
+    - MINOR: http-htx: Add an option to eval query-string when the path is replaced
+    - BUG/MINOR: http-rules: Replace path and query-string in "replace-path" action
+    - MINOR: http-htx: Handle an optional reason when replacing the response status
+    - MINOR: contrib/spoa-server: allow MAX_FRAME_SIZE override
+    - BUG/MAJOR: contrib/spoa-server: Fix unhandled python call leading to memory leak
+    - BUG/MINOR: contrib/spoa-server: Ensure ip address references are freed
+    - BUG/MINOR: contrib/spoa-server: Do not free reference to NULL
+    - BUG/MINOR: contrib/spoa-server: Updating references to free in case of failure
+    - BUG/MEDIUM: contrib/spoa-server: Fix ipv4_address used instead of ipv6_address
+    - CLEANUP: http: silence a cppcheck warning in get_http_auth()
+    - REGTEST: increase some short timeouts to make tests more reliable
+    - BUG/MINOR: threads: work around a libgcc_s issue with chrooting
+    - BUILD: thread: limit the libgcc_s workaround to glibc only
+    - MINOR: protocol: do not call proto->bind_all() anymore
+    - MINOR: protocol: do not call proto->unbind_all() anymore
+    - CLEANUP: protocol: remove all ->bind_all() and ->unbind_all() functions
+    - MAJOR: init: start all listeners via protocols and not via proxies anymore
+    - BUG/MINOR: startup: haproxy -s cause 100% cpu
+    - Revert "BUG/MINOR: http-rules: Replace path and query-string in "replace-path" action"
+    - BUG/MEDIUM: doc: Fix replace-path action description
+    - MINOR: http-rules: Add set-pathq and replace-pathq actions
+    - MINOR: http-fetch: Add pathq sample fetch
+    - REGTEST: Add a test for request path manipulations, with and without the QS
+    - MINOR: Commit .gitattributes
+    - CLEANUP: Update .gitignore
+    - BUG/MEDIUM: dns: Don't store additional records in a linked-list
+    - BUG/MEDIUM: dns: Be sure to renew IP address for already known servers
+    - MINOR: server: Improve log message sent when server address is updated
+    - DOC: ssl-load-extra-files only applies to certificates on bind lines
+    - BUG/MINOR: auth: report valid crypto(3) support depending on build options
+    - BUG/MEDIUM: mux-h1: always apply the timeout on half-closed connections
+    - BUILD: threads: better workaround for late loading of libgcc_s
+    - BUILD: compiler: reserve the gcc version checks to the gcc compiler
+    - BUILD: compiler: workaround a glibc madness around __attribute__()
+    - BUILD: intops: on x86_64, the bswap instruction is called bswapq
+    - BUILD: trace: always have an argument before variadic args in macros
+    - BUILD: traces: don't pass an empty argument for missing ones
+    - BUG/MINOR: haproxy: Free uri_auth->scope during deinit
+    - CLEANUP: Free old_argv on deinit
+    - CLEANUP: haproxy: Free post_proxy_check_list in deinit()
+    - CLEANUP: haproxy: Free per_thread_*_list in deinit()
+    - CLEANUP: haproxy: Free post_check_list in deinit()
+    - BUG/MEDIUM: pattern: Renew the pattern expression revision when it is pruned
+    - REORG: tools: move PARSE_OPT_* from tools.h to tools-t.h
+    - MINOR: sample: Add iif(<true>,<false>) converter
+
 2020/08/14 : 2.3-dev3
     - SCRIPTS: git-show-backports: make -m most only show the left branch
     - SCRIPTS: git-show-backports: emit the shell command to backport a commit
