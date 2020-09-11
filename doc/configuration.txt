@@ -15150,6 +15150,13 @@ http_date([<offset],[<unit>])
   microseconds since epoch. Offset is assumed to have the same unit as
   input timestamp.
 
+iif(<true>,<false>)
+  Returns the <true> string if the input value is true. Returns the <false>
+  string otherwise.
+
+  Example:
+    http-request set-header x-forwarded-proto %[ssl_fc,iff(https,http)]
+
 in_table(<table>)
   Uses the string representation of the input sample to perform a look up in
   the specified table. If the key is not found in the table, a boolean false

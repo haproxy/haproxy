@@ -1,0 +1,45 @@
+varnishtest "iif converter Test"
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 3 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    frontend fe
+	bind "fd@${fe}"
+
+	#### requests
+	http-request set-var(txn.iif) req.hdr_cnt(count),iif(ok,ko)
+	http-response set-header iif %[var(txn.iif)]
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.iif == "ko"
+	txreq \
+		-hdr "count: 1"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.iif == "ok"
+	txreq \
+		-hdr "count: 1,2"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.iif == "ok"
+} -run

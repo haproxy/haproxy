@@ -3121,6 +3121,26 @@ static int sample_conv_secure_memcmp(const struct arg *arg_p, struct sample *smp
 }
 #endif
 
+/* Takes a boolean as input. Returns the first argument if that boolean is true and
+ * the second argument otherwise.
+ */
+static int sample_conv_iif(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	smp->data.type = SMP_T_STR;
+	smp->flags |= SMP_F_CONST;
+
+	if (smp->data.u.sint) {
+		smp->data.u.str.data = arg_p[0].data.str.data;
+		smp->data.u.str.area = arg_p[0].data.str.area;
+	}
+	else {
+		smp->data.u.str.data = arg_p[1].data.str.data;
+		smp->data.u.str.area = arg_p[1].data.str.area;
+	}
+
+	return 1;
+}
+
 #define GRPC_MSG_COMPRESS_FLAG_SZ 1 /* 1 byte */
 #define GRPC_MSG_LENGTH_SZ        4 /* 4 bytes */
 #define GRPC_MSG_HEADER_SZ        (GRPC_MSG_COMPRESS_FLAG_SZ + GRPC_MSG_LENGTH_SZ)
@@ -3781,6 +3801,8 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	/* gRPC converters. */
 	{ "ungrpc", sample_conv_ungrpc,    ARG2(1,PBUF_FNUM,STR), sample_conv_protobuf_check, SMP_T_BIN, SMP_T_BIN  },
 	{ "protobuf", sample_conv_protobuf, ARG2(1,PBUF_FNUM,STR), sample_conv_protobuf_check, SMP_T_BIN, SMP_T_BIN  },
+
+	{ "iif", sample_conv_iif, ARG2(2, STR, STR), NULL, SMP_T_BOOL, SMP_T_STR },
 
 	{ "and",    sample_conv_binary_and, ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
 	{ "or",     sample_conv_binary_or,  ARG1(1,STR), check_operator, SMP_T_SINT, SMP_T_SINT  },
