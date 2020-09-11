@@ -15155,7 +15155,7 @@ iif(<true>,<false>)
   string otherwise.
 
   Example:
-    http-request set-header x-forwarded-proto %[ssl_fc,iff(https,http)]
+    http-request set-header x-forwarded-proto %[ssl_fc,iif(https,http)]
 
 in_table(<table>)
   Uses the string representation of the input sample to perform a look up in
