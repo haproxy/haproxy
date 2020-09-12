@@ -799,7 +799,8 @@ void mworker_reload()
 		old_argc++;
 
 	/* 1 for haproxy -sf, 2 for -x /socket */
-	next_argv = calloc(old_argc + 1 + 2 + mworker_child_nb() + nb_oldpids + 1, sizeof(char *));
+	next_argv = calloc(old_argc + 1 + 2 + mworker_child_nb() + nb_oldpids + 1,
+			   sizeof(*next_argv));
 	if (next_argv == NULL)
 		goto alloc_error;
 
@@ -1133,7 +1134,7 @@ static char **copy_argv(int argc, char **argv)
 {
 	char **newargv, **retargv;
 
-	newargv = calloc(argc + 2, sizeof(char *));
+	newargv = calloc(argc + 2, sizeof(*newargv));
 	if (newargv == NULL) {
 		ha_warning("Cannot allocate memory\n");
 		return NULL;

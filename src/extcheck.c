@@ -274,13 +274,13 @@ int prepare_external_check(struct check *check)
 		}
 
 	check->curpid = NULL;
-	check->envp = calloc((EXTCHK_SIZE + 1), sizeof(char *));
+	check->envp = calloc((EXTCHK_SIZE + 1), sizeof(*check->envp));
 	if (!check->envp) {
 		ha_alert("Failed to allocate memory for environment variables. Aborting\n");
 		goto err;
 	}
 
-	check->argv = calloc(6, sizeof(char *));
+	check->argv = calloc(6, sizeof(*check->argv));
 	if (!check->argv) {
 		ha_alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
 		goto err;

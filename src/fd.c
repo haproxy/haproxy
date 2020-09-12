@@ -655,13 +655,13 @@ int init_pollers()
 	int p;
 	struct poller *bp;
 
-	if ((fdtab = calloc(global.maxsock, sizeof(struct fdtab))) == NULL)
+	if ((fdtab = calloc(global.maxsock, sizeof(*fdtab))) == NULL)
 		goto fail_tab;
 
 	if ((polled_mask = calloc(global.maxsock, sizeof(*polled_mask))) == NULL)
 		goto fail_polledmask;
 
-	if ((fdinfo = calloc(global.maxsock, sizeof(struct fdinfo))) == NULL)
+	if ((fdinfo = calloc(global.maxsock, sizeof(*fdinfo))) == NULL)
 		goto fail_info;
 
 	update_list.first = update_list.last = -1;

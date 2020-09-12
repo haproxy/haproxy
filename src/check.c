@@ -968,8 +968,8 @@ const char *init_check(struct check *check, int type)
 	b_reset(&check->bi); check->bi.size = global.tune.chksize;
 	b_reset(&check->bo); check->bo.size = global.tune.chksize;
 
-	check->bi.area = calloc(check->bi.size, sizeof(char));
-	check->bo.area = calloc(check->bo.size, sizeof(char));
+	check->bi.area = calloc(check->bi.size, sizeof(*check->bi.area));
+	check->bo.area = calloc(check->bo.size, sizeof(*check->bo.area));
 
 	if (!check->bi.area || !check->bo.area)
 		return "out of memory while allocating check buffer";

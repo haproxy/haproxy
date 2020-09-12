@@ -442,7 +442,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		/* default compression options */
 		if (defproxy.comp != NULL) {
-			curproxy->comp = calloc(1, sizeof(struct comp));
+			curproxy->comp = calloc(1, sizeof(*curproxy->comp));
 			curproxy->comp->algos = defproxy.comp->algos;
 			curproxy->comp->types = defproxy.comp->types;
 		}

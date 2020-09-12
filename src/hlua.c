@@ -7362,7 +7362,8 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	}
 
 	/* Memory for arguments. */
-	rule->arg.hlua_rule->args = calloc(fcn->nargs + 1, sizeof(char *));
+	rule->arg.hlua_rule->args = calloc(fcn->nargs + 1,
+					   sizeof(*rule->arg.hlua_rule->args));
 	if (!rule->arg.hlua_rule->args) {
 		memprintf(err, "out of memory error");
 		return ACT_RET_PRS_ERR;

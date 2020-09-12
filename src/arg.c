@@ -147,7 +147,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	if (empty && !min_arg)
 		goto end_parse;
 
-	arg = *argp = calloc(nbarg + 1, sizeof(*arg));
+	arg = *argp = calloc(nbarg + 1, sizeof(**argp));
 
 	/* Note: empty arguments after a comma always exist. */
 	while (pos < nbarg) {

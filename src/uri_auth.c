@@ -226,7 +226,7 @@ struct uri_auth *stats_add_auth(struct uri_auth **root, char *user)
 		return NULL;
 
 	if (!u->userlist)
-		u->userlist = calloc(1, sizeof(struct userlist));
+		u->userlist = calloc(1, sizeof(*u->userlist));
 
 	if (!u->userlist)
 		return NULL;

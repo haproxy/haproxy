@@ -636,7 +636,7 @@ static int init_51degrees(void)
 		i = 0;
 		list_for_each_entry(name, &global_51degrees.property_names, list)
 			++i;
-		_51d_property_list = calloc(i, sizeof(char *));
+		_51d_property_list = calloc(i, sizeof(*_51d_property_list));
 
 		i = 0;
 		list_for_each_entry(name, &global_51degrees.property_names, list)

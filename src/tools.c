@@ -2236,7 +2236,7 @@ int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 	len = len >> 1;
 
 	if (!*binstr) {
-		*binstr = calloc(len, sizeof(char));
+		*binstr = calloc(len, sizeof(**binstr));
 		if (!*binstr) {
 			memprintf(err, "out of memory while loading string pattern");
 			return 0;

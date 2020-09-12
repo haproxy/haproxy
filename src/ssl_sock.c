@@ -5107,7 +5107,7 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 	}
 
 	/* Allocate cert structure */
-	ckch = calloc(1, sizeof(struct cert_key_and_chain));
+	ckch = calloc(1, sizeof(*ckch));
 	if (!ckch) {
 		ha_alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d]. Chain allocation failure\n",
 			px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line);
