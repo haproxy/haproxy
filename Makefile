@@ -106,6 +106,7 @@
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
 #   VERDATE        : force haproxy's release date.
 #   VTEST_PROGRAM  : location of the vtest program to run reg-tests.
+#   DEBUG_USE_ABORT: use abort() for program termination, see include/haproxy/bug.h for details
 
 # verbosity: pass V=1 for verbose shell invocation
 V = 0

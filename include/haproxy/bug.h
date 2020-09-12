@@ -37,10 +37,15 @@
 #define DPRINTF(x...)
 #endif
 
-/* This abort is more efficient than abort() because it does not mangle the
- * stack and stops at the exact location we need.
- */
+#ifdef DEBUG_USE_ABORT
+/* abort() is better recognized by code analysis tools */
+#define ABORT_NOW() abort()
+#else
+/* More efficient than abort() because it does not mangle the
+  * stack and stops at the exact location we need.
+  */
 #define ABORT_NOW() (*(volatile int*)1=0)
+#endif
 
 /* BUG_ON: complains if <cond> is true when DEBUG_STRICT or DEBUG_STRICT_NOCRASH
  * are set, does nothing otherwise. With DEBUG_STRICT in addition it immediately
