@@ -102,7 +102,7 @@ struct hpack_dht {
 	uint16_t wrap;  /* number of allocated slots, wraps here */
 	uint16_t head;  /* last inserted slot number */
 	uint16_t used;  /* number of slots in use */
-	struct hpack_dte dte[0]; /* dynamic table entries */
+	struct hpack_dte dte[VAR_ARRAY]; /* dynamic table entries */
 };
 
 /* supported hpack encoding/decoding errors */

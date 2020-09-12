@@ -223,7 +223,7 @@ struct ssl_sock_msg_callback {
 struct ssl_capture {
 	unsigned long long int xxh64;
 	unsigned char ciphersuite_len;
-	char ciphersuite[0];
+	char ciphersuite[VAR_ARRAY];
 };
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)

@@ -27,7 +27,7 @@
 
 struct port_range {
 	int size, get, put_h, put_t;	/* range size, and get/put positions */
-	uint16_t ports[0];		/* array of <size> ports, in host byte order */
+	uint16_t ports[VAR_ARRAY];	/* array of <size> ports, in host byte order */
 };
 
 #endif /* _HAPROXY_PORT_RANGE_T_H */

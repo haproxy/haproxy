@@ -249,7 +249,7 @@ struct error_snapshot {
 
 	/**** protocol-specific part ****/
 	union error_snapshot_ctx ctx;
-	char buf[0];                    /* copy of the beginning of the message for bufsize bytes */
+	char buf[VAR_ARRAY];                    /* copy of the beginning of the message for bufsize bytes */
 };
 
 struct proxy {

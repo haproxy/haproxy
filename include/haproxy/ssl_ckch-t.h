@@ -69,7 +69,7 @@ struct ckch_store {
 	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
 	struct list crtlist_entry; /* list of entries which use this store */
 	struct ebmb_node node;
-	char path[0];
+	char path[VAR_ARRAY];
 };
 
 /* forward declarations for ckch_inst */

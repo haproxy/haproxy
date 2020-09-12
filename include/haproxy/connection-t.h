@@ -589,14 +589,14 @@ struct tlv {
 	uint8_t type;
 	uint8_t length_hi;
 	uint8_t length_lo;
-	uint8_t value[0];
+	uint8_t value[VAR_ARRAY];
 }__attribute__((packed));
 
 struct tlv_ssl {
 	struct tlv tlv;
 	uint8_t client;
 	uint32_t verify;
-	uint8_t sub_tlv[0];
+	uint8_t sub_tlv[VAR_ARRAY];
 }__attribute__((packed));
 
 

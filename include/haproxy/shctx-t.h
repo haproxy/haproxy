@@ -44,7 +44,7 @@ struct shared_block {
 	unsigned int refcount;
 	struct shared_block *last_reserved;
 	struct shared_block *last_append;
-	unsigned char data[0];
+	unsigned char data[VAR_ARRAY];
 };
 
 struct shared_context {
@@ -61,7 +61,7 @@ struct shared_context {
 	unsigned int max_obj_size;   /* maximum object size (in bytes). */
 	void (*free_block)(struct shared_block *first, struct shared_block *block);
 	short int block_size;
-	unsigned char data[0];
+	unsigned char data[VAR_ARRAY];
 };
 
 #endif /* __HAPROXY_SHCTX_T_H */

@@ -194,7 +194,7 @@ struct htx_sl {
 			      * corresponding EOH. -1 if unknown */
 
 	unsigned int len[3]; /* length of different parts of the start-line */
-	char         l[0];
+	char         l[VAR_ARRAY];
 };
 
 /* Internal representation of an HTTP message */
@@ -218,7 +218,7 @@ struct htx {
 	/* XXX 4 bytes unused */
 
 	/* Blocks representing the HTTP message itself */
-	char blocks[0] __attribute__((aligned(8)));
+	char blocks[VAR_ARRAY] __attribute__((aligned(8)));
 };
 
 #endif /* _HAPROXY_HTX_T_H */
