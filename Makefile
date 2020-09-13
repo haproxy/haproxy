@@ -58,8 +58,8 @@
 # given TARGET is enumerated at the end of "make help".
 #
 # Variables useful for packagers :
-#   CC is set to "gcc" by default and is used for compilation only.
-#   LD is set to "gcc" by default and is used for linking only.
+#   CC is set to "cc" by default and is used for compilation only.
+#   LD is set to "cc" by default and is used for linking only.
 #   ARCH may be useful to force build of 32-bit binary on 64-bit systems
 #   CFLAGS is automatically set for the specified CPU and may be overridden.
 #   LDFLAGS is automatically set to -g and may be overridden.
@@ -158,8 +158,7 @@ CPU = generic
 ARCH =
 
 #### Toolchain options.
-# GCC is normally used both for compiling and linking.
-CC = gcc
+CC = cc
 LD = $(CC)
 
 #### Debug flags (typically "-g").
