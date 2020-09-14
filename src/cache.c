@@ -33,6 +33,7 @@
 
 #define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without
 					       * the filter keyword) */
+#define CACHE_FLT_INIT             0x00000002 /* Whether the cache name was freed. */
 
 const char *cache_store_flt_id = "cache store filter";
 
@@ -133,6 +134,8 @@ cache_store_deinit(struct proxy *px, struct flt_conf *fconf)
 {
 	struct cache_flt_conf *cconf = fconf->conf;
 
+	if (!(cconf->flags & CACHE_FLT_INIT))
+		free(cconf->c.name);
 	free(cconf);
 }
 
@@ -1376,6 +1379,7 @@ int post_check_cache()
 				cconf = fconf->conf;
 				if (!strcmp(cache->id, cconf->c.name)) {
 					free(cconf->c.name);
+					cconf->flags |= CACHE_FLT_INIT;
 					cconf->c.cache = cache;
 					break;
 				}
