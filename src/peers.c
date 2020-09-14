@@ -2675,7 +2675,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 		goto out_free_appctx;
 	}
 
-	if ((s = stream_new(sess, &appctx->obj_type)) == NULL) {
+	if ((s = stream_new(sess, &appctx->obj_type, &BUF_NULL)) == NULL) {
 		ha_alert("Failed to initialize stream in peer_session_create().\n");
 		goto out_free_sess;
 	}

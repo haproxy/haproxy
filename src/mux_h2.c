@@ -1483,7 +1483,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
 	cs->ctx = h2s;
 	h2c->nb_cs++;
 
-	if (stream_create_from_cs(cs) < 0)
+	if (stream_create_from_cs(cs, &BUF_NULL) < 0)
 		goto out_free_cs;
 
 	/* We want the accept date presented to the next stream to be the one

@@ -1983,7 +1983,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	if (!sess)
 		goto out_free_spoe;
 
-	if ((strm = stream_new(sess, &appctx->obj_type)) == NULL)
+	if ((strm = stream_new(sess, &appctx->obj_type, &BUF_NULL)) == NULL)
 		goto out_free_sess;
 
 	stream_set_backend(strm, conf->agent->b.be);

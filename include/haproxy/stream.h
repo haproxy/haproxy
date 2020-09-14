@@ -58,8 +58,8 @@ extern struct list streams;
 
 extern struct data_cb sess_conn_cb;
 
-struct stream *stream_new(struct session *sess, enum obj_type *origin);
-int stream_create_from_cs(struct conn_stream *cs);
+struct stream *stream_new(struct session *sess, enum obj_type *origin, struct buffer *input);
+int stream_create_from_cs(struct conn_stream *cs, struct buffer *input);
 
 /* kill a stream and set the termination flags to <why> (one of SF_ERR_*) */
 void stream_shutdown(struct stream *stream, int why);

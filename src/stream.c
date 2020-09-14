@@ -269,11 +269,11 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
  * valid right after the handshake, before the connection's data layer is
  * initialized, because it relies on the session to be in conn->owner.
  */
-int stream_create_from_cs(struct conn_stream *cs)
+int stream_create_from_cs(struct conn_stream *cs, struct buffer *input)
 {
 	struct stream *strm;
 
-	strm = stream_new(cs->conn->owner, &cs->obj_type);
+	strm = stream_new(cs->conn->owner, &cs->obj_type, input);
 	if (strm == NULL)
 		return -1;
 
@@ -313,9 +313,11 @@ int stream_buf_available(void *arg)
  * end point is assigned to <origin>, which must be valid. The stream's task
  * is configured with a nice value inherited from the listener's nice if any.
  * The task's context is set to the new stream, and its function is set to
- * process_stream(). Target and analysers are null.
+ * process_stream(). Target and analysers are null. <input> is always used as
+ * Input buffer and may contain data. It is the caller responsibility to not
+ * reuse it anymore. <input> may point on BUF_NULL.
  */
-struct stream *stream_new(struct session *sess, enum obj_type *origin)
+struct stream *stream_new(struct session *sess, enum obj_type *origin, struct buffer *input)
 {
 	struct stream *s;
 	struct task *t;
@@ -405,8 +407,6 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	 * when the default backend is assigned.
 	 */
 	s->be  = sess->fe;
-	s->req.buf = BUF_NULL;
-	s->res.buf = BUF_NULL;
 	s->req_cap = NULL;
 	s->res_cap = NULL;
 
@@ -462,7 +462,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	/* init store persistence */
 	s->store_count = 0;
 
-	channel_init(&s->req);
+	channel_init(&s->req, input);
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
 	s->req.analysers = sess->listener ? sess->listener->analysers : 0;
 
@@ -477,7 +477,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->req.wex = TICK_ETERNITY;
 	s->req.analyse_exp = TICK_ETERNITY;
 
-	channel_init(&s->res);
+	channel_init(&s->res, &BUF_NULL);
 	s->res.flags |= CF_ISRESP;
 	s->res.analysers = 0;
 

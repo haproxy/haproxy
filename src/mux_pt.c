@@ -112,7 +112,7 @@ static int mux_pt_init(struct connection *conn, struct proxy *prx, struct sessio
 		if (!cs)
 			goto fail_free_ctx;
 
-		if (stream_create_from_cs(cs) < 0)
+		if (stream_create_from_cs(cs, &BUF_NULL) < 0)
 			goto fail_free;
 
 	}

@@ -508,7 +508,7 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
 	return b_data(&h1s->h1c->ibuf);
 }
 
-static struct conn_stream *h1s_new_cs(struct h1s *h1s)
+static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 {
 	struct conn_stream *cs;
 
@@ -529,10 +529,11 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s)
 		cs->flags |= CS_FL_MAY_SPLICE;
 	}
 
-	if (stream_create_from_cs(cs) < 0) {
+	if (stream_create_from_cs(cs, input) < 0) {
 		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
 		goto err;
 	}
+	*input = BUF_NULL;
 
 	TRACE_LEAVE(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 	return cs;
@@ -597,7 +598,7 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 		h1s->cs = cs;
 	}
 	else {
-		cs = h1s_new_cs(h1s);
+		cs = h1s_new_cs(h1s, &BUF_NULL);
 		if (!cs)
 			goto fail;
 	}
