@@ -363,11 +363,11 @@ ifeq ($(TARGET),solaris)
   TARGET_LDFLAGS = -lnsl -lsocket
 endif
 
-# FreeBSD 5 and above
+# FreeBSD 10 and above
 ifeq ($(TARGET),freebsd)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE   \
-    USE_CLOSEFROM)
+    USE_ACCEPT4 USE_CLOSEFROM USE_GETADDRINFO)
 endif
 
 # Mac OS/X
