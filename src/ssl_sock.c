@@ -674,7 +674,7 @@ void ssl_async_fd_handler(int fd)
 	/* crypto engine is available, let's notify the associated
 	 * connection that it can pursue its processing.
 	 */
-	ssl_sock_io_cb(NULL, ctx, 0);
+	tasklet_wakeup(ctx->wait_event.tasklet);
 }
 
 /*
