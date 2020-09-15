@@ -877,8 +877,8 @@ static int srv_parse_socks4(char **args, int *cur_arg,
 		goto err;
 	}
 
-	if (!port_low) {
-		ha_alert("'%s': invalid port range %d-%d.\n", args[*cur_arg], port_low, port_high);
+	if (port_low <= 0 || port_low > 65535) {
+		ha_alert("'%s': invalid port %d.\n", args[*cur_arg], port_low);
 		goto err;
 	}
 
