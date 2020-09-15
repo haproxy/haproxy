@@ -999,6 +999,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			/* Found a colon before a closing-bracket, must be a port separator.
 			 * This guarantee backward compatibility.
 			 */
+			if (!(opts & PA_O_PORT_OK)) {
+				memprintf(err, "port specification not permitted here in '%s'", str);
+				goto out;
+			}
 			*chr++ = '\0';
 			port1 = chr;
 		}
@@ -1007,29 +1011,66 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			 * or directly ending with a closing-bracket.
 			 * However, no port.
 			 */
+			if (opts & PA_O_PORT_MAND) {
+				memprintf(err, "missing port specification in '%s'", str);
+				goto out;
+			}
 			port1 = "";
 		}
 
 		if (isdigit((unsigned char)*port1)) {	/* single port or range */
 			port2 = strchr(port1, '-');
-			if (port2)
+			if (port2) {
+				if (!(opts & PA_O_PORT_RANGE)) {
+					memprintf(err, "port range not permitted here in '%s'", str);
+					goto out;
+				}
 				*port2++ = '\0';
+			}
 			else
 				port2 = port1;
 			portl = atoi(port1);
 			porth = atoi(port2);
+
+			if (portl < !!(opts & PA_O_PORT_MAND) || portl > 65535) {
+				memprintf(err, "invalid port '%s'", port1);
+				goto out;
+			}
+
+			if (porth < !!(opts & PA_O_PORT_MAND) || porth > 65535) {
+				memprintf(err, "invalid port '%s'", port2);
+				goto out;
+			}
+
+			if (portl > porth) {
+				memprintf(err, "invalid port range '%d-%d'", portl, porth);
+				goto out;
+			}
+
 			porta = portl;
 		}
 		else if (*port1 == '-') { /* negative offset */
+			if (!(opts & PA_O_PORT_OFS)) {
+				memprintf(err, "port offset not permitted here in '%s'", str);
+				goto out;
+			}
 			portl = atoi(port1 + 1);
 			porta = -portl;
 		}
 		else if (*port1 == '+') { /* positive offset */
+			if (!(opts & PA_O_PORT_OFS)) {
+				memprintf(err, "port offset not permitted here in '%s'", str);
+				goto out;
+			}
 			porth = atoi(port1 + 1);
 			porta = porth;
 		}
 		else if (*port1) { /* other any unexpected char */
 			memprintf(err, "invalid character '%c' in port number '%s' in '%s'\n", *port1, port1, str);
+			goto out;
+		}
+		else if (opts & PA_O_PORT_MAND) {
+			memprintf(err, "missing port specification in '%s'", str);
 			goto out;
 		}
 
