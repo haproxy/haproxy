@@ -863,8 +863,11 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
  * When a file descriptor is passed, its value is put into the s_addr part of
  * the address when cast to sockaddr_in and the address family is
  * AF_CUST_EXISTING_FD.
+ *
+ * Any known file descriptor is also assigned to <fd> if non-null, otherwise it
+ * is forced to -1.
  */
-struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, char **err, const char *pfx, char **fqdn, unsigned int opts)
+struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, int *fd, char **err, const char *pfx, char **fqdn, unsigned int opts)
 {
 	static THREAD_LOCAL struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
@@ -873,6 +876,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	int portl, porth, porta;
 	int abstract = 0;
 	int is_udp = 0;
+	int new_fd = -1;
 
 	portl = porth = porta = 0;
 	if (fqdn)
@@ -941,24 +945,26 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	if (ss.ss_family == AF_CUST_SOCKPAIR) {
 		char *endptr;
 
-		((struct sockaddr_in *)&ss)->sin_addr.s_addr = strtol(str2, &endptr, 10);
-		((struct sockaddr_in *)&ss)->sin_port = 0;
-
-		if (!*str2 || *endptr) {
+		new_fd = strtol(str2, &endptr, 10);
+		if (!*str2 || new_fd < 0 || *endptr) {
 			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
 			goto out;
 		}
+
+		((struct sockaddr_in *)&ss)->sin_addr.s_addr = new_fd;
+		((struct sockaddr_in *)&ss)->sin_port = 0;
 	}
 	else if (ss.ss_family == AF_CUST_EXISTING_FD) {
 		char *endptr;
 
-		((struct sockaddr_in *)&ss)->sin_addr.s_addr = strtol(str2, &endptr, 10);
-		((struct sockaddr_in *)&ss)->sin_port = 0;
-
-		if (!*str2 || *endptr) {
+		new_fd = strtol(str2, &endptr, 10);
+		if (!*str2 || new_fd < 0 || *endptr) {
 			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
 			goto out;
 		}
+
+		((struct sockaddr_in *)&ss)->sin_addr.s_addr = new_fd;
+		((struct sockaddr_in *)&ss)->sin_port = 0;
 	}
 	else if (ss.ss_family == AF_UNIX) {
 		struct sockaddr_un *un = (struct sockaddr_un *)&ss;
@@ -1111,6 +1117,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		*low = portl;
 	if (high)
 		*high = porth;
+	if (fd)
+		*fd = new_fd;
 	free(back);
 	return ret;
 }

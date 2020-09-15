@@ -242,7 +242,7 @@ static inline int is_idchar(char c)
  * address (typically the path to a unix socket).
  */
 struct sockaddr_storage *str2sa_range(const char *str,
-                                      int *port, int *low, int *high,
+                                      int *port, int *low, int *high, int *fd,
                                       char **err, const char *pfx,
                                       char **fqdn, unsigned int opts);
 
