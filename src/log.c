@@ -803,6 +803,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 	struct logsrv *logsrv = NULL;
 	int port1, port2;
 	int cur_arg;
+	int fd;
 
 	/*
 	 * "no log": delete previous herited or defined syslog
@@ -1018,13 +1019,13 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 		goto done;
 	}
 
-	if (strncmp(args[1], "fd@", 3) == 0)
-		logsrv->type = LOG_TARGET_FD;
-
-	sk = str2sa_range(args[1], NULL, &port1, &port2, NULL,
+	sk = str2sa_range(args[1], NULL, &port1, &port2, &fd,
 	                  err, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_RAW_FD | PA_O_DGRAM);
 	if (!sk)
 		goto error;
+
+	if (fd != -1)
+		logsrv->type = LOG_TARGET_FD;
 	logsrv->addr = *sk;
 
 	/* handle nicely the case where "udp@" is forced */
