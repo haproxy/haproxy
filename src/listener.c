@@ -537,13 +537,11 @@ void unbind_listener_no_close(struct listener *listener)
  * range <portl> to <porth>, and possibly attached to fd <fd> (or -1 for auto
  * allocation). The address family is taken from ss->ss_family. The number of
  * jobs and listeners is automatically increased by the number of listeners
- * created. If the <inherited> argument is set to 1, it specifies that the FD
- * was obtained from a parent process.
- * It returns non-zero on success, zero on error with the error message
+ * created. It returns non-zero on success, zero on error with the error message
  * set in <err>.
  */
 int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
-                     int portl, int porth, int fd, int inherited, char **err)
+                     int portl, int porth, int fd, char **err)
 {
 	struct protocol *proto = protocol_by_family(ss->ss_family);
 	struct listener *l;
@@ -573,7 +571,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 
 		proto->add(l, port);
 
-		if (inherited)
+		if (fd != -1)
 			l->rx.flags |= RX_F_INHERITED;
 
 		HA_SPIN_INIT(&l->lock);
