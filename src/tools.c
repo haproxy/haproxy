@@ -963,8 +963,31 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			goto out;
 		}
 
-		((struct sockaddr_in *)&ss)->sin_addr.s_addr = new_fd;
-		((struct sockaddr_in *)&ss)->sin_port = 0;
+		if (opts & PA_O_SOCKET_FD) {
+			socklen_t addr_len;
+			int type;
+
+			addr_len = sizeof(ss);
+			if (getsockname(new_fd, (struct sockaddr *)&ss, &addr_len) == -1) {
+				memprintf(err, "cannot use file descriptor '%d' : %s.\n", new_fd, strerror(errno));
+				goto out;
+			}
+
+			addr_len = sizeof(type);
+			if (getsockopt(new_fd, SOL_SOCKET, SO_TYPE, &type, &addr_len) != 0 ||
+			    (type == SOCK_STREAM) != !!(opts & PA_O_STREAM)) {
+				memprintf(err, "socket on file descriptor '%d' is of the wrong type.\n", new_fd);
+				goto out;
+			}
+
+			porta = portl = porth = get_host_port(&ss);
+		} else if (opts & PA_O_RAW_FD) {
+			((struct sockaddr_in *)&ss)->sin_addr.s_addr = new_fd;
+			((struct sockaddr_in *)&ss)->sin_port = 0;
+		} else {
+			memprintf(err, "a file descriptor is not acceptable here in '%s'\n", str);
+			goto out;
+		}
 	}
 	else if (ss.ss_family == AF_UNIX) {
 		struct sockaddr_un *un = (struct sockaddr_un *)&ss;
