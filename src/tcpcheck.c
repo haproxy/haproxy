@@ -2237,12 +2237,6 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 				goto error;
 			}
 
-			if (port1 != port2) {
-				memprintf(errmsg, "'%s' : port ranges and offsets are not allowed in '%s'\n",
-					  args[cur_arg], args[cur_arg+1]);
-				goto error;
-			}
-
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "port") == 0) {

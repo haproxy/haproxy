@@ -133,30 +133,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		if (!ss2)
 			goto fail;
 
-		if (ss2->ss_family == AF_INET || ss2->ss_family == AF_INET6
-		                              || ss2->ss_family == AF_CUST_UDP4
-					      || ss2->ss_family == AF_CUST_UDP6) {
-			if (!port && !end) {
-				memprintf(err, "missing port number: '%s'\n", str);
-				goto fail;
-			}
-
-			if (!port || !end) {
-				memprintf(err, "port offsets are not allowed in 'bind': '%s'\n", str);
-				goto fail;
-			}
-
-			if (port < 1 || port > 65535) {
-				memprintf(err, "invalid port '%d' specified for address '%s'.\n", port, str);
-				goto fail;
-			}
-
-			if (end < 1 || end > 65535) {
-				memprintf(err, "invalid port '%d' specified for address '%s'.\n", end, str);
-				goto fail;
-			}
-		}
-		else if (ss2->ss_family == AF_CUST_EXISTING_FD) {
+		if (ss2->ss_family == AF_CUST_EXISTING_FD) {
 			socklen_t addr_len;
 			inherited = 1;
 
@@ -1055,20 +1032,6 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (port1 != port2) {
-			ha_alert("parsing [%s:%d] : '%s %s' : port ranges and offsets are not allowed in '%s'\n",
-				 file, linenum, args[0], args[1], args[2]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!port1 && !port2) {
-			ha_alert("parsing [%s:%d] : '%s %s' : no UDP port specified\n",
-				 file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
 		newnameserver->addr = *sk;
 	}
 	else if (strcmp(args[0], "parse-resolv-conf") == 0) {
@@ -1435,20 +1398,6 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 		if (!proto || !proto->connect || proto->sock_prot != IPPROTO_TCP) {
 			ha_alert("parsing [%s:%d] : '%s %s' : TCP not supported for this address family.\n",
 				 file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (port1 != port2) {
-			ha_alert("parsing [%s:%d] : '%s %s' : port ranges and offsets are not allowed in '%s'\n",
-				 file, linenum, args[0], args[1], args[2]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!port1) {
-			ha_alert("parsing [%s:%d] : '%s %s' : missing or invalid port in '%s'\n",
-				 file, linenum, args[0], args[1], args[2]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

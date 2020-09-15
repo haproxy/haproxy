@@ -2539,10 +2539,6 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "connect: cannot parse destination address '%s'", ip));
 	}
-	if (low != high) {
-		xref_unlock(&socket->xref, peer);
-		WILL_LJMP(luaL_error(L, "connect: port ranges not supported : address '%s'", ip));
-	}
 
 	/* Set port. */
 	if (low == 0) {

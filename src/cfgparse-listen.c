@@ -2615,20 +2615,6 @@ stats_error_parsing:
 			goto out;
 		}
 
-		if (port1 != port2) {
-			ha_alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'.\n",
-				 file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!port1) {
-			ha_alert("parsing [%s:%d] : '%s' : missing port number in '%s', <addr:port> expected.\n",
-				 file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 
@@ -2888,13 +2874,6 @@ stats_error_parsing:
 			goto out;
 		}
 
-		if (port1 != port2) {
-			ha_alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
-				 file, linenum, args[0], args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
 		curproxy->conn_src.source_addr = *sk;
 		curproxy->conn_src.opts |= CO_SRC_BIND;
 
@@ -2973,12 +2952,6 @@ stats_error_parsing:
 						goto out;
 					}
 
-					if (port1 != port2) {
-						ha_alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
-							 file, linenum, args[cur_arg], args[cur_arg + 1]);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
 					curproxy->conn_src.tproxy_addr = *sk;
 					curproxy->conn_src.opts |= CO_SRC_TPROXY_ADDR;
 				}

@@ -1033,10 +1033,6 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 		sk->ss_family = AF_INET6;
 
 	if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
-		if (port1 != port2) {
-			memprintf(err, "port ranges and offsets are not allowed in '%s'", args[1]);
-			goto error;
-		}
 		logsrv->addr = *sk;
 		if (!port1)
 			set_host_port(&logsrv->addr, SYSLOG_PORT);

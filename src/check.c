@@ -2652,12 +2652,6 @@ static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct
 		goto error;
 	}
 
-	if (port1 != port2) {
-		memprintf(errmsg, "'%s' : port ranges and offsets are not allowed in '%s'.",
-		          args[*cur_arg], args[*cur_arg+1]);
-		goto error;
-	}
-
 	srv->check.addr = srv->agent.addr = *sk;
 	srv->flags |= SRV_F_CHECKADDR;
 	srv->flags |= SRV_F_AGENTADDR;

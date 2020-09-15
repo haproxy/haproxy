@@ -678,18 +678,6 @@ static int srv_parse_source(char **args, int *cur_arg,
 	if (port_low != port_high) {
 		int i;
 
-		if (!port_low || !port_high) {
-			ha_alert("'%s' does not support port offsets (found '%s').\n",
-				 args[*cur_arg], args[*cur_arg + 1]);
-			goto err;
-		}
-
-		if (port_low  <= 0 || port_low  > 65535 ||
-			port_high <= 0 || port_high > 65535 ||
-			port_low > port_high) {
-			ha_alert("'%s': invalid source port range %d-%d.\n", args[*cur_arg], port_low, port_high);
-			goto err;
-		}
 		newsrv->conn_src.sport_range = port_range_alloc_range(port_high - port_low + 1);
 		for (i = 0; i < newsrv->conn_src.sport_range->size; i++)
 			newsrv->conn_src.sport_range->ports[i] = port_low + i;
@@ -769,11 +757,6 @@ static int srv_parse_source(char **args, int *cur_arg,
 					goto err;
 				}
 
-				if (port1 != port2) {
-					ha_alert("'%s' : port ranges and offsets are not allowed in '%s'\n",
-						 args[*cur_arg], args[*cur_arg + 1]);
-					goto err;
-				}
 				newsrv->conn_src.tproxy_addr = *sk;
 				newsrv->conn_src.opts |= CO_SRC_TPROXY_ADDR;
 			}
@@ -871,16 +854,6 @@ static int srv_parse_socks4(char **args, int *cur_arg,
 
 	newsrv->flags |= SRV_F_SOCKS4_PROXY;
 	newsrv->socks4_addr = *sk;
-
-	if (port_low != port_high) {
-		ha_alert("'%s' does not support port offsets (found '%s').\n", args[*cur_arg], args[*cur_arg + 1]);
-		goto err;
-	}
-
-	if (port_low <= 0 || port_low > 65535) {
-		ha_alert("'%s': invalid port %d.\n", args[*cur_arg], port_low);
-		goto err;
-	}
 
 	return 0;
 
@@ -2072,13 +2045,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			if (!port1 || !port2) {
 				/* no port specified, +offset, -offset */
 				newsrv->flags |= SRV_F_MAPPORTS;
-			}
-			else if (port1 != port2) {
-				/* port range */
-				ha_alert("parsing [%s:%d] : '%s %s' : port ranges are not allowed in '%s'\n",
-				      file, linenum, args[0], args[1], args[2]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
 			}
 
 			/* save hostname and create associated name resolution */
