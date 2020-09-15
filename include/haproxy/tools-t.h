@@ -87,6 +87,10 @@
 
 /* Address parsing options for use with str2sa_range() */
 #define PA_O_RESOLVE            0x00000001   /* do resolve the FQDN to an IP address */
+#define PA_O_PORT_OK            0x00000002   /* ports are supported */
+#define PA_O_PORT_MAND          0x00000004   /* ports are mandatory */
+#define PA_O_PORT_RANGE         0x00000008   /* port ranges are supported */
+#define PA_O_PORT_OFS           0x00000010   /* port offsets are supported */
 
 /* UTF-8 decoder status */
 #define UTF8_CODE_OK       0x00
