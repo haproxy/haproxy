@@ -366,10 +366,7 @@ int sock_find_compatible_fd(const struct listener *l)
 	if (!l->rx.proto->addrcmp)
 		return -1;
 
-	/* WT: this is not the right way to do it, it is temporary for the
-	 *     transition to receivers.
-	 */
-	if (l->rx.addr.ss_family == AF_CUST_UDP4 || l->rx.addr.ss_family == AF_CUST_UDP6)
+	if (l->rx.proto->sock_type == SOCK_DGRAM)
 		options |= SOCK_XFER_OPT_DGRAM;
 
 	if (l->options & LI_O_FOREIGN)
