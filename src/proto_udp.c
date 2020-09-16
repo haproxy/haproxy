@@ -1,5 +1,5 @@
 /*
- * AF_CUST_UDP/AF_CUST_UDP6 UDP protocol layer
+ * UDP protocol layer on top of AF_INET/AF_INET6
  *
  * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
  *
@@ -49,7 +49,7 @@ static struct protocol proto_udp4 = {
 	.name = "udp4",
 	.fam = &proto_fam_inet4,
 	.ctrl_type = SOCK_DGRAM,
-	.sock_domain = AF_CUST_UDP4,
+	.sock_domain = AF_INET,
 	.sock_type = SOCK_DGRAM,
 	.sock_prot = IPPROTO_UDP,
 	.accept = NULL,
@@ -69,7 +69,7 @@ static struct protocol proto_udp6 = {
 	.name = "udp6",
 	.fam = &proto_fam_inet6,
 	.ctrl_type = SOCK_DGRAM,
-	.sock_domain = AF_CUST_UDP6,
+	.sock_domain = AF_INET6,
 	.sock_type = SOCK_DGRAM,
 	.sock_prot = IPPROTO_UDP,
 	.accept = NULL,
