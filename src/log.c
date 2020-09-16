@@ -1028,12 +1028,6 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 		logsrv->type = LOG_TARGET_FD;
 	logsrv->addr = *sk;
 
-	/* handle nicely the case where "udp@" is forced */
-	if (sk->ss_family == AF_CUST_UDP4)
-		sk->ss_family = AF_INET;
-	else if (sk->ss_family == AF_CUST_UDP6)
-		sk->ss_family = AF_INET6;
-
 	if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
 		logsrv->addr = *sk;
 		if (!port1)

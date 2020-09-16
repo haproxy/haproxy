@@ -1151,13 +1151,17 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			}
 		}
 		set_host_port(&ss, porta);
-		if (is_udp) {
+		if (is_udp && opts & PA_O_SOCKET_FD) {
+			/* FIXME: for now UDP is still its own family. However some UDP clients
+			 * (logs, dns) use AF_INET and are not aware of AF_CUST_UDP*. Since we
+			 * only want this mapping for listeners and they are the only ones
+			 * setting PA_O_SOCKET_FD, for now we condition this mapping to this.
+			 */
 			if (ss.ss_family == AF_INET6)
 				ss.ss_family = AF_CUST_UDP6;
 			else
 				ss.ss_family = AF_CUST_UDP4;
 		}
-
 	}
 
 	if (ctrl_type == SOCK_STREAM && !(opts & PA_O_STREAM)) {

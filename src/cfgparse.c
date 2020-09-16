@@ -984,12 +984,6 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		/* handle nicely the case where "udp@" is forced */
-		if (sk->ss_family == AF_CUST_UDP4)
-			sk->ss_family = AF_INET;
-		else if (sk->ss_family == AF_CUST_UDP6)
-			sk->ss_family = AF_INET6;
-
 		proto = protocol_by_family(sk->ss_family);
 		if (!proto) {
 			ha_alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
