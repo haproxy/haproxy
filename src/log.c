@@ -3630,9 +3630,9 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			else {
 				ha_alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address %s.\n",
 				         file, linenum, args[0], args[1], args[2]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
 			}
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			/* Currently, only UDP handlers are allowed */
