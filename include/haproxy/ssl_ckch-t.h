@@ -65,7 +65,6 @@ struct cert_key_and_chain {
  */
 struct ckch_store {
 	struct cert_key_and_chain *ckch;
-	unsigned int multi:1;  /* is it a multi-cert bundle ? */
 	struct list ckch_inst; /* list of ckch_inst which uses this ckch_node */
 	struct list crtlist_entry; /* list of entries which use this store */
 	struct ebmb_node node;
