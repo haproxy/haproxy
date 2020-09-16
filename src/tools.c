@@ -877,6 +877,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	int abstract = 0;
 	int is_udp = 0;
 	int new_fd = -1;
+	int sock_type, ctrl_type;
 
 	portl = porth = porta = 0;
 	if (fqdn)
@@ -894,6 +895,21 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	}
 
 	memset(&ss, 0, sizeof(ss));
+
+	/* prepare the default socket types */
+	if ((opts & (PA_O_STREAM|PA_O_DGRAM)) == PA_O_DGRAM)
+		sock_type = ctrl_type = SOCK_DGRAM;
+	else
+		sock_type = ctrl_type = SOCK_STREAM;
+
+	if (strncmp(str2, "stream+", 7) == 0) {
+		str2 += 7;
+		sock_type = ctrl_type = SOCK_STREAM;
+	}
+	else if (strncmp(str2, "dgram+", 6) == 0) {
+		str2 += 6;
+		sock_type = ctrl_type = SOCK_DGRAM;
+	}
 
 	if (strncmp(str2, "unix@", 5) == 0) {
 		str2 += 5;
@@ -916,16 +932,19 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	else if (strncmp(str2, "udp4@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET;
+		sock_type = ctrl_type = SOCK_DGRAM;
 		is_udp = 1;
 	}
 	else if (strncmp(str2, "udp6@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET6;
+		sock_type = ctrl_type = SOCK_DGRAM;
 		is_udp = 1;
 	}
 	else if (strncmp(str2, "udp@", 4) == 0) {
 		str2 += 4;
 		ss.ss_family = AF_UNSPEC;
+		sock_type = ctrl_type = SOCK_DGRAM;
 		is_udp = 1;
 	}
 	else if (strncmp(str2, "fd@", 3) == 0) {
@@ -984,7 +1003,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 			addr_len = sizeof(type);
 			if (getsockopt(new_fd, SOL_SOCKET, SO_TYPE, &type, &addr_len) != 0 ||
-			    (type == SOCK_STREAM) != !!(opts & PA_O_STREAM)) {
+			    (type == SOCK_STREAM) != (sock_type == SOCK_STREAM)) {
 				memprintf(err, "socket on file descriptor '%d' is of the wrong type.\n", new_fd);
 				goto out;
 			}
@@ -1139,6 +1158,15 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 				ss.ss_family = AF_CUST_UDP4;
 		}
 
+	}
+
+	if (ctrl_type == SOCK_STREAM && !(opts & PA_O_STREAM)) {
+		memprintf(err, "stream-type socket not acceptable in '%s'\n", str);
+		goto out;
+	}
+	else if (ctrl_type == SOCK_DGRAM && !(opts & PA_O_DGRAM)) {
+		memprintf(err, "dgram-type socket not acceptable in '%s'\n", str);
+		goto out;
 	}
 
 	ret = &ss;
