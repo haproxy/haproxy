@@ -380,8 +380,8 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 			goto error;
 		}
-
-		*(end - 1) = '\0'; /* line parser mustn't receive any \n */
+		if (*(end - 1) == '\n')
+			*(end - 1) = '\0'; /* line parser mustn't receive any \n */
 		cfgerr |= crtlist_parse_line(thisline, &crt_path, entry, file, linenum, err);
 		if (cfgerr)
 			goto error;
