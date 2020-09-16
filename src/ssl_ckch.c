@@ -921,20 +921,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 		if (ckchs_transaction.old_ckchs) {
 			ckchs = ckchs_transaction.old_ckchs;
 			chunk_appendf(trash, "# transaction\n");
-			if (!ckchs->multi) {
-				chunk_appendf(trash, "*%s\n", ckchs->path);
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-			} else {
-				int n;
-
-				chunk_appendf(trash, "*%s:", ckchs->path);
-				for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
-					if (ckchs->ckch[n].cert)
-						chunk_appendf(trash, " %s.%s\n", ckchs->path, SSL_SOCK_KEYTYPE_NAMES[n]);
-				}
-				chunk_appendf(trash, "\n");
-#endif
-			}
+			chunk_appendf(trash, "*%s\n", ckchs->path);
 		}
 	}
 
@@ -946,20 +933,7 @@ static int cli_io_handler_show_cert(struct appctx *appctx)
 	}
 	while (node) {
 		ckchs = ebmb_entry(node, struct ckch_store, node);
-		if (!ckchs->multi) {
-			chunk_appendf(trash, "%s\n", ckchs->path);
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-		} else {
-			int n;
-
-			chunk_appendf(trash, "%s:", ckchs->path);
-			for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
-				if (ckchs->ckch[n].cert)
-					chunk_appendf(trash, " %s.%s", ckchs->path, SSL_SOCK_KEYTYPE_NAMES[n]);
-			}
-			chunk_appendf(trash, "\n");
-#endif
-		}
+		chunk_appendf(trash, "%s\n", ckchs->path);
 
 		node = ebmb_next(node);
 		if (ci_putchk(si_ic(si), trash) == -1) {
@@ -1028,121 +1002,119 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	if (!tmp || !out)
 		goto end_no_putchk;
 
-	if (!ckchs->multi) {
-		chunk_appendf(out, "Filename: ");
-		if (ckchs == ckchs_transaction.new_ckchs)
-			chunk_appendf(out, "*");
-		chunk_appendf(out, "%s\n", ckchs->path);
+	chunk_appendf(out, "Filename: ");
+	if (ckchs == ckchs_transaction.new_ckchs)
+		chunk_appendf(out, "*");
+	chunk_appendf(out, "%s\n", ckchs->path);
 
-		chunk_appendf(out, "Status: ");
-		if (ckchs->ckch->cert == NULL)
-			chunk_appendf(out, "Empty\n");
-		else if (LIST_ISEMPTY(&ckchs->ckch_inst))
-			chunk_appendf(out, "Unused\n");
-		else
-			chunk_appendf(out, "Used\n");
+	chunk_appendf(out, "Status: ");
+	if (ckchs->ckch->cert == NULL)
+		chunk_appendf(out, "Empty\n");
+	else if (LIST_ISEMPTY(&ckchs->ckch_inst))
+		chunk_appendf(out, "Unused\n");
+	else
+		chunk_appendf(out, "Used\n");
 
-		if (ckchs->ckch->cert == NULL)
-			goto end;
+	if (ckchs->ckch->cert == NULL)
+		goto end;
 
-		chain = ckchs->ckch->chain;
-		if (chain == NULL) {
-			struct issuer_chain *issuer;
-			issuer = ssl_get0_issuer_chain(ckchs->ckch->cert);
-			if (issuer) {
-				chain = issuer->chain;
-				chunk_appendf(out, "Chain Filename: ");
-				chunk_appendf(out, "%s\n", issuer->path);
-			}
+	chain = ckchs->ckch->chain;
+	if (chain == NULL) {
+		struct issuer_chain *issuer;
+		issuer = ssl_get0_issuer_chain(ckchs->ckch->cert);
+		if (issuer) {
+			chain = issuer->chain;
+			chunk_appendf(out, "Chain Filename: ");
+			chunk_appendf(out, "%s\n", issuer->path);
 		}
-		chunk_appendf(out, "Serial: ");
-		if (ssl_sock_get_serial(ckchs->ckch->cert, tmp) == -1)
-			goto end;
-		dump_binary(out, tmp->area, tmp->data);
-		chunk_appendf(out, "\n");
+	}
+	chunk_appendf(out, "Serial: ");
+	if (ssl_sock_get_serial(ckchs->ckch->cert, tmp) == -1)
+		goto end;
+	dump_binary(out, tmp->area, tmp->data);
+	chunk_appendf(out, "\n");
 
-		chunk_appendf(out, "notBefore: ");
-		chunk_reset(tmp);
-		if ((bio = BIO_new(BIO_s_mem())) ==  NULL)
-			goto end;
-		if (ASN1_TIME_print(bio, X509_getm_notBefore(ckchs->ckch->cert)) == 0)
-			goto end;
-		write = BIO_read(bio, tmp->area, tmp->size-1);
-		tmp->area[write] = '\0';
-		BIO_free(bio);
-		bio = NULL;
-		chunk_appendf(out, "%s\n", tmp->area);
+	chunk_appendf(out, "notBefore: ");
+	chunk_reset(tmp);
+	if ((bio = BIO_new(BIO_s_mem())) ==  NULL)
+		goto end;
+	if (ASN1_TIME_print(bio, X509_getm_notBefore(ckchs->ckch->cert)) == 0)
+		goto end;
+	write = BIO_read(bio, tmp->area, tmp->size-1);
+	tmp->area[write] = '\0';
+	BIO_free(bio);
+	bio = NULL;
+	chunk_appendf(out, "%s\n", tmp->area);
 
-		chunk_appendf(out, "notAfter: ");
-		chunk_reset(tmp);
-		if ((bio = BIO_new(BIO_s_mem())) == NULL)
-			goto end;
-		if (ASN1_TIME_print(bio, X509_getm_notAfter(ckchs->ckch->cert)) == 0)
-			goto end;
-		if ((write = BIO_read(bio, tmp->area, tmp->size-1)) <= 0)
-			goto end;
-		tmp->area[write] = '\0';
-		BIO_free(bio);
-		bio = NULL;
-		chunk_appendf(out, "%s\n", tmp->area);
+	chunk_appendf(out, "notAfter: ");
+	chunk_reset(tmp);
+	if ((bio = BIO_new(BIO_s_mem())) == NULL)
+		goto end;
+	if (ASN1_TIME_print(bio, X509_getm_notAfter(ckchs->ckch->cert)) == 0)
+		goto end;
+	if ((write = BIO_read(bio, tmp->area, tmp->size-1)) <= 0)
+		goto end;
+	tmp->area[write] = '\0';
+	BIO_free(bio);
+	bio = NULL;
+	chunk_appendf(out, "%s\n", tmp->area);
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-		chunk_appendf(out, "Subject Alternative Name: ");
-		if (ssl_sock_get_san_oneline(ckchs->ckch->cert, out) == -1)
-		    goto end;
-		*(out->area + out->data) = '\0';
-		chunk_appendf(out, "\n");
+	chunk_appendf(out, "Subject Alternative Name: ");
+	if (ssl_sock_get_san_oneline(ckchs->ckch->cert, out) == -1)
+		goto end;
+	*(out->area + out->data) = '\0';
+	chunk_appendf(out, "\n");
 #endif
-		chunk_reset(tmp);
-		chunk_appendf(out, "Algorithm: ");
-		if (cert_get_pkey_algo(ckchs->ckch->cert, tmp) == 0)
-			goto end;
-		chunk_appendf(out, "%s\n", tmp->area);
+	chunk_reset(tmp);
+	chunk_appendf(out, "Algorithm: ");
+	if (cert_get_pkey_algo(ckchs->ckch->cert, tmp) == 0)
+		goto end;
+	chunk_appendf(out, "%s\n", tmp->area);
 
-		chunk_reset(tmp);
-		chunk_appendf(out, "SHA1 FingerPrint: ");
-		if (X509_digest(ckchs->ckch->cert, EVP_sha1(), (unsigned char *) tmp->area, &len) == 0)
-			goto end;
-		tmp->data = len;
-		dump_binary(out, tmp->area, tmp->data);
-		chunk_appendf(out, "\n");
+	chunk_reset(tmp);
+	chunk_appendf(out, "SHA1 FingerPrint: ");
+	if (X509_digest(ckchs->ckch->cert, EVP_sha1(), (unsigned char *) tmp->area, &len) == 0)
+		goto end;
+	tmp->data = len;
+	dump_binary(out, tmp->area, tmp->data);
+	chunk_appendf(out, "\n");
 
-		chunk_appendf(out, "Subject: ");
-		if ((name = X509_get_subject_name(ckchs->ckch->cert)) == NULL)
+	chunk_appendf(out, "Subject: ");
+	if ((name = X509_get_subject_name(ckchs->ckch->cert)) == NULL)
+		goto end;
+	if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
+		goto end;
+	*(tmp->area + tmp->data) = '\0';
+	chunk_appendf(out, "%s\n", tmp->area);
+
+	chunk_appendf(out, "Issuer: ");
+	if ((name = X509_get_issuer_name(ckchs->ckch->cert)) == NULL)
+		goto end;
+	if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
+		goto end;
+	*(tmp->area + tmp->data) = '\0';
+	chunk_appendf(out, "%s\n", tmp->area);
+
+	/* Displays subject of each certificate in the chain */
+	for (i = 0; i < sk_X509_num(chain); i++) {
+		X509 *ca = sk_X509_value(chain, i);
+
+		chunk_appendf(out, "Chain Subject: ");
+		if ((name = X509_get_subject_name(ca)) == NULL)
 			goto end;
 		if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
 			goto end;
 		*(tmp->area + tmp->data) = '\0';
 		chunk_appendf(out, "%s\n", tmp->area);
 
-		chunk_appendf(out, "Issuer: ");
-		if ((name = X509_get_issuer_name(ckchs->ckch->cert)) == NULL)
+		chunk_appendf(out, "Chain Issuer: ");
+		if ((name = X509_get_issuer_name(ca)) == NULL)
 			goto end;
 		if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
 			goto end;
 		*(tmp->area + tmp->data) = '\0';
 		chunk_appendf(out, "%s\n", tmp->area);
-
-		/* Displays subject of each certificate in the chain */
-		for (i = 0; i < sk_X509_num(chain); i++) {
-			X509 *ca = sk_X509_value(chain, i);
-
-			chunk_appendf(out, "Chain Subject: ");
-			if ((name = X509_get_subject_name(ca)) == NULL)
-				goto end;
-			if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
-				goto end;
-			*(tmp->area + tmp->data) = '\0';
-			chunk_appendf(out, "%s\n", tmp->area);
-
-			chunk_appendf(out, "Chain Issuer: ");
-			if ((name = X509_get_issuer_name(ca)) == NULL)
-				goto end;
-			if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
-				goto end;
-			*(tmp->area + tmp->data) = '\0';
-			chunk_appendf(out, "%s\n", tmp->area);
-		}
 	}
 
 end:
@@ -1192,9 +1164,6 @@ static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx
 				goto error;
 
 		}
-
-		if (ckchs->multi)
-			goto error;
 
 		appctx->ctx.cli.p0 = ckchs;
 		/* use the IO handler that shows details */
@@ -1430,35 +1399,15 @@ static int cli_parse_commit_cert(char **args, char *payload, struct appctx *appc
 		goto error;
 	}
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-	if (ckchs_transaction.new_ckchs->multi) {
-		int n;
+	/* if a certificate is here, a private key must be here too */
+	if (ckchs_transaction.new_ckchs->ckch->cert && !ckchs_transaction.new_ckchs->ckch->key) {
+		memprintf(&err, "The transaction must contain at least a certificate and a private key!\n");
+		goto error;
+	}
 
-		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
-			/* if a certificate is here, a private key must be here too */
-			if (ckchs_transaction.new_ckchs->ckch[n].cert && !ckchs_transaction.new_ckchs->ckch[n].key) {
-				memprintf(&err, "The transaction must contain at least a certificate and a private key!\n");
-				goto error;
-			}
-
-			if (ckchs_transaction.new_ckchs->ckch[n].cert && !X509_check_private_key(ckchs_transaction.new_ckchs->ckch[n].cert, ckchs_transaction.new_ckchs->ckch[n].key)) {
-				memprintf(&err, "inconsistencies between private key and certificate loaded '%s'.\n", ckchs_transaction.path);
-				goto error;
-			}
-		}
-	} else
-#endif
-	{
-		/* if a certificate is here, a private key must be here too */
-		if (ckchs_transaction.new_ckchs->ckch->cert && !ckchs_transaction.new_ckchs->ckch->key) {
-			memprintf(&err, "The transaction must contain at least a certificate and a private key!\n");
-			goto error;
-		}
-
-		if (!X509_check_private_key(ckchs_transaction.new_ckchs->ckch->cert, ckchs_transaction.new_ckchs->ckch->key)) {
-			memprintf(&err, "inconsistencies between private key and certificate loaded '%s'.\n", ckchs_transaction.path);
-			goto error;
-		}
+	if (!X509_check_private_key(ckchs_transaction.new_ckchs->ckch->cert, ckchs_transaction.new_ckchs->ckch->key)) {
+		memprintf(&err, "inconsistencies between private key and certificate loaded '%s'.\n", ckchs_transaction.path);
+		goto error;
 	}
 
 	/* init the appctx structure */
