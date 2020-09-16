@@ -61,6 +61,7 @@ struct proto_fam proto_fam_sockpair = {
 static struct protocol proto_sockpair = {
 	.name = "sockpair",
 	.fam = &proto_fam_sockpair,
+	.ctrl_type = SOCK_STREAM,
 	.sock_domain = AF_CUST_SOCKPAIR,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = 0,

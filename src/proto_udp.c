@@ -48,6 +48,7 @@ static void udp6_add_listener(struct listener *listener, int port);
 static struct protocol proto_udp4 = {
 	.name = "udp4",
 	.fam = &proto_fam_inet4,
+	.ctrl_type = SOCK_DGRAM,
 	.sock_domain = AF_CUST_UDP4,
 	.sock_type = SOCK_DGRAM,
 	.sock_prot = IPPROTO_UDP,
@@ -67,6 +68,7 @@ INITCALL1(STG_REGISTER, protocol_register, &proto_udp4);
 static struct protocol proto_udp6 = {
 	.name = "udp6",
 	.fam = &proto_fam_inet6,
+	.ctrl_type = SOCK_DGRAM,
 	.sock_domain = AF_CUST_UDP6,
 	.sock_type = SOCK_DGRAM,
 	.sock_prot = IPPROTO_UDP,

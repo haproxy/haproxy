@@ -82,6 +82,7 @@ struct proto_fam {
 struct protocol {
 	char name[PROTO_NAME_LEN];			/* protocol name, zero-terminated */
 	struct proto_fam *fam;                          /* protocol family */
+	int ctrl_type;                                  /* control layer type (SOCK_STREAM/SOCK_DGRAM) */
 	int sock_domain;				/* socket domain, as passed to socket()   */
 	int sock_type;					/* socket type, as passed to socket()     */
 	int sock_prot;					/* socket protocol, as passed to socket() */

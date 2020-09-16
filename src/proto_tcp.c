@@ -52,6 +52,7 @@ static void tcpv6_add_listener(struct listener *listener, int port);
 static struct protocol proto_tcpv4 = {
 	.name = "tcpv4",
 	.fam = &proto_fam_inet4,
+	.ctrl_type = SOCK_STREAM,
 	.sock_domain = AF_INET,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = IPPROTO_TCP,
@@ -71,6 +72,7 @@ INITCALL1(STG_REGISTER, protocol_register, &proto_tcpv4);
 static struct protocol proto_tcpv6 = {
 	.name = "tcpv6",
 	.fam = &proto_fam_inet6,
+	.ctrl_type = SOCK_STREAM,
 	.sock_domain = AF_INET6,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = IPPROTO_TCP,
