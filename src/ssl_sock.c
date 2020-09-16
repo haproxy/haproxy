@@ -489,7 +489,6 @@ __decl_rwlock(ssl_ctx_lru_rwlock);
 
 #endif // SSL_CTRL_SET_TLSEXT_HOSTNAME
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 /* The order here matters for picking a default context,
  * keep the most common keytype at the bottom of the list
  */
@@ -498,7 +497,6 @@ const char *SSL_SOCK_KEYTYPE_NAMES[] = {
 	"ecdsa",
 	"rsa"
 };
-#endif
 
 static struct shared_context *ssl_shctx = NULL; /* ssl shared session cache */
 static struct eb_root *sh_ssl_sess_tree; /* ssl shared session tree */

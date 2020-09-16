@@ -292,16 +292,12 @@ struct global_ssl {
 	int extra_files; /* which files not defined in the configuration file are we looking for */
 };
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
 /* The order here matters for picking a default context,
  * keep the most common keytype at the bottom of the list
  */
 extern const char *SSL_SOCK_KEYTYPE_NAMES[];
 
 #define SSL_SOCK_NUM_KEYTYPES 3
-#else
-#define SSL_SOCK_NUM_KEYTYPES 1
-#endif
 
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_SOCK_T_H */
