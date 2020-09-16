@@ -111,6 +111,7 @@ struct cfg_kw_list cfg_keywords = {
  */
 int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err)
 {
+	struct protocol *proto;
 	char *next, *dupstr;
 	int port, end;
 
@@ -133,8 +134,14 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		if (!ss2)
 			goto fail;
 
+		proto = protocol_by_family(ss2->ss_family);
+		if (!proto) {
+			memprintf(err, "unsupported protocol family %d fr address '%s'", ss2->ss_family, str);
+			goto fail;
+		}
+
 		/* OK the address looks correct */
-		if (!create_listeners(bind_conf, ss2, port, end, fd, err)) {
+		if (!create_listeners(bind_conf, ss2, port, end, fd, proto, err)) {
 			memprintf(err, "%s for address '%s'.\n", *err, str);
 			goto fail;
 		}
@@ -160,6 +167,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
  */
 int str2receiver(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err)
 {
+	struct protocol *proto;
 	char *next, *dupstr;
 	int port, end;
 
@@ -182,8 +190,14 @@ int str2receiver(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		if (!ss2)
 			goto fail;
 
+		proto = protocol_by_family(ss2->ss_family);
+		if (!proto) {
+			memprintf(err, "unsupported protocol family %d fr address '%s'", ss2->ss_family, str);
+			goto fail;
+		}
+
 		/* OK the address looks correct */
-		if (!create_listeners(bind_conf, ss2, port, end, fd, err)) {
+		if (!create_listeners(bind_conf, ss2, port, end, fd, proto, err)) {
 			memprintf(err, "%s for address '%s'.\n", *err, str);
 			goto fail;
 		}
