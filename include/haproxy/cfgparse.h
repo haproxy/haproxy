@@ -96,6 +96,7 @@ void cfg_unregister_keywords(struct cfg_kw_list *kwl);
 void init_default_instance();
 int check_config_validity();
 int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err);
+int str2receiver(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err);
 int cfg_register_section(char *section_name,
                          int (*section_parser)(const char *, int, char **, int),
                          int (*post_section_parser)());

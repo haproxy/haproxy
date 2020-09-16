@@ -147,6 +147,55 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 }
 
 /*
+ * converts <str> to a list of datagram-oriented listeners which are dynamically
+ * allocated.
+ * The format is "{addr|'*'}:port[-end][,{addr|'*'}:port[-end]]*", where :
+ *  - <addr> can be empty or "*" to indicate INADDR_ANY ;
+ *  - <port> is a numerical port from 1 to 65535 ;
+ *  - <end> indicates to use the range from <port> to <end> instead (inclusive).
+ * This can be repeated as many times as necessary, separated by a coma.
+ * Function returns 1 for success or 0 if error. In case of errors, if <err> is
+ * not NULL, it must be a valid pointer to either NULL or a freeable area that
+ * will be replaced with an error message.
+ */
+int str2receiver(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err)
+{
+	char *next, *dupstr;
+	int port, end;
+
+	next = dupstr = strdup(str);
+
+	while (next && *next) {
+		struct sockaddr_storage *ss2;
+		int fd = -1;
+
+		str = next;
+		/* 1) look for the end of the first address */
+		if ((next = strchr(str, ',')) != NULL) {
+			*next++ = 0;
+		}
+
+		ss2 = str2sa_range(str, NULL, &port, &end, &fd, err,
+		                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix,
+		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
+		                          PA_O_SOCKET_FD | PA_O_DGRAM | PA_O_XPRT);
+		if (!ss2)
+			goto fail;
+
+		/* OK the address looks correct */
+		if (!create_listeners(bind_conf, ss2, port, end, fd, err)) {
+			memprintf(err, "%s for address '%s'.\n", *err, str);
+			goto fail;
+		}
+	} /* end while(next) */
+	free(dupstr);
+	return 1;
+ fail:
+	free(dupstr);
+	return 0;
+}
+
+/*
  * Report an error in <msg> when there are too many arguments. This version is
  * intended to be used by keyword parsers so that the message will be included
  * into the general error message. The index is the current keyword in args.
