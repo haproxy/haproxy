@@ -127,18 +127,12 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			*next++ = 0;
 		}
 
-		ss2 = str2sa_range(str, NULL, &port, &end, &fd, err,
+		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, err,
 		                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix,
 		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_STREAM | PA_O_XPRT);
 		if (!ss2)
 			goto fail;
-
-		proto = protocol_by_family(ss2->ss_family);
-		if (!proto) {
-			memprintf(err, "unsupported protocol family %d fr address '%s'", ss2->ss_family, str);
-			goto fail;
-		}
 
 		/* OK the address looks correct */
 		if (!create_listeners(bind_conf, ss2, port, end, fd, proto, err)) {
@@ -183,18 +177,12 @@ int str2receiver(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			*next++ = 0;
 		}
 
-		ss2 = str2sa_range(str, NULL, &port, &end, &fd, err,
+		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, err,
 		                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix,
 		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_DGRAM | PA_O_XPRT);
 		if (!ss2)
 			goto fail;
-
-		proto = protocol_by_family(ss2->ss_family);
-		if (!proto) {
-			memprintf(err, "unsupported protocol family %d fr address '%s'", ss2->ss_family, str);
-			goto fail;
-		}
 
 		/* OK the address looks correct */
 		if (!create_listeners(bind_conf, ss2, port, end, fd, proto, err)) {
@@ -642,7 +630,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				}
 			}
 			newpeer->addr = l->rx.addr;
-			newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
+			newpeer->proto = l->rx.proto;
 			cur_arg++;
 		}
 
@@ -1001,7 +989,6 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "nameserver") == 0) { /* nameserver definition */
 		struct sockaddr_storage *sk;
 		int port1, port2;
-		struct protocol *proto;
 
 		if (!*args[2]) {
 			ha_alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
@@ -1040,17 +1027,10 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		newnameserver->conf.line = linenum;
 		newnameserver->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_DGRAM);
+		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, NULL,
+		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_DGRAM);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		proto = protocol_by_family(sk->ss_family);
-		if (!proto) {
-			ha_alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
-				file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1410,15 +1390,15 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 
 		newmailer->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT);
+		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &proto,
+		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		proto = protocol_by_family(sk->ss_family);
-		if (!proto || !proto->connect || proto->sock_prot != IPPROTO_TCP) {
+		if (!proto->connect || proto->sock_prot != IPPROTO_TCP) {
 			ha_alert("parsing [%s:%d] : '%s %s' : TCP not supported for this address family.\n",
 				 file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;

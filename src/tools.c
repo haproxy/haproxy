@@ -47,6 +47,7 @@
 #include <haproxy/hlua.h>
 #include <haproxy/listener.h>
 #include <haproxy/namespace.h>
+#include <haproxy/protocol.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -864,13 +865,18 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
  * the address when cast to sockaddr_in and the address family is
  * AF_CUST_EXISTING_FD.
  *
+ * The matching protocol will be set into <proto> if non-null.
+ *
  * Any known file descriptor is also assigned to <fd> if non-null, otherwise it
  * is forced to -1.
  */
-struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, int *fd, char **err, const char *pfx, char **fqdn, unsigned int opts)
+struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int *high, int *fd,
+                                      struct protocol **proto, char **err,
+                                      const char *pfx, char **fqdn, unsigned int opts)
 {
 	static THREAD_LOCAL struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
+	struct protocol *new_proto = NULL;
 	char *back, *str2;
 	char *port1, *port2;
 	int portl, porth, porta;
@@ -1170,6 +1176,19 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			ss.ss_family = AF_CUST_UDP4;
 	}
 
+	if (proto) {
+		/* Note: if the caller asks for a proto, we must find one,
+		 * except if we return with an fqdn that will resolve later,
+		 * in which case the address is not known yet (this is only
+		 * for servers actually).
+		 */
+		new_proto = protocol_by_family(ss.ss_family);
+		if (!new_proto && (!fqdn || !*fqdn)) {
+			memprintf(err, "unsupported protocol family %d for address '%s'", ss.ss_family, str);
+			goto out;
+		}
+	}
+
 	ret = &ss;
  out:
 	if (port)
@@ -1180,6 +1199,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		*high = porth;
 	if (fd)
 		*fd = new_fd;
+	if (proto)
+		*proto = new_proto;
 	free(back);
 	return ret;
 }

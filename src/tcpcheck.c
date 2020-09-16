@@ -2224,15 +2224,14 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 				goto error;
 			}
 
-			sk = str2sa_range(args[cur_arg+1], NULL, &port1, &port2, NULL,
+			sk = str2sa_range(args[cur_arg+1], NULL, &port1, &port2, NULL, &proto,
 			                  errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM);
 			if (!sk) {
 				memprintf(errmsg, "'%s' : %s.", args[cur_arg], *errmsg);
 				goto error;
 			}
 
-			proto = protocol_by_family(sk->ss_family);
-			if (!proto || !proto->connect) {
+			if (!proto->connect) {
 				memprintf(errmsg, "'%s' : connect() not supported for this address family.\n",
 					  args[cur_arg]);
 				goto error;

@@ -1019,7 +1019,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 		goto done;
 	}
 
-	sk = str2sa_range(args[1], NULL, &port1, &port2, &fd,
+	sk = str2sa_range(args[1], NULL, &port1, &port2, &fd, NULL,
 	                  err, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_RAW_FD | PA_O_DGRAM);
 	if (!sk)
 		goto error;

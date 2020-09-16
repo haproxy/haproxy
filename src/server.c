@@ -659,15 +659,14 @@ static int srv_parse_source(char **args, int *cur_arg,
 	}
 
 	/* 'sk' is statically allocated (no need to be freed). */
-	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, NULL,
+	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, NULL, &proto,
 	                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_RANGE | PA_O_STREAM);
 	if (!sk) {
 		memprintf(err, "'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
 		goto err;
 	}
 
-	proto = protocol_by_family(sk->ss_family);
-	if (!proto || !proto->connect) {
+	if (!proto->connect) {
 		ha_alert("'%s %s' : connect() not supported for this address family.\n",
 			 args[*cur_arg], args[*cur_arg + 1]);
 		goto err;
@@ -745,15 +744,14 @@ static int srv_parse_source(char **args, int *cur_arg,
 				int port1, port2;
 
 				/* 'sk' is statically allocated (no need to be freed). */
-				sk = str2sa_range(args[*cur_arg + 1], NULL, &port1, &port2, NULL,
+				sk = str2sa_range(args[*cur_arg + 1], NULL, &port1, &port2, NULL, &proto,
 				                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM);
 				if (!sk) {
 					ha_alert("'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
 					goto err;
 				}
 
-				proto = protocol_by_family(sk->ss_family);
-				if (!proto || !proto->connect) {
+				if (!proto->connect) {
 					ha_alert("'%s %s' : connect() not supported for this address family.\n",
 						 args[*cur_arg], args[*cur_arg + 1]);
 					goto err;
@@ -842,15 +840,14 @@ static int srv_parse_socks4(char **args, int *cur_arg,
 	}
 
 	/* 'sk' is statically allocated (no need to be freed). */
-	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, NULL,
+	sk = str2sa_range(args[*cur_arg + 1], NULL, &port_low, &port_high, NULL, &proto,
 	                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM);
 	if (!sk) {
 		memprintf(err, "'%s %s' : %s\n", args[*cur_arg], args[*cur_arg + 1], errmsg);
 		goto err;
 	}
 
-	proto = protocol_by_family(sk->ss_family);
-	if (!proto || !proto->connect) {
+	if (!proto->connect) {
 		ha_alert("'%s %s' : connect() not supported for this address family.\n", args[*cur_arg], args[*cur_arg + 1]);
 		goto err;
 	}
@@ -2030,7 +2027,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			if (!parse_addr)
 				goto skip_addr;
 
-			sk = str2sa_range(args[cur_arg], &port, &port1, &port2, NULL,
+			sk = str2sa_range(args[cur_arg], &port, &port1, &port2, NULL, &proto,
 			                  &errmsg, NULL, &fqdn, (initial_resolve ? PA_O_RESOLVE : 0) | PA_O_PORT_OK | PA_O_PORT_OFS | PA_O_STREAM | PA_O_XPRT);
 			if (!sk) {
 				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
@@ -2038,8 +2035,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto out;
 			}
 
-			proto = protocol_by_family(sk->ss_family);
-			if (!fqdn && (!proto || !proto->connect)) {
+			if (!fqdn && !proto->connect) {
 				ha_alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
 				      file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
