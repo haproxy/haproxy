@@ -3773,7 +3773,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 	}
 	if (stat(path, &buf) == 0) {
 		if (S_ISDIR(buf.st_mode) == 0) {
-			ckchs =  ckchs_load_cert_file(path, 0,  err);
+			ckchs =  ckchs_load_cert_file(path, err);
 			if (!ckchs)
 				return ERR_ALERT | ERR_FATAL;
 
@@ -3800,7 +3800,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 					cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
 				} else {
 					if (stat(fp, &buf) == 0) {
-						ckchs =  ckchs_load_cert_file(fp, 0,  err);
+						ckchs =  ckchs_load_cert_file(fp, err);
 						if (!ckchs)
 							return ERR_ALERT | ERR_FATAL;
 						cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);

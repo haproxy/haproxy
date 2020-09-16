@@ -45,10 +45,10 @@ static inline int ssl_sock_is_ckch_valid(struct cert_key_and_chain *ckch)
 #endif
 
 /* ckch_store functions */
-struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err);
+struct ckch_store *ckchs_load_cert_file(char *path, char **err);
 struct ckch_store *ckchs_lookup(char *path);
 struct ckch_store *ckchs_dup(const struct ckch_store *src);
-struct ckch_store *ckch_store_new(const char *filename, int nmemb);
+struct ckch_store *ckch_store_new(const char *filename);
 void ckch_store_free(struct ckch_store *store);
 
 

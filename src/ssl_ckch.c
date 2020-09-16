@@ -721,17 +721,7 @@ void ckch_store_free(struct ckch_store *store)
 	if (!store)
 		return;
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200L
-	if (store->multi) {
-		int n;
-
-		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++)
-			ssl_sock_free_cert_key_and_chain_contents(&store->ckch[n]);
-	} else
-#endif
-	{
-		ssl_sock_free_cert_key_and_chain_contents(store->ckch);
-	}
+	ssl_sock_free_cert_key_and_chain_contents(store->ckch);
 
 	free(store->ckch);
 	store->ckch = NULL;
@@ -750,7 +740,7 @@ void ckch_store_free(struct ckch_store *store)
  *
  * Return a ckch_store or NULL upon failure.
  */
-struct ckch_store *ckch_store_new(const char *filename, int nmemb)
+struct ckch_store *ckch_store_new(const char *filename)
 {
 	struct ckch_store *store;
 	int pathlen;
@@ -760,17 +750,12 @@ struct ckch_store *ckch_store_new(const char *filename, int nmemb)
 	if (!store)
 		return NULL;
 
-	if (nmemb > 1)
-		store->multi = 1;
-	else
-		store->multi = 0;
-
 	memcpy(store->path, filename, pathlen + 1);
 
 	LIST_INIT(&store->ckch_inst);
 	LIST_INIT(&store->crtlist_entry);
 
-	store->ckch = calloc(nmemb, sizeof(*store->ckch));
+	store->ckch = calloc(1, sizeof(*store->ckch));
 	if (!store->ckch)
 		goto error;
 
@@ -786,24 +771,10 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 {
 	struct ckch_store *dst;
 
-	dst = ckch_store_new(src->path, src->multi ? SSL_SOCK_NUM_KEYTYPES : 1);
+	dst = ckch_store_new(src->path);
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-	if (src->multi) {
-		int n;
-
-		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
-			if (&src->ckch[n]) {
-				if (!ssl_sock_copy_cert_key_and_chain(&src->ckch[n], &dst->ckch[n]))
-					goto error;
-			}
-		}
-	} else
-#endif
-	{
-		if (!ssl_sock_copy_cert_key_and_chain(src->ckch, dst->ckch))
-			goto error;
-	}
+	if (!ssl_sock_copy_cert_key_and_chain(src->ckch, dst->ckch))
+		goto error;
 
 	return dst;
 
@@ -830,50 +801,22 @@ struct ckch_store *ckchs_lookup(char *path)
 /*
  * This function allocate a ckch_store and populate it with certificates from files.
  */
-struct ckch_store *ckchs_load_cert_file(char *path, int multi, char **err)
+struct ckch_store *ckchs_load_cert_file(char *path, char **err)
 {
 	struct ckch_store *ckchs;
 
-	ckchs = ckch_store_new(path, multi ? SSL_SOCK_NUM_KEYTYPES : 1);
+	ckchs = ckch_store_new(path);
 	if (!ckchs) {
 		memprintf(err, "%sunable to allocate memory.\n", err && *err ? *err : "");
 		goto end;
 	}
-	if (!multi) {
 
-		if (ssl_sock_load_files_into_ckch(path, ckchs->ckch, err) == 1)
-			goto end;
+	if (ssl_sock_load_files_into_ckch(path, ckchs->ckch, err) == 1)
+		goto end;
 
-		/* insert into the ckchs tree */
-		memcpy(ckchs->path, path, strlen(path) + 1);
-		ebst_insert(&ckchs_tree, &ckchs->node);
-	} else {
-		int found = 0;
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-		char fp[MAXPATHLEN+1] = {0};
-		int n = 0;
-
-		/* Load all possible certs and keys */
-		for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
-			struct stat buf;
-			snprintf(fp, sizeof(fp), "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
-			if (stat(fp, &buf) == 0) {
-				if (ssl_sock_load_files_into_ckch(fp, &ckchs->ckch[n], err) == 1)
-					goto end;
-				found = 1;
-				ckchs->multi = 1;
-			}
-		}
-#endif
-
-		if (!found) {
-			memprintf(err, "%sDidn't find any certificate for bundle '%s'.\n", err && *err ? *err : "", path);
-			goto end;
-		}
-		/* insert into the ckchs tree */
-		memcpy(ckchs->path, path, strlen(path) + 1);
-		ebst_insert(&ckchs_tree, &ckchs->node);
-	}
+	/* insert into the ckchs tree */
+	memcpy(ckchs->path, path, strlen(path) + 1);
+	ebst_insert(&ckchs_tree, &ckchs->node);
 	return ckchs;
 
 end:
@@ -1757,7 +1700,7 @@ static int cli_parse_new_cert(char **args, char *payload, struct appctx *appctx,
 		goto error;
 	}
 	/* we won't support multi-certificate bundle here */
-	store = ckch_store_new(path, 1);
+	store = ckch_store_new(path);
 	if (!store) {
 		memprintf(&err, "unable to allocate memory.\n");
 		goto error;

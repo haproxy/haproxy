@@ -521,7 +521,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 		if (ckchs == NULL) {
 			if (stat(crt_path, &buf) == 0) {
 
-				ckchs = ckchs_load_cert_file(crt_path, 0,  err);
+				ckchs = ckchs_load_cert_file(crt_path, err);
 				if (ckchs == NULL) {
 					cfgerr |= ERR_ALERT | ERR_FATAL;
 					goto error;
@@ -554,7 +554,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 					ckchs = ckchs_lookup(fp);
 					if (!ckchs && stat(fp, &buf) == 0) {
 
-						ckchs = ckchs_load_cert_file(fp, 0,  err);
+						ckchs = ckchs_load_cert_file(fp, err);
 						if (ckchs == NULL) {
 							cfgerr |= ERR_ALERT | ERR_FATAL;
 							goto error;
@@ -660,7 +660,7 @@ int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct crtlis
 
 			ckchs = ckchs_lookup(fp);
 			if (ckchs == NULL)
-				ckchs = ckchs_load_cert_file(fp, 0,  err);
+				ckchs = ckchs_load_cert_file(fp, err);
 			if (ckchs == NULL) {
 				free(de);
 				free(entry);
