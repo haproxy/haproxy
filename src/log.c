@@ -3688,6 +3688,11 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
+	else {
+		ha_alert("parsing [%s:%d] : unknown keyword '%s' in log-forward section.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_ABORT;
+		goto out;
+	}
 out:
 	return err_code;
 }
