@@ -943,11 +943,20 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_UNSPEC;
 
 	if (ss.ss_family == AF_CUST_SOCKPAIR) {
+		struct sockaddr_storage ss2;
+		socklen_t addr_len;
 		char *endptr;
 
 		new_fd = strtol(str2, &endptr, 10);
 		if (!*str2 || new_fd < 0 || *endptr) {
 			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
+			goto out;
+		}
+
+		/* just verify that it's a socket */
+		addr_len = sizeof(ss2);
+		if (getsockname(new_fd, (struct sockaddr *)&ss2, &addr_len) == -1) {
+			memprintf(err, "cannot use file descriptor '%d' : %s.\n", new_fd, strerror(errno));
 			goto out;
 		}
 

@@ -133,20 +133,6 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		if (!ss2)
 			goto fail;
 
-		if (ss2->ss_family == AF_CUST_SOCKPAIR) {
-			socklen_t addr_len;
-
-			fd = ((struct sockaddr_in *)ss2)->sin_addr.s_addr;
-			addr_len = sizeof(*ss2);
-			if (getsockname(fd, (struct sockaddr *)ss2, &addr_len) == -1) {
-				memprintf(err, "cannot use file descriptor '%d' : %s.\n", fd, strerror(errno));
-				goto fail;
-			}
-
-			ss2->ss_family = AF_CUST_SOCKPAIR; /* reassign AF_CUST_SOCKPAIR because of getsockname */
-			port = end = 0;
-		}
-
 		/* OK the address looks correct */
 		if (!create_listeners(bind_conf, ss2, port, end, fd, err)) {
 			memprintf(err, "%s for address '%s'.\n", *err, str);
