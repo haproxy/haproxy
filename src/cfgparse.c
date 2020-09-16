@@ -129,7 +129,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		ss2 = str2sa_range(str, NULL, &port, &end, &fd, err,
 		                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix,
 		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
-		                          PA_O_SOCKET_FD | PA_O_DGRAM | PA_O_STREAM | PA_O_XPRT);
+		                          PA_O_SOCKET_FD | PA_O_STREAM | PA_O_XPRT);
 		if (!ss2)
 			goto fail;
 
