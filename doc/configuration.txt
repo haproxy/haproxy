@@ -1389,12 +1389,13 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
 
   "bundle": When a file specified in the configuration does not exist, HAProxy
   will try to load a certificate bundle. This is done by looking for
-  <basename>.rsa, .ecdsa and .dsa. In the case of directories, HAProxy will
-  try to gather the files with the same basename in a multi-certificate bundle.
-  The bundles were introduced with OpenSSL 1.0.2 and were the only way back
-  then to load an ECDSA certificate and a RSA one, with the same SNI. Since
-  OpenSSL 1.1.1 it is not recommended anymore, you can specify both the ECDSA
-  and the RSA file on the bind line.
+  <basename>.rsa, .ecdsa and .dsa.
+  The multi-certificates bundles were introduced with OpenSSL 1.0.2 and were
+  the only way back then to serve an ECDSA certificate and a RSA one with the
+  same SNI. Since HAProxy 2.3 it does not use the OpenSSL bundle but it
+  loads every certificates separately to emulate this behavior. At least
+  OpenSSL 1.1.1 is required. It is recommended to specify all the certificates
+  in the configuration instead of using the bundle feature.
 
   "sctl": Try to load "<basename>.sctl" for each crt keyword.
 
@@ -12512,15 +12513,20 @@ crt <cert>
   that support EC certificates to be able to use EC ciphers, while
   simultaneously supporting older, RSA only clients.
 
-  In order to provide this functionality, multiple PEM files, each with a
-  different key type, are required. To associate these PEM files into a
-  "cert bundle" that is recognized by haproxy, they must be named in the
-  following way: All PEM files that are to be bundled must have the same base
-  name, with a suffix indicating the key type. Currently, three suffixes are
-  supported: rsa, dsa and ecdsa. For example, if www.example.com has two PEM
-  files, an RSA file and an ECDSA file, they must be named: "example.pem.rsa"
-  and "example.pem.ecdsa". The first part of the filename is arbitrary; only the
-  suffix matters. To load this bundle into haproxy, specify the base name only:
+  In order to provide this feature, multiple PEM files, each with a different
+  key type, are required. Since HAProxy 2.3, at least OpenSSL 1.1.1 is
+  required to use this feature. It can be configured by adding each file in
+  the configuration, which is the recommended way, or by using a "cert
+  bundle".
+
+  To associate these PEM files into a "cert bundle" that is recognized by
+  haproxy, they must be named in the following way: All PEM files that are to
+  be bundled must have the same base name, with a suffix indicating the key
+  type. Currently, three suffixes are supported: rsa, dsa and ecdsa. For
+  example, if www.example.com has two PEM files, an RSA file and an ECDSA
+  file, they must be named: "example.pem.rsa" and "example.pem.ecdsa". The
+  first part of the filename is arbitrary; only the suffix matters. To load
+  this bundle into haproxy, specify the base name only:
 
   Example :  bind :8443 ssl crt example.pem
 
