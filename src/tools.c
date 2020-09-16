@@ -1164,25 +1164,23 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		goto out;
 	}
 
-	if (opts & PA_O_SOCKET_FD && sock_type == SOCK_DGRAM && ctrl_type == SOCK_DGRAM) {
-		/* FIXME: for now UDP is still its own family. However some UDP clients
-		 * (logs, dns) use AF_INET and are not aware of AF_CUST_UDP*. Since we
-		 * only want this mapping for listeners and they are the only ones
-		 * setting PA_O_SOCKET_FD, for now we condition this mapping to this.
-		 */
-		if (ss.ss_family == AF_INET6)
-			ss.ss_family = AF_CUST_UDP6;
-		else if (ss.ss_family == AF_INET)
-			ss.ss_family = AF_CUST_UDP4;
-	}
-
 	if (proto || (opts & PA_O_CONNECT)) {
 		/* Note: if the caller asks for a proto, we must find one,
 		 * except if we return with an fqdn that will resolve later,
 		 * in which case the address is not known yet (this is only
 		 * for servers actually).
 		 */
-		new_proto = protocol_by_family(ss.ss_family);
+
+		/* FIXME: for now UDP is still its own family. However some UDP clients
+		 * (logs, dns) use AF_INET and are not aware of AF_CUST_UDP*. Since we
+		 * only want this mapping for listeners and they are the only ones
+		 * setting PA_O_SOCKET_FD, for now we condition this mapping to this.
+		 * This effectively means that for now we return TCPv4/v6 for UDP senders.
+		 */
+		new_proto = protocol_lookup(ss.ss_family,
+					    (opts & PA_O_SOCKET_FD) && sock_type == SOCK_DGRAM,
+					    (opts & PA_O_SOCKET_FD) && ctrl_type == SOCK_DGRAM);
+
 		if (!new_proto && (!fqdn || !*fqdn)) {
 			memprintf(err, "unsupported protocol family %d for address '%s'", ss.ss_family, str);
 			goto out;
