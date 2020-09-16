@@ -2752,10 +2752,10 @@ log-forward <name>
 
 dgram-bind <addr> [param*]
   Used to configure a UDP log listener to receive messages to forward. Only UDP
-  listeners are allowed, the address must be prefixed using "udp@", "udp4@" or
-  "udp6@". This supports for some of the "bind" parameters found in 5.1
-  paragraph among which "interface", "namespace" or "transparent", the other
-  ones being silently ignored as irrelevant for UDP/syslog case.
+  listeners are allowed. Addresses must be in IPv4 or IPv6 form,followed by a
+  port. This supports for some of the "bind" parameters found in 5.1 paragraph
+  among which "interface", "namespace" or "transparent", the other ones being
+  silently ignored as irrelevant for UDP/syslog case.
 
 log global
 log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]

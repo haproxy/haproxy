@@ -3625,7 +3625,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		bind_conf = bind_conf_alloc(cfg_log_forward, file, linenum,
 		                            NULL, xprt_get(XPRT_RAW));
 
-		if (!str2listener(args[1], cfg_log_forward, bind_conf, file, linenum, &errmsg)) {
+		if (!str2receiver(args[1], cfg_log_forward, bind_conf, file, linenum, &errmsg)) {
 			if (errmsg && *errmsg) {
 				indent_msg(&errmsg, 2);
 				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
@@ -3638,13 +3638,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-			/* Currently, only UDP handlers are allowed */
-			if (l->rx.proto->sock_domain != AF_CUST_UDP4 && l->rx.proto->sock_domain != AF_CUST_UDP6) {
-				ha_alert("parsing [%s:%d] : '%s %s' : error,  listening address must be prefixed using 'udp@', 'udp4@' or 'udp6@' %s.\n",
-				         file, linenum, args[0], args[1], args[2]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
+			/* the fact that the sockets are of type dgram is guaranteed by str2receiver() */
 			l->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : 64;
 			global.maxsock++;
 		}
