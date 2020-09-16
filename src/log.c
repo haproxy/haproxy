@@ -3610,7 +3610,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		px->id = strdup(args[1]);
 
 	}
-	else if (strcmp(args[0], "bind") == 0) {
+	else if (strcmp(args[0], "dgram-bind") == 0) {
 		int cur_arg;
 		static int kws_dumped;
 		struct bind_conf *bind_conf;

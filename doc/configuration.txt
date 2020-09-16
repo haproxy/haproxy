@@ -2749,11 +2749,12 @@ haproxy will forward all received log messages to a log servers list.
 log-forward <name>
   Creates a new log forwarder proxy identified as <name>.
 
-bind <addr> [param*]
-  Used to configure a log udp listener to receive messages to forward.
-  Only udp listeners are allowed, address must be prefixed using
-  'udp@', 'udp4@' or 'udp6@'. This supports for all "bind" parameters
-  found in 5.1 paragraph but most of them are irrelevant for udp/syslog case.
+dgram-bind <addr> [param*]
+  Used to configure a UDP log listener to receive messages to forward. Only UDP
+  listeners are allowed, the address must be prefixed using "udp@", "udp4@" or
+  "udp6@". This supports for some of the "bind" parameters found in 5.1
+  paragraph among which "interface", "namespace" or "transparent", the other
+  ones being silently ignored as irrelevant for UDP/syslog case.
 
 log global
 log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
