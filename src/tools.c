@@ -1176,7 +1176,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			ss.ss_family = AF_CUST_UDP4;
 	}
 
-	if (proto) {
+	if (proto || (opts & PA_O_CONNECT)) {
 		/* Note: if the caller asks for a proto, we must find one,
 		 * except if we return with an fqdn that will resolve later,
 		 * in which case the address is not known yet (this is only
@@ -1185,6 +1185,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		new_proto = protocol_by_family(ss.ss_family);
 		if (!new_proto && (!fqdn || !*fqdn)) {
 			memprintf(err, "unsupported protocol family %d for address '%s'", ss.ss_family, str);
+			goto out;
+		}
+
+		if ((opts & PA_O_CONNECT) && new_proto && !new_proto->connect) {
+			memprintf(err, "connect() not supported for this protocol family %d used by address '%s'", ss.ss_family, str);
 			goto out;
 		}
 	}

@@ -2590,7 +2590,6 @@ stats_error_parsing:
 	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
 		struct sockaddr_storage *sk;
 		int port1, port2;
-		struct protocol *proto;
 
 		if (curproxy == &defproxy) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -2600,17 +2599,11 @@ stats_error_parsing:
 		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, &proto,
-		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT);
+		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL,
+		                  &errmsg, NULL, NULL,
+		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!proto->connect) {
-			ha_alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
-				 file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2840,7 +2833,6 @@ stats_error_parsing:
 		int cur_arg;
 		int port1, port2;
 		struct sockaddr_storage *sk;
-		struct protocol *proto;
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -2858,18 +2850,11 @@ stats_error_parsing:
 		curproxy->conn_src.iface_name = NULL;
 		curproxy->conn_src.iface_len = 0;
 
-		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, &proto,
-		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM);
+		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL,
+		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n",
 				 file, linenum, args[0], args[1], errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (!proto->connect) {
-			ha_alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
-				 file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2936,18 +2921,11 @@ stats_error_parsing:
 				} else {
 					struct sockaddr_storage *sk;
 
-					sk = str2sa_range(args[cur_arg + 1], NULL, &port1, &port2, NULL, &proto,
-					                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM);
+					sk = str2sa_range(args[cur_arg + 1], NULL, &port1, &port2, NULL, NULL,
+					                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 					if (!sk) {
 						ha_alert("parsing [%s:%d] : '%s %s' : %s\n",
 							 file, linenum, args[cur_arg], args[cur_arg+1], errmsg);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-
-					if (!proto->connect) {
-						ha_alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
-							 file, linenum, args[cur_arg], args[cur_arg+1]);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}

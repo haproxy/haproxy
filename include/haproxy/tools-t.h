@@ -96,6 +96,7 @@
 #define PA_O_DGRAM              0x00000080   /* the address will be used for a datagram socket (in or out) */
 #define PA_O_STREAM             0x00000100   /* the address will be used for streams (in or out) */
 #define PA_O_XPRT               0x00000200   /* transport protocols may be specified */
+#define PA_O_CONNECT            0x00000400   /* the protocol must have a ->connect method */
 
 /* UTF-8 decoder status */
 #define UTF8_CODE_OK       0x00

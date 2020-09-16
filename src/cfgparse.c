@@ -1391,14 +1391,15 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 		newmailer->id = strdup(args[1]);
 
 		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &proto,
-		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT);
+		                  &errmsg, NULL, NULL,
+		                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		if (!proto->connect || proto->sock_prot != IPPROTO_TCP) {
+		if (proto->sock_prot != IPPROTO_TCP) {
 			ha_alert("parsing [%s:%d] : '%s %s' : TCP not supported for this address family.\n",
 				 file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;

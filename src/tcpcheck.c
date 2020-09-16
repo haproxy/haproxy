@@ -2217,23 +2217,16 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 			conn_opts |= TCPCHK_OPT_DEFAULT_CONNECT;
 		else if (strcmp(args[cur_arg], "addr") == 0) {
 			int port1, port2;
-			struct protocol *proto;
 
 			if (!*(args[cur_arg+1])) {
 				memprintf(errmsg, "'%s' expects <ipv4|ipv6> as argument.", args[cur_arg]);
 				goto error;
 			}
 
-			sk = str2sa_range(args[cur_arg+1], NULL, &port1, &port2, NULL, &proto,
-			                  errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM);
+			sk = str2sa_range(args[cur_arg+1], NULL, &port1, &port2, NULL, NULL,
+			                  errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 			if (!sk) {
 				memprintf(errmsg, "'%s' : %s.", args[cur_arg], *errmsg);
-				goto error;
-			}
-
-			if (!proto->connect) {
-				memprintf(errmsg, "'%s' : connect() not supported for this address family.\n",
-					  args[cur_arg]);
 				goto error;
 			}
 

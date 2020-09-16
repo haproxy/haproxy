@@ -2629,7 +2629,6 @@ static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct
 			  char **errmsg)
 {
 	struct sockaddr_storage *sk;
-	struct protocol *proto;
 	int port1, port2, err_code = 0;
 
 
@@ -2638,16 +2637,10 @@ static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct
 		goto error;
 	}
 
-	sk = str2sa_range(args[*cur_arg+1], NULL, &port1, &port2, NULL, &proto, errmsg, NULL, NULL,
-	                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM);
+	sk = str2sa_range(args[*cur_arg+1], NULL, &port1, &port2, NULL, NULL, errmsg, NULL, NULL,
+	                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_STREAM | PA_O_CONNECT);
 	if (!sk) {
 		memprintf(errmsg, "'%s' : %s", args[*cur_arg], *errmsg);
-		goto error;
-	}
-
-	if (!proto->connect) {
-		memprintf(errmsg, "'%s %s' : connect() not supported for this address family.",
-		          args[*cur_arg], args[*cur_arg+1]);
 		goto error;
 	}
 
