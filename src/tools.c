@@ -1170,16 +1170,9 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		 * in which case the address is not known yet (this is only
 		 * for servers actually).
 		 */
-
-		/* FIXME: for now UDP is still its own family. However some UDP clients
-		 * (logs, dns) use AF_INET and are not aware of AF_CUST_UDP*. Since we
-		 * only want this mapping for listeners and they are the only ones
-		 * setting PA_O_SOCKET_FD, for now we condition this mapping to this.
-		 * This effectively means that for now we return TCPv4/v6 for UDP senders.
-		 */
 		new_proto = protocol_lookup(ss.ss_family,
-					    (opts & PA_O_SOCKET_FD) && sock_type == SOCK_DGRAM,
-					    (opts & PA_O_SOCKET_FD) && ctrl_type == SOCK_DGRAM);
+					    sock_type == SOCK_DGRAM,
+					    ctrl_type == SOCK_DGRAM);
 
 		if (!new_proto && (!fqdn || !*fqdn)) {
 			memprintf(err, "unsupported protocol family %d for address '%s'", ss.ss_family, str);
