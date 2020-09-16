@@ -875,7 +875,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	char *port1, *port2;
 	int portl, porth, porta;
 	int abstract = 0;
-	int is_udp = 0;
 	int new_fd = -1;
 	int sock_type, ctrl_type;
 
@@ -933,19 +932,16 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		str2 += 5;
 		ss.ss_family = AF_INET;
 		sock_type = ctrl_type = SOCK_DGRAM;
-		is_udp = 1;
 	}
 	else if (strncmp(str2, "udp6@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET6;
 		sock_type = ctrl_type = SOCK_DGRAM;
-		is_udp = 1;
 	}
 	else if (strncmp(str2, "udp@", 4) == 0) {
 		str2 += 4;
 		ss.ss_family = AF_UNSPEC;
 		sock_type = ctrl_type = SOCK_DGRAM;
-		is_udp = 1;
 	}
 	else if (strncmp(str2, "fd@", 3) == 0) {
 		str2 += 3;
@@ -1151,17 +1147,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 			}
 		}
 		set_host_port(&ss, porta);
-		if (is_udp && opts & PA_O_SOCKET_FD) {
-			/* FIXME: for now UDP is still its own family. However some UDP clients
-			 * (logs, dns) use AF_INET and are not aware of AF_CUST_UDP*. Since we
-			 * only want this mapping for listeners and they are the only ones
-			 * setting PA_O_SOCKET_FD, for now we condition this mapping to this.
-			 */
-			if (ss.ss_family == AF_INET6)
-				ss.ss_family = AF_CUST_UDP6;
-			else
-				ss.ss_family = AF_CUST_UDP4;
-		}
 	}
 
 	if (ctrl_type == SOCK_STREAM && !(opts & PA_O_STREAM)) {
@@ -1171,6 +1156,18 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	else if (ctrl_type == SOCK_DGRAM && !(opts & PA_O_DGRAM)) {
 		memprintf(err, "dgram-type socket not acceptable in '%s'\n", str);
 		goto out;
+	}
+
+	if (opts & PA_O_SOCKET_FD && sock_type == SOCK_DGRAM && ctrl_type == SOCK_DGRAM) {
+		/* FIXME: for now UDP is still its own family. However some UDP clients
+		 * (logs, dns) use AF_INET and are not aware of AF_CUST_UDP*. Since we
+		 * only want this mapping for listeners and they are the only ones
+		 * setting PA_O_SOCKET_FD, for now we condition this mapping to this.
+		 */
+		if (ss.ss_family == AF_INET6)
+			ss.ss_family = AF_CUST_UDP6;
+		else if (ss.ss_family == AF_INET)
+			ss.ss_family = AF_CUST_UDP4;
 	}
 
 	ret = &ss;
