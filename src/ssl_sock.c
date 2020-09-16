@@ -3784,11 +3784,29 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 	} else {
 		/* stat failed, could be a bundle */
 		if (global_ssl.extra_files & SSL_GF_BUNDLE) {
-			/* try to load a bundle if it is permitted */
-			ckchs =  ckchs_load_cert_file(path, 1,  err);
-			if (!ckchs)
-				return ERR_ALERT | ERR_FATAL;
-			cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+			char fp[MAXPATHLEN+1] = {0};
+			int n = 0;
+
+			/* Load all possible certs and keys in separate ckch_store */
+			for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+				struct stat buf;
+				int ret;
+
+				ret = snprintf(fp, sizeof(fp), "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
+				if (ret > sizeof(fp))
+					continue;
+
+				if ((ckchs = ckchs_lookup(fp))) {
+					cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+				} else {
+					if (stat(fp, &buf) == 0) {
+						ckchs =  ckchs_load_cert_file(fp, 0,  err);
+						if (!ckchs)
+							return ERR_ALERT | ERR_FATAL;
+						cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+					}
+				}
+			}
 		} else {
 			memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
 			          err && *err ? *err : "", fp, strerror(errno));
