@@ -178,20 +178,20 @@ int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 		/* 2. clean existing orphaned entries */
 		if (unlink(tempname) < 0 && errno != ENOENT) {
 			err |= ERR_FATAL | ERR_ALERT;
-			memprintf(errmsg, "error when trying to unlink previous UNIX socket");
+			memprintf(errmsg, "error when trying to unlink previous UNIX socket (%s)", strerror(errno));
 			goto bind_return;
 		}
 
 		if (unlink(backname) < 0 && errno != ENOENT) {
 			err |= ERR_FATAL | ERR_ALERT;
-			memprintf(errmsg, "error when trying to unlink previous UNIX socket");
+			memprintf(errmsg, "error when trying to unlink previous UNIX socket (%s)", strerror(errno));
 			goto bind_return;
 		}
 
 		/* 3. backup existing socket */
 		if (link(path, backname) < 0 && errno != ENOENT) {
 			err |= ERR_FATAL | ERR_ALERT;
-			memprintf(errmsg, "error when trying to preserve previous UNIX socket");
+			memprintf(errmsg, "error when trying to preserve previous UNIX socket (%s)", strerror(errno));
 			goto bind_return;
 		}
 
@@ -222,7 +222,7 @@ int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 	fd = socket(rx->proto->fam->sock_domain, rx->proto->sock_type, rx->proto->sock_prot);
 	if (fd < 0) {
 		err |= ERR_FATAL | ERR_ALERT;
-		memprintf(errmsg, "cannot create receiving socket");
+		memprintf(errmsg, "cannot create receiving socket (%s)", strerror(errno));
 		goto bind_return;
 	}
 
@@ -249,7 +249,7 @@ int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 		}
 		else {
 			err |= ERR_FATAL | ERR_ALERT;
-			memprintf(errmsg, "cannot bind UNIX socket");
+			memprintf(errmsg, "cannot bind UNIX socket (%s)", strerror(errno));
 			goto bind_close_return;
 		}
 		goto err_unlink_temp;
@@ -265,7 +265,7 @@ int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 	      (chown(tempname, rx->settings->ux.uid, rx->settings->ux.gid) == -1)) ||
 	     (rx->settings->ux.mode != 0 && chmod(tempname, rx->settings->ux.mode) == -1))) {
 		err |= ERR_FATAL | ERR_ALERT;
-		memprintf(errmsg, "cannot change UNIX socket ownership");
+		memprintf(errmsg, "cannot change UNIX socket ownership (%s)", strerror(errno));
 		goto err_unlink_temp;
 	}
 
@@ -275,7 +275,7 @@ int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 	 */
 	if (!ext && path[0] && rename(tempname, path) < 0) {
 		err |= ERR_FATAL | ERR_ALERT;
-		memprintf(errmsg, "cannot switch final and temporary UNIX sockets");
+		memprintf(errmsg, "cannot switch final and temporary UNIX sockets (%s)", strerror(errno));
 		goto err_rename;
 	}
 
