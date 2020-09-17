@@ -293,7 +293,7 @@ int sock_inet_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 		                 rx->proto->sock_type, rx->proto->sock_prot);
 		if (fd == -1) {
 			err |= ERR_RETRYABLE | ERR_ALERT;
-			memprintf(errmsg, "cannot create receiving socket");
+			memprintf(errmsg, "cannot create receiving socket (%s)", strerror(errno));
 			goto bind_return;
 		}
 	}
@@ -347,7 +347,7 @@ int sock_inet_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
 		               rx->settings->interface,
 		               strlen(rx->settings->interface) + 1) == -1) {
-			memprintf(errmsg, "cannot bind receiver to device");
+			memprintf(errmsg, "cannot bind receiver to device (%s)", strerror(errno));
 			err |= ERR_WARN;
 		}
 	}
@@ -369,7 +369,7 @@ int sock_inet_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 
 	if (!ext && bind(fd, (struct sockaddr *)&addr_inet, rx->proto->fam->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
-		memprintf(errmsg, "cannot bind socket");
+		memprintf(errmsg, "cannot bind socket (%s)", strerror(errno));
 		goto bind_close_return;
 	}
 
