@@ -217,7 +217,6 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 	}
 	txn = s->txn;
 	msg = (!(chn->flags & CF_ISRESP) ? &txn->req : &txn->rsp);
-	smp->data.type = SMP_T_BOOL;
 
 	if (IS_HTX_STRM(s)) {
 		htx = htxbuf(&chn->buf);
@@ -315,7 +314,6 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 
 	/* everything's OK */
   end:
-	smp->data.u.sint = 1;
 	return htx;
 }
 
