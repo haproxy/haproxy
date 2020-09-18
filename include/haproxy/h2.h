@@ -212,6 +212,8 @@ int h2_make_htx_trailers(struct http_hdr *list, struct htx *htx);
 /* returns a bit corresponding to the frame type */
 static inline unsigned int h2_ft_bit(enum h2_ft ft)
 {
+	if (ft >= H2_FT_ENTRIES)
+		return 0;
 	return 1U << ft;
 }
 
