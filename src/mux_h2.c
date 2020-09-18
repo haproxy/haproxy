@@ -508,7 +508,7 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 
 		if (h2c->dsi >= 0 &&
 		    (mask & (H2_EV_RX_FRAME|H2_EV_RX_FHDR)) == (H2_EV_RX_FRAME|H2_EV_RX_FHDR)) {
-			chunk_appendf(&trace_buf, " dft=%s/%02x", h2_ft_str(h2c->dft), h2c->dff);
+			chunk_appendf(&trace_buf, " dft=%s/%02x dfl=%d", h2_ft_str(h2c->dft), h2c->dff, h2c->dfl);
 		}
 
 		if (h2s) {
