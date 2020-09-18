@@ -3190,7 +3190,8 @@ static void h2_process_demux(struct h2c *h2c)
 		}
 
 		if (h2c->st0 != H2_CS_FRAME_H) {
-			TRACE_DEVEL("stream error, skip frame payload", H2_EV_RX_FRAME, h2c->conn, h2s);
+			if (h2c->dfl)
+				TRACE_DEVEL("skipping remaining frame payload", H2_EV_RX_FRAME, h2c->conn, h2s);
 			ret = MIN(b_data(&h2c->dbuf), h2c->dfl);
 			b_del(&h2c->dbuf, ret);
 			h2c->dfl -= ret;
