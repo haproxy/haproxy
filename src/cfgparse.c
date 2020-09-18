@@ -884,13 +884,18 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		if (!t || !id) {
 			ha_alert("parsing [%s:%d]: '%s %s' : memory allocation failed\n",
 			         file, linenum, args[0], args[1]);
+			free(t);
+			free(id);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
 		err_code |= parse_stick_table(file, linenum, args, t, id, id + prefix_len, curpeers);
-		if (err_code & ERR_FATAL)
+		if (err_code & ERR_FATAL) {
+			free(t);
+			free(id);
 			goto out;
+		}
 
 		stktable_store_name(t);
 		t->next = stktables_list;
