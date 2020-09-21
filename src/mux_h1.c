@@ -41,7 +41,6 @@
 /* Flags indicating why reading input data are blocked. */
 #define H1C_F_IN_ALLOC       0x00000010 /* mux is blocked on lack of input buffer */
 #define H1C_F_IN_FULL        0x00000020 /* mux is blocked on input buffer full */
-#define H1C_F_IN_BUSY        0x00000040 /* mux is blocked on input waiting the other side */
 /* 0x00000040 - 0x00000800 unused */
 
 /* Flags indicating the connection state */
@@ -57,6 +56,7 @@
 #define H1C_F_CO_MSG_MORE    0x00040000 /* set if CO_SFL_MSG_MORE must be set when calling xprt->snd_buf() */
 #define H1C_F_CO_STREAMER    0x00080000 /* set if CO_SFL_STREAMER must be set when calling xprt->snd_buf() */
 
+#define H1C_F_WAIT_OPPOSITE  0x00100000 /* Don't read more data for now, waiting sync with opposite side */
 /*
  * H1 Stream flags (32 bits)
  */
@@ -367,12 +367,12 @@ static inline int h1_recv_allowed(const struct h1c *h1c)
 		return 0;
 	}
 
-	if (conn_is_back(h1c->conn) && h1c->h1s && h1c->h1s->req.state == H1_MSG_RQBEFORE) {
-		TRACE_DEVEL("recv not allowed because back and request not sent yet", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
+	if (h1c->flags & H1C_F_WAIT_OPPOSITE) {
+		TRACE_DEVEL("recv not allowed (wait_opposite)", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		return 0;
 	}
 
-	if (!(h1c->flags & (H1C_F_IN_ALLOC|H1C_F_IN_FULL|H1C_F_IN_BUSY)))
+	if (!(h1c->flags & (H1C_F_IN_ALLOC|H1C_F_IN_FULL)))
 		return 1;
 
 	TRACE_DEVEL("recv not allowed because input is blocked", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
@@ -622,7 +622,7 @@ static void h1s_destroy(struct h1s *h1s)
 		if (h1s->subs)
 			h1s->subs->events = 0;
 
-		h1c->flags &= ~H1C_F_IN_BUSY;
+		h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
 		if (h1s->flags & (H1S_F_REQ_ERROR|H1S_F_RES_ERROR)) {
 			h1c->flags |= H1C_F_CS_ERROR;
 			TRACE_STATE("h1s on error, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
@@ -677,6 +677,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->wait_event.events   = 0;
 
 	if (conn_is_back(conn)) {
+		h1c->flags |= H1C_F_WAIT_OPPOSITE;
 		h1c->shut_timeout = h1c->timeout = proxy->timeout.server;
 		if (tick_isset(proxy->timeout.serverfin))
 			h1c->shut_timeout = proxy->timeout.serverfin;
@@ -706,7 +707,8 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		task_queue(t);
 
 	/* Try to read, if nothing is available yet we'll just subscribe */
-	h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+	if (!h1_recv_allowed(h1c))
+		h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 
 	/* mux->wake will be called soon to complete the operation */
 	TRACE_LEAVE(H1_EV_H1C_NEW, conn, h1c->h1s);
@@ -1134,14 +1136,14 @@ static void h1_set_req_tunnel_mode(struct h1s *h1s)
 	if (!conn_is_back(h1s->h1c->conn)) {
 		h1s->flags &= ~H1S_F_PARSING_DONE;
 		if (h1s->res.state < H1_MSG_DONE) {
-			h1s->h1c->flags |= H1C_F_IN_BUSY;
-			TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+			h1s->h1c->flags |= H1C_F_WAIT_OPPOSITE;
+			TRACE_STATE("Disable read on h1c (wait_opposite)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
 		}
 	}
-	else if (h1s->h1c->flags & H1C_F_IN_BUSY) {
-		h1s->h1c->flags &= ~H1C_F_IN_BUSY;
+	else if (h1s->h1c->flags & H1C_F_WAIT_OPPOSITE) {
+		h1s->h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
 		tasklet_wakeup(h1s->h1c->wait_event.tasklet);
-		TRACE_STATE("h1c no more busy", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
+		TRACE_STATE("Re-enable read on h1c", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
 	}
 }
 
@@ -1166,8 +1168,8 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 		 * it in tunnel mode.
 		 */
 		if (h1s->req.state < H1_MSG_DONE) {
-			h1s->h1c->flags |= H1C_F_IN_BUSY;
-			TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+			h1s->h1c->flags |= H1C_F_WAIT_OPPOSITE;
+			TRACE_STATE("Disable read on h1c (wait_opposite)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
 		}
 		else if (h1s->status == 101 && h1s->req.state == H1_MSG_DONE) {
 			h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
@@ -1175,10 +1177,10 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 			TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 		}
 	}
-	else if (h1s->h1c->flags & H1C_F_IN_BUSY) {
-		h1s->h1c->flags &= ~H1C_F_IN_BUSY;
+	else if (h1s->h1c->flags & H1C_F_WAIT_OPPOSITE) {
+		h1s->h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
 		tasklet_wakeup(h1s->h1c->wait_event.tasklet);
-		TRACE_STATE("h1c no more busy", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
+		TRACE_STATE("Re-enable read on h1c", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
 	}
 }
 
@@ -1466,8 +1468,8 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 			if (!(h1m->flags & H1_MF_RESP) && h1s->status == 101)
 				h1_set_req_tunnel_mode(h1s);
 			else if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE) {
-				h1c->flags |= H1C_F_IN_BUSY;
-				TRACE_STATE("switch h1c in busy mode", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1c->conn, h1s);
+				h1c->flags |= H1C_F_WAIT_OPPOSITE;
+				TRACE_STATE("Disable read on h1c (wait_opposite)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1c->conn, h1s);
 				break;
 			}
 			else
@@ -1661,6 +1663,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if (sl->flags & HTX_SL_F_BODYLESS)
 					h1m->flags |= H1_MF_CLEN;
 				h1m->state = H1_MSG_HDR_FIRST;
+				if (h1c->flags & H1C_F_WAIT_OPPOSITE) {
+					h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
+					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+					TRACE_STATE("Re-enable read on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
+				}
 				break;
 
 			case H1_MSG_RPBEFORE:
@@ -1916,10 +1923,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1_set_req_tunnel_mode(h1s);
 					TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
-				else if (h1s->h1c->flags & H1C_F_IN_BUSY) {
-					h1s->h1c->flags &= ~H1C_F_IN_BUSY;
+				else if (h1s->h1c->flags & H1C_F_WAIT_OPPOSITE) {
+					h1s->h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
 					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
-					TRACE_STATE("h1c no more busy", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
+					TRACE_STATE("Re-enable read on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 				}
 
 				TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully xferred" : "H1 response fully xferred"),
