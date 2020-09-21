@@ -2061,7 +2061,8 @@ static int h1_recv(struct h1c *h1c)
 		b_slow_realign(&h1c->ibuf, trash.area, 0);
 
 	/* avoid useless reads after first responses */
-	if (h1s && (h1s->req.state == H1_MSG_RQBEFORE || h1s->res.state == H1_MSG_RPBEFORE))
+	if (h1s && ((!conn_is_back(conn) && h1s->req.state == H1_MSG_RQBEFORE) ||
+		    (conn_is_back(conn) && h1s->res.state == H1_MSG_RPBEFORE)))
 		flags |= CO_RFL_READ_ONCE;
 
 	max = buf_room_for_htx_data(&h1c->ibuf);
