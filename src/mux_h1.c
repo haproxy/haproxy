@@ -57,6 +57,7 @@
 #define H1C_F_CO_STREAMER    0x00080000 /* set if CO_SFL_STREAMER must be set when calling xprt->snd_buf() */
 
 #define H1C_F_WAIT_OPPOSITE  0x00100000 /* Don't read more data for now, waiting sync with opposite side */
+#define H1C_F_WANT_SPLICE    0x00200000 /* Don't read into a bufffer because we want to use or we are using splicing */
 /*
  * H1 Stream flags (32 bits)
  */
@@ -70,8 +71,6 @@
 #define H1S_F_WANT_CLO       0x00000040
 #define H1S_F_WANT_MSK       0x00000070
 #define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
-#define H1S_F_BUF_FLUSH      0x00000100 /* Flush input buffer and don't read more data */
-#define H1S_F_SPLICED_DATA   0x00000200 /* Set when the kernel splicing is in used */
 #define H1S_F_PARSING_DONE   0x00000400 /* Set when incoming message parsing is finished (EOM added) */
 /* 0x00000800 .. 0x00001000 unused */
 #define H1S_F_HAVE_SRV_NAME  0x00002000 /* Set during output process if the server name header was added to the request */
@@ -2023,8 +2022,8 @@ static int h1_recv(struct h1c *h1c)
 		return (b_data(&h1c->ibuf));
 	}
 
-	if (!h1_recv_allowed(h1c)) {
-		TRACE_DEVEL("leaving on !recv_allowed", H1_EV_H1C_RECV, h1c->conn);
+	if ((h1c->flags & H1C_F_WANT_SPLICE) || !h1_recv_allowed(h1c)) {
+		TRACE_DEVEL("leaving on (want_splice|!recv_allowed)", H1_EV_H1C_RECV, h1c->conn);
 		rcvd = 1;
 		goto end;
 	}
@@ -2032,14 +2031,6 @@ static int h1_recv(struct h1c *h1c)
 	if (!h1_get_buf(h1c, &h1c->ibuf)) {
 		h1c->flags |= H1C_F_IN_ALLOC;
 		TRACE_STATE("waiting for h1c ibuf allocation", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
-		goto end;
-	}
-
-	if (h1s && (h1s->flags & (H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA))) {
-		if (!h1s_data_pending(h1s))
-			h1_wake_stream_for_recv(h1s);
-		rcvd = 1;
-		TRACE_DEVEL("leaving on (buf_flush|spliced_data)", H1_EV_H1C_RECV, h1c->conn);
 		goto end;
 	}
 
@@ -2199,6 +2190,11 @@ static int h1_process(struct h1c * h1c)
 		else
 			goto end;
 		h1s = h1c->h1s;
+	}
+
+	if ((h1c->flags & H1C_F_WANT_SPLICE) && !h1s_data_pending(h1s)) {
+		TRACE_DEVEL("xprt rcv_buf blocked (want_splice), notify h1s for recv", H1_EV_H1C_RECV, h1c->conn);
+		h1_wake_stream_for_recv(h1s);
 	}
 
 	if (b_data(&h1c->ibuf) && h1s->sess->t_idle == -1)
@@ -2690,15 +2686,11 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 	if (flags & CO_RFL_BUF_FLUSH) {
 		if (h1m->state == H1_MSG_TUNNEL || (h1m->state == H1_MSG_DATA && h1m->curr_len)) {
-			h1s->flags |= H1S_F_BUF_FLUSH;
-			TRACE_STATE("flush stream's buffer", H1_EV_STRM_RECV, h1c->conn, h1s);
+			h1c->flags |= H1C_F_WANT_SPLICE;
+			TRACE_STATE("Block xprt rcv_buf to flush stream's buffer (want_splice)", H1_EV_STRM_RECV, h1c->conn, h1s);
 		}
 	}
 	else {
-		if (ret && h1s->flags & H1S_F_SPLICED_DATA) {
-			h1s->flags &= ~H1S_F_SPLICED_DATA;
-			TRACE_STATE("disable splicing", H1_EV_STRM_RECV, h1c->conn, h1s);
-		}
 		if (h1m->state != H1_MSG_DONE && !(h1c->wait_event.events & SUB_RETRY_RECV))
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 	}
@@ -2770,8 +2762,8 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	TRACE_ENTER(H1_EV_STRM_RECV, cs->conn, h1s, 0, (size_t[]){count});
 
 	if ((h1m->flags & H1_MF_CHNK) || (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL)) {
-		h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
-		TRACE_STATE("disable splicing on !(msg_data|msg_tunnel)", H1_EV_STRM_RECV, cs->conn, h1s);
+		h1s->h1c->flags &= ~H1C_F_WANT_SPLICE;
+		TRACE_STATE("Allow xprt rcv_buf on !(msg_data|msg_tunnel)", H1_EV_STRM_RECV, cs->conn, h1s);
 		if (!(h1s->h1c->wait_event.events & SUB_RETRY_RECV)) {
 			TRACE_STATE("restart receiving data, subscribing", H1_EV_STRM_RECV, cs->conn, h1s);
 			cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, SUB_RETRY_RECV, &h1s->h1c->wait_event);
@@ -2779,16 +2771,13 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 		goto end;
 	}
 
+	if (!(h1s->h1c->flags & H1C_F_WANT_SPLICE)) {
+		h1s->h1c->flags |= H1C_F_WANT_SPLICE;
+		TRACE_STATE("Block xprt rcv_buf to perform splicing", H1_EV_STRM_RECV, cs->conn, h1s);
+	}
 	if (h1s_data_pending(h1s)) {
-		h1s->flags |= H1S_F_BUF_FLUSH;
 		TRACE_STATE("flush input buffer before splicing", H1_EV_STRM_RECV, cs->conn, h1s);
 		goto end;
-	}
-
-	if (!(h1s->flags & H1S_F_SPLICED_DATA)) {
-		h1s->flags &= ~H1S_F_BUF_FLUSH;
-		h1s->flags |= H1S_F_SPLICED_DATA;
-		TRACE_STATE("enable splicing", H1_EV_STRM_RECV, cs->conn, h1s);
 	}
 
 	if (!h1_recv_allowed(h1s->h1c)) {
@@ -2802,16 +2791,16 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	if (h1m->state == H1_MSG_DATA && ret >= 0) {
 		h1m->curr_len -= ret;
 		if (!h1m->curr_len) {
-			h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
-			TRACE_STATE("disable splicing on !curr_len", H1_EV_STRM_RECV, cs->conn, h1s);
+			h1s->h1c->flags &= ~H1C_F_WANT_SPLICE;
+			TRACE_STATE("Allow xprt rcv_buf on !curr_len", H1_EV_STRM_RECV, cs->conn, h1s);
 		}
 	}
 
   end:
 	if (conn_xprt_read0_pending(cs->conn)) {
 		h1s->flags |= H1S_F_REOS;
-		h1s->flags &= ~(H1S_F_BUF_FLUSH|H1S_F_SPLICED_DATA);
-		TRACE_STATE("read0 on connection", H1_EV_STRM_RECV, cs->conn, h1s);
+		h1s->h1c->flags &= ~H1C_F_WANT_SPLICE;
+		TRACE_STATE("Allow xprt rcv_buf on read0", H1_EV_STRM_RECV, cs->conn, h1s);
 	}
 
 	if ((h1s->flags & H1S_F_REOS) ||
