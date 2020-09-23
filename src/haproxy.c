@@ -2422,6 +2422,37 @@ void deinit(void)
 	struct post_server_check_fct *pscf, *pscfb;
 	struct post_check_fct *pcf, *pcfb;
 	struct post_proxy_check_fct *ppcf, *ppcfb;
+	int cur_fd;
+
+	/* At this point the listeners state is weird:
+	 *  - most listeners are still bound and referenced in their protocol
+	 *  - some might be zombies that are not in their proto anymore, but
+	 *    still appear in their proxy's listeners with a valid FD.
+	 *  - some might be stopped and still appear in their proxy as FD #-1
+	 *  - among all of them, some might be inherited hence shared and we're
+	 *    not allowed to pause them or whatever, we must just close them.
+	 *  - finally some are not listeners (pipes, logs, stdout, etc) and
+	 *    must be left intact.
+	 *
+	 * The safe way to proceed is to unbind (and close) whatever is not yet
+	 * unbound so that no more receiver/listener remains alive. Then close
+	 * remaining listener FDs, which correspond to zombie listeners (those
+	 * belonging to disabled proxies that were in another process).
+	 * objt_listener() would be cleaner here but not converted yet.
+	 */
+	protocol_unbind_all();
+
+	for (cur_fd = 0; cur_fd < global.maxsock; cur_fd++) {
+		if (!fdtab[cur_fd].owner)
+			continue;
+
+		if (fdtab[cur_fd].iocb == listener_accept) {
+			struct listener *l = fdtab[cur_fd].owner;
+
+			BUG_ON(l->state != LI_INIT);
+			unbind_listener(l);
+		}
+	}
 
 	deinit_signals();
 	while (p) {
@@ -2609,18 +2640,6 @@ void deinit(void)
 		}/* end while(s) */
 
 		list_for_each_entry_safe(l, l_next, &p->conf.listeners, by_fe) {
-			/*
-			 * Zombie proxy, the listener just pretend to be up
-			 * because they still hold an opened fd.
-			 * Close it and give the listener its real state.
-			 */
-			if (p->state == PR_STSTOPPED && l->state >= LI_ZOMBIE) {
-				fd_delete(l->rx.fd);
-				l->rx.fd = -1;
-				l->state = LI_INIT;
-			}
-			unbind_listener(l);
-			delete_listener(l);
 			LIST_DEL(&l->by_fe);
 			LIST_DEL(&l->by_bind);
 			free(l->name);
@@ -2693,8 +2712,6 @@ void deinit(void)
 	cfg_unregister_sections();
 
 	deinit_log_buffers();
-
-	protocol_unbind_all();
 
 	list_for_each_entry(pdf, &post_deinit_list, list)
 		pdf->fct();
