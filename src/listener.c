@@ -478,7 +478,8 @@ void dequeue_proxy_listeners(struct proxy *px)
 }
 
 /* Must be called with the lock held. Depending on <do_close> value, it does
- * what unbind_listener or unbind_listener_no_close should do.
+ * what unbind_listener or unbind_listener_no_close should do. It can also
+ * close a zombie listener's FD when called in early states.
  */
 void do_unbind_listener(struct listener *listener, int do_close)
 {
@@ -490,11 +491,12 @@ void do_unbind_listener(struct listener *listener, int do_close)
 	if (listener->state >= LI_PAUSED) {
 		listener->state = LI_ASSIGNED;
 		fd_stop_both(listener->rx.fd);
-		if (do_close) {
-			fd_delete(listener->rx.fd);
-			listener->rx.flags &= ~RX_F_BOUND;
-			listener->rx.fd = -1;
-		}
+	}
+
+	if (do_close && listener->rx.fd != -1) {
+		fd_delete(listener->rx.fd);
+		listener->rx.flags &= ~RX_F_BOUND;
+		listener->rx.fd = -1;
 	}
 }
 
