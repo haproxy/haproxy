@@ -1244,8 +1244,10 @@ void soft_stop(void)
 		    struct listener *, by_fe)->state > LI_ASSIGNED) {
 			struct listener *l;
 			list_for_each_entry(l, &p->conf.listeners, by_fe) {
-				if (l->state > LI_ASSIGNED)
-					close(l->rx.fd);
+				if (l->state > LI_ASSIGNED) {
+					fd_delete(l->rx.fd);
+					l->rx.fd = -1;
+				}
 				l->state = LI_INIT;
 			}
 		}
