@@ -1332,7 +1332,6 @@ void zombify_proxy(struct proxy *p)
 		 * Pretend we're still up and running so that the fd
 		 * will be sent if asked.
 		 */
-		l->state = LI_ZOMBIE;
 		if (!first_to_listen && oldstate >= LI_LISTEN)
 			first_to_listen = l;
 	}

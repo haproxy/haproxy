@@ -293,9 +293,6 @@ int pause_listener(struct listener *l)
 
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 
-	if (l->state <= LI_ZOMBIE)
-		goto end;
-
 	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 	    !(proc_mask(l->rx.settings->bind_proc) & pid_bit))
 		goto end;
@@ -365,7 +362,7 @@ int resume_listener(struct listener *l)
 		}
 	}
 
-	if (l->state < LI_PAUSED || l->state == LI_ZOMBIE) {
+	if (l->state < LI_PAUSED) {
 		ret = 0;
 		goto end;
 	}
