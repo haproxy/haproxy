@@ -1237,21 +1237,6 @@ void soft_stop(void)
 	p = proxies_list;
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
-		/* Zombie proxy, let's close the file descriptors */
-		if (p->state == PR_STSTOPPED &&
-		    !LIST_ISEMPTY(&p->conf.listeners) &&
-		    LIST_ELEM(p->conf.listeners.n,
-		    struct listener *, by_fe)->state > LI_ASSIGNED) {
-			struct listener *l;
-			list_for_each_entry(l, &p->conf.listeners, by_fe) {
-				if (l->state > LI_ASSIGNED) {
-					fd_delete(l->rx.fd);
-					l->rx.fd = -1;
-				}
-				l->state = LI_INIT;
-			}
-		}
-
 		if (p->state != PR_STSTOPPED) {
 			ha_warning("Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
 			send_log(p, LOG_WARNING, "Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
