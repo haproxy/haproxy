@@ -1326,33 +1326,12 @@ int pause_proxy(struct proxy *p)
 void zombify_proxy(struct proxy *p)
 {
 	struct listener *l;
-	struct listener *first_to_listen = NULL;
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe) {
-		enum li_state oldstate = l->state;
-
 		unbind_listener_no_close(l);
-		if (l->state >= LI_ASSIGNED) {
+		if (l->state >= LI_ASSIGNED)
 			delete_listener(l);
-		}
-		/*
-		 * Pretend we're still up and running so that the fd
-		 * will be sent if asked.
-		 */
-		if (!first_to_listen && oldstate >= LI_LISTEN)
-			first_to_listen = l;
 	}
-	/* Quick hack : at stop time, to know we have to close the sockets
-	 * despite the proxy being marked as stopped, make the first listener
-	 * of the listener list an active one, so that we don't have to
-	 * parse the whole list to be sure.
-	 */
-	if (first_to_listen && LIST_ELEM(p->conf.listeners.n,
-	    struct listener *, by_fe) != first_to_listen) {
-		LIST_DEL(&l->by_fe);
-		LIST_ADD(&p->conf.listeners, &l->by_fe);
-	}
-
 	p->state = PR_STSTOPPED;
 }
 
