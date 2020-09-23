@@ -3211,6 +3211,11 @@ balance url_param <param> [check_post]
                   slash in the request. If both parameters are specified, the
                   evaluation stops when either is reached.
 
+                  A "path-only" parameter indicates that the hashing key starts
+                  at the first '/' of the path. This can be used to ignore the
+                  authority part of absolute URIs, and to make sure that HTTP/1
+                  and HTTP/2 URIs will provide the same hash.
+
       url_param   The URL parameter specified in argument will be looked up in
                   the query string of each HTTP GET request.
 

@@ -701,6 +701,11 @@ int assign_server(struct stream *s)
 					struct ist uri;
 
 					uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
+					if (s->be->lbprm.arg_opt1 & 2) {
+						uri = http_get_path(uri);
+						if (!uri.ptr)
+							uri = ist("");
+					}
 					srv = get_server_uh(s->be, uri.ptr, uri.len, prev_srv);
 				}
 				break;
@@ -2374,7 +2379,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_UH;
-		curproxy->lbprm.arg_opt1 = 0; // "whole"
+		curproxy->lbprm.arg_opt1 = 0; // "whole", "path-only"
 		curproxy->lbprm.arg_opt2 = 0; // "len"
 		curproxy->lbprm.arg_opt3 = 0; // "depth"
 
@@ -2402,8 +2407,12 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 				curproxy->lbprm.arg_opt1 |= 1;
 				arg += 1;
 			}
+			else if (!strcmp(args[arg], "path-only")) {
+				curproxy->lbprm.arg_opt1 |= 2;
+				arg += 1;
+			}
 			else {
-				memprintf(err, "%s only accepts parameters 'len', 'depth', and 'whole' (got '%s').", args[0], args[arg]);
+				memprintf(err, "%s only accepts parameters 'len', 'depth', 'path-only', and 'whole' (got '%s').", args[0], args[arg]);
 				return -1;
 			}
 		}
