@@ -195,8 +195,8 @@ static struct server *get_server_sh(struct proxy *px, const char *addr, int len,
  * it will either look for active servers, or for backup servers.
  * If any server is found, it will be returned. If no valid server is found,
  * NULL is returned. The lbprm.arg_opt{1,2,3} values correspond respectively to
- * the "whole" optional argument (boolean), the "len" argument (numeric) and
- * the "depth" argument (numeric).
+ * the "whole" optional argument (boolean, bit0), the "len" argument (numeric)
+ * and the "depth" argument (numeric).
  *
  * This code was contributed by Guillaume Dallaire, who also selected this hash
  * algorithm out of a tens because it gave him the best results.
@@ -227,7 +227,7 @@ static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len, co
 			if (slashes == px->lbprm.arg_opt3) /* depth+1 */
 				break;
 		}
-		else if (c == '?' && !px->lbprm.arg_opt1) // "whole"
+		else if (c == '?' && !(px->lbprm.arg_opt1 & 1)) // "whole"
 			break;
 		end++;
 	}
@@ -2399,7 +2399,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 				arg += 2;
 			}
 			else if (!strcmp(args[arg], "whole")) {
-				curproxy->lbprm.arg_opt1 = 1;
+				curproxy->lbprm.arg_opt1 |= 1;
 				arg += 1;
 			}
 			else {
