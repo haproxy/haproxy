@@ -165,8 +165,8 @@ static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *fi
 
 static inline const char *listener_state_str(const struct listener *l)
 {
-	static const char *states[9] = {
-		"NEW", "INI", "ASS", "PAU", "ZOM", "LIS", "RDY", "FUL", "LIM",
+	static const char *states[8] = {
+		"NEW", "INI", "ASS", "PAU", "LIS", "RDY", "FUL", "LIM",
 	};
 	unsigned int st = l->state;
 
