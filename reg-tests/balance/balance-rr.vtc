@@ -1,0 +1,73 @@
+vtest "Test for balance roundrobin"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp -hdr "Server: s1"
+} -repeat 2 -start
+
+server s2 {
+    rxreq
+    txresp -hdr "Server: s2"
+} -repeat 2 -start
+
+server s3 {
+    rxreq
+    txresp -hdr "Server: s3"
+} -repeat 2 -start
+
+server s4 {
+    rxreq
+    txresp -hdr "Server: s4"
+} -repeat 2 -start
+
+haproxy h1 -arg "-L A" -conf {
+    defaults
+        mode http
+        timeout server 1s
+        timeout connect 1s
+        timeout client 1s
+
+    listen px
+        bind "fd@${px}"
+        balance roundrobin
+        server srv1 ${s1_addr}:${s1_port}
+        server srv2 ${s2_addr}:${s2_port}
+        server srv3 ${s3_addr}:${s3_port}
+        server srv4 ${s4_addr}:${s4_port}
+} -start
+
+client c1 -connect ${h1_px_sock} {
+    txreq -url "/url1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ s1
+} -run
+
+client c2 -connect ${h1_px_sock} {
+    txreq -url "/url1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ s2
+} -run
+
+client c3 -connect ${h1_px_sock} {
+    txreq -url "/url1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ s3
+} -run
+
+client c4 -connect ${h1_px_sock} {
+    txreq -url "/url1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ s4
+} -run
+
+client c5 -connect ${h1_px_sock} {
+    txreq -url "/url1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.Server ~ s1
+} -run
