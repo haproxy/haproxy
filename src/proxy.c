@@ -1266,8 +1266,7 @@ int pause_proxy(struct proxy *p)
 {
 	struct listener *l;
 
-	if (!(p->cap & PR_CAP_FE) ||
-	    p->state == PR_STSTOPPED || p->state == PR_STPAUSED)
+	if (!(p->cap & PR_CAP_FE) || p->state == PR_STSTOPPED || !p->li_ready)
 		return 1;
 
 	ha_warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
@@ -1281,8 +1280,6 @@ int pause_proxy(struct proxy *p)
 		send_log(p, LOG_WARNING, "%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
 		return 0;
 	}
-
-	p->state = PR_STPAUSED;
 	return 1;
 }
 
@@ -1348,7 +1345,7 @@ int resume_proxy(struct proxy *p)
 	struct listener *l;
 	int fail;
 
-	if (p->state != PR_STPAUSED)
+	if (p->state == PR_STSTOPPED || !p->li_paused)
 		return 1;
 
 	ha_warning("Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
@@ -1379,7 +1376,6 @@ int resume_proxy(struct proxy *p)
 		}
 	}
 
-	p->state = PR_STREADY;
 	if (fail) {
 		pause_proxy(p);
 		return 0;
@@ -2200,8 +2196,8 @@ static int cli_parse_disable_frontend(char **args, char *payload, struct appctx 
 	if (px->state == PR_STSTOPPED)
 		return cli_msg(appctx, LOG_NOTICE, "Frontend was previously shut down, cannot disable.\n");
 
-	if (px->state == PR_STPAUSED)
-		return cli_msg(appctx, LOG_NOTICE, "Frontend is already disabled.\n");
+	if (!px->li_ready)
+		return cli_msg(appctx, LOG_NOTICE, "All sockets are already disabled.\n");
 
 	HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
 	ret = pause_proxy(px);
@@ -2232,8 +2228,8 @@ static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *
 	if (px->state == PR_STSTOPPED)
 		return cli_err(appctx, "Frontend was previously shut down, cannot enable.\n");
 
-	if (px->state != PR_STPAUSED)
-		return cli_msg(appctx, LOG_NOTICE, "Frontend is already enabled.\n");
+	if (px->li_ready == px->li_all)
+		return cli_msg(appctx, LOG_NOTICE, "All sockets are already enabled.\n");
 
 	HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
 	ret = resume_proxy(px);
