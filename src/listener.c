@@ -218,9 +218,55 @@ REGISTER_CONFIG_POSTPARSER("multi-threaded accept queue", accept_queue_init);
 
 #endif // USE_THREAD
 
-/* adjust the listener's state */
+/* adjust the listener's state and its proxy's listener counters if needed.
+ * It must be called under the listener's lock, but uses atomic ops to change
+ * the proxy's counters so that the proxy lock is not needed.
+ */
 void listener_set_state(struct listener *l, enum li_state st)
 {
+	struct proxy *px = l->bind_conf->frontend;
+
+	if (px) {
+		/* from state */
+		switch (l->state) {
+		case LI_NEW: /* first call */
+			_HA_ATOMIC_ADD(&px->li_all, 1);
+			break;
+		case LI_INIT:
+		case LI_ASSIGNED:
+			break;
+		case LI_PAUSED:
+			_HA_ATOMIC_SUB(&px->li_paused, 1);
+			break;
+		case LI_LISTEN:
+			_HA_ATOMIC_SUB(&px->li_bound, 1);
+			break;
+		case LI_READY:
+		case LI_FULL:
+		case LI_LIMITED:
+			_HA_ATOMIC_SUB(&px->li_ready, 1);
+			break;
+		}
+
+		/* to state */
+		switch (st) {
+		case LI_NEW:
+		case LI_INIT:
+		case LI_ASSIGNED:
+			break;
+		case LI_PAUSED:
+			_HA_ATOMIC_ADD(&px->li_paused, 1);
+			break;
+		case LI_LISTEN:
+			_HA_ATOMIC_ADD(&px->li_bound, 1);
+			break;
+		case LI_READY:
+		case LI_FULL:
+		case LI_LIMITED:
+			_HA_ATOMIC_ADD(&px->li_ready, 1);
+			break;
+		}
+	}
 	l->state = st;
 }
 
