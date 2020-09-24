@@ -934,7 +934,12 @@ static void sig_soft_stop(struct sig_handler *sh)
  */
 static void sig_pause(struct sig_handler *sh)
 {
-	pause_proxies();
+	if (protocol_pause_all() & ERR_FATAL) {
+		const char *msg = "Some proxies refused to pause, performing soft stop now.\n";
+		ha_warning(msg);
+		send_log(NULL, LOG_WARNING, msg);
+		soft_stop();
+	}
 	pool_gc(NULL);
 }
 
@@ -943,7 +948,11 @@ static void sig_pause(struct sig_handler *sh)
  */
 static void sig_listen(struct sig_handler *sh)
 {
-	resume_proxies();
+	if (protocol_resume_all() & ERR_FATAL) {
+		const char *msg = "Some proxies refused to resume, probably due to a conflict on a listening port. You may want to try again after the conflicting application is stopped, otherwise a restart might be needed to resume safe operations.\n";
+		ha_warning(msg);
+		send_log(NULL, LOG_WARNING, msg);
+	}
 }
 
 /*
