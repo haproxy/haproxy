@@ -724,7 +724,7 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_ERESP]          = IST("Total number of response errors."),
 	[ST_F_WRETR]          = IST("Total number of retry warnings."),
 	[ST_F_WREDIS]         = IST("Total number of redispatch warnings."),
-	[ST_F_STATUS]         = IST("Current status of the service (frontend: 0=STOP, 1=UP, 2=FULL - backend: 0=DOWN, 1=UP - server: 0=DOWN, 1=UP, 2=MAINT, 3=DRAIN, 4=NOLB)."),
+	[ST_F_STATUS]         = IST("Current status of the service (frontend: 0=STOP, 1=UP - backend: 0=DOWN, 1=UP - server: 0=DOWN, 1=UP, 2=MAINT, 3=DRAIN, 4=NOLB)."),
 	[ST_F_WEIGHT]         = IST("Service weight."),
 	[ST_F_ACT]            = IST("Current number of active servers."),
 	[ST_F_BCK]            = IST("Current number of backup servers."),
@@ -1551,7 +1551,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 
 			switch (appctx->st2) {
 				case ST_F_STATUS:
-					metric = mkf_u32(FO_STATUS, px->state == PR_STREADY ? 1 : px->state == PR_STFULL ? 2 : 0);
+					metric = mkf_u32(FO_STATUS, px->state == PR_STREADY ? 1 : 0);
 					break;
 				case ST_F_SCUR:
 					metric = mkf_u32(0, px->feconn);
