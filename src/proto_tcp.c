@@ -743,6 +743,7 @@ int tcp_pause_listener(struct listener *l)
 	if (shutdown(l->rx.fd, SHUT_RD) != 0)
 		goto check_already_done; /* show always be OK */
 
+	fd_stop_recv(l->rx.fd);
 	return 1;
 
  check_already_done:
@@ -752,11 +753,15 @@ int tcp_pause_listener(struct listener *l)
 	 */
 	opt_val = 0;
 	opt_len = sizeof(opt_val);
-	if (getsockopt(l->rx.fd, SOL_SOCKET, SO_ACCEPTCONN, &opt_val, &opt_len) == -1)
+	if (getsockopt(l->rx.fd, SOL_SOCKET, SO_ACCEPTCONN, &opt_val, &opt_len) == -1) {
+		fd_stop_recv(l->rx.fd);
 		return 0; /* the socket is really unrecoverable */
+	}
 
-	if (!opt_val)
+	if (!opt_val) {
+		fd_stop_recv(l->rx.fd);
 		return 1; /* already paused by another process */
+	}
 
 	/* something looks fishy here */
 	return -1;

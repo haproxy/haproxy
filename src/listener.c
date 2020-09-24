@@ -362,7 +362,6 @@ int pause_listener(struct listener *l)
 
 	MT_LIST_DEL(&l->wait_queue);
 
-	fd_stop_recv(l->rx.fd);
 	listener_set_state(l, LI_PAUSED);
 
 	if (px && !px->li_ready) {
