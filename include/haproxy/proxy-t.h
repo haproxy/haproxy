@@ -42,13 +42,6 @@
 #include <haproxy/thread-t.h>
 #include <haproxy/uri_auth-t.h>
 
-/* values for proxy->state */
-enum pr_state {
-	PR_STNEW = 0,           /* proxy has not been initialized yet */
-	PR_STREADY,             /* proxy has been initialized and is ready */
-	PR_STSTOPPED,           /* proxy is stopped (end of a restart) */
-} __attribute__((packed));
-
 /* values for proxy->mode */
 enum pr_mode {
 	PR_MODE_TCP = 0,
@@ -252,7 +245,7 @@ struct error_snapshot {
 
 struct proxy {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_PROXY */
-	enum pr_state state;                    /* proxy state, one of PR_* */
+	char disabled;                          /* non-zero if disabled or shutdown */
 	enum pr_mode mode;                      /* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
 	char cap;                               /* supported capabilities (PR_CAP_*) */
 	unsigned int maxconn;                   /* max # of active streams on the frontend */

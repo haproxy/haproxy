@@ -245,7 +245,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		memcpy(&curproxy->defsrv, &defproxy.defsrv, sizeof(curproxy->defsrv));
 		curproxy->defsrv.id = "default-server";
 
-		curproxy->state = defproxy.state;
+		curproxy->disabled = defproxy.disabled;
 		curproxy->options = defproxy.options;
 		curproxy->options2 = defproxy.options2;
 		curproxy->no_options = defproxy.no_options;
@@ -783,12 +783,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "disabled")) {  /* disables this proxy */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
-		curproxy->state = PR_STSTOPPED;
+		curproxy->disabled = 1;
 	}
 	else if (!strcmp(args[0], "enabled")) {  /* enables this proxy (used to revert a disabled default) */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
-		curproxy->state = PR_STNEW;
+		curproxy->disabled = 0;
 	}
 	else if (!strcmp(args[0], "bind-process")) {  /* enable this proxy only on some processes */
 		int cur_arg = 1;

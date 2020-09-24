@@ -414,7 +414,7 @@ void init_default_instance()
 {
 	init_new_proxy(&defproxy);
 	defproxy.mode = PR_MODE_TCP;
-	defproxy.state = PR_STNEW;
+	defproxy.disabled = 0;
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
 	defproxy.redispatch_after = 0;
@@ -2117,7 +2117,7 @@ void propagate_processes(struct proxy *from, struct proxy *to)
 	if (!(from->cap & PR_CAP_FE))
 		return;
 
-	if (from->state == PR_STSTOPPED)
+	if (from->disabled)
 		return;
 
 	/* default_backend */
@@ -2234,7 +2234,7 @@ int check_config_validity()
 		next_pxid++;
 
 
-		if (curproxy->state == PR_STSTOPPED) {
+		if (curproxy->disabled) {
 			/* ensure we don't keep listeners uselessly bound. We
 			 * can't disable their listeners yet (fdtab not
 			 * allocated yet) but let's skip them.
@@ -3949,7 +3949,7 @@ out_uri_auth_compat:
 	 * other proxies.
 	 */
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-		if (curproxy->state == PR_STSTOPPED || !curproxy->table)
+		if (curproxy->disabled || !curproxy->table)
 			continue;
 
 		if (!stktable_init(curproxy->table)) {

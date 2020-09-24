@@ -859,7 +859,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		 * is disabled.
 		 */
 		if (((check->state & (CHK_ST_ENABLED | CHK_ST_PAUSED)) != CHK_ST_ENABLED) ||
-		    proxy->state == PR_STSTOPPED)
+		    proxy->disabled)
 			goto reschedule;
 
 		/* we'll initiate a new check */

@@ -2010,7 +2010,7 @@ static void init(int argc, char **argv)
 				break;
 
 		for (px = proxies_list; px; px = px->next)
-			if (px->state != PR_STSTOPPED && px->li_all)
+			if (!px->disabled && px->li_all)
 				break;
 
 		if (pr || px) {
@@ -2340,7 +2340,7 @@ static void init(int argc, char **argv)
 
 	/* stop disabled proxies */
 	for (px = proxies_list; px; px = px->next) {
-		if (px->state == PR_STSTOPPED)
+		if (px->disabled)
 			stop_proxy(px);
 	}
 
@@ -3511,7 +3511,7 @@ int main(int argc, char **argv)
 		/* we might have to unbind some proxies from some processes */
 		px = proxies_list;
 		while (px != NULL) {
-			if (px->bind_proc && px->state != PR_STSTOPPED) {
+			if (px->bind_proc && !px->disabled) {
 				if (!(px->bind_proc & (1UL << proc))) {
 					if (global.tune.options & GTUNE_SOCKET_TRANSFER)
 						zombify_proxy(px);
@@ -3525,7 +3525,7 @@ int main(int argc, char **argv)
 		/* we might have to unbind some log forward proxies from some processes */
 		px = cfg_log_forward;
 		while (px != NULL) {
-			if (px->bind_proc && px->state != PR_STSTOPPED) {
+			if (px->bind_proc && !px->disabled) {
 				if (!(px->bind_proc & (1UL << proc))) {
 					if (global.tune.options & GTUNE_SOCKET_TRANSFER)
 						zombify_proxy(px);

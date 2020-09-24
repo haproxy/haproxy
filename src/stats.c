@@ -1629,7 +1629,7 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len)
 	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
 	stats[ST_F_DCON]     = mkf_u64(FN_COUNTER, px->fe_counters.denied_conn);
 	stats[ST_F_DSES]     = mkf_u64(FN_COUNTER, px->fe_counters.denied_sess);
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, px->state == PR_STREADY ? "OPEN" : "STOP");
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, px->disabled ? "STOP" : "OPEN");
 	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
 	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
 	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, 0);
@@ -3044,9 +3044,7 @@ static int stats_dump_proxies(struct stream_interface *si,
 
 		px = appctx->ctx.stats.obj1;
 		/* skip the disabled proxies, global frontend and non-networked ones */
-		if (px->state != PR_STSTOPPED && px->uuid > 0
-		    && (px->cap & (PR_CAP_FE | PR_CAP_BE))) {
-
+		if (!px->disabled && px->uuid > 0 && (px->cap & (PR_CAP_FE | PR_CAP_BE))) {
 			if (stats_dump_proxy_to_buffer(si, htx, px, uri) == 0)
 				return 0;
 		}
@@ -3458,7 +3456,7 @@ static int stats_process_http_post(struct stream_interface *si)
 						total_servers++;
 						break;
 					case ST_ADM_ACTION_SHUTDOWN:
-						if (px->state != PR_STSTOPPED) {
+						if (!px->disabled) {
 							srv_shutdown_streams(sv, SF_ERR_KILLED);
 							altered_servers++;
 							total_servers++;

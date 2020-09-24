@@ -1546,12 +1546,12 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			px = appctx->ctx.stats.obj1;
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
-			if (px->state == PR_STSTOPPED || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
+			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
 				goto next_px;
 
 			switch (appctx->st2) {
 				case ST_F_STATUS:
-					metric = mkf_u32(FO_STATUS, px->state == PR_STREADY ? 1 : 0);
+					metric = mkf_u32(FO_STATUS, !px->disabled);
 					break;
 				case ST_F_SCUR:
 					metric = mkf_u32(0, px->feconn);
@@ -1731,7 +1731,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			px = appctx->ctx.stats.obj1;
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
-			if (px->state == PR_STSTOPPED || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
+			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
 				goto next_px;
 
 			switch (appctx->st2) {
@@ -1976,7 +1976,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 			px = appctx->ctx.stats.obj1;
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
-			if (px->state == PR_STSTOPPED || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
+			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
 				goto next_px;
 
 			while (appctx->ctx.stats.obj2) {

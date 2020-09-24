@@ -52,7 +52,7 @@ int be_lastsession(const struct proxy *be);
 /* Returns number of usable servers in backend */
 static inline int be_usable_srv(struct proxy *be)
 {
-        if (be->state == PR_STSTOPPED)
+        if (be->disabled)
                 return 0;
         else if (be->srv_act)
                 return be->srv_act;
