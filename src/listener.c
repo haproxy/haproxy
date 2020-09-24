@@ -395,6 +395,9 @@ int resume_listener(struct listener *l)
 	    !(proc_mask(l->rx.settings->bind_proc) & pid_bit))
 		goto end;
 
+	if (l->state == LI_READY)
+		goto end;
+
 	if (l->state == LI_ASSIGNED) {
 		char msg[100];
 		int err;
@@ -422,9 +425,6 @@ int resume_listener(struct listener *l)
 		ret = 0;
 		goto end;
 	}
-
-	if (l->state == LI_READY)
-		goto end;
 
 	if (l->maxconn && l->nbconn >= l->maxconn) {
 		listener_set_state(l, LI_FULL);
