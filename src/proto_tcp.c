@@ -676,7 +676,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 #endif
 
 	/* the socket is ready */
-	listener->state = LI_LISTEN;
+	listener_set_state(listener, LI_LISTEN);
 	goto tcp_return;
 
  tcp_close_return:
@@ -702,7 +702,7 @@ static void tcpv4_add_listener(struct listener *listener, int port)
 {
 	if (listener->state != LI_INIT)
 		return;
-	listener->state = LI_ASSIGNED;
+	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_tcpv4;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_tcpv4.listeners, &listener->rx.proto_list);
@@ -720,7 +720,7 @@ static void tcpv6_add_listener(struct listener *listener, int port)
 {
 	if (listener->state != LI_INIT)
 		return;
-	listener->state = LI_ASSIGNED;
+	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_tcpv6;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_tcpv6.listeners, &listener->rx.proto_list);

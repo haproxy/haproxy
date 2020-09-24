@@ -114,7 +114,7 @@ int udp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto udp_return;
 	}
 
-	listener->state = LI_LISTEN;
+	listener_set_state(listener, LI_LISTEN);
 
  udp_return:
 	if (msg && errlen) {
@@ -134,7 +134,7 @@ static void udp4_add_listener(struct listener *listener, int port)
 {
 	if (listener->state != LI_INIT)
 		return;
-	listener->state = LI_ASSIGNED;
+	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_udp4;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_udp4.listeners, &listener->rx.proto_list);
@@ -149,7 +149,7 @@ static void udp6_add_listener(struct listener *listener, int port)
 {
 	if (listener->state != LI_INIT)
 		return;
-	listener->state = LI_ASSIGNED;
+	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_udp6;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_udp6.listeners, &listener->rx.proto_list);

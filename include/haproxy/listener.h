@@ -30,6 +30,9 @@
 #include <haproxy/list.h>
 #include <haproxy/listener-t.h>
 
+/* adjust the listener's state and its proxy's listener counters if needed */
+void listener_set_state(struct listener *l, enum li_state st);
+
 /* This function tries to temporarily disable a listener, depending on the OS
  * capabilities. Linux unbinds the listen socket after a SHUT_RD, and ignores
  * SHUT_WR. Solaris refuses either shutdown(). OpenBSD ignores SHUT_RD but

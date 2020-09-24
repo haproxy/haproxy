@@ -218,6 +218,12 @@ REGISTER_CONFIG_POSTPARSER("multi-threaded accept queue", accept_queue_init);
 
 #endif // USE_THREAD
 
+/* adjust the listener's state */
+void listener_set_state(struct listener *l, enum li_state st)
+{
+	l->state = st;
+}
+
 /* This function adds the specified listener's file descriptor to the polling
  * lists if it is in the LI_LISTEN state. The listener enters LI_READY or
  * LI_FULL state depending on its number of connections. In daemon mode, we
@@ -237,15 +243,15 @@ static void enable_listener(struct listener *listener)
 				do_unbind_listener(listener, 1);
 			else {
 				do_unbind_listener(listener, 0);
-				listener->state = LI_LISTEN;
+				listener_set_state(listener, LI_LISTEN);
 			}
 		}
 		else if (!listener->maxconn || listener->nbconn < listener->maxconn) {
 			fd_want_recv(listener->rx.fd);
-			listener->state = LI_READY;
+			listener_set_state(listener, LI_READY);
 		}
 		else {
-			listener->state = LI_FULL;
+			listener_set_state(listener, LI_FULL);
 		}
 	}
 	/* if this listener is supposed to be only in the master, close it in the workers */
@@ -269,7 +275,7 @@ static void disable_listener(struct listener *listener)
 	if (listener->state == LI_READY)
 		fd_stop_recv(listener->rx.fd);
 	MT_LIST_DEL(&listener->wait_queue);
-	listener->state = LI_LISTEN;
+	listener_set_state(listener, LI_LISTEN);
   end:
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
@@ -308,7 +314,7 @@ int pause_listener(struct listener *l)
 	MT_LIST_DEL(&l->wait_queue);
 
 	fd_stop_recv(l->rx.fd);
-	l->state = LI_PAUSED;
+	listener_set_state(l, LI_PAUSED);
   end:
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 	return ret;
@@ -372,12 +378,12 @@ int resume_listener(struct listener *l)
 		goto end;
 
 	if (l->maxconn && l->nbconn >= l->maxconn) {
-		l->state = LI_FULL;
+		listener_set_state(l, LI_FULL);
 		goto end;
 	}
 
 	fd_want_recv(l->rx.fd);
-	l->state = LI_READY;
+	listener_set_state(l, LI_READY);
   end:
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 	return ret;
@@ -393,7 +399,7 @@ static void listener_full(struct listener *l)
 		MT_LIST_DEL(&l->wait_queue);
 		if (l->state != LI_FULL) {
 			fd_stop_recv(l->rx.fd);
-			l->state = LI_FULL;
+			listener_set_state(l, LI_FULL);
 		}
 	}
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
@@ -408,7 +414,7 @@ static void limit_listener(struct listener *l, struct mt_list *list)
 	if (l->state == LI_READY) {
 		MT_LIST_TRY_ADDQ(list, &l->wait_queue);
 		fd_stop_recv(l->rx.fd);
-		l->state = LI_LIMITED;
+		listener_set_state(l, LI_LIMITED);
 	}
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 }
@@ -486,7 +492,7 @@ void do_unbind_listener(struct listener *listener, int do_close)
 	MT_LIST_DEL(&listener->wait_queue);
 
 	if (listener->state >= LI_PAUSED) {
-		listener->state = LI_ASSIGNED;
+		listener_set_state(listener, LI_ASSIGNED);
 		fd_stop_both(listener->rx.fd);
 	}
 
@@ -547,7 +553,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		l->rx.fd = fd;
 		memcpy(&l->rx.addr, ss, sizeof(*ss));
 		MT_LIST_INIT(&l->wait_queue);
-		l->state = LI_INIT;
+		listener_set_state(l, LI_INIT);
 
 		proto->add(l, port);
 
@@ -575,7 +581,7 @@ void delete_listener(struct listener *listener)
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state == LI_ASSIGNED) {
-		listener->state = LI_INIT;
+		listener_set_state(listener, LI_INIT);
 		LIST_DEL(&listener->rx.proto_list);
 		listener->rx.proto->nb_listeners--;
 		_HA_ATOMIC_SUB(&jobs, 1);
