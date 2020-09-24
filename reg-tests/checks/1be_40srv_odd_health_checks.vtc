@@ -10,10 +10,9 @@ feature ignore_unknown_macro
 #EXCLUDE_TARGETS=freebsd
 #REGTEST_TYPE=slow
 
-# Note that the first syslog message received is: "Proxy <name> started."
-syslog S -repeat 21 -level notice {
+syslog S -repeat 20 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: (Health check for server be1/srv([13579]|[123][13579]) succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP|Proxy be1 started.)"
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv([13579]|[123][13579]) succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP"
 } -start
 
 server s0 {} -start

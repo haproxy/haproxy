@@ -30,9 +30,9 @@ syslog Slg_1 -level info {
 # Here are the syslog messages received by Slg_2:
 syslog Slg_2 -level info {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c7 HTTP/1.1\""
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c6 HTTP/1.1\""
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c10 HTTP/1.1\""
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c8 HTTP/1.1\""
 } -repeat 50 -start
 
 haproxy h1 -conf {

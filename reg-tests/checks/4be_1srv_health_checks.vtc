@@ -37,8 +37,6 @@ server s4 {
 
 syslog S1 -level notice {
     recv
-    expect ~ "Proxy be1 started"
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP"
     barrier b1 sync
     recv alert
@@ -52,8 +50,6 @@ syslog S1 -level notice {
 } -start
 
 syslog S2 -level notice {
-    recv
-    expect ~ "Proxy be2 started"
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv2 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP"
     barrier b1 sync
@@ -69,8 +65,6 @@ syslog S2 -level notice {
 
 syslog S3 -level notice {
     recv
-    expect ~ "Proxy be3 started"
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv3 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP"
     barrier b1 sync
     recv alert
@@ -84,8 +78,6 @@ syslog S3 -level notice {
 } -start
 
 syslog S4 -level notice {
-    recv
-    expect ~ "Proxy be4 started"
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv4 succeeded.+reason: Layer4 check passed.+check duration: [[:digit:]]+ms.+status: 1/1 UP"
     barrier b1 sync

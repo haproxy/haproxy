@@ -21,8 +21,6 @@ server s1 {
 
 syslog S1 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded.*code: 202"
 } -start
 

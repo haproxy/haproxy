@@ -75,15 +75,6 @@ server s4 {
 
 syslog S1 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
-
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]/srv succeeded.*code: 200"
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]/srv succeeded.*code: 200"

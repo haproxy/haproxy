@@ -11,10 +11,6 @@ feature ignore_unknown_macro
 # (invalid, insert) flags.
 
 syslog S1 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy (fe|be)1 started."
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy (fe|be)1 started."
     recv info
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe1 be1/srv1 .* --II .* \"GET / HTTP/1\\.1\""
 } -start

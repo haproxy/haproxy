@@ -9,22 +9,16 @@ feature ignore_unknown_macro
 
 syslog S1 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer6 check passed.+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 
 syslog S2 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be2 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv failed, reason: Layer6 invalid response.+info: \"TCPCHK got an empty response at step 2\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
 syslog S3 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer6 invalid response.+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start

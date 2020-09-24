@@ -39,35 +39,25 @@ server s5 {
 
 syslog S1 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+info: \"8.0.19\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 syslog S2 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be2 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv succeeded, reason: Layer7 check passed.+info: \"8.0.19\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 syslog S3 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv succeeded, reason: Layer7 check passed.+info: \"8.0.19\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 syslog S4 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be4 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv failed, reason: Layer7 wrong status.+code: 1251.+info: \"Client does not support authentication protocol requested by server; consider upgrading MySQL client\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
 syslog S5 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be5 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be5/srv failed, reason: Layer7 wrong status.+code: 1251.+info: \"Client does not support authentication protocol requested by server; consider upgrading MySQL client\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start

@@ -25,21 +25,15 @@ server s3 {
 
 syslog S1 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+info: \"PostgreSQL server is ok\".+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 syslog S2 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be2 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv failed, reason: Layer7 invalid response.+info: \"FATAL\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
 syslog S3 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer7 wrong status.+info: \"PostgreSQL unknown error\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start

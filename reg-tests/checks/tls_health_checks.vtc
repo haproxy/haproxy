@@ -28,8 +28,6 @@ server s3 {
 } -start
 
 syslog S1 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy fe1 started."
     recv info
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe1~ be1/srv1 .* 200 [[:digit:]]+ - - ---- .* \"OPTIONS \\* HTTP/1.1\""
 } -start
@@ -72,21 +70,15 @@ haproxy h1 -conf {
 
 syslog S2 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Proxy be2 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be2/srv1 succeeded, reason: Layer7 check passed.+code: 200.+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 syslog S4 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Proxy be4 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be4/srv2 succeeded, reason: Layer6 check passed.+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
 syslog S6 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Proxy be6 started."
     recv
     expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be6/srv3 succeeded, reason: Layer7 check passed.+code: 200.+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
