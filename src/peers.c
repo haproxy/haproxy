@@ -3065,11 +3065,11 @@ static int peers_dump_head(struct buffer *msg, struct stream_interface *si, stru
 	struct tm tm;
 
 	get_localtime(peers->last_change, &tm);
-	chunk_appendf(msg, "%p: [%02d/%s/%04d:%02d:%02d:%02d] id=%s state=%d flags=0x%x resync_timeout=%s task_calls=%u\n",
+	chunk_appendf(msg, "%p: [%02d/%s/%04d:%02d:%02d:%02d] id=%s disabled=%d flags=0x%x resync_timeout=%s task_calls=%u\n",
 	              peers,
 	              tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 	              tm.tm_hour, tm.tm_min, tm.tm_sec,
-	              peers->id, peers->state, peers->flags,
+	              peers->id, peers->disabled, peers->flags,
 	              peers->resync_timeout ?
 			             tick_is_expired(peers->resync_timeout, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(peers->resync_timeout - now_ms),
