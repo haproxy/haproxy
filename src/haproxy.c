@@ -2004,7 +2004,7 @@ static void init(int argc, char **argv)
 				break;
 
 		for (px = proxies_list; px; px = px->next)
-			if (px->state == PR_STNEW && !LIST_ISEMPTY(&px->conf.listeners))
+			if (px->state != PR_STSTOPPED && px->li_all)
 				break;
 
 		if (pr || px) {
