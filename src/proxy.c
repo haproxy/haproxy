@@ -1253,9 +1253,6 @@ int pause_proxy(struct proxy *p)
 	if (!(p->cap & PR_CAP_FE) || p->disabled || !p->li_ready)
 		return 1;
 
-	ha_warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
-	send_log(p, LOG_WARNING, "Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
-
 	list_for_each_entry(l, &p->conf.listeners, by_fe)
 		pause_listener(l);
 
@@ -1319,9 +1316,6 @@ int resume_proxy(struct proxy *p)
 
 	if (p->disabled || !p->li_paused)
 		return 1;
-
-	ha_warning("Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
-	send_log(p, LOG_WARNING, "Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
 
 	fail = 0;
 	list_for_each_entry(l, &p->conf.listeners, by_fe) {

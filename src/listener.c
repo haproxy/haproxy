@@ -338,6 +338,7 @@ static void disable_listener(struct listener *listener)
  */
 int pause_listener(struct listener *l)
 {
+	struct proxy *px = l->bind_conf->frontend;
 	int ret = 1;
 
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
@@ -367,6 +368,11 @@ int pause_listener(struct listener *l)
 
 	fd_stop_recv(l->rx.fd);
 	listener_set_state(l, LI_PAUSED);
+
+	if (px && !px->li_ready) {
+		ha_warning("Paused %s %s.\n", proxy_cap_str(px->cap), px->id);
+		send_log(px, LOG_WARNING, "Paused %s %s.\n", proxy_cap_str(px->cap), px->id);
+	}
   end:
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 	return ret;
@@ -384,6 +390,7 @@ int pause_listener(struct listener *l)
  */
 int resume_listener(struct listener *l)
 {
+	struct proxy *px = l->bind_conf->frontend;
 	int ret = 1;
 
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
@@ -433,7 +440,7 @@ int resume_listener(struct listener *l)
 
 	if (l->maxconn && l->nbconn >= l->maxconn) {
 		listener_set_state(l, LI_FULL);
-		goto end;
+		goto done;
 	}
 
 	if (!(thread_mask(l->rx.settings->bind_thread) & tid_bit)) {
@@ -447,6 +454,12 @@ int resume_listener(struct listener *l)
 
 	fd_want_recv(l->rx.fd);
 	listener_set_state(l, LI_READY);
+
+  done:
+	if (px && px->li_paused == 0) {
+		ha_warning("Resumed %s %s.\n", proxy_cap_str(px->cap), px->id);
+		send_log(px, LOG_WARNING, "Resumed %s %s.\n", proxy_cap_str(px->cap), px->id);
+	}
   end:
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 	return ret;
