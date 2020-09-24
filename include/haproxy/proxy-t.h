@@ -46,7 +46,6 @@
 enum pr_state {
 	PR_STNEW = 0,           /* proxy has not been initialized yet */
 	PR_STREADY,             /* proxy has been initialized and is ready */
-	PR_STPAUSED,            /* frontend is paused (during hot restart) */
 	PR_STSTOPPED,           /* proxy is stopped (end of a restart) */
 } __attribute__((packed));
 
