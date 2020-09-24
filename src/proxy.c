@@ -1118,15 +1118,8 @@ struct task *manage_proxy(struct task *t, void *context, unsigned short state)
 		goto out;
 
 	/* check the various reasons we may find to block the frontend */
-	if (unlikely(p->feconn >= p->maxconn)) {
-		if (p->state == PR_STREADY)
-			p->state = PR_STFULL;
+	if (unlikely(p->feconn >= p->maxconn))
 		goto out;
-	}
-
-	/* OK we have no reason to block, so let's unblock if we were blocking */
-	if (p->state == PR_STFULL)
-		p->state = PR_STREADY;
 
 	if (p->fe_sps_lim &&
 	    (wait = next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 0))) {
