@@ -351,14 +351,13 @@ int pause_listener(struct listener *l)
 		/* Returns < 0 in case of failure, 0 if the listener
 		 * was totally stopped, or > 0 if correctly paused.
 		 */
-		int ret = l->rx.proto->pause(l);
+		ret = l->rx.proto->pause(l);
 
 		if (ret < 0) {
 			ret = 0;
 			goto end;
 		}
-		else if (ret == 0)
-			goto end;
+		ret = 1;
 	}
 
 	MT_LIST_DEL(&l->wait_queue);
