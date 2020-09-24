@@ -1281,28 +1281,24 @@ void soft_stop(void)
 
 
 /* Temporarily disables listening on all of the proxy's listeners. Upon
- * success, the proxy enters the PR_PAUSED state. If disabling at least one
- * listener returns an error, then the proxy state is set to PR_STERROR
- * because we don't know how to resume from this. The function returns 0
+ * success, the proxy enters the PR_PAUSED state. The function returns 0
  * if it fails, or non-zero on success.
  */
 int pause_proxy(struct proxy *p)
 {
 	struct listener *l;
 
-	if (!(p->cap & PR_CAP_FE) || p->state == PR_STERROR ||
+	if (!(p->cap & PR_CAP_FE) ||
 	    p->state == PR_STSTOPPED || p->state == PR_STPAUSED)
 		return 1;
 
 	ha_warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
 	send_log(p, LOG_WARNING, "Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
 
-	list_for_each_entry(l, &p->conf.listeners, by_fe) {
-		if (!pause_listener(l))
-			p->state = PR_STERROR;
-	}
+	list_for_each_entry(l, &p->conf.listeners, by_fe)
+		pause_listener(l);
 
-	if (p->state == PR_STERROR) {
+	if (p->li_ready) {
 		ha_warning("%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
 		send_log(p, LOG_WARNING, "%s %s failed to enter pause mode.\n", proxy_cap_str(p->cap), p->id);
 		return 0;

@@ -48,7 +48,6 @@ enum pr_state {
 	PR_STREADY,             /* proxy has been initialized and is ready */
 	PR_STPAUSED,            /* frontend is paused (during hot restart) */
 	PR_STSTOPPED,           /* proxy is stopped (end of a restart) */
-	PR_STERROR,             /* proxy experienced an unrecoverable error */
 } __attribute__((packed));
 
 /* values for proxy->mode */
