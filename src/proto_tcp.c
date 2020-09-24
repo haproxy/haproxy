@@ -740,6 +740,8 @@ int tcp_pause_listener(struct listener *l)
 
 	if (shutdown(l->rx.fd, SHUT_RD) != 0)
 		return -1; /* should always be OK */
+
+	fd_stop_recv(l->rx.fd);
 	return 1;
 }
 

@@ -151,7 +151,8 @@ static void uxst_add_listener(struct listener *listener, int port)
 /* Pause a listener. Returns < 0 in case of failure, 0 if the listener
  * was totally stopped, or > 0 if correctly paused. Nothing is done for
  * plain unix sockets since currently it's the new process which handles
- * the renaming. Abstract sockets are completely unbound.
+ * the renaming. Abstract sockets are completely unbound and closed so
+ * there's no need to stop the poller.
  */
 static int uxst_pause_listener(struct listener *l)
 {
