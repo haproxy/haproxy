@@ -343,6 +343,9 @@ int pause_listener(struct listener *l)
 	    !(proc_mask(l->rx.settings->bind_proc) & pid_bit))
 		goto end;
 
+	if (l->state <= LI_PAUSED)
+		goto end;
+
 	if (l->rx.proto->pause) {
 		/* Returns < 0 in case of failure, 0 if the listener
 		 * was totally stopped, or > 0 if correctly paused.
