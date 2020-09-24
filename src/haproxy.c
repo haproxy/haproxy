@@ -3510,12 +3510,8 @@ int main(int argc, char **argv)
 		px = proxies_list;
 		while (px != NULL) {
 			if (px->bind_proc && !px->disabled) {
-				if (!(px->bind_proc & (1UL << proc))) {
-					if (global.tune.options & GTUNE_SOCKET_TRANSFER)
-						zombify_proxy(px);
-					else
-						stop_proxy(px);
-				}
+				if (!(px->bind_proc & (1UL << proc)))
+					stop_proxy(px);
 			}
 			px = px->next;
 		}
@@ -3524,12 +3520,8 @@ int main(int argc, char **argv)
 		px = cfg_log_forward;
 		while (px != NULL) {
 			if (px->bind_proc && !px->disabled) {
-				if (!(px->bind_proc & (1UL << proc))) {
-					if (global.tune.options & GTUNE_SOCKET_TRANSFER)
-						zombify_proxy(px);
-					else
-						stop_proxy(px);
-				}
+				if (!(px->bind_proc & (1UL << proc)))
+					stop_proxy(px);
 			}
 			px = px->next;
 		}

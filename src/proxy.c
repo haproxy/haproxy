@@ -1289,22 +1289,6 @@ int pause_proxy(struct proxy *p)
 	return 1;
 }
 
-/* This function makes the proxy unusable, but keeps the listening sockets
- * opened, so that if any process requests them, we are able to serve them.
- * This should only be called early, before we started accepting requests.
- */
-void zombify_proxy(struct proxy *p)
-{
-	struct listener *l;
-
-	list_for_each_entry(l, &p->conf.listeners, by_fe) {
-		unbind_listener_no_close(l);
-		if (l->state >= LI_ASSIGNED)
-			delete_listener(l);
-	}
-	p->disabled = 1;
-}
-
 /*
  * This function completely stops a proxy and releases its listeners. It has
  * to be called when going down in order to release the ports so that another
@@ -1316,26 +1300,30 @@ void zombify_proxy(struct proxy *p)
 void stop_proxy(struct proxy *p)
 {
 	struct listener *l;
-	int nostop = 0;
 
 	HA_SPIN_LOCK(PROXY_LOCK, &p->lock);
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe) {
 		if (l->options & LI_O_NOSTOP) {
 			HA_ATOMIC_ADD(&unstoppable_jobs, 1);
-			nostop = 1;
 			continue;
 		}
-		/* The master should not close an inherited FD */
-		if (master && (l->rx.flags & RX_F_INHERITED))
+
+		/* There are several cases where we must not close an FD:
+		 *   - we're starting up and we have socket transfers enabled;
+		 *   - we're the master and this FD was inherited;
+		 */
+		if ((global.tune.options & GTUNE_SOCKET_TRANSFER && global.mode & MODE_STARTING) ||
+		    (master && (l->rx.flags & RX_F_INHERITED)))
 			unbind_listener_no_close(l);
 		else
 			unbind_listener(l);
-		if (l->state >= LI_ASSIGNED) {
+
+		if (l->state >= LI_ASSIGNED)
 			delete_listener(l);
-		}
 	}
-	if (!nostop)
+
+	if (p->li_ready + p->li_bound + p->li_paused == 0)
 		p->disabled = 1;
 
 	HA_SPIN_UNLOCK(PROXY_LOCK, &p->lock);
