@@ -63,17 +63,19 @@
  * H1 Stream flags (32 bits)
  */
 #define H1S_F_NONE           0x00000000
-#define H1S_F_ERROR          0x00000001 /* An error occurred on the H1 stream */
-#define H1S_F_REQ_ERROR      0x00000002 /* An error occurred during the request parsing/xfer */
-#define H1S_F_RES_ERROR      0x00000004 /* An error occurred during the response parsing/xfer */
+/* 0x00000001..0x00000004 unsued */
 #define H1S_F_REOS           0x00000008 /* End of input stream seen even if not delivered yet */
 #define H1S_F_WANT_KAL       0x00000010
 #define H1S_F_WANT_TUN       0x00000020
 #define H1S_F_WANT_CLO       0x00000040
 #define H1S_F_WANT_MSK       0x00000070
 #define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
+
 #define H1S_F_PARSING_DONE   0x00000400 /* Set when incoming message parsing is finished (EOM added) */
-/* 0x00000800 .. 0x00001000 unused */
+#define H1S_F_PARSING_ERROR  0x00000800 /* Set when an error occurred during the message parsing */
+#define H1S_F_PROCESSING_ERROR 0x00001000 /* Set when an error occurred during the message xfer */
+#define H1S_F_ERROR          0x00001800 /* stream error mask */
+
 #define H1S_F_HAVE_SRV_NAME  0x00002000 /* Set during output process if the server name header was added to the request */
 #define H1S_F_HAVE_O_CONN    0x00004000 /* Set during output process to know connection mode was processed */
 
@@ -623,7 +625,7 @@ static void h1s_destroy(struct h1s *h1s)
 			h1s->subs->events = 0;
 
 		h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
-		if (h1s->flags & (H1S_F_REQ_ERROR|H1S_F_RES_ERROR)) {
+		if (h1s->flags & H1S_F_ERROR) {
 			h1c->flags |= H1C_F_CS_ERROR;
 			TRACE_STATE("h1s on error, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
@@ -1217,16 +1219,9 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
-			if (!(h1m->flags & H1_MF_RESP)) {
-				h1s->flags |= H1S_F_REQ_ERROR;
-				TRACE_USER("rejected H1 request", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
-			}
-			else {
-				h1s->flags |= H1S_F_RES_ERROR;
-				TRACE_USER("rejected H1 response", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
-			}
+			h1s->flags |= H1S_F_PARSING_ERROR;
 			h1s->cs->flags |= CS_FL_EOI;
-			TRACE_STATE("parsing error", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			TRACE_USER("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
 		goto end;
@@ -1282,16 +1277,9 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
 		if ((*htx)->flags & HTX_FL_PARSING_ERROR) {
-			if (!(h1m->flags & H1_MF_RESP)) {
-				h1s->flags |= H1S_F_REQ_ERROR;
-				TRACE_USER("rejected H1 request", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
-			}
-			else {
-				h1s->flags |= H1S_F_RES_ERROR;
-				TRACE_USER("rejected H1 response", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
-			}
+			h1s->flags |= H1S_F_PARSING_ERROR;
 			h1s->cs->flags |= CS_FL_EOI;
-			TRACE_STATE("parsing error", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			TRACE_USER("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
 		goto end;
@@ -1330,16 +1318,9 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
-			if (!(h1m->flags & H1_MF_RESP)) {
-				h1s->flags |= H1S_F_REQ_ERROR;
-				TRACE_USER("rejected H1 request", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
-			}
-			else {
-				h1s->flags |= H1S_F_RES_ERROR;
-				TRACE_USER("rejected H1 response", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
-			}
+			h1s->flags |= H1S_F_PARSING_ERROR;
 			h1s->cs->flags |= CS_FL_EOI;
-			TRACE_STATE("parsing error", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			TRACE_USER("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
 		goto end;
@@ -1367,16 +1348,9 @@ static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
-			if (!(h1m->flags & H1_MF_RESP)) {
-				h1s->flags |= H1S_F_REQ_ERROR;
-				TRACE_USER("rejected H1 request", H1_EV_RX_DATA|H1_EV_RX_EOI|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
-			}
-			else {
-				h1s->flags |= H1S_F_RES_ERROR;
-				TRACE_USER("rejected H1 response", H1_EV_RX_DATA|H1_EV_RX_EOI|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
-			}
+			h1s->flags |= H1S_F_PARSING_ERROR;
 			h1s->cs->flags |= CS_FL_EOI;
-			TRACE_STATE("parsing error", H1_EV_RX_DATA|H1_EV_RX_EOI|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			TRACE_USER("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_EOI|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
 		goto end;
@@ -1401,22 +1375,14 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	struct htx *htx;
 	size_t ret, data;
 	size_t total = 0;
-	int errflag;
 
 	htx = htx_from_buf(buf);
 	TRACE_ENTER(H1_EV_RX_DATA, h1c->conn, h1s, htx, (size_t[]){count});
 
-	if (!(h1c->flags & H1C_F_IS_BACK)) {
-		h1m = &h1s->req;
-		errflag = H1S_F_REQ_ERROR;
-	}
-	else {
-		h1m = &h1s->res;
-		errflag = H1S_F_RES_ERROR;
-	}
+	h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
 
 	data = htx->data;
-	if (h1s->flags & errflag)
+	if (h1s->flags & H1S_F_PARSING_ERROR)
 		goto end;
 
 	do {
@@ -1485,14 +1451,14 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 				    H1_EV_RX_DATA|H1_EV_RX_EOI, h1c->conn, h1s, htx, (size_t[]){ret});
 		}
 		else {
-			h1s->flags |= errflag;
+			h1s->flags |= H1S_F_PARSING_ERROR;
 			break;
 		}
 
 		count -= htx_used_space(htx) - used;
-	} while (!(h1s->flags & errflag));
+	} while (!(h1s->flags & H1S_F_PARSING_ERROR));
 
-	if (h1s->flags & errflag) {
+	if (h1s->flags & H1S_F_PARSING_ERROR) {
 		TRACE_PROTO("parsing error", H1_EV_RX_DATA, h1c->conn, h1s);
 		goto parsing_err;
 	}
@@ -1545,7 +1511,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	struct htx_blk *blk;
 	struct buffer tmp;
 	size_t total = 0;
-	int errflag;
 
 	if (!count)
 		goto end;
@@ -1562,16 +1527,9 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		goto end;
 	}
 
-	if (!(h1c->flags & H1C_F_IS_BACK)) {
-		h1m = &h1s->res;
-		errflag = H1S_F_RES_ERROR;
-	}
-	else {
-		h1m = &h1s->req;
-		errflag = H1S_F_REQ_ERROR;
-	}
+	h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
 
-	if (h1s->flags & errflag)
+	if (h1s->flags & H1S_F_PROCESSING_ERROR)
 		goto end;
 
 	/* the htx is non-empty thus has at least one block */
@@ -1635,7 +1593,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 	tmp.data = 0;
 	tmp.size = b_room(&h1c->obuf);
-	while (count && !(h1s->flags & errflag) && blk) {
+	while (count && !(h1s->flags & H1S_F_PROCESSING_ERROR) && blk) {
 		struct htx_sl *sl;
 		struct ist n, v;
 		enum htx_blk_type type = htx_get_blk_type(blk);
@@ -1938,7 +1896,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				TRACE_PROTO("formatting error", H1_EV_TX_DATA, h1c->conn, h1s);
 				/* Unexpected error during output processing */
 				chn_htx->flags |= HTX_FL_PROCESSING_ERROR;
-				h1s->flags |= errflag;
+				h1s->flags |= H1S_F_PROCESSING_ERROR;
 				h1c->flags |= H1C_F_CS_ERROR;
 				TRACE_STATE("processing error, set error on h1c/h1s", H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 				TRACE_DEVEL("unexpected error", H1_EV_TX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
