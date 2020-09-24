@@ -41,7 +41,8 @@
 /* Flags indicating why reading input data are blocked. */
 #define H1C_F_IN_ALLOC       0x00000010 /* mux is blocked on lack of input buffer */
 #define H1C_F_IN_FULL        0x00000020 /* mux is blocked on input buffer full */
-/* 0x00000040 - 0x00000800 unused */
+#define H1C_F_IN_SALLOC      0x00000040 /* mux is blocked on lack of stream's request buffer */
+/* 0x00000080 - 0x00000800 unused */
 
 /* Flags indicating the connection state */
 #define H1C_F_CS_ERROR       0x00001000 /* connection must be closed ASAP because an error occurred */
@@ -106,6 +107,7 @@ struct h1s {
 	struct wait_event *subs;      /* Address of the wait_event the conn_stream associated is waiting on */
 
 	struct session *sess;         /* Associated session */
+	struct buffer rxbuf;          /* receive buffer, always valid (buf_empty or real buffer) */
 	struct h1m req;
 	struct h1m res;
 
@@ -374,7 +376,7 @@ static inline int h1_recv_allowed(const struct h1c *h1c)
 		return 0;
 	}
 
-	if (!(h1c->flags & (H1C_F_IN_ALLOC|H1C_F_IN_FULL)))
+	if (!(h1c->flags & (H1C_F_IN_ALLOC|H1C_F_IN_FULL|H1C_F_IN_SALLOC)))
 		return 1;
 
 	TRACE_DEVEL("recv not allowed because input is blocked", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
@@ -404,6 +406,13 @@ static int h1_buf_available(void *target)
 		h1c->flags &= ~H1C_F_OUT_ALLOC;
 		if (h1c->h1s)
 			h1_wake_stream_for_send(h1c->h1s);
+		return 1;
+	}
+
+	if ((h1c->flags & H1C_F_IN_SALLOC) && h1c->h1s && b_alloc_margin(&h1c->h1s->rxbuf, 0)) {
+		TRACE_STATE("unblocking h1c, stream rxbuf allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn);
+		h1c->flags &= ~H1C_F_IN_SALLOC;
+		tasklet_wakeup(h1c->wait_event.tasklet);
 		return 1;
 	}
 
@@ -561,6 +570,7 @@ static struct h1s *h1s_new(struct h1c *h1c)
 	h1s->cs = NULL;
 	h1s->flags = H1S_F_WANT_KAL;
 	h1s->subs = NULL;
+	h1s->rxbuf = BUF_NULL;
 
 	h1m_init_req(&h1s->req);
 	h1s->req.flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
@@ -649,6 +659,8 @@ static void h1s_destroy(struct h1s *h1s)
 
 		if (h1s->subs)
 			h1s->subs->events = 0;
+
+		h1_release_buf(h1c, &h1s->rxbuf);
 
 		h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
 		if (h1s->flags & H1S_F_ERROR) {
