@@ -2428,7 +2428,6 @@ int mworker_cli_proxy_create()
 	proxies_list = mworker_proxy;
 	mworker_proxy->id = strdup("MASTER");
 	mworker_proxy->mode = PR_MODE_CLI;
-	mworker_proxy->state = PR_STNEW;
 	mworker_proxy->last_change = now.tv_sec;
 	mworker_proxy->cap = PR_CAP_LISTEN; /* this is a listen section */
 	mworker_proxy->maxconn = 10;                 /* default to 10 concurrent connections */

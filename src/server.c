@@ -4246,7 +4246,7 @@ struct server *cli_find_server(struct appctx *appctx, char *arg)
 		return NULL;
 	}
 
-	if (px->state == PR_STSTOPPED) {
+	if (px->disabled) {
 		cli_err(appctx, "Proxy is disabled.\n");
 		return NULL;
 	}

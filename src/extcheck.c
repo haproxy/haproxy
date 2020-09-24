@@ -495,7 +495,7 @@ struct task *process_chk_proc(struct task *t, void *context, unsigned short stat
 		 * is disabled.
 		 */
 		if (((check->state & (CHK_ST_ENABLED | CHK_ST_PAUSED)) != CHK_ST_ENABLED) ||
-		    s->proxy->state == PR_STSTOPPED)
+		    s->proxy->disabled)
 			goto reschedule;
 
 		/* we'll initiate a new check */

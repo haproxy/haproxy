@@ -3597,7 +3597,7 @@ static int h2_process(struct h2c *h2c)
 	}
 	h2_send(h2c);
 
-	if (unlikely(h2c->proxy->state == PR_STSTOPPED)) {
+	if (unlikely(h2c->proxy->disabled)) {
 		/* frontend is stopping, reload likely in progress, let's try
 		 * to announce a graceful shutdown if not yet done. We don't
 		 * care if it fails, it will be tried again later.

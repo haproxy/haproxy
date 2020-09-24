@@ -1052,10 +1052,8 @@ void start_proxies(void)
 	struct proxy *curproxy;
 
 	for (curproxy = proxies_list; curproxy != NULL; curproxy = curproxy->next) {
-		if (curproxy->state != PR_STNEW)
-			continue; /* already initialized */
-
-		curproxy->state = PR_STREADY;
+		if (curproxy->disabled)
+			continue;
 		send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
 	}
 }
@@ -1078,7 +1076,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned short state)
 	 */
 
 	/* first, let's check if we need to stop the proxy */
-	if (unlikely(stopping && p->state != PR_STSTOPPED)) {
+	if (unlikely(stopping && !p->disabled)) {
 		int t;
 		t = tick_remain(now_ms, p->stop_time);
 		if (t == 0) {
@@ -1102,7 +1100,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned short state)
 	 * be in neither list. Any entry being dumped will have ref_cnt > 0.
 	 * However we protect tables that are being synced to peers.
 	 */
-	if (unlikely(stopping && p->state == PR_STSTOPPED && p->table && p->table->current)) {
+	if (unlikely(stopping && p->disabled && p->table && p->table->current)) {
 		if (!p->table->syncing) {
 			stktable_trash_oldest(p->table, p->table->current);
 			pool_gc(NULL);
@@ -1230,7 +1228,7 @@ void soft_stop(void)
 	p = proxies_list;
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
-		if (p->state != PR_STSTOPPED) {
+		if (!p->disabled) {
 			ha_warning("Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
 			send_log(p, LOG_WARNING, "Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
 			p->stop_time = tick_add(now_ms, p->grace);
@@ -1266,7 +1264,7 @@ int pause_proxy(struct proxy *p)
 {
 	struct listener *l;
 
-	if (!(p->cap & PR_CAP_FE) || p->state == PR_STSTOPPED || !p->li_ready)
+	if (!(p->cap & PR_CAP_FE) || p->disabled || !p->li_ready)
 		return 1;
 
 	ha_warning("Pausing %s %s.\n", proxy_cap_str(p->cap), p->id);
@@ -1296,7 +1294,7 @@ void zombify_proxy(struct proxy *p)
 		if (l->state >= LI_ASSIGNED)
 			delete_listener(l);
 	}
-	p->state = PR_STSTOPPED;
+	p->disabled = 1;
 }
 
 /*
@@ -1330,7 +1328,7 @@ void stop_proxy(struct proxy *p)
 		}
 	}
 	if (!nostop)
-		p->state = PR_STSTOPPED;
+		p->disabled = 1;
 
 	HA_SPIN_UNLOCK(PROXY_LOCK, &p->lock);
 }
@@ -1345,7 +1343,7 @@ int resume_proxy(struct proxy *p)
 	struct listener *l;
 	int fail;
 
-	if (p->state == PR_STSTOPPED || !p->li_paused)
+	if (p->disabled || !p->li_paused)
 		return 1;
 
 	ha_warning("Enabling %s %s.\n", proxy_cap_str(p->cap), p->id);
@@ -1663,7 +1661,7 @@ void proxy_adjust_all_maxconn()
 	struct switching_rule *swrule1, *swrule2;
 
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-		if (curproxy->state == PR_STSTOPPED)
+		if (curproxy->disabled)
 			continue;
 
 		if (!(curproxy->cap & PR_CAP_FE))
@@ -1707,7 +1705,7 @@ void proxy_adjust_all_maxconn()
 	 * loop above because cross-references are not yet fully resolved.
 	 */
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-		if (curproxy->state == PR_STSTOPPED)
+		if (curproxy->disabled)
 			continue;
 
 		/* If <fullconn> is not set, let's set it to 10% of the sum of
@@ -2165,7 +2163,7 @@ static int cli_parse_shutdown_frontend(char **args, char *payload, struct appctx
 	if (!px)
 		return 1;
 
-	if (px->state == PR_STSTOPPED)
+	if (px->disabled)
 		return cli_msg(appctx, LOG_NOTICE, "Frontend was already shut down.\n");
 
 	ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
@@ -2193,7 +2191,7 @@ static int cli_parse_disable_frontend(char **args, char *payload, struct appctx 
 	if (!px)
 		return 1;
 
-	if (px->state == PR_STSTOPPED)
+	if (px->disabled)
 		return cli_msg(appctx, LOG_NOTICE, "Frontend was previously shut down, cannot disable.\n");
 
 	if (!px->li_ready)
@@ -2225,7 +2223,7 @@ static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *
 	if (!px)
 		return 1;
 
-	if (px->state == PR_STSTOPPED)
+	if (px->disabled)
 		return cli_err(appctx, "Frontend was previously shut down, cannot enable.\n");
 
 	if (px->li_ready == px->li_all)

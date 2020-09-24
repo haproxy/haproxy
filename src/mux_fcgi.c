@@ -2990,7 +2990,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 	}
 	fcgi_send(fconn);
 
-	if (unlikely(fconn->proxy->state == PR_STSTOPPED)) {
+	if (unlikely(fconn->proxy->disabled)) {
 		/* frontend is stopping, reload likely in progress, let's try
 		 * to announce a graceful shutdown if not yet done. We don't
 		 * care if it fails, it will be tried again later.

@@ -437,7 +437,7 @@ void mworker_cleanlisteners()
 		}
 		/* if the proxy shouldn't be in the master, we stop it */
 		if (!listen_in_master)
-			curproxy->state = PR_STSTOPPED;
+			curproxy->disabled = 1;
 	}
 }
 
