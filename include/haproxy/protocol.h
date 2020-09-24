@@ -50,6 +50,20 @@ int protocol_bind_all(int verbose);
  */
 int protocol_unbind_all(void);
 
+/* pauses all listeners of all registered protocols. This is typically
+ * used on SIG_TTOU to release all listening sockets for the time needed to
+ * try to bind a new process. The listeners enter LI_PAUSED. It returns
+ * ERR_NONE, with ERR_FATAL on failure.
+ */
+int protocol_pause_all(void);
+
+/* resumes all listeners of all registered protocols. This is typically used on
+ * SIG_TTIN to re-enable listening sockets after a new process failed to bind.
+ * The listeners switch to LI_READY/LI_FULL. It returns ERR_NONE, with ERR_FATAL
+ * on failure.
+ */
+int protocol_resume_all(void);
+
 /* enables all listeners of all registered protocols. This is intended to be
  * used after a fork() to enable reading on all file descriptors. Returns a
  * composition of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.
