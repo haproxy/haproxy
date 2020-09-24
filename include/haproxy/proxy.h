@@ -44,8 +44,6 @@ void soft_stop(void);
 int pause_proxy(struct proxy *p);
 int resume_proxy(struct proxy *p);
 void stop_proxy(struct proxy *p);
-void pause_proxies(void);
-void resume_proxies(void);
 int  stream_set_backend(struct stream *s, struct proxy *be);
 
 const char *proxy_cap_str(int cap);
