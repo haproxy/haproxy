@@ -1264,7 +1264,6 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
 			h1s->flags |= H1S_F_PARSING_ERROR;
-			h1s->cs->flags |= CS_FL_EOI;
 			TRACE_USER("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
@@ -1299,7 +1298,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 
   h2c_upgrade:
 	h1s->h1c->flags |= H1C_F_UPG_H2C;
-	h1s->cs->flags |= CS_FL_EOI;
+	h1s->flags |= H1S_F_PARSING_DONE;
 	htx->flags |= HTX_FL_UPGRADE;
 	TRACE_DEVEL("leaving on H2 update", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_RX_EOI, h1s->h1c->conn, h1s);
 	return 0;
@@ -1322,21 +1321,10 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
 		if ((*htx)->flags & HTX_FL_PARSING_ERROR) {
 			h1s->flags |= H1S_F_PARSING_ERROR;
-			h1s->cs->flags |= CS_FL_EOI;
 			TRACE_USER("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_BODY|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
 		goto end;
-	}
-
-	if (h1s->cs && !(h1m->flags & H1_MF_CHNK) &&
-	    ((h1m->state == H1_MSG_DATA && h1m->curr_len) || (h1m->state == H1_MSG_TUNNEL))) {
-		TRACE_STATE("notify the mux can use splicing", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
-		h1s->cs->flags |= CS_FL_MAY_SPLICE;
-	}
-	else if (h1s->cs) {
-		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
-		h1s->cs->flags &= ~CS_FL_MAY_SPLICE;
 	}
 
 	*ofs += ret;
@@ -1363,7 +1351,6 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
 			h1s->flags |= H1S_F_PARSING_ERROR;
-			h1s->cs->flags |= CS_FL_EOI;
 			TRACE_USER("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_TLRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
@@ -1379,8 +1366,7 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 
 /*
  * Add the EOM in the HTX message. It returns 1 on success or 0 if it couldn't
- * proceed. This functions is responsible to update the parser state <h1m>. It
- * also add the flag CS_FL_EOI on the CS.
+ * proceed. This functions is responsible to update the parser state <h1m>.
  */
 static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 			     struct buffer *buf, size_t *ofs, size_t max)
@@ -1393,7 +1379,6 @@ static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
 			h1s->flags |= H1S_F_PARSING_ERROR;
-			h1s->cs->flags |= CS_FL_EOI;
 			TRACE_USER("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_EOI|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
@@ -1401,7 +1386,6 @@ static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 	}
 
 	h1s->flags |= H1S_F_PARSING_DONE;
-	h1s->cs->flags |= CS_FL_EOI;
   end:
 	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s, 0, (size_t[]){ret});
 	return ret;
@@ -1518,6 +1502,19 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 	}
 
+	if (!(h1m->flags & H1_MF_CHNK) &&
+	    ((h1m->state == H1_MSG_DATA && h1m->curr_len) || (h1m->state == H1_MSG_TUNNEL))) {
+		TRACE_STATE("notify the mux can use splicing", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
+		h1s->cs->flags |= CS_FL_MAY_SPLICE;
+	}
+	else {
+		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
+		h1s->cs->flags &= ~CS_FL_MAY_SPLICE;
+	}
+
+	if (h1s->flags & H1S_F_PARSING_DONE)
+		h1s->cs->flags |= CS_FL_EOI;
+
 	h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 
 	if (!b_data(&h1c->ibuf))
@@ -1538,6 +1535,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
   parsing_err:
 	b_reset(&h1c->ibuf);
 	htx_to_buf(htx, buf);
+	h1s->cs->flags |= CS_FL_EOI;
 	TRACE_DEVEL("leaving on error", H1_EV_RX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
 	return 0;
 }
