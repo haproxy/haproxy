@@ -6,17 +6,6 @@ feature ignore_unknown_macro
 
 syslog S_ok -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be[0-9]+ started."
-
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]+/srv succeeded, reason: Layer6 check passed.+check duration: [[:digit:]]+ms, status: 1/1 UP."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]+/srv succeeded, reason: Layer6 check passed.+check duration: [[:digit:]]+ms, status: 1/1 UP."
@@ -30,14 +19,10 @@ syslog S_ok -level notice {
 
 syslog S3 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer6 invalid response.+info: \"(Connection closed during SSL handshake|SSL handshake failure)\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
 syslog S4 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be4 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv failed, reason: Layer6 invalid response.+info: \"(Connection closed during SSL handshake|SSL handshake failure) at step 1 of tcp-check \\(connect\\)\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start

@@ -15,143 +15,102 @@ feature ignore_unknown_macro
 #     (any varnishtest server without -repeat <n> with n > 1 accepts
 #     only one connection).
 
-# Note that the first syslog message received is: "Proxy <name> started."
 syslog S1 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S3 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv3 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S5 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be5 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be5/srv5 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S7 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be7 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be7/srv7 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S9 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be9 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be9/srv9 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S11 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be11 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be11/srv11 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S13 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be13 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be13/srv13 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S15 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be15 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be15/srv15 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S17 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be17 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be17/srv17 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S19 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be19 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be19/srv19 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S21 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be21 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be21/srv21 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S23 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be23 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be23/srv23 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S25 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be25 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be25/srv25 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S27 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be27 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be27/srv27 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S29 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be29 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be29/srv29 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S31 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be31 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be31/srv31 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S33 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be33 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be33/srv33 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S35 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be35 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be35/srv35 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S37 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be37 started."
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be37/srv37 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start
 
 syslog S39 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be39 started."
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be39/srv39 succeeded, reason: Layer4 check passed, check duration: [[:digit:]]+ms, status: 1/1 UP"
 } -start

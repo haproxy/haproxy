@@ -8,8 +8,6 @@ barrier b cond 3
 
 syslog S1 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started"
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv1 succeeded.+reason: Layer7 check passed.+code: 2(20|48).+check duration: [[:digit:]]+ms.+status: 1/1 UP."
     barrier b sync
     recv
@@ -17,8 +15,6 @@ syslog S1 -level notice {
 } -start
 
 syslog S2 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be2 started"
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be2/srv2 succeeded.+reason: Layer7 check passed.+code: 200.+.+check duration: [[:digit:]]+ms.+status: 1/1 UP."
     barrier b sync
@@ -28,14 +24,10 @@ syslog S2 -level notice {
 
 syslog S3 -level notice {
     recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be3 started"
-    recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv3 failed.+reason: Layer4 connection problem.+info: \"General socket error \\(Network is unreachable\\)\".+check duration: [[:digit:]]+ms.+status: 0/1 DOWN."
 } -start
 
 syslog S4 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be4 started"
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv4 failed.+reason: Layer4 connection problem.+info: \"Connection refused\".+check duration: [[:digit:]]+ms.+status: 0/1 DOWN."
 } -start

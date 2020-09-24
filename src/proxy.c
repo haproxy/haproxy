@@ -1046,20 +1046,6 @@ void init_new_proxy(struct proxy *p)
 }
 
 /*
- * This function finishes the startup of proxies by marking them ready. */
-void start_proxies(void)
-{
-	struct proxy *curproxy;
-
-	for (curproxy = proxies_list; curproxy != NULL; curproxy = curproxy->next) {
-		if (curproxy->disabled)
-			continue;
-		send_log(curproxy, LOG_NOTICE, "Proxy %s started.\n", curproxy->id);
-	}
-}
-
-
-/*
  * This is the proxy management task. It enables proxies when there are enough
  * free streams, or stops them when the table is full. It is designed to be
  * called as a task which is woken up upon stopping or when rate limiting must

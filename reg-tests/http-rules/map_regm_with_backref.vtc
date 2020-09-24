@@ -14,10 +14,6 @@ feature ignore_unknown_macro
 #REGTEST_TYPE=bug
 
 syslog S1 -level notice {
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy (fe|be)1 started."
-    recv
-    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy (fe|be)1 started."
     recv info
     # not expecting ${h1_pid} with master-worker
     expect ~ "[^:\\[ ]\\[[[:digit:]]+\\]: .* fe1 be1/s1 [[:digit:]]+/[[:digit:]]+/[[:digit:]]+/[[:digit:]]+/[[:digit:]]+ 200 [[:digit:]]+ - - ---- .* \"GET / HTTP/(1|2)(\\.1)?\""

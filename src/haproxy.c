@@ -3180,8 +3180,6 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	start_proxies();
-
 	if (!(global.mode & MODE_MWORKER_WAIT) && listeners == 0) {
 		ha_alert("[%s.main()] No enabled listener found (check for 'bind' directives) ! Exiting.\n", argv[0]);
 		/* Note: we don't have to send anything to the old pids because we
