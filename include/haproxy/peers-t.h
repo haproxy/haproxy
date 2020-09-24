@@ -82,7 +82,6 @@ struct peer {
 
 
 struct peers {
-	int state;                      /* proxy state */
 	char *id;                       /* peer section name */
 	struct task *sync_task;         /* main sync task */
 	struct sig_handler *sighandler; /* signal handler */
@@ -98,6 +97,7 @@ struct peers {
 	unsigned int flags;             /* current peers section resync state */
 	unsigned int resync_timeout;    /* resync timeout timer */
 	int count;                      /* total of peers */
+	int disabled;                   /* peers proxy disabled if >0 */
 };
 
 /* LRU cache for dictionaies */

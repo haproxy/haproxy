@@ -730,7 +730,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		curpeers->conf.line = linenum;
 		curpeers->last_change = now.tv_sec;
 		curpeers->id = strdup(args[1]);
-		curpeers->state = PR_STNEW;
+		curpeers->disabled = 0;
 	}
 	else if (strcmp(args[0], "peer") == 0 ||
 	         strcmp(args[0], "server") == 0) { /* peer or server definition */
@@ -902,10 +902,10 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		stktables_list = t;
 	}
 	else if (!strcmp(args[0], "disabled")) {  /* disables this peers section */
-		curpeers->state = PR_STSTOPPED;
+		curpeers->disabled = 1;
 	}
 	else if (!strcmp(args[0], "enabled")) {  /* enables this peers section (used to revert a disabled default) */
-		curpeers->state = PR_STNEW;
+		curpeers->disabled = 0;
 	}
 	else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
@@ -2798,7 +2798,7 @@ int check_config_validity()
 				curproxy->table->peers.p = NULL;
 				cfgerr++;
 			}
-			else if (curpeers->state == PR_STSTOPPED) {
+			else if (curpeers->disabled) {
 				/* silently disable this peers section */
 				curproxy->table->peers.p = NULL;
 			}
@@ -3851,7 +3851,7 @@ out_uri_auth_compat:
 			struct stktable *t;
 			curpeers = *last;
 
-			if (curpeers->state == PR_STSTOPPED) {
+			if (curpeers->disabled) {
 				/* the "disabled" keyword was present */
 				if (curpeers->peers_fe)
 					stop_proxy(curpeers->peers_fe);
