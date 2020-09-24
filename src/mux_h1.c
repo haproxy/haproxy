@@ -546,7 +546,7 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 	return NULL;
 }
 
-static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct session *sess)
+static struct h1s *h1s_new(struct h1c *h1c)
 {
 	struct h1s *h1s;
 
@@ -555,15 +555,11 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 	h1s = pool_alloc(pool_head_h1s);
 	if (!h1s)
 		goto fail;
-
 	h1s->h1c = h1c;
 	h1c->h1s = h1s;
-
-	h1s->sess = sess;
-
-	h1s->cs    = NULL;
+	h1s->sess = NULL;
+	h1s->cs = NULL;
 	h1s->flags = H1S_F_WANT_KAL;
-
 	h1s->subs = NULL;
 
 	h1m_init_req(&h1s->req);
@@ -579,36 +575,66 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 		h1s->flags |= H1S_F_NOT_FIRST;
 	h1c->flags &= ~(H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ);
 
-	if (!(h1c->flags & H1C_F_IS_BACK)) {
-		if (h1c->px->options2 & PR_O2_REQBUG_OK)
-			h1s->req.err_pos = -1;
-
-		/* For frontend connections we should always have a session */
-		if (!sess)
-			h1s->sess = sess = h1c->conn->owner;
-	}
-	else {
-		if (h1c->px->options2 & PR_O2_RSPBUG_OK)
-			h1s->res.err_pos = -1;
-	}
-
-	/* If a conn_stream already exists, attach it to this H1S. Otherwise we
-	 * create a new one.
-	 */
-	if (cs) {
-		cs->ctx = h1s;
-		h1s->cs = cs;
-	}
-	else {
-		cs = h1s_new_cs(h1s, &BUF_NULL);
-		if (!cs)
-			goto fail;
-	}
 	TRACE_LEAVE(H1_EV_H1S_NEW, h1c->conn, h1s);
 	return h1s;
 
   fail:
+	TRACE_DEVEL("leaving in error", H1_EV_H1S_NEW|H1_EV_H1S_END|H1_EV_H1S_ERR, h1c->conn);
+	return NULL;
+}
+
+static struct h1s *h1c_frt_stream_new(struct h1c *h1c)
+{
+	struct session *sess = h1c->conn->owner;
+	struct h1s *h1s;
+
+	TRACE_ENTER(H1_EV_H1S_NEW, h1c->conn);
+
+	h1s = h1s_new(h1c);
+	if (!h1s)
+		goto fail;
+
+	h1s->sess = sess;
+
+	if (h1c->px->options2 & PR_O2_REQBUG_OK)
+		h1s->req.err_pos = -1;
+
+	if (!h1s_new_cs(h1s, &BUF_NULL))
+		goto fail_cs;
+
+	TRACE_LEAVE(H1_EV_H1S_NEW, h1c->conn, h1s);
+	return h1s;
+
+  fail_cs:
 	pool_free(pool_head_h1s, h1s);
+  fail:
+	sess_log(sess);
+	TRACE_DEVEL("leaving in error", H1_EV_H1S_NEW|H1_EV_H1S_END|H1_EV_H1S_ERR, h1c->conn);
+	return NULL;
+}
+
+static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct conn_stream *cs, struct session *sess)
+{
+	struct h1s *h1s;
+
+	TRACE_ENTER(H1_EV_H1S_NEW, h1c->conn);
+
+	h1s = h1s_new(h1c);
+	if (!h1s)
+		goto fail;
+
+	h1s->cs = cs;
+	h1s->sess = sess;
+	cs->ctx = h1s;
+
+
+	if (h1c->px->options2 & PR_O2_RSPBUG_OK)
+		h1s->res.err_pos = -1;
+
+	TRACE_LEAVE(H1_EV_H1S_NEW, h1c->conn, h1s);
+	return h1s;
+
+  fail:
 	TRACE_DEVEL("leaving in error", H1_EV_H1S_NEW|H1_EV_H1S_END|H1_EV_H1S_ERR, h1c->conn);
 	return NULL;
 }
@@ -702,8 +728,14 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	conn->ctx = h1c;
 
 	/* Always Create a new H1S */
-	if (!h1s_create(h1c, conn_ctx, sess))
-		goto fail;
+	if (!(h1c->flags & H1C_F_IS_BACK)) {
+		if (!h1c_frt_stream_new(h1c))
+			goto fail;
+	}
+	else {
+		if (!h1c_bck_stream_new(h1c, conn_ctx, sess))
+			goto fail;
+	}
 
 	if (t)
 		task_queue(t);
@@ -2143,7 +2175,7 @@ static int h1_process(struct h1c * h1c)
 			goto release;
 		if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->flags & H1C_F_CS_IDLE)) {
 			TRACE_STATE("K/A incoming connection, create new H1 stream", H1_EV_H1C_WAKE, conn);
-			if (!h1s_create(h1c, NULL, NULL))
+			if (!h1c_frt_stream_new(h1c))
 				goto release;
 		}
 		else
@@ -2344,7 +2376,7 @@ static struct conn_stream *h1_attach(struct connection *conn, struct session *se
 		goto end;
 	}
 
-	h1s = h1s_create(h1c, cs, sess);
+	h1s = h1c_bck_stream_new(h1c, cs, sess);
 	if (h1s == NULL) {
 		TRACE_DEVEL("leaving on h1s creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
 		goto end;
