@@ -74,8 +74,9 @@ struct proto_fam {
 
 /* This structure contains all information needed to easily handle a protocol.
  * Its primary goal is to ease listeners maintenance. Specifically, the
- * bind() primitive must be used before any fork(). rx_* may be null if the
- * protocol doesn't provide direct access to the receiver.
+ * bind() primitive must be used before any fork(). rx_suspend()/rx_resume()
+ * return >0 on success, 0 if rx stopped, -1 on failure to proceed. rx_* may
+ * be null if the protocol doesn't provide direct access to the receiver.
  */
 struct protocol {
 	char name[PROTO_NAME_LEN];			/* protocol name, zero-terminated */
@@ -91,6 +92,7 @@ struct protocol {
 
 	/* functions acting on the receiver */
 	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
+	int (*rx_resume)(struct receiver *rx);          /* try to resume a temporarily suspended receiver */
 
 	/* functions acting on connections */
 	void (*accept)(int fd);				/* generic accept function */

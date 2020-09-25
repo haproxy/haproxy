@@ -46,6 +46,7 @@
 
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int tcp_suspend_receiver(struct receiver *rx);
+static int tcp_resume_receiver(struct receiver *rx);
 static void tcpv4_add_listener(struct listener *listener, int port);
 static void tcpv6_add_listener(struct listener *listener, int port);
 
@@ -60,6 +61,7 @@ static struct protocol proto_tcpv4 = {
 	.add = tcpv4_add_listener,
 	.listen = tcp_bind_listener,
 	.rx_suspend = tcp_suspend_receiver,
+	.rx_resume = tcp_resume_receiver,
 	.accept = &listener_accept,
 	.connect = tcp_connect_server,
 	.receivers = LIST_HEAD_INIT(proto_tcpv4.receivers),
@@ -79,6 +81,7 @@ static struct protocol proto_tcpv6 = {
 	.add = tcpv6_add_listener,
 	.listen = tcp_bind_listener,
 	.rx_suspend = tcp_suspend_receiver,
+	.rx_resume = tcp_resume_receiver,
 	.accept = &listener_accept,
 	.connect = tcp_connect_server,
 	.receivers = LIST_HEAD_INIT(proto_tcpv6.receivers),
@@ -764,6 +767,23 @@ static int tcp_suspend_receiver(struct receiver *rx)
 	}
 
 	/* something looks fishy here */
+	return -1;
+}
+
+/* Resume a receiver. Returns < 0 in case of failure, 0 if the receiver
+ * was totally stopped, or > 0 if correctly suspended.
+ */
+static int tcp_resume_receiver(struct receiver *rx)
+{
+	struct listener *l = LIST_ELEM(rx, struct listener *, rx);
+
+	if (rx->fd < 0)
+		return 0;
+
+	if (listen(rx->fd, listener_backlog(l)) == 0) {
+		fd_want_recv(l->rx.fd);
+		return 1;
+	}
 	return -1;
 }
 
