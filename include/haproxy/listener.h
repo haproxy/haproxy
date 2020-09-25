@@ -56,14 +56,6 @@ int resume_listener(struct listener *l);
  */
 void enable_listener(struct listener *listener);
 
-/* This function adds all of the protocol's listener's file descriptors to the
- * polling lists when they are in the LI_LISTEN state. It is intended to be
- * used as a protocol's generic enable_all() primitive, for use after the
- * fork(). It puts the listeners into LI_READY or LI_FULL states depending on
- * their number of connections. It always returns ERR_NONE.
- */
-int enable_all_listeners(struct protocol *proto);
-
 /* Dequeues all listeners waiting for a resource the global wait queue */
 void dequeue_all_listeners();
 

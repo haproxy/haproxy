@@ -463,24 +463,6 @@ static void limit_listener(struct listener *l, struct mt_list *list)
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 }
 
-/* This function adds all of the protocol's listener's file descriptors to the
- * polling lists when they are in the LI_LISTEN state. It is intended to be
- * used as a protocol's generic enable_all() primitive, for use after the
- * fork(). It puts the listeners into LI_READY or LI_FULL states depending on
- * their number of connections. It always returns ERR_NONE.
- *
- * Must be called with proto_lock held.
- *
- */
-int enable_all_listeners(struct protocol *proto)
-{
-	struct listener *listener;
-
-	list_for_each_entry(listener, &proto->listeners, rx.proto_list)
-		enable_listener(listener);
-	return ERR_NONE;
-}
-
 /* Dequeues all listeners waiting for a resource the global wait queue */
 void dequeue_all_listeners()
 {
