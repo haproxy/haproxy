@@ -42,6 +42,8 @@
 
 static int udp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int udp_suspend_receiver(struct receiver *rx);
+static void udp_enable_listener(struct listener *listener);
+static void udp_disable_listener(struct listener *listener);
 static void udp4_add_listener(struct listener *listener, int port);
 static void udp6_add_listener(struct listener *listener, int port);
 
@@ -55,6 +57,8 @@ static struct protocol proto_udp4 = {
 	.sock_prot = IPPROTO_UDP,
 	.add = udp4_add_listener,
 	.listen = udp_bind_listener,
+	.enable = udp_enable_listener,
+	.disable = udp_disable_listener,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
 	.rx_suspend = udp_suspend_receiver,
@@ -74,6 +78,8 @@ static struct protocol proto_udp6 = {
 	.sock_prot = IPPROTO_UDP,
 	.add = udp6_add_listener,
 	.listen = udp_bind_listener,
+	.enable = udp_enable_listener,
+	.disable = udp_disable_listener,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
 	.rx_suspend = udp_suspend_receiver,
@@ -153,6 +159,24 @@ static void udp6_add_listener(struct listener *listener, int port)
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_udp6.receivers, &listener->rx.proto_list);
 	proto_udp6.nb_receivers++;
+}
+
+/* Enable receipt of incoming connections for listener <l>. The receiver must
+ * still be valid. Does nothing in early boot (needs fd_updt).
+ */
+static void udp_enable_listener(struct listener *l)
+{
+	if (fd_updt)
+		fd_want_recv(l->rx.fd);
+}
+
+/* Disable receipt of incoming connections for listener <l>. The receiver must
+ * still be valid. Does nothing in early boot (needs fd_updt).
+ */
+static void udp_disable_listener(struct listener *l)
+{
+	if (fd_updt)
+		fd_stop_recv(l->rx.fd);
 }
 
 /* Suspend a receiver. Returns < 0 in case of failure, 0 if the receiver

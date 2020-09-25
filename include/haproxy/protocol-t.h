@@ -89,6 +89,8 @@ struct protocol {
 	/* functions acting on the listener */
 	void (*add)(struct listener *l, int port);      /* add a listener for this protocol and port */
 	int (*listen)(struct listener *l, char *errmsg, int errlen); /* start a listener */
+	void (*enable)(struct listener *l);             /* enable receipt of new connections */
+	void (*disable)(struct listener *l);            /* disable receipt of new connections */
 
 	/* functions acting on the receiver */
 	void (*rx_enable)(struct receiver *rx);         /* enable receiving on the receiver */

@@ -43,6 +43,8 @@
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int uxst_connect_server(struct connection *conn, int flags);
 static void uxst_add_listener(struct listener *listener, int port);
+static void uxst_enable_listener(struct listener *listener);
+static void uxst_disable_listener(struct listener *listener);
 static int uxst_suspend_receiver(struct receiver *rx);
 
 /* Note: must not be declared <const> as its list will be overwritten */
@@ -55,6 +57,8 @@ static struct protocol proto_unix = {
 	.sock_prot = 0,
 	.add = uxst_add_listener,
 	.listen = uxst_bind_listener,
+	.enable = uxst_enable_listener,
+	.disable = uxst_disable_listener,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
 	.rx_suspend = uxst_suspend_receiver,
@@ -146,6 +150,24 @@ static void uxst_add_listener(struct listener *listener, int port)
 	listener->rx.proto = &proto_unix;
 	LIST_ADDQ(&proto_unix.receivers, &listener->rx.proto_list);
 	proto_unix.nb_receivers++;
+}
+
+/* Enable receipt of incoming connections for listener <l>. The receiver must
+ * still be valid. Does nothing in early boot (needs fd_updt).
+ */
+static void uxst_enable_listener(struct listener *l)
+{
+	if (fd_updt)
+		fd_want_recv(l->rx.fd);
+}
+
+/* Disable receipt of incoming connections for listener <l>. The receiver must
+ * still be valid. Does nothing in early boot (needs fd_updt).
+ */
+static void uxst_disable_listener(struct listener *l)
+{
+	if (fd_updt)
+		fd_stop_recv(l->rx.fd);
 }
 
 /* Suspend a receiver. Returns < 0 in case of failure, 0 if the receiver

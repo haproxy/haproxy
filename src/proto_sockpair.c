@@ -44,6 +44,8 @@
 
 static void sockpair_add_listener(struct listener *listener, int port);
 static int sockpair_bind_listener(struct listener *listener, char *errmsg, int errlen);
+static void sockpair_enable_listener(struct listener *listener);
+static void sockpair_disable_listener(struct listener *listener);
 static int sockpair_connect_server(struct connection *conn, int flags);
 
 struct proto_fam proto_fam_sockpair = {
@@ -68,6 +70,8 @@ static struct protocol proto_sockpair = {
 	.sock_prot = 0,
 	.add = sockpair_add_listener,
 	.listen = sockpair_bind_listener,
+	.enable = sockpair_enable_listener,
+	.disable = sockpair_disable_listener,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
 	.accept = &listener_accept,
@@ -93,6 +97,24 @@ static void sockpair_add_listener(struct listener *listener, int port)
 	listener->rx.proto = &proto_sockpair;
 	LIST_ADDQ(&proto_sockpair.receivers, &listener->rx.proto_list);
 	proto_sockpair.nb_receivers++;
+}
+
+/* Enable receipt of incoming connections for listener <l>. The receiver must
+ * still be valid. Does nothing in early boot (needs fd_updt).
+ */
+static void sockpair_enable_listener(struct listener *l)
+{
+	if (fd_updt)
+		fd_want_recv(l->rx.fd);
+}
+
+/* Disable receipt of incoming connections for listener <l>. The receiver must
+ * still be valid. Does nothing in early boot (needs fd_updt).
+ */
+static void sockpair_disable_listener(struct listener *l)
+{
+	if (fd_updt)
+		fd_stop_recv(l->rx.fd);
 }
 
 /* Binds receiver <rx>, and assigns <handler> and rx->owner as the callback and

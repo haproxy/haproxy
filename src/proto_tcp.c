@@ -47,6 +47,8 @@
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int tcp_suspend_receiver(struct receiver *rx);
 static int tcp_resume_receiver(struct receiver *rx);
+static void tcp_enable_listener(struct listener *listener);
+static void tcp_disable_listener(struct listener *listener);
 static void tcpv4_add_listener(struct listener *listener, int port);
 static void tcpv6_add_listener(struct listener *listener, int port);
 
@@ -60,6 +62,8 @@ static struct protocol proto_tcpv4 = {
 	.sock_prot = IPPROTO_TCP,
 	.add = tcpv4_add_listener,
 	.listen = tcp_bind_listener,
+	.enable = tcp_enable_listener,
+	.disable = tcp_disable_listener,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
 	.rx_suspend = tcp_suspend_receiver,
@@ -82,6 +86,8 @@ static struct protocol proto_tcpv6 = {
 	.sock_prot = IPPROTO_TCP,
 	.add = tcpv6_add_listener,
 	.listen = tcp_bind_listener,
+	.enable = tcp_enable_listener,
+	.disable = tcp_disable_listener,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
 	.rx_suspend = tcp_suspend_receiver,
@@ -731,6 +737,24 @@ static void tcpv6_add_listener(struct listener *listener, int port)
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_tcpv6.receivers, &listener->rx.proto_list);
 	proto_tcpv6.nb_receivers++;
+}
+
+/* Enable receipt of incoming connections for listener <l>. The receiver must
+ * still be valid. Does nothing in early boot (needs fd_updt).
+ */
+static void tcp_enable_listener(struct listener *l)
+{
+	if (fd_updt)
+		fd_want_recv(l->rx.fd);
+}
+
+/* Disable receipt of incoming connections for listener <l>. The receiver must
+ * still be valid. Does nothing in early boot (needs fd_updt).
+ */
+static void tcp_disable_listener(struct listener *l)
+{
+	if (fd_updt)
+		fd_stop_recv(l->rx.fd);
 }
 
 /* Suspend a receiver. Returns < 0 in case of failure, 0 if the receiver
