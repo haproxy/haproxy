@@ -48,6 +48,14 @@ int pause_listener(struct listener *l);
  */
 int resume_listener(struct listener *l);
 
+/* This function adds the specified listener's file descriptor to the polling
+ * lists if it is in the LI_LISTEN state. The listener enters LI_READY or
+ * LI_FULL state depending on its number of connections. In daemon mode, we
+ * also support binding only the relevant processes to their respective
+ * listeners. We don't do that in debug mode however.
+ */
+void enable_listener(struct listener *listener);
+
 /* This function adds all of the protocol's listener's file descriptors to the
  * polling lists when they are in the LI_LISTEN state. It is intended to be
  * used as a protocol's generic enable_all() primitive, for use after the

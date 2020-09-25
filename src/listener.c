@@ -276,7 +276,7 @@ void listener_set_state(struct listener *l, enum li_state st)
  * also support binding only the relevant processes to their respective
  * listeners. We don't do that in debug mode however.
  */
-static void enable_listener(struct listener *listener)
+void enable_listener(struct listener *listener)
 {
 	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state == LI_LISTEN) {
