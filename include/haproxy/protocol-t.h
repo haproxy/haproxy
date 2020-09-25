@@ -74,8 +74,7 @@ struct proto_fam {
 
 /* This structure contains all information needed to easily handle a protocol.
  * Its primary goal is to ease listeners maintenance. Specifically, the
- * bind() primitive must be used before any fork(), and the enable_all()
- * primitive must be called after the fork() to enable all fds.
+ * bind() primitive must be used before any fork().
  */
 struct protocol {
 	char name[PROTO_NAME_LEN];			/* protocol name, zero-terminated */
@@ -86,7 +85,6 @@ struct protocol {
 	int sock_prot;					/* socket protocol, as passed to socket() */
 	void (*accept)(int fd);				/* generic accept function */
 	int (*listen)(struct listener *l, char *errmsg, int errlen); /* start a listener */
-	int (*enable_all)(struct protocol *proto);	/* enable all bound listeners */
 	int (*connect)(struct connection *, int flags); /* connect function if any, see below for flags values */
 	int (*drain)(int fd);                           /* indicates whether we can safely close the fd */
 	int (*pause)(struct listener *l);               /* temporarily pause this listener for a soft restart */
