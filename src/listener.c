@@ -408,9 +408,8 @@ int resume_listener(struct listener *l)
 		goto end;
 	}
 
-	if (l->rx.proto->sock_prot == IPPROTO_TCP &&
-	    l->state == LI_PAUSED &&
-	    listen(l->rx.fd, listener_backlog(l)) != 0) {
+	if (l->state == LI_PAUSED && l->rx.proto->rx_resume &&
+	    l->rx.proto->rx_resume(&l->rx) <= 0) {
 		ret = 0;
 		goto end;
 	}
