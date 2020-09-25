@@ -70,8 +70,8 @@ static struct protocol proto_sockpair = {
 	.listen = sockpair_bind_listener,
 	.pause = NULL,
 	.add = sockpair_add_listener,
-	.listeners = LIST_HEAD_INIT(proto_sockpair.listeners),
-	.nb_listeners = 0,
+	.receivers = LIST_HEAD_INIT(proto_sockpair.receivers),
+	.nb_receivers = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_sockpair);
@@ -89,8 +89,8 @@ static void sockpair_add_listener(struct listener *listener, int port)
 		return;
 	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_sockpair;
-	LIST_ADDQ(&proto_sockpair.listeners, &listener->rx.proto_list);
-	proto_sockpair.nb_listeners++;
+	LIST_ADDQ(&proto_sockpair.receivers, &listener->rx.proto_list);
+	proto_sockpair.nb_receivers++;
 }
 
 /* Binds receiver <rx>, and assigns <handler> and rx->owner as the callback and

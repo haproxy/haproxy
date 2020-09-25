@@ -58,8 +58,8 @@ static struct protocol proto_unix = {
 	.listen = uxst_bind_listener,
 	.pause = uxst_pause_listener,
 	.add = uxst_add_listener,
-	.listeners = LIST_HEAD_INIT(proto_unix.listeners),
-	.nb_listeners = 0,
+	.receivers = LIST_HEAD_INIT(proto_unix.receivers),
+	.nb_receivers = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_unix);
@@ -142,8 +142,8 @@ static void uxst_add_listener(struct listener *listener, int port)
 		return;
 	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_unix;
-	LIST_ADDQ(&proto_unix.listeners, &listener->rx.proto_list);
-	proto_unix.nb_listeners++;
+	LIST_ADDQ(&proto_unix.receivers, &listener->rx.proto_list);
+	proto_unix.nb_receivers++;
 }
 
 /* Pause a listener. Returns < 0 in case of failure, 0 if the listener

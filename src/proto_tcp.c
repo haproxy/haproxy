@@ -61,8 +61,8 @@ static struct protocol proto_tcpv4 = {
 	.listen = tcp_bind_listener,
 	.pause = tcp_pause_listener,
 	.add = tcpv4_add_listener,
-	.listeners = LIST_HEAD_INIT(proto_tcpv4.listeners),
-	.nb_listeners = 0,
+	.receivers = LIST_HEAD_INIT(proto_tcpv4.receivers),
+	.nb_receivers = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_tcpv4);
@@ -80,8 +80,8 @@ static struct protocol proto_tcpv6 = {
 	.listen = tcp_bind_listener,
 	.pause = tcp_pause_listener,
 	.add = tcpv6_add_listener,
-	.listeners = LIST_HEAD_INIT(proto_tcpv6.listeners),
-	.nb_listeners = 0,
+	.receivers = LIST_HEAD_INIT(proto_tcpv6.receivers),
+	.nb_receivers = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_tcpv6);
@@ -703,8 +703,8 @@ static void tcpv4_add_listener(struct listener *listener, int port)
 	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_tcpv4;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
-	LIST_ADDQ(&proto_tcpv4.listeners, &listener->rx.proto_list);
-	proto_tcpv4.nb_listeners++;
+	LIST_ADDQ(&proto_tcpv4.receivers, &listener->rx.proto_list);
+	proto_tcpv4.nb_receivers++;
 }
 
 /* Add <listener> to the list of tcpv6 listeners, on port <port>. The
@@ -721,8 +721,8 @@ static void tcpv6_add_listener(struct listener *listener, int port)
 	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_tcpv6;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
-	LIST_ADDQ(&proto_tcpv6.listeners, &listener->rx.proto_list);
-	proto_tcpv6.nb_listeners++;
+	LIST_ADDQ(&proto_tcpv6.receivers, &listener->rx.proto_list);
+	proto_tcpv6.nb_receivers++;
 }
 
 /* Pause a listener. Returns < 0 in case of failure, 0 if the listener

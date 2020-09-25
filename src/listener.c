@@ -592,7 +592,7 @@ void delete_listener(struct listener *listener)
 	if (listener->state == LI_ASSIGNED) {
 		listener_set_state(listener, LI_INIT);
 		LIST_DEL(&listener->rx.proto_list);
-		listener->rx.proto->nb_listeners--;
+		listener->rx.proto->nb_receivers--;
 		_HA_ATOMIC_SUB(&jobs, 1);
 		_HA_ATOMIC_SUB(&listeners, 1);
 	}

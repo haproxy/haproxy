@@ -71,7 +71,7 @@ int protocol_bind_all(int verbose)
 	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		list_for_each_entry(receiver, &proto->listeners, proto_list) {
+		list_for_each_entry(receiver, &proto->receivers, proto_list) {
 			listener = LIST_ELEM(receiver, struct listener *, rx);
 
 			/* FIXME: horrible hack, we don't have a way to register
@@ -144,7 +144,7 @@ int protocol_unbind_all(void)
 	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		list_for_each_entry(listener, &proto->listeners, rx.proto_list)
+		list_for_each_entry(listener, &proto->receivers, rx.proto_list)
 			unbind_listener(listener);
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
@@ -165,7 +165,7 @@ int protocol_pause_all(void)
 	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		list_for_each_entry(listener, &proto->listeners, rx.proto_list)
+		list_for_each_entry(listener, &proto->receivers, rx.proto_list)
 			if (!pause_listener(listener))
 				err |= ERR_FATAL;
 	}
@@ -187,7 +187,7 @@ int protocol_resume_all(void)
 	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		list_for_each_entry(listener, &proto->listeners, rx.proto_list)
+		list_for_each_entry(listener, &proto->receivers, rx.proto_list)
 			if (!resume_listener(listener))
 				err |= ERR_FATAL;
 	}
@@ -206,7 +206,7 @@ int protocol_enable_all(void)
 
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		list_for_each_entry(listener, &proto->listeners, rx.proto_list)
+		list_for_each_entry(listener, &proto->receivers, rx.proto_list)
 			enable_listener(listener);
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);

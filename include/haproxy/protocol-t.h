@@ -90,8 +90,8 @@ struct protocol {
 	int (*pause)(struct listener *l);               /* temporarily pause this listener for a soft restart */
 	void (*add)(struct listener *l, int port);      /* add a listener for this protocol and port */
 
-	struct list listeners;				/* list of listeners using this protocol (under proto_lock) */
-	int nb_listeners;				/* number of listeners (under proto_lock) */
+	struct list receivers;				/* list of receivers using this protocol (under proto_lock) */
+	int nb_receivers;				/* number of receivers (under proto_lock) */
 	struct list list;				/* list of registered protocols (under proto_lock) */
 };
 

@@ -57,8 +57,8 @@ static struct protocol proto_udp4 = {
 	.listen = udp_bind_listener,
 	.pause = udp_pause_listener,
 	.add = udp4_add_listener,
-	.listeners = LIST_HEAD_INIT(proto_udp4.listeners),
-	.nb_listeners = 0,
+	.receivers = LIST_HEAD_INIT(proto_udp4.receivers),
+	.nb_receivers = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_udp4);
@@ -76,8 +76,8 @@ static struct protocol proto_udp6 = {
 	.listen = udp_bind_listener,
 	.pause = udp_pause_listener,
 	.add = udp6_add_listener,
-	.listeners = LIST_HEAD_INIT(proto_udp6.listeners),
-	.nb_listeners = 0,
+	.receivers = LIST_HEAD_INIT(proto_udp6.receivers),
+	.nb_receivers = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_udp6);
@@ -135,8 +135,8 @@ static void udp4_add_listener(struct listener *listener, int port)
 	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_udp4;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
-	LIST_ADDQ(&proto_udp4.listeners, &listener->rx.proto_list);
-	proto_udp4.nb_listeners++;
+	LIST_ADDQ(&proto_udp4.receivers, &listener->rx.proto_list);
+	proto_udp4.nb_receivers++;
 }
 
 /* Add <listener> to the list of udp6 listeners, on port <port>. The
@@ -150,8 +150,8 @@ static void udp6_add_listener(struct listener *listener, int port)
 	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_udp6;
 	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
-	LIST_ADDQ(&proto_udp6.listeners, &listener->rx.proto_list);
-	proto_udp6.nb_listeners++;
+	LIST_ADDQ(&proto_udp6.receivers, &listener->rx.proto_list);
+	proto_udp6.nb_receivers++;
 }
 
 /* Pause a listener. Returns < 0 in case of failure, 0 if the listener
