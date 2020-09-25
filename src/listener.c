@@ -44,12 +44,6 @@ static struct bind_kw_list bind_keywords = {
 	.list = LIST_HEAD_INIT(bind_keywords.list)
 };
 
-/* there is one listener queue per thread so that a thread unblocking the
- * global queue can wake up listeners bound only to foreign threads by
- * moving them to the remote queues and waking up the associated tasklet.
- */
-static struct work_list *local_listener_queue;
-
 /* list of the temporarily limited listeners because of lack of resource */
 static struct mt_list global_listener_queue = MT_LIST_HEAD_INIT(global_listener_queue);
 static struct task *global_listener_queue_task;
@@ -380,19 +374,8 @@ int resume_listener(struct listener *l)
 	if (l->state == LI_READY)
 		goto end;
 
-	MT_LIST_DEL(&l->wait_queue);
-
 	if (l->maxconn && l->nbconn >= l->maxconn) {
 		l->state = LI_FULL;
-		goto end;
-	}
-
-	if (!(thread_mask(l->rx.settings->bind_thread) & tid_bit)) {
-		/* we're not allowed to touch this listener's FD, let's requeue
-		 * the listener into one of its owning thread's queue instead.
-		 */
-		int first_thread = my_flsl(thread_mask(l->rx.settings->bind_thread) & all_threads_mask) - 1;
-		work_list_add(&local_listener_queue[first_thread], &l->wait_queue);
 		goto end;
 	}
 
@@ -1110,28 +1093,9 @@ void listener_release(struct listener *l)
 		dequeue_proxy_listeners(fe);
 }
 
-/* resume listeners waiting in the local listener queue. They are still in LI_LIMITED state */
-static struct task *listener_queue_process(struct task *t, void *context, unsigned short state)
-{
-	struct work_list *wl = context;
-	struct listener *l;
-
-	while ((l = MT_LIST_POP(&wl->head, struct listener *, wait_queue))) {
-		/* The listeners are still in the LI_LIMITED state */
-		resume_listener(l);
-	}
-	return t;
-}
-
 /* Initializes the listener queues. Returns 0 on success, otherwise ERR_* flags */
 static int listener_queue_init()
 {
-	local_listener_queue = work_list_create(global.nbthread, listener_queue_process, NULL);
-	if (!local_listener_queue) {
-		ha_alert("Out of memory while initializing listener queues.\n");
-		return ERR_FATAL|ERR_ABORT;
-	}
-
 	global_listener_queue_task = task_new(MAX_THREADS_MASK);
 	if (!global_listener_queue_task) {
 		ha_alert("Out of memory when initializing global listener queue\n");
@@ -1146,7 +1110,6 @@ static int listener_queue_init()
 
 static void listener_queue_deinit()
 {
-	work_list_destroy(local_listener_queue, global.nbthread);
 	task_destroy(global_listener_queue_task);
 	global_listener_queue_task = NULL;
 }
