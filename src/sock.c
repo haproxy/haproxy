@@ -55,6 +55,24 @@ int sock_create_server_socket(struct connection *conn)
 	return my_socketat(ns, conn->dst->ss_family, SOCK_STREAM, 0);
 }
 
+/* Enables receiving on receiver <rx> once already bound. Does nothing in early
+ * boot (needs fd_updt).
+ */
+void sock_enable(struct receiver *rx)
+{
+        if (rx->flags & RX_F_BOUND && fd_updt)
+		fd_want_recv(rx->fd);
+}
+
+/* Disables receiving on receiver <rx> once already bound. Does nothing in early
+ * boot (needs fd_updt).
+ */
+void sock_disable(struct receiver *rx)
+{
+        if (rx->flags & RX_F_BOUND && fd_updt)
+		fd_stop_recv(rx->fd);
+}
+
 /*
  * Retrieves the source address for the socket <fd>, with <dir> indicating
  * if we're a listener (=0) or an initiator (!=0). It returns 0 in case of

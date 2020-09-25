@@ -33,6 +33,8 @@
 extern struct xfer_sock_list *xfer_sock_list;
 
 int sock_create_server_socket(struct connection *conn);
+void sock_enable(struct receiver *rx);
+void sock_disable(struct receiver *rx);
 int sock_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int sock_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int sock_get_old_sockets(const char *unixsocket);
