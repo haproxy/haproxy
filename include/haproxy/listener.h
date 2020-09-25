@@ -56,13 +56,6 @@ int resume_listener(struct listener *l);
  */
 int enable_all_listeners(struct protocol *proto);
 
-/* This function removes all of the protocol's listener's file descriptors from
- * the polling lists when they are in the LI_READY or LI_FULL states. It is
- * intended to be used as a protocol's generic disable_all() primitive. It puts
- * the listeners into LI_LISTEN, and always returns ERR_NONE.
- */
-int disable_all_listeners(struct protocol *proto);
-
 /* Dequeues all listeners waiting for a resource the global wait queue */
 void dequeue_all_listeners();
 

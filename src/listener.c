@@ -309,23 +309,6 @@ static void enable_listener(struct listener *listener)
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
-/* This function removes the specified listener's file descriptor from the
- * polling lists if it is in the LI_READY or in the LI_FULL state. The listener
- * enters LI_LISTEN.
- */
-static void disable_listener(struct listener *listener)
-{
-	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
-	if (listener->state < LI_READY)
-		goto end;
-	if (listener->state == LI_READY)
-		fd_stop_recv(listener->rx.fd);
-	MT_LIST_DEL(&listener->wait_queue);
-	listener_set_state(listener, LI_LISTEN);
-  end:
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
-}
-
 /* This function tries to temporarily disable a listener, depending on the OS
  * capabilities. Linux unbinds the listen socket after a SHUT_RD, and ignores
  * SHUT_WR. Solaris refuses either shutdown(). OpenBSD ignores SHUT_RD but
@@ -495,23 +478,6 @@ int enable_all_listeners(struct protocol *proto)
 
 	list_for_each_entry(listener, &proto->listeners, rx.proto_list)
 		enable_listener(listener);
-	return ERR_NONE;
-}
-
-/* This function removes all of the protocol's listener's file descriptors from
- * the polling lists when they are in the LI_READY or LI_FULL states. It is
- * intended to be used as a protocol's generic disable_all() primitive. It puts
- * the listeners into LI_LISTEN, and always returns ERR_NONE.
- *
- * Must be called with proto_lock held.
- *
- */
-int disable_all_listeners(struct protocol *proto)
-{
-	struct listener *listener;
-
-	list_for_each_entry(listener, &proto->listeners, rx.proto_list)
-		disable_listener(listener);
 	return ERR_NONE;
 }
 
