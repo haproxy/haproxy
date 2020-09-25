@@ -36,6 +36,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proto_sockpair.h>
+#include <haproxy/sock.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
@@ -67,6 +68,8 @@ static struct protocol proto_sockpair = {
 	.sock_prot = 0,
 	.add = sockpair_add_listener,
 	.listen = sockpair_bind_listener,
+	.rx_enable = sock_enable,
+	.rx_disable = sock_disable,
 	.accept = &listener_accept,
 	.connect = &sockpair_connect_server,
 	.receivers = LIST_HEAD_INIT(proto_sockpair.receivers),

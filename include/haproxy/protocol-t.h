@@ -91,6 +91,8 @@ struct protocol {
 	int (*listen)(struct listener *l, char *errmsg, int errlen); /* start a listener */
 
 	/* functions acting on the receiver */
+	void (*rx_enable)(struct receiver *rx);         /* enable receiving on the receiver */
+	void (*rx_disable)(struct receiver *rx);        /* disable receiving on the receiver */
 	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
 	int (*rx_resume)(struct receiver *rx);          /* try to resume a temporarily suspended receiver */
 
