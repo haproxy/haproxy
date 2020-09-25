@@ -196,23 +196,21 @@ int protocol_resume_all(void)
 }
 
 /* enables all listeners of all registered protocols. This is intended to be
- * used after a fork() to enable reading on all file descriptors. Returns a
- * composition of ERR_NONE, ERR_RETRYABLE, ERR_FATAL.
+ * used after a fork() to enable reading on all file descriptors. Returns
+ * composition of ERR_NONE.
  */
 int protocol_enable_all(void)
 {
 	struct protocol *proto;
-	int err;
+	struct listener *listener;
 
-	err = 0;
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
-		if (proto->enable_all) {
-			err |= proto->enable_all(proto);
-		}
+		list_for_each_entry(listener, &proto->listeners, rx.proto_list)
+			enable_listener(listener);
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
-	return err;
+	return ERR_NONE;
 }
 
 /*
