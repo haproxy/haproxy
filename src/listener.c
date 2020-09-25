@@ -330,11 +330,11 @@ int pause_listener(struct listener *l)
 	if (l->state <= LI_PAUSED)
 		goto end;
 
-	if (l->rx.proto->pause) {
+	if (l->rx.proto->rx_suspend) {
 		/* Returns < 0 in case of failure, 0 if the listener
 		 * was totally stopped, or > 0 if correctly paused.
 		 */
-		ret = l->rx.proto->pause(l);
+		ret = l->rx.proto->rx_suspend(&l->rx);
 
 		if (ret < 0) {
 			ret = 0;

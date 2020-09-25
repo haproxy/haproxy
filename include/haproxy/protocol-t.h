@@ -74,7 +74,8 @@ struct proto_fam {
 
 /* This structure contains all information needed to easily handle a protocol.
  * Its primary goal is to ease listeners maintenance. Specifically, the
- * bind() primitive must be used before any fork().
+ * bind() primitive must be used before any fork(). rx_* may be null if the
+ * protocol doesn't provide direct access to the receiver.
  */
 struct protocol {
 	char name[PROTO_NAME_LEN];			/* protocol name, zero-terminated */
@@ -83,12 +84,18 @@ struct protocol {
 	int sock_domain;				/* socket domain, as passed to socket()   */
 	int sock_type;					/* socket type, as passed to socket()     */
 	int sock_prot;					/* socket protocol, as passed to socket() */
-	void (*accept)(int fd);				/* generic accept function */
+
+	/* functions acting on the listener */
+	void (*add)(struct listener *l, int port);      /* add a listener for this protocol and port */
 	int (*listen)(struct listener *l, char *errmsg, int errlen); /* start a listener */
+
+	/* functions acting on the receiver */
+	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
+
+	/* functions acting on connections */
+	void (*accept)(int fd);				/* generic accept function */
 	int (*connect)(struct connection *, int flags); /* connect function if any, see below for flags values */
 	int (*drain)(int fd);                           /* indicates whether we can safely close the fd */
-	int (*pause)(struct listener *l);               /* temporarily pause this listener for a soft restart */
-	void (*add)(struct listener *l, int port);      /* add a listener for this protocol and port */
 
 	struct list receivers;				/* list of receivers using this protocol (under proto_lock) */
 	int nb_receivers;				/* number of receivers (under proto_lock) */

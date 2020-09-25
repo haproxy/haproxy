@@ -29,7 +29,6 @@
 #include <haproxy/sample-t.h>
 
 int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote);
-int tcp_pause_listener(struct listener *l);
 int tcp_connect_server(struct connection *conn, int flags);
 int tcp_is_foreign(int fd, sa_family_t family);
 

@@ -25,7 +25,6 @@
 #define _PROTO_PROTO_UDP_H
 
 int udp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote);
-int udp_pause_listener(struct listener *l);
 
 #endif /* _PROTO_PROTO_UDP_H */
 

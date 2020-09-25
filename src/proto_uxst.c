@@ -43,7 +43,7 @@
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int uxst_connect_server(struct connection *conn, int flags);
 static void uxst_add_listener(struct listener *listener, int port);
-static int uxst_pause_listener(struct listener *l);
+static int uxst_suspend_receiver(struct receiver *rx);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_unix = {
@@ -53,11 +53,11 @@ static struct protocol proto_unix = {
 	.sock_domain = PF_UNIX,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = 0,
+	.add = uxst_add_listener,
+	.listen = uxst_bind_listener,
+	.rx_suspend = uxst_suspend_receiver,
 	.accept = &listener_accept,
 	.connect = &uxst_connect_server,
-	.listen = uxst_bind_listener,
-	.pause = uxst_pause_listener,
-	.add = uxst_add_listener,
 	.receivers = LIST_HEAD_INIT(proto_unix.receivers),
 	.nb_receivers = 0,
 };
@@ -146,15 +146,17 @@ static void uxst_add_listener(struct listener *listener, int port)
 	proto_unix.nb_receivers++;
 }
 
-/* Pause a listener. Returns < 0 in case of failure, 0 if the listener
- * was totally stopped, or > 0 if correctly paused. Nothing is done for
+/* Suspend a receiver. Returns < 0 in case of failure, 0 if the receiver
+ * was totally stopped, or > 0 if correctly suspended. Nothing is done for
  * plain unix sockets since currently it's the new process which handles
  * the renaming. Abstract sockets are completely unbound and closed so
  * there's no need to stop the poller.
  */
-static int uxst_pause_listener(struct listener *l)
+static int uxst_suspend_receiver(struct receiver *rx)
 {
-	if (((struct sockaddr_un *)&l->rx.addr)->sun_path[0])
+	struct listener *l = LIST_ELEM(rx, struct listener *, rx);
+
+	if (((struct sockaddr_un *)&rx->addr)->sun_path[0])
 		return 1;
 
 	/* Listener's lock already held. Call lockless version of

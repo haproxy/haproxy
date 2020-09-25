@@ -65,11 +65,10 @@ static struct protocol proto_sockpair = {
 	.sock_domain = AF_CUST_SOCKPAIR,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = 0,
+	.add = sockpair_add_listener,
+	.listen = sockpair_bind_listener,
 	.accept = &listener_accept,
 	.connect = &sockpair_connect_server,
-	.listen = sockpair_bind_listener,
-	.pause = NULL,
-	.add = sockpair_add_listener,
 	.receivers = LIST_HEAD_INIT(proto_sockpair.receivers),
 	.nb_receivers = 0,
 };

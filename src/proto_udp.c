@@ -41,6 +41,7 @@
 #include <haproxy/task.h>
 
 static int udp_bind_listener(struct listener *listener, char *errmsg, int errlen);
+static int udp_suspend_receiver(struct receiver *rx);
 static void udp4_add_listener(struct listener *listener, int port);
 static void udp6_add_listener(struct listener *listener, int port);
 
@@ -52,11 +53,9 @@ static struct protocol proto_udp4 = {
 	.sock_domain = AF_INET,
 	.sock_type = SOCK_DGRAM,
 	.sock_prot = IPPROTO_UDP,
-	.accept = NULL,
-	.connect = NULL,
-	.listen = udp_bind_listener,
-	.pause = udp_pause_listener,
 	.add = udp4_add_listener,
+	.listen = udp_bind_listener,
+	.rx_suspend = udp_suspend_receiver,
 	.receivers = LIST_HEAD_INIT(proto_udp4.receivers),
 	.nb_receivers = 0,
 };
@@ -71,11 +70,9 @@ static struct protocol proto_udp6 = {
 	.sock_domain = AF_INET6,
 	.sock_type = SOCK_DGRAM,
 	.sock_prot = IPPROTO_UDP,
-	.accept = NULL,
-	.connect = NULL,
-	.listen = udp_bind_listener,
-	.pause = udp_pause_listener,
 	.add = udp6_add_listener,
+	.listen = udp_bind_listener,
+	.rx_suspend = udp_suspend_receiver,
 	.receivers = LIST_HEAD_INIT(proto_udp6.receivers),
 	.nb_receivers = 0,
 };
@@ -154,12 +151,12 @@ static void udp6_add_listener(struct listener *listener, int port)
 	proto_udp6.nb_receivers++;
 }
 
-/* Pause a listener. Returns < 0 in case of failure, 0 if the listener
- * was totally stopped, or > 0 if correctly paused.
+/* Suspend a receiver. Returns < 0 in case of failure, 0 if the receiver
+ * was totally stopped, or > 0 if correctly suspended.
  */
-int udp_pause_listener(struct listener *l)
+static int udp_suspend_receiver(struct receiver *rx)
 {
-	/* we don't support pausing on UDP */
+	/* we don't support suspend on UDP */
 	return -1;
 }
 

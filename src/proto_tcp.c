@@ -45,6 +45,7 @@
 
 
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
+static int tcp_suspend_receiver(struct receiver *rx);
 static void tcpv4_add_listener(struct listener *listener, int port);
 static void tcpv6_add_listener(struct listener *listener, int port);
 
@@ -56,11 +57,11 @@ static struct protocol proto_tcpv4 = {
 	.sock_domain = AF_INET,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = IPPROTO_TCP,
+	.add = tcpv4_add_listener,
+	.listen = tcp_bind_listener,
+	.rx_suspend = tcp_suspend_receiver,
 	.accept = &listener_accept,
 	.connect = tcp_connect_server,
-	.listen = tcp_bind_listener,
-	.pause = tcp_pause_listener,
-	.add = tcpv4_add_listener,
 	.receivers = LIST_HEAD_INIT(proto_tcpv4.receivers),
 	.nb_receivers = 0,
 };
@@ -75,11 +76,11 @@ static struct protocol proto_tcpv6 = {
 	.sock_domain = AF_INET6,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = IPPROTO_TCP,
+	.add = tcpv6_add_listener,
+	.listen = tcp_bind_listener,
+	.rx_suspend = tcp_suspend_receiver,
 	.accept = &listener_accept,
 	.connect = tcp_connect_server,
-	.listen = tcp_bind_listener,
-	.pause = tcp_pause_listener,
-	.add = tcpv6_add_listener,
 	.receivers = LIST_HEAD_INIT(proto_tcpv6.receivers),
 	.nb_receivers = 0,
 };
@@ -725,23 +726,24 @@ static void tcpv6_add_listener(struct listener *listener, int port)
 	proto_tcpv6.nb_receivers++;
 }
 
-/* Pause a listener. Returns < 0 in case of failure, 0 if the listener
- * was totally stopped, or > 0 if correctly paused.
+/* Suspend a receiver. Returns < 0 in case of failure, 0 if the receiver
+ * was totally stopped, or > 0 if correctly suspended.
  */
-int tcp_pause_listener(struct listener *l)
+static int tcp_suspend_receiver(struct receiver *rx)
 {
+	struct listener *l = LIST_ELEM(rx, struct listener *, rx);
 	socklen_t opt_val, opt_len;
 
-	if (shutdown(l->rx.fd, SHUT_WR) != 0)
+	if (shutdown(rx->fd, SHUT_WR) != 0)
 		goto check_already_done; /* usually Solaris fails here */
 
-	if (listen(l->rx.fd, listener_backlog(l)) != 0)
+	if (listen(rx->fd, listener_backlog(l)) != 0)
 		goto check_already_done; /* Usually OpenBSD fails here */
 
-	if (shutdown(l->rx.fd, SHUT_RD) != 0)
+	if (shutdown(rx->fd, SHUT_RD) != 0)
 		goto check_already_done; /* show always be OK */
 
-	fd_stop_recv(l->rx.fd);
+	fd_stop_recv(rx->fd);
 	return 1;
 
  check_already_done:
@@ -751,13 +753,13 @@ int tcp_pause_listener(struct listener *l)
 	 */
 	opt_val = 0;
 	opt_len = sizeof(opt_val);
-	if (getsockopt(l->rx.fd, SOL_SOCKET, SO_ACCEPTCONN, &opt_val, &opt_len) == -1) {
-		fd_stop_recv(l->rx.fd);
+	if (getsockopt(rx->fd, SOL_SOCKET, SO_ACCEPTCONN, &opt_val, &opt_len) == -1) {
+		fd_stop_recv(rx->fd);
 		return 0; /* the socket is really unrecoverable */
 	}
 
 	if (!opt_val) {
-		fd_stop_recv(l->rx.fd);
+		fd_stop_recv(rx->fd);
 		return 1; /* already paused by another process */
 	}
 
