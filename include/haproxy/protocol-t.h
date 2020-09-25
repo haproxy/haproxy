@@ -87,7 +87,6 @@ struct protocol {
 	void (*accept)(int fd);				/* generic accept function */
 	int (*listen)(struct listener *l, char *errmsg, int errlen); /* start a listener */
 	int (*enable_all)(struct protocol *proto);	/* enable all bound listeners */
-	int (*disable_all)(struct protocol *proto);	/* disable all bound listeners */
 	int (*connect)(struct connection *, int flags); /* connect function if any, see below for flags values */
 	int (*drain)(int fd);                           /* indicates whether we can safely close the fd */
 	int (*pause)(struct listener *l);               /* temporarily pause this listener for a soft restart */

@@ -215,26 +215,6 @@ int protocol_enable_all(void)
 	return err;
 }
 
-/* disables all listeners of all registered protocols. This may be used before
- * a fork() to avoid duplicating poll lists. Returns a composition of ERR_NONE,
- * ERR_RETRYABLE, ERR_FATAL.
- */
-int protocol_disable_all(void)
-{
-	struct protocol *proto;
-	int err;
-
-	err = 0;
-	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
-	list_for_each_entry(proto, &protocols, list) {
-		if (proto->disable_all) {
-			err |= proto->disable_all(proto);
-		}
-	}
-	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
-	return err;
-}
-
 /*
  * Local variables:
  *  c-indent-level: 8

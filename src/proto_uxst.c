@@ -57,7 +57,6 @@ static struct protocol proto_unix = {
 	.connect = &uxst_connect_server,
 	.listen = uxst_bind_listener,
 	.enable_all = enable_all_listeners,
-	.disable_all = disable_all_listeners,
 	.pause = uxst_pause_listener,
 	.add = uxst_add_listener,
 	.listeners = LIST_HEAD_INIT(proto_unix.listeners),

@@ -69,7 +69,6 @@ static struct protocol proto_sockpair = {
 	.connect = &sockpair_connect_server,
 	.listen = sockpair_bind_listener,
 	.enable_all = enable_all_listeners,
-	.disable_all = disable_all_listeners,
 	.pause = NULL,
 	.add = sockpair_add_listener,
 	.listeners = LIST_HEAD_INIT(proto_sockpair.listeners),
