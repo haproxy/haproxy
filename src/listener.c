@@ -293,7 +293,7 @@ void enable_listener(struct listener *listener)
 			}
 		}
 		else if (!listener->maxconn || listener->nbconn < listener->maxconn) {
-			fd_want_recv(listener->rx.fd);
+			listener->rx.proto->enable(listener);
 			listener_set_state(listener, LI_READY);
 		}
 		else {
@@ -415,11 +415,12 @@ int resume_listener(struct listener *l)
 	}
 
 	if (l->maxconn && l->nbconn >= l->maxconn) {
+		l->rx.proto->disable(l);
 		listener_set_state(l, LI_FULL);
 		goto done;
 	}
 
-	fd_want_recv(l->rx.fd);
+	l->rx.proto->enable(l);
 	listener_set_state(l, LI_READY);
 
   done:
@@ -441,7 +442,7 @@ static void listener_full(struct listener *l)
 	if (l->state >= LI_READY) {
 		MT_LIST_DEL(&l->wait_queue);
 		if (l->state != LI_FULL) {
-			fd_stop_recv(l->rx.fd);
+			l->rx.proto->disable(l);
 			listener_set_state(l, LI_FULL);
 		}
 	}
@@ -456,7 +457,7 @@ static void limit_listener(struct listener *l, struct mt_list *list)
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 	if (l->state == LI_READY) {
 		MT_LIST_TRY_ADDQ(list, &l->wait_queue);
-		fd_stop_recv(l->rx.fd);
+		l->rx.proto->disable(l);
 		listener_set_state(l, LI_LIMITED);
 	}
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
@@ -494,14 +495,14 @@ void dequeue_proxy_listeners(struct proxy *px)
  */
 void do_unbind_listener(struct listener *listener, int do_close)
 {
-	if (listener->state == LI_READY && fd_updt)
-		fd_stop_recv(listener->rx.fd);
+	if (listener->state == LI_READY)
+		listener->rx.proto->disable(listener);
 
 	MT_LIST_DEL(&listener->wait_queue);
 
 	if (listener->state >= LI_PAUSED) {
 		listener_set_state(listener, LI_ASSIGNED);
-		fd_stop_both(listener->rx.fd);
+		listener->rx.proto->rx_disable(&listener->rx);
 	}
 
 	if (do_close && listener->rx.fd != -1) {
