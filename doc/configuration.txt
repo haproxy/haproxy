@@ -12560,10 +12560,15 @@ crt <cert>
   connecting with "ecdsa.example.com" will only be able to use ECDSA cipher
   suites. With BoringSSL and Openssl >= 1.1.1 multi-cert is natively supported,
   no need to bundle certificates. ECDSA certificate will be preferred if client
-  support it.
+  supports it.
 
   If a directory name is given as the <cert> argument, haproxy will
   automatically search and load bundled files in that directory.
+  It is however recommended to move away from bundle loading, especially if you
+  want to use the runtime API to load new certificate which does not support
+  bundle. A recommended way to migrate is to set `ssl-load-extra-file`
+  parameter to `none` in global config so that each certificate is loaded as a
+  single one.
 
   OSCP files (.ocsp) and issuer files (.issuer) are supported with multi-cert
   bundling. Each certificate can have its own .ocsp and .issuer file. At this
