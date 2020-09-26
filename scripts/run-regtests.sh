@@ -191,8 +191,8 @@ _findtests() {
     done
 
     for requiredbin in $require_binaries; do
-      which $requiredbin >/dev/null 2>&1
-      if [ "$?" -eq "1" ]; then
+      if ! command -v $requiredbin >/dev/null 2>&1
+      then
         echo "  Skip $i because '"$requiredbin"' is not installed"
         skiptest=1
       fi
