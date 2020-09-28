@@ -35,7 +35,6 @@
 #include <haproxy/task-t.h>
 #include <haproxy/tcpcheck-t.h>
 
-
 extern struct pool_head *pool_head_connection;
 extern struct pool_head *pool_head_connstream;
 extern struct pool_head *pool_head_sockaddr;
@@ -44,7 +43,7 @@ extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
 extern struct mux_proto_list mux_proto_list;
 
 #define IS_HTX_CONN(conn) ((conn)->mux && ((conn)->mux->flags & MX_FL_HTX))
-#define IS_HTX_CS(cs)     (IS_HTX_CONN((cs)->conn))
+#define IS_HTX_CS(cs) (IS_HTX_CONN((cs)->conn))
 
 /* I/O callback for fd-based connections. It calls the read/write handlers
  * provided by the connection's sock_ops.
@@ -108,6 +107,23 @@ static inline int conn_xprt_init(struct connection *conn)
 	return ret;
 }
 
+static inline void conn_free_domain(struct connection *conn)
+{
+	if (conn->requested_domain)
+	{
+		free(conn->requested_domain);
+		conn->requested_domain = NULL;
+	}
+}
+
+static inline void conn_set_domain(struct connection *conn, const char *domain)
+{
+	size_t len = strlen(domain) + 1;
+	conn_free_domain(conn);
+	conn->requested_domain = malloc(len);
+	memcpy(conn->requested_domain, domain, len);
+}
+
 /* Calls the close() function of the transport layer if any and if not done
  * yet, and clears the CO_FL_XPRT_READY flag. However this is not done if the
  * CO_FL_XPRT_TRACKED flag is set, which allows logs to take data from the
@@ -115,12 +131,14 @@ static inline int conn_xprt_init(struct connection *conn)
  */
 static inline void conn_xprt_close(struct connection *conn)
 {
-	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_XPRT_TRACKED)) == CO_FL_XPRT_READY) {
+	if ((conn->flags & (CO_FL_XPRT_READY | CO_FL_XPRT_TRACKED)) == CO_FL_XPRT_READY)
+	{
 		if (conn->xprt->close)
 			conn->xprt->close(conn, conn->xprt_ctx);
 		conn->xprt_ctx = NULL;
 		conn->flags &= ~CO_FL_XPRT_READY;
 	}
+	conn_free_domain(conn);
 }
 
 /* Initializes the connection's control layer which essentially consists in
@@ -130,7 +148,8 @@ static inline void conn_xprt_close(struct connection *conn)
  */
 static inline void conn_ctrl_init(struct connection *conn)
 {
-	if (!conn_ctrl_ready(conn)) {
+	if (!conn_ctrl_ready(conn))
+	{
 		int fd = conn->handle.fd;
 
 		fd_insert(fd, conn, conn_fd_handler, tid_bit);
@@ -143,7 +162,8 @@ static inline void conn_ctrl_init(struct connection *conn)
  */
 static inline void conn_ctrl_close(struct connection *conn)
 {
-	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_CTRL_READY)) == CO_FL_CTRL_READY) {
+	if ((conn->flags & (CO_FL_XPRT_READY | CO_FL_CTRL_READY)) == CO_FL_CTRL_READY)
+	{
 		fd_delete(conn->handle.fd);
 		conn->handle.fd = DEAD_FD_MAGIC;
 		conn->flags &= ~CO_FL_CTRL_READY;
@@ -160,6 +180,7 @@ static inline void conn_full_close(struct connection *conn)
 {
 	conn_xprt_close(conn);
 	conn_ctrl_close(conn);
+	conn_free_domain(conn);
 }
 
 /* stop tracking a connection, allowing conn_full_close() to always
@@ -192,7 +213,8 @@ static inline void conn_cond_update_polling(struct connection *c)
 static inline void conn_sock_read0(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_RD_SH;
-	if (conn_ctrl_ready(c)) {
+	if (conn_ctrl_ready(c))
+	{
 		fd_stop_recv(c->handle.fd);
 		/* we don't risk keeping ports unusable if we found the
 		 * zero from the other side.
@@ -209,7 +231,8 @@ static inline void conn_sock_read0(struct connection *c)
 static inline void conn_sock_shutw(struct connection *c, int clean)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
-	if (conn_ctrl_ready(c)) {
+	if (conn_ctrl_ready(c))
+	{
 		fd_stop_send(c->handle.fd);
 		/* don't perform a clean shutdown if we're going to reset or
 		 * if the shutr was already received.
@@ -292,7 +315,7 @@ static inline void conn_prepare(struct connection *conn, const struct protocol *
 {
 	conn->ctrl = proto;
 	conn->xprt = xprt;
-	conn->mux  = NULL;
+	conn->mux = NULL;
 	conn->xprt_ctx = NULL;
 	conn->ctx = NULL;
 }
@@ -332,6 +355,7 @@ static inline void conn_init(struct connection *conn, void *target)
 	conn->dst = NULL;
 	conn->proxy_authority = NULL;
 	conn->proxy_unique_id = IST_NULL;
+	conn->requested_domain = NULL;
 }
 
 /* sets <owner> as the connection's owner */
@@ -341,11 +365,11 @@ static inline void conn_set_owner(struct connection *conn, void *owner, void (*c
 	conn->destroy_cb = cb;
 }
 
-
 /* Mark the connection <conn> as private and remove it from the available connection list */
 static inline void conn_set_private(struct connection *conn)
 {
-	if (!(conn->flags & CO_FL_PRIVATE)) {
+	if (!(conn->flags & CO_FL_PRIVATE))
+	{
 		conn->flags |= CO_FL_PRIVATE;
 
 		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
@@ -393,7 +417,8 @@ static inline struct connection *conn_new(void *target)
 	struct connection *conn;
 
 	conn = pool_alloc(pool_head_connection);
-	if (likely(conn != NULL)) {
+	if (likely(conn != NULL))
+	{
 		conn_init(conn, target);
 		if (obj_type(target) == OBJ_TYPE_SERVER)
 			srv_use_idle_conn(__objt_server(target), conn);
@@ -425,9 +450,11 @@ static inline struct conn_stream *cs_new(struct connection *conn, void *target)
 	if (unlikely(!cs))
 		return NULL;
 
-	if (!conn) {
+	if (!conn)
+	{
 		conn = conn_new(target);
-		if (unlikely(!conn)) {
+		if (unlikely(!conn))
+		{
 			cs_free(cs);
 			return NULL;
 		}
@@ -464,14 +491,17 @@ static inline void conn_force_unsubscribe(struct connection *conn)
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
-	if (conn->flags & CO_FL_PRIVATE) {
+	conn_free_domain(conn);
+	if (conn->flags & CO_FL_PRIVATE)
+	{
 		/* The connection is private, so remove it from the session's
 		 * connections list, if any.
 		 */
 		if (!LIST_ISEMPTY(&conn->session_list))
 			session_unown_conn(conn->owner, conn);
 	}
-	else {
+	else
+	{
 		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
 			srv_del_conn_from_list(__objt_server(conn->target), conn);
 	}
@@ -479,11 +509,13 @@ static inline void conn_free(struct connection *conn)
 	sockaddr_free(&conn->src);
 	sockaddr_free(&conn->dst);
 
-	if (conn->proxy_authority != NULL) {
+	if (conn->proxy_authority != NULL)
+	{
 		pool_free(pool_head_authority, conn->proxy_authority);
 		conn->proxy_authority = NULL;
 	}
-	if (isttest(conn->proxy_unique_id)) {
+	if (isttest(conn->proxy_unique_id))
+	{
 		pool_free(pool_head_uniqueid, conn->proxy_unique_id.ptr);
 		conn->proxy_unique_id = IST_NULL;
 	}
@@ -504,7 +536,8 @@ static inline void cs_destroy(struct conn_stream *cs)
 {
 	if (cs->conn->mux)
 		cs->conn->mux->detach(cs);
-	else {
+	else
+	{
 		/* It's too early to have a mux, let's just destroy
 		 * the connection
 		 */
@@ -541,8 +574,8 @@ static inline int conn_get_src(struct connection *conn)
 		return 0;
 
 	if (conn->ctrl->fam->get_src(conn->handle.fd, (struct sockaddr *)conn->src,
-	                        sizeof(*conn->src),
-	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
+								 sizeof(*conn->src),
+								 obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return 0;
 	conn->flags |= CO_FL_ADDR_FROM_SET;
 	return 1;
@@ -564,8 +597,8 @@ static inline int conn_get_dst(struct connection *conn)
 		return 0;
 
 	if (conn->ctrl->fam->get_dst(conn->handle.fd, (struct sockaddr *)conn->dst,
-	                        sizeof(*conn->dst),
-	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
+								 sizeof(*conn->dst),
+								 obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return 0;
 	conn->flags |= CO_FL_ADDR_TO_SET;
 	return 1;
@@ -585,7 +618,8 @@ static inline void conn_set_tos(const struct connection *conn, int tos)
 		setsockopt(conn->handle.fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
 #endif
 #ifdef IPV6_TCLASS
-	if (conn->src->ss_family == AF_INET6) {
+	if (conn->src->ss_family == AF_INET6)
+	{
 		if (IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6 *)conn->src)->sin6_addr))
 			/* v4-mapped addresses need IP_TOS */
 			setsockopt(conn->handle.fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
@@ -630,7 +664,8 @@ static inline void cs_attach(struct conn_stream *cs, void *data, const struct da
 
 static inline struct wait_event *wl_set_waitcb(struct wait_event *wl, struct task *(*cb)(struct task *, void *, unsigned short), void *ctx)
 {
-	if (!wl->tasklet->process) {
+	if (!wl->tasklet->process)
+	{
 		wl->tasklet->process = cb;
 		wl->tasklet->context = ctx;
 	}
@@ -641,14 +676,15 @@ static inline struct wait_event *wl_set_waitcb(struct wait_event *wl, struct tas
  * Returns < 0 on error.
  */
 static inline int conn_install_mux(struct connection *conn, const struct mux_ops *mux,
-                                   void *ctx, struct proxy *prx, struct session *sess)
+								   void *ctx, struct proxy *prx, struct session *sess)
 {
 	int ret;
 
 	conn->mux = mux;
 	conn->ctx = ctx;
 	ret = mux->init ? mux->init(conn, prx, sess, &BUF_NULL) : 0;
-	if (ret < 0) {
+	if (ret < 0)
+	{
 		conn->mux = NULL;
 		conn->ctx = NULL;
 	}
@@ -660,53 +696,95 @@ static inline int conn_install_mux(struct connection *conn, const struct mux_ops
  */
 static inline const char *conn_err_code_str(struct connection *c)
 {
-	switch (c->err_code) {
-	case CO_ER_NONE:          return "Success";
+	switch (c->err_code)
+	{
+	case CO_ER_NONE:
+		return "Success";
 
-	case CO_ER_CONF_FDLIM:    return "Reached configured maxconn value";
-	case CO_ER_PROC_FDLIM:    return "Too many sockets on the process";
-	case CO_ER_SYS_FDLIM:     return "Too many sockets on the system";
-	case CO_ER_SYS_MEMLIM:    return "Out of system buffers";
-	case CO_ER_NOPROTO:       return "Protocol or address family not supported";
-	case CO_ER_SOCK_ERR:      return "General socket error";
-	case CO_ER_PORT_RANGE:    return "Source port range exhausted";
-	case CO_ER_CANT_BIND:     return "Can't bind to source address";
-	case CO_ER_FREE_PORTS:    return "Out of local source ports on the system";
-	case CO_ER_ADDR_INUSE:    return "Local source address already in use";
+	case CO_ER_CONF_FDLIM:
+		return "Reached configured maxconn value";
+	case CO_ER_PROC_FDLIM:
+		return "Too many sockets on the process";
+	case CO_ER_SYS_FDLIM:
+		return "Too many sockets on the system";
+	case CO_ER_SYS_MEMLIM:
+		return "Out of system buffers";
+	case CO_ER_NOPROTO:
+		return "Protocol or address family not supported";
+	case CO_ER_SOCK_ERR:
+		return "General socket error";
+	case CO_ER_PORT_RANGE:
+		return "Source port range exhausted";
+	case CO_ER_CANT_BIND:
+		return "Can't bind to source address";
+	case CO_ER_FREE_PORTS:
+		return "Out of local source ports on the system";
+	case CO_ER_ADDR_INUSE:
+		return "Local source address already in use";
 
-	case CO_ER_PRX_EMPTY:     return "Connection closed while waiting for PROXY protocol header";
-	case CO_ER_PRX_ABORT:     return "Connection error while waiting for PROXY protocol header";
-	case CO_ER_PRX_TIMEOUT:   return "Timeout while waiting for PROXY protocol header";
-	case CO_ER_PRX_TRUNCATED: return "Truncated PROXY protocol header received";
-	case CO_ER_PRX_NOT_HDR:   return "Received something which does not look like a PROXY protocol header";
-	case CO_ER_PRX_BAD_HDR:   return "Received an invalid PROXY protocol header";
-	case CO_ER_PRX_BAD_PROTO: return "Received an unhandled protocol in the PROXY protocol header";
+	case CO_ER_PRX_EMPTY:
+		return "Connection closed while waiting for PROXY protocol header";
+	case CO_ER_PRX_ABORT:
+		return "Connection error while waiting for PROXY protocol header";
+	case CO_ER_PRX_TIMEOUT:
+		return "Timeout while waiting for PROXY protocol header";
+	case CO_ER_PRX_TRUNCATED:
+		return "Truncated PROXY protocol header received";
+	case CO_ER_PRX_NOT_HDR:
+		return "Received something which does not look like a PROXY protocol header";
+	case CO_ER_PRX_BAD_HDR:
+		return "Received an invalid PROXY protocol header";
+	case CO_ER_PRX_BAD_PROTO:
+		return "Received an unhandled protocol in the PROXY protocol header";
 
-	case CO_ER_CIP_EMPTY:     return "Connection closed while waiting for NetScaler Client IP header";
-	case CO_ER_CIP_ABORT:     return "Connection error while waiting for NetScaler Client IP header";
-	case CO_ER_CIP_TRUNCATED: return "Truncated NetScaler Client IP header received";
-	case CO_ER_CIP_BAD_MAGIC: return "Received an invalid NetScaler Client IP magic number";
-	case CO_ER_CIP_BAD_PROTO: return "Received an unhandled protocol in the NetScaler Client IP header";
+	case CO_ER_CIP_EMPTY:
+		return "Connection closed while waiting for NetScaler Client IP header";
+	case CO_ER_CIP_ABORT:
+		return "Connection error while waiting for NetScaler Client IP header";
+	case CO_ER_CIP_TRUNCATED:
+		return "Truncated NetScaler Client IP header received";
+	case CO_ER_CIP_BAD_MAGIC:
+		return "Received an invalid NetScaler Client IP magic number";
+	case CO_ER_CIP_BAD_PROTO:
+		return "Received an unhandled protocol in the NetScaler Client IP header";
 
-	case CO_ER_SSL_EMPTY:     return "Connection closed during SSL handshake";
-	case CO_ER_SSL_ABORT:     return "Connection error during SSL handshake";
-	case CO_ER_SSL_TIMEOUT:   return "Timeout during SSL handshake";
-	case CO_ER_SSL_TOO_MANY:  return "Too many SSL connections";
-	case CO_ER_SSL_NO_MEM:    return "Out of memory when initializing an SSL connection";
-	case CO_ER_SSL_RENEG:     return "Rejected a client-initiated SSL renegotiation attempt";
-	case CO_ER_SSL_CA_FAIL:   return "SSL client CA chain cannot be verified";
-	case CO_ER_SSL_CRT_FAIL:  return "SSL client certificate not trusted";
-	case CO_ER_SSL_MISMATCH:  return "Server presented an SSL certificate different from the configured one";
-	case CO_ER_SSL_MISMATCH_SNI: return "Server presented an SSL certificate different from the expected one";
-	case CO_ER_SSL_HANDSHAKE: return "SSL handshake failure";
-	case CO_ER_SSL_HANDSHAKE_HB: return "SSL handshake failure after heartbeat";
-	case CO_ER_SSL_KILLED_HB: return "Stopped a TLSv1 heartbeat attack (CVE-2014-0160)";
-	case CO_ER_SSL_NO_TARGET: return "Attempt to use SSL on an unknown target (internal error)";
+	case CO_ER_SSL_EMPTY:
+		return "Connection closed during SSL handshake";
+	case CO_ER_SSL_ABORT:
+		return "Connection error during SSL handshake";
+	case CO_ER_SSL_TIMEOUT:
+		return "Timeout during SSL handshake";
+	case CO_ER_SSL_TOO_MANY:
+		return "Too many SSL connections";
+	case CO_ER_SSL_NO_MEM:
+		return "Out of memory when initializing an SSL connection";
+	case CO_ER_SSL_RENEG:
+		return "Rejected a client-initiated SSL renegotiation attempt";
+	case CO_ER_SSL_CA_FAIL:
+		return "SSL client CA chain cannot be verified";
+	case CO_ER_SSL_CRT_FAIL:
+		return "SSL client certificate not trusted";
+	case CO_ER_SSL_MISMATCH:
+		return "Server presented an SSL certificate different from the configured one";
+	case CO_ER_SSL_MISMATCH_SNI:
+		return "Server presented an SSL certificate different from the expected one";
+	case CO_ER_SSL_HANDSHAKE:
+		return "SSL handshake failure";
+	case CO_ER_SSL_HANDSHAKE_HB:
+		return "SSL handshake failure after heartbeat";
+	case CO_ER_SSL_KILLED_HB:
+		return "Stopped a TLSv1 heartbeat attack (CVE-2014-0160)";
+	case CO_ER_SSL_NO_TARGET:
+		return "Attempt to use SSL on an unknown target (internal error)";
 
-	case CO_ER_SOCKS4_SEND:    return "SOCKS4 Proxy write error during handshake";
-	case CO_ER_SOCKS4_RECV:    return "SOCKS4 Proxy read error during handshake";
-	case CO_ER_SOCKS4_DENY:    return "SOCKS4 Proxy deny the request";
-	case CO_ER_SOCKS4_ABORT:   return "SOCKS4 Proxy handshake aborted by server";
+	case CO_ER_SOCKS4_SEND:
+		return "SOCKS4 Proxy write error during handshake";
+	case CO_ER_SOCKS4_RECV:
+		return "SOCKS4 Proxy read error during handshake";
+	case CO_ER_SOCKS4_DENY:
+		return "SOCKS4 Proxy deny the request";
+	case CO_ER_SOCKS4_ABORT:
+		return "SOCKS4 Proxy handshake aborted by server";
 	}
 	return NULL;
 }
@@ -771,19 +849,24 @@ static inline int xprt_add_hs(struct connection *conn)
 		return -1;
 	if (ops->init(conn, &xprt_ctx) < 0)
 		return -1;
-	if (conn->xprt == xprt_get(XPRT_RAW)) {
+	if (conn->xprt == xprt_get(XPRT_RAW))
+	{
 		nextxprt_ctx = conn->xprt_ctx;
 		nextxprt_ops = conn->xprt;
 		conn->xprt_ctx = xprt_ctx;
 		conn->xprt = ops;
-	} else {
+	}
+	else
+	{
 		if (conn->xprt->add_xprt(conn, conn->xprt_ctx, xprt_ctx, ops,
-		                         &nextxprt_ctx, &nextxprt_ops) != 0) {
+								 &nextxprt_ctx, &nextxprt_ops) != 0)
+		{
 			ops->close(conn, xprt_ctx);
 			return -1;
 		}
 	}
-	if (ops->add_xprt(conn, xprt_ctx, nextxprt_ctx, nextxprt_ops, NULL, NULL) != 0) {
+	if (ops->add_xprt(conn, xprt_ctx, nextxprt_ctx, nextxprt_ops, NULL, NULL) != 0)
+	{
 		ops->close(conn, xprt_ctx);
 		return -1;
 	}
@@ -814,7 +897,8 @@ static inline struct mux_proto_list *get_mux_proto(const struct ist proto)
 {
 	struct mux_proto_list *item;
 
-	list_for_each_entry(item, &mux_proto_list.list, list) {
+	list_for_each_entry(item, &mux_proto_list.list, list)
+	{
 		if (isteq(proto, item->token))
 			return item;
 	}
@@ -829,8 +913,9 @@ static inline void list_mux_proto(FILE *out)
 	char *mode, *side;
 
 	fprintf(out, "Available multiplexer protocols :\n"
-		"(protocols marked as <default> cannot be specified using 'proto' keyword)\n");
-	list_for_each_entry(item, &mux_proto_list.list, list) {
+				 "(protocols marked as <default> cannot be specified using 'proto' keyword)\n");
+	list_for_each_entry(item, &mux_proto_list.list, list)
+	{
 		proto = item->token;
 
 		if (item->mode == PROTO_MODE_ANY)
@@ -852,7 +937,7 @@ static inline void list_mux_proto(FILE *out)
 			side = "NONE";
 
 		fprintf(out, " %15s : mode=%-10s side=%-8s  mux=%s\n",
-			(proto.len ? proto.ptr : "<default>"), mode, side, item->mux->name);
+				(proto.len ? proto.ptr : "<default>"), mode, side, item->mux->name);
 	}
 }
 
@@ -863,24 +948,25 @@ static inline void list_mux_proto(FILE *out)
  * null if the code improperly registered the default mux to use as a fallback.
  */
 static inline const struct mux_proto_list *conn_get_best_mux_entry(
-        const struct ist mux_proto,
-        int proto_side, int proto_mode)
+	const struct ist mux_proto,
+	int proto_side, int proto_mode)
 {
 	struct mux_proto_list *item;
 	struct mux_proto_list *fallback = NULL;
 
-	list_for_each_entry(item, &mux_proto_list.list, list) {
+	list_for_each_entry(item, &mux_proto_list.list, list)
+	{
 		if (!(item->side & proto_side) || !(item->mode & proto_mode))
 			continue;
 		if (istlen(mux_proto) && isteq(mux_proto, item->token))
 			return item;
-		else if (!istlen(item->token)) {
+		else if (!istlen(item->token))
+		{
 			if (!fallback || (item->mode == proto_mode && fallback->mode != proto_mode))
 				fallback = item;
 		}
 	}
 	return fallback;
-
 }
 
 /* returns the first mux in the list matching the exact same <mux_proto> and
@@ -890,8 +976,8 @@ static inline const struct mux_proto_list *conn_get_best_mux_entry(
  * null if the code improperly registered the default mux to use as a fallback.
  */
 static inline const struct mux_ops *conn_get_best_mux(struct connection *conn,
-						      const struct ist mux_proto,
-						      int proto_side, int proto_mode)
+													  const struct ist mux_proto,
+													  int proto_side, int proto_mode)
 {
 	const struct mux_proto_list *item;
 
@@ -937,12 +1023,13 @@ static inline struct proxy *conn_get_proxy(const struct connection *conn)
  */
 static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
 {
-	struct bind_conf     *bind_conf = __objt_listener(conn->target)->bind_conf;
+	struct bind_conf *bind_conf = __objt_listener(conn->target)->bind_conf;
 	const struct mux_ops *mux_ops;
 
 	if (bind_conf->mux_proto)
 		mux_ops = bind_conf->mux_proto->mux;
-	else {
+	else
+	{
 		struct ist mux_proto;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
@@ -969,7 +1056,7 @@ static inline int conn_install_mux_fe(struct connection *conn, void *ctx)
 static inline int conn_install_mux_be(struct connection *conn, void *ctx, struct session *sess)
 {
 	struct server *srv = objt_server(conn->target);
-	struct proxy  *prx = objt_proxy(conn->target);
+	struct proxy *prx = objt_proxy(conn->target);
 	const struct mux_ops *mux_ops;
 
 	if (srv)
@@ -980,7 +1067,8 @@ static inline int conn_install_mux_be(struct connection *conn, void *ctx, struct
 
 	if (srv && srv->mux_proto)
 		mux_ops = srv->mux_proto->mux;
-	else {
+	else
+	{
 		struct ist mux_proto;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
@@ -1023,7 +1111,8 @@ static inline int conn_install_mux_chk(struct connection *conn, void *ctx, struc
 
 	if (check->mux_proto)
 		mux_ops = check->mux_proto->mux;
-	else {
+	else
+	{
 		struct ist mux_proto;
 		const char *alpn_str = NULL;
 		int alpn_len = 0;
@@ -1048,7 +1137,7 @@ static inline int conn_install_mux_chk(struct connection *conn, void *ctx, struc
  * The caller should make sure he's not subscribed to the underlying XPRT.
  */
 static inline int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct buffer *buf,
-				      struct ist mux_proto, int mode)
+									  struct ist mux_proto, int mode)
 {
 	struct bind_conf *bind_conf = __objt_listener(conn->target)->bind_conf;
 	const struct mux_ops *old_mux, *new_mux;
@@ -1056,7 +1145,8 @@ static inline int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct
 	const char *alpn_str = NULL;
 	int alpn_len = 0;
 
-	if (!mux_proto.len) {
+	if (!mux_proto.len)
+	{
 		conn_get_alpn(conn, &alpn_str, &alpn_len);
 		mux_proto = ist2(alpn_str, alpn_len);
 	}
@@ -1074,7 +1164,8 @@ static inline int conn_upgrade_mux_fe(struct connection *conn, void *ctx, struct
 	old_mux_ctx = conn->ctx;
 	conn->mux = new_mux;
 	conn->ctx = ctx;
-	if (new_mux->init(conn, bind_conf->frontend, conn->owner, buf) == -1) {
+	if (new_mux->init(conn, bind_conf->frontend, conn->owner, buf) == -1)
+	{
 		/* The mux upgrade failed, so restore the old mux */
 		conn->ctx = old_mux_ctx;
 		conn->mux = old_mux;
