@@ -1,6 +1,112 @@
 ChangeLog :
 ===========
 
+2020/09/25 : 2.3-dev5
+    - DOC: Fix typo in iif() example
+    - CLEANUP: Update .gitignore
+    - BUILD: introduce possibility to define ABORT_NOW() conditionally
+    - CI: travis-ci: help Coverity to recognize abort()
+    - BUG/MINOR: Fix type passed of sizeof() for calloc()
+    - CLEANUP: Do not use a fixed type for 'sizeof' in 'calloc'
+    - CLEANUP: tree-wide: use VAR_ARRAY instead of [0] in various definitions
+    - BUILD: connection: fix build on clang after the VAR_ARRAY cleanup
+    - BUG/MINOR: ssl: verifyhost is case sensitive
+    - BUILD: makefile: change default value of CC from gcc to cc
+    - CI: travis-ci: split asan step out of running tests
+    - BUG/MINOR: server: report correct error message for invalid port on "socks4"
+    - BUG/MEDIUM: ssl: Don't call ssl_sock_io_cb() directly.
+    - BUG/MINOR: ssl/crt-list: crt-list could end without a \n
+    - BUG/MINOR: log-forward: fail on unknown keywords
+    - MEDIUM: log-forward: use "dgram-bind" instead of "bind" for the listener
+    - BUG/MEDIUM: log-forward: always quit on parsing errors
+    - MEDIUM: ssl: remove bundle support in crt-list and directories
+    - MEDIUM: ssl/cli: remove support for multi certificates bundle
+    - MINOR: ssl: crtlist_dup_ssl_conf() duplicates a ssl_bind_conf
+    - MINOR: ssl: crtlist_entry_dup() duplicates a crtlist_entry
+    - MEDIUM: ssl: emulates the multi-cert bundles in the crtlist
+    - MEDIUM: ssl: emulate multi-cert bundles loading in standard loading
+    - CLEANUP: ssl: remove test on "multi" variable in ckch functions
+    - CLEANUP: ssl/cli: remove test on 'multi' variable in CLI functions
+    - CLEANUP: ssl: remove utility functions for bundle
+    - DOC: explain bundle emulation in configuration.txt
+    - BUILD: fix build with openssl < 1.0.2 since bundle removal
+    - BUG/MINOR: log: gracefully handle the "udp@" address format for log servers
+    - BUG/MINOR: dns: gracefully handle the "udp@" address format for nameservers
+    - MINOR: listener: create a new struct "settings" in bind_conf
+    - MINOR: listener: move bind_proc and bind_thread to struct settings
+    - MINOR: listener: move the interface to the struct settings
+    - MINOR: listener: move the network namespace to the struct settings
+    - REORG: listener: create a new struct receiver
+    - REORG: listener: move the listening address to a struct receiver
+    - REORG: listener: move the receiving FD to struct receiver
+    - REORG: listener: move the listener's proto to the receiver
+    - MINOR: listener: make sock_find_compatible_fd() check the socket type
+    - REORG: listener: move the receiver part to a new file
+    - MINOR: receiver: link the receiver to its settings
+    - MINOR: receiver: link the receiver to its owner
+    - MINOR: listener: prefer to retrieve the socket's settings via the receiver
+    - MINOR: receiver: add a receiver-specific flag to indicate the socket is bound
+    - MINOR: listener: move the INHERITED flag down to the receiver
+    - MINOR: receiver: move the FOREIGN and V6ONLY options from listener to settings
+    - MINOR: sock: make sock_find_compatible_fd() only take a receiver
+    - MINOR: protocol: rename the ->bind field to ->listen
+    - MINOR: protocol: add a new ->bind() entry to bind the receiver
+    - MEDIUM: sock_inet: implement sock_inet_bind_receiver()
+    - MEDIUM: tcp: make use of sock_inet_bind_receiver()
+    - MEDIUM: udp: make use of sock_inet_bind_receiver()
+    - MEDIUM: sock_unix: implement sock_unix_bind_receiver()
+    - MEDIUM: uxst: make use of sock_unix_bind_receiver()
+    - MEDIUM: sockpair: implement sockpair_bind_receiver()
+    - MEDIUM: proto_sockpair: make use of sockpair_bind_receiver()
+    - MEDIUM: protocol: explicitly start the receiver before the listener
+    - MEDIUM: protocol: do not call proto->bind() anymore from bind_listener()
+    - MINOR: protocol: add a new proto_fam structure for protocol families
+    - MINOR: protocol: retrieve the family-specific fields from the family
+    - CLEANUP: protocol: remove family-specific fields from struct protocol
+    - MINOR: protocol: add a real family for existing FDs
+    - CLEANUP: tools: make str2sa_range() less awful for fd@ and sockpair@
+    - MINOR: tools: make str2sa_range() take more options than just resolve
+    - MINOR: tools: add several PA_O_PORT_* flags in str2sa_range() callers
+    - MEDIUM: tools: make str2sa_range() validate callers' port specifications
+    - MEDIUM: config: remove all checks for missing/invalid ports/ranges
+    - MINOR: tools: add several PA_O_* flags in str2sa_range() callers
+    - MINOR: listener: remove the inherited arg to create_listener()
+    - MINOR: tools: make str2sa_range() optionally return the fd
+    - MINOR: log: detect LOG_TARGET_FD from the fd and not from the syntax
+    - MEDIUM: tools: make str2sa_range() resolve pre-bound listeners
+    - MINOR: config: do not test an inherited socket again
+    - MEDIUM: tools: make str2sa_range() check for the sockpair's FD usability
+    - MINOR: tools: start to distinguish stream and dgram in str2sa_range()
+    - MEDIUM: tools: make str2sa_range() only report AF_CUST_UDP on listeners
+    - MINOR: tools: remove the central test for "udp" in str2sa_range()
+    - MINOR: cfgparse: add str2receiver() to parse dgram receivers
+    - MINOR: log-forward: use str2receiver() to parse the dgram-bind address
+    - MEDIUM: config: make str2listener() not accept datagram sockets anymore
+    - MINOR: listener: pass the chosen protocol to create_listeners()
+    - MINOR: tools: make str2sa_range() directly return the protocol
+    - MEDIUM: tools: make str2sa_range() check that the protocol has ->connect()
+    - MINOR: protocol: add the control layer type in the protocol struct
+    - MEDIUM: protocol: store the socket and control type in the protocol array
+    - MEDIUM: tools: make str2sa_range() use protocol_lookup()
+    - MEDIUM: proto_udp: replace last AF_CUST_UDP* with AF_INET*
+    - MINOR: tools: drop listener detection hack from str2sa_range()
+    - BUILD: sock_unix: add missing errno.h
+    - MINOR: sock_inet: report the errno string in binding errors
+    - MINOR: sock_unix: report the errno string in binding errors
+    - BUILD: sock_inet: include errno.h
+    - MINOR: h2/trace: also display the remaining frame length in traces
+    - BUG/MINOR: h2/trace: do not display "stream error" after a frame ACK
+    - BUG/MEDIUM: h2: report frame bits only for handled types
+    - BUG/MINOR: http-fetch: Don't set the sample type during the htx prefetch
+    - BUG/MINOR: Fix memory leaks cfg_parse_peers
+    - BUG/MINOR: config: Fix memory leak on config parse listen
+    - MINOR: backend: make the "whole" option of balance uri take only one bit
+    - MINOR: backend: add a new "path-only" option to "balance uri"
+    - REGTESTS: add a few load balancing tests
+    - BUG/MEDIUM: listeners: do not pause foreign listeners
+    - BUG/MINOR: listeners: properly close listener FDs
+    - BUILD: trace: include tools.h
+
 2020/09/11 : 2.3-dev4
     - MINOR: hlua: Add error message relative to the Channel manipulation and HTTP mode
     - BUG/MEDIUM: ssl: crt-list negative filters don't work

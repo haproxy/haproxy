@@ -49,6 +49,7 @@
 #include <string.h>
 #include <haproxy/api.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 static FILE *log;
 static int level;
