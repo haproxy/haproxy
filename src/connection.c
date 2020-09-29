@@ -1158,7 +1158,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 	{
 		DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: is_inet_addr(conn->dst) returned 0. Trying SOCKS4A\nFor domain: %s\n",
 				conn->handle.fd, conn->requested_domain);
-		req_line.ip = htonl(0x00000001u);
+		req_line.ip = 0x00000001u;
 	}
 
 	memcpy(req_line.user_id, "HAProxy\0", 8);
