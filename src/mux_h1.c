@@ -60,6 +60,10 @@
 #define H1C_F_WAIT_OPPOSITE  0x00100000 /* Don't read more data for now, waiting sync with opposite side */
 #define H1C_F_WANT_SPLICE    0x00200000 /* Don't read into a bufffer because we want to use or we are using splicing */
 #define H1C_F_IS_BACK        0x00400000 /* Set on outgoing connection */
+
+#define H1C_F_CS_EMBRYONIC   0x01000000 /* Set when a H1 stream with no conn-stream is attached to the connection */
+#define H1C_F_CS_ATTACHED    0x02000000 /* Set when a H1 stream with a conn-stream is attached to the connection */
+#define H1C_F_CS_ALIVE       (H1C_F_CS_IDLE|H1C_F_CS_EMBRYONIC|H1C_F_CS_ATTACHED)
 /*
  * H1 Stream flags (32 bits)
  */
@@ -534,6 +538,7 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 
 	if (h1s->flags & H1S_F_NOT_FIRST)
 		cs->flags |= CS_FL_NOT_FIRST;
+	h1s->h1c->flags = (h1s->h1c->flags & ~H1C_F_CS_EMBRYONIC) | H1C_F_CS_ATTACHED;
 
 	if (global.tune.options & GTUNE_USE_SPLICE) {
 		TRACE_STATE("notify the mux can use splicing", H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
@@ -583,7 +588,7 @@ static struct h1s *h1s_new(struct h1c *h1c)
 
 	if (h1c->flags & H1C_F_WAIT_NEXT_REQ)
 		h1s->flags |= H1S_F_NOT_FIRST;
-	h1c->flags &= ~(H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ);
+	h1c->flags = (h1c->flags & ~(H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_CS_EMBRYONIC;
 
 	TRACE_LEAVE(H1_EV_H1S_NEW, h1c->conn, h1s);
 	return h1s;
@@ -637,6 +642,7 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 	h1s->sess = sess;
 	cs->ctx = h1s;
 
+	h1c->flags = (h1c->flags & ~H1C_F_CS_EMBRYONIC) | H1C_F_CS_ATTACHED;
 
 	if (h1c->px->options2 & PR_O2_RSPBUG_OK)
 		h1s->res.err_pos = -1;
@@ -662,7 +668,7 @@ static void h1s_destroy(struct h1s *h1s)
 
 		h1_release_buf(h1c, &h1s->rxbuf);
 
-		h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
+		h1c->flags &= ~(H1C_F_WAIT_OPPOSITE|H1C_F_CS_EMBRYONIC|H1C_F_CS_ATTACHED);
 		if (h1s->flags & H1S_F_ERROR) {
 			h1c->flags |= H1C_F_CS_ERROR;
 			TRACE_STATE("h1s on error, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
@@ -1116,7 +1122,7 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
 
-	if (h1s->cs && h1s->cs->data) {
+	if ((h1c->flags & H1C_F_CS_ATTACHED) && h1s->cs->data) {
 		if (sess == NULL)
 			sess = si_strm(h1s->cs->data)->sess;
 		if (!(h1m->flags & H1_MF_RESP))
@@ -2066,7 +2072,7 @@ static int h1_recv(struct h1c *h1c)
 	if (ret > 0) {
 		TRACE_DATA("data received", H1_EV_H1C_RECV, h1c->conn, 0, 0, (size_t[]){ret});
 		rcvd = 1;
-		if (h1s && h1s->cs)
+		if (h1c->flags & H1C_F_CS_ATTACHED)
 			h1s->cs->flags |= (CS_FL_READ_PARTIAL|CS_FL_RCV_MORE);
 	}
 
@@ -2206,7 +2212,7 @@ static int h1_process(struct h1c * h1c)
 		TRACE_STATE("read0 on connection", H1_EV_H1C_RECV, conn, h1s);
 	}
 
-	if (!h1s_data_pending(h1s) && h1s && h1s->cs && h1s->cs->data_cb->wake &&
+	if (!h1s_data_pending(h1s) && h1s && (h1c->flags & H1C_F_CS_ATTACHED) && h1s->cs->data_cb->wake &&
 	    (h1s->flags & H1S_F_REOS || h1c->flags & H1C_F_CS_ERROR ||
 	    conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH))) {
 		if (h1c->flags & H1C_F_CS_ERROR || conn->flags & CO_FL_ERROR)
@@ -2297,7 +2303,7 @@ static int h1_wake(struct connection *conn)
 	if (ret == 0) {
 		struct h1s *h1s = h1c->h1s;
 
-		if (h1s && h1s->cs && h1s->cs->data_cb->wake) {
+		if ((h1c->flags & H1C_F_CS_ATTACHED) && h1s->cs->data_cb->wake) {
 			TRACE_POINT(H1_EV_STRM_WAKE, h1c->conn, h1s);
 			ret = h1s->cs->data_cb->wake(h1s->cs);
 		}
@@ -2350,7 +2356,7 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 	 * for the stream's timeout. Otherwise, release the mux. This is only ok
 	 * because same timeouts are used.
 	 */
-	if (h1c->h1s && h1c->h1s->cs) {
+	if (h1c->flags & H1C_F_CS_ATTACHED) {
 		h1c->flags |= H1C_F_CS_ERROR;
 		TRACE_STATE("error on h1c, h1s still attached (expired)", H1_EV_H1C_WAKE|H1_EV_H1C_ERR, h1c->conn, h1c->h1s);
 	}
