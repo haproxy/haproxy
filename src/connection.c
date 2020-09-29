@@ -1169,7 +1169,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 		 * This is the first call to send the request
 		 */
 
-		conn->send_proxy_ofs = -(int)(sizeof(req_line) + ((proxy_resolve) ? (domainlen - sizeof(req_line.user_id)) : 0));
+		conn->send_proxy_ofs = -(int)(sizeof(req_line) + ((proxy_resolve) ? (domainlen - 8) : 0));
 	}
 
 	if (conn->send_proxy_ofs < 0)
@@ -1179,7 +1179,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 		if (proxy_resolve)
 		{
 			//fixme: it is possible need fake flags on this 1st write
-			ret = writeToProxy(conn, (char *)(&req_line), sizeof(req_line) - sizeof(req_line.user_id), flags);
+			ret = writeToProxy(conn, (char *)(&req_line), sizeof(req_line) - 8, flags);
 			if (ret < 0)
 			{
 				goto out_error;
