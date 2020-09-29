@@ -1240,8 +1240,6 @@ out_error:
 	{
 		conn->err_code = CO_ER_SOCKS4_SEND;
 	}
-	if (conn)
-		conn_free_domain(conn);
 out_wait:
 	return 0;
 }
