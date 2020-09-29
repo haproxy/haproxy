@@ -298,9 +298,8 @@ wait:
  */
 int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
 {
-	int ret;
+	int ret = -1;
 
-	ret = -1;
 	errno = ENOTSOCK;
 
 	if (conn->flags & CO_FL_SOCK_WR_SH)
@@ -1115,16 +1114,6 @@ fail:
 	return 0;
 }
 
-/* socks4 upstream proxy definitions */
-struct socks4_request
-{
-	uint8_t version; /* SOCKS version number, 1 byte, must be 0x04 for this version */
-	uint8_t command; /* 0x01 = establish a TCP/IP stream connection */
-	uint16_t port;	 /* port number, 2 bytes (in network byte order) */
-	uint32_t ip;	 /* IP address, 4 bytes (in network byte order) */
-	char user_id[8]; /* the user ID string, variable length, terminated with a null (0x00); Using "HAProxy\0" */
-};
-
 static int writeToProxy(struct connection *conn, char *data, size_t len, int flags)
 {
 	int ret = 0;
@@ -1185,11 +1174,11 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 	if (conn->send_proxy_ofs < 0)
 	{
 		int ret = 0;
-		int flags = (conn->subs && conn->subs->events & SUB_RETRY_SEND) ? MSG_MORE : 0;
+		const int flags = (conn->subs && conn->subs->events & SUB_RETRY_SEND) ? MSG_MORE : 0;
 		if (proxy_resolve)
 		{
 			//fixme: it is possible need fake flags on this 1st write
-			ret = writeToProxy(conn, (char *)(&req_line), sizeof(req_line) - sizeof(req_line.user_id), 0);
+			ret = writeToProxy(conn, (char *)(&req_line), sizeof(req_line) - sizeof(req_line.user_id), flags);
 			if (ret < 0)
 			{
 				goto out_error;

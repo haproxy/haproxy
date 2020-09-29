@@ -4480,7 +4480,7 @@ int srv_init_addr(void)
 						int r = srv_iterate_initaddr(srv);
 						if (r)
 						{
-							const char *tmp = srv->hostname;
+							char *tmp = srv->hostname;
 							srv->hostname = "10.10.10.10";
 							srv_iterate_initaddr(srv);
 							srv->hostname = tmp;

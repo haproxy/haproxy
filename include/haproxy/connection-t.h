@@ -322,6 +322,16 @@ enum mux_ctl_type
 /* socks4 response length */
 #define SOCKS4_HS_RSP_LEN 8
 
+/* socks4 upstream proxy definitions */
+struct socks4_request
+{
+	uint8_t version; /* SOCKS version number, 1 byte, must be 0x04 for this version */
+	uint8_t command; /* 0x01 = establish a TCP/IP stream connection */
+	uint16_t port;	 /* port number, 2 bytes (in network byte order) */
+	uint32_t ip;	 /* IP address, 4 bytes (in network byte order) */
+	char user_id[8]; /* the user ID string, variable length, terminated with a null (0x00); Using "HAProxy\0" */
+};
+
 /* Describes a set of subscriptions. Multiple events may be registered at the
  * same time. The callee should assume everything not pending for completion is
  * implicitly possible. It's illegal to change the tasklet if events are still
