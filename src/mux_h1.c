@@ -2319,30 +2319,47 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 	struct h1c *h1c = context;
 	int expired = tick_is_expired(t->expire, now_ms);
 
-	TRACE_POINT(H1_EV_H1C_WAKE, h1c ? h1c->conn : NULL);
+	TRACE_ENTER(H1_EV_H1C_WAKE, h1c ? h1c->conn : NULL);
 
 	if (h1c) {
+		 /* Make sure nobody stole the connection from us */
+		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+
+		/* Somebody already stole the connection from us, so we should not
+		 * free it, we just have to free the task.
+		 */
+		if (!t->context) {
+			h1c = NULL;
+			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+			goto do_leave;
+		}
+
 		if (!expired) {
-			TRACE_DEVEL("leaving (not expired)", H1_EV_H1C_WAKE, h1c->conn);
+			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+			TRACE_DEVEL("leaving (not expired)", H1_EV_H1C_WAKE, h1c->conn, h1c->h1s);
+			return t;
+		}
+
+		/* If a conn-stream is still attached to the mux, wait for the
+		 * stream's timeout
+		 */
+		if (h1c->flags & H1C_F_CS_ATTACHED) {
+			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+			t->expire = TICK_ETERNITY;
+			TRACE_DEVEL("leaving (CS still attached)", H1_EV_H1C_WAKE, h1c->conn, h1c->h1s);
 			return t;
 		}
 
 		/* We're about to destroy the connection, so make sure nobody attempts
 		 * to steal it from us.
 		 */
-		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
-
-		/* Somebody already stole the connection from us, so we should not
-		 * free it, we just have to free the task.
-		 */
-		if (!t->context)
-			h1c = NULL;
-		else if (h1c->conn->flags & CO_FL_LIST_MASK)
+		if (h1c->conn->flags & CO_FL_LIST_MASK)
 			MT_LIST_DEL(&h1c->conn->list);
 
 		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 	}
 
+  do_leave:
 	task_destroy(t);
 
 	if (!h1c) {
@@ -2352,17 +2369,8 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 	}
 
 	h1c->task = NULL;
-	/* If a stream is still attached to the mux, just set an error and wait
-	 * for the stream's timeout. Otherwise, release the mux. This is only ok
-	 * because same timeouts are used.
-	 */
-	if (h1c->flags & H1C_F_CS_ATTACHED) {
-		h1c->flags |= H1C_F_CS_ERROR;
-		TRACE_STATE("error on h1c, h1s still attached (expired)", H1_EV_H1C_WAKE|H1_EV_H1C_ERR, h1c->conn, h1c->h1s);
-	}
-	else
-		h1_release(h1c);
-
+	h1_release(h1c);
+	TRACE_LEAVE(H1_EV_H1C_WAKE);
 	return NULL;
 }
 
