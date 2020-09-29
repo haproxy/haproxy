@@ -1126,7 +1126,7 @@ static int writeToProxy(struct connection *conn, char *data, size_t len, int fla
 	DPRINTF(stderr, "Writting to SOCK4A header: \n");
 	for (i = 0; i < len; ++i)
 		DPRINTF(stderr, "%02X ", (int)*(data + i));
-	DPRINTF(stderr, "\nWritting end-of-block\n");
+	DPRINTF(stderr, "\nEnd-of-block\n");
 #endif
 	ret = conn_sock_send(
 		conn, data + len + conn->send_proxy_ofs,
@@ -1182,10 +1182,20 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 	if (conn->send_proxy_ofs < 0)
 	{
 		int ret = 0;
+		const size_t hdr_size = sizeof(req_line);
+
 		const int flags = (conn->subs && conn->subs->events & SUB_RETRY_SEND) ? MSG_MORE : 0;
-		ret = writeToProxy(conn, (char *)(&req_line), sizeof(req_line), flags);
-		if (0 == ret && proxy_resolve)
-			ret = writeToProxy(conn, conn->requested_domain, domainlen, flags);
+		if (proxy_resolve)
+		{
+			const size_t total = hdr_size + domainlen;
+			char *tmp = malloc(total);
+			memcpy(tmp, &req_line, hdr_size);
+			memcpy(tmp + hdr_size, conn->requested_domain, domainlen);
+			ret = writeToProxy(conn, tmp, total, flags);
+			free(tmp);
+		}
+		else
+			ret = writeToProxy(conn, (char *)(&req_line), hdr_size, flags);
 
 		/* we are sending the socks4_req_line here. If the data layer
 		 * has a pending write, we'll also set MSG_MORE.
