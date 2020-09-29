@@ -40,7 +40,7 @@ haproxy h1 -arg "-L A" -conf {
 } -start
 
 client c1 -connect ${h1_px_sock} {
-    txreq -url "http://${h1_px_addr}/url1"
+    txreq -url "http://127.0.0.1/url1"
     rxresp
     expect resp.status == 200
     expect resp.http.Server ~ s2
@@ -54,7 +54,7 @@ client c2 -connect ${h1_px_sock} {
 } -run
 
 client c3 -connect ${h1_px_sock} {
-    txreq -url "http://${h1_px_addr}/url2"
+    txreq -url "http://127.0.0.1/url2"
     rxresp
     expect resp.status == 200
     expect resp.http.Server ~ s3
