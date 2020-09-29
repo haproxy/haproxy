@@ -640,11 +640,22 @@ int assign_server(struct stream *s)
 			}
 		}
 	}
-	if (s->be->lbprm.algo & BE_LB_KIND) {
 
+	if (s->be->lbprm.algo & BE_LB_KIND) {
 		/* we must check if we have at least one server available */
 		if (!s->be->lbprm.tot_weight) {
 			err = SRV_STATUS_NOSRV;
+			goto out;
+		}
+
+		/* if there's some queue on the backend, with certain algos we
+		 * know it's because all servers are full.
+		 */
+		if (s->be->nbpend &&
+		    (((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_CB) || // conn-based: leastconn & first
+		     ((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_RR) ||   // roundrobin
+		     ((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_SRR))) { // static-rr
+			err = SRV_STATUS_FULL;
 			goto out;
 		}
 
