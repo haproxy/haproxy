@@ -949,7 +949,8 @@ void listener_accept(int fd)
 
 				t2 = t1 = t0;
 				t2 >>= 16;
-				SIGPIPE
+				t1 &= 0xFFFF;
+
 				/* t1 walks low to high bits ;
 				 * t2 walks high to low.
 				 */
