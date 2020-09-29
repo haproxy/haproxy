@@ -1159,7 +1159,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 	req_line.ip = is_inet_addr(conn->dst);
 
 	proxy_resolve = conn->requested_domain != NULL;
-	domainlen = (proxy_resolve) ? (strlen(conn->requested_domain) + 1) : 0;
+	domainlen = (proxy_resolve) ? (strlen(conn->requested_domain) + 1) : 0u;
 
 	if (proxy_resolve)
 	{
@@ -1176,7 +1176,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 		 * This is the first call to send the request
 		 */
 
-		conn->send_proxy_ofs = -(int)(sizeof(req_line) + ((proxy_resolve) ? domainlen : 0));
+		conn->send_proxy_ofs = -(int)(sizeof(req_line) + domainlen);
 	}
 
 	if (conn->send_proxy_ofs < 0)
