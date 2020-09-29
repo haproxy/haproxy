@@ -4461,27 +4461,30 @@ out:
  */
 int srv_init_addr(void)
 {
-	struct proxy *curproxy;
+	struct proxy *curproxy = NULL;
 	int return_code = 0;
 
 	curproxy = proxies_list;
 	while (curproxy)
 	{
-		struct server *srv;
+		struct server *srv = NULL;
 
 		/* servers are in backend only */
-		if (!(curproxy->cap & PR_CAP_BE))
-			goto srv_init_addr_next;
-
-		for (srv = curproxy->srv; srv; srv = srv->next)
-			if (srv->hostname)
-			{
-				int r = srv_iterate_initaddr(srv);
-				if (0 == (srv->flags & SRV_F_SOCKS4_PROXY))
-					return_code |= r;
-			}
-
-	srv_init_addr_next:
+		if (curproxy->cap & PR_CAP_BE)
+		{
+			for (srv = curproxy->srv; srv; srv = srv->next)
+				if (srv->hostname)
+				{
+					int r = srv_iterate_initaddr(srv);
+					if (r)
+					{
+						if (0 == (srv->flags & SRV_F_SOCKS4_PROXY))
+							return_code |= r;
+						else
+							srv->flags |= SRV_F_SOCKS4_PROXY_FAILED_RESOLVE;
+					}
+				}
+		}
 		curproxy = curproxy->next;
 	}
 

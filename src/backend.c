@@ -67,11 +67,12 @@ int be_lastsession(const struct proxy *be)
 }
 
 /* helper function to invoke the correct hash method */
-static unsigned int gen_hash(const struct proxy* px, const char* key, unsigned long len)
+static unsigned int gen_hash(const struct proxy *px, const char *key, unsigned long len)
 {
 	unsigned int hash;
 
-	switch (px->lbprm.algo & BE_LB_HASH_FUNC) {
+	switch (px->lbprm.algo & BE_LB_HASH_FUNC)
+	{
 	case BE_LB_HFCN_DJB2:
 		hash = hash_djb2(key, len);
 		break;
@@ -111,18 +112,22 @@ void recount_servers(struct proxy *px)
 	px->srv_act = px->srv_bck = 0;
 	px->lbprm.tot_wact = px->lbprm.tot_wbck = 0;
 	px->lbprm.fbck = NULL;
-	for (srv = px->srv; srv != NULL; srv = srv->next) {
+	for (srv = px->srv; srv != NULL; srv = srv->next)
+	{
 		if (!srv_willbe_usable(srv))
 			continue;
 
-		if (srv->flags & SRV_F_BACKUP) {
+		if (srv->flags & SRV_F_BACKUP)
+		{
 			if (!px->srv_bck &&
-			    !(px->options & PR_O_USE_ALL_BK))
+				!(px->options & PR_O_USE_ALL_BK))
 				px->lbprm.fbck = srv;
 			px->srv_bck++;
 			srv->cumulative_weight = px->lbprm.tot_wbck;
 			px->lbprm.tot_wbck += srv->next_eweight;
-		} else {
+		}
+		else
+		{
 			px->srv_act++;
 			srv->cumulative_weight = px->lbprm.tot_wact;
 			px->lbprm.tot_wact += srv->next_eweight;
@@ -140,18 +145,21 @@ void recount_servers(struct proxy *px)
  */
 void update_backend_weight(struct proxy *px)
 {
-	if (px->srv_act) {
+	if (px->srv_act)
+	{
 		px->lbprm.tot_weight = px->lbprm.tot_wact;
-		px->lbprm.tot_used   = px->srv_act;
+		px->lbprm.tot_used = px->srv_act;
 	}
-	else if (px->lbprm.fbck) {
+	else if (px->lbprm.fbck)
+	{
 		/* use only the first backup server */
 		px->lbprm.tot_weight = px->lbprm.fbck->next_eweight;
 		px->lbprm.tot_used = 1;
 	}
-	else {
+	else
+	{
 		px->lbprm.tot_weight = px->lbprm.tot_wbck;
-		px->lbprm.tot_used   = px->srv_bck;
+		px->lbprm.tot_used = px->srv_bck;
 	}
 }
 
@@ -175,13 +183,14 @@ static struct server *get_server_sh(struct proxy *px, const char *addr, int len,
 	if (px->lbprm.tot_used == 1)
 		goto hash_done;
 
-	while ((l + sizeof (int)) <= len) {
+	while ((l + sizeof(int)) <= len)
+	{
 		h ^= ntohl(*(unsigned int *)(&addr[l]));
-		l += sizeof (int);
+		l += sizeof(int);
 	}
 	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		h = full_hash(h);
- hash_done:
+hash_done:
 	if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, h, avoid);
 	else
@@ -220,9 +229,11 @@ static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len, co
 		uri_len = MIN(uri_len, px->lbprm.arg_opt2);
 
 	start = end = uri;
-	while (uri_len--) {
+	while (uri_len--)
+	{
 		c = *end;
-		if (c == '/') {
+		if (c == '/')
+		{
 			slashes++;
 			if (slashes == px->lbprm.arg_opt3) /* depth+1 */
 				break;
@@ -236,7 +247,7 @@ static struct server *get_server_uh(struct proxy *px, char *uri, int uri_len, co
 
 	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		hash = full_hash(hash);
- hash_done:
+hash_done:
 	if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, hash, avoid);
 	else
@@ -273,10 +284,13 @@ static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_l
 	plen = px->lbprm.arg_len;
 	params = p;
 
-	while (uri_len > plen) {
+	while (uri_len > plen)
+	{
 		/* Look for the parameter name followed by an equal symbol */
-		if (params[plen] == '=') {
-			if (memcmp(params, px->lbprm.arg_str, plen) == 0) {
+		if (params[plen] == '=')
+		{
+			if (memcmp(params, px->lbprm.arg_str, plen) == 0)
+			{
 				/* OK, we have the parameter here at <params>, and
 				 * the value after the equal sign, at <p>
 				 * skip the equal symbol
@@ -285,7 +299,8 @@ static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_l
 				start = end = p;
 				uri_len -= plen + 1;
 
-				while (uri_len && *end != '&') {
+				while (uri_len && *end != '&')
+				{
 					uri_len--;
 					end++;
 				}
@@ -317,20 +332,21 @@ static struct server *get_server_ph(struct proxy *px, const char *uri, int uri_l
 static struct server *get_server_ph_post(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
-	struct channel  *req  = &s->req;
-	struct proxy    *px   = s->be;
-	struct htx      *htx = htxbuf(&req->buf);
-	struct htx_blk  *blk;
-	unsigned int     plen = px->lbprm.arg_len;
-	unsigned long    len;
-	const char      *params, *p, *start, *end;
+	struct channel *req = &s->req;
+	struct proxy *px = s->be;
+	struct htx *htx = htxbuf(&req->buf);
+	struct htx_blk *blk;
+	unsigned int plen = px->lbprm.arg_len;
+	unsigned long len;
+	const char *params, *p, *start, *end;
 
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
 	p = params = NULL;
 	len = 0;
-	for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+	for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk))
+	{
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		struct ist v;
 
@@ -342,10 +358,13 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
 		break;
 	}
 
-	while (len > plen) {
+	while (len > plen)
+	{
 		/* Look for the parameter name followed by an equal symbol */
-		if (params[plen] == '=') {
-			if (memcmp(params, px->lbprm.arg_str, plen) == 0) {
+		if (params[plen] == '=')
+		{
+			if (memcmp(params, px->lbprm.arg_str, plen) == 0)
+			{
 				/* OK, we have the parameter here at <params>, and
 				 * the value after the equal sign, at <p>
 				 * skip the equal symbol
@@ -354,14 +373,16 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
 				start = end = p;
 				len -= plen + 1;
 
-				while (len && *end != '&') {
-					if (unlikely(!HTTP_IS_TOKEN(*p))) {
+				while (len && *end != '&')
+				{
+					if (unlikely(!HTTP_IS_TOKEN(*p)))
+					{
 						/* if in a POST, body must be URI encoded or it's not a URI.
 						 * Do not interpret any possible binary data as a parameter.
 						 */
 						if (likely(HTTP_IS_LWS(*p))) /* eol, uncertain uri len */
 							break;
-						return NULL;                 /* oh, no; this is not uri-encoded.
+						return NULL; /* oh, no; this is not uri-encoded.
 									      * This body does not contain parameters.
 									      */
 					}
@@ -391,7 +412,6 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
 	return NULL;
 }
 
-
 /*
  * This function tries to find a running server for the proxy <px> following
  * the Header parameter hash method. It looks for a specific parameter in the
@@ -405,13 +425,13 @@ static struct server *get_server_ph_post(struct stream *s, const struct server *
 static struct server *get_server_hh(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
-	struct proxy    *px   = s->be;
-	unsigned int     plen = px->lbprm.arg_len;
-	unsigned long    len;
-	const char      *p;
+	struct proxy *px = s->be;
+	unsigned int plen = px->lbprm.arg_len;
+	unsigned long len;
+	const char *p;
 	const char *start, *end;
 	struct htx *htx = htxbuf(&s->req.buf);
-	struct http_hdr_ctx ctx = { .blk = NULL };
+	struct http_hdr_ctx ctx = {.blk = NULL};
 
 	/* tot_weight appears to mean srv_count */
 	if (px->lbprm.tot_weight == 0)
@@ -431,11 +451,14 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 	 * we will compute the hash based on this value ctx.val.
 	 */
 	len = ctx.value.len;
-	p   = ctx.value.ptr;
+	p = ctx.value.ptr;
 
-	if (!px->lbprm.arg_opt1) {
+	if (!px->lbprm.arg_opt1)
+	{
 		hash = gen_hash(px, p, len);
-	} else {
+	}
+	else
+	{
 		int dohash = 0;
 		p += len;
 		/* special computation, use only main domain name, not tld/host
@@ -445,15 +468,18 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 		 * a special option to activate this.
 		 */
 		end = p;
-		while (len) {
-			if (dohash) {
+		while (len)
+		{
+			if (dohash)
+			{
 				/* Rewind the pointer until the previous char
 				 * is a dot, this will allow to set the start
 				 * position of the domain. */
 				if (*(p - 1) == '.')
 					break;
 			}
-			else if (*p == '.') {
+			else if (*p == '.')
+			{
 				/* The pointer is rewinded to the dot before the
 				 * tld, we memorize the end of the domain and
 				 * can enter the domain processing. */
@@ -468,7 +494,7 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 	}
 	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		hash = full_hash(hash);
- hash_done:
+hash_done:
 	if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, hash, avoid);
 	else
@@ -479,10 +505,10 @@ static struct server *get_server_hh(struct stream *s, const struct server *avoid
 static struct server *get_server_rch(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
-	struct proxy    *px   = s->be;
-	unsigned long    len;
-	int              ret;
-	struct sample    smp;
+	struct proxy *px = s->be;
+	unsigned long len;
+	int ret;
+	struct sample smp;
 	int rewind;
 
 	/* tot_weight appears to mean srv_count */
@@ -513,7 +539,7 @@ static struct server *get_server_rch(struct stream *s, const struct server *avoi
 
 	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		hash = full_hash(hash);
- hash_done:
+hash_done:
 	if ((px->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 		return chash_get_server_hash(px, hash, avoid);
 	else
@@ -524,7 +550,7 @@ static struct server *get_server_rch(struct stream *s, const struct server *avoi
 static struct server *get_server_rnd(struct stream *s, const struct server *avoid)
 {
 	unsigned int hash = 0;
-	struct proxy  *px = s->be;
+	struct proxy *px = s->be;
 	struct server *prev, *curr;
 	int draws = px->lbprm.arg_opt1; // number of draws
 
@@ -533,7 +559,8 @@ static struct server *get_server_rnd(struct stream *s, const struct server *avoi
 		return NULL;
 
 	curr = NULL;
-	do {
+	do
+	{
 		prev = curr;
 		hash = ha_random32();
 		curr = chash_get_server_hash(px, hash, avoid);
@@ -544,7 +571,7 @@ static struct server *get_server_rnd(struct stream *s, const struct server *avoi
 		 * the one with the least currently served requests.
 		 */
 		if (prev && prev != curr &&
-		    curr->served * prev->cur_eweight > prev->served * curr->cur_eweight)
+			curr->served * prev->cur_eweight > prev->served * curr->cur_eweight)
 			curr = prev;
 	} while (--draws > 0);
 
@@ -583,13 +610,13 @@ int assign_server(struct stream *s)
 	struct server *srv = NULL, *prev_srv;
 	int err;
 
-	DPRINTF(stderr,"assign_server : s=%p\n",s);
+	DPRINTF(stderr, "assign_server : s=%p\n", s);
 
 	err = SRV_STATUS_INTERNAL;
 	if (unlikely(s->pend_pos || s->flags & SF_ASSIGNED))
 		goto out_err;
 
-	prev_srv  = objt_server(s->target);
+	prev_srv = objt_server(s->target);
 	conn_slot = s->srv_conn;
 
 	/* We have to release any connection slot before applying any LB algo,
@@ -607,23 +634,28 @@ int assign_server(struct stream *s)
 	s->target = NULL;
 
 	if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI &&
-	    ((s->sess->flags & SESS_FL_PREFER_LAST) ||
-	     (s->be->options & PR_O_PREF_LAST))) {
+		((s->sess->flags & SESS_FL_PREFER_LAST) ||
+		 (s->be->options & PR_O_PREF_LAST)))
+	{
 		struct sess_srv_list *srv_list;
-		list_for_each_entry(srv_list, &s->sess->srv_list, srv_list) {
+		list_for_each_entry(srv_list, &s->sess->srv_list, srv_list)
+		{
 			struct server *tmpsrv = objt_server(srv_list->target);
 
 			if (tmpsrv && tmpsrv->proxy == s->be &&
-			    ((s->sess->flags & SESS_FL_PREFER_LAST) ||
-			     (!s->be->max_ka_queue ||
-			      server_has_room(tmpsrv) || (
-			      tmpsrv->nbpend + 1 < s->be->max_ka_queue))) &&
-			    srv_currently_usable(tmpsrv)) {
-				list_for_each_entry(conn, &srv_list->conn_list, session_list) {
-					if (!(conn->flags & CO_FL_WAIT_XPRT)) {
+				((s->sess->flags & SESS_FL_PREFER_LAST) ||
+				 (!s->be->max_ka_queue ||
+				  server_has_room(tmpsrv) || (tmpsrv->nbpend + 1 < s->be->max_ka_queue))) &&
+				srv_currently_usable(tmpsrv))
+			{
+				list_for_each_entry(conn, &srv_list->conn_list, session_list)
+				{
+					if (!(conn->flags & CO_FL_WAIT_XPRT))
+					{
 						srv = tmpsrv;
 						s->target = &srv->obj_type;
-						if (conn->flags & CO_FL_SESS_IDLE) {
+						if (conn->flags & CO_FL_SESS_IDLE)
+						{
 							conn->flags &= ~CO_FL_SESS_IDLE;
 							s->sess->idle_conns--;
 						}
@@ -633,10 +665,12 @@ int assign_server(struct stream *s)
 			}
 		}
 	}
-	if (s->be->lbprm.algo & BE_LB_KIND) {
+	if (s->be->lbprm.algo & BE_LB_KIND)
+	{
 
 		/* we must check if we have at least one server available */
-		if (!s->be->lbprm.tot_weight) {
+		if (!s->be->lbprm.tot_weight)
+		{
 			err = SRV_STATUS_NOSRV;
 			goto out;
 		}
@@ -645,7 +679,8 @@ int assign_server(struct stream *s)
 		 * the LB lookup function. Only the hashing functions will need
 		 * some input data in fact, and will support multiple algorithms.
 		 */
-		switch (s->be->lbprm.algo & BE_LB_LKUP) {
+		switch (s->be->lbprm.algo & BE_LB_LKUP)
+		{
 		case BE_LB_LKUP_RRTREE:
 			srv = fwrr_get_next_server(s->be, prev_srv);
 			break;
@@ -660,7 +695,8 @@ int assign_server(struct stream *s)
 
 		case BE_LB_LKUP_CHTREE:
 		case BE_LB_LKUP_MAP:
-			if ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR) {
+			if ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR)
+			{
 				if ((s->be->lbprm.algo & BE_LB_PARM) == BE_LB_RR_RANDOM)
 					srv = get_server_rnd(s, prev_srv);
 				else if ((s->be->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
@@ -669,26 +705,31 @@ int assign_server(struct stream *s)
 					srv = map_get_server_rr(s->be, prev_srv);
 				break;
 			}
-			else if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI) {
+			else if ((s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_HI)
+			{
 				/* unknown balancing algorithm */
 				err = SRV_STATUS_INTERNAL;
 				goto out;
 			}
 
-			switch (s->be->lbprm.algo & BE_LB_PARM) {
+			switch (s->be->lbprm.algo & BE_LB_PARM)
+			{
 			case BE_LB_HASH_SRC:
 				conn = objt_conn(strm_orig(s));
-				if (conn && conn_get_src(conn) && conn->src->ss_family == AF_INET) {
+				if (conn && conn_get_src(conn) && conn->src->ss_family == AF_INET)
+				{
 					srv = get_server_sh(s->be,
-							    (void *)&((struct sockaddr_in *)conn->src)->sin_addr,
-							    4, prev_srv);
+										(void *)&((struct sockaddr_in *)conn->src)->sin_addr,
+										4, prev_srv);
 				}
-				else if (conn && conn_get_src(conn) && conn->src->ss_family == AF_INET6) {
+				else if (conn && conn_get_src(conn) && conn->src->ss_family == AF_INET6)
+				{
 					srv = get_server_sh(s->be,
-							    (void *)&((struct sockaddr_in6 *)conn->src)->sin6_addr,
-							    16, prev_srv);
+										(void *)&((struct sockaddr_in6 *)conn->src)->sin6_addr,
+										16, prev_srv);
 				}
-				else {
+				else
+				{
 					/* unknown IP family */
 					err = SRV_STATUS_INTERNAL;
 					goto out;
@@ -697,11 +738,13 @@ int assign_server(struct stream *s)
 
 			case BE_LB_HASH_URI:
 				/* URI hashing */
-				if (IS_HTX_STRM(s) && s->txn->req.msg_state >= HTTP_MSG_BODY) {
+				if (IS_HTX_STRM(s) && s->txn->req.msg_state >= HTTP_MSG_BODY)
+				{
 					struct ist uri;
 
 					uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
-					if (s->be->lbprm.arg_opt1 & 2) {
+					if (s->be->lbprm.arg_opt1 & 2)
+					{
 						uri = http_get_path(uri);
 						if (!uri.ptr)
 							uri = ist("");
@@ -712,7 +755,8 @@ int assign_server(struct stream *s)
 
 			case BE_LB_HASH_PRM:
 				/* URL Parameter hashing */
-				if (IS_HTX_STRM(s) && s->txn->req.msg_state >= HTTP_MSG_BODY) {
+				if (IS_HTX_STRM(s) && s->txn->req.msg_state >= HTTP_MSG_BODY)
+				{
 					struct ist uri;
 
 					uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
@@ -743,7 +787,8 @@ int assign_server(struct stream *s)
 			/* If the hashing parameter was not found, let's fall
 			 * back to round robin on the map.
 			 */
-			if (!srv) {
+			if (!srv)
+			{
 				if ((s->be->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
 					srv = chash_get_next_server(s->be, prev_srv);
 				else
@@ -759,31 +804,39 @@ int assign_server(struct stream *s)
 			goto out;
 		}
 
-		if (!srv) {
+		if (!srv)
+		{
 			err = SRV_STATUS_FULL;
 			goto out;
 		}
-		else if (srv != prev_srv) {
+		else if (srv != prev_srv)
+		{
 			_HA_ATOMIC_ADD(&s->be->be_counters.cum_lbconn, 1);
 			_HA_ATOMIC_ADD(&srv->counters.cum_lbconn, 1);
 		}
 		s->target = &srv->obj_type;
 	}
-	else if (s->be->options & (PR_O_DISPATCH | PR_O_TRANSP)) {
+	else if (s->be->options & (PR_O_DISPATCH | PR_O_TRANSP))
+	{
 		s->target = &s->be->obj_type;
 	}
-	else if ((s->be->options & PR_O_HTTP_PROXY)) {
+	else if ((s->be->options & PR_O_HTTP_PROXY))
+	{
 		conn = cs_conn(objt_cs(s->si[1].end));
 
-		if (conn && conn->dst && is_addr(conn->dst)) {
+		if (conn && conn->dst && is_addr(conn->dst))
+		{
 			/* in proxy mode, we need a valid destination address */
 			s->target = &s->be->obj_type;
-		} else {
+		}
+		else
+		{
 			err = SRV_STATUS_NOSRV;
 			goto out;
 		}
 	}
-	else {
+	else
+	{
 		err = SRV_STATUS_NOSRV;
 		goto out;
 	}
@@ -791,21 +844,25 @@ int assign_server(struct stream *s)
 out_ok:
 	s->flags |= SF_ASSIGNED;
 	err = SRV_STATUS_OK;
- out:
+out:
 
 	/* Either we take back our connection slot, or we offer it to someone
 	 * else if we don't need it anymore.
 	 */
-	if (conn_slot) {
-		if (conn_slot == srv) {
+	if (conn_slot)
+	{
+		if (conn_slot == srv)
+		{
 			sess_change_server(s, srv);
-		} else {
+		}
+		else
+		{
 			if (may_dequeue_tasks(conn_slot, s->be))
 				process_srv_queue(conn_slot);
 		}
 	}
 
- out_err:
+out_err:
 	return err;
 }
 
@@ -825,12 +882,13 @@ int assign_server_address(struct stream *s)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 
-	DPRINTF(stderr,"assign_server_address : s=%p\n",s);
+	DPRINTF(stderr, "assign_server_address : s=%p\n", s);
 
 	if (!sockaddr_alloc(&s->target_addr))
 		return SRV_STATUS_INTERNAL;
 
-	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
+	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND))
+	{
 		/* A server is necessarily known for this stream */
 		if (!(s->flags & SF_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
@@ -838,27 +896,35 @@ int assign_server_address(struct stream *s)
 		*s->target_addr = __objt_server(s->target)->addr;
 		set_host_port(s->target_addr, __objt_server(s->target)->svc_port);
 
-		if (!is_addr(s->target_addr) && cli_conn) {
+		if (!is_addr(s->target_addr) && cli_conn)
+		{
 			/* if the server has no address, we use the same address
 			 * the client asked, which is handy for remapping ports
 			 * locally on multiple addresses at once. Nothing is done
 			 * for AF_UNIX addresses.
 			 */
-			if (!conn_get_dst(cli_conn)) {
+			if (!conn_get_dst(cli_conn))
+			{
 				/* do nothing if we can't retrieve the address */
-			} else if (cli_conn->dst->ss_family == AF_INET) {
+			}
+			else if (cli_conn->dst->ss_family == AF_INET)
+			{
 				((struct sockaddr_in *)s->target_addr)->sin_addr = ((struct sockaddr_in *)cli_conn->dst)->sin_addr;
-			} else if (cli_conn->dst->ss_family == AF_INET6) {
+			}
+			else if (cli_conn->dst->ss_family == AF_INET6)
+			{
 				((struct sockaddr_in6 *)s->target_addr)->sin6_addr = ((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr;
 			}
 		}
 
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
-		if ((__objt_server(s->target)->flags & SRV_F_MAPPORTS) && cli_conn) {
+		if ((__objt_server(s->target)->flags & SRV_F_MAPPORTS) && cli_conn)
+		{
 			int base_port;
 
-			if (conn_get_dst(cli_conn)) {
+			if (conn_get_dst(cli_conn))
+			{
 				/* First, retrieve the port from the incoming connection */
 				base_port = get_host_port(cli_conn->dst);
 
@@ -868,21 +934,25 @@ int assign_server_address(struct stream *s)
 			}
 		}
 	}
-	else if (s->be->options & PR_O_DISPATCH) {
+	else if (s->be->options & PR_O_DISPATCH)
+	{
 		/* connect to the defined dispatch addr */
 		*s->target_addr = s->be->dispatch_addr;
 	}
-	else if ((s->be->options & PR_O_TRANSP) && cli_conn) {
+	else if ((s->be->options & PR_O_TRANSP) && cli_conn)
+	{
 		/* in transparent mode, use the original dest addr if no dispatch specified */
 		if (conn_get_dst(cli_conn) &&
-		    (cli_conn->dst->ss_family == AF_INET || cli_conn->dst->ss_family == AF_INET6))
+			(cli_conn->dst->ss_family == AF_INET || cli_conn->dst->ss_family == AF_INET6))
 			*s->target_addr = *cli_conn->dst;
 	}
-	else if (s->be->options & PR_O_HTTP_PROXY) {
+	else if (s->be->options & PR_O_HTTP_PROXY)
+	{
 		/* If HTTP PROXY option is set, then server is already assigned
 		 * during incoming client request parsing. */
 	}
-	else {
+	else
+	{
 		/* no server and no LB algorithm ! */
 		return SRV_STATUS_INTERNAL;
 	}
@@ -920,11 +990,13 @@ int assign_server_and_queue(struct stream *s)
 		return SRV_STATUS_INTERNAL;
 
 	err = SRV_STATUS_OK;
-	if (!(s->flags & SF_ASSIGNED)) {
+	if (!(s->flags & SF_ASSIGNED))
+	{
 		struct server *prev_srv = objt_server(s->target);
 
 		err = assign_server(s);
-		if (prev_srv) {
+		if (prev_srv)
+		{
 			/* This stream was previously assigned to a server. We have to
 			 * update the stream's and the server's stats :
 			 *  - if the server changed :
@@ -934,27 +1006,32 @@ int assign_server_and_queue(struct stream *s)
 			 *  - if the server remained the same : update retries.
 			 */
 
-			if (prev_srv != objt_server(s->target)) {
-				if (s->txn && (s->txn->flags & TX_CK_MASK) == TX_CK_VALID) {
+			if (prev_srv != objt_server(s->target))
+			{
+				if (s->txn && (s->txn->flags & TX_CK_MASK) == TX_CK_VALID)
+				{
 					s->txn->flags &= ~TX_CK_MASK;
 					s->txn->flags |= TX_CK_DOWN;
 				}
 				s->flags |= SF_REDISP;
 				_HA_ATOMIC_ADD(&prev_srv->counters.redispatches, 1);
 				_HA_ATOMIC_ADD(&s->be->be_counters.redispatches, 1);
-			} else {
+			}
+			else
+			{
 				_HA_ATOMIC_ADD(&prev_srv->counters.retries, 1);
 				_HA_ATOMIC_ADD(&s->be->be_counters.retries, 1);
 			}
 		}
 	}
 
-	switch (err) {
+	switch (err)
+	{
 	case SRV_STATUS_OK:
 		/* we have SF_ASSIGNED set */
 		srv = objt_server(s->target);
 		if (!srv)
-			return SRV_STATUS_OK;   /* dispatch or proxy mode */
+			return SRV_STATUS_OK; /* dispatch or proxy mode */
 
 		/* If we already have a connection slot, no need to check any queue */
 		if (s->srv_conn == srv)
@@ -964,7 +1041,8 @@ int assign_server_and_queue(struct stream *s)
 		 * connection slot yet. Either it is a redispatch, or it was
 		 * assigned from persistence information (direct mode).
 		 */
-		if ((s->flags & SF_REDIRECTABLE) && srv->rdr_len) {
+		if ((s->flags & SF_REDIRECTABLE) && srv->rdr_len)
+		{
 			/* server scheduled for redirection, and already assigned. We
 			 * don't want to go further nor check the queue.
 			 */
@@ -978,7 +1056,8 @@ int assign_server_and_queue(struct stream *s)
 		 * not full, in which case we have to return FULL.
 		 */
 		if (srv->maxconn &&
-		    (srv->nbpend || srv->served >= srv_dynamic_maxconn(srv))) {
+			(srv->nbpend || srv->served >= srv_dynamic_maxconn(srv)))
+		{
 
 			if (srv->maxqueue > 0 && srv->nbpend >= srv->maxqueue)
 				return SRV_STATUS_FULL;
@@ -1041,7 +1120,8 @@ static void assign_tproxy_address(struct stream *s)
 	if (!sockaddr_alloc(&srv_conn->src))
 		return;
 
-	switch (src->opts & CO_SRC_TPROXY_MASK) {
+	switch (src->opts & CO_SRC_TPROXY_MASK)
+	{
 	case CO_SRC_TPROXY_ADDR:
 		*srv_conn->src = src->tproxy_addr;
 		break;
@@ -1051,12 +1131,14 @@ static void assign_tproxy_address(struct stream *s)
 		cli_conn = objt_conn(strm_orig(s));
 		if (cli_conn && conn_get_src(cli_conn))
 			*srv_conn->src = *cli_conn->src;
-		else {
+		else
+		{
 			sockaddr_free(&srv_conn->src);
 		}
 		break;
 	case CO_SRC_TPROXY_DYN:
-		if (src->bind_hdr_occ && IS_HTX_STRM(s)) {
+		if (src->bind_hdr_occ && IS_HTX_STRM(s))
+		{
 			char *vptr;
 			size_t vlen;
 
@@ -1065,8 +1147,9 @@ static void assign_tproxy_address(struct stream *s)
 			((struct sockaddr_in *)srv_conn->src)->sin_port = 0;
 			((struct sockaddr_in *)srv_conn->src)->sin_addr.s_addr = 0;
 			if (http_get_htx_hdr(htxbuf(&s->req.buf),
-					     ist2(src->bind_hdr_name, src->bind_hdr_len),
-					     src->bind_hdr_occ, NULL, &vptr, &vlen)) {
+								 ist2(src->bind_hdr_name, src->bind_hdr_len),
+								 src->bind_hdr_occ, NULL, &vptr, &vlen))
+			{
 				((struct sockaddr_in *)srv_conn->src)->sin_addr.s_addr =
 					htonl(inetaddr_host_lim(vptr, vptr + vlen));
 			}
@@ -1101,9 +1184,11 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	/* If we failed to pick a connection from the idle list, let's try again with
 	 * the safe list.
 	 */
-	if (!conn && !is_safe && srv->curr_safe_nb > 0) {
+	if (!conn && !is_safe && srv->curr_safe_nb > 0)
+	{
 		conn = MT_LIST_POP(&srv->safe_conns[tid], struct connection *, list);
-		if (conn) {
+		if (conn)
+		{
 			is_safe = 1;
 			mt_list = srv->safe_conns;
 		}
@@ -1126,7 +1211,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	 * too few idle conns.
 	 */
 	if (srv->curr_idle_conns < srv->low_idle_conns &&
-	    ha_used_fds < global.tune.pool_low_count)
+		ha_used_fds < global.tune.pool_low_count)
 		goto done;
 
 	/* Lookup all other threads for an idle connection, starting from last
@@ -1136,15 +1221,18 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	if (stop >= global.nbthread)
 		stop = 0;
 
-	for (i = stop; !found && (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != stop;) {
+	for (i = stop; !found && (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != stop;)
+	{
 		struct mt_list *elt1, elt2;
 
 		if (!srv->curr_idle_thr[i] || i == tid)
 			continue;
 
 		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
-		mt_list_for_each_entry_safe(conn, &mt_list[i], list, elt1, elt2) {
-			if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
+		mt_list_for_each_entry_safe(conn, &mt_list[i], list, elt1, elt2)
+		{
+			if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0)
+			{
 				MT_LIST_DEL_SAFE(elt1);
 				_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 				found = 1;
@@ -1152,9 +1240,12 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 			}
 		}
 
-		if (!found && !is_safe && srv->curr_safe_nb > 0) {
-			mt_list_for_each_entry_safe(conn, &srv->safe_conns[i], list, elt1, elt2) {
-				if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
+		if (!found && !is_safe && srv->curr_safe_nb > 0)
+		{
+			mt_list_for_each_entry_safe(conn, &srv->safe_conns[i], list, elt1, elt2)
+			{
+				if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0)
+				{
 					MT_LIST_DEL_SAFE(elt1);
 					_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 					found = 1;
@@ -1169,8 +1260,9 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 
 	if (!found)
 		conn = NULL;
- done:
-	if (conn) {
+done:
+	if (conn)
+	{
 		_HA_ATOMIC_STORE(&srv->next_takeover, (i + 1 == global.nbthread) ? 0 : i + 1);
 		srv_use_idle_conn(srv, conn);
 	}
@@ -1202,7 +1294,6 @@ int connect_server(struct stream *s)
 	int init_mux = 0;
 	int err;
 
-
 	/* This will catch some corner cases such as lying connections resulting from
 	 * retries or connect timeouts but will rarely trigger.
 	 */
@@ -1215,7 +1306,8 @@ int connect_server(struct stream *s)
 
 	srv = objt_server(s->target);
 
-	if (srv && !reuse) {
+	if (srv && !reuse)
+	{
 		srv_conn = NULL;
 
 		/* Below we pick connections from the safe, idle  or
@@ -1237,29 +1329,34 @@ int connect_server(struct stream *s)
 		 * that there is no concurrency issues.
 		 */
 		if (srv->available_conns && !LIST_ISEMPTY(&srv->available_conns[tid]) &&
-		    ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR)) {
-			    srv_conn = LIST_ELEM(srv->available_conns[tid].n, struct connection *, list);
-			    reuse = 1;
+			((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR))
+		{
+			srv_conn = LIST_ELEM(srv->available_conns[tid].n, struct connection *, list);
+			reuse = 1;
 		}
-		else if (!srv_conn && srv->curr_idle_conns > 0) {
+		else if (!srv_conn && srv->curr_idle_conns > 0)
+		{
 			if (srv->idle_conns && srv->safe_conns &&
-			    ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR &&
-			     s->txn && (s->txn->flags & TX_NOT_FIRST)) &&
-			    srv->curr_idle_nb + srv->curr_safe_nb > 0) {
+				((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR &&
+				 s->txn && (s->txn->flags & TX_NOT_FIRST)) &&
+				srv->curr_idle_nb + srv->curr_safe_nb > 0)
+			{
 				/* we're on the second column of the tables above, let's
 				 * try idle then safe.
 				 */
 				srv_conn = conn_backend_get(srv, 0);
 			}
 			else if (srv->safe_conns &&
-			         ((s->txn && (s->txn->flags & TX_NOT_FIRST)) ||
-				  (s->be->options & PR_O_REUSE_MASK) >= PR_O_REUSE_AGGR) &&
-				 srv->curr_safe_nb > 0) {
+					 ((s->txn && (s->txn->flags & TX_NOT_FIRST)) ||
+					  (s->be->options & PR_O_REUSE_MASK) >= PR_O_REUSE_AGGR) &&
+					 srv->curr_safe_nb > 0)
+			{
 				srv_conn = conn_backend_get(srv, 1);
 			}
 			else if (srv->idle_conns &&
-			         ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
-				 srv->curr_idle_nb > 0) {
+					 ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
+					 srv->curr_idle_nb > 0)
+			{
 				srv_conn = conn_backend_get(srv, 0);
 			}
 			/* If we've picked a connection from the pool, we now have to
@@ -1273,27 +1370,30 @@ int connect_server(struct stream *s)
 		}
 	}
 
-
 	/* here reuse might have been set above, indicating srv_conn finally
 	 * is OK.
 	 */
-	if (reuse) {
+	if (reuse)
+	{
 		/* Disable connection reuse if a dynamic source is used.
 		 * As long as we don't share connections between servers,
 		 * we don't need to disable connection reuse on no-idempotent
 		 * requests nor when PROXY protocol is used.
 		 */
-		if (srv && srv->conn_src.opts & CO_SRC_BIND) {
+		if (srv && srv->conn_src.opts & CO_SRC_BIND)
+		{
 			if ((srv->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_DYN)
 				reuse = 0;
 		}
-		else if (s->be->conn_src.opts & CO_SRC_BIND) {
+		else if (s->be->conn_src.opts & CO_SRC_BIND)
+		{
 			if ((s->be->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_DYN)
 				reuse = 0;
 		}
 	}
 
-	if (ha_used_fds > global.tune.pool_high_count && srv && srv->idle_conns) {
+	if (ha_used_fds > global.tune.pool_high_count && srv && srv->idle_conns)
+	{
 		struct connection *tokill_conn;
 
 		/* We can't reuse a connection, and e have more FDs than deemd
@@ -1301,14 +1401,16 @@ int connect_server(struct stream *s)
 		 */
 		/* First, try from our own idle list */
 		tokill_conn = MT_LIST_POP(&srv->idle_conns[tid],
-		    struct connection *, list);
+								  struct connection *, list);
 		if (tokill_conn)
 			tokill_conn->mux->destroy(tokill_conn->ctx);
 		/* If not, iterate over other thread's idling pool, and try to grab one */
-		else {
+		else
+		{
 			int i;
 
-			for (i = tid; (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != tid;) {
+			for (i = tid; (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != tid;)
+			{
 				// just silence stupid gcc which reports an absurd
 				// out-of-bounds warning for <i> which is always
 				// exactly zero without threads, but it seems to
@@ -1317,15 +1419,16 @@ int connect_server(struct stream *s)
 
 				HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 				tokill_conn = MT_LIST_POP(&srv->idle_conns[i],
-				    struct connection *, list);
+										  struct connection *, list);
 				if (!tokill_conn)
 					tokill_conn = MT_LIST_POP(&srv->safe_conns[i],
-					    struct connection *, list);
-				if (tokill_conn) {
+											  struct connection *, list);
+				if (tokill_conn)
+				{
 					/* We got one, put it into the concerned thread's to kill list, and wake it's kill task */
 
 					MT_LIST_ADDQ(&idle_conns[i].toremove_conns,
-					    (struct mt_list *)&tokill_conn->list);
+								 (struct mt_list *)&tokill_conn->list);
 					task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
 					HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 					break;
@@ -1333,19 +1436,22 @@ int connect_server(struct stream *s)
 				HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 			}
 		}
-
 	}
 
-	if (reuse) {
-		if (srv_conn->mux) {
+	if (reuse)
+	{
+		if (srv_conn->mux)
+		{
 			int avail = srv_conn->mux->avail_streams(srv_conn);
 
-			if (avail <= 1) {
+			if (avail <= 1)
+			{
 				/* No more streams available, remove it from the list */
 				MT_LIST_DEL(&srv_conn->list);
 			}
 
-			if (avail >= 1) {
+			if (avail >= 1)
+			{
 				srv_cs = srv_conn->mux->attach(srv_conn, s->sess);
 				if (srv_cs)
 					si_attach_cs(&s->si[1], srv_cs);
@@ -1361,26 +1467,31 @@ int connect_server(struct stream *s)
 		srv_conn = NULL;
 
 	/* no reuse or failed to reuse the connection above, pick a new one */
-	if (!srv_conn) {
+	if (!srv_conn)
+	{
 		srv_conn = conn_new(s->target);
 		srv_cs = NULL;
 
-		if (srv_conn) {
+		if (srv_conn)
+		{
 			srv_conn->owner = s->sess;
 			if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
 				conn_set_private(srv_conn);
 		}
 	}
 
-	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst)) {
+	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst))
+	{
 		if (srv_conn)
 			conn_free(srv_conn);
 		return SF_ERR_RESOURCE;
 	}
 
-	if (!(s->flags & SF_ADDR_SET)) {
+	if (!(s->flags & SF_ADDR_SET))
+	{
 		err = assign_server_address(s);
-		if (err != SRV_STATUS_OK) {
+		if (err != SRV_STATUS_OK)
+		{
 			conn_free(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
@@ -1392,40 +1503,48 @@ int connect_server(struct stream *s)
 	/* Copy network namespace from client connection */
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
 
-	if (!conn_xprt_ready(srv_conn) && !srv_conn->mux) {
+	if (!conn_xprt_ready(srv_conn) && !srv_conn->mux)
+	{
+		/* unsigned int pfamily = (srv->flags & SRV_F_SOCKS4_PROXY_FAILED_RESOLVE) ? PF_PACKET : srv_conn->dst->ss_family; */
+		unsigned int pfamily = srv_conn->dst->ss_family;
 		/* set the correct protocol on the output stream interface */
 		if (srv)
-			conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), srv->xprt);
-		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
+			conn_prepare(srv_conn, protocol_by_family(pfamily), srv->xprt);
+		else if (obj_type(s->target) == OBJ_TYPE_PROXY)
+		{
 			/* proxies exclusively run on raw_sock right now */
-			conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), xprt_get(XPRT_RAW));
-			if (!(srv_conn->ctrl)) {
+			conn_prepare(srv_conn, protocol_by_family(pfamily), xprt_get(XPRT_RAW));
+			if (!(srv_conn->ctrl))
+			{
 				conn_free(srv_conn);
 				return SF_ERR_INTERNAL;
 			}
 		}
-		else {
+		else
+		{
 			conn_free(srv_conn);
-			return SF_ERR_INTERNAL;  /* how did we get there ? */
+			return SF_ERR_INTERNAL; /* how did we get there ? */
 		}
 
 		srv_cs = si_alloc_cs(&s->si[1], srv_conn);
-		if (!srv_cs) {
+		if (!srv_cs)
+		{
 			conn_free(srv_conn);
 			return SF_ERR_RESOURCE;
 		}
 		srv_conn->ctx = srv_cs;
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
-		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
-		     srv->mux_proto || s->be->mode != PR_MODE_HTTP))
+			(srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
+			 srv->mux_proto || s->be->mode != PR_MODE_HTTP))
 #endif
 			init_mux = 1;
 
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
 
-		if (srv && srv->pp_opts) {
+		if (srv && srv->pp_opts)
+		{
 			conn_set_private(srv_conn);
 			srv_conn->flags |= CO_FL_SEND_PROXY;
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
@@ -1435,16 +1554,21 @@ int connect_server(struct stream *s)
 
 		assign_tproxy_address(s);
 
-		if (srv && (srv->flags & SRV_F_SOCKS4_PROXY)) {
+		if (srv && (srv->flags & SRV_F_SOCKS4_PROXY))
+		{
 			srv_conn->send_proxy_ofs = 1;
 			srv_conn->flags |= CO_FL_SOCKS4;
+			if (srv->flags & SRV_F_SOCKS4_PROXY_FAILED_RESOLVE)
+				conn_set_domain(srv_conn, srv->hostname);
 		}
 	}
-	else if (!conn_xprt_ready(srv_conn)) {
+	else if (!conn_xprt_ready(srv_conn))
+	{
 		if (srv_conn->mux->reset)
 			srv_conn->mux->reset(srv_conn);
 	}
-	else {
+	else
+	{
 		/* Only consider we're doing reuse if the connection was
 		 * ready.
 		 */
@@ -1460,11 +1584,14 @@ int connect_server(struct stream *s)
 	if (s->be->options & PR_O_TCP_NOLING)
 		s->si[1].flags |= SI_FL_NOLINGER;
 
-	if (s->flags & SF_SRV_REUSED) {
+	if (s->flags & SF_SRV_REUSED)
+	{
 		_HA_ATOMIC_ADD(&s->be->be_counters.reuse, 1);
 		if (srv)
 			_HA_ATOMIC_ADD(&srv->counters.reuse, 1);
-	} else {
+	}
+	else
+	{
 		_HA_ATOMIC_ADD(&s->be->be_counters.connect, 1);
 		if (srv)
 			_HA_ATOMIC_ADD(&srv->counters.connect, 1);
@@ -1472,15 +1599,20 @@ int connect_server(struct stream *s)
 
 	err = si_connect(&s->si[1], srv_conn);
 	if (err != SF_ERR_NONE)
+	{
+
 		return err;
+	}
 
 #ifdef USE_OPENSSL
-	if (srv && srv->ssl_ctx.sni) {
+	if (srv && srv->ssl_ctx.sni)
+	{
 		struct sample *smp;
 
 		smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-					   srv->ssl_ctx.sni, SMP_T_STR);
-		if (smp_make_safe(smp)) {
+								   srv->ssl_ctx.sni, SMP_T_STR);
+		if (smp_make_safe(smp))
+		{
 			ssl_sock_set_servername(srv_conn, smp->data.u.str.area);
 			conn_set_private(srv_conn);
 		}
@@ -1490,8 +1622,10 @@ int connect_server(struct stream *s)
 	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,
 	 * if so, add our handshake pseudo-XPRT now.
 	 */
-	if ((srv_conn->flags & CO_FL_HANDSHAKE)) {
-		if (xprt_add_hs(srv_conn) < 0) {
+	if ((srv_conn->flags & CO_FL_HANDSHAKE))
+	{
+		if (xprt_add_hs(srv_conn) < 0)
+		{
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
@@ -1502,8 +1636,10 @@ int connect_server(struct stream *s)
 	 * initialized, or any attempt to recv during the mux init may
 	 * fail, and flag the connection as CO_FL_ERROR.
 	 */
-	if (init_mux) {
-		if (conn_install_mux_be(srv_conn, srv_cs, s->sess) < 0) {
+	if (init_mux)
+	{
+		if (conn_install_mux_be(srv_conn, srv_cs, s->sess) < 0)
+		{
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
@@ -1514,9 +1650,10 @@ int connect_server(struct stream *s)
 		 * server list.
 		 */
 		if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
-		    !(srv_conn->flags & CO_FL_PRIVATE) && srv_conn->mux->avail_streams(srv_conn) > 0)
+			!(srv_conn->flags & CO_FL_PRIVATE) && srv_conn->mux->avail_streams(srv_conn) > 0)
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
-		else if (srv_conn->flags & CO_FL_PRIVATE) {
+		else if (srv_conn->flags & CO_FL_PRIVATE)
+		{
 			/* If it fail now, the same will be done in mux->detach() callback */
 			session_add_conn(srv_conn->owner, srv_conn, srv_conn->target);
 		}
@@ -1525,24 +1662,25 @@ int connect_server(struct stream *s)
 #if USE_OPENSSL && (defined(OPENSSL_IS_BORINGSSL) || (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L))
 
 	if (!reuse && cli_conn && srv && srv_conn->mux &&
-	    (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
-	    /* Only attempt to use early data if either the client sent
+		(srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
+		/* Only attempt to use early data if either the client sent
 	     * early data, so that we know it can handle a 425, or if
 	     * we are allwoed to retry requests on early data failure, and
 	     * it's our first try
 	     */
-	    ((cli_conn->flags & CO_FL_EARLY_DATA) ||
-	     ((s->be->retry_type & PR_RE_EARLY_ERROR) &&
-	      s->si[1].conn_retries == s->be->conn_retries)) &&
-	    !channel_is_empty(si_oc(&s->si[1])) &&
-	    srv_conn->flags & CO_FL_SSL_WAIT_HS)
+		((cli_conn->flags & CO_FL_EARLY_DATA) ||
+		 ((s->be->retry_type & PR_RE_EARLY_ERROR) &&
+		  s->si[1].conn_retries == s->be->conn_retries)) &&
+		!channel_is_empty(si_oc(&s->si[1])) &&
+		srv_conn->flags & CO_FL_SSL_WAIT_HS)
 		srv_conn->flags &= ~(CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN);
 #endif
 
 	/* set connect timeout */
 	s->si[1].exp = tick_add_ifset(now_ms, s->be->timeout.connect);
 
-	if (srv) {
+	if (srv)
+	{
 		int count;
 
 		s->flags |= SF_CURR_SESS;
@@ -1568,8 +1706,9 @@ int connect_server(struct stream *s)
 	if (!(srv_conn->flags & (CO_FL_WAIT_XPRT | CO_FL_EARLY_SSL_HS)))
 		srv_cs->flags &= ~CS_FL_WAIT_FOR_HS;
 
-	if (!si_state_in(s->si[1].state, SI_SB_EST|SI_SB_DIS|SI_SB_CLO) &&
-	    (srv_conn->flags & CO_FL_WAIT_XPRT) == 0) {
+	if (!si_state_in(s->si[1].state, SI_SB_EST | SI_SB_DIS | SI_SB_CLO) &&
+		(srv_conn->flags & CO_FL_WAIT_XPRT) == 0)
+	{
 		s->si[1].exp = TICK_ETERNITY;
 		si_oc(&s->si[1])->flags |= CF_WRITE_NULL;
 		if (s->si[1].state == SI_ST_CON)
@@ -1584,19 +1723,20 @@ int connect_server(struct stream *s)
 	 *       care of it.
 	 */
 	if ((srv_cs->flags & CS_FL_EOI) && !(si_ic(&s->si[1])->flags & CF_EOI))
-		si_ic(&s->si[1])->flags |= (CF_EOI|CF_READ_PARTIAL);
+		si_ic(&s->si[1])->flags |= (CF_EOI | CF_READ_PARTIAL);
 
 	/* catch all sync connect while the mux is not already installed */
-	if (!srv_conn->mux && !(srv_conn->flags & CO_FL_WAIT_XPRT)) {
-		if (conn_create_mux(srv_conn) < 0) {
+	if (!srv_conn->mux && !(srv_conn->flags & CO_FL_WAIT_XPRT))
+	{
+		if (conn_create_mux(srv_conn) < 0)
+		{
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
 	}
 
-	return SF_ERR_NONE;  /* connection is OK */
+	return SF_ERR_NONE; /* connection is OK */
 }
-
 
 /* This function performs the "redispatch" part of a connection attempt. It
  * will assign a server if required, queue the connection if required, and
@@ -1614,11 +1754,12 @@ int srv_redispatch_connect(struct stream *s)
 	/* We know that we don't have any connection pending, so we will
 	 * try to get a new one, and wait in this state if it's queued
 	 */
- redispatch:
+redispatch:
 	conn_err = assign_server_and_queue(s);
 	srv = objt_server(s->target);
 
-	switch (conn_err) {
+	switch (conn_err)
+	{
 	case SRV_STATUS_OK:
 		break;
 
@@ -1630,14 +1771,16 @@ int srv_redispatch_connect(struct stream *s)
 		 * would bring us on the same server again. Note that s->target is set
 		 * in this case.
 		 */
-		if (((s->flags & (SF_DIRECT|SF_FORCE_PRST)) == SF_DIRECT) &&
-		    (s->be->options & PR_O_REDISP)) {
+		if (((s->flags & (SF_DIRECT | SF_FORCE_PRST)) == SF_DIRECT) &&
+			(s->be->options & PR_O_REDISP))
+		{
 			s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 			sockaddr_free(&s->target_addr);
 			goto redispatch;
 		}
 
-		if (!s->si[1].err_type) {
+		if (!s->si[1].err_type)
+		{
 			s->si[1].err_type = SI_ET_QUEUE_ERR;
 		}
 
@@ -1647,7 +1790,8 @@ int srv_redispatch_connect(struct stream *s)
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that srv == NULL here */
-		if (!s->si[1].err_type) {
+		if (!s->si[1].err_type)
+		{
 			s->si[1].err_type = SI_ET_CONN_ERR;
 		}
 
@@ -1662,7 +1806,8 @@ int srv_redispatch_connect(struct stream *s)
 
 	case SRV_STATUS_INTERNAL:
 	default:
-		if (!s->si[1].err_type) {
+		if (!s->si[1].err_type)
+		{
 			s->si[1].err_type = SI_ET_CONN_OTHER;
 		}
 
@@ -1689,8 +1834,8 @@ int srv_redispatch_connect(struct stream *s)
 static int back_may_abort_req(struct channel *req, struct stream *s)
 {
 	return ((req->flags & (CF_READ_ERROR)) ||
-	        ((req->flags & (CF_SHUTW_NOW|CF_SHUTW)) &&  /* empty and client aborted */
-	         (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
+			((req->flags & (CF_SHUTW_NOW | CF_SHUTW)) && /* empty and client aborted */
+			 (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))));
 }
 
 /* Update back stream interface status for input states SI_ST_ASS, SI_ST_QUE,
@@ -1705,39 +1850,44 @@ void back_try_conn_req(struct stream *s)
 	struct stream_interface *si = &s->si[1];
 	struct channel *req = &s->req;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 
-	if (si->state == SI_ST_ASS) {
+	if (si->state == SI_ST_ASS)
+	{
 		/* Server assigned to connection request, we have to try to connect now */
 		int conn_err;
 
 		/* Before we try to initiate the connection, see if the
 		 * request may be aborted instead.
 		 */
-		if (back_may_abort_req(req, s)) {
+		if (back_may_abort_req(req, s))
+		{
 			si->err_type |= SI_ET_CONN_ABRT;
-			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
 		conn_err = connect_server(s);
 		srv = objt_server(s->target);
 
-		if (conn_err == SF_ERR_NONE) {
+		if (conn_err == SF_ERR_NONE)
+		{
 			/* state = SI_ST_CON or SI_ST_EST now */
 			if (srv)
 				srv_inc_sess_ctr(srv);
 			if (srv)
 				srv_set_sess_last(srv);
-			DBG_TRACE_STATE("connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+			DBG_TRACE_STATE("connection attempt", STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 			goto end;
 		}
 
 		/* We have received a synchronous error. We might have to
 		 * abort, retry immediately or redispatch.
 		 */
-		if (conn_err == SF_ERR_INTERNAL) {
-			if (!si->err_type) {
+		if (conn_err == SF_ERR_INTERNAL)
+		{
+			if (!si->err_type)
+			{
 				si->err_type = SI_ET_CONN_OTHER;
 			}
 
@@ -1768,7 +1918,7 @@ void back_try_conn_req(struct stream *s)
 			si->state = SI_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, si);
-			DBG_TRACE_STATE("internal error during connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("internal error during connection", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 
@@ -1780,12 +1930,14 @@ void back_try_conn_req(struct stream *s)
 		si->flags &= ~SI_FL_ERR;
 		back_handle_st_cer(s);
 
-		DBG_TRACE_STATE("connection error, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		DBG_TRACE_STATE("connection error, retry", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 		/* now si->state is one of SI_ST_CLO, SI_ST_TAR, SI_ST_ASS, SI_ST_REQ */
 	}
-	else if (si->state == SI_ST_QUE) {
+	else if (si->state == SI_ST_QUE)
+	{
 		/* connection request was queued, check for any update */
-		if (!pendconn_dequeue(s)) {
+		if (!pendconn_dequeue(s))
+		{
 			/* The connection is not in the queue anymore. Either
 			 * we have a server connection slot available and we
 			 * go directly to the assigned state, or we need to
@@ -1794,16 +1946,18 @@ void back_try_conn_req(struct stream *s)
 			si->exp = TICK_ETERNITY;
 			if (unlikely(!(s->flags & SF_ASSIGNED)))
 				si->state = SI_ST_REQ;
-			else {
+			else
+			{
 				s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 				si->state = SI_ST_ASS;
 			}
-			DBG_TRACE_STATE("dequeue connection request", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+			DBG_TRACE_STATE("dequeue connection request", STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 			goto end;
 		}
 
 		/* Connection request still in queue... */
-		if (si->flags & SI_FL_EXP) {
+		if (si->flags & SI_FL_EXP)
+		{
 			/* ... and timeout expired */
 			si->exp = TICK_ETERNITY;
 			si->flags &= ~SI_FL_EXP;
@@ -1823,34 +1977,37 @@ void back_try_conn_req(struct stream *s)
 			si->state = SI_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, si);
-			DBG_TRACE_STATE("connection request still queued", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+			DBG_TRACE_STATE("connection request still queued", STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 			goto end;
 		}
 
 		/* Connection remains in queue, check if we have to abort it */
-		if (back_may_abort_req(req, s)) {
+		if (back_may_abort_req(req, s))
+		{
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
 			/* we may need to know the position in the queue for logging */
 			pendconn_cond_unlink(s->pend_pos);
 
 			si->err_type |= SI_ET_QUEUE_ABRT;
-			DBG_TRACE_STATE("abort queued connection request", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("abort queued connection request", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
 		/* Nothing changed */
 	}
-	else if (si->state == SI_ST_TAR) {
+	else if (si->state == SI_ST_TAR)
+	{
 		/* Connection request might be aborted */
-		if (back_may_abort_req(req, s)) {
+		if (back_may_abort_req(req, s))
+		{
 			si->err_type |= SI_ET_CONN_ABRT;
-			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("connection aborted", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 			goto abort_connection;
 		}
 
 		if (!(si->flags & SI_FL_EXP))
-			return;  /* still in turn-around */
+			return; /* still in turn-around */
 
 		si->flags &= ~SI_FL_EXP;
 		si->exp = TICK_ETERNITY;
@@ -1864,11 +2021,11 @@ void back_try_conn_req(struct stream *s)
 		else
 			si->state = SI_ST_REQ;
 
-		DBG_TRACE_STATE("retry connection now", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		DBG_TRACE_STATE("retry connection now", STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 	}
 
-  end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+end:
+	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 	return;
 
 abort_connection:
@@ -1880,7 +2037,7 @@ abort_connection:
 	si->state = SI_ST_CLO;
 	if (s->srv_error)
 		s->srv_error(s, si);
-	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+	DBG_TRACE_DEVEL("leaving on error", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 	return;
 }
 
@@ -1897,16 +2054,18 @@ void back_handle_st_req(struct stream *s)
 	if (si->state != SI_ST_REQ)
 		return;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 
-	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
+	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET))
+	{
 		/* the applet directly goes to the EST state */
 		struct appctx *appctx = objt_appctx(si->end);
 
 		if (!appctx || appctx->applet != __objt_applet(s->target))
 			appctx = si_register_handler(si, objt_applet(s->target));
 
-		if (!appctx) {
+		if (!appctx)
+		{
 			/* No more memory, let's immediately abort. Force the
 			 * error code to ignore the ERR_LOCAL which is not a
 			 * real error.
@@ -1920,29 +2079,31 @@ void back_handle_st_req(struct stream *s)
 			si->state = SI_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, si);
-			DBG_TRACE_STATE("failed to register applet", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("failed to register applet", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 
 		if (tv_iszero(&s->logs.tv_request))
 			s->logs.tv_request = now;
-		s->logs.t_queue   = tv_ms_elapsed(&s->logs.tv_accept, &now);
-		si->state         = SI_ST_EST;
-		si->err_type      = SI_ET_NONE;
+		s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
+		si->state = SI_ST_EST;
+		si->err_type = SI_ET_NONE;
 		be_set_sess_last(s->be);
 
-		DBG_TRACE_STATE("applet registered", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		DBG_TRACE_STATE("applet registered", STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 		/* let back_establish() finish the job */
 		goto end;
 	}
 
 	/* Try to assign a server */
-	if (srv_redispatch_connect(s) != 0) {
+	if (srv_redispatch_connect(s) != 0)
+	{
 		/* We did not get a server. Either we queued the
 		 * connection request, or we encountered an error.
 		 */
-		if (si->state == SI_ST_QUE) {
-			DBG_TRACE_STATE("connection request queued", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		if (si->state == SI_ST_QUE)
+		{
+			DBG_TRACE_STATE("connection request queued", STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 			goto end;
 		}
 
@@ -1955,7 +2116,7 @@ void back_handle_st_req(struct stream *s)
 		si->state = SI_ST_CLO;
 		if (s->srv_error)
 			s->srv_error(s, si);
-		DBG_TRACE_STATE("connection request failed", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		DBG_TRACE_STATE("connection request failed", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
@@ -1963,10 +2124,10 @@ void back_handle_st_req(struct stream *s)
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 	si->state = SI_ST_ASS;
 	be_set_sess_last(s->be);
-	DBG_TRACE_STATE("connection request assigned to a server", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_STATE("connection request assigned to a server", STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 
-  end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+end:
+	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 }
 
 /* This function is called with (si->state == SI_ST_CON) meaning that a
@@ -1982,38 +2143,41 @@ void back_handle_st_con(struct stream *s)
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 
 	/* the client might want to abort */
 	if ((rep->flags & CF_SHUTW) ||
-	    ((req->flags & CF_SHUTW_NOW) &&
-	     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
+		((req->flags & CF_SHUTW_NOW) &&
+		 (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))))
+	{
 		si->flags |= SI_FL_NOLINGER;
 		si_shutw(si);
 		si->err_type |= SI_ET_CONN_ABRT;
 		if (s->srv_error)
 			s->srv_error(s, si);
 		/* Note: state = SI_ST_DIS now */
-		DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
- done:
+done:
 	/* retryable error ? */
-	if (si->flags & (SI_FL_EXP|SI_FL_ERR)) {
-		if (!si->err_type) {
+	if (si->flags & (SI_FL_EXP | SI_FL_ERR))
+	{
+		if (!si->err_type)
+		{
 			if (si->flags & SI_FL_ERR)
 				si->err_type = SI_ET_CONN_ERR;
 			else
 				si->err_type = SI_ET_CONN_TO;
 		}
 
-		si->state  = SI_ST_CER;
-		DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		si->state = SI_ST_CER;
+		DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 	}
 
- end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+end:
+	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 }
 
 /* This function is called with (si->state == SI_ST_CER) meaning that a
@@ -2031,22 +2195,25 @@ void back_handle_st_cer(struct stream *s)
 	struct conn_stream *cs = objt_cs(si->end);
 	struct connection *conn = cs_conn(cs);
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 
-	si->exp    = TICK_ETERNITY;
+	si->exp = TICK_ETERNITY;
 	si->flags &= ~SI_FL_EXP;
 
 	/* we probably have to release last stream from the server */
-	if (objt_server(s->target)) {
+	if (objt_server(s->target))
+	{
 		health_adjust(objt_server(s->target), HANA_STATUS_L4_ERR);
 
-		if (s->flags & SF_CURR_SESS) {
+		if (s->flags & SF_CURR_SESS)
+		{
 			s->flags &= ~SF_CURR_SESS;
 			_HA_ATOMIC_SUB(&__objt_server(s->target)->cur_sess, 1);
 		}
 
 		if ((si->flags & SI_FL_ERR) &&
-		    conn && conn->err_code == CO_ER_SSL_MISMATCH_SNI) {
+			conn && conn->err_code == CO_ER_SSL_MISMATCH_SNI)
+		{
 			/* We tried to connect to a server which is configured
 			 * with "verify required" and which doesn't have the
 			 * "verifyhost" directive. The server presented a wrong
@@ -2064,14 +2231,16 @@ void back_handle_st_cer(struct stream *s)
 			 * client provoke retries.
 			 */
 			si->conn_retries = 0;
-			DBG_TRACE_DEVEL("Bad SSL cert, disable connection retries", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_DEVEL("Bad SSL cert, disable connection retries", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 		}
 	}
 
 	/* ensure that we have enough retries left */
 	si->conn_retries--;
-	if (si->conn_retries < 0 || !(s->be->retry_type & PR_RE_CONN_FAILED)) {
-		if (!si->err_type) {
+	if (si->conn_retries < 0 || !(s->be->retry_type & PR_RE_CONN_FAILED))
+	{
+		if (!si->err_type)
+		{
 			si->err_type = SI_ET_CONN_ERR;
 		}
 
@@ -2091,13 +2260,14 @@ void back_handle_st_cer(struct stream *s)
 		if (s->srv_error)
 			s->srv_error(s, si);
 
-		DBG_TRACE_STATE("connection failed", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+		DBG_TRACE_STATE("connection failed", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 		goto end;
 	}
 
 	stream_choose_redispatch(s);
 
-	if (si->flags & SI_FL_ERR) {
+	if (si->flags & SI_FL_ERR)
+	{
 		/* The error was an asynchronous connection error, and we will
 		 * likely have to retry connecting to the same server, most
 		 * likely leading to the same result. To avoid this, we wait
@@ -2116,17 +2286,19 @@ void back_handle_st_cer(struct stream *s)
 
 		/* only wait when we're retrying on the same server */
 		if ((si->state == SI_ST_ASS ||
-		     (s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_RR ||
-		     (s->be->srv_act <= 1)) && !(s->flags & SF_SRV_REUSED)) {
+			 (s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_RR ||
+			 (s->be->srv_act <= 1)) &&
+			!(s->flags & SF_SRV_REUSED))
+		{
 			si->state = SI_ST_TAR;
 			si->exp = tick_add(now_ms, MS_TO_TICKS(delay));
 		}
 		si->flags &= ~SI_FL_ERR;
-		DBG_TRACE_STATE("retry a new connection", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+		DBG_TRACE_STATE("retry a new connection", STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 	}
 
-  end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+end:
+	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 }
 
 /* This function is called with (si->state == SI_ST_RDY) meaning that a
@@ -2142,7 +2314,7 @@ void back_handle_st_rdy(struct stream *s)
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 	/* We know the connection at least succeeded, though it could have
 	 * since met an error for any other reason. At least it didn't time out
 	 * eventhough the timeout might have been reported right after success.
@@ -2161,27 +2333,30 @@ void back_handle_st_rdy(struct stream *s)
 	/* it's still possible to handle client aborts or connection retries
 	 * before any data were sent.
 	 */
-	if (!(req->flags & CF_WROTE_DATA)) {
+	if (!(req->flags & CF_WROTE_DATA))
+	{
 		/* client abort ? */
 		if ((rep->flags & CF_SHUTW) ||
-		    ((req->flags & CF_SHUTW_NOW) &&
-		     (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE)))) {
+			((req->flags & CF_SHUTW_NOW) &&
+			 (channel_is_empty(req) || (s->be->options & PR_O_ABRT_CLOSE))))
+		{
 			/* give up */
 			si->flags |= SI_FL_NOLINGER;
 			si_shutw(si);
 			si->err_type |= SI_ET_CONN_ABRT;
 			if (s->srv_error)
 				s->srv_error(s, si);
-			DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("client abort during connection attempt", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 
 		/* retryable error ? */
-		if (si->flags & SI_FL_ERR) {
+		if (si->flags & SI_FL_ERR)
+		{
 			if (!si->err_type)
 				si->err_type = SI_ET_CONN_ERR;
 			si->state = SI_ST_CER;
-			DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC|STRM_EV_SI_ST|STRM_EV_STRM_ERR, s);
+			DBG_TRACE_STATE("connection failed, retry", STRM_EV_STRM_PROC | STRM_EV_SI_ST | STRM_EV_STRM_ERR, s);
 			goto end;
 		}
 	}
@@ -2189,12 +2364,12 @@ void back_handle_st_rdy(struct stream *s)
 	/* data were sent and/or we had no error, back_establish() will
 	 * now take over.
 	 */
-	DBG_TRACE_STATE("connection established", STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+	DBG_TRACE_STATE("connection established", STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 	si->err_type = SI_ET_NONE;
-	si->state    = SI_ST_EST;
+	si->state = SI_ST_EST;
 
-  end:
-	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
+end:
+	DBG_TRACE_LEAVE(STRM_EV_STRM_PROC | STRM_EV_SI_ST, s);
 }
 
 /* sends a log message when a backend goes down, and also sets last
@@ -2205,7 +2380,8 @@ void set_backend_down(struct proxy *be)
 	be->last_change = now.tv_sec;
 	_HA_ATOMIC_ADD(&be->down_trans, 1);
 
-	if (!(global.mode & MODE_STARTING)) {
+	if (!(global.mode & MODE_STARTING))
+	{
 		ha_alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);
 		send_log(be, LOG_EMERG, "%s %s has no server available!\n", proxy_type_str(be), be->id);
 	}
@@ -2219,15 +2395,15 @@ void set_backend_down(struct proxy *be)
  */
 int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 {
-	struct proxy    *px   = s->be;
-	int              ret;
-	struct sample    smp;
+	struct proxy *px = s->be;
+	int ret;
+	struct sample smp;
 	struct server *srv = px->srv;
 	uint16_t port;
 	uint32_t addr;
 	char *p;
 
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA | STRM_EV_TCP_ANA, s);
 
 	if (s->flags & SF_ASSIGNED)
 		goto no_cookie;
@@ -2253,11 +2429,14 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 		goto no_cookie;
 
 	s->target = NULL;
-	while (srv) {
+	while (srv)
+	{
 		if (srv->addr.ss_family == AF_INET &&
-		    port == srv->svc_port &&
-		    addr == ((struct sockaddr_in *)&srv->addr)->sin_addr.s_addr) {
-			if ((srv->cur_state != SRV_ST_STOPPED) || (px->options & PR_O_PERSIST)) {
+			port == srv->svc_port &&
+			addr == ((struct sockaddr_in *)&srv->addr)->sin_addr.s_addr)
+		{
+			if ((srv->cur_state != SRV_ST_STOPPED) || (px->options & PR_O_PERSIST))
+			{
 				/* we found the server and it is usable */
 				s->flags |= SF_DIRECT | SF_ASSIGNED;
 				s->target = &srv->obj_type;
@@ -2270,12 +2449,13 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 no_cookie:
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
-	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_TCP_ANA, s);
+	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA | STRM_EV_TCP_ANA, s);
 	return 1;
 }
 
-int be_downtime(struct proxy *px) {
-	if (px->lbprm.tot_weight && px->last_change < now.tv_sec)  // ignore negative time
+int be_downtime(struct proxy *px)
+{
+	if (px->lbprm.tot_weight && px->last_change < now.tv_sec) // ignore negative time
 		return px->down_time;
 
 	return now.tv_sec - px->last_change + px->down_time;
@@ -2286,7 +2466,8 @@ int be_downtime(struct proxy *px) {
  * mode of the proxy in a format suitable for stats.
  */
 
-const char *backend_lb_algo_str(int algo) {
+const char *backend_lb_algo_str(int algo)
+{
 
 	if (algo == BE_LB_ALGO_RR)
 		return "roundrobin";
@@ -2321,42 +2502,50 @@ const char *backend_lb_algo_str(int algo) {
  */
 int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 {
-	if (!*(args[0])) {
+	if (!*(args[0]))
+	{
 		/* if no option is set, use round-robin by default */
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 		return 0;
 	}
 
-	if (!strcmp(args[0], "roundrobin")) {
+	if (!strcmp(args[0], "roundrobin"))
+	{
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 	}
-	else if (!strcmp(args[0], "static-rr")) {
+	else if (!strcmp(args[0], "static-rr"))
+	{
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_SRR;
 	}
-	else if (!strcmp(args[0], "first")) {
+	else if (!strcmp(args[0], "first"))
+	{
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_FAS;
 	}
-	else if (!strcmp(args[0], "leastconn")) {
+	else if (!strcmp(args[0], "leastconn"))
+	{
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_LC;
 	}
-	else if (!strncmp(args[0], "random", 6)) {
+	else if (!strncmp(args[0], "random", 6))
+	{
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RND;
 		curproxy->lbprm.arg_opt1 = 2;
 
-		if (*(args[0] + 6) == '(' && *(args[0] + 7) != ')') { /* number of draws */
+		if (*(args[0] + 6) == '(' && *(args[0] + 7) != ')')
+		{ /* number of draws */
 			const char *beg;
 			char *end;
 
 			beg = args[0] + 7;
 			curproxy->lbprm.arg_opt1 = strtol(beg, &end, 0);
 
-			if (*end != ')') {
+			if (*end != ')')
+			{
 				if (!*end)
 					memprintf(err, "random : missing closing parenthesis.");
 				else
@@ -2364,17 +2553,20 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 				return -1;
 			}
 
-			if (curproxy->lbprm.arg_opt1 < 1) {
+			if (curproxy->lbprm.arg_opt1 < 1)
+			{
 				memprintf(err, "random : number of draws must be at least 1.");
 				return -1;
 			}
 		}
 	}
-	else if (!strcmp(args[0], "source")) {
+	else if (!strcmp(args[0], "source"))
+	{
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_SH;
 	}
-	else if (!strcmp(args[0], "uri")) {
+	else if (!strcmp(args[0], "uri"))
+	{
 		int arg = 1;
 
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
@@ -2383,42 +2575,52 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		curproxy->lbprm.arg_opt2 = 0; // "len"
 		curproxy->lbprm.arg_opt3 = 0; // "depth"
 
-		while (*args[arg]) {
-			if (!strcmp(args[arg], "len")) {
-				if (!*args[arg+1] || (atoi(args[arg+1]) <= 0)) {
-					memprintf(err, "%s : '%s' expects a positive integer (got '%s').", args[0], args[arg], args[arg+1]);
+		while (*args[arg])
+		{
+			if (!strcmp(args[arg], "len"))
+			{
+				if (!*args[arg + 1] || (atoi(args[arg + 1]) <= 0))
+				{
+					memprintf(err, "%s : '%s' expects a positive integer (got '%s').", args[0], args[arg], args[arg + 1]);
 					return -1;
 				}
-				curproxy->lbprm.arg_opt2 = atoi(args[arg+1]);
+				curproxy->lbprm.arg_opt2 = atoi(args[arg + 1]);
 				arg += 2;
 			}
-			else if (!strcmp(args[arg], "depth")) {
-				if (!*args[arg+1] || (atoi(args[arg+1]) <= 0)) {
-					memprintf(err, "%s : '%s' expects a positive integer (got '%s').", args[0], args[arg], args[arg+1]);
+			else if (!strcmp(args[arg], "depth"))
+			{
+				if (!*args[arg + 1] || (atoi(args[arg + 1]) <= 0))
+				{
+					memprintf(err, "%s : '%s' expects a positive integer (got '%s').", args[0], args[arg], args[arg + 1]);
 					return -1;
 				}
 				/* hint: we store the position of the ending '/' (depth+1) so
 				 * that we avoid a comparison while computing the hash.
 				 */
-				curproxy->lbprm.arg_opt3 = atoi(args[arg+1]) + 1;
+				curproxy->lbprm.arg_opt3 = atoi(args[arg + 1]) + 1;
 				arg += 2;
 			}
-			else if (!strcmp(args[arg], "whole")) {
+			else if (!strcmp(args[arg], "whole"))
+			{
 				curproxy->lbprm.arg_opt1 |= 1;
 				arg += 1;
 			}
-			else if (!strcmp(args[arg], "path-only")) {
+			else if (!strcmp(args[arg], "path-only"))
+			{
 				curproxy->lbprm.arg_opt1 |= 2;
 				arg += 1;
 			}
-			else {
+			else
+			{
 				memprintf(err, "%s only accepts parameters 'len', 'depth', 'path-only', and 'whole' (got '%s').", args[0], args[arg]);
 				return -1;
 			}
 		}
 	}
-	else if (!strcmp(args[0], "url_param")) {
-		if (!*args[1]) {
+	else if (!strcmp(args[0], "url_param"))
+	{
+		if (!*args[1])
+		{
 			memprintf(err, "%s requires an URL parameter name.", args[0]);
 			return -1;
 		}
@@ -2428,20 +2630,24 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		free(curproxy->lbprm.arg_str);
 		curproxy->lbprm.arg_str = strdup(args[1]);
 		curproxy->lbprm.arg_len = strlen(args[1]);
-		if (*args[2]) {
-			if (strcmp(args[2], "check_post")) {
+		if (*args[2])
+		{
+			if (strcmp(args[2], "check_post"))
+			{
 				memprintf(err, "%s only accepts 'check_post' modifier (got '%s').", args[0], args[2]);
 				return -1;
 			}
 		}
 	}
-	else if (!strncmp(args[0], "hdr(", 4)) {
+	else if (!strncmp(args[0], "hdr(", 4))
+	{
 		const char *beg, *end;
 
 		beg = args[0] + 4;
 		end = strchr(beg, ')');
 
-		if (!end || end == beg) {
+		if (!end || end == beg)
+		{
 			memprintf(err, "hdr requires an http header field name.");
 			return -1;
 		}
@@ -2454,25 +2660,30 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		curproxy->lbprm.arg_str = my_strndup(beg, end - beg);
 		curproxy->lbprm.arg_opt1 = 0;
 
-		if (*args[1]) {
-			if (strcmp(args[1], "use_domain_only")) {
+		if (*args[1])
+		{
+			if (strcmp(args[1], "use_domain_only"))
+			{
 				memprintf(err, "%s only accepts 'use_domain_only' modifier (got '%s').", args[0], args[1]);
 				return -1;
 			}
 			curproxy->lbprm.arg_opt1 = 1;
 		}
 	}
-	else if (!strncmp(args[0], "rdp-cookie", 10)) {
+	else if (!strncmp(args[0], "rdp-cookie", 10))
+	{
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RCH;
 
-		if ( *(args[0] + 10 ) == '(' ) { /* cookie name */
+		if (*(args[0] + 10) == '(')
+		{ /* cookie name */
 			const char *beg, *end;
 
 			beg = args[0] + 11;
 			end = strchr(beg, ')');
 
-			if (!end || end == beg) {
+			if (!end || end == beg)
+			{
 				memprintf(err, "rdp-cookie : missing cookie name.");
 				return -1;
 			}
@@ -2481,23 +2692,25 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 			curproxy->lbprm.arg_str = my_strndup(beg, end - beg);
 			curproxy->lbprm.arg_len = end - beg;
 		}
-		else if ( *(args[0] + 10 ) == '\0' ) { /* default cookie name 'mstshash' */
+		else if (*(args[0] + 10) == '\0')
+		{ /* default cookie name 'mstshash' */
 			free(curproxy->lbprm.arg_str);
 			curproxy->lbprm.arg_str = strdup("mstshash");
 			curproxy->lbprm.arg_len = strlen(curproxy->lbprm.arg_str);
 		}
-		else { /* syntax */
+		else
+		{ /* syntax */
 			memprintf(err, "rdp-cookie : missing cookie name.");
 			return -1;
 		}
 	}
-	else {
+	else
+	{
 		memprintf(err, "only supports 'roundrobin', 'static-rr', 'leastconn', 'source', 'uri', 'url_param', 'hdr(name)' and 'rdp-cookie(name)' options.");
 		return -1;
 	}
 	return 0;
 }
-
 
 /************************************************************************/
 /*      All supported sample and ACL keywords must be declared here.    */
@@ -2534,7 +2747,7 @@ smp_fetch_srv_is_up(const struct arg *args, struct sample *smp, const char *kw, 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_BOOL;
 	if (!(srv->cur_admin & SRV_ADMF_MAINT) &&
-	    (!(srv->check.state & CHK_ST_CONFIGURED) || (srv->cur_state != SRV_ST_STOPPED)))
+		(!(srv->check.state & CHK_ST_CONFIGURED) || (srv->cur_state != SRV_ST_STOPPED)))
 		smp->data.u.sint = 1;
 	else
 		smp->data.u.sint = 0;
@@ -2554,18 +2767,19 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next) {
+	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next)
+	{
 		if (iterator->cur_state == SRV_ST_STOPPED)
 			continue;
 
-		if (iterator->maxconn == 0 || iterator->maxqueue == 0) {
+		if (iterator->maxconn == 0 || iterator->maxqueue == 0)
+		{
 			/* configuration is stupid */
-			smp->data.u.sint = -1;  /* FIXME: stupid value! */
+			smp->data.u.sint = -1; /* FIXME: stupid value! */
 			return 1;
 		}
 
-		smp->data.u.sint += (iterator->maxconn - iterator->cur_sess)
-		                       +  (iterator->maxqueue - iterator->nbpend);
+		smp->data.u.sint += (iterator->maxconn - iterator->cur_sess) + (iterator->maxqueue - iterator->nbpend);
 	}
 
 	return 1;
@@ -2605,7 +2819,7 @@ smp_fetch_be_name(const struct arg *args, struct sample *smp, const char *kw, vo
 
 	smp->data.u.str.area = (char *)px->id;
 	if (!smp->data.u.str.area)
-	        return 0;
+		return 0;
 
 	smp->data.type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
@@ -2648,7 +2862,7 @@ smp_fetch_srv_name(const struct arg *args, struct sample *smp, const char *kw, v
 
 	smp->data.u.str.area = srv->id;
 	if (!smp->data.u.str.area)
-	        return 0;
+		return 0;
 
 	smp->data.type = SMP_T_STR;
 	smp->data.u.str.data = strlen(smp->data.u.str.area);
@@ -2698,17 +2912,19 @@ smp_fetch_be_conn_free(const struct arg *args, struct sample *smp, const char *k
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = 0;
 
-	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next) {
+	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next)
+	{
 		if (iterator->cur_state == SRV_ST_STOPPED)
 			continue;
 
 		px = iterator->proxy;
 		if (!srv_currently_usable(iterator) ||
-		    ((iterator->flags & SRV_F_BACKUP) &&
-		     (px->srv_act || (iterator != px->lbprm.fbck && !(px->options & PR_O_USE_ALL_BK)))))
+			((iterator->flags & SRV_F_BACKUP) &&
+			 (px->srv_act || (iterator != px->lbprm.fbck && !(px->options & PR_O_USE_ALL_BK)))))
 			continue;
 
-		if (iterator->maxconn == 0) {
+		if (iterator->maxconn == 0)
+		{
 			/* one active server is unlimited, return -1 */
 			smp->data.u.sint = -1;
 			return 1;
@@ -2788,7 +3004,8 @@ smp_fetch_srv_conn_free(const struct arg *args, struct sample *smp, const char *
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
 
-	if (args->data.srv->maxconn == 0) {
+	if (args->data.srv->maxconn == 0)
+	{
 		/* one active server is unlimited, return -1 */
 		smp->data.u.sint = -1;
 		return 1;
@@ -2901,13 +3118,16 @@ sample_conv_srv_queue(const struct arg *args, struct sample *smp, void *private)
 
 	bksep = strchr(smp->data.u.str.area, '/');
 
-	if (bksep) {
+	if (bksep)
+	{
 		*bksep = '\0';
 		px = proxy_find_by_name(smp->data.u.str.area, PR_CAP_BE, 0);
 		if (!px)
 			return 0;
 		smp->data.u.str.area = bksep + 1;
-	} else {
+	}
+	else
+	{
 		if (!(smp->px->cap & PR_CAP_BE))
 			return 0;
 		px = smp->px;
@@ -2926,36 +3146,169 @@ sample_conv_srv_queue(const struct arg *args, struct sample *smp, void *private)
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
-	{ "avg_queue",     smp_fetch_avg_queue_size, ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "be_conn",       smp_fetch_be_conn,        ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "be_conn_free",  smp_fetch_be_conn_free,   ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "be_id",         smp_fetch_be_id,          0,           NULL, SMP_T_SINT, SMP_USE_BKEND, },
-	{ "be_name",       smp_fetch_be_name,        0,           NULL, SMP_T_STR,  SMP_USE_BKEND, },
-	{ "be_sess_rate",  smp_fetch_be_sess_rate,   ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "connslots",     smp_fetch_connslots,      ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "nbsrv",         smp_fetch_nbsrv,          ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "queue",         smp_fetch_queue_size,     ARG1(1,BE),  NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "srv_conn",      smp_fetch_srv_conn,       ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "srv_conn_free", smp_fetch_srv_conn_free,  ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "srv_id",        smp_fetch_srv_id,         0,           NULL, SMP_T_SINT, SMP_USE_SERVR, },
-	{ "srv_is_up",     smp_fetch_srv_is_up,      ARG1(1,SRV), NULL, SMP_T_BOOL, SMP_USE_INTRN, },
-	{ "srv_name",      smp_fetch_srv_name,       0,           NULL, SMP_T_STR,  SMP_USE_SERVR, },
-	{ "srv_queue",     smp_fetch_srv_queue,      ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "srv_sess_rate", smp_fetch_srv_sess_rate,  ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "srv_weight",    smp_fetch_srv_weight,     ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "srv_iweight",   smp_fetch_srv_iweight,    ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ "srv_uweight",   smp_fetch_srv_uweight,    ARG1(1,SRV), NULL, SMP_T_SINT, SMP_USE_INTRN, },
-	{ /* END */ },
-}};
+													   {
+														   "avg_queue",
+														   smp_fetch_avg_queue_size,
+														   ARG1(1, BE),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "be_conn",
+														   smp_fetch_be_conn,
+														   ARG1(1, BE),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "be_conn_free",
+														   smp_fetch_be_conn_free,
+														   ARG1(1, BE),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "be_id",
+														   smp_fetch_be_id,
+														   0,
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_BKEND,
+													   },
+													   {
+														   "be_name",
+														   smp_fetch_be_name,
+														   0,
+														   NULL,
+														   SMP_T_STR,
+														   SMP_USE_BKEND,
+													   },
+													   {
+														   "be_sess_rate",
+														   smp_fetch_be_sess_rate,
+														   ARG1(1, BE),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "connslots",
+														   smp_fetch_connslots,
+														   ARG1(1, BE),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "nbsrv",
+														   smp_fetch_nbsrv,
+														   ARG1(1, BE),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "queue",
+														   smp_fetch_queue_size,
+														   ARG1(1, BE),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "srv_conn",
+														   smp_fetch_srv_conn,
+														   ARG1(1, SRV),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "srv_conn_free",
+														   smp_fetch_srv_conn_free,
+														   ARG1(1, SRV),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "srv_id",
+														   smp_fetch_srv_id,
+														   0,
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_SERVR,
+													   },
+													   {
+														   "srv_is_up",
+														   smp_fetch_srv_is_up,
+														   ARG1(1, SRV),
+														   NULL,
+														   SMP_T_BOOL,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "srv_name",
+														   smp_fetch_srv_name,
+														   0,
+														   NULL,
+														   SMP_T_STR,
+														   SMP_USE_SERVR,
+													   },
+													   {
+														   "srv_queue",
+														   smp_fetch_srv_queue,
+														   ARG1(1, SRV),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "srv_sess_rate",
+														   smp_fetch_srv_sess_rate,
+														   ARG1(1, SRV),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "srv_weight",
+														   smp_fetch_srv_weight,
+														   ARG1(1, SRV),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "srv_iweight",
+														   smp_fetch_srv_iweight,
+														   ARG1(1, SRV),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {
+														   "srv_uweight",
+														   smp_fetch_srv_uweight,
+														   ARG1(1, SRV),
+														   NULL,
+														   SMP_T_SINT,
+														   SMP_USE_INTRN,
+													   },
+													   {/* END */},
+												   }};
 
 INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
-	{ "nbsrv",     sample_conv_nbsrv,     0, NULL, SMP_T_STR, SMP_T_SINT },
-	{ "srv_queue", sample_conv_srv_queue, 0, NULL, SMP_T_STR, SMP_T_SINT },
-	{ /* END */ },
-}};
+															  {"nbsrv", sample_conv_nbsrv, 0, NULL, SMP_T_STR, SMP_T_SINT},
+															  {"srv_queue", sample_conv_srv_queue, 0, NULL, SMP_T_STR, SMP_T_SINT},
+															  {/* END */},
+														  }};
 
 INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
 
@@ -2963,8 +3316,8 @@ INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {ILH, {
-	{ /* END */ },
-}};
+											  {/* END */},
+										  }};
 
 INITCALL1(STG_REGISTER, acl_register_keywords, &acl_kws);
 

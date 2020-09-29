@@ -318,6 +318,7 @@ static inline void conn_prepare(struct connection *conn, const struct protocol *
 	conn->mux = NULL;
 	conn->xprt_ctx = NULL;
 	conn->ctx = NULL;
+	conn_free_domain(conn);
 }
 
 /*

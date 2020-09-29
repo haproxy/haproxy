@@ -1230,6 +1230,8 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 		 */
 		conn->send_proxy_ofs = 1;
 	}
+	if (conn)
+		conn_free_domain(conn);
 	return 1;
 
 out_error:
@@ -1239,8 +1241,8 @@ out_error:
 	{
 		conn->err_code = CO_ER_SOCKS4_SEND;
 	}
-	return 0;
-
+	if (conn)
+		conn_free_domain(conn);
 out_wait:
 	return 0;
 }
