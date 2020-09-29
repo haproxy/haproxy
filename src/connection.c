@@ -1123,7 +1123,7 @@ static int writeToProxy(struct connection *conn, char *data, size_t len, int fla
 		 */
 #ifdef DEBUG_FULL
 	int i;
-	DPRINTF(stderr, "Writting to SOCK4A header (%u bytes): \n", len);
+	DPRINTF(stderr, "Writting to SOCK4(A) header (%u bytes): \n", len);
 	for (i = 0; i < len; ++i)
 		DPRINTF(stderr, "%02X ", (int)*((unsigned char *)data + i));
 	DPRINTF(stderr, "\nEnd-of-block\n");
