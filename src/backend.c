@@ -548,6 +548,13 @@ static struct server *get_server_rnd(struct stream *s, const struct server *avoi
 			curr = prev;
 	} while (--draws > 0);
 
+	/* if the selected server is full, pretend we have none so that we reach
+	 * the backend's queue instead.
+	 */
+	if (curr &&
+	    (curr->nbpend || (curr->maxconn && curr->served >= srv_dynamic_maxconn(curr))))
+		curr = NULL;
+
 	return curr;
 }
 
