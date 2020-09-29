@@ -4475,14 +4475,20 @@ int srv_init_addr(void)
 			for (srv = curproxy->srv; srv; srv = srv->next)
 				if (srv->hostname)
 				{
-					int r = srv_iterate_initaddr(srv);
-					if (r)
+					if (srv->flags & SRV_F_SOCKS4_PROXY)
 					{
-						if (0 == (srv->flags & SRV_F_SOCKS4_PROXY))
-							return_code |= r;
-						else
+						int r = srv_iterate_initaddr(srv);
+						if (r)
+						{
+							const char *tmp = srv->hostname;
+							srv->hostname = "10.10.10.10";
+							srv_iterate_initaddr(srv);
+							srv->hostname = tmp;
 							srv->flags |= SRV_F_SOCKS4_PROXY_FAILED_RESOLVE;
+						}
 					}
+					else
+						return_code |= srv_iterate_initaddr(srv);
 				}
 		}
 		curproxy = curproxy->next;
