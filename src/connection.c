@@ -1176,7 +1176,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 		 * This is the first call to send the request
 		 */
 
-		conn->send_proxy_ofs = -(int)(sizeof(req_line) + ((proxy_resolve) ? (domainlen - 8) : 0));
+		conn->send_proxy_ofs = -(int)(sizeof(req_line) + ((proxy_resolve) ? domainlen : 0));
 	}
 
 	if (conn->send_proxy_ofs < 0)
