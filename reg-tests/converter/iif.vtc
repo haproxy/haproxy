@@ -1,4 +1,5 @@
 varnishtest "iif converter Test"
+#REQUIRE_VERSION=2.3
 
 feature ignore_unknown_macro
 
