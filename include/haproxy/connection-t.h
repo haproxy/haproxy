@@ -323,6 +323,8 @@ enum mux_ctl_type
 #define SOCKS4_HS_RSP_LEN 8
 
 /* socks4 upstream proxy definitions */
+
+#pragma pack(push, 1)
 struct socks4_request
 {
 	uint8_t version; /* SOCKS version number, 1 byte, must be 0x04 for this version */
@@ -331,6 +333,7 @@ struct socks4_request
 	uint32_t ip;	 /* IP address, 4 bytes (in network byte order) */
 	char user_id[8]; /* the user ID string, variable length, terminated with a null (0x00); Using "HAProxy\0" */
 };
+#pragma pack(pop)
 
 /* Describes a set of subscriptions. Multiple events may be registered at the
  * same time. The callee should assume everything not pending for completion is

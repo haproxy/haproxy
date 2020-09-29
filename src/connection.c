@@ -1182,6 +1182,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 			ret = writeToProxy(conn, (char *)(&req_line), sizeof(req_line) - 8, flags);
 			if (ret < 0)
 			{
+				DPRINTF(stderr, "1st writeToProxy failed!!!!\n");
 				goto out_error;
 			}
 			ret = writeToProxy(conn, conn->requested_domain, domainlen, flags);
@@ -1195,6 +1196,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 
 		if (ret < 0)
 		{
+			DPRINTF(stderr, "final writeToProxy failed!!!!\n");
 			goto out_error;
 		}
 		if (conn->send_proxy_ofs != 0)
