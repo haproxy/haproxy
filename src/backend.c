@@ -1600,7 +1600,7 @@ int connect_server(struct stream *s)
 	err = si_connect(&s->si[1], srv_conn);
 	if (err != SF_ERR_NONE)
 	{
-
+		DPRINTF(stderr, "Backend errored with code 0x%08 on si_connect\n", err);
 		return err;
 	}
 
