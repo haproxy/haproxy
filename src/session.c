@@ -156,18 +156,18 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		goto out_free_conn;
 
 	cli_conn->handle.fd = cfd;
-	*cli_conn->src = *addr;
+	if (p && p->srv && (p->srv->flags & SRV_F_SOCKS4_PROXY) && p->srv->hostname)
+	{
+		DPRINTF(stderr, "Setting proxy to resolve %s\n", p->srv->hostname);
+		conn_set_domain(cli_conn, p->srv->hostname);
+	}
+	else
+		*cli_conn->src = *addr;
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->proxy_netns = l->rx.settings->netns;
 
 	conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt);
 	conn_ctrl_init(cli_conn);
-
-	if ((p->srv->flags & SRV_F_SOCKS4_PROXY) && p->srv->hostname)
-	{
-		DPRINTF(stderr, "Setting proxy to resolve %s\n", p->srv->hostname);
-		conn_set_domain(cli_conn, p->srv->hostname);
-	}
 
 	/* wait for a PROXY protocol header */
 	if (l->options & LI_O_ACC_PROXY)
