@@ -1118,9 +1118,16 @@ static int writeToProxy(struct connection *conn, char *data, size_t len, int fla
 {
 	int ret = 0;
 
-	/* we are sending the socks4_req_line here. If the data layer
+/* we are sending the socks4_req_line here. If the data layer
 		 * has a pending write, we'll also set MSG_MORE.
 		 */
+#ifdef DEBUG_FULL
+	int i;
+	DPRINTF(stderr, "Writting to SOCK4A header: \n");
+	for (i = 0; i < len; ++i)
+		DPRINTF(stderr, "%02X ", (int)*(data + i));
+	DPRINTF(stderr, "\nWritting end-of-block\n");
+#endif
 	ret = conn_sock_send(
 		conn, data + len + conn->send_proxy_ofs,
 		-conn->send_proxy_ofs,
