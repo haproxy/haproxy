@@ -162,7 +162,14 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		conn_set_domain(cli_conn, p->srv->hostname);
 	}
 	else
-		*cli_conn->src = *addr;
+	{
+		if (addr)
+			*cli_conn->src = *addr;
+		else
+		{
+			DPRINTF(stderr, "Got situation when no address exists.\n");
+		}
+	}
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->proxy_netns = l->rx.settings->netns;
 
