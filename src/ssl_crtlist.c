@@ -327,8 +327,8 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 		/* Check if we reached the limit and the last char is not \n.
 		 * Watch out for the last line without the terminating '\n'!
 		 */
-		memprintf(err, "line %d too long in file '%s', limit is %d characters",
-		          linenum, file, CRT_LINESIZE-1);
+		memprintf(err, "parsing [%s:%d]: line too long, limit is %d characters",
+		          file, linenum, CRT_LINESIZE-1);
 		cfgerr |= ERR_ALERT | ERR_FATAL;
 		goto error;
 	}
@@ -340,12 +340,12 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 			*line = 0;
 		} else if (*line == '[') {
 			if (ssl_b) {
-				memprintf(err, "too many '[' on line %d in file '%s'.", linenum, file);
+				memprintf(err, "parsing [%s:%d]: too many '['", file, linenum);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 				goto error;
 			}
 			if (!arg) {
-				memprintf(err, "file must start with a cert on line %d in file '%s'", linenum, file);
+				memprintf(err, "parsing [%s:%d]: file must start with a cert", file, linenum);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 				goto error;
 			}
@@ -354,12 +354,12 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 			*line = 0;
 		} else if (*line == ']') {
 			if (ssl_e) {
-				memprintf(err, "too many ']' on line %d in file '%s'.", linenum, file);
+				memprintf(err, "parsing [%s:%d]: too many ']'", file, linenum);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 				goto error;
 			}
 			if (!ssl_b) {
-				memprintf(err, "missing '[' in line %d in file '%s'.", linenum, file);
+				memprintf(err, "parsing [%s:%d]: missing '['", file, linenum);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 				goto error;
 			}
@@ -368,7 +368,7 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 			*line = 0;
 		} else if (newarg) {
 			if (arg == MAX_CRT_ARGS) {
-				memprintf(err, "too many args on line %d in file '%s'.", linenum, file);
+				memprintf(err, "parsing [%s:%d]: too many args ", file, linenum);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 				goto error;
 			}
@@ -403,8 +403,8 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 				newarg = 1;
 				cfgerr |= ssl_bind_kws[i].parse(args, cur_arg, NULL, ssl_conf, err);
 				if (cur_arg + 1 + ssl_bind_kws[i].skip > ssl_e) {
-					memprintf(err, "ssl args out of '[]' for %s on line %d in file '%s'",
-					          args[cur_arg], linenum, file);
+					memprintf(err, "parsing [%s:%d]: ssl args out of '[]' for %s",
+					          file, linenum, args[cur_arg]);
 					cfgerr |= ERR_ALERT | ERR_FATAL;
 					goto error;
 				}
@@ -413,8 +413,8 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 			}
 		}
 		if (!cfgerr && !newarg) {
-			memprintf(err, "unknown ssl keyword %s on line %d in file '%s'.",
-				  args[cur_arg], linenum, file);
+			memprintf(err, "parsing [%s:%d]: unknown ssl keyword %s",
+				  file, linenum, args[cur_arg]);
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 			goto error;
 		}
@@ -477,8 +477,8 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 			/* Check if we reached the limit and the last char is not \n.
 			 * Watch out for the last line without the terminating '\n'!
 			 */
-			memprintf(err, "line %d too long in file '%s', limit is %d characters",
-				  linenum, file, (int)sizeof(thisline)-1);
+			memprintf(err, "parsing [%s:%d]: line too long, limit is %d characters",
+				  file, linenum, (int)sizeof(thisline)-1);
 			cfgerr |= ERR_ALERT | ERR_FATAL;
 			break;
 		}
@@ -507,8 +507,8 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 
 		if (*crt_path != '/' && global_ssl.crt_base) {
 			if ((strlen(global_ssl.crt_base) + 1 + strlen(crt_path)) > MAXPATHLEN) {
-				memprintf(err, "'%s' : path too long on line %d in file '%s'",
-					  crt_path, linenum, file);
+				memprintf(err, "parsing [%s:%d]: '%s' : path too long",
+					  file, linenum, crt_path);
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 				goto error;
 			}
