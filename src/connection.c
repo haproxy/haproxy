@@ -1183,19 +1183,9 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 	{
 		int ret = 0;
 		const int flags = (conn->subs && conn->subs->events & SUB_RETRY_SEND) ? MSG_MORE : 0;
-		if (proxy_resolve)
-		{
-			//fixme: it is possible need fake flags on this 1st write
-			ret = writeToProxy(conn, (char *)(&req_line), sizeof(req_line) - 8, flags);
-			if (ret < 0)
-			{
-				DPRINTF(stderr, "1st writeToProxy failed!!!!\n");
-				goto out_error;
-			}
+		ret = writeToProxy(conn, (char *)(&req_line), sizeof(req_line), flags);
+		if (0 == ret && proxy_resolve)
 			ret = writeToProxy(conn, conn->requested_domain, domainlen, flags);
-		}
-		else
-			ret = writeToProxy(conn, (char *)(&req_line), sizeof(req_line), flags);
 
 		/* we are sending the socks4_req_line here. If the data layer
 		 * has a pending write, we'll also set MSG_MORE.
@@ -1203,7 +1193,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 
 		if (ret < 0)
 		{
-			DPRINTF(stderr, "final writeToProxy failed!!!!\n");
+			DPRINTF(stderr, "writeToProxy failed!!!!\n");
 			goto out_error;
 		}
 		if (conn->send_proxy_ofs != 0)
