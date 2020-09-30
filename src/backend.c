@@ -1505,7 +1505,6 @@ int connect_server(struct stream *s)
 
 	if (!conn_xprt_ready(srv_conn) && !srv_conn->mux)
 	{
-		/* unsigned int pfamily = (srv->flags & SRV_F_SOCKS4_PROXY_FAILED_RESOLVE) ? PF_PACKET : srv_conn->dst->ss_family; */
 		unsigned int pfamily = srv_conn->dst->ss_family;
 		/* set the correct protocol on the output stream interface */
 		if (srv)

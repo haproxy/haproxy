@@ -1123,9 +1123,9 @@ static int writeToProxy(struct connection *conn, char *data, size_t len, int fla
 		 */
 #ifdef DEBUG_FULL
 	int i;
-	DPRINTF(stderr, "Writting to SOCK4(A) header (%u bytes): \n", len);
+	DPRINTF(stderr, "Writting to SOCK4(A) header (%u bytes): \n", (unsigned int)len);
 	for (i = 0; i < len; ++i)
-		DPRINTF(stderr, "%02X ", (int)*((unsigned char *)data + i));
+		DPRINTF(stderr, "%02X ", (unsigned int)*((unsigned char *)data + i));
 	DPRINTF(stderr, "\nEnd-of-block\n");
 #endif
 	ret = conn_sock_send(
@@ -1167,7 +1167,17 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 				conn->handle.fd, conn->requested_domain);
 		req_line.ip = htonl(0x00000001u);
 	}
-
+#ifdef DEBUG_FULL
+	else
+	{
+		if (0x0A0A0A0A == req_line.ip)
+		{
+			DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Requested fake 10.10.10.10 with no domain to SOCKS4. Doing error in debug build.\n",
+					conn->handle.fd);
+			goto out_error;
+		}
+	}
+#endif
 	memcpy(req_line.user_id, "HAProxy\0", 8);
 
 	if (conn->send_proxy_ofs > 0)
