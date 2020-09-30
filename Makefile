@@ -274,8 +274,8 @@ ARCH_FLAGS        = $(ARCH_FLAGS.$(ARCH))
 # These CFLAGS contain general optimization options, CPU-specific optimizations
 # and debug flags. They may be overridden by some distributions which prefer to
 # set all of them at once instead of playing with the CPU and DEBUG variables.
-#CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS)
-CFLAGS = $(ARCH_FLAGS) -march=native $(DEBUG_CFLAGS) $(SPEC_CFLAGS)
+CFLAGS = $(ARCH_FLAGS) $(CPU_CFLAGS) $(DEBUG_CFLAGS) $(SPEC_CFLAGS)
+#CFLAGS = $(ARCH_FLAGS) -march=native $(DEBUG_CFLAGS) $(SPEC_CFLAGS)
 
 #### Common LDFLAGS
 # These LDFLAGS are used as the first "ld" options, regardless of any library
