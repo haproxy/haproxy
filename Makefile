@@ -355,12 +355,11 @@ ifneq ($(shell echo __arm__/__aarch64__ | $(CC) -E -xc - | grep '^[^\#]'),__arm_
 endif
 endif
 
-# Solaris 8 and above
+# Solaris 10 and above
 ifeq ($(TARGET),solaris)
-  # We also enable getaddrinfo() which works since solaris 8.
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_CRYPT_H USE_GETADDRINFO USE_THREAD \
-    USE_RT USE_OBSOLETE_LINKER USE_EVPORTS)
+    USE_RT USE_OBSOLETE_LINKER USE_EVPORTS USE_CLOSEFROM)
   TARGET_CFLAGS  = -DFD_SETSIZE=65536 -D_REENTRANT -D_XOPEN_SOURCE=500 -D__EXTENSIONS__
   TARGET_LDFLAGS = -lnsl -lsocket
 endif
