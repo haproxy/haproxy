@@ -2228,6 +2228,8 @@ static int h1_process(struct h1c * h1c)
 
 	if (b_data(&h1c->ibuf) && h1s->csinfo.t_idle == -1)
 		h1s->csinfo.t_idle = tv_ms_elapsed(&h1s->csinfo.tv_create, &now) - h1s->csinfo.t_handshake;
+	if (b_data(&h1c->ibuf) && h1s->sess->t_idle == -1)
+		h1s->sess->t_idle = tv_ms_elapsed(&h1s->sess->tv_accept, &now) - h1s->sess->t_handshake;
 
 	if (conn_xprt_read0_pending(conn)) {
 		h1s->flags |= H1S_F_REOS;
