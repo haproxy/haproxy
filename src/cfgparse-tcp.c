@@ -289,29 +289,6 @@ static struct srv_kw_list srv_kws = { "TCP", { }, {
 
 INITCALL1(STG_REGISTER, srv_register_keywords, &srv_kws);
 
-
-REGISTER_BUILD_OPTS("Built with transparent proxy support using:"
-#if defined(IP_TRANSPARENT)
-		    " IP_TRANSPARENT"
-#endif
-#if defined(IPV6_TRANSPARENT)
-		    " IPV6_TRANSPARENT"
-#endif
-#if defined(IP_FREEBIND)
-		    " IP_FREEBIND"
-#endif
-#if defined(IP_BINDANY)
-		    " IP_BINDANY"
-#endif
-#if defined(IPV6_BINDANY)
-		    " IPV6_BINDANY"
-#endif
-#if defined(SO_BINDANY)
-		    " SO_BINDANY"
-#endif
-		    "");
-
-
 /*
  * Local variables:
  *  c-indent-level: 8
