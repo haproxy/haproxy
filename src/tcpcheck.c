@@ -1040,7 +1040,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 	/* 2- prepare new connection */
 	cs = cs_new(NULL, (s ? &s->obj_type : &proxy->obj_type));
-	DPRINTF(stderr, "************\ttcpcheck_eval_connect for server %p, FAKE_IP: %u\n", s, is_server_fake_address(s));
+	/* DPRINTF(stderr, "************\ttcpcheck_eval_connect for server %p, FAKE_IP: %u\n", s, is_server_fake_address(s));
+	*/
 	if (!cs)
 	{
 		chunk_printf(&trash, "TCPCHK error allocating connection at step %d",
