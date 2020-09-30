@@ -668,7 +668,9 @@ static void h1s_destroy(struct h1s *h1s)
 
 		h1_release_buf(h1c, &h1s->rxbuf);
 
-		h1c->flags &= ~(H1C_F_WAIT_OPPOSITE|H1C_F_CS_EMBRYONIC|H1C_F_CS_ATTACHED);
+		h1c->flags &= ~(H1C_F_WAIT_OPPOSITE|H1C_F_WANT_SPLICE|H1C_F_CS_EMBRYONIC|H1C_F_CS_ATTACHED|
+				H1C_F_OUT_FULL|H1C_F_OUT_ALLOC|H1C_F_IN_SALLOC|
+				H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
 		if (h1s->flags & H1S_F_ERROR) {
 			h1c->flags |= H1C_F_CS_ERROR;
 			TRACE_STATE("h1s on error, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
