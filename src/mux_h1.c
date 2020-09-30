@@ -571,7 +571,7 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 
 		/* For frontend connections we should always have a session */
 		if (!sess)
-			sess = h1c->conn->owner;
+			h1s->sess = sess = h1c->conn->owner;
 
 		/* Timers for subsequent sessions on the same HTTP 1.x connection
 		 * measure from `now`, not from the connection accept time */
