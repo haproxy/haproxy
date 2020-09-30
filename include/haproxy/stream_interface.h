@@ -534,18 +534,6 @@ static inline void si_update(struct stream_interface *si)
 	si_update_tx(si);
 }
 
-/* Returns info about the conn_stream <cs>, if not NULL. It call the mux layer's
- * get_cs_info() function, if it exists. On success, it returns a cs_info
- * structure. Otherwise, on error, if the mux does not implement get_cs_info()
- * or if conn_stream is NULL, NULL is returned.
- */
-static inline const struct cs_info *si_get_cs_info(struct conn_stream *cs)
-{
-	if (cs && cs->conn->mux->get_cs_info)
-		return cs->conn->mux->get_cs_info(cs);
-	return NULL;
-}
-
 /* for debugging, reports the stream interface state name */
 static inline const char *si_state_str(int state)
 {

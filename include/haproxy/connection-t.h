@@ -400,7 +400,6 @@ struct mux_ops {
 	int (*used_streams)(struct connection *conn);  /* Returns the number of streams in use on a connection. */
 	void (*destroy)(void *ctx); /* Let the mux know one of its users left, so it may have to disappear */
 	void (*reset)(struct connection *conn); /* Reset the mux, because we're re-trying to connect */
-	const struct cs_info *(*get_cs_info)(struct conn_stream *cs); /* Return info on the specified conn_stream or NULL if not defined */
 	int (*ctl)(struct connection *conn, enum mux_ctl_type mux_ctl, void *arg); /* Provides information about the mux */
 	int (*takeover)(struct connection *conn, int orig_tid); /* Attempts to migrate the connection to the current thread */
 	unsigned int flags;                           /* some flags characterizing the mux's capabilities (MX_FL_*) */
@@ -452,19 +451,6 @@ struct conn_stream {
 	void *data;                          /* pointer to upper layer's entity (eg: stream interface) */
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
 	void *ctx;                           /* mux-specific context */
-};
-
-/*
- * This structure describes the info related to a conn_stream known by the mux
- * only but useful for the upper layer.
- * For now, only some dates and durations are reported. This structure will
- * envolved. But for now, only the bare minimum is referenced.
- */
-struct cs_info {
-	struct timeval create_date;  /* Creation date of the conn_stream in user date */
-	struct timeval tv_create;    /* Creation date of the conn_stream in internal date (monotonic) */
-	long t_handshake;            /* handshake duration, -1 if never occurs */
-	long t_idle;                 /* idle duration, -1 if never occurs */
 };
 
 /* This structure describes a connection with its methods and data.
