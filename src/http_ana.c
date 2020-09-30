@@ -108,10 +108,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
 	s->srv_error = http_return_srv_error;
 
-	/* If there is data available for analysis, log the end of the idle time. */
-	if (c_data(req) && s->logs.t_idle == -1)
-		s->logs.t_idle = sess->t_idle;
-
 	/*
 	 * Now we quickly check if we have found a full valid request.
 	 * If not so, we check the FD and buffer states before leaving.
