@@ -99,7 +99,6 @@ struct h1c {
 struct h1s {
 	struct h1c *h1c;
 	struct conn_stream *cs;
-	struct cs_info csinfo;         /* CS info, only used for client connections */
 	uint32_t flags;                /* Connection flags: H1S_F_* */
 
 	struct wait_event *subs;      /* Address of the wait_event the conn_stream associated is waiting on */
@@ -584,30 +583,10 @@ static struct h1s *h1s_create(struct h1c *h1c, struct conn_stream *cs, struct se
 		/* For frontend connections we should always have a session */
 		if (!sess)
 			h1s->sess = sess = h1c->conn->owner;
-
-		/* Timers for subsequent sessions on the same HTTP 1.x connection
-		 * measure from `now`, not from the connection accept time */
-		if (h1s->flags & H1S_F_NOT_FIRST) {
-			h1s->csinfo.create_date = date;
-			h1s->csinfo.tv_create   = now;
-			h1s->csinfo.t_handshake = 0;
-			h1s->csinfo.t_idle      = -1;
-		}
-		else {
-			h1s->csinfo.create_date = sess->accept_date;
-			h1s->csinfo.tv_create   = sess->tv_accept;
-			h1s->csinfo.t_handshake = sess->t_handshake;
-			h1s->csinfo.t_idle      = -1;
-		}
 	}
 	else {
 		if (h1c->px->options2 & PR_O2_RSPBUG_OK)
 			h1s->res.err_pos = -1;
-
-		h1s->csinfo.create_date = date;
-		h1s->csinfo.tv_create   = now;
-		h1s->csinfo.t_handshake = 0;
-		h1s->csinfo.t_idle      = -1;
 	}
 
 	/* If a conn_stream already exists, attach it to this H1S. Otherwise we
@@ -657,15 +636,6 @@ static void h1s_destroy(struct h1s *h1s)
 		}
 		pool_free(pool_head_h1s, h1s);
 	}
-}
-
-static const struct cs_info *h1_get_cs_info(struct conn_stream *cs)
-{
-	struct h1s *h1s = cs->ctx;
-
-	if (h1s && !conn_is_back(cs->conn))
-		return &h1s->csinfo;
-	return NULL;
 }
 
 /*
@@ -2096,11 +2066,8 @@ static int h1_recv(struct h1c *h1c)
 	if (ret > 0) {
 		TRACE_DATA("data received", H1_EV_H1C_RECV, h1c->conn, 0, 0, (size_t[]){ret});
 		rcvd = 1;
-		if (h1s && h1s->cs) {
+		if (h1s && h1s->cs)
 			h1s->cs->flags |= (CS_FL_READ_PARTIAL|CS_FL_RCV_MORE);
-			if (h1s->csinfo.t_idle == -1)
-				h1s->csinfo.t_idle = tv_ms_elapsed(&h1s->csinfo.tv_create, &now) - h1s->csinfo.t_handshake;
-		}
 	}
 
 	if (ret > 0 || !h1_recv_allowed(h1c) || !buf_room_for_htx_data(&h1c->ibuf)) {
@@ -2226,8 +2193,6 @@ static int h1_process(struct h1c * h1c)
 		h1s = h1c->h1s;
 	}
 
-	if (b_data(&h1c->ibuf) && h1s->csinfo.t_idle == -1)
-		h1s->csinfo.t_idle = tv_ms_elapsed(&h1s->csinfo.tv_create, &now) - h1s->csinfo.t_handshake;
 	if (b_data(&h1c->ibuf) && h1s->sess->t_idle == -1)
 		h1s->sess->t_idle = tv_ms_elapsed(&h1s->sess->tv_accept, &now) - h1s->sess->t_handshake;
 
@@ -3180,7 +3145,6 @@ static const struct mux_ops mux_h1_ops = {
 	.wake        = h1_wake,
 	.attach      = h1_attach,
 	.get_first_cs = h1_get_first_cs,
-	.get_cs_info = h1_get_cs_info,
 	.detach      = h1_detach,
 	.destroy     = h1_destroy,
 	.avail_streams = h1_avail_streams,
