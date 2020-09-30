@@ -50,6 +50,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		vars_init(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
 		sess->t_handshake = -1; /* handshake not done yet */
+		sess->t_idle = -1;
 		_HA_ATOMIC_ADD(&totalconn, 1);
 		_HA_ATOMIC_ADD(&jobs, 1);
 		LIST_INIT(&sess->srv_list);

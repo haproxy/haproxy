@@ -54,9 +54,10 @@ struct session {
 	struct vars vars;               /* list of variables for the session scope. */
 	struct task *task;              /* handshake timeout processing */
 	long t_handshake;               /* handshake duration, -1 = not completed */
+	long t_idle;                    /* idle duration, -1 if never occurs */
 	int idle_conns;                 /* Number of connections we're currently responsible for that we are not using */
-	struct list srv_list;           /* List of servers and the connections the session is currently responsible for */
 	unsigned int flags;             /* session flags, SESS_FL_* */
+	struct list srv_list;           /* List of servers and the connections the session is currently responsible for */
 };
 
 struct sess_srv_list {
