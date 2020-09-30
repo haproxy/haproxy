@@ -1122,6 +1122,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 	conn_prepare(conn, proto, xprt);
 	cs_attach(cs, check, &check_conn_cb);
+	conn_set_domain_from_server(conn, s);
 
 	status = SF_ERR_INTERNAL;
 	next = get_next_tcpcheck_rule(check->tcpcheck_rules, rule);
@@ -1153,8 +1154,6 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.alpn_str)
 		ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str, s->check.alpn_len);
 #endif
-
-	conn_set_domain_from_server(conn, s);
 
 	if ((connect->options & TCPCHK_OPT_SOCKS4) && s && (s->flags & SRV_F_SOCKS4_PROXY))
 	{
