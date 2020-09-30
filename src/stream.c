@@ -351,14 +351,13 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 		s->logs.accept_date = csinfo->create_date;
 		s->logs.tv_accept = csinfo->tv_create;
 		s->logs.t_handshake = csinfo->t_handshake;
-		s->logs.t_idle = csinfo->t_idle;
 	}
 	else {
 		s->logs.accept_date = sess->accept_date;
 		s->logs.tv_accept = sess->tv_accept;
 		s->logs.t_handshake = sess->t_handshake;
-		s->logs.t_idle = -1;
 	}
+	s->logs.t_idle = sess->t_idle;
 
 	/* default logging function */
 	s->do_log = strm_log;
