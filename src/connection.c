@@ -1173,7 +1173,7 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 	{
 		if (FAKE_SOCKS4A_IP == req_line.ip)
 		{
-			DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Requested fake host ip (%u) with no domain to SOCKS4. Doing error in debug build.\n",
+			DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Requested fake host ip (%u) with no domain to SOCKS4. Doing error.\n",
 					conn->handle.fd, FAKE_SOCKS4A_IP);
 			goto out_error;
 		}
