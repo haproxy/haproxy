@@ -1557,8 +1557,7 @@ int connect_server(struct stream *s)
 		{
 			srv_conn->send_proxy_ofs = 1;
 			srv_conn->flags |= CO_FL_SOCKS4;
-			if (srv->flags & SRV_F_SOCKS4_PROXY_FAILED_RESOLVE)
-				conn_set_domain(srv_conn, srv->hostname);
+			conn_set_domain_from_server(srv_conn, srv);
 		}
 	}
 	else if (!conn_xprt_ready(srv_conn))

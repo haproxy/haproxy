@@ -127,6 +127,12 @@ static inline void conn_set_domain(struct connection *conn, const char *domain)
 	}
 }
 
+static inline void conn_set_domain_from_server(struct connection *conn, struct server *srv)
+{
+	if (srv->flags & SRV_F_SOCKS4_PROXY_FAILED_RESOLVE)
+		conn_set_domain(conn, srv->hostname);
+}
+
 /* Calls the close() function of the transport layer if any and if not done
  * yet, and clears the CO_FL_XPRT_READY flag. However this is not done if the
  * CO_FL_XPRT_TRACKED flag is set, which allows logs to take data from the
