@@ -118,10 +118,13 @@ static inline void conn_free_domain(struct connection *conn)
 
 static inline void conn_set_domain(struct connection *conn, const char *domain)
 {
-	size_t len = strlen(domain) + 1;
 	conn_free_domain(conn);
-	conn->requested_domain = malloc(len);
-	memcpy(conn->requested_domain, domain, len);
+	if (domain)
+	{
+		size_t len = strlen(domain) + 1;
+		conn->requested_domain = malloc(len);
+		memcpy(conn->requested_domain, domain, len);
+	}
 }
 
 /* Calls the close() function of the transport layer if any and if not done

@@ -1153,6 +1153,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.alpn_str)
 		ssl_sock_set_alpn(conn, (unsigned char *)s->check.alpn_str, s->check.alpn_len);
 #endif
+
+	if (s->flags & SRV_F_SOCKS4_PROXY_FAILED_RESOLVE)
+		conn_set_domain(conn, s->hostname);
+
 	if ((connect->options & TCPCHK_OPT_SOCKS4) && s && (s->flags & SRV_F_SOCKS4_PROXY))
 	{
 		conn->send_proxy_ofs = 1;
@@ -1162,8 +1166,6 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	{
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SOCKS4;
-		if (s->flags & SRV_F_SOCKS4_PROXY_FAILED_RESOLVE)
-			conn_set_domain(conn, s->hostname);
 	}
 
 	if (connect->options & TCPCHK_OPT_SEND_PROXY)
