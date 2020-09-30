@@ -2132,7 +2132,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		tmp_strm_log.tv_accept = sess->tv_accept;
 		tmp_strm_log.accept_date = sess->accept_date;
 		tmp_strm_log.t_handshake = sess->t_handshake;
-		tmp_strm_log.t_idle = tv_ms_elapsed(&sess->tv_accept, &now) - sess->t_handshake;
+		tmp_strm_log.t_idle = (sess->t_idle >= 0 ? sess->t_idle : 0);
 		tv_zero(&tmp_strm_log.tv_request);
 		tmp_strm_log.t_queue = -1;
 		tmp_strm_log.t_connect = -1;
