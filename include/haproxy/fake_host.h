@@ -1,0 +1,7 @@
+#ifndef FAKE_HOST_HEDER
+#define FAKE_HOST_HEDER
+
+#define FAKE_SOCKS4A_HOST "10.10.10.10"
+#define FAKE_SOCKS4A_IP (0x0A0A0A0A)
+
+#endif

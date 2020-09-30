@@ -44,6 +44,7 @@
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
+#include <haproxy/fake_host.h>
 
 static void srv_update_status(struct server *s);
 static void srv_update_state(struct server *srv, int version, char **params);
@@ -4481,7 +4482,7 @@ int srv_init_addr(void)
 						if (r)
 						{
 							char *tmp = srv->hostname;
-							srv->hostname = "10.10.10.10";
+							srv->hostname = FAKE_SOCKS4A_HOST;
 							srv_iterate_initaddr(srv);
 							srv->hostname = tmp;
 							srv->flags |= SRV_F_SOCKS4_PROXY_FAILED_RESOLVE;

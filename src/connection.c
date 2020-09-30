@@ -25,6 +25,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream_interface.h>
+#include <haproxy/fake_host.h>
 
 DECLARE_POOL(pool_head_connection, "connection", sizeof(struct connection));
 DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
@@ -1167,17 +1168,16 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 				conn->handle.fd, conn->requested_domain);
 		req_line.ip = htonl(0x00000001u);
 	}
-#ifdef DEBUG_FULL
+
 	else
 	{
-		if (0x0A0A0A0A == req_line.ip)
+		if (FAKE_SOCKS4A_IP == req_line.ip)
 		{
 			DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Requested fake 10.10.10.10 with no domain to SOCKS4. Doing error in debug build.\n",
 					conn->handle.fd);
 			goto out_error;
 		}
 	}
-#endif
 	memcpy(req_line.user_id, "HAProxy\0", 8);
 
 	if (conn->send_proxy_ofs > 0)
