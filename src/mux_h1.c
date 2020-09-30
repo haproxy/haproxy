@@ -401,7 +401,6 @@ static int h1_buf_available(void *target)
 	if ((h1c->flags & H1C_F_OUT_ALLOC) && b_alloc_margin(&h1c->obuf, 0)) {
 		TRACE_STATE("unblocking h1s, obuf allocated", H1_EV_TX_DATA|H1_EV_H1S_BLK|H1_EV_STRM_WAKE, h1c->conn, h1c->h1s);
 		h1c->flags &= ~H1C_F_OUT_ALLOC;
-		tasklet_wakeup(h1c->wait_event.tasklet);
 		if (h1c->h1s)
 			h1_wake_stream_for_send(h1c->h1s);
 		return 1;
