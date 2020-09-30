@@ -321,7 +321,6 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	struct task *t;
 	struct conn_stream *cs  = objt_cs(origin);
 	struct appctx *appctx   = objt_appctx(origin);
-	const struct cs_info *csinfo;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_NEW);
 	if (unlikely((s = pool_alloc(pool_head_stream)) == NULL))
@@ -346,17 +345,9 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin)
 	s->logs.srv_queue_pos = 0; /* we will get this number soon */
 	s->obj_type = OBJ_TYPE_STREAM;
 
-	csinfo = si_get_cs_info(cs);
-	if (csinfo) {
-		s->logs.accept_date = csinfo->create_date;
-		s->logs.tv_accept = csinfo->tv_create;
-		s->logs.t_handshake = csinfo->t_handshake;
-	}
-	else {
-		s->logs.accept_date = sess->accept_date;
-		s->logs.tv_accept = sess->tv_accept;
-		s->logs.t_handshake = sess->t_handshake;
-	}
+	s->logs.accept_date = sess->accept_date;
+	s->logs.tv_accept = sess->tv_accept;
+	s->logs.t_handshake = sess->t_handshake;
 	s->logs.t_idle = sess->t_idle;
 
 	/* default logging function */
