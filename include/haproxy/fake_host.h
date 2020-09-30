@@ -12,8 +12,11 @@
  
  3. Next on handshake connection checks if it has text string "requested domain", if it is so, it does 4A protocol,
  otherwise 4.
+ 
  FAKE_SOCKS4A_IP is used at that step to catch that domain string is absent, but fake ip is set.
  This means step (2) from above was skipped, i.e. some copy-paste in code was not modified yet.
+ 
+ There is slim chance that was valid request to this fake IP using SOCKS4. Well, don't use SOCKS4 for this IP :)
 */
 #define FAKE_SOCKS4A_HOST "10.10.10.10"
 #define FAKE_SOCKS4A_IP (0x0A0A0A0A)
