@@ -127,10 +127,25 @@ static inline void conn_set_domain(struct connection *conn, const char *domain)
 	}
 }
 
+static int is_server_fake_address(struct server *srv)
+{
+	return (srv->flags & SRV_F_SOCKS4_PROXY_FAILED_RESOLVE);
+}
+
 static inline void conn_set_domain_from_server(struct connection *conn, struct server *srv)
 {
-	if (srv->flags & SRV_F_SOCKS4_PROXY_FAILED_RESOLVE)
+	if (is_server_fake_address(srv))
 		conn_set_domain(conn, srv->hostname);
+}
+
+static inline void conn_prepare_new_for_socks4(struct connection *conn, struct server *srv)
+{
+	if (srv && (srv->flags & SRV_F_SOCKS4_PROXY))
+	{
+		conn->send_proxy_ofs = 1;
+		conn->flags |= CO_FL_SOCKS4;
+		conn_set_domain_from_server(conn, srv);
+	}
 }
 
 /* Calls the close() function of the transport layer if any and if not done

@@ -1040,6 +1040,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 	/* 2- prepare new connection */
 	cs = cs_new(NULL, (s ? &s->obj_type : &proxy->obj_type));
+	DPRINTF(stderr, "************\ttcpcheck_eval_connect for server %p, FAKE_IP: %u\n", s, is_server_fake_address(s));
 	if (!cs)
 	{
 		chunk_printf(&trash, "TCPCHK error allocating connection at step %d",
@@ -1085,6 +1086,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	 * addr if specified on the server. otherwise, use the server addr (it
 	 * MUST exist at this step).
 	 */
+
 	*conn->dst = (is_addr(&connect->addr)
 					  ? connect->addr
 					  : (is_addr(&check->addr) ? check->addr : s->addr));
@@ -1122,7 +1124,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 	conn_prepare(conn, proto, xprt);
 	cs_attach(cs, check, &check_conn_cb);
-	conn_set_domain_from_server(conn, s);
+	conn_prepare_new_for_socks4(conn, s);
 
 	status = SF_ERR_INTERNAL;
 	next = get_next_tcpcheck_rule(check->tcpcheck_rules, rule);

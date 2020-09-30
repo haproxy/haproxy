@@ -1552,13 +1552,7 @@ int connect_server(struct stream *s)
 		}
 
 		assign_tproxy_address(s);
-
-		if (srv && (srv->flags & SRV_F_SOCKS4_PROXY))
-		{
-			srv_conn->send_proxy_ofs = 1;
-			srv_conn->flags |= CO_FL_SOCKS4;
-			conn_set_domain_from_server(srv_conn, srv);
-		}
+		conn_prepare_new_for_socks4(srv_conn, srv);
 	}
 	else if (!conn_xprt_ready(srv_conn))
 	{
