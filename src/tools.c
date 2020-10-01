@@ -4911,6 +4911,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 {
 	char *quote = NULL;
 	char *brace = NULL;
+	char *word_expand = NULL;
 	unsigned char hex1, hex2;
 	size_t outmax = *outlen;
 	int argsmax = *nbargs - 1;
@@ -5089,6 +5090,19 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 			value = getenv(var_name);
 			*in = save_char;
 
+			/* support for '[*]' sequence to force word expansion,
+			 * only available inside braces */
+			if (*in == '[' && brace && (opts & PARSE_OPT_WORD_EXPAND)) {
+				word_expand = in++;
+
+				if (*in++ != '*' || *in++ != ']') {
+					err |= PARSE_ERR_WRONG_EXPAND;
+					if (errptr)
+						*errptr = word_expand;
+					goto leave;
+				}
+			}
+
 			if (brace) {
 				if (*in != '}') {
 					/* unmatched brace */
@@ -5102,9 +5116,25 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 			}
 
 			if (value) {
-				while (*value)
-					EMIT_CHAR(*value++);
+				while (*value) {
+					/* expand as individual parameters on a space character */
+					if (word_expand && isspace(*value)) {
+						EMIT_CHAR(0);
+						++arg;
+						if (arg < argsmax)
+							args[arg] = out + outpos;
+						else
+							err |= PARSE_ERR_TOOMANY;
+
+						/* skip consecutive spaces */
+						while (isspace(*++value))
+							;
+					} else {
+						EMIT_CHAR(*value++);
+					}
+				}
 			}
+			word_expand = NULL;
 		}
 		else {
 			/* any other regular char */

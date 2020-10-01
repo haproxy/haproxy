@@ -57,6 +57,7 @@
 #define PARSE_OPT_DQUOTE        0x00000008      // '"' encloses a string
 #define PARSE_OPT_ENV           0x00000010      // '$' is followed by environment variables
 #define PARSE_OPT_INPLACE       0x00000020      // parse and tokenize in-place (src == dst)
+#define PARSE_OPT_WORD_EXPAND   0x00000040      // '[*]' suffix to expand an environment variable as several individual arguments
 
 /* return error flags from parse_line() */
 #define PARSE_ERR_TOOLARGE      0x00000001      // result is too large for initial outlen
@@ -66,6 +67,7 @@
 #define PARSE_ERR_HEX           0x00000010      // unparsable hex sequence (at errptr)
 #define PARSE_ERR_VARNAME       0x00000020      // invalid variable name (at errptr)
 #define PARSE_ERR_OVERLAP       0x00000040      // output overlaps with input, need to allocate
+#define PARSE_ERR_WRONG_EXPAND  0x00000080      // unparsable word expansion sequence
 
 /* special return values for the time parser (parse_time_err()) */
 #define PARSE_TIME_UNDER ((char *)1)

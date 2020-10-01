@@ -475,7 +475,10 @@ interpreted only within double quotes. Variables are expanded during the
 configuration parsing. Variable names must be preceded by a dollar ("$") and
 optionally enclosed with braces ("{}") similarly to what is done in Bourne
 shell. Variable names can contain alphanumerical characters or the character
-underscore ("_") but should not start with a digit.
+underscore ("_") but should not start with a digit. If the variable contains a
+list of several values separated by spaces, it can be expanded as individual
+arguments by enclosing the variable with braces and appending the suffix '[*]'
+before the closing brace.
 
   Example:
 

@@ -1908,7 +1908,8 @@ next_line:
 			outlen = outlinesize;
 			err = parse_line(line, outline, &outlen, args, &arg,
 					 PARSE_OPT_ENV | PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE |
-					 PARSE_OPT_BKSLASH | PARSE_OPT_SHARP, &errptr);
+					 PARSE_OPT_BKSLASH | PARSE_OPT_SHARP | PARSE_OPT_WORD_EXPAND,
+					 &errptr);
 
 			if (err & PARSE_ERR_QUOTE) {
 				size_t newpos = sanitize_for_printing(line, errptr - line, 80);
@@ -1944,6 +1945,16 @@ next_line:
 				size_t newpos = sanitize_for_printing(line, errptr - line, 80);
 
 				ha_alert("parsing [%s:%d]: truncated or invalid hexadecimal sequence at position %d:\n"
+					 "  %s\n  %*s\n", file, linenum, (int)(errptr-thisline+1), line, (int)(newpos+1), "^");
+				err_code |= ERR_ALERT | ERR_FATAL;
+				fatal++;
+				goto next_line;
+			}
+
+			if (err & PARSE_ERR_WRONG_EXPAND) {
+				size_t newpos = sanitize_for_printing(line, errptr - line, 80);
+
+				ha_alert("parsing [%s:%d]: truncated or invalid word expansion sequence at position %d:\n"
 					 "  %s\n  %*s\n", file, linenum, (int)(errptr-thisline+1), line, (int)(newpos+1), "^");
 				err_code |= ERR_ALERT | ERR_FATAL;
 				fatal++;
