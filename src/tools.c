@@ -5118,7 +5118,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 			if (value) {
 				while (*value) {
 					/* expand as individual parameters on a space character */
-					if (word_expand && isspace(*value)) {
+					if (word_expand && isspace((unsigned char)*value)) {
 						EMIT_CHAR(0);
 						++arg;
 						if (arg < argsmax)
@@ -5127,7 +5127,7 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 							err |= PARSE_ERR_TOOMANY;
 
 						/* skip consecutive spaces */
-						while (isspace(*++value))
+						while (isspace((unsigned char)*++value))
 							;
 					} else {
 						EMIT_CHAR(*value++);
