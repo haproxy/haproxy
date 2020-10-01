@@ -105,6 +105,7 @@
 #   IGNOREGIT      : ignore GIT commit versions if set.
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
+#   EXTRAVERSION   : local version string to append (e.g. build number etc)
 #   VERDATE        : force haproxy's release date.
 #   VTEST_PROGRAM  : location of the vtest program to run reg-tests.
 #   DEBUG_USE_ABORT: use abort() for program termination, see include/haproxy/bug.h for details
@@ -451,6 +452,9 @@ ifeq ($(VERDATE),)
 VERDATE := $(shell (grep -v '^\$$Format' VERDATE 2>/dev/null || touch VERDATE) | head -n 1 | cut -f1 -d' ' | tr '-' '/')
 endif
 
+# this one is always empty by default and appended verbatim
+EXTRAVERSION =
+
 #### Build options
 # Do not change these ones, enable USE_* variables instead.
 OPTIONS_CFLAGS  =
@@ -726,8 +730,8 @@ COPTS  = -Iinclude
 COPTS += $(CFLAGS) $(TARGET_CFLAGS) $(SMALL_OPTS) $(DEFINE) $(SILENT_DEFINE)
 COPTS += $(DEBUG) $(OPTIONS_CFLAGS) $(ADDINC)
 
-ifneq ($(VERSION)$(SUBVERS),)
-COPTS += -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)\"
+ifneq ($(VERSION)$(SUBVERS)$(EXTRAVERSION),)
+COPTS += -DCONFIG_HAPROXY_VERSION=\"$(VERSION)$(SUBVERS)$(EXTRAVERSION)\"
 endif
 
 ifneq ($(VERDATE),)
@@ -926,8 +930,8 @@ uninstall:
 clean:
 	$(Q)rm -f *.[oas] src/*.[oas] haproxy test .build_opts .build_opts.new
 	$(Q)for dir in . src include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
-	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
-	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS) nohup.out gmon.out
+	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
+	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
 
 tags:
 	$(Q)find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
@@ -937,17 +941,17 @@ cscope:
 	$(Q)find src include -name "*.[ch]" -print | cscope -q -b -i -
 
 tar:	clean
-	$(Q)ln -s . haproxy-$(VERSION)$(SUBVERS)
-	$(Q)tar --exclude=haproxy-$(VERSION)$(SUBVERS)/.git \
-	    --exclude=haproxy-$(VERSION)$(SUBVERS)/haproxy-$(VERSION)$(SUBVERS) \
-	    --exclude=haproxy-$(VERSION)$(SUBVERS)/haproxy-$(VERSION)$(SUBVERS).tar.gz \
-	    -cf - haproxy-$(VERSION)$(SUBVERS)/* | gzip -c9 >haproxy-$(VERSION)$(SUBVERS).tar.gz
-	$(Q)echo haproxy-$(VERSION)$(SUBVERS).tar.gz
-	$(Q)rm -f haproxy-$(VERSION)$(SUBVERS)
+	$(Q)ln -s . haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)
+	$(Q)tar --exclude=haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/.git \
+	    --exclude=haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) \
+	    --exclude=haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz \
+	    -cf - haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/* | gzip -c9 >haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
+	$(Q)echo haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
+	$(Q)rm -f haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)
 
 git-tar:
-	$(Q)git archive --format=tar --prefix="haproxy-$(VERSION)$(SUBVERS)/" HEAD | gzip -9 > haproxy-$(VERSION)$(SUBVERS).tar.gz
-	$(Q)echo haproxy-$(VERSION)$(SUBVERS).tar.gz
+	$(Q)git archive --format=tar --prefix="haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/" HEAD | gzip -9 > haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
+	$(Q)echo haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 
 version:
 	@echo "VERSION: $(VERSION)"
