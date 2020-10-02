@@ -375,10 +375,10 @@ and assign it to the TARGET variable :
   - linux-glibc-legacy  for Linux kernel 2.6.28 and above without new features
   - linux-musl          for Linux kernel 2.6.28 and above with musl libc
   - solaris             for Solaris 10 and above
-  - freebsd             for FreeBSD 5 to 12 (others untested)
+  - freebsd             for FreeBSD 10 and above
   - netbsd              for NetBSD
   - osx                 for Mac OS/X
-  - openbsd             for OpenBSD 5.7 and above
+  - openbsd             for OpenBSD 6.3 and above
   - aix51               for AIX 5.1
   - aix52               for AIX 5.2
   - aix72-gcc           for AIX 7.2 (using gcc)
