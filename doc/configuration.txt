@@ -11305,13 +11305,16 @@ tcp-request content <action> [{if | unless} <condition>]
   "track-sc*" actions as well as for changing the default action to a reject.
 
   It is perfectly possible to match layer 7 contents with "tcp-request content"
-  rules, since HTTP-specific ACL matches are able to preliminarily parse the
-  contents of a buffer before extracting the required data. If the buffered
-  contents do not parse as a valid HTTP message, then the ACL does not match.
-  The parser which is involved there is exactly the same as for all other HTTP
-  processing, so there is no risk of parsing something differently. In an HTTP
-  backend connected to from an HTTP frontend, it is guaranteed that HTTP
-  contents will always be immediately present when the rule is evaluated first.
+  rules from a TCP proxy, since HTTP-specific ACL matches are able to
+  preliminarily parse the contents of a buffer before extracting the required
+  data. If the buffered contents do not parse as a valid HTTP message, then the
+  ACL does not match.  The parser which is involved there is exactly the same
+  as for all other HTTP processing, so there is no risk of parsing something
+  differently. In an HTTP frontend or an HTTP backend, it is guaranteed that
+  HTTP contents will always be immediately present when the rule is evaluated
+  first because the HTTP parsing is performed in the early stages of the
+  connection processing, at the session level. But for such proxies, using
+  "http-request" rules is much more natural and recommended.
 
   Tracking layer7 information is also possible provided that the information
   are present when the rule is processed. The rule processing engine is able to
