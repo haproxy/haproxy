@@ -39,6 +39,11 @@ extern const char *stat_status_codes[];
 extern struct applet http_stats_applet;
 
 
+struct htx;
+int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk);
+
+int stats_dump_one_line(const struct field *stats, struct proxy *px, struct appctx *appctx);
+
 int stats_fill_info(struct field *info, int len);
 int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len);
 int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,

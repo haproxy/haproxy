@@ -259,7 +259,7 @@ static THREAD_LOCAL struct field stats[ST_F_TOTAL_FIELDS];
 
 static void stats_dump_json_schema(struct buffer *out);
 
-static int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
+int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
 {
 	if (htx) {
 		if (chk->data >= channel_htx_recv_max(chn, htx))
@@ -1381,7 +1381,7 @@ static int stats_dump_fields_html(struct buffer *out,
 	return 1;
 }
 
-static int stats_dump_one_line(const struct field *stats, struct proxy *px, struct appctx *appctx)
+int stats_dump_one_line(const struct field *stats, struct proxy *px, struct appctx *appctx)
 {
 	int ret;
 
