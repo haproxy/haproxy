@@ -609,6 +609,34 @@ err:
 	return 0;
 }
 
+static void stats_print_proxy_field_json(struct buffer *out,
+                                         const struct field *stat,
+                                         const char *name,
+                                         int pos,
+                                         uint32_t field_type,
+                                         uint32_t iid,
+                                         uint32_t sid,
+                                         uint32_t pid)
+{
+	const char *obj_type;
+	switch (field_type) {
+		case STATS_TYPE_FE: obj_type = "Frontend"; break;
+		case STATS_TYPE_BE: obj_type = "Backend";  break;
+		case STATS_TYPE_SO: obj_type = "Listener"; break;
+		case STATS_TYPE_SV: obj_type = "Server";   break;
+		default:            obj_type = "Unknown";  break;
+	}
+
+	chunk_appendf(out,
+	              "{"
+	              "\"objType\":\"%s\","
+	              "\"proxyId\":%u,"
+	              "\"id\":%u,"
+	              "\"field\":{\"pos\":%d,\"name\":\"%s\"},"
+	              "\"processNum\":%u,",
+	              obj_type, iid, sid, pos, name, pid);
+}
+
 /* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
 static int stats_dump_fields_json(struct buffer *out,
                                   const struct field *stats, size_t stats_count,
@@ -623,7 +651,6 @@ static int stats_dump_fields_json(struct buffer *out,
 		return 0;
 
 	for (field = 0; field < stats_count; field++) {
-		const char *obj_type;
 		int old_len;
 
 		if (!stats[field].type)
@@ -633,25 +660,14 @@ static int stats_dump_fields_json(struct buffer *out,
 			goto err;
 		started = 1;
 
-		switch (stats[ST_F_TYPE].u.u32) {
-		case STATS_TYPE_FE: obj_type = "Frontend"; break;
-		case STATS_TYPE_BE: obj_type = "Backend";  break;
-		case STATS_TYPE_SO: obj_type = "Listener"; break;
-		case STATS_TYPE_SV: obj_type = "Server";   break;
-		default:            obj_type = "Unknown";  break;
-		}
-
 		old_len = out->data;
-		chunk_appendf(out,
-			      "{"
-				"\"objType\":\"%s\","
-				"\"proxyId\":%d,"
-				"\"id\":%d,"
-				"\"field\":{\"pos\":%d,\"name\":\"%s\"},"
-				"\"processNum\":%u,",
-			       obj_type, stats[ST_F_IID].u.u32,
-			       stats[ST_F_SID].u.u32, field,
-			       stat_fields[field].name, stats[ST_F_PID].u.u32);
+		stats_print_proxy_field_json(out, &stats[field],
+			                     stat_fields[field].name, field,
+			                     stats[ST_F_TYPE].u.u32,
+			                     stats[ST_F_IID].u.u32,
+			                     stats[ST_F_SID].u.u32,
+			                     stats[ST_F_PID].u.u32);
+
 		if (old_len == out->data)
 			goto err;
 
