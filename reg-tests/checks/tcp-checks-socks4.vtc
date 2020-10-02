@@ -1,0 +1,63 @@
+varnishtest "Health-checks: basic HTTP health-check though a socks4 proxy"
+#REQUIRE_VERSION=2.0
+#REGTEST_TYPE=slow
+feature ignore_unknown_macro
+
+# This scripts tests a simple HTTP health-checks though a socks4 proxy.
+
+server s1 {
+} -start
+
+server socks {
+  ## get socks4 request
+  recv 16
+
+  ## send socks4 response :
+  ##   constant(1): 0x00
+  ##   statut(1)  : 0x5a (success)
+  ##   padding(6) : ignored
+  sendhex "005A000000000000"
+
+  rxreq
+  expect req.method == OPTIONS
+  expect req.url == /
+  expect req.proto == HTTP/1.0
+  txresp
+} -start
+
+syslog S1 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Proxy be1 started."
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded, reason: Layer7 check passed.+code: 200.+check duration: [[:digit:]]+ms, status: 1/1 UP."
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode tcp
+        timeout client 1s
+        timeout server 1s
+        timeout connect 100ms
+
+    backend be1
+        log ${S1_addr}:${S1_port} daemon
+        option log-health-checks
+        option httpchk
+        server srv ${s1_addr}:${s1_port} socks4 ${h1_socks_addr}:${h1_socks_port} check-via-socks4 check inter 1s rise 1 fall 1
+
+    listen socks
+        bind "fd@${socks}"
+        tcp-request inspect-delay 500ms
+        ## Accept socks4 request on 16 bytes :
+        ##    version(1) : 0x04
+        ##    command(1) : 0x01
+        ##    port(2)    : ${s1_port}
+        ##    addr(4)    : ${s1_addr}
+        ##    user-id    : "HAProxy\0"
+        tcp-request content accept if { req.len eq 16 } { req.payload(0,1) -m bin "04" } { req.payload(1,1) -m bin "01" } { req.payload(2,2),hex,hex2i eq ${s1_port} } { req.payload(4,4),hex,hex2i -m ip ${s1_addr} } { req.payload(8,8) -m bin "484150726F787900" }
+        tcp-request content reject
+        server srv ${socks_addr}:${socks_port}
+
+} -start
+
+syslog S1 -wait
