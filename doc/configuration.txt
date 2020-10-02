@@ -11304,6 +11304,13 @@ tcp-request content <action> [{if | unless} <condition>]
   the action, it is simply performed unconditionally. That can be useful for
   "track-sc*" actions as well as for changing the default action to a reject.
 
+  Note also that it is recommended to use a "tcp-request session" rule to track
+  information that does *not* depend on Layer 7 contents, especially for HTTP
+  frontends. Some HTTP processing are performed at the session level and may
+  lead to an early rejection of the requests. Thus, the tracking at the content
+  level may be disturbed in such case. A warning is emitted during startup to
+  prevent, as far as possible, such unreliable usage.
+
   It is perfectly possible to match layer 7 contents with "tcp-request content"
   rules from a TCP proxy, since HTTP-specific ACL matches are able to
   preliminarily parse the contents of a buffer before extracting the required
