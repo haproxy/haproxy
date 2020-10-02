@@ -63,7 +63,7 @@ struct fe_counters {
 	} p;                                    /* protocol-specific stats */
 };
 
-/* counters used by listeners and frontends */
+/* counters used by servers and backends */
 struct be_counters {
 	unsigned int conn_max;                  /* max # of active sessions */
 	long long    cum_conn;                  /* cumulated number of received connections */
