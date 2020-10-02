@@ -599,9 +599,6 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 				}
 			}
 		}
-		if (cfgerr & ERR_CODE)
-			goto error;
-
 		entry = NULL;
 	}
 
