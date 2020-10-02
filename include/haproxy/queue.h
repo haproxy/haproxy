@@ -47,7 +47,7 @@ void pendconn_unlink(struct pendconn *p);
  */
 static inline void pendconn_cond_unlink(struct pendconn *p)
 {
-	if (p && p->node.node.leaf_p)
+	if (p)
 		pendconn_unlink(p);
 }
 
