@@ -552,11 +552,11 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 
 			} else {
 				/* If we didn't find the file, this could be a
-				bundle, since 2.3 we don't support OpenSSL
-				multi-certificate bundle, so we emulate it by
-				loading each file separately. To do so we need
-				to duplicate the entry in the crt-list because
-				it becomes independent */
+				bundle, since 2.3 we don't support multiple
+				certificate in the same OpenSSL store, so we
+				emulate it by loading each file separately. To
+				do so we need to duplicate the entry in the
+				crt-list because it becomes independent */
 				char fp[MAXPATHLEN+1] = {0};
 				int n = 0;
 				struct crtlist_entry *entry_dup = entry; /* use the previous created entry */
