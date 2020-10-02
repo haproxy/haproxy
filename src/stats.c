@@ -2744,6 +2744,48 @@ static void stats_dump_json_end()
 	chunk_strcat(&trash, "]");
 }
 
+/* Uses <appctx.ctx.stats.obj1> as a pointer to the current proxy and <obj2> as
+ * a pointer to the current server/listener.
+ */
+static int stats_dump_proxies(struct stream_interface *si,
+                              struct htx *htx,
+                              struct uri_auth *uri)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+	struct channel *rep = si_ic(si);
+	struct proxy *px;
+
+	/* dump proxies */
+	while (appctx->ctx.stats.obj1) {
+		if (htx) {
+			if (htx_almost_full(htx))
+				goto full;
+		}
+		else {
+			if (buffer_almost_full(&rep->buf))
+				goto full;
+		}
+
+		px = appctx->ctx.stats.obj1;
+		/* skip the disabled proxies, global frontend and non-networked ones */
+		if (px->state != PR_STSTOPPED && px->uuid > 0
+		    && (px->cap & (PR_CAP_FE | PR_CAP_BE))) {
+
+			if (stats_dump_proxy_to_buffer(si, htx, px, uri) == 0)
+				return 0;
+		}
+
+		appctx->ctx.stats.obj1 = px->next;
+		appctx->ctx.stats.px_st = STAT_PX_ST_INIT;
+	}
+
+	return 1;
+
+  full:
+	si_rx_room_blk(si);
+	return 0;
+}
+
 /* This function dumps statistics onto the stream interface's read buffer in
  * either CSV or HTML format. <uri> contains some HTML-specific parameters that
  * are ignored for CSV format (hence <uri> may be NULL there). It returns 0 if
@@ -2756,7 +2798,6 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct channel *rep = si_ic(si);
-	struct proxy *px;
 
 	chunk_reset(&trash);
 
@@ -2799,26 +2840,8 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 
 	case STAT_ST_LIST:
 		/* dump proxies */
-		while (appctx->ctx.stats.obj1) {
-			if (htx) {
-				if (htx_almost_full(htx))
-					goto full;
-			}
-			else {
-				if (buffer_almost_full(&rep->buf))
-					goto full;
-			}
-
-			px = appctx->ctx.stats.obj1;
-			/* skip the disabled proxies, global frontend and non-networked ones */
-			if (px->state != PR_STSTOPPED && px->uuid > 0 && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
-				if (stats_dump_proxy_to_buffer(si, htx, px, uri) == 0)
-					return 0;
-
-			appctx->ctx.stats.obj1 = px->next;
-			appctx->ctx.stats.px_st = STAT_PX_ST_INIT;
-		}
-		/* here, we just have reached the last proxy */
+		if (!stats_dump_proxies(si, htx, uri))
+			return 0;
 
 		appctx->st2 = STAT_ST_END;
 		/* fall through */
