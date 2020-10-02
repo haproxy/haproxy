@@ -1595,7 +1595,12 @@ static void init(int argc, char **argv)
 		progname = tmp + 1;
 
 	/* the process name is used for the logs only */
-	chunk_initstr(&global.log_tag, strdup(progname));
+	chunk_initlen(&global.log_tag, strdup(progname), strlen(progname), strlen(progname));
+	if (b_orig(&global.log_tag) == NULL) {
+		chunk_destroy(&global.log_tag);
+		ha_alert("Cannot allocate memory for log_tag.\n");
+		exit(EXIT_FAILURE);
+	}
 
 	argc--; argv++;
 	while (argc > 0) {
