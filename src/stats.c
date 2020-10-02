@@ -512,11 +512,12 @@ int stats_emit_json_field_tags(struct buffer *out, const struct field *f)
 
 /* Dump all fields from <stats> into <out> using CSV format */
 static int stats_dump_fields_csv(struct buffer *out,
-				 const struct field *stats, unsigned int flags)
+                                 const struct field *stats, size_t stats_count,
+                                 unsigned int flags)
 {
 	int field;
 
-	for (field = 0; field < ST_F_TOTAL_FIELDS; field++) {
+	for (field = 0; field < stats_count; field++) {
 		if (!stats_emit_raw_data_field(out, &stats[field]))
 			return 0;
 		if (!chunk_strcat(out, ","))
@@ -528,11 +529,13 @@ static int stats_dump_fields_csv(struct buffer *out,
 
 /* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
 static int stats_dump_fields_typed(struct buffer *out,
-				   const struct field *stats, unsigned int flags)
+                                   const struct field *stats,
+                                   size_t stats_count,
+                                   unsigned int flags)
 {
 	int field;
 
-	for (field = 0; field < ST_F_TOTAL_FIELDS; field++) {
+	for (field = 0; field < stats_count; ++field) {
 		if (!stats[field].type)
 			continue;
 
@@ -608,8 +611,8 @@ err:
 
 /* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
 static int stats_dump_fields_json(struct buffer *out,
-				  const struct field *stats,
-				  unsigned int flags)
+                                  const struct field *stats, size_t stats_count,
+                                  unsigned int flags)
 {
 	int field;
 	int started = 0;
@@ -619,7 +622,7 @@ static int stats_dump_fields_json(struct buffer *out,
 	if (!chunk_strcat(out, "["))
 		return 0;
 
-	for (field = 0; field < ST_F_TOTAL_FIELDS; field++) {
+	for (field = 0; field < stats_count; field++) {
 		const char *obj_type;
 		int old_len;
 
@@ -1381,18 +1384,19 @@ static int stats_dump_fields_html(struct buffer *out,
 	return 1;
 }
 
-int stats_dump_one_line(const struct field *stats, struct proxy *px, struct appctx *appctx)
+int stats_dump_one_line(const struct field *stats, size_t stats_count,
+                        struct appctx *appctx)
 {
 	int ret;
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
 		ret = stats_dump_fields_html(&trash, stats, appctx->ctx.stats.flags);
 	else if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
-		ret = stats_dump_fields_typed(&trash, stats, appctx->ctx.stats.flags);
+		ret = stats_dump_fields_typed(&trash, stats, stats_count, appctx->ctx.stats.flags);
 	else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
-		ret = stats_dump_fields_json(&trash, stats, appctx->ctx.stats.flags);
+		ret = stats_dump_fields_json(&trash, stats, stats_count, appctx->ctx.stats.flags);
 	else
-		ret = stats_dump_fields_csv(&trash, stats, appctx->ctx.stats.flags);
+		ret = stats_dump_fields_csv(&trash, stats, stats_count, appctx->ctx.stats.flags);
 
 	if (ret)
 		appctx->ctx.stats.flags |= STAT_STARTED;
@@ -1486,7 +1490,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 	if (!stats_fill_fe_stats(px, stats, ST_F_TOTAL_FIELDS))
 		return 0;
 
-	return stats_dump_one_line(stats, px, appctx);
+	return stats_dump_one_line(stats, ST_F_TOTAL_FIELDS, appctx);
 }
 
 /* Fill <stats> with the listener statistics. <stats> is
@@ -1571,7 +1575,7 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 	if (!stats_fill_li_stats(px, l, appctx->ctx.stats.flags, stats, ST_F_TOTAL_FIELDS))
 		return 0;
 
-	return stats_dump_one_line(stats, px, appctx);
+	return stats_dump_one_line(stats, ST_F_TOTAL_FIELDS, appctx);
 }
 
 enum srv_stats_state {
@@ -1878,7 +1882,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, st
 	if (!stats_fill_sv_stats(px, sv, appctx->ctx.stats.flags, stats, ST_F_TOTAL_FIELDS))
 		return 0;
 
-	return stats_dump_one_line(stats, px, appctx);
+	return stats_dump_one_line(stats, ST_F_TOTAL_FIELDS, appctx);
 }
 
 /* Fill <stats> with the backend statistics. <stats> is
@@ -1998,7 +2002,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px)
 	if (!stats_fill_be_stats(px, appctx->ctx.stats.flags, stats, ST_F_TOTAL_FIELDS))
 		return 0;
 
-	return stats_dump_one_line(stats, px, appctx);
+	return stats_dump_one_line(stats, ST_F_TOTAL_FIELDS, appctx);
 }
 
 /* Dumps the HTML table header for proxy <px> to the trash for and uses the state from
