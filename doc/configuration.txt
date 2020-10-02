@@ -1391,14 +1391,40 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
   bundles, sctl, ocsp, issuer, key.
 
   "bundle": When a file specified in the configuration does not exist, HAProxy
-  will try to load a certificate bundle. This is done by looking for
-  <basename>.rsa, .ecdsa and .dsa.
-  The multi-certificates bundles were introduced with OpenSSL 1.0.2 and were
-  the only way back then to serve an ECDSA certificate and a RSA one with the
-  same SNI. Since HAProxy 2.3 it does not use the OpenSSL bundle but it
-  loads every certificates separately to emulate this behavior. At least
-  OpenSSL 1.1.1 is required. It is recommended to specify all the certificates
-  in the configuration instead of using the bundle feature.
+  will try to load a "cert bundle".
+
+  Starting from HAProxy 2.3, the bundles are not loaded in the same OpenSSL
+  certificate store, instead it will loads each certificate in a separate
+  store which is equivalent to declaring multiple "crt". OpenSSL 1.1.1 is
+  required to achieve this. Which means that bundles are now used only for
+  backward compatibility and are not mandatory anymore to do an hybrid RSA/ECC
+  bind configuration..
+
+  To associate these PEM files into a "cert bundle" that is recognized by
+  haproxy, they must be named in the following way: All PEM files that are to
+  be bundled must have the same base name, with a suffix indicating the key
+  type. Currently, three suffixes are supported: rsa, dsa and ecdsa. For
+  example, if www.example.com has two PEM files, an RSA file and an ECDSA
+  file, they must be named: "example.pem.rsa" and "example.pem.ecdsa". The
+  first part of the filename is arbitrary; only the suffix matters. To load
+  this bundle into haproxy, specify the base name only:
+
+  Example :  bind :8443 ssl crt example.pem
+
+  Note that the suffix is not given to haproxy; this tells haproxy to look for
+  a cert bundle.
+
+  HAProxy will load all PEM files in the bundle as if they were configured
+  separately in several "crt".
+
+  The bundle loading does not have an impact anymore on the directory loading
+  since files are loading separately.
+
+  On the CLI, bundles are seen as separate files, and the bundle extension is
+  required to commit them.
+
+  OSCP files (.ocsp), issuer files (.issuer), Certificate Transparency (.sctl)
+  as well as private keys (.key) are supported with multi-cert bundling.
 
   "sctl": Try to load "<basename>.sctl" for each crt keyword.
 
@@ -12531,61 +12557,9 @@ crt <cert>
   that support EC certificates to be able to use EC ciphers, while
   simultaneously supporting older, RSA only clients.
 
-  In order to provide this feature, multiple PEM files, each with a different
-  key type, are required. Since HAProxy 2.3, at least OpenSSL 1.1.1 is
-  required to use this feature. It can be configured by adding each file in
-  the configuration, which is the recommended way, or by using a "cert
-  bundle".
-
-  To associate these PEM files into a "cert bundle" that is recognized by
-  haproxy, they must be named in the following way: All PEM files that are to
-  be bundled must have the same base name, with a suffix indicating the key
-  type. Currently, three suffixes are supported: rsa, dsa and ecdsa. For
-  example, if www.example.com has two PEM files, an RSA file and an ECDSA
-  file, they must be named: "example.pem.rsa" and "example.pem.ecdsa". The
-  first part of the filename is arbitrary; only the suffix matters. To load
-  this bundle into haproxy, specify the base name only:
-
-  Example :  bind :8443 ssl crt example.pem
-
-  Note that the suffix is not given to haproxy; this tells haproxy to look for
-  a cert bundle.
-
-  HAProxy will load all PEM files in the bundle at the same time to try to
-  support multiple key types. PEM files are combined based on Common Name
-  (CN) and Subject Alternative Name (SAN) to support SNI lookups. This means
-  that even if you give haproxy a cert bundle, if there are no shared CN/SAN
-  entries in the certificates in that bundle, haproxy will not be able to
-  provide multi-cert support.
-
-  Assuming bundle in the example above contained the following:
-
-              Filename     |       CN        |        SAN
-        -------------------+-----------------+-------------------
-         example.pem.rsa   | www.example.com | rsa.example.com
-        -------------------+-----------------+-------------------
-         example.pem.ecdsa | www.example.com | ecdsa.example.com
-        -------------------+-----------------+-------------------
-
-  Users connecting with an SNI of "www.example.com" will be able
-  to use both RSA and ECDSA cipher suites. Users connecting with an SNI of
-  "rsa.example.com" will only be able to use RSA cipher suites, and users
-  connecting with "ecdsa.example.com" will only be able to use ECDSA cipher
-  suites. With BoringSSL and Openssl >= 1.1.1 multi-cert is natively supported,
-  no need to bundle certificates. ECDSA certificate will be preferred if client
-  supports it.
-
-  If a directory name is given as the <cert> argument, haproxy will
-  automatically search and load bundled files in that directory.
-  It is however recommended to move away from bundle loading, especially if you
-  want to use the runtime API to load new certificate which does not support
-  bundle. A recommended way to migrate is to set `ssl-load-extra-file`
-  parameter to `none` in global config so that each certificate is loaded as a
-  single one.
-
-  OSCP files (.ocsp) and issuer files (.issuer) are supported with multi-cert
-  bundling. Each certificate can have its own .ocsp and .issuer file. At this
-  time, sctl is not supported in multi-certificate bundling.
+  To achieve this, OpenSSL 1.1.1 is required, you can configure this behavior
+  by providing one crt entry per certificate type, or by configuring a "cert
+  bundle" like it was required before HAProxy 1.8. See "ssl-load-extra-files".
 
 crt-ignore-err <errors>
   This setting is only available when support for OpenSSL was built in. Sets a
@@ -12615,11 +12589,9 @@ crt-list <file>
   certificate is still needed to meet OpenSSL expectations. If it is not used,
   the 'strict-sni' option may be used.
 
-  Multi-cert bundling (see "crt") is supported with crt-list, as long as only
-  the base name is given in the crt-list. SNI filter will do the same work on
-  all bundled certificates. With BoringSSL and Openssl >= 1.1.1 multi-cert is
-  natively supported, avoid multi-cert bundling. RSA and ECDSA certificates can
-  be declared in a row, and set different ssl and filter parameter.
+  Multi-cert bundling (see "ssl-load-extra-files") is supported with crt-list,
+  as long as only the base name is given in the crt-list. SNI filter will do
+  the same work on all bundled certificates.
 
   Empty lines as well as lines beginning with a hash ('#') will be ignored.
 

@@ -1725,10 +1725,6 @@ new ssl cert <filename>
   Create a new empty SSL certificate store to be filled with a certificate and
   added to a directory or a crt-list. This command should be used in
   combination with "set ssl cert" and "add ssl crt-list".
-  Note that bundle certificates are not supported; it is recommended to use
-  `ssl-load-extra-file none` in global config to avoid loading certificates as
-  bundle and then mixing with single certificates in the runtime API. This will
-  avoid confusion, especailly when it comes to the `commit` command.
 
 prompt
   Toggle the prompt at the beginning of the line and enter or leave interactive
