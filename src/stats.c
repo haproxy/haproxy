@@ -2212,13 +2212,13 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 				goto full;
 		}
 
-		appctx->ctx.stats.l = px->conf.listeners.n;
+		appctx->ctx.stats.obj2 = px->conf.listeners.n;
 		appctx->ctx.stats.px_st = STAT_PX_ST_LI;
 		/* fall through */
 
 	case STAT_PX_ST_LI:
-		/* stats.l has been initialized above */
-		for (; appctx->ctx.stats.l != &px->conf.listeners; appctx->ctx.stats.l = l->by_fe.n) {
+		/* obj2 points to listeners list as initialized above */
+		for (; appctx->ctx.stats.obj2 != &px->conf.listeners; appctx->ctx.stats.obj2 = l->by_fe.n) {
 			if (htx) {
 				if (htx_almost_full(htx))
 					goto full;
@@ -2228,7 +2228,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 					goto full;
 			}
 
-			l = LIST_ELEM(appctx->ctx.stats.l, struct listener *, by_fe);
+			l = LIST_ELEM(appctx->ctx.stats.obj2, struct listener *, by_fe);
 			if (!l->counters)
 				continue;
 
@@ -2247,13 +2247,13 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 			}
 		}
 
-		appctx->ctx.stats.sv = px->srv; /* may be NULL */
+		appctx->ctx.stats.obj2 = px->srv; /* may be NULL */
 		appctx->ctx.stats.px_st = STAT_PX_ST_SV;
 		/* fall through */
 
 	case STAT_PX_ST_SV:
-		/* stats.sv has been initialized above */
-		for (; appctx->ctx.stats.sv != NULL; appctx->ctx.stats.sv = sv->next) {
+		/* obj2 points to servers list as initialized above */
+		for (; appctx->ctx.stats.obj2 != NULL; appctx->ctx.stats.obj2 = sv->next) {
 			if (htx) {
 				if (htx_almost_full(htx))
 					goto full;
@@ -2263,7 +2263,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 					goto full;
 			}
 
-			sv = appctx->ctx.stats.sv;
+			sv = appctx->ctx.stats.obj2;
 
 			if (appctx->ctx.stats.flags & STAT_BOUND) {
 				if (!(appctx->ctx.stats.type & (1 << STATS_TYPE_SV)))
@@ -2776,14 +2776,14 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 				goto full;
 		}
 
-		appctx->ctx.stats.px = proxies_list;
+		appctx->ctx.stats.obj1 = proxies_list;
 		appctx->ctx.stats.px_st = STAT_PX_ST_INIT;
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
 		/* dump proxies */
-		while (appctx->ctx.stats.px) {
+		while (appctx->ctx.stats.obj1) {
 			if (htx) {
 				if (htx_almost_full(htx))
 					goto full;
@@ -2793,13 +2793,13 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 					goto full;
 			}
 
-			px = appctx->ctx.stats.px;
+			px = appctx->ctx.stats.obj1;
 			/* skip the disabled proxies, global frontend and non-networked ones */
 			if (px->state != PR_STSTOPPED && px->uuid > 0 && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
 				if (stats_dump_proxy_to_buffer(si, htx, px, uri) == 0)
 					return 0;
 
-			appctx->ctx.stats.px = px->next;
+			appctx->ctx.stats.obj1 = px->next;
 			appctx->ctx.stats.px_st = STAT_PX_ST_INIT;
 		}
 		/* here, we just have reached the last proxy */

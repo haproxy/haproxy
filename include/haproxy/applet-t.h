@@ -118,9 +118,8 @@ struct appctx {
 		 * keep the grouped together and avoid adding new ones.
 		 */
 		struct {
-			struct proxy *px;
-			struct server *sv;
-			void *l;
+			void *obj1;             /* context pointer used in stats dump */
+			void *obj2;             /* context pointer used in stats dump */
 			int scope_str;		/* limit scope to a frontend/backend substring */
 			int scope_len;		/* length of the string above in the buffer */
 			int px_st;		/* STAT_PX_ST* */

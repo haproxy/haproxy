@@ -1272,8 +1272,8 @@ static int promex_dump_metric(struct appctx *appctx, struct htx *htx,
 			goto full;
 	}
 	else {
-		struct proxy *px = appctx->ctx.stats.px;
-		struct server *srv = appctx->ctx.stats.sv;
+		struct proxy *px = appctx->ctx.stats.obj1;
+		struct server *srv = appctx->ctx.stats.obj2;
 		const struct ist label = promex_st_metric_labels[appctx->st2];
 
 		if (istcat(out, name, max) == -1 ||
@@ -1542,8 +1542,8 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	int ret = 1;
 
 	while (appctx->st2 && appctx->st2 < ST_F_TOTAL_FIELDS) {
-		while (appctx->ctx.stats.px) {
-			px = appctx->ctx.stats.px;
+		while (appctx->ctx.stats.obj1) {
+			px = appctx->ctx.stats.obj1;
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
 			if (px->state == PR_STSTOPPED || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
@@ -1692,11 +1692,11 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			if (!promex_dump_metric(appctx, htx, prefix, &metric, &out, max))
 				goto full;
 		  next_px:
-			appctx->ctx.stats.px = px->next;
+			appctx->ctx.stats.obj1 = px->next;
 		}
 	  next_metric:
 		appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
-		appctx->ctx.stats.px = proxies_list;
+		appctx->ctx.stats.obj1 = proxies_list;
 		appctx->st2 = promex_front_metrics[appctx->st2];
 	}
 
@@ -1727,8 +1727,8 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	double secs;
 
 	while (appctx->st2 && appctx->st2 < ST_F_TOTAL_FIELDS) {
-		while (appctx->ctx.stats.px) {
-			px = appctx->ctx.stats.px;
+		while (appctx->ctx.stats.obj1) {
+			px = appctx->ctx.stats.obj1;
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
 			if (px->state == PR_STSTOPPED || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
@@ -1936,11 +1936,11 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			if (!promex_dump_metric(appctx, htx, prefix, &metric, &out, max))
 				goto full;
 		  next_px:
-			appctx->ctx.stats.px = px->next;
+			appctx->ctx.stats.obj1 = px->next;
 		}
 	  next_metric:
 		appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
-		appctx->ctx.stats.px = proxies_list;
+		appctx->ctx.stats.obj1 = proxies_list;
 		appctx->st2 = promex_back_metrics[appctx->st2];
 	}
 
@@ -1972,15 +1972,15 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	double secs;
 
 	while (appctx->st2 && appctx->st2 < ST_F_TOTAL_FIELDS) {
-		while (appctx->ctx.stats.px) {
-			px = appctx->ctx.stats.px;
+		while (appctx->ctx.stats.obj1) {
+			px = appctx->ctx.stats.obj1;
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
 			if (px->state == PR_STSTOPPED || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
 				goto next_px;
 
-			while (appctx->ctx.stats.sv) {
-				sv = appctx->ctx.stats.sv;
+			while (appctx->ctx.stats.obj2) {
+				sv = appctx->ctx.stats.obj2;
 
 				if ((appctx->ctx.stats.flags & PROMEX_FL_NO_MAINT_SRV) && (sv->cur_admin & SRV_ADMF_MAINT))
 					goto next_sv;
@@ -2192,17 +2192,17 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 					goto full;
 
 			  next_sv:
-				appctx->ctx.stats.sv = sv->next;
+				appctx->ctx.stats.obj2 = sv->next;
 			}
 
 		  next_px:
-			appctx->ctx.stats.px = px->next;
-			appctx->ctx.stats.sv = (appctx->ctx.stats.px ? appctx->ctx.stats.px->srv : NULL);
+			appctx->ctx.stats.obj1 = px->next;
+			appctx->ctx.stats.obj2 = (appctx->ctx.stats.obj1 ? ((struct proxy *)appctx->ctx.stats.obj1)->srv : NULL);
 		}
 	  next_metric:
 		appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
-		appctx->ctx.stats.px = proxies_list;
-		appctx->ctx.stats.sv = (appctx->ctx.stats.px ? appctx->ctx.stats.px->srv : NULL);
+		appctx->ctx.stats.obj1 = proxies_list;
+		appctx->ctx.stats.obj2 = (appctx->ctx.stats.obj1 ? ((struct proxy *)appctx->ctx.stats.obj1)->srv : NULL);
 		appctx->st2 = promex_srv_metrics[appctx->st2];
 	}
 
@@ -2221,15 +2221,17 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 
 /* Dump all metrics (global, frontends, backends and servers) depending on the
  * dumper state (appctx->st1). It returns 1 on success, 0 if <htx> is full and
- * -1 in case of any error. */
+ * -1 in case of any error.
+ * Uses <appctx.ctx.stats.obj1> as a pointer to the current proxy and <obj2> as
+ * a pointer to the current server/listener. */
 static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *si, struct htx *htx)
 {
 	int ret;
 
 	switch (appctx->st1) {
 		case PROMEX_DUMPER_INIT:
-			appctx->ctx.stats.px = NULL;
-			appctx->ctx.stats.sv = NULL;
+			appctx->ctx.stats.obj1 = NULL;
+			appctx->ctx.stats.obj2 = NULL;
 			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_INFO_METRIC);
 			appctx->st2 = promex_global_metrics[INF_NAME];
 			appctx->st1 = PROMEX_DUMPER_GLOBAL;
@@ -2245,8 +2247,8 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 				}
 			}
 
-			appctx->ctx.stats.px = proxies_list;
-			appctx->ctx.stats.sv = NULL;
+			appctx->ctx.stats.obj1 = proxies_list;
+			appctx->ctx.stats.obj2 = NULL;
 			appctx->ctx.stats.flags &= ~PROMEX_FL_INFO_METRIC;
 			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
 			appctx->st2 = promex_front_metrics[ST_F_PXNAME];
@@ -2263,8 +2265,8 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 				}
 			}
 
-			appctx->ctx.stats.px = proxies_list;
-			appctx->ctx.stats.sv = NULL;
+			appctx->ctx.stats.obj1 = proxies_list;
+			appctx->ctx.stats.obj2 = NULL;
 			appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
 			appctx->st2 = promex_back_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_BACK;
@@ -2280,8 +2282,8 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 				}
 			}
 
-			appctx->ctx.stats.px = proxies_list;
-			appctx->ctx.stats.sv = (appctx->ctx.stats.px ? appctx->ctx.stats.px->srv : NULL);
+			appctx->ctx.stats.obj1 = proxies_list;
+			appctx->ctx.stats.obj2 = (appctx->ctx.stats.obj1 ? ((struct proxy *)appctx->ctx.stats.obj1)->srv : NULL);
 			appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
 			appctx->st2 = promex_srv_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_SRV;
@@ -2297,8 +2299,8 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 				}
 			}
 
-			appctx->ctx.stats.px = NULL;
-			appctx->ctx.stats.sv = NULL;
+			appctx->ctx.stats.obj1 = NULL;
+			appctx->ctx.stats.obj2 = NULL;
 			appctx->ctx.stats.flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_INFO_METRIC|PROMEX_FL_STATS_METRIC);
 			appctx->st2 = 0;
 			appctx->st1 = PROMEX_DUMPER_DONE;
@@ -2316,8 +2318,8 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 	return 0;
   error:
 	/* unrecoverable error */
-	appctx->ctx.stats.px = NULL;
-	appctx->ctx.stats.sv = NULL;
+	appctx->ctx.stats.obj1 = NULL;
+	appctx->ctx.stats.obj2 = NULL;
 	appctx->ctx.stats.flags = 0;
 	appctx->st2 = 0;
 	appctx->st1 = PROMEX_DUMPER_DONE;
