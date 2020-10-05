@@ -120,6 +120,9 @@ static inline struct field mkf_flt(uint32_t type, double value)
 	return f;
 }
 
+#define MK_STATS_PROXY_DOMAIN(px_cap) \
+	((px_cap) << STATS_PX_CAP | STATS_DOMAIN_PROXY)
+
 #endif /* _HAPROXY_STATS_H */
 
 /*

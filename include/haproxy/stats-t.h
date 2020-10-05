@@ -51,6 +51,7 @@
 #define STATS_TYPE_SO  3
 
 #define STATS_DOMAIN  (0)               /* used for bitshifting, type of statistics, for now only proxy is available */
+#define STATS_PX_CAP  (8)               /* used for bitshifting, differentiate obj1 type for proxy statistics */
 
 /* HTTP stats : applet.st0 */
 enum {
@@ -458,6 +459,16 @@ enum stats_domain {
 	STATS_DOMAIN_COUNT,
 
 	STATS_DOMAIN_MASK  = 0xff
+};
+
+/* used in a flag as a 1 byte field */
+enum stats_domain_px_cap {
+	STATS_PX_CAP_FE   = 0x01,
+	STATS_PX_CAP_BE   = 0x02,
+	STATS_PX_CAP_SRV  = 0x04,
+	STATS_PX_CAP_LI   = 0x08,
+
+	STATS_PX_CAP_MASK = 0xff
 };
 
 #endif /* _HAPROXY_STATS_T_H */

@@ -262,6 +262,11 @@ static inline uint8_t stats_get_domain(uint32_t domain)
 	return domain >> STATS_DOMAIN & STATS_DOMAIN_MASK;
 }
 
+static inline enum stats_domain_px_cap stats_px_get_cap(uint32_t domain)
+{
+	return domain >> STATS_PX_CAP & STATS_PX_CAP_MASK;
+}
+
 static void stats_dump_json_schema(struct buffer *out);
 
 int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
