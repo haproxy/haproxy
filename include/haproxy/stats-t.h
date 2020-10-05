@@ -479,6 +479,12 @@ struct stats_module {
 	uint32_t domain_flags;   /* stats application domain for this module */
 };
 
+struct extra_counters {
+	char *data; /* heap containing counters allocated in a linear fashion */
+	size_t size; /* size of allocated data */
+	enum counters_type type; /* type of object containing the counters */
+};
+
 /* stats_domain is used in a flag as a 1 byte field */
 enum stats_domain {
 	STATS_DOMAIN_PROXY = 0,
@@ -496,5 +502,51 @@ enum stats_domain_px_cap {
 
 	STATS_PX_CAP_MASK = 0xff
 };
+
+#define EXTRA_COUNTERS(name) \
+	struct extra_counters *name
+
+#define EXTRA_COUNTERS_GET(counters, mod) \
+	(void *)((counters)->data + (mod)->counters_off[(counters)->type])
+
+#define EXTRA_COUNTERS_REGISTER(counters, ctype, alloc_failed_label) \
+	do {                                                         \
+		typeof(*counters) _ctr;                              \
+		_ctr = calloc(1, sizeof(*_ctr));                     \
+		if (!_ctr)                                           \
+			goto alloc_failed_label;                     \
+		_ctr->type = (ctype);                                \
+		*(counters) = _ctr;                                  \
+	} while (0)
+
+#define EXTRA_COUNTERS_ADD(mod, counters, new_counters, csize) \
+	do {                                                   \
+		typeof(counters) _ctr = (counters);            \
+		(mod)->counters_off[_ctr->type] = _ctr->size;  \
+		_ctr->size += (csize);                         \
+	} while (0)
+
+#define EXTRA_COUNTERS_ALLOC(counters, alloc_failed_label) \
+	do {                                               \
+		typeof(counters) _ctr = (counters);        \
+		_ctr->data = malloc((_ctr)->size);         \
+		if (!_ctr->data)                           \
+			goto alloc_failed_label;           \
+	} while (0)
+
+#define EXTRA_COUNTERS_INIT(counters, mod, init_counters, init_counters_size) \
+	do {                                                                  \
+		typeof(counters) _ctr = (counters);                           \
+		memcpy(_ctr->data + mod->counters_off[_ctr->type],            \
+		       (init_counters), (init_counters_size));                \
+	} while (0)
+
+#define EXTRA_COUNTERS_FREE(counters)           \
+	do {                                    \
+		if (counters) {                 \
+			free((counters)->data); \
+			free(counters);         \
+		}                               \
+	} while (0)
 
 #endif /* _HAPROXY_STATS_T_H */
