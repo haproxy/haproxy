@@ -2474,6 +2474,11 @@ static void h1_detach(struct conn_stream *cs)
 	h1c = h1s->h1c;
 	h1s->cs = NULL;
 
+	sess->accept_date = date;
+	sess->tv_accept   = now;
+	sess->t_handshake = 0;
+	sess->t_idle      = -1;
+
 	is_not_first = h1s->flags & H1S_F_NOT_FIRST;
 	h1s_destroy(h1s);
 
