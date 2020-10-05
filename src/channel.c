@@ -175,6 +175,57 @@ int ci_putblk(struct channel *chn, const char *blk, int len)
 	return len;
 }
 
+/* Gets one text word out of a channel's buffer from a stream interface.
+ * Return values :
+ *   >0 : number of bytes read. Includes the sep if present before len or end.
+ *   =0 : no sep before end found. <str> is left undefined.
+ *   <0 : no more bytes readable because output is shut.
+ * The channel status is not changed. The caller must call co_skip() to
+ * update it. The line separator is waited for as long as neither the buffer
+ * nor the output are full. If either of them is full, the string may be
+ * returned as is, without the line separator.
+ */
+int co_getword(const struct channel *chn, char *str, int len, char sep)
+{
+	int ret, max;
+	char *p;
+
+	ret = 0;
+	max = len;
+
+	/* closed or empty + imminent close = -1; empty = 0 */
+	if (unlikely((chn->flags & CF_SHUTW) || channel_is_empty(chn))) {
+		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW))
+			ret = -1;
+		goto out;
+	}
+
+	p = co_head(chn);
+
+	if (max > co_data(chn)) {
+		max = co_data(chn);
+		str[max-1] = 0;
+	}
+	while (max) {
+		*str++ = *p;
+		ret++;
+		max--;
+
+		if (*p == sep)
+			break;
+		p = b_next(&chn->buf, p);
+	}
+	if (ret > 0 && ret < len &&
+	    (ret < co_data(chn) || channel_may_recv(chn)) &&
+	    *(str-1) != sep &&
+	    !(chn->flags & (CF_SHUTW|CF_SHUTW_NOW)))
+		ret = 0;
+ out:
+	if (max)
+		*str = 0;
+	return ret;
+}
+
 /* Gets one text line out of a channel's buffer from a stream interface.
  * Return values :
  *   >0 : number of bytes read. Includes the \n if present before len or end.
@@ -224,6 +275,29 @@ int co_getline(const struct channel *chn, char *str, int len)
 	if (max)
 		*str = 0;
 	return ret;
+}
+
+/* Gets one char of data from a channel's buffer,
+ * Return values :
+ *    1 : number of bytes read, equal to requested size.
+ *   =0 : not enough data available. <c> is left undefined.
+ *   <0 : no more bytes readable because output is shut.
+ * The channel status is not changed. The caller must call co_skip() to
+ * update it.
+ */
+int co_getchar(const struct channel *chn, char *c)
+{
+	if (chn->flags & CF_SHUTW)
+		return -1;
+
+	if (unlikely(co_data(chn) == 0)) {
+		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW))
+			return -1;
+		return 0;
+	}
+
+	*c = *(co_head(chn));
+	return 1;
 }
 
 /* Gets one full block of data at once from a channel's buffer, optionally from
