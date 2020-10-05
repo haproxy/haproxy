@@ -481,22 +481,20 @@ static int h1_avail_streams(struct connection *conn)
 static void h1_refresh_timeout(struct h1c *h1c)
 {
 	if (h1c->task) {
-		h1c->task->expire = TICK_ETERNITY;
-		if (h1c->flags & H1C_F_CS_SHUTDOWN) {
+		if (!(h1c->flags & H1C_F_CS_ALIVE) || (h1c->flags & H1C_F_CS_SHUTDOWN)) {
 			/* half-closed or dead connections : switch to clientfin/serverfin
 			 * timeouts so that we don't hang too long on clients that have
 			 * gone away (especially in tunnel mode).
 			 */
 			h1c->task->expire = tick_add(now_ms, h1c->shut_timeout);
-			task_queue(h1c->task);
-			TRACE_DEVEL("refreshing connection's timeout (dead or half-closed)", H1_EV_H1C_SEND, h1c->conn);
-		} else if (b_data(&h1c->obuf)) {
-			/* any connection with pending data, need a timeout (server or client).
-			 */
+			TRACE_DEVEL("refreshing connection's timeout (dead or half-closed)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
+		}
+		else if (b_data(&h1c->obuf)) {
+			/* connection with pending outgoing data, need a timeout (server or client). */
 			h1c->task->expire = tick_add(now_ms, h1c->timeout);
-			task_queue(h1c->task);
-			TRACE_DEVEL("refreshing connection's timeout", H1_EV_H1C_SEND, h1c->conn);
-		} else if ((h1c->flags & (H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ)) && !(h1c->flags & H1C_F_IS_BACK)) {
+			TRACE_DEVEL("refreshing connection's timeout (pending outgoing data)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
+		}
+		else if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->flags & (H1C_F_CS_IDLE|H1C_F_CS_EMBRYONIC))) {
 			/* front connections waiting for a stream need a timeout. client timeout by
 			 * default but http-keep-alive if defined
 			 */
@@ -506,9 +504,16 @@ static void h1_refresh_timeout(struct h1c *h1c)
 				timeout = tick_first(timeout, h1c->px->timeout.httpka);
 
 			h1c->task->expire = tick_add(now_ms, timeout);
-			task_queue(h1c->task);
-			TRACE_DEVEL("refreshing connection's timeout", H1_EV_H1C_SEND, h1c->conn);
+			TRACE_DEVEL("refreshing connection's timeout (alive front h1c without a CS)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 		}
+		else  {
+			/* alive back connections of front connections with a conn-stream attached */
+			h1c->task->expire = TICK_ETERNITY;
+			TRACE_DEVEL("no connection timeout (alive back h1c or front h1c with a CS)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
+		}
+
+		TRACE_DEVEL("new expiration date", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn, 0, 0, (size_t[]){h1c->task->expire});
+		task_queue(h1c->task);
 	}
 }
 /*****************************************************************/
