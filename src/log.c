@@ -3545,7 +3545,7 @@ void syslog_fd_handler(int fd)
 
 			/* update counters */
 			_HA_ATOMIC_ADD(&cum_log_messages, 1);
-			proxy_inc_fe_conn_ctr(l, l->bind_conf->frontend);
+			proxy_inc_fe_req_ctr(l, l->bind_conf->frontend);
 
 			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
 
