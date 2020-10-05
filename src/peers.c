@@ -3099,9 +3099,10 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 	struct shared_table *st;
 
 	addr_to_str(&peer->addr, pn, sizeof pn);
-	chunk_appendf(msg, "  %p: id=%s(%s) addr=%s:%d status=%s reconnect=%s confirm=%u tx_hbt=%u rx_hbt=%u no_hbt=%u new_conn=%u proto_err=%u\n",
+	chunk_appendf(msg, "  %p: id=%s(%s,%s) addr=%s:%d last_status=%s reconnect=%s confirm=%u tx_hbt=%u rx_hbt=%u no_hbt=%u new_conn=%u proto_err=%u\n",
 	              peer, peer->id,
 	              peer->local ? "local" : "remote",
+	              peer->appctx ? "active" : "inactive",
 	              pn, get_host_port(&peer->addr),
 	              statuscode_str(peer->statuscode),
 	              peer->reconnect ?
