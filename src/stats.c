@@ -370,6 +370,20 @@ int stats_emit_raw_data_field(struct buffer *out, const struct field *f)
 	}
 }
 
+const char *field_to_html_str(const struct field *f)
+{
+	switch (field_format(f, 0)) {
+	case FF_S32: return U2H(f->u.s32);
+	case FF_S64: return U2H(f->u.s64);
+	case FF_U64: return U2H(f->u.u64);
+	case FF_U32: return U2H(f->u.u32);
+	case FF_STR: return field_str(f, 0);
+	case FF_EMPTY:
+	default:
+		return "";
+	}
+}
+
 /* Emits a stats field prefixed with its type. No CSV encoding is prepared, the
  * output is supposed to be used on its own line. Returns non-zero on success, 0
  * if the buffer is full.
@@ -757,6 +771,8 @@ static int stats_dump_fields_html(struct buffer *out,
 				  unsigned int flags)
 {
 	struct buffer src;
+	struct stats_module *mod;
+	int i = 0, j = 0;
 
 	if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_FE) {
 		chunk_appendf(out,
@@ -900,11 +916,32 @@ static int stats_dump_fields_html(struct buffer *out,
 		              /* server status : reflect frontend status */
 		              "<td class=ac>%s</td>"
 		              /* rest of server: nothing */
-		              "<td class=ac colspan=8></td></tr>"
+		              "<td class=ac colspan=8></td>"
 		              "",
 		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
 		              U2H(stats[ST_F_EREQ].u.u64),
 		              field_str(stats, ST_F_STATUS));
+
+		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+			chunk_appendf(out,
+			              "<td><u>%s<div class=tips><table class=det>",
+			              mod->name);
+			if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_FE) {
+				for (j = 0; j < mod->stats_count; ++j) {
+					chunk_appendf(out,
+					              "<tr><th>%s</th><td>%s</td></tr>",
+					              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
+					++i;
+				}
+			} else {
+				i += mod->stats_count;
+			}
+
+			chunk_appendf(out,
+			              "</table></div></u></td>");
+		}
+
+		chunk_appendf(out, "</tr>");
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_SO) {
 		chunk_appendf(out, "<tr class=socket>");
@@ -961,11 +998,32 @@ static int stats_dump_fields_html(struct buffer *out,
 		              /* server status: reflect listener status */
 		              "<td class=ac>%s</td>"
 		              /* rest of server: nothing */
-		              "<td class=ac colspan=8></td></tr>"
+		              "<td class=ac colspan=8></td>"
 		              "",
 		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
 		              U2H(stats[ST_F_EREQ].u.u64),
 		              field_str(stats, ST_F_STATUS));
+
+		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+			chunk_appendf(out,
+			              "<td><u>%s<div class=tips><table class=det>",
+			              mod->name);
+			if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_LI) {
+				for (j = 0; j < mod->stats_count; ++j) {
+					chunk_appendf(out,
+					              "<tr><th>%s</th><td>%s</td></tr>",
+					              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
+					++i;
+				}
+			} else {
+				i += mod->stats_count;
+			}
+
+			chunk_appendf(out,
+			              "</table></div></u></td>");
+		}
+
+		chunk_appendf(out, "</tr>");
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_SV) {
 		const char *style;
@@ -1278,9 +1336,30 @@ static int stats_dump_fields_html(struct buffer *out,
 
 		/* throttle */
 		if (stats[ST_F_THROTTLE].type)
-			chunk_appendf(out, "<td class=ac>%d %%</td></tr>\n", stats[ST_F_THROTTLE].u.u32);
+			chunk_appendf(out, "<td class=ac>%d %%</td>\n", stats[ST_F_THROTTLE].u.u32);
 		else
-			chunk_appendf(out, "<td class=ac>-</td></tr>\n");
+			chunk_appendf(out, "<td class=ac>-</td>");
+
+		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+			chunk_appendf(out,
+			              "<td><u>%s<div class=tips><table class=det>",
+			              mod->name);
+			if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_SRV) {
+				for (j = 0; j < mod->stats_count; ++j) {
+					chunk_appendf(out,
+					              "<tr><th>%s</th><td>%s</td></tr>",
+					              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
+					++i;
+				}
+			} else {
+				i += mod->stats_count;
+			}
+
+			chunk_appendf(out,
+			              "</table></div></u></td>");
+		}
+
+		chunk_appendf(out, "</tr>\n");
 	}
 	else if (stats[ST_F_TYPE].u.u32 == STATS_TYPE_BE) {
 		chunk_appendf(out, "<tr class=\"backend\">");
@@ -1446,11 +1525,30 @@ static int stats_dump_fields_html(struct buffer *out,
 		              /* rest of backend: nothing, down transitions, total downtime, throttle */
 		              "<td class=ac>&nbsp;</td><td>%d</td>"
 		              "<td>%s</td>"
-		              "<td></td>"
-		              "</tr>",
+		              "<td></td>",
 		              stats[ST_F_CHKDOWN].u.u32,
 		              stats[ST_F_DOWNTIME].type ? human_time(stats[ST_F_DOWNTIME].u.u32, 1) : "&nbsp;");
+
+		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+			chunk_appendf(out,
+			              "<td><u>%s<div class=tips><table class=det>",
+			              mod->name);
+			if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_BE) {
+				for (j = 0; j < mod->stats_count; ++j) {
+					chunk_appendf(out,
+					              "<tr><th>%s</th><td>%s</td></tr>",
+					              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
+					++i;
+				}
+			} else {
+				i += mod->stats_count;
+			}
+			chunk_appendf(out,
+			              "</table></div></u></td>");
+		}
+		chunk_appendf(out, "</tr>");
 	}
+
 	return 1;
 }
 
@@ -2154,6 +2252,8 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
+	struct stats_module *mod;
+	int stats_module_len = 0;
 
 	if (px->cap & PR_CAP_BE && px->srv && (appctx->ctx.stats.flags & STAT_ADMIN)) {
 		/* A form to enable/disable this proxy servers */
@@ -2216,6 +2316,11 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 			chunk_appendf(&trash, "<th rowspan=2></th>");
 	}
 
+	// calculate the count of module for colspan attribute
+	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+		++stats_module_len;
+	}
+
 	chunk_appendf(&trash,
 	              "<th rowspan=2></th>"
 	              "<th colspan=3>Queue</th>"
@@ -2223,6 +2328,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 	              "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
 	              "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
 	              "<th colspan=9>Server</th>"
+	              "<th colspan=%d>Extra modules</th>"
 	              "</tr>\n"
 	              "<tr class=\"titre\">"
 	              "<th>Cur</th><th>Max</th><th>Limit</th>"
@@ -2232,8 +2338,13 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 	              "<th>Resp</th><th>Retr</th><th>Redis</th>"
 	              "<th>Status</th><th>LastChk</th><th>Wght</th><th>Act</th>"
 	              "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
-	              "<th>Thrtle</th>\n"
-	              "</tr>");
+	              "<th>Thrtle</th>\n", stats_module_len);
+
+	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+		chunk_appendf(&trash, "<th>%s</th>", mod->name);
+	}
+
+	chunk_appendf(&trash, "</tr>");
 }
 
 /* Dumps the HTML table trailer for proxy <px> to the trash for and uses the state from
