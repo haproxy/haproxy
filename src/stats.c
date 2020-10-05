@@ -4421,6 +4421,7 @@ static int allocate_stats_px_postcheck(void)
 	struct stats_module *mod;
 	size_t i = ST_F_TOTAL_FIELDS;
 	int err_code = 0;
+	struct proxy *px;
 
 	stat_count[STATS_DOMAIN_PROXY] += ST_F_TOTAL_FIELDS;
 
@@ -4441,7 +4442,7 @@ static int allocate_stats_px_postcheck(void)
 		i += mod->stats_count;
 	}
 
-	for (struct proxy *px = proxies_list; px; px = px->next) {
+	for (px = proxies_list; px; px = px->next) {
 		if (!stats_allocate_proxy_counters(px)) {
 			ha_alert("stats: cannot allocate all counters for proxy statistics\n");
 			err_code |= ERR_ALERT | ERR_FATAL;
