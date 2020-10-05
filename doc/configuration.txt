@@ -2779,11 +2779,21 @@ haproxy will forward all received log messages to a log servers list.
 log-forward <name>
   Creates a new log forwarder proxy identified as <name>.
 
+backlog <conns>
+  Give hints to the system about the approximate listen backlog desired size
+  on connections accept.
+
+bind <addr> [param*]
+  Used to configure a stream log listener to receive messages to forward.
+  This supports for some of the "bind" parameters found in 5.1 paragraph.
+  Those listener support both "Octet Counting" and "Non-Transparent-Framing"
+  modes as defined in rfc-6587.
+
 dgram-bind <addr> [param*]
-  Used to configure a UDP log listener to receive messages to forward. Only UDP
-  listeners are allowed. Addresses must be in IPv4 or IPv6 form,followed by a
-  port. This supports for some of the "bind" parameters found in 5.1 paragraph
-  among which "interface", "namespace" or "transparent", the other ones being
+  Used to configure a datagram log listener to receive messages to forward.
+  Addresses must be in IPv4 or IPv6 form,followed by a port. This supports
+  for some of the "bind" parameters found in 5.1 paragraph among which
+  "interface", "namespace" or "transparent", the other ones being
   silently ignored as irrelevant for UDP/syslog case.
 
 log global
@@ -2812,7 +2822,8 @@ log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
         server mysyslogsrv 127.0.0.1:514 log-proto octet-count
 
     log-forward sylog-loadb
-        bind udp4@127.0.0.1:1514
+        dgram-bind 127.0.0.1:1514
+        bind 127.0.0.1:1514
         # all messages on stderr
         log global
         # all messages on local tcp syslog server
@@ -2822,6 +2833,13 @@ log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
         log 127.0.0.1:10002 sample 2:4 local0
         log 127.0.0.1:10003 sample 3:4 local0
         log 127.0.0.1:10004 sample 4:4 local0
+
+maxconn <conns>
+  Fix the maximum number of concurrent connections on a log forwarder.
+  10 is the default.
+
+timeout client <timeout>
+  Set the maximum inactivity time on the client side.
 
 4. Proxies
 ----------
