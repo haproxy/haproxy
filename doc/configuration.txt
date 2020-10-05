@@ -10036,6 +10036,22 @@ stats show-legends
   See also: "stats enable", "stats uri".
 
 
+stats show-modules
+  Enable display of extra statistics module on the statistics page
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  New columns are added at the end of the line containing the extra statistics
+  values as a tooltip.
+
+  Though this statement alone is enough to enable statistics reporting, it is
+  recommended to set all other settings in order to avoid relying on default
+  unobvious parameters. Default behavior is not to show this information.
+
+  See also: "stats enable", "stats uri".
+
+
 stats show-node [ <name> ]
   Enable reporting of a host name on the statistics page.
   May be used in sections :   defaults | frontend | listen | backend

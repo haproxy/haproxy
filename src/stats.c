@@ -764,7 +764,9 @@ err:
 
 /* Dump all fields from <stats> into <out> using the HTML format. A column is
  * reserved for the checkbox is STAT_ADMIN is set in <flags>. Some extra info
- * are provided if STAT_SHLGNDS is present in <flags>.
+ * are provided if STAT_SHLGNDS is present in <flags>. The statistics from
+ * extra modules are displayed at the end of the lines if STAT_SHMODULES is
+ * present in <flags>.
  */
 static int stats_dump_fields_html(struct buffer *out,
 				  const struct field *stats,
@@ -922,23 +924,25 @@ static int stats_dump_fields_html(struct buffer *out,
 		              U2H(stats[ST_F_EREQ].u.u64),
 		              field_str(stats, ST_F_STATUS));
 
-		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
-			chunk_appendf(out,
-			              "<td><u>%s<div class=tips><table class=det>",
-			              mod->name);
-			if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_FE) {
-				for (j = 0; j < mod->stats_count; ++j) {
-					chunk_appendf(out,
-					              "<tr><th>%s</th><td>%s</td></tr>",
-					              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
-					++i;
+		if (flags & STAT_SHMODULES) {
+			list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+				chunk_appendf(out,
+				              "<td><u>%s<div class=tips><table class=det>",
+				              mod->name);
+				if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_FE) {
+					for (j = 0; j < mod->stats_count; ++j) {
+						chunk_appendf(out,
+						              "<tr><th>%s</th><td>%s</td></tr>",
+						              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
+						++i;
+					}
+				} else {
+					i += mod->stats_count;
 				}
-			} else {
-				i += mod->stats_count;
-			}
 
-			chunk_appendf(out,
-			              "</table></div></u></td>");
+				chunk_appendf(out,
+				              "</table></div></u></td>");
+			}
 		}
 
 		chunk_appendf(out, "</tr>");
@@ -1004,23 +1008,25 @@ static int stats_dump_fields_html(struct buffer *out,
 		              U2H(stats[ST_F_EREQ].u.u64),
 		              field_str(stats, ST_F_STATUS));
 
-		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
-			chunk_appendf(out,
-			              "<td><u>%s<div class=tips><table class=det>",
-			              mod->name);
-			if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_LI) {
-				for (j = 0; j < mod->stats_count; ++j) {
-					chunk_appendf(out,
-					              "<tr><th>%s</th><td>%s</td></tr>",
-					              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
-					++i;
+		if (flags & STAT_SHMODULES) {
+			list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+				chunk_appendf(out,
+				              "<td><u>%s<div class=tips><table class=det>",
+				              mod->name);
+				if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_LI) {
+					for (j = 0; j < mod->stats_count; ++j) {
+						chunk_appendf(out,
+						              "<tr><th>%s</th><td>%s</td></tr>",
+						              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
+						++i;
+					}
+				} else {
+					i += mod->stats_count;
 				}
-			} else {
-				i += mod->stats_count;
-			}
 
-			chunk_appendf(out,
-			              "</table></div></u></td>");
+				chunk_appendf(out,
+				              "</table></div></u></td>");
+			}
 		}
 
 		chunk_appendf(out, "</tr>");
@@ -1340,23 +1346,25 @@ static int stats_dump_fields_html(struct buffer *out,
 		else
 			chunk_appendf(out, "<td class=ac>-</td>");
 
-		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
-			chunk_appendf(out,
-			              "<td><u>%s<div class=tips><table class=det>",
-			              mod->name);
-			if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_SRV) {
-				for (j = 0; j < mod->stats_count; ++j) {
-					chunk_appendf(out,
-					              "<tr><th>%s</th><td>%s</td></tr>",
-					              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
-					++i;
+		if (flags & STAT_SHMODULES) {
+			list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+				chunk_appendf(out,
+				              "<td><u>%s<div class=tips><table class=det>",
+				              mod->name);
+				if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_SRV) {
+					for (j = 0; j < mod->stats_count; ++j) {
+						chunk_appendf(out,
+						              "<tr><th>%s</th><td>%s</td></tr>",
+						              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
+						++i;
+					}
+				} else {
+					i += mod->stats_count;
 				}
-			} else {
-				i += mod->stats_count;
-			}
 
-			chunk_appendf(out,
-			              "</table></div></u></td>");
+				chunk_appendf(out,
+				              "</table></div></u></td>");
+			}
 		}
 
 		chunk_appendf(out, "</tr>\n");
@@ -1529,23 +1537,26 @@ static int stats_dump_fields_html(struct buffer *out,
 		              stats[ST_F_CHKDOWN].u.u32,
 		              stats[ST_F_DOWNTIME].type ? human_time(stats[ST_F_DOWNTIME].u.u32, 1) : "&nbsp;");
 
-		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
-			chunk_appendf(out,
-			              "<td><u>%s<div class=tips><table class=det>",
-			              mod->name);
-			if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_BE) {
-				for (j = 0; j < mod->stats_count; ++j) {
-					chunk_appendf(out,
-					              "<tr><th>%s</th><td>%s</td></tr>",
-					              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
-					++i;
+		if (flags & STAT_SHMODULES) {
+			list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+				chunk_appendf(out,
+				              "<td><u>%s<div class=tips><table class=det>",
+				              mod->name);
+				if (stats_px_get_cap(mod->domain_flags) & STATS_PX_CAP_BE) {
+					for (j = 0; j < mod->stats_count; ++j) {
+						chunk_appendf(out,
+						              "<tr><th>%s</th><td>%s</td></tr>",
+						              mod->stats[j].desc, field_to_html_str(&stats[ST_F_TOTAL_FIELDS + i]));
+						++i;
+					}
+				} else {
+					i += mod->stats_count;
 				}
-			} else {
-				i += mod->stats_count;
+				chunk_appendf(out,
+				              "</table></div></u></td>");
 			}
-			chunk_appendf(out,
-			              "</table></div></u></td>");
 		}
+
 		chunk_appendf(out, "</tr>");
 	}
 
@@ -2316,19 +2327,24 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 			chunk_appendf(&trash, "<th rowspan=2></th>");
 	}
 
-	// calculate the count of module for colspan attribute
-	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
-		++stats_module_len;
-	}
-
 	chunk_appendf(&trash,
 	              "<th rowspan=2></th>"
 	              "<th colspan=3>Queue</th>"
 	              "<th colspan=3>Session rate</th><th colspan=6>Sessions</th>"
 	              "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
 	              "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
-	              "<th colspan=9>Server</th>"
-	              "<th colspan=%d>Extra modules</th>"
+	              "<th colspan=9>Server</th>");
+
+	if (appctx->ctx.stats.flags & STAT_SHMODULES) {
+		// calculate the count of module for colspan attribute
+		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+			++stats_module_len;
+		}
+		chunk_appendf(&trash, "<th colspan=%d>Extra modules</th>",
+		              stats_module_len);
+	}
+
+	chunk_appendf(&trash,
 	              "</tr>\n"
 	              "<tr class=\"titre\">"
 	              "<th>Cur</th><th>Max</th><th>Limit</th>"
@@ -2338,10 +2354,12 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 	              "<th>Resp</th><th>Retr</th><th>Redis</th>"
 	              "<th>Status</th><th>LastChk</th><th>Wght</th><th>Act</th>"
 	              "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
-	              "<th>Thrtle</th>\n", stats_module_len);
+	              "<th>Thrtle</th>\n");
 
-	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
-		chunk_appendf(&trash, "<th>%s</th>", mod->name);
+	if (appctx->ctx.stats.flags & STAT_SHMODULES) {
+		list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+			chunk_appendf(&trash, "<th>%s</th>", mod->name);
+		}
 	}
 
 	chunk_appendf(&trash, "</tr>");

@@ -1923,6 +1923,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
+		} else if (!strcmp(args[1], "show-modules")) {
+			if (!stats_set_flag(&curproxy->uri_auth, STAT_SHMODULES)) {
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 		} else if (!strcmp(args[1], "show-node")) {
 
 			if (*args[2]) {
