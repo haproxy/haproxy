@@ -961,10 +961,14 @@ text is doubled ('""'), which is the format that most tools recognize. Please
 do not insert any column before these ones in order not to break tools which
 use hard-coded column positions.
 
-In brackets after each field name are the types which may have a value for
-that field. The types are L (Listeners), F (Frontends), B (Backends), and
-S (Servers).
+For proxy statistics, after each field name, the types which may have a value
+for that field are specified in brackets. The types are L (Listeners), F
+(Frontends), B (Backends), and S (Servers). There is a fixed set of static
+fields that are always available in the same order. A column containing the
+character '-' delimits the end of the static fields, after which presence or
+order of the fields are not guaranteed.
 
+Here is the list of static fields using the proxy statistics domain:
   0. pxname [LFBS]: proxy name
   1. svname [LFBS]: service name (FRONTEND for frontend, BACKEND for backend,
      any name for server/listener)
@@ -1122,6 +1126,9 @@ S (Servers).
  93. ttime_max [..BS]: the maximum observed total session time in ms
  94. eint [LFBS]: cumulative number of internal errors
 
+For all other statistics domains, the presence or the order of the fields are
+not guaranteed. In this case, the header line should always be used to parse
+the CSV data.
 
 9.2) Typed output format
 ------------------------

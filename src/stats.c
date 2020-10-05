@@ -324,13 +324,20 @@ static const char *stats_scope_ptr(struct appctx *appctx, struct stream_interfac
  * NOTE: Some tools happen to rely on the field position instead of its name,
  *       so please only append new fields at the end, never in the middle.
  */
-static void stats_dump_csv_header()
+static void stats_dump_csv_header(enum stats_domain domain)
 {
 	int field;
 
 	chunk_appendf(&trash, "# ");
-	for (field = 0; field < ST_F_TOTAL_FIELDS; field++)
+	for (field = 0; field < ST_F_TOTAL_FIELDS; field++) {
 		chunk_appendf(&trash, "%s,", stat_fields[field].name);
+
+		/* print special delimiter on proxy stats to mark end of
+		   static fields */
+		if (domain == STATS_DOMAIN_PROXY && field + 1 == ST_F_TOTAL_FIELDS) {
+			chunk_appendf(&trash, "-,");
+		}
+	}
 
 	chunk_appendf(&trash, "\n");
 }
@@ -523,16 +530,25 @@ int stats_emit_json_field_tags(struct buffer *out, const struct field *f)
 /* Dump all fields from <stats> into <out> using CSV format */
 static int stats_dump_fields_csv(struct buffer *out,
                                  const struct field *stats, size_t stats_count,
-                                 unsigned int flags)
+                                 unsigned int flags,
+                                 enum stats_domain domain)
 {
 	int field;
 
-	for (field = 0; field < stats_count; field++) {
+	for (field = 0; field < stats_count; ++field) {
 		if (!stats_emit_raw_data_field(out, &stats[field]))
 			return 0;
 		if (!chunk_strcat(out, ","))
 			return 0;
+
+		/* print special delimiter on proxy stats to mark end of
+		   static fields */
+		if (domain == STATS_DOMAIN_PROXY && field + 1 == ST_F_TOTAL_FIELDS) {
+			if (!chunk_strcat(out, "-,"))
+				return 0;
+		}
 	}
+
 	chunk_strcat(out, "\n");
 	return 1;
 }
@@ -1435,7 +1451,7 @@ int stats_dump_one_line(const struct field *stats, size_t stats_count,
 	else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
 		ret = stats_dump_fields_json(&trash, stats, stats_count, appctx->ctx.stats.flags, appctx->ctx.stats.domain);
 	else
-		ret = stats_dump_fields_csv(&trash, stats, stats_count, appctx->ctx.stats.flags);
+		ret = stats_dump_fields_csv(&trash, stats, stats_count, appctx->ctx.stats.flags, appctx->ctx.stats.domain);
 
 	if (ret)
 		appctx->ctx.stats.flags |= STAT_STARTED;
@@ -2837,7 +2853,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 		else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
 			stats_dump_json_header();
 		else if (!(appctx->ctx.stats.flags & STAT_FMT_TYPED))
-			stats_dump_csv_header();
+			stats_dump_csv_header(appctx->ctx.stats.domain);
 
 		if (!stats_putchk(rep, htx, &trash))
 			goto full;
