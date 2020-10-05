@@ -257,6 +257,11 @@ static THREAD_LOCAL struct field info[INF_TOTAL_FIELDS];
 /* one line of stats */
 static THREAD_LOCAL struct field stats[ST_F_TOTAL_FIELDS];
 
+static inline uint8_t stats_get_domain(uint32_t domain)
+{
+	return domain >> STATS_DOMAIN & STATS_DOMAIN_MASK;
+}
+
 static void stats_dump_json_schema(struct buffer *out);
 
 int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk)
@@ -531,7 +536,8 @@ static int stats_dump_fields_csv(struct buffer *out,
 static int stats_dump_fields_typed(struct buffer *out,
                                    const struct field *stats,
                                    size_t stats_count,
-                                   unsigned int flags)
+                                   unsigned int flags,
+                                   enum stats_domain domain)
 {
 	int field;
 
@@ -539,14 +545,23 @@ static int stats_dump_fields_typed(struct buffer *out,
 		if (!stats[field].type)
 			continue;
 
-		chunk_appendf(out, "%c.%u.%u.%d.%s.%u:",
-		              stats[ST_F_TYPE].u.u32 == STATS_TYPE_FE ? 'F' :
-		              stats[ST_F_TYPE].u.u32 == STATS_TYPE_BE ? 'B' :
-		              stats[ST_F_TYPE].u.u32 == STATS_TYPE_SO ? 'L' :
-		              stats[ST_F_TYPE].u.u32 == STATS_TYPE_SV ? 'S' :
-		              '?',
-		              stats[ST_F_IID].u.u32, stats[ST_F_SID].u.u32,
-		              field, stat_fields[field].name, stats[ST_F_PID].u.u32);
+		switch (domain) {
+		case STATS_DOMAIN_PROXY:
+			chunk_appendf(out, "%c.%u.%u.%d.%s.%u:",
+			              stats[ST_F_TYPE].u.u32 == STATS_TYPE_FE ? 'F' :
+			              stats[ST_F_TYPE].u.u32 == STATS_TYPE_BE ? 'B' :
+			              stats[ST_F_TYPE].u.u32 == STATS_TYPE_SO ? 'L' :
+			              stats[ST_F_TYPE].u.u32 == STATS_TYPE_SV ? 'S' :
+			              '?',
+			              stats[ST_F_IID].u.u32, stats[ST_F_SID].u.u32,
+			              field,
+			              stat_fields[field].name,
+			              stats[ST_F_PID].u.u32);
+			break;
+
+		default:
+			break;
+		}
 
 		if (!stats_emit_field_tags(out, &stats[field], ':'))
 			return 0;
@@ -640,7 +655,8 @@ static void stats_print_proxy_field_json(struct buffer *out,
 /* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
 static int stats_dump_fields_json(struct buffer *out,
                                   const struct field *stats, size_t stats_count,
-                                  unsigned int flags)
+                                  unsigned int flags,
+                                  enum stats_domain domain)
 {
 	int field;
 	int started = 0;
@@ -661,12 +677,14 @@ static int stats_dump_fields_json(struct buffer *out,
 		started = 1;
 
 		old_len = out->data;
-		stats_print_proxy_field_json(out, &stats[field],
-			                     stat_fields[field].name, field,
-			                     stats[ST_F_TYPE].u.u32,
-			                     stats[ST_F_IID].u.u32,
-			                     stats[ST_F_SID].u.u32,
-			                     stats[ST_F_PID].u.u32);
+		if (domain == STATS_DOMAIN_PROXY) {
+			stats_print_proxy_field_json(out, &stats[field],
+			                             stat_fields[field].name, field,
+			                             stats[ST_F_TYPE].u.u32,
+			                             stats[ST_F_IID].u.u32,
+			                             stats[ST_F_SID].u.u32,
+			                             stats[ST_F_PID].u.u32);
+		}
 
 		if (old_len == out->data)
 			goto err;
@@ -1408,9 +1426,9 @@ int stats_dump_one_line(const struct field *stats, size_t stats_count,
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML)
 		ret = stats_dump_fields_html(&trash, stats, appctx->ctx.stats.flags);
 	else if (appctx->ctx.stats.flags & STAT_FMT_TYPED)
-		ret = stats_dump_fields_typed(&trash, stats, stats_count, appctx->ctx.stats.flags);
+		ret = stats_dump_fields_typed(&trash, stats, stats_count, appctx->ctx.stats.flags, appctx->ctx.stats.domain);
 	else if (appctx->ctx.stats.flags & STAT_FMT_JSON)
-		ret = stats_dump_fields_json(&trash, stats, stats_count, appctx->ctx.stats.flags);
+		ret = stats_dump_fields_json(&trash, stats, stats_count, appctx->ctx.stats.flags, appctx->ctx.stats.domain);
 	else
 		ret = stats_dump_fields_csv(&trash, stats, stats_count, appctx->ctx.stats.flags);
 
@@ -3339,6 +3357,9 @@ static void http_stats_io_handler(struct appctx *appctx)
 	struct channel *res = si_ic(si);
 	struct htx *req_htx, *res_htx;
 
+	/* only proxy stats are available via http */
+	appctx->ctx.stats.domain = STATS_DOMAIN_PROXY;
+
 	res_htx = htx_from_buf(&res->buf);
 
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
@@ -3932,7 +3953,19 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 	if ((strm_li(si_strm(appctx->owner))->bind_conf->level & ACCESS_LVL_MASK) >= ACCESS_LVL_OPER)
 		appctx->ctx.stats.flags |= STAT_SHLGNDS;
 
-	if (*args[arg] && *args[arg+1] && *args[arg+2]) {
+	/* proxy is the default domain */
+	appctx->ctx.stats.domain = STATS_DOMAIN_PROXY;
+	if (!strcmp(args[arg], "domain")) {
+		++args;
+
+		if (!strcmp(args[arg], "proxy"))
+			++args;
+		else
+			return cli_err(appctx, "Invalid statistics domain.\n");
+	}
+
+	if (appctx->ctx.stats.domain == STATS_DOMAIN_PROXY
+	    && *args[arg] && *args[arg+1] && *args[arg+2]) {
 		struct proxy *px;
 
 		px = proxy_find_by_name(args[arg], 0, 0);

@@ -50,6 +50,8 @@
 #define STATS_TYPE_SV  2
 #define STATS_TYPE_SO  3
 
+#define STATS_DOMAIN  (0)               /* used for bitshifting, type of statistics, for now only proxy is available */
+
 /* HTTP stats : applet.st0 */
 enum {
 	STAT_HTTP_INIT = 0,  /* Initial state */
@@ -450,5 +452,12 @@ struct field {
 	} u;
 };
 
+/* stats_domain is used in a flag as a 1 byte field */
+enum stats_domain {
+	STATS_DOMAIN_PROXY = 0,
+	STATS_DOMAIN_COUNT,
+
+	STATS_DOMAIN_MASK  = 0xff
+};
 
 #endif /* _HAPROXY_STATS_T_H */
