@@ -119,6 +119,7 @@
 #include <haproxy/sock.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/thread.h>
@@ -2451,6 +2452,9 @@ void deinit(void)
 			free(cond);
 		}
 
+		EXTRA_COUNTERS_FREE(p->extra_counters_fe);
+		EXTRA_COUNTERS_FREE(p->extra_counters_be);
+
 		/* build a list of unique uri_auths */
 		if (!ua)
 			ua = p->uri_auth;
@@ -2593,6 +2597,7 @@ void deinit(void)
 			list_for_each_entry(srvdf, &server_deinit_list, list)
 				srvdf->fct(s);
 
+			EXTRA_COUNTERS_FREE(s->extra_counters);
 			free(s);
 			s = s_next;
 		}/* end while(s) */
@@ -2614,6 +2619,8 @@ void deinit(void)
 			LIST_DEL(&l->by_bind);
 			free(l->name);
 			free(l->counters);
+
+			EXTRA_COUNTERS_FREE(l->extra_counters);
 			free(l);
 		}
 

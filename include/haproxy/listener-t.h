@@ -30,7 +30,8 @@
 #include <haproxy/api-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/receiver-t.h>
-#include <haproxy/thread-t.h>
+#include <haproxy/stats-t.h>
+#include <haproxy/thread.h>
 
 #ifdef USE_OPENSSL
 #include <haproxy/openssl-compat.h>
@@ -221,6 +222,8 @@ struct listener {
 	struct {
 		struct eb32_node id;	/* place in the tree of used IDs */
 	} conf;				/* config information */
+
+	EXTRA_COUNTERS(extra_counters);
 };
 
 /* Descriptor for a "bind" keyword. The ->parse() function returns 0 in case of

@@ -37,6 +37,7 @@
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/server-t.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/tcpcheck-t.h>
 #include <haproxy/thread-t.h>
 #include <haproxy/uri_auth-t.h>
@@ -451,6 +452,9 @@ struct proxy {
 						 */
 	struct list filter_configs;		/* list of the filters that are declared on this proxy */
 	__decl_thread(HA_SPINLOCK_T lock);   /* may be taken under the server's lock */
+
+	EXTRA_COUNTERS(extra_counters_fe);
+	EXTRA_COUNTERS(extra_counters_be);
 };
 
 struct switching_rule {

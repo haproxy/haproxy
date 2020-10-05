@@ -38,6 +38,7 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ssl_sock-t.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/thread-t.h>
 
@@ -352,6 +353,8 @@ struct server {
 	char adm_st_chg_cause[48];		/* administrative status change's cause */
 
 	struct sockaddr_storage socks4_addr;	/* the address of the SOCKS4 Proxy, including the port */
+
+	EXTRA_COUNTERS(extra_counters);
 };
 
 
