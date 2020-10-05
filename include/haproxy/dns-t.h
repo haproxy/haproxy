@@ -27,6 +27,7 @@
 #include <haproxy/connection-t.h>
 #include <haproxy/dgram-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/stats-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/thread.h>
 
@@ -210,24 +211,29 @@ struct dns_nameserver {
 	struct dgram_conn      *dgram;  /* transport layer */
 	struct sockaddr_storage addr;   /* IP address */
 
-	struct {                        /* numbers relted to this name server: */
-		long long sent;         /* - queries sent */
-		long long snd_error;    /* - sending errors */
-		long long valid;        /* - valid response */
-		long long update;       /* - valid response used to update server's IP */
-		long long cname;        /* - CNAME response requiring new resolution */
-		long long cname_error;  /* - error when resolving CNAMEs */
-		long long any_err;      /* - void response (usually because ANY qtype) */
-		long long nx;           /* - NX response */
-		long long timeout;      /* - queries which reached timeout */
-		long long refused;      /* - queries refused */
-		long long other;        /* - other type of response */
-		long long invalid;      /* - malformed DNS response */
-		long long too_big;      /* - too big response */
-		long long outdated;     /* - outdated response (server slower than the other ones) */
-		long long truncated;    /* - truncated response */
-	} counters;
+	EXTRA_COUNTERS(extra_counters);
+	struct dns_counters *counters;
+
 	struct list list;               /* nameserver chained list */
+};
+
+struct dns_counters {
+	char *id;
+	long long sent;         /* - queries sent */
+	long long snd_error;    /* - sending errors */
+	long long valid;        /* - valid response */
+	long long update;       /* - valid response used to update server's IP */
+	long long cname;        /* - CNAME response requiring new resolution */
+	long long cname_error;  /* - error when resolving CNAMEs */
+	long long any_err;      /* - void response (usually because ANY qtype) */
+	long long nx;           /* - NX response */
+	long long timeout;      /* - queries which reached timeout */
+	long long refused;      /* - queries refused */
+	long long other;        /* - other type of response */
+	long long invalid;      /* - malformed DNS response */
+	long long too_big;      /* - too big response */
+	long long outdated;     /* - outdated response (server slower than the other ones) */
+	long long truncated;    /* - truncated response */;
 };
 
 struct dns_options {

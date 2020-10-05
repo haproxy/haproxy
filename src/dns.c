@@ -36,7 +36,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
-#include <haproxy/stats-t.h>
+#include <haproxy/stats.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
@@ -56,6 +56,78 @@ DECLARE_POOL(dns_requester_pool,  "dns_requester",  sizeof(struct dns_requester)
 
 static unsigned int resolution_uuid = 1;
 unsigned int dns_failed_resolutions = 0;
+
+enum {
+	DNS_STAT_ID,
+	DNS_STAT_SND_ERROR,
+	DNS_STAT_VALID,
+	DNS_STAT_UPDATE,
+	DNS_STAT_CNAME,
+	DNS_STAT_CNAME_ERROR,
+	DNS_STAT_ANY_ERR,
+	DNS_STAT_NX,
+	DNS_STAT_TIMEOUT,
+	DNS_STAT_REFUSED,
+	DNS_STAT_OTHER,
+	DNS_STAT_INVALID,
+	DNS_STAT_TOO_BIG,
+	DNS_STAT_TRUNCATED,
+	DNS_STAT_OUTDATED,
+	DNS_STAT_END,
+};
+
+static struct name_desc dns_stats[] = {
+	[DNS_STAT_ID]          = { .name = "id",          .desc = "ID" },
+	[DNS_STAT_SND_ERROR]   = { .name = "send_error",  .desc = "Send error" },
+	[DNS_STAT_VALID]       = { .name = "valid",       .desc = "Valid" },
+	[DNS_STAT_UPDATE]      = { .name = "update",      .desc = "Update" },
+	[DNS_STAT_CNAME]       = { .name = "cname",       .desc = "CNAME" },
+	[DNS_STAT_CNAME_ERROR] = { .name = "cname_error", .desc = "CNAME error" },
+	[DNS_STAT_ANY_ERR]     = { .name = "any_err",     .desc = "Any errors" },
+	[DNS_STAT_NX]          = { .name = "nx",          .desc = "NX" },
+	[DNS_STAT_TIMEOUT]     = { .name = "timeout",     .desc = "Timeout" },
+	[DNS_STAT_REFUSED]     = { .name = "refused",     .desc = "Refused" },
+	[DNS_STAT_OTHER]       = { .name = "other",       .desc = "Other" },
+	[DNS_STAT_INVALID]     = { .name = "invalid",     .desc = "Invalid" },
+	[DNS_STAT_TOO_BIG]     = { .name = "too_big",     .desc = "Too big" },
+	[DNS_STAT_TRUNCATED]   = { .name = "truncated",   .desc = "Truncated" },
+	[DNS_STAT_OUTDATED]    = { .name = "outdated",    .desc = "Outdated" },
+};
+
+static struct dns_counters dns_counters;
+
+static void dns_fill_stats(void *d, struct field *stats)
+{
+	struct dns_counters *counters = d;
+	stats[DNS_STAT_ID]          = mkf_str(FO_CONFIG, counters->id);
+	stats[DNS_STAT_SND_ERROR]   = mkf_u64(FN_GAUGE, counters->snd_error);
+	stats[DNS_STAT_VALID]       = mkf_u64(FN_GAUGE, counters->valid);
+	stats[DNS_STAT_UPDATE]      = mkf_u64(FN_GAUGE, counters->update);
+	stats[DNS_STAT_CNAME]       = mkf_u64(FN_GAUGE, counters->cname);
+	stats[DNS_STAT_CNAME_ERROR] = mkf_u64(FN_GAUGE, counters->cname_error);
+	stats[DNS_STAT_ANY_ERR]     = mkf_u64(FN_GAUGE, counters->any_err);
+	stats[DNS_STAT_NX]          = mkf_u64(FN_GAUGE, counters->nx);
+	stats[DNS_STAT_TIMEOUT]     = mkf_u64(FN_GAUGE, counters->timeout);
+	stats[DNS_STAT_REFUSED]     = mkf_u64(FN_GAUGE, counters->refused);
+	stats[DNS_STAT_OTHER]       = mkf_u64(FN_GAUGE, counters->other);
+	stats[DNS_STAT_INVALID]     = mkf_u64(FN_GAUGE, counters->invalid);
+	stats[DNS_STAT_TOO_BIG]     = mkf_u64(FN_GAUGE, counters->too_big);
+	stats[DNS_STAT_TRUNCATED]   = mkf_u64(FN_GAUGE, counters->truncated);
+	stats[DNS_STAT_OUTDATED]    = mkf_u64(FN_GAUGE, counters->outdated);
+}
+
+static struct stats_module dns_stats_module = {
+	.name          = "dns",
+	.domain_flags  = STATS_DOMAIN_DNS << STATS_DOMAIN,
+	.fill_stats    = dns_fill_stats,
+	.stats         = dns_stats,
+	.stats_count   = DNS_STAT_END,
+	.counters      = &dns_counters,
+	.counters_size = sizeof(dns_counters),
+	.clearable     = 0,
+};
+
+INITCALL1(STG_REGISTER, stats_register_module, &dns_stats_module);
 
 /* Returns a pointer to the resolvers matching the id <id>. NULL is returned if
  * no match is found.
@@ -307,7 +379,7 @@ static int dns_send_query(struct dns_resolution *resolution)
 
 		ret = send(fd, trash.area, len, 0);
 		if (ret == len) {
-			ns->counters.sent++;
+			ns->counters->sent++;
 			resolution->nb_queries++;
 			continue;
 		}
@@ -319,7 +391,7 @@ static int dns_send_query(struct dns_resolution *resolution)
 		}
 
 	snd_error:
-		ns->counters.snd_error++;
+		ns->counters->snd_error++;
 		resolution->nb_queries++;
 	}
 
@@ -1834,7 +1906,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 
 		/* message too big */
 		if (buflen > resolvers->accepted_payload_size) {
-			ns->counters.too_big++;
+			ns->counters->too_big++;
 			continue;
 		}
 
@@ -1843,7 +1915,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 
 		/* read the query id from the packet (16 bits) */
 		if (buf + 2 > bufend) {
-			ns->counters.invalid++;
+			ns->counters->invalid++;
 			continue;
 		}
 		query_id = dns_response_get_query_id(buf);
@@ -1852,7 +1924,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		eb = eb32_lookup(&resolvers->query_ids, query_id);
 		if (eb == NULL) {
 			/* unknown query id means an outdated response and can be safely ignored */
-			ns->counters.outdated++;
+			ns->counters->outdated++;
 			continue;
 		}
 
@@ -1872,39 +1944,39 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 			case DNS_RESP_QUERY_COUNT_ERROR:
 			case DNS_RESP_WRONG_NAME:
 				res->status = RSLV_STATUS_INVALID;
-				ns->counters.invalid++;
+				ns->counters->invalid++;
 				break;
 
 			case DNS_RESP_NX_DOMAIN:
 				res->status = RSLV_STATUS_NX;
-				ns->counters.nx++;
+				ns->counters->nx++;
 				break;
 
 			case DNS_RESP_REFUSED:
 				res->status = RSLV_STATUS_REFUSED;
-				ns->counters.refused++;
+				ns->counters->refused++;
 				break;
 
 			case DNS_RESP_ANCOUNT_ZERO:
 				res->status = RSLV_STATUS_OTHER;
-				ns->counters.any_err++;
+				ns->counters->any_err++;
 				break;
 
 			case DNS_RESP_CNAME_ERROR:
 				res->status = RSLV_STATUS_OTHER;
-				ns->counters.cname_error++;
+				ns->counters->cname_error++;
 				break;
 
 			case DNS_RESP_TRUNCATED:
 				res->status = RSLV_STATUS_OTHER;
-				ns->counters.truncated++;
+				ns->counters->truncated++;
 				break;
 
 			case DNS_RESP_NO_EXPECTED_RECORD:
 			case DNS_RESP_ERROR:
 			case DNS_RESP_INTERNAL:
 				res->status = RSLV_STATUS_OTHER;
-				ns->counters.other++;
+				ns->counters->other++;
 				break;
 		}
 
@@ -1943,14 +2015,14 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		query = LIST_NEXT(&res->response.query_list, struct dns_query_item *, list);
 		if (query && dns_hostname_cmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
 			dns_resp = DNS_RESP_WRONG_NAME;
-			ns->counters.other++;
+			ns->counters->other++;
 			goto report_res_error;
 		}
 
 		/* So the resolution succeeded */
 		res->status     = RSLV_STATUS_VALID;
 		res->last_valid = now_ms;
-		ns->counters.valid++;
+		ns->counters->valid++;
 		goto report_res_success;
 
 	report_res_error:
@@ -2032,12 +2104,13 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 			goto snd_error;
 		}
 
-		ns->counters.sent++;
+		ns->counters->sent++;
+
 		res->nb_queries++;
 		continue;
 
 	  snd_error:
-		ns->counters.snd_error++;
+		ns->counters->snd_error++;
 		res->nb_queries++;
 	}
 	HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
@@ -2144,6 +2217,7 @@ static void dns_deinit(void)
 				fd_delete(ns->dgram->t.sock.fd);
 			free(ns->dgram);
 			LIST_DEL(&ns->list);
+			EXTRA_COUNTERS_FREE(ns->extra_counters);
 			free(ns);
 		}
 
@@ -2229,6 +2303,12 @@ static int dns_finalize_config(void)
 			dgram->data      = &resolve_dgram_cb;
 			dgram->t.sock.fd = -1;
 			ns->dgram        = dgram;
+
+			/* Store the ns counters pointer */
+			if (ns->extra_counters) {
+				ns->counters = EXTRA_COUNTERS_GET(ns->extra_counters, &dns_stats_module);
+				ns->counters->id = ns->id;
+			}
 		}
 
 		/* Create the task associated to the resolvers section */
@@ -2290,6 +2370,144 @@ static int dns_finalize_config(void)
 
 }
 
+static int stats_dump_dns_to_buffer(struct stream_interface *si,
+                                    struct dns_nameserver *ns,
+                                    struct field *stats, size_t stats_count,
+                                    struct list *stat_modules)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+	struct channel *rep = si_ic(si);
+	struct stats_module *mod;
+	size_t idx = 0;
+
+	memset(stats, 0, sizeof(struct field) * stats_count);
+
+	list_for_each_entry(mod, stat_modules, list) {
+		struct counters_node *counters = EXTRA_COUNTERS_GET(ns->extra_counters, mod);
+
+		mod->fill_stats(counters, stats + idx);
+		idx += mod->stats_count;
+	}
+
+	if (!stats_dump_one_line(stats, idx, appctx))
+		return 0;
+
+	if (!stats_putchk(rep, NULL, &trash))
+		goto full;
+
+	return 1;
+
+  full:
+	si_rx_room_rdy(si);
+	return 0;
+}
+
+/* Uses <appctx.ctx.stats.obj1> as a pointer to the current resolver and <obj2>
+ * as a pointer to the current nameserver.
+ */
+int stats_dump_dns(struct stream_interface *si,
+                   struct field *stats, size_t stats_count,
+                   struct list *stat_modules)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+	struct channel *rep = si_ic(si);
+	struct dns_resolvers *resolver = appctx->ctx.stats.obj1;
+	struct dns_nameserver *ns = appctx->ctx.stats.obj2;
+
+	if (!resolver)
+		resolver = LIST_NEXT(&dns_resolvers, struct dns_resolvers *, list);
+
+	/* dump resolvers */
+	list_for_each_entry_from(resolver, &dns_resolvers, list) {
+		appctx->ctx.stats.obj1 = resolver;
+
+		ns = appctx->ctx.stats.obj2 ?
+		     appctx->ctx.stats.obj2 :
+		     LIST_NEXT(&resolver->nameservers, struct dns_nameserver *, list);
+
+		list_for_each_entry_from(ns, &resolver->nameservers, list) {
+			appctx->ctx.stats.obj2 = ns;
+
+			if (buffer_almost_full(&rep->buf))
+				goto full;
+
+			if (!stats_dump_dns_to_buffer(si, ns,
+			                              stats, stats_count,
+			                              stat_modules)) {
+				return 0;
+			}
+		}
+
+		appctx->ctx.stats.obj2 = NULL;
+	}
+
+	return 1;
+
+  full:
+	si_rx_room_blk(si);
+	return 0;
+}
+
+void dns_stats_clear_counters(int clrall, struct list *stat_modules)
+{
+	struct dns_resolvers  *resolvers;
+	struct dns_nameserver *ns;
+	struct stats_module *mod;
+	void *counters;
+
+	list_for_each_entry(mod, stat_modules, list) {
+		if (!mod->clearable && !clrall)
+			continue;
+
+		list_for_each_entry(resolvers, &dns_resolvers, list) {
+			list_for_each_entry(ns, &resolvers->nameservers, list) {
+				counters = EXTRA_COUNTERS_GET(ns->extra_counters, mod);
+				memcpy(counters, mod->counters, mod->counters_size);
+			}
+		}
+	}
+
+}
+
+int dns_allocate_counters(struct list *stat_modules)
+{
+	struct stats_module *mod;
+	struct dns_resolvers *resolvers;
+	struct dns_nameserver *ns;
+
+	list_for_each_entry(resolvers, &dns_resolvers, list) {
+		list_for_each_entry(ns, &resolvers->nameservers, list) {
+			EXTRA_COUNTERS_REGISTER(&ns->extra_counters, COUNTERS_DNS,
+			                        alloc_failed);
+
+			list_for_each_entry(mod, stat_modules, list) {
+				EXTRA_COUNTERS_ADD(mod,
+				                   ns->extra_counters,
+				                   mod->counters,
+				                   mod->counters_size);
+			}
+
+			EXTRA_COUNTERS_ALLOC(ns->extra_counters, alloc_failed);
+
+			list_for_each_entry(mod, stat_modules, list) {
+				memcpy(ns->extra_counters->data + mod->counters_off[ns->extra_counters->type],
+				       mod->counters, mod->counters_size);
+
+				/* Store the ns counters pointer */
+				if (!strcmp(mod->name, "dns")) {
+					ns->counters = (struct dns_counters *)ns->extra_counters->data + mod->counters_off[COUNTERS_DNS];
+					ns->counters->id = ns->id;
+				}
+			}
+		}
+	}
+
+	return 1;
+
+alloc_failed:
+	return 0;
+}
+
 /* if an arg is found, it sets the resolvers section pointer into cli.p0 */
 static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -2338,21 +2556,21 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 				chunk_appendf(&trash, "Resolvers section %s\n", resolvers->id);
 				list_for_each_entry(ns, &resolvers->nameservers, list) {
 					chunk_appendf(&trash, " nameserver %s:\n", ns->id);
-					chunk_appendf(&trash, "  sent:        %lld\n", ns->counters.sent);
-					chunk_appendf(&trash, "  snd_error:   %lld\n", ns->counters.snd_error);
-					chunk_appendf(&trash, "  valid:       %lld\n", ns->counters.valid);
-					chunk_appendf(&trash, "  update:      %lld\n", ns->counters.update);
-					chunk_appendf(&trash, "  cname:       %lld\n", ns->counters.cname);
-					chunk_appendf(&trash, "  cname_error: %lld\n", ns->counters.cname_error);
-					chunk_appendf(&trash, "  any_err:     %lld\n", ns->counters.any_err);
-					chunk_appendf(&trash, "  nx:          %lld\n", ns->counters.nx);
-					chunk_appendf(&trash, "  timeout:     %lld\n", ns->counters.timeout);
-					chunk_appendf(&trash, "  refused:     %lld\n", ns->counters.refused);
-					chunk_appendf(&trash, "  other:       %lld\n", ns->counters.other);
-					chunk_appendf(&trash, "  invalid:     %lld\n", ns->counters.invalid);
-					chunk_appendf(&trash, "  too_big:     %lld\n", ns->counters.too_big);
-					chunk_appendf(&trash, "  truncated:   %lld\n", ns->counters.truncated);
-					chunk_appendf(&trash, "  outdated:    %lld\n",  ns->counters.outdated);
+					chunk_appendf(&trash, "  sent:        %lld\n", ns->counters->sent);
+					chunk_appendf(&trash, "  snd_error:   %lld\n", ns->counters->snd_error);
+					chunk_appendf(&trash, "  valid:       %lld\n", ns->counters->valid);
+					chunk_appendf(&trash, "  update:      %lld\n", ns->counters->update);
+					chunk_appendf(&trash, "  cname:       %lld\n", ns->counters->cname);
+					chunk_appendf(&trash, "  cname_error: %lld\n", ns->counters->cname_error);
+					chunk_appendf(&trash, "  any_err:     %lld\n", ns->counters->any_err);
+					chunk_appendf(&trash, "  nx:          %lld\n", ns->counters->nx);
+					chunk_appendf(&trash, "  timeout:     %lld\n", ns->counters->timeout);
+					chunk_appendf(&trash, "  refused:     %lld\n", ns->counters->refused);
+					chunk_appendf(&trash, "  other:       %lld\n", ns->counters->other);
+					chunk_appendf(&trash, "  invalid:     %lld\n", ns->counters->invalid);
+					chunk_appendf(&trash, "  too_big:     %lld\n", ns->counters->too_big);
+					chunk_appendf(&trash, "  truncated:   %lld\n", ns->counters->truncated);
+					chunk_appendf(&trash, "  outdated:    %lld\n",  ns->counters->outdated);
 				}
 				chunk_appendf(&trash, "\n");
 			}

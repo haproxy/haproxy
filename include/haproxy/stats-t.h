@@ -51,7 +51,7 @@
 #define STATS_TYPE_SV  2
 #define STATS_TYPE_SO  3
 
-#define STATS_DOMAIN  (0)               /* used for bitshifting, type of statistics, for now only proxy is available */
+#define STATS_DOMAIN  (0)               /* used for bitshifting, type of statistics: proxy or dns */
 #define STATS_PX_CAP  (8)               /* used for bitshifting, differentiate obj1 type for proxy statistics */
 
 /* HTTP stats : applet.st0 */
@@ -459,6 +459,7 @@ enum counters_type {
 	COUNTERS_BE,
 	COUNTERS_SV,
 	COUNTERS_LI,
+	COUNTERS_DNS,
 
 	COUNTERS_OFF_END
 };
@@ -490,6 +491,7 @@ struct extra_counters {
 /* stats_domain is used in a flag as a 1 byte field */
 enum stats_domain {
 	STATS_DOMAIN_PROXY = 0,
+	STATS_DOMAIN_DNS,
 	STATS_DOMAIN_COUNT,
 
 	STATS_DOMAIN_MASK  = 0xff

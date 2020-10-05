@@ -3868,7 +3868,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 
  save_ip:
 	if (nameserver) {
-		nameserver->counters.update++;
+		nameserver->counters->update++;
 		/* save the first ip we found */
 		chunk_printf(chk, "%s/%s", nameserver->resolvers->id, nameserver->id);
 	}
@@ -3882,7 +3882,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 
  invalid:
 	if (nameserver) {
-		nameserver->counters.invalid++;
+		nameserver->counters->invalid++;
 		goto update_status;
 	}
 	snr_update_srv_status(s, has_no_ip);

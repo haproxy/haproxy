@@ -265,6 +265,7 @@ static struct field *stat_l[STATS_DOMAIN_COUNT];
 /* list of all registered stats module */
 static struct list stats_module_list[STATS_DOMAIN_COUNT] = {
 	LIST_HEAD_INIT(stats_module_list[STATS_DOMAIN_PROXY]),
+	LIST_HEAD_INIT(stats_module_list[STATS_DOMAIN_DNS]),
 };
 
 static inline uint8_t stats_get_domain(uint32_t domain)
@@ -604,6 +605,11 @@ static int stats_dump_fields_typed(struct buffer *out,
 			              stats[ST_F_PID].u.u32);
 			break;
 
+		case STATS_DOMAIN_DNS:
+			chunk_appendf(out, "D.%d.%s:", field,
+			              stat_f[domain][field].name);
+			break;
+
 		default:
 			break;
 		}
@@ -701,6 +707,18 @@ static void stats_print_proxy_field_json(struct buffer *out,
 	              obj_type, iid, sid, pos, name, pid);
 }
 
+static void stats_print_dns_field_json(struct buffer *out,
+                                       const struct field *stat,
+                                       const char *name,
+                                       int pos)
+{
+	chunk_appendf(out,
+	              "{"
+	              "\"field\":{\"pos\":%d,\"name\":\"%s\"},",
+	              pos, name);
+}
+
+
 /* Dump all fields from <stats> into <out> using a typed "field:desc:type:value" format */
 static int stats_dump_fields_json(struct buffer *out,
                                   const struct field *stats, size_t stats_count,
@@ -734,6 +752,10 @@ static int stats_dump_fields_json(struct buffer *out,
 			                             stats[ST_F_IID].u.u32,
 			                             stats[ST_F_SID].u.u32,
 			                             stats[ST_F_PID].u.u32);
+		} else if (domain == STATS_DOMAIN_DNS) {
+			stats_print_dns_field_json(out, &stats[field],
+			                           stat_f[domain][field].name,
+			                           field);
 		}
 
 		if (old_len == out->data)
@@ -3052,6 +3074,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct channel *rep = si_ic(si);
+	enum stats_domain domain = appctx->ctx.stats.domain;
 
 	chunk_reset(&trash);
 
@@ -3087,15 +3110,30 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 				goto full;
 		}
 
-		appctx->ctx.stats.obj1 = proxies_list;
+		if (domain == STATS_DOMAIN_PROXY)
+			appctx->ctx.stats.obj1 = proxies_list;
+
 		appctx->ctx.stats.px_st = STAT_PX_ST_INIT;
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
-		/* dump proxies */
-		if (!stats_dump_proxies(si, htx, uri))
-			return 0;
+		switch (domain) {
+		case STATS_DOMAIN_DNS:
+			if (!stats_dump_dns(si, stat_l[domain],
+			                    stat_count[domain],
+			                    &stats_module_list[domain])) {
+				return 0;
+			}
+			break;
+
+		case STATS_DOMAIN_PROXY:
+		default:
+			/* dump proxies */
+			if (!stats_dump_proxies(si, htx, uri))
+				return 0;
+			break;
+		}
 
 		appctx->st2 = STAT_ST_END;
 		/* fall through */
@@ -4194,6 +4232,8 @@ static int cli_parse_clear_counters(char **args, char *payload, struct appctx *a
 		}
 	}
 
+	dns_stats_clear_counters(clrall, &stats_module_list[STATS_DOMAIN_DNS]);
+
 	memset(activity, 0, sizeof(activity));
 	return 1;
 }
@@ -4236,10 +4276,14 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 	if (!strcmp(args[arg], "domain")) {
 		++args;
 
-		if (!strcmp(args[arg], "proxy"))
+		if (!strcmp(args[arg], "proxy")) {
 			++args;
-		else
+		} else if (!strcmp(args[arg], "dns")) {
+			appctx->ctx.stats.domain = STATS_DOMAIN_DNS;
+			++args;
+		} else {
 			return cli_err(appctx, "Invalid statistics domain.\n");
+		}
 	}
 
 	if (appctx->ctx.stats.domain == STATS_DOMAIN_PROXY
@@ -4416,6 +4460,44 @@ static int allocate_stats_px_postcheck(void)
 }
 
 REGISTER_CONFIG_POSTPARSER("allocate-stats-px", allocate_stats_px_postcheck);
+
+static int allocate_stats_dns_postcheck(void)
+{
+	struct stats_module *mod;
+	size_t i = 0;
+	int err_code = 0;
+
+	stat_f[STATS_DOMAIN_DNS] = malloc(stat_count[STATS_DOMAIN_DNS] * sizeof(struct name_desc));
+	if (!stat_f[STATS_DOMAIN_DNS]) {
+		ha_alert("stats: cannot allocate all fields for dns statistics\n");
+		err_code |= ERR_ALERT | ERR_FATAL;
+		return err_code;
+	}
+
+	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_DNS], list) {
+		memcpy(stat_f[STATS_DOMAIN_DNS] + i,
+		       mod->stats,
+		       mod->stats_count * sizeof(struct name_desc));
+		i += mod->stats_count;
+	}
+
+	if (!dns_allocate_counters(&stats_module_list[STATS_DOMAIN_DNS])) {
+		ha_alert("stats: cannot allocate all counters for dns statistics\n");
+		err_code |= ERR_ALERT | ERR_FATAL;
+		return err_code;
+	}
+
+	stat_l[STATS_DOMAIN_DNS] = malloc(stat_count[STATS_DOMAIN_DNS] * sizeof(struct field));
+	if (!stat_l[STATS_DOMAIN_DNS]) {
+		ha_alert("stats: cannot allocate a line for dns statistics\n");
+		err_code |= ERR_ALERT | ERR_FATAL;
+		return err_code;
+	}
+
+	return err_code;
+}
+
+REGISTER_CONFIG_POSTPARSER("allocate-stats-dns", allocate_stats_dns_postcheck);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{

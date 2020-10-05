@@ -945,7 +945,9 @@ CSV output format for monitoring tools. The same format is provided on the
 Unix socket.
 
 Statistics are regroup in categories labelled as domains, corresponding to the
-multiple components of HAProxy. Only the proxy domain is available.
+multiple components of HAProxy. There are two domains avaiable: proxy and dns.
+If not specified, the proxy domain is selected. Note that only the proxy
+statistics are printed on the HTTP page.
 
 9.1. CSV format
 ---------------
