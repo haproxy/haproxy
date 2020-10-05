@@ -2538,11 +2538,15 @@ static void h1_detach(struct conn_stream *cs)
 		h1_release(h1c);
 	}
 	else {
-		/* If we have a new request, process it immediately */
-		if (unlikely(b_data(&h1c->ibuf)))
-			h1_process(h1c);
-		else
-			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+		if (h1c->flags & H1C_F_CS_IDLE) {
+			/* If we have a new request, process it immediately or
+			 * subscribe for reads waiting for new data
+			 */
+			if (unlikely(b_data(&h1c->ibuf)))
+				h1_process(h1c);
+			else
+				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+		}
 		h1_refresh_timeout(h1c);
 	}
   end:
