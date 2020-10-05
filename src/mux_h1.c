@@ -98,8 +98,9 @@ struct h1c {
 
 	struct h1s *h1s;                 /* H1 stream descriptor */
 	struct task *task;               /* timeout management task */
-	int timeout;                     /* idle timeout duration in ticks */
-	int shut_timeout;                /* idle timeout duration in ticks after stream shutdown */
+	int idle_exp;                    /* idle expiration date (http-keep-alive or http-request timeout) */
+	int timeout;                     /* client/server timeout duration */
+	int shut_timeout;                /* client-fin/server-fin timeout duration */
 };
 
 /* H1 stream descriptor */
@@ -512,8 +513,44 @@ static void h1_refresh_timeout(struct h1c *h1c)
 			TRACE_DEVEL("no connection timeout (alive back h1c or front h1c with a CS)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 		}
 
+		/* Finally set the idle expiration date if shorter */
+		h1c->task->expire = tick_first(h1c->task->expire, h1c->idle_exp);
 		TRACE_DEVEL("new expiration date", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn, 0, 0, (size_t[]){h1c->task->expire});
 		task_queue(h1c->task);
+	}
+}
+
+static __maybe_unused void h1_set_idle_expiration(struct h1c *h1c)
+{
+	if (h1c->flags & H1C_F_IS_BACK || !h1c->task) {
+		TRACE_DEVEL("no idle expiration (backend connection || no task)", H1_EV_H1C_RECV, h1c->conn);
+		h1c->idle_exp = TICK_ETERNITY;
+		return;
+	}
+
+	if (h1c->flags & H1C_F_CS_IDLE) {
+		if (!tick_isset(h1c->idle_exp)) {
+			if ((h1c->flags & H1C_F_WAIT_NEXT_REQ) &&   /* Not the first request */
+			    !b_data(&h1c->ibuf) &&                 /*  No input data */
+			    tick_isset(h1c->px->timeout.httpka)) { /*  K-A timeout set */
+				h1c->idle_exp = tick_add_ifset(now_ms, h1c->px->timeout.httpka);
+				TRACE_DEVEL("set idle expiration (keep-alive timeout)", H1_EV_H1C_RECV, h1c->conn);
+			}
+			else {
+				h1c->idle_exp = tick_add_ifset(now_ms, h1c->px->timeout.httpreq);
+				TRACE_DEVEL("set idle expiration (http-request timeout)", H1_EV_H1C_RECV, h1c->conn);
+			}
+		}
+	}
+	else if (h1c->flags & H1C_F_CS_EMBRYONIC) {
+		if (!tick_isset(h1c->idle_exp)) {
+			h1c->idle_exp = tick_add_ifset(now_ms, h1c->px->timeout.httpreq);
+			TRACE_DEVEL("set idle expiration (http-request timeout)", H1_EV_H1C_RECV, h1c->conn);
+		}
+	}
+	else { // CS_ATTACHED or SHUTDOWN
+		h1c->idle_exp = TICK_ETERNITY;
+		TRACE_DEVEL("unset idle expiration (attached || shutdown)", H1_EV_H1C_RECV, h1c->conn);
 	}
 }
 /*****************************************************************/
@@ -736,6 +773,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->wait_event.tasklet->process = h1_io_cb;
 	h1c->wait_event.tasklet->context = h1c;
 	h1c->wait_event.events   = 0;
+	h1c->idle_exp = TICK_ETERNITY;
 
 	if (conn_is_back(conn)) {
 		h1c->flags |= (H1C_F_IS_BACK|H1C_F_WAIT_OPPOSITE);
