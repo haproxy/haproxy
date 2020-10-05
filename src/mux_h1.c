@@ -45,9 +45,9 @@
 /* 0x00000080 - 0x00000800 unused */
 
 /* Flags indicating the connection state */
-#define H1C_F_CS_ERROR       0x00001000 /* connection must be closed ASAP because an error occurred */
-#define H1C_F_CS_SHUTW_NOW   0x00002000 /* connection must be shut down for writes ASAP */
-#define H1C_F_CS_SHUTDOWN    0x00004000 /* connection is shut down */
+#define H1C_F_CS_ERROR       0x00001000 /* connection must be closed ASAP because an error occurred (conn-stream may still be attached) */
+#define H1C_F_CS_SHUTDOWN    0x00002000 /* connection must be shut down ASAP flushing output first (conn-stream may still be attached) */
+/* 0x00000040 unused */
 #define H1C_F_CS_IDLE        0x00008000 /* connection is idle and may be reused
 					 * (exclusive to all H1C_F_CS flags and never set when an h1s is attached) */
 
@@ -257,8 +257,8 @@ static int h1_recv(struct h1c *h1c);
 static int h1_send(struct h1c *h1c);
 static int h1_process(struct h1c *h1c);
 static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short state);
-static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode);
 static struct task *h1_timeout_task(struct task *t, void *context, unsigned short state);
+static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode);
 static void h1_wake_stream_for_recv(struct h1s *h1s);
 static void h1_wake_stream_for_send(struct h1s *h1s);
 
@@ -483,19 +483,17 @@ static void h1_refresh_timeout(struct h1c *h1c)
 	if (h1c->task) {
 		h1c->task->expire = TICK_ETERNITY;
 		if (h1c->flags & H1C_F_CS_SHUTDOWN) {
-			/* half-closed connections switch to clientfin/serverfin
-			 * timeouts so that we don't hang too long on clients
-			 * that have gone away (especially in tunnel mode).
+			/* half-closed or dead connections : switch to clientfin/serverfin
+			 * timeouts so that we don't hang too long on clients that have
+			 * gone away (especially in tunnel mode).
 			 */
 			h1c->task->expire = tick_add(now_ms, h1c->shut_timeout);
 			task_queue(h1c->task);
-			TRACE_DEVEL("refreshing connection's timeout (half-closed)", H1_EV_H1C_SEND, h1c->conn);
+			TRACE_DEVEL("refreshing connection's timeout (dead or half-closed)", H1_EV_H1C_SEND, h1c->conn);
 		} else if (b_data(&h1c->obuf)) {
 			/* any connection with pending data, need a timeout (server or client).
 			 */
-			h1c->task->expire = tick_add(now_ms, ((h1c->flags & H1C_F_CS_SHUTW_NOW)
-							      ? h1c->shut_timeout
-							      : h1c->timeout));
+			h1c->task->expire = tick_add(now_ms, h1c->timeout);
 			task_queue(h1c->task);
 			TRACE_DEVEL("refreshing connection's timeout", H1_EV_H1C_SEND, h1c->conn);
 		} else if ((h1c->flags & (H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ)) && !(h1c->flags & H1C_F_IS_BACK)) {
@@ -507,9 +505,7 @@ static void h1_refresh_timeout(struct h1c *h1c)
 			if (h1c->flags & H1C_F_WAIT_NEXT_REQ)
 				timeout = tick_first(timeout, h1c->px->timeout.httpka);
 
-			h1c->task->expire = tick_add(now_ms, ((h1c->flags & H1C_F_CS_SHUTW_NOW)
-							      ? h1c->shut_timeout
-							      : timeout));
+			h1c->task->expire = tick_add(now_ms, timeout);
 			task_queue(h1c->task);
 			TRACE_DEVEL("refreshing connection's timeout", H1_EV_H1C_SEND, h1c->conn);
 		}
@@ -684,12 +680,16 @@ static void h1s_destroy(struct h1s *h1s)
 			TRACE_STATE("h1s on error, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
 
-		if (!(h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTW_NOW|H1C_F_CS_SHUTDOWN)) && /* No error/shutdown on h1c */
+		if (!(h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN)) && /* No error/shutdown on h1c */
 		    !(h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) && /* No error/shutdown on conn */
 		    (h1s->flags & (H1S_F_WANT_KAL|H1S_F_PARSING_DONE)) == (H1S_F_WANT_KAL|H1S_F_PARSING_DONE) && /* K/A possible */
 		    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {        /* req/res in DONE state */
 			h1c->flags |= (H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ);
 			TRACE_STATE("set idle mode on h1c, waiting for the next request", H1_EV_H1C_ERR, h1c->conn, h1s);
+		}
+		else {
+			TRACE_STATE("set shudown on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
+			h1c->flags |= H1C_F_CS_SHUTDOWN;
 		}
 		pool_free(pool_head_h1s, h1s);
 	}
@@ -2166,7 +2166,7 @@ static int h1_send(struct h1c *h1c)
 	if (!b_data(&h1c->obuf)) {
 		TRACE_DEVEL("leaving with everything sent", H1_EV_H1C_SEND, h1c->conn);
 		h1_release_buf(h1c, &h1c->obuf);
-		if (h1c->flags & H1C_F_CS_SHUTW_NOW) {
+		if (h1c->flags & H1C_F_CS_SHUTDOWN) {
 			TRACE_STATE("process pending shutdown for writes", H1_EV_H1C_SEND, h1c->conn);
 			h1_shutw_conn(conn, CS_SHW_NORMAL);
 		}
@@ -2196,7 +2196,8 @@ static int h1_process(struct h1c * h1c)
 		return -1;
 
 	if (!h1s) {
-		if (h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN) ||
+		if ((h1c->flags & H1C_F_CS_ERROR) ||
+		    ((h1c->flags & H1C_F_CS_SHUTDOWN) && !b_data(&h1c->obuf)) ||
 		    conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH))
 			goto release;
 		if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->flags & H1C_F_CS_IDLE)) {
@@ -2485,7 +2486,7 @@ static void h1_detach(struct conn_stream *cs)
 		 */
 		if (b_data(&h1c->ibuf)) {
 			h1_release_buf(h1c, &h1c->ibuf);
-			h1c->flags = (h1c->flags & ~H1C_F_CS_IDLE) | H1C_F_CS_SHUTW_NOW;
+			h1c->flags = (h1c->flags & ~H1C_F_CS_IDLE) | H1C_F_CS_SHUTDOWN;
 			TRACE_DEVEL("remaining data on detach, kill connection", H1_EV_STRM_END|H1_EV_H1C_END);
 			goto release;
 		}
@@ -2524,9 +2525,9 @@ static void h1_detach(struct conn_stream *cs)
 
   release:
 	/* We don't want to close right now unless the connection is in error or shut down for writes */
-	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN|H1C_F_UPG_H2C)) ||
+	if ((h1c->flags & (H1C_F_CS_ERROR|H1C_F_UPG_H2C)) ||
 	    (h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_WR_SH)) ||
-	    ((h1c->flags & H1C_F_CS_SHUTW_NOW) && !b_data(&h1c->obuf)) ||
+	    ((h1c->flags & H1C_F_CS_SHUTDOWN) && !b_data(&h1c->obuf)) ||
 	    !h1c->conn->owner) {
 		TRACE_DEVEL("killing dead connection", H1_EV_STRM_END, h1c->conn);
 		h1_release(h1c);
@@ -2555,6 +2556,8 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 
 	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s);
 
+	if (cs->flags & CS_FL_SHR)
+		goto end;
 	if (cs->flags & CS_FL_KILL_CONN) {
 		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto do_shutr;
@@ -2591,6 +2594,8 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 
 	TRACE_ENTER(H1_EV_STRM_SHUT, h1c->conn, h1s);
 
+	if (cs->flags & CS_FL_SHW)
+		goto end;
 	if (cs->flags & CS_FL_KILL_CONN) {
 		TRACE_STATE("stream wants to kill the connection", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto do_shutw;
@@ -2607,10 +2612,9 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	}
 
   do_shutw:
-	h1c->flags |= H1C_F_CS_SHUTW_NOW;
-	if ((cs->flags & CS_FL_SHW) || b_data(&h1c->obuf))
-		goto end;
-	h1_shutw_conn(cs->conn, mode);
+	h1c->flags |= H1C_F_CS_SHUTDOWN;
+	if (!b_data(&h1c->obuf))
+		h1_shutw_conn(cs->conn, mode);
   end:
 	TRACE_LEAVE(H1_EV_STRM_SHUT, h1c->conn, h1s);
 }
@@ -2622,7 +2626,6 @@ static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode)
 	TRACE_ENTER(H1_EV_STRM_SHUT, conn, h1c->h1s);
 	conn_xprt_shutw(conn);
 	conn_sock_shutw(conn, (mode == CS_SHW_NORMAL));
-	h1c->flags = (h1c->flags & ~H1C_F_CS_SHUTW_NOW) | H1C_F_CS_SHUTDOWN;
 	TRACE_LEAVE(H1_EV_STRM_SHUT, conn, h1c->h1s);
 }
 
