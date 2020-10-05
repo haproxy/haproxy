@@ -257,6 +257,11 @@ static THREAD_LOCAL struct field info[INF_TOTAL_FIELDS];
 /* one line of stats */
 static THREAD_LOCAL struct field stats[ST_F_TOTAL_FIELDS];
 
+/* list of all registered stats module */
+static struct list stats_module_list[STATS_DOMAIN_COUNT] = {
+	LIST_HEAD_INIT(stats_module_list[STATS_DOMAIN_PROXY]),
+};
+
 static inline uint8_t stats_get_domain(uint32_t domain)
 {
 	return domain >> STATS_DOMAIN & STATS_DOMAIN_MASK;
@@ -4033,6 +4038,13 @@ static int cli_io_handler_dump_stat(struct appctx *appctx)
 static int cli_io_handler_dump_json_schema(struct appctx *appctx)
 {
 	return stats_dump_json_schema_to_buffer(appctx->owner);
+}
+
+void stats_register_module(struct stats_module *m)
+{
+	const uint8_t domain = stats_get_domain(m->domain_flags);
+
+	LIST_ADDQ(&stats_module_list[domain], &m->list);
 }
 
 /* register cli keywords */

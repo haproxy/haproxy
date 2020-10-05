@@ -123,6 +123,8 @@ static inline struct field mkf_flt(uint32_t type, double value)
 #define MK_STATS_PROXY_DOMAIN(px_cap) \
 	((px_cap) << STATS_PX_CAP | STATS_DOMAIN_PROXY)
 
+void stats_register_module(struct stats_module *m);
+
 #endif /* _HAPROXY_STATS_H */
 
 /*

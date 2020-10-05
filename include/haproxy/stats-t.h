@@ -453,6 +453,32 @@ struct field {
 	} u;
 };
 
+enum counters_type {
+	COUNTERS_FE = 0,
+	COUNTERS_BE,
+	COUNTERS_SV,
+	COUNTERS_LI,
+
+	COUNTERS_OFF_END
+};
+
+/* Entity used to generate statistics on an HAProxy component */
+struct stats_module {
+	struct list list;
+	const char *name;
+
+	/* functor used to generate the stats module using counters provided through data parameter */
+	void (*fill_stats)(void *data, struct field *);
+
+	struct name_desc *stats; /* name/description of stats provided by the module */
+	void *counters;          /* initial values of allocated counters */
+	size_t counters_off[COUNTERS_OFF_END]; /* list of offsets of allocated counters in various objects */
+	size_t stats_count;      /* count of stats provided */
+	size_t counters_size;    /* sizeof counters */
+
+	uint32_t domain_flags;   /* stats application domain for this module */
+};
+
 /* stats_domain is used in a flag as a 1 byte field */
 enum stats_domain {
 	STATS_DOMAIN_PROXY = 0,
