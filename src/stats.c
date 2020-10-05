@@ -3963,6 +3963,7 @@ static int cli_parse_clear_counters(char **args, char *payload, struct appctx *a
 	struct proxy *px;
 	struct server *sv;
 	struct listener *li;
+	struct stats_module *mod;
 	int clrall = 0;
 
 	if (strcmp(args[2], "all") == 0)
@@ -4022,6 +4023,47 @@ static int cli_parse_clear_counters(char **args, char *payload, struct appctx *a
 	global.ssl_max = 0;
 	global.ssl_fe_keys_max = 0;
 	global.ssl_be_keys_max = 0;
+
+	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
+		if (!mod->clearable && !clrall)
+			continue;
+
+		for (px = proxies_list; px; px = px->next) {
+			enum stats_domain_px_cap mod_cap = stats_px_get_cap(mod->domain_flags);
+
+			if (px->cap & PR_CAP_FE && mod_cap & STATS_PX_CAP_FE) {
+				EXTRA_COUNTERS_INIT(px->extra_counters_fe,
+				                    mod,
+				                    mod->counters,
+				                    mod->counters_size);
+			}
+
+			if (px->cap & PR_CAP_BE && mod_cap & STATS_PX_CAP_BE) {
+				EXTRA_COUNTERS_INIT(px->extra_counters_be,
+				                    mod,
+				                    mod->counters,
+				                    mod->counters_size);
+			}
+
+			if (mod_cap & STATS_PX_CAP_SRV) {
+				for (sv = px->srv; sv; sv = sv->next) {
+					EXTRA_COUNTERS_INIT(sv->extra_counters,
+				                            mod,
+					                    mod->counters,
+					                    mod->counters_size);
+				}
+			}
+
+			if (mod_cap & STATS_PX_CAP_LI) {
+				list_for_each_entry(li, &px->conf.listeners, by_fe) {
+					EXTRA_COUNTERS_INIT(li->extra_counters,
+				                            mod,
+					                    mod->counters,
+					                    mod->counters_size);
+				}
+			}
+		}
+	}
 
 	memset(activity, 0, sizeof(activity));
 	return 1;

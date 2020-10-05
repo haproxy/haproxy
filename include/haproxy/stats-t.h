@@ -477,6 +477,7 @@ struct stats_module {
 	size_t counters_size;    /* sizeof counters */
 
 	uint32_t domain_flags;   /* stats application domain for this module */
+	char clearable;          /* reset on a clear counters */
 };
 
 struct extra_counters {
