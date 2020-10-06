@@ -94,6 +94,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	htx = htxbuf(&req->buf);
 
+	BUG_ON(htx_is_empty(htx) || htx->first == -1);
+
 	/* Parsing errors are caught here */
 	if (htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR)) {
 		stream_inc_http_req_ctr(s);
@@ -107,155 +109,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
 	s->srv_error = http_return_srv_error;
-
-	/*
-	 * Now we quickly check if we have found a full valid request.
-	 * If not so, we check the FD and buffer states before leaving.
-	 * A full request is indicated by the fact that we have seen
-	 * the double LF/CRLF, so the state is >= HTTP_MSG_BODY. Invalid
-	 * requests are checked first. When waiting for a second request
-	 * on a keep-alive stream, if we encounter and error, close, t/o,
-	 * we note the error in the stream flags but don't set any state.
-	 * Since the error will be noted there, it will not be counted by
-	 * process_stream() as a frontend error.
-	 * Last, we may increase some tracked counters' http request errors on
-	 * the cases that are deliberately the client's fault. For instance,
-	 * a timeout or connection reset is not counted as an error. However
-	 * a bad request is.
-	 */
-	if (unlikely(htx_is_empty(htx) || htx->first == -1)) {
-		/* 1: have we encountered a read error ? */
-		if (req->flags & CF_READ_ERROR) {
-			if (!(s->flags & SF_ERR_MASK))
-				s->flags |= SF_ERR_CLICL;
-
-			if (txn->flags & TX_WAIT_NEXT_RQ)
-				goto failed_keep_alive;
-
-			if (sess->fe->options & PR_O_IGNORE_PRB)
-				goto failed_keep_alive;
-
-			stream_inc_http_err_ctr(s);
-			stream_inc_http_req_ctr(s);
-			proxy_inc_fe_req_ctr(sess->listener, sess->fe);
-			_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
-			if (sess->listener->counters)
-				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
-
-			txn->status = 400;
-			http_reply_and_close(s, txn->status, NULL);
-			req->analysers &= AN_REQ_FLT_END;
-
-			if (!(s->flags & SF_FINST_MASK))
-				s->flags |= SF_FINST_R;
-			return 0;
-		}
-
-		/* 2: has the read timeout expired ? */
-		else if (req->flags & CF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
-			if (!(s->flags & SF_ERR_MASK))
-				s->flags |= SF_ERR_CLITO;
-
-			if (txn->flags & TX_WAIT_NEXT_RQ)
-				goto failed_keep_alive;
-
-			if (sess->fe->options & PR_O_IGNORE_PRB)
-				goto failed_keep_alive;
-
-			stream_inc_http_err_ctr(s);
-			stream_inc_http_req_ctr(s);
-			proxy_inc_fe_req_ctr(sess->listener, sess->fe);
-			_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
-			if (sess->listener->counters)
-				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
-
-			txn->status = 408;
-			http_reply_and_close(s, txn->status, http_error_message(s));
-			req->analysers &= AN_REQ_FLT_END;
-
-			if (!(s->flags & SF_FINST_MASK))
-				s->flags |= SF_FINST_R;
-			return 0;
-		}
-
-		/* 3: have we encountered a close ? */
-		else if (req->flags & CF_SHUTR) {
-			if (!(s->flags & SF_ERR_MASK))
-				s->flags |= SF_ERR_CLICL;
-
-			if (txn->flags & TX_WAIT_NEXT_RQ)
-				goto failed_keep_alive;
-
-			if (sess->fe->options & PR_O_IGNORE_PRB)
-				goto failed_keep_alive;
-
-			stream_inc_http_err_ctr(s);
-			stream_inc_http_req_ctr(s);
-			proxy_inc_fe_req_ctr(sess->listener, sess->fe);
-			_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
-			if (sess->listener->counters)
-				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
-
-			txn->status = 400;
-			http_reply_and_close(s, txn->status, http_error_message(s));
-			req->analysers &= AN_REQ_FLT_END;
-
-			if (!(s->flags & SF_FINST_MASK))
-				s->flags |= SF_FINST_R;
-			return 0;
-		}
-
-		channel_dont_connect(req);
-		req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
-		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
-
-		if (sess->listener->options & LI_O_NOQUICKACK && htx_is_not_empty(htx) &&
-		    objt_conn(sess->origin) && conn_ctrl_ready(__objt_conn(sess->origin))) {
-			/* We need more data, we have to re-enable quick-ack in case we
-			 * previously disabled it, otherwise we might cause the client
-			 * to delay next data.
-			 */
-			conn_set_quickack(objt_conn(sess->origin), 1);
-		}
-
-		if ((req->flags & CF_READ_PARTIAL) && (txn->flags & TX_WAIT_NEXT_RQ)) {
-			/* If the client starts to talk, let's fall back to
-			 * request timeout processing.
-			 */
-			txn->flags &= ~TX_WAIT_NEXT_RQ;
-			req->analyse_exp = TICK_ETERNITY;
-		}
-
-		/* just set the request timeout once at the beginning of the request */
-		if (!tick_isset(req->analyse_exp)) {
-			if ((txn->flags & TX_WAIT_NEXT_RQ) && tick_isset(s->be->timeout.httpka))
-				req->analyse_exp = tick_add(now_ms, s->be->timeout.httpka);
-			else
-				req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
-		}
-
-		/* we're not ready yet */
-		DBG_TRACE_DEVEL("waiting for the request",
-				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
-		return 0;
-
-	failed_keep_alive:
-		/* Here we process low-level errors for keep-alive requests. In
-		 * short, if the request is not the first one and it experiences
-		 * a timeout, read error or shutdown, we just silently close so
-		 * that the client can try again.
-		 */
-		txn->status = 0;
-		msg->msg_state = HTTP_MSG_RQBEFORE;
-		req->analysers &= AN_REQ_FLT_END;
-		s->logs.logwait = 0;
-		s->logs.level = 0;
-		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
-		http_reply_and_close(s, txn->status, NULL);
-		DBG_TRACE_DEVEL("leaving by closing K/A connection",
-				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
-		return 0;
-	}
 
 	msg->msg_state = HTTP_MSG_BODY;
 	stream_inc_http_req_ctr(s);
@@ -469,11 +322,6 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	struct redirect_rule *rule;
 	enum rule_result verdict;
 	struct connection *conn = objt_conn(sess->origin);
-
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
-		/* we need more data */
-		goto return_prx_yield;
-	}
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
@@ -714,17 +562,10 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 {
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
-	struct http_msg *msg = &txn->req;
 	struct htx *htx;
 	struct connection *cli_conn = objt_conn(strm_sess(s)->origin);
 
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
-		/* we need more data */
-		channel_dont_connect(req);
-		return 0;
-	}
-
-	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
+	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 
 	/*
 	 * Right now, we know that we have processed the entire headers
@@ -1036,9 +877,6 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	if (txn->meth == HTTP_METH_CONNECT)
 		goto http_end;
 
-	if (msg->msg_state < HTTP_MSG_BODY)
-		goto missing_data;
-
 	/* We have to parse the HTTP request body to find any required data.
 	 * "balance url_param check_post" should have been the only way to get
 	 * into this. We were brought here after HTTP header analysis, so all
@@ -1059,7 +897,6 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	    channel_htx_full(req, htx, global.tune.maxrewrite))
 		goto http_end;
 
- missing_data:
 	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
 		if (!(s->flags & SF_ERR_MASK))
