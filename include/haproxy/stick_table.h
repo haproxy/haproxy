@@ -203,4 +203,130 @@ static inline void stkctr_clr_flags(struct stkctr *stkctr, unsigned int flags)
 	stkctr->entry = caddr_clr_flags(stkctr->entry, flags);
 }
 
+/* Increase the number of cumulated HTTP requests in the tracked counter
+ * <stkctr>. It returns 0 if the entry pointer does not exist and nothing is
+ * performed. Otherwise it returns 1.
+ */
+static inline int stkctr_inc_http_req_ctr(struct stkctr *stkctr)
+{
+	struct stksess *ts;
+	void *ptr1, *ptr2;
+
+	ts = stkctr_entry(stkctr);
+	if (!ts)
+		return 0;
+
+	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
+	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_REQ_CNT);
+	if (ptr1)
+		stktable_data_cast(ptr1, http_req_cnt)++;
+
+	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_REQ_RATE);
+	if (ptr2)
+		update_freq_ctr_period(&stktable_data_cast(ptr2, http_req_rate),
+				       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+
+	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+	/* If data was modified, we need to touch to re-schedule sync */
+	if (ptr1 || ptr2)
+		stktable_touch_local(stkctr->table, ts, 0);
+	return 1;
+}
+
+/* Increase the number of cumulated failed HTTP requests in the tracked counter
+ * <stkctr>. It returns 0 if the entry pointer does not exist and nothing is
+ * performed. Otherwise it returns 1.
+ */
+static inline int stkctr_inc_http_err_ctr(struct stkctr *stkctr)
+{
+	struct stksess *ts;
+	void *ptr1, *ptr2;
+
+	ts = stkctr_entry(stkctr);
+	if (!ts)
+		return 0;
+
+	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
+	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_ERR_CNT);
+	if (ptr1)
+		stktable_data_cast(ptr1, http_err_cnt)++;
+
+	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_ERR_RATE);
+	if (ptr2)
+		update_freq_ctr_period(&stktable_data_cast(ptr2, http_err_rate),
+				       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
+
+	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+	/* If data was modified, we need to touch to re-schedule sync */
+	if (ptr1 || ptr2)
+		stktable_touch_local(stkctr->table, ts, 0);
+	return 1;
+}
+
+/* Increase the number of bytes received in the tracked counter <stkctr>. It
+ * returns 0 if the entry pointer does not exist and nothing is
+ * performed. Otherwise it returns 1.
+ */
+static inline int stkctr_inc_bytes_in_ctr(struct stkctr *stkctr, unsigned long long bytes)
+{
+	struct stksess *ts;
+	void *ptr1, *ptr2;
+
+	ts = stkctr_entry(stkctr);
+	if (!ts)
+		return 0;
+
+	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_IN_CNT);
+	if (ptr1)
+		stktable_data_cast(ptr1, bytes_in_cnt) += bytes;
+
+	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_IN_RATE);
+	if (ptr2)
+		update_freq_ctr_period(&stktable_data_cast(ptr2, bytes_in_rate),
+				       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
+	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+
+	/* If data was modified, we need to touch to re-schedule sync */
+	if (ptr1 || ptr2)
+		stktable_touch_local(stkctr->table, ts, 0);
+	return 1;
+}
+
+/* Increase the number of bytes sent in the tracked counter <stkctr>. It
+ * returns 0 if the entry pointer does not exist and nothing is
+ * performed. Otherwise it returns 1.
+ */
+static inline int stkctr_inc_bytes_out_ctr(struct stkctr *stkctr, unsigned long long bytes)
+{
+	struct stksess *ts;
+	void *ptr1, *ptr2;
+
+	ts = stkctr_entry(stkctr);
+	if (!ts)
+		return 0;
+
+	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_OUT_CNT);
+	if (ptr1)
+		stktable_data_cast(ptr1, bytes_out_cnt) += bytes;
+
+	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_OUT_RATE);
+	if (ptr2)
+		update_freq_ctr_period(&stktable_data_cast(ptr2, bytes_out_rate),
+				       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
+	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+
+	/* If data was modified, we need to touch to re-schedule sync */
+	if (ptr1 || ptr2)
+		stktable_touch_local(stkctr->table, ts, 0);
+	return 1;
+}
+
 #endif /* _HAPROXY_STICK_TABLE_H */

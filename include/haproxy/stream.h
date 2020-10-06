@@ -230,36 +230,11 @@ static inline void stream_track_stkctr(struct stkctr *ctr, struct stktable *t, s
 /* Increase the number of cumulated HTTP requests in the tracked counters */
 static inline void stream_inc_http_req_ctr(struct stream *s)
 {
-	struct stksess *ts;
-	void *ptr;
 	int i;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		struct stkctr *stkctr = &s->stkctr[i];
-
-		ts = stkctr_entry(stkctr);
-		if (!ts) {
-			stkctr = &s->sess->stkctr[i];
-			ts = stkctr_entry(stkctr);
-			if (!ts)
-				continue;
-		}
-
-		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-
-		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_REQ_CNT);
-		if (ptr)
-			stktable_data_cast(ptr, http_req_cnt)++;
-
-		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_REQ_RATE);
-		if (ptr)
-			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
-					       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
-
-		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-
-		/* If data was modified, we need to touch to re-schedule sync */
-		stktable_touch_local(stkctr->table, ts, 0);
+		if (!stkctr_inc_http_req_ctr(&s->stkctr[i]))
+			stkctr_inc_http_req_ctr(&s->sess->stkctr[i]);
 	}
 }
 
@@ -268,35 +243,13 @@ static inline void stream_inc_http_req_ctr(struct stream *s)
  */
 static inline void stream_inc_be_http_req_ctr(struct stream *s)
 {
-	struct stksess *ts;
-	void *ptr;
 	int i;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		struct stkctr *stkctr = &s->stkctr[i];
-
-		ts = stkctr_entry(stkctr);
-		if (!ts)
+		if (!stkctr_entry(&s->stkctr[i]) || !(stkctr_flags(&s->stkctr[i]) & STKCTR_TRACK_BACKEND))
 			continue;
 
-		if (!(stkctr_flags(&s->stkctr[i]) & STKCTR_TRACK_BACKEND))
-			continue;
-
-		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-
-		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_REQ_CNT);
-		if (ptr)
-			stktable_data_cast(ptr, http_req_cnt)++;
-
-		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_REQ_RATE);
-		if (ptr)
-			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
-			                       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
-
-		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-
-		/* If data was modified, we need to touch to re-schedule sync */
-		stktable_touch_local(stkctr->table, ts, 0);
+		stkctr_inc_http_req_ctr(&s->stkctr[i]);
 	}
 }
 
@@ -308,36 +261,11 @@ static inline void stream_inc_be_http_req_ctr(struct stream *s)
  */
 static inline void stream_inc_http_err_ctr(struct stream *s)
 {
-	struct stksess *ts;
-	void *ptr;
 	int i;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		struct stkctr *stkctr = &s->stkctr[i];
-
-		ts = stkctr_entry(stkctr);
-		if (!ts) {
-			stkctr = &s->sess->stkctr[i];
-			ts = stkctr_entry(stkctr);
-			if (!ts)
-				continue;
-		}
-
-		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-
-		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_ERR_CNT);
-		if (ptr)
-			stktable_data_cast(ptr, http_err_cnt)++;
-
-		ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_ERR_RATE);
-		if (ptr)
-			update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
-			                       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
-
-		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-
-		/* If data was modified, we need to touch to re-schedule sync */
-		stktable_touch_local(stkctr->table, ts, 0);
+		if (!stkctr_inc_http_err_ctr(&s->stkctr[i]))
+			stkctr_inc_http_err_ctr(&s->sess->stkctr[i]);
 	}
 }
 

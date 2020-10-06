@@ -757,8 +757,6 @@ void stream_process_counters(struct stream *s)
 {
 	struct session *sess = s->sess;
 	unsigned long long bytes;
-	void *ptr1,*ptr2;
-	struct stksess *ts;
 	int i;
 
 	bytes = s->req.total - s->logs.bytes_in;
@@ -774,30 +772,8 @@ void stream_process_counters(struct stream *s)
 			_HA_ATOMIC_ADD(&sess->listener->counters->bytes_in, bytes);
 
 		for (i = 0; i < MAX_SESS_STKCTR; i++) {
-			struct stkctr *stkctr = &s->stkctr[i];
-
-			ts = stkctr_entry(stkctr);
-			if (!ts) {
-				stkctr = &sess->stkctr[i];
-				ts = stkctr_entry(stkctr);
-				if (!ts)
-					continue;
-			}
-
-			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-			ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_IN_CNT);
-			if (ptr1)
-				stktable_data_cast(ptr1, bytes_in_cnt) += bytes;
-
-			ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_IN_RATE);
-			if (ptr2)
-				update_freq_ctr_period(&stktable_data_cast(ptr2, bytes_in_rate),
-						       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
-			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-
-			/* If data was modified, we need to touch to re-schedule sync */
-			if (ptr1 || ptr2)
-				stktable_touch_local(stkctr->table, ts, 0);
+			if (!stkctr_inc_bytes_in_ctr(&s->stkctr[i], bytes))
+				stkctr_inc_bytes_in_ctr(&sess->stkctr[i], bytes);
 		}
 	}
 
@@ -814,30 +790,8 @@ void stream_process_counters(struct stream *s)
 			_HA_ATOMIC_ADD(&sess->listener->counters->bytes_out, bytes);
 
 		for (i = 0; i < MAX_SESS_STKCTR; i++) {
-			struct stkctr *stkctr = &s->stkctr[i];
-
-			ts = stkctr_entry(stkctr);
-			if (!ts) {
-				stkctr = &sess->stkctr[i];
-				ts = stkctr_entry(stkctr);
-				if (!ts)
-					continue;
-			}
-
-			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-			ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_OUT_CNT);
-			if (ptr1)
-				stktable_data_cast(ptr1, bytes_out_cnt) += bytes;
-
-			ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_OUT_RATE);
-			if (ptr2)
-				update_freq_ctr_period(&stktable_data_cast(ptr2, bytes_out_rate),
-						       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
-			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
-
-			/* If data was modified, we need to touch to re-schedule sync */
-			if (ptr1 || ptr2)
-				stktable_touch_local(stkctr->table, stkctr_entry(stkctr), 0);
+			if (!stkctr_inc_bytes_out_ctr(&s->stkctr[i], bytes))
+				stkctr_inc_bytes_out_ctr(&sess->stkctr[i], bytes);
 		}
 	}
 }
