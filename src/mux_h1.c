@@ -60,6 +60,7 @@
 #define H1C_F_WAIT_OPPOSITE  0x00100000 /* Don't read more data for now, waiting sync with opposite side */
 #define H1C_F_WANT_SPLICE    0x00200000 /* Don't read into a bufffer because we want to use or we are using splicing */
 #define H1C_F_IS_BACK        0x00400000 /* Set on outgoing connection */
+#define H1C_F_ERR_PENDING    0x00800000 /* Send an error and close the connection ASAP (implies H1C_F_CS_ERROR) */
 
 #define H1C_F_CS_EMBRYONIC   0x01000000 /* Set when a H1 stream with no conn-stream is attached to the connection */
 #define H1C_F_CS_ATTACHED    0x02000000 /* Set when a H1 stream with a conn-stream is attached to the connection */
@@ -89,7 +90,7 @@ struct h1c {
 	struct connection *conn;
 	struct proxy *px;
 	uint32_t flags;                  /* Connection flags: H1C_F_* */
-
+	unsigned int errcode;            /* Status code when an error occurred at the H1 connection level */
 	struct buffer ibuf;              /* Input buffer to store data before parsing */
 	struct buffer obuf;              /* Output buffer to store data after reformatting */
 
@@ -761,6 +762,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->px   = proxy;
 
 	h1c->flags = H1C_F_CS_IDLE;
+	h1c->errcode = 0;
 	h1c->ibuf  = *input;
 	h1c->obuf  = BUF_NULL;
 	h1c->h1s   = NULL;
@@ -2064,6 +2066,133 @@ static void h1_wake_stream_for_send(struct h1s *h1s)
 	}
 }
 
+/* Try to send an HTTP error with h1c->errcode status code. It returns 1 on success
+ * and 0 on error. The flag H1C_F_ERR_PENDING is set on the H1 connection for
+ * retryable errors (allocation error or buffer full). On success, the error is
+ * copied in the output buffer.
+*/
+static __maybe_unused int h1_send_error(struct h1c *h1c)
+{
+	int rc = http_get_status_idx(h1c->errcode);
+	int ret = 0;
+
+	TRACE_ENTER(H1_EV_H1C_ERR, h1c->conn, 0, 0, (size_t[]){h1c->errcode});
+
+	/* Verify if the error is mapped on /dev/null or any empty file */
+	/// XXX: do a function !
+	if (h1c->px->replies[rc] &&
+	    h1c->px->replies[rc]->type == HTTP_REPLY_ERRMSG &&
+	    h1c->px->replies[rc]->body.errmsg &&
+	    b_is_null(h1c->px->replies[rc]->body.errmsg)) {
+		/* Empty error, so claim a success */
+		ret = 1;
+		goto out;
+	}
+
+	if (h1c->flags & (H1C_F_OUT_ALLOC|H1C_F_OUT_FULL)) {
+		h1c->flags |= H1C_F_ERR_PENDING;
+		goto out;
+	}
+
+	if (!h1_get_buf(h1c, &h1c->obuf)) {
+		h1c->flags |= (H1C_F_OUT_ALLOC|H1C_F_ERR_PENDING);
+		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_H1C_ERR|H1_EV_H1C_BLK, h1c->conn);
+		goto out;
+	}
+	ret = b_istput(&h1c->obuf, ist2(http_err_msgs[rc], strlen(http_err_msgs[rc])));
+	if (unlikely(ret <= 0)) {
+		if (!ret) {
+			h1c->flags |= (H1C_F_OUT_FULL|H1C_F_ERR_PENDING);
+			TRACE_STATE("h1c obuf full", H1_EV_H1C_ERR|H1_EV_H1C_BLK, h1c->conn);
+			goto out;
+		}
+		else {
+			/* we cannot report this error, so claim a success */
+			ret = 1;
+		}
+	}
+	h1c->flags &= ~H1C_F_ERR_PENDING;
+  out:
+	TRACE_LEAVE(H1_EV_H1C_ERR, h1c->conn);
+	return ret;
+}
+
+/* Try to send a 500 internal error. It relies on h1_send_error to send the
+ * error. This function takes care of incrementing stats and tracked counters.
+ */
+static __maybe_unused int h1_handle_internal_err(struct h1c *h1c)
+{
+	struct session *sess = h1c->conn->owner;
+	int ret = 1;
+
+	session_inc_http_req_ctr(sess);
+	session_inc_http_err_ctr(sess);
+	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[5], 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
+
+	h1c->errcode = 500;
+	ret = h1_send_error(h1c);
+	sess_log(sess);
+	return ret;
+}
+
+/* Try to send a 400 bad request error. It relies on h1_send_error to send the
+ * error. This function takes care of incrementing stats and tracked counters.
+ */
+static __maybe_unused int h1_handle_bad_req(struct h1c *h1c)
+{
+	struct session *sess = h1c->conn->owner;
+	int ret = 1;
+
+	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB)))
+		goto end;
+
+	session_inc_http_req_ctr(sess);
+	session_inc_http_err_ctr(sess);
+	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[4], 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+
+	h1c->errcode = 400;
+	ret = h1_send_error(h1c);
+	sess_log(sess);
+
+  end:
+	return ret;
+}
+
+/* Try to send a 408 timeout error. It relies on h1_send_error to send the
+ * error. This function takes care of incrementing stats and tracked counters.
+ */
+static __maybe_unused int h1_handle_req_tout(struct h1c *h1c)
+{
+	struct session *sess = h1c->conn->owner;
+	int ret = 1;
+
+	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB)))
+		goto end;
+
+	session_inc_http_req_ctr(sess);
+	session_inc_http_err_ctr(sess);
+	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[4], 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+
+	h1c->errcode = 408;
+	ret = h1_send_error(h1c);
+	sess_log(sess);
+  end:
+	return ret;
+}
+
+
 /*
  * Attempt to read data, and subscribe if none available
  */
@@ -2916,14 +3045,20 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 
 static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *output)
 {
+	const struct h1c *h1c = conn->ctx;
 	int ret = 0;
+
 	switch (mux_ctl) {
 	case MUX_STATUS:
 		if (!(conn->flags & CO_FL_WAIT_XPRT))
 			ret |= MUX_STATUS_READY;
 		return ret;
 	case MUX_EXIT_STATUS:
-		return MUX_ES_UNKNOWN;
+		ret = (h1c->errcode == 400 ? MUX_ES_INVALID_ERR :
+		       (h1c->errcode == 408 ? MUX_ES_TOUT_ERR :
+			(h1c->errcode == 500 ? MUX_ES_INTERNAL_ERR :
+			 MUX_ES_SUCCESS)));
+		return ret;
 	default:
 		return -1;
 	}
