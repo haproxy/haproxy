@@ -4048,6 +4048,8 @@ static int h2_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 		if (h2c->st0 >= H2_CS_FRAME_H && h2c->st0 < H2_CS_ERROR)
 			ret |= MUX_STATUS_READY;
 		return ret;
+	case MUX_EXIT_STATUS:
+		return MUX_ES_UNKNOWN;
 	default:
 		return -1;
 	}

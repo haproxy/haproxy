@@ -312,10 +312,19 @@ enum proto_proxy_side {
 /* ctl command used by mux->ctl() */
 enum mux_ctl_type {
 	MUX_STATUS, /* Expects an int as output, sets it to a combinaison of MUX_STATUS flags */
+	MUX_EXIT_STATUS, /* Expects an int as output, sets the mux exist/error/http status, if known or 0 */
 };
 
 /* response for ctl MUX_STATUS */
 #define MUX_STATUS_READY (1 << 0)
+
+enum mux_exit_status {
+	MUX_ES_SUCCESS,      /* Success */
+	MUX_ES_INVALID_ERR,  /* invalid input */
+	MUX_ES_TOUT_ERR,     /* timeout */
+	MUX_ES_INTERNAL_ERR, /* internal error */
+	MUX_ES_UNKNOWN       /* unknown status (must be the last) */
+};
 
 /* socks4 response length */
 #define SOCKS4_HS_RSP_LEN 8
