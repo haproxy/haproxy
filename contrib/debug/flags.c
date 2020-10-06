@@ -296,7 +296,6 @@ void show_txn_flags(unsigned int f)
 
 	SHOW_FLAG(f, TX_NOT_FIRST);
 	SHOW_FLAG(f, TX_USE_PX_CONN);
-	SHOW_FLAG(f, TX_WAIT_NEXT_RQ);
 	SHOW_FLAG(f, TX_CON_WANT_TUN);
 
 	SHOW_FLAG(f, TX_CACHE_COOK);

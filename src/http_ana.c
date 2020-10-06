@@ -115,7 +115,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe); /* one more valid request for this FE */
 
 	/* kill the pending keep-alive timeout */
-	txn->flags &= ~TX_WAIT_NEXT_RQ;
 	req->analyse_exp = TICK_ETERNITY;
 
 	BUG_ON(htx_get_first_type(htx) != HTX_BLK_REQ_SL);
@@ -4425,7 +4424,6 @@ void http_reply_and_close(struct stream *s, short status, struct http_reply *msg
 
 end:
 	s->res.wex = tick_add_ifset(now_ms, s->res.wto);
-	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
 
 	channel_auto_read(&s->req);
 	channel_abort(&s->req);
@@ -4923,9 +4921,7 @@ void http_init_txn(struct stream *s)
 	struct http_txn *txn = s->txn;
 	struct conn_stream *cs = objt_cs(s->si[0].end);
 
-	txn->flags = ((cs && cs->flags & CS_FL_NOT_FIRST)
-		      ? (TX_NOT_FIRST|TX_WAIT_NEXT_RQ)
-		      : 0);
+	txn->flags = ((cs && cs->flags & CS_FL_NOT_FIRST) ? TX_NOT_FIRST : 0);
 	txn->status = -1;
 	txn->http_reply = NULL;
 	write_u32(txn->cache_hash, 0);
