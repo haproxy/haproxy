@@ -2084,7 +2084,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	struct proxy *be;
 	struct http_txn *txn;
 	const struct strm_logs *logs;
-	struct connection *be_conn;
+	struct connection *fe_conn, *be_conn;
 	unsigned int s_flags;
 	unsigned int uniq_id;
 	struct buffer chunk;
@@ -2100,6 +2100,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	char *tmplog;
 	char *ret;
 	int iret;
+	int status;
 	struct logformat_node *tmp;
 	struct timeval tv;
 	struct strm_logs tmp_strm_log;
@@ -2111,6 +2112,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		be = s->be;
 		txn = s->txn;
 		be_conn = cs_conn(objt_cs(s->si[1].end));
+		status = (txn ? txn->status : 0);
 		s_flags = s->flags;
 		uniq_id = s->uniq_id;
 		logs = &s->logs;
@@ -2124,7 +2126,9 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		 */
 		be = fe;
 		txn = NULL;
+		fe_conn = objt_conn(sess->origin);
 		be_conn = NULL;
+		status = 0;
 		s_flags = SF_ERR_PRXCOND | SF_FINST_R;
 		uniq_id = _HA_ATOMIC_XADD(&global.req_count, 1);
 
@@ -2144,6 +2148,32 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		tmp_strm_log.srv_queue_pos = 0;
 
 		logs = &tmp_strm_log;
+
+		if ((fe->mode == PR_MODE_HTTP) && fe_conn && fe_conn->mux && fe_conn->mux->ctl) {
+			enum mux_exit_status es = fe_conn->mux->ctl(fe_conn, MUX_EXIT_STATUS, NULL);
+
+			switch (es) {
+			case MUX_ES_SUCCESS:
+				break;
+			case MUX_ES_INVALID_ERR:
+				status = 400;
+				if ((fe_conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(fe_conn))
+					s_flags = SF_ERR_CLICL | SF_FINST_R;
+				else
+					s_flags = SF_ERR_PRXCOND | SF_FINST_R;
+				break;
+			case MUX_ES_TOUT_ERR:
+				status = 408;
+				s_flags = SF_ERR_CLITO | SF_FINST_R;
+				break;
+			case MUX_ES_INTERNAL_ERR:
+				status = 500;
+				s_flags = SF_ERR_INTERNAL | SF_FINST_R;
+				break;
+			default:
+				break;
+			}
+		}
 	}
 
 	t_request = -1;
@@ -2587,7 +2617,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_STATUS: // %ST
-				ret = ltoa_o(txn ? txn->status : 0, tmplog, dst + maxsize - tmplog);
+				ret = ltoa_o(status, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
