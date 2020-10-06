@@ -124,9 +124,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * a bad request is.
 	 */
 	if (unlikely(htx_is_empty(htx) || htx->first == -1)) {
-		if (htx->flags & HTX_FL_UPGRADE)
-			goto failed_keep_alive;
-
 		/* 1: have we encountered a read error ? */
 		if (req->flags & CF_READ_ERROR) {
 			if (!(s->flags & SF_ERR_MASK))
