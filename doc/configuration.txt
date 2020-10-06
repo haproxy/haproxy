@@ -1423,7 +1423,7 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
   On the CLI, bundles are seen as separate files, and the bundle extension is
   required to commit them.
 
-  OSCP files (.ocsp), issuer files (.issuer), Certificate Transparency (.sctl)
+  OCSP files (.ocsp), issuer files (.issuer), Certificate Transparency (.sctl)
   as well as private keys (.key) are supported with multi-cert bundling.
 
   "sctl": Try to load "<basename>.sctl" for each crt keyword.
