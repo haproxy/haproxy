@@ -2355,9 +2355,10 @@ int check_config_validity()
 			cfgerr += proxy_cfg_ensure_no_http(curproxy);
 			break;
 		case PR_MODE_SYSLOG:
+		case PR_MODE_PEERS:
 		case PR_MODES:
 			/* should not happen, bug gcc warn missing switch statement */
-			ha_alert("config : %s '%s' cannot use syslog mode for this proxy.\n",
+			ha_alert("config : %s '%s' cannot use peers or syslog mode for this proxy. NOTE: PLEASE REPORT THIS TO DEVELOPERS AS YOU'RE NOT SUPPOSED TO BE ABLE TO CREATE A CONFIGURATION TRIGGERING THIS!\n",
 				 proxy_type_str(curproxy), curproxy->id);
 			cfgerr++;
 			break;

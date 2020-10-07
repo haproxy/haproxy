@@ -2521,6 +2521,7 @@ void peers_setup_frontend(struct proxy *fe)
 {
 	fe->last_change = now.tv_sec;
 	fe->cap = PR_CAP_FE | PR_CAP_BE;
+	fe->mode = PR_MODE_PEERS;
 	fe->maxconn = 0;
 	fe->conn_retries = CONN_RETRIES;
 	fe->timeout.client = MS_TO_TICKS(5000);
