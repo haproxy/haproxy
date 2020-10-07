@@ -50,6 +50,14 @@ int protocol_bind_all(int verbose);
  */
 int protocol_unbind_all(void);
 
+/* stops all listeners of all registered protocols, except when the belong to a
+ * proxy configured with a grace time. This will normally catch every single
+ * listener, all protocols included, and the grace ones will have to be handled
+ * by the proxy stopping loop. This is to be used during soft_stop() only. It
+ * does not return any error.
+ */
+void protocol_stop_now(void);
+
 /* pauses all listeners of all registered protocols. This is typically
  * used on SIG_TTOU to release all listening sockets for the time needed to
  * try to bind a new process. The listeners enter LI_PAUSED. It returns
