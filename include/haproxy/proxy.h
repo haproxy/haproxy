@@ -140,9 +140,11 @@ static inline void proxy_inc_be_ctr(struct proxy *be)
 }
 
 /* increase the number of cumulated requests on the designated frontend */
-static inline void proxy_inc_fe_req_ctr(struct proxy *fe)
+static inline void proxy_inc_fe_req_ctr(struct listener *l, struct proxy *fe)
 {
 	_HA_ATOMIC_ADD(&fe->fe_counters.p.http.cum_req, 1);
+	if (l->counters)
+		_HA_ATOMIC_ADD(&l->counters->p.http.cum_req, 1);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.p.http.rps_max,
 			     update_freq_ctr(&fe->fe_req_per_sec, 1));
 }

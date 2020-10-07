@@ -98,7 +98,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if (htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR)) {
 		stream_inc_http_req_ctr(s);
 		stream_inc_http_err_ctr(s);
-		proxy_inc_fe_req_ctr(sess->fe);
+		proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 		if (htx->flags & HTX_FL_PARSING_ERROR)
 			goto return_bad_req;
 		else
@@ -149,7 +149,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 			stream_inc_http_err_ctr(s);
 			stream_inc_http_req_ctr(s);
-			proxy_inc_fe_req_ctr(sess->fe);
+			proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 			_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 			if (sess->listener->counters)
 				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
@@ -176,7 +176,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 			stream_inc_http_err_ctr(s);
 			stream_inc_http_req_ctr(s);
-			proxy_inc_fe_req_ctr(sess->fe);
+			proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 			_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 			if (sess->listener->counters)
 				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
@@ -203,7 +203,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 			stream_inc_http_err_ctr(s);
 			stream_inc_http_req_ctr(s);
-			proxy_inc_fe_req_ctr(sess->fe);
+			proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 			_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
 			if (sess->listener->counters)
 				_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
@@ -271,7 +271,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	msg->msg_state = HTTP_MSG_BODY;
 	stream_inc_http_req_ctr(s);
-	proxy_inc_fe_req_ctr(sess->fe); /* one more valid request for this FE */
+	proxy_inc_fe_req_ctr(sess->listener, sess->fe); /* one more valid request for this FE */
 
 	/* kill the pending keep-alive timeout */
 	txn->flags &= ~TX_WAIT_NEXT_RQ;
