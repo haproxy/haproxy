@@ -1045,6 +1045,46 @@ void init_new_proxy(struct proxy *p)
 	HA_SPIN_INIT(&p->lock);
 }
 
+/* to be called under the proxy lock after stopping some listeners. This will
+ * automatically update the p->disabled flag after stopping the last one, and
+ * will emit a log indicating the proxy's condition. The function is idempotent
+ * so that it will not emit multiple logs; a proxy will be disabled only once.
+ */
+void proxy_cond_disable(struct proxy *p)
+{
+	if (p->disabled)
+		return;
+
+	if (p->li_ready + p->li_paused > 0)
+		return;
+
+	p->disabled = 1;
+
+	if (!(proc_mask(p->bind_proc) & pid_bit))
+		goto silent;
+
+	/* Note: syslog proxies use their own loggers so while it's somewhat OK
+	 * to report them being stopped as a warning, we must not spam their log
+	 * servers which are in fact production servers. For other types (CLI,
+	 * peers, etc) we must not report them at all as they're not really on
+	 * the data plane but on the control plane.
+	 */
+	if (p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP || p->mode == PR_MODE_SYSLOG)
+		ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
+			   p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+
+	if (p->mode == PR_MODE_TCP || p->mode == PR_MODE_HTTP)
+		send_log(p, LOG_WARNING, "Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
+			 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+
+ silent:
+	if (p->table && p->table->size && p->table->sync_task)
+		task_wakeup(p->table->sync_task, TASK_WOKEN_MSG);
+
+	if (p->task)
+		task_wakeup(p->task, TASK_WOKEN_MSG);
+}
+
 /*
  * This is the proxy management task. It enables proxies when there are enough
  * free streams, or stops them when the table is full. It is designed to be
@@ -1066,10 +1106,6 @@ struct task *manage_proxy(struct task *t, void *context, unsigned short state)
 		int t;
 		t = tick_remain(now_ms, p->stop_time);
 		if (t == 0) {
-			ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
-				   p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
-			send_log(p, LOG_WARNING, "Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
-				 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 			stop_proxy(p);
 			/* try to free more memory */
 			pool_gc(NULL);
@@ -2068,11 +2104,6 @@ static int cli_parse_shutdown_frontend(char **args, char *payload, struct appctx
 
 	if (px->disabled)
 		return cli_msg(appctx, LOG_NOTICE, "Frontend was already shut down.\n");
-
-	ha_warning("Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
-		   px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
-	send_log(px, LOG_WARNING, "Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
-	         px->id, px->fe_counters.cum_conn, px->be_counters.cum_conn);
 
 	stop_proxy(px);
 	return 1;

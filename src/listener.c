@@ -354,11 +354,7 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 		if (l->state >= LI_ASSIGNED)
 			__delete_listener(l);
 
-		if (px->li_ready + px->li_paused == 0) {
-			px->disabled = 1;
-			if (px->task)
-				task_wakeup(px->task, TASK_WOKEN_MSG);
-		}
+		proxy_cond_disable(px);
 	}
 
 	if (!lli)

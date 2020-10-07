@@ -40,6 +40,7 @@ extern const struct cfg_opt cfg_opts[];
 extern const struct cfg_opt cfg_opts2[];
 
 struct task *manage_proxy(struct task *t, void *context, unsigned short state);
+void proxy_cond_disable(struct proxy *p);
 void soft_stop(void);
 int pause_proxy(struct proxy *p);
 int resume_proxy(struct proxy *p);
