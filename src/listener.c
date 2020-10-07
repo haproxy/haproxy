@@ -580,15 +580,11 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
  * state is automatically updated from LI_ASSIGNED to LI_INIT. The protocol's
  * number of listeners is updated, as well as the global number of listeners
  * and jobs. Note that the listener must have previously been unbound. This
- * is the generic function to use to remove a listener.
- *
- * Will grab the proto_lock.
- *
+ * is a low-level function expected to be called with the proto_lock and the
+ * listener's lock held.
  */
-void delete_listener(struct listener *listener)
+void __delete_listener(struct listener *listener)
 {
-	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
-	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state == LI_ASSIGNED) {
 		listener_set_state(listener, LI_INIT);
 		LIST_DEL(&listener->rx.proto_list);
@@ -596,6 +592,17 @@ void delete_listener(struct listener *listener)
 		_HA_ATOMIC_SUB(&jobs, 1);
 		_HA_ATOMIC_SUB(&listeners, 1);
 	}
+}
+
+/* Delete a listener from its protocol's list of listeners (please check
+ * __delete_listener() above). The proto_lock and the listener's lock will
+ * be grabbed in this order.
+ */
+void delete_listener(struct listener *listener)
+{
+	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
+	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
+	__delete_listener(listener);
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }

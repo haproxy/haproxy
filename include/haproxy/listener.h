@@ -95,6 +95,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
  * been unbound. This is the generic function to use to remove a listener.
  */
 void delete_listener(struct listener *listener);
+void __delete_listener(struct listener *listener);
 
 /* This function is called on a read event from a listening socket, corresponding
  * to an accept. It tries to accept as many connections as possible, and for each
