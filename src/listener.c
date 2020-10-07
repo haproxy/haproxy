@@ -309,6 +309,68 @@ void enable_listener(struct listener *listener)
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
+/*
+ * This function completely stops a listener. It will need to operate under the
+ * proxy's lock, the protocol's lock, and the listener's lock. The caller is
+ * responsible for indicating in lpx, lpr, lli whether the respective locks are
+ * already held (non-zero) or not (zero) so that the function picks the missing
+ * ones, in this order. The proxy's listeners count is updated and the proxy is
+ * disabled and woken up after the last one is gone.
+ */
+void stop_listener(struct listener *l, int lpx, int lpr, int lli)
+{
+	struct proxy *px = l->bind_conf->frontend;
+	int must_close;
+
+	if (l->options & LI_O_NOSTOP) {
+		/* master-worker sockpairs are never closed but don't count as a
+		 * job.
+		 */
+		return;
+	}
+
+	/* There are several cases where we must not close an FD:
+	 *   - we're starting up and we have socket transfers enabled;
+	 *   - we're the master and this FD was inherited;
+	 */
+	if ((global.tune.options & GTUNE_SOCKET_TRANSFER && global.mode & MODE_STARTING) ||
+	    (master && (l->rx.flags & RX_F_INHERITED)))
+		must_close = 0;
+	else
+		must_close = 1;
+
+	if (!lpx)
+		HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+
+	if (!lpr)
+		HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
+
+	if (!lli)
+		HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
+
+	if (l->state > LI_INIT) {
+		do_unbind_listener(l, must_close);
+
+		if (l->state >= LI_ASSIGNED)
+			__delete_listener(l);
+
+		if (px->li_ready + px->li_paused == 0) {
+			px->disabled = 1;
+			if (px->task)
+				task_wakeup(px->task, TASK_WOKEN_MSG);
+		}
+	}
+
+	if (!lli)
+		HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
+
+	if (!lpr)
+		HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
+
+	if (!lpx)
+		HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+}
+
 /* This function tries to temporarily disable a listener, depending on the OS
  * capabilities. Linux unbinds the listen socket after a SHUT_RD, and ignores
  * SHUT_WR. Solaris refuses either shutdown(). OpenBSD ignores SHUT_RD but

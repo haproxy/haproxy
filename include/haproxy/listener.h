@@ -48,6 +48,15 @@ int pause_listener(struct listener *l);
  */
 int resume_listener(struct listener *l);
 
+/*
+ * This function completely stops a listener. It will need to operate under the
+ * proxy's lock, the protocol's lock, and the listener's lock. The caller is
+ * responsible for indicating in lpx, lpr, lli whether the respective locks are
+ * already held (non-zero) or not (zero) so that the function picks the missing
+ * ones, in this order.
+ */
+void stop_listener(struct listener *l, int lpx, int lpr, int lli);
+
 /* This function adds the specified listener's file descriptor to the polling
  * lists if it is in the LI_LISTEN state. The listener enters LI_READY or
  * LI_FULL state depending on its number of connections. In daemon mode, we
