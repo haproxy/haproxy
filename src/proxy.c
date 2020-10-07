@@ -35,6 +35,7 @@
 #include <haproxy/obj_type-t.h>
 #include <haproxy/peers.h>
 #include <haproxy/pool.h>
+#include <haproxy/protocol.h>
 #include <haproxy/proto_tcp.h>
 #include <haproxy/proxy.h>
 #include <haproxy/server-t.h>
@@ -1231,7 +1232,6 @@ struct task *hard_stop(struct task *t, void *context, unsigned short state)
 void soft_stop(void)
 {
 	struct proxy *p;
-	struct peers *prs;
 	struct task *task;
 
 	stopping = 1;
@@ -1247,6 +1247,12 @@ void soft_stop(void)
 			ha_alert("out of memory trying to allocate the hard-stop task.\n");
 		}
 	}
+
+	/* stop all stoppable listeners, resulting in disabling all proxies
+	 * that don't use a grace period.
+	 */
+	protocol_stop_now();
+
 	p = proxies_list;
 	tv_update_date(0,1); /* else, the old time before select will be used */
 	while (p) {
@@ -1263,34 +1269,6 @@ void soft_stop(void)
 
 			if (p->task)
 				task_wakeup(p->task, TASK_WOKEN_MSG);
-		}
-		p = p->next;
-	}
-
-	prs = cfg_peers;
-	while (prs) {
-		if (prs->peers_fe)
-			stop_proxy(prs->peers_fe);
-		prs = prs->next;
-	}
-
-	p = cfg_log_forward;
-	while (p) {
-		/* Zombie proxy, let's close the file descriptors */
-		if (p->disabled &&
-		    !LIST_ISEMPTY(&p->conf.listeners) &&
-		    LIST_ELEM(p->conf.listeners.n,
-		    struct listener *, by_fe)->state > LI_ASSIGNED) {
-			struct listener *l;
-			list_for_each_entry(l, &p->conf.listeners, by_fe) {
-				if (l->state > LI_ASSIGNED)
-					close(l->rx.fd);
-				l->state = LI_INIT;
-			}
-		}
-
-		if (!p->disabled) {
-			stop_proxy(p);
 		}
 		p = p->next;
 	}
