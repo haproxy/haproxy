@@ -1275,6 +1275,28 @@ void soft_stop(void)
 			stop_proxy(prs->peers_fe);
 		prs = prs->next;
 	}
+
+	p = cfg_log_forward;
+	while (p) {
+		/* Zombie proxy, let's close the file descriptors */
+		if (p->state == PR_STSTOPPED &&
+		    !LIST_ISEMPTY(&p->conf.listeners) &&
+		    LIST_ELEM(p->conf.listeners.n,
+		    struct listener *, by_fe)->state > LI_ASSIGNED) {
+			struct listener *l;
+			list_for_each_entry(l, &p->conf.listeners, by_fe) {
+				if (l->state > LI_ASSIGNED)
+					close(l->rx.fd);
+				l->state = LI_INIT;
+			}
+		}
+
+		if (p->state != PR_STSTOPPED) {
+			stop_proxy(p);
+		}
+		p = p->next;
+	}
+
 	/* signal zero is used to broadcast the "stopping" event */
 	signal_handler(0);
 }

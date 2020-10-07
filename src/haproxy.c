@@ -3499,6 +3499,20 @@ int main(int argc, char **argv)
 			px = px->next;
 		}
 
+		/* we might have to unbind some log forward proxies from some processes */
+		px = cfg_log_forward;
+		while (px != NULL) {
+			if (px->bind_proc && px->state != PR_STSTOPPED) {
+				if (!(px->bind_proc & (1UL << proc))) {
+					if (global.tune.options & GTUNE_SOCKET_TRANSFER)
+						zombify_proxy(px);
+					else
+						stop_proxy(px);
+				}
+			}
+			px = px->next;
+		}
+
 		/* we might have to unbind some peers sections from some processes */
 		for (curpeers = cfg_peers; curpeers; curpeers = curpeers->next) {
 			if (!curpeers->peers_fe)
