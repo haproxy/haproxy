@@ -1300,26 +1300,8 @@ void stop_proxy(struct proxy *p)
 
 	HA_SPIN_LOCK(PROXY_LOCK, &p->lock);
 
-	list_for_each_entry(l, &p->conf.listeners, by_fe) {
-		if (l->options & LI_O_NOSTOP)
-			continue;
-
-		/* There are several cases where we must not close an FD:
-		 *   - we're starting up and we have socket transfers enabled;
-		 *   - we're the master and this FD was inherited;
-		 */
-		if ((global.tune.options & GTUNE_SOCKET_TRANSFER && global.mode & MODE_STARTING) ||
-		    (master && (l->rx.flags & RX_F_INHERITED)))
-			unbind_listener_no_close(l);
-		else
-			unbind_listener(l);
-
-		if (l->state >= LI_ASSIGNED)
-			delete_listener(l);
-	}
-
-	if (p->li_ready + p->li_bound + p->li_paused == 0)
-		p->disabled = 1;
+	list_for_each_entry(l, &p->conf.listeners, by_fe)
+		stop_listener(l, 1, 0, 0);
 
 	HA_SPIN_UNLOCK(PROXY_LOCK, &p->lock);
 }
