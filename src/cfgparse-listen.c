@@ -211,6 +211,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
+		curproxy = log_forward_by_name(args[1]);
+		if (curproxy) {
+			ha_alert("Parsing [%s:%d]: %s '%s' has the same name as log forward section '%s' declared at %s:%d.\n",
+			         file, linenum, proxy_cap_str(rc), args[1],
+			         curproxy->id, curproxy->conf.file, curproxy->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+
 		if ((curproxy = calloc(1, sizeof(*curproxy))) == NULL) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;

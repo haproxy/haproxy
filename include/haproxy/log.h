@@ -169,6 +169,22 @@ static inline int build_logline(struct stream *s, char *dst, size_t maxsize, str
 
 struct ist *build_log_header(enum log_fmt format, int level, int facility, struct ist *metadata, size_t *nbelem);
 
+/*
+ * lookup log forward proxy by name
+ * Returns NULL if no proxy found.
+ */
+static inline struct proxy *log_forward_by_name(const char *name)
+{
+	struct proxy *px = cfg_log_forward;
+
+	while (px) {
+		if (strcmp(px->id, name) == 0)
+			return px;
+		px = px->next;
+	}
+	return NULL;
+}
+
 #endif /* _HAPROXY_LOG_H */
 
 /*

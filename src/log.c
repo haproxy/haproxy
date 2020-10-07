@@ -3731,12 +3731,19 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		for (px = cfg_log_forward ; px ; px = px->next) {
-			if (strcmp(px->id, args[1]) == 0) {
-				ha_alert("Parsing [%s:%d]: log-forward section '%s' has the same name as another log-forward section declared at %s:%d.\n",
-					 file, linenum, args[1], px->conf.file, px->conf.line);
-				err_code |= ERR_ALERT | ERR_FATAL;
-			}
+		px = log_forward_by_name(args[1]);
+		if (px) {
+			ha_alert("Parsing [%s:%d]: log-forward section '%s' has the same name as another log-forward section declared at %s:%d.\n",
+				 file, linenum, args[1], px->conf.file, px->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+
+		px = proxy_find_by_name(args[1], 0, 0);
+		if (px) {
+			ha_alert("Parsing [%s:%d]: log forward section '%s' has the same name as %s '%s' declared at %s:%d.\n",
+			         file, linenum, args[1], proxy_type_str(px),
+			         px->id, px->conf.file, px->conf.line);
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
 		px = calloc(1, sizeof *px);
