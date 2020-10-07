@@ -252,7 +252,6 @@ int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 			memprintf(errmsg, "cannot bind UNIX socket (%s)", strerror(errno));
 			goto bind_close_return;
 		}
-		goto err_unlink_temp;
 	}
 
 	/* <uid> and <gid> different of -1 will be used to change the socket owner.
