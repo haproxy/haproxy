@@ -4721,6 +4721,14 @@ void ssl_sock_free_srv_ctx(struct server *srv)
 	if (srv->ssl_ctx.npn_str)
 		free(srv->ssl_ctx.npn_str);
 #endif
+	if (srv->ssl_ctx.reused_sess) {
+		int i;
+
+		for (i = 0; i < global.nbthread; i++)
+			free(srv->ssl_ctx.reused_sess[i].ptr);
+		free(srv->ssl_ctx.reused_sess);
+	}
+
 	if (srv->ssl_ctx.ctx)
 		SSL_CTX_free(srv->ssl_ctx.ctx);
 }
