@@ -2338,6 +2338,12 @@ static void init(int argc, char **argv)
 	if (!global.node)
 		global.node = strdup(hostname);
 
+	/* stop disabled proxies */
+	for (px = proxies_list; px; px = px->next) {
+		if (px->state == PR_STSTOPPED)
+			stop_proxy(px);
+	}
+
 	if (!hlua_post_init())
 		exit(1);
 

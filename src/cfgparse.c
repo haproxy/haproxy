@@ -2235,10 +2235,13 @@ int check_config_validity()
 
 
 		if (curproxy->state == PR_STSTOPPED) {
-			/* ensure we don't keep listeners uselessly bound */
-			stop_proxy(curproxy);
+			/* ensure we don't keep listeners uselessly bound. We
+			 * can't disable their listeners yet (fdtab not
+			 * allocated yet) but let's skip them.
+			 */
 			if (curproxy->table) {
 				free((void *)curproxy->table->peers.name);
+				curproxy->table->peers.name = NULL;
 				curproxy->table->peers.p = NULL;
 			}
 			continue;
