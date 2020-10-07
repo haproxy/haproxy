@@ -677,7 +677,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	/* the socket is ready */
 	listener->state = LI_LISTEN;
-	return err;
+	goto tcp_return;
 
  tcp_close_return:
 	close(fd);
