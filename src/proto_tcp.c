@@ -732,15 +732,34 @@ static void tcpv6_add_listener(struct listener *listener, int port)
  */
 int tcp_pause_listener(struct listener *l)
 {
+	socklen_t opt_val, opt_len;
+
 	if (shutdown(l->rx.fd, SHUT_WR) != 0)
-		return -1; /* Solaris dies here */
+		goto check_already_done; /* usually Solaris fails here */
 
 	if (listen(l->rx.fd, listener_backlog(l)) != 0)
-		return -1; /* OpenBSD dies here */
+		goto check_already_done; /* Usually OpenBSD fails here */
 
 	if (shutdown(l->rx.fd, SHUT_RD) != 0)
-		return -1; /* should always be OK */
+		goto check_already_done; /* show always be OK */
+
 	return 1;
+
+ check_already_done:
+	/* in case one of the shutdown() above fails, it might be because we're
+	 * dealing with a socket that is shared with other processes doing the
+	 * same. Let's check if it's still accepting connections.
+	 */
+	opt_val = 0;
+	opt_len = sizeof(opt_val);
+	if (getsockopt(l->rx.fd, SOL_SOCKET, SO_ACCEPTCONN, &opt_val, &opt_len) == -1)
+		return 0; /* the socket is really unrecoverable */
+
+	if (!opt_val)
+		return 1; /* already paused by another process */
+
+	/* something looks fishy here */
+	return -1;
 }
 
 
