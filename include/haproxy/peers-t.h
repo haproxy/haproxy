@@ -65,11 +65,13 @@ struct peer {
 	unsigned int reconnect;       /* next connect timer */
 	unsigned int heartbeat;       /* next heartbeat timer */
 	unsigned int confirm;         /* confirm message counter */
+	unsigned int last_hdshk;      /* Date of the last handshake. */
 	uint32_t rx_hbt;              /* received heartbeats counter */
 	uint32_t tx_hbt;              /* transmitted heartbeats counter */
 	uint32_t no_hbt;              /* no received heartbeat counter */
 	uint32_t new_conn;            /* new connection after reconnection timeout expiration counter */
 	uint32_t proto_err;           /* protocol errors counter */
+	uint32_t coll;                /* connection collisions counter */
 	struct appctx *appctx;        /* the appctx running it */
 	struct shared_table *remote_table;
 	struct shared_table *last_local_table;

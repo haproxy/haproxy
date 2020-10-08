@@ -2122,6 +2122,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 
 	/* Register status code */
 	peer->statuscode = PEER_SESS_SC_SUCCESSCODE;
+	peer->last_hdshk = now_ms;
 
 	/* Awake main task */
 	task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
@@ -2270,6 +2271,7 @@ switchstate:
 					 */
 					curpeer->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
 					peer_session_forceshutdown(curpeer);
+					curpeer->coll++;
 				}
 				if (maj_ver != (unsigned int)-1 && min_ver != (unsigned int)-1) {
 					if (min_ver == PEER_DWNGRD_MINOR_VER) {
@@ -2355,6 +2357,7 @@ switchstate:
 
 				/* Register status code */
 				curpeer->statuscode = atoi(trash.area);
+				curpeer->last_hdshk = now_ms;
 
 				/* Awake main task */
 				task_wakeup(curpeers->sync_task, TASK_WOKEN_MSG);
@@ -2544,6 +2547,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
 	peer->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
 	peer->statuscode = PEER_SESS_SC_CONNECTCODE;
+	peer->last_hdshk = now_ms;
 	s = NULL;
 
 	appctx = appctx_new(&peer_applet, tid_bit);
@@ -3100,18 +3104,32 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 	struct shared_table *st;
 
 	addr_to_str(&peer->addr, pn, sizeof pn);
-	chunk_appendf(msg, "  %p: id=%s(%s,%s) addr=%s:%d last_status=%s reconnect=%s confirm=%u tx_hbt=%u rx_hbt=%u no_hbt=%u new_conn=%u proto_err=%u\n",
+	chunk_appendf(msg, "  %p: id=%s(%s,%s) addr=%s:%d last_status=%s",
 	              peer, peer->id,
 	              peer->local ? "local" : "remote",
 	              peer->appctx ? "active" : "inactive",
 	              pn, get_host_port(&peer->addr),
-	              statuscode_str(peer->statuscode),
+	              statuscode_str(peer->statuscode));
+
+	chunk_appendf(msg, " last_hdshk=%s\n",
+	              peer->last_hdshk ? human_time(TICKS_TO_MS(now_ms - peer->last_hdshk),
+	                                            TICKS_TO_MS(1000)) : "<NEVER>");
+
+	chunk_appendf(msg, "        reconnect=%s",
 	              peer->reconnect ?
 			             tick_is_expired(peer->reconnect, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(peer->reconnect - now_ms),
-			                     TICKS_TO_MS(1000)) : "<NEVER>",
+			                     TICKS_TO_MS(1000)) : "<NEVER>");
+
+	chunk_appendf(msg, " heartbeat=%s",
+	              peer->heartbeat ?
+			             tick_is_expired(peer->heartbeat, now_ms) ? "<PAST>" :
+			                     human_time(TICKS_TO_MS(peer->heartbeat - now_ms),
+			                     TICKS_TO_MS(1000)) : "<NEVER>");
+
+	chunk_appendf(msg, " confirm=%u tx_hbt=%u rx_hbt=%u no_hbt=%u new_conn=%u proto_err=%u coll=%u\n",
 	              peer->confirm, peer->tx_hbt, peer->rx_hbt,
-	              peer->no_hbt, peer->new_conn, peer->proto_err);
+	              peer->no_hbt, peer->new_conn, peer->proto_err, peer->coll);
 
 	chunk_appendf(&trash, "        flags=0x%x", peer->flags);
 
