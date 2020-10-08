@@ -2785,8 +2785,10 @@ backlog <conns>
 
 bind <addr> [param*]
   Used to configure a stream log listener to receive messages to forward.
-  This supports for some of the "bind" parameters found in 5.1 paragraph.
-  Those listener support both "Octet Counting" and "Non-Transparent-Framing"
+  This supports the "bind" parameters found in 5.1 paragraph including
+  those about ssl but some statements such as "alpn" may be irrelevant for
+  syslog protocol over TCP.
+  Those listeners support both "Octet Counting" and "Non-Transparent-Framing"
   modes as defined in rfc-6587.
 
 dgram-bind <addr> [param*]
