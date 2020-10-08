@@ -15476,7 +15476,7 @@ regsub(<regex>,<subst>[,<flags>])
 
      # capture groups and backreferences
      # both lines do the same.
-     http-request redirect location %[url,'regsub("(foo|bar)([0-9]+)?","\2\1",i)]'
+     http-request redirect location %[url,'regsub("(foo|bar)([0-9]+)?","\2\1",i)']
      http-request redirect location %[url,regsub(\"(foo|bar)([0-9]+)?\",\"\2\1\",i)]
 
 capture-req(<id>)
