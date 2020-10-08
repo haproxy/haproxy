@@ -5692,7 +5692,7 @@ http-request return [status <code>] [content-type <type>]
   default status code used for the response is 200. It can be optionally
   specified as an arguments to "status". The response content-type may also be
   specified as an argument to "content-type". Finally the response itself may
-  be defined. If can be a full HTTP response specifying the errorfile to use,
+  be defined. It can be a full HTTP response specifying the errorfile to use,
   or the response payload specifying the file or the string to use. These rules
   are followed to create the response :
 
@@ -5733,14 +5733,14 @@ http-request return [status <code>] [content-type <type>]
     evaluated as a log-format string. With a "string" argument, it is
     considered as a raw string.
 
-  When the response is not based an errorfile, it is possible to appends HTTP
+  When the response is not based on an errorfile, it is possible to append HTTP
   header fields to the response using "hdr" arguments. Otherwise, all "hdr"
   arguments are ignored. For each one, the header name is specified in <name>
   and its value is defined by <fmt> which follows the log-format rules.
 
   Note that the generated response must be smaller than a buffer. And to avoid
   any warning, when an errorfile or a raw file is loaded, the buffer space
-  reserved to the headers rewriting should also be free.
+  reserved for the headers rewriting should also be free.
 
   No further "http-request" rules are evaluated.
 
