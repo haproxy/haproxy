@@ -142,8 +142,9 @@ DOCDIR = $(PREFIX)/doc/haproxy
 #### TARGET system
 # Use TARGET=<target_name> to optimize for a specific target OS among the
 # following list (use the default "generic" if uncertain) :
-#    linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, openbsd,
-#    netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, custom
+#    linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, dragonfly,
+#    openbsd, netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic,
+#    custom
 TARGET =
 
 #### TARGET CPU
@@ -366,6 +367,13 @@ endif
 
 # FreeBSD 10 and above
 ifeq ($(TARGET),freebsd)
+  set_target_defaults = $(call default_opts, \
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE   \
+    USE_ACCEPT4 USE_CLOSEFROM USE_GETADDRINFO)
+endif
+
+# DragonFlyBSD 4.3 and above
+ifeq ($(TARGET),dragonfly)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE   \
     USE_ACCEPT4 USE_CLOSEFROM USE_GETADDRINFO)
@@ -773,8 +781,9 @@ all:
 	@echo
 	@echo "Please choose the target among the following supported list :"
 	@echo
-	@echo "   linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, openbsd, "
-	@echo "   netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, custom"
+	@echo "   linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, dragonfly, "
+	@echo "   iopenbs, netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, "
+	@echo "   custom"
 	@echo
 	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"
 	@echo "want to precisely tweak every option, or choose the target which"
@@ -850,8 +859,9 @@ help:
 	     fi; \
 	   else \
 	     echo "TARGET not set, you may pass 'TARGET=xxx' to set one among :";\
-	     echo "  linux-glibc, linux-glibc-legacy, solaris, freebsd, netbsd, osx,"; \
-	     echo "  openbsd, aix51, aix52, aix72-gcc, cygwin, haiku, generic, custom"; \
+	     echo "  linux-glibc, linux-glibc-legacy, solaris, freebsd, dragonfly, netbsd,"; \
+	     echo "  osx, openbsd, aix51, aix52, aix72-gcc, cygwin, haiku, generic,"; \
+	     echo "  custom"; \
 	   fi
 	$(Q)echo;echo "Enabled features for TARGET '$(TARGET)' (disable with 'USE_xxx=') :"
 	$(Q)set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),$(opt),)); echo "  $$*" | (fmt || cat) 2>/dev/null
