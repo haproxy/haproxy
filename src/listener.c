@@ -562,20 +562,32 @@ void dequeue_proxy_listeners(struct proxy *px)
  */
 void do_unbind_listener(struct listener *listener, int do_close)
 {
-	if (listener->state == LI_READY)
-		listener->rx.proto->disable(listener);
-
 	MT_LIST_DEL(&listener->wait_queue);
 
-	if (listener->state >= LI_PAUSED) {
+	if (listener->state <= LI_ASSIGNED)
+		goto out_close;
+
+	if (listener->rx.fd == -1) {
 		listener_set_state(listener, LI_ASSIGNED);
+		goto out_close;
+	}
+
+	if (listener->state >= LI_PAUSED) {
+		if (listener->state >= LI_READY) {
+			listener->rx.proto->disable(listener);
+			listener_set_state(listener, LI_LISTEN);
+		}
 		listener->rx.proto->rx_disable(&listener->rx);
 	}
 
-	if (do_close && listener->rx.fd != -1) {
-		fd_delete(listener->rx.fd);
+ out_close:
+	if (do_close) {
 		listener->rx.flags &= ~RX_F_BOUND;
+		if (listener->rx.fd != -1)
+			fd_delete(listener->rx.fd);
 		listener->rx.fd = -1;
+		if (listener->state > LI_ASSIGNED)
+			listener_set_state(listener, LI_ASSIGNED);
 	}
 }
 
