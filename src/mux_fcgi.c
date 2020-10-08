@@ -869,6 +869,17 @@ static void fcgi_release(struct fcgi_conn *fconn)
 	}
 }
 
+/* Detect a pending read0 for a FCGI connection. It happens if a read0 is
+ * pending on the connection AND if there is no more data in the demux
+ * buffer. The function returns 1 to report a read0 or 0 otherwise.
+ */
+static int fcgi_conn_read0_pending(struct fcgi_conn *fconn)
+{
+	if (conn_xprt_read0_pending(fconn->conn) && !b_data(&fconn->dbuf))
+		return 1;
+	return 0;
+}
+
 
 /* Returns true if the FCGI connection must be release */
 static inline int fcgi_conn_is_dead(struct fcgi_conn *fconn)
@@ -1133,7 +1144,7 @@ static void fcgi_strm_wake_one_stream(struct fcgi_strm *fstrm)
 		return;
 	}
 
-	if (conn_xprt_read0_pending(fconn->conn)) {
+	if (fcgi_conn_read0_pending(fconn)) {
 		if (fstrm->state == FCGI_SS_OPEN) {
 			fstrm->state = FCGI_SS_HREM;
 			TRACE_STATE("swtiching to HREM", FCGI_EV_STRM_WAKE|FCGI_EV_FSTRM_END, fconn->conn, fstrm);
@@ -2527,7 +2538,7 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 
 		if (tmp_fstrm != fstrm && fstrm && fstrm->cs &&
 		    (b_data(&fstrm->rxbuf) ||
-		     conn_xprt_read0_pending(fconn->conn) ||
+		     fcgi_conn_read0_pending(fconn) ||
 		     fstrm->state == FCGI_SS_CLOSED ||
 		     (fstrm->flags & FCGI_SF_ES_RCVD) ||
 		     (fstrm->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
@@ -2608,7 +2619,7 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 	/* we can go here on missing data, blocked response or error */
 	if (fstrm && fstrm->cs &&
 	    (b_data(&fstrm->rxbuf) ||
-	     conn_xprt_read0_pending(fconn->conn) ||
+	     fcgi_conn_read0_pending(fconn) ||
 	     fstrm->state == FCGI_SS_CLOSED ||
 	     (fstrm->flags & FCGI_SF_ES_RCVD) ||
 	     (fstrm->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
@@ -3022,7 +3033,7 @@ static int fcgi_process(struct fcgi_conn *fconn)
 		}
 	}
 
-	if ((conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn) ||
+	if ((conn->flags & CO_FL_ERROR) || fcgi_conn_read0_pending(fconn) ||
 	    fconn->state == FCGI_CS_CLOSED || (fconn->flags & FCGI_CF_ABRTS_FAILED) ||
 	    eb_is_empty(&fconn->streams_by_id)) {
 		fcgi_wake_some_streams(fconn, 0);
@@ -3854,7 +3865,7 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 			if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN)))
 				cs->flags |= CS_FL_EOS;
 		}
-		if (conn_xprt_read0_pending(fconn->conn))
+		if (fcgi_conn_read0_pending(fconn))
 			cs->flags |= CS_FL_EOS;
 		if (cs->flags & CS_FL_ERR_PENDING)
 			cs->flags |= CS_FL_ERROR;
