@@ -393,10 +393,11 @@ ifeq ($(TARGET),openbsd)
     USE_GETADDRINFO)
 endif
 
-# NetBSD
+# NetBSD 8 and above
 ifeq ($(TARGET),netbsd)
   set_target_defaults = $(call default_opts, \
-    USE_POLL USE_TPROXY USE_KQUEUE)
+    USE_POLL USE_TPROXY USE_THREAD USE_KQUEUE USE_ACCEPT4 USE_CLOSEFROM   \
+    USE_GETADDRINFO)
 endif
 
 # AIX 5.1 only
