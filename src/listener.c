@@ -255,14 +255,17 @@ void listener_set_state(struct listener *l, enum li_state st)
 		case LI_ASSIGNED:
 			break;
 		case LI_PAUSED:
+			BUG_ON(l->rx.fd == -1);
 			_HA_ATOMIC_ADD(&px->li_paused, 1);
 			break;
 		case LI_LISTEN:
+			BUG_ON(l->rx.fd == -1);
 			_HA_ATOMIC_ADD(&px->li_bound, 1);
 			break;
 		case LI_READY:
 		case LI_FULL:
 		case LI_LIMITED:
+			BUG_ON(l->rx.fd == -1);
 			_HA_ATOMIC_ADD(&px->li_ready, 1);
 			break;
 		}
@@ -280,6 +283,7 @@ void enable_listener(struct listener *listener)
 {
 	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
 	if (listener->state == LI_LISTEN) {
+		BUG_ON(listener->rx.fd == -1);
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 		    !(proc_mask(listener->rx.settings->bind_proc) & pid_bit)) {
 			/* we don't want to enable this listener and don't
