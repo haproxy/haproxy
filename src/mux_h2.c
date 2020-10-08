@@ -551,6 +551,18 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 	}
 }
 
+
+/* Detect a pending read0 for a H2 connection. It happens if a read0 is pending
+ * on the connection AND if there is no more data in the demux buffer. The
+ * function returns 1 to report a read0 or 0 otherwise.
+ */
+static int h2c_read0_pending(struct h2c *h2c)
+{
+	if (conn_xprt_read0_pending(h2c->conn) && !b_data(&h2c->dbuf))
+		return 1;
+	return 0;
+}
+
 /* returns true if the connection is allowed to expire, false otherwise. A
  * connection may expire when:
  *   - it has no stream
@@ -1901,7 +1913,7 @@ static void h2s_wake_one_stream(struct h2s *h2s)
 		return;
 	}
 
-	if (conn_xprt_read0_pending(h2s->h2c->conn)) {
+	if (h2c_read0_pending(h2s->h2c)) {
 		if (h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HREM;
 		else if (h2s->st == H2_SS_HLOC)
@@ -3050,7 +3062,7 @@ static void h2_process_demux(struct h2c *h2c)
 
 		if (tmp_h2s != h2s && h2s && h2s->cs &&
 		    (b_data(&h2s->rxbuf) ||
-		     conn_xprt_read0_pending(h2c->conn) ||
+		     h2c_read0_pending(h2c) ||
 		     h2s->st == H2_SS_CLOSED ||
 		     (h2s->flags & H2_SF_ES_RCVD) ||
 		     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
@@ -3213,7 +3225,7 @@ static void h2_process_demux(struct h2c *h2c)
 	/* we can go here on missing data, blocked response or error */
 	if (h2s && h2s->cs &&
 	    (b_data(&h2s->rxbuf) ||
-	     conn_xprt_read0_pending(h2c->conn) ||
+	     h2c_read0_pending(h2c) ||
 	     h2s->st == H2_SS_CLOSED ||
 	     (h2s->flags & H2_SF_ES_RCVD) ||
 	     (h2s->cs->flags & (CS_FL_ERROR|CS_FL_ERR_PENDING|CS_FL_EOS)))) {
@@ -3630,7 +3642,7 @@ static int h2_process(struct h2c *h2c)
 		}
 	}
 
-	if (conn->flags & CO_FL_ERROR || conn_xprt_read0_pending(conn) ||
+	if (conn->flags & CO_FL_ERROR || h2c_read0_pending(h2c) ||
 	    h2c->st0 == H2_CS_ERROR2 || h2c->flags & H2_CF_GOAWAY_FAILED ||
 	    (eb_is_empty(&h2c->streams_by_id) && h2c->last_sid >= 0 &&
 	     h2c->max_id >= h2c->last_sid)) {
@@ -5796,7 +5808,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		if (h2s->flags & H2_SF_ES_RCVD)
 			cs->flags |= CS_FL_EOI;
-		if (conn_xprt_read0_pending(h2c->conn) || h2s->st == H2_SS_CLOSED)
+		if (h2c_read0_pending(h2c) || h2s->st == H2_SS_CLOSED)
 			cs->flags |= CS_FL_EOS;
 		if (cs->flags & CS_FL_ERR_PENDING)
 			cs->flags |= CS_FL_ERROR;
