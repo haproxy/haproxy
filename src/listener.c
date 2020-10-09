@@ -543,7 +543,8 @@ void dequeue_proxy_listeners(struct proxy *px)
  * LI_ASSIGNED state, except if the FD is not closed, in which case it may
  * remain in LI_LISTEN. Depending on the process' status (master or worker),
  * the listener's bind options and the receiver's origin, it may or may not
- * close the receiver's FD. Must be called with the lock held.
+ * close the receiver's FD, according to what is provided at the receiver
+ * level. Must be called with the lock held.
  */
 void do_unbind_listener(struct listener *listener)
 {
@@ -557,40 +558,18 @@ void do_unbind_listener(struct listener *listener)
 		goto out_close;
 	}
 
-	if (listener->state >= LI_PAUSED) {
-		if (listener->state >= LI_READY) {
-			listener->rx.proto->disable(listener);
+	if (listener->state >= LI_READY) {
+		listener->rx.proto->disable(listener);
+		if (listener->rx.flags & RX_F_BOUND)
 			listener_set_state(listener, LI_LISTEN);
-		}
-		listener->rx.proto->rx_disable(&listener->rx);
 	}
 
  out_close:
-	/* There are a number of situations where we prefer to keep the FD and
-	 * not to close it (unless we're stopping, of course):
-	 *   - worker process unbinding from a worker's FD with socket transfer enabled => keep
-	 *   - master process unbinding from a master's inherited FD => keep
-	 *   - master process unbinding from a master's FD => close
-	 *   - master process unbinding from a worker's FD => close
-	 *   - worker process unbinding from a master's FD => close
-	 *   - worker process unbinding from a worker's FD => close
-	 */
+	if (listener->rx.flags & RX_F_BOUND)
+		listener->rx.proto->rx_unbind(&listener->rx);
 
-	if (!stopping && !master &&
-	    !(listener->rx.flags & RX_F_MWORKER) &&
-	    (global.tune.options & GTUNE_SOCKET_TRANSFER))
-		return;
-
-	if (!stopping && master &&
-	    listener->rx.flags & RX_F_MWORKER &&
-	    listener->rx.flags & RX_F_INHERITED)
-		return;
-
-	listener->rx.flags &= ~RX_F_BOUND;
-	if (listener->rx.fd != -1)
-		fd_delete(listener->rx.fd);
-	listener->rx.fd = -1;
-	if (listener->state > LI_ASSIGNED)
+	/* we may have to downgrade the listener if the rx was closed */
+	if (!(listener->rx.flags & RX_F_BOUND) && listener->state > LI_ASSIGNED)
 		listener_set_state(listener, LI_ASSIGNED);
 }
 

@@ -73,6 +73,37 @@ void sock_disable(struct receiver *rx)
 		fd_stop_recv(rx->fd);
 }
 
+/* stops, unbinds and possibly closes the FD associated with receiver rx */
+void sock_unbind(struct receiver *rx)
+{
+	/* There are a number of situations where we prefer to keep the FD and
+	 * not to close it (unless we're stopping, of course):
+	 *   - worker process unbinding from a worker's FD with socket transfer enabled => keep
+	 *   - master process unbinding from a master's inherited FD => keep
+	 *   - master process unbinding from a master's FD => close
+	 *   - master process unbinding from a worker's FD => close
+	 *   - worker process unbinding from a master's FD => close
+	 *   - worker process unbinding from a worker's FD => close
+	 */
+	if (rx->flags & RX_F_BOUND)
+		rx->proto->rx_disable(rx);
+
+	if (!stopping && !master &&
+	    !(rx->flags & RX_F_MWORKER) &&
+	    (global.tune.options & GTUNE_SOCKET_TRANSFER))
+		return;
+
+	if (!stopping && master &&
+	    rx->flags & RX_F_MWORKER &&
+	    rx->flags & RX_F_INHERITED)
+		return;
+
+	rx->flags &= ~RX_F_BOUND;
+	if (rx->fd != -1)
+		fd_delete(rx->fd);
+	rx->fd = -1;
+}
+
 /*
  * Retrieves the source address for the socket <fd>, with <dir> indicating
  * if we're a listener (=0) or an initiator (!=0). It returns 0 in case of

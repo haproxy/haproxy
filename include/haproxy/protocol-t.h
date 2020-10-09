@@ -95,6 +95,7 @@ struct protocol {
 	/* functions acting on the receiver */
 	void (*rx_enable)(struct receiver *rx);         /* enable receiving on the receiver */
 	void (*rx_disable)(struct receiver *rx);        /* disable receiving on the receiver */
+	void (*rx_unbind)(struct receiver *rx);         /* unbind the receiver, most often closing the FD */
 	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
 	int (*rx_resume)(struct receiver *rx);          /* try to resume a temporarily suspended receiver */
 
