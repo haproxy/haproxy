@@ -2602,6 +2602,9 @@ stats_error_parsing:
 		curproxy->grace = val;
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
+
+		ha_warning("parsing [%s:%d]: the '%s' is deprecated and will be removed in a future version.\n",
+			   file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
 		struct sockaddr_storage *sk;
