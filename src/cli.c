@@ -2601,7 +2601,8 @@ int mworker_cli_proxy_new_listener(char *line)
 		l->accept = session_accept_fd;
 		l->default_target = mworker_proxy->default_target;
 		/* don't make the peers subject to global limits and don't close it in the master */
-		l->options |= (LI_O_UNLIMITED|LI_O_MWORKER); /* we are keeping this FD in the master */
+		l->options  |= LI_O_UNLIMITED;
+		l->rx.flags |= RX_F_MWORKER; /* we are keeping this FD in the master */
 		l->nice = -64;  /* we want to boost priority for local stats */
 		global.maxsock++; /* for the listening socket */
 	}

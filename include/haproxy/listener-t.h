@@ -97,8 +97,8 @@ enum li_state {
 /* unused                       0x0400  */
 /* unused                       0x0800  */
 #define LI_O_ACC_CIP            0x1000  /* find the proxied address in the NetScaler Client IP header */
-/* unused                       0x2000 */
-#define LI_O_MWORKER            0x4000  /* keep the FD open in the master but close it in the children */
+/* unused                       0x2000  */
+/* unused                       0x4000  */
 #define LI_O_NOSTOP             0x8000  /* keep the listener active even after a soft stop */
 
 /* Note: if a listener uses LI_O_UNLIMITED, it is highly recommended that it adds its own

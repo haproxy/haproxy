@@ -422,7 +422,7 @@ void mworker_cleanlisteners()
 
 		list_for_each_entry_safe(l, l_next, &curproxy->conf.listeners, by_fe) {
 			/* remove the listener, but not those we need in the master... */
-			if (!(l->options & LI_O_MWORKER)) {
+			if (!(l->rx.flags & RX_F_MWORKER)) {
 				unbind_listener(l);
 				delete_listener(l);
 			} else {

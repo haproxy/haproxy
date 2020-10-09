@@ -287,10 +287,8 @@ void enable_listener(struct listener *listener)
 	 * the workers. Conversely, if it's supposed to be only in the workers
 	 * close it in the master.
 	 */
-	if ((master && !(listener->options & LI_O_MWORKER)) ||
-	    (!master && (listener->options & LI_O_MWORKER))) {
+	if (!!master != !!(listener->rx.flags & RX_F_MWORKER))
 		do_unbind_listener(listener);
-	}
 
 	if (listener->state == LI_LISTEN) {
 		BUG_ON(listener->rx.fd == -1);
@@ -579,12 +577,12 @@ void do_unbind_listener(struct listener *listener)
 	 */
 
 	if (!stopping && !master &&
-	    !(listener->options & LI_O_MWORKER) &&
+	    !(listener->rx.flags & RX_F_MWORKER) &&
 	    (global.tune.options & GTUNE_SOCKET_TRANSFER))
 		return;
 
 	if (!stopping && master &&
-	    listener->options & LI_O_MWORKER &&
+	    listener->rx.flags & RX_F_MWORKER &&
 	    listener->rx.flags & RX_F_INHERITED)
 		return;
 

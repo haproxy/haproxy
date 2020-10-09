@@ -29,9 +29,10 @@
 #include <haproxy/namespace-t.h>
 #include <haproxy/thread.h>
 
-/* Bit values for receiver->options */
+/* Bit values for receiver->flags */
 #define RX_F_BOUND              0x00000001  /* receiver already bound */
 #define RX_F_INHERITED          0x00000002  /* inherited FD from the parent process (fd@) */
+#define RX_F_MWORKER            0x00000004  /* keep the FD open in the master but close it in the children */
 
 /* Bit values for rx_settings->options */
 #define RX_O_FOREIGN            0x00000001  /* receives on foreign addresses */
