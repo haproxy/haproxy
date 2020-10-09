@@ -196,9 +196,8 @@ list of options is :
     error is encountered. Presence of warnings will be reported if any.
 
   -d : enable debug mode. This disables daemon mode, forces the process to stay
-    in foreground and to show incoming and outgoing events. It is equivalent to
-    the "global" section's "debug" keyword. It must never be used in an init
-    script.
+    in foreground and to show incoming and outgoing events. It must never be
+    used in an init script.
 
   -dG : disable use of getaddrinfo() to resolve host names into addresses. It
     can be used when suspecting that getaddrinfo() doesn't work as expected.

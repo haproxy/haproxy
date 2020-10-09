@@ -717,7 +717,6 @@ The following keywords are supported in the "global" section :
    - tune.zlib.windowsize
 
  * Debugging
-   - debug
    - quiet
    - zero-warning
 
@@ -2316,12 +2315,6 @@ tune.zlib.windowsize <number>
 
 3.3. Debugging
 --------------
-
-debug (deprecated)
-  Enables debug mode which dumps to stdout all exchanges, and disables forking
-  into background. It is the equivalent of the command-line argument "-d". It
-  should never be used in a production configuration since it may prevent full
-  system startup.
 
 quiet
   Do not display any message during startup. It is equivalent to the command-
