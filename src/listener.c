@@ -581,14 +581,32 @@ void do_unbind_listener(struct listener *listener, int do_close)
 	}
 
  out_close:
-	if (do_close) {
-		listener->rx.flags &= ~RX_F_BOUND;
-		if (listener->rx.fd != -1)
-			fd_delete(listener->rx.fd);
-		listener->rx.fd = -1;
-		if (listener->state > LI_ASSIGNED)
-			listener_set_state(listener, LI_ASSIGNED);
-	}
+	/* There are a number of situations where we prefer to keep the FD and
+	 * not to close it (unless we're stopping, of course):
+	 *   - worker process unbinding from a worker's FD with socket transfer enabled => keep
+	 *   - master process unbinding from a master's inherited FD => keep
+	 *   - master process unbinding from a master's FD => close
+	 *   - master process unbinding from a worker's FD => close
+	 *   - worker process unbinding from a master's FD => close
+	 *   - worker process unbinding from a worker's FD => close
+	 */
+
+	if (!stopping && !master &&
+	    !(listener->options & LI_O_MWORKER) &&
+	    (global.tune.options & GTUNE_SOCKET_TRANSFER))
+		return;
+
+	if (!stopping && master &&
+	    listener->options & LI_O_MWORKER &&
+	    listener->rx.flags & RX_F_INHERITED)
+		return;
+
+	listener->rx.flags &= ~RX_F_BOUND;
+	if (listener->rx.fd != -1)
+		fd_delete(listener->rx.fd);
+	listener->rx.fd = -1;
+	if (listener->state > LI_ASSIGNED)
+		listener_set_state(listener, LI_ASSIGNED);
 }
 
 /* This function closes the listening socket for the specified listener,
