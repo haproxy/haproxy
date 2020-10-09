@@ -782,7 +782,7 @@ all:
 	@echo "Please choose the target among the following supported list :"
 	@echo
 	@echo "   linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, dragonfly, "
-	@echo "   iopenbs, netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, "
+	@echo "   openbsd, netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, "
 	@echo "   custom"
 	@echo
 	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"
