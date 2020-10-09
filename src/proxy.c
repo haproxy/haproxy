@@ -1301,10 +1301,8 @@ void stop_proxy(struct proxy *p)
 	HA_SPIN_LOCK(PROXY_LOCK, &p->lock);
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe) {
-		if (l->options & LI_O_NOSTOP) {
-			HA_ATOMIC_ADD(&unstoppable_jobs, 1);
+		if (l->options & LI_O_NOSTOP)
 			continue;
-		}
 
 		/* There are several cases where we must not close an FD:
 		 *   - we're starting up and we have socket transfers enabled;
