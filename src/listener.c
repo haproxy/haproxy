@@ -538,18 +538,14 @@ void dequeue_proxy_listeners(struct proxy *px)
 	}
 }
 
-/* This function closes the listening socket for the specified listener,
- * provided that it's already in a listening state. The listener enters the
- * LI_ASSIGNED state, except if the FD is not closed, in which case it may
- * remain in LI_LISTEN. Depending on the process' status (master or worker),
- * the listener's bind options and the receiver's origin, it may or may not
- * close the receiver's FD, according to what is provided at the receiver
- * level. Must be called with the lock held.
- */
-void do_unbind_listener(struct listener *listener)
-{
-	MT_LIST_DEL(&listener->wait_queue);
 
+/* default function used to unbind a listener. This is for use by standard
+ * protocols working on top of accepted sockets. The receiver's rx_unbind()
+ * will automatically be used after the listener is disabled if the socket is
+ * still bound. This must be used under the listener's lock.
+ */
+void default_unbind_listener(struct listener *listener)
+{
 	if (listener->state <= LI_ASSIGNED)
 		goto out_close;
 
@@ -567,6 +563,20 @@ void do_unbind_listener(struct listener *listener)
  out_close:
 	if (listener->rx.flags & RX_F_BOUND)
 		listener->rx.proto->rx_unbind(&listener->rx);
+}
+
+/* This function closes the listening socket for the specified listener,
+ * provided that it's already in a listening state. The protocol's unbind()
+ * is called to put the listener into LI_ASSIGNED or LI_LISTEN and handle
+ * the unbinding tasks. The listener enters then the LI_ASSIGNED state if
+ * the receiver is unbound. Must be called with the lock held.
+ */
+void do_unbind_listener(struct listener *listener)
+{
+	MT_LIST_DEL(&listener->wait_queue);
+
+	if (listener->rx.proto->unbind)
+		listener->rx.proto->unbind(listener);
 
 	/* we may have to downgrade the listener if the rx was closed */
 	if (!(listener->rx.flags & RX_F_BOUND) && listener->state > LI_ASSIGNED)

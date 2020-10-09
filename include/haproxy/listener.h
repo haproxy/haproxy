@@ -124,6 +124,12 @@ int listener_backlog(const struct listener *l);
  */
 void listener_release(struct listener *l);
 
+/* default function used to unbind a listener. This is for use by standard
+ * protocols working on top of accepted sockets. The receiver's rx_unbind()
+ * will automatically be used after the listener is disabled if the socket is
+ * still bound. This must be used under the listener's lock.
+ */
+void default_unbind_listener(struct listener *listener);
 /*
  * Registers the bind keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.

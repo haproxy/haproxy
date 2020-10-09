@@ -72,6 +72,7 @@ static struct protocol proto_sockpair = {
 	.listen = sockpair_bind_listener,
 	.enable = sockpair_enable_listener,
 	.disable = sockpair_disable_listener,
+	.unbind = default_unbind_listener,
 	.rx_unbind = sock_unbind,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
