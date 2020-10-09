@@ -130,6 +130,25 @@ void listener_release(struct listener *l);
  * still bound. This must be used under the listener's lock.
  */
 void default_unbind_listener(struct listener *listener);
+
+/* default function called to suspend a listener: it simply passes the call to
+ * the underlying receiver. This is find for most socket-based protocols. This
+ * must be called under the listener's lock. It will return non-zero on success,
+ * 0 on failure. If no receiver-level suspend is provided, the operation is
+ * assumed to succeed.
+ */
+int default_suspend_listener(struct listener *l);
+
+/* Tries to resume a suspended listener, and returns non-zero on success or
+ * zero on failure. On certain errors, an alert or a warning might be displayed.
+ * It must be called with the listener's lock held. Depending on the listener's
+ * state and protocol, a listen() call might be used to resume operations, or a
+ * call to the receiver's resume() function might be used as well. This is
+ * suitable as a default function for TCP and UDP. This must be called with the
+ * listener's lock held.
+ */
+int default_resume_listener(struct listener *l);
+
 /*
  * Registers the bind keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.

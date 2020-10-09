@@ -358,6 +358,65 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 		HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
 }
 
+/* default function called to suspend a listener: it simply passes the call to
+ * the underlying receiver. This is find for most socket-based protocols. This
+ * must be called under the listener's lock. It will return non-zero on success,
+ * 0 on failure. If no receiver-level suspend is provided, the operation is
+ * assumed to succeed.
+ */
+int default_suspend_listener(struct listener *l)
+{
+	int ret = 1;
+
+	if (!l->rx.proto->rx_suspend)
+		return 1;
+
+	ret = l->rx.proto->rx_suspend(&l->rx);
+	return ret > 0 ? ret : 0;
+}
+
+
+/* Tries to resume a suspended listener, and returns non-zero on success or
+ * zero on failure. On certain errors, an alert or a warning might be displayed.
+ * It must be called with the listener's lock held. Depending on the listener's
+ * state and protocol, a listen() call might be used to resume operations, or a
+ * call to the receiver's resume() function might be used as well. This is
+ * suitable as a default function for TCP and UDP. This must be called with the
+ * listener's lock held.
+ */
+int default_resume_listener(struct listener *l)
+{
+	int ret = 1;
+
+	if (l->state == LI_ASSIGNED) {
+		char msg[100];
+		int err;
+
+		err = l->rx.proto->listen(l, msg, sizeof(msg));
+		if (err & ERR_ALERT)
+			ha_alert("Resuming listener: %s\n", msg);
+		else if (err & ERR_WARN)
+			ha_warning("Resuming listener: %s\n", msg);
+
+		if (err & (ERR_FATAL | ERR_ABORT)) {
+			ret = 0;
+			goto end;
+		}
+	}
+
+	if (l->state < LI_PAUSED) {
+		ret = 0;
+		goto end;
+	}
+
+	if (l->state == LI_PAUSED && l->rx.proto->rx_resume &&
+	    l->rx.proto->rx_resume(&l->rx) <= 0)
+		ret = 0;
+ end:
+	return ret;
+}
+
+
 /* This function tries to temporarily disable a listener, depending on the OS
  * capabilities. Linux unbinds the listen socket after a SHUT_RD, and ignores
  * SHUT_WR. Solaris refuses either shutdown(). OpenBSD ignores SHUT_RD but
@@ -379,18 +438,8 @@ int pause_listener(struct listener *l)
 	if (l->state <= LI_PAUSED)
 		goto end;
 
-	if (l->rx.proto->rx_suspend) {
-		/* Returns < 0 in case of failure, 0 if the listener
-		 * was totally stopped, or > 0 if correctly paused.
-		 */
-		ret = l->rx.proto->rx_suspend(&l->rx);
-
-		if (ret < 0) {
-			ret = 0;
-			goto end;
-		}
-		ret = 1;
-	}
+	if (l->rx.proto->suspend)
+		ret = l->rx.proto->suspend(l);
 
 	MT_LIST_DEL(&l->wait_queue);
 
@@ -436,32 +485,8 @@ int resume_listener(struct listener *l)
 	if (l->state == LI_READY)
 		goto end;
 
-	if (l->state == LI_ASSIGNED) {
-		char msg[100];
-		int err;
-
-		err = l->rx.proto->listen(l, msg, sizeof(msg));
-		if (err & ERR_ALERT)
-			ha_alert("Resuming listener: %s\n", msg);
-		else if (err & ERR_WARN)
-			ha_warning("Resuming listener: %s\n", msg);
-
-		if (err & (ERR_FATAL | ERR_ABORT)) {
-			ret = 0;
-			goto end;
-		}
-	}
-
-	if (l->state < LI_PAUSED) {
-		ret = 0;
-		goto end;
-	}
-
-	if (l->state == LI_PAUSED && l->rx.proto->rx_resume &&
-	    l->rx.proto->rx_resume(&l->rx) <= 0) {
-		ret = 0;
-		goto end;
-	}
+	if (l->rx.proto->resume)
+		ret = l->rx.proto->resume(l);
 
 	if (l->maxconn && l->nbconn >= l->maxconn) {
 		l->rx.proto->disable(l);

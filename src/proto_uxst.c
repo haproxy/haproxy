@@ -60,6 +60,7 @@ static struct protocol proto_unix = {
 	.enable = uxst_enable_listener,
 	.disable = uxst_disable_listener,
 	.unbind = default_unbind_listener,
+	.suspend = default_suspend_listener,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
 	.rx_unbind = sock_unbind,
