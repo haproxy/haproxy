@@ -284,7 +284,7 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 
 	[HTTP_ERR_500] =
 	"HTTP/1.1 500 Internal Server Error\r\n"
-	"Content-length: 96\r\n"
+	"Content-length: 97\r\n"
 	"Cache-Control: no-cache\r\n"
 	"Content-Type: text/html\r\n"
 	"\r\n"
