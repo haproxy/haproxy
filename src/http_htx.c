@@ -929,17 +929,36 @@ int http_str_to_htx(struct buffer *buf, struct ist raw)
 	if (h1sl.st.status < 200 && (h1sl.st.status == 100 || h1sl.st.status >= 102))
 		goto error;
 
+	if (h1sl.st.status == 204 || h1sl.st.status == 304) {
+		/* Responses known to have no body. */
+		h1m.flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
+		h1m.flags |= H1_MF_XFER_LEN;
+		h1m.curr_len = h1m.body_len = 0;
+	}
+	else if (h1m.flags & (H1_MF_CLEN|H1_MF_CHNK))
+		h1m.flags |= H1_MF_XFER_LEN;
+
 	if (h1m.flags & H1_MF_VER_11)
 		flags |= HTX_SL_F_VER_11;
 	if (h1m.flags & H1_MF_XFER_ENC)
 		flags |= HTX_SL_F_XFER_ENC;
-	if (h1m.flags & H1_MF_CLEN) {
-		flags |= (HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN);
-		if (h1m.body_len == 0)
+	if (h1m.flags & H1_MF_XFER_LEN) {
+		flags |= HTX_SL_F_XFER_LEN;
+		if (h1m.flags & H1_MF_CHNK)
+			goto error; /* Unsupported because there is no body parsing */
+		else if (h1m.flags & H1_MF_CLEN) {
+			flags |= HTX_SL_F_CLEN;
+			if (h1m.body_len == 0)
+				flags |= HTX_SL_F_BODYLESS;
+		}
+		else
 			flags |= HTX_SL_F_BODYLESS;
 	}
-	if (h1m.flags & H1_MF_CHNK)
-		goto error; /* Unsupported because there is no body parsing */
+
+	if ((flags & HTX_SL_F_BODYLESS) && raw.len > ret)
+		goto error; /* No body expected */
+	if ((flags & HTX_SL_F_CLEN) && h1m.body_len != (raw.len - ret))
+		goto error; /* body with wrong length */
 
 	htx = htx_from_buf(buf);
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, h1sl.st.v, h1sl.st.c, h1sl.st.r);
@@ -1628,6 +1647,10 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 		}
 	}
 	else if (reply->type == HTTP_REPLY_RAW) { /* explicit parameter using 'file' parameter*/
+		if ((reply->status == 204 || reply->status == 304) && objlen) {
+			memprintf(errmsg, "No body expected for %d responses", reply->status);
+			goto error;
+		}
 		if (!reply->ctype && objlen) {
 			memprintf(errmsg, "a content type must be defined when non-empty payload is configured");
 			goto error;
@@ -1647,6 +1670,10 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 	}
 	else if (reply->type == HTTP_REPLY_LOGFMT) { /* log-format payload using 'lf-file' of 'lf-string' parameter */
 		LIST_INIT(&reply->body.fmt);
+		if ((reply->status == 204 || reply->status == 304)) {
+			memprintf(errmsg, "No body expected for %d responses", reply->status);
+			goto error;
+		}
 		if (!reply->ctype) {
 			memprintf(errmsg, "a content type must be defined with a log-format payload");
 			goto error;
