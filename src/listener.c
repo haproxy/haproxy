@@ -289,7 +289,7 @@ void enable_listener(struct listener *listener)
 	 */
 	if ((master && !(listener->options & LI_O_MWORKER)) ||
 	    (!master && (listener->options & LI_O_MWORKER))) {
-		do_unbind_listener(listener, 1);
+		do_unbind_listener(listener);
 	}
 
 	if (listener->state == LI_LISTEN) {
@@ -299,12 +299,7 @@ void enable_listener(struct listener *listener)
 			/* we don't want to enable this listener and don't
 			 * want any fd event to reach it.
 			 */
-			if (!(global.tune.options & GTUNE_SOCKET_TRANSFER))
-				do_unbind_listener(listener, 1);
-			else {
-				do_unbind_listener(listener, 0);
-				listener_set_state(listener, LI_LISTEN);
-			}
+			do_unbind_listener(listener);
 		}
 		else if (!listener->maxconn || listener->nbconn < listener->maxconn) {
 			listener->rx.proto->enable(listener);
@@ -329,7 +324,6 @@ void enable_listener(struct listener *listener)
 void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 {
 	struct proxy *px = l->bind_conf->frontend;
-	int must_close;
 
 	if (l->options & LI_O_NOSTOP) {
 		/* master-worker sockpairs are never closed but don't count as a
@@ -337,16 +331,6 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 		 */
 		return;
 	}
-
-	/* There are several cases where we must not close an FD:
-	 *   - we're starting up and we have socket transfers enabled;
-	 *   - we're the master and this FD was inherited;
-	 */
-	if ((global.tune.options & GTUNE_SOCKET_TRANSFER && global.mode & MODE_STARTING) ||
-	    (master && (l->rx.flags & RX_F_INHERITED)))
-		must_close = 0;
-	else
-		must_close = 1;
 
 	if (!lpx)
 		HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
@@ -358,7 +342,7 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 		HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 
 	if (l->state > LI_INIT) {
-		do_unbind_listener(l, must_close);
+		do_unbind_listener(l);
 
 		if (l->state >= LI_ASSIGNED)
 			__delete_listener(l);
@@ -556,11 +540,14 @@ void dequeue_proxy_listeners(struct proxy *px)
 	}
 }
 
-/* Must be called with the lock held. Depending on <do_close> value, it does
- * what unbind_listener or unbind_listener_no_close should do. It can also
- * close a zombie listener's FD when called in early states.
+/* This function closes the listening socket for the specified listener,
+ * provided that it's already in a listening state. The listener enters the
+ * LI_ASSIGNED state, except if the FD is not closed, in which case it may
+ * remain in LI_LISTEN. Depending on the process' status (master or worker),
+ * the listener's bind options and the receiver's origin, it may or may not
+ * close the receiver's FD. Must be called with the lock held.
  */
-void do_unbind_listener(struct listener *listener, int do_close)
+void do_unbind_listener(struct listener *listener)
 {
 	MT_LIST_DEL(&listener->wait_queue);
 
@@ -611,23 +598,14 @@ void do_unbind_listener(struct listener *listener, int do_close)
 
 /* This function closes the listening socket for the specified listener,
  * provided that it's already in a listening state. The listener enters the
- * LI_ASSIGNED state. This function is intended to be used as a generic
+ * LI_ASSIGNED state, except if the FD is not closed, in which case it may
+ * remain in LI_LISTEN. This function is intended to be used as a generic
  * function for standard protocols.
  */
 void unbind_listener(struct listener *listener)
 {
 	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
-	do_unbind_listener(listener, 1);
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
-}
-
-/* This function pretends the listener is dead, but keeps the FD opened, so
- * that we can provide it, for conf reloading.
- */
-void unbind_listener_no_close(struct listener *listener)
-{
-	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
-	do_unbind_listener(listener, 0);
+	do_unbind_listener(listener);
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 

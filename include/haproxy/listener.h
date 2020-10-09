@@ -71,22 +71,22 @@ void dequeue_all_listeners();
 /* Dequeues all listeners waiting for a resource in proxy <px>'s queue */
 void dequeue_proxy_listeners(struct proxy *px);
 
-/* Must be called with the lock held. Depending on <do_close> value, it does
- * what unbind_listener or unbind_listener_no_close should do.
+/* This function closes the listening socket for the specified listener,
+ * provided that it's already in a listening state. The listener enters the
+ * LI_ASSIGNED state, except if the FD is not closed, in which case it may
+ * remain in LI_LISTEN. Depending on the process' status (master or worker),
+ * the listener's bind options and the receiver's origin, it may or may not
+ * close the receiver's FD. Must be called with the lock held.
  */
-void do_unbind_listener(struct listener *listener, int do_close);
+void do_unbind_listener(struct listener *listener);
 
 /* This function closes the listening socket for the specified listener,
  * provided that it's already in a listening state. The listener enters the
- * LI_ASSIGNED state. This function is intended to be used as a generic
+ * LI_ASSIGNED state, except if the FD is not closed, in which case it may
+ * remain in LI_LISTEN. This function is intended to be used as a generic
  * function for standard protocols.
  */
 void unbind_listener(struct listener *listener);
-
-/* This function pretends the listener is dead, but keeps the FD opened, so
- * that we can provide it, for conf reloading.
- */
-void unbind_listener_no_close(struct listener *listener);
 
 /* creates one or multiple listeners for bind_conf <bc> on sockaddr <ss> on port
  * range <portl> to <porth>, and possibly attached to fd <fd> (or -1 for auto

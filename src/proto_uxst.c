@@ -185,7 +185,7 @@ static int uxst_suspend_receiver(struct receiver *rx)
 
 	/* Listener's lock already held. Call lockless version of
 	 * unbind_listener. */
-	do_unbind_listener(l, 1);
+	do_unbind_listener(l);
 	return 0;
 }
 

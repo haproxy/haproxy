@@ -423,13 +423,7 @@ void mworker_cleanlisteners()
 		list_for_each_entry_safe(l, l_next, &curproxy->conf.listeners, by_fe) {
 			/* remove the listener, but not those we need in the master... */
 			if (!(l->options & LI_O_MWORKER)) {
-				/* unbind the listener but does not close if
-				   the FD is inherited with fd@ from the parent
-				   process */
-				if (l->rx.flags & RX_F_INHERITED)
-					unbind_listener_no_close(l);
-				else
-					unbind_listener(l);
+				unbind_listener(l);
 				delete_listener(l);
 			} else {
 				listen_in_master = 1;
