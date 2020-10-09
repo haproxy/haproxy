@@ -282,6 +282,16 @@ void listener_set_state(struct listener *l, enum li_state st)
 void enable_listener(struct listener *listener)
 {
 	HA_SPIN_LOCK(LISTENER_LOCK, &listener->lock);
+
+	/* If this listener is supposed to be only in the master, close it in
+	 * the workers. Conversely, if it's supposed to be only in the workers
+	 * close it in the master.
+	 */
+	if ((master && !(listener->options & LI_O_MWORKER)) ||
+	    (!master && (listener->options & LI_O_MWORKER))) {
+		do_unbind_listener(listener, 1);
+	}
+
 	if (listener->state == LI_LISTEN) {
 		BUG_ON(listener->rx.fd == -1);
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
@@ -304,12 +314,7 @@ void enable_listener(struct listener *listener)
 			listener_set_state(listener, LI_FULL);
 		}
 	}
-	/* if this listener is supposed to be only in the master, close it in the workers */
-	if ((global.mode & MODE_MWORKER) &&
-	    (listener->options & LI_O_MWORKER) &&
-	    master == 0) {
-		do_unbind_listener(listener, 1);
-	}
+
 	HA_SPIN_UNLOCK(LISTENER_LOCK, &listener->lock);
 }
 
