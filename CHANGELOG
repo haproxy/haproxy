@@ -1,6 +1,149 @@
 ChangeLog :
 ===========
 
+2020/10/10 : 2.3-dev6
+    - REGTESTS: use "command" instead of "which" for better POSIX compatibility
+    - BUILD: makefile: Update feature flags for OpenBSD
+    - DOC: agent-check: fix typo in "fail" word expected reply
+    - DOC: crt: advise to move away from cert bundle
+    - BUG/MINOR: ssl/crt-list: exit on warning out of crtlist_parse_line()
+    - REGTEST: fix host part in balance-uri-path-only.vtc
+    - REGTEST: make ssl_client_samples and ssl_server_samples requiret to 2.3
+    - REGTEST: the iif converter test requires 2.3
+    - REGTEST: make agent-check.vtc require 1.8
+    - REGTEST: make abns_socket.vtc require 1.8
+    - REGTEST: make map_regm_with_backref require 1.7
+    - BUILD: makefile: Update feature flags for FreeBSD
+    - OPTIM: backend/random: never queue on the server, always on the backend
+    - OPTIM: backend: skip LB when we know the backend is full
+    - BUILD: makefile: Fix building with closefrom() support enabled
+    - BUILD: makefile: add an EXTRAVERSION variable to ease local naming
+    - MINOR: tools: support for word expansion of environment in parse_line
+    - BUILD: tools: fix minor build issue on isspace()
+    - BUILD: makefile: Enable closefrom() support on Solaris
+    - CLEANUP: ssl: Use structured format for error line report during crt-list parsing
+    - MINOR: ssl: Add error if a crt-list might be truncated
+    - MINOR: ssl: remove uneeded check in crtlist_parse_file
+    - BUG/MINOR: Fix several leaks of 'log_tag' in init().
+    - DOC: tcp-rules: Refresh details about L7 matching for tcp-request content rules
+    - MEDIUM: tcp-rules: Warn if a track-sc* content rule doesn't depend on content
+    - BUG/MINOR: tcpcheck: Set socks4 and send-proxy flags before the connect call
+    - DOC: ssl: new "cert bundle" behavior
+    - BUG/MEDIUM: queue: make pendconn_cond_unlink() really thread-safe
+    - CLEANUP: ssl: "bundle" is not an OpenSSL wording
+    - MINOR: counters: fix a typo in comment
+    - BUG/MINOR: stats: fix validity of the json schema
+    - REORG: stats: export some functions
+    - MINOR: stats: add stats size as a parameter for csv/json dump
+    - MINOR: stats: hide px/sv/li fields in applet struct
+    - REORG: stats: extract proxy json dump
+    - REORG: stats: extract proxies dump loop in a function
+    - MINOR: hlua: Display debug messages on stderr only in debug mode
+    - MINOR: stats: define the concept of domain for statistics
+    - MINOR: stats: define additional flag px cap on domain
+    - MEDIUM: stats: add delimiter for static proxy stats on csv
+    - MEDIUM: stats: define an API to register stat modules
+    - MEDIUM: stats: add abstract type to store counters
+    - MEDIUM: stats: integrate static proxies stats in new stats
+    - MINOR: stats: support clear counters for dynamic stats
+    - MINOR: stats: display extra proxy stats on the html page
+    - MINOR: stats: add config "stats show modules"
+    - MINOR: dns/stats: integrate dns counters in stats
+    - MINOR: stats: remove for loop declaration
+    - DOC: ssl: fix typo about ocsp files
+    - BUG/MINOR: peers: Inconsistency when dumping peer status codes.
+    - DOC: update INSTALL with supported OpenBSD / FreeBSD versions
+    - BUG/MINOR: proto_tcp: Report warning messages when listeners are bound
+    - CLEANUP: cache: Fix leak of cconf->c.name during config check
+    - CLEANUP: ssl: Release cached SSL sessions on deinit
+    - BUG/MINOR: mux-h1: Be sure to only set CO_RFL_READ_ONCE for the first read
+    - BUG/MINOR: mux-h1: Always set the session on frontend h1 stream
+    - MINOR: mux-h1: Don't wakeup the H1C when output buffer become available
+    - CLEANUP: sock-unix: Remove an unreachable goto clause
+    - BUG/MINOR: proxy: inc req counter on new syslog messages.
+    - BUG/MEDIUM: log: old processes with log foward section don't die on soft stop.
+    - MINOR: stats: inc req counter on listeners.
+    - MINOR: channel: new getword and getchar functions on channel.
+    - MEDIUM: log: syslog TCP support on log forward section.
+    - BUG/MINOR: proxy/log: frontend/backend and log forward names must differ
+    - DOC: re-work log forward bind statement documentation.
+    - DOC: fix a confusing typo on a regsub example
+    - BUILD: Add a DragonFlyBSD target
+    - BUG/MINOR: makefile: fix a tiny typo in the target list
+    - BUILD: makefile: Update feature flags for NetBSD
+    - CI: travis-ci: help Coverity to detect BUG_ON() as a real stop
+    - DOC: Add missing stats fields in the management doc
+    - BUG/MEDIUM: mux-fcgi: Don't handle pending read0 too early on streams
+    - BUG/MEDIUM: mux-h2: Don't handle pending read0 too early on streams
+    - DOC: Fix typos in configuration.txt
+    - BUG/MINOR: http: Fix content-length of the default 500 error
+    - BUG/MINOR: http-htx: Expect no body for 204/304 internal HTTP responses
+    - REGTESTS: mark abns_socket as broken
+    - MEDIUM: fd: always wake up one thread when enabling a foreing FD
+    - MEDIUM: listeners: don't bounce listeners management between queues
+    - MEDIUM: init: stop disabled proxies after initializing fdtab
+    - MEDIUM: listeners: make unbind_listener() converge if needed
+    - MEDIUM: deinit: close all receivers/listeners before scanning proxies
+    - MEDIUM: listeners: remove the now unused ZOMBIE state
+    - MINOR: listeners: do not uselessly try to close zombie listeners in soft_stop()
+    - CLEANUP: proxy: remove the first_to_listen hack in zombify_proxy()
+    - MINOR: listeners: introduce listener_set_state()
+    - MINOR: proxy: maintain per-state counters of listeners
+    - MEDIUM: proxy: remove the unused PR_STFULL state
+    - MEDIUM: proxy: remove the PR_STERROR state
+    - MEDIUM: proxy: remove state PR_STPAUSED
+    - MINOR: startup: don't rely on PR_STNEW to check for listeners
+    - CLEANUP: peers: don't use the PR_ST* states to mark enabled/disabled
+    - MEDIUM: proxy: replace proxy->state with proxy->disabled
+    - MEDIUM: proxy: remove start_proxies()
+    - MEDIUM: proxy: merge zombify_proxy() with stop_proxy()
+    - MINOR: listeners: check the current listener state in pause_listener()
+    - MINOR: listeners: check the current listener earlier state in resume_listener()
+    - MEDIUM: listener/proxy: make the listeners notify about proxy pause/resume
+    - MINOR: protocol: introduce protocol_{pause,resume}_all()
+    - MAJOR: signals: use protocol_pause_all() and protocol_resume_all()
+    - CLEANUP: proxy: remove the now unused pause_proxies() and resume_proxies()
+    - MEDIUM: proto_tcp: make the pause() more robust in multi-process
+    - BUG/MEDIUM: listeners: correctly report pause() errors
+    - MINOR: listeners: move fd_stop_recv() to the receiver's socket code
+    - CLEANUP: protocol: remove the ->disable_all method
+    - CLEANUP: listeners: remove unused disable_listener and disable_all_listeners
+    - MINOR: listeners: export enable_listener()
+    - MINOR: protocol: directly call enable_listener() from protocol_enable_all()
+    - CLEANUP: protocol: remove the ->enable_all method
+    - CLEANUP: listeners: remove the now unused enable_all_listeners()
+    - MINOR: protocol: rename the ->listeners field to ->receivers
+    - MINOR: protocol: replace ->pause(listener) with ->rx_suspend(receiver)
+    - MINOR: protocol: implement an ->rx_resume() method
+    - MINOR: listener: use the protocol's ->rx_resume() method when available
+    - MINOR: sock: provide a set of generic enable/disable functions
+    - MINOR: protocol: add a new pair of rx_enable/rx_disable methods
+    - MINOR: protocol: add a new pair of enable/disable methods for listeners
+    - MEDIUM: listeners: now use the listener's ->enable/disable
+    - MINOR: listeners: split delete_listener() in two versions
+    - MINOR: listeners: count unstoppable jobs on creation, not deletion
+    - MINOR: listeners: add a new stop_listener() function
+    - MEDIUM: proxy: make stop_proxy() now use stop_listener()
+    - MEDIUM: proxy: add mode PR_MODE_PEERS to flag peers frontends
+    - MEDIUM: proxy: centralize proxy status update and reporting
+    - MINOR: protocol: add protocol_stop_now() to instant-stop listeners
+    - MEDIUM: proxy: make soft_stop() stop most listeners using protocol_stop_now()
+    - MEDIUM: udp: implement udp_suspend() and udp_resume()
+    - MINOR: listener: add a few BUG_ON() statements to detect inconsistencies
+    - MEDIUM: listeners: always close master vs worker listeners
+    - BROKEN/MEDIUM: listeners: rework the unbind logic to make it idempotent
+    - MEDIUM: listener: let do_unbind_listener() decide whether to close or not
+    - CLEANUP: listeners: remove the do_close argument to unbind_listener()
+    - MINOR: listeners: move the LI_O_MWORKER flag to the receiver
+    - MEDIUM: receivers: add an rx_unbind() method in the protocols
+    - MINOR: listeners: split do_unbind_listener() in two
+    - MEDIUM: listeners: implement protocol level ->suspend/resume() calls
+    - MEDIUM: config: mark "grace" as deprecated
+    - MEDIUM: config: remove the deprecated and dangerous global "debug" directive
+    - BUG/MINOR: proxy: respect the proper format string in sig_pause/sig_listen
+    - MINOR: peers: heartbeat, collisions and handshake information for "show peers" command.
+    - BUILD: makefile: Enable getaddrinfo() on OS/X
+
 2020/09/25 : 2.3-dev5
     - DOC: Fix typo in iif() example
     - CLEANUP: Update .gitignore
