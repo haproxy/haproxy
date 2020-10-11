@@ -103,14 +103,14 @@ if [ ! -z ${BORINGSSL+x} ]; then
 	cmake  -GNinja -DCMAKE_BUILD_TYPE=release -DBUILD_SHARED_LIBS=1 ..
 	ninja
 
-	rm -rf ${SSL_LIB} || exit 0
-	rm -rf ${SSL_INC} || exit 0
+	rm -rf ${HOME}/opt/lib || exit 0
+	rm -rf ${HOME}/opt/include || exit 0
 
-	mkdir -p ${SSL_LIB}
-	cp crypto/libcrypto.so ssl/libssl.so ${SSL_LIB}
+	mkdir -p ${HOME}/opt/lib
+	cp crypto/libcrypto.so ssl/libssl.so ${HOME}/opt/lib
 
-	mkdir -p ${SSL_INC}
-	cp -r ../include/* ${SSL_INC}
+	mkdir -p ${HOME}/opt/include
+	cp -r ../include/* ${HOME}/opt/include
 	)
 fi
 
