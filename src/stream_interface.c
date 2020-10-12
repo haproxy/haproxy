@@ -1346,12 +1346,6 @@ int si_cs_recv(struct conn_stream *cs)
 		if (cs->flags & CS_FL_WANT_ROOM)
 			si_rx_room_blk(si);
 
-		if (cs->flags & CS_FL_READ_PARTIAL) {
-			if (tick_isset(ic->rex))
-				ic->rex = tick_add_ifset(now_ms, ic->rto);
-			cs->flags &= ~CS_FL_READ_PARTIAL;
-		}
-
 		if (ret <= 0) {
 			/* if we refrained from reading because we asked for a
 			 * flush to satisfy rcv_pipe(), we must not subscribe

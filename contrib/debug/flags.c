@@ -180,7 +180,6 @@ void show_cs_flags(unsigned int f)
 		printf("0\n");
 		return;
 	}
-	SHOW_FLAG(f, CS_FL_READ_PARTIAL);
 	SHOW_FLAG(f, CS_FL_NOT_FIRST);
 	SHOW_FLAG(f, CS_FL_KILL_CONN);
 	SHOW_FLAG(f, CS_FL_WAIT_FOR_HS);
