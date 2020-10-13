@@ -94,7 +94,6 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 {
 	int fd, err;
 	int ready;
-	socklen_t ready_len;
 	char *msg = NULL;
 
 	err = ERR_NONE;
@@ -112,11 +111,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	}
 
 	fd = listener->rx.fd;
-
-	ready = 0;
-	ready_len = sizeof(ready);
-	if (getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &ready, &ready_len) == -1)
-		ready = 0;
+	ready = sock_accept_conn(&listener->rx) > 0;
 
 	if (!ready && /* only listen if not already done by external process */
 	    listen(fd, listener_backlog(listener)) < 0) {
