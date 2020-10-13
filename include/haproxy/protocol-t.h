@@ -101,6 +101,7 @@ struct protocol {
 	void (*rx_unbind)(struct receiver *rx);         /* unbind the receiver, most often closing the FD */
 	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
 	int (*rx_resume)(struct receiver *rx);          /* try to resume a temporarily suspended receiver */
+	int (*rx_listening)(const struct receiver *rx); /* is the receiver listening ? 0=no, >0=OK, <0=unrecoverable */
 
 	/* functions acting on connections */
 	void (*accept)(int fd);				/* generic accept function */
