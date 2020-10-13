@@ -1157,6 +1157,14 @@ void listener_accept(int fd)
 	/* pause the listener for up to 100 ms */
 	expire = tick_add(now_ms, 100);
 
+	/* This may be a shared socket that was paused by another process.
+	 * Let's put it to pause in this case.
+	 */
+	if (l->rx.proto && l->rx.proto->rx_listening(&l->rx) == 0) {
+		pause_listener(l);
+		goto end;
+	}
+
  limit_global:
 	/* (re-)queue the listener to the global queue and set it to expire no
 	 * later than <expire> ahead. The listener turns to LI_LIMITED.
