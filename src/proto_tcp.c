@@ -770,17 +770,12 @@ static void tcp_disable_listener(struct listener *l)
  */
 static int tcp_suspend_receiver(struct receiver *rx)
 {
-	struct listener *l = LIST_ELEM(rx, struct listener *, rx);
 	socklen_t opt_val, opt_len;
+	struct sockaddr sa;
 
-	if (shutdown(rx->fd, SHUT_WR) != 0)
-		goto check_already_done; /* usually Solaris fails here */
-
-	if (listen(rx->fd, listener_backlog(l)) != 0)
-		goto check_already_done; /* Usually OpenBSD fails here */
-
-	if (shutdown(rx->fd, SHUT_RD) != 0)
-		goto check_already_done; /* show always be OK */
+	sa.sa_family = AF_UNSPEC;
+	if (connect(rx->fd, &sa, sizeof(sa)) < 0)
+		goto check_already_done;
 
 	fd_stop_recv(rx->fd);
 	return 1;
