@@ -466,6 +466,22 @@ int sock_find_compatible_fd(const struct receiver *rx)
 	return ret;
 }
 
+/* Tests if the receiver supports accepting connections. Returns positive on
+ * success, 0 if not possible, negative if the socket is non-recoverable. The
+ * rationale behind this is that inherited FDs may be broken and that shared
+ * FDs might have been paused by another process.
+ */
+int sock_accept_conn(const struct receiver *rx)
+{
+	int opt_val = 0;
+	socklen_t opt_len = sizeof(opt_val);
+
+	if (getsockopt(rx->fd, SOL_SOCKET, SO_ACCEPTCONN, &opt_val, &opt_len) == -1)
+		return -1;
+
+	return opt_val;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

@@ -40,6 +40,7 @@ int sock_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int sock_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int sock_get_old_sockets(const char *unixsocket);
 int sock_find_compatible_fd(const struct receiver *rx);
+int sock_accept_conn(const struct receiver *rx);
 
 #endif /* _HAPROXY_SOCK_H */
 
