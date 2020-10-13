@@ -570,7 +570,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
 	int fd, err;
 	int ready;
-	socklen_t ready_len;
 	char *msg = NULL;
 
 	err = ERR_NONE;
@@ -678,10 +677,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
-	ready = 0;
-	ready_len = sizeof(ready);
-	if (getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &ready, &ready_len) == -1)
-		ready = 0;
+
+	ready = sock_accept_conn(&listener->rx) > 0;
 
 	if (!ready && /* only listen if not already done by external process */
 	    listen(fd, listener_backlog(listener)) == -1) {
@@ -772,8 +769,8 @@ static void tcp_disable_listener(struct listener *l)
  */
 static int tcp_suspend_receiver(struct receiver *rx)
 {
-	socklen_t opt_val, opt_len;
 	struct sockaddr sa;
+	int ret;
 
 	sa.sa_family = AF_UNSPEC;
 	if (connect(rx->fd, &sa, sizeof(sa)) < 0)
@@ -787,19 +784,14 @@ static int tcp_suspend_receiver(struct receiver *rx)
 	 * dealing with a socket that is shared with other processes doing the
 	 * same. Let's check if it's still accepting connections.
 	 */
-	opt_val = 0;
-	opt_len = sizeof(opt_val);
-	if (getsockopt(rx->fd, SOL_SOCKET, SO_ACCEPTCONN, &opt_val, &opt_len) == -1) {
+	ret = sock_accept_conn(rx);
+	if (ret <= 0) {
+		/* unrecoverable or paused by another process */
 		fd_stop_recv(rx->fd);
-		return 0; /* the socket is really unrecoverable */
+		return ret == 0;
 	}
 
-	if (!opt_val) {
-		fd_stop_recv(rx->fd);
-		return 1; /* already paused by another process */
-	}
-
-	/* something looks fishy here */
+	/* still listening, that's not good */
 	return -1;
 }
 
