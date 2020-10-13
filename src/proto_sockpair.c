@@ -47,6 +47,7 @@ static int sockpair_bind_listener(struct listener *listener, char *errmsg, int e
 static void sockpair_enable_listener(struct listener *listener);
 static void sockpair_disable_listener(struct listener *listener);
 static int sockpair_connect_server(struct connection *conn, int flags);
+static int sockpair_accept_conn(const struct receiver *rx);
 
 struct proto_fam proto_fam_sockpair = {
 	.name = "sockpair",
@@ -76,6 +77,7 @@ static struct protocol proto_sockpair = {
 	.rx_unbind = sock_unbind,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
+	.rx_listening = sockpair_accept_conn,
 	.accept = &listener_accept,
 	.connect = &sockpair_connect_server,
 	.receivers = LIST_HEAD_INIT(proto_sockpair.receivers),
@@ -430,6 +432,43 @@ int recv_fd_uxst(int sock)
 		memcpy(&recv_fd, CMSG_DATA(cmsg), totlen);
 	}
 	return recv_fd;
+}
+
+/* Tests if the receiver supports accepting connections. Returns positive on
+ * success, 0 if not possible, negative if the socket is non-recoverable. In
+ * practice zero is never returned since we don't support suspending sockets.
+ * The real test consists in verifying we have a connected SOCK_STREAM of
+ * family AF_UNIX.
+ */
+static int sockpair_accept_conn(const struct receiver *rx)
+{
+	struct sockaddr sa;
+	socklen_t len;
+	int val;
+
+	len = sizeof(val);
+	if (getsockopt(rx->fd, SOL_SOCKET, SO_TYPE, &val, &len) == -1)
+		return -1;
+
+	if (val != SOCK_STREAM)
+		return -1;
+
+	len = sizeof(sa);
+	if (getsockname(rx->fd, &sa, &len) != 0)
+		return -1;
+
+	if (sa.sa_family != AF_UNIX)
+		return -1;
+
+	len = sizeof(val);
+	if (getsockopt(rx->fd, SOL_SOCKET, SO_ACCEPTCONN, &val, &len) == -1)
+		return -1;
+
+	/* Note: cannot be a listening socket, must be established */
+	if (val)
+		return -1;
+
+	return 1;
 }
 
 /*
