@@ -3055,6 +3055,9 @@ int main(int argc, char **argv)
 
 	/* take a copy of initial limits before we possibly change them */
 	getrlimit(RLIMIT_NOFILE, &limit);
+
+	if (limit.rlim_max == RLIM_INFINITY)
+		limit.rlim_max = limit.rlim_cur;
 	rlim_fd_cur_at_boot = limit.rlim_cur;
 	rlim_fd_max_at_boot = limit.rlim_max;
 
