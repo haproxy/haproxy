@@ -80,8 +80,7 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 
 	if (conn->flags & CO_FL_SESS_IDLE)
 		sess->idle_conns--;
-	LIST_DEL(&conn->session_list);
-	LIST_INIT(&conn->session_list);
+	LIST_DEL_INIT(&conn->session_list);
 	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
 		if (srv_list->target == conn->target) {
 			if (LIST_ISEMPTY(&srv_list->conn_list)) {

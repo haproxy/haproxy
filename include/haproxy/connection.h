@@ -468,7 +468,7 @@ static inline void conn_free(struct connection *conn)
 		/* The connection is private, so remove it from the session's
 		 * connections list, if any.
 		 */
-		if (!LIST_ISEMPTY(&conn->session_list))
+		if (LIST_ADDED(&conn->session_list))
 			session_unown_conn(conn->owner, conn);
 	}
 	else {
