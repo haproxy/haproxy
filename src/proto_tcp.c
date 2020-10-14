@@ -769,10 +769,9 @@ static void tcp_disable_listener(struct listener *l)
  */
 static int tcp_suspend_receiver(struct receiver *rx)
 {
-	struct sockaddr sa;
+	const struct sockaddr sa = { .sa_family = AF_UNSPEC };
 	int ret;
 
-	sa.sa_family = AF_UNSPEC;
 	if (connect(rx->fd, &sa, sizeof(sa)) < 0)
 		goto check_already_done;
 

@@ -225,14 +225,12 @@ static int udp_suspend_receiver(struct receiver *rx)
  */
 static int udp_resume_receiver(struct receiver *rx)
 {
-	struct sockaddr sa;
-	socklen_t len = sizeof(sa);
+	const struct sockaddr sa = { .sa_family = AF_UNSPEC };
 
 	if (rx->fd < 0)
 		return 0;
 
-	sa.sa_family = AF_UNSPEC;
-	if (connect(rx->fd, &sa, len) < 0)
+	if (connect(rx->fd, &sa, sizeof(sa)) < 0)
 		return -1;
 
 	fd_want_recv(rx->fd);
