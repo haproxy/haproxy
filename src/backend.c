@@ -1167,6 +1167,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 				MT_LIST_DEL_SAFE(elt1);
 				_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 				found = 1;
+
 				break;
 			}
 		}
@@ -1179,6 +1180,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 					found = 1;
 					is_safe = 1;
 					mt_list = srv->safe_conns;
+
 					break;
 				}
 			}
@@ -1191,7 +1193,16 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
  done:
 	if (conn) {
 		_HA_ATOMIC_STORE(&srv->next_takeover, (i + 1 == global.nbthread) ? 0 : i + 1);
-		srv_use_idle_conn(srv, conn);
+
+		srv_use_conn(srv, conn);
+
+		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
+		_HA_ATOMIC_SUB(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb, 1);
+		_HA_ATOMIC_SUB(&srv->curr_idle_thr[i], 1);
+		conn->flags &= ~CO_FL_LIST_MASK;
+		__ha_barrier_atomic_store();
+
+		LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
 	}
 	return conn;
 }
