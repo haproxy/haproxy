@@ -7099,7 +7099,7 @@ maxconn <conns>
   See also : "server", global section's "maxconn", "fullconn"
 
 
-mode { tcp|http|health }
+mode { tcp|http }
   Set the running mode or protocol of the instance
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
@@ -7115,15 +7115,6 @@ mode { tcp|http|health }
               processing and switching will be possible. This is the mode which
               brings HAProxy most of its value.
 
-    health    The instance will work in "health" mode. It will just reply "OK"
-              to incoming connections and close the connection. Alternatively,
-              If the "httpchk" option is set, "HTTP/1.0 200 OK" will be sent
-              instead. Nothing will be logged in either case. This mode is used
-              to reply to external components health checks. This mode is
-              deprecated and should not be used anymore as it is possible to do
-              the same and even better by combining TCP or HTTP modes with the
-              "monitor" keyword.
-
   When doing content switching, it is mandatory that the frontend and the
   backend are in the same mode (generally HTTP), otherwise the configuration
   will be refused.
@@ -7131,8 +7122,6 @@ mode { tcp|http|health }
   Example :
      defaults http_instances
          mode http
-
-  See also : "monitor", "monitor-net"
 
 
 monitor fail { if | unless } <condition>

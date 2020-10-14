@@ -197,8 +197,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	 * in order to avoid emission of an RST by the system. We ignore any
 	 * error.
 	 */
-	if (unlikely((p->mode == PR_MODE_HEALTH) ||
-		     ((l->options & LI_O_CHK_MONNET) &&
+	if (unlikely(((l->options & LI_O_CHK_MONNET) &&
 		      addr->ss_family == AF_INET &&
 		      (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr))) {
 		/* we have 4 possibilities here :
@@ -209,12 +208,8 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		 */
 		if (l->rx.proto->drain)
 			l->rx.proto->drain(cfd);
-		if (p->mode == PR_MODE_HTTP ||
-		    (p->mode == PR_MODE_HEALTH && (p->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
-		     (p->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK))
+		if (p->mode == PR_MODE_HTTP)
 			send(cfd, "HTTP/1.0 200 OK\r\n\r\n", 19, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
-		else if (p->mode == PR_MODE_HEALTH)
-			send(cfd, "OK\n", 3, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
 		ret = 0;
 		goto out_free_sess;
 	}

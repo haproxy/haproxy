@@ -46,7 +46,6 @@
 enum pr_mode {
 	PR_MODE_TCP = 0,
 	PR_MODE_HTTP,
-	PR_MODE_HEALTH,
 	PR_MODE_CLI,
 	PR_MODE_SYSLOG,
 	PR_MODE_PEERS,
@@ -247,7 +246,7 @@ struct error_snapshot {
 struct proxy {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_PROXY */
 	char disabled;                          /* non-zero if disabled or shutdown */
-	enum pr_mode mode;                      /* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
+	enum pr_mode mode;                      /* mode = PR_MODE_TCP, PR_MODE_HTTP, ... */
 	char cap;                               /* supported capabilities (PR_CAP_*) */
 	unsigned int maxconn;                   /* max # of active streams on the frontend */
 

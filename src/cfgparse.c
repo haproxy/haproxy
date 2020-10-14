@@ -2330,19 +2330,6 @@ int check_config_validity()
 		}
 
 		switch (curproxy->mode) {
-		case PR_MODE_HEALTH:
-			cfgerr += proxy_cfg_ensure_no_http(curproxy);
-			if (!(curproxy->cap & PR_CAP_FE)) {
-				ha_alert("config : %s '%s' cannot be in health mode as it has no frontend capability.\n",
-					 proxy_type_str(curproxy), curproxy->id);
-				cfgerr++;
-			}
-
-			if (curproxy->srv != NULL)
-				ha_warning("config : servers will be ignored for %s '%s'.\n",
-					   proxy_type_str(curproxy), curproxy->id);
-			break;
-
 		case PR_MODE_TCP:
 			cfgerr += proxy_cfg_ensure_no_http(curproxy);
 			break;
@@ -2370,7 +2357,7 @@ int check_config_validity()
 			err_code |= ERR_WARN;
 		}
 
-		if ((curproxy->cap & PR_CAP_BE) && (curproxy->mode != PR_MODE_HEALTH)) {
+		if (curproxy->cap & PR_CAP_BE) {
 			if (curproxy->lbprm.algo & BE_LB_KIND) {
 				if (curproxy->options & PR_O_TRANSP) {
 					ha_alert("config : %s '%s' cannot use both transparent and balance mode.\n",

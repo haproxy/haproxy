@@ -138,8 +138,6 @@ const char *proxy_mode_str(int mode) {
 		return "tcp";
 	else if (mode == PR_MODE_HTTP)
 		return "http";
-	else if (mode == PR_MODE_HEALTH)
-		return "health";
 	else if (mode == PR_MODE_CLI)
 		return "cli";
 	else
