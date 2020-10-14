@@ -2985,7 +2985,6 @@ max-keep-alive-queue                      X          -         X         X
 maxconn                                   X          X         X         -
 mode                                      X          X         X         X
 monitor fail                              -          X         X         -
-monitor-net                               X          X         X         -
 monitor-uri                               X          X         X         -
 option abortonclose                  (*)  X          -         X         X
 option accept-invalid-http-request   (*)  X          X         X         -
@@ -7158,48 +7157,7 @@ monitor fail { if | unless } <condition>
         monitor-uri   /site_alive
         monitor fail  if site_dead
 
-  See also : "monitor-net", "monitor-uri", "errorfile", "errorloc"
-
-
-monitor-net <source>
-  Declare a source network which is limited to monitor requests
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   no
-  Arguments :
-    <source>  is the source IPv4 address or network which will only be able to
-              get monitor responses to any request. It can be either an IPv4
-              address, a host name, or an address followed by a slash ('/')
-              followed by a mask.
-
-  In TCP mode, any connection coming from a source matching <source> will cause
-  the connection to be immediately closed without any log. This allows another
-  equipment to probe the port and verify that it is still listening, without
-  forwarding the connection to a remote server.
-
-  In HTTP mode, a connection coming from a source matching <source> will be
-  accepted, the following response will be sent without waiting for a request,
-  then the connection will be closed : "HTTP/1.0 200 OK". This is normally
-  enough for any front-end HTTP probe to detect that the service is UP and
-  running without forwarding the request to a backend server. Note that this
-  response is sent in raw format, without any transformation. This is important
-  as it means that it will not be SSL-encrypted on SSL listeners.
-
-  Monitor requests are processed very early, just after tcp-request connection
-  ACLs which are the only ones able to block them. These connections are short
-  lived and never wait for any data from the client. They cannot be logged, and
-  it is the intended purpose. They are only used to report HAProxy's health to
-  an upper component, nothing more. Please note that "monitor fail" rules do
-  not apply to connections intercepted by "monitor-net".
-
-  Last, please note that only one "monitor-net" statement can be specified in
-  a frontend. If more than one is found, only the last one will be considered.
-
-  Example :
-    # addresses .252 and .253 are just probing us.
-    frontend www
-        monitor-net 192.168.0.252/31
-
-  See also : "monitor fail", "monitor-uri"
+  See also : "monitor-uri", "errorfile", "errorloc"
 
 
 monitor-uri <uri>
@@ -7238,7 +7196,7 @@ monitor-uri <uri>
         mode http
         monitor-uri /haproxy_test
 
-  See also : "monitor fail", "monitor-net"
+  See also : "monitor fail"
 
 
 option abortonclose
@@ -7555,7 +7513,7 @@ no option dontlognull
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "log", "http-ignore-probes", "monitor-net", "monitor-uri", and
+  See also : "log", "http-ignore-probes", "monitor-uri", and
              section 8 about logging.
 
 
@@ -19321,11 +19279,8 @@ ask how to disable logging for those checks. There are three possibilities :
     setting "option dontlognull" in the frontend. It also disables logging of
     port scans, which may or may not be desired.
 
-  - if the connection come from a known source network, use "monitor-net" to
-    declare this network as monitoring only. Any host in this network will then
-    only be able to perform health checks, and their requests will not be
-    logged. This is generally appropriate to designate a list of equipment
-    such as other load-balancers.
+  - it is possible to use the "http-request set-log-level silent" action using
+    a variety of conditions (source networks, paths, user-agents, etc).
 
   - if the tests are performed on a known URI, use "monitor-uri" to declare
     this URI as dedicated to monitoring. Any host sending this request will

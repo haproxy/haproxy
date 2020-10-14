@@ -3726,9 +3726,6 @@ out_uri_auth_compat:
 			if (!LIST_ISEMPTY(&curproxy->tcp_req.l5_rules))
 				listener->options |= LI_O_TCP_L5_RULES;
 
-			if (curproxy->mon_mask.s_addr)
-				listener->options |= LI_O_CHK_MONNET;
-
 			/* smart accept mode is automatic in HTTP mode */
 			if ((curproxy->options2 & PR_O2_SMARTACC) ||
 			    ((curproxy->mode == PR_MODE_HTTP || listener->bind_conf->is_ssl) &&

@@ -369,8 +369,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
 			curproxy->timeout.httpreq = defproxy.timeout.httpreq;
 			curproxy->timeout.httpka = defproxy.timeout.httpka;
-			curproxy->mon_net = defproxy.mon_net;
-			curproxy->mon_mask = defproxy.mon_mask;
 			if (defproxy.monitor_uri)
 				curproxy->monitor_uri = strdup(defproxy.monitor_uri);
 			curproxy->monitor_uri_len = defproxy.monitor_uri_len;
@@ -662,17 +660,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		goto out;
 	}
 	else if (!strcmp(args[0], "monitor-net")) {  /* set the range of IPs to ignore */
-		if (!*args[1] || !str2net(args[1], 1, &curproxy->mon_net, &curproxy->mon_mask)) {
-			ha_alert("parsing [%s:%d] : '%s' expects address[/mask].\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
-		/* flush useless bits */
-		curproxy->mon_net.s_addr &= curproxy->mon_mask.s_addr;
+		ha_alert("parsing [%s:%d] : 'monitor-net' doesn't exist anymore. Please use 'http-request return status 200 if { src %s }' instead.\n", file, linenum, args[1]);
+		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
 	else if (!strcmp(args[0], "monitor-uri")) {  /* set the URI to intercept */

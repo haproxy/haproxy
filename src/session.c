@@ -190,30 +190,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		goto out_free_sess;
 	}
 
-	/* monitor-net and health mode are processed immediately after TCP
-	 * connection rules. This way it's possible to block them, but they
-	 * never use the lower data layers, they send directly over the socket,
-	 * as they were designed for. We first flush the socket receive buffer
-	 * in order to avoid emission of an RST by the system. We ignore any
-	 * error.
-	 */
-	if (unlikely(((l->options & LI_O_CHK_MONNET) &&
-		      addr->ss_family == AF_INET &&
-		      (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr))) {
-		/* we have 4 possibilities here :
-		 *  - HTTP mode, from monitoring address => send "HTTP/1.0 200 OK"
-		 *  - HEALTH mode with HTTP check => send "HTTP/1.0 200 OK"
-		 *  - HEALTH mode without HTTP check => just send "OK"
-		 *  - TCP mode from monitoring address => just close
-		 */
-		if (l->rx.proto->drain)
-			l->rx.proto->drain(cfd);
-		if (p->mode == PR_MODE_HTTP)
-			send(cfd, "HTTP/1.0 200 OK\r\n\r\n", 19, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
-		ret = 0;
-		goto out_free_sess;
-	}
-
 	/* Adjust some socket options */
 	if (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6) {
 		setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
