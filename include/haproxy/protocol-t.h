@@ -106,7 +106,6 @@ struct protocol {
 	/* functions acting on connections */
 	void (*accept)(int fd);				/* generic accept function */
 	int (*connect)(struct connection *, int flags); /* connect function if any, see below for flags values */
-	int (*drain)(int fd);                           /* indicates whether we can safely close the fd */
 
 	struct list receivers;				/* list of receivers using this protocol (under proto_lock) */
 	int nb_receivers;				/* number of receivers (under proto_lock) */

@@ -420,12 +420,6 @@ int conn_sock_drain(struct connection *conn)
 	if (!fd_recv_ready(conn->handle.fd))
 		return 0;
 
-	if (conn->ctrl->drain) {
-		if (conn->ctrl->drain(conn->handle.fd) <= 0)
-			return 0;
-		goto shut;
-	}
-
 	/* no drain function defined, use the generic one */
 
 	while (turns) {
