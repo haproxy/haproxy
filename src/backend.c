@@ -1154,7 +1154,8 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 	if (stop >= global.nbthread)
 		stop = 0;
 
-	for (i = stop; !found && (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != stop;) {
+	i = stop;
+	do {
 		struct mt_list *elt1, elt2;
 
 		if (!srv->curr_idle_thr[i] || i == tid)
@@ -1183,7 +1184,7 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 			}
 		}
 		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
-	}
+	} while (!found && (i = (i + 1 == global.nbthread) ? 0 : i + 1) != stop);
 
 	if (!found)
 		conn = NULL;
