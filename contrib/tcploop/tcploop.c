@@ -105,6 +105,7 @@ __attribute__((noreturn)) void usage(int code, const char *arg0)
 	    "                 Note: fd=socket,bind(fd),listen(fd)\n"
 	    "  C            : Connects to ip:port\n"
 	    "                 Note: fd=socket,connect(fd)\n"
+	    "  D            : Disconnect (connect to AF_UNSPEC)\n"
 	    "  A[<count>]   : Accepts <count> incoming sockets and closes count-1\n"
 	    "                 Note: fd=accept(fd)\n"
 	    "  J            : Jump back to oldest post-fork/post-accept action\n"
@@ -441,6 +442,14 @@ int tcp_connect(const struct sockaddr_storage *sa, const char *arg)
  fail:
 	close(sock);
 	return -1;
+}
+
+/* Try to disconnect by connecting to AF_UNSPEC. Return >=0 on success, -1 in case of error */
+int tcp_disconnect(int sock)
+{
+	const struct sockaddr sa = { .sa_family = AF_UNSPEC };
+
+	return connect(sock, &sa, sizeof(sa));
 }
 
 /* receives N bytes from the socket and returns 0 (or -1 in case of a recv
@@ -785,6 +794,13 @@ int main(int argc, char **argv)
 			if (sock < 0)
 				die(1, "Fatal: tcp_connect() failed.\n");
 			dolog("connect\n");
+			break;
+
+		case 'D':
+			/* silently ignore non-existing connections */
+			if (sock >= 0 && tcp_disconnect(sock) < 0)
+				die(1, "Fatal: tcp_connect() failed.\n");
+			dolog("disconnect\n");
 			break;
 
 		case 'A':
