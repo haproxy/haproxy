@@ -3578,6 +3578,14 @@ static void fcgi_detach(struct conn_stream *cs)
 		}
 		else {
 			if (eb_is_empty(&fconn->streams_by_id)) {
+				/* If the connection is owned by the session, first remove it
+				 * from its list
+				 */
+				if (fconn->conn->owner) {
+					session_unown_conn(fconn->conn->owner, fconn->conn);
+					fconn->conn->owner = NULL;
+				}
+
 				if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn, 1)) {
 					/* The server doesn't want it, let's kill the connection right away */
 					fconn->conn->mux->destroy(fconn);
@@ -3592,7 +3600,8 @@ static void fcgi_detach(struct conn_stream *cs)
 				return;
 			}
 			else if (MT_LIST_ISEMPTY(&fconn->conn->list) &&
-				 fcgi_avail_streams(fconn->conn) > 0 && objt_server(fconn->conn->target)) {
+				 fcgi_avail_streams(fconn->conn) > 0 && objt_server(fconn->conn->target) &&
+				 !LIST_ADDED(&fconn->conn->session_list)) {
 				LIST_ADD(&__objt_server(fconn->conn->target)->available_conns[tid], mt_list_to_list(&fconn->conn->list));
 			}
 		}
