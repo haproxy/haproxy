@@ -3975,6 +3975,14 @@ static void h2_detach(struct conn_stream *cs)
 			}
 			else {
 				if (eb_is_empty(&h2c->streams_by_id)) {
+					/* If the connection is owned by the session, first remove it
+					 * from its list
+					 */
+					if (h2c->conn->owner) {
+						session_unown_conn(h2c->conn->owner, h2c->conn);
+						h2c->conn->owner = NULL;
+					}
+
 					if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn, 1)) {
 						/* The server doesn't want it, let's kill the connection right away */
 						h2c->conn->mux->destroy(h2c);
@@ -3990,7 +3998,8 @@ static void h2_detach(struct conn_stream *cs)
 
 				}
 				else if (MT_LIST_ISEMPTY(&h2c->conn->list) &&
-					 h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target)) {
+					 h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target) &&
+					 !LIST_ADDED(&h2c->conn->session_list)) {
 					LIST_ADD(&__objt_server(h2c->conn->target)->available_conns[tid], mt_list_to_list(&h2c->conn->list));
 				}
 			}
