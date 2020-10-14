@@ -789,8 +789,6 @@ void __peer_session_deinit(struct peer *peer)
 	/* reset teaching and learning flags to 0 */
 	peer->flags &= PEER_TEACH_RESET;
 	peer->flags &= PEER_LEARN_RESET;
-	/* set this peer as dead from heartbeat point of view */
-	peer->flags &= ~PEER_F_ALIVE;
 	task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
 }
 
@@ -810,6 +808,7 @@ static void peer_session_release(struct appctx *appctx)
 		HA_SPIN_LOCK(PEER_LOCK, &peer->lock);
 		if (peer->appctx == appctx)
 			__peer_session_deinit(peer);
+		peer->flags &= ~PEER_F_ALIVE;
 		HA_SPIN_UNLOCK(PEER_LOCK, &peer->lock);
 	}
 }
@@ -2120,6 +2119,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 {
 	struct shared_table *st;
 
+	peer->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
 	/* Register status code */
 	peer->statuscode = PEER_SESS_SC_SUCCESSCODE;
 	peer->last_hdshk = now_ms;
@@ -2166,6 +2166,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 {
 	struct shared_table *st;
 
+	peer->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
 	/* Init cursors */
 	for (st = peer->tables; st ; st = st->next) {
 		st->last_get = st->last_acked = 0;
@@ -2271,6 +2272,7 @@ switchstate:
 					 */
 					curpeer->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
 					peer_session_forceshutdown(curpeer);
+					curpeer->heartbeat = TICK_ETERNITY;
 					curpeer->coll++;
 				}
 				if (maj_ver != (unsigned int)-1 && min_ver != (unsigned int)-1) {
@@ -2282,6 +2284,7 @@ switchstate:
 					}
 				}
 				curpeer->appctx = appctx;
+				curpeer->flags |= PEER_F_ALIVE;
 				appctx->ctx.peers.ptr = curpeer;
 				appctx->st0 = PEER_SESS_ST_SENDSUCCESS;
 				_HA_ATOMIC_ADD(&active_peers, 1);
@@ -2545,7 +2548,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	struct stream *s;
 
 	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
-	peer->heartbeat = tick_add(now_ms, MS_TO_TICKS(PEER_HEARTBEAT_TIMEOUT));
+	peer->heartbeat = TICK_ETERNITY;
 	peer->statuscode = PEER_SESS_SC_CONNECTCODE;
 	peer->last_hdshk = now_ms;
 	s = NULL;
@@ -2726,6 +2729,7 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 								}
 								else  {
 									ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
+									ps->heartbeat = TICK_ETERNITY;
 									peer_session_forceshutdown(ps);
 									ps->no_hbt++;
 								}
