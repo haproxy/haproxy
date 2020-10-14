@@ -2452,7 +2452,7 @@ void deinit(void)
 	protocol_unbind_all();
 
 	for (cur_fd = 0; cur_fd < global.maxsock; cur_fd++) {
-		if (!fdtab[cur_fd].owner)
+		if (!fdtab || !fdtab[cur_fd].owner)
 			continue;
 
 		if (fdtab[cur_fd].iocb == listener_accept) {
