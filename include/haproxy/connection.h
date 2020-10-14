@@ -464,12 +464,10 @@ static inline void conn_force_unsubscribe(struct connection *conn)
 /* Releases a connection previously allocated by conn_new() */
 static inline void conn_free(struct connection *conn)
 {
-	if (conn->flags & CO_FL_PRIVATE) {
-		/* The connection is private, so remove it from the session's
-		 * connections list, if any.
-		 */
-		if (LIST_ADDED(&conn->session_list))
-			session_unown_conn(conn->owner, conn);
+	/* If the connection is owned by the session, remove it from its list
+	 */
+	if (LIST_ADDED(&conn->session_list)) {
+		session_unown_conn(conn->owner, conn);
 	}
 	else {
 		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
