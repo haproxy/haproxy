@@ -129,29 +129,22 @@ static void session_count_new(struct session *sess)
 /* This function is called from the protocol layer accept() in order to
  * instantiate a new session on behalf of a given listener and frontend. It
  * returns a positive value upon success, 0 if the connection can be ignored,
- * or a negative value upon critical failure. The accepted file descriptor is
+ * or a negative value upon critical failure. The accepted connection is
  * closed if we return <= 0. If no handshake is needed, it immediately tries
- * to instantiate a new stream. The created connection's owner points to the
- * new session until the upper layers are created.
+ * to instantiate a new stream. The connection must already have been filled
+ * with the incoming connection handle (a fd), a target (the listener) and a
+ * source address.
  */
-int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr)
+int session_accept_fd(struct connection *cli_conn)
 {
-	struct connection *cli_conn;
+	struct listener *l = __objt_listener(cli_conn->target);
 	struct proxy *p = l->bind_conf->frontend;
+	int cfd = cli_conn->handle.fd;
 	struct session *sess;
 	int ret;
 
-
 	ret = -1; /* assume unrecoverable error by default */
 
-	if (unlikely((cli_conn = conn_new(&l->obj_type)) == NULL))
-		goto out_close;
-
-	if (!sockaddr_alloc(&cli_conn->src, addr, sizeof(*addr)))
-		goto out_free_conn;
-
-	cli_conn->handle.fd = cfd;
-	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->proxy_netns = l->rx.settings->netns;
 
 	conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt);
@@ -282,7 +275,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	conn_stop_tracking(cli_conn);
 	conn_xprt_close(cli_conn);
 	conn_free(cli_conn);
- out_close:
 	listener_release(l);
 	if (ret < 0 && l->bind_conf->xprt == xprt_get(XPRT_RAW) &&
 	    p->mode == PR_MODE_HTTP && l->bind_conf->mux_proto == NULL) {

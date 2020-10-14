@@ -43,6 +43,7 @@ struct protocol;
 struct xprt_ops;
 struct proxy;
 struct fe_counters;
+struct connection;
 
 /* listener state */
 enum li_state {
@@ -197,7 +198,7 @@ struct listener {
 	int maxconn;			/* maximum connections allowed on this listener */
 	unsigned int backlog;		/* if set, listen backlog */
 	int maxaccept;         /* if set, max number of connections accepted at once (-1 when disabled) */
-	int (*accept)(struct listener *l, int fd, struct sockaddr_storage *addr); /* upper layer's accept() */
+	int (*accept)(struct connection *conn); /* upper layer's accept() */
 	enum obj_type *default_target;  /* default target to use for accepted sessions or NULL */
 	/* cache line boundary */
 	struct mt_list wait_queue;	/* link element to make the listener wait for something (LI_LIMITED)  */
@@ -254,29 +255,14 @@ struct bind_kw_list {
 	struct bind_kw kw[VAR_ARRAY];
 };
 
-/* This is used to create the accept queue, optimized to be 64 bytes long. */
-struct accept_queue_entry {
-	struct listener *listener;          // 8 bytes
-	int fd __attribute__((aligned(8))); // 4 bytes
-	int addr_len;                       // 4 bytes
-
-	union {
-		sa_family_t family;         // 2 bytes
-		struct sockaddr_in in;      // 16 bytes
-		struct sockaddr_in6 in6;    // 28 bytes
-	} addr; // this is normally 28 bytes
-	/* 20-bytes hole here */
-	char pad0[0] __attribute((aligned(64)));
-};
-
 /* The per-thread accept queue ring, must be a power of two minus 1 */
-#define ACCEPT_QUEUE_SIZE ((1<<8) - 1)
+#define ACCEPT_QUEUE_SIZE ((1<<10) - 1)
 
 struct accept_queue_ring {
 	unsigned int head;
 	unsigned int tail;
 	struct tasklet *tasklet;  /* tasklet of the thread owning this ring */
-	struct accept_queue_entry entry[ACCEPT_QUEUE_SIZE] __attribute((aligned(64)));
+	struct connection *entry[ACCEPT_QUEUE_SIZE] __attribute((aligned(64)));
 };
 
 

@@ -35,7 +35,7 @@ extern struct pool_head *pool_head_sess_srv_list;
 
 struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type *origin);
 void session_free(struct session *sess);
-int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr);
+int session_accept_fd(struct connection *cli_conn);
 int conn_complete_session(struct connection *conn);
 
 /* Remove the refcount from the session to the tracked counters, and clear the
