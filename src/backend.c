@@ -1100,7 +1100,7 @@ static void assign_tproxy_address(struct stream *s)
  * (safe or idle connections). The <is_safe> argument means what type of
  * connection the caller wants.
  */
-static struct connection *conn_backend_get(struct server *srv, int is_safe)
+static struct connection *conn_backend_get(struct stream *s, struct server *srv, int is_safe)
 {
 	struct mt_list *mt_list = is_safe ? srv->safe_conns : srv->idle_conns;
 	struct connection *conn;
@@ -1202,7 +1202,16 @@ static struct connection *conn_backend_get(struct server *srv, int is_safe)
 		conn->flags &= ~CO_FL_LIST_MASK;
 		__ha_barrier_atomic_store();
 
-		LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
+		if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE &&
+		    conn->mux->flags & MX_FL_HOL_RISK) {
+			/* attach the connection to the session private list
+			 */
+			conn->owner = s->sess;
+			session_add_conn(conn->owner, conn, conn->target);
+		}
+		else {
+			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
+		}
 	}
 	return conn;
 }
@@ -1279,18 +1288,18 @@ int connect_server(struct stream *s)
 				/* we're on the second column of the tables above, let's
 				 * try idle then safe.
 				 */
-				srv_conn = conn_backend_get(srv, 0);
+				srv_conn = conn_backend_get(s, srv, 0);
 			}
 			else if (srv->safe_conns &&
 			         ((s->txn && (s->txn->flags & TX_NOT_FIRST)) ||
 				  (s->be->options & PR_O_REUSE_MASK) >= PR_O_REUSE_AGGR) &&
 				 srv->curr_safe_nb > 0) {
-				srv_conn = conn_backend_get(srv, 1);
+				srv_conn = conn_backend_get(s, srv, 1);
 			}
 			else if (srv->idle_conns &&
 			         ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 				 srv->curr_idle_nb > 0) {
-				srv_conn = conn_backend_get(srv, 0);
+				srv_conn = conn_backend_get(s, srv, 0);
 			}
 			/* If we've picked a connection from the pool, we now have to
 			 * detach it. We may have to get rid of the previous idle
