@@ -1540,13 +1540,16 @@ int connect_server(struct stream *s)
 		/* If we're doing http-reuse always, and the connection is not
 		 * private with available streams (an http2 connection), add it
 		 * to the available list, so that others can use it right
-		 * away. If the connection is private, add it in the session
-		 * server list.
+		 * away. If the connection is private or we're doing http-reuse
+		 * safe and the mux protocol supports multiplexing, add it in
+		 * the session server list.
 		 */
 		if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 		    !(srv_conn->flags & CO_FL_PRIVATE) && srv_conn->mux->avail_streams(srv_conn) > 0)
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
-		else if (srv_conn->flags & CO_FL_PRIVATE) {
+		else if (srv_conn->flags & CO_FL_PRIVATE ||
+		         ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE &&
+		          srv_conn->mux->flags & MX_FL_HOL_RISK)) {
 			/* If it fail now, the same will be done in mux->detach() callback */
 			session_add_conn(srv_conn->owner, srv_conn, srv_conn->target);
 		}
