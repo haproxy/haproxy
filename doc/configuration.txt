@@ -6611,7 +6611,12 @@ http-reuse { never | safe | aggressive | always }
                  closes the connection when the request is being sent, the
                  browser can decide to silently retry it. Since it is exactly
                  equivalent to regular keep-alive, there should be no side
-                 effects.
+                 effects. There is also a special handling for the connections
+                 using protocols subject to Head-of-line blocking (backend with
+                 h2 or fcgi). In this case, when at least one stream is
+                 processed, the used connection is reserved to handle streams
+                 of the same session. When no more streams are processed, the
+                 connection is released and can be reused.
 
     - "aggressive" : this mode may be useful in webservices environments where
                  all servers are not necessarily known and where it would be
