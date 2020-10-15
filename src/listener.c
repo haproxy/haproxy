@@ -1042,23 +1042,6 @@ void listener_accept(int fd)
 		    (!p->fe_sps_lim || freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0) > 0))
 			dequeue_proxy_listeners(p);
 	}
-
-	/* Now it's getting tricky. The listener was supposed to be in LI_READY
-	 * state but in the mean time we might have changed it to LI_FULL or
-	 * LI_LIMITED, and another thread might also have turned it to
-	 * LI_PAUSED, LI_LISTEN or even LI_INI when stopping a proxy. We must
-	 * be certain to keep the FD enabled when in the READY state but we
-	 * must also stop it for other states that we might have switched to
-	 * while others re-enabled polling.
-	 */
-	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
-	if (l->state == LI_READY) {
-		if (max_accept > 0)
-			fd_cant_recv(fd);
-	} else if (l->state > LI_ASSIGNED) {
-		fd_stop_recv(l->rx.fd);
-	}
-	HA_SPIN_UNLOCK(LISTENER_LOCK, &l->lock);
 	return;
 
  transient_error:
