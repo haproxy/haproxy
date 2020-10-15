@@ -1079,7 +1079,7 @@ static void h1_show_error_snapshot(struct buffer *out, const struct error_snapsh
 static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 				   struct h1m *h1m, struct buffer *buf)
 {
-	struct session *sess = h1c->conn->owner;
+	struct session *sess = h1s->sess;
 	struct proxy *proxy = h1c->px;
 	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
