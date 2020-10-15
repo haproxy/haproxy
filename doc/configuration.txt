@@ -6646,8 +6646,9 @@ http-reuse { never | safe | aggressive | always }
     - connections made with "usesrc" followed by a client-dependent value
       ("client", "clientip", "hdr_ip") are marked private and never shared;
 
-    - connections sent to a server with a TLS SNI extension are marked private
-      and are never shared;
+    - connections sent to a server with a variable value as TLS SNI extension
+      are marked private and are never shared. This is not the case if the SNI
+      is guaranteed to be a constant, as for example using a literal string;
 
     - connections with certain bogus authentication schemes (relying on the
       connection) like NTLM are detected, marked private and are never shared;

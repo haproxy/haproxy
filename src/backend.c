@@ -1521,7 +1521,10 @@ int connect_server(struct stream *s)
 					   srv->ssl_ctx.sni, SMP_T_STR);
 		if (smp_make_safe(smp)) {
 			ssl_sock_set_servername(srv_conn, smp->data.u.str.area);
-			conn_set_private(srv_conn);
+			if (!(srv->ssl_ctx.sni->fetch->use & SMP_USE_INTRN) ||
+			    smp->flags & SMP_F_VOLATILE) {
+				conn_set_private(srv_conn);
+			}
 		}
 	}
 #endif /* USE_OPENSSL */
