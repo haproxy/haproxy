@@ -243,6 +243,16 @@ enum {
 	CO_ER_SOCKS4_ABORT,      /* SOCKS4 Proxy handshake aborted by server */
 };
 
+/* error return codes for accept_conn() */
+enum {
+	CO_AC_NONE = 0,  /* no error, valid connection returned */
+	CO_AC_DONE,      /* reached the end of the queue (typically EAGAIN) */
+	CO_AC_RETRY,     /* late signal delivery or anything requiring the caller to try again */
+	CO_AC_YIELD,     /* short-lived limitation that requires a short pause */
+	CO_AC_PAUSE,     /* long-lived issue (resource/memory allocation error, paused FD) */
+	CO_AC_PERMERR,   /* permanent, non-recoverable error (e.g. closed listener socket) */
+};
+
 /* source address settings for outgoing connections */
 enum {
 	/* Tproxy exclusive values from 0 to 7 */
