@@ -94,6 +94,7 @@ struct protocol {
 	void (*unbind)(struct listener *l);             /* unbind the listener and possibly its receiver */
 	int (*suspend)(struct listener *l);             /* try to suspend the listener */
 	int (*resume)(struct listener *l);              /* try to resume a suspended listener */
+	struct connection *(*accept_conn)(struct listener *l, int *status); /* accept a new connection */
 
 	/* functions acting on the receiver */
 	void (*rx_enable)(struct receiver *rx);         /* enable receiving on the receiver */
