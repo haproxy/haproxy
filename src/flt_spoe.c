@@ -2368,7 +2368,10 @@ spoe_decode_action_set_var(struct stream *s, struct spoe_context *ctx,
 		    ((struct spoe_config *)FLT_CONF(ctx->filter))->agent->var_pfx,
 		    (int)sz, str);
 
-	spoe_set_var(ctx, scope, str, sz, &smp);
+	if (smp.data.type == SMP_T_ANY)
+		spoe_unset_var(ctx, scope, str, sz, &smp);
+	else
+		spoe_set_var(ctx, scope, str, sz, &smp);
 
 	ret  = (p - *buf);
 	*buf = p;
