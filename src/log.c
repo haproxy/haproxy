@@ -3893,6 +3893,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			/* the fact that the sockets are of type dgram is guaranteed by str2receiver() */
 			l->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : 64;
+			l->rx.iocb   = syslog_fd_handler;
 			global.maxsock++;
 		}
 		cur_arg++;
