@@ -501,7 +501,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	if (!conn_ctrl_ready(conn))
 		goto fail;
 
-	if (!sockaddr_alloc(&conn->src) || !sockaddr_alloc(&conn->dst))
+	if (!sockaddr_alloc(&conn->src, NULL, 0) || !sockaddr_alloc(&conn->dst, NULL, 0))
 		goto fail;
 
 	if (!fd_recv_ready(conn->handle.fd))
@@ -871,7 +871,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag)
 	if (!conn_ctrl_ready(conn))
 		goto fail;
 
-	if (!sockaddr_alloc(&conn->src) || !sockaddr_alloc(&conn->dst))
+	if (!sockaddr_alloc(&conn->src, NULL, 0) || !sockaddr_alloc(&conn->dst, NULL, 0))
 		goto fail;
 
 	if (!fd_recv_ready(conn->handle.fd))

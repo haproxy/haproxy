@@ -2574,9 +2574,8 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 
 	/* initiate an outgoing connection */
 	s->target = peer_session_target(peer, s);
-	if (!sockaddr_alloc(&s->target_addr))
+	if (!sockaddr_alloc(&s->target_addr, &peer->addr, sizeof(peer->addr)))
 		goto out_free_strm;
-	*s->target_addr = peer->addr;
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 	s->si[1].flags |= SI_FL_NOLINGER;
 

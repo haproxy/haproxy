@@ -147,11 +147,10 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (unlikely((cli_conn = conn_new(&l->obj_type)) == NULL))
 		goto out_close;
 
-	if (!sockaddr_alloc(&cli_conn->src))
+	if (!sockaddr_alloc(&cli_conn->src, addr, sizeof(*addr)))
 		goto out_free_conn;
 
 	cli_conn->handle.fd = cfd;
-	*cli_conn->src = *addr;
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->proxy_netns = l->rx.settings->netns;
 

@@ -754,7 +754,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		struct htx_sl *sl;
 		struct ist uri, path;
 
-		if (!sockaddr_alloc(&s->target_addr)) {
+		if (!sockaddr_alloc(&s->target_addr, NULL, 0)) {
 			if (!(s->flags & SF_ERR_MASK))
 				s->flags |= SF_ERR_RESOURCE;
 			goto return_int_err;

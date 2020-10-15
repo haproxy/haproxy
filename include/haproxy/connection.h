@@ -357,9 +357,11 @@ static inline void conn_set_private(struct connection *conn)
  * returns it. If <sap> is NULL, the address is always allocated and returned.
  * if <sap> is non-null, an address will only be allocated if it points to a
  * non-null pointer. In this case the allocated address will be assigned there.
- * In both situations the new pointer is returned.
+ * If <orig> is non-null and <len> positive, the address in <sa> will be copied
+ * into the allocated address. In both situations the new pointer is returned.
  */
-static inline struct sockaddr_storage *sockaddr_alloc(struct sockaddr_storage **sap)
+static inline struct sockaddr_storage *
+sockaddr_alloc(struct sockaddr_storage **sap, const struct sockaddr_storage *orig, socklen_t len)
 {
 	struct sockaddr_storage *sa;
 
@@ -367,6 +369,8 @@ static inline struct sockaddr_storage *sockaddr_alloc(struct sockaddr_storage **
 		return *sap;
 
 	sa = pool_alloc(pool_head_sockaddr);
+	if (sa && orig && len > 0)
+		memcpy(sa, orig, len);
 	if (sap)
 		*sap = sa;
 	return sa;
@@ -535,7 +539,7 @@ static inline int conn_get_src(struct connection *conn)
 	if (!conn_ctrl_ready(conn) || !conn->ctrl->fam->get_src)
 		return 0;
 
-	if (!sockaddr_alloc(&conn->src))
+	if (!sockaddr_alloc(&conn->src, NULL, 0))
 		return 0;
 
 	if (conn->ctrl->fam->get_src(conn->handle.fd, (struct sockaddr *)conn->src,
@@ -558,7 +562,7 @@ static inline int conn_get_dst(struct connection *conn)
 	if (!conn_ctrl_ready(conn) || !conn->ctrl->fam->get_dst)
 		return 0;
 
-	if (!sockaddr_alloc(&conn->dst))
+	if (!sockaddr_alloc(&conn->dst, NULL, 0))
 		return 0;
 
 	if (conn->ctrl->fam->get_dst(conn->handle.fd, (struct sockaddr *)conn->dst,

@@ -1028,7 +1028,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	check->wait_list.events = 0;
 
 	/* no client address */
-	if (!sockaddr_alloc(&conn->dst)) {
+	if (!sockaddr_alloc(&conn->dst, NULL, 0)) {
 		status = SF_ERR_RESOURCE;
 		goto fail_check;
 	}

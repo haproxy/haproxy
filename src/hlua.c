@@ -2564,11 +2564,10 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	si = appctx->owner;
 	s = si_strm(si);
 
-	if (!sockaddr_alloc(&s->target_addr)) {
+	if (!sockaddr_alloc(&s->target_addr, addr, sizeof(*addr))) {
 		xref_unlock(&socket->xref, peer);
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 	}
-	*s->target_addr = *addr;
 	s->flags |= SF_ADDR_SET;
 
 	hlua = hlua_gethlua(L);

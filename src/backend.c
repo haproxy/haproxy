@@ -845,7 +845,7 @@ int assign_server_address(struct stream *s)
 
 	DPRINTF(stderr,"assign_server_address : s=%p\n",s);
 
-	if (!sockaddr_alloc(&s->target_addr))
+	if (!sockaddr_alloc(&s->target_addr, NULL, 0))
 		return SRV_STATUS_INTERNAL;
 
 	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
@@ -1056,7 +1056,7 @@ static void assign_tproxy_address(struct stream *s)
 	else
 		return;
 
-	if (!sockaddr_alloc(&srv_conn->src))
+	if (!sockaddr_alloc(&srv_conn->src, NULL, 0))
 		return;
 
 	switch (src->opts & CO_SRC_TPROXY_MASK) {
@@ -1411,7 +1411,7 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst)) {
+	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst, 0, 0)) {
 		if (srv_conn)
 			conn_free(srv_conn);
 		return SF_ERR_RESOURCE;
