@@ -252,12 +252,12 @@ int sock_inet6_make_foreign(int fd)
 		0;
 }
 
-/* Binds receiver <rx>, and assigns <handler> and rx->owner as the callback and
+/* Binds receiver <rx>, and assigns rx->iocb and rx->owner as the callback and
  * context, respectively. Returns and error code made of ERR_* bits on failure
  * or ERR_NONE on success. On failure, an error message may be passed into
  * <errmsg>.
  */
-int sock_inet_bind_receiver(struct receiver *rx, void (*handler)(int fd), char **errmsg)
+int sock_inet_bind_receiver(struct receiver *rx, char **errmsg)
 {
 	int fd, err, ext;
 	/* copy listener addr because sometimes we need to switch family */
@@ -377,7 +377,7 @@ int sock_inet_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 	rx->fd = fd;
 	rx->flags |= RX_F_BOUND;
 
-	fd_insert(fd, rx->owner, handler, thread_mask(rx->settings->bind_thread) & all_threads_mask);
+	fd_insert(fd, rx->owner, rx->iocb, thread_mask(rx->settings->bind_thread) & all_threads_mask);
 
 	/* for now, all regularly bound TCP listeners are exportable */
 	if (!(rx->flags & RX_F_INHERITED))

@@ -124,15 +124,15 @@ static void sockpair_disable_listener(struct listener *l)
 		fd_stop_recv(l->rx.fd);
 }
 
-/* Binds receiver <rx>, and assigns <handler> and rx->owner as the callback and
- * context, respectively, with <tm> as the thread mask. Returns and error code
- * made of ERR_* bits on failure or ERR_NONE on success. On failure, an error
- * message may be passed into <errmsg>. Note that the binding address is only
- * an FD to receive the incoming FDs on. Thus by definition there is no real
- * "bind" operation, this only completes the receiver. Such FDs are not
+/* Binds receiver <rx>, and assigns rx->iocb and rx->owner as the callback
+ * and context, respectively, with ->bind_thread as the thread mask. Returns an
+ * error code made of ERR_* bits on failure or ERR_NONE on success. On failure,
+ * an error message may be passed into <errmsg>. Note that the binding address
+ * is only an FD to receive the incoming FDs on. Thus by definition there is no
+ * real "bind" operation, this only completes the receiver. Such FDs are not
  * inherited upon reload.
  */
-int sockpair_bind_receiver(struct receiver *rx, void (*handler)(int fd), char **errmsg)
+int sockpair_bind_receiver(struct receiver *rx, char **errmsg)
 {
 	int err;
 
@@ -165,7 +165,7 @@ int sockpair_bind_receiver(struct receiver *rx, void (*handler)(int fd), char **
 
 	rx->flags |= RX_F_BOUND;
 
-	fd_insert(rx->fd, rx->owner, handler, thread_mask(rx->settings->bind_thread) & all_threads_mask);
+	fd_insert(rx->fd, rx->owner, rx->iocb, thread_mask(rx->settings->bind_thread) & all_threads_mask);
 	return err;
 
  bind_return:

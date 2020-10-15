@@ -65,7 +65,6 @@ int protocol_bind_all(int verbose)
 	struct receiver *receiver;
 	char msg[100];
 	char *errmsg;
-	void *handler;
 	int err, lerr;
 
 	err = 0;
@@ -74,12 +73,7 @@ int protocol_bind_all(int verbose)
 		list_for_each_entry(receiver, &proto->receivers, proto_list) {
 			listener = LIST_ELEM(receiver, struct listener *, rx);
 
-			/* FIXME: horrible hack, we don't have a way to register
-			 * a handler when creating the receiver yet, so we still
-			 * have to take care of special cases here.
-			 */
-			handler = listener->rx.iocb;
-			lerr = proto->fam->bind(receiver, handler, &errmsg);
+			lerr = proto->fam->bind(receiver, &errmsg);
 			err |= lerr;
 
 			/* errors are reported if <verbose> is set or if they are fatal */

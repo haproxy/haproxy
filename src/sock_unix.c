@@ -118,12 +118,12 @@ int sock_unix_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_st
 	return 0;
 }
 
-/* Binds receiver <rx>, and assigns <handler> and rx-> as the callback and
- * context, respectively, with <tm> as the thread mask. Returns and error code
- * made of ERR_* bits on failure or ERR_NONE on success. On failure, an error
- * message may be passed into <errmsg>.
+/* Binds receiver <rx>, and assigns rx->iocb and rx->owner as the callback and
+ * context, respectively, with ->bind_thread as the thread mask. Returns an
+ * error code made of ERR_* bits on failure or ERR_NONE on success. On failure,
+ * an error message may be passed into <errmsg>.
  */
-int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char **errmsg)
+int sock_unix_bind_receiver(struct receiver *rx, char **errmsg)
 {
 	char tempname[MAXPATHLEN];
 	char backname[MAXPATHLEN];
@@ -285,7 +285,7 @@ int sock_unix_bind_receiver(struct receiver *rx, void (*handler)(int fd), char *
 	rx->fd = fd;
 	rx->flags |= RX_F_BOUND;
 
-	fd_insert(fd, rx->owner, handler, thread_mask(rx->settings->bind_thread) & all_threads_mask);
+	fd_insert(fd, rx->owner, rx->iocb, thread_mask(rx->settings->bind_thread) & all_threads_mask);
 
 	/* for now, all regularly bound TCP listeners are exportable */
 	if (!(rx->flags & RX_F_INHERITED))
