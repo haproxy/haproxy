@@ -271,11 +271,8 @@ int session_accept_fd(struct connection *cli_conn)
 	  * done below, for all errors. */
 	sess->listener = NULL;
 	session_free(sess);
+
  out_free_conn:
-	conn_stop_tracking(cli_conn);
-	conn_xprt_close(cli_conn);
-	conn_free(cli_conn);
-	listener_release(l);
 	if (ret < 0 && l->bind_conf->xprt == xprt_get(XPRT_RAW) &&
 	    p->mode == PR_MODE_HTTP && l->bind_conf->mux_proto == NULL) {
 		/* critical error, no more memory, try to emit a 500 response */
@@ -283,10 +280,10 @@ int session_accept_fd(struct connection *cli_conn)
 		     MSG_DONTWAIT|MSG_NOSIGNAL);
 	}
 
-	if (fdtab[cfd].owner)
-		fd_delete(cfd);
-	else
-		close(cfd);
+	conn_stop_tracking(cli_conn);
+	conn_full_close(cli_conn);
+	conn_free(cli_conn);
+	listener_release(l);
 	return ret;
 }
 
