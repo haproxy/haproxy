@@ -47,7 +47,7 @@ static int sockpair_bind_listener(struct listener *listener, char *errmsg, int e
 static void sockpair_enable_listener(struct listener *listener);
 static void sockpair_disable_listener(struct listener *listener);
 static int sockpair_connect_server(struct connection *conn, int flags);
-static int sockpair_accept_conn(const struct receiver *rx);
+static int sockpair_accepting_conn(const struct receiver *rx);
 
 struct proto_fam proto_fam_sockpair = {
 	.name = "sockpair",
@@ -77,7 +77,7 @@ static struct protocol proto_sockpair = {
 	.rx_unbind = sock_unbind,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
-	.rx_listening = sockpair_accept_conn,
+	.rx_listening = sockpair_accepting_conn,
 	.accept = &listener_accept,
 	.connect = &sockpair_connect_server,
 	.receivers = LIST_HEAD_INIT(proto_sockpair.receivers),
@@ -440,7 +440,7 @@ int recv_fd_uxst(int sock)
  * The real test consists in verifying we have a connected SOCK_STREAM of
  * family AF_UNIX.
  */
-static int sockpair_accept_conn(const struct receiver *rx)
+static int sockpair_accepting_conn(const struct receiver *rx)
 {
 	struct sockaddr sa;
 	socklen_t len;

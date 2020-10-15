@@ -65,7 +65,7 @@ static struct protocol proto_unix = {
 	.rx_disable = sock_disable,
 	.rx_unbind = sock_unbind,
 	.rx_suspend = uxst_suspend_receiver,
-	.rx_listening = sock_accept_conn,
+	.rx_listening = sock_accepting_conn,
 	.accept = &listener_accept,
 	.connect = &uxst_connect_server,
 	.receivers = LIST_HEAD_INIT(proto_unix.receivers),
@@ -111,7 +111,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	}
 
 	fd = listener->rx.fd;
-	ready = sock_accept_conn(&listener->rx) > 0;
+	ready = sock_accepting_conn(&listener->rx) > 0;
 
 	if (!ready && /* only listen if not already done by external process */
 	    listen(fd, listener_backlog(listener)) < 0) {

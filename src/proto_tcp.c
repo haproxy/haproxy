@@ -72,7 +72,7 @@ static struct protocol proto_tcpv4 = {
 	.rx_unbind = sock_unbind,
 	.rx_suspend = tcp_suspend_receiver,
 	.rx_resume = tcp_resume_receiver,
-	.rx_listening = sock_accept_conn,
+	.rx_listening = sock_accepting_conn,
 	.accept = &listener_accept,
 	.connect = tcp_connect_server,
 	.receivers = LIST_HEAD_INIT(proto_tcpv4.receivers),
@@ -101,7 +101,7 @@ static struct protocol proto_tcpv6 = {
 	.rx_unbind = sock_unbind,
 	.rx_suspend = tcp_suspend_receiver,
 	.rx_resume = tcp_resume_receiver,
-	.rx_listening = sock_accept_conn,
+	.rx_listening = sock_accepting_conn,
 	.accept = &listener_accept,
 	.connect = tcp_connect_server,
 	.receivers = LIST_HEAD_INIT(proto_tcpv6.receivers),
@@ -678,7 +678,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	}
 #endif
 
-	ready = sock_accept_conn(&listener->rx) > 0;
+	ready = sock_accepting_conn(&listener->rx) > 0;
 
 	if (!ready && /* only listen if not already done by external process */
 	    listen(fd, listener_backlog(listener)) == -1) {
@@ -783,7 +783,7 @@ static int tcp_suspend_receiver(struct receiver *rx)
 	 * dealing with a socket that is shared with other processes doing the
 	 * same. Let's check if it's still accepting connections.
 	 */
-	ret = sock_accept_conn(rx);
+	ret = sock_accepting_conn(rx);
 	if (ret <= 0) {
 		/* unrecoverable or paused by another process */
 		fd_stop_recv(rx->fd);

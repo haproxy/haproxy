@@ -471,7 +471,7 @@ int sock_find_compatible_fd(const struct receiver *rx)
  * rationale behind this is that inherited FDs may be broken and that shared
  * FDs might have been paused by another process.
  */
-int sock_accept_conn(const struct receiver *rx)
+int sock_accepting_conn(const struct receiver *rx)
 {
 	int opt_val = 0;
 	socklen_t opt_len = sizeof(opt_val);
