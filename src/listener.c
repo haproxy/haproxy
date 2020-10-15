@@ -588,7 +588,8 @@ void unbind_listener(struct listener *listener)
 /* creates one or multiple listeners for bind_conf <bc> on sockaddr <ss> on port
  * range <portl> to <porth>, and possibly attached to fd <fd> (or -1 for auto
  * allocation). The address family is taken from ss->ss_family, and the protocol
- * passed in <proto> must be usable on this family. The number of jobs and
+ * passed in <proto> must be usable on this family. The protocol's default iocb
+ * is automatically preset as the receivers' iocb. The number of jobs and
  * listeners is automatically increased by the number of listeners created. It
  * returns non-zero on success, zero on error with the error message set in <err>.
  */
@@ -610,6 +611,7 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		l->bind_conf = bc;
 		l->rx.settings = &bc->settings;
 		l->rx.owner = l;
+		l->rx.iocb = proto->default_iocb;
 		l->rx.fd = fd;
 		memcpy(&l->rx.addr, ss, sizeof(*ss));
 		MT_LIST_INIT(&l->wait_queue);
