@@ -77,7 +77,7 @@ smp_fetch_ssl_fc_has_crt(const struct arg *args, struct sample *smp, const char 
 		return 0;
 	}
 
-	smp->flags = 0;
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = SSL_SOCK_ST_FL_VERIFY_DONE & ctx->xprt_st ? 1 : 0;
 
@@ -126,6 +126,7 @@ smp_fetch_ssl_x_der(const struct arg *args, struct sample *smp, const char *kw, 
 	if (ssl_sock_crt2der(crt, smp_trash) <= 0)
 		goto out;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.u.str = *smp_trash;
 	smp->data.type = SMP_T_BIN;
 	ret = 1;
@@ -192,6 +193,7 @@ smp_fetch_ssl_x_chain_der(const struct arg *args, struct sample *smp, const char
 		chunk_cat(smp_trash, tmp_trash);
 	}
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.u.str = *smp_trash;
 	smp->data.type = SMP_T_BIN;
 	ret = 1;
@@ -241,6 +243,7 @@ smp_fetch_ssl_x_serial(const struct arg *args, struct sample *smp, const char *k
 	if (ssl_sock_get_serial(crt, smp_trash) <= 0)
 		goto out;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.u.str = *smp_trash;
 	smp->data.type = SMP_T_BIN;
 	ret = 1;
@@ -293,6 +296,7 @@ smp_fetch_ssl_x_sha1(const struct arg *args, struct sample *smp, const char *kw,
 	digest = EVP_sha1();
 	X509_digest(crt, digest, (unsigned char *) smp_trash->area, &len);
 	smp_trash->data = len;
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.u.str = *smp_trash;
 	smp->data.type = SMP_T_BIN;
 	ret = 1;
@@ -343,6 +347,7 @@ smp_fetch_ssl_x_notafter(const struct arg *args, struct sample *smp, const char 
 	if (ssl_sock_get_time(X509_getm_notAfter(crt), smp_trash) <= 0)
 		goto out;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.u.str = *smp_trash;
 	smp->data.type = SMP_T_STR;
 	ret = 1;
@@ -411,6 +416,7 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 	else if (ssl_sock_get_dn_oneline(name, smp_trash) <= 0)
 		goto out;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.type = SMP_T_STR;
 	smp->data.u.str = *smp_trash;
 	ret = 1;
@@ -461,6 +467,7 @@ smp_fetch_ssl_x_notbefore(const struct arg *args, struct sample *smp, const char
 	if (ssl_sock_get_time(X509_getm_notBefore(crt), smp_trash) <= 0)
 		goto out;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.u.str = *smp_trash;
 	smp->data.type = SMP_T_STR;
 	ret = 1;
@@ -529,6 +536,7 @@ smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw,
 	else if (ssl_sock_get_dn_oneline(name, smp_trash) <= 0)
 		goto out;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.type = SMP_T_STR;
 	smp->data.u.str = *smp_trash;
 	ret = 1;
@@ -563,6 +571,7 @@ smp_fetch_ssl_c_used(const struct arg *args, struct sample *smp, const char *kw,
 		X509_free(crt);
 	}
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.type = SMP_T_BOOL;
 	smp->data.u.sint = (crt != NULL);
 	return 1;
@@ -602,6 +611,7 @@ smp_fetch_ssl_x_version(const struct arg *args, struct sample *smp, const char *
 	if (!crt)
 		return 0;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.u.sint = (unsigned int)(1 + X509_get_version(crt));
 	/* SSL_get_peer_certificate increase X509 * ref count  */
 	if (cert_peer)
@@ -659,7 +669,7 @@ smp_fetch_ssl_x_sig_alg(const struct arg *args, struct sample *smp, const char *
 	}
 
 	smp->data.type = SMP_T_STR;
-	smp->flags |= SMP_F_CONST;
+	smp->flags |= SMP_F_VOL_SESS | SMP_F_CONST;
 	smp->data.u.str.data = strlen(smp->data.u.str.area);
 	/* SSL_get_peer_certificate increase X509 * ref count  */
 	if (cert_peer)
@@ -715,7 +725,7 @@ smp_fetch_ssl_x_key_alg(const struct arg *args, struct sample *smp, const char *
 	}
 
 	smp->data.type = SMP_T_STR;
-	smp->flags |= SMP_F_CONST;
+	smp->flags |= SMP_F_VOL_SESS | SMP_F_CONST;
 	smp->data.u.str.data = strlen(smp->data.u.str.area);
 	if (cert_peer)
 		X509_free(crt);
@@ -808,7 +818,7 @@ smp_fetch_ssl_fc_cipher(const struct arg *args, struct sample *smp, const char *
 		return 0;
 
 	smp->data.type = SMP_T_STR;
-	smp->flags |= SMP_F_CONST;
+	smp->flags |= SMP_F_VOL_SESS | SMP_F_CONST;
 	smp->data.u.str.data = strlen(smp->data.u.str.area);
 
 	return 1;
@@ -840,6 +850,7 @@ smp_fetch_ssl_fc_alg_keysize(const struct arg *args, struct sample *smp, const c
 	if (!SSL_get_cipher_bits(ssl, &sint))
 		return 0;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.u.sint = sint;
 	smp->data.type = SMP_T_SINT;
 
@@ -871,6 +882,7 @@ smp_fetch_ssl_fc_use_keysize(const struct arg *args, struct sample *smp, const c
 	if (!smp->data.u.sint)
 		return 0;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.type = SMP_T_SINT;
 
 	return 1;
@@ -897,6 +909,7 @@ smp_fetch_ssl_fc_npn(const struct arg *args, struct sample *smp, const char *kw,
 	if (!ssl)
 		return 0;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.u.str.area = NULL;
 	SSL_get0_next_proto_negotiated(ssl,
 	                               (const unsigned char **)&smp->data.u.str.area,
@@ -918,7 +931,7 @@ smp_fetch_ssl_fc_alpn(const struct arg *args, struct sample *smp, const char *kw
 	SSL *ssl;
 	unsigned int len = 0;
 
-	smp->flags = SMP_F_CONST;
+	smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
 
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
@@ -970,7 +983,7 @@ smp_fetch_ssl_fc_protocol(const struct arg *args, struct sample *smp, const char
 		return 0;
 
 	smp->data.type = SMP_T_STR;
-	smp->flags = SMP_F_CONST;
+	smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
 	smp->data.u.str.data = strlen(smp->data.u.str.area);
 
 	return 1;
@@ -989,7 +1002,7 @@ smp_fetch_ssl_fc_session_id(const struct arg *args, struct sample *smp, const ch
 	SSL *ssl;
 	unsigned int len = 0;
 
-	smp->flags = SMP_F_CONST;
+	smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
 	smp->data.type = SMP_T_BIN;
 
 	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
@@ -1046,7 +1059,7 @@ smp_fetch_ssl_fc_random(const struct arg *args, struct sample *smp, const char *
 	if (!data->data)
 		return 0;
 
-	smp->flags = 0;
+	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_BIN;
 	smp->data.u.str = *data;
 
@@ -1082,7 +1095,7 @@ smp_fetch_ssl_fc_session_key(const struct arg *args, struct sample *smp, const c
 	if (!data->data)
 		return 0;
 
-	smp->flags = 0;
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.type = SMP_T_BIN;
 	smp->data.u.str = *data;
 
@@ -1097,7 +1110,7 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 	struct connection *conn;
 	SSL *ssl;
 
-	smp->flags = SMP_F_CONST;
+	smp->flags = SMP_F_VOL_SESS | SMP_F_CONST;
 	smp->data.type = SMP_T_STR;
 
 	conn = objt_conn(smp->sess->origin);
@@ -1130,7 +1143,7 @@ smp_fetch_ssl_fc_cl_bin(const struct arg *args, struct sample *smp, const char *
 	if (!capture)
 		return 0;
 
-	smp->flags = SMP_F_CONST;
+	smp->flags = SMP_F_VOL_TEST | SMP_F_CONST;
 	smp->data.type = SMP_T_BIN;
 	smp->data.u.str.area = capture->ciphersuite;
 	smp->data.u.str.data = capture->ciphersuite_len;
@@ -1147,6 +1160,7 @@ smp_fetch_ssl_fc_cl_hex(const struct arg *args, struct sample *smp, const char *
 
 	data = get_trash_chunk();
 	dump_binary(data, smp->data.u.str.area, smp->data.u.str.data);
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.type = SMP_T_BIN;
 	smp->data.u.str = *data;
 	return 1;
@@ -1168,6 +1182,7 @@ smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char
 	if (!capture)
 		return 0;
 
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = capture->xxh64;
 	return 1;
@@ -1225,7 +1240,7 @@ static int smp_fetch_ssl_x_keylog(const struct arg *args, struct sample *smp, co
 
 	smp->data.u.str.area = src;
 	smp->data.type = SMP_T_STR;
-	smp->flags |= SMP_F_CONST;
+	smp->flags |= SMP_F_VOL_TEST | SMP_F_CONST;
 	smp->data.u.str.data = strlen(smp->data.u.str.area);
 	return 1;
 }
@@ -1307,6 +1322,7 @@ smp_fetch_ssl_fc_unique_id(const struct arg *args, struct sample *smp, const cha
 		return 0;
 
 	finished_trash->data = finished_len;
+	smp->flags = SMP_F_VOL_SESS;
 	smp->data.u.str = *finished_trash;
 	smp->data.type = SMP_T_BIN;
 
@@ -1333,7 +1349,7 @@ smp_fetch_ssl_c_ca_err(const struct arg *args, struct sample *smp, const char *k
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = (unsigned long long int)SSL_SOCK_ST_TO_CA_ERROR(ctx->xprt_st);
-	smp->flags = 0;
+	smp->flags = SMP_F_VOL_SESS;
 
 	return 1;
 }
@@ -1357,7 +1373,7 @@ smp_fetch_ssl_c_ca_err_depth(const struct arg *args, struct sample *smp, const c
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = (long long int)SSL_SOCK_ST_TO_CAEDEPTH(ctx->xprt_st);
-	smp->flags = 0;
+	smp->flags = SMP_F_VOL_SESS;
 
 	return 1;
 }
@@ -1382,7 +1398,7 @@ smp_fetch_ssl_c_err(const struct arg *args, struct sample *smp, const char *kw, 
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = (long long int)SSL_SOCK_ST_TO_CRTERROR(ctx->xprt_st);
-	smp->flags = 0;
+	smp->flags = SMP_F_VOL_SESS;
 
 	return 1;
 }
@@ -1406,7 +1422,7 @@ smp_fetch_ssl_c_verify(const struct arg *args, struct sample *smp, const char *k
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = (long long int)SSL_get_verify_result(ssl);
-	smp->flags = 0;
+	smp->flags = SMP_F_VOL_SESS;
 
 	return 1;
 }
