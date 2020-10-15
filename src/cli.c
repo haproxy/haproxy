@@ -53,6 +53,7 @@
 #include <haproxy/sample-t.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>
+#include <haproxy/sock.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
@@ -1020,7 +1021,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			px = objt_proxy(((struct connection *)fdt.owner)->target);
 			is_back = conn_is_back((struct connection *)fdt.owner);
 		}
-		else if (fdt.iocb == listener_accept)
+		else if (fdt.iocb == sock_accept_iocb)
 			li = fdt.owner;
 
 		chunk_printf(&trash,
@@ -1064,7 +1065,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			else
 				chunk_appendf(&trash, " nomux");
 		}
-		else if (fdt.iocb == listener_accept) {
+		else if (fdt.iocb == sock_accept_iocb) {
 			chunk_appendf(&trash, ") l.st=%s fe=%s",
 			              listener_state_str(li),
 			              li->bind_conf->frontend->id);
@@ -1707,7 +1708,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 		/* for now we can only retrieve namespaces and interfaces from
 		 * pure listeners.
 		 */
-		if (fdtab[cur_fd].iocb == listener_accept) {
+		if (fdtab[cur_fd].iocb == sock_accept_iocb) {
 			const struct listener *l = fdtab[cur_fd].owner;
 
 			if (l->rx.settings->interface) {

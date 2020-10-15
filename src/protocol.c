@@ -78,12 +78,7 @@ int protocol_bind_all(int verbose)
 			 * a handler when creating the receiver yet, so we still
 			 * have to take care of special cases here.
 			 */
-			handler = listener->rx.proto->accept;
-			if (!handler && listener->bind_conf->frontend->mode == PR_MODE_SYSLOG) {
-				extern void syslog_fd_handler(int);
-				handler = syslog_fd_handler;
-			}
-
+			handler = listener->rx.iocb;
 			lerr = proto->fam->bind(receiver, handler, &errmsg);
 			err |= lerr;
 

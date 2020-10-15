@@ -27,7 +27,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
-#include <haproxy/listener-t.h>
+#include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/namespace.h>
 #include <haproxy/sock.h>
@@ -611,6 +611,21 @@ int sock_accepting_conn(const struct receiver *rx)
 		return -1;
 
 	return opt_val;
+}
+
+/* This is the FD handler IO callback for stream sockets configured for
+ * accepting incoming connections. It's a pass-through to listener_accept()
+ * which will iterate over the listener protocol's accept_conn() function.
+ * The FD's owner must be a listener.
+ */
+void sock_accept_iocb(int fd)
+{
+	struct listener *l = fdtab[fd].owner;
+
+	if (!l)
+		return;
+
+	listener_accept(l);
 }
 
 /*

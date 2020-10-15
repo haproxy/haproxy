@@ -334,7 +334,8 @@ restart_wait:
 /* This wrapper is called from the workers. It is registered instead of the
  * normal listener_accept() so the worker can exit() when it detects that the
  * master closed the IPC FD. If it's not a close, we just call the regular
- * listener_accept() function */
+ * listener_accept() function.
+ */
 void mworker_accept_wrapper(int fd)
 {
 	char c;
@@ -351,7 +352,10 @@ void mworker_accept_wrapper(int fd)
 			}
 			break;
 		} else if (ret > 0) {
-			listener_accept(fd);
+			struct listener *l = fdtab[fd].owner;
+
+			if (l)
+				listener_accept(l);
 			return;
 		} else if (ret == 0) {
 			/* At this step the master is down before

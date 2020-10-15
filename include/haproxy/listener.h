@@ -110,7 +110,7 @@ void __delete_listener(struct listener *listener);
  * to an accept. It tries to accept as many connections as possible, and for each
  * calls the listener's accept handler (generally the frontend's accept handler).
  */
-void listener_accept(int fd);
+void listener_accept(struct listener *l);
 
 /* Returns a suitable value for a listener's backlog. It uses the listener's,
  * otherwise the frontend's backlog, otherwise the listener's maxconn,

@@ -685,9 +685,8 @@ int listener_backlog(const struct listener *l)
  * to an accept. It tries to accept as many connections as possible, and for each
  * calls the listener's accept handler (generally the frontend's accept handler).
  */
-void listener_accept(int fd)
+void listener_accept(struct listener *l)
 {
-	struct listener *l = fdtab[fd].owner;
 	struct connection *cli_conn;
 	struct proxy *p;
 	unsigned int max_accept;
@@ -697,8 +696,6 @@ void listener_accept(int fd)
 	int expire;
 	int ret;
 
-	if (!l)
-		return;
 	p = l->bind_conf->frontend;
 
 	/* if l->maxaccept is -1, then max_accept is UINT_MAX. It is not really

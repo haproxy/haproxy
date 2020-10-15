@@ -108,7 +108,6 @@ struct protocol {
 	void (*default_iocb)(int fd);                   /* generic I/O handler (typically accept callback) */
 
 	/* functions acting on connections */
-	void (*accept)(int fd);				/* generic accept function */
 	int (*connect)(struct connection *, int flags); /* connect function if any, see below for flags values */
 
 	struct list receivers;				/* list of receivers using this protocol (under proto_lock) */

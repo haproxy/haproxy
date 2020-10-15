@@ -2455,7 +2455,7 @@ void deinit(void)
 		if (!fdtab || !fdtab[cur_fd].owner)
 			continue;
 
-		if (fdtab[cur_fd].iocb == listener_accept) {
+		if (fdtab[cur_fd].iocb == &sock_accept_iocb) {
 			struct listener *l = fdtab[cur_fd].owner;
 
 			BUG_ON(l->state != LI_INIT);
