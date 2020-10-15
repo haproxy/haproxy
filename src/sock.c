@@ -10,6 +10,7 @@
  *
  */
 
+#define _GNU_SOURCE
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -27,6 +28,7 @@
 #include <haproxy/api.h>
 #include <haproxy/connection.h>
 #include <haproxy/listener-t.h>
+#include <haproxy/log.h>
 #include <haproxy/namespace.h>
 #include <haproxy/sock.h>
 #include <haproxy/sock_inet.h>
@@ -34,6 +36,135 @@
 
 /* the list of remaining sockets transferred from an older process */
 struct xfer_sock_list *xfer_sock_list = NULL;
+
+
+/* Accept an incoming connection from listener <l>, and return it, as well as
+ * a CO_AC_* status code into <status> if not null. Null is returned on error.
+ * <l> must be a valid listener with a valid frontend.
+ */
+struct connection *sock_accept_conn(struct listener *l, int *status)
+{
+#ifdef USE_ACCEPT4
+	static int accept4_broken;
+#endif
+	struct proxy *p = l->bind_conf->frontend;
+	struct connection *conn;
+	socklen_t laddr;
+	int ret;
+	int cfd;
+
+	conn = conn_new(&l->obj_type);
+	if (!conn)
+		goto fail_conn;
+
+	if (!sockaddr_alloc(&conn->src, NULL, 0))
+		goto fail_addr;
+
+	/* accept() will mark all accepted FDs O_NONBLOCK and the ones accepted
+	 * in the master process as FD_CLOEXEC. It's not done for workers
+	 * because 1) workers are not supposed to execute anything so there's
+	 * no reason for uselessly slowing down everything, and 2) that would
+	 * prevent us from implementing fd passing in the future.
+	 */
+#ifdef USE_ACCEPT4
+	laddr = sizeof(*conn->src);
+
+	/* only call accept4() if it's known to be safe, otherwise fallback to
+	 * the legacy accept() + fcntl().
+	 */
+	if (unlikely(accept4_broken) ||
+	    (((cfd = accept4(l->rx.fd, (struct sockaddr *)conn->src, &laddr,
+	                     SOCK_NONBLOCK | (master ? SOCK_CLOEXEC : 0))) == -1) &&
+	     (errno == ENOSYS || errno == EINVAL || errno == EBADF) &&
+	     (accept4_broken = 1)))
+#endif
+	{
+		laddr = sizeof(*conn->src);
+		if ((cfd = accept(l->rx.fd, (struct sockaddr *)conn->src, &laddr)) != -1) {
+			fcntl(cfd, F_SETFL, O_NONBLOCK);
+			if (master)
+				fcntl(cfd, F_SETFD, FD_CLOEXEC);
+		}
+	}
+
+	if (likely(cfd != -1)) {
+		/* Perfect, the connection was accepted */
+		conn->handle.fd = cfd;
+		conn->flags |= CO_FL_ADDR_FROM_SET;
+		ret = CO_AC_DONE;
+		goto done;
+	}
+
+	/* error conditions below */
+	conn_free(conn);
+	conn = NULL;
+
+	switch (errno) {
+	case EAGAIN:
+		ret = CO_AC_DONE; /* nothing more to accept */
+		if (fdtab[l->rx.fd].ev & (FD_POLL_HUP|FD_POLL_ERR)) {
+			/* the listening socket might have been disabled in a shared
+			 * process and we're a collateral victim. We'll just pause for
+			 * a while in case it comes back. In the mean time, we need to
+			 * clear this sticky flag.
+			 */
+			_HA_ATOMIC_AND(&fdtab[l->rx.fd].ev, ~(FD_POLL_HUP|FD_POLL_ERR));
+			ret = CO_AC_PAUSE;
+		}
+		fd_cant_recv(l->rx.fd);
+		break;
+
+	case EINVAL:
+		/* might be trying to accept on a shut fd (eg: soft stop) */
+		ret = CO_AC_PAUSE;
+		break;
+
+	case EINTR:
+	case ECONNABORTED:
+		ret = CO_AC_RETRY;
+		break;
+
+	case ENFILE:
+		if (p)
+			send_log(p, LOG_EMERG,
+			         "Proxy %s reached system FD limit (maxsock=%d). Please check system tunables.\n",
+			         p->id, global.maxsock);
+		ret = CO_AC_PAUSE;
+		break;
+
+	case EMFILE:
+		if (p)
+			send_log(p, LOG_EMERG,
+			         "Proxy %s reached process FD limit (maxsock=%d). Please check 'ulimit-n' and restart.\n",
+			         p->id, global.maxsock);
+		ret = CO_AC_PAUSE;
+		break;
+
+	case ENOBUFS:
+	case ENOMEM:
+		if (p)
+			send_log(p, LOG_EMERG,
+			         "Proxy %s reached system memory limit (maxsock=%d). Please check system tunables.\n",
+			         p->id, global.maxsock);
+		ret = CO_AC_PAUSE;
+		break;
+
+	default:
+		/* unexpected result, let's give up and let other tasks run */
+		ret = CO_AC_YIELD;
+	}
+ done:
+	if (status)
+		*status = ret;
+	return conn;
+
+ fail_addr:
+	conn_free(conn);
+	conn = NULL;
+ fail_conn:
+	ret = CO_AC_PAUSE;
+	goto done;
+}
 
 /* Create a socket to connect to the server in conn->dst (which MUST be valid),
  * using the configured namespace if needed, or the one passed by the proxy
