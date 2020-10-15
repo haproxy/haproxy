@@ -34,6 +34,7 @@
 #include <haproxy/global.h>
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
+#include <haproxy/log.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proto_sockpair.h>
 #include <haproxy/sock.h>
@@ -48,6 +49,7 @@ static void sockpair_enable_listener(struct listener *listener);
 static void sockpair_disable_listener(struct listener *listener);
 static int sockpair_connect_server(struct connection *conn, int flags);
 static int sockpair_accepting_conn(const struct receiver *rx);
+struct connection *sockpair_accept_conn(struct listener *l, int *status);
 
 struct proto_fam proto_fam_sockpair = {
 	.name = "sockpair",
@@ -74,6 +76,7 @@ static struct protocol proto_sockpair = {
 	.enable = sockpair_enable_listener,
 	.disable = sockpair_disable_listener,
 	.unbind = default_unbind_listener,
+	.accept_conn = sockpair_accept_conn,
 	.rx_unbind = sock_unbind,
 	.rx_enable = sock_enable,
 	.rx_disable = sock_disable,
@@ -469,6 +472,104 @@ static int sockpair_accepting_conn(const struct receiver *rx)
 		return -1;
 
 	return 1;
+}
+
+/* Accept an incoming connection from listener <l>, and return it, as well as
+ * a CO_AC_* status code into <status> if not null. Null is returned on error.
+ * <l> must be a valid listener with a valid frontend.
+ */
+struct connection *sockpair_accept_conn(struct listener *l, int *status)
+{
+	struct proxy *p = l->bind_conf->frontend;
+	struct connection *conn = NULL;
+	int ret;
+	int cfd;
+
+	if ((cfd = recv_fd_uxst(l->rx.fd)) != -1)
+		fcntl(cfd, F_SETFL, O_NONBLOCK);
+
+	if (likely(cfd != -1)) {
+		/* Perfect, the connection was accepted */
+		conn = conn_new(&l->obj_type);
+		if (!conn)
+			goto fail_conn;
+
+		if (!sockaddr_alloc(&conn->src, NULL, 0))
+			goto fail_addr;
+
+		/* just like with UNIX sockets, only the family is filled */
+		conn->src->ss_family = AF_UNIX;
+		conn->handle.fd = cfd;
+		conn->flags |= CO_FL_ADDR_FROM_SET;
+		ret = CO_AC_DONE;
+		goto done;
+	}
+
+	switch (errno) {
+	case EAGAIN:
+		ret = CO_AC_DONE; /* nothing more to accept */
+		if (fdtab[l->rx.fd].ev & (FD_POLL_HUP|FD_POLL_ERR)) {
+			/* the listening socket might have been disabled in a shared
+			 * process and we're a collateral victim. We'll just pause for
+			 * a while in case it comes back. In the mean time, we need to
+			 * clear this sticky flag.
+			 */
+			_HA_ATOMIC_AND(&fdtab[l->rx.fd].ev, ~(FD_POLL_HUP|FD_POLL_ERR));
+			ret = CO_AC_PAUSE;
+		}
+		fd_cant_recv(l->rx.fd);
+		break;
+
+	case EINVAL:
+		/* might be trying to accept on a shut fd (eg: soft stop) */
+		ret = CO_AC_PAUSE;
+		break;
+
+	case EINTR:
+	case ECONNABORTED:
+		ret = CO_AC_RETRY;
+		break;
+
+	case ENFILE:
+		if (p)
+			send_log(p, LOG_EMERG,
+			         "Proxy %s reached system FD limit (maxsock=%d). Please check system tunables.\n",
+			         p->id, global.maxsock);
+		ret = CO_AC_PAUSE;
+		break;
+
+	case EMFILE:
+		if (p)
+			send_log(p, LOG_EMERG,
+			         "Proxy %s reached process FD limit (maxsock=%d). Please check 'ulimit-n' and restart.\n",
+			         p->id, global.maxsock);
+		ret = CO_AC_PAUSE;
+		break;
+
+	case ENOBUFS:
+	case ENOMEM:
+		if (p)
+			send_log(p, LOG_EMERG,
+			         "Proxy %s reached system memory limit (maxsock=%d). Please check system tunables.\n",
+			         p->id, global.maxsock);
+		ret = CO_AC_PAUSE;
+		break;
+
+	default:
+		/* unexpected result, let's give up and let other tasks run */
+		ret = CO_AC_YIELD;
+	}
+ done:
+	if (status)
+		*status = ret;
+	return conn;
+
+ fail_addr:
+	conn_free(conn);
+	conn = NULL;
+ fail_conn:
+	ret = CO_AC_PAUSE;
+	goto done;
 }
 
 /*

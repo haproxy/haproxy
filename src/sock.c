@@ -48,16 +48,13 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	static int accept4_broken;
 #endif
 	struct proxy *p = l->bind_conf->frontend;
-	struct connection *conn;
+	struct connection *conn = NULL;
+	struct sockaddr_storage *addr = NULL;
 	socklen_t laddr;
 	int ret;
 	int cfd;
 
-	conn = conn_new(&l->obj_type);
-	if (!conn)
-		goto fail_conn;
-
-	if (!sockaddr_alloc(&conn->src, NULL, 0))
+	if (!sockaddr_alloc(&addr, NULL, 0))
 		goto fail_addr;
 
 	/* accept() will mark all accepted FDs O_NONBLOCK and the ones accepted
@@ -73,14 +70,14 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	 * the legacy accept() + fcntl().
 	 */
 	if (unlikely(accept4_broken) ||
-	    (((cfd = accept4(l->rx.fd, (struct sockaddr *)conn->src, &laddr,
+	    (((cfd = accept4(l->rx.fd, (struct sockaddr*)addr, &laddr,
 	                     SOCK_NONBLOCK | (master ? SOCK_CLOEXEC : 0))) == -1) &&
 	     (errno == ENOSYS || errno == EINVAL || errno == EBADF) &&
 	     (accept4_broken = 1)))
 #endif
 	{
 		laddr = sizeof(*conn->src);
-		if ((cfd = accept(l->rx.fd, (struct sockaddr *)conn->src, &laddr)) != -1) {
+		if ((cfd = accept(l->rx.fd, (struct sockaddr*)addr, &laddr)) != -1) {
 			fcntl(cfd, F_SETFL, O_NONBLOCK);
 			if (master)
 				fcntl(cfd, F_SETFD, FD_CLOEXEC);
@@ -89,6 +86,11 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 
 	if (likely(cfd != -1)) {
 		/* Perfect, the connection was accepted */
+		conn = conn_new(&l->obj_type);
+		if (!conn)
+			goto fail_conn;
+
+		conn->src = addr;
 		conn->handle.fd = cfd;
 		conn->flags |= CO_FL_ADDR_FROM_SET;
 		ret = CO_AC_DONE;
@@ -96,8 +98,7 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	}
 
 	/* error conditions below */
-	conn_free(conn);
-	conn = NULL;
+	sockaddr_free(&addr);
 
 	switch (errno) {
 	case EAGAIN:
@@ -158,10 +159,9 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 		*status = ret;
 	return conn;
 
- fail_addr:
-	conn_free(conn);
-	conn = NULL;
  fail_conn:
+	sockaddr_free(&addr);
+ fail_addr:
 	ret = CO_AC_PAUSE;
 	goto done;
 }
