@@ -261,19 +261,6 @@ static inline void fd_may_both(const int fd)
 	HA_ATOMIC_OR(&fdtab[fd].state, FD_EV_READY_RW);
 }
 
-/* Disable readiness when active. This is useful to interrupt reading when it
- * is suspected that the end of data might have been reached (eg: short read).
- * This can only be done using level-triggered pollers, so if any edge-triggered
- * is ever implemented, a test will have to be added here.
- */
-static inline void fd_done_recv(const int fd)
-{
-	/* removing ready never changes polled status */
-	if ((fdtab[fd].state & (FD_EV_ACTIVE_R|FD_EV_READY_R)) != (FD_EV_ACTIVE_R|FD_EV_READY_R) ||
-	    !HA_ATOMIC_BTR(&fdtab[fd].state, FD_EV_READY_R_BIT))
-		return;
-}
-
 /* Report that FD <fd> cannot send anymore without polling (EAGAIN detected). */
 static inline void fd_cant_send(const int fd)
 {

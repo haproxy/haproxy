@@ -1145,8 +1145,6 @@ void listener_accept(int fd)
 	if (l->state == LI_READY) {
 		if (max_accept > 0)
 			fd_cant_recv(fd);
-		else
-			fd_done_recv(fd);
 	} else if (l->state > LI_ASSIGNED) {
 		fd_stop_recv(l->rx.fd);
 	}
