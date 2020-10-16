@@ -8286,22 +8286,37 @@ no option nolinger
 
   When this happens, it is possible to activate "option nolinger" which forces
   the system to immediately remove any socket's pending data on close. Thus,
-  the session is instantly purged from the system's tables. This usually has
-  side effects such as increased number of TCP resets due to old retransmits
-  getting immediately rejected. Some firewalls may sometimes complain about
-  this too.
+  a TCP RST is emitted, any pending data are truncated, and the session is
+  instantly purged from the system's tables. The generally visible effect for
+  a client is that responses are truncated if the close happens with a last
+  block of data (e.g. on a redirect or error response). On the server side,
+  it may help release the source ports immediately when forwarding a client
+  aborts in tunnels. In both cases, TCP resets are emitted and given that
+  the session is instantly destroyed, there will be no retransmit. On a lossy
+  network this can increase problems, especially when there is a firewall on
+  the lossy side, because the firewall might see and process the reset (hence
+  purge its session) and block any further traffic for this session,, including
+  retransmits from the other side. So if the other side doesn't receive it,
+  it will never receive any RST again, and the firewall might log many blocked
+  packets.
 
-  For this reason, it is not recommended to use this option when not absolutely
-  needed. You know that you need it when you have thousands of FIN_WAIT1
-  sessions on your system (TIME_WAIT ones do not count).
+  For all these reasons, it is strongly recommended NOT to use this option,
+  unless absolutely needed as a last resort. In most situations, using the
+  "client-fin" or "server-fin" timeouts achieves similar results with a more
+  reliable behavior. On Linux it's also possible to use the "tcp-ut" bind or
+  server setting.
 
   This option may be used both on frontends and backends, depending on the side
   where it is required. Use it on the frontend for clients, and on the backend
-  for servers.
+  for servers. While this option is technically supported in "defaults"
+  sections, it must really not be used there as it risks to accidently
+  propagate to sections that must no use it and to cause problems there.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
+  See also: "timeout client-fin", "timeout server-fin", "tcp-ut" bind or server
+            keywords.
 
 option originalto [ except <network> ] [ header <name> ]
   Enable insertion of the X-Original-To header to requests sent to servers
