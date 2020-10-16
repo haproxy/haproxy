@@ -6095,7 +6095,7 @@ http-request track-sc2 <key> [table <table>] [ { if | unless } <condition> ]
   not stop evaluation and do not change default action. The number of counters
   that may be simultaneously tracked by the same connection is set in
   MAX_SESS_STKCTR at build time (reported in haproxy -vv) which defaults to 3,
-  so the track-sc number is between 0 and (MAX_SESS_STCKTR-1). The first
+  so the track-sc number is between 0 and (MAX_SESS_STKCTR-1). The first
   "track-sc0" rule executed enables tracking of the counters of the specified
   table as the first set. The first "track-sc1" rule executed enables tracking
   of the counters of the specified table as the second set. The first
@@ -11092,7 +11092,7 @@ tcp-request connection <action> [{if | unless} <condition>]
         number of counters that may be simultaneously tracked by the same
         connection is set in MAX_SESS_STKCTR at build time (reported in
         haproxy -vv) which defaults to 3, so the track-sc number is between 0
-        and (MAX_SESS_STCKTR-1). The first "track-sc0" rule executed enables
+        and (MAX_SESS_STKCTR-1). The first "track-sc0" rule executed enables
         tracking of the counters of the specified table as the first set. The
         first "track-sc1" rule executed enables tracking of the counters of the
         specified table as the second set. The first "track-sc2" rule executed
