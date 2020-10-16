@@ -79,6 +79,15 @@ enum { tid = 0 };
 #define HA_RWLOCK_TRYRDLOCK(lbl, l)   ({ 0; })
 #define HA_RWLOCK_RDUNLOCK(lbl, l)    do { /* do nothing */ } while(0)
 
+#define HA_RWLOCK_SKLOCK(lbl,l)         do { /* do nothing */ } while(0)
+#define HA_RWLOCK_SKTOWR(lbl,l)         do { /* do nothing */ } while(0)
+#define HA_RWLOCK_WRTOSK(lbl,l)         do { /* do nothing */ } while(0)
+#define HA_RWLOCK_SKTORD(lbl,l)         do { /* do nothing */ } while(0)
+#define HA_RWLOCK_WRTORD(lbl,l)         do { /* do nothing */ } while(0)
+#define HA_RWLOCK_SKUNLOCK(lbl,l)       do { /* do nothing */ } while(0)
+#define HA_RWLOCK_TRYSKLOCK(lbl,l)      ({ 0; })
+#define HA_RWLOCK_TRYRDTOSK(lbl,l)      ({ 0; })
+
 #define ha_sigmask(how, set, oldset)  sigprocmask(how, set, oldset)
 
 static inline void ha_set_tid(unsigned int tid)
@@ -288,6 +297,16 @@ static inline unsigned long thread_isolated()
 #define HA_RWLOCK_TRYRDLOCK(lbl,l) (!pl_try_r(l))
 #define HA_RWLOCK_RDUNLOCK(lbl,l)  pl_drop_r(l)
 
+/* rwlock upgrades via seek locks */
+#define HA_RWLOCK_SKLOCK(lbl,l)         pl_take_s(l)      /* N --> S */
+#define HA_RWLOCK_SKTOWR(lbl,l)         pl_stow(l)        /* S --> W */
+#define HA_RWLOCK_WRTOSK(lbl,l)         pl_wtos(l)        /* W --> S */
+#define HA_RWLOCK_SKTORD(lbl,l)         pl_stor(l)        /* S --> R */
+#define HA_RWLOCK_WRTORD(lbl,l)         pl_wtor(l)        /* W --> R */
+#define HA_RWLOCK_SKUNLOCK(lbl,l)       pl_drop_s(l)      /* S --> N */
+#define HA_RWLOCK_TRYSKLOCK(lbl,l)      (!pl_try_s(l))    /* N -?> S */
+#define HA_RWLOCK_TRYRDTOSK(lbl,l)      (!pl_try_rtos(l)) /* R -?> S */
+
 #else /* !defined(DEBUG_THREAD) && !defined(DEBUG_FULL) */
 
 /* Thread debugging is ENABLED, these are the instrumented functions */
@@ -307,6 +326,16 @@ static inline unsigned long thread_isolated()
 #define __RWLOCK_TRYRDLOCK(l)      (!pl_try_r(l))
 #define __RWLOCK_RDUNLOCK(l)       pl_drop_r(l)
 
+/* rwlock upgrades via seek locks */
+#define __RWLOCK_SKLOCK(l)         pl_take_s(l)      /* N --> S */
+#define __RWLOCK_SKTOWR(l)         pl_stow(l)        /* S --> W */
+#define __RWLOCK_WRTOSK(l)         pl_wtos(l)        /* W --> S */
+#define __RWLOCK_SKTORD(l)         pl_stor(l)        /* S --> R */
+#define __RWLOCK_WRTORD(l)         pl_wtor(l)        /* W --> R */
+#define __RWLOCK_SKUNLOCK(l)       pl_drop_s(l)      /* S --> N */
+#define __RWLOCK_TRYSKLOCK(l)      (!pl_try_s(l))    /* N -?> S */
+#define __RWLOCK_TRYRDTOSK(l)      (!pl_try_rtos(l)) /* R -?> S */
+
 #define HA_SPIN_INIT(l)            __spin_init(l)
 #define HA_SPIN_DESTROY(l)         __spin_destroy(l)
 
@@ -322,6 +351,15 @@ static inline unsigned long thread_isolated()
 #define HA_RWLOCK_RDLOCK(lbl,l)    __ha_rwlock_rdlock(lbl, l)
 #define HA_RWLOCK_TRYRDLOCK(lbl,l) __ha_rwlock_tryrdlock(lbl, l)
 #define HA_RWLOCK_RDUNLOCK(lbl,l)  __ha_rwlock_rdunlock(lbl, l)
+
+#define HA_RWLOCK_SKLOCK(lbl,l)    __ha_rwlock_sklock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_SKTOWR(lbl,l)    __ha_rwlock_sktowr(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_WRTOSK(lbl,l)    __ha_rwlock_wrtosk(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_SKTORD(lbl,l)    __ha_rwlock_sktord(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_WRTORD(lbl,l)    __ha_rwlock_wrtord(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_SKUNLOCK(lbl,l)  __ha_rwlock_skunlock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_TRYSKLOCK(lbl,l) __ha_rwlock_trysklock(lbl, l, __func__, __FILE__, __LINE__)
+#define HA_RWLOCK_TRYRDTOSK(lbl,l) __ha_rwlock_tryrdtosk(lbl, l, __func__, __FILE__, __LINE__)
 
 /* WARNING!!! if you update this enum, please also keep lock_label() up to date
  * below.
@@ -480,15 +518,8 @@ static inline void __ha_rwlock_wrlock(enum lock_label lbl, struct ha_rwlock *l,
 {
 	uint64_t start_time;
 
-	if (unlikely(l->info.cur_writer & tid_bit)) {
-		/* the thread is already owning the lock for write */
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
 		abort();
-	}
-
-	if (unlikely(l->info.cur_readers & tid_bit)) {
-		/* the thread is already owning the lock for read */
-		abort();
-	}
 
 	HA_ATOMIC_OR(&l->info.wait_writers, tid_bit);
 
@@ -512,15 +543,8 @@ static inline int __ha_rwlock_trywrlock(enum lock_label lbl, struct ha_rwlock *l
 	uint64_t start_time;
 	int r;
 
-	if (unlikely(l->info.cur_writer & tid_bit)) {
-		/* the thread is already owning the lock for write */
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
 		abort();
-	}
-
-	if (unlikely(l->info.cur_readers & tid_bit)) {
-		/* the thread is already owning the lock for read */
-		abort();
-	}
 
 	/* We set waiting writer because trywrlock could wait for readers to quit */
 	HA_ATOMIC_OR(&l->info.wait_writers, tid_bit);
@@ -566,15 +590,8 @@ static inline void __ha_rwlock_rdlock(enum lock_label lbl,struct ha_rwlock *l)
 {
 	uint64_t start_time;
 
-	if (unlikely(l->info.cur_writer & tid_bit)) {
-		/* the thread is already owning the lock for write */
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
 		abort();
-	}
-
-	if (unlikely(l->info.cur_readers & tid_bit)) {
-		/* the thread is already owning the lock for read */
-		abort();
-	}
 
 	HA_ATOMIC_OR(&l->info.wait_readers, tid_bit);
 
@@ -592,15 +609,8 @@ static inline int __ha_rwlock_tryrdlock(enum lock_label lbl,struct ha_rwlock *l)
 {
 	int r;
 
-	if (unlikely(l->info.cur_writer & tid_bit)) {
-		/* the thread is already owning the lock for write */
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
 		abort();
-	}
-
-	if (unlikely(l->info.cur_readers & tid_bit)) {
-		/* the thread is already owning the lock for read */
-		abort();
-	}
 
 	/* try read should never wait */
 	r = __RWLOCK_TRYRDLOCK(&l->lock);
@@ -625,6 +635,218 @@ static inline void __ha_rwlock_rdunlock(enum lock_label lbl,struct ha_rwlock *l)
 	__RWLOCK_RDUNLOCK(&l->lock);
 
 	HA_ATOMIC_ADD(&lock_stats[lbl].num_read_unlocked, 1);
+}
+
+static inline void __ha_rwlock_wrtord(enum lock_label lbl, struct ha_rwlock *l,
+				      const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_seeker) & tid_bit)
+		abort();
+
+	if (!(l->info.cur_writer & tid_bit))
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_readers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_WRTORD(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (nsec_now() - start_time));
+
+	HA_ATOMIC_ADD(&lock_stats[lbl].num_read_locked, 1);
+
+	HA_ATOMIC_OR(&l->info.cur_readers, tid_bit);
+	HA_ATOMIC_AND(&l->info.cur_writer, ~tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_readers, ~tid_bit);
+}
+
+static inline void __ha_rwlock_wrtosk(enum lock_label lbl, struct ha_rwlock *l,
+				      const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_seeker) & tid_bit)
+		abort();
+
+	if (!(l->info.cur_writer & tid_bit))
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_seekers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_WRTOSK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (nsec_now() - start_time));
+
+	HA_ATOMIC_ADD(&lock_stats[lbl].num_seek_locked, 1);
+
+	HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
+	HA_ATOMIC_AND(&l->info.cur_writer, ~tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_seekers, ~tid_bit);
+}
+
+static inline void __ha_rwlock_sklock(enum lock_label lbl, struct ha_rwlock *l,
+				      const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_seekers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_SKLOCK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (nsec_now() - start_time));
+
+	HA_ATOMIC_ADD(&lock_stats[lbl].num_seek_locked, 1);
+
+	HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_seekers, ~tid_bit);
+}
+
+static inline void __ha_rwlock_sktowr(enum lock_label lbl, struct ha_rwlock *l,
+				      const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_writer) & tid_bit)
+		abort();
+
+	if (!(l->info.cur_seeker & tid_bit))
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_writers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_SKTOWR(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (nsec_now() - start_time));
+
+	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_locked, 1);
+
+	HA_ATOMIC_OR(&l->info.cur_writer, tid_bit);
+	HA_ATOMIC_AND(&l->info.cur_seeker, ~tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_writers, ~tid_bit);
+}
+
+static inline void __ha_rwlock_sktord(enum lock_label lbl, struct ha_rwlock *l,
+				      const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+
+	if ((l->info.cur_readers | l->info.cur_writer) & tid_bit)
+		abort();
+
+	if (!(l->info.cur_seeker & tid_bit))
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_readers, tid_bit);
+
+	start_time = nsec_now();
+	__RWLOCK_SKTORD(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (nsec_now() - start_time));
+
+	HA_ATOMIC_ADD(&lock_stats[lbl].num_read_locked, 1);
+
+	HA_ATOMIC_OR(&l->info.cur_readers, tid_bit);
+	HA_ATOMIC_AND(&l->info.cur_seeker, ~tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	HA_ATOMIC_AND(&l->info.wait_readers, ~tid_bit);
+}
+
+static inline void __ha_rwlock_skunlock(enum lock_label lbl,struct ha_rwlock *l,
+				        const char *func, const char *file, int line)
+{
+	if (!(l->info.cur_seeker & tid_bit))
+		abort();
+
+	HA_ATOMIC_AND(&l->info.cur_seeker, ~tid_bit);
+	l->info.last_location.function = func;
+	l->info.last_location.file     = file;
+	l->info.last_location.line     = line;
+
+	__RWLOCK_SKUNLOCK(&l->lock);
+
+	HA_ATOMIC_ADD(&lock_stats[lbl].num_seek_unlocked, 1);
+}
+
+static inline int __ha_rwlock_trysklock(enum lock_label lbl, struct ha_rwlock *l,
+				        const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+	int r;
+
+	if ((l->info.cur_readers | l->info.cur_seeker | l->info.cur_writer) & tid_bit)
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_seekers, tid_bit);
+
+	start_time = nsec_now();
+	r = __RWLOCK_TRYSKLOCK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (nsec_now() - start_time));
+
+	if (likely(!r)) {
+		/* got the lock ! */
+		HA_ATOMIC_ADD(&lock_stats[lbl].num_seek_locked, 1);
+		HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
+		l->info.last_location.function = func;
+		l->info.last_location.file     = file;
+		l->info.last_location.line     = line;
+	}
+
+	HA_ATOMIC_AND(&l->info.wait_seekers, ~tid_bit);
+	return r;
+}
+
+static inline int __ha_rwlock_tryrdtosk(enum lock_label lbl, struct ha_rwlock *l,
+				        const char *func, const char *file, int line)
+{
+	uint64_t start_time;
+	int r;
+
+	if ((l->info.cur_writer | l->info.cur_seeker) & tid_bit)
+		abort();
+
+	if (!(l->info.cur_readers & tid_bit))
+		abort();
+
+	HA_ATOMIC_OR(&l->info.wait_seekers, tid_bit);
+
+	start_time = nsec_now();
+	r = __RWLOCK_TRYRDTOSK(&l->lock);
+	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (nsec_now() - start_time));
+
+	if (likely(!r)) {
+		/* got the lock ! */
+		HA_ATOMIC_ADD(&lock_stats[lbl].num_seek_locked, 1);
+		HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
+		HA_ATOMIC_AND(&l->info.cur_readers, ~tid_bit);
+		l->info.last_location.function = func;
+		l->info.last_location.file     = file;
+		l->info.last_location.line     = line;
+	}
+
+	HA_ATOMIC_AND(&l->info.wait_seekers, ~tid_bit);
+	return r;
 }
 
 static inline void __spin_init(struct ha_spinlock *l)
