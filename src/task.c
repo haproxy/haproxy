@@ -289,15 +289,23 @@ void wake_expired_tasks()
 		}
 	}
 	key = eb->key;
-	HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
 
-	if (tick_is_lt(now_ms, key))
+	if (tick_is_lt(now_ms, key)) {
+		HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
 		goto leave;
+	}
 
 	/* There's really something of interest here, let's visit the queue */
 
+	if (HA_RWLOCK_TRYRDTOSK(TASK_WQ_LOCK, &wq_lock)) {
+		/* if we failed to grab the lock it means another thread is
+		 * already doing the same here, so let it do the job.
+		 */
+		HA_RWLOCK_RDUNLOCK(TASK_WQ_LOCK, &wq_lock);
+		goto leave;
+	}
+
 	while (1) {
-		HA_RWLOCK_WRLOCK(TASK_WQ_LOCK, &wq_lock);
   lookup_next:
 		if (max_processed-- <= 0)
 			break;
@@ -315,26 +323,29 @@ void wake_expired_tasks()
 		task = eb32_entry(eb, struct task, wq);
 		if (tick_is_expired(task->expire, now_ms)) {
 			/* expired task, wake it up */
+			HA_RWLOCK_SKTOWR(TASK_WQ_LOCK, &wq_lock);
 			__task_unlink_wq(task);
+			HA_RWLOCK_WRTOSK(TASK_WQ_LOCK, &wq_lock);
 			task_wakeup(task, TASK_WOKEN_TIMER);
 		}
 		else if (task->expire != eb->key) {
 			/* task is not expired but its key doesn't match so let's
 			 * update it and skip to next apparently expired task.
 			 */
+			HA_RWLOCK_SKTOWR(TASK_WQ_LOCK, &wq_lock);
 			__task_unlink_wq(task);
 			if (tick_isset(task->expire))
 				__task_queue(task, &timers);
+			HA_RWLOCK_WRTOSK(TASK_WQ_LOCK, &wq_lock);
 			goto lookup_next;
 		}
 		else {
 			/* task not expired and correctly placed */
 			break;
 		}
-		HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
 	}
 
-	HA_RWLOCK_WRUNLOCK(TASK_WQ_LOCK, &wq_lock);
+	HA_RWLOCK_SKUNLOCK(TASK_WQ_LOCK, &wq_lock);
 #endif
 leave:
 	return;
