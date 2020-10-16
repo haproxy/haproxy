@@ -1315,6 +1315,11 @@ void stop_proxy(struct proxy *p)
 	list_for_each_entry(l, &p->conf.listeners, by_fe)
 		stop_listener(l, 1, 0, 0);
 
+	if (!p->disabled && !p->li_ready) {
+		/* might be just a backend */
+		p->disabled = 1;
+	}
+
 	HA_SPIN_UNLOCK(PROXY_LOCK, &p->lock);
 }
 
