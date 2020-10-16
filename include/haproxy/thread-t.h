@@ -97,10 +97,13 @@
 struct lock_stat {
 	uint64_t nsec_wait_for_write;
 	uint64_t nsec_wait_for_read;
+	uint64_t nsec_wait_for_seek;
 	uint64_t num_write_locked;
 	uint64_t num_write_unlocked;
 	uint64_t num_read_locked;
 	uint64_t num_read_unlocked;
+	uint64_t num_seek_locked;
+	uint64_t num_seek_unlocked;
 };
 
 struct ha_spinlock {
@@ -123,6 +126,8 @@ struct ha_rwlock {
 		unsigned long wait_writers; /* a bit is set to 1 << tid for waiting writers */
 		unsigned long cur_readers; /* a bit is set to 1 << tid for current readers */
 		unsigned long wait_readers; /* a bit is set to 1 << tid for waiting waiters */
+		unsigned long cur_seeker;   /* a bit is set to 1 << tid for the lock seekers */
+		unsigned long wait_seekers; /* a bit is set to 1 << tid for waiting seekers */
 		struct {
 			const char *function;
 			const char *file;
