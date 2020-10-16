@@ -762,8 +762,8 @@ void listener_accept(struct listener *l)
 	 */
 	for (; max_accept; next_conn = next_feconn = next_actconn = 0, max_accept--) {
 		unsigned int count;
-		__decl_thread(unsigned long mask);
 		int status;
+		__decl_thread(unsigned long mask);
 
 		/* pre-increase the number of connections without going too far.
 		 * We process the listener, then the proxy, then the process.
