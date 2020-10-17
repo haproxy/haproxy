@@ -324,7 +324,7 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 	unsigned int dn, dp;
 	int loop;
 
-	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_RDLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (p->srv_act)
 		root = &p->lbprm.chash.act;
@@ -379,7 +379,7 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 	}
 
  out:
-	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return nsrv;
 }
 
