@@ -32,11 +32,11 @@ static void map_set_server_status_down(struct server *srv)
 		goto out_update_state;
 
 	/* FIXME: could be optimized since we know what changed */
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	recount_servers(p);
 	update_backend_weight(p);
 	recalc_server_map(p);
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
  out_update_state:
 	srv_lb_commit_status(srv);
 }
@@ -56,11 +56,11 @@ static void map_set_server_status_up(struct server *srv)
 		goto out_update_state;
 
 	/* FIXME: could be optimized since we know what changed */
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	recount_servers(p);
 	update_backend_weight(p);
 	recalc_server_map(p);
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
  out_update_state:
 	srv_lb_commit_status(srv);
 }
@@ -216,7 +216,7 @@ struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid)
 	int newidx, avoididx;
 	struct server *srv, *avoided;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &px->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &px->lbprm.lock);
 	if (px->lbprm.tot_weight == 0) {
 		avoided = NULL;
 		goto out;
@@ -248,7 +248,7 @@ struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid)
 		px->lbprm.map.rr_idx = avoididx;
 
   out:
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &px->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &px->lbprm.lock);
 	/* return NULL or srvtoavoid if found */
 	return avoided;
 }
@@ -265,10 +265,10 @@ struct server *map_get_server_hash(struct proxy *px, unsigned int hash)
 {
 	struct server *srv = NULL;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &px->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &px->lbprm.lock);
 	if (px->lbprm.tot_weight)
 		srv = px->lbprm.map.srv[hash % px->lbprm.tot_weight];
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &px->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &px->lbprm.lock);
 	return srv;
 }
 

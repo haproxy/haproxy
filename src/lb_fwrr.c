@@ -43,7 +43,7 @@ static void fwrr_set_server_status_down(struct server *srv)
 	if (srv_willbe_usable(srv))
 		goto out_update_state;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (!srv_currently_usable(srv))
 		/* server was already down */
@@ -79,7 +79,7 @@ static void fwrr_set_server_status_down(struct server *srv)
 out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
  out_update_state:
 	srv_lb_commit_status(srv);
@@ -105,7 +105,7 @@ static void fwrr_set_server_status_up(struct server *srv)
 	if (!srv_willbe_usable(srv))
 		goto out_update_state;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (srv_currently_usable(srv))
 		/* server was already up */
@@ -147,7 +147,7 @@ static void fwrr_set_server_status_up(struct server *srv)
 out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
  out_update_state:
 	srv_lb_commit_status(srv);
@@ -191,7 +191,7 @@ static void fwrr_update_server_weight(struct server *srv)
 		return;
 	}
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	grp = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
 	grp->next_weight = grp->next_weight - srv->cur_eweight + srv->next_eweight;
@@ -239,7 +239,7 @@ static void fwrr_update_server_weight(struct server *srv)
 	}
 
 	update_backend_weight(p);
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	srv_lb_commit_status(srv);
 }
@@ -514,7 +514,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	struct fwrr_group *grp;
 	int switched;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	if (p->srv_act)
 		grp = &p->lbprm.fwrr.act;
 	else if (p->lbprm.fbck) {
@@ -611,7 +611,7 @@ struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		}
 	}
  out:
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return srv;
 }
 

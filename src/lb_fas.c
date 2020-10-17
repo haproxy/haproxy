@@ -65,12 +65,12 @@ static inline void fas_queue_srv(struct server *s)
  */
 static void fas_srv_reposition(struct server *s)
 {
-	HA_SPIN_LOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 	if (s->lb_tree) {
 		fas_dequeue_srv(s);
 		fas_queue_srv(s);
 	}
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 }
 
 /* This function updates the server trees according to server <srv>'s new
@@ -91,7 +91,7 @@ static void fas_set_server_status_down(struct server *srv)
 	if (srv_willbe_usable(srv))
 		goto out_update_state;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (!srv_currently_usable(srv))
 		/* server was already down */
@@ -124,7 +124,7 @@ static void fas_set_server_status_down(struct server *srv)
  out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
  out_update_state:
 	srv_lb_commit_status(srv);
@@ -149,7 +149,7 @@ static void fas_set_server_status_up(struct server *srv)
 	if (!srv_willbe_usable(srv))
 		goto out_update_state;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (srv_currently_usable(srv))
 		/* server was already up */
@@ -188,7 +188,7 @@ static void fas_set_server_status_up(struct server *srv)
  out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
  out_update_state:
 	srv_lb_commit_status(srv);
@@ -231,7 +231,7 @@ static void fas_update_server_weight(struct server *srv)
 		return;
 	}
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (srv->lb_tree)
 		fas_dequeue_srv(srv);
@@ -247,7 +247,7 @@ static void fas_update_server_weight(struct server *srv)
 	fas_queue_srv(srv);
 
 	update_backend_weight(p);
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	srv_lb_commit_status(srv);
 }
@@ -300,7 +300,7 @@ struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid)
 
 	srv = avoided = NULL;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	if (p->srv_act)
 		node = eb32_first(&p->lbprm.fas.act);
 	else if (p->lbprm.fbck) {
@@ -336,7 +336,7 @@ struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	if (!srv)
 		srv = avoided;
   out:
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return srv;
 }
 

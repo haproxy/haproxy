@@ -124,7 +124,7 @@ static void chash_set_server_status_down(struct server *srv)
 	if (!srv_lb_status_changed(srv))
                return;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (srv_willbe_usable(srv))
 		goto out_update_state;
@@ -162,7 +162,7 @@ out_update_backend:
  out_update_state:
 	srv_lb_commit_status(srv);
 
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 }
 
 /* This function updates the server trees according to server <srv>'s new
@@ -181,7 +181,7 @@ static void chash_set_server_status_up(struct server *srv)
 	if (!srv_lb_status_changed(srv))
                return;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (!srv_willbe_usable(srv))
 		goto out_update_state;
@@ -224,7 +224,7 @@ static void chash_set_server_status_up(struct server *srv)
  out_update_state:
 	srv_lb_commit_status(srv);
 
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 }
 
 /* This function must be called after an update to server <srv>'s effective
@@ -264,7 +264,7 @@ static void chash_update_server_weight(struct server *srv)
 		return;
 	}
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	/* only adjust the server's presence in the tree */
 	chash_queue_dequeue_srv(srv);
@@ -277,7 +277,7 @@ static void chash_update_server_weight(struct server *srv)
 	update_backend_weight(p);
 	srv_lb_commit_status(srv);
 
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 }
 
 /*
@@ -324,7 +324,7 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 	unsigned int dn, dp;
 	int loop;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 
 	if (p->srv_act)
 		root = &p->lbprm.chash.act;
@@ -379,7 +379,7 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 	}
 
  out:
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return nsrv;
 }
 
@@ -395,7 +395,7 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	srv = avoided = NULL;
 	avoided_node = NULL;
 
-	HA_SPIN_LOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	if (p->srv_act)
 		root = &p->lbprm.chash.act;
 	else if (p->lbprm.fbck) {
@@ -454,7 +454,7 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	}
 
  out:
-	HA_SPIN_UNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return srv;
 }
 
