@@ -1,6 +1,64 @@
 ChangeLog :
 ===========
 
+2020/10/17 : 2.3-dev7
+    - CI: travis-ci: replace not defined SSL_LIB, SSL_INC for BotringSSL builds
+    - BUG/MINOR: init: only keep rlim_fd_cur if max is unlimited
+    - BUG/MINOR: mux-h2: do not stop outgoing connections on stopping
+    - MINOR: fd: report an error message when failing initial allocations
+    - MINOR: proto-tcp: make use of connect(AF_UNSPEC) for the pause
+    - MINOR: sock: add sock_accept_conn() to test a listening socket
+    - MINOR: protocol: make proto_tcp & proto_uxst report listening sockets
+    - MINOR: sockpair: implement the .rx_listening function
+    - CLEANUP: tcp: make use of sock_accept_conn() where relevant
+    - CLEANUP: unix: make use of sock_accept_conn() where relevant
+    - BUG/MINOR: listener: detect and handle shared sockets stopped in other processes
+    - CONTRIB: tcploop: implement a disconnect operation 'D'
+    - CLEANUP: protocol: intitialize all of the sockaddr when disconnecting
+    - BUG/MEDIUM: deinit: check fdtab before fdtab[fd].owner
+    - BUG/MINOR: connection: fix loop iter on connection takeover
+    - BUG/MEDIUM: connection: fix srv idle count on conn takeover
+    - MINOR: connection: improve list api usage
+    - MINOR: mux/connection: add a new mux flag for HOL risk
+    - MINOR: connection: don't check priv flag on free
+    - MEDIUM: backend: add new conn to session if mux marked as HOL blocking
+    - MEDIUM: backend: add reused conn to sess if mux marked as HOL blocking
+    - MEDIUM: h2: remove conn from session on detach
+    - MEDIUM: fcgi: remove conn from session on detach
+    - DOC: Describe reuse safe for HOL handling
+    - MEDIUM: proxy: remove obsolete "mode health"
+    - MEDIUM: proxy: remove obsolete "monitor-net"
+    - CLEANUP: protocol: remove the ->drain() function
+    - CLEANUP: fd: finally get rid of fd_done_recv()
+    - MINOR: connection: make sockaddr_alloc() take the address to be copied
+    - MEDIUM: listener: allocate the connection before queuing a new connection
+    - MINOR: session: simplify error path in session_accept_fd()
+    - MINOR: connection: add new error codes for accept_conn()
+    - MINOR: sock: rename sock_accept_conn() to sock_accepting_conn()
+    - MINOR: protocol: add a new function accept_conn()
+    - MINOR: sock: implement sock_accept_conn() to accept a connection
+    - MINOR: sockpair: implement sockpair_accept_conn() to accept a connection
+    - MEDIUM: listener: use protocol->accept_conn() to accept a connection
+    - MEDIUM: listener: remove the second pass of fd manipulation at the end
+    - MINOR: protocol: add a default I/O callback and put it into the receiver
+    - MINOR: log: set the UDP receiver's I/O handler in the receiver
+    - MINOR: protocol: register the receiver's I/O handler and not the protocol's
+    - CLEANUP: protocol: remove the now unused <handler> field of proto_fam->bind()
+    - DOC: improve the documentation for "option nolinger"
+    - BUG/MEDIUM: proxy: properly stop backends
+    - BUG/MEDIUM: task: bound the number of tasks picked from the wait queue at once
+    - MINOR: threads: augment rwlock debugging stats to report seek lock stats
+    - MINOR: threads: add the transitions to/from the seek state
+    - MEDIUM: task: use an upgradable seek lock when scanning the wait queue
+    - BUILD: listener: avoir a build warning when threads are disabled
+    - BUG/MINOR: peers: Possible unexpected peer seesion reset after collisions.
+    - MINOR: ssl: add volatile flags to ssl samples
+    - MEDIUM: backend: reuse connection if using a static sni
+    - BUG/MEDIUM: spoe: Unset variable instead of set it if no data provided
+    - BUG/MEDIUM: mux-h1: Get the session from the H1S when capturing bad messages
+    - BUG/MEDIUM: lb: Always lock the server when calling server_{take,drop}_conn
+    - DOC: fix typo in MAX_SESS_STKCTR
+
 2020/10/10 : 2.3-dev6
     - REGTESTS: use "command" instead of "which" for better POSIX compatibility
     - BUILD: makefile: Update feature flags for OpenBSD
