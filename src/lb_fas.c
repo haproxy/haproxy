@@ -300,7 +300,7 @@ struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid)
 
 	srv = avoided = NULL;
 
-	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_RDLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	if (p->srv_act)
 		node = eb32_first(&p->lbprm.fas.act);
 	else if (p->lbprm.fbck) {
@@ -336,7 +336,7 @@ struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid)
 	if (!srv)
 		srv = avoided;
   out:
-	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
+	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
 	return srv;
 }
 
