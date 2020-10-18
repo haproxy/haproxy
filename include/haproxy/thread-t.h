@@ -95,8 +95,8 @@
 /*** Common parts below ***/
 
 /* storage types used by spinlocks and RW locks */
-#define __HA_SPINLOCK_T     unsigned long
-#define __HA_RWLOCK_T       unsigned long
+#define __HA_SPINLOCK_T     unsigned int
+#define __HA_RWLOCK_T       unsigned int
 
 
 /* When thread debugging is enabled, we remap HA_SPINLOCK_T and HA_RWLOCK_T to
