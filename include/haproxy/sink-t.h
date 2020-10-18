@@ -40,8 +40,8 @@ struct sink_forward_target {
 	struct server *srv;    // used server
 	struct appctx *appctx; // appctx of current session
 	size_t ofs;            // ring buffer reader offset
-	__decl_thread(HA_SPINLOCK_T lock); // lock to protect current struct
 	struct sink_forward_target *next;
+	__decl_thread(HA_SPINLOCK_T lock); // lock to protect current struct
 };
 
 /* describes the configuration and current state of an event sink */
@@ -57,10 +57,10 @@ struct sink {
 	struct task *forward_task; // task to handle forward targets conns
 	struct sig_handler *forward_sighandler; /* signal handler */
 	struct {
-		__decl_thread(HA_RWLOCK_T lock); // shared/excl for dropped
 		struct ring *ring;    // used by ring buffer and STRM sender
 		unsigned int dropped; // dropped events since last one.
 		int fd;               // fd num for FD type sink
+		__decl_thread(HA_RWLOCK_T lock); // shared/excl for dropped
 	} ctx;
 };
 

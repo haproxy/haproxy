@@ -170,16 +170,11 @@ struct stktable {
 	struct stktable *next;    /* The stick-table may be linked when belonging to
 	                           * the same configuration section.
 	                           */
-	struct {
-		const char *file;     /* The file where the stick-table is declared. */
-		int line;             /* The line in this <file> the stick-table is declared. */
-	} conf;
 	struct ebpt_node name;    /* Stick-table are lookup by name here. */
 	struct eb_root keys;      /* head of sticky session tree */
 	struct eb_root exps;      /* head of sticky session expiration tree */
 	struct eb_root updates;   /* head of sticky updates sequence tree */
 	struct pool_head *pool;   /* pool used to allocate sticky sessions */
-	__decl_thread(HA_SPINLOCK_T lock); /* spin lock related to the table */
 	struct task *exp_task;    /* expiration task */
 	struct task *sync_task;   /* sync task */
 	unsigned int update;
@@ -208,6 +203,11 @@ struct stktable {
 	} data_arg[STKTABLE_DATA_TYPES]; /* optional argument of each data type */
 	struct proxy *proxy;      /* The proxy this stick-table is attached to, if any.*/
 	struct proxy *proxies_list; /* The list of proxies which reference this stick-table. */
+	struct {
+		const char *file;     /* The file where the stick-table is declared. */
+		int line;             /* The line in this <file> the stick-table is declared. */
+	} conf;
+	__decl_thread(HA_SPINLOCK_T lock); /* spin lock related to the table */
 };
 
 extern struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES];

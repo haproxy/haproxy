@@ -50,6 +50,7 @@ struct shared_table {
 
 struct peer {
 	int local;                    /* proxy state */
+	__decl_thread(HA_SPINLOCK_T lock); /* lock used to handle this peer section */
 	char *id;
 	struct {
 		const char *file;         /* file where the section appears */
@@ -78,7 +79,6 @@ struct peer {
 	struct shared_table *tables;
 	struct server *srv;
 	struct dcache *dcache;        /* dictionary cache */
-	__decl_thread(HA_SPINLOCK_T lock); /* lock used to handle this peer section */
 	struct peer *next;            /* next peer in the list */
 };
 

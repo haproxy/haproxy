@@ -164,12 +164,7 @@ struct dns_response_packet {
  * current resolution are stored in a FIFO list.
  */
 struct dns_resolvers {
-	char      *id;                      /* resolvers unique identifier */
-	struct {
-		const char *file;           /* file where the section appears */
-		int         line;           /* line where the section appears */
-	} conf;                             /* config information */
-	struct list  nameservers;           /* dns server list */
+	__decl_thread(HA_SPINLOCK_T lock);
 	unsigned int accepted_payload_size; /* maximum payload size we accept for responses */
 	int          nb_nameservers;        /* total number of active nameservers in a resolvers section */
 	int          resolve_retries;       /* number of retries before giving up */
@@ -193,8 +188,13 @@ struct dns_resolvers {
 	struct eb_root query_ids;           /* tree to quickly lookup/retrieve query ids currently in use
                                              * used by each nameserver, but stored in resolvers since there must
                                              * be a unique relation between an eb_root and an eb_node (resolution) */
-	__decl_thread(HA_SPINLOCK_T lock);
 	struct list list;                   /* resolvers list */
+	struct list  nameservers;           /* dns server list */
+	char      *id;                      /* resolvers unique identifier */
+	struct {
+		const char *file;           /* file where the section appears */
+		int         line;           /* line where the section appears */
+	} conf;                             /* config information */
 };
 
 /* Structure describing a name server used during name resolution.
