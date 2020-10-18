@@ -855,8 +855,8 @@ void listener_accept(struct listener *l)
 			send_log(p, LOG_EMERG,
 				 "Proxy %s reached the configured maximum connection limit. Please check the global 'maxconn' value.\n",
 				 p->id);
-			conn_free(cli_conn);
 			close(cli_conn->handle.fd);
+			conn_free(cli_conn);
 			expire = tick_add(now_ms, 1000); /* try again in 1 second */
 			goto limit_global;
 		}
