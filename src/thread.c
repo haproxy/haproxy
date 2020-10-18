@@ -154,13 +154,13 @@ void ha_tkillall(int sig)
 	raise(sig);
 }
 
-/* these calls are used as callbacks at init time */
+/* these calls are used as callbacks at init time when debugging is on */
 void ha_spin_init(HA_SPINLOCK_T *l)
 {
 	HA_SPIN_INIT(l);
 }
 
-/* these calls are used as callbacks at init time */
+/* these calls are used as callbacks at init time when debugging is on */
 void ha_rwlock_init(HA_RWLOCK_T *l)
 {
 	HA_RWLOCK_INIT(l);

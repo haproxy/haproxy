@@ -45,9 +45,29 @@
 #define __decl_rwlock(lock)
 #define __decl_aligned_rwlock(lock)
 
+#elif !defined(DEBUG_THREAD) && !defined(DEBUG_FULL)
+
+/************** THREADS ENABLED WITHOUT DEBUGGING **************/
+
+/* declare a self-initializing spinlock */
+#define __decl_spinlock(lock)                                  \
+	HA_SPINLOCK_T (lock) = 0;
+
+/* declare a self-initializing spinlock, aligned on a cache line */
+#define __decl_aligned_spinlock(lock)                          \
+	HA_SPINLOCK_T (lock) __attribute__((aligned(64))) = 0;
+
+/* declare a self-initializing rwlock */
+#define __decl_rwlock(lock)                                    \
+	HA_RWLOCK_T   (lock) = 0;
+
+/* declare a self-initializing rwlock, aligned on a cache line */
+#define __decl_aligned_rwlock(lock)                            \
+	HA_RWLOCK_T   (lock) __attribute__((aligned(64))) = 0;
+
 #else /* !USE_THREAD */
 
-/********************** THREADS ENABLED ************************/
+/**************** THREADS ENABLED WITH DEBUGGING ***************/
 
 /* declare a self-initializing spinlock */
 #define __decl_spinlock(lock)                               \
