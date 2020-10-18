@@ -101,7 +101,6 @@ extern THREAD_LOCAL struct task_per_thread *sched; /* current's thread scheduler
 #ifdef USE_THREAD
 extern struct eb_root timers;      /* sorted timers tree, global */
 extern struct eb_root rqueue;      /* tree constituting the run queue */
-extern int global_rqueue_size; /* Number of element sin the global runqueue */
 #endif
 
 extern struct task_per_thread task_per_thread[MAX_THREADS];
@@ -295,10 +294,9 @@ static inline struct task *__task_unlink_rq(struct task *t)
 {
 	_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 #ifdef USE_THREAD
-	if (t->state & TASK_GLOBAL) {
+	if (t->state & TASK_GLOBAL)
 		_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
-		global_rqueue_size--;
-	} else
+	else
 #endif
 		sched->rqueue_size--;
 	eb32sc_delete(&t->rq);

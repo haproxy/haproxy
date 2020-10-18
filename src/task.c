@@ -50,7 +50,6 @@ __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
 #ifdef USE_THREAD
 struct eb_root timers;      /* sorted timers tree, global */
 struct eb_root rqueue;      /* tree constituting the run queue */
-int global_rqueue_size; /* Number of element sin the global runqueue */
 #endif
 
 static unsigned int rqueue_ticks;  /* insertion count */
@@ -150,7 +149,6 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 	eb32sc_insert(root, &t->rq, t->thread_mask);
 #ifdef USE_THREAD
 	if (root == &rqueue) {
-		global_rqueue_size++;
 		_HA_ATOMIC_OR(&t->state, TASK_GLOBAL);
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 	} else
