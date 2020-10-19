@@ -473,7 +473,7 @@ static inline void conn_free(struct connection *conn)
 	if (LIST_ADDED(&conn->session_list)) {
 		session_unown_conn(conn->owner, conn);
 	}
-	else {
+	else if (!(conn->flags & CO_FL_PRIVATE)) {
 		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
 			srv_del_conn_from_list(__objt_server(conn->target), conn);
 	}
