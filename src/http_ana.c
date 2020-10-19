@@ -4575,6 +4575,9 @@ int http_forward_proxy_resp(struct stream *s, int final)
 		if (!http_eval_after_res_rules(s))
 			return 0;
 
+		if (s->txn->meth == HTTP_METH_HEAD)
+			htx_skip_msg_payload(htx);
+
 		channel_auto_read(req);
 		channel_abort(req);
 		channel_auto_close(req);

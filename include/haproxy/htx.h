@@ -610,6 +610,19 @@ static inline int htx_copy_msg(struct htx *htx, const struct buffer *msg)
 	return htx_append_msg(htx, htxbuf(msg));
 }
 
+static inline void htx_skip_msg_payload(struct htx *htx)
+{
+	struct htx_blk *blk = htx_get_first_blk(htx);
+
+	while (blk) {
+		enum htx_blk_type type = htx_get_blk_type(blk);
+
+		blk = ((type > HTX_BLK_EOH && type < HTX_BLK_EOM)
+		       ? htx_remove_blk(htx, blk)
+		       : htx_get_next_blk(htx, blk));
+	}
+}
+
 /* Returns the number of used blocks in the HTX message <htx>. Note that it is
  * illegal to call this function with htx == NULL. Note also blocks of type
  * HTX_BLK_UNUSED are part of used blocks.
