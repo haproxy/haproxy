@@ -2225,7 +2225,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 	while (appctx->ctx.errors.px) {
 		struct error_snapshot *es;
 
-		HA_RWLOCK_WRLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
+		HA_RWLOCK_RDLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
 
 		if ((appctx->ctx.errors.flag & 1) == 0) {
 			es = appctx->ctx.errors.px->invalid_req;
@@ -2335,7 +2335,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			appctx->ctx.errors.bol = newline;
 		};
 	next:
-		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
+		HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
 		appctx->ctx.errors.bol = 0;
 		appctx->ctx.errors.ptr = -1;
 		appctx->ctx.errors.flag ^= 1;
@@ -2347,7 +2347,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 	return 1;
 
  cant_send_unlock:
-	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
+	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
  cant_send:
 	si_rx_room_blk(si);
 	return 0;
