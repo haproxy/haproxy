@@ -295,7 +295,7 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 	}
 
 	if (!lpx)
-		HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+		HA_RWLOCK_WRLOCK(PROXY_LOCK, &px->lock);
 
 	if (!lpr)
 		HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
@@ -319,7 +319,7 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 		HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 
 	if (!lpx)
-		HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 }
 
 /* default function called to suspend a listener: it simply passes the call to

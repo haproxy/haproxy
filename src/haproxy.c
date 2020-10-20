@@ -2697,7 +2697,7 @@ void deinit(void)
 		p0 = p;
 		p = p->next;
 		HA_RWLOCK_DESTROY(&p0->lbprm.lock);
-		HA_SPIN_DESTROY(&p0->lock);
+		HA_RWLOCK_DESTROY(&p0->lock);
 		free(p0);
 	}/* end while(p) */
 

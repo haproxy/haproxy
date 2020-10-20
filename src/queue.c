@@ -152,7 +152,7 @@ static inline void pendconn_queue_lock(struct pendconn *p)
 	if (p->srv)
 		HA_SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
 	else
-		HA_SPIN_LOCK(PROXY_LOCK, &p->px->lock);
+		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->px->lock);
 }
 
 /* Unlocks the queue the pendconn element belongs to. This relies on both p->px
@@ -164,7 +164,7 @@ static inline void pendconn_queue_unlock(struct pendconn *p)
 	if (p->srv)
 		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
 	else
-		HA_SPIN_UNLOCK(PROXY_LOCK, &p->px->lock);
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->px->lock);
 }
 
 /* Removes the pendconn from the server/proxy queue. At this stage, the
@@ -312,14 +312,14 @@ void process_srv_queue(struct server *s)
 	int maxconn;
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
-	HA_SPIN_LOCK(PROXY_LOCK,  &p->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK,  &p->lock);
 	maxconn = srv_dynamic_maxconn(s);
 	while (s->served < maxconn) {
 		int ret = pendconn_process_next_strm(s, p);
 		if (!ret)
 			break;
 	}
-	HA_SPIN_UNLOCK(PROXY_LOCK,  &p->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK,  &p->lock);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 }
 
@@ -444,7 +444,7 @@ int pendconn_grab_from_px(struct server *s)
 	     ((s != s->proxy->lbprm.fbck) && !(s->proxy->options & PR_O_USE_ALL_BK))))
 		return 0;
 
-	HA_SPIN_LOCK(PROXY_LOCK, &s->proxy->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &s->proxy->lock);
 	maxconn = srv_dynamic_maxconn(s);
 	while ((p = pendconn_first(&s->proxy->pendconns))) {
 		if (s->maxconn && s->served + xferred >= maxconn)
@@ -456,7 +456,7 @@ int pendconn_grab_from_px(struct server *s)
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 		xferred++;
 	}
-	HA_SPIN_UNLOCK(PROXY_LOCK, &s->proxy->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &s->proxy->lock);
 	return xferred;
 }
 

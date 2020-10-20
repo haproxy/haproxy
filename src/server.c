@@ -139,7 +139,7 @@ void srv_set_dyncookie(struct server *s)
 	int addr_len;
 	int port;
 
-	HA_SPIN_LOCK(PROXY_LOCK, &p->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
 
 	if ((s->flags & SRV_F_COOKIESET) ||
 	    !(s->proxy->ck_opts & PR_CK_DYNAMIC) ||
@@ -188,7 +188,7 @@ void srv_set_dyncookie(struct server *s)
 	if (!(s->next_admin & SRV_ADMF_FMAINT))
 		srv_check_for_dup_dyncookie(s);
  out:
-	HA_SPIN_UNLOCK(PROXY_LOCK, &p->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
 }
 
 /*

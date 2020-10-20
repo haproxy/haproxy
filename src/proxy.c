@@ -1041,7 +1041,7 @@ void init_new_proxy(struct proxy *p)
 	/* Default to only allow L4 retries */
 	p->retry_type = PR_RE_CONN_FAILED;
 
-	HA_SPIN_INIT(&p->lock);
+	HA_RWLOCK_INIT(&p->lock);
 }
 
 /* to be called under the proxy lock after stopping some listeners. This will
@@ -1310,7 +1310,7 @@ void stop_proxy(struct proxy *p)
 {
 	struct listener *l;
 
-	HA_SPIN_LOCK(PROXY_LOCK, &p->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
 
 	list_for_each_entry(l, &p->conf.listeners, by_fe)
 		stop_listener(l, 1, 0, 0);
@@ -1320,7 +1320,7 @@ void stop_proxy(struct proxy *p)
 		p->disabled = 1;
 	}
 
-	HA_SPIN_UNLOCK(PROXY_LOCK, &p->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
 }
 
 /* This function resumes listening on the specified proxy. It scans all of its
@@ -1559,14 +1559,14 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	/* note: we still lock since we have to be certain that nobody is
 	 * dumping the output while we free.
 	 */
-	HA_SPIN_LOCK(PROXY_LOCK, &proxy->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &proxy->lock);
 	if (is_back) {
 		es = HA_ATOMIC_XCHG(&proxy->invalid_rep, es);
 	} else {
 		es = HA_ATOMIC_XCHG(&proxy->invalid_req, es);
 	}
 	free(es);
-	HA_SPIN_UNLOCK(PROXY_LOCK, &proxy->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &proxy->lock);
 }
 
 /* Configure all proxies which lack a maxconn setting to use the global one by
@@ -1936,9 +1936,9 @@ static int cli_parse_enable_dyncookie_backend(char **args, char *payload, struct
 	/* Note: this lock is to make sure this doesn't change while another
 	 * thread is in srv_set_dyncookie().
 	 */
-	HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &px->lock);
 	px->ck_opts |= PR_CK_DYNAMIC;
-	HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 
 	for (s = px->srv; s != NULL; s = s->next) {
 		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
@@ -1968,9 +1968,9 @@ static int cli_parse_disable_dyncookie_backend(char **args, char *payload, struc
 	/* Note: this lock is to make sure this doesn't change while another
 	 * thread is in srv_set_dyncookie().
 	 */
-	HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &px->lock);
 	px->ck_opts &= ~PR_CK_DYNAMIC;
-	HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 
 	for (s = px->srv; s != NULL; s = s->next) {
 		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
@@ -2011,10 +2011,10 @@ static int cli_parse_set_dyncookie_key_backend(char **args, char *payload, struc
 	/* Note: this lock is to make sure this doesn't change while another
 	 * thread is in srv_set_dyncookie().
 	 */
-	HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &px->lock);
 	free(px->dyncookie_key);
 	px->dyncookie_key = newkey;
-	HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 
 	for (s = px->srv; s != NULL; s = s->next) {
 		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
@@ -2052,7 +2052,7 @@ static int cli_parse_set_maxconn_frontend(char **args, char *payload, struct app
 	/* OK, the value is fine, so we assign it to the proxy and to all of
 	 * its listeners. The blocked ones will be dequeued.
 	 */
-	HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &px->lock);
 
 	px->maxconn = v;
 	list_for_each_entry(l, &px->conf.listeners, by_fe) {
@@ -2063,7 +2063,7 @@ static int cli_parse_set_maxconn_frontend(char **args, char *payload, struct app
 	if (px->maxconn > px->feconn)
 		dequeue_proxy_listeners(px);
 
-	HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 
 	return 1;
 }
@@ -2112,9 +2112,9 @@ static int cli_parse_disable_frontend(char **args, char *payload, struct appctx 
 	if (!px->li_ready)
 		return cli_msg(appctx, LOG_NOTICE, "All sockets are already disabled.\n");
 
-	HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &px->lock);
 	ret = pause_proxy(px);
-	HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 
 	if (!ret)
 		return cli_err(appctx, "Failed to pause frontend, check logs for precise cause.\n");
@@ -2144,9 +2144,9 @@ static int cli_parse_enable_frontend(char **args, char *payload, struct appctx *
 	if (px->li_ready == px->li_all)
 		return cli_msg(appctx, LOG_NOTICE, "All sockets are already enabled.\n");
 
-	HA_SPIN_LOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &px->lock);
 	ret = resume_proxy(px);
-	HA_SPIN_UNLOCK(PROXY_LOCK, &px->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 
 	if (!ret)
 		return cli_err(appctx, "Failed to resume frontend, check logs for precise cause (port conflict?).\n");
@@ -2225,7 +2225,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 	while (appctx->ctx.errors.px) {
 		struct error_snapshot *es;
 
-		HA_SPIN_LOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
+		HA_RWLOCK_WRLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
 
 		if ((appctx->ctx.errors.flag & 1) == 0) {
 			es = appctx->ctx.errors.px->invalid_req;
@@ -2335,7 +2335,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 			appctx->ctx.errors.bol = newline;
 		};
 	next:
-		HA_SPIN_UNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
 		appctx->ctx.errors.bol = 0;
 		appctx->ctx.errors.ptr = -1;
 		appctx->ctx.errors.flag ^= 1;
@@ -2347,7 +2347,7 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 	return 1;
 
  cant_send_unlock:
-	HA_SPIN_UNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &appctx->ctx.errors.px->lock);
  cant_send:
 	si_rx_room_blk(si);
 	return 0;

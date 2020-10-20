@@ -321,7 +321,7 @@ struct proxy {
 		int clientfin;                  /* timeout to apply to client half-closed connections */
 		int serverfin;                  /* timeout to apply to server half-closed connections */
 	} timeout;
-	__decl_thread(HA_SPINLOCK_T lock);      /* may be taken under the server's lock */
+	__decl_thread(HA_RWLOCK_T lock);        /* may be taken under the server's lock */
 
 	char *id, *desc;			/* proxy id (name) and description */
 	struct eb_root pendconns;		/* pending connections with no server assigned yet */
