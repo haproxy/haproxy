@@ -1,6 +1,6 @@
 varnishtest "Check that the TLVs are properly validated"
 
-#REQUIRE_VERSION=2.2
+#REQUIRE_VERSION=2.4
 
 feature ignore_unknown_macro
 
@@ -53,7 +53,8 @@ haproxy h2 -conf {
         http-request return status 200
 } -start
 
-# Validate that a TLV after the end of the PROXYv2 header is ignored
+# Validate that a TLV after the end of the PROXYv2 header is not parsed
+# and handle by the HTTP parser, leading to a 400 bad request error
 client c2 -connect ${h2_fe1_sock} {
     # PROXY v2 signature
     sendhex "0d 0a 0d 0a 00 0d 0a 51 55 49 54 0a"
@@ -72,7 +73,8 @@ client c2 -connect ${h2_fe1_sock} {
 
     txreq -url "/"
     rxresp
-    expect resp.http.echo == "3132333435"
+    expect resp.status == 400
+    expect resp.http.echo == <undef>
 } -run
 
 haproxy h3 -conf {
