@@ -290,6 +290,7 @@ struct global_ssl {
 	int capture_cipherlist; /* Size of the cipherlist buffer. */
 	int keylog; /* activate keylog  */
 	int extra_files; /* which files not defined in the configuration file are we looking for */
+	int extra_files_noext; /* whether we remove the extension when looking up a extra file */
 };
 
 /* The order here matters for picking a default context,

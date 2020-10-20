@@ -518,6 +518,15 @@ err_arg:
 }
 
 
+/* parse 'ssl-load-extra-del-ext */
+static int ssl_parse_global_extra_noext(char **args, int section_type, struct proxy *curpx,
+                                       struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	global_ssl.extra_files_noext = 1;
+	return 0;
+}
+
 /***************************** Bind keyword Parsing ********************************************/
 
 /* for ca-file and ca-verify-file */
@@ -1876,6 +1885,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "ssl-default-server-ciphersuites", ssl_parse_global_ciphersuites },
 #endif
 	{ CFG_GLOBAL, "ssl-load-extra-files", ssl_parse_global_extra_files },
+	{ CFG_GLOBAL, "ssl-load-extra-del-ext", ssl_parse_global_extra_noext },
 	{ 0, NULL, NULL },
 }};
 

@@ -1374,6 +1374,18 @@ ssl-dh-param-file <file>
   "openssl dhparam <size>", where size should be at least 2048, as 1024-bit DH
   parameters should not be considered secure anymore.
 
+ssl-load-extra-del-ext
+  This setting allows to configure the way HAProxy does the lookup for the
+  extra SSL files. By default HAProxy adds a new extension to the filename.
+  (ex: with "foobar.pem" load "foobar.pem.key"). With this option enabled,
+  HAProxy removes the extension before adding the new one (ex: with
+  "foobar.pem" load "foobar.key").
+
+  This option is not compatible with bundle extensions (.ecdsa, .rsa. .dsa)
+  and won't try to remove them.
+
+  This option is disabled by default. See also "ssl-load-extra-files".
+
 ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
   This setting alters the way HAProxy will look for unspecified files during
   the loading of the SSL certificates associated to "bind" lines. It does not

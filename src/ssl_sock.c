@@ -129,6 +129,7 @@ struct global_ssl global_ssl = {
 	.ctx_cache = DEFAULT_SSL_CTX_CACHE,
 	.capture_cipherlist = 0,
 	.extra_files = SSL_GF_ALL,
+	.extra_files_noext = 0,
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	.keylog = 0
 #endif

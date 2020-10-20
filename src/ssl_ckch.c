@@ -251,6 +251,7 @@ end:
  */
 int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *ckch, char **err)
 {
+	struct buffer *fp = NULL;
 	int ret = 1;
 
 	/* try to load the PEM */
@@ -258,24 +259,72 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 		goto end;
 	}
 
+	fp = alloc_trash_chunk();
+	if (!fp) {
+		memprintf(err, "%sCan't allocate memory\n", err && *err ? *err : "");
+		goto end;
+	}
+
+	if (!chunk_strcpy(fp, path) || (b_data(fp) > MAXPATHLEN)) {
+		memprintf(err, "%s '%s' filename too long'.\n",
+			  err && *err ? *err : "", fp->area);
+		ret = 1;
+		goto end;
+	}
+
+	/* remove the  extension */
+	if (global_ssl.extra_files_noext) {
+		char *ext;
+
+		/* look for the extension */
+		if ((ext = strrchr(fp->area, '.'))) {
+			int n;
+			int found_ext = 0; /* bundle extension found ? */
+
+			ext++; /* we need to compare the ext after the dot */
+
+			for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
+				if (!strcmp(ext, SSL_SOCK_KEYTYPE_NAMES[n])) {
+					found_ext = 1;
+				}
+			}
+
+			ext--;
+			if (!found_ext) /* if it wasn't a bundle extension we remove it */
+				*ext = '\0';
+
+			fp->data = strlen(fp->area);
+		}
+
+	}
+
 	/* try to load an external private key if it wasn't in the PEM */
 	if ((ckch->key == NULL) && (global_ssl.extra_files & SSL_GF_KEY)) {
-		char fp[MAXPATHLEN+1];
 		struct stat st;
 
-		snprintf(fp, MAXPATHLEN+1, "%s.key", path);
-		if (stat(fp, &st) == 0) {
-			if (ssl_sock_load_key_into_ckch(fp, NULL, ckch, err)) {
+
+		if (!chunk_strcat(fp, ".key") || (b_data(fp) > MAXPATHLEN)) {
+			memprintf(err, "%s '%s' filename too long'.\n",
+			          err && *err ? *err : "", fp->area);
+			ret = 1;
+			goto end;
+		}
+
+		if (stat(fp->area, &st) == 0) {
+			if (ssl_sock_load_key_into_ckch(fp->area, NULL, ckch, err)) {
 				memprintf(err, "%s '%s' is present but cannot be read or parsed'.\n",
-					  err && *err ? *err : "", fp);
+					  err && *err ? *err : "", fp->area);
 				goto end;
 			}
 		}
-	}
 
-	if (ckch->key == NULL) {
-		memprintf(err, "%sNo Private Key found in '%s' or '%s.key'.\n", err && *err ? *err : "", path, path);
-		goto end;
+		if (ckch->key == NULL) {
+			memprintf(err, "%sNo Private Key found in '%s'.\n", err && *err ? *err : "", fp->area);
+			goto end;
+		}
+		/* remove the added extension */
+		*(fp->area + fp->data - strlen(".key")) = '\0';
+		b_sub(fp, strlen(".key"));
 	}
 
 	if (!X509_check_private_key(ckch->cert, ckch->key)) {
@@ -287,33 +336,49 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
 	/* try to load the sctl file */
 	if (global_ssl.extra_files & SSL_GF_SCTL) {
-		char fp[MAXPATHLEN+1];
 		struct stat st;
 
-		snprintf(fp, MAXPATHLEN+1, "%s.sctl", path);
-		if (stat(fp, &st) == 0) {
-			if (ssl_sock_load_sctl_from_file(fp, NULL, ckch, err)) {
+		if (!chunk_strcat(fp, ".sctl") || b_data(fp) > MAXPATHLEN) {
+			memprintf(err, "%s '%s' filename too long'.\n",
+			          err && *err ? *err : "", fp->area);
+			ret = 1;
+			goto end;
+		}
+
+		if (stat(fp->area, &st) == 0) {
+			if (ssl_sock_load_sctl_from_file(fp->area, NULL, ckch, err)) {
 				memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
-					  err && *err ? *err : "", fp);
+					  err && *err ? *err : "", fp->area);
 				ret = 1;
 				goto end;
 			}
 		}
+		/* remove the added extension */
+		*(fp->area + fp->data - strlen(".sctl")) = '\0';
+		b_sub(fp, strlen(".sctl"));
 	}
 #endif
 
 	/* try to load an ocsp response file */
 	if (global_ssl.extra_files & SSL_GF_OCSP) {
-		char fp[MAXPATHLEN+1];
 		struct stat st;
 
-		snprintf(fp, MAXPATHLEN+1, "%s.ocsp", path);
-		if (stat(fp, &st) == 0) {
-			if (ssl_sock_load_ocsp_response_from_file(fp, NULL, ckch, err)) {
+		if (!chunk_strcat(fp, ".ocsp") || b_data(fp) > MAXPATHLEN) {
+			memprintf(err, "%s '%s' filename too long'.\n",
+			          err && *err ? *err : "", fp->area);
+			ret = 1;
+			goto end;
+		}
+
+		if (stat(fp->area, &st) == 0) {
+			if (ssl_sock_load_ocsp_response_from_file(fp->area, NULL, ckch, err)) {
 				ret = 1;
 				goto end;
 			}
 		}
+		/* remove the added extension */
+		*(fp->area + fp->data - strlen(".ocsp")) = '\0';
+		b_sub(fp, strlen(".ocsp"));
 	}
 
 #ifndef OPENSSL_IS_BORINGSSL /* Useless for BoringSSL */
@@ -321,22 +386,30 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 		/* if no issuer was found, try to load an issuer from the .issuer */
 		if (!ckch->ocsp_issuer) {
 			struct stat st;
-			char fp[MAXPATHLEN+1];
 
-			snprintf(fp, MAXPATHLEN+1, "%s.issuer", path);
-			if (stat(fp, &st) == 0) {
-				if (ssl_sock_load_issuer_file_into_ckch(fp, NULL, ckch, err)) {
+			if (!chunk_strcat(fp, ".issuer") || b_data(fp) > MAXPATHLEN) {
+				memprintf(err, "%s '%s' filename too long'.\n",
+					  err && *err ? *err : "", fp->area);
+				ret = 1;
+				goto end;
+			}
+
+			if (stat(fp->area, &st) == 0) {
+				if (ssl_sock_load_issuer_file_into_ckch(fp->area, NULL, ckch, err)) {
 					ret = 1;
 					goto end;
 				}
 
 				if (X509_check_issued(ckch->ocsp_issuer, ckch->cert) != X509_V_OK) {
 					memprintf(err, "%s '%s' is not an issuer'.\n",
-						  err && *err ? *err : "", fp);
+						  err && *err ? *err : "", fp->area);
 					ret = 1;
 					goto end;
 				}
 			}
+			/* remove the added extension */
+			*(fp->area + fp->data - strlen(".issuer")) = '\0';
+			b_sub(fp, strlen(".issuer"));
 		}
 	}
 #endif
@@ -350,6 +423,8 @@ end:
 	/* Something went wrong in one of the reads */
 	if (ret != 0)
 		ssl_sock_free_cert_key_and_chain_contents(ckch);
+
+	free_trash_chunk(fp);
 
 	return ret;
 }
