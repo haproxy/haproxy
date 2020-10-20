@@ -103,7 +103,8 @@ int srv_getinter(const struct check *check)
 
 /*
  * Check that we did not get a hash collision.
- * Unlikely, but it can happen.
+ * Unlikely, but it can happen. The server's proxy must be at least
+ * read-locked.
  */
 static inline void srv_check_for_dup_dyncookie(struct server *s)
 {
@@ -127,7 +128,7 @@ static inline void srv_check_for_dup_dyncookie(struct server *s)
 }
 
 /*
- * Must be called with the server lock held, and will grab the proxy lock.
+ * Must be called with the server lock held, and will read-lock the proxy.
  */
 void srv_set_dyncookie(struct server *s)
 {
@@ -139,7 +140,7 @@ void srv_set_dyncookie(struct server *s)
 	int addr_len;
 	int port;
 
-	HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
+	HA_RWLOCK_RDLOCK(PROXY_LOCK, &p->lock);
 
 	if ((s->flags & SRV_F_COOKIESET) ||
 	    !(s->proxy->ck_opts & PR_CK_DYNAMIC) ||
@@ -188,7 +189,7 @@ void srv_set_dyncookie(struct server *s)
 	if (!(s->next_admin & SRV_ADMF_FMAINT))
 		srv_check_for_dup_dyncookie(s);
  out:
-	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
+	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &p->lock);
 }
 
 /*
