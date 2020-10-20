@@ -1941,6 +1941,17 @@ static void init(int argc, char **argv)
 		}
 	}
 
+	if (global.nbproc > 1 && !global.nbthread) {
+		ha_warning("nbproc is deprecated!\n"
+			   "  | For suffering many limitations, the 'nbproc' directive is now deprecated\n"
+			   "  | and scheduled for removal in 2.5. Just comment it out: haproxy will use\n"
+			   "  | threads and will run on all allocated processors. You may also switch to\n"
+			   "  | 'nbthread %d' to keep the same number of processors. If you absolutely\n"
+			   "  | want to run in multi-process mode, you can silence this warning by adding\n"
+			   "  | 'nbthread 1', but then please report your use case to developers.\n",
+		           global.nbproc);
+	}
+
 	err_code |= check_config_validity();
 	for (px = proxies_list; px; px = px->next) {
 		struct server *srv;

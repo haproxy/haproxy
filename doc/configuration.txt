@@ -1176,14 +1176,15 @@ mworker-max-reloads <number>
   SIGTERM. This option helps to keep under control the number of workers.
   See also "show proc" in the Management Guide.
 
-nbproc <number>
+nbproc <number>  (deprecated)
   Creates <number> processes when going daemon. This requires the "daemon"
   mode. By default, only one process is created, which is the recommended mode
   of operation. For systems limited to small sets of file descriptors per
   process, it may be needed to fork multiple daemons. When set to a value
   larger than 1, threads are automatically disabled. USING MULTIPLE PROCESSES
-  IS HARDER TO DEBUG AND IS REALLY DISCOURAGED. See also "daemon" and
-  "nbthread".
+  IS HARDER TO DEBUG AND IS REALLY DISCOURAGED. This directive is deprecated
+  and scheduled for removal in 2.5. Please use "nbthread" instead. See also
+  "daemon" and "nbthread".
 
 nbthread <number>
   This setting is only available when support for threads was built in. It
