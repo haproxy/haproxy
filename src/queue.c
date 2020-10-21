@@ -416,6 +416,7 @@ int pendconn_redistribute(struct server *s)
 		p->strm_flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
+		xferred++;
 	}
 	return xferred;
 }
