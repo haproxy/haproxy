@@ -1,6 +1,6 @@
 # build status appears on https://travis-ci.com/haproxy/haproxy
 
-dist: bionic
+dist: focal
 
 language: c
 
@@ -19,7 +19,7 @@ env:
 addons:
   apt:
     update: true
-    packages: [ liblua5.3-dev, libsystemd-dev, libpcre2-dev, clang-9, socat, ninja-build ]
+    packages: [ liblua5.3-dev, libsystemd-dev, libpcre2-dev, clang-9, socat, ninja-build, libpcre3-dev ]
 
 cache:
   directories:
