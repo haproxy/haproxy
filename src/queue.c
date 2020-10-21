@@ -383,25 +383,25 @@ struct pendconn *pendconn_add(struct stream *strm)
 	p->strm       = strm;
 	p->strm_flags = strm->flags;
 
-	pendconn_queue_lock(p);
-
 	if (srv) {
+		HA_SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
 		srv->nbpend++;
 		if (srv->nbpend > srv->counters.nbpend_max)
 			srv->counters.nbpend_max = srv->nbpend;
 		p->queue_idx = srv->queue_idx - 1; // for increment
 		eb32_insert(&srv->pendconns, &p->node);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
 	}
 	else {
+		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->px->lock);
 		px->nbpend++;
 		if (px->nbpend > px->be_counters.nbpend_max)
 			px->be_counters.nbpend_max = px->nbpend;
 		p->queue_idx = px->queue_idx - 1; // for increment
 		eb32_insert(&px->pendconns, &p->node);
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->px->lock);
 	}
 	strm->pend_pos = p;
-
-	pendconn_queue_unlock(p);
 
 	_HA_ATOMIC_ADD(&px->totpend, 1);
 	return p;
