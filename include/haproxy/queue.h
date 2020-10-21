@@ -44,10 +44,15 @@ void pendconn_unlink(struct pendconn *p);
  * with NULL for pendconn and with a pendconn not in the list. It is the
  * function to be used by default when unsure. Do not call it with server
  * or proxy locks held however.
+ *
+ * The unlocked check on leaf_p is safe because one must own the pendconn to
+ * add it, thus it may only switch from non-null to null, which allows to first
+ * test if it's worth taking the lock to go further. This test is performed
+ * again under a lock in pendconn_unlink() to get the final verdict.
  */
 static inline void pendconn_cond_unlink(struct pendconn *p)
 {
-	if (p)
+	if (p && p->node.node.leaf_p)
 		pendconn_unlink(p);
 }
 
