@@ -124,8 +124,8 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 }
 
 /* Remove the pendconn from the server's queue. At this stage, the connection
- * is not really dequeued. It will be done during the process_stream. It also
- * decrements the pending count.
+ * is not really dequeued. It will be done during the process_stream. It is
+ * up to the caller to atomically decrement the pending counts.
  *
  * The caller must own the lock on the server queue. The pendconn must still be
  * queued (p->node.leaf_p != NULL) and must be in a server (p->srv != NULL).
@@ -133,14 +133,12 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 static void __pendconn_unlink_srv(struct pendconn *p)
 {
 	p->strm->logs.srv_queue_pos += p->srv->queue_idx - p->queue_idx;
-	_HA_ATOMIC_SUB(&p->srv->nbpend, 1);
-	_HA_ATOMIC_SUB(&p->px->totpend, 1);
 	eb32_delete(&p->node);
 }
 
 /* Remove the pendconn from the proxy's queue. At this stage, the connection
- * is not really dequeued. It will be done during the process_stream. It also
- * decrements the pending count.
+ * is not really dequeued. It will be done during the process_stream. It is
+ * up to the caller to atomically decrement the pending counts.
  *
  * The caller must own the lock on the proxy queue. The pendconn must still be
  * queued (p->node.leaf_p != NULL) and must be in the proxy (p->srv == NULL).
@@ -148,8 +146,6 @@ static void __pendconn_unlink_srv(struct pendconn *p)
 static void __pendconn_unlink_prx(struct pendconn *p)
 {
 	p->strm->logs.prx_queue_pos += p->px->queue_idx - p->queue_idx;
-	_HA_ATOMIC_SUB(&p->px->nbpend, 1);
-	_HA_ATOMIC_SUB(&p->px->totpend, 1);
 	eb32_delete(&p->node);
 }
 
@@ -186,19 +182,33 @@ static inline void pendconn_queue_unlock(struct pendconn *p)
  */
 void pendconn_unlink(struct pendconn *p)
 {
+	int done = 0;
+
 	if (p->srv) {
 		/* queued in the server */
 		HA_SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
-		if (p->node.node.leaf_p)
+		if (p->node.node.leaf_p) {
 			__pendconn_unlink_srv(p);
+			done = 1;
+		}
 		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
+		if (done) {
+			_HA_ATOMIC_SUB(&p->srv->nbpend, 1);
+			_HA_ATOMIC_SUB(&p->px->totpend, 1);
+		}
 	}
 	else {
 		/* queued in the proxy */
 		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->px->lock);
-		if (p->node.node.leaf_p)
+		if (p->node.node.leaf_p) {
 			__pendconn_unlink_prx(p);
+			done = 1;
+		}
 		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->px->lock);
+		if (done) {
+			_HA_ATOMIC_SUB(&p->px->nbpend, 1);
+			_HA_ATOMIC_SUB(&p->px->totpend, 1);
+		}
 	}
 }
 
@@ -299,11 +309,15 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
  use_pp:
 	/* Let's switch from the server pendconn to the proxy pendconn */
 	__pendconn_unlink_prx(pp);
+	_HA_ATOMIC_SUB(&px->nbpend, 1);
+	_HA_ATOMIC_SUB(&px->totpend, 1);
 	px->queue_idx++;
 	p = pp;
 	goto unlinked;
  use_p:
 	__pendconn_unlink_srv(p);
+	_HA_ATOMIC_SUB(&srv->nbpend, 1);
+	_HA_ATOMIC_SUB(&px->totpend, 1);
 	srv->queue_idx++;
  unlinked:
 	p->strm_flags |= SF_ASSIGNED;
@@ -450,6 +464,10 @@ int pendconn_redistribute(struct server *s)
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 		xferred++;
 	}
+	if (xferred) {
+		_HA_ATOMIC_SUB(&p->srv->nbpend, xferred);
+		_HA_ATOMIC_SUB(&p->px->totpend, xferred);
+	}
 	return xferred;
 }
 
@@ -489,6 +507,10 @@ int pendconn_grab_from_px(struct server *s)
 		xferred++;
 	}
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &s->proxy->lock);
+	if (xferred) {
+		_HA_ATOMIC_SUB(&p->px->nbpend, xferred);
+		_HA_ATOMIC_SUB(&p->px->totpend, xferred);
+	}
 	return xferred;
 }
 
