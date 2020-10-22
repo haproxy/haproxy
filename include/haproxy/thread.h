@@ -464,36 +464,44 @@ static inline void show_lock_stats()
 		}
 
 		fprintf(stderr,
-			"Stats about Lock %s: \n"
-			"\t # write lock  : %lu\n"
-			"\t # write unlock: %lu (%ld)\n"
-			"\t # wait time for write     : %.3f msec\n"
-			"\t # wait time for write/lock: %.3f nsec\n"
-			"\t # seek lock   : %lu\n"
-			"\t # seek unlock : %lu (%ld)\n"
-			"\t # wait time for seek      : %.3f msec\n"
-			"\t # wait time for seek/lock : %.3f nsec\n"
-			"\t # read lock   : %lu\n"
-			"\t # read unlock : %lu (%ld)\n"
-			"\t # wait time for read      : %.3f msec\n"
-			"\t # wait time for read/lock : %.3f nsec\n",
+			"Stats about Lock %s: \n",
+			lock_label(lbl));
 
-			lock_label(lbl),
-			lock_stats[lbl].num_write_locked,
-			lock_stats[lbl].num_write_unlocked,
-			lock_stats[lbl].num_write_unlocked - lock_stats[lbl].num_write_locked,
-			(double)lock_stats[lbl].nsec_wait_for_write / 1000000.0,
-			lock_stats[lbl].num_write_locked ? ((double)lock_stats[lbl].nsec_wait_for_write / (double)lock_stats[lbl].num_write_locked) : 0,
-			lock_stats[lbl].num_seek_locked,
-			lock_stats[lbl].num_seek_unlocked,
-			lock_stats[lbl].num_seek_unlocked - lock_stats[lbl].num_seek_locked,
-			(double)lock_stats[lbl].nsec_wait_for_seek / 1000000.0,
-			lock_stats[lbl].num_seek_locked ? ((double)lock_stats[lbl].nsec_wait_for_seek / (double)lock_stats[lbl].num_seek_locked) : 0,
-			lock_stats[lbl].num_read_locked,
-			lock_stats[lbl].num_read_unlocked,
-			lock_stats[lbl].num_read_unlocked - lock_stats[lbl].num_read_locked,
-			(double)lock_stats[lbl].nsec_wait_for_read / 1000000.0,
-			lock_stats[lbl].num_read_locked ? ((double)lock_stats[lbl].nsec_wait_for_read / (double)lock_stats[lbl].num_read_locked) : 0);
+		if (lock_stats[lbl].num_write_locked)
+			fprintf(stderr,
+			        "\t # write lock  : %lu\n"
+			        "\t # write unlock: %lu (%ld)\n"
+			        "\t # wait time for write     : %.3f msec\n"
+			        "\t # wait time for write/lock: %.3f nsec\n",
+			        lock_stats[lbl].num_write_locked,
+			        lock_stats[lbl].num_write_unlocked,
+			        lock_stats[lbl].num_write_unlocked - lock_stats[lbl].num_write_locked,
+			        (double)lock_stats[lbl].nsec_wait_for_write / 1000000.0,
+			        lock_stats[lbl].num_write_locked ? ((double)lock_stats[lbl].nsec_wait_for_write / (double)lock_stats[lbl].num_write_locked) : 0);
+
+		if (lock_stats[lbl].num_seek_locked)
+			fprintf(stderr,
+			        "\t # seek lock   : %lu\n"
+			        "\t # seek unlock : %lu (%ld)\n"
+			        "\t # wait time for seek      : %.3f msec\n"
+			        "\t # wait time for seek/lock : %.3f nsec\n",
+			        lock_stats[lbl].num_seek_locked,
+			        lock_stats[lbl].num_seek_unlocked,
+			        lock_stats[lbl].num_seek_unlocked - lock_stats[lbl].num_seek_locked,
+			        (double)lock_stats[lbl].nsec_wait_for_seek / 1000000.0,
+			        lock_stats[lbl].num_seek_locked ? ((double)lock_stats[lbl].nsec_wait_for_seek / (double)lock_stats[lbl].num_seek_locked) : 0);
+
+		if (lock_stats[lbl].num_read_locked)
+			fprintf(stderr,
+			        "\t # read lock   : %lu\n"
+			        "\t # read unlock : %lu (%ld)\n"
+			        "\t # wait time for read      : %.3f msec\n"
+			        "\t # wait time for read/lock : %.3f nsec\n",
+			        lock_stats[lbl].num_read_locked,
+			        lock_stats[lbl].num_read_unlocked,
+			        lock_stats[lbl].num_read_unlocked - lock_stats[lbl].num_read_locked,
+			        (double)lock_stats[lbl].nsec_wait_for_read / 1000000.0,
+			        lock_stats[lbl].num_read_locked ? ((double)lock_stats[lbl].nsec_wait_for_read / (double)lock_stats[lbl].num_read_locked) : 0);
 	}
 }
 
