@@ -124,6 +124,12 @@ struct http_method_desc {
 	const struct ist text;
 };
 
+enum http_etag_type {
+	ETAG_INVALID = 0,
+	ETAG_STRONG,
+	ETAG_WEAK
+};
+
 #endif /* _HAPROXY_HTTP_T_H */
 
 /*

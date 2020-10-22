@@ -104,6 +104,27 @@ static inline int http_language_range_match(const char *range, int range_len,
 	return tag == tend;
 }
 
+static inline enum http_etag_type http_get_etag_type(const struct ist etag)
+{
+	/* An ETag must be at least 2 characters. */
+	if (etag.len < 2)
+		return ETAG_INVALID;
+
+	/* The last character must be a `"`. */
+	if (etag.ptr[etag.len - 1] != '"')
+		return ETAG_INVALID;
+
+	/* If the ETag starts with a `"` then it is a strong ETag. */
+	if (etag.ptr[0] == '"')
+		return ETAG_STRONG;
+
+	/* If the ETag starts with `W/"` then it is a weak ETag. */
+	if (istnmatch(etag, ist("W/\""), 3))
+		return ETAG_WEAK;
+
+	return ETAG_INVALID;
+}
+
 
 #endif /* _HAPROXY_HTTP_H */
 
