@@ -935,8 +935,12 @@ static void http_cache_io_handler(struct appctx *appctx)
 
 		/* In case of a conditional request, we might want to send a
 		 * "304 Not Modified" response instead of the stored data. */
-		if (appctx->ctx.cache.send_notmodified)
-			http_replace_res_status(res_htx, ist("304"), ist("Not Modified"));
+		if (appctx->ctx.cache.send_notmodified) {
+			if (!http_replace_res_status(res_htx, ist("304"), ist("Not Modified"))) {
+				/* If replacing the status code fails we need to send the full response. */
+				appctx->ctx.cache.send_notmodified = 0;
+			}
+		}
 
 		/* Skip response body for HEAD requests or in case of "304 Not
 		 * Modified" response. */
