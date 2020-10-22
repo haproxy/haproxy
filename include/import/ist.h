@@ -222,6 +222,12 @@ static inline size_t istlen(const struct ist ist)
 	return ist.len;
 }
 
+/* returns the pointer to the end the string */
+static inline char *istend(const struct ist ist)
+{
+	return (ist.ptr + ist.len);
+}
+
 /* skips to next character in the string, always stops at the end */
 static inline struct ist istnext(const struct ist ist)
 {
