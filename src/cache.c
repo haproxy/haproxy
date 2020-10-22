@@ -933,8 +933,14 @@ static void http_cache_io_handler(struct appctx *appctx)
 		    !htx_cache_add_age_hdr(appctx, res_htx))
 			goto error;
 
-		/* Skip response body for HEAD requests */
-		if (si_strm(si)->txn->meth == HTTP_METH_HEAD)
+		/* In case of a conditional request, we might want to send a
+		 * "304 Not Modified" response instead of the stored data. */
+		if (appctx->ctx.cache.send_notmodified)
+			http_replace_res_status(res_htx, ist("304"), ist("Not Modified"));
+
+		/* Skip response body for HEAD requests or in case of "304 Not
+		 * Modified" response. */
+		if (si_strm(si)->txn->meth == HTTP_METH_HEAD || appctx->ctx.cache.send_notmodified)
 			appctx->st0 = HTX_CACHE_EOM;
 		else
 			appctx->st0 = HTX_CACHE_DATA;
@@ -1121,6 +1127,61 @@ int sha1_hosturi(struct stream *s)
 	return 1;
 }
 
+/* Looks for "If-None-Match" headers in the request and compares their value
+ * with the one that might have been stored in the cache_entry. If any of them
+ * matches, a "304 Not Modified" response should be sent instead of the cached
+ * data.
+ * Although unlikely in a GET/HEAD request, the "If-None-Match: *" syntax is
+ * valid and should receive a "304 Not Modified" response (RFC 7434#4.3.2).
+ * Returns 1 if "304 Not Modified" should be sent, 0 otherwise.
+ */
+static int should_send_notmodified_response(struct cache *cache, struct htx *htx,
+                                            struct cache_entry *entry)
+{
+	int retval = 0;
+
+	struct http_hdr_ctx ctx = { .blk = NULL };
+	struct ist cache_entry_etag = IST_NULL;
+	struct buffer *etag_buffer = NULL;
+
+	if (entry->etag_length == 0)
+		return 0;
+
+	/* If we find a "If-None-Match" header in the request, rebuild the
+	 * cache_entry's ETag in order to perform comparisons. */
+	/* There could be multiple "if-none-match" header lines. */
+	while (http_find_header(htx, ist("if-none-match"), &ctx, 0)) {
+
+		/* A '*' matches everything. */
+		if (isteq(ctx.value, ist("*")) != 0) {
+			retval = 1;
+			break;
+		}
+
+		/* Rebuild the stored ETag. */
+		if (etag_buffer == NULL) {
+			etag_buffer = get_trash_chunk();
+
+			if (shctx_row_data_get(shctx_ptr(cache), block_ptr(entry),
+					       (unsigned char*)b_orig(etag_buffer),
+					       entry->etag_offset, entry->etag_length) == 0) {
+				cache_entry_etag = ist2(b_orig(etag_buffer), entry->etag_length);
+			} else {
+				/* We could not rebuild the ETag in one go, we
+				 * won't send a "304 Not Modified" response. */
+				break;
+			}
+		}
+
+		if (http_compare_etags(cache_entry_etag, ctx.value) == 1) {
+			retval = 1;
+			break;
+		}
+	}
+
+	return retval;
+}
+
 enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *px,
                                          struct session *sess, struct stream *s, int flags)
 {
@@ -1165,6 +1226,8 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			appctx->ctx.cache.entry = res;
 			appctx->ctx.cache.next = NULL;
 			appctx->ctx.cache.sent = 0;
+			appctx->ctx.cache.send_notmodified =
+                                should_send_notmodified_response(cache, htxbuf(&s->req.buf), res);
 
 			if (px == strm_fe(s))
 				_HA_ATOMIC_ADD(&px->fe_counters.p.http.cache_hits, 1);

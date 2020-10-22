@@ -112,6 +112,9 @@ struct appctx {
 			unsigned int sent;          /* The number of bytes already sent for this cache entry. */
 			unsigned int offset;        /* start offset of remaining data relative to beginning of the next block */
 			unsigned int rem_data;      /* Remaining bytes for the last data block (HTX only, 0 means process next block) */
+			unsigned int send_notmodified:1;   /* In case of conditional request, we might want to send a "304 Not Modified"
+                                                            * response instead of the stored data. */
+			unsigned int unused:31;
 			struct shared_block *next;  /* The next block of data to be sent for this cache entry. */
 		} cache;
 		/* all entries below are used by various CLI commands, please
