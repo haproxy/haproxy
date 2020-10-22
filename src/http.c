@@ -1047,3 +1047,29 @@ int http_parse_status_val(const struct ist value, struct ist *status, struct ist
 	code = strl2ui(status->ptr, status->len);
 	return code;
 }
+
+
+/* Returns non-zero if the two ETags are comparable (see RFC 7232#2.3.2).
+ * If any of them is a weak ETag, we discard the weakness prefix and perform
+ * a strict string comparison.
+ * Returns 0 otherwise.
+ */
+int http_compare_etags(struct ist etag1, struct ist etag2)
+{
+	enum http_etag_type etag_type1;
+	enum http_etag_type etag_type2;
+
+	etag_type1 = http_get_etag_type(etag1);
+	etag_type2 = http_get_etag_type(etag2);
+
+	if (etag_type1 == ETAG_INVALID || etag_type2 == ETAG_INVALID)
+		return 0;
+
+	/* Discard the 'W/' prefix an ETag is a weak one. */
+	if (etag_type1 == ETAG_WEAK)
+		etag1 = istadv(etag1, 2);
+	if (etag_type2 == ETAG_WEAK)
+		etag2 = istadv(etag2, 2);
+
+	return isteq(etag1, etag2);
+}

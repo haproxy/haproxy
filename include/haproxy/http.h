@@ -57,6 +57,8 @@ int http_parse_header(const struct ist hdr, struct ist *name, struct ist *value)
 int http_parse_stline(const struct ist line, struct ist *p1, struct ist *p2, struct ist *p3);
 int http_parse_status_val(const struct ist value, struct ist *status, struct ist *reason);
 
+int http_compare_etags(struct ist etag1, struct ist etag2);
+
 /*
  * Given a path string and its length, find the position of beginning of the
  * query string. Returns NULL if no query string is found in the path.
