@@ -692,9 +692,7 @@ int tcp_wait_out(int sock, const char *arg)
 /* delays processing for <time> milliseconds, 100 by default */
 int tcp_pause(int sock, const char *arg)
 {
-	struct pollfd pollfd;
 	int delay = 100;
-	int ret;
 
 	if (arg[1]) {
 		delay = atoi(arg + 1);
