@@ -652,7 +652,7 @@ int assign_server(struct stream *s)
 		 * know it's because all servers are full.
 		 */
 		if (s->be->nbpend &&
-		    (((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_CB) || // conn-based: leastconn & first
+		    (((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_FAS)||   // first
 		     ((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_RR) ||   // roundrobin
 		     ((s->be->lbprm.algo & (BE_LB_KIND|BE_LB_NEED|BE_LB_PARM)) == BE_LB_ALGO_SRR))) { // static-rr
 			err = SRV_STATUS_FULL;

@@ -323,7 +323,7 @@ struct server *fwlc_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		struct server *s;
 
 		s = eb32_entry(node, struct server, lb_node);
-		if (!s->maxconn || (!s->nbpend && s->served < srv_dynamic_maxconn(s))) {
+		if (!s->maxconn || s->served + s->nbpend < srv_dynamic_maxconn(s) + s->maxqueue) {
 			if (s != srvtoavoid) {
 				srv = s;
 				break;

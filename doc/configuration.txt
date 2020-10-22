@@ -13452,9 +13452,13 @@ maxqueue <maxqueue>
   will wait in the queue for this server. If this limit is reached, next
   requests will be redispatched to other servers instead of indefinitely
   waiting to be served. This will break persistence but may allow people to
-  quickly re-log in when the server they try to connect to is dying. The
-  default value is "0" which means the queue is unlimited. See also the
-  "maxconn" and "minconn" parameters.
+  quickly re-log in when the server they try to connect to is dying. Some load
+  balancing algorithms such as leastconn take this into account and accept to
+  add requests into a server's queue up to this value if it is explicitly set
+  to a value greater than zero, which often allows to better smooth the load
+  when dealing with single-digit maxconn values. The default value is "0" which
+  means the queue is unlimited. See also the "maxconn" and "minconn" parameters
+  and "balance leastconn".
 
 max-reuse <count>
   The "max-reuse" argument indicates the HTTP connection processors that they
