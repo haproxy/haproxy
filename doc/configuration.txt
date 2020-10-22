@@ -3205,7 +3205,9 @@ balance url_param <param> [check_post]
                   expected, such as LDAP, SQL, TSE, etc... but is not very well
                   suited for protocols using short sessions such as HTTP. This
                   algorithm is dynamic, which means that server weights may be
-                  adjusted on the fly for slow starts for instance.
+                  adjusted on the fly for slow starts for instance. It will
+                  also consider the number of queued connections in addition to
+                  the established ones in order to minimize queuing.
 
       first       The first server with available connection slots receives the
                   connection. The servers are chosen from the lowest numeric

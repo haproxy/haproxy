@@ -51,7 +51,9 @@ static inline void fwlc_dequeue_srv(struct server *s)
  */
 static inline void fwlc_queue_srv(struct server *s)
 {
-	s->lb_node.key = s->served ? (s->served + 1) * SRV_EWGHT_MAX / s->next_eweight : 0;
+	unsigned int inflight = s->served + s->nbpend;
+
+	s->lb_node.key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / s->next_eweight : 0;
 	eb32_insert(s->lb_tree, &s->lb_node);
 }
 
