@@ -888,6 +888,18 @@ objsize: haproxy
 %.o:	%.c $(DEP)
 	$(cmd_CC) $(COPTS) -c -o $@ $<
 
+contrib/halog/halog:
+	$(Q)$(MAKE) -C contrib/halog halog CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
+
+contrib/debug/flags:
+	$(Q)$(MAKE) -C contrib/debug flags CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
+
+contrib/debug/poll:
+	$(Q)$(MAKE) -C contrib/debug poll CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
+
+contrib/tcploop/tcploop:
+	$(Q)$(MAKE) -C contrib/tcploop tcploop CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
+
 # rebuild it every time
 .PHONY: src/version.c
 
@@ -943,6 +955,7 @@ clean:
 	$(Q)for dir in . src include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
+	$(Q)rm -f contrib/halog/halog contrib/debug/flags contrib/debug/poll contrib/tcploop/tcploop
 
 tags:
 	$(Q)find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
