@@ -21,6 +21,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/hash.h>
+#include <haproxy/http.h>
 #include <haproxy/http_ana.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
@@ -73,6 +74,10 @@ struct cache_entry {
 
 	struct eb32_node eb;     /* ebtree node used to hold the cache object */
 	char hash[20];
+
+	unsigned int etag_length; /* Length of the ETag value (if one was found in the response). */
+	unsigned int etag_offset; /* Offset of the ETag value in the data buffer. */
+
 	unsigned char data[0];
 };
 
@@ -537,6 +542,9 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	struct http_hdr_ctx ctx;
 	size_t hdrs_len = 0;
 	int32_t pos;
+	unsigned int etag_length = 0;
+	unsigned int etag_offset = 0;
+	struct ist header_name = IST_NULL;
 
 	/* Don't cache if the response came from a cache */
 	if ((obj_type(s->target) == OBJ_TYPE_APPLET) &&
@@ -609,6 +617,18 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		hdrs_len += sizeof(*blk) + sz;
 		chunk_memcat(&trash, (char *)&blk->info, sizeof(blk->info));
 		chunk_memcat(&trash, htx_get_blk_ptr(htx, blk), sz);
+
+		/* Look for optional ETag header.
+		 * We need to store the offset of the ETag value in order for
+		 * future conditional requests to be able to perform ETag
+		 * comparisons. */
+		if (type == HTX_BLK_HDR) {
+			header_name = htx_get_blk_name(htx, blk);
+			if (isteq(header_name, ist("etag"))) {
+				etag_length = sz - istlen(header_name);
+				etag_offset = sizeof(struct cache_entry) + b_data(&trash) - sz + istlen(header_name);
+			}
+		}
 		if (type == HTX_BLK_EOH)
 			break;
 	}
@@ -641,6 +661,10 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	 * modifying some HTTP headers, or on the contrary after modifying
 	 * those headers.
 	 */
+
+	/* Write the ETag information in the cache_entry if needed. */
+	object->etag_length = etag_length;
+	object->etag_offset = etag_offset;
 
 	/* does not need to be locked because it's in the "hot" list,
 	 * copy the headers */
