@@ -454,6 +454,15 @@ static inline void show_lock_stats()
 	int lbl;
 
 	for (lbl = 0; lbl < LOCK_LABELS; lbl++) {
+		if (!lock_stats[lbl].num_write_locked &&
+		    !lock_stats[lbl].num_seek_locked &&
+		    !lock_stats[lbl].num_read_locked) {
+			fprintf(stderr,
+			        "Stats about Lock %s: not used\n",
+			        lock_label(lbl));
+			continue;
+		}
+
 		fprintf(stderr,
 			"Stats about Lock %s: \n"
 			"\t # write lock  : %lu\n"
