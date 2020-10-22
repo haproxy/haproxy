@@ -1,0 +1,84 @@
+varnishtest "If-None-Match support"
+
+#REQUIRE_VERSION=2.3
+
+feature ignore_unknown_macro
+
+server s1 {
+       rxreq
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "ETag: \"etag\""
+       chunkedlen 1
+       chunkedlen 1
+       chunkedlen 2
+       chunkedlen 3
+       chunkedlen 5
+       chunkedlen 8
+       chunkedlen 13
+       chunkedlen 21
+       chunkedlen 34
+       chunkedlen 55
+       chunkedlen 89
+       chunkedlen 144
+       chunkedlen 233
+       chunkedlen 0
+} -start
+
+haproxy h1 -conf {
+       defaults
+               mode http
+               ${no-htx} option http-use-htx
+               timeout connect 1s
+               timeout client  1s
+               timeout server  1s
+
+       frontend fe
+               bind "fd@${fe}"
+               default_backend test
+
+       backend test
+               http-request cache-use my_cache
+               server www ${s1_addr}:${s1_port}
+               http-response cache-store my_cache
+
+       cache my_cache
+               total-max-size 3
+               max-age 20
+               max-object-size 3072
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+       txreq
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 609
+       txreq
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 609
+       txreq \
+               -hdr "if-none-match: *"
+       rxresp
+       expect resp.status == 304
+       txreq \
+               -hdr "if-none-match: \"etag\""
+       rxresp
+       expect resp.status == 304
+       txreq \
+               -hdr "if-none-match: W/\"etag\""
+       rxresp
+       expect resp.status == 304
+} -run
+
+client c2 -connect ${h1_fe_sock} {
+       txreq \
+               -hdr "if-none-match: \"wrong_etag\""
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 609
+       txreq \
+               -hdr "if-none-match: W/\"wrong_etag\", W/\"etag\""
+       rxresp
+       expect resp.status == 304
+} -run
