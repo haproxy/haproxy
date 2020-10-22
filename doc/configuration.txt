@@ -15133,6 +15133,52 @@ field(<index>,<delimiters>[,<count>])
       str(f1_f2_f3__f5),field(-2,_,3) # f2_f3_
       str(f1_f2_f3__f5),field(-3,_,0) # f1_f2_f3
 
+fix_is_valid
+  Parses a binary payload and performs sanity checks regarding FIX (Financial
+  Information eXchange):
+
+  - checks that all tag IDs and values are not empty and the tags IDs are well
+    numeric
+  - checks the BeginString tag is the first tag with a valide FIX version
+  - checks the BodyLength tag is the second one with the right body length
+  - checks the MstType tag is the third tag.
+  - checks that last tag in the message is the CheckSum tag with a valid
+    checksum
+
+  Due to current HAProxy design, only the first message sent by the client and
+  the server can be parsed.
+
+  This converter returns a boolean, true if the payload contains a valid FIX
+  message, false if not.
+
+  See also the fix_tag_value converter.
+
+  Example:
+      tcp-request inspect-delay 10s
+      tcp-request content reject unless { req.payload(0,0),fix_is_valid }
+
+fix_tag_value(<tag>)
+  Parses a FIX (Financial Information eXchange) message and extracts the value
+  from the tag <tag>. <tag> can be a string or an integer pointing to the
+  desired tag. Any integer value is accepted, but only the following strings
+  are translated into their integer equivalent: BeginString, BodyLength,
+  MsgType, SenderComID, TargetComID, CheckSum. More tag names can be easily
+  added.
+
+  Due to current HAProxy design, only the first message sent by the client and
+  the server can be parsed. No message validation is performed by this
+  converter. It is highly recommended to validate the message first using
+  fix_is_valid converter.
+
+  See also the fix_is_valid converter.
+
+  Example:
+      tcp-request inspect-delay 10s
+      tcp-request content reject unless { req.payload(0,0),fix_is_valid }
+      # MsgType tag ID is 35, so both lines below will return the same content
+      tcp-request content set-var(txn.foo) req.payload(0,0),fix_tag_value(35)
+      tcp-request content set-var(txn.bar) req.payload(0,0),fix_tag_value(MsgType)
+
 hex
   Converts a binary input sample to a hex string containing two hex digits per
   input byte. It is used to log or transfer hex dumps of some binary input data

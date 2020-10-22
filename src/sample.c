@@ -26,9 +26,11 @@
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
 #include <haproxy/errors.h>
+#include <haproxy/fix.h>
 #include <haproxy/global.h>
 #include <haproxy/hash.h>
 #include <haproxy/http.h>
+#include <haproxy/istbuf.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/protobuf.h>
 #include <haproxy/proxy.h>
@@ -3214,6 +3216,86 @@ static int sample_conv_protobuf_check(struct arg *args, struct sample_conv *conv
 	return 1;
 }
 
+/*
+ * Extract the tag value of an input binary sample. Takes a mandatory argument:
+ * the FIX protocol tag identifier.
+ * Return 1 if the tag was found, 0 if not.
+ */
+static int sample_conv_fix_tag_value(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct ist value;
+
+	smp->flags &= ~SMP_F_MAY_CHANGE;
+	value = fix_tag_value(ist2(smp->data.u.str.area, smp->data.u.str.data),
+			      arg_p[0].data.sint);
+	if (!istlen(value)) {
+		if (!isttest(value)) {
+			/* value != IST_NULL, need more data */
+			smp->flags |= SMP_F_MAY_CHANGE;
+		}
+		return 0;
+	}
+
+	smp->data.u.str = ist2buf(value);
+	smp->flags |= SMP_F_CONST;
+
+	return 1;
+}
+
+/* This function checks the "fix_tag_value" converter configuration.
+ * It expects a "known" (by HAProxy) tag name or ID.
+ * Tag string names are converted to their ID counterpart because this is the
+ * format they are sent over the wire.
+ */
+static int sample_conv_fix_value_check(struct arg *args, struct sample_conv *conv,
+				       const char *file, int line, char **err)
+{
+	struct ist str;
+	unsigned int tag;
+
+	str = ist2(args[0].data.str.area, args[0].data.str.data);
+	tag = fix_tagid(str);
+	if (!tag) {
+		memprintf(err, "Unknown FIX tag name '%s'", args[0].data.str.area);
+		return 0;
+	}
+
+	chunk_destroy(&args[0].data.str);
+	args[0].type = ARGT_SINT;
+	args[0].data.sint = tag;
+
+	return 1;
+}
+
+/*
+ * Checks that a buffer contains a valid FIX message
+ *
+ * Return 1 if the check could be run, 0 if not.
+ * The result of the analyse itsef is stored in <smp> as a boolean
+ */
+static int sample_conv_fix_is_valid(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct ist msg;
+
+	msg = ist2(smp->data.u.str.area, smp->data.u.str.data);
+
+	smp->flags &= ~SMP_F_MAY_CHANGE;
+	switch (fix_validate_message(msg)) {
+	case FIX_VALID_MESSAGE:
+		smp->data.type = SMP_T_BOOL;
+		smp->data.u.sint = 1;
+		return 1;
+	case FIX_NEED_MORE_DATA:
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	case FIX_INVALID_MESSAGE:
+		smp->data.type = SMP_T_BOOL;
+		smp->data.u.sint = 0;
+		return 1;
+	}
+	return 0;
+}
+
 /* This function checks the "strcmp" converter's arguments and extracts the
  * variable name and its scope.
  */
@@ -3801,6 +3883,10 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	/* gRPC converters. */
 	{ "ungrpc", sample_conv_ungrpc,    ARG2(1,PBUF_FNUM,STR), sample_conv_protobuf_check, SMP_T_BIN, SMP_T_BIN  },
 	{ "protobuf", sample_conv_protobuf, ARG2(1,PBUF_FNUM,STR), sample_conv_protobuf_check, SMP_T_BIN, SMP_T_BIN  },
+
+	/* FIX converters */
+	{ "fix_is_valid",  sample_conv_fix_is_valid,  0,           NULL,                        SMP_T_BIN, SMP_T_BOOL  },
+	{ "fix_tag_value", sample_conv_fix_tag_value, ARG1(1,STR), sample_conv_fix_value_check, SMP_T_BIN, SMP_T_BIN  },
 
 	{ "iif", sample_conv_iif, ARG2(2, STR, STR), NULL, SMP_T_BOOL, SMP_T_STR },
 
