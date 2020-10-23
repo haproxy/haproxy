@@ -2148,9 +2148,22 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 {
 	long long be_samples_counter;
 	unsigned int be_samples_window = TIME_STATS_SAMPLES;
+	struct buffer *out = get_trash_chunk();
+	const struct server *srv;
+	int nbup, nbsrv;
+	char *fld;
 
 	if (len < ST_F_TOTAL_FIELDS)
 		return 0;
+
+	nbup = nbsrv = 0;
+	if (flags & (STAT_HIDE_MAINT|STAT_HIDE_DOWN)) {
+		for (srv = px->srv; srv; srv = srv->next) {
+			if (srv->cur_state != SRV_ST_STOPPED)
+				nbup++;
+			nbsrv++;
+		}
+	}
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "BACKEND");
@@ -2173,7 +2186,13 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 	stats[ST_F_EINT]     = mkf_u64(FN_COUNTER, px->be_counters.internal_errors);
 	stats[ST_F_CONNECT]  = mkf_u64(FN_COUNTER, px->be_counters.connect);
 	stats[ST_F_REUSE]    = mkf_u64(FN_COUNTER, px->be_counters.reuse);
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
+
+	fld = chunk_newstr(out);
+	chunk_appendf(out, "%s", (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
+	if (flags & (STAT_HIDE_MAINT|STAT_HIDE_DOWN))
+		chunk_appendf(out, " (%d/%d)", nbup, nbsrv);
+
+	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, fld);
 	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
 	stats[ST_F_ACT]      = mkf_u32(0, px->srv_act);
 	stats[ST_F_BCK]      = mkf_u32(0, px->srv_bck);
