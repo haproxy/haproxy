@@ -78,6 +78,13 @@ struct cache_entry {
 	unsigned int etag_length; /* Length of the ETag value (if one was found in the response). */
 	unsigned int etag_offset; /* Offset of the ETag value in the data buffer. */
 
+	time_t last_modified; /* Origin server "Last-Modified" header value converted in
+			       * seconds since epoch. If no "Last-Modified"
+			       * header is found, use "Date" header value,
+			       * otherwise use reception time. This field will
+			       * be used in case of an "If-Modified-Since"-based
+			       * conditional request. */
+
 	unsigned char data[0];
 };
 
@@ -520,6 +527,40 @@ static void cache_free_blocks(struct shared_block *first, struct shared_block *b
 	object->eb.key = 0;
 }
 
+
+/* As per RFC 7234#4.3.2, in case of "If-Modified-Since" conditional request, the
+ * date value should be compared to a date determined by in a previous response (for
+ * the same entity). This date could either be the "Last-Modified" value, or the "Date"
+ * value of the response's reception time (by decreasing order of priority). */
+static time_t get_last_modified_time(struct htx *htx)
+{
+	time_t last_modified = 0;
+	struct http_hdr_ctx ctx = { .blk = NULL };
+	struct tm tm = {};
+
+	if (http_find_header(htx, ist("last-modified"), &ctx, 1)) {
+		if (parse_http_date(istptr(ctx.value), istlen(ctx.value), &tm)) {
+			last_modified = my_timegm(&tm);
+		}
+	}
+
+	if (!last_modified) {
+		ctx.blk = NULL;
+		if (http_find_header(htx, ist("date"), &ctx, 1)) {
+			if (parse_http_date(istptr(ctx.value), istlen(ctx.value), &tm)) {
+				last_modified = my_timegm(&tm);
+			}
+		}
+	}
+
+	/* Fallback on the current time if no "Last-Modified" or "Date" header
+	 * was found. */
+	if (!last_modified)
+		last_modified = now.tv_sec;
+
+	return last_modified;
+}
+
 /*
  * This function will store the headers of the response in a buffer and then
  * register a filter to store the data
@@ -545,6 +586,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	unsigned int etag_length = 0;
 	unsigned int etag_offset = 0;
 	struct ist header_name = IST_NULL;
+	time_t last_modified = 0;
 
 	/* Don't cache if the response came from a cache */
 	if ((obj_type(s->target) == OBJ_TYPE_APPLET) &&
@@ -608,6 +650,10 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		http_remove_header(htx, &ctx);
 	}
 
+	/* Build a last-modified time that will be stored in the cache_entry and
+	 * compared to a future If-Modified-Since client header. */
+	last_modified = get_last_modified_time(htx);
+
 	chunk_reset(&trash);
 	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
 		struct htx_blk *blk = htx_get_blk(htx, pos);
@@ -652,6 +698,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	object->eb.node.leaf_p = NULL;
 	object->eb.key = 0;
 	object->age = age;
+	object->last_modified = last_modified;
 
 	/* reserve space for the cache_entry structure */
 	first->len = sizeof(struct cache_entry);
