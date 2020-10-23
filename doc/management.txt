@@ -2123,7 +2123,7 @@ show fd [<fd>]
   that the output format may evolve over time so this output must not be parsed
   by tools designed to be durable.
 
-show info [typed|json] [desc]
+show info [typed|json] [desc] [up]
   Dump info about haproxy status on current process. If "typed" is passed as an
   optional argument, field numbers, names and types are emitted as well so that
   external monitoring products can easily retrieve, possibly aggregate, then
@@ -2135,6 +2135,10 @@ show info [typed|json] [desc]
   one is the value.  It is very important to note that in typed output
   format, the dump for a single object is contiguous so that there is no
   need for a consumer to store everything at once.
+
+  The "up" modifier will result in listing only servers which reportedly up or
+  not checked. Those down, unresolved, or in maintenance will not be listed.
+  This is analogous to the ";up" option on the HTTP stats.
 
   When using the typed output format, each line is made of 4 columns delimited
   by colons (':'). The first column is a dot-delimited series of 3 elements. The
