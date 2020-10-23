@@ -43,16 +43,17 @@ void pendconn_unlink(struct pendconn *p);
 /* Removes the pendconn from the server/proxy queue. It supports being called
  * with NULL for pendconn and with a pendconn not in the list. It is the
  * function to be used by default when unsure. Do not call it with server
- * or proxy locks held however.
- *
- * The unlocked check on leaf_p is safe because one must own the pendconn to
- * add it, thus it may only switch from non-null to null, which allows to first
- * test if it's worth taking the lock to go further. This test is performed
- * again under a lock in pendconn_unlink() to get the final verdict.
+ * or proxy locks held however. Warning: this is called from stream_free()
+ * which may run concurrently with pendconn_process_next_strm() which can be
+ * dequeing the entry. The function must not return until the pendconn is
+ * guaranteed not to be known, which means that we must check its presence
+ * in the tree under the queue's lock so that penconn_process_next_strm()
+ * finishes before we return in case it would have grabbed this pendconn. See
+ * github bugs #880 and #908, and the commit log for this fix for more details.
  */
 static inline void pendconn_cond_unlink(struct pendconn *p)
 {
-	if (p && p->node.node.leaf_p)
+	if (p)
 		pendconn_unlink(p);
 }
 
