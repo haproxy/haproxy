@@ -1,0 +1,90 @@
+#REGTEST_TYPE=devel
+
+# This reg-test uses the "set ssl cert" command to update a certificate over the CLI.
+# It requires socat to upload the certificate
+#
+# this check does 3 requests, the first one will use "www.test1.com" as SNI,
+# the second one with the same but that must fail and the third one will use
+# "localhost". Since vtest can't do SSL, we use haproxy as an SSL client with 2
+# chained listen section.
+#
+# If this test does not work anymore:
+# - Check that you have socat
+
+varnishtest "Test the 'set ssl cert' feature of the CLI with separate key and crt"
+#REQUIRE_VERSION=2.2
+#REQUIRE_OPTIONS=OPENSSL
+#REQUIRE_BINARIES=socat
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+  rxreq
+  txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        ssl-load-extra-del-ext
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httplog
+        ${no-htx} option http-use-htx
+        log stderr local0 debug err
+        option logasap
+        timeout connect 100ms
+        timeout client  1s
+        timeout server  1s
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        retries 0 # 2nd SSL connection must fail so skip the retry
+        server s1 "${tmpdir}/ssl.sock" ssl verify none sni str(www.test1.com)
+        server s2 "${tmpdir}/ssl.sock" ssl verify none sni str(www.test1.com)
+        server s3 "${tmpdir}/ssl.sock" ssl verify none sni str(localhost)
+
+    listen ssl-lst
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.crt strict-sni
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/common.crt"
+    expect ~ ".*SHA1 FingerPrint: 2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
+}
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+shell {
+    printf "set ssl cert ${testdir}/common.crt <<\n$(cat ${testdir}/ecdsa.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/common.key <<\n$(cat ${testdir}/ecdsa.key)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/common.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/common.crt"
+    expect ~ ".*SHA1 FingerPrint: A490D069DBAFBEE66DE434BEC34030ADE8BCCBF1"
+}
+
+# check that the "www.test1.com" SNI was removed
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 503
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
