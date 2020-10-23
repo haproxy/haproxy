@@ -1377,9 +1377,11 @@ ssl-dh-param-file <file>
 ssl-load-extra-del-ext
   This setting allows to configure the way HAProxy does the lookup for the
   extra SSL files. By default HAProxy adds a new extension to the filename.
-  (ex: with "foobar.pem" load "foobar.pem.key"). With this option enabled,
+  (ex: with "foobar.crt" load "foobar.crt.key"). With this option enabled,
   HAProxy removes the extension before adding the new one (ex: with
-  "foobar.pem" load "foobar.key").
+  "foobar.crt" load "foobar.key").
+
+  Your crt file must have a ".crt" extension for this option to work.
 
   This option is not compatible with bundle extensions (.ecdsa, .rsa. .dsa)
   and won't try to remove them.

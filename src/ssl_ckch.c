@@ -272,28 +272,17 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 		goto end;
 	}
 
-	/* remove the  extension */
+	/* remove the ".crt" extension */
 	if (global_ssl.extra_files_noext) {
 		char *ext;
 
 		/* look for the extension */
 		if ((ext = strrchr(fp->area, '.'))) {
-			int n;
-			int found_ext = 0; /* bundle extension found ? */
 
-			ext++; /* we need to compare the ext after the dot */
-
-			for (n = 0; n < SSL_SOCK_NUM_KEYTYPES; n++) {
-				if (!strcmp(ext, SSL_SOCK_KEYTYPE_NAMES[n])) {
-					found_ext = 1;
-				}
-			}
-
-			ext--;
-			if (!found_ext) /* if it wasn't a bundle extension we remove it */
+			if (!strcmp(ext, ".crt")) {
 				*ext = '\0';
-
-			fp->data = strlen(fp->area);
+				fp->data = strlen(fp->area);
+			}
 		}
 
 	}
@@ -1545,6 +1534,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 		end = strrchr(buf->area, '.');
 		if (end && *cert_exts[i].ext && (!strcmp(end + 1, cert_exts[i].ext))) {
 			*end = '\0';
+			buf->data = strlen(buf->area);
 			type = cert_exts[i].type;
 			break;
 		}
@@ -1557,9 +1547,26 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	if (ckchs_transaction.path) {
 		/* if there is an ongoing transaction, check if this is the same file */
 		if (strcmp(ckchs_transaction.path, buf->area) != 0) {
-			memprintf(&err, "The ongoing transaction is about '%s' but you are trying to set '%s'\n", ckchs_transaction.path, buf->area);
-			errcode |= ERR_ALERT | ERR_FATAL;
-			goto end;
+			/* we didn't find the transaction, must try more cases below */
+
+			/* if the del-ext option is activated we should try to take a look at a ".crt" too. */
+			if (type != CERT_TYPE_PEM && global_ssl.extra_files_noext) {
+				if (!chunk_strcat(buf, ".crt")) {
+					memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
+					errcode |= ERR_ALERT | ERR_FATAL;
+					goto end;
+				}
+
+				if (strcmp(ckchs_transaction.path, buf->area) != 0) {
+					/* remove .crt of the error message */
+					*(b_orig(buf) + b_data(buf) + strlen(".crt")) = '\0';
+					b_sub(buf, strlen(".crt"));
+
+					memprintf(&err, "The ongoing transaction is about '%s' but you are trying to set '%s'\n", ckchs_transaction.path, buf->area);
+					errcode |= ERR_ALERT | ERR_FATAL;
+					goto end;
+				}
+			}
 		}
 
 		appctx->ctx.ssl.old_ckchs = ckchs_transaction.new_ckchs;
@@ -1568,6 +1575,18 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 
 		/* lookup for the certificate in the tree */
 		appctx->ctx.ssl.old_ckchs = ckchs_lookup(buf->area);
+
+		if (!appctx->ctx.ssl.old_ckchs) {
+			/* if the del-ext option is activated we should try to take a look at a ".crt" too. */
+			if (type != CERT_TYPE_PEM && global_ssl.extra_files_noext) {
+				if (!chunk_strcat(buf, ".crt")) {
+					memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
+					errcode |= ERR_ALERT | ERR_FATAL;
+					goto end;
+				}
+				appctx->ctx.ssl.old_ckchs = ckchs_lookup(buf->area);
+			}
+		}
 	}
 
 	if (!appctx->ctx.ssl.old_ckchs) {
