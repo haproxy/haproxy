@@ -2565,6 +2565,12 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 					continue;
 			}
 
+			/* do not report disabled servers */
+			if (appctx->ctx.stats.flags & STAT_HIDE_MAINT &&
+			    sv->cur_admin & SRV_ADMF_MAINT) {
+				continue;
+			}
+
 			svs = sv;
 			while (svs->track)
 				svs = svs->track;
@@ -4310,6 +4316,8 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 			appctx->ctx.stats.flags = (appctx->ctx.stats.flags & ~STAT_FMT_MASK) | STAT_FMT_JSON;
 		else if (strcmp(args[arg], "desc") == 0)
 			appctx->ctx.stats.flags |= STAT_SHOW_FDESC;
+		else if (strcmp(args[arg], "no-maint") == 0)
+			appctx->ctx.stats.flags |= STAT_HIDE_MAINT;
 		else if (strcmp(args[arg], "up") == 0)
 			appctx->ctx.stats.flags |= STAT_HIDE_DOWN;
 		arg++;
@@ -4504,7 +4512,7 @@ REGISTER_CONFIG_POSTPARSER("allocate-stats-dns", allocate_stats_dns_postcheck);
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "clear", "counters",  NULL }, "clear counters : clear max statistics counters (add 'all' for all counters)", cli_parse_clear_counters, NULL, NULL },
 	{ { "show", "info",  NULL }, "show info      : report information about the running process [desc|json|typed]*", cli_parse_show_info, cli_io_handler_dump_info, NULL },
-	{ { "show", "stat",  NULL }, "show stat      : report counters for each proxy and server [desc|json|typed|up]*", cli_parse_show_stat, cli_io_handler_dump_stat, NULL },
+	{ { "show", "stat",  NULL }, "show stat      : report counters for each proxy and server [desc|json|no-maint|typed|up]*", cli_parse_show_stat, cli_io_handler_dump_stat, NULL },
 	{ { "show", "schema",  "json", NULL }, "show schema json : report schema used for stats", NULL, cli_io_handler_dump_json_schema, NULL },
 	{{},}
 }};

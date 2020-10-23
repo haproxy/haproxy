@@ -4086,6 +4086,10 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 			appctx->ctx.stats.flags |= STAT_HIDE_DOWN;
 			break;
 		}
+		if (memcmp(h, ";no-maint", 3) == 0) {
+			appctx->ctx.stats.flags |= STAT_HIDE_MAINT;
+			break;
+		}
 	}
 
 	if (uri_auth->refresh) {

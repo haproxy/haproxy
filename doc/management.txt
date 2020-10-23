@@ -2123,7 +2123,7 @@ show fd [<fd>]
   that the output format may evolve over time so this output must not be parsed
   by tools designed to be durable.
 
-show info [typed|json] [desc] [up]
+show info [typed|json] [desc] [up|no-maint]
   Dump info about haproxy status on current process. If "typed" is passed as an
   optional argument, field numbers, names and types are emitted as well so that
   external monitoring products can easily retrieve, possibly aggregate, then
@@ -2138,7 +2138,10 @@ show info [typed|json] [desc] [up]
 
   The "up" modifier will result in listing only servers which reportedly up or
   not checked. Those down, unresolved, or in maintenance will not be listed.
-  This is analogous to the ";up" option on the HTTP stats.
+  This is analogous to the ";up" option on the HTTP stats. Similarly, the
+  "no-maint" modifier will act like the ";no-maint" HTTP modifier and will
+  result in disabled servers not to be listed. The difference is that those
+  which are enabled but down will not be evicted.
 
   When using the typed output format, each line is made of 4 columns delimited
   by colons (':'). The first column is a dot-delimited series of 3 elements. The
