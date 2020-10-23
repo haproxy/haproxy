@@ -1183,7 +1183,13 @@ int sha1_hosturi(struct stream *s)
  * matches, a "304 Not Modified" response should be sent instead of the cached
  * data.
  * Although unlikely in a GET/HEAD request, the "If-None-Match: *" syntax is
- * valid and should receive a "304 Not Modified" response (RFC 7434#4.3.2).
+ * valid and should receive a "304 Not Modified" response (RFC 7234#4.3.2).
+ *
+ * If no "If-None-Match" header was found, look for an "If-Modified-Since"
+ * header and compare its value (date) to the one stored in the cache_entry.
+ * If the request's date is later than the cached one, we also send a
+ * "304 Not Modified" response (see RFCs 7232#3.3 and 7234#4.3.2).
+ *
  * Returns 1 if "304 Not Modified" should be sent, 0 otherwise.
  */
 static int should_send_notmodified_response(struct cache *cache, struct htx *htx,
@@ -1194,20 +1200,26 @@ static int should_send_notmodified_response(struct cache *cache, struct htx *htx
 	struct http_hdr_ctx ctx = { .blk = NULL };
 	struct ist cache_entry_etag = IST_NULL;
 	struct buffer *etag_buffer = NULL;
+	int if_none_match_found = 0;
 
-	if (entry->etag_length == 0)
-		return 0;
+	struct tm tm = {};
+	time_t if_modified_since = 0;
 
 	/* If we find a "If-None-Match" header in the request, rebuild the
-	 * cache_entry's ETag in order to perform comparisons. */
-	/* There could be multiple "if-none-match" header lines. */
+	 * cache_entry's ETag in order to perform comparisons.
+	 * There could be multiple "if-none-match" header lines. */
 	while (http_find_header(htx, ist("if-none-match"), &ctx, 0)) {
+		if_none_match_found = 1;
 
 		/* A '*' matches everything. */
 		if (isteq(ctx.value, ist("*")) != 0) {
 			retval = 1;
 			break;
 		}
+
+		/* No need to rebuild an etag if none was stored in the cache. */
+		if (entry->etag_length == 0)
+			break;
 
 		/* Rebuild the stored ETag. */
 		if (etag_buffer == NULL) {
@@ -1227,6 +1239,23 @@ static int should_send_notmodified_response(struct cache *cache, struct htx *htx
 		if (http_compare_etags(cache_entry_etag, ctx.value) == 1) {
 			retval = 1;
 			break;
+		}
+	}
+
+	/* If the request did not contain an "If-None-Match" header, we look for
+	 * an "If-Modified-Since" header (see RFC 7232#3.3). */
+	if (retval == 0 && if_none_match_found == 0) {
+		ctx.blk = NULL;
+		if (http_find_header(htx, ist("if-modified-since"), &ctx, 1)) {
+			if (parse_http_date(istptr(ctx.value), istlen(ctx.value), &tm)) {
+				if_modified_since = my_timegm(&tm);
+
+				/* We send a "304 Not Modified" response if the
+				 * entry's last modified date is earlier than
+				 * the one found in the "If-Modified-Since"
+				 * header. */
+				retval = (entry->last_modified <= if_modified_since);
+			}
 		}
 	}
 

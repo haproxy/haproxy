@@ -1,0 +1,145 @@
+varnishtest "If-Modified-Since support"
+
+#REQUIRE_VERSION=2.3
+
+feature ignore_unknown_macro
+
+server s1 {
+       # Response containing a "Last-Modified" field
+       rxreq
+       expect req.url == "/last_modified"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Last-Modified: Thu, 15 Oct 2020 22:23:24 GMT"
+       chunkedlen 15
+       chunkedlen 15
+       chunkedlen 15
+       chunkedlen 0
+
+       # Response containing a "Date" field
+       rxreq
+       expect req.url == "/date"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Date: Thu, 22 Oct 2020 16:51:12 GMT"
+       chunkedlen 16
+       chunkedlen 16
+       chunkedlen 16
+       chunkedlen 0
+
+       # Response containing both a "Last-Modified" and a "Date" fields
+       # Should behave the same way as if the "Date" field was not here.
+       rxreq
+       expect req.url == "/last_modified_and_date"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Last-Modified: Thu, 15 Oct 2020 14:24:38 GMT" \
+               -hdr "Date: Thu, 22 Oct 2020 16:51:12 GMT"
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 0
+} -start
+
+haproxy h1 -conf {
+       defaults
+               mode http
+               ${no-htx} option http-use-htx
+               timeout connect 1s
+               timeout client  1s
+               timeout server  1s
+
+       frontend fe
+               bind "fd@${fe}"
+               default_backend test
+
+       backend test
+               http-request cache-use my_cache
+               server www ${s1_addr}:${s1_port}
+               http-response cache-store my_cache
+
+       cache my_cache
+               total-max-size 3
+               max-age 20
+               max-object-size 3072
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+       txreq -url "/last_modified"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 45
+
+       txreq -url "/date"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 48
+
+       txreq -url "/last_modified_and_date"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+
+
+       # Earlier date
+       # "Last-Modified" version
+       txreq -url "/last_modified" \
+              -hdr "If-Modified-Since: Thu, 15 Oct 2020 00:00:01 GMT"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 45
+       # "Date" version
+       txreq -url "/date" \
+              -hdr "If-Modified-Since: Thu, 01 Oct 2020 00:00:01 GMT"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 48
+       # "Last-Modified" and "Date" version
+       txreq -url "/last_modified_and_date" \
+              -hdr "If-Modified-Since: Thu, 15 Oct 2020 00:00:01 GMT"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+
+
+       # Same date
+       # "Last-Modified" version
+       txreq -url "/last_modified" \
+              -hdr "If-Modified-Since: Thu, 15 Oct 2020 22:23:24 GMT"
+       rxresp
+       expect resp.status == 304
+       expect resp.bodylen == 0
+       # "Date" version
+       txreq -url "/date" \
+              -hdr "If-Modified-Since: Thu, 22 Oct 2020 16:51:12 GMT"
+       rxresp
+       expect resp.status == 304
+       expect resp.bodylen == 0
+       # "Last-Modified" and "Date" version
+       txreq -url "/last_modified_and_date" \
+              -hdr "If-Modified-Since: Thu, 15 Oct 2020 16:51:12 GMT"
+       rxresp
+       expect resp.status == 304
+       expect resp.bodylen == 0
+
+
+       # Later date
+       # "Last-Modified" version
+       txreq -url "/last_modified" \
+              -hdr "If-Modified-Since: Thu, 22 Oct 2020 23:00:00 GMT"
+       rxresp
+       expect resp.status == 304
+       expect resp.bodylen == 0
+       # "Date" version
+       txreq -url "/date" \
+              -hdr "If-Modified-Since: Thu, 22 Oct 2020 23:00:00 GMT"
+       rxresp
+       expect resp.status == 304
+       expect resp.bodylen == 0
+       # "Last-Modified" and "Date" version
+       txreq -url "/last_modified_and_date" \
+              -hdr "If-Modified-Since: Thu, 22 Oct 2020 23:00:00 GMT"
+       rxresp
+       expect resp.status == 304
+       expect resp.bodylen == 0
+
+} -run
+
