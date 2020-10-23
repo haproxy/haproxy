@@ -1009,7 +1009,7 @@ Here is the list of static fields using the proxy statistics domain:
      server. The server value counts the number of times that server was
      switched away from.
  17. status [LFBS]: status (UP/DOWN/NOLB/MAINT/MAINT(via)/MAINT(resolution)...)
- 18. weight [..BS]: total weight (backend), server weight (server)
+ 18. weight [..BS]: total effective weight (backend), effective weight (server)
  19. act [..BS]: number of active servers (backend), server is active (server)
  20. bck [..BS]: number of backup servers (backend), server is backup (server)
  21. chkfail [...S]: number of failed checks. (Only counts checks failed when
@@ -1130,6 +1130,7 @@ Here is the list of static fields using the proxy statistics domain:
  96. safe_conn_cur [...S]: current number of safe idle connections
  97. used_conn_cur [...S]: current number of connections in use
  98. need_conn_est [...S]: estimated needed number of connections
+ 99. uweight [..BS]: total user weight (backend), server user weight (server)
 
 For all other statistics domains, the presence or the order of the fields are
 not guaranteed. In this case, the header line should always be used to parse

@@ -169,7 +169,7 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_WRETR]                         = { .name = "wretr",                       .desc = "Total number of server connection retries since the worker process started" },
 	[ST_F_WREDIS]                        = { .name = "wredis",                      .desc = "Total number of server redispatches due to connection failures since the worker process started" },
 	[ST_F_STATUS]                        = { .name = "status",                      .desc = "Frontend/listen status: OPEN/WAITING/FULL/STOP; backend: UP/DOWN; server: last check status" },
-	[ST_F_WEIGHT]                        = { .name = "weight",                      .desc = "Server weight, or sum of active servers' weights for a backend" },
+	[ST_F_WEIGHT]                        = { .name = "weight",                      .desc = "Server's effective weight, or sum of active servers' effective weights for a backend" },
 	[ST_F_ACT]                           = { .name = "act",                         .desc = "Total number of active UP servers with a non-zero weight" },
 	[ST_F_BCK]                           = { .name = "bck",                         .desc = "Total number of backup UP servers with a non-zero weight" },
 	[ST_F_CHKFAIL]                       = { .name = "chkfail",                     .desc = "Total number of failed individual health checks per server/backend, since the worker process started" },
@@ -250,6 +250,7 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_SAFE_CONN_CUR]                 = { .name = "safe_conn_cur",               .desc = "Current number of safe idle connections"},
 	[ST_F_USED_CONN_CUR]                 = { .name = "used_conn_cur",               .desc = "Current number of connections in use"},
 	[ST_F_NEED_CONN_EST]                 = { .name = "need_conn_est",               .desc = "Estimated needed number of connections"},
+	[ST_F_UWEIGHT]                       = { .name = "uweight",                     .desc = "Server's user weight, or sum of active servers' user weights for a backend" },
 };
 
 /* one line of info */
@@ -1327,12 +1328,12 @@ static int stats_dump_fields_html(struct buffer *out,
 			chunk_appendf(out, "</td><td>");
 
 		chunk_appendf(out,
-		              /* weight */
-		              "</td><td class=ac>%d</td>"
+		              /* weight / uweight */
+		              "</td><td class=ac>%d/%d</td>"
 		              /* act, bck */
 		              "<td class=ac>%s</td><td class=ac>%s</td>"
 		              "",
-		              stats[ST_F_WEIGHT].u.u32,
+		              stats[ST_F_WEIGHT].u.u32, stats[ST_F_UWEIGHT].u.u32,
 		              stats[ST_F_BCK].u.u32 ? "-" : "Y",
 		              stats[ST_F_BCK].u.u32 ? "Y" : "-");
 
@@ -1537,7 +1538,7 @@ static int stats_dump_fields_html(struct buffer *out,
 		               * if the backend has known working servers or if it has no server at
 		               * all (eg: for stats). Then we display the total weight, number of
 		               * active and backups. */
-		              "<td class=ac>%s %s</td><td class=ac>&nbsp;</td><td class=ac>%d</td>"
+		              "<td class=ac>%s %s</td><td class=ac>&nbsp;</td><td class=ac>%d/%d</td>"
 		              "<td class=ac>%d</td><td class=ac>%d</td>"
 		              "",
 		              U2H(stats[ST_F_DREQ].u.u64), U2H(stats[ST_F_DRESP].u.u64),
@@ -1548,7 +1549,7 @@ static int stats_dump_fields_html(struct buffer *out,
 		              (long long)stats[ST_F_WRETR].u.u64, (long long)stats[ST_F_WREDIS].u.u64,
 		              human_time(stats[ST_F_LASTCHG].u.u32, 1),
 		              strcmp(field_str(stats, ST_F_STATUS), "DOWN") ? field_str(stats, ST_F_STATUS) : "<font color=\"red\"><b>DOWN</b></font>",
-		              stats[ST_F_WEIGHT].u.u32,
+		              stats[ST_F_WEIGHT].u.u32, stats[ST_F_UWEIGHT].u.u32,
 		              stats[ST_F_ACT].u.u32, stats[ST_F_BCK].u.u32);
 
 		chunk_appendf(out,
@@ -1963,6 +1964,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, fld_status);
 	stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - sv->last_change);
 	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (sv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
+	stats[ST_F_UWEIGHT]  = mkf_u32(FN_AVG, sv->uweight);
 	stats[ST_F_ACT]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
 	stats[ST_F_BCK]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
 
@@ -2151,19 +2153,28 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 	struct buffer *out = get_trash_chunk();
 	const struct server *srv;
 	int nbup, nbsrv;
+	int totuw;
 	char *fld;
 
 	if (len < ST_F_TOTAL_FIELDS)
 		return 0;
 
+	totuw = 0;
 	nbup = nbsrv = 0;
-	if (flags & (STAT_HIDE_MAINT|STAT_HIDE_DOWN)) {
-		for (srv = px->srv; srv; srv = srv->next) {
-			if (srv->cur_state != SRV_ST_STOPPED)
-				nbup++;
-			nbsrv++;
+	for (srv = px->srv; srv; srv = srv->next) {
+		if (srv->cur_state != SRV_ST_STOPPED) {
+			nbup++;
+			if (srv_currently_usable(srv) &&
+			    (!px->srv_act ^ !(srv->flags & SRV_F_BACKUP)))
+				totuw += srv->uweight;
 		}
+		nbsrv++;
 	}
+
+	HA_RWLOCK_RDLOCK(LBPRM_LOCK, &px->lbprm.lock);
+	if (!px->srv_act && px->lbprm.fbck)
+		totuw = px->lbprm.fbck->uweight;
+	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &px->lbprm.lock);
 
 	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
 	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "BACKEND");
@@ -2194,6 +2205,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 
 	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, fld);
 	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
+	stats[ST_F_UWEIGHT]  = mkf_u32(FN_AVG, totuw);
 	stats[ST_F_ACT]      = mkf_u32(0, px->srv_act);
 	stats[ST_F_BCK]      = mkf_u32(0, px->srv_bck);
 	stats[ST_F_CHKDOWN]  = mkf_u64(FN_COUNTER, px->down_trans);
