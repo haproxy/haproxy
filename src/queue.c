@@ -465,8 +465,8 @@ int pendconn_redistribute(struct server *s)
 		xferred++;
 	}
 	if (xferred) {
-		_HA_ATOMIC_SUB(&p->srv->nbpend, xferred);
-		_HA_ATOMIC_SUB(&p->px->totpend, xferred);
+		_HA_ATOMIC_SUB(&s->nbpend, xferred);
+		_HA_ATOMIC_SUB(&s->proxy->totpend, xferred);
 	}
 	return xferred;
 }
@@ -508,8 +508,8 @@ int pendconn_grab_from_px(struct server *s)
 	}
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &s->proxy->lock);
 	if (xferred) {
-		_HA_ATOMIC_SUB(&p->px->nbpend, xferred);
-		_HA_ATOMIC_SUB(&p->px->totpend, xferred);
+		_HA_ATOMIC_SUB(&s->proxy->nbpend, xferred);
+		_HA_ATOMIC_SUB(&s->proxy->totpend, xferred);
 	}
 	return xferred;
 }
