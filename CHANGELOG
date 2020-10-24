@@ -1,6 +1,59 @@
 ChangeLog :
 ===========
 
+2020/10/24 : 2.3-dev8
+    - MINOR: backend: replace the lbprm lock with an rwlock
+    - MINOR: lb/map: use seek lock and read locks where appropriate
+    - MINOR: lb/leastconn: only take a read lock in fwlc_get_next_server()
+    - MINOR: lb/first: use a read lock in fas_get_next_server()
+    - MINOR: lb/chash: use a read lock in chash_get_server_hash()
+    - BUG/MINOR: disable dynamic OCSP load with BoringSSL
+    - BUILD: ssl: make BoringSSL use its own version numbers
+    - CLEANUP: threads: don't register an initcall when not debugging
+    - MINOR: threads: change lock_t to an unsigned int
+    - CLEANUP: tree-wide: reorder a few structures to plug some holes around locks
+    - CLEANUP: task: remove the unused and mishandled global_rqueue_size
+    - BUG/MEDIUM: connection: Never cleanup server lists when freeing private conns
+    - MEDIUM: config: report that "nbproc" is deprecated
+    - BUG/MINOR: listener: close before free in `listener_accept`
+    - MINOR: ssl: 'ssl-load-extra-del-ext' removes the certificate extension
+    - BUG/MINOR: queue: properly report redistributed connections
+    - CONTRIB: tcploop: remove unused local variables in tcp_pause()
+    - BUILD: makefile: add entries to build common debugging tools
+    - BUG/MEDIUM: server: support changing the slowstart value from state-file
+    - MINOR: http: Add `enum etag_type http_get_etag_type(const struct ist)`
+    - MINOR: http: Add etag comparison function
+    - MEDIUM: cache: Store the ETag information in the cache_entry
+    - MEDIUM: cache: Add support for 'If-None-Match' request header
+    - REGTEST: cache: Add if-none-match test case
+    - CLEANUP: compression: Make use of http_get_etag_type()
+    - BUG/MINOR: http-ana: Don't send payload for internal responses to HEAD requests
+    - BUG/MAJOR: mux-h2: Don't try to send data if we know it is no longer possible
+    - MINOR: threads/debug: only report used lock stats
+    - MINOR: threads/debug: only report lock stats for used operations
+    - MINOR: proxy; replace the spinlock with an rwlock
+    - MINOR: server: read-lock the cookie during srv_set_dyncookie()
+    - MINOR: proxy/cli: only take a read lock in "show errors"
+    - OPTIM: queue: don't call pendconn_unlink() when the pendconn is not queued
+    - MINOR: queue: split __pendconn_unlink() in per-srv and per-prx
+    - MINOR: queue: reduce the locked area in pendconn_add()
+    - OPTIM: queue: make the nbpend counters atomic
+    - OPTIM: queue: decrement the nbpend and totpend counters outside of the lock
+    - MINOR: leastconn: take the queue length into account when queuing servers
+    - MEDIUM: fwlc: re-enable per-server queuing up to maxqueue
+    - Revert "OPTIM: queue: don't call pendconn_unlink() when the pendconn is not queued"
+    - MINOR: stats: support the "up" output modifier for "show stat"
+    - MINOR: stats: also support a "no-maint" show stat modifier
+    - MINOR: stats: indicate the number of servers in a backend's status
+    - MEDIUM: ssl: ssl-load-extra-del-ext work only with .crt
+    - REGTEST: ssl: test "set ssl cert" with separate key / crt
+    - DOC: management: apply the "show stat" modifiers to "show stat", not "show info"
+    - MINOR: stats: report server's user-configured weight next to effective weight
+    - CI: travis-ci: switch to Ubuntu 20.04
+    - CONTRIB: release-estimator: Add release estimating tool
+    - BUG/MEDIUM: queue: fix unsafe proxy pointer when counting nbpend
+    - BUG/MINOR: extcheck: add missing checks on extchk_setenv()
+
 2020/10/17 : 2.3-dev7
     - CI: travis-ci: replace not defined SSL_LIB, SSL_INC for BotringSSL builds
     - BUG/MINOR: init: only keep rlim_fd_cur if max is unlimited
