@@ -5030,7 +5030,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			goto err;
 		}
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
 		if (__objt_listener(conn->target)->bind_conf->ssl_conf.early_data) {
 			b_alloc(&ctx->early_buf);
 			SSL_set_max_early_data(ctx->ssl,
@@ -5046,7 +5046,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
 		conn->flags |= CO_FL_EARLY_SSL_HS;
 #endif
 
@@ -5084,7 +5084,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	if (!conn->xprt_ctx)
 		goto out_error;
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x10101000L
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
 	/*
 	 * Check if we have early data. If we do, we have to read them
 	 * before SSL_do_handshake() is called, And there's no way to
@@ -5291,7 +5291,7 @@ check_error:
 			goto out_error;
 		}
 	}
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
 	else {
 		/*
 		 * If the server refused the early data, we have to send a
@@ -5685,7 +5685,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	 * in which case we accept to do it once again.
 	 */
 	while (count) {
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
 		size_t written_data;
 #endif
 
@@ -5706,7 +5706,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 			ctx->xprt_st |= SSL_SOCK_SEND_UNLIMITED;
 		}
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
 		if (!SSL_is_init_finished(ctx->ssl) && conn_is_back(conn)) {
 			unsigned int max_early;
 
