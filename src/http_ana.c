@@ -3533,8 +3533,6 @@ static void http_manage_client_side_cookies(struct stream *s, struct channel *re
 				}
 			}
 
-			/* continue with next cookie on this header line */
-			att_beg = next;
 		} /* for each cookie */
 
 
