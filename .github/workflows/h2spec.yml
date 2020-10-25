@@ -20,7 +20,7 @@ jobs:
         ./haproxy -f .github/h2spec.config -D
     - name: download h2spec
       run: |
-        wget https://github.com/summerwind/h2spec/releases/download/v2.4.0/h2spec_linux_amd64.tar.gz
+        wget https://github.com/summerwind/h2spec/releases/download/v2.6.0/h2spec_linux_amd64.tar.gz
         tar xvf h2spec_linux_amd64.tar.gz
     - name: run h2spec
       run: |
