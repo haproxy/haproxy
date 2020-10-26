@@ -655,8 +655,8 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
 
-	if (!conn) {
-		/* connection allocation error before the connection was established */
+	if (!conn || !conn->ctrl) {
+		/* error before any connection attempt (connection allocation error or no control layer) */
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
 	else if (conn->flags & CO_FL_WAIT_L4_CONN) {
