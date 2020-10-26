@@ -4070,14 +4070,24 @@ static int srv_apply_lastaddr(struct server *srv, int *err_code)
 /* returns 0 if no error, otherwise a combination of ERR_* flags */
 static int srv_iterate_initaddr(struct server *srv)
 {
+	char *name = srv->hostname;
 	int return_code = 0;
 	int err_code;
 	unsigned int methods;
 
+	/* If no addr and no hostname set, get the name from the DNS SRV request */
+	if (!name && srv->srvrq)
+		name = srv->srvrq->name;
+
 	methods = srv->init_addr_methods;
-	if (!methods) { // default to "last,libc"
+	if (!methods) {
+		/* otherwise default to "last,libc" */
 		srv_append_initaddr(&methods, SRV_IADDR_LAST);
 		srv_append_initaddr(&methods, SRV_IADDR_LIBC);
+		if (srv->resolvers_id) {
+			/* dns resolution is configured, add "none" to not fail on startup */
+			srv_append_initaddr(&methods, SRV_IADDR_NONE);
+		}
 	}
 
 	/* "-dr" : always append "none" so that server addresses resolution
@@ -4110,7 +4120,7 @@ static int srv_iterate_initaddr(struct server *srv)
 			srv_set_admin_flag(srv, SRV_ADMF_RMAINT, NULL);
 			if (return_code) {
 				ha_warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', disabling server.\n",
-					   srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+					   srv->conf.file, srv->conf.line, srv->id, name);
 			}
 			return return_code;
 
@@ -4118,7 +4128,7 @@ static int srv_iterate_initaddr(struct server *srv)
 			ipcpy(&srv->init_addr, &srv->addr);
 			if (return_code) {
 				ha_warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', falling back to configured address.\n",
-					   srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+					   srv->conf.file, srv->conf.line, srv->id, name);
 			}
 			goto out;
 
@@ -4129,11 +4139,11 @@ static int srv_iterate_initaddr(struct server *srv)
 
 	if (!return_code) {
 		ha_alert("parsing [%s:%d] : 'server %s' : no method found to resolve address '%s'\n",
-		      srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+		      srv->conf.file, srv->conf.line, srv->id, name);
 	}
 	else {
 		ha_alert("parsing [%s:%d] : 'server %s' : could not resolve address '%s'.\n",
-		      srv->conf.file, srv->conf.line, srv->id, srv->hostname);
+		      srv->conf.file, srv->conf.line, srv->id, name);
 	}
 
 	return_code |= ERR_ALERT | ERR_FATAL;
@@ -4165,7 +4175,7 @@ int srv_init_addr(void)
 			goto srv_init_addr_next;
 
 		for (srv = curproxy->srv; srv; srv = srv->next)
-			if (srv->hostname)
+			if (srv->hostname || srv->srvrq)
 				return_code |= srv_iterate_initaddr(srv);
 
  srv_init_addr_next:
