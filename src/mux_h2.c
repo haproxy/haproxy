@@ -386,6 +386,11 @@ enum {
 	H2_ST_RST_STREAM_RCVD,
 	H2_ST_GOAWAY_RCVD,
 
+	H2_ST_CONN_PROTO_ERR,
+	H2_ST_STRM_PROTO_ERR,
+	H2_ST_RST_STREAM_RESP,
+	H2_ST_GOAWAY_RESP,
+
 	H2_STATS_COUNT /* must be the last member of the enum */
 };
 
@@ -400,6 +405,15 @@ static struct name_desc h2_stats[] = {
 	                            .desc = "Total number of received rst_stream frames" },
 	[H2_ST_GOAWAY_RCVD]     = { .name = "h2_goaway_rcvd",
 	                            .desc = "Total number of received goaway frames" },
+
+	[H2_ST_CONN_PROTO_ERR]  = { .name = "h2_detected_conn_protocol_errors",
+	                            .desc = "Total number of connection protocol errors" },
+	[H2_ST_STRM_PROTO_ERR]  = { .name = "h2_detected_strm_protocol_errors",
+	                            .desc = "Total number of stream protocol errors" },
+	[H2_ST_RST_STREAM_RESP] = { .name = "h2_rst_stream_resp",
+	                            .desc = "Total number of rst_stream sent on detected error" },
+	[H2_ST_GOAWAY_RESP]     = { .name = "h2_goaway_resp",
+	                            .desc = "Total number of goaway sent on detected error" },
 };
 
 static struct h2_counters {
@@ -408,6 +422,11 @@ static struct h2_counters {
 	long long settings_rcvd;   /* total number of settings frame received */
 	long long rst_stream_rcvd; /* total number of rst_stream frame received */
 	long long goaway_rcvd;     /* total number of goaway frame received */
+
+	long long conn_proto_err;  /* total number of protocol errors detected */
+	long long strm_proto_err;  /* total number of protocol errors detected */
+	long long rst_stream_resp; /* total number of rst_stream frame sent on error */
+	long long goaway_resp;     /* total number of goaway frame sent on error */
 } h2_counters;
 
 static void h2_fill_stats(void *data, struct field *stats)
@@ -419,6 +438,11 @@ static void h2_fill_stats(void *data, struct field *stats)
 	stats[H2_ST_SETTINGS_RCVD]   = mkf_u64(FN_COUNTER, counters->settings_rcvd);
 	stats[H2_ST_RST_STREAM_RCVD] = mkf_u64(FN_COUNTER, counters->rst_stream_rcvd);
 	stats[H2_ST_GOAWAY_RCVD]     = mkf_u64(FN_COUNTER, counters->goaway_rcvd);
+
+	stats[H2_ST_CONN_PROTO_ERR]  = mkf_u64(FN_COUNTER, counters->conn_proto_err);
+	stats[H2_ST_STRM_PROTO_ERR]  = mkf_u64(FN_COUNTER, counters->strm_proto_err);
+	stats[H2_ST_RST_STREAM_RESP] = mkf_u64(FN_COUNTER, counters->rst_stream_resp);
+	stats[H2_ST_GOAWAY_RESP]     = mkf_u64(FN_COUNTER, counters->goaway_resp);
 }
 
 static struct stats_module h2_stats_module = {
@@ -1619,8 +1643,10 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 		if (ret1 < 0)
 			sess_log(h2c->conn->owner);
 
-		if (ret1 < 0 || conn_xprt_read0_pending(h2c->conn))
+		if (ret1 < 0 || conn_xprt_read0_pending(h2c->conn)) {
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			HA_ATOMIC_ADD(&h2c->px_counters->conn_proto_err, 1);
+		}
 		ret2 = 0;
 		goto out;
 	}
@@ -1755,6 +1781,7 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 	}
 	h2c->flags |= H2_CF_GOAWAY_SENT;
  out:
+	HA_ATOMIC_ADD(&h2c->px_counters->goaway_resp, 1);
 	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_GOAWAY, h2c->conn);
 	return ret;
 }
@@ -1899,6 +1926,7 @@ static int h2c_send_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	}
 
  out:
+	HA_ATOMIC_ADD(&h2c->px_counters->rst_stream_resp, 1);
 	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_RST, h2c->conn, h2s);
 	return ret;
 }
@@ -2099,6 +2127,7 @@ static int h2c_handle_settings(struct h2c *h2c)
 		case H2_SETTINGS_MAX_FRAME_SIZE:
 			if (arg < 16384 || arg > 16777215) { // RFC7540#6.5.2
 				error = H2_ERR_PROTOCOL_ERROR;
+				HA_ATOMIC_ADD(&h2c->px_counters->conn_proto_err, 1);
 				goto fail;
 			}
 			h2c->mfs = arg;
@@ -2106,6 +2135,7 @@ static int h2c_handle_settings(struct h2c *h2c)
 		case H2_SETTINGS_ENABLE_PUSH:
 			if (arg < 0 || arg > 1) { // RFC7540#6.5.2
 				error = H2_ERR_PROTOCOL_ERROR;
+				HA_ATOMIC_ADD(&h2c->px_counters->conn_proto_err, 1);
 				goto fail;
 			}
 			break;
@@ -2375,6 +2405,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 
 		if (!inc) {
 			error = H2_ERR_PROTOCOL_ERROR;
+			HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 			goto strm_err;
 		}
 
@@ -2396,6 +2427,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 		/* connection window update */
 		if (!inc) {
 			error = H2_ERR_PROTOCOL_ERROR;
+			HA_ATOMIC_ADD(&h2c->px_counters->conn_proto_err, 1);
 			goto conn_err;
 		}
 
@@ -2467,6 +2499,7 @@ static int h2c_handle_priority(struct h2c *h2c)
 	if (h2_get_n32(&h2c->dbuf, 0) == h2c->dsi) {
 		/* 7540#5.3 : can't depend on itself */
 		h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+		HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 		TRACE_DEVEL("leaving on error", H2_EV_RX_FRAME|H2_EV_RX_PRIO, h2c->conn);
 		return 0;
 	}
@@ -2561,6 +2594,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	else if (h2c->dsi <= h2c->max_id || !(h2c->dsi & 1)) {
 		/* RFC7540#5.1.1 stream id > prev ones, and must be odd here */
 		error = H2_ERR_PROTOCOL_ERROR;
+		HA_ATOMIC_ADD(&h2c->px_counters->conn_proto_err, 1);
 		sess_log(h2c->conn->owner);
 		goto conn_err;
 	}
@@ -2690,6 +2724,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		/* stream error : send RST_STREAM */
 		h2s_error(h2s, H2_ERR_PROTOCOL_ERROR);
 		h2c->st0 = H2_CS_FRAME_E;
+		HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 		goto fail;
 	}
 
@@ -2755,6 +2790,7 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 	if ((h2s->flags & H2_SF_DATA_CLEN) && (h2c->dfl - h2c->dpl) > h2s->body_len) {
 		/* RFC7540#8.1.2 */
 		error = H2_ERR_PROTOCOL_ERROR;
+		HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 		goto strm_err;
 	}
 
@@ -2798,6 +2834,7 @@ static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
 		if (h2s->flags & H2_SF_DATA_CLEN && h2s->body_len) {
 			/* RFC7540#8.1.2 */
 			error = H2_ERR_PROTOCOL_ERROR;
+			HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 			goto strm_err;
 		}
 	}
@@ -2833,6 +2870,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 			/* only log if no other stream can report the error */
 			sess_log(h2c->conn->owner);
 		}
+		HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 		TRACE_DEVEL("leaving in error (idle&!hdrs&!prio)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
 		return 0;
 	}
@@ -2840,6 +2878,7 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->st == H2_SS_IDLE && (h2c->flags & H2_CF_IS_BACK)) {
 		/* only PUSH_PROMISE would be permitted here */
 		h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+		HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 		TRACE_DEVEL("leaving in error (idle&back)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
 		return 0;
 	}
@@ -2851,10 +2890,13 @@ static int h2_frame_check_vs_state(struct h2c *h2c, struct h2s *h2s)
 		 * 6.2, 6.6 and 6.10 further mandate that HEADERS/
 		 * PUSH_PROMISE/CONTINUATION cause connection errors.
 		 */
-		if (h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK)
+		if (h2_ft_bit(h2c->dft) & H2_FT_HDR_MASK) {
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
-		else
+			HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
+		}
+		else {
 			h2s_error(h2s, H2_ERR_STREAM_CLOSED);
+		}
 		TRACE_DEVEL("leaving in error (hrem&!wu&!rst&!prio)", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn, h2s);
 		return 0;
 	}
@@ -3000,6 +3042,7 @@ static void h2_process_demux(struct h2c *h2c)
 				h2c->st0 = H2_CS_ERROR2;
 				if (!(h2c->flags & H2_CF_IS_BACK))
 					sess_log(h2c->conn->owner);
+				HA_ATOMIC_ADD(&h2c->px_counters->conn_proto_err, 1);
 				goto fail;
 			}
 
@@ -3085,6 +3128,7 @@ static void h2_process_demux(struct h2c *h2c)
 					h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 					if (!(h2c->flags & H2_CF_IS_BACK))
 						sess_log(h2c->conn->owner);
+					HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 					goto fail;
 				}
 
@@ -3187,6 +3231,7 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
 			if (!(h2c->flags & H2_CF_IS_BACK))
 				sess_log(h2c->conn->owner);
+			HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 			goto fail;
 
 		case H2_FT_HEADERS:
@@ -4402,6 +4447,7 @@ next_frame:
 			/* RFC7540#6.10: frame of unexpected type */
 			TRACE_STATE("not continuation!", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 			goto fail;
 		}
 
@@ -4409,6 +4455,7 @@ next_frame:
 			/* RFC7540#6.10: frame of different stream */
 			TRACE_STATE("different stream ID!", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_HDR|H2_EV_RX_CONT|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 			goto fail;
 		}
 
@@ -4461,6 +4508,7 @@ next_frame:
 			/* RFC7540#5.3.1 : stream dep may not depend on itself */
 			TRACE_STATE("invalid stream dependency!", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+			HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 			goto fail;
 		}
 
@@ -4588,6 +4636,7 @@ next_frame:
 		/* It's a trailer but it's missing ES flag */
 		TRACE_STATE("missing EH on trailers frame", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 		h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
+		HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 		goto fail;
 	}
 
