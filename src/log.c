@@ -1039,7 +1039,8 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 
   error:
 	free(smp_rgs);
-	free(logsrv->ring_name);
+	if (logsrv)
+		free(logsrv->ring_name);
 	free(logsrv);
 	return 0;
 }
