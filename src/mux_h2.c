@@ -25,6 +25,7 @@
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/session-t.h>
+#include <haproxy/stats.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/trace.h>
@@ -375,6 +376,35 @@ static struct trace_source trace_h2 = {
 
 #define TRACE_SOURCE &trace_h2
 INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
+
+/* h2 stats module */
+enum {
+	H2_STATS_COUNT /* must be the last member of the enum */
+};
+
+static struct name_desc h2_stats[] = {
+};
+
+static struct h2_counters {
+} h2_counters;
+
+static void h2_fill_stats(void *data, struct field *stats)
+{
+	//struct h2_counters *counters = data;
+}
+
+static struct stats_module h2_stats_module = {
+	.name          = "h2",
+	.fill_stats    = h2_fill_stats,
+	.stats         = h2_stats,
+	.stats_count   = H2_STATS_COUNT,
+	.counters      = &h2_counters,
+	.counters_size = sizeof(h2_counters),
+	.domain_flags  = MK_STATS_PROXY_DOMAIN(STATS_PX_CAP_FE|STATS_PX_CAP_BE),
+	.clearable     = 1,
+};
+
+INITCALL1(STG_REGISTER, stats_register_module, &h2_stats_module);
 
 /* the h2c connection pool */
 DECLARE_STATIC_POOL(pool_head_h2c, "h2c", sizeof(struct h2c));
