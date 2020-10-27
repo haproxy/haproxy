@@ -2033,15 +2033,9 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 	/* all expr are locked, we can safely remove all pat_ref */
 	list_for_each_entry_safe(elt, safe, &ref->head, list) {
 		list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
-			/*
-			 * we have to unlink all watchers. We must not relink them if
-			 * this elt  was the last one in the list.
-			 */
-			LIST_DEL(&bref->users);
-			LIST_INIT(&bref->users);
-			if (elt->list.n != &ref->head)
-				LIST_ADDQ(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
-			bref->ref = elt->list.n;
+			/* we have to unlink all watchers. */
+			LIST_DEL_INIT(&bref->users);
+			bref->ref = NULL;
 		}
 		LIST_DEL(&elt->list);
 		free(elt->pattern);
