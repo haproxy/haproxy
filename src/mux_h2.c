@@ -380,18 +380,45 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 /* h2 stats module */
 enum {
+	H2_ST_HEADERS_RCVD,
+	H2_ST_DATA_RCVD,
+	H2_ST_SETTINGS_RCVD,
+	H2_ST_RST_STREAM_RCVD,
+	H2_ST_GOAWAY_RCVD,
+
 	H2_STATS_COUNT /* must be the last member of the enum */
 };
 
 static struct name_desc h2_stats[] = {
+	[H2_ST_HEADERS_RCVD]    = { .name = "h2_headers_rcvd",
+	                            .desc = "Total number of received headers frames" },
+	[H2_ST_DATA_RCVD]       = { .name = "h2_data_rcvd",
+	                            .desc = "Total number of received data frames" },
+	[H2_ST_SETTINGS_RCVD]   = { .name = "h2_settings_rcvd",
+	                            .desc = "Total number of received settings frames" },
+	[H2_ST_RST_STREAM_RCVD] = { .name = "h2_rst_stream_rcvd",
+	                            .desc = "Total number of received rst_stream frames" },
+	[H2_ST_GOAWAY_RCVD]     = { .name = "h2_goaway_rcvd",
+	                            .desc = "Total number of received goaway frames" },
 };
 
 static struct h2_counters {
+	long long headers_rcvd;    /* total number of headers frame received */
+	long long data_rcvd;       /* total number of data frame received */
+	long long settings_rcvd;   /* total number of settings frame received */
+	long long rst_stream_rcvd; /* total number of rst_stream frame received */
+	long long goaway_rcvd;     /* total number of goaway frame received */
 } h2_counters;
 
 static void h2_fill_stats(void *data, struct field *stats)
 {
-	//struct h2_counters *counters = data;
+	struct h2_counters *counters = data;
+
+	stats[H2_ST_HEADERS_RCVD]    = mkf_u64(FN_COUNTER, counters->headers_rcvd);
+	stats[H2_ST_DATA_RCVD]       = mkf_u64(FN_COUNTER, counters->data_rcvd);
+	stats[H2_ST_SETTINGS_RCVD]   = mkf_u64(FN_COUNTER, counters->settings_rcvd);
+	stats[H2_ST_RST_STREAM_RCVD] = mkf_u64(FN_COUNTER, counters->rst_stream_rcvd);
+	stats[H2_ST_GOAWAY_RCVD]     = mkf_u64(FN_COUNTER, counters->goaway_rcvd);
 }
 
 static struct stats_module h2_stats_module = {
@@ -2991,6 +3018,7 @@ static void h2_process_demux(struct h2c *h2c)
 			 * deleted above.
 			 */
 			padlen = 0;
+			HA_ATOMIC_ADD(&h2c->px_counters->settings_rcvd, 1);
 			goto new_frame;
 		}
 	}
@@ -3122,6 +3150,7 @@ static void h2_process_demux(struct h2c *h2c)
 				TRACE_PROTO("receiving H2 SETTINGS frame", H2_EV_RX_FRAME|H2_EV_RX_SETTINGS, h2c->conn, h2s);
 				ret = h2c_handle_settings(h2c);
 			}
+			HA_ATOMIC_ADD(&h2c->px_counters->settings_rcvd, 1);
 
 			if (h2c->st0 == H2_CS_FRAME_A) {
 				TRACE_PROTO("sending H2 SETTINGS ACK frame", H2_EV_TX_FRAME|H2_EV_RX_SETTINGS, h2c->conn, h2s);
@@ -3172,6 +3201,7 @@ static void h2_process_demux(struct h2c *h2c)
 					ret = 1;
 				}
 			}
+			HA_ATOMIC_ADD(&h2c->px_counters->headers_rcvd, 1);
 			break;
 
 		case H2_FT_DATA:
@@ -3179,6 +3209,7 @@ static void h2_process_demux(struct h2c *h2c)
 				TRACE_PROTO("receiving H2 DATA frame", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 				ret = h2c_frt_handle_data(h2c, h2s);
 			}
+			HA_ATOMIC_ADD(&h2c->px_counters->data_rcvd, 1);
 
 			if (h2c->st0 == H2_CS_FRAME_A) {
 				TRACE_PROTO("sending stream WINDOW_UPDATE frame", H2_EV_TX_FRAME|H2_EV_TX_WU, h2c->conn, h2s);
@@ -3198,6 +3229,7 @@ static void h2_process_demux(struct h2c *h2c)
 				TRACE_PROTO("receiving H2 RST_STREAM frame", H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
 				ret = h2c_handle_rst_stream(h2c, h2s);
 			}
+			HA_ATOMIC_ADD(&h2c->px_counters->rst_stream_rcvd, 1);
 			break;
 
 		case H2_FT_GOAWAY:
@@ -3205,6 +3237,7 @@ static void h2_process_demux(struct h2c *h2c)
 				TRACE_PROTO("receiving H2 GOAWAY frame", H2_EV_RX_FRAME|H2_EV_RX_GOAWAY, h2c->conn, h2s);
 				ret = h2c_handle_goaway(h2c);
 			}
+			HA_ATOMIC_ADD(&h2c->px_counters->goaway_rcvd, 1);
 			break;
 
 			/* implement all extra frame types here */
