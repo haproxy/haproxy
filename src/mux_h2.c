@@ -129,6 +129,7 @@ struct h2c {
 	unsigned int stream_cnt;  /* total number of streams seen */
 	struct proxy *proxy; /* the proxy this connection was created for */
 	struct task *task;  /* timeout management task */
+	struct h2_counters *px_counters; /* h2 counters attached to proxy */
 	struct eb_root streams_by_id; /* all active streams by their ID */
 	struct list send_list; /* list of blocked streams requesting to send */
 	struct list fctl_list; /* list of streams blocked by connection's fctl */
@@ -838,11 +839,17 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 		h2c->shut_timeout = h2c->timeout = prx->timeout.server;
 		if (tick_isset(prx->timeout.serverfin))
 			h2c->shut_timeout = prx->timeout.serverfin;
+
+		h2c->px_counters = EXTRA_COUNTERS_GET(prx->extra_counters_be,
+		                                      &h2_stats_module);
 	} else {
 		h2c->flags = H2_CF_NONE;
 		h2c->shut_timeout = h2c->timeout = prx->timeout.client;
 		if (tick_isset(prx->timeout.clientfin))
 			h2c->shut_timeout = prx->timeout.clientfin;
+
+		h2c->px_counters = EXTRA_COUNTERS_GET(prx->extra_counters_fe,
+		                                      &h2_stats_module);
 	}
 
 	h2c->proxy = prx;
