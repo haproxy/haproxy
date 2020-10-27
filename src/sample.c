@@ -31,6 +31,7 @@
 #include <haproxy/hash.h>
 #include <haproxy/http.h>
 #include <haproxy/istbuf.h>
+#include <haproxy/mqtt.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/protobuf.h>
 #include <haproxy/proxy.h>
@@ -3296,6 +3297,105 @@ static int sample_conv_fix_is_valid(const struct arg *arg_p, struct sample *smp,
 	return 0;
 }
 
+/*
+ * Extract the field value of an input binary sample containing an MQTT packet.
+ * Takes 2 mandatory arguments:
+ * - packet type
+ * - field name
+ *
+ * return 1 if the field was found, 0 if not.
+ */
+static int sample_conv_mqtt_field_value(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct ist pkt, value;
+	int type, fieldname_id;
+
+	pkt = ist2(smp->data.u.str.area, smp->data.u.str.data);
+	type = arg_p[0].data.sint;
+	fieldname_id = arg_p[1].data.sint;
+
+	smp->flags &= ~SMP_F_MAY_CHANGE;
+	value = mqtt_field_value(pkt, type, fieldname_id);
+	if (!istlen(value)) {
+		if (isttest(value)) {
+			/* value != IST_NULL, need more data */
+			smp->flags |= SMP_F_MAY_CHANGE;
+		}
+		return 0;
+	}
+
+	smp->data.u.str = ist2buf(value);
+	smp->flags |= SMP_F_CONST;
+	return 1;
+}
+
+/*
+ * this function checks the "mqtt_field_value" converter configuration.
+ * It expects a known packet type name or ID and a field name, in this order
+ *
+ * Args[0] will be turned into a MQTT_CPT_* value for direct maching when parsing
+ * a packet.
+ */
+static int sample_conv_mqtt_field_value_check(struct arg *args, struct sample_conv *conv,
+					      const char *file, int line, char **err)
+{
+	int type, fieldname_id;
+
+	/* check the MQTT packet type is valid */
+	type = mqtt_typeid(ist2(args[0].data.str.area, args[0].data.str.data));
+	if (type == MQTT_CPT_INVALID) {
+		memprintf(err, "Unknown MQTT type '%s'", args[0].data.str.area);
+		return 0;
+	}
+
+	/* check the field name belongs to the MQTT packet type */
+	fieldname_id = mqtt_check_type_fieldname(type, ist2(args[1].data.str.area, args[1].data.str.data));
+	if (fieldname_id == MQTT_FN_INVALID) {
+		memprintf(err, "Unknown MQTT field name '%s' for packet type '%s'", args[1].data.str.area,
+			  args[0].data.str.area);
+		return 0;
+	}
+
+	/* save numeric counterparts of type and field name */
+	chunk_destroy(&args[0].data.str);
+	chunk_destroy(&args[1].data.str);
+	args[0].type = ARGT_SINT;
+	args[0].data.sint = type;
+	args[1].type = ARGT_SINT;
+	args[1].data.sint = fieldname_id;
+
+	return 1;
+}
+
+/*
+ * Checks that <smp> contains a valid MQTT message
+ *
+ * The function returns 1 if the check was run to its end, 0 otherwise.
+ * The result of the analyse itself is stored in <smp> as a boolean.
+ */
+static int sample_conv_mqtt_is_valid(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct ist msg;
+
+	msg = ist2(smp->data.u.str.area, smp->data.u.str.data);
+
+	smp->flags &= ~SMP_F_MAY_CHANGE;
+	switch (mqtt_validate_message(msg, NULL)) {
+	case FIX_VALID_MESSAGE:
+		smp->data.type = SMP_T_BOOL;
+		smp->data.u.sint = 1;
+		return 1;
+	case FIX_NEED_MORE_DATA:
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	case FIX_INVALID_MESSAGE:
+		smp->data.type = SMP_T_BOOL;
+		smp->data.u.sint = 0;
+		return 1;
+	}
+	return 0;
+}
+
 /* This function checks the "strcmp" converter's arguments and extracts the
  * variable name and its scope.
  */
@@ -3887,6 +3987,10 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	/* FIX converters */
 	{ "fix_is_valid",  sample_conv_fix_is_valid,  0,           NULL,                        SMP_T_BIN, SMP_T_BOOL  },
 	{ "fix_tag_value", sample_conv_fix_tag_value, ARG1(1,STR), sample_conv_fix_value_check, SMP_T_BIN, SMP_T_BIN  },
+
+	/* MQTT converters */
+	{ "mqtt_is_valid",    sample_conv_mqtt_is_valid,     0,               NULL,                               SMP_T_BIN, SMP_T_BOOL },
+	{ "mqtt_field_value", sample_conv_mqtt_field_value,  ARG2(2,STR,STR), sample_conv_mqtt_field_value_check, SMP_T_BIN, SMP_T_STR },
 
 	{ "iif", sample_conv_iif, ARG2(2, STR, STR), NULL, SMP_T_BOOL, SMP_T_STR },
 

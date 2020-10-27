@@ -15410,6 +15410,93 @@ mod(<value>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
+mqtt_field_value(<packettype>,<fieldname or property ID>)
+  Returns value of <fieldname> found in input MQTT payload of type
+  <packettype>.
+  <packettype> can be either a string (case insensitive matching) or a numeric
+  value corresponding to the type of packet we're supposed to extract data
+  from.
+  Supported string and integers can be found here:
+  https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718021
+  https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901022
+
+  <fieldname> depends on <packettype> and can be any of the following below.
+  (note that <fieldname> matching is case insensitive).
+  <property id> can only be found in MQTT v5.0 streams. check this table:
+  https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901029
+
+  - CONNECT (or 1): flags, protocol_name, protocol_version, client_identifier,
+                    will_topic, will_payload, username, password, keepalive
+                    OR any property ID as a numeric value (for MQTT v5.0
+                    packets only):
+                       17: Session Expiry Interval
+                       33: Receive Maximum
+                       39: Maximum Packet Size
+                       34: Topic Alias Maximum
+                       25: Request Response Information
+                       23: Request Problem Information
+                       21: Authentication Method
+                       22: Authentication Data
+                       18: Will Delay Interval
+                        1: Payload Format Indicator
+                        2: Message Expiry Interval
+                        3: Content Type
+                        8: Response Topic
+                        9: Correlation Data
+                    Not supported yet:
+                       38: User Property
+
+  - CONNACK (or 2): flags, protocol_version, reason_code
+                    OR any property ID as a numeric value (for MQTT v5.0
+                    packets only):
+                       17: Session Expiry Interval
+                       33: Receive Maximum
+                       36: Maximum QoS
+                       37: Retain Available
+                       39: Maximum Packet Size
+                       18: Assigned Client Identifier
+                       34: Topic Alias Maximum
+                       31: Reason String
+                       40; Wildcard Subscription Available
+                       41: Subscription Identifiers Available
+                       42: Shared Subscription Available
+                       19: Server Keep Alive
+                       26: Response Information
+                       28: Server Reference
+                       21: Authentication Method
+                       22: Authentication Data
+                    Not supported yet:
+                       38: User Property
+
+  Due to current HAProxy design, only the first message sent by the client and
+  the server can be parsed. Thus this converter can extract data only from
+  CONNECT and CONNACK packet types. CONNECT is the first message sent by the
+  client and CONNACK is the first response sent by the server.
+
+  Example:
+
+      acl data_in_buffer req.len ge 4
+      tcp-request content set-var(txn.username) \
+              req.payload(0,0),mqtt_field_value(connect,protocol_name) \
+              if data_in_buffer
+      # do the same as above
+      tcp-request content set-var(txn.username) \
+              req.payload(0,0),mqtt_field_value(1,protocol_name) \
+              if data_in_buffer
+
+mqtt_is_valid
+  Checks that the binary input is a valid MQTT packet. It returns a boolean.
+
+  Due to current HAProxy design, only the first message sent by the client and
+  the server can be parsed. Thus this converter can extract data only from
+  CONNECT and CONNACK packet types. CONNECT is the first message sent by the
+  client and CONNACK is the first response sent by the server.
+
+  Example:
+
+      acl data_in_buffer req.len ge 4
+      tcp-request content reject unless req.payload(0,0),mqtt_is_valid
+
 mul(<value>)
   Multiplies the input value of type signed integer by <value>, and returns
   the product as an signed integer. In case of overflow, the largest possible
