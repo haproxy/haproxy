@@ -28,6 +28,7 @@
 #include <haproxy/htx.h>
 #include <haproxy/net_helper.h>
 #include <haproxy/proxy.h>
+#include <haproxy/sample.h>
 #include <haproxy/shctx.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
@@ -1713,6 +1714,53 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 
 }
 
+
+/*
+ * boolean, returns true if response was built out of a cache entry.
+ */
+static int
+smp_fetch_res_cache_hit(const struct arg *args, struct sample *smp,
+                        const char *kw, void *private)
+{
+	smp->data.type = SMP_T_BOOL;
+	smp->data.u.sint = (smp->strm ? (smp->strm->target == &http_cache_applet.obj_type) : 0);
+
+	return 1;
+}
+
+/*
+ * string, returns cache name (if response came from a cache).
+ */
+static int
+smp_fetch_res_cache_name(const struct arg *args, struct sample *smp,
+                         const char *kw, void *private)
+{
+	struct appctx *appctx = NULL;
+
+	struct cache_flt_conf *cconf = NULL;
+	struct cache *cache = NULL;
+
+	if (!smp->strm || smp->strm->target != &http_cache_applet.obj_type)
+		return 0;
+
+	/* Get appctx from the stream_interface. */
+	appctx = si_appctx(&smp->strm->si[1]);
+	if (appctx && appctx->rule) {
+		cconf = appctx->rule->arg.act.p[0];
+		if (cconf) {
+			cache = cconf->c.cache;
+
+			smp->data.type = SMP_T_STR;
+			smp->flags = SMP_F_CONST;
+			smp->data.u.str.area = cache->id;
+			smp->data.u.str.data = strlen(cache->id);
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 /* Declare the filter parser for "cache" keyword */
 static struct flt_kw_list filter_kws = { "CACHE", { }, {
 		{ "cache", parse_cache_flt, NULL },
@@ -1757,3 +1805,14 @@ struct applet http_cache_applet = {
 /* config parsers for this section */
 REGISTER_CONFIG_SECTION("cache", cfg_parse_cache, cfg_post_parse_section_cache);
 REGISTER_POST_CHECK(post_check_cache);
+
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
+		{ "res.cache_hit",  smp_fetch_res_cache_hit,  0, NULL, SMP_T_BOOL, SMP_USE_HRSHP, SMP_VAL_RESPONSE },
+		{ "res.cache_name", smp_fetch_res_cache_name, 0, NULL, SMP_T_STR,  SMP_USE_HRSHP, SMP_VAL_RESPONSE },
+		{ /* END */ },
+	}
+};
+
+INITCALL1(STG_REGISTER, sample_register_fetches, &sample_fetch_keywords);

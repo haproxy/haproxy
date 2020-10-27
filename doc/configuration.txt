@@ -18195,6 +18195,15 @@ res.body_size : integer
   useful (and usable) in the health-check context. It may be used in tcp-check
   based expect rules.
 
+res.cache_hit : boolean
+  Returns the boolean "true" value if the response has been built out of an
+  HTTP cache entry, otherwise returns boolean "false".
+
+res.cache_name : string
+  Returns a string containing the name of the HTTP cache that was used to
+  build the HTTP response if res.cache_hit is true, otherwise returns an
+  empty string.
+
 res.comp : boolean
   Returns the boolean "true" value if the response has been compressed by
   HAProxy, otherwise returns boolean "false". This may be used to add

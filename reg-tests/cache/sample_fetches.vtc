@@ -1,0 +1,130 @@
+
+varnishtest "Basic cache test"
+
+#REQUIRE_VERSION=1.9
+
+feature ignore_unknown_macro
+
+server s1 {
+       rxreq
+       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       chunkedlen 15
+       chunkedlen 15
+       chunkedlen 15
+       chunkedlen 0
+} -start
+
+server s2 {
+       rxreq
+       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       chunkedlen 16
+       chunkedlen 16
+       chunkedlen 16
+       chunkedlen 0
+} -start
+
+server s3 {
+       rxreq
+       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 0
+
+       rxreq
+       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 0
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe
+        bind "fd@${fe}"
+        use_backend first_be if { path_beg /first }
+        use_backend nocache_be if { path_beg /nocache }
+        default_backend second_be
+
+    backend first_be
+        http-request cache-use first_cache
+        server www ${s1_addr}:${s1_port}
+        http-response cache-store first_cache
+        http-response set-header X-Cache-Hit %[res.cache_hit]
+        http-response set-header X-Cache-Name %[res.cache_name]
+
+    backend second_be
+        http-request cache-use second_cache
+        server www ${s2_addr}:${s2_port}
+        http-response cache-store second_cache
+        http-response set-header X-Cache-Hit %[res.cache_hit]
+        http-response set-header X-Cache-Name %[res.cache_name]
+
+    backend nocache_be
+        server www ${s3_addr}:${s3_port}
+        http-response set-header X-Cache-Hit %[res.cache_hit]
+        http-response set-header X-Cache-Name %[res.cache_name]
+
+    cache first_cache
+            total-max-size 3
+            max-age 40
+            max-object-size 3000
+
+    cache second_cache
+            total-max-size 3
+            max-age 20
+            max-object-size 3072
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+        txreq -url "/first"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 45
+        expect resp.http.X-Cache-Hit == 0
+        expect resp.http.X-Cache-Name == ""
+
+        txreq -url "/second"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 48
+        expect resp.http.X-Cache-Hit == 0
+        expect resp.http.X-Cache-Name == ""
+
+        txreq -url "/nocache"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 51
+        expect resp.http.X-Cache-Hit == 0
+        expect resp.http.X-Cache-Name == ""
+
+        # Response should come form the cache now
+        txreq -url "/nocache"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 51
+        expect resp.http.X-Cache-Hit == 0
+        expect resp.http.X-Cache-Name == ""
+
+        txreq -url "/first"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 45
+        expect resp.http.X-Cache-Hit == 1
+        expect resp.http.X-Cache-Name == "first_cache"
+
+        txreq -url "/second"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 48
+        expect resp.http.X-Cache-Hit == 1
+        expect resp.http.X-Cache-Name == "second_cache"
+} -run
