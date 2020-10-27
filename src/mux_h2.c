@@ -391,6 +391,9 @@ enum {
 	H2_ST_RST_STREAM_RESP,
 	H2_ST_GOAWAY_RESP,
 
+	H2_ST_OPEN_CONN,
+	H2_ST_OPEN_STREAM,
+
 	H2_STATS_COUNT /* must be the last member of the enum */
 };
 
@@ -414,6 +417,11 @@ static struct name_desc h2_stats[] = {
 	                            .desc = "Total number of rst_stream sent on detected error" },
 	[H2_ST_GOAWAY_RESP]     = { .name = "h2_goaway_resp",
 	                            .desc = "Total number of goaway sent on detected error" },
+
+	[H2_ST_OPEN_CONN]   = { .name = "h2_open_connections",
+	                        .desc = "Count of currently open connections" },
+	[H2_ST_OPEN_STREAM] = { .name = "h2_backend_open_streams",
+	                        .desc = "Count of currently open streams" },
 };
 
 static struct h2_counters {
@@ -427,6 +435,9 @@ static struct h2_counters {
 	long long strm_proto_err;  /* total number of protocol errors detected */
 	long long rst_stream_resp; /* total number of rst_stream frame sent on error */
 	long long goaway_resp;     /* total number of goaway frame sent on error */
+
+	long long open_conns;   /* count of currently open connections */
+	long long open_streams; /* count of currently open streams */
 } h2_counters;
 
 static void h2_fill_stats(void *data, struct field *stats)
@@ -443,6 +454,9 @@ static void h2_fill_stats(void *data, struct field *stats)
 	stats[H2_ST_STRM_PROTO_ERR]  = mkf_u64(FN_COUNTER, counters->strm_proto_err);
 	stats[H2_ST_RST_STREAM_RESP] = mkf_u64(FN_COUNTER, counters->rst_stream_resp);
 	stats[H2_ST_GOAWAY_RESP]     = mkf_u64(FN_COUNTER, counters->goaway_resp);
+
+	stats[H2_ST_OPEN_CONN]   = mkf_u64(FN_GAUGE, counters->open_conns);
+	stats[H2_ST_OPEN_STREAM] = mkf_u64(FN_GAUGE, counters->open_streams);
 }
 
 static struct stats_module h2_stats_module = {
@@ -974,6 +988,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 			goto fail_stream;
 	}
 
+	HA_ATOMIC_ADD(&h2c->px_counters->open_conns, 1);
+
 	/* prepare to read something */
 	h2c_restart_reading(h2c, 1);
 	TRACE_LEAVE(H2_EV_H2C_NEW, conn);
@@ -1054,6 +1070,8 @@ static void h2_release(struct h2c *h2c)
 		if (conn && h2c->wait_event.events != 0)
 			conn->xprt->unsubscribe(conn, conn->xprt_ctx, h2c->wait_event.events,
 						&h2c->wait_event);
+
+		HA_ATOMIC_SUB(&h2c->px_counters->open_conns, 1);
 
 		pool_free(pool_head_h2c, h2c);
 	}
@@ -1333,6 +1351,8 @@ static inline void h2s_close(struct h2s *h2s)
 			if (!(h2s->cs->flags & CS_FL_EOS) && !b_data(&h2s->rxbuf))
 				h2s_notify_recv(h2s);
 		}
+		HA_ATOMIC_SUB(&h2s->h2c->px_counters->open_streams, 1);
+
 		TRACE_LEAVE(H2_EV_H2S_END, h2s->h2c->conn, h2s);
 	}
 	h2s->st = H2_SS_CLOSED;
@@ -1426,6 +1446,8 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	eb32_insert(&h2c->streams_by_id, &h2s->by_id);
 	h2c->nb_streams++;
 	h2c->stream_cnt++;
+
+	HA_ATOMIC_ADD(&h2c->px_counters->open_streams, 1);
 
 	TRACE_LEAVE(H2_EV_H2S_NEW, h2c->conn, h2s);
 	return h2s;
