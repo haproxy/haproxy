@@ -1756,6 +1756,8 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 
 	ref->reference = NULL;
 	ref->flags = flags;
+	ref->curr_gen = 0;
+	ref->next_gen = 0;
 	ref->unique_id = unique_id;
 	LIST_INIT(&ref->head);
 	LIST_INIT(&ref->pat);
@@ -1767,7 +1769,8 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 
 /* This function adds entry to <ref>. It can fail on memory error. It returns
  * the newly added element on success, or NULL on failure. The PATREF_LOCK on
- * <ref> must be held.
+ * <ref> must be held. It sets the newly created pattern's generation number
+ * to the same value as the reference's.
  */
 struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, const char *sample, int line)
 {
@@ -1777,6 +1780,7 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
 	if (!elt)
 		goto fail;
 
+	elt->gen_id = ref->curr_gen;
 	elt->line = line;
 
 	elt->pattern = strdup(pattern);

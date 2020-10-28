@@ -106,6 +106,8 @@ struct pat_ref {
 	struct list head; /* The head of the list of struct pat_ref_elt. */
 	struct list pat; /* The head of the list of struct pattern_expr. */
 	unsigned int flags; /* flags PAT_REF_*. */
+	unsigned int curr_gen; /* current generation number (anything below can be removed) */
+	unsigned int next_gen; /* next generation number (insertions use this one) */
 	int unique_id; /* Each pattern reference have unique id. */
 	unsigned long long revision; /* updated for each update */
 	__decl_thread(HA_SPINLOCK_T lock); /* Lock used to protect pat ref elements */
@@ -122,6 +124,7 @@ struct pat_ref_elt {
 	struct list tree_head; /* all pattern_tree derived from this reference */
 	char *pattern;
 	char *sample;
+	unsigned int gen_id; /* generation of pat_ref this was made for */
 	int line;
 };
 
