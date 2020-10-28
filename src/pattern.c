@@ -1893,40 +1893,40 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 	return ref;
 }
 
-/* This function adds entry to <ref>. It can failed with memory error.
- * If the function fails, it returns 0.
+/* This function adds entry to <ref>. It can fail on memory error. It returns
+ * the newly added element on success, or NULL on failure. The PATREF_LOCK on
+ * <ref> must be held.
  */
-int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line)
+struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, const char *sample, int line)
 {
 	struct pat_ref_elt *elt;
 
 	elt = malloc(sizeof(*elt));
 	if (!elt)
-		return 0;
+		goto fail;
 
 	elt->line = line;
 
 	elt->pattern = strdup(pattern);
-	if (!elt->pattern) {
-		free(elt);
-		return 0;
-	}
+	if (!elt->pattern)
+		goto fail;
 
 	if (sample) {
 		elt->sample = strdup(sample);
-		if (!elt->sample) {
-			free(elt->pattern);
-			free(elt);
-			return 0;
-		}
+		if (!elt->sample)
+			goto fail;
 	}
 	else
 		elt->sample = NULL;
 
 	LIST_INIT(&elt->back_refs);
 	LIST_ADDQ(&ref->head, &elt->list);
-
-	return 1;
+	return elt;
+ fail:
+	if (elt)
+		free(elt->pattern);
+	free(elt);
+	return NULL;
 }
 
 /* This function create sample found in <elt>, parse the pattern also
