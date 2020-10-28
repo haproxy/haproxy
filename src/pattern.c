@@ -1982,9 +1982,9 @@ int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
 	return 1;
 }
 
-/* This function adds entry to <ref>. It can failed with memory error. The new
+/* This function adds entry to <ref>. It can fail on memory error. The new
  * entry is added at all the pattern_expr registered in this reference. The
- * function stop on the first error encountered. It returns 0 and err is
+ * function stops on the first error encountered. It returns 0 and <err> is
  * filled. If an error is encountered, the complete add operation is cancelled.
  * If the insertion is a success the function returns 1.
  */
@@ -1995,35 +1995,11 @@ int pat_ref_add(struct pat_ref *ref,
 	struct pat_ref_elt *elt;
 	struct pattern_expr *expr;
 
-	elt = malloc(sizeof(*elt));
+	elt = pat_ref_append(ref, pattern, sample, -1);
 	if (!elt) {
 		memprintf(err, "out of memory error");
 		return 0;
 	}
-
-	elt->line = -1;
-
-	elt->pattern = strdup(pattern);
-	if (!elt->pattern) {
-		free(elt);
-		memprintf(err, "out of memory error");
-		return 0;
-	}
-
-	if (sample) {
-		elt->sample = strdup(sample);
-		if (!elt->sample) {
-			free(elt->pattern);
-			free(elt);
-			memprintf(err, "out of memory error");
-			return 0;
-		}
-	}
-	else
-		elt->sample = NULL;
-
-	LIST_INIT(&elt->back_refs);
-	LIST_ADDQ(&ref->head, &elt->list);
 
 	list_for_each_entry(expr, &ref->pat, list) {
 		if (!pat_ref_push(elt, expr, 0, err)) {
@@ -2032,7 +2008,6 @@ int pat_ref_add(struct pat_ref *ref,
 			return 0;
 		}
 	}
-
 	return 1;
 }
 
