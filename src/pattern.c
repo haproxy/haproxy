@@ -1922,6 +1922,29 @@ int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
 	return 1;
 }
 
+/* This function tries to commit entry <elt> into <ref>. The new entry must
+ * have already been inserted using pat_ref_append(), and its generation number
+ * may have been adjusted as it will not be changed. <err> must point to a NULL
+ * pointer. The PATREF lock on <ref> must be held. All the pattern_expr for
+ * this reference will be updated (parsing, indexing). On success, non-zero is
+ * returned. On failure, all the operation is rolled back (the element is
+ * deleted from all expressions and is freed), zero is returned and the error
+ * pointer <err> may have been updated (and the caller must free it). Failure
+ * causes include memory allocation, parsing error or indexing error.
+ */
+int pat_ref_commit(struct pat_ref *ref, struct pat_ref_elt *elt, char **err)
+{
+	struct pattern_expr *expr;
+
+	list_for_each_entry(expr, &ref->pat, list) {
+		if (!pat_ref_push(elt, expr, 0, err)) {
+			pat_ref_delete_by_ptr(ref, elt);
+			return 0;
+		}
+	}
+	return 1;
+}
+
 /* This function adds entry to <ref>. It can fail on memory error. The new
  * entry is added at all the pattern_expr registered in this reference. The
  * function stops on the first error encountered. It returns 0 and <err> is
@@ -1933,22 +1956,13 @@ int pat_ref_add(struct pat_ref *ref,
                 char **err)
 {
 	struct pat_ref_elt *elt;
-	struct pattern_expr *expr;
 
 	elt = pat_ref_append(ref, pattern, sample, -1);
 	if (!elt) {
 		memprintf(err, "out of memory error");
 		return 0;
 	}
-
-	list_for_each_entry(expr, &ref->pat, list) {
-		if (!pat_ref_push(elt, expr, 0, err)) {
-			/* If the insertion fails, try to delete all the added entries. */
-			pat_ref_delete_by_ptr(ref, elt);
-			return 0;
-		}
-	}
-	return 1;
+	return pat_ref_commit(ref, elt, err);
 }
 
 /* This function prunes <ref>, replaces all references by the references
