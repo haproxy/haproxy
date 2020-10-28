@@ -482,6 +482,9 @@ int http_calc_maxage(struct stream *s, struct cache *cache)
 	struct http_hdr_ctx ctx = { .blk = NULL };
 	int smaxage = -1;
 	int maxage = -1;
+	int expires = -1;
+	struct tm tm = {};
+	time_t expires_val = 0;
 
 	while (http_find_header(htx, ist("cache-control"), &ctx, 0)) {
 		char *value;
@@ -505,7 +508,28 @@ int http_calc_maxage(struct stream *s, struct cache *cache)
 		}
 	}
 
-	/* TODO: Expires - Data */
+	/* Look for Expires header if no s-maxage or max-age Cache-Control data
+	 * was found. */
+	if (maxage == -1 && smaxage == -1) {
+		ctx.blk = NULL;
+		if (http_find_header(htx, ist("expires"), &ctx, 1)) {
+			if (parse_http_date(istptr(ctx.value), istlen(ctx.value), &tm)) {
+				expires_val = my_timegm(&tm);
+				/* A request having an expiring date earlier
+				 * than the current date should be considered as
+				 * stale. */
+				expires = (expires_val >= now.tv_sec) ?
+					(expires_val - now.tv_sec) : 0;
+			}
+			else {
+				/* Following RFC 7234#5.3, an invalid date
+				 * format must be treated as a date in the past
+				 * so the cache entry must be seen as already
+				 * expired. */
+				expires = 0;
+			}
+		}
+	}
 
 
 	if (smaxage > 0)
@@ -513,6 +537,9 @@ int http_calc_maxage(struct stream *s, struct cache *cache)
 
 	if (maxage > 0)
 		return MIN(maxage, cache->maxage);
+
+	if (expires >= 0)
+		return MIN(expires, cache->maxage);
 
 	return cache->maxage;
 

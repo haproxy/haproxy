@@ -1,0 +1,122 @@
+varnishtest "Expires support"
+
+#REQUIRE_VERSION=2.3
+
+feature ignore_unknown_macro
+
+server s1 {
+       rxreq
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 15
+       chunkedlen 15
+       chunkedlen 15
+       chunkedlen 0
+} -start
+
+server s2 {
+       rxreq
+       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       chunkedlen 16
+       chunkedlen 16
+       chunkedlen 16
+       chunkedlen 0
+} -start
+
+server s3 {
+       rxreq
+       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       chunkedlen 16
+       chunkedlen 16
+       chunkedlen 16
+       chunkedlen 0
+
+       rxreq
+       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 0
+} -start
+
+haproxy h1 -conf {
+       defaults
+               mode http
+               ${no-htx} option http-use-htx
+               timeout connect 1s
+               timeout client  1s
+               timeout server  1s
+
+       frontend fe
+               bind "fd@${fe}"
+               use_backend cache_control_be if { path_beg /cache_control }
+               use_backend future_expires_be if { path_beg /future }
+               default_backend past_expires_be
+
+       backend cache_control_be
+               # Expires header should be ignored since a Cache-Control one is present
+               http-request cache-use my_cache
+               server www ${s1_addr}:${s1_port}
+               http-response set-header X-Cache-Hit %[res.cache_hit]
+               http-response set-header Expires %[date(-1),http_date]
+               http-response cache-store my_cache
+
+       backend future_expires_be
+               # Expires value set in the future (current_time+5s)
+               http-request cache-use my_cache
+               server www ${s2_addr}:${s2_port}
+               http-response set-header X-Cache-Hit %[res.cache_hit]
+               http-response set-header Expires %[date(5),http_date]
+               http-response cache-store my_cache
+
+       backend past_expires_be
+               # Expires value set in the past
+               http-request cache-use my_cache
+               server www ${s3_addr}:${s3_port}
+               http-response set-header X-Cache-Hit %[res.cache_hit]
+               http-response set-header Expires %[date(-1),http_date]
+               http-response cache-store my_cache
+
+       cache my_cache
+               total-max-size 3
+               max-age 20
+               max-object-size 3072
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+       txreq -url "/cache_control"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 45
+
+       txreq -url "/cache_control"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 45
+       expect resp.http.X-Cache-Hit == 1
+
+       txreq -url "/future"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 48
+
+       txreq -url "/future"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 48
+       expect resp.http.X-Cache-Hit == 1
+
+       txreq -url "/past"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 48
+
+       txreq -url "/past"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+       expect resp.http.X-Cache-Hit == 0
+
+} -run
+
