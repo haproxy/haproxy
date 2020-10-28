@@ -1984,6 +1984,70 @@ int pat_ref_add(struct pat_ref *ref,
 	return !!pat_ref_load(ref, ref->curr_gen, pattern, sample, -1, err);
 }
 
+/* This function purges all elements from <ref> that are older than generation
+ * <oldest>. It will not purge more than <budget> entries at once, in order to
+ * remain responsive. If budget is negative, no limit is applied.
+ * The caller must already hold the PATREF_LOCK on <ref>. The function will
+ * take the PATEXP_LOCK on all expressions of the pattern as needed. It returns
+ * non-zero on completion, or zero if it had to stop before the end after
+ * <budget> was depleted.
+ */
+int pat_ref_purge_older(struct pat_ref *ref, unsigned int oldest, int budget)
+{
+	struct pat_ref_elt *elt, *elt_bck;
+	struct bref *bref, *bref_bck;
+	struct pattern_expr *expr;
+	int done;
+
+	list_for_each_entry(expr, &ref->pat, list)
+		HA_RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
+
+	/* all expr are locked, we can safely remove all pat_ref */
+
+	/* assume completion for e.g. empty lists */
+	done = 1;
+	list_for_each_entry_safe(elt, elt_bck, &ref->head, list) {
+		if ((int)(elt->gen_id - oldest) >= 0)
+			continue;
+
+		if (budget >= 0 && !budget--) {
+			done = 0;
+			break;
+		}
+
+		/*
+		 * we have to unlink all watchers from this reference pattern. We must
+		 * not relink them if this elt was the last one in the list.
+		 */
+		list_for_each_entry_safe(bref, bref_bck, &elt->back_refs, users) {
+			LIST_DEL(&bref->users);
+			LIST_INIT(&bref->users);
+			if (elt->list.n != &ref->head)
+				LIST_ADDQ(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
+			bref->ref = elt->list.n;
+		}
+
+		/* delete the storage for all representations of this pattern. */
+		pat_delete_gen(ref, elt);
+
+		LIST_DEL(&elt->list);
+		free(elt->pattern);
+		free(elt->sample);
+		free(elt);
+	}
+
+	list_for_each_entry(expr, &ref->pat, list)
+		HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
+
+#if defined(HA_HAVE_MALLOC_TRIM)
+	if (done) {
+		malloc_trim(0);
+	}
+#endif
+
+	return done;
+}
+
 /* This function prunes <ref>, replaces all references by the references
  * of <replace>, and reindexes all the news values.
  *

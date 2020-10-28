@@ -192,6 +192,7 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt);
 int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt);
 int pat_ref_prune(struct pat_ref *ref);
 int pat_ref_commit(struct pat_ref *ref, struct pat_ref_elt *elt, char **err);
+int pat_ref_purge_older(struct pat_ref *ref, unsigned int oldest, int budget);
 void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace);
 
 
