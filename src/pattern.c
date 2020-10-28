@@ -1934,7 +1934,6 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
  * in <expr>. If the function fails, it returns0 and <err> is filled.
  * In success case, the function returns 1.
  */
-static inline
 int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
                  int patflags, char **err)
 {
