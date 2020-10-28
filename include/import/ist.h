@@ -315,6 +315,26 @@ static inline int istmatch(const struct ist ist1, const struct ist ist2)
 	return 1;
 }
 
+/* returns non-zero if <ist1> starts like <ist2>, ignoring the case (empty strings do match) */
+static inline int istmatchi(const struct ist ist1, const struct ist ist2)
+{
+	struct ist l = ist1;
+	struct ist r = ist2;
+
+	if (l.len < r.len)
+		return 0;
+
+	while (r.len--) {
+		if (*l.ptr != *r.ptr &&
+		    ist_lc[(unsigned char)*l.ptr] != ist_lc[(unsigned char)*r.ptr])
+			return 0;
+
+		l.ptr++;
+		r.ptr++;
+	}
+	return 1;
+}
+
 /* returns non-zero if <ist1> starts like <ist2> on the first <count>
  * characters (empty strings do match).
  */
