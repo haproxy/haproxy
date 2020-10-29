@@ -4729,7 +4729,7 @@ static void srv_update_status(struct server *s)
 				s->proxy->last_change = now.tv_sec;
 			}
 
-			if (s->next_state == SRV_ST_STOPPED && s->last_change < now.tv_sec)	// ignore negative times
+			if (s->cur_state == SRV_ST_STOPPED && s->last_change < now.tv_sec)	// ignore negative times
 				s->down_time += now.tv_sec - s->last_change;
 
 			s->last_change = now.tv_sec;
