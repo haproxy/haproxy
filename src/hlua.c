@@ -3505,6 +3505,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	}
 
 	/* Initialise the sample. */
+	memset(&smp, 0, sizeof(smp));
 	if (!hlua_lua2smp(L, 2, &smp)) {
 		hlua_pusherror(L, "error in the input argument");
 		goto error;
@@ -3649,6 +3650,7 @@ __LJMP static int hlua_applet_tcp_set_var(lua_State *L)
 	s = appctx->htxn.s;
 
 	/* Converts the third argument in a sample. */
+	memset(&smp, 0, sizeof(smp));
 	hlua_lua2smp(L, 3, &smp);
 
 	/* Store the sample in a variable. */
@@ -4133,6 +4135,7 @@ __LJMP static int hlua_applet_http_set_var(lua_State *L)
 	s = appctx->htxn.s;
 
 	/* Converts the third argument in a sample. */
+	memset(&smp, 0, sizeof(smp));
 	hlua_lua2smp(L, 3, &smp);
 
 	/* Store the sample in a variable. */
@@ -5225,6 +5228,7 @@ __LJMP static int hlua_set_var(lua_State *L)
 	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
 
 	/* Converts the third argument in a sample. */
+	memset(&smp, 0, sizeof(smp));
 	hlua_lua2smp(L, 3, &smp);
 
 	/* Store the sample in a variable. */
