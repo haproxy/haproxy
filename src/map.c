@@ -368,6 +368,9 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 
 			elt = LIST_ELEM(appctx->ctx.map.bref.ref, struct pat_ref_elt *, list);
 
+			if (elt->gen_id != appctx->ctx.map.ref->curr_gen)
+				goto skip;
+
 			/* build messages */
 			if (elt->sample)
 				chunk_appendf(&trash, "%p %s %s\n",
@@ -386,7 +389,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 				si_rx_room_blk(si);
 				return 0;
 			}
-
+		skip:
 			/* get next list entry and check the end of the list */
 			appctx->ctx.map.bref.ref = elt->list.n;
 		}

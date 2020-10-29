@@ -465,9 +465,14 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 		node = ebst_lookup(&expr->pattern_tree, smp->data.u.str.area);
 		if (prev)
 			smp->data.u.str.area[smp->data.u.str.data] = prev;
-		if (node) {
+
+		while (node) {
+			elt = ebmb_entry(node, struct pattern_tree, node);
+			if (elt->ref->gen_id != expr->ref->curr_gen) {
+				node = ebmb_next(node);
+				continue;
+			}
 			if (fill) {
-				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.data = elt->data;
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
@@ -493,6 +498,9 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
 
 		if (pattern->len != smp->data.u.str.data)
 			continue;
@@ -533,6 +541,9 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
+
 		if (pattern->len != smp->data.u.str.data)
 			continue;
 
@@ -560,6 +571,9 @@ struct pattern *pat_match_regm(struct sample *smp, struct pattern_expr *expr, in
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
 
 		if (regex_exec_match2(pattern->ptr.reg, smp->data.u.str.area, smp->data.u.str.data,
 		                      MAX_MATCH, pmatch, 0)) {
@@ -595,6 +609,9 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
 
 		if (regex_exec2(pattern->ptr.reg, smp->data.u.str.area, smp->data.u.str.data)) {
 			ret = pattern;
@@ -644,9 +661,13 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 		if (prev)
 			smp->data.u.str.area[smp->data.u.str.data] = prev;
 
-		if (node) {
+		while (node) {
+			elt = ebmb_entry(node, struct pattern_tree, node);
+			if (elt->ref->gen_id != expr->ref->curr_gen) {
+				node = ebmb_next(node);
+				continue;
+			}
 			if (fill) {
-				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.data = elt->data;
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
@@ -671,6 +692,9 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
 
 		if (pattern->len > smp->data.u.str.data)
 			continue;
@@ -712,6 +736,9 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
 
 		if (pattern->len > smp->data.u.str.data)
 			continue;
@@ -757,6 +784,9 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
 
 		if (pattern->len > smp->data.u.str.data)
 			continue;
@@ -856,6 +886,10 @@ struct pattern *pat_match_dir(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
+
 		if (match_word(smp, pattern, expr->mflags, make_4delim('/', '?', '?', '?')))
 			return pattern;
 	}
@@ -873,6 +907,10 @@ struct pattern *pat_match_dom(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
+
 		if (match_word(smp, pattern, expr->mflags, make_4delim('/', '?', '.', ':')))
 			return pattern;
 	}
@@ -887,6 +925,10 @@ struct pattern *pat_match_int(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
+
 		if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.u.sint) &&
 		    (!pattern->val.range.max_set || smp->data.u.sint <= pattern->val.range.max))
 			return pattern;
@@ -902,6 +944,10 @@ struct pattern *pat_match_len(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
+
 		if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.u.str.data) &&
 		    (!pattern->val.range.max_set || smp->data.u.str.data <= pattern->val.range.max))
 			return pattern;
@@ -926,9 +972,13 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		 */
 		s = &smp->data.u.ipv4;
 		node = ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
-		if (node) {
+		while (node) {
+			elt = ebmb_entry(node, struct pattern_tree, node);
+			if (elt->ref->gen_id != expr->ref->curr_gen) {
+				node = ebmb_next(node);
+				continue;
+			}
 			if (fill) {
-				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.data = elt->data;
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
@@ -948,9 +998,13 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		write_u16(&tmp6.s6_addr[10], htons(0xffff));
 		write_u32(&tmp6.s6_addr[12], smp->data.u.ipv4.s_addr);
 		node = ebmb_lookup_longest(&expr->pattern_tree_2, &tmp6);
-		if (node) {
+		while (node) {
+			elt = ebmb_entry(node, struct pattern_tree, node);
+			if (elt->ref->gen_id != expr->ref->curr_gen) {
+				node = ebmb_next(node);
+				continue;
+			}
 			if (fill) {
-				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.data = elt->data;
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
@@ -968,9 +1022,13 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 		 * the longest match method.
 		 */
 		node = ebmb_lookup_longest(&expr->pattern_tree_2, &smp->data.u.ipv6);
-		if (node) {
+		while (node) {
+			elt = ebmb_entry(node, struct pattern_tree, node);
+			if (elt->ref->gen_id != expr->ref->curr_gen) {
+				node = ebmb_next(node);
+				continue;
+			}
 			if (fill) {
-				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.data = elt->data;
 				static_pattern.ref = elt->ref;
 				static_pattern.sflags = PAT_SF_TREE;
@@ -1001,9 +1059,13 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 			 * match method.
 			 */
 			node = ebmb_lookup_longest(&expr->pattern_tree, &v4);
-			if (node) {
+			while (node) {
+				elt = ebmb_entry(node, struct pattern_tree, node);
+				if (elt->ref->gen_id != expr->ref->curr_gen) {
+					node = ebmb_next(node);
+					continue;
+				}
 				if (fill) {
-					elt = ebmb_entry(node, struct pattern_tree, node);
 					static_pattern.data = elt->data;
 					static_pattern.ref = elt->ref;
 					static_pattern.sflags = PAT_SF_TREE;
@@ -1020,6 +1082,9 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 	/* Lookup in the list. the list contain only IPv4 patterns */
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
+
+		if (pattern->ref->gen_id != expr->ref->curr_gen)
+			continue;
 
 		/* The input sample is IPv4, use it as is. */
 		if (smp->data.type == SMP_T_IPV4) {
