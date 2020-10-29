@@ -1945,6 +1945,32 @@ int pat_ref_commit(struct pat_ref *ref, struct pat_ref_elt *elt, char **err)
 	return 1;
 }
 
+/* Loads <pattern>:<sample> into <ref> for generation <gen>. <sample> may be
+ * NULL if none exists (e.g. ACL). If not needed, the generation number should
+ * be set to ref->curr_gen. The error pointer must initially point to NULL. The
+ * new entry will be propagated to all use places, involving allocation, parsing
+ * and indexing. On error (parsing, allocation), the operation will be rolled
+ * back, an error may be reported, and NULL will be reported. On success, the
+ * freshly allocated element will be returned. The PATREF lock on <ref> must be
+ * held during the operation.
+ */
+struct pat_ref_elt *pat_ref_load(struct pat_ref *ref, unsigned int gen,
+                                 const char *pattern, const char *sample,
+                                 int line, char **err)
+{
+	struct pat_ref_elt *elt;
+
+	elt = pat_ref_append(ref, pattern, sample, line);
+	if (elt) {
+		elt->gen_id = gen;
+		if (!pat_ref_commit(ref, elt, err))
+			elt = NULL;
+	} else
+		memprintf(err, "out of memory error");
+
+	return elt;
+}
+
 /* This function adds entry to <ref>. It can fail on memory error. The new
  * entry is added at all the pattern_expr registered in this reference. The
  * function stops on the first error encountered. It returns 0 and <err> is
@@ -1955,14 +1981,7 @@ int pat_ref_add(struct pat_ref *ref,
                 const char *pattern, const char *sample,
                 char **err)
 {
-	struct pat_ref_elt *elt;
-
-	elt = pat_ref_append(ref, pattern, sample, -1);
-	if (!elt) {
-		memprintf(err, "out of memory error");
-		return 0;
-	}
-	return pat_ref_commit(ref, elt, err);
+	return !!pat_ref_load(ref, ref->curr_gen, pattern, sample, -1, err);
 }
 
 /* This function prunes <ref>, replaces all references by the references
