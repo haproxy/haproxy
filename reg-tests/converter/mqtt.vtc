@@ -1,0 +1,227 @@
+varnishtest "mqtt converters Test"
+#REQUIRE_VERSION=2.3
+
+feature ignore_unknown_macro
+
+server s1 {
+    # MQTT 3.1.1 CONNECT packet (id: test_sub)
+    recv 22
+    sendhex "20020000"
+    close
+
+    # MQTT 3.1.1 CONNECT packet (id: test_sub - username: test - passwd: passwd)
+    accept
+    recv 36
+    sendhex "20020000"
+    close
+
+    # MQTT 3.1.1 CONNECT packet (id: test_sub - username: test - passwd: passwd - will_topic: willtopic - will_payload: willpayload)
+    accept
+    recv 60
+    sendhex "20020000"
+    close
+
+    # MQTT 5.0 CONNECT packet (id: test_sub)
+    accept
+    recv 26
+    sendhex "200600000322000a"
+
+    # MQTT 5.0 CONNECT packet (id: test_sub - username: test - passwd: passwd)
+    accept
+    recv 40
+    sendhex "200600000322000a"
+
+    # MQTT 5.0 complex CONNECT/CONNACK packet
+    accept
+    recv 128
+    sendhex "20250000221100000078217fff24012501270000ffff22000a2600016100016226000163000164"
+    close
+
+    # Invalid MQTT 3.1.1 CONNACK packet with invalid flags (!= 0x00)
+    accept
+    recv 22
+    sendhex "21020000"
+    expect_close
+} -start
+
+server s2 {
+    # MQTT 5.0 complex CONNECT packet
+    recv 128
+    sendhex "20250000221100000078217fff24012501270000ffff22000a2600016100016226000163000164"
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode tcp
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe1
+        bind "fd@${fe1}"
+        tcp-request inspect-delay 1s
+        tcp-request content reject unless { req.payload(0,0),mqtt_is_valid }
+        default_backend be1
+
+    frontend fe2
+        bind "fd@${fe2}"
+        tcp-request inspect-delay 1s
+        tcp-request content reject unless { req.payload(0,0),mqtt_is_valid }
+        tcp-request content set-var(req.flags)        req.payload(0,0),mqtt_field_value(connect,flags)
+        tcp-request content set-var(req.protoname)    req.payload(0,0),mqtt_field_value(connect,protocol_name)
+        tcp-request content set-var(req.protovsn)     req.payload(0,0),mqtt_field_value(connect,protocol_version)
+        tcp-request content set-var(req.clientid)     req.payload(0,0),mqtt_field_value(connect,client_identifier)
+        tcp-request content set-var(req.willtopic)    req.payload(0,0),mqtt_field_value(connect,will_topic)
+        tcp-request content set-var(req.willbody)     req.payload(0,0),mqtt_field_value(connect,will_payload)
+        tcp-request content set-var(req.user)         req.payload(0,0),mqtt_field_value(connect,username)
+        tcp-request content set-var(req.pass)         req.payload(0,0),mqtt_field_value(connect,password)
+        tcp-request content set-var(req.maxpktsz)     req.payload(0,0),mqtt_field_value(connect,39)
+        tcp-request content set-var(req.reqpbinfo)    req.payload(0,0),mqtt_field_value(connect,23)
+        tcp-request content set-var(req.ctype)        req.payload(0,0),mqtt_field_value(connect,3)
+        tcp-request content set-var(req.willrsptopic) req.payload(0,0),mqtt_field_value(connect,8)
+        tcp-request content reject if ! { var(req.protoname) "MQTT" }      || ! { var(req.protovsn) "5" }
+        tcp-request content reject if ! { var(req.flags) "238" }           || ! { var(req.clientid) "test_sub" }
+        tcp-request content reject if ! { var(req.user) "test" }           || ! { var(req.pass) "passwd" }
+        tcp-request content reject if ! { var(req.willtopic) "willtopic" } || ! { var(req.willbody) "willpayload" }
+        tcp-request content reject if ! { var(req.maxpktsz) "20" }         || ! { var(req.reqpbinfo) "1" }
+        tcp-request content reject if ! { var(req.ctype) "text/plain" }    || ! { var(req.willrsptopic) "willrsptopic" }
+        default_backend be2
+
+    backend be1
+        server s1 ${s1_addr}:${s1_port}
+        tcp-response inspect-delay 1s
+        tcp-response content reject unless { res.payload(0,0),mqtt_is_valid }
+
+    backend be2
+        server s2 ${s2_addr}:${s2_port}
+        tcp-response inspect-delay 1s
+        tcp-response content reject unless { res.payload(0,0),mqtt_is_valid }
+        tcp-response content set-var(res.flags)         res.payload(0,0),mqtt_field_value(connack,flags)
+        tcp-response content set-var(res.protovsn)      res.payload(0,0),mqtt_field_value(connack,protocol_version)
+        tcp-response content set-var(res.rcode)         res.payload(0,0),mqtt_field_value(connack,reason_code)
+        tcp-response content set-var(res.sessexpint)    res.payload(0,0),mqtt_field_value(connack,17)
+        tcp-response content set-var(res.recvmax)       res.payload(0,0),mqtt_field_value(connack,33)
+        tcp-response content set-var(res.maxqos)        res.payload(0,0),mqtt_field_value(connack,36)
+        tcp-response content set-var(res.retainavail)   res.payload(0,0),mqtt_field_value(connack,37)
+        tcp-response content set-var(res.maxpktsz)      res.payload(0,0),mqtt_field_value(connack,39)
+        tcp-response content set-var(res.topicaliasmax) res.payload(0,0),mqtt_field_value(connack,34)
+        tcp-response content reject if ! { var(res.protovsn) "5" }    || ! { var(res.flags) "0" }
+        tcp-response content reject if ! { var(res.rcode) "0" }       || ! { var(res.sessexpint) "120" }
+        tcp-response content reject if ! { var(res.recvmax) "32767" } || ! { var(res.maxqos) "1" }
+        tcp-response content reject if ! { var(res.retainavail) "1" } || ! { var(res.maxpktsz) "65535" }
+        tcp-response content reject if ! { var(res.topicaliasmax) "10" }
+} -start
+
+client c1_311_1 -connect ${h1_fe1_sock} {
+    # Valid MQTT 3.1.1 CONNECT packet (id: test_sub)
+    sendhex "101400044d5154540402003c0008746573745f737562"
+    recv 4
+    expect_close
+} -run
+
+client c1_311_2 -connect ${h1_fe1_sock} {
+    # Valid MQTT 3.1.1 CONNECT packet (id: test_sub - username: test - passwd: passwd)
+    sendhex "102200044d51545404c2003c0008746573745f7375620004746573740006706173737764"
+    recv 4
+    expect_close
+} -run
+
+client c1_311_3 -connect ${h1_fe1_sock} {
+    # Valid MQTT 3.1.1 CONNECT packet (id: test_sub - username: test - passwd: passwd - will_topic: willtopic - will_payload: willpayload)
+    sendhex "103a00044d51545404ee003c0008746573745f737562000977696c6c746f706963000b77696c6c7061796c6f61640004746573740006706173737764"
+    recv 4
+    expect_close
+} -run
+
+client c1_50_1 -connect ${h1_fe1_sock} {
+    # Valid MQTT 5.0 CONNECT packet (id: test_sub)
+    sendhex "101800044d5154540502003c032100140008746573745f737562"
+    recv 8
+    expect_close
+} -run
+
+client c1_50_2 -connect ${h1_fe1_sock} {
+    # Valid MQTT 5.0 CONNECT packet (id: test_sub - username: test - passwd: passwd)
+    sendhex "102600044d51545405c2003c032100140008746573745f7375620004746573740006706173737764"
+    recv 8
+    expect_close
+} -run
+
+client c1_50_3 -connect ${h1_fe1_sock} {
+    # Valid MQTT 5.0 complex CONNECT/CONNACK packet
+    sendhex "107e00044d51545405ee003c182700000014170126000161000162260001630001642100140008746573745f7375622a03000a746578742f706c61696e08000c77696c6c727370746f7069632600016500016626000167000168000977696c6c746f706963000b77696c6c7061796c6f61640004746573740006706173737764"
+    recv 39
+    expect_close
+} -run
+
+client c2_311_1 -connect ${h1_fe1_sock} {
+    # Invalid MQTT 3.1.1 PINREQ
+    sendhex "d000"
+    expect_close
+} -run
+
+client c2_311_2 -connect ${h1_fe1_sock} {
+    # Invalid MQTT 3.1.1 CONNECT packet with invalid flags (!= 0x00)
+    sendhex "111400044d5154540402003c0008746573745f737562"
+    expect_close
+} -run
+
+client c2_311_3 -connect ${h1_fe1_sock} {
+    # Invalid MQTT 3.1.1 CONNACK packet with invalid flags (!= 0x00)
+    sendhex "101400044d5154540402003c0008746573745f737562"
+    expect_close
+} -run
+
+client c2_311_4 -connect ${h1_fe1_sock} {
+    # Invalid MQTT 3.1.1 CONNECT with too long remaing_length ( > 4 bytes)
+    sendhex "10ffffffff1400044d5154540402003c0008746573745f737562"
+    expect_close
+} -run
+
+client c2_311_4 -connect ${h1_fe1_sock} {
+    # Invalid MQTT 3.1.1 CONNECT with not matching ( 0x13 != 0x14)
+    sendhex "101300044d5154540402003c000874657374a5f737562"
+    expect_close
+} -run
+
+client c2_311_4 -connect ${h1_fe1_sock} {
+    # Invalid MQTT 3.1.1 CONNECT with not matching ( 0x18 != 0x14)
+    sendhex "101800044d5154540402003c000874657374a5f737562ffffffff"
+    expect_close
+} -run
+
+
+client c2_50_1 -connect ${h1_fe2_sock} {
+    # complex MQTT 5.0 CONNECT/CONNACK packet
+    #  - CONNECT :
+    #     client-id   : test_sub
+    #     username    : test
+    #     password    : passwd
+    #     will-topic  : willtopic
+    #     will-payload: willpayload
+    #     connect props:
+    #         maximum-packet-size        : 20
+    #         request-problem-information: 1
+    #         user-property              : name=a value=b
+    #         user-property              : name=c value=d
+    #     will props:
+    #         content-type  : text/plain
+    #         response-topic: willrsptopic
+    #         user-property : name=e value=f
+    #         user-property : name=g value=h
+    #  - CONNACK :
+    #    flags      : 0x00
+    #    reason-code: 0x00
+    #    connack props:
+    #         session-Expiry-interval: 120
+    #         receive-maximum        : 32767
+    #         maximum-qos            : 1
+    #         retain-available       : 1
+    #         maximum-packet-size    : 65535
+    #         topic-alias-maximum    : 10
+    #         user-property          : name=a value=b
+    #         user-property          : name=c value=d
+    sendhex "107e00044d51545405ee003c182700000014170126000161000162260001630001642100140008746573745f7375622a03000a746578742f706c61696e08000c77696c6c727370746f7069632600016500016626000167000168000977696c6c746f706963000b77696c6c7061796c6f61640004746573740006706173737764"
+    recv 39
+    expect_close
+} -run
