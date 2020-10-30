@@ -1825,7 +1825,7 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 {
 	struct pat_ref *ref;
 
-	ref = malloc(sizeof(*ref));
+	ref = calloc(1, sizeof(*ref));
 	if (!ref)
 		return NULL;
 
@@ -1836,8 +1836,6 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 			return NULL;
 		}
 	}
-	else
-		ref->display = NULL;
 
 	ref->reference = strdup(reference);
 	if (!ref->reference) {
@@ -1868,7 +1866,7 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 {
 	struct pat_ref *ref;
 
-	ref = malloc(sizeof(*ref));
+	ref = calloc(1, sizeof(*ref));
 	if (!ref)
 		return NULL;
 
@@ -1879,8 +1877,6 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 			return NULL;
 		}
 	}
-	else
-		ref->display = NULL;
 
 	ref->reference = NULL;
 	ref->flags = flags;
@@ -1901,7 +1897,7 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
 {
 	struct pat_ref_elt *elt;
 
-	elt = malloc(sizeof(*elt));
+	elt = calloc(1, sizeof(*elt));
 	if (!elt)
 		goto fail;
 
@@ -1916,8 +1912,6 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
 		if (!elt->sample)
 			goto fail;
 	}
-	else
-		elt->sample = NULL;
 
 	LIST_INIT(&elt->back_refs);
 	LIST_ADDQ(&ref->head, &elt->list);
@@ -2180,7 +2174,7 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 		*reuse = 0;
 
 	/* Memory and initialization of the chain element. */
-	list = malloc(sizeof(*list));
+	list = calloc(1, sizeof(*list));
 	if (!list) {
 		memprintf(err, "out of memory");
 		return NULL;
@@ -2206,7 +2200,7 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 	/* If no similar expr was found, we create new expr. */
 	if (!expr) {
 		/* Get a lot of memory for the expr struct. */
-		expr = malloc(sizeof(*expr));
+		expr = calloc(1, sizeof(*expr));
 		if (!expr) {
 			free(list);
 			memprintf(err, "out of memory");
