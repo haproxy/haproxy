@@ -1249,7 +1249,7 @@ static int smp_fetch_ssl_x_keylog(const struct arg *args, struct sample *smp, co
 static int
 smp_fetch_ssl_fc_cl_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL)
+#if defined(OPENSSL_IS_BORINGSSL) || defined(SSL_CTRL_GET_RAW_CIPHERLIST)
 	struct buffer *data;
 	int i;
 
