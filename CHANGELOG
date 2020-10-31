@@ -1,6 +1,35 @@
 ChangeLog :
 ===========
 
+2020/10/31 : 2.3-dev9
+    - CLEANUP: http_ana: remove unused assignation of `att_beg`
+    - BUG/MEDIUM: ssl: OCSP must work with BoringSSL
+    - BUG/MINOR: log: fix memory leak on logsrv parse error
+    - BUG/MINOR: log: fix risk of null deref on error path
+    - BUILD: ssl: more elegant OpenSSL early data support check
+    - CI: github actions: update h2spec to 2.6.0
+    - BUG/MINOR: cache: Check the return value of http_replace_res_status
+    - MINOR: cache: Store the "Last-Modified" date in the cache_entry
+    - MINOR: cache: Process the If-Modified-Since header in conditional requests
+    - MINOR: cache: Create res.cache_hit and res.cache_name sample fetches
+    - MINOR: mux-h2: register a stats module
+    - MINOR: mux-h2: add counters instance to h2c
+    - MINOR: mux-h2: add stats for received frame types
+    - MINOR: mux-h2: report detected error on stats
+    - MINOR: mux-h2: count open connections/streams on stats
+    - BUG/MINOR: server: fix srv downtime calcul on starting
+    - BUG/MINOR: server: fix down_time report for stats
+    - BUG/MINOR: lua: initialize sample before using it
+    - MINOR: cache: Add Expires header value parsing
+    - MINOR: ist: Add a case insensitive istmatch function
+    - BUG/MINOR: cache: Manage multiple values in cache-control header value
+    - BUG/MINOR: cache: Inverted variables in http_calc_maxage function
+    - MINOR: pattern: make pat_ref_append() return the newly added element
+    - MINOR: pattern: make pat_ref_add() rely on pat_ref_append()
+    - MINOR: pattern: export pat_ref_push()
+    - CLEANUP: pattern: use calloc() rather than malloc for structures
+    - CLEANUP: pattern: fix spelling/grammatical/copy-paste in comments
+
 2020/10/24 : 2.3-dev8
     - MINOR: backend: replace the lbprm lock with an rwlock
     - MINOR: lb/map: use seek lock and read locks where appropriate
