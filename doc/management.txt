@@ -2438,10 +2438,10 @@ show sess <id>
   The special id "all" dumps the states of all sessions, which must be avoided
   as much as possible as it is highly CPU intensive and can take a lot of time.
 
-show stat [domain <domain>] [{<iid>|<proxy>} <type> <sid>] [typed|json] \
+show stat [domain <dns|proxy>] [{<iid>|<proxy>} <type> <sid>] [typed|json] \
           [desc] [up|no-maint]
-  Dump statistics. The domain is used to select which statistics to print; only
-  proxy is available for now. By default, the CSV format is used; you can
+  Dump statistics. The domain is used to select which statistics to print; dns
+  and proxy are available for now. By default, the CSV format is used; you can
   activate the extended typed output format described in the section above if
   "typed" is passed after the other arguments; or in JSON if "json" is passed
   after the other arguments. By passing <id>, <type> and <sid>, it is possible
