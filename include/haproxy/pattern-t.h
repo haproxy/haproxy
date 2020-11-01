@@ -153,7 +153,6 @@ struct pattern {
 			struct in6_addr addr;
 			unsigned char mask;     /* number of bits */
 		} ipv6;                         /* IPv6 address/mask */
-		struct eb_root *tree;           /* tree storing all values if any */
 	} val;                                  /* direct value */
 	union {
 		void *ptr;              /* any data */
