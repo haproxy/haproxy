@@ -1527,11 +1527,11 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 				bref->ref = elt->list.n;
 			}
 
+			/* delete all entries from all expressions for this pattern */
 			list_for_each_entry(expr, &ref->pat, list)
 				HA_RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
 
-			list_for_each_entry(expr, &ref->pat, list)
-				expr->pat_head->delete(expr->ref, elt);
+			pat_delete_gen(ref, elt);
 
 			list_for_each_entry(expr, &ref->pat, list)
 				HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
@@ -1577,8 +1577,7 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
 			list_for_each_entry(expr, &ref->pat, list)
 				HA_RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
 
-			list_for_each_entry(expr, &ref->pat, list)
-				expr->pat_head->delete(expr->ref, elt);
+			pat_delete_gen(ref, elt);
 
 			list_for_each_entry(expr, &ref->pat, list)
 				HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
