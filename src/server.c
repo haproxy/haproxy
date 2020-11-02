@@ -1862,6 +1862,9 @@ static int server_template_init(struct server *srv, struct proxy *px)
 		if (!newsrv)
 			goto err;
 
+		newsrv->conf.file = strdup(srv->conf.file);
+		newsrv->conf.line = srv->conf.line;
+
 		srv_settings_cpy(newsrv, srv, 1);
 		srv_prepare_for_resolution(newsrv, srv->hostname);
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
