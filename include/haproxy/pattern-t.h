@@ -106,6 +106,7 @@ struct pat_ref {
 	struct list pat; /* The head of the list of struct pattern_expr. */
 	unsigned int flags; /* flags PAT_REF_*. */
 	int unique_id; /* Each pattern reference have unique id. */
+	unsigned long long revision; /* updated for each update */
 	__decl_thread(HA_SPINLOCK_T lock); /* Lock used to protect pat ref elements */
 };
 
@@ -179,7 +180,6 @@ struct pattern_list {
  */
 struct pattern_expr {
 	struct list list; /* Used for chaining pattern_expr in pat_ref. */
-	unsigned long long revision; /* updated for each update */
 	struct pat_ref *ref; /* The pattern reference if exists. */
 	struct pattern_head *pat_head; /* Point to the pattern_head that contain manipulation functions.
 	                                * Note that this link point on compatible head but not on the real
