@@ -80,20 +80,20 @@ int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, ch
 };
 
 void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pat_ref *, struct pat_ref_elt *) = {
-	[PAT_MATCH_FOUND] = pat_del_list_gen,
-	[PAT_MATCH_BOOL]  = pat_del_list_gen,
-	[PAT_MATCH_INT]   = pat_del_list_gen,
-	[PAT_MATCH_IP]    = pat_del_tree_gen,
-	[PAT_MATCH_BIN]   = pat_del_list_gen,
-	[PAT_MATCH_LEN]   = pat_del_list_gen,
-	[PAT_MATCH_STR]   = pat_del_tree_gen,
-	[PAT_MATCH_BEG]   = pat_del_tree_gen,
-	[PAT_MATCH_SUB]   = pat_del_list_gen,
-	[PAT_MATCH_DIR]   = pat_del_list_gen,
-	[PAT_MATCH_DOM]   = pat_del_list_gen,
-	[PAT_MATCH_END]   = pat_del_list_gen,
-	[PAT_MATCH_REG]   = pat_del_list_gen,
-	[PAT_MATCH_REGM]  = pat_del_list_gen,
+	[PAT_MATCH_FOUND] = pat_delete_gen,
+	[PAT_MATCH_BOOL]  = pat_delete_gen,
+	[PAT_MATCH_INT]   = pat_delete_gen,
+	[PAT_MATCH_IP]    = pat_delete_gen,
+	[PAT_MATCH_BIN]   = pat_delete_gen,
+	[PAT_MATCH_LEN]   = pat_delete_gen,
+	[PAT_MATCH_STR]   = pat_delete_gen,
+	[PAT_MATCH_BEG]   = pat_delete_gen,
+	[PAT_MATCH_SUB]   = pat_delete_gen,
+	[PAT_MATCH_DIR]   = pat_delete_gen,
+	[PAT_MATCH_DOM]   = pat_delete_gen,
+	[PAT_MATCH_END]   = pat_delete_gen,
+	[PAT_MATCH_REG]   = pat_delete_gen,
+	[PAT_MATCH_REGM]  = pat_delete_gen,
 };
 
 void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *) = {
@@ -1402,15 +1402,26 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
 	return 1;
 }
 
-/* Deletes all list-based patterns from reference <elt>. Note that all of their
+/* Deletes all patterns from reference <elt>. Note that all of their
  * expressions must be locked, and the pattern lock must be held as well.
  */
-void pat_del_list_gen(struct pat_ref *ref, struct pat_ref_elt *elt)
+void pat_delete_gen(struct pat_ref *ref, struct pat_ref_elt *elt)
 {
-	struct pattern_list *pat;
-	struct pattern_list *safe;
+	struct pattern_tree *tree, *tree_bck;
+	struct pattern_list *pat, *pat_bck;
 
-	list_for_each_entry_safe(pat, safe, &elt->list_head, from_ref) {
+	/* delete all known tree nodes. They are all allocated inline */
+	list_for_each_entry_safe(tree, tree_bck, &elt->tree_head, from_ref) {
+		BUG_ON(tree->ref != elt);
+
+		ebmb_delete(&tree->node);
+		LIST_DEL(&tree->from_ref);
+		free(tree->data);
+		free(tree);
+	}
+
+	/* delete all list nodes and free their pattern entries (str/reg) */
+	list_for_each_entry_safe(pat, pat_bck, &elt->list_head, from_ref) {
 		/* Check equality. */
 		BUG_ON(pat->pat.ref != elt);
 
@@ -1424,27 +1435,9 @@ void pat_del_list_gen(struct pat_ref *ref, struct pat_ref_elt *elt)
 		free(pat->pat.data);
 		free(pat);
 	}
+
+	/* update revision number to refresh the cache */
 	ref->revision = rdtsc();
-}
-
-/* Deletes all tree-based patterns from reference <elt>. Note that all of their
- * expressions must be locked, and the pattern lock must be held as well.
- */
-void pat_del_tree_gen(struct pat_ref *ref, struct pat_ref_elt *elt)
-{
-	struct pattern_tree *tree, *tree_bck;
-
-	list_for_each_entry_safe(tree, tree_bck, &elt->tree_head, from_ref) {
-		BUG_ON(tree->ref != elt);
-
-		ebmb_delete(&tree->node);
-		LIST_DEL(&tree->from_ref);
-		free(tree->data);
-		free(tree);
-	}
-
-	/* Also check the lists ofr immediate IPs or case-insensitive strings */
-	pat_del_list_gen(ref, elt);
 }
 
 void pattern_init_expr(struct pattern_expr *expr)
