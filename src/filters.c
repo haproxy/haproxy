@@ -291,6 +291,10 @@ flt_init_all()
 	int err_code = 0;
 
 	for (px = proxies_list; px; px = px->next) {
+		if (px->disabled) {
+			flt_deinit(px);
+			continue;
+		}
 		err_code |= flt_init(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
 			ha_alert("Failed to initialize filters for proxy '%s'.\n",
@@ -310,6 +314,9 @@ flt_init_all_per_thread()
 	int err_code = 0;
 
 	for (px = proxies_list; px; px = px->next) {
+		if (px->disabled)
+			continue;
+
 		err_code = flt_init_per_thread(px);
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
 			ha_alert("Failed to initialize filters for proxy '%s' for thread %u.\n",
@@ -349,7 +356,7 @@ flt_deinit(struct proxy *proxy)
 	struct flt_conf *fconf, *back;
 
 	list_for_each_entry_safe(fconf, back, &proxy->filter_configs, list) {
-		if (fconf->ops->deinit)
+		if (!proxy->disabled && fconf->ops->deinit)
 			fconf->ops->deinit(proxy, fconf);
 		LIST_DEL(&fconf->list);
 		free(fconf);
@@ -378,8 +385,10 @@ flt_deinit_all_per_thread()
 {
 	struct proxy *px;
 
-	for (px = proxies_list; px; px = px->next)
-		flt_deinit_per_thread(px);
+	for (px = proxies_list; px; px = px->next) {
+		if (!px->disabled)
+			flt_deinit_per_thread(px);
+	}
 }
 
 /* Attaches a filter to a stream. Returns -1 if an error occurs, 0 otherwise. */
