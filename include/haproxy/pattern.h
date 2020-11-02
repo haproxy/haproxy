@@ -83,11 +83,9 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
  * never fails.
  *
  */
-void pat_del_list_val(struct pattern_expr *expr, struct pat_ref_elt *ref);
+void pat_del_list_gen(struct pattern_expr *expr, struct pat_ref_elt *ref);
 void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref);
-void pat_del_list_ptr(struct pattern_expr *expr, struct pat_ref_elt *ref);
 void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref);
-void pat_del_list_reg(struct pattern_expr *expr, struct pat_ref_elt *ref);
 
 /*
  *
@@ -95,9 +93,7 @@ void pat_del_list_reg(struct pattern_expr *expr, struct pat_ref_elt *ref);
  * reset the tree and list root.
  *
  */
-void pat_prune_val(struct pattern_expr *expr);
-void pat_prune_ptr(struct pattern_expr *expr);
-void pat_prune_reg(struct pattern_expr *expr);
+void pat_prune_gen(struct pattern_expr *expr);
 
 /*
  *

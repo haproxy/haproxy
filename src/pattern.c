@@ -80,37 +80,37 @@ int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, ch
 };
 
 void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt *) = {
-	[PAT_MATCH_FOUND] = pat_del_list_val,
-	[PAT_MATCH_BOOL]  = pat_del_list_val,
-	[PAT_MATCH_INT]   = pat_del_list_val,
+	[PAT_MATCH_FOUND] = pat_del_list_gen,
+	[PAT_MATCH_BOOL]  = pat_del_list_gen,
+	[PAT_MATCH_INT]   = pat_del_list_gen,
 	[PAT_MATCH_IP]    = pat_del_tree_ip,
-	[PAT_MATCH_BIN]   = pat_del_list_ptr,
-	[PAT_MATCH_LEN]   = pat_del_list_val,
+	[PAT_MATCH_BIN]   = pat_del_list_gen,
+	[PAT_MATCH_LEN]   = pat_del_list_gen,
 	[PAT_MATCH_STR]   = pat_del_tree_str,
 	[PAT_MATCH_BEG]   = pat_del_tree_str,
-	[PAT_MATCH_SUB]   = pat_del_list_ptr,
-	[PAT_MATCH_DIR]   = pat_del_list_ptr,
-	[PAT_MATCH_DOM]   = pat_del_list_ptr,
-	[PAT_MATCH_END]   = pat_del_list_ptr,
-	[PAT_MATCH_REG]   = pat_del_list_reg,
-	[PAT_MATCH_REGM]  = pat_del_list_reg,
+	[PAT_MATCH_SUB]   = pat_del_list_gen,
+	[PAT_MATCH_DIR]   = pat_del_list_gen,
+	[PAT_MATCH_DOM]   = pat_del_list_gen,
+	[PAT_MATCH_END]   = pat_del_list_gen,
+	[PAT_MATCH_REG]   = pat_del_list_gen,
+	[PAT_MATCH_REGM]  = pat_del_list_gen,
 };
 
 void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *) = {
-	[PAT_MATCH_FOUND] = pat_prune_val,
-	[PAT_MATCH_BOOL]  = pat_prune_val,
-	[PAT_MATCH_INT]   = pat_prune_val,
-	[PAT_MATCH_IP]    = pat_prune_val,
-	[PAT_MATCH_BIN]   = pat_prune_ptr,
-	[PAT_MATCH_LEN]   = pat_prune_val,
-	[PAT_MATCH_STR]   = pat_prune_ptr,
-	[PAT_MATCH_BEG]   = pat_prune_ptr,
-	[PAT_MATCH_SUB]   = pat_prune_ptr,
-	[PAT_MATCH_DIR]   = pat_prune_ptr,
-	[PAT_MATCH_DOM]   = pat_prune_ptr,
-	[PAT_MATCH_END]   = pat_prune_ptr,
-	[PAT_MATCH_REG]   = pat_prune_reg,
-	[PAT_MATCH_REGM]  = pat_prune_reg,
+	[PAT_MATCH_FOUND] = pat_prune_gen,
+	[PAT_MATCH_BOOL]  = pat_prune_gen,
+	[PAT_MATCH_INT]   = pat_prune_gen,
+	[PAT_MATCH_IP]    = pat_prune_gen,
+	[PAT_MATCH_BIN]   = pat_prune_gen,
+	[PAT_MATCH_LEN]   = pat_prune_gen,
+	[PAT_MATCH_STR]   = pat_prune_gen,
+	[PAT_MATCH_BEG]   = pat_prune_gen,
+	[PAT_MATCH_SUB]   = pat_prune_gen,
+	[PAT_MATCH_DIR]   = pat_prune_gen,
+	[PAT_MATCH_DOM]   = pat_prune_gen,
+	[PAT_MATCH_END]   = pat_prune_gen,
+	[PAT_MATCH_REG]   = pat_prune_gen,
+	[PAT_MATCH_REGM]  = pat_prune_gen,
 };
 
 struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int) = {
@@ -1088,46 +1088,16 @@ void free_pattern_tree(struct eb_root *root)
 	}
 }
 
-void pat_prune_val(struct pattern_expr *expr)
+void pat_prune_gen(struct pattern_expr *expr)
 {
 	struct pattern_list *pat, *tmp;
 
 	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
 		LIST_DEL(&pat->list);
-		free(pat->pat.data);
-		free(pat);
-	}
-
-	free_pattern_tree(&expr->pattern_tree);
-	free_pattern_tree(&expr->pattern_tree_2);
-	LIST_INIT(&expr->patterns);
-	expr->ref->revision = rdtsc();
-}
-
-void pat_prune_ptr(struct pattern_expr *expr)
-{
-	struct pattern_list *pat, *tmp;
-
-	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
-		LIST_DEL(&pat->list);
-		free(pat->pat.ptr.ptr);
-		free(pat->pat.data);
-		free(pat);
-	}
-
-	free_pattern_tree(&expr->pattern_tree);
-	free_pattern_tree(&expr->pattern_tree_2);
-	LIST_INIT(&expr->patterns);
-	expr->ref->revision = rdtsc();
-}
-
-void pat_prune_reg(struct pattern_expr *expr)
-{
-	struct pattern_list *pat, *tmp;
-
-	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
-		LIST_DEL(&pat->list);
-		regex_free(pat->pat.ptr.ptr);
+		if (pat->pat.sflags & PAT_SF_REGFREE)
+			regex_free(pat->pat.ptr.ptr);
+		else
+			free(pat->pat.ptr.ptr);
 		free(pat->pat.data);
 		free(pat);
 	}
@@ -1418,7 +1388,7 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
 	return 1;
 }
 
-void pat_del_list_val(struct pattern_expr *expr, struct pat_ref_elt *ref)
+void pat_del_list_gen(struct pattern_expr *expr, struct pat_ref_elt *ref)
 {
 	struct pattern_list *pat;
 	struct pattern_list *safe;
@@ -1430,6 +1400,10 @@ void pat_del_list_val(struct pattern_expr *expr, struct pat_ref_elt *ref)
 
 		/* Delete and free entry. */
 		LIST_DEL(&pat->list);
+		if (pat->pat.sflags & PAT_SF_REGFREE)
+			regex_free(pat->pat.ptr.reg);
+		else
+			free(pat->pat.ptr.ptr);
 		free(pat->pat.data);
 		free(pat);
 	}
@@ -1459,7 +1433,7 @@ void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref)
 	}
 
 	/* Browse each node of the list for IPv4 addresses. */
-	pat_del_list_val(expr, ref);
+	pat_del_list_gen(expr, ref);
 
 	/* browse each node of the tree for IPv6 addresses. */
 	for (node = ebmb_first(&expr->pattern_tree_2), next_node = node ? ebmb_next(node) : NULL;
@@ -1480,25 +1454,6 @@ void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref)
 	expr->ref->revision = rdtsc();
 }
 
-void pat_del_list_ptr(struct pattern_expr *expr, struct pat_ref_elt *ref)
-{
-	struct pattern_list *pat;
-	struct pattern_list *safe;
-
-	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
-		/* Check equality. */
-		if (pat->pat.ref != ref)
-			continue;
-
-		/* Delete and free entry. */
-		LIST_DEL(&pat->list);
-		free(pat->pat.ptr.ptr);
-		free(pat->pat.data);
-		free(pat);
-	}
-	expr->ref->revision = rdtsc();
-}
-
 void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref)
 {
 	struct ebmb_node *node, *next_node;
@@ -1506,7 +1461,7 @@ void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref)
 
 	/* If the flag PAT_F_IGNORE_CASE is set, we cannot use trees */
 	if (expr->mflags & PAT_MF_IGNORE_CASE)
-		return pat_del_list_ptr(expr, ref);
+		return pat_del_list_gen(expr, ref);
 
 	/* browse each node of the tree. */
 	for (node = ebmb_first(&expr->pattern_tree), next_node = node ? ebmb_next(node) : NULL;
@@ -1523,25 +1478,6 @@ void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref)
 		ebmb_delete(node);
 		free(elt->data);
 		free(elt);
-	}
-	expr->ref->revision = rdtsc();
-}
-
-void pat_del_list_reg(struct pattern_expr *expr, struct pat_ref_elt *ref)
-{
-	struct pattern_list *pat;
-	struct pattern_list *safe;
-
-	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
-		/* Check equality. */
-		if (pat->pat.ref != ref)
-			continue;
-
-		/* Delete and free entry. */
-		LIST_DEL(&pat->list);
-		regex_free(pat->pat.ptr.ptr);
-		free(pat->pat.data);
-		free(pat);
 	}
 	expr->ref->revision = rdtsc();
 }

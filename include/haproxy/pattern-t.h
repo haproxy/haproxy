@@ -160,7 +160,7 @@ struct pattern {
 		void *ptr;              /* any data */
 		char *str;              /* any string  */
 		struct my_regex *reg;   /* a compiled regex */
-	} ptr;                          /* indirect values, allocated */
+	} ptr;                          /* indirect values, allocated or NULL */
 	int len;                        /* data length when required  */
 	int sflags;                     /* flags relative to the storage method. */
 	struct sample_data *data;       /* used to store a pointer to sample value associated
