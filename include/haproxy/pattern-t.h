@@ -111,12 +111,15 @@ struct pat_ref {
 	__decl_thread(HA_SPINLOCK_T lock); /* Lock used to protect pat ref elements */
 };
 
-/* This is a part of struct pat_ref. Each entry contain one
- * pattern and one associated value as original string.
+/* This is a part of struct pat_ref. Each entry contains one pattern and one
+ * associated value as original string. All derivative forms (via exprs) are
+ * accessed from list_head or tree_head.
  */
 struct pat_ref_elt {
 	struct list list; /* Used to chain elements. */
 	struct list back_refs; /* list of users tracking this pat ref */
+	struct list list_head; /* all pattern_list derived from this reference */
+	struct list tree_head; /* all pattern_tree derived from this reference */
 	char *pattern;
 	char *sample;
 	int line;
@@ -126,6 +129,7 @@ struct pat_ref_elt {
  * "sample" with a tree entry. It is used with maps.
  */
 struct pattern_tree {
+	struct list from_ref;      // pattern_tree linked from pat_ref_elt
 	struct sample_data *data;
 	struct pat_ref_elt *ref;
 	struct ebmb_node node;
@@ -170,6 +174,7 @@ struct pattern {
 
 /* This struct is just used for chaining patterns */
 struct pattern_list {
+	struct list from_ref;      // pattern_tree linked from pat_ref_elt
 	struct list list;
 	struct pattern pat;
 };

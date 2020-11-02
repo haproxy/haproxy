@@ -1082,6 +1082,7 @@ void free_pattern_tree(struct eb_root *root)
 		next = eb_next(node);
 		eb_delete(node);
 		elt = container_of(node, struct pattern_tree, node);
+		LIST_DEL(&elt->from_ref);
 		free(elt->data);
 		free(elt);
 		node = next;
@@ -1094,6 +1095,7 @@ void pat_prune_gen(struct pattern_expr *expr)
 
 	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
 		LIST_DEL(&pat->list);
+		LIST_DEL(&pat->from_ref);
 		if (pat->pat.sflags & PAT_SF_REGFREE)
 			regex_free(pat->pat.ptr.ptr);
 		else
@@ -1130,6 +1132,8 @@ int pat_idx_list_val(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* chain pattern in the expression */
 	LIST_ADDQ(&expr->patterns, &patl->list);
+	/* and from the reference */
+	LIST_ADDQ(&pat->ref->list_head, &patl->from_ref);
 	expr->ref->revision = rdtsc();
 
 	/* that's ok */
@@ -1159,6 +1163,8 @@ int pat_idx_list_ptr(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* chain pattern in the expression */
 	LIST_ADDQ(&expr->patterns, &patl->list);
+	/* and from the reference */
+	LIST_ADDQ(&pat->ref->list_head, &patl->from_ref);
 	expr->ref->revision = rdtsc();
 
 	/* that's ok */
@@ -1189,6 +1195,8 @@ int pat_idx_list_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* chain pattern in the expression */
 	LIST_ADDQ(&expr->patterns, &patl->list);
+	/* and from the reference */
+	LIST_ADDQ(&pat->ref->list_head, &patl->from_ref);
 	expr->ref->revision = rdtsc();
 
 	/* that's ok */
@@ -1219,6 +1227,8 @@ int pat_idx_list_reg_cap(struct pattern_expr *expr, struct pattern *pat, int cap
 
 	/* chain pattern in the expression */
 	LIST_ADDQ(&expr->patterns, &patl->list);
+	/* and from the reference */
+	LIST_ADDQ(&pat->ref->list_head, &patl->from_ref);
 	expr->ref->revision = rdtsc();
 
 	/* that's ok */
@@ -1268,6 +1278,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 			/* Insert the entry. */
 			ebmb_insert_prefix(&expr->pattern_tree, &node->node, 4);
+			LIST_ADDQ(&pat->ref->tree_head, &node->from_ref);
 			expr->ref->revision = rdtsc();
 
 			/* that's ok */
@@ -1296,6 +1307,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 		/* Insert the entry. */
 		ebmb_insert_prefix(&expr->pattern_tree_2, &node->node, 16);
+		LIST_ADDQ(&pat->ref->tree_head, &node->from_ref);
 		expr->ref->revision = rdtsc();
 
 		/* that's ok */
@@ -1340,6 +1352,7 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* index the new node */
 	ebst_insert(&expr->pattern_tree, &node->node);
+	LIST_ADDQ(&pat->ref->tree_head, &node->from_ref);
 	expr->ref->revision = rdtsc();
 
 	/* that's ok */
@@ -1382,6 +1395,7 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* index the new node */
 	ebmb_insert_prefix(&expr->pattern_tree, &node->node, len);
+	LIST_ADDQ(&pat->ref->tree_head, &node->from_ref);
 	expr->ref->revision = rdtsc();
 
 	/* that's ok */
@@ -1400,6 +1414,7 @@ void pat_del_list_gen(struct pattern_expr *expr, struct pat_ref_elt *ref)
 
 		/* Delete and free entry. */
 		LIST_DEL(&pat->list);
+		LIST_DEL(&pat->from_ref);
 		if (pat->pat.sflags & PAT_SF_REGFREE)
 			regex_free(pat->pat.ptr.reg);
 		else
@@ -1428,6 +1443,7 @@ void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref)
 
 		/* Delete and free entry. */
 		ebmb_delete(node);
+		LIST_DEL(&elt->from_ref);
 		free(elt->data);
 		free(elt);
 	}
@@ -1448,6 +1464,7 @@ void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref)
 
 		/* Delete and free entry. */
 		ebmb_delete(node);
+		LIST_DEL(&elt->from_ref);
 		free(elt->data);
 		free(elt);
 	}
@@ -1476,6 +1493,7 @@ void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref)
 
 		/* Delete and free entry. */
 		ebmb_delete(node);
+		LIST_DEL(&elt->from_ref);
 		free(elt->data);
 		free(elt);
 	}
@@ -1858,6 +1876,8 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
 	}
 
 	LIST_INIT(&elt->back_refs);
+	LIST_INIT(&elt->list_head);
+	LIST_INIT(&elt->tree_head);
 	LIST_ADDQ(&ref->head, &elt->list);
 	return elt;
  fail:
@@ -1975,6 +1995,8 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 			bref->ref = NULL;
 		}
 		LIST_DEL(&elt->list);
+		LIST_DEL(&elt->list_head);
+		LIST_DEL(&elt->tree_head);
 		free(elt->pattern);
 		free(elt->sample);
 		free(elt);
