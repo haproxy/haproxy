@@ -121,8 +121,8 @@ static struct acl_kw_list acl_kws = {ILH, {
 	 * and match method are related to the corresponding fetch methods. This
 	 * is very particular ACL declaration mode.
 	 */
-	{ "http_auth_group", NULL,       PAT_MATCH_STR, NULL,  pat_idx_list_str, pat_delete_gen, NULL, pat_match_auth },
-	{ "method",          NULL,       PAT_MATCH_STR, pat_parse_meth, pat_idx_list_str, pat_delete_gen, NULL, pat_match_meth },
+	{ "http_auth_group", NULL,       PAT_MATCH_STR, NULL,  pat_idx_list_str, NULL, NULL, pat_match_auth },
+	{ "method",          NULL,       PAT_MATCH_STR, pat_parse_meth, pat_idx_list_str, NULL, NULL, pat_match_meth },
 
 	{ "path",            "path",     PAT_MATCH_STR },
 	{ "path_beg",        "path",     PAT_MATCH_BEG },
