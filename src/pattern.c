@@ -1485,100 +1485,78 @@ struct pat_ref *pat_ref_lookupid(int unique_id)
 	return NULL;
 }
 
+/* This function removes from the pattern reference <ref> all the patterns
+ * attached to the reference element <elt>, and the element itself. The
+ * reference must be locked.
+ */
+void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
+{
+	struct pattern_expr *expr;
+	struct bref *bref, *back;
+
+	/*
+	 * we have to unlink all watchers from this reference pattern. We must
+	 * not relink them if this elt was the last one in the list.
+	 */
+	list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
+		LIST_DEL(&bref->users);
+		LIST_INIT(&bref->users);
+		if (elt->list.n != &ref->head)
+			LIST_ADDQ(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
+		bref->ref = elt->list.n;
+	}
+
+	/* delete all entries from all expressions for this pattern */
+	list_for_each_entry(expr, &ref->pat, list)
+		HA_RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
+
+	pat_delete_gen(ref, elt);
+
+	list_for_each_entry(expr, &ref->pat, list)
+		HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
+
+	LIST_DEL(&elt->list);
+	free(elt->sample);
+	free(elt->pattern);
+	free(elt);
+}
+
 /* This function removes all the patterns matching the pointer <refelt> from
  * the reference and from each expr member of this reference. This function
  * returns 1 if the entry was found and deleted, otherwise zero.
  */
 int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 {
-	struct pattern_expr *expr;
 	struct pat_ref_elt *elt, *safe;
-	struct bref *bref, *back;
 
 	/* delete pattern from reference */
 	list_for_each_entry_safe(elt, safe, &ref->head, list) {
 		if (elt == refelt) {
-			list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
-				/*
-				 * we have to unlink all watchers. We must not relink them if
-				 * this elt  was the last one in the list.
-				 */
-				LIST_DEL(&bref->users);
-				LIST_INIT(&bref->users);
-				if (elt->list.n != &ref->head)
-					LIST_ADDQ(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
-				bref->ref = elt->list.n;
-			}
-
-			/* delete all entries from all expressions for this pattern */
-			list_for_each_entry(expr, &ref->pat, list)
-				HA_RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
-
-			pat_delete_gen(ref, elt);
-
-			list_for_each_entry(expr, &ref->pat, list)
-				HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
-
-			/* pat_ref_elt is trashed once all expr
-			   are cleaned and there is no ref remaining */
-			LIST_DEL(&elt->list);
-			free(elt->sample);
-			free(elt->pattern);
-			free(elt);
+			pat_ref_delete_by_ptr(ref, elt);
 			return 1;
 		}
 	}
 	return 0;
 }
 
-/* This function remove all pattern match <key> from the the reference
+/* This function removes all patterns matching <key> from the reference
  * and from each expr member of the reference. This function returns 1
- * if the deletion is done and return 0 is the entry is not found.
+ * if the deletion is done and returns 0 is the entry is not found.
  */
 int pat_ref_delete(struct pat_ref *ref, const char *key)
 {
-	struct pattern_expr *expr;
 	struct pat_ref_elt *elt, *safe;
-	struct bref *bref, *back;
 	int found = 0;
 
 	/* delete pattern from reference */
 	list_for_each_entry_safe(elt, safe, &ref->head, list) {
 		if (strcmp(key, elt->pattern) == 0) {
-			list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
-				/*
-				 * we have to unlink all watchers. We must not relink them if
-				 * this elt was the last one in the list.
-				 */
-				LIST_DEL(&bref->users);
-				LIST_INIT(&bref->users);
-				if (elt->list.n != &ref->head)
-					LIST_ADDQ(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
-				bref->ref = elt->list.n;
-			}
-
-			list_for_each_entry(expr, &ref->pat, list)
-				HA_RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
-
-			pat_delete_gen(ref, elt);
-
-			list_for_each_entry(expr, &ref->pat, list)
-				HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
-
-			/* pat_ref_elt is trashed once all expr
-			   are cleaned and there is no ref remaining */
-			LIST_DEL(&elt->list);
-			free(elt->sample);
-			free(elt->pattern);
-			free(elt);
-
+			pat_ref_delete_by_ptr(ref, elt);
 			found = 1;
 		}
 	}
 
-	if (!found)
-		return 0;
-	return 1;
+	return found;
 }
 
 /*
@@ -1897,7 +1875,7 @@ int pat_ref_add(struct pat_ref *ref,
 	list_for_each_entry(expr, &ref->pat, list) {
 		if (!pat_ref_push(elt, expr, 0, err)) {
 			/* If the insertion fails, try to delete all the added entries. */
-			pat_ref_delete_by_id(ref, elt);
+			pat_ref_delete_by_ptr(ref, elt);
 			return 0;
 		}
 	}
