@@ -69,6 +69,7 @@ enum {
 /* possible flags for patterns storage */
 enum {
 	PAT_SF_TREE        = 1 << 0,       /* some patterns are arranged in a tree */
+	PAT_SF_REGFREE     = 1 << 1,       /* run regex_free() on the pointer */
 };
 
 /* ACL match methods */

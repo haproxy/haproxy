@@ -1240,6 +1240,7 @@ int pat_idx_list_reg_cap(struct pattern_expr *expr, struct pattern *pat, int cap
 	memcpy(&patl->pat, pat, sizeof(*pat));
 
 	/* compile regex */
+	patl->pat.sflags |= PAT_SF_REGFREE;
 	if (!(patl->pat.ptr.reg = regex_comp(pat->ptr.str, !(expr->mflags & PAT_MF_IGNORE_CASE),
 	                                     cap, err))) {
 		free(patl);
