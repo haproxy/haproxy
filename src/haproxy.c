@@ -1958,6 +1958,9 @@ static void init(int argc, char **argv)
 		struct post_proxy_check_fct *ppcf;
 		struct post_server_check_fct *pscf;
 
+		if (px->disabled)
+			continue;
+
 		list_for_each_entry(pscf, &post_server_check_list, list) {
 			for (srv = px->srv; srv; srv = srv->next)
 				err_code |= pscf->fct(srv);
