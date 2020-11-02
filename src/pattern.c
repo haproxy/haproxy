@@ -79,15 +79,15 @@ int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, ch
 	[PAT_MATCH_REGM]  = pat_idx_list_regm,
 };
 
-void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt *) = {
+void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pat_ref *, struct pat_ref_elt *) = {
 	[PAT_MATCH_FOUND] = pat_del_list_gen,
 	[PAT_MATCH_BOOL]  = pat_del_list_gen,
 	[PAT_MATCH_INT]   = pat_del_list_gen,
-	[PAT_MATCH_IP]    = pat_del_tree_ip,
+	[PAT_MATCH_IP]    = pat_del_tree_gen,
 	[PAT_MATCH_BIN]   = pat_del_list_gen,
 	[PAT_MATCH_LEN]   = pat_del_list_gen,
-	[PAT_MATCH_STR]   = pat_del_tree_str,
-	[PAT_MATCH_BEG]   = pat_del_tree_str,
+	[PAT_MATCH_STR]   = pat_del_tree_gen,
+	[PAT_MATCH_BEG]   = pat_del_tree_gen,
 	[PAT_MATCH_SUB]   = pat_del_list_gen,
 	[PAT_MATCH_DIR]   = pat_del_list_gen,
 	[PAT_MATCH_DOM]   = pat_del_list_gen,
@@ -1402,15 +1402,17 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
 	return 1;
 }
 
-void pat_del_list_gen(struct pattern_expr *expr, struct pat_ref_elt *ref)
+/* Deletes all list-based patterns from reference <elt>. Note that all of their
+ * expressions must be locked, and the pattern lock must be held as well.
+ */
+void pat_del_list_gen(struct pat_ref *ref, struct pat_ref_elt *elt)
 {
 	struct pattern_list *pat;
 	struct pattern_list *safe;
 
-	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
+	list_for_each_entry_safe(pat, safe, &elt->list_head, from_ref) {
 		/* Check equality. */
-		if (pat->pat.ref != ref)
-			continue;
+		BUG_ON(pat->pat.ref != elt);
 
 		/* Delete and free entry. */
 		LIST_DEL(&pat->list);
@@ -1422,82 +1424,27 @@ void pat_del_list_gen(struct pattern_expr *expr, struct pat_ref_elt *ref)
 		free(pat->pat.data);
 		free(pat);
 	}
-	expr->ref->revision = rdtsc();
+	ref->revision = rdtsc();
 }
 
-void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref)
+/* Deletes all tree-based patterns from reference <elt>. Note that all of their
+ * expressions must be locked, and the pattern lock must be held as well.
+ */
+void pat_del_tree_gen(struct pat_ref *ref, struct pat_ref_elt *elt)
 {
-	struct ebmb_node *node, *next_node;
-	struct pattern_tree *elt;
+	struct pattern_tree *tree, *tree_bck;
 
-	/* browse each node of the tree for IPv4 addresses. */
-	for (node = ebmb_first(&expr->pattern_tree), next_node = node ? ebmb_next(node) : NULL;
-	     node;
-	     node = next_node, next_node = node ? ebmb_next(node) : NULL) {
-		/* Extract container of the tree node. */
-		elt = container_of(node, struct pattern_tree, node);
+	list_for_each_entry_safe(tree, tree_bck, &elt->tree_head, from_ref) {
+		BUG_ON(tree->ref != elt);
 
-		/* Check equality. */
-		if (elt->ref != ref)
-			continue;
-
-		/* Delete and free entry. */
-		ebmb_delete(node);
-		LIST_DEL(&elt->from_ref);
-		free(elt->data);
-		free(elt);
+		ebmb_delete(&tree->node);
+		LIST_DEL(&tree->from_ref);
+		free(tree->data);
+		free(tree);
 	}
 
-	/* Browse each node of the list for IPv4 addresses. */
-	pat_del_list_gen(expr, ref);
-
-	/* browse each node of the tree for IPv6 addresses. */
-	for (node = ebmb_first(&expr->pattern_tree_2), next_node = node ? ebmb_next(node) : NULL;
-	     node;
-	     node = next_node, next_node = node ? ebmb_next(node) : NULL) {
-		/* Extract container of the tree node. */
-		elt = container_of(node, struct pattern_tree, node);
-
-		/* Check equality. */
-		if (elt->ref != ref)
-			continue;
-
-		/* Delete and free entry. */
-		ebmb_delete(node);
-		LIST_DEL(&elt->from_ref);
-		free(elt->data);
-		free(elt);
-	}
-	expr->ref->revision = rdtsc();
-}
-
-void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref)
-{
-	struct ebmb_node *node, *next_node;
-	struct pattern_tree *elt;
-
-	/* If the flag PAT_F_IGNORE_CASE is set, we cannot use trees */
-	if (expr->mflags & PAT_MF_IGNORE_CASE)
-		return pat_del_list_gen(expr, ref);
-
-	/* browse each node of the tree. */
-	for (node = ebmb_first(&expr->pattern_tree), next_node = node ? ebmb_next(node) : NULL;
-	     node;
-	     node = next_node, next_node = node ? ebmb_next(node) : NULL) {
-		/* Extract container of the tree node. */
-		elt = container_of(node, struct pattern_tree, node);
-
-		/* Check equality. */
-		if (elt->ref != ref)
-			continue;
-
-		/* Delete and free entry. */
-		ebmb_delete(node);
-		LIST_DEL(&elt->from_ref);
-		free(elt->data);
-		free(elt);
-	}
-	expr->ref->revision = rdtsc();
+	/* Also check the lists ofr immediate IPs or case-insensitive strings */
+	pat_del_list_gen(ref, elt);
 }
 
 void pattern_init_expr(struct pattern_expr *expr)
@@ -1586,8 +1533,15 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
 					LIST_ADDQ(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
 				bref->ref = elt->list.n;
 			}
+
 			list_for_each_entry(expr, &ref->pat, list)
-				pattern_delete(expr, elt);
+				HA_RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
+
+			list_for_each_entry(expr, &ref->pat, list)
+				expr->pat_head->delete(expr->ref, elt);
+
+			list_for_each_entry(expr, &ref->pat, list)
+				HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 
 			/* pat_ref_elt is trashed once all expr
 			   are cleaned and there is no ref remaining */
@@ -1626,8 +1580,15 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
 					LIST_ADDQ(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
 				bref->ref = elt->list.n;
 			}
+
 			list_for_each_entry(expr, &ref->pat, list)
-				pattern_delete(expr, elt);
+				HA_RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
+
+			list_for_each_entry(expr, &ref->pat, list)
+				expr->pat_head->delete(expr->ref, elt);
+
+			list_for_each_entry(expr, &ref->pat, list)
+				HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 
 			/* pat_ref_elt is trashed once all expr
 			   are cleaned and there is no ref remaining */
@@ -2607,18 +2568,6 @@ struct sample_data **pattern_find_smp(struct pattern_expr *expr, struct pat_ref_
 			return &pat->pat.data;
 
 	return NULL;
-}
-
-/* This function delets from expression <expr> all occurrences of patterns
- * corresponding to pattern reference element <ref>. The function always
- * returns 1.
- */
-int pattern_delete(struct pattern_expr *expr, struct pat_ref_elt *ref)
-{
-	HA_RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
-	expr->pat_head->delete(expr, ref);
-	HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
-	return 1;
 }
 
 /* This function compares two pat_ref** on their unique_id, and returns -1/0/1

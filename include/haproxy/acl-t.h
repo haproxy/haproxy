@@ -81,7 +81,7 @@ struct acl_keyword {
 	int match_type; /* Contain PAT_MATCH_* */
 	int (*parse)(const char *text, struct pattern *pattern, int flags, char **err);
 	int (*index)(struct pattern_expr *expr, struct pattern *pattern, char **err);
-	void (*delete)(struct pattern_expr *expr, struct pat_ref_elt *);
+	void (*delete)(struct pat_ref *, struct pat_ref_elt *);
 	void (*prune)(struct pattern_expr *expr);
 	struct pattern *(*match)(struct sample *smp, struct pattern_expr *expr, int fill);
 	/* must be after the config params */

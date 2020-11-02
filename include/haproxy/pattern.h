@@ -34,7 +34,7 @@ extern int pat_match_types[PAT_MATCH_NUM];
 
 extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char **);
 extern int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
-extern void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt *);
+extern void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pat_ref *, struct pat_ref_elt *);
 extern void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *);
 extern struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int);
 
@@ -78,14 +78,12 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 /*
  *
- * The following functions search pattern <pattern> into the pattern
- * expression <expr>. If the pattern is found, delete it. This function
- * never fails.
+ * The following functions deletes all patterns related to reference pattern
+ * element <elt> in pattern refernce <ref>.
  *
  */
-void pat_del_list_gen(struct pattern_expr *expr, struct pat_ref_elt *ref);
-void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref);
-void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref);
+void pat_del_list_gen(struct pat_ref *ref, struct pat_ref_elt *elt);
+void pat_del_tree_gen(struct pat_ref *ref, struct pat_ref_elt *elt);
 
 /*
  *
