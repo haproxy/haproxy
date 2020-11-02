@@ -79,23 +79,6 @@ int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, ch
 	[PAT_MATCH_REGM]  = pat_idx_list_regm,
 };
 
-void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pat_ref *, struct pat_ref_elt *) = {
-	[PAT_MATCH_FOUND] = pat_delete_gen,
-	[PAT_MATCH_BOOL]  = pat_delete_gen,
-	[PAT_MATCH_INT]   = pat_delete_gen,
-	[PAT_MATCH_IP]    = pat_delete_gen,
-	[PAT_MATCH_BIN]   = pat_delete_gen,
-	[PAT_MATCH_LEN]   = pat_delete_gen,
-	[PAT_MATCH_STR]   = pat_delete_gen,
-	[PAT_MATCH_BEG]   = pat_delete_gen,
-	[PAT_MATCH_SUB]   = pat_delete_gen,
-	[PAT_MATCH_DIR]   = pat_delete_gen,
-	[PAT_MATCH_DOM]   = pat_delete_gen,
-	[PAT_MATCH_END]   = pat_delete_gen,
-	[PAT_MATCH_REG]   = pat_delete_gen,
-	[PAT_MATCH_REGM]  = pat_delete_gen,
-};
-
 void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *) = {
 	[PAT_MATCH_FOUND] = pat_prune_gen,
 	[PAT_MATCH_BOOL]  = pat_prune_gen,

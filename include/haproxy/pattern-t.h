@@ -216,7 +216,6 @@ struct pattern_head {
 	int (*parse)(const char *text, struct pattern *pattern, int flags, char **err);
 	int (*parse_smp)(const char *text, struct sample_data *data);
 	int (*index)(struct pattern_expr *, struct pattern *, char **);
-	void (*delete)(struct pat_ref *, struct pat_ref_elt *);
 	void (*prune)(struct pattern_expr *);
 	struct pattern *(*match)(struct sample *, struct pattern_expr *, int);
 	int expect_type; /* type of the expected sample (SMP_T_*) */

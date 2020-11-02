@@ -340,7 +340,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		expr->pat.parse  = aclkw->parse  ? aclkw->parse  : pat_parse_fcts[aclkw->match_type];
 		expr->pat.index  = aclkw->index  ? aclkw->index  : pat_index_fcts[aclkw->match_type];
 		expr->pat.match  = aclkw->match  ? aclkw->match  : pat_match_fcts[aclkw->match_type];
-		expr->pat.delete = aclkw->delete ? aclkw->delete : pat_delete_fcts[aclkw->match_type];
 		expr->pat.prune  = aclkw->prune  ? aclkw->prune  : pat_prune_fcts[aclkw->match_type];
 	}
 
@@ -354,7 +353,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_BOOL];
 			expr->pat.index = pat_index_fcts[PAT_MATCH_BOOL];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_BOOL];
-			expr->pat.delete = pat_delete_fcts[PAT_MATCH_BOOL];
 			expr->pat.prune = pat_prune_fcts[PAT_MATCH_BOOL];
 			expr->pat.expect_type = pat_match_types[PAT_MATCH_BOOL];
 			break;
@@ -362,7 +360,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_INT];
 			expr->pat.index = pat_index_fcts[PAT_MATCH_INT];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_INT];
-			expr->pat.delete = pat_delete_fcts[PAT_MATCH_INT];
 			expr->pat.prune = pat_prune_fcts[PAT_MATCH_INT];
 			expr->pat.expect_type = pat_match_types[PAT_MATCH_INT];
 			break;
@@ -372,7 +369,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_IP];
 			expr->pat.index = pat_index_fcts[PAT_MATCH_IP];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_IP];
-			expr->pat.delete = pat_delete_fcts[PAT_MATCH_IP];
 			expr->pat.prune = pat_prune_fcts[PAT_MATCH_IP];
 			expr->pat.expect_type = pat_match_types[PAT_MATCH_IP];
 			break;
@@ -380,7 +376,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_STR];
 			expr->pat.index = pat_index_fcts[PAT_MATCH_STR];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_STR];
-			expr->pat.delete = pat_delete_fcts[PAT_MATCH_STR];
 			expr->pat.prune = pat_prune_fcts[PAT_MATCH_STR];
 			expr->pat.expect_type = pat_match_types[PAT_MATCH_STR];
 			break;
@@ -465,7 +460,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.parse = pat_parse_fcts[idx];
 			expr->pat.index = pat_index_fcts[idx];
 			expr->pat.match = pat_match_fcts[idx];
-			expr->pat.delete = pat_delete_fcts[idx];
 			expr->pat.prune = pat_prune_fcts[idx];
 			expr->pat.expect_type = pat_match_types[idx];
 			args++;
