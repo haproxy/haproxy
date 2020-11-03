@@ -2074,9 +2074,8 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 			LIST_DEL_INIT(&bref->users);
 			bref->ref = NULL;
 		}
+		pat_delete_gen(ref, elt);
 		LIST_DEL(&elt->list);
-		LIST_DEL(&elt->list_head);
-		LIST_DEL(&elt->tree_head);
 		free(elt->pattern);
 		free(elt->sample);
 		free(elt);
@@ -2087,7 +2086,6 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 	LIST_DEL(&replace->head);
 
 	list_for_each_entry(expr, &ref->pat, list) {
-		expr->pat_head->prune(expr);
 		list_for_each_entry(elt, &ref->head, list) {
 			char *err = NULL;
 			struct sample_data *data = NULL;
