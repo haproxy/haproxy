@@ -7,6 +7,12 @@
 # file and rename it later.
 # To detect that, check that the first character of the sun_path is 0 for
 # both, and if so, that &sun_path[1] is the same too.
+#
+# Note: there are some tricks here. One of them is that we must not bind the
+# same abns address to multiple processes that may run in parallel. Since
+# vtest cannot provide abns sockets, we're instead concatenating the number
+# of the listening port that vtest allocated for another frontend to the abns
+# path, which guarantees to make them unique in the system.
 
 varnishtest "Seamless reload issue with abns sockets"
 feature ignore_unknown_macro
@@ -14,7 +20,7 @@ feature ignore_unknown_macro
 # abns@ sockets are not available on freebsd
 #EXCLUDE_TARGETS=freebsd,osx,generic
 #REQUIRE_VERSION=1.8
-#REGTEST_TYPE=broken
+#REGTEST_TYPE=bug
 
 haproxy h1 -W -conf {
   global
@@ -31,10 +37,10 @@ haproxy h1 -W -conf {
 
   listen testme
     bind "fd@${testme}"
-    server test_abns_server abns@wpproc1 send-proxy-v2
+    server test_abns_server abns@wpproc1_${h1_testme_port} send-proxy-v2
 
   frontend test_abns
-    bind abns@wpproc1 accept-proxy
+    bind abns@wpproc1_${h1_testme_port} accept-proxy
     http-request deny deny_status 200
 } -start
 
