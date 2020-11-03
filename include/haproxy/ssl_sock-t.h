@@ -274,7 +274,7 @@ struct global_ssl {
 	char *listen_default_ciphersuites;
 	char *connect_default_ciphersuites;
 #endif
-#if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
+#if defined(SSL_CTX_set1_curves_list)
 	char *listen_default_curves;
 #endif
 	int listen_default_ssloptions;

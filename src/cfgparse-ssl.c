@@ -229,7 +229,7 @@ static int ssl_parse_global_ciphersuites(char **args, int section_type, struct p
 }
 #endif
 
-#if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
+#if defined(SSL_CTX_set1_curves_list)
 /*
  * parse the "ssl-default-bind-curves" keyword in a global section.
  * Returns <0 on alert, >0 on warning, 0 on success.
@@ -703,7 +703,7 @@ static int bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struc
 /* parse the "curves" bind keyword keyword */
 static int ssl_bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
 {
-#if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
+#if defined(SSL_CTX_set1_curves_list)
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing curve suite", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
@@ -1045,7 +1045,7 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 
 	if (global_ssl.listen_default_ciphers && !conf->ssl_conf.ciphers)
 		conf->ssl_conf.ciphers = strdup(global_ssl.listen_default_ciphers);
-#if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
+#if defined(SSL_CTX_set1_curves_list)
 	if (global_ssl.listen_default_curves && !conf->ssl_conf.curves)
 		conf->ssl_conf.curves = strdup(global_ssl.listen_default_curves);
 #endif
@@ -1877,7 +1877,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 #endif
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },
 	{ CFG_GLOBAL, "ssl-default-server-ciphers", ssl_parse_global_ciphers },
-#if ((HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL) || defined(LIBRESSL_VERSION_NUMBER))
+#if defined(SSL_CTX_set1_curves_list)
 	{ CFG_GLOBAL, "ssl-default-bind-curves", ssl_parse_global_curves },
 #endif
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
