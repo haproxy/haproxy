@@ -165,12 +165,15 @@ static struct stksess *__stksess_init(struct stktable *t, struct stksess * ts)
 
 /*
  * Trash oldest <to_batch> sticky sessions from table <t>
- * Returns number of trashed sticky sessions.
+ * Returns number of trashed sticky sessions. It may actually trash less
+ * than expected if finding these requires too long a search time (e.g.
+ * most of them have ts->ref_cnt>0).
  */
 int __stktable_trash_oldest(struct stktable *t, int to_batch)
 {
 	struct stksess *ts;
 	struct eb32_node *eb;
+	int max_search = to_batch * 2; // no more than 50% misses
 	int batched = 0;
 	int looped = 0;
 
@@ -191,6 +194,9 @@ int __stktable_trash_oldest(struct stktable *t, int to_batch)
 			if (likely(!eb))
 				break;
 		}
+
+		if (--max_search < 0)
+			break;
 
 		/* timer looks expired, detach it from the queue */
 		ts = eb32_entry(eb, struct stksess, exp);
