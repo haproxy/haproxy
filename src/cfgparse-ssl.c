@@ -318,7 +318,7 @@ static int ssl_parse_global_capture_cipherlist(char **args, int section_type, st
 }
 
 /* init the SSLKEYLOGFILE pool */
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef HAVE_OPENSSL_KEYLOG
 static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *curpx,
                                        struct proxy *defpx, const char *file, int line,
                                        char **err)
@@ -1872,7 +1872,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.maxrecord", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.ssl-ctx-cache-size", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_cipherlist },
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef HAVE_OPENSSL_KEYLOG
 	{ CFG_GLOBAL, "tune.ssl.keylog", ssl_parse_global_keylog },
 #endif
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },

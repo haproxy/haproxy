@@ -226,7 +226,7 @@ struct ssl_capture {
 	char ciphersuite[VAR_ARRAY];
 };
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef HAVE_OPENSSL_KEYLOG
 #define SSL_KEYLOG_MAX_SECRET_SIZE 129
 
 struct ssl_keylog {
