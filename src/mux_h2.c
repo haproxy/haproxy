@@ -399,24 +399,24 @@ enum {
 
 static struct name_desc h2_stats[] = {
 	[H2_ST_HEADERS_RCVD]    = { .name = "h2_headers_rcvd",
-	                            .desc = "Total number of received headers frames" },
+	                            .desc = "Total number of received HEADERS frames" },
 	[H2_ST_DATA_RCVD]       = { .name = "h2_data_rcvd",
-	                            .desc = "Total number of received data frames" },
+	                            .desc = "Total number of received DATA frames" },
 	[H2_ST_SETTINGS_RCVD]   = { .name = "h2_settings_rcvd",
-	                            .desc = "Total number of received settings frames" },
+	                            .desc = "Total number of received SETTINGS frames" },
 	[H2_ST_RST_STREAM_RCVD] = { .name = "h2_rst_stream_rcvd",
-	                            .desc = "Total number of received rst_stream frames" },
+	                            .desc = "Total number of received RST_STREAM frames" },
 	[H2_ST_GOAWAY_RCVD]     = { .name = "h2_goaway_rcvd",
-	                            .desc = "Total number of received goaway frames" },
+	                            .desc = "Total number of received GOAWAY frames" },
 
 	[H2_ST_CONN_PROTO_ERR]  = { .name = "h2_detected_conn_protocol_errors",
 	                            .desc = "Total number of connection protocol errors" },
 	[H2_ST_STRM_PROTO_ERR]  = { .name = "h2_detected_strm_protocol_errors",
 	                            .desc = "Total number of stream protocol errors" },
 	[H2_ST_RST_STREAM_RESP] = { .name = "h2_rst_stream_resp",
-	                            .desc = "Total number of rst_stream sent on detected error" },
+	                            .desc = "Total number of RST_STREAM sent on detected error" },
 	[H2_ST_GOAWAY_RESP]     = { .name = "h2_goaway_resp",
-	                            .desc = "Total number of goaway sent on detected error" },
+	                            .desc = "Total number of GOAWAY sent on detected error" },
 
 	[H2_ST_OPEN_CONN]   = { .name = "h2_open_connections",
 	                        .desc = "Count of currently open connections" },
@@ -425,16 +425,16 @@ static struct name_desc h2_stats[] = {
 };
 
 static struct h2_counters {
-	long long headers_rcvd;    /* total number of headers frame received */
-	long long data_rcvd;       /* total number of data frame received */
-	long long settings_rcvd;   /* total number of settings frame received */
-	long long rst_stream_rcvd; /* total number of rst_stream frame received */
-	long long goaway_rcvd;     /* total number of goaway frame received */
+	long long headers_rcvd;    /* total number of HEADERS frame received */
+	long long data_rcvd;       /* total number of DATA frame received */
+	long long settings_rcvd;   /* total number of SETTINGS frame received */
+	long long rst_stream_rcvd; /* total number of RST_STREAM frame received */
+	long long goaway_rcvd;     /* total number of GOAWAY frame received */
 
 	long long conn_proto_err;  /* total number of protocol errors detected */
 	long long strm_proto_err;  /* total number of protocol errors detected */
-	long long rst_stream_resp; /* total number of rst_stream frame sent on error */
-	long long goaway_resp;     /* total number of goaway frame sent on error */
+	long long rst_stream_resp; /* total number of RST_STREAM frame sent on error */
+	long long goaway_resp;     /* total number of GOAWAY frame sent on error */
 
 	long long open_conns;   /* count of currently open connections */
 	long long open_streams; /* count of currently open streams */
