@@ -142,6 +142,8 @@ DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx_pool", sizeof(struct ssl_so
 /* ssl stats module */
 enum {
 	SSL_ST_CLIENT_HELLO,
+	SSL_ST_SESS,
+	SSL_ST_REUSED_SESS,
 
 	SSL_ST_STATS_COUNT /* must be the last member of the enum */
 };
@@ -149,10 +151,17 @@ enum {
 static struct name_desc ssl_stats[] = {
 	[SSL_ST_CLIENT_HELLO] = { .name = "ssl_client_hello",
 	                          .desc = "Total number of ssl client hello received" },
+	[SSL_ST_SESS]         = { .name = "ssl_sess",
+	                          .desc = "Total number of ssl sessions established" },
+	[SSL_ST_REUSED_SESS]  = { .name = "ssl_reused_sess",
+	                          .desc = "Total number of ssl sessions reused" },
 };
 
 static struct ssl_counters {
 	long long client_hello;
+
+	long long sess;
+	long long reused_sess;
 } ssl_counters;
 
 static void ssl_fill_stats(void *data, struct field *stats)
@@ -160,6 +169,8 @@ static void ssl_fill_stats(void *data, struct field *stats)
 	struct ssl_counters *counters = data;
 
 	stats[SSL_ST_CLIENT_HELLO] = mkf_u64(FN_COUNTER, counters->client_hello);
+	stats[SSL_ST_SESS]         = mkf_u64(FN_COUNTER, counters->sess);
+	stats[SSL_ST_REUSED_SESS]  = mkf_u64(FN_COUNTER, counters->reused_sess);
 }
 
 static struct stats_module ssl_stats_module = {
@@ -5118,6 +5129,9 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 {
 	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
 	int ret;
+	struct ssl_counters *counters, *counters_px;
+	struct listener *li;
+	struct server *srv;
 
 	if (!conn_ctrl_ready(conn))
 		return 0;
@@ -5359,6 +5373,25 @@ reneg_ok:
 	if (global_ssl.async)
 		SSL_clear_mode(ctx->ssl, SSL_MODE_ASYNC);
 #endif
+	switch (obj_type(conn->target)) {
+	case OBJ_TYPE_LISTENER:
+		li = objt_listener(conn->target);
+		counters = EXTRA_COUNTERS_GET(li->extra_counters, &ssl_stats_module);
+		counters_px = EXTRA_COUNTERS_GET(li->bind_conf->frontend->extra_counters_fe,
+		                                 &ssl_stats_module);
+		break;
+
+	case OBJ_TYPE_SERVER:
+		srv = objt_server(conn->target);
+		counters = EXTRA_COUNTERS_GET(srv->extra_counters, &ssl_stats_module);
+		counters_px = EXTRA_COUNTERS_GET(srv->proxy->extra_counters_be,
+		                                 &ssl_stats_module);
+		break;
+
+	default:
+		break;
+	}
+
 	/* Handshake succeeded */
 	if (!SSL_session_reused(ctx->ssl)) {
 		if (objt_server(conn->target)) {
@@ -5371,6 +5404,13 @@ reneg_ok:
 			if (global.ssl_fe_keys_per_sec.curr_ctr > global.ssl_fe_keys_max)
 				global.ssl_fe_keys_max = global.ssl_fe_keys_per_sec.curr_ctr;
 		}
+
+		++counters->sess;
+		++counters_px->sess;
+	}
+	else {
+		++counters->reused_sess;
+		++counters_px->reused_sess;
 	}
 
 	/* The connection is now established at both layers, it's time to leave */
