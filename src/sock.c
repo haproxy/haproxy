@@ -212,6 +212,7 @@ void sock_unbind(struct receiver *rx)
 	 *   - worker process unbinding from a worker's FD with socket transfer enabled => keep
 	 *   - master process unbinding from a master's inherited FD => keep
 	 *   - master process unbinding from a master's FD => close
+	 *   - master process unbinding from a worker's inherited FD => keep
 	 *   - master process unbinding from a worker's FD => close
 	 *   - worker process unbinding from a master's FD => close
 	 *   - worker process unbinding from a worker's FD => close
@@ -225,7 +226,6 @@ void sock_unbind(struct receiver *rx)
 		return;
 
 	if (!stopping && master &&
-	    rx->flags & RX_F_MWORKER &&
 	    rx->flags & RX_F_INHERITED)
 		return;
 
