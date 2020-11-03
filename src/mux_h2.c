@@ -14,7 +14,6 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
-#include <haproxy/h1.h>
 #include <haproxy/h2.h>
 #include <haproxy/hpack-dec.h>
 #include <haproxy/hpack-enc.h>
@@ -192,13 +191,12 @@ enum h2_ss {
 
 
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
- * it is being processed in the internal HTTP representation (H1 for now).
+ * it is being processed in the internal HTTP representation (HTX).
  */
 struct h2s {
 	struct conn_stream *cs;
 	struct session *sess;
 	struct h2c *h2c;
-	struct h1m h1m;         /* request or response parser state for H1 */
 	struct eb32_node by_id; /* place in h2c's streams_by_id */
 	int32_t id; /* stream ID */
 	uint32_t flags;      /* H2_SF_* */
@@ -1437,16 +1435,6 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->status    = 0;
 	h2s->body_len  = 0;
 	h2s->rxbuf     = BUF_NULL;
-
-	if (h2c->flags & H2_CF_IS_BACK) {
-		h1m_init_req(&h2s->h1m);
-		h2s->h1m.err_pos = -1; // don't care about errors on the request path
-		h2s->h1m.flags |= H1_MF_TOLOWER;
-	} else {
-		h1m_init_res(&h2s->h1m);
-		h2s->h1m.err_pos = -1; // don't care about errors on the response path
-		h2s->h1m.flags |= H1_MF_TOLOWER;
-	}
 
 	h2s->by_id.key = h2s->id = id;
 	if (id > 0)
