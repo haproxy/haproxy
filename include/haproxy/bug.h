@@ -124,7 +124,8 @@ struct mem_stats {
 	};								\
 	__asm__(".globl __start_mem_stats");				\
 	__asm__(".globl __stop_mem_stats");				\
-	_HA_ATOMIC_ADD(&_.calls, 1);					\
+	if (__x)							\
+		_HA_ATOMIC_ADD(&_.calls, 1);				\
 	free(__x);							\
 })
 
