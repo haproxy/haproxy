@@ -2140,53 +2140,16 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 #endif
 }
 
-/* This function prunes all entries of <ref>. This function
- * prunes the associated pattern_expr. It may return before the end of
- * the list is reached, returning 0, to yield. The caller must call it
- * again. Otherwise it returns 1 once done.
+/* This function prunes all entries of <ref> and all their associated
+ * pattern_expr. It may return before the end of the list is reached,
+ * returning 0, to yield, indicating to the caller that it must call it again.
+ * until it returns non-zero. All patterns are purged, both current ones and
+ * future or incomplete ones. This is used by "clear map" or "clear acl".
  */
 int pat_ref_prune(struct pat_ref *ref)
 {
-	struct pat_ref_elt *elt, *safe;
-	struct pattern_expr *expr;
-	struct bref *bref, *back;
-	int loops = 0;
-
-	list_for_each_entry(expr, &ref->pat, list) {
-		HA_RWLOCK_WRLOCK(PATEXP_LOCK, &expr->lock);
-		expr->pat_head->prune(expr);
-		HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
-		loops++;
-		/* yield often, some lists may be huge, especially those
-		 * having to be freed through free_pattern_tree()
-		 */
-		if (loops > 10)
-			return 0;
-	}
-
-	/* we trash pat_ref_elt in a second time to ensure that data is
-	   free once there is no ref on it */
-	list_for_each_entry_safe(elt, safe, &ref->head, list) {
-		list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
-			/*
-			 * we have to unlink all watchers. We must not relink them if
-			 * this elt  was the last one in the list.
-			 */
-			LIST_DEL(&bref->users);
-			LIST_INIT(&bref->users);
-			if (elt->list.n != &ref->head)
-				LIST_ADDQ(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
-			bref->ref = elt->list.n;
-		}
-		LIST_DEL(&elt->list);
-		free(elt->pattern);
-		free(elt->sample);
-		free(elt);
-		loops++;
-		if (loops > 100000)
-			return 0;
-	}
-	return 1;
+	return pat_ref_purge_older(ref, ref->curr_gen + 1, 100) &&
+	       pat_ref_purge_older(ref, ref->next_gen + 1, 100);
 }
 
 /* This function looks up any existing reference <ref> in pattern_head <head>, and
