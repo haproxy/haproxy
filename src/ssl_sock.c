@@ -141,18 +141,25 @@ DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx_pool", sizeof(struct ssl_so
 
 /* ssl stats module */
 enum {
+	SSL_ST_CLIENT_HELLO,
+
 	SSL_ST_STATS_COUNT /* must be the last member of the enum */
 };
 
 static struct name_desc ssl_stats[] = {
+	[SSL_ST_CLIENT_HELLO] = { .name = "ssl_client_hello",
+	                          .desc = "Total number of ssl client hello received" },
 };
 
 static struct ssl_counters {
+	long long client_hello;
 } ssl_counters;
 
 static void ssl_fill_stats(void *data, struct field *stats)
 {
-	//struct ssl_counters *counters = data;
+	struct ssl_counters *counters = data;
+
+	stats[SSL_ST_CLIENT_HELLO] = mkf_u64(FN_COUNTER, counters->client_hello);
 }
 
 static struct stats_module ssl_stats_module = {
@@ -2308,6 +2315,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	struct ebmb_node *node, *n, *node_ecdsa = NULL, *node_rsa = NULL, *node_anonymous = NULL;
 	int allow_early = 0;
 	int i;
+	struct ssl_counters *counters;
 
 	conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 	s = __objt_listener(conn->target)->bind_conf;
@@ -2533,6 +2541,10 @@ allow_early:
 	if (!allow_early)
 		SSL_set_max_early_data(ssl, 0);
 #endif
+	counters = EXTRA_COUNTERS_GET(s->frontend->extra_counters_fe,
+	                              &ssl_stats_module);
+	++counters->client_hello;
+
 	return 1;
  abort:
 	/* abort handshake (was SSL_TLSEXT_ERR_ALERT_FATAL) */
