@@ -303,6 +303,10 @@ void pool_gc(struct pool_head *pool_ctx)
 
 	if (!isolated)
 		thread_release();
+
+#if defined(HA_HAVE_MALLOC_TRIM)
+	malloc_trim(0);
+#endif
 }
 
 #else /* CONFIG_HAP_LOCKLESS_POOLS */
