@@ -120,8 +120,8 @@ struct pat_ref {
 struct pat_ref_elt {
 	struct list list; /* Used to chain elements. */
 	struct list back_refs; /* list of users tracking this pat ref */
-	struct list list_head; /* all pattern_list derived from this reference */
-	struct list tree_head; /* all pattern_tree derived from this reference */
+	void *list_head; /* all &pattern_list->from_ref derived from this reference, ends with NULL */
+	void *tree_head; /* all &pattern_tree->from_ref derived from this reference, ends with NULL */
 	char *pattern;
 	char *sample;
 	unsigned int gen_id; /* generation of pat_ref this was made for */
@@ -132,7 +132,7 @@ struct pat_ref_elt {
  * "sample" with a tree entry. It is used with maps.
  */
 struct pattern_tree {
-	struct list from_ref;      // pattern_tree linked from pat_ref_elt
+	void *from_ref;    // pattern_tree linked from pat_ref_elt, ends with NULL
 	struct sample_data *data;
 	struct pat_ref_elt *ref;
 	struct ebmb_node node;
@@ -177,7 +177,7 @@ struct pattern {
 
 /* This struct is just used for chaining patterns */
 struct pattern_list {
-	struct list from_ref;      // pattern_tree linked from pat_ref_elt
+	void *from_ref;    // pattern_tree linked from pat_ref_elt, ends with NULL
 	struct list list;
 	struct pattern pat;
 };
