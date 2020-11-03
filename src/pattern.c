@@ -2101,6 +2101,10 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 		HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 	}
 	HA_SPIN_UNLOCK(PATREF_LOCK, &ref->lock);
+
+#if defined(HA_HAVE_MALLOC_TRIM)
+	malloc_trim(0);
+#endif
 }
 
 /* This function prunes all entries of <ref>. This function
