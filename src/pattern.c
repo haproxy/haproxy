@@ -1120,6 +1120,23 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 	return NULL;
 }
 
+/* finds the pattern holding <list> from list head <head> and deletes it.
+ * This is made for use for pattern removal within an expression.
+ */
+static void pat_unlink_from_head(struct list *head, struct list *list)
+{
+	struct list *next;
+
+	next = head->n;
+	while (next != head) {
+		if (next == list) {
+			LIST_DEL(list);
+			return;
+		}
+		next = next->n;
+	}
+}
+
 void free_pattern_tree(struct eb_root *root)
 {
 	struct eb_node *node, *next;
@@ -1130,7 +1147,7 @@ void free_pattern_tree(struct eb_root *root)
 		next = eb_next(node);
 		eb_delete(node);
 		elt = container_of(node, struct pattern_tree, node);
-		LIST_DEL(&elt->from_ref);
+		pat_unlink_from_head(&elt->ref->tree_head, &elt->from_ref);
 		free(elt->data);
 		free(elt);
 		node = next;
@@ -1143,7 +1160,7 @@ void pat_prune_gen(struct pattern_expr *expr)
 
 	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
 		LIST_DEL(&pat->list);
-		LIST_DEL(&pat->from_ref);
+		pat_unlink_from_head(&pat->pat.ref->list_head, &pat->from_ref);
 		if (pat->pat.sflags & PAT_SF_REGFREE)
 			regex_free(pat->pat.ptr.ptr);
 		else
