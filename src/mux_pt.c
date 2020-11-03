@@ -26,23 +26,31 @@ DECLARE_STATIC_POOL(pool_head_pt_ctx, "mux_pt", sizeof(struct mux_pt_ctx));
 
 static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 {
-	/* The connection must be aattached to this mux to be released */
-	if (ctx && ctx->conn && ctx->conn->ctx == ctx) {
-		struct connection *conn = ctx->conn;
+	struct connection *conn = NULL;
+
+	if (ctx) {
+		/* The connection must be attached to this mux to be released */
+		if (ctx->conn && ctx->conn->ctx == ctx)
+			conn = ctx->conn;
+
+		tasklet_free(ctx->wait_event.tasklet);
+
+		if (conn && ctx->wait_event.events != 0)
+			conn->xprt->unsubscribe(conn, conn->xprt_ctx, ctx->wait_event.events,
+						&ctx->wait_event);
+		pool_free(pool_head_pt_ctx, ctx);
+	}
+
+	if (conn) {
+		conn->mux = NULL;
+		conn->ctx = NULL;
 
 		conn_stop_tracking(conn);
 		conn_full_close(conn);
-		tasklet_free(ctx->wait_event.tasklet);
-		conn->mux = NULL;
-		conn->ctx = NULL;
 		if (conn->destroy_cb)
 			conn->destroy_cb(conn);
-		/* We don't bother unsubscribing here, as we're about to destroy
-		 * both the connection and the mux_pt_ctx
-		 */
 		conn_free(conn);
 	}
-	pool_free(pool_head_pt_ctx, ctx);
 }
 
 /* Callback, used when we get I/Os while in idle mode */
