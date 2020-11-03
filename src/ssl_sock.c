@@ -70,7 +70,7 @@
 #include <haproxy/ssl_crtlist.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/ssl_utils.h>
-#include <haproxy/stats-t.h>
+#include <haproxy/stats.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -138,6 +138,35 @@ struct global_ssl global_ssl = {
 static BIO_METHOD *ha_meth;
 
 DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx_pool", sizeof(struct ssl_sock_ctx));
+
+/* ssl stats module */
+enum {
+	SSL_ST_STATS_COUNT /* must be the last member of the enum */
+};
+
+static struct name_desc ssl_stats[] = {
+};
+
+static struct ssl_counters {
+} ssl_counters;
+
+static void ssl_fill_stats(void *data, struct field *stats)
+{
+	//struct ssl_counters *counters = data;
+}
+
+static struct stats_module ssl_stats_module = {
+	.name          = "ssl",
+	.fill_stats    = ssl_fill_stats,
+	.stats         = ssl_stats,
+	.stats_count   = SSL_ST_STATS_COUNT,
+	.counters      = &ssl_counters,
+	.counters_size = sizeof(ssl_counters),
+	.domain_flags  = MK_STATS_PROXY_DOMAIN(STATS_PX_CAP_FE|STATS_PX_CAP_LI|STATS_PX_CAP_BE|STATS_PX_CAP_SRV),
+	.clearable     = 1,
+};
+
+INITCALL1(STG_REGISTER, stats_register_module, &ssl_stats_module);
 
 static struct task *ssl_sock_io_cb(struct task *, void *, unsigned short);
 static int ssl_sock_handshake(struct connection *conn, unsigned int flag);
