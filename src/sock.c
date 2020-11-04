@@ -621,6 +621,7 @@ void sock_accept_iocb(int fd)
 	if (!l)
 		return;
 
+	BUG_ON(!!master != !!(l->rx.flags & RX_F_MWORKER));
 	listener_accept(l);
 }
 
