@@ -186,21 +186,17 @@ int sock_create_server_socket(struct connection *conn)
 	return my_socketat(ns, conn->dst->ss_family, SOCK_STREAM, 0);
 }
 
-/* Enables receiving on receiver <rx> once already bound. Does nothing in early
- * boot (needs fd_updt).
- */
+/* Enables receiving on receiver <rx> once already bound. */
 void sock_enable(struct receiver *rx)
 {
-        if (rx->flags & RX_F_BOUND && fd_updt)
-		fd_want_recv(rx->fd);
+        if (rx->flags & RX_F_BOUND)
+		fd_want_recv_safe(rx->fd);
 }
 
-/* Disables receiving on receiver <rx> once already bound. Does nothing in early
- * boot (needs fd_updt).
- */
+/* Disables receiving on receiver <rx> once already bound. */
 void sock_disable(struct receiver *rx)
 {
-        if (rx->flags & RX_F_BOUND && fd_updt)
+        if (rx->flags & RX_F_BOUND)
 		fd_stop_recv(rx->fd);
 }
 

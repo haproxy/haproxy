@@ -153,21 +153,19 @@ static void uxst_add_listener(struct listener *listener, int port)
 }
 
 /* Enable receipt of incoming connections for listener <l>. The receiver must
- * still be valid. Does nothing in early boot (needs fd_updt).
+ * still be valid.
  */
 static void uxst_enable_listener(struct listener *l)
 {
-	if (fd_updt)
-		fd_want_recv(l->rx.fd);
+	fd_want_recv_safe(l->rx.fd);
 }
 
 /* Disable receipt of incoming connections for listener <l>. The receiver must
- * still be valid. Does nothing in early boot (needs fd_updt).
+ * still be valid.
  */
 static void uxst_disable_listener(struct listener *l)
 {
-	if (fd_updt)
-		fd_stop_recv(l->rx.fd);
+	fd_stop_recv(l->rx.fd);
 }
 
 /* Suspend a receiver. Returns < 0 in case of failure, 0 if the receiver
