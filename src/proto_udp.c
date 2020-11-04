@@ -206,6 +206,12 @@ static int udp_suspend_receiver(struct receiver *rx)
 	if (rx->fd < 0)
 		return 0;
 
+	/* we never do that with a shared FD otherwise we'd break it in the
+	 * parent process and any possible subsequent worker inheriting it.
+	 */
+	if (rx->flags & RX_F_INHERITED)
+		return -1;
+
 	if (getsockname(rx->fd, (struct sockaddr *)&ss, &len) < 0)
 		return -1;
 

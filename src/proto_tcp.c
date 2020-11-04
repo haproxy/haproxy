@@ -774,6 +774,12 @@ static int tcp_suspend_receiver(struct receiver *rx)
 	const struct sockaddr sa = { .sa_family = AF_UNSPEC };
 	int ret;
 
+	/* we never do that with a shared FD otherwise we'd break it in the
+	 * parent process and any possible subsequent worker inheriting it.
+	 */
+	if (rx->flags & RX_F_INHERITED)
+		return -1;
+
 	if (connect(rx->fd, &sa, sizeof(sa)) < 0)
 		goto check_already_done;
 
