@@ -288,6 +288,18 @@ static inline void fd_want_recv(int fd)
 	updt_fd_polling(fd);
 }
 
+/* Prepare FD <fd> to try to receive, and only create update if fd_updt exists
+ * (essentially for receivers during early boot).
+ */
+static inline void fd_want_recv_safe(int fd)
+{
+	if ((fdtab[fd].state & FD_EV_ACTIVE_R) ||
+	    HA_ATOMIC_BTS(&fdtab[fd].state, FD_EV_ACTIVE_R_BIT))
+		return;
+	if (fd_updt)
+		updt_fd_polling(fd);
+}
+
 /* Prepare FD <fd> to try to send */
 static inline void fd_want_send(int fd)
 {
