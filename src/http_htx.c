@@ -891,7 +891,7 @@ unsigned int http_get_htx_fhdr(const struct htx *htx, const struct ist hdr,
 	return 1;
 }
 
-int http_str_to_htx(struct buffer *buf, struct ist raw)
+int http_str_to_htx(struct buffer *buf, struct ist raw, char **errmsg)
 {
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -917,17 +917,24 @@ int http_str_to_htx(struct buffer *buf, struct ist raw)
 	h1m.flags |= H1_MF_NO_PHDR;
 	ret = h1_headers_to_hdr_list(raw.ptr, raw.ptr + raw.len,
 				     hdrs, sizeof(hdrs)/sizeof(hdrs[0]), &h1m, &h1sl);
-	if (ret <= 0)
+	if (ret <= 0) {
+		memprintf(errmsg, "unabled to parse headers (error offset: %d)", h1m.err_pos);
 		goto error;
+	}
 
-	if (unlikely(h1sl.st.v.len != 8))
+	if (unlikely(h1sl.st.v.len != 8)) {
+		memprintf(errmsg, "invalid http version (%.*s)", (int)h1sl.st.v.len, h1sl.st.v.ptr);
 		goto error;
+	}
 	if ((*(h1sl.st.v.ptr + 5) > '1') ||
 	    ((*(h1sl.st.v.ptr + 5) == '1') && (*(h1sl.st.v.ptr + 7) >= '1')))
 		h1m.flags |= H1_MF_VER_11;
 
-	if (h1sl.st.status < 200 && (h1sl.st.status == 100 || h1sl.st.status >= 102))
+	if (h1sl.st.status < 200 && (h1sl.st.status == 100 || h1sl.st.status >= 102)) {
+		memprintf(errmsg, "invalid http status code for an error message (%u)",
+			  h1sl.st.status);
 		goto error;
+	}
 
 	if (h1sl.st.status == 204 || h1sl.st.status == 304) {
 		/* Responses known to have no body. */
@@ -944,8 +951,10 @@ int http_str_to_htx(struct buffer *buf, struct ist raw)
 		flags |= HTX_SL_F_XFER_ENC;
 	if (h1m.flags & H1_MF_XFER_LEN) {
 		flags |= HTX_SL_F_XFER_LEN;
-		if (h1m.flags & H1_MF_CHNK)
-			goto error; /* Unsupported because there is no body parsing */
+		if (h1m.flags & H1_MF_CHNK) {
+			memprintf(errmsg, "chunk-encoded payload not supported");
+			goto error;
+		}
 		else if (h1m.flags & H1_MF_CLEN) {
 			flags |= HTX_SL_F_CLEN;
 			if (h1m.body_len == 0)
@@ -955,26 +964,37 @@ int http_str_to_htx(struct buffer *buf, struct ist raw)
 			flags |= HTX_SL_F_BODYLESS;
 	}
 
-	if ((flags & HTX_SL_F_BODYLESS) && raw.len > ret)
-		goto error; /* No body expected */
-	if ((flags & HTX_SL_F_CLEN) && h1m.body_len != (raw.len - ret))
-		goto error; /* body with wrong length */
+	if ((flags & HTX_SL_F_BODYLESS) && raw.len > ret) {
+		memprintf(errmsg, "message payload not expected");
+		goto error;
+	}
+	if ((flags & HTX_SL_F_CLEN) && h1m.body_len != (raw.len - ret)) {
+		memprintf(errmsg, "payload size does not match the announced content-length (%lu != %lu)",
+			  (raw.len - ret), h1m.body_len);
+		goto error;
+	}
 
 	htx = htx_from_buf(buf);
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, h1sl.st.v, h1sl.st.c, h1sl.st.r);
-	if (!sl || !htx_add_all_headers(htx, hdrs))
+	if (!sl || !htx_add_all_headers(htx, hdrs)) {
+		memprintf(errmsg, "unable to add headers into the HTX message");
 		goto error;
+	}
 	sl->info.res.status = h1sl.st.status;
 
 	while (raw.len > ret) {
 		int sent = htx_add_data(htx, ist2(raw.ptr + ret, raw.len - ret));
-		if (!sent)
+		if (!sent) {
+			memprintf(errmsg, "unable to add payload into the HTX message");
 			goto error;
+		}
 		ret += sent;
 	}
 
-	if (!htx_add_endof(htx, HTX_BLK_EOM))
+	if (!htx_add_endof(htx, HTX_BLK_EOM)) {
+		memprintf(errmsg, "unable to add EOM into the HTX message");
 		goto error;
+	}
 
 	return 1;
 
@@ -1027,22 +1047,32 @@ static int http_htx_init(void)
 {
 	struct buffer chk;
 	struct ist raw;
+	char *errmsg = NULL;
 	int rc;
 	int err_code = 0;
 
 	for (rc = 0; rc < HTTP_ERR_SIZE; rc++) {
 		if (!http_err_msgs[rc]) {
-			ha_alert("Internal error: no message defined for HTTP return code %d", rc);
+			ha_alert("Internal error: no default message defined for HTTP return code %d", rc);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			continue;
 		}
 
 		raw = ist2(http_err_msgs[rc], strlen(http_err_msgs[rc]));
-		if (!http_str_to_htx(&chk, raw)) {
-			ha_alert("Internal error: Unable to convert message in HTX for HTTP return code %d.\n",
-				 http_err_codes[rc]);
+		if (!http_str_to_htx(&chk, raw, &errmsg)) {
+			ha_alert("Internal error: invalid default message for HTTP return code %d: %s.\n",
+				 http_err_codes[rc], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
+		else if (errmsg) {
+			ha_warning("invalid default message for HTTP return code %d: %s.\n", http_err_codes[rc], errmsg);
+			err_code |= ERR_WARN;
+		}
+
+		/* Reset errmsg */
+		free(errmsg);
+		errmsg = NULL;
+
 		http_err_chunks[rc] = chk;
 		http_err_replies[rc].type = HTTP_REPLY_ERRMSG;
 		http_err_replies[rc].status = http_err_codes[rc];
@@ -1155,8 +1185,8 @@ struct buffer *http_load_errorfile(const char *file, char **errmsg)
 	}
 
 	/* Convert the error file into an HTX message */
-	if (!http_str_to_htx(&chk, ist2(err, errlen))) {
-		memprintf(errmsg, "unable to convert custom error message file '%s' in HTX.", file);
+	if (!http_str_to_htx(&chk, ist2(err, errlen), errmsg)) {
+		memprintf(errmsg, "'%s': %s", file, *errmsg);
 		free(http_errmsg->node.key);
 		free(http_errmsg);
 		goto out;
@@ -1206,8 +1236,8 @@ struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **
 	}
 
 	/* Convert the error file into an HTX message */
-	if (!http_str_to_htx(&chk, msg)) {
-		memprintf(errmsg, "unable to convert message in HTX.");
+	if (!http_str_to_htx(&chk, msg, errmsg)) {
+		memprintf(errmsg, "invalid error message: %s", *errmsg);
 		free(http_errmsg->node.key);
 		free(http_errmsg);
 		goto out;
@@ -1757,6 +1787,9 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 	conf_err->line = line;
 	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
 
+	/* handle warning message */
+	if (*errmsg)
+		ret = 1;
   out:
 	return ret;
 
@@ -1819,6 +1852,9 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 	conf_err->line = line;
 	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
 
+	/* handle warning message */
+	if (*errmsg)
+		ret = 1;
   out:
 	return ret;
 
