@@ -96,6 +96,11 @@ HAProxy requires a working GCC or Clang toolchain and GNU make :
     your operating system is very likely to work with no trouble. Clang >= 3.0
     is also known to work as an alternative solution. Recent versions may emit
     a bit more warnings that are worth reporting as they may reveal real bugs.
+    TCC (https://repo.or.cz/tinycc.git) is also usable for developers but will
+    not support threading and was found at least once to produce bad code in
+    some rare corner cases (since fixed). But it builds extremely quickly
+    (typically half a second for the whole project) and is very convenient to
+    run quick tests during API changes or code refactoring.
 
   - GNU ld (binutils package), with no particular version. Other linkers might
     work but were not tested.
