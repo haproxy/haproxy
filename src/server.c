@@ -5244,11 +5244,10 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 	struct eb32_node *eb;
 	int i;
 	unsigned int next_wakeup;
-	int need_wakeup = 0;
 
+	next_wakeup = TICK_ETERNITY;
 	HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
 	while (1) {
-		int srv_is_empty = 1;
 		int exceed_conns;
 		int to_kill;
 		int curr_idle;
@@ -5267,7 +5266,6 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 		if (tick_is_lt(now_ms, eb->key)) {
 			/* timer not expired yet, revisit it later */
 			next_wakeup = eb->key;
-			need_wakeup = 1;
 			break;
 		}
 		srv = eb32_entry(eb, struct server, idle_node);
@@ -5283,7 +5281,7 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 		exceed_conns = srv->curr_used_conns + curr_idle - MAX(srv->max_used_conns, srv->est_need_conns);
 		exceed_conns = to_kill = exceed_conns / 2 + (exceed_conns & 1);
 
-		srv->est_need_conns = (srv->est_need_conns + srv->max_used_conns + 1) / 2;
+		srv->est_need_conns = (srv->est_need_conns + srv->max_used_conns) / 2;
 		if (srv->est_need_conns < srv->max_used_conns)
 			srv->est_need_conns = srv->max_used_conns;
 
@@ -5308,8 +5306,6 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 			    srv_migrate_conns_to_remove(&srv->safe_conns[i], &idle_conns[i].toremove_conns, max_conn - j) > 0)
 				did_remove = 1;
 
-			if (did_remove && max_conn < srv->curr_idle_thr[i])
-				srv_is_empty = 0;
 			if (did_remove)
 				task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
 
@@ -5318,22 +5314,19 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 		}
 remove:
 		eb32_delete(&srv->idle_node);
-		if (!srv_is_empty) {
+
+		if (srv->curr_idle_conns) {
 			/* There are still more idle connections, add the
 			 * server back in the tree.
 			 */
-			srv->idle_node.key = tick_add(srv->pool_purge_delay,
-			    now_ms);
+			srv->idle_node.key = tick_add(srv->pool_purge_delay, now_ms);
 			eb32_insert(&idle_conn_srv, &srv->idle_node);
+			next_wakeup = tick_first(next_wakeup, srv->idle_node.key);
 		}
 	}
 	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
 
-	if (need_wakeup)
-		task->expire = next_wakeup;
-	else
-		task->expire = TICK_ETERNITY;
-
+	task->expire = next_wakeup;
 	return task;
 }
 
