@@ -1,6 +1,10 @@
 ChangeLog :
 ===========
 
+2020/11/05 : 2.4-dev0
+    - MINOR: version: it's development again.
+    - DOC: mention in INSTALL that it's development again
+
 2020/11/05 : 2.3.0
     - CLEANUP: pattern: remove unused entry "tree" in pattern.val
     - BUILD: ssl: use SSL_CTRL_GET_RAW_CIPHERLIST instead of OpenSSL versions
