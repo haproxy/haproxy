@@ -2993,7 +2993,7 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const struct cert_key_and_chain
 		/* Clear openssl global errors stack */
 		ERR_clear_error();
 
-		if (global_ssl.default_dh_param <= 1024) {
+		if (global_ssl.default_dh_param && global_ssl.default_dh_param <= 1024) {
 			/* we are limited to DH parameter of 1024 bits anyway */
 			if (local_dh_1024 == NULL)
 				local_dh_1024 = ssl_get_dh_1024();
