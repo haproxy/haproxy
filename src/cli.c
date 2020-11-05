@@ -66,6 +66,7 @@
 #define PAYLOAD_PATTERN "<<"
 
 static struct applet cli_applet;
+static struct applet mcli_applet;
 
 static const char stats_sock_usage_msg[] =
 	"Unknown command. Please enter one of the following commands only :\n"
@@ -110,11 +111,11 @@ static char *cli_gen_usage_msg(struct appctx *appctx)
 		while (kw->str_kw[0]) {
 
 			/* in a worker or normal process, don't display master only commands */
-			if (master == 0 && (kw->level & ACCESS_MASTER_ONLY))
+			if (appctx->applet == &cli_applet && (kw->level & ACCESS_MASTER_ONLY))
 				goto next_kw;
 
 			/* in master don't displays if we don't have the master bits */
-			if (master == 1 && !(kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
+			if (appctx->applet == &mcli_applet && !(kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
 				goto next_kw;
 
 			/* only show expert commands in expert mode */
@@ -566,11 +567,11 @@ static int cli_parse_request(struct appctx *appctx)
 		return 0;
 
 	/* in a worker or normal process, don't display master only commands */
-	if (master == 0 && (kw->level & ACCESS_MASTER_ONLY))
+	if (appctx->applet == &cli_applet && (kw->level & ACCESS_MASTER_ONLY))
 		return 0;
 
 	/* in master don't displays if we don't have the master bits */
-	if (master == 1 && !(kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
+	if (appctx->applet == &mcli_applet && !(kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
 		return 0;
 
 	/* only accept expert commands in expert mode */
@@ -1837,9 +1838,9 @@ static enum obj_type *pcli_pid_to_server(int proc_pid)
 {
 	struct mworker_proc *child;
 
-	/* return the CLI applet of the master */
+	/* return the  mCLI applet of the master */
 	if (proc_pid == 0)
-		return &cli_applet.obj_type;
+		return &mcli_applet.obj_type;
 
 	list_for_each_entry(child, &proc_list, list) {
 		if (child->pid == proc_pid){
@@ -2691,6 +2692,14 @@ error:
 static struct applet cli_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<CLI>", /* used for logging */
+	.fct = cli_io_handler,
+	.release = cli_release_handler,
+};
+
+/* master CLI */
+static struct applet mcli_applet = {
+	.obj_type = OBJ_TYPE_APPLET,
+	.name = "<MCLI>", /* used for logging */
 	.fct = cli_io_handler,
 	.release = cli_release_handler,
 };
