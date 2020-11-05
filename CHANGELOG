@@ -1,6 +1,41 @@
 ChangeLog :
 ===========
 
+2020/11/05 : 2.3.0
+    - CLEANUP: pattern: remove unused entry "tree" in pattern.val
+    - BUILD: ssl: use SSL_CTRL_GET_RAW_CIPHERLIST instead of OpenSSL versions
+    - BUG/MEDIUM: filters: Don't try to init filters for disabled proxies
+    - BUG/MINOR: proxy/server: Skip per-proxy/server post-check for disabled proxies
+    - BUG/MINOR: checks: Report a socket error before any connection attempt
+    - BUG/MINOR: server: Set server without addr but with dns in RMAINT on startup
+    - MINOR: server: Copy configuration file and line for server templates
+    - BUG/MEDIUM: mux-pt: Release the tasklet during an HTTP upgrade
+    - BUILD: ssl: use HAVE_OPENSSL_KEYLOG instead of OpenSSL versions
+    - MINOR: debug: don't count free(NULL) in memstats
+    - BUG/MINOR: filters: Skip disabled proxies during startup only
+    - MINOR: mux_h2: capitalize frame type in stats
+    - MINOR: mux_h2: add stat for total count of connections/streams
+    - MINOR: stats: do not display empty stat module title on html
+    - BUG/MEDIUM: stick-table: limit the time spent purging old entries
+    - BUG/MEDIUM: listener: only enable a listening listener if needed
+    - BUG/MEDIUM: listener: never suspend inherited sockets
+    - BUG/MEDIUM: listener: make the master also keep workers' inherited FDs
+    - MINOR: fd: add fd_want_recv_safe()
+    - MEDIUM: listeners: make use of fd_want_recv_safe() to enable early receivers
+    - REGTESTS: mark abns_socket as working now
+    - CLEANUP: mux-h2: Remove the h1 parser state from the h2 stream
+    - MINOR: sock: add a check against cross worker<->master socket activities
+    - CI: github actions: limit OpenSSL no-deprecated builds to "default,bug,devel" reg-tests
+    - BUG/MEDIUM: server: make it possible to kill last idle connections
+    - MINOR: mworker/cli: the master CLI use its own applet
+    - MINOR: ssl: define SSL_CTX_set1_curves_list to itself on BoringSSL
+    - BUILD: ssl: use feature macros for detecting ec curves manipulation support
+    - DOC: Add dns as an available domain to show stat
+    - BUILD: makefile: usual reorder of objects for faster builds
+    - DOC: update INSTALL to mention that TCC is supported
+    - DOC: mention in INSTALL that haproxy 2.3 is a stable version
+    - MINOR: version: mention that it's stable now
+
 2020/10/31 : 2.3-dev9
     - CLEANUP: http_ana: remove unused assignation of `att_beg`
     - BUG/MEDIUM: ssl: OCSP must work with BoringSSL
