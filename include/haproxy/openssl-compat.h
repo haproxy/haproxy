@@ -383,5 +383,15 @@ static inline void SSL_CTX_up_ref(SSL_CTX *ctx)
 #define EVP_MD_CTX_free EVP_MD_CTX_destroy
 #endif
 
+/* OpenSSL 1.0.2 and onwards define SSL_CTX_set1_curves_list which is both a
+ * function and a macro. OpenSSL 1.0.2 to 1.1.0 define SSL_CTRL_SET_CURVES_LIST
+ * as a macro, which disappeared from 1.1.1. BoringSSL only has that one and
+ * not the former macro but it does have the function. Let's keep the test on
+ * the macro matching the function name.
+ */
+#if !defined(SSL_CTX_set1_curves_list) && defined(SSL_CTRL_SET_CURVES_LIST)
+#define SSL_CTX_set1_curves_list SSL_CTX_set1_curves_list
+#endif
+
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_OPENSSL_COMPAT_H */
