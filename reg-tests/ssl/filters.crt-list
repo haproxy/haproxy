@@ -1,0 +1,2 @@
+common.pem *.bug810.domain.tld record.bug810.domain.tld *.bug818.domain.tld !another-record.bug818.domain.tld
+ecdsa.pem record.bug810.domain.tld another-record.bug810.domain.tld *.bug818.domain.tld
