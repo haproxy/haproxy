@@ -5222,7 +5222,6 @@ static void srv_cleanup_connections(struct server *srv)
 	int i;
 
 	/* check all threads starting with ours */
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conn_srv_lock);
 	for (i = tid;;) {
 		did_remove = 0;
 		if (srv_migrate_conns_to_remove(&srv->idle_conns[i], &idle_conns[i].toremove_conns, -1) > 0)
@@ -5235,7 +5234,6 @@ static void srv_cleanup_connections(struct server *srv)
 		if ((i = ((i + 1 == global.nbthread) ? 0 : i + 1)) == tid)
 			break;
 	}
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conn_srv_lock);
 }
 
 struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsigned short state)
