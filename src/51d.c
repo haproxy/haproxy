@@ -625,7 +625,7 @@ static int init_51degrees(void)
 	fiftyoneDegreesDataSetInitStatus _51d_dataset_status = DATA_SET_INIT_STATUS_NOT_SET;
 
 	if (!global_51degrees.data_file_path)
-		return 0;
+		return ERR_NONE;
 
 	if (global.nbthread < 1) {
 		ha_alert("51Degrees: The thread count cannot be zero or negative.\n");
@@ -708,7 +708,7 @@ static int init_51degrees(void)
 	}
 #endif
 
-	return 0;
+	return ERR_NONE;
 }
 
 static void deinit_51degrees(void)

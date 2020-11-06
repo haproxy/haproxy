@@ -894,7 +894,7 @@ static int init_debug()
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(DEBUGSIG, &sa, NULL);
-	return 0;
+	return ERR_NONE;
 }
 
 REGISTER_POST_CHECK(init_debug);

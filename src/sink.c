@@ -972,7 +972,7 @@ int cfg_post_parse_ring()
 */
 int post_sink_resolve()
 {
-	int err_code = 0;
+	int err_code = ERR_NONE;
 	struct logsrv *logsrv, *logb;
 	struct sink *sink;
 	struct proxy *px;

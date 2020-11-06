@@ -3470,7 +3470,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	struct tcpcheck_rule *chk, *back;
 	char *comment = NULL, *errmsg = NULL;
 	enum tcpcheck_rule_type prev_action = TCPCHK_ACT_COMMENT;
-	int ret = 0;
+	int ret = ERR_NONE;
 
 	if (!(px->cap & PR_CAP_BE) || (px->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK) {
 		deinit_proxy_tcpcheck(px);

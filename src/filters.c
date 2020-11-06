@@ -288,7 +288,7 @@ static int
 flt_init_all()
 {
 	struct proxy *px;
-	int err_code = 0;
+	int err_code = ERR_NONE;
 
 	for (px = proxies_list; px; px = px->next) {
 		if (px->disabled) {

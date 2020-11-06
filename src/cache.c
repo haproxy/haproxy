@@ -1533,7 +1533,7 @@ int post_check_cache()
 	struct cache *back, *cache_config, *cache;
 	struct shared_context *shctx;
 	int ret_shctx;
-	int err_code = 0;
+	int err_code = ERR_NONE;
 
 	list_for_each_entry_safe(cache_config, back, &caches_config, list) {
 

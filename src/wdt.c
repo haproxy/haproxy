@@ -174,7 +174,7 @@ int init_wdt()
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_SIGINFO;
 	sigaction(WDTSIG, &sa, NULL);
-	return 0;
+	return ERR_NONE;
 }
 
 REGISTER_POST_CHECK(init_wdt);

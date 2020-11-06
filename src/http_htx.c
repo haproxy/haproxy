@@ -2005,7 +2005,7 @@ static int proxy_check_errors(struct proxy *px)
 {
 	struct conf_errors *conf_err, *conf_err_back;
 	struct http_errors *http_errs;
-	int rc, err = 0;
+	int rc, err = ERR_NONE;
 
 	list_for_each_entry_safe(conf_err, conf_err_back, &px->conf.errors, list) {
 		if (conf_err->type == 1) {
@@ -2061,7 +2061,7 @@ static int post_check_errors()
 	struct ebpt_node *node;
 	struct http_error_msg *http_errmsg;
 	struct htx *htx;
-	int err_code = 0;
+	int err_code = ERR_NONE;
 
 	node = ebpt_first(&http_error_messages);
 	while (node) {

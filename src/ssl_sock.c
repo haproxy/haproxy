@@ -612,7 +612,7 @@ static int ssl_sock_register_msg_callbacks(void)
 	}
 #endif
 
-	return 0;
+	return ERR_NONE;
 }
 
 /* Used to free all SSL/TLS protocol message callbacks that were
@@ -1245,7 +1245,7 @@ static int tlskeys_finalize_config(void)
 	/* swap root */
 	LIST_ADD(&tkr, &tlskeys_reference);
 	LIST_DEL(&tkr);
-	return 0;
+	return ERR_NONE;
 }
 #endif /* SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB */
 
@@ -6306,7 +6306,7 @@ void ssl_free_global_issuers(void)
 
 #ifndef OPENSSL_NO_ENGINE
 static int ssl_check_async_engine_count(void) {
-	int err_code = 0;
+	int err_code = ERR_NONE;
 
 	if (global_ssl.async && (openssl_engines_initialized > 32)) {
 		ha_alert("ssl-mode-async only supports a maximum of 32 engines.\n");

@@ -119,7 +119,7 @@ static void da_haproxy_log(da_severity_t severity, da_status_t status,
  */
 static int init_deviceatlas(void)
 {
-	int err_code = 0;
+	int err_code = ERR_NONE;
 
 	if (global_deviceatlas.jsonpath != 0) {
 		FILE *jsonp;

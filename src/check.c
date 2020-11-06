@@ -1142,7 +1142,7 @@ static int start_checks()
 	}
 
 	if (!nbcheck)
-		return 0;
+		return ERR_NONE;
 
 	srand((unsigned)time(NULL));
 
@@ -1180,7 +1180,7 @@ static int start_checks()
 			}
 		}
 	}
-	return 0;
+	return ERR_NONE;
 }
 
 
@@ -1227,7 +1227,7 @@ static int init_srv_check(struct server *srv)
 {
 	const char *err;
 	struct tcpcheck_rule *r;
-	int ret = 0;
+	int ret = ERR_NONE;
 	int check_type;
 
 	if (!srv->do_check)
@@ -1353,7 +1353,7 @@ static int init_srv_agent_check(struct server *srv)
 {
 	struct tcpcheck_rule *chk;
 	const char *err;
-	int ret = 0;
+	int ret = ERR_NONE;
 
 	if (!srv->do_agent)
 		goto out;

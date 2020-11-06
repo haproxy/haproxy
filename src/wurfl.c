@@ -263,7 +263,7 @@ static int ha_wurfl_init(void)
 	// wurfl-data-file not configured, WURFL is not used so don't try to
 	// configure it.
 	if (global_wurfl.data_file == NULL)
-		return 0;
+		return ERR_NONE;
 
 	ha_notice("WURFL: Loading module v.%s\n", HA_WURFL_MODULE_VERSION);
 	// creating WURFL handler
@@ -395,7 +395,7 @@ static int ha_wurfl_init(void)
 
 	ha_notice("WURFL: Engine loaded\n");
 	ha_notice("WURFL: Module load completed\n");
-	return 0;
+	return ERR_NONE;
 }
 
 static void ha_wurfl_deinit(void)
