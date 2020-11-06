@@ -17234,17 +17234,17 @@ ssl_c_ca_err_depth : integer
   verification of the client certificate. If no error is encountered, 0 is
   returned.
 
-ssl_c_der : binary
-  Returns the DER formatted certificate presented by the client when the
-  incoming connection was made over an SSL/TLS transport layer. When used for
-  an ACL, the value(s) to match against can be passed in hexadecimal form.
-
-ssl_c_der_chain : binary
+ssl_c_chain_der : binary
   Returns the DER formatted chain certificate presented by the client when the
   incoming connection was made over an SSL/TLS transport layer. When used for
   an ACL, the value(s) to match against can be passed in hexadecimal form. One
   can parse the result with any lib accepting ASN.1 DER data. It currentlly
   does not support resumed sessions.
+
+ssl_c_der : binary
+  Returns the DER formatted certificate presented by the client when the
+  incoming connection was made over an SSL/TLS transport layer. When used for
+  an ACL, the value(s) to match against can be passed in hexadecimal form.
 
 ssl_c_err : integer
   When the incoming connection was made over an SSL/TLS transport layer,
