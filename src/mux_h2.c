@@ -6398,9 +6398,11 @@ static int init_h2()
 	pool_head_hpack_tbl = create_pool("hpack_tbl",
 	                                  h2_settings_header_table_size,
 	                                  MEM_F_SHARED|MEM_F_EXACT);
-	if (!pool_head_hpack_tbl)
-		return -1;
-	return 0;
+	if (!pool_head_hpack_tbl) {
+		ha_alert("failed to allocate hpack_tbl memory pool\n");
+		return (ERR_ALERT | ERR_FATAL);
+	}
+	return ERR_NONE;
 }
 
 REGISTER_POST_CHECK(init_h2);
