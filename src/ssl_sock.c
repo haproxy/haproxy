@@ -5129,7 +5129,8 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 {
 	struct ssl_sock_ctx *ctx = conn->xprt_ctx;
 	int ret;
-	struct ssl_counters *counters, *counters_px;
+	struct ssl_counters *counters = NULL;
+	struct ssl_counters *counters_px = NULL;
 	struct listener *li;
 	struct server *srv;
 
@@ -5405,10 +5406,12 @@ reneg_ok:
 				global.ssl_fe_keys_max = global.ssl_fe_keys_per_sec.curr_ctr;
 		}
 
-		++counters->sess;
-		++counters_px->sess;
+		if (counters) {
+			++counters->sess;
+			++counters_px->sess;
+		}
 	}
-	else {
+	else if (counters) {
 		++counters->reused_sess;
 		++counters_px->reused_sess;
 	}
