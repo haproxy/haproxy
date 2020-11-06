@@ -1,0 +1,51 @@
+#REGTEST_TYPE=bug
+varnishtest "Test for the bug #940"
+# Test that the SNI are correcly inserted with the same file multiple times.
+
+#REQUIRE_VERSION=2.2
+#REQUIRE_OPTIONS=OPENSSL
+feature ignore_unknown_macro
+
+server s1 -repeat 4 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        crt-base ${testdir}
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        server s1 "${tmpdir}/ssl.sock" ssl verify none sni str(record1.bug940.domain.tld)
+        server s2 "${tmpdir}/ssl.sock" ssl verify none sni str(record2.bug940.domain.tld)
+        server s3 "${tmpdir}/ssl.sock" ssl verify none sni str(record3.bug940.domain.tld)
+        server s4 "${tmpdir}/ssl.sock" ssl verify none sni str(record4.bug940.domain.tld)
+
+    listen ssl-lst
+        mode http
+        ${no-htx} option http-use-htx
+        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/simple.crt-list
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+client c1 -repeat 4 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run

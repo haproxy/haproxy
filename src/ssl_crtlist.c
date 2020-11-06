@@ -598,6 +598,12 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 					}
 				}
 			}
+		} else {
+			entry->node.key = ckchs;
+			entry->crtlist = newlist;
+			ebpt_insert(&newlist->entries, &entry->node);
+			LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
+			LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
 		}
 		entry = NULL;
 	}

@@ -1,0 +1,5 @@
+common.pem record1.bug940.domain.tld
+common.pem record2.bug940.domain.tld
+ecdsa.pem record3.bug940.domain.tld
+ecdsa.pem record4.bug940.domain.tld
+
