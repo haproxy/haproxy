@@ -970,7 +970,7 @@ int http_str_to_htx(struct buffer *buf, struct ist raw, char **errmsg)
 	}
 	if ((flags & HTX_SL_F_CLEN) && h1m.body_len != (raw.len - ret)) {
 		memprintf(errmsg, "payload size does not match the announced content-length (%lu != %lu)",
-			  (raw.len - ret), h1m.body_len);
+			  (unsigned long)(raw.len - ret), (unsigned long)h1m.body_len);
 		goto error;
 	}
 
