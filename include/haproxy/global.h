@@ -76,7 +76,7 @@ void hap_register_server_deinit(void (*fct)(struct server *));
 void hap_register_per_thread_alloc(int (*fct)());
 void hap_register_per_thread_init(int (*fct)());
 void hap_register_per_thread_deinit(void (*fct)());
-void hap_register_per_thread_free(int (*fct)());
+void hap_register_per_thread_free(void (*fct)());
 
 void mworker_accept_wrapper(int fd);
 void mworker_reload();
