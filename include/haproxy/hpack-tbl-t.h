@@ -83,6 +83,17 @@
  * data bytes, which is larger than the 4064 the protocol requires (4096 - 32).
  */
 
+/*
+ * Gcc before 3.0 needs [0] to declare a variable-size array
+ */
+#ifndef VAR_ARRAY
+#if defined(__GNUC__) && (__GNUC__ < 3)
+#define VAR_ARRAY	0
+#else
+#define VAR_ARRAY
+#endif
+#endif
+
 /* One dynamic table entry descriptor */
 struct hpack_dte {
 	uint32_t addr;  /* storage address, relative to the dte address */
