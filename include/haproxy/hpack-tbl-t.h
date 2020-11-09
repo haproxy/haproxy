@@ -28,6 +28,7 @@
 #define _HAPROXY_HPACK_TBL_T_H
 
 #include <inttypes.h>
+#include "compiler.h"
 
 /* Dynamic Headers Table, usable for tables up to 4GB long and values of 64kB-1.
  * The model can be improved by using offsets relative to the table entry's end
