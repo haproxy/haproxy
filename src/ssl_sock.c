@@ -4926,6 +4926,64 @@ ssl_sock_free_ca(struct bind_conf *bind_conf)
 }
 
 /*
+ * Try to allocate the BIO and SSL session objects of <conn> connection with <bio> and
+ * <ssl> as addresses, <bio_meth> as BIO method and <ssl_ctx> as SSL context inherited settings.
+ * Connect the allocated BIO to the allocated SSL session. Also set <ctx> as address of custom
+ * data for the BIO and store <conn> as user data of the SSL session object.
+ * This is the responsability of the caller to check the validity of all the pointers passed
+ * as parameters to this function.
+ * Return 0 if succeeded, -1 if not. If failed, sets the ->err_code member of <conn> to
+ * CO_ER_SSL_NO_MEM.
+ */
+int ssl_bio_and_sess_init(struct connection *conn, SSL_CTX *ssl_ctx,
+                          SSL **ssl, BIO **bio, BIO_METHOD *bio_meth, void *ctx)
+{
+	int retry = 1;
+
+ retry:
+	/* Alloc a new SSL session. */
+	*ssl = SSL_new(ssl_ctx);
+	if (!*ssl) {
+		if (!retry--)
+			goto err;
+
+		pool_gc(NULL);
+		goto retry;
+	}
+
+	*bio = BIO_new(bio_meth);
+	if (!*bio) {
+		SSL_free(*ssl);
+		*ssl = NULL;
+		if (!retry--)
+			goto err;
+
+		pool_gc(NULL);
+		goto retry;
+	}
+
+	BIO_set_data(*bio, ctx);
+	SSL_set_bio(*ssl, *bio, *bio);
+
+	/* set connection pointer. */
+	if (!SSL_set_ex_data(*ssl, ssl_app_data_index, conn)) {
+		SSL_free(*ssl);
+		*ssl = NULL;
+		if (!retry--)
+			goto err;
+
+		pool_gc(NULL);
+		goto retry;
+	}
+
+	return 0;
+
+ err:
+	conn->err_code = CO_ER_SSL_NO_MEM;
+	return -1;
+}
+
+/*
  * This function is called if SSL * context is not yet allocated. The function
  * is designed to be called before any other data-layer operation and sets the
  * handshake flag on the connection. It is safe to call it multiple times.
@@ -4979,45 +5037,9 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	/* If it is in client mode initiate SSL session
 	   in connect state otherwise accept state */
 	if (objt_server(conn->target)) {
-		int may_retry = 1;
-
-	retry_connect:
-		/* Alloc a new SSL session ctx */
-		ctx->ssl = SSL_new(__objt_server(conn->target)->ssl_ctx.ctx);
-		if (!ctx->ssl) {
-			if (may_retry--) {
-				pool_gc(NULL);
-				goto retry_connect;
-			}
-			conn->err_code = CO_ER_SSL_NO_MEM;
+		if (ssl_bio_and_sess_init(conn, __objt_server(conn->target)->ssl_ctx.ctx,
+		                          &ctx->ssl, &ctx->bio, ha_meth, ctx) == -1)
 			goto err;
-		}
-		ctx->bio = BIO_new(ha_meth);
-		if (!ctx->bio) {
-			SSL_free(ctx->ssl);
-			ctx->ssl = NULL;
-			if (may_retry--) {
-				pool_gc(NULL);
-				goto retry_connect;
-			}
-			conn->err_code = CO_ER_SSL_NO_MEM;
-			goto err;
-		}
-		BIO_set_data(ctx->bio, ctx);
-		SSL_set_bio(ctx->ssl, ctx->bio, ctx->bio);
-
-		/* set connection pointer */
-		if (!SSL_set_ex_data(ctx->ssl, ssl_app_data_index, conn)) {
-			SSL_free(ctx->ssl);
-			ctx->ssl = NULL;
-			conn->xprt_ctx = NULL;
-			if (may_retry--) {
-				pool_gc(NULL);
-				goto retry_connect;
-			}
-			conn->err_code = CO_ER_SSL_NO_MEM;
-			goto err;
-		}
 
 		SSL_set_connect_state(ctx->ssl);
 		if (__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
@@ -5043,47 +5065,14 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		return 0;
 	}
 	else if (objt_listener(conn->target)) {
-		int may_retry = 1;
+		struct bind_conf *bc = __objt_listener(conn->target)->bind_conf;
 
-	retry_accept:
-		/* Alloc a new SSL session ctx */
-		ctx->ssl = SSL_new(__objt_listener(conn->target)->bind_conf->initial_ctx);
-		if (!ctx->ssl) {
-			if (may_retry--) {
-				pool_gc(NULL);
-				goto retry_accept;
-			}
-			conn->err_code = CO_ER_SSL_NO_MEM;
+		if (ssl_bio_and_sess_init(conn, bc->initial_ctx,
+		                           &ctx->ssl, &ctx->bio, ha_meth, ctx) == -1)
 			goto err;
-		}
-		ctx->bio = BIO_new(ha_meth);
-		if (!ctx->bio) {
-			SSL_free(ctx->ssl);
-			ctx->ssl = NULL;
-			if (may_retry--) {
-				pool_gc(NULL);
-				goto retry_accept;
-			}
-			conn->err_code = CO_ER_SSL_NO_MEM;
-			goto err;
-		}
-		BIO_set_data(ctx->bio, ctx);
-		SSL_set_bio(ctx->ssl, ctx->bio, ctx->bio);
-
-		/* set connection pointer */
-		if (!SSL_set_ex_data(ctx->ssl, ssl_app_data_index, conn)) {
-			SSL_free(ctx->ssl);
-			ctx->ssl = NULL;
-			if (may_retry--) {
-				pool_gc(NULL);
-				goto retry_accept;
-			}
-			conn->err_code = CO_ER_SSL_NO_MEM;
-			goto err;
-		}
 
 #ifdef SSL_READ_EARLY_DATA_SUCCESS
-		if (__objt_listener(conn->target)->bind_conf->ssl_conf.early_data) {
+		if (bc->ssl_conf.early_data) {
 			b_alloc(&ctx->early_buf);
 			SSL_set_max_early_data(ctx->ssl,
 			    /* Only allow early data if we managed to allocate
