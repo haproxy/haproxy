@@ -1,4 +1,4 @@
-#REGTEST_TYPE=bug
+#REGTEST_TYPE=broken
 varnishtest "Test for the bug #810 and #818"
 # This test checks if the multiple certificate types works correctly with the
 # SNI, and that the negative filters are correctly excluded
