@@ -1253,6 +1253,7 @@ spoe_release_appctx(struct appctx *appctx)
 		LIST_INIT(&ctx->list);
 		_HA_ATOMIC_SUB(&agent->counters.nb_waiting, 1);
 		spoe_update_stat_time(&ctx->stats.tv_wait, &ctx->stats.t_waiting);
+		ctx->spoe_appctx = NULL;
 		ctx->state = SPOE_CTX_ST_ERROR;
 		ctx->status_code = (spoe_appctx->status_code + 0x100);
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
@@ -1268,8 +1269,13 @@ spoe_release_appctx(struct appctx *appctx)
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 	}
 
-	if (!LIST_ISEMPTY(&agent->rt[tid].applets))
+	if (!LIST_ISEMPTY(&agent->rt[tid].applets)) {
+		list_for_each_entry_safe(ctx, back, &agent->rt[tid].waiting_queue, list) {
+			if (ctx->spoe_appctx == spoe_appctx)
+				ctx->spoe_appctx = NULL;
+		}
 		goto end;
+	}
 
 	/* If this was the last running applet, notify all waiting streams */
 	list_for_each_entry_safe(ctx, back, &agent->rt[tid].sending_queue, list) {
@@ -1277,6 +1283,7 @@ spoe_release_appctx(struct appctx *appctx)
 		LIST_INIT(&ctx->list);
 		_HA_ATOMIC_SUB(&agent->counters.nb_sending, 1);
 		spoe_update_stat_time(&ctx->stats.tv_queue, &ctx->stats.t_queue);
+		ctx->spoe_appctx = NULL;
 		ctx->state = SPOE_CTX_ST_ERROR;
 		ctx->status_code = (spoe_appctx->status_code + 0x100);
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
@@ -1286,6 +1293,7 @@ spoe_release_appctx(struct appctx *appctx)
 		LIST_INIT(&ctx->list);
 		_HA_ATOMIC_SUB(&agent->counters.nb_waiting, 1);
 		spoe_update_stat_time(&ctx->stats.tv_wait, &ctx->stats.t_waiting);
+		ctx->spoe_appctx = NULL;
 		ctx->state = SPOE_CTX_ST_ERROR;
 		ctx->status_code = (spoe_appctx->status_code + 0x100);
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
