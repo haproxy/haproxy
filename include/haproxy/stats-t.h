@@ -509,11 +509,15 @@ enum stats_domain_px_cap {
 	STATS_PX_CAP_MASK = 0xff
 };
 
+extern THREAD_LOCAL void *trash_counters;
+
 #define EXTRA_COUNTERS(name) \
 	struct extra_counters *name
 
 #define EXTRA_COUNTERS_GET(counters, mod) \
-	(void *)((counters)->data + (mod)->counters_off[(counters)->type])
+	(likely(counters) ? \
+		((void *)((counters)->data + (mod)->counters_off[(counters)->type])) : \
+		(trash_counters))
 
 #define EXTRA_COUNTERS_REGISTER(counters, ctype, alloc_failed_label) \
 	do {                                                         \

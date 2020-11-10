@@ -623,6 +623,8 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		if (fd != -1)
 			l->rx.flags |= RX_F_INHERITED;
 
+		l->extra_counters = NULL;
+
 		HA_SPIN_INIT(&l->lock);
 		_HA_ATOMIC_ADD(&jobs, 1);
 		_HA_ATOMIC_ADD(&listeners, 1);

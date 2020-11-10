@@ -269,6 +269,8 @@ static struct list stats_module_list[STATS_DOMAIN_COUNT] = {
 	LIST_HEAD_INIT(stats_module_list[STATS_DOMAIN_DNS]),
 };
 
+THREAD_LOCAL void *trash_counters;
+
 static inline uint8_t stats_get_domain(uint32_t domain)
 {
 	return domain >> STATS_DOMAIN & STATS_DOMAIN_MASK;
@@ -4548,6 +4550,34 @@ static int allocate_stats_dns_postcheck(void)
 
 REGISTER_CONFIG_POSTPARSER("allocate-stats-dns", allocate_stats_dns_postcheck);
 
+static int allocate_trash_counters(void)
+{
+	struct stats_module *mod;
+	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_DNS }, i;
+	size_t max_counters_size = 0;
+
+	/* calculate the greatest counters used by any stats modules */
+	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
+		list_for_each_entry(mod, &stats_module_list[domains[i]], list) {
+			max_counters_size = mod->counters_size > max_counters_size ?
+			                    mod->counters_size : max_counters_size;
+		}
+	}
+
+	/* allocate the trash with the size of the greatest counters */
+	if (max_counters_size) {
+		trash_counters = malloc(max_counters_size);
+		if (!trash_counters) {
+			ha_alert("stats: cannot allocate trash counters for statistics\n");
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+REGISTER_PER_THREAD_ALLOC(allocate_trash_counters);
+
 static void deinit_stats(void)
 {
 	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_DNS }, i;
@@ -4564,6 +4594,14 @@ static void deinit_stats(void)
 }
 
 REGISTER_POST_DEINIT(deinit_stats);
+
+static void free_trash_counters(void)
+{
+	if (trash_counters)
+		free(trash_counters);
+}
+
+REGISTER_PER_THREAD_FREE(free_trash_counters);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{

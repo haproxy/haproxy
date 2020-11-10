@@ -1742,6 +1742,8 @@ struct server *new_server(struct proxy *proxy)
 	srv->agent.proxy = proxy;
 	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
 
+	srv->extra_counters = NULL;
+
 	/* please don't put default server settings here, they are set in
 	 * init_default_instance().
 	 */

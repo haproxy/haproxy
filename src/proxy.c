@@ -1041,6 +1041,9 @@ void init_new_proxy(struct proxy *p)
 	/* Default to only allow L4 retries */
 	p->retry_type = PR_RE_CONN_FAILED;
 
+	p->extra_counters_fe = NULL;
+	p->extra_counters_be = NULL;
+
 	HA_RWLOCK_INIT(&p->lock);
 }
 
