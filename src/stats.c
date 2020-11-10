@@ -4548,6 +4548,23 @@ static int allocate_stats_dns_postcheck(void)
 
 REGISTER_CONFIG_POSTPARSER("allocate-stats-dns", allocate_stats_dns_postcheck);
 
+static void deinit_stats(void)
+{
+	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_DNS }, i;
+
+	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
+		const int domain = domains[i];
+
+		if (stat_l[domain])
+			free(stat_l[domain]);
+
+		if (stat_f[domain])
+			free(stat_f[domain]);
+	}
+}
+
+REGISTER_POST_DEINIT(deinit_stats);
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "clear", "counters",  NULL }, "clear counters : clear max statistics counters (add 'all' for all counters)", cli_parse_clear_counters, NULL, NULL },
