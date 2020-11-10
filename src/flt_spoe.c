@@ -1009,8 +1009,17 @@ spoe_handle_agentack_frame(struct appctx *appctx, struct spoe_context **ctx,
 		    (unsigned int)stream_id, (unsigned int)frame_id);
 
 	SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_FRAMEID_NOTFOUND;
-	if (appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK)
-		return -1;
+	if (appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK) {
+		/* Report an error if we are waiting the ack for another frame,
+		 * but not if there is no longer frame waiting for a ack
+		 * (timeout)
+		 */
+		if (!LIST_ISEMPTY(&SPOE_APPCTX(appctx)->waiting_queue) ||
+		    SPOE_APPCTX(appctx)->frag_ctx.ctx)
+			return -1;
+		appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
+		SPOE_APPCTX(appctx)->cur_fpa = 0;
+	}
 	return 0;
 
   found:
