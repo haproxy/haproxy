@@ -1664,6 +1664,7 @@ __LJMP static inline int _hlua_map_lookup(struct lua_State *L, int str)
 		smp.data.type = SMP_T_STR;
 		smp.flags = SMP_F_CONST;
 		smp.data.u.str.area = (char *)MAY_LJMP(luaL_checklstring(L, 2, (size_t *)&smp.data.u.str.data));
+		smp.data.u.str.size = smp.data.u.str.data + 1;
 	}
 
 	pat = pattern_exec_match(&desc->pat, &smp, 1);
