@@ -101,12 +101,6 @@ jobs:
         echo "::endgroup::"
         haproxy -vv
         echo "::set-output name=version::$(haproxy -v |awk 'NR==1{print $3}')"
-    - name: Adjust hosts file
-      # This step can be removed if https://github.com/vtest/VTest/pull/24 is
-      # fixed.
-      run: |
-        cat /etc/hosts
-        sudo sed -i.bak '/::1/s/^/#/' /etc/hosts
     - name: Install problem matcher for VTest
       # This allows one to more easily see which tests fail.
       run: echo "::add-matcher::.github/vtest.json"
