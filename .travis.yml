@@ -35,12 +35,6 @@ matrix:
     env: TARGET=linux-glibc OPENSSL_VERSION=1.0.2u
     name: openssl-1.0.2
   - os: linux
-    arch: amd64
-    if: type == push
-    compiler: clang
-    env: TARGET=linux-glibc CC=clang-9
-    name: openssl-1.1.1
-  - os: linux
     arch: arm64
     if: type == push
     compiler: clang
@@ -94,15 +88,6 @@ matrix:
     compiler: clang
     env: TARGET=linux-glibc FLAGS= CC=clang-9
     name: FLAGS=
-  - os: osx
-    osx_image: xcode12
-    if: type == push
-    compiler: clang
-    before_script:
-      - echo 'brew "socat"' > brew.bundle
-      - brew bundle --file=brew.bundle
-    env: TARGET=osx FLAGS="USE_OPENSSL=1" OPENSSL_VERSION=1.1.1f
-    name: openssl-1.1.1
   - os: linux
     if: type == cron
     compiler: clang
