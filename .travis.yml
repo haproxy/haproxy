@@ -98,11 +98,6 @@ matrix:
       - export SLZ_INC=${HOME}/opt/include SLZ_LIB=${HOME}/opt/lib
       - export ADDLIB="-Wl,-rpath,$SLZ_LIB"
     name: openssl-1.1.1 | slz | pcre2
-  allow_failures:
-  - os: linux
-    arch: arm64
-    if: type == push
-    compiler: clang
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
