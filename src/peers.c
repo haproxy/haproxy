@@ -3062,8 +3062,12 @@ static inline void flush_dcache(struct peer *peer)
 	int i;
 	struct dcache *dc = peer->dcache;
 
-	for (i = 0; i < dc->max_entries; i++)
+	for (i = 0; i < dc->max_entries; i++) {
 		ebpt_delete(&dc->tx->entries[i]);
+		dc->tx->entries[i].key = NULL;
+	}
+	dc->tx->prev_lookup = NULL;
+	dc->tx->lru_key = 0;
 
 	memset(dc->rx, 0, dc->max_entries * sizeof *dc->rx);
 }
