@@ -7,7 +7,8 @@ feature ignore_unknown_macro
 
 server s1 {
        rxreq
-       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+            -hdr "Cache-Control: max-age=5"
        chunkedlen 15
        chunkedlen 15
        chunkedlen 15
@@ -16,7 +17,8 @@ server s1 {
 
 server s2 {
        rxreq
-       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+            -hdr "Cache-Control: max-age=5"
        chunkedlen 16
        chunkedlen 16
        chunkedlen 16
@@ -25,14 +27,16 @@ server s2 {
 
 server s3 {
        rxreq
-       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+            -hdr "Cache-Control: max-age=5"
        chunkedlen 17
        chunkedlen 17
        chunkedlen 17
        chunkedlen 0
 
        rxreq
-       txresp -nolen -hdr "Transfer-Encoding: chunked"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+            -hdr "Cache-Control: max-age=5"
        chunkedlen 17
        chunkedlen 17
        chunkedlen 17

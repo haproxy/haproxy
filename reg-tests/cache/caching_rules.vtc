@@ -1,0 +1,150 @@
+varnishtest "Caching rules test"
+# A respnse will not be cached unless it has an explicit age (Cache-Control max-age of s-maxage, Expires, Last-Modified headers, or ETag)
+
+#REQUIRE_VERSION=1.9
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.url == "/max-age"
+    txresp -hdr "Cache-Control: max-age=5" \
+        -bodylen 150
+
+    rxreq
+    expect req.url == "/s-maxage"
+    txresp -hdr "Cache-Control: s-maxage=5" \
+        -bodylen 160
+
+    rxreq
+    expect req.url == "/last-modified"
+    txresp -hdr "Last-Modified: Thu, 22 Oct 2020 16:51:12 GMT" \
+        -bodylen 180
+
+    rxreq
+    expect req.url == "/etag"
+    txresp -hdr "ETag: \"etag\"" \
+        -bodylen 190
+
+    rxreq
+    expect req.url == "/uncacheable"
+    txresp \
+        -bodylen 200
+
+    rxreq
+    expect req.url == "/uncacheable"
+    txresp \
+        -bodylen 210
+} -start
+
+server s2 {
+    rxreq
+    expect req.url == "/expires"
+    # Expires header is filled directly by the expires_be backend"
+    txresp \
+        -bodylen 170
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe
+        bind "fd@${fe}"
+        use_backend expires_be if { path_beg /expires }
+        default_backend test
+
+    backend expires_be
+        http-request cache-use my_cache
+        server www ${s2_addr}:${s2_port}
+        http-response set-header X-Cache-Hit %[res.cache_hit]
+        # Expires value set in the future (current_time+5s)
+        http-response set-header Expires %[date(5),http_date]
+        http-response cache-store my_cache
+
+    backend test
+        http-request cache-use my_cache
+        server www ${s1_addr}:${s1_port}
+        http-response cache-store my_cache
+        http-response set-header X-Cache-Hit %[res.cache_hit]
+
+    cache my_cache
+        total-max-size 3
+        max-age 20
+        max-object-size 3072
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+        txreq -url "/max-age"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 150
+
+        txreq -url "/max-age"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 150
+        expect resp.http.X-Cache-Hit == 1
+
+        txreq -url "/s-maxage"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 160
+
+        txreq -url "/s-maxage"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 160
+        expect resp.http.X-Cache-Hit == 1
+
+        txreq -url "/expires"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 170
+
+        txreq -url "/expires"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 170
+        expect resp.http.X-Cache-Hit == 1
+
+        txreq -url "/last-modified"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 180
+
+        txreq -url "/last-modified"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 180
+        expect resp.http.X-Cache-Hit == 1
+
+        txreq -url "/etag"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 190
+
+        txreq -url "/etag"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 190
+        expect resp.http.X-Cache-Hit == 1
+
+        # The next response should not be cached
+        txreq -url "/uncacheable"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 200
+
+        txreq -url "/uncacheable"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 210
+        expect resp.http.X-Cache-Hit == 0
+
+} -run

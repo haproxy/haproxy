@@ -19,7 +19,8 @@ server s1 {
        rxreq
        expect req.url == "/date"
        txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Date: Thu, 22 Oct 2020 16:51:12 GMT"
+               -hdr "Date: Thu, 22 Oct 2020 16:51:12 GMT" \
+               -hdr "Cache-Control: max-age=5"
        chunkedlen 16
        chunkedlen 16
        chunkedlen 16

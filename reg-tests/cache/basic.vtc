@@ -6,7 +6,8 @@ feature ignore_unknown_macro
 
 server s1 {
     rxreq
-    txresp -nolen -hdr "Transfer-Encoding: chunked"
+    txresp -nolen -hdr "Transfer-Encoding: chunked" \
+        -hdr "Cache-Control: max-age=5"
     chunkedlen 1
     chunkedlen 1
     chunkedlen 2
