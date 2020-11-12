@@ -528,6 +528,10 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 			curpx->retry_type |= PR_RE_DISCONNECTED;
 		else if (!strcmp(args[i], "response-timeout"))
 			curpx->retry_type |= PR_RE_TIMEOUT;
+		else if (!strcmp(args[i], "401"))
+			curpx->retry_type |= PR_RE_401;
+		else if (!strcmp(args[i], "403"))
+			curpx->retry_type |= PR_RE_403;
 		else if (!strcmp(args[i], "404"))
 			curpx->retry_type |= PR_RE_404;
 		else if (!strcmp(args[i], "408"))
