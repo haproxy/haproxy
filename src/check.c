@@ -1228,10 +1228,12 @@ static int init_srv_check(struct server *srv)
 	const char *err;
 	struct tcpcheck_rule *r;
 	int ret = 0;
+	int check_type;
 
 	if (!srv->do_check)
 		goto out;
 
+	check_type = srv->check.tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK;
 
 	/* If neither a port nor an addr was specified and no check transport
 	 * layer is forced, then the transport layer used by the checks is the
@@ -1253,8 +1255,11 @@ static int init_srv_check(struct server *srv)
 	/* Inherit the mux protocol from the server if not already defined for
 	 * the check
 	 */
-	if (srv->mux_proto && !srv->check.mux_proto)
+	if (srv->mux_proto && !srv->check.mux_proto &&
+	    ((srv->mux_proto->mode == PROTO_MODE_HTTP && check_type == TCPCHK_RULES_HTTP_CHK) ||
+	     (srv->mux_proto->mode == PROTO_MODE_TCP && check_type != TCPCHK_RULES_HTTP_CHK))) {
 		srv->check.mux_proto = srv->mux_proto;
+	}
 
 	/* validate <srv> server health-check settings */
 
