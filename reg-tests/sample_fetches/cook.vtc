@@ -1,0 +1,37 @@
+varnishtest "cook sample fetch Test"
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+
+    frontend fe
+        bind "fd@${fe}"
+        http-request set-var(txn.count) req.cook_cnt()
+        http-request set-var(txn.val) req.cook_val()
+        http-request set-var(txn.val_cook2) req.cook_val(cook2)
+        http-response set-header count %[var(txn.count)]
+        http-response set-header val %[var(txn.val)]
+        http-response set-header val_cook2 %[var(txn.val_cook2)]
+
+        default_backend be
+
+    backend be
+        server srv1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -url "/" \
+        -hdr "cookie: cook1=0; cook2=123; cook3=22"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.count == "3"
+    expect resp.http.val == "0"
+    expect resp.http.val_cook2 == "123"
+} -run
