@@ -143,28 +143,33 @@ DECLARE_STATIC_POOL(ssl_sock_ctx_pool, "ssl_sock_ctx_pool", sizeof(struct ssl_so
 enum {
 	SSL_ST_SESS,
 	SSL_ST_REUSED_SESS,
+	SSL_ST_FAILED_HANDSHAKE,
 
 	SSL_ST_STATS_COUNT /* must be the last member of the enum */
 };
 
 static struct name_desc ssl_stats[] = {
-	[SSL_ST_SESS]         = { .name = "ssl_sess",
-	                          .desc = "Total number of ssl sessions established" },
-	[SSL_ST_REUSED_SESS]  = { .name = "ssl_reused_sess",
-	                          .desc = "Total number of ssl sessions reused" },
+	[SSL_ST_SESS]             = { .name = "ssl_sess",
+	                              .desc = "Total number of ssl sessions established" },
+	[SSL_ST_REUSED_SESS]      = { .name = "ssl_reused_sess",
+	                              .desc = "Total number of ssl sessions reused" },
+	[SSL_ST_FAILED_HANDSHAKE] = { .name = "ssl_failed_handshake",
+	                              .desc = "Total number of failed handshake" },
 };
 
 static struct ssl_counters {
 	long long sess;
 	long long reused_sess;
+	long long failed_handshake;
 } ssl_counters;
 
 static void ssl_fill_stats(void *data, struct field *stats)
 {
 	struct ssl_counters *counters = data;
 
-	stats[SSL_ST_SESS]         = mkf_u64(FN_COUNTER, counters->sess);
-	stats[SSL_ST_REUSED_SESS]  = mkf_u64(FN_COUNTER, counters->reused_sess);
+	stats[SSL_ST_SESS]             = mkf_u64(FN_COUNTER, counters->sess);
+	stats[SSL_ST_REUSED_SESS]      = mkf_u64(FN_COUNTER, counters->reused_sess);
+	stats[SSL_ST_FAILED_HANDSHAKE] = mkf_u64(FN_COUNTER, counters->failed_handshake);
 }
 
 static struct stats_module ssl_stats_module = {
@@ -5126,6 +5131,26 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	if (!conn_ctrl_ready(conn))
 		return 0;
 
+	/* get counters */
+	switch (obj_type(conn->target)) {
+	case OBJ_TYPE_LISTENER:
+		li = objt_listener(conn->target);
+		counters = EXTRA_COUNTERS_GET(li->extra_counters, &ssl_stats_module);
+		counters_px = EXTRA_COUNTERS_GET(li->bind_conf->frontend->extra_counters_fe,
+		                                 &ssl_stats_module);
+		break;
+
+	case OBJ_TYPE_SERVER:
+		srv = objt_server(conn->target);
+		counters = EXTRA_COUNTERS_GET(srv->extra_counters, &ssl_stats_module);
+		counters_px = EXTRA_COUNTERS_GET(srv->proxy->extra_counters_be,
+		                                 &ssl_stats_module);
+		break;
+
+	default:
+		break;
+	}
+
 	if (!conn->xprt_ctx)
 		goto out_error;
 
@@ -5363,25 +5388,6 @@ reneg_ok:
 	if (global_ssl.async)
 		SSL_clear_mode(ctx->ssl, SSL_MODE_ASYNC);
 #endif
-	switch (obj_type(conn->target)) {
-	case OBJ_TYPE_LISTENER:
-		li = objt_listener(conn->target);
-		counters = EXTRA_COUNTERS_GET(li->extra_counters, &ssl_stats_module);
-		counters_px = EXTRA_COUNTERS_GET(li->bind_conf->frontend->extra_counters_fe,
-		                                 &ssl_stats_module);
-		break;
-
-	case OBJ_TYPE_SERVER:
-		srv = objt_server(conn->target);
-		counters = EXTRA_COUNTERS_GET(srv->extra_counters, &ssl_stats_module);
-		counters_px = EXTRA_COUNTERS_GET(srv->proxy->extra_counters_be,
-		                                 &ssl_stats_module);
-		break;
-
-	default:
-		break;
-	}
-
 	/* Handshake succeeded */
 	if (!SSL_session_reused(ctx->ssl)) {
 		if (objt_server(conn->target)) {
@@ -5418,6 +5424,11 @@ reneg_ok:
 	if (objt_server(conn->target) && __objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
 		free(__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
 		__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr = NULL;
+	}
+
+	if (counters) {
+		++counters->failed_handshake;
+		++counters_px->failed_handshake;
 	}
 
 	/* Fail on all other handshake errors */
