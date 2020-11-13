@@ -1826,7 +1826,14 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 }
 
 /*
- * Receive a stick-table message.
+ * Receive a stick-table message or pre-parse any other message.
+ * The message's header will be sent into <msg_head> which must be at least
+ * <msg_head_sz> bytes long (at least 7 to store 32-bit variable lengths).
+ * The first two bytes are always read, and the rest is only read if the
+ * first bytes indicate a stick-table message. If the message is a stick-table
+ * message, the varint is decoded and the equivalent number of bytes will be
+ * copied into the trash at trash.area. <totl> is incremented by the number of
+ * bytes read EVEN IN CASE OF INCOMPLETE MESSAGES.
  * Returns 1 if there was no error, if not, returns 0 if not enough data were available,
  * -1 if there was an error updating the appctx state st0 accordingly.
  */
@@ -1835,6 +1842,7 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 {
 	int reql;
 	struct stream_interface *si = appctx->owner;
+	char *cur;
 
 	reql = co_getblk(si_oc(si), msg_head, 2 * sizeof(char), *totl);
 	if (reql <= 0) /* closed or EOL not found */
@@ -1845,46 +1853,32 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 	if (!(msg_head[1] & PEER_MSG_STKT_BIT_MASK))
 		return 1;
 
+	/* This is a stick-table message, let's go on */
+
 	/* Read and Decode message length */
-	reql = co_getblk(si_oc(si), &msg_head[2], sizeof(char), *totl);
+	msg_head    += *totl;
+	msg_head_sz -= *totl;
+	reql = co_data(si_oc(si)) - *totl;
+	if (reql > msg_head_sz)
+		reql = msg_head_sz;
+
+	reql = co_getblk(si_oc(si), msg_head, reql, *totl);
 	if (reql <= 0) /* closed */
 		goto incomplete;
 
-	*totl += reql;
+	cur = msg_head;
+	*msg_len = intdecode(&cur, cur + reql);
+	if (!cur) {
+		/* the number is truncated, did we read enough ? */
+		if (reql < msg_head_sz)
+			goto incomplete;
 
-	if ((unsigned int)msg_head[2] < PEER_ENC_2BYTES_MIN) {
-		*msg_len = msg_head[2];
+		/* malformed message */
+		TRACE_PROTO("malformed message: too large length encoding", PEERS_EV_UPDTMSG);
+		appctx->st0 = PEER_SESS_ST_ERRPROTO;
+		return -1;
 	}
-	else {
-		int i;
-		char *cur;
-		char *end;
-
-		for (i = 3 ; i < msg_head_sz ; i++) {
-			reql = co_getblk(si_oc(si), &msg_head[i], sizeof(char), *totl);
-			if (reql <= 0) /* closed */
-				goto incomplete;
-
-			*totl += reql;
-
-			if (!(msg_head[i] & PEER_MSG_STKT_BIT_MASK))
-				break;
-		}
-
-		if (i == msg_head_sz) {
-			/* malformed message */
-			appctx->st0 = PEER_SESS_ST_ERRPROTO;
-			return -1;
-		}
-		end = msg_head + msg_head_sz;
-		cur = &msg_head[2];
-		*msg_len = intdecode(&cur, end);
-		if (!cur) {
-			/* malformed message */
-			appctx->st0 = PEER_SESS_ST_ERRPROTO;
-			return -1;
-		}
-	}
+	*totl += cur - msg_head;
 
 	/* Read message content */
 	if (*msg_len) {
@@ -2499,7 +2493,7 @@ switchstate:
 				uint32_t msg_len = 0;
 				char *msg_cur = trash.area;
 				char *msg_end = trash.area;
-				unsigned char msg_head[7];
+				unsigned char msg_head[7]; // 2 + 5 for varint32
 				int totl = 0;
 
 				prev_state = appctx->st0;
