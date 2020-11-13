@@ -1599,6 +1599,7 @@ int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, str
 	free_tcpcheck_vars(&rules->preset_vars);
 	rules->list = &rs->rules;
 	rules->flags |= TCPCHK_RULES_TCP_CHK;
+	rules->flags &= ~TCPCHK_RULES_UNUSED_TCP_RS;
 
   out:
 	return err_code;
@@ -2621,6 +2622,7 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 
 	rules->list = &rs->rules;
 	rules->flags |= TCPCHK_RULES_HTTP_CHK;
+	rules->flags &= ~TCPCHK_RULES_UNUSED_HTTP_RS;
 	if (!tcpcheck_add_http_rule(chk, rules, &errmsg)) {
 		ha_alert("parsing [%s:%d] : '%s %s' : %s.\n", file, line, args[0], args[1], errmsg);
 		rules->list = NULL;
