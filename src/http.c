@@ -651,6 +651,7 @@ char *http_find_cookie_value_end(char *s, const char *e)
 }
 
 /* Try to find the next occurrence of a cookie name in a cookie header value.
+ * To match on any cookie name, <cookie_name_l> must be set to 0.
  * The lookup begins at <hdr>. The pointer and size of the next occurrence of
  * the cookie value is returned into *value and *value_l, and the function
  * returns a pointer to the next pointer to search from if the value was found.
@@ -728,8 +729,8 @@ char *http_extract_cookie_value(char *hdr, const char *hdr_end,
 		 * its value between val_beg and val_end.
 		 */
 
-		if (att_end - att_beg == cookie_name_l &&
-		    memcmp(att_beg, cookie_name, cookie_name_l) == 0) {
+		if (cookie_name_l == 0 || (att_end - att_beg == cookie_name_l &&
+		    memcmp(att_beg, cookie_name, cookie_name_l) == 0)) {
 			/* let's return this value and indicate where to go on from */
 			*value = val_beg;
 			*value_l = val_end - val_beg;
