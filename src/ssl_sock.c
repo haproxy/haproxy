@@ -702,7 +702,7 @@ fail_get:
 }
 #endif
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 /*
  * openssl async fd handler
  */
@@ -3674,7 +3674,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 
 	SSL_CTX_set_options(ctx, options);
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 	if (global_ssl.async)
 		mode |= SSL_MODE_ASYNC;
 #endif
@@ -4525,7 +4525,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		options |= SSL_OP_NO_TICKET;
 	SSL_CTX_set_options(ctx, options);
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 	if (global_ssl.async)
 		mode |= SSL_MODE_ASYNC;
 #endif
@@ -5215,7 +5215,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 					ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_RECV, &ctx->wait_event);
 				return 0;
 			}
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 			else if (ret == SSL_ERROR_WANT_ASYNC) {
 				ssl_async_process_fds(ctx);
 				return 0;
@@ -5299,7 +5299,7 @@ check_error:
 				    SUB_RETRY_RECV, &ctx->wait_event);
 			return 0;
 		}
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 		else if (ret == SSL_ERROR_WANT_ASYNC) {
 			ssl_async_process_fds(ctx);
 			return 0;
@@ -5380,7 +5380,7 @@ check_error:
 
 reneg_ok:
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 	/* ASYNC engine API doesn't support moving read/write
 	 * buffers. So we disable ASYNC mode right after
 	 * the handshake to avoid buffer overflow.
@@ -5684,7 +5684,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 				/* handshake is running, and it needs to enable write */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
 				ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 				/* Async mode can be re-enabled, because we're leaving data state.*/
 				if (global_ssl.async)
 					SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
@@ -5698,7 +5698,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 							     &ctx->wait_event);
 					/* handshake is running, and it may need to re-enable read */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 					/* Async mode can be re-enabled, because we're leaving data state.*/
 					if (global_ssl.async)
 						SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
@@ -5846,7 +5846,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 					/* handshake is running, and it may need to re-enable write */
 					conn->flags |= CO_FL_SSL_WAIT_HS;
 					ctx->xprt->subscribe(conn, ctx->xprt_ctx, SUB_RETRY_SEND, &ctx->wait_event);
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 					/* Async mode can be re-enabled, because we're leaving data state.*/
 					if (global_ssl.async)
 						SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
@@ -5862,7 +5862,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 				ctx->xprt->subscribe(conn, ctx->xprt_ctx,
 				                     SUB_RETRY_RECV,
 						     &ctx->wait_event);
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 				/* Async mode can be re-enabled, because we're leaving data state.*/
 				if (global_ssl.async)
 					SSL_set_mode(ctx->ssl, SSL_MODE_ASYNC);
@@ -5901,7 +5901,7 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 
 		if (ctx->xprt->close)
 			ctx->xprt->close(conn, ctx->xprt_ctx);
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 		if (global_ssl.async) {
 			OSSL_ASYNC_FD all_fd[32], afd;
 			size_t num_all_fds = 0;

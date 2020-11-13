@@ -125,7 +125,7 @@ static int ssl_parse_global_ssl_async(char **args, int section_type, struct prox
                                        struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 	global_ssl.async = 1;
 	global.ssl_used_async_engines = nb_engines;
 	return 0;

@@ -4593,7 +4593,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr)
 #ifdef USE_LUA
 		{ .func = hlua_process_task, .name = "hlua_process_task" },
 #endif
-#if defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC)
+#ifdef SSL_MODE_ASYNC
 		{ .func = ssl_async_fd_free, .name = "ssl_async_fd_free" },
 		{ .func = ssl_async_fd_handler, .name = "ssl_async_fd_handler" },
 #endif

@@ -20,7 +20,7 @@
 #include <openssl/engine.h>
 #endif
 
-#if (OPENSSL_VERSION_NUMBER >= 0x1010000fL) && !defined(OPENSSL_NO_ASYNC) && !defined(LIBRESSL_VERSION_NUMBER)
+#ifdef SSL_MODE_ASYNC
 #include <openssl/async.h>
 #endif
 
