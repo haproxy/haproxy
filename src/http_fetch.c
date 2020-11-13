@@ -1580,10 +1580,14 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
 	struct htx *htx = smp_prefetch_htx(smp, chn, check, 1);
 	struct http_hdr_ctx *ctx = smp->ctx.a[2];
 	struct ist hdr;
+	char *cook = NULL;
+	size_t cook_l = 0;
 	int found = 0;
 
-	if (!args || args->type != ARGT_STR)
-		return 0;
+	if (args && args->type == ARGT_STR) {
+		cook = args->data.str.area;
+		cook_l = args->data.str.data;
+	}
 
 	if (!ctx) {
 		/* first call */
@@ -1617,7 +1621,7 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
 			if (!http_find_header(htx, hdr, ctx, 0))
 				goto out;
 
-			if (ctx->value.len < args->data.str.data + 1)
+			if (ctx->value.len < cook_l + 1)
 				continue;
 
 			smp->ctx.a[0] = ctx->value.ptr;
@@ -1627,7 +1631,7 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
 		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
 		smp->ctx.a[0] = http_extract_cookie_value(smp->ctx.a[0], smp->ctx.a[1],
-							  args->data.str.area, args->data.str.data,
+							  cook, cook_l,
 							  (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
 							  &smp->data.u.str.area,
 							  &smp->data.u.str.data);
@@ -1678,10 +1682,14 @@ static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, cons
 	struct http_hdr_ctx ctx;
 	struct ist hdr;
 	char *val_beg, *val_end;
+	char *cook = NULL;
+	size_t cook_l = 0;
 	int cnt;
 
-	if (!args || args->type != ARGT_STR)
-		return 0;
+	if (args && args->type == ARGT_STR){
+		cook = args->data.str.area;
+		cook_l = args->data.str.data;
+	}
 
 	if (!htx)
 		return 0;
@@ -1697,7 +1705,7 @@ static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, cons
 			if (!http_find_header(htx, hdr, &ctx, 0))
 				break;
 
-			if (ctx.value.len < args->data.str.data + 1)
+			if (ctx.value.len < cook_l + 1)
 				continue;
 
 			val_beg = ctx.value.ptr;
@@ -1707,7 +1715,7 @@ static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, cons
 		smp->data.type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
 		while ((val_beg = http_extract_cookie_value(val_beg, val_end,
-							    args->data.str.area, args->data.str.data,
+							    cook, cook_l,
 							    (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
 							    &smp->data.u.str.area,
 							    &smp->data.u.str.data))) {
