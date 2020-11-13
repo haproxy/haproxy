@@ -2282,6 +2282,16 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 				memprintf(errmsg, "'%s' : unknown MUX protocol '%s'.", args[cur_arg], args[cur_arg+1]);
 				goto error;
 			}
+
+			if (strcmp(args[0], "tcp-check") == 0 && mux_proto->mode != PROTO_MODE_TCP) {
+				memprintf(errmsg, "'%s' : invalid MUX protocol '%s' for tcp-check", args[cur_arg], args[cur_arg+1]);
+				goto error;
+			}
+			else if (strcmp(args[0], "http-check") == 0 && mux_proto->mode != PROTO_MODE_HTTP) {
+				memprintf(errmsg, "'%s' : invalid MUX protocol '%s' for http-check", args[cur_arg], args[cur_arg+1]);
+				goto error;
+			}
+
 			cur_arg++;
 		}
 		else if (strcmp(args[cur_arg], "comment") == 0) {
