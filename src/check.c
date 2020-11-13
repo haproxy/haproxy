@@ -1260,6 +1260,15 @@ static int init_srv_check(struct server *srv)
 	     (srv->mux_proto->mode == PROTO_MODE_TCP && check_type != TCPCHK_RULES_HTTP_CHK))) {
 		srv->check.mux_proto = srv->mux_proto;
 	}
+	/* test that check proto is valid if explicitly defined */
+	else if (srv->check.mux_proto &&
+	         ((srv->check.mux_proto->mode == PROTO_MODE_HTTP && check_type != TCPCHK_RULES_HTTP_CHK) ||
+	          (srv->check.mux_proto->mode == PROTO_MODE_TCP && check_type == TCPCHK_RULES_HTTP_CHK))) {
+		ha_alert("config: %s '%s': server '%s' uses an incompatible MUX protocol for the selected check type\n",
+		         proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
+		ret |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
 
 	/* validate <srv> server health-check settings */
 
