@@ -1987,6 +1987,9 @@ static int proxy_parse_http_error(char **args, int section, struct proxy *curpx,
 	conf_err->line = line;
 	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
 
+	/* handle warning message */
+	if (*errmsg)
+		ret = 1;
   out:
 	return ret;
 
@@ -2199,6 +2202,10 @@ static int cfg_parse_http_errors(const char *file, int linenum, char **args, int
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
+		}
+		if (errmsg) {
+			ha_warning("parsing [%s:%d] : %s: %s\n", file, linenum, args[0], errmsg);
+			err_code |= ERR_WARN;
 		}
 
 		reply = calloc(1, sizeof(*reply));
