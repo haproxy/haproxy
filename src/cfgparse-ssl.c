@@ -1357,23 +1357,30 @@ static int srv_parse_check_sni(char **args, int *cur_arg, struct proxy *px, stru
 
 }
 
+/* common function to init ssl_ctx */
+static void ssl_sock_init_srv(struct server *s)
+{
+	if (global_ssl.connect_default_ciphers && !s->ssl_ctx.ciphers)
+		s->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+	if (global_ssl.connect_default_ciphersuites && !s->ssl_ctx.ciphersuites)
+		s->ssl_ctx.ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
+#endif
+	s->ssl_ctx.options |= global_ssl.connect_default_ssloptions;
+	s->ssl_ctx.methods.flags |= global_ssl.connect_default_sslmethods.flags;
+
+	if (!s->ssl_ctx.methods.min)
+		s->ssl_ctx.methods.min = global_ssl.connect_default_sslmethods.min;
+
+	if (!s->ssl_ctx.methods.max)
+		s->ssl_ctx.methods.max = global_ssl.connect_default_sslmethods.max;
+}
+
 /* parse the "check-ssl" server keyword */
 static int srv_parse_check_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	newsrv->check.use_ssl = 1;
-	if (global_ssl.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
-		newsrv->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-	if (global_ssl.connect_default_ciphersuites && !newsrv->ssl_ctx.ciphersuites)
-		newsrv->ssl_ctx.ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
-#endif
-	newsrv->ssl_ctx.options |= global_ssl.connect_default_ssloptions;
-	newsrv->ssl_ctx.methods.flags |= global_ssl.connect_default_sslmethods.flags;
-	if (!newsrv->ssl_ctx.methods.min)
-		newsrv->ssl_ctx.methods.min = global_ssl.connect_default_sslmethods.min;
-	if (!newsrv->ssl_ctx.methods.max)
-		newsrv->ssl_ctx.methods.max = global_ssl.connect_default_sslmethods.max;
-
+	ssl_sock_init_srv(newsrv);
 	return 0;
 }
 
@@ -1545,22 +1552,7 @@ static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct ser
 static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	newsrv->use_ssl = 1;
-	if (global_ssl.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
-		newsrv->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-	if (global_ssl.connect_default_ciphersuites && !newsrv->ssl_ctx.ciphersuites)
-		newsrv->ssl_ctx.ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
-#endif
-	newsrv->ssl_ctx.options |= global_ssl.connect_default_ssloptions;
-	newsrv->ssl_ctx.methods.flags |= global_ssl.connect_default_sslmethods.flags;
-
-	if (!newsrv->ssl_ctx.methods.min)
-		newsrv->ssl_ctx.methods.min = global_ssl.connect_default_sslmethods.min;
-
-	if (!newsrv->ssl_ctx.methods.max)
-		newsrv->ssl_ctx.methods.max = global_ssl.connect_default_sslmethods.max;
-
-
+	ssl_sock_init_srv(newsrv);
 	return 0;
 }
 
