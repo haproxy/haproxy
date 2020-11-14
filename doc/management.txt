@@ -1861,6 +1861,9 @@ set server <backend>/<server> fqdn <FQDN>
   Change a server's FQDN to the value passed in argument. This requires the
   internal run-time DNS resolver to be configured and enabled for this server.
 
+set server <backend>/<server> ssl [ on | off ]
+  This option configures SSL ciphering on outgoing connections to the server.
+
 set severity-output [ none | number | string ]
   Change the severity output format of the stats socket connected to for the
   duration of the current session.
@@ -2416,6 +2419,7 @@ show servers state [<backend>]
      srv_fqdn:                    Server FQDN.
      srv_port:                    Server port.
      srvrecord:                   DNS SRV record associated to this SRV.
+     srv_use_ssl:                 use ssl for server connections.
 
 show sess
   Dump all known sessions. Avoid doing this on slow connections as this can

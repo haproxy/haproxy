@@ -1,0 +1,54 @@
+varnishtest "Set server ssl via CLI"
+
+feature ignore_unknown_macro
+
+# for "set server <srv> ssl"
+#REQUIRE_VERSION=2.4
+#REGTEST_TYPE=bug
+
+# Do nothing. Is there only to create s1_* macros
+server s1 {
+} -start
+
+haproxy h1 -conf {
+    global
+        ssl-server-verify none
+
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend myfrontend
+        bind "fd@${my_fe}"
+        default_backend test0
+
+    backend test0
+        default-server ssl
+        server www0 ${s1_addr}:${s1_port} no-ssl
+
+    backend test1
+        server www0 ${s1_addr}:${s1_port} no-ssl
+} -start
+
+haproxy h1 -cli {
+    # supported case
+    send "show servers state test0"
+    expect ~ "test0 1 www0 ${s1_addr} .* - ${s1_port} - -1"
+    send "set server test0/www0 ssl on"
+    expect ~ "server ssl setting updated"
+    send "show servers state test0"
+    expect ~ "test0 1 www0 ${s1_addr} .* - ${s1_port} - 1"
+    send "set server test0/www0 ssl off"
+    expect ~ "server ssl setting updated"
+    send "show servers state test0"
+    expect ~ "test0 1 www0 ${s1_addr} .* - ${s1_port} - 0"
+
+    # unsupported case
+    send "show servers state test1"
+    expect ~ "test1 1 www0 ${s1_addr} .* - ${s1_port} - -1"
+    send "set server test1/www0 ssl on"
+    expect ~ "'set server <srv> ssl' cannot be set"
+} -wait

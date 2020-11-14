@@ -13552,6 +13552,10 @@ no-ssl
   It may also be used as "default-server" setting to reset any previous
   "default-server" "ssl" setting.
 
+  Note that using `default-server ssl` setting and `no-ssl` on server will
+  however init SSL connection, so it can be later be enabled through the
+  runtime API: see `set server` commands in management doc.
+
 no-ssl-reuse
   This option disables SSL session reuse when SSL is used to communicate with
   the server. It will force the server to perform a full handshake for every

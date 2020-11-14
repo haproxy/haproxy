@@ -1799,14 +1799,15 @@ static int dump_servers_state(struct stream_interface *si)
 			             "%d %s %s "
 			             "%d %d %d %d %ld "
 			             "%d %d %d %d %d "
-			             "%d %d %s %u %s"
+			             "%d %d %s %u "
+				     "%s %d"
 			             "\n",
 			             px->uuid, px->id,
 			             srv->puid, srv->id, srv_addr,
 			             srv->cur_state, srv->cur_admin, srv->uweight, srv->iweight, (long int)srv_time_since_last_change,
 			             srv->check.status, srv->check.result, srv->check.health, srv->check.state, srv->agent.state,
 			             bk_f_forced_id, srv_f_forced_id, srv->hostname ? srv->hostname : "-", srv->svc_port,
-			             srvrecord ? srvrecord : "-");
+			             srvrecord ? srvrecord : "-", srv->use_ssl);
 		} else {
 			/* show servers conn */
 			int thr;

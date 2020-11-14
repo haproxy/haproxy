@@ -38,6 +38,7 @@
 #include <haproxy/queue.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
+#include <haproxy/ssl_sock.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
@@ -2579,6 +2580,9 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	const char *port_str;
 	unsigned int port;
 	char *srvrecord;
+#ifdef USE_OPENSSL
+	int use_ssl;
+#endif
 
 	fqdn = NULL;
 	port = 0;
@@ -2603,6 +2607,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			 * srv_fqdn:             params[13]
 			 * srv_port:             params[14]
 			 * srvrecord:            params[15]
+			 * srv_use_ssl:          params[16]
 			 */
 
 			/* validating srv_op_state */
@@ -2741,6 +2746,10 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			srvrecord = params[15];
 			if (srvrecord && *srvrecord != '_')
 				srvrecord = NULL;
+
+#ifdef USE_OPENSSL
+			use_ssl = strtol(params[16], &p, 10);
+#endif
 
 			/* don't apply anything if one error has been detected */
 			if (msg->data)
@@ -2941,6 +2950,13 @@ static void srv_update_state(struct server *srv, int version, char **params)
 
 			if (port_str)
 				srv->svc_port = port;
+
+#ifdef USE_OPENSSL
+			/* configure ssl if connection has been initated at startup */
+			if (srv->ssl_ctx.ctx != NULL)
+				ssl_sock_set_srv(srv, use_ssl);
+#endif
+
 			HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 
 			break;
@@ -4396,10 +4412,29 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
-	else {
+	else if (strcmp(args[3], "ssl") == 0) {
+#ifdef USE_OPENSSL
+		if (sv->ssl_ctx.ctx == NULL) {
+			cli_err(appctx, "'set server <srv> ssl' cannot be set. "
+					" default-server should define ssl settings\n");
+			goto out_unlock;
+		} else if (strcmp(args[4], "on") == 0) {
+			ssl_sock_set_srv(sv, 1);
+		} else if (strcmp(args[4], "off") == 0) {
+			ssl_sock_set_srv(sv, 0);
+		} else {
+			cli_err(appctx, "'set server <srv> ssl' expects 'on' or 'off'.\n");
+			goto out_unlock;
+		}
+		srv_cleanup_connections(sv);
+		cli_msg(appctx, LOG_NOTICE, "server ssl setting updated.\n");
+#else
+		cli_msg(appctx, LOG_NOTICE, "server ssl setting not supported.\n");
+#endif
+	} else {
 		cli_err(appctx,
 			"'set server <srv>' only supports 'agent', 'health', 'state',"
-			" 'weight', 'addr', 'fqdn' and 'check-port'.\n");
+			" 'weight', 'addr', 'fqdn', 'check-port' and 'ssl'.\n");
 	}
  out_unlock:
 	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
@@ -4633,7 +4668,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "enable", "health",  NULL }, "enable health  : enable health checks (use 'set server' instead)", cli_parse_enable_health, NULL },
 	{ { "enable", "server",  NULL }, "enable server  : enable a disabled server (use 'set server' instead)", cli_parse_enable_server, NULL },
 	{ { "set", "maxconn", "server",  NULL }, "set maxconn server : change a server's maxconn setting", cli_parse_set_maxconn_server, NULL },
-	{ { "set", "server", NULL }, "set server     : change a server's state, weight or address",  cli_parse_set_server },
+	{ { "set", "server", NULL }, "set server     : change a server's state, weight, address or ssl",  cli_parse_set_server },
 	{ { "get", "weight", NULL }, "get weight     : report a server's current weight",  cli_parse_get_weight },
 	{ { "set", "weight", NULL }, "set weight     : change a server's weight (deprecated)",  cli_parse_set_weight },
 

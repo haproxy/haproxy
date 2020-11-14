@@ -1483,9 +1483,14 @@ static int srv_parse_no_send_proxy_cn(char **args, int *cur_arg, struct proxy *p
 /* parse the "no-ssl" server keyword */
 static int srv_parse_no_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
+	/* if default-server have use_ssl, prepare ssl settings */
+	if (newsrv->use_ssl == 1)
+		ssl_sock_init_srv(newsrv);
+	else {
+		free(newsrv->ssl_ctx.ciphers);
+		newsrv->ssl_ctx.ciphers = NULL;
+	}
 	newsrv->use_ssl = -1;
-	free(newsrv->ssl_ctx.ciphers);
-	newsrv->ssl_ctx.ciphers = NULL;
 	return 0;
 }
 
