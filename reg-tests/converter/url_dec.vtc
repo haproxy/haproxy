@@ -1,0 +1,38 @@
+varnishtest "url_dec converter Test"
+
+#REQUIRE_VERSION=1.6
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-request  set-var(txn.url) url
+	http-response set-header url_dec0 "%[var(txn.url),url_dec]"
+	http-response set-header url_dec1 "%[var(txn.url),url_dec(1)]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/bla+%20?foo%3Dbar%2B42+42%20"
+	rxresp
+	expect resp.http.url_dec0 == "/bla+ ?foo=bar+42 42 "
+	expect resp.http.url_dec1 == "/bla  ?foo=bar+42 42 "
+	expect resp.status == 200
+} -run
