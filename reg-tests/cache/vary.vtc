@@ -1,0 +1,234 @@
+varnishtest "Vary support"
+
+#REQUIRE_VERSION=2.3
+
+feature ignore_unknown_macro
+
+server s1 {
+       # Response varying on "accept-encoding"
+       rxreq
+       expect req.url == "/accept-encoding"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Content-Type: gzip" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 15
+       chunkedlen 15
+       chunkedlen 15
+       chunkedlen 0
+
+       # Response varying on "accept-encoding"
+       rxreq
+       expect req.url == "/accept-encoding"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Content-Type: text/plain" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 16
+       chunkedlen 16
+       chunkedlen 16
+       chunkedlen 0
+
+       # Response varying on "accept-encoding" but having two different encodings
+       rxreq
+       expect req.url == "/accept-encoding-multiple"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 0
+
+       # Unmanaged vary
+       rxreq
+       expect req.url == "/unmanaged"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Vary: accept-encoding,unmanaged" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 0
+
+       rxreq
+       expect req.url == "/unmanaged"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Vary: accept-encoding,unmanaged" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 0
+
+
+       # Mixed Vary (Accept-Encoding + Referer)
+       rxreq
+       expect req.url == "/referer-accept-encoding"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Vary: accept-encoding,referer" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 17
+       chunkedlen 0
+
+       rxreq
+       expect req.url == "/referer-accept-encoding"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Vary: referer,accept-encoding" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 18
+       chunkedlen 18
+       chunkedlen 18
+       chunkedlen 0
+
+       rxreq
+       expect req.url == "/referer-accept-encoding"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Vary: referer,accept-encoding" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 19
+       chunkedlen 19
+       chunkedlen 19
+       chunkedlen 0
+
+} -start
+
+haproxy h1 -conf {
+       defaults
+               mode http
+               ${no-htx} option http-use-htx
+               timeout connect 1s
+               timeout client  1s
+               timeout server  1s
+
+       frontend fe
+               bind "fd@${fe}"
+               default_backend test
+
+       backend test
+               http-request cache-use my_cache
+               server www ${s1_addr}:${s1_port}
+               http-response cache-store my_cache
+               http-response set-header X-Cache-Hit %[res.cache_hit]
+
+       cache my_cache
+               total-max-size 3
+               max-age 20
+               max-object-size 3072
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+       # Accept-Encoding Vary
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: first_value"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-type == "gzip"
+       expect resp.bodylen == 45
+
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: second_value"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 48
+       expect resp.http.content-type == "text/plain"
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: first_value"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 45
+       expect resp.http.content-type == "gzip"
+       expect resp.http.X-Cache-Hit == 1
+
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: second_value"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 48
+       expect resp.http.content-type == "text/plain"
+       expect resp.http.X-Cache-Hit == 1
+
+       # The accept-encoding normalizer function sorts alphabeticaly the values
+       # before  calculating the secondary key
+       txreq -url "/accept-encoding-multiple" -hdr "Accept-Encoding: first,second"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/accept-encoding-multiple" -hdr "Accept-Encoding: first,second"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+       expect resp.http.X-Cache-Hit == 1
+
+       txreq -url "/accept-encoding-multiple" -hdr "Accept-Encoding: second,first"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+       expect resp.http.X-Cache-Hit == 1
+
+       # Unmanaged vary
+       txreq -url "/unmanaged" -hdr "Accept-Encoding: first_value"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/unmanaged" -hdr "Accept-Encoding: first_value"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+       expect resp.http.X-Cache-Hit == 0
+
+
+       # Mixed Vary (Accept-Encoding + Referer)
+       txreq -url "/referer-accept-encoding" \
+               -hdr "Accept-Encoding: first_value,second_value" \
+               -hdr "Referer: referer"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/referer-accept-encoding" \
+               -hdr "Accept-Encoding: first_value" \
+               -hdr "Referer: other-referer"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 54
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/referer-accept-encoding" \
+               -hdr "Accept-Encoding: second_value" \
+               -hdr "Referer: other-referer"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 57
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/referer-accept-encoding" \
+               -hdr "Referer: referer" \
+               -hdr "Accept-Encoding: second_value,first_value"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+       expect resp.http.X-Cache-Hit == 1
+
+       txreq -url "/referer-accept-encoding" \
+               -hdr "Accept-Encoding: first_value" \
+               -hdr "Referer: other-referer"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 54
+       expect resp.http.X-Cache-Hit == 1
+
+       txreq -url "/referer-accept-encoding" \
+               -hdr "Accept-Encoding: second_value" \
+               -hdr "Referer: other-referer"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 57
+       expect resp.http.X-Cache-Hit == 1
+} -run

@@ -111,6 +111,10 @@ struct cache_entry {
 	struct eb32_node eb;     /* ebtree node used to hold the cache object */
 	char hash[20];
 
+	char secondary_key[HTTP_CACHE_SEC_KEY_LEN];  /* Optional secondary key. */
+	unsigned int secondary_key_signature;  /* Bitfield of the HTTP headers that should be used
+					        * to build secondary keys for this cache entry. */
+
 	unsigned int etag_length; /* Length of the ETag value (if one was found in the response). */
 	unsigned int etag_offset; /* Offset of the ETag value in the data buffer. */
 
@@ -120,10 +124,6 @@ struct cache_entry {
 			       * otherwise use reception time. This field will
 			       * be used in case of an "If-Modified-Since"-based
 			       * conditional request. */
-
-	unsigned int secondary_key_signature;  /* Bitfield of the HTTP headers that should be used
-					        * to build secondary keys for this cache entry. */
-	char secondary_key[HTTP_CACHE_SEC_KEY_LEN];  /* Optional secondary key. */
 
 	unsigned char data[0];
 };
@@ -162,6 +162,13 @@ struct cache_entry *entry_exist(struct cache *cache, char *hash)
 
 }
 
+/*
+ * There can be multiple entries with the same primary key in the ebtree so in
+ * order to get the proper one out of the list, we use a secondary_key.
+ * This function simply iterates over all the entries with the same primary_key
+ * until it finds the right one.
+ * Returns the cache_entry in case of success, NULL otherwise.
+ */
 struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entry *entry,
 					  char *secondary_key)
 {
@@ -711,6 +718,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	unsigned int etag_offset = 0;
 	struct ist header_name = IST_NULL;
 	time_t last_modified = 0;
+	unsigned int vary_signature = 0;
 
 	/* Don't cache if the response came from a cache */
 	if ((obj_type(s->target) == OBJ_TYPE_APPLET) &&
@@ -753,10 +761,12 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	    htx->data + htx->extra > shctx->max_obj_size)
 		goto out;
 
-	/* Does not manage Vary at the moment. We will need a secondary key later for that */
-	ctx.blk = NULL;
-	if (http_find_header(htx, ist("Vary"), &ctx, 0))
+	/* Only a subset of headers are supported in our Vary implementation. If
+	 * any other header is present in the Vary header value, we won't be
+	 * able to use the cache. */
+	if (!http_check_vary_header(htx, &vary_signature)) {
 		goto out;
+	}
 
 	http_check_response_for_cacheability(s, &s->res);
 
@@ -823,6 +833,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	object->eb.key = 0;
 	object->age = age;
 	object->last_modified = last_modified;
+	object->secondary_key_signature = vary_signature;
 
 	/* reserve space for the cache_entry structure */
 	first->len = sizeof(struct cache_entry);
@@ -849,14 +860,27 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		object->eb.key = key;
 
 		memcpy(object->hash, txn->cache_hash, sizeof(object->hash));
+
+		/* Add the current request's secondary key to the buffer if needed. */
+		if (vary_signature) {
+			http_request_reduce_secondary_key(vary_signature, txn->cache_secondary_hash);
+			memcpy(object->secondary_key, txn->cache_secondary_hash, HTTP_CACHE_SEC_KEY_LEN);
+		}
+
 		/* Insert the node later on caching success */
 
 		shctx_lock(shctx);
 
 		old = entry_exist(cconf->c.cache, txn->cache_hash);
 		if (old) {
-			eb32_delete(&old->eb);
-			old->eb.key = 0;
+			if (vary_signature)
+				old = secondary_entry_exist(cconf->c.cache, old,
+							    txn->cache_secondary_hash);
+
+			if (old) {
+				eb32_delete(&old->eb);
+				old->eb.key = 0;
+			}
 		}
 		shctx_unlock(shctx);
 
@@ -1391,9 +1415,11 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 {
 
 	struct http_txn *txn = s->txn;
-	struct cache_entry *res;
+	struct cache_entry *res, *sec_entry = NULL;
 	struct cache_flt_conf *cconf = rule->arg.act.p[0];
 	struct cache *cache = cconf->c.cache;
+	struct shared_block *entry_block;
+
 
 	/* Ignore cache for HTTP/1.0 requests and for requests other than GET
 	 * and HEAD */
@@ -1421,8 +1447,40 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	res = entry_exist(cache, s->txn->cache_hash);
 	if (res) {
 		struct appctx *appctx;
-		shctx_row_inc_hot(shctx_ptr(cache), block_ptr(res));
+		entry_block = block_ptr(res);
+		shctx_row_inc_hot(shctx_ptr(cache), entry_block);
 		shctx_unlock(shctx_ptr(cache));
+
+		/* In case of Vary, we could have multiple entries with the same
+		 * primary hash. We need to calculate the secondary has in order
+		 * to find the actual entry we want (if it exists). */
+		if (res->secondary_key_signature) {
+			if (!http_request_build_secondary_key(s, res->secondary_key_signature)) {
+				shctx_lock(shctx_ptr(cache));
+				sec_entry = secondary_entry_exist(cache, res,
+								 s->txn->cache_secondary_hash);
+				if (sec_entry && sec_entry != res) {
+					/* The wrong row was added to the hot list. */
+					shctx_row_dec_hot(shctx_ptr(cache), entry_block);
+					entry_block = block_ptr(sec_entry);
+					shctx_row_inc_hot(shctx_ptr(cache), entry_block);
+				}
+				res = sec_entry;
+				shctx_unlock(shctx_ptr(cache));
+			}
+			else
+				res = NULL;
+		}
+
+		/* We looked for a valid secondary entry and could not find one,
+		 * the request must be forwarded to the server. */
+		if (!res) {
+			shctx_lock(shctx_ptr(cache));
+			shctx_row_dec_hot(shctx_ptr(cache), entry_block);
+			shctx_unlock(shctx_ptr(cache));
+			return ACT_RET_CONT;
+		}
+
 		s->target = &http_cache_applet.obj_type;
 		if ((appctx = si_register_handler(&s->si[1], objt_applet(s->target)))) {
 			appctx->st0 = HTX_CACHE_INIT;
@@ -1440,12 +1498,20 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 			return ACT_RET_CONT;
 		} else {
 			shctx_lock(shctx_ptr(cache));
-			shctx_row_dec_hot(shctx_ptr(cache), block_ptr(res));
+			shctx_row_dec_hot(shctx_ptr(cache), entry_block);
 			shctx_unlock(shctx_ptr(cache));
 			return ACT_RET_YIELD;
 		}
 	}
 	shctx_unlock(shctx_ptr(cache));
+
+	/* Shared context does not need to be locked while we calculate the
+	 * secondary hash. */
+	if (!res) {
+		/* Build a complete secondary hash until the server response
+		 * tells us which fields should be kept (if any). */
+		http_request_prebuild_full_secondary_key(s);
+	}
 	return ACT_RET_CONT;
 }
 
@@ -1651,7 +1717,7 @@ int post_check_cache()
 		 * list */
 		memcpy(shctx->data, cache_config, sizeof(struct cache));
 		cache = (struct cache *)shctx->data;
-		cache->entries = EB_ROOT_UNIQUE;
+		cache->entries = EB_ROOT;
 		LIST_ADDQ(&caches, &cache->list);
 		LIST_DEL(&cache_config->list);
 		free(cache_config);
