@@ -546,10 +546,15 @@ flt_set_stream_backend(struct stream *s, struct proxy *be)
 int
 flt_http_end(struct stream *s, struct http_msg *msg)
 {
+	unsigned long long *strm_off = &FLT_STRM_OFF(s, msg->chn);
+	unsigned int offset = 0;
 	int ret = 1;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 	RESUME_FILTER_LOOP(s, msg->chn) {
+		unsigned long long flt_off = FLT_OFF(filter, msg->chn);
+		offset = flt_off - *strm_off;
+
 		if (FLT_OPS(filter)->http_end) {
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->http_end(s, filter, msg);
@@ -557,6 +562,10 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 				BREAK_EXECUTION(s, msg->chn, end);
 		}
 	} RESUME_FILTER_END;
+
+	c_adv(msg->chn, offset);
+	*strm_off += offset;
+
 end:
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 	return ret;
