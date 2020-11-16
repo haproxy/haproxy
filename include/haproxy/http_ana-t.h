@@ -90,6 +90,13 @@
 
 #define HTTP_MSGF_BODYLESS    0x00000040  /* The message has no body (content-length = 0) */
 
+/* Maximum length of the cache secondary key (sum of all the possible parts of
+ * the secondary key). The actual keys might be smaller for some
+ * request/response pairs, because they depend on the responses' optional Vary
+ * header. The differents sizes can be found in the vary_information object (see
+ * cache.c).*/
+#define HTTP_CACHE_SEC_KEY_LEN (sizeof(int)+sizeof(int))
+
 
 /* Redirect flags */
 enum {
@@ -163,6 +170,7 @@ struct http_msg {
 	struct channel *chn;                   /* pointer to the channel transporting the message */
 };
 
+
 /* This is an HTTP transaction. It contains both a request message and a
  * response message (which can be empty).
  */
@@ -176,6 +184,7 @@ struct http_txn {
 	struct http_reply *http_reply;  /* The HTTP reply to use as reply */
 
 	char cache_hash[20];               /* Store the cache hash  */
+	char cache_secondary_hash[HTTP_CACHE_SEC_KEY_LEN]; /* Optional cache secondary key. */
 	char *uri;                      /* first line if log needed, NULL otherwise */
 	char *cli_cookie;               /* cookie presented by the client, in capture mode */
 	char *srv_cookie;               /* cookie presented by the server, in capture mode */

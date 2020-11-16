@@ -61,6 +61,41 @@ struct cache_flt_conf {
 	unsigned int flags;   /* CACHE_FLT_F_* */
 };
 
+
+/*
+ * Vary-related structures and functions
+ */
+enum vary_header_bit {
+	VARY_ACCEPT_ENCODING = (1 << 0),
+	VARY_REFERER =         (1 << 1),
+	VARY_LAST  /* should always be last */
+};
+
+typedef int(*http_header_normalizer)(struct ist value, char *buf, unsigned int *buf_len);
+
+struct vary_hashing_information {
+	struct ist hdr_name;                 /* Header name */
+	enum vary_header_bit value;          /* Bit repesenting the header in a vary signature */
+	unsigned int hash_length;            /* Size of the sub hash for this header's value */
+	http_header_normalizer norm_fn;      /* Normalization function */
+};
+
+static int accept_encoding_normalizer(struct ist value, char *buf, unsigned int *buf_len);
+static int default_normalizer(struct ist value, char *buf, unsigned int *buf_len);
+
+/* Warning : do not forget to update HTTP_CACHE_SEC_KEY_LEN when new items are
+ * added to this array. */
+const struct vary_hashing_information vary_information[] = {
+	{ IST("accept-encoding"), VARY_ACCEPT_ENCODING, sizeof(int), &accept_encoding_normalizer },
+	{ IST("referer"), VARY_REFERER, sizeof(int), &default_normalizer },
+};
+
+static int http_request_prebuild_full_secondary_key(struct stream *s);
+static int http_request_build_secondary_key(struct stream *s, int vary_signature);
+static int http_request_reduce_secondary_key(unsigned int vary_signature,
+					     char prebuilt_key[HTTP_CACHE_SEC_KEY_LEN]);
+
+
 /*
  * cache ctx for filters
  */
@@ -85,6 +120,10 @@ struct cache_entry {
 			       * otherwise use reception time. This field will
 			       * be used in case of an "If-Modified-Since"-based
 			       * conditional request. */
+
+	unsigned int secondary_key_signature;  /* Bitfield of the HTTP headers that should be used
+					        * to build secondary keys for this cache entry. */
+	char secondary_key[HTTP_CACHE_SEC_KEY_LEN];  /* Optional secondary key. */
 
 	unsigned char data[0];
 };
@@ -121,6 +160,29 @@ struct cache_entry *entry_exist(struct cache *cache, char *hash)
 	}
 	return NULL;
 
+}
+
+struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entry *entry,
+					  char *secondary_key)
+{
+	struct eb32_node *node = &entry->eb;
+
+	if (!entry->secondary_key_signature)
+		return NULL;
+
+	while (entry && memcmp(entry->secondary_key, secondary_key, HTTP_CACHE_SEC_KEY_LEN) != 0) {
+		node = eb32_next_dup(node);
+		entry = node ? eb32_entry(node, struct cache_entry, eb) : NULL;
+	}
+
+	/* Expired entry */
+	if (entry && entry->expire <= now.tv_sec) {
+		eb32_delete(&entry->eb);
+		entry->eb.key = 0;
+		entry = NULL;
+	}
+
+	return entry;
 }
 
 static inline struct shared_context *shctx_ptr(struct cache *cache)
@@ -588,6 +650,40 @@ static time_t get_last_modified_time(struct htx *htx)
 
 	return last_modified;
 }
+
+/*
+ * Checks the vary header's value. The headers on which vary should be applied
+ * must be explicitely supported in the vary_information array (see cache.c). If
+ * any other header is mentioned, we won't store the response.
+ * Returns 1 if Vary-based storage can work, 0 otherwise.
+ */
+static int http_check_vary_header(struct htx *htx, unsigned int *vary_signature)
+{
+	unsigned int vary_idx;
+	unsigned int vary_info_count;
+	const struct vary_hashing_information *vary_info;
+	struct http_hdr_ctx ctx = { .blk = NULL };
+
+	int retval = 1;
+
+	*vary_signature = 0;
+
+	vary_info_count = sizeof(vary_information)/sizeof(*vary_information);
+	while (retval && http_find_header(htx, ist("Vary"), &ctx, 0)) {
+		for (vary_idx = 0; vary_idx < vary_info_count; ++vary_idx) {
+			vary_info = &vary_information[vary_idx];
+			if (isteqi(ctx.value, vary_info->hdr_name)) {
+				*vary_signature |= vary_info->value;
+				break;
+			}
+		}
+		retval = (vary_idx < vary_info_count);
+	}
+
+	return retval;
+}
+
+
 
 /*
  * This function will store the headers of the response in a buffer and then
@@ -1604,6 +1700,182 @@ struct flt_ops cache_ops = {
 	.http_payload        = cache_store_http_payload,
 	.http_end            = cache_store_http_end,
 };
+
+
+int accept_encoding_cmp(const void *a, const void *b)
+{
+	const struct ist ist_a = *(const struct ist*)a;
+	const struct ist ist_b = *(const struct ist*)b;
+
+	return istdiff(ist_a, ist_b);
+}
+
+/*
+ * Build a hash of the accept-encoding header. The different parts of the
+ * header value are first sorted, appended and then a crc is calculated
+ * for the newly constructed buffer.
+ * Returns 0 in case of success.
+ */
+static int accept_encoding_normalizer(struct ist value, char *buf, unsigned int *buf_len)
+{
+	int retval = 0;
+	struct ist values[16] = {{}};
+	unsigned int count = 0;
+	char *comma = NULL;
+	struct buffer *trash = get_trash_chunk();
+	int hash_value = 0;
+
+	/* The hash will be built out of a sorted list of accepted encodings. */
+	while((comma = istchr(value, ',')) != NULL) {
+		values[count++] = ist2(istptr(value), comma-istptr(value));
+		value = ist2(comma+1, istlen(value) - (comma-istptr(value)) - 1);
+	}
+	values[count++] = value;
+
+	/* Sort the values alphabetically. */
+	qsort(values, count, sizeof(struct ist), &accept_encoding_cmp);
+
+	while (count)
+		chunk_istcat(trash, values[--count]);
+
+	hash_value = hash_crc32(b_orig(trash), b_data(trash));
+
+	memcpy(buf, &hash_value, sizeof(hash_value));
+	*buf_len = sizeof(hash_value);
+
+	return retval;
+}
+
+/*
+ * Normalizer used by default for User-Agent and Referer headers. It only
+ * calculates a simple crc of the whole value.
+ * Returns 0 in case of success.
+ */
+static int default_normalizer(struct ist value, char *buf, unsigned int *buf_len)
+{
+	int hash_value = 0;
+
+	hash_value = hash_crc32(istptr(value), istlen(value));
+
+	memcpy(buf, &hash_value, sizeof(hash_value));
+	*buf_len = sizeof(hash_value);
+
+	return 0;
+}
+
+
+/*
+ * Pre-calculate the hashes of all the supported headers (in our Vary
+ * implementation) of a given request. We have to calculate all the hashes
+ * in advance because the actual Vary signature won't be known until the first
+ * response.
+ * Only the first occurrence of every header will be taken into account in the
+ * hash.
+ * If the header is not present, the hash portion of the given header will be
+ * filled with zeros.
+ * Returns 0 in case of success.
+ */
+static int http_request_prebuild_full_secondary_key(struct stream *s)
+{
+	struct http_txn *txn = s->txn;
+	struct htx *htx = htxbuf(&s->req.buf);
+	struct http_hdr_ctx ctx = { .blk = NULL };
+
+	unsigned int idx;
+	const struct vary_hashing_information *info = NULL;
+	unsigned int hash_length = 0;
+	int retval = 0;
+	int offset = 0;
+
+	for (idx = 0; idx < sizeof(vary_information)/sizeof(*vary_information) && !retval; ++idx) {
+		info = &vary_information[idx];
+
+		ctx.blk = NULL;
+		if (info->norm_fn != NULL && http_find_header(htx, info->hdr_name, &ctx, 1)) {
+			retval = info->norm_fn(ctx.value, &txn->cache_secondary_hash[offset], &hash_length);
+			offset += hash_length;
+		}
+		else {
+			/* Fill hash with 0s. */
+			hash_length = info->hash_length;
+			memset(&txn->cache_secondary_hash[offset], 0, hash_length);
+			offset += hash_length;
+		}
+	}
+
+	return retval;
+}
+
+
+/*
+ * Calculate the secondary key for a request for which we already have a known
+ * vary signature. The key is made by aggregating hashes calculated for every
+ * header mentioned in the vary signature.
+ * Only the first occurrence of every header will be taken into account in the
+ * hash.
+ * If the header is not present, the hash portion of the given header will be
+ * filled with zeros.
+ * Returns 0 in case of success.
+ */
+static int http_request_build_secondary_key(struct stream *s, int vary_signature)
+{
+	struct http_txn *txn = s->txn;
+	struct htx *htx = htxbuf(&s->req.buf);
+	struct http_hdr_ctx ctx = { .blk = NULL };
+
+	unsigned int idx;
+	const struct vary_hashing_information *info = NULL;
+	unsigned int hash_length = 0;
+	int retval = 0;
+	int offset = 0;
+
+	for (idx = 0; idx < sizeof(vary_information)/sizeof(*vary_information) && !retval; ++idx) {
+		info = &vary_information[idx];
+
+		ctx.blk = NULL;
+		if ((vary_signature & info->value) && info->norm_fn != NULL &&
+		    http_find_header(htx, info->hdr_name, &ctx, 1)) {
+			retval = info->norm_fn(ctx.value, &txn->cache_secondary_hash[offset], &hash_length);
+			offset += hash_length;
+		}
+		else {
+			/* Fill hash with 0s. */
+			hash_length = info->hash_length;
+			memset(&txn->cache_secondary_hash[offset], 0, hash_length);
+			offset += hash_length;
+		}
+	}
+
+	return retval;
+}
+
+/*
+ * Build the actual secondary key of a given request out of the prebuilt key and
+ * the actual vary signature (extracted from the response).
+ * Returns 0 in case of success.
+ */
+static int http_request_reduce_secondary_key(unsigned int vary_signature,
+					     char prebuilt_key[HTTP_CACHE_SEC_KEY_LEN])
+{
+	int offset = 0;
+	int global_offset = 0;
+	int vary_info_count = 0;
+	int keep = 0;
+	unsigned int vary_idx;
+	const struct vary_hashing_information *vary_info;
+
+	vary_info_count = sizeof(vary_information)/sizeof(*vary_information);
+	for (vary_idx = 0; vary_idx < vary_info_count; ++vary_idx) {
+		vary_info = &vary_information[vary_idx];
+		keep = (vary_signature & vary_info->value) ? 0xff : 0;
+
+		for (offset = 0; offset < vary_info->hash_length; ++offset,++global_offset) {
+			prebuilt_key[global_offset] &= keep;
+		}
+	}
+
+	return 0;
+}
 
 
 
