@@ -1044,6 +1044,10 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	if (htx->flags & HTX_FL_PROCESSING_ERROR)
 		goto return_int_err;
 
+	/* CONNECT requests have no body */
+	if (txn->meth == HTTP_METH_CONNECT)
+		goto http_end;
+
 	if (msg->msg_state < HTTP_MSG_BODY)
 		goto missing_data;
 
