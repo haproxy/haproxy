@@ -93,6 +93,30 @@ server s1 {
        chunkedlen 19
        chunkedlen 0
 
+
+} -start
+
+server s2 {
+       # Responses that should not be cached
+       rxreq
+       expect req.url == "/no_vary_support"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 19
+       chunkedlen 19
+       chunkedlen 19
+       chunkedlen 0
+
+       rxreq
+       expect req.url == "/no_vary_support"
+       txresp -nolen -hdr "Transfer-Encoding: chunked" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5"
+       chunkedlen 19
+       chunkedlen 19
+       chunkedlen 19
+       chunkedlen 0
 } -start
 
 haproxy h1 -conf {
@@ -105,6 +129,7 @@ haproxy h1 -conf {
 
        frontend fe
                bind "fd@${fe}"
+               use_backend no_vary_be if { path_beg /no_vary_support }
                default_backend test
 
        backend test
@@ -113,10 +138,23 @@ haproxy h1 -conf {
                http-response cache-store my_cache
                http-response set-header X-Cache-Hit %[res.cache_hit]
 
+        backend no_vary_be
+               http-request cache-use no_vary_cache
+               server www ${s2_addr}:${s2_port}
+               http-response cache-store no_vary_cache
+               http-response set-header X-Cache-Hit %[res.cache_hit]
+
        cache my_cache
                total-max-size 3
                max-age 20
                max-object-size 3072
+               process-vary 1
+
+       cache no_vary_cache
+               total-max-size 3
+               max-age 20
+               max-object-size 3072
+               process-vary 0
 } -start
 
 
@@ -231,4 +269,20 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.status == 200
        expect resp.bodylen == 57
        expect resp.http.X-Cache-Hit == 1
+
+       # The following requests are trated by a backend that does not cache
+       # responses containing a Vary header
+       txreq -url "/no_vary_support"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 57
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/no_vary_support"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 57
+       expect resp.http.X-Cache-Hit == 0
+
+
 } -run

@@ -49,6 +49,7 @@ struct cache {
 	unsigned int maxage;     /* max-age */
 	unsigned int maxblocks;
 	unsigned int maxobjsz;   /* max-object-size (in bytes) */
+	uint8_t vary_processing_enabled;     /* boolean : manage Vary header (disabled by default) */
 	char id[33];             /* cache name */
 };
 
@@ -706,7 +707,8 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	struct filter *filter;
 	struct shared_block *first = NULL;
 	struct cache_flt_conf *cconf = rule->arg.act.p[0];
-	struct shared_context *shctx = shctx_ptr(cconf->c.cache);
+	struct cache *cache = cconf->c.cache;
+	struct shared_context *shctx = shctx_ptr(cache);
 	struct cache_st *cache_ctx = NULL;
 	struct cache_entry *object, *old;
 	unsigned int key = read_u32(txn->cache_hash);
@@ -763,8 +765,14 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	/* Only a subset of headers are supported in our Vary implementation. If
 	 * any other header is present in the Vary header value, we won't be
-	 * able to use the cache. */
-	if (!http_check_vary_header(htx, &vary_signature)) {
+	 * able to use the cache. Likewise, if Vary header support is disabled,
+	 * avoid caching responses that contain such a header. */
+	ctx.blk = NULL;
+	if (cache->vary_processing_enabled) {
+		if (!http_check_vary_header(htx, &vary_signature))
+			goto out;
+	}
+	else if (http_find_header(htx, ist("Vary"), &ctx, 0)) {
 		goto out;
 	}
 
@@ -1507,7 +1515,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 
 	/* Shared context does not need to be locked while we calculate the
 	 * secondary hash. */
-	if (!res) {
+	if (!res && cache->vary_processing_enabled) {
 		/* Build a complete secondary hash until the server response
 		 * tells us which fields should be kept (if any). */
 		http_request_prebuild_full_secondary_key(s);
@@ -1640,6 +1648,19 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		tmp_cache_config->maxobjsz = maxobjsz;
+	} else if (strcmp(args[0], "process-vary") == 0) {
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			err_code |= ERR_ABORT;
+			goto out;
+		}
+
+		if (!*args[1]) {
+			ha_warning("parsing [%s:%d]: '%s' expects 0 or 1 (disable or enable vary processing).\n",
+				   file, linenum, args[0]);
+			err_code |= ERR_WARN;
+		}
+
+		tmp_cache_config->vary_processing_enabled = atoi(args[1]);
 	}
 	else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in 'cache' section\n", file, linenum, args[0]);
