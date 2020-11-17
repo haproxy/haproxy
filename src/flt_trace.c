@@ -32,21 +32,28 @@ struct flt_ops trace_ops;
 struct trace_config {
 	struct proxy *proxy;
 	char         *name;
+	int           quiet;
 	int           rand_forwarding;
 	int           hexdump;
 };
 
 #define FLT_TRACE(conf, fmt, ...)						\
-	fprintf(stderr, "%d.%06d [%-20s] " fmt "\n",			\
-		(int)now.tv_sec, (int)now.tv_usec, (conf)->name,	\
-		##__VA_ARGS__)
+	do {									\
+		if (!(conf->quiet))						\
+			fprintf(stderr, "%d.%06d [%-20s] " fmt "\n",		\
+				(int)now.tv_sec, (int)now.tv_usec, (conf)->name,\
+				##__VA_ARGS__);					\
+	} while (0)
 
-#define FLT_STRM_TRACE(conf, strm, fmt, ...)						\
-	fprintf(stderr, "%d.%06d [%-20s] [strm %p(%x) 0x%08x 0x%08x] " fmt "\n",	\
-		(int)now.tv_sec, (int)now.tv_usec, (conf)->name,			\
-		strm, (strm ? ((struct stream *)strm)->uniq_id : ~0U),			\
-		(strm ? strm->req.analysers : 0), (strm ? strm->res.analysers : 0),	\
-		##__VA_ARGS__)
+#define FLT_STRM_TRACE(conf, strm, fmt, ...)								\
+	do {												\
+		if (!(conf->quiet))									\
+			fprintf(stderr, "%d.%06d [%-20s] [strm %p(%x) 0x%08x 0x%08x] " fmt "\n",	\
+				(int)now.tv_sec, (int)now.tv_usec, (conf)->name,			\
+				strm, (strm ? ((struct stream *)strm)->uniq_id : ~0U),			\
+				(strm ? strm->req.analysers : 0), (strm ? strm->res.analysers : 0),	\
+				##__VA_ARGS__);								\
+	} while (0)
 
 
 static const char *
@@ -187,9 +194,10 @@ trace_init(struct proxy *px, struct flt_conf *fconf)
 	fconf->flags |= FLT_CFG_FL_HTX;
 	fconf->conf = conf;
 
-	FLT_TRACE(conf, "filter initialized [fwd random=%s - hexdump=%s]",
-	      (conf->rand_forwarding ? "true" : "false"),
-	      (conf->hexdump ? "true" : "false"));
+	FLT_TRACE(conf, "filter initialized [quiet=%s - fwd random=%s - hexdump=%s]",
+		  (conf->quiet ? "true" : "false"),
+		  (conf->rand_forwarding ? "true" : "false"),
+		  (conf->hexdump ? "true" : "false"));
 	return 0;
 }
 
@@ -630,6 +638,8 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 				}
 				pos++;
 			}
+			else if (!strcmp(args[pos], "quiet"))
+				conf->quiet = 1;
 			else if (!strcmp(args[pos], "random-parsing"))
 				continue; // ignore
 			else if (!strcmp(args[pos], "random-forwarding"))

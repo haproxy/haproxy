@@ -20272,6 +20272,7 @@ filter trace [name <name>] [random-forwarding] [hexdump]
     <name>               is an arbitrary name that will be reported in
                          messages. If no name is provided, "TRACE" is used.
 
+    <quiet>              inhibits trace messages.
 
     <random-forwarding>  enables the random forwarding of parsed data. By
                          default, this filter forwards all previously parsed
