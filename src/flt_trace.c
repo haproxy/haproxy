@@ -32,7 +32,6 @@ struct flt_ops trace_ops;
 struct trace_config {
 	struct proxy *proxy;
 	char         *name;
-	int           rand_parsing;
 	int           rand_forwarding;
 	int           hexdump;
 };
@@ -188,8 +187,7 @@ trace_init(struct proxy *px, struct flt_conf *fconf)
 	fconf->flags |= FLT_CFG_FL_HTX;
 	fconf->conf = conf;
 
-	FLT_TRACE(conf, "filter initialized [read random=%s - fwd random=%s - hexdump=%s]",
-	      (conf->rand_parsing ? "true" : "false"),
+	FLT_TRACE(conf, "filter initialized [fwd random=%s - hexdump=%s]",
 	      (conf->rand_forwarding ? "true" : "false"),
 	      (conf->hexdump ? "true" : "false"));
 	return 0;
@@ -633,7 +631,7 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 				pos++;
 			}
 			else if (!strcmp(args[pos], "random-parsing"))
-				conf->rand_parsing = 1;
+				continue; // ignore
 			else if (!strcmp(args[pos], "random-forwarding"))
 				conf->rand_forwarding = 1;
 			else if (!strcmp(args[pos], "hexdump"))

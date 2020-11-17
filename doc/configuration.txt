@@ -20266,16 +20266,12 @@ See also : "filter"
 9.1. Trace
 ----------
 
-filter trace [name <name>] [random-parsing] [random-forwarding] [hexdump]
+filter trace [name <name>] [random-forwarding] [hexdump]
 
   Arguments:
     <name>               is an arbitrary name that will be reported in
                          messages. If no name is provided, "TRACE" is used.
 
-    <random-parsing>     enables the random parsing of data exchanged between
-                         the client and the server. By default, this filter
-                         parses all available data. With this parameter, it
-                         only parses a random amount of the available data.
 
     <random-forwarding>  enables the random forwarding of parsed data. By
                          default, this filter forwards all previously parsed
