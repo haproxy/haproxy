@@ -1,0 +1,71 @@
+varnishtest "Filtering test with several filters and random forwarding (via trace filter)"
+
+#REQUIRE_VERSION=2.4
+#REQUIRE_OPTION=ZLIB|SLZ
+#REGTEST_TYPE=slow
+
+feature ignore_unknown_macro
+
+barrier b1 cond 2 -cyclic
+
+server s1 {
+        rxreq
+        expect req.url == "/"
+        expect req.bodylen == 1048576
+        expect req.http.accept-encoding == "<undef>"
+        txresp \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 1048576
+
+        rxreq
+        expect req.url == "/"
+        txresp \
+          -hdr "Content-Length: 0"
+        recv 36000
+        send_n 1000 "0123456789abcdefghijklmnopqrstuvwxyz"
+        barrier b1 sync
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe1
+        bind "fd@${fe1}"
+
+        compression offload
+        compression algo gzip
+
+        filter trace name "BEFORE" random-forwarding quiet
+        filter compression
+        filter trace name "AFTER" random-forwarding quiet
+        default_backend be1
+
+    backend be1
+        server www ${s1_addr}:${s1_port}
+
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+        txreq -url "/" \
+          -hdr "Accept-Encoding: gzip" \
+          -hdr "Content-Type: text/plain" \
+          -bodylen 1048576
+        rxresp
+        expect resp.status == 200
+        expect resp.http.content-encoding == "gzip"
+        expect resp.http.transfer-encoding == "chunked"
+	gunzip
+        expect resp.bodylen == 1048576
+
+        txreq -method "CONNECT" -url "/" -nolen
+        rxresp
+        expect resp.status == 200
+        send_n 1000 "0123456789abcdefghijklmnopqrstuvwxyz"
+        recv 36000
+        barrier b1 sync
+} -run
