@@ -29,17 +29,19 @@ const char *trace_flt_id = "trace filter";
 
 struct flt_ops trace_ops;
 
+#define TRACE_F_QUIET       0x00000001
+#define TRACE_F_RAND_FWD    0x00000002
+#define TRACE_F_HEXDUMP     0x00000004
+
 struct trace_config {
 	struct proxy *proxy;
 	char         *name;
-	int           quiet;
-	int           rand_forwarding;
-	int           hexdump;
+	unsigned int  flags;
 };
 
 #define FLT_TRACE(conf, fmt, ...)						\
 	do {									\
-		if (!(conf->quiet))						\
+		if (!(conf->flags & TRACE_F_QUIET))				\
 			fprintf(stderr, "%d.%06d [%-20s] " fmt "\n",		\
 				(int)now.tv_sec, (int)now.tv_usec, (conf)->name,\
 				##__VA_ARGS__);					\
@@ -47,7 +49,7 @@ struct trace_config {
 
 #define FLT_STRM_TRACE(conf, strm, fmt, ...)								\
 	do {												\
-		if (!(conf->quiet))									\
+		if (!(conf->flags & TRACE_F_QUIET))							\
 			fprintf(stderr, "%d.%06d [%-20s] [strm %p(%x) 0x%08x 0x%08x] " fmt "\n",	\
 				(int)now.tv_sec, (int)now.tv_usec, (conf)->name,			\
 				strm, (strm ? ((struct stream *)strm)->uniq_id : ~0U),			\
@@ -195,9 +197,9 @@ trace_init(struct proxy *px, struct flt_conf *fconf)
 	fconf->conf = conf;
 
 	FLT_TRACE(conf, "filter initialized [quiet=%s - fwd random=%s - hexdump=%s]",
-		  (conf->quiet ? "true" : "false"),
-		  (conf->rand_forwarding ? "true" : "false"),
-		  (conf->hexdump ? "true" : "false"));
+		  ((conf->flags & TRACE_F_QUIET) ? "true" : "false"),
+		  ((conf->flags & TRACE_F_RAND_FWD) ? "true" : "false"),
+		  ((conf->flags & TRACE_F_HEXDUMP) ? "true" : "false"));
 	return 0;
 }
 
@@ -464,7 +466,7 @@ trace_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg
 	struct trace_config *conf = FLT_CONF(filter);
 	int ret = len;
 
-	if (ret && conf->rand_forwarding) {
+	if (ret && (conf->flags & TRACE_F_RAND_FWD)) {
 		unsigned int data = trace_get_htx_datalen(htxbuf(&msg->chn->buf), offset, len);
 
 		if (data) {
@@ -480,7 +482,7 @@ trace_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg
 		   channel_label(msg->chn), proxy_mode(s), stream_pos(s),
 		   offset, len, ret);
 
-	 if (conf->hexdump)
+	 if (conf->flags & TRACE_F_HEXDUMP)
 		 trace_htx_hexdump(htxbuf(&msg->chn->buf), offset, ret);
 
 	 if (ret != len)
@@ -532,7 +534,7 @@ trace_tcp_payload(struct stream *s, struct filter *filter, struct channel *chn,
 	int ret = len;
 
 	if (s->flags & SF_HTX) {
-		if (ret && conf->rand_forwarding) {
+		if (ret && (conf->flags & TRACE_F_RAND_FWD)) {
 			unsigned int data = trace_get_htx_datalen(htxbuf(&chn->buf), offset, len);
 
 			if (data) {
@@ -548,12 +550,12 @@ trace_tcp_payload(struct stream *s, struct filter *filter, struct channel *chn,
 			       channel_label(chn), proxy_mode(s), stream_pos(s),
 			       offset, len, ret);
 
-		if (conf->hexdump)
+		if (conf->flags & TRACE_F_HEXDUMP)
 			trace_htx_hexdump(htxbuf(&chn->buf), offset, ret);
 	}
 	else {
 
-		if (ret && conf->rand_forwarding)
+		if (ret && (conf->flags & TRACE_F_RAND_FWD))
 			ret = ha_random() % (ret+1);
 
 		FLT_STRM_TRACE(conf, s, "%-25s: channel=%-10s - mode=%-5s (%s) - "
@@ -562,7 +564,7 @@ trace_tcp_payload(struct stream *s, struct filter *filter, struct channel *chn,
 			       channel_label(chn), proxy_mode(s), stream_pos(s),
 			       offset, len, ret);
 
-		if (conf->hexdump)
+		if (conf->flags & TRACE_F_HEXDUMP)
 			trace_raw_hexdump(&chn->buf, offset, ret);
 	}
 
@@ -620,7 +622,7 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 		return -1;
 	}
 	conf->proxy = px;
-
+	conf->flags = 0;
 	if (!strcmp(args[pos], "trace")) {
 		pos++;
 
@@ -639,13 +641,13 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 				pos++;
 			}
 			else if (!strcmp(args[pos], "quiet"))
-				conf->quiet = 1;
+				conf->flags |= TRACE_F_QUIET;
 			else if (!strcmp(args[pos], "random-parsing"))
 				continue; // ignore
 			else if (!strcmp(args[pos], "random-forwarding"))
-				conf->rand_forwarding = 1;
+				conf->flags |= TRACE_F_RAND_FWD;
 			else if (!strcmp(args[pos], "hexdump"))
-				conf->hexdump = 1;
+				conf->flags |= TRACE_F_HEXDUMP;
 			else
 				break;
 			pos++;
