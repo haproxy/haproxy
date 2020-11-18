@@ -4556,7 +4556,7 @@ int http_forward_proxy_resp(struct stream *s, int final)
 	if (final) {
 		htx->flags |= HTX_FL_PROXY_RESP;
 
-		if (!http_eval_after_res_rules(s))
+		if (!htx_is_empty(htx) && !http_eval_after_res_rules(s))
 			return 0;
 
 		if (s->txn->meth == HTTP_METH_HEAD)
