@@ -4,7 +4,8 @@ feature ignore_unknown_macro
 
 # for "set server <srv> ssl"
 #REQUIRE_VERSION=2.4
-#REGTEST_TYPE=bug
+#REGTEST_TYPE=devel
+#REQUIRE_OPTIONS=OPENSSL
 
 # Do nothing. Is there only to create s1_* macros
 server s1 {
