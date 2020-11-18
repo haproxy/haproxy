@@ -54,6 +54,7 @@ Summary
 3.7.      Programs
 3.8.      HTTP-errors
 3.9.      Rings
+3.10.     Log forwarding
 
 4.    Proxies
 4.1.      Proxy keywords matrix
