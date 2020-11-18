@@ -1262,3 +1262,305 @@ Example :
   |         return result;
   | }
 
+
+13) Pointers
+------------
+
+A lot could be said about pointers, there's enough to fill entire books. Misuse
+of pointers is one of the primary reasons for bugs in haproxy, and this rate
+has significantly increased with the use of threads. Moreover, bogus pointers
+cause the hardest to analyse bugs, because usually they result in modifications
+to reassigned areas or accesses to unmapped areas, and in each case, bugs that
+strike very far away from where they were located. Some bugs have already taken
+up to 3 weeks of full time analysis, which has a severe impact on the project's
+ability to make forward progress on important features. For this reason, code
+that doesn't look robust enough or that doesn't follow some of the rules below
+will be rejected, and may even be reverted after being merged if the trouble is
+detected late!
+
+
+13.1) No test before freeing
+----------------------------
+
+All platforms where haproxy is supported have a well-defined and documented
+behavior for free(NULL), which is to do nothing at all. In other words, free()
+does test for the pointer's nullity. As such, there is no point in testing
+if a pointer is NULL or not before calling free(). And further, you must not
+do it, because it adds some confusion to the reader during debugging sessions,
+making one think that the code's authors weren't very sure about what they
+were doing. This will not cause a bug but will result in your code to get
+rejected.
+
+Wrong call to free :
+
+  | static inline int blah_free(struct blah *blah)
+  | {
+  |         if (blah->str1)
+  |                 free(blah->str1);
+  |         if (blah->str2)
+  |                 free(blah->str2);
+  |         free(blah);
+  | }
+
+Correct call to free :
+
+  | static inline int blah_free(struct blah *blah)
+  | {
+  |         free(blah->str1);
+  |         free(blah->str2);
+  |         free(blah);
+  | }
+
+
+13.2) No dangling pointers
+--------------------------
+
+Pointers are very commonly used as booleans: if they're not NULL, then the
+area they point to is valid and may be used. This is convenient for many things
+and is even emphasized with threads where they can atomically be swapped with
+another value (even NULL), and as such provide guaranteed atomic resource
+allocation and sharing.
+
+The problem with this is when someone forgets to delete a pointer when an area
+is no longer valid, because this may result in the pointer being accessed later
+and pointing to a wrong location, one that was reallocated for something else
+and causing all sort of nastiness like crashes or memory corruption. Moreover,
+thanks to the memory pools, it is extremely likely that a just released pointer
+will be reassigned to a similar object with comparable values (flags etc) at
+the same positions, making tests apparently succeed for a while. Some such bugs
+have gone undetected for several years.
+
+The rule is pretty simple:
+
+   +-----------------------------------------------------------------+
+   | NO REACHABLE POINTER MAY EVER POINT TO AN UNREACHABLE LOCATION. |
+   +-----------------------------------------------------------------+
+
+By "reachable pointer", here we mean a pointer that is accessible from a
+reachable structure or a global variable. This means that any pointer found
+anywhere in any structure in the code may always be dereferenced. This can
+seem obvious but this is not always enforced.
+
+This means that when freeing an area, the pointer that was used to find that
+area must be overwritten with NULL, and all other such pointers must as well
+if any. It is one case where one can find more convenient to write the NULL
+on the same line as the call to free() to make things easier to check. Be
+careful about any potential "if" when doing this.
+
+Wrong use of free :
+
+  | static inline int blah_recycle(struct blah *blah)
+  | {
+  |         free(blah->str1);
+  |         free(blah->str2);
+  | }
+
+Correct use of free :
+
+  | static inline int blah_recycle(struct blah *blah)
+  | {
+  |         free(blah->str1); blah->str1 = NULL;
+  |         free(blah->str2); blah->str2 = NULL;
+  | }
+
+Sometimes the code doesn't permit this to be done. It is not a matter of code
+but a matter of architecture. Example:
+
+Initialization:
+
+  | static struct foo *foo_init()
+  | {
+  |         struct foo *foo;
+  |         struct bar *bar;
+  |
+  |         foo = pool_alloc(foo_head);
+  |         bar = pool_alloc(bar_head);
+  |         if (!foo || !bar)
+  |                goto fail;
+  |         foo->bar = bar;
+  |         ...
+  | }
+
+Scheduled task 1:
+
+  | static inline int foo_timeout(struct foo *foo)
+  | {
+  |         free(foo->bar);
+  |         free(foo);
+  | }
+
+Scheduled task 2:
+
+  | static inline int bar_timeout(struct bar *bar)
+  | {
+  |         free(bar);
+  | }
+
+Here it's obvious that if "bar" times out, it will be freed but its pointer in
+"foo" will remain here, and if foo times out just after, it will lead to a
+double free. Or worse, if another instance allocates a pointer and receives bar
+again, when foo times out, it will release the old bar pointer which now points
+to a new object, and the code using that new object will crash much later, or
+even worse, will share the same area as yet another instance having inherited
+that pointer again.
+
+Here this simply means that the data model is wrong. If bar may be freed alone,
+it MUST have a pointer to foo so that bar->foo->bar is set to NULL to let foo
+finish its life peacefully. This also means that the code dealing with foo must
+be written in a way to support bar's leaving.
+
+
+13.3) Don't abuse pointers as booleans
+--------------------------------------
+
+Given the common use of a pointer to know if the area it points to is valid,
+there is a big incentive in using such pointers as booleans to describe
+something a bit higher level, like "is the user authenticated". This must not
+be done. The reason stems from the points above. Initially this perfectly
+matches and the code is simple. Then later some extra options need to be added,
+and more pointers are needed, all allocated together. At this point they all
+start to become their own booleans, supposedly always equivalent, but if that
+were true, they would be a single area with a single pointer. And things start
+to fall apart with some code areas relying on one pointer for the condition and
+other ones relying on other pointers. Pointers may be substituted with "flags"
+or "present in list" etc here. And from this point, things quickly degrade with
+pointers needing to remain set even if pointing to wrong areas, just for the
+sake of not being NULL and not breaking some assumptions. At this point the
+bugs are already there and the code is not trustable anymore.
+
+The only way to avoid this is to strictly respect this rule: pointers do not
+represent a functionality but a storage area. Of course it is very frequent to
+consider that if an optional string is not set, a feature is not enabled. This
+can be fine to some extents. But as soon as any slightest condition is added
+anywhere into the mux, the code relying on the pointer must be replaced with
+something else so that the pointer may live its own life and be released (and
+reset) earlier if needed.
+
+
+13.4) Mixing const and non-const
+--------------------------------
+
+Something often encountered, especially when assembling error messages, is
+functions that collect strings, assemble them into larger messages and free
+everything. The problem here is that if strings are defined as variables, there
+will rightfully be build warnings when reporting string constants such as bare
+keywords or messages, and if strings are defined as constants, it is not
+possible to free them. The temptation is sometimes huge to force some free()
+calls on casted strings. Do not do that! It will inevitably lead to someone
+getting caught passing a constant string that will make the process crash (if
+lucky). Document the expectations, indicate that all arguments must be freeable
+and that the caller must be capable of strdup(), and make your function support
+NULLs and docuemnt it (so that callers can deal with a failing strdup() on
+allocation error).
+
+One valid alternative is to use a secondary channel to indicate whether the
+message may be freed or not. A flag in a complex structure can be used for this
+purpose, for example. If you are certain that your strings are aligned to a
+certain number of bytes, it can be possible to instrument the code to use the
+lowest bit to indicate the need to free (e.g. by always adding one to every
+const string). But such a solution will require good enough instrumentation so
+that it doesn't constitute a new set of traps.
+
+
+13.5) No pointer casts
+----------------------
+
+Except in rare occasions caused by legacy APIs (e.g. sockaddr) or special cases
+which explicitly require a form of aliasing, there is no valid reason for
+casting pointers, and usually this is used to hide other problems that will
+strike later. The only suitable type of cast is the cast from the generic void*
+used to store a context for example. But in C, there is no need to cast to nor
+from void*, so this is not required. However those coming from C++ tend to be
+used to this practice, and others argue that it makes the intent more visible.
+
+As a corollary, do not abuse void*. Placing void* everywhere to avoid casting
+is a bad practice as well. The use of void* is only for generic functions or
+structures which do not have a limited set of types supported. When only a few
+types are supported, generally their type can be passed using a side channel,
+and the void* can be turned into a union that makes the code more readable and
+more verifiable.
+
+An alternative in haproxy is to use a pointer to an obj_type enum. Usually it
+is placed at the beginning of a structure. It works like a void* except that
+the type is read directly from the object. This is convenient when a small set
+of remote objects may be attached to another one because a single of them will
+match a non-null pointer (e.g. a connection or an applet).
+
+Example:
+
+  | static inline int blah_free(struct blah *blah)
+  | {
+  |         /* only one of them (at most) will not be null */
+  |         pool_free(pool_head_connection, objt_conn(blah->target));
+  |         pool_free(pool_head_appctx,     objt_appctx(blah->target));
+  |         pool_free(pool_head_stream,     objt_stream(blah->target));
+  |         blah->target = NULL;
+  | }
+
+
+13.6) Extreme caution when using non-canonical pointers
+-------------------------------------------------------
+
+It can be particularly convenient to embed some logic in the unused bits or
+code points of a pointer. Indeed, when it is known by design that a given
+pointer will always follow a certain alignment, a few lower bits will always
+remain zero, and as such may be used as optional flags. For example, the ebtree
+code uses the lowest bit to differentiate left/right attachments to the parent
+and node/leaf in branches. It is also known that values very close to NULL will
+never represent a valid pointer, and the thread-safe MT_LIST code uses this to
+lock visited pointers.
+
+There are a few rules to respect in order to do this:
+  - the deviations from the canonical pointers must be exhaustively documented
+    where the pointer type is defined, and the whole control logic with its
+    implications and possible and impossible cases must be enumerated as well ;
+
+  - make sure that the operations will work on every supported platform, which
+    includes 32-bit platforms where structures may be aligned on as little as
+    32-bit. 32-bit alignment leaves only two LSB available. When doing so, make
+    sure the target structures are not labelled with the "packed" attribute, or
+    that they're always perfectly aligned. All platforms where haproxy runs
+    have their NULL pointer mapped at address zero, and use page sizes at least
+    4096 bytes large, leaving all values form 1 to 4095 unused. Anything
+    outside of this is unsafe. In particular, never use negative numbers to
+    represent a supposedly invalid address. On 32-bits platforms it will often
+    correspond to a system address or a special page. Always try a variety of
+    platforms when doing such a thing.
+
+  - the code must not use such pointers as booleans anymore even if it is known
+    that "it works" because that keeps a doubt open for the reviewer. Only the
+    canonical pointer may be tested. There can be a rare exception which is if
+    this is on a critical path where severe performance degradation may result
+    from this. In this case, *each* of the checks must be duly documented and
+    the equivalent BUG_ON() instances must be placed to prove the claim.
+
+  - some inline functions (or macros) must be used to turn the pointers to/from
+    their canonical form so that the regular code doesn't have to see the
+    operations, and so that the representation may be easily adjusted in the
+    future. A few comments indicating to a human how to turn a pointer back and
+    forth from inside a debugger will be appreciated, as macros often end up
+    not being trivially readable nor directly usable.
+
+  - do not use int types to cast the pointers, this will only work on 32-bit
+    platforms. While "long" is usually fine, it is not recommended anymore due
+    to the Windows platform being LLP64 and having it set to 32 bits. And
+    "long long" isn't good either for always being 64 bits. More suitable types
+    are ptrdiff_t or size_t. Note that while those were not available everywhere
+    in the early days of hparoxy, size_t is now heavily used and known to work
+    everywhere. And do not perform the operations on the pointers, only on the
+    integer types (and cast back again). Some compilers such as gcc are
+    extremely picky about this and wil often emit wrong code when they see
+    equality conditions they believe is impossible and decide to optimize them
+    away.
+
+
+13.7) Pointers in unions
+------------------------
+
+Before placing multiple aliasing pointers inside a same union, there MUST be a
+SINGLE well-defined way to figure them out from each other. It may be thanks to
+a side-channel information (as done in the samples with a defined type), it may
+be based on in-area information (as done using obj_types), or any other trusted
+solution. In any case, if pointers are mixed with any other type (integer or
+float) in a union, there must be a very simple way to distinguish them, and not
+a platform-dependent nor compiler-dependent one.
