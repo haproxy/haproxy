@@ -1739,7 +1739,7 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 			req = srvrq->requester;
 
 		req->requester_cb       = snr_resolution_cb;
-		req->requester_error_cb = snr_resolution_error_cb;
+		req->requester_error_cb = srvrq_resolution_error_cb;
 	}
 	else if (stream) {
 		if (stream->resolv_ctx.requester == NULL) {

@@ -4072,6 +4072,78 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 }
 
 /*
+ * SRV record error management callback
+ * returns:
+ *  0 on error
+ *  1 when no error or safe ignore
+ *
+ * Grabs the server's lock.
+ */
+int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code)
+{
+	struct server *s;
+	struct resolv_srvrq *srvrq;
+	struct resolv_resolution *res;
+	struct resolvers *resolvers;
+	int exp;
+
+	/* SRV records */
+	srvrq = objt_resolv_srvrq(requester->owner);
+	if (!srvrq)
+		return 1;
+
+	resolvers = srvrq->resolvers;
+	res = requester->resolution;
+
+	switch (res->status) {
+
+		case RSLV_STATUS_NX:
+			/* stop server if resolution is NX for a long enough period */
+			exp = tick_add(res->last_valid, resolvers->hold.nx);
+			if (!tick_is_expired(exp, now_ms))
+				return 1;
+			break;
+
+		case RSLV_STATUS_TIMEOUT:
+			/* stop server if resolution is TIMEOUT for a long enough period */
+			exp = tick_add(res->last_valid, resolvers->hold.timeout);
+			if (!tick_is_expired(exp, now_ms))
+				return 1;
+			break;
+
+		case RSLV_STATUS_REFUSED:
+			/* stop server if resolution is REFUSED for a long enough period */
+			exp = tick_add(res->last_valid, resolvers->hold.refused);
+			if (!tick_is_expired(exp, now_ms))
+				return 1;
+			break;
+
+		default:
+			/* stop server if resolution failed for a long enough period */
+			exp = tick_add(res->last_valid, resolvers->hold.other);
+			if (!tick_is_expired(exp, now_ms))
+				return 1;
+	}
+
+	/* Remove any associated server */
+	for (s = srvrq->proxy->srv; s != NULL; s = s->next) {
+		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
+		if (s->srvrq == srvrq) {
+			snr_update_srv_status(s, 1);
+			free(s->hostname);
+			free(s->hostname_dn);
+			s->hostname        = NULL;
+			s->hostname_dn     = NULL;
+			s->hostname_dn_len = 0;
+			resolv_unlink_resolution(s->resolv_requester);
+		}
+		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+	}
+
+	return 1;
+}
+
+/*
  * Server Name Resolution error management callback
  * returns:
  *  0 on error
