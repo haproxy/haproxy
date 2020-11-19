@@ -6271,7 +6271,7 @@ int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
 	struct issuer_chain *issuer = NULL;
 
 	akid = X509_get_ext_d2i(cert, NID_authority_key_identifier, NULL, NULL);
-	if (akid) {
+	if (akid && akid->keyid) {
 		struct eb64_node *node;
 		u64 hk;
 		hk = XXH64(ASN1_STRING_get0_data(akid->keyid), ASN1_STRING_length(akid->keyid), 0);
