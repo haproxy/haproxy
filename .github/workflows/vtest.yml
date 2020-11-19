@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Generate Build Matrix
         id: set-matrix
-        run: python3 .github/matrix.py
+        run: python3 .github/matrix.py "${{ github.event_name }}"
 
   # The Test job actually runs the tests.
   Test:

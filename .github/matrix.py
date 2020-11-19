@@ -7,6 +7,15 @@
 # 2 of the License, or (at your option) any later version.
 
 import json
+import sys
+
+if len(sys.argv) == 2:
+    build_type = sys.argv[1]
+else:
+    print("Usage: {} <build_type>".format(sys.argv[0]), file=sys.stderr)
+    sys.exit(1)
+
+print("Generating matrix for type '{}'.".format(build_type))
 
 
 def clean_os(os):
