@@ -5161,15 +5161,18 @@ http-check expect [min-recv <int>] [comment <msg>]
                        the last rule in the tcp-check ruleset. "L7OK", "L7OKC",
                        "L6OK" and "L4OK" are supported :
                          - L7OK  : check passed on layer 7
-                         - L7OKC : check conditionally passed on layer 7, for
-                                   example 404 with disable-on-404
+                         - L7OKC : check conditionally passed on layer 7, set
+                                   server to NOLB state.
                          - L6OK  : check passed on layer 6
                          - L4OK  : check passed on layer 4
                        By default "L7OK" is used.
 
     error-status <st>  is optional and can be used to set the check status if
                        an error occurred during the expect rule evaluation.
-                       "L7RSP", "L7STS", "L6RSP" and "L4CON" are supported :
+                       "L7OKC", "L7RSP", "L7STS", "L6RSP" and "L4CON" are
+                       supported :
+                         - L7OKC : check conditionally passed on layer 7, set
+                                   server to NOLB state.
                          - L7RSP : layer 7 invalid response - protocol error
                          - L7STS : layer 7 response error, for example HTTP 5xx
                          - L6RSP : layer 6 invalid response - protocol error
@@ -11044,15 +11047,18 @@ tcp-check expect [min-recv <int>] [comment <msg>]
                        the last rule in the tcp-check ruleset. "L7OK", "L7OKC",
                        "L6OK" and "L4OK" are supported :
                          - L7OK  : check passed on layer 7
-                         - L7OKC : check conditionally passed on layer 7, for
-                                   example 404 with disable-on-404
+                         - L7OKC : check conditionally passed on layer 7, set
+                                   server to NOLB state.
                          - L6OK  : check passed on layer 6
                          - L4OK  : check passed on layer 4
                         By default "L7OK" is used.
 
     error-status <st>  is optional and can be used to set the check status if
                        an error occurred during the expect rule evaluation.
-                       "L7RSP", "L7STS", "L6RSP" and "L4CON" are supported :
+                       "L7OKC", "L7RSP", "L7STS", "L6RSP" and "L4CON" are
+                       supported :
+                         - L7OKC : check conditionally passed on layer 7, set
+                                   server to NOLB state.
                          - L7RSP : layer 7 invalid response - protocol error
                          - L7STS : layer 7 response error, for example HTTP 5xx
                          - L6RSP : layer 6 invalid response - protocol error

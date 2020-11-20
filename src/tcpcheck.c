@@ -3020,6 +3020,8 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 				err_st = HCHK_STATUS_L7RSP;
 			else if (strcasecmp(args[cur_arg+1], "L7STS") == 0)
 				err_st = HCHK_STATUS_L7STS;
+			else if (strcasecmp(args[cur_arg+1], "L7OKC") == 0)
+				err_st = HCHK_STATUS_L7OKCD;
 			else if (strcasecmp(args[cur_arg+1], "L6RSP") == 0)
 				err_st = HCHK_STATUS_L6RSP;
 			else if (strcasecmp(args[cur_arg+1], "L4CON") == 0)
