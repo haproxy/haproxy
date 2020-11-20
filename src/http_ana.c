@@ -875,8 +875,8 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	if (htx->flags & HTX_FL_PROCESSING_ERROR)
 		goto return_int_err;
 
-	/* CONNECT requests have no body */
-	if (txn->meth == HTTP_METH_CONNECT)
+	/* Do nothing for bodyless and CONNECT requests */
+	if (txn->meth == HTTP_METH_CONNECT || (msg->flags & HTTP_MSGF_BODYLESS))
 		goto http_end;
 
 	/* We have to parse the HTTP request body to find any required data.

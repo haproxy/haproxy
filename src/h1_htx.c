@@ -146,6 +146,8 @@ static unsigned int h1m_htx_sl_flags(struct h1m *h1m)
 		else
 			flags |= HTX_SL_F_BODYLESS;
 	}
+	if (h1m->state == H1_MSG_TUNNEL)
+		flags |= HTX_SL_F_BODYLESS;
 	return flags;
 }
 
