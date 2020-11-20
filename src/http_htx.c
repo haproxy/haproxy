@@ -201,7 +201,7 @@ static int __http_find_header(const struct htx *htx, const void *pattern, struct
 					goto next_blk;
 				break;
 			case HTTP_FIND_FL_MATCH_SUB:
-				if (strnistr(n.ptr, n.len, name.ptr, n.len) != NULL)
+				if (!strnistr(n.ptr, n.len, name.ptr, name.len))
 					goto next_blk;
 				break;
 			default:
