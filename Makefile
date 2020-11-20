@@ -390,8 +390,8 @@ endif
 # OpenBSD 6.3 and above
 ifeq ($(TARGET),openbsd)
   set_target_defaults = $(call default_opts, \
-    USE_POLL USE_TPROXY USE_THREAD USE_KQUEUE USE_ACCEPT4 USE_CLOSEFROM   \
-    USE_GETADDRINFO)
+    USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_KQUEUE USE_ACCEPT4        \
+    USE_CLOSEFROM USE_GETADDRINFO)
 endif
 
 # NetBSD 8 and above
@@ -493,8 +493,10 @@ BUILD_FEATURES := $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt
 OPTIONS_CFLAGS += $(foreach opt,$(use_opts),$(if $($(opt)),-D$(opt),))
 
 ifneq ($(USE_LIBCRYPT),)
+ifneq ($(TARGET),openbsd)
 ifneq ($(TARGET),osx)
 OPTIONS_LDFLAGS += -lcrypt
+endif
 endif
 endif
 
