@@ -99,6 +99,7 @@ void session_free(struct session *sess)
 void conn_session_free(struct connection *conn)
 {
 	session_free(conn->owner);
+	conn->owner = NULL;
 }
 
 /* count a new session to keep frontend, listener and track stats up to date */
