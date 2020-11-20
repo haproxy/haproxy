@@ -5129,7 +5129,9 @@ http-check disable-on-404
   reports "NOLB" for a server in this mode. It is important to note that this
   option only works in conjunction with the "httpchk" option. If this option
   is used with "http-check expect", then it has precedence over it so that 404
-  responses will still be considered as soft-stop.
+  responses will still be considered as soft-stop. Note also that a stopped
+  server will stay stopped even if it replies 404s. This option is only
+  evaluated for running servers.
 
   See also : "option httpchk" and "http-check expect".
 
