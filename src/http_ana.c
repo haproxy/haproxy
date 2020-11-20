@@ -149,7 +149,10 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if (sl->flags & HTX_SL_F_VER_11)
                 msg->flags |= HTTP_MSGF_VER_11;
 	msg->flags |= HTTP_MSGF_XFER_LEN;
-	msg->flags |= ((sl->flags & HTX_SL_F_CLEN) ? HTTP_MSGF_CNT_LEN : HTTP_MSGF_TE_CHNK);
+	if (sl->flags & HTX_SL_F_CLEN)
+		msg->flags |= HTTP_MSGF_CNT_LEN;
+	else if (sl->flags & HTX_SL_F_CHNK)
+		msg->flags |= HTTP_MSGF_TE_CHNK;
 	if (sl->flags & HTX_SL_F_BODYLESS)
 		msg->flags |= HTTP_MSGF_BODYLESS;
 
@@ -1537,10 +1540,13 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
                 msg->flags |= HTTP_MSGF_VER_11;
 	if (sl->flags & HTX_SL_F_XFER_LEN) {
 		msg->flags |= HTTP_MSGF_XFER_LEN;
-		msg->flags |= ((sl->flags & HTX_SL_F_CLEN) ? HTTP_MSGF_CNT_LEN : HTTP_MSGF_TE_CHNK);
-		if (sl->flags & HTX_SL_F_BODYLESS)
-			msg->flags |= HTTP_MSGF_BODYLESS;
+		if (sl->flags & HTX_SL_F_CLEN)
+			msg->flags |= HTTP_MSGF_CNT_LEN;
+		else if (sl->flags & HTX_SL_F_CHNK)
+			msg->flags |= HTTP_MSGF_TE_CHNK;
 	}
+	if (sl->flags & HTX_SL_F_BODYLESS)
+		msg->flags |= HTTP_MSGF_BODYLESS;
 
 	n = txn->status / 100;
 	if (n < 1 || n > 5)
