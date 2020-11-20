@@ -1360,7 +1360,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		    (istlen(body) && !htx_add_data_atonce(htx, body)))
 			goto error_htx;
 
-		htx->flags |= HTX_FL_EOI; /* no more data are expected. Only EOM remains to add now */
+		htx->flags |= HTX_FL_EOM; /* no more data are expected. Only EOM remains to add now */
 		if (!htx_add_endof(htx, HTX_BLK_EOM))
 			goto error_htx;
 

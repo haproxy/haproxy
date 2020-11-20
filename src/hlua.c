@@ -7468,7 +7468,7 @@ void hlua_applet_http_fct(struct appctx *ctx)
 			goto error;
 
 		/* Don't add TLR because mux-h1 will take care of it */
-		res_htx->flags |= HTX_FL_EOI; /* no more data are expected. Only EOM remains to add now */
+		res_htx->flags |= HTX_FL_EOM; /* no more data are expected. Only EOM remains to add now */
 		if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
 			si_rx_room_blk(si);
 			goto out;

@@ -507,7 +507,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 
 	if (*msgf & H2_MSGF_BODY_TUNNEL) {
 		/* Add the EOM for tunnel requests (CONNECT) */
-		htx->flags |= HTX_FL_EOI; /* no more message data are expected */
+		htx->flags |= HTX_FL_EOM; /* no more message data are expected */
 		if (!htx_add_endof(htx, HTX_BLK_EOM))
 			goto fail;
 	}
@@ -720,7 +720,7 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 
 	if (*msgf & H2_MSGF_BODY_TUNNEL) {
 		/* Tunnel sucessfully established, add the EOM now, all data are part of the tunnel */
-		htx->flags |= HTX_FL_EOI; /* no more message data are expected */
+		htx->flags |= HTX_FL_EOM; /* no more message data are expected */
 		if (!htx_add_endof(htx, HTX_BLK_EOM))
 			goto fail;
 	}

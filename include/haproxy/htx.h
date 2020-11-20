@@ -591,7 +591,7 @@ static inline int htx_is_not_empty(const struct htx *htx)
  */
 static inline int htx_expect_more(const struct htx *htx)
 {
-	return !(htx->flags & HTX_FL_EOI);
+	return !(htx->flags & HTX_FL_EOM);
 }
 
 /* Copy an HTX message stored in the buffer <msg> to <htx>. We take care to
