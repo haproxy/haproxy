@@ -550,7 +550,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 				LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
 				LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
 
-			} else {
+			} else if (global_ssl.extra_files & SSL_GF_BUNDLE) {
 				/* If we didn't find the file, this could be a
 				bundle, since 2.3 we don't support multiple
 				certificate in the same OpenSSL store, so we
