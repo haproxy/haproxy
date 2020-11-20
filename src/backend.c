@@ -1207,7 +1207,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 			/* attach the connection to the session private list
 			 */
 			conn->owner = s->sess;
-			session_add_conn(conn->owner, conn, conn->target);
+			session_add_conn(s->sess, conn, conn->target);
 		}
 		else {
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
@@ -1563,7 +1563,7 @@ int connect_server(struct stream *s)
 		         ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE &&
 		          srv_conn->mux->flags & MX_FL_HOL_RISK)) {
 			/* If it fail now, the same will be done in mux->detach() callback */
-			session_add_conn(srv_conn->owner, srv_conn, srv_conn->target);
+			session_add_conn(s->sess, srv_conn, srv_conn->target);
 		}
 	}
 

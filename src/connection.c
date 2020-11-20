@@ -54,10 +54,10 @@ int conn_create_mux(struct connection *conn)
 			goto fail;
 
 		if (sess && obj_type(sess->origin) == OBJ_TYPE_CHECK) {
-			if (conn_install_mux_chk(conn, conn->ctx, conn->owner) < 0)
+			if (conn_install_mux_chk(conn, conn->ctx, sess) < 0)
 				goto fail;
 		}
-		else if (conn_install_mux_be(conn, conn->ctx, conn->owner) < 0)
+		else if (conn_install_mux_be(conn, conn->ctx, sess) < 0)
 			goto fail;
 		srv = objt_server(conn->target);
 
@@ -72,7 +72,7 @@ int conn_create_mux(struct connection *conn)
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
 		else if (conn->flags & CO_FL_PRIVATE) {
 			/* If it fail now, the same will be done in mux->detach() callback */
-			session_add_conn(conn->owner, conn, conn->target);
+			session_add_conn(sess, conn, conn->target);
 		}
 		return 0;
 fail:

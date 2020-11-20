@@ -103,7 +103,7 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 	int found = 0;
 
 	/* Already attach to the session or not the connection owner */
-	if (!LIST_ISEMPTY(&conn->session_list) || conn->owner != sess)
+	if (!LIST_ISEMPTY(&conn->session_list) || (conn->owner && conn->owner != sess))
 		return 1;
 
 	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
