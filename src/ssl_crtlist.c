@@ -447,7 +447,6 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 	struct crtlist *newlist;
 	struct crtlist_entry *entry = NULL;
 	char thisline[CRT_LINESIZE];
-	char path[MAXPATHLEN+1];
 	FILE *f;
 	struct stat buf;
 	int linenum = 0;
@@ -470,6 +469,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 		char *end;
 		char *line = thisline;
 		char *crt_path;
+		char path[MAXPATHLEN+1];
 		struct ckch_store *ckchs;
 
 		if (missing_lf != -1) {
@@ -564,7 +564,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 					struct stat buf;
 					int ret;
 
-					ret = snprintf(fp, sizeof(fp), "%s.%s", path, SSL_SOCK_KEYTYPE_NAMES[n]);
+					ret = snprintf(fp, sizeof(fp), "%s.%s", crt_path, SSL_SOCK_KEYTYPE_NAMES[n]);
 					if (ret > sizeof(fp))
 						continue;
 
