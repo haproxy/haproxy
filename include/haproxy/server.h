@@ -38,7 +38,7 @@
 __decl_thread(extern HA_SPINLOCK_T idle_conn_srv_lock);
 extern struct eb_root idle_conn_srv;
 extern struct task *idle_conn_task;
-extern struct dict server_name_dict;
+extern struct dict server_key_dict;
 
 int srv_downtime(const struct server *s);
 int srv_lastsession(const struct server *s);

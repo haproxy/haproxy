@@ -22,6 +22,7 @@
 #include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/cli.h>
+#include <haproxy/dict.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/http_rules.h>
@@ -94,6 +95,12 @@ void __stksess_free(struct stktable *t, struct stksess *ts)
  */
 void stksess_free(struct stktable *t, struct stksess *ts)
 {
+	void *data;
+	data = stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
+	if (data) {
+		dict_entry_unref(&server_key_dict, stktable_data_cast(data, server_key));
+		stktable_data_cast(data, server_key) = NULL;
+	}
 	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	__stksess_free(t, ts);
 	HA_SPIN_UNLOCK(STK_TABLE_LOCK, &t->lock);
@@ -877,6 +884,25 @@ int parse_stick_table(const char *file, int linenum, char **args,
 			}
 			idx++;
 		}
+		else if (strcmp(args[idx], "srvkey") == 0) {
+			char *keytype;
+			idx++;
+			keytype = args[idx];
+			if (strcmp(keytype, "name") == 0) {
+				t->server_key_type = STKTABLE_SRV_NAME;
+			}
+			else if (strcmp(keytype, "addr") == 0) {
+				t->server_key_type = STKTABLE_SRV_ADDR;
+			}
+			else {
+				ha_alert("parsing [%s:%d] : %s : unknown server key type '%s'.\n",
+						file, linenum, args[0], keytype);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+
+			}
+			idx++;
+		}
 		else {
 			ha_alert("parsing [%s:%d] : %s: unknown argument '%s'.\n",
 				 file, linenum, args[0], args[idx]);
@@ -1048,7 +1074,7 @@ struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES] = {
 	[STKTABLE_DT_BYTES_OUT_RATE]= { .name = "bytes_out_rate", .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY },
 	[STKTABLE_DT_GPC1]          = { .name = "gpc1",           .std_type = STD_T_UINT  },
 	[STKTABLE_DT_GPC1_RATE]     = { .name = "gpc1_rate",      .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY  },
-	[STKTABLE_DT_SERVER_NAME]   = { .name = "server_name",    .std_type = STD_T_DICT  },
+	[STKTABLE_DT_SERVER_KEY]    = { .name = "server_key",     .std_type = STD_T_DICT  },
 };
 
 /* Registers stick-table extra data type with index <idx>, name <name>, type
@@ -1095,6 +1121,9 @@ int stktable_get_data_type(char *name)
 		if (strcmp(name, stktable_data_types[type].name) == 0)
 			return type;
 	}
+	/* For backwards compatibility */
+	if (strcmp(name, "server_name") == 0)
+		return STKTABLE_DT_SERVER_KEY;
 	return -1;
 }
 

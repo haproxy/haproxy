@@ -1202,17 +1202,27 @@ static inline void sticking_rule_find_target(struct stream *s,
 
 	/* Look for the server name previously stored in <t> stick-table */
 	HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
-	ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_NAME);
-	de = stktable_data_cast(ptr, server_name);
+	ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
+	de = stktable_data_cast(ptr, server_key);
 	HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 	if (de) {
-		struct ebpt_node *name;
+		struct ebpt_node *node;
 
-		name = ebis_lookup(&px->conf.used_server_name, de->value.key);
-		if (name) {
-			srv = container_of(name, struct server, conf.name);
-			goto found;
+		if (t->server_key_type == STKTABLE_SRV_NAME) {
+			node = ebis_lookup(&px->conf.used_server_name, de->value.key);
+			if (node) {
+				srv = container_of(node, struct server, conf.name);
+				goto found;
+			}
+		} else if (t->server_key_type == STKTABLE_SRV_ADDR) {
+			HA_RWLOCK_RDLOCK(PROXY_LOCK, &px->lock);
+			node = ebis_lookup(&px->used_server_addr, de->value.key);
+			HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &px->lock);
+			if (node) {
+				srv = container_of(node, struct server, addr_node);
+				goto found;
+			}
 		}
 	}
 
@@ -1378,7 +1388,9 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 	for (i = 0; i < s->store_count; i++) {
 		struct stksess *ts;
 		void *ptr;
+		char *key;
 		struct dict_entry *de;
+		struct stktable *t = s->store[i].table;
 
 		if (objt_server(s->target) && objt_server(s->target)->flags & SRV_F_NON_STICK) {
 			stksess_free(s->store[i].table, s->store[i].ts);
@@ -1386,27 +1398,34 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 			continue;
 		}
 
-		ts = stktable_set_entry(s->store[i].table, s->store[i].ts);
+		ts = stktable_set_entry(t, s->store[i].ts);
 		if (ts != s->store[i].ts) {
 			/* the entry already existed, we can free ours */
-			stksess_free(s->store[i].table, s->store[i].ts);
+			stksess_free(t, s->store[i].ts);
 		}
 		s->store[i].ts = NULL;
 
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-		ptr = __stktable_data_ptr(s->store[i].table, ts, STKTABLE_DT_SERVER_ID);
+		ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_ID);
 		stktable_data_cast(ptr, server_id) = __objt_server(s->target)->puid;
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
+		if (t->server_key_type == STKTABLE_SRV_NAME)
+			key = __objt_server(s->target)->id;
+		else if (t->server_key_type == STKTABLE_SRV_ADDR)
+			key = __objt_server(s->target)->addr_node.key;
+		else
+			continue;
+
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
-		de = dict_insert(&server_name_dict, __objt_server(s->target)->id);
+		de = dict_insert(&server_key_dict, key);
 		if (de) {
-			ptr = __stktable_data_ptr(s->store[i].table, ts, STKTABLE_DT_SERVER_NAME);
-			stktable_data_cast(ptr, server_name) = de;
+			ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
+			stktable_data_cast(ptr, server_key) = de;
 		}
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
-		stktable_touch_local(s->store[i].table, ts, 1);
+		stktable_touch_local(t, ts, 1);
 	}
 	s->store_count = 0; /* everything is stored */
 

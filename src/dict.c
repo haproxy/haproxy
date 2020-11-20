@@ -87,8 +87,10 @@ struct dict_entry *dict_insert(struct dict *d, char *s)
 	HA_RWLOCK_RDLOCK(DICT_LOCK, &d->rwlock);
 	de = __dict_lookup(d, s);
 	HA_RWLOCK_RDUNLOCK(DICT_LOCK, &d->rwlock);
-	if (de)
+	if (de) {
+		HA_ATOMIC_ADD(&de->refcount, 1);
 		return de;
+	}
 
 	de = new_dict_entry(s);
 	if (!de)
@@ -105,3 +107,23 @@ struct dict_entry *dict_insert(struct dict *d, char *s)
 	return de;
 }
 
+
+/*
+ * Unreference a dict entry previously acquired with <dict_insert>.
+ * If this is the last live reference to the entry, it is
+ * removed from the dictionary.
+ */
+void dict_entry_unref(struct dict *d, struct dict_entry *de)
+{
+	if (!de)
+		return;
+
+	if (HA_ATOMIC_SUB(&de->refcount, 1) != 0)
+		return;
+
+	HA_RWLOCK_WRLOCK(DICT_LOCK, &d->rwlock);
+	ebpt_delete(&de->value);
+	HA_RWLOCK_WRUNLOCK(DICT_LOCK, &d->rwlock);
+
+	free_dict_entry(de);
+}

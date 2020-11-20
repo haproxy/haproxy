@@ -342,6 +342,7 @@ struct server {
 		struct ebpt_node name;		/* place in the tree of used names */
 		int line;			/* line where the section appears */
 	} conf;					/* config information */
+	struct ebpt_node addr_node;             /* Node for string representation of address for the server (including port number) */
 	/* Template information used only for server objects which
 	 * serve as template filled at parsing time and used during
 	 * server allocations from server templates.

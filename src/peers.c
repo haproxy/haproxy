@@ -1633,13 +1633,16 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 				chunk->area[chunk->data] = '\0';
 				*msg_cur += value_len;
 
-				de = dict_insert(&server_name_dict, chunk->area);
+				de = dict_insert(&server_key_dict, chunk->area);
+				dict_entry_unref(&server_key_dict, dc->rx[id - 1].de);
 				dc->rx[id - 1].de = de;
 			}
 			if (de) {
 				data_ptr = stktable_data_ptr(st->table, ts, data_type);
-				if (data_ptr)
+				if (data_ptr) {
+					HA_ATOMIC_ADD(&de->refcount, 1);
 					stktable_data_cast(data_ptr, std_t_dict) = de;
+				}
 			}
 			break;
 		}
@@ -3059,6 +3062,8 @@ static inline void flush_dcache(struct peer *peer)
 	for (i = 0; i < dc->max_entries; i++) {
 		ebpt_delete(&dc->tx->entries[i]);
 		dc->tx->entries[i].key = NULL;
+		dict_entry_unref(&server_key_dict, dc->rx[i].de);
+		dc->rx[i].de = NULL;
 	}
 	dc->tx->prev_lookup = NULL;
 	dc->tx->lru_key = 0;

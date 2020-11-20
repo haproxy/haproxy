@@ -457,6 +457,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->grace  = defproxy.grace;
 		curproxy->conf.used_listener_id = EB_ROOT;
 		curproxy->conf.used_server_id = EB_ROOT;
+		curproxy->used_server_addr = EB_ROOT_UNIQUE;
 
 		if (defproxy.check_path)
 			curproxy->check_path = strdup(defproxy.check_path);

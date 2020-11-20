@@ -1214,6 +1214,51 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	return ret;
 }
 
+/* converts <addr> and <port> into a string representation of the address and port. This is sort
+ * of an inverse of str2sa_range, with some restrictions. The supported families are AF_INET,
+ * AF_INET6, AF_UNIX, and AF_CUST_SOCKPAIR. If the family is unsopported NULL is returned.
+ * If map_ports is true, then the sign of the port is included in the output, to indicate it is
+ * relative to the incoming port. AF_INET and AF_INET6 will be in the form "<addr>:<port>".
+ * AF_UNIX will either be just the path (if using a pathname) or "abns@<path>" if it is abstract.
+ * AF_CUST_SOCKPAIR will be of the form "sockpair@<fd>".
+ *
+ * The returned char* is allocated, and it is the responsibility of the caller to free it.
+ */
+char * sa2str(const struct sockaddr_storage *addr, int port, int map_ports)
+{
+	char buffer[INET6_ADDRSTRLEN];
+	char *out = NULL;
+	const void *ptr;
+	const char *path;
+
+	switch (addr->ss_family) {
+	case AF_INET:
+		ptr = &((struct sockaddr_in *)addr)->sin_addr;
+		break;
+	case AF_INET6:
+		ptr = &((struct sockaddr_in6 *)addr)->sin6_addr;
+		break;
+	case AF_UNIX:
+		path = ((struct sockaddr_un *)addr)->sun_path;
+		if (path[0] == '\0') {
+			const int max_length = sizeof(struct sockaddr_un) - offsetof(struct sockaddr_un, sun_path) - 1;
+			return memprintf(&out, "abns@%.*s", max_length, path+1);
+		} else {
+			return strdup(path);
+		}
+	case AF_CUST_SOCKPAIR:
+		return memprintf(&out, "sockpair@%d", ((struct sockaddr_in *)addr)->sin_addr.s_addr);
+	default:
+		return NULL;
+	}
+	inet_ntop(addr->ss_family, ptr, buffer, get_addr_len(addr));
+	if (map_ports)
+		return memprintf(&out, "%s:%+d", buffer, port);
+	else
+		return memprintf(&out, "%s:%d", buffer, port);
+}
+
+
 /* converts <str> to a struct in_addr containing a network mask. It can be
  * passed in dotted form (255.255.255.0) or in CIDR form (24). It returns 1
  * if the conversion succeeds otherwise zero.

@@ -31,5 +31,6 @@
 
 struct dict *new_dict(const char *name);
 struct dict_entry *dict_insert(struct dict *d, char *str);
+void dict_entry_unref(struct dict *d, struct dict_entry *de);
 
 #endif  /* _HAPROXY_DICT_H */
