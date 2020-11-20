@@ -3500,24 +3500,24 @@ error:
 int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 {
 	struct stat buf;
-	char fp[MAXPATHLEN+1];
 	int cfgerr = 0;
 	struct ckch_store *ckchs;
 	struct ckch_inst *ckch_inst = NULL;
+	int found = 0; /* did we found a file to load ? */
 
 	if ((ckchs = ckchs_lookup(path))) {
 		/* we found the ckchs in the tree, we can use it directly */
-		return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
-	}
-	if (stat(path, &buf) == 0) {
+		 cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+		 found++;
+	} else if (stat(path, &buf) == 0) {
+		found++;
 		if (S_ISDIR(buf.st_mode) == 0) {
 			ckchs =  ckchs_load_cert_file(path, err);
 			if (!ckchs)
-				return ERR_ALERT | ERR_FATAL;
-
-			return ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+			cfgerr |= ssl_sock_load_ckchs(path, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
 		} else {
-			return ssl_sock_load_cert_list_file(path, 1, bind_conf, bind_conf->frontend, err);
+			cfgerr |= ssl_sock_load_cert_list_file(path, 1, bind_conf, bind_conf->frontend, err);
 		}
 	} else {
 		/* stat failed, could be a bundle */
@@ -3536,20 +3536,24 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 
 				if ((ckchs = ckchs_lookup(fp))) {
 					cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
+					found++;
 				} else {
 					if (stat(fp, &buf) == 0) {
+						found++;
 						ckchs =  ckchs_load_cert_file(fp, err);
 						if (!ckchs)
-							return ERR_ALERT | ERR_FATAL;
+							cfgerr |= ERR_ALERT | ERR_FATAL;
 						cfgerr |= ssl_sock_load_ckchs(fp, ckchs, bind_conf, NULL, NULL, 0, &ckch_inst, err);
 					}
 				}
 			}
-		} else {
-			memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
-			          err && *err ? *err : "", fp, strerror(errno));
-			cfgerr |= ERR_ALERT | ERR_FATAL;
+
 		}
+	}
+	if (!found) {
+		memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
+		          err && *err ? *err : "", path, strerror(errno));
+		cfgerr |= ERR_ALERT | ERR_FATAL;
 	}
 
 	return cfgerr;
