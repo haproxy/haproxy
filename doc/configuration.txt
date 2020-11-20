@@ -4687,9 +4687,13 @@ http-after-response allow [ { if | unless } <condition> ]
   This stops the evaluation of the rules and lets the response pass the check.
   No further "http-after-response" rules are evaluated.
 
-http-after-response del-header <name> [ { if | unless } <condition> ]
+http-after-response del-header <name> [ -m <meth> ] [ { if | unless } <condition> ]
 
-  This removes all HTTP header fields whose name is specified in <name>.
+  This removes all HTTP header fields whose name is specified in <name>. <meth>
+  is the matching method, applied on the header name. Supported matching methods
+  are "str" (exact match), "beg" (prefix match), "end" (suffix match), "sub"
+  (substring match) and "reg" (regex match). If not specified, exact matching
+  method is used.
 
 http-after-response replace-header <name> <regex-match> <replace-fmt>
                                    [ { if | unless } <condition> ]
@@ -5461,9 +5465,13 @@ http-request del-acl(<file-name>) <key fmt> [ { if | unless } <condition> ]
   It is the equivalent of the "del acl" command from the stats socket, but can
   be triggered by an HTTP request.
 
-http-request del-header <name> [ { if | unless } <condition> ]
+http-request del-header <name> [ -m <meth> ] [ { if | unless } <condition> ]
 
-  This removes all HTTP header fields whose name is specified in <name>.
+  This removes all HTTP header fields whose name is specified in <name>. <meth>
+  is the matching method, applied on the header name. Supported matching methods
+  are "str" (exact match), "beg" (prefix match), "end" (suffix match), "sub"
+  (substring match) and "reg" (regex match). If not specified, exact matching
+  method is used.
 
 http-request del-map(<file-name>) <key fmt> [ { if | unless } <condition> ]
 
@@ -6274,9 +6282,13 @@ http-response del-acl(<file-name>) <key fmt> [ { if | unless } <condition> ]
   It is the equivalent of the "del acl" command from the stats socket, but can
   be triggered by an HTTP response.
 
-http-response del-header <name> [ { if | unless } <condition> ]
+http-response del-header <name> [ -m <meth> ] [ { if | unless } <condition> ]
 
-  This removes all HTTP header fields whose name is specified in <name>.
+  This removes all HTTP header fields whose name is specified in <name>. <meth>
+  is the matching method, applied on the header name. Supported matching methods
+  are "str" (exact match), "beg" (prefix match), "end" (suffix match), "sub"
+  (substring match) and "reg" (regex match). If not specified, exact matching
+  method is used.
 
 http-response del-map(<file-name>) <key fmt> [ { if | unless } <condition> ]
 

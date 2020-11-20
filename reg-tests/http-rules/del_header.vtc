@@ -1,0 +1,93 @@
+varnishtest "del-header tests"
+
+# This config tests various http-request/response del-header operations
+# with or without specified header name matching method.
+
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    expect req.url           == /
+    expect req.http.x-always == always
+    expect req.http.x-str1   == <undef>
+    expect req.http.x-str2   == <undef>
+    expect req.http.x-beg1   == <undef>
+    expect req.http.x-beg2   == <undef>
+    expect req.http.x-end1   == <undef>
+    expect req.http.x-end2   == end2
+    expect req.http.x-sub1   == <undef>
+    expect req.http.x-sub2   == <undef>
+    expect req.http.x-reg1   == <undef>
+    expect req.http.x-reg2   == <undef>
+    txresp -hdr "x-always: always" \
+        -hdr "x-str1: str1" \
+        -hdr "x-str2: str2" \
+        -hdr "x-beg1: beg1" \
+        -hdr "x-beg2: beg2" \
+        -hdr "x-end1: end1" \
+        -hdr "x-end2: end2" \
+        -hdr "x-sub1: sub1" \
+        -hdr "x-sub2: sub2" \
+        -hdr "x-reg1: reg1" \
+        -hdr "x-reg2: reg2"
+
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe
+        bind "fd@${fe}"
+
+        http-request del-header x-str1
+        http-request del-header x-str2 -m str
+        http-request del-header x-beg -m beg
+        http-request del-header end1 -m end
+        http-request del-header sub -m sub
+        http-request del-header ^x.reg.$ -m reg
+
+        http-response del-header x-str1
+        http-response del-header x-str2 -m str
+        http-response del-header x-beg -m beg
+        http-response del-header end1 -m end
+        http-response del-header sub -m sub
+        http-response del-header ^x.reg.$ -m reg
+
+        default_backend be
+
+    backend be
+        server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -req GET -url / \
+        -hdr "x-always: always" \
+        -hdr "x-str1: str1" \
+        -hdr "x-str2: str2" \
+        -hdr "x-beg1: beg1" \
+        -hdr "x-beg2: beg2" \
+        -hdr "x-end1: end1" \
+        -hdr "x-end2: end2" \
+        -hdr "x-sub1: sub1" \
+        -hdr "x-sub2: sub2" \
+        -hdr "x-reg1: reg1" \
+        -hdr "x-reg2: reg2"
+    rxresp
+    expect resp.status        == 200
+    expect resp.http.x-always == always
+    expect resp.http.x-str1   == <undef>
+    expect resp.http.x-str2   == <undef>
+    expect resp.http.x-beg1   == <undef>
+    expect resp.http.x-beg2   == <undef>
+    expect resp.http.x-end1   == <undef>
+    expect resp.http.x-end2   == end2
+    expect resp.http.x-sub1   == <undef>
+    expect resp.http.x-sub2   == <undef>
+    expect resp.http.x-reg1   == <undef>
+    expect resp.http.x-reg2   == <undef>
+} -run

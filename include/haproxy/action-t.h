@@ -78,7 +78,6 @@ enum act_name {
 	ACT_ACTION_DENY,
 
 	/* common http actions .*/
-	ACT_HTTP_DEL_HDR,
 	ACT_HTTP_REDIR,
 	ACT_HTTP_SET_NICE,
 	ACT_HTTP_SET_LOGL,
