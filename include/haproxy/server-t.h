@@ -274,6 +274,7 @@ struct server {
 	const struct netns_entry *netns;        /* contains network namespace name or NULL. Network namespace comes from configuration */
 	/* warning, these structs are huge, keep them at the bottom */
 	struct sockaddr_storage addr;           /* the address to connect to, doesn't include the port */
+	char *addr_desc;                        /* string description of the address and port for the server */
 	struct xprt_ops *xprt;                  /* transport-layer operations */
 	unsigned int svc_port;                  /* the port to connect to (for relevant families) */
 	unsigned down_time;			/* total time the server was down */
@@ -337,6 +338,7 @@ struct server {
 		struct ebpt_node name;		/* place in the tree of used names */
 		int line;			/* line where the section appears */
 	} conf;					/* config information */
+	struct ebpt_node addr_node;             /* Node for string representation of address for the server (including port number) */
 	/* Template information used only for server objects which
 	 * serve as template filled at parsing time and used during
 	 * server allocations from server templates.

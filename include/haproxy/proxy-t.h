@@ -424,6 +424,7 @@ struct proxy {
 		char *lfsd_file;		/* file name where the structured-data logformat string for RFC5424 appears (strdup) */
 		int  lfsd_line;			/* file name where the structured-data logformat string for RFC5424 appears */
 	} conf;					/* config information */
+	struct eb_root used_server_addr;        /* list of server addresses in use */
 	void *parent;				/* parent of the proxy when applicable */
 	struct comp *comp;			/* http compression */
 

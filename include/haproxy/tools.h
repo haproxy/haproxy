@@ -245,6 +245,19 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
                                       struct protocol **proto, char **err,
                                       const char *pfx, char **fqdn, unsigned int opts);
 
+
+/* converts <addr> and <port> into a string representation of the address and port. This is sort
+ * of an inverse of str2sa_range, with some restrictions. The supported families are AF_INET,
+ * AF_INET6, AF_UNIX, and AF_CUST_SOCKPAIR. If the family is unsopported NULL is returned.
+ * If map_ports is true, then the sign of the port is included in the output, to indicate it is
+ * relative to the incoming port. AF_INET and AF_INET6 will be in the form "<addr>:<port>".
+ * AF_UNIX will either be just the path (if using a pathname) or "abns@<path>" if it is abstract.
+ * AF_CUST_SOCKPAIR will be of the form "sockpair@<fd>".
+ *
+ * The returned char* is allocated, and it is the responsibility of the caller to free it.
+ */
+char *sa2str(const struct sockaddr_storage *addr, int port, int map_ports);
+
 /* converts <str> to a struct in_addr containing a network mask. It can be
  * passed in dotted form (255.255.255.0) or in CIDR form (24). It returns 1
  * if the conversion succeeds otherwise zero.

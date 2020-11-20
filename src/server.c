@@ -65,8 +65,8 @@ struct eb_root idle_conn_srv = EB_ROOT;
 struct task *idle_conn_task = NULL;
 
 /* The server names dictionary */
-struct dict server_name_dict = {
-	.name = "server names",
+struct dict server_key_dict = {
+	.name = "server keys",
 	.values = EB_ROOT_UNIQUE,
 };
 
@@ -191,6 +191,38 @@ void srv_set_dyncookie(struct server *s)
 		srv_check_for_dup_dyncookie(s);
  out:
 	HA_RWLOCK_RDUNLOCK(PROXY_LOCK, &p->lock);
+}
+
+static void srv_set_addr_desc(struct server *s)
+{
+	struct proxy *p = s->proxy;
+	char *key;
+
+	key = sa2str(&s->addr, s->svc_port, s->flags & SRV_F_MAPPORTS);
+
+	if (strcmp(key, s->addr_desc) == 0) {
+		free(key);
+		return;
+	}
+
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
+	ebpt_delete(&s->addr_node);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
+
+	free(s->addr_desc);
+	s->addr_desc = key;
+	s->addr_node.key = key;
+
+	// TODO: should this use a dedicated lock?
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
+	ebis_insert(&p->used_server_addr, &s->addr_node);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
+}
+
+static void srv_addr_updated(struct server *srv)
+{
+	srv_set_dyncookie(srv);
+	srv_set_addr_desc(srv);
 }
 
 /*
@@ -2052,6 +2084,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			newsrv->addr = *sk;
 			newsrv->svc_port = port;
+			srv_set_addr_desc(newsrv);
 
 			if (!newsrv->srvrq && !newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
 				ha_alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
@@ -3518,7 +3551,7 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char
 		memcpy(((struct sockaddr_in6 *)&s->addr)->sin6_addr.s6_addr, ip, 16);
 		break;
 	};
-	srv_set_dyncookie(s);
+	srv_addr_updated(s);
 
 	return 0;
 }
@@ -3690,7 +3723,7 @@ out:
 	if (changed) {
 		/* force connection cleanup on the given server */
 		srv_cleanup_connections(s);
-		srv_set_dyncookie(s);
+		srv_addr_updated(s);
 	}
 	if (updater)
 		chunk_appendf(msg, " by '%s'", updater);
@@ -4170,7 +4203,7 @@ static int srv_iterate_initaddr(struct server *srv)
 	return_code |= ERR_ALERT | ERR_FATAL;
 	return return_code;
 out:
-	srv_set_dyncookie(srv);
+	srv_addr_updated(srv);
 	return return_code;
 }
 

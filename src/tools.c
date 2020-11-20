@@ -426,10 +426,10 @@ int strlcpy2(char *dst, const char *src, int size)
 char *ultoa_r(unsigned long n, char *buffer, int size)
 {
 	char *pos;
-	
+
 	pos = buffer + size - 1;
 	*pos-- = '\0';
-	
+
 	do {
 		*pos-- = '0' + n % 10;
 		n /= 10;
@@ -492,10 +492,10 @@ const char *ulltoh_r(unsigned long long n, char *buffer, int size)
 {
 	char *start;
 	int digit = 0;
-	
+
 	start = buffer + size;
 	*--start = '\0';
-	
+
 	do {
 		if (digit == 3 && start >= buffer + 7)
 			memcpy(start -= 7, "</span>", 7);
@@ -1201,6 +1201,50 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	return ret;
 }
 
+/* converts <addr> and <port> into a string representation of the address and port. This is sort
+ * of an inverse of str2sa_range, with some restrictions. The supported families are AF_INET,
+ * AF_INET6, AF_UNIX, and AF_CUST_SOCKPAIR. If the family is unsopported NULL is returned.
+ * If map_ports is true, then the sign of the port is included in the output, to indicate it is
+ * relative to the incoming port. AF_INET and AF_INET6 will be in the form "<addr>:<port>".
+ * AF_UNIX will either be just the path (if using a pathname) or "abns@<path>" if it is abstract.
+ * AF_CUST_SOCKPAIR will be of the form "sockpair@<fd>".
+ *
+ * The returned char* is allocated, and it is the responsibility of the caller to free it.
+ */
+char * sa2str(const struct sockaddr_storage *addr, int port, int map_ports)
+{
+	char buffer[INET6_ADDRSTRLEN];
+	char *out = NULL;
+	const void *ptr;
+	const char *path;
+
+	switch (addr->ss_family) {
+	case AF_INET:
+		ptr = &((struct sockaddr_in *)addr)->sin_addr;
+		break;
+	case AF_INET6:
+		ptr = &((struct sockaddr_in6 *)addr)->sin6_addr;
+		break;
+	case AF_UNIX:
+		path = ((struct sockaddr_un *)addr)->sun_path;
+		if (path[0] == '\0') {
+			return memprintf(&out, "abns@%s", path+1);
+		} else {
+			return strdup(path);
+		}
+	case AF_CUST_SOCKPAIR:
+		return memprintf(&out, "sockpair@%d", ((struct sockaddr_in *)addr)->sin_addr.s_addr);
+	default:
+		return NULL;
+	}
+	inet_ntop(addr->ss_family, ptr, buffer, get_addr_len(addr));
+	if (map_ports)
+		return memprintf(&out, "%s:%+d", buffer, port);
+	else
+		return memprintf(&out, "%s:%d", buffer, port);
+}
+
+
 /* converts <str> to a struct in_addr containing a network mask. It can be
  * passed in dotted form (255.255.255.0) or in CIDR form (24). It returns 1
  * if the conversion succeeds otherwise zero.
@@ -1453,7 +1497,7 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
 	/* Secondly, if :// pattern is found, verify parsed stuff
 	 * before pattern is matching our http pattern.
 	 * If so parse ip address and port in uri.
-	 * 
+	 *
 	 * WARNING: Current code doesn't support dynamic async dns resolver.
 	 */
 	if (url_code != 0x3a2f2f)
@@ -1463,7 +1507,7 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct spli
 	while (cp < curr - 3)
 		http_code = (http_code << 8) + *cp++;
 	http_code |= 0x2020202020202020ULL;			/* Turn everything to lower case */
-		
+
 	/* HTTP or HTTPS url matching */
 	if (http_code == 0x2020202068747470ULL) {
 		default_port = 80;

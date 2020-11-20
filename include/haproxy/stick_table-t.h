@@ -56,7 +56,7 @@ enum {
 	STKTABLE_DT_BYTES_OUT_RATE,/* bytes rate from servers to client */
 	STKTABLE_DT_GPC1,         /* General Purpose Counter 1 (unsigned 32-bit integer) */
 	STKTABLE_DT_GPC1_RATE,    /* General Purpose Counter 1's event rate */
-	STKTABLE_DT_SERVER_NAME,  /* The server name */
+	STKTABLE_DT_SERVER_KEY,   /* The server key */
 	STKTABLE_STATIC_DATA_TYPES,/* number of types above */
 	/* up to STKTABLE_EXTRA_DATA_TYPES types may be registered here, always
 	 * followed by the number of data types, must always be last.
@@ -78,6 +78,12 @@ enum {
 	ARG_T_NONE = 0,           /* data type takes no argument (default) */
 	ARG_T_INT,                /* signed integer */
 	ARG_T_DELAY,              /* a delay which supports time units */
+};
+
+/* They types of keys that servers can be identified by */
+enum {
+	STKTABLE_SRV_NAME = 0,
+	STKTABLE_SRV_ADDR,
 };
 
 /* stick table key type flags */
@@ -112,7 +118,7 @@ union stktable_data {
 
 	/* types of each storable data */
 	int server_id;
-	struct dict_entry *server_name;
+	struct dict_entry *server_key;
 	unsigned int gpt0;
 	unsigned int gpc0;
 	struct freq_ctr_period gpc0_rate;
@@ -188,6 +194,7 @@ struct stktable {
 	} peers;
 
 	unsigned long type;       /* type of table (determines key format) */
+	unsigned int server_key_type; /* What type of key is used to identify servers */
 	size_t key_size;          /* size of a key, maximum size in case of string */
 	unsigned int size;        /* maximum number of sticky sessions in table */
 	unsigned int current;     /* number of sticky sessions currently in table */
