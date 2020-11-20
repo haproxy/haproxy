@@ -63,31 +63,11 @@ matrix:
     env: TARGET=linux-glibc OPENSSL_VERSION=1.1.0l FIFTYONEDEGREES_SRC="contrib/51d/src/trie" CC=clang-9
     name: openssl-1.1.1 | 51d trie
   - os: linux
-    if: type == push
-    compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=3.1.1 CC=clang-9
-    name: libressl-3.1.1
-  - os: linux
     env: DEBUG_OPTIONS=""
     if: type == cron
     compiler: clang
     env: TARGET=linux-glibc LIBRESSL_VERSION=3.0.2 CC=clang-9
     name: libressl-3.0.2 | ERR=
-  - os: linux
-    if: type == cron
-    compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=2.9.2 EXTRA_OBJS="contrib/prometheus-exporter/service-prometheus.o" CC=clang-9
-    name: libressl-2.9.2 | prometheus-exporter
-  - os: linux
-    if: type == cron
-    compiler: clang
-    env: TARGET=linux-glibc BORINGSSL=yes
-    name: boringssl
-  - os: linux
-    if: type == push
-    compiler: clang
-    env: TARGET=linux-glibc FLAGS= CC=clang-9
-    name: FLAGS=
   - os: linux
     if: type == cron
     compiler: clang
