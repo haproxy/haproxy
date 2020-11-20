@@ -96,7 +96,6 @@ for CC in ["gcc", "clang"]:
         "stock",
         "OPENSSL_VERSION=1.0.2u",
         "LIBRESSL_VERSION=2.9.2",
-        "LIBRESSL_VERSION=3.0.2",
         "LIBRESSL_VERSION=3.1.1",
     ]:
         flags = ["USE_OPENSSL=1"]
