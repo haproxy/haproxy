@@ -269,9 +269,8 @@ void set_server_check_status(struct check *check, short status, const char *desc
 		break;
 
 	case CHK_RES_PASSED:
-	case CHK_RES_CONDPASS:	/* "condpass" cannot make the first step but it OK after a "passed" */
-		if ((check->health < check->rise + check->fall - 1) &&
-		    (check->result == CHK_RES_PASSED || check->health > 0)) {
+	case CHK_RES_CONDPASS:
+		if (check->health < check->rise + check->fall - 1) {
 			report = 1;
 			check->health++;
 
