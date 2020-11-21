@@ -12596,10 +12596,11 @@ crt-list <file>
   configuration set in bind line for the certificate.
 
   Wildcards are supported in the SNI filter. Negative filter are also supported,
-  only useful in combination with a wildcard filter to exclude a particular SNI.
-  The certificates will be presented to clients who provide a valid TLS Server
-  Name Indication field matching one of the SNI filters. If no SNI filter is
-  specified, the CN and alt subjects are used. This directive may be specified
+  useful in combination with a wildcard filter to exclude a particular SNI, or
+  after the first certificate to exclude a pattern from its CN or Subject Alt
+  Name (SAN). The certificates will be presented to clients who provide a valid
+  TLS Server Name Indication field matching one of the SNI filters. If no SNI
+  filter is specified, the CN and SAN are used. This directive may be specified
   multiple times. See the "crt" option for more information. The default
   certificate is still needed to meet OpenSSL expectations. If it is not used,
   the 'strict-sni' option may be used.
@@ -12610,8 +12611,16 @@ crt-list <file>
 
   Empty lines as well as lines beginning with a hash ('#') will be ignored.
 
+  The first valid line declares the default certificate, which haproxy should
+  use in the TLS handshake if no other certificate matches, just like the crt
+  bind option. This certificate will also be used if the provided SNI matches
+  its CN or SAN, even if a matching SNI filter is declared later. The SNI filter
+  !* can be used after the first certificate to not include its CN and SAN in
+  the SNI tree, so it will never match except if no other certificate matches.
+  This way the first declared certificate act as a fallback.
+
   crt-list file example:
-        cert1.pem
+        cert1.pem !*
         # comment
         cert2.pem [alpn h2,http/1.1]
         certW.pem                   *.domain.tld !secure.domain.tld
