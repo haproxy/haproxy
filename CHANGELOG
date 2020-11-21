@@ -1,6 +1,115 @@
 ChangeLog :
 ===========
 
+2020/11/21 : 2.4-dev1
+    - MINOR: ist: Add istend() function to return a pointer to the end of the string
+    - MINOR: sample: Add converters to parse FIX messages
+    - REGTEST: converter: Add a regtest for fix converters
+    - MINOR: sample: Add converts to parses MQTT messages
+    - REGTEST: converter: Add a regtest for MQTT converters
+    - MINOR: compat: automatically include malloc.h on glibc
+    - MEDIUM: pools: call malloc_trim() from pool_gc()
+    - MEDIUM: pattern: call malloc_trim() on pat_ref_reload()
+    - MINOR: pattern: move the update revision to the pat_ref, not the expression
+    - CLEANUP: pattern: delete the back refs at once during pat_ref_reload()
+    - MINOR: pattern: new sflag PAT_SF_REGFREE indicates regex_free() is needed
+    - MINOR: pattern: make the delete and prune functions more generic
+    - MEDIUM: pattern: link all final elements from the reference
+    - MEDIUM: pattern: change the pat_del_* functions to delete from the references
+    - MINOR: pattern: remerge the list and tree deletion functions
+    - MINOR: pattern: perform a single call to pat_delete_gen() under the expression
+    - CLEANUP: acl: don't reference the generic pattern deletion function anymore
+    - CLEANUP: pattern: remove pat_delete_fcts[] and pattern_head->delete()
+    - MINOR: pattern: introduce pat_ref_delete_by_ptr() to delete a valid reference
+    - MINOR: pattern: store a generation number in the reference patterns
+    - MEDIUM: pattern: only match patterns that match the current generation
+    - MINOR: pattern: add pat_ref_commit() to commit a previously inserted element
+    - MINOR: pattern: implement pat_ref_load() to load a pattern at a given generation
+    - MINOR: pattern: add pat_ref_purge_older() to purge old entries
+    - MEDIUM: pattern: make pat_ref_prune() rely on pat_ref_purge_older()
+    - MINOR: pattern: during reload, delete elements frem the ref, not the expression
+    - MINOR: pattern: prepare removal of a pattern from the list head
+    - MEDIUM: pattern: turn the pattern chaining to single-linked list
+    - CLEANUP: cfgparse: remove duplicate registration for transparent build options
+    - BUG/MINOR: ssl: don't report 1024 bits DH param load error when it's higher
+    - MINOR: http-htx: Add understandable errors for the errorfiles parsing
+    - MINOR: ssl: instantiate stats module
+    - MINOR: ssl: count client hello for stats
+    - MINOR: ssl: add counters for ssl sessions
+    - DOC: config: Fix a typo on ssl_c_chain_der
+    - MINOR: server: remove idle lock in srv_cleanup_connections
+    - BUILD: ssl: silence build warning on uninitialised counters
+    - BUILD: http-htx: fix build warning regarding long type in printf
+    - REGTEST: ssl: test wildcard and multi-type + exclusions
+    - BUG/MEDIUM: ssl/crt-list: correctly insert crt-list line if crt already loaded
+    - CI: Expand use of GitHub Actions for CI
+    - REGTEST: ssl: mark reg-tests/ssl/ssl_crt-list_filters.vtc as broken
+    - BUG/MINOR: pattern: a sample marked as const could be written
+    - BUG/MINOR: lua: set buffer size during map lookups
+    - MEDIUM: cache: Change caching conditions
+    - BUG/MINOR: stats: free dynamically stats fields/lines on shutdown
+    - BUG/MEDIUM: stats: prevent crash if counters not alloc with dummy one
+    - MINOR: peers: Add traces to peer_treat_updatemsg().
+    - BUG/MINOR: peers: Do not ignore a protocol error for dictionary entries.
+    - BUG/MINOR: peers: Missing TX cache entries reset.
+    - BUG/MEDIUM: peers: fix decoding of multi-byte length in stick-table messages
+    - BUG/MINOR: http-fetch: Extract cookie value even when no cookie name
+    - BUG/MINOR: http-fetch: Fix calls w/o parentheses of the cookie sample fetches
+    - BUG/MEDIUM: check: reuse srv proto only if using same mode
+    - MINOR: check: report error on incompatible proto
+    - MINOR: check: report error on incompatible connect proto
+    - BUG/MINOR: http-htx: Handle warnings when parsing http-error and http-errors
+    - BUG/MAJOR: spoe: Be sure to remove all references on a released spoe applet
+    - MINOR: spoe: Don't close connection in sync mode on processing timeout
+    - BUG/MINOR: tcpcheck: Don't warn on unused rules if check option is after
+    - MINOR: init: Fix the prototype for per-thread free callbacks
+    - MINOR: config/mux-h2: Return ERR_ flags from init_h2() instead of a status
+    - CLEANUP: config: Return ERR_NONE from config callbacks instead of 0
+    - MINOR: cfgparse: tighten the scope of newnameserver variable, free it on error.
+    - REGTEST: make ssl_client_samples and ssl_server_samples require to 2.2
+    - REGTESTS: Add sample_fetches/cook.vtc
+    - BUG/MEDIUM: filters: Forward all filtered data at the end of http filtering
+    - BUG/MINOR: http-ana: Don't wait for the body of CONNECT requests
+    - CLEANUP: flt-trace: Remove unused random-parsing option
+    - MINOR: flt-trace: Add an option to inhibits trace messages
+    - MINOR: flt-trace: Use a bitfield for the trace options
+    - REGTESTS: Add a script to test the random forwarding with several filters
+    - REGTESTS: mark the abns test as broken again
+    - REGTESTS: converter: add url_dec test
+    - CI: Stop hijacking the hosts file
+    - CI: Make the h2spec workflow more consistent with the VTest workflow
+    - CI: travis-ci: remove amd64, osx builds
+    - CI: travis-ci: arm64 are not allowed to fail anymore
+    - DOC: add missing 3.10 in the summary
+    - MINOR: ssl: remove client hello counters
+    - MEDIUM: stats: add counters for failed handshake
+    - MINOR: ssl: create common ssl_ctx init
+    - MEDIUM: cli/ssl: configure ssl on server at runtime
+    - REGTEST: server/cli_set_ssl.vtc requires OpenSSL
+    - DOC: coding-style: update a few rules about pointers
+    - BUG/MINOR: ssl: segv on startup when AKID but no keyid
+    - BUILD: ssl: use SSL_MODE_ASYNC macro instead of OPENSSL_VERSION
+    - BUG/MEDIUM: http-ana: Don't eval http-after-response ruleset on empty messages
+    - BUG/MEDIUM: ssl/crt-list: bundle support broken in crt-list
+    - BUG/MEDIUM: ssl: error when no certificate are found
+    - BUG/MINOR: ssl/crt-list: load bundle in crt-list only if activated
+    - BUG/MEDIUM: ssl/crt-list: fix error when no file found
+    - CI: Github Actions: enable prometheus exporter
+    - CI: Github Actions: remove LibreSSL-3.0.2 builds
+    - CI: Github Actions: enable BoringSSL builds
+    - CI: travis-ci: remove builds migrated to GH actions
+    - BUILD: makefile: enable crypt(3) for OpenBSD
+    - CI: Github Action: run "apt-get update" before packages restore
+    - BUILD: SSL: guard TLS13 ciphersuites with HAVE_SSL_CTX_SET_CIPHERSUITES
+    - CI: Pass the github.event_name to matrix.py
+    - CI: Clean up Windows CI
+    - DOC: clarify how to create a fallback crt
+    - CLEANUP: connection: do not use conn->owner when the session is known
+    - BUG/MAJOR: connection: reset conn->owner when detaching from session list
+    - REGTESTS: mark proxy_protocol_random_fail as broken
+    - BUG/MINOR: http_htx: Fix searching headers by substring
+    - MINOR: http_act: Add -m flag for del-header name matching method
+
 2020/11/05 : 2.4-dev0
     - MINOR: version: it's development again.
     - DOC: mention in INSTALL that it's development again
