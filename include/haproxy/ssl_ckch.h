@@ -36,14 +36,6 @@ int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, stru
 int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct cert_key_and_chain *ckch, char **err);
 int ssl_sock_load_issuer_file_into_ckch(const char *path, char *buf, struct cert_key_and_chain *ckch, char **err);
 
-/* checks if a key and cert exists in the ckch */
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-static inline int ssl_sock_is_ckch_valid(struct cert_key_and_chain *ckch)
-{
-	return (ckch->cert != NULL && ckch->key != NULL);
-}
-#endif
-
 /* ckch_store functions */
 struct ckch_store *ckchs_load_cert_file(char *path, char **err);
 struct ckch_store *ckchs_lookup(char *path);
