@@ -50,7 +50,7 @@ void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 		conf->crl_file = NULL;
 		free(conf->ciphers);
 		conf->ciphers = NULL;
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 		free(conf->ciphersuites);
 		conf->ciphersuites = NULL;
 #endif
@@ -109,7 +109,7 @@ struct ssl_bind_conf *crtlist_dup_ssl_conf(struct ssl_bind_conf *src)
 		if (!dst->ciphers)
 			goto error;
 	}
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (src->ciphersuites) {
 		dst->ciphersuites = strdup(src->ciphersuites);
 		if (!dst->ciphersuites)
@@ -832,7 +832,7 @@ static void dump_crtlist_sslconf(struct buffer *buf, const struct ssl_bind_conf 
 		chunk_appendf(buf, "ciphers %s", conf->ciphers);
 		space++;
 	}
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL && !defined LIBRESSL_VERSION_NUMBER)
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (conf->ciphersuites) {
 		if (space) chunk_appendf(buf, " ");
 		chunk_appendf(buf, "ciphersuites %s", conf->ciphersuites);

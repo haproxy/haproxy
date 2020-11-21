@@ -270,7 +270,7 @@ struct global_ssl {
 
 	char *listen_default_ciphers;
 	char *connect_default_ciphers;
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	char *listen_default_ciphersuites;
 	char *connect_default_ciphersuites;
 #endif

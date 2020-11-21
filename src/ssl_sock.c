@@ -104,13 +104,9 @@ struct global_ssl global_ssl = {
 #ifdef CONNECT_DEFAULT_CIPHERS
 	.connect_default_ciphers = CONNECT_DEFAULT_CIPHERS,
 #endif
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
-#ifdef LISTEN_DEFAULT_CIPHERSUITES
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	.listen_default_ciphersuites = LISTEN_DEFAULT_CIPHERSUITES,
-#endif
-#ifdef CONNECT_DEFAULT_CIPHERSUITES
 	.connect_default_ciphersuites = CONNECT_DEFAULT_CIPHERSUITES,
-#endif
 #endif
 	.listen_default_ssloptions = BC_SSL_O_NONE,
 	.connect_default_ssloptions = SRV_SSL_O_NONE,
@@ -4054,7 +4050,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	int verify = SSL_VERIFY_NONE;
 	struct ssl_bind_conf __maybe_unused *ssl_conf_cur;
 	const char *conf_ciphers;
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	const char *conf_ciphersuites;
 #endif
 	const char *conf_curves = NULL;
@@ -4162,7 +4158,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 		cfgerr |= ERR_ALERT | ERR_FATAL;
 	}
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	conf_ciphersuites = (ssl_conf && ssl_conf->ciphersuites) ? ssl_conf->ciphersuites : bind_conf->ssl_conf.ciphersuites;
 	if (conf_ciphersuites &&
 	    !SSL_CTX_set_ciphersuites(ctx, conf_ciphersuites)) {
@@ -4619,7 +4615,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		cfgerr++;
 	}
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (srv->ssl_ctx.ciphersuites &&
 		!SSL_CTX_set_ciphersuites(srv->ssl_ctx.ctx, srv->ssl_ctx.ciphersuites)) {
 		ha_alert("Proxy '%s', server '%s' [%s:%d] : unable to set TLS 1.3 cipher suites to '%s'.\n",
@@ -6721,7 +6717,7 @@ static void __ssl_sock_init(void)
 		global_ssl.listen_default_ciphers = strdup(global_ssl.listen_default_ciphers);
 	if (global_ssl.connect_default_ciphers)
 		global_ssl.connect_default_ciphers = strdup(global_ssl.connect_default_ciphers);
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (global_ssl.listen_default_ciphersuites)
 		global_ssl.listen_default_ciphersuites = strdup(global_ssl.listen_default_ciphersuites);
 	if (global_ssl.connect_default_ciphersuites)
