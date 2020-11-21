@@ -586,6 +586,9 @@ static void display_build_opts()
 #ifdef BUILD_OPTIONS
 	       "\n  OPTIONS = " BUILD_OPTIONS
 #endif
+#ifdef BUILD_DEBUG
+	       "\n  DEBUG   = " BUILD_DEBUG
+#endif
 #ifdef BUILD_FEATURES
 	       "\n\nFeature list : " BUILD_FEATURES
 #endif

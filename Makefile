@@ -919,6 +919,7 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 	      -DBUILD_CC='"$(strip $(CC))"' \
 	      -DBUILD_CFLAGS='"$(strip $(VERBOSE_CFLAGS))"' \
 	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \
+	      -DBUILD_DEBUG='"$(strip $(DEBUG))"' \
 	      -DBUILD_FEATURES='"$(strip $(BUILD_FEATURES))"' \
 	       -c -o $@ $<
 
