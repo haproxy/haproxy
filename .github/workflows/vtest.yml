@@ -85,6 +85,7 @@ jobs:
           ERR=1 \
           TARGET=${{ matrix.TARGET }} \
           CC=${{ matrix.CC }} \
+          DEBUG=-DDEBUG_STRICT=1 \
           ${{ join(matrix.FLAGS, ' ') }} \
           ADDLIB="-Wl,-rpath,/usr/local/lib/ -Wl,-rpath,$HOME/opt/lib/"
         sudo make install
