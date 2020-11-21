@@ -783,7 +783,7 @@ void mworker_reload()
 		if (fdtab)
 			deinit_pollers();
 	}
-#if defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#if defined(USE_OPENSSL) && (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) && !defined(OPENSSL_IS_BORINGSSL)
 	/* close random device FDs */
 	RAND_keep_random_devices_open(0);
 #endif
