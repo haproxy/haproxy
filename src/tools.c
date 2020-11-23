@@ -950,6 +950,18 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		ss.ss_family = AF_UNSPEC;
 		sock_type = ctrl_type = SOCK_DGRAM;
 	}
+	else if (strncmp(str2, "quic4@", 6) == 0) {
+		str2 += 6;
+		ss.ss_family = AF_INET;
+		sock_type = SOCK_DGRAM;
+		ctrl_type = SOCK_STREAM;
+	}
+	else if (strncmp(str2, "quic6@", 6) == 0) {
+		str2 += 6;
+		ss.ss_family = AF_INET6;
+		sock_type = SOCK_DGRAM;
+		ctrl_type = SOCK_STREAM;
+	}
 	else if (strncmp(str2, "fd@", 3) == 0) {
 		str2 += 3;
 		ss.ss_family = AF_CUST_EXISTING_FD;
