@@ -1,8 +1,8 @@
 /*
- * include/haproxy/quic_sock.h
- * This file contains declarations for QUIC sockets.
+ * include/haproxy/quic_frame.h
+ * This file contains prototypes for QUIC frames.
  *
- * Copyright 2020 Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,30 +19,25 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _HAPROXY_QUIC_SOCK_H
-#define _HAPROXY_QUIC_SOCK_H
+#ifndef _HAPROXY_QUIC_FRAME_H
+#define _HAPROXY_QUIC_FRAME_H
 #ifdef USE_QUIC
 #ifndef USE_OPENSSL
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <sys/socket.h>
-#include <sys/types.h>
+#include <haproxy/quic_frame-t.h>
+#include <haproxy/xprt_quic-t.h>
 
-#include <haproxy/api.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/listener-t.h>
+const char *quic_frame_type_string(enum quic_frame_type ft);
 
-int quic_sock_accepting_conn(const struct receiver *rx);
-struct connection *quic_sock_accept_conn(struct listener *l, int *status);
-void quic_sock_fd_iocb(int fd);
+int qc_build_frm(unsigned char **buf, const unsigned char *end,
+                 struct quic_frame *frm, struct quic_tx_packet *pkt,
+                 struct quic_conn *conn);
+
+int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
+                 const unsigned char **buf, const unsigned char *end,
+                 struct quic_conn *conn);
 
 #endif /* USE_QUIC */
-#endif /* _HAPROXY_QUIC_SOCK_H */
-
-/*
- * Local variables:
- *  c-indent-level: 8
- *  c-basic-offset: 8
- * End:
- */
+#endif /* _HAPROXY_QUIC_FRAME_H */
