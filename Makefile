@@ -301,7 +301,8 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
            USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS     \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
-           USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP USE_EVPORTS USE_OT
+           USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP USE_EVPORTS USE_OT   \
+           USE_QUIC
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -567,6 +568,10 @@ ifneq ($(USE_DL),)
 OPTIONS_LDFLAGS += -ldl
 endif
 OPTIONS_OBJS  += src/ssl_sample.o src/ssl_sock.o src/ssl_crtlist.o src/ssl_ckch.o src/ssl_utils.o src/cfgparse-ssl.o
+endif
+ifneq ($(USE_QUIC),)
+OPTIONS_OBJS += src/quic_sock.o src/proto_quic.o src/xprt_quic.o src/quic_tls.o \
+                src/quic_frame.o src/quic_cc.o src/quic_cc_newreno.o
 endif
 
 # The private cache option affect the way the shctx is built
