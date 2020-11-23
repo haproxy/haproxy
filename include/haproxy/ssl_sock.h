@@ -42,6 +42,7 @@ extern struct ssl_bind_kw ssl_bind_kws[];
 extern struct methodVersions methodVersions[];
 __decl_thread(extern HA_SPINLOCK_T ckch_lock);
 extern struct pool_head *pool_head_ssl_capture;
+extern int ssl_app_data_index;
 extern unsigned int openssl_engines_initialized;
 extern int nb_engines;
 extern struct xprt_ops ssl_sock;
@@ -53,11 +54,14 @@ extern struct pool_head *pool_head_ssl_keylog_str;
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *, SSL_CTX *ctx, char **err);
 int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf);
 int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf);
+void ssl_sock_destroy_bind_conf(struct bind_conf *bind_conf);
 int ssl_sock_prepare_srv_ctx(struct server *srv);
 void ssl_sock_free_srv_ctx(struct server *srv);
 void ssl_sock_free_all_ctx(struct bind_conf *bind_conf);
 int ssl_sock_load_ca(struct bind_conf *bind_conf);
 void ssl_sock_free_ca(struct bind_conf *bind_conf);
+int ssl_bio_and_sess_init(struct connection *conn, SSL_CTX *ssl_ctx,
+                          SSL **ssl, BIO **bio, BIO_METHOD *bio_meth, void *ctx);
 const char *ssl_sock_get_sni(struct connection *conn);
 const char *ssl_sock_get_cert_sig(struct connection *conn);
 const char *ssl_sock_get_cipher_name(struct connection *conn);
@@ -88,6 +92,14 @@ int ssl_sock_load_global_dh_param_from_file(const char *filename);
 void ssl_free_dh(void);
 #endif
 void ssl_free_engines(void);
+#if ((HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) || defined(OPENSSL_IS_BORINGSSL))
+int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv);
+#ifdef OPENSSL_IS_BORINGSSL
+int ssl_sock_switchctx_cbk(const struct ssl_early_callback_ctx *ctx);
+#else
+int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg);
+#endif
+#endif
 
 SSL_CTX *ssl_sock_create_cert(struct connection *conn, const char *servername, unsigned int key);
 SSL_CTX *ssl_sock_assign_generated_cert(unsigned int key, struct bind_conf *bind_conf, SSL *ssl);
