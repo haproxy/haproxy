@@ -2326,6 +2326,24 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 	conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 	s = __objt_listener(conn->target)->bind_conf;
 
+#ifdef USE_QUIC
+	if (conn->qc) {
+		/* Look for the QUIC transport parameters. */
+#ifdef OPENSSL_IS_BORINGSSL
+		if (!SSL_early_callback_ctx_extension_get(ctx, TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS,
+		                                          &extension_data, &extension_len))
+#else
+		if (!SSL_client_hello_get0_ext(ssl, TLS_EXTENSION_QUIC_TRANSPORT_PARAMETERS,
+		                               &extension_data, &extension_len))
+#endif
+			goto abort;
+
+		if (!quic_transport_params_store(conn->qc, 0, extension_data,
+		                                 extension_data + extension_len))
+			goto abort;
+	}
+#endif
+
 	if (s->ssl_conf.early_data)
 		allow_early = 1;
 #ifdef OPENSSL_IS_BORINGSSL
