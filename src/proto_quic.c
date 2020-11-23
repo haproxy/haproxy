@@ -46,6 +46,7 @@
 #include <haproxy/tools.h>
 
 
+static void quic_add_listener(struct protocol *proto, struct listener *listener);
 static int quic_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int quic_connect_server(struct connection *conn, int flags);
 static void quic_enable_listener(struct listener *listener);
@@ -60,7 +61,7 @@ struct protocol proto_quic4 = {
 	.listen         = quic_bind_listener,
 	.enable         = quic_enable_listener,
 	.disable        = quic_disable_listener,
-	.add            = default_add_listener,
+	.add            = quic_add_listener,
 	.unbind         = default_unbind_listener,
 	.suspend        = default_suspend_listener,
 	.resume         = default_resume_listener,
@@ -97,7 +98,7 @@ struct protocol proto_quic6 = {
 	.listen         = quic_bind_listener,
 	.enable         = quic_enable_listener,
 	.disable        = quic_disable_listener,
-	.add            = default_add_listener,
+	.add            = quic_add_listener,
 	.unbind         = default_unbind_listener,
 	.suspend        = default_suspend_listener,
 	.resume         = default_resume_listener,
@@ -511,6 +512,18 @@ int quic_connect_server(struct connection *conn, int flags)
 	}
 
 	return SF_ERR_NONE;  /* connection is OK */
+}
+
+/* Add listener <listener> to protocol <proto>. Technically speaking we just
+ * initialize a few entries which should be doable during quic_bind_listener().
+ * The end of the initialization goes on with the default function.
+ */
+static void quic_add_listener(struct protocol *proto, struct listener *listener)
+{
+	LIST_INIT(&listener->rx.qpkts);
+	listener->rx.odcids = EB_ROOT_UNIQUE;
+	listener->rx.cids = EB_ROOT_UNIQUE;
+	default_add_listener(proto, listener);
 }
 
 /* This function tries to bind a QUIC4/6 listener. It may return a warning or

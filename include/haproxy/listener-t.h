@@ -36,6 +36,7 @@
 #ifdef USE_OPENSSL
 #include <haproxy/openssl-compat.h>
 #endif
+#include <haproxy/xprt_quic-t.h>
 
 /* Some pointer types reference below */
 struct task;
@@ -165,6 +166,9 @@ struct bind_conf {
 	char *ca_sign_pass;        /* CAKey passphrase */
 
 	struct cert_key_and_chain * ca_sign_ckch;	/* CA and possible certificate chain for ca generation */
+#endif
+#ifdef USE_QUIC
+	struct quic_transport_params quic_params; /* QUIC transport parameters. */
 #endif
 	struct proxy *frontend;    /* the frontend all these listeners belong to, or NULL */
 	const struct mux_proto_list *mux_proto; /* the mux to use for all incoming connections (specified by the "proto" keyword) */

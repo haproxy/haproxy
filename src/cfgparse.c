@@ -78,6 +78,7 @@
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
+#include <haproxy/xprt_quic.h>
 
 
 /* Used to chain configuration sections definitions. This list
@@ -135,6 +136,17 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			goto fail;
 
 		/* OK the address looks correct */
+
+#ifdef USE_QUIC
+		/* The transport layer automatically switches to QUIC when QUIC
+		 * is selected, regardless of bind_conf settings. We then need
+		 * to initialize QUIC params.
+		 */
+		if (proto->sock_type == SOCK_DGRAM && proto->ctrl_type == SOCK_STREAM) {
+			bind_conf->xprt = xprt_get(XPRT_QUIC);
+			quic_transport_params_init(&bind_conf->quic_params, 1);
+		}
+#endif
 		if (!create_listeners(bind_conf, ss2, port, end, fd, proto, err)) {
 			memprintf(err, "%s for address '%s'.\n", *err, str);
 			goto fail;
