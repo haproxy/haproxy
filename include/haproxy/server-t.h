@@ -41,6 +41,7 @@
 #include <haproxy/stats-t.h>
 #include <haproxy/task-t.h>
 #include <haproxy/thread-t.h>
+#include <haproxy/xprt_quic-t.h>
 
 
 /* server states. Only SRV_ST_STOPPED indicates a down server. */
@@ -329,6 +330,10 @@ struct server {
 		int alpn_len;                   /* ALPN protocol string length */
 #endif
 	} ssl_ctx;
+#ifdef USE_QUIC
+	struct quic_transport_params quic_params; /* QUIC transport parameters */
+	struct eb_root cids;        /* QUIC connections IDs. */
+#endif
 #endif
 	struct dns_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
 	struct {

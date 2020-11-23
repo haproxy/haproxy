@@ -1742,6 +1742,9 @@ struct server *new_server(struct proxy *proxy)
 	srv->agent.server = srv;
 	srv->agent.proxy = proxy;
 	srv->xprt  = srv->check.xprt = srv->agent.xprt = xprt_get(XPRT_RAW);
+#if defined(USE_QUIC)
+	srv->cids = EB_ROOT_UNIQUE;
+#endif
 
 	srv->extra_counters = NULL;
 
