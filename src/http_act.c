@@ -1506,6 +1506,7 @@ static enum act_parse_ret parse_http_del_header(const char **args, int *orig_arg
 	rule->arg.http.str.len = strlen(rule->arg.http.str.ptr);
 	px->conf.args.ctx = (rule->from == ACT_F_HTTP_REQ ? ARGC_HRQ : ARGC_HRS);
 
+	LIST_INIT(&rule->arg.http.fmt);
 	if (strcmp(args[cur_arg+1], "-m") == 0) {
 		cur_arg++;
 		if (!*args[cur_arg+1]) {
