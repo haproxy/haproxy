@@ -12624,13 +12624,14 @@ crt-list <file>
 
   Empty lines as well as lines beginning with a hash ('#') will be ignored.
 
-  The first valid line declares the default certificate, which haproxy should
-  use in the TLS handshake if no other certificate matches, just like the crt
-  bind option. This certificate will also be used if the provided SNI matches
-  its CN or SAN, even if a matching SNI filter is declared later. The SNI filter
-  !* can be used after the first certificate to not include its CN and SAN in
-  the SNI tree, so it will never match except if no other certificate matches.
-  This way the first declared certificate act as a fallback.
+  The first declared certificate of a bind line is used as the default
+  certificate, either from crt or crt-list option, which haproxy should use in
+  the TLS handshake if no other certificate matches. This certificate will also
+  be used if the provided SNI matches its CN or SAN, even if a matching SNI
+  filter is found on any crt-list. The SNI filter !* can be used after the first
+  declared certificate to not include its CN and SAN in the SNI tree, so it will
+  never match except if no other certificate matches. This way the first
+  declared certificate act as a fallback.
 
   crt-list file example:
         cert1.pem !*
