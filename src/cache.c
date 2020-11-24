@@ -1797,6 +1797,7 @@ int accept_encoding_cmp(const void *a, const void *b)
 	return istdiff(ist_a, ist_b);
 }
 
+#define ACCEPT_ENCODING_MAX_ENTRIES 16
 /*
  * Build a hash of the accept-encoding header. The different parts of the
  * header value are first sorted, appended and then a crc is calculated
@@ -1805,19 +1806,23 @@ int accept_encoding_cmp(const void *a, const void *b)
  */
 static int accept_encoding_normalizer(struct ist value, char *buf, unsigned int *buf_len)
 {
-	int retval = 0;
-	struct ist values[16] = {{}};
-	unsigned int count = 0;
+	struct ist values[ACCEPT_ENCODING_MAX_ENTRIES] = {{}};
+	size_t count = 0;
 	char *comma = NULL;
 	struct buffer *trash = get_trash_chunk();
 	int hash_value = 0;
 
 	/* The hash will be built out of a sorted list of accepted encodings. */
-	while((comma = istchr(value, ',')) != NULL) {
-		values[count++] = ist2(istptr(value), comma-istptr(value));
-		value = ist2(comma+1, istlen(value) - (comma-istptr(value)) - 1);
+	while (count < (ACCEPT_ENCODING_MAX_ENTRIES - 1) && (comma = istchr(value, ',')) != NULL) {
+		size_t length = comma - istptr(value);
+
+		values[count++] = isttrim(value, length);
+		value = istadv(value, length + 1);
 	}
 	values[count++] = value;
+
+	if (count == ACCEPT_ENCODING_MAX_ENTRIES)
+		return 1;
 
 	/* Sort the values alphabetically. */
 	qsort(values, count, sizeof(struct ist), &accept_encoding_cmp);
@@ -1830,8 +1835,9 @@ static int accept_encoding_normalizer(struct ist value, char *buf, unsigned int 
 	memcpy(buf, &hash_value, sizeof(hash_value));
 	*buf_len = sizeof(hash_value);
 
-	return retval;
+	return 0;
 }
+#undef ACCEPT_ENCODING_MAX_ENTRIES
 
 /*
  * Normalizer used by default for User-Agent and Referer headers. It only
