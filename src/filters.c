@@ -555,6 +555,12 @@ flt_http_end(struct stream *s, struct http_msg *msg)
 		unsigned long long flt_off = FLT_OFF(filter, msg->chn);
 		offset = flt_off - *strm_off;
 
+		/* Call http_end for data filters only. But the filter offset is
+		 * still valid for all filters
+		 . */
+		if (!IS_DATA_FILTER(filter, msg->chn))
+			continue;
+
 		if (FLT_OPS(filter)->http_end) {
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->http_end(s, filter, msg);
@@ -629,13 +635,18 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	ret = data = len - out;
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		/* Call "data" filters only */
-		if (!IS_DATA_FILTER(filter, msg->chn))
-			continue;
-		if (FLT_OPS(filter)->http_payload) {
-			unsigned long long *flt_off = &FLT_OFF(filter, msg->chn);
-			unsigned int offset = *flt_off - *strm_off;
+		unsigned long long *flt_off = &FLT_OFF(filter, msg->chn);
+		unsigned int offset = *flt_off - *strm_off;
 
+		/* Call http_payload for filters only. Forward all data for
+		 * others and update the filter offset
+		 */
+		if (!IS_DATA_FILTER(filter, msg->chn)) {
+			*flt_off += data - offset;
+			continue;
+		}
+
+		if (FLT_OPS(filter)->http_payload) {
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->http_payload(s, filter, msg, out + offset, data - offset);
 			if (ret < 0)
@@ -793,10 +804,8 @@ flt_analyze_http_headers(struct stream *s, struct channel *chn, unsigned int an_
 		size_t data = http_get_hdrs_size(htxbuf(&chn->buf));
 		struct filter *f;
 
-		list_for_each_entry(f, &strm_flt(s)->filters, list) {
-			if (IS_DATA_FILTER(f, chn))
-				FLT_OFF(f, chn) = data;
-		}
+		list_for_each_entry(f, &strm_flt(s)->filters, list)
+			FLT_OFF(f, chn) = data;
 	}
 
  check_result:
@@ -894,12 +903,18 @@ flt_tcp_payload(struct stream *s, struct channel *chn, unsigned int len)
 	ret = data = len - out;
 	DBG_TRACE_ENTER(STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
-		/* Call "data" filters only */
-		if (!IS_DATA_FILTER(filter, chn))
+		unsigned long long *flt_off = &FLT_OFF(filter, chn);
+		unsigned int offset = *flt_off - *strm_off;
+
+		/* Call tcp_payload for filters only. Forward all data for
+		 * others and update the filter offset
+		 */
+		if (!IS_DATA_FILTER(filter, chn)) {
+			*flt_off += data - offset;
 			continue;
+		}
+
 		if (FLT_OPS(filter)->tcp_payload) {
-			unsigned long long *flt_off = &FLT_OFF(filter, chn);
-			unsigned int offset = *flt_off - *strm_off;
 
 			DBG_TRACE_DEVEL(FLT_ID(filter), STRM_EV_TCP_ANA|STRM_EV_FLT_ANA, s);
 			ret = FLT_OPS(filter)->tcp_payload(s, filter, chn, out + offset, data - offset);

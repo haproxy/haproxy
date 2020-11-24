@@ -166,11 +166,10 @@ unregister_data_filter(struct stream *s, struct channel *chn, struct filter *fil
 }
 
 /* This function must be called when a filter alter payload data. It updates
- * offsets of all previous filters and the offset of the stream. Do not call
- * this function when a filter change the size of payload data leads to an
- * undefined behavior.
+ * offsets of all previous filters. Do not call this function when a filter
+ * change the size of payload data leads to an undefined behavior.
  *
- * This is the filter's responsiblitiy to update data itself..
+ * This is the filter's responsiblitiy to update data itself.
  */
 static inline void
 flt_update_offsets(struct filter *filter, struct channel *chn, int len)
@@ -181,8 +180,7 @@ flt_update_offsets(struct filter *filter, struct channel *chn, int len)
 	list_for_each_entry(f, &strm_flt(s)->filters, list) {
 		if (f == filter)
 			break;
-		if (IS_DATA_FILTER(filter, chn))
-			FLT_OFF(f, chn) += len;
+		FLT_OFF(f, chn) += len;
 	}
 }
 
