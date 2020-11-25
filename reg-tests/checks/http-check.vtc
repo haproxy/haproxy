@@ -82,6 +82,10 @@ syslog S1 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]/srv succeeded.*code: 200"
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]/srv succeeded.*code: 200"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]/srv succeeded.*code: 200"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be[0-9]/srv succeeded.*code: 200"
 } -start
 
 haproxy h1 -conf {
@@ -132,6 +136,21 @@ haproxy h1 -conf {
         http-check send meth GET uri-lf "%[var(check.path)]" body-lf "health-check on %[be_name]-%[srv_name]"
         ## implicit expect rule
         server srv ${s1_addr}:${s1_port} check inter 100ms rise 1 fall 1
+
+    backend be5
+        log ${S1_addr}:${S1_port} len 2048 local0
+        option httpchk
+        server srv ${h1_li1_addr}:${h1_li1_port} proto h2 check inter 100ms rise 1 fall 1
+
+    backend be6
+        log ${S1_addr}:${S1_port} len 2048 local0
+        option httpchk GET /status HTTP/1.1
+        server srv ${h1_li1_addr}:${h1_li1_port} check check-proto h2 inter 100ms rise 1 fall 1
+
+    listen li1
+        mode http
+        bind "fd@${li1}" proto h2
+        http-request return status 200
 
 } -start
 

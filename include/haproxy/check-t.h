@@ -20,6 +20,7 @@
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/connection-t.h>
+#include <haproxy/dynbuf-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/vars-t.h>
 
@@ -49,6 +50,8 @@ enum chk_result {
 #define CHK_ST_PAUSED           0x0008  /* checks are paused because of maintenance (health only) */
 #define CHK_ST_AGENT            0x0010  /* check is an agent check (otherwise it's a health check) */
 #define CHK_ST_PORT_MISS        0x0020  /* check can't be send because no port is configured to run it */
+#define CHK_ST_IN_ALLOC         0x0040  /* check blocked waiting for input buffer allocation */
+#define CHK_ST_OUT_ALLOC        0x0080  /* check blocked waiting for output buffer allocation */
 
 /* check status */
 enum healthcheck_status {
@@ -145,6 +148,7 @@ struct check {
 	struct xprt_ops *xprt;			/* transport layer operations for health checks */
 	struct conn_stream *cs;			/* conn_stream state for health checks */
 	struct buffer bi, bo;			/* input and output buffers to send/recv check */
+	struct buffer_wait buf_wait;            /* Wait list for buffer allocation */
 	struct task *task;			/* the task associated to the health check processing, NULL if disabled */
 	struct timeval start;			/* last health check start time */
 	long duration;				/* time in ms took to finish last health check */

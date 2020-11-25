@@ -993,6 +993,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	 *   3: release and replace the old one on success
 	 */
 
+	/* Always release input and output buffer when a new connect is evaluated */
+	check_release_buf(check, &check->bi);
+	check_release_buf(check, &check->bo);
+
 	/* 2- prepare new connection */
 	cs = cs_new(NULL, (s ? &s->obj_type : &proxy->obj_type));
 	if (!cs) {
@@ -1222,13 +1226,23 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	struct buffer *tmp = NULL;
 	struct htx *htx = NULL;
 
+	if (check->state & CHK_ST_OUT_ALLOC) {
+		ret = TCPCHK_EVAL_WAIT;
+		goto out;
+	}
+
+	if (!check_get_buf(check, &check->bo)) {
+		check->state |= CHK_ST_OUT_ALLOC;
+		ret = TCPCHK_EVAL_WAIT;
+		goto out;
+	}
+
 	/* Data already pending in the output buffer, send them now */
 	if (b_data(&check->bo))
 		goto do_send;
 
-	/* reset the read & write buffer */
-	b_reset(&check->bi);
-	b_reset(&check->bo);
+	/* Always release input buffer when a new send is evaluated */
+	check_release_buf(check, &check->bi);
 
 	switch (send->type) {
 	case TCPCHK_SEND_STRING:
@@ -1372,6 +1386,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 
   out:
 	free_trash_chunk(tmp);
+	if (!b_data(&check->bo) || ret == TCPCHK_EVAL_STOP)
+		check_release_buf(check, &check->bo);
 	return ret;
 
   error_htx:
@@ -1413,6 +1429,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 
 	if (cs->flags & CS_FL_EOS)
 		goto end_recv;
+
+	if (check->state & CHK_ST_IN_ALLOC)
+		goto wait_more_data;
+
+	if (!check_get_buf(check, &check->bi)) {
+		check->state |= CHK_ST_IN_ALLOC;
+		goto wait_more_data;
+	}
 
 	/* errors on the connection and the conn-stream were already checked */
 
@@ -1461,6 +1485,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 	}
 
   out:
+	if (!b_data(&check->bi) || ret == TCPCHK_EVAL_STOP)
+		check_release_buf(check, &check->bi);
 	return ret;
 
   stop:
@@ -2114,6 +2140,10 @@ int tcpcheck_main(struct check *check)
   out_end_tcpcheck:
 	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
 		chk_report_conn_err(check, errno, 0);
+
+	/* the tcpcheck is finished, release in/out buffer now */
+	check_release_buf(check, &check->bi);
+	check_release_buf(check, &check->bo);
 
   out:
 	return retcode;

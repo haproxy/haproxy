@@ -37,6 +37,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/dgram.h>
 #include <haproxy/dns.h>
+#include <haproxy/dynbuf-t.h>
 #include <haproxy/extcheck.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
@@ -866,8 +867,6 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		set_server_check_status(check, HCHK_STATUS_START, NULL);
 
 		check->state |= CHK_ST_INPROGRESS;
-		b_reset(&check->bi);
-		b_reset(&check->bo);
 
 		task_set_affinity(t, tid_bit);
 
@@ -936,7 +935,9 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 			}
 		}
 		task_set_affinity(t, MAX_THREADS_MASK);
-		check->state &= ~CHK_ST_INPROGRESS;
+		check_release_buf(check, &check->bi);
+		check_release_buf(check, &check->bo);
+		check->state &= ~(CHK_ST_INPROGRESS|CHK_ST_IN_ALLOC|CHK_ST_OUT_ALLOC);
 
 		if (check->server) {
 			rv = 0;
@@ -961,18 +962,65 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 /**************************************************************************/
 /************************** Init/deinit checks ****************************/
 /**************************************************************************/
+/*
+ * Tries to grab a buffer and to re-enables processing on check <target>. The
+ * check flags are used to figure what buffer was requested. It returns 1 if the
+ * allocation succeeds, in which case the I/O tasklet is woken up, or 0 if it's
+ * impossible to wake up and we prefer to be woken up later.
+ */
+int check_buf_available(void *target)
+{
+	struct check *check = target;
+
+	if ((check->state & CHK_ST_IN_ALLOC) && b_alloc_margin(&check->bi, 0)) {
+		check->state &= ~CHK_ST_IN_ALLOC;
+		tasklet_wakeup(check->wait_list.tasklet);
+		return 1;
+	}
+	if ((check->state & CHK_ST_OUT_ALLOC) && b_alloc_margin(&check->bo, 0)) {
+		check->state &= ~CHK_ST_OUT_ALLOC;
+		tasklet_wakeup(check->wait_list.tasklet);
+		return 1;
+	}
+
+	return 0;
+}
+
+/*
+ * Allocate a buffer. If if fails, it adds the check in buffer wait queue.
+ */
+struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
+{
+	struct buffer *buf = NULL;
+
+	if (likely(!MT_LIST_ADDED(&check->buf_wait.list)) &&
+	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
+		check->buf_wait.target = check;
+		check->buf_wait.wakeup_cb = check_buf_available;
+		MT_LIST_ADDQ(&buffer_wq, &check->buf_wait.list);
+	}
+	return buf;
+}
+
+/*
+ * Release a buffer, if any, and try to wake up entities waiting in the buffer
+ * wait queue.
+ */
+void check_release_buf(struct check *check, struct buffer *bptr)
+{
+	if (bptr->size) {
+		b_free(bptr);
+		offer_buffers(check->buf_wait.target, tasks_run_queue);
+	}
+}
+
 const char *init_check(struct check *check, int type)
 {
 	check->type = type;
 
-	b_reset(&check->bi); check->bi.size = global.tune.chksize;
-	b_reset(&check->bo); check->bo.size = global.tune.chksize;
-
-	check->bi.area = calloc(check->bi.size, sizeof(*check->bi.area));
-	check->bo.area = calloc(check->bo.size, sizeof(*check->bo.area));
-
-	if (!check->bi.area || !check->bo.area)
-		return "out of memory while allocating check buffer";
+	check->bi = BUF_NULL;
+	check->bo = BUF_NULL;
+	MT_LIST_INIT(&check->buf_wait.list);
 
 	check->wait_list.tasklet = tasklet_new();
 	if (!check->wait_list.tasklet)
@@ -989,8 +1037,8 @@ void free_check(struct check *check)
 	if (check->wait_list.tasklet)
 		tasklet_free(check->wait_list.tasklet);
 
-	free(check->bi.area);
-	free(check->bo.area);
+	check_release_buf(check, &check->bi);
+	check_release_buf(check, &check->bo);
 	if (check->cs) {
 		free(check->cs->conn);
 		check->cs->conn = NULL;
