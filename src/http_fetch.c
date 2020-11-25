@@ -587,6 +587,7 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 	struct htx *htx = smp_prefetch_htx(smp, chn, check, 1);
 	struct buffer *temp;
 	int32_t pos;
+	int finished = 0;
 
 	if (!htx)
 		return 0;
@@ -596,8 +597,10 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 		struct htx_blk *blk = htx_get_blk(htx, pos);
 		enum htx_blk_type type = htx_get_blk_type(blk);
 
-		if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
+		if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT) {
+			finished = 1;
 			break;
+		}
 		if (type == HTX_BLK_DATA) {
 			if (!h1_format_htx_data(htx_get_blk_value(htx, blk), temp, 0))
 				return 0;
@@ -608,7 +611,8 @@ static int smp_fetch_body(const struct arg *args, struct sample *smp, const char
 	smp->data.u.str = *temp;
 	smp->flags = SMP_F_VOL_TEST;
 
-	if (!channel_full(chn, global.tune.maxrewrite) && !(chn->flags & (CF_EOI|CF_SHUTR|CF_READ_ERROR)))
+	if (!finished && (check || (chn && !channel_full(chn, global.tune.maxrewrite) &&
+				    !(chn->flags & (CF_EOI|CF_SHUTR|CF_READ_ERROR)))))
 		smp->flags |= SMP_F_MAY_CHANGE;
 
 	return 1;
