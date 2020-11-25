@@ -1222,6 +1222,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	struct buffer *tmp = NULL;
 	struct htx *htx = NULL;
 
+	/* Data already pending in the output buffer, send them now */
+	if (b_data(&check->bo))
+		goto do_send;
+
 	/* reset the read & write buffer */
 	b_reset(&check->bi);
 	b_reset(&check->bo);
@@ -1352,7 +1356,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		goto out;
 	};
 
-
+  do_send:
 	if (conn->mux->snd_buf(cs, &check->bo,
 			       (IS_HTX_CONN(conn) ? (htxbuf(&check->bo))->data: b_data(&check->bo)), 0) <= 0) {
 		if ((conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR)) {
@@ -1927,7 +1931,7 @@ int tcpcheck_main(struct check *check)
 	struct conn_stream *cs = check->cs;
 	struct connection *conn = cs_conn(cs);
 	int must_read = 1, last_read = 0;
-	int ret, retcode = 0;
+	int retcode = 0;
 	enum tcpcheck_eval_ret eval_ret;
 
 	/* here, we know that the check is complete or that it failed */
@@ -1968,34 +1972,12 @@ int tcpcheck_main(struct check *check)
 		rule = LIST_NEXT(&check->current_step->list, typeof(rule), list);
 	}
 
-	/* 3- check for pending outgoing data. It only happens during
-	 *    TCPCHK_ACT_SEND. */
-	else if (check->current_step && check->current_step->action == TCPCHK_ACT_SEND) {
-		if (b_data(&check->bo)) {
-			/* We're already waiting to be able to send, give up */
-			if (check->wait_list.events & SUB_RETRY_SEND)
-				goto out;
-
-			ret = conn->mux->snd_buf(cs, &check->bo,
-						 (IS_HTX_CONN(conn) ? (htxbuf(&check->bo))->data: b_data(&check->bo)), 0);
-			if (ret <= 0) {
-				if ((conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR))
-					goto out_end_tcpcheck;
-			}
-			if ((IS_HTX_CONN(conn) && !htx_is_empty(htxbuf(&check->bo))) || b_data(&check->bo)) {
-				conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
-				goto out;
-			}
-		}
-		rule = LIST_NEXT(&check->current_step->list, typeof(rule), list);
-	}
-
-	/* 4- check if a rule must be resume. It happens if check->current_step
+	/* 3- check if a rule must be resume. It happens if check->current_step
 	 *    is defined. */
 	else if (check->current_step)
 		rule = check->current_step;
 
-	/* 5- It is the first evaluation. We must create a session and preset
+	/* 4- It is the first evaluation. We must create a session and preset
 	 *    tcp-check variables */
         else {
 		struct tcpcheck_var *var;
