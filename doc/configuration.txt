@@ -404,28 +404,137 @@ details.
 HAProxy's configuration process involves 3 major sources of parameters :
 
   - the arguments from the command-line, which always take precedence
-  - the "global" section, which sets process-wide parameters
-  - the proxies sections which can take form of "defaults", "listen",
-    "frontend" and "backend".
+  - the configuration file(s), whose format is described here
+  - the running process' environment, in case some environment variables are
+    explicitly referenced
 
-The configuration file syntax consists in lines beginning with a keyword
-referenced in this manual, optionally followed by one or several parameters
-delimited by spaces.
+The configuration file follows a fairly simple hierarchical format which obey
+a few basic rules:
+
+  1. a configuration file is an ordered sequence of statements
+
+  2. a statement is a single non-empty line before any unprotected "#" (hash)
+
+  3. a line is a series of tokens or "words" delimited by unprotected spaces or
+     tab characters
+
+  4. the first word or sequence of words of a line is one of the keywords or
+     keyword sequences listed in this document
+
+  5. all other words are all arguments of the first one, some being well-known
+     keywords listed in this document, others being values, references to other
+     parts of the configuration, or expressions
+
+  6. certain keywords delimit a section inside which only a subset of keywords
+     are supported
+
+  7. a section ends at the end of a file or on a special keyword starting a new
+     section
+
+This is all that is needed to know to write a simple but reliable configuration
+generator, but this is not enough to reliably parse any configuration nor to
+figure how to deal with certain corner cases.
+
+First, there are a few consequences of the rules above. Rule 6 and 7 imply that
+the keywords used to define a new section are valid everywhere and cannot have
+a different meaning in a specific section. These keywords are always a single
+word (as opposed to a sequence of words), and traditionally the section that
+follows them is designated using the same name. For example when speaking about
+the "global section", it designates the section of configuration that follows
+the "global" keyword. This usage is used a lot in error messages to help locate
+the parts that need to be addressed.
+
+A number of sections create an internal object or configuration space, which
+requires to be distinguished from other ones. In this case they will take an
+extra word which will set the name of this particular section. For some of them
+the section name is mandatory. For example "frontend foo" will create a new
+section of type "frontend" named "foo". Usually a name is specific to its
+section and two sections of different types may use the same name, but this is
+not recommended as it tends to complexify configuration management.
+
+A direct consequence of rule 7 is that when multiple files are read at once,
+each of them must start with a new section, and the end of each file will end
+a section. A file cannot contain sub-sections nor end an existing section and
+start a new one.
+
+Rule 1 mentioned that ordering matters. Indeed, some keywords create directives
+that can be repeated multiple times to create ordered sequences of rules to be
+applied in a certain order. For example "tcp-request" can be used to alternate
+"accept" and "reject" rules on varying criteria. As such, a configuration file
+processor must always preserve a section's ordering when editing a file. The
+ordering of sections usually does not matter except for the global section
+which must be placed before other sections, but it may be repeated if needed.
+In addition, some automatic identifiers may automatically be assigned to some
+of the created objects (e.g. proxies), and by reordering sections, their
+identifiers will change. These ones appear in the statistics for example. As
+such, the configuration below will assign "foo" ID number 1 and "bar" ID number
+2, which will be swapped if the two sections are reversed:
+
+     listen foo
+         bind :80
+
+     listen bar
+         bind :81
+
+Another important point is that according to rules 2 and 3 above, empty lines,
+spaces, tabs, and comments following and unprotected "#" character are not part
+of the configuration as they are just used as delimiters. This implies that the
+following configurations are strictly equivalent:
+
+         global#this is the global section
+     daemon#daemonize
+         frontend         foo
+     mode             http   # or tcp
+
+and:
+
+     global
+         daemon
+
+     # this is the public web frontend
+     frontend foo
+         mode http
+
+The common practice is to align to the left only the keyword that initiates a
+new section, and indent (i.e. prepend a tab character or a few spaces) all
+other keywords so that it's instantly visible that they belong to the same
+section (as done in the second example above). Placing comments before a new
+section helps the reader decide if it's the desired one. Leaving a blank line
+at the end of a section also visually helps spotting the end when editing it.
+
+Tabs are very convenient for indent but they do not copy-paste well. If spaces
+are used instead, it is recommended to avoid placing too many (2 to 4) so that
+editing in field doesn't become a burden with limited editors that do not
+support automatic indent.
+
+In the early days it used to be common to see arguments split at fixed tab
+positions because most keywords would not take more than two arguments. With
+modern versions featuring complex expressions this practice does not stand
+anymore, and is not recommended.
 
 
 2.2. Quoting and escaping
 -------------------------
 
-HAProxy's configuration introduces a quoting and escaping system similar to
-many programming languages. The configuration file supports 3 types: escaping
-with a backslash, weak quoting with double quotes, and strong quoting with
-single quotes.
+In modern configurations, some arguments require the use of some characters
+that were previously considered as pure delimiters. In order to make this
+possible, HAProxy supports character escaping by prepending a backslash ('\')
+in front of the character to be escaped, weak quoting within double quotes
+('"') and strong quoting within single quotes ("'").
 
-If spaces have to be entered in strings, then they must be escaped by preceding
-them by a backslash ('\') or by quoting them. Backslashes also have to be
-escaped by doubling or strong quoting them.
+This is pretty similar to what is done in a number of programming languages and
+very close to what is commonly encountered in Bourne shell. The principle is
+the following: while the configuration parser cuts the lines into words, it
+also takes care of quotes and backslashes to decide whether a character is a
+delimiter or is the raw representation of this character within the current
+word. The escape character is then removed, the quotes are removed, and the
+remaining word is used as-is as a keyword or argument for example.
 
-Escaping is achieved by preceding a special character by a backslash ('\'):
+If a backslash is needed in a word, it must either be escaped using itself
+(i.e. double backslash) or be strongly quoted.
+
+Escaping outside quotes is achieved by preceding a special character by a
+backslash ('\'):
 
   \    to mark a space and differentiate it from a delimiter
   \#   to mark a hash and differentiate it from a comment
@@ -433,39 +542,161 @@ Escaping is achieved by preceding a special character by a backslash ('\'):
   \'   to use a single quote and differentiate it from strong quoting
   \"   to use a double quote and differentiate it from weak quoting
 
-Weak quoting is achieved by using double quotes (""). Weak quoting prevents
-the interpretation of:
+In addition, a few non-printable characters may be emitted using their usual
+C-language representation:
 
-       space as a parameter separator
+  \n   to insert a line feed (LF, character \x0a or ASCII 10 decimal)
+  \r   to insert a carriage return (CR, character \x0d or ASCII 13 decimal)
+  \t   to insert a tab (character \x09 or ASCII 9 decimal)
+  \xNN to insert character having ASCII code hex NN (e.g \x0a for LF).
+
+Weak quoting is achieved by surrounding double quotes ("") around the character
+or sequence of characters to protect. Weak quoting prevents the interpretation
+of:
+
+       space or tab as a word separator
   '    single quote as a strong quoting delimiter
   #    hash as a comment start
 
-Weak quoting permits the interpretation of variables, if you want to use a non
--interpreted dollar within a double quoted string, you should escape it with a
-backslash ("\$"), it does not work outside weak quoting.
+Weak quoting permits the interpretation of environment variables (which are not
+evaluated outside of quotes) by preceding them with a dollar sign ('$'). If a
+dollar character is needed inside double quotes, it must be escaped using a
+backslash.
 
-Interpretation of escaping and special characters are not prevented by weak
-quoting.
+Strong quoting is achieved by surrounding single quotes ('') around the
+character or sequence of characters to protect. Inside single quotes, nothing
+is interpreted, it's the efficient way to quote regular expressions.
 
-Strong quoting is achieved by using single quotes (''). Inside single quotes,
-nothing is interpreted, it's the efficient way to quote regexes.
+As a result, here is the matrix indicating how special characters can be
+entered in different contexts (unprintable characters are replaced with their
+name within angle brackets). Note that some characters that may only be
+represented escaped have no possible representation inside single quotes,
+hence the '-' there:
 
-Quoted and escaped strings are replaced in memory by their interpreted
-equivalent, it allows you to perform concatenation.
+  Character  |  Unquoted     |  Weakly quoted              |  Strongly quoted
+  -----------+---------------+-----------------------------+-----------------
+    <TAB>    |  \<TAB>, \x09 |  "<TAB>", "\<TAB>", "\x09"  |  '<TAB>'
+    <LF>     |  \n, \x0a     |  "\n", "\x0a"               |   -
+    <CR>     |  \r, \x0d     |  "\r", "\x0d"               |   -
+    <SPC>    |  \<SPC>, \x20 |  "<SPC>", "\<SPC>", "\x20"  |  '<SPC>'
+    "        |  \", \x22     |  "\"", "\x22"               |  '"'
+    #        |  \#, \x23     |  "#", "\#", "\x23"          |  '#'
+    $        |  $, \$, \x24  |  "\$", "\x24"               |  '$'
+    '        |  \', \x27     |  "'", "\'", "\x27"          |   -
+    \        |  \\, \x5c     |  "\\", "\x5c"               |  '\'
 
   Example:
-      # those are equivalents:
+      # those are all strictly equivalent:
       log-format %{+Q}o\ %t\ %s\ %{-Q}r
       log-format "%{+Q}o %t %s %{-Q}r"
       log-format '%{+Q}o %t %s %{-Q}r'
       log-format "%{+Q}o %t"' %s %{-Q}r'
       log-format "%{+Q}o %t"' %s'\ %{-Q}r
 
-      # those are equivalents:
-      reqrep "^([^\ :]*)\ /static/(.*)"     \1\ /\2
-      reqrep "^([^ :]*)\ /static/(.*)"     '\1 /\2'
-      reqrep "^([^ :]*)\ /static/(.*)"     "\1 /\2"
-      reqrep "^([^ :]*)\ /static/(.*)"     "\1\ /\2"
+There is one particular case where a second level of quoting or escaping may be
+necessary. Some keywords take arguments within parenthesis, sometimes delimited
+by commas. These arguments are commonly integers or predefined words, but when
+they are arbitrary strings, it may be required to perform a separate level of
+escaping to disambiguate the characters that belong to the argument from the
+characters that are used to delimit the arguments themselves. A pretty common
+case is the "regsub" converter. It takes a regular expression in argument, and
+if a closing parenthesis is needed inside, this one will require to have its
+own quotes.
+
+The keyword argument parser is exactly the same as the top-level one regarding
+quotes, except that is will not make special cases of backslashes. But what is
+not always obvious is that the delimitors used inside must first be escaped or
+quoted so that they are not resolved at the top level.
+
+Let's take this example making use of the "regsub" converter which takes 3
+arguments, one regular expression, one replacement string and one set of flags:
+
+    # replace all occurrences of "foo" with "blah" in the path:
+    http-request set-path %[path,regsub(foo,blah,g)]
+
+Here no special quoting was necessary. But if now we want to replace either
+"foo" or "bar" with "blah", we'll need the regular expression "(foo|bar)". We
+cannot write:
+
+    http-request set-path %[path,regsub((foo|bar),blah,g)]
+
+because we would like the string to cut like this:
+
+    http-request set-path %[path,regsub((foo|bar),blah,g)]
+                                       |---------|----|-|
+                                 arg1 _/         /    /
+                                 arg2 __________/    /
+                                 arg3 ______________/
+
+but actually what is passed is a string between the opening and closing
+parenthesis then garbage:
+
+    http-request set-path %[path,regsub((foo|bar),blah,g)]
+                                       |--------|--------|
+                        arg1=(foo|bar _/        /
+                    trailing garbage  _________/
+
+The obvious solution here seems to be that the closing parenthesis needs to be
+quoted, but alone this will not work, because as mentioned above, quotes are
+processed by the top-level parser which will resolve them before processing
+this word:
+
+    http-request set-path %[path,regsub("(foo|bar)",blah,g)]
+    ------------ -------- ----------------------------------
+       word1       word2    word3=%[path,regsub((foo|bar),blah,g)]
+
+So we didn't change anything for the argument parser at the second level which
+still sees a truncated regular expression as the only argument, and garbage at
+the end of the string. By escaping the quotes they will be passed unmodified to
+the second level:
+
+    http-request set-path %[path,regsub(\"(foo|bar)\",blah,g)]
+    ------------ -------- ------------------------------------
+       word1       word2    word3=%[path,regsub("(foo|bar)",blah,g)]
+                                                |---------||----|-|
+                                arg1=(foo|bar) _/          /    /
+                                    arg2=blah  ___________/    /
+                                        arg3=g _______________/
+
+Another approch consists in using single quotes outside the whole string and
+double quotes inside (so that the double quotes are not stripped again):
+
+    http-request set-path '%[path,regsub("(foo|bar)",blah,g)]'
+    ------------ --------  ----------------------------------
+       word1       word2    word3=%[path,regsub("(foo|bar)",blah,g)]
+                                                |---------||----|-|
+                                arg1=(foo|bar) _/          /    /
+                                          arg2 ___________/    /
+                                          arg3 _______________/
+
+When using regular expressions, it can happen that the dollar ('$') character
+appears in the expression or that a backslash ('\') is used in the replacement
+string. In this case these ones will also be processed inside the double quotes
+thus single quotes are preferred (or double escaping). Example:
+
+    http-request set-path '%[path,regsub("^/(here)(/|$)","my/\1",g)]'
+    ------------ --------  -----------------------------------------
+       word1       word2    word3=%[path,regsub("^/(here)(/|$)","my/\1",g)]
+                                                |-------------| |-----||-|
+                              arg1=(here)(/|$) _/               /      /
+                                    arg2=my/\1 ________________/      /
+                                          arg3 ______________________/
+
+Remember that backslahes are not escape characters withing single quotes and
+that the whole word3 above is already protected against them using the single
+quotes. Conversely, if double quotes had been used around the whole expression,
+single the dollar character and the backslashes would have been resolved at top
+level, breaking the argument contents at the second level.
+
+When in doubt, simply do not use quotes anywhere, and start to place single or
+double quotes around arguments that require a comma or a closing parenthesis,
+and think about escaping these quotes using a backslash of the string contains
+a dollar or a backslash. Again, this is pretty similar to what is used under
+a Bourne shell when double-escaping a command passed to "eval". For API writers
+the best is probably to place escaped quotes around each and every argument,
+regardless of their contents. Users will probably find that using single quotes
+around the whole expression and double quotes around each argument provides
+more readable configurations.
 
 
 2.3. Environment variables
