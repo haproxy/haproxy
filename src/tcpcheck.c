@@ -2737,7 +2737,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 				memprintf(errmsg, "'%s' expects a integer as argument", args[cur_arg]);
 				goto error;
 			}
-			/* Use an signed integer here because of chksize */
+			/* Use an signed integer here because of bufsize */
 			cur_arg++;
 			min_recv = atol(args[cur_arg]);
 			if (min_recv < -1 || min_recv > INT_MAX) {

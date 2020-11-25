@@ -151,7 +151,6 @@ struct global {
 		int client_rcvbuf; /* set client rcvbuf to this value if not null */
 		int server_sndbuf; /* set server sndbuf to this value if not null */
 		int server_rcvbuf; /* set server rcvbuf to this value if not null */
-		int chksize;       /* check buffer size in bytes, defaults to BUFSIZE */
 		int pipesize;      /* pipe size in bytes, system defaults if zero */
 		int max_http_hdr;  /* max number of HTTP headers, use MAX_HTTP_HDR if zero */
 		int requri_len;    /* max len of request URI, use REQURI_LEN if zero */

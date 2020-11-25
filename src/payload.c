@@ -976,14 +976,13 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 		chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 		head = ci_head(chn);
 		data = ci_data(chn);
-		max  = global.tune.bufsize;
 	}
 	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
 		struct buffer *buf = &(__objt_check(smp->sess->origin)->bi);
 		head = b_head(buf);
 		data = b_data(buf);
-		max  = global.tune.chksize;
 	}
+	max = global.tune.bufsize;
 	if (!head)
 		return 0;
 
@@ -1039,14 +1038,13 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 		chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 		head = ci_head(chn);
 		data = ci_data(chn);
-		max  = global.tune.bufsize;
 	}
 	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
 		struct buffer *buf = &(__objt_check(smp->sess->origin)->bi);
 		head = b_head(buf);
 		data = b_data(buf);
-		max  = global.tune.chksize;
 	}
+	max = global.tune.bufsize;
 	if (!head)
 		return 0;
 

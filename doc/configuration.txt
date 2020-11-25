@@ -2146,12 +2146,8 @@ tune.bufsize <number>
   value set using this parameter will automatically be rounded up to the next
   multiple of 8 on 32-bit machines and 16 on 64-bit machines.
 
-tune.chksize <number>
-  Sets the check buffer size to this size (in bytes). Higher values may help
-  find string or regex patterns in very large pages, though doing so may imply
-  more memory and CPU usage. The default value is 16384 and can be changed at
-  build time. It is not recommended to change this value, but to use better
-  checks whenever possible.
+tune.chksize <number> (deprecated)
+  This option is deprecated and ignored.
 
 tune.comp.maxlevel <number>
   Sets the maximum compression level. The compression level affects CPU
@@ -5283,7 +5279,7 @@ http-check expect [min-recv <int>] [comment <msg>]
                       considered invalid if the body contains the string.
 
   It is important to note that the responses will be limited to a certain size
-  defined by the global "tune.chksize" option, which defaults to 16384 bytes.
+  defined by the global "tune.bufsize" option, which defaults to 16384 bytes.
   Thus, too large responses may not contain the mandatory pattern when using
   "string" or "rstring". If a large response is absolutely required, it is
   possible to change the default max size by setting the global variable.
@@ -11146,7 +11142,7 @@ tcp-check expect [min-recv <int>] [comment <msg>]
                          buffer.
 
   It is important to note that the responses will be limited to a certain size
-  defined by the global "tune.chksize" option, which defaults to 16384 bytes.
+  defined by the global "tune.bufsize" option, which defaults to 16384 bytes.
   Thus, too large responses may not contain the mandatory pattern when using
   "string", "rstring" or binary. If a large response is absolutely required, it
   is possible to change the default max size by setting the global variable.
@@ -11177,7 +11173,7 @@ tcp-check expect [min-recv <int>] [comment <msg>]
 
 
   See also : "option tcp-check", "tcp-check connect", "tcp-check send",
-             "tcp-check send-binary", "http-check expect", tune.chksize
+             "tcp-check send-binary", "http-check expect", tune.bufsize
 
 
 tcp-check send <data> [comment <msg>]
@@ -11203,7 +11199,7 @@ tcp-check send-lf <fmt> [comment <msg>]
          tcp-check expect string role:master
 
   See also : "option tcp-check", "tcp-check connect", "tcp-check expect",
-             "tcp-check send-binary", tune.chksize
+             "tcp-check send-binary", tune.bufsize
 
 
 tcp-check send-binary <hexstring> [comment <msg>]
@@ -11231,7 +11227,7 @@ tcp-check send-binary-lf <hexfmt> [comment <msg>]
 
 
   See also : "option tcp-check", "tcp-check connect", "tcp-check expect",
-             "tcp-check send", tune.chksize
+             "tcp-check send", tune.bufsize
 
 
 tcp-check set-var(<var-name>) <expr>
