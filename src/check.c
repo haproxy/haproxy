@@ -880,6 +880,9 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 		 * which can happen on connect timeout or error.
 		 */
 		if (check->result == CHK_RES_UNKNOWN) {
+			/* Here the connection must be defined. Otherwise the
+			 * error would have already been detected
+			 */
 			if ((conn->flags & CO_FL_ERROR) || cs->flags & CS_FL_ERROR || expired) {
 				chk_report_conn_err(check, 0, expired);
 			}
