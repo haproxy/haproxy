@@ -1598,8 +1598,8 @@ int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, str
   ruleset_found:
 	free_tcpcheck_vars(&rules->preset_vars);
 	rules->list = &rs->rules;
+	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_TCP_CHK;
-	rules->flags &= ~TCPCHK_RULES_UNUSED_TCP_RS;
 
   out:
 	return err_code;
@@ -1669,6 +1669,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 
   ruleset_found:
 	rules->list = &rs->rules;
+	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_REDIS_CHK;
 
   out:
@@ -1768,6 +1769,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 
   ruleset_found:
 	rules->list = &rs->rules;
+	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_SSL3_CHK;
 
   out:
@@ -1905,6 +1907,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 
   ruleset_found:
 	rules->list = &rs->rules;
+	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_SMTP_CHK;
 
   out:
@@ -2050,6 +2053,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 
   ruleset_found:
 	rules->list = &rs->rules;
+	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_PGSQL_CHK;
 
   out:
@@ -2273,6 +2277,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 
   ruleset_found:
 	rules->list = &rs->rules;
+	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_MYSQL_CHK;
 
   out:
@@ -2356,6 +2361,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 
   ruleset_found:
 	rules->list = &rs->rules;
+	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_LDAP_CHK;
 
   out:
@@ -2431,6 +2437,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 
   ruleset_found:
 	rules->list = &rs->rules;
+	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_SPOP_CHK;
 
   out:
@@ -2621,8 +2628,8 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 	}
 
 	rules->list = &rs->rules;
+	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_HTTP_CHK;
-	rules->flags &= ~TCPCHK_RULES_UNUSED_HTTP_RS;
 	if (!tcpcheck_add_http_rule(chk, rules, &errmsg)) {
 		ha_alert("parsing [%s:%d] : '%s %s' : %s.\n", file, line, args[0], args[1], errmsg);
 		rules->list = NULL;
@@ -2752,6 +2759,7 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 
   ruleset_found:
 	rules->list = &rs->rules;
+	rules->flags &= ~(TCPCHK_RULES_PROTO_CHK|TCPCHK_RULES_UNUSED_RS);
 	rules->flags |= TCPCHK_RULES_AGENT_CHK;
 	srv->do_agent = 1;
 
