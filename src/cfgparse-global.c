@@ -190,7 +190,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.maxaccept = max;
 	}
 	else if (!strcmp(args[0], "tune.chksize")) {
-		/* Deprecated now */
+		ha_warning("parsing [%s:%d]: the option '%s' is deprecated and will be removed in next version.\n",
+			   file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "tune.recv_enough")) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
