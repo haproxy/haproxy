@@ -45,6 +45,10 @@
 #define HAVE_SSL_CTX_SET_CIPHERSUITES
 #endif
 
+#if ((OPENSSL_VERSION_NUMBER >= 0x1000200fL) && !defined(OPENSSL_NO_TLSEXT) && !defined(LIBRESSL_VERSION_NUMBER) && !defined(OPENSSL_IS_BORINGSSL))
+#define HAVE_SL_CTX_ADD_SERVER_CUSTOM_EXT
+#endif
+
 #if (HA_OPENSSL_VERSION_NUMBER < 0x0090800fL)
 /* Functions present in OpenSSL 0.9.8, older not tested */
 static inline const unsigned char *SSL_SESSION_get_id(const SSL_SESSION *sess, unsigned int *sid_length)
