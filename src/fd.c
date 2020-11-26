@@ -394,10 +394,7 @@ int fd_takeover(int fd, void *expected_owner)
 
 void updt_fd_polling(const int fd)
 {
-	if ((fdtab[fd].thread_mask & all_threads_mask) == tid_bit) {
-
-		/* note: we don't have a test-and-set yet in hathreads */
-
+	if (all_threads_mask == 1UL || (fdtab[fd].thread_mask & all_threads_mask) == tid_bit) {
 		if (HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
 			return;
 
