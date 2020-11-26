@@ -14297,7 +14297,9 @@ replaced by "<CACHE>".
 The cache won't store and won't deliver objects in these cases:
 
 - If the response is not a 200
-- If the response contains a Vary header
+- If the response contains a Vary header and either the process-vary option is
+  disabled, or a currently unmanaged header is specified in the Vary value (only
+  accept-encoding and referer are managed for now)
 - If the Content-Length + the headers size is greater than "max-object-size"
 - If the response is not cacheable
 - If the response does not have an explicit expiration time (s-maxage or max-age
