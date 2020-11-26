@@ -1897,8 +1897,8 @@ static inline int peer_recv_msg(struct appctx *appctx, char *msg_head, size_t ms
 	return 1;
 
  incomplete:
-	if (reql < 0) {
-		/* there was an error */
+	if (reql < 0 || (si_oc(si)->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+		/* there was an error or the message was truncated */
 		appctx->st0 = PEER_SESS_ST_END;
 		return -1;
 	}
