@@ -82,8 +82,8 @@ for CC in ["gcc", "clang"]:
                 "USE_DEVICEATLAS=1",
                 "DEVICEATLAS_SRC=contrib/deviceatlas",
                 "EXTRA_OBJS=contrib/prometheus-exporter/service-prometheus.o",
-                # "USE_51DEGREES=1",
-                # "FIFTYONEDEGREES_SRC=contrib/51d/src/pattern",
+                "USE_51DEGREES=1",
+                "51DEGREES_SRC=contrib/51d/src/pattern",
             ],
         }
     )
@@ -148,8 +148,8 @@ matrix.append(
             "USE_DEVICEATLAS=1",
             "DEVICEATLAS_SRC=contrib/deviceatlas",
             "EXTRA_OBJS=contrib/prometheus-exporter/service-prometheus.o",
-            # "USE_51DEGREES=1",
-            # "FIFTYONEDEGREES_SRC=contrib/51d/src/pattern",
+            "USE_51DEGREES=1",
+            "51DEGREES_SRC=contrib/51d/src/pattern",
         ],
     }
 )
