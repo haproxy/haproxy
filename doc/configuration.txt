@@ -14300,6 +14300,9 @@ The cache won't store and won't deliver objects in these cases:
 - If the response contains a Vary header
 - If the Content-Length + the headers size is greater than "max-object-size"
 - If the response is not cacheable
+- If the response does not have an explicit expiration time (s-maxage or max-age
+  Cache-Control directives or Expires header) or a validator (ETag or Last-Modified
+  headers)
 
 - If the request is not a GET
 - If the HTTP version of the request is smaller than 1.1
