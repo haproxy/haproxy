@@ -74,6 +74,7 @@
 /* enum for log format */
 enum log_fmt {
 	LOG_FORMAT_UNSPEC = 0,
+	LOG_FORMAT_LOCAL,
 	LOG_FORMAT_RFC3164,
 	LOG_FORMAT_RFC5424,
 	LOG_FORMAT_PRIO,

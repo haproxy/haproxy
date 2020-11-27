@@ -1279,7 +1279,12 @@ log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
   <format> is the log format used when generating syslog messages. It may be
            one of the following :
 
-    rfc3164   The RFC3164 syslog message format. This is the default.
+    local     Analog to rfc3164 syslog message format except that hostname
+              field is stripped. This is the default.
+              Note: option "log-send-hostname" switches the default to
+              rfc3164.
+
+    rfc3164   The RFC3164 syslog message format.
               (https://tools.ietf.org/html/rfc3164)
 
     rfc5424   The RFC5424 syslog message format.
@@ -2927,13 +2932,18 @@ format <format>
               The PID, process name and system name are omitted. This is
               designed to be used with a local log server.
 
+      local   Analog to rfc3164 syslog message format except that hostname
+              field is stripped. This is the default.
+              Note: option "log-send-hostname" switches the default to
+              rfc3164.
+
       raw     A message containing only the text. The level, PID, date, time,
               process name and system name are omitted. This is designed to be
               used in containers or during development, where the severity
               only depends on the file descriptor used (stdout/stderr). This
               is the default.
 
-      rfc3164 The RFC3164 syslog message format. This is the default.
+      rfc3164 The RFC3164 syslog message format.
               (https://tools.ietf.org/html/rfc3164)
 
       rfc5424 The RFC5424 syslog message format.
@@ -7175,7 +7185,12 @@ no log
     <format> is the log format used when generating syslog messages. It may be
              one of the following :
 
-      rfc3164   The RFC3164 syslog message format. This is the default.
+      local     Analog to rfc3164 syslog message format except that hostname
+                field is stripped. This is the default.
+                Note: option "log-send-hostname" switches the default to
+                rfc3164.
+
+      rfc3164   The RFC3164 syslog message format.
                 (https://tools.ietf.org/html/rfc3164)
 
       rfc5424   The RFC5424 syslog message format.

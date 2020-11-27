@@ -56,6 +56,9 @@ struct log_fmt_st {
 };
 
 static const struct log_fmt_st log_formats[LOG_FORMATS] = {
+	[LOG_FORMAT_LOCAL] = {
+		.name = "local",
+	},
 	[LOG_FORMAT_RFC3164] = {
 		.name = "rfc3164",
 	},
@@ -1475,6 +1478,14 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 				else
 					format = LOG_FORMAT_RFC3164;
 			}
+			else if (metadata[LOG_META_TAG].len) {
+				/* Tag is present but no hostname, we should
+				 * consider we try to emmit a local log
+				 * in legacy format (analog to RFC3164 but
+				 * with stripped hostname).
+				 */
+				format = LOG_FORMAT_LOCAL;
+			}
 			else if (metadata[LOG_META_PRIO].len) {
 				/* the source seems a parsed message
 				 * offering a valid level/prio prefix
@@ -1487,6 +1498,7 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 
 	/* prepare priority, stored into 1 single elem */
 	switch (format) {
+		case LOG_FORMAT_LOCAL:
 		case LOG_FORMAT_RFC3164:
 		case LOG_FORMAT_RFC5424:
 		case LOG_FORMAT_PRIO:
@@ -1516,6 +1528,7 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 
 	/* prepare timestamp, stored into a max of 4 elems */
 	switch (format) {
+		case LOG_FORMAT_LOCAL:
 		case LOG_FORMAT_RFC3164:
 			/* rfc3164 ex: 'Jan  1 00:00:00 ' */
 			if (metadata && metadata[LOG_META_TIME].len == LOG_LEGACYTIME_LEN) {
@@ -1656,9 +1669,10 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 				hdr_ctx.ist_vector[(*nbelem)++] = metadata[LOG_META_HOST];
 				hdr_ctx.ist_vector[(*nbelem)++] = ist2(" ", 1);
 			}
-			else /* the caller MUST fill the hostname */
+			else /* the caller MUST fill the hostname, this field is mandatory */
 				hdr_ctx.ist_vector[(*nbelem)++] = ist2("localhost ", 10);
-
+			/* fall through */
+		case LOG_FORMAT_LOCAL:
 			if (!metadata || !metadata[LOG_META_TAG].len)
 				break;
 
@@ -1918,8 +1932,6 @@ void __send_log(struct list *logsrvs, struct buffer *tagb, int level,
 	if (!metadata[LOG_META_HOST].len) {
 		if (global.log_send_hostname)
 			metadata[LOG_META_HOST] = ist2(global.log_send_hostname, strlen(global.log_send_hostname));
-		else
-			metadata[LOG_META_HOST] = ist2(hostname, strlen(hostname));
 	}
 
 	if (!tagb || !tagb->area)
