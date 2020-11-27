@@ -83,6 +83,24 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
                                             struct list *rules, unsigned int proto,
                                             const char *file, int line, char **errmsg);
 
+int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			      const char *file, int line);
+int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				const char *file, int line);
+int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				  const char *file, int line);
+int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			const char *file, int line);
+int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+				const char *file, int line);
+int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			    const char *file, int line);
+int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			       const char *file, int line);
+int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			       const char *file, int line);
+int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+			    const char *file, int line);
 
 
 /* Return the struct action_kw associated to a keyword */

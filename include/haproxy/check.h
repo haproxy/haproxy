@@ -50,25 +50,6 @@ void free_check(struct check *check);
 int spoe_prepare_healthcheck_request(char **req, int *len);
 int spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen);
 
-int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-			      const char *file, int line);
-int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-				const char *file, int line);
-int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-				  const char *file, int line);
-int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-			const char *file, int line);
-int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-				const char *file, int line);
-int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-			    const char *file, int line);
-int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-			       const char *file, int line);
-int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-			       const char *file, int line);
-int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
-			    const char *file, int line);
-
 int set_srv_agent_send(struct server *srv, const char *send);
 
 /* Use this one only. This inline version only ensures that we don't
