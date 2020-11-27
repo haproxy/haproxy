@@ -2021,15 +2021,16 @@ show cache
   3. pointer to the mmap area (shctx)
   4. number of blocks available for reuse in the shctx
 
-  0x7f6ac6c5b4cc hash:286881868 size:39114 (39 blocks), refcount:9, expire:237
-           1               2            3        4            5           6
+  0x7f6ac6c5b4cc hash:286881868 vary:0x0011223344556677 size:39114 (39 blocks), refcount:9, expire:237
+           1               2               3                    4        5            6           7
 
   1. pointer to the cache entry
   2. first 32 bits of the hash
-  3. size of the object in bytes
-  4. number of blocks used for the object
-  5. number of transactions using the entry
-  6. expiration time, can be negative if already expired
+  3. secondary hash of the entry in case of vary
+  4. size of the object in bytes
+  5. number of blocks used for the object
+  6. number of transactions using the entry
+  7. expiration time, can be negative if already expired
 
 show env [<name>]
   Dump one or all environment variables known by the process. Without any

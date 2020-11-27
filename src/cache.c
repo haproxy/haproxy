@@ -2135,6 +2135,7 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 		struct eb32_node *node = NULL;
 		unsigned int next_key;
 		struct cache_entry *entry;
+		unsigned int i;
 
 		next_key = appctx->ctx.cli.i0;
 		if (!next_key) {
@@ -2150,7 +2151,8 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 		while (1) {
 
 			shctx_lock(shctx_ptr(cache));
-			node = eb32_lookup_ge(&cache->entries, next_key);
+			if (!node || (node = eb32_next_dup(node)) == NULL)
+				node = eb32_lookup_ge(&cache->entries, next_key);
 			if (!node) {
 				shctx_unlock(shctx_ptr(cache));
 				appctx->ctx.cli.i0 = 0;
@@ -2158,7 +2160,10 @@ static int cli_io_handler_show_cache(struct appctx *appctx)
 			}
 
 			entry = container_of(node, struct cache_entry, eb);
-			chunk_printf(&trash, "%p hash:%u size:%u (%u blocks), refcount:%u, expire:%d\n", entry, read_u32(entry->hash), block_ptr(entry)->len, block_ptr(entry)->block_count, block_ptr(entry)->refcount, entry->expire - (int)now.tv_sec);
+			chunk_printf(&trash, "%p hash:%u vary:0x", entry, read_u32(entry->hash));
+			for (i = 0; i < HTTP_CACHE_SEC_KEY_LEN; ++i)
+				chunk_appendf(&trash, "%02x", (unsigned char)entry->secondary_key[i]);
+			chunk_appendf(&trash, " size:%u (%u blocks), refcount:%u, expire:%d\n", block_ptr(entry)->len, block_ptr(entry)->block_count, block_ptr(entry)->refcount, entry->expire - (int)now.tv_sec);
 
 			next_key = node->key + 1;
 			appctx->ctx.cli.i0 = next_key;
