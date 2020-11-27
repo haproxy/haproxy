@@ -42,29 +42,29 @@
 #define H1C_F_IN_ALLOC       0x00000010 /* mux is blocked on lack of input buffer */
 #define H1C_F_IN_FULL        0x00000020 /* mux is blocked on input buffer full */
 #define H1C_F_IN_SALLOC      0x00000040 /* mux is blocked on lack of stream's request buffer */
-/* 0x00000080 - 0x00000800 unused */
+/* 0x00000080 unused */
 
 /* Flags indicating the connection state */
-#define H1C_F_CS_ERROR       0x00001000 /* connection must be closed ASAP because an error occurred (conn-stream may still be attached) */
-#define H1C_F_CS_SHUTDOWN    0x00002000 /* connection must be shut down ASAP flushing output first (conn-stream may still be attached) */
-/* 0x00000040 unused */
-#define H1C_F_CS_IDLE        0x00008000 /* connection is idle and may be reused
-					 * (exclusive to all H1C_F_CS flags and never set when an h1s is attached) */
+#define H1C_F_ST_EMBRYONIC   0x00000100 /* Set when a H1 stream with no conn-stream is attached to the connection */
+#define H1C_F_ST_ATTACHED    0x00000200 /* Set when a H1 stream with a conn-stream is attached to the connection */
+#define H1C_F_ST_IDLE        0x00000400 /* connection is idle and may be reused
+					 * (exclusive to all H1C_F_ST flags and never set when an h1s is attached) */
+#define H1C_F_ST_ERROR       0x00000800 /* connection must be closed ASAP because an error occurred (conn-stream may still be attached) */
+#define H1C_F_ST_SHUTDOWN    0x00001000 /* connection must be shut down ASAP flushing output first (conn-stream may still be attached) */
+#define H1C_F_ST_ALIVE       (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED)
+/* 0x00002000 - 0x00008000 unused */
 
-#define H1C_F_WAIT_NEXT_REQ  0x00010000 /*  waiting for the next request to start, use keep-alive timeout */
-#define H1C_F_UPG_H2C        0x00020000 /* set if an upgrade to h2 should be done */
+#define H1C_F_WAIT_OPPOSITE  0x00010000 /* Don't read more data for now, waiting sync with opposite side */
+#define H1C_F_WANT_SPLICE    0x00020000 /* Don't read into a bufffer because we want to use or we are using splicing */
+#define H1C_F_ERR_PENDING    0x00040000 /* Send an error and close the connection ASAP (implies H1C_F_ST_ERROR) */
+#define H1C_F_WAIT_NEXT_REQ  0x00080000 /*  waiting for the next request to start, use keep-alive timeout */
+#define H1C_F_UPG_H2C        0x00100000 /* set if an upgrade to h2 should be done */
+#define H1C_F_CO_MSG_MORE    0x00200000 /* set if CO_SFL_MSG_MORE must be set when calling xprt->snd_buf() */
+#define H1C_F_CO_STREAMER    0x00400000 /* set if CO_SFL_STREAMER must be set when calling xprt->snd_buf() */
+/* 0x00800000 - 0x40000000 unsued*/
 
-#define H1C_F_CO_MSG_MORE    0x00040000 /* set if CO_SFL_MSG_MORE must be set when calling xprt->snd_buf() */
-#define H1C_F_CO_STREAMER    0x00080000 /* set if CO_SFL_STREAMER must be set when calling xprt->snd_buf() */
+#define H1C_F_IS_BACK        0x80000000 /* Set on outgoing connection */
 
-#define H1C_F_WAIT_OPPOSITE  0x00100000 /* Don't read more data for now, waiting sync with opposite side */
-#define H1C_F_WANT_SPLICE    0x00200000 /* Don't read into a bufffer because we want to use or we are using splicing */
-#define H1C_F_IS_BACK        0x00400000 /* Set on outgoing connection */
-#define H1C_F_ERR_PENDING    0x00800000 /* Send an error and close the connection ASAP (implies H1C_F_CS_ERROR) */
-
-#define H1C_F_CS_EMBRYONIC   0x01000000 /* Set when a H1 stream with no conn-stream is attached to the connection */
-#define H1C_F_CS_ATTACHED    0x02000000 /* Set when a H1 stream with a conn-stream is attached to the connection */
-#define H1C_F_CS_ALIVE       (H1C_F_CS_IDLE|H1C_F_CS_EMBRYONIC|H1C_F_CS_ATTACHED)
 /*
  * H1 Stream flags (32 bits)
  */
@@ -370,7 +370,7 @@ static void h1_trace(enum trace_level level, uint64_t mask, const struct trace_s
  */
 static inline int h1_recv_allowed(const struct h1c *h1c)
 {
-	if (h1c->flags & H1C_F_CS_ERROR) {
+	if (h1c->flags & H1C_F_ST_ERROR) {
 		TRACE_DEVEL("recv not allowed because of error on h1c", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		return 0;
 	}
@@ -462,7 +462,7 @@ static inline void h1_release_buf(struct h1c *h1c, struct buffer *bptr)
 }
 
 /* returns the number of streams in use on a connection to figure if it's idle
- * or not. We rely on H1C_F_CS_IDLE to know if the connection is in-use or
+ * or not. We rely on H1C_F_ST_IDLE to know if the connection is in-use or
  * not. This flag is only set when no H1S is attached and when the previous
  * stream, if any, was fully terminated without any error and in K/A mode.
  */
@@ -470,7 +470,7 @@ static int h1_used_streams(struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
 
-	return ((h1c->flags & H1C_F_CS_IDLE) ? 0 : 1);
+	return ((h1c->flags & H1C_F_ST_IDLE) ? 0 : 1);
 }
 
 /* returns the number of streams still available on a connection */
@@ -483,7 +483,7 @@ static int h1_avail_streams(struct connection *conn)
 static void h1_refresh_timeout(struct h1c *h1c)
 {
 	if (h1c->task) {
-		if (!(h1c->flags & H1C_F_CS_ALIVE) || (h1c->flags & H1C_F_CS_SHUTDOWN)) {
+		if (!(h1c->flags & H1C_F_ST_ALIVE) || (h1c->flags & H1C_F_ST_SHUTDOWN)) {
 			/* half-closed or dead connections : switch to clientfin/serverfin
 			 * timeouts so that we don't hang too long on clients that have
 			 * gone away (especially in tunnel mode).
@@ -496,7 +496,7 @@ static void h1_refresh_timeout(struct h1c *h1c)
 			h1c->task->expire = tick_add(now_ms, h1c->timeout);
 			TRACE_DEVEL("refreshing connection's timeout (pending outgoing data)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 		}
-		else if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->flags & (H1C_F_CS_IDLE|H1C_F_CS_EMBRYONIC))) {
+		else if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->flags & (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC))) {
 			/* front connections waiting for a stream need a timeout. */
 			h1c->task->expire = tick_add(now_ms, h1c->timeout);
 			TRACE_DEVEL("refreshing connection's timeout (alive front h1c without a CS)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
@@ -522,7 +522,7 @@ static void h1_set_idle_expiration(struct h1c *h1c)
 		return;
 	}
 
-	if (h1c->flags & H1C_F_CS_IDLE) {
+	if (h1c->flags & H1C_F_ST_IDLE) {
 		if (!tick_isset(h1c->idle_exp)) {
 			if ((h1c->flags & H1C_F_WAIT_NEXT_REQ) &&   /* Not the first request */
 			    !b_data(&h1c->ibuf) &&                 /*  No input data */
@@ -536,7 +536,7 @@ static void h1_set_idle_expiration(struct h1c *h1c)
 			}
 		}
 	}
-	else if (h1c->flags & H1C_F_CS_EMBRYONIC) {
+	else if (h1c->flags & H1C_F_ST_EMBRYONIC) {
 		if (!tick_isset(h1c->idle_exp)) {
 			h1c->idle_exp = tick_add_ifset(now_ms, h1c->px->timeout.httpreq);
 			TRACE_DEVEL("set idle expiration (http-request timeout)", H1_EV_H1C_RECV, h1c->conn);
@@ -578,7 +578,7 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 
 	if (h1s->flags & H1S_F_NOT_FIRST)
 		cs->flags |= CS_FL_NOT_FIRST;
-	h1s->h1c->flags = (h1s->h1c->flags & ~H1C_F_CS_EMBRYONIC) | H1C_F_CS_ATTACHED;
+	h1s->h1c->flags = (h1s->h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED;
 
 	if (global.tune.options & GTUNE_USE_SPLICE) {
 		TRACE_STATE("notify the mux can use splicing", H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
@@ -628,7 +628,7 @@ static struct h1s *h1s_new(struct h1c *h1c)
 
 	if (h1c->flags & H1C_F_WAIT_NEXT_REQ)
 		h1s->flags |= H1S_F_NOT_FIRST;
-	h1c->flags = (h1c->flags & ~(H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_CS_EMBRYONIC;
+	h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_EMBRYONIC;
 
 	TRACE_LEAVE(H1_EV_H1S_NEW, h1c->conn, h1s);
 	return h1s;
@@ -678,7 +678,7 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 	h1s->sess = sess;
 	cs->ctx = h1s;
 
-	h1c->flags = (h1c->flags & ~H1C_F_CS_EMBRYONIC) | H1C_F_CS_ATTACHED;
+	h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED;
 
 	if (h1c->px->options2 & PR_O2_RSPBUG_OK)
 		h1s->res.err_pos = -1;
@@ -704,24 +704,24 @@ static void h1s_destroy(struct h1s *h1s)
 
 		h1_release_buf(h1c, &h1s->rxbuf);
 
-		h1c->flags &= ~(H1C_F_WAIT_OPPOSITE|H1C_F_WANT_SPLICE|H1C_F_CS_EMBRYONIC|H1C_F_CS_ATTACHED|
+		h1c->flags &= ~(H1C_F_WAIT_OPPOSITE|H1C_F_WANT_SPLICE|H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED|
 				H1C_F_OUT_FULL|H1C_F_OUT_ALLOC|H1C_F_IN_SALLOC|
 				H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
 		if (h1s->flags & H1S_F_ERROR) {
-			h1c->flags |= H1C_F_CS_ERROR;
+			h1c->flags |= H1C_F_ST_ERROR;
 			TRACE_STATE("h1s on error, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
 
-		if (!(h1c->flags & (H1C_F_CS_ERROR|H1C_F_CS_SHUTDOWN)) && /* No error/shutdown on h1c */
+		if (!(h1c->flags & (H1C_F_ST_ERROR|H1C_F_ST_SHUTDOWN)) && /* No error/shutdown on h1c */
 		    !(h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) && /* No error/shutdown on conn */
 		    (h1s->flags & (H1S_F_WANT_KAL|H1S_F_PARSING_DONE)) == (H1S_F_WANT_KAL|H1S_F_PARSING_DONE) && /* K/A possible */
 		    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {        /* req/res in DONE state */
-			h1c->flags |= (H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ);
+			h1c->flags |= (H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ);
 			TRACE_STATE("set idle mode on h1c, waiting for the next request", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
 		else {
 			TRACE_STATE("set shudown on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
-			h1c->flags |= H1C_F_CS_SHUTDOWN;
+			h1c->flags |= H1C_F_ST_SHUTDOWN;
 		}
 		pool_free(pool_head_h1s, h1s);
 	}
@@ -750,7 +750,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->conn = conn;
 	h1c->px   = proxy;
 
-	h1c->flags = H1C_F_CS_IDLE;
+	h1c->flags = H1C_F_ST_IDLE;
 	h1c->errcode = 0;
 	h1c->ibuf  = *input;
 	h1c->obuf  = BUF_NULL;
@@ -1165,7 +1165,7 @@ static void h1_capture_bad_message(struct h1c *h1c, struct h1s *h1s,
 	struct proxy *other_end;
 	union error_snapshot_ctx ctx;
 
-	if ((h1c->flags & H1C_F_CS_ATTACHED) && h1s->cs->data) {
+	if ((h1c->flags & H1C_F_ST_ATTACHED) && h1s->cs->data) {
 		if (sess == NULL)
 			sess = si_strm(h1s->cs->data)->sess;
 		if (!(h1m->flags & H1_MF_RESP))
@@ -1546,7 +1546,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 
 		if (!h1s_new_cs(h1s, buf)) {
-			h1c->flags |= H1C_F_CS_ERROR;
+			h1c->flags |= H1C_F_ST_ERROR;
 			goto err;
 		}
 	}
@@ -2310,7 +2310,7 @@ static int h1_send(struct h1c *h1c)
 	if (!b_data(&h1c->obuf)) {
 		TRACE_DEVEL("leaving with everything sent", H1_EV_H1C_SEND, h1c->conn);
 		h1_release_buf(h1c, &h1c->obuf);
-		if (h1c->flags & H1C_F_CS_SHUTDOWN) {
+		if (h1c->flags & H1C_F_ST_SHUTDOWN) {
 			TRACE_STATE("process pending shutdown for writes", H1_EV_H1C_SEND, h1c->conn);
 			h1_shutw_conn(conn, CS_SHW_NORMAL);
 		}
@@ -2337,7 +2337,7 @@ static int h1_process(struct h1c * h1c)
 
 	/* Try to parse now the first block of a request, creating the H1 stream if necessary */
 	if (b_data(&h1c->ibuf) &&                                /* Input data to be processed */
-	    (h1c->flags & (H1C_F_CS_IDLE|H1C_F_CS_EMBRYONIC)) && /* IDLE h1 connection or no CS attached to the h1 stream */
+	    (h1c->flags & (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC)) && /* IDLE h1 connection or no CS attached to the h1 stream */
 	    !(h1c->flags & H1C_F_IN_SALLOC)) {                   /* No allocation failure on the stream rxbuf */
 		struct buffer *buf;
 		size_t count;
@@ -2347,7 +2347,7 @@ static int h1_process(struct h1c * h1c)
 			goto release;
 
 		/* First of all handle H1 to H2 upgrade (no need to create the H1 stream) */
-		if (((h1c->flags & (H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ)) == H1C_F_CS_IDLE) && /* First request with no h1s */
+		if (((h1c->flags & (H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) == H1C_F_ST_IDLE) && /* First request with no h1s */
 		    !(h1c->px->options2 & PR_O2_NO_H2_UPGRADE)) {                            /* H2 upgrade supported by the proxy */
 			/* Try to match H2 preface before parsing the request headers. */
 			if (b_isteq(&h1c->ibuf, 0, b_data(&h1c->ibuf), ist(H2_CONN_PREFACE)) > 0) {
@@ -2362,7 +2362,7 @@ static int h1_process(struct h1c * h1c)
 			h1s = h1c_frt_stream_new(h1c);
 			if (!h1s) {
 				b_reset(&h1c->ibuf);
-				h1c->flags = (h1c->flags & ~(H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_CS_ERROR;
+				h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
 				goto no_parsing;
 			}
 		}
@@ -2384,25 +2384,25 @@ static int h1_process(struct h1c * h1c)
 		h1_set_idle_expiration(h1c);
 
 	  no_parsing:
-		if (h1c->flags & H1C_F_CS_ERROR) {
+		if (h1c->flags & H1C_F_ST_ERROR) {
 			h1_handle_internal_err(h1c);
-			h1c->flags &= ~(H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ);
+			h1c->flags &= ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ);
 		}
 		else if (h1s->flags & H1S_F_PARSING_ERROR) {
 			h1_handle_bad_req(h1c);
-			h1c->flags = (h1c->flags & ~(H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_CS_ERROR;
+			h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
 		}
 	}
 	h1_send(h1c);
 
-	if ((conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn) || (h1c->flags & H1C_F_CS_ERROR)) {
-		if (!(h1c->flags & H1C_F_CS_ATTACHED)) {
+	if ((conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn) || (h1c->flags & H1C_F_ST_ERROR)) {
+		if (!(h1c->flags & H1C_F_ST_ATTACHED)) {
 			/* No conn-stream */
 			/* shutdown for reads and error on the frontend connection: Send an error */
-			if (!(h1c->flags & (H1C_F_IS_BACK|H1C_F_CS_ERROR))) {
+			if (!(h1c->flags & (H1C_F_IS_BACK|H1C_F_ST_ERROR))) {
 				if (h1_handle_bad_req(h1c))
 					h1_send(h1c);
-				h1c->flags = (h1c->flags & ~(H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_CS_ERROR;
+				h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
 			}
 
 			/* Handle pending error, if any (only possible on frontend connection) */
@@ -2427,7 +2427,7 @@ static int h1_process(struct h1c * h1c)
 				h1s->flags |= H1S_F_REOS;
 				TRACE_STATE("read0 on connection", H1_EV_H1C_RECV, conn, h1s);
 			}
-			if ((h1c->flags & H1C_F_CS_ERROR) || (conn->flags & CO_FL_ERROR))
+			if ((h1c->flags & H1C_F_ST_ERROR) || (conn->flags & CO_FL_ERROR))
 				h1s->cs->flags |= CS_FL_ERROR;
 			TRACE_POINT(H1_EV_STRM_WAKE, h1c->conn, h1s);
 			if (h1s->cs->data_cb->wake) {
@@ -2529,7 +2529,7 @@ static int h1_wake(struct connection *conn)
 	if (ret == 0) {
 		struct h1s *h1s = h1c->h1s;
 
-		if ((h1c->flags & H1C_F_CS_ATTACHED) && h1s->cs->data_cb->wake) {
+		if ((h1c->flags & H1C_F_ST_ATTACHED) && h1s->cs->data_cb->wake) {
 			TRACE_POINT(H1_EV_STRM_WAKE, h1c->conn, h1s);
 			ret = h1s->cs->data_cb->wake(h1s->cs);
 		}
@@ -2569,7 +2569,7 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 		/* If a conn-stream is still attached to the mux, wait for the
 		 * stream's timeout
 		 */
-		if (h1c->flags & H1C_F_CS_ATTACHED) {
+		if (h1c->flags & H1C_F_ST_ATTACHED) {
 			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 			t->expire = TICK_ETERNITY;
 			TRACE_DEVEL("leaving (CS still attached)", H1_EV_H1C_WAKE, h1c->conn, h1c->h1s);
@@ -2577,8 +2577,8 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 		}
 
 		/* Try to send an error to the client */
-		if (!(h1c->flags & (H1C_F_IS_BACK|H1C_F_CS_ERROR|H1C_F_ERR_PENDING|H1C_F_CS_SHUTDOWN))) {
-			h1c->flags = (h1c->flags & ~H1C_F_CS_IDLE) | H1C_F_CS_ERROR;
+		if (!(h1c->flags & (H1C_F_IS_BACK|H1C_F_ST_ERROR|H1C_F_ERR_PENDING|H1C_F_ST_SHUTDOWN))) {
+			h1c->flags = (h1c->flags & ~H1C_F_ST_IDLE) | H1C_F_ST_ERROR;
 			if (h1_handle_req_tout(h1c))
 				h1_send(h1c);
 			if (b_data(&h1c->obuf) || (h1c->flags & H1C_F_ERR_PENDING)) {
@@ -2626,7 +2626,7 @@ static struct conn_stream *h1_attach(struct connection *conn, struct session *se
 	struct h1s *h1s;
 
 	TRACE_ENTER(H1_EV_STRM_NEW, conn);
-	if (h1c->flags & H1C_F_CS_ERROR) {
+	if (h1c->flags & H1C_F_ST_ERROR) {
 		TRACE_DEVEL("leaving on h1c error", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, conn);
 		goto end;
 	}
@@ -2703,7 +2703,7 @@ static void h1_detach(struct conn_stream *cs)
 	is_not_first = h1s->flags & H1S_F_NOT_FIRST;
 	h1s_destroy(h1s);
 
-	if ((h1c->flags & (H1C_F_IS_BACK|H1C_F_CS_IDLE)) == (H1C_F_IS_BACK|H1C_F_CS_IDLE)) {
+	if ((h1c->flags & (H1C_F_IS_BACK|H1C_F_ST_IDLE)) == (H1C_F_IS_BACK|H1C_F_ST_IDLE)) {
 		/* If there are any excess server data in the input buffer,
 		 * release it and close the connection ASAP (some data may
 		 * remain in the output buffer). This happens if a server sends
@@ -2712,7 +2712,7 @@ static void h1_detach(struct conn_stream *cs)
 		 */
 		if (b_data(&h1c->ibuf)) {
 			h1_release_buf(h1c, &h1c->ibuf);
-			h1c->flags = (h1c->flags & ~H1C_F_CS_IDLE) | H1C_F_CS_SHUTDOWN;
+			h1c->flags = (h1c->flags & ~H1C_F_ST_IDLE) | H1C_F_ST_SHUTDOWN;
 			TRACE_DEVEL("remaining data on detach, kill connection", H1_EV_STRM_END|H1_EV_H1C_END);
 			goto release;
 		}
@@ -2751,15 +2751,15 @@ static void h1_detach(struct conn_stream *cs)
 
   release:
 	/* We don't want to close right now unless the connection is in error or shut down for writes */
-	if ((h1c->flags & H1C_F_CS_ERROR) ||
+	if ((h1c->flags & H1C_F_ST_ERROR) ||
 	    (h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_WR_SH)) ||
-	    ((h1c->flags & H1C_F_CS_SHUTDOWN) && !b_data(&h1c->obuf)) ||
+	    ((h1c->flags & H1C_F_ST_SHUTDOWN) && !b_data(&h1c->obuf)) ||
 	    !h1c->conn->owner) {
 		TRACE_DEVEL("killing dead connection", H1_EV_STRM_END, h1c->conn);
 		h1_release(h1c);
 	}
 	else {
-		if (h1c->flags & H1C_F_CS_IDLE) {
+		if (h1c->flags & H1C_F_ST_IDLE) {
 			/* If we have a new request, process it immediately or
 			 * subscribe for reads waiting for new data
 			 */
@@ -2842,7 +2842,7 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 	}
 
   do_shutw:
-	h1c->flags |= H1C_F_CS_SHUTDOWN;
+	h1c->flags |= H1C_F_ST_SHUTDOWN;
 	if (!b_data(&h1c->obuf))
 		h1_shutw_conn(cs->conn, mode);
   end:
