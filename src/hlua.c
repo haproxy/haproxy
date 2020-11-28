@@ -1086,10 +1086,6 @@ static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
 	lua_State *T;
 	int new_ref;
 
-	/* Renew the main LUA stack doesn't have sense. */
-	if (lua == &gL)
-		return 0;
-
 	/* New Lua coroutine. */
 	T = lua_newthread(gL.T);
 	if (!T)
