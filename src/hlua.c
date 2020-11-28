@@ -8138,54 +8138,59 @@ static int hlua_parse_maxmem(char **args, int section_type, struct proxy *curpx,
  * We are in the configuration parsing process of HAProxy, this abort() is
  * tolerated.
  */
-static int hlua_load(char **args, int section_type, struct proxy *curpx,
-                     struct proxy *defpx, const char *file, int line,
-                     char **err)
+static int hlua_load_state(char *filename, lua_State *L, char **err)
 {
 	int error;
 
-	if (*(args[1]) == 0) {
-		memprintf(err, "'%s' expects a file name as parameter.\n", args[0]);
-		return -1;
-	}
-
 	/* Just load and compile the file. */
-	error = luaL_loadfile(gL.T, args[1]);
+	error = luaL_loadfile(L, filename);
 	if (error) {
-		memprintf(err, "error in Lua file '%s': %s", args[1], lua_tostring(gL.T, -1));
-		lua_pop(gL.T, 1);
+		memprintf(err, "error in Lua file '%s': %s", filename, lua_tostring(L, -1));
+		lua_pop(L, 1);
 		return -1;
 	}
 
 	/* If no syntax error where detected, execute the code. */
-	error = lua_pcall(gL.T, 0, LUA_MULTRET, 0);
+	error = lua_pcall(L, 0, LUA_MULTRET, 0);
 	switch (error) {
 	case LUA_OK:
 		break;
 	case LUA_ERRRUN:
-		memprintf(err, "Lua runtime error: %s\n", lua_tostring(gL.T, -1));
-		lua_pop(gL.T, 1);
+		memprintf(err, "Lua runtime error: %s\n", lua_tostring(L, -1));
+		lua_pop(L, 1);
 		return -1;
 	case LUA_ERRMEM:
 		memprintf(err, "Lua out of memory error\n");
 		return -1;
 	case LUA_ERRERR:
-		memprintf(err, "Lua message handler error: %s\n", lua_tostring(gL.T, -1));
-		lua_pop(gL.T, 1);
+		memprintf(err, "Lua message handler error: %s\n", lua_tostring(L, -1));
+		lua_pop(L, 1);
 		return -1;
 #if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM <= 503
 	case LUA_ERRGCMM:
-		memprintf(err, "Lua garbage collector error: %s\n", lua_tostring(gL.T, -1));
-		lua_pop(gL.T, 1);
+		memprintf(err, "Lua garbage collector error: %s\n", lua_tostring(L, -1));
+		lua_pop(L, 1);
 		return -1;
 #endif
 	default:
-		memprintf(err, "Lua unknown error: %s\n", lua_tostring(gL.T, -1));
-		lua_pop(gL.T, 1);
+		memprintf(err, "Lua unknown error: %s\n", lua_tostring(L, -1));
+		lua_pop(L, 1);
 		return -1;
 	}
 
 	return 0;
+}
+
+static int hlua_load(char **args, int section_type, struct proxy *curpx,
+                     struct proxy *defpx, const char *file, int line,
+                     char **err)
+{
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects a file name as parameter.\n", args[0]);
+		return -1;
+	}
+
+	return hlua_load_state(args[1], gL.T, err);
 }
 
 /* Prepend the given <path> followed by a semicolon to the `package.<type>` variable
