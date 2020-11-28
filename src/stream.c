@@ -2770,6 +2770,11 @@ void service_keywords_register(struct action_kw_list *kw_list)
 	LIST_ADDQ(&service_keywords, &kw_list->list);
 }
 
+struct action_kw *service_find(const char *kw)
+{
+	return action_lookup(&service_keywords, kw);
+}
+
 /* Lists the known services on <out> */
 void list_services(FILE *out)
 {
