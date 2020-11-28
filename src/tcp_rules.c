@@ -66,22 +66,22 @@ void tcp_res_cont_keywords_register(struct action_kw_list *kw_list)
 /*
  * Return the struct tcp_req_action_kw associated to a keyword.
  */
-static struct action_kw *tcp_req_conn_action(const char *kw)
+struct action_kw *tcp_req_conn_action(const char *kw)
 {
 	return action_lookup(&tcp_req_conn_keywords, kw);
 }
 
-static struct action_kw *tcp_req_sess_action(const char *kw)
+struct action_kw *tcp_req_sess_action(const char *kw)
 {
 	return action_lookup(&tcp_req_sess_keywords, kw);
 }
 
-static struct action_kw *tcp_req_cont_action(const char *kw)
+struct action_kw *tcp_req_cont_action(const char *kw)
 {
 	return action_lookup(&tcp_req_cont_keywords, kw);
 }
 
-static struct action_kw *tcp_res_cont_action(const char *kw)
+struct action_kw *tcp_res_cont_action(const char *kw)
 {
 	return action_lookup(&tcp_res_cont_keywords, kw);
 }

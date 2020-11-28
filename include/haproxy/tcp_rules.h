@@ -37,6 +37,11 @@ void tcp_req_sess_keywords_register(struct action_kw_list *kw_list);
 void tcp_req_cont_keywords_register(struct action_kw_list *kw_list);
 void tcp_res_cont_keywords_register(struct action_kw_list *kw_list);
 
+struct action_kw *tcp_req_conn_action(const char *kw);
+struct action_kw *tcp_req_sess_action(const char *kw);
+struct action_kw *tcp_req_cont_action(const char *kw);
+struct action_kw *tcp_res_cont_action(const char *kw);
+
 #endif /* _HAPROXY_TCP_RULES_H */
 
 /*

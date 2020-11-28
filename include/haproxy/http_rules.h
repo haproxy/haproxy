@@ -52,6 +52,10 @@ static inline void http_after_res_keywords_register(struct action_kw_list *kw_li
 	LIST_ADDQ(&http_after_res_keywords.list, &kw_list->list);
 }
 
+struct action_kw *action_http_req_custom(const char *kw);
+struct action_kw *action_http_res_custom(const char *kw);
+struct action_kw *action_http_after_res_custom(const char *kw);
+
 #endif /* _HAPROXY_HTTP_RULES_H */
 
 /*
