@@ -8128,7 +8128,7 @@ int hlua_post_init()
 		switch (ret) {
 		case HLUA_E_OK:
 			lua_pop(gL.T, -1);
-			return 1;
+			break;
 		case HLUA_E_AGAIN:
 			ha_alert("Lua init: yield not allowed.\n");
 			return 0;
