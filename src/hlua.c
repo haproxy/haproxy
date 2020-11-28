@@ -8273,13 +8273,16 @@ int hlua_post_init_state(lua_State *L)
 		hlua_global_allocator.limit = ~hlua_global_allocator.limit;
 
 	/* Call post initialisation function in safe environment. */
-	if (!SET_SAFE_LJMP(L)) {
+	if (setjmp(safe_ljmp_env) != 0) {
+		lua_atpanic(L, hlua_panic_safe);
 		if (lua_type(L, -1) == LUA_TSTRING)
 			error = lua_tostring(L, -1);
 		else
 			error = "critical error";
 		fprintf(stderr, "Lua post-init: %s.\n", error);
 		exit(1);
+	} else {
+		lua_atpanic(L, hlua_panic_ljmp);
 	}
 
 	hlua_fcn_post_init(L);
@@ -8338,7 +8341,8 @@ int hlua_post_init_state(lua_State *L)
 		if (!return_status)
 			break;
 	}
-	RESET_SAFE_LJMP(L);
+
+	lua_atpanic(L, hlua_panic_safe);
 	return return_status;
 }
 
@@ -8435,16 +8439,18 @@ lua_State *hlua_init_state(int thread_num)
 	 * process of HAProxy, this abort() is tolerated.
 	 */
 
-	/* Set safe environment for the initialisation. */
-	if (!SET_SAFE_LJMP(L)) {
+	/* Call post initialisation function in safe environment. */
+	if (setjmp(safe_ljmp_env) != 0) {
+		lua_atpanic(L, hlua_panic_safe);
 		if (lua_type(L, -1) == LUA_TSTRING)
 			error_msg = lua_tostring(L, -1);
 		else
 			error_msg = "critical error";
 		fprintf(stderr, "Lua init: %s.\n", error_msg);
 		exit(1);
+	} else {
+		lua_atpanic(L, hlua_panic_ljmp);
 	}
-
 
 	/* Initialise lua. */
 	luaL_openlibs(L);
@@ -8990,7 +8996,7 @@ lua_State *hlua_init_state(int thread_num)
 	}
 #endif
 
-	RESET_SAFE_LJMP(L);
+	lua_atpanic(L, hlua_panic_safe);
 
 	return L;
 }
