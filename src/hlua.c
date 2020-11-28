@@ -124,6 +124,12 @@ THREAD_LOCAL jmp_buf safe_ljmp_env;
 static int hlua_panic_safe(lua_State *L) { return 0; }
 static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1)); }
 
+/* This is the chained list of struct hlua_function referenced
+ * for haproxy action, sample-fetches, converters, cli and
+ * applet bindings. It is used for a post-initialisation control.
+ */
+static struct list referenced_functions = LIST_HEAD_INIT(referenced_functions);
+
 #define SET_SAFE_LJMP_L(__L, __HLUA) \
 	({ \
 		int ret; \
@@ -276,6 +282,17 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct http_msg *msg);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) \
 			ha_alert(__fmt, ## __args); \
 	} while (0)
+
+static inline struct hlua_function *new_hlua_function()
+{
+	struct hlua_function *fcn;
+
+	fcn = calloc(1, sizeof(*fcn));
+	if (!fcn)
+		return NULL;
+	LIST_ADDQ(&referenced_functions, &fcn->l);
+	return fcn;
+}
 
 /* Used to check an Lua function type in the stack. It creates and
  * returns a reference of the function. This function throws an
@@ -6683,7 +6700,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	sck = calloc(1, sizeof(*sck) + sizeof(struct sample_conv) * 2);
 	if (!sck)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
-	fcn = calloc(1, sizeof(*fcn));
+	fcn = new_hlua_function();
 	if (!fcn)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
@@ -6751,7 +6768,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	sfk = calloc(1, sizeof(*sfk) + sizeof(struct sample_fetch) * 2);
 	if (!sfk)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
-	fcn = calloc(1, sizeof(*fcn));
+	fcn = new_hlua_function();
 	if (!fcn)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
@@ -7616,7 +7633,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 		akl = calloc(1, sizeof(*akl) + sizeof(struct action_kw) * 2);
 		if (!akl)
 			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
-		fcn = calloc(1, sizeof(*fcn));
+		fcn = new_hlua_function();
 		if (!fcn)
 			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
@@ -7737,7 +7754,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 	akl = calloc(1, sizeof(*akl) + sizeof(struct action_kw) * 2);
 	if (!akl)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
-	fcn = calloc(1, sizeof(*fcn));
+	fcn = new_hlua_function();
 	if (!fcn)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
@@ -8009,7 +8026,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 	cli_kws = calloc(1, sizeof(*cli_kws) + sizeof(struct cli_kw) * 2);
 	if (!cli_kws)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
-	fcn = calloc(1, sizeof(*fcn));
+	fcn = new_hlua_function();
 	if (!fcn)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 

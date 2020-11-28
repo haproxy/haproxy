@@ -111,6 +111,7 @@ struct hlua_init_function {
  * or actions.
  */
 struct hlua_function {
+	struct list l;
 	char *name;
 	int function_ref;
 	int nargs;
