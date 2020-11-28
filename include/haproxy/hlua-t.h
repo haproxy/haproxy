@@ -80,7 +80,7 @@ enum hlua_exec {
 
 struct hlua {
 	lua_State *T; /* The LUA stack. */
-	lua_State *state_from; /* The main LUA state where the lua coprocess is from */
+	int state_id; /* contains the lua state id. 0 is common state, 1 to n are per-thread states.*/
 	int Tref; /* The reference of the stack in coroutine case.
 	             -1 for the main lua stack. */
 	int Mref; /* The reference of the memory context in coroutine case.
