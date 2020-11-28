@@ -8117,15 +8117,15 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 /* Prepend the given <path> followed by a semicolon to the `package.<type>` variable
  * in the given <ctx>.
  */
-static int hlua_prepend_path(struct hlua ctx, char *type, char *path)
+static int hlua_prepend_path(lua_State *L, char *type, char *path)
 {
-	lua_getglobal(ctx.T, "package"); /* push package variable   */
-	lua_pushstring(ctx.T, path);     /* push given path         */
-	lua_pushstring(ctx.T, ";");      /* push semicolon          */
-	lua_getfield(ctx.T, -3, type);   /* push old path           */
-	lua_concat(ctx.T, 3);            /* concatenate to new path */
-	lua_setfield(ctx.T, -2, type);   /* store new path          */
-	lua_pop(ctx.T, 1);               /* pop package variable    */
+	lua_getglobal(L, "package"); /* push package variable   */
+	lua_pushstring(L, path);     /* push given path         */
+	lua_pushstring(L, ";");      /* push semicolon          */
+	lua_getfield(L, -3, type);   /* push old path           */
+	lua_concat(L, 3);            /* concatenate to new path */
+	lua_setfield(L, -2, type);   /* store new path          */
+	lua_pop(L, 1);               /* pop package variable    */
 
 	return 0;
 }
@@ -8154,7 +8154,7 @@ static int hlua_config_prepend_path(char **args, int section_type, struct proxy 
 		type = args[2];
 	}
 
-	return hlua_prepend_path(gL, type, path);
+	return hlua_prepend_path(gL.T, type, path);
 }
 
 /* configuration keywords declaration */
@@ -8326,10 +8326,10 @@ void hlua_init(void)
 #define HLUA_PREPEND_PATH_TOSTRING1(x) #x
 #define HLUA_PREPEND_PATH_TOSTRING(x) HLUA_PREPEND_PATH_TOSTRING1(x)
 #ifdef HLUA_PREPEND_PATH
-	hlua_prepend_path(gL, "path", HLUA_PREPEND_PATH_TOSTRING(HLUA_PREPEND_PATH));
+	hlua_prepend_path(gL.T, "path", HLUA_PREPEND_PATH_TOSTRING(HLUA_PREPEND_PATH));
 #endif
 #ifdef HLUA_PREPEND_CPATH
-	hlua_prepend_path(gL, "cpath", HLUA_PREPEND_PATH_TOSTRING(HLUA_PREPEND_CPATH));
+	hlua_prepend_path(gL.T, "cpath", HLUA_PREPEND_PATH_TOSTRING(HLUA_PREPEND_CPATH));
 #endif
 #undef HLUA_PREPEND_PATH_TOSTRING
 #undef HLUA_PREPEND_PATH_TOSTRING1
