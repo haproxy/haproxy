@@ -42,6 +42,8 @@
 #define APPCTX_CLI_ST1_PAYLOAD (1 << 1)
 #define APPCTX_CLI_ST1_NOLF    (1 << 2)
 
+#define CLI_PREFIX_KW_NB 5
+
 /* CLI states */
 enum {
 	CLI_ST_INIT = 0,   /* initial state, must leave to zero ! */
@@ -66,7 +68,7 @@ enum {
 
 
 struct cli_kw {
-	const char *str_kw[5];   /* keywords ended by NULL, limited to 5
+	const char *str_kw[CLI_PREFIX_KW_NB]; /* keywords ended by NULL, limited to CLI_PREFIX_KW_NB
 				 separated keywords combination */
 	const char *usage;   /* usage message */
 	int (*parse)(char **args, char *payload, struct appctx *appctx, void *private);
