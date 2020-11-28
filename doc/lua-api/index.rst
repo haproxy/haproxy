@@ -762,8 +762,8 @@ Core class
 
   Immediately stops the current Lua execution and returns to the caller which
   may be a sample fetch, a converter or an action and returns the specified
-  value (ignored for actions). It is used when the LUA process finishes its
-  work and wants to give back the control to HAProxy without executing the
+  value (ignored for actions and init). It is used when the LUA process finishes
+  its work and wants to give back the control to HAProxy without executing the
   remaining code. It can be seen as a multi-level "return".
 
 .. js:function:: core.yield()

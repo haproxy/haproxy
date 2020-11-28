@@ -965,7 +965,13 @@ static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
 __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
                         lua_KFunction k, int timeout, unsigned int flags)
 {
-	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua *hlua;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua) {
+		return;
+	}
 
 	/* Set the wake timeout. If timeout is required, we set
 	 * the expiration time.
@@ -1119,7 +1125,12 @@ static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
 
 void hlua_hook(lua_State *L, lua_Debug *ar)
 {
-	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua *hlua;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return;
 
 	/* Lua cannot yield when its returning from a function,
 	 * so, we can fix the interrupt hook to 1 instruction,
@@ -1339,7 +1350,12 @@ resume_execution:
 /* This function exit the current code. */
 __LJMP static int hlua_done(lua_State *L)
 {
-	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua *hlua;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return 0;
 
 	hlua->flags |= HLUA_EXIT;
 	WILL_LJMP(lua_error(L));
@@ -1817,7 +1833,12 @@ __LJMP static int hlua_socket_close_helper(lua_State *L)
 	struct hlua_socket *socket;
 	struct appctx *appctx;
 	struct xref *peer;
-	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua *hlua;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return 0;
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
@@ -1866,7 +1887,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 {
 	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
 	int wanted = lua_tointeger(L, 2);
-	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua *hlua;
 	struct appctx *appctx;
 	size_t len;
 	int nblk;
@@ -1880,6 +1901,9 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	struct stream *s;
 	struct xref *peer;
 	int missing_bytes;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
 
 	/* Check if this lua stack is schedulable. */
 	if (!hlua || !hlua->task)
@@ -2094,7 +2118,7 @@ __LJMP static int hlua_socket_receive(struct lua_State *L)
 static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext ctx)
 {
 	struct hlua_socket *socket;
-	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua *hlua;
 	struct appctx *appctx;
 	size_t buf_len;
 	const char *buf;
@@ -2104,6 +2128,9 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	struct xref *peer;
 	struct stream_interface *si;
 	struct stream *s;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
 
 	/* Check if this lua stack is schedulable. */
 	if (!hlua || !hlua->task)
@@ -2429,11 +2456,16 @@ static struct applet update_applet = {
 __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
-	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua *hlua;
 	struct xref *peer;
 	struct appctx *appctx;
 	struct stream_interface *si;
 	struct stream *s;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return 0;
 
 	/* Check if we run on the same thread than the xreator thread.
 	 * We cannot access to the socket if the thread is different.
@@ -2570,7 +2602,10 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	}
 	s->flags |= SF_ADDR_SET;
 
+	/* Get hlua struct, or NULL if we execute from main lua state */
 	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return 0;
 
 	/* inform the stream that we want to be notified whenever the
 	 * connection completes.
@@ -3068,7 +3103,14 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
 	int max;
-	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua *hlua;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua) {
+		lua_pushnil(L);
+		return 1;
+	}
 
 	if (chn_strm(chn)->be->mode == PR_MODE_HTTP) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
@@ -3172,7 +3214,12 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L, int status, lua_KCont
 	int len;
 	int l;
 	int max;
-	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua *hlua;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return 1;
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
@@ -5297,7 +5344,11 @@ __LJMP static int hlua_set_priv(lua_State *L)
 	 * runs only in a stream context.
 	 */
 	MAY_LJMP(hlua_checktxn(L, 1));
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
 	hlua = hlua_gethlua(L);
+	if (!hlua)
+		return 0;
 
 	/* Remove previous value. */
 	luaL_unref(L, LUA_REGISTRYINDEX, hlua->Mref);
@@ -5319,7 +5370,13 @@ __LJMP static int hlua_get_priv(lua_State *L)
 	 * runs only in a stream context.
 	 */
 	MAY_LJMP(hlua_checktxn(L, 1));
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
 	hlua = hlua_gethlua(L);
+	if (!hlua) {
+		lua_pushnil(L);
+		return 1;
+	}
 
 	/* Push configuration index in the stack. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, hlua->Mref);
@@ -6155,10 +6212,12 @@ __LJMP static int hlua_set_nice(lua_State *L)
 	int nice;
 
 	MAY_LJMP(check_args(L, 1, "set_nice"));
-	hlua = hlua_gethlua(L);
 	nice = MAY_LJMP(luaL_checkinteger(L, 1));
 
-	/* If he task is not set, I'm in a start mode. */
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+
+	/* If the task is not set, I'm in a start mode. */
 	if (!hlua || !hlua->task)
 		return 0;
 
@@ -6700,9 +6759,15 @@ __LJMP static int hlua_register_fetches(lua_State *L)
  */
 __LJMP static int hlua_set_wake_time(lua_State *L)
 {
-	struct hlua *hlua = hlua_gethlua(L);
+	struct hlua *hlua;
 	unsigned int delay;
 	unsigned int wakeup_ms;
+
+	/* Get hlua struct, or NULL if we execute from main lua state */
+	hlua = hlua_gethlua(L);
+	if (!hlua) {
+		return 0;
+	}
 
 	MAY_LJMP(check_args(L, 1, "wake_time"));
 
@@ -8321,6 +8386,7 @@ void hlua_init(void)
 	struct sample_conv *sc;
 	char *p;
 	const char *error_msg;
+	void **context;
 #ifdef USE_OPENSSL
 	struct srv_kw *kw;
 	int tmp_error;
@@ -8338,9 +8404,12 @@ void hlua_init(void)
 	gL.flags = 0;
 	LIST_INIT(&gL.com);
 	gL.T = lua_newstate(hlua_alloc, &hlua_global_allocator);
-	hlua_sethlua(&gL);
 	gL.Tref = LUA_REFNIL;
 	gL.task = NULL;
+
+	/* Initialise Lua context to NULL */
+	context = lua_getextraspace(gL.T);
+	*context = NULL;
 
 	/* From this point, until the end of the initialisation function,
 	 * the Lua function can fail with an abort. We are in the initialisation
