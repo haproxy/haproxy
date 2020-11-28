@@ -8004,7 +8004,7 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 		lua_pop(gL.T, 1);
 		return -1;
 	case LUA_ERRMEM:
-		memprintf(err, "Lua out of memory error.n");
+		memprintf(err, "Lua out of memory error\n");
 		return -1;
 	case LUA_ERRERR:
 		memprintf(err, "Lua message handler error: %s\n", lua_tostring(gL.T, -1));
