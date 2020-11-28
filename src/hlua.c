@@ -157,7 +157,9 @@ static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1));
 #define APPLET_RSP_SENT 0x40 /* The response was fully sent */
 
 /* The main Lua execution context. */
-struct hlua gL;
+struct {
+	lua_State *T;
+} gL;
 
 /* This is the memory pool containing struct lua for applets
  * (including cli).
@@ -8400,12 +8402,7 @@ void hlua_init(void)
 #endif
 
 	/* Init main lua stack. */
-	gL.Mref = LUA_REFNIL;
-	gL.flags = 0;
-	LIST_INIT(&gL.com);
 	gL.T = lua_newstate(hlua_alloc, &hlua_global_allocator);
-	gL.Tref = LUA_REFNIL;
-	gL.task = NULL;
 
 	/* Initialise Lua context to NULL */
 	context = lua_getextraspace(gL.T);
