@@ -127,12 +127,12 @@ static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1));
 #define SET_SAFE_LJMP_L(__L, __HLUA) \
 	({ \
 		int ret; \
-		if ((__HLUA)->state_from == gL.T) \
+		if ((__HLUA)->state_from == hlua_states[0]) \
 			HA_SPIN_LOCK(LUA_LOCK, &hlua_global_lock); \
 		if (setjmp(safe_ljmp_env) != 0) { \
 			lua_atpanic(__L, hlua_panic_safe); \
 			ret = 0; \
-			if ((__HLUA)->state_from == gL.T) \
+			if ((__HLUA)->state_from == hlua_states[0]) \
 				HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
 		} else { \
 			lua_atpanic(__L, hlua_panic_ljmp); \
@@ -147,7 +147,7 @@ static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1));
 #define RESET_SAFE_LJMP_L(__L, __HLUA) \
 	do { \
 		lua_atpanic(__L, hlua_panic_safe); \
-		if ((__HLUA)->state_from == gL.T) \
+		if ((__HLUA)->state_from == hlua_states[0]) \
 			HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
 	} while(0)
 
@@ -171,10 +171,10 @@ static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1));
 #define APPLET_HTTP11   0x20 /* Last chunk sent. */
 #define APPLET_RSP_SENT 0x40 /* The response was fully sent */
 
-/* The main Lua execution context. */
-struct {
-	lua_State *T;
-} gL;
+/* The main Lua execution context. The 0 index is the
+ * common state shared by all threads.
+ */
+lua_State *hlua_states[MAX_THREADS + 1];
 
 /* This is the memory pool containing struct lua for applets
  * (including cli).
@@ -1216,7 +1216,7 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	/* Lock the whole Lua execution. This lock must be before the
 	 * label "resume_execution".
 	 */
-	if (lua->state_from == gL.T)
+	if (lua->state_from == hlua_states[0])
 		HA_SPIN_LOCK(LUA_LOCK, &hlua_global_lock);
 
 resume_execution:
@@ -1361,7 +1361,7 @@ resume_execution:
 	}
 
 	/* This is the main exit point, remove the Lua lock. */
-	if (lua->state_from == gL.T)
+	if (lua->state_from == hlua_states[0])
 		HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock);
 
 	return ret;
@@ -6408,7 +6408,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
-		if (!hlua_ctx_init(stream->hlua, gL.T, stream->task, 0)) {
+		if (!hlua_ctx_init(stream->hlua, hlua_states[0], stream->task, 0)) {
 			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
@@ -6541,7 +6541,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
-		if (!hlua_ctx_init(stream->hlua, gL.T, stream->task, 0)) {
+		if (!hlua_ctx_init(stream->hlua, hlua_states[0], stream->task, 0)) {
 			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
@@ -6843,7 +6843,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			         rule->arg.hlua_rule->fcn->name);
 			goto end;
 		}
-		if (!hlua_ctx_init(s->hlua, gL.T, s->task, 0)) {
+		if (!hlua_ctx_init(s->hlua, hlua_states[0], s->task, 0)) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
 			         rule->arg.hlua_rule->fcn->name);
 			goto end;
@@ -7028,7 +7028,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!hlua_ctx_init(hlua, gL.T, task, 0)) {
+	if (!hlua_ctx_init(hlua, hlua_states[0], task, 0)) {
 		SEND_ERR(px, "Lua applet tcp '%s': can't initialize Lua context.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
@@ -7221,7 +7221,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!hlua_ctx_init(hlua, gL.T, task, 0)) {
+	if (!hlua_ctx_init(hlua, hlua_states[0], task, 0)) {
 		SEND_ERR(px, "Lua applet http '%s': can't initialize Lua context.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
@@ -7816,7 +7816,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	appctx->ctx.hlua_cli.task->process = hlua_applet_wakeup;
 
 	/* Initialises the Lua context */
-	if (!hlua_ctx_init(hlua, gL.T, appctx->ctx.hlua_cli.task, 0)) {
+	if (!hlua_ctx_init(hlua, hlua_states[0], appctx->ctx.hlua_cli.task, 0)) {
 		SEND_ERR(NULL, "Lua cli '%s': can't initialize Lua context.\n", fcn->name);
 		goto error;
 	}
@@ -8207,7 +8207,7 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 		return -1;
 	}
 
-	return hlua_load_state(args[1], gL.T, err);
+	return hlua_load_state(args[1], hlua_states[0], err);
 }
 
 /* Prepend the given <path> followed by a semicolon to the `package.<type>` variable
@@ -8250,7 +8250,7 @@ static int hlua_config_prepend_path(char **args, int section_type, struct proxy 
 		type = args[2];
 	}
 
-	return hlua_prepend_path(gL.T, type, path);
+	return hlua_prepend_path(hlua_states[0], type, path);
 }
 
 /* configuration keywords declaration */
@@ -8375,7 +8375,7 @@ int hlua_post_init()
 	}
 #endif
 
-	return hlua_post_init_state(gL.T);
+	return hlua_post_init_state(hlua_states[0]);
 }
 
 /* The memory allocator used by the Lua stack. <ud> is a pointer to the
@@ -9019,12 +9019,12 @@ lua_State *hlua_init_state(int thread_num)
 }
 
 void hlua_init(void) {
-	gL.T = hlua_init_state(0);
+	hlua_states[0] = hlua_init_state(0);
 }
 
 static void hlua_deinit()
 {
-	lua_close(gL.T);
+	lua_close(hlua_states[0]);
 }
 
 REGISTER_POST_DEINIT(hlua_deinit);
