@@ -8182,6 +8182,12 @@ int hlua_post_init()
 	const char *msg;
 	enum hlua_exec ret;
 	const char *error;
+	const char *kind;
+	const char *trace;
+	int return_status = 1;
+#if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM >= 504
+	int nres;
+#endif
 
 	/* disable memory limit checks if limit is not set */
 	if (!hlua_global_allocator.limit)
@@ -8208,29 +8214,63 @@ int hlua_post_init()
 #endif
 
 	hlua_fcn_post_init(gL.T);
-	RESET_SAFE_LJMP(gL.T);
 
 	list_for_each_entry(init, &hlua_init_functions, l) {
 		lua_rawgeti(gL.T, LUA_REGISTRYINDEX, init->function_ref);
-		ret = hlua_ctx_resume(&gL, 0);
+
+#if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM >= 504
+		ret = lua_resume(gL.T, gL.T, 0, &nres);
+#else
+		ret = lua_resume(gL.T, gL.T, 0);
+#endif
+		kind = NULL;
 		switch (ret) {
-		case HLUA_E_OK:
+
+		case LUA_OK:
 			lua_pop(gL.T, -1);
 			break;
-		case HLUA_E_AGAIN:
-			ha_alert("Lua init: yield not allowed.\n");
-			return 0;
-		case HLUA_E_ERRMSG:
+
+		case LUA_ERRERR:
+			kind = "message handler error";
+			/* Fall thru */
+		case LUA_ERRRUN:
+			if (!kind)
+				kind = "runtime error";
 			msg = lua_tostring(gL.T, -1);
-			ha_alert("lua init: %s.\n", msg);
-			return 0;
-		case HLUA_E_ERR:
+			lua_settop(gL.T, 0); /* Empty the stack. */
+			lua_pop(gL.T, 1);
+			trace = hlua_traceback(gL.T);
+			if (msg)
+				ha_alert("Lua init: %s: '%s' from %s\n", kind, msg, trace);
+			else
+				ha_alert("Lua init: unknown %s from %s\n", kind, trace);
+			return_status = 0;
+			break;
+
 		default:
-			ha_alert("Lua init: unknown runtime error.\n");
-			return 0;
+			/* Unknown error */
+			kind = "Unknown error";
+			/* Fall thru */
+		case LUA_YIELD:
+			/* yield is not configured at this step, this state doesn't happen */
+			if (!kind)
+				kind = "yield not allowed";
+			/* Fall thru */
+		case LUA_ERRMEM:
+			if (!kind)
+				kind = "out of memory error";
+			lua_settop(gL.T, 0);
+			lua_pop(gL.T, 1);
+			trace = hlua_traceback(gL.T);
+			ha_alert("Lua init: %s: %s\n", kind, trace);
+			return_status = 0;
+			break;
 		}
+		if (!return_status)
+			break;
 	}
-	return 1;
+	RESET_SAFE_LJMP(gL.T);
+	return return_status;
 }
 
 /* The memory allocator used by the Lua stack. <ud> is a pointer to the
