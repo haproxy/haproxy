@@ -201,6 +201,16 @@ Core class
   :see: :js:attr:`core.proxies`
   :see: :js:attr:`core.backends`
 
+.. js:attribute:: core.thread
+
+  **context**: task, action, sample-fetch, converter, applet
+
+  This variable contains the executing thread number starting at 1. 0 is a
+  special case for the common lua context. So, if thread is 0, Lua scope is
+  shared by all threads, otherwise the scope is dedicated to a single thread.
+  A program which needs to execute some parts exactly once regardless of the
+  number of threads can check that core.thread is 0 or 1.
+
 .. js:function:: core.log(loglevel, msg)
 
   **context**: body, init, task, action, sample-fetch, converter

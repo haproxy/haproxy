@@ -8397,11 +8397,11 @@ static void *hlua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 	return ptr;
 }
 
-/* Ithis function can fail with an abort() due to an Lua critical error.
+/* This function can fail with an abort() due to a Lua critical error.
  * We are in the initialisation process of HAProxy, this abort() is
  * tolerated.
  */
-lua_State *hlua_init_state(void)
+lua_State *hlua_init_state(int thread_num)
 {
 	int i;
 	int idx;
@@ -8467,6 +8467,9 @@ lua_State *hlua_init_state(void)
 
 	/* This table entry is the object "core" base. */
 	lua_newtable(L);
+
+	/* set the thread id */
+	hlua_class_const_int(L, "thread", thread_num);
 
 	/* Push the loglevel constants. */
 	for (i = 0; i < NB_LOG_LEVELS; i++)
@@ -8993,7 +8996,7 @@ lua_State *hlua_init_state(void)
 }
 
 void hlua_init(void) {
-	gL.T = hlua_init_state();
+	gL.T = hlua_init_state(0);
 }
 
 static void hlua_deinit()
