@@ -8255,7 +8255,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
  * We are in the initialisation process of HAProxy, this abort() is
  * tolerated.
  */
-int hlua_post_init()
+int hlua_post_init_state(lua_State *L)
 {
 	struct hlua_init_function *init;
 	const char *msg;
@@ -8273,40 +8273,30 @@ int hlua_post_init()
 		hlua_global_allocator.limit = ~hlua_global_allocator.limit;
 
 	/* Call post initialisation function in safe environment. */
-	if (!SET_SAFE_LJMP(gL.T)) {
-		if (lua_type(gL.T, -1) == LUA_TSTRING)
-			error = lua_tostring(gL.T, -1);
+	if (!SET_SAFE_LJMP(L)) {
+		if (lua_type(L, -1) == LUA_TSTRING)
+			error = lua_tostring(L, -1);
 		else
 			error = "critical error";
 		fprintf(stderr, "Lua post-init: %s.\n", error);
 		exit(1);
 	}
 
-#if USE_OPENSSL
-	/* Initialize SSL server. */
-	if (socket_ssl.xprt->prepare_srv) {
-		int saved_used_backed = global.ssl_used_backend;
-		// don't affect maxconn automatic computation
-		socket_ssl.xprt->prepare_srv(&socket_ssl);
-		global.ssl_used_backend = saved_used_backed;
-	}
-#endif
-
-	hlua_fcn_post_init(gL.T);
+	hlua_fcn_post_init(L);
 
 	list_for_each_entry(init, &hlua_init_functions, l) {
-		lua_rawgeti(gL.T, LUA_REGISTRYINDEX, init->function_ref);
+		lua_rawgeti(L, LUA_REGISTRYINDEX, init->function_ref);
 
 #if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM >= 504
-		ret = lua_resume(gL.T, gL.T, 0, &nres);
+		ret = lua_resume(L, L, 0, &nres);
 #else
-		ret = lua_resume(gL.T, gL.T, 0);
+		ret = lua_resume(L, L, 0);
 #endif
 		kind = NULL;
 		switch (ret) {
 
 		case LUA_OK:
-			lua_pop(gL.T, -1);
+			lua_pop(L, -1);
 			break;
 
 		case LUA_ERRERR:
@@ -8315,10 +8305,10 @@ int hlua_post_init()
 		case LUA_ERRRUN:
 			if (!kind)
 				kind = "runtime error";
-			msg = lua_tostring(gL.T, -1);
-			lua_settop(gL.T, 0); /* Empty the stack. */
-			lua_pop(gL.T, 1);
-			trace = hlua_traceback(gL.T);
+			msg = lua_tostring(L, -1);
+			lua_settop(L, 0); /* Empty the stack. */
+			lua_pop(L, 1);
+			trace = hlua_traceback(L);
 			if (msg)
 				ha_alert("Lua init: %s: '%s' from %s\n", kind, msg, trace);
 			else
@@ -8338,9 +8328,9 @@ int hlua_post_init()
 		case LUA_ERRMEM:
 			if (!kind)
 				kind = "out of memory error";
-			lua_settop(gL.T, 0);
-			lua_pop(gL.T, 1);
-			trace = hlua_traceback(gL.T);
+			lua_settop(L, 0);
+			lua_pop(L, 1);
+			trace = hlua_traceback(L);
 			ha_alert("Lua init: %s: %s\n", kind, trace);
 			return_status = 0;
 			break;
@@ -8348,8 +8338,23 @@ int hlua_post_init()
 		if (!return_status)
 			break;
 	}
-	RESET_SAFE_LJMP(gL.T);
+	RESET_SAFE_LJMP(L);
 	return return_status;
+}
+
+int hlua_post_init()
+{
+#if USE_OPENSSL
+	/* Initialize SSL server. */
+	if (socket_ssl.xprt->prepare_srv) {
+		int saved_used_backed = global.ssl_used_backend;
+		// don't affect maxconn automatic computation
+		socket_ssl.xprt->prepare_srv(&socket_ssl);
+		global.ssl_used_backend = saved_used_backed;
+	}
+#endif
+
+	return hlua_post_init_state(gL.T);
 }
 
 /* The memory allocator used by the Lua stack. <ud> is a pointer to the
