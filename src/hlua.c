@@ -124,14 +124,16 @@ THREAD_LOCAL jmp_buf safe_ljmp_env;
 static int hlua_panic_safe(lua_State *L) { return 0; }
 static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1)); }
 
-#define SET_SAFE_LJMP(__L) \
+#define SET_SAFE_LJMP_L(__L, __HLUA) \
 	({ \
 		int ret; \
-		HA_SPIN_LOCK(LUA_LOCK, &hlua_global_lock); \
+		if ((__HLUA)->state_from == gL.T) \
+			HA_SPIN_LOCK(LUA_LOCK, &hlua_global_lock); \
 		if (setjmp(safe_ljmp_env) != 0) { \
 			lua_atpanic(__L, hlua_panic_safe); \
 			ret = 0; \
-			HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
+			if ((__HLUA)->state_from == gL.T) \
+				HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
 		} else { \
 			lua_atpanic(__L, hlua_panic_ljmp); \
 			ret = 1; \
@@ -142,11 +144,24 @@ static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1));
 /* If we are the last function catching Lua errors, we
  * must reset the panic function.
  */
-#define RESET_SAFE_LJMP(__L) \
+#define RESET_SAFE_LJMP_L(__L, __HLUA) \
 	do { \
 		lua_atpanic(__L, hlua_panic_safe); \
-		HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
+		if ((__HLUA)->state_from == gL.T) \
+			HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock); \
 	} while(0)
+
+#define SET_SAFE_LJMP(__HLUA) \
+	SET_SAFE_LJMP_L((__HLUA)->T, __HLUA)
+
+#define RESET_SAFE_LJMP(__HLUA) \
+	RESET_SAFE_LJMP_L((__HLUA)->T, __HLUA)
+
+#define SET_SAFE_LJMP_PARENT(__HLUA) \
+	SET_SAFE_LJMP_L((__HLUA)->state_from, __HLUA)
+
+#define RESET_SAFE_LJMP_PARENT(__HLUA) \
+	RESET_SAFE_LJMP_L((__HLUA)->state_from, __HLUA)
 
 /* Applet status flags */
 #define APPLET_DONE     0x01 /* applet processing is done. */
@@ -1010,30 +1025,30 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
  */
 int hlua_ctx_init(struct hlua *lua, lua_State *state_from, struct task *task, int already_safe)
 {
-	if (!already_safe) {
-		if (!SET_SAFE_LJMP(state_from)) {
-			lua->Tref = LUA_REFNIL;
-			return 0;
-		}
-	}
 	lua->Mref = LUA_REFNIL;
 	lua->flags = 0;
 	lua->gc_count = 0;
 	lua->wake_time = TICK_ETERNITY;
 	lua->state_from = state_from;
 	LIST_INIT(&lua->com);
+	if (!already_safe) {
+		if (!SET_SAFE_LJMP_PARENT(lua)) {
+			lua->Tref = LUA_REFNIL;
+			return 0;
+		}
+	}
 	lua->T = lua_newthread(state_from);
 	if (!lua->T) {
 		lua->Tref = LUA_REFNIL;
 		if (!already_safe)
-			RESET_SAFE_LJMP(state_from);
+			RESET_SAFE_LJMP_PARENT(lua);
 		return 0;
 	}
 	hlua_sethlua(lua);
 	lua->Tref = luaL_ref(state_from, LUA_REGISTRYINDEX);
 	lua->task = task;
 	if (!already_safe)
-		RESET_SAFE_LJMP(state_from);
+		RESET_SAFE_LJMP_PARENT(lua);
 	return 1;
 }
 
@@ -1052,15 +1067,15 @@ void hlua_ctx_destroy(struct hlua *lua)
 	/* Purge all the pending signals. */
 	notification_purge(&lua->com);
 
-	if (!SET_SAFE_LJMP(lua->T))
+	if (!SET_SAFE_LJMP(lua))
 		return;
 	luaL_unref(lua->T, LUA_REGISTRYINDEX, lua->Mref);
-	RESET_SAFE_LJMP(lua->T);
+	RESET_SAFE_LJMP(lua);
 
-	if (!SET_SAFE_LJMP(lua->state_from))
+	if (!SET_SAFE_LJMP_PARENT(lua))
 		return;
 	luaL_unref(lua->state_from, LUA_REGISTRYINDEX, lua->Tref);
-	RESET_SAFE_LJMP(lua->state_from);
+	RESET_SAFE_LJMP_PARENT(lua);
 	/* Forces a garbage collecting process. If the Lua program is finished
 	 * without error, we run the GC on the thread pointer. Its freed all
 	 * the unused memory.
@@ -1071,10 +1086,10 @@ void hlua_ctx_destroy(struct hlua *lua)
 	 * the garbage collection.
 	 */
 	if (lua->gc_count) {
-		if (!SET_SAFE_LJMP(lua->state_from))
+		if (!SET_SAFE_LJMP_PARENT(lua))
 			return;
 		lua_gc(lua->state_from, LUA_GCCOLLECT, 0);
-		RESET_SAFE_LJMP(lua->state_from);
+		RESET_SAFE_LJMP_PARENT(lua);
 	}
 
 	lua->T = NULL;
@@ -1201,7 +1216,8 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	/* Lock the whole Lua execution. This lock must be before the
 	 * label "resume_execution".
 	 */
-	HA_SPIN_LOCK(LUA_LOCK, &hlua_global_lock);
+	if (lua->state_from == gL.T)
+		HA_SPIN_LOCK(LUA_LOCK, &hlua_global_lock);
 
 resume_execution:
 
@@ -1345,7 +1361,8 @@ resume_execution:
 	}
 
 	/* This is the main exit point, remove the Lua lock. */
-	HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock);
+	if (lua->state_from == gL.T)
+		HA_SPIN_UNLOCK(LUA_LOCK, &hlua_global_lock);
 
 	return ret;
 }
@@ -6401,7 +6418,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	if (!HLUA_IS_RUNNING(stream->hlua)) {
 
 		/* The following Lua calls can fail. */
-		if (!SET_SAFE_LJMP(stream->hlua->T)) {
+		if (!SET_SAFE_LJMP(stream->hlua)) {
 			if (lua_type(stream->hlua->T, -1) == LUA_TSTRING)
 				error = lua_tostring(stream->hlua->T, -1);
 			else
@@ -6413,7 +6430,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		/* Check stack available size. */
 		if (!lua_checkstack(stream->hlua->T, 1)) {
 			SEND_ERR(stream->be, "Lua converter '%s': full stack.\n", fcn->name);
-			RESET_SAFE_LJMP(stream->hlua->T);
+			RESET_SAFE_LJMP(stream->hlua);
 			return 0;
 		}
 
@@ -6423,7 +6440,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		/* convert input sample and pust-it in the stack. */
 		if (!lua_checkstack(stream->hlua->T, 1)) {
 			SEND_ERR(stream->be, "Lua converter '%s': full stack.\n", fcn->name);
-			RESET_SAFE_LJMP(stream->hlua->T);
+			RESET_SAFE_LJMP(stream->hlua);
 			return 0;
 		}
 		hlua_smp2lua(stream->hlua->T, smp);
@@ -6434,7 +6451,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 			for (; arg_p->type != ARGT_STOP; arg_p++) {
 				if (!lua_checkstack(stream->hlua->T, 1)) {
 					SEND_ERR(stream->be, "Lua converter '%s': full stack.\n", fcn->name);
-					RESET_SAFE_LJMP(stream->hlua->T);
+					RESET_SAFE_LJMP(stream->hlua);
 					return 0;
 				}
 				hlua_arg2lua(stream->hlua->T, arg_p);
@@ -6446,7 +6463,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		stream->hlua->max_time = hlua_timeout_session;
 
 		/* At this point the execution is safe. */
-		RESET_SAFE_LJMP(stream->hlua->T);
+		RESET_SAFE_LJMP(stream->hlua);
 	}
 
 	/* Execute the function. */
@@ -6534,7 +6551,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	if (!HLUA_IS_RUNNING(stream->hlua)) {
 
 		/* The following Lua calls can fail. */
-		if (!SET_SAFE_LJMP(stream->hlua->T)) {
+		if (!SET_SAFE_LJMP(stream->hlua)) {
 			if (lua_type(stream->hlua->T, -1) == LUA_TSTRING)
 				error = lua_tostring(stream->hlua->T, -1);
 			else
@@ -6546,7 +6563,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		/* Check stack available size. */
 		if (!lua_checkstack(stream->hlua->T, 2)) {
 			SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
-			RESET_SAFE_LJMP(stream->hlua->T);
+			RESET_SAFE_LJMP(stream->hlua);
 			return 0;
 		}
 
@@ -6556,7 +6573,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		/* push arguments in the stack. */
 		if (!hlua_txn_new(stream->hlua->T, stream, smp->px, smp->opt & SMP_OPT_DIR, hflags)) {
 			SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
-			RESET_SAFE_LJMP(stream->hlua->T);
+			RESET_SAFE_LJMP(stream->hlua);
 			return 0;
 		}
 		stream->hlua->nargs = 1;
@@ -6566,7 +6583,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 			/* Check stack available size. */
 			if (!lua_checkstack(stream->hlua->T, 1)) {
 				SEND_ERR(smp->px, "Lua sample-fetch '%s': full stack.\n", fcn->name);
-				RESET_SAFE_LJMP(stream->hlua->T);
+				RESET_SAFE_LJMP(stream->hlua);
 				return 0;
 			}
 			hlua_arg2lua(stream->hlua->T, arg_p);
@@ -6577,7 +6594,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		stream->hlua->max_time = hlua_timeout_session;
 
 		/* At this point the execution is safe. */
-		RESET_SAFE_LJMP(stream->hlua->T);
+		RESET_SAFE_LJMP(stream->hlua);
 	}
 
 	/* Execute the function. */
@@ -6837,7 +6854,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	if (!HLUA_IS_RUNNING(s->hlua)) {
 
 		/* The following Lua calls can fail. */
-		if (!SET_SAFE_LJMP(s->hlua->T)) {
+		if (!SET_SAFE_LJMP(s->hlua)) {
 			if (lua_type(s->hlua->T, -1) == LUA_TSTRING)
 				error = lua_tostring(s->hlua->T, -1);
 			else
@@ -6851,7 +6868,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		if (!lua_checkstack(s->hlua->T, 1)) {
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn->name);
-			RESET_SAFE_LJMP(s->hlua->T);
+			RESET_SAFE_LJMP(s->hlua);
 			goto end;
 		}
 
@@ -6862,7 +6879,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		if (!hlua_txn_new(s->hlua->T, s, px, dir, hflags)) {
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
 			         rule->arg.hlua_rule->fcn->name);
-			RESET_SAFE_LJMP(s->hlua->T);
+			RESET_SAFE_LJMP(s->hlua);
 			goto end;
 		}
 		s->hlua->nargs = 1;
@@ -6872,7 +6889,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			if (!lua_checkstack(s->hlua->T, 1)) {
 				SEND_ERR(px, "Lua function '%s': full stack.\n",
 				         rule->arg.hlua_rule->fcn->name);
-				RESET_SAFE_LJMP(s->hlua->T);
+				RESET_SAFE_LJMP(s->hlua);
 				goto end;
 			}
 			lua_pushstring(s->hlua->T, *arg);
@@ -6880,7 +6897,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		}
 
 		/* Now the execution is safe. */
-		RESET_SAFE_LJMP(s->hlua->T);
+		RESET_SAFE_LJMP(s->hlua);
 
 		/* We must initialize the execution timeouts. */
 		s->hlua->max_time = hlua_timeout_session;
@@ -7021,7 +7038,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	hlua->max_time = ctx->applet->timeout;
 
 	/* The following Lua calls can fail. */
-	if (!SET_SAFE_LJMP(hlua->T)) {
+	if (!SET_SAFE_LJMP(hlua)) {
 		if (lua_type(hlua->T, -1) == LUA_TSTRING)
 			error = lua_tostring(hlua->T, -1);
 		else
@@ -7035,7 +7052,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	if (!lua_checkstack(hlua->T, 1)) {
 		SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
-		RESET_SAFE_LJMP(hlua->T);
+		RESET_SAFE_LJMP(hlua);
 		return 0;
 	}
 
@@ -7046,7 +7063,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	if (!hlua_applet_tcp_new(hlua->T, ctx)) {
 		SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
-		RESET_SAFE_LJMP(hlua->T);
+		RESET_SAFE_LJMP(hlua);
 		return 0;
 	}
 	hlua->nargs = 1;
@@ -7056,14 +7073,14 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 		if (!lua_checkstack(hlua->T, 1)) {
 			SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
 			         ctx->rule->arg.hlua_rule->fcn->name);
-			RESET_SAFE_LJMP(hlua->T);
+			RESET_SAFE_LJMP(hlua);
 			return 0;
 		}
 		lua_pushstring(hlua->T, *arg);
 		hlua->nargs++;
 	}
 
-	RESET_SAFE_LJMP(hlua->T);
+	RESET_SAFE_LJMP(hlua);
 
 	/* Wakeup the applet ASAP. */
 	si_cant_get(si);
@@ -7214,7 +7231,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	hlua->max_time = ctx->applet->timeout;
 
 	/* The following Lua calls can fail. */
-	if (!SET_SAFE_LJMP(hlua->T)) {
+	if (!SET_SAFE_LJMP(hlua)) {
 		if (lua_type(hlua->T, -1) == LUA_TSTRING)
 			error = lua_tostring(hlua->T, -1);
 		else
@@ -7228,7 +7245,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	if (!lua_checkstack(hlua->T, 1)) {
 		SEND_ERR(px, "Lua applet http '%s': full stack.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
-		RESET_SAFE_LJMP(hlua->T);
+		RESET_SAFE_LJMP(hlua);
 		return 0;
 	}
 
@@ -7239,7 +7256,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	if (!hlua_applet_http_new(hlua->T, ctx)) {
 		SEND_ERR(px, "Lua applet http '%s': full stack.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
-		RESET_SAFE_LJMP(hlua->T);
+		RESET_SAFE_LJMP(hlua);
 		return 0;
 	}
 	hlua->nargs = 1;
@@ -7249,14 +7266,14 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 		if (!lua_checkstack(hlua->T, 1)) {
 			SEND_ERR(px, "Lua applet http '%s': full stack.\n",
 			         ctx->rule->arg.hlua_rule->fcn->name);
-			RESET_SAFE_LJMP(hlua->T);
+			RESET_SAFE_LJMP(hlua);
 			return 0;
 		}
 		lua_pushstring(hlua->T, *arg);
 		hlua->nargs++;
 	}
 
-	RESET_SAFE_LJMP(hlua->T);
+	RESET_SAFE_LJMP(hlua);
 
 	/* Wakeup the applet when data is ready for read. */
 	si_cant_get(si);
@@ -7805,7 +7822,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	}
 
 	/* The following Lua calls can fail. */
-	if (!SET_SAFE_LJMP(hlua->T)) {
+	if (!SET_SAFE_LJMP(hlua)) {
 		if (lua_type(hlua->T, -1) == LUA_TSTRING)
 			error = lua_tostring(hlua->T, -1);
 		else
@@ -7847,14 +7864,14 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	hlua->max_time = hlua_timeout_session;
 
 	/* At this point the execution is safe. */
-	RESET_SAFE_LJMP(hlua->T);
+	RESET_SAFE_LJMP(hlua);
 
 	/* It's ok */
 	return 0;
 
 	/* It's not ok. */
 error:
-	RESET_SAFE_LJMP(hlua->T);
+	RESET_SAFE_LJMP(hlua);
 	hlua_ctx_destroy(hlua);
 	appctx->ctx.hlua_cli.hlua = NULL;
 	return 1;
