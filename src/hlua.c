@@ -130,6 +130,12 @@ static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1));
  */
 static struct list referenced_functions = LIST_HEAD_INIT(referenced_functions);
 
+/* This variable is used only during initialization to identify the Lua state
+ * currently being initialized. 0 is the common lua state, 1 to n are the Lua
+ * states dedicated to each thread (in this case hlua_state_id==tid+1).
+ */
+static int hlua_state_id;
+
 #define SET_SAFE_LJMP_L(__L, __HLUA) \
 	({ \
 		int ret; \
@@ -195,7 +201,7 @@ static struct server socket_ssl;
 #endif
 
 /* List head of the function called at the initialisation time. */
-struct list hlua_init_functions = LIST_HEAD_INIT(hlua_init_functions);
+struct list hlua_init_functions[MAX_THREADS + 1];
 
 /* The following variables contains the reference of the different
  * Lua classes. These references are useful for identify metadata
@@ -286,12 +292,23 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct http_msg *msg);
 static inline struct hlua_function *new_hlua_function()
 {
 	struct hlua_function *fcn;
+	int i;
 
 	fcn = calloc(1, sizeof(*fcn));
 	if (!fcn)
 		return NULL;
 	LIST_ADDQ(&referenced_functions, &fcn->l);
+	for (i = 0; i < MAX_THREADS + 1; i++)
+		fcn->function_ref[i] = -1;
 	return fcn;
+}
+
+/* If the common state is set, the stack id is 0, otherwise it is the tid + 1 */
+static inline int fcn_ref_to_stack_id(struct hlua_function *fcn)
+{
+	if (fcn->function_ref[0] == -1)
+		return tid + 1;
+	return 0;
 }
 
 /* Used to check an Lua function type in the stack. It creates and
@@ -6344,7 +6361,7 @@ __LJMP static int hlua_register_init(lua_State *L)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	init->function_ref = ref;
-	LIST_ADDQ(&hlua_init_functions, &init->l);
+	LIST_ADDQ(&hlua_init_functions[hlua_state_id], &init->l);
 	return 0;
 }
 
@@ -6377,7 +6394,7 @@ static int hlua_register_task(lua_State *L)
 		state_id = hlua->state_id;
 	else
 		/* we are in initialization mode */
-		state_id = 0;
+		state_id = hlua_state_id;
 
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua)
@@ -6427,7 +6444,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
-		if (!hlua_ctx_init(stream->hlua, 0, stream->task, 0)) {
+		if (!hlua_ctx_init(stream->hlua, fcn_ref_to_stack_id(fcn), stream->task, 0)) {
 			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
@@ -6454,7 +6471,7 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 		}
 
 		/* Restore the function in the stack. */
-		lua_rawgeti(stream->hlua->T, LUA_REGISTRYINDEX, fcn->function_ref);
+		lua_rawgeti(stream->hlua->T, LUA_REGISTRYINDEX, fcn->function_ref[stream->hlua->state_id]);
 
 		/* convert input sample and pust-it in the stack. */
 		if (!lua_checkstack(stream->hlua->T, 1)) {
@@ -6560,7 +6577,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
-		if (!hlua_ctx_init(stream->hlua, 0, stream->task, 0)) {
+		if (!hlua_ctx_init(stream->hlua, fcn_ref_to_stack_id(fcn), stream->task, 0)) {
 			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
@@ -6587,7 +6604,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 		}
 
 		/* Restore the function in the stack. */
-		lua_rawgeti(stream->hlua->T, LUA_REGISTRYINDEX, fcn->function_ref);
+		lua_rawgeti(stream->hlua->T, LUA_REGISTRYINDEX, fcn->function_ref[stream->hlua->state_id]);
 
 		/* push arguments in the stack. */
 		if (!hlua_txn_new(stream->hlua->T, stream, smp->px, smp->opt & SMP_OPT_DIR, hflags)) {
@@ -6710,7 +6727,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	fcn->name = strdup(name);
 	if (!fcn->name)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
-	fcn->function_ref = ref;
+	fcn->function_ref[hlua_state_id] = ref;
 
 	/* List head */
 	sck->list.n = sck->list.p = NULL;
@@ -6778,7 +6795,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	fcn->name = strdup(name);
 	if (!fcn->name)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
-	fcn->function_ref = ref;
+	fcn->function_ref[hlua_state_id] = ref;
 
 	/* List head */
 	sfk->list.n = sfk->list.p = NULL;
@@ -6862,7 +6879,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			         rule->arg.hlua_rule->fcn->name);
 			goto end;
 		}
-		if (!hlua_ctx_init(s->hlua, 0, s->task, 0)) {
+		if (!hlua_ctx_init(s->hlua, fcn_ref_to_stack_id(rule->arg.hlua_rule->fcn), s->task, 0)) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
 			         rule->arg.hlua_rule->fcn->name);
 			goto end;
@@ -6892,7 +6909,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		}
 
 		/* Restore the function in the stack. */
-		lua_rawgeti(s->hlua->T, LUA_REGISTRYINDEX, rule->arg.hlua_rule->fcn->function_ref);
+		lua_rawgeti(s->hlua->T, LUA_REGISTRYINDEX, rule->arg.hlua_rule->fcn->function_ref[s->hlua->state_id]);
 
 		/* Create and and push object stream in the stack. */
 		if (!hlua_txn_new(s->hlua->T, s, px, dir, hflags)) {
@@ -7047,7 +7064,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!hlua_ctx_init(hlua, 0, task, 0)) {
+	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(ctx->rule->arg.hlua_rule->fcn), task, 0)) {
 		SEND_ERR(px, "Lua applet tcp '%s': can't initialize Lua context.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
@@ -7076,7 +7093,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	}
 
 	/* Restore the function in the stack. */
-	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn->function_ref);
+	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
 
 	/* Create and and push object stream in the stack. */
 	if (!hlua_applet_tcp_new(hlua->T, ctx)) {
@@ -7240,7 +7257,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!hlua_ctx_init(hlua, 0, task, 0)) {
+	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(ctx->rule->arg.hlua_rule->fcn), task, 0)) {
 		SEND_ERR(px, "Lua applet http '%s': can't initialize Lua context.\n",
 		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
@@ -7269,7 +7286,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	}
 
 	/* Restore the function in the stack. */
-	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn->function_ref);
+	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn->function_ref[hlua->state_id]);
 
 	/* Create and and push object stream in the stack. */
 	if (!hlua_applet_http_new(hlua->T, ctx)) {
@@ -7643,7 +7660,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 		fcn->name = strdup(name);
 		if (!fcn->name)
 			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
-		fcn->function_ref = ref;
+		fcn->function_ref[hlua_state_id] = ref;
 
 		/* Set the expected number od arguments. */
 		fcn->nargs = nargs;
@@ -7766,7 +7783,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 	if (!fcn->name)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 	snprintf((char *)fcn->name, len, "<lua.%s>", name);
-	fcn->function_ref = ref;
+	fcn->function_ref[hlua_state_id] = ref;
 
 	/* List head */
 	akl->list.n = akl->list.p = NULL;
@@ -7835,7 +7852,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	appctx->ctx.hlua_cli.task->process = hlua_applet_wakeup;
 
 	/* Initialises the Lua context */
-	if (!hlua_ctx_init(hlua, 0, appctx->ctx.hlua_cli.task, 0)) {
+	if (!hlua_ctx_init(hlua, fcn_ref_to_stack_id(fcn), appctx->ctx.hlua_cli.task, 0)) {
 		SEND_ERR(NULL, "Lua cli '%s': can't initialize Lua context.\n", fcn->name);
 		goto error;
 	}
@@ -7857,7 +7874,7 @@ static int hlua_cli_parse_fct(char **args, char *payload, struct appctx *appctx,
 	}
 
 	/* Restore the function in the stack. */
-	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, fcn->function_ref);
+	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, fcn->function_ref[hlua->state_id]);
 
 	/* Once the arguments parsed, the CLI is like an AppletTCP,
 	 * so push AppletTCP in the stack.
@@ -8065,7 +8082,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 		strncat((char *)fcn->name, cli_kws->kw[0].str_kw[i], len);
 	}
 	strncat((char *)fcn->name, ">", len);
-	fcn->function_ref = ref_io;
+	fcn->function_ref[hlua_state_id] = ref_io;
 
 	/* Fill last entries. */
 	cli_kws->kw[0].private = fcn;
@@ -8226,6 +8243,7 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 		return -1;
 	}
 
+	hlua_state_id = 0;
 	return hlua_load_state(args[1], hlua_states[0], err);
 }
 
@@ -8323,7 +8341,7 @@ int hlua_post_init_state(lua_State *L)
 
 	hlua_fcn_post_init(L);
 
-	list_for_each_entry(init, &hlua_init_functions, l) {
+	list_for_each_entry(init, &hlua_init_functions[hlua_state_id], l) {
 		lua_rawgeti(L, LUA_REGISTRYINDEX, init->function_ref);
 
 #if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM >= 504
@@ -8394,7 +8412,9 @@ int hlua_post_init()
 	}
 #endif
 
-	return hlua_post_init_state(hlua_states[0]);
+	/* Perform post init of common thread */
+	hlua_state_id = 0;
+	return hlua_post_init_state(hlua_states[hlua_state_id]);
 }
 
 /* The memory allocator used by the Lua stack. <ud> is a pointer to the
@@ -9038,6 +9058,14 @@ lua_State *hlua_init_state(int thread_num)
 }
 
 void hlua_init(void) {
+	int i;
+
+	/* Init post init function list head */
+	for (i = 0; i < MAX_THREADS + 1; i++)
+		LIST_INIT(&hlua_init_functions[i]);
+
+	/* Init state for common/shared lua parts */
+	hlua_state_id = 0;
 	hlua_states[0] = hlua_init_state(0);
 }
 

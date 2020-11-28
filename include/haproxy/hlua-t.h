@@ -113,7 +113,7 @@ struct hlua_init_function {
 struct hlua_function {
 	struct list l;
 	char *name;
-	int function_ref;
+	int function_ref[MAX_THREADS + 1];
 	int nargs;
 };
 
