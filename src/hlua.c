@@ -8380,7 +8380,7 @@ static void *hlua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
  * We are in the initialisation process of HAProxy, this abort() is
  * tolerated.
  */
-void hlua_init(void)
+lua_State *hlua_init_state(void)
 {
 	int i;
 	int idx;
@@ -8389,6 +8389,7 @@ void hlua_init(void)
 	char *p;
 	const char *error_msg;
 	void **context;
+	lua_State *L;
 #ifdef USE_OPENSSL
 	struct srv_kw *kw;
 	int tmp_error;
@@ -8402,10 +8403,10 @@ void hlua_init(void)
 #endif
 
 	/* Init main lua stack. */
-	gL.T = lua_newstate(hlua_alloc, &hlua_global_allocator);
+	L = lua_newstate(hlua_alloc, &hlua_global_allocator);
 
 	/* Initialise Lua context to NULL */
-	context = lua_getextraspace(gL.T);
+	context = lua_getextraspace(L);
 	*context = NULL;
 
 	/* From this point, until the end of the initialisation function,
@@ -8414,24 +8415,25 @@ void hlua_init(void)
 	 */
 
 	/* Set safe environment for the initialisation. */
-	if (!SET_SAFE_LJMP(gL.T)) {
-		if (lua_type(gL.T, -1) == LUA_TSTRING)
-			error_msg = lua_tostring(gL.T, -1);
+	if (!SET_SAFE_LJMP(L)) {
+		if (lua_type(L, -1) == LUA_TSTRING)
+			error_msg = lua_tostring(L, -1);
 		else
 			error_msg = "critical error";
 		fprintf(stderr, "Lua init: %s.\n", error_msg);
 		exit(1);
 	}
 
+
 	/* Initialise lua. */
-	luaL_openlibs(gL.T);
+	luaL_openlibs(L);
 #define HLUA_PREPEND_PATH_TOSTRING1(x) #x
 #define HLUA_PREPEND_PATH_TOSTRING(x) HLUA_PREPEND_PATH_TOSTRING1(x)
 #ifdef HLUA_PREPEND_PATH
-	hlua_prepend_path(gL.T, "path", HLUA_PREPEND_PATH_TOSTRING(HLUA_PREPEND_PATH));
+	hlua_prepend_path(L, "path", HLUA_PREPEND_PATH_TOSTRING(HLUA_PREPEND_PATH));
 #endif
 #ifdef HLUA_PREPEND_CPATH
-	hlua_prepend_path(gL.T, "cpath", HLUA_PREPEND_PATH_TOSTRING(HLUA_PREPEND_CPATH));
+	hlua_prepend_path(L, "cpath", HLUA_PREPEND_PATH_TOSTRING(HLUA_PREPEND_CPATH));
 #endif
 #undef HLUA_PREPEND_PATH_TOSTRING
 #undef HLUA_PREPEND_PATH_TOSTRING1
@@ -8443,38 +8445,38 @@ void hlua_init(void)
 	 */
 
 	/* This table entry is the object "core" base. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* Push the loglevel constants. */
 	for (i = 0; i < NB_LOG_LEVELS; i++)
-		hlua_class_const_int(gL.T, log_levels[i], i);
+		hlua_class_const_int(L, log_levels[i], i);
 
 	/* Register special functions. */
-	hlua_class_function(gL.T, "register_init", hlua_register_init);
-	hlua_class_function(gL.T, "register_task", hlua_register_task);
-	hlua_class_function(gL.T, "register_fetches", hlua_register_fetches);
-	hlua_class_function(gL.T, "register_converters", hlua_register_converters);
-	hlua_class_function(gL.T, "register_action", hlua_register_action);
-	hlua_class_function(gL.T, "register_service", hlua_register_service);
-	hlua_class_function(gL.T, "register_cli", hlua_register_cli);
-	hlua_class_function(gL.T, "yield", hlua_yield);
-	hlua_class_function(gL.T, "set_nice", hlua_set_nice);
-	hlua_class_function(gL.T, "sleep", hlua_sleep);
-	hlua_class_function(gL.T, "msleep", hlua_msleep);
-	hlua_class_function(gL.T, "add_acl", hlua_add_acl);
-	hlua_class_function(gL.T, "del_acl", hlua_del_acl);
-	hlua_class_function(gL.T, "set_map", hlua_set_map);
-	hlua_class_function(gL.T, "del_map", hlua_del_map);
-	hlua_class_function(gL.T, "tcp", hlua_socket_new);
-	hlua_class_function(gL.T, "log", hlua_log);
-	hlua_class_function(gL.T, "Debug", hlua_log_debug);
-	hlua_class_function(gL.T, "Info", hlua_log_info);
-	hlua_class_function(gL.T, "Warning", hlua_log_warning);
-	hlua_class_function(gL.T, "Alert", hlua_log_alert);
-	hlua_class_function(gL.T, "done", hlua_done);
-	hlua_fcn_reg_core_fcn(gL.T);
+	hlua_class_function(L, "register_init", hlua_register_init);
+	hlua_class_function(L, "register_task", hlua_register_task);
+	hlua_class_function(L, "register_fetches", hlua_register_fetches);
+	hlua_class_function(L, "register_converters", hlua_register_converters);
+	hlua_class_function(L, "register_action", hlua_register_action);
+	hlua_class_function(L, "register_service", hlua_register_service);
+	hlua_class_function(L, "register_cli", hlua_register_cli);
+	hlua_class_function(L, "yield", hlua_yield);
+	hlua_class_function(L, "set_nice", hlua_set_nice);
+	hlua_class_function(L, "sleep", hlua_sleep);
+	hlua_class_function(L, "msleep", hlua_msleep);
+	hlua_class_function(L, "add_acl", hlua_add_acl);
+	hlua_class_function(L, "del_acl", hlua_del_acl);
+	hlua_class_function(L, "set_map", hlua_set_map);
+	hlua_class_function(L, "del_map", hlua_del_map);
+	hlua_class_function(L, "tcp", hlua_socket_new);
+	hlua_class_function(L, "log", hlua_log);
+	hlua_class_function(L, "Debug", hlua_log_debug);
+	hlua_class_function(L, "Info", hlua_log_info);
+	hlua_class_function(L, "Warning", hlua_log_warning);
+	hlua_class_function(L, "Alert", hlua_log_alert);
+	hlua_class_function(L, "done", hlua_done);
+	hlua_fcn_reg_core_fcn(L);
 
-	lua_setglobal(gL.T, "core");
+	lua_setglobal(L, "core");
 
 	/*
 	 *
@@ -8483,21 +8485,21 @@ void hlua_init(void)
 	 */
 
 	/* This table entry is the object "act" base. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* push action return constants */
-	hlua_class_const_int(gL.T, "CONTINUE", ACT_RET_CONT);
-	hlua_class_const_int(gL.T, "STOP",     ACT_RET_STOP);
-	hlua_class_const_int(gL.T, "YIELD",    ACT_RET_YIELD);
-	hlua_class_const_int(gL.T, "ERROR",    ACT_RET_ERR);
-	hlua_class_const_int(gL.T, "DONE",     ACT_RET_DONE);
-	hlua_class_const_int(gL.T, "DENY",     ACT_RET_DENY);
-	hlua_class_const_int(gL.T, "ABORT",    ACT_RET_ABRT);
-	hlua_class_const_int(gL.T, "INVALID",  ACT_RET_INV);
+	hlua_class_const_int(L, "CONTINUE", ACT_RET_CONT);
+	hlua_class_const_int(L, "STOP",     ACT_RET_STOP);
+	hlua_class_const_int(L, "YIELD",    ACT_RET_YIELD);
+	hlua_class_const_int(L, "ERROR",    ACT_RET_ERR);
+	hlua_class_const_int(L, "DONE",     ACT_RET_DONE);
+	hlua_class_const_int(L, "DENY",     ACT_RET_DENY);
+	hlua_class_const_int(L, "ABORT",    ACT_RET_ABRT);
+	hlua_class_const_int(L, "INVALID",  ACT_RET_INV);
 
-	hlua_class_function(gL.T, "wake_time", hlua_set_wake_time);
+	hlua_class_function(L, "wake_time", hlua_set_wake_time);
 
-	lua_setglobal(gL.T, "act");
+	lua_setglobal(L, "act");
 
 	/*
 	 *
@@ -8506,44 +8508,44 @@ void hlua_init(void)
 	 */
 
 	/* This table entry is the object "Map" base. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* register pattern types. */
 	for (i=0; i<PAT_MATCH_NUM; i++)
-		hlua_class_const_int(gL.T, pat_match_names[i], i);
+		hlua_class_const_int(L, pat_match_names[i], i);
 	for (i=0; i<PAT_MATCH_NUM; i++) {
 		snprintf(trash.area, trash.size, "_%s", pat_match_names[i]);
-		hlua_class_const_int(gL.T, trash.area, i);
+		hlua_class_const_int(L, trash.area, i);
 	}
 
 	/* register constructor. */
-	hlua_class_function(gL.T, "new", hlua_map_new);
+	hlua_class_function(L, "new", hlua_map_new);
 
 	/* Create and fill the metatable. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* Create and fill the __index entry. */
-	lua_pushstring(gL.T, "__index");
-	lua_newtable(gL.T);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
 
 	/* Register . */
-	hlua_class_function(gL.T, "lookup", hlua_map_lookup);
-	hlua_class_function(gL.T, "slookup", hlua_map_slookup);
+	hlua_class_function(L, "lookup", hlua_map_lookup);
+	hlua_class_function(L, "slookup", hlua_map_slookup);
 
-	lua_rawset(gL.T, -3);
+	lua_rawset(L, -3);
 
 	/* Register previous table in the registry with reference and named entry.
 	 * The function hlua_register_metatable() pops the stack, so we
 	 * previously create a copy of the table.
 	 */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	class_map_ref = hlua_register_metatable(gL.T, CLASS_MAP);
+	lua_pushvalue(L, -1); /* Copy the -1 entry and push it on the stack. */
+	class_map_ref = hlua_register_metatable(L, CLASS_MAP);
 
 	/* Assign the metatable to the mai Map object. */
-	lua_setmetatable(gL.T, -2);
+	lua_setmetatable(L, -2);
 
 	/* Set a name to the table. */
-	lua_setglobal(gL.T, "Map");
+	lua_setglobal(L, "Map");
 
 	/*
 	 *
@@ -8552,29 +8554,29 @@ void hlua_init(void)
 	 */
 
 	/* Create and fill the metatable. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* Create and fill the __index entry. */
-	lua_pushstring(gL.T, "__index");
-	lua_newtable(gL.T);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
 
 	/* Register . */
-	hlua_class_function(gL.T, "get",         hlua_channel_get);
-	hlua_class_function(gL.T, "dup",         hlua_channel_dup);
-	hlua_class_function(gL.T, "getline",     hlua_channel_getline);
-	hlua_class_function(gL.T, "set",         hlua_channel_set);
-	hlua_class_function(gL.T, "append",      hlua_channel_append);
-	hlua_class_function(gL.T, "send",        hlua_channel_send);
-	hlua_class_function(gL.T, "forward",     hlua_channel_forward);
-	hlua_class_function(gL.T, "get_in_len",  hlua_channel_get_in_len);
-	hlua_class_function(gL.T, "get_out_len", hlua_channel_get_out_len);
-	hlua_class_function(gL.T, "is_full",     hlua_channel_is_full);
-	hlua_class_function(gL.T, "is_resp",     hlua_channel_is_resp);
+	hlua_class_function(L, "get",         hlua_channel_get);
+	hlua_class_function(L, "dup",         hlua_channel_dup);
+	hlua_class_function(L, "getline",     hlua_channel_getline);
+	hlua_class_function(L, "set",         hlua_channel_set);
+	hlua_class_function(L, "append",      hlua_channel_append);
+	hlua_class_function(L, "send",        hlua_channel_send);
+	hlua_class_function(L, "forward",     hlua_channel_forward);
+	hlua_class_function(L, "get_in_len",  hlua_channel_get_in_len);
+	hlua_class_function(L, "get_out_len", hlua_channel_get_out_len);
+	hlua_class_function(L, "is_full",     hlua_channel_is_full);
+	hlua_class_function(L, "is_resp",     hlua_channel_is_resp);
 
-	lua_rawset(gL.T, -3);
+	lua_rawset(L, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	class_channel_ref = hlua_register_metatable(gL.T, CLASS_CHANNEL);
+	class_channel_ref = hlua_register_metatable(L, CLASS_CHANNEL);
 
 	/*
 	 *
@@ -8583,11 +8585,11 @@ void hlua_init(void)
 	 */
 
 	/* Create and fill the metatable. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* Create and fill the __index entry. */
-	lua_pushstring(gL.T, "__index");
-	lua_newtable(gL.T);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
 
 	/* Browse existing fetches and create the associated
 	 * object method.
@@ -8604,16 +8606,16 @@ void hlua_init(void)
 				*p = '_';
 
 		/* Register the function. */
-		lua_pushstring(gL.T, trash.area);
-		lua_pushlightuserdata(gL.T, sf);
-		lua_pushcclosure(gL.T, hlua_run_sample_fetch, 1);
-		lua_rawset(gL.T, -3);
+		lua_pushstring(L, trash.area);
+		lua_pushlightuserdata(L, sf);
+		lua_pushcclosure(L, hlua_run_sample_fetch, 1);
+		lua_rawset(L, -3);
 	}
 
-	lua_rawset(gL.T, -3);
+	lua_rawset(L, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	class_fetches_ref = hlua_register_metatable(gL.T, CLASS_FETCHES);
+	class_fetches_ref = hlua_register_metatable(L, CLASS_FETCHES);
 
 	/*
 	 *
@@ -8622,11 +8624,11 @@ void hlua_init(void)
 	 */
 
 	/* Create and fill the metatable. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* Create and fill the __index entry. */
-	lua_pushstring(gL.T, "__index");
-	lua_newtable(gL.T);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
 
 	/* Browse existing converters and create the associated
 	 * object method.
@@ -8643,16 +8645,16 @@ void hlua_init(void)
 				*p = '_';
 
 		/* Register the function. */
-		lua_pushstring(gL.T, trash.area);
-		lua_pushlightuserdata(gL.T, sc);
-		lua_pushcclosure(gL.T, hlua_run_sample_conv, 1);
-		lua_rawset(gL.T, -3);
+		lua_pushstring(L, trash.area);
+		lua_pushlightuserdata(L, sc);
+		lua_pushcclosure(L, hlua_run_sample_conv, 1);
+		lua_rawset(L, -3);
 	}
 
-	lua_rawset(gL.T, -3);
+	lua_rawset(L, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	class_converters_ref = hlua_register_metatable(gL.T, CLASS_CONVERTERS);
+	class_converters_ref = hlua_register_metatable(L, CLASS_CONVERTERS);
 
 	/*
 	 *
@@ -8661,36 +8663,36 @@ void hlua_init(void)
 	 */
 
 	/* Create and fill the metatable. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* Create and fill the __index entry. */
-	lua_pushstring(gL.T, "__index");
-	lua_newtable(gL.T);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
 
 	/* Register Lua functions. */
-	hlua_class_function(gL.T, "req_get_headers",hlua_http_req_get_headers);
-	hlua_class_function(gL.T, "req_del_header", hlua_http_req_del_hdr);
-	hlua_class_function(gL.T, "req_rep_header", hlua_http_req_rep_hdr);
-	hlua_class_function(gL.T, "req_rep_value",  hlua_http_req_rep_val);
-	hlua_class_function(gL.T, "req_add_header", hlua_http_req_add_hdr);
-	hlua_class_function(gL.T, "req_set_header", hlua_http_req_set_hdr);
-	hlua_class_function(gL.T, "req_set_method", hlua_http_req_set_meth);
-	hlua_class_function(gL.T, "req_set_path",   hlua_http_req_set_path);
-	hlua_class_function(gL.T, "req_set_query",  hlua_http_req_set_query);
-	hlua_class_function(gL.T, "req_set_uri",    hlua_http_req_set_uri);
+	hlua_class_function(L, "req_get_headers",hlua_http_req_get_headers);
+	hlua_class_function(L, "req_del_header", hlua_http_req_del_hdr);
+	hlua_class_function(L, "req_rep_header", hlua_http_req_rep_hdr);
+	hlua_class_function(L, "req_rep_value",  hlua_http_req_rep_val);
+	hlua_class_function(L, "req_add_header", hlua_http_req_add_hdr);
+	hlua_class_function(L, "req_set_header", hlua_http_req_set_hdr);
+	hlua_class_function(L, "req_set_method", hlua_http_req_set_meth);
+	hlua_class_function(L, "req_set_path",   hlua_http_req_set_path);
+	hlua_class_function(L, "req_set_query",  hlua_http_req_set_query);
+	hlua_class_function(L, "req_set_uri",    hlua_http_req_set_uri);
 
-	hlua_class_function(gL.T, "res_get_headers",hlua_http_res_get_headers);
-	hlua_class_function(gL.T, "res_del_header", hlua_http_res_del_hdr);
-	hlua_class_function(gL.T, "res_rep_header", hlua_http_res_rep_hdr);
-	hlua_class_function(gL.T, "res_rep_value",  hlua_http_res_rep_val);
-	hlua_class_function(gL.T, "res_add_header", hlua_http_res_add_hdr);
-	hlua_class_function(gL.T, "res_set_header", hlua_http_res_set_hdr);
-	hlua_class_function(gL.T, "res_set_status", hlua_http_res_set_status);
+	hlua_class_function(L, "res_get_headers",hlua_http_res_get_headers);
+	hlua_class_function(L, "res_del_header", hlua_http_res_del_hdr);
+	hlua_class_function(L, "res_rep_header", hlua_http_res_rep_hdr);
+	hlua_class_function(L, "res_rep_value",  hlua_http_res_rep_val);
+	hlua_class_function(L, "res_add_header", hlua_http_res_add_hdr);
+	hlua_class_function(L, "res_set_header", hlua_http_res_set_hdr);
+	hlua_class_function(L, "res_set_status", hlua_http_res_set_status);
 
-	lua_rawset(gL.T, -3);
+	lua_rawset(L, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	class_http_ref = hlua_register_metatable(gL.T, CLASS_HTTP);
+	class_http_ref = hlua_register_metatable(L, CLASS_HTTP);
 
 	/*
 	 *
@@ -8699,26 +8701,26 @@ void hlua_init(void)
 	 */
 
 	/* Create and fill the metatable. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* Create and fill the __index entry. */
-	lua_pushstring(gL.T, "__index");
-	lua_newtable(gL.T);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
 
 	/* Register Lua functions. */
-	hlua_class_function(gL.T, "getline",   hlua_applet_tcp_getline);
-	hlua_class_function(gL.T, "receive",   hlua_applet_tcp_recv);
-	hlua_class_function(gL.T, "send",      hlua_applet_tcp_send);
-	hlua_class_function(gL.T, "set_priv",  hlua_applet_tcp_set_priv);
-	hlua_class_function(gL.T, "get_priv",  hlua_applet_tcp_get_priv);
-	hlua_class_function(gL.T, "set_var",   hlua_applet_tcp_set_var);
-	hlua_class_function(gL.T, "unset_var", hlua_applet_tcp_unset_var);
-	hlua_class_function(gL.T, "get_var",   hlua_applet_tcp_get_var);
+	hlua_class_function(L, "getline",   hlua_applet_tcp_getline);
+	hlua_class_function(L, "receive",   hlua_applet_tcp_recv);
+	hlua_class_function(L, "send",      hlua_applet_tcp_send);
+	hlua_class_function(L, "set_priv",  hlua_applet_tcp_set_priv);
+	hlua_class_function(L, "get_priv",  hlua_applet_tcp_get_priv);
+	hlua_class_function(L, "set_var",   hlua_applet_tcp_set_var);
+	hlua_class_function(L, "unset_var", hlua_applet_tcp_unset_var);
+	hlua_class_function(L, "get_var",   hlua_applet_tcp_get_var);
 
-	lua_settable(gL.T, -3);
+	lua_settable(L, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	class_applet_tcp_ref = hlua_register_metatable(gL.T, CLASS_APPLET_TCP);
+	class_applet_tcp_ref = hlua_register_metatable(L, CLASS_APPLET_TCP);
 
 	/*
 	 *
@@ -8727,29 +8729,29 @@ void hlua_init(void)
 	 */
 
 	/* Create and fill the metatable. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* Create and fill the __index entry. */
-	lua_pushstring(gL.T, "__index");
-	lua_newtable(gL.T);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
 
 	/* Register Lua functions. */
-	hlua_class_function(gL.T, "set_priv",       hlua_applet_http_set_priv);
-	hlua_class_function(gL.T, "get_priv",       hlua_applet_http_get_priv);
-	hlua_class_function(gL.T, "set_var",        hlua_applet_http_set_var);
-	hlua_class_function(gL.T, "unset_var",      hlua_applet_http_unset_var);
-	hlua_class_function(gL.T, "get_var",        hlua_applet_http_get_var);
-	hlua_class_function(gL.T, "getline",        hlua_applet_http_getline);
-	hlua_class_function(gL.T, "receive",        hlua_applet_http_recv);
-	hlua_class_function(gL.T, "send",           hlua_applet_http_send);
-	hlua_class_function(gL.T, "add_header",     hlua_applet_http_addheader);
-	hlua_class_function(gL.T, "set_status",     hlua_applet_http_status);
-	hlua_class_function(gL.T, "start_response", hlua_applet_http_start_response);
+	hlua_class_function(L, "set_priv",       hlua_applet_http_set_priv);
+	hlua_class_function(L, "get_priv",       hlua_applet_http_get_priv);
+	hlua_class_function(L, "set_var",        hlua_applet_http_set_var);
+	hlua_class_function(L, "unset_var",      hlua_applet_http_unset_var);
+	hlua_class_function(L, "get_var",        hlua_applet_http_get_var);
+	hlua_class_function(L, "getline",        hlua_applet_http_getline);
+	hlua_class_function(L, "receive",        hlua_applet_http_recv);
+	hlua_class_function(L, "send",           hlua_applet_http_send);
+	hlua_class_function(L, "add_header",     hlua_applet_http_addheader);
+	hlua_class_function(L, "set_status",     hlua_applet_http_status);
+	hlua_class_function(L, "start_response", hlua_applet_http_start_response);
 
-	lua_settable(gL.T, -3);
+	lua_settable(L, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	class_applet_http_ref = hlua_register_metatable(gL.T, CLASS_APPLET_HTTP);
+	class_applet_http_ref = hlua_register_metatable(L, CLASS_APPLET_HTTP);
 
 	/*
 	 *
@@ -8758,51 +8760,51 @@ void hlua_init(void)
 	 */
 
 	/* Create and fill the metatable. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* Create and fill the __index entry. */
-	lua_pushstring(gL.T, "__index");
-	lua_newtable(gL.T);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
 
 	/* Register Lua functions. */
-	hlua_class_function(gL.T, "set_priv",            hlua_set_priv);
-	hlua_class_function(gL.T, "get_priv",            hlua_get_priv);
-	hlua_class_function(gL.T, "set_var",             hlua_set_var);
-	hlua_class_function(gL.T, "unset_var",           hlua_unset_var);
-	hlua_class_function(gL.T, "get_var",             hlua_get_var);
-	hlua_class_function(gL.T, "done",                hlua_txn_done);
-	hlua_class_function(gL.T, "reply",               hlua_txn_reply_new);
-	hlua_class_function(gL.T, "set_loglevel",        hlua_txn_set_loglevel);
-	hlua_class_function(gL.T, "set_tos",             hlua_txn_set_tos);
-	hlua_class_function(gL.T, "set_mark",            hlua_txn_set_mark);
-	hlua_class_function(gL.T, "set_priority_class",  hlua_txn_set_priority_class);
-	hlua_class_function(gL.T, "set_priority_offset", hlua_txn_set_priority_offset);
-	hlua_class_function(gL.T, "deflog",              hlua_txn_deflog);
-	hlua_class_function(gL.T, "log",                 hlua_txn_log);
-	hlua_class_function(gL.T, "Debug",               hlua_txn_log_debug);
-	hlua_class_function(gL.T, "Info",                hlua_txn_log_info);
-	hlua_class_function(gL.T, "Warning",             hlua_txn_log_warning);
-	hlua_class_function(gL.T, "Alert",               hlua_txn_log_alert);
+	hlua_class_function(L, "set_priv",            hlua_set_priv);
+	hlua_class_function(L, "get_priv",            hlua_get_priv);
+	hlua_class_function(L, "set_var",             hlua_set_var);
+	hlua_class_function(L, "unset_var",           hlua_unset_var);
+	hlua_class_function(L, "get_var",             hlua_get_var);
+	hlua_class_function(L, "done",                hlua_txn_done);
+	hlua_class_function(L, "reply",               hlua_txn_reply_new);
+	hlua_class_function(L, "set_loglevel",        hlua_txn_set_loglevel);
+	hlua_class_function(L, "set_tos",             hlua_txn_set_tos);
+	hlua_class_function(L, "set_mark",            hlua_txn_set_mark);
+	hlua_class_function(L, "set_priority_class",  hlua_txn_set_priority_class);
+	hlua_class_function(L, "set_priority_offset", hlua_txn_set_priority_offset);
+	hlua_class_function(L, "deflog",              hlua_txn_deflog);
+	hlua_class_function(L, "log",                 hlua_txn_log);
+	hlua_class_function(L, "Debug",               hlua_txn_log_debug);
+	hlua_class_function(L, "Info",                hlua_txn_log_info);
+	hlua_class_function(L, "Warning",             hlua_txn_log_warning);
+	hlua_class_function(L, "Alert",               hlua_txn_log_alert);
 
-	lua_rawset(gL.T, -3);
+	lua_rawset(L, -3);
 
 	/* Register previous table in the registry with reference and named entry. */
-	class_txn_ref = hlua_register_metatable(gL.T, CLASS_TXN);
+	class_txn_ref = hlua_register_metatable(L, CLASS_TXN);
 
 	/*
 	 *
 	 * Register class reply
 	 *
 	 */
-	lua_newtable(gL.T);
-	lua_pushstring(gL.T, "__index");
-	lua_newtable(gL.T);
-	hlua_class_function(gL.T, "set_status", hlua_txn_reply_set_status);
-	hlua_class_function(gL.T, "add_header", hlua_txn_reply_add_header);
-	hlua_class_function(gL.T, "del_header", hlua_txn_reply_del_header);
-	hlua_class_function(gL.T, "set_body",   hlua_txn_reply_set_body);
-	lua_settable(gL.T, -3); /* Sets the __index entry. */
-	class_txn_reply_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX);
+	lua_newtable(L);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
+	hlua_class_function(L, "set_status", hlua_txn_reply_set_status);
+	hlua_class_function(L, "add_header", hlua_txn_reply_add_header);
+	hlua_class_function(L, "del_header", hlua_txn_reply_del_header);
+	hlua_class_function(L, "set_body",   hlua_txn_reply_set_body);
+	lua_settable(L, -3); /* Sets the __index entry. */
+	class_txn_reply_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 
 
 	/*
@@ -8812,33 +8814,33 @@ void hlua_init(void)
 	 */
 
 	/* Create and fill the metatable. */
-	lua_newtable(gL.T);
+	lua_newtable(L);
 
 	/* Create and fill the __index entry. */
-	lua_pushstring(gL.T, "__index");
-	lua_newtable(gL.T);
+	lua_pushstring(L, "__index");
+	lua_newtable(L);
 
 #ifdef USE_OPENSSL
-	hlua_class_function(gL.T, "connect_ssl", hlua_socket_connect_ssl);
+	hlua_class_function(L, "connect_ssl", hlua_socket_connect_ssl);
 #endif
-	hlua_class_function(gL.T, "connect",     hlua_socket_connect);
-	hlua_class_function(gL.T, "send",        hlua_socket_send);
-	hlua_class_function(gL.T, "receive",     hlua_socket_receive);
-	hlua_class_function(gL.T, "close",       hlua_socket_close);
-	hlua_class_function(gL.T, "getpeername", hlua_socket_getpeername);
-	hlua_class_function(gL.T, "getsockname", hlua_socket_getsockname);
-	hlua_class_function(gL.T, "setoption",   hlua_socket_setoption);
-	hlua_class_function(gL.T, "settimeout",  hlua_socket_settimeout);
+	hlua_class_function(L, "connect",     hlua_socket_connect);
+	hlua_class_function(L, "send",        hlua_socket_send);
+	hlua_class_function(L, "receive",     hlua_socket_receive);
+	hlua_class_function(L, "close",       hlua_socket_close);
+	hlua_class_function(L, "getpeername", hlua_socket_getpeername);
+	hlua_class_function(L, "getsockname", hlua_socket_getsockname);
+	hlua_class_function(L, "setoption",   hlua_socket_setoption);
+	hlua_class_function(L, "settimeout",  hlua_socket_settimeout);
 
-	lua_rawset(gL.T, -3); /* Push the last 2 entries in the table at index -3 */
+	lua_rawset(L, -3); /* Push the last 2 entries in the table at index -3 */
 
 	/* Register the garbage collector entry. */
-	lua_pushstring(gL.T, "__gc");
-	lua_pushcclosure(gL.T, hlua_socket_gc, 0);
-	lua_rawset(gL.T, -3); /* Push the last 2 entries in the table at index -3 */
+	lua_pushstring(L, "__gc");
+	lua_pushcclosure(L, hlua_socket_gc, 0);
+	lua_rawset(L, -3); /* Push the last 2 entries in the table at index -3 */
 
 	/* Register previous table in the registry with reference and named entry. */
-	class_socket_ref = hlua_register_metatable(gL.T, CLASS_SOCKET);
+	class_socket_ref = hlua_register_metatable(L, CLASS_SOCKET);
 
 	/* Proxy and server configuration initialisation. */
 	memset(&socket_proxy, 0, sizeof(socket_proxy));
@@ -8964,7 +8966,13 @@ void hlua_init(void)
 	}
 #endif
 
-	RESET_SAFE_LJMP(gL.T);
+	RESET_SAFE_LJMP(L);
+
+	return L;
+}
+
+void hlua_init(void) {
+	gL.T = hlua_init_state();
 }
 
 static void hlua_deinit()
