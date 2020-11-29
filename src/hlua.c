@@ -1347,9 +1347,9 @@ resume_execution:
 		lua_pop(lua->T, 1);
 		trace = hlua_traceback(lua->T);
 		if (msg)
-			lua_pushfstring(lua->T, "runtime error: %s from %s", msg, trace);
+			lua_pushfstring(lua->T, "[state-id %d] runtime error: %s from %s", lua->state_id, msg, trace);
 		else
-			lua_pushfstring(lua->T, "unknown runtime error from %s", trace);
+			lua_pushfstring(lua->T, "[state-id %d] unknown runtime error from %s", lua->state_id, trace);
 		ret = HLUA_E_ERRMSG;
 		break;
 
@@ -1369,9 +1369,9 @@ resume_execution:
 		lua_settop(lua->T, 0); /* Empty the stack. */
 		lua_pop(lua->T, 1);
 		if (msg)
-			lua_pushfstring(lua->T, "message handler error: %s", msg);
+			lua_pushfstring(lua->T, "[state-id %d] message handler error: %s", lua->state_id, msg);
 		else
-			lua_pushfstring(lua->T, "message handler error");
+			lua_pushfstring(lua->T, "[state-id %d] message handler error", lua->state_id);
 		ret = HLUA_E_ERRMSG;
 		break;
 
