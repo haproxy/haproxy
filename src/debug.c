@@ -675,6 +675,210 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 	return 1;
 }
 
+static struct task *debug_task_handler(struct task *t, void *ctx, unsigned short state)
+{
+	unsigned long *tctx = ctx; // [0] = #tasks, [1] = inter, [2+] = { tl | (tsk+1) }
+	unsigned long inter = tctx[1];
+	unsigned long rnd;
+
+	t->expire = tick_add(now_ms, inter);
+
+	/* half of the calls will wake up another entry */
+	rnd = ha_random64();
+	if (rnd & 1) {
+		rnd >>= 1;
+		rnd %= tctx[0];
+		rnd = tctx[rnd + 2];
+
+		if (rnd & 1)
+			task_wakeup((struct task *)(rnd - 1), TASK_WOKEN_MSG);
+		else
+			tasklet_wakeup((struct tasklet *)rnd);
+	}
+	return t;
+}
+
+static struct task *debug_tasklet_handler(struct task *t, void *ctx, unsigned short state)
+{
+	unsigned long *tctx = ctx; // [0] = #tasks, [1] = inter, [2+] = { tl | (tsk+1) }
+	unsigned long rnd;
+	int i;
+
+	/* wake up two random entries */
+	for (i = 0; i < 2; i++) {
+		rnd = ha_random64() % tctx[0];
+		rnd = tctx[rnd + 2];
+
+		if (rnd & 1)
+			task_wakeup((struct task *)(rnd - 1), TASK_WOKEN_MSG);
+		else
+			tasklet_wakeup((struct tasklet *)rnd);
+	}
+	return t;
+}
+
+/* parse a "debug dev sched" command
+ * debug dev sched {task|tasklet} [count=<count>] [mask=<mask>] [single=<single>] [inter=<inter>]
+ */
+static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	int arg;
+	void *ptr;
+	int size;
+	const char *word, *end;
+	struct ist name;
+	char *msg = NULL;
+	char *endarg;
+	unsigned long long new;
+	unsigned long count = 0;
+	unsigned long thrid = 0;
+	unsigned int inter = 0;
+	unsigned long mask, tmask;
+	unsigned long i;
+	int mode = 0; // 0 = tasklet; 1 = task
+	int single = 0;
+	unsigned long *tctx; // [0] = #tasks, [1] = inter, [2+] = { tl | (tsk+1) }
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	ptr = NULL; size = 0;
+	mask = all_threads_mask;
+
+	if (strcmp(args[3], "task") != 0 && strcmp(args[3], "tasklet") != 0) {
+		return cli_err(appctx,
+			       "Usage: debug dev sched {task|tasklet} { <obj> = <value> }*\n"
+			       "     <obj>   = {count | mask | inter | single }\n"
+			       "     <value> = 64-bit dec/hex integer (0x prefix supported)\n"
+			       );
+	}
+
+	mode = strcmp(args[3], "task") == 0;
+
+	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	for (arg = 4; *args[arg]; arg++) {
+		end = word = args[arg];
+		while (*end && *end != '=' && *end != '^' && *end != '+' && *end != '-')
+			end++;
+		name = ist2(word, end - word);
+		if (isteq(name, ist("count"))) {
+			ptr = &count; size = sizeof(count);
+		} else if (isteq(name, ist("mask"))) {
+			ptr = &mask; size = sizeof(mask);
+		} else if (isteq(name, ist("tid"))) {
+			ptr = &thrid; size = sizeof(thrid);
+		} else if (isteq(name, ist("inter"))) {
+			ptr = &inter; size = sizeof(inter);
+		} else if (isteq(name, ist("single"))) {
+			ptr = &single; size = sizeof(single);
+		} else
+			return cli_dynerr(appctx, memprintf(&msg, "Unsupported setting: '%s'.\n", word));
+
+		/* parse the new value . */
+		new = strtoll(end + 1, &endarg, 0);
+		if (end[1] && *endarg) {
+			memprintf(&msg,
+			          "%sIgnoring unparsable value '%s' for field '%.*s'.\n",
+			          msg ? msg : "", end + 1, (int)(end - word), word);
+			continue;
+		}
+
+		/* write the new value */
+		if (size == 8)
+			write_u64(ptr, new);
+		else if (size == 4)
+			write_u32(ptr, new);
+		else if (size == 2)
+			write_u16(ptr, new);
+		else
+			*(uint8_t *)ptr = new;
+	}
+
+	tctx = calloc(sizeof(*tctx), count + 2);
+	if (!tctx)
+		goto fail;
+
+	tctx[0] = (unsigned long)count;
+	tctx[1] = (unsigned long)inter;
+
+	mask &= all_threads_mask;
+	if (!mask)
+		mask = tid_bit;
+
+	tmask = 0;
+	for (i = 0; i < count; i++) {
+		if (single || mode == 0) {
+			/* look for next bit matching a bit in mask or loop back to zero */
+			for (tmask <<= 1; !(mask & tmask); ) {
+				if (!(mask & -tmask))
+					tmask = 1;
+				else
+					tmask <<= 1;
+			}
+		} else {
+			/* multi-threaded task */
+			tmask = mask;
+		}
+
+		/* now, if poly or mask was set, tmask corresponds to the
+		 * valid thread mask to use, otherwise it remains zero.
+		 */
+		//printf("%lu: mode=%d mask=%#lx\n", i, mode, tmask);
+		if (mode == 0) {
+			struct tasklet *tl = tasklet_new();
+
+			if (!tl)
+				goto fail;
+
+			if (tmask)
+				tl->tid = my_ffsl(tmask) - 1;
+			tl->process = debug_tasklet_handler;
+			tl->context = tctx;
+			tctx[i + 2] = (unsigned long)tl;
+		} else {
+			struct task *task = task_new(tmask ? tmask : tid_bit);
+
+			if (!task)
+				goto fail;
+
+			task->process = debug_task_handler;
+			task->context = tctx;
+			tctx[i + 2] = (unsigned long)task + 1;
+		}
+	}
+
+	/* start the tasks and tasklets */
+	for (i = 0; i < count; i++) {
+		unsigned long ctx = tctx[i + 2];
+
+		if (ctx & 1)
+			task_wakeup((struct task *)(ctx - 1), TASK_WOKEN_INIT);
+		else
+			tasklet_wakeup((struct tasklet *)ctx);
+	}
+
+	if (msg && *msg)
+		return cli_dynmsg(appctx, LOG_INFO, msg);
+	return 1;
+
+ fail:
+	/* free partially allocated entries */
+	for (i = 0; tctx && i < count; i++) {
+		unsigned long ctx = tctx[i + 2];
+
+		if (!ctx)
+			break;
+
+		if (ctx & 1)
+			task_destroy((struct task *)(ctx - 1));
+		else
+			tasklet_free((struct tasklet *)ctx);
+	}
+
+	free(tctx);
+	return cli_err(appctx, "Not enough memory");
+}
+
 #if defined(DEBUG_MEM_STATS)
 /* CLI parser for the "debug dev memstats" command */
 static int debug_parse_cli_memstats(char **args, char *payload, struct appctx *appctx, void *private)
@@ -917,6 +1121,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "memstats", NULL }, "debug dev memstats [reset|all] : dump/reset memory statistics",    debug_parse_cli_memstats, debug_iohandler_memstats, NULL, NULL, ACCESS_EXPERT },
 #endif
 	{{ "debug", "dev", "panic", NULL }, "debug dev panic             : immediately trigger a panic",     debug_parse_cli_panic, NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "sched", NULL }, "debug dev sched ...         : stress the scheduler",            debug_parse_cli_sched, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "stream",NULL }, "debug dev stream ...        : show/manipulate stream flags",    debug_parse_cli_stream,NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "tkill", NULL }, "debug dev tkill [thr] [sig] : send signal to thread",           debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "write", NULL }, "debug dev write [size]      : write that many bytes",           debug_parse_cli_write, NULL, NULL, NULL, ACCESS_EXPERT },
