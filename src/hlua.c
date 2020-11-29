@@ -7986,6 +7986,11 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 {
 	int error;
 
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects a file name as parameter.\n", args[0]);
+		return -1;
+	}
+
 	/* Just load and compile the file. */
 	error = luaL_loadfile(gL.T, args[1]);
 	if (error) {
