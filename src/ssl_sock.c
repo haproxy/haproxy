@@ -2418,6 +2418,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		const SSL_CIPHER *client_cipher;
 		size_t len;
 		const uint8_t *client_cipher_ids;
+		STACK_OF(SSL_CIPHER) *server_ciphers;
 		has_ecdsa_sig = 0;
 #ifdef OPENSSL_IS_BORINGSSL
 		len = ctx->cipher_suites_len;
@@ -2425,6 +2426,8 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 #else
 		len = SSL_client_hello_get0_ciphers(ssl, &client_cipher_ids);
 #endif
+		server_ciphers = SSL_get_ciphers(ssl);
+
 		if (len % 2 != 0)
 			goto abort;
 		for (; len != 0; len -= 2, client_cipher_ids += 2) {
@@ -2435,6 +2438,10 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 			client_cipher = SSL_CIPHER_find(ssl, client_cipher_ids);
 #endif
 			if (!client_cipher) {
+				continue;
+			}
+
+			if (sk_SSL_CIPHER_find(server_ciphers, client_cipher) == -1) {
 				continue;
 			}
 
