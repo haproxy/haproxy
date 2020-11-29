@@ -4661,7 +4661,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	}
 	if (!sl) {
 		hlua_pusherror(L, "Lua applet http '%s': Failed to create response.\n",
-		               appctx->appctx->rule->arg.hlua_rule->fcn.name);
+		               appctx->appctx->rule->arg.hlua_rule->fcn->name);
 		WILL_LJMP(lua_error(L));
 	}
 	sl->info.res.status = appctx->appctx->ctx.hlua_apphttp.status;
@@ -4670,7 +4670,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	lua_pushvalue(L, 0);
 	if (lua_getfield(L, 1, "response") != LUA_TTABLE) {
 		hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response'] missing.\n",
-		               appctx->appctx->rule->arg.hlua_rule->fcn.name);
+		               appctx->appctx->rule->arg.hlua_rule->fcn->name);
 		WILL_LJMP(lua_error(L));
 	}
 
@@ -4680,7 +4680,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 		/* We expect a string as -2. */
 		if (lua_type(L, -2) != LUA_TSTRING) {
 			hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response'][] element must be a string. got %s.\n",
-				       appctx->appctx->rule->arg.hlua_rule->fcn.name,
+				       appctx->appctx->rule->arg.hlua_rule->fcn->name,
 			               lua_typename(L, lua_type(L, -2)));
 			WILL_LJMP(lua_error(L));
 		}
@@ -4689,7 +4689,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 		/* We expect an array as -1. */
 		if (lua_type(L, -1) != LUA_TTABLE) {
 			hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response']['%s'] element must be an table. got %s.\n",
-				       appctx->appctx->rule->arg.hlua_rule->fcn.name,
+				       appctx->appctx->rule->arg.hlua_rule->fcn->name,
 				       name,
 			               lua_typename(L, lua_type(L, -1)));
 			WILL_LJMP(lua_error(L));
@@ -4703,7 +4703,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 			/* We expect a number as -2. */
 			if (lua_type(L, -2) != LUA_TNUMBER) {
 				hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response']['%s'][] element must be a number. got %s.\n",
-					       appctx->appctx->rule->arg.hlua_rule->fcn.name,
+					       appctx->appctx->rule->arg.hlua_rule->fcn->name,
 					       name,
 				               lua_typename(L, lua_type(L, -2)));
 				WILL_LJMP(lua_error(L));
@@ -4713,7 +4713,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 			/* We expect a string as -2. */
 			if (lua_type(L, -1) != LUA_TSTRING) {
 				hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response']['%s'][%d] element must be a string. got %s.\n",
-					       appctx->appctx->rule->arg.hlua_rule->fcn.name,
+					       appctx->appctx->rule->arg.hlua_rule->fcn->name,
 					       name, id,
 				               lua_typename(L, lua_type(L, -1)));
 				WILL_LJMP(lua_error(L));
@@ -4730,7 +4730,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 				ret = h1_parse_cont_len_header(&h1m, &v);
 				if (ret < 0) {
 					hlua_pusherror(L, "Lua applet http '%s': Invalid '%s' header.\n",
-						       appctx->appctx->rule->arg.hlua_rule->fcn.name,
+						       appctx->appctx->rule->arg.hlua_rule->fcn->name,
 						       name);
 					WILL_LJMP(lua_error(L));
 				}
@@ -4741,7 +4741,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 			/* Add a new header */
 			if (!htx_add_header(htx, ist2(name, nlen), ist2(value, vlen))) {
 				hlua_pusherror(L, "Lua applet http '%s': Failed to add header '%s' in the response.\n",
-					       appctx->appctx->rule->arg.hlua_rule->fcn.name,
+					       appctx->appctx->rule->arg.hlua_rule->fcn->name,
 					       name);
 				WILL_LJMP(lua_error(L));
 			}
@@ -4787,7 +4787,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 		sl->flags |= (HTX_SL_F_XFER_ENC|H1_MF_CHNK|H1_MF_XFER_LEN);
 		if (!htx_add_header(htx, ist("transfer-encoding"), ist("chunked"))) {
 			hlua_pusherror(L, "Lua applet http '%s': Failed to add header 'transfer-encoding' in the response.\n",
-				       appctx->appctx->rule->arg.hlua_rule->fcn.name);
+				       appctx->appctx->rule->arg.hlua_rule->fcn->name);
 			WILL_LJMP(lua_error(L));
 		}
 	}
@@ -4795,7 +4795,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	/* Finalize headers. */
 	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
 		hlua_pusherror(L, "Lua applet http '%s': Failed create the response.\n",
-			       appctx->appctx->rule->arg.hlua_rule->fcn.name);
+			       appctx->appctx->rule->arg.hlua_rule->fcn->name);
 		WILL_LJMP(lua_error(L));
 	}
 
@@ -6812,12 +6812,12 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		s->hlua = pool_alloc(pool_head_hlua);
 		if (!s->hlua) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
-			         rule->arg.hlua_rule->fcn.name);
+			         rule->arg.hlua_rule->fcn->name);
 			goto end;
 		}
 		if (!hlua_ctx_init(s->hlua, s->task, 0)) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
-			         rule->arg.hlua_rule->fcn.name);
+			         rule->arg.hlua_rule->fcn->name);
 			goto end;
 		}
 	}
@@ -6832,25 +6832,25 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 			else
 				error = "critical error";
 			SEND_ERR(px, "Lua function '%s': %s.\n",
-			         rule->arg.hlua_rule->fcn.name, error);
+			         rule->arg.hlua_rule->fcn->name, error);
 			goto end;
 		}
 
 		/* Check stack available size. */
 		if (!lua_checkstack(s->hlua->T, 1)) {
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
-			         rule->arg.hlua_rule->fcn.name);
+			         rule->arg.hlua_rule->fcn->name);
 			RESET_SAFE_LJMP(s->hlua->T);
 			goto end;
 		}
 
 		/* Restore the function in the stack. */
-		lua_rawgeti(s->hlua->T, LUA_REGISTRYINDEX, rule->arg.hlua_rule->fcn.function_ref);
+		lua_rawgeti(s->hlua->T, LUA_REGISTRYINDEX, rule->arg.hlua_rule->fcn->function_ref);
 
 		/* Create and and push object stream in the stack. */
 		if (!hlua_txn_new(s->hlua->T, s, px, dir, hflags)) {
 			SEND_ERR(px, "Lua function '%s': full stack.\n",
-			         rule->arg.hlua_rule->fcn.name);
+			         rule->arg.hlua_rule->fcn->name);
 			RESET_SAFE_LJMP(s->hlua->T);
 			goto end;
 		}
@@ -6860,7 +6860,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 		for (arg = rule->arg.hlua_rule->args; arg && *arg; arg++) {
 			if (!lua_checkstack(s->hlua->T, 1)) {
 				SEND_ERR(px, "Lua function '%s': full stack.\n",
-				         rule->arg.hlua_rule->fcn.name);
+				         rule->arg.hlua_rule->fcn->name);
 				RESET_SAFE_LJMP(s->hlua->T);
 				goto end;
 			}
@@ -6922,29 +6922,29 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	case HLUA_E_ERRMSG:
 		/* Display log. */
 		SEND_ERR(px, "Lua function '%s': %s.\n",
-		         rule->arg.hlua_rule->fcn.name, lua_tostring(s->hlua->T, -1));
+		         rule->arg.hlua_rule->fcn->name, lua_tostring(s->hlua->T, -1));
 		lua_pop(s->hlua->T, 1);
 		goto end;
 
 	case HLUA_E_ETMOUT:
-		SEND_ERR(px, "Lua function '%s': execution timeout.\n", rule->arg.hlua_rule->fcn.name);
+		SEND_ERR(px, "Lua function '%s': execution timeout.\n", rule->arg.hlua_rule->fcn->name);
 		goto end;
 
 	case HLUA_E_NOMEM:
-		SEND_ERR(px, "Lua function '%s': out of memory error.\n", rule->arg.hlua_rule->fcn.name);
+		SEND_ERR(px, "Lua function '%s': out of memory error.\n", rule->arg.hlua_rule->fcn->name);
 		goto end;
 
 	case HLUA_E_YIELD:
 	  err_yield:
 		act_ret = ACT_RET_CONT;
 		SEND_ERR(px, "Lua function '%s': aborting Lua processing on expired timeout.\n",
-		         rule->arg.hlua_rule->fcn.name);
+		         rule->arg.hlua_rule->fcn->name);
 		goto end;
 
 	case HLUA_E_ERR:
 		/* Display log. */
 		SEND_ERR(px, "Lua function '%s' return an unknown error.\n",
-		         rule->arg.hlua_rule->fcn.name);
+		         rule->arg.hlua_rule->fcn->name);
 
 	default:
 		goto end;
@@ -6976,7 +6976,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
 		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
 	HLUA_INIT(hlua);
@@ -6987,7 +6987,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	task = task_new(tid_bit);
 	if (!task) {
 		SEND_ERR(px, "Lua applet tcp '%s': out of memory.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
 	task->nice = 0;
@@ -7002,7 +7002,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	 */
 	if (!hlua_ctx_init(hlua, task, 0)) {
 		SEND_ERR(px, "Lua applet tcp '%s': can't initialize Lua context.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
 
@@ -7016,25 +7016,25 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 		else
 			error = "critical error";
 		SEND_ERR(px, "Lua applet tcp '%s': %s.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name, error);
+		         ctx->rule->arg.hlua_rule->fcn->name, error);
 		return 0;
 	}
 
 	/* Check stack available size. */
 	if (!lua_checkstack(hlua->T, 1)) {
 		SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		         ctx->rule->arg.hlua_rule->fcn->name);
 		RESET_SAFE_LJMP(hlua->T);
 		return 0;
 	}
 
 	/* Restore the function in the stack. */
-	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn.function_ref);
+	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn->function_ref);
 
 	/* Create and and push object stream in the stack. */
 	if (!hlua_applet_tcp_new(hlua->T, ctx)) {
 		SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		         ctx->rule->arg.hlua_rule->fcn->name);
 		RESET_SAFE_LJMP(hlua->T);
 		return 0;
 	}
@@ -7044,7 +7044,7 @@ static int hlua_applet_tcp_init(struct appctx *ctx, struct proxy *px, struct str
 	for (arg = ctx->rule->arg.hlua_rule->args; arg && *arg; arg++) {
 		if (!lua_checkstack(hlua->T, 1)) {
 			SEND_ERR(px, "Lua applet tcp '%s': full stack.\n",
-			         ctx->rule->arg.hlua_rule->fcn.name);
+			         ctx->rule->arg.hlua_rule->fcn->name);
 			RESET_SAFE_LJMP(hlua->T);
 			return 0;
 		}
@@ -7103,29 +7103,29 @@ void hlua_applet_tcp_fct(struct appctx *ctx)
 	case HLUA_E_ERRMSG:
 		/* Display log. */
 		SEND_ERR(px, "Lua applet tcp '%s': %s.\n",
-		         rule->arg.hlua_rule->fcn.name, lua_tostring(hlua->T, -1));
+		         rule->arg.hlua_rule->fcn->name, lua_tostring(hlua->T, -1));
 		lua_pop(hlua->T, 1);
 		goto error;
 
 	case HLUA_E_ETMOUT:
 		SEND_ERR(px, "Lua applet tcp '%s': execution timeout.\n",
-		         rule->arg.hlua_rule->fcn.name);
+		         rule->arg.hlua_rule->fcn->name);
 		goto error;
 
 	case HLUA_E_NOMEM:
 		SEND_ERR(px, "Lua applet tcp '%s': out of memory error.\n",
-		         rule->arg.hlua_rule->fcn.name);
+		         rule->arg.hlua_rule->fcn->name);
 		goto error;
 
 	case HLUA_E_YIELD: /* unexpected */
 		SEND_ERR(px, "Lua applet tcp '%s': yield not allowed.\n",
-		         rule->arg.hlua_rule->fcn.name);
+		         rule->arg.hlua_rule->fcn->name);
 		goto error;
 
 	case HLUA_E_ERR:
 		/* Display log. */
 		SEND_ERR(px, "Lua applet tcp '%s' return an unknown error.\n",
-		         rule->arg.hlua_rule->fcn.name);
+		         rule->arg.hlua_rule->fcn->name);
 		goto error;
 
 	default:
@@ -7165,7 +7165,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua) {
 		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
 	HLUA_INIT(hlua);
@@ -7180,7 +7180,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	task = task_new(tid_bit);
 	if (!task) {
 		SEND_ERR(px, "Lua applet http '%s': out of memory.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
 	task->nice = 0;
@@ -7195,7 +7195,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	 */
 	if (!hlua_ctx_init(hlua, task, 0)) {
 		SEND_ERR(px, "Lua applet http '%s': can't initialize Lua context.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		         ctx->rule->arg.hlua_rule->fcn->name);
 		return 0;
 	}
 
@@ -7209,25 +7209,25 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 		else
 			error = "critical error";
 		SEND_ERR(px, "Lua applet http '%s': %s.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name, error);
+		         ctx->rule->arg.hlua_rule->fcn->name, error);
 		return 0;
 	}
 
 	/* Check stack available size. */
 	if (!lua_checkstack(hlua->T, 1)) {
 		SEND_ERR(px, "Lua applet http '%s': full stack.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		         ctx->rule->arg.hlua_rule->fcn->name);
 		RESET_SAFE_LJMP(hlua->T);
 		return 0;
 	}
 
 	/* Restore the function in the stack. */
-	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn.function_ref);
+	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ctx->rule->arg.hlua_rule->fcn->function_ref);
 
 	/* Create and and push object stream in the stack. */
 	if (!hlua_applet_http_new(hlua->T, ctx)) {
 		SEND_ERR(px, "Lua applet http '%s': full stack.\n",
-		         ctx->rule->arg.hlua_rule->fcn.name);
+		         ctx->rule->arg.hlua_rule->fcn->name);
 		RESET_SAFE_LJMP(hlua->T);
 		return 0;
 	}
@@ -7237,7 +7237,7 @@ static int hlua_applet_http_init(struct appctx *ctx, struct proxy *px, struct st
 	for (arg = ctx->rule->arg.hlua_rule->args; arg && *arg; arg++) {
 		if (!lua_checkstack(hlua->T, 1)) {
 			SEND_ERR(px, "Lua applet http '%s': full stack.\n",
-			         ctx->rule->arg.hlua_rule->fcn.name);
+			         ctx->rule->arg.hlua_rule->fcn->name);
 			RESET_SAFE_LJMP(hlua->T);
 			return 0;
 		}
@@ -7335,29 +7335,29 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		case HLUA_E_ERRMSG:
 			/* Display log. */
 			SEND_ERR(px, "Lua applet http '%s': %s.\n",
-			         rule->arg.hlua_rule->fcn.name, lua_tostring(hlua->T, -1));
+			         rule->arg.hlua_rule->fcn->name, lua_tostring(hlua->T, -1));
 			lua_pop(hlua->T, 1);
 			goto error;
 
 		case HLUA_E_ETMOUT:
 			SEND_ERR(px, "Lua applet http '%s': execution timeout.\n",
-			         rule->arg.hlua_rule->fcn.name);
+			         rule->arg.hlua_rule->fcn->name);
 			goto error;
 
 		case HLUA_E_NOMEM:
 			SEND_ERR(px, "Lua applet http '%s': out of memory error.\n",
-			         rule->arg.hlua_rule->fcn.name);
+			         rule->arg.hlua_rule->fcn->name);
 			goto error;
 
 		case HLUA_E_YIELD: /* unexpected */
 			SEND_ERR(px, "Lua applet http '%s': yield not allowed.\n",
-			         rule->arg.hlua_rule->fcn.name);
+			         rule->arg.hlua_rule->fcn->name);
 			goto error;
 
 		case HLUA_E_ERR:
 			/* Display log. */
 			SEND_ERR(px, "Lua applet http '%s' return an unknown error.\n",
-			         rule->arg.hlua_rule->fcn.name);
+			         rule->arg.hlua_rule->fcn->name);
 			goto error;
 
 		default:
@@ -7461,7 +7461,7 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	}
 
 	/* Reference the Lua function and store the reference. */
-	rule->arg.hlua_rule->fcn = *fcn;
+	rule->arg.hlua_rule->fcn = fcn;
 
 	/* Expect some arguments */
 	for (i = 0; i < fcn->nargs; i++) {
@@ -7507,7 +7507,7 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
 	}
 
 	/* Reference the Lua function and store the reference. */
-	rule->arg.hlua_rule->fcn = *fcn;
+	rule->arg.hlua_rule->fcn = fcn;
 
 	/* TODO: later accept arguments. */
 	rule->arg.hlua_rule->args = NULL;
@@ -7654,7 +7654,7 @@ static enum act_parse_ret action_register_service_tcp(const char **args, int *cu
 	}
 
 	/* Reference the Lua function and store the reference. */
-	rule->arg.hlua_rule->fcn = *fcn;
+	rule->arg.hlua_rule->fcn = fcn;
 
 	/* TODO: later accept arguments. */
 	rule->arg.hlua_rule->args = NULL;

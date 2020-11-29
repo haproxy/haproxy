@@ -122,7 +122,7 @@ struct hlua_function {
  * It contains the lua execution configuration.
  */
 struct hlua_rule {
-	struct hlua_function fcn;
+	struct hlua_function *fcn;
 	char **args;
 };
 
