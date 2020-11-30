@@ -2434,7 +2434,11 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 #else
 			client_cipher = SSL_CIPHER_find(ssl, client_cipher_ids);
 #endif
-			if (client_cipher && SSL_CIPHER_get_auth_nid(client_cipher) == NID_auth_ecdsa) {
+			if (!client_cipher) {
+				continue;
+			}
+
+			if (SSL_CIPHER_get_auth_nid(client_cipher) == NID_auth_ecdsa) {
 				has_ecdsa_sig = 1;
 				break;
 			}
