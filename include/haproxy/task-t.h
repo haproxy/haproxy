@@ -39,6 +39,7 @@
                                    * threads, must be set before first queue/wakeup */
 #define TASK_SELF_WAKING  0x0010  /* task/tasklet found waking itself */
 #define TASK_KILLED       0x0020  /* task/tasklet killed, may now be freed */
+#define TASK_IN_LIST      0x0040  /* tasklet is in a tasklet list */
 
 #define TASK_WOKEN_INIT   0x0100  /* woken up for initialisation purposes */
 #define TASK_WOKEN_TIMER  0x0200  /* woken up because of expired timer */

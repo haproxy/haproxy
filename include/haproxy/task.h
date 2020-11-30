@@ -322,43 +322,50 @@ static inline struct task *task_unlink_rq(struct task *t)
 }
 
 /* schedules tasklet <tl> to run onto thread <thr> or the current thread if
- * <thr> is negative.
+ * <thr> is negative. Note that it is illegal to wakeup a foreign tasklet if
+ * its tid is negative and it is illegal to self-assign a tasklet that was
+ * at least once scheduled on a specific thread.
  */
 static inline void tasklet_wakeup_on(struct tasklet *tl, int thr)
 {
+	unsigned short state = tl->state;
+
+	do {
+		/* do nothing if someone else already added it */
+		if (state & TASK_IN_LIST)
+			return;
+	} while (!_HA_ATOMIC_CAS(&tl->state, &state, state | TASK_IN_LIST));
+
+	/* at this pint we're the first ones to add this task to the list */
+
 	if (likely(thr < 0)) {
 		/* this tasklet runs on the caller thread */
-		if (LIST_ISEMPTY(&tl->list)) {
-			if (tl->state & TASK_SELF_WAKING) {
-				LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
-				sched->tl_class_mask |= 1 << TL_BULK;
-			}
-			else if ((struct task *)tl == sched->current) {
-				_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
-				LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
-				sched->tl_class_mask |= 1 << TL_BULK;
-			}
-			else if (sched->current_queue < 0) {
-				LIST_ADDQ(&sched->tasklets[TL_URGENT], &tl->list);
-				sched->tl_class_mask |= 1 << TL_URGENT;
-			}
-			else {
-				LIST_ADDQ(&sched->tasklets[sched->current_queue], &tl->list);
-				sched->tl_class_mask |= 1 << sched->current_queue;
-			}
-
-			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
+		if (tl->state & TASK_SELF_WAKING) {
+			LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
+			sched->tl_class_mask |= 1 << TL_BULK;
+		}
+		else if ((struct task *)tl == sched->current) {
+			_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
+			LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
+			sched->tl_class_mask |= 1 << TL_BULK;
+		}
+		else if (sched->current_queue < 0) {
+			LIST_ADDQ(&sched->tasklets[TL_URGENT], &tl->list);
+			sched->tl_class_mask |= 1 << TL_URGENT;
+		}
+		else {
+			LIST_ADDQ(&sched->tasklets[sched->current_queue], &tl->list);
+			sched->tl_class_mask |= 1 << sched->current_queue;
 		}
 	} else {
-		/* this tasklet runs on a specific thread */
-		if (MT_LIST_TRY_ADDQ(&task_per_thread[thr].shared_tasklet_list, (struct mt_list *)&tl->list) == 1) {
-			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
-			if (sleeping_thread_mask & (1UL << thr)) {
-				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
-				wake_thread(thr);
-			}
+		/* this tasklet runs on a specific thread. */
+		MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list, (struct mt_list *)&tl->list);
+		if (sleeping_thread_mask & (1UL << thr)) {
+			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
+			wake_thread(thr);
 		}
 	}
+	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 }
 
 /* schedules tasklet <tl> to run onto the thread designated by tl->tid, which
@@ -371,11 +378,16 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 
 /* Try to remove a tasklet from the list. This call is inherently racy and may
  * only be performed on the thread that was supposed to dequeue this tasklet.
+ * This way it is safe to call MT_LIST_DEL without first removing the
+ * TASK_IN_LIST bit, which must absolutely be removed afterwards in case
+ * another thread would want to wake this tasklet up in parallel.
  */
 static inline void tasklet_remove_from_tasklet_list(struct tasklet *t)
 {
-	if (MT_LIST_DEL((struct mt_list *)&t->list))
+	if (MT_LIST_DEL((struct mt_list *)&t->list)) {
+		_HA_ATOMIC_AND(&t->state, ~TASK_IN_LIST);
 		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
+	}
 }
 
 /*

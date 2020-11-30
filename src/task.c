@@ -461,9 +461,10 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 
 		if (TASK_IS_TASKLET(t)) {
+			LIST_DEL_INIT(&((struct tasklet *)t)->list);
+			__ha_barrier_store();
 			state = _HA_ATOMIC_XCHG(&t->state, state);
 			__ha_barrier_atomic_store();
-			LIST_DEL_INIT(&((struct tasklet *)t)->list);
 			process(t, ctx, state);
 			done++;
 			sched->current = NULL;
@@ -471,9 +472,10 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			continue;
 		}
 
+		LIST_DEL_INIT(&((struct tasklet *)t)->list);
+		__ha_barrier_store();
 		state = _HA_ATOMIC_XCHG(&t->state, state | TASK_RUNNING);
 		__ha_barrier_atomic_store();
-		LIST_DEL_INIT(&((struct tasklet *)t)->list);
 
 		/* OK then this is a regular task */
 
