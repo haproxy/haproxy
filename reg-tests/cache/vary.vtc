@@ -187,8 +187,9 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.http.content-type == "text/plain"
        expect resp.http.X-Cache-Hit == 1
 
-       # The accept-encoding normalizer function sorts alphabeticaly the values
-       # before  calculating the secondary key
+       # The accept-encoding normalizer function converts the header values
+       # to lower case then calculates the hash of every sub part before
+       # sorting the hashes and xor'ing them (while removing duplicates).
        txreq -url "/accept-encoding-multiple" -hdr "Accept-Encoding: first,second"
        rxresp
        expect resp.status == 200
@@ -202,6 +203,12 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.http.X-Cache-Hit == 1
 
        txreq -url "/accept-encoding-multiple" -hdr "Accept-Encoding: second,first"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 51
+       expect resp.http.X-Cache-Hit == 1
+
+       txreq -url "/accept-encoding-multiple" -hdr "Accept-Encoding: FirsT,SECOND,first"
        rxresp
        expect resp.status == 200
        expect resp.bodylen == 51
@@ -270,7 +277,7 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.bodylen == 57
        expect resp.http.X-Cache-Hit == 1
 
-       # The following requests are trated by a backend that does not cache
+       # The following requests are treated by a backend that does not cache
        # responses containing a Vary header
        txreq -url "/no_vary_support"
        rxresp

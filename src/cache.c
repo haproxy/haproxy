@@ -1791,10 +1791,14 @@ struct flt_ops cache_ops = {
 
 int accept_encoding_cmp(const void *a, const void *b)
 {
-	const struct ist ist_a = *(const struct ist*)a;
-	const struct ist ist_b = *(const struct ist*)b;
+	unsigned int int_a = *(unsigned int*)a;
+	unsigned int int_b = *(unsigned int*)b;
 
-	return istdiff(ist_a, ist_b);
+	if (int_a < int_b)
+		return -1;
+	if (int_a > int_b)
+		return 1;
+	return 0;
 }
 
 #define ACCEPT_ENCODING_MAX_ENTRIES 16
@@ -1804,33 +1808,38 @@ int accept_encoding_cmp(const void *a, const void *b)
  * for the newly constructed buffer.
  * Returns 0 in case of success.
  */
-static int accept_encoding_normalizer(struct ist value, char *buf, unsigned int *buf_len)
+static int accept_encoding_normalizer(struct ist full_value, char *buf, unsigned int *buf_len)
 {
-	struct ist values[ACCEPT_ENCODING_MAX_ENTRIES] = {{}};
+	unsigned int values[ACCEPT_ENCODING_MAX_ENTRIES] = {};
 	size_t count = 0;
 	char *comma = NULL;
-	struct buffer *trash = get_trash_chunk();
-	int hash_value = 0;
+	unsigned int hash_value = 0;
+	unsigned int prev = 0, curr = 0;
+
+	/* Turn accept-encoding value to lower case */
+	full_value = ist2bin_lc(istptr(full_value), full_value);
 
 	/* The hash will be built out of a sorted list of accepted encodings. */
-	while (count < (ACCEPT_ENCODING_MAX_ENTRIES - 1) && (comma = istchr(value, ',')) != NULL) {
-		size_t length = comma - istptr(value);
+	while (count < (ACCEPT_ENCODING_MAX_ENTRIES - 1) && (comma = istchr(full_value, ',')) != NULL) {
+		size_t length = comma - istptr(full_value);
 
-		values[count++] = isttrim(value, length);
-		value = istadv(value, length + 1);
+		values[count++] = hash_crc32(istptr(full_value), length);
+
+		full_value = istadv(full_value, length + 1);
+
 	}
-	values[count++] = value;
-
-	if (count == ACCEPT_ENCODING_MAX_ENTRIES)
-		return 1;
+	values[count++] = hash_crc32(istptr(full_value), istlen(full_value));
 
 	/* Sort the values alphabetically. */
-	qsort(values, count, sizeof(struct ist), &accept_encoding_cmp);
+	qsort(values, count, sizeof(*values), &accept_encoding_cmp);
 
-	while (count)
-		chunk_istcat(trash, values[--count]);
-
-	hash_value = hash_crc32(b_orig(trash), b_data(trash));
+	while (count) {
+		curr = values[--count];
+		if (curr != prev) {
+			hash_value ^= curr;
+		}
+		prev = curr;
+	}
 
 	memcpy(buf, &hash_value, sizeof(hash_value));
 	*buf_len = sizeof(hash_value);
