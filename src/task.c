@@ -660,10 +660,9 @@ void process_runnable_tasks()
 		}
 #endif
 
-		/* Make sure the entry doesn't appear to be in a list */
-		LIST_INIT(&((struct tasklet *)t)->list);
-		/* And add it to the local task list */
-		tasklet_insert_into_tasklet_list(&tt->tasklets[TL_NORMAL], (struct tasklet *)t);
+		/* Add it to the local task list */
+		LIST_ADDQ(&tt->tasklets[TL_NORMAL], &((struct tasklet *)t)->list);
+		_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 		tt->tl_class_mask |= 1 << TL_NORMAL;
 		_HA_ATOMIC_ADD(&tt->task_list_size, 1);
 		activity[tid].tasksw++;

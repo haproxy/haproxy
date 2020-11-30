@@ -369,15 +369,6 @@ static inline void tasklet_wakeup(struct tasklet *tl)
 	tasklet_wakeup_on(tl, tl->tid);
 }
 
-/* Insert a tasklet into the tasklet list. If used with a plain task instead,
- * the caller must update the task_list_size.
- */
-static inline void tasklet_insert_into_tasklet_list(struct list *list, struct tasklet *tl)
-{
-	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
-	LIST_ADDQ(list, &tl->list);
-}
-
 /* Remove the tasklet from the tasklet list. The tasklet MUST already be there.
  * If unsure, use tasklet_remove_from_tasklet_list() instead. If used with a
  * plain task, the caller must update the task_list_size.
