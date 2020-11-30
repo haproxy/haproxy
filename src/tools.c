@@ -1228,7 +1228,7 @@ char * sa2str(const struct sockaddr_storage *addr, int port, int map_ports)
 	case AF_UNIX:
 		path = ((struct sockaddr_un *)addr)->sun_path;
 		if (path[0] == '\0') {
-			return memprintf(&out, "abns@%s", path+1);
+			return memprintf(&out, "abns@%107s", path+1);
 		} else {
 			return strdup(path);
 		}
