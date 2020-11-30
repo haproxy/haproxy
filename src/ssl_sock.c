@@ -2415,26 +2415,26 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 		has_rsa_sig = 1;
 	}
 	if (has_ecdsa_sig) {  /* in very rare case: has ecdsa sign but not a ECDSA cipher */
-		const SSL_CIPHER *cipher;
+		const SSL_CIPHER *client_cipher;
 		size_t len;
-		const uint8_t *cipher_suites;
+		const uint8_t *client_cipher_ids;
 		has_ecdsa_sig = 0;
 #ifdef OPENSSL_IS_BORINGSSL
 		len = ctx->cipher_suites_len;
-		cipher_suites = ctx->cipher_suites;
+		client_cipher_ids = ctx->cipher_suites;
 #else
-		len = SSL_client_hello_get0_ciphers(ssl, &cipher_suites);
+		len = SSL_client_hello_get0_ciphers(ssl, &client_cipher_ids);
 #endif
 		if (len % 2 != 0)
 			goto abort;
-		for (; len != 0; len -= 2, cipher_suites += 2) {
+		for (; len != 0; len -= 2, client_cipher_ids += 2) {
 #ifdef OPENSSL_IS_BORINGSSL
-			uint16_t cipher_suite = (cipher_suites[0] << 8) | cipher_suites[1];
-			cipher = SSL_get_cipher_by_value(cipher_suite);
+			uint16_t client_cipher_id = (client_cipher_ids[0] << 8) | client_cipher_ids[1];
+			client_cipher = SSL_get_cipher_by_value(client_cipher_id);
 #else
-			cipher = SSL_CIPHER_find(ssl, cipher_suites);
+			client_cipher = SSL_CIPHER_find(ssl, client_cipher_ids);
 #endif
-			if (cipher && SSL_CIPHER_get_auth_nid(cipher) == NID_auth_ecdsa) {
+			if (client_cipher && SSL_CIPHER_get_auth_nid(client_cipher) == NID_auth_ecdsa) {
 				has_ecdsa_sig = 1;
 				break;
 			}
