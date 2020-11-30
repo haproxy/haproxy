@@ -510,6 +510,49 @@ __ha_barrier_atomic_full(void)
  */
 #define __ha_cpu_relax() ({ asm volatile("isb" ::: "memory"); 1; })
 
+#if defined(__ARM_FEATURE_ATOMICS) // ARMv8.1-A atomics
+
+/* returns 0 on failure, non-zero on success */
+static forceinline int __ha_cas_dw(void *target, void *compare, const void *set)
+{
+	/* There's no status set by the CASP instruction so we need to keep a
+	 * copy of the original registers and compare them afterwards to detect
+	 * if we could apply the change. The problem is that we need to force
+	 * register pairs but there appears to be no gcc constraint to enforce
+	 * these. So instead we declare them as local variables of type
+	 * register. This causes extra moves in the code but remains better
+	 * than the LL/SC versions on many cores.
+	 */
+	void *back0 = ((void **)compare)[0];
+	void *back1 = ((void **)compare)[1];
+	register void *cmp0 asm("x0") = back0;
+	register void *cmp1 asm("x1") = back1;
+	register const void *set0 asm("x2") = ((void * const *)set)[0];
+	register const void *set1 asm("x3") = ((void * const *)set)[1];
+	long ret;
+
+	__asm__ __volatile__("casp %0, %1, %3, %4, [%2]\n"
+			     : "+r" (cmp0),                   // %0
+			       "+r" (cmp1)                    // %1
+			     : "r" (target),                  // %2
+			       "r" (set0),                    // %3
+			       "r" (set1)                     // %4
+			     : "memory");
+
+	/* if the old value is still the same unchanged, we won, otherwise we
+	 * store the refreshed old value. This construct remains more efficient
+	 * than an or(xor,xor).
+	 */
+	ret = cmp0 == back0 && cmp1 == back1;
+	if (!ret) {
+		((void **)compare)[0] = cmp0;
+		((void **)compare)[1] = cmp1;
+	}
+	return ret;
+}
+
+#else // no ARMv8.1-A atomics
+
 static __inline int __ha_cas_dw(void *target, void *compare, void *set)
 {
 	void *value[2];
@@ -535,6 +578,7 @@ static __inline int __ha_cas_dw(void *target, void *compare, void *set)
 	memcpy(compare, &value, sizeof(value));
         return (tmp1);
 }
+#endif // ARMv8.1-A atomics
 
 #else /* unknown / unhandled architecture, fall back to generic barriers */
 
