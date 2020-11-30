@@ -561,6 +561,8 @@ void process_runnable_tasks()
 	struct mt_list *tmp_list;
 	unsigned int queue;
 	int max_processed;
+	int picked;
+	int budget;
 
 	ti->flags &= ~TI_FL_STUCK; // this thread is still running
 
@@ -612,7 +614,9 @@ void process_runnable_tasks()
 
 	/* pick up to max[TL_NORMAL] regular tasks from prio-ordered run queues */
 	/* Note: the grq lock is always held when grq is not null */
-	while (tt->task_list_size < max[TL_NORMAL]) {
+	picked = 0;
+	budget = max[TL_NORMAL] - tt->task_list_size;
+	while (picked < budget) {
 		if ((global_tasks_mask & tid_bit) && !grq) {
 #ifdef USE_THREAD
 			HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
@@ -662,16 +666,20 @@ void process_runnable_tasks()
 
 		/* Add it to the local task list */
 		LIST_ADDQ(&tt->tasklets[TL_NORMAL], &((struct tasklet *)t)->list);
-		_HA_ATOMIC_ADD(&tasks_run_queue, 1);
-		tt->tl_class_mask |= 1 << TL_NORMAL;
-		_HA_ATOMIC_ADD(&tt->task_list_size, 1);
-		activity[tid].tasksw++;
+		picked++;
 	}
 
 	/* release the rqueue lock */
 	if (grq) {
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 		grq = NULL;
+	}
+
+	if (picked) {
+		tt->tl_class_mask |= 1 << TL_NORMAL;
+		_HA_ATOMIC_ADD(&tt->task_list_size, picked);
+		_HA_ATOMIC_ADD(&tasks_run_queue, picked);
+		activity[tid].tasksw += picked;
 	}
 
 	/* Merge the list of tasklets waken up by other threads to the
