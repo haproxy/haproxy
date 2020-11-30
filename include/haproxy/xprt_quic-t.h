@@ -332,17 +332,25 @@ struct quic_transport_params {
 	struct preferred_address preferred_address;                    /* Forbidden for clients */
 };
 
-/* Structure for ACK ranges sent in ACK frames. */
-struct quic_ack_range {
-	struct list list;
+/* Structure to hold a range of ACKs sent in ACK frames. */
+struct quic_arng {
 	int64_t first;
 	int64_t last;
 };
 
-struct quic_ack_ranges {
-	/* list of ACK ranges. */
-	struct list list;
-	/* The number of ACK ranges is this lists */
+/* Structure to hold a range of ACKs to be store as a node in a tree of
+ * ACK ranges.
+ */
+struct quic_arng_node {
+	struct eb64_node first;
+	uint64_t last;
+};
+
+/* Structure to maintain a set of ACK ranges to be used to build ACK frames. */
+struct quic_arngs {
+	/* ebtree of ACK ranges organized by their first value. */
+	struct eb_root root;
+	/* The number of ACK ranges is this tree */
 	size_t sz;
 	/* The number of bytes required to encode this ACK ranges lists. */
 	size_t enc_sz;
@@ -380,7 +388,7 @@ struct quic_pktns {
 		int64_t largest_pn;
 		/* Number of ack-eliciting packets. */
 		size_t nb_ack_eliciting;
-		struct quic_ack_ranges ack_ranges;
+		struct quic_arngs arngs;
 	} rx;
 	unsigned int flags;
 };

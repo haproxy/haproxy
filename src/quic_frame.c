@@ -7,6 +7,7 @@
  * 2 of the License, or (at your option) any later version.
  */
 
+#include <import/eb64tree.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>
@@ -147,26 +148,29 @@ static int quic_build_ack_frame(unsigned char **buf, const unsigned char *end,
                                 struct quic_frame *frm, struct quic_conn *conn)
 {
 	struct quic_tx_ack *tx_ack = &frm->tx_ack;
-	struct quic_ack_range *ack_range, *next_ack_range;
+	struct eb64_node *ar, *prev_ar;
+	struct quic_arng_node *ar_node, *prev_ar_node;
 
-	ack_range =  LIST_NEXT(&tx_ack->ack_ranges->list, struct quic_ack_range *, list);
-	TRACE_PROTO("ack range", QUIC_EV_CONN_PRSAFRM, conn->conn,, &ack_range->last, &ack_range->first);
-	if (!quic_enc_int(buf, end, ack_range->last) ||
+	ar = eb64_last(&tx_ack->arngs->root);
+	ar_node = eb64_entry(&ar->node, struct quic_arng_node, first);
+	TRACE_PROTO("ack range", QUIC_EV_CONN_PRSAFRM,
+	            conn->conn,, &ar_node->last, &ar_node->first.key);
+	if (!quic_enc_int(buf, end, ar_node->last) ||
 	    !quic_enc_int(buf, end, tx_ack->ack_delay) ||
-	    !quic_enc_int(buf, end, tx_ack->ack_ranges->sz - 1) ||
-	    !quic_enc_int(buf, end, ack_range->last - ack_range->first))
+	    !quic_enc_int(buf, end, tx_ack->arngs->sz - 1) ||
+	    !quic_enc_int(buf, end, ar_node->last - ar_node->first.key))
 		return 0;
 
-	next_ack_range = LIST_NEXT(&ack_range->list, struct quic_ack_range *, list);
-	while (&next_ack_range->list != &tx_ack->ack_ranges->list) {
+	while ((prev_ar = eb64_prev(ar))) {
+		prev_ar_node = eb64_entry(&prev_ar->node, struct quic_arng_node, first);
 		TRACE_PROTO("ack range", QUIC_EV_CONN_PRSAFRM, conn->conn,,
-		            &next_ack_range->last, &next_ack_range->first);
-		if (!quic_enc_int(buf, end, ack_range->first - next_ack_range->last - 2) ||
-		    !quic_enc_int(buf, end, next_ack_range->last - next_ack_range->first))
+		            &prev_ar_node->last, &prev_ar_node->first.key);
+		if (!quic_enc_int(buf, end, ar_node->first.key - prev_ar_node->last - 2) ||
+		    !quic_enc_int(buf, end, prev_ar_node->last - prev_ar_node->first.key))
 			return 0;
 
-		ack_range = next_ack_range;
-		next_ack_range = LIST_NEXT(&ack_range->list, struct quic_ack_range *, list);
+		ar = prev_ar;
+		ar_node = eb64_entry(&ar->node, struct quic_arng_node, first);
 	}
 
 	return 1;

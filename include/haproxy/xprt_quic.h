@@ -982,9 +982,9 @@ static inline void quic_pktns_init(struct quic_pktns *pktns)
 
 	pktns->rx.largest_pn = -1;
 	pktns->rx.nb_ack_eliciting = 0;
-	LIST_INIT(&pktns->rx.ack_ranges.list);
-	pktns->rx.ack_ranges.sz = 0;
-	pktns->rx.ack_ranges.enc_sz = 0;
+	pktns->rx.arngs.root = EB_ROOT_UNIQUE;
+	pktns->rx.arngs.sz = 0;
+	pktns->rx.arngs.enc_sz = 0;
 
 	pktns->flags = 0;
 }

@@ -169,7 +169,7 @@ DECLARE_STATIC_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf_pool", sizeof(st
 
 DECLARE_STATIC_POOL(pool_head_quic_frame, "quic_frame_pool", sizeof(struct quic_frame));
 
-DECLARE_STATIC_POOL(pool_head_quic_ack_range, "quic_ack_range_pool", sizeof(struct quic_ack_range));
+DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_arng_node));
 
 static ssize_t qc_build_hdshk_pkt(struct q_buf *buf, struct quic_conn *qc, int pkt_type,
                                   struct quic_enc_level *qel);
@@ -1813,21 +1813,30 @@ static int quic_build_post_handshake_frames(struct quic_conn *conn)
 }
 
 /* Deallocate <l> list of ACK ranges. */
-void free_ack_range_list(struct list *l)
+void free_quic_arngs(struct quic_arngs *arngs)
 {
-	struct quic_ack_range *curr, *next;
+	struct eb64_node *n;
+	struct quic_arng_node *ar;
 
-	list_for_each_entry_safe(curr, next, l, list) {
-		LIST_DEL(&curr->list);
-		free(curr);
+	n = eb64_first(&arngs->root);
+	while (n) {
+		struct eb64_node *next;
+
+		ar = eb64_entry(&n->node, struct quic_arng_node, first);
+		next = eb64_next(n);
+		eb64_delete(n);
+		free(ar);
+		n = next;
 	}
 }
 
-/* Return the gap value between <p> and <q> ACK ranges. */
-static inline size_t sack_gap(struct quic_ack_range *p,
-                              struct quic_ack_range *q)
+/* Return the gap value between <p> and <q> ACK ranges where <q> follows <p> in
+ * descending order.
+ */
+static inline size_t sack_gap(struct quic_arng_node *p,
+                              struct quic_arng_node *q)
 {
-	return p->first - q->last - 2;
+	return p->first.key - q->last - 2;
 }
 
 
@@ -1835,35 +1844,71 @@ static inline size_t sack_gap(struct quic_ack_range *p,
  * encoded size until it goes below <limit>.
  * Returns 1 if succeded, 0 if not (no more element to remove).
  */
-static int quic_rm_last_ack_ranges(struct quic_ack_ranges *qars, size_t limit)
+static int quic_rm_last_ack_ranges(struct quic_arngs *arngs, size_t limit)
 {
-	struct list *l = &qars->list;
-	struct quic_ack_range *last, *prev_last;
+	struct eb64_node *last, *prev;
 
-	last = LIST_PREV(l, struct quic_ack_range *, list);
-	while (qars->enc_sz > limit) {
-		if (l->n == l)
+	last = eb64_last(&arngs->root);
+	while (last && arngs->enc_sz > limit) {
+		struct quic_arng_node *last_node, *prev_node;
+
+		prev = eb64_prev(last);
+		if (!prev)
 			return 0;
 
-		prev_last = LIST_PREV(&last->list, struct quic_ack_range *, list);
-		if (prev_last == last)
-			return 0;
-
-		qars->enc_sz -= quic_int_getsize(last->last - last->first);
-		qars->enc_sz -= quic_int_getsize(sack_gap(prev_last, last));
-		qars->enc_sz -= quic_decint_size_diff(qars->sz);
-		--qars->sz;
-		LIST_DEL(&last->list);
-		pool_free(pool_head_quic_ack_range, last);
-		last = prev_last;
+		last_node = eb64_entry(&last->node, struct quic_arng_node, first);
+		prev_node = eb64_entry(&prev->node, struct quic_arng_node, first);
+		arngs->enc_sz -= quic_int_getsize(last_node->last - last_node->first.key);
+		arngs->enc_sz -= quic_int_getsize(sack_gap(prev_node, last_node));
+		arngs->enc_sz -= quic_decint_size_diff(arngs->sz);
+		--arngs->sz;
+		eb64_delete(last);
+		pool_free(pool_head_quic_arng, last);
+		last = prev;
 	}
 
 	return 1;
 }
 
-/* Update <l> list of ACK ranges with <pn> new packet number.
+/* Set the encoded size of <arngs> QUIC ack ranges. */
+static void quic_arngs_set_enc_sz(struct quic_arngs *arngs)
+{
+	struct eb64_node *node, *next;
+	struct quic_arng_node *ar, *ar_next;
+
+	node = eb64_last(&arngs->root);
+	if (!node)
+		return;
+
+	ar = eb64_entry(&node->node, struct quic_arng_node, first);
+	arngs->enc_sz = quic_int_getsize(ar->last) +
+		quic_int_getsize(ar->last - ar->first.key) + quic_int_getsize(arngs->sz - 1);
+
+	while ((next = eb64_prev(node))) {
+		ar_next = eb64_entry(&next->node, struct quic_arng_node, first);
+		arngs->enc_sz += quic_int_getsize(sack_gap(ar, ar_next)) +
+			quic_int_getsize(ar_next->last - ar_next->first.key);
+		node = next;
+		ar = eb64_entry(&node->node, struct quic_arng_node, first);
+	}
+}
+
+/* Insert in <root> ebtree <node> node with <ar> as range value.
+ * Returns the ebtree node which has been inserted.
+ */
+static inline
+struct eb64_node *quic_insert_new_range(struct eb_root *root,
+                                        struct quic_arng_node *node,
+                                        struct quic_arng *ar)
+{
+	node->first.key = ar->first;
+	node->last = ar->last;
+	return eb64_insert(root, &node->first);
+}
+
+/* Update <arngs> tree of ACK ranges with <ar> as new ACK range value.
  * Note that this function computes the number of bytes required to encode
- * this list without taking into an account ->ack_delay member field.
+ * this tree of ACK ranges in descending order.
  *
  *    Descending order
  *    ------------->
@@ -1875,154 +1920,99 @@ static int quic_rm_last_ack_ranges(struct quic_ack_ranges *qars, size_t limit)
  *    ..........+--------+--------------+--------+......
  *                 diff1       gap12       diff2
  *
- * To encode the previous list of ranges we must encode integers as follows:
- *          enc(last1),enc(diff1),enc(gap12),enc(diff2)
+ * To encode the previous list of ranges we must encode integers as follows in
+ * descending order:
+ *          enc(last2),enc(diff2),enc(gap12),enc(diff1)
  *  with diff1 = last1 - first1
  *       diff2 = last2 - first2
- *       gap12 = first1 - last2 - 2
+ *       gap12 = first1 - last2 - 2 (>= 0)
  *
- * To update this encoded list, we must considered 4 cases:
- *    ->last is incremented by 1, the previous gap, if any, must be decremented by one,
- *    ->first is decremented by 1, the next gap, if any, must be decremented by one,
- *    in both previous cases <diff> value is increment by 1.
- *    -> a new range is inserted between two others, <diff>=0 (1 byte),
- *    and a gap is splitted in two other gaps, and the size of the list is incremented
- *    by 1.
- *    -> two ranges are merged.
  */
-int quic_update_ack_ranges_list(struct quic_ack_ranges *ack_ranges, int64_t pn)
+int quic_update_ack_ranges_list(struct quic_arngs *arngs,
+                                struct quic_arng *ar)
 {
-	struct list *l = &ack_ranges->list;
-	size_t *sz = &ack_ranges->sz;
-	size_t *enc_sz = &ack_ranges->enc_sz;
+	struct eb64_node *le;
+	struct quic_arng_node *new_node;
+	struct eb64_node *new;
 
-	struct quic_ack_range *curr, *prev, *next;
-	struct quic_ack_range *new_sack;
-
-	prev = NULL;
-
-	if (LIST_ISEMPTY(l)) {
-		/* Range insertion. */
-		new_sack = pool_alloc(pool_head_quic_ack_range);
-		if (!new_sack)
+	new = NULL;
+	if (eb_is_empty(&arngs->root)) {
+		/* First range insertion. */
+		new_node = pool_alloc(pool_head_quic_arng);
+		if (!new_node)
 			return 0;
 
-		new_sack->first = new_sack->last = pn;
-		LIST_ADD(l, &new_sack->list);
-		/* Add the size of this new encoded range and the
-		 * encoded number of ranges in this list after the first one
-		 * which is 0 (1 byte).
-		 */
-		*enc_sz += quic_int_getsize(pn) + 2;
-		++*sz;
-		return 1;
+		quic_insert_new_range(&arngs->root, new_node, ar);
+		/* Increment the size of these ranges. */
+		arngs->sz++;
+		goto out;
 	}
 
-	list_for_each_entry_safe(curr, next, l, list) {
-		/* Already existing packet number */
-		if (pn >= curr->first && pn <= curr->last)
-			break;
+	le = eb64_lookup_le(&arngs->root, ar->first);
+	if (!le) {
+		/* New insertion */
+		new_node = pool_alloc(pool_head_quic_arng);
+		if (!new_node)
+			return 0;
 
-		if (pn > curr->last + 1) {
-			/* Range insertion befor <curr> */
-			new_sack = pool_alloc(pool_head_quic_ack_range);
-			if (!new_sack)
+		new = quic_insert_new_range(&arngs->root, new_node, ar);
+		/* Increment the size of these ranges. */
+		arngs->sz++;
+	}
+	else {
+		struct quic_arng_node *le_ar =
+			eb64_entry(&le->node, struct quic_arng_node, first);
+
+		/* Already existing range */
+		if (le_ar->first.key <= ar->first && le_ar->last >= ar->last)
+			return 1;
+
+		if (le_ar->last + 1 >= ar->first) {
+			le_ar->last = ar->last;
+			new = le;
+			new_node = le_ar;
+		}
+		else {
+			/* New insertion */
+			new_node = pool_alloc(pool_head_quic_arng);
+			if (!new_node)
 				return 0;
 
-			new_sack->first = new_sack->last = pn;
-			/* Add the size of this new encoded range and possibly
-			 * increment by 1 the encoded number of ranges in this list.
-			 */
-			*enc_sz += quic_int_getsize(pn) + 1 + quic_incint_size_diff(*sz);
-			/* Deduce the previous largest number acked. */
-			*enc_sz -= quic_int_getsize(curr->last);
-			if (prev) {
-				/* Insert <new_sack> after <prev>, before <curr>. */
-				new_sack->list.n = &curr->list;
-				new_sack->list.p = &prev->list;
-				prev->list.n = curr->list.p = &new_sack->list;
-				/* Deduce the previous gap encoding size.
-				 * Add thew new gaps between <prev> and <new_sack> and
-				 * between <new_sack> and <curr>.
-				 */
-				*enc_sz += quic_int_getsize(sack_gap(prev, new_sack)) +
-					quic_int_getsize(sack_gap(new_sack, curr)) -
-					quic_int_getsize(sack_gap(prev, curr));
-			}
-			else {
-				LIST_ADD(l, &new_sack->list);
-				/* Add the encoded size of the new gap betwen <new_sack> and <cur>. */
-				*enc_sz += quic_int_getsize(sack_gap(new_sack, curr));
-			}
-			++*sz;
-			break;
+			new = quic_insert_new_range(&arngs->root, new_node, ar);
+			/* Increment the size of these ranges. */
+			arngs->sz++;
 		}
-		else if (curr->last + 1 == pn) {
-			/* Increment the encoded size of <curr> diff by 1. */
-			*enc_sz += quic_incint_size_diff(curr->last - curr->first);
-			if (prev) {
-				/* Decrement the encoded size of the previous gap by 1. */
-				*enc_sz -= quic_decint_size_diff(sack_gap(prev, curr));
-			}
-			else {
-				/* Increment the encode size of the largest acked packet number. */
-				*enc_sz += quic_incint_size_diff(curr->last);
-			}
-			curr->last = pn;
-			break;
-		}
-		else if (curr->first == pn + 1) {
-			if (&next->list != l && pn == next->last + 1) {
-				/* Two ranges <curr> and <next> are merged.
-				 * Dedude the encoded size of <curr> diff. */
-				*enc_sz -= quic_int_getsize(curr->last - curr->first);
-				/* Deduce the encoded size of the gap between <curr> and <next>. */
-				*enc_sz -= quic_int_getsize(sack_gap(curr, next));
-				/* Deduce the encode size of <next> diff. */
-				*enc_sz -= quic_int_getsize(next->last - next->first);
-				/* Add the new encoded size diff between curr->last and
-				 * next->first.
-				 */
-				*enc_sz += quic_int_getsize(curr->last - next->first);
-				next->last = curr->last;
-				LIST_DEL(&curr->list);
-				pool_free(pool_head_quic_ack_range, curr);
-				/* Possibly decrement the encoded size of this list
-				 * which is decremented by 1
-				 */
-				*enc_sz -= quic_decint_size_diff(*sz);
-				--*sz;
-			}
-			else {
-				/* Increment the encoded size of <curr> diff by 1. */
-				*enc_sz += quic_incint_size_diff(curr->last - curr->first);
-				/* Decrement the encoded size of the next gap by 1. */
-				if (&next->list != l)
-					*enc_sz -= quic_decint_size_diff(sack_gap(curr, next));
-				curr->first = pn;
-			}
-			break;
-		}
-		else if (&next->list == l) {
-			new_sack = pool_alloc(pool_head_quic_ack_range);
-			if (!new_sack)
-				return 0;
-
-			new_sack->first = new_sack->last = pn;
-			/* We only have to add the encoded size of the gap between <curr>
-			 * and <new_sack> and <new_sack> diff (0).
-			 */
-			*enc_sz += quic_int_getsize(sack_gap(curr, new_sack)) + 1;
-			LIST_ADDQ(l, &new_sack->list);
-			++*sz;
-			break;
-		}
-		prev = curr;
 	}
 
+	/* Verify that the new inserted node does not overlap the nodes
+	 * which follow it.
+	 */
+	if (new) {
+		uint64_t new_node_last;
+		struct eb64_node *next;
+		struct quic_arng_node *next_node;
+
+		new_node_last = new_node->last;
+		while ((next = eb64_next(new))) {
+			next_node =
+				eb64_entry(&next->node, struct quic_arng_node, first);
+			if (new_node_last + 1 < next_node->first.key)
+				break;
+
+			if (next_node->last > new_node->last)
+				new_node->last = next_node->last;
+			eb64_delete(next);
+			free(next_node);
+			/* Decrement the size of these ranges. */
+			arngs->sz--;
+		}
+	}
+
+	quic_arngs_set_enc_sz(arngs);
+
+ out:
 	return 1;
 }
-
 /* Remove the header protection of packets at <el> encryption level.
  * Always succeeds.
  */
@@ -2130,6 +2120,8 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
 				            QUIC_EV_CONN_ELRXPKTS, ctx->conn, pkt);
 			}
 			else {
+				struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
+
 				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
 					el->pktns->rx.nb_ack_eliciting++;
 					if (!(el->pktns->rx.nb_ack_eliciting & 1))
@@ -2141,7 +2133,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
 					el->pktns->rx.largest_pn = pkt->pn;
 
 				/* Update the list of ranges to acknowledge. */
-				if (!quic_update_ack_ranges_list(&el->pktns->rx.ack_ranges, pkt->pn)) {
+				if (!quic_update_ack_ranges_list(&el->pktns->rx.arngs, &ar)) {
 					TRACE_DEVEL("Could not update ack range list",
 					            QUIC_EV_CONN_ELRXPKTS, ctx->conn);
 					node = eb64_next(node);
@@ -3141,10 +3133,10 @@ static int quic_ack_frm_reduce_sz(struct quic_frame *ack_frm, size_t limit)
 	ack_delay_sz = quic_int_getsize(ack_frm->tx_ack.ack_delay);
 	/* A frame is made of 1 byte for the frame type. */
 	room = limit - ack_delay_sz - 1;
-	if (!quic_rm_last_ack_ranges(ack_frm->tx_ack.ack_ranges, room))
+	if (!quic_rm_last_ack_ranges(ack_frm->tx_ack.arngs, room))
 		return 0;
 
-	return 1 + ack_delay_sz + ack_frm->tx_ack.ack_ranges->enc_sz;
+	return 1 + ack_delay_sz + ack_frm->tx_ack.arngs->enc_sz;
 }
 
 /* Prepare as most as possible CRYPTO frames from prebuilt CRYPTO frames for <qel>
@@ -3288,9 +3280,9 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 	/* Build an ACK frame if required. */
 	ack_frm_len = 0;
 	if ((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
-	    !LIST_ISEMPTY(&qel->pktns->rx.ack_ranges.list)) {
+	    !eb_is_empty(&qel->pktns->rx.arngs.root)) {
 		ack_frm.tx_ack.ack_delay = 0;
-		ack_frm.tx_ack.ack_ranges = &qel->pktns->rx.ack_ranges;
+		ack_frm.tx_ack.arngs = &qel->pktns->rx.arngs;
 		ack_frm_len = quic_ack_frm_reduce_sz(&ack_frm, end - pos);
 		if (!ack_frm_len)
 			goto err;
@@ -3518,9 +3510,9 @@ static ssize_t qc_do_build_phdshk_apkt(struct q_buf *wbuf,
 	/* Build an ACK frame if required. */
 	ack_frm_len = 0;
 	if ((qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
-	    !LIST_ISEMPTY(&qel->pktns->rx.ack_ranges.list)) {
+	    !eb_is_empty(&qel->pktns->rx.arngs.root)) {
 		ack_frm.tx_ack.ack_delay = 0;
-		ack_frm.tx_ack.ack_ranges = &qel->pktns->rx.ack_ranges;
+		ack_frm.tx_ack.arngs = &qel->pktns->rx.arngs;
 		ack_frm_len = quic_ack_frm_reduce_sz(&ack_frm, end - pos);
 		if (!ack_frm_len)
 			goto err;

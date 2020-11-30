@@ -108,7 +108,7 @@ struct quic_ack {
 /* Structure used when emitting ACK frames. */
 struct quic_tx_ack {
 	uint64_t ack_delay;
-	struct quic_ack_ranges *ack_ranges;
+	struct quic_arngs *arngs;
 };
 
 struct quic_reset_stream {
