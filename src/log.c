@@ -169,7 +169,8 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "hs", LOG_FMT_HDRRESPONS, PR_MODE_TCP, LW_RSPHDR, NULL },  /* header response */
 	{ "hsl", LOG_FMT_HDRRESPONSLIST, PR_MODE_TCP, LW_RSPHDR, NULL },  /* header response list */
 	{ "HM", LOG_FMT_HTTP_METHOD, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP method */
-	{ "HP", LOG_FMT_HTTP_PATH, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP path */
+	{ "HP", LOG_FMT_HTTP_PATH, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP relative or absolute path */
+	{ "HPO", LOG_FMT_HTTP_PATH_ONLY, PR_MODE_HTTP, LW_REQ, NULL }, /* HTTP path only (without host nor query string) */
 	{ "HQ", LOG_FMT_HTTP_QUERY, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP query */
 	{ "HU", LOG_FMT_HTTP_URI, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP full URI */
 	{ "HV", LOG_FMT_HTTP_VERSION, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP version */
@@ -2102,6 +2103,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	struct logformat_node *tmp;
 	struct timeval tv;
 	struct strm_logs tmp_strm_log;
+	struct ist path;
 
 	/* FIXME: let's limit ourselves to frontend logging for now. */
 
@@ -2842,6 +2844,52 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				} else {
 					chunk.area = uri;
 					chunk.data = spc - uri;
+				}
+
+				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);
+				if (ret == NULL || *ret != '\0')
+					goto out;
+
+				tmplog = ret;
+				if (tmp->options & LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_HTTP_PATH_ONLY: // %HPO
+				uri = txn && txn->uri ? txn->uri : "<BADREQ>";
+
+				if (tmp->options & LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				end = uri + strlen(uri);
+
+				// look for the first whitespace character
+				while (uri < end && !HTTP_IS_SPHT(*uri))
+					uri++;
+
+				// keep advancing past multiple spaces
+				while (uri < end && HTTP_IS_SPHT(*uri)) {
+					uri++; nspaces++;
+				}
+
+				// look for first space after url
+				spc = uri;
+				while (spc < end && !HTTP_IS_SPHT(*spc))
+					spc++;
+
+				path.ptr = uri;
+				path.len = spc - uri;
+
+				// extract relative path without query params from url
+				path = iststop(http_get_path(path), '?');
+				if (!txn || !txn->uri || nspaces == 0) {
+					chunk.area = "<BADREQ>";
+					chunk.data = strlen("<BADREQ>");
+				} else {
+					chunk.area = path.ptr;
+					chunk.data = path.len;
 				}
 
 				ret = lf_encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk, tmp);

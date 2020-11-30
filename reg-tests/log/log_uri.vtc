@@ -1,0 +1,59 @@
+varnishtest "Verify logging of relative/aboslute URI path"
+feature ignore_unknown_macro
+
+server s1 {
+    rxreq
+    txresp
+} -repeat 4 -start
+
+syslog Slg_1 -level info {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* hpo=/r/1 hp=/r/1 hu=/r/1 hq="
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* hpo=/r/2 hp=/r/2 hu=/r/2\\?q=2 hq=\\?q=2"
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* hpo=/r/3 hp=http://localhost/r/3 hu=http://localhost/r/3 hq="
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* hpo=/r/4 hp=http://localhost/r/4 hu=http://localhost/r/4\\?q=4 hq=\\?q=4"
+} -start
+
+haproxy h1 -conf {
+    global
+        nbthread 1
+
+    defaults
+        mode http
+        option httplog
+        timeout connect 1000
+        timeout client  1000
+        timeout server  1000
+
+    frontend fe1
+        bind "fd@${fe_1}"
+        log ${Slg_1_addr}:${Slg_1_port} local0
+        log-format "ci:%cp [%tr] hpo=%HPO hp=%HP hu=%HU hq=%HQ"
+        default_backend be
+
+    backend be
+        server app1 ${s1_addr}:${s1_port}
+} -start
+
+# The following client are started in background and synchronized
+client c1 -connect ${h1_fe_1_sock} {
+    txreq -url "/r/1"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/r/2?q=2"
+    rxresp
+    expect resp.status == 200
+    txreq -url "http://localhost/r/3" -hdr "host: localhost"
+    rxresp
+    expect resp.status == 200
+    txreq -url "http://localhost/r/4?q=4" -hdr "host: localhost"
+    rxresp
+    expect resp.status == 200
+} -start
+
+syslog Slg_1 -wait
+
+client c1 -wait
