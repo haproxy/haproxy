@@ -1803,8 +1803,18 @@ static int h2c_send_goaway_error(struct h2c *h2c, struct h2s *h2s)
 		}
 	}
 	h2c->flags |= H2_CF_GOAWAY_SENT;
+
+	/* some codes are not for real errors, just attempts to close cleanly */
+	switch (h2c->errcode) {
+	case H2_ERR_NO_ERROR:
+	case H2_ERR_ENHANCE_YOUR_CALM:
+	case H2_ERR_REFUSED_STREAM:
+	case H2_ERR_CANCEL:
+		break;
+	default:
+		HA_ATOMIC_ADD(&h2c->px_counters->goaway_resp, 1);
+	}
  out:
-	HA_ATOMIC_ADD(&h2c->px_counters->goaway_resp, 1);
 	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_GOAWAY, h2c->conn);
 	return ret;
 }
