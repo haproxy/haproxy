@@ -1,6 +1,51 @@
 ChangeLog :
 ===========
 
+2020/12/01 : 2.4-dev2
+    - BUILD: Make DEBUG part of .build_opts
+    - BUILD: Show the value of DEBUG= in haproxy -vv
+    - CI: Set DEBUG=-DDEBUG_STRICT=1 in GitHub Actions
+    - MINOR: stream: Add level 7 retries on http error 401, 403
+    - CLEANUP: remove unused function "ssl_sock_is_ckch_valid"
+    - BUILD: SSL: add BoringSSL guarding to "RAND_keep_random_devices_open"
+    - BUILD: SSL: do not "update" BoringSSL version equivalent anymore
+    - BUG/MEDIUM: http_act: Restore init of log-format list
+    - DOC: better describes how to configure a fallback crt
+    - BUG/MAJOR: filters: Always keep all offsets up to date during data filtering
+    - MINOR: cache: Prepare helper functions for Vary support
+    - MEDIUM: cache: Add the Vary header support
+    - MINOR: cache: Add a process-vary option that can enable/disable Vary processing
+    - BUG/CRITICAL: cache: Fix trivial crash by sending accept-encoding header
+    - BUG/MAJOR: peers: fix partial message decoding
+    - DOC: cache: Add new caching limitation information
+    - DOC: cache: Add information about Vary support
+    - DOC: better document the config file format and escaping/quoting rules
+    - DOC: Clarify %HP description in log-format
+    - CI: github actions: update LibreSSL to 3.3.0
+    - CI: github actions: enable 51degrees feature
+    - MINOR: fd/threads: silence a build warning with threads disabled
+    - BUG/MINOR: tcpcheck: Don't forget to reset tcp-check flags on new kind of check
+    - MINOR: tcpcheck: Don't handle anymore in-progress send rules in tcpcheck_main
+    - BUG/MAJOR: tcpcheck: Allocate input and output buffers from the buffer pool
+    - MINOR: tcpcheck: Don't handle anymore in-progress connect rules in tcpcheck_main
+    - MINOR: config: Deprecate and ignore tune.chksize global option
+    - MINOR: config: Add a warning if tune.chksize is used
+    - REORG: tcpcheck: Move check option parsing functions based on tcp-check
+    - MINOR: check: Always increment check health counter on CONPASS
+    - MINOR: tcpcheck: Add support of L7OKC on expect rules error-status argument
+    - DOC: config: Make disable-on-404 option clearer on transition conditions
+    - DOC: config: Move req.hdrs and req.hdrs_bin in L7 samples fetches section
+    - BUG/MINOR: http-fetch: Fix smp_fetch_body() when called from a health-check
+    - MINOR: plock: use an ARMv8 instruction barrier for the pause instruction
+    - MINOR: debug: add "debug dev sched" to stress the scheduler.
+    - MINOR: debug: add a trivial PRNG for scheduler stress-tests
+    - BUG/MEDIUM: lists: Lock the element while we check if it is in a list.
+    - MINOR: task: remove tasklet_insert_into_tasklet_list()
+    - MINOR: task: perform atomic counter increments only once per wakeup
+    - MINOR: task: remove __tasklet_remove_from_tasklet_list()
+    - BUG/MEDIUM: task: close a possible data race condition on a tasklet's list link
+    - BUG/MEDIUM: local log format regression.
+
 2020/11/21 : 2.4-dev1
     - MINOR: ist: Add istend() function to return a pointer to the end of the string
     - MINOR: sample: Add converters to parse FIX messages
