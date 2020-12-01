@@ -79,7 +79,8 @@ enum trace_state {
  * lower level are always reported at higher levels.
  */
 enum trace_level {
-	TRACE_LEVEL_USER = 0,     // info useful to the end user
+	TRACE_LEVEL_ERROR = 0,    // only errors
+	TRACE_LEVEL_USER,         // also info useful to the end user
 	TRACE_LEVEL_PROTO,        // also report protocol-level updates
 	TRACE_LEVEL_STATE,        // also report state changes
 	TRACE_LEVEL_DATA,         // also report data exchanges

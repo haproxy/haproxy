@@ -408,7 +408,9 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 
 		if (!*name) {
 			chunk_printf(&trash, "Supported trace levels for source %s:\n", src->name.ptr);
-			chunk_appendf(&trash, "  %c user       : information useful to the end user\n",
+			chunk_appendf(&trash, "  %c error      : report errors\n",
+				      src->level == TRACE_LEVEL_ERROR ? '*' : ' ');
+			chunk_appendf(&trash, "  %c user       : also information useful to the end user\n",
 				      src->level == TRACE_LEVEL_USER ? '*' : ' ');
 			chunk_appendf(&trash, "  %c proto      : also protocol-level updates\n",
 				      src->level == TRACE_LEVEL_PROTO ? '*' : ' ');
@@ -422,7 +424,9 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 			return cli_msg(appctx, LOG_WARNING, trash.area);
 		}
 
-		if (strcmp(name, "user") == 0)
+		if (strcmp(name, "error") == 0)
+			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_ERROR);
+		else if (strcmp(name, "user") == 0)
 			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_USER);
 		else if (strcmp(name, "proto") == 0)
 			HA_ATOMIC_STORE(&src->level, TRACE_LEVEL_PROTO);

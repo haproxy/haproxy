@@ -53,6 +53,9 @@
 #define TRACE(msg, mask, args...)    \
 	trace(TRACE_LEVEL,           (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
+#define TRACE_ERROR(msg, mask, args...)			\
+	trace(TRACE_LEVEL_ERROR,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+
 #define TRACE_USER(msg, mask, args...)			\
 	trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
@@ -79,6 +82,7 @@
 
 #if defined(DEBUG_DEV) || defined(DEBUG_FULL)
 #    define DBG_TRACE(msg, mask, args...)        TRACE(msg, mask, ##args)
+#    define DBG_TRACE_ERROR(msg, mask, args...)  TRACE_ERROR(msg, mask, ##args)
 #    define DBG_TRACE_USER(msg, mask, args...)   TRACE_USER(msg, mask, ##args)
 #    define DBG_TRACE_DATA(msg, mask, args...)   TRACE_DATA(msg, mask, ##args)
 #    define DBG_TRACE_PROTO(msg, mask, args...)  TRACE_PROTO(msg, mask, ##args)
@@ -89,6 +93,7 @@
 #    define DBG_TRACE_POINT(mask, args...)       TRACE_POINT(mask, ##args)
 #else
 #    define DBG_TRACE(msg, mask, args...)        do { /* do nothing */ } while(0)
+#    define DBG_TRACE_ERROR(msg, mask, args...)  do { /* do nothing */ } while(0)
 #    define DBG_TRACE_USER(msg, mask, args...)   do { /* do nothing */ } while(0)
 #    define DBG_TRACE_DATA(msg, mask, args...)   do { /* do nothing */ } while(0)
 #    define DBG_TRACE_PROTO(msg, mask, args...)  do { /* do nothing */ } while(0)
