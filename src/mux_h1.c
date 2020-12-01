@@ -468,13 +468,26 @@ static void h1_refresh_timeout(struct h1c *h1c)
 			h1c->task->expire = tick_add(now_ms, h1c->shut_timeout);
 			task_queue(h1c->task);
 			TRACE_DEVEL("refreshing connection's timeout (half-closed)", H1_EV_H1C_SEND, h1c->conn);
-		} else if ((!h1c->h1s && !conn_is_back(h1c->conn)) || b_data(&h1c->obuf)) {
-			/* front connections waiting for a stream, as well as any connection with
-			 * pending data, need a timeout.
+		} else if (b_data(&h1c->obuf)) {
+			/* any connection with pending data, need a timeout (server or client).
 			 */
 			h1c->task->expire = tick_add(now_ms, ((h1c->flags & H1C_F_CS_SHUTW_NOW)
 							      ? h1c->shut_timeout
 							      : h1c->timeout));
+			task_queue(h1c->task);
+			TRACE_DEVEL("refreshing connection's timeout", H1_EV_H1C_SEND, h1c->conn);
+		} else if ((h1c->flags & (H1C_F_CS_IDLE|H1C_F_WAIT_NEXT_REQ)) && !conn_is_back(h1c->conn)) {
+			/* front connections waiting for a stream need a timeout. client timeout by
+			 * default but http-keep-alive if defined
+			 */
+			int timeout = h1c->timeout;
+
+			if (h1c->flags & H1C_F_WAIT_NEXT_REQ)
+				timeout = tick_first(timeout, h1c->px->timeout.httpka);
+
+			h1c->task->expire = tick_add(now_ms, ((h1c->flags & H1C_F_CS_SHUTW_NOW)
+							      ? h1c->shut_timeout
+							      : timeout));
 			task_queue(h1c->task);
 			TRACE_DEVEL("refreshing connection's timeout", H1_EV_H1C_SEND, h1c->conn);
 		}
