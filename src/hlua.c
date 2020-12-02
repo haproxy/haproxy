@@ -225,15 +225,18 @@ static unsigned int hlua_timeout_applet = 4000; /* applet timeout. */
  */
 static unsigned int hlua_nb_instruction = 10000;
 
-/* Descriptor for the memory allocation state. If limit is not null, it will
- * be enforced on any memory allocation.
+/* Descriptor for the memory allocation state. The limit is pre-initialised to
+ * 0 until it is replaced by "tune.lua.maxmem" during the config parsing, or it
+ * is replaced with ~0 during post_init after everything was loaded. This way
+ * it is guaranteed that if limit is ~0 the boot is complete and that if it's
+ * zero it's not yet limited and proper accounting is required.
  */
 struct hlua_mem_allocator {
 	size_t allocated;
 	size_t limit;
 };
 
-static struct hlua_mem_allocator hlua_global_allocator;
+static struct hlua_mem_allocator hlua_global_allocator THREAD_ALIGNED(64);
 
 /* These functions converts types between HAProxy internal args or
  * sample and LUA types. Another function permits to check if the
@@ -8180,6 +8183,10 @@ int hlua_post_init()
 	enum hlua_exec ret;
 	const char *error;
 
+	/* disable memory limit checks if limit is not set */
+	if (!hlua_global_allocator.limit)
+		hlua_global_allocator.limit = ~hlua_global_allocator.limit;
+
 	/* Call post initialisation function in safe environment. */
 	if (!SET_SAFE_LJMP(gL.T)) {
 		if (lua_type(gL.T, -1) == LUA_TSTRING)
@@ -8231,21 +8238,38 @@ int hlua_post_init()
  * is the previously allocated size or the kind of object in case of a new
  * allocation. <nsize> is the requested new size. A new allocation is
  * indicated by <ptr> being NULL. A free is indicated by <nsize> being
- * zero.
+ * zero. This one verifies that the limits are respected but is optimized
+ * for the fast case where limits are not used, hence stats are not updated.
  */
 static void *hlua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 {
 	struct hlua_mem_allocator *zone = ud;
+	size_t limit, old, new;
+
+	/* a limit of ~0 means unlimited and boot complete, so there's no need
+	 * for accounting anymore.
+	 */
+	if (likely(~zone->limit == 0))
+		return realloc(ptr, nsize);
 
 	if (!ptr)
 		osize = 0;
 
-	if (zone->limit && zone->allocated + nsize - osize > zone->limit)
-		return NULL;
+	/* enforce strict limits across all threads */
+	limit = zone->limit;
+	old = _HA_ATOMIC_LOAD(&zone->allocated);
+	do {
+		new = old + nsize - osize;
+		if (unlikely(nsize && limit && new > limit))
+			return NULL;
+	} while (!_HA_ATOMIC_CAS(&zone->allocated, &old, new));
 
 	ptr = realloc(ptr, nsize);
-	if (ptr || !nsize)
-		zone->allocated += nsize - osize;
+
+	if (unlikely(!ptr && nsize)) // failed
+		_HA_ATOMIC_SUB(&zone->allocated, nsize - osize);
+
+	__ha_barrier_atomic_store();
 	return ptr;
 }
 
