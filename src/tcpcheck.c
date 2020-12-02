@@ -1360,10 +1360,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 		    (istlen(body) && !htx_add_data_atonce(htx, body)))
 			goto error_htx;
 
-		htx->flags |= HTX_FL_EOM; /* no more data are expected. Only EOM remains to add now */
-		if (!htx_add_endof(htx, HTX_BLK_EOM))
-			goto error_htx;
-
+		/* no more data are expected */
+		htx->flags |= HTX_FL_EOM;
 		htx_to_buf(htx, &check->bo);
 		break;
 	}
@@ -1518,7 +1516,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 	struct ist desc = IST_NULL;
 	int i, match, inverse;
 
-	last_read |= (!htx_free_data_space(htx) || (htx_get_tail_type(htx) == HTX_BLK_EOM));
+	last_read |= (!htx_free_data_space(htx) || (htx->flags & HTX_FL_EOM));
 
 	if (htx->flags & HTX_FL_PARSING_ERROR) {
 		status = HCHK_STATUS_L7RSP;
@@ -1710,7 +1708,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 		for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 			enum htx_blk_type type = htx_get_blk_type(blk);
 
-			if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
+			if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 				break;
 			if (type == HTX_BLK_DATA) {
 				if (!chunk_istcat(&trash, htx_get_blk_value(htx, blk)))

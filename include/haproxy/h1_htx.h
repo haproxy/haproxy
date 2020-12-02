@@ -36,7 +36,6 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 		      struct buffer *htxbuf);
 int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 		      struct buffer *srcbuf, size_t ofs, size_t max);
-int h1_parse_msg_eom(struct h1m *h1m, struct htx *dsthtx, size_t max);
 
 int h1_format_htx_reqline(const struct htx_sl *sl, struct buffer *chk);
 int h1_format_htx_stline(const struct htx_sl *sl, struct buffer *chk);

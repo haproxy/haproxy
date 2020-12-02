@@ -1225,13 +1225,8 @@ static void promex_appctx_handle_io(struct appctx *appctx)
 			/* fall through */
 
 		case PROMEX_ST_DONE:
-			/* Don't add TLR because mux-h1 will take care of it */
-			res_htx->flags |= HTX_FL_EOM; /* no more data are expected. Only EOM remains to add now */
-			if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
-				si_rx_room_blk(si);
-				goto out;
-			}
-			channel_add_input(res, 1);
+			/* no more data are expected. Don't add TLR because mux-h1 will take care of it */
+			res_htx->flags |= HTX_FL_EOM;
 			appctx->st0 = PROMEX_ST_END;
 			/* fall through */
 

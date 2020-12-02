@@ -159,7 +159,7 @@ static int __http_find_header(const struct htx *htx, const void *pattern, struct
 	for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 	  rescan_hdr:
 		type = htx_get_blk_type(blk);
-		if (type == HTX_BLK_EOH || type == HTX_BLK_EOM)
+		if (type == HTX_BLK_EOH)
 			break;
 		if (type != HTX_BLK_HDR)
 			continue;
@@ -991,10 +991,7 @@ int http_str_to_htx(struct buffer *buf, struct ist raw, char **errmsg)
 		ret += sent;
 	}
 
-	if (!htx_add_endof(htx, HTX_BLK_EOM)) {
-		memprintf(errmsg, "unable to add EOM into the HTX message");
-		goto error;
-	}
+	htx->flags |= HTX_FL_EOM;
 
 	return 1;
 
@@ -2398,9 +2395,9 @@ smp_fetch_htx_free_data(const struct arg *arg_p, struct sample *smp, const char 
 	return 1;
 }
 
-/* Returns 1 if the HTX message contains an EOM block. Otherwise it returns
- * 0. Concretely, it only checks the tail. The channel is chosen depending on
- * the sample direction. */
+/* Returns 1 if the HTX message contains EOM flag. Otherwise it returns 0. The
+ * channel is chosen depending on the sample direction.
+ */
 static int
 smp_fetch_htx_has_eom(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
 {
@@ -2415,7 +2412,7 @@ smp_fetch_htx_has_eom(const struct arg *arg_p, struct sample *smp, const char *k
 	if (!htx)
 		return 0;
 
-	smp->data.u.sint = (htx_get_tail_type(htx) == HTX_BLK_EOM);
+	smp->data.u.sint = !!(htx->flags & HTX_FL_EOM);
 	smp->data.type   = SMP_T_BOOL;
 	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
 	return 1;

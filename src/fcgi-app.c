@@ -352,7 +352,7 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 		sl = http_get_stline(htx);
 		if (sl &&
 		    (sl->flags & (HTX_SL_F_XFER_LEN|HTX_SL_F_CLEN|HTX_SL_F_CHNK)) == HTX_SL_F_XFER_LEN &&
-		    htx_get_tail_type(htx) == HTX_BLK_EOM) {
+		    (htx->flags & HTX_FL_EOM)) {
 			struct htx_blk * blk;
 			char *end;
 			size_t len = 0;
@@ -360,7 +360,7 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 			for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 				enum htx_blk_type type = htx_get_blk_type(blk);
 
-				if (type == HTX_BLK_EOM)
+				if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 					break;
 				if (type == HTX_BLK_DATA)
 					len += htx_get_blksz(blk);

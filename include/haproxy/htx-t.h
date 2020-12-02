@@ -89,7 +89,7 @@
  *
  * An HTX block is as well a header as a body part or a trailer. For all these
  * types of block, a payload is attached to the block. It can also be a mark,
- * like the end-of-headers or end-of-message. For these blocks, there is no
+ * like the end-of-headers or end-of-trailers. For these blocks, there is no
  * payload but it count for a byte. It is important to not skip it when data are
  * forwarded. Metadata of an HTX block are composed of 2 fields :
  *
@@ -117,7 +117,6 @@
  *     - 0101 = data
  *     - 0110 = trailer
  *     - 0111 = end-of-trailers
- *     - 1000 = end-of-message
  *       ...
  *     - 1111 = unused
  *
@@ -158,8 +157,7 @@ enum htx_blk_type {
 	HTX_BLK_DATA   =  4, /* data block */
 	HTX_BLK_TLR    =  5, /* trailer name/value block */
 	HTX_BLK_EOT    =  6, /* end-of-trailers block */
-	HTX_BLK_EOM    =  7, /* end-of-message block */
-	/* 8 .. 14 unused */
+	/* 7 .. 14 unused */
 	HTX_BLK_UNUSED = 15, /* unused/removed block */
 };
 

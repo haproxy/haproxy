@@ -80,8 +80,7 @@
 #define H1S_F_WANT_MSK       0x00000070
 #define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
 
-#define H1S_F_PARSING_DONE   0x00000200 /* Set when incoming message parsing is finished (EOM added) */
-
+/* 0x00000200 unsued */
 #define H1S_F_NOT_IMPL_ERROR 0x00000400 /* Set when a feature is not implemented during the message parsing */
 #define H1S_F_PARSING_ERROR  0x00000800 /* Set when an error occurred during the message parsing */
 #define H1S_F_PROCESSING_ERROR 0x00001000 /* Set when an error occurred during the message xfer */
@@ -563,10 +562,7 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
 	const struct h1m *h1m;
 
 	h1m = ((h1s->h1c->flags & H1C_F_IS_BACK) ? &h1s->res : &h1s->req);
-	if (h1m->state == H1_MSG_DONE)
-		return !(h1s->flags & H1S_F_PARSING_DONE);
-
-	return b_data(&h1s->h1c->ibuf);
+	return ((h1m->state == H1_MSG_DONE) ? 0 : b_data(&h1s->h1c->ibuf));
 }
 
 /* Creates a new conn-stream and the associate stream. <input> is used as input
@@ -747,9 +743,9 @@ static void h1s_destroy(struct h1s *h1s)
 			TRACE_STATE("h1s on error, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
 		}
 
-		if (!(h1c->flags & (H1C_F_ST_ERROR|H1C_F_ST_SHUTDOWN)) && /* No error/shutdown on h1c */
+		if (!(h1c->flags & (H1C_F_ST_ERROR|H1C_F_ST_SHUTDOWN)) &&                    /* No error/shutdown on h1c */
 		    !(h1c->conn->flags & (CO_FL_ERROR|CO_FL_SOCK_RD_SH|CO_FL_SOCK_WR_SH)) && /* No error/shutdown on conn */
-		    (h1s->flags & (H1S_F_WANT_KAL|H1S_F_PARSING_DONE)) == (H1S_F_WANT_KAL|H1S_F_PARSING_DONE) && /* K/A possible */
+		    (h1s->flags & H1S_F_WANT_KAL) &&                                         /* K/A possible */
 		    h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {        /* req/res in DONE state */
 			h1c->flags |= (H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ);
 			TRACE_STATE("set idle mode on h1c, waiting for the next request", H1_EV_H1C_ERR, h1c->conn, h1s);
@@ -1284,8 +1280,6 @@ static void h1_set_tunnel_mode(struct h1s *h1s)
 	h1s->res.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 
 	TRACE_STATE("switch H1 stream in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
-	if (h1c->flags & H1C_F_IS_BACK)
-                h1s->flags &= ~H1S_F_PARSING_DONE;
 
 	if (h1c->flags & H1C_F_WAIT_OUTPUT) {
 		h1c->flags &= ~H1C_F_WAIT_OUTPUT;
@@ -1415,33 +1409,6 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
 }
 
 /*
- * Add the EOM in the HTX message. It returns 1 on success or 0 if it couldn't
- * proceed. This functions is responsible to update the parser state <h1m>.
- */
-static size_t h1_process_eom(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
-			     struct buffer *buf, size_t *ofs, size_t max)
-{
-	int ret;
-
-	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s, 0, (size_t[]){max});
-	ret = h1_parse_msg_eom(h1m, htx, max);
-	if (!ret) {
-		TRACE_DEVEL("leaving on missing data or error", H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s);
-		if (htx->flags & HTX_FL_PARSING_ERROR) {
-			h1s->flags |= H1S_F_PARSING_ERROR;
-			TRACE_USER("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_EOI|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
-			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
-		}
-		goto end;
-	}
-
-	h1s->flags |= H1S_F_PARSING_DONE;
-  end:
-	TRACE_LEAVE(H1_EV_RX_DATA|H1_EV_RX_EOI, h1s->h1c->conn, h1s, 0, (size_t[]){ret});
-	return ret;
-}
-
-/*
  * Process incoming data. It parses data and transfer them from h1c->ibuf into
  * <buf>. It returns the number of bytes parsed and transferred if > 0, or 0 if
  * it couldn't proceed.
@@ -1513,13 +1480,8 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 				    H1_EV_RX_DATA|H1_EV_RX_TLRS, h1c->conn, h1s, htx, (size_t[]){ret});
 		}
 		else if (h1m->state == H1_MSG_DONE) {
-			if (!(h1s->flags & H1S_F_PARSING_DONE)) {
-				if (!h1_process_eom(h1s, h1m, htx, &h1c->ibuf, &total, count))
-					break;
-
-				TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully rcvd" : "H1 response fully rcvd"),
-					   H1_EV_RX_DATA|H1_EV_RX_EOI, h1c->conn, h1s, htx);
-			}
+			TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully rcvd" : "H1 response fully rcvd"),
+				   H1_EV_RX_DATA|H1_EV_RX_EOI, h1c->conn, h1s, htx);
 
 			if ((h1m->flags & H1_MF_RESP) &&
 			    ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101))
@@ -1622,7 +1584,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	 * requests, wait the response to do so or not depending on the status
 	 * code.
 	 */
-	if ((h1s->flags & H1S_F_PARSING_DONE) && (h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG))
+	if ((h1m->state == H1_MSG_DONE) && (h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG))
 		h1s->cs->flags |= CS_FL_EOI;
 
 	if (h1s_data_pending(h1s) && !htx_is_empty(htx))
@@ -1673,6 +1635,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	struct htx_blk *blk;
 	struct buffer tmp;
 	size_t total = 0;
+	int last_data = 0;
 
 	if (!count)
 		goto end;
@@ -1724,6 +1687,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			void *old_area = h1c->obuf.area;
 
 			TRACE_PROTO("sending message data (zero-copy)", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){count});
+			if (h1m->state == H1_MSG_DATA && chn_htx->flags & HTX_FL_EOM) {
+				TRACE_DEVEL("last message block", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
+				last_data = 1;
+			}
+
 			h1c->obuf.area = buf->area;
 			h1c->obuf.head = sizeof(struct htx) + blk->addr;
 			h1c->obuf.data = count;
@@ -1735,12 +1703,17 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			htx_reset(chn_htx);
 
 			/* The message is chunked. We need to emit the chunk
-			 * size. We have at least the size of the struct htx to
-			 * write the chunk envelope. It should be enough.
+			 * size and eventually the last chunk. We have at least
+			 * the size of the struct htx to write the chunk
+			 * envelope. It should be enough.
 			 */
 			if (h1m->flags & H1_MF_CHNK) {
 				h1_emit_chunk_size(&h1c->obuf, count);
 				h1_emit_chunk_crlf(&h1c->obuf);
+				if (last_data) {
+					/* Emit the last chunk too at the buffer's end */
+					b_putblk(&h1c->obuf, "0\r\n\r\n", 5);
+				}
 			}
 
 			total += count;
@@ -1750,6 +1723,18 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			else
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
 					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){count});
+
+			if (last_data) {
+				h1m->state = H1_MSG_DONE;
+				if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
+					h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
+					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+					TRACE_STATE("Re-enable read on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
+				}
+
+				TRACE_USER((!(h1m->flags & H1_MF_RESP) ? "H1 request fully xferred" : "H1 response fully xferred"),
+					   H1_EV_TX_DATA, h1c->conn, h1s);
+			}
 			goto out;
 		}
 		tmp.area = h1c->obuf.area + h1c->obuf.head;
@@ -1918,47 +1903,53 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1s->flags |= H1S_F_HAVE_SRV_NAME;
 				}
 
-				if (!chunk_memcat(&tmp, "\r\n", 2))
-					goto full;
-
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request headers xferred" : "H1 response headers xferred"),
 					    H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 
 				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
-					/* Must have a EOM before tunnel data */
-					h1m->state = H1_MSG_DONE;
+					if (!chunk_memcat(&tmp, "\r\n", 2))
+						goto full;
+					goto done;
 				}
 				else if ((h1m->flags & H1_MF_RESP) &&
 					 ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101)) {
-					/* Must have a EOM before tunnel data */
-					h1m->state = H1_MSG_DONE;
+					if (!chunk_memcat(&tmp, "\r\n", 2))
+						goto full;
+					goto done;
 				}
 				else if ((h1m->flags & H1_MF_RESP) &&
 					 h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
+					if (!chunk_memcat(&tmp, "\r\n", 2))
+						goto full;
 					h1m_init_res(&h1s->res);
 					h1m->flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
 					h1s->flags &= ~H1S_F_HAVE_O_CONN;
 					TRACE_STATE("1xx response xferred", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
 				else if ((h1m->flags & H1_MF_RESP) &&  h1s->meth == HTTP_METH_HEAD) {
-					h1m->state = H1_MSG_DONE;
+					if (!chunk_memcat(&tmp, "\r\n", 2))
+						goto full;
 					TRACE_STATE("HEAD response processed", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+					goto done;
 				}
-				else
+				else {
+					/* EOM flag is set and it is the last block */
+					if (htx_is_unique_blk(chn_htx, blk) && (chn_htx->flags & HTX_FL_EOM)) {
+						if ((h1m->flags & H1_MF_CHNK) && !chunk_memcat(&tmp, "\r\n0\r\n\r\n", 7))
+							goto full;
+						else if (!chunk_memcat(&tmp, "\r\n", 2))
+							goto full;
+						goto done;
+					}
+					else if (!chunk_memcat(&tmp, "\r\n", 2))
+						goto full;
 					h1m->state = H1_MSG_DATA;
+				}
 				break;
 
 			case H1_MSG_DATA:
 			case H1_MSG_TUNNEL:
-				if (type == HTX_BLK_EOM) {
-					/* Chunked message without explicit trailers */
-					if (h1m->flags & H1_MF_CHNK) {
-						if (!chunk_memcat(&tmp, "0\r\n\r\n", 5))
-							goto full;
-					}
-					goto done;
-				}
-				else if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
+				if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
 					/* If the message is not chunked, never
 					 * add the last chunk. */
 					if ((h1m->flags & H1_MF_CHNK) && !chunk_memcat(&tmp, "0\r\n", 3))
@@ -1971,10 +1962,17 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 				TRACE_PROTO("sending message data", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){sz});
 
+				/* It is the last block of this message. After this one,
+				 * only tunneled data may be forwarded. */
+				if (h1m->state == H1_MSG_DATA && htx_is_unique_blk(chn_htx, blk) && (chn_htx->flags & HTX_FL_EOM)) {
+					TRACE_DEVEL("last message block", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s);
+					last_data = 1;
+				}
 
 				if (vlen > count) {
 					/* Get the maximum amount of data we can xferred */
 					vlen = count;
+					last_data = 0;
 				}
 
 				chklen = 0;
@@ -1984,6 +1982,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						  (chklen < 4096) ? 3 : (chklen < 65536) ? 4 :
 						  (chklen < 1048576) ? 5 : 8);
 					chklen += 4; /* 2 x CRLF */
+
+					/* If it is the end of the chunked message (without EOT), reserve the
+					 * last chunk size */
+					if (last_data)
+						chklen += 5;
 				}
 
 				if (vlen + chklen > b_room(&tmp)) {
@@ -1991,11 +1994,16 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					if (chklen >= b_room(&tmp))
 						goto full;
 					vlen = b_room(&tmp) - chklen;
+					last_data = 0;
 				}
 				v = htx_get_blk_value(chn_htx, blk);
 				v.len = vlen;
 				if (!h1_format_htx_data(v, &tmp, !!(h1m->flags & H1_MF_CHNK)))
 					goto full;
+
+				/* Space already reserved, so it must succeed */
+				if ((h1m->flags & H1_MF_CHNK) && last_data && !chunk_memcat(&tmp, "0\r\n\r\n", 5))
+					goto error;
 
 				if (h1m->state == H1_MSG_DATA)
 					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request payload data xferred" : "H1 response payload data xferred"),
@@ -2003,15 +2011,16 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				else
 					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
 						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){v.len});
+				if (last_data)
+					goto done;
 				break;
 
 			case H1_MSG_TRAILERS:
-				if (type == HTX_BLK_EOM)
-					goto done;
-				else if (type != HTX_BLK_TLR && type != HTX_BLK_EOT)
+				if (type != HTX_BLK_TLR && type != HTX_BLK_EOT)
 					goto error;
 			  trailers:
 				h1m->state = H1_MSG_TRAILERS;
+
 				/* If the message is not chunked, ignore
 				 * trailers. It may happen with H2 messages. */
 				if (!(h1m->flags & H1_MF_CHNK))
@@ -2022,6 +2031,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 						goto full;
 					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request trailers xferred" : "H1 response trailers xferred"),
 						    H1_EV_TX_DATA|H1_EV_TX_TLRS, h1c->conn, h1s);
+					goto done;
 				}
 				else { // HTX_BLK_TLR
 					n = htx_get_blk_name(chn_htx, blk);
@@ -2036,8 +2046,9 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				break;
 
 			case H1_MSG_DONE:
-				if (type != HTX_BLK_EOM)
-					goto error;
+				TRACE_STATE("unexpected data xferred in done state", H1_EV_TX_DATA|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+				goto error; /* For now return an error */
+
 			  done:
 				h1m->state = H1_MSG_DONE;
 				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {

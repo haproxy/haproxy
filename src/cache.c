@@ -1489,21 +1489,18 @@ static void http_cache_io_handler(struct appctx *appctx)
 	if (appctx->st0 == HTX_CACHE_DATA) {
 		len = first->len - sizeof(*cache_ptr) - appctx->ctx.cache.sent;
 		if (len) {
-			ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_EOM);
+			ret = htx_cache_dump_msg(appctx, res_htx, len, HTX_BLK_UNUSED);
 			if (ret < len) {
 				si_rx_room_blk(si);
 				goto out;
 			}
 		}
-		appctx->st0 = HTX_CACHE_END;
+		appctx->st0 = HTX_CACHE_EOM;
 	}
 
 	if (appctx->st0 == HTX_CACHE_EOM) {
-		res_htx->flags |= HTX_FL_EOM; /* no more data are expected. Only EOM remains to add now */
-		if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
-			si_rx_room_blk(si);
-			goto out;
-		}
+		 /* no more data are expected. */
+		res_htx->flags |= HTX_FL_EOM;
 		appctx->st0 = HTX_CACHE_END;
 	}
 

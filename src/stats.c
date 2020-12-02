@@ -3670,7 +3670,7 @@ static int stats_process_http_post(struct stream_interface *si)
 	while (blk) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 
-		if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
+		if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 			break;
 		if (type == HTX_BLK_DATA) {
 			struct ist v = htx_get_blk_value(htx, blk);
@@ -4137,13 +4137,8 @@ static void http_stats_io_handler(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == STAT_HTTP_DONE) {
-		/* Don't add TLR because mux-h1 will take care of it */
-		res_htx->flags |= HTX_FL_EOM; /* no more data are expected. Only EOM remains to add now */
-		if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
-			si_rx_room_blk(si);
-			goto out;
-		}
-		channel_add_input(&s->res, 1);
+		/* no more data are expected. Don't add TLR because mux-h1 will take care of it */
+		res_htx->flags |= HTX_FL_EOM;
 		appctx->st0 = STAT_HTTP_END;
 	}
 

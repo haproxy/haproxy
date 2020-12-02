@@ -1,7 +1,7 @@
                 -----------------------------------------------
                                    HTX API
                                   Version 1.0
-                          ( Last update: 2019-06-20 )
+                          ( Last update: 2020-12-02 )
                 -----------------------------------------------
                           Author : Christopher Faulet
                       Contact : cfaulet at haproxy dot com
@@ -157,9 +157,9 @@ continuous again.
 
 An HTX block can be as well a start-line as a header, a body part or a
 trailer. For all these types of block, a payload is attached to the block. It
-can also be a marker, the end-of-headers, end-of-trailers or end-of-message. For
-these blocks, there is no payload but it counts for a byte. It is important to
-not skip it when data are forwarded.
+can also be a marker, the end-of-headers or end-of-trailers. For these blocks,
+there is no payload but it counts for a byte. It is important to not skip it
+when data are forwarded.
 
 As already said, a block is composed of metadata and a payload. Metadata are
 stored in the blocks part and are composed of 2 fields :
@@ -190,7 +190,6 @@ Supported types are :
     - 0100  (4) : A data block
     - 0101  (5) : A trailer block
     - 0110  (6) : The end-of-trailers marker
-    - 0111  (7) : The end-of-message marker
     - 1111 (15) : An unused block
 
 Other types are unused for now and reserved for futur extensions.
@@ -204,14 +203,18 @@ An HTX message is typically composed of following blocks, in this order :
     - zero or more trailer blocks (optional)
     - an end-of-trailers marker (optional but always set if there is at least
       one trailer block)
-    - an end-of-message marker.
 
 Only one HTTP request at a time can be stored in an HTX message. For HTTP
 response, it is more complicated. Only one "final" response can be stored in an
 HTX message. It is a response with status-code 101 or greater or equal to
 200. But it may be preceded by several 1xx informational responses. Such
-responses are part of the same HTX message, so there is no end-of-message marker
-for them.
+responses are part of the same HTX message.
+
+When the end of the message is reached a special flag is set on the message
+(HTX_FL_EOM). It means no more data are expected for this message, except
+tunneled data. But tunneled data will never be mixed with message data. Thus
+once the flag marking the end of the message is set, it is easy to know the
+message ends.
 
 
 3.1. The start-line
@@ -268,14 +271,13 @@ DATA blocks can be resized.
 
 3.4. The end-of markers
 
-These blocks are used to delimit parts of an HTX message. It exists three
-markers:
+These blocks are used to delimit parts of an HTX message. It exists two
+markers :
 
     - end-of-headers (EOH)
     - end-of-trailers (EOT)
-    - end-of-message (EOM)
 
-EOH and EOM are always present in an HTX message. EOT is optional.
+EOH is always present in an HTX message. EOT is optional.
 
 
 4. The HTX API

@@ -596,8 +596,9 @@ static inline int htx_is_not_empty(const struct htx *htx)
 }
 
 /* Returns 1 if no more data are expected for the message <htx>. Otherwise it
- * returns 0. Note that it is illegal to call this with htx == NULL. Note also
- * the EOM block may be missing.
+ * returns 0. Note that it is illegal to call this with htx == NULL. This
+ * function relies on the HTX_FL_EOM flags. It means tunneled data are not
+ * considered here.
  */
 static inline int htx_expect_more(const struct htx *htx)
 {
@@ -620,6 +621,7 @@ static inline int htx_copy_msg(struct htx *htx, const struct buffer *msg)
 	return htx_append_msg(htx, htxbuf(msg));
 }
 
+/* Remove all blocks except headers. Trailers will also be removed too. */
 static inline void htx_skip_msg_payload(struct htx *htx)
 {
 	struct htx_blk *blk = htx_get_first_blk(htx);
@@ -627,7 +629,7 @@ static inline void htx_skip_msg_payload(struct htx *htx)
 	while (blk) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 
-		blk = ((type > HTX_BLK_EOH && type < HTX_BLK_EOM)
+		blk = ((type > HTX_BLK_EOH)
 		       ? htx_remove_blk(htx, blk)
 		       : htx_get_next_blk(htx, blk));
 	}
@@ -652,7 +654,6 @@ static inline const char *htx_blk_type_str(enum htx_blk_type type)
 		case HTX_BLK_DATA:   return "HTX_BLK_DATA";
 		case HTX_BLK_TLR:    return "HTX_BLK_TLR";
 		case HTX_BLK_EOT:    return "HTX_BLK_EOT";
-		case HTX_BLK_EOM:    return "HTX_BLK_EOM";
 		case HTX_BLK_UNUSED: return "HTX_BLK_UNUSED";
 		default:             return "HTX_BLK_???";
 	};

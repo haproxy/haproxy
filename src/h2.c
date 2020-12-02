@@ -448,8 +448,12 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	if (*msgf & H2_MSGF_BODY_TUNNEL)
 		*msgf &= ~(H2_MSGF_BODY|H2_MSGF_BODY_CL);
 
-	if (!(*msgf & H2_MSGF_BODY) || ((*msgf & H2_MSGF_BODY_CL) && *body_len == 0))
+	if (!(*msgf & H2_MSGF_BODY) || ((*msgf & H2_MSGF_BODY_CL) && *body_len == 0) ||
+	    (*msgf & H2_MSGF_BODY_TUNNEL)) {
+		/* Request without body or tunnel requested */
 		sl_flags |= HTX_SL_F_BODYLESS;
+		htx->flags |= HTX_FL_EOM;
+	}
 
 	/* update the start line with last detected header info */
 	sl->flags |= sl_flags;
@@ -504,13 +508,6 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 
 	/* Set bytes used in the HTX message for the headers now */
 	sl->hdrs_bytes = htx_used_space(htx) - used;
-
-	if (*msgf & H2_MSGF_BODY_TUNNEL) {
-		/* Add the EOM for tunnel requests (CONNECT) */
-		htx->flags |= HTX_FL_EOM; /* no more message data are expected */
-		if (!htx_add_endof(htx, HTX_BLK_EOM))
-			goto fail;
-	}
 
 	ret = 1;
 	return ret;
@@ -698,8 +695,12 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 	else
 		*msgf &= ~H2_MSGF_BODY_TUNNEL;
 
-	if (!(*msgf & H2_MSGF_BODY) || ((*msgf & H2_MSGF_BODY_CL) && *body_len == 0))
+	if (!(*msgf & H2_MSGF_BODY) || ((*msgf & H2_MSGF_BODY_CL) && *body_len == 0) ||
+	    (*msgf & H2_MSGF_BODY_TUNNEL)) {
+		/* Response without body or tunnel sucessfully established */
 		sl_flags |= HTX_SL_F_BODYLESS;
+		htx->flags |= HTX_FL_EOM;
+	}
 
 	/* update the start line with last detected header info */
 	sl->flags |= sl_flags;
@@ -717,13 +718,6 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 
 	/* Set bytes used in the HTX message for the headers now */
 	sl->hdrs_bytes = htx_used_space(htx) - used;
-
-	if (*msgf & H2_MSGF_BODY_TUNNEL) {
-		/* Tunnel sucessfully established, add the EOM now, all data are part of the tunnel */
-		htx->flags |= HTX_FL_EOM; /* no more message data are expected */
-		if (!htx_add_endof(htx, HTX_BLK_EOM))
-			goto fail;
-	}
 
 	ret = 1;
 	return ret;

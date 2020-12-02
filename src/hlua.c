@@ -4207,7 +4207,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 		struct htx_blk *blk = htx_get_blk(htx, pos);
 		enum htx_blk_type type = htx_get_blk_type(blk);
 
-		if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
+		if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 			break;
 		if (type == HTX_BLK_DATA)
 			len += htx_get_blksz(blk);
@@ -4381,11 +4381,6 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 		uint32_t vlen;
 		char *nl;
 
-		if (type == HTX_BLK_EOM) {
-			stop = 1;
-			break;
-		}
-
 		vlen = sz;
 		if (vlen > count) {
 			if (type != HTX_BLK_DATA)
@@ -4409,7 +4404,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 				break;
 
 			case HTX_BLK_TLR:
-			case HTX_BLK_EOM:
+			case HTX_BLK_EOT:
 				stop = 1;
 				break;
 
@@ -4474,11 +4469,6 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 		struct ist v;
 		uint32_t vlen;
 
-		if (type == HTX_BLK_EOM) {
-			len = 0;
-			break;
-		}
-
 		vlen = sz;
 		if (len > 0 && vlen > len)
 			vlen = len;
@@ -4498,7 +4488,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 				break;
 
 			case HTX_BLK_TLR:
-			case HTX_BLK_EOM:
+			case HTX_BLK_EOT:
 				len = 0;
 				break;
 
@@ -5807,9 +5797,10 @@ __LJMP static int hlua_txn_forward_reply(lua_State *L, struct stream *s)
 
 
 	if (!htx_add_endof(htx, HTX_BLK_EOH) ||
-	    (body_len && !htx_add_data_atonce(htx, ist2(body, body_len))) ||
-	    !htx_add_endof(htx, HTX_BLK_EOM))
+	    (body_len && !htx_add_data_atonce(htx, ist2(body, body_len))))
 		goto fail;
+
+	htx->flags |= HTX_FL_EOM;
 
 	/* Now, forward the response and terminate the transaction */
 	s->txn->status = code;
@@ -7467,13 +7458,8 @@ void hlua_applet_http_fct(struct appctx *ctx)
 		if (!(ctx->ctx.hlua_apphttp.flags & APPLET_HDR_SENT))
 			goto error;
 
-		/* Don't add TLR because mux-h1 will take care of it */
-		res_htx->flags |= HTX_FL_EOM; /* no more data are expected. Only EOM remains to add now */
-		if (!htx_add_endof(res_htx, HTX_BLK_EOM)) {
-			si_rx_room_blk(si);
-			goto out;
-		}
-		channel_add_input(res, 1);
+		/* no more data are expected. Don't add TLR because mux-h1 will take care of it */
+		res_htx->flags |= HTX_FL_EOM;
 		strm->txn->status = ctx->ctx.hlua_apphttp.status;
 		ctx->ctx.hlua_apphttp.flags |= APPLET_RSP_SENT;
 	}

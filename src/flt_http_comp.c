@@ -169,72 +169,74 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 	struct comp_state *st = filter->ctx;
 	struct htx *htx = htxbuf(&msg->chn->buf);
 	struct htx_ret htxret = htx_find_offset(htx, offset);
-	struct htx_blk *blk;
-	int ret, consumed = 0, to_forward = 0;
+	struct htx_blk *blk, *next;
+	int ret, consumed = 0, to_forward = 0, last = 0;
 
 	blk = htxret.blk;
 	offset = htxret.ret;
-	for (; blk && len; blk = htx_get_next_blk(htx, blk)) {
+	for (next = NULL; blk && len; blk = next) {
 		enum htx_blk_type type = htx_get_blk_type(blk);
 		uint32_t sz = htx_get_blksz(blk);
 		struct ist v;
 
-		switch (type) {
-			case HTX_BLK_UNUSED:
-				break;
+		next = htx_get_next_blk(htx, blk);
+		while (next && htx_get_blk_type(next) == HTX_BLK_UNUSED)
+			next = htx_get_next_blk(htx, blk);
 
+		if (!(msg->flags & HTTP_MSGF_COMPRESSING))
+			goto consume;
+
+		if (htx_compression_buffer_init(htx, &trash) < 0) {
+			msg->chn->flags |= CF_WAKE_WRITE;
+			goto end;
+		}
+
+		switch (type) {
 			case HTX_BLK_DATA:
+				/* it is the last data block */
+				last = ((!next && (htx->flags & HTX_FL_EOM)) || (next && htx_get_blk_type(next) != HTX_BLK_DATA));
 				v = htx_get_blk_value(htx, blk);
-				v.ptr += offset;
-				v.len -= offset;
-				if (v.len > len)
+				v = istadv(v, offset);
+				if (v.len > len) {
+					last = 0;
 					v.len = len;
-				if (htx_compression_buffer_init(htx, &trash) < 0) {
-					msg->chn->flags |= CF_WAKE_WRITE;
-					goto end;
 				}
+
 				ret = htx_compression_buffer_add_data(st, v.ptr, v.len, &trash);
-				if (ret < 0)
+				if (ret < 0 || htx_compression_buffer_end(st, &trash, last) < 0)
 					goto error;
-				if (htx_compression_buffer_end(st, &trash, 0) < 0)
-					goto error;
+				BUG_ON(v.len != ret);
+
+				if (ret == sz && !b_data(&trash))
+					next = htx_remove_blk(htx, blk);
+				else
+					blk = htx_replace_blk_value(htx, blk, v, ist2(b_head(&trash), b_data(&trash)));
+
 				len -= ret;
 				consumed += ret;
 				to_forward += b_data(&trash);
-				if (ret == sz && !b_data(&trash)) {
-					offset = 0;
-					blk = htx_remove_blk(htx, blk);
-					continue;
-				}
-				v.len = ret;
-				blk = htx_replace_blk_value(htx, blk, v, ist2(b_head(&trash), b_data(&trash)));
+				if (last)
+					msg->flags &= ~HTTP_MSGF_COMPRESSING;
 				break;
 
 			case HTX_BLK_TLR:
 			case HTX_BLK_EOT:
-			case HTX_BLK_EOM:
-				if (msg->flags & HTTP_MSGF_COMPRESSING) {
-					if (htx_compression_buffer_init(htx, &trash) < 0) {
-						msg->chn->flags |= CF_WAKE_WRITE;
-						goto end;
-					}
-					if (htx_compression_buffer_end(st, &trash, 1) < 0)
+				if (htx_compression_buffer_end(st, &trash, 1) < 0)
+					goto error;
+				if (b_data(&trash)) {
+					struct htx_blk *last = htx_add_last_data(htx, ist2(b_head(&trash), b_data(&trash)));
+					if (!last)
 						goto error;
-					if (b_data(&trash)) {
-						struct htx_blk *last = htx_add_last_data(htx, ist2(b_head(&trash), b_data(&trash)));
-						if (!last)
-							goto error;
-						blk = htx_get_next_blk(htx, last);
-						if (!blk)
-							goto error;
-						to_forward += b_data(&trash);
-					}
-					msg->flags &= ~HTTP_MSGF_COMPRESSING;
-					/* We let the mux add last empty chunk and empty trailers */
+					blk = htx_get_next_blk(htx, last);
+					if (!blk)
+						goto error;
+					to_forward += b_data(&trash);
 				}
+				msg->flags &= ~HTTP_MSGF_COMPRESSING;
 				/* fall through */
 
 			default:
+			  consume:
 				sz -= offset;
 				if (sz > len)
 					sz = len;

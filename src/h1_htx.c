@@ -371,8 +371,10 @@ int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 
 	/* Switch messages without any payload to DONE state */
 	if (((h1m->flags & H1_MF_CLEN) && h1m->body_len == 0) ||
-	    ((h1m->flags & (H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK)) == H1_MF_XFER_LEN))
+	    ((h1m->flags & (H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK)) == H1_MF_XFER_LEN)) {
 		h1m->state = H1_MSG_DONE;
+		dsthtx->flags |= HTX_FL_EOM;
+	}
 
   end:
 	return ret;
@@ -458,8 +460,10 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 				goto end;
 		}
 
-		if (!h1m->curr_len)
+		if (!h1m->curr_len) {
 			h1m->state = H1_MSG_DONE;
+			(*dsthtx)->flags |= HTX_FL_EOM;
+		}
 	}
 	else if (h1m->flags & H1_MF_CHNK) {
 		/* te:chunked : parse chunks */
@@ -515,6 +519,7 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 		 * body. Switch the message in DONE state
 		 */
 		h1m->state = H1_MSG_DONE;
+		(*dsthtx)->flags |= HTX_FL_EOM;
 	}
 	else {
 		/* no content length, read till SHUTW */
@@ -583,6 +588,7 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 		goto error;
 
 	h1m->state = H1_MSG_DONE;
+	dsthtx->flags |= HTX_FL_EOM;
 
   end:
 	return ret;
@@ -592,26 +598,6 @@ int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 	dsthtx->flags |= HTX_FL_PARSING_ERROR;
 	return 0;
 }
-
-/* Finish HTTP/1 parsing by adding the HTX EOM block. It returns 1 on success or
- * 0 if it couldn't proceed. There is no parsing at this stage, but a parsing
- * error is reported if the message state is not H1_MSG_DONE. */
-int h1_parse_msg_eom(struct h1m *h1m, struct htx *dsthtx, size_t max)
-{
-	if (h1m->state != H1_MSG_DONE) {
-		h1m->err_state = h1m->state;
-		h1m->err_pos = h1m->next;
-		dsthtx->flags |= HTX_FL_PARSING_ERROR;
-		return 0;
-	}
-
-	dsthtx->flags |= HTX_FL_EOM; /* no more data are expected. Only EOM remains to add now */
-	if (max < sizeof(struct htx_blk) + 1 || !htx_add_endof(dsthtx, HTX_BLK_EOM))
-		return 0;
-
-	return 1;
-}
-
 
 /* Appends the H1 representation of the request line <sl> to the chunk <chk>. It
  * returns 1 if data are successfully appended, otherwise it returns 0.

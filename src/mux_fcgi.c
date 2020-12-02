@@ -77,6 +77,9 @@ enum fcgi_conn_st {
 /* 32 buffers: one for the ring's root, rest for the mbuf itself */
 #define FCGI_C_MBUF_CNT 32
 
+/* Size for a record header (also size of empty record) */
+#define FCGI_RECORD_HEADER_SZ 8
+
 /* FCGI connection descriptor */
 struct fcgi_conn {
 	struct connection *conn;
@@ -128,8 +131,9 @@ enum fcgi_strm_st {
 /* FCGI stream flags (32 bits) */
 #define FCGI_SF_NONE           0x00000000
 #define FCGI_SF_ES_RCVD        0x00000001 /* end-of-stream received (empty STDOUT or EDN_REQUEST record) */
-#define FCGI_SF_ES_SENT        0x00000002 /* end-of-strem sent (empty STDIN record) */
-#define FCGI_SF_ABRT_SENT      0x00000004 /* abort sent (ABORT_REQUEST record) */
+#define FCGI_SF_ES_SENT        0x00000002 /* end-of-stream sent (empty STDIN record) */
+#define FCGI_SF_EP_SENT        0x00000004 /* end-of-param sent (empty PARAMS  record) */
+#define FCGI_SF_ABRT_SENT      0x00000008 /* abort sent (ABORT_REQUEST record) */
 
 /* Stream flags indicating the reason the stream is blocked */
 #define FCGI_SF_BLK_MBUSY      0x00000010 /* blocked waiting for mux access (transient) */
@@ -144,8 +148,6 @@ enum fcgi_strm_st {
 #define FCGI_SF_WANT_SHUTW     0x00002000  /* a stream couldn't shutw() (mux full/busy) */
 #define FCGI_SF_KILL_CONN      0x00004000  /* kill the whole connection with this stream */
 
-/* Other flags */
-#define FCGI_SF_H1_PARSING_DONE  0x00010000
 
 /* FCGI stream descriptor */
 struct fcgi_strm {
@@ -1293,7 +1295,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
 			type = htx_get_blk_type(blk);
 
-			if (type == HTX_BLK_EOM || type == HTX_BLK_TLR || type == HTX_BLK_EOT)
+			if (type == HTX_BLK_TLR || type == HTX_BLK_EOT)
 				break;
 			if (type == HTX_BLK_DATA)
 				len += htx_get_blksz(blk);
@@ -1531,19 +1533,19 @@ static int fcgi_conn_send_get_values(struct fcgi_conn *fconn)
 
 	while (1) {
 		outbuf = b_make(b_tail(mbuf), b_contig_space(mbuf), 0, 0);
-		if (outbuf.size >= 8 || !b_space_wraps(mbuf))
+		if (outbuf.size >= FCGI_RECORD_HEADER_SZ || !b_space_wraps(mbuf))
 			break;
 	  realign_again:
 		b_slow_realign(mbuf, trash.area, b_data(mbuf));
 	}
 
-	if (outbuf.size < 8)
+	if (outbuf.size < FCGI_RECORD_HEADER_SZ)
 		goto full;
 
 	/* vsn: 1(FCGI_VERSION), type: (9)FCGI_GET_VALUES, id: 0x0000,
 	 *  len: 0x0000 (fill later), padding: 0x00, rsv: 0x00 */
-	memcpy(outbuf.area, "\x01\x09\x00\x00\x00\x00\x00\x00", 8);
-	outbuf.data = 8;
+	memcpy(outbuf.area, "\x01\x09\x00\x00\x00\x00\x00\x00", FCGI_RECORD_HEADER_SZ);
+	outbuf.data = FCGI_RECORD_HEADER_SZ;
 
 	/* Note: Don't send the param FCGI_MAX_CONNS because its value cannot be
 	 *       handled by HAProxy.
@@ -1553,7 +1555,7 @@ static int fcgi_conn_send_get_values(struct fcgi_conn *fconn)
 
 	/* update the record's size now */
 	TRACE_PROTO("FCGI GET_VALUES record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_GETVAL, fconn->conn, 0, 0, (size_t[]){outbuf.data-8});
-	fcgi_set_record_size(outbuf.area, outbuf.data - 8);
+	fcgi_set_record_size(outbuf.area, outbuf.data - FCGI_RECORD_HEADER_SZ);
 	b_add(mbuf, outbuf.data);
 	ret = 1;
 
@@ -1725,20 +1727,20 @@ static int fcgi_strm_send_begin_request(struct fcgi_conn *fconn, struct fcgi_str
 
 	while (1) {
 		outbuf = b_make(b_tail(mbuf), b_contig_space(mbuf), 0, 0);
-		if (outbuf.size >= 8 || !b_space_wraps(mbuf))
+		if (outbuf.size >= FCGI_RECORD_HEADER_SZ || !b_space_wraps(mbuf))
 			break;
 	  realign_again:
 		b_slow_realign(mbuf, trash.area, b_data(mbuf));
 	}
 
-	if (outbuf.size < 8)
+	if (outbuf.size < FCGI_RECORD_HEADER_SZ)
 		goto full;
 
 	/* vsn: 1(FCGI_VERSION), type: (1)FCGI_BEGIN_REQUEST, id: fstrm->id,
 	 *  len: 0x0008, padding: 0x00, rsv: 0x00 */
-	memcpy(outbuf.area, "\x01\x01\x00\x00\x00\x08\x00\x00", 8);
+	memcpy(outbuf.area, "\x01\x01\x00\x00\x00\x08\x00\x00", FCGI_RECORD_HEADER_SZ);
 	fcgi_set_record_id(outbuf.area, fstrm->id);
-	outbuf.data = 8;
+	outbuf.data = FCGI_RECORD_HEADER_SZ;
 
 	if (fconn->flags & FCGI_CF_KEEP_CONN) {
 		TRACE_STATE("keep connection opened", FCGI_EV_TX_RECORD|FCGI_EV_TX_BEGREQ, fconn->conn, fstrm);
@@ -1792,21 +1794,21 @@ static int fcgi_strm_send_empty_record(struct fcgi_conn *fconn, struct fcgi_strm
 
 	while (1) {
 		outbuf = b_make(b_tail(mbuf), b_contig_space(mbuf), 0, 0);
-		if (outbuf.size >= 8 || !b_space_wraps(mbuf))
+		if (outbuf.size >= FCGI_RECORD_HEADER_SZ || !b_space_wraps(mbuf))
 			break;
 	  realign_again:
 		b_slow_realign(mbuf, trash.area, b_data(mbuf));
 	}
 
-	if (outbuf.size < 8)
+	if (outbuf.size < FCGI_RECORD_HEADER_SZ)
 		goto full;
 
 	/* vsn: 1(FCGI_VERSION), type: rtype, id: fstrm->id,
 	 *  len: 0x0000, padding: 0x00, rsv: 0x00 */
-	memcpy(outbuf.area, "\x01\x05\x00\x00\x00\x00\x00\x00", 8);
+	memcpy(outbuf.area, "\x01\x05\x00\x00\x00\x00\x00\x00", FCGI_RECORD_HEADER_SZ);
 	outbuf.area[1] = rtype;
 	fcgi_set_record_id(outbuf.area, fstrm->id);
-	outbuf.data = 8;
+	outbuf.data = FCGI_RECORD_HEADER_SZ;
 
 	/* commit the record */
 	b_add(mbuf, outbuf.data);
@@ -1835,8 +1837,10 @@ static int fcgi_strm_send_empty_params(struct fcgi_conn *fconn, struct fcgi_strm
 
 	TRACE_POINT(FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm);
 	ret = fcgi_strm_send_empty_record(fconn, fstrm, FCGI_PARAMS);
-	if (ret)
+	if (ret) {
+		fstrm->flags |= FCGI_SF_EP_SENT;
 		TRACE_PROTO("FCGI PARAMS record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, 0, (size_t[]){0});
+	}
 	return ret;
 }
 
@@ -1907,20 +1911,20 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 
 	while (1) {
 		outbuf = b_make(b_tail(mbuf), b_contig_space(mbuf), 0, 0);
-		if (outbuf.size >= 8 || !b_space_wraps(mbuf))
+		if (outbuf.size >= FCGI_RECORD_HEADER_SZ || !b_space_wraps(mbuf))
 			break;
 	  realign_again:
 		b_slow_realign(mbuf, trash.area, b_data(mbuf));
 	}
 
-	if (outbuf.size < 8)
+	if (outbuf.size < FCGI_RECORD_HEADER_SZ)
 		goto full;
 
 	/* vsn: 1(FCGI_VERSION), type: (4)FCGI_PARAMS, id: fstrm->id,
 	 *  len: 0x0000 (fill later), padding: 0x00, rsv: 0x00 */
-	memcpy(outbuf.area, "\x01\x04\x00\x00\x00\x00\x00\x00", 8);
+	memcpy(outbuf.area, "\x01\x04\x00\x00\x00\x00\x00\x00", FCGI_RECORD_HEADER_SZ);
 	fcgi_set_record_id(outbuf.area, fstrm->id);
-	outbuf.data = 8;
+	outbuf.data = FCGI_RECORD_HEADER_SZ;
 
 	blk = htx_get_head_blk(htx);
 	while (blk) {
@@ -2007,7 +2011,7 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 				if (!fcgi_encode_param(&outbuf, &p)) {
 					if (b_space_wraps(mbuf))
 						goto realign_again;
-					if (outbuf.data == 8)
+					if (outbuf.data == FCGI_RECORD_HEADER_SZ)
 						goto full;
 					goto done;
 				}
@@ -2028,7 +2032,7 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 					if (!fcgi_encode_param(&outbuf, &p)) {
 						if (b_space_wraps(mbuf))
 							goto realign_again;
-						if (outbuf.data == 8)
+						if (outbuf.data == FCGI_RECORD_HEADER_SZ)
 							goto full;
 					}
 					TRACE_STATE("add server name header", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm);
@@ -2065,8 +2069,8 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 		goto error;
 
 	/* update the record's size */
-	TRACE_PROTO("FCGI PARAMS record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, 0, (size_t[]){outbuf.data - 8});
-	fcgi_set_record_size(outbuf.area, outbuf.data - 8);
+	TRACE_PROTO("FCGI PARAMS record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, 0, (size_t[]){outbuf.data - FCGI_RECORD_HEADER_SZ});
+	fcgi_set_record_size(outbuf.area, outbuf.data - FCGI_RECORD_HEADER_SZ);
 	b_add(mbuf, outbuf.data);
 
   end:
@@ -2099,8 +2103,10 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	struct buffer *mbuf;
 	struct htx_blk *blk;
 	enum htx_blk_type type;
-	uint32_t size;
+	uint32_t size, extra_bytes;
 	size_t total = 0;
+
+	extra_bytes = 0;
 
 	TRACE_ENTER(FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx, (size_t[]){count});
 	if (!count)
@@ -2139,6 +2145,10 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 	if (unlikely(size == count && htx_nbblks(htx) == 1 && type == HTX_BLK_DATA)) {
 		void *old_area = mbuf->area;
 
+		 /* Last block of the message: Reserve the size for the empty stdin record */
+		if (htx->flags & HTX_FL_EOM)
+			extra_bytes = FCGI_RECORD_HEADER_SZ;
+
 		if (b_data(mbuf)) {
 			/* Too bad there are data left there. We're willing to memcpy/memmove
 			 * up to 1/4 of the buffer, which means that it's OK to copy a large
@@ -2146,9 +2156,9 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 			 * and that it's also OK to copy few data without realigning. Otherwise
 			 * we'll pretend the mbuf is full and wait for it to become empty.
 			 */
-			if (size + 8 <= b_room(mbuf) &&
+			if (size + FCGI_RECORD_HEADER_SZ + extra_bytes <= b_room(mbuf) &&
 			    (b_data(mbuf) <= b_size(mbuf) / 4 ||
-			     (size <= b_size(mbuf) / 4 && size + 8 <= b_contig_space(mbuf))))
+			     (size <= b_size(mbuf) / 4 && size + FCGI_RECORD_HEADER_SZ + extra_bytes <= b_contig_space(mbuf))))
 				goto copy;
 			goto full;
 		}
@@ -2157,11 +2167,11 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 		/* map a FCGI record to the HTX block so that we can put the
 		 * record header there.
 		 */
-		*mbuf = b_make(buf->area, buf->size, sizeof(struct htx) + blk->addr - 8, size + 8);
+		*mbuf = b_make(buf->area, buf->size, sizeof(struct htx) + blk->addr - FCGI_RECORD_HEADER_SZ, size + FCGI_RECORD_HEADER_SZ);
 		outbuf.area = b_head(mbuf);
 
 		/* prepend a FCGI record header just before the DATA block */
-		memcpy(outbuf.area, "\x01\x05\x00\x00\x00\x00\x00\x00", 8);
+		memcpy(outbuf.area, "\x01\x05\x00\x00\x00\x00\x00\x00", FCGI_RECORD_HEADER_SZ);
 		fcgi_set_record_id(outbuf.area, fstrm->id);
 		fcgi_set_record_size(outbuf.area, size);
 
@@ -2178,20 +2188,20 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
   copy:
 	while (1) {
 		outbuf = b_make(b_tail(mbuf), b_contig_space(mbuf), 0, 0);
-		if (outbuf.size >= 8 || !b_space_wraps(mbuf))
+		if (outbuf.size >= FCGI_RECORD_HEADER_SZ + extra_bytes || !b_space_wraps(mbuf))
 			break;
 	  realign_again:
 		b_slow_realign(mbuf, trash.area, b_data(mbuf));
 	}
 
-	if (outbuf.size < 8)
+	if (outbuf.size < FCGI_RECORD_HEADER_SZ + extra_bytes)
 		goto full;
 
 	/* vsn: 1(FCGI_VERSION), type: (5)FCGI_STDIN, id: fstrm->id,
 	 *  len: 0x0000 (fill later), padding: 0x00, rsv: 0x00 */
-	memcpy(outbuf.area, "\x01\x05\x00\x00\x00\x00\x00\x00", 8);
+	memcpy(outbuf.area, "\x01\x05\x00\x00\x00\x00\x00\x00", FCGI_RECORD_HEADER_SZ);
 	fcgi_set_record_id(outbuf.area, fstrm->id);
-	outbuf.data = 8;
+	outbuf.data = FCGI_RECORD_HEADER_SZ;
 
 	blk = htx_get_head_blk(htx);
 	while (blk && count) {
@@ -2203,22 +2213,28 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 			case HTX_BLK_DATA:
 				TRACE_PROTO("sending stding data", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx, (size_t[]){size});
 				v = htx_get_blk_value(htx, blk);
-				if (v.len > count)
-					v.len = count;
 
-				if (v.len > b_room(&outbuf)) {
+				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_EOM))
+					extra_bytes = FCGI_RECORD_HEADER_SZ; /* Last block of the message */
+
+				if (v.len > count) {
+					v.len = count;
+					extra_bytes = 0;
+				}
+
+				if (v.len + FCGI_RECORD_HEADER_SZ + extra_bytes > b_room(&outbuf)) {
 					/* It doesn't fit at once. If it at least fits once split and
 					 * the amount of data to move is low, let's defragment the
 					 * buffer now.
 					 */
 					if (b_space_wraps(mbuf) &&
-					    b_data(&outbuf) + v.len <= b_room(mbuf) &&
+					    b_data(&outbuf) + v.len + extra_bytes <= b_room(mbuf) &&
 					    b_data(mbuf) <= MAX_DATA_REALIGN)
 						goto realign_again;
-					v.len = b_room(&outbuf);
+					v.len = b_room(&outbuf) - FCGI_RECORD_HEADER_SZ - extra_bytes;
 				}
 				if (!v.len || !chunk_memcat(&outbuf, v.ptr, v.len)) {
-					if (outbuf.data == 8)
+					if (outbuf.data == FCGI_RECORD_HEADER_SZ)
 						goto full;
 					goto done;
 				}
@@ -2230,9 +2246,6 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 				}
 				break;
 
-			case HTX_BLK_EOM:
-				goto done;
-
 			default:
 				break;
 		}
@@ -2243,9 +2256,20 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 
   done:
 	/* update the record's size */
-	TRACE_PROTO("FCGI STDIN record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, 0, (size_t[]){outbuf.data - 8});
-	fcgi_set_record_size(outbuf.area, outbuf.data - 8);
+	TRACE_PROTO("FCGI STDIN record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, 0, (size_t[]){outbuf.data - FCGI_RECORD_HEADER_SZ});
+	fcgi_set_record_size(outbuf.area, outbuf.data - FCGI_RECORD_HEADER_SZ);
 	b_add(mbuf, outbuf.data);
+
+	/* Send the empty stding here to finish the message */
+	if (htx_is_empty(htx) && (htx->flags & HTX_FL_EOM)) {
+		TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
+		if (!fcgi_strm_send_empty_stdin(fconn, fstrm)) {
+			/* bytes already reserved for this record. It should not fail */
+			htx->flags |= HTX_FL_PROCESSING_ERROR;
+			TRACE_PROTO("processing error", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
+			fcgi_strm_error(fstrm);
+		}
+	}
 
   end:
 	TRACE_LEAVE(FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx, (size_t[]){total});
@@ -2749,8 +2773,8 @@ static int fcgi_recv(struct fcgi_conn *fconn)
 		 * it's empty. Thus we cheat and pretend we already
 		 * have a few bytes there.
 		 */
-		max = buf_room_for_htx_data(buf) + (fconn->state == FCGI_CS_RECORD_H ? 8 : 0);
-		buf->head = sizeof(struct htx) - (fconn->state == FCGI_CS_RECORD_H ? 8 : 0);
+		max = buf_room_for_htx_data(buf) + (fconn->state == FCGI_CS_RECORD_H ? FCGI_RECORD_HEADER_SZ : 0);
+		buf->head = sizeof(struct htx) - (fconn->state == FCGI_CS_RECORD_H ? FCGI_RECORD_HEADER_SZ : 0);
 	}
 	else
 		max = buf_room_for_htx_data(buf);
@@ -3313,28 +3337,6 @@ static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m,
 	return ret;
 }
 
-static size_t fcgi_strm_add_eom(struct fcgi_strm *fstrm, struct h1m *h1m, struct htx *htx,
-				struct buffer *buf, size_t *ofs, size_t max)
-{
-	int ret;
-
-	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm, 0, (size_t[]){max});
-	ret = h1_parse_msg_eom(h1m, htx, max);
-	if (!ret) {
-		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm);
-		if (htx->flags & HTX_FL_PARSING_ERROR) {
-			TRACE_USER("rejected H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
-			fcgi_strm_error(fstrm);
-			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
-		}
-		goto end;
-	}
-	fstrm->flags |= FCGI_SF_H1_PARSING_DONE;
-  end:
-	TRACE_LEAVE(FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fstrm->fconn->conn, fstrm, 0, (size_t[]){ret});
-	return ret;
-}
-
 static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *buf, size_t count)
 {
 	struct fcgi_conn *fconn = fstrm->fconn;
@@ -3378,8 +3380,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 			if (!(h1m->flags & H1_MF_XFER_LEN) && fstrm->state != FCGI_SS_ERROR &&
 			    (fstrm->flags & FCGI_SF_ES_RCVD) && b_data(&fstrm->rxbuf) == total) {
 				TRACE_DEVEL("end of data", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
-				if (!(h1m->flags & H1_MF_VER_11))
-					fstrm->flags |= FCGI_SF_H1_PARSING_DONE;
+				htx->flags |= HTX_FL_EOM;
 				h1m->state = H1_MSG_DONE;
 				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
 			}
@@ -3398,13 +3399,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 			TRACE_PROTO("rcvd H1 response trailers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fconn->conn, fstrm, htx);
 		}
 		else if (h1m->state == H1_MSG_DONE) {
-			if (!(fstrm->flags & FCGI_SF_H1_PARSING_DONE)) {
-				if (!fcgi_strm_add_eom(fstrm, h1m, htx, &fstrm->rxbuf, &total, count))
-					break;
-
-				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
-			}
-
+			TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
 			if (b_data(&fstrm->rxbuf) > total) {
 				htx->flags |= HTX_FL_PARSING_ERROR;
 				TRACE_PROTO("too much data, parsing error", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
@@ -3861,11 +3856,11 @@ static size_t fcgi_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 	else
 		TRACE_STATE("fstrm rxbuf not allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK, fconn->conn, fstrm);
 
-	if (b_data(&fstrm->rxbuf) || (fstrm->h1m.state == H1_MSG_DONE && !(fstrm->flags & FCGI_SF_H1_PARSING_DONE)))
+	if (b_data(&fstrm->rxbuf))
 		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	else {
 		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
-		if (fstrm->state == FCGI_SS_ERROR || (fstrm->flags & FCGI_SF_H1_PARSING_DONE)) {
+		if (fstrm->state == FCGI_SS_ERROR || (fstrm->h1m.state == H1_MSG_DONE)) {
 			cs->flags |= CS_FL_EOI;
 			if (!(fstrm->h1m.flags & (H1_MF_VER_11|H1_MF_XFER_LEN)))
 				cs->flags |= CS_FL_EOS;
@@ -3942,7 +3937,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 		 * full. Otherwise, the request is invalid.
 		 */
 		sl = http_get_stline(htx);
-		if (!sl || (!(sl->flags & HTX_SL_F_CLEN) && (htx_get_tail_type(htx) != HTX_BLK_EOM))) {
+		if (!sl || (!(sl->flags & HTX_SL_F_CLEN) && !(htx->flags & HTX_FL_EOM))) {
 			htx->flags |= HTX_FL_PARSING_ERROR;
 			fcgi_strm_error(fstrm);
 			goto done;
@@ -3977,10 +3972,18 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 				break;
 
 			case HTX_BLK_EOH:
-				TRACE_PROTO("sending FCGI PARAMS record", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, htx);
-				ret = fcgi_strm_send_empty_params(fconn, fstrm);
-				if (!ret)
-					goto done;
+				if (!(fstrm->flags & FCGI_SF_EP_SENT)) {
+					TRACE_PROTO("sending FCGI PARAMS record", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, htx);
+					ret = fcgi_strm_send_empty_params(fconn, fstrm);
+					if (!ret)
+						goto done;
+				}
+				if (htx_is_unique_blk(htx, blk) && (htx->flags & HTX_FL_EOM)) {
+					TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
+					ret = fcgi_strm_send_empty_stdin(fconn, fstrm);
+					if (!ret)
+						goto done;
+				}
 				goto remove_blk;
 
 			case HTX_BLK_DATA:
@@ -3994,13 +3997,6 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 						goto done;
 				}
 				break;
-
-			case HTX_BLK_EOM:
-				TRACE_PROTO("sending FCGI STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_TX_STDIN, fconn->conn, fstrm, htx);
-				ret = fcgi_strm_send_empty_stdin(fconn, fstrm);
-				if (!ret)
-					goto done;
-				goto remove_blk;
 
 			default:
 			  remove_blk:
