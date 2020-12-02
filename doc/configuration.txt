@@ -4927,6 +4927,10 @@ http-after-response <action> <options...> [ { if | unless } <condition> ]
   There is no limit to the number of http-after-response statements per
   instance.
 
+  Note: Errors emitted in early stage of the request parsing are handled by the
+        multiplexer at a lower level, before any http analysis. Thus no
+        http-after-response ruleset is evaluated on these errors.
+
   Example:
     http-after-response set-header Strict-Transport-Security "max-age=31536000"
     http-after-response set-header Cache-Control "no-store,no-cache,private"
@@ -5591,6 +5595,12 @@ http-error status <code> [content-type <type>]
   The files are read at the same time as the configuration and kept in memory.
   For this reason, the errors continue to be returned even when the process is
   chrooted, and no file change is considered while the process is running.
+
+  Note: 400/408/500 errors emitted in early stage of the request parsing are
+        handled by the multiplexer at a lower level. No custom formatting is
+        supported at this level. Thus only static error messages, defined with
+        "errorfile" directive, are supported. However, this limitation only
+        exists during the request headers parsing or between two transactions.
 
   See also : "errorfile", "errorfiles", "errorloc", "errorloc302",
              "errorloc303" and section 3.8 about http-errors.
