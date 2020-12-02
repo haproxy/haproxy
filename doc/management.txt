@@ -1136,7 +1136,7 @@ For all other statistics domains, the presence or the order of the fields are
 not guaranteed. In this case, the header line should always be used to parse
 the CSV data.
 
-9.2) Typed output format
+9.2. Typed output format
 ------------------------
 
 Both "show info" and "show stat" support a mode where each output value comes
