@@ -8229,37 +8229,22 @@ int hlua_post_init()
 /* The memory allocator used by the Lua stack. <ud> is a pointer to the
  * allocator's context. <ptr> is the pointer to alloc/free/realloc. <osize>
  * is the previously allocated size or the kind of object in case of a new
- * allocation. <nsize> is the requested new size.
+ * allocation. <nsize> is the requested new size. A new allocation is
+ * indicated by <ptr> being NULL. A free is indicated by <nsize> being
+ * zero.
  */
 static void *hlua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 {
 	struct hlua_mem_allocator *zone = ud;
 
-	if (nsize == 0) {
-		/* it's a free */
-		if (ptr)
-			zone->allocated -= osize;
-		free(ptr);
-		return NULL;
-	}
+	if (!ptr)
+		osize = 0;
 
-	if (!ptr) {
-		/* it's a new allocation */
-		if (zone->limit && zone->allocated + nsize > zone->limit)
-			return NULL;
-
-		ptr = malloc(nsize);
-		if (ptr)
-			zone->allocated += nsize;
-		return ptr;
-	}
-
-	/* it's a realloc */
 	if (zone->limit && zone->allocated + nsize - osize > zone->limit)
 		return NULL;
 
 	ptr = realloc(ptr, nsize);
-	if (ptr)
+	if (ptr || !nsize)
 		zone->allocated += nsize - osize;
 	return ptr;
 }
