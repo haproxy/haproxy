@@ -179,7 +179,7 @@ enum h2_ss {
 
 /* stream flags indicating how data is supposed to be sent */
 #define H2_SF_DATA_CLEN         0x00000100 // data sent using content-length
-/* unused flags: 0x00000200 */
+#define H2_SF_BODYLESS_RESP     0x00000200 /* Bodyless response message */
 #define H2_SF_BODY_TUNNEL       0x00000400 // Attempt to establish a Tunnelled stream (the result depends on the status code)
 
 
@@ -4701,6 +4701,8 @@ next_frame:
 			htx->extra = *body_len;
 		}
 	}
+	if (msgf & H2_MSGF_BODYLESS_RSP)
+		*flags |= H2_SF_BODYLESS_RESP;
 
 	if (msgf & H2_MSGF_BODY_TUNNEL)
 		*flags |= H2_SF_BODY_TUNNEL;
@@ -4942,6 +4944,8 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 			}
 			sl = htx_get_blk_ptr(htx, blk);
 			h2s->status = sl->info.res.status;
+			if (h2s->status == 204 || h2s->status == 304)
+				h2s->flags |= H2_SF_BODYLESS_RESP;
 			if (h2s->status < 100 || h2s->status > 999) {
 				TRACE_ERROR("will not encode an invalid status code", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 				goto fail;
@@ -5165,6 +5169,8 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			sl = htx_get_blk_ptr(htx, blk);
 			meth = htx_sl_req_meth(sl);
 			uri  = htx_sl_req_uri(sl);
+			if (sl->info.req.meth == HTTP_METH_HEAD)
+				h2s->flags |= H2_SF_BODYLESS_RESP;
 			if (unlikely(uri.len == 0)) {
 				TRACE_ERROR("no URI in HTX request", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 				goto fail;

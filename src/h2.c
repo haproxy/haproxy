@@ -294,6 +294,8 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		goto fail;
 
 	sl->info.req.meth = find_http_meth(phdr[H2_PHDR_IDX_METH].ptr, phdr[H2_PHDR_IDX_METH].len);
+	if (sl->info.req.meth == HTTP_METH_HEAD)
+		*msgf |= H2_MSGF_BODYLESS_RSP;
 	return sl;
  fail:
 	return NULL;
@@ -547,12 +549,18 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
 	 * On 1xx responses there is no ES on the HEADERS frame but there is no
 	 * body. So remove the flag H2_MSGF_BODY and add H2_MSGF_RSP_1XX to
 	 * notify the decoder another HEADERS frame is expected.
+	 * 204/304 resposne have no body by definition. So remove the flag
+	 * H2_MSGF_BODY and set H2_MSGF_BODYLESS_RSP.
 	 */
 	if (status == 101)
 		goto fail;
 	else if (status < 200) {
 		*msgf |= H2_MSGF_RSP_1XX;
 		*msgf &= ~H2_MSGF_BODY;
+	}
+	else if (sl->info.res.status == 204 || sl->info.res.status == 304) {
+		*msgf &= ~H2_MSGF_BODY;
+		*msgf |= H2_MSGF_BODYLESS_RSP;
 	}
 
 	/* Set HTX start-line flags */
