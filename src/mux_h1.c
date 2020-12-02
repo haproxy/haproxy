@@ -1805,7 +1805,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto full;
 				if (sl->flags & HTX_SL_F_XFER_LEN)
 					h1m->flags |= H1_MF_XFER_LEN;
-				if (h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102))
+				if (h1s->status < 200)
 					h1s->flags |= H1S_F_HAVE_O_CONN;
 				else if (h1s->status == 204 || h1s->status == 304)
 					h1s->flags |= H1S_F_BODYLESS_RESP;
