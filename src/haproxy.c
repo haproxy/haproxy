@@ -3426,7 +3426,7 @@ int main(int argc, char **argv)
 			}
 			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(cpuset), &cpuset);
 		}
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__DragonFly__)
 			sched_setaffinity(0, sizeof(unsigned long), (void *)&global.cpu_map.proc[proc]);
 #endif
 #endif
