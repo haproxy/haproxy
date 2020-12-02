@@ -1828,9 +1828,14 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if (*(n.ptr) == ':')
 					goto skip_hdr;
 
-				if (isteq(n, ist("transfer-encoding")))
+				if (isteq(n, ist("transfer-encoding"))) {
+					if ((h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
+						goto skip_hdr;
 					h1_parse_xfer_enc_header(h1m, v);
+				}
 				else if (isteq(n, ist("content-length"))) {
+					if ((h1m->flags & H1_MF_RESP) && (h1s->status < 200 || h1s->status == 204))
+						goto skip_hdr;
 					/* Only skip C-L header with invalid value. */
 					if (h1_parse_cont_len_header(h1m, &v) < 0)
 						goto skip_hdr;
