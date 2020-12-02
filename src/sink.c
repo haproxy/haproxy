@@ -348,18 +348,18 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		ofs += ring->ofs;
 	}
 
-	/* we were already there, adjust the offset to be relative to
-	 * the buffer's head and remove us from the counter.
-	 */
-	ofs -= ring->ofs;
-	BUG_ON(ofs >= buf->size);
-	HA_ATOMIC_SUB(b_peek(buf, ofs), 1);
-
 	/* in this loop, ofs always points to the counter byte that precedes
 	 * the message so that we can take our reference there if we have to
 	 * stop before the end (ret=0).
 	 */
 	if (si_opposite(si)->state == SI_ST_EST) {
+		/* we were already there, adjust the offset to be relative to
+		 * the buffer's head and remove us from the counter.
+		 */
+		ofs -= ring->ofs;
+		BUG_ON(ofs >= buf->size);
+		HA_ATOMIC_SUB(b_peek(buf, ofs), 1);
+
 		ret = 1;
 		while (ofs + 1 < b_data(buf)) {
 			cnt = 1;
@@ -488,18 +488,18 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		ofs += ring->ofs;
 	}
 
-	/* we were already there, adjust the offset to be relative to
-	 * the buffer's head and remove us from the counter.
-	 */
-	ofs -= ring->ofs;
-	BUG_ON(ofs >= buf->size);
-	HA_ATOMIC_SUB(b_peek(buf, ofs), 1);
-
 	/* in this loop, ofs always points to the counter byte that precedes
 	 * the message so that we can take our reference there if we have to
 	 * stop before the end (ret=0).
 	 */
 	if (si_opposite(si)->state == SI_ST_EST) {
+		/* we were already there, adjust the offset to be relative to
+		 * the buffer's head and remove us from the counter.
+		 */
+		ofs -= ring->ofs;
+		BUG_ON(ofs >= buf->size);
+		HA_ATOMIC_SUB(b_peek(buf, ofs), 1);
+
 		ret = 1;
 		while (ofs + 1 < b_data(buf)) {
 			cnt = 1;
