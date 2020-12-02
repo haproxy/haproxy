@@ -1690,7 +1690,12 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 		    htx_nbblks(chn_htx) == 1 &&
 		    htx_get_blk_type(blk) == HTX_BLK_DATA &&
 		    htx_get_blk_value(chn_htx, blk).len == count) {
-			void *old_area = h1c->obuf.area;
+			void *old_area;
+
+			if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
+				TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
+				goto skip_zero_copy;
+			}
 
 			TRACE_PROTO("sending message data (zero-copy)", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){count});
 			if (h1m->state == H1_MSG_DATA && chn_htx->flags & HTX_FL_EOM) {
@@ -1698,6 +1703,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				last_data = 1;
 			}
 
+			old_area = h1c->obuf.area;
 			h1c->obuf.area = buf->area;
 			h1c->obuf.head = sizeof(struct htx) + blk->addr;
 			h1c->obuf.data = count;
@@ -1722,7 +1728,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				}
 			}
 
-			total += count;
 			if (h1m->state == H1_MSG_DATA)
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request payload data xferred" : "H1 response payload data xferred"),
 					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){count});
@@ -1730,6 +1735,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
 					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){count});
 
+		  skip_zero_copy:
+			total += count;
 			if (last_data) {
 				h1m->state = H1_MSG_DONE;
 				if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
@@ -1878,7 +1885,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if ((h1s->meth != HTTP_METH_CONNECT &&
 				     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
 				     (H1_MF_VER_11|H1_MF_XFER_LEN)) ||
-				    (h1s->status >= 200 && h1s->status != 204 && h1s->status != 304 && h1s->meth != HTTP_METH_HEAD &&
+				    (h1s->status >= 200 && !(h1s->flags & H1S_F_BODYLESS_RESP) &&
 				     !(h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) &&
 				     (h1m->flags & (H1_MF_VER_11|H1_MF_RESP|H1_MF_CLEN|H1_MF_CHNK|H1_MF_XFER_LEN)) ==
 				     (H1_MF_VER_11|H1_MF_RESP|H1_MF_XFER_LEN))) {
@@ -1935,12 +1942,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1s->flags &= ~H1S_F_HAVE_O_CONN;
 					TRACE_STATE("1xx response xferred", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
-				else if ((h1m->flags & H1_MF_RESP) &&  h1s->meth == HTTP_METH_HEAD) {
-					if (!chunk_memcat(&tmp, "\r\n", 2))
-						goto full;
-					TRACE_STATE("HEAD response processed", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
-					goto done;
-				}
 				else {
 					/* EOM flag is set and it is the last block */
 					if (htx_is_unique_blk(chn_htx, blk) && (chn_htx->flags & HTX_FL_EOM)) {
@@ -1968,6 +1969,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				}
 				else if (type != HTX_BLK_DATA)
 					goto error;
+
+				if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
+					TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
+					break;
+				}
 
 				TRACE_PROTO("sending message data", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){sz});
 
@@ -2034,6 +2040,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				 * trailers. It may happen with H2 messages. */
 				if (!(h1m->flags & H1_MF_CHNK))
 					break;
+
+				if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
+					TRACE_PROTO("Skip trailers for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
+					break;
+				}
 
 				if (type == HTX_BLK_EOT) {
 					if (!chunk_memcat(&tmp, "\r\n", 2))
