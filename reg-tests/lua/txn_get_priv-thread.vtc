@@ -1,0 +1,67 @@
+varnishtest "Lua: txn:get_priv() scope"
+#REQUIRE_OPTIONS=LUA,OPENSSL
+#REQUIRE_VERSION=2.4
+#REGTEST_TYPE=bug
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        lua-load-per-thread ${testdir}/txn_get_priv.lua
+        lua-load-per-thread ${testdir}/txn_get_priv-print_r.lua
+
+    frontend fe1
+        mode http
+        ${no-htx} option http-use-htx
+        bind "fd@${fe1}"
+        default_backend b1
+
+    frontend fe2
+        mode http
+        ${no-htx} option http-use-htx
+        bind ":8443" ssl crt ${testdir}/common.pem
+        stats enable
+        stats uri /
+
+    backend b1
+        mode http
+        ${no-htx} option http-use-htx
+        http-request use-service lua.fakeserv
+} -start
+
+client c0 -repeat 4 -connect ${h1_fe1_sock} {
+    txreq -url "/0"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/0"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c1 -repeat 4 -connect ${h1_fe1_sock} {
+    txreq -url "/1"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/1"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c2 -repeat 4 -connect ${h1_fe1_sock} {
+    txreq -url "/2"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/2"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c3 -repeat 4 -connect ${h1_fe1_sock} {
+    txreq -url "/3"
+    rxresp
+    expect resp.status == 200
+    txreq -url "/3"
+    rxresp
+    expect resp.status == 200
+} -run
+
