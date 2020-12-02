@@ -5400,7 +5400,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
  * happened subsequently to a successful send. Returns the number of data bytes
  * consumed, or zero if nothing done. Note that EOM count for 1 byte.
  */
-static size_t h2s_frt_make_resp_data(struct h2s *h2s, struct buffer *buf, size_t count)
+static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 {
 	struct h2c *h2c = h2s->h2c;
 	struct htx *htx;
@@ -6108,7 +6108,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 				 * This EOM necessarily is one before trailers, as the EOM following
 				 * trailers would have been consumed by the trailers parser.
 				 */
-				ret = h2s_frt_make_resp_data(h2s, buf, count);
+				ret = h2s_make_data(h2s, buf, count);
 				if (ret > 0) {
 					htx = htx_from_buf(buf);
 					total += ret;
