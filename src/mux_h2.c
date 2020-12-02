@@ -5059,18 +5059,12 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		/* Response already closed: add END_STREAM */
 		es_now = 1;
 	}
-	else if ((h2s->flags & H2_SF_BODY_TUNNEL) && h2s->status >= 200 && h2s->status < 300) {
-		/* Don't set ES if a tunnel is successfully established (2xx responses to a connect). */
-	}
-	else if (h2s->status == 204 || h2s->status == 304) {
-		/* no contents, claim c-len is present and set to zero */
-		es_now = 1;
-	}
 	else if ((htx->flags & HTX_FL_EOM) && htx_is_empty(htx) && h2s->status >= 200) {
 		/* EOM+empty: we may need to add END_STREAM except for 1xx
-		 * responses.
+		 * responses and tunneled response.
 		 */
-		es_now = 1;
+		if (!(h2s->flags & H2_SF_BODY_TUNNEL) || h2s->status >= 300)
+			es_now = 1;
 	}
 
 	if (es_now)
@@ -5754,6 +5748,82 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	return total;
 }
 
+/* Skip the message payload (DATA blocks) and emit an empty DATA frame with the
+ * ES flag set for stream <h2s>. This function is called for response known to
+ * have no payload. Only DATA blocks are skipped. This means the trailers are
+ * still emited. The caller must check the stream's status to detect any error
+ * which might have happened subsequently to a successful send. Returns the
+ * number of data bytes consumed, or zero if nothing done.
+ */
+static size_t h2s_skip_data(struct h2s *h2s, struct buffer *buf, size_t count)
+{
+	struct h2c *h2c = h2s->h2c;
+	struct htx *htx;
+	int bsize; /* htx block size */
+	int fsize; /* h2 frame size  */
+	struct htx_blk *blk;
+	enum htx_blk_type type;
+	size_t total = 0;
+
+	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
+
+	if (h2c_mux_busy(h2c, h2s)) {
+		TRACE_STATE("mux output busy", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
+		h2s->flags |= H2_SF_BLK_MBUSY;
+		TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
+		goto end;
+	}
+
+	htx = htx_from_buf(buf);
+
+ next_data:
+	if (!count || htx_is_empty(htx))
+		goto end;
+	blk   = htx_get_head_blk(htx);
+	type  = htx_get_blk_type(blk);
+	bsize = htx_get_blksz(blk);
+	fsize = bsize;
+	if (type != HTX_BLK_DATA)
+		goto end;
+
+	if (fsize > count)
+		fsize = count;
+
+	if (fsize != bsize)
+		goto skip_data;
+
+	if (!(htx->flags & HTX_FL_EOM) || !htx_is_unique_blk(htx, blk))
+		goto skip_data;
+
+	/* Here, it is the last block and it is also the end of the message. So
+	 * we can emit an empty DATA frame with the ES flag set
+	 */
+	if (h2_send_empty_data_es(h2s) <= 0)
+		goto end;
+
+	if (h2s->st == H2_SS_OPEN)
+		h2s->st = H2_SS_HLOC;
+	else
+		h2s_close(h2s);
+
+ skip_data:
+	/* consume incoming HTX block */
+	total += fsize;
+	if (fsize == bsize) {
+		TRACE_DEVEL("more data may be available, trying to skip another frame", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
+		htx_remove_blk(htx, blk);
+		goto next_data;
+	}
+	else {
+		/* we've truncated this block */
+		htx_cut_data_blk(htx, blk, fsize);
+	}
+
+ end:
+	TRACE_LEAVE(H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
+	return total;
+}
+
 /* Try to send a HEADERS frame matching HTX_BLK_TLR series of blocks present in
  * HTX message <htx> for the H2 stream <h2s>. Returns the number of bytes
  * processed. The caller must check the stream's status to detect any error
@@ -6173,7 +6243,11 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 
 			case HTX_BLK_DATA:
 				/* all these cause the emission of a DATA frame (possibly empty) */
-				ret = h2s_make_data(h2s, buf, count);
+				if (!(h2s->h2c->flags & H2_CF_IS_BACK) &&
+				    (h2s->flags & (H2_SF_BODY_TUNNEL|H2_SF_BODYLESS_RESP)) == H2_SF_BODYLESS_RESP)
+					ret = h2s_skip_data(h2s, buf, count);
+				else
+					ret = h2s_make_data(h2s, buf, count);
 				if (ret > 0) {
 					htx = htx_from_buf(buf);
 					total += ret;
