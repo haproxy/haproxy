@@ -190,7 +190,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	line[words++] = ist(tnum);
 	line[words++] = src->name;
 	line[words++] = ist("|");
-	line[words++] = ist2("01234" + level, 1); // "0" to "4"
+	line[words++] = ist2("012345" + level, 1); // "0" to "5"
 	line[words++] = ist("|");
 	line[words] = where;
 	if (line[words].len > 13) {
