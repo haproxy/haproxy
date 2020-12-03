@@ -1,5 +1,6 @@
 varnishtest "Caching rules test"
-# A respnse will not be cached unless it has an explicit age (Cache-Control max-age of s-maxage, Expires, Last-Modified headers, or ETag)
+# A response will not be cached unless it has an explicit age (Cache-Control max-age of s-maxage, Expires) or a validator (Last-Modified, or ETag)
+# A response will not be cached either if it has an Age header that is either invalid (should be an integer) or greater than its max age.
 
 #REQUIRE_VERSION=1.9
 
@@ -35,6 +36,37 @@ server s1 {
     expect req.url == "/uncacheable"
     txresp \
         -bodylen 210
+
+    # Age response header checks
+
+    # Invalid age
+    rxreq
+    expect req.url == "/invalid_age"
+    txresp -hdr "Cache-Control: max-age=5" \
+        -hdr "Age: abc" -bodylen 120
+
+    rxreq
+    expect req.url == "/invalid_age"
+    txresp -hdr "Cache-Control: max-age=5" \
+        -hdr "Age: abc" -bodylen 120
+
+    # Old age (greater than max age)
+    rxreq
+    expect req.url == "/old_age"
+    txresp -hdr "Cache-Control: max-age=5" \
+        -hdr "Age: 10" -bodylen 130
+
+    rxreq
+    expect req.url == "/old_age"
+    txresp -hdr "Cache-Control: max-age=5" \
+        -hdr "Age: 10" -bodylen 130
+
+    # Good age
+    rxreq
+    expect req.url == "/good_age"
+    txresp -hdr "Cache-Control: max-age=500" \
+        -hdr "Age: 100" -bodylen 140
+
 } -start
 
 server s2 {
@@ -146,5 +178,42 @@ client c1 -connect ${h1_fe_sock} {
         expect resp.status == 200
         expect resp.bodylen == 210
         expect resp.http.X-Cache-Hit == 0
+
+        # Age header tests
+        txreq -url "/invalid_age"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 120
+        expect resp.http.X-Cache-Hit == 0
+
+        txreq -url "/invalid_age"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 120
+        expect resp.http.X-Cache-Hit == 0
+
+        txreq -url "/old_age"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 130
+        expect resp.http.X-Cache-Hit == 0
+
+        txreq -url "/old_age"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 130
+        expect resp.http.X-Cache-Hit == 0
+
+        txreq -url "/good_age"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 140
+        expect resp.http.X-Cache-Hit == 0
+
+        txreq -url "/good_age"
+        rxresp
+        expect resp.status == 200
+        expect resp.bodylen == 140
+        expect resp.http.X-Cache-Hit == 1
 
 } -run
