@@ -1,0 +1,66 @@
+varnishtest "A successful unsafe method (POST for instance) on a cached entry must disable it."
+
+#REQUIRE_VERSION=2.3
+
+feature ignore_unknown_macro
+
+server s1 {
+       rxreq
+       expect req.url == "/cached"
+       txresp -hdr "Cache-Control: max-age=5" \
+	    -bodylen 150
+
+       rxreq
+       expect req.url == "/cached"
+       expect req.method == "POST"
+       txresp
+
+       rxreq
+       expect req.url == "/cached"
+       txresp -hdr "Cache-Control: max-age=5" \
+	    -bodylen 100
+
+} -start
+
+haproxy h1 -conf {
+       defaults
+               mode http
+               ${no-htx} option http-use-htx
+               timeout connect 1s
+               timeout client  1s
+               timeout server  1s
+
+       frontend fe
+               bind "fd@${fe}"
+               default_backend test
+
+       backend test
+               http-request cache-use my_cache
+               server www ${s1_addr}:${s1_port}
+               http-response cache-store my_cache
+               http-response set-header X-Cache-Hit %[res.cache_hit]
+
+       cache my_cache
+               total-max-size 3
+               max-age 20
+               max-object-size 3072
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+       txreq -url "/cached"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 150
+
+       txreq -method "POST" -url "/cached" -bodylen 100
+       rxresp
+       expect resp.status == 200
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/cached"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 100
+       expect resp.http.X-Cache-Hit == 0
+} -run

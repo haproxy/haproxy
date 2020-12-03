@@ -753,8 +753,34 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		goto out;
 
 	/* cache only GET method */
-	if (txn->meth != HTTP_METH_GET)
+	if (txn->meth != HTTP_METH_GET) {
+		/* In case of successful unsafe method on a stored resource, the
+		 * cached entry must be invalidated (see RFC7234#4.4).
+		 * A "non-error response" is one with a 2xx (Successful) or 3xx
+		 * (Redirection) status code. */
+		if (txn->status >= 200 && txn->status < 400) {
+			switch (txn->meth) {
+			case HTTP_METH_OPTIONS:
+			case HTTP_METH_GET:
+			case HTTP_METH_HEAD:
+			case HTTP_METH_TRACE:
+				break;
+
+			default: /* Any unsafe method */
+				/* Discard any corresponding entry in case of sucessful
+				 * unsafe request (such as PUT, POST or DELETE). */
+				shctx_lock(shctx);
+
+				old = entry_exist(cconf->c.cache, txn->cache_hash);
+				if (old) {
+					eb32_delete(&old->eb);
+					old->eb.key = 0;
+				}
+				shctx_unlock(shctx);
+			}
+		}
 		goto out;
+	}
 
 	/* cache key was not computed */
 	if (!key)
@@ -1329,15 +1355,6 @@ int sha1_hosturi(struct stream *s)
 	trash = get_trash_chunk();
 	ctx.blk = NULL;
 
-	switch (txn->meth) {
-	case HTTP_METH_HEAD:
-	case HTTP_METH_GET:
-		chunk_memcat(trash, "GET", 3);
-		break;
-	default:
-		return 0;
-	}
-
 	sl = http_get_stline(htx);
 	uri = htx_sl_req_uri(sl); // whole uri
 	if (!uri.len)
@@ -1475,10 +1492,14 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 
 	http_check_request_for_cacheability(s, &s->req);
 
-	if ((s->txn->flags & (TX_CACHE_IGNORE|TX_CACHEABLE)) == TX_CACHE_IGNORE)
+	/* The request's hash has to be calculated for all requests, even POSTs
+	 * or PUTs for instance because RFC7234 specifies that a sucessful
+	 * "unsafe" method on a stored resource must invalidate it
+	 * (see RFC7234#4.4). */
+	if (!sha1_hosturi(s))
 		return ACT_RET_CONT;
 
-	if (!sha1_hosturi(s))
+	if ((s->txn->flags & (TX_CACHE_IGNORE|TX_CACHEABLE)) == TX_CACHE_IGNORE)
 		return ACT_RET_CONT;
 
 	if (s->txn->flags & TX_CACHE_IGNORE)
