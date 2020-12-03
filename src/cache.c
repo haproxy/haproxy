@@ -551,12 +551,18 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
 {
 	struct htx *htx = htxbuf(&s->res.buf);
 	struct http_hdr_ctx ctx = { .blk = NULL };
-	int smaxage = -1;
-	int maxage = -1;
+	long smaxage = -1;
+	long maxage = -1;
 	int expires = -1;
 	struct tm tm = {};
 	time_t expires_val = 0;
+	char *endptr = NULL;
+	int offset = 0;
 
+	/* The Cache-Control max-age and s-maxage directives should be followed by
+	 * a positive numerical value (see RFC 7234#5.2.1.1). According to the
+	 * specs, a sender "should not" generate a quoted-string value but we will
+	 * still accept this format since it isn't strictly forbidden. */
 	while (http_find_header(htx, ist("cache-control"), &ctx, 0)) {
 		char *value;
 
@@ -566,7 +572,10 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
 
 			chunk_strncat(chk, value, ctx.value.len - 8 + 1);
 			chunk_strncat(chk, "", 1);
-			smaxage = atoi(chk->area);
+			offset = (*chk->area == '"') ? 1 : 0;
+			smaxage = strtol(chk->area + offset, &endptr, 10);
+			if (unlikely(smaxage < 0 || endptr == chk->area))
+				return -1;
 		}
 
 		value = directive_value(ctx.value.ptr, ctx.value.len, "max-age", 7);
@@ -575,7 +584,10 @@ int http_calc_maxage(struct stream *s, struct cache *cache, int *true_maxage)
 
 			chunk_strncat(chk, value, ctx.value.len - 7 + 1);
 			chunk_strncat(chk, "", 1);
-			maxage = atoi(chk->area);
+			offset = (*chk->area == '"') ? 1 : 0;
+			maxage = strtol(chk->area + offset, &endptr, 10);
+			if (unlikely(maxage < 0 || endptr == chk->area))
+				return -1;
 		}
 	}
 
