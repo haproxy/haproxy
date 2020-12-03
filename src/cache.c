@@ -897,6 +897,8 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 			if (unlikely(object->age > true_maxage))
 				goto out;
 		}
+		else
+			goto out;
 		http_remove_header(htx, &ctx);
 	}
 
