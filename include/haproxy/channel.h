@@ -312,16 +312,16 @@ static inline size_t ci_contig_data(const struct channel *c)
 }
 
 /* Initialize all fields in the channel. */
-static inline void channel_init(struct channel *chn, struct buffer *input)
+static inline void channel_init(struct channel *chn)
 {
-	chn->buf = *input;
+	chn->buf = BUF_NULL;
 	chn->to_forward = 0;
 	chn->last_read = now_ms;
 	chn->xfer_small = chn->xfer_large = 0;
-	chn->total = (IS_HTX_STRM(chn_strm(chn)) ? htxbuf(input)->data : b_data(input));
+	chn->total = 0;
 	chn->pipe = NULL;
 	chn->analysers = 0;
-	chn->flags = (chn->total ? CF_READ_PARTIAL : 0);
+	chn->flags = 0;
 	chn->output = 0;
 }
 

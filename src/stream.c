@@ -267,7 +267,10 @@ static void strm_trace(enum trace_level level, uint64_t mask, const struct trace
 
 /* Create a new stream for connection <conn>. Return < 0 on error. This is only
  * valid right after the handshake, before the connection's data layer is
- * initialized, because it relies on the session to be in conn->owner.
+ * initialized, because it relies on the session to be in conn->owner. On
+ * success, <input> buffer is transferred to the stream and thus points to
+ * BUF_NULL. On error, it is unchanged and it is the caller responsibility to
+ * release it.
  */
 int stream_create_from_cs(struct conn_stream *cs, struct buffer *input)
 {
@@ -313,9 +316,10 @@ int stream_buf_available(void *arg)
  * end point is assigned to <origin>, which must be valid. The stream's task
  * is configured with a nice value inherited from the listener's nice if any.
  * The task's context is set to the new stream, and its function is set to
- * process_stream(). Target and analysers are null. <input> is always used as
- * Input buffer and may contain data. It is the caller responsibility to not
- * reuse it anymore. <input> may point on BUF_NULL.
+ * process_stream(). Target and analysers are null. <input> is used as input
+ * buffer for the request channel and may contain data. On success, it is
+ * transfer to the stream and <input> is set to BUF_NULL. On error, <input>
+ * buffer is unchanged and it is the caller responsibility to release it.
  */
 struct stream *stream_new(struct session *sess, enum obj_type *origin, struct buffer *input)
 {
@@ -462,7 +466,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	/* init store persistence */
 	s->store_count = 0;
 
-	channel_init(&s->req, input);
+	channel_init(&s->req);
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
 	s->req.analysers = sess->listener ? sess->listener->analysers : 0;
 
@@ -477,7 +481,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	s->req.wex = TICK_ETERNITY;
 	s->req.analyse_exp = TICK_ETERNITY;
 
-	channel_init(&s->res, &BUF_NULL);
+	channel_init(&s->res);
 	s->res.flags |= CF_ISRESP;
 	s->res.analysers = 0;
 
@@ -514,6 +518,17 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 
 	if (sess->fe->accept && sess->fe->accept(s) < 0)
 		goto out_fail_accept;
+
+	if (!b_is_null(input)) {
+		/* Xfer the input buffer to the request channel. <input> will
+		 * than point to BUF_NULL. From this point, it is the stream
+		 * responsibility to release it.
+		 */
+		s->req.buf = *input;
+		*input = BUF_NULL;
+		s->req.total = (IS_HTX_STRM(s) ? htxbuf(input)->data : b_data(input));
+		s->req.flags |= (s->req.total ? CF_READ_PARTIAL : 0);
+	}
 
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply

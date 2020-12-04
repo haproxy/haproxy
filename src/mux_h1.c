@@ -563,6 +563,13 @@ static inline size_t h1s_data_pending(const struct h1s *h1s)
 	return b_data(&h1s->h1c->ibuf);
 }
 
+/* Creates a new conn-stream and the associate stream. <input> is used as input
+ * buffer for the stream. On success, it is transferred to the stream and the
+ * mux is no longer responsible of it. On error, <input> is unchanged, thus the
+ * mux must still take care of it. However, there is nothing special to do
+ * because, on success, <input> is updated to points on BUF_NULL. Thus, calling
+ * b_free() on it is always safe. This function returns the conn-stream on
+ * success or NULL on error. */
 static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 {
 	struct conn_stream *cs;
@@ -589,7 +596,6 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
 		goto err;
 	}
-	*input = BUF_NULL;
 
 	TRACE_LEAVE(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 	return cs;
