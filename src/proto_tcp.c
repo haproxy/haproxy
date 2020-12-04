@@ -743,7 +743,7 @@ static void tcpv6_add_listener(struct listener *listener, int port)
 		return;
 	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_tcpv6;
-	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
+	((struct sockaddr_in6 *)(&listener->rx.addr))->sin6_port = htons(port);
 	LIST_ADDQ(&proto_tcpv6.receivers, &listener->rx.proto_list);
 	proto_tcpv6.nb_receivers++;
 }
