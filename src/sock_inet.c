@@ -42,6 +42,7 @@ struct proto_fam proto_fam_inet4 = {
 	.bind = sock_inet_bind_receiver,
 	.get_src = sock_get_src,
 	.get_dst = sock_inet_get_dst,
+	.set_port = sock_inet_set_port,
 };
 
 struct proto_fam proto_fam_inet6 = {
@@ -54,6 +55,7 @@ struct proto_fam proto_fam_inet6 = {
 	.bind = sock_inet_bind_receiver,
 	.get_src = sock_get_src,
 	.get_dst = sock_get_dst,
+	.set_port = sock_inet_set_port,
 };
 
 /* PLEASE NOTE for function below:
@@ -114,6 +116,18 @@ int sock_inet6_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_s
 		return -1;
 
 	return memcmp(&a6->sin6_addr, &b6->sin6_addr, sizeof(a6->sin6_addr));
+}
+
+/* Sets the port <port> on IPv4 or IPv6 address <addr>. The address family is
+ * determined from the sockaddr_storage's address family. Nothing is done for
+ * other families.
+ */
+void sock_inet_set_port(struct sockaddr_storage *addr, int port)
+{
+	if (addr->ss_family == AF_INET)
+		((struct sockaddr_in *)addr)->sin_port = htons(port);
+	else if (addr->ss_family == AF_INET6)
+		((struct sockaddr_in6 *)addr)->sin6_port = htons(port);
 }
 
 /*

@@ -36,6 +36,7 @@ extern struct proto_fam proto_fam_inet6;
 
 int sock_inet4_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
 int sock_inet6_addrcmp(const struct sockaddr_storage *a, const struct sockaddr_storage *b);
+void sock_inet_set_port(struct sockaddr_storage *addr, int port);
 int sock_inet_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int sock_inet_is_foreign(int fd, sa_family_t family);
 int sock_inet4_make_foreign(int fd);

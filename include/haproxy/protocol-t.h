@@ -70,6 +70,7 @@ struct proto_fam {
 	int (*bind)(struct receiver *rx, char **errmsg); /* bind a receiver */
 	int (*get_src)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve src addr */
 	int (*get_dst)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve dst addr */
+	void (*set_port)(struct sockaddr_storage *, int port);  /* set the port on the address; NULL if not implemented */
 };
 
 /* This structure contains all information needed to easily handle a protocol.
