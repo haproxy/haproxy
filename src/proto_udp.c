@@ -152,7 +152,6 @@ static void udp4_add_listener(struct listener *listener, int port)
 		return;
 	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_udp4;
-	((struct sockaddr_in *)(&listener->rx.addr))->sin_port = htons(port);
 	LIST_ADDQ(&proto_udp4.receivers, &listener->rx.proto_list);
 	proto_udp4.nb_receivers++;
 }
@@ -167,7 +166,6 @@ static void udp6_add_listener(struct listener *listener, int port)
 		return;
 	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = &proto_udp6;
-	((struct sockaddr_in6 *)(&listener->rx.addr))->sin6_port = htons(port);
 	LIST_ADDQ(&proto_udp6.receivers, &listener->rx.proto_list);
 	proto_udp6.nb_receivers++;
 }

@@ -614,7 +614,11 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		l->rx.owner = l;
 		l->rx.iocb = proto->default_iocb;
 		l->rx.fd = fd;
+
 		memcpy(&l->rx.addr, ss, sizeof(*ss));
+		if (proto->fam.set_port)
+			proto->fam.set_port(&l->rx.addr, port);
+
 		MT_LIST_INIT(&l->wait_queue);
 		listener_set_state(l, LI_INIT);
 
