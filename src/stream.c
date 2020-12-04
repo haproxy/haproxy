@@ -526,7 +526,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 		 */
 		s->req.buf = *input;
 		*input = BUF_NULL;
-		s->req.total = (IS_HTX_STRM(s) ? htxbuf(input)->data : b_data(input));
+		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
 		s->req.flags |= (s->req.total ? CF_READ_PARTIAL : 0);
 	}
 
