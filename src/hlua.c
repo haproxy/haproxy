@@ -8675,17 +8675,6 @@ lua_State *hlua_init_state(int thread_num)
 	void **context;
 	lua_State *L;
 	struct prepend_path *pp;
-#ifdef USE_OPENSSL
-	struct srv_kw *kw;
-	int tmp_error;
-	char *error;
-	char *args[] = { /* SSL client configuration. */
-		"ssl",
-		"verify",
-		"none",
-		NULL
-	};
-#endif
 
 	/* Init main lua stack. */
 	L = lua_newstate(hlua_alloc, &hlua_global_allocator);
@@ -9136,6 +9125,40 @@ lua_State *hlua_init_state(int thread_num)
 	/* Register previous table in the registry with reference and named entry. */
 	class_socket_ref = hlua_register_metatable(L, CLASS_SOCKET);
 
+	lua_atpanic(L, hlua_panic_safe);
+
+	return L;
+}
+
+void hlua_init(void) {
+	int i;
+	int idx;
+#ifdef USE_OPENSSL
+	struct srv_kw *kw;
+	int tmp_error;
+	char *error;
+	char *args[] = { /* SSL client configuration. */
+		"ssl",
+		"verify",
+		"none",
+		NULL
+	};
+#endif
+
+	/* Init post init function list head */
+	for (i = 0; i < MAX_THREADS + 1; i++)
+		LIST_INIT(&hlua_init_functions[i]);
+
+	/* Init state for common/shared lua parts */
+	hlua_state_id = 0;
+	ha_set_tid(0);
+	hlua_states[0] = hlua_init_state(0);
+
+	/* Init state 1 for thread 0. We have at least one thread. */
+	hlua_state_id = 1;
+	ha_set_tid(0);
+	hlua_states[1] = hlua_init_state(1);
+
 	/* Proxy and server configuration initialisation. */
 	memset(&socket_proxy, 0, sizeof(socket_proxy));
 	init_new_proxy(&socket_proxy);
@@ -9260,27 +9283,6 @@ lua_State *hlua_init_state(int thread_num)
 	}
 #endif
 
-	lua_atpanic(L, hlua_panic_safe);
-
-	return L;
-}
-
-void hlua_init(void) {
-	int i;
-
-	/* Init post init function list head */
-	for (i = 0; i < MAX_THREADS + 1; i++)
-		LIST_INIT(&hlua_init_functions[i]);
-
-	/* Init state for common/shared lua parts */
-	hlua_state_id = 0;
-	ha_set_tid(0);
-	hlua_states[0] = hlua_init_state(0);
-
-	/* Init state 1 for thread 0. We have at least one thread. */
-	hlua_state_id = 1;
-	ha_set_tid(0);
-	hlua_states[1] = hlua_init_state(1);
 }
 
 static void hlua_deinit()
