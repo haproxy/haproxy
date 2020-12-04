@@ -3543,7 +3543,13 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 					}
 				}
 			}
-
+#if HA_OPENSSL_VERSION_NUMBER < 0x10101000L
+			if (found) {
+				memprintf(err, "%sCan't load '%s'. Loading a multi certificates bundle requires OpenSSL >= 1.1.1\n",
+				          err && *err ? *err : "", path);
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+			}
+#endif
 		}
 	}
 	if (!found) {

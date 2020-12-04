@@ -602,6 +602,13 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 
 					entry_dup = NULL; /* the entry was used, we need a new one next round */
 				}
+#if HA_OPENSSL_VERSION_NUMBER < 0x10101000L
+				if (found) {
+					memprintf(err, "%sCan't load '%s'. Loading a multi certificates bundle requires OpenSSL >= 1.1.1\n",
+						  err && *err ? *err : "", crt_path);
+					cfgerr |= ERR_ALERT | ERR_FATAL;
+				}
+#endif
 			}
 			if (!found) {
 				memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
