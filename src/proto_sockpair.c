@@ -43,7 +43,6 @@
 #include <haproxy/version.h>
 
 
-static void sockpair_add_listener(struct listener *listener, int port);
 static int sockpair_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static void sockpair_enable_listener(struct listener *listener);
 static void sockpair_disable_listener(struct listener *listener);
@@ -71,7 +70,7 @@ static struct protocol proto_sockpair = {
 	.sock_domain = AF_CUST_SOCKPAIR,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = 0,
-	.add = sockpair_add_listener,
+	.add = default_add_listener,
 	.listen = sockpair_bind_listener,
 	.enable = sockpair_enable_listener,
 	.disable = sockpair_disable_listener,
@@ -88,23 +87,6 @@ static struct protocol proto_sockpair = {
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_sockpair);
-
-/* Add <listener> to the list of sockpair listeners (port is ignored). The
- * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
- * The number of listeners for the protocol is updated.
- *
- * Must be called with proto_lock held.
- *
- */
-static void sockpair_add_listener(struct listener *listener, int port)
-{
-	if (listener->state != LI_INIT)
-		return;
-	listener_set_state(listener, LI_ASSIGNED);
-	listener->rx.proto = &proto_sockpair;
-	LIST_ADDQ(&proto_sockpair.receivers, &listener->rx.proto_list);
-	proto_sockpair.nb_receivers++;
-}
 
 /* Enable receipt of incoming connections for listener <l>. The receiver must
  * still be valid.

@@ -323,6 +323,21 @@ void stop_listener(struct listener *l, int lpx, int lpr, int lli)
 		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &px->lock);
 }
 
+/* This function adds the specified <listener> to the protocol <proto>. It
+ * does nothing if the protocol was already added. The listener's state is
+ * automatically updated from LI_INIT to LI_ASSIGNED. The number of listeners
+ * for the protocol is updated. This must be called with the proto lock held.
+ */
+void default_add_listener(struct protocol *proto, struct listener *listener)
+{
+	if (listener->state != LI_INIT)
+		return;
+	listener_set_state(listener, LI_ASSIGNED);
+	listener->rx.proto = proto;
+	LIST_ADDQ(&proto->receivers, &listener->rx.proto_list);
+	proto->nb_receivers++;
+}
+
 /* default function called to suspend a listener: it simply passes the call to
  * the underlying receiver. This is find for most socket-based protocols. This
  * must be called under the listener's lock. It will return non-zero on success,
@@ -616,13 +631,13 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		l->rx.fd = fd;
 
 		memcpy(&l->rx.addr, ss, sizeof(*ss));
-		if (proto->fam.set_port)
-			proto->fam.set_port(&l->rx.addr, port);
+		if (proto->fam->set_port)
+			proto->fam->set_port(&l->rx.addr, port);
 
 		MT_LIST_INIT(&l->wait_queue);
 		listener_set_state(l, LI_INIT);
 
-		proto->add(l, port);
+		proto->add(proto, l);
 
 		if (fd != -1)
 			l->rx.flags |= RX_F_INHERITED;

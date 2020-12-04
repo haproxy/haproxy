@@ -42,7 +42,6 @@
 
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int uxst_connect_server(struct connection *conn, int flags);
-static void uxst_add_listener(struct listener *listener, int port);
 static void uxst_enable_listener(struct listener *listener);
 static void uxst_disable_listener(struct listener *listener);
 static int uxst_suspend_receiver(struct receiver *rx);
@@ -55,7 +54,7 @@ static struct protocol proto_unix = {
 	.sock_domain = PF_UNIX,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = 0,
-	.add = uxst_add_listener,
+	.add = default_add_listener,
 	.listen = uxst_bind_listener,
 	.enable = uxst_enable_listener,
 	.disable = uxst_disable_listener,
@@ -133,23 +132,6 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		snprintf(errmsg, errlen, "%s [%s]", msg, path);
 	}
 	return err;
-}
-
-/* Add <listener> to the list of unix stream listeners (port is ignored). The
- * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
- * The number of listeners for the protocol is updated.
- *
- * Must be called with proto_lock held.
- *
- */
-static void uxst_add_listener(struct listener *listener, int port)
-{
-	if (listener->state != LI_INIT)
-		return;
-	listener_set_state(listener, LI_ASSIGNED);
-	listener->rx.proto = &proto_unix;
-	LIST_ADDQ(&proto_unix.receivers, &listener->rx.proto_list);
-	proto_unix.nb_receivers++;
 }
 
 /* Enable receipt of incoming connections for listener <l>. The receiver must

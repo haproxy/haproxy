@@ -49,8 +49,6 @@ static int tcp_suspend_receiver(struct receiver *rx);
 static int tcp_resume_receiver(struct receiver *rx);
 static void tcp_enable_listener(struct listener *listener);
 static void tcp_disable_listener(struct listener *listener);
-static void tcpv4_add_listener(struct listener *listener, int port);
-static void tcpv6_add_listener(struct listener *listener, int port);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_tcpv4 = {
@@ -60,7 +58,7 @@ static struct protocol proto_tcpv4 = {
 	.sock_domain = AF_INET,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = IPPROTO_TCP,
-	.add = tcpv4_add_listener,
+	.add = default_add_listener,
 	.listen = tcp_bind_listener,
 	.enable = tcp_enable_listener,
 	.disable = tcp_disable_listener,
@@ -90,7 +88,7 @@ static struct protocol proto_tcpv6 = {
 	.sock_domain = AF_INET6,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = IPPROTO_TCP,
-	.add = tcpv6_add_listener,
+	.add = default_add_listener,
 	.listen = tcp_bind_listener,
 	.enable = tcp_enable_listener,
 	.disable = tcp_disable_listener,
@@ -710,40 +708,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, get_host_port(&listener->rx.addr));
 	}
 	return err;
-}
-
-/* Add <listener> to the list of tcpv4 listeners, on port <port>. The
- * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
- * The number of listeners for the protocol is updated.
- *
- * Must be called with proto_lock held.
- *
- */
-static void tcpv4_add_listener(struct listener *listener, int port)
-{
-	if (listener->state != LI_INIT)
-		return;
-	listener_set_state(listener, LI_ASSIGNED);
-	listener->rx.proto = &proto_tcpv4;
-	LIST_ADDQ(&proto_tcpv4.receivers, &listener->rx.proto_list);
-	proto_tcpv4.nb_receivers++;
-}
-
-/* Add <listener> to the list of tcpv6 listeners, on port <port>. The
- * listener's state is automatically updated from LI_INIT to LI_ASSIGNED.
- * The number of listeners for the protocol is updated.
- *
- * Must be called with proto_lock held.
- *
- */
-static void tcpv6_add_listener(struct listener *listener, int port)
-{
-	if (listener->state != LI_INIT)
-		return;
-	listener_set_state(listener, LI_ASSIGNED);
-	listener->rx.proto = &proto_tcpv6;
-	LIST_ADDQ(&proto_tcpv6.receivers, &listener->rx.proto_list);
-	proto_tcpv6.nb_receivers++;
 }
 
 /* Enable receipt of incoming connections for listener <l>. The receiver must

@@ -124,6 +124,13 @@ int listener_backlog(const struct listener *l);
  */
 void listener_release(struct listener *l);
 
+/* This function adds the specified <listener> to the protocol <proto>. It
+ * does nothing if the protocol was already added. The listener's state is
+ * automatically updated from LI_INIT to LI_ASSIGNED. The number of listeners
+ * for the protocol is updated. This must be called with the proto lock held.
+ */
+void default_add_listener(struct protocol *proto, struct listener *listener);
+
 /* default function used to unbind a listener. This is for use by standard
  * protocols working on top of accepted sockets. The receiver's rx_unbind()
  * will automatically be used after the listener is disabled if the socket is

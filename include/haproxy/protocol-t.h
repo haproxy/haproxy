@@ -88,7 +88,7 @@ struct protocol {
 	int sock_prot;					/* socket protocol, as passed to socket() */
 
 	/* functions acting on the listener */
-	void (*add)(struct listener *l, int port);      /* add a listener for this protocol and port */
+	void (*add)(struct protocol *p, struct listener *l); /* add a listener for this protocol */
 	int (*listen)(struct listener *l, char *errmsg, int errlen); /* start a listener */
 	void (*enable)(struct listener *l);             /* enable receipt of new connections */
 	void (*disable)(struct listener *l);            /* disable receipt of new connections */
