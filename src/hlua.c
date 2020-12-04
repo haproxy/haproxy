@@ -191,7 +191,7 @@ lua_State *hlua_init_state(int thread_id);
 /* The main Lua execution context. The 0 index is the
  * common state shared by all threads.
  */
-lua_State *hlua_states[MAX_THREADS + 1];
+static lua_State *hlua_states[MAX_THREADS + 1];
 
 /* This is the memory pool containing struct lua for applets
  * (including cli).
@@ -9287,8 +9287,12 @@ void hlua_init(void) {
 
 static void hlua_deinit()
 {
-	lua_close(hlua_states[0]);
-	lua_close(hlua_states[1]);
+	int thr;
+
+	for (thr = 0; thr < MAX_THREADS+1; thr++) {
+		if (hlua_states[thr])
+			lua_close(hlua_states[thr]);
+	}
 }
 
 REGISTER_POST_DEINIT(hlua_deinit);
