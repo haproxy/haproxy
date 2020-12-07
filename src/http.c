@@ -170,6 +170,7 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_425] = 425,
 	[HTTP_ERR_429] = 429,
 	[HTTP_ERR_500] = 500,
+	[HTTP_ERR_501] = 501,
 	[HTTP_ERR_502] = 502,
 	[HTTP_ERR_503] = 503,
 	[HTTP_ERR_504] = 504,
@@ -290,6 +291,14 @@ const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"\r\n"
 	"<html><body><h1>500 Internal Server Error</h1>\nAn internal server error occurred.\n</body></html>\n",
 
+	[HTTP_ERR_501] =
+	"HTTP/1.1 501 Not Implemented\r\n"
+	"Content-length: 136\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>501 Not Implemented</h1>\n.The server does not support the functionality required to fulfill the request.\n</body></html>\n",
+
 	[HTTP_ERR_502] =
 	"HTTP/1.1 502 Bad Gateway\r\n"
 	"Content-length: 107\r\n"
@@ -365,6 +374,7 @@ int http_get_status_idx(unsigned int status)
 	case 425: return HTTP_ERR_425;
 	case 429: return HTTP_ERR_429;
 	case 500: return HTTP_ERR_500;
+	case 501: return HTTP_ERR_501;
 	case 502: return HTTP_ERR_502;
 	case 503: return HTTP_ERR_503;
 	case 504: return HTTP_ERR_504;
