@@ -2807,7 +2807,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 /* processes a DATA frame. Returns > 0 on success or zero on missing data.
  * It may return an error in h2c or h2s. Described in RFC7540#6.1.
  */
-static int h2c_frt_handle_data(struct h2c *h2c, struct h2s *h2s)
+static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 {
 	int error;
 
@@ -3304,7 +3304,7 @@ static void h2_process_demux(struct h2c *h2c)
 		case H2_FT_DATA:
 			if (h2c->st0 == H2_CS_FRAME_P) {
 				TRACE_PROTO("receiving H2 DATA frame", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
-				ret = h2c_frt_handle_data(h2c, h2s);
+				ret = h2c_handle_data(h2c, h2s);
 			}
 			HA_ATOMIC_ADD(&h2c->px_counters->data_rcvd, 1);
 
