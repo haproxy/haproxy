@@ -517,7 +517,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
  */
 static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, struct htx *htx, unsigned int *msgf)
 {
-	unsigned int flags = HTX_SL_F_NONE;
+	unsigned int status, flags = HTX_SL_F_NONE;
 	struct htx_sl *sl;
 	unsigned char h, t, u;
 
@@ -528,6 +528,25 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
 	if (phdr[H2_PHDR_IDX_STAT].len != 3)
 		goto fail;
 
+	h = phdr[H2_PHDR_IDX_STAT].ptr[0] - '0';
+	t = phdr[H2_PHDR_IDX_STAT].ptr[1] - '0';
+	u = phdr[H2_PHDR_IDX_STAT].ptr[2] - '0';
+	if (h > 9 || t > 9 || u > 9)
+		goto fail;
+	status = h * 100 + t * 10 + u;
+
+	/* 101 responses are not supported in H2, so return a error.
+	 * On 1xx responses there is no ES on the HEADERS frame but there is no
+	 * body. So remove the flag H2_MSGF_BODY and add H2_MSGF_RSP_1XX to
+	 * notify the decoder another HEADERS frame is expected.
+	 */
+	if (status == 101)
+		goto fail;
+	else if (status < 200) {
+		*msgf |= H2_MSGF_RSP_1XX;
+		*msgf &= ~H2_MSGF_BODY;
+	}
+
 	/* Set HTX start-line flags */
 	flags |= HTX_SL_F_VER_11;    // V2 in fact
 	flags |= HTX_SL_F_XFER_LEN;  // xfer len always known with H2
@@ -535,26 +554,7 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/2.0"), phdr[H2_PHDR_IDX_STAT], ist(""));
 	if (!sl)
 		goto fail;
-
-	h = phdr[H2_PHDR_IDX_STAT].ptr[0] - '0';
-	t = phdr[H2_PHDR_IDX_STAT].ptr[1] - '0';
-	u = phdr[H2_PHDR_IDX_STAT].ptr[2] - '0';
-	if (h > 9 || t > 9 || u > 9)
-		goto fail;
-
-	sl->info.res.status = h * 100 + t * 10 + u;
-
-	/* On 1xx responses (except 101) there is no ES on the HEADERS frame but
-	 * there is no body. So remove the flag H2_MSGF_BODY and add
-	 * H2_MSGF_RSP_1XX to notify the decoder another HEADERS frame is
-	 * expected.
-	 */
-	if (sl->info.res.status < 200 &&
-	    (sl->info.res.status == 100 || sl->info.res.status >= 102)) {
-		*msgf |= H2_MSGF_RSP_1XX;
-		*msgf &= ~H2_MSGF_BODY;
-	}
-
+	sl->info.res.status = status;
 	return sl;
  fail:
 	return NULL;

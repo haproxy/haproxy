@@ -4892,6 +4892,11 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		TRACE_ERROR("will not encode an invalid status code", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 		goto fail;
 	}
+	else if (h2s->status == 101) {
+		/* 101 responses are not supported in H2, so return a error (RFC7540#8.1.1) */
+		TRACE_ERROR("will not encode an invalid status code", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
+		goto fail;
+	}
 
 	/* and the rest of the headers, that we dump starting at header 0 */
 	hdr = 0;
@@ -5000,8 +5005,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	 * FIXME: we should also set it when we know for sure that the
 	 * content-length is zero as well as on 204/304
 	 */
-	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM &&
-	    (h2s->status >= 200 || h2s->status == 101))
+	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM && h2s->status >= 200)
 		es_now = 1;
 
 	if (!h2s->cs || h2s->cs->flags & CS_FL_SHW)
@@ -5017,7 +5021,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	/* indicates the HEADERS frame was sent, except for 1xx responses. For
 	 * 1xx responses, another HEADERS frame is expected.
 	 */
-	if (h2s->status >= 200 || h2s->status == 101)
+	if (h2s->status >= 200)
 		h2s->flags |= H2_SF_HEADERS_SENT;
 
 	if (es_now) {
