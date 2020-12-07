@@ -77,7 +77,9 @@
 #define H1S_F_WANT_MSK       0x00000070
 #define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
 
-#define H1S_F_PARSING_DONE   0x00000400 /* Set when incoming message parsing is finished (EOM added) */
+#define H1S_F_PARSING_DONE   0x00000200 /* Set when incoming message parsing is finished (EOM added) */
+
+#define H1S_F_NOT_IMPL_ERROR 0x00000400 /* Set when a feature is not implemented during the message parsing */
 #define H1S_F_PARSING_ERROR  0x00000800 /* Set when an error occurred during the message parsing */
 #define H1S_F_PROCESSING_ERROR 0x00001000 /* Set when an error occurred during the message xfer */
 #define H1S_F_ERROR          0x00001800 /* stream error mask */
@@ -1449,7 +1451,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	h1m = (!(h1c->flags & H1C_F_IS_BACK) ? &h1s->req : &h1s->res);
 	data = htx->data;
 
-	if (h1s->flags & H1S_F_PARSING_ERROR)
+	if (h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR))
 		goto end;
 
 	do {
@@ -1523,10 +1525,10 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 
 		count -= htx_used_space(htx) - used;
-	} while (!(h1s->flags & H1S_F_PARSING_ERROR));
+	} while (!(h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR)));
 
-	if (h1s->flags & H1S_F_PARSING_ERROR) {
-		TRACE_PROTO("parsing error", H1_EV_RX_DATA, h1c->conn, h1s);
+	if (h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR)) {
+		TRACE_PROTO("parsing or not-implemented error", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
 		goto err;
 	}
 
@@ -2174,6 +2176,34 @@ static int h1_handle_bad_req(struct h1c *h1c)
 	return ret;
 }
 
+/* Try to send a 501 not implemented error. It relies on h1_send_error to send
+ * the error. This function takes care of incrementing stats and tracked
+ * counters.
+ */
+static int h1_handle_not_impl_err(struct h1c *h1c)
+{
+	struct session *sess = h1c->conn->owner;
+	int ret = 1;
+
+	if (!b_data(&h1c->ibuf) && ((h1c->flags & H1C_F_WAIT_NEXT_REQ) || (sess->fe->options & PR_O_IGNORE_PRB)))
+		goto end;
+
+	session_inc_http_req_ctr(sess);
+	session_inc_http_err_ctr(sess);
+	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[4], 1);
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	if (sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+
+	h1c->errcode = 501;
+	ret = h1_send_error(h1c);
+	sess_log(sess);
+
+  end:
+	return ret;
+}
+
 /* Try to send a 408 timeout error. It relies on h1_send_error to send the
  * error. This function takes care of incrementing stats and tracked counters.
  */
@@ -2409,6 +2439,10 @@ static int h1_process(struct h1c * h1c)
 		}
 		else if (h1s->flags & H1S_F_PARSING_ERROR) {
 			h1_handle_bad_req(h1c);
+			h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
+		}
+		else if (h1s->flags & H1S_F_NOT_IMPL_ERROR) {
+			h1_handle_not_impl_err(h1c);
 			h1c->flags = (h1c->flags & ~(H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) | H1C_F_ST_ERROR;
 		}
 	}
@@ -3132,8 +3166,9 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 	case MUX_EXIT_STATUS:
 		ret = (h1c->errcode == 400 ? MUX_ES_INVALID_ERR :
 		       (h1c->errcode == 408 ? MUX_ES_TOUT_ERR :
-			(h1c->errcode == 500 ? MUX_ES_INTERNAL_ERR :
-			 MUX_ES_SUCCESS)));
+			(h1c->errcode == 501 ? MUX_ES_NOTIMPL_ERR :
+			 (h1c->errcode == 500 ? MUX_ES_INTERNAL_ERR :
+			  MUX_ES_SUCCESS))));
 		return ret;
 	default:
 		return -1;
