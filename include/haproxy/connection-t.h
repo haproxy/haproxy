@@ -323,6 +323,7 @@ enum mux_exit_status {
 	MUX_ES_SUCCESS,      /* Success */
 	MUX_ES_INVALID_ERR,  /* invalid input */
 	MUX_ES_TOUT_ERR,     /* timeout */
+	MUX_ES_NOTIMPL_ERR,  /* not-implemented error */
 	MUX_ES_INTERNAL_ERR, /* internal error */
 	MUX_ES_UNKNOWN       /* unknown status (must be the last) */
 };

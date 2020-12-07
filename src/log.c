@@ -2168,6 +2168,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				status = 408;
 				s_flags = SF_ERR_CLITO | SF_FINST_R;
 				break;
+			case MUX_ES_NOTIMPL_ERR:
+				status = 501;
+				s_flags = SF_ERR_PRXCOND | SF_FINST_R;
+				break;
 			case MUX_ES_INTERNAL_ERR:
 				status = 500;
 				s_flags = SF_ERR_INTERNAL | SF_FINST_R;
