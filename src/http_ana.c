@@ -1635,7 +1635,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		http_capture_headers(htx, s->res_cap, sess->fe->rsp_cap);
 
 	/* Skip parsing if no content length is possible. */
-	if (unlikely((txn->meth == HTTP_METH_CONNECT && txn->status == 200) ||
+	if (unlikely((txn->meth == HTTP_METH_CONNECT && txn->status >= 200 && txn->status < 300) ||
 		     txn->status == 101)) {
 		/* Either we've established an explicit tunnel, or we're
 		 * switching the protocol. In both cases, we're very unlikely
@@ -2132,7 +2132,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (msg->msg_state >= HTTP_MSG_ENDING)
 		goto ending;
 
-	if ((txn->meth == HTTP_METH_CONNECT && txn->status == 200) || txn->status == 101 ||
+	if ((txn->meth == HTTP_METH_CONNECT && txn->status >= 200 && txn->status < 300) || txn->status == 101 ||
 	    (!(msg->flags & HTTP_MSGF_XFER_LEN) && !HAS_RSP_DATA_FILTERS(s))) {
 		msg->msg_state = HTTP_MSG_ENDING;
 		goto ending;
@@ -2187,7 +2187,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		}
 	}
 
-	if ((txn->meth == HTTP_METH_CONNECT && txn->status == 200) || txn->status == 101 ||
+	if ((txn->meth == HTTP_METH_CONNECT && txn->status >= 200 && txn->status < 300) || txn->status == 101 ||
 	    !(msg->flags & HTTP_MSGF_XFER_LEN)) {
 		msg->msg_state = HTTP_MSG_TUNNEL;
 		goto ending;

@@ -278,7 +278,7 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		return 0;
 	}
 
-	if (((h1m->flags & H1_MF_METH_CONNECT) && code == 200) || code == 101) {
+	if (((h1m->flags & H1_MF_METH_CONNECT) && code >= 200 && code < 300) || code == 101) {
 		/* Switch successful replies to CONNECT requests and
 		 * protocol switching to tunnel mode. */
 		h1_set_tunnel_mode(h1m);
