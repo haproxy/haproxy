@@ -634,6 +634,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 
 		switch (args[i].value.type) {
 		case SPOE_DATA_T_NULL:
+			Py_INCREF(Py_None);
 			value = Py_None;
 			break;
 		case SPOE_DATA_T_BOOL:
@@ -722,6 +723,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 			value = PY_BYTES_FROM_STRING_AND_SIZE(args[i].value.u.buffer.str, args[i].value.u.buffer.len);
 			break;
 		default:
+			Py_INCREF(Py_None);
 			value = Py_None;
 			break;
 		}
@@ -786,9 +788,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 		PyErr_Print();
 		return 0;
 	}
-	if (result != Py_None) {
-		Py_DECREF(result);
-	}
+	Py_DECREF(result);
 
 	return 1;
 }
