@@ -427,8 +427,19 @@ static int ps_python_start_worker(struct worker *w)
 	}
 
 	spoa_error = PyErr_NewException("spoa.error", NULL, NULL);
+	 /* PyModule_AddObject will steal the reference to spoa_error
+	 * in case of success only
+	 * We need to increment the counters to continue using it
+	 * but cleanup in case of failure
+	 */
 	Py_INCREF(spoa_error);
-	PyModule_AddObject(m, "error", spoa_error);
+	ret = PyModule_AddObject(m, "error", spoa_error);
+	if (ret == -1) {
+		Py_DECREF(m);
+		Py_DECREF(spoa_error);
+		PyErr_Print();
+		return 0;
+	}
 
 
 	value = PyLong_FromLong(SPOE_SCOPE_PROC);
@@ -439,54 +450,68 @@ static int ps_python_start_worker(struct worker *w)
 
 	ret = PyModule_AddObject(m, "scope_proc", value);
 	if (ret == -1) {
+		Py_DECREF(m);
+		Py_DECREF(value);
 		PyErr_Print();
 		return 0;
 	}
 
 	value = PyLong_FromLong(SPOE_SCOPE_SESS);
 	if (value == NULL) {
+		Py_DECREF(m);
 		PyErr_Print();
 		return 0;
 	}
 
 	ret = PyModule_AddObject(m, "scope_sess", value);
 	if (ret == -1) {
+		Py_DECREF(m);
+		Py_DECREF(value);
 		PyErr_Print();
 		return 0;
 	}
 
 	value = PyLong_FromLong(SPOE_SCOPE_TXN);
 	if (value == NULL) {
+		Py_DECREF(m);
 		PyErr_Print();
 		return 0;
 	}
 
 	ret = PyModule_AddObject(m, "scope_txn", value);
 	if (ret == -1) {
+		Py_DECREF(m);
+		Py_DECREF(value);
 		PyErr_Print();
 		return 0;
 	}
 
 	value = PyLong_FromLong(SPOE_SCOPE_REQ);
 	if (value == NULL) {
+		Py_DECREF(m);
 		PyErr_Print();
 		return 0;
 	}
 
 	ret = PyModule_AddObject(m, "scope_req", value);
 	if (ret == -1) {
+		Py_DECREF(m);
+		Py_DECREF(value);
 		PyErr_Print();
 		return 0;
 	}
 
 	value = PyLong_FromLong(SPOE_SCOPE_RES);
 	if (value == NULL) {
+		Py_DECREF(m);
 		PyErr_Print();
 		return 0;
 	}
 
 	ret = PyModule_AddObject(m, "scope_res", value);
 	if (ret == -1) {
+		Py_DECREF(m);
+		Py_DECREF(value);
 		PyErr_Print();
 		return 0;
 	}
