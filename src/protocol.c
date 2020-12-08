@@ -37,8 +37,8 @@ void protocol_register(struct protocol *proto)
 {
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	LIST_ADDQ(&protocols, &proto->list);
-	if (proto->sock_domain >= 0 && proto->sock_domain < AF_CUST_MAX)
-		__protocol_by_family[proto->sock_domain]
+	if (proto->fam->sock_domain >= 0 && proto->fam->sock_domain < AF_CUST_MAX)
+		__protocol_by_family[proto->fam->sock_domain]
 			[proto->sock_type == SOCK_DGRAM]
 			[proto->ctrl_type == SOCK_DGRAM] = proto;
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);

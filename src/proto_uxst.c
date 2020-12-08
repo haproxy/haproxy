@@ -51,7 +51,6 @@ static struct protocol proto_unix = {
 	.name = "unix_stream",
 	.fam = &proto_fam_unix,
 	.ctrl_type = SOCK_STREAM,
-	.sock_domain = PF_UNIX,
 	.sock_type = SOCK_STREAM,
 	.sock_prot = 0,
 	.add = default_add_listener,
