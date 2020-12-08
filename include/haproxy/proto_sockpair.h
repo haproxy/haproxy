@@ -22,6 +22,7 @@
 #define _HAPROXY_PROTO_SOCKPAIR_H
 
 extern struct proto_fam proto_fam_sockpair;
+extern struct protocol proto_sockpair;
 
 int recv_fd_uxst(int sock);
 int send_fd_uxst(int fd, int send_fd);

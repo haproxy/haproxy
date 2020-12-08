@@ -47,7 +47,7 @@ static void udp_enable_listener(struct listener *listener);
 static void udp_disable_listener(struct listener *listener);
 
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct protocol proto_udp4 = {
+struct protocol proto_udp4 = {
 	.name = "udp4",
 	.fam = &proto_fam_inet4,
 	.ctrl_type = SOCK_DGRAM,
@@ -72,7 +72,7 @@ static struct protocol proto_udp4 = {
 INITCALL1(STG_REGISTER, protocol_register, &proto_udp4);
 
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct protocol proto_udp6 = {
+struct protocol proto_udp6 = {
 	.name = "udp6",
 	.fam = &proto_fam_inet6,
 	.ctrl_type = SOCK_DGRAM,

@@ -63,7 +63,7 @@ struct proto_fam proto_fam_sockpair = {
 };
 
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct protocol proto_sockpair = {
+struct protocol proto_sockpair = {
 	.name = "sockpair",
 	.fam = &proto_fam_sockpair,
 	.ctrl_type = SOCK_STREAM,

@@ -1,5 +1,5 @@
 /*
- * include/proto/proto_udp.h
+ * include/haproxy/proto_udp.h
  * This file contains UDP socket protocol definitions.
  *
  * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
@@ -23,6 +23,9 @@
 
 #ifndef _PROTO_PROTO_UDP_H
 #define _PROTO_PROTO_UDP_H
+
+extern struct protocol proto_udp4;
+extern struct protocol proto_udp6;
 
 int udp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote);
 

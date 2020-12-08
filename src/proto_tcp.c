@@ -51,7 +51,7 @@ static void tcp_enable_listener(struct listener *listener);
 static void tcp_disable_listener(struct listener *listener);
 
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct protocol proto_tcpv4 = {
+struct protocol proto_tcpv4 = {
 	.name = "tcpv4",
 	.fam = &proto_fam_inet4,
 	.ctrl_type = SOCK_STREAM,
@@ -80,7 +80,7 @@ static struct protocol proto_tcpv4 = {
 INITCALL1(STG_REGISTER, protocol_register, &proto_tcpv4);
 
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct protocol proto_tcpv6 = {
+struct protocol proto_tcpv6 = {
 	.name = "tcpv6",
 	.fam = &proto_fam_inet6,
 	.ctrl_type = SOCK_STREAM,

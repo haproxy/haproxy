@@ -33,6 +33,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/protocol.h>
+#include <haproxy/proto_uxst.h>
 #include <haproxy/sock.h>
 #include <haproxy/sock_unix.h>
 #include <haproxy/time.h>
@@ -47,7 +48,7 @@ static void uxst_disable_listener(struct listener *listener);
 static int uxst_suspend_receiver(struct receiver *rx);
 
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct protocol proto_unix = {
+struct protocol proto_uxst = {
 	.name = "unix_stream",
 	.fam = &proto_fam_unix,
 	.ctrl_type = SOCK_STREAM,
@@ -67,11 +68,11 @@ static struct protocol proto_unix = {
 	.rx_listening = sock_accepting_conn,
 	.default_iocb = &sock_accept_iocb,
 	.connect = &uxst_connect_server,
-	.receivers = LIST_HEAD_INIT(proto_unix.receivers),
+	.receivers = LIST_HEAD_INIT(proto_uxst.receivers),
 	.nb_receivers = 0,
 };
 
-INITCALL1(STG_REGISTER, protocol_register, &proto_unix);
+INITCALL1(STG_REGISTER, protocol_register, &proto_uxst);
 
 /********************************
  * 1) low-level socket functions
