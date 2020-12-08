@@ -28,6 +28,8 @@ extern struct protocol proto_udp4;
 extern struct protocol proto_udp6;
 
 int udp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct sockaddr_storage *remote);
+int udp_suspend_receiver(struct receiver *rx);
+int udp_resume_receiver(struct receiver *rx);
 
 #endif /* _PROTO_PROTO_UDP_H */
 

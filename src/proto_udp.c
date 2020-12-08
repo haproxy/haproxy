@@ -41,8 +41,6 @@
 #include <haproxy/task.h>
 
 static int udp_bind_listener(struct listener *listener, char *errmsg, int errlen);
-static int udp_suspend_receiver(struct receiver *rx);
-static int udp_resume_receiver(struct receiver *rx);
 static void udp_enable_listener(struct listener *listener);
 static void udp_disable_listener(struct listener *listener);
 
@@ -178,7 +176,7 @@ static void udp_disable_listener(struct listener *l)
  * to do this is to connect to any address that is reachable and will not be
  * used by regular traffic, and a great one is reconnecting to self.
  */
-static int udp_suspend_receiver(struct receiver *rx)
+int udp_suspend_receiver(struct receiver *rx)
 {
 	struct sockaddr_storage ss;
 	socklen_t len = sizeof(ss);
@@ -209,7 +207,7 @@ static int udp_suspend_receiver(struct receiver *rx)
  * connecting to AF_UNSPEC. The association breaks and the socket starts to
  * receive from everywhere again.
  */
-static int udp_resume_receiver(struct receiver *rx)
+int udp_resume_receiver(struct receiver *rx)
 {
 	const struct sockaddr sa = { .sa_family = AF_UNSPEC };
 
