@@ -3374,6 +3374,16 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 		else if (h1m->state < H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing response payload", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fconn->conn, fstrm);
 			ret = fcgi_strm_parse_data(fstrm, h1m, &htx, &fstrm->rxbuf, &total, count, buf);
+
+			if (!(h1m->flags & H1_MF_XFER_LEN) && fstrm->state != FCGI_SS_ERROR &&
+			    (fstrm->flags & FCGI_SF_ES_RCVD) && b_data(&fstrm->rxbuf) == total) {
+				TRACE_DEVEL("end of data", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
+				if (!(h1m->flags & H1_MF_VER_11))
+					fstrm->flags |= FCGI_SF_H1_PARSING_DONE;
+				h1m->state = H1_MSG_DONE;
+				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
+			}
+
 			if (!ret && h1m->state != H1_MSG_DONE)
 				break;
 
@@ -3401,23 +3411,6 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 				fcgi_strm_error(fstrm);
 			}
 			break;
-		}
-		else if (h1m->state == H1_MSG_TUNNEL) {
-			TRACE_PROTO("parsing response tunneled data", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
-			ret = fcgi_strm_parse_data(fstrm, h1m, &htx, &fstrm->rxbuf, &total, count, buf);
-
-			if (fstrm->state != FCGI_SS_ERROR &&
-			    (fstrm->flags & FCGI_SF_ES_RCVD) && b_data(&fstrm->rxbuf) == total) {
-				TRACE_DEVEL("end of tunneled data", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
-				if ((h1m->flags & (H1_MF_VER_11|H1_MF_XFER_LEN)) != H1_MF_VER_11)
-					fstrm->flags |= FCGI_SF_H1_PARSING_DONE;
-				h1m->state = H1_MSG_DONE;
-				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
-			}
-			if (!ret && h1m->state != H1_MSG_DONE)
-				break;
-
-			TRACE_PROTO("rcvd H1 response tunneled data", FCGI_EV_RSP_DATA, fconn->conn, fstrm, htx);
 		}
 		else {
 			htx->flags |= HTX_FL_PROCESSING_ERROR;

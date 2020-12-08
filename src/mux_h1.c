@@ -1651,8 +1651,9 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		h1s->cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 		if (h1s->flags & H1S_F_REOS) {
 			h1s->cs->flags |= CS_FL_EOS;
-			if (h1m->state >= H1_MSG_DONE) {
-				/* DONE or TUNNEL, set EOI on the conn-stream */
+			if (h1m->state >= H1_MSG_DONE || !(h1m->flags & H1_MF_XFER_LEN)) {
+				/* DONE or TUNNEL or SHUTR without XFER_LEN, set
+				 * EOI on the conn-stream */
 				h1s->cs->flags |= CS_FL_EOI;
 			}
 			else if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE)

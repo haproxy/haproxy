@@ -296,10 +296,6 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		/* Responses with a known body length. */
 		h1m->flags |= H1_MF_XFER_LEN;
 	}
-	else {
-		/* Responses with an unknown body length */
-		h1m->state = H1_MSG_TUNNEL;
-	}
 
 	used = htx_used_space(htx);
 	flags = h1m_htx_sl_flags(h1m);
