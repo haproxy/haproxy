@@ -410,18 +410,24 @@ static int ps_python_start_worker(struct worker *w)
 
 	ipv4_address = PyObject_GetAttrString(module_ipaddress, "IPv4Address");
 	if (ipv4_address == NULL) {
+		Py_DECREF(module_ipaddress);
 		PyErr_Print();
 		return 0;
 	}
 
 	ipv6_address = PyObject_GetAttrString(module_ipaddress, "IPv6Address");
 	if (ipv6_address == NULL) {
+		Py_DECREF(ipv4_address);
+		Py_DECREF(module_ipaddress);
 		PyErr_Print();
 		return 0;
 	}
 
 	PY_INIT_MODULE(m, "spoa", spoa_methods, &spoa_module_definition);
 	if (m == NULL) {
+		Py_DECREF(ipv4_address);
+		Py_DECREF(ipv6_address);
+		Py_DECREF(module_ipaddress);
 		PyErr_Print();
 		return 0;
 	}
