@@ -633,8 +633,6 @@ struct quic_conn {
 		/* Number of received bytes. */
 		uint64_t bytes;
 	} rx;
-	/* In flight CRYPTO data counter. */
-	size_t ifcdata;
 	unsigned int max_ack_delay;
 	struct quic_path paths[1];
 	struct quic_path *path;

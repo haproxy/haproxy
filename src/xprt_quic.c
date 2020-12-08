@@ -224,7 +224,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				chunk_appendf(&trace_buf, " el=%c(%d)", quic_enc_level_char(lvl), lvl);
 			}
 			if (len)
-				chunk_appendf(&trace_buf, " len=%zu", *len);
+				chunk_appendf(&trace_buf, " len=%llu", (unsigned long long)*len);
 		}
 		if ((mask & QUIC_EV_CONN_ISEC) && qc) {
 			/* Initial read & write secrets. */
@@ -285,16 +285,20 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		if (mask & QUIC_EV_CONN_HPKT) {
 			const struct quic_tx_packet *pkt = a2;
 			const struct quic_enc_level *qel = a3;
+			const ssize_t *room = a4;
 
 			if (qel) {
 				struct quic_pktns *pktns;
 
 				pktns = qc->pktns;
-				chunk_appendf(&trace_buf, " qel=%c pif=%lu if=%lu pp=%llu pdg=%llu",
+				chunk_appendf(&trace_buf, " qel=%c cwnd=%llu ppif=%lld pif=%llu "
+				              "if=%llu pp=%u pdg=%d",
 				              quic_enc_level_char_from_qel(qel, qc),
-				              qc->path->in_flight,
-				              pktns->tx.in_flight, (unsigned long long)pktns->tx.pto_probe,
-				              (unsigned long long)qc->tx.nb_pto_dgrams);
+				              (unsigned long long)qc->path->cwnd,
+				              (unsigned long long)qc->path->prep_in_flight,
+				              (unsigned long long)qc->path->in_flight,
+				              (unsigned long long)pktns->tx.in_flight,
+				              pktns->tx.pto_probe, qc->tx.nb_pto_dgrams);
 			}
 			if (pkt) {
 				const struct quic_tx_frm *frm;
@@ -302,7 +306,13 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              (unsigned long long)pkt->pn_node.key, pkt->cdata_len);
 				list_for_each_entry(frm, &pkt->frms, list)
 					chunk_tx_frm_appendf(&trace_buf, frm);
-				chunk_appendf(&trace_buf, " ifcd=%zu", qc->ifcdata);
+				chunk_appendf(&trace_buf, " tx.bytes=%llu", (unsigned long long)qc->tx.bytes);
+			}
+
+			if (room) {
+				chunk_appendf(&trace_buf, " room=%lld", (long long)*room);
+				chunk_appendf(&trace_buf, " dcid.len=%llu scid.len=%llu",
+				              (unsigned long long)qc->dcid.len, (unsigned long long)qc->scid.len);
 			}
 		}
 
@@ -380,13 +390,14 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 				pktns = qc->pktns;
 				chunk_appendf(&trace_buf,
-				              " qel=%c ack?%d pif=%llu if=%lu pp=%u pdg=%llu ifcd=%lu",
+				              " qel=%c ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u pdg=%llu",
 				              quic_enc_level_char_from_qel(qel, qc),
 				              !!(pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED),
+				              (unsigned long long)qc->path->cwnd,
+				              (unsigned long long)qc->path->prep_in_flight,
 				              (unsigned long long)qc->path->in_flight,
-				              pktns->tx.in_flight, pktns->tx.pto_probe,
-				              (unsigned long long)qc->tx.nb_pto_dgrams,
-				              qc->ifcdata);
+				              (unsigned long long)pktns->tx.in_flight, pktns->tx.pto_probe,
+				              (unsigned long long)qc->tx.nb_pto_dgrams);
 			}
 		}
 
@@ -468,9 +479,10 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			const int *duration = a3;
 
 			if (pktns) {
-				chunk_appendf(&trace_buf, " pktns=%s",
+				chunk_appendf(&trace_buf, " pktns=%s pp=%d",
 				              pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
-				              pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT] ? "01RTT": "H");
+				              pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT] ? "01RTT": "H",
+				              pktns->tx.pto_probe);
 				if (mask & QUIC_EV_CONN_STIMER) {
 					if (pktns->tx.loss_time)
 						chunk_appendf(&trace_buf, " loss_time=%dms",
@@ -494,13 +506,17 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		if (mask & QUIC_EV_CONN_SPPKTS) {
 			const struct quic_tx_packet *pkt = a2;
 
+			chunk_appendf(&trace_buf, " cwnd=%llu ppif=%llu pif=%llu",
+			             (unsigned long long)qc->path->cwnd,
+			             (unsigned long long)qc->path->prep_in_flight,
+			             (unsigned long long)qc->path->in_flight);
 			if (pkt) {
-				chunk_appendf(&trace_buf, " #%lu(%s) pif=%lu iflen=%zu cdlen=%zu",
+				chunk_appendf(&trace_buf, " pn=%lu(%s) iflen=%llu cdlen=%llu",
 				              (unsigned long)pkt->pn_node.key,
 				              pkt->pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
 				              pkt->pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT] ? "01RTT": "H",
-				              qc->path->in_flight,
-				              pkt->in_flight_len, pkt->cdata_len);
+				              (unsigned long long)pkt->in_flight_len,
+				              (unsigned long long)pkt->cdata_len);
 			}
 		}
 	}
@@ -1069,11 +1085,6 @@ static inline void qc_treat_acked_tx_frm(struct quic_tx_frm *frm,
                                          struct quic_conn_ctx *ctx)
 {
 	TRACE_PROTO("Removing frame", QUIC_EV_CONN_PRSAFRM, ctx->conn, frm);
-	switch (frm->type) {
-	case QUIC_FT_CRYPTO:
-		ctx->conn->qc->ifcdata -= frm->crypto.len;
-		break;
-	}
 	LIST_DEL(&frm->list);
 	pool_free(pool_head_quic_tx_frm, frm);
 }
@@ -1125,11 +1136,6 @@ static inline void qc_treat_nacked_tx_frm(struct quic_tx_frm *frm,
                                           struct quic_conn_ctx *ctx)
 {
 	TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, ctx->conn, frm);
-	switch (frm->type) {
-	case QUIC_FT_CRYPTO:
-		ctx->conn->qc->ifcdata -= frm->crypto.len;
-		break;
-	}
 	LIST_DEL(&frm->list);
 	LIST_ADD(&pktns->tx.frms, &frm->list);
 }
@@ -1184,6 +1190,7 @@ static inline void qc_treat_newly_acked_pkts(struct quic_conn_ctx *ctx,
 
 	list_for_each_entry_safe(pkt, tmp, newly_acked_pkts, list) {
 		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
+		qc->path->prep_in_flight -= pkt->in_flight_len;
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
 			qc->path->in_flight_ae_pkts--;
 		ev.ack.acked = pkt->in_flight_len;
@@ -1218,6 +1225,7 @@ static inline void qc_release_lost_pkts(struct quic_pktns *pktns,
 	list_for_each_entry_safe(pkt, tmp, pkts, list) {
 		lost_bytes += pkt->in_flight_len;
 		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
+		qc->path->prep_in_flight -= pkt->in_flight_len;
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
 			qc->path->in_flight_ae_pkts--;
 		/* Treat the frames of this lost packet. */
@@ -1641,15 +1649,17 @@ static int qc_prep_hdshk_pkts(struct quic_conn_ctx *ctx)
 		enum quic_pkt_type pkt_type;
 
 		TRACE_POINT(QUIC_EV_CONN_PHPKTS, ctx->conn, qel);
-		/* Do not build any more packet if no ACK are required
+		/* Do not build any more packet f the TX secrets are not available or
+		 * f there is nothing to send, i.e. if no ACK are required
 		 * and if there is no more packets to send upon PTO expiration
-		 * and if there is not more CRYPTO data available or in flight
-		 * CRYPTO data limit reached.
+		 * and if there is no more CRYPTO data available or in flight
+		 * congestion control limit is reached for prepared data
 		 */
-		if (!(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
+		if (!(qel->tls_ctx.tx.flags & QUIC_FL_TLS_SECRETS_SET) ||
+		    (!(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
 		    !qc->tx.nb_pto_dgrams &&
 		    (LIST_ISEMPTY(&qel->pktns->tx.frms) ||
-		     qc->ifcdata >= QUIC_CRYPTO_IN_FLIGHT_MAX)) {
+		     qc->path->prep_in_flight >= qc->path->cwnd))) {
 			TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, ctx->conn);
 			/* Consume the buffer if we were supposed to reuse it. */
 			if (reuse_wbuf)
@@ -1658,18 +1668,22 @@ static int qc_prep_hdshk_pkts(struct quic_conn_ctx *ctx)
 		}
 
 		pkt_type = quic_tls_level_pkt_type(tel);
-		reuse_wbuf = 0;
 		ret = qc_build_hdshk_pkt(wbuf, qc, pkt_type, qel);
 		switch (ret) {
 		case -2:
 			goto err;
 		case -1:
+			if (!reuse_wbuf)
+				goto out;
+
 			/* Not enough room in <wbuf>. */
 			wbuf = q_next_wbuf(qc);
+			reuse_wbuf = 0;
 			continue;
 		case 0:
 			goto out;
 		default:
+			reuse_wbuf = 0;
 			/* Discard the Initial encryption keys as soon as
 			 * a handshake packet could be built.
 			 */
@@ -1732,6 +1746,7 @@ int qc_send_ppkts(struct quic_conn_ctx *ctx)
 
 		tmpbuf.area = (char *)rbuf->area;
 		tmpbuf.size = tmpbuf.data = rbuf->data;
+		TRACE_PROTO("to send", QUIC_EV_CONN_SPPKTS, ctx->conn);
 	    if (ctx->xprt->snd_buf(qc->conn, qc->conn->xprt_ctx,
 	                           &tmpbuf, tmpbuf.data, 0) <= 0)
 		    break;
@@ -1747,11 +1762,11 @@ int qc_send_ppkts(struct quic_conn_ctx *ctx)
 				p->pktns->tx.time_of_last_eliciting = time_sent;
 				qc->path->in_flight_ae_pkts++;
 			}
-			TRACE_PROTO("sent pkt", QUIC_EV_CONN_SPPKTS, ctx->conn, p);
 			qc->path->in_flight += p->in_flight_len;
 			p->pktns->tx.in_flight += p->in_flight_len;
 			if (p->in_flight_len)
 				qc_set_timer(ctx);
+			TRACE_PROTO("sent pkt", QUIC_EV_CONN_SPPKTS, ctx->conn, p);
 			LIST_DEL(&p->list);
 		}
 	}
@@ -2405,7 +2420,7 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned short s
 	qc->path->loss.pto_count++;
 
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_PTIMER, conn_ctx->conn);
+	TRACE_LEAVE(QUIC_EV_CONN_PTIMER, conn_ctx->conn, pktns);
 
 	return task;
 }
@@ -2488,8 +2503,6 @@ int qc_new_conn_init(struct quic_conn *qc, int ipv4,
 	qc->tx.nb_pto_dgrams = 0;
 	/* RX part. */
 	qc->rx.bytes = 0;
-
-	qc->ifcdata = 0;
 
 	/* XXX TO DO: Only one path at this time. */
 	qc->path = &qc->paths[0];
@@ -3141,7 +3154,7 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
 	if (conn->tx.nb_pto_dgrams)
 		max_cdata_len = room;
 	else
-		max_cdata_len =  QUIC_CRYPTO_IN_FLIGHT_MAX - conn->ifcdata;
+		max_cdata_len = quic_path_prep_data(conn->path);
 	list_for_each_entry_safe(cf, cfbak, &qel->pktns->tx.frms, list) {
 		/* header length, data length, frame length. */
 		size_t hlen, dlen, cflen;
@@ -3234,19 +3247,32 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 	struct quic_crypto *crypto = &frm.crypto;
 	size_t ack_frm_len;
 	int64_t largest_acked_pn;
-	int add_ping_frm, probe_packet;
+	int add_ping_frm;
 
-	probe_packet = 0;
 	beg = pos = q_buf_getpos(wbuf);
 	end = q_buf_end(wbuf);
+	/* When not probing and not acking, reduce the size of this buffer to respect
+	 * the congestion controller window.
+	 */
+	if (!conn->tx.nb_pto_dgrams && !(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED)) {
+		size_t path_room;
+
+		path_room = quic_path_prep_data(conn->path);
+		if (end - beg > path_room)
+			end = beg + path_room;
+	}
 
 	/* For a server, the token field of an Initial packet is empty. */
 	token_fields_len = pkt_type == QUIC_PACKET_TYPE_INITIAL ? 1 : 0;
 
 	/* Check there is enough room to build the header followed by a token. */
 	if (end - pos < QUIC_LONG_PACKET_MINLEN + conn->dcid.len +
-	    conn->scid.len + token_fields_len + QUIC_TLS_TAG_LEN)
+	    conn->scid.len + token_fields_len + QUIC_TLS_TAG_LEN) {
+		ssize_t room = end - pos;
+		TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
+		            conn->conn, NULL, NULL, &room);
 		goto err;
+	}
 
 	/* Reserve enough room at the end of the packet for the AEAD TAG. */
 	end -= QUIC_TLS_TAG_LEN;
@@ -3267,8 +3293,12 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 		ack_frm.tx_ack.ack_delay = 0;
 		ack_frm.tx_ack.arngs = &qel->pktns->rx.arngs;
 		ack_frm_len = quic_ack_frm_reduce_sz(&ack_frm, end - pos);
-		if (!ack_frm_len)
+		if (!ack_frm_len) {
+			ssize_t room = end - pos;
+			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
+			            conn->conn, NULL, NULL, &room);
 			goto err;
+		}
 
 		qel->pktns->flags &= ~QUIC_FL_PKTNS_ACK_REQUIRED;
 	}
@@ -3276,8 +3306,12 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 	/* Length field value without the CRYPTO frames data length. */
 	len = ack_frm_len + *pn_len;
 	if (!LIST_ISEMPTY(&qel->pktns->tx.frms) &&
-	    !qc_build_cfrms(pkt, end - pos, &len, qel, conn))
+	    !qc_build_cfrms(pkt, end - pos, &len, qel, conn)) {
+		ssize_t room = end - pos;
+		TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
+		            conn->conn, NULL, NULL, &room);
 		goto err;
+	}
 
 	add_ping_frm = 0;
 	padding_len = 0;
@@ -3289,7 +3323,6 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 	else if (LIST_ISEMPTY(&pkt->frms)) {
 		if (qel->pktns->tx.pto_probe) {
 			/* If we cannot send a CRYPTO frame, we send a PING frame. */
-			probe_packet = 1;
 			add_ping_frm = 1;
 			len += 1;
 		}
@@ -3329,26 +3362,35 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 	/* Build a PING frame if needed. */
 	if (add_ping_frm) {
 		frm.type = QUIC_FT_PING;
-		if (!qc_build_frm(&pos, end, &frm, pkt, conn))
+		if (!qc_build_frm(&pos, end, &frm, pkt, conn)) {
+			ssize_t room = end - pos;
+			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
+			            conn->conn, NULL, NULL, &room);
 			goto err;
+		}
 	}
 
 	/* Build a PADDING frame if needed. */
 	if (padding_len) {
 		frm.type = QUIC_FT_PADDING;
 		frm.padding.len = padding_len;
-		if (!qc_build_frm(&pos, end, &frm, pkt, conn))
+		if (!qc_build_frm(&pos, end, &frm, pkt, conn)) {
+			ssize_t room = end - pos;
+			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
+			            conn->conn, NULL, NULL, &room);
 			goto err;
+		}
 	}
 
-	if (probe_packet)
-		qel->pktns->tx.pto_probe = 0;
+	/* Always reset this variable as this function has no idea
+	 * if it was set. It is handle by the loss detection timer.
+	 */
+	qel->pktns->tx.pto_probe = 0;
 
  out:
 	return pos - beg;
 
  err:
-	TRACE_DEVEL("leaving in error (buffer full)", QUIC_EV_CONN_ECHPKT, conn->conn);
 	return -1;
 }
 
@@ -3434,14 +3476,14 @@ static ssize_t qc_build_hdshk_pkt(struct q_buf *buf, struct quic_conn *qc, int p
 	/* Attach the built packet to its tree. */
 	pkt->pn_node.key = qel->pktns->tx.next_pn;
 	/* Set the packet in fligth length for in flight packet only. */
-	if (pkt->flags & QUIC_FL_TX_PACKET_IN_FLIGHT)
+	if (pkt->flags & QUIC_FL_TX_PACKET_IN_FLIGHT) {
 		pkt->in_flight_len = pkt_len;
+		qc->path->prep_in_flight += pkt_len;
+	}
 	pkt->pktns = qel->pktns;
 	eb64_insert(&qel->pktns->tx.pkts, &pkt->pn_node);
 	/* Increment the number of bytes in <buf> buffer by the length of this packet. */
 	buf->data += pkt_len;
-	/* Update the counter of the in flight CRYPTO data. */
-	qc->ifcdata += pkt->cdata_len;
 	/* Attach this packet to <buf>. */
 	LIST_ADDQ(&buf->pkts, &pkt->list);
 	TRACE_LEAVE(QUIC_EV_CONN_HPKT, qc->conn, pkt);
@@ -3473,6 +3515,16 @@ static ssize_t qc_do_build_phdshk_apkt(struct q_buf *wbuf,
 	TRACE_ENTER(QUIC_EV_CONN_CPAPKT, conn->conn);
 	beg = pos = q_buf_getpos(wbuf);
 	end = q_buf_end(wbuf);
+	/* When not probing and not acking, reduce the size of this buffer to respect
+	 * the congestion controller window.
+	 */
+	if (!conn->tx.nb_pto_dgrams && !(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED)) {
+		size_t path_room;
+
+		path_room = quic_path_prep_data(conn->path);
+		if (end - beg > path_room)
+			end = beg + path_room;
+	}
 	largest_acked_pn = qel->pktns->tx.largest_acked_pn;
 	/* Packet number length */
 	*pn_len = quic_packet_number_length(pn, largest_acked_pn);
@@ -3609,8 +3661,10 @@ static ssize_t qc_build_phdshk_apkt(struct q_buf *wbuf, struct quic_conn *qc)
 	pkt->pn_node.key = qel->pktns->tx.next_pn;
 	eb64_insert(&qel->pktns->tx.pkts, &pkt->pn_node);
 	/* Set the packet in fligth length for in flight packet only. */
-	if (pkt->flags & QUIC_FL_TX_PACKET_IN_FLIGHT)
+	if (pkt->flags & QUIC_FL_TX_PACKET_IN_FLIGHT) {
 		pkt->in_flight_len = pkt_len;
+		qc->path->prep_in_flight += pkt_len;
+	}
 	pkt->pktns = qel->pktns;
 	/* Increment the number of bytes in <buf> buffer by the length of this packet. */
 	wbuf->data += pkt_len;
@@ -3639,7 +3693,7 @@ int qc_prep_phdshk_pkts(struct quic_conn *qc)
 
 		if (!(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
 		    (LIST_ISEMPTY(&qel->pktns->tx.frms) ||
-		     qc->ifcdata >= QUIC_CRYPTO_IN_FLIGHT_MAX)) {
+		     qc->path->prep_in_flight >= qc->path->cwnd)) {
 			TRACE_DEVEL("nothing more to do",
 			            QUIC_EV_CONN_PAPKTS, qc->conn);
 			break;
