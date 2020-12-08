@@ -52,58 +52,74 @@ static void tcp_disable_listener(struct listener *listener);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 struct protocol proto_tcpv4 = {
-	.name = "tcpv4",
-	.fam = &proto_fam_inet4,
-	.ctrl_type = SOCK_STREAM,
-	.sock_type = SOCK_STREAM,
-	.sock_prot = IPPROTO_TCP,
-	.add = default_add_listener,
-	.listen = tcp_bind_listener,
-	.enable = tcp_enable_listener,
-	.disable = tcp_disable_listener,
-	.unbind = default_unbind_listener,
-	.suspend = default_suspend_listener,
-	.resume  = default_resume_listener,
-	.accept_conn = sock_accept_conn,
-	.rx_enable = sock_enable,
-	.rx_disable = sock_disable,
-	.rx_unbind = sock_unbind,
-	.rx_suspend = tcp_suspend_receiver,
-	.rx_resume = tcp_resume_receiver,
-	.rx_listening = sock_accepting_conn,
-	.default_iocb = &sock_accept_iocb,
-	.connect = tcp_connect_server,
-	.receivers = LIST_HEAD_INIT(proto_tcpv4.receivers),
-	.nb_receivers = 0,
+	.name           = "tcpv4",
+
+	/* connection layer */
+	.ctrl_type      = SOCK_STREAM,
+	.listen         = tcp_bind_listener,
+	.enable         = tcp_enable_listener,
+	.disable        = tcp_disable_listener,
+	.add            = default_add_listener,
+	.unbind         = default_unbind_listener,
+	.suspend        = default_suspend_listener,
+	.resume         = default_resume_listener,
+	.accept_conn    = sock_accept_conn,
+	.connect        = tcp_connect_server,
+
+	/* binding layer */
+	.rx_suspend     = tcp_suspend_receiver,
+	.rx_resume      = tcp_resume_receiver,
+
+	/* address family */
+	.fam            = &proto_fam_inet4,
+
+	/* socket layer */
+	.sock_type      = SOCK_STREAM,
+	.sock_prot      = IPPROTO_TCP,
+	.rx_enable      = sock_enable,
+	.rx_disable     = sock_disable,
+	.rx_unbind      = sock_unbind,
+	.rx_listening   = sock_accepting_conn,
+	.default_iocb   = sock_accept_iocb,
+	.receivers      = LIST_HEAD_INIT(proto_tcpv4.receivers),
+	.nb_receivers   = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_tcpv4);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 struct protocol proto_tcpv6 = {
-	.name = "tcpv6",
-	.fam = &proto_fam_inet6,
-	.ctrl_type = SOCK_STREAM,
-	.sock_type = SOCK_STREAM,
-	.sock_prot = IPPROTO_TCP,
-	.add = default_add_listener,
-	.listen = tcp_bind_listener,
-	.enable = tcp_enable_listener,
-	.disable = tcp_disable_listener,
-	.unbind = default_unbind_listener,
-	.suspend = default_suspend_listener,
-	.resume  = default_resume_listener,
-	.accept_conn = sock_accept_conn,
-	.rx_enable = sock_enable,
-	.rx_disable = sock_disable,
-	.rx_unbind = sock_unbind,
-	.rx_suspend = tcp_suspend_receiver,
-	.rx_resume = tcp_resume_receiver,
-	.rx_listening = sock_accepting_conn,
-	.default_iocb = &sock_accept_iocb,
-	.connect = tcp_connect_server,
-	.receivers = LIST_HEAD_INIT(proto_tcpv6.receivers),
-	.nb_receivers = 0,
+	.name           = "tcpv6",
+
+	/* connection layer */
+	.ctrl_type      = SOCK_STREAM,
+	.listen         = tcp_bind_listener,
+	.enable         = tcp_enable_listener,
+	.disable        = tcp_disable_listener,
+	.add            = default_add_listener,
+	.unbind         = default_unbind_listener,
+	.suspend        = default_suspend_listener,
+	.resume         = default_resume_listener,
+	.accept_conn    = sock_accept_conn,
+	.connect        = tcp_connect_server,
+
+	/* binding layer */
+	.rx_suspend     = tcp_suspend_receiver,
+	.rx_resume      = tcp_resume_receiver,
+
+	/* address family */
+	.fam            = &proto_fam_inet6,
+
+	/* socket layer */
+	.sock_type      = SOCK_STREAM,
+	.sock_prot      = IPPROTO_TCP,
+	.rx_enable      = sock_enable,
+	.rx_disable     = sock_disable,
+	.rx_unbind      = sock_unbind,
+	.rx_listening   = sock_accepting_conn,
+	.default_iocb   = sock_accept_iocb,
+	.receivers      = LIST_HEAD_INIT(proto_tcpv6.receivers),
+	.nb_receivers   = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_tcpv6);

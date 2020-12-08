@@ -48,50 +48,66 @@ static void udp_disable_listener(struct listener *listener);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 struct protocol proto_udp4 = {
-	.name = "udp4",
-	.fam = &proto_fam_inet4,
-	.ctrl_type = SOCK_DGRAM,
-	.sock_type = SOCK_DGRAM,
-	.sock_prot = IPPROTO_UDP,
-	.add = default_add_listener,
-	.listen = udp_bind_listener,
-	.enable = udp_enable_listener,
-	.disable = udp_disable_listener,
-	.unbind = default_unbind_listener,
-	.suspend = default_suspend_listener,
-	.resume  = default_resume_listener,
-	.rx_enable = sock_enable,
-	.rx_disable = sock_disable,
-	.rx_unbind = sock_unbind,
-	.rx_suspend = udp_suspend_receiver,
-	.rx_resume = udp_resume_receiver,
-	.receivers = LIST_HEAD_INIT(proto_udp4.receivers),
-	.nb_receivers = 0,
+	.name           = "udp4",
+
+	/* connection layer */
+	.ctrl_type      = SOCK_DGRAM,
+	.listen         = udp_bind_listener,
+	.enable         = udp_enable_listener,
+	.disable        = udp_disable_listener,
+	.add            = default_add_listener,
+	.unbind         = default_unbind_listener,
+	.suspend        = default_suspend_listener,
+	.resume         = default_resume_listener,
+
+	/* binding layer */
+	.rx_suspend     = udp_suspend_receiver,
+	.rx_resume      = udp_resume_receiver,
+
+	/* address family */
+	.fam            = &proto_fam_inet4,
+
+	/* socket layer */
+	.sock_type      = SOCK_DGRAM,
+	.sock_prot      = IPPROTO_UDP,
+	.rx_enable      = sock_enable,
+	.rx_disable     = sock_disable,
+	.rx_unbind      = sock_unbind,
+	.receivers      = LIST_HEAD_INIT(proto_udp4.receivers),
+	.nb_receivers   = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_udp4);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 struct protocol proto_udp6 = {
-	.name = "udp6",
-	.fam = &proto_fam_inet6,
-	.ctrl_type = SOCK_DGRAM,
-	.sock_type = SOCK_DGRAM,
-	.sock_prot = IPPROTO_UDP,
-	.add = default_add_listener,
-	.listen = udp_bind_listener,
-	.enable = udp_enable_listener,
-	.disable = udp_disable_listener,
-	.unbind = default_unbind_listener,
-	.suspend = default_suspend_listener,
-	.resume  = default_resume_listener,
-	.rx_enable = sock_enable,
-	.rx_disable = sock_disable,
-	.rx_unbind = sock_unbind,
-	.rx_suspend = udp_suspend_receiver,
-	.rx_resume = udp_resume_receiver,
-	.receivers = LIST_HEAD_INIT(proto_udp6.receivers),
-	.nb_receivers = 0,
+	.name           = "udp6",
+
+	/* connection layer */
+	.ctrl_type      = SOCK_DGRAM,
+	.listen         = udp_bind_listener,
+	.enable         = udp_enable_listener,
+	.disable        = udp_disable_listener,
+	.add            = default_add_listener,
+	.unbind         = default_unbind_listener,
+	.suspend        = default_suspend_listener,
+	.resume         = default_resume_listener,
+
+	/* binding layer */
+	.rx_suspend     = udp_suspend_receiver,
+	.rx_resume      = udp_resume_receiver,
+
+	/* address family */
+	.fam            = &proto_fam_inet6,
+
+	/* socket layer */
+	.sock_type      = SOCK_DGRAM,
+	.sock_prot      = IPPROTO_UDP,
+	.rx_enable      = sock_enable,
+	.rx_disable     = sock_disable,
+	.rx_unbind      = sock_unbind,
+	.receivers      = LIST_HEAD_INIT(proto_udp6.receivers),
+	.nb_receivers   = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_udp6);

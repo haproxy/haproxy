@@ -64,25 +64,34 @@ struct proto_fam proto_fam_sockpair = {
 
 /* Note: must not be declared <const> as its list will be overwritten */
 struct protocol proto_sockpair = {
-	.name = "sockpair",
-	.fam = &proto_fam_sockpair,
-	.ctrl_type = SOCK_STREAM,
-	.sock_type = SOCK_STREAM,
-	.sock_prot = 0,
-	.add = default_add_listener,
-	.listen = sockpair_bind_listener,
-	.enable = sockpair_enable_listener,
-	.disable = sockpair_disable_listener,
-	.unbind = default_unbind_listener,
-	.accept_conn = sockpair_accept_conn,
-	.rx_unbind = sock_unbind,
-	.rx_enable = sock_enable,
-	.rx_disable = sock_disable,
-	.rx_listening = sockpair_accepting_conn,
-	.default_iocb = &sock_accept_iocb,
-	.connect = &sockpair_connect_server,
-	.receivers = LIST_HEAD_INIT(proto_sockpair.receivers),
-	.nb_receivers = 0,
+	.name           = "sockpair",
+
+	/* connection layer */
+	.ctrl_type      = SOCK_STREAM,
+	.listen         = sockpair_bind_listener,
+	.enable         = sockpair_enable_listener,
+	.disable        = sockpair_disable_listener,
+	.add            = default_add_listener,
+	.unbind         = default_unbind_listener,
+	.accept_conn    = sockpair_accept_conn,
+	.connect        = sockpair_connect_server,
+
+	/* binding layer */
+	/* Note: suspend/resume not supported */
+
+	/* address family */
+	.fam            = &proto_fam_sockpair,
+
+	/* socket layer */
+	.sock_type      = SOCK_STREAM,
+	.sock_prot      = 0,
+	.rx_enable      = sock_enable,
+	.rx_disable     = sock_disable,
+	.rx_unbind      = sock_unbind,
+	.rx_listening   = sockpair_accepting_conn,
+	.default_iocb   = sock_accept_iocb,
+	.receivers      = LIST_HEAD_INIT(proto_sockpair.receivers),
+	.nb_receivers   = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_sockpair);

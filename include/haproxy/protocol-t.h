@@ -95,20 +95,20 @@ struct protocol {
 	int (*suspend)(struct listener *l);             /* try to suspend the listener */
 	int (*resume)(struct listener *l);              /* try to resume a suspended listener */
 	struct connection *(*accept_conn)(struct listener *l, int *status); /* accept a new connection */
+	/* functions acting on connections */
+	int (*connect)(struct connection *, int flags); /* connect function if any, see below for flags values */
 
 	/* functions acting on the receiver */
+	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
+	int (*rx_resume)(struct receiver *rx);          /* try to resume a temporarily suspended receiver */
 	void (*rx_enable)(struct receiver *rx);         /* enable receiving on the receiver */
 	void (*rx_disable)(struct receiver *rx);        /* disable receiving on the receiver */
 	void (*rx_unbind)(struct receiver *rx);         /* unbind the receiver, most often closing the FD */
-	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
-	int (*rx_resume)(struct receiver *rx);          /* try to resume a temporarily suspended receiver */
 	int (*rx_listening)(const struct receiver *rx); /* is the receiver listening ? 0=no, >0=OK, <0=unrecoverable */
 
 	/* default I/O handler */
 	void (*default_iocb)(int fd);                   /* generic I/O handler (typically accept callback) */
 
-	/* functions acting on connections */
-	int (*connect)(struct connection *, int flags); /* connect function if any, see below for flags values */
 
 	struct list receivers;				/* list of receivers using this protocol (under proto_lock) */
 	int nb_receivers;				/* number of receivers (under proto_lock) */

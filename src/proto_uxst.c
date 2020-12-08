@@ -49,27 +49,35 @@ static int uxst_suspend_receiver(struct receiver *rx);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 struct protocol proto_uxst = {
-	.name = "unix_stream",
-	.fam = &proto_fam_unix,
-	.ctrl_type = SOCK_STREAM,
-	.sock_type = SOCK_STREAM,
-	.sock_prot = 0,
-	.add = default_add_listener,
-	.listen = uxst_bind_listener,
-	.enable = uxst_enable_listener,
-	.disable = uxst_disable_listener,
-	.unbind = default_unbind_listener,
-	.suspend = default_suspend_listener,
-	.accept_conn = sock_accept_conn,
-	.rx_enable = sock_enable,
-	.rx_disable = sock_disable,
-	.rx_unbind = sock_unbind,
-	.rx_suspend = uxst_suspend_receiver,
-	.rx_listening = sock_accepting_conn,
-	.default_iocb = &sock_accept_iocb,
-	.connect = &uxst_connect_server,
-	.receivers = LIST_HEAD_INIT(proto_uxst.receivers),
-	.nb_receivers = 0,
+	.name           = "unix_stream",
+
+	/* connection layer */
+	.ctrl_type      = SOCK_STREAM,
+	.listen         = uxst_bind_listener,
+	.enable         = uxst_enable_listener,
+	.disable        = uxst_disable_listener,
+	.add            = default_add_listener,
+	.unbind         = default_unbind_listener,
+	.suspend        = default_suspend_listener,
+	.accept_conn    = sock_accept_conn,
+	.connect        = uxst_connect_server,
+
+	/* binding layer */
+	.rx_suspend     = uxst_suspend_receiver,
+
+	/* address family */
+	.fam            = &proto_fam_unix,
+
+	/* socket layer */
+	.sock_type      = SOCK_STREAM,
+	.sock_prot      = 0,
+	.rx_enable      = sock_enable,
+	.rx_disable     = sock_disable,
+	.rx_unbind      = sock_unbind,
+	.rx_listening   = sock_accepting_conn,
+	.default_iocb   = sock_accept_iocb,
+	.receivers      = LIST_HEAD_INIT(proto_uxst.receivers),
+	.nb_receivers   = 0,
 };
 
 INITCALL1(STG_REGISTER, protocol_register, &proto_uxst);
