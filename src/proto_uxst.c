@@ -60,6 +60,8 @@ struct protocol proto_uxst = {
 	.unbind         = default_unbind_listener,
 	.suspend        = default_suspend_listener,
 	.accept_conn    = sock_accept_conn,
+	.ctrl_init      = sock_conn_ctrl_init,
+	.ctrl_close     = sock_conn_ctrl_close,
 	.connect        = uxst_connect_server,
 
 	/* binding layer */

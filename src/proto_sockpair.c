@@ -74,6 +74,8 @@ struct protocol proto_sockpair = {
 	.add            = default_add_listener,
 	.unbind         = default_unbind_listener,
 	.accept_conn    = sockpair_accept_conn,
+	.ctrl_init      = sock_conn_ctrl_init,
+	.ctrl_close     = sock_conn_ctrl_close,
 	.connect        = sockpair_connect_server,
 
 	/* binding layer */

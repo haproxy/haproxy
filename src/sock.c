@@ -625,6 +625,25 @@ void sock_accept_iocb(int fd)
 	listener_accept(l);
 }
 
+/* This completes the initialization of connection <conn> by inserting its FD
+ * into the fdtab, associating it with the regular connection handler. It will
+ * be bound to the current thread only. This call cannot fail.
+ */
+void sock_conn_ctrl_init(struct connection *conn)
+{
+	fd_insert(conn->handle.fd, conn, conn_fd_handler, tid_bit);
+}
+
+/* This completes the release of connection <conn> by removing its FD from the
+ * fdtab and deleting it. The connection must not use the FD anymore past this
+ * point. The FD may be modified in the connection.
+ */
+void sock_conn_ctrl_close(struct connection *conn)
+{
+	fd_delete(conn->handle.fd);
+	conn->handle.fd = DEAD_FD_MAGIC;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

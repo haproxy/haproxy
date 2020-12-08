@@ -96,6 +96,8 @@ struct protocol {
 	int (*resume)(struct listener *l);              /* try to resume a suspended listener */
 	struct connection *(*accept_conn)(struct listener *l, int *status); /* accept a new connection */
 	/* functions acting on connections */
+	void (*ctrl_init)(struct connection *);         /* completes initialization of the connection */
+	void (*ctrl_close)(struct connection *);        /* completes release of the connection */
 	int (*connect)(struct connection *, int flags); /* connect function if any, see below for flags values */
 
 	/* functions acting on the receiver */

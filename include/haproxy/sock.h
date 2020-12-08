@@ -43,6 +43,8 @@ int sock_find_compatible_fd(const struct receiver *rx);
 int sock_accepting_conn(const struct receiver *rx);
 struct connection *sock_accept_conn(struct listener *l, int *status);
 void sock_accept_iocb(int fd);
+void sock_conn_ctrl_init(struct connection *conn);
+void sock_conn_ctrl_close(struct connection *conn);
 
 #endif /* _HAPROXY_SOCK_H */
 
