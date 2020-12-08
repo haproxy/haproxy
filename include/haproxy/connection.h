@@ -124,29 +124,29 @@ static inline void conn_xprt_close(struct connection *conn)
 }
 
 /* Initializes the connection's control layer which essentially consists in
- * registering the file descriptor for polling and setting the CO_FL_CTRL_READY
- * flag. The caller is responsible for ensuring that the control layer is
- * already assigned to the connection prior to the call.
+ * registering the connection handle (e.g. file descriptor) for events and
+ * setting the CO_FL_CTRL_READY flag. The caller is responsible for ensuring
+ * that the control layer is already assigned to the connection prior to the
+ * call.
  */
 static inline void conn_ctrl_init(struct connection *conn)
 {
 	if (!conn_ctrl_ready(conn)) {
-		int fd = conn->handle.fd;
-
-		fd_insert(fd, conn, conn_fd_handler, tid_bit);
 		conn->flags |= CO_FL_CTRL_READY;
+		if (conn->ctrl->ctrl_init)
+			conn->ctrl->ctrl_init(conn);
 	}
 }
 
-/* Deletes the FD if the transport layer is already gone. Once done,
- * it then removes the CO_FL_CTRL_READY flag.
+/* Deletes the connection's handle (e.g. FD) if the transport layer is already
+ * gone, and removes the CO_FL_CTRL_READY flag.
  */
 static inline void conn_ctrl_close(struct connection *conn)
 {
 	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_CTRL_READY)) == CO_FL_CTRL_READY) {
-		fd_delete(conn->handle.fd);
-		conn->handle.fd = DEAD_FD_MAGIC;
 		conn->flags &= ~CO_FL_CTRL_READY;
+		if (conn->ctrl->ctrl_close)
+			conn->ctrl->ctrl_close(conn);
 	}
 }
 
