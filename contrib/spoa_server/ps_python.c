@@ -43,7 +43,7 @@ static PyObject *module_ipaddress;
 static PyObject *ipv4_address;
 static PyObject *ipv6_address;
 static PyObject *spoa_error;
-static PyObject *empty_array;
+static PyObject *empty_tuple;
 static struct worker *worker;
 
 static int ps_python_start_worker(struct worker *w);
@@ -522,8 +522,8 @@ static int ps_python_start_worker(struct worker *w)
 		return 0;
 	}
 
-	empty_array = PyDict_New();
-	if (empty_array == NULL) {
+	empty_tuple = PyTuple_New(0);
+	if (empty_tuple == NULL) {
 		PyErr_Print();
 		return 0;
 	}
@@ -710,7 +710,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 				PyErr_Print();
 				return 0;
 			}
-			value = PyObject_Call(func, empty_array, ip_dict);
+			value = PyObject_Call(func, empty_tuple, ip_dict);
 			Py_DECREF(func);
 			Py_DECREF(ip_dict);
 			break;
@@ -780,7 +780,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 		return 0;
 	}
 
-	result = PyObject_Call(python_ref, empty_array, fkw);
+	result = PyObject_Call(python_ref, empty_tuple, fkw);
 	Py_DECREF(fkw);
 	if (result == NULL) {
 		PyErr_Print();
