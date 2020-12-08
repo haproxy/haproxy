@@ -591,7 +591,7 @@ static int ps_python_exec_message(struct worker *w, void *ref, int nargs, struct
 			return 0;
 		}
 
-		/* Create th value entry */
+		/* Create the value entry */
 
 		key = PY_STRING_FROM_STRING("value");
 		if (key == NULL) {
