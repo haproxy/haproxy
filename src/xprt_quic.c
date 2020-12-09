@@ -1519,6 +1519,32 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct quic_conn_ctx *c
 			goto err;
 
 		switch (frm.type) {
+		case QUIC_FT_PADDING:
+			if (pos != end) {
+				TRACE_DEVEL("wrong frame", QUIC_EV_CONN_PRSHPKT, ctx->conn, pkt);
+				goto err;
+			}
+			break;
+		case QUIC_FT_PING:
+			break;
+		case QUIC_FT_ACK:
+		{
+			unsigned int rtt_sample;
+
+			rtt_sample = 0;
+			if (!qc_parse_ack_frm(&frm, ctx, qel, &rtt_sample, &pos, end))
+				goto err;
+
+			if (rtt_sample) {
+				unsigned int ack_delay;
+
+				ack_delay = !quic_application_pktns(qel->pktns, conn) ? 0 :
+					MS_TO_TICKS(QUIC_MIN(quic_ack_delay_ms(&frm.ack, conn), conn->max_ack_delay));
+				quic_loss_srtt_update(&conn->path->loss, rtt_sample, ack_delay, conn);
+			}
+			tasklet_wakeup(ctx->wait_event.tasklet);
+			break;
+		}
 		case QUIC_FT_CRYPTO:
 			if (frm.crypto.offset != qel->rx.crypto.offset) {
 				struct quic_rx_crypto_frm *cf;
@@ -1549,38 +1575,18 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct quic_conn_ctx *c
 					goto err;
 			}
 			break;
-		case QUIC_FT_PADDING:
-			if (pos != end) {
-				TRACE_DEVEL("wrong frame", QUIC_EV_CONN_PRSHPKT, ctx->conn, pkt);
-				goto err;
-			}
-			break;
-		case QUIC_FT_ACK:
-		{
-			unsigned int rtt_sample;
-
-			rtt_sample = 0;
-			if (!qc_parse_ack_frm(&frm, ctx, qel, &rtt_sample, &pos, end))
-				goto err;
-
-			if (rtt_sample) {
-				unsigned int ack_delay;
-
-				ack_delay = !quic_application_pktns(qel->pktns, conn) ? 0 :
-					MS_TO_TICKS(min(quic_ack_delay_ms(&frm.ack, conn), conn->max_ack_delay));
-				quic_loss_srtt_update(&conn->path->loss, rtt_sample, ack_delay, conn);
-			}
-			tasklet_wakeup(ctx->wait_event.tasklet);
-			break;
-		}
-		case QUIC_FT_PING:
+		case QUIC_FT_STREAM_8:
+		case QUIC_FT_STREAM_9:
+		case QUIC_FT_STREAM_A:
+		case QUIC_FT_STREAM_B:
+		case QUIC_FT_STREAM_C:
+		case QUIC_FT_STREAM_D:
+		case QUIC_FT_STREAM_E:
+		case QUIC_FT_STREAM_F:
+		case QUIC_FT_NEW_CONNECTION_ID:
 			break;
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
-			break;
-		case QUIC_FT_NEW_CONNECTION_ID:
-		case QUIC_FT_STREAM_A:
-		case QUIC_FT_STREAM_B:
 			break;
 		case QUIC_FT_HANDSHAKE_DONE:
 			if (objt_listener(ctx->conn->target))
