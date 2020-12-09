@@ -1754,6 +1754,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 		else
 			match = regex_exec2(expect->regex, b_orig(&trash), b_data(&trash));
 
+		/* Wait for more data on mismatch only if no minimum is defined (-1),
+		 * otherwise the absence of match is already conclusive.
+		 */
+		if (!match && !last_read && (expect->min_recv == -1)) {
+			ret = TCPCHK_EVAL_WAIT;
+			goto out;
+		}
+
 		/* Set status and description in case of error */
 		status = ((status != HCHK_STATUS_UNKNOWN) ? status : HCHK_STATUS_L7RSP);
 		if (LIST_ISEMPTY(&expect->onerror_fmt))
@@ -1767,14 +1775,6 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 		/* should never happen */
 		status = ((status != HCHK_STATUS_UNKNOWN) ? status : HCHK_STATUS_L7RSP);
 		goto error;
-	}
-
-	/* Wait for more data on mismatch only if no minimum is defined (-1),
-	 * otherwise the absence of match is already conclusive.
-	 */
-	if (!match && !last_read && (expect->min_recv == -1)) {
-		ret = TCPCHK_EVAL_WAIT;
-		goto out;
 	}
 
 	if (!(match ^ inverse))
