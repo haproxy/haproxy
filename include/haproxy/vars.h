@@ -28,6 +28,8 @@
 #include <haproxy/vars-t.h>
 
 void vars_init(struct vars *vars, enum vars_scope scope);
+void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size);
+unsigned int var_clear(struct var *var);
 void vars_prune(struct vars *vars, struct session *sess, struct stream *strm);
 void vars_prune_per_sess(struct vars *vars);
 int vars_get_by_name(const char *name, size_t len, struct sample *smp);

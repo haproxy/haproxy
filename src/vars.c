@@ -65,7 +65,7 @@ static inline struct vars *get_vars(struct session *sess, struct stream *strm, e
 /* This function adds or remove memory size from the accounting. The inner
  * pointers may be null when setting the outer ones only.
  */
-static void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size)
+void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size)
 {
 	switch (vars->scope) {
 	case SCOPE_REQ:
