@@ -1548,8 +1548,6 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct quic_conn_ctx *c
 				                      pkt, &cf))
 					goto err;
 			}
-			/* ack-eliciting frame. */
-			pkt->flags |= QUIC_FL_RX_PACKET_ACK_ELICITING;
 			break;
 		case QUIC_FT_PADDING:
 			if (pos != end) {
@@ -1576,7 +1574,6 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct quic_conn_ctx *c
 			break;
 		}
 		case QUIC_FT_PING:
-			pkt->flags |= QUIC_FL_RX_PACKET_ACK_ELICITING;
 			break;
 		case QUIC_FT_CONNECTION_CLOSE:
 		case QUIC_FT_CONNECTION_CLOSE_APP:
@@ -1584,7 +1581,6 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct quic_conn_ctx *c
 		case QUIC_FT_NEW_CONNECTION_ID:
 		case QUIC_FT_STREAM_A:
 		case QUIC_FT_STREAM_B:
-			pkt->flags |= QUIC_FL_RX_PACKET_ACK_ELICITING;
 			break;
 		case QUIC_FT_HANDSHAKE_DONE:
 			if (objt_listener(ctx->conn->target))
