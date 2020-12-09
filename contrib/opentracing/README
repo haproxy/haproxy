@@ -1,0 +1,794 @@
+                   -----------------------------------------
+                      The HAProxy OpenTracing filter (OT)
+                                  Version 1.0
+                          ( Last update: 2020-12-10 )
+                   -----------------------------------------
+                           Author : Miroslav Zagorac
+                     Contact : mzagorac at haproxy dot com
+
+
+SUMMARY
+--------
+
+  0.    Terms
+  1.    Introduction
+  2.    Build instructions
+  3.    Basic concepts in OpenTracing
+  4.    OT configuration
+  4.1.    OT scope
+  4.2.    "ot-tracer" section
+  4.3.    "ot-scope" section
+  4.4.    "ot-group" section
+  5.    Examples
+  5.1     Benchmarking results
+  6.    OT CLI
+  7.    Known bugs and limitations
+
+
+0. Terms
+---------
+
+* OT: The HAProxy OpenTracing filter
+
+  OT is the HAProxy filter that allows you to send data to distributed
+  tracing systems via the OpenTracing API.
+
+
+1. Introduction
+----------------
+
+Nowadays there is a growing need to divide a process into microservices and
+there is a problem of monitoring the work of the same process.  One way to
+solve this problem is to use distributed tracing service in a central location,
+the so-called tracer.
+
+OT is a feature introduced in HAProxy 2.4.  This filter enables communication
+via the OpenTracing API with OpenTracing compatible servers (tracers).
+Currently, tracers that support this API include Datadog, Jaeger, LightStep
+and Zipkin.
+
+The OT filter was primarily tested with the Jaeger tracer, while configurations
+for both Datadog and Zipkin tracers were also set in the test directory.
+
+The OT filter is a standard HAProxy filter, so what applies to others also
+applies to this one (of course, by that I mean what is described in the
+documentation, more precisely in the doc/internals/filters.txt file).
+
+The OT filter activation is done explicitly by specifying it in the HAProxy
+configuration.  If this is not done, the OT filter in no way participates
+in the work of HAProxy.
+
+As for the impact on HAProxy speed, this is documented with several tests
+located in the test directory, and the result is found in the README-speed-*
+files.  In short, the speed of operation depends on the way it is used and
+the complexity of the configuration, from an almost immeasurable impact to
+a significant deceleration (5x and more).  I think that in some normal use
+the speed of HAProxy with the filter on will be quite satisfactory with a
+slowdown of less than 4% (provided that no more than 10% of requests are
+sent to the tracer, which is determined by the keyword 'rate-limit').
+
+The OT filter allows intensive use of ACLs, which can be defined anywhere in
+the configuration.  Thus, it is possible to use the filter only for those
+connections that are of interest to us.
+
+
+2. Build instructions
+----------------------
+
+OT is the HAProxy filter and as such is compiled together with HAProxy.
+
+To communicate with some OpenTracing compatible tracer, the OT filter uses the
+OpenTracing C Wrapper library (which again uses the OpenTracing CPP library).
+This means that we must have both libraries installed on the system on which
+we want to compile or use HAProxy.
+
+Instructions for compiling and installing both required libraries can be
+found at https://github.com/haproxytech/opentracing-c-wrapper .
+
+Also, to use the OT filter when running HAProxy we need to have an OpenTracing
+plugin for the tracer we want to use.  We will return to this later, in
+section 5.
+
+The OT filter can be more easily compiled using the pkg-config tool, if we
+have the OpenTracing C Wrapper library installed so that it contains pkg-config
+files (which have the .pc extension).  If the pkg-config tool cannot be used,
+then the path to the directory where the include files and libraries are
+located can be explicitly specified.
+
+Below are examples of the two ways to compile HAProxy with the OT filter, the
+first using the pkg-congfig tool and the second explicitly specifying the path
+to the OpenTracing C Wrapper include and library.
+
+Note: prompt '%' indicates that the command is executed under a unprivileged
+      user, while prompt '#' indicates that the command is executed under the
+      root user.
+
+Example of compiling HAProxy using the pkg-congfig tool (assuming the
+OpenTracing C Wrapper library is installed in the /opt directory):
+
+  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make USE_OT=1 TARGET=linux-glibc
+
+The OT filter can also be compiled in debug mode as follows:
+
+  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make USE_OT=1 OT_DEBUG=1 TARGET=linux-glibc
+
+HAProxy compilation example explicitly specifying path to the OpenTracing C
+Wrapper include and library:
+
+  % make USE_OT=1 OT_INC=/opt/include OT_LIB=/opt/lib TARGET=linux-glibc
+
+In case we want to use debug mode, then it looks like this:
+
+  % make USE_OT=1 OT_DEBUG=1 OT_INC=/opt/include OT_LIB=/opt/lib TARGET=linux-glibc
+
+If the library we want to use is not installed on a unix system, then a locally
+installed library can be used (say, which is compiled and installed in the user
+home directory).  In this case instead of /opt/include and /opt/lib the
+equivalent paths to the local installation should be specified.  Of course,
+in that case the pkg-config tool can also be used if we have a complete
+installation (with .pc files).
+
+last but not least, if the pkg-config tool is not used when compiling, then
+HAProxy executable may not be able to find the OpenTracing C Wrapper library
+at startup.  This can be solved in several ways, for example using the
+LD_LIBRARY_PATH environment variable which should be set to the path where the
+library is located before starting the HAProxy.
+
+  % LD_LIBRARY_PATH=/opt/lib /path-to/haproxy ...
+
+Another way is to add RUNPATH to HAProxy executable that contains the path to
+the library in question.
+
+  % make USE_OT=1 OT_RUNPATH=1 OT_INC=/opt/include OT_LIB=/opt/lib TARGET=linux-glibc
+
+After HAProxy is compiled, we can check if the OT filter is enabled:
+
+  % ./haproxy -vv | grep opentracing
+  --- command output ----------
+          [  OT] opentracing
+  --- command output ----------
+
+
+3. Basic concepts in OpenTracing
+---------------------------------
+
+Basic concepts of OpenTracing can be read on the OpenTracing documentation
+website https://opentracing.io/docs/overview/.
+
+Here we will list only the most important elements of distributed tracing and
+these are 'trace', 'span' and 'span context'.  Trace is a description of the
+complete transaction we want to record in the tracing system.  A span is an
+operation that represents a unit of work that is recorded in a tracing system.
+Span context is a group of information related to a particular span that is
+passed on to the system (from service to service).  Using this context, we can
+add new spans to already open trace (or supplement data in already open spans).
+
+An individual span may contain one or more tags, logs and baggage items.
+The tag is a key-value element that is valid for the entire span.  Log is a
+key-value element that allows you to write some data at a certain time, it
+can be used for debugging.  A baggage item is a key-value data pair that can
+be used for the duration of an entire trace, from the moment it is added to
+the span.
+
+
+4. OT configuration
+--------------------
+
+In order for the OT filter to be used, it must be included in the HAProxy
+configuration, in the proxy section (frontend / listen / backend):
+
+   frontend ot-test
+     ...
+     filter opentracing [id <id>] config <file>
+     ...
+
+If no filter id is specified, 'ot-filter' is used as default.  The 'config'
+parameter must be specified and it contains the path of the file used to
+configure the OT filter.
+
+
+4.1 OT scope
+-------------
+
+If the filter id is defined for the OT filter, then the OT scope with
+the same name should be defined in the configuration file.  In the same
+configuration file we can have several defined OT scopes.
+
+Each OT scope must have a defined (only one) "ot-tracer" section that is
+used to configure the operation of the OT filter and define the used groups
+and scopes.
+
+OT scope starts with the id of the filter specified in square brackets and
+ends with the end of the file or when a new OT scope is defined.
+
+For example, this defines two OT scopes in the same configuration file:
+  [my-first-ot-filter]
+    ot-tracer tracer1
+    ...
+    ot-group group1
+    ...
+    ot-scope scope1
+    ...
+
+  [my-second-ot-filter]
+    ...
+
+
+4.2. "ot-tracer" section
+-------------------------
+
+Only one "ot-tracer" section must be defined for each OT scope.
+
+There are several keywords that must be defined for the OT filter to work.
+These are 'config' which defines the configuration file for the OpenTracing
+API, and 'plugin' which defines the OpenTracing plugin used.
+
+Through optional keywords can be defined ACLs, logging, rate limit, and groups
+and scopes that define the tracing model.
+
+
+ot-tracer <name>
+  A new OT with the name <name> is created.
+
+  Arguments :
+    name - the name of the tracer section
+
+
+  The following keywords are supported in this section:
+    - mandatory keywords:
+      - config
+      - plugin
+
+    - optional keywords:
+      - acl
+      - debug-level
+      - groups
+      - [no] log
+      - [no] option disabled
+      - [no] option dontlog-normal
+      - [no] option hard-errors
+      - rate-limit
+      - scopes
+
+
+acl <aclname> <criterion> [flags] [operator] <value> ...
+  Declare or complete an access list.
+
+  To configure and use the ACL, see section 7 of the HAProxy Configuration
+  Manual.
+
+
+config <file>
+  'config' is one of the two mandatory keywords associated with the OT tracer
+  configuration.  This keyword sets the path of the configuration file for the
+  OpenTracing tracer plugin.  To set the contents of this configuration file,
+  it is best to look at the documentation related to the OpenTracing tracer we
+  want to use.
+
+  Arguments :
+    file - the path of the configuration file
+
+
+debug-level <value>
+  This keyword sets the value of the debug level related to the display of
+  debug messages in the OT filter.  The 'debug-level' value is binary, ie
+  a single value bit enables or disables the display of the corresponding
+  debug message that uses that bit.  The default value is set via the
+  FLT_OT_DEBUG_LEVEL macro in the include/config.h file.  Debug level value
+  is used only if the OT filter is compiled with the debug mode enabled,
+  otherwise it is ignored.
+
+  Arguments :
+    value - binary value ranging from 0 to 255 (8 bits)
+
+
+groups <name> ...
+  A list of "ot-group" groups used for the currently defined tracer is declared.
+  Several groups can be specified in one line.
+
+  Arguments :
+    name - the name of the OT group
+
+
+log global
+log <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]]
+no log
+  Enable per-instance logging of events and traffic.
+
+  To configure and use the logging system, see section 4.2 of the HAProxy
+  Configuration Manual.
+
+
+option disabled
+no option disabled
+  Keyword which turns the operation of the OT filter on or off.  By default
+  the filter is on.
+
+
+option dontlog-normal
+no option dontlog-normal
+  Enable or disable logging of normal, successful processing.  By default,
+  this option is disabled.  For this option to be considered, logging must
+  be turned on.
+
+  See also: 'log' keyword description.
+
+
+option hard-errors
+no option hard-errors
+  During the operation of the filter, some errors may occur, caused by
+  incorrect configuration of the tracer or some error related to the operation
+  of HAProxy.  By default, such an error will not interrupt the filter
+  operation for the stream in which the error occurred.  If the 'hard-error'
+  option is enabled, the operation error prohibits all further processing of
+  events and groups in the stream in which the error occurred.
+
+
+plugin <file>
+  'plugin' is one of the two mandatory keywords associated with the OT tracer
+  configuration.  This keyword sets the path of the OpenTracing tracer plugin.
+
+  Arguments :
+    file - the name of the plugin used
+
+
+rate-limit <value>
+  This option allows limiting the use of the OT filter, ie it can be influenced
+  whether the OT filter is activated for a stream or not.  Determining whether
+  or not a filter is activated depends on the value of this option that is
+  compared to a randomly selected value when attaching the filter to the stream.
+  By default, the value of this option is set to 100.0, ie the OT filter is
+  activated for each stream.
+
+  Arguments :
+    value - floating point value ranging from 0.0 to 100.0
+
+
+scopes <name> ...
+  This keyword declares a list of "ot-scope" definitions used for the currently
+  defined tracer.  Multiple scopes can be specified in the same line.
+
+  Arguments :
+    name - the name of the OT scope
+
+
+4.3. "ot-scope" section
+------------------------
+
+Stream processing begins with filter attachment, then continues with the
+processing of a number of defined events and groups, and ends with filter
+detachment.  The "ot-scope" section is used to define actions related to
+individual events.  However, this section may be part of a group, so the
+event does not have to be part of the definition.
+
+
+ot-scope <name>
+  Creates a new OT scope definition named <name>.
+
+  Arguments :
+    name - the name of the OT scope
+
+
+  The following keywords are supported in this section:
+    - acl
+    - baggage
+    - event
+    - extract
+    - finish
+    - inject
+    - log
+    - span
+    - tag
+
+
+acl <aclname> <criterion> [flags] [operator] <value> ...
+  Declare or complete an access list.
+
+  To configure and use the ACL, see section 7 of the HAProxy Configuration
+  Manual.
+
+
+baggage <name> <sample> ...
+  Baggage items allow the propagation of data between spans, ie allow the
+  assignment of metadata that is propagated to future children spans.
+  This data is formatted in the style of key-value pairs and is part of
+  the context that can be transferred between processes that are part of
+  a server architecture.
+
+  This kewyord allows setting the baggage for the currently active span.  The
+  data type is always a string, ie any sample type is converted to a string.
+  The exception is a binary value that is not supported by the OT filter.
+
+  See the 'tag' keyword description for the data type conversion table.
+
+  Arguments :
+    name   - key part of a data pair
+    sample - sample expression (value part of a data pair), at least one
+             sample must be present
+
+
+event <name> [{ if | unless } <condition>]
+  Set the event that triggers the 'ot-scope' to which it is assigned.
+  Optionally, it can be followed by an ACL-based condition, in which case it
+  will only be evaluated if the condition is true.
+
+  ACL-based conditions are executed in the context of a stream that processes
+  the client and server connections.  To configure and use the ACL, see
+  section 7 of the HAProxy Configuration Manual.
+
+  Arguments :
+    name      - the event name
+    condition - a standard ACL-based condition
+
+  Supported events are (the table gives the names of the events in the OT
+  filter and the corresponding equivalent in the SPOE filter):
+
+    -------------------------------------|------------------------------
+      the OT filter                      |  the SPOE filter
+    -------------------------------------|------------------------------
+      on-client-session-start            |  on-client-session
+      on-frontend-tcp-request            |  on-frontend-tcp-request
+      on-http-wait-request               |  -
+      on-http-body-request               |  -
+      on-frontend-http-request           |  on-frontend-http-request
+      on-switching-rules-request         |  -
+      on-backend-tcp-request             |  on-backend-tcp-request
+      on-backend-http-request            |  on-backend-http-request
+      on-process-server-rules-request    |  -
+      on-http-process-request            |  -
+      on-tcp-rdp-cookie-request          |  -
+      on-process-sticking-rules-request  |  -
+      on-client-session-end              |  -
+      on-server-unavailable              |  -
+    -------------------------------------|------------------------------
+      on-server-session-start            |  on-server-session
+      on-tcp-response                    |  on-tcp-response
+      on-http-wait-response              |  -
+      on-process-store-rules-response    |  -
+      on-http-response                   |  on-http-response
+      on-server-session-end              |  -
+    -------------------------------------|------------------------------
+
+
+extract <name-prefix> [use-vars | use-headers]
+  For a more detailed description of the propagation process of the span
+  context, see the description of the keyword 'inject'.  Only the process
+  of extracting data from the carrier is described here.
+
+  Arguments :
+    name-prefix - data name prefix (ie key element prefix)
+    use-vars    - data is extracted from HAProxy variables
+    use-headers - data is extracted from the HTTP header
+
+
+  Below is an example of using HAProxy variables to transfer span context data:
+
+  --- test/ctx/ot.cfg --------------------------------------------------------
+      ...
+      ot-scope client_session_start_2
+          extract "ot_ctx_1" use-vars
+          span "Client session" child-of "ot_ctx_1"
+      ...
+  ----------------------------------------------------------------------------
+
+
+finish <name> ...
+  Closing a particular span or span context.  Instead of the name of the span,
+  there are several specially predefined names with which we can finish certain
+  groups of spans.  So it can be used as the name '*req*' for all open spans
+  related to the request channel, '*res*' for all open spans related to the
+  response channel and '*' for all open spans regardless of which channel they
+  are related to.  Several spans and/or span contexts can be specified in one
+  line.
+
+  Arguments :
+    name - the name of the span or context context
+
+
+inject <name-prefix> [use-vars] [use-headers]
+  In OpenTracing, the transfer of data related to the tracing process between
+  microservices that are part of a larger service is done through the
+  propagation of the span context.  The basic operations that allow us to
+  access and transfer this data are 'inject' and 'extract'.
+
+  'inject' allows us to extract span context so that the obtained data can
+  be forwarded to another process (microservice) via the selected carrier.
+  'inject' in the name actually means inject data into carrier.  Carrier is
+  an interface here (ie a data structure) that allows us to transfer tracing
+  state from one process to another.
+
+  Data transfer can take place via one of two selected storage methods, the
+  first is by adding data to the HTTP header and the second is by using HAProxy
+  variables.  Only data transfer via HTTP header can be used to transfer data
+  to another process (ie microservice).  All data is organized in the form of
+  key-value data pairs.
+
+  No matter which data transfer method you use, we need to specify a prefix
+  for the key element.  All alphanumerics (lowercase only) and underline
+  character can be used to construct the data name prefix.  Uppercase letters
+  can actually be used, but they will be converted to lowercase when creating
+  the prefix.
+
+  Arguments :
+    name-prefix - data name prefix (ie key element prefix)
+    use-vars    - HAProxy variables are used to store and transfer data
+    use-headers - HTTP headers are used to store and transfer data
+
+
+  Below is an example of using HTTP headers and variables, and how this is
+  reflected in the internal data of the HAProxy process.
+
+  --- test/ctx/ot.cfg --------------------------------------------------------
+      ...
+      ot-scope client_session_start_1
+          span "HAProxy session" root
+              inject "ot_ctx_1" use-headers use-vars
+      ...
+  ----------------------------------------------------------------------------
+
+    - generated HAProxy variable (key -> value):
+      txn.ot_ctx_1.uberDtraceDid -> 8f1a05a3518d2283:8f1a05a3518d2283:0:1
+
+    - generated HTTP header (key: value):
+      ot_ctx_1-uber-trace-id: 8f1a05a3518d2283:8f1a05a3518d2283:0:1
+
+  Because HAProxy does not allow the '-' character in the variable name (which
+  is automatically generated by the OpenTracing API and on which we have no
+  influence), it is converted to the letter 'D'.  We can see that there is no
+  such conversion in the name of the HTTP header because the '-' sign is allowed
+  there.  Due to this conversion, initially all uppercase letters are converted
+  to lowercase because otherwise we would not be able to distinguish whether
+  the disputed sign '-' is used or not.
+
+  Thus created HTTP headers and variables are deleted when executing the
+  'finish' keyword or when detaching the stream from the filter.
+
+
+log <name> <sample> ...
+  This kewyord allows setting the log for the currently active span.  The
+  data type is always a string, ie any sample type is converted to a string.
+  The exception is a binary value that is not supported by the OT filter.
+
+  See the 'tag' keyword description for the data type conversion table.
+
+  Arguments :
+    name   - key part of a data pair
+    sample - sample expression (value part of a data pair), at least one
+             sample must be present
+
+
+span <name> [<reference>]
+  Creating a new span (or referencing an already opened one).  If a new span
+  is created, it can be a child of the referenced span, follow from the
+  referenced span, or be root 'span'.  In case we did not specify a reference
+  to the previously created span, the new span will become the root span.
+  We need to pay attention to the fact that in one trace there can be only
+  one root span.  In case we have specified a non-existent span as a reference,
+  a new span will not be created.
+
+  Arguments :
+    name      - the name of the span being created or referenced (operation
+                name)
+    reference - span or span context to which the created span is referenced
+
+
+tag <name> <sample> ...
+  This kewyord allows setting a tag for the currently active span.  The first
+  argument is the name of the tag (tag ID) and the second its value.  A value
+  can consist of one or more data.  If the value is only one data, then the
+  type of that data depends on the type of the HAProxy sample.  If the value
+  contains more data, then the data type is string.  The data conversion table
+  is below:
+
+   HAProxy sample data type | the OpenTracing data type
+  --------------------------+---------------------------
+            NULL            |        NULL
+            BOOL            |        BOOL
+            INT32           |        INT64
+            UINT32          |        UINT64
+            INT64           |        INT64
+            UINT64          |        UINT64
+            IPV4            |        STRING
+            IPV6            |        STRING
+            STRING          |        STRING
+            BINARY          |        UNSUPPORTED
+  --------------------------+---------------------------
+
+  Arguments :
+    name   - key part of a data pair
+    sample - sample expression (value part of a data pair), at least one
+             sample must be present
+
+
+4.4. "ot-group" section
+------------------------
+
+This section allows us to define a group of OT scopes, that is not activated
+via an event but is triggered from TCP or HTTP rules.  More precisely, these
+are the following rules: 'tcp-request', 'tcp-response', 'http-request',
+'http-response' and 'http-after-response'.  These rules can be defined in the
+HAProxy configuration file.
+
+
+ot-group <name>
+  Creates a new OT group definition named <name>.
+
+  Arguments :
+    name - the name of the OT group
+
+
+  The following keywords are supported in this section:
+    - scopes
+
+
+scopes <name> ...
+  'ot-scope' sections that are part of the specified group are defined.  If
+  the mentioned 'ot-scope' sections are used only in some OT group, they do
+  not have to have defined events.  Several 'ot-scope' sections can be
+  specified in one line.
+
+  Arguments :
+    name - the name of the 'ot-scope' section
+
+
+5. Examples
+------------
+
+Several examples of the OT filter configuration can be found in the test
+directory.  A brief description of the prepared configurations follows:
+
+cmp   - the configuration very similar to that of the spoa-opentracing project.
+        It was made to compare the speed of the OT filter with the
+        implementation of distributed tracing via spoa-opentracing application.
+
+sa    - the configuration in which all possible events are used.
+
+ctx   - the configuration is very similar to the previous one, with the only
+        difference that the spans are opened using the span context as a span
+        reference.
+
+fe be - a slightly more complicated example of the OT filter configuration
+        that uses two cascaded HAProxy services.  The span context between
+        HAProxy processes is transmitted via the HTTP header.
+
+empty - the empty configuration in which the OT filter is initialized but
+        no event is triggered.  It is not very usable, except to check the
+        behavior of the OT filter in the case of a similar configuration.
+
+
+In order to be able to collect data (and view results via the web interface)
+we need to install some of the supported tracers.  We will use the Jaeger
+tracer as an example.  Installation instructions can be found on the website
+https://www.jaegertracing.io/download/.  For the impatient, here we will list
+how the image to test the operation of the tracer system can be installed
+without much reading of the documentation.
+
+  # docker pull jaegertracing/all-in-one:latest
+  # docker run -d --name jaeger -e COLLECTOR_ZIPKIN_HTTP_PORT=9411 \
+    -p 5775:5775/udp -p 6831:6831/udp -p 6832:6832/udp -p 5778:5778 \
+    -p 16686:16686 -p 14268:14268 -p 9411:9411 jaegertracing/all-in-one:latest
+
+The last command will also initialize and run the Jaeger container.  If we
+want to use that container later, it can be started and stopped in the classic
+way, using the 'docker container start/stop' commands.
+
+
+In order to be able to use any of the configurations from the test directory,
+we must also have a tracer plugin in that directory (all examples use the
+Jaeger tracer plugin).  The simplest way is to download the tracer plugin
+using the already prepared shell script get-opentracing-plugins.sh.
+The script accepts one argument, the directory in which the download is made.
+If run without an argument, the script downloads all plugins to the current
+directory.
+
+  % ./get-opentracing-plugins.sh
+
+After that, we can run one of the pre-configured configurations using the
+provided script run-xxx.sh (where xxx is the name of the configuration being
+tested).  For example:
+
+  % ./run-sa.sh
+
+The script will create a new log file each time it is run (because part of the
+log file name is the start time of the script).
+
+Eh, someone will surely notice that all test configurations use the Jaeger
+tracing plugin that cannot be downloaded using the get-opentracing-plugins.sh
+script.  Unfortunately, the latest precompiled version that can be downloaded
+is 0.4.2, for newer ones only the source code can be found.  Version 0.4.2 has
+a bug that can cause the operation of the OT filter to get stuck, so it is
+better not to use this version.  Here is the procedure by which we can compile
+a newer version of the plugin (in our example it is 0.5.0).
+
+Important note: the GCC version must be at least 4.9 or later.
+
+  % wget https://github.com/jaegertracing/jaeger-client-cpp/archive/v0.5.0.tar.gz
+  % tar xf v0.5.0.tar.gz
+  % cd jaeger-client-cpp-0.5.0
+  % mkdir build
+  % cd build
+  % cmake -DCMAKE_INSTALL_PREFIX=/opt -DJAEGERTRACING_PLUGIN=ON -DHUNTER_CONFIGURATION_TYPES=Release -DHUNTER_BUILD_SHARED_LIBS=OFF ..
+  % make
+
+After the plugin is compiled, it will be in the current directory.  The name
+of the plugin is libjaegertracing_plugin.so.
+
+
+5.1. Benchmarking results
+--------------------------
+
+To check the operation of the OT filter, several different test configurations
+have been made which are located in the test directory.  The test results of
+the same configurations (with the names README-speed-xxx, where xxx is the name
+of the configuration being tested) are also in the directory of the same name.
+
+All tests were performed on the same debian 9.13 system, CPU i7-4770, 32 GB RAM.
+For the purpose of testing, the thttpd web server on port 8000 was used.
+Testing was done with the wrk utility running via run-xxx.sh scripts; that is,
+via the test-speed.sh script that is run as follows:
+
+  % ./test-speed.sh all
+
+The above mentioned thttpd web server is run from that script and it should be
+noted that we need to have the same installed on the system (or change the path
+to the thttpd server in that script if it is installed elsewhere).
+
+Each test is performed several times over a period of 5 minutes per individual
+test.  The only difference when running the tests for the same configuration
+was in changing the 'rate-limit' parameter (and the 'option disabled' option),
+which is set to the following values: 100.0, 50.0, 10.0, 2.5 and 0.0 percent.
+Then a test is performed with the OT filter active but disabled for request
+processing ('option disabled' is included in the ot.cfg configuration).  In
+the last test, the OT filter is not used at all, ie it is not active and does
+not affect the operation of HAProxy in any way.
+
+
+6. OT CLI
+----------
+
+Via the HAProxy CLI interface we can find out the current status of the OT
+filter and change several of its settings.
+
+All supported CLI commands can be found in the following way, using the
+socat utility with the assumption that the HAProxy CLI socket path is set
+to /tmp/haproxy.sock (of course, instead of socat, nc or other utility can
+be used with a change in arguments when running the same):
+
+  % echo "help" | socat - UNIX-CONNECT:/tmp/haproxy.sock | grep flt-ot
+  --- command output ----------
+  flt-ot debug [level]   : set the OT filter debug level (default: get current debug level)
+  flt-ot disable         : disable the OT filter
+  flt-ot enable          : enable the OT filter
+  flt-ot soft-errors     : turning off hard-errors mode
+  flt-ot hard-errors     : enabling hard-errors mode
+  flt-ot logging [state] : set logging state (default: get current logging state)
+  flt-ot rate [value]    : set the rate limit (default: get current rate value)
+  flt-ot status          : show the OT filter status
+  --- command output ----------
+
+'flt-ot debug' can only be used in case the OT filter is compiled with the
+debug mode enabled.
+
+
+7. Known bugs and limitations
+------------------------------
+
+The name of the span context definition can contain only letters, numbers and
+characters '_' and '-'.  Also, all uppercase letters in the name are converted
+to lowercase.  The character '-' is converted internally to the 'D' character,
+and since a HAProxy variable is generated from that name, this should be taken
+into account if we want to use it somewhere in the HAProxy configuration.
+The above mentioned span context is used in the 'inject' and 'extract' keywords.
+
+Let's look a little at the example test/fe-be (configurations are in the
+test/fe and test/be directories, 'fe' is here the abbreviation for frontend
+and 'be' for backend).  In case we have the 'rate-limit' set to a value less
+than 100.0, then distributed tracing will not be started with each new HTTP
+request.  It also means that the span context will not be delivered (via the
+HTTP header) to the backend HAProxy process.  The 'rate-limit' on the backend
+HAProxy must be set to 100.0, but because the frontend HAProxy does not send
+a span context every time, all such cases will cause an error to be reported
+on the backend server.  Therefore, the 'hard-errors' option must be set on the
+backend server, so that processing on that stream is stopped as soon as the
+first error occurs.  Such cases will slow down the backend server's response
+a bit (in the example in question it is about 3%).

@@ -1,0 +1,298 @@
+Here I will write down some specifics of certain parts of the source, these are
+just some of my thoughts and clues and they are probably not too important for
+a wider audience.
+
+src/parser.c
+------------------------------------------------------------------------------
+The first thing to run when starting the HAProxy is the flt_ot_parse() function
+which actually parses the filter configuration.
+
+In case of correct configuration, the function returns ERR_NONE (or 0), while
+in case of incorrect configuration it returns the combination of ERR_* flags
+(ERR_NONE here does not belong to that bit combination because its value is 0).
+
+One of the parameters of the function is <char **err> in which an error message
+can be returned, if it exists.  In that case the return value of the function
+should have some of the ERR_* flags set.
+
+Let's look at an example of the following filter configuration what the function
+call sequence looks like.
+
+Filter configuration line:
+   filter opentracing [id <id>] config <file>
+
+Function call sequence:
+   flt_ot_parse(<err>) {
+      /* Initialization of the filter configuration data. */
+      flt_ot_conf_init() {
+      }
+
+      /* Setting the filter name. */
+      flt_ot_parse_keyword(<err>) {
+         flt_ot_parse_strdup(<err>) {
+         }
+      }
+
+      /* Setting the filter configuration file name. */
+      flt_ot_parse_keyword(<err>) {
+         flt_ot_parse_strdup(<err>) {
+         }
+      }
+
+      /* Checking the configuration of the filter. */
+      flt_ot_parse_cfg(<err>) {
+         flt_ot_parse_cfg_tracer() {
+         }
+         ...
+         flt_ot_post_parse_cfg_tracer() {
+         }
+         flt_ot_parse_cfg_group() {
+         }
+         ...
+         flt_ot_post_parse_cfg_group() {
+         }
+         flt_ot_parse_cfg_scope() {
+         }
+         ...
+         flt_ot_post_parse_cfg_scope() {
+         }
+      }
+   }
+
+Checking the filter configuration is actually much more complicated, only the
+name of the main function flt_ot_parse_cfg() that does it is listed here.
+
+All functions that use the <err> parameter should set the error status using
+that pointer.  All other functions (actually these are all functions called
+by the flt_ot_parse_cfg() function) should set the error message using the
+ha_warning()/ha_alert() HAProxy functions.  Of course, the return value (the
+mentioned combination of ERR_* bits) is set in all these functions and it
+indicates whether the filter configuration is correct or not.
+
+
+src/group.c
+------------------------------------------------------------------------------
+The OT filter allows the use of groups within which one or more 'ot-scope'
+declarations can be found.  These groups can be used using several HAProxy
+rules, more precisely 'http-request', 'http-response', 'tcp-request',
+'tcp-response' and 'http-after-response' rules.
+
+Configuration example for the specified rules:
+   <rule> ot-group <filter-id> <group-name> [ { if | unless } <condition> ]
+
+Parsing each of these rules is performed by the flt_ot_group_parse() function.
+After parsing the configuration, its verification is performed via the
+flt_ot_group_check() function.  One parsing function and one configuration
+check function are called for each defined rule.
+
+   flt_ot_group_parse(<err>) {
+   }
+   ...
+   flt_ot_group_check() {
+   }
+   ...
+
+
+When deinitializing the module, the function flt_ot_group_release() is called
+(which is actually an release_ptr callback function from one of the above
+rules).  One callback function is called for each defined rule.
+
+   flt_ot_group_release() {
+   }
+   ...
+
+
+src/filter.c
+------------------------------------------------------------------------------
+After parsing and checking the configuration, the flt_ot_check() function is
+called which associates the 'ot-group' and 'ot-scope' definitions with their
+declarations.  This procedure concludes the configuration of the OT filter and
+after that its initialization is possible.
+
+   flt_ops.check = flt_ot_check;
+   flt_ot_check() {
+   }
+
+
+The initialization of the OT filter is done via the flt_ot_init() callback
+function.  In this function the OpenTracing API library is also initialized.
+It is also possible to initialize for each thread individually, but nothing
+is being done here for now.
+
+   flt_ops.init = flt_ot_init;
+   flt_ot_init() {
+      flt_ot_cli_init() {
+      }
+      /* Initialization of the OpenTracing API. */
+      ot_init(<err>) {
+      }
+   }
+
+   flt_ops.init_per_thread = flt_ot_init_per_thread;
+   flt_ot_init_per_thread() {
+   }
+   ...
+
+
+After the filter instance is created and attached to the stream, the
+flt_ot_attach() function is called.  In this function a new OT runtime
+context is created, and flags are set that define which analyzers are used.
+
+   flt_ops.attach = flt_ot_attach;
+   flt_ot_attach() {
+      /* In case OT is disabled, nothing is done on this stream further. */
+      flt_ot_runtime_context_init(<err>) {
+         flt_ot_pool_alloc() {
+         }
+         /* Initializing and setting the variable 'sess.ot.uuid'. */
+         if (flt_ot_var_register(<err>) != -1) {
+            flt_ot_var_set(<err>) {
+            }
+         }
+      }
+   }
+
+
+When a stream is started, this function is called.  At the moment, nothing
+is being done in it.
+
+   flt_ops.stream_start = flt_ot_stream_start;
+   flt_ot_stream_start() {
+   }
+
+
+Channel analyzers are called when executing individual filter events.
+For each of the four analyzer functions, the events associated with them
+are listed.
+
+ Events:
+   -  1 'on-client-session-start'
+   - 15 'on-server-session-start'
+------------------------------------------------------------------------
+   flt_ops.channel_start_analyze = flt_ot_channel_start_analyze;
+   flt_ot_channel_start_analyze() {
+      flt_ot_event_run() {
+         /* Run event. */
+         flt_ot_scope_run() {
+            /* Processing of all ot-scopes defined for the current event. */
+         }
+      }
+   }
+
+
+ Events:
+   -  2 'on-frontend-tcp-request'
+   -  4 'on-http-body-request'
+   -  5 'on-frontend-http-request'
+   -  6 'on-switching-rules-request'
+   -  7 'on-backend-tcp-request'
+   -  8 'on-backend-http-request'
+   -  9 'on-process-server-rules-request'
+   - 10 'on-http-process-request'
+   - 11 'on-tcp-rdp-cookie-request'
+   - 12 'on-process-sticking-rules-request
+   - 16 'on-tcp-response'
+   - 18 'on-process-store-rules-response'
+   - 19 'on-http-response'
+------------------------------------------------------------------------
+   flt_ops.channel_pre_analyze = flt_ot_channel_pre_analyze;
+   flt_ot_channel_pre_analyze() {
+      flt_ot_event_run() {
+         /* Run event. */
+         flt_ot_scope_run() {
+            /* Processing of all ot-scopes defined for the current event. */
+         }
+      }
+   }
+
+
+ Events:
+   -  3 'on-http-wait-request'
+   - 17 'on-http-wait-response'
+------------------------------------------------------------------------
+   flt_ops.channel_post_analyze = flt_ot_channel_post_analyze;
+   flt_ot_channel_post_analyze() {
+      flt_ot_event_run() {
+         /* Run event. */
+         flt_ot_scope_run() {
+            /* Processing of all ot-scopes defined for the current event. */
+         }
+      }
+   }
+
+
+ Events:
+   - 13 'on-client-session-end'
+   - 14 'on-server-unavailable'
+   - 20 'on-server-session-end'
+------------------------------------------------------------------------
+   flt_ops.channel_end_analyze = flt_ot_channel_end_analyze;
+   flt_ot_channel_end_analyze() {
+      flt_ot_event_run() {
+         /* Run event. */
+         flt_ot_scope_run() {
+            /* Processing of all ot-scopes defined for the current event. */
+         }
+      }
+
+      /* In case the backend server does not work, event 'on-server-unavailable'
+         is called here before event 'on-client-session-end'. */
+      if ('on-server-unavailable') {
+         flt_ot_event_run() {
+            /* Run event. */
+            flt_ot_scope_run() {
+               /* Processing of all ot-scopes defined for the current event. */
+            }
+         }
+      }
+   }
+
+
+After the stream has stopped, this function is called.  At the moment, nothing
+is being done in it.
+
+   flt_ops.stream_stop = flt_ot_stream_stop;
+   flt_ot_stream_stop() {
+   }
+
+
+Then, before the instance filter is detached from the stream, the following
+function is called.  It deallocates the runtime context of the OT filter.
+
+   flt_ops.detach = flt_ot_detach;
+   flt_ot_detach() {
+      flt_ot_runtime_context_free() {
+         flt_ot_pool_free() {
+         }
+      }
+   }
+
+
+Module deinitialization begins with deinitialization of individual threads
+(as many threads as configured for the HAProxy process).  Because nothing
+special is connected to the process threads, nothing is done in this function.
+
+   flt_ops.deinit_per_thread = flt_ot_deinit_per_thread;
+   flt_ot_deinit_per_thread() {
+   }
+   ...
+
+
+For this function see the above description related to the src/group.c file.
+
+   flt_ot_group_release() {
+   }
+   ...
+
+
+Module deinitialization ends with the flt_ot_deinit() function, in which all
+memory occupied by module operation (and OpenTracing API operation, of course)
+is freed.
+
+   flt_ops.deinit = flt_ot_deinit;
+   flt_ot_deinit() {
+      ot_close() {
+      }
+      flt_ot_conf_free() {
+      }
+   }

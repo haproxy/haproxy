@@ -1,0 +1,111 @@
+--- rate-limit 100.0 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   650.95us  431.15us  46.44ms   96.67%
+    Req/Sec     1.44k    51.39     2.57k    74.89%
+  Latency Distribution
+     50%  608.00us
+     75%  760.00us
+     90%    0.91ms
+     99%    1.31ms
+  3434836 requests in 5.00m, 0.89GB read
+Requests/sec:  11446.99
+Transfer/sec:      3.03MB
+----------------------------------------------------------------------
+
+--- rate-limit 50.0 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   398.00us  371.39us  22.56ms   97.23%
+    Req/Sec     2.32k    84.01     2.76k    74.84%
+  Latency Distribution
+     50%  350.00us
+     75%  467.00us
+     90%  593.00us
+     99%    1.03ms
+  5530848 requests in 5.00m, 1.43GB read
+Requests/sec:  18434.31
+Transfer/sec:      4.89MB
+----------------------------------------------------------------------
+
+--- rate-limit 10.0 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   316.75us  351.92us  23.00ms   98.57%
+    Req/Sec     2.87k    94.02     3.22k    79.30%
+  Latency Distribution
+     50%  273.00us
+     75%  342.00us
+     90%  424.00us
+     99%    0.94ms
+  6859293 requests in 5.00m, 1.78GB read
+Requests/sec:  22862.16
+Transfer/sec:      6.06MB
+----------------------------------------------------------------------
+
+--- rate-limit 2.5 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   307.90us  368.64us  26.08ms   98.71%
+    Req/Sec     2.96k   103.84     3.23k    83.76%
+  Latency Distribution
+     50%  264.00us
+     75%  327.00us
+     90%  402.00us
+     99%    0.97ms
+  7065667 requests in 5.00m, 1.83GB read
+Requests/sec:  23550.37
+Transfer/sec:      6.24MB
+----------------------------------------------------------------------
+
+--- rate-limit 0.0 --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   304.60us  376.36us  30.26ms   98.74%
+    Req/Sec     2.99k   106.93     3.24k    83.08%
+  Latency Distribution
+     50%  262.00us
+     75%  323.00us
+     90%  396.00us
+     99%    0.95ms
+  7136261 requests in 5.00m, 1.85GB read
+Requests/sec:  23785.77
+Transfer/sec:      6.31MB
+----------------------------------------------------------------------
+
+--- rate-limit disabled --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   300.90us  342.35us  22.13ms   98.74%
+    Req/Sec     3.00k    95.67     3.33k    81.11%
+  Latency Distribution
+     50%  261.00us
+     75%  322.00us
+     90%  394.00us
+     99%  806.00us
+  7159525 requests in 5.00m, 1.85GB read
+Requests/sec:  23863.05
+Transfer/sec:      6.33MB
+----------------------------------------------------------------------
+
+--- rate-limit off --------------------------------------------------
+Running 5m test @ http://localhost:10080/index.html
+  8 threads and 8 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   302.51us  371.99us  30.26ms   98.77%
+    Req/Sec     3.00k   104.43     3.73k    83.74%
+  Latency Distribution
+     50%  260.00us
+     75%  321.00us
+     90%  394.00us
+     99%    0.89ms
+  7170345 requests in 5.00m, 1.86GB read
+Requests/sec:  23898.19
+Transfer/sec:      6.34MB
+----------------------------------------------------------------------

@@ -53,6 +53,7 @@
 #   USE_SYSTEMD          : enable sd_notify() support.
 #   USE_OBSOLETE_LINKER  : use when the linker fails to emit __start_init/__stop_init
 #   USE_THREAD_DUMP      : use the more advanced thread state dump system. Automatic.
+#   USE_OT               : enable the OpenTracing filter
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string). The list of enabled and disabled options for a
@@ -102,6 +103,10 @@
 #   LUA_INC        : force the include path to lua
 #   LUA_LIB_NAME   : force the lib name (or automatically evaluated, by order of
 #                                        priority : lua5.3, lua53, lua).
+#   OT_DEBUG       : compile the OpenTracing filter in debug mode
+#   OT_INC         : force the include path to libopentracing-c-wrapper
+#   OT_LIB         : force the lib path to libopentracing-c-wrapper
+#   OT_RUNPATH     : add RUNPATH for libopentracing-c-wrapper to haproxy executable
 #   IGNOREGIT      : ignore GIT commit versions if set.
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
@@ -296,7 +301,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
            USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS     \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
-           USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP USE_EVPORTS
+           USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP USE_EVPORTS USE_OT
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -757,6 +762,10 @@ endif
 
 ifneq ($(USE_NS),)
 OPTIONS_OBJS  += src/namespace.o
+endif
+
+ifneq ($(USE_OT),)
+include contrib/opentracing/Makefile
 endif
 
 #### Global link options

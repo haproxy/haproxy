@@ -1,0 +1,61 @@
+# USE_OT     : enable the OpenTracing filter
+# OT_DEBUG   : compile the OpenTracing filter in debug mode
+# OT_INC     : force the include path to libopentracing-c-wrapper
+# OT_LIB     : force the lib path to libopentracing-c-wrapper
+# OT_RUNPATH : add libopentracing-c-wrapper RUNPATH to haproxy executable
+
+OT_DEFINE    =
+OT_CFLAGS    =
+OT_LDFLAGS   =
+OT_DEBUG_EXT =
+OTC_WRAPPER  = opentracing-c-wrapper
+
+ifneq ($(OT_DEBUG),)
+OT_DEBUG_EXT = _dbg
+OT_DEFINE    = -DDEBUG_OT
+endif
+
+ifeq ($(OT_INC),)
+OT_CFLAGS = $(shell pkg-config --silence-errors --cflags $(OTC_WRAPPER)$(OT_DEBUG_EXT))
+else
+ifneq ($(wildcard $(OT_INC)/$(OTC_WRAPPER)/.*),)
+OT_CFLAGS = -I$(OT_INC) $(if $(OT_DEBUG),-DOTC_DBG_MEM)
+endif
+endif
+
+ifeq ($(OT_CFLAGS),)
+$(error OpenTracing C wrapper : can't find headers)
+endif
+
+ifeq ($(OT_LIB),)
+OT_LDFLAGS = $(shell pkg-config --silence-errors --libs $(OTC_WRAPPER)$(OT_DEBUG_EXT))
+else
+ifneq ($(wildcard $(OT_LIB)/lib$(OTC_WRAPPER).*),)
+OT_LDFLAGS = -L$(OT_LIB) -l$(OTC_WRAPPER)$(OT_DEBUG_EXT)
+ifneq ($(OT_RUNPATH),)
+OT_LDFLAGS += -Wl,--rpath,$(OT_LIB)
+endif
+endif
+endif
+
+ifeq ($(OT_LDFLAGS),)
+$(error OpenTracing C wrapper : can't find library)
+endif
+
+OPTIONS_OBJS += \
+	contrib/opentracing/src/cli.o         \
+	contrib/opentracing/src/conf.o        \
+	contrib/opentracing/src/event.o       \
+	contrib/opentracing/src/filter.o      \
+	contrib/opentracing/src/group.o       \
+	contrib/opentracing/src/http.o        \
+	contrib/opentracing/src/opentracing.o \
+	contrib/opentracing/src/parser.o      \
+	contrib/opentracing/src/pool.o        \
+	contrib/opentracing/src/scope.o       \
+	contrib/opentracing/src/util.o        \
+	contrib/opentracing/src/vars.o
+
+OPTIONS_CFLAGS  += $(OT_CFLAGS) -Icontrib/opentracing/include
+OPTIONS_LDFLAGS += $(OT_LDFLAGS)
+OPTIONS_CFLAGS  += $(OT_DEFINE)
