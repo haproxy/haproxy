@@ -1511,7 +1511,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 	struct ist desc = IST_NULL;
 	int i, match, inverse;
 
-	last_read |= (!htx_free_space(htx) || (htx_get_tail_type(htx) == HTX_BLK_EOM));
+	last_read |= (!htx_free_data_space(htx) || (htx_get_tail_type(htx) == HTX_BLK_EOM));
 
 	if (htx->flags & HTX_FL_PARSING_ERROR) {
 		status = HCHK_STATUS_L7RSP;
