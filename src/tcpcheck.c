@@ -1206,6 +1206,10 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
   out:
 	if (conn && check->result == CHK_RES_FAILED)
 		conn->flags |= CO_FL_ERROR;
+
+	if (ret == TCPCHK_EVAL_CONTINUE && check->proxy->timeout.check)
+		check->task->expire = tick_add_ifset(now_ms, check->proxy->timeout.check);
+
 	return ret;
 }
 
@@ -2040,9 +2044,6 @@ int tcpcheck_main(struct check *check)
 		case TCPCHK_ACT_EXPECT:
 			check->current_step = rule;
 			if (must_read) {
-				if (check->proxy->timeout.check)
-					check->task->expire = tick_add_ifset(now_ms, check->proxy->timeout.check);
-
 				eval_ret = tcpcheck_eval_recv(check, rule);
 				if (eval_ret == TCPCHK_EVAL_STOP)
 					goto out_end_tcpcheck;
