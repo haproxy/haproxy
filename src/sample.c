@@ -1136,6 +1136,7 @@ int smp_resolve_args(struct proxy *p)
 		case ARGC_SRV:   where = "in server directive in"; break;
 		case ARGC_SPOE:  where = "in spoe-message directive in"; break;
 		case ARGC_HERR:  where = "in http-error directive in"; break;
+		case ARGC_OT:    where = "in ot-scope directive in"; break;
 		}
 
 		/* set a few default settings */

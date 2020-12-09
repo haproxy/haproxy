@@ -82,6 +82,7 @@ enum {
 	ARGC_UBK,      /* use_backend message */
 	ARGC_USRV,     /* use-server message */
 	ARGC_HERR,     /* http-error */
+	ARGC_OT,       /* opentracing scope args */
 };
 
 /* flags used when compiling and executing regex */

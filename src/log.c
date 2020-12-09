@@ -284,6 +284,8 @@ static inline const char *fmt_directive(const struct proxy *curproxy)
 		return "use_backend";
 	case ARGC_HERR:
 		return "http-error";
+	case ARGC_OT:
+		return "ot-scope";
 	default:
 		return "undefined(please report this bug)"; /* must never happen */
 	}
