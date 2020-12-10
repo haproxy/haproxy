@@ -3457,10 +3457,34 @@ static struct action_kw_list stream_http_keywords = { ILH, {
 
 INITCALL1(STG_REGISTER, http_req_keywords_register, &stream_http_keywords);
 
+static int smp_fetch_cur_server_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	if (!smp->strm)
+		return 0;
+
+	smp->data.u.sint = TICKS_TO_MS(smp->strm->res.rto);
+	return 1;
+}
+
+static int smp_fetch_cur_tunnel_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
+{
+	smp->flags = SMP_F_VOL_TXN;
+	smp->data.type = SMP_T_SINT;
+	if (!smp->strm)
+		return 0;
+
+	smp->data.u.sint = TICKS_TO_MS(smp->strm->tunnel_timeout);
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
+	{ "cur_server_timeout", smp_fetch_cur_server_timeout, 0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
+	{ "cur_tunnel_timeout", smp_fetch_cur_tunnel_timeout, 0, NULL, SMP_T_SINT, SMP_USE_BKEND, },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
