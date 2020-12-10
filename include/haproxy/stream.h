@@ -343,6 +343,8 @@ static inline void stream_choose_redispatch(struct stream *s)
 
 }
 
+int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout);
+
 void service_keywords_register(struct action_kw_list *kw_list);
 struct action_kw *service_find(const char *kw);
 void list_services(FILE *out);

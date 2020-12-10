@@ -811,6 +811,11 @@ void stream_process_counters(struct stream *s)
 	}
 }
 
+int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout)
+{
+	return 0;
+}
+
 /*
  * This function handles the transition between the SI_ST_CON state and the
  * SI_ST_EST state. It must only be called after switching from SI_ST_CON (or
