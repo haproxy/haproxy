@@ -80,7 +80,7 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 {
 	struct quic_path *path;
 
-	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc->conn);
+	TRACE_ENTER(QUIC_EV_CONN_CC, cc->qc->conn, ev);
 	path = container_of(cc, struct quic_path, cc);
 	switch (ev->type) {
 	case QUIC_CC_EVT_ACK:
@@ -121,7 +121,7 @@ static void quic_cc_nr_ca_cb(struct quic_cc *cc, struct quic_cc_event *ev)
 	}
 
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc->conn);
+	TRACE_LEAVE(QUIC_EV_CONN_CC, cc->qc->conn, NULL, cc);
 }
 
 static void quic_cc_nr_state_trace(struct buffer *buf, const struct quic_cc *cc)
