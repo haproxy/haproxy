@@ -1901,6 +1901,67 @@ static enum act_parse_ret parse_http_track_sc(const char **args, int *orig_arg, 
 	return ACT_RET_PRS_OK;
 }
 
+static enum act_return action_timeout_set_stream_timeout(struct act_rule *rule,
+                                                         struct proxy *px,
+                                                         struct session *sess,
+                                                         struct stream *s,
+                                                         int flags)
+{
+	struct sample *key;
+
+	if (rule->arg.timeout.expr) {
+		key = sample_fetch_as_type(px, sess, s, SMP_OPT_FINAL, rule->arg.timeout.expr, SMP_T_SINT);
+		if (!key)
+			return ACT_RET_CONT;
+
+		stream_set_timeout(s, rule->arg.timeout.type, MS_TO_TICKS(key->data.u.sint));
+	}
+	else {
+		stream_set_timeout(s, rule->arg.timeout.type, MS_TO_TICKS(rule->arg.timeout.value));
+	}
+
+	return ACT_RET_CONT;
+}
+
+/* Parse a "set-timeout" action. Returns ACT_RET_PRS_ERR if parsing error.
+ */
+static enum act_parse_ret parse_http_set_timeout(const char **args,
+                                                 int *orig_arg,
+                                                 struct proxy *px,
+                                                 struct act_rule *rule, char **err)
+{
+	int cur_arg;
+
+	rule->action = ACT_CUSTOM;
+	rule->action_ptr = action_timeout_set_stream_timeout;
+	rule->release_ptr = release_timeout_action;
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg] || !*args[cur_arg + 1]) {
+		memprintf(err, "expects exactly 2 arguments");
+		return ACT_RET_PRS_ERR;
+	}
+
+	if (!(px->cap & PR_CAP_BE)) {
+		memprintf(err, "proxy '%s' has no backend capability", px->id);
+		return ACT_RET_PRS_ERR;
+	}
+
+	if (cfg_parse_rule_set_timeout(args, cur_arg,
+	                               &rule->arg.timeout.value,
+	                               &rule->arg.timeout.type,
+	                               &rule->arg.timeout.expr,
+	                               err,
+	                               px->conf.args.file,
+	                               px->conf.args.line, &px->conf.args) == -1) {
+		return ACT_RET_PRS_ERR;
+	}
+
+	*orig_arg = cur_arg + 2;
+
+	return ACT_RET_PRS_OK;
+}
+
 /* This function executes a strict-mode actions. On success, it always returns
  * ACT_RET_CONT
  */
@@ -2034,6 +2095,7 @@ static struct action_kw_list http_req_actions = {
 		{ "strict-mode",      parse_http_strict_mode,          0 },
 		{ "tarpit",           parse_http_deny,                 0 },
 		{ "track-sc",         parse_http_track_sc,             1 },
+		{ "set-timeout",      parse_http_set_timeout,          0 },
 		{ NULL, NULL }
 	}
 };

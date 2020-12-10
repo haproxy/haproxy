@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <haproxy/action-t.h>
 #include <haproxy/list.h>
+#include <haproxy/sample.h>
 
 int act_resolution_cb(struct dns_requester *requester, struct dns_nameserver *nameserver);
 int act_resolution_error_cb(struct dns_requester *requester, int error_code);
@@ -89,5 +90,15 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err);
  * filled.
  */
 int check_capture(struct act_rule *rule, struct proxy *px, char **err);
+
+int cfg_parse_rule_set_timeout(const char **args, int idx, int *out_timeout,
+                               enum act_timeout_name *name,
+                               struct sample_expr **expr, char **err,
+                               const char *file, int line, struct arg_list *al);
+
+static inline void release_timeout_action(struct act_rule *rule)
+{
+	release_sample_expr(rule->arg.timeout.expr);
+}
 
 #endif /* _HAPROXY_ACTION_H */

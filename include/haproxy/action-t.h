@@ -143,6 +143,11 @@ struct act_rule {
 			struct sample_expr *expr;
 			int idx;
 		} capid;
+		struct {
+			int value;                  /* plain timeout value in ms if no expr is used */
+			enum act_timeout_name type; /* timeout type */
+			struct sample_expr *expr;   /* timeout value as an expression */
+		} timeout;
 		struct hlua_rule *hlua_rule;
 		struct {
 			struct sample_expr *expr;
