@@ -119,6 +119,7 @@ struct cache_entry {
 	unsigned int secondary_key_signature;  /* Bitfield of the HTTP headers that should be used
 					        * to build secondary keys for this cache entry. */
 	unsigned int secondary_entries_count;  /* Should only be filled in the last entry of a list of dup entries */
+	unsigned int last_clear_ts;          /* Timestamp of the last call to clear_expired_duplicates. */
 
 	unsigned int etag_length; /* Length of the ETag value (if one was found in the response). */
 	unsigned int etag_offset; /* Offset of the ETag value in the data buffer. */
@@ -211,6 +212,37 @@ struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entr
 }
 
 
+/*
+ * Remove all expired entries from a list of duplicates.
+ * Return the number of alive entries in the list and sets dup_tail to the
+ * current last item of the list.
+ */
+static unsigned int clear_expired_duplicates(struct eb32_node **dup_tail)
+{
+	unsigned int entry_count = 0;
+	struct cache_entry *entry = NULL;
+	struct eb32_node *prev = *dup_tail;
+	struct eb32_node *tail = NULL;
+
+	while (prev) {
+		entry = container_of(prev, struct cache_entry, eb);
+		prev = eb32_prev_dup(prev);
+		if (entry->expire <= now.tv_sec) {
+			eb32_delete(&entry->eb);
+			entry->eb.key = 0;
+		}
+		else {
+			if (!tail)
+				tail = &entry->eb;
+			++entry_count;
+		}
+	}
+
+	*dup_tail = tail;
+
+	return entry_count;
+}
+
 
 /*
  * This function inserts a cache_entry in the cache's ebtree. In case of
@@ -227,6 +259,7 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *n
 	struct eb32_node *prev = NULL;
 	struct cache_entry *entry = NULL;
 	unsigned int entry_count = 0;
+	unsigned int last_clear_ts = now.tv_sec;
 
 	struct eb32_node *node = eb32_insert(&cache->entries, &new_entry->eb);
 
@@ -241,18 +274,37 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *n
 		 * number of entries in the list. */
 		entry = container_of(prev, struct cache_entry, eb);
 		entry_count = entry->secondary_entries_count;
+		last_clear_ts = entry->last_clear_ts;
 
 		if (entry_count >= SECONDARY_ENTRY_MAX_COUNT) {
-			/* Too many entries for this primary key, delete
-			 * the newly inserted one. */
-			entry = container_of(prev, struct cache_entry, eb);
-			eb32_delete(node);
-			node->key = 0;
-			return NULL;
+			/* Some entries of the duplicate list might be expired so
+			 * we will iterate over all the items in order to free some
+			 * space. In order to avoid going over the same list too
+			 * often, we first check the timestamp of the last check
+			 * performed. */
+			if (last_clear_ts == now.tv_sec) {
+				/* Too many entries for this primary key, clear the
+				 * one that was inserted. */
+				eb32_delete(node);
+				node->key = 0;
+				return NULL;
+			}
+
+			entry_count = clear_expired_duplicates(&prev);
+			if (entry_count >= SECONDARY_ENTRY_MAX_COUNT) {
+				/* Still too many entries for this primary key, delete
+				 * the newly inserted one. */
+				entry = container_of(prev, struct cache_entry, eb);
+				entry->last_clear_ts = now.tv_sec;
+				eb32_delete(node);
+				node->key = 0;
+				return NULL;
+			}
 		}
 	}
 
 	new_entry->secondary_entries_count = entry_count + 1;
+	new_entry->last_clear_ts = last_clear_ts;
 
 	return node;
 }
