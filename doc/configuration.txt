@@ -14606,6 +14606,8 @@ The cache won't store and won't deliver objects in these cases:
 - If the response does not have an explicit expiration time (s-maxage or max-age
   Cache-Control directives or Expires header) or a validator (ETag or Last-Modified
   headers)
+- If the process-vary option is enabled and there are already max-secondary-entries
+  entries with the same primary key as the current response
 
 - If the request is not a GET
 - If the HTTP version of the request is smaller than 1.1
@@ -14636,7 +14638,7 @@ max-object-size <bytes>
   All objects with sizes larger than "max-object-size" will not be cached.
 
 max-age <seconds>
-  Define the maximum expiration duration. The expiration is set has the lowest
+  Define the maximum expiration duration. The expiration is set as the lowest
   value between the s-maxage or max-age (in this order) directive in the
   Cache-Control response header and this value. The default value is 60
   seconds, which means that you can't cache an object more than 60 seconds by
@@ -14648,6 +14650,11 @@ process-vary <0 or 1>
   a preliminary hash for a subset of request headers on all the incoming requests
   (which might come with a cpu cost) which will be used to build a secondary key
   for a given request (see RFC 7234#4.1). The default value is 0 (disabled).
+
+max-secondary-entries <number>
+  Define the maximum number of simultaneous secondary entries with the same primary
+  key in the cache. This needs the vary support to be enabled. Its default value is 10
+  and should be passed a strictly positive integer.
 
 
 6.2.2. Proxy section

@@ -49,6 +49,7 @@ struct cache {
 	unsigned int maxage;     /* max-age */
 	unsigned int maxblocks;
 	unsigned int maxobjsz;   /* max-object-size (in bytes) */
+	unsigned int max_secondary_entries;  /* maximum number of secondary entries with the same primary hash */
 	uint8_t vary_processing_enabled;     /* boolean : manage Vary header (disabled by default) */
 	char id[33];             /* cache name */
 };
@@ -104,7 +105,7 @@ struct cache_st {
 	struct shared_block *first_block;
 };
 
-#define SECONDARY_ENTRY_MAX_COUNT 10
+#define DEFAULT_MAX_SECONDARY_ENTRY 10
 
 struct cache_entry {
 	unsigned int complete;    /* An entry won't be valid until complete is not null. */
@@ -276,7 +277,7 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *n
 		entry_count = entry->secondary_entries_count;
 		last_clear_ts = entry->last_clear_ts;
 
-		if (entry_count >= SECONDARY_ENTRY_MAX_COUNT) {
+		if (entry_count >= cache->max_secondary_entries) {
 			/* Some entries of the duplicate list might be expired so
 			 * we will iterate over all the items in order to free some
 			 * space. In order to avoid going over the same list too
@@ -291,7 +292,7 @@ static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *n
 			}
 
 			entry_count = clear_expired_duplicates(&prev);
-			if (entry_count >= SECONDARY_ENTRY_MAX_COUNT) {
+			if (entry_count >= cache->max_secondary_entries) {
 				/* Still too many entries for this primary key, delete
 				 * the newly inserted one. */
 				entry = container_of(prev, struct cache_entry, eb);
@@ -1800,6 +1801,7 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 			tmp_cache_config->maxage = 60;
 			tmp_cache_config->maxblocks = 0;
 			tmp_cache_config->maxobjsz = 0;
+			tmp_cache_config->max_secondary_entries = DEFAULT_MAX_SECONDARY_ENTRY;
 		}
 	} else if (strcmp(args[0], "total-max-size") == 0) {
 		unsigned long int maxsize;
@@ -1877,6 +1879,29 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 		}
 
 		tmp_cache_config->vary_processing_enabled = atoi(args[1]);
+	} else if (strcmp(args[0], "max-secondary-entries") == 0) {
+		unsigned int max_sec_entries;
+		char *err;
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			err_code |= ERR_ABORT;
+			goto out;
+		}
+
+		if (!*args[1]) {
+			ha_warning("parsing [%s:%d]: '%s' expects a strictly positive number.\n",
+				   file, linenum, args[0]);
+			err_code |= ERR_WARN;
+		}
+
+		max_sec_entries = strtoul(args[1], &err, 10);
+		if (err == args[1] || *err != '\0' || max_sec_entries == 0) {
+			ha_warning("parsing [%s:%d]: max-secondary-entries wrong value '%s'\n",
+			           file, linenum, args[1]);
+			err_code |= ERR_ABORT;
+			goto out;
+		}
+		tmp_cache_config->max_secondary_entries = max_sec_entries;
 	}
 	else if (*args[0] != 0) {
 		ha_alert("parsing [%s:%d] : unknown keyword '%s' in 'cache' section\n", file, linenum, args[0]);
