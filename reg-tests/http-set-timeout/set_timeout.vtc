@@ -1,0 +1,80 @@
+varnishtest "http-request set-timeout test"
+
+feature ignore_unknown_macro
+
+server srv_h1 -repeat 3 {
+    rxreq
+    txresp
+} -start
+
+syslog Slog1 -level info {
+    recv
+    expect ~ "^.*timeout: 1000 1000.*$"
+} -start
+
+syslog Slog2 -level info {
+    recv
+    expect ~ "^.*timeout: 1000 5000.*$"
+} -start
+
+syslog Slog3 -level info {
+    recv
+    expect ~ "^.*timeout: 1000 3000.*$"
+} -start
+
+haproxy hap -conf {
+    defaults
+        timeout connect 1s
+        timeout client 1s
+        timeout server 1s
+        log global
+
+    listen li1
+        mode http
+        bind "fd@${li1}"
+        log-format "timeout: %[be_server_timeout] %[cur_server_timeout]"
+        log ${Slog1_addr}:${Slog1_port} len 2048 local0 debug err
+        server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+    listen li2
+        mode http
+        bind "fd@${li2}"
+        log-format "timeout: %[be_server_timeout] %[cur_server_timeout]"
+        log ${Slog2_addr}:${Slog2_port} len 2048 local0 debug err
+        http-request set-timeout server 5s
+       server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+    frontend fe1
+        mode http
+        bind "fd@${fe1}"
+        log-format "timeout: %[be_server_timeout] %[cur_server_timeout]"
+        log ${Slog3_addr}:${Slog3_port} len 2048 local0 debug err
+        default_backend be1
+
+    backend be1
+       mode http
+       http-request set-timeout server int(3),mul(1000)
+       server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+} -start
+
+client c1 -connect ${hap_li1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c2 -connect ${hap_li2_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c3 -connect ${hap_fe1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+syslog Slog1 -wait
+syslog Slog2 -wait
+syslog Slog3 -wait
