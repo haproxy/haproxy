@@ -16855,6 +16855,16 @@ be_name : string
   frontends with responses to check which backend processed the request. It can
   also be used in a tcp-check or an http-check ruleset.
 
+be_server_timeout : integer
+  Returns the configuration value in millisecond for the server timeout of the
+  current backend. This timeout can be overwritten by a "set-timeout" rule. See
+  also the "cur_server_timeout".
+
+be_tunnel_timeout : integer
+  Returns the configuration value in millisecond for the tunnel timeout of the
+  current backend. This timeout can be overwritten by a "set-timeout" rule. See
+  also the "cur_tunnel_timeout".
+
 dst : ip
   This is the destination IPv4 address of the connection on the client side,
   which is the address the client connected to. It can be useful when running
