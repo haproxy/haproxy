@@ -813,7 +813,15 @@ void stream_process_counters(struct stream *s)
 
 int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout)
 {
-	return 0;
+	switch (name) {
+	case ACT_TIMEOUT_SERVER:
+		s->req.wto = timeout;
+		s->res.rto = timeout;
+		return 1;
+
+	default:
+		return 0;
+	}
 }
 
 /*
@@ -884,9 +892,15 @@ static void back_establish(struct stream *s)
 	si_rx_endp_more(si);
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (objt_cs(si->end)) {
-		/* real connections have timeouts */
-		req->wto = s->be->timeout.server;
-		rep->rto = s->be->timeout.server;
+		/* real connections have timeouts
+		 * if already defined, it means that a set-timeout rule has
+		 * been executed so do not overwrite them
+		 */
+		if (!tick_isset(req->wto))
+			req->wto = s->be->timeout.server;
+		if (!tick_isset(rep->rto))
+			rep->rto = s->be->timeout.server;
+
 		/* The connection is now established, try to read data from the
 		 * underlying layer, and subscribe to recv events. We use a
 		 * delayed recv here to give a chance to the data to flow back
