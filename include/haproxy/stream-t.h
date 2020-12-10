@@ -191,6 +191,8 @@ struct stream {
 		/* 4 unused bytes here */
 		struct act_rule *parent;        /* rule which requested this resolution */
 	} dns_ctx;                              /* context information for DNS resolution */
+
+	int tunnel_timeout;
 };
 
 #endif /* _HAPROXY_STREAM_T_H */

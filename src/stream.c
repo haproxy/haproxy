@@ -504,6 +504,8 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	s->dns_ctx.hostname_dn_len = 0;
 	s->dns_ctx.parent = NULL;
 
+	s->tunnel_timeout = TICK_ETERNITY;
+
 	HA_SPIN_LOCK(STRMS_LOCK, &streams_lock);
 	LIST_ADDQ(&streams, &s->list);
 	HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
@@ -819,6 +821,10 @@ int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout
 		s->res.rto = timeout;
 		return 1;
 
+	case ACT_TIMEOUT_TUNNEL:
+		s->tunnel_timeout = timeout;
+		return 1;
+
 	default:
 		return 0;
 	}
@@ -900,6 +906,8 @@ static void back_establish(struct stream *s)
 			req->wto = s->be->timeout.server;
 		if (!tick_isset(rep->rto))
 			rep->rto = s->be->timeout.server;
+		if (!tick_isset(s->tunnel_timeout))
+			s->tunnel_timeout = s->be->timeout.tunnel;
 
 		/* The connection is now established, try to read data from the
 		 * underlying layer, and subscribe to recv events. We use a
@@ -2186,9 +2194,9 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		 * tunnel timeout set, use it now. Note that we must respect
 		 * the half-closed timeouts as well.
 		 */
-		if (!req->analysers && s->be->timeout.tunnel) {
+		if (!req->analysers && s->tunnel_timeout) {
 			req->rto = req->wto = res->rto = res->wto =
-				s->be->timeout.tunnel;
+				s->tunnel_timeout;
 
 			if ((req->flags & CF_SHUTR) && tick_isset(sess->fe->timeout.clientfin))
 				res->wto = sess->fe->timeout.clientfin;
