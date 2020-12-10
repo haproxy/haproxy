@@ -93,6 +93,12 @@ enum act_name {
 	ACT_TCP_CLOSE, /* close at the sender's */
 };
 
+/* Timeout name valid for a set-timeout rule */
+enum act_timeout_name {
+	ACT_TIMEOUT_SERVER,
+	ACT_TIMEOUT_TUNNEL,
+};
+
 /* NOTE: if <.action_ptr> is defined, the referenced function will always be
  *       called regardless the action type. */
 struct act_rule {
