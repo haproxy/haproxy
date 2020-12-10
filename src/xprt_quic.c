@@ -519,6 +519,17 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              (unsigned long long)pkt->cdata_len);
 			}
 		}
+
+		if (mask & QUIC_EV_CONN_SSLALERT) {
+			const uint8_t *alert = a2;
+			const enum ssl_encryption_level_t *level = a3;
+
+			if (alert)
+				chunk_appendf(&trace_buf, " alert=0x%02x", *alert);
+			if (level)
+				chunk_appendf(&trace_buf, " el=%c",
+				              quic_enc_level_char(ssl_to_quic_enc_level(*level)));
+		}
 	}
 	if (mask & QUIC_EV_CONN_LPKT) {
 		const struct quic_rx_packet *pkt = a2;
@@ -847,8 +858,7 @@ int ha_quic_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t aler
 {
 	struct connection *conn = SSL_get_ex_data(ssl, ssl_app_data_index);
 
-	TRACE_ENTER(QUIC_EV_CONN_SSLALERT, conn);
-	TRACE_LEAVE(QUIC_EV_CONN_SSLALERT, conn);
+	TRACE_DEVEL("SSL alert", QUIC_EV_CONN_SSLALERT, conn, &alert, &level);
 	return 1;
 }
 
