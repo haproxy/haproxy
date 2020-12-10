@@ -55,7 +55,7 @@ Maintainer: Simon Horman <horms@verge.net.au>
 Files: src/mailers.c, include/*/mailers.h
 
 DeviceAtlas device identification
-Maintainer: David Carlier <dcarlier@afilias.info>
+Maintainer: David Carlier <dcarlier@deviceatlas.com>
 Files: src/da.c, include/*/da.h
 
 51Degrees device identification
