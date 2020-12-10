@@ -104,6 +104,8 @@ struct cache_st {
 	struct shared_block *first_block;
 };
 
+#define SECONDARY_ENTRY_MAX_COUNT 10
+
 struct cache_entry {
 	unsigned int complete;    /* An entry won't be valid until complete is not null. */
 	unsigned int latest_validation;     /* latest validation date */
@@ -116,6 +118,7 @@ struct cache_entry {
 	char secondary_key[HTTP_CACHE_SEC_KEY_LEN];  /* Optional secondary key. */
 	unsigned int secondary_key_signature;  /* Bitfield of the HTTP headers that should be used
 					        * to build secondary keys for this cache entry. */
+	unsigned int secondary_entries_count;  /* Should only be filled in the last entry of a list of dup entries */
 
 	unsigned int etag_length; /* Length of the ETag value (if one was found in the response). */
 	unsigned int etag_offset; /* Offset of the ETag value in the data buffer. */
@@ -139,6 +142,9 @@ static struct cache *tmp_cache_config = NULL;
 
 DECLARE_STATIC_POOL(pool_head_cache_st, "cache_st", sizeof(struct cache_st));
 
+static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *new_entry);
+static void delete_entry(struct cache_entry *del_entry);
+
 struct cache_entry *entry_exist(struct cache *cache, char *hash)
 {
 	struct eb32_node *node;
@@ -157,7 +163,7 @@ struct cache_entry *entry_exist(struct cache *cache, char *hash)
 	if (entry->expire > now.tv_sec) {
 		return entry;
 	} else {
-		eb32_delete(node);
+		delete_entry(entry);
 		entry->eb.key = 0;
 	}
 	return NULL;
@@ -181,6 +187,16 @@ struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entr
 
 	while (entry && memcmp(entry->secondary_key, secondary_key, HTTP_CACHE_SEC_KEY_LEN) != 0) {
 		node = eb32_next_dup(node);
+
+		/* Make the best use of this iteration and clear expired entries
+		 * when we find them. Calling delete_entry would be too costly
+		 * so we simply call eb32_delete. The secondary_entry count will
+		 * be updated when we try to insert a new entry to this list. */
+		if (entry->expire <= now.tv_sec) {
+			eb32_delete(&entry->eb);
+			entry->eb.key = 0;
+		}
+
 		entry = node ? eb32_entry(node, struct cache_entry, eb) : NULL;
 	}
 
@@ -193,6 +209,92 @@ struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entr
 
 	return entry;
 }
+
+
+
+/*
+ * This function inserts a cache_entry in the cache's ebtree. In case of
+ * duplicate entries (vary), it then checks that the number of entries did not
+ * reach the max number of secondary entries. If this entry should not have been
+ * created, remove it.
+ * In the regular case (unique entries), this function does not do more than a
+ * simple insert. In case of secondary entries, it will at most cost an
+ * insertion+max_sec_entries time checks and entry deletion.
+ * Returns the newly inserted node in case of success, NULL otherwise.
+ */
+static struct eb32_node *insert_entry(struct cache *cache, struct cache_entry *new_entry)
+{
+	struct eb32_node *prev = NULL;
+	struct cache_entry *entry = NULL;
+	unsigned int entry_count = 0;
+
+	struct eb32_node *node = eb32_insert(&cache->entries, &new_entry->eb);
+
+	/* We should not have multiple entries with the same primary key unless
+	 * the entry has a non null vary signature. */
+	if (!new_entry->secondary_key_signature)
+		return node;
+
+	prev = eb32_prev_dup(node);
+	if (prev != NULL) {
+		/* The last entry of a duplicate list should contain the current
+		 * number of entries in the list. */
+		entry = container_of(prev, struct cache_entry, eb);
+		entry_count = entry->secondary_entries_count;
+
+		if (entry_count >= SECONDARY_ENTRY_MAX_COUNT) {
+			/* Too many entries for this primary key, delete
+			 * the newly inserted one. */
+			entry = container_of(prev, struct cache_entry, eb);
+			eb32_delete(node);
+			node->key = 0;
+			return NULL;
+		}
+	}
+
+	new_entry->secondary_entries_count = entry_count + 1;
+
+	return node;
+}
+
+
+/*
+ * This function removes an entry from the ebtree. If the entry was a duplicate
+ * (in case of Vary), it updates the secondary entry counter in another
+ * duplicate entry (the last entry of the dup list).
+ */
+static void delete_entry(struct cache_entry *del_entry)
+{
+	struct eb32_node *prev = NULL, *next = NULL;
+	struct cache_entry *entry = NULL;
+	struct eb32_node *last = NULL;
+
+	if (del_entry->secondary_key_signature) {
+		next = &del_entry->eb;
+
+		/* Look for last entry of the duplicates list. */
+		while ((next = eb32_next_dup(next))) {
+			last = next;
+		}
+
+		if (last) {
+			entry = container_of(last, struct cache_entry, eb);
+			--entry->secondary_entries_count;
+		}
+		else {
+			/* The current entry is the last one, look for the
+			 * previous one to update its counter. */
+			prev = eb32_prev_dup(&del_entry->eb);
+			if (prev) {
+				entry = container_of(prev, struct cache_entry, eb);
+				entry->secondary_entries_count = del_entry->secondary_entries_count - 1;
+			}
+		}
+	}
+	eb32_delete(&del_entry->eb);
+	del_entry->eb.key = 0;
+}
+
 
 static inline struct shared_context *shctx_ptr(struct cache *cache)
 {
@@ -644,7 +746,7 @@ static void cache_free_blocks(struct shared_block *first, struct shared_block *b
 	struct cache_entry *object = (struct cache_entry *)block->data;
 
 	if (first == block && object->eb.key)
-		eb32_delete(&object->eb);
+		delete_entry(object);
 	object->eb.key = 0;
 }
 
@@ -844,7 +946,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 				shctx_unlock(shctx);
 				goto out;
 			}
-			eb32_delete(&old->eb);
+			delete_entry(old);
 			old->eb.key = 0;
 		}
 	}
@@ -871,7 +973,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		memcpy(object->secondary_key, txn->cache_secondary_hash, HTTP_CACHE_SEC_KEY_LEN);
 
 	/* Insert the entry in the tree even if the payload is not cached yet. */
-	if (eb32_insert(&cache->entries, &object->eb) != &object->eb) {
+	if (insert_entry(cache, object) != &object->eb) {
 		object->eb.key = 0;
 		shctx_unlock(shctx);
 		goto out;
@@ -956,7 +1058,6 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	/* register the buffer in the filter ctx for filling it with data*/
 	if (cache_ctx) {
 		cache_ctx->first_block = first;
-
 		/* store latest value and expiration time */
 		object->latest_validation = now.tv_sec;
 		object->expire = now.tv_sec + effective_maxage;
@@ -969,7 +1070,7 @@ out:
 		shctx_lock(shctx);
 		first->len = 0;
 		if (object->eb.key)
-			eb32_delete(&object->eb);
+			delete_entry(object);
 		object->eb.key = 0;
 		shctx_row_dec_hot(shctx, first);
 		shctx_unlock(shctx);
