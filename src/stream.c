@@ -48,6 +48,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/server.h>
+#include <haproxy/sample.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stick_table.h>
@@ -3455,6 +3456,15 @@ static struct action_kw_list stream_http_keywords = { ILH, {
 }};
 
 INITCALL1(STG_REGISTER, http_req_keywords_register, &stream_http_keywords);
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted.
+ */
+static struct sample_fetch_kw_list smp_kws = {ILH, {
+	{ NULL, NULL, 0, 0, 0 },
+}};
+
+INITCALL1(STG_REGISTER, sample_register_fetches, &smp_kws);
 
 /*
  * Local variables:
