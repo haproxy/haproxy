@@ -16978,6 +16978,10 @@ fe_name : string
   backends to check from which frontend it was called, or to stick all users
   coming via a same frontend to the same server.
 
+fe_client_timeout : integer
+  Returns the configuration value in millisecond for the client timeout of the
+  current frontend.
+
 sc_bytes_in_rate(<ctr>[,<table>]) : integer
 sc0_bytes_in_rate([<table>]) : integer
 sc1_bytes_in_rate([<table>]) : integer
