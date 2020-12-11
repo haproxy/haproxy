@@ -812,12 +812,6 @@ static int wake_srv_chk(struct conn_stream *cs)
 	else
 		HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 
-	/* if a connection got replaced, we must absolutely prevent the connection
-	 * handler from touching its fd, and perform the FD polling updates ourselves
-	 */
-	if (ret < 0)
-		conn_cond_update_polling(conn);
-
 	return ret;
 }
 
