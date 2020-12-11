@@ -193,8 +193,9 @@ enum h2_ss {
 #define H2_SF_WANT_SHUTW        0x00010000  // a stream couldn't shutw() (mux full/busy)
 #define H2_SF_KILL_CONN         0x00020000  // kill the whole connection with this stream
 
-#define H2_SF_TUNNEL_ABRT       0x00100000  // A tunnel attempt was aborted
+#define H2_SF_EXT_CONNECT_SENT  0x00040000  // rfc 8441 an Extended CONNECT has been sent
 
+#define H2_SF_TUNNEL_ABRT       0x00100000  // A tunnel attempt was aborted
 
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
  * it is being processed in the internal HTTP representation (HTX).
