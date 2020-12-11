@@ -2304,6 +2304,9 @@ const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags)
 const char *parse_size_err(const char *text, unsigned *ret) {
 	unsigned value = 0;
 
+	if (!isdigit((unsigned char)*text))
+		return text;
+
 	while (1) {
 		unsigned int j;
 
