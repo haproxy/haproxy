@@ -63,6 +63,7 @@ struct protocol proto_uxst = {
 	.ctrl_init      = sock_conn_ctrl_init,
 	.ctrl_close     = sock_conn_ctrl_close,
 	.connect        = uxst_connect_server,
+	.drain          = sock_drain,
 
 	/* binding layer */
 	.rx_suspend     = uxst_suspend_receiver,

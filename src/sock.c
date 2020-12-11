@@ -819,6 +819,59 @@ void sock_conn_iocb(int fd)
 	}
 }
 
+/* Drains possibly pending incoming data on the file descriptor attached to the
+ * connection. This is used to know whether we need to disable lingering on
+ * close. Returns non-zero if it is safe to close without disabling lingering,
+ * otherwise zero.
+ */
+int sock_drain(struct connection *conn)
+{
+	int turns = 2;
+	int fd = conn->handle.fd;
+	int len;
+
+	if (fdtab[fd].ev & (FD_POLL_ERR|FD_POLL_HUP))
+		goto shut;
+
+	if (!fd_recv_ready(fd))
+		return 0;
+
+	/* no drain function defined, use the generic one */
+
+	while (turns) {
+#ifdef MSG_TRUNC_CLEARS_INPUT
+		len = recv(fd, NULL, INT_MAX, MSG_DONTWAIT | MSG_NOSIGNAL | MSG_TRUNC);
+		if (len == -1 && errno == EFAULT)
+#endif
+			len = recv(fd, trash.area, trash.size, MSG_DONTWAIT | MSG_NOSIGNAL);
+
+		if (len == 0)
+			goto shut;
+
+		if (len < 0) {
+			if (errno == EAGAIN) {
+				/* connection not closed yet */
+				fd_cant_recv(fd);
+				break;
+			}
+			if (errno == EINTR)  /* oops, try again */
+				continue;
+			/* other errors indicate a dead connection, fine. */
+			goto shut;
+		}
+		/* OK we read some data, let's try again once */
+		turns--;
+	}
+
+	/* some data are still present, give up */
+	return 0;
+
+ shut:
+	/* we're certain the connection was shut down */
+	fdtab[fd].linger_risk = 0;
+	return 1;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

@@ -99,6 +99,7 @@ struct protocol {
 	void (*ctrl_init)(struct connection *);         /* completes initialization of the connection */
 	void (*ctrl_close)(struct connection *);        /* completes release of the connection */
 	int (*connect)(struct connection *, int flags); /* connect function if any, see below for flags values */
+	int (*drain)(struct connection *);              /* drain pending data; 0=failed, >0=success */
 
 	/* functions acting on the receiver */
 	int (*rx_suspend)(struct receiver *rx);         /* temporarily suspend this receiver for a soft restart */
