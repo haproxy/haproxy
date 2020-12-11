@@ -37,7 +37,7 @@ static inline void fwlc_dequeue_srv(struct server *s)
 	eb32_delete(&s->lb_node);
 }
 
-/* Queue a server in its associated tree, assuming the weight is >0.
+/* Queue a server in its associated tree, assuming the <eweight> is >0.
  * Servers are sorted by (#conns+1)/weight. To ensure maximum accuracy,
  * we use (#conns+1)*SRV_EWGHT_MAX/eweight as the sorting key. The reason
  * for using #conns+1 is to sort by weights in case the server is picked
@@ -47,13 +47,19 @@ static inline void fwlc_dequeue_srv(struct server *s)
  * connection are always picked first so that under low loads, it's not
  * always the single server with the highest weight that gets picked.
  *
+ * NOTE: Depending on the calling context, we use s->next_eweight or
+ *       s->cur_eweight. The next value is used when the server state is updated
+ *       (because the weight changed for instance). During this step, the server
+ *       state is not yet committed. The current value is used to reposition the
+ *       server in the tree. This happens when the server is used.
+ *
  * The server's lock and the lbprm's lock must be held.
  */
-static inline void fwlc_queue_srv(struct server *s)
+static inline void fwlc_queue_srv(struct server *s, unsigned int eweight)
 {
 	unsigned int inflight = s->served + s->nbpend;
 
-	s->lb_node.key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / s->next_eweight : 0;
+	s->lb_node.key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / eweight : 0;
 	eb32_insert(s->lb_tree, &s->lb_node);
 }
 
@@ -68,7 +74,7 @@ static void fwlc_srv_reposition(struct server *s)
 	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 	if (s->lb_tree) {
 		fwlc_dequeue_srv(s);
-		fwlc_queue_srv(s);
+		fwlc_queue_srv(s, s->cur_eweight);
 	}
 	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 }
@@ -183,7 +189,7 @@ static void fwlc_set_server_status_up(struct server *srv)
 	}
 
 	/* note that eweight cannot be 0 here */
-	fwlc_queue_srv(srv);
+	fwlc_queue_srv(srv, srv->next_eweight);
 
  out_update_backend:
 	/* check/update tot_used, tot_weight */
@@ -244,7 +250,7 @@ static void fwlc_update_server_weight(struct server *srv)
 		srv->lb_tree = &p->lbprm.fwlc.act;
 	}
 
-	fwlc_queue_srv(srv);
+	fwlc_queue_srv(srv, srv->next_eweight);
 
 	update_backend_weight(p);
 	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &p->lbprm.lock);
@@ -284,7 +290,7 @@ void fwlc_init_server_tree(struct proxy *p)
 		if (!srv_currently_usable(srv))
 			continue;
 		srv->lb_tree = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwlc.bck : &p->lbprm.fwlc.act;
-		fwlc_queue_srv(srv);
+		fwlc_queue_srv(srv, srv->next_eweight);
 	}
 }
 
