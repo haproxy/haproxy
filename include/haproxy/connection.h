@@ -170,22 +170,6 @@ static inline void conn_stop_tracking(struct connection *conn)
 	conn->flags &= ~CO_FL_XPRT_TRACKED;
 }
 
-/* Stop all polling on the fd. This might be used when an error is encountered
- * for example.
- */
-static inline void conn_stop_polling(struct connection *c)
-{
-	if (conn_ctrl_ready(c))
-		fd_stop_both(c->handle.fd);
-}
-
-/* Stops polling in case of error on the connection. */
-static inline void conn_cond_update_polling(struct connection *c)
-{
-	if (unlikely(c->flags & CO_FL_ERROR))
-		conn_stop_polling(c);
-}
-
 /* read shutdown, called from the rcv_buf/rcv_pipe handlers when
  * detecting an end of connection.
  */
