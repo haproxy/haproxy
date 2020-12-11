@@ -5134,11 +5134,12 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	struct buffer outbuf;
 	struct buffer *mbuf;
 	struct htx_sl *sl;
-	struct ist meth, uri, auth;
+	struct ist meth, uri, auth, host = IST_NULL;
 	enum htx_blk_type type;
 	int es_now = 0;
 	int ret = 0;
 	int hdr;
+	int extended_connect = 0;
 
 	TRACE_ENTER(H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s);
 
@@ -5194,6 +5195,39 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			if ((h2c->flags & H2_CF_IS_BACK) && h2c->proxy->server_id_hdr_name &&
 			    isteq(list[hdr].n, ist2(h2c->proxy->server_id_hdr_name, h2c->proxy->server_id_hdr_len)))
 				continue;
+
+			/* Convert connection: upgrade to Extented connect from rfc 8441 */
+			if (isteqi(list[hdr].n, ist("connection"))) {
+				/* rfc 7230 #6.1 Connection = list of tokens */
+				struct ist connection_ist = list[hdr].v;
+				do {
+					if (isteqi(iststop(connection_ist, ','),
+					           ist("upgrade"))) {
+						h2s->flags |= (H2_SF_BODY_TUNNEL|H2_SF_EXT_CONNECT_SENT);
+						sl->info.req.meth = HTTP_METH_CONNECT;
+						meth = ist("CONNECT");
+
+						extended_connect = 1;
+						break;
+					}
+
+					connection_ist = istadv(istfind(connection_ist, ','), 1);
+				} while (istlen(connection_ist));
+			}
+
+			if (isteq(list[hdr].n, ist("upgrade"))) {
+				/* rfc 7230 #6.7 Upgrade = list of protocols
+				 * rfc 8441 #4 Extended connect = :protocol is single-valued
+				 *
+				 * only first HTTP/1 protocol is preserved
+				 */
+				const struct ist protocol = iststop(list[hdr].v, ',');
+				/* upgrade_protocol field is 16 bytes long in h2s */
+				istpad(h2s->upgrade_protocol, isttrim(protocol, 15));
+			}
+
+			if (isteq(list[hdr].n, ist("host")))
+				host = list[hdr].v;
 
 			hdr++;
 		}
@@ -5257,8 +5291,11 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	 *   - :authority set to the URI part (host:port)
 	 *   - :method set to CONNECT
 	 *   - :scheme and :path omitted
+	 *
+	 *   Note that this is not applicable in case of the Extended CONNECT
+	 *   protocol from rfc 8441.
 	 */
-	if (unlikely(sl->info.req.meth == HTTP_METH_CONNECT)) {
+	if (unlikely(sl->info.req.meth == HTTP_METH_CONNECT) && !extended_connect) {
 		auth = uri;
 
 		if (!hpack_encode_header(&outbuf, ist(":authority"), auth)) {
@@ -5272,6 +5309,9 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		/* other methods need a :scheme. If an authority is known from
 		 * the request line, it must be sent, otherwise only host is
 		 * sent. Host is never sent as the authority.
+		 *
+		 * This code is also applicable for Extended CONNECT protocol
+		 * from rfc 8441.
 		 */
 		struct ist scheme = { };
 
@@ -5299,6 +5339,12 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 				uri.len -= auth.len;
 			}
 		}
+
+		/* For Extended CONNECT, the :authority must be present.
+		 * Use host value for it.
+		 */
+		if (unlikely(extended_connect) && isttest(host))
+			auth = host;
 
 		if (!scheme.len) {
 			/* no explicit scheme, we're using an origin-form URI,
@@ -5343,6 +5389,23 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			if (b_space_wraps(mbuf))
 				goto realign_again;
 			goto full;
+		}
+
+		/* encode the pseudo-header protocol from rfc8441 if using
+		 * Extended CONNECT method.
+		 */
+		if (unlikely(extended_connect)) {
+			const struct ist protocol = ist(h2s->upgrade_protocol);
+			if (isttest(protocol)) {
+				if (!hpack_encode_header(&outbuf,
+				                         ist(":protocol"),
+				                         protocol)) {
+					/* output full */
+					if (b_space_wraps(mbuf))
+						goto realign_again;
+					goto full;
+				}
+			}
 		}
 	}
 
