@@ -1,6 +1,150 @@
 ChangeLog :
 ===========
 
+2020/12/11 : 2.4-dev3
+    - MINOR: log: Logging HTTP path only with %HPO
+    - BUG/MINOR: mux-h2/stats: make stream/connection proto errors more accurate
+    - MINOR: traces: add a new level "error" below the "user" level
+    - MINOR: mux-h2/trace: add traces at level ERROR for protocol errors
+    - BUG/MINOR: mux-h2/stats: not all GOAWAY frames are errors
+    - BUG/MINOR: lua: missing "\n" in error message
+    - BUG/MINOR: lua: lua-load doesn't check its parameters
+    - BUG/MINOR: lua: Post init register function are not executed beyond the first one
+    - BUG/MINOR: lua: Some lua init operation are processed unsafe
+    - MINOR: actions: Export actions lookup functions
+    - MINOR: actions: add a function returning a service pointer from its name
+    - MINOR: cli: add a function to look up a CLI service description
+    - BUG/MINOR: lua: warn when registering action, conv, sf, cli or applet multiple times
+    - MINOR: cache: Improve accept_encoding_normalizer
+    - MINOR: cache: Add entry to the tree as soon as possible
+    - BUG/MINOR: trace: Wrong displayed trace level
+    - BUG/MAJOR: ring: tcp forward on ring can break the reader counter.
+    - MINOR: lua: simplify hlua_alloc() to only rely on realloc()
+    - MEDIUM: lua-thread: use atomics for memory accounting
+    - MINOR: lua-thread: remove struct hlua from function hlua_prepend_path()
+    - MEDIUM: lua-thread: make hlua_post_init() no longer use the runtime execution function
+    - MINOR: lua-thread: hlua_ctx_renew() is never called with main gL lua state
+    - MINOR: lua-thread: Use NULL context for main lua state
+    - MINOR: lua-thread: Stop usage of struct hlua for the global lua state
+    - MINOR: lua-thread: Replace embedded struct hlua_function by a pointer
+    - MINOR: lua-thread: Split hlua_init() function in two parts
+    - MINOR: lua-thread: make hlua_ctx_init() get L from its caller
+    - MINOR: lua-thread: Split hlua_load function in two parts
+    - MINOR: lua-thread: Split hlua_post_init() function in two parts
+    - MINOR: lua-thread: Add the "thread" core variable
+    - MEDIUM: lua-thread: No longer use locked context in initialization parts
+    - MEDIUM: lua-thread: Apply lock only if the parent state is the main thread
+    - MINOR: lua-thread: Replace global gL var with an array of states
+    - MINOR: lua-thread: Replace "struct hlua_function" allocation by dedicated function
+    - MINOR: lua-thread: Replace state_from by state_id
+    - MINOR: lua-thread: Store each function reference and init reference in array
+    - MEDIUM: lua-thread: Add the lua-load-per-thread directive
+    - MINOR: lua-thread: Add verbosity in errors
+    - REGTESTS: add a test for the threaded Lua code
+    - BUILD/MINOR: haproxy DragonFlyBSD affinity build update.
+    - DOC/MINOR: Fix formatting in Management Guide
+    - MINOR: cache: Do not store stale entry
+    - MINOR: cache: Add extra "cache-control" value checks
+    - MEDIUM: cache: Remove cache entry in case of POST on the same resource
+    - MINOR: cache: Consider invalid Age values as stale
+    - BUG/MEDIUM: lua-thread: some parts must be initialized once
+    - BUG/MINOR: lua-thread: close all states on deinit
+    - BUG/MINOR: listener: use sockaddr_in6 for IPv6
+    - BUG/MINOR: mux-h1: Handle keep-alive timeout for idle frontend connections
+    - MINOR: session: Add the idle duration field into the session
+    - MINOR: mux-h1: Update session idle duration when data are received
+    - MINOR: mux-h1: Reset session dates and durations info when the CS is detached
+    - MINOR: logs: Use session idle duration when no stream is provided
+    - MINOR: stream: Always get idle duration from the session
+    - MINOR: stream: Don't retrieve anymore timing info from the mux csinfo
+    - MINOR: mux-h1: Don't provide anymore timing info using cs_info structure
+    - MINOR: muxes: Remove get_cs_info callback function now useless
+    - MINOR: stream: Pass an optional input buffer when a stream is created
+    - MINOR: mux-h1: Add a flag to disable reads to wait opposite side
+    - MEDIUM: mux-h1: Use a h1c flag to block reads when splicing is in-progress
+    - MINOR: mux-h1: Introduce H1C_F_IS_BACK flag on the H1 connection
+    - MINOR: mux-h1: Separate parsing and formatting errors at H1 stream level
+    - MINOR: mux-h1: Split front/back h1 stream creation in 2 functions
+    - MINOR: mux-h1: Add a rxbuf into the H1 stream
+    - MINOR: mux-h1: Don't set CS flags in internal parsing functions
+    - MINOR: mux-h1: Add embryonic and attached states on the H1 connection
+    - MINOR: mux-h1: rework the h1_timeout_task() function
+    - MINOR: mux-h1: Reset more H1C flags when a H1 stream is destroyed
+    - MINOR: mux-h1: Disable reads if an error was reported on the H1 stream
+    - MINOR: mux-h1: Rework how shutdowns are handled
+    - MINOR: mux-h1: Rework h1_refresh_timeout to be easier to read
+    - MINOR: mux-h1: Process next request for IDLE connection only
+    - MINOR: mux-h1: Add a idle expiration date on the H1 connection
+    - MINOR: stick-tables: Add functions to update some values of a tracked counter
+    - MINOR: session: Add functions to increase http values of tracked counters
+    - MINOR: mux: Add a ctl parameter to get the exit status of the multiplexers
+    - MINOR: logs: Get the multiplexer exist status when no stream is provided
+    - MINOR: mux-h1: Add functions to send HTTP errors from the mux
+    - MAJOR: mux-h1: Create the client stream as later as possible
+    - DOC: config: Add notes about errors emitted by H1 mux
+    - CLEANUP: mux-h1: Rename H1C_F_CS_* flags and reorder H1C flags
+    - MINOR: http-ana: Remove useless update of t_idle duration of the stream
+    - CLEANUP: htx: Remove HTX_FL_UPGRADE unsued flag
+    - MEDIUM: http-ana: Don't process partial or empty request anymore
+    - CLEANUP: http-ana: Remove TX_WAIT_NEXT_RQ unsued flag
+    - CLEANUP: connection: Remove CS_FL_READ_PARTIAL flag
+    - REGTESTS: Fix proxy_protocol_tlv_validation
+    - MINOR: http-ana: Properly set message flags from the start-line flags
+    - MINOR: h1-htx/http-ana: Set BODYLESS flag on message in TUNNEL state
+    - MINOR: protocol: add a ->set_port() helper to address families
+    - MINOR: listener: automatically set the port when creating listeners
+    - MINOR: listener: now use a generic add_listener() function
+    - MEDIUM: ssl: fatal error with bundle + openssl < 1.1.1
+    - BUG/MEDIUM: stream: Xfer the input buffer to a fully created stream
+    - BUG/MINOR: stream: Don't use input buffer after the ownership xfer
+    - MINOR: protocol: remove the redundant ->sock_domain field
+    - MINOR: protocol: export protocol definitions
+    - CLEANUP: protocol: group protocol struct members by usage
+    - MINOR: protocol: add a set of ctrl_init/ctrl_close methods for setup/teardown
+    - MINOR: connection: use the control layer's init/close
+    - MINOR: udp: export udp_suspend_receiver() and udp_resume_receiver()
+    - BUG/MAJOR: spoa/python: Fixing return None
+    - DOC: spoa/python: Fixing typo in IP related error messages
+    - DOC: spoa/python: Rephrasing memory related error messages
+    - DOC: spoa/python: Fixing typos in comments
+    - BUG/MINOR: spoa/python: Cleanup references for failed Module Addobject operations
+    - BUG/MINOR: spoa/python: Cleanup ipaddress objects if initialization fails
+    - BUG/MEDIUM: spoa/python: Fixing PyObject_Call positional arguments
+    - BUG/MEDIUM: spoa/python: Fixing references to None
+    - DOC: email change of the DeviceAtlas maintainer
+    - MINOR: cache: Dump secondary entries in "show cache"
+    - CLEANUP: connection: use fd_stop_both() instead of conn_stop_polling()
+    - MINOR: stream-int: don't touch polling anymore on shutdown
+    - MINOR: connection: implement cs_drain_and_close()
+    - MINOR: mux-pt: take care of CS_SHR_DRAIN in shutr()
+    - MINOR: checks: use cs_drain_and_close() instead of draining the connection
+    - MINOR: checks: don't call conn_cond_update_polling() anymore
+    - CLEANUP: connection: open-code conn_cond_update_polling() and update the comment
+    - CLEANUP: connection: remove the unused conn_{stop,cond_update}_polling()
+    - BUG/MINOR: http-check: Use right condition to consider HTX message as full
+    - BUG/MINOR: tcpcheck: Don't rearm the check timeout on each read
+    - MINOR: tcpcheck: Only wait for more payload data on HTTP expect rules
+    - BUG/MINOR: tools: make parse_time_err() more strict on the timer validity
+    - BUG/MINOR: tools: Reject size format not starting by a digit
+    - MINOR: action: define enum for timeout type of the set-timeout rule
+    - MINOR: stream: prepare the hot refresh of timeouts
+    - MEDIUM: stream: support a dynamic server timeout
+    - MEDIUM: stream: support a dynamic tunnel timeout
+    - MEDIUM: http_act: define set-timeout server/tunnel action
+    - MINOR: frontend: add client timeout sample fetch
+    - MINOR: backend: add timeout sample fetches
+    - MINOR: stream: add sample fetches
+    - MINOR: stream: add timeout sample fetches
+    - REGTESTS: add regtest for http-request set-timeout
+    - CLEANUP: remove the unused fd_stop_send() in conn_xprt_shutw{,_hard}()
+    - CLEANUP: connection: remove the unneeded fd_stop_{recv,send} on read0/shutw
+    - MINOR: connection: remove sock-specific code from conn_sock_send()
+    - REORG: connection: move the socket iocb (conn_fd_handler) to sock.c
+    - MINOR: protocol: add a ->drain() function at the connection control layer
+    - MINOR: connection: make conn_sock_drain() use the control layer's ->drain()
+    - MINOR: protocol: add a pair of check_events/ignore_events functions at the ctrl layer
+    - MEDIUM: connection: make use of the control layer check_events/ignore_events
+
 2020/12/01 : 2.4-dev2
     - BUILD: Make DEBUG part of .build_opts
     - BUILD: Show the value of DEBUG= in haproxy -vv
