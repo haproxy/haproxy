@@ -75,7 +75,7 @@ static struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short stat
 			ctx->cs->data_cb->wake(ctx->cs);
 		return NULL;
 	}
-	conn_sock_drain(ctx->conn);
+	conn_ctrl_drain(ctx->conn);
 	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))
 		mux_pt_destroy(ctx);
 	else
@@ -148,7 +148,7 @@ static int mux_pt_wake(struct connection *conn)
 		if (ret < 0)
 			return ret;
 	} else {
-		conn_sock_drain(conn);
+		conn_ctrl_drain(conn);
 		if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
 			mux_pt_destroy(ctx);
 			return -1;
@@ -248,7 +248,7 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		cs->conn->xprt->shutr(cs->conn, cs->conn->xprt_ctx,
 		    (mode == CS_SHR_DRAIN));
 	else if (mode == CS_SHR_DRAIN)
-		conn_sock_drain(cs->conn);
+		conn_ctrl_drain(cs->conn);
 	if (cs->flags & CS_FL_SHW)
 		conn_full_close(cs->conn);
 }

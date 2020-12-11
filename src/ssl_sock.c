@@ -5276,7 +5276,7 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				 * TCP sockets. We first try to drain possibly pending
 				 * data to avoid this as much as possible.
 				 */
-				conn_sock_drain(conn);
+				conn_ctrl_drain(conn);
 				if (!conn->err_code)
 					conn->err_code = (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT) ?
 						CO_ER_SSL_KILLED_HB : CO_ER_SSL_HANDSHAKE;
@@ -5360,7 +5360,7 @@ check_error:
 			 * TCP sockets. We first try to drain possibly pending
 			 * data to avoid this as much as possible.
 			 */
-			conn_sock_drain(conn);
+			conn_ctrl_drain(conn);
 			if (!conn->err_code)
 				conn->err_code = (ctx->xprt_st & SSL_SOCK_RECV_HEARTBEAT) ?
 					CO_ER_SSL_KILLED_HB : CO_ER_SSL_HANDSHAKE;

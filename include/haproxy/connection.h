@@ -62,7 +62,7 @@ int conn_recv_netscaler_cip(struct connection *conn, int flag);
 int conn_ctrl_send(struct connection *conn, const void *buf, int len, int flags);
 
 /* drains any pending bytes from the socket */
-int conn_sock_drain(struct connection *conn);
+int conn_ctrl_drain(struct connection *conn);
 
 /* scoks4 proxy handshake */
 int conn_send_socks4_proxy_request(struct connection *conn);
