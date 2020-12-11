@@ -186,6 +186,38 @@ void h1_parse_connection_header(struct h1m *h1m, struct ist *value)
 	}
 }
 
+/* Parse the Upgrade: header of an HTTP/1 request.
+ * If "websocket" is found, set H1_MF_UPG_WEBSOCKET flag
+ */
+void h1_parse_upgrade_header(struct h1m *h1m, struct ist value)
+{
+	char *e, *n;
+	struct ist word;
+
+	h1m->flags &= ~H1_MF_UPG_WEBSOCKET;
+
+	word.ptr = value.ptr - 1; // -1 for next loop's pre-increment
+	e = value.ptr + value.len;
+
+	while (++word.ptr < e) {
+		/* skip leading delimiter and blanks */
+		if (HTTP_IS_LWS(*word.ptr))
+			continue;
+
+		n = http_find_hdr_value_end(word.ptr, e); // next comma or end of line
+		word.len = n - word.ptr;
+
+		/* trim trailing blanks */
+		while (word.len && HTTP_IS_LWS(word.ptr[word.len-1]))
+			word.len--;
+
+		if (isteqi(word, ist("websocket")))
+			h1m->flags |= H1_MF_UPG_WEBSOCKET;
+
+		word.ptr = n;
+	}
+}
+
 /* Macros used in the HTTP/1 parser, to check for the expected presence of
  * certain bytes (ef: LF) or to skip to next byte and yield in case of failure.
  */
@@ -827,6 +859,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 						/* skip it */
 						break;
 					}
+				}
+				else if (isteqi(n, ist("upgrade"))) {
+					h1_parse_upgrade_header(h1m, v);
 				}
 				else if (!(h1m->flags & (H1_MF_HDRS_ONLY|H1_MF_RESP)) && isteqi(n, ist("host"))) {
 					if (host_idx == -1) {

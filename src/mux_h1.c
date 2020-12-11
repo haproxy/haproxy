@@ -1298,6 +1298,51 @@ static void h1_set_tunnel_mode(struct h1s *h1s)
 	}
 }
 
+/* Search for a websocket key header. The message should have been identified
+ * as a valid websocket handshake.
+ * Returns 0 if no key found
+ */
+static int h1_search_websocket_key(struct h1s *h1s, struct h1m *h1m, struct htx *htx)
+{
+	struct htx_blk *blk;
+	enum htx_blk_type type;
+	struct ist n;
+	int ws_key_found = 0, idx;
+
+	idx = htx_get_head(htx); // returns the SL that we skip
+	while ((idx = htx_get_next(htx, idx)) != -1) {
+		blk = htx_get_blk(htx, idx);
+		type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_UNUSED)
+			continue;
+
+		if (type != HTX_BLK_HDR)
+			break;
+
+		n = htx_get_blk_name(htx, blk);
+
+		if (isteqi(n, ist("sec-websocket-key")) &&
+		    !(h1m->flags & H1_MF_RESP)) {
+			ws_key_found = 1;
+			break;
+		}
+		else if (isteqi(n, ist("sec-websocket-accept")) &&
+		         h1m->flags & H1_MF_RESP) {
+			ws_key_found = 1;
+			break;
+		}
+	}
+
+	/* missing websocket key, reject the message */
+	if (!ws_key_found) {
+		htx->flags |= HTX_FL_PARSING_ERROR;
+		return 0;
+	}
+
+	return 1;
+}
+
 /*
  * Parse HTTP/1 headers. It returns the number of bytes parsed if > 0, or 0 if
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
@@ -1325,6 +1370,21 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 		}
 		goto end;
+	}
+
+	/* If websocket handshake, search for the websocket key */
+	if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) ==
+	    (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) {
+		int ws_ret = h1_search_websocket_key(h1s, h1m, htx);
+		if (!ws_ret) {
+			TRACE_DEVEL("leaving on websocket missing key", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s);
+			h1s->flags |= H1S_F_PARSING_ERROR;
+			TRACE_USER("parsing error, reject H1 message", H1_EV_RX_DATA|H1_EV_RX_HDRS|H1_EV_H1S_ERR, h1s->h1c->conn, h1s);
+			h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
+
+			ret = 0;
+			goto end;
+		}
 	}
 
 	if (h1m->err_pos >= 0)  {
