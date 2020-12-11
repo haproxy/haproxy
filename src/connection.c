@@ -177,9 +177,16 @@ void conn_fd_handler(int fd)
 	    conn->mux && conn->mux->wake && conn->mux->wake(conn) < 0)
 		return;
 
-	/* commit polling changes */
-	conn_cond_update_polling(conn);
-	return;
+	/* commit polling changes in case of error.
+	 * WT: it seems that the last case where this could still be relevant
+	 * is if a mux wake function above report a connection error but does
+	 * not stop polling. Shouldn't we enforce this into the mux instead of
+	 * having to deal with this ?
+	 */
+	if (unlikely(conn->flags & CO_FL_ERROR)) {
+		if (conn_ctrl_ready(conn))
+			fd_stop_both(fd);
+	}
 }
 
 /* This is the callback which is set when a connection establishment is pending
