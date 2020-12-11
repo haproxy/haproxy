@@ -50,6 +50,7 @@ enum {
 	H2_PHDR_IDX_SCHM = 4, /* :scheme    = 6..7  */
 	H2_PHDR_IDX_STAT = 5, /* :status    = 8..14 */
 	H2_PHDR_IDX_HOST = 6, /* Host, never returned, just a place-holder */
+	H2_PHDR_IDX_PROT = 7, /* :protocol from rfc 8441 Extended Connect */
 	H2_PHDR_NUM_ENTRIES   /* must be last */
 };
 
@@ -64,6 +65,7 @@ enum {
 	H2_PHDR_FND_SCHM = 1 << H2_PHDR_IDX_SCHM,
 	H2_PHDR_FND_STAT = 1 << H2_PHDR_IDX_STAT,
 	H2_PHDR_FND_HOST = 1 << H2_PHDR_IDX_HOST,
+	H2_PHDR_FND_PROT = 1 << H2_PHDR_IDX_PROT,
 };
 
 /* frame types, from the standard */
@@ -305,6 +307,7 @@ static inline int h2_str_to_phdr(const struct ist str)
 		else if (isteq(str, ist(":scheme")))    return H2_PHDR_IDX_SCHM;
 		else if (isteq(str, ist(":status")))    return H2_PHDR_IDX_STAT;
 		else if (isteq(str, ist(":authority"))) return H2_PHDR_IDX_AUTH;
+		else if (isteq(str, ist(":protocol")))  return H2_PHDR_IDX_PROT;
 
 		/* all other names starting with ':' */
 		return -1;

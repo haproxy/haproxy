@@ -173,28 +173,64 @@ int h2_parse_cont_len_header(unsigned int *msgf, struct ist *value, unsigned lon
  */
 static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, struct htx *htx, unsigned int *msgf)
 {
-	struct ist uri;
+	struct ist uri, meth_sl;
 	unsigned int flags = HTX_SL_F_NONE;
 	struct htx_sl *sl;
 	size_t i;
 
 	if ((fields & H2_PHDR_FND_METH) && isteq(phdr[H2_PHDR_IDX_METH], ist("CONNECT"))) {
-		/* RFC 7540 #8.2.6 regarding CONNECT: ":scheme" and ":path"
-		 * MUST be omitted ; ":authority" contains the host and port
-		 * to connect to.
-		 */
-		if (fields & H2_PHDR_FND_SCHM) {
-			/* scheme not allowed */
-			goto fail;
+		if (fields & H2_PHDR_FND_PROT) {
+			/* rfc 8441 Extended Connect Protocol
+			 * #4 :scheme and :path must be present, as well as
+			 * :authority like all h2 requests
+			 */
+			if (!(fields & H2_PHDR_FND_SCHM)) {
+				/* missing scheme */
+				goto fail;
+			}
+			else if (!(fields & H2_PHDR_FND_PATH)) {
+				/* missing path */
+				goto fail;
+			}
+			else if (!(fields & H2_PHDR_FND_AUTH)) {
+				/* missing authority */
+				goto fail;
+			}
+
+			flags |= HTX_SL_F_HAS_SCHM;
+			if (isteqi(phdr[H2_PHDR_IDX_SCHM], ist("http")))
+				flags |= HTX_SL_F_SCHM_HTTP;
+			else if (isteqi(phdr[H2_PHDR_IDX_SCHM], ist("https")))
+				flags |= HTX_SL_F_SCHM_HTTPS;
+
+			meth_sl = ist("GET");
+
+			*msgf |= H2_MSGF_EXT_CONNECT;
+			/* no ES on the HEADERS frame but no body either for
+			 * Extended CONNECT */
+			*msgf &= ~H2_MSGF_BODY;
 		}
-		else if (fields & H2_PHDR_FND_PATH) {
-			/* path not allowed */
-			goto fail;
+		else {
+			/* RFC 7540 #8.2.6 regarding CONNECT: ":scheme" and ":path"
+			 * MUST be omitted ; ":authority" contains the host and port
+			 * to connect to.
+			 */
+			if (fields & H2_PHDR_FND_SCHM) {
+				/* scheme not allowed */
+				goto fail;
+			}
+			else if (fields & H2_PHDR_FND_PATH) {
+				/* path not allowed */
+				goto fail;
+			}
+			else if (!(fields & H2_PHDR_FND_AUTH)) {
+				/* missing authority */
+				goto fail;
+			}
+
+			meth_sl = phdr[H2_PHDR_IDX_METH];
 		}
-		else if (!(fields & H2_PHDR_FND_AUTH)) {
-			/* missing authority */
-			goto fail;
-		}
+
 		*msgf |= H2_MSGF_BODY_TUNNEL;
 	}
 	else if ((fields & (H2_PHDR_FND_METH|H2_PHDR_FND_SCHM|H2_PHDR_FND_PATH)) !=
@@ -230,6 +266,8 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 			flags |= HTX_SL_F_SCHM_HTTP;
 		else if (isteqi(phdr[H2_PHDR_IDX_SCHM], ist("https")))
 			flags |= HTX_SL_F_SCHM_HTTPS;
+
+		meth_sl = phdr[H2_PHDR_IDX_METH];
 	}
 
 	if (!(flags & HTX_SL_F_HAS_SCHM)) {
@@ -289,11 +327,11 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 	flags |= HTX_SL_F_VER_11;    // V2 in fact
 	flags |= HTX_SL_F_XFER_LEN;  // xfer len always known with H2
 
-	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, phdr[H2_PHDR_IDX_METH], uri, ist("HTTP/2.0"));
+	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth_sl, uri, ist("HTTP/2.0"));
 	if (!sl)
 		goto fail;
 
-	sl->info.req.meth = find_http_meth(phdr[H2_PHDR_IDX_METH].ptr, phdr[H2_PHDR_IDX_METH].len);
+	sl->info.req.meth = find_http_meth(meth_sl.ptr, meth_sl.len);
 	if (sl->info.req.meth == HTTP_METH_HEAD)
 		*msgf |= H2_MSGF_BODYLESS_RSP;
 	return sl;
@@ -455,6 +493,14 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		/* Request without body or tunnel requested */
 		sl_flags |= HTX_SL_F_BODYLESS;
 		htx->flags |= HTX_FL_EOM;
+	}
+
+	if (*msgf & H2_MSGF_EXT_CONNECT) {
+		if (!htx_add_header(htx, ist("upgrade"), phdr_val[H2_PHDR_IDX_PROT]))
+			goto fail;
+		if (!htx_add_header(htx, ist("connection"), ist("upgrade")))
+			goto fail;
+		sl_flags |= HTX_SL_F_CONN_UPG;
 	}
 
 	/* update the start line with last detected header info */
