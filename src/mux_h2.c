@@ -1593,6 +1593,10 @@ static int h2c_send_settings(struct h2c *h2c)
 		chunk_memcat(&buf, "\x00\x02\x00\x00\x00\x00", 6);
 	}
 
+	/* rfc 8441 #3 SETTINGS_ENABLE_CONNECT_PROTOCOL=1
+	 * sent automatically */
+	chunk_memcat(&buf, "\x00\x08\x00\x00\x00\x01", 6);
+
 	if (h2_settings_header_table_size != 4096) {
 		char str[6] = "\x00\x01"; /* header_table_size */
 
@@ -2196,6 +2200,10 @@ static int h2c_handle_settings(struct h2c *h2c)
 					arg = h2_settings_max_concurrent_streams;
 				h2c->streams_limit = arg;
 			}
+			break;
+		case H2_SETTINGS_ENABLE_CONNECT_PROTOCOL:
+			/* nothing to do here as this settings is automatically
+			 * transmits to the client */
 			break;
 		}
 	}
