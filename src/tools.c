@@ -48,6 +48,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/namespace.h>
 #include <haproxy/protocol.h>
+#include <haproxy/sock.h>
 #include <haproxy/ssl_sock.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -4598,7 +4599,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr)
 		{ .func = process_stream, .name = "process_stream" },
 		{ .func = task_run_applet, .name = "task_run_applet" },
 		{ .func = si_cs_io_cb, .name = "si_cs_io_cb" },
-		{ .func = conn_fd_handler, .name = "conn_fd_handler" },
+		{ .func = sock_conn_iocb, .name = "sock_conn_iocb" },
 		{ .func = dgram_fd_handler, .name = "dgram_fd_handler" },
 		{ .func = listener_accept, .name = "listener_accept" },
 		{ .func = poller_pipe_io_handler, .name = "poller_pipe_io_handler" },

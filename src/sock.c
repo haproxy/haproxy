@@ -631,7 +631,7 @@ void sock_accept_iocb(int fd)
  */
 void sock_conn_ctrl_init(struct connection *conn)
 {
-	fd_insert(conn->handle.fd, conn, conn_fd_handler, tid_bit);
+	fd_insert(conn->handle.fd, conn, sock_conn_iocb, tid_bit);
 }
 
 /* This completes the release of connection <conn> by removing its FD from the
@@ -642,6 +642,181 @@ void sock_conn_ctrl_close(struct connection *conn)
 {
 	fd_delete(conn->handle.fd);
 	conn->handle.fd = DEAD_FD_MAGIC;
+}
+
+/* This is the callback which is set when a connection establishment is pending
+ * and we have nothing to send. It may update the FD polling status to indicate
+ * !READY. It returns 0 if it fails in a fatal way or needs to poll to go
+ * further, otherwise it returns non-zero and removes the CO_FL_WAIT_L4_CONN
+ * flag from the connection's flags. In case of error, it sets CO_FL_ERROR and
+ * leaves the error code in errno.
+ */
+int sock_conn_check(struct connection *conn)
+{
+	struct sockaddr_storage *addr;
+	int fd = conn->handle.fd;
+
+	if (conn->flags & CO_FL_ERROR)
+		return 0;
+
+	if (!conn_ctrl_ready(conn))
+		return 0;
+
+	if (!(conn->flags & CO_FL_WAIT_L4_CONN))
+		return 1; /* strange we were called while ready */
+
+	if (!fd_send_ready(fd))
+		return 0;
+
+	/* Here we have 2 cases :
+	 *  - modern pollers, able to report ERR/HUP. If these ones return any
+	 *    of these flags then it's likely a failure, otherwise it possibly
+	 *    is a success (i.e. there may have been data received just before
+	 *    the error was reported).
+	 *  - select, which doesn't report these and with which it's always
+	 *    necessary either to try connect() again or to check for SO_ERROR.
+	 * In order to simplify everything, we double-check using connect() as
+	 * soon as we meet either of these delicate situations. Note that
+	 * SO_ERROR would clear the error after reporting it!
+	 */
+	if (cur_poller.flags & HAP_POLL_F_ERRHUP) {
+		/* modern poller, able to report ERR/HUP */
+		if ((fdtab[fd].ev & (FD_POLL_IN|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_IN)
+			goto done;
+		if ((fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_OUT)
+			goto done;
+		if (!(fdtab[fd].ev & (FD_POLL_ERR|FD_POLL_HUP)))
+			goto wait;
+		/* error present, fall through common error check path */
+	}
+
+	/* Use connect() to check the state of the socket. This has the double
+	 * advantage of *not* clearing the error (so that health checks can
+	 * still use getsockopt(SO_ERROR)) and giving us the following info :
+	 *  - error
+	 *  - connecting (EALREADY, EINPROGRESS)
+	 *  - connected (EISCONN, 0)
+	 */
+	addr = conn->dst;
+	if ((conn->flags & CO_FL_SOCKS4) && obj_type(conn->target) == OBJ_TYPE_SERVER)
+		addr = &objt_server(conn->target)->socks4_addr;
+
+	if (connect(fd, (const struct sockaddr *)addr, get_addr_len(addr)) == -1) {
+		if (errno == EALREADY || errno == EINPROGRESS)
+			goto wait;
+
+		if (errno && errno != EISCONN)
+			goto out_error;
+	}
+
+ done:
+	/* The FD is ready now, we'll mark the connection as complete and
+	 * forward the event to the transport layer which will notify the
+	 * data layer.
+	 */
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
+	fd_may_send(fd);
+	fd_cond_recv(fd);
+	errno = 0; // make health checks happy
+	return 1;
+
+ out_error:
+	/* Write error on the file descriptor. Report it to the connection
+	 * and disable polling on this FD.
+	 */
+	fdtab[fd].linger_risk = 0;
+	conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+	fd_stop_both(fd);
+	return 0;
+
+ wait:
+	fd_cant_send(fd);
+	fd_want_send(fd);
+	return 0;
+}
+
+/* I/O callback for fd-based connections. It calls the read/write handlers
+ * provided by the connection's sock_ops, which must be valid.
+ */
+void sock_conn_iocb(int fd)
+{
+	struct connection *conn = fdtab[fd].owner;
+	unsigned int flags;
+	int need_wake = 0;
+
+	if (unlikely(!conn)) {
+		activity[tid].conn_dead++;
+		return;
+	}
+
+	flags = conn->flags & ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
+
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) &&
+	    ((fd_send_ready(fd) && fd_send_active(fd)) ||
+	     (fd_recv_ready(fd) && fd_recv_active(fd)))) {
+		/* Still waiting for a connection to establish and nothing was
+		 * attempted yet to probe the connection. this will clear the
+		 * CO_FL_WAIT_L4_CONN flag on success.
+		 */
+		if (!sock_conn_check(conn))
+			goto leave;
+		need_wake = 1;
+	}
+
+	if (fd_send_ready(fd) && fd_send_active(fd)) {
+		/* force reporting of activity by clearing the previous flags :
+		 * we'll have at least ERROR or CONNECTED at the end of an I/O,
+		 * both of which will be detected below.
+		 */
+		flags = 0;
+		if (conn->subs && conn->subs->events & SUB_RETRY_SEND) {
+			need_wake = 0; // wake will be called after this I/O
+			tasklet_wakeup(conn->subs->tasklet);
+			conn->subs->events &= ~SUB_RETRY_SEND;
+			if (!conn->subs->events)
+				conn->subs = NULL;
+		}
+		fd_stop_send(fd);
+	}
+
+	/* The data transfer starts here and stops on error and handshakes. Note
+	 * that we must absolutely test conn->xprt at each step in case it suddenly
+	 * changes due to a quick unexpected close().
+	 */
+	if (fd_recv_ready(fd) && fd_recv_active(fd)) {
+		/* force reporting of activity by clearing the previous flags :
+		 * we'll have at least ERROR or CONNECTED at the end of an I/O,
+		 * both of which will be detected below.
+		 */
+		flags = 0;
+		if (conn->subs && conn->subs->events & SUB_RETRY_RECV) {
+			need_wake = 0; // wake will be called after this I/O
+			tasklet_wakeup(conn->subs->tasklet);
+			conn->subs->events &= ~SUB_RETRY_RECV;
+			if (!conn->subs->events)
+				conn->subs = NULL;
+		}
+		fd_stop_recv(fd);
+	}
+
+ leave:
+	/* we may have to finish to install a mux or to wake it up based on
+	 * what was just done above. It may kill the connection so we have to
+	 * be prpared not to use it anymore.
+	 */
+	if (conn_notify_mux(conn, flags, need_wake) < 0)
+		return;
+
+	/* commit polling changes in case of error.
+	 * WT: it seems that the last case where this could still be relevant
+	 * is if a mux wake function above report a connection error but does
+	 * not stop polling. Shouldn't we enforce this into the mux instead of
+	 * having to deal with this ?
+	 */
+	if (unlikely(conn->flags & CO_FL_ERROR)) {
+		if (conn_ctrl_ready(conn))
+			fd_stop_both(fd);
+	}
 }
 
 /*

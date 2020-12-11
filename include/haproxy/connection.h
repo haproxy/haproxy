@@ -46,12 +46,6 @@ extern struct mux_proto_list mux_proto_list;
 #define IS_HTX_CONN(conn) ((conn)->mux && ((conn)->mux->flags & MX_FL_HTX))
 #define IS_HTX_CS(cs)     (IS_HTX_CONN((cs)->conn))
 
-/* I/O callback for fd-based connections. It calls the read/write handlers
- * provided by the connection's sock_ops.
- */
-void conn_fd_handler(int fd);
-int conn_fd_check(struct connection *conn);
-
 /* receive a PROXY protocol header over a connection */
 int conn_recv_proxy(struct connection *conn, int flag);
 int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm);
@@ -213,6 +207,52 @@ static inline void conn_xprt_shutw_hard(struct connection *c)
 	/* unclean data-layer shutdown */
 	if (c->xprt && c->xprt->shutw)
 		c->xprt->shutw(c, c->xprt_ctx, 0);
+}
+
+/* This is used at the end of the socket IOCB to possibly create the mux if it
+ * was not done yet, or wake it up if flags changed compared to old_flags or if
+ * need_wake insists on this. It returns <0 if the connection was destroyed and
+ * must not be used, >=0 otherwise.
+ */
+static inline int conn_notify_mux(struct connection *conn, int old_flags, int forced_wake)
+{
+	int ret = 0;
+
+	/* If we don't yet have a mux, that means we were waiting for
+	 * information to create one, typically from the ALPN. If we're
+	 * done with the handshake, attempt to create one.
+	 */
+	if (unlikely(!conn->mux) && !(conn->flags & CO_FL_WAIT_XPRT)) {
+		ret = conn_create_mux(conn);
+		if (ret < 0)
+			goto done;
+	}
+
+	/* The wake callback is normally used to notify the data layer about
+	 * data layer activity (successful send/recv), connection establishment,
+	 * shutdown and fatal errors. We need to consider the following
+	 * situations to wake up the data layer :
+	 *  - change among the CO_FL_NOTIFY_DONE flags :
+	 *      SOCK_{RD,WR}_SH, ERROR,
+	 *  - absence of any of {L4,L6}_CONN and CONNECTED, indicating the
+	 *    end of handshake and transition to CONNECTED
+	 *  - raise of CONNECTED with HANDSHAKE down
+	 *  - end of HANDSHAKE with CONNECTED set
+	 *  - regular data layer activity
+	 *
+	 * Note that the wake callback is allowed to release the connection and
+	 * the fd (and return < 0 in this case).
+	 */
+	if ((forced_wake ||
+	     ((conn->flags ^ old_flags) & CO_FL_NOTIFY_DONE) ||
+	     ((old_flags & CO_FL_WAIT_XPRT) && !(conn->flags & CO_FL_WAIT_XPRT))) &&
+	    conn->mux && conn->mux->wake) {
+		ret = conn->mux->wake(conn);
+		if (ret < 0)
+			goto done;
+	}
+ done:
+	return ret;
 }
 
 /* shut read */

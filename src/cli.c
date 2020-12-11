@@ -1046,7 +1046,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 #endif
 				goto skip; // closed
 		}
-		else if (fdt.iocb == conn_fd_handler) {
+		else if (fdt.iocb == sock_conn_iocb) {
 			conn_flags = ((struct connection *)fdt.owner)->flags;
 			mux = ((struct connection *)fdt.owner)->mux;
 			ctx = ((struct connection *)fdt.owner)->ctx;
@@ -1082,7 +1082,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		if (!fdt.owner) {
 			chunk_appendf(&trash, ")");
 		}
-		else if (fdt.iocb == conn_fd_handler) {
+		else if (fdt.iocb == sock_conn_iocb) {
 			chunk_appendf(&trash, ") back=%d cflg=0x%08x", is_back, conn_flags);
 			if (px)
 				chunk_appendf(&trash, " px=%s", px->id);

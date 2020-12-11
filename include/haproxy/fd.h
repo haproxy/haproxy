@@ -430,7 +430,7 @@ static inline void fd_update_events(int fd, unsigned char evts)
 static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned long thread_mask)
 {
 	int locked = fdtab[fd].running_mask != tid_bit;
-	extern void conn_fd_handler(int);
+	extern void sock_conn_iocb(int);
 
 	if (locked)
 		fd_set_running_excl(fd);
@@ -446,7 +446,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 #endif
 
 	/* conn_fd_handler should support edge-triggered FDs */
-	if ((global.tune.options & GTUNE_FD_ET) && fdtab[fd].iocb == conn_fd_handler)
+	if ((global.tune.options & GTUNE_FD_ET) && fdtab[fd].iocb == sock_conn_iocb)
 		fdtab[fd].et_possible = 1;
 
 	fdtab[fd].thread_mask = thread_mask;

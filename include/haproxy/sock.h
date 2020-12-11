@@ -45,6 +45,9 @@ struct connection *sock_accept_conn(struct listener *l, int *status);
 void sock_accept_iocb(int fd);
 void sock_conn_ctrl_init(struct connection *conn);
 void sock_conn_ctrl_close(struct connection *conn);
+void sock_conn_iocb(int fd);
+int sock_conn_check(struct connection *conn);
+
 
 #endif /* _HAPROXY_SOCK_H */
 
