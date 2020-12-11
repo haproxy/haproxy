@@ -124,6 +124,8 @@ struct h1s {
 
 	enum http_meth_t meth; /* HTTP request method  */
 	uint16_t status;       /* HTTP response status */
+
+	char ws_key[25];       /* websocket handshake key */
 };
 
 /* Map of headers used to convert outgoing headers */
@@ -647,6 +649,7 @@ static struct h1s *h1s_new(struct h1c *h1c)
 	h1s->flags = H1S_F_WANT_KAL;
 	h1s->subs = NULL;
 	h1s->rxbuf = BUF_NULL;
+	memset(h1s->ws_key, 0, sizeof(h1s->ws_key));
 
 	h1m_init_req(&h1s->req);
 	h1s->req.flags |= (H1_MF_NO_PHDR|H1_MF_CLEAN_CONN_HDR);
@@ -1300,13 +1303,17 @@ static void h1_set_tunnel_mode(struct h1s *h1s)
 
 /* Search for a websocket key header. The message should have been identified
  * as a valid websocket handshake.
+ *
+ * On the request side, if found the key is stored in the session. It might be
+ * needed to calculate response key if the server side is using http/2.
+ *
  * Returns 0 if no key found
  */
 static int h1_search_websocket_key(struct h1s *h1s, struct h1m *h1m, struct htx *htx)
 {
 	struct htx_blk *blk;
 	enum htx_blk_type type;
-	struct ist n;
+	struct ist n, v;
 	int ws_key_found = 0, idx;
 
 	idx = htx_get_head(htx); // returns the SL that we skip
@@ -1321,9 +1328,16 @@ static int h1_search_websocket_key(struct h1s *h1s, struct h1m *h1m, struct htx 
 			break;
 
 		n = htx_get_blk_name(htx, blk);
+		v = htx_get_blk_value(htx, blk);
 
-		if (isteqi(n, ist("sec-websocket-key")) &&
+		/* Websocket key is base64 encoded of 16 bytes */
+		if (isteqi(n, ist("sec-websocket-key")) && v.len == 24 &&
 		    !(h1m->flags & H1_MF_RESP)) {
+			/* Copy the key on request side
+			 * we might need it if the server is using h2 and does
+			 * not provide the response
+			 */
+			memcpy(h1s->ws_key, v.ptr, 24);
 			ws_key_found = 1;
 			break;
 		}
@@ -1702,6 +1716,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	struct buffer tmp;
 	size_t total = 0;
 	int last_data = 0;
+	int ws_key_found = 0;
 
 	if (!count)
 		goto end;
@@ -1905,6 +1920,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					if (!v.len)
 						goto skip_hdr;
 				}
+				else if (isteq(n, ist("upgrade"))) {
+					h1_parse_upgrade_header(h1m, v);
+				}
+				else if (isteq(n, ist("sec-websocket-accept")) &&
+				          h1m->flags & H1_MF_RESP) {
+					ws_key_found = 1;
+				}
 
 				/* Skip header if same name is used to add the server name */
 				if (!(h1m->flags & H1_MF_RESP) && h1c->px->server_id_hdr_name &&
@@ -1982,6 +2004,21 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					}
 					TRACE_STATE("add server name header", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 					h1s->flags |= H1S_F_HAVE_SRV_NAME;
+				}
+
+				/* Add websocket handshake key if needed */
+				if ((h1m->flags & (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET)) == (H1_MF_CONN_UPG|H1_MF_UPG_WEBSOCKET) &&
+				    !ws_key_found) {
+					if (h1m->flags & H1_MF_RESP) {
+						/* add the response header key */
+						char key[29];
+						h1_calculate_ws_output_key(h1s->ws_key, key);
+						if (!h1_format_htx_hdr(ist("Sec-Websocket-Accept"),
+						                       ist(key),
+						                       &tmp)) {
+							goto full;
+						}
+					}
 				}
 
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request headers xferred" : "H1 response headers xferred"),

@@ -11,7 +11,11 @@
  */
 
 #include <ctype.h>
+
+#include <import/sha1.h>
+
 #include <haproxy/api.h>
+#include <haproxy/base64.h>
 #include <haproxy/h1.h>
 #include <haproxy/http-hdr.h>
 
@@ -1050,4 +1054,29 @@ int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int
 		/* OK, next line then */
 	}
 	return count - ofs;
+}
+
+#define H1_WS_KEY_SUFFIX_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+/*
+ * Calculate the WebSocket handshake response key from <key_in>. Following the
+ * rfc6455, <key_in> must be 24 bytes longs. The result is  stored in <key_out>
+ * as a 29 bytes long string.
+ */
+void h1_calculate_ws_output_key(const char *key, char *result)
+{
+	blk_SHA_CTX sha1_ctx;
+	char hash_in[60], hash_out[20];
+
+	/* concatenate the key with a fixed suffix */
+	memcpy(hash_in, key, 24);
+	memcpy(&hash_in[24], H1_WS_KEY_SUFFIX_GUID, 36);
+
+	/* sha1 the result */
+	blk_SHA1_Init(&sha1_ctx);
+	blk_SHA1_Update(&sha1_ctx, hash_in, 60);
+	blk_SHA1_Final((unsigned char *)hash_out, &sha1_ctx);
+
+	/* encode in base64 the hash */
+	a2base64(hash_out, 20, result, 29);
 }

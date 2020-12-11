@@ -150,6 +150,8 @@ void h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value);
 void h1_parse_connection_header(struct h1m *h1m, struct ist *value);
 void h1_parse_upgrade_header(struct h1m *h1m, struct ist value);
 
+void h1_calculate_ws_output_key(const char *key, char *result);
+
 /* for debugging, reports the HTTP/1 message state name */
 static inline const char *h1m_state_str(enum h1m_state msg_state)
 {
