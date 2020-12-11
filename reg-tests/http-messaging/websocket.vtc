@@ -1,0 +1,206 @@
+# This reg-test is uses to test respect of the websocket protocol according to
+# rfc6455.
+#
+# In particular, a request/response without a websocket key must be rejected by
+# haproxy. Note that in the tested case (h1 on both sides), haproxy does not
+# validate the key of the server but only checks its presence.
+#
+# For the case h2 client/h1 server, haproxy would add the key and validates it.
+# However, there is no way to check this case quickly at the moment using vtest.
+
+varnishtest "WebSocket test"
+
+feature ignore_unknown_macro
+
+# valid websocket server
+server s1 {
+	rxreq
+	expect req.method == "GET"
+	expect req.http.connection == "upgrade"
+	expect req.http.upgrade == "websocket"
+	expect req.http.sec-websocket-key == "dGhlIHNhbXBsZSBub25jZQ=="
+
+	txresp \
+	  -status 101 \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket" \
+	  -hdr "sec-websocket-accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+} -repeat 2 -start
+
+# non-conformant server: no websocket key
+server s2 {
+	rxreq
+	expect req.method == "GET"
+	expect req.http.connection == "upgrade"
+	expect req.http.upgrade == "websocket"
+
+	txresp \
+	  -status 101 \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket"
+} -start
+
+# haproxy instance used as a server
+# generate a http/1.1 websocket response with the valid key
+haproxy hap_srv -conf {
+	defaults
+	mode http
+	${no-htx} option http-use-htx
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+	listen fe1
+	bind "fd@${fe1}"
+
+	# reject if the request does not contains a websocket key
+	acl ws_handshake hdr(sec-websocket-key) -m found
+	http-request reject unless ws_handshake
+
+	# return a valid websocket handshake response
+	capture request header sec-websocket-key len 128
+	http-request return status 200 hdr connection upgrade hdr upgrade websocket hdr sec-websocket-accept "%[capture.req.hdr(0),concat(258EAFA5-E914-47DA-95CA-C5AB0DC85B11,,),sha1,base64]"
+	http-after-response set-status 101 if { status eq 200 }
+} -start
+
+# haproxy instance used as a server
+# generate a http/1.1 websocket response with an invalid key
+haproxy hap_srv_bad_key -conf {
+	defaults
+	mode http
+	${no-htx} option http-use-htx
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+	listen fe1
+	bind "fd@${fe1}"
+
+	# reject if the request does not contains a websocket key
+	acl ws_handshake hdr(sec-websocket-key) -m found
+	http-request reject unless ws_handshake
+
+	# return an invalid websocket handshake response
+	capture request header sec-websocket-key len 128
+	http-request return status 200 hdr connection upgrade hdr upgrade websocket hdr sec-websocket-accept "invalid_key"
+	http-after-response set-status 101 if { status eq 200 }
+} -start
+
+haproxy hap -conf {
+	defaults
+	mode http
+	${no-htx} option http-use-htx
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+	listen fe1
+	bind "fd@${fe1}"
+	server s1 ${s1_addr}:${s1_port}
+
+	listen fe2
+	bind "fd@${fe2}"
+	server s2 ${s2_addr}:${s2_port}
+
+	listen fe3
+	bind "fd@${fe3}" proto h2
+	server hap_srv ${hap_srv_fe1_addr}:${hap_srv_fe1_port}
+
+	listen fe4
+	bind "fd@${fe4}" proto h2
+	server hap_srv_bad_key ${hap_srv_bad_key_fe1_addr}:${hap_srv_bad_key_fe1_port}
+} -start
+
+# standard request
+client c1 -connect ${hap_fe1_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket" \
+	  -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+	rxresp
+	expect resp.status == 101
+	expect resp.http.connection == "upgrade"
+	expect resp.http.upgrade == "websocket"
+	expect resp.http.sec-websocket-accept == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+} -run
+
+# missing websocket key
+client c2 -connect ${hap_fe1_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket"
+
+	rxresp
+	expect resp.status == 400
+} -run
+
+# missing key on server side
+client c3 -connect ${hap_fe2_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: websocket" \
+	  -hdr "sec-websocket-key: dGhlIHNhbXBsZSBub25jZQ=="
+
+	rxresp
+	expect resp.status == 502
+} -run
+
+# connect with http/2 on a http/1.1 websocket server
+# the key must be provided by haproxy
+client c4 -connect ${hap_fe3_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -req "CONNECT" \
+		  -scheme "http" \
+		  -url "/" \
+		  -hdr ":authority" "127.0.0.1" \
+		  -hdr ":protocol" "websocket"
+
+		rxhdrs
+		expect resp.status == 200
+	} -run
+} -run
+
+# connect with http/2 on a http/1.1 websocket server
+# however, the server will respond with an invalid key
+# haproxy is responsible to reject the request and returning a 502 to the client
+client c5 -connect ${hap_fe4_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -req "CONNECT" \
+		  -scheme "http" \
+		  -url "/" \
+		  -hdr ":authority" "127.0.0.1" \
+		  -hdr ":protocol" "websocket"
+
+		rxhdrs
+		expect resp.status == 502
+	} -run
+} -run
