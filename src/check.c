@@ -797,8 +797,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		/* Check complete or aborted. If connection not yet closed do it
 		 * now and wake the check task up to be sure the result is
 		 * handled ASAP. */
-		conn_sock_drain(conn);
-		cs_close(cs);
+		cs_drain_and_close(cs);
 		ret = -1;
 		/* We may have been scheduled to run, and the
 		 * I/O handler expects to have a cs, so remove
@@ -899,8 +898,7 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 			 * as a failed response coupled with "observe layer7" caused the
 			 * server state to be suddenly changed.
 			 */
-			conn_sock_drain(conn);
-			cs_close(cs);
+			cs_drain_and_close(cs);
 		}
 
 		if (cs) {
