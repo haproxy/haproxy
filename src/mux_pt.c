@@ -247,6 +247,8 @@ static void mux_pt_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 	if (conn_xprt_ready(cs->conn) && cs->conn->xprt->shutr)
 		cs->conn->xprt->shutr(cs->conn, cs->conn->xprt_ctx,
 		    (mode == CS_SHR_DRAIN));
+	else if (mode == CS_SHR_DRAIN)
+		conn_sock_drain(cs->conn);
 	if (cs->flags & CS_FL_SHW)
 		conn_full_close(cs->conn);
 }
