@@ -205,9 +205,6 @@ static inline void conn_sock_shutw(struct connection *c, int clean)
 
 static inline void conn_xprt_shutw(struct connection *c)
 {
-	if (conn_ctrl_ready(c))
-		fd_stop_send(c->handle.fd);
-
 	/* clean data-layer shutdown */
 	if (c->xprt && c->xprt->shutw)
 		c->xprt->shutw(c, c->xprt_ctx, 1);
@@ -215,9 +212,6 @@ static inline void conn_xprt_shutw(struct connection *c)
 
 static inline void conn_xprt_shutw_hard(struct connection *c)
 {
-	if (conn_ctrl_ready(c))
-		fd_stop_send(c->handle.fd);
-
 	/* unclean data-layer shutdown */
 	if (c->xprt && c->xprt->shutw)
 		c->xprt->shutw(c, c->xprt_ctx, 0);
