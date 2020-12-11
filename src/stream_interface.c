@@ -1008,7 +1008,6 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 static void stream_int_shutw_conn(struct stream_interface *si)
 {
 	struct conn_stream *cs = __objt_cs(si->end);
-	struct connection *conn = cs->conn;
 	struct channel *ic = si_ic(si);
 	struct channel *oc = si_oc(si);
 
@@ -1056,13 +1055,8 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			 */
 			cs_shutw(cs, CS_SHW_NORMAL);
 
-			if (!(ic->flags & (CF_SHUTR|CF_DONT_READ))) {
-				/* OK just a shutw, but we want the caller
-				 * to disable polling on this FD if exists.
-				 */
-				conn_cond_update_polling(conn);
+			if (!(ic->flags & (CF_SHUTR|CF_DONT_READ)))
 				return;
-			}
 		}
 
 		/* fall through */
