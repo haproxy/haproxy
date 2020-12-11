@@ -1,0 +1,154 @@
+# This reg-test checks the full support of HTTP protocol upgrade, using a GET
+# method and a Connection: Upgrade header. The equivalent mechanism has been
+# defined in rfc8441 for HTTP/2 using CONNECT and a new pseudo-header
+# :protocol. Check that haproxy handles properly h1/h2 translation of protocol
+# upgrade requests and responses.
+
+varnishtest "h1/h2 support for protocol upgrade test"
+
+feature ignore_unknown_macro
+
+# http/1.1 server
+server srv_h1 {
+	rxreq
+	expect req.method == "GET"
+	expect req.http.connection == "upgrade"
+	expect req.http.upgrade == "custom_protocol"
+
+	txresp \
+	  -status 101 \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol"
+} -repeat 2 -start
+
+# http2 server
+server srv_h2 {
+	rxpri
+
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		rxhdrs
+		expect req.method == "CONNECT"
+		expect req.http.:scheme == "https"
+		expect req.http.:path == "/"
+		expect req.http.:authority == "127.0.0.1"
+		expect req.http.:protocol == "custom_protocol"
+
+		txresp \
+		  -status 200
+	} -run
+} -repeat 2 -start
+
+haproxy hap -conf {
+	defaults
+	mode http
+	${no-htx} option http-use-htx
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+	# h1 frontend connected to h2 frontend
+	listen frt_h1_h2
+	bind "fd@${frt_h1_h2}"
+	server feh2_srv ${hap_frt_h2_addr}:${hap_frt_h2_port} proto h2
+
+	# h2 frontend connected to srv_h1
+	listen frt_h2
+	bind "fd@${frt_h2}" proto h2
+	server srv_h1 ${srv_h1_addr}:${srv_h1_port}
+
+	# h1 frontend connected to srv_h2
+	listen frt_h1
+	bind "fd@${frt_h1}"
+	server srv_h2 ${srv_h2_addr}:${srv_h2_port} proto h2
+
+	# h2 frontend connected to h1 frontend
+	listen frt_h2_h1
+	bind "fd@${frt_h2_h1}" proto h2
+	server frt_h1 ${hap_frt_h1_addr}:${hap_frt_h1_port}
+} -start
+
+## connect to h1 translation frontend
+client c1_h1_h2 -connect ${hap_frt_h1_h2_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol"
+
+	rxresp
+	expect resp.status == 101
+	expect resp.http.connection == "upgrade"
+	expect resp.http.upgrade == "custom_protocol"
+} -run
+
+# connect to h2 server frontend
+client c2_h2 -connect ${hap_frt_h2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -req "CONNECT" \
+		  -scheme "http" \
+		  -url "/" \
+		  -hdr ":authority" "127.0.0.1" \
+		  -hdr ":protocol" "custom_protocol"
+
+		rxhdrs
+		expect resp.status == 200
+	} -run
+} -run
+
+# connect to h2 translation frontend
+client c3_h2_h1 -connect ${hap_frt_h2_h1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -req "CONNECT" \
+		  -scheme "http" \
+		  -url "/" \
+		  -hdr ":authority" "127.0.0.1" \
+		  -hdr ":protocol" "custom_protocol"
+
+		rxhdrs
+		expect resp.status == 200
+	} -run
+} -run
+
+# connect to h1 server frontend
+client c4_h1 -connect ${hap_frt_h1_sock} {
+	txreq \
+	  -req "GET" \
+	  -url "/" \
+	  -hdr "host: 127.0.0.1" \
+	  -hdr "connection: upgrade" \
+	  -hdr "upgrade: custom_protocol"
+
+	rxresp
+	expect resp.status == 101
+	expect resp.http.connection == "upgrade"
+	expect resp.http.upgrade == "custom_protocol"
+} -run
