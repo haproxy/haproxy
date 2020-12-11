@@ -177,7 +177,6 @@ static inline void conn_sock_read0(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_RD_SH;
 	if (conn_ctrl_ready(c)) {
-		fd_stop_recv(c->handle.fd);
 		/* we don't risk keeping ports unusable if we found the
 		 * zero from the other side.
 		 */
@@ -194,7 +193,6 @@ static inline void conn_sock_shutw(struct connection *c, int clean)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
 	if (conn_ctrl_ready(c)) {
-		fd_stop_send(c->handle.fd);
 		/* don't perform a clean shutdown if we're going to reset or
 		 * if the shutr was already received.
 		 */
