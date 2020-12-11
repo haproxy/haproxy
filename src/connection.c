@@ -289,11 +289,13 @@ int conn_fd_check(struct connection *conn)
  * (typically send_proxy). In case of EAGAIN, the fd is marked as "cant_send".
  * It automatically retries on EINTR. Other errors cause the connection to be
  * marked as in error state. It takes similar arguments as send() except the
- * first one which is the connection instead of the file descriptor. Note,
- * MSG_DONTWAIT and MSG_NOSIGNAL are forced on the flags.
+ * first one which is the connection instead of the file descriptor. <flags>
+ * only support CO_SFL_MSG_MORE.
  */
-int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
+int conn_ctrl_send(struct connection *conn, const void *buf, int len, int flags)
 {
+	const struct buffer buffer = b_make((char*)buf, len, 0, len);
+	const struct xprt_ops *xprt = xprt_get(XPRT_RAW);
 	int ret;
 
 	ret = -1;
@@ -309,28 +311,13 @@ int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
 	if (!len)
 		goto fail;
 
-	if (!fd_send_ready(conn->handle.fd))
-		goto wait;
-
-	do {
-		ret = send(conn->handle.fd, buf, len, flags | MSG_DONTWAIT | MSG_NOSIGNAL);
-	} while (ret < 0 && errno == EINTR);
-
-
-	if (ret > 0) {
-		if (conn->flags & CO_FL_WAIT_L4_CONN) {
-			conn->flags &= ~CO_FL_WAIT_L4_CONN;
-			fd_may_send(conn->handle.fd);
-			fd_cond_recv(conn->handle.fd);
-		}
-		return ret;
-	}
-
-	if (ret == 0 || errno == EAGAIN || errno == ENOTCONN) {
-	wait:
-		fd_cant_send(conn->handle.fd);
-		return 0;
-	}
+	/* snd_buf() already takes care of updating conn->flags and handling
+	 * the FD polling status.
+	 */
+	ret = xprt->snd_buf(conn, NULL, &buffer, buffer.data, flags);
+	if (conn->flags & CO_FL_ERROR)
+		ret = -1;
+	return ret;
  fail:
 	conn->flags |= CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH | CO_FL_ERROR;
 	return ret;
@@ -1084,11 +1071,11 @@ int conn_send_socks4_proxy_request(struct connection *conn)
 		/* we are sending the socks4_req_line here. If the data layer
 		 * has a pending write, we'll also set MSG_MORE.
 		 */
-		ret = conn_sock_send(
+		ret = conn_ctrl_send(
 				conn,
 				((char *)(&req_line)) + (sizeof(req_line)+conn->send_proxy_ofs),
 				-conn->send_proxy_ofs,
-				(conn->subs && conn->subs->events & SUB_RETRY_SEND) ? MSG_MORE : 0);
+				(conn->subs && conn->subs->events & SUB_RETRY_SEND) ? CO_SFL_MSG_MORE : 0);
 
 		DPRINTF(stderr, "SOCKS PROXY HS FD[%04X]: Before send remain is [%d], sent [%d]\n",
 				conn->handle.fd, -conn->send_proxy_ofs, ret);

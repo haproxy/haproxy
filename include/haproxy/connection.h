@@ -65,7 +65,7 @@ int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, st
 int conn_recv_netscaler_cip(struct connection *conn, int flag);
 
 /* raw send() directly on the socket */
-int conn_sock_send(struct connection *conn, const void *buf, int len, int flags);
+int conn_ctrl_send(struct connection *conn, const void *buf, int len, int flags);
 
 /* drains any pending bytes from the socket */
 int conn_sock_drain(struct connection *conn);

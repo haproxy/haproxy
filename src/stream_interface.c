@@ -383,10 +383,10 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		/* we have to send trash from (ret+sp for -sp bytes). If the
 		 * data layer has a pending write, we'll also set MSG_MORE.
 		 */
-		ret = conn_sock_send(conn,
+		ret = conn_ctrl_send(conn,
 				     trash.area + ret + conn->send_proxy_ofs,
 		                     -conn->send_proxy_ofs,
-		                     (conn->subs && conn->subs->events & SUB_RETRY_SEND) ? MSG_MORE : 0);
+		                     (conn->subs && conn->subs->events & SUB_RETRY_SEND) ? CO_SFL_MSG_MORE : 0);
 
 		if (ret < 0)
 			goto out_error;
