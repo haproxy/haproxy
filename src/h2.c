@@ -529,7 +529,7 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
 {
 	unsigned int status, flags = HTX_SL_F_NONE;
 	struct htx_sl *sl;
-	unsigned char h, t, u;
+	struct ist stat;
 
 	/* only :status is allowed as a pseudo header */
 	if (!(fields & H2_PHDR_FND_STAT))
@@ -538,12 +538,25 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
 	if (phdr[H2_PHDR_IDX_STAT].len != 3)
 		goto fail;
 
-	h = phdr[H2_PHDR_IDX_STAT].ptr[0] - '0';
-	t = phdr[H2_PHDR_IDX_STAT].ptr[1] - '0';
-	u = phdr[H2_PHDR_IDX_STAT].ptr[2] - '0';
-	if (h > 9 || t > 9 || u > 9)
-		goto fail;
-	status = h * 100 + t * 10 + u;
+	/* if Extended CONNECT is used, convert status code from 200 to htx 101
+	 * following rfc 8441 */
+	if (unlikely(*msgf & H2_MSGF_EXT_CONNECT) &&
+	    isteq(phdr[H2_PHDR_IDX_STAT], ist("200"))) {
+		stat = ist("101");
+		status = 101;
+	}
+	else {
+		unsigned char h, t, u;
+
+		stat = phdr[H2_PHDR_IDX_STAT];
+
+		h = stat.ptr[0] - '0';
+		t = stat.ptr[1] - '0';
+		u = stat.ptr[2] - '0';
+		if (h > 9 || t > 9 || u > 9)
+			goto fail;
+		status = h * 100 + t * 10 + u;
+	}
 
 	/* 101 responses are not supported in H2, so return a error.
 	 * On 1xx responses there is no ES on the HEADERS frame but there is no
@@ -551,14 +564,20 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
 	 * notify the decoder another HEADERS frame is expected.
 	 * 204/304 resposne have no body by definition. So remove the flag
 	 * H2_MSGF_BODY and set H2_MSGF_BODYLESS_RSP.
+	 *
+	 * Note however that there is a special condition for Extended CONNECT.
+	 * In this case, we explicitly convert it to HTX 101 to mimic
+	 * Get+Upgrade HTTP/1.1 mechanism
 	 */
-	if (status == 101)
-		goto fail;
+	if (status == 101) {
+		if (!(*msgf & H2_MSGF_EXT_CONNECT))
+			goto fail;
+	}
 	else if (status < 200) {
 		*msgf |= H2_MSGF_RSP_1XX;
 		*msgf &= ~H2_MSGF_BODY;
 	}
-	else if (sl->info.res.status == 204 || sl->info.res.status == 304) {
+	else if (status == 204 || status == 304) {
 		*msgf &= ~H2_MSGF_BODY;
 		*msgf |= H2_MSGF_BODYLESS_RSP;
 	}
@@ -567,7 +586,7 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
 	flags |= HTX_SL_F_VER_11;    // V2 in fact
 	flags |= HTX_SL_F_XFER_LEN;  // xfer len always known with H2
 
-	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/2.0"), phdr[H2_PHDR_IDX_STAT], ist(""));
+	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/2.0"), stat, ist(""));
 	if (!sl)
 		goto fail;
 	sl->info.res.status = status;
@@ -593,8 +612,11 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
  *   - n.name ignored, n.len == 0 : end of list
  *   - in all cases except the end of list, v.name and v.len must designate a
  *     valid value.
+ *
+ * <upgrade_protocol> is only used if the htx status code is 101 indicating a
+ * response to an upgrade or h2-equivalent request.
  */
-int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *msgf, unsigned long long *body_len)
+int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *msgf, unsigned long long *body_len, char *upgrade_protocol)
 {
 	struct ist phdr_val[H2_PHDR_NUM_ENTRIES];
 	uint32_t fields; /* bit mask of H2_PHDR_FND_* */
@@ -698,7 +720,16 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 			goto fail;
 	}
 
-	if ((*msgf & H2_MSGF_BODY_TUNNEL) && sl->info.res.status >= 200 && sl->info.res.status < 300)
+	if (sl->info.res.status == 101 && upgrade_protocol) {
+		if (!htx_add_header(htx, ist("connection"), ist("upgrade")))
+			goto fail;
+		if (!htx_add_header(htx, ist("upgrade"), ist(upgrade_protocol)))
+			goto fail;
+		sl_flags |= HTX_SL_F_CONN_UPG;
+	}
+
+	if ((*msgf & H2_MSGF_BODY_TUNNEL) &&
+	    ((sl->info.res.status >= 200 && sl->info.res.status < 300) || sl->info.res.status == 101))
 		*msgf &= ~(H2_MSGF_BODY|H2_MSGF_BODY_CL);
 	else
 		*msgf &= ~H2_MSGF_BODY_TUNNEL;

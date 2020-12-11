@@ -217,6 +217,8 @@ struct h2s {
 	struct list list; /* To be used when adding in h2c->send_list or h2c->fctl_lsit */
 	struct tasklet *shut_tl;  /* deferred shutdown tasklet, to retry to send an RST after we failed to,
 				   * in case there's no other subscription to do it */
+
+	char upgrade_protocol[16]; /* rfc 8441: requested protocol on Extended CONNECT */
 };
 
 /* descriptor for an h2 frame header */
@@ -555,7 +557,7 @@ static int h2_process(struct h2c *h2c);
 /* h2_io_cb is exported to see it resolved in "show fd" */
 struct task *h2_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
-static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len);
+static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len, char *upgrade_protocol);
 static int h2_frt_transfer_data(struct h2s *h2s);
 static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state);
 static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess);
@@ -1443,6 +1445,7 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 	h2s->status    = 0;
 	h2s->body_len  = 0;
 	h2s->rxbuf     = BUF_NULL;
+	memset(h2s->upgrade_protocol, 0, sizeof(h2s->upgrade_protocol));
 
 	h2s->by_id.key = h2s->id = id;
 	if (id > 0)
@@ -2617,7 +2620,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->st != H2_SS_IDLE) {
 		/* The stream exists/existed, this must be a trailers frame */
 		if (h2s->st != H2_SS_CLOSED) {
-			error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &body_len);
+			error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &body_len, NULL);
 			/* unrecoverable error ? */
 			if (h2c->st0 >= H2_CS_ERROR)
 				goto out;
@@ -2638,7 +2641,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		/* the connection was already killed by an RST, let's consume
 		 * the data and send another RST.
 		 */
-		error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len);
+		error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len, NULL);
 		h2s = (struct h2s*)h2_error_stream;
 		goto send_rst;
 	}
@@ -2653,7 +2656,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	else if (h2c->flags & H2_CF_DEM_TOOMANY)
 		goto out; // IDLE but too many cs still present
 
-	error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len);
+	error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len, NULL);
 
 	/* unrecoverable error ? */
 	if (h2c->st0 >= H2_CS_ERROR)
@@ -2748,13 +2751,13 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		goto fail; // incomplete frame
 
 	if (h2s->st != H2_SS_CLOSED) {
-		error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &h2s->body_len);
+		error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &h2s->body_len, h2s->upgrade_protocol);
 	}
 	else {
 		/* the connection was already killed by an RST, let's consume
 		 * the data and send another RST.
 		 */
-		error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len);
+		error = h2c_decode_headers(h2c, &rxbuf, &flags, &body_len, NULL);
 		h2s = (struct h2s*)h2_error_stream;
 		h2c->st0 = H2_CS_FRAME_E;
 		goto send_rst;
@@ -4522,7 +4525,7 @@ static void h2_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
  * decoding, in order to detect if we're dealing with a headers or a trailers
  * block (the trailers block appears after H2_SF_HEADERS_RCVD was seen).
  */
-static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len)
+static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len, char *upgrade_protocol)
 {
 	const uint8_t *hdrs = (uint8_t *)b_head(&h2c->dbuf);
 	struct buffer *tmp = get_trash_chunk();
@@ -4679,13 +4682,16 @@ next_frame:
 	/* OK now we have our header list in <list> */
 	msgf = (h2c->dff & H2_F_HEADERS_END_STREAM) ? 0 : H2_MSGF_BODY;
 	msgf |= (*flags & H2_SF_BODY_TUNNEL) ? H2_MSGF_BODY_TUNNEL: 0;
+	/* If an Extended CONNECT has been sent on this stream, set message flag
+	 * to convert 200 response to 101 htx reponse */
+	msgf |= (*flags & H2_SF_EXT_CONNECT_SENT) ? H2_MSGF_EXT_CONNECT: 0;
 
 	if (*flags & H2_SF_HEADERS_RCVD)
 		goto trailers;
 
 	/* This is the first HEADERS frame so it's a headers block */
 	if (h2c->flags & H2_CF_IS_BACK)
-		outlen = h2_make_htx_response(list, htx, &msgf, body_len);
+		outlen = h2_make_htx_response(list, htx, &msgf, body_len, upgrade_protocol);
 	else
 		outlen = h2_make_htx_request(list, htx, &msgf, body_len);
 
