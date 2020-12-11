@@ -78,6 +78,8 @@ struct protocol proto_sockpair = {
 	.ctrl_close     = sock_conn_ctrl_close,
 	.connect        = sockpair_connect_server,
 	.drain          = sock_drain,
+	.check_events   = sock_check_events,
+	.ignore_events  = sock_ignore_events,
 
 	/* binding layer */
 	/* Note: suspend/resume not supported */

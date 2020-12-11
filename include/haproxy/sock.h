@@ -48,6 +48,8 @@ void sock_conn_ctrl_close(struct connection *conn);
 void sock_conn_iocb(int fd);
 int sock_conn_check(struct connection *conn);
 int sock_drain(struct connection *conn);
+int sock_check_events(struct connection *conn, int event_type);
+void sock_ignore_events(struct connection *conn, int event_type);
 
 
 #endif /* _HAPROXY_SOCK_H */

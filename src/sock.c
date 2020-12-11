@@ -872,6 +872,45 @@ int sock_drain(struct connection *conn)
 	return 1;
 }
 
+/* Checks the connection's FD for readiness of events <event_type>, which may
+ * only be a combination of SUB_RETRY_RECV and SUB_RETRY_SEND. Those which are
+ * ready are returned. The ones that are not ready are enabled. The caller is
+ * expected to do what is needed to handle ready events and to deal with
+ * subsequent wakeups caused by the requested events' readiness.
+ */
+int sock_check_events(struct connection *conn, int event_type)
+{
+	int ret = 0;
+
+	if (event_type & SUB_RETRY_RECV) {
+		if (fd_recv_ready(conn->handle.fd))
+			ret |= SUB_RETRY_RECV;
+		else
+			fd_want_recv(conn->handle.fd);
+	}
+
+	if (event_type & SUB_RETRY_SEND) {
+		if (fd_send_ready(conn->handle.fd))
+			ret |= SUB_RETRY_SEND;
+		else
+			fd_want_send(conn->handle.fd);
+	}
+
+	return ret;
+}
+
+/* Ignore readiness events from connection's FD for events of types <event_type>
+ * which may only be a combination of SUB_RETRY_RECV and SUB_RETRY_SEND.
+ */
+void sock_ignore_events(struct connection *conn, int event_type)
+{
+	if (event_type & SUB_RETRY_RECV)
+		fd_stop_recv(conn->handle.fd);
+
+	if (event_type & SUB_RETRY_SEND)
+		fd_stop_send(conn->handle.fd);
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

@@ -68,6 +68,8 @@ struct protocol proto_tcpv4 = {
 	.ctrl_close     = sock_conn_ctrl_close,
 	.connect        = tcp_connect_server,
 	.drain          = sock_drain,
+	.check_events   = sock_check_events,
+	.ignore_events  = sock_ignore_events,
 
 	/* binding layer */
 	.rx_suspend     = tcp_suspend_receiver,
@@ -108,6 +110,8 @@ struct protocol proto_tcpv6 = {
 	.ctrl_close     = sock_conn_ctrl_close,
 	.connect        = tcp_connect_server,
 	.drain          = sock_drain,
+	.check_events   = sock_check_events,
+	.ignore_events  = sock_ignore_events,
 
 	/* binding layer */
 	.rx_suspend     = tcp_suspend_receiver,
