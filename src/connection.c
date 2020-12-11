@@ -127,10 +127,10 @@ int conn_ctrl_send(struct connection *conn, const void *buf, int len, int flags)
 	return ret;
 }
 
-/* Called from the upper layer, to subscribe <es> to events <event_type>. The
- * event subscriber <es> is not allowed to change from a previous call as long
- * as at least one event is still subscribed. The <event_type> must only be a
- * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
+/* Called from the upper layer, to unsubscribe <es> from events <event_type>.
+ * The event subscriber <es> is not allowed to change from a previous call as
+ * long as at least one event is still subscribed. The <event_type> must only
+ * be a combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
  */
 int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
@@ -141,56 +141,36 @@ int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, st
 	if (!es->events)
 		conn->subs = NULL;
 
-	if (conn_ctrl_ready(conn)) {
-		if (event_type & SUB_RETRY_RECV)
-			fd_stop_recv(conn->handle.fd);
+	if (conn_ctrl_ready(conn) && conn->ctrl->ignore_events)
+		conn->ctrl->ignore_events(conn, event_type);
 
-		if (event_type & SUB_RETRY_SEND)
-			fd_stop_send(conn->handle.fd);
-	}
 	return 0;
 }
 
 /* Called from the upper layer, to subscribe <es> to events <event_type>.
  * The <es> struct is not allowed to differ from the one passed during a
- * previous call to subscribe(). If the FD is ready, the wait_event is
- * immediately woken up and the subcription is cancelled. It always
- * returns zero.
+ * previous call to subscribe(). If the connection's ctrl layer is ready,
+ * the wait_event is immediately woken up and the subcription is cancelled.
+ * It always returns zero.
  */
 int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
 {
+	int ret = 0;
+
 	BUG_ON(event_type & ~(SUB_RETRY_SEND|SUB_RETRY_RECV));
 	BUG_ON(conn->subs && conn->subs != es);
 
 	if (conn->subs && (conn->subs->events & event_type) == event_type)
 		return 0;
 
-	conn->subs = es;
-	es->events |= event_type;
-
-	if (conn_ctrl_ready(conn)) {
-		if (event_type & SUB_RETRY_RECV) {
-			if (fd_recv_ready(conn->handle.fd)) {
-				tasklet_wakeup(es->tasklet);
-				es->events &= ~SUB_RETRY_RECV;
-				if (!es->events)
-					conn->subs = NULL;
-			}
-			else
-				fd_want_recv(conn->handle.fd);
-		}
-
-		if (event_type & SUB_RETRY_SEND) {
-			if (fd_send_ready(conn->handle.fd)) {
-				tasklet_wakeup(es->tasklet);
-				es->events &= ~SUB_RETRY_SEND;
-				if (!es->events)
-					conn->subs = NULL;
-			}
-			else
-				fd_want_send(conn->handle.fd);
-		}
+	if (conn_ctrl_ready(conn) && conn->ctrl->check_events) {
+		ret = conn->ctrl->check_events(conn, event_type);
+		if (ret)
+			tasklet_wakeup(es->tasklet);
 	}
+
+	es->events = (es->events | event_type) & ~ret;
+	conn->subs = es->events ? es : NULL;
 	return 0;
 }
 
