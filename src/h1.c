@@ -18,6 +18,7 @@
 #include <haproxy/base64.h>
 #include <haproxy/h1.h>
 #include <haproxy/http-hdr.h>
+#include <haproxy/tools.h>
 
 /* Parse the Content-Length header field of an HTTP/1 request. The function
  * checks all possible occurrences of a comma-delimited value, and verifies
@@ -1054,6 +1055,21 @@ int h1_measure_trailers(const struct buffer *buf, unsigned int ofs, unsigned int
 		/* OK, next line then */
 	}
 	return count - ofs;
+}
+
+/* Generate a random key for a WebSocket Handshake in respect with rfc6455
+ * The key is 128-bits long encoded as a base64 string in <key_out> parameter
+ * (25 bytes long).
+ */
+void h1_generate_random_ws_input_key(char key_out[25])
+{
+	/* generate a random websocket key */
+	const uint64_t rand1 = ha_random64(), rand2 = ha_random64();
+	char key[16];
+
+	memcpy(key, &rand1, 8);
+	memcpy(&key[8], &rand2, 8);
+	a2base64(key, 16, key_out, 25);
 }
 
 #define H1_WS_KEY_SUFFIX_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"

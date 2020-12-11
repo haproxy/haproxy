@@ -150,6 +150,7 @@ void h1_parse_xfer_enc_header(struct h1m *h1m, struct ist value);
 void h1_parse_connection_header(struct h1m *h1m, struct ist *value);
 void h1_parse_upgrade_header(struct h1m *h1m, struct ist value);
 
+void h1_generate_random_ws_input_key(char key_out[25]);
 void h1_calculate_ws_output_key(const char *key, char *result);
 
 /* for debugging, reports the HTTP/1 message state name */
