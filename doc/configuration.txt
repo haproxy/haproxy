@@ -118,6 +118,7 @@ Summary
 9.3.      Stream Processing Offload Engine (SPOE)
 9.4.      Cache
 9.5.      fcgi-app
+9.6.      OpenTracing
 
 10.   FastCGI applications
 10.1.     Setup
@@ -20752,6 +20753,40 @@ order.
 
 See also: "use-fcgi-app", section 9.2 about the compression filter, section 9.4
           about the cache filter and section 10 about FastCGI application.
+
+
+9.6. OpenTracing
+----------------
+
+The OpenTracing filter adds native support for using distributed tracing in
+HAProxy. This is enabled by sending an OpenTracing compliant request to one
+of the supported tracers such as Datadog, Jaeger, Lightstep and Zipkin tracers.
+Please note: tracers are not listed by any preference, but alphabetically.
+
+This feature is only enabled when haproxy was built with USE_OT=1.
+
+The OpenTracing filter activation is done explicitly by specifying it in the
+HAProxy configuration. If this is not done, the OpenTracing filter in no way
+participates in the work of HAProxy.
+
+filter opentracing [id <id>] config <file>
+
+  Arguments :
+
+    <id>        is the OpenTracing filter id that will be used to find the
+                right scope in the configuration file. If no filter id is
+                specified, 'ot-filter' is used as default.  If scope is not
+                specified in the configuration file, it applies to all defined
+                OpenTracing filters.
+
+    <file>      is the path of the OpenTracing configuration file. The same
+                file can contain configurations for multiple OpenTracing
+                filters simultaneously. In that case we do not need to define
+                scope so the same configuration applies to all filters or each
+                filter must have its own scope defined.
+
+More detailed documentation related to the operation, configuration and use
+of the filter can be found in the contrib/opentracing directory.
 
 
 10. FastCGI applications
