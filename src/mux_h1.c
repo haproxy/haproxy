@@ -2589,6 +2589,7 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 				h1_send(h1c);
 			if (b_data(&h1c->obuf) || (h1c->flags & H1C_F_ERR_PENDING)) {
 				h1_refresh_timeout(h1c);
+				HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 				return t;
 			}
 		}
