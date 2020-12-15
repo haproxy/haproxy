@@ -1,6 +1,6 @@
 varnishtest "Vary support"
 
-#REQUIRE_VERSION=2.3
+#REQUIRE_VERSION=2.4
 
 feature ignore_unknown_macro
 
