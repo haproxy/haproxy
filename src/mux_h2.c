@@ -1458,9 +1458,12 @@ static struct h2s *h2s_new(struct h2c *h2c, int id)
 }
 
 /* creates a new stream <id> on the h2c connection and returns it, or NULL in
- * case of memory allocation error.
+ * case of memory allocation error. <input> is used as input buffer for the new
+ * stream. On success, it is transferred to the stream and the mux is no longer
+ * responsible of it. On error, <input> is unchanged, thus the mux must still
+ * take care of it.
  */
-static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
+static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *input)
 {
 	struct session *sess = h2c->conn->owner;
 	struct conn_stream *cs;
@@ -1484,7 +1487,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id)
 	cs->ctx = h2s;
 	h2c->nb_cs++;
 
-	if (stream_create_from_cs(cs, &BUF_NULL) < 0)
+	if (stream_create_from_cs(cs, input) < 0)
 		goto out_free_cs;
 
 	/* We want the accept date presented to the next stream to be the one
@@ -2663,15 +2666,17 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	/* Note: we don't emit any other logs below because ff we return
 	 * positively from h2c_frt_stream_new(), the stream will report the error,
 	 * and if we return in error, h2c_frt_stream_new() will emit the error.
+	 *
+	 * Xfer the rxbuf to the stream. On success, the new stream owns the
+	 * rxbuf. On error, it is released here.
 	 */
-	h2s = h2c_frt_stream_new(h2c, h2c->dsi);
+	h2s = h2c_frt_stream_new(h2c, h2c->dsi, &rxbuf);
 	if (!h2s) {
 		h2s = (struct h2s*)h2_refused_stream;
 		goto send_rst;
 	}
 
 	h2s->st = H2_SS_OPEN;
-	h2s->rxbuf = rxbuf;
 	h2s->flags |= flags;
 	h2s->body_len = body_len;
 
