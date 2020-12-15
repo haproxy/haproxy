@@ -1337,6 +1337,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					if (ckchi->is_default)
 						new_inst->is_default = 1;
 
+					/* create the link to the crtlist_entry */
+					new_inst->crtlist_entry = ckchi->crtlist_entry;
+
 					/* we need to initialize the SSL_CTX generated */
 					/* this iterate on the newly generated SNIs in the new instance to prepare their SSL_CTX */
 					list_for_each_entry_safe(sc0, sc0s, &new_inst->sni_ctx, by_ckch_inst) {
@@ -1372,6 +1375,12 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					/* change the ptr and reinsert the node */
 					entry->node.key = new_ckchs;
 					ebpt_insert(&entry->crtlist->entries, &entry->node);
+				}
+
+				/* insert the new ckch_insts in the crtlist_entry */
+				list_for_each_entry(ckchi, &new_ckchs->ckch_inst, by_ckchs) {
+					if (ckchi->crtlist_entry)
+						LIST_ADD(&ckchi->crtlist_entry->ckch_inst, &ckchi->by_crtlist_entry);
 				}
 
 				/* First, we insert every new SNIs in the trees, also replace the default_ctx */
