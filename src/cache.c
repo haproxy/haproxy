@@ -365,6 +365,7 @@ static inline void disable_cache_entry(struct cache_st *st,
 	filter->ctx = NULL; /* disable cache  */
 	shctx_lock(shctx);
 	shctx_row_dec_hot(shctx, st->first_block);
+	eb32_delete(&object->eb);
 	object->eb.key = 0;
 	shctx_unlock(shctx);
 	pool_free(pool_head_cache_st, st);
