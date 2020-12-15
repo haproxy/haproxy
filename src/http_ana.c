@@ -4225,8 +4225,11 @@ static void http_end_request(struct stream *s)
 
   end:
 	chn->analysers &= AN_REQ_FLT_END;
-	if (txn->req.msg_state == HTTP_MSG_TUNNEL && HAS_REQ_DATA_FILTERS(s))
+	if (txn->req.msg_state == HTTP_MSG_TUNNEL) {
+		chn->flags |= CF_NEVER_WAIT;
+		if (HAS_REQ_DATA_FILTERS(s))
 			chn->analysers |= AN_REQ_FLT_XFER_DATA;
+	}
 	channel_auto_close(chn);
 	channel_auto_read(chn);
 	DBG_TRACE_LEAVE(STRM_EV_HTTP_ANA, s, txn);
@@ -4280,7 +4283,6 @@ static void http_end_response(struct stream *s)
 		 */
 		if (txn->flags & TX_CON_WANT_TUN) {
 			channel_auto_read(chn);
-			chn->flags |= CF_NEVER_WAIT;
 			if (b_data(&chn->buf)) {
 				DBG_TRACE_DEVEL("waiting to flush the respone", STRM_EV_HTTP_ANA, s, txn);
 				return;
@@ -4340,8 +4342,11 @@ static void http_end_response(struct stream *s)
 
   end:
 	chn->analysers &= AN_RES_FLT_END;
-	if (txn->rsp.msg_state == HTTP_MSG_TUNNEL && HAS_RSP_DATA_FILTERS(s))
-		chn->analysers |= AN_RES_FLT_XFER_DATA;
+	if (txn->rsp.msg_state == HTTP_MSG_TUNNEL) {
+		chn->flags |= CF_NEVER_WAIT;
+		if (HAS_RSP_DATA_FILTERS(s))
+			chn->analysers |= AN_RES_FLT_XFER_DATA;
+	}
 	channel_auto_close(chn);
 	channel_auto_read(chn);
 	DBG_TRACE_LEAVE(STRM_EV_HTTP_ANA, s, txn);
