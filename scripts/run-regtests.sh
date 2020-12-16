@@ -69,9 +69,11 @@ _help()
   Configure environment variables to set the haproxy and vtest binaries to use
     setenv HAPROXY_PROGRAM /usr/local/sbin/haproxy
     setenv VTEST_PROGRAM /usr/local/bin/vtest
+    setenv HAPROXY_ARGS "-dM -de -m 50"
   or
     export HAPROXY_PROGRAM=/usr/local/sbin/haproxy
     export VTEST_PROGRAM=/usr/local/bin/vtest
+    export HAPROXY_ARGS="-dM -de -m 50"
 EOF
   exit 0
 }
@@ -290,6 +292,7 @@ _version() {
 
 
 HAPROXY_PROGRAM="${HAPROXY_PROGRAM:-${PWD}/haproxy}"
+HAPROXY_ARGS="${HAPROXY_ARGS--dM}"
 VTEST_PROGRAM="${VTEST_PROGRAM:-vtest}"
 TESTDIR="${TMPDIR:-/tmp}"
 REGTESTS=""
@@ -320,7 +323,7 @@ if [ $preparefailed ]; then
 fi
 
 { read HAPROXY_VERSION; read TARGET; read FEATURES; } << EOF
-$($HAPROXY_PROGRAM -vv |grep 'HA-Proxy version\|TARGET.*=\|^Feature' | sed 's/.* [:=] //')
+$($HAPROXY_PROGRAM $HAPROXY_ARGS -vv |grep 'HA-Proxy version\|TARGET.*=\|^Feature' | sed 's/.* [:=] //')
 EOF
 
 HAPROXY_VERSION=$(echo $HAPROXY_VERSION | cut -d " " -f 3)
@@ -333,6 +336,9 @@ TESTDIR=$(mktemp -d "$TESTDIR/haregtests-$TESTRUNDATETIME.XXXXXX") || exit 1
 
 export TMPDIR="$TESTDIR"
 export HAPROXY_PROGRAM="$HAPROXY_PROGRAM"
+if [ -n "$HAPROXY_ARGS" ]; then
+   export HAPROXY_ARGS
+fi
 
 echo "Target : $TARGET"
 echo "Options : $FEATURES"
