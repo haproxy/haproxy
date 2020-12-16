@@ -462,7 +462,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              pktns == &qc->pktns[QUIC_TLS_PKTNS_01RTT] ? "01RTT": "H");
 				if (pktns->tx.loss_time)
 				              chunk_appendf(&trace_buf, " loss_time=%dms",
-				                            TICKS_TO_MS(qc->timer - now_ms));
+				                            TICKS_TO_MS(tick_remain(now_ms, pktns->tx.loss_time)));
 			}
 			if (lost_pkts && !LIST_ISEMPTY(lost_pkts)) {
 				struct quic_tx_packet *pkt;
@@ -477,7 +477,11 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			struct quic_conn *qc = conn->qc;
 			const struct quic_pktns *pktns = a2;
 			const int *duration = a3;
+			const uint64_t *ifae_pkts = a4;
 
+			if (ifae_pkts)
+				chunk_appendf(&trace_buf, " ifae_pkts=%llu",
+				              (unsigned long long)*ifae_pkts);
 			if (pktns) {
 				chunk_appendf(&trace_buf, " pktns=%s pp=%d",
 				              pktns == &qc->pktns[QUIC_TLS_PKTNS_INITIAL] ? "I" :
@@ -569,7 +573,8 @@ static inline void qc_set_timer(struct quic_conn_ctx *ctx)
 	struct quic_pktns *pktns;
 	unsigned int pto;
 
-	TRACE_ENTER(QUIC_EV_CONN_STIMER, ctx->conn);
+	TRACE_ENTER(QUIC_EV_CONN_STIMER, ctx->conn,
+	            NULL, NULL, &ctx->conn->qc->path->ifae_pkts);
 	qc = ctx->conn->qc;
 	pktns = quic_loss_pktns(qc);
 	if (tick_isset(pktns->tx.loss_time)) {
@@ -581,7 +586,8 @@ static inline void qc_set_timer(struct quic_conn_ctx *ctx)
 	 * cancelled for a server which reached the anti-amplification limit.
 	 */
 
-	if (!qc->path->in_flight_ae_pkts && quic_peer_validated_addr(ctx)) {
+	if (!qc->path->ifae_pkts && quic_peer_validated_addr(ctx)) {
+		TRACE_PROTO("timer cancellation", QUIC_EV_CONN_STIMER, ctx->conn);
 		/* Timer cancellation. */
 		qc->timer = TICK_ETERNITY;
 		goto out;
@@ -1202,7 +1208,7 @@ static inline void qc_treat_newly_acked_pkts(struct quic_conn_ctx *ctx,
 		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
 		qc->path->prep_in_flight -= pkt->in_flight_len;
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
-			qc->path->in_flight_ae_pkts--;
+			qc->path->ifae_pkts--;
 		ev.ack.acked = pkt->in_flight_len;
 		ev.ack.time_sent = pkt->time_sent;
 		quic_cc_event(&qc->path->cc, &ev);
@@ -1237,7 +1243,7 @@ static inline void qc_release_lost_pkts(struct quic_pktns *pktns,
 		pkt->pktns->tx.in_flight -= pkt->in_flight_len;
 		qc->path->prep_in_flight -= pkt->in_flight_len;
 		if (pkt->flags & QUIC_FL_TX_PACKET_ACK_ELICITING)
-			qc->path->in_flight_ae_pkts--;
+			qc->path->ifae_pkts--;
 		/* Treat the frames of this lost packet. */
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
 			qc_treat_nacked_tx_frm(frm, pktns, ctx);
@@ -1772,7 +1778,7 @@ int qc_send_ppkts(struct quic_conn_ctx *ctx)
 			p->time_sent = time_sent;
 			if (p->flags & QUIC_FL_TX_PACKET_ACK_ELICITING) {
 				p->pktns->tx.time_of_last_eliciting = time_sent;
-				qc->path->in_flight_ae_pkts++;
+				qc->path->ifae_pkts++;
 			}
 			qc->path->in_flight += p->in_flight_len;
 			p->pktns->tx.in_flight += p->in_flight_len;
@@ -2401,7 +2407,8 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned short s
 
 	conn_ctx = task->context;
 	qc = conn_ctx->conn->qc;
-	TRACE_ENTER(QUIC_EV_CONN_PTIMER, conn_ctx->conn);
+	TRACE_ENTER(QUIC_EV_CONN_PTIMER, conn_ctx->conn,
+	            NULL, NULL, &qc->path->ifae_pkts);
 	task->expire = TICK_ETERNITY;
 	pktns = quic_loss_pktns(qc);
 	if (tick_isset(pktns->tx.loss_time)) {

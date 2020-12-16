@@ -109,9 +109,12 @@ static inline struct quic_pktns *quic_loss_pktns(struct quic_conn *qc)
 	struct quic_pktns *pktns;
 
 	pktns = &qc->pktns[QUIC_TLS_PKTNS_INITIAL];
-	for (i = QUIC_TLS_PKTNS_01RTT; i < QUIC_TLS_PKTNS_MAX; i++)
+	TRACE_PROTO("pktns", QUIC_EV_CONN_SPTO, qc->conn, pktns);
+	for (i = QUIC_TLS_PKTNS_01RTT; i < QUIC_TLS_PKTNS_MAX; i++) {
+		TRACE_PROTO("pktns", QUIC_EV_CONN_SPTO, qc->conn, &qc->pktns[i]);
 		if (qc->pktns[i].tx.loss_time < pktns->tx.loss_time)
 			pktns = &qc->pktns[i];
+	}
 
 	return pktns;
 }

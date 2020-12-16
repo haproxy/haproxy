@@ -569,7 +569,7 @@ struct quic_path {
 	/* Outstanding data (in bytes). */
 	uint64_t in_flight;
 	/* Number of in flight ack-eliciting packets. */
-	uint64_t in_flight_ae_pkts;
+	uint64_t ifae_pkts;
 };
 
 /* The number of buffers for outgoing packets (must be a power of two). */

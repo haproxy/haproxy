@@ -1039,7 +1039,7 @@ static inline void quic_path_init(struct quic_path *path, int ipv4,
 	path->min_cwnd = max_dgram_sz << 1;
 	path->prep_in_flight = 0;
 	path->in_flight = 0;
-	path->in_flight_ae_pkts = 0;
+	path->ifae_pkts = 0;
 	quic_cc_init(&path->cc, algo, qc);
 }
 
