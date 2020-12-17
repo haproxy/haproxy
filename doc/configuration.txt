@@ -1215,7 +1215,7 @@ localpeer <name>
   This option will also set the HAPROXY_LOCALPEER environment variable.
   See also "-L" in the management guide and "peers" section below.
 
-log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
+log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [max level [min level]]
   Adds a global syslog server. Several global servers can be defined. They
   will receive logs for starts and exits, as well as all logs from proxies
@@ -2701,7 +2701,7 @@ default-server [param*]
 enable
   This re-enables a disabled peers section which was previously disabled.
 
-log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
+log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [<level> [<minlevel>]]
   "peers" sections support the same "log" keyword as for the proxies to
   log information about the "peers" listener. See "log" option for proxies for
@@ -3069,7 +3069,7 @@ dgram-bind <addr> [param*]
   silently ignored as irrelevant for UDP/syslog case.
 
 log global
-log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
+log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [<level> [<minlevel>]]
   Used to configure target log servers. See more details on proxies
   documentation.
@@ -7141,7 +7141,7 @@ load-server-state-from-file { global | local | none }
 
 
 log global
-log <address> [len <length>] [format <format>] [sample <ranges>:<smp_size>]
+log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [<level> [<minlevel>]]
 no log
   Enable per-instance logging of events and traffic.
@@ -20838,7 +20838,7 @@ index <script-name>
 
 log-stderr global
 log-stderr <address> [len <length>] [format <format>]
-    [sample <ranges>:<smp_size>] <facility> [<level> [<minlevel>]]
+    [sample <ranges>:<sample_size>] <facility> [<level> [<minlevel>]]
   Enable logging of STDERR messages reported by the FastCGI application.
 
   See "log" keyword in section 4.2 for details. It is an optional setting. By
