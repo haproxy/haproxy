@@ -2782,8 +2782,10 @@ static void h1_detach(struct conn_stream *cs)
 			/* If we have a new request, process it immediately or
 			 * subscribe for reads waiting for new data
 			 */
-			if (unlikely(b_data(&h1c->ibuf)))
-				h1_process(h1c);
+			if (unlikely(b_data(&h1c->ibuf))) {
+				if (h1_process(h1c) == -1)
+					goto end;
+			}
 			else
 				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 		}
