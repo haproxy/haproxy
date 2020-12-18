@@ -200,7 +200,6 @@ enum quic_pkt_type {
 #define           QUIC_EV_CONN_ADDDATA   (1ULL << 25)
 #define           QUIC_EV_CONN_FFLIGHT   (1ULL << 26)
 #define           QUIC_EV_CONN_SSLALERT  (1ULL << 27)
-#define           QUIC_EV_CONN_CPAPKT    (1ULL << 28)
 #define           QUIC_EV_CONN_RTTUPDT   (1ULL << 29)
 #define           QUIC_EV_CONN_CC        (1ULL << 30)
 #define           QUIC_EV_CONN_SPPKTS    (1ULL << 31)

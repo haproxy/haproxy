@@ -86,7 +86,6 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_ADDDATA,  .name = "add_hdshk_data",   .desc = "TLS stack ->add_handshake_data() call"},
 	{ .mask = QUIC_EV_CONN_FFLIGHT,  .name = "flush_flight",     .desc = "TLS stack ->flush_flight() call"},
 	{ .mask = QUIC_EV_CONN_SSLALERT, .name = "send_alert",       .desc = "TLS stack ->send_alert() call"},
-	{ .mask = QUIC_EV_CONN_CPAPKT,   .name = "phdshk_cpakt",     .desc = "clear post handhshake app. packet preparation" },
 	{ .mask = QUIC_EV_CONN_RTTUPDT,  .name = "rtt_updt",         .desc = "RTT sampling" },
 	{ .mask = QUIC_EV_CONN_SPPKTS,   .name = "sppkts",           .desc = "send prepared packets" },
 	{ .mask = QUIC_EV_CONN_PKTLOSS,  .name = "pktloss",          .desc = "detect packet loss" },
@@ -282,7 +281,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		}
 
-		if (mask & QUIC_EV_CONN_HPKT) {
+		if (mask & (QUIC_EV_CONN_HPKT|QUIC_EV_CONN_PAPKT)) {
 			const struct quic_tx_packet *pkt = a2;
 			const struct quic_enc_level *qel = a3;
 			const ssize_t *room = a4;
@@ -3363,8 +3362,12 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 	/* Packet number encoding. */
 	quic_packet_number_encode(&pos, end, pn, *pn_len);
 
-	if (ack_frm_len)
-		qc_build_frm(&pos, end, &ack_frm, pkt, conn);
+	if (ack_frm_len && !qc_build_frm(&pos, end, &ack_frm, pkt, conn)) {
+		ssize_t room = end - pos;
+		TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
+		            conn->conn, NULL, NULL, &room);
+		goto err;
+	}
 
 	/* Crypto frame */
 	if (!LIST_ISEMPTY(&pkt->frms)) {
@@ -3374,7 +3377,12 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 			crypto->offset = cf->crypto.offset;
 			crypto->len = cf->crypto.len;
 			crypto->qel = qel;
-			qc_build_frm(&pos, end, &frm, pkt, conn);
+			if (!qc_build_frm(&pos, end, &frm, pkt, conn)) {
+				ssize_t room = end - pos;
+				TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
+							conn->conn, NULL, NULL, &room);
+				goto err;
+			}
 		}
 	}
 
@@ -3451,7 +3459,7 @@ static ssize_t qc_build_hdshk_pkt(struct q_buf *buf, struct quic_conn *qc, int p
 	struct quic_tls_ctx *tls_ctx;
 	struct quic_tx_packet *pkt;
 
-	TRACE_ENTER(QUIC_EV_CONN_HPKT, qc->conn,, qel);
+	TRACE_ENTER(QUIC_EV_CONN_HPKT, qc->conn, NULL, qel);
 	pkt = pool_alloc(pool_head_quic_tx_packet);
 	if (!pkt) {
 		TRACE_DEVEL("Not enough memory for a new packet", QUIC_EV_CONN_HPKT, qc->conn);
@@ -3531,7 +3539,7 @@ static ssize_t qc_do_build_phdshk_apkt(struct q_buf *wbuf,
 	size_t fake_len, ack_frm_len;
 	int64_t largest_acked_pn;
 
-	TRACE_ENTER(QUIC_EV_CONN_CPAPKT, conn->conn);
+	TRACE_ENTER(QUIC_EV_CONN_PAPKT, conn->conn);
 	beg = pos = q_buf_getpos(wbuf);
 	end = q_buf_end(wbuf);
 	/* When not probing and not acking, reduce the size of this buffer to respect
@@ -3549,8 +3557,12 @@ static ssize_t qc_do_build_phdshk_apkt(struct q_buf *wbuf,
 	*pn_len = quic_packet_number_length(pn, largest_acked_pn);
 	/* Check there is enough room to build this packet (without payload). */
 	if (end - pos < QUIC_SHORT_PACKET_MINLEN + sizeof_quic_cid(&conn->dcid) +
-	    *pn_len + QUIC_TLS_TAG_LEN)
+	    *pn_len + QUIC_TLS_TAG_LEN) {
+		ssize_t room = end - pos;
+		TRACE_PROTO("Not enough room", QUIC_EV_CONN_PAPKT,
+		            conn->conn, NULL, NULL, &room);
 		goto err;
+	}
 
 	/* Reserve enough room at the end of the packet for the AEAD TAG. */
 	end -= QUIC_TLS_TAG_LEN;
@@ -3573,14 +3585,19 @@ static ssize_t qc_do_build_phdshk_apkt(struct q_buf *wbuf,
 		qel->pktns->flags &= ~QUIC_FL_PKTNS_ACK_REQUIRED;
 	}
 
-	if (ack_frm_len)
-		qc_build_frm(&pos, end, &ack_frm, pkt, conn);
+	if (ack_frm_len && !qc_build_frm(&pos, end, &ack_frm, pkt, conn)) {
+		ssize_t room = end - pos;
+		TRACE_PROTO("Not enough room", QUIC_EV_CONN_PAPKT,
+		            conn->conn, NULL, NULL, &room);
+		goto err;
+	}
 
 	fake_len = ack_frm_len;
 	if (!LIST_ISEMPTY(&qel->pktns->tx.frms) &&
 	    !qc_build_cfrms(pkt, end - pos, &fake_len, qel, conn)) {
-		TRACE_DEVEL("some CRYPTO frames could not be built",
-		            QUIC_EV_CONN_CPAPKT, conn->conn);
+		ssize_t room = end - pos;
+		TRACE_PROTO("some CRYPTO frames could not be built",
+		            QUIC_EV_CONN_PAPKT, conn->conn, NULL, NULL, &room);
 		goto err;
 	}
 
@@ -3594,7 +3611,12 @@ static ssize_t qc_do_build_phdshk_apkt(struct q_buf *wbuf,
 			crypto->offset = cf->crypto.offset;
 			crypto->len = cf->crypto.len;
 			crypto->qel = qel;
-			qc_build_frm(&pos, end, &frm, pkt, conn);
+			if (!qc_build_frm(&pos, end, &frm, pkt, conn)) {
+				ssize_t room = end - pos;
+				TRACE_PROTO("Not enough room", QUIC_EV_CONN_PAPKT,
+				            conn->conn, NULL, NULL, &room);
+				goto err;
+			}
 		}
 	}
 
@@ -3604,7 +3626,7 @@ static ssize_t qc_do_build_phdshk_apkt(struct q_buf *wbuf,
 
 		ppos = pos;
 		if (!qc_build_frm(&ppos, end, frm, pkt, conn)) {
-			TRACE_DEVEL("Frames not built", QUIC_EV_CONN_CPAPKT, conn->conn);
+			TRACE_DEVEL("Frames not built", QUIC_EV_CONN_PAPKT, conn->conn);
 			break;
 		}
 
@@ -3614,11 +3636,11 @@ static ssize_t qc_do_build_phdshk_apkt(struct q_buf *wbuf,
 	}
 
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_CPAPKT, conn->conn, (int *)(pos - beg));
+	TRACE_LEAVE(QUIC_EV_CONN_PAPKT, conn->conn);
 	return pos - beg;
 
  err:
-	TRACE_DEVEL("leaving in error (buffer full)", QUIC_EV_CONN_CPAPKT, conn->conn);
+	TRACE_DEVEL("leaving in error (buffer full)", QUIC_EV_CONN_PAPKT, conn->conn);
 	return -1;
 }
 
@@ -3665,13 +3687,13 @@ static ssize_t qc_build_phdshk_apkt(struct q_buf *wbuf, struct quic_conn *qc)
 
 	tls_ctx = &qel->tls_ctx;
 	if (!quic_packet_encrypt(payload, payload_len, beg, aad_len, pn, tls_ctx, qc->conn))
-		return -2;
+		goto err;
 
 	end += QUIC_TLS_TAG_LEN;
 	pkt_len += QUIC_TLS_TAG_LEN;
 	if (!quic_apply_header_protection(beg, buf_pn, pn_len,
 	                                  tls_ctx->tx.hp, tls_ctx->tx.hp_key))
-		return -2;
+		goto err;
 
 	q_buf_setpos(wbuf, end);
 	/* Consume a packet number. */
@@ -3690,9 +3712,14 @@ static ssize_t qc_build_phdshk_apkt(struct q_buf *wbuf, struct quic_conn *qc)
 	/* Attach this packet to <buf>. */
 	LIST_ADDQ(&wbuf->pkts, &pkt->list);
 
-	TRACE_LEAVE(QUIC_EV_CONN_PAPKT, qc->conn);
+	TRACE_LEAVE(QUIC_EV_CONN_PAPKT, qc->conn, pkt);
 
 	return pkt_len;
+
+ err:
+	free_quic_tx_packet(pkt);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_PAPKT, qc->conn);
+	return -2;
 }
 
 /* Prepare a maximum of QUIC Application level packets from <ctx> QUIC
