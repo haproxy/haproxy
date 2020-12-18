@@ -67,6 +67,7 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_WSEC,     .name = "write_secs",       .desc = "write secrets derivation" },
 	{ .mask = QUIC_EV_CONN_LPKT,     .name = "lstnr_packet",     .desc = "new listener received packet" },
 	{ .mask = QUIC_EV_CONN_SPKT,     .name = "srv_packet",       .desc = "new server received packet" },
+	{ .mask = QUIC_EV_CONN_ENCPKT,   .name = "enc_hdshk_pkt",    .desc = "handhshake packet encrytion" },
 	{ .mask = QUIC_EV_CONN_HPKT,     .name = "hdshk_pkt",        .desc = "handhshake packet building" },
 	{ .mask = QUIC_EV_CONN_PAPKT,    .name = "phdshk_apkt",      .desc = "post handhshake application packet preparation" },
 	{ .mask = QUIC_EV_CONN_PAPKTS,   .name = "phdshk_apkts",     .desc = "post handhshake application packets preparation" },
@@ -187,6 +188,27 @@ static inline void chunk_tx_frm_appendf(struct buffer *buf,
 	default:
 		chunk_appendf(buf, " %s", quic_frame_type_string(frm->type));
 	}
+}
+
+/* Only for debug purpose */
+struct enc_debug_info {
+	unsigned char *payload;
+	size_t payload_len;
+	unsigned char *aad;
+	size_t aad_len;
+	uint64_t pn;
+};
+
+/* Initializes a enc_debug_info struct (only for debug purpose) */
+static inline void enc_debug_info_init(struct enc_debug_info *edi,
+                                       unsigned char *payload, size_t payload_len,
+                                       unsigned char *aad, size_t aad_len, uint64_t pn)
+{
+	edi->payload = payload;
+	edi->payload_len = payload_len;
+	edi->aad = aad;
+	edi->aad_len = aad_len;
+	edi->pn = pn;
 }
 
 /* Trace callback for QUIC.
@@ -398,6 +420,18 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              (unsigned long long)pktns->tx.in_flight, pktns->tx.pto_probe,
 				              (unsigned long long)qc->tx.nb_pto_dgrams);
 			}
+		}
+
+		if (mask & QUIC_EV_CONN_ENCPKT) {
+			const struct enc_debug_info *edi = a2;
+
+			if (edi)
+				chunk_appendf(&trace_buf,
+				              " payload=@%p payload_len=%llu"
+				              " aad=@%p aad_len=%llu pn=%llu",
+				              edi->payload, (unsigned long long)edi->payload_len,
+				              edi->aad, (unsigned long long)edi->aad_len,
+				              (unsigned long long)edi->pn);
 		}
 
 		if (mask & QUIC_EV_CONN_RMHP) {
@@ -1055,19 +1089,25 @@ static int quic_packet_encrypt(unsigned char *payload, size_t payload_len,
 	unsigned char iv[12];
 	unsigned char *tx_iv = tls_ctx->tx.iv;
 	size_t tx_iv_sz = sizeof tls_ctx->tx.iv;
+	struct enc_debug_info edi;
 
 	if (!quic_aead_iv_build(iv, sizeof iv, tx_iv, tx_iv_sz, pn)) {
 		TRACE_DEVEL("AEAD IV building for encryption failed", QUIC_EV_CONN_HPKT, conn);
-		return 0;
+		goto err;
 	}
 
 	if (!quic_tls_encrypt(payload, payload_len, aad, aad_len,
 	                      tls_ctx->tx.aead, tls_ctx->tx.key, iv)) {
 		TRACE_DEVEL("QUIC packet encryption failed", QUIC_EV_CONN_HPKT, conn);
-		return 0;
+		goto err;
 	}
 
 	return 1;
+
+ err:
+	enc_debug_info_init(&edi, payload, payload_len, aad, aad_len, pn);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_ENCPKT, conn, &edi);
+	return 0;
 }
 
 /* Decrypt <pkt> QUIC packet with <tls_ctx> as QUIC TLS cryptographic context.
