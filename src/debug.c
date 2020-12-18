@@ -43,10 +43,9 @@ volatile unsigned long threads_to_dump = 0;
 unsigned int debug_commands_issued = 0;
 
 /* Xorshift RNGs from http://www.jstatsoft.org/v08/i14/paper */
-static THREAD_LOCAL unsigned int y = 2463534242;
+static THREAD_LOCAL unsigned int y = 2463534242U;
 static unsigned int debug_prng()
 {
-
         y ^= y << 13;
         y ^= y >> 17;
         y ^= y << 5;
