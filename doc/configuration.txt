@@ -606,7 +606,7 @@ own quotes.
 
 The keyword argument parser is exactly the same as the top-level one regarding
 quotes, except that is will not make special cases of backslashes. But what is
-not always obvious is that the delimitors used inside must first be escaped or
+not always obvious is that the delimiters used inside must first be escaped or
 quoted so that they are not resolved at the top level.
 
 Let's take this example making use of the "regsub" converter which takes 3
@@ -659,7 +659,7 @@ the second level:
                                     arg2=blah  ___________/    /
                                         arg3=g _______________/
 
-Another approch consists in using single quotes outside the whole string and
+Another approach consists in using single quotes outside the whole string and
 double quotes inside (so that the double quotes are not stripped again):
 
     http-request set-path '%[path,regsub("(foo|bar)",blah,g)]'
@@ -683,7 +683,7 @@ thus single quotes are preferred (or double escaping). Example:
                                     arg2=my/\1 ________________/      /
                                           arg3 ______________________/
 
-Remember that backslahes are not escape characters withing single quotes and
+Remember that backslahes are not escape characters within single quotes and
 that the whole word3 above is already protected against them using the single
 quotes. Conversely, if double quotes had been used around the whole expression,
 single the dollar character and the backslashes would have been resolved at top
@@ -8639,7 +8639,7 @@ no option nolinger
   This option may be used both on frontends and backends, depending on the side
   where it is required. Use it on the frontend for clients, and on the backend
   for servers. While this option is technically supported in "defaults"
-  sections, it must really not be used there as it risks to accidently
+  sections, it must really not be used there as it risks to accidentally
   propagate to sections that must no use it and to cause problems there.
 
   If this option has been enabled in a "defaults" section, it can be disabled
@@ -15488,7 +15488,7 @@ fix_is_valid
 
   - checks that all tag IDs and values are not empty and the tags IDs are well
     numeric
-  - checks the BeginString tag is the first tag with a valide FIX version
+  - checks the BeginString tag is the first tag with a valid FIX version
   - checks the BodyLength tag is the second one with the right body length
   - checks the MstType tag is the third tag.
   - checks that last tag in the message is the CheckSum tag with a valid
@@ -17611,7 +17611,7 @@ ssl_c_chain_der : binary
   Returns the DER formatted chain certificate presented by the client when the
   incoming connection was made over an SSL/TLS transport layer. When used for
   an ACL, the value(s) to match against can be passed in hexadecimal form. One
-  can parse the result with any lib accepting ASN.1 DER data. It currentlly
+  can parse the result with any lib accepting ASN.1 DER data. It currently
   does not support resumed sessions.
 
 ssl_c_der : binary
@@ -17987,7 +17987,7 @@ ssl_s_chain_der : binary
   Returns the DER formatted chain certificate presented by the server when the
   outgoing connection was made over an SSL/TLS transport layer. When used for
   an ACL, the value(s) to match against can be passed in hexadecimal form. One
-  can parse the result with any lib accepting ASN.1 DER data. It currentlly
+  can parse the result with any lib accepting ASN.1 DER data. It currently
   does not support resumed sessions.
 
 ssl_s_key_alg : string

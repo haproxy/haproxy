@@ -1450,7 +1450,7 @@ calls on casted strings. Do not do that! It will inevitably lead to someone
 getting caught passing a constant string that will make the process crash (if
 lucky). Document the expectations, indicate that all arguments must be freeable
 and that the caller must be capable of strdup(), and make your function support
-NULLs and docuemnt it (so that callers can deal with a failing strdup() on
+NULLs and document it (so that callers can deal with a failing strdup() on
 allocation error).
 
 One valid alternative is to use a secondary channel to indicate whether the
@@ -1549,7 +1549,7 @@ There are a few rules to respect in order to do this:
     in the early days of hparoxy, size_t is now heavily used and known to work
     everywhere. And do not perform the operations on the pointers, only on the
     integer types (and cast back again). Some compilers such as gcc are
-    extremely picky about this and wil often emit wrong code when they see
+    extremely picky about this and will often emit wrong code when they see
     equality conditions they believe is impossible and decide to optimize them
     away.
 

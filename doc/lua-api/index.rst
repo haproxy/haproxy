@@ -2687,7 +2687,7 @@ StickTable class
 .. js:function:: StickTable.info()
 
   Returns stick table attributes as a Lua table. See HAProxy documentation for
-  "stick-table" for canonical info, or check out example bellow.
+  "stick-table" for canonical info, or check out example below.
 
   :returns: Lua table
 

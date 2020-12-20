@@ -944,7 +944,7 @@ CSV output format for monitoring tools. The same format is provided on the
 Unix socket.
 
 Statistics are regroup in categories labelled as domains, corresponding to the
-multiple components of HAProxy. There are two domains avaiable: proxy and dns.
+multiple components of HAProxy. There are two domains available: proxy and dns.
 If not specified, the proxy domain is selected. Note that only the proxy
 statistics are printed on the HTTP page.
 
@@ -1525,7 +1525,7 @@ commit ssl cert <filename>
   committed, it is destroyed.
 
   In the case of a new certificate (after a "new ssl cert" and in a "Unused"
-  state in "show ssl cert"), the certificate will be commited in a certificate
+  state in "show ssl cert"), the certificate will be committed in a certificate
   storage, but it won't be used anywhere in haproxy. To use it and generate
   its SNIs you will need to add it to a crt-list or a directory with "add ssl
   crt-list".
