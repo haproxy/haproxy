@@ -1147,7 +1147,7 @@ static void fcgi_strm_wake_one_stream(struct fcgi_strm *fstrm)
 	if (fcgi_conn_read0_pending(fconn)) {
 		if (fstrm->state == FCGI_SS_OPEN) {
 			fstrm->state = FCGI_SS_HREM;
-			TRACE_STATE("swtiching to HREM", FCGI_EV_STRM_WAKE|FCGI_EV_FSTRM_END, fconn->conn, fstrm);
+			TRACE_STATE("switching to HREM", FCGI_EV_STRM_WAKE|FCGI_EV_FSTRM_END, fconn->conn, fstrm);
 		}
 		else if (fstrm->state == FCGI_SS_HLOC)
 			fcgi_strm_close(fstrm);

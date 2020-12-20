@@ -326,7 +326,7 @@ static inline size_t mqtt_uint2str(struct buffer *buf, uint32_t i)
 }
 
 /* Extracts the value of a <fieldname_id> of type <type> from a given MQTT
- * message <msg>.  IST_NULL is returned if an error occured while parsing or if
+ * message <msg>.  IST_NULL is returned if an error occurred while parsing or if
  * the field could not be found. If more data are required, the message with a
  * length set to 0 is returned. If the field is found, the response is returned
  * as a struct ist.
@@ -858,7 +858,7 @@ static int mqtt_parse_connect(struct ist parser, struct mqtt_pkt *mpkt)
 
 	/* parsing payload
 	 *
-	 * Content of payload is realted to flags parsed above and the field order is pre-defined:
+	 * Content of payload is related to flags parsed above and the field order is pre-defined:
 	 *   Client Identifier, Will Topic, Will Message, User Name, Password
 	 */
 	/* read client identifier */

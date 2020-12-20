@@ -77,7 +77,7 @@ typedef int(*http_header_normalizer)(struct ist value, char *buf, unsigned int *
 
 struct vary_hashing_information {
 	struct ist hdr_name;                 /* Header name */
-	enum vary_header_bit value;          /* Bit repesenting the header in a vary signature */
+	enum vary_header_bit value;          /* Bit representing the header in a vary signature */
 	unsigned int hash_length;            /* Size of the sub hash for this header's value */
 	http_header_normalizer norm_fn;      /* Normalization function */
 };
@@ -839,7 +839,7 @@ static time_t get_last_modified_time(struct htx *htx)
 
 /*
  * Checks the vary header's value. The headers on which vary should be applied
- * must be explicitely supported in the vary_information array (see cache.c). If
+ * must be explicitly supported in the vary_information array (see cache.c). If
  * any other header is mentioned, we won't store the response.
  * Returns 1 if Vary-based storage can work, 0 otherwise.
  */
@@ -923,7 +923,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 				break;
 
 			default: /* Any unsafe method */
-				/* Discard any corresponding entry in case of sucessful
+				/* Discard any corresponding entry in case of successful
 				 * unsafe request (such as PUT, POST or DELETE). */
 				shctx_lock(shctx);
 
@@ -1650,7 +1650,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	http_check_request_for_cacheability(s, &s->req);
 
 	/* The request's hash has to be calculated for all requests, even POSTs
-	 * or PUTs for instance because RFC7234 specifies that a sucessful
+	 * or PUTs for instance because RFC7234 specifies that a successful
 	 * "unsafe" method on a stored resource must invalidate it
 	 * (see RFC7234#4.4). */
 	if (!sha1_hosturi(s))

@@ -32,7 +32,7 @@ int fix_validate_message(const struct ist msg);
 struct ist fix_tag_value(const struct ist msg, unsigned int tagid);
 
 /*
- * Return the FIX version string (one of FIX_X_Y macros) correspoding to
+ * Return the FIX version string (one of FIX_X_Y macros) corresponding to
  * <str> or IST_NULL if not found.
  */
 static inline struct ist fix_version(const struct ist str)

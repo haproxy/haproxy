@@ -78,7 +78,7 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
 /*
  *
  * The following function deletes all patterns related to reference pattern
- * element <elt> in pattern refernce <ref>.
+ * element <elt> in pattern reference <ref>.
  *
  */
 void pat_delete_gen(struct pat_ref *ref, struct pat_ref_elt *elt);

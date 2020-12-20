@@ -124,7 +124,7 @@ int fix_validate_message(const struct ist msg)
 			ret = FIX_NEED_MORE_DATA;
 			goto end;
 		}
-		/* empty tag or empty value are forbbiden */
+		/* empty tag or empty value are forbidden */
 		if (istptr(parser) == istptr(value) ||!istlen(value))
 			goto end;
 

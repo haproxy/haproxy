@@ -2952,7 +2952,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 				srv->svc_port = port;
 
 #ifdef USE_OPENSSL
-			/* configure ssl if connection has been initated at startup */
+			/* configure ssl if connection has been initiated at startup */
 			if (srv->ssl_ctx.ctx != NULL)
 				ssl_sock_set_srv(srv, use_ssl);
 #endif

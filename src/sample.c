@@ -3273,7 +3273,7 @@ static int sample_conv_fix_value_check(struct arg *args, struct sample_conv *con
  * Checks that a buffer contains a valid FIX message
  *
  * Return 1 if the check could be run, 0 if not.
- * The result of the analyse itsef is stored in <smp> as a boolean
+ * The result of the analyse itself is stored in <smp> as a boolean
  */
 static int sample_conv_fix_is_valid(const struct arg *arg_p, struct sample *smp, void *private)
 {
@@ -3334,7 +3334,7 @@ static int sample_conv_mqtt_field_value(const struct arg *arg_p, struct sample *
  * this function checks the "mqtt_field_value" converter configuration.
  * It expects a known packet type name or ID and a field name, in this order
  *
- * Args[0] will be turned into a MQTT_CPT_* value for direct maching when parsing
+ * Args[0] will be turned into a MQTT_CPT_* value for direct matching when parsing
  * a packet.
  */
 static int sample_conv_mqtt_field_value_check(struct arg *args, struct sample_conv *conv,

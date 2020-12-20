@@ -1,6 +1,6 @@
 #REGTEST_TYPE=bug
 varnishtest "Test for the bug #940"
-# Test that the SNI are correcly inserted with the same file multiple times.
+# Test that the SNI are correctly inserted with the same file multiple times.
 
 #REQUIRE_VERSION=2.2
 #REQUIRE_OPTIONS=OPENSSL

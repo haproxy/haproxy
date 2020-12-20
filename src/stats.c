@@ -3947,7 +3947,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
  *
- * Integer values bouned to the range [-(2**53)+1, (2**53)-1] as
+ * Integer values bounded to the range [-(2**53)+1, (2**53)-1] as
  * per the recommendation for interoperable integers in section 6 of RFC 7159.
  */
 static void stats_dump_json_schema(struct buffer *out)

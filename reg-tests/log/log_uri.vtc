@@ -1,4 +1,4 @@
-varnishtest "Verify logging of relative/aboslute URI path"
+varnishtest "Verify logging of relative/absolute URI path"
 feature ignore_unknown_macro
 
 server s1 {

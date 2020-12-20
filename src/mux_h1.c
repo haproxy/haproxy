@@ -55,13 +55,13 @@
 /* 0x00002000 - 0x00008000 unused */
 
 #define H1C_F_WAIT_OPPOSITE  0x00010000 /* Don't read more data for now, waiting sync with opposite side */
-#define H1C_F_WANT_SPLICE    0x00020000 /* Don't read into a bufffer because we want to use or we are using splicing */
+#define H1C_F_WANT_SPLICE    0x00020000 /* Don't read into a buffer because we want to use or we are using splicing */
 #define H1C_F_ERR_PENDING    0x00040000 /* Send an error and close the connection ASAP (implies H1C_F_ST_ERROR) */
 #define H1C_F_WAIT_NEXT_REQ  0x00080000 /*  waiting for the next request to start, use keep-alive timeout */
 #define H1C_F_UPG_H2C        0x00100000 /* set if an upgrade to h2 should be done */
 #define H1C_F_CO_MSG_MORE    0x00200000 /* set if CO_SFL_MSG_MORE must be set when calling xprt->snd_buf() */
 #define H1C_F_CO_STREAMER    0x00400000 /* set if CO_SFL_STREAMER must be set when calling xprt->snd_buf() */
-/* 0x00800000 - 0x40000000 unsued*/
+/* 0x00800000 - 0x40000000 unused */
 
 #define H1C_F_IS_BACK        0x80000000 /* Set on outgoing connection */
 
@@ -69,7 +69,7 @@
  * H1 Stream flags (32 bits)
  */
 #define H1S_F_NONE           0x00000000
-/* 0x00000001..0x00000004 unsued */
+/* 0x00000001..0x00000004 unused */
 #define H1S_F_REOS           0x00000008 /* End of input stream seen even if not delivered yet */
 #define H1S_F_WANT_KAL       0x00000010
 #define H1S_F_WANT_TUN       0x00000020

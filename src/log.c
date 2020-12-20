@@ -1483,7 +1483,7 @@ struct ist *build_log_header(enum log_fmt format, int level, int facility,
 			}
 			else if (metadata[LOG_META_TAG].len) {
 				/* Tag is present but no hostname, we should
-				 * consider we try to emmit a local log
+				 * consider we try to emit a local log
 				 * in legacy format (analog to RFC3164 but
 				 * with stripped hostname).
 				 */
