@@ -651,11 +651,11 @@ int convert_date_to_timestamp(const char *field)
 	}
 
 	if (likely(timeinfo)) {
-		if (timeinfo->tm_min == m &&
-		    timeinfo->tm_hour == h &&
-		    timeinfo->tm_mday == d &&
-		    timeinfo->tm_mon == mo - 1 &&
-		    timeinfo->tm_year == y - 1900)
+		if ((unsigned)timeinfo->tm_min == m &&
+		    (unsigned)timeinfo->tm_hour == h &&
+		    (unsigned)timeinfo->tm_mday == d &&
+		    (unsigned)timeinfo->tm_mon == mo - 1 &&
+		    (unsigned)timeinfo->tm_year == y - 1900)
 			return last_res + s;
 	}
 	else {
@@ -693,10 +693,10 @@ int main(int argc, char **argv)
 	struct url_stat *ustat = NULL;
 	int val, test;
 	unsigned int uval;
-	int filter_acc_delay = 0, filter_acc_count = 0;
+	unsigned int filter_acc_delay = 0, filter_acc_count = 0;
 	int filter_time_resp = 0;
 	int filt_http_status_low = 0, filt_http_status_high = 0;
-	int filt2_timestamp_low = 0, filt2_timestamp_high = 0;
+	unsigned int filt2_timestamp_low = 0, filt2_timestamp_high = 0;
 	int skip_fields = 1;
 
 	void (*line_filter)(const char *accept_field, const char *time_field, struct timer **tptr) = NULL;
