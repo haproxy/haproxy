@@ -1,6 +1,41 @@
 ChangeLog :
 ===========
 
+2020/12/21 : 2.4-dev4
+    - BUG/MEDIUM: lb-leastconn: Reposition a server using the right eweight
+    - BUG/MEDIUM: mux-h1: Fix a deadlock when a 408 error is pending for a client
+    - BUG/MEDIUM: ssl/crt-list: bad behavior with "commit ssl cert"
+    - BUG/MAJOR: cache: Crash because of disabled entry not removed from the tree
+    - BUILD: SSL: fine guard for SSL_CTX_add_server_custom_ext call
+    - MEDIUM: cache: Add a secondary entry counter and insertion limitation
+    - MEDIUM: cache: Avoid going over duplicates lists too often
+    - MINOR: cache: Add a max-secondary-entries cache option
+    - CI: cirrus: drop CentOS 6 builds
+    - BUILD: Makefile: have "make clean" destroy .o/.a/.s in contrib subdirs as well
+    - MINOR: vars: replace static functions with global ones
+    - MINOR: opentracing: add ARGC_OT enum
+    - CONTRIB: opentracing: add the OpenTracing filter
+    - DOC: opentracing: add the OpenTracing filter section
+    - REGTESTS: make use of HAPROXY_ARGS and pass -dM by default
+    - BUG/MINOR: http: Establish a tunnel for all 2xx responses to a CONNECT
+    - BUG/MINOR: mux-h1: Don't set CS_FL_EOI too early for protocol upgrade requests
+    - BUG/MEDIUM: http-ana: Never for sending data in TUNNEL mode
+    - CLEANUP: mux-h2: Rename h2s_frt_make_resp_data() to be generic
+    - CLEANUP: mux-h2: Rename h2c_frt_handle_data() to be generic
+    - BUG/MEDIUM: mux-h1: Handle h1_process() failures on a pipelined request
+    - CLEANUP: debug: mark the RNG's seed as unsigned
+    - CONTRIB: halog: fix build issue caused by %L printf format
+    - CONTRIB: halog: mark the has_zero* functions unused
+    - CONTRIB: halog: fix signed/unsigned build warnings on counts and timestamps
+    - CONTRIB: debug: address "poll" utility build on non-linux platforms
+    - BUILD: plock: remove dead code that causes a warning in gcc 11
+    - BUILD: ssl: fine guard for SSL_CTX_get0_privatekey call
+    - BUG/MINOR: dns: SRV records ignores duplicated AR records
+    - DOC: fix "smp_size" vs "sample_size" in "log" directive arguments
+    - CLEANUP: assorted typo fixes in the code and comments
+    - DOC: assorted typo fixes in the documentation
+    - CI: codespell: whitelist "te" and "nd" words
+
 2020/12/11 : 2.4-dev3
     - MINOR: log: Logging HTTP path only with %HPO
     - BUG/MINOR: mux-h2/stats: make stream/connection proto errors more accurate
