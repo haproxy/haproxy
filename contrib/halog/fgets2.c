@@ -35,7 +35,7 @@
 #endif
 
 /* return non-zero if the integer contains at least one zero byte */
-static inline unsigned int has_zero32(unsigned int x)
+static inline __attribute__((unused)) unsigned int has_zero32(unsigned int x)
 {
 	unsigned int y;
 
@@ -72,7 +72,7 @@ static inline unsigned int has_zero32(unsigned int x)
 }
 
 /* return non-zero if the argument contains at least one zero byte. See principle above. */
-static inline unsigned long long has_zero64(unsigned long long x)
+static inline __attribute__((unused)) unsigned long long has_zero64(unsigned long long x)
 {
 	unsigned long long y;
 
@@ -81,7 +81,7 @@ static inline unsigned long long has_zero64(unsigned long long x)
 	return y & 0x8080808080808080ULL;
 }
 
-static inline unsigned long has_zero(unsigned long x)
+static inline __attribute__((unused)) unsigned long has_zero(unsigned long x)
 {
 	return (sizeof(x) == 8) ? has_zero64(x) : has_zero32(x);
 }
