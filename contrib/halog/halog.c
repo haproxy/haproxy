@@ -1288,7 +1288,7 @@ int main(int argc, char **argv)
 		node = eb_last(&timers[0]);
 		while (node) {
 			ustat = container_of(node, struct url_stat, node.url.node);
-			printf("%d %d %Ld %Ld %Ld %Ld %Ld %Ld %s\n",
+			printf("%d %d %llu %llu %llu %llu %llu %llu %s\n",
 			       ustat->nb_req,
 			       ustat->nb_err,
 			       ustat->total_time,
