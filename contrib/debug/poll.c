@@ -17,6 +17,13 @@
 #define POLLRDHUP 0
 #endif
 
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+#ifndef MSG_MORE
+#define MSG_MORE 0
+#endif
+
 int verbose = 0;
 int cmd = 0;
 int cmdstep = 0;
