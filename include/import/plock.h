@@ -233,7 +233,6 @@
 				while (__pl_r)                                                 \
 					__pl_r = pl_deref_long(lock) -                         \
 						(PLOCK64_WL_1 | PLOCK64_SL_1 | PLOCK64_RL_1);  \
-					__pl_r = 0;                                            \
 			}                                                                      \
 		}                                                                              \
 		!__pl_r; /* return value */                                                    \
@@ -251,7 +250,6 @@
 				while (__pl_r)                                                 \
 					__pl_r = pl_deref_int(lock) -                          \
 						(PLOCK32_WL_1 | PLOCK32_SL_1 | PLOCK32_RL_1);  \
-					__pl_r = 0;                                            \
 			}                                                                      \
 		}                                                                              \
 		!__pl_r; /* return value */                                                    \
