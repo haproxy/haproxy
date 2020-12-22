@@ -42,7 +42,7 @@
 /* we want to be able to detect time jumps. Fix the maximum wait time to a low
  * value so that we know the time has changed if we wait longer.
  */
-#define MAX_DELAY_MS    1000
+#define MAX_DELAY_MS    60000
 
 
 /* returns the lowest delay amongst <old> and <new>, and respects TIME_ETERNITY */
