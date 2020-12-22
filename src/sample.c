@@ -2099,6 +2099,20 @@ static int sample_conv_xxh64(const struct arg *arg_p, struct sample *smp, void *
 	return 1;
 }
 
+static int sample_conv_xxh3(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	unsigned long long int seed;
+
+	if (arg_p && arg_p->data.sint)
+		seed = (unsigned long long int)arg_p->data.sint;
+	else
+		seed = 0;
+	smp->data.u.sint = (long long int)XXH3(smp->data.u.str.area,
+	                                       smp->data.u.str.data, seed);
+	smp->data.type = SMP_T_SINT;
+	return 1;
+}
+
 /* hashes the binary input into a 32-bit unsigned int */
 static int sample_conv_crc32(const struct arg *arg_p, struct sample *smp, void *private)
 {
@@ -3959,6 +3973,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "djb2",   sample_conv_djb2,      ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "sdbm",   sample_conv_sdbm,      ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "wt6",    sample_conv_wt6,       ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
+	{ "xxh3",   sample_conv_xxh3,      ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "xxh32",  sample_conv_xxh32,     ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "xxh64",  sample_conv_xxh64,     ARG1(0,SINT), NULL, SMP_T_BIN,  SMP_T_SINT  },
 	{ "json",   sample_conv_json,      ARG1(1,STR),  sample_conv_json_check, SMP_T_STR,  SMP_T_STR },
