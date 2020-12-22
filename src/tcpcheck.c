@@ -1225,6 +1225,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	struct connection *conn = cs_conn(cs);
 	struct buffer *tmp = NULL;
 	struct htx *htx = NULL;
+	int connection_hdr = 0;
 
 	if (check->state & CHK_ST_OUT_ALLOC) {
 		ret = TCPCHK_EVAL_WAIT;
@@ -1328,6 +1329,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 					if (!http_update_authority(htx, sl, hdr_value))
 						goto error_htx;
 				}
+				if (isteqi(hdr->name, ist("connection")))
+					connection_hdr = 1;
 			}
 
 		}
@@ -1348,7 +1351,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 			body = send->http.body;
 		clen = ist((!istlen(body) ? "0" : ultoa(istlen(body))));
 
-		if (!htx_add_header(htx, ist("Connection"), ist("close")) ||
+		if ((!connection_hdr && !htx_add_header(htx, ist("Connection"), ist("close"))) ||
 		    !htx_add_header(htx, ist("Content-length"), clen))
 			goto error_htx;
 
@@ -2531,8 +2534,7 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 				}
 				host_hdr = i;
 			}
-			else if (strcasecmp(args[cur_arg+1], "connection") == 0 ||
-				 strcasecmp(args[cur_arg+1], "content-length") == 0 ||
+			else if (strcasecmp(args[cur_arg+1], "content-length") == 0 ||
 				 strcasecmp(args[cur_arg+1], "transfer-encoding") == 0)
 				goto skip_hdr;
 

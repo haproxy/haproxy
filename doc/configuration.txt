@@ -5411,14 +5411,11 @@ http-check send [meth <method>] [{ uri <uri> | uri-lf <fmt> }>] [ver <version>]
   "Transfer-encoding" header should not be present in the request provided by
   "http-check send". If so, it will be ignored. The old trick consisting to add
   headers after the version string on the "option httpchk" line is now
-  deprecated. Note also the "Connection: close" header is still added if a
-  "http-check expect" directive is defined independently of this directive, just
-  like the state header if the directive "http-check send-state" is defined.
+  deprecated.
 
   Also "http-check send" doesn't support HTTP keep-alive. Keep in mind that it
-  will automatically append a "Connection: close" header, meaning that this
-  header should not be present in the request provided by "http-check send". If
-  so, it will be ignored.
+  will automatically append a "Connection: close" header, unless a Connection
+  header has already already been configured via a hdr entry.
 
   Note that the Host header and the request authority, when both defined, are
   automatically synchronized. It means when the HTTP request is sent, when a
