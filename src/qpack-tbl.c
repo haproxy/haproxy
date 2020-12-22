@@ -28,7 +28,7 @@
 #include <haproxy/http-hdr-t.h>
 #include <haproxy/qpack-tbl-t.h>
 
-/* static header table as in RFC7541 Appendix A. [0] unused. */
+/* static header table as in draft-ietf-quic-qpack-20 Appendix A. [0] unused. */
 const struct http_hdr qpack_sht[QPACK_SHT_SIZE] = {
 	[ 0] = { .n = IST(":authority"),                       .v = IST("")                         },
 	[ 1] = { .n = IST(":path"),                            .v = IST("/")                        },
