@@ -55,6 +55,8 @@ haproxy h1 -conf {
         http-response set-header x-wt6-1 "%[var(res.key),wt6(1)]"
 
         # 32/64-bit hashes, with seed variant
+        http-response set-header x-xxh3 "%[var(res.key),xxh3]"
+        http-response set-header x-xxh3-1 "%[var(res.key),xxh3(1)]"
         http-response set-header x-xxh32 "%[var(res.key),xxh32]"
         http-response set-header x-xxh32-1 "%[var(res.key),xxh32(1)]"
         http-response set-header x-xxh64 "%[var(res.key),xxh64]"
@@ -90,6 +92,8 @@ client c1 -connect ${h1_fe_sock} {
     expect resp.http.x-sdbm-1 == "3103804144"
     expect resp.http.x-wt6 == "4090277559"
     expect resp.http.x-wt6-1 == "1192658767"
+    expect resp.http.x-xxh3 == "-7779787747613135503"
+    expect resp.http.x-xxh3-1 == "5930632130106562027"
     expect resp.http.x-xxh32 == "1497633363"
     expect resp.http.x-xxh32-1 == "1070421674"
     expect resp.http.x-xxh64 == "2282408585429094475"
