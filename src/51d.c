@@ -305,9 +305,9 @@ unsigned long long _51d_req_hash(const struct arg *args, fiftyoneDegreesWorkset*
 	int i;
 	for(i = 0; i < ws->importantHeadersCount; i++) {
 		hash ^= ws->importantHeaders[i].header->headerNameOffset;
-		hash ^= XXH64(ws->importantHeaders[i].headerValue,
-		              ws->importantHeaders[i].headerValueLength,
-		              seed);
+		hash ^= XXH3(ws->importantHeaders[i].headerValue,
+		             ws->importantHeaders[i].headerValueLength,
+		             seed);
 	}
 	return hash;
 }
@@ -517,7 +517,7 @@ static int _51d_conv(const struct arg *args, struct sample *smp, void *private)
 		unsigned long long seed = _51d_lru_seed ^ (long)args;
 
 		HA_SPIN_LOCK(OTHER_LOCK, &_51d_lru_lock);
-		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
+		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
 		                _51d_lru_tree, (void*)args, 0);
 		if (lru && lru->domain) {
 			_51d_retrieve_cache_entry(smp, lru);

@@ -6242,7 +6242,7 @@ int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
 		memprintf(err, "unable to load issuers-chain %s : SubjectName not found.\n", fp);
 		goto end;
 	}
-	key = XXH64(ASN1_STRING_get0_data(skid), ASN1_STRING_length(skid), 0);
+	key = XXH3(ASN1_STRING_get0_data(skid), ASN1_STRING_length(skid), 0);
 	for (node = eb64_lookup(&cert_issuer_tree, key); node; node = eb64_next(node)) {
 		issuer = container_of(node, typeof(*issuer), node);
 		if (!X509_NAME_cmp(name, X509_get_subject_name(sk_X509_value(issuer->chain, 0)))) {
@@ -6280,7 +6280,7 @@ int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err)
 	if (akid && akid->keyid) {
 		struct eb64_node *node;
 		u64 hk;
-		hk = XXH64(ASN1_STRING_get0_data(akid->keyid), ASN1_STRING_length(akid->keyid), 0);
+		hk = XXH3(ASN1_STRING_get0_data(akid->keyid), ASN1_STRING_length(akid->keyid), 0);
 		for (node = eb64_lookup(&cert_issuer_tree, hk); node; node = eb64_next(node)) {
 			struct issuer_chain *ti = container_of(node, typeof(*issuer), node);
 			if (X509_check_issued(sk_X509_value(ti->chain, 0), cert) == X509_V_OK) {

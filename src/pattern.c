@@ -494,7 +494,7 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
+		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->ref->revision);
 		if (lru && lru->domain) {
 			ret = lru->data;
@@ -537,7 +537,7 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
+		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->ref->revision);
 		if (lru && lru->domain) {
 			ret = lru->data;
@@ -606,7 +606,7 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
+		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->ref->revision);
 		if (lru && lru->domain) {
 			ret = lru->data;
@@ -689,7 +689,7 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
+		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->ref->revision);
 		if (lru && lru->domain) {
 			ret = lru->data;
@@ -733,7 +733,7 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
+		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->ref->revision);
 		if (lru && lru->domain) {
 			ret = lru->data;
@@ -781,7 +781,7 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 	if (pat_lru_tree) {
 		unsigned long long seed = pat_lru_seed ^ (long)expr;
 
-		lru = lru64_get(XXH64(smp->data.u.str.area, smp->data.u.str.data, seed),
+		lru = lru64_get(XXH3(smp->data.u.str.area, smp->data.u.str.data, seed),
 				pat_lru_tree, expr, expr->ref->revision);
 		if (lru && lru->domain) {
 			ret = lru->data;
