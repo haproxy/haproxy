@@ -49,17 +49,6 @@ matrix:
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc COVERITY_SCAN_PROJECT_NAME="Haproxy" COVERITY_SCAN_BRANCH_PATTERN="*" COVERITY_SCAN_NOTIFICATION_EMAIL="chipitsine@gmail.com" COVERITY_SCAN_BUILD_COMMAND="make CC=clang DEFINE=-DDEBUG_USE_ABORT TARGET=$TARGET $FLAGS 51DEGREES_SRC=$FIFTYONEDEGREES_SRC DEBUG_STRICT=1"
-    script:
-      - |
-        if [ ! -z ${COVERITY_SCAN_TOKEN+x} ]; then
-          make -C contrib/wurfl
-          curl -s "https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh" | bash || true
-        fi
-    name: Coverity scan | openssl-1.1.1
-  - os: linux
-    if: type == cron
-    compiler: clang
     env: TARGET=linux-glibc OPENSSL_VERSION=1.1.0l FIFTYONEDEGREES_SRC="contrib/51d/src/trie" CC=clang-9
     name: openssl-1.1.1 | 51d trie
   - os: linux
