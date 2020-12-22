@@ -19,6 +19,7 @@ server s2 {
     expect req.method == GET
     expect req.url == /test
     expect req.proto == HTTP/1.1
+    expect req.http.connection == "close"
     txresp
 } -start
 
@@ -39,6 +40,7 @@ server s4 {
     expect req.method == GET
     expect req.url == /status
     expect req.proto == HTTP/1.1
+    expect req.http.connection == "close"
     expect req.http.hdr == <undef>
     expect req.http.host == "my-www-host"
     expect req.http.x-test == true
@@ -61,6 +63,20 @@ server s5 {
     expect req.bodylen == 10
     expect req.body == "other test"
     txresp
+} -start
+
+server s6 {
+    rxreq
+    expect req.method == GET
+    expect req.url == /
+    expect req.proto == HTTP/1.1
+    expect req.http.host == "ws-host"
+    expect req.http.connection == "upgrade"
+    expect req.http.upgrade == "websocket"
+    txresp \
+      -status 101 \
+      -hdr "connection: upgrade" \
+      -hdr "upgrade: websocket"
 } -start
 
 
@@ -87,6 +103,11 @@ syslog S4 -level notice {
 syslog S5 -level notice {
     recv
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be5/srv succeeded.*code: 200"
+} -start
+
+syslog S6 -level notice {
+    recv
+    expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be6_ws/srv succeeded.*code: 101"
 } -start
 
 
@@ -131,6 +152,12 @@ haproxy h1 -conf {
         http-check send hdr Host "other-www-host" hdr X-New-Test true body "other test"
         server srv ${s5_addr}:${s5_port} check inter 200ms rise 1 fall 1
 
+    backend be6_ws
+        log ${S6_addr}:${S6_port} len 2048 local0
+        http-check send meth GET uri / ver HTTP/1.1 hdr host ws-host hdr connection upgrade hdr upgrade websocket
+        http-check expect status 101
+        server srv ${s6_addr}:${s6_port} check inter 200ms rise 1 fall 1
+
 } -start
 
 syslog S1 -wait
@@ -138,3 +165,4 @@ syslog S2 -wait
 syslog S3 -wait
 syslog S4 -wait
 syslog S5 -wait
+syslog S6 -wait
