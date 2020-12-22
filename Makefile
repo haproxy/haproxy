@@ -847,7 +847,7 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/http_ana.o src/stream.o                \
         src/mworker-prog.o src/signal.o src/proto_udp.o src/lb_map.o           \
         src/sock_inet.o src/ev_select.o src/cfgparse-tcp.o                     \
         src/action.o src/thread.o src/sha1.o src/ebmbtree.o                    \
-        src/cfgparse-unix.o src/dict.o src/xxhash.o src/time.o                 \
+        src/cfgparse-unix.o src/dict.o src/time.o                              \
         src/hpack-dec.o src/arg.o src/hpack-tbl.o src/eb64tree.o               \
         src/chunk.o src/shctx.o src/regex.o src/fcgi.o src/eb32tree.o          \
         src/eb32sctree.o src/dynbuf.o src/pipe.o src/lru.o                     \

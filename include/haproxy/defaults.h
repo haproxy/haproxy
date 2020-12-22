@@ -388,4 +388,11 @@
 #define MAX_POLLERS	10
 #endif
 
+/* Make all xxhash functions inline, with implementations being directly
+ * included within xxhash.h.
+ */
+#ifndef XXH_INLINE_ALL
+#define XXH_INLINE_ALL
+#endif
+
 #endif /* _HAPROXY_DEFAULTS_H */
