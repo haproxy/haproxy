@@ -93,16 +93,7 @@ static const struct trace_event quic_trace_events[] = {
 	{ .mask = QUIC_EV_CONN_STIMER,   .name = "stimer",           .desc = "set timer" },
 	{ .mask = QUIC_EV_CONN_PTIMER,   .name = "ptimer",           .desc = "process timer" },
 	{ .mask = QUIC_EV_CONN_SPTO,     .name = "spto",             .desc = "set PTO" },
-
-	{ .mask = QUIC_EV_CONN_ENEW,     .name = "new_conn_err",     .desc = "error on new QUIC connection" },
-	{ .mask = QUIC_EV_CONN_EISEC,    .name = "init_secs_err",    .desc = "error on initial secrets derivation" },
-	{ .mask = QUIC_EV_CONN_ERSEC,    .name = "read_secs_err",    .desc = "error on read secrets derivation" },
-	{ .mask = QUIC_EV_CONN_EWSEC,    .name = "write_secs_err",   .desc = "error on write secrets derivation" },
-	{ .mask = QUIC_EV_CONN_ELPKT,    .name = "lstnr_packet_err", .desc = "error on new listener received packet" },
-	{ .mask = QUIC_EV_CONN_ESPKT,    .name = "srv_packet_err",   .desc = "error on new server received packet" },
-	{ .mask = QUIC_EV_CONN_ECHPKT,   .name = "chdshk_pkt_err",   .desc = "error on clear handhshake packet building" },
-	{ .mask = QUIC_EV_CONN_EHPKT,    .name = "hdshk_pkt_err",    .desc = "error on handhshake packet building" },
-	{ .mask = QUIC_EV_CONN_EPAPKT,   .name = "phdshk_apkt_err",  .desc = "error on post handhshake application packet building" },
+	{ .mask = QUIC_EV_CONN_BCFRMS,   .name = "bcfrms",           .desc = "build CRYPTO data frames" },
 	{ /* end */ }
 };
 
@@ -347,7 +338,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				chunk_appendf(&trace_buf, " err=%s", ssl_error_str(*err));
 		}
 
-		if (mask & (QUIC_EV_CONN_TRMHP|QUIC_EV_CONN_ELRMHP|QUIC_EV_CONN_ESPKT|QUIC_EV_CONN_SPKT)) {
+		if (mask & (QUIC_EV_CONN_TRMHP|QUIC_EV_CONN_ELRMHP|QUIC_EV_CONN_SPKT)) {
 			const struct quic_rx_packet *pkt = a2;
 			const unsigned long *pktlen = a3;
 			const SSL *ssl = a4;
@@ -729,7 +720,7 @@ int ha_set_rsec(SSL *ssl, enum ssl_encryption_level_t level,
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_ERSEC, conn);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_RSEC, conn);
 	return 0;
 }
 
@@ -765,7 +756,7 @@ int ha_set_wsec(SSL *ssl, enum ssl_encryption_level_t level,
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_EWSEC, conn);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_WSEC, conn);
 	return 0;
 }
 #endif
@@ -2865,7 +2856,7 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	return pkt->len;
 
  err:
-	TRACE_DEVEL("Leaing in error", QUIC_EV_CONN_ESPKT, qc ? qc->conn : NULL);
+	TRACE_DEVEL("Leaing in error", QUIC_EV_CONN_SPKT, qc ? qc->conn : NULL);
 	return -1;
 }
 
@@ -3084,7 +3075,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	return pkt->len;
 
  err:
-	TRACE_DEVEL("Leaving in error", QUIC_EV_CONN_LPKT|QUIC_EV_CONN_ELPKT,
+	TRACE_DEVEL("Leaving in error", QUIC_EV_CONN_LPKT,
 	            qc ? qc->conn : NULL, pkt);
 	return -1;
 }
@@ -3247,7 +3238,7 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
 
 			new_cf = pool_alloc(pool_head_quic_tx_frm);
 			if (!new_cf) {
-				TRACE_PROTO("No memory for new crypto frame", QUIC_EV_CONN_ECHPKT, conn->conn);
+				TRACE_PROTO("No memory for new crypto frame", QUIC_EV_CONN_BCFRMS, conn->conn);
 				return 0;
 			}
 
@@ -4128,7 +4119,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	if (ctx->wait_event.tasklet)
 		tasklet_free(ctx->wait_event.tasklet);
 	pool_free(pool_head_quic_conn_ctx, ctx);
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_NEW|QUIC_EV_CONN_ENEW, conn);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_NEW, conn);
 	return -1;
 }
 

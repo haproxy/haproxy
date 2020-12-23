@@ -432,7 +432,7 @@ static inline int qc_new_isecs(struct connection *conn,
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_EISEC, conn);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_ISEC, conn);
 	return 0;
 }
 
