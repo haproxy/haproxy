@@ -73,30 +73,59 @@ enum vary_header_bit {
 	VARY_LAST  /* should always be last */
 };
 
+/*
+ * Encoding list extracted from
+ * https://www.iana.org/assignments/http-parameters/http-parameters.xhtml
+ * and RFC7231#5.3.4.
+ */
+enum vary_encoding {
+	VARY_ENCODING_GZIP =		(1 << 0),
+	VARY_ENCODING_DEFLATE =		(1 << 1),
+	VARY_ENCODING_BR =		(1 << 2),
+	VARY_ENCODING_COMPRESS =	(1 << 3),
+	VARY_ENCODING_AES128GCM =	(1 << 4),
+	VARY_ENCODING_EXI =		(1 << 5),
+	VARY_ENCODING_PACK200_GZIP =	(1 << 6),
+	VARY_ENCODING_ZSTD =		(1 << 7),
+	VARY_ENCODING_IDENTITY =	(1 << 8),
+	VARY_ENCODING_STAR =		(1 << 9),
+	VARY_ENCODING_OTHER =		(1 << 10)
+};
+
 struct vary_hashing_information {
 	struct ist hdr_name;                 /* Header name */
 	enum vary_header_bit value;          /* Bit representing the header in a vary signature */
 	unsigned int hash_length;            /* Size of the sub hash for this header's value */
 	int(*norm_fn)(struct htx*,struct ist hdr_name,char* buf,unsigned int* buf_len);  /* Normalization function */
-	int(*cmp_fn)(const char *ref_hash, const char *new_hash, unsigned int hash_len); /* Comparison function, should return 0 if the hashes are alike */
+	int(*cmp_fn)(const void *ref_hash, const void *new_hash, unsigned int hash_len); /* Comparison function, should return 0 if the hashes are alike */
 };
+
+struct accept_encoding_hash {
+	unsigned int encoding_bitmap;
+	unsigned int hash;
+} __attribute__((packed));
+
+static int http_request_prebuild_full_secondary_key(struct stream *s);
+static int http_request_build_secondary_key(struct stream *s, int vary_signature);
+static int http_request_reduce_secondary_key(unsigned int vary_signature,
+					     char prebuilt_key[HTTP_CACHE_SEC_KEY_LEN]);
+
+static int parse_encoding_value(struct ist value, unsigned int *encoding_value,
+				unsigned int *has_null_weight);
 
 static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 				      char *buf, unsigned int *buf_len);
 static int default_normalizer(struct htx *htx, struct ist hdr_name,
 			      char *buf, unsigned int *buf_len);
 
+static int accept_encoding_hash_cmp(const void *ref_hash, const void *new_hash, unsigned int hash_len);
+
 /* Warning : do not forget to update HTTP_CACHE_SEC_KEY_LEN when new items are
  * added to this array. */
 const struct vary_hashing_information vary_information[] = {
-	{ IST("accept-encoding"), VARY_ACCEPT_ENCODING, sizeof(int), &accept_encoding_normalizer, NULL },
+	{ IST("accept-encoding"), VARY_ACCEPT_ENCODING, sizeof(struct accept_encoding_hash), &accept_encoding_normalizer, &accept_encoding_hash_cmp },
 	{ IST("referer"), VARY_REFERER, sizeof(int), &default_normalizer, NULL },
 };
-
-static int http_request_prebuild_full_secondary_key(struct stream *s);
-static int http_request_build_secondary_key(struct stream *s, int vary_signature);
-static int http_request_reduce_secondary_key(unsigned int vary_signature,
-					     char prebuilt_key[HTTP_CACHE_SEC_KEY_LEN]);
 
 
 /*
@@ -900,6 +929,46 @@ static int http_check_vary_header(struct htx *htx, unsigned int *vary_signature)
 }
 
 
+/*
+ * Look for the accept-encoding part of the secondary_key and replace the
+ * encoding bitmap part of the hash with the actual encoding of the response,
+ * extracted from the content-encoding header value.
+ */
+static void set_secondary_key_encoding(struct htx *htx, char *secondary_key)
+{
+	unsigned int resp_encoding_bitmap = 0;
+	const struct vary_hashing_information *info = vary_information;
+	unsigned int offset = 0;
+	unsigned int count = 0;
+	unsigned int hash_info_count = sizeof(vary_information)/sizeof(*vary_information);
+	unsigned int encoding_value;
+	struct http_hdr_ctx ctx = { .blk = NULL };
+
+	/* Look for the accept-encoding part of the secondary_key. */
+	while (count < hash_info_count && info->value != VARY_ACCEPT_ENCODING) {
+		offset += info->hash_length;
+		++info;
+		++count;
+	}
+
+	if (count == hash_info_count)
+		return;
+
+	while (http_find_header(htx, ist("content-encoding"), &ctx, 0)) {
+		if (!parse_encoding_value(ctx.value, &encoding_value, NULL))
+			resp_encoding_bitmap |= encoding_value;
+		else
+			resp_encoding_bitmap |= VARY_ENCODING_OTHER;
+	}
+
+	if (!resp_encoding_bitmap)
+		resp_encoding_bitmap |= VARY_ENCODING_IDENTITY;
+
+	/* Rewrite the bitmap part of the hash with the new bitmap that only
+	 * correponds the the response's encoding. */
+	write_u32(secondary_key + offset, resp_encoding_bitmap);
+}
+
 
 /*
  * This function will store the headers of the response in a buffer and then
@@ -1125,6 +1194,13 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	/* Do not cache objects if the headers are too big. */
 	if (hdrs_len > htx->size - global.tune.maxrewrite)
 		goto out;
+
+	/* If the response has a secondary_key, fill its key part related to
+	 * encodings with the actual encoding of the response. This way any
+	 * subsequent request having the same primary key will have its accepted
+	 * encodings tested upon the cached response's one. */
+	if (cache->vary_processing_enabled && vary_signature)
+		set_secondary_key_encoding(htx, object->secondary_key);
 
 	shctx_lock(shctx);
 	if (!shctx_row_reserve_hot(shctx, first, trash.data)) {
@@ -2077,22 +2153,145 @@ int accept_encoding_cmp(const void *a, const void *b)
 	return 0;
 }
 
+
+#define CHECK_ENCODING(str, encoding_name, encoding_value) \
+	({ \
+		int retval = 0; \
+		if (istmatch(str, (struct ist){ .ptr = encoding_name+1, .len = sizeof(encoding_name) - 2 })) { \
+			retval = encoding_value; \
+			encoding = istadv(encoding, sizeof(encoding_name) - 2); \
+		} \
+		(retval); \
+	})
+
+/*
+ * Parse the encoding <encoding> and try to match the encoding part upon an
+ * encoding list of explicitly supported encodings (which all have a specific
+ * bit in an encoding bitmap). If a weight is included in the value, find out if
+ * it is null or not. The bit value will be set in the <encoding_value>
+ * parameter and the <has_null_weight> will be set to 1 if the weight is strictly
+ * 0, 1 otherwise.
+ * The encodings list is extracted from
+ * https://www.iana.org/assignments/http-parameters/http-parameters.xhtml.
+ * Returns 0 in case of success and -1 in case of error.
+ */
+static int parse_encoding_value(struct ist encoding, unsigned int *encoding_value,
+				unsigned int *has_null_weight)
+{
+	int retval = 0;
+
+	if (!encoding_value)
+		return -1;
+
+	if (!istlen(encoding))
+		return -1;	/* Invalid encoding */
+
+	*encoding_value = 0;
+	if (has_null_weight)
+		*has_null_weight = 0;
+
+	switch (*encoding.ptr) {
+	case 'a':
+		encoding = istadv(encoding, 1);
+		*encoding_value = CHECK_ENCODING(encoding, "aes128gcm", VARY_ENCODING_AES128GCM);
+		break;
+	case 'b':
+		encoding = istadv(encoding, 1);
+		*encoding_value = CHECK_ENCODING(encoding, "br", VARY_ENCODING_BR);
+		break;
+	case 'c':
+		encoding = istadv(encoding, 1);
+		*encoding_value = CHECK_ENCODING(encoding, "compress", VARY_ENCODING_COMPRESS);
+		break;
+	case 'd':
+		encoding = istadv(encoding, 1);
+		*encoding_value = CHECK_ENCODING(encoding, "deflate", VARY_ENCODING_DEFLATE);
+		break;
+	case 'e':
+		encoding = istadv(encoding, 1);
+		*encoding_value = CHECK_ENCODING(encoding, "exi", VARY_ENCODING_EXI);
+		break;
+	case 'g':
+		encoding = istadv(encoding, 1);
+		*encoding_value = CHECK_ENCODING(encoding, "gzip", VARY_ENCODING_GZIP);
+		break;
+	case 'i':
+		encoding = istadv(encoding, 1);
+		*encoding_value = CHECK_ENCODING(encoding, "identity", VARY_ENCODING_IDENTITY);
+		break;
+	case 'p':
+		encoding = istadv(encoding, 1);
+		*encoding_value = CHECK_ENCODING(encoding, "pack200-gzip", VARY_ENCODING_PACK200_GZIP);
+		break;
+	case 'x':
+		encoding = istadv(encoding, 1);
+		*encoding_value = CHECK_ENCODING(encoding, "x-gzip", VARY_ENCODING_GZIP);
+		if (!*encoding_value)
+			*encoding_value = CHECK_ENCODING(encoding, "x-compress", VARY_ENCODING_COMPRESS);
+		break;
+	case 'z':
+		encoding = istadv(encoding, 1);
+		*encoding_value = CHECK_ENCODING(encoding, "zstd", VARY_ENCODING_ZSTD);
+		break;
+	case '*':
+		encoding = istadv(encoding, 1);
+		*encoding_value = VARY_ENCODING_STAR;
+		break;
+	default:
+		retval = -1; /* Unmanaged encoding */
+		break;
+	}
+
+	/* Process the optional weight part of the encoding. */
+	if (*encoding_value) {
+		encoding = http_trim_leading_spht(encoding);
+		if (istlen(encoding)) {
+			if (*encoding.ptr != ';')
+				return -1;
+
+			if (has_null_weight) {
+				encoding = istadv(encoding, 1);
+
+				encoding = http_trim_leading_spht(encoding);
+
+				*has_null_weight = isteq(encoding, ist("q=0"));
+			}
+		}
+	}
+
+	return retval;
+}
+
 #define ACCEPT_ENCODING_MAX_ENTRIES 16
 /*
- * Build a hash of the accept-encoding header. The different parts of the
- * header value are converted to lower case, hashed, sorted and then all
- * the unique sub-hashes are merged into a single hash that is copied into
- * the buffer.
- * Returns 0 in case of success, -1 in case of error.
+ * Build a hash of the accept-encoding header. The hash is split into an
+ * encoding bitmap and an actual hash of the different encodings.
+ * The bitmap is built by matching every sub-part of the accept-encoding value
+ * with a subset of explicitly supported encodings, which all have their own bit
+ * in the bitmap. This bitmap will be used to determine if a response can be
+ * served to a client (that is if it has an encoding that is accepted by the
+ * client).
+ * The hash part is built out of all the sub-parts of the value, which are
+ * converted to lower case, hashed, sorted and then all the unique sub-hashes
+ * are XORed into a single hash.
+ * Returns 0 in case of success, 1 if the hash buffer should be filled with 0s
+ * and -1 in case of error.
  */
 static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 				      char *buf, unsigned int *buf_len)
 {
 	unsigned int values[ACCEPT_ENCODING_MAX_ENTRIES] = {};
 	size_t count = 0;
-	unsigned int hash_value = 0;
+	struct accept_encoding_hash hash = {};
+	unsigned int encoding_bmp_bl = -1;
 	unsigned int prev = 0, curr = 0;
 	struct http_hdr_ctx ctx = { .blk = NULL };
+	unsigned int encoding_value;
+	unsigned int rejected_encoding;
+
+	/* A user agent always accepts an unencoded value unless it explicitely
+	 * refuses it through an "identity;q=0" accept-encoding value. */
+	hash.encoding_bitmap |= VARY_ENCODING_IDENTITY;
 
 	/* Iterate over all the ACCEPT_ENCODING_MAX_ENTRIES first accept-encoding
 	 * values that might span acrosse multiple accept-encoding headers. */
@@ -2100,8 +2299,34 @@ static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 		/* Turn accept-encoding value to lower case */
 		ist2bin_lc(istptr(ctx.value), ctx.value);
 
+		/* Try to identify a known encoding and to manage null weights. */
+		if (!parse_encoding_value(ctx.value, &encoding_value, &rejected_encoding)) {
+			if (rejected_encoding)
+				encoding_bmp_bl &= ~encoding_value;
+			else
+				hash.encoding_bitmap |= encoding_value;
+		}
+		else {
+			/* Unknown encoding */
+			hash.encoding_bitmap |= VARY_ENCODING_OTHER;
+		}
+
 		values[count++] = hash_crc32(istptr(ctx.value), istlen(ctx.value));
 	}
+
+	/* If a "*" was found in the accepted encodings (without a null weight),
+	 * all the encoding are accepted except the ones explicitely rejected. */
+	if (hash.encoding_bitmap & VARY_ENCODING_STAR) {
+		hash.encoding_bitmap = ~0;
+	}
+
+	/* Clear explicitely rejected encodings from the bitmap */
+	hash.encoding_bitmap &= encoding_bmp_bl;
+
+	/* As per RFC7231#5.3.4, "If no Accept-Encoding field is in the request,
+	 * any content-coding is considered acceptable by the user agent". */
+	if (count == 0)
+		hash.encoding_bitmap = ~0;
 
 	/* A request with more than ACCEPT_ENCODING_MAX_ENTRIES accepted
 	 * encodings might be illegitimate so we will not use it. */
@@ -2114,13 +2339,15 @@ static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 	while (count) {
 		curr = values[--count];
 		if (curr != prev) {
-			hash_value ^= curr;
+			hash.hash ^= curr;
 		}
 		prev = curr;
 	}
 
-	write_u32(buf, hash_value);
-	*buf_len = sizeof(hash_value);
+	write_u32(buf, hash.encoding_bitmap);
+	*buf_len = sizeof(hash.encoding_bitmap);
+	write_u32(buf+*buf_len, hash.hash);
+	*buf_len += sizeof(hash.hash);
 
 	/* This function fills the hash buffer correctly even if no header was
 	 * found, hence the 0 return value (success). */
@@ -2150,6 +2377,38 @@ static int default_normalizer(struct htx *htx, struct ist hdr_name,
 
 	return retval;
 }
+
+/*
+ * Accept-Encoding sub-hash comparison function.
+ * Returns 0 if the hashes are alike.
+ */
+static int accept_encoding_hash_cmp(const void *ref_hash, const void *new_hash, unsigned int hash_len)
+{
+	struct accept_encoding_hash ref = {};
+	struct accept_encoding_hash new = {};
+
+	ref.encoding_bitmap = read_u32(ref_hash);
+	new.encoding_bitmap = read_u32(new_hash);
+
+	if (!(ref.encoding_bitmap & VARY_ENCODING_OTHER)) {
+		/* All the bits set in the reference bitmap correspond to the
+		 * stored response' encoding and should all be set in the new
+		 * encoding bitmap in order for the client to be able to manage
+		 * the response. */
+		if ((ref.encoding_bitmap & new.encoding_bitmap) == ref.encoding_bitmap) {
+			/* The cached response has encodings that are accepted
+			 * by the client, it can be served directly by the cache
+			 * (as far as the accept-encoding part is concerned). */
+			return 0;
+		}
+	}
+
+	ref.hash = read_u32(ref_hash+sizeof(ref.encoding_bitmap));
+	new.hash = read_u32(new_hash+sizeof(new.encoding_bitmap));
+
+	return ref.hash != new.hash;
+}
+
 
 /*
  * Pre-calculate the hashes of all the supported headers (in our Vary

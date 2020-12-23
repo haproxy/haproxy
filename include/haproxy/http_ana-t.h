@@ -95,7 +95,7 @@
  * request/response pairs, because they depend on the responses' optional Vary
  * header. The differents sizes can be found in the vary_information object (see
  * cache.c).*/
-#define HTTP_CACHE_SEC_KEY_LEN (sizeof(int)+sizeof(int))
+#define HTTP_CACHE_SEC_KEY_LEN (sizeof(int)+sizeof(int)+sizeof(int))
 
 
 /* Redirect flags */
