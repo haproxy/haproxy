@@ -719,7 +719,7 @@ static void dns_check_dns_response(struct resolv_resolution *res)
 				srv->svc_port = item->port;
 				srv->flags   &= ~SRV_F_MAPPORTS;
 
-				if (!srv->dns_opts.ignore_weight) {
+				if (!srv->resolv_opts.ignore_weight) {
 					char weight[9];
 					int ha_weight;
 
@@ -1326,7 +1326,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
  * returns one of the DNS_UPD_* code
  */
 int dns_get_ip_from_response(struct resolv_response *r_res,
-                             struct dns_options *dns_opts, void *currentip,
+                             struct resolv_options *resolv_opts, void *currentip,
                              short currentip_sin_family,
                              void **newip, short *newip_sin_family,
                              void *owner)
@@ -1340,8 +1340,8 @@ int dns_get_ip_from_response(struct resolv_response *r_res,
 	int score, max_score;
 	int allowed_duplicated_ip;
 
-	family_priority   = dns_opts->family_prio;
-	allowed_duplicated_ip = dns_opts->accept_duplicate_ip;
+	family_priority   = resolv_opts->family_prio;
+	allowed_duplicated_ip = resolv_opts->accept_duplicate_ip;
 	*newip = newip4   = newip6 = NULL;
 	currentip_found   = 0;
 	*newip_sin_family = AF_UNSPEC;
@@ -1382,20 +1382,20 @@ int dns_get_ip_from_response(struct resolv_response *r_res,
 			score += 8;
 
 		/* Check for preferred network. */
-		for (j = 0; j < dns_opts->pref_net_nb; j++) {
+		for (j = 0; j < resolv_opts->pref_net_nb; j++) {
 
 			/* Compare only the same addresses class. */
-			if (dns_opts->pref_net[j].family != ip_type)
+			if (resolv_opts->pref_net[j].family != ip_type)
 				continue;
 
 			if ((ip_type == AF_INET &&
 			     in_net_ipv4(ip,
-			                 &dns_opts->pref_net[j].mask.in4,
-			                 &dns_opts->pref_net[j].addr.in4)) ||
+			                 &resolv_opts->pref_net[j].mask.in4,
+			                 &resolv_opts->pref_net[j].addr.in4)) ||
 			    (ip_type == AF_INET6 &&
 			     in_net_ipv6(ip,
-			                 &dns_opts->pref_net[j].mask.in6,
-			                 &dns_opts->pref_net[j].addr.in6))) {
+			                 &resolv_opts->pref_net[j].mask.in6,
+			                 &resolv_opts->pref_net[j].addr.in6))) {
 				score += 4;
 				break;
 			}
@@ -1728,7 +1728,7 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 			hostname_dn     = &srv->hostname_dn;
 			hostname_dn_len = srv->hostname_dn_len;
 			resolvers       = srv->resolvers;
-			query_type      = ((srv->dns_opts.family_prio == AF_INET)
+			query_type      = ((srv->resolv_opts.family_prio == AF_INET)
 					   ? DNS_RTYPE_A
 					   : DNS_RTYPE_AAAA);
 			break;
@@ -1745,8 +1745,8 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 			stream          = (struct stream *)requester;
 			hostname_dn     = &stream->resolv_ctx.hostname_dn;
 			hostname_dn_len = stream->resolv_ctx.hostname_dn_len;
-			resolvers       = stream->resolv_ctx.parent->arg.dns.resolvers;
-			query_type      = ((stream->resolv_ctx.parent->arg.dns.dns_opts->family_prio == AF_INET)
+			resolvers       = stream->resolv_ctx.parent->arg.resolv.resolvers;
+			query_type      = ((stream->resolv_ctx.parent->arg.resolv.opts->family_prio == AF_INET)
 					   ? DNS_RTYPE_A
 					   : DNS_RTYPE_AAAA);
 			break;
@@ -2668,7 +2668,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	int exp, locked = 0;
 	enum act_return ret = ACT_RET_CONT;
 
-	resolvers = rule->arg.dns.resolvers;
+	resolvers = rule->arg.resolv.resolvers;
 
 	/* we have a response to our DNS resolution */
  use_cache:
@@ -2688,7 +2688,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 				short ip_sin_family = 0;
 				void *ip = NULL;
 
-				dns_get_ip_from_response(&resolution->response, rule->arg.dns.dns_opts, NULL,
+				dns_get_ip_from_response(&resolution->response, rule->arg.resolv.opts, NULL,
 							 0, &ip, &ip_sin_family, NULL);
 
 				switch (ip_sin_family) {
@@ -2709,7 +2709,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 					smp.sess = sess;
 					smp.strm = s;
 
-					vars_set_by_name(rule->arg.dns.varname, strlen(rule->arg.dns.varname), &smp);
+					vars_set_by_name(rule->arg.resolv.varname, strlen(rule->arg.resolv.varname), &smp);
 				}
 			}
 		}
@@ -2718,7 +2718,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* need to configure and start a new DNS resolution */
-	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.dns.expr, SMP_T_STR);
+	smp = sample_fetch_as_type(px, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->arg.resolv.expr, SMP_T_STR);
 	if (smp == NULL)
 		goto end;
 
@@ -2771,10 +2771,10 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 
 static void release_dns_action(struct act_rule *rule)
 {
-	release_sample_expr(rule->arg.dns.expr);
-	free(rule->arg.dns.varname);
-	free(rule->arg.dns.resolvers_id);
-	free(rule->arg.dns.dns_opts);
+	release_sample_expr(rule->arg.resolv.expr);
+	free(rule->arg.resolv.varname);
+	free(rule->arg.resolv.resolvers_id);
+	free(rule->arg.resolv.opts);
 }
 
 
@@ -2808,8 +2808,8 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 	end = strchr(beg, ',');
 	if (end == NULL)
 		goto do_resolve_parse_error;
-	rule->arg.dns.varname = my_strndup(beg, end - beg);
-	if (rule->arg.dns.varname == NULL)
+	rule->arg.resolv.varname = my_strndup(beg, end - beg);
+	if (rule->arg.resolv.varname == NULL)
 		goto do_resolve_parse_error;
 
 
@@ -2823,17 +2823,17 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 		end = strchr(beg, ')');
 	if (end == NULL)
 		goto do_resolve_parse_error;
-	rule->arg.dns.resolvers_id = my_strndup(beg, end - beg);
-	if (rule->arg.dns.resolvers_id == NULL)
+	rule->arg.resolv.resolvers_id = my_strndup(beg, end - beg);
+	if (rule->arg.resolv.resolvers_id == NULL)
 		goto do_resolve_parse_error;
 
 
-	rule->arg.dns.dns_opts = calloc(1, sizeof(*rule->arg.dns.dns_opts));
-	if (rule->arg.dns.dns_opts == NULL)
+	rule->arg.resolv.opts = calloc(1, sizeof(*rule->arg.resolv.opts));
+	if (rule->arg.resolv.opts == NULL)
 		goto do_resolve_parse_error;
 
 	/* Default priority is ipv6 */
-	rule->arg.dns.dns_opts->family_prio = AF_INET6;
+	rule->arg.resolv.opts->family_prio = AF_INET6;
 
 	/* optional arguments accepted for now:
 	 *  ipv4 or ipv6
@@ -2847,10 +2847,10 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 			goto do_resolve_parse_error;
 
 		if (strncmp(beg, "ipv4", end - beg) == 0) {
-			rule->arg.dns.dns_opts->family_prio = AF_INET;
+			rule->arg.resolv.opts->family_prio = AF_INET;
 		}
 		else if (strncmp(beg, "ipv6", end - beg) == 0) {
-			rule->arg.dns.dns_opts->family_prio = AF_INET6;
+			rule->arg.resolv.opts->family_prio = AF_INET6;
 		}
 		else {
 			goto do_resolve_parse_error;
@@ -2877,7 +2877,7 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 		free(expr);
 		return ACT_RET_PRS_ERR;
 	}
-	rule->arg.dns.expr = expr;
+	rule->arg.resolv.expr = expr;
 	rule->action = ACT_CUSTOM;
 	rule->action_ptr = dns_action_do_resolve;
 	*orig_arg = cur_arg;
@@ -2888,8 +2888,8 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 	return ACT_RET_PRS_OK;
 
  do_resolve_parse_error:
-	free(rule->arg.dns.varname); rule->arg.dns.varname = NULL;
-	free(rule->arg.dns.resolvers_id); rule->arg.dns.resolvers_id = NULL;
+	free(rule->arg.resolv.varname); rule->arg.resolv.varname = NULL;
+	free(rule->arg.resolv.resolvers_id); rule->arg.resolv.resolvers_id = NULL;
 	memprintf(err, "Can't parse '%s'. Expects 'do-resolve(<varname>,<resolvers>[,<options>]) <expr>'. Available options are 'ipv4' and 'ipv6'",
 			args[cur_arg]);
 	return ACT_RET_PRS_ERR;
@@ -2918,17 +2918,17 @@ int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err)
 {
 	struct resolvers *resolvers = NULL;
 
-	if (rule->arg.dns.resolvers_id == NULL) {
+	if (rule->arg.resolv.resolvers_id == NULL) {
 		memprintf(err,"Proxy '%s': %s", px->id, "do-resolve action without resolvers");
 		return 0;
 	}
 
-	resolvers = find_resolvers_by_id(rule->arg.dns.resolvers_id);
+	resolvers = find_resolvers_by_id(rule->arg.resolv.resolvers_id);
 	if (resolvers == NULL) {
-		memprintf(err,"Can't find resolvers section '%s' for do-resolve action", rule->arg.dns.resolvers_id);
+		memprintf(err,"Can't find resolvers section '%s' for do-resolve action", rule->arg.resolv.resolvers_id);
 		return 0;
 	}
-	rule->arg.dns.resolvers = resolvers;
+	rule->arg.resolv.resolvers = resolvers;
 
 	return 1;
 }

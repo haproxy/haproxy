@@ -37,7 +37,7 @@ int dns_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len);
 
 int dns_hostname_validation(const char *string, char **err);
 int dns_get_ip_from_response(struct resolv_response *r_res,
-                             struct dns_options *dns_opts, void *currentip,
+                             struct resolv_options *resolv_opts, void *currentip,
                              short currentip_sin_family,
                              void **newip, short *newip_sin_family,
                              void *owner);

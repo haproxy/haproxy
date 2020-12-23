@@ -296,7 +296,7 @@ struct server {
 	char *resolvers_id;			/* resolvers section used by this server */
 	struct resolvers *resolvers;		/* pointer to the resolvers structure used by this server */
 	char *lastaddr;				/* the address string provided by the server-state file */
-	struct dns_options dns_opts;
+	struct resolv_options resolv_opts;
 	int hostname_dn_len;			/* string length of the server hostname in Domain Name format */
 	char *hostname_dn;			/* server hostname in Domain Name format */
 	char *hostname;				/* server hostname */

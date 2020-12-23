@@ -236,7 +236,7 @@ struct dns_counters {
 	long long truncated;    /* - truncated response */;
 };
 
-struct dns_options {
+struct resolv_options {
 	int family_prio; /* which IP family should the resolver use when both are returned */
 	struct {
 		int family;

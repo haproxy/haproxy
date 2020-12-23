@@ -1716,15 +1716,15 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 
 	if (src->resolvers_id != NULL)
 		srv->resolvers_id = strdup(src->resolvers_id);
-	srv->dns_opts.family_prio = src->dns_opts.family_prio;
-	srv->dns_opts.accept_duplicate_ip = src->dns_opts.accept_duplicate_ip;
-	srv->dns_opts.ignore_weight = src->dns_opts.ignore_weight;
-	if (srv->dns_opts.family_prio == AF_UNSPEC)
-		srv->dns_opts.family_prio = AF_INET6;
-	memcpy(srv->dns_opts.pref_net,
-	       src->dns_opts.pref_net,
-	       sizeof srv->dns_opts.pref_net);
-	srv->dns_opts.pref_net_nb     = src->dns_opts.pref_net_nb;
+	srv->resolv_opts.family_prio = src->resolv_opts.family_prio;
+	srv->resolv_opts.accept_duplicate_ip = src->resolv_opts.accept_duplicate_ip;
+	srv->resolv_opts.ignore_weight = src->resolv_opts.ignore_weight;
+	if (srv->resolv_opts.family_prio == AF_UNSPEC)
+		srv->resolv_opts.family_prio = AF_INET6;
+	memcpy(srv->resolv_opts.pref_net,
+	       src->resolv_opts.pref_net,
+	       sizeof srv->resolv_opts.pref_net);
+	srv->resolv_opts.pref_net_nb  = src->resolv_opts.pref_net_nb;
 
 	srv->init_addr_methods        = src->init_addr_methods;
 	srv->init_addr                = src->init_addr;
@@ -2111,8 +2111,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		} else {
 			newsrv = &curproxy->defsrv;
 			cur_arg = 1;
-			newsrv->dns_opts.family_prio = AF_INET6;
-			newsrv->dns_opts.accept_duplicate_ip = 0;
+			newsrv->resolv_opts.family_prio = AF_INET6;
+			newsrv->resolv_opts.accept_duplicate_ip = 0;
 		}
 
 		while (*args[cur_arg]) {
@@ -2180,13 +2180,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 						*(end++) = 0;
 
 					if (strcmp(p, "allow-dup-ip") == 0) {
-						newsrv->dns_opts.accept_duplicate_ip = 1;
+						newsrv->resolv_opts.accept_duplicate_ip = 1;
 					}
 					else if (strcmp(p, "ignore-weight") == 0) {
-						newsrv->dns_opts.ignore_weight = 1;
+						newsrv->resolv_opts.ignore_weight = 1;
 					}
 					else if (strcmp(p, "prevent-dup-ip") == 0) {
-						newsrv->dns_opts.accept_duplicate_ip = 0;
+						newsrv->resolv_opts.accept_duplicate_ip = 0;
 					}
 					else {
 						ha_alert("parsing [%s:%d]: '%s' : unknown resolve-opts option '%s', supported methods are 'allow-dup-ip', 'ignore-weight', and 'prevent-dup-ip'.\n",
@@ -2200,9 +2200,9 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			else if (strcmp(args[cur_arg], "resolve-prefer") == 0) {
 				if (strcmp(args[cur_arg + 1], "ipv4") == 0)
-					newsrv->dns_opts.family_prio = AF_INET;
+					newsrv->resolv_opts.family_prio = AF_INET;
 				else if (strcmp(args[cur_arg + 1], "ipv6") == 0)
-					newsrv->dns_opts.family_prio = AF_INET6;
+					newsrv->resolv_opts.family_prio = AF_INET6;
 				else {
 					ha_alert("parsing [%s:%d]: '%s' expects either ipv4 or ipv6 as argument.\n",
 						file, linenum, args[cur_arg]);
@@ -2214,7 +2214,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else if (strcmp(args[cur_arg], "resolve-net") == 0) {
 				char *p, *e;
 				unsigned char mask;
-				struct dns_options *opt;
+				struct resolv_options *opt;
 
 				if (!args[cur_arg + 1] || args[cur_arg + 1][0] == '\0') {
 					ha_alert("parsing [%s:%d]: '%s' expects a list of networks.\n",
@@ -2223,7 +2223,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					goto out;
 				}
 
-				opt = &newsrv->dns_opts;
+				opt = &newsrv->resolv_opts;
 
 				/* Split arguments by comma, and convert it from ipv4 or ipv6
 				 * string network in in_addr or in6_addr.
@@ -4014,7 +4014,7 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 			goto invalid;
 	}
 
-	ret = dns_get_ip_from_response(&resolution->response, &s->dns_opts,
+	ret = dns_get_ip_from_response(&resolution->response, &s->resolv_opts,
 	                               serverip, server_sin_family, &firstip,
 	                               &firstip_sin_family, s);
 

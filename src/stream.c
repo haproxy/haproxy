@@ -668,7 +668,7 @@ static void stream_free(struct stream *s)
 	}
 
 	if (s->resolv_ctx.requester) {
-		__decl_thread(struct resolvers *resolvers = s->resolv_ctx.parent->arg.dns.resolvers);
+		__decl_thread(struct resolvers *resolvers = s->resolv_ctx.parent->arg.resolv.resolvers);
 
 		HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 		free(s->resolv_ctx.hostname_dn); s->resolv_ctx.hostname_dn = NULL;
