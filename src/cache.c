@@ -73,17 +73,17 @@ enum vary_header_bit {
 	VARY_LAST  /* should always be last */
 };
 
-typedef int(*http_header_normalizer)(struct ist value, char *buf, unsigned int *buf_len);
-
 struct vary_hashing_information {
 	struct ist hdr_name;                 /* Header name */
 	enum vary_header_bit value;          /* Bit representing the header in a vary signature */
 	unsigned int hash_length;            /* Size of the sub hash for this header's value */
-	http_header_normalizer norm_fn;      /* Normalization function */
+	int(*norm_fn)(struct htx*,struct ist hdr_name,char* buf,unsigned int* buf_len);      /* Normalization function */
 };
 
-static int accept_encoding_normalizer(struct ist value, char *buf, unsigned int *buf_len);
-static int default_normalizer(struct ist value, char *buf, unsigned int *buf_len);
+static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
+				      char *buf, unsigned int *buf_len);
+static int default_normalizer(struct htx *htx, struct ist hdr_name,
+			      char *buf, unsigned int *buf_len);
 
 /* Warning : do not forget to update HTTP_CACHE_SEC_KEY_LEN when new items are
  * added to this array. */
@@ -2050,31 +2050,33 @@ int accept_encoding_cmp(const void *a, const void *b)
 #define ACCEPT_ENCODING_MAX_ENTRIES 16
 /*
  * Build a hash of the accept-encoding header. The different parts of the
- * header value are first sorted, appended and then a crc is calculated
- * for the newly constructed buffer.
- * Returns 0 in case of success.
+ * header value are converted to lower case, hashed, sorted and then all
+ * the unique sub-hashes are merged into a single hash that is copied into
+ * the buffer.
+ * Returns 0 in case of success, -1 in case of error.
  */
-static int accept_encoding_normalizer(struct ist full_value, char *buf, unsigned int *buf_len)
+static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
+				      char *buf, unsigned int *buf_len)
 {
 	unsigned int values[ACCEPT_ENCODING_MAX_ENTRIES] = {};
 	size_t count = 0;
-	char *comma = NULL;
 	unsigned int hash_value = 0;
 	unsigned int prev = 0, curr = 0;
+	struct http_hdr_ctx ctx = { .blk = NULL };
 
-	/* Turn accept-encoding value to lower case */
-	full_value = ist2bin_lc(istptr(full_value), full_value);
+	/* Iterate over all the ACCEPT_ENCODING_MAX_ENTRIES first accept-encoding
+	 * values that might span acrosse multiple accept-encoding headers. */
+	while (http_find_header(htx, hdr_name, &ctx, 0) && count < ACCEPT_ENCODING_MAX_ENTRIES) {
+		/* Turn accept-encoding value to lower case */
+		ist2bin_lc(istptr(ctx.value), ctx.value);
 
-	/* The hash will be built out of a sorted list of accepted encodings. */
-	while (count < (ACCEPT_ENCODING_MAX_ENTRIES - 1) && (comma = istchr(full_value, ',')) != NULL) {
-		size_t length = comma - istptr(full_value);
-
-		values[count++] = hash_crc32(istptr(full_value), length);
-
-		full_value = istadv(full_value, length + 1);
-
+		values[count++] = hash_crc32(istptr(ctx.value), istlen(ctx.value));
 	}
-	values[count++] = hash_crc32(istptr(full_value), istlen(full_value));
+
+	/* A request with more than ACCEPT_ENCODING_MAX_ENTRIES accepted
+	 * encodings might be illegitimate so we will not use it. */
+	if (count == ACCEPT_ENCODING_MAX_ENTRIES)
+		return -1;
 
 	/* Sort the values alphabetically. */
 	qsort(values, count, sizeof(*values), &accept_encoding_cmp);
@@ -2087,30 +2089,37 @@ static int accept_encoding_normalizer(struct ist full_value, char *buf, unsigned
 		prev = curr;
 	}
 
-	memcpy(buf, &hash_value, sizeof(hash_value));
+	write_u32(buf, hash_value);
 	*buf_len = sizeof(hash_value);
 
+	/* This function fills the hash buffer correctly even if no header was
+	 * found, hence the 0 return value (success). */
 	return 0;
 }
 #undef ACCEPT_ENCODING_MAX_ENTRIES
 
 /*
- * Normalizer used by default for User-Agent and Referer headers. It only
+ * Normalizer used by default for the Referer header. It only
  * calculates a simple crc of the whole value.
- * Returns 0 in case of success.
+ * Only the first occurrence of the header will be taken into account in the
+ * hash.
+ * Returns 0 in case of success, 1 if the hash buffer should be filled with 0s
+ * and -1 in case of error.
  */
-static int default_normalizer(struct ist value, char *buf, unsigned int *buf_len)
+static int default_normalizer(struct htx *htx, struct ist hdr_name,
+			      char *buf, unsigned int *buf_len)
 {
-	int hash_value = 0;
+	int retval = 1;
+	struct http_hdr_ctx ctx = { .blk = NULL };
 
-	hash_value = hash_crc32(istptr(value), istlen(value));
+	if (http_find_header(htx, hdr_name, &ctx, 1)) {
+		retval = 0;
+		write_u32(buf, hash_crc32(istptr(ctx.value), istlen(ctx.value)));
+		*buf_len = sizeof(int);
+	}
 
-	memcpy(buf, &hash_value, sizeof(hash_value));
-	*buf_len = sizeof(hash_value);
-
-	return 0;
+	return retval;
 }
-
 
 /*
  * Pre-calculate the hashes of all the supported headers (in our Vary
@@ -2145,7 +2154,6 @@ static int http_request_build_secondary_key(struct stream *s, int vary_signature
 {
 	struct http_txn *txn = s->txn;
 	struct htx *htx = htxbuf(&s->req.buf);
-	struct http_hdr_ctx ctx = { .blk = NULL };
 
 	unsigned int idx;
 	const struct vary_hashing_information *info = NULL;
@@ -2153,12 +2161,14 @@ static int http_request_build_secondary_key(struct stream *s, int vary_signature
 	int retval = 0;
 	int offset = 0;
 
-	for (idx = 0; idx < sizeof(vary_information)/sizeof(*vary_information) && !retval; ++idx) {
+	for (idx = 0; idx < sizeof(vary_information)/sizeof(*vary_information) && retval >= 0; ++idx) {
 		info = &vary_information[idx];
 
-		ctx.blk = NULL;
-		if (info->norm_fn != NULL && http_find_header(htx, info->hdr_name, &ctx, 1)) {
-			retval = info->norm_fn(ctx.value, &txn->cache_secondary_hash[offset], &hash_length);
+		/* The normalizing functions will be in charge of getting the
+		 * header values from the htx. This way they can manage multiple
+		 * occurrences of their processed header. */
+		if ((vary_signature & info->value) && info->norm_fn != NULL &&
+		    !(retval = info->norm_fn(htx, info->hdr_name, &txn->cache_secondary_hash[offset], &hash_length))) {
 			offset += hash_length;
 		}
 		else {
