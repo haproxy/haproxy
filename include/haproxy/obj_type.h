@@ -150,16 +150,16 @@ static inline struct connection *objt_conn(enum obj_type *t)
 	return __objt_conn(t);
 }
 
-static inline struct dns_srvrq *__objt_dns_srvrq(enum obj_type *t)
+static inline struct resolv_srvrq *__objt_resolv_srvrq(enum obj_type *t)
 {
-	return container_of(t, struct dns_srvrq, obj_type);
+	return container_of(t, struct resolv_srvrq, obj_type);
 }
 
-static inline struct dns_srvrq *objt_dns_srvrq(enum obj_type *t)
+static inline struct resolv_srvrq *objt_resolv_srvrq(enum obj_type *t)
 {
 	if (!t || *t != OBJ_TYPE_SRVRQ)
 		return NULL;
-	return __objt_dns_srvrq(t);
+	return __objt_resolv_srvrq(t);
 }
 
 static inline struct stream *__objt_stream(enum obj_type *t)
@@ -196,7 +196,7 @@ static inline void *obj_base_ptr(enum obj_type *t)
 	case OBJ_TYPE_APPLET:   return __objt_applet(t);
 	case OBJ_TYPE_APPCTX:   return __objt_appctx(t);
 	case OBJ_TYPE_CONN:     return __objt_conn(t);
-	case OBJ_TYPE_SRVRQ:    return __objt_dns_srvrq(t);
+	case OBJ_TYPE_SRVRQ:    return __objt_resolv_srvrq(t);
 	case OBJ_TYPE_CS:       return __objt_cs(t);
 	case OBJ_TYPE_STREAM:   return __objt_stream(t);
 	case OBJ_TYPE_CHECK:    return __objt_check(t);

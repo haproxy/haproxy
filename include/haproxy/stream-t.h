@@ -185,12 +185,12 @@ struct stream {
 
 	/* Context */
 	struct {
-		struct dns_requester *dns_requester; /* owner of the resolution */
+		struct resolv_requester *requester; /* owner of the resolution */
 		char *hostname_dn;              /* hostname being resolve, in domain name format */
 		int hostname_dn_len;            /* size of hostname_dn */
 		/* 4 unused bytes here */
 		struct act_rule *parent;        /* rule which requested this resolution */
-	} dns_ctx;                              /* context information for DNS resolution */
+	} resolv_ctx;                           /* context information for DNS resolution */
 
 	int tunnel_timeout;
 };

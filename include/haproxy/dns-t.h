@@ -31,7 +31,7 @@
 #include <haproxy/task-t.h>
 #include <haproxy/thread.h>
 
-extern struct pool_head *dns_requester_pool;
+extern struct pool_head *resolv_requester_pool;
 
 /*DNS maximum values */
 /*
@@ -260,7 +260,7 @@ struct dns_options {
  * The only link between the resolution and a nameserver is through the
  * query_id.
  */
-struct dns_resolution {
+struct resolv_resolution {
 	struct resolvers     *resolvers;           /* pointer to the resolvers structure owning the resolution */
 	struct list           requesters;          /* list of requesters using this resolution */
 	int                   uuid;                /* unique id (used for debugging purpose) */
@@ -286,12 +286,12 @@ struct dns_resolution {
 };
 
 /* Structure used to describe the owner of a DNS resolution. */
-struct dns_requester {
+struct resolv_requester {
 	enum obj_type         *owner;       /* pointer to the owner (server or dns_srvrq) */
-	struct dns_resolution *resolution;  /* pointer to the owned DNS resolution */
+	struct resolv_resolution *resolution;  /* pointer to the owned DNS resolution */
 
-	int (*requester_cb)(struct dns_requester *, struct dns_counters *);   /* requester callback for valid response */
-	int (*requester_error_cb)(struct dns_requester *, int);               /* requester callback, for error management */
+	int (*requester_cb)(struct resolv_requester *, struct dns_counters *);   /* requester callback for valid response */
+	int (*requester_error_cb)(struct resolv_requester *, int);               /* requester callback, for error management */
 
 	struct list list; /* requester list */
 };
@@ -348,14 +348,14 @@ enum {
 };
 
 struct proxy;
-struct dns_srvrq {
+struct resolv_srvrq {
 	enum obj_type         obj_type;         /* object type == OBJ_TYPE_SRVRQ */
 	struct resolvers     *resolvers;        /* pointer to the resolvers structure used for this server template */
 	struct proxy         *proxy;            /* associated proxy */
 	char                 *name;
 	char                 *hostname_dn;      /* server hostname in Domain Name format */
 	int                   hostname_dn_len;  /* string length of the server hostname in Domain Name format */
-	struct dns_requester *dns_requester;    /* used to link to its DNS resolution */
+	struct resolv_requester *requester;     /* used to link to its DNS resolution */
 	struct list list;                       /* Next SRV RQ for the same proxy */
 };
 

@@ -532,10 +532,10 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	s->txn = NULL;
 	s->hlua = NULL;
 
-	s->dns_ctx.dns_requester = NULL;
-	s->dns_ctx.hostname_dn = NULL;
-	s->dns_ctx.hostname_dn_len = 0;
-	s->dns_ctx.parent = NULL;
+	s->resolv_ctx.requester = NULL;
+	s->resolv_ctx.hostname_dn = NULL;
+	s->resolv_ctx.hostname_dn_len = 0;
+	s->resolv_ctx.parent = NULL;
 
 	s->tunnel_timeout = TICK_ETERNITY;
 
@@ -667,17 +667,17 @@ static void stream_free(struct stream *s)
 		s->txn = NULL;
 	}
 
-	if (s->dns_ctx.dns_requester) {
-		__decl_thread(struct resolvers *resolvers = s->dns_ctx.parent->arg.dns.resolvers);
+	if (s->resolv_ctx.requester) {
+		__decl_thread(struct resolvers *resolvers = s->resolv_ctx.parent->arg.dns.resolvers);
 
 		HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
-		free(s->dns_ctx.hostname_dn); s->dns_ctx.hostname_dn = NULL;
-		s->dns_ctx.hostname_dn_len = 0;
-		dns_unlink_resolution(s->dns_ctx.dns_requester);
+		free(s->resolv_ctx.hostname_dn); s->resolv_ctx.hostname_dn = NULL;
+		s->resolv_ctx.hostname_dn_len = 0;
+		dns_unlink_resolution(s->resolv_ctx.requester);
 		HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 
-		pool_free(dns_requester_pool, s->dns_ctx.dns_requester);
-		s->dns_ctx.dns_requester = NULL;
+		pool_free(resolv_requester_pool, s->resolv_ctx.requester);
+		s->resolv_ctx.requester = NULL;
 	}
 
 	flt_stream_stop(s);

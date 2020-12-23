@@ -292,7 +292,7 @@ struct server {
 	struct check check;                     /* health-check specific configuration */
 	struct check agent;                     /* agent specific configuration */
 
-	struct dns_requester *dns_requester;	/* used to link a server to its DNS resolution */
+	struct resolv_requester *resolv_requester; /* used to link a server to its DNS resolution */
 	char *resolvers_id;			/* resolvers section used by this server */
 	struct resolvers *resolvers;		/* pointer to the resolvers structure used by this server */
 	char *lastaddr;				/* the address string provided by the server-state file */
@@ -342,7 +342,7 @@ struct server {
 	struct eb_root cids;        /* QUIC connections IDs. */
 #endif
 #endif
-	struct dns_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
+	struct resolv_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
 	struct {
 		const char *file;		/* file where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */

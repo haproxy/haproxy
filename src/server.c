@@ -50,7 +50,7 @@
 static void srv_update_status(struct server *s);
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
-static int srv_set_fqdn(struct server *srv, const char *fqdn, int dns_locked);
+static int srv_set_fqdn(struct server *srv, const char *fqdn, int resolv_locked);
 static void srv_state_parse_line(char *buf, const int version, char **params, char **srv_params);
 static int srv_state_get_version(FILE *f);
 static void srv_cleanup_connections(struct server *srv);
@@ -2076,7 +2076,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				if (fqdn[0] == '_') { /* SRV record */
 					/* Check if a SRV request already exists, and if not, create it */
 					if ((newsrv->srvrq = find_srvrq_by_name(fqdn, curproxy)) == NULL)
-						newsrv->srvrq = new_dns_srvrq(newsrv, fqdn);
+						newsrv->srvrq = new_resolv_srvrq(newsrv, fqdn);
 					if (newsrv->srvrq == NULL) {
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
@@ -2961,7 +2961,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 
 			/* create or find a SRV resolution for this srv record */
 			if (srv->srvrq == NULL && (srv->srvrq = find_srvrq_by_name(srvrecord, srv->proxy)) == NULL)
-				srv->srvrq = new_dns_srvrq(srv, srvrecord);
+				srv->srvrq = new_resolv_srvrq(srv, srvrecord);
 			if (srv->srvrq == NULL) {
 				chunk_appendf(msg, ", can't create or find SRV resolution '%s' for server '%s'", srvrecord, srv->id);
 				goto out;
@@ -3864,7 +3864,7 @@ out:
 int snr_update_srv_status(struct server *s, int has_no_ip)
 {
 	struct resolvers  *resolvers  = s->resolvers;
-	struct dns_resolution *resolution = s->dns_requester->resolution;
+	struct resolv_resolution *resolution = s->resolv_requester->resolution;
 	int exp;
 
 	/* If resolution is NULL we're dealing with SRV records Additional records */
@@ -3974,10 +3974,10 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
  *
  * Must be called with server lock held
  */
-int snr_resolution_cb(struct dns_requester *requester, struct dns_counters *counters)
+int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *counters)
 {
 	struct server *s = NULL;
-	struct dns_resolution *resolution = NULL;
+	struct resolv_resolution *resolution = NULL;
 	void *serverip, *firstip;
 	short server_sin_family, firstip_sin_family;
 	int ret;
@@ -3988,7 +3988,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_counters *coun
 	if (!s)
 		return 1;
 
-	resolution = s->dns_requester->resolution;
+	resolution = s->resolv_requester->resolution;
 
 	/* initializing variables */
 	firstip = NULL;		/* pointer to the first valid response found */
@@ -4073,7 +4073,7 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_counters *coun
  *
  * Grabs the server's lock.
  */
-int snr_resolution_error_cb(struct dns_requester *requester, int error_code)
+int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 {
 	struct server *s;
 
@@ -4168,9 +4168,9 @@ int srv_set_addr_via_libc(struct server *srv, int *err_code)
  *
  * Must be called with the server lock held.
  */
-int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
+int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
 {
-	struct dns_resolution *resolution;
+	struct resolv_resolution *resolution;
 	char                  *hostname_dn;
 	int                    hostname_len, hostname_dn_len;
 
@@ -4178,12 +4178,12 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 	if (!srv->resolvers)
 		return -1;
 
-	if (!dns_locked)
+	if (!resolv_locked)
 		HA_SPIN_LOCK(DNS_LOCK, &srv->resolvers->lock);
 	/* run time DNS resolution was not active for this server
 	 * and we can't enable it at run time for now.
 	 */
-	if (!srv->dns_requester)
+	if (!srv->resolv_requester)
 		goto err;
 
 	chunk_reset(&trash);
@@ -4194,13 +4194,13 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 	if (hostname_dn_len == -1)
 		goto err;
 
-	resolution = srv->dns_requester->resolution;
+	resolution = srv->resolv_requester->resolution;
 	if (resolution &&
 	    resolution->hostname_dn &&
 	    strcmp(resolution->hostname_dn, hostname_dn) == 0)
 		goto end;
 
-	dns_unlink_resolution(srv->dns_requester);
+	dns_unlink_resolution(srv->resolv_requester);
 
 	free(srv->hostname);
 	free(srv->hostname_dn);
@@ -4217,12 +4217,12 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 		goto err;
 
   end:
-	if (!dns_locked)
+	if (!resolv_locked)
 		HA_SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
 	return 0;
 
   err:
-	if (!dns_locked)
+	if (!resolv_locked)
 		HA_SPIN_UNLOCK(DNS_LOCK, &srv->resolvers->lock);
 	return -1;
 }
@@ -4364,7 +4364,7 @@ int srv_init_addr(void)
 /*
  * Must be called with the server lock held.
  */
-const char *update_server_fqdn(struct server *server, const char *fqdn, const char *updater, int dns_locked)
+const char *update_server_fqdn(struct server *server, const char *fqdn, const char *updater, int resolv_locked)
 {
 
 	struct buffer *msg;
@@ -4385,7 +4385,7 @@ const char *update_server_fqdn(struct server *server, const char *fqdn, const ch
 	chunk_appendf(msg, "%s/%s changed its FQDN from %s to %s",
 	              server->proxy->id, server->id, server->hostname, fqdn);
 
-	if (srv_set_fqdn(server, fqdn, dns_locked) < 0) {
+	if (srv_set_fqdn(server, fqdn, resolv_locked) < 0) {
 		chunk_reset(msg);
 		chunk_appendf(msg, "could not update %s/%s FQDN",
 		              server->proxy->id, server->id);

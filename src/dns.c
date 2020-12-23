@@ -46,13 +46,13 @@
 
 
 struct list sec_resolvers  = LIST_HEAD_INIT(sec_resolvers);
-struct list dns_srvrq_list = LIST_HEAD_INIT(dns_srvrq_list);
+struct list resolv_srvrq_list = LIST_HEAD_INIT(resolv_srvrq_list);
 
 static THREAD_LOCAL uint64_t dns_query_id_seed = 0; /* random seed */
 
 DECLARE_STATIC_POOL(resolv_answer_item_pool, "resolv_answer_item", sizeof(struct resolv_answer_item));
-DECLARE_STATIC_POOL(dns_resolution_pool,  "dns_resolution",  sizeof(struct dns_resolution));
-DECLARE_POOL(dns_requester_pool,  "dns_requester",  sizeof(struct dns_requester));
+DECLARE_STATIC_POOL(resolv_resolution_pool,  "resolv_resolution",  sizeof(struct resolv_resolution));
+DECLARE_POOL(resolv_requester_pool,  "resolv_requester",  sizeof(struct resolv_requester));
 
 static unsigned int resolution_uuid = 1;
 unsigned int dns_failed_resolutions = 0;
@@ -165,11 +165,11 @@ static __inline int dns_hostname_cmp(const char *name1, const char *name2, int l
 /* Returns a pointer on the SRV request matching the name <name> for the proxy
  * <px>. NULL is returned if no match is found.
  */
-struct dns_srvrq *find_srvrq_by_name(const char *name, struct proxy *px)
+struct resolv_srvrq *find_srvrq_by_name(const char *name, struct proxy *px)
 {
-	struct dns_srvrq *srvrq;
+	struct resolv_srvrq *srvrq;
 
-	list_for_each_entry(srvrq, &dns_srvrq_list, list) {
+	list_for_each_entry(srvrq, &resolv_srvrq_list, list) {
 		if (srvrq->proxy == px && strcmp(srvrq->name, name) == 0)
 			return srvrq;
 	}
@@ -178,10 +178,10 @@ struct dns_srvrq *find_srvrq_by_name(const char *name, struct proxy *px)
 
 /* Allocates a new SRVRQ for the given server with the name <fqdn>. It returns
  * NULL if an error occurred. */
-struct dns_srvrq *new_dns_srvrq(struct server *srv, char *fqdn)
+struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 {
 	struct proxy     *px    = srv->proxy;
-	struct dns_srvrq *srvrq = NULL;
+	struct resolv_srvrq *srvrq = NULL;
 	int fqdn_len, hostname_dn_len;
 
 	fqdn_len = strlen(fqdn);
@@ -208,7 +208,7 @@ struct dns_srvrq *new_dns_srvrq(struct server *srv, char *fqdn)
 			 proxy_type_str(px), px->id, srv->id);
 		goto err;
 	}
-	LIST_ADDQ(&dns_srvrq_list, &srvrq->list);
+	LIST_ADDQ(&resolv_srvrq_list, &srvrq->list);
 	return srvrq;
 
   err:
@@ -233,7 +233,7 @@ static inline uint16_t dns_rnd16(void)
 }
 
 
-static inline int dns_resolution_timeout(struct dns_resolution *res)
+static inline int dns_resolution_timeout(struct resolv_resolution *res)
 {
 	return res->resolvers->timeout.resolve;
 }
@@ -241,12 +241,12 @@ static inline int dns_resolution_timeout(struct dns_resolution *res)
 /* Updates a resolvers' task timeout for next wake up and queue it */
 static void dns_update_resolvers_timeout(struct resolvers *resolvers)
 {
-	struct dns_resolution *res;
+	struct resolv_resolution *res;
 	int next;
 
 	next = tick_add(now_ms, resolvers->timeout.resolve);
 	if (!LIST_ISEMPTY(&resolvers->resolutions.curr)) {
-		res  = LIST_NEXT(&resolvers->resolutions.curr, struct dns_resolution *, list);
+		res  = LIST_NEXT(&resolvers->resolutions.curr, struct resolv_resolution *, list);
 		next = MIN(next, tick_add(res->last_query, resolvers->timeout.retry));
 	}
 
@@ -353,7 +353,7 @@ static int dns_build_query(int query_id, int query_type, unsigned int accepted_p
 /* Sends a DNS query to resolvers associated to a resolution. It returns 0 on
  * success, -1 otherwise.
  */
-static int dns_send_query(struct dns_resolution *resolution)
+static int dns_send_query(struct resolv_resolution *resolution)
 {
 	struct resolvers  *resolvers = resolution->resolvers;
 	struct dns_nameserver *ns;
@@ -411,7 +411,7 @@ static int dns_send_query(struct dns_resolution *resolution)
  * skipped and -1 if an error occurred.
  */
 static int
-dns_run_resolution(struct dns_resolution *resolution)
+dns_run_resolution(struct resolv_resolution *resolution)
 {
 	struct resolvers  *resolvers = resolution->resolvers;
 	int query_id, i;
@@ -457,10 +457,10 @@ dns_run_resolution(struct dns_resolution *resolution)
 }
 
 /* Performs a name resolution for the requester <req> */
-void dns_trigger_resolution(struct dns_requester *req)
+void dns_trigger_resolution(struct resolv_requester *req)
 {
 	struct resolvers  *resolvers;
-	struct dns_resolution *res;
+	struct resolv_resolution *res;
 	int exp;
 
 	if (!req || !req->resolution)
@@ -480,7 +480,7 @@ void dns_trigger_resolution(struct dns_requester *req)
 /* Resets some resolution parameters to initial values and also delete the query
  * ID from the resolver's tree.
  */
-static void dns_reset_resolution(struct dns_resolution *resolution)
+static void dns_reset_resolution(struct resolv_resolution *resolution)
 {
 	/* update resolution status */
 	resolution->step            = RSLV_STEP_NONE;
@@ -593,13 +593,13 @@ int dns_read_name(unsigned char *buffer, unsigned char *bufend,
 /* Checks for any obsolete record, also identify any SRV request, and try to
  * find a corresponding server.
 */
-static void dns_check_dns_response(struct dns_resolution *res)
+static void dns_check_dns_response(struct resolv_resolution *res)
 {
 	struct resolvers   *resolvers = res->resolvers;
-	struct dns_requester   *req, *reqback;
+	struct resolv_requester   *req, *reqback;
 	struct resolv_answer_item *item, *itemback;
 	struct server          *srv;
-	struct dns_srvrq       *srvrq;
+	struct resolv_srvrq       *srvrq;
 
 	list_for_each_entry_safe(item, itemback, &res->response.answer_list, list) {
 		struct resolv_answer_item *ar_item = item->ar_item;
@@ -616,7 +616,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 				goto rm_obselete_item;
 
 			list_for_each_entry_safe(req, reqback, &res->requesters, list) {
-				if ((srvrq = objt_dns_srvrq(req->owner)) == NULL)
+				if ((srvrq = objt_resolv_srvrq(req->owner)) == NULL)
 					continue;
 
 				/* Remove any associated server */
@@ -631,7 +631,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 						srv->hostname        = NULL;
 						srv->hostname_dn     = NULL;
 						srv->hostname_dn_len = 0;
-						dns_unlink_resolution(srv->dns_requester);
+						dns_unlink_resolution(srv->resolv_requester);
 					}
 					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				}
@@ -652,7 +652,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
 
 		/* Now process SRV records */
 		list_for_each_entry_safe(req, reqback, &res->requesters, list) {
-			if ((srvrq = objt_dns_srvrq(req->owner)) == NULL)
+			if ((srvrq = objt_resolv_srvrq(req->owner)) == NULL)
 				continue;
 
 			/* Check if a server already uses that hostname */
@@ -749,7 +749,7 @@ static void dns_check_dns_response(struct dns_resolution *res)
  * error found.
  */
 static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
-				     struct dns_resolution *resolution, int max_answer_records)
+				     struct resolv_resolution *resolution, int max_answer_records)
 {
 	unsigned char *reader;
 	char *previous_dname, tmpname[DNS_MAX_NAME_SIZE];
@@ -1623,11 +1623,11 @@ int dns_hostname_validation(const char *string, char **err)
  *
  * Returns an available resolution, NULL if none found.
  */
-static struct dns_resolution *dns_pick_resolution(struct resolvers *resolvers,
+static struct resolv_resolution *dns_pick_resolution(struct resolvers *resolvers,
 						  char **hostname_dn, int hostname_dn_len,
 						  int query_type)
 {
-	struct dns_resolution *res;
+	struct resolv_resolution *res;
 
 	if (!*hostname_dn)
 		goto from_pool;
@@ -1654,7 +1654,7 @@ static struct dns_resolution *dns_pick_resolution(struct resolvers *resolvers,
 
   from_pool:
 	/* No resolution could be found, so let's allocate a new one */
-	res = pool_alloc(dns_resolution_pool);
+	res = pool_alloc(resolv_resolution_pool);
 	if (res) {
 		memset(res, 0, sizeof(*res));
 		res->resolvers  = resolvers;
@@ -1680,9 +1680,9 @@ static struct dns_resolution *dns_pick_resolution(struct resolvers *resolvers,
 }
 
 /* Releases a resolution from its requester(s) and move it back to the pool */
-static void dns_free_resolution(struct dns_resolution *resolution)
+static void dns_free_resolution(struct resolv_resolution *resolution)
 {
-	struct dns_requester *req, *reqback;
+	struct resolv_requester *req, *reqback;
 	struct resolv_answer_item *item, *itemback;
 
 	/* clean up configuration */
@@ -1705,19 +1705,19 @@ static void dns_free_resolution(struct dns_resolution *resolution)
 	}
 
 	LIST_DEL(&resolution->list);
-	pool_free(dns_resolution_pool, resolution);
+	pool_free(resolv_resolution_pool, resolution);
 }
 
-/* Links a requester (a server or a dns_srvrq) with a resolution. It returns 0
+/* Links a requester (a server or a resolv_srvrq) with a resolution. It returns 0
  * on success, -1 otherwise.
  */
 int dns_link_resolution(void *requester, int requester_type, int requester_locked)
 {
-	struct dns_resolution *res = NULL;
-	struct dns_requester  *req;
+	struct resolv_resolution *res = NULL;
+	struct resolv_requester  *req;
 	struct resolvers  *resolvers;
 	struct server         *srv   = NULL;
-	struct dns_srvrq      *srvrq = NULL;
+	struct resolv_srvrq      *srvrq = NULL;
 	struct stream         *stream = NULL;
 	char **hostname_dn;
 	int   hostname_dn_len, query_type;
@@ -1734,7 +1734,7 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 			break;
 
 		case OBJ_TYPE_SRVRQ:
-			srvrq           = (struct dns_srvrq *)requester;
+			srvrq           = (struct resolv_srvrq *)requester;
 			hostname_dn     = &srvrq->hostname_dn;
 			hostname_dn_len = srvrq->hostname_dn_len;
 			resolvers       = srvrq->resolvers;
@@ -1743,10 +1743,10 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 
 		case OBJ_TYPE_STREAM:
 			stream          = (struct stream *)requester;
-			hostname_dn     = &stream->dns_ctx.hostname_dn;
-			hostname_dn_len = stream->dns_ctx.hostname_dn_len;
-			resolvers       = stream->dns_ctx.parent->arg.dns.resolvers;
-			query_type      = ((stream->dns_ctx.parent->arg.dns.dns_opts->family_prio == AF_INET)
+			hostname_dn     = &stream->resolv_ctx.hostname_dn;
+			hostname_dn_len = stream->resolv_ctx.hostname_dn_len;
+			resolvers       = stream->resolv_ctx.parent->arg.dns.resolvers;
+			query_type      = ((stream->resolv_ctx.parent->arg.dns.dns_opts->family_prio == AF_INET)
 					   ? DNS_RTYPE_A
 					   : DNS_RTYPE_AAAA);
 			break;
@@ -1761,17 +1761,17 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 	if (srv) {
 		if (!requester_locked)
 			HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-		if (srv->dns_requester == NULL) {
-			if ((req = pool_alloc(dns_requester_pool)) == NULL) {
+		if (srv->resolv_requester == NULL) {
+			if ((req = pool_alloc(resolv_requester_pool)) == NULL) {
 				if (!requester_locked)
 					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				goto err;
 			}
 			req->owner         = &srv->obj_type;
-			srv->dns_requester = req;
+			srv->resolv_requester = req;
 		}
 		else
-			req = srv->dns_requester;
+			req = srv->resolv_requester;
 		if (!requester_locked)
 			HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 
@@ -1779,27 +1779,27 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 		req->requester_error_cb = snr_resolution_error_cb;
 	}
 	else if (srvrq) {
-		if (srvrq->dns_requester == NULL) {
-			if ((req = pool_alloc(dns_requester_pool)) == NULL)
+		if (srvrq->requester == NULL) {
+			if ((req = pool_alloc(resolv_requester_pool)) == NULL)
 				goto err;
 			req->owner           = &srvrq->obj_type;
-			srvrq->dns_requester = req;
+			srvrq->requester = req;
 		}
 		else
-			req = srvrq->dns_requester;
+			req = srvrq->requester;
 
 		req->requester_cb       = snr_resolution_cb;
 		req->requester_error_cb = snr_resolution_error_cb;
 	}
 	else if (stream) {
-		if (stream->dns_ctx.dns_requester == NULL) {
-			if ((req = pool_alloc(dns_requester_pool)) == NULL)
+		if (stream->resolv_ctx.requester == NULL) {
+			if ((req = pool_alloc(resolv_requester_pool)) == NULL)
 				goto err;
 			req->owner           = &stream->obj_type;
-			stream->dns_ctx.dns_requester = req;
+			stream->resolv_ctx.requester = req;
 		}
 		else
-			req = stream->dns_ctx.dns_requester;
+			req = stream->resolv_ctx.requester;
 
 		req->requester_cb       = act_resolution_cb;
 		req->requester_error_cb = act_resolution_error_cb;
@@ -1821,10 +1821,10 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 /* Removes a requester from a DNS resolution. It takes takes care of all the
  * consequences. It also cleans up some parameters from the requester.
  */
-void dns_unlink_resolution(struct dns_requester *requester)
+void dns_unlink_resolution(struct resolv_requester *requester)
 {
-	struct dns_resolution *res;
-	struct dns_requester  *req;
+	struct resolv_resolution *res;
+	struct resolv_requester  *req;
 
 	/* Nothing to do */
 	if (!requester || !requester->resolution)
@@ -1837,7 +1837,7 @@ void dns_unlink_resolution(struct dns_requester *requester)
 
 	/* We need to find another requester linked on this resolution */
 	if (!LIST_ISEMPTY(&res->requesters))
-		req = LIST_NEXT(&res->requesters, struct dns_requester *, list);
+		req = LIST_NEXT(&res->requesters, struct resolv_requester *, list);
 	else {
 		dns_free_resolution(res);
 		return;
@@ -1850,12 +1850,12 @@ void dns_unlink_resolution(struct dns_requester *requester)
 			res->hostname_dn_len = __objt_server(req->owner)->hostname_dn_len;
 			break;
 		case OBJ_TYPE_SRVRQ:
-			res->hostname_dn     = __objt_dns_srvrq(req->owner)->hostname_dn;
-			res->hostname_dn_len = __objt_dns_srvrq(req->owner)->hostname_dn_len;
+			res->hostname_dn     = __objt_resolv_srvrq(req->owner)->hostname_dn;
+			res->hostname_dn_len = __objt_resolv_srvrq(req->owner)->hostname_dn_len;
 			break;
 		case OBJ_TYPE_STREAM:
-			res->hostname_dn     = __objt_stream(req->owner)->dns_ctx.hostname_dn;
-			res->hostname_dn_len = __objt_stream(req->owner)->dns_ctx.hostname_dn_len;
+			res->hostname_dn     = __objt_stream(req->owner)->resolv_ctx.hostname_dn;
+			res->hostname_dn_len = __objt_stream(req->owner)->resolv_ctx.hostname_dn_len;
 			break;
 		default:
 			res->hostname_dn     = NULL;
@@ -1876,7 +1876,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 	struct dns_nameserver *ns;
 	struct dns_counters   *tmpcounters;
 	struct resolvers  *resolvers;
-	struct dns_resolution *res;
+	struct resolv_resolution *res;
 	struct resolv_query_item *query;
 	unsigned char  buf[DNS_MAX_UDP_MESSAGE + 1];
 	unsigned char *bufend;
@@ -1884,7 +1884,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 	int max_answer_records;
 	unsigned short query_id;
 	struct eb32_node *eb;
-	struct dns_requester *req;
+	struct resolv_requester *req;
 
 	fd = dgram->t.sock.fd;
 
@@ -1941,7 +1941,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		}
 
 		/* known query id means a resolution in progress */
-		res = eb32_entry(eb, struct dns_resolution, qid);
+		res = eb32_entry(eb, struct resolv_resolution, qid);
 		/* number of responses received */
 		res->nb_responses++;
 
@@ -2074,7 +2074,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 {
 	struct resolvers  *resolvers;
 	struct dns_nameserver *ns;
-	struct dns_resolution *res;
+	struct resolv_resolution *res;
 	int fd;
 
 	fd = dgram->t.sock.fd;
@@ -2135,7 +2135,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 static struct task *dns_process_resolvers(struct task *t, void *context, unsigned short state)
 {
 	struct resolvers  *resolvers = context;
-	struct dns_resolution *res, *resback;
+	struct resolv_resolution *res, *resback;
 	int exp;
 
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
@@ -2152,7 +2152,7 @@ static struct task *dns_process_resolvers(struct task *t, void *context, unsigne
 		 * finishes in timeout we update its status and remove it from
 		 * the list */
 		if (!res->try) {
-			struct dns_requester *req;
+			struct resolv_requester *req;
 
 			/* Notify the result to the requesters */
 			if (!res->nb_responses)
@@ -2217,9 +2217,9 @@ static void dns_deinit(void)
 {
 	struct resolvers  *resolvers, *resolversback;
 	struct dns_nameserver *ns, *nsback;
-	struct dns_resolution *res, *resback;
-	struct dns_requester  *req, *reqback;
-	struct dns_srvrq      *srvrq, *srvrqback;
+	struct resolv_resolution *res, *resback;
+	struct resolv_requester  *req, *reqback;
+	struct resolv_srvrq    *srvrq, *srvrqback;
 
 	list_for_each_entry_safe(resolvers, resolversback, &sec_resolvers, list) {
 		list_for_each_entry_safe(ns, nsback, &resolvers->nameservers, list) {
@@ -2236,7 +2236,7 @@ static void dns_deinit(void)
 		list_for_each_entry_safe(res, resback, &resolvers->resolutions.curr, list) {
 			list_for_each_entry_safe(req, reqback, &res->requesters, list) {
 				LIST_DEL(&req->list);
-				pool_free(dns_requester_pool, req);
+				pool_free(resolv_requester_pool, req);
 			}
 			dns_free_resolution(res);
 		}
@@ -2244,7 +2244,7 @@ static void dns_deinit(void)
 		list_for_each_entry_safe(res, resback, &resolvers->resolutions.wait, list) {
 			list_for_each_entry_safe(req, reqback, &res->requesters, list) {
 				LIST_DEL(&req->list);
-				pool_free(dns_requester_pool, req);
+				pool_free(resolv_requester_pool, req);
 			}
 			dns_free_resolution(res);
 		}
@@ -2256,7 +2256,7 @@ static void dns_deinit(void)
 		free(resolvers);
 	}
 
-	list_for_each_entry_safe(srvrq, srvrqback, &dns_srvrq_list, list) {
+	list_for_each_entry_safe(srvrq, srvrqback, &resolv_srvrq_list, list) {
 		free(srvrq->name);
 		free(srvrq->hostname_dn);
 		LIST_DEL(&srvrq->list);
@@ -2639,15 +2639,15 @@ static int action_prepare_for_resolution(struct stream *stream, const char *host
 		goto err;
 
 
-	stream->dns_ctx.hostname_dn     = strdup(hostname_dn);
-	stream->dns_ctx.hostname_dn_len = hostname_dn_len;
-	if (!stream->dns_ctx.hostname_dn)
+	stream->resolv_ctx.hostname_dn     = strdup(hostname_dn);
+	stream->resolv_ctx.hostname_dn_len = hostname_dn_len;
+	if (!stream->resolv_ctx.hostname_dn)
 		goto err;
 
 	return 0;
 
  err:
-	free(stream->dns_ctx.hostname_dn); stream->dns_ctx.hostname_dn = NULL;
+	free(stream->resolv_ctx.hostname_dn); stream->resolv_ctx.hostname_dn = NULL;
 	dns_failed_resolutions += 1;
 	return -1;
 }
@@ -2659,12 +2659,12 @@ static int action_prepare_for_resolution(struct stream *stream, const char *host
 enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 					      struct session *sess, struct stream *s, int flags)
 {
-	struct dns_resolution *resolution;
+	struct resolv_resolution *resolution;
 	struct sample *smp;
 	char *fqdn;
-	struct dns_requester *req;
+	struct resolv_requester *req;
 	struct resolvers  *resolvers;
-	struct dns_resolution *res;
+	struct resolv_resolution *res;
 	int exp, locked = 0;
 	enum act_return ret = ACT_RET_CONT;
 
@@ -2672,8 +2672,8 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 
 	/* we have a response to our DNS resolution */
  use_cache:
-	if (s->dns_ctx.dns_requester && s->dns_ctx.dns_requester->resolution != NULL) {
-		resolution = s->dns_ctx.dns_requester->resolution;
+	if (s->resolv_ctx.requester && s->resolv_ctx.requester->resolution != NULL) {
+		resolution = s->resolv_ctx.requester->resolution;
 		if (!locked) {
 			HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 			locked = 1;
@@ -2726,7 +2726,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	if (action_prepare_for_resolution(s, fqdn) == -1)
 		goto end; /* on error, ignore the action */
 
-	s->dns_ctx.parent = rule;
+	s->resolv_ctx.parent = rule;
 
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 	locked = 1;
@@ -2734,7 +2734,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	dns_link_resolution(s, OBJ_TYPE_STREAM, 0);
 
 	/* Check if there is a fresh enough response in the cache of our associated resolution */
-	req = s->dns_ctx.dns_requester;
+	req = s->resolv_ctx.requester;
 	if (!req || !req->resolution)
 		goto release_requester; /* on error, ignore the action */
 	res = req->resolution;
@@ -2745,7 +2745,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 		goto use_cache;
 	}
 
-	dns_trigger_resolution(s->dns_ctx.dns_requester);
+	dns_trigger_resolution(s->resolv_ctx.requester);
 
   yield:
 	if (flags & ACT_OPT_FINAL)
@@ -2758,13 +2758,13 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	return ret;
 
   release_requester:
-	free(s->dns_ctx.hostname_dn);
-	s->dns_ctx.hostname_dn = NULL;
-	s->dns_ctx.hostname_dn_len = 0;
-	if (s->dns_ctx.dns_requester) {
-		dns_unlink_resolution(s->dns_ctx.dns_requester);
-		pool_free(dns_requester_pool, s->dns_ctx.dns_requester);
-		s->dns_ctx.dns_requester = NULL;
+	free(s->resolv_ctx.hostname_dn);
+	s->resolv_ctx.hostname_dn = NULL;
+	s->resolv_ctx.hostname_dn_len = 0;
+	if (s->resolv_ctx.requester) {
+		dns_unlink_resolution(s->resolv_ctx.requester);
+		pool_free(resolv_requester_pool, s->resolv_ctx.requester);
+		s->resolv_ctx.requester = NULL;
 	}
 	goto end;
 }
