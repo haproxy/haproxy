@@ -1,0 +1,303 @@
+varnishtest "Check the Accept-Encoding processing implemented in the Vary mechanism"
+
+#REQUIRE_VERSION=2.4
+
+feature ignore_unknown_macro
+
+server s1 {
+       # Response varying on "accept-encoding" with a gzip content-encoding
+       rxreq
+       expect req.url == "/accept-encoding"
+       txresp -hdr "Content-Encoding: gzip" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 45
+
+       # Response varying on "accept-encoding" with a deflate content-encoding
+       rxreq
+       expect req.url == "/accept-encoding"
+       txresp -hdr "Content-Encoding: deflate" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 55
+
+
+       # Response varying on "accept-encoding" with no content-encoding (identity)
+       rxreq
+       expect req.url == "/accept-encoding-identity"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 65
+
+       # Response varying on "accept-encoding" with refused identity encoding
+       rxreq
+       expect req.url == "/accept-encoding-identity"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: deflate" \
+               -bodylen 75
+
+
+       rxreq
+       expect req.url == "/accept-encoding-star"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: br" \
+               -bodylen 89
+
+       rxreq
+       expect req.url == "/accept-encoding-star"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: deflate" \
+               -bodylen 99
+
+
+       rxreq
+       expect req.url == "/multiple-content-encoding"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: deflate, gzip" \
+               -bodylen 109
+
+       rxreq
+       expect req.url == "/unknown-content-encoding"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: unknown_encoding" \
+               -bodylen 119
+
+       rxreq
+       expect req.url == "/unknown-content-encoding"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: unknown_encoding" \
+               -bodylen 119
+} -start
+
+
+haproxy h1 -conf {
+       defaults
+               mode http
+               ${no-htx} option http-use-htx
+               timeout connect 1s
+               timeout client  1s
+               timeout server  1s
+
+       frontend fe
+               bind "fd@${fe}"
+               default_backend test
+
+       backend test
+               http-request cache-use my_cache
+               server www ${s1_addr}:${s1_port}
+               http-response cache-store my_cache
+               http-response set-header X-Cache-Hit %[res.cache_hit]
+
+       cache my_cache
+               total-max-size 3
+               max-age 20
+               max-object-size 3072
+               process-vary 1
+} -start
+
+
+client c1 -connect ${h1_fe_sock} {
+       #
+       # Accept-Encoding Vary
+       #
+
+       # First request
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: gzip"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 45
+
+       # Regular case
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: gzip"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 45
+       expect resp.http.X-Cache-Hit == 1
+
+       # Regular case with upper case encoding
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: GZIP"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 45
+       expect resp.http.X-Cache-Hit == 1
+
+       # Multiple accepted encodings (all standard)
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: deflate,gzip"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 45
+       expect resp.http.X-Cache-Hit == 1
+
+       # Multiple accept-encoding headers + non-standard accepted encodings
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: first_encoding,second_encoding" -hdr "Accept-Encoding: gzip"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 45
+       expect resp.http.X-Cache-Hit == 1
+
+       # Regular case with positive weight
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: gzip;q=0.8"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 45
+       expect resp.http.X-Cache-Hit == 1
+
+       # Regular case with positive weight and extra whitespaces
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: gzip  ; q=0.8"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 45
+       expect resp.http.X-Cache-Hit == 1
+
+       # Regular case with null weight
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: deflate;q=0.8, gzip;q=0"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "deflate"
+       expect resp.bodylen == 55
+       expect resp.http.X-Cache-Hit == 0
+
+
+       #
+       # Identity tests
+       #
+       txreq -url "/accept-encoding-identity"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "<undef>"
+       expect resp.bodylen == 65
+       expect resp.http.X-Cache-Hit == 0
+
+       # Regular case
+       txreq -url "/accept-encoding-identity"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "<undef>"
+       expect resp.bodylen == 65
+       expect resp.http.X-Cache-Hit == 1
+
+       # Identity is allowed by default even if another encoding is specified
+       txreq -url "/accept-encoding-identity" -hdr "Accept-Encoding: gzip"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "<undef>"
+       expect resp.bodylen == 65
+       expect resp.http.X-Cache-Hit == 1
+
+       # Refused identity encoding (explicit null weight)
+       txreq -url "/accept-encoding-identity" -hdr "Accept-Encoding: deflate, identity;q=0"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "deflate"
+       expect resp.bodylen == 75
+       expect resp.http.X-Cache-Hit == 0
+
+
+       #
+       # Star tests
+       #
+       txreq -url "/accept-encoding-star" -hdr "Accept-Encoding: *"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "br"
+       expect resp.bodylen == 89
+       expect resp.http.X-Cache-Hit == 0
+
+       # Regular case
+       txreq -url "/accept-encoding-star" -hdr "Accept-Encoding: *"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "br"
+       expect resp.bodylen == 89
+       expect resp.http.X-Cache-Hit == 1
+
+       # Reject some encodings
+       txreq -url "/accept-encoding-star" -hdr "Accept-Encoding: gzip;q=0, deflate,*"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "br"
+       expect resp.bodylen == 89
+       expect resp.http.X-Cache-Hit == 1
+
+       # Weighted star
+       txreq -url "/accept-encoding-star" -hdr "Accept-Encoding: gzip;q=0, deflate,*;q=0.1"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "br"
+       expect resp.bodylen == 89
+       expect resp.http.X-Cache-Hit == 1
+
+       # Rejected identity
+       txreq -url "/accept-encoding-star" -hdr "Accept-Encoding: gzip;q=0, deflate,*;q=0.1,identity;q=0"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "br"
+       expect resp.bodylen == 89
+       expect resp.http.X-Cache-Hit == 1
+
+       # Rejected star and "br" not accepted
+       txreq -url "/accept-encoding-star" -hdr "Accept-Encoding: gzip;q=0, deflate,*;q=0"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "deflate"
+       expect resp.bodylen == 99
+       expect resp.http.X-Cache-Hit == 0
+
+
+       #
+       # Multiple content-encodings
+       #
+       txreq -url "/multiple-content-encoding" -hdr "Accept-Encoding: gzip;q=0.8, deflate"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "deflate, gzip"
+       expect resp.bodylen == 109
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/multiple-content-encoding" -hdr "Accept-Encoding: deflate,gzip;q=0.7"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "deflate, gzip"
+       expect resp.bodylen == 109
+       expect resp.http.X-Cache-Hit == 1
+
+
+       #
+       # Unknown content-encoding
+       #
+       txreq -url "/unknown-content-encoding" -hdr "Accept-Encoding: gzip;q=0.8, deflate, first_encoding"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "unknown_encoding"
+       expect resp.bodylen == 119
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/unknown-content-encoding" -hdr "Accept-Encoding: deflate,gzip;q=0.8, first_encoding"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "unknown_encoding"
+       expect resp.bodylen == 119
+       expect resp.http.X-Cache-Hit == 1
+
+       # Different set of accepted encodings
+       txreq -url "/unknown-content-encoding" -hdr "Accept-Encoding: deflate, first_encoding"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "unknown_encoding"
+       expect resp.bodylen == 119
+       expect resp.http.X-Cache-Hit == 0
+
+} -run
