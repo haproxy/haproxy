@@ -77,7 +77,8 @@ struct vary_hashing_information {
 	struct ist hdr_name;                 /* Header name */
 	enum vary_header_bit value;          /* Bit representing the header in a vary signature */
 	unsigned int hash_length;            /* Size of the sub hash for this header's value */
-	int(*norm_fn)(struct htx*,struct ist hdr_name,char* buf,unsigned int* buf_len);      /* Normalization function */
+	int(*norm_fn)(struct htx*,struct ist hdr_name,char* buf,unsigned int* buf_len);  /* Normalization function */
+	int(*cmp_fn)(const char *ref_hash, const char *new_hash, unsigned int hash_len); /* Comparison function, should return 0 if the hashes are alike */
 };
 
 static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
@@ -88,8 +89,8 @@ static int default_normalizer(struct htx *htx, struct ist hdr_name,
 /* Warning : do not forget to update HTTP_CACHE_SEC_KEY_LEN when new items are
  * added to this array. */
 const struct vary_hashing_information vary_information[] = {
-	{ IST("accept-encoding"), VARY_ACCEPT_ENCODING, sizeof(int), &accept_encoding_normalizer },
-	{ IST("referer"), VARY_REFERER, sizeof(int), &default_normalizer },
+	{ IST("accept-encoding"), VARY_ACCEPT_ENCODING, sizeof(int), &accept_encoding_normalizer, NULL },
+	{ IST("referer"), VARY_REFERER, sizeof(int), &default_normalizer, NULL },
 };
 
 static int http_request_prebuild_full_secondary_key(struct stream *s);
@@ -172,6 +173,35 @@ struct cache_entry *entry_exist(struct cache *cache, char *hash)
 
 }
 
+
+/*
+ * Compare a newly built secondary key to the one found in a cache_entry.
+ * Every sub-part of the key is compared to the reference through the dedicated
+ * comparison function of the sub-part (that might do more than a simple
+ * memcmp).
+ * Returns 0 if the keys are alike.
+ */
+static int secondary_key_cmp(const char *ref_key, const char *new_key)
+{
+	int retval = 0;
+	int idx = 0;
+	int offset = 0;
+	const struct vary_hashing_information *info;
+
+	for (idx = 0; idx < sizeof(vary_information)/sizeof(*vary_information) && !retval; ++idx) {
+		info = &vary_information[idx];
+
+		if (info->cmp_fn)
+			retval = info->cmp_fn(&ref_key[offset], &new_key[offset], info->hash_length);
+		else
+			retval = memcmp(&ref_key[offset], &new_key[offset], info->hash_length);
+
+		offset += info->hash_length;
+	}
+
+	return retval;
+}
+
 /*
  * There can be multiple entries with the same primary key in the ebtree so in
  * order to get the proper one out of the list, we use a secondary_key.
@@ -180,14 +210,14 @@ struct cache_entry *entry_exist(struct cache *cache, char *hash)
  * Returns the cache_entry in case of success, NULL otherwise.
  */
 struct cache_entry *secondary_entry_exist(struct cache *cache, struct cache_entry *entry,
-					  char *secondary_key)
+					  const char *secondary_key)
 {
 	struct eb32_node *node = &entry->eb;
 
 	if (!entry->secondary_key_signature)
 		return NULL;
 
-	while (entry && memcmp(entry->secondary_key, secondary_key, HTTP_CACHE_SEC_KEY_LEN) != 0) {
+	while (entry && secondary_key_cmp(entry->secondary_key, secondary_key) != 0) {
 		node = eb32_next_dup(node);
 
 		/* Make the best use of this iteration and clear expired entries
