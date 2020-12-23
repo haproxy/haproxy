@@ -1767,9 +1767,6 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 	if (!sha1_hosturi(s))
 		return ACT_RET_CONT;
 
-	if ((s->txn->flags & (TX_CACHE_IGNORE|TX_CACHEABLE)) == TX_CACHE_IGNORE)
-		return ACT_RET_CONT;
-
 	if (s->txn->flags & TX_CACHE_IGNORE)
 		return ACT_RET_CONT;
 
