@@ -745,7 +745,7 @@ static void dns_check_dns_response(struct resolv_resolution *res)
  * The result is stored in <resolution>' response, buf_response,
  * response_query_records and response_answer_records members.
  *
- * This function returns one of the DNS_RESP_* code to indicate the type of
+ * This function returns one of the RSLV_RESP_* code to indicate the type of
  * error found.
  */
 static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
@@ -760,7 +760,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	struct resolv_answer_item *answer_record, *tmp_record;
 	struct resolv_response *r_res;
 	int i, found = 0;
-	int cause = DNS_RESP_ERROR;
+	int cause = RSLV_RESP_ERROR;
 
 	reader         = resp;
 	len            = 0;
@@ -793,15 +793,15 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 	if ((flags & DNS_FLAG_REPLYCODE) != DNS_RCODE_NO_ERROR) {
 		if ((flags & DNS_FLAG_REPLYCODE) == DNS_RCODE_NX_DOMAIN) {
-			cause = DNS_RESP_NX_DOMAIN;
+			cause = RSLV_RESP_NX_DOMAIN;
 			goto return_error;
 		}
 		else if ((flags & DNS_FLAG_REPLYCODE) == DNS_RCODE_REFUSED) {
-			cause = DNS_RESP_REFUSED;
+			cause = RSLV_RESP_REFUSED;
 			goto return_error;
 		}
 		else {
-			cause = DNS_RESP_ERROR;
+			cause = RSLV_RESP_ERROR;
 			goto return_error;
 		}
 	}
@@ -816,7 +816,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	/* (for now) we send one query only, so we expect only one in the
 	 * response too */
 	if (r_res->header.qdcount != 1) {
-		cause = DNS_RESP_QUERY_COUNT_ERROR;
+		cause = RSLV_RESP_QUERY_COUNT_ERROR;
 		goto return_error;
 	}
 
@@ -829,7 +829,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		goto invalid_resp;
 	r_res->header.ancount = reader[0] * 256 + reader[1];
 	if (r_res->header.ancount == 0) {
-		cause = DNS_RESP_ANCOUNT_ZERO;
+		cause = RSLV_RESP_ANCOUNT_ZERO;
 		goto return_error;
 	}
 
@@ -889,7 +889,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	/* TRUNCATED flag must be checked after we could read the query type
 	 * because a TRUNCATED SRV query type response can still be exploited */
 	if (query->type != DNS_RTYPE_SRV && flags & DNS_FLAG_TRUNCATED) {
-		cause = DNS_RESP_TRUNCATED;
+		cause = RSLV_RESP_TRUNCATED;
 		goto return_error;
 	}
 
@@ -925,7 +925,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				/* If not the first record, this means we have a
 				 * CNAME resolution error.
 				 */
-				cause = DNS_RESP_CNAME_ERROR;
+				cause = RSLV_RESP_CNAME_ERROR;
 				goto return_error;
 			}
 
@@ -994,7 +994,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				 * starts at 1.
 				 */
 				if (i + 1 == r_res->header.ancount) {
-					cause = DNS_RESP_CNAME_ERROR;
+					cause = RSLV_RESP_CNAME_ERROR;
 					goto return_error;
 				}
 
@@ -1307,10 +1307,10 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	r_res->header.arcount = nb_saved_records;
 
 	dns_check_dns_response(resolution);
-	return DNS_RESP_VALID;
+	return RSLV_RESP_VALID;
 
  invalid_resp:
-	cause = DNS_RESP_INVALID;
+	cause = RSLV_RESP_INVALID;
 
  return_error:
 	pool_free(resolv_answer_item_pool, answer_record);
@@ -1949,55 +1949,55 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		dns_resp = dns_validate_dns_response(buf, bufend, res, max_answer_records);
 
 		switch (dns_resp) {
-			case DNS_RESP_VALID:
+			case RSLV_RESP_VALID:
 				break;
 
-			case DNS_RESP_INVALID:
-			case DNS_RESP_QUERY_COUNT_ERROR:
-			case DNS_RESP_WRONG_NAME:
+			case RSLV_RESP_INVALID:
+			case RSLV_RESP_QUERY_COUNT_ERROR:
+			case RSLV_RESP_WRONG_NAME:
 				res->status = RSLV_STATUS_INVALID;
 				ns->counters->invalid++;
 				break;
 
-			case DNS_RESP_NX_DOMAIN:
+			case RSLV_RESP_NX_DOMAIN:
 				res->status = RSLV_STATUS_NX;
 				ns->counters->nx++;
 				break;
 
-			case DNS_RESP_REFUSED:
+			case RSLV_RESP_REFUSED:
 				res->status = RSLV_STATUS_REFUSED;
 				ns->counters->refused++;
 				break;
 
-			case DNS_RESP_ANCOUNT_ZERO:
+			case RSLV_RESP_ANCOUNT_ZERO:
 				res->status = RSLV_STATUS_OTHER;
 				ns->counters->any_err++;
 				break;
 
-			case DNS_RESP_CNAME_ERROR:
+			case RSLV_RESP_CNAME_ERROR:
 				res->status = RSLV_STATUS_OTHER;
 				ns->counters->cname_error++;
 				break;
 
-			case DNS_RESP_TRUNCATED:
+			case RSLV_RESP_TRUNCATED:
 				res->status = RSLV_STATUS_OTHER;
 				ns->counters->truncated++;
 				break;
 
-			case DNS_RESP_NO_EXPECTED_RECORD:
-			case DNS_RESP_ERROR:
-			case DNS_RESP_INTERNAL:
+			case RSLV_RESP_NO_EXPECTED_RECORD:
+			case RSLV_RESP_ERROR:
+			case RSLV_RESP_INTERNAL:
 				res->status = RSLV_STATUS_OTHER;
 				ns->counters->other++;
 				break;
 		}
 
 		/* Wait all nameservers response to handle errors */
-		if (dns_resp != DNS_RESP_VALID && res->nb_responses < resolvers->nb_nameservers)
+		if (dns_resp != RSLV_RESP_VALID && res->nb_responses < resolvers->nb_nameservers)
 			continue;
 
 		/* Process error codes */
-		if (dns_resp != DNS_RESP_VALID)  {
+		if (dns_resp != RSLV_RESP_VALID)  {
 			if (res->prefered_query_type != res->query_type) {
 				/* The fallback on the query type was already performed,
 				 * so check the try counter. If it falls to 0, we can
@@ -2026,7 +2026,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		 * one query at a time so we get one query in the response */
 		query = LIST_NEXT(&res->response.query_list, struct resolv_query_item *, list);
 		if (query && dns_hostname_cmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
-			dns_resp = DNS_RESP_WRONG_NAME;
+			dns_resp = RSLV_RESP_WRONG_NAME;
 			ns->counters->other++;
 			goto report_res_error;
 		}

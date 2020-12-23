@@ -316,19 +316,19 @@ enum {
 
 /* Return codes after analyzing a DNS response */
 enum {
-	DNS_RESP_VALID = 0,          /* valid response */
-	DNS_RESP_INVALID,            /* invalid response (various type of errors can trigger it) */
-	DNS_RESP_ERROR,              /* DNS error code */
-	DNS_RESP_NX_DOMAIN,          /* resolution unsuccessful */
-	DNS_RESP_REFUSED,            /* DNS server refused to answer */
-	DNS_RESP_ANCOUNT_ZERO,       /* no answers in the response */
-	DNS_RESP_WRONG_NAME,         /* response does not match query name */
-	DNS_RESP_CNAME_ERROR,        /* error when resolving a CNAME in an atomic response */
-	DNS_RESP_TIMEOUT,            /* DNS server has not answered in time */
-	DNS_RESP_TRUNCATED,          /* DNS response is truncated */
-	DNS_RESP_NO_EXPECTED_RECORD, /* No expected records were found in the response */
-        DNS_RESP_QUERY_COUNT_ERROR,  /* we did not get the expected number of queries in the response */
-        DNS_RESP_INTERNAL,           /* internal resolver error */
+	RSLV_RESP_VALID = 0,          /* valid response */
+	RSLV_RESP_INVALID,            /* invalid response (various type of errors can trigger it) */
+	RSLV_RESP_ERROR,              /* DNS error code */
+	RSLV_RESP_NX_DOMAIN,          /* resolution unsuccessful */
+	RSLV_RESP_REFUSED,            /* DNS server refused to answer */
+	RSLV_RESP_ANCOUNT_ZERO,       /* no answers in the response */
+	RSLV_RESP_WRONG_NAME,         /* response does not match query name */
+	RSLV_RESP_CNAME_ERROR,        /* error when resolving a CNAME in an atomic response */
+	RSLV_RESP_TIMEOUT,            /* DNS server has not answered in time */
+	RSLV_RESP_TRUNCATED,          /* DNS response is truncated */
+	RSLV_RESP_NO_EXPECTED_RECORD, /* No expected records were found in the response */
+        RSLV_RESP_QUERY_COUNT_ERROR,  /* we did not get the expected number of queries in the response */
+        RSLV_RESP_INTERNAL,           /* internal resolver error */
 };
 
 /* Return codes after searching an IP in a DNS response buffer, using a family
