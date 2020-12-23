@@ -8,113 +8,95 @@ server s1 {
        # Response varying on "accept-encoding"
        rxreq
        expect req.url == "/accept-encoding"
-       txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Content-Type: gzip" \
+       txresp -hdr "Content-Encoding: gzip" \
                -hdr "Vary: accept-encoding" \
-               -hdr "Cache-Control: max-age=5"
-       chunkedlen 15
-       chunkedlen 15
-       chunkedlen 15
-       chunkedlen 0
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 45
 
        # Response varying on "accept-encoding"
        rxreq
        expect req.url == "/accept-encoding"
-       txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Content-Type: text/plain" \
+       txresp -hdr "Content-Type: text/plain" \
                -hdr "Vary: accept-encoding" \
-               -hdr "Cache-Control: max-age=5"
-       chunkedlen 16
-       chunkedlen 16
-       chunkedlen 16
-       chunkedlen 0
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 48
 
        # Response varying on "accept-encoding" but having two different encodings
        rxreq
        expect req.url == "/accept-encoding-multiple"
-       txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Vary: accept-encoding" \
-               -hdr "Cache-Control: max-age=5"
-       chunkedlen 17
-       chunkedlen 17
-       chunkedlen 17
-       chunkedlen 0
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 51
+
 
        # Unmanaged vary
        rxreq
        expect req.url == "/unmanaged"
-       txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Vary: accept-encoding,unmanaged" \
-               -hdr "Cache-Control: max-age=5"
-       chunkedlen 17
-       chunkedlen 17
-       chunkedlen 17
-       chunkedlen 0
+       txresp -hdr "Vary: accept-encoding,unmanaged" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 51
+
 
        rxreq
        expect req.url == "/unmanaged"
-       txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Vary: accept-encoding,unmanaged" \
-               -hdr "Cache-Control: max-age=5"
-       chunkedlen 17
-       chunkedlen 17
-       chunkedlen 17
-       chunkedlen 0
+       txresp -hdr "Vary: accept-encoding,unmanaged" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 51
+
 
 
        # Mixed Vary (Accept-Encoding + Referer)
        rxreq
        expect req.url == "/referer-accept-encoding"
-       txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Vary: accept-encoding,referer" \
-               -hdr "Cache-Control: max-age=5"
-       chunkedlen 17
-       chunkedlen 17
-       chunkedlen 17
-       chunkedlen 0
+       txresp -hdr "Vary: accept-encoding,referer" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: gzip" \
+               -bodylen 51
 
        rxreq
        expect req.url == "/referer-accept-encoding"
-       txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Vary: referer,accept-encoding" \
-               -hdr "Cache-Control: max-age=5"
-       chunkedlen 18
-       chunkedlen 18
-       chunkedlen 18
-       chunkedlen 0
+       txresp -hdr "Vary: referer,accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: gzip" \
+               -bodylen 54
 
        rxreq
        expect req.url == "/referer-accept-encoding"
-       txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Vary: referer,accept-encoding" \
-               -hdr "Cache-Control: max-age=5"
-       chunkedlen 19
-       chunkedlen 19
-       chunkedlen 19
-       chunkedlen 0
+       txresp -hdr "Vary: referer,accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: gzip" \
+               -bodylen 57
 
        # Multiple Accept-Encoding headers
        rxreq
        expect req.url == "/multiple_headers"
        txresp -hdr "Vary: accept-encoding" \
-              -hdr "Cache-Control: max-age=5" -bodylen 155
+              -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: gzip" \
+              -bodylen 155
 
        rxreq
        expect req.url == "/multiple_headers"
        txresp -hdr "Vary: accept-encoding" \
-              -hdr "Cache-Control: max-age=5" -bodylen 166
+              -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: gzip" \
+              -bodylen 166
 
 
        # Too many Accept-Encoding values (we will not cache responses with more than 16 encodings)
        rxreq
        expect req.url == "/too_many_encodings"
        txresp -hdr "Vary: accept-encoding" \
-              -hdr "Cache-Control: max-age=5" -bodylen 177
+              -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: gzip" \
+              -bodylen 177
 
        rxreq
        expect req.url == "/too_many_encodings"
        txresp -hdr "Vary: accept-encoding" \
-              -hdr "Cache-Control: max-age=5" -bodylen 188
+              -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: gzip" \
+              -bodylen 188
 
 
 } -start
@@ -123,23 +105,15 @@ server s2 {
        # Responses that should not be cached
        rxreq
        expect req.url == "/no_vary_support"
-       txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Vary: accept-encoding" \
-               -hdr "Cache-Control: max-age=5"
-       chunkedlen 19
-       chunkedlen 19
-       chunkedlen 19
-       chunkedlen 0
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 57
 
        rxreq
        expect req.url == "/no_vary_support"
-       txresp -nolen -hdr "Transfer-Encoding: chunked" \
-               -hdr "Vary: accept-encoding" \
-               -hdr "Cache-Control: max-age=5"
-       chunkedlen 19
-       chunkedlen 19
-       chunkedlen 19
-       chunkedlen 0
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 57
 } -start
 
 haproxy h1 -conf {
@@ -186,7 +160,7 @@ client c1 -connect ${h1_fe_sock} {
        txreq -url "/accept-encoding" -hdr "Accept-Encoding: first_value"
        rxresp
        expect resp.status == 200
-       expect resp.http.content-type == "gzip"
+       expect resp.http.content-encoding == "gzip"
        expect resp.bodylen == 45
 
        txreq -url "/accept-encoding" -hdr "Accept-Encoding: second_value"
@@ -200,7 +174,7 @@ client c1 -connect ${h1_fe_sock} {
        rxresp
        expect resp.status == 200
        expect resp.bodylen == 45
-       expect resp.http.content-type == "gzip"
+       expect resp.http.content-encoding == "gzip"
        expect resp.http.X-Cache-Hit == 1
 
        txreq -url "/accept-encoding" -hdr "Accept-Encoding: second_value"
