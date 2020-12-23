@@ -504,17 +504,17 @@ static __inline int __ha_cas_dw(void *target, void *compare, void *set)
 	uint64_t tmp1, tmp2;
 
 	__asm__ __volatile__("1:"
-                             "ldxp %0, %1, [%4];"
-                             "mov %2, %0;"
-                             "mov %3, %1;"
-                             "eor %0, %0, %5;"
-                             "eor %1, %1, %6;"
-                             "orr %1, %0, %1;"
-                             "mov %w0, #0;"
-                             "cbnz %1, 2f;"
-                             "stxp %w0, %7, %8, [%4];"
-                             "cbnz %w0, 1b;"
-                             "mov %w0, #1;"
+                             "ldxp %0, %1, [%4]\n"
+                             "mov %2, %0\n"
+                             "mov %3, %1\n"
+                             "eor %0, %0, %5\n"
+                             "eor %1, %1, %6\n"
+                             "orr %1, %0, %1\n"
+                             "mov %w0, #0\n"
+                             "cbnz %1, 2f\n"
+                             "stxp %w0, %7, %8, [%4]\n"
+                             "cbnz %w0, 1b\n"
+                             "mov %w0, #1\n"
                              "2:"
                              : "=&r" (tmp1), "=&r" (tmp2), "=&r" (value[0]), "=&r" (value[1])
                              : "r" (target), "r" (((void **)(compare))[0]), "r" (((void **)(compare))[1]), "r" (((void **)(set))[0]), "r" (((void **)(set))[1])
