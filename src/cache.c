@@ -2120,33 +2120,9 @@ static int default_normalizer(struct ist value, char *buf, unsigned int *buf_len
  */
 static int http_request_prebuild_full_secondary_key(struct stream *s)
 {
-	struct http_txn *txn = s->txn;
-	struct htx *htx = htxbuf(&s->req.buf);
-	struct http_hdr_ctx ctx = { .blk = NULL };
-
-	unsigned int idx;
-	const struct vary_hashing_information *info = NULL;
-	unsigned int hash_length = 0;
-	int retval = 0;
-	int offset = 0;
-
-	for (idx = 0; idx < sizeof(vary_information)/sizeof(*vary_information) && !retval; ++idx) {
-		info = &vary_information[idx];
-
-		ctx.blk = NULL;
-		if (info->norm_fn != NULL && http_find_header(htx, info->hdr_name, &ctx, 1)) {
-			retval = info->norm_fn(ctx.value, &txn->cache_secondary_hash[offset], &hash_length);
-			offset += hash_length;
-		}
-		else {
-			/* Fill hash with 0s. */
-			hash_length = info->hash_length;
-			memset(&txn->cache_secondary_hash[offset], 0, hash_length);
-			offset += hash_length;
-		}
-	}
-
-	return retval;
+	/* The fake signature (second parameter) will ensure that every part of the
+	 * secondary key is calculated. */
+	return http_request_build_secondary_key(s, ~0);
 }
 
 
@@ -2176,8 +2152,7 @@ static int http_request_build_secondary_key(struct stream *s, int vary_signature
 		info = &vary_information[idx];
 
 		ctx.blk = NULL;
-		if ((vary_signature & info->value) && info->norm_fn != NULL &&
-		    http_find_header(htx, info->hdr_name, &ctx, 1)) {
+		if (info->norm_fn != NULL && http_find_header(htx, info->hdr_name, &ctx, 1)) {
 			retval = info->norm_fn(ctx.value, &txn->cache_secondary_hash[offset], &hash_length);
 			offset += hash_length;
 		}
