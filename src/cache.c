@@ -973,8 +973,13 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	if (cache->vary_processing_enabled) {
 		if (!http_check_vary_header(htx, &vary_signature))
 			goto out;
-		if (vary_signature)
+		if (vary_signature) {
+			/* If something went wrong during the secondary key
+			 * building, do not store the response. */
+			if (!(txn->flags & TX_CACHE_HAS_SEC_KEY))
+				goto out;
 			http_request_reduce_secondary_key(vary_signature, txn->cache_secondary_hash);
+		}
 	}
 	else if (http_find_header(htx, ist("Vary"), &ctx, 0)) {
 		goto out;
@@ -1677,7 +1682,7 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		shctx_unlock(shctx_ptr(cache));
 
 		/* In case of Vary, we could have multiple entries with the same
-		 * primary hash. We need to calculate the secondary has in order
+		 * primary hash. We need to calculate the secondary hash in order
 		 * to find the actual entry we want (if it exists). */
 		if (res->secondary_key_signature) {
 			if (!http_request_build_secondary_key(s, res->secondary_key_signature)) {
@@ -2164,7 +2169,10 @@ static int http_request_build_secondary_key(struct stream *s, int vary_signature
 		}
 	}
 
-	return retval;
+	if (retval >= 0)
+		txn->flags |= TX_CACHE_HAS_SEC_KEY;
+
+	return (retval < 0);
 }
 
 /*
