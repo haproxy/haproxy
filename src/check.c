@@ -680,7 +680,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		 * Let's trigger a DNS resolution if none are currently running.
 		 */
 		if (check->server)
-			dns_trigger_resolution(check->server->resolv_requester);
+			resolv_trigger_resolution(check->server->resolv_requester);
 
 	}
 	else if (conn->flags & CO_FL_WAIT_L6_CONN) {

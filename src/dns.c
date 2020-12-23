@@ -48,14 +48,14 @@
 struct list sec_resolvers  = LIST_HEAD_INIT(sec_resolvers);
 struct list resolv_srvrq_list = LIST_HEAD_INIT(resolv_srvrq_list);
 
-static THREAD_LOCAL uint64_t dns_query_id_seed = 0; /* random seed */
+static THREAD_LOCAL uint64_t resolv_query_id_seed = 0; /* random seed */
 
 DECLARE_STATIC_POOL(resolv_answer_item_pool, "resolv_answer_item", sizeof(struct resolv_answer_item));
 DECLARE_STATIC_POOL(resolv_resolution_pool,  "resolv_resolution",  sizeof(struct resolv_resolution));
 DECLARE_POOL(resolv_requester_pool,  "resolv_requester",  sizeof(struct resolv_requester));
 
 static unsigned int resolution_uuid = 1;
-unsigned int dns_failed_resolutions = 0;
+unsigned int resolv_failed_resolutions = 0;
 
 enum {
 	DNS_STAT_ID,
@@ -152,7 +152,7 @@ struct resolvers *find_resolvers_by_id(const char *id)
 /* Compare hostnames in a case-insensitive way .
  * Returns 0 if they are the same, non-zero otherwise
  */
-static __inline int dns_hostname_cmp(const char *name1, const char *name2, int len)
+static __inline int resolv_hostname_cmp(const char *name1, const char *name2, int len)
 {
 	int i;
 
@@ -185,7 +185,7 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 	int fqdn_len, hostname_dn_len;
 
 	fqdn_len = strlen(fqdn);
-	hostname_dn_len = dns_str_to_dn_label(fqdn, fqdn_len + 1, trash.area,
+	hostname_dn_len = resolv_str_to_dn_label(fqdn, fqdn_len + 1, trash.area,
 					      trash.size);
 	if (hostname_dn_len == -1) {
 		ha_alert("config : %s '%s', server '%s': failed to parse FQDN '%s'\n",
@@ -222,24 +222,24 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 
 
 /* 2 bytes random generator to generate DNS query ID */
-static inline uint16_t dns_rnd16(void)
+static inline uint16_t resolv_rnd16(void)
 {
-	if (!dns_query_id_seed)
-		dns_query_id_seed = now_ms;
-	dns_query_id_seed ^= dns_query_id_seed << 13;
-	dns_query_id_seed ^= dns_query_id_seed >> 7;
-	dns_query_id_seed ^= dns_query_id_seed << 17;
-	return dns_query_id_seed;
+	if (!resolv_query_id_seed)
+		resolv_query_id_seed = now_ms;
+	resolv_query_id_seed ^= resolv_query_id_seed << 13;
+	resolv_query_id_seed ^= resolv_query_id_seed >> 7;
+	resolv_query_id_seed ^= resolv_query_id_seed << 17;
+	return resolv_query_id_seed;
 }
 
 
-static inline int dns_resolution_timeout(struct resolv_resolution *res)
+static inline int resolv_resolution_timeout(struct resolv_resolution *res)
 {
 	return res->resolvers->timeout.resolve;
 }
 
 /* Updates a resolvers' task timeout for next wake up and queue it */
-static void dns_update_resolvers_timeout(struct resolvers *resolvers)
+static void resolv_update_resolvers_timeout(struct resolvers *resolvers)
 {
 	struct resolv_resolution *res;
 	int next;
@@ -251,7 +251,7 @@ static void dns_update_resolvers_timeout(struct resolvers *resolvers)
 	}
 
 	list_for_each_entry(res, &resolvers->resolutions.wait, list)
-		next = MIN(next, tick_add(res->last_resolution, dns_resolution_timeout(res)));
+		next = MIN(next, tick_add(res->last_resolution, resolv_resolution_timeout(res)));
 
 	resolvers->t->expire = next;
 	task_queue(resolvers->t);
@@ -304,8 +304,8 @@ static int dns_connect_namesaver(struct dns_nameserver *ns)
  * <bufsize>. It returns the number of written bytes in success, -1 if <buf> is
  * too short.
  */
-static int dns_build_query(int query_id, int query_type, unsigned int accepted_payload_size,
-			   char *hostname_dn, int hostname_dn_len, char *buf, int bufsize)
+static int resolv_build_query(int query_id, int query_type, unsigned int accepted_payload_size,
+                              char *hostname_dn, int hostname_dn_len, char *buf, int bufsize)
 {
 	struct dns_header            dns_hdr;
 	struct dns_question          qinfo;
@@ -353,7 +353,7 @@ static int dns_build_query(int query_id, int query_type, unsigned int accepted_p
 /* Sends a DNS query to resolvers associated to a resolution. It returns 0 on
  * success, -1 otherwise.
  */
-static int dns_send_query(struct resolv_resolution *resolution)
+static int resolv_send_query(struct resolv_resolution *resolution)
 {
 	struct resolvers  *resolvers = resolution->resolvers;
 	struct dns_nameserver *ns;
@@ -364,7 +364,7 @@ static int dns_send_query(struct resolv_resolution *resolution)
 	resolution->nb_responses = 0;
 	resolution->last_query   = now_ms;
 
-	len = dns_build_query(resolution->query_id, resolution->query_type,
+	len = resolv_build_query(resolution->query_id, resolution->query_type,
 	                      resolvers->accepted_payload_size,
 	                      resolution->hostname_dn, resolution->hostname_dn_len,
 	                      trash.area, trash.size);
@@ -411,7 +411,7 @@ static int dns_send_query(struct resolv_resolution *resolution)
  * skipped and -1 if an error occurred.
  */
 static int
-dns_run_resolution(struct resolv_resolution *resolution)
+resolv_run_resolution(struct resolv_resolution *resolution)
 {
 	struct resolvers  *resolvers = resolution->resolvers;
 	int query_id, i;
@@ -430,7 +430,7 @@ dns_run_resolution(struct resolv_resolution *resolution)
 	/* Generates a new query id. We try at most 100 times to find a free
 	 * query id */
 	for (i = 0; i < 100; ++i) {
-		query_id = dns_rnd16();
+		query_id = resolv_rnd16();
 		if (!eb32_lookup(&resolvers->query_ids, query_id))
 			break;
 		query_id = -1;
@@ -452,12 +452,12 @@ dns_run_resolution(struct resolv_resolution *resolution)
 
 	/* Send the DNS query */
 	resolution->try -= 1;
-	dns_send_query(resolution);
+	resolv_send_query(resolution);
 	return 1;
 }
 
 /* Performs a name resolution for the requester <req> */
-void dns_trigger_resolution(struct resolv_requester *req)
+void resolv_trigger_resolution(struct resolv_requester *req)
 {
 	struct resolvers  *resolvers;
 	struct resolv_resolution *res;
@@ -480,7 +480,7 @@ void dns_trigger_resolution(struct resolv_requester *req)
 /* Resets some resolution parameters to initial values and also delete the query
  * ID from the resolver's tree.
  */
-static void dns_reset_resolution(struct resolv_resolution *resolution)
+static void resolv_reset_resolution(struct resolv_resolution *resolution)
 {
 	/* update resolution status */
 	resolution->step            = RSLV_STEP_NONE;
@@ -497,7 +497,7 @@ static void dns_reset_resolution(struct resolv_resolution *resolution)
 }
 
 /* Returns the query id contained in a DNS response */
-static inline unsigned short dns_response_get_query_id(unsigned char *resp)
+static inline unsigned short resolv_response_get_query_id(unsigned char *resp)
 {
 	return resp[0] * 256 + resp[1];
 }
@@ -510,9 +510,9 @@ static inline unsigned short dns_response_get_query_id(unsigned char *resp)
  * forward. If 0 it means an error occurred while parsing the name. <offset> is
  * the number of bytes the caller could move forward.
  */
-int dns_read_name(unsigned char *buffer, unsigned char *bufend,
-		  unsigned char *name, char *destination, int dest_len,
-		  int *offset, unsigned int depth)
+int resolv_read_name(unsigned char *buffer, unsigned char *bufend,
+		     unsigned char *name, char *destination, int dest_len,
+		     int *offset, unsigned int depth)
 {
 	int nb_bytes = 0, n = 0;
 	int label_len;
@@ -535,8 +535,8 @@ int dns_read_name(unsigned char *buffer, unsigned char *bufend,
 			if (depth++ > 100)
 				goto err;
 
-			n = dns_read_name(buffer, bufend, buffer + (*reader & 0x3f)*256 + reader[1],
-					  dest, dest_len - nb_bytes, offset, depth);
+			n = resolv_read_name(buffer, bufend, buffer + (*reader & 0x3f)*256 + reader[1],
+			                     dest, dest_len - nb_bytes, offset, depth);
 			if (n == 0)
 				goto err;
 
@@ -593,7 +593,7 @@ int dns_read_name(unsigned char *buffer, unsigned char *bufend,
 /* Checks for any obsolete record, also identify any SRV request, and try to
  * find a corresponding server.
 */
-static void dns_check_dns_response(struct resolv_resolution *res)
+static void resolv_check_response(struct resolv_resolution *res)
 {
 	struct resolvers   *resolvers = res->resolvers;
 	struct resolv_requester   *req, *reqback;
@@ -624,14 +624,14 @@ static void dns_check_dns_response(struct resolv_resolution *res)
 					HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 					if (srv->srvrq == srvrq && srv->svc_port == item->port &&
 					    item->data_len == srv->hostname_dn_len &&
-					    !dns_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
+					    !resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
 						snr_update_srv_status(srv, 1);
 						free(srv->hostname);
 						free(srv->hostname_dn);
 						srv->hostname        = NULL;
 						srv->hostname_dn     = NULL;
 						srv->hostname_dn_len = 0;
-						dns_unlink_resolution(srv->resolv_requester);
+						resolv_unlink_resolution(srv->resolv_requester);
 					}
 					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				}
@@ -660,7 +660,7 @@ static void dns_check_dns_response(struct resolv_resolution *res)
 				HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 				if (srv->srvrq == srvrq && srv->svc_port == item->port &&
 				    item->data_len == srv->hostname_dn_len &&
-				    !dns_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
+				    !resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
 					break;
 				}
 				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
@@ -703,7 +703,7 @@ static void dns_check_dns_response(struct resolv_resolution *res)
 					const char *msg = NULL;
 					char hostname[DNS_MAX_NAME_SIZE];
 
-					if (dns_dn_label_to_str(item->target, item->data_len+1,
+					if (resolv_dn_label_to_str(item->target, item->data_len+1,
 								hostname, DNS_MAX_NAME_SIZE) == -1) {
 						HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 						continue;
@@ -748,8 +748,8 @@ static void dns_check_dns_response(struct resolv_resolution *res)
  * This function returns one of the RSLV_RESP_* code to indicate the type of
  * error found.
  */
-static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
-				     struct resolv_resolution *resolution, int max_answer_records)
+static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufend,
+                                        struct resolv_resolution *resolution, int max_answer_records)
 {
 	unsigned char *reader;
 	char *previous_dname, tmpname[DNS_MAX_NAME_SIZE];
@@ -865,7 +865,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		 * one query per response and the first one can't be compressed
 		 * (using the 0x0c format) */
 		offset = 0;
-		len = dns_read_name(resp, bufend, reader, query->name, DNS_MAX_NAME_SIZE, &offset, 0);
+		len = resolv_read_name(resp, bufend, reader, query->name, DNS_MAX_NAME_SIZE, &offset, 0);
 
 		if (len == 0)
 			goto invalid_resp;
@@ -907,14 +907,14 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		answer_record->ar_item = NULL;
 
 		offset = 0;
-		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
+		len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 
 		if (len == 0)
 			goto invalid_resp;
 
 		/* Check if the current record dname is valid.  previous_dname
 		 * points either to queried dname or last CNAME target */
-		if (query->type != DNS_RTYPE_SRV && dns_hostname_cmp(previous_dname, tmpname, len) != 0) {
+		if (query->type != DNS_RTYPE_SRV && resolv_hostname_cmp(previous_dname, tmpname, len) != 0) {
 			if (i == 0) {
 				/* First record, means a mismatch issue between
 				 * queried dname and dname found in the first
@@ -999,7 +999,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				}
 
 				offset = 0;
-				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
+				len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 				if (len == 0)
 					goto invalid_resp;
 
@@ -1026,7 +1026,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				answer_record->port = read_n16(reader);
 				reader += sizeof(uint16_t);
 				offset = 0;
-				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
+				len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 				if (len == 0)
 					goto invalid_resp;
 
@@ -1084,7 +1084,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 			case DNS_RTYPE_SRV:
                                 if (answer_record->data_len == tmp_record->data_len &&
-				    !dns_hostname_cmp(answer_record->target, tmp_record->target, answer_record->data_len) &&
+				    !resolv_hostname_cmp(answer_record->target, tmp_record->target, answer_record->data_len) &&
 				    answer_record->port == tmp_record->port) {
 					tmp_record->weight = answer_record->weight;
                                         found = 1;
@@ -1122,7 +1122,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	/* if we find Authority records, just skip them */
 	for (i = 0; i < r_res->header.nscount; i++) {
 		offset = 0;
-		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE,
+		len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE,
 		                    &offset, 0);
 		if (len == 0)
 			continue;
@@ -1157,7 +1157,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 			goto invalid_resp;
 
 		offset = 0;
-		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
+		len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 
 		if (len == 0) {
 			pool_free(resolv_answer_item_pool, answer_record);
@@ -1287,7 +1287,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 			list_for_each_entry(tmp_record, &r_res->answer_list, list) {
 				if (tmp_record->type == DNS_RTYPE_SRV &&
 				    tmp_record->ar_item == NULL &&
-				    !dns_hostname_cmp(tmp_record->target, answer_record->name, tmp_record->data_len)) {
+				    !resolv_hostname_cmp(tmp_record->target, answer_record->name, tmp_record->data_len)) {
 					/* Always use the received additional record to refresh info */
 					if (tmp_record->ar_item)
 						pool_free(resolv_answer_item_pool, tmp_record->ar_item);
@@ -1306,7 +1306,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	/* Save the number of records we really own */
 	r_res->header.arcount = nb_saved_records;
 
-	dns_check_dns_response(resolution);
+	resolv_check_response(resolution);
 	return RSLV_RESP_VALID;
 
  invalid_resp:
@@ -1321,11 +1321,11 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
  * If existing IP not found, return the first IP matching family_priority,
  * otherwise, first ip found
  * The following tasks are the responsibility of the caller:
- *   - <dns_p> contains an error free DNS response
- * For both cases above, dns_validate_dns_response is required
+ *   - <r_res> contains an error free DNS response
+ * For both cases above, resolv_validate_dns_response is required
  * returns one of the RSLV_UPD_* code
  */
-int dns_get_ip_from_response(struct resolv_response *r_res,
+int resolv_get_ip_from_response(struct resolv_response *r_res,
                              struct resolv_options *resolv_opts, void *currentip,
                              short currentip_sin_family,
                              void **newip, short *newip_sin_family,
@@ -1506,7 +1506,7 @@ int dns_get_ip_from_response(struct resolv_response *r_res,
  *  In case of error, -1 is returned, otherwise, the number of bytes copied in
  * <str> (including the terminating null byte).
  */
-int dns_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len)
+int resolv_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len)
 {
 	char *ptr;
 	int i, sz;
@@ -1536,7 +1536,7 @@ int dns_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len)
  *  In case of error, -1 is returned, otherwise, the number of bytes copied in
  * <dn> (excluding the terminating null byte).
  */
-int dns_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
+int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
 {
 	int i, offset;
 
@@ -1576,7 +1576,7 @@ int dns_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len)
  *  0 in case of error. If <err> is not NULL, an error message is stored there.
  *  1 when no error. <err> is left unaffected.
  */
-int dns_hostname_validation(const char *string, char **err)
+int resolv_hostname_validation(const char *string, char **err)
 {
 	int i;
 
@@ -1623,9 +1623,9 @@ int dns_hostname_validation(const char *string, char **err)
  *
  * Returns an available resolution, NULL if none found.
  */
-static struct resolv_resolution *dns_pick_resolution(struct resolvers *resolvers,
-						  char **hostname_dn, int hostname_dn_len,
-						  int query_type)
+static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolvers,
+							char **hostname_dn, int hostname_dn_len,
+							int query_type)
 {
 	struct resolv_resolution *res;
 
@@ -1638,7 +1638,7 @@ static struct resolv_resolution *dns_pick_resolution(struct resolvers *resolvers
 			continue;
 		if ((query_type == res->prefered_query_type) &&
 		    hostname_dn_len == res->hostname_dn_len  &&
-		    !dns_hostname_cmp(*hostname_dn, res->hostname_dn, hostname_dn_len))
+		    !resolv_hostname_cmp(*hostname_dn, res->hostname_dn, hostname_dn_len))
 			return res;
 	}
 
@@ -1648,7 +1648,7 @@ static struct resolv_resolution *dns_pick_resolution(struct resolvers *resolvers
 			continue;
 		if ((query_type == res->prefered_query_type) &&
 		    hostname_dn_len == res->hostname_dn_len  &&
-		    !dns_hostname_cmp(*hostname_dn, res->hostname_dn, hostname_dn_len))
+		    !resolv_hostname_cmp(*hostname_dn, res->hostname_dn, hostname_dn_len))
 			return res;
 	}
 
@@ -1680,13 +1680,13 @@ static struct resolv_resolution *dns_pick_resolution(struct resolvers *resolvers
 }
 
 /* Releases a resolution from its requester(s) and move it back to the pool */
-static void dns_free_resolution(struct resolv_resolution *resolution)
+static void resolv_free_resolution(struct resolv_resolution *resolution)
 {
 	struct resolv_requester *req, *reqback;
 	struct resolv_answer_item *item, *itemback;
 
 	/* clean up configuration */
-	dns_reset_resolution(resolution);
+	resolv_reset_resolution(resolution);
 	resolution->hostname_dn = NULL;
 	resolution->hostname_dn_len = 0;
 
@@ -1711,7 +1711,7 @@ static void dns_free_resolution(struct resolv_resolution *resolution)
 /* Links a requester (a server or a resolv_srvrq) with a resolution. It returns 0
  * on success, -1 otherwise.
  */
-int dns_link_resolution(void *requester, int requester_type, int requester_locked)
+int resolv_link_resolution(void *requester, int requester_type, int requester_locked)
 {
 	struct resolv_resolution *res = NULL;
 	struct resolv_requester  *req;
@@ -1755,7 +1755,7 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 	}
 
 	/* Get a resolution from the resolvers' wait queue or pool */
-	if ((res = dns_pick_resolution(resolvers, hostname_dn, hostname_dn_len, query_type)) == NULL)
+	if ((res = resolv_pick_resolution(resolvers, hostname_dn, hostname_dn_len, query_type)) == NULL)
 		goto err;
 
 	if (srv) {
@@ -1814,14 +1814,14 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 
   err:
 	if (res && LIST_ISEMPTY(&res->requesters))
-		dns_free_resolution(res);
+		resolv_free_resolution(res);
 	return -1;
 }
 
 /* Removes a requester from a DNS resolution. It takes takes care of all the
  * consequences. It also cleans up some parameters from the requester.
  */
-void dns_unlink_resolution(struct resolv_requester *requester)
+void resolv_unlink_resolution(struct resolv_requester *requester)
 {
 	struct resolv_resolution *res;
 	struct resolv_requester  *req;
@@ -1839,7 +1839,7 @@ void dns_unlink_resolution(struct resolv_requester *requester)
 	if (!LIST_ISEMPTY(&res->requesters))
 		req = LIST_NEXT(&res->requesters, struct resolv_requester *, list);
 	else {
-		dns_free_resolution(res);
+		resolv_free_resolution(res);
 		return;
 	}
 
@@ -1930,7 +1930,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 			ns->counters->invalid++;
 			continue;
 		}
-		query_id = dns_response_get_query_id(buf);
+		query_id = resolv_response_get_query_id(buf);
 
 		/* search the query_id in the pending resolution tree */
 		eb = eb32_lookup(&resolvers->query_ids, query_id);
@@ -1946,7 +1946,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		res->nb_responses++;
 
 		max_answer_records = (resolvers->accepted_payload_size - DNS_HEADER_SIZE) / DNS_MIN_RECORD_SIZE;
-		dns_resp = dns_validate_dns_response(buf, bufend, res, max_answer_records);
+		dns_resp = resolv_validate_dns_response(buf, bufend, res, max_answer_records);
 
 		switch (dns_resp) {
 			case RSLV_RESP_VALID:
@@ -2011,11 +2011,11 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 				 * decremented. */
 				if (res->prefered_query_type == DNS_RTYPE_A) {
 					res->query_type = DNS_RTYPE_AAAA;
-					dns_send_query(res);
+					resolv_send_query(res);
 				}
 				else if (res->prefered_query_type == DNS_RTYPE_AAAA) {
 					res->query_type = DNS_RTYPE_A;
-					dns_send_query(res);
+					resolv_send_query(res);
 				}
 			}
 			continue;
@@ -2025,7 +2025,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		 * sent. We can check only the first query of the list. We send
 		 * one query at a time so we get one query in the response */
 		query = LIST_NEXT(&res->response.query_list, struct resolv_query_item *, list);
-		if (query && dns_hostname_cmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
+		if (query && resolv_hostname_cmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
 			dns_resp = RSLV_RESP_WRONG_NAME;
 			ns->counters->other++;
 			goto report_res_error;
@@ -2040,7 +2040,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 	report_res_error:
 		list_for_each_entry(req, &res->requesters, list)
 			req->requester_error_cb(req, dns_resp);
-		dns_reset_resolution(res);
+		resolv_reset_resolution(res);
 		LIST_DEL(&res->list);
 		LIST_ADDQ(&resolvers->resolutions.wait, &res->list);
 		continue;
@@ -2060,12 +2060,12 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 			tmpcounters = NULL;
 		}
 
-		dns_reset_resolution(res);
+		resolv_reset_resolution(res);
 		LIST_DEL(&res->list);
 		LIST_ADDQ(&resolvers->resolutions.wait, &res->list);
 		continue;
 	}
-	dns_update_resolvers_timeout(resolvers);
+	resolv_update_resolvers_timeout(resolvers);
 	HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 }
 
@@ -2099,7 +2099,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 		if (res->nb_queries == resolvers->nb_nameservers)
 			continue;
 
-		len = dns_build_query(res->query_id, res->query_type,
+		len = resolv_build_query(res->query_id, res->query_type,
 		                      resolvers->accepted_payload_size,
 		                      res->hostname_dn, res->hostname_dn_len,
 		                      trash.area, trash.size);
@@ -2132,7 +2132,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
  * resolutions and retry them if possible. Else a timeout is reported. Then, it
  * checks the wait list to trigger new resolutions.
  */
-static struct task *dns_process_resolvers(struct task *t, void *context, unsigned short state)
+static struct task *process_resolvers(struct task *t, void *context, unsigned short state)
 {
 	struct resolvers  *resolvers = context;
 	struct resolv_resolution *res, *resback;
@@ -2162,7 +2162,7 @@ static struct task *dns_process_resolvers(struct task *t, void *context, unsigne
 
 			/* Clean up resolution info and remove it from the
 			 * current list */
-			dns_reset_resolution(res);
+			resolv_reset_resolution(res);
 			LIST_DEL(&res->list);
 			LIST_ADDQ(&resolvers->resolutions.wait, &res->list);
 		}
@@ -2184,24 +2184,24 @@ static struct task *dns_process_resolvers(struct task *t, void *context, unsigne
 				else
 					res->try--;
 			}
-			dns_send_query(res);
+			resolv_send_query(res);
 		}
 	}
 
 	/* Handle all resolutions in the wait list */
 	list_for_each_entry_safe(res, resback, &resolvers->resolutions.wait, list) {
-		exp = tick_add(res->last_resolution, dns_resolution_timeout(res));
+		exp = tick_add(res->last_resolution, resolv_resolution_timeout(res));
 		if (tick_isset(res->last_resolution) && !tick_is_expired(exp, now_ms))
 			continue;
 
-		if (dns_run_resolution(res) != 1) {
+		if (resolv_run_resolution(res) != 1) {
 			res->last_resolution = now_ms;
 			LIST_DEL(&res->list);
 			LIST_ADDQ(&resolvers->resolutions.wait, &res->list);
 		}
 	}
 
-	dns_update_resolvers_timeout(resolvers);
+	resolv_update_resolvers_timeout(resolvers);
 	HA_SPIN_UNLOCK(DNS_LOCK, &resolvers->lock);
 	return t;
 }
@@ -2213,7 +2213,7 @@ struct dgram_data_cb resolve_dgram_cb = {
 };
 
 /* Release memory allocated by DNS */
-static void dns_deinit(void)
+static void resolvers_deinit(void)
 {
 	struct resolvers  *resolvers, *resolversback;
 	struct dns_nameserver *ns, *nsback;
@@ -2238,7 +2238,7 @@ static void dns_deinit(void)
 				LIST_DEL(&req->list);
 				pool_free(resolv_requester_pool, req);
 			}
-			dns_free_resolution(res);
+			resolv_free_resolution(res);
 		}
 
 		list_for_each_entry_safe(res, resback, &resolvers->resolutions.wait, list) {
@@ -2246,7 +2246,7 @@ static void dns_deinit(void)
 				LIST_DEL(&req->list);
 				pool_free(resolv_requester_pool, req);
 			}
-			dns_free_resolution(res);
+			resolv_free_resolution(res);
 		}
 
 		free(resolvers->id);
@@ -2268,7 +2268,7 @@ static void dns_deinit(void)
  * live parameters.
  * Returns 0 on success, ERR_* flags otherwise.
  */
-static int dns_finalize_config(void)
+static int resolvers_finalize_config(void)
 {
 	struct resolvers *resolvers;
 	struct proxy	     *px;
@@ -2332,7 +2332,7 @@ static int dns_finalize_config(void)
 		}
 
 		/* Update task's parameters */
-		t->process   = dns_process_resolvers;
+		t->process   = process_resolvers;
 		t->context   = resolvers;
 		resolvers->t = t;
 		task_wakeup(t, TASK_WOKEN_INIT);
@@ -2357,14 +2357,14 @@ static int dns_finalize_config(void)
 
 			if (srv->srvrq && !srv->srvrq->resolvers) {
 				srv->srvrq->resolvers = srv->resolvers;
-				if (dns_link_resolution(srv->srvrq, OBJ_TYPE_SRVRQ, 0) == -1) {
+				if (resolv_link_resolution(srv->srvrq, OBJ_TYPE_SRVRQ, 0) == -1) {
 					ha_alert("config : %s '%s' : unable to set DNS resolution for server '%s'.\n",
 						 proxy_type_str(px), px->id, srv->id);
 					err_code |= (ERR_ALERT|ERR_ABORT);
 					continue;
 				}
 			}
-			if (dns_link_resolution(srv, OBJ_TYPE_SERVER, 0) == -1) {
+			if (resolv_link_resolution(srv, OBJ_TYPE_SERVER, 0) == -1) {
 				ha_alert("config : %s '%s', unable to set DNS resolution for server '%s'.\n",
 					 proxy_type_str(px), px->id, srv->id);
 				err_code |= (ERR_ALERT|ERR_ABORT);
@@ -2378,7 +2378,7 @@ static int dns_finalize_config(void)
 
 	return err_code;
   err:
-	dns_deinit();
+	resolvers_deinit();
 	return err_code;
 
 }
@@ -2633,8 +2633,8 @@ static int action_prepare_for_resolution(struct stream *stream, const char *host
 
 	hostname_len    = strlen(hostname);
 	hostname_dn     = tmp->area;
-	hostname_dn_len = dns_str_to_dn_label(hostname, hostname_len + 1,
-				      hostname_dn, tmp->size);
+	hostname_dn_len = resolv_str_to_dn_label(hostname, hostname_len + 1,
+	                                         hostname_dn, tmp->size);
 	if (hostname_dn_len == -1)
 		goto err;
 
@@ -2648,7 +2648,7 @@ static int action_prepare_for_resolution(struct stream *stream, const char *host
 
  err:
 	free(stream->resolv_ctx.hostname_dn); stream->resolv_ctx.hostname_dn = NULL;
-	dns_failed_resolutions += 1;
+	resolv_failed_resolutions += 1;
 	return -1;
 }
 
@@ -2656,7 +2656,7 @@ static int action_prepare_for_resolution(struct stream *stream, const char *host
 /*
  * Execute the "do-resolution" action. May be called from {tcp,http}request.
  */
-enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
+enum act_return resolv_action_do_resolve(struct act_rule *rule, struct proxy *px,
 					      struct session *sess, struct stream *s, int flags)
 {
 	struct resolv_resolution *resolution;
@@ -2688,7 +2688,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 				short ip_sin_family = 0;
 				void *ip = NULL;
 
-				dns_get_ip_from_response(&resolution->response, rule->arg.resolv.opts, NULL,
+				resolv_get_ip_from_response(&resolution->response, rule->arg.resolv.opts, NULL,
 							 0, &ip, &ip_sin_family, NULL);
 
 				switch (ip_sin_family) {
@@ -2731,7 +2731,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 	locked = 1;
 
-	dns_link_resolution(s, OBJ_TYPE_STREAM, 0);
+	resolv_link_resolution(s, OBJ_TYPE_STREAM, 0);
 
 	/* Check if there is a fresh enough response in the cache of our associated resolution */
 	req = s->resolv_ctx.requester;
@@ -2745,7 +2745,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 		goto use_cache;
 	}
 
-	dns_trigger_resolution(s->resolv_ctx.requester);
+	resolv_trigger_resolution(s->resolv_ctx.requester);
 
   yield:
 	if (flags & ACT_OPT_FINAL)
@@ -2762,14 +2762,14 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	s->resolv_ctx.hostname_dn = NULL;
 	s->resolv_ctx.hostname_dn_len = 0;
 	if (s->resolv_ctx.requester) {
-		dns_unlink_resolution(s->resolv_ctx.requester);
+		resolv_unlink_resolution(s->resolv_ctx.requester);
 		pool_free(resolv_requester_pool, s->resolv_ctx.requester);
 		s->resolv_ctx.requester = NULL;
 	}
 	goto end;
 }
 
-static void release_dns_action(struct act_rule *rule)
+static void release_resolv_action(struct act_rule *rule)
 {
 	release_sample_expr(rule->arg.resolv.expr);
 	free(rule->arg.resolv.varname);
@@ -2790,7 +2790,7 @@ static void release_dns_action(struct act_rule *rule)
  *     (optional), defaults to ipv6
  *   - <expr> is an HAProxy expression used to fetch the name to be resolved
  */
-enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err)
+enum act_parse_ret resolv_parse_do_resolve(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err)
 {
 	int cur_arg;
 	struct sample_expr *expr;
@@ -2879,11 +2879,11 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 	}
 	rule->arg.resolv.expr = expr;
 	rule->action = ACT_CUSTOM;
-	rule->action_ptr = dns_action_do_resolve;
+	rule->action_ptr = resolv_action_do_resolve;
 	*orig_arg = cur_arg;
 
 	rule->check_ptr = check_action_do_resolve;
-	rule->release_ptr = release_dns_action;
+	rule->release_ptr = release_resolv_action;
 
 	return ACT_RET_PRS_OK;
 
@@ -2896,14 +2896,14 @@ enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct
 }
 
 static struct action_kw_list http_req_kws = { { }, {
-	{ "do-resolve", dns_parse_do_resolve, 1 },
+	{ "do-resolve", resolv_parse_do_resolve, 1 },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_kws);
 
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
-	{ "do-resolve", dns_parse_do_resolve, 1 },
+	{ "do-resolve", resolv_parse_do_resolve, 1 },
 	{ /* END */ }
 }};
 
@@ -2933,5 +2933,5 @@ int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err)
 	return 1;
 }
 
-REGISTER_POST_DEINIT(dns_deinit);
-REGISTER_CONFIG_POSTPARSER("dns runtime resolver", dns_finalize_config);
+REGISTER_POST_DEINIT(resolvers_deinit);
+REGISTER_CONFIG_POSTPARSER("dns runtime resolver", resolvers_finalize_config);

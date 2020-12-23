@@ -26,26 +26,26 @@
 #include <haproxy/dns-t.h>
 
 extern struct list sec_resolvers;
-extern unsigned int dns_failed_resolutions;
+extern unsigned int resolv_failed_resolutions;
 
 struct resolvers *find_resolvers_by_id(const char *id);
 struct resolv_srvrq *find_srvrq_by_name(const char *name, struct proxy *px);
 struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn);
 
-int dns_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len);
-int dns_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len);
+int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len);
+int resolv_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len);
 
-int dns_hostname_validation(const char *string, char **err);
-int dns_get_ip_from_response(struct resolv_response *r_res,
+int resolv_hostname_validation(const char *string, char **err);
+int resolv_get_ip_from_response(struct resolv_response *r_res,
                              struct resolv_options *resolv_opts, void *currentip,
                              short currentip_sin_family,
                              void **newip, short *newip_sin_family,
                              void *owner);
 
-int dns_link_resolution(void *requester, int requester_type, int requester_locked);
-void dns_unlink_resolution(struct resolv_requester *requester);
-void dns_trigger_resolution(struct resolv_requester *requester);
-enum act_parse_ret dns_parse_do_resolve(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err);
+int resolv_link_resolution(void *requester, int requester_type, int requester_locked);
+void resolv_unlink_resolution(struct resolv_requester *requester);
+void resolv_trigger_resolution(struct resolv_requester *requester);
+enum act_parse_ret resolv_parse_do_resolve(const char **args, int *orig_arg, struct proxy *px, struct act_rule *rule, char **err);
 int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err);
 
 int stats_dump_dns(struct stream_interface *si,

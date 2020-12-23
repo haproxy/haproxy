@@ -1600,8 +1600,8 @@ static int srv_prepare_for_resolution(struct server *srv, const char *hostname)
 
 	hostname_len    = strlen(hostname);
 	hostname_dn     = trash.area;
-	hostname_dn_len = dns_str_to_dn_label(hostname, hostname_len + 1,
-					      hostname_dn, trash.size);
+	hostname_dn_len = resolv_str_to_dn_label(hostname, hostname_len + 1,
+	                                         hostname_dn, trash.size);
 	if (hostname_dn_len == -1)
 		goto err;
 
@@ -4014,9 +4014,9 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 			goto invalid;
 	}
 
-	ret = dns_get_ip_from_response(&resolution->response, &s->resolv_opts,
-	                               serverip, server_sin_family, &firstip,
-	                               &firstip_sin_family, s);
+	ret = resolv_get_ip_from_response(&resolution->response, &s->resolv_opts,
+	                                  serverip, server_sin_family, &firstip,
+	                                  &firstip_sin_family, s);
 
 	switch (ret) {
 		case RSLV_UPD_NO:
@@ -4189,8 +4189,8 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
 	chunk_reset(&trash);
 	hostname_len    = strlen(hostname);
 	hostname_dn     = trash.area;
-	hostname_dn_len = dns_str_to_dn_label(hostname, hostname_len + 1,
-					      hostname_dn, trash.size);
+	hostname_dn_len = resolv_str_to_dn_label(hostname, hostname_len + 1,
+	                                         hostname_dn, trash.size);
 	if (hostname_dn_len == -1)
 		goto err;
 
@@ -4200,7 +4200,7 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
 	    strcmp(resolution->hostname_dn, hostname_dn) == 0)
 		goto end;
 
-	dns_unlink_resolution(srv->resolv_requester);
+	resolv_unlink_resolution(srv->resolv_requester);
 
 	free(srv->hostname);
 	free(srv->hostname_dn);
@@ -4213,7 +4213,7 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
 	if (srv->flags & SRV_F_NO_RESOLUTION)
 		goto end;
 
-	if (dns_link_resolution(srv, OBJ_TYPE_SERVER, 1) == -1)
+	if (resolv_link_resolution(srv, OBJ_TYPE_SERVER, 1) == -1)
 		goto err;
 
   end:

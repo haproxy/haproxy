@@ -737,7 +737,7 @@ struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, i
 	if (!resolve)
 		return NULL;
 
-	if (!dns_hostname_validation(str, NULL))
+	if (!resolv_hostname_validation(str, NULL))
 		return NULL;
 
 #ifdef USE_GETADDRINFO

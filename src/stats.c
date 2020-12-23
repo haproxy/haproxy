@@ -4319,7 +4319,7 @@ int stats_fill_info(struct field *info, int len)
 	info[INF_CONNECTED_PEERS]                = mkf_u32(0, connected_peers);
 	info[INF_DROPPED_LOGS]                   = mkf_u32(0, dropped_logs);
 	info[INF_BUSY_POLLING]                   = mkf_u32(0, !!(global.tune.options & GTUNE_BUSY_POLLING));
-	info[INF_FAILED_RESOLUTIONS]             = mkf_u32(0, dns_failed_resolutions);
+	info[INF_FAILED_RESOLUTIONS]             = mkf_u32(0, resolv_failed_resolutions);
 	info[INF_TOTAL_BYTES_OUT]                = mkf_u64(0, global.out_bytes);
 	info[INF_TOTAL_SPLICED_BYTES_OUT]        = mkf_u64(0, global.spliced_out_bytes);
 	info[INF_BYTES_OUT_RATE]                 = mkf_u64(FN_RATE, (unsigned long long)read_freq_ctr(&global.out_32bps) * 32);
