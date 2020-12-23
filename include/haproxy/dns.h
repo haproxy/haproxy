@@ -25,10 +25,10 @@
 #include <haproxy/action-t.h>
 #include <haproxy/dns-t.h>
 
-extern struct list dns_resolvers;
+extern struct list sec_resolvers;
 extern unsigned int dns_failed_resolutions;
 
-struct dns_resolvers *find_resolvers_by_id(const char *id);
+struct resolvers *find_resolvers_by_id(const char *id);
 struct dns_srvrq *find_srvrq_by_name(const char *name, struct proxy *px);
 struct dns_srvrq *new_dns_srvrq(struct server *srv, char *fqdn);
 

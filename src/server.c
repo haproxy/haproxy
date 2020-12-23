@@ -3863,7 +3863,7 @@ out:
  */
 int snr_update_srv_status(struct server *s, int has_no_ip)
 {
-	struct dns_resolvers  *resolvers  = s->resolvers;
+	struct resolvers  *resolvers  = s->resolvers;
 	struct dns_resolution *resolution = s->dns_requester->resolution;
 	int exp;
 

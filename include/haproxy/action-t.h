@@ -118,7 +118,7 @@ struct act_rule {
 			struct sample_expr *expr;
 			char *varname;
 			char *resolvers_id;
-			struct dns_resolvers *resolvers;
+			struct resolvers *resolvers;
 			struct dns_options *dns_opts;
 		} dns;                         /* dns resolution */
 		struct {

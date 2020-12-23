@@ -920,7 +920,7 @@ out:
  */
 int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 {
-	static struct dns_resolvers *curr_resolvers = NULL;
+	static struct resolvers *curr_resolvers = NULL;
 	const char *err;
 	int err_code = 0;
 	char *errmsg = NULL;
@@ -940,7 +940,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
+		list_for_each_entry(curr_resolvers, &sec_resolvers, list) {
 			/* Error if two resolvers owns the same name */
 			if (strcmp(curr_resolvers->id, args[1]) == 0) {
 				ha_alert("Parsing [%s:%d]: resolvers '%s' has same name as another resolvers (declared at %s:%d).\n",
@@ -956,7 +956,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* default values */
-		LIST_ADDQ(&dns_resolvers, &curr_resolvers->list);
+		LIST_ADDQ(&sec_resolvers, &curr_resolvers->list);
 		curr_resolvers->conf.file = strdup(file);
 		curr_resolvers->conf.line = linenum;
 		curr_resolvers->id = strdup(args[1]);
@@ -2284,7 +2284,7 @@ int check_config_validity()
 	struct bind_conf *bind_conf;
 	char *err;
 	struct cfg_postparser *postparser;
-	struct dns_resolvers *curr_resolvers = NULL;
+	struct resolvers *curr_resolvers = NULL;
 
 	bind_conf = NULL;
 	/*
@@ -4101,7 +4101,7 @@ out_uri_auth_compat:
 			curproxy->server_state_file_name = strdup(curproxy->id);
 	}
 
-	list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
+	list_for_each_entry(curr_resolvers, &sec_resolvers, list) {
 		if (LIST_ISEMPTY(&curr_resolvers->nameservers)) {
 			ha_warning("config : resolvers '%s' [%s:%d] has no nameservers configured!\n",
 				   curr_resolvers->id, curr_resolvers->conf.file,

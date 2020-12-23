@@ -162,7 +162,7 @@ struct resolv_response {
  * servers points to it.
  * current resolution are stored in a FIFO list.
  */
-struct dns_resolvers {
+struct resolvers {
 	__decl_thread(HA_SPINLOCK_T lock);
 	unsigned int accepted_payload_size; /* maximum payload size we accept for responses */
 	int          nb_nameservers;        /* total number of active nameservers in a resolvers section */
@@ -206,7 +206,7 @@ struct dns_nameserver {
 		int         line;       /* line where the section appears */
 	} conf;                         /* config information */
 
-	struct dns_resolvers   *resolvers;
+	struct resolvers       *resolvers;
 	struct dgram_conn      *dgram;  /* transport layer */
 	struct sockaddr_storage addr;   /* IP address */
 
@@ -261,7 +261,7 @@ struct dns_options {
  * query_id.
  */
 struct dns_resolution {
-	struct dns_resolvers *resolvers;           /* pointer to the resolvers structure owning the resolution */
+	struct resolvers     *resolvers;           /* pointer to the resolvers structure owning the resolution */
 	struct list           requesters;          /* list of requesters using this resolution */
 	int                   uuid;                /* unique id (used for debugging purpose) */
 	char                 *hostname_dn;         /* server hostname in domain name label format */
@@ -350,7 +350,7 @@ enum {
 struct proxy;
 struct dns_srvrq {
 	enum obj_type         obj_type;         /* object type == OBJ_TYPE_SRVRQ */
-	struct dns_resolvers *resolvers;        /* pointer to the resolvers structure used for this server template */
+	struct resolvers     *resolvers;        /* pointer to the resolvers structure used for this server template */
 	struct proxy         *proxy;            /* associated proxy */
 	char                 *name;
 	char                 *hostname_dn;      /* server hostname in Domain Name format */

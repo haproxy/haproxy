@@ -45,7 +45,7 @@
 #include <haproxy/vars.h>
 
 
-struct list dns_resolvers  = LIST_HEAD_INIT(dns_resolvers);
+struct list sec_resolvers  = LIST_HEAD_INIT(sec_resolvers);
 struct list dns_srvrq_list = LIST_HEAD_INIT(dns_srvrq_list);
 
 static THREAD_LOCAL uint64_t dns_query_id_seed = 0; /* random seed */
@@ -138,11 +138,11 @@ INITCALL1(STG_REGISTER, stats_register_module, &dns_stats_module);
 /* Returns a pointer to the resolvers matching the id <id>. NULL is returned if
  * no match is found.
  */
-struct dns_resolvers *find_resolvers_by_id(const char *id)
+struct resolvers *find_resolvers_by_id(const char *id)
 {
-	struct dns_resolvers *res;
+	struct resolvers *res;
 
-	list_for_each_entry(res, &dns_resolvers, list) {
+	list_for_each_entry(res, &sec_resolvers, list) {
 		if (strcmp(res->id, id) == 0)
 			return res;
 	}
@@ -239,7 +239,7 @@ static inline int dns_resolution_timeout(struct dns_resolution *res)
 }
 
 /* Updates a resolvers' task timeout for next wake up and queue it */
-static void dns_update_resolvers_timeout(struct dns_resolvers *resolvers)
+static void dns_update_resolvers_timeout(struct resolvers *resolvers)
 {
 	struct dns_resolution *res;
 	int next;
@@ -355,7 +355,7 @@ static int dns_build_query(int query_id, int query_type, unsigned int accepted_p
  */
 static int dns_send_query(struct dns_resolution *resolution)
 {
-	struct dns_resolvers  *resolvers = resolution->resolvers;
+	struct resolvers  *resolvers = resolution->resolvers;
 	struct dns_nameserver *ns;
 	int len;
 
@@ -413,7 +413,7 @@ static int dns_send_query(struct dns_resolution *resolution)
 static int
 dns_run_resolution(struct dns_resolution *resolution)
 {
-	struct dns_resolvers  *resolvers = resolution->resolvers;
+	struct resolvers  *resolvers = resolution->resolvers;
 	int query_id, i;
 
 	/* Avoid sending requests for resolutions that don't yet have an
@@ -459,7 +459,7 @@ dns_run_resolution(struct dns_resolution *resolution)
 /* Performs a name resolution for the requester <req> */
 void dns_trigger_resolution(struct dns_requester *req)
 {
-	struct dns_resolvers  *resolvers;
+	struct resolvers  *resolvers;
 	struct dns_resolution *res;
 	int exp;
 
@@ -595,7 +595,7 @@ int dns_read_name(unsigned char *buffer, unsigned char *bufend,
 */
 static void dns_check_dns_response(struct dns_resolution *res)
 {
-	struct dns_resolvers   *resolvers = res->resolvers;
+	struct resolvers   *resolvers = res->resolvers;
 	struct dns_requester   *req, *reqback;
 	struct resolv_answer_item *item, *itemback;
 	struct server          *srv;
@@ -1623,7 +1623,7 @@ int dns_hostname_validation(const char *string, char **err)
  *
  * Returns an available resolution, NULL if none found.
  */
-static struct dns_resolution *dns_pick_resolution(struct dns_resolvers *resolvers,
+static struct dns_resolution *dns_pick_resolution(struct resolvers *resolvers,
 						  char **hostname_dn, int hostname_dn_len,
 						  int query_type)
 {
@@ -1715,7 +1715,7 @@ int dns_link_resolution(void *requester, int requester_type, int requester_locke
 {
 	struct dns_resolution *res = NULL;
 	struct dns_requester  *req;
-	struct dns_resolvers  *resolvers;
+	struct resolvers  *resolvers;
 	struct server         *srv   = NULL;
 	struct dns_srvrq      *srvrq = NULL;
 	struct stream         *stream = NULL;
@@ -1875,7 +1875,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 {
 	struct dns_nameserver *ns;
 	struct dns_counters   *tmpcounters;
-	struct dns_resolvers  *resolvers;
+	struct resolvers  *resolvers;
 	struct dns_resolution *res;
 	struct resolv_query_item *query;
 	unsigned char  buf[DNS_MAX_UDP_MESSAGE + 1];
@@ -2072,7 +2072,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 /* Called when a resolvers network socket is ready to send data */
 static void dns_resolve_send(struct dgram_conn *dgram)
 {
-	struct dns_resolvers  *resolvers;
+	struct resolvers  *resolvers;
 	struct dns_nameserver *ns;
 	struct dns_resolution *res;
 	int fd;
@@ -2134,7 +2134,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
  */
 static struct task *dns_process_resolvers(struct task *t, void *context, unsigned short state)
 {
-	struct dns_resolvers  *resolvers = context;
+	struct resolvers  *resolvers = context;
 	struct dns_resolution *res, *resback;
 	int exp;
 
@@ -2215,13 +2215,13 @@ struct dgram_data_cb resolve_dgram_cb = {
 /* Release memory allocated by DNS */
 static void dns_deinit(void)
 {
-	struct dns_resolvers  *resolvers, *resolversback;
+	struct resolvers  *resolvers, *resolversback;
 	struct dns_nameserver *ns, *nsback;
 	struct dns_resolution *res, *resback;
 	struct dns_requester  *req, *reqback;
 	struct dns_srvrq      *srvrq, *srvrqback;
 
-	list_for_each_entry_safe(resolvers, resolversback, &dns_resolvers, list) {
+	list_for_each_entry_safe(resolvers, resolversback, &sec_resolvers, list) {
 		list_for_each_entry_safe(ns, nsback, &resolvers->nameservers, list) {
 			free(ns->id);
 			free((char *)ns->conf.file);
@@ -2270,12 +2270,12 @@ static void dns_deinit(void)
  */
 static int dns_finalize_config(void)
 {
-	struct dns_resolvers *resolvers;
+	struct resolvers *resolvers;
 	struct proxy	     *px;
 	int err_code = 0;
 
 	/* allocate pool of resolution per resolvers */
-	list_for_each_entry(resolvers, &dns_resolvers, list) {
+	list_for_each_entry(resolvers, &sec_resolvers, list) {
 		struct dns_nameserver *ns;
 		struct task           *t;
 
@@ -2342,7 +2342,7 @@ static int dns_finalize_config(void)
 		struct server *srv;
 
 		for (srv = px->srv; srv; srv = srv->next) {
-			struct dns_resolvers *resolvers;
+			struct resolvers *resolvers;
 
 			if (!srv->resolvers_id)
 				continue;
@@ -2424,14 +2424,14 @@ int stats_dump_dns(struct stream_interface *si,
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct channel *rep = si_ic(si);
-	struct dns_resolvers *resolver = appctx->ctx.stats.obj1;
+	struct resolvers *resolver = appctx->ctx.stats.obj1;
 	struct dns_nameserver *ns = appctx->ctx.stats.obj2;
 
 	if (!resolver)
-		resolver = LIST_NEXT(&dns_resolvers, struct dns_resolvers *, list);
+		resolver = LIST_NEXT(&sec_resolvers, struct resolvers *, list);
 
 	/* dump resolvers */
-	list_for_each_entry_from(resolver, &dns_resolvers, list) {
+	list_for_each_entry_from(resolver, &sec_resolvers, list) {
 		appctx->ctx.stats.obj1 = resolver;
 
 		ns = appctx->ctx.stats.obj2 ?
@@ -2463,7 +2463,7 @@ int stats_dump_dns(struct stream_interface *si,
 
 void dns_stats_clear_counters(int clrall, struct list *stat_modules)
 {
-	struct dns_resolvers  *resolvers;
+	struct resolvers  *resolvers;
 	struct dns_nameserver *ns;
 	struct stats_module *mod;
 	void *counters;
@@ -2472,7 +2472,7 @@ void dns_stats_clear_counters(int clrall, struct list *stat_modules)
 		if (!mod->clearable && !clrall)
 			continue;
 
-		list_for_each_entry(resolvers, &dns_resolvers, list) {
+		list_for_each_entry(resolvers, &sec_resolvers, list) {
 			list_for_each_entry(ns, &resolvers->nameservers, list) {
 				counters = EXTRA_COUNTERS_GET(ns->extra_counters, mod);
 				memcpy(counters, mod->counters, mod->counters_size);
@@ -2485,10 +2485,10 @@ void dns_stats_clear_counters(int clrall, struct list *stat_modules)
 int dns_allocate_counters(struct list *stat_modules)
 {
 	struct stats_module *mod;
-	struct dns_resolvers *resolvers;
+	struct resolvers *resolvers;
 	struct dns_nameserver *ns;
 
-	list_for_each_entry(resolvers, &dns_resolvers, list) {
+	list_for_each_entry(resolvers, &sec_resolvers, list) {
 		list_for_each_entry(ns, &resolvers->nameservers, list) {
 			EXTRA_COUNTERS_REGISTER(&ns->extra_counters, COUNTERS_DNS,
 			                        alloc_failed);
@@ -2525,10 +2525,10 @@ alloc_failed:
 /* if an arg is found, it sets the resolvers section pointer into cli.p0 */
 static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	struct dns_resolvers *presolvers;
+	struct resolvers *presolvers;
 
 	if (*args[2]) {
-		list_for_each_entry(presolvers, &dns_resolvers, list) {
+		list_for_each_entry(presolvers, &sec_resolvers, list) {
 			if (strcmp(presolvers->id, args[2]) == 0) {
 				appctx->ctx.cli.p0 = presolvers;
 				break;
@@ -2548,7 +2548,7 @@ static int cli_parse_stat_resolvers(char **args, char *payload, struct appctx *a
 static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
-	struct dns_resolvers    *resolvers;
+	struct resolvers    *resolvers;
 	struct dns_nameserver   *ns;
 
 	chunk_reset(&trash);
@@ -2559,11 +2559,11 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 		/* fall through */
 
 	case STAT_ST_LIST:
-		if (LIST_ISEMPTY(&dns_resolvers)) {
+		if (LIST_ISEMPTY(&sec_resolvers)) {
 			chunk_appendf(&trash, "No resolvers found\n");
 		}
 		else {
-			list_for_each_entry(resolvers, &dns_resolvers, list) {
+			list_for_each_entry(resolvers, &sec_resolvers, list) {
 				if (appctx->ctx.cli.p0 != NULL && appctx->ctx.cli.p0 != resolvers)
 					continue;
 
@@ -2663,7 +2663,7 @@ enum act_return dns_action_do_resolve(struct act_rule *rule, struct proxy *px,
 	struct sample *smp;
 	char *fqdn;
 	struct dns_requester *req;
-	struct dns_resolvers  *resolvers;
+	struct resolvers  *resolvers;
 	struct dns_resolution *res;
 	int exp, locked = 0;
 	enum act_return ret = ACT_RET_CONT;
@@ -2916,7 +2916,7 @@ INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_cont_actions);
  */
 int check_action_do_resolve(struct act_rule *rule, struct proxy *px, char **err)
 {
-	struct dns_resolvers *resolvers = NULL;
+	struct resolvers *resolvers = NULL;
 
 	if (rule->arg.dns.resolvers_id == NULL) {
 		memprintf(err,"Proxy '%s': %s", px->id, "do-resolve action without resolvers");

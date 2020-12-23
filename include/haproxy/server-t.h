@@ -294,7 +294,7 @@ struct server {
 
 	struct dns_requester *dns_requester;	/* used to link a server to its DNS resolution */
 	char *resolvers_id;			/* resolvers section used by this server */
-	struct dns_resolvers *resolvers;	/* pointer to the resolvers structure used by this server */
+	struct resolvers *resolvers;		/* pointer to the resolvers structure used by this server */
 	char *lastaddr;				/* the address string provided by the server-state file */
 	struct dns_options dns_opts;
 	int hostname_dn_len;			/* string length of the server hostname in Domain Name format */
