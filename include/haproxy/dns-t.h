@@ -335,16 +335,16 @@ enum {
  * preference
  */
 enum {
-	DNS_UPD_NO = 1,           /* provided IP was found and preference is matched
+	RSLV_UPD_NO = 1,           /* provided IP was found and preference is matched
                                    * OR provided IP found and preference is not matched, but no IP
                                    * matching preference was found */
-	DNS_UPD_SRVIP_NOT_FOUND,  /* provided IP not found
+	RSLV_UPD_SRVIP_NOT_FOUND,  /* provided IP not found
                                    * OR provided IP found and preference is not match and an IP
                                    * matching preference was found */
-	DNS_UPD_CNAME,            /* CNAME without any IP provided in the response */
-	DNS_UPD_NAME_ERROR,       /* name in the response did not match the query */
-	DNS_UPD_NO_IP_FOUND,      /* no IP could be found in the response */
-	DNS_UPD_OBSOLETE_IP,      /* The server IP was obsolete, and no other IP was found */
+	RSLV_UPD_CNAME,            /* CNAME without any IP provided in the response */
+	RSLV_UPD_NAME_ERROR,       /* name in the response did not match the query */
+	RSLV_UPD_NO_IP_FOUND,      /* no IP could be found in the response */
+	RSLV_UPD_OBSOLETE_IP,      /* The server IP was obsolete, and no other IP was found */
 };
 
 struct proxy;

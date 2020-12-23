@@ -1323,7 +1323,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
  * The following tasks are the responsibility of the caller:
  *   - <dns_p> contains an error free DNS response
  * For both cases above, dns_validate_dns_response is required
- * returns one of the DNS_UPD_* code
+ * returns one of the RSLV_UPD_* code
  */
 int dns_get_ip_from_response(struct resolv_response *r_res,
                              struct resolv_options *resolv_opts, void *currentip,
@@ -1435,14 +1435,14 @@ int dns_get_ip_from_response(struct resolv_response *r_res,
 				newip6 = ip;
 			currentip_found = currentip_sel;
 			if (score == 15)
-				return DNS_UPD_NO;
+				return RSLV_UPD_NO;
 			max_score = score;
 		}
 	} /* list for each record entries */
 
 	/* No IP found in the response */
 	if (!newip4 && !newip6)
-		return DNS_UPD_NO_IP_FOUND;
+		return RSLV_UPD_NO_IP_FOUND;
 
 	/* Case when the caller looks first for an IPv4 address */
 	if (family_priority == AF_INET) {
@@ -1485,7 +1485,7 @@ int dns_get_ip_from_response(struct resolv_response *r_res,
 	}
 
 	/* No reason why we should change the server's IP address */
-	return DNS_UPD_NO;
+	return RSLV_UPD_NO;
 
  not_found:
 	list_for_each_entry(record, &r_res->answer_list, list) {
@@ -1495,7 +1495,7 @@ int dns_get_ip_from_response(struct resolv_response *r_res,
 		LIST_ADDQ(&r_res->answer_list, &record->list);
 		break;
 	}
-	return DNS_UPD_SRVIP_NOT_FOUND;
+	return RSLV_UPD_SRVIP_NOT_FOUND;
 }
 
 /* Turns a domain name label into a string.

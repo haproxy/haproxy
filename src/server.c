@@ -4019,20 +4019,20 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 	                               &firstip_sin_family, s);
 
 	switch (ret) {
-		case DNS_UPD_NO:
+		case RSLV_UPD_NO:
 			goto update_status;
 
-		case DNS_UPD_SRVIP_NOT_FOUND:
+		case RSLV_UPD_SRVIP_NOT_FOUND:
 			goto save_ip;
 
-		case DNS_UPD_CNAME:
+		case RSLV_UPD_CNAME:
 			goto invalid;
 
-		case DNS_UPD_NO_IP_FOUND:
+		case RSLV_UPD_NO_IP_FOUND:
 			has_no_ip = 1;
 			goto update_status;
 
-		case DNS_UPD_NAME_ERROR:
+		case RSLV_UPD_NAME_ERROR:
 			/* update resolution status to OTHER error type */
 			resolution->status = RSLV_STATUS_OTHER;
 			goto update_status;
