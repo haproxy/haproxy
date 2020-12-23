@@ -110,7 +110,7 @@ struct dns_header {
 struct dns_question {
 	unsigned short qtype;   /* question type */
 	unsigned short qclass;  /* query class */
-};
+} __attribute__ ((packed));
 
 /* NOTE: big endian structure */
 struct dns_query_item {
@@ -131,7 +131,6 @@ struct dns_additional_record {
  * placeholder here for this purpose. We may need to define a dns_option_record
  * structure which itself should point to different type of data, based on the
  * extension set (client subnet, tcp keepalive, etc...)*/
-//	struct list options;       /* list of option records */
 } __attribute__ ((packed));
 
 /* NOTE: big endian structure */
