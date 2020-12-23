@@ -1074,3 +1074,34 @@ int http_compare_etags(struct ist etag1, struct ist etag2)
 
 	return isteq(etag1, etag2);
 }
+
+
+/*
+ * Trim leading space or horizontal tab characters from <value> string.
+ * Returns the trimmed string.
+ */
+struct ist http_trim_leading_spht(struct ist value)
+{
+	struct ist ret = value;
+
+	while (ret.len && HTTP_IS_SPHT(ret.ptr[0])) {
+		++ret.ptr;
+		--ret.len;
+	}
+
+	return ret;
+}
+
+/*
+ * Trim trailing space or horizontal tab characters from <value> string.
+ * Returns the trimmed string.
+ */
+struct ist http_trim_trailing_spht(struct ist value)
+{
+	struct ist ret = value;
+
+	while (ret.len && HTTP_IS_SPHT(ret.ptr[-1]))
+		--ret.len;
+
+	return ret;
+}

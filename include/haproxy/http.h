@@ -59,6 +59,9 @@ int http_parse_status_val(const struct ist value, struct ist *status, struct ist
 
 int http_compare_etags(struct ist etag1, struct ist etag2);
 
+struct ist http_trim_leading_spht(struct ist value);
+struct ist http_trim_trailing_spht(struct ist value);
+
 /*
  * Given a path string and its length, find the position of beginning of the
  * query string. Returns NULL if no query string is found in the path.
