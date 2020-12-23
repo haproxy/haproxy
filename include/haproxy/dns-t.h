@@ -113,7 +113,7 @@ struct dns_question {
 } __attribute__ ((packed));
 
 /* NOTE: big endian structure */
-struct dns_query_item {
+struct resolv_query_item {
 	char           name[DNS_MAX_NAME_SIZE+1]; /* query name */
 	unsigned short type;                      /* question type */
 	unsigned short class;                     /* query class */
@@ -134,7 +134,7 @@ struct dns_additional_record {
 } __attribute__ ((packed));
 
 /* NOTE: big endian structure */
-struct dns_answer_item {
+struct resolv_answer_item {
 	/*For SRV type, name also includes service and protocol value */
 	char            name[DNS_MAX_NAME_SIZE+1];   /* answer name */
 	int16_t         type;                        /* question type */
@@ -147,11 +147,11 @@ struct dns_answer_item {
 	struct sockaddr address;                     /* IPv4 or IPv6, network format */
 	char            target[DNS_MAX_NAME_SIZE+1]; /* Response data: SRV or CNAME type target */
 	time_t          last_seen;                   /* When was the answer was last seen */
-	struct dns_answer_item *ar_item;             /* pointer to a RRset from the additional section, if exists */
+	struct resolv_answer_item *ar_item;          /* pointer to a RRset from the additional section, if exists */
 	struct list     list;
 };
 
-struct dns_response_packet {
+struct resolv_response {
 	struct dns_header header;
 	struct list       query_list;
 	struct list       answer_list;
@@ -279,8 +279,8 @@ struct dns_resolution {
 	int                   nb_queries;          /* count number of queries sent */
 	int                   nb_responses;        /* count number of responses received */
 
-	struct dns_response_packet response; /* structure hosting the DNS response */
-	struct dns_query_item response_query_records[DNS_MAX_QUERY_RECORDS]; /* <response> query records */
+	struct resolv_response response;           /* structure hosting the DNS response */
+	struct resolv_query_item response_query_records[DNS_MAX_QUERY_RECORDS]; /* <response> query records */
 
 	struct list list; /* resolution list */
 };

@@ -50,7 +50,7 @@ struct list dns_srvrq_list = LIST_HEAD_INIT(dns_srvrq_list);
 
 static THREAD_LOCAL uint64_t dns_query_id_seed = 0; /* random seed */
 
-DECLARE_STATIC_POOL(dns_answer_item_pool, "dns_answer_item", sizeof(struct dns_answer_item));
+DECLARE_STATIC_POOL(resolv_answer_item_pool, "resolv_answer_item", sizeof(struct resolv_answer_item));
 DECLARE_STATIC_POOL(dns_resolution_pool,  "dns_resolution",  sizeof(struct dns_resolution));
 DECLARE_POOL(dns_requester_pool,  "dns_requester",  sizeof(struct dns_requester));
 
@@ -597,16 +597,16 @@ static void dns_check_dns_response(struct dns_resolution *res)
 {
 	struct dns_resolvers   *resolvers = res->resolvers;
 	struct dns_requester   *req, *reqback;
-	struct dns_answer_item *item, *itemback;
+	struct resolv_answer_item *item, *itemback;
 	struct server          *srv;
 	struct dns_srvrq       *srvrq;
 
 	list_for_each_entry_safe(item, itemback, &res->response.answer_list, list) {
-		struct dns_answer_item *ar_item = item->ar_item;
+		struct resolv_answer_item *ar_item = item->ar_item;
 
 		/* clean up obsolete Additional record */
 		if (ar_item && (ar_item->last_seen + resolvers->hold.obsolete / 1000) < now.tv_sec) {
-			pool_free(dns_answer_item_pool, ar_item);
+			pool_free(resolv_answer_item_pool, ar_item);
 			item->ar_item = NULL;
 		}
 
@@ -640,10 +640,10 @@ static void dns_check_dns_response(struct dns_resolution *res)
 		  rm_obselete_item:
 			LIST_DEL(&item->list);
 			if (item->ar_item) {
-				pool_free(dns_answer_item_pool, item->ar_item);
+				pool_free(resolv_answer_item_pool, item->ar_item);
 				item->ar_item = NULL;
 			}
-			pool_free(dns_answer_item_pool, item);
+			pool_free(resolv_answer_item_pool, item);
 			continue;
 		}
 
@@ -754,28 +754,28 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	unsigned char *reader;
 	char *previous_dname, tmpname[DNS_MAX_NAME_SIZE];
 	int len, flags, offset;
-	int dns_query_record_id;
+	int query_record_id;
 	int nb_saved_records;
-	struct dns_query_item *dns_query;
-	struct dns_answer_item *dns_answer_record, *tmp_record;
-	struct dns_response_packet *dns_p;
+	struct resolv_query_item *query;
+	struct resolv_answer_item *answer_record, *tmp_record;
+	struct resolv_response *r_res;
 	int i, found = 0;
 	int cause = DNS_RESP_ERROR;
 
 	reader         = resp;
 	len            = 0;
 	previous_dname = NULL;
-	dns_query      = NULL;
-	dns_answer_record = NULL;
+	query      = NULL;
+	answer_record = NULL;
 
 	/* Initialization of response buffer and structure */
-	dns_p = &resolution->response;
+	r_res = &resolution->response;
 
 	/* query id */
 	if (reader + 2 >= bufend)
 		goto invalid_resp;
 
-	dns_p->header.id = reader[0] * 256 + reader[1];
+	r_res->header.id = reader[0] * 256 + reader[1];
 	reader += 2;
 
 	/* Flags and rcode are stored over 2 bytes
@@ -812,99 +812,99 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	/* 2 bytes for question count */
 	if (reader + 2 >= bufend)
 		goto invalid_resp;
-	dns_p->header.qdcount = reader[0] * 256 + reader[1];
+	r_res->header.qdcount = reader[0] * 256 + reader[1];
 	/* (for now) we send one query only, so we expect only one in the
 	 * response too */
-	if (dns_p->header.qdcount != 1) {
+	if (r_res->header.qdcount != 1) {
 		cause = DNS_RESP_QUERY_COUNT_ERROR;
 		goto return_error;
 	}
 
-	if (dns_p->header.qdcount > DNS_MAX_QUERY_RECORDS)
+	if (r_res->header.qdcount > DNS_MAX_QUERY_RECORDS)
 		goto invalid_resp;
 	reader += 2;
 
 	/* 2 bytes for answer count */
 	if (reader + 2 >= bufend)
 		goto invalid_resp;
-	dns_p->header.ancount = reader[0] * 256 + reader[1];
-	if (dns_p->header.ancount == 0) {
+	r_res->header.ancount = reader[0] * 256 + reader[1];
+	if (r_res->header.ancount == 0) {
 		cause = DNS_RESP_ANCOUNT_ZERO;
 		goto return_error;
 	}
 
 	/* Check if too many records are announced */
-	if (dns_p->header.ancount > max_answer_records)
+	if (r_res->header.ancount > max_answer_records)
 		goto invalid_resp;
 	reader += 2;
 
 	/* 2 bytes authority count */
 	if (reader + 2 >= bufend)
 		goto invalid_resp;
-	dns_p->header.nscount = reader[0] * 256 + reader[1];
+	r_res->header.nscount = reader[0] * 256 + reader[1];
 	reader += 2;
 
 	/* 2 bytes additional count */
 	if (reader + 2 >= bufend)
 		goto invalid_resp;
-	dns_p->header.arcount = reader[0] * 256 + reader[1];
+	r_res->header.arcount = reader[0] * 256 + reader[1];
 	reader += 2;
 
 	/* Parsing dns queries */
-	LIST_INIT(&dns_p->query_list);
-	for (dns_query_record_id = 0; dns_query_record_id < dns_p->header.qdcount; dns_query_record_id++) {
-		/* Use next pre-allocated dns_query_item after ensuring there is
+	LIST_INIT(&r_res->query_list);
+	for (query_record_id = 0; query_record_id < r_res->header.qdcount; query_record_id++) {
+		/* Use next pre-allocated resolv_query_item after ensuring there is
 		 * still one available.
 		 * It's then added to our packet query list. */
-		if (dns_query_record_id > DNS_MAX_QUERY_RECORDS)
+		if (query_record_id > DNS_MAX_QUERY_RECORDS)
 			goto invalid_resp;
-		dns_query = &resolution->response_query_records[dns_query_record_id];
-		LIST_ADDQ(&dns_p->query_list, &dns_query->list);
+		query = &resolution->response_query_records[query_record_id];
+		LIST_ADDQ(&r_res->query_list, &query->list);
 
 		/* Name is a NULL terminated string in our case, since we have
 		 * one query per response and the first one can't be compressed
 		 * (using the 0x0c format) */
 		offset = 0;
-		len = dns_read_name(resp, bufend, reader, dns_query->name, DNS_MAX_NAME_SIZE, &offset, 0);
+		len = dns_read_name(resp, bufend, reader, query->name, DNS_MAX_NAME_SIZE, &offset, 0);
 
 		if (len == 0)
 			goto invalid_resp;
 
 		reader += offset;
-		previous_dname = dns_query->name;
+		previous_dname = query->name;
 
 		/* move forward 2 bytes for question type */
 		if (reader + 2 >= bufend)
 			goto invalid_resp;
-		dns_query->type = reader[0] * 256 + reader[1];
+		query->type = reader[0] * 256 + reader[1];
 		reader += 2;
 
 		/* move forward 2 bytes for question class */
 		if (reader + 2 >= bufend)
 			goto invalid_resp;
-		dns_query->class = reader[0] * 256 + reader[1];
+		query->class = reader[0] * 256 + reader[1];
 		reader += 2;
 	}
 
 	/* TRUNCATED flag must be checked after we could read the query type
 	 * because a TRUNCATED SRV query type response can still be exploited */
-	if (dns_query->type != DNS_RTYPE_SRV && flags & DNS_FLAG_TRUNCATED) {
+	if (query->type != DNS_RTYPE_SRV && flags & DNS_FLAG_TRUNCATED) {
 		cause = DNS_RESP_TRUNCATED;
 		goto return_error;
 	}
 
 	/* now parsing response records */
 	nb_saved_records = 0;
-	for (i = 0; i < dns_p->header.ancount; i++) {
+	for (i = 0; i < r_res->header.ancount; i++) {
 		if (reader >= bufend)
 			goto invalid_resp;
 
-		dns_answer_record = pool_alloc(dns_answer_item_pool);
-		if (dns_answer_record == NULL)
+		answer_record = pool_alloc(resolv_answer_item_pool);
+		if (answer_record == NULL)
 			goto invalid_resp;
 
 		/* initialization */
-		dns_answer_record->ar_item = NULL;
+		answer_record->ar_item = NULL;
 
 		offset = 0;
 		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
@@ -914,7 +914,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 		/* Check if the current record dname is valid.  previous_dname
 		 * points either to queried dname or last CNAME target */
-		if (dns_query->type != DNS_RTYPE_SRV && dns_hostname_cmp(previous_dname, tmpname, len) != 0) {
+		if (query->type != DNS_RTYPE_SRV && dns_hostname_cmp(previous_dname, tmpname, len) != 0) {
 			if (i == 0) {
 				/* First record, means a mismatch issue between
 				 * queried dname and dname found in the first
@@ -931,8 +931,8 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 		}
 
-		memcpy(dns_answer_record->name, tmpname, len);
-		dns_answer_record->name[len] = 0;
+		memcpy(answer_record->name, tmpname, len);
+		answer_record->name[len] = 0;
 
 		reader += offset;
 		if (reader >= bufend)
@@ -942,46 +942,46 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		if (reader + 2 > bufend)
 			goto invalid_resp;
 
-		dns_answer_record->type = reader[0] * 256 + reader[1];
+		answer_record->type = reader[0] * 256 + reader[1];
 		reader += 2;
 
 		/* 2 bytes for class (2) */
 		if (reader + 2 > bufend)
 			goto invalid_resp;
 
-		dns_answer_record->class = reader[0] * 256 + reader[1];
+		answer_record->class = reader[0] * 256 + reader[1];
 		reader += 2;
 
 		/* 4 bytes for ttl (4) */
 		if (reader + 4 > bufend)
 			goto invalid_resp;
 
-		dns_answer_record->ttl =   reader[0] * 16777216 + reader[1] * 65536
-			                 + reader[2] * 256 + reader[3];
+		answer_record->ttl =   reader[0] * 16777216 + reader[1] * 65536
+		                     + reader[2] * 256 + reader[3];
 		reader += 4;
 
 		/* Now reading data len */
 		if (reader + 2 > bufend)
 			goto invalid_resp;
 
-		dns_answer_record->data_len = reader[0] * 256 + reader[1];
+		answer_record->data_len = reader[0] * 256 + reader[1];
 
 		/* Move forward 2 bytes for data len */
 		reader += 2;
 
-		if (reader + dns_answer_record->data_len > bufend)
+		if (reader + answer_record->data_len > bufend)
 			goto invalid_resp;
 
 		/* Analyzing record content */
-		switch (dns_answer_record->type) {
+		switch (answer_record->type) {
 			case DNS_RTYPE_A:
 				/* ipv4 is stored on 4 bytes */
-				if (dns_answer_record->data_len != 4)
+				if (answer_record->data_len != 4)
 					goto invalid_resp;
 
-				dns_answer_record->address.sa_family = AF_INET;
-				memcpy(&(((struct sockaddr_in *)&dns_answer_record->address)->sin_addr),
-						reader, dns_answer_record->data_len);
+				answer_record->address.sa_family = AF_INET;
+				memcpy(&(((struct sockaddr_in *)&answer_record->address)->sin_addr),
+						reader, answer_record->data_len);
 				break;
 
 			case DNS_RTYPE_CNAME:
@@ -989,11 +989,11 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				 * no IP could be found and last record was a CNAME. Could be triggered
 				 * by a wrong query type
 				 *
-				 * + 1 because dns_answer_record_id starts at 0
+				 * + 1 because answer_record_id starts at 0
 				 * while number of answers is an integer and
 				 * starts at 1.
 				 */
-				if (i + 1 == dns_p->header.ancount) {
+				if (i + 1 == r_res->header.ancount) {
 					cause = DNS_RESP_CNAME_ERROR;
 					goto return_error;
 				}
@@ -1003,9 +1003,9 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				if (len == 0)
 					goto invalid_resp;
 
-				memcpy(dns_answer_record->target, tmpname, len);
-				dns_answer_record->target[len] = 0;
-				previous_dname = dns_answer_record->target;
+				memcpy(answer_record->target, tmpname, len);
+				answer_record->target[len] = 0;
+				previous_dname = answer_record->target;
 				break;
 
 
@@ -1016,37 +1016,37 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				 * - 2 bytes for the port
 				 * - the target hostname
 				 */
-				if (dns_answer_record->data_len <= 6)
+				if (answer_record->data_len <= 6)
 					goto invalid_resp;
 
-				dns_answer_record->priority = read_n16(reader);
+				answer_record->priority = read_n16(reader);
 				reader += sizeof(uint16_t);
-				dns_answer_record->weight = read_n16(reader);
+				answer_record->weight = read_n16(reader);
 				reader += sizeof(uint16_t);
-				dns_answer_record->port = read_n16(reader);
+				answer_record->port = read_n16(reader);
 				reader += sizeof(uint16_t);
 				offset = 0;
 				len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 				if (len == 0)
 					goto invalid_resp;
 
-				dns_answer_record->data_len = len;
-				memcpy(dns_answer_record->target, tmpname, len);
-				dns_answer_record->target[len] = 0;
-				if (dns_answer_record->ar_item != NULL) {
-					pool_free(dns_answer_item_pool, dns_answer_record->ar_item);
-					dns_answer_record->ar_item = NULL;
+				answer_record->data_len = len;
+				memcpy(answer_record->target, tmpname, len);
+				answer_record->target[len] = 0;
+				if (answer_record->ar_item != NULL) {
+					pool_free(resolv_answer_item_pool, answer_record->ar_item);
+					answer_record->ar_item = NULL;
 				}
 				break;
 
 			case DNS_RTYPE_AAAA:
 				/* ipv6 is stored on 16 bytes */
-				if (dns_answer_record->data_len != 16)
+				if (answer_record->data_len != 16)
 					goto invalid_resp;
 
-				dns_answer_record->address.sa_family = AF_INET6;
-				memcpy(&(((struct sockaddr_in6 *)&dns_answer_record->address)->sin6_addr),
-						reader, dns_answer_record->data_len);
+				answer_record->address.sa_family = AF_INET6;
+				memcpy(&(((struct sockaddr_in6 *)&answer_record->address)->sin6_addr),
+						reader, answer_record->data_len);
 				break;
 
 		} /* switch (record type) */
@@ -1055,38 +1055,38 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		 * local response */
 		nb_saved_records++;
 
-		/* Move forward dns_answer_record->data_len for analyzing next
+		/* Move forward answer_record->data_len for analyzing next
 		 * record in the response */
-		reader += ((dns_answer_record->type == DNS_RTYPE_SRV)
+		reader += ((answer_record->type == DNS_RTYPE_SRV)
 			   ? offset
-			   : dns_answer_record->data_len);
+			   : answer_record->data_len);
 
 		/* Lookup to see if we already had this entry */
 		found = 0;
-		list_for_each_entry(tmp_record, &dns_p->answer_list, list) {
-			if (tmp_record->type != dns_answer_record->type)
+		list_for_each_entry(tmp_record, &r_res->answer_list, list) {
+			if (tmp_record->type != answer_record->type)
 				continue;
 
 			switch(tmp_record->type) {
 				case DNS_RTYPE_A:
-					if (!memcmp(&((struct sockaddr_in *)&dns_answer_record->address)->sin_addr,
+					if (!memcmp(&((struct sockaddr_in *)&answer_record->address)->sin_addr,
 						    &((struct sockaddr_in *)&tmp_record->address)->sin_addr,
 						    sizeof(in_addr_t)))
 						found = 1;
 					break;
 
 				case DNS_RTYPE_AAAA:
-					if (!memcmp(&((struct sockaddr_in6 *)&dns_answer_record->address)->sin6_addr,
+					if (!memcmp(&((struct sockaddr_in6 *)&answer_record->address)->sin6_addr,
 						    &((struct sockaddr_in6 *)&tmp_record->address)->sin6_addr,
 						    sizeof(struct in6_addr)))
 						found = 1;
 					break;
 
 			case DNS_RTYPE_SRV:
-                                if (dns_answer_record->data_len == tmp_record->data_len &&
-				    !dns_hostname_cmp(dns_answer_record->target, tmp_record->target, dns_answer_record->data_len) &&
-				    dns_answer_record->port == tmp_record->port) {
-					tmp_record->weight = dns_answer_record->weight;
+                                if (answer_record->data_len == tmp_record->data_len &&
+				    !dns_hostname_cmp(answer_record->target, tmp_record->target, answer_record->data_len) &&
+				    answer_record->port == tmp_record->port) {
+					tmp_record->weight = answer_record->weight;
                                         found = 1;
 				}
                                 break;
@@ -1101,26 +1101,26 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 		if (found == 1) {
 			tmp_record->last_seen = now.tv_sec;
-			pool_free(dns_answer_item_pool, dns_answer_record);
-			dns_answer_record = NULL;
+			pool_free(resolv_answer_item_pool, answer_record);
+			answer_record = NULL;
 		}
 		else {
-			dns_answer_record->last_seen = now.tv_sec;
-			dns_answer_record->ar_item = NULL;
-			LIST_ADDQ(&dns_p->answer_list, &dns_answer_record->list);
-			dns_answer_record = NULL;
+			answer_record->last_seen = now.tv_sec;
+			answer_record->ar_item = NULL;
+			LIST_ADDQ(&r_res->answer_list, &answer_record->list);
+			answer_record = NULL;
 		}
 	} /* for i 0 to ancount */
 
 	/* Save the number of records we really own */
-	dns_p->header.ancount = nb_saved_records;
+	r_res->header.ancount = nb_saved_records;
 
 	/* now parsing additional records for SRV queries only */
-	if (dns_query->type != DNS_RTYPE_SRV)
+	if (query->type != DNS_RTYPE_SRV)
 		goto skip_parsing_additional_records;
 
 	/* if we find Authority records, just skip them */
-	for (i = 0; i < dns_p->header.nscount; i++) {
+	for (i = 0; i < r_res->header.nscount; i++) {
 		offset = 0;
 		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE,
 		                    &offset, 0);
@@ -1148,25 +1148,25 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	}
 
 	nb_saved_records = 0;
-	for (i = 0; i < dns_p->header.arcount; i++) {
+	for (i = 0; i < r_res->header.arcount; i++) {
 		if (reader >= bufend)
 			goto invalid_resp;
 
-		dns_answer_record = pool_alloc(dns_answer_item_pool);
-		if (dns_answer_record == NULL)
+		answer_record = pool_alloc(resolv_answer_item_pool);
+		if (answer_record == NULL)
 			goto invalid_resp;
 
 		offset = 0;
 		len = dns_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
 
 		if (len == 0) {
-			pool_free(dns_answer_item_pool, dns_answer_record);
-			dns_answer_record = NULL;
+			pool_free(resolv_answer_item_pool, answer_record);
+			answer_record = NULL;
 			continue;
 		}
 
-		memcpy(dns_answer_record->name, tmpname, len);
-		dns_answer_record->name[len] = 0;
+		memcpy(answer_record->name, tmpname, len);
+		answer_record->name[len] = 0;
 
 		reader += offset;
 		if (reader >= bufend)
@@ -1176,61 +1176,61 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		if (reader + 2 > bufend)
 			goto invalid_resp;
 
-		dns_answer_record->type = reader[0] * 256 + reader[1];
+		answer_record->type = reader[0] * 256 + reader[1];
 		reader += 2;
 
 		/* 2 bytes for class (2) */
 		if (reader + 2 > bufend)
 			goto invalid_resp;
 
-		dns_answer_record->class = reader[0] * 256 + reader[1];
+		answer_record->class = reader[0] * 256 + reader[1];
 		reader += 2;
 
 		/* 4 bytes for ttl (4) */
 		if (reader + 4 > bufend)
 			goto invalid_resp;
 
-		dns_answer_record->ttl =   reader[0] * 16777216 + reader[1] * 65536
-			                 + reader[2] * 256 + reader[3];
+		answer_record->ttl =   reader[0] * 16777216 + reader[1] * 65536
+		                     + reader[2] * 256 + reader[3];
 		reader += 4;
 
 		/* Now reading data len */
 		if (reader + 2 > bufend)
 			goto invalid_resp;
 
-		dns_answer_record->data_len = reader[0] * 256 + reader[1];
+		answer_record->data_len = reader[0] * 256 + reader[1];
 
 		/* Move forward 2 bytes for data len */
 		reader += 2;
 
-		if (reader + dns_answer_record->data_len > bufend)
+		if (reader + answer_record->data_len > bufend)
 			goto invalid_resp;
 
 		/* Analyzing record content */
-		switch (dns_answer_record->type) {
+		switch (answer_record->type) {
 			case DNS_RTYPE_A:
 				/* ipv4 is stored on 4 bytes */
-				if (dns_answer_record->data_len != 4)
+				if (answer_record->data_len != 4)
 					goto invalid_resp;
 
-				dns_answer_record->address.sa_family = AF_INET;
-				memcpy(&(((struct sockaddr_in *)&dns_answer_record->address)->sin_addr),
-						reader, dns_answer_record->data_len);
+				answer_record->address.sa_family = AF_INET;
+				memcpy(&(((struct sockaddr_in *)&answer_record->address)->sin_addr),
+						reader, answer_record->data_len);
 				break;
 
 			case DNS_RTYPE_AAAA:
 				/* ipv6 is stored on 16 bytes */
-				if (dns_answer_record->data_len != 16)
+				if (answer_record->data_len != 16)
 					goto invalid_resp;
 
-				dns_answer_record->address.sa_family = AF_INET6;
-				memcpy(&(((struct sockaddr_in6 *)&dns_answer_record->address)->sin6_addr),
-						reader, dns_answer_record->data_len);
+				answer_record->address.sa_family = AF_INET6;
+				memcpy(&(((struct sockaddr_in6 *)&answer_record->address)->sin6_addr),
+						reader, answer_record->data_len);
 				break;
 
 			default:
-				pool_free(dns_answer_item_pool, dns_answer_record);
-				dns_answer_record = NULL;
+				pool_free(resolv_answer_item_pool, answer_record);
+				answer_record = NULL;
 				continue;
 
 		} /* switch (record type) */
@@ -1239,28 +1239,28 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 		 * local response */
 		nb_saved_records++;
 
-		/* Move forward dns_answer_record->data_len for analyzing next
+		/* Move forward answer_record->data_len for analyzing next
 		 * record in the response */
-		reader += ((dns_answer_record->type == DNS_RTYPE_SRV)
+		reader += ((answer_record->type == DNS_RTYPE_SRV)
 			   ? offset
-			   : dns_answer_record->data_len);
+			   : answer_record->data_len);
 
 		/* Lookup to see if we already had this entry */
 		found = 0;
-		list_for_each_entry(tmp_record, &dns_p->answer_list, list) {
-			if (tmp_record->type != dns_answer_record->type)
+		list_for_each_entry(tmp_record, &r_res->answer_list, list) {
+			if (tmp_record->type != answer_record->type)
 				continue;
 
 			switch(tmp_record->type) {
 				case DNS_RTYPE_A:
-					if (!memcmp(&((struct sockaddr_in *)&dns_answer_record->address)->sin_addr,
+					if (!memcmp(&((struct sockaddr_in *)&answer_record->address)->sin_addr,
 						    &((struct sockaddr_in *)&tmp_record->address)->sin_addr,
 						    sizeof(in_addr_t)))
 						found = 1;
 					break;
 
 				case DNS_RTYPE_AAAA:
-					if (!memcmp(&((struct sockaddr_in6 *)&dns_answer_record->address)->sin6_addr,
+					if (!memcmp(&((struct sockaddr_in6 *)&answer_record->address)->sin6_addr,
 						    &((struct sockaddr_in6 *)&tmp_record->address)->sin6_addr,
 						    sizeof(struct in6_addr)))
 						found = 1;
@@ -1276,33 +1276,35 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 
 		if (found == 1) {
 			tmp_record->last_seen = now.tv_sec;
-			pool_free(dns_answer_item_pool, dns_answer_record);
-			dns_answer_record = NULL;
+			pool_free(resolv_answer_item_pool, answer_record);
+			answer_record = NULL;
 		}
 		else {
-			dns_answer_record->last_seen = now.tv_sec;
-			dns_answer_record->ar_item = NULL;
+			answer_record->last_seen = now.tv_sec;
+			answer_record->ar_item = NULL;
 
 			// looking for the SRV record in the response list linked to this additional record
-			list_for_each_entry(tmp_record, &dns_p->answer_list, list) {
+			list_for_each_entry(tmp_record, &r_res->answer_list, list) {
 				if (tmp_record->type == DNS_RTYPE_SRV &&
 				    tmp_record->ar_item == NULL &&
-				    !dns_hostname_cmp(tmp_record->target, dns_answer_record->name, tmp_record->data_len)) {
+				    !dns_hostname_cmp(tmp_record->target, answer_record->name, tmp_record->data_len)) {
 					/* Always use the received additional record to refresh info */
-					tmp_record->ar_item = dns_answer_record;
+					if (tmp_record->ar_item)
+						pool_free(resolv_answer_item_pool, tmp_record->ar_item);
+					tmp_record->ar_item = answer_record;
 					break;
 				}
 			}
-			if (tmp_record->ar_item != dns_answer_record)
-				pool_free(dns_answer_item_pool, dns_answer_record);
-			dns_answer_record = NULL;
+			if (tmp_record->ar_item != answer_record)
+				pool_free(resolv_answer_item_pool, answer_record);
+			answer_record = NULL;
 		}
 	} /* for i 0 to arcount */
 
  skip_parsing_additional_records:
 
 	/* Save the number of records we really own */
-	dns_p->header.arcount = nb_saved_records;
+	r_res->header.arcount = nb_saved_records;
 
 	dns_check_dns_response(resolution);
 	return DNS_RESP_VALID;
@@ -1311,7 +1313,7 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 	cause = DNS_RESP_INVALID;
 
  return_error:
-	pool_free(dns_answer_item_pool, dns_answer_record);
+	pool_free(resolv_answer_item_pool, answer_record);
 	return cause;
 }
 
@@ -1323,13 +1325,13 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
  * For both cases above, dns_validate_dns_response is required
  * returns one of the DNS_UPD_* code
  */
-int dns_get_ip_from_response(struct dns_response_packet *dns_p,
+int dns_get_ip_from_response(struct resolv_response *r_res,
                              struct dns_options *dns_opts, void *currentip,
                              short currentip_sin_family,
                              void **newip, short *newip_sin_family,
                              void *owner)
 {
-	struct dns_answer_item *record;
+	struct resolv_answer_item *record;
 	int family_priority;
 	int currentip_found;
 	unsigned char *newip4, *newip6;
@@ -1359,7 +1361,7 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 	 * The result with the biggest score is returned.
 	 */
 
-	list_for_each_entry(record, &dns_p->answer_list, list) {
+	list_for_each_entry(record, &r_res->answer_list, list) {
 		void *ip;
 		unsigned char ip_type;
 
@@ -1486,11 +1488,11 @@ int dns_get_ip_from_response(struct dns_response_packet *dns_p,
 	return DNS_UPD_NO;
 
  not_found:
-	list_for_each_entry(record, &dns_p->answer_list, list) {
+	list_for_each_entry(record, &r_res->answer_list, list) {
 		/* Move the first record to the end of the list, for internal
 		 * round robin */
 		LIST_DEL(&record->list);
-		LIST_ADDQ(&dns_p->answer_list, &record->list);
+		LIST_ADDQ(&r_res->answer_list, &record->list);
 		break;
 	}
 	return DNS_UPD_SRVIP_NOT_FOUND;
@@ -1681,7 +1683,7 @@ static struct dns_resolution *dns_pick_resolution(struct dns_resolvers *resolver
 static void dns_free_resolution(struct dns_resolution *resolution)
 {
 	struct dns_requester *req, *reqback;
-	struct dns_answer_item *item, *itemback;
+	struct resolv_answer_item *item, *itemback;
 
 	/* clean up configuration */
 	dns_reset_resolution(resolution);
@@ -1696,10 +1698,10 @@ static void dns_free_resolution(struct dns_resolution *resolution)
 	list_for_each_entry_safe(item, itemback, &resolution->response.answer_list, list) {
 		LIST_DEL(&item->list);
 		if (item->ar_item) {
-			pool_free(dns_answer_item_pool, item->ar_item);
+			pool_free(resolv_answer_item_pool, item->ar_item);
 			item->ar_item = NULL;
 		}
-		pool_free(dns_answer_item_pool, item);
+		pool_free(resolv_answer_item_pool, item);
 	}
 
 	LIST_DEL(&resolution->list);
@@ -1875,7 +1877,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 	struct dns_counters   *tmpcounters;
 	struct dns_resolvers  *resolvers;
 	struct dns_resolution *res;
-	struct dns_query_item *query;
+	struct resolv_query_item *query;
 	unsigned char  buf[DNS_MAX_UDP_MESSAGE + 1];
 	unsigned char *bufend;
 	int fd, buflen, dns_resp;
@@ -2022,7 +2024,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		/* Now let's check the query's dname corresponds to the one we
 		 * sent. We can check only the first query of the list. We send
 		 * one query at a time so we get one query in the response */
-		query = LIST_NEXT(&res->response.query_list, struct dns_query_item *, list);
+		query = LIST_NEXT(&res->response.query_list, struct resolv_query_item *, list);
 		if (query && dns_hostname_cmp(query->name, res->hostname_dn, res->hostname_dn_len) != 0) {
 			dns_resp = DNS_RESP_WRONG_NAME;
 			ns->counters->other++;
