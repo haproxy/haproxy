@@ -14642,12 +14642,12 @@ max-age <seconds>
   seconds, which means that you can't cache an object more than 60 seconds by
   default.
 
-process-vary <0 or 1>
-  Disable or enable the processing of the Vary header. When disabled, a response
+process-vary <on/off>
+  Enable or disable the processing of the Vary header. When disabled, a response
   containing such a header will never be cached. When enabled, we need to calculate
   a preliminary hash for a subset of request headers on all the incoming requests
   (which might come with a cpu cost) which will be used to build a secondary key
-  for a given request (see RFC 7234#4.1). The default value is 0 (disabled).
+  for a given request (see RFC 7234#4.1). The default value is off (disabled).
 
 max-secondary-entries <number>
   Define the maximum number of simultaneous secondary entries with the same primary

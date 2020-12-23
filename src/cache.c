@@ -1981,12 +1981,19 @@ int cfg_parse_cache(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (!*args[1]) {
-			ha_warning("parsing [%s:%d]: '%s' expects 0 or 1 (disable or enable vary processing).\n",
+			ha_warning("parsing [%s:%d]: '%s' expects \"on\" or \"off\" (enable or disable vary processing).\n",
 				   file, linenum, args[0]);
 			err_code |= ERR_WARN;
 		}
-
-		tmp_cache_config->vary_processing_enabled = atoi(args[1]);
+		if (strcmp(args[1], "on") == 0)
+			tmp_cache_config->vary_processing_enabled = 1;
+		else if (strcmp(args[1], "off") == 0)
+			tmp_cache_config->vary_processing_enabled = 0;
+		else {
+			ha_warning("parsing [%s:%d]: '%s' expects \"on\" or \"off\" (enable or disable vary processing).\n",
+				   file, linenum, args[0]);
+			err_code |= ERR_WARN;
+		}
 	} else if (strcmp(args[0], "max-secondary-entries") == 0) {
 		unsigned int max_sec_entries;
 		char *err;

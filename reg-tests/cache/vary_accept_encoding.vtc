@@ -98,7 +98,7 @@ haproxy h1 -conf {
                total-max-size 3
                max-age 20
                max-object-size 3072
-               process-vary 1
+               process-vary on
 } -start
 
 
