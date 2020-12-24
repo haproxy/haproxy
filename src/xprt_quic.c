@@ -558,6 +558,19 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				chunk_appendf(&trace_buf, " el=%c",
 				              quic_enc_level_char(ssl_to_quic_enc_level(*level)));
 		}
+
+		if (mask & QUIC_EV_CONN_BCFRMS) {
+			const size_t *sz1 = a2;
+			const size_t *sz2 = a3;
+			const size_t *sz3 = a4;
+
+			if (sz1)
+				chunk_appendf(&trace_buf, " %llu", (unsigned long long)*sz1);
+			if (sz2)
+				chunk_appendf(&trace_buf, " %llu", (unsigned long long)*sz2);
+			if (sz3)
+				chunk_appendf(&trace_buf, " %llu", (unsigned long long)*sz3);
+		}
 	}
 	if (mask & QUIC_EV_CONN_LPKT) {
 		const struct quic_rx_packet *pkt = a2;
@@ -3187,47 +3200,60 @@ static int quic_ack_frm_reduce_sz(struct quic_frame *ack_frm, size_t limit)
 
 /* Prepare as most as possible CRYPTO frames from prebuilt CRYPTO frames for <qel>
  * encryption level to be encoded in a buffer with <room> as available room,
- * and <*len> as number of bytes already present in this buffer.
+ * and <*len> the packet Length field initialized with the number of bytes already present
+ * in this buffer which must be taken into an account for the Length packet field value.
+ * <headlen> is the number of bytes already present in this packet befor building
+ * CRYPTO frames.
+ * This is the responsability of the caller to check that <*len> < <room> as this is
+ * the responsability to check that <headlen> < quic_path_prep_data(conn->path).
  * Update consequently <*len> to reflect the size of these CRYPTO frames built
  * by this function. Also attach these CRYPTO frames to <pkt> QUIC packet.
  * Return 1 if succeeded, 0 if not.
  */
 static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
-                                 size_t room, size_t *len,
+                                 size_t room, size_t *len, size_t headlen,
                                  struct quic_enc_level *qel,
                                  struct quic_conn *conn)
 {
+	int ret;
 	struct quic_tx_frm *cf, *cfbak;
-	size_t max_cdata_len;
 
-	if (conn->tx.nb_pto_dgrams)
-		max_cdata_len = room;
-	else
-		max_cdata_len = quic_path_prep_data(conn->path);
+	ret = 0;
+	/* If we are not probing we must take into an account the congestion
+	 * control window.
+	 */
+	if (!conn->tx.nb_pto_dgrams)
+		room = QUIC_MIN(room, quic_path_prep_data(conn->path) - headlen);
+	TRACE_PROTO("************** CRYPTO frames build (headlen)",
+	            QUIC_EV_CONN_BCFRMS, conn->conn, &headlen);
 	list_for_each_entry_safe(cf, cfbak, &qel->pktns->tx.frms, list) {
 		/* header length, data length, frame length. */
 		size_t hlen, dlen, cflen;
 
-		if (!max_cdata_len)
+		TRACE_PROTO("          New CRYPTO frame build (room, len)",
+		            QUIC_EV_CONN_BCFRMS, conn->conn, &room, len);
+		if (!room)
 			break;
 
 		/* Compute the length of this CRYPTO frame header */
 		hlen = 1 + quic_int_getsize(cf->crypto.offset);
 		/* Compute the data length of this CRyPTO frame. */
 		dlen = max_stream_data_size(room, *len + hlen, cf->crypto.len);
+		TRACE_PROTO(" CRYPTO data length (hlen, crypto.len, dlen)",
+		            QUIC_EV_CONN_BCFRMS, conn->conn, &hlen, &cf->crypto.len, &dlen);
 		if (!dlen)
 			break;
 
-		if (dlen > max_cdata_len)
-			dlen = max_cdata_len;
-		max_cdata_len -= dlen;
 		pkt->cdata_len += dlen;
 		/* CRYPTO frame length. */
 		cflen = hlen + quic_int_getsize(dlen) + dlen;
+		TRACE_PROTO("                 CRYPTO frame length (cflen)",
+		            QUIC_EV_CONN_BCFRMS, conn->conn, &cflen);
 		/* Add the CRYPTO data length and its encoded length to the packet
 		 * length and the length of this length.
 		 */
 		*len += cflen;
+		room -= cflen;
 		if (dlen == cf->crypto.len) {
 			/* <cf> CRYPTO data have been consumed. */
 			LIST_DEL(&cf->list);
@@ -3250,9 +3276,10 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
 			cf->crypto.len -= dlen;
 			cf->crypto.offset += dlen;
 		}
+		ret = 1;
 	}
 
-	return 1;
+	return ret;
 }
 
 /* This function builds a clear handshake packet used during a QUIC TLS handshakes
@@ -3285,12 +3312,7 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 {
 	unsigned char *beg, *pos;
 	const unsigned char *end;
-	/* This packet type. */
-	/* Packet number. */
-	/* The Length QUIC packet field value which is the length
-	 * of the remaining data after this field after encryption.
-	 */
-	size_t len, token_fields_len, padding_len;
+	size_t len, len_frms, token_fields_len, padding_len;
 	struct quic_frame frm = { .type = QUIC_FT_CRYPTO, };
 	struct quic_frame ack_frm = { .type = QUIC_FT_ACK, };
 	struct quic_crypto *crypto = &frm.crypto;
@@ -3298,6 +3320,8 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 	int64_t largest_acked_pn;
 	int add_ping_frm;
 
+	/* Length field value with CRYPTO frames if present. */
+	len_frms = 0;
 	beg = pos = q_buf_getpos(wbuf);
 	end = q_buf_end(wbuf);
 	/* When not probing and not acking, reduce the size of this buffer to respect
@@ -3354,12 +3378,15 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 
 	/* Length field value without the CRYPTO frames data length. */
 	len = ack_frm_len + *pn_len;
-	if (!LIST_ISEMPTY(&qel->pktns->tx.frms) &&
-	    !qc_build_cfrms(pkt, end - pos, &len, qel, conn)) {
+	if (!LIST_ISEMPTY(&qel->pktns->tx.frms)) {
 		ssize_t room = end - pos;
-		TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
-		            conn->conn, NULL, NULL, &room);
-		goto err;
+
+		len_frms = len + QUIC_TLS_TAG_LEN;
+		if (!qc_build_cfrms(pkt, end - pos, &len_frms, pos - beg, qel, conn)) {
+			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
+						conn->conn, NULL, NULL, &room);
+			goto err;
+		}
 	}
 
 	add_ping_frm = 0;
@@ -3385,7 +3412,11 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 	 * for the encryption TAG. It must be taken into an account for the length
 	 * of this packet.
 	 */
-	quic_enc_int(&pos, end, len + QUIC_TLS_TAG_LEN);
+	if (len_frms)
+		len = len_frms;
+	else
+		len += QUIC_TLS_TAG_LEN;
+	quic_enc_int(&pos, end, len);
 
 	/* Packet number field address. */
 	*buf_pn = pos;
@@ -3625,7 +3656,7 @@ static ssize_t qc_do_build_phdshk_apkt(struct q_buf *wbuf,
 
 	fake_len = ack_frm_len;
 	if (!LIST_ISEMPTY(&qel->pktns->tx.frms) &&
-	    !qc_build_cfrms(pkt, end - pos, &fake_len, qel, conn)) {
+	    !qc_build_cfrms(pkt, end - pos, &fake_len, pos - beg, qel, conn)) {
 		ssize_t room = end - pos;
 		TRACE_PROTO("some CRYPTO frames could not be built",
 		            QUIC_EV_CONN_PAPKT, conn->conn, NULL, NULL, &room);
