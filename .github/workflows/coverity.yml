@@ -1,0 +1,34 @@
+
+#
+# scan results: https://scan.coverity.com/projects/haproxy
+#
+
+name: Coverity
+
+on:
+  schedule:
+  - cron: "0 0 * * *"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'haproxy' }}
+    env:
+      COVERITY_SCAN_PROJECT_NAME: 'Haproxy'
+      COVERITY_SCAN_BRANCH_PATTERN: '*'
+      COVERITY_SCAN_NOTIFICATION_EMAIL: 'chipitsine@gmail.com'
+      COVERITY_SCAN_BUILD_COMMAND: "make CC=clang DEFINE=-DDEBUG_USE_ABORT TARGET=linux-glibc USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=contrib/wurfl WURFL_LIB=contrib/wurfl USE_DEVICEATLAS=1 DEVICEATLAS_SRC=contrib/deviceatlas USE_51DEGREES=1 51DEGREES_SRC=contrib/51d/src/pattern DEBUG_STRICT=1"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install apt dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          liblua5.3-dev \
+          libsystemd-dev
+    - name: Run Coverity Scan
+      env:
+        COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+      run: |
+        make -C contrib/wurfl
+        curl -fsSL "https://scan.coverity.com/scripts/travisci_build_coverity_scan.sh" | bash || true
