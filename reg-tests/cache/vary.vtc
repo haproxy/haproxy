@@ -5,7 +5,8 @@ varnishtest "Vary support"
 feature ignore_unknown_macro
 
 server s1 {
-       # Response varying on "accept-encoding"
+       # Response varying on "accept-encoding" with
+       # an unacceptable content-encoding
        rxreq
        expect req.url == "/accept-encoding"
        txresp -hdr "Content-Encoding: gzip" \
@@ -14,6 +15,15 @@ server s1 {
                -bodylen 45
 
        # Response varying on "accept-encoding"
+       rxreq
+       expect req.url == "/accept-encoding"
+       txresp -hdr "Content-Encoding: gzip" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 45
+
+       # Response varying on "accept-encoding" with
+       # no content-encoding
        rxreq
        expect req.url == "/accept-encoding"
        txresp -hdr "Content-Type: text/plain" \
@@ -57,7 +67,7 @@ server s1 {
        expect req.url == "/referer-accept-encoding"
        txresp -hdr "Vary: referer,accept-encoding" \
                -hdr "Cache-Control: max-age=5" \
-               -hdr "Content-Encoding: gzip" \
+               -hdr "Content-Encoding: br" \
                -bodylen 54
 
        rxreq
@@ -72,14 +82,14 @@ server s1 {
        expect req.url == "/multiple_headers"
        txresp -hdr "Vary: accept-encoding" \
               -hdr "Cache-Control: max-age=5" \
-               -hdr "Content-Encoding: gzip" \
+               -hdr "Content-Encoding: br" \
               -bodylen 155
 
        rxreq
        expect req.url == "/multiple_headers"
        txresp -hdr "Vary: accept-encoding" \
               -hdr "Cache-Control: max-age=5" \
-               -hdr "Content-Encoding: gzip" \
+               -hdr "Content-Encoding: br" \
               -bodylen 166
 
 
@@ -163,6 +173,16 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.http.content-encoding == "gzip"
        expect resp.bodylen == 45
 
+       # The response for the first request had an unacceptable `content-encoding`
+       # which might happen if that's the only thing the server supports, but
+       # we must not cache that and instead defer to the server.
+       txreq -url "/accept-encoding" -hdr "Accept-Encoding: first_value"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 45
+       expect resp.http.X-Cache-Hit == 0
+
        txreq -url "/accept-encoding" -hdr "Accept-Encoding: second_value"
        rxresp
        expect resp.status == 200
@@ -170,11 +190,15 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.http.content-type == "text/plain"
        expect resp.http.X-Cache-Hit == 0
 
+       # This request matches the cache entry for the request above, despite
+       # matching the `accept-encoding` of the first request because the
+       # request above only has the `identity` encoding which is implicitly
+       # added, unless explicitely forbidden.
        txreq -url "/accept-encoding" -hdr "Accept-Encoding: first_value"
        rxresp
        expect resp.status == 200
-       expect resp.bodylen == 45
-       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 48
+       expect resp.http.content-type == "text/plain"
        expect resp.http.X-Cache-Hit == 1
 
        txreq -url "/accept-encoding" -hdr "Accept-Encoding: second_value"
@@ -227,7 +251,7 @@ client c1 -connect ${h1_fe_sock} {
 
        # Mixed Vary (Accept-Encoding + Referer)
        txreq -url "/referer-accept-encoding" \
-               -hdr "Accept-Encoding: first_value,second_value" \
+               -hdr "Accept-Encoding: br, gzip" \
                -hdr "Referer: referer"
        rxresp
        expect resp.status == 200
@@ -235,7 +259,7 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.http.X-Cache-Hit == 0
 
        txreq -url "/referer-accept-encoding" \
-               -hdr "Accept-Encoding: first_value" \
+               -hdr "Accept-Encoding: br" \
                -hdr "Referer: other-referer"
        rxresp
        expect resp.status == 200
@@ -243,7 +267,7 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.http.X-Cache-Hit == 0
 
        txreq -url "/referer-accept-encoding" \
-               -hdr "Accept-Encoding: second_value" \
+               -hdr "Accept-Encoding: gzip" \
                -hdr "Referer: other-referer"
        rxresp
        expect resp.status == 200
@@ -252,14 +276,14 @@ client c1 -connect ${h1_fe_sock} {
 
        txreq -url "/referer-accept-encoding" \
                -hdr "Referer: referer" \
-               -hdr "Accept-Encoding: second_value,first_value"
+               -hdr "Accept-Encoding: gzip, br"
        rxresp
        expect resp.status == 200
        expect resp.bodylen == 51
        expect resp.http.X-Cache-Hit == 1
 
        txreq -url "/referer-accept-encoding" \
-               -hdr "Accept-Encoding: first_value" \
+               -hdr "Accept-Encoding: br" \
                -hdr "Referer: other-referer"
        rxresp
        expect resp.status == 200
@@ -267,7 +291,7 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.http.X-Cache-Hit == 1
 
        txreq -url "/referer-accept-encoding" \
-               -hdr "Accept-Encoding: second_value" \
+               -hdr "Accept-Encoding: gzip" \
                -hdr "Referer: other-referer"
        rxresp
        expect resp.status == 200
@@ -277,16 +301,16 @@ client c1 -connect ${h1_fe_sock} {
 
        # Multiple Accept-encoding headers
        txreq -url "/multiple_headers" \
-               -hdr "Accept-Encoding: first_encoding" \
-               -hdr "Accept-Encoding: second_encoding,third_encoding"
+               -hdr "Accept-Encoding: gzip" \
+               -hdr "Accept-Encoding: br, deflate"
        rxresp
        expect resp.status == 200
        expect resp.bodylen == 155
        expect resp.http.X-Cache-Hit == 0
 
        txreq -url "/multiple_headers" \
-               -hdr "Accept-Encoding: third_encoding" \
-               -hdr "Accept-Encoding: second_encoding,first_encoding"
+               -hdr "Accept-Encoding: deflate" \
+               -hdr "Accept-Encoding: br,gzip"
        rxresp
        expect resp.status == 200
        expect resp.bodylen == 155

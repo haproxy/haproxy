@@ -2398,19 +2398,28 @@ static int accept_encoding_hash_cmp(const void *ref_hash, const void *new_hash, 
 		/* All the bits set in the reference bitmap correspond to the
 		 * stored response' encoding and should all be set in the new
 		 * encoding bitmap in order for the client to be able to manage
-		 * the response. */
-		if ((ref.encoding_bitmap & new.encoding_bitmap) == ref.encoding_bitmap) {
-			/* The cached response has encodings that are accepted
-			 * by the client, it can be served directly by the cache
-			 * (as far as the accept-encoding part is concerned). */
-			return 0;
-		}
+		 * the response.
+		 *
+		 * If this is the case the cached response has encodings that
+		 * are accepted by the client. It can be served directly by
+		 * the cache (as far as the accept-encoding part is concerned).
+		 */
+
+		return (ref.encoding_bitmap & new.encoding_bitmap) != ref.encoding_bitmap;
 	}
+	else {
+		/* We must compare hashes only when the the response contains
+		 * unknown encodings.
+		 * Otherwise we might serve unacceptable responses if the hash
+		 * of a client's `accept-encoding` header collides with a
+		 * known encoding.
+		 */
 
-	ref.hash = read_u32(ref_hash+sizeof(ref.encoding_bitmap));
-	new.hash = read_u32(new_hash+sizeof(new.encoding_bitmap));
+		ref.hash = read_u32(ref_hash+sizeof(ref.encoding_bitmap));
+		new.hash = read_u32(new_hash+sizeof(new.encoding_bitmap));
 
-	return ref.hash != new.hash;
+		return ref.hash != new.hash;
+	}
 }
 
 

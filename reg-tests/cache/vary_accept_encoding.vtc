@@ -73,6 +73,21 @@ server s1 {
                -hdr "Cache-Control: max-age=5" \
                -hdr "Content-Encoding: unknown_encoding" \
                -bodylen 119
+
+
+       rxreq
+       expect req.url == "/hash-collision"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: br" \
+               -bodylen 129
+
+       rxreq
+       expect req.url == "/hash-collision"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -hdr "Content-Encoding: gzip" \
+               -bodylen 139
 } -start
 
 
@@ -300,4 +315,21 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.bodylen == 119
        expect resp.http.X-Cache-Hit == 0
 
+       #
+       # Hash collision (https://github.com/haproxy/haproxy/issues/988)
+       #
+       # crc32(gzip) ^ crc32(br) ^ crc32(xxx) ^ crc32(jdcqiab) == crc32(gzip)
+       txreq -url "/hash-collision" -hdr "Accept-Encoding: br,gzip,xxx,jdcqiab"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "br"
+       expect resp.bodylen == 129
+       expect resp.http.X-Cache-Hit == 0
+
+       txreq -url "/hash-collision" -hdr "Accept-Encoding: gzip"
+       rxresp
+       expect resp.status == 200
+       expect resp.http.content-encoding == "gzip"
+       expect resp.bodylen == 139
+       expect resp.http.X-Cache-Hit == 0
 } -run
