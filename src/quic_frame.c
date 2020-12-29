@@ -106,7 +106,7 @@ static int quic_build_padding_frame(unsigned char **buf, const unsigned char *en
 /* Parse a PADDING frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_padding_frame(struct quic_frame *frm,
+static int quic_parse_padding_frame(struct quic_frame *frm, struct quic_conn *qc,
                                     const unsigned char **buf, const unsigned char *end)
 {
 	const unsigned char *beg;
@@ -134,7 +134,7 @@ static int quic_build_ping_frame(unsigned char **buf, const unsigned char *end,
 /* Parse a PADDING frame from <buf> buffer with <end> as end into <frm> frame.
  * Always succeeds.
  */
-static int quic_parse_ping_frame(struct quic_frame *frm,
+static int quic_parse_ping_frame(struct quic_frame *frm, struct quic_conn *qc,
                                  const unsigned char **buf, const unsigned char *end)
 {
 	/* No field */
@@ -179,7 +179,7 @@ static int quic_build_ack_frame(unsigned char **buf, const unsigned char *end,
 /* Parse an ACK frame header from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_ack_frame_header(struct quic_frame *frm,
+static int quic_parse_ack_frame_header(struct quic_frame *frm, struct quic_conn *qc,
                                        const unsigned char **buf, const unsigned char *end)
 {
 	int ret;
@@ -221,7 +221,7 @@ static int quic_build_ack_ecn_frame(unsigned char **buf, const unsigned char *en
 /* Parse an ACK_ECN frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_ack_ecn_frame(struct quic_frame *frm,
+static int quic_parse_ack_ecn_frame(struct quic_frame *frm, struct quic_conn *qc,
                                     const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_ack *ack = &frm->ack;
@@ -248,7 +248,7 @@ static int quic_build_reset_stream_frame(unsigned char **buf, const unsigned cha
 /* Parse a RESET_STREAM frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_reset_stream_frame(struct quic_frame *frm,
+static int quic_parse_reset_stream_frame(struct quic_frame *frm, struct quic_conn *qc,
                                          const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_reset_stream *reset_stream = &frm->reset_stream;
@@ -273,7 +273,7 @@ static int quic_build_stop_sending_frame(unsigned char **buf, const unsigned cha
 /* Parse a STOP_SENDING frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_stop_sending_frame(struct quic_frame *frm,
+static int quic_parse_stop_sending_frame(struct quic_frame *frm, struct quic_conn *qc,
                                          const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_stop_sending_frame *stop_sending_frame = &frm->stop_sending_frame;
@@ -320,7 +320,7 @@ static int quic_build_crypto_frame(unsigned char **buf, const unsigned char *end
 /* Parse a CRYPTO frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_crypto_frame(struct quic_frame *frm,
+static int quic_parse_crypto_frame(struct quic_frame *frm, struct quic_conn *qc,
                                    const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_crypto *crypto = &frm->crypto;
@@ -354,7 +354,7 @@ static int quic_build_new_token_frame(unsigned char **buf, const unsigned char *
 /* Parse a NEW_TOKEN frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_new_token_frame(struct quic_frame *frm,
+static int quic_parse_new_token_frame(struct quic_frame *frm, struct quic_conn *qc,
                                       const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_new_token *new_token = &frm->new_token;
@@ -391,7 +391,7 @@ static int quic_build_stream_frame(unsigned char **buf, const unsigned char *end
 /* Parse a STREAM frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_stream_frame(struct quic_frame *frm,
+static int quic_parse_stream_frame(struct quic_frame *frm, struct quic_conn *qc,
                                    const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_stream *stream = &frm->stream;
@@ -422,7 +422,7 @@ static int quic_build_max_data_frame(unsigned char **buf, const unsigned char *e
 /* Parse a MAX_DATA frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_max_data_frame(struct quic_frame *frm,
+static int quic_parse_max_data_frame(struct quic_frame *frm, struct quic_conn *qc,
                                      const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_max_data *max_data = &frm->max_data;
@@ -445,7 +445,7 @@ static int quic_build_max_stream_data_frame(unsigned char **buf, const unsigned 
 /* Parse a MAX_STREAM_DATA frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_max_stream_data_frame(struct quic_frame *frm,
+static int quic_parse_max_stream_data_frame(struct quic_frame *frm, struct quic_conn *qc,
                                             const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_max_stream_data *max_stream_data = &frm->max_stream_data;
@@ -469,7 +469,7 @@ static int quic_build_max_streams_bidi_frame(unsigned char **buf, const unsigned
  * as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_max_streams_bidi_frame(struct quic_frame *frm,
+static int quic_parse_max_streams_bidi_frame(struct quic_frame *frm, struct quic_conn *qc,
                                              const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_max_streams *max_streams_bidi = &frm->max_streams_bidi;
@@ -492,7 +492,7 @@ static int quic_build_max_streams_uni_frame(unsigned char **buf, const unsigned 
  * as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_max_streams_uni_frame(struct quic_frame *frm,
+static int quic_parse_max_streams_uni_frame(struct quic_frame *frm, struct quic_conn *qc,
                                             const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_max_streams *max_streams_uni = &frm->max_streams_uni;
@@ -514,7 +514,7 @@ static int quic_build_data_blocked_frame(unsigned char **buf, const unsigned cha
 /* Parse a DATA_BLOCKED frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_data_blocked_frame(struct quic_frame *frm,
+static int quic_parse_data_blocked_frame(struct quic_frame *frm, struct quic_conn *qc,
                                          const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_data_blocked *data_blocked = &frm->data_blocked;
@@ -537,7 +537,7 @@ static int quic_build_stream_data_blocked_frame(unsigned char **buf, const unsig
 /* Parse a STREAM_DATA_BLOCKED frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_stream_data_blocked_frame(struct quic_frame *frm,
+static int quic_parse_stream_data_blocked_frame(struct quic_frame *frm, struct quic_conn *qc,
                                                 const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_stream_data_blocked *stream_data_blocked = &frm->stream_data_blocked;
@@ -561,7 +561,7 @@ static int quic_build_streams_blocked_bidi_frame(unsigned char **buf, const unsi
  * as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_streams_blocked_bidi_frame(struct quic_frame *frm,
+static int quic_parse_streams_blocked_bidi_frame(struct quic_frame *frm, struct quic_conn *qc,
                                                  const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_streams_blocked *streams_blocked_bidi = &frm->streams_blocked_bidi;
@@ -584,7 +584,7 @@ static int quic_build_streams_blocked_uni_frame(unsigned char **buf, const unsig
  * as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_streams_blocked_uni_frame(struct quic_frame *frm,
+static int quic_parse_streams_blocked_uni_frame(struct quic_frame *frm, struct quic_conn *qc,
                                                 const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_streams_blocked *streams_blocked_uni = &frm->streams_blocked_uni;
@@ -620,7 +620,7 @@ static int quic_build_new_connection_id_frame(unsigned char **buf, const unsigne
 /* Parse a NEW_CONNECTION_ID frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_new_connection_id_frame(struct quic_frame *frm,
+static int quic_parse_new_connection_id_frame(struct quic_frame *frm, struct quic_conn *qc,
                                               const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_new_connection_id *new_cid = &frm->new_connection_id;
@@ -657,7 +657,7 @@ static int quic_build_retire_connection_id_frame(unsigned char **buf, const unsi
 /* Parse a RETIRE_CONNECTION_ID frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_retire_connection_id_frame(struct quic_frame *frm,
+static int quic_parse_retire_connection_id_frame(struct quic_frame *frm, struct quic_conn *qc,
                                                  const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_retire_connection_id *retire_connection_id = &frm->retire_connection_id;
@@ -685,7 +685,7 @@ static int quic_build_path_challenge_frame(unsigned char **buf, const unsigned c
 /* Parse a PATH_CHALLENGE frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_path_challenge_frame(struct quic_frame *frm,
+static int quic_parse_path_challenge_frame(struct quic_frame *frm, struct quic_conn *qc,
                                            const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_path_challenge *path_challenge = &frm->path_challenge;
@@ -720,7 +720,7 @@ static int quic_build_path_response_frame(unsigned char **buf, const unsigned ch
 /* Parse a PATH_RESPONSE frame from <buf> buffer with <end> as end into <frm> frame.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_path_response_frame(struct quic_frame *frm,
+static int quic_parse_path_response_frame(struct quic_frame *frm, struct quic_conn *qc,
                                           const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_path_challenge_response *path_challenge_response = &frm->path_challenge_response;
@@ -761,7 +761,7 @@ static int quic_build_connection_close_frame(unsigned char **buf, const unsigned
  * and another at QUIC layer.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_connection_close_frame(struct quic_frame *frm,
+static int quic_parse_connection_close_frame(struct quic_frame *frm, struct quic_conn *qc,
                                              const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_connection_close *connection_close = &frm->connection_close;
@@ -808,7 +808,7 @@ static int quic_build_connection_close_app_frame(unsigned char **buf, const unsi
  * and another at QUIC layer.
  * Return 1 if succeeded (enough room to parse this frame), 0 if not.
  */
-static int quic_parse_connection_close_app_frame(struct quic_frame *frm,
+static int quic_parse_connection_close_app_frame(struct quic_frame *frm, struct quic_conn *qc,
                                                  const unsigned char **buf, const unsigned char *end)
 {
 	struct quic_connection_close_app *connection_close_app = &frm->connection_close_app;
@@ -837,7 +837,7 @@ static int quic_build_handshake_done_frame(unsigned char **buf, const unsigned c
 /* Parse a HANDSHAKE_DONE frame at QUIC layer from <buf> buffer with <end> as end into <frm> frame.
  * Always succeed.
  */
-static int quic_parse_handshake_done_frame(struct quic_frame *frm,
+static int quic_parse_handshake_done_frame(struct quic_frame *frm, struct quic_conn *qc,
                                            const unsigned char **buf, const unsigned char *end)
 {
 	/* No field */
@@ -885,8 +885,8 @@ struct quic_frame_builder quic_frame_builders[] = {
 };
 
 struct quic_frame_parser {
-	int (*func)(struct quic_frame *frm,
-                const unsigned char **, const unsigned char *);
+	int (*func)(struct quic_frame *frm, struct quic_conn *qc,
+                const unsigned char **buf, const unsigned char *end);
 	unsigned char flags;
 	unsigned char mask;
 };
@@ -952,7 +952,7 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 	}
 
 	TRACE_PROTO("frame", QUIC_EV_CONN_PRSFRM, conn->conn, frm);
-	if (!parser->func(frm, buf, end)) {
+	if (!parser->func(frm, conn, buf, end)) {
 		TRACE_DEVEL("parsing error", QUIC_EV_CONN_PRSFRM, conn->conn, frm);
 		return 0;
 	}
