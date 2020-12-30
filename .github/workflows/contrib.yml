@@ -1,0 +1,24 @@
+name: Contrib
+
+on:
+  push:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Compile contrib/halog/halog
+      run: |
+        make contrib/halog/halog
+    - name: Compile contrib/debug/flags
+      run: |
+        make contrib/debug/flags
+    - name: Compile contrib/debug/poll
+      run: |
+        make contrib/debug/poll
+    - name: Compile contrib/hpack
+      run: |
+        make -C contrib/hpack
