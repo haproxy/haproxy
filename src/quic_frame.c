@@ -377,8 +377,8 @@ static int quic_build_stream_frame(unsigned char **buf, const unsigned char *end
 	struct quic_stream *stream = &frm->stream;
 
 	if (!quic_enc_int(buf, end, stream->id) ||
-	    ((frm->type & QUIC_STREAM_FRAME_OFF_BIT) && !quic_enc_int(buf, end, stream->offset)) ||
-	    ((frm->type & QUIC_STREAM_FRAME_LEN_BIT) &&
+	    ((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) && !quic_enc_int(buf, end, stream->offset)) ||
+	    ((frm->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) &&
 	     (!quic_enc_int(buf, end, stream->len) || end - *buf < stream->len)))
 		return 0;
 
@@ -400,14 +400,14 @@ static int quic_parse_stream_frame(struct quic_frame *frm, struct quic_conn *qc,
 		return 0;
 
 	/* Offset parsing */
-	if (!(frm->type & QUIC_STREAM_FRAME_OFF_BIT)) {
+	if (!(frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT)) {
 		stream->offset = 0;
 	}
 	else if (!quic_dec_int(&stream->offset, buf, end))
 		return 0;
 
 	/* Length parsing */
-	if (!(frm->type & QUIC_STREAM_FRAME_LEN_BIT)) {
+	if (!(frm->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT)) {
 		stream->len = end - *buf;
 	}
 	else if (!quic_dec_int(&stream->len, buf, end) || end - *buf < stream->len)

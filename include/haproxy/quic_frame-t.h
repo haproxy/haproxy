@@ -88,9 +88,14 @@ enum quic_frame_type {
 
 #define QUIC_FT_PKT_TYPE____1_BITMASK QUIC_FT_PKT_TYPE_1_BITMASK
 
-#define QUIC_STREAM_FRAME_FIN_BIT    0x01
-#define QUIC_STREAM_FRAME_LEN_BIT    0x02
-#define QUIC_STREAM_FRAME_OFF_BIT    0x04
+#define QUIC_STREAM_FRAME_TYPE_FIN_BIT     0x01
+#define QUIC_STREAM_FRAME_TYPE_LEN_BIT     0x02
+#define QUIC_STREAM_FRAME_TYPE_OFF_BIT     0x04
+
+/* Servers have the stream initiator bit set. */
+#define QUIC_STREAM_FRAME_ID_INITIATOR_BIT 0x01
+/* Unidirectional streams have the direction bit set. */
+#define QUIC_STREAM_FRAME_ID_DIR_BIT       0x02
 
 #define QUIC_PATH_CHALLENGE_LEN         8
 

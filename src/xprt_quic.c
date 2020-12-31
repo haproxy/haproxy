@@ -571,6 +571,18 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 			if (sz3)
 				chunk_appendf(&trace_buf, " %llu", (unsigned long long)*sz3);
 		}
+
+		if (mask & QUIC_EV_CONN_PSTRM) {
+			const struct quic_frame *frm = a2;
+			const struct quic_stream *s = &frm->stream;
+
+			chunk_appendf(&trace_buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
+			              !!(s->id & QUIC_STREAM_FRAME_ID_DIR_BIT),
+			              !!(frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT),
+			              (unsigned long long)s->id,
+			              (unsigned long long)s->offset,
+			              (unsigned long long)s->len);
+		}
 	}
 	if (mask & QUIC_EV_CONN_LPKT) {
 		const struct quic_rx_packet *pkt = a2;
@@ -1642,6 +1654,17 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct quic_conn_ctx *c
 		case QUIC_FT_STREAM_D:
 		case QUIC_FT_STREAM_E:
 		case QUIC_FT_STREAM_F:
+		{
+			struct quic_stream *stream = &frm.stream;
+
+			TRACE_PROTO("STREAM frame", QUIC_EV_CONN_PSTRM, ctx->conn, &frm);
+			if (objt_listener(ctx->conn->target)) {
+				if (stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT)
+					goto err;
+			} else if (!(stream->id & QUIC_STREAM_FRAME_ID_INITIATOR_BIT))
+				goto err;
+			break;
+		}
 		case QUIC_FT_NEW_CONNECTION_ID:
 			break;
 		case QUIC_FT_CONNECTION_CLOSE:
