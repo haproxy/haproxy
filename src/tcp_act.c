@@ -259,13 +259,13 @@ static enum act_parse_ret tcp_parse_set_src_dst(const char **args, int *orig_arg
 	rule->arg.expr = expr;
 	rule->action = ACT_CUSTOM;
 
-	if (!strcmp(args[*orig_arg-1], "set-src")) {
+	if (strcmp(args[*orig_arg - 1], "set-src") == 0) {
 		rule->action_ptr = tcp_action_req_set_src;
-	} else if (!strcmp(args[*orig_arg-1], "set-src-port")) {
+	} else if (strcmp(args[*orig_arg - 1], "set-src-port") == 0) {
 		rule->action_ptr = tcp_action_req_set_src_port;
-	} else if (!strcmp(args[*orig_arg-1], "set-dst")) {
+	} else if (strcmp(args[*orig_arg - 1], "set-dst") == 0) {
 		rule->action_ptr = tcp_action_req_set_dst;
-	} else if (!strcmp(args[*orig_arg-1], "set-dst-port")) {
+	} else if (strcmp(args[*orig_arg - 1], "set-dst-port") == 0) {
 		rule->action_ptr = tcp_action_req_set_dst_port;
 	} else {
 		return ACT_RET_PRS_ERR;

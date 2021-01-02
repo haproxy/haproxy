@@ -165,10 +165,10 @@ int cfg_parse_rule_set_timeout(const char **args, int idx, int *out_timeout,
 	const char *res;
 	const char *timeout_name = args[idx++];
 
-	if (!strcmp(timeout_name, "server")) {
+	if (strcmp(timeout_name, "server") == 0) {
 		*name = ACT_TIMEOUT_SERVER;
 	}
-	else if (!strcmp(timeout_name, "tunnel")) {
+	else if (strcmp(timeout_name, "tunnel") == 0) {
 		*name = ACT_TIMEOUT_TUNNEL;
 	}
 	else {

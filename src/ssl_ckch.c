@@ -279,7 +279,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 		/* look for the extension */
 		if ((ext = strrchr(fp->area, '.'))) {
 
-			if (!strcmp(ext, ".crt")) {
+			if (strcmp(ext, ".crt") == 0) {
 				*ext = '\0';
 				fp->data = strlen(fp->area);
 			}
@@ -1220,7 +1220,7 @@ static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx
 
 			ckchs = ckchs_transaction.new_ckchs;
 
-			if (strcmp(args[3] + 1, ckchs->path))
+			if (strcmp(args[3] + 1, ckchs->path) != 0)
 				goto error;
 
 		} else {
@@ -1541,7 +1541,7 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	/* check which type of file we want to update */
 	for (i = 0; cert_exts[i].type < CERT_TYPE_MAX; i++) {
 		end = strrchr(buf->area, '.');
-		if (end && *cert_exts[i].ext && (!strcmp(end + 1, cert_exts[i].ext))) {
+		if (end && *cert_exts[i].ext && (strcmp(end + 1, cert_exts[i].ext) == 0)) {
 			*end = '\0';
 			buf->data = strlen(buf->area);
 			type = cert_exts[i].type;

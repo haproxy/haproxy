@@ -731,7 +731,7 @@ static void get_cur_unixsocket()
 					if (!cur_unixsocket) {
 						cur_unixsocket = strdup(un->sun_path);
 					} else {
-						if (old_unixsocket && !strcmp(un->sun_path, old_unixsocket)) {
+						if (old_unixsocket && strcmp(un->sun_path, old_unixsocket) == 0) {
 							free(cur_unixsocket);
 							cur_unixsocket = strdup(old_unixsocket);
 							return;

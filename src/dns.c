@@ -137,7 +137,7 @@ struct dns_resolvers *find_resolvers_by_id(const char *id)
 	struct dns_resolvers *res;
 
 	list_for_each_entry(res, &dns_resolvers, list) {
-		if (!strcmp(res->id, id))
+		if (strcmp(res->id, id) == 0)
 			return res;
 	}
 	return NULL;
@@ -164,7 +164,7 @@ struct dns_srvrq *find_srvrq_by_name(const char *name, struct proxy *px)
 	struct dns_srvrq *srvrq;
 
 	list_for_each_entry(srvrq, &dns_srvrq_list, list) {
-		if (srvrq->proxy == px && !strcmp(srvrq->name, name))
+		if (srvrq->proxy == px && strcmp(srvrq->name, name) == 0)
 			return srvrq;
 	}
 	return NULL;
@@ -2499,7 +2499,7 @@ int dns_allocate_counters(struct list *stat_modules)
 				       mod->counters, mod->counters_size);
 
 				/* Store the ns counters pointer */
-				if (!strcmp(mod->name, "dns")) {
+				if (strcmp(mod->name, "dns") == 0) {
 					ns->counters = (struct dns_counters *)ns->extra_counters->data + mod->counters_off[COUNTERS_DNS];
 					ns->counters->id = ns->id;
 				}

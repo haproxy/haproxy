@@ -853,7 +853,7 @@ static enum act_parse_ret parse_http_deny(const char **args, int *orig_arg, stru
 
 	cur_arg = *orig_arg;
 	if (rule->from == ACT_F_HTTP_REQ) {
-		if (!strcmp(args[cur_arg-1], "tarpit")) {
+		if (strcmp(args[cur_arg - 1], "tarpit") == 0) {
 			rule->action = ACT_HTTP_REQ_TARPIT;
 			default_status = 500;
 		}
@@ -995,7 +995,7 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 	rule->release_ptr = release_http_action;
 
 	cur_arg = *orig_arg;
-	if (!strcmp(args[cur_arg], "realm")) {
+	if (strcmp(args[cur_arg], "realm") == 0) {
 		cur_arg++;
 		if (!*args[cur_arg]) {
 			memprintf(err, "missing realm value.\n");

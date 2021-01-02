@@ -3168,7 +3168,7 @@ static int cli_parse_show_peers(char **args, char *payload, struct appctx *appct
 		struct peers *p;
 
 		for (p = cfg_peers; p; p = p->next) {
-			if (!strcmp(p->id, args[2])) {
+			if (strcmp(p->id, args[2]) == 0) {
 				appctx->ctx.cfgpeers.target = p;
 				break;
 			}

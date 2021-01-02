@@ -3036,7 +3036,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 			continue;
 
 		/* Check engine Id. It should be uniq */
-		if (!strcmp(conf->id, c->id)) {
+		if (strcmp(conf->id, c->id) == 0) {
 			ha_alert("Proxy %s : duplicated name for SPOE engine '%s'.\n",
 				 px->id, conf->id);
 			return 1;
@@ -3322,10 +3322,10 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 
 	if ((cfg_scope == NULL && curengine != NULL) ||
 	    (cfg_scope != NULL && curengine == NULL) ||
-	    (curengine != NULL && cfg_scope != NULL && strcmp(curengine, cfg_scope)))
+	    (curengine != NULL && cfg_scope != NULL && strcmp(curengine, cfg_scope) != 0))
 		goto out;
 
-	if (!strcmp(args[0], "spoe-agent")) { /* new spoe-agent section */
+	if (strcmp(args[0], "spoe-agent") == 0) { /* new spoe-agent section */
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : missing name for spoe-agent section.\n",
 				 file, linenum);
@@ -3381,7 +3381,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&curagent->groups);
 		LIST_INIT(&curagent->messages);
 	}
-	else if (!strcmp(args[0], "use-backend")) {
+	else if (strcmp(args[0], "use-backend") == 0) {
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : '%s' expects a backend name.\n",
 				 file, linenum, args[0]);
@@ -3393,13 +3393,13 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		free(curagent->b.name);
 		curagent->b.name = strdup(args[1]);
 	}
-	else if (!strcmp(args[0], "messages")) {
+	else if (strcmp(args[0], "messages") == 0) {
 		int cur_arg = 1;
 		while (*args[cur_arg]) {
 			struct spoe_placeholder *ph = NULL;
 
 			list_for_each_entry(ph, &curmphs, list) {
-				if (!strcmp(ph->id, args[cur_arg])) {
+				if (strcmp(ph->id, args[cur_arg]) == 0) {
 					ha_alert("parsing [%s:%d]: spoe-message '%s' already used.\n",
 						 file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -3417,13 +3417,13 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			cur_arg++;
 		}
 	}
-	else if (!strcmp(args[0], "groups")) {
+	else if (strcmp(args[0], "groups") == 0) {
 		int cur_arg = 1;
 		while (*args[cur_arg]) {
 			struct spoe_placeholder *ph = NULL;
 
 			list_for_each_entry(ph, &curgphs, list) {
-				if (!strcmp(ph->id, args[cur_arg])) {
+				if (strcmp(ph->id, args[cur_arg]) == 0) {
 					ha_alert("parsing [%s:%d]: spoe-group '%s' already used.\n",
 						 file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -3441,7 +3441,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			cur_arg++;
 		}
 	}
-	else if (!strcmp(args[0], "timeout")) {
+	else if (strcmp(args[0], "timeout") == 0) {
 		unsigned int *tv = NULL;
 		const char   *res;
 		unsigned      timeout;
@@ -3454,11 +3454,11 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		}
 		if (alertif_too_many_args(2, file, linenum, args, &err_code))
 			goto out;
-		if (!strcmp(args[1], "hello"))
+		if (strcmp(args[1], "hello") == 0)
 			tv = &curagent->timeout.hello;
-		else if (!strcmp(args[1], "idle"))
+		else if (strcmp(args[1], "idle") == 0)
 			tv = &curagent->timeout.idle;
-		else if (!strcmp(args[1], "processing"))
+		else if (strcmp(args[1], "processing") == 0)
 			tv = &curagent->timeout.processing;
 		else {
 			ha_alert("parsing [%s:%d] : 'timeout' supports 'hello', 'idle' or 'processing' (got %s).\n",
@@ -3493,7 +3493,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 		}
 		*tv = MS_TO_TICKS(timeout);
 	}
-	else if (!strcmp(args[0], "option")) {
+	else if (strcmp(args[0], "option") == 0) {
 		if (!*args[1]) {
                         ha_alert("parsing [%s:%d]: '%s' expects an option name.\n",
 				 file, linenum, args[0]);
@@ -3501,7 +3501,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
                         goto out;
                 }
 
-		if (!strcmp(args[1], "pipelining")) {
+		if (strcmp(args[1], "pipelining") == 0) {
 			if (alertif_too_many_args(1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == 1)
@@ -3510,7 +3510,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				curagent->flags |= SPOE_FL_PIPELINING;
 			goto out;
 		}
-		else if (!strcmp(args[1], "async")) {
+		else if (strcmp(args[1], "async") == 0) {
 			if (alertif_too_many_args(1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == 1)
@@ -3519,7 +3519,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				curagent->flags |= SPOE_FL_ASYNC;
 			goto out;
 		}
-		else if (!strcmp(args[1], "send-frag-payload")) {
+		else if (strcmp(args[1], "send-frag-payload") == 0) {
 			if (alertif_too_many_args(1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == 1)
@@ -3528,7 +3528,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				curagent->flags |= SPOE_FL_SND_FRAGMENTATION;
 			goto out;
 		}
-		else if (!strcmp(args[1], "dontlog-normal")) {
+		else if (strcmp(args[1], "dontlog-normal") == 0) {
 			if (alertif_too_many_args(1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == 1)
@@ -3546,7 +3546,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (!strcmp(args[1], "var-prefix")) {
+		if (strcmp(args[1], "var-prefix") == 0) {
 			char *tmp;
 
 			if (!*args[2]) {
@@ -3570,17 +3570,17 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			}
 			curagent->var_pfx = strdup(args[2]);
 		}
-		else if (!strcmp(args[1], "force-set-var")) {
+		else if (strcmp(args[1], "force-set-var") == 0) {
 			if (alertif_too_many_args(1, file, linenum, args, &err_code))
 				goto out;
 			curagent->flags |= SPOE_FL_FORCE_SET_VAR;
 		}
-		else if (!strcmp(args[1], "continue-on-error")) {
+		else if (strcmp(args[1], "continue-on-error") == 0) {
 			if (alertif_too_many_args(1, file, linenum, args, &err_code))
 				goto out;
 			curagent->flags |= SPOE_FL_CONT_ON_ERR;
 		}
-		else if (!strcmp(args[1], "set-on-error")) {
+		else if (strcmp(args[1], "set-on-error") == 0) {
 			char *tmp;
 
 			if (!*args[2]) {
@@ -3604,7 +3604,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			}
 			curagent->var_on_error = strdup(args[2]);
 		}
-		else if (!strcmp(args[1], "set-process-time")) {
+		else if (strcmp(args[1], "set-process-time") == 0) {
 			char *tmp;
 
 			if (!*args[2]) {
@@ -3628,7 +3628,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			}
 			curagent->var_t_process = strdup(args[2]);
 		}
-		else if (!strcmp(args[1], "set-total-time")) {
+		else if (strcmp(args[1], "set-total-time") == 0) {
 			char *tmp;
 
 			if (!*args[2]) {
@@ -3659,7 +3659,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "maxconnrate")) {
+	else if (strcmp(args[0], "maxconnrate") == 0) {
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
 				 file, linenum, args[0]);
@@ -3670,7 +3670,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		curagent->cps_max = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "maxerrrate")) {
+	else if (strcmp(args[0], "maxerrrate") == 0) {
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
 				 file, linenum, args[0]);
@@ -3681,7 +3681,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		curagent->eps_max = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "max-frame-size")) {
+	else if (strcmp(args[0], "max-frame-size") == 0) {
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
 				 file, linenum, args[0]);
@@ -3699,7 +3699,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "max-waiting-frames")) {
+	else if (strcmp(args[0], "max-waiting-frames") == 0) {
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n",
 				 file, linenum, args[0]);
@@ -3716,7 +3716,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "register-var-names")) {
+	else if (strcmp(args[0], "register-var-names") == 0) {
 		int   cur_arg;
 
 		if (!*args[1]) {
@@ -3744,7 +3744,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 			cur_arg++;
 		}
 	}
-	else if (!strcmp(args[0], "log")) {
+	else if (strcmp(args[0], "log") == 0) {
 		char *errmsg = NULL;
 
 		if (!parse_logsrv(args, &curlogsrvs, (kwm == 1), &errmsg)) {
@@ -3771,10 +3771,10 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 
 	if ((cfg_scope == NULL && curengine != NULL) ||
 	    (cfg_scope != NULL && curengine == NULL) ||
-	    (curengine != NULL && cfg_scope != NULL && strcmp(curengine, cfg_scope)))
+	    (curengine != NULL && cfg_scope != NULL && strcmp(curengine, cfg_scope) != 0))
 		goto out;
 
-	if (!strcmp(args[0], "spoe-group")) { /* new spoe-group section */
+	if (strcmp(args[0], "spoe-group") == 0) { /* new spoe-group section */
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : missing name for spoe-group section.\n",
 				 file, linenum);
@@ -3795,7 +3795,7 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 		}
 
 		list_for_each_entry(grp, &curgrps, list) {
-			if (!strcmp(grp->id, args[1])) {
+			if (strcmp(grp->id, args[1]) == 0) {
 				ha_alert("parsing [%s:%d]: spoe-group section '%s' has the same"
 					 " name as another one declared at %s:%d.\n",
 					 file, linenum, args[1], grp->conf.file, grp->conf.line);
@@ -3817,13 +3817,13 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&curgrp->messages);
 		LIST_ADDQ(&curgrps, &curgrp->list);
 	}
-	else if (!strcmp(args[0], "messages")) {
+	else if (strcmp(args[0], "messages") == 0) {
 		int cur_arg = 1;
 		while (*args[cur_arg]) {
 			struct spoe_placeholder *ph = NULL;
 
 			list_for_each_entry(ph, &curgrp->phs, list) {
-				if (!strcmp(ph->id, args[cur_arg])) {
+				if (strcmp(ph->id, args[cur_arg]) == 0) {
 					ha_alert("parsing [%s:%d]: spoe-message '%s' already used.\n",
 						 file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -3862,10 +3862,10 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 
 	if ((cfg_scope == NULL && curengine != NULL) ||
 	    (cfg_scope != NULL && curengine == NULL) ||
-	    (curengine != NULL && cfg_scope != NULL && strcmp(curengine, cfg_scope)))
+	    (curengine != NULL && cfg_scope != NULL && strcmp(curengine, cfg_scope) != 0))
 		goto out;
 
-	if (!strcmp(args[0], "spoe-message")) { /* new spoe-message section */
+	if (strcmp(args[0], "spoe-message") == 0) { /* new spoe-message section */
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : missing name for spoe-message section.\n",
 				 file, linenum);
@@ -3886,7 +3886,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		}
 
 		list_for_each_entry(msg, &curmsgs, list) {
-			if (!strcmp(msg->id, args[1])) {
+			if (strcmp(msg->id, args[1]) == 0) {
 				ha_alert("parsing [%s:%d]: spoe-message section '%s' has the same"
 					 " name as another one declared at %s:%d.\n",
 					 file, linenum, args[1], msg->conf.file, msg->conf.line);
@@ -3913,7 +3913,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&curmsg->by_grp);
 		LIST_ADDQ(&curmsgs, &curmsg->list);
 	}
-	else if (!strcmp(args[0], "args")) {
+	else if (strcmp(args[0], "args") == 0) {
 		int cur_arg = 1;
 
 		curproxy->conf.args.ctx  = ARGC_SPOE;
@@ -3956,7 +3956,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		curproxy->conf.args.file = NULL;
 		curproxy->conf.args.line = 0;
 	}
-	else if (!strcmp(args[0], "acl")) {
+	else if (strcmp(args[0], "acl") == 0) {
 		err = invalid_char(args[1]);
 		if (err) {
 			ha_alert("parsing [%s:%d] : character '%c' is not permitted in acl name '%s'.\n",
@@ -3978,7 +3978,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "event")) {
+	else if (strcmp(args[0], "event") == 0) {
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : missing event name.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3987,23 +3987,23 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		/* if (alertif_too_many_args(1, file, linenum, args, &err_code)) */
 		/* 	goto out; */
 
-		if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_CLIENT_SESS]))
+		if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_CLIENT_SESS]) == 0)
 			curmsg->event = SPOE_EV_ON_CLIENT_SESS;
-		else if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_SERVER_SESS]))
+		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_SERVER_SESS]) == 0)
 			curmsg->event = SPOE_EV_ON_SERVER_SESS;
 
-		else if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_TCP_REQ_FE]))
+		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_TCP_REQ_FE]) == 0)
 			curmsg->event = SPOE_EV_ON_TCP_REQ_FE;
-		else if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_TCP_REQ_BE]))
+		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_TCP_REQ_BE]) == 0)
 			curmsg->event = SPOE_EV_ON_TCP_REQ_BE;
-		else if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_TCP_RSP]))
+		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_TCP_RSP]) == 0)
 			curmsg->event = SPOE_EV_ON_TCP_RSP;
 
-		else if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_HTTP_REQ_FE]))
+		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_HTTP_REQ_FE]) == 0)
 			curmsg->event = SPOE_EV_ON_HTTP_REQ_FE;
-		else if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_HTTP_REQ_BE]))
+		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_HTTP_REQ_BE]) == 0)
 			curmsg->event = SPOE_EV_ON_HTTP_REQ_BE;
-		else if (!strcmp(args[1], spoe_event_str[SPOE_EV_ON_HTTP_RSP]))
+		else if (strcmp(args[1], spoe_event_str[SPOE_EV_ON_HTTP_RSP]) == 0)
 			curmsg->event = SPOE_EV_ON_HTTP_RSP;
 		else {
 			ha_alert("parsing [%s:%d] : unknown event '%s'.\n",
@@ -4078,7 +4078,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	conf->proxy = px;
 
 	while (*args[pos]) {
-		if (!strcmp(args[pos], "config")) {
+		if (strcmp(args[pos], "config") == 0) {
 			if (!*args[pos+1]) {
 				memprintf(err, "'%s' : '%s' option without value",
 					  args[*cur_arg], args[pos]);
@@ -4087,7 +4087,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 			file = args[pos+1];
 			pos += 2;
 		}
-		else if (!strcmp(args[pos], "engine")) {
+		else if (strcmp(args[pos], "engine") == 0) {
 			if (!*args[pos+1]) {
 				memprintf(err, "'%s' : '%s' option without value",
 					  args[*cur_arg], args[pos]);
@@ -4233,7 +4233,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 			struct spoe_arg *arg;
 			unsigned int     where;
 
-			if (!strcmp(msg->id, ph->id)) {
+			if (strcmp(msg->id, ph->id) == 0) {
 				if ((px->cap & (PR_CAP_FE|PR_CAP_BE)) == (PR_CAP_FE|PR_CAP_BE)) {
 					if (msg->event == SPOE_EV_ON_TCP_REQ_BE)
 						msg->event = SPOE_EV_ON_TCP_REQ_FE;
@@ -4331,7 +4331,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	 * agent */
 	list_for_each_entry(ph, &curgphs, list) {
 		list_for_each_entry_safe(grp, grpback, &curgrps, list) {
-			if (!strcmp(grp->id, ph->id)) {
+			if (strcmp(grp->id, ph->id) == 0) {
 				grp->agent = curagent;
 				LIST_DEL(&grp->list);
 				LIST_ADDQ(&curagent->groups, &grp->list);
@@ -4350,7 +4350,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	list_for_each_entry(grp, &curagent->groups, list) {
 		list_for_each_entry_safe(ph, phback, &grp->phs, list) {
 			list_for_each_entry(msg, &curmsgs, list) {
-				if (!strcmp(msg->id, ph->id)) {
+				if (strcmp(msg->id, ph->id) == 0) {
 					if (msg->group != NULL) {
 						memprintf(err, "SPOE message '%s' already belongs to "
 							  "the SPOE group '%s' declare at %s:%d",
@@ -4583,7 +4583,7 @@ check_send_spoe_group(struct act_rule *rule, struct proxy *px, char **err)
 			continue;
 
 		/* This is the good engine */
-		if (!strcmp(conf->id, engine_id)) {
+		if (strcmp(conf->id, engine_id) == 0) {
 			agent = conf->agent;
 			break;
 		}
@@ -4597,7 +4597,7 @@ check_send_spoe_group(struct act_rule *rule, struct proxy *px, char **err)
 	/* Try to find the right group */
 	list_for_each_entry(group, &agent->groups, list) {
 		/* This is the good group */
-		if (!strcmp(group->id, group_id))
+		if (strcmp(group->id, group_id) == 0)
 			break;
 	}
 	if (&group->list == &agent->groups) {

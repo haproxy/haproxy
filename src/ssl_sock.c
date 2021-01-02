@@ -2490,7 +2490,7 @@ int ssl_sock_switchctx_cbk(SSL *ssl, int *al, void *arg)
 					/* If this is a wildcard, look for an exclusion on the same crt-list line */
 					sni = container_of(n, struct sni_ctx, name);
 					list_for_each_entry(sni_tmp, &sni->ckch_inst->sni_ctx, by_ckch_inst) {
-						if (sni_tmp->neg && (!strcmp((const char *)sni_tmp->name.key, trash.area))) {
+						if (sni_tmp->neg && (strcmp((const char *)sni_tmp->name.key, trash.area) == 0)) {
 							skip = 1;
 							break;
 						}

@@ -451,7 +451,7 @@ cache_store_check(struct proxy *px, struct flt_conf *fconf)
 	*  post_check.
 	*/
 	list_for_each_entry(cache, &caches_config, list) {
-		if (!strcmp(cache->id, cconf->c.name))
+		if (strcmp(cache->id, cconf->c.name) == 0)
 			goto found;
 	}
 
@@ -1555,7 +1555,7 @@ static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_ru
 	list_for_each_entry(fconf, &proxy->filter_configs, list) {
 		if (fconf->id == cache_store_flt_id) {
 			cconf = fconf->conf;
-			if (cconf && !strcmp((char *)cconf->c.name, name)) {
+			if (cconf && strcmp((char *)cconf->c.name, name) == 0) {
 				rule->arg.act.p[0] = cconf;
 				return 1;
 			}
@@ -2111,7 +2111,7 @@ int post_check_cache()
 					continue;
 
 				cconf = fconf->conf;
-				if (!strcmp(cache->id, cconf->c.name)) {
+				if (strcmp(cache->id, cconf->c.name) == 0) {
 					free(cconf->c.name);
 					cconf->flags |= CACHE_FLT_INIT;
 					cconf->c.cache = cache;
@@ -2545,7 +2545,7 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 			continue;
 
 		cconf = f->conf;
-		if (strcmp(name, cconf->c.name)) {
+		if (strcmp(name, cconf->c.name) != 0) {
 			cconf = NULL;
 			continue;
 		}

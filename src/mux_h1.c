@@ -3183,7 +3183,7 @@ static int add_hdr_case_adjust(const char *from, const char *to, char **err)
 	}
 
 	/* Be sure only the case differs between <from> and <to> */
-	if (strcasecmp(from, to)) {
+	if (strcasecmp(from, to) != 0) {
 		memprintf(err, "<from> and <to> must not differ execpt the case");
 		return -1;
 	}

@@ -2501,7 +2501,7 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 					break;
 
 				/* match '.' which means 'self' proxy */
-				if (!strcmp(scope->px_id, ".") && px == s->be)
+				if (strcmp(scope->px_id, ".") == 0 && px == s->be)
 					break;
 				scope = scope->next;
 			}
@@ -4319,12 +4319,12 @@ static int cli_parse_show_stat(char **args, char *payload, struct appctx *appctx
 
 	/* proxy is the default domain */
 	appctx->ctx.stats.domain = STATS_DOMAIN_PROXY;
-	if (!strcmp(args[arg], "domain")) {
+	if (strcmp(args[arg], "domain") == 0) {
 		++args;
 
-		if (!strcmp(args[arg], "proxy")) {
+		if (strcmp(args[arg], "proxy") == 0) {
 			++args;
-		} else if (!strcmp(args[arg], "dns")) {
+		} else if (strcmp(args[arg], "dns") == 0) {
 			appctx->ctx.stats.domain = STATS_DOMAIN_DNS;
 			++args;
 		} else {

@@ -206,60 +206,60 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 		args++;
 
 	name = args[0];
-	if (!strcmp(args[0], "client")) {
+	if (strcmp(args[0], "client") == 0) {
 		name = "client";
 		tv = &proxy->timeout.client;
 		td = &defpx->timeout.client;
 		cap = PR_CAP_FE;
-	} else if (!strcmp(args[0], "tarpit")) {
+	} else if (strcmp(args[0], "tarpit") == 0) {
 		tv = &proxy->timeout.tarpit;
 		td = &defpx->timeout.tarpit;
 		cap = PR_CAP_FE | PR_CAP_BE;
-	} else if (!strcmp(args[0], "http-keep-alive")) {
+	} else if (strcmp(args[0], "http-keep-alive") == 0) {
 		tv = &proxy->timeout.httpka;
 		td = &defpx->timeout.httpka;
 		cap = PR_CAP_FE | PR_CAP_BE;
-	} else if (!strcmp(args[0], "http-request")) {
+	} else if (strcmp(args[0], "http-request") == 0) {
 		tv = &proxy->timeout.httpreq;
 		td = &defpx->timeout.httpreq;
 		cap = PR_CAP_FE | PR_CAP_BE;
-	} else if (!strcmp(args[0], "server")) {
+	} else if (strcmp(args[0], "server") == 0) {
 		name = "server";
 		tv = &proxy->timeout.server;
 		td = &defpx->timeout.server;
 		cap = PR_CAP_BE;
-	} else if (!strcmp(args[0], "connect")) {
+	} else if (strcmp(args[0], "connect") == 0) {
 		name = "connect";
 		tv = &proxy->timeout.connect;
 		td = &defpx->timeout.connect;
 		cap = PR_CAP_BE;
-	} else if (!strcmp(args[0], "check")) {
+	} else if (strcmp(args[0], "check") == 0) {
 		tv = &proxy->timeout.check;
 		td = &defpx->timeout.check;
 		cap = PR_CAP_BE;
-	} else if (!strcmp(args[0], "queue")) {
+	} else if (strcmp(args[0], "queue") == 0) {
 		tv = &proxy->timeout.queue;
 		td = &defpx->timeout.queue;
 		cap = PR_CAP_BE;
-	} else if (!strcmp(args[0], "tunnel")) {
+	} else if (strcmp(args[0], "tunnel") == 0) {
 		tv = &proxy->timeout.tunnel;
 		td = &defpx->timeout.tunnel;
 		cap = PR_CAP_BE;
-	} else if (!strcmp(args[0], "client-fin")) {
+	} else if (strcmp(args[0], "client-fin") == 0) {
 		tv = &proxy->timeout.clientfin;
 		td = &defpx->timeout.clientfin;
 		cap = PR_CAP_FE;
-	} else if (!strcmp(args[0], "server-fin")) {
+	} else if (strcmp(args[0], "server-fin") == 0) {
 		tv = &proxy->timeout.serverfin;
 		td = &defpx->timeout.serverfin;
 		cap = PR_CAP_BE;
-	} else if (!strcmp(args[0], "clitimeout")) {
+	} else if (strcmp(args[0], "clitimeout") == 0) {
 		memprintf(err, "the '%s' directive is not supported anymore since HAProxy 2.1. Use 'timeout client'.", args[0]);
 		return -1;
-	} else if (!strcmp(args[0], "srvtimeout")) {
+	} else if (strcmp(args[0], "srvtimeout") == 0) {
 		memprintf(err, "the '%s' directive is not supported anymore since HAProxy 2.1. Use 'timeout server'.", args[0]);
 		return -1;
-	} else if (!strcmp(args[0], "contimeout")) {
+	} else if (strcmp(args[0], "contimeout") == 0) {
 		memprintf(err, "the '%s' directive is not supported anymore since HAProxy 2.1. Use 'timeout connect'.", args[0]);
 		return -1;
 	} else {
@@ -522,42 +522,42 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 	}
 	curpx->retry_type = 0;
 	for (i = 1; *(args[i]); i++) {
-		if (!strcmp(args[i], "conn-failure"))
+		if (strcmp(args[i], "conn-failure") == 0)
 			curpx->retry_type |= PR_RE_CONN_FAILED;
-		else if (!strcmp(args[i], "empty-response"))
+		else if (strcmp(args[i], "empty-response") == 0)
 			curpx->retry_type |= PR_RE_DISCONNECTED;
-		else if (!strcmp(args[i], "response-timeout"))
+		else if (strcmp(args[i], "response-timeout") == 0)
 			curpx->retry_type |= PR_RE_TIMEOUT;
-		else if (!strcmp(args[i], "401"))
+		else if (strcmp(args[i], "401") == 0)
 			curpx->retry_type |= PR_RE_401;
-		else if (!strcmp(args[i], "403"))
+		else if (strcmp(args[i], "403") == 0)
 			curpx->retry_type |= PR_RE_403;
-		else if (!strcmp(args[i], "404"))
+		else if (strcmp(args[i], "404") == 0)
 			curpx->retry_type |= PR_RE_404;
-		else if (!strcmp(args[i], "408"))
+		else if (strcmp(args[i], "408") == 0)
 			curpx->retry_type |= PR_RE_408;
-		else if (!strcmp(args[i], "425"))
+		else if (strcmp(args[i], "425") == 0)
 			curpx->retry_type |= PR_RE_425;
-		else if (!strcmp(args[i], "500"))
+		else if (strcmp(args[i], "500") == 0)
 			curpx->retry_type |= PR_RE_500;
-		else if (!strcmp(args[i], "501"))
+		else if (strcmp(args[i], "501") == 0)
 			curpx->retry_type |= PR_RE_501;
-		else if (!strcmp(args[i], "502"))
+		else if (strcmp(args[i], "502") == 0)
 			curpx->retry_type |= PR_RE_502;
-		else if (!strcmp(args[i], "503"))
+		else if (strcmp(args[i], "503") == 0)
 			curpx->retry_type |= PR_RE_503;
-		else if (!strcmp(args[i], "504"))
+		else if (strcmp(args[i], "504") == 0)
 			curpx->retry_type |= PR_RE_504;
-		else if (!strcmp(args[i], "0rtt-rejected"))
+		else if (strcmp(args[i], "0rtt-rejected") == 0)
 			curpx->retry_type |= PR_RE_EARLY_ERROR;
-		else if (!strcmp(args[i], "junk-response"))
+		else if (strcmp(args[i], "junk-response") == 0)
 			curpx->retry_type |= PR_RE_JUNK_REQUEST;
 		else if (!(strcmp(args[i], "all-retryable-errors")))
 			curpx->retry_type |= PR_RE_CONN_FAILED | PR_RE_DISCONNECTED |
 			                     PR_RE_TIMEOUT | PR_RE_500 | PR_RE_502 |
 					     PR_RE_503 | PR_RE_504 | PR_RE_EARLY_ERROR |
 					     PR_RE_JUNK_REQUEST;
-		else if (!strcmp(args[i], "none")) {
+		else if (strcmp(args[i], "none") == 0) {
 			if (i != 1 || *args[i + 1]) {
 				memprintf(err, "'%s' 'none' keyworld only usable alone", args[0]);
 				return -1;
@@ -596,14 +596,14 @@ static int proxy_parse_tcpka_cnt(char **args, int section, struct proxy *proxy,
 		return -1;
 	}
 
-	if (!strcmp(args[0], "clitcpka-cnt")) {
+	if (strcmp(args[0], "clitcpka-cnt") == 0) {
 		if (!(proxy->cap & PR_CAP_FE)) {
 			memprintf(err, "%s will be ignored because %s '%s' has no frontend capability",
 			          args[0], proxy_type_str(proxy), proxy->id);
 			retval = 1;
 		}
 		proxy->clitcpka_cnt = tcpka_cnt;
-	} else if (!strcmp(args[0], "srvtcpka-cnt")) {
+	} else if (strcmp(args[0], "srvtcpka-cnt") == 0) {
 		if (!(proxy->cap & PR_CAP_BE)) {
 			memprintf(err, "%s will be ignored because %s '%s' has no backend capability",
 			          args[0], proxy_type_str(proxy), proxy->id);
@@ -652,14 +652,14 @@ static int proxy_parse_tcpka_idle(char **args, int section, struct proxy *proxy,
 		return -1;
 	}
 
-	if (!strcmp(args[0], "clitcpka-idle")) {
+	if (strcmp(args[0], "clitcpka-idle") == 0) {
 		if (!(proxy->cap & PR_CAP_FE)) {
 			memprintf(err, "%s will be ignored because %s '%s' has no frontend capability",
 			          args[0], proxy_type_str(proxy), proxy->id);
 			retval = 1;
 		}
 		proxy->clitcpka_idle = tcpka_idle;
-	} else if (!strcmp(args[0], "srvtcpka-idle")) {
+	} else if (strcmp(args[0], "srvtcpka-idle") == 0) {
 		if (!(proxy->cap & PR_CAP_BE)) {
 			memprintf(err, "%s will be ignored because %s '%s' has no backend capability",
 			          args[0], proxy_type_str(proxy), proxy->id);
@@ -708,14 +708,14 @@ static int proxy_parse_tcpka_intvl(char **args, int section, struct proxy *proxy
 		return -1;
 	}
 
-	if (!strcmp(args[0], "clitcpka-intvl")) {
+	if (strcmp(args[0], "clitcpka-intvl") == 0) {
 		if (!(proxy->cap & PR_CAP_FE)) {
 			memprintf(err, "%s will be ignored because %s '%s' has no frontend capability",
 			          args[0], proxy_type_str(proxy), proxy->id);
 			retval = 1;
 		}
 		proxy->clitcpka_intvl = tcpka_intvl;
-	} else if (!strcmp(args[0], "srvtcpka-intvl")) {
+	} else if (strcmp(args[0], "srvtcpka-intvl") == 0) {
 		if (!(proxy->cap & PR_CAP_BE)) {
 			memprintf(err, "%s will be ignored because %s '%s' has no backend capability",
 			          args[0], proxy_type_str(proxy), proxy->id);
@@ -942,7 +942,7 @@ struct server *findserver(const struct proxy *px, const char *name) {
 		return NULL;
 
 	for (cursrv = px->srv; cursrv; cursrv = cursrv->next) {
-		if (strcmp(cursrv->id, name))
+		if (strcmp(cursrv->id, name) != 0)
 			continue;
 
 		if (!target) {
@@ -1443,7 +1443,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 					    &s->si[0].wait_event);
 				if (conn_upgrade_mux_fe(conn, cs, &s->req.buf, ist(""), PROTO_MODE_HTTP)  == -1)
 					return 0;
-				if (!strcmp(conn->mux->name, "H2")) {
+				if (strcmp(conn->mux->name, "H2") == 0) {
 					/* For HTTP/2, destroy the conn_stream,
 					 * disable logging, and pretend that we
 					 * failed, to that the stream is

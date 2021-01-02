@@ -753,7 +753,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		int local_peer, peer;
 
 		peer = *args[0] == 'p';
-		local_peer = !strcmp(args[1], localpeer);
+		local_peer = strcmp(args[1], localpeer) == 0;
 		/* The local peer may have already partially been parsed on a "bind" line. */
 		if (*args[0] == 'p') {
 			if (bind_line) {
@@ -854,7 +854,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 		global.maxsock++; /* for the listening socket */
 	}
-	else if (!strcmp(args[0], "table")) {
+	else if (strcmp(args[0], "table") == 0) {
 		struct stktable *t, *other;
 		char *id;
 		size_t prefix_len;
@@ -917,10 +917,10 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		t->next = stktables_list;
 		stktables_list = t;
 	}
-	else if (!strcmp(args[0], "disabled")) {  /* disables this peers section */
+	else if (strcmp(args[0], "disabled") == 0) {  /* disables this peers section */
 		curpeers->disabled = 1;
 	}
-	else if (!strcmp(args[0], "enabled")) {  /* enables this peers section (used to revert a disabled default) */
+	else if (strcmp(args[0], "enabled") == 0) {  /* enables this peers section (used to revert a disabled default) */
 		curpeers->disabled = 0;
 	}
 	else if (*args[0] != 0) {
@@ -1510,10 +1510,10 @@ cfg_parse_netns(const char *file, int linenum, char **args, int kwm)
 	const char *err;
 	const char *item = args[0];
 
-	if (!strcmp(item, "namespace_list")) {
+	if (strcmp(item, "namespace_list") == 0) {
 		return 0;
 	}
-	else if (!strcmp(item, "namespace")) {
+	else if (strcmp(item, "namespace") == 0) {
 		size_t idx = 1;
 		const char *current;
 		while (*(current = args[idx++])) {
@@ -1552,7 +1552,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 	int err_code = 0;
 	const char *err;
 
-	if (!strcmp(args[0], "userlist")) {		/* new userlist */
+	if (strcmp(args[0], "userlist") == 0) {		/* new userlist */
 		struct userlist *newul;
 
 		if (!*args[1]) {
@@ -1573,7 +1573,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 		}
 
 		for (newul = userlist; newul; newul = newul->next)
-			if (!strcmp(newul->name, args[1])) {
+			if (strcmp(newul->name, args[1]) == 0) {
 				ha_warning("parsing [%s:%d]: ignoring duplicated userlist '%s'.\n",
 					   file, linenum, args[1]);
 				err_code |= ERR_WARN;
@@ -1598,7 +1598,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 		newul->next = userlist;
 		userlist = newul;
 
-	} else if (!strcmp(args[0], "group")) {  	/* new group */
+	} else if (strcmp(args[0], "group") == 0) {  	/* new group */
 		int cur_arg;
 		const char *err;
 		struct auth_groups *ag;
@@ -1622,7 +1622,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 			goto out;
 
 		for (ag = userlist->groups; ag; ag = ag->next)
-			if (!strcmp(ag->name, args[1])) {
+			if (strcmp(ag->name, args[1]) == 0) {
 				ha_warning("parsing [%s:%d]: ignoring duplicated group '%s' in userlist '%s'.\n",
 					   file, linenum, args[1], userlist->name);
 				err_code |= ERR_ALERT;
@@ -1647,7 +1647,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 		cur_arg = 2;
 
 		while (*args[cur_arg]) {
-			if (!strcmp(args[cur_arg], "users")) {
+			if (strcmp(args[cur_arg], "users") == 0) {
 				ag->groupusers = strdup(args[cur_arg + 1]);
 				cur_arg += 2;
 				continue;
@@ -1665,7 +1665,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 		ag->next = userlist->groups;
 		userlist->groups = ag;
 
-	} else if (!strcmp(args[0], "user")) {		/* new user */
+	} else if (strcmp(args[0], "user") == 0) {		/* new user */
 		struct auth_users *newuser;
 		int cur_arg;
 
@@ -1679,7 +1679,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 			goto out;
 
 		for (newuser = userlist->users; newuser; newuser = newuser->next)
-			if (!strcmp(newuser->user, args[1])) {
+			if (strcmp(newuser->user, args[1]) == 0) {
 				ha_warning("parsing [%s:%d]: ignoring duplicated user '%s' in userlist '%s'.\n",
 					   file, linenum, args[1], userlist->name);
 				err_code |= ERR_ALERT;
@@ -1701,7 +1701,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 		cur_arg = 2;
 
 		while (*args[cur_arg]) {
-			if (!strcmp(args[cur_arg], "password")) {
+			if (strcmp(args[cur_arg], "password") == 0) {
 #ifdef USE_LIBCRYPT
 				if (!crypt("", args[cur_arg + 1])) {
 					ha_alert("parsing [%s:%d]: the encrypted password used for user '%s' is not supported by crypt(3).\n",
@@ -1717,12 +1717,12 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 				newuser->pass = strdup(args[cur_arg + 1]);
 				cur_arg += 2;
 				continue;
-			} else if (!strcmp(args[cur_arg], "insecure-password")) {
+			} else if (strcmp(args[cur_arg], "insecure-password") == 0) {
 				newuser->pass = strdup(args[cur_arg + 1]);
 				newuser->flags |= AU_O_INSECURE;
 				cur_arg += 2;
 				continue;
-			} else if (!strcmp(args[cur_arg], "groups")) {
+			} else if (strcmp(args[cur_arg], "groups") == 0) {
 				newuser->u.groups_names = strdup(args[cur_arg + 1]);
 				cur_arg += 2;
 				continue;
@@ -2013,7 +2013,7 @@ next_line:
 			continue;
 
 		/* check for keyword modifiers "no" and "default" */
-		if (!strcmp(args[0], "no")) {
+		if (strcmp(args[0], "no") == 0) {
 			char *tmp;
 
 			kwm = KWM_NO;
@@ -2023,7 +2023,7 @@ next_line:
 			*tmp = '\0'; 					// fix the next arg to \0
 			args[arg] = tmp;
 		}
-		else if (!strcmp(args[0], "default")) {
+		else if (strcmp(args[0], "default") == 0) {
 			kwm = KWM_DEF;
 			for (arg=0; *args[arg+1]; arg++)
 				args[arg] = args[arg+1];		// shift args after inversion
@@ -2823,7 +2823,7 @@ int check_config_validity()
 			struct mailers *curmailers = mailers;
 
 			for (curmailers = mailers; curmailers; curmailers = curmailers->next) {
-				if (!strcmp(curmailers->id, curproxy->email_alert.mailers.name))
+				if (strcmp(curmailers->id, curproxy->email_alert.mailers.name) == 0)
 					break;
 			}
 			if (!curmailers) {

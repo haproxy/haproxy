@@ -1290,7 +1290,7 @@ int smp_resolve_args(struct proxy *p)
 			}
 
 			if (p->uri_auth && p->uri_auth->userlist &&
-			    !strcmp(p->uri_auth->userlist->name, arg->data.str.area))
+			    strcmp(p->uri_auth->userlist->name, arg->data.str.area) == 0)
 				ul = p->uri_auth->userlist;
 			else
 				ul = auth_find_userlist(arg->data.str.area);

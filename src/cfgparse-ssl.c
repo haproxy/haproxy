@@ -468,29 +468,29 @@ static int ssl_parse_global_extra_files(char **args, int section_type, struct pr
 
 	for (i = 1; *args[i]; i++) {
 
-		if (!strcmp("bundle", args[i])) {
+		if (strcmp("bundle", args[i]) == 0) {
 			gf |= SSL_GF_BUNDLE;
 
-		} else if (!strcmp("sctl", args[i])) {
+		} else if (strcmp("sctl", args[i]) == 0) {
 			gf |= SSL_GF_SCTL;
 
-		} else if (!strcmp("ocsp", args[i])){
+		} else if (strcmp("ocsp", args[i]) == 0){
 			gf |= SSL_GF_OCSP;
 
-		} else if (!strcmp("issuer", args[i])){
+		} else if (strcmp("issuer", args[i]) == 0){
 			gf |= SSL_GF_OCSP_ISSUER;
 
-		} else if (!strcmp("key", args[i])) {
+		} else if (strcmp("key", args[i]) == 0) {
 			gf |= SSL_GF_KEY;
 
-		} else if (!strcmp("none", args[i])) {
+		} else if (strcmp("none", args[i]) == 0) {
 			if (gf != SSL_GF_NONE)
 				goto err_alone;
 			gf = SSL_GF_NONE;
 			i++;
 			break;
 
-		} else if (!strcmp("all", args[i])) {
+		} else if (strcmp("all", args[i]) == 0) {
 			if (gf != SSL_GF_NONE)
 				goto err_alone;
 			gf = SSL_GF_ALL;
@@ -790,15 +790,15 @@ static int parse_tls_method_options(char *arg, struct tls_version_filter *method
 	if (!p)
 		goto fail;
 	p++;
-	if (!strcmp(p, "sslv3"))
+	if (strcmp(p, "sslv3") == 0)
 		v = CONF_SSLV3;
-	else if (!strcmp(p, "tlsv10"))
+	else if (strcmp(p, "tlsv10") == 0)
 		v = CONF_TLSV10;
-	else if (!strcmp(p, "tlsv11"))
+	else if (strcmp(p, "tlsv11") == 0)
 		v = CONF_TLSV11;
-	else if (!strcmp(p, "tlsv12"))
+	else if (strcmp(p, "tlsv12") == 0)
 		v = CONF_TLSV12;
-	else if (!strcmp(p, "tlsv13"))
+	else if (strcmp(p, "tlsv13") == 0)
 		v = CONF_TLSV13;
 	else
 		goto fail;
@@ -834,15 +834,15 @@ static int parse_tls_method_minmax(char **args, int cur_arg, struct tls_version_
 		return ERR_ALERT | ERR_FATAL;
 	}
 	for (i = CONF_TLSV_MIN; i <= CONF_TLSV_MAX; i++)
-		if (!strcmp(argv, methodVersions[i].name))
+		if (strcmp(argv, methodVersions[i].name) == 0)
 			v = i;
 	if (!v) {
 		memprintf(err, "'%s' : unknown ssl/tls version", args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
-	if (!strcmp("ssl-min-ver", args[cur_arg]))
+	if (strcmp("ssl-min-ver", args[cur_arg]) == 0)
 		methods->min = v;
-	else if (!strcmp("ssl-max-ver", args[cur_arg]))
+	else if (strcmp("ssl-max-ver", args[cur_arg]) == 0)
 		methods->max = v;
 	else {
 		memprintf(err, "'%s' : option not implemented", args[cur_arg]);
@@ -1623,11 +1623,11 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 		return -1;
 	}
 	while (*(args[i])) {
-		if (!strcmp(args[i], "no-tls-tickets"))
+		if (strcmp(args[i], "no-tls-tickets") == 0)
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
-		else if (!strcmp(args[i], "prefer-client-ciphers"))
+		else if (strcmp(args[i], "prefer-client-ciphers") == 0)
 			global_ssl.listen_default_ssloptions |= BC_SSL_O_PREF_CLIE_CIPH;
-		else if (!strcmp(args[i], "ssl-min-ver") || !strcmp(args[i], "ssl-max-ver")) {
+		else if (strcmp(args[i], "ssl-min-ver") == 0 || strcmp(args[i], "ssl-max-ver") == 0) {
 			if (!parse_tls_method_minmax(args, i, &global_ssl.listen_default_sslmethods, err))
 				i++;
 			else {
@@ -1655,9 +1655,9 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
 		return -1;
 	}
 	while (*(args[i])) {
-		if (!strcmp(args[i], "no-tls-tickets"))
+		if (strcmp(args[i], "no-tls-tickets") == 0)
 			global_ssl.connect_default_ssloptions |= SRV_SSL_O_NO_TLS_TICKETS;
-		else if (!strcmp(args[i], "ssl-min-ver") || !strcmp(args[i], "ssl-max-ver")) {
+		else if (strcmp(args[i], "ssl-min-ver") == 0 || strcmp(args[i], "ssl-max-ver") == 0) {
 			if (!parse_tls_method_minmax(args, i, &global_ssl.connect_default_sslmethods, err))
 				i++;
 			else {

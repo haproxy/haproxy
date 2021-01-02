@@ -238,7 +238,7 @@ struct uri_auth *stats_add_auth(struct uri_auth **root, char *user)
 		return NULL;
 
 	for (newuser = u->userlist->users; newuser; newuser = newuser->next)
-		if (!strcmp(newuser->user, user)) {
+		if (strcmp(newuser->user, user) == 0) {
 			ha_warning("uri auth: ignoring duplicated user '%s'.\n",
 				   user);
 			return u;
@@ -284,7 +284,7 @@ struct uri_auth *stats_add_scope(struct uri_auth **root, char *scope)
 
 	scope_list = &u->scope;
 	while ((old_scope = *scope_list)) {
-		if (!strcmp(old_scope->px_id, scope))
+		if (strcmp(old_scope->px_id, scope) == 0)
 			break;
 		scope_list = &old_scope->next;
 	}

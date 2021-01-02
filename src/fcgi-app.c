@@ -70,7 +70,7 @@ struct fcgi_app *fcgi_app_find_by_name(const char *name)
 	struct fcgi_app *app;
 
 	for (app = fcgi_apps; app != NULL; app = app->next) {
-		if (!strcmp(app->name, name))
+		if (strcmp(app->name, name) == 0)
 			return app;
 	}
 
@@ -544,7 +544,7 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 		if (f->id != fcgi_flt_id)
 			continue;
 		fcgi_conf = f->conf;
-		if (strcmp(name, fcgi_conf->name)) {
+		if (strcmp(name, fcgi_conf->name) != 0) {
 			fcgi_conf = NULL;
 			continue;
 		}
@@ -606,7 +606,7 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 	list_for_each_entry(fconf, &curpx->filter_configs, list) {
 		if (fconf->id == fcgi_flt_id) {
 			fcgi_conf = fconf->conf;
-			if (fcgi_conf && !strcmp((char *)fcgi_conf->name, args[1]))
+			if (fcgi_conf && strcmp((char *)fcgi_conf->name, args[1]) == 0)
 				goto end;
 			memprintf(err, "'%s' : only one fcgi-app supported per backend", args[0]);
 			retval = -1;
@@ -773,7 +773,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 	const char *err;
 	char *errmsg = NULL;
 
-	if (!strcmp(args[0], "fcgi-app")) { /* new fcgi-app */
+	if (strcmp(args[0], "fcgi-app") == 0) { /* new fcgi-app */
 		if (!*(args[1])) {
 			ha_alert("parsing [%s:%d]: '%s' expects <name> as argument.\n",
 				 file, linenum, args[0]);
@@ -792,7 +792,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		}
 
 		for (curapp = fcgi_apps; curapp != NULL; curapp = curapp->next) {
-			if (!strcmp(curapp->name, args[1])) {
+			if (strcmp(curapp->name, args[1]) == 0) {
 				ha_alert("Parsing [%s:%d]: fcgi-app section '%s' has the same name as another one declared at %s:%d.\n",
 					 file, linenum, args[1], curapp->conf.file, curapp->conf.line);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -845,7 +845,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
-	else if (!strcmp(args[0], "docroot")) {
+	else if (strcmp(args[0], "docroot") == 0) {
 		if (!*(args[1])) {
 			ha_alert("parsing [%s:%d] : '%s' expects <path> as argument.\n",
 				 file, linenum, args[0]);
@@ -861,7 +861,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			err_code |= ERR_ALERT | ERR_ABORT;
 		}
 	}
-	else if (!strcmp(args[0], "path-info")) {
+	else if (strcmp(args[0], "path-info") == 0) {
 		if (!*(args[1])) {
 			ha_alert("parsing [%s:%d] : '%s' expects <regex> as argument.\n",
 				 file, linenum, args[0]);
@@ -878,7 +878,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
-	else if (!strcmp(args[0], "index")) {
+	else if (strcmp(args[0], "index") == 0) {
 		if (!*(args[1])) {
 			ha_alert("parsing [%s:%d] : '%s' expects <filename> as argument.\n",
 				 file, linenum, args[0]);
@@ -894,7 +894,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			err_code |= ERR_ALERT | ERR_ABORT;
 		}
 	}
-	else if (!strcmp(args[0], "acl")) {
+	else if (strcmp(args[0], "acl") == 0) {
 		const char *err;
 		err = invalid_char(args[1]);
 		if (err) {
@@ -917,7 +917,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "set-param")) {
+	else if (strcmp(args[0], "set-param") == 0) {
 		if (!*(args[1]) || !*(args[2])) {
 			ha_alert("parsing [%s:%d] : '%s' expects <name> and <value> as arguments.\n",
 				 file, linenum, args[0]);
@@ -968,7 +968,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		goto parse_cond_rule;
 	}
 #endif
-	else if (!strcmp(args[0], "pass-header")) {
+	else if (strcmp(args[0], "pass-header") == 0) {
 		if (!*(args[1])) {
 			ha_alert("parsing [%s:%d] : '%s' expects <name> as arguments.\n",
 				 file, linenum, args[0]);
@@ -998,13 +998,13 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		goto parse_cond_rule;
 	}
 #endif
-	else if (!strcmp(args[0], "option")) {
+	else if (strcmp(args[0], "option") == 0) {
 		if (!*(args[1])) {
 			ha_alert("parsing [%s:%d]: '%s' expects an option name.\n",
 				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
-		else if (!strcmp(args[1], "keep-conn")) {
+		else if (strcmp(args[1], "keep-conn") == 0) {
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == KWM_STD)
@@ -1012,7 +1012,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			else if (kwm == KWM_NO)
 				curapp->flags &= ~FCGI_APP_FL_KEEP_CONN;
 		}
-		else if (!strcmp(args[1], "get-values")) {
+		else if (strcmp(args[1], "get-values") == 0) {
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == KWM_STD)
@@ -1020,7 +1020,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			else if (kwm == KWM_NO)
 				curapp->flags &= ~FCGI_APP_FL_GET_VALUES;
 		}
-		else if (!strcmp(args[1], "mpxs-conns")) {
+		else if (strcmp(args[1], "mpxs-conns") == 0) {
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == KWM_STD)
@@ -1028,7 +1028,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			else if (kwm == KWM_NO)
 				curapp->flags &= ~FCGI_APP_FL_MPXS_CONNS;
 		}
-		else if (!strcmp(args[1], "max-reqs")) {
+		else if (strcmp(args[1], "max-reqs") == 0) {
 			if (kwm != KWM_STD) {
 				ha_alert("parsing [%s:%d]: negation/default is not supported for option '%s'.\n",
 					 file, linenum, args[1]);
@@ -1057,7 +1057,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
-	else if (!strcmp(args[0], "log-stderr")) {
+	else if (strcmp(args[0], "log-stderr") == 0) {
 		if (!parse_logsrv(args, &curapp->logsrvs, (kwm == KWM_NO), &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;

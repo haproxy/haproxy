@@ -684,7 +684,7 @@ int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct crtlis
 			struct dirent *de = de_list[i];
 
 			end = strrchr(de->d_name, '.');
-			if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp") || !strcmp(end, ".sctl") || !strcmp(end, ".key")))
+			if (end && (strcmp(end, ".issuer") == 0 || strcmp(end, ".ocsp") == 0 || strcmp(end, ".sctl") == 0 || strcmp(end, ".key") == 0))
 				goto ignore_entry;
 
 			snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
@@ -985,7 +985,7 @@ static int cli_parse_dump_crtlist(char **args, char *payload, struct appctx *app
 	appctx->ctx.cli.p0 = NULL;
 	appctx->ctx.cli.p1 = NULL;
 
-	if (*args[3] && !strcmp(args[3], "-n")) {
+	if (*args[3] && strcmp(args[3], "-n") == 0) {
 		mode = 's';
 		filename = args[4];
 	} else {

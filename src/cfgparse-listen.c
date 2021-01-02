@@ -178,11 +178,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	char *errmsg = NULL;
 	struct bind_conf *bind_conf;
 
-	if (!strcmp(args[0], "listen"))
+	if (strcmp(args[0], "listen") == 0)
 		rc = PR_CAP_LISTEN;
-	else if (!strcmp(args[0], "frontend"))
+	else if (strcmp(args[0], "frontend") == 0)
 		rc = PR_CAP_FE;
-	else if (!strcmp(args[0], "backend"))
+	else if (strcmp(args[0], "backend") == 0)
 		rc = PR_CAP_BE;
 	else
 		rc = PR_CAP_NONE;
@@ -477,7 +477,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		goto out;
 	}
-	else if (!strcmp(args[0], "defaults")) {  /* use this one to assign default values */
+	else if (strcmp(args[0], "defaults") == 0) {  /* use this one to assign default values */
 		/* some variables may have already been initialized earlier */
 		/* FIXME-20070101: we should do this too at the end of the
 		 * config parsing to free all default values.
@@ -545,14 +545,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	curproxy->conf.args.line = linenum;
 
 	/* Now let's parse the proxy-specific keywords */
-	if (!strcmp(args[0], "server")         ||
-	    !strcmp(args[0], "default-server") ||
-	    !strcmp(args[0], "server-template")) {
+	if (strcmp(args[0], "server") == 0         ||
+	    strcmp(args[0], "default-server") == 0 ||
+	    strcmp(args[0], "server-template") == 0) {
 		err_code |= parse_server(file, linenum, args, curproxy, &defproxy, 1, 0, 0);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
-	else if (!strcmp(args[0], "bind")) {  /* new listen addresses */
+	else if (strcmp(args[0], "bind") == 0) {  /* new listen addresses */
 		struct listener *l;
 		int cur_arg;
 
@@ -660,12 +660,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 		goto out;
 	}
-	else if (!strcmp(args[0], "monitor-net")) {  /* set the range of IPs to ignore */
+	else if (strcmp(args[0], "monitor-net") == 0) {  /* set the range of IPs to ignore */
 		ha_alert("parsing [%s:%d] : 'monitor-net' doesn't exist anymore. Please use 'http-request return status 200 if { src %s }' instead.\n", file, linenum, args[1]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "monitor-uri")) {  /* set the URI to intercept */
+	else if (strcmp(args[0], "monitor-uri") == 0) {  /* set the URI to intercept */
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
@@ -687,13 +687,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		goto out;
 	}
-	else if (!strcmp(args[0], "mode")) {  /* sets the proxy mode */
+	else if (strcmp(args[0], "mode") == 0) {  /* sets the proxy mode */
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 
-		if (!strcmp(args[1], "http")) curproxy->mode = PR_MODE_HTTP;
-		else if (!strcmp(args[1], "tcp")) curproxy->mode = PR_MODE_TCP;
-		else if (!strcmp(args[1], "health")) {
+		if (strcmp(args[1], "http") == 0) curproxy->mode = PR_MODE_HTTP;
+		else if (strcmp(args[1], "tcp") == 0) curproxy->mode = PR_MODE_TCP;
+		else if (strcmp(args[1], "health") == 0) {
 			ha_alert("parsing [%s:%d] : 'mode health' doesn't exist anymore. Please use 'http-request return status 200' instead.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -704,7 +704,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "id")) {
+	else if (strcmp(args[0], "id") == 0) {
 		struct eb32_node *node;
 
 		if (curproxy == &defproxy) {
@@ -746,7 +746,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 		eb32_insert(&used_proxy_id, &curproxy->conf.id);
 	}
-	else if (!strcmp(args[0], "description")) {
+	else if (strcmp(args[0], "description") == 0) {
 		int i, len=0;
 		char *d;
 
@@ -774,17 +774,17 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			d += snprintf(d, curproxy->desc + len - d, " %s", args[i]);
 
 	}
-	else if (!strcmp(args[0], "disabled")) {  /* disables this proxy */
+	else if (strcmp(args[0], "disabled") == 0) {  /* disables this proxy */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		curproxy->disabled = 1;
 	}
-	else if (!strcmp(args[0], "enabled")) {  /* enables this proxy (used to revert a disabled default) */
+	else if (strcmp(args[0], "enabled") == 0) {  /* enables this proxy (used to revert a disabled default) */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		curproxy->disabled = 0;
 	}
-	else if (!strcmp(args[0], "bind-process")) {  /* enable this proxy only on some processes */
+	else if (strcmp(args[0], "bind-process") == 0) {  /* enable this proxy only on some processes */
 		int cur_arg = 1;
 		unsigned long set = 0;
 
@@ -802,7 +802,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 		curproxy->bind_proc = set;
 	}
-	else if (!strcmp(args[0], "acl")) {  /* add an ACL */
+	else if (strcmp(args[0], "acl") == 0) {  /* add an ACL */
 		if (curproxy == &defproxy) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -832,7 +832,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "dynamic-cookie-key")) { /* Dynamic cookies secret key */
+	else if (strcmp(args[0], "dynamic-cookie-key") == 0) { /* Dynamic cookies secret key */
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -846,7 +846,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(curproxy->dyncookie_key);
 		curproxy->dyncookie_key = strdup(args[1]);
 	}
-	else if (!strcmp(args[0], "cookie")) {  /* cookie name */
+	else if (strcmp(args[0], "cookie") == 0) {  /* cookie name */
 		int cur_arg;
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -868,34 +868,34 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
-			if (!strcmp(args[cur_arg], "rewrite")) {
+			if (strcmp(args[cur_arg], "rewrite") == 0) {
 				curproxy->ck_opts |= PR_CK_RW;
 			}
-			else if (!strcmp(args[cur_arg], "indirect")) {
+			else if (strcmp(args[cur_arg], "indirect") == 0) {
 				curproxy->ck_opts |= PR_CK_IND;
 			}
-			else if (!strcmp(args[cur_arg], "insert")) {
+			else if (strcmp(args[cur_arg], "insert") == 0) {
 				curproxy->ck_opts |= PR_CK_INS;
 			}
-			else if (!strcmp(args[cur_arg], "nocache")) {
+			else if (strcmp(args[cur_arg], "nocache") == 0) {
 				curproxy->ck_opts |= PR_CK_NOC;
 			}
-			else if (!strcmp(args[cur_arg], "postonly")) {
+			else if (strcmp(args[cur_arg], "postonly") == 0) {
 				curproxy->ck_opts |= PR_CK_POST;
 			}
-			else if (!strcmp(args[cur_arg], "preserve")) {
+			else if (strcmp(args[cur_arg], "preserve") == 0) {
 				curproxy->ck_opts |= PR_CK_PSV;
 			}
-			else if (!strcmp(args[cur_arg], "prefix")) {
+			else if (strcmp(args[cur_arg], "prefix") == 0) {
 				curproxy->ck_opts |= PR_CK_PFX;
 			}
-			else if (!strcmp(args[cur_arg], "httponly")) {
+			else if (strcmp(args[cur_arg], "httponly") == 0) {
 				curproxy->ck_opts |= PR_CK_HTTPONLY;
 			}
-			else if (!strcmp(args[cur_arg], "secure")) {
+			else if (strcmp(args[cur_arg], "secure") == 0) {
 				curproxy->ck_opts |= PR_CK_SECURE;
 			}
-			else if (!strcmp(args[cur_arg], "domain")) {
+			else if (strcmp(args[cur_arg], "domain") == 0) {
 				if (!*args[cur_arg + 1]) {
 					ha_alert("parsing [%s:%d]: '%s' expects <domain> as argument.\n",
 						 file, linenum, args[cur_arg]);
@@ -936,7 +936,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				}
 				cur_arg++;
 			}
-			else if (!strcmp(args[cur_arg], "maxidle")) {
+			else if (strcmp(args[cur_arg], "maxidle") == 0) {
 				unsigned int maxidle;
 				const char *res;
 
@@ -969,7 +969,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->cookie_maxidle = maxidle;
 				cur_arg++;
 			}
-			else if (!strcmp(args[cur_arg], "maxlife")) {
+			else if (strcmp(args[cur_arg], "maxlife") == 0) {
 				unsigned int maxlife;
 				const char *res;
 
@@ -1003,13 +1003,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->cookie_maxlife = maxlife;
 				cur_arg++;
 			}
-			else if (!strcmp(args[cur_arg], "dynamic")) { /* Dynamic persistent cookies secret key */
+			else if (strcmp(args[cur_arg], "dynamic") == 0) { /* Dynamic persistent cookies secret key */
 
 				if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[cur_arg], NULL))
 					err_code |= ERR_WARN;
 				curproxy->ck_opts |= PR_CK_DYNAMIC;
 			}
-			else if (!strcmp(args[cur_arg], "attr")) {
+			else if (strcmp(args[cur_arg], "attr") == 0) {
 				char *val;
 				if (!*args[cur_arg + 1]) {
 					ha_alert("parsing [%s:%d]: '%s' expects <value> as argument.\n",
@@ -1061,7 +1061,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}/* end else if (!strcmp(args[0], "cookie"))  */
-	else if (!strcmp(args[0], "email-alert")) {
+	else if (strcmp(args[0], "email-alert") == 0) {
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
 				 file, linenum, args[0]);
@@ -1069,7 +1069,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
                 }
 
-		if (!strcmp(args[1], "from")) {
+		if (strcmp(args[1], "from") == 0) {
 			if (*(args[1]) == 0) {
 				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
 					 file, linenum, args[1]);
@@ -1079,7 +1079,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			free(curproxy->email_alert.from);
 			curproxy->email_alert.from = strdup(args[2]);
 		}
-		else if (!strcmp(args[1], "mailers")) {
+		else if (strcmp(args[1], "mailers") == 0) {
 			if (*(args[1]) == 0) {
 				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
 					 file, linenum, args[1]);
@@ -1089,7 +1089,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			free(curproxy->email_alert.mailers.name);
 			curproxy->email_alert.mailers.name = strdup(args[2]);
 		}
-		else if (!strcmp(args[1], "myhostname")) {
+		else if (strcmp(args[1], "myhostname") == 0) {
 			if (*(args[1]) == 0) {
 				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
 					 file, linenum, args[1]);
@@ -1099,7 +1099,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			free(curproxy->email_alert.myhostname);
 			curproxy->email_alert.myhostname = strdup(args[2]);
 		}
-		else if (!strcmp(args[1], "level")) {
+		else if (strcmp(args[1], "level") == 0) {
 			curproxy->email_alert.level = get_log_level(args[2]);
 			if (curproxy->email_alert.level < 0) {
 				ha_alert("parsing [%s:%d] : unknown log level '%s' after '%s'\n",
@@ -1108,7 +1108,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 		}
-		else if (!strcmp(args[1], "to")) {
+		else if (strcmp(args[1], "to") == 0) {
 			if (*(args[1]) == 0) {
 				ha_alert("parsing [%s:%d] : missing argument after '%s'.\n",
 					 file, linenum, args[1]);
@@ -1127,7 +1127,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* Indicate that the email_alert is at least partially configured */
 		curproxy->email_alert.set = 1;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
-	else if (!strcmp(args[0], "persist")) {  /* persist */
+	else if (strcmp(args[0], "persist") == 0) {  /* persist */
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : missing persist method.\n",
 				 file, linenum);
@@ -1177,21 +1177,21 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "appsession")) {  /* cookie name */
+	else if (strcmp(args[0], "appsession") == 0) {  /* cookie name */
 		ha_alert("parsing [%s:%d] : '%s' is not supported anymore since HAProxy 1.6.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "load-server-state-from-file")) {
+	else if (strcmp(args[0], "load-server-state-from-file") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
-		if (!strcmp(args[1], "global")) {  /* use the file pointed to by global server-state-file directive */
+		if (strcmp(args[1], "global") == 0) {  /* use the file pointed to by global server-state-file directive */
 			curproxy->load_server_state_from_file = PR_SRV_STATE_FILE_GLOBAL;
 		}
-		else if (!strcmp(args[1], "local")) { /* use the server-state-file-name variable to locate the server-state file */
+		else if (strcmp(args[1], "local") == 0) { /* use the server-state-file-name variable to locate the server-state file */
 			curproxy->load_server_state_from_file = PR_SRV_STATE_FILE_LOCAL;
 		}
-		else if (!strcmp(args[1], "none")) {  /* don't use server-state-file directive for this backend */
+		else if (strcmp(args[1], "none") == 0) {  /* don't use server-state-file directive for this backend */
 			curproxy->load_server_state_from_file = PR_SRV_STATE_FILE_NONE;
 		}
 		else {
@@ -1201,7 +1201,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "server-state-file-name")) {
+	else if (strcmp(args[0], "server-state-file-name") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 		if (*(args[1]) == 0) {
@@ -1210,12 +1210,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		else if (!strcmp(args[1], "use-backend-name"))
+		else if (strcmp(args[1], "use-backend-name") == 0)
 			curproxy->server_state_file_name = strdup(curproxy->id);
 		else
 			curproxy->server_state_file_name = strdup(args[1]);
 	}
-	else if (!strcmp(args[0], "max-session-srv-conns")) {
+	else if (strcmp(args[0], "max-session-srv-conns") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 		if (*(args[1]) == 0) {
@@ -1226,11 +1226,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 		curproxy->max_out_conns = atoi(args[1]);
 	}
-	else if (!strcmp(args[0], "capture")) {
+	else if (strcmp(args[0], "capture") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (!strcmp(args[1], "cookie")) {  /* name of a cookie to capture */
+		if (strcmp(args[1], "cookie") == 0) {  /* name of a cookie to capture */
 			if (curproxy == &defproxy) {
 				ha_alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1252,7 +1252,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->capture_len = atol(args[4]);
 			curproxy->to_log |= LW_COOKIE;
 		}
-		else if (!strcmp(args[1], "request") && !strcmp(args[2], "header")) {
+		else if (strcmp(args[1], "request") == 0 && strcmp(args[2], "header") == 0) {
 			struct cap_hdr *hdr;
 
 			if (curproxy == &defproxy) {
@@ -1281,7 +1281,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->req_cap = hdr;
 			curproxy->to_log |= LW_REQHDR;
 		}
-		else if (!strcmp(args[1], "response") && !strcmp(args[2], "header")) {
+		else if (strcmp(args[1], "response") == 0 && strcmp(args[2], "header") == 0) {
 			struct cap_hdr *hdr;
 
 			if (curproxy == &defproxy) {
@@ -1316,7 +1316,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "retries")) {  /* connection retries */
+	else if (strcmp(args[0], "retries") == 0) {  /* connection retries */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
@@ -1331,7 +1331,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 		curproxy->conn_retries = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "http-request")) {	/* request access control: allow/deny/auth */
+	else if (strcmp(args[0], "http-request") == 0) {	/* request access control: allow/deny/auth */
 		struct act_rule *rule;
 
 		if (curproxy == &defproxy) {
@@ -1362,7 +1362,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		LIST_ADDQ(&curproxy->http_req_rules, &rule->list);
 	}
-	else if (!strcmp(args[0], "http-response")) {	/* response access control */
+	else if (strcmp(args[0], "http-response") == 0) {	/* response access control */
 		struct act_rule *rule;
 
 		if (curproxy == &defproxy) {
@@ -1392,7 +1392,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		LIST_ADDQ(&curproxy->http_res_rules, &rule->list);
 	}
-	else if (!strcmp(args[0], "http-after-response")) {
+	else if (strcmp(args[0], "http-after-response") == 0) {
 		struct act_rule *rule;
 
 		if (curproxy == &defproxy) {
@@ -1422,7 +1422,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		LIST_ADDQ(&curproxy->http_after_res_rules, &rule->list);
 	}
-	else if (!strcmp(args[0], "http-send-name-header")) { /* send server name in request header */
+	else if (strcmp(args[0], "http-send-name-header") == 0) { /* send server name in request header */
 		/* set the header name and length into the proxy structure */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
@@ -1440,13 +1440,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->server_id_hdr_len  = strlen(curproxy->server_id_hdr_name);
 		ist2bin_lc(curproxy->server_id_hdr_name, ist2(curproxy->server_id_hdr_name, curproxy->server_id_hdr_len));
 	}
-	else if (!strcmp(args[0], "block")) {
+	else if (strcmp(args[0], "block") == 0) {
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. Use 'http-request deny' which uses the exact same syntax.\n", file, linenum, args[0]);
 
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "redirect")) {
+	else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *rule;
 
 		if (curproxy == &defproxy) {
@@ -1468,7 +1468,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	                                          (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
 	                                          file, linenum);
 	}
-	else if (!strcmp(args[0], "use_backend")) {
+	else if (strcmp(args[0], "use_backend") == 0) {
 		struct switching_rule *rule;
 
 		if (curproxy == &defproxy) {
@@ -1562,8 +1562,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		LIST_ADDQ(&curproxy->server_rules, &rule->list);
 		curproxy->be_req_ana |= AN_REQ_SRV_RULES;
 	}
-	else if ((!strcmp(args[0], "force-persist")) ||
-		 (!strcmp(args[0], "ignore-persist"))) {
+	else if ((strcmp(args[0], "force-persist") == 0) ||
+		 (strcmp(args[0], "ignore-persist") == 0)) {
 		struct persist_rule *rule;
 
 		if (curproxy == &defproxy) {
@@ -1596,7 +1596,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		rule = calloc(1, sizeof(*rule));
 		rule->cond = cond;
-		if (!strcmp(args[0], "force-persist")) {
+		if (strcmp(args[0], "force-persist") == 0) {
 			rule->type = PERSIST_TYPE_FORCE;
 		} else {
 			rule->type = PERSIST_TYPE_IGNORE;
@@ -1604,7 +1604,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->persist_rules, &rule->list);
 	}
-	else if (!strcmp(args[0], "stick-table")) {
+	else if (strcmp(args[0], "stick-table") == 0) {
 		struct stktable *other;
 
 		if (curproxy == &defproxy) {
@@ -1651,7 +1651,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->table->proxies_list = curproxy;
 		}
 	}
-	else if (!strcmp(args[0], "stick")) {
+	else if (strcmp(args[0], "stick") == 0) {
 		struct sticking_rule *rule;
 		struct sample_expr *expr;
 		int myidx = 0;
@@ -1765,13 +1765,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		else
 			LIST_ADDQ(&curproxy->sticking_rules, &rule->list);
 	}
-	else if (!strcmp(args[0], "stats")) {
+	else if (strcmp(args[0], "stats") == 0) {
 		if (curproxy != &defproxy && curproxy->uri_auth == defproxy.uri_auth)
 			curproxy->uri_auth = NULL; /* we must detach from the default config */
 
 		if (!*args[1]) {
 			goto stats_error_parsing;
-		} else if (!strcmp(args[1], "admin")) {
+		} else if (strcmp(args[1], "admin") == 0) {
 			struct stats_admin_rule *rule;
 
 			if (curproxy == &defproxy) {
@@ -1807,7 +1807,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			rule->cond = cond;
 			LIST_INIT(&rule->list);
 			LIST_ADDQ(&curproxy->uri_auth->admin_rules, &rule->list);
-		} else if (!strcmp(args[1], "uri")) {
+		} else if (strcmp(args[1], "uri") == 0) {
 			if (*(args[2]) == 0) {
 				ha_alert("parsing [%s:%d] : 'uri' needs an URI prefix.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1817,7 +1817,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-		} else if (!strcmp(args[1], "realm")) {
+		} else if (strcmp(args[1], "realm") == 0) {
 			if (*(args[2]) == 0) {
 				ha_alert("parsing [%s:%d] : 'realm' needs an realm name.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1827,7 +1827,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-		} else if (!strcmp(args[1], "refresh")) {
+		} else if (strcmp(args[1], "refresh") == 0) {
 			unsigned interval;
 
 			err = parse_time_err(args[2], &interval, TIME_UNIT_S);
@@ -1853,7 +1853,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-		} else if (!strcmp(args[1], "http-request")) {    /* request access control: allow/deny/auth */
+		} else if (strcmp(args[1], "http-request") == 0) {    /* request access control: allow/deny/auth */
 			struct act_rule *rule;
 
 			if (curproxy == &defproxy) {
@@ -1887,7 +1887,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			                                  file, linenum);
 			LIST_ADDQ(&curproxy->uri_auth->http_req_rules, &rule->list);
 
-		} else if (!strcmp(args[1], "auth")) {
+		} else if (strcmp(args[1], "auth") == 0) {
 			if (*(args[2]) == 0) {
 				ha_alert("parsing [%s:%d] : 'auth' needs a user:password account.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1897,7 +1897,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-		} else if (!strcmp(args[1], "scope")) {
+		} else if (strcmp(args[1], "scope") == 0) {
 			if (*(args[2]) == 0) {
 				ha_alert("parsing [%s:%d] : 'scope' needs a proxy name.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1907,31 +1907,31 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-		} else if (!strcmp(args[1], "enable")) {
+		} else if (strcmp(args[1], "enable") == 0) {
 			if (!stats_check_init_uri_auth(&curproxy->uri_auth)) {
 				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-		} else if (!strcmp(args[1], "hide-version")) {
+		} else if (strcmp(args[1], "hide-version") == 0) {
 			if (!stats_set_flag(&curproxy->uri_auth, STAT_HIDEVER)) {
 				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-		} else if (!strcmp(args[1], "show-legends")) {
+		} else if (strcmp(args[1], "show-legends") == 0) {
 			if (!stats_set_flag(&curproxy->uri_auth, STAT_SHLGNDS)) {
 				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-		} else if (!strcmp(args[1], "show-modules")) {
+		} else if (strcmp(args[1], "show-modules") == 0) {
 			if (!stats_set_flag(&curproxy->uri_auth, STAT_SHMODULES)) {
 				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-		} else if (!strcmp(args[1], "show-node")) {
+		} else if (strcmp(args[1], "show-node") == 0) {
 
 			if (*args[2]) {
 				int i;
@@ -1958,7 +1958,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-		} else if (!strcmp(args[1], "show-desc")) {
+		} else if (strcmp(args[1], "show-desc") == 0) {
 			char *desc = NULL;
 
 			if (*args[2]) {
@@ -1995,7 +1995,7 @@ stats_error_parsing:
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "option")) {
+	else if (strcmp(args[0], "option") == 0) {
 		int optnum;
 
 		if (*(args[1]) == '\0') {
@@ -2006,7 +2006,7 @@ stats_error_parsing:
 		}
 
 		for (optnum = 0; cfg_opts[optnum].name; optnum++) {
-			if (!strcmp(args[1], cfg_opts[optnum].name)) {
+			if (strcmp(args[1], cfg_opts[optnum].name) == 0) {
 				if (cfg_opts[optnum].cap == PR_CAP_NONE) {
 					ha_alert("parsing [%s:%d]: option '%s' is not supported due to build options.\n",
 						 file, linenum, cfg_opts[optnum].name);
@@ -2040,7 +2040,7 @@ stats_error_parsing:
 		}
 
 		for (optnum = 0; cfg_opts2[optnum].name; optnum++) {
-			if (!strcmp(args[1], cfg_opts2[optnum].name)) {
+			if (strcmp(args[1], cfg_opts2[optnum].name) == 0) {
 				if (cfg_opts2[optnum].cap == PR_CAP_NONE) {
 					ha_alert("parsing [%s:%d]: option '%s' is not supported due to build options.\n",
 						 file, linenum, cfg_opts2[optnum].name);
@@ -2055,7 +2055,7 @@ stats_error_parsing:
 				}
 
 				/* "[no] option http-use-htx" is deprecated */
-				if (!strcmp(cfg_opts2[optnum].name, "http-use-htx")) {
+				if (strcmp(cfg_opts2[optnum].name, "http-use-htx") == 0) {
 					if (kwm ==KWM_NO) {
 						ha_warning("parsing [%s:%d]: option '%s' is deprecated and ignored."
 							   " The HTX mode is now the only supported mode.\n",
@@ -2180,12 +2180,12 @@ stats_error_parsing:
 			goto out;
 		}
 
-		if (!strcmp(args[1], "httplog")) {
+		if (strcmp(args[1], "httplog") == 0) {
 			char *logformat;
 			/* generate a complete HTTP log */
 			logformat = default_http_log_format;
 			if (*(args[2]) != '\0') {
-				if (!strcmp(args[2], "clf")) {
+				if (strcmp(args[2], "clf") == 0) {
 					curproxy->options2 |= PR_O2_CLFLOG;
 					logformat = clf_http_log_format;
 				} else {
@@ -2227,7 +2227,7 @@ stats_error_parsing:
 				err_code |= ERR_WARN;
 			}
 		}
-		else if (!strcmp(args[1], "tcplog")) {
+		else if (strcmp(args[1], "tcplog") == 0) {
 			if (curproxy->conf.logformat_string && curproxy == &defproxy) {
 				char *oldlogformat = "log-format";
 
@@ -2260,7 +2260,7 @@ stats_error_parsing:
 				err_code |= ERR_WARN;
 			}
 		}
-		else if (!strcmp(args[1], "tcpka")) {
+		else if (strcmp(args[1], "tcpka") == 0) {
 			/* enable TCP keep-alives on client and server streams */
 			if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[1], NULL))
 				err_code |= ERR_WARN;
@@ -2273,57 +2273,57 @@ stats_error_parsing:
 			if (curproxy->cap & PR_CAP_BE)
 				curproxy->options |= PR_O_TCP_SRV_KA;
 		}
-		else if (!strcmp(args[1], "httpchk")) {
+		else if (strcmp(args[1], "httpchk") == 0) {
 			err_code |= proxy_parse_httpchk_opt(args, 0, curproxy, &defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
-		else if (!strcmp(args[1], "ssl-hello-chk")) {
+		else if (strcmp(args[1], "ssl-hello-chk") == 0) {
 			err_code |= proxy_parse_ssl_hello_chk_opt(args, 0, curproxy, &defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
-		else if (!strcmp(args[1], "smtpchk")) {
+		else if (strcmp(args[1], "smtpchk") == 0) {
 			err_code |= proxy_parse_smtpchk_opt(args, 0, curproxy, &defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
-		else if (!strcmp(args[1], "pgsql-check")) {
+		else if (strcmp(args[1], "pgsql-check") == 0) {
 			err_code |= proxy_parse_pgsql_check_opt(args, 0, curproxy, &defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
-		else if (!strcmp(args[1], "redis-check")) {
+		else if (strcmp(args[1], "redis-check") == 0) {
 			err_code |= proxy_parse_redis_check_opt(args, 0, curproxy, &defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
-		else if (!strcmp(args[1], "mysql-check")) {
+		else if (strcmp(args[1], "mysql-check") == 0) {
 			err_code |= proxy_parse_mysql_check_opt(args, 0, curproxy, &defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
-		else if (!strcmp(args[1], "ldap-check")) {
+		else if (strcmp(args[1], "ldap-check") == 0) {
 			err_code |= proxy_parse_ldap_check_opt(args, 0, curproxy, &defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
-		else if (!strcmp(args[1], "spop-check")) {
+		else if (strcmp(args[1], "spop-check") == 0) {
 			err_code |= proxy_parse_spop_check_opt(args, 0, curproxy, &defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
-		else if (!strcmp(args[1], "tcp-check")) {
+		else if (strcmp(args[1], "tcp-check") == 0) {
 			err_code |= proxy_parse_tcp_check_opt(args, 0, curproxy, &defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
-		else if (!strcmp(args[1], "external-check")) {
+		else if (strcmp(args[1], "external-check") == 0) {
 			err_code |= proxy_parse_external_check_opt(args, 0, curproxy, &defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
-		else if (!strcmp(args[1], "forwardfor")) {
+		else if (strcmp(args[1], "forwardfor") == 0) {
 			int cur_arg;
 
 			/* insert x-forwarded-for field, but not for the IP address listed as an except.
@@ -2339,7 +2339,7 @@ stats_error_parsing:
 			/* loop to go through arguments - start at 2, since 0+1 = "option" "forwardfor" */
 			cur_arg = 2;
 			while (*(args[cur_arg])) {
-				if (!strcmp(args[cur_arg], "except")) {
+				if (strcmp(args[cur_arg], "except") == 0) {
 					/* suboption except - needs additional argument for it */
 					if (!*(args[cur_arg+1]) || !str2net(args[cur_arg+1], 1, &curproxy->except_net, &curproxy->except_mask)) {
 						ha_alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
@@ -2350,7 +2350,7 @@ stats_error_parsing:
 					/* flush useless bits */
 					curproxy->except_net.s_addr &= curproxy->except_mask.s_addr;
 					cur_arg += 2;
-				} else if (!strcmp(args[cur_arg], "header")) {
+				} else if (strcmp(args[cur_arg], "header") == 0) {
 					/* suboption header - needs additional argument for it */
 					if (*(args[cur_arg+1]) == 0) {
 						ha_alert("parsing [%s:%d] : '%s %s %s' expects <header_name> as argument.\n",
@@ -2362,7 +2362,7 @@ stats_error_parsing:
 					curproxy->fwdfor_hdr_name = strdup(args[cur_arg+1]);
 					curproxy->fwdfor_hdr_len  = strlen(curproxy->fwdfor_hdr_name);
 					cur_arg += 2;
-				} else if (!strcmp(args[cur_arg], "if-none")) {
+				} else if (strcmp(args[cur_arg], "if-none") == 0) {
 					curproxy->options &= ~PR_O_FF_ALWAYS;
 					cur_arg += 1;
 				} else {
@@ -2374,7 +2374,7 @@ stats_error_parsing:
 				}
 			} /* end while loop */
 		}
-		else if (!strcmp(args[1], "originalto")) {
+		else if (strcmp(args[1], "originalto") == 0) {
 			int cur_arg;
 
 			/* insert x-original-to field, but not for the IP address listed as an except.
@@ -2390,7 +2390,7 @@ stats_error_parsing:
 			/* loop to go through arguments - start at 2, since 0+1 = "option" "originalto" */
 			cur_arg = 2;
 			while (*(args[cur_arg])) {
-				if (!strcmp(args[cur_arg], "except")) {
+				if (strcmp(args[cur_arg], "except") == 0) {
 					/* suboption except - needs additional argument for it */
 					if (!*(args[cur_arg+1]) || !str2net(args[cur_arg+1], 1, &curproxy->except_to, &curproxy->except_mask_to)) {
 						ha_alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
@@ -2401,7 +2401,7 @@ stats_error_parsing:
 					/* flush useless bits */
 					curproxy->except_to.s_addr &= curproxy->except_mask_to.s_addr;
 					cur_arg += 2;
-				} else if (!strcmp(args[cur_arg], "header")) {
+				} else if (strcmp(args[cur_arg], "header") == 0) {
 					/* suboption header - needs additional argument for it */
 					if (*(args[cur_arg+1]) == 0) {
 						ha_alert("parsing [%s:%d] : '%s %s %s' expects <header_name> as argument.\n",
@@ -2429,7 +2429,7 @@ stats_error_parsing:
 		}
 		goto out;
 	}
-	else if (!strcmp(args[0], "default_backend")) {
+	else if (strcmp(args[0], "default_backend") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
@@ -2444,13 +2444,13 @@ stats_error_parsing:
 		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
 			goto out;
 	}
-	else if (!strcmp(args[0], "redispatch") || !strcmp(args[0], "redisp")) {
+	else if (strcmp(args[0], "redispatch") == 0 || strcmp(args[0], "redisp") == 0) {
 		ha_alert("parsing [%s:%d] : keyword '%s' directive is not supported anymore since HAProxy 2.1. Use 'option redispatch'.\n", file, linenum, args[0]);
 
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "http-reuse")) {
+	else if (strcmp(args[0], "http-reuse") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
@@ -2487,7 +2487,7 @@ stats_error_parsing:
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "monitor")) {
+	else if (strcmp(args[0], "monitor") == 0) {
 		if (curproxy == &defproxy) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2522,14 +2522,14 @@ stats_error_parsing:
 		}
 	}
 #ifdef USE_TPROXY
-	else if (!strcmp(args[0], "transparent")) {
+	else if (strcmp(args[0], "transparent") == 0) {
 		/* enable transparent proxy connections */
 		curproxy->options |= PR_O_TRANSP;
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 	}
 #endif
-	else if (!strcmp(args[0], "maxconn")) {  /* maxconn */
+	else if (strcmp(args[0], "maxconn") == 0) {  /* maxconn */
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], " Maybe you want 'fullconn' instead ?"))
 			err_code |= ERR_WARN;
 
@@ -2542,7 +2542,7 @@ stats_error_parsing:
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 	}
-	else if (!strcmp(args[0], "backlog")) {  /* backlog */
+	else if (strcmp(args[0], "backlog") == 0) {  /* backlog */
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
@@ -2555,7 +2555,7 @@ stats_error_parsing:
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 	}
-	else if (!strcmp(args[0], "fullconn")) {  /* fullconn */
+	else if (strcmp(args[0], "fullconn") == 0) {  /* fullconn */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], " Maybe you want 'maxconn' instead ?"))
 			err_code |= ERR_WARN;
 
@@ -2568,7 +2568,7 @@ stats_error_parsing:
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 	}
-	else if (!strcmp(args[0], "grace")) {  /* grace time (ms) */
+	else if (strcmp(args[0], "grace") == 0) {  /* grace time (ms) */
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects a time in milliseconds.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2600,7 +2600,7 @@ stats_error_parsing:
 		ha_warning("parsing [%s:%d]: the '%s' is deprecated and will be removed in a future version.\n",
 			   file, linenum, args[0]);
 	}
-	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
+	else if (strcmp(args[0], "dispatch") == 0) {  /* dispatch address */
 		struct sockaddr_storage *sk;
 		int port1, port2;
 
@@ -2627,7 +2627,7 @@ stats_error_parsing:
 		curproxy->dispatch_addr = *sk;
 		curproxy->options |= PR_O_DISPATCH;
 	}
-	else if (!strcmp(args[0], "balance")) {  /* set balancing with optional algorithm */
+	else if (strcmp(args[0], "balance") == 0) {  /* set balancing with optional algorithm */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
@@ -2637,7 +2637,7 @@ stats_error_parsing:
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "hash-type")) { /* set hashing method */
+	else if (strcmp(args[0], "hash-type") == 0) { /* set hashing method */
 		/**
 		 * The syntax for hash-type config element is
 		 * hash-type {map-based|consistent} [[<algo>] avalanche]
@@ -2676,16 +2676,16 @@ stats_error_parsing:
 				curproxy->lbprm.algo |= BE_LB_HMOD_AVAL;
 		} else {
 			/* set the hash function */
-			if (!strcmp(args[2], "sdbm")) {
+			if (strcmp(args[2], "sdbm") == 0) {
 				curproxy->lbprm.algo |= BE_LB_HFCN_SDBM;
 			}
-			else if (!strcmp(args[2], "djb2")) {
+			else if (strcmp(args[2], "djb2") == 0) {
 				curproxy->lbprm.algo |= BE_LB_HFCN_DJB2;
 			}
-			else if (!strcmp(args[2], "wt6")) {
+			else if (strcmp(args[2], "wt6") == 0) {
 				curproxy->lbprm.algo |= BE_LB_HFCN_WT6;
 			}
-			else if (!strcmp(args[2], "crc32")) {
+			else if (strcmp(args[2], "crc32") == 0) {
 				curproxy->lbprm.algo |= BE_LB_HFCN_CRC32;
 			}
 			else {
@@ -2695,7 +2695,7 @@ stats_error_parsing:
 			}
 
 			/* set the hash modifier */
-			if (!strcmp(args[3], "avalanche")) {
+			if (strcmp(args[3], "avalanche") == 0) {
 				curproxy->lbprm.algo |= BE_LB_HMOD_AVAL;
 			}
 			else if (*args[3]) {
@@ -2797,7 +2797,7 @@ stats_error_parsing:
 			err_code |= ERR_WARN;
 		}
 	}
-	else if (!strcmp(args[0], "log-format-sd")) {
+	else if (strcmp(args[0], "log-format-sd") == 0) {
 		if (!*(args[1])) {
 			ha_alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2826,7 +2826,7 @@ stats_error_parsing:
 			err_code |= ERR_WARN;
 		}
 	}
-	else if (!strcmp(args[0], "log-tag")) {  /* tag to report to syslog */
+	else if (strcmp(args[0], "log-tag") == 0) {  /* tag to report to syslog */
 		if (*(args[1]) == 0) {
 			ha_alert("parsing [%s:%d] : '%s' expects a tag for use in syslog.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2841,14 +2841,14 @@ stats_error_parsing:
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "log")) { /* "no log" or "log ..." */
+	else if (strcmp(args[0], "log") == 0) { /* "no log" or "log ..." */
 		if (!parse_logsrv(args, &curproxy->logsrvs, (kwm == KWM_NO), &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "source")) {  /* address to which we bind when connecting */
+	else if (strcmp(args[0], "source") == 0) {  /* address to which we bind when connecting */
 		int cur_arg;
 		int port1, port2;
 		struct sockaddr_storage *sk;
@@ -2883,7 +2883,7 @@ stats_error_parsing:
 
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
-			if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
+			if (strcmp(args[cur_arg], "usesrc") == 0) {  /* address to use outside */
 #if defined(CONFIG_HAP_TRANSPARENT)
 				if (!*args[cur_arg + 1]) {
 					ha_alert("parsing [%s:%d] : '%s' expects <addr>[:<port>], 'client', or 'clientip' as argument.\n",
@@ -2892,10 +2892,10 @@ stats_error_parsing:
 					goto out;
 				}
 
-				if (!strcmp(args[cur_arg + 1], "client")) {
+				if (strcmp(args[cur_arg + 1], "client") == 0) {
 					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
 					curproxy->conn_src.opts |= CO_SRC_TPROXY_CLI;
-				} else if (!strcmp(args[cur_arg + 1], "clientip")) {
+				} else if (strcmp(args[cur_arg + 1], "clientip") == 0) {
 					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
 					curproxy->conn_src.opts |= CO_SRC_TPROXY_CIP;
 				} else if (!strncmp(args[cur_arg + 1], "hdr_ip(", 7)) {
@@ -2963,7 +2963,7 @@ stats_error_parsing:
 				continue;
 			}
 
-			if (!strcmp(args[cur_arg], "interface")) { /* specifically bind to this interface */
+			if (strcmp(args[cur_arg], "interface") == 0) { /* specifically bind to this interface */
 #ifdef SO_BINDTODEVICE
 				if (!*args[cur_arg + 1]) {
 					ha_alert("parsing [%s:%d] : '%s' : missing interface name.\n",
@@ -2990,126 +2990,126 @@ stats_error_parsing:
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "usesrc")) {  /* address to use outside: needs "source" first */
+	else if (strcmp(args[0], "usesrc") == 0) {  /* address to use outside: needs "source" first */
 		ha_alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
 			 file, linenum, "usesrc", "source");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "cliexp") || !strcmp(args[0], "reqrep")) {  /* replace request header from a regex */
+	else if (strcmp(args[0], "cliexp") == 0 || strcmp(args[0], "reqrep") == 0) {  /* replace request header from a regex */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			 "Use 'http-request replace-path', 'http-request replace-uri' or 'http-request replace-header' instead.\n",
 			 file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
+	else if (strcmp(args[0], "reqdel") == 0) {  /* delete request header from a regex */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			 "Use 'http-request del-header' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
+	else if (strcmp(args[0], "reqdeny") == 0) {  /* deny a request if a header matches this regex */
 		ha_alert("parsing [%s:%d] : The '%s' not supported anymore since HAProxy 2.1. "
 			 "Use 'http-request deny' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqpass")) {  /* pass this header without allowing or denying the request */
+	else if (strcmp(args[0], "reqpass") == 0) {  /* pass this header without allowing or denying the request */
 		ha_alert("parsing [%s:%d] : The '%s' not supported anymore since HAProxy 2.1.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
+	else if (strcmp(args[0], "reqallow") == 0) {  /* allow a request if a header matches this regex */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			 "Use 'http-request allow' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqtarpit")) {  /* tarpit a request if a header matches this regex */
+	else if (strcmp(args[0], "reqtarpit") == 0) {  /* tarpit a request if a header matches this regex */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			 "Use 'http-request tarpit' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
+	else if (strcmp(args[0], "reqirep") == 0) {  /* replace request header from a regex, ignoring case */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			 "Use 'http-request replace-header' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqidel")) {  /* delete request header from a regex ignoring case */
+	else if (strcmp(args[0], "reqidel") == 0) {  /* delete request header from a regex ignoring case */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			 "Use 'http-request del-header' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqideny")) {  /* deny a request if a header matches this regex ignoring case */
+	else if (strcmp(args[0], "reqideny") == 0) {  /* deny a request if a header matches this regex ignoring case */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			 "Use 'http-request deny' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqipass")) {  /* pass this header without allowing or denying the request */
+	else if (strcmp(args[0], "reqipass") == 0) {  /* pass this header without allowing or denying the request */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
+	else if (strcmp(args[0], "reqiallow") == 0) {  /* allow a request if a header matches this regex ignoring case */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			 "Use 'http-request allow' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqitarpit")) {  /* tarpit a request if a header matches this regex ignoring case */
+	else if (strcmp(args[0], "reqitarpit") == 0) {  /* tarpit a request if a header matches this regex ignoring case */
 		ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			 "Use 'http-request tarpit' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
+	else if (strcmp(args[0], "reqadd") == 0) {  /* add request header */
 	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			"Use 'http-request add-header' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "srvexp") || !strcmp(args[0], "rsprep")) {  /* replace response header from a regex */
+	else if (strcmp(args[0], "srvexp") == 0 || strcmp(args[0], "rsprep") == 0) {  /* replace response header from a regex */
 	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			"Use 'http-response replace-header' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
+	else if (strcmp(args[0], "rspdel") == 0) {  /* delete response header from a regex */
 	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			"Use 'http-response del-header' .\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "rspdeny")) {  /* block response header from a regex */
+	else if (strcmp(args[0], "rspdeny") == 0) {  /* block response header from a regex */
 	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			"Use 'http-response deny' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "rspirep")) {  /* replace response header from a regex ignoring case */
+	else if (strcmp(args[0], "rspirep") == 0) {  /* replace response header from a regex ignoring case */
 	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			"Use 'http-response replace-header' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "rspidel")) {  /* delete response header from a regex ignoring case */
+	else if (strcmp(args[0], "rspidel") == 0) {  /* delete response header from a regex ignoring case */
 	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			"Use 'http-response del-header' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "rspideny")) {  /* block response header from a regex ignoring case */
+	else if (strcmp(args[0], "rspideny") == 0) {  /* block response header from a regex ignoring case */
 	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			"Use 'http-response deny' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-	else if (!strcmp(args[0], "rspadd")) {  /* add response header */
+	else if (strcmp(args[0], "rspadd") == 0) {  /* add response header */
 	       ha_alert("parsing [%s:%d] : The '%s' directive is not supported anymore since HAProxy 2.1. "
 			"Use 'http-response add-header' instead.\n", file, linenum, args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;

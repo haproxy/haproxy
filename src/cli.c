@@ -264,7 +264,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 	struct bind_conf *bind_conf;
 	struct listener *l;
 
-	if (!strcmp(args[1], "socket")) {
+	if (strcmp(args[1], "socket") == 0) {
 		int cur_arg;
 
 		if (*args[2] == 0) {
@@ -335,7 +335,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			global.maxsock++; /* for the listening socket */
 		}
 	}
-	else if (!strcmp(args[1], "timeout")) {
+	else if (strcmp(args[1], "timeout") == 0) {
 		unsigned timeout;
 		const char *res = parse_time_err(args[2], &timeout, TIME_UNIT_MS);
 
@@ -366,7 +366,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		}
 		global.stats_fe->timeout.client = MS_TO_TICKS(timeout);
 	}
-	else if (!strcmp(args[1], "maxconn")) {
+	else if (strcmp(args[1], "maxconn") == 0) {
 		int maxconn = atol(args[2]);
 
 		if (maxconn <= 0) {
@@ -382,7 +382,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		}
 		global.stats_fe->maxconn = maxconn;
 	}
-	else if (!strcmp(args[1], "bind-process")) {  /* enable the socket only on some processes */
+	else if (strcmp(args[1], "bind-process") == 0) {  /* enable the socket only on some processes */
 		int cur_arg = 2;
 		unsigned long set = 0;
 
@@ -803,7 +803,7 @@ static void cli_io_handler(struct appctx *appctx)
 				 * Its location is not remembered here, this is just to switch
 				 * to a gathering mode.
 				 */
-				if (!strcmp(appctx->chunk->area + appctx->chunk->data - strlen(PAYLOAD_PATTERN), PAYLOAD_PATTERN))
+				if (strcmp(appctx->chunk->area + appctx->chunk->data - strlen(PAYLOAD_PATTERN), PAYLOAD_PATTERN) == 0)
 					appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
 				else {
 					/* no payload, the command is complete: parse the request */
@@ -1438,15 +1438,15 @@ static int cli_parse_set_maxconn_global(char **args, char *payload, struct appct
 
 static int set_severity_output(int *target, char *argument)
 {
-	if (!strcmp(argument, "none")) {
+	if (strcmp(argument, "none") == 0) {
 		*target = CLI_SEVERITY_NONE;
 		return 1;
 	}
-	else if (!strcmp(argument, "number")) {
+	else if (strcmp(argument, "number") == 0) {
 		*target = CLI_SEVERITY_NUMBER;
 		return 1;
 	}
-	else if (!strcmp(argument, "string")) {
+	else if (strcmp(argument, "string") == 0) {
 		*target = CLI_SEVERITY_STRING;
 		return 1;
 	}
@@ -1480,17 +1480,17 @@ static int cli_parse_show_lvl(char **args, char *payload, struct appctx *appctx,
 static int cli_parse_set_lvl(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	/* this will ask the applet to not output a \n after the command */
-	if (!strcmp(args[1], "-"))
+	if (strcmp(args[1], "-") == 0)
 	    appctx->st1 |= APPCTX_CLI_ST1_NOLF;
 
-	if (!strcmp(args[0], "operator")) {
+	if (strcmp(args[0], "operator") == 0) {
 		if (!cli_has_level(appctx, ACCESS_LVL_OPER)) {
 			return 1;
 		}
 		appctx->cli_level &= ~ACCESS_LVL_MASK;
 		appctx->cli_level |= ACCESS_LVL_OPER;
 
-	} else if (!strcmp(args[0], "user")) {
+	} else if (strcmp(args[0], "user") == 0) {
 		if (!cli_has_level(appctx, ACCESS_LVL_USER)) {
 			return 1;
 		}
@@ -1580,7 +1580,7 @@ static int bind_parse_expose_fd(char **args, int cur_arg, struct proxy *px, stru
 		memprintf(err, "'%s' : missing fd type", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
-	if (!strcmp(args[cur_arg+1], "listeners")) {
+	if (strcmp(args[cur_arg + 1], "listeners") == 0) {
 		conf->level |= ACCESS_FD_LISTENERS;
 	} else {
 		memprintf(err, "'%s' only supports 'listeners' (got '%s')",
@@ -1599,13 +1599,13 @@ static int bind_parse_level(char **args, int cur_arg, struct proxy *px, struct b
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (!strcmp(args[cur_arg+1], "user")) {
+	if (strcmp(args[cur_arg + 1], "user") == 0) {
 		conf->level &= ~ACCESS_LVL_MASK;
 		conf->level |= ACCESS_LVL_USER;
-	} else if (!strcmp(args[cur_arg+1], "operator")) {
+	} else if (strcmp(args[cur_arg + 1], "operator") == 0) {
 		conf->level &= ~ACCESS_LVL_MASK;
 		conf->level |= ACCESS_LVL_OPER;
-	} else if (!strcmp(args[cur_arg+1], "admin")) {
+	} else if (strcmp(args[cur_arg + 1], "admin") == 0) {
 		conf->level &= ~ACCESS_LVL_MASK;
 		conf->level |= ACCESS_LVL_ADMIN;
 	} else {
@@ -1973,15 +1973,15 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 		else
 			*next_pid = target_pid;
 		return 1;
-	} else if (!strcmp("prompt", args[0])) {
+	} else if (strcmp("prompt", args[0]) == 0) {
 		s->pcli_flags ^= PCLI_F_PROMPT;
 		return argl; /* return the number of elements in the array */
 
-	} else if (!strcmp("quit", args[0])) {
+	} else if (strcmp("quit", args[0]) == 0) {
 		channel_shutr_now(&s->req);
 		channel_shutw_now(&s->res);
 		return argl; /* return the number of elements in the array */
-	} else if (!strcmp(args[0], "operator")) {
+	} else if (strcmp(args[0], "operator") == 0) {
 		if (!pcli_has_level(s, ACCESS_LVL_OPER)) {
 			memprintf(errmsg, "Permission denied!\n");
 			return -1;
@@ -1990,7 +1990,7 @@ int pcli_find_and_exec_kw(struct stream *s, char **args, int argl, char **errmsg
 		s->pcli_flags |= ACCESS_LVL_OPER;
 		return argl;
 
-	} else if (!strcmp(args[0], "user")) {
+	} else if (strcmp(args[0], "user") == 0) {
 		if (!pcli_has_level(s, ACCESS_LVL_USER)) {
 			memprintf(errmsg, "Permission denied!\n");
 			return -1;

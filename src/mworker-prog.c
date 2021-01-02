@@ -65,7 +65,7 @@ int mworker_ext_launch_all()
 					if (!(old_child->options & PROC_O_TYPE_PROG) || (!(old_child->options & PROC_O_LEAVING)))
 						continue;
 
-					if (!strcmp(old_child->id, child->id))
+					if (strcmp(old_child->id, child->id) == 0)
 						old_child->options &= ~PROC_O_LEAVING;
 				}
 
@@ -131,7 +131,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 	struct mworker_proc *child;
 	int err_code = 0;
 
-	if (!strcmp(args[0], "program")) {
+	if (strcmp(args[0], "program") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
 			err_code |= ERR_ABORT;
 			goto error;
@@ -168,7 +168,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 
 		list_for_each_entry(child, &proc_list, list) {
 			if (child->reloads == 0 && (child->options & PROC_O_TYPE_PROG)) {
-				if (!strcmp(args[1], child->id)) {
+				if (strcmp(args[1], child->id) == 0) {
 					ha_alert("parsing [%s:%d]: '%s' program section already exists in the configuration.\n", file, linenum, args[1]);
 					err_code |= ERR_ALERT | ERR_ABORT;
 					goto error;
@@ -185,7 +185,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 
 		LIST_ADDQ(&proc_list, &ext_child->list);
 
-	} else if (!strcmp(args[0], "command")) {
+	} else if (strcmp(args[0], "command") == 0) {
 		int arg_nb = 0;
 		int i = 0;
 
@@ -217,7 +217,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 		}
 		ext_child->command[i] = NULL;
 
-	} else if (!strcmp(args[0], "option")) {
+	} else if (strcmp(args[0], "option") == 0) {
 
 		if (*(args[1]) == '\0') {
 			ha_alert("parsing [%s:%d]: '%s' expects an option name.\n",
@@ -240,7 +240,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto error;
 		}
-	} else if (!strcmp(args[0], "user")) {
+	} else if (strcmp(args[0], "user") == 0) {
 		struct passwd *ext_child_user;
 		if (*(args[1]) == '\0') {
 			ha_alert("parsing [%s:%d]: '%s' expects a user name.\n",
@@ -265,7 +265,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 			ha_alert("parsing [%s:%d] : cannot find user id for '%s' (%d:%s)\n", file, linenum, args[1], errno, strerror(errno));
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
-	} else if (!strcmp(args[0], "group")) {
+	} else if (strcmp(args[0], "group") == 0) {
 		struct group *ext_child_group;
 		if (*(args[1]) == '\0') {
 			ha_alert("parsing [%s:%d]: '%s' expects a group name.\n",

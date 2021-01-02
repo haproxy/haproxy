@@ -131,7 +131,7 @@ int comp_append_algo(struct comp *comp, const char *algo)
 	int i;
 
 	for (i = 0; comp_algos[i].cfg_name; i++) {
-		if (!strcmp(algo, comp_algos[i].cfg_name)) {
+		if (strcmp(algo, comp_algos[i].cfg_name) == 0) {
 			comp_algo = calloc(1, sizeof(*comp_algo));
 			memmove(comp_algo, &comp_algos[i], sizeof(struct comp_algo));
 			comp_algo->next = comp->algos;

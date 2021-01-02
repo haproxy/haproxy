@@ -741,12 +741,12 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		return -1;
 	}
 
-	if (!strcmp(args[arg], "accept")) {
+	if (strcmp(args[arg], "accept") == 0) {
 		arg++;
 		rule->action = ACT_ACTION_ALLOW;
 		rule->flags |= ACT_FLAG_FINAL;
 	}
-	else if (!strcmp(args[arg], "reject")) {
+	else if (strcmp(args[arg], "reject") == 0) {
 		arg++;
 		rule->action = ACT_ACTION_DENY;
 		rule->flags |= ACT_FLAG_FINAL;
@@ -1118,7 +1118,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		return -1;
 	}
 
-	if (!strcmp(args[1], "inspect-delay")) {
+	if (strcmp(args[1], "inspect-delay") == 0) {
 		if (curpx == defpx) {
 			memprintf(err, "%s %s is not allowed in 'defaults' sections",
 			          args[0], args[1]);

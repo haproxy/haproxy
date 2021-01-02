@@ -835,7 +835,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 	 * "log global": copy global.logrsvs linked list to the end of logsrvs
 	 *               list. But first, we check (logsrvs != global.logsrvs).
 	 */
-	if (*(args[1]) && *(args[2]) == 0 && !strcmp(args[1], "global")) {
+	if (*(args[1]) && *(args[2]) == 0 && strcmp(args[1], "global") == 0) {
 		if (logsrvs == &global.logsrvs) {
 			memprintf(err, "'global' is not supported for a global syslog server");
 			goto error;
@@ -1166,7 +1166,7 @@ enum log_fmt get_log_format(const char *fmt)
 
 	format = LOG_FORMATS - 1;
 	while (format > 0 && log_formats[format].name
-	                  && strcmp(log_formats[format].name, fmt))
+	                  && strcmp(log_formats[format].name, fmt) != 0)
 		format--;
 
 	/* Note: 0 is LOG_FORMAT_UNSPEC */
@@ -1181,7 +1181,7 @@ int get_log_level(const char *lev)
 	int level;
 
 	level = NB_LOG_LEVELS - 1;
-	while (level >= 0 && strcmp(log_levels[level], lev))
+	while (level >= 0 && strcmp(log_levels[level], lev) != 0)
 		level--;
 
 	return level;
@@ -1195,7 +1195,7 @@ int get_log_facility(const char *fac)
 	int facility;
 
 	facility = NB_LOG_FACILITIES - 1;
-	while (facility >= 0 && strcmp(log_facilities[facility], fac))
+	while (facility >= 0 && strcmp(log_facilities[facility], fac) != 0)
 		facility--;
 
 	return facility;
@@ -3863,7 +3863,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		px->id = strdup(args[1]);
 
 	}
-	else if (!strcmp(args[0], "maxconn")) {  /* maxconn */
+	else if (strcmp(args[0], "maxconn") == 0) {  /* maxconn */
 		if (warnifnotcap(cfg_log_forward, PR_CAP_FE, file, linenum, args[0], " Maybe you want 'fullconn' instead ?"))
 			err_code |= ERR_WARN;
 
@@ -3876,7 +3876,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 	}
-	else if (!strcmp(args[0], "backlog")) {  /* backlog */
+	else if (strcmp(args[0], "backlog") == 0) {  /* backlog */
 		if (warnifnotcap(cfg_log_forward, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 

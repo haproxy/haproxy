@@ -623,11 +623,11 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 	}
 	conf->proxy = px;
 	conf->flags = 0;
-	if (!strcmp(args[pos], "trace")) {
+	if (strcmp(args[pos], "trace") == 0) {
 		pos++;
 
 		while (*args[pos]) {
-			if (!strcmp(args[pos], "name")) {
+			if (strcmp(args[pos], "name") == 0) {
 				if (!*args[pos + 1]) {
 					memprintf(err, "'%s' : '%s' option without value",
 						  args[*cur_arg], args[pos]);
@@ -640,13 +640,13 @@ parse_trace_flt(char **args, int *cur_arg, struct proxy *px,
 				}
 				pos++;
 			}
-			else if (!strcmp(args[pos], "quiet"))
+			else if (strcmp(args[pos], "quiet") == 0)
 				conf->flags |= TRACE_F_QUIET;
-			else if (!strcmp(args[pos], "random-parsing"))
+			else if (strcmp(args[pos], "random-parsing") == 0)
 				continue; // ignore
-			else if (!strcmp(args[pos], "random-forwarding"))
+			else if (strcmp(args[pos], "random-forwarding") == 0)
 				conf->flags |= TRACE_F_RAND_FWD;
-			else if (!strcmp(args[pos], "hexdump"))
+			else if (strcmp(args[pos], "hexdump") == 0)
 				conf->flags |= TRACE_F_HEXDUMP;
 			else
 				break;

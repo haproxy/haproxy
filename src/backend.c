@@ -2376,19 +2376,19 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		return 0;
 	}
 
-	if (!strcmp(args[0], "roundrobin")) {
+	if (strcmp(args[0], "roundrobin") == 0) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
 	}
-	else if (!strcmp(args[0], "static-rr")) {
+	else if (strcmp(args[0], "static-rr") == 0) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_SRR;
 	}
-	else if (!strcmp(args[0], "first")) {
+	else if (strcmp(args[0], "first") == 0) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_FAS;
 	}
-	else if (!strcmp(args[0], "leastconn")) {
+	else if (strcmp(args[0], "leastconn") == 0) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_LC;
 	}
@@ -2418,11 +2418,11 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 			}
 		}
 	}
-	else if (!strcmp(args[0], "source")) {
+	else if (strcmp(args[0], "source") == 0) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_SH;
 	}
-	else if (!strcmp(args[0], "uri")) {
+	else if (strcmp(args[0], "uri") == 0) {
 		int arg = 1;
 
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
@@ -2432,7 +2432,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		curproxy->lbprm.arg_opt3 = 0; // "depth"
 
 		while (*args[arg]) {
-			if (!strcmp(args[arg], "len")) {
+			if (strcmp(args[arg], "len") == 0) {
 				if (!*args[arg+1] || (atoi(args[arg+1]) <= 0)) {
 					memprintf(err, "%s : '%s' expects a positive integer (got '%s').", args[0], args[arg], args[arg+1]);
 					return -1;
@@ -2440,7 +2440,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 				curproxy->lbprm.arg_opt2 = atoi(args[arg+1]);
 				arg += 2;
 			}
-			else if (!strcmp(args[arg], "depth")) {
+			else if (strcmp(args[arg], "depth") == 0) {
 				if (!*args[arg+1] || (atoi(args[arg+1]) <= 0)) {
 					memprintf(err, "%s : '%s' expects a positive integer (got '%s').", args[0], args[arg], args[arg+1]);
 					return -1;
@@ -2451,11 +2451,11 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 				curproxy->lbprm.arg_opt3 = atoi(args[arg+1]) + 1;
 				arg += 2;
 			}
-			else if (!strcmp(args[arg], "whole")) {
+			else if (strcmp(args[arg], "whole") == 0) {
 				curproxy->lbprm.arg_opt1 |= 1;
 				arg += 1;
 			}
-			else if (!strcmp(args[arg], "path-only")) {
+			else if (strcmp(args[arg], "path-only") == 0) {
 				curproxy->lbprm.arg_opt1 |= 2;
 				arg += 1;
 			}
@@ -2465,7 +2465,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 			}
 		}
 	}
-	else if (!strcmp(args[0], "url_param")) {
+	else if (strcmp(args[0], "url_param") == 0) {
 		if (!*args[1]) {
 			memprintf(err, "%s requires an URL parameter name.", args[0]);
 			return -1;
@@ -2477,7 +2477,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		curproxy->lbprm.arg_str = strdup(args[1]);
 		curproxy->lbprm.arg_len = strlen(args[1]);
 		if (*args[2]) {
-			if (strcmp(args[2], "check_post")) {
+			if (strcmp(args[2], "check_post") != 0) {
 				memprintf(err, "%s only accepts 'check_post' modifier (got '%s').", args[0], args[2]);
 				return -1;
 			}
@@ -2503,7 +2503,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		curproxy->lbprm.arg_opt1 = 0;
 
 		if (*args[1]) {
-			if (strcmp(args[1], "use_domain_only")) {
+			if (strcmp(args[1], "use_domain_only") != 0) {
 				memprintf(err, "%s only accepts 'use_domain_only' modifier (got '%s').", args[0], args[1]);
 				return -1;
 			}

@@ -629,7 +629,7 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 	else
 		comp = proxy->comp;
 
-	if (!strcmp(args[1], "algo")) {
+	if (strcmp(args[1], "algo") == 0) {
 		struct comp_ctx *ctx;
 		int              cur_arg = 2;
 
@@ -655,9 +655,9 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			continue;
 		}
 	}
-	else if (!strcmp(args[1], "offload"))
+	else if (strcmp(args[1], "offload") == 0)
 		comp->offload = 1;
-	else if (!strcmp(args[1], "type")) {
+	else if (strcmp(args[1], "type") == 0) {
 		int cur_arg = 2;
 
 		if (!*args[cur_arg]) {

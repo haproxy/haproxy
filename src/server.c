@@ -466,7 +466,7 @@ static int srv_parse_namespace(char **args, int *cur_arg,
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (!strcmp(arg, "*")) {
+	if (strcmp(arg, "*") == 0) {
 		/* Use the namespace associated with the connection (if present). */
 		newsrv->flags |= SRV_F_USE_NS_FROM_PP;
 		return 0;
@@ -575,25 +575,25 @@ static int srv_parse_proxy_v2_options(char **args, int *cur_arg,
 		n = strchr(p, ',');
 		if (n)
 			*n++ = '\0';
-		if (!strcmp(p, "ssl")) {
+		if (strcmp(p, "ssl") == 0) {
 			newsrv->pp_opts |= SRV_PP_V2_SSL;
-		} else if (!strcmp(p, "cert-cn")) {
+		} else if (strcmp(p, "cert-cn") == 0) {
 			newsrv->pp_opts |= SRV_PP_V2_SSL;
 			newsrv->pp_opts |= SRV_PP_V2_SSL_CN;
-		} else if (!strcmp(p, "cert-key")) {
+		} else if (strcmp(p, "cert-key") == 0) {
 			newsrv->pp_opts |= SRV_PP_V2_SSL;
 			newsrv->pp_opts |= SRV_PP_V2_SSL_KEY_ALG;
-		} else if (!strcmp(p, "cert-sig")) {
+		} else if (strcmp(p, "cert-sig") == 0) {
 			newsrv->pp_opts |= SRV_PP_V2_SSL;
 			newsrv->pp_opts |= SRV_PP_V2_SSL_SIG_ALG;
-		} else if (!strcmp(p, "ssl-cipher")) {
+		} else if (strcmp(p, "ssl-cipher") == 0) {
 			newsrv->pp_opts |= SRV_PP_V2_SSL;
 			newsrv->pp_opts |= SRV_PP_V2_SSL_CIPHER;
-		} else if (!strcmp(p, "authority")) {
+		} else if (strcmp(p, "authority") == 0) {
 			newsrv->pp_opts |= SRV_PP_V2_AUTHORITY;
-		} else if (!strcmp(p, "crc32c")) {
+		} else if (strcmp(p, "crc32c") == 0) {
 			newsrv->pp_opts |= SRV_PP_V2_CRC32C;
-		} else if (!strcmp(p, "unique-id")) {
+		} else if (strcmp(p, "unique-id") == 0) {
 			newsrv->pp_opts |= SRV_PP_V2_UNIQUE_ID;
 		} else
 			goto fail;
@@ -617,13 +617,13 @@ static int srv_parse_observe(char **args, int *cur_arg,
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (!strcmp(arg, "none")) {
+	if (strcmp(arg, "none") == 0) {
 		newsrv->observe = HANA_OBS_NONE;
 	}
-	else if (!strcmp(arg, "layer4")) {
+	else if (strcmp(arg, "layer4") == 0) {
 		newsrv->observe = HANA_OBS_LAYER4;
 	}
-	else if (!strcmp(arg, "layer7")) {
+	else if (strcmp(arg, "layer7") == 0) {
 		if (curproxy->mode != PR_MODE_HTTP) {
 			memprintf(err, "'%s' can only be used in http proxies.\n", arg);
 			return ERR_ALERT;
@@ -711,18 +711,18 @@ static int srv_parse_source(char **args, int *cur_arg,
 
 	*cur_arg += 2;
 	while (*(args[*cur_arg])) {
-		if (!strcmp(args[*cur_arg], "usesrc")) {  /* address to use outside */
+		if (strcmp(args[*cur_arg], "usesrc") == 0) {  /* address to use outside */
 #if defined(CONFIG_HAP_TRANSPARENT)
 			if (!*args[*cur_arg + 1]) {
 				ha_alert("'usesrc' expects <addr>[:<port>], 'client', 'clientip', "
 					 "or 'hdr_ip(name,#)' as argument.\n");
 				goto err;
 			}
-			if (!strcmp(args[*cur_arg + 1], "client")) {
+			if (strcmp(args[*cur_arg + 1], "client") == 0) {
 				newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
 				newsrv->conn_src.opts |= CO_SRC_TPROXY_CLI;
 			}
-			else if (!strcmp(args[*cur_arg + 1], "clientip")) {
+			else if (strcmp(args[*cur_arg + 1], "clientip") == 0) {
 				newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
 				newsrv->conn_src.opts |= CO_SRC_TPROXY_CIP;
 			}
@@ -790,7 +790,7 @@ static int srv_parse_source(char **args, int *cur_arg,
 #endif /* defined(CONFIG_HAP_TRANSPARENT) */
 		} /* "usesrc" */
 
-		if (!strcmp(args[*cur_arg], "interface")) { /* specifically bind to this interface */
+		if (strcmp(args[*cur_arg], "interface") == 0) { /* specifically bind to this interface */
 #ifdef SO_BINDTODEVICE
 			if (!*args[*cur_arg + 1]) {
 				ha_alert("'%s' : missing interface name.\n", args[0]);
@@ -1944,13 +1944,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 	unsigned val;
 	char *fqdn = NULL;
 
-	if (!strcmp(args[0], "server")         ||
-	    !strcmp(args[0], "peer")           ||
-	    !strcmp(args[0], "default-server") ||
-	    !strcmp(args[0], "server-template")) {
+	if (strcmp(args[0], "server") == 0         ||
+	    strcmp(args[0], "peer") == 0           ||
+	    strcmp(args[0], "default-server") == 0 ||
+	    strcmp(args[0], "server-template") == 0) {
 		int cur_arg;
 		int defsrv = (*args[0] == 'd');
-		int srv = !defsrv && (*args[0] == 'p' || !strcmp(args[0], "server"));
+		int srv = !defsrv && (*args[0] == 'p' || strcmp(args[0], "server") == 0);
 		int srv_tmpl = !defsrv && !srv;
 		int tmpl_range_low = 0, tmpl_range_high = 0;
 
@@ -2109,7 +2109,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		}
 
 		while (*args[cur_arg]) {
-			if (!strcmp(args[cur_arg], "init-addr")) {
+			if (strcmp(args[cur_arg], "init-addr") == 0) {
 				char *p, *end;
 				int done;
 				struct sockaddr_storage sa;
@@ -2124,13 +2124,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 						*(end++) = 0;
 
 					memset(&sa, 0, sizeof(sa));
-					if (!strcmp(p, "libc")) {
+					if (strcmp(p, "libc") == 0) {
 						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_LIBC);
 					}
-					else if (!strcmp(p, "last")) {
+					else if (strcmp(p, "last") == 0) {
 						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_LAST);
 					}
-					else if (!strcmp(p, "none")) {
+					else if (strcmp(p, "none") == 0) {
 						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_NONE);
 					}
 					else if (str2ip2(p, &sa, 0)) {
@@ -2158,12 +2158,12 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "resolvers")) {
+			else if (strcmp(args[cur_arg], "resolvers") == 0) {
 				free(newsrv->resolvers_id);
 				newsrv->resolvers_id = strdup(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "resolve-opts")) {
+			else if (strcmp(args[cur_arg], "resolve-opts") == 0) {
 				char *p, *end;
 
 				for (p = args[cur_arg + 1]; *p; p = end) {
@@ -2172,13 +2172,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					if (*end)
 						*(end++) = 0;
 
-					if (!strcmp(p, "allow-dup-ip")) {
+					if (strcmp(p, "allow-dup-ip") == 0) {
 						newsrv->dns_opts.accept_duplicate_ip = 1;
 					}
-					else if (!strcmp(p, "ignore-weight")) {
+					else if (strcmp(p, "ignore-weight") == 0) {
 						newsrv->dns_opts.ignore_weight = 1;
 					}
-					else if (!strcmp(p, "prevent-dup-ip")) {
+					else if (strcmp(p, "prevent-dup-ip") == 0) {
 						newsrv->dns_opts.accept_duplicate_ip = 0;
 					}
 					else {
@@ -2191,10 +2191,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "resolve-prefer")) {
-				if (!strcmp(args[cur_arg + 1], "ipv4"))
+			else if (strcmp(args[cur_arg], "resolve-prefer") == 0) {
+				if (strcmp(args[cur_arg + 1], "ipv4") == 0)
 					newsrv->dns_opts.family_prio = AF_INET;
-				else if (!strcmp(args[cur_arg + 1], "ipv6"))
+				else if (strcmp(args[cur_arg + 1], "ipv6") == 0)
 					newsrv->dns_opts.family_prio = AF_INET6;
 				else {
 					ha_alert("parsing [%s:%d]: '%s' expects either ipv4 or ipv6 as argument.\n",
@@ -2204,7 +2204,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "resolve-net")) {
+			else if (strcmp(args[cur_arg], "resolve-net") == 0) {
 				char *p, *e;
 				unsigned char mask;
 				struct dns_options *opt;
@@ -2260,7 +2260,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "weight")) {
+			else if (strcmp(args[cur_arg], "weight") == 0) {
 				int w;
 				w = atol(args[cur_arg + 1]);
 				if (w < 0 || w > SRV_UWGHT_MAX) {
@@ -2272,10 +2272,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->uweight = newsrv->iweight = w;
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "log-proto")) {
-				if (!strcmp(args[cur_arg + 1], "legacy"))
+			else if (strcmp(args[cur_arg], "log-proto") == 0) {
+				if (strcmp(args[cur_arg + 1], "legacy") == 0)
 					newsrv->log_proto = SRV_LOG_PROTO_LEGACY;
-				else if (!strcmp(args[cur_arg + 1], "octet-count"))
+				else if (strcmp(args[cur_arg + 1], "octet-count") == 0)
 					newsrv->log_proto = SRV_LOG_PROTO_OCTET_COUNTING;
 				else {
 					ha_alert("parsing [%s:%d]: '%s' expects one of 'legacy' or "
@@ -2286,19 +2286,19 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "minconn")) {
+			else if (strcmp(args[cur_arg], "minconn") == 0) {
 				newsrv->minconn = atol(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "maxconn")) {
+			else if (strcmp(args[cur_arg], "maxconn") == 0) {
 				newsrv->maxconn = atol(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "maxqueue")) {
+			else if (strcmp(args[cur_arg], "maxqueue") == 0) {
 				newsrv->maxqueue = atol(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "slowstart")) {
+			else if (strcmp(args[cur_arg], "slowstart") == 0) {
 				/* slowstart is stored in seconds */
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
 
@@ -2323,14 +2323,14 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->slowstart = (val + 999) / 1000;
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "on-error")) {
-				if (!strcmp(args[cur_arg + 1], "fastinter"))
+			else if (strcmp(args[cur_arg], "on-error") == 0) {
+				if (strcmp(args[cur_arg + 1], "fastinter") == 0)
 					newsrv->onerror = HANA_ONERR_FASTINTER;
-				else if (!strcmp(args[cur_arg + 1], "fail-check"))
+				else if (strcmp(args[cur_arg + 1], "fail-check") == 0)
 					newsrv->onerror = HANA_ONERR_FAILCHK;
-				else if (!strcmp(args[cur_arg + 1], "sudden-death"))
+				else if (strcmp(args[cur_arg + 1], "sudden-death") == 0)
 					newsrv->onerror = HANA_ONERR_SUDDTH;
-				else if (!strcmp(args[cur_arg + 1], "mark-down"))
+				else if (strcmp(args[cur_arg + 1], "mark-down") == 0)
 					newsrv->onerror = HANA_ONERR_MARKDWN;
 				else {
 					ha_alert("parsing [%s:%d]: '%s' expects one of 'fastinter', "
@@ -2342,8 +2342,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "on-marked-down")) {
-				if (!strcmp(args[cur_arg + 1], "shutdown-sessions"))
+			else if (strcmp(args[cur_arg], "on-marked-down") == 0) {
+				if (strcmp(args[cur_arg + 1], "shutdown-sessions") == 0)
 					newsrv->onmarkeddown = HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS;
 				else {
 					ha_alert("parsing [%s:%d]: '%s' expects 'shutdown-sessions' but got '%s'\n",
@@ -2354,8 +2354,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "on-marked-up")) {
-				if (!strcmp(args[cur_arg + 1], "shutdown-backup-sessions"))
+			else if (strcmp(args[cur_arg], "on-marked-up") == 0) {
+				if (strcmp(args[cur_arg + 1], "shutdown-backup-sessions") == 0)
 					newsrv->onmarkedup = HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS;
 				else {
 					ha_alert("parsing [%s:%d]: '%s' expects 'shutdown-backup-sessions' but got '%s'\n",
@@ -2366,7 +2366,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "error-limit")) {
+			else if (strcmp(args[cur_arg], "error-limit") == 0) {
 				if (!*args[cur_arg + 1]) {
 					ha_alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
 						file, linenum, args[cur_arg]);
@@ -2384,7 +2384,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 				cur_arg += 2;
 			}
-			else if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside: needs "source" first */
+			else if (strcmp(args[cur_arg], "usesrc") == 0) {  /* address to use outside: needs "source" first */
 				ha_alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
 				      file, linenum, "usesrc", "source");
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -2910,11 +2910,11 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			server_recalc_eweight(srv, 1);
 
 			/* load server IP address */
-			if (strcmp(params[0], "-"))
+			if (strcmp(params[0], "-") != 0)
 				srv->lastaddr = strdup(params[0]);
 
 			if (fqdn && srv->hostname) {
-				if (!strcmp(srv->hostname, fqdn)) {
+				if (strcmp(srv->hostname, fqdn) == 0) {
 					/* Here we reset the 'set from stats socket FQDN' flag
 					 * to support such transitions:
 					 * Let's say initial FQDN value is foo1 (in configuration file).
@@ -4081,7 +4081,7 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int dns_locked)
 	resolution = srv->dns_requester->resolution;
 	if (resolution &&
 	    resolution->hostname_dn &&
-	    !strcmp(resolution->hostname_dn, hostname_dn))
+	    strcmp(resolution->hostname_dn, hostname_dn) == 0)
 		goto end;
 
 	dns_unlink_resolution(srv->dns_requester);
@@ -4256,7 +4256,7 @@ const char *update_server_fqdn(struct server *server, const char *fqdn, const ch
 	msg = get_trash_chunk();
 	chunk_reset(msg);
 
-	if (server->hostname && !strcmp(fqdn, server->hostname)) {
+	if (server->hostname && strcmp(fqdn, server->hostname) == 0) {
 		chunk_appendf(msg, "no need to change the FDQN");
 		goto out;
 	}

@@ -337,10 +337,10 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 				return NULL;
 			}
 		}
-		else if (!strcmp(args[cur_arg],"drop-query")) {
+		else if (strcmp(args[cur_arg], "drop-query") == 0) {
 			flags |= REDIRECT_FLAG_DROP_QS;
 		}
-		else if (!strcmp(args[cur_arg],"append-slash")) {
+		else if (strcmp(args[cur_arg], "append-slash") == 0) {
 			flags |= REDIRECT_FLAG_APPEND_SLASH;
 		}
 		else if (strcmp(args[cur_arg], "if") == 0 ||

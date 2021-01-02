@@ -913,7 +913,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 				goto error;
 			}
 			if (p->uri_auth && p->uri_auth->userlist &&
-			    !strcmp(p->uri_auth->userlist->name, argp[idx].data.str.area))
+			    strcmp(p->uri_auth->userlist->name, argp[idx].data.str.area) == 0)
 				ul = p->uri_auth->userlist;
 			else
 				ul = auth_find_userlist(argp[idx].data.str.area);

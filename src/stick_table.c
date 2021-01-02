@@ -71,7 +71,7 @@ struct stktable *stktable_find_by_name(const char *name)
 	node = ebis_lookup(&stktable_by_name, name);
 	if (node) {
 		t = container_of(node, struct stktable, name);
-		if (!strcmp(t->id, name))
+		if (strcmp(t->id, name) == 0)
 			return t;
 	}
 

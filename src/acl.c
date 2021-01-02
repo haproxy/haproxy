@@ -1026,11 +1026,11 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct list *known_a
 	if (err)
 		*err = NULL;
 
-	if (!strcmp(*args, "if")) {
+	if (strcmp(*args, "if") == 0) {
 		pol = ACL_COND_IF;
 		args++;
 	}
-	else if (!strcmp(*args, "unless")) {
+	else if (strcmp(*args, "unless") == 0) {
 		pol = ACL_COND_UNLESS;
 		args++;
 	}
@@ -1229,7 +1229,7 @@ int acl_find_targets(struct proxy *p)
 
 	list_for_each_entry(acl, &p->acl, list) {
 		list_for_each_entry(expr, &acl->expr, list) {
-			if (!strcmp(expr->kw, "http_auth_group")) {
+			if (strcmp(expr->kw, "http_auth_group") == 0) {
 				/* Note: the ARGT_USR argument may only have been resolved earlier
 				 * by smp_resolve_args().
 				 */

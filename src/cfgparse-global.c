@@ -34,21 +34,21 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	int err_code = 0;
 	char *errmsg = NULL;
 
-	if (!strcmp(args[0], "global")) {  /* new section */
+	if (strcmp(args[0], "global") == 0) {  /* new section */
 		/* no option, nothing special to do */
 		alertif_too_many_args(0, file, linenum, args, &err_code);
 		goto out;
 	}
-	else if (!strcmp(args[0], "daemon")) {
+	else if (strcmp(args[0], "daemon") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.mode |= MODE_DAEMON;
 	}
-	else if (!strcmp(args[0], "master-worker")) {
+	else if (strcmp(args[0], "master-worker") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*args[1]) {
-			if (!strcmp(args[1], "no-exit-on-failure")) {
+			if (strcmp(args[1], "no-exit-on-failure") == 0) {
 				global.tune.options |= GTUNE_NOEXIT_ONFAILURE;
 			} else {
 				ha_alert("parsing [%s:%d] : '%s' only supports 'no-exit-on-failure' option.\n", file, linenum, args[0]);
@@ -58,27 +58,27 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.mode |= MODE_MWORKER;
 	}
-	else if (!strcmp(args[0], "noepoll")) {
+	else if (strcmp(args[0], "noepoll") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.tune.options &= ~GTUNE_USE_EPOLL;
 	}
-	else if (!strcmp(args[0], "nokqueue")) {
+	else if (strcmp(args[0], "nokqueue") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.tune.options &= ~GTUNE_USE_KQUEUE;
 	}
-	else if (!strcmp(args[0], "noevports")) {
+	else if (strcmp(args[0], "noevports") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.tune.options &= ~GTUNE_USE_EVPORTS;
 	}
-	else if (!strcmp(args[0], "nopoll")) {
+	else if (strcmp(args[0], "nopoll") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.tune.options &= ~GTUNE_USE_POLL;
 	}
-	else if (!strcmp(args[0], "busy-polling")) { /* "no busy-polling" or "busy-polling" */
+	else if (strcmp(args[0], "busy-polling") == 0) { /* "no busy-polling" or "busy-polling" */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		if (kwm == KWM_NO)
@@ -86,7 +86,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		else
 			global.tune.options |=  GTUNE_BUSY_POLLING;
 	}
-	else if (!strcmp(args[0], "set-dumpable")) { /* "no set-dumpable" or "set-dumpable" */
+	else if (strcmp(args[0], "set-dumpable") == 0) { /* "no set-dumpable" or "set-dumpable" */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		if (kwm == KWM_NO)
@@ -94,7 +94,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		else
 			global.tune.options |=  GTUNE_SET_DUMPABLE;
 	}
-	else if (!strcmp(args[0], "insecure-fork-wanted")) { /* "no insecure-fork-wanted" or "insecure-fork-wanted" */
+	else if (strcmp(args[0], "insecure-fork-wanted") == 0) { /* "no insecure-fork-wanted" or "insecure-fork-wanted" */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		if (kwm == KWM_NO)
@@ -102,7 +102,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		else
 			global.tune.options |=  GTUNE_INSECURE_FORK;
 	}
-	else if (!strcmp(args[0], "insecure-setuid-wanted")) { /* "no insecure-setuid-wanted" or "insecure-setuid-wanted" */
+	else if (strcmp(args[0], "insecure-setuid-wanted") == 0) { /* "no insecure-setuid-wanted" or "insecure-setuid-wanted" */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		if (kwm == KWM_NO)
@@ -110,32 +110,32 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		else
 			global.tune.options |=  GTUNE_INSECURE_SETUID;
 	}
-	else if (!strcmp(args[0], "nosplice")) {
+	else if (strcmp(args[0], "nosplice") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.tune.options &= ~GTUNE_USE_SPLICE;
 	}
-	else if (!strcmp(args[0], "nogetaddrinfo")) {
+	else if (strcmp(args[0], "nogetaddrinfo") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.tune.options &= ~GTUNE_USE_GAI;
 	}
-	else if (!strcmp(args[0], "noreuseport")) {
+	else if (strcmp(args[0], "noreuseport") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.tune.options &= ~GTUNE_USE_REUSEPORT;
 	}
-	else if (!strcmp(args[0], "quiet")) {
+	else if (strcmp(args[0], "quiet") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.mode |= MODE_QUIET;
 	}
-	else if (!strcmp(args[0], "zero-warning")) {
+	else if (strcmp(args[0], "zero-warning") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.mode |= MODE_ZERO_WARNING;
 	}
-	else if (!strcmp(args[0], "tune.runqueue-depth")) {
+	else if (strcmp(args[0], "tune.runqueue-depth") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.tune.runqueue_depth != 0) {
@@ -151,7 +151,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.runqueue_depth = atol(args[1]);
 
 	}
-	else if (!strcmp(args[0], "tune.maxpollevents")) {
+	else if (strcmp(args[0], "tune.maxpollevents") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.tune.maxpollevents != 0) {
@@ -166,7 +166,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.maxpollevents = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "tune.maxaccept")) {
+	else if (strcmp(args[0], "tune.maxaccept") == 0) {
 		long max;
 
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
@@ -189,11 +189,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.maxaccept = max;
 	}
-	else if (!strcmp(args[0], "tune.chksize")) {
+	else if (strcmp(args[0], "tune.chksize") == 0) {
 		ha_warning("parsing [%s:%d]: the option '%s' is deprecated and will be removed in next version.\n",
 			   file, linenum, args[0]);
 	}
-	else if (!strcmp(args[0], "tune.recv_enough")) {
+	else if (strcmp(args[0], "tune.recv_enough") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -203,7 +203,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.recv_enough = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "tune.buffers.limit")) {
+	else if (strcmp(args[0], "tune.buffers.limit") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -219,7 +219,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				global.tune.buf_limit = global.tune.reserved_bufs + 1;
 		}
 	}
-	else if (!strcmp(args[0], "tune.buffers.reserve")) {
+	else if (strcmp(args[0], "tune.buffers.reserve") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -233,7 +233,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if (global.tune.buf_limit && global.tune.buf_limit <= global.tune.reserved_bufs)
 			global.tune.buf_limit = global.tune.reserved_bufs + 1;
 	}
-	else if (!strcmp(args[0], "tune.bufsize")) {
+	else if (strcmp(args[0], "tune.bufsize") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -250,7 +250,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "tune.maxrewrite")) {
+	else if (strcmp(args[0], "tune.maxrewrite") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -265,7 +265,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "tune.idletimer")) {
+	else if (strcmp(args[0], "tune.idletimer") == 0) {
 		unsigned int idle;
 		const char *res;
 
@@ -304,7 +304,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.idle_timer = idle;
 	}
-	else if (!strcmp(args[0], "tune.rcvbuf.client")) {
+	else if (strcmp(args[0], "tune.rcvbuf.client") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.tune.client_rcvbuf != 0) {
@@ -319,7 +319,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.client_rcvbuf = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "tune.rcvbuf.server")) {
+	else if (strcmp(args[0], "tune.rcvbuf.server") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.tune.server_rcvbuf != 0) {
@@ -334,7 +334,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.server_rcvbuf = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "tune.sndbuf.client")) {
+	else if (strcmp(args[0], "tune.sndbuf.client") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.tune.client_sndbuf != 0) {
@@ -349,7 +349,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.client_sndbuf = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "tune.sndbuf.server")) {
+	else if (strcmp(args[0], "tune.sndbuf.server") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.tune.server_sndbuf != 0) {
@@ -364,7 +364,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.server_sndbuf = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "tune.pipesize")) {
+	else if (strcmp(args[0], "tune.pipesize") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -374,7 +374,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.pipesize = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "tune.http.cookielen")) {
+	else if (strcmp(args[0], "tune.http.cookielen") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -384,7 +384,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.cookie_len = atol(args[1]) + 1;
 	}
-	else if (!strcmp(args[0], "tune.http.logurilen")) {
+	else if (strcmp(args[0], "tune.http.logurilen") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -394,7 +394,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.requri_len = atol(args[1]) + 1;
 	}
-	else if (!strcmp(args[0], "tune.http.maxhdr")) {
+	else if (strcmp(args[0], "tune.http.maxhdr") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -410,7 +410,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "tune.comp.maxlevel")) {
+	else if (strcmp(args[0], "tune.comp.maxlevel") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*args[1]) {
@@ -428,7 +428,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "tune.pattern.cache-size")) {
+	else if (strcmp(args[0], "tune.pattern.cache-size") == 0) {
 		if (*args[1]) {
 			global.tune.pattern_cache = atoi(args[1]);
 			if (global.tune.pattern_cache < 0) {
@@ -444,7 +444,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "uid")) {
+	else if (strcmp(args[0], "uid") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.uid != 0) {
@@ -464,7 +464,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 
 	}
-	else if (!strcmp(args[0], "gid")) {
+	else if (strcmp(args[0], "gid") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.gid != 0) {
@@ -483,13 +483,13 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "external-check")) {
+	else if (strcmp(args[0], "external-check") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		global.external_check = 1;
 	}
 	/* user/group name handling */
-	else if (!strcmp(args[0], "user")) {
+	else if (strcmp(args[0], "user") == 0) {
 		struct passwd *ha_user;
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
@@ -508,7 +508,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
-	else if (!strcmp(args[0], "group")) {
+	else if (strcmp(args[0], "group") == 0) {
 		struct group *ha_group;
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
@@ -528,7 +528,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	/* end of user/group name handling*/
-	else if (!strcmp(args[0], "nbproc")) {
+	else if (strcmp(args[0], "nbproc") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -545,7 +545,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "nbthread")) {
+	else if (strcmp(args[0], "nbthread") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -561,7 +561,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "maxconn")) {
+	else if (strcmp(args[0], "maxconn") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.maxconn != 0) {
@@ -583,7 +583,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 #endif /* SYSTEM_MAXCONN */
 	}
-	else if (!strcmp(args[0], "ssl-server-verify")) {
+	else if (strcmp(args[0], "ssl-server-verify") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -601,7 +601,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	                goto out;
 		}
 	}
-	else if (!strcmp(args[0], "maxconnrate")) {
+	else if (strcmp(args[0], "maxconnrate") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.cps_lim != 0) {
@@ -616,7 +616,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.cps_lim = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "maxsessrate")) {
+	else if (strcmp(args[0], "maxsessrate") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.sps_lim != 0) {
@@ -631,7 +631,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.sps_lim = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "maxsslrate")) {
+	else if (strcmp(args[0], "maxsslrate") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.ssl_lim != 0) {
@@ -646,7 +646,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.ssl_lim = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "maxcomprate")) {
+	else if (strcmp(args[0], "maxcomprate") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -656,7 +656,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.comp_rate_lim = atoi(args[1]) * 1024;
 	}
-	else if (!strcmp(args[0], "maxpipes")) {
+	else if (strcmp(args[0], "maxpipes") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.maxpipes != 0) {
@@ -671,7 +671,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.maxpipes = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "maxzlibmem")) {
+	else if (strcmp(args[0], "maxzlibmem") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -681,7 +681,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.maxzlibmem = atol(args[1]) * 1024L * 1024L;
 	}
-	else if (!strcmp(args[0], "maxcompcpuusage")) {
+	else if (strcmp(args[0], "maxcompcpuusage") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -697,7 +697,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 
-	else if (!strcmp(args[0], "ulimit-n")) {
+	else if (strcmp(args[0], "ulimit-n") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.rlimit_nofile != 0) {
@@ -712,7 +712,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.rlimit_nofile = atol(args[1]);
 	}
-	else if (!strcmp(args[0], "chroot")) {
+	else if (strcmp(args[0], "chroot") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.chroot != NULL) {
@@ -727,7 +727,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.chroot = strdup(args[1]);
 	}
-	else if (!strcmp(args[0], "description")) {
+	else if (strcmp(args[0], "description") == 0) {
 		int i, len=0;
 		char *d;
 
@@ -750,7 +750,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		for (i = 2; *args[i]; i++)
 			d += snprintf(d, global.desc + len - d, " %s", args[i]);
 	}
-	else if (!strcmp(args[0], "node")) {
+	else if (strcmp(args[0], "node") == 0) {
 		int i;
 		char c;
 
@@ -777,7 +777,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 		global.node = strdup(args[1]);
 	}
-	else if (!strcmp(args[0], "pidfile")) {
+	else if (strcmp(args[0], "pidfile") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.pidfile != NULL) {
@@ -792,10 +792,10 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.pidfile = strdup(args[1]);
 	}
-	else if (!strcmp(args[0], "unix-bind")) {
+	else if (strcmp(args[0], "unix-bind") == 0) {
 		int cur_arg = 1;
 		while (*(args[cur_arg])) {
-			if (!strcmp(args[cur_arg], "prefix")) {
+			if (strcmp(args[cur_arg], "prefix") == 0) {
 				if (global.unix_bind.prefix != NULL) {
 					ha_alert("parsing [%s:%d] : unix-bind '%s' already specified. Continuing.\n", file, linenum, args[cur_arg]);
 					err_code |= ERR_ALERT;
@@ -813,28 +813,28 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				continue;
 			}
 
-			if (!strcmp(args[cur_arg], "mode")) {
+			if (strcmp(args[cur_arg], "mode") == 0) {
 
 				global.unix_bind.ux.mode = strtol(args[cur_arg + 1], NULL, 8);
                                 cur_arg += 2;
 				continue;
 			}
 
-			if (!strcmp(args[cur_arg], "uid")) {
+			if (strcmp(args[cur_arg], "uid") == 0) {
 
 				global.unix_bind.ux.uid = atol(args[cur_arg + 1 ]);
                                 cur_arg += 2;
 				continue;
                         }
 
-			if (!strcmp(args[cur_arg], "gid")) {
+			if (strcmp(args[cur_arg], "gid") == 0) {
 
 				global.unix_bind.ux.gid = atol(args[cur_arg + 1 ]);
                                 cur_arg += 2;
 				continue;
                         }
 
-			if (!strcmp(args[cur_arg], "user")) {
+			if (strcmp(args[cur_arg], "user") == 0) {
 				struct passwd *user;
 
 				user = getpwnam(args[cur_arg + 1]);
@@ -850,7 +850,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				continue;
                         }
 
-			if (!strcmp(args[cur_arg], "group")) {
+			if (strcmp(args[cur_arg], "group") == 0) {
 				struct group *group;
 
 				group = getgrnam(args[cur_arg + 1]);
@@ -872,14 +872,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
                 }
 	}
-	else if (!strcmp(args[0], "log")) { /* "no log" or "log ..." */
+	else if (strcmp(args[0], "log") == 0) { /* "no log" or "log ..." */
 		if (!parse_logsrv(args, &global.logsrvs, (kwm == KWM_NO), &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "log-send-hostname")) { /* set the hostname in syslog header */
+	else if (strcmp(args[0], "log-send-hostname") == 0) { /* set the hostname in syslog header */
 		char *name;
 
 		if (global.log_send_hostname != NULL) {
@@ -896,7 +896,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		free(global.log_send_hostname);
 		global.log_send_hostname = strdup(name);
 	}
-	else if (!strcmp(args[0], "server-state-base")) { /* path base where HAProxy can find server state files */
+	else if (strcmp(args[0], "server-state-base") == 0) { /* path base where HAProxy can find server state files */
 		if (global.server_state_base != NULL) {
 			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -911,7 +911,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 		global.server_state_base = strdup(args[1]);
 	}
-	else if (!strcmp(args[0], "server-state-file")) { /* path to the file where HAProxy can load the server states */
+	else if (strcmp(args[0], "server-state-file") == 0) { /* path to the file where HAProxy can load the server states */
 		if (global.server_state_file != NULL) {
 			ha_alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT;
@@ -926,7 +926,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 		global.server_state_file = strdup(args[1]);
 	}
-	else if (!strcmp(args[0], "log-tag")) {  /* tag to report to syslog */
+	else if (strcmp(args[0], "log-tag") == 0) {  /* tag to report to syslog */
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (*(args[1]) == 0) {
@@ -943,7 +943,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "spread-checks")) {  /* random time between checks (0-50) */
+	else if (strcmp(args[0], "spread-checks") == 0) {  /* random time between checks (0-50) */
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 		if (global.spread_checks != 0) {
@@ -962,7 +962,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
-	else if (!strcmp(args[0], "max-spread-checks")) {  /* maximum time between first and last check */
+	else if (strcmp(args[0], "max-spread-checks") == 0) {  /* maximum time between first and last check */
 		const char *err;
 		unsigned int val;
 
@@ -1138,7 +1138,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
-	else if (!strcmp(args[0], "unsetenv")) {
+	else if (strcmp(args[0], "unsetenv") == 0) {
 		int arg;
 
 		if (*(args[1]) == 0) {
@@ -1155,7 +1155,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 	}
-	else if (!strcmp(args[0], "resetenv")) {
+	else if (strcmp(args[0], "resetenv") == 0) {
 		extern char **environ;
 		char **env = environ;
 
@@ -1193,13 +1193,13 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				env++;
 		}
 	}
-	else if (!strcmp(args[0], "strict-limits")) { /* "no strict-limits" or "strict-limits" */
+	else if (strcmp(args[0], "strict-limits") == 0) { /* "no strict-limits" or "strict-limits" */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
 		if (kwm == KWM_NO)
 			global.tune.options &= ~GTUNE_STRICT_LIMITS;
 	}
-	else if (!strcmp(args[0], "localpeer")) {
+	else if (strcmp(args[0], "localpeer") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 

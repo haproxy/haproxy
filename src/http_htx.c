@@ -1751,7 +1751,7 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 	}
 
 	status = atol(args[1]);
-	errloc = (!strcmp(args[0], "errorloc303") ? 303 : 302);
+	errloc = (strcmp(args[0], "errorloc303") == 0 ? 303 : 302);
 	msg = http_parse_errorloc(errloc, status, args[2], errmsg);
 	if (!msg) {
 		memprintf(errmsg, "%s : %s", args[0], *errmsg);
@@ -2184,7 +2184,7 @@ static int cfg_parse_http_errors(const char *file, int linenum, char **args, int
 		curr_errs->conf.file = strdup(file);
 		curr_errs->conf.line = linenum;
 	}
-	else if (!strcmp(args[0], "errorfile")) { /* error message from a file */
+	else if (strcmp(args[0], "errorfile") == 0) { /* error message from a file */
 		struct http_reply *reply;
 		struct buffer *msg;
 		int status, rc;
