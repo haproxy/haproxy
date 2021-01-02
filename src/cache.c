@@ -977,7 +977,6 @@ static void set_secondary_key_encoding(struct htx *htx, char *secondary_key)
 enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 					struct session *sess, struct stream *s, int flags)
 {
-	long long hdr_age;
 	int effective_maxage = 0;
 	int true_maxage = 0;
 	struct http_txn *txn = s->txn;
@@ -1147,6 +1146,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 
 	ctx.blk = NULL;
 	if (http_find_header(htx, ist("Age"), &ctx, 0)) {
+		long long hdr_age;
 		if (!strl2llrc(ctx.value.ptr, ctx.value.len, &hdr_age) && hdr_age > 0) {
 			if (unlikely(hdr_age > CACHE_ENTRY_MAX_AGE))
 				hdr_age = CACHE_ENTRY_MAX_AGE;
