@@ -994,7 +994,6 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	struct http_hdr_ctx ctx;
 	size_t hdrs_len = 0;
 	int32_t pos;
-	struct ist header_name = IST_NULL;
 	unsigned int vary_signature = 0;
 
 	/* Don't cache if the response came from a cache */
@@ -1181,7 +1180,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 		 * future conditional requests to be able to perform ETag
 		 * comparisons. */
 		if (type == HTX_BLK_HDR) {
-			header_name = htx_get_blk_name(htx, blk);
+			struct ist header_name = htx_get_blk_name(htx, blk);
 			if (isteq(header_name, ist("etag"))) {
 				object->etag_length = sz - istlen(header_name);
 				object->etag_offset = sizeof(struct cache_entry) + b_data(&trash) - sz + istlen(header_name);
