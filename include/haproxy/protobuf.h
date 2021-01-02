@@ -94,37 +94,37 @@ static inline uint64_t pbuf_le64toh(uint64_t v)
 int protobuf_type(const char *s)
 {
 	/* varint types. */
-	if (!strcmp(s, "int32"))
+	if (strcmp(s, "int32") == 0)
 		return PBUF_T_VARINT_INT32;
-	else if (!strcmp(s, "uint32"))
+	else if (strcmp(s, "uint32") == 0)
 		return PBUF_T_VARINT_UINT32;
-	else if (!strcmp(s, "sint32"))
+	else if (strcmp(s, "sint32") == 0)
 		return PBUF_T_VARINT_SINT32;
-	else if (!strcmp(s, "int64"))
+	else if (strcmp(s, "int64") == 0)
 		return PBUF_T_VARINT_INT64;
-	else if (!strcmp(s, "uint64"))
+	else if (strcmp(s, "uint64") == 0)
 		return PBUF_T_VARINT_UINT64;
-	else if (!strcmp(s, "sint64"))
+	else if (strcmp(s, "sint64") == 0)
 		return PBUF_T_VARINT_SINT64;
-	else if (!strcmp(s, "bool"))
+	else if (strcmp(s, "bool") == 0)
 		return PBUF_T_VARINT_BOOL;
-	else if (!strcmp(s, "enum"))
+	else if (strcmp(s, "enum") == 0)
 		return PBUF_T_VARINT_ENUM;
 
 	/* 32bit fixed size types. */
-	else if (!strcmp(s, "fixed32"))
+	else if (strcmp(s, "fixed32") == 0)
 		return PBUF_T_32BIT_FIXED32;
-	else if (!strcmp(s, "sfixed32"))
+	else if (strcmp(s, "sfixed32") == 0)
 		return PBUF_T_32BIT_SFIXED32;
-	else if (!strcmp(s, "float"))
+	else if (strcmp(s, "float") == 0)
 		return PBUF_T_32BIT_FLOAT;
 
 	/* 64bit fixed size types. */
-	else if (!strcmp(s, "fixed64"))
+	else if (strcmp(s, "fixed64") == 0)
 		return PBUF_T_64BIT_FIXED64;
-	else if (!strcmp(s, "sfixed64"))
+	else if (strcmp(s, "sfixed64") == 0)
 		return PBUF_T_64BIT_SFIXED64;
-	else if (!strcmp(s, "double"))
+	else if (strcmp(s, "double") == 0)
 		return PBUF_T_64BIT_DOUBLE;
 	else
 		return -1;

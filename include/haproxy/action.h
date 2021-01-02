@@ -43,7 +43,7 @@ static inline struct action_kw *action_lookup(struct list *keywords, const char 
 			if (kw_list->kw[i].match_pfx &&
 			    strncmp(kw, kw_list->kw[i].kw, strlen(kw_list->kw[i].kw)) == 0)
 				return &kw_list->kw[i];
-			if (!strcmp(kw, kw_list->kw[i].kw))
+			if (strcmp(kw, kw_list->kw[i].kw) == 0)
 				return &kw_list->kw[i];
 		}
 	}
