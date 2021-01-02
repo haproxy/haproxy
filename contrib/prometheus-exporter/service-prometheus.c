@@ -2394,7 +2394,7 @@ static int promex_parse_uri(struct appctx *appctx, struct stream_interface *si)
 				goto error;
 		}
 
-		if (!strcmp(key, "scope")) {
+		if (strcmp(key, "scope") == 0) {
 			default_scopes = 0; /* at least a scope defined, unset default scopes */
 			if (!value)
 				goto error;
@@ -2402,18 +2402,18 @@ static int promex_parse_uri(struct appctx *appctx, struct stream_interface *si)
 				appctx->ctx.stats.flags &= ~PROMEX_FL_SCOPE_ALL;
 			else if (*value == '*')
 				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_ALL;
-			else if (!strcmp(value, "global"))
+			else if (strcmp(value, "global") == 0)
 				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_GLOBAL;
-			else if (!strcmp(value, "server"))
+			else if (strcmp(value, "server") == 0)
 				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_SERVER;
-			else if (!strcmp(value, "backend"))
+			else if (strcmp(value, "backend") == 0)
 				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_BACK;
-			else if (!strcmp(value, "frontend"))
+			else if (strcmp(value, "frontend") == 0)
 				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_FRONT;
 			else
 				goto error;
 		}
-		else if (!strcmp(key, "no-maint"))
+		else if (strcmp(key, "no-maint") == 0)
 			appctx->ctx.stats.flags |= PROMEX_FL_NO_MAINT_SRV;
 	}
 

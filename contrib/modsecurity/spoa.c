@@ -1049,7 +1049,7 @@ use_spoe_engine(struct client *client)
 		return;
 
 	list_for_each_entry(eng, &client->worker->engines, list) {
-		if (!strcmp(eng->id, client->engine_id))
+		if (strcmp(eng->id, client->engine_id) == 0)
 			goto end;
 	}
 
@@ -1773,11 +1773,11 @@ main(int argc, char **argv)
 				configuration_file = optarg;
 				break;
 			case 'c':
-				if (!strcmp(optarg, "pipelining"))
+				if (strcmp(optarg, "pipelining") == 0)
 					pipelining = true;
-				else if (!strcmp(optarg, "async"))
+				else if (strcmp(optarg, "async") == 0)
 					async = true;
-				else if (!strcmp(optarg, "fragmentation"))
+				else if (strcmp(optarg, "fragmentation") == 0)
 					fragmentation = true;
 				else
 					fprintf(stderr, "WARNING: unsupported capability '%s'\n", optarg);

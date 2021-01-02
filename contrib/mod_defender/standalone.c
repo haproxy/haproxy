@@ -863,7 +863,7 @@ static const command_rec *find_command(const char *name,
                                        const command_rec *cmds)
 {
 	while (cmds->name) {
-		if (!strcasecmp(name, cmds->name))
+		if (strcasecmp(name, cmds->name) == 0)
 			return cmds;
 		++cmds;
 	}
@@ -1044,7 +1044,7 @@ static const char *invoke_cmd(const command_rec *cmd, cmd_parms *parms,
 		 */
 		w = getword_conf(parms->temp_pool, &args);
 
-		if (*w == '\0' || (strcasecmp(w, "on") && strcasecmp(w, "off")))
+		if (*w == '\0' || (strcasecmp(w, "on") != 0 && strcasecmp(w, "off") != 0))
 			return apr_pstrcat(parms->pool, cmd->name, " must be On or Off",
 			                   NULL);
 
@@ -1151,8 +1151,8 @@ static const char *process_resource_config_nofnmatch(const char *fname,
 		candidates = apr_array_make(ptemp, 1, sizeof(fnames));
 		while (apr_dir_read(&dirent, APR_FINFO_DIRENT, dirp) == APR_SUCCESS) {
 			/* strip out '.' and '..' */
-			if (strcmp(dirent.name, ".")
-			    && strcmp(dirent.name, "..")) {
+			if (strcmp(dirent.name, ".") != 0
+			    && strcmp(dirent.name, "..") != 0) {
 				fnew = (fnames *) apr_array_push(candidates);
 				fnew->fname = make_full_path(ptemp, path, dirent.name);
 			}
@@ -1236,8 +1236,8 @@ static const char *process_resource_config_fnmatch(const char *path,
 	candidates = apr_array_make(ptemp, 1, sizeof(fnames));
 	while (apr_dir_read(&dirent, APR_FINFO_DIRENT | APR_FINFO_TYPE, dirp) == APR_SUCCESS) {
 		/* strip out '.' and '..' */
-		if (strcmp(dirent.name, ".")
-		    && strcmp(dirent.name, "..")
+		if (strcmp(dirent.name, ".") != 0
+		    && strcmp(dirent.name, "..") != 0
 		    && (apr_fnmatch(fname, dirent.name,
 			                APR_FNM_PERIOD) == APR_SUCCESS)) {
 			const char *full_path = make_full_path(ptemp, path, dirent.name);
@@ -1388,12 +1388,12 @@ const char *read_module_config(server_rec *s, void *mconfig,
 				continue;
 
 			/* similar to invoke_cmd() */
-			if (!strcasecmp(cmd_name, "IncludeOptional") ||
-			    !strcasecmp(cmd_name, "Include"))
+			if (strcasecmp(cmd_name, "IncludeOptional") == 0 ||
+			    strcasecmp(cmd_name, "Include") == 0)
 			{
 				char *w, *fullname;
 
-				if (!strcasecmp(cmd_name, "IncludeOptional"))
+				if (strcasecmp(cmd_name, "IncludeOptional") == 0)
 					optional = 1;
 
 				w = getword_conf(parms->pool, &args);
