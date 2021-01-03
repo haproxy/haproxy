@@ -8362,22 +8362,22 @@ static int hlua_config_prepend_path(char **args, int section_type, struct proxy 
 {
 	char *path;
 	char *type = "path";
-	struct prepend_path *p;
+	struct prepend_path *p = NULL;
 
 	if (too_many_args(2, args, err, NULL)) {
-		return -1;
+		goto err;
 	}
 
 	if (!(*args[1])) {
 		memprintf(err, "'%s' expects to receive a <path> as argument", args[0]);
-		return -1;
+		goto err;
 	}
 	path = args[1];
 
 	if (*args[2]) {
 		if (strcmp(args[2], "path") != 0 && strcmp(args[2], "cpath") != 0) {
 			memprintf(err, "'%s' expects <type> to either be 'path' or 'cpath'", args[0]);
-			return -1;
+			goto err;
 		}
 		type = args[2];
 	}
@@ -8385,23 +8385,30 @@ static int hlua_config_prepend_path(char **args, int section_type, struct proxy 
 	p = calloc(1, sizeof(*p));
 	if (p == NULL) {
 		memprintf(err, "out of memory error");
-		return -1;
+		goto err;
 	}
 	p->path = strdup(path);
 	if (p->path == NULL) {
 		memprintf(err, "out of memory error");
-		return -1;
+		goto err2;
 	}
 	p->type = strdup(type);
 	if (p->type == NULL) {
 		memprintf(err, "out of memory error");
-		return -1;
+		goto err2;
 	}
 	LIST_ADDQ(&prepend_path_list, &p->l);
 
 	hlua_prepend_path(hlua_states[0], type, path);
 	hlua_prepend_path(hlua_states[1], type, path);
 	return 0;
+
+err2:
+	free(p->type);
+	free(p->path);
+err:
+	free(p);
+	return -1;
 }
 
 /* configuration keywords declaration */
