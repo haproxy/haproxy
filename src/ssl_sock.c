@@ -6360,17 +6360,14 @@ struct tls_keys_ref *tlskeys_list_get_next(struct tls_keys_ref *getnext, struct 
 {
 	struct tls_keys_ref *ref = getnext;
 
-	while (1) {
+	/* Get next list entry. */
+	ref = LIST_NEXT(&ref->list, struct tls_keys_ref *, list);
 
-		/* Get next list entry. */
-		ref = LIST_NEXT(&ref->list, struct tls_keys_ref *, list);
+	/* If the entry is the last of the list, return NULL. */
+	if (&ref->list == end)
+		return NULL;
 
-		/* If the entry is the last of the list, return NULL. */
-		if (&ref->list == end)
-			return NULL;
-
-		return ref;
-	}
+	return ref;
 }
 
 static inline
