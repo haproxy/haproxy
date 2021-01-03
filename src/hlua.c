@@ -8384,17 +8384,17 @@ static int hlua_config_prepend_path(char **args, int section_type, struct proxy 
 
 	p = calloc(1, sizeof(*p));
 	if (p == NULL) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "memory allocation failed");
 		goto err;
 	}
 	p->path = strdup(path);
 	if (p->path == NULL) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "memory allocation failed");
 		goto err2;
 	}
 	p->type = strdup(type);
 	if (p->type == NULL) {
-		memprintf(err, "out of memory error");
+		memprintf(err, "memory allocation failed");
 		goto err2;
 	}
 	LIST_ADDQ(&prepend_path_list, &p->l);
