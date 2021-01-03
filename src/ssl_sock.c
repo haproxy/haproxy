@@ -6356,10 +6356,8 @@ static int ssl_check_async_engine_count(void) {
  */
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 static inline
-struct tls_keys_ref *tlskeys_list_get_next(struct tls_keys_ref *getnext, struct list *end)
+struct tls_keys_ref *tlskeys_list_get_next(struct tls_keys_ref *ref, struct list *end)
 {
-	struct tls_keys_ref *ref = getnext;
-
 	/* Get next list entry. */
 	ref = LIST_NEXT(&ref->list, struct tls_keys_ref *, list);
 
