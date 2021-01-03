@@ -1510,6 +1510,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 		rule->cond = cond;
 		rule->be.name = strdup(args[1]);
+		if (!rule->be.name) {
+			ha_alert("Out of memory error.\n");
+			goto out;
+		}
 		rule->line = linenum;
 		rule->file = strdup(file);
 		if (!rule->file) {
