@@ -63,7 +63,13 @@ static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 		goto end;
 
 	sink->name = strdup(name);
+	if (!sink->name)
+		goto err;
+
 	sink->desc = strdup(desc);
+	if (!sink->desc)
+		goto err;
+
 	sink->fmt  = fmt;
 	sink->type = SINK_TYPE_NEW;
 	sink->maxlen = BUFSIZE;
@@ -74,6 +80,13 @@ static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 	LIST_ADDQ(&sink_list, &sink->sink_list);
  end:
 	return sink;
+
+ err:
+	free(sink->name); sink->name = NULL;
+	free(sink->desc); sink->desc = NULL;
+	free(sink); sink = NULL;
+
+	return NULL;
 }
 
 /* creates a sink called <name> of type FD associated to fd <fd>, format <fmt>,
