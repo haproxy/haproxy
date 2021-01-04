@@ -95,6 +95,9 @@ extern struct pool_head *resolv_requester_pool;
 /* DNS header size */
 #define DNS_HEADER_SIZE  ((int)sizeof(struct dns_header))
 
+#define DNS_TCP_MSG_MAX_SIZE 65535
+#define DNS_TCP_MSG_RING_MAX_SIZE (1 + 1 + 3 + DNS_TCP_MSG_MAX_SIZE) // varint_bytes(DNS_TCP_MSG_MAX_SIZE) == 3
+
 /* DNS request or response header structure */
 struct dns_header {
 	uint16_t id;
@@ -196,6 +199,12 @@ struct resolvers {
 	} conf;                             /* config information */
 };
 
+struct dns_dgram_server {
+	struct dgram_conn conn;  /* transport layer */
+	struct ring *ring_req;
+	size_t ofs_req;           // ring buffer reader offset
+};
+
 /* Structure describing a name server used during name resolution.
  * A name server belongs to a resolvers section.
  */
@@ -207,8 +216,8 @@ struct dns_nameserver {
 		int         line;       /* line where the section appears */
 	} conf;                         /* config information */
 
-	struct dgram_conn      *dgram;  /* transport layer */
-	struct sockaddr_storage addr;   /* IP address */
+	int (*process_responses)(struct dns_nameserver *ns); /* callback used to process responses */
+	struct dns_dgram_server *dgram;  /* used for dgram dns */
 
 	EXTRA_COUNTERS(extra_counters);
 	struct dns_counters *counters;
