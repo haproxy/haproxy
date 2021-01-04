@@ -201,12 +201,12 @@ struct resolvers {
  */
 struct dns_nameserver {
 	char *id;                       /* nameserver unique identifier */
+	void *parent;
 	struct {
 		const char *file;       /* file where the section appears */
 		int         line;       /* line where the section appears */
 	} conf;                         /* config information */
 
-	struct resolvers       *resolvers;
 	struct dgram_conn      *dgram;  /* transport layer */
 	struct sockaddr_storage addr;   /* IP address */
 

@@ -275,13 +275,13 @@ static int dns_connect_namesaver(struct dns_nameserver *ns)
 	if ((fd = socket(ns->addr.ss_family, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 		send_log(NULL, LOG_WARNING,
 			 "DNS : resolvers '%s': can't create socket for nameserver '%s'.\n",
-			 ns->resolvers->id, ns->id);
+			 ns->counters->pid, ns->id);
 		return -1;
 	}
 	if (connect(fd, (struct sockaddr*)&ns->addr, get_addr_len(&ns->addr)) == -1) {
 		send_log(NULL, LOG_WARNING,
 			 "DNS : resolvers '%s': can't connect socket for nameserver '%s'.\n",
-			 ns->resolvers->id, ns->id);
+			 ns->counters->id, ns->id);
 		close(fd);
 		return -1;
 	}
@@ -1901,7 +1901,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 		return;
 	}
 
-	resolvers = ns->resolvers;
+	resolvers = ns->parent;
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	/* process all pending input messages */
@@ -2092,7 +2092,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 	if ((ns = dgram->owner) == NULL)
 		return;
 
-	resolvers = ns->resolvers;
+	resolvers = ns->parent;
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
 
 	list_for_each_entry(res, &resolvers->resolutions.curr, list) {
@@ -2318,12 +2318,6 @@ static int resolvers_finalize_config(void)
 			dgram->t.sock.fd = -1;
 			ns->dgram        = dgram;
 
-			/* Store the ns counters pointer */
-			if (ns->extra_counters) {
-				ns->counters = EXTRA_COUNTERS_GET(ns->extra_counters, &dns_stats_module);
-				ns->counters->id = ns->id;
-				ns->counters->pid = ns->resolvers->id;
-			}
 		}
 
 		/* Create the task associated to the resolvers section */
@@ -2512,7 +2506,7 @@ int dns_allocate_counters(struct list *stat_modules)
 				if (strcmp(mod->name, "dns") == 0) {
 					ns->counters = (struct dns_counters *)ns->extra_counters->data + mod->counters_off[COUNTERS_DNS];
 					ns->counters->id = ns->id;
-					ns->counters->pid = ns->resolvers->id;
+					ns->counters->pid = resolvers->id;
 				}
 			}
 		}
@@ -3042,7 +3036,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 
 		/* the nameservers are linked backward first */
 		LIST_ADDQ(&curr_resolvers->nameservers, &newnameserver->list);
-		newnameserver->resolvers = curr_resolvers;
+		newnameserver->parent = curr_resolvers;
 		newnameserver->conf.file = strdup(file);
 		newnameserver->conf.line = linenum;
 		newnameserver->id = strdup(args[1]);
@@ -3160,7 +3154,7 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 				goto resolv_out;
 			}
 
-			newnameserver->resolvers = curr_resolvers;
+			newnameserver->parent = curr_resolvers;
 			newnameserver->conf.line = resolv_linenum;
 			newnameserver->addr = *sk;
 
