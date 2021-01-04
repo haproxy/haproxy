@@ -59,6 +59,8 @@ unsigned int dns_failed_resolutions = 0;
 
 enum {
 	DNS_STAT_ID,
+	DNS_STAT_PID,
+	DNS_STAT_SENT,
 	DNS_STAT_SND_ERROR,
 	DNS_STAT_VALID,
 	DNS_STAT_UPDATE,
@@ -78,6 +80,8 @@ enum {
 
 static struct name_desc dns_stats[] = {
 	[DNS_STAT_ID]          = { .name = "id",          .desc = "ID" },
+	[DNS_STAT_PID]         = { .name = "pid",         .desc = "Parent ID" },
+	[DNS_STAT_SENT]        = { .name = "sent",        .desc = "Sent" },
 	[DNS_STAT_SND_ERROR]   = { .name = "send_error",  .desc = "Send error" },
 	[DNS_STAT_VALID]       = { .name = "valid",       .desc = "Valid" },
 	[DNS_STAT_UPDATE]      = { .name = "update",      .desc = "Update" },
@@ -100,6 +104,8 @@ static void dns_fill_stats(void *d, struct field *stats)
 {
 	struct dns_counters *counters = d;
 	stats[DNS_STAT_ID]          = mkf_str(FO_CONFIG, counters->id);
+	stats[DNS_STAT_PID]         = mkf_str(FO_CONFIG, counters->pid);
+	stats[DNS_STAT_SENT]        = mkf_u64(FN_GAUGE, counters->sent);
 	stats[DNS_STAT_SND_ERROR]   = mkf_u64(FN_GAUGE, counters->snd_error);
 	stats[DNS_STAT_VALID]       = mkf_u64(FN_GAUGE, counters->valid);
 	stats[DNS_STAT_UPDATE]      = mkf_u64(FN_GAUGE, counters->update);
@@ -1865,7 +1871,8 @@ void dns_unlink_resolution(struct dns_requester *requester)
  */
 static void dns_resolve_recv(struct dgram_conn *dgram)
 {
-	struct dns_nameserver *ns, *tmpns;
+	struct dns_nameserver *ns;
+	struct dns_counters   *tmpcounters;
 	struct dns_resolvers  *resolvers;
 	struct dns_resolution *res;
 	struct dns_query_item *query;
@@ -2039,16 +2046,16 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 	report_res_success:
 		/* Only the 1rst requester s managed by the server, others are
 		 * from the cache */
-		tmpns = ns;
+		tmpcounters = ns->counters;
 		list_for_each_entry(req, &res->requesters, list) {
 			struct server *s = objt_server(req->owner);
 
 			if (s)
 				HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
-			req->requester_cb(req, tmpns);
+			req->requester_cb(req, tmpcounters);
 			if (s)
 				HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
-			tmpns = NULL;
+			tmpcounters = NULL;
 		}
 
 		dns_reset_resolution(res);
@@ -2311,6 +2318,7 @@ static int dns_finalize_config(void)
 			if (ns->extra_counters) {
 				ns->counters = EXTRA_COUNTERS_GET(ns->extra_counters, &dns_stats_module);
 				ns->counters->id = ns->id;
+				ns->counters->pid = ns->resolvers->id;
 			}
 		}
 
@@ -2500,6 +2508,7 @@ int dns_allocate_counters(struct list *stat_modules)
 				if (strcmp(mod->name, "dns") == 0) {
 					ns->counters = (struct dns_counters *)ns->extra_counters->data + mod->counters_off[COUNTERS_DNS];
 					ns->counters->id = ns->id;
+					ns->counters->pid = ns->resolvers->id;
 				}
 			}
 		}

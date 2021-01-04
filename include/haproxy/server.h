@@ -60,7 +60,7 @@ struct server *new_server(struct proxy *proxy);
 /* functions related to server name resolution */
 int snr_update_srv_status(struct server *s, int has_no_ip);
 const char *update_server_fqdn(struct server *server, const char *fqdn, const char *updater, int dns_locked);
-int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *nameserver);
+int snr_resolution_cb(struct dns_requester *requester, struct dns_counters *counters);
 int snr_resolution_error_cb(struct dns_requester *requester, int error_code);
 struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char *ip_family);
 struct task *srv_cleanup_idle_connections(struct task *task, void *ctx, unsigned short state);

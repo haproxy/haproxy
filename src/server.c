@@ -3974,7 +3974,7 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
  *
  * Must be called with server lock held
  */
-int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *nameserver)
+int snr_resolution_cb(struct dns_requester *requester, struct dns_counters *counters)
 {
 	struct server *s = NULL;
 	struct dns_resolution *resolution = NULL;
@@ -4043,10 +4043,10 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 	}
 
  save_ip:
-	if (nameserver) {
-		nameserver->counters->update++;
+	if (counters) {
+		counters->update++;
 		/* save the first ip we found */
-		chunk_printf(chk, "%s/%s", nameserver->resolvers->id, nameserver->id);
+		chunk_printf(chk, "%s/%s", counters->pid, counters->id);
 	}
 	else
 		chunk_printf(chk, "DNS cache");
@@ -4057,8 +4057,8 @@ int snr_resolution_cb(struct dns_requester *requester, struct dns_nameserver *na
 	return 1;
 
  invalid:
-	if (nameserver) {
-		nameserver->counters->invalid++;
+	if (counters) {
+		counters->invalid++;
 		goto update_status;
 	}
 	snr_update_srv_status(s, has_no_ip);

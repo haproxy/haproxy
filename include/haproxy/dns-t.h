@@ -219,6 +219,7 @@ struct dns_nameserver {
 
 struct dns_counters {
 	char *id;
+	char *pid;
 	long long sent;         /* - queries sent */
 	long long snd_error;    /* - sending errors */
 	long long valid;        /* - valid response */
@@ -290,7 +291,7 @@ struct dns_requester {
 	enum obj_type         *owner;       /* pointer to the owner (server or dns_srvrq) */
 	struct dns_resolution *resolution;  /* pointer to the owned DNS resolution */
 
-	int (*requester_cb)(struct dns_requester *, struct dns_nameserver *); /* requester callback for valid response */
+	int (*requester_cb)(struct dns_requester *, struct dns_counters *);   /* requester callback for valid response */
 	int (*requester_error_cb)(struct dns_requester *, int);               /* requester callback, for error management */
 
 	struct list list; /* requester list */

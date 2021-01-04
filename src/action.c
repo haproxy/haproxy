@@ -117,7 +117,7 @@ int check_capture(struct act_rule *rule, struct proxy *px, char **err)
 	return 1;
 }
 
-int act_resolution_cb(struct dns_requester *requester, struct dns_nameserver *nameserver)
+int act_resolution_cb(struct dns_requester *requester, struct dns_counters *counters)
 {
 	struct stream *stream;
 
