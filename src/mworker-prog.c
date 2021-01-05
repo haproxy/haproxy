@@ -307,18 +307,14 @@ error:
 			int i;
 
 			for (i = 0; ext_child->command[i]; i++) {
-				if (ext_child->command[i]) {
-					free(ext_child->command[i]);
-					ext_child->command[i] = NULL;
-				}
+				free(ext_child->command[i]);
+				ext_child->command[i] = NULL;
 			}
 			free(ext_child->command);
 			ext_child->command = NULL;
 		}
-		if (ext_child->id) {
-			free(ext_child->id);
-			ext_child->id = NULL;
-		}
+		free(ext_child->id);
+		ext_child->id = NULL;
 	}
 
 	free(ext_child);
