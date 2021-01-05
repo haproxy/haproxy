@@ -6350,22 +6350,22 @@ static int ssl_check_async_engine_count(void) {
 }
 #endif
 
-/* This function is used with TLS ticket keys management. It permits to browse
- * each reference. The variable <getnext> must contain the current node,
- * <end> point to the root node.
- */
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+/* This function is used with TLS ticket keys management. It permits to browse
+ * each reference. The variable <ref> must point to the current node's list
+ * element (which starts by the root), and <end> must point to the root node.
+ */
 static inline
-struct tls_keys_ref *tlskeys_list_get_next(struct tls_keys_ref *ref, struct list *end)
+struct tls_keys_ref *tlskeys_list_get_next(struct list *ref, struct list *end)
 {
 	/* Get next list entry. */
-	ref = LIST_NEXT(&ref->list, struct tls_keys_ref *, list);
+	ref = ref->n;
 
 	/* If the entry is the last of the list, return NULL. */
-	if (&ref->list == end)
+	if (ref == end)
 		return NULL;
 
-	return ref;
+	return LIST_ELEM(ref, struct tls_keys_ref *, list);
 }
 
 static inline
@@ -6429,10 +6429,8 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 		 * available field of this pointer is <list>. It is used with the function
 		 * tlskeys_list_get_next() for retruning the first available entry
 		 */
-		if (appctx->ctx.cli.p0 == NULL) {
-			appctx->ctx.cli.p0 = LIST_ELEM(&tlskeys_reference, struct tls_keys_ref *, list);
-			appctx->ctx.cli.p0 = tlskeys_list_get_next(appctx->ctx.cli.p0, &tlskeys_reference);
-		}
+		if (appctx->ctx.cli.p0 == NULL)
+			appctx->ctx.cli.p0 = tlskeys_list_get_next(&tlskeys_reference, &tlskeys_reference);
 
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
@@ -6502,7 +6500,7 @@ static int cli_io_handler_tlskeys_files(struct appctx *appctx) {
 				break;
 
 			/* get next list entry and check the end of the list */
-			appctx->ctx.cli.p0 = tlskeys_list_get_next(appctx->ctx.cli.p0, &tlskeys_reference);
+			appctx->ctx.cli.p0 = tlskeys_list_get_next(&ref->list, &tlskeys_reference);
 		}
 
 		appctx->st2 = STAT_ST_FIN;
