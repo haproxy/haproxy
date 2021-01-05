@@ -790,23 +790,35 @@ endif
 
 ifeq ($(TARGET),)
 all:
+	@echo "Building HAProxy without specifying a TARGET is not supported."
 	@echo
-	@echo "Due to too many reports of suboptimized setups, building without"
-	@echo "specifying the target is no longer supported. Please specify the"
-	@echo "target OS in the TARGET variable, in the following form:"
+	@echo "Usage:"
 	@echo
-	@echo "   $ make TARGET=xxx"
+	@echo "    $ make help                       # To print a full explanation."
+	@echo "    $ make TARGET=xxx USE_<feature>=1 # To build HAProxy."
 	@echo
-	@echo "Please choose the target among the following supported list :"
+	@echo "The most commonly used targets are:"
 	@echo
-	@echo "   linux-glibc, linux-glibc-legacy, linux-musl, solaris, freebsd, dragonfly, "
-	@echo "   openbsd, netbsd, cygwin, haiku, aix51, aix52, aix72-gcc, osx, generic, "
-	@echo "   custom"
+	@echo "    linux-glibc    - Modern Linux with glibc"
+	@echo "    linux-musl     - Modern Linux with musl"
+	@echo "    freebsd        - FreeBSD"
+	@echo "    openbsd        - OpenBSD"
+	@echo "    netbsd         - NetBSD"
+	@echo "    osx            - macOS"
+	@echo "    solaris        - Solaris"
 	@echo
-	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"
-	@echo "want to precisely tweak every option, or choose the target which"
-	@echo "matches your OS the most in order to gain the maximum performance"
-	@echo "out of it. Please check the Makefile in case of doubts."
+	@echo "Choose the target which matches your OS the most in order to"
+	@echo "gain the maximum performance out of it."
+	@echo
+	@echo "Common features you might want to include in your build are:"
+	@echo
+	@echo "    USE_OPENSSL=1 - Support for TLS encrypted connections"
+	@echo "    USE_ZLIB=1    - Support for HTTP response compression"
+	@echo "    USE_PCRE=1    - Support for PCRE regular expressions"
+	@echo "    USE_LUA=1     - Support for dynamic processing using Lua"
+	@echo
+	@echo "Use 'make help' to print a full explanation of supported targets"
+	@echo "and features."
 	@echo
 	@exit 1
 else
