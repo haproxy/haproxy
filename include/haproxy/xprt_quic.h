@@ -54,7 +54,7 @@ static inline size_t sizeof_quic_cid(const struct quic_cid *cid)
 }
 
 /* Copy <src> QUIC CID to <dst>.
- * This is the responsability of the caller to check there is enough room in
+ * This is the responsibility of the caller to check there is enough room in
  * <dst> to copy <src>.
  * Always succeeds.
  */
@@ -145,7 +145,7 @@ static inline void quic_connection_id_to_frm_cpy(struct quic_frame *dst,
 
 /* Allocate a new CID with <seq_num> as sequence number and attach it to <root>
  * ebtree.
- * Returns the new CID if succedded, NULL if not.
+ * Returns the new CID if succeeded, NULL if not.
  */
 static inline struct quic_connection_id *new_quic_cid(struct eb_root *root,
                                                       int seq_num)
@@ -213,7 +213,7 @@ static inline int quic_read_uint32(uint32_t *val,
 
 /* Write a 32-bits integer to a buffer with <buf> as address.
  * Make <buf> point to the data after this 32-buts value if succeeded.
- * Note that thes 32-bits integers are networkg bytes ordered.
+ * Note that these 32-bits integers are networkg bytes ordered.
  * Returns 0 if failed (not enough room in the buffer), 1 if succeeded.
  */
 static inline int quic_write_uint32(unsigned char **buf,
@@ -465,7 +465,7 @@ static inline size_t quic_packet_number_length(int64_t pn,
 
 /* Encode <pn> packet number with <pn_len> as length in byte into a buffer with
  * <buf> as current copy address and <end> as pointer to one past the end of
- * this buffer. This is the responsability of the caller to check there is
+ * this buffer. This is the responsibility of the caller to check there is
  * enough room in the buffer to copy <pn_len> bytes.
  * Never fails.
  */
@@ -542,7 +542,7 @@ static inline void quic_transport_params_init(struct quic_transport_params *p,
  * order.
  * So ->ipv4_addr and ->ipv6_addr, which are buffers, must contained values
  * already encoded in network byte order.
- * It is the responsability of the caller to check there is enough room in <buf> to encode
+ * It is the responsibility of the caller to check there is enough room in <buf> to encode
  * this address.
  * Never fails.
  */
@@ -744,7 +744,7 @@ static inline int quic_transport_param_decode_type_len(uint64_t *type, uint64_t 
 }
 
 /* Encode <param> bytes stream with <type> as type and <length> as length into buf.
- * Returns 1 if succeded, 0 if not.
+ * Returns 1 if succeeded, 0 if not.
  */
 static inline int quic_transport_param_enc_mem(unsigned char **buf, const unsigned char *end,
                                                uint64_t type, void *param, uint64_t length)
@@ -1152,7 +1152,7 @@ static inline ssize_t q_buf_room(struct q_buf *buf)
 	return q_buf_end(buf) - q_buf_getpos(buf);
 }
 
-/* Reset (or empty) <buf> buffer to prepare it for the next writting. */
+/* Reset (or empty) <buf> buffer to prepare it for the next writing. */
 static inline void q_buf_reset(struct q_buf *buf)
 {
 	buf->pos = buf->area;

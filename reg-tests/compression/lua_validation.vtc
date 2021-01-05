@@ -1,4 +1,4 @@
-# Checks that compression doesnt cause corruption..
+# Checks that compression doesn't cause corruption..
 
 varnishtest "Compression validation"
 #REQUIRE_VERSION=1.6

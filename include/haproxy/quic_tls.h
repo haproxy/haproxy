@@ -220,7 +220,7 @@ static inline const char *ssl_error_str(int err)
 		return "WANT_CLIENT_HELLO_CB";
 #endif
 	default:
-		return "UNKNWON";
+		return "UNKNOWN";
 	}
 }
 

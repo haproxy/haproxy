@@ -146,7 +146,7 @@ enum quic_pkt_type {
 #define QUIC_PACKET_KEY_PHASE_BIT    0x04 /* (protected) */
 
 /*
- * Tranport level error codes.
+ * Transport level error codes.
  */
 #define NO_ERROR                     0x00
 #define INTERNAL_ERROR               0x01
@@ -577,7 +577,7 @@ struct quic_conn {
 	size_t enc_params_len;
 
 	/*
-	 * Original Destination Connection ID  (comming with first client Initial packets).
+	 * Original Destination Connection ID  (coming with first client Initial packets).
 	 * Used only by servers.
 	 */
 	struct ebmb_node odcid_node;

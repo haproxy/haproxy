@@ -87,7 +87,7 @@ const char *quic_frame_type_string(enum quic_frame_type ft)
 }
 
 /* Encode <frm> PADDING frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_padding_frame(unsigned char **buf, const unsigned char *end,
                                     struct quic_frame *frm, struct quic_conn *conn)
@@ -142,7 +142,7 @@ static int quic_parse_ping_frame(struct quic_frame *frm, struct quic_conn *qc,
 }
 
 /* Encode a ACK frame.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_ack_frame(unsigned char **buf, const unsigned char *end,
                                 struct quic_frame *frm, struct quic_conn *conn)
@@ -205,7 +205,7 @@ static int quic_parse_ack_frame_header(struct quic_frame *frm, struct quic_conn 
 }
 
 /* Encode a ACK_ECN frame.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_ack_ecn_frame(unsigned char **buf, const unsigned char *end,
                                     struct quic_frame *frm, struct quic_conn *conn)
@@ -233,7 +233,7 @@ static int quic_parse_ack_ecn_frame(struct quic_frame *frm, struct quic_conn *qc
 }
 
 /* Encode a RESET_STREAM frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_reset_stream_frame(unsigned char **buf, const unsigned char *end,
                                          struct quic_frame *frm, struct quic_conn *conn)
@@ -259,7 +259,7 @@ static int quic_parse_reset_stream_frame(struct quic_frame *frm, struct quic_con
 }
 
 /* Encode a STOP_SENDING frame.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_stop_sending_frame(unsigned char **buf, const unsigned char *end,
                                          struct quic_frame *frm, struct quic_conn *conn)
@@ -283,7 +283,7 @@ static int quic_parse_stop_sending_frame(struct quic_frame *frm, struct quic_con
 }
 
 /* Encode a CRYPTO frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_crypto_frame(unsigned char **buf, const unsigned char *end,
                                    struct quic_frame *frm, struct quic_conn *conn)
@@ -336,7 +336,7 @@ static int quic_parse_crypto_frame(struct quic_frame *frm, struct quic_conn *qc,
 }
 
 /* Encode a NEW_TOKEN frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_new_token_frame(unsigned char **buf, const unsigned char *end,
                                       struct quic_frame *frm, struct quic_conn *conn)
@@ -369,7 +369,7 @@ static int quic_parse_new_token_frame(struct quic_frame *frm, struct quic_conn *
 }
 
 /* Encode a STREAM frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_stream_frame(unsigned char **buf, const unsigned char *end,
                                    struct quic_frame *frm, struct quic_conn *conn)
@@ -420,7 +420,7 @@ static int quic_parse_stream_frame(struct quic_frame *frm, struct quic_conn *qc,
 }
 
 /* Encode a MAX_DATA frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_max_data_frame(unsigned char **buf, const unsigned char *end,
                                      struct quic_frame *frm, struct quic_conn *conn)
@@ -442,7 +442,7 @@ static int quic_parse_max_data_frame(struct quic_frame *frm, struct quic_conn *q
 }
 
 /* Encode a MAX_STREAM_DATA frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_max_stream_data_frame(unsigned char **buf, const unsigned char *end,
                                             struct quic_frame *frm, struct quic_conn *conn)
@@ -466,7 +466,7 @@ static int quic_parse_max_stream_data_frame(struct quic_frame *frm, struct quic_
 }
 
 /* Encode a MAX_STREAMS frame for bidirectional streams into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_max_streams_bidi_frame(unsigned char **buf, const unsigned char *end,
                                              struct quic_frame *frm, struct quic_conn *conn)
@@ -489,7 +489,7 @@ static int quic_parse_max_streams_bidi_frame(struct quic_frame *frm, struct quic
 }
 
 /* Encode a MAX_STREAMS frame for unidirectional streams into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_max_streams_uni_frame(unsigned char **buf, const unsigned char *end,
                                             struct quic_frame *frm, struct quic_conn *conn)
@@ -512,7 +512,7 @@ static int quic_parse_max_streams_uni_frame(struct quic_frame *frm, struct quic_
 }
 
 /* Encode a DATA_BLOCKED frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_data_blocked_frame(unsigned char **buf, const unsigned char *end,
                                          struct quic_frame *frm, struct quic_conn *conn)
@@ -534,7 +534,7 @@ static int quic_parse_data_blocked_frame(struct quic_frame *frm, struct quic_con
 }
 
 /* Encode a STREAM_DATA_BLOCKED into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_stream_data_blocked_frame(unsigned char **buf, const unsigned char *end,
                                                 struct quic_frame *frm, struct quic_conn *conn)
@@ -558,7 +558,7 @@ static int quic_parse_stream_data_blocked_frame(struct quic_frame *frm, struct q
 }
 
 /* Encode a STREAMS_BLOCKED frame for bidirectional streams into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_streams_blocked_bidi_frame(unsigned char **buf, const unsigned char *end,
                                                  struct quic_frame *frm, struct quic_conn *conn)
@@ -581,7 +581,7 @@ static int quic_parse_streams_blocked_bidi_frame(struct quic_frame *frm, struct 
 }
 
 /* Encode a STREAMS_BLOCKED frame for unidirectional streams into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_streams_blocked_uni_frame(unsigned char **buf, const unsigned char *end,
                                                 struct quic_frame *frm, struct quic_conn *conn)
@@ -604,7 +604,7 @@ static int quic_parse_streams_blocked_uni_frame(struct quic_frame *frm, struct q
 }
 
 /* Encode a NEW_CONNECTION_ID frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_new_connection_id_frame(unsigned char **buf, const unsigned char *end,
                                               struct quic_frame *frm, struct quic_conn *conn)
@@ -655,7 +655,7 @@ static int quic_parse_new_connection_id_frame(struct quic_frame *frm, struct qui
 }
 
 /* Encode a RETIRE_CONNECTION_ID frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_retire_connection_id_frame(unsigned char **buf, const unsigned char *end,
                                                  struct quic_frame *frm, struct quic_conn *conn)
@@ -677,7 +677,7 @@ static int quic_parse_retire_connection_id_frame(struct quic_frame *frm, struct 
 }
 
 /* Encode a PATH_CHALLENGE frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_path_challenge_frame(unsigned char **buf, const unsigned char *end,
                                            struct quic_frame *frm, struct quic_conn *conn)
@@ -712,7 +712,7 @@ static int quic_parse_path_challenge_frame(struct quic_frame *frm, struct quic_c
 
 
 /* Encode a PATH_RESPONSE frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_path_response_frame(unsigned char **buf, const unsigned char *end,
                                           struct quic_frame *frm, struct quic_conn *conn)
@@ -748,7 +748,7 @@ static int quic_parse_path_response_frame(struct quic_frame *frm, struct quic_co
 /* Encode a CONNECTION_CLOSE frame at QUIC layer into <buf> buffer.
  * Note there exist two types of CONNECTION_CLOSE frame, one for the application layer
  * and another at QUIC layer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_connection_close_frame(unsigned char **buf, const unsigned char *end,
                                              struct quic_frame *frm, struct quic_conn *conn)
@@ -794,7 +794,7 @@ static int quic_parse_connection_close_frame(struct quic_frame *frm, struct quic
 /* Encode a CONNECTION_CLOSE frame at application layer into <buf> buffer.
  * Note there exist two types of CONNECTION_CLOSE frame, one for application layer
  * and another at QUIC layer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 static int quic_build_connection_close_app_frame(unsigned char **buf, const unsigned char *end,
                                                  struct quic_frame *frm, struct quic_conn *conn)
@@ -937,7 +937,7 @@ struct quic_frame_parser quic_frame_parsers[] = {
 };
 
 /* Decode a QUIC frame from <buf> buffer into <frm> frame.
- * Returns 1 if succeded (enough data to parse the frame), 0 if not.
+ * Returns 1 if succeeded (enough data to parse the frame), 0 if not.
  */
 int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
                  const unsigned char **buf, const unsigned char *end,
@@ -974,7 +974,7 @@ int qc_parse_frm(struct quic_frame *frm, struct quic_rx_packet *pkt,
 }
 
 /* Encode <frm> QUIC frame into <buf> buffer.
- * Returns 1 if succeded (enough room in <buf> to encode the frame), 0 if not.
+ * Returns 1 if succeeded (enough room in <buf> to encode the frame), 0 if not.
  */
 int qc_build_frm(unsigned char **buf, const unsigned char *end,
                  struct quic_frame *frm, struct quic_tx_packet *pkt,

@@ -84,7 +84,7 @@ union quic_cc_algo_state {
 };
 
 struct quic_cc {
-	/* <conn> is there ony for debugging purpose. */
+	/* <conn> is there only for debugging purpose. */
 	struct quic_conn *qc;
 	struct quic_cc_algo *algo;
 	union quic_cc_algo_state algo_state;

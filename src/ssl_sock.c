@@ -4969,7 +4969,7 @@ ssl_sock_free_ca(struct bind_conf *bind_conf)
  * <ssl> as addresses, <bio_meth> as BIO method and <ssl_ctx> as SSL context inherited settings.
  * Connect the allocated BIO to the allocated SSL session. Also set <ctx> as address of custom
  * data for the BIO and store <conn> as user data of the SSL session object.
- * This is the responsability of the caller to check the validity of all the pointers passed
+ * This is the responsibility of the caller to check the validity of all the pointers passed
  * as parameters to this function.
  * Return 0 if succeeded, -1 if not. If failed, sets the ->err_code member of <conn> to
  * CO_ER_SSL_NO_MEM.

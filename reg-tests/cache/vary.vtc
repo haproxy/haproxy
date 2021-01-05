@@ -193,7 +193,7 @@ client c1 -connect ${h1_fe_sock} {
        # This request matches the cache entry for the request above, despite
        # matching the `accept-encoding` of the first request because the
        # request above only has the `identity` encoding which is implicitly
-       # added, unless explicitely forbidden.
+       # added, unless explicitly forbidden.
        txreq -url "/accept-encoding" -hdr "Accept-Encoding: first_value"
        rxresp
        expect resp.status == 200

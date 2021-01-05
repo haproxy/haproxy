@@ -93,7 +93,7 @@
 /* Maximum length of the cache secondary key (sum of all the possible parts of
  * the secondary key). The actual keys might be smaller for some
  * request/response pairs, because they depend on the responses' optional Vary
- * header. The differents sizes can be found in the vary_information object (see
+ * header. The different sizes can be found in the vary_information object (see
  * cache.c).*/
 #define HTTP_CACHE_SEC_KEY_LEN (sizeof(int)+sizeof(int)+sizeof(int))
 
