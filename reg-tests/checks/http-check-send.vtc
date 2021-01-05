@@ -72,11 +72,11 @@ server s6 {
     expect req.proto == HTTP/1.1
     expect req.http.host == "ws-host"
     expect req.http.connection == "upgrade"
-    expect req.http.upgrade == "websocket"
+    expect req.http.upgrade == "raw-proto"
     txresp \
       -status 101 \
       -hdr "connection: upgrade" \
-      -hdr "upgrade: websocket"
+      -hdr "upgrade: raw-proto"
 } -start
 
 
@@ -154,7 +154,7 @@ haproxy h1 -conf {
 
     backend be6_ws
         log ${S6_addr}:${S6_port} len 2048 local0
-        http-check send meth GET uri / ver HTTP/1.1 hdr host ws-host hdr connection upgrade hdr upgrade websocket
+        http-check send meth GET uri / ver HTTP/1.1 hdr host ws-host hdr connection upgrade hdr upgrade raw-proto
         http-check expect status 101
         server srv ${s6_addr}:${s6_port} check inter 200ms rise 1 fall 1
 
