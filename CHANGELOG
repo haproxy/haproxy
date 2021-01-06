@@ -1,6 +1,100 @@
 ChangeLog :
 ===========
 
+2021/01/06 : 2.4-dev5
+    - BUG/MEDIUM: mux_h2: Add missing braces in h2_snd_buf()around trace+wakeup
+    - BUILD: hpack: hpack-tbl-t.h uses VAR_ARRAY but does not include compiler.h
+    - MINOR: time: increase the minimum wakeup interval to 60s
+    - MINOR: check: do not ignore a connection header for http-check send
+    - REGTESTS: complete http-check test
+    - CI: travis-ci: drop coverity scan builds
+    - MINOR: atomic: don't use ; to separate instruction on aarch64.
+    - IMPORT: xxhash: update to v0.8.0 that introduces stable XXH3 variant
+    - MEDIUM: xxhash: use the XXH3 functions to generate 64-bit hashes
+    - MEDIUM: xxhash: use the XXH_INLINE_ALL macro to inline all functions
+    - CLEANUP: xxhash: remove the unused src/xxhash.c
+    - MINOR: sample: add the xxh3 converter
+    - REGTESTS: add tests for the xxh3 converter
+    - MINOR: protocol: Create proto_quic QUIC protocol layer.
+    - MINOR: connection: Attach a "quic_conn" struct to "connection" struct.
+    - MINOR: quic: Redefine control layer callbacks which are QUIC specific.
+    - MINOR: ssl_sock: Initialize BIO and SSL objects outside of ssl_sock_init()
+    - MINOR: connection: Add a new xprt to connection.
+    - MINOR: ssl: Export definitions required by QUIC.
+    - MINOR: cfgparse: Do not modify the QUIC xprt when parsing "ssl".
+    - MINOR: tools: Add support for QUIC addresses parsing.
+    - MINOR: quic: Add definitions for QUIC protocol.
+    - MINOR: quic: Import C source code files for QUIC protocol.
+    - MINOR: listener: Add QUIC info to listeners and receivers.
+    - MINOR: server: Add QUIC definitions to servers.
+    - MINOR: ssl: SSL CTX initialization modifications for QUIC.
+    - MINOR: ssl: QUIC transport parameters parsing.
+    - MINOR: quic: QUIC socket management finalization.
+    - MINOR: cfgparse: QUIC default server transport parameters init.
+    - MINOR: quic: Enable the compilation of QUIC modules.
+    - MAJOR: quic: Make usage of ebtrees to store QUIC ACK ranges.
+    - MINOR: quic: Attempt to make trace more readable
+    - MINOR: quic: Make usage of the congestion control window.
+    - MINOR: quic: Flag RX packet as ack-eliciting from the generic parser.
+    - MINOR: quic: Code reordering to help in reviewing/modifying.
+    - MINOR: quic: Add traces to congestion avoidance NewReno callback.
+    - MINOR: quic: Display the SSL alert in ->ssl_send_alert() callback.
+    - MINOR: quic: Update the initial salt to that of draft-29.
+    - MINOR: quic: Add traces for in flght ack-eliciting packet counter.
+    - MINOR: quic: make a packet build fails when qc_build_frm() fails.
+    - MINOR: quic: Add traces for quic_packet_encrypt().
+    - MINOR: cache: Refactoring of secondary_key building functions
+    - MINOR: cache: Avoid storing responses whose secondary key was not correctly calculated
+    - BUG/MINOR: cache: Manage multiple headers in accept-encoding normalization
+    - MINOR: cache: Add specific secondary key comparison mechanism
+    - MINOR: http: Add helper functions to trim spaces and tabs
+    - MEDIUM: cache: Manage a subset of encodings in accept-encoding normalizer
+    - REGTESTS: cache: Simplify vary.vtc file
+    - REGTESTS: cache: Add a specific test for the accept-encoding normalizer
+    - MINOR: cache: Remove redundant test in http_action_req_cache_use
+    - MINOR: cache: Replace the "process-vary" option's expected values
+    - CI: GitHub Actions: enable daily Coverity scan
+    - BUG/MEDIUM: cache: Fix hash collision in `accept-encoding` handling for `Vary`
+    - MEDIUM: stick-tables: Add srvkey option to stick-table
+    - REGTESTS: add test for stickiness using "srvkey addr"
+    - BUILD: Makefile: disable -Warray-bounds until it's fixed in gcc 11
+    - BUG/MINOR: sink: Return an allocation failure in __sink_new if strdup() fails
+    - BUG/MINOR: lua: Fix memory leak error cases in hlua_config_prepend_path
+    - MINOR: lua: Use consistent error message 'memory allocation failed'
+    - CLEANUP: Compare the return value of `XXXcmp()` functions with zero
+    - CLEANUP: Apply the coccinelle patch for `XXXcmp()` on include/
+    - CLEANUP: Apply the coccinelle patch for `XXXcmp()` on contrib/
+    - MINOR: qpack: Add static header table definitions for QPACK.
+    - CLEANUP: qpack: Wrong comment about the draft for QPACK static header table.
+    - CLEANUP: quic: Remove useless QUIC event trace definitions.
+    - BUG/MINOR: quic: Possible CRYPTO frame building errors.
+    - MINOR: quic: Pass quic_conn struct to frame parsers.
+    - BUG/MINOR: quic: Wrong STREAM frames parsing.
+    - MINOR: quic: Drop packets with STREAM frames with wrong direction.
+    - CLEANUP: ssl: Remove useless loop in tlskeys_list_get_next()
+    - CLEANUP: ssl: Remove useless local variable in tlskeys_list_get_next()
+    - MINOR: ssl: make tlskeys_list_get_next() take a list element
+    - Revert "BUILD: Makefile: disable -Warray-bounds until it's fixed in gcc 11"
+    - BUG/MINOR: cfgparse: Fail if the strdup() for `rule->be.name` for `use_backend` fails
+    - CLEANUP: mworker: remove duplicate pointer tests in cfg_parse_program()
+    - CLEANUP: Reduce scope of `header_name` in http_action_store_cache()
+    - CLEANUP: Reduce scope of `hdr_age` in http_action_store_cache()
+    - CLEANUP: spoe: fix typo on `var_check_arg` comment
+    - BUG/MINOR: tcpcheck: Report a L7OK if the last evaluated rule is a send rule
+    - CI: github actions: build several popular "contrib" tools
+    - DOC: Improve the message printed when running `make` w/o `TARGET`
+    - BUG/MEDIUM: server: srv_set_addr_desc() crashes when a server has no address
+    - REGTESTS: add unresolvable servers to srvkey-addr
+    - BUG/MINOR: stats: Make stat_l variable used to dump a stat line thread local
+    - BUG/MINOR: quic: NULL pointer dereferences when building post handshake frames.
+    - SCRIPTS: improve announce-release to support different tag and versions
+    - SCRIPTS: make announce release support preparing announces before tag exists
+    - CLEANUP: assorted typo fixes in the code and comments
+    - BUG/MINOR: srv: do not init address if backend is disabled
+    - BUG/MINOR: srv: do not cleanup idle conns if pool max is null
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CLEANUP: few extra typo and fixes over last one ("ot" -> "to")
+
 2020/12/21 : 2.4-dev4
     - BUG/MEDIUM: lb-leastconn: Reposition a server using the right eweight
     - BUG/MEDIUM: mux-h1: Fix a deadlock when a 408 error is pending for a client
