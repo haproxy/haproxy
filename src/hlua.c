@@ -1706,7 +1706,7 @@ __LJMP static int hlua_map_new(struct lua_State *L)
 
 	/* load the map. */
 	if (!sample_load_map(args, &conv, file, line, &err)) {
-		/* error case: we cant use luaL_error because we must
+		/* error case: we can't use luaL_error because we must
 		 * free the err variable.
 		 */
 		luaL_where(L, 1);
@@ -1803,11 +1803,11 @@ static void hlua_socket_handler(struct appctx *appctx)
 		stream_shutdown(si_strm(si), SF_ERR_KILLED);
 	}
 
-	/* If we cant write, wakeup the pending write signals. */
+	/* If we can't write, wakeup the pending write signals. */
 	if (channel_output_closed(si_ic(si)))
 		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_write);
 
-	/* If we cant read, wakeup the pending read signals. */
+	/* If we can't read, wakeup the pending read signals. */
 	if (channel_input_closed(si_oc(si)))
 		notification_wake(&appctx->ctx.hlua_cosocket.wake_on_read);
 
@@ -8589,7 +8589,7 @@ int hlua_post_init()
 	 *  - only the function_ref[0] set to -1 and all other positive
 	 * This ensure a same reference is not used both in shared
 	 * lua state and thread dedicated lua state. Note: is the case
-	 * reach, the shared state is prioritary, but the bug will be
+	 * reach, the shared state is priority, but the bug will be
 	 * complicated to found for the end user.
 	 */
 	errors = 0;
@@ -8609,8 +8609,8 @@ int hlua_post_init()
 		}
 
 		if ((fcn->function_ref[0] == -1) == (ret < 0)) {
-			ha_alert("Lua function '%s' is referenced both ins shared Lua context (throught lua-load) "
-			         "and per-thread Lua context (throught lua-load-per-thread). these two context "
+			ha_alert("Lua function '%s' is referenced both ins shared Lua context (through lua-load) "
+			         "and per-thread Lua context (through lua-load-per-thread). these two context "
 			         "exclusive.\n", fcn->name);
 			errors++;
 		}
@@ -8619,7 +8619,7 @@ int hlua_post_init()
 	if (errors > 0)
 		return 0;
 
-	/* after this point, this global wil no longer used, so set to
+	/* after this point, this global will no longer be used, so set to
 	 * -1 in order to have probably a segfault if someone use it
 	 */
 	hlua_state_id = -1;

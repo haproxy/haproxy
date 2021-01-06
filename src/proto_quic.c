@@ -574,7 +574,7 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 static void quic_enable_listener(struct listener *l)
 {
 	/* FIXME: The following statements are incorrect. This
-	 * is the responsability of the QUIC xprt to stop accepting new
+	 * is the responsibility of the QUIC xprt to stop accepting new
 	 * connections.
 	 */
 	if (fd_updt)
@@ -587,7 +587,7 @@ static void quic_enable_listener(struct listener *l)
 static void quic_disable_listener(struct listener *l)
 {
 	/* FIXME: The following statements are incorrect. This
-	 * is the responsability of the QUIC xprt to start accepting new
+	 * is the responsibility of the QUIC xprt to start accepting new
 	 * connections again.
 	 */
 	if (fd_updt)

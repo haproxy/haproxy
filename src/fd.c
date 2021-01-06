@@ -165,7 +165,7 @@ redo_last:
 	}
 	__ha_barrier_store();
 	/* since we're alone at the end of the list and still locked(-2),
-	 * we know noone tried to add past us. Mark the end of list.
+	 * we know no one tried to add past us. Mark the end of list.
 	 */
 	_GET_PREV(fd, off) = last;
 	_GET_NEXT(fd, off) = -1;

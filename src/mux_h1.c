@@ -1125,11 +1125,11 @@ static void h1_adjust_case_outgoing_hdr(struct h1s *h1s, struct h1m *h1m, struct
 	if (eb_is_empty(&hdrs_map.map))
 		return;
 
-	/* No conversion fo the request headers */
+	/* No conversion for the request headers */
 	if (!(h1m->flags & H1_MF_RESP) && !(h1s->h1c->px->options2 & PR_O2_H1_ADJ_BUGSRV))
 		return;
 
-	/* No conversion fo the response headers */
+	/* No conversion for the response headers */
 	if ((h1m->flags & H1_MF_RESP) && !(h1s->h1c->px->options2 & PR_O2_H1_ADJ_BUGCLI))
 		return;
 

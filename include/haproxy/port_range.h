@@ -37,7 +37,7 @@ static inline int port_range_alloc_port(struct port_range *range)
 
 	get = _HA_ATOMIC_LOAD(&range->get);
 	do {
-		/* barrier ot make sure get is loaded before put */
+		/* barrier to make sure get is loaded before put */
 		__ha_barrier_atomic_load();
 		put = _HA_ATOMIC_LOAD(&range->put_t);
 		if (unlikely(put == get))

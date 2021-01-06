@@ -123,7 +123,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 			break;
 		if (fdtab[fd].update_mask & tid_bit) {
 			/* Cheat a bit, as the state is global to all pollers
-			 * we don't need every thread ot take care of the
+			 * we don't need every thread or take care of the
 			 * update.
 			 */
 			_HA_ATOMIC_AND(&fdtab[fd].update_mask, ~all_threads_mask);

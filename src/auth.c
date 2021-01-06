@@ -49,7 +49,7 @@ __decl_thread(static HA_SPINLOCK_T auth_lock);
 #endif
 
 /* find targets for selected groups. The function returns pointer to
- * the userlist struct ot NULL if name is NULL/empty or unresolvable.
+ * the userlist struct or NULL if name is NULL/empty or unresolvable.
  */
 
 struct userlist *

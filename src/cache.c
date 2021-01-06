@@ -713,7 +713,7 @@ cache_store_http_end(struct stream *s, struct filter *filter,
  /*
   * This intends to be used when checking HTTP headers for some
   * word=value directive. Return a pointer to the first character of value, if
-  * the word was not found or if there wasn't any value assigned ot it return NULL
+  * the word was not found or if there wasn't any value assigned or it return NULL
   */
 char *directive_value(const char *sample, int slen, const char *word, int wlen)
 {
@@ -965,7 +965,7 @@ static void set_secondary_key_encoding(struct htx *htx, char *secondary_key)
 		resp_encoding_bitmap |= VARY_ENCODING_IDENTITY;
 
 	/* Rewrite the bitmap part of the hash with the new bitmap that only
-	 * correponds the the response's encoding. */
+	 * corresponds the the response's encoding. */
 	write_u32(secondary_key + offset, resp_encoding_bitmap);
 }
 
@@ -2292,7 +2292,7 @@ static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 	unsigned int encoding_value;
 	unsigned int rejected_encoding;
 
-	/* A user agent always accepts an unencoded value unless it explicitely
+	/* A user agent always accepts an unencoded value unless it explicitly
 	 * refuses it through an "identity;q=0" accept-encoding value. */
 	hash.encoding_bitmap |= VARY_ENCODING_IDENTITY;
 
@@ -2318,12 +2318,12 @@ static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 	}
 
 	/* If a "*" was found in the accepted encodings (without a null weight),
-	 * all the encoding are accepted except the ones explicitely rejected. */
+	 * all the encoding are accepted except the ones explicitly rejected. */
 	if (hash.encoding_bitmap & VARY_ENCODING_STAR) {
 		hash.encoding_bitmap = ~0;
 	}
 
-	/* Clear explicitely rejected encodings from the bitmap */
+	/* Clear explicitly rejected encodings from the bitmap */
 	hash.encoding_bitmap &= encoding_bmp_bl;
 
 	/* As per RFC7231#5.3.4, "If no Accept-Encoding field is in the request,

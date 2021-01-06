@@ -2004,7 +2004,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 	 */
 
 
-	/* If noone is interested in analysing data, it's time to forward
+	/* If no one is interested in analysing data, it's time to forward
 	 * everything. We configure the buffer to forward indefinitely.
 	 * Note that we're checking CF_SHUTR_NOW as an indication of a possible
 	 * recent call to channel_abort().
@@ -2175,7 +2175,7 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 
 	/* perform output updates to the response buffer */
 
-	/* If noone is interested in analysing data, it's time to forward
+	/* If no one is interested in analysing data, it's time to forward
 	 * everything. We configure the buffer to forward indefinitely.
 	 * Note that we're checking CF_SHUTR_NOW as an indication of a possible
 	 * recent call to channel_abort().
