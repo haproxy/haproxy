@@ -5300,9 +5300,9 @@ static void srv_cleanup_connections(struct server *srv)
 	/* check all threads starting with ours */
 	for (i = tid;;) {
 		did_remove = 0;
-		if (srv_migrate_conns_to_remove(&srv->idle_conns[i], &idle_conns[i].toremove_conns, -1) > 0)
+		if (srv->idle_conns && srv_migrate_conns_to_remove(&srv->idle_conns[i], &idle_conns[i].toremove_conns, -1) > 0)
 			did_remove = 1;
-		if (srv_migrate_conns_to_remove(&srv->safe_conns[i], &idle_conns[i].toremove_conns, -1) > 0)
+		if (srv->safe_conns && srv_migrate_conns_to_remove(&srv->safe_conns[i], &idle_conns[i].toremove_conns, -1) > 0)
 			did_remove = 1;
 		if (did_remove)
 			task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
