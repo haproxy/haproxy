@@ -10,7 +10,14 @@
 #   - creates web-$version.html
 #   - indicates how to edit the mail and how to send it
 
-USAGE="Usage: ${0##*/} [-f] [-b branch] [-d date] [-o oldver] [-n newver]"
+USAGE="Usage: ${0##*/} [-f] [-b branch] [-d date] [-o oldver] [-n newver]
+  -f: force to overwrite existing files and ignore local changes
+  -b: force the project branch name to this (def: inherited from the version)
+  -d: force the release date (e.g. to rework a failed announce)
+  -o: previous version (def: newver-1)
+  -n: new version (if not last tag)
+"
+PREPARE=
 FORCE=
 OUTPUT=
 BRANCH=
@@ -18,7 +25,9 @@ HTML=
 DATE=
 YEAR=
 OLD=
-NEW=
+LASTCOM=
+NEWVER=
+NEWTAG=
 DIR=
 
 die() {
@@ -41,7 +50,7 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 		-b)        BRANCH="$2"    ; shift 2 ;;
 		-f)        FORCE=1        ; shift   ;;
 		-o)        OLD="$2"       ; shift 2 ;;
-		-n)        NEW="$2"       ; shift 2 ;;
+		-n)        NEWVER="$2"    ; shift 2 ;;
 		-h|--help) quit "$USAGE" ;;
 		*)         die  "$USAGE" ;;
 	esac
@@ -59,33 +68,48 @@ fi
 DIR="$PWD"
 cd $(git rev-parse --show-toplevel)
 
-if [ "$(git rev-parse --verify -q HEAD)" != "$(git rev-parse --verify -q master)" ]; then
-	die "git HEAD doesn't match master branch."
-fi
-
-if [ "$(git diff HEAD|wc -c)" != 0 ]; then
+if [ -z "$FORCE" -a "$(git diff HEAD|wc -c)" != 0 ]; then
 	err "You appear to have uncommitted local changes, please commit them first :"
 	git status -s -uno >&2
 	die
 fi
 
-if [ -z "$NEW" ]; then
-	NEW="$(git describe --tags HEAD --abbrev=0)"
-	NEW="${NEW#v}"
-	if [ -z "$NEW" ]; then
-		die "Fatal: cannot determine new version, please specify it."
-	fi
-	if [ "$(git describe --tags HEAD)" != "v$NEW" ]; then
-		die "Current version doesn't seem tagged, it reports $(git describe --tags "v$NEW"). Did you release it ?"
+if [ "$(git rev-parse --verify -q HEAD)" != "$(git rev-parse --verify -q master)" ]; then
+	die "git HEAD doesn't match master branch."
+fi
+
+if [ -n "$NEWVER" ]; then
+	if git show-ref --tags "v$NEWVER" >/dev/null; then
+		NEWTAG="v$NEWVER"
+	else
+		echo "Note: no matching tag v$NEWVER, using HEAD".
 	fi
 fi
 
-if ! git show-ref --tags "v$NEW" >/dev/null; then
-	die "git tag v$NEW doesn't exist, did you create the release ?"
+# version unspecified or no existing tag for it
+if [ -z "$NEWTAG" ]; then
+	NEWTAG="$(git describe --tags HEAD --abbrev=0)"
+
+	if [ -z "$NEWTAG" ]; then
+		die "Fatal: cannot determine new version, please specify it."
+
+	elif [ "$(git describe --tags HEAD)" != "$NEWTAG" ]; then
+		die "About to use current HEAD which doesn't seem tagged, it reports '$(git describe --tags HEAD 2>/dev/null)'. Did you release it ?"
+	fi
+elif ! git show-ref --tags "$NEWTAG" >/dev/null 2>&1; then
+	die "git tag $NEWTAG doesn't exist, did you create the release ?"
+fi
+
+if [ -z "$NEWVER" ]; then
+	NEWVER="${NEWTAG#v}"
+fi
+
+if [ -z "$LASTCOM" ]; then
+	LASTCOM="$(git rev-parse --short ${NEWTAG}^)"
 fi
 
 if [ -z "$OLD" ]; then
-	OLD="$(git describe --tags v${NEW}^ --abbrev=0)"
+	OLD="$(git describe --tags ${LASTCOM} --abbrev=0)"
 	OLD="${OLD#v}"
 fi
 
@@ -95,22 +119,22 @@ fi
 
 # determine the product branch from the new release
 if [ -z "$BRANCH" ]; then
-	subvers=${NEW#[0-9]*.[0-9]*[-.]*[0-9].}
-	[ "${subvers}" = "${NEW}" ] && subvers=""
-	major=${NEW%.$subvers}
+	subvers=${NEWVER#[0-9]*.[0-9]*[-.]*[0-9].}
+	[ "${subvers}" = "${NEWVER}" ] && subvers=""
+	major=${NEWVER%.$subvers}
 	branch_ext=${major#*[0-9].*[0-9]}
 	BRANCH=${major%${branch_ext}}
 fi
 
 # determine the release date
 if [ -z "$DATE" ]; then
-	DATE="$(git log -1 --pretty=fuller v${NEW} 2>/dev/null | sed -ne '/^CommitDate:/{s/\(^[^ ]*:\)\|\( [-+].*\)//gp;q}')"
+	DATE="$(git log -1 --pretty=fuller ${NEWTAG} 2>/dev/null | sed -ne '/^CommitDate:/{s/\(^[^ ]*:\)\|\( [-+].*\)//gp;q}')"
 	DATE="$(date +%Y/%m/%d -d "$DATE")"
 fi
 YEAR="${DATE%%/*}"
 
-OUTPUT="$DIR/mail-haproxy-$NEW.txt"
-HTML="$DIR/web-haproxy-$NEW.html"
+OUTPUT="$DIR/mail-haproxy-$NEWVER.txt"
+HTML="$DIR/web-haproxy-$NEWVER.html"
 
 [ -z "$FORCE" ] || rm -f "${OUTPUT}" "${HTML}"
 
@@ -124,37 +148,37 @@ fi
 
 (
  echo "# Send this using:"
- echo "#   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEW\" haproxy@formilux.org"
+ echo "#   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEWVER\" haproxy@formilux.org"
 ) >> "$OUTPUT"
 
 (echo
  echo "Hi,"
  echo
- echo -n "HAProxy $NEW was released on $DATE. It added "
- echo -n $(git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | wc -l)
+ echo -n "HAProxy $NEWVER was released on $DATE. It added "
+ echo -n $(git log --oneline --reverse --format="%s" "v$OLD".."$LASTCOM" | wc -l)
  echo " new commits"
  echo "after version $OLD."
  echo
  echo "- per tag :"
- git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | cut -f1 -d':' | sort | uniq -c
+ git log --oneline --reverse --format="%s" "v$OLD".."$LASTCOM" | cut -f1 -d':' | sort | uniq -c
  echo
  echo "major commits :"
- git log --oneline --reverse --format="  - %s" "v$OLD".."v$NEW^" | grep MAJOR
+ git log --oneline --reverse --format="  - %s" "v$OLD".."$LASTCOM" | grep MAJOR
  echo
  echo "- per file :"
- git show "v$OLD".."v$NEW^" -- src/ | grep ^diff | awk '{ print substr($3,7)}' | sort | uniq -c | sort -nr | head -15
+ git show "v$OLD".."$LASTCOM" -- src/ | grep ^diff | awk '{ print substr($3,7)}' | sort | uniq -c | sort -nr | head -15
  echo
  echo "- per topic :"
- git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | cut -f2 -d':' | awk '{sub("s$","",$1); print $1}' | sort | uniq -c
+ git log --oneline --reverse --format="%s" "v$OLD".."$LASTCOM" | cut -f2 -d':' | awk '{sub("s$","",$1); print $1}' | sort | uniq -c
  echo
  echo "- sorted changelog :"
- git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | sort
+ git log --oneline --reverse --format="%s" "v$OLD".."$LASTCOM" | sort
  echo
  echo "#############################################################################################"
 ) >> "$OUTPUT"
 
 # report the download paths
-if [ -z "${NEW##*-dev*}" ]; then
+if [ -z "${NEWVER##*-dev*}" ]; then
 	gitdir="haproxy.git"
 else
 	gitdir="haproxy-$BRANCH.git"
@@ -180,7 +204,7 @@ fi
 
 (echo "---"
  echo "Complete changelog :"
- git shortlog "v$OLD".."v$NEW^"
+ git shortlog "v$OLD".."$LASTCOM"
  echo "---"
 ) >> "$OUTPUT"
 
@@ -196,18 +220,18 @@ case "$1" in
 esac
 
 humandate=$(date "+%B, $day, %Y" -d "$DATE")
-(echo "$humandate</b> : <i>$NEW</i>"
+(echo "$humandate</b> : <i>$NEWVER</i>"
  echo "         <p>"
  echo "           <ul>"
  echo "<--------------------------- edit contents below --------------------------->"
  echo "- per tag :"
- git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | cut -f1 -d':' | sort | uniq -c
+ git log --oneline --reverse --format="%s" "v$OLD".."$LASTCOM" | cut -f1 -d':' | sort | uniq -c
  echo
  echo "- per topic :"
- git log --oneline --reverse --format="%s" "v$OLD".."v$NEW^" | cut -f2 -d':' | awk '{sub("s$","",$1); print $1}' | sort | uniq -c
+ git log --oneline --reverse --format="%s" "v$OLD".."$LASTCOM" | cut -f2 -d':' | awk '{sub("s$","",$1); print $1}' | sort | uniq -c
  echo
  echo "major commits :"
- git log --oneline --reverse --format="  - %s" "v$OLD".."v$NEW^" | grep MAJOR
+ git log --oneline --reverse --format="  - %s" "v$OLD".."$LASTCOM" | grep MAJOR
  echo
  echo "<--------------------------------------------------------------------------->"
  echo "             Code and changelog are available <a href=\"/download/${BRANCH}/src/\">here</a> as usual."
@@ -219,7 +243,7 @@ humandate=$(date "+%B, $day, %Y" -d "$DATE")
 echo "The announce was emitted into file $OUTPUT."
 echo "You can edit it and send it this way :"
 echo
-echo "   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEW\" haproxy@formilux.org"
+echo "   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEWVER\" haproxy@formilux.org"
 echo
 echo "The HTML block was emitted into $HTML and needs to be finished by hand."
 echo
