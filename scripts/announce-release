@@ -10,8 +10,9 @@
 #   - creates web-$version.html
 #   - indicates how to edit the mail and how to send it
 
-USAGE="Usage: ${0##*/} [-f] [-b branch] [-d date] [-o oldver] [-n newver]
+USAGE="Usage: ${0##*/} [-f] [-p] [-b branch] [-d date] [-o oldver] [-n newver]
   -f: force to overwrite existing files and ignore local changes
+  -p: prepare future relase (skip branch and tags existence checks)
   -b: force the project branch name to this (def: inherited from the version)
   -d: force the release date (e.g. to rework a failed announce)
   -o: previous version (def: newver-1)
@@ -49,6 +50,7 @@ while [ -n "$1" -a -z "${1##-*}" ]; do
 		-d)        DATE="$2"      ; shift 2 ;;
 		-b)        BRANCH="$2"    ; shift 2 ;;
 		-f)        FORCE=1        ; shift   ;;
+		-p)        PREPARE=1      ; shift   ;;
 		-o)        OLD="$2"       ; shift 2 ;;
 		-n)        NEWVER="$2"    ; shift 2 ;;
 		-h|--help) quit "$USAGE" ;;
@@ -74,7 +76,7 @@ if [ -z "$FORCE" -a "$(git diff HEAD|wc -c)" != 0 ]; then
 	die
 fi
 
-if [ "$(git rev-parse --verify -q HEAD)" != "$(git rev-parse --verify -q master)" ]; then
+if [ -z "$PREPARE" -a "$(git rev-parse --verify -q HEAD)" != "$(git rev-parse --verify -q master)" ]; then
 	die "git HEAD doesn't match master branch."
 fi
 
@@ -92,7 +94,30 @@ if [ -z "$NEWTAG" ]; then
 
 	if [ -z "$NEWTAG" ]; then
 		die "Fatal: cannot determine new version, please specify it."
+	elif [ -n "$PREPARE" ] && ! git show-ref --tags HEAD >/dev/null; then
+		# HEAD not tagged, hence we have to pretend we're on one version
+		# after the current tag
+		echo "Current version not tagged, trying to determine next one."
+		NEWTAG="${NEWTAG#v}"
+		if [ -z "$OLD" ]; then
+			OLD="$NEWTAG"
+		fi
+		radix="$NEWTAG"
+		while [ -n "$radix" -a -z "${radix%%*[0-9]}" ]; do
+			radix="${radix%[0-9]}"
+		done
 
+		number=${NEWTAG#$radix}
+		if [ -z "$number" -o "$radix" = "$NEWTAG" ]; then
+			die "Fatal: cannot determine new version, please specify it."
+		fi
+		NEWTAG="${radix}$((number+1))"
+		if [ -z "$NEWVER" ]; then
+			NEWVER="${NEWTAG}"
+		fi
+		NEWTAG="v$NEWTAG"
+	        LASTCOM="$(git rev-parse --short HEAD)"
+		echo "Next version expected to be $NEWVER and next tag $NEWTAG based on commit $LASTCOM"
 	elif [ "$(git describe --tags HEAD)" != "$NEWTAG" ]; then
 		die "About to use current HEAD which doesn't seem tagged, it reports '$(git describe --tags HEAD 2>/dev/null)'. Did you release it ?"
 	fi
