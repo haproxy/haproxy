@@ -64,6 +64,7 @@ haproxy h1 -arg "-L A" -conf {
         server s_not_used_5 ${s_not_used_5_addr}:${s_not_used_5_port}
         server s_not_used_6 ${s_not_used_6_addr}:${s_not_used_6_port}
         server srv1_2 ${s1_addr}:${s1_port}
+        server s_no_addr_1 unresolvable1.addr.local init-addr none
 
     frontend fe
         acl acl_be1 path_beg /be1
@@ -98,6 +99,7 @@ haproxy h2 -arg "-L B" -conf {
         server s_not_used_11 ${s_not_used_11_addr}:${s_not_used_11_port}
         server s_not_used_12 ${s_not_used_12_addr}:${s_not_used_12_port}
         server srv2_h2_1 ${s2_addr}:${s2_port}
+        server s_no_addr_1 unresolvable1.addr.local init-addr none
 
     backend be2
         balance roundrobin
@@ -110,6 +112,7 @@ haproxy h2 -arg "-L B" -conf {
         server s_not_used_6 ${s_not_used_6_addr}:${s_not_used_6_port}
         server srv1_h2_2 ${s1_addr}:${s1_port}
         server srv2_h2_2 ${s2_addr}:${s2_port}
+        server s_no_addr_2 unresolvable2.addr.local init-addr none
 
     frontend fe
         acl acl_be1 path_beg /be1
