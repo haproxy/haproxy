@@ -204,7 +204,7 @@ static void srv_set_addr_desc(struct server *s)
 	key = sa2str(&s->addr, s->svc_port, s->flags & SRV_F_MAPPORTS);
 
 	if (s->addr_node.key) {
-		if (strcmp(key, s->addr_node.key) == 0) {
+		if (key && strcmp(key, s->addr_node.key) == 0) {
 			free(key);
 			return;
 		}
@@ -218,9 +218,11 @@ static void srv_set_addr_desc(struct server *s)
 
 	s->addr_node.key = key;
 
-	HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
-	ebis_insert(&p->used_server_addr, &s->addr_node);
-	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
+	if (s->addr_node.key) {
+		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
+		ebis_insert(&p->used_server_addr, &s->addr_node);
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
+	}
 }
 
 /*
