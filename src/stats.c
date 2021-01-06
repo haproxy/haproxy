@@ -3580,9 +3580,9 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct htx *ht
 	case STAT_ST_LIST:
 		switch (domain) {
 		case STATS_DOMAIN_DNS:
-			if (!stats_dump_dns(si, stat_l[domain],
-			                    stat_count[domain],
-			                    &stats_module_list[domain])) {
+			if (!stats_dump_resolvers(si, stat_l[domain],
+			                          stat_count[domain],
+			                          &stats_module_list[domain])) {
 				return 0;
 			}
 			break;
@@ -4691,7 +4691,7 @@ static int cli_parse_clear_counters(char **args, char *payload, struct appctx *a
 		}
 	}
 
-	dns_stats_clear_counters(clrall, &stats_module_list[STATS_DOMAIN_DNS]);
+	resolv_stats_clear_counters(clrall, &stats_module_list[STATS_DOMAIN_DNS]);
 
 	memset(activity, 0, sizeof(activity));
 	return 1;
@@ -4940,7 +4940,7 @@ static int allocate_stats_dns_postcheck(void)
 		i += mod->stats_count;
 	}
 
-	if (!dns_allocate_counters(&stats_module_list[STATS_DOMAIN_DNS])) {
+	if (!resolv_allocate_counters(&stats_module_list[STATS_DOMAIN_DNS])) {
 		ha_alert("stats: cannot allocate all counters for dns statistics\n");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		return err_code;

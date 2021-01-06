@@ -2379,7 +2379,7 @@ static int resolvers_finalize_config(void)
 
 }
 
-static int stats_dump_dns_to_buffer(struct stream_interface *si,
+static int stats_dump_resolv_to_buffer(struct stream_interface *si,
                                     struct dns_nameserver *ns,
                                     struct field *stats, size_t stats_count,
                                     struct list *stat_modules)
@@ -2414,9 +2414,9 @@ static int stats_dump_dns_to_buffer(struct stream_interface *si,
 /* Uses <appctx.ctx.stats.obj1> as a pointer to the current resolver and <obj2>
  * as a pointer to the current nameserver.
  */
-int stats_dump_dns(struct stream_interface *si,
-                   struct field *stats, size_t stats_count,
-                   struct list *stat_modules)
+int stats_dump_resolvers(struct stream_interface *si,
+                         struct field *stats, size_t stats_count,
+                         struct list *stat_modules)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct channel *rep = si_ic(si);
@@ -2440,9 +2440,9 @@ int stats_dump_dns(struct stream_interface *si,
 			if (buffer_almost_full(&rep->buf))
 				goto full;
 
-			if (!stats_dump_dns_to_buffer(si, ns,
-			                              stats, stats_count,
-			                              stat_modules)) {
+			if (!stats_dump_resolv_to_buffer(si, ns,
+			                                 stats, stats_count,
+			                                 stat_modules)) {
 				return 0;
 			}
 		}
@@ -2457,7 +2457,7 @@ int stats_dump_dns(struct stream_interface *si,
 	return 0;
 }
 
-void dns_stats_clear_counters(int clrall, struct list *stat_modules)
+void resolv_stats_clear_counters(int clrall, struct list *stat_modules)
 {
 	struct resolvers  *resolvers;
 	struct dns_nameserver *ns;
@@ -2478,7 +2478,7 @@ void dns_stats_clear_counters(int clrall, struct list *stat_modules)
 
 }
 
-int dns_allocate_counters(struct list *stat_modules)
+int resolv_allocate_counters(struct list *stat_modules)
 {
 	struct stats_module *mod;
 	struct resolvers *resolvers;
