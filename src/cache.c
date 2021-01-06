@@ -713,7 +713,7 @@ cache_store_http_end(struct stream *s, struct filter *filter,
  /*
   * This intends to be used when checking HTTP headers for some
   * word=value directive. Return a pointer to the first character of value, if
-  * the word was not found or if there wasn't any value assigned or it return NULL
+  * the word was not found or if there wasn't any value assigned to it return NULL
   */
 char *directive_value(const char *sample, int slen, const char *word, int wlen)
 {
