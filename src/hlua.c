@@ -9177,8 +9177,8 @@ void hlua_init(void) {
 	socket_tcp.obj_type = OBJ_TYPE_SERVER;
 	LIST_INIT(&socket_tcp.actconns);
 	socket_tcp.pendconns = EB_ROOT;
-	socket_tcp.idle_conns = NULL;
-	socket_tcp.safe_conns = NULL;
+	socket_tcp.idle_conns_tree = NULL;
+	socket_tcp.safe_conns_tree = NULL;
 	socket_tcp.next_state = SRV_ST_RUNNING; /* early server setup */
 	socket_tcp.last_change = 0;
 	socket_tcp.id = "LUA-TCP-CONN";
@@ -9222,8 +9222,8 @@ void hlua_init(void) {
 	socket_ssl.obj_type = OBJ_TYPE_SERVER;
 	LIST_INIT(&socket_ssl.actconns);
 	socket_ssl.pendconns = EB_ROOT;
-	socket_ssl.idle_conns = NULL;
-	socket_ssl.safe_conns = NULL;
+	socket_ssl.idle_conns_tree = NULL;
+	socket_ssl.safe_conns_tree = NULL;
 	socket_ssl.next_state = SRV_ST_RUNNING; /* early server setup */
 	socket_ssl.last_change = 0;
 	socket_ssl.id = "LUA-SSL-CONN";

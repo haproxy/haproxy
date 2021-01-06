@@ -69,7 +69,7 @@ int conn_create_mux(struct connection *conn)
 		 */
 		if (srv && ((srv->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 		    !(conn->flags & CO_FL_PRIVATE) && conn->mux->avail_streams(conn) > 0)
-			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
+			ebmb_insert(&srv->available_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
 		else if (conn->flags & CO_FL_PRIVATE) {
 			/* If it fail now, the same will be done in mux->detach() callback */
 			session_add_conn(sess, conn, conn->target);

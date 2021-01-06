@@ -28,6 +28,7 @@
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 
+#include <import/ebmbtree.h>
 #include <import/ist.h>
 
 #include <haproxy/api-t.h>
@@ -488,7 +489,7 @@ struct connection {
 
 	/* second cache line */
 	struct wait_event *subs; /* Task to wake when awaited events are ready */
-	struct mt_list list;          /* attach point to various connection lists (idle, ...) */
+	struct mt_list toremove_list; /* list for connection to clean up */
 	struct list session_list;     /* List of attached connections to a session */
 	union conn_handle handle;     /* connection handle at the socket layer */
 	const struct netns_entry *proxy_netns;
@@ -501,6 +502,9 @@ struct connection {
 	uint8_t proxy_authority_len;  /* Length of authority TLV received via PROXYv2 */
 	struct ist proxy_unique_id;  /* Value of the unique ID TLV received via PROXYv2 */
 	struct quic_conn *qc;         /* Only present if this connection is a QUIC one */
+
+	struct ebmb_node hash_node;
+	int64_t hash;
 };
 
 struct mux_proto_list {

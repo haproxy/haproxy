@@ -5267,31 +5267,37 @@ struct task *srv_cleanup_toremove_connections(struct task *task, void *context, 
 	struct connection *conn;
 
 	while ((conn = MT_LIST_POP(&idle_conns[tid].toremove_conns,
-	                               struct connection *, list)) != NULL) {
+	                               struct connection *, toremove_list)) != NULL) {
 		conn->mux->destroy(conn->ctx);
 	}
 
 	return task;
 }
 
-/* Move toremove_nb connections from idle_list to toremove_list, -1 means
+/* Move toremove_nb connections from idle_tree to toremove_list, -1 means
  * moving them all.
  * Returns the number of connections moved.
  *
  * Must be called with idle_conns_lock held.
  */
-static int srv_migrate_conns_to_remove(struct mt_list *idle_list, struct mt_list *toremove_list, int toremove_nb)
+static int srv_migrate_conns_to_remove(struct eb_root *idle_tree, struct mt_list *toremove_list, int toremove_nb)
 {
-	struct mt_list *elt1, elt2;
+	struct eb_node *node, *next;
 	struct connection *conn;
 	int i = 0;
 
-	mt_list_for_each_entry_safe(conn, idle_list, list, elt1, elt2) {
+	node = eb_first(idle_tree);
+	while (node) {
+		next = eb_next(node);
 		if (toremove_nb != -1 && i >= toremove_nb)
 			break;
-		MT_LIST_DEL_SAFE_NOINIT(elt1);
-		MT_LIST_ADDQ(toremove_list, &conn->list);
+
+		conn = ebmb_entry(node, struct connection, hash_node);
+		eb_delete(node);
+		MT_LIST_ADDQ(toremove_list, &conn->toremove_list);
 		i++;
+
+		node = next;
 	}
 	return i;
 }
@@ -5311,9 +5317,9 @@ static void srv_cleanup_connections(struct server *srv)
 	for (i = tid;;) {
 		did_remove = 0;
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-		if (srv_migrate_conns_to_remove(&srv->idle_conns[i], &idle_conns[i].toremove_conns, -1) > 0)
+		if (srv_migrate_conns_to_remove(&srv->idle_conns_tree[i], &idle_conns[i].toremove_conns, -1) > 0)
 			did_remove = 1;
-		if (srv_migrate_conns_to_remove(&srv->safe_conns[i], &idle_conns[i].toremove_conns, -1) > 0)
+		if (srv_migrate_conns_to_remove(&srv->safe_conns_tree[i], &idle_conns[i].toremove_conns, -1) > 0)
 			did_remove = 1;
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 		if (did_remove)
@@ -5386,11 +5392,11 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 			           curr_idle + 1;
 
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-			j = srv_migrate_conns_to_remove(&srv->idle_conns[i], &idle_conns[i].toremove_conns, max_conn);
+			j = srv_migrate_conns_to_remove(&srv->idle_conns_tree[i], &idle_conns[i].toremove_conns, max_conn);
 			if (j > 0)
 				did_remove = 1;
 			if (max_conn - j > 0 &&
-			    srv_migrate_conns_to_remove(&srv->safe_conns[i], &idle_conns[i].toremove_conns, max_conn - j) > 0)
+			    srv_migrate_conns_to_remove(&srv->safe_conns_tree[i], &idle_conns[i].toremove_conns, max_conn - j) > 0)
 				did_remove = 1;
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 

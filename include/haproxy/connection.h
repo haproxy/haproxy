@@ -349,13 +349,15 @@ static inline void conn_init(struct connection *conn, void *target)
 	conn->target = target;
 	conn->destroy_cb = NULL;
 	conn->proxy_netns = NULL;
-	MT_LIST_INIT(&conn->list);
+	MT_LIST_INIT(&conn->toremove_list);
 	LIST_INIT(&conn->session_list);
 	conn->subs = NULL;
 	conn->src = NULL;
 	conn->dst = NULL;
 	conn->proxy_authority = NULL;
 	conn->proxy_unique_id = IST_NULL;
+	memset(&conn->hash_node, 0, sizeof(conn->hash_node));
+	conn->hash = 0;
 }
 
 /* sets <owner> as the connection's owner */
@@ -373,7 +375,7 @@ static inline void conn_set_private(struct connection *conn)
 		conn->flags |= CO_FL_PRIVATE;
 
 		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
-			srv_del_conn_from_list(__objt_server(conn->target), conn);
+			srv_release_conn(__objt_server(conn->target), conn);
 	}
 }
 
@@ -499,7 +501,7 @@ static inline void conn_free(struct connection *conn)
 	}
 	else if (!(conn->flags & CO_FL_PRIVATE)) {
 		if (obj_type(conn->target) == OBJ_TYPE_SERVER)
-			srv_del_conn_from_list(__objt_server(conn->target), conn);
+			srv_release_conn(__objt_server(conn->target), conn);
 	}
 
 	sockaddr_free(&conn->src);

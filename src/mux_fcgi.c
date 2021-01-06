@@ -3002,7 +3002,7 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
 
 	conn_in_list = conn->flags & CO_FL_LIST_MASK;
 	if (conn_in_list)
-		MT_LIST_DEL(&conn->list);
+		conn_delete_from_tree(&conn->hash_node);
 
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
@@ -3023,9 +3023,9 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (conn_in_list == CO_FL_SAFE_LIST)
-			MT_LIST_ADDQ(&srv->safe_conns[tid], &conn->list);
+			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
 		else
-			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
+			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 	return NULL;
@@ -3176,7 +3176,7 @@ struct task *fcgi_timeout_task(struct task *t, void *context, unsigned short sta
 		 * to steal it from us.
 		 */
 		if (fconn->conn->flags & CO_FL_LIST_MASK)
-			MT_LIST_DEL(&fconn->conn->list);
+			conn_delete_from_tree(&fconn->conn->hash_node);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
@@ -3619,10 +3619,12 @@ static void fcgi_detach(struct conn_stream *cs)
 				TRACE_DEVEL("reusable idle connection", FCGI_EV_STRM_END, fconn->conn);
 				return;
 			}
-			else if (MT_LIST_ISEMPTY(&fconn->conn->list) &&
+			else if (!fconn->conn->hash_node.node.leaf_p &&
 				 fcgi_avail_streams(fconn->conn) > 0 && objt_server(fconn->conn->target) &&
 				 !LIST_ADDED(&fconn->conn->session_list)) {
-				LIST_ADD(&__objt_server(fconn->conn->target)->available_conns[tid], mt_list_to_list(&fconn->conn->list));
+				ebmb_insert(&__objt_server(fconn->conn->target)->available_conns_tree[tid],
+				            &fconn->conn->hash_node,
+				            sizeof(fconn->conn->hash));
 			}
 		}
 	}

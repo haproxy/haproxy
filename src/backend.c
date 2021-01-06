@@ -1100,10 +1100,10 @@ static void assign_tproxy_address(struct stream *s)
  * (safe or idle connections). The <is_safe> argument means what type of
  * connection the caller wants.
  */
-static struct connection *conn_backend_get(struct stream *s, struct server *srv, int is_safe)
+static struct connection *conn_backend_get(struct stream *s, struct server *srv, int is_safe, int64_t hash)
 {
-	struct mt_list *mt_list = is_safe ? srv->safe_conns : srv->idle_conns;
-	struct connection *conn;
+	struct eb_root *tree = is_safe ? srv->safe_conns_tree : srv->idle_conns_tree;
+	struct connection *conn = NULL;
 	int i; // thread number
 	int found = 0;
 	int stop;
@@ -1114,16 +1114,19 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	 */
 	i = tid;
 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-	conn = MT_LIST_POP(&mt_list[tid], struct connection *, list);
+	conn = srv_lookup_conn(&tree[tid], hash);
+	if (conn)
+		conn_delete_from_tree(&conn->hash_node);
 
 	/* If we failed to pick a connection from the idle list, let's try again with
 	 * the safe list.
 	 */
 	if (!conn && !is_safe && srv->curr_safe_nb > 0) {
-		conn = MT_LIST_POP(&srv->safe_conns[tid], struct connection *, list);
+		conn = srv_lookup_conn(&srv->safe_conns_tree[tid], hash);
 		if (conn) {
+			conn_delete_from_tree(&conn->hash_node);
 			is_safe = 1;
-			mt_list = srv->safe_conns;
+			tree = srv->safe_conns_tree;
 		}
 	}
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
@@ -1156,33 +1159,35 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 
 	i = stop;
 	do {
-		struct mt_list *elt1, elt2;
-
 		if (!srv->curr_idle_thr[i] || i == tid)
 			continue;
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-		mt_list_for_each_entry_safe(conn, &mt_list[i], list, elt1, elt2) {
+		conn = srv_lookup_conn(&tree[i], hash);
+		while (conn) {
 			if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
-				MT_LIST_DEL_SAFE(elt1);
+				conn_delete_from_tree(&conn->hash_node);
 				_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 				found = 1;
-
 				break;
 			}
+
+			conn = srv_lookup_conn_next(conn);
 		}
 
 		if (!found && !is_safe && srv->curr_safe_nb > 0) {
-			mt_list_for_each_entry_safe(conn, &srv->safe_conns[i], list, elt1, elt2) {
+			conn = srv_lookup_conn(&srv->safe_conns_tree[i], hash);
+			while (conn) {
 				if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
-					MT_LIST_DEL_SAFE(elt1);
+					conn_delete_from_tree(&conn->hash_node);
 					_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 					found = 1;
 					is_safe = 1;
-					mt_list = srv->safe_conns;
-
+					tree = srv->safe_conns_tree;
 					break;
 				}
+
+				conn = srv_lookup_conn_next(conn);
 			}
 		}
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
@@ -1210,7 +1215,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 			session_add_conn(s->sess, conn, conn->target);
 		}
 		else {
-			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&conn->list));
+			ebmb_insert(&srv->available_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
 		}
 	}
 	return conn;
@@ -1241,7 +1246,7 @@ int connect_server(struct stream *s)
 	int reuse = 0;
 	int init_mux = 0;
 	int err;
-
+	int64_t hash = 0;
 
 	/* This will catch some corner cases such as lying connections resulting from
 	 * retries or connect timeouts but will rarely trigger.
@@ -1251,7 +1256,7 @@ int connect_server(struct stream *s)
 	srv = objt_server(s->target);
 
 	/* do not reuse if mode is http or if avail list is not allocated */
-	if ((s->be->mode != PR_MODE_HTTP) || (srv && !srv->available_conns))
+	if ((s->be->mode != PR_MODE_HTTP) || (srv && !srv->available_conns_tree))
 		goto skip_reuse;
 
 	/* first, search for a matching connection in the session's idle conns */
@@ -1278,9 +1283,10 @@ int connect_server(struct stream *s)
 		 * Idle conns are necessarily looked up on the same thread so
 		 * that there is no concurrency issues.
 		 */
-		if (!LIST_ISEMPTY(&srv->available_conns[tid])) {
-			    srv_conn = LIST_ELEM(srv->available_conns[tid].n, struct connection *, list);
-			    reuse = 1;
+		if (!eb_is_empty(&srv->available_conns_tree[tid])) {
+			srv_conn = srv_lookup_conn(&srv->available_conns_tree[tid], hash);
+			if (srv_conn)
+				reuse = 1;
 		}
 		/* if no available connections found, search for an idle/safe */
 		else if (srv->max_idle_conns && srv->curr_idle_conns > 0) {
@@ -1292,15 +1298,15 @@ int connect_server(struct stream *s)
 			 * search for an idle then safe conn */
 			if (not_first_req) {
 				if (idle || safe)
-					srv_conn = conn_backend_get(s, srv, 0);
+					srv_conn = conn_backend_get(s, srv, 0, hash);
 			}
 			/* first column of the tables above */
 			else if (reuse_mode >= PR_O_REUSE_AGGR) {
 				/* search for a safe conn */
 				if (safe)
-					srv_conn = conn_backend_get(s, srv, 1);
+					srv_conn = conn_backend_get(s, srv, 1, hash);
 				else if (reuse_mode == PR_O_REUSE_ALWS && idle)
-					srv_conn = conn_backend_get(s, srv, 0);
+					srv_conn = conn_backend_get(s, srv, 0, hash);
 			}
 
 			if (srv_conn)
@@ -1328,18 +1334,21 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	if (ha_used_fds > global.tune.pool_high_count && srv && srv->idle_conns) {
-		struct connection *tokill_conn;
+	if (ha_used_fds > global.tune.pool_high_count && srv && srv->idle_conns_tree) {
+		struct connection *tokill_conn = NULL;
+		struct ebmb_node *node = NULL;
 
 		/* We can't reuse a connection, and e have more FDs than deemd
 		 * acceptable, attempt to kill an idling connection
 		 */
 		/* First, try from our own idle list */
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		tokill_conn = MT_LIST_POP(&srv->idle_conns[tid],
-		    struct connection *, list);
-		if (tokill_conn)
+		node = ebmb_first(&srv->idle_conns_tree[tid]);
+		if (node) {
+			tokill_conn = ebmb_entry(node, struct connection, hash_node);
+			ebmb_delete(node);
 			tokill_conn->mux->destroy(tokill_conn->ctx);
+		}
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
 		/* If not, iterate over other thread's idling pool, and try to grab one */
@@ -1354,18 +1363,26 @@ int connect_server(struct stream *s)
 				ALREADY_CHECKED(i);
 
 				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-				tokill_conn = MT_LIST_POP(&srv->idle_conns[i],
-				    struct connection *, list);
-				if (!tokill_conn)
-					tokill_conn = MT_LIST_POP(&srv->safe_conns[i],
-					    struct connection *, list);
+				node = ebmb_first(&srv->idle_conns_tree[i]);
+				if (node) {
+					tokill_conn = ebmb_entry(node, struct connection, hash_node);
+					ebmb_delete(node);
+				}
+
+				if (!tokill_conn) {
+					node = ebmb_first(&srv->safe_conns_tree[i]);
+					if (node) {
+						tokill_conn = ebmb_entry(node, struct connection, hash_node);
+						ebmb_delete(node);
+					}
+				}
 				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 
 				if (tokill_conn) {
 					/* We got one, put it into the concerned thread's to kill list, and wake it's kill task */
 
 					MT_LIST_ADDQ(&idle_conns[i].toremove_conns,
-					    (struct mt_list *)&tokill_conn->list);
+					    (struct mt_list *)&tokill_conn->toremove_list);
 					task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
 					break;
 				}
@@ -1380,7 +1397,7 @@ int connect_server(struct stream *s)
 
 			if (avail <= 1) {
 				/* No more streams available, remove it from the list */
-				MT_LIST_DEL(&srv_conn->list);
+				conn_delete_from_tree(&srv_conn->hash_node);
 			}
 
 			if (avail >= 1) {
@@ -1561,7 +1578,7 @@ skip_reuse:
 			if (srv && reuse_mode == PR_O_REUSE_ALWS &&
 			    !(srv_conn->flags & CO_FL_PRIVATE) &&
 			    srv_conn->mux->avail_streams(srv_conn) > 0) {
-				LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
+				ebmb_insert(&srv->available_conns_tree[tid], &srv_conn->hash_node, sizeof(srv_conn->hash));
 			}
 			else if (srv_conn->flags & CO_FL_PRIVATE ||
 			         (reuse_mode == PR_O_REUSE_SAFE &&

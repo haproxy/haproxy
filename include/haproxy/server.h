@@ -254,7 +254,14 @@ static inline void srv_use_conn(struct server *srv, struct connection *conn)
 		srv->est_need_conns = srv->curr_used_conns;
 }
 
-static inline void srv_del_conn_from_list(struct server *srv, struct connection *conn)
+static inline void conn_delete_from_tree(struct ebmb_node *node)
+{
+	ebmb_delete(node);
+	memset(node, 0, sizeof(*node));
+}
+
+/* removes an idle conn after updating the server idle conns counters */
+static inline void srv_release_conn(struct server *srv, struct connection *conn)
 {
 	if (conn->flags & CO_FL_LIST_MASK) {
 		/* The connection is currently in the server's idle list, so tell it
@@ -271,9 +278,9 @@ static inline void srv_del_conn_from_list(struct server *srv, struct connection 
 		_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);
 	}
 
-	/* Remove the connection from any list (safe, idle or available) */
+	/* Remove the connection from any tree (safe, idle or available) */
 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-	MT_LIST_DEL((struct mt_list *)&conn->list);
+	conn_delete_from_tree(&conn->hash_node);
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 }
 
@@ -293,8 +300,8 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 	    ha_used_fds < global.tune.pool_high_count &&
 	    (srv->max_idle_conns == -1 || srv->max_idle_conns > srv->curr_idle_conns) &&
-	    ((MT_LIST_ISEMPTY(&srv->safe_conns[tid]) &&
-	      (is_safe || MT_LIST_ISEMPTY(&srv->idle_conns[tid]))) ||
+	    ((eb_is_empty(&srv->safe_conns_tree[tid]) &&
+	      (is_safe || eb_is_empty(&srv->idle_conns_tree[tid]))) ||
 	     (ha_used_fds < global.tune.pool_low_count &&
 	      (srv->curr_used_conns + srv->curr_idle_conns <=
 	       MAX(srv->curr_used_conns, srv->est_need_conns) + srv->low_idle_conns))) &&
@@ -309,15 +316,15 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 		_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		MT_LIST_DEL(&conn->list);
+		conn_delete_from_tree(&conn->hash_node);
 
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
-			MT_LIST_ADDQ(&srv->safe_conns[tid], (struct mt_list *)&conn->list);
+			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
 			_HA_ATOMIC_ADD(&srv->curr_safe_nb, 1);
 		} else {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_IDLE_LIST;
-			MT_LIST_ADDQ(&srv->idle_conns[tid], (struct mt_list *)&conn->list);
+			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
 			_HA_ATOMIC_ADD(&srv->curr_idle_nb, 1);
 		}
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
@@ -342,6 +349,36 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 		return 1;
 	}
 	return 0;
+}
+
+/* retrieve a connection from its <hash> in <tree>
+ * returns NULL if no connection found
+ */
+static inline struct connection *srv_lookup_conn(struct eb_root *tree, uint64_t hash)
+{
+	struct ebmb_node *node = NULL;
+	struct connection *conn = NULL;
+
+	node = ebmb_lookup(tree, &hash, sizeof(conn->hash));
+	if (node)
+		conn = ebmb_entry(node, struct connection, hash_node);
+
+	return conn;
+}
+
+/* retrieve the next connection sharing the same hash as <conn>
+ * returns NULL if no connection found
+ */
+static inline struct connection *srv_lookup_conn_next(struct connection *conn)
+{
+	struct ebmb_node *next_node = NULL;
+	struct connection *next_conn = NULL;
+
+	next_node = ebmb_next_dup(&conn->hash_node);
+	if (next_node)
+		next_conn = ebmb_entry(next_node, struct connection, hash_node);
+
+	return next_conn;
 }
 
 #endif /* _HAPROXY_SERVER_H */

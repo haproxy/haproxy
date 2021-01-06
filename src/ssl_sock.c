@@ -5817,7 +5817,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short state)
 	conn = ctx->conn;
 	conn_in_list = conn->flags & CO_FL_LIST_MASK;
 	if (conn_in_list)
-		MT_LIST_DEL(&conn->list);
+		conn_delete_from_tree(&conn->hash_node);
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	/* First if we're doing an handshake, try that */
 	if (ctx->conn->flags & CO_FL_SSL_WAIT_HS)
@@ -5868,9 +5868,9 @@ leave:
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (conn_in_list == CO_FL_SAFE_LIST)
-			MT_LIST_ADDQ(&srv->safe_conns[tid], &conn->list);
+			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
 		else
-			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
+			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 	return NULL;
