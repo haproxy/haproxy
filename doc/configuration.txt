@@ -16240,6 +16240,12 @@ url_dec([<in_form>])
   space (' '). Otherwise this will only happen after a question mark indicating
   a query string ('?').
 
+url_enc([<enc_type>])
+  Takes a string provided as input and returns the encoded version as output.
+  The input and the output are of type string. By default the type of encoding
+  is meant for `query` type. There is no other type supported for now but the
+  optional argument is here for future changes.
+
 ungrpc(<field_number>,[<field_type>])
   This extracts the protocol buffers message field in raw mode of an input binary
   sample representation of a gRPC message with <field_number> as field number

@@ -268,6 +268,82 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 	return 1;
 }
 
+/* url-encode types and encode maps */
+enum encode_type {
+	ENC_QUERY = 0,
+};
+long query_encode_map[(256 / 8) / sizeof(long)];
+
+/* Check url-encode type */
+static int sample_conv_url_enc_check(struct arg *arg, struct sample_conv *conv,
+				     const char *file, int line, char **err)
+{
+	enum encode_type enc_type;
+
+	if (strcmp(arg->data.str.area, "") == 0)
+		enc_type = ENC_QUERY;
+	else if (strcmp(arg->data.str.area, "query") == 0)
+		enc_type = ENC_QUERY;
+	else {
+		memprintf(err, "Unexpected encode type. "
+			  "Allowed value is 'query'");
+		return 0;
+	}
+
+	chunk_destroy(&arg->data.str);
+	arg->type = ARGT_SINT;
+	arg->data.sint = enc_type;
+	return 1;
+}
+
+/* Initializes some url encode data at boot */
+static void sample_conf_url_enc_init()
+{
+	int i;
+
+	memset(query_encode_map, 0, sizeof(query_encode_map));
+	/* use rfc3986 to determine list of characters to keep unchanged for
+	 * query string */
+	for (i = 0; i < 256; i++) {
+		if (!((i >= 'a' && i <= 'z') || (i >= 'A' && i <= 'Z')
+		    || (i >= '0' && i <= '9') ||
+		    i == '-' || i == '.' || i == '_' || i == '~'))
+			ha_bit_set(i, query_encode_map);
+	}
+}
+
+INITCALL0(STG_PREPARE, sample_conf_url_enc_init);
+
+/* This fetch url-encode any input string. Only support query string for now */
+static int sample_conv_url_enc(const struct arg *args, struct sample *smp, void
+		*private)
+{
+	enum encode_type enc_type;
+	struct buffer *trash = get_trash_chunk();
+	long *encode_map;
+	char *ret;
+
+	enc_type = ENC_QUERY;
+	if (args)
+		enc_type = args->data.sint;
+
+	/* Add final \0 required by encode_string() */
+	smp->data.u.str.area[smp->data.u.str.data] = '\0';
+
+	if (enc_type == ENC_QUERY)
+		encode_map = query_encode_map;
+	else
+		return 0;
+
+	ret = encode_string(trash->area, trash->area + trash->size, '%',
+			    encode_map, smp->data.u.str.area);
+	if (ret == NULL || *ret != '\0')
+		return 0;
+	trash->data = ret - trash->area;
+	smp->data.u.str = *trash;
+	return 1;
+}
+
 static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void *private)
 {
 	struct proxy *fe;
@@ -369,6 +445,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "capture-req",    smp_conv_req_capture,     ARG1(1,SINT),     NULL,   SMP_T_STR,  SMP_T_STR},
 	{ "capture-res",    smp_conv_res_capture,     ARG1(1,SINT),     NULL,   SMP_T_STR,  SMP_T_STR},
 	{ "url_dec",        sample_conv_url_dec,      ARG1(0,SINT),     NULL,   SMP_T_STR,  SMP_T_STR},
+	{ "url_enc",        sample_conv_url_enc,      ARG1(1,STR),      sample_conv_url_enc_check, SMP_T_STR,  SMP_T_STR},
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

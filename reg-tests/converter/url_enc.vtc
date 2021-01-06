@@ -1,0 +1,43 @@
+varnishtest "url_enc converter test"
+
+#REQUIRE_VERSION=2.4
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-request set-var(txn.url0) "str(foo=bar+42 42 )"
+	http-request set-var(txn.url1) "var(txn.url0),url_enc"
+	http-request set-var(txn.url2) "var(txn.url1),url_dec"
+	http-request set-var(txn.url3) "var(txn.url2),url_enc(query)"
+	http-response set-header url_enc0 "%[var(txn.url1)]"
+	http-response set-header url_dec "%[var(txn.url2)]"
+	http-response set-header url_enc1 "%[var(txn.url3)]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/"
+	rxresp
+	expect resp.http.url_enc0 == "foo%3Dbar%2B42%2042%20"
+	expect resp.http.url_dec == "foo=bar+42 42 "
+	expect resp.http.url_enc1 == "foo%3Dbar%2B42%2042%20"
+	expect resp.status == 200
+} -run
