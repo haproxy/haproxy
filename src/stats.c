@@ -261,7 +261,7 @@ static struct name_desc *stat_f[STATS_DOMAIN_COUNT];
 static size_t stat_count[STATS_DOMAIN_COUNT];
 
 /* one line for stats */
-static struct field *stat_l[STATS_DOMAIN_COUNT];
+static THREAD_LOCAL struct field *stat_l[STATS_DOMAIN_COUNT];
 
 /* list of all registered stats module */
 static struct list stats_module_list[STATS_DOMAIN_COUNT] = {
@@ -4500,12 +4500,7 @@ static int allocate_stats_px_postcheck(void)
 		}
 	}
 
-	stat_l[STATS_DOMAIN_PROXY] = malloc(stat_count[STATS_DOMAIN_PROXY] * sizeof(struct field));
-	if (!stat_l[STATS_DOMAIN_PROXY]) {
-		ha_alert("stats: cannot allocate a line for proxy statistics\n");
-		err_code |= ERR_ALERT | ERR_FATAL;
-		return err_code;
-	}
+	/* wait per-thread alloc to perform corresponding stat_l allocation */
 
 	return err_code;
 }
@@ -4538,17 +4533,28 @@ static int allocate_stats_dns_postcheck(void)
 		return err_code;
 	}
 
-	stat_l[STATS_DOMAIN_DNS] = malloc(stat_count[STATS_DOMAIN_DNS] * sizeof(struct field));
-	if (!stat_l[STATS_DOMAIN_DNS]) {
-		ha_alert("stats: cannot allocate a line for dns statistics\n");
-		err_code |= ERR_ALERT | ERR_FATAL;
-		return err_code;
-	}
+	/* wait per-thread alloc to perform corresponding stat_l allocation */
 
 	return err_code;
 }
 
 REGISTER_CONFIG_POSTPARSER("allocate-stats-dns", allocate_stats_dns_postcheck);
+
+static int allocate_stat_lines_per_thread(void)
+{
+	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_DNS }, i;
+
+	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
+		const int domain = domains[i];
+
+		stat_l[domain] = malloc(stat_count[domain] * sizeof(struct field));
+		if (!stat_l[domain])
+			return 0;
+	}
+	return 1;
+}
+
+REGISTER_PER_THREAD_ALLOC(allocate_stat_lines_per_thread);
 
 static int allocate_trash_counters(void)
 {
@@ -4578,15 +4584,27 @@ static int allocate_trash_counters(void)
 
 REGISTER_PER_THREAD_ALLOC(allocate_trash_counters);
 
-static void deinit_stats(void)
+static void deinit_stat_lines_per_thread(void)
 {
 	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_DNS }, i;
 
 	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
 		const int domain = domains[i];
 
-		if (stat_l[domain])
-			free(stat_l[domain]);
+		free(stat_l[domain]);
+		stat_l[domain] = NULL;
+	}
+}
+
+
+REGISTER_PER_THREAD_FREE(deinit_stat_lines_per_thread);
+
+static void deinit_stats(void)
+{
+	int domains[] = { STATS_DOMAIN_PROXY, STATS_DOMAIN_DNS }, i;
+
+	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
+		const int domain = domains[i];
 
 		if (stat_f[domain])
 			free(stat_f[domain]);
