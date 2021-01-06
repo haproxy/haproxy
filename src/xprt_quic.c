@@ -1871,6 +1871,9 @@ static int quic_build_post_handshake_frames(struct quic_conn *conn)
 	/* Only servers must send a HANDSHAKE_DONE frame. */
 	if (!objt_server(conn->conn->target)) {
 		frm = pool_alloc(pool_head_quic_frame);
+		if (!frm)
+			return 0;
+
 		frm->type = QUIC_FT_HANDSHAKE_DONE;
 		LIST_ADDQ(&conn->tx.frms_to_send, &frm->list);
 	}
@@ -1879,7 +1882,6 @@ static int quic_build_post_handshake_frames(struct quic_conn *conn)
 		struct quic_connection_id *cid;
 
 		frm = pool_alloc(pool_head_quic_frame);
-		memset(frm, 0, sizeof *frm);
 		cid = new_quic_cid(&conn->cids, i);
 		if (!frm || !cid)
 			goto err;
