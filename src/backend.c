@@ -1246,14 +1246,30 @@ int connect_server(struct stream *s)
 	int reuse = 0;
 	int init_mux = 0;
 	int err;
+	struct sample *sni_smp = NULL;
 	int64_t hash = 0;
 	struct conn_hash_params hash_params;
+	XXH64_hash_t sni_hash;
 
 	/* first, set unique connection parameters and then calculate hash */
 	memset(&hash_params, 0, sizeof(hash_params));
 
 	srv = objt_server(s->target);
 	hash_params.srv = srv;
+
+#ifdef USE_OPENSSL
+	/* 1. sni */
+	if (srv && srv->ssl_ctx.sni) {
+		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
+		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
+		                               srv->ssl_ctx.sni, SMP_T_STR);
+		if (smp_make_safe(sni_smp)) {
+			sni_hash = conn_hash_prehash(sni_smp->data.u.str.area,
+			                             sni_smp->data.u.str.data);
+			hash_params.sni_prehash = &sni_hash;
+		}
+	}
+#endif /* USE_OPENSSL */
 
 	if (srv)
 		hash = conn_calculate_hash(&hash_params);
@@ -1547,19 +1563,8 @@ skip_reuse:
 		return err;
 
 #ifdef USE_OPENSSL
-	if (srv && srv->ssl_ctx.sni) {
-		struct sample *smp;
-
-		smp = sample_fetch_as_type(s->be, s->sess, s, SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
-					   srv->ssl_ctx.sni, SMP_T_STR);
-		if (smp_make_safe(smp)) {
-			ssl_sock_set_servername(srv_conn, smp->data.u.str.area);
-			if (!(srv->ssl_ctx.sni->fetch->use & SMP_USE_INTRN) ||
-			    smp->flags & SMP_F_VOLATILE) {
-				conn_set_private(srv_conn);
-			}
-		}
-	}
+	if (smp_make_safe(sni_smp))
+		ssl_sock_set_servername(srv_conn, sni_smp->data.u.str.area);
 #endif /* USE_OPENSSL */
 
 	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,

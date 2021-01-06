@@ -1423,6 +1423,12 @@ XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
 
 	conn_hash_update(buf, &idx, &params->srv, sizeof(params->srv), &hash_flags, 0);
 
+	if (params->sni_prehash) {
+		conn_hash_update(buf, &idx,
+		                 params->sni_prehash, sizeof(*params->sni_prehash),
+		                 &hash_flags, CONN_HASH_PARAMS_TYPE_SNI);
+	}
+
 	hash = conn_hash_digest(buf, idx, hash_flags);
 	return hash;
 }

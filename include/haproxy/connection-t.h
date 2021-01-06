@@ -33,6 +33,7 @@
 #include <import/xxhash.h>
 
 #include <haproxy/api-t.h>
+#include <haproxy/buf-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/port_range-t.h>
@@ -471,8 +472,7 @@ struct conn_stream {
  * CAUTION! Always update CONN_HASH_PARAMS_TYPE_COUNT when adding a new entry.
  */
 enum conn_hash_params_t {
-	/* to remove as soon as one useful parameter is present */
-	CONN_HASH_DUMMY_PARAM,
+	CONN_HASH_PARAMS_TYPE_SNI = 0x1,
 };
 #define CONN_HASH_PARAMS_TYPE_COUNT 1
 
@@ -488,6 +488,7 @@ enum conn_hash_params_t {
  */
 struct conn_hash_params {
 	struct server *srv;
+	XXH64_hash_t *sni_prehash;
 };
 
 /* This structure describes a connection with its methods and data.
