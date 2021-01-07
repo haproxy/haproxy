@@ -1983,7 +1983,7 @@ next_line:
 
 			if (err & (PARSE_ERR_TOOLARGE|PARSE_ERR_OVERLAP)) {
 				outlinesize = (outlen + 1023) & -1024;
-				outline = realloc(outline, outlinesize);
+				outline = my_realloc2(outline, outlinesize);
 				if (outline == NULL) {
 					ha_alert("parsing [%s:%d]: line too long, cannot allocate memory.\n",
 						 file, linenum);
