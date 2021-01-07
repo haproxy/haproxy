@@ -5630,7 +5630,7 @@ static struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short
 			goto leave;
 		}
 	}
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
 	/* If we have early data and somebody wants to receive, let them */
 	else if (b_data(&ctx->early_buf) && ctx->subs &&
 		 ctx->subs->events & SUB_RETRY_RECV) {
@@ -5669,7 +5669,7 @@ static size_t ssl_sock_to_buf(struct connection *conn, void *xprt_ctx, struct bu
 	if (!ctx)
 		goto out_error;
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#ifdef SSL_READ_EARLY_DATA_SUCCESS
 	if (b_data(&ctx->early_buf)) {
 		try = b_contig_space(buf);
 		if (try > b_data(&ctx->early_buf))
