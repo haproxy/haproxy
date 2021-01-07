@@ -933,8 +933,11 @@ static int http_check_vary_header(struct htx *htx, unsigned int *vary_signature)
  * Look for the accept-encoding part of the secondary_key and replace the
  * encoding bitmap part of the hash with the actual encoding of the response,
  * extracted from the content-encoding header value.
+ * Responses that have an unknown encoding will not be cached if they also
+ * "vary" on the accept-encoding value.
+ * Returns 0 if we found a known encoding in the response, -1 otherwise.
  */
-static void set_secondary_key_encoding(struct htx *htx, char *secondary_key)
+static int set_secondary_key_encoding(struct htx *htx, char *secondary_key)
 {
 	unsigned int resp_encoding_bitmap = 0;
 	const struct vary_hashing_information *info = vary_information;
@@ -952,13 +955,12 @@ static void set_secondary_key_encoding(struct htx *htx, char *secondary_key)
 	}
 
 	if (count == hash_info_count)
-		return;
+		return -1;
 
 	while (http_find_header(htx, ist("content-encoding"), &ctx, 0)) {
-		if (!parse_encoding_value(ctx.value, &encoding_value, NULL))
-			resp_encoding_bitmap |= encoding_value;
-		else
-			resp_encoding_bitmap |= VARY_ENCODING_OTHER;
+		if (parse_encoding_value(ctx.value, &encoding_value, NULL))
+			return -1; /* Do not store responses with an unknown encoding */
+		resp_encoding_bitmap |= encoding_value;
 	}
 
 	if (!resp_encoding_bitmap)
@@ -967,6 +969,8 @@ static void set_secondary_key_encoding(struct htx *htx, char *secondary_key)
 	/* Rewrite the bitmap part of the hash with the new bitmap that only
 	 * corresponds the the response's encoding. */
 	write_u32(secondary_key + offset, resp_encoding_bitmap);
+
+	return 0;
 }
 
 
@@ -1197,9 +1201,12 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	/* If the response has a secondary_key, fill its key part related to
 	 * encodings with the actual encoding of the response. This way any
 	 * subsequent request having the same primary key will have its accepted
-	 * encodings tested upon the cached response's one. */
+	 * encodings tested upon the cached response's one.
+	 * We will not cache a response that has an unknown encoding (not
+	 * explicitely supported in parse_encoding_value function). */
 	if (cache->vary_processing_enabled && vary_signature)
-		set_secondary_key_encoding(htx, object->secondary_key);
+		if (set_secondary_key_encoding(htx, object->secondary_key))
+		    goto out;
 
 	shctx_lock(shctx);
 	if (!shctx_row_reserve_hot(shctx, first, trash.data)) {

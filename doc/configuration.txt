@@ -14616,6 +14616,9 @@ The cache won't store and won't deliver objects in these cases:
   headers)
 - If the process-vary option is enabled and there are already max-secondary-entries
   entries with the same primary key as the current response
+- If the process-vary option is enabled and the response has an unknown encoding (not
+  mentioned in https://www.iana.org/assignments/http-parameters/http-parameters.xhtml)
+  while varying on the accept-encoding client header
 
 - If the request is not a GET
 - If the HTTP version of the request is smaller than 1.1

@@ -292,6 +292,7 @@ client c1 -connect ${h1_fe_sock} {
 
        #
        # Unknown content-encoding
+       # The response should not be cached since it has an unknown content encoding
        #
        txreq -url "/unknown-content-encoding" -hdr "Accept-Encoding: gzip;q=0.8, deflate, first_encoding"
        rxresp
@@ -301,14 +302,6 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.http.X-Cache-Hit == 0
 
        txreq -url "/unknown-content-encoding" -hdr "Accept-Encoding: deflate,gzip;q=0.8, first_encoding"
-       rxresp
-       expect resp.status == 200
-       expect resp.http.content-encoding == "unknown_encoding"
-       expect resp.bodylen == 119
-       expect resp.http.X-Cache-Hit == 1
-
-       # Different set of accepted encodings
-       txreq -url "/unknown-content-encoding" -hdr "Accept-Encoding: deflate, first_encoding"
        rxresp
        expect resp.status == 200
        expect resp.http.content-encoding == "unknown_encoding"
