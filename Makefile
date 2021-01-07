@@ -1044,6 +1044,7 @@ opts:
 	@echo 'OBJS="$(strip $(OBJS))"'
 
 ifeq (reg-tests, $(firstword $(MAKECMDGOALS)))
+  REGTESTS_TYPES := default,bug,devel,slow
   REGTEST_ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
   $(eval $(REGTEST_ARGS):;@true)
 endif
