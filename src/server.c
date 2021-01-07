@@ -1553,7 +1553,7 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 	if (src->ssl_ctx.methods.max)
 		srv->ssl_ctx.methods.max = src->ssl_ctx.methods.max;
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L && !defined OPENSSL_IS_BORINGSSL)
+#ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (src->ssl_ctx.ciphersuites != NULL)
 		srv->ssl_ctx.ciphersuites = strdup(src->ssl_ctx.ciphersuites);
 #endif
