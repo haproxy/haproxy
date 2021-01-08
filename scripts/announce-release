@@ -12,7 +12,7 @@
 
 USAGE="Usage: ${0##*/} [-f] [-p] [-b branch] [-d date] [-o oldver] [-n newver]
   -f: force to overwrite existing files and ignore local changes
-  -p: prepare future relase (skip branch and tags existence checks)
+  -p: prepare future release (skip branch and tags existence checks)
   -b: force the project branch name to this (def: inherited from the version)
   -d: force the release date (e.g. to rework a failed announce)
   -o: previous version (def: newver-1)
