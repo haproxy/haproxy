@@ -86,3 +86,12 @@ Note: every change around the locking or synchronization point will require
 ScientiaMobile WURFL Device Detection
 Maintainer: Paul Borile, Massimiliano Bellomi <wurfl-haproxy-support@scientiamobile.com>
 Files: src/wurfl.c
+
+Prometheus Exporter
+Maintainer: Christopher Faulet <cfaulet@haproxy.com>
+Maintainer: William Dauchy <wdauchy@gmail.com>
+Files: contrib/prometheus-exporter
+Note: William is the referent regarding Prometheus. He should be consulted for
+      all additions and modifications of features. Christopher is the referent
+      for the code itself. He should be consulted for questions regarding the
+      exporter integration into HAProxy, as well as for the bugs.
