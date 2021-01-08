@@ -528,7 +528,7 @@ because of strange symbols or section mismatches, simply remove -g from
 DEBUG_CFLAGS.
 
 Building on AIX 7.2 works fine using the "aix72-gcc" TARGET. It adds two
-special CFLAGS to prevent the loading of AIXs xmem.h and var.h. This is done
+special CFLAGS to prevent the loading of AIX's xmem.h and var.h. This is done
 by defining the corresponding include-guards _H_XMEM and _H_VAR. Without
 excluding those header-files the build fails because of redefinition errors.
 Furthermore, the atomic library is added to the LDFLAGS to allow for

@@ -1986,7 +1986,7 @@ show activity
   of reports of abnormal behaviours. A typical example would be a properly
   running process never sleeping and eating 100% of the CPU. The output fields
   will be made of one line per metric, and per-thread counters on the same
-  line. These counters are 32-bit and will wrap during the process' life, which
+  line. These counters are 32-bit and will wrap during the process's life, which
   is not a problem since calls to this command will typically be performed
   twice. The fields are purposely not documented so that their exact meaning is
   verified in the code where the counters are fed. These values are also reset

@@ -1276,7 +1276,7 @@ HAProxy protects itself against it.
 
 On Linux, a new starting process may communicate with the previous one to reuse
 its listening file descriptors so that the listening sockets are never
-interrupted during the process' replacement.
+interrupted during the process's replacement.
 
 
 3.4.3. Advanced features : Scripting

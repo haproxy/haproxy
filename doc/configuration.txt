@@ -406,7 +406,7 @@ HAProxy's configuration process involves 3 major sources of parameters :
 
   - the arguments from the command-line, which always take precedence
   - the configuration file(s), whose format is described here
-  - the running process' environment, in case some environment variables are
+  - the running process's environment, in case some environment variables are
     explicitly referenced
 
 The configuration file follows a fairly simple hierarchical format which obey
@@ -1083,7 +1083,7 @@ external-check
   "insecure-setuid-wanted".
 
 gid <number>
-  Changes the process' group ID to <number>. It is recommended that the group
+  Changes the process's group ID to <number>. It is recommended that the group
   ID is dedicated to HAProxy or to a small set of similar daemons. HAProxy must
   be started with a user belonging to this group, or with superuser privileges.
   Note that if haproxy is started from a user having supplementary groups, it
@@ -1756,7 +1756,7 @@ stats maxconn <connections>
   possible to change this value with "stats maxconn".
 
 uid <number>
-  Changes the process' user ID to <number>. It is recommended that the user ID
+  Changes the process's user ID to <number>. It is recommended that the user ID
   is dedicated to HAProxy or to a small set of similar daemons. HAProxy must
   be started with superuser privileges in order to be able to switch to another
   one. See also "gid" and "user".
@@ -14410,7 +14410,7 @@ weight <weight>
 
 HAProxy allows using a host name on the server line to retrieve its IP address
 using name servers. By default, HAProxy resolves the name when parsing the
-configuration file, at startup and cache the result for the process' life.
+configuration file, at startup and cache the result for the process's life.
 This is not sufficient in some cases, such as in Amazon where a server's IP
 can change after a reboot or an ELB Virtual IP can change based on current
 workload.
@@ -20369,7 +20369,7 @@ easier finding and understanding.
           external attacks.
 
      PC   The proxy refused to establish a connection to the server because the
-          process' socket limit has been reached while attempting to connect.
+          process's socket limit has been reached while attempting to connect.
           The global "maxconn" parameter may be increased in the configuration
           so that it does not happen anymore. This status is very rare and
           might happen when the global "ulimit-n" parameter is forced by hand.

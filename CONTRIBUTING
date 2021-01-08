@@ -154,7 +154,7 @@ features are disabled. Similarly, when modifying the SSL stack, please always
 ensure that supported OpenSSL versions continue to build and to work, especially
 if you modify support for alternate libraries. Clean support for the legacy
 OpenSSL libraries is mandatory, support for its derivatives is a bonus and may
-occasionally break eventhough a great care is taken. In other words, if you
+occasionally break even though a great care is taken. In other words, if you
 provide a patch for OpenSSL you don't need to test its derivatives, but if you
 provide a patch for a derivative you also need to test with OpenSSL.
 

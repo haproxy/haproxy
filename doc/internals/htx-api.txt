@@ -113,8 +113,8 @@ payload.
 
 Because the payloads part may wrap, there are 2 usable free spaces:
 
-    - The free space in front of the blocks part. This one is used iff the other
-      one was not used yet.
+    - The free space in front of the blocks part. This one is used if and only if
+      the other one was not used yet.
 
     - The free space at the beginning of the message. Once this one is used, the
       other one is never used again, until a message defragmentation.

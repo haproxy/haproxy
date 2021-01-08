@@ -9,7 +9,7 @@ used during data transformation such as compression, header insertion or
 defragmentation, and are used to carry intermediary representations between the
 various internal layers. They support wrapping at the end, and they carry their
 own size information so that in theory it would be possible to use different
-buffer sizes in parallel eventhough this is not currently implemented.
+buffer sizes in parallel even though this is not currently implemented.
 
 The format of this structure has evolved over time, to reach a point where it
 is convenient and versatile enough to have permitted to make several internal

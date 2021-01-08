@@ -25,7 +25,7 @@ reports no more value. This makes sense for instance when checking IP addresses
 found in HTTP headers, which can appear multiple times. The acl_test is kept
 intact between calls and even holds a context so that the fetch function knows
 where to start from for subsequent calls. The match function may also use the
-context eventhough it was not designed for that purpose.
+context even though it was not designed for that purpose.
 
 An ACL is defined only by its name and can be a series of ACL expressions. The
 ACL is deemed true when any of its expressions is true. They are evaluated in
@@ -35,7 +35,7 @@ So in summary :
 
   - an ACL is a series of tests to perform on a stream, any of which is enough
     to validate the result.
-    
+
   - each test is defined by an expression associating a keyword and a series of
     patterns.
 
@@ -59,7 +59,7 @@ a suite. A term simply is a pointer to an ACL.
 
 We could then represent a rule by the following BNF :
 
-  rule = if-cond 
+  rule = if-cond
        | unless-cond
 
   if-cond (struct acl_cond with ->pol = ACL_COND_IF)

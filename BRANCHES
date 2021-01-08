@@ -134,7 +134,7 @@ to make a safe guess about what to pick.
 Branches up to 1.8 are all designated as "long-term supported" ("LTS" for
 short), which means that they are maintained for several years after the
 release. These branches were emitted at a pace of one per year since 1.5 in
-2014. As of 2019, 1.5 is still supported and widely used, eventhough it very
+2014. As of 2019, 1.5 is still supported and widely used, even though it very
 rarely receives updates. After a few years these LTS branches enter a
 "critical fixes only" status, which means that they will rarely receive a fix
 but if that a critital issue affects them, a release will be made, with or
