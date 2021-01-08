@@ -89,6 +89,7 @@
 #define HTTP_MSGF_COMPRESSING 0x00000020  /* data compression is in progress */
 
 #define HTTP_MSGF_BODYLESS    0x00000040  /* The message has no body (content-length = 0) */
+#define HTTP_MSGF_CONN_UPG    0x00000080  /* The message contains "Connection: Upgrade" header */
 
 /* Maximum length of the cache secondary key (sum of all the possible parts of
  * the secondary key). The actual keys might be smaller for some

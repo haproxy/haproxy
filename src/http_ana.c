@@ -166,6 +166,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		msg->flags |= HTTP_MSGF_TE_CHNK;
 	if (sl->flags & HTX_SL_F_BODYLESS)
 		msg->flags |= HTTP_MSGF_BODYLESS;
+	if (sl->flags & HTX_SL_F_CONN_UPG)
+		msg->flags |= HTTP_MSGF_CONN_UPG;
 
 	/* we can make use of server redirect on GET and HEAD */
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
@@ -1558,6 +1560,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	}
 	if (sl->flags & HTX_SL_F_BODYLESS)
 		msg->flags |= HTTP_MSGF_BODYLESS;
+	if (sl->flags & HTX_SL_F_CONN_UPG)
+		msg->flags |= HTTP_MSGF_CONN_UPG;
 
 	n = txn->status / 100;
 	if (n < 1 || n > 5)

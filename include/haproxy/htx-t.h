@@ -137,7 +137,7 @@
 #define HTX_SL_F_SCHM_HTTPS     0x00000200 /* The scheme HTTPS should be used */
 #define HTX_SL_F_HAS_AUTHORITY  0x00000400 /* The request authority is explicitly specified */
 #define HTX_SL_F_NORMALIZED_URI 0x00000800 /* The received URI is normalized (an implicit absolute-uri form) */
-
+#define HTX_SL_F_CONN_UPG       0x00001000 /* The message contains "connection: upgrade" header */
 
 /* HTX flags */
 #define HTX_FL_NONE              0x00000000
