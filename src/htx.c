@@ -147,14 +147,14 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 	else
 		goto defrag;
 
-	/* Now, we have found the block's position. Try do find where to put its
+	/* Now, we have found the block's position. Try to find where to put its
 	 * payload. The free space is split in two areas:
 	 *
-	 *   * The free space in front of the blocks table. This one is used iff
-	 *     the other one was not used yet.
+	 *   * The free space in front of the blocks table. This one is used if and
+	 *     only if the other one was not used yet.
 	 *
 	 *   * The free space at the beginning of the message. Once this one is
-         *     used, the other one is never used again, until the next defrag.
+	 *     used, the other one is never used again, until the next defrag.
 	 */
 	headroom = (htx->end_addr - htx->head_addr);
 	tailroom = (!htx->head_addr ? htx_pos_to_addr(htx, tail) - htx->tail_addr : 0);

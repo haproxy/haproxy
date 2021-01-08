@@ -62,7 +62,7 @@
  *     |    +----------+
  *     |       |  ^
  *     |  may  |  |
- *     |       v  | EAGAIN (cant)
+ *     |       v  | EAGAIN (can't)
  *     |     +--------+
  *     |     | READY  |     (READY=1, ACTIVE=1)
  *     |     +--------+

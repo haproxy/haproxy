@@ -295,7 +295,7 @@ static void stream_int_chk_snd(struct stream_interface *si)
 }
 
 /* Register an applet to handle a stream_interface as a new appctx. The SI will
- * wake it up everytime it is solicited. The appctx must be deleted by the task
+ * wake it up every time it is solicited. The appctx must be deleted by the task
  * handler using si_release_endpoint(), possibly from within the function itself.
  * It also pre-initializes the applet's context and returns it (or NULL in case
  * it could not be allocated).
@@ -831,7 +831,7 @@ void si_update_rx(struct stream_interface *si)
 	}
 	else {
 		/* (re)start reading and update timeout. Note: we don't recompute the timeout
-		 * everytime we get here, otherwise it would risk never to expire. We only
+		 * every time we get here, otherwise it would risk never to expire. We only
 		 * update it if is was not yet set. The stream socket handler will already
 		 * have updated it if there has been a completed I/O.
 		 */
@@ -874,7 +874,7 @@ void si_update_tx(struct stream_interface *si)
 	}
 
 	/* (re)start writing and update timeout. Note: we don't recompute the timeout
-	 * everytime we get here, otherwise it would risk never to expire. We only
+	 * every time we get here, otherwise it would risk never to expire. We only
 	 * update it if is was not yet set. The stream socket handler will already
 	 * have updated it if there has been a completed I/O.
 	 */

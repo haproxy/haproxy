@@ -754,7 +754,7 @@ static int check_http_res_capture(struct act_rule *rule, struct proxy *px, char 
 
 /* parse an "http-response capture" action. It takes a single argument which is
  * a sample fetch expression. It stores the expression into arg->act.p[0] and
- * the allocated hdr_cap struct od the preallocated id into arg->act.p[1].
+ * the allocated hdr_cap struct of the preallocated id into arg->act.p[1].
  * It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
 static enum act_parse_ret parse_http_res_capture(const char **args, int *orig_arg, struct proxy *px,

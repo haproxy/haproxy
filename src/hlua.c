@@ -3902,7 +3902,7 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 	if (ret == 1)
 		len2 = 0;
 
-	/* dont check the max length read and dont check. */
+	/* don't check the max length read and don't check. */
 	luaL_addlstring(&appctx->b, blk1, len1);
 	luaL_addlstring(&appctx->b, blk2, len2);
 
@@ -4666,7 +4666,7 @@ __LJMP static int hlua_applet_http_addheader(lua_State *L)
 		WILL_LJMP(lua_error(L));
 	}
 
-	/* Now the top od thestack is an array of values. We push
+	/* Now the top of thestack is an array of values. We push
 	 * the header value as new entry.
 	 */
 	lua_pushvalue(L, 3);
@@ -4838,7 +4838,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	}
 	sl->flags |= flags;
 
-	/* If we dont have a content-length set, and the HTTP version is 1.1
+	/* If we don't have a content-length set, and the HTTP version is 1.1
 	 * and the status code implies the presence of a message body, we must
 	 * announce a transfer encoding chunked. This is required by haproxy
 	 * for the keepalive compliance. If the applet announces a transfer-encoding
@@ -6110,7 +6110,7 @@ __LJMP static int hlua_txn_reply_add_header(lua_State *L)
 		WILL_LJMP(lua_error(L));
 	}
 
-	/* Now the top od thestack is an array of values. We push
+	/* Now the top of thestack is an array of values. We push
 	 * the header value as new entry.
 	 */
 	lua_pushstring(L, value);
@@ -7699,7 +7699,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 		fcn->function_ref[hlua_state_id] = ref;
 
-		/* Set the expected number od arguments. */
+		/* Set the expected number of arguments. */
 		fcn->nargs = nargs;
 
 		/* List head */
@@ -8480,7 +8480,7 @@ int hlua_post_init_state(lua_State *L)
 
 		case LUA_ERRERR:
 			kind = "message handler error";
-			/* Fall thru */
+			/* Fall through */
 		case LUA_ERRRUN:
 			if (!kind)
 				kind = "runtime error";
@@ -8498,12 +8498,12 @@ int hlua_post_init_state(lua_State *L)
 		default:
 			/* Unknown error */
 			kind = "Unknown error";
-			/* Fall thru */
+			/* Fall through */
 		case LUA_YIELD:
 			/* yield is not configured at this step, this state doesn't happen */
 			if (!kind)
 				kind = "yield not allowed";
-			/* Fall thru */
+			/* Fall through */
 		case LUA_ERRMEM:
 			if (!kind)
 				kind = "out of memory error";

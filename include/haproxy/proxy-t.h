@@ -137,7 +137,7 @@ enum PR_SRV_STATE_FILE {
 
 #define PR_O2_SRC_ADDR	0x00100000	/* get the source ip and port for logs */
 
-#define PR_O2_FAKE_KA   0x00200000      /* pretend we do keep-alive with server eventhough we close */
+#define PR_O2_FAKE_KA   0x00200000      /* pretend we do keep-alive with server even though we close */
 /* unused : 0x00400000..0x80000000 */
 
 /* server health checks */

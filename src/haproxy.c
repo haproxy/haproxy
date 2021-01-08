@@ -1469,7 +1469,7 @@ static int compute_ideal_maxsock(int maxconn)
 	return maxsock;
 }
 
-/* Tests if it is possible to set the current process' RLIMIT_NOFILE to
+/* Tests if it is possible to set the current process's RLIMIT_NOFILE to
  * <maxsock>, then sets it back to the previous value. Returns non-zero if the
  * value is accepted, non-zero otherwise. This is used to determine if an
  * automatic limit may be applied or not. When it is not, the caller knows that

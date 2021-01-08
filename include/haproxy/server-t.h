@@ -262,7 +262,7 @@ struct server {
 	unsigned iweight,uweight, cur_eweight;	/* initial weight, user-specified weight, and effective weight */
 	unsigned wscore;			/* weight score, used during srv map computation */
 	unsigned next_eweight;			/* next pending eweight to commit */
-	unsigned rweight;			/* remainer of weight in the current LB tree */
+	unsigned rweight;			/* remainder of weight in the current LB tree */
 	unsigned cumulative_weight;		/* weight of servers prior to this one in the same group, for chash balancing */
 	unsigned npos, lpos;			/* next and last positions in the LB tree */
 	struct eb32_node lb_node;               /* node used for tree-based load balancing */

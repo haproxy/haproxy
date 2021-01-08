@@ -421,7 +421,7 @@ static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
 		return -1;
 	}
 
-	/* Capture keywork is only available in frontend. */
+	/* Capture keyword is only available in frontend. */
 	if (!(curpx->cap & PR_CAP_FE)) {
 		memprintf(err, "'%s' only available in frontend or listen section", args[0]);
 		return -1;

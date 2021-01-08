@@ -818,7 +818,7 @@ const char *http_find_url_param_pos(const char **chunks,
 				 * comparison is performed in two parts.
 				 */
 
-				/* This is the end, we dont have any other chunk. */
+				/* This is the end, we don't have any other chunk. */
 				if (bufs != chunks || !bufs[2])
 					return NULL;
 

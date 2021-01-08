@@ -66,9 +66,9 @@ enum act_flag {
 
 
 /* known actions to be used without any action function pointer. This enum is
- * typically used in a switch case, iff .action_ptr is undefined. So if an
- * action function is defined for one of following action types, the function
- * have the priority over the switch.
+ * typically used in a switch case, if and only if .action_ptr is undefined. So
+ * if an action function is defined for one of following action types, the
+ * function have the priority over the switch.
  */
 enum act_name {
 	ACT_CUSTOM = 0,

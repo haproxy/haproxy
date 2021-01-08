@@ -997,7 +997,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 			return &static_pattern;
 		}
 
-		/* The IPv4 sample dont match the IPv4 tree. Convert the IPv4
+		/* The IPv4 sample don't match the IPv4 tree. Convert the IPv4
 		 * sample address to IPv6 with the mapping method using the ::ffff:
 		 * prefix, and try to lookup in the IPv6 tree.
 		 */
@@ -2560,7 +2560,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 }
 
 /* This function executes a pattern match on a sample. It applies pattern <expr>
- * to sample <smp>. The function returns NULL if the sample dont match. It returns
+ * to sample <smp>. The function returns NULL if the sample don't match. It returns
  * non-null if the sample match. If <fill> is true and the sample match, the
  * function returns the matched pattern. In many cases, this pattern can be a
  * static buffer.

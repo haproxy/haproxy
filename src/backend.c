@@ -2193,7 +2193,7 @@ void back_handle_st_rdy(struct stream *s)
 	DBG_TRACE_ENTER(STRM_EV_STRM_PROC|STRM_EV_SI_ST, s);
 	/* We know the connection at least succeeded, though it could have
 	 * since met an error for any other reason. At least it didn't time out
-	 * eventhough the timeout might have been reported right after success.
+	 * even though the timeout might have been reported right after success.
 	 * We need to take care of various situations here :
 	 *   - everything might be OK. We have to switch to established.
 	 *   - an I/O error might have been reported after a successful transfer,

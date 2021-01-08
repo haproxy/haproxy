@@ -194,8 +194,8 @@ enum {
 enum {
 	CO_ER_NONE,             /* no error */
 
-	CO_ER_CONF_FDLIM,       /* reached process' configured FD limitation */
-	CO_ER_PROC_FDLIM,       /* reached process' FD limitation */
+	CO_ER_CONF_FDLIM,       /* reached process's configured FD limitation */
+	CO_ER_PROC_FDLIM,       /* reached process's FD limitation */
 	CO_ER_SYS_FDLIM,        /* reached system's FD limitation */
 	CO_ER_SYS_MEMLIM,       /* reached system buffers limitation */
 	CO_ER_NOPROTO,          /* protocol not supported */

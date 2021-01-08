@@ -30,7 +30,7 @@
 #   USE_TPROXY           : enable transparent proxy. Automatic.
 #   USE_LINUX_TPROXY     : enable full transparent proxy. Automatic.
 #   USE_LINUX_SPLICE     : enable kernel 2.6 splicing. Automatic.
-#   USE_LIBCRYPT         : enable crypted passwords using -lcrypt
+#   USE_LIBCRYPT         : enable encrypted passwords using -lcrypt
 #   USE_CRYPT_H          : set it if your system requires including crypt.h
 #   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
 #   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
@@ -435,7 +435,7 @@ endif
 ifeq ($(TARGET),cygwin)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_OBSOLETE_LINKER)
-  # Cygwin adds IPv6 support only in version 1.7 (in beta right now). 
+  # Cygwin adds IPv6 support only in version 1.7 (in beta right now).
   TARGET_CFLAGS  = $(if $(filter 1.5.%, $(shell uname -r)), -DUSE_IPV6 -DAF_INET6=23 -DINET6_ADDRSTRLEN=46, )
 endif
 

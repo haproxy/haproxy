@@ -74,7 +74,7 @@ void dequeue_proxy_listeners(struct proxy *px);
 /* This function closes the listening socket for the specified listener,
  * provided that it's already in a listening state. The listener enters the
  * LI_ASSIGNED state, except if the FD is not closed, in which case it may
- * remain in LI_LISTEN. Depending on the process' status (master or worker),
+ * remain in LI_LISTEN. Depending on the process's status (master or worker),
  * the listener's bind options and the receiver's origin, it may or may not
  * close the receiver's FD. Must be called with the lock held.
  */
