@@ -3000,7 +3000,7 @@ static int sample_conv_concat(const struct arg *arg_p, struct sample *smp, void 
 	struct sample tmp;
 	int max;
 
-	trash = get_trash_chunk();
+	trash = alloc_trash_chunk();
 	trash->data = smp->data.u.str.data;
 	if (trash->data > trash->size - 1)
 		trash->data = trash->size - 1;
@@ -3052,6 +3052,8 @@ static int sample_conv_concat(const struct arg *arg_p, struct sample *smp, void 
 
 	smp->data.u.str = *trash;
 	smp->data.type = SMP_T_STR;
+	smp_dup(smp);
+	free_trash_chunk(trash);
 	return 1;
 }
 
