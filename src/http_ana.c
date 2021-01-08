@@ -1610,6 +1610,15 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		goto next_one;
 	}
 
+	/* A 101-switching-protocols must contains a Connection header with the
+	 * "upgrade" option and the request too. It means both are agree to
+	 * upgrade. It is not so strict because there is no test on the Upgrade
+	 * header content. But it is probably stronger enough for now.
+	 */
+	if (txn->status == 101 &&
+	    (!(txn->req.flags & HTTP_MSGF_CONN_UPG) || !(txn->rsp.flags & HTTP_MSGF_CONN_UPG)))
+		goto return_bad_res;
+
 	/*
 	 * 2: check for cacheability.
 	 */
