@@ -1,0 +1,41 @@
+varnishtest "json converter test"
+
+#REQUIRE_VERSION=1.6
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    frontend fe
+	bind "fd@${fe}"
+
+	http-response set-header json0 "%[str(foo 1/2),json]"
+	# bad UTF-8 sequence
+	http-response set-header json1 "%[str(\xE0),json(utf8)]"
+	# bad UTF-8 sequence, but removes them
+	http-response set-header json2 "%[str(-\xE0-),json(utf8s)]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/"
+	rxresp
+	expect resp.http.json0 == "foo 1\\/2"
+	expect resp.http.json1 == ""
+	expect resp.http.json2 == "--"
+	expect resp.status == 200
+} -run

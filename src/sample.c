@@ -2152,20 +2152,11 @@ enum input_type {
 	IT_UTF8P,
 	IT_UTF8PS,
 };
+
 static int sample_conv_json_check(struct arg *arg, struct sample_conv *conv,
                                   const char *file, int line, char **err)
 {
 	enum input_type type;
-
-	if (!arg) {
-		memprintf(err, "Unexpected empty arg list");
-		return 0;
-	}
-
-	if (arg->type != ARGT_STR) {
-		memprintf(err, "Unexpected arg type");
-		return 0;
-	}
 
 	if (strcmp(arg->data.str.area, "") == 0)
 		type = IT_ASCII;
