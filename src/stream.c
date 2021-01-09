@@ -2791,10 +2791,8 @@ void list_services(FILE *out)
 	fprintf(out, "Available services :");
 	list_for_each_entry(kw_list, &service_keywords, list) {
 		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
-			if (!found)
-				fputc('\n', out);
 			found = 1;
-			fprintf(out, "\t%s\n", kw_list->kw[i].kw);
+			fprintf(out, " %s", kw_list->kw[i].kw);
 		}
 	}
 	if (!found)

@@ -56,8 +56,10 @@ _help()
 
     # Below option is required to complete this test successfully
     #REQUIRE_OPTION=OPENSSL, this test needs OPENSSL compiled in.
-
     #REQUIRE_OPTIONS=ZLIB|SLZ,OPENSSL,LUA
+
+    #REQUIRE_SERVICE=prometheus-exporter
+    #REQUIRE_SERVICES=prometheus-exporter,foo
 
     # To define a range of versions that a test can run with:
     #REQUIRE_VERSION=0.0
@@ -133,6 +135,7 @@ _findtests() {
     require_version="$(sed -ne 's/^#REQUIRE_VERSION=//p' "$i")"
     require_version_below="$(sed -ne 's/^#REQUIRE_VERSION_BELOW=//p' "$i")"
     require_options="$(sed -ne 's/^#REQUIRE_OPTIONS=//p' "$i" | sed  -e 's/,/ /g')"
+    require_services="$(sed -ne 's/^#REQUIRE_SERVICES=//p' "$i" | sed  -e 's/,/ /g')"
     exclude_targets="$(sed -ne 's/^#EXCLUDE_TARGETS=//p' "$i" | sed  -e 's/,/ /g')"
     require_binaries="$(sed -ne 's/^#REQUIRE_BINARIES=//p' "$i" | sed  -e 's/,/ /g')"
     if [ $any_test -ne 1 ] ; then
@@ -149,6 +152,11 @@ _findtests() {
     requiredoption="$(sed -ne 's/^#REQUIRE_OPTION=//p' "$i" | sed  -e 's/,.*//')"
     if [ -n "$requiredoption" ]; then
       require_options="$require_options $requiredoption"
+    fi
+
+    requiredservice="$(sed -ne 's/^#REQUIRE_SERVICE=//p' "$i" | sed  -e 's/,.*//')"
+    if [ -n "$requiredservice" ]; then
+      require_services="$require_services $requiredservice"
     fi
 
     excludedtarget="$(sed -ne 's/^#EXCLUDE_TARGET=//p' "$i" | sed  -e 's/,.*//')"
@@ -188,6 +196,20 @@ _findtests() {
       done
       if [ -z $found ]; then
         echo "  Skip $i because haproxy is not compiled with the required option $requiredoption"
+        skiptest=1
+      fi
+    done
+
+    for requiredservice in $require_services; do
+      alternatives=$(echo "$requiredservice" | sed -e 's/|/ /g')
+      found=
+      for alt in $alternatives; do
+        if echo "$SERVICES" | grep -qw "\+$alt"; then
+          found=1;
+	fi
+      done
+      if [ -z $found ]; then
+        echo "  Skip $i because haproxy is not compiled with the required service $requiredservice"
         skiptest=1
       fi
     done
@@ -322,8 +344,8 @@ if [ $preparefailed ]; then
   exit 1
 fi
 
-{ read HAPROXY_VERSION; read TARGET; read FEATURES; } << EOF
-$($HAPROXY_PROGRAM $HAPROXY_ARGS -vv |grep 'HA-Proxy version\|TARGET.*=\|^Feature' | sed 's/.* [:=] //')
+{ read HAPROXY_VERSION; read TARGET; read FEATURES; read SERVICES; } << EOF
+$($HAPROXY_PROGRAM $HAPROXY_ARGS -vv | grep 'HA-Proxy version\|TARGET.*=\|^Feature\|^Available services' | sed 's/.* [:=] //')
 EOF
 
 HAPROXY_VERSION=$(echo $HAPROXY_VERSION | cut -d " " -f 3)
@@ -342,6 +364,7 @@ fi
 
 echo "Target : $TARGET"
 echo "Options : $FEATURES"
+echo "Services : $SERVICES"
 
 echo "########################## Gathering tests to run ##########################"
 # if htx is enable, but HAProxy version is lower to 1.9, disable it
