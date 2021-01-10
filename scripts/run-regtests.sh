@@ -204,7 +204,7 @@ _findtests() {
       alternatives=$(echo "$requiredservice" | sed -e 's/|/ /g')
       found=
       for alt in $alternatives; do
-        if echo "$SERVICES" | grep -qw "\+$alt"; then
+        if echo "$SERVICES" | grep -qw "$alt"; then
           found=1;
 	fi
       done
