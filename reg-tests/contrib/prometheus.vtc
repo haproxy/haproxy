@@ -1,0 +1,73 @@
+varnishtest "prometheus exporter test"
+
+#REQUIRE_VERSION=2.0
+#REQUIRE_SERVICES=prometheus-exporter
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    listen stats
+	bind "fd@${stats}"
+        http-request use-service prometheus-exporter if { path /metrics }
+
+    frontend fe
+	bind "fd@${fe}"
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_stats_sock} {
+	txreq -url "/metrics"
+	rxresp
+	expect resp.status == 200
+	expect resp.body ~ ".*haproxy_process.*"
+	expect resp.body ~ ".*haproxy_frontend.*"
+	expect resp.body ~ ".*haproxy_backend.*"
+	expect resp.body ~ ".*haproxy_server.*"
+} -run
+
+client c2 -connect ${h1_stats_sock} {
+	txreq -url "/metrics?scope"
+	rxresp
+	expect resp.status == 400
+} -run
+
+client c3 -connect ${h1_stats_sock} {
+	txreq -url "/metrics?scope="
+	rxresp
+	expect resp.status == 200
+	expect resp.bodylen == 0
+} -run
+
+client c4 -connect ${h1_stats_sock} {
+	txreq -url "/metrics?scope=server"
+	rxresp
+	expect resp.status == 200
+	expect resp.body !~ ".*haproxy_process.*"
+	expect resp.body !~ ".*haproxy_frontend.*"
+	expect resp.body !~ ".*haproxy_backend.*"
+	expect resp.body ~ ".*haproxy_server.*"
+} -run
+
+client c5 -connect ${h1_stats_sock} {
+	txreq -url "/metrics?scope=frontend&scope=backend"
+	rxresp
+	expect resp.status == 200
+	expect resp.body !~ ".*haproxy_process.*"
+	expect resp.body ~ ".*haproxy_frontend.*"
+	expect resp.body ~ ".*haproxy_backend.*"
+	expect resp.body !~ ".*haproxy_server.*"
+} -run
