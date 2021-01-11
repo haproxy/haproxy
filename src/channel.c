@@ -152,8 +152,9 @@ int ci_putblk(struct channel *chn, const char *blk, int len)
 	max = channel_recv_limit(chn);
 	if (unlikely(len > max - c_data(chn))) {
 		/* we can't write this chunk right now because the buffer is
-		 * almost full or because the block is too large. Return the
-		 * available space or -2 if impossible.
+		 * almost full or because the block is too large. Returns
+		 * -3 if block is too large for this buffer. Or -1 if the
+		 * room left is not large enough.
 		 */
 		if (len > max)
 			return -3;
