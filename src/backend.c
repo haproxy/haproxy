@@ -1113,7 +1113,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	 * to end up with two threads using the same connection.
 	 */
 	i = tid;
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	conn = MT_LIST_POP(&mt_list[tid], struct connection *, list);
 
 	/* If we failed to pick a connection from the idle list, let's try again with
@@ -1126,7 +1126,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 			mt_list = srv->safe_conns;
 		}
 	}
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
 	/* If we found a connection in our own list, and we don't have to
 	 * steal one from another thread, then we're done.
@@ -1161,7 +1161,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 		if (!srv->curr_idle_thr[i] || i == tid)
 			continue;
 
-		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 		mt_list_for_each_entry_safe(conn, &mt_list[i], list, elt1, elt2) {
 			if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
 				MT_LIST_DEL_SAFE(elt1);
@@ -1185,7 +1185,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 				}
 			}
 		}
-		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 	} while (!found && (i = (i + 1 == global.nbthread) ? 0 : i + 1) != stop);
 
 	if (!found)
@@ -1335,12 +1335,15 @@ int connect_server(struct stream *s)
 		 * acceptable, attempt to kill an idling connection
 		 */
 		/* First, try from our own idle list */
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		tokill_conn = MT_LIST_POP(&srv->idle_conns[tid],
 		    struct connection *, list);
 		if (tokill_conn)
 			tokill_conn->mux->destroy(tokill_conn->ctx);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
 		/* If not, iterate over other thread's idling pool, and try to grab one */
-		else {
+		if (!tokill_conn) {
 			int i;
 
 			for (i = tid; (i = ((i + 1 == global.nbthread) ? 0 : i + 1)) != tid;) {
@@ -1350,12 +1353,13 @@ int connect_server(struct stream *s)
 				// see it possibly larger.
 				ALREADY_CHECKED(i);
 
-				HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
+				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 				tokill_conn = MT_LIST_POP(&srv->idle_conns[i],
 				    struct connection *, list);
 				if (!tokill_conn)
 					tokill_conn = MT_LIST_POP(&srv->safe_conns[i],
 					    struct connection *, list);
+				HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 
 				if (tokill_conn) {
 					/* We got one, put it into the concerned thread's to kill list, and wake it's kill task */
@@ -1363,10 +1367,8 @@ int connect_server(struct stream *s)
 					MT_LIST_ADDQ(&idle_conns[i].toremove_conns,
 					    (struct mt_list *)&tokill_conn->list);
 					task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
-					HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 					break;
 				}
-				HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 			}
 		}
 

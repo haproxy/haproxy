@@ -617,7 +617,7 @@ struct tlv_ssl {
 struct idle_conns {
 	struct mt_list toremove_conns;
 	struct task *cleanup_task;
-	__decl_thread(HA_SPINLOCK_T takeover_lock);
+	__decl_thread(HA_SPINLOCK_T idle_conns_lock);
 } THREAD_ALIGNED(64);
 
 #endif /* _HAPROXY_CONNECTION_T_H */

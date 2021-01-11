@@ -36,6 +36,7 @@
 
 
 __decl_thread(extern HA_SPINLOCK_T idle_conn_srv_lock);
+extern struct idle_conns idle_conns[MAX_THREADS];
 extern struct eb_root idle_conn_srv;
 extern struct task *idle_conn_task;
 extern struct dict server_key_dict;
@@ -271,7 +272,9 @@ static inline void srv_del_conn_from_list(struct server *srv, struct connection 
 	}
 
 	/* Remove the connection from any list (safe, idle or available) */
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	MT_LIST_DEL((struct mt_list *)&conn->list);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 }
 
 /* This adds an idle connection to the server's list if the connection is
@@ -304,7 +307,10 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 			return 0;
 		}
 		_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);
+
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		MT_LIST_DEL(&conn->list);
+
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
 			MT_LIST_ADDQ(&srv->safe_conns[tid], (struct mt_list *)&conn->list);
@@ -314,6 +320,7 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 			MT_LIST_ADDQ(&srv->idle_conns[tid], (struct mt_list *)&conn->list);
 			_HA_ATOMIC_ADD(&srv->curr_idle_nb, 1);
 		}
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		_HA_ATOMIC_ADD(&srv->curr_idle_thr[tid], 1);
 
 		__ha_barrier_full();

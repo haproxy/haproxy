@@ -5808,9 +5808,9 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short state)
 	int conn_in_list;
 	int ret = 0;
 
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	if (tl->context == NULL) {
-		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		tasklet_free(tl);
 		return NULL;
 	}
@@ -5818,7 +5818,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short state)
 	conn_in_list = conn->flags & CO_FL_LIST_MASK;
 	if (conn_in_list)
 		MT_LIST_DEL(&conn->list);
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	/* First if we're doing an handshake, try that */
 	if (ctx->conn->flags & CO_FL_SSL_WAIT_HS)
 		ssl_sock_handshake(ctx->conn, CO_FL_SSL_WAIT_HS);
@@ -5866,10 +5866,12 @@ leave:
 	if (!ret && conn_in_list) {
 		struct server *srv = objt_server(conn->target);
 
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (conn_in_list == CO_FL_SAFE_LIST)
 			MT_LIST_ADDQ(&srv->safe_conns[tid], &conn->list);
 		else
 			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 	return NULL;
 }

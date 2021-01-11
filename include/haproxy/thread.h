@@ -400,6 +400,7 @@ enum lock_label {
 	SNI_LOCK,
 	SSL_SERVER_LOCK,
 	SFT_LOCK, /* sink forward target */
+	IDLE_CONNS_LOCK,
 	OTHER_LOCK,
 	LOCK_LABELS
 };
@@ -444,6 +445,7 @@ static inline const char *lock_label(enum lock_label label)
 	case SNI_LOCK:             return "SNI";
 	case SSL_SERVER_LOCK:      return "SSL_SERVER";
 	case SFT_LOCK:             return "SFT";
+	case IDLE_CONNS_LOCK:      return "IDLE_CONNS";
 	case OTHER_LOCK:           return "OTHER";
 	case LOCK_LABELS:          break; /* keep compiler happy */
 	};

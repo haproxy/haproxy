@@ -5277,6 +5277,8 @@ struct task *srv_cleanup_toremove_connections(struct task *task, void *context, 
 /* Move toremove_nb connections from idle_list to toremove_list, -1 means
  * moving them all.
  * Returns the number of connections moved.
+ *
+ * Must be called with idle_conns_lock held.
  */
 static int srv_migrate_conns_to_remove(struct mt_list *idle_list, struct mt_list *toremove_list, int toremove_nb)
 {
@@ -5308,10 +5310,12 @@ static void srv_cleanup_connections(struct server *srv)
 	/* check all threads starting with ours */
 	for (i = tid;;) {
 		did_remove = 0;
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 		if (srv_migrate_conns_to_remove(&srv->idle_conns[i], &idle_conns[i].toremove_conns, -1) > 0)
 			did_remove = 1;
 		if (srv_migrate_conns_to_remove(&srv->safe_conns[i], &idle_conns[i].toremove_conns, -1) > 0)
 			did_remove = 1;
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 		if (did_remove)
 			task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
 
@@ -5381,12 +5385,14 @@ struct task *srv_cleanup_idle_connections(struct task *task, void *context, unsi
 			max_conn = (exceed_conns * srv->curr_idle_thr[i]) /
 			           curr_idle + 1;
 
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 			j = srv_migrate_conns_to_remove(&srv->idle_conns[i], &idle_conns[i].toremove_conns, max_conn);
 			if (j > 0)
 				did_remove = 1;
 			if (max_conn - j > 0 &&
 			    srv_migrate_conns_to_remove(&srv->safe_conns[i], &idle_conns[i].toremove_conns, max_conn - j) > 0)
 				did_remove = 1;
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 
 			if (did_remove)
 				task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);

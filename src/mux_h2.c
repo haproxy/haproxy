@@ -3782,13 +3782,13 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 	int ret = 0;
 
 
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	if (t->context == NULL) {
 		/* The connection has been taken over by another thread,
 		 * we're no longer responsible for it, so just free the
 		 * tasklet, and do nothing.
 		 */
-		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		tasklet_free(tl);
 		goto leave;
 	}
@@ -3805,7 +3805,7 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 	if (conn_in_list)
 		MT_LIST_DEL(&conn->list);
 
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
 	if (!(h2c->wait_event.events & SUB_RETRY_SEND))
 		ret = h2_send(h2c);
@@ -3822,10 +3822,12 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 	if (!ret && conn_in_list) {
 		struct server *srv = objt_server(conn->target);
 
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (conn_in_list == CO_FL_SAFE_LIST)
 			MT_LIST_ADDQ(&srv->safe_conns[tid], &conn->list);
 		else
 			MT_LIST_ADDQ(&srv->idle_conns[tid], &conn->list);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 
 leave:
@@ -3902,15 +3904,15 @@ static int h2_process(struct h2c *h2c)
 		}
 
 		/* connections in error must be removed from the idle lists */
-		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		MT_LIST_DEL((struct mt_list *)&conn->list);
-		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 	else if (h2c->st0 == H2_CS_ERROR) {
 		/* connections in error must be removed from the idle lists */
-		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		MT_LIST_DEL((struct mt_list *)&conn->list);
-		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 
 	if (!b_data(&h2c->dbuf))
@@ -3966,20 +3968,20 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned short state
 
 	if (h2c) {
 		 /* Make sure nobody stole the connection from us */
-		HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
 		/* Somebody already stole the connection from us, so we should not
 		 * free it, we just have to free the task.
 		 */
 		if (!t->context) {
 			h2c = NULL;
-			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			goto do_leave;
 		}
 
 
 		if (!expired) {
-			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			TRACE_DEVEL("leaving (not expired)", H2_EV_H2C_WAKE, h2c->conn);
 			return t;
 		}
@@ -3988,7 +3990,7 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned short state
 			/* we do still have streams but all of them are idle, waiting
 			 * for the data layer, so we must not enforce the timeout here.
 			 */
-			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			t->expire = TICK_ETERNITY;
 			return t;
 		}
@@ -3999,7 +4001,7 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned short state
 		if (h2c->conn->flags & CO_FL_LIST_MASK)
 			MT_LIST_DEL(&h2c->conn->list);
 
-		HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 
 do_leave:
@@ -4047,9 +4049,9 @@ do_leave:
 	}
 
 	/* in any case this connection must not be considered idle anymore */
-	HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	MT_LIST_DEL((struct mt_list *)&h2c->conn->list);
-	HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
 	/* either we can release everything now or it will be done later once
 	 * the last stream closes.
