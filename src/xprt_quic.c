@@ -574,14 +574,17 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 		if (mask & QUIC_EV_CONN_PSTRM) {
 			const struct quic_frame *frm = a2;
-			const struct quic_stream *s = &frm->stream;
 
-			chunk_appendf(&trace_buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
-			              !!(s->id & QUIC_STREAM_FRAME_ID_DIR_BIT),
-			              !!(frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT),
-			              (unsigned long long)s->id,
-			              (unsigned long long)s->offset,
-			              (unsigned long long)s->len);
+			if (a2) {
+				const struct quic_stream *s = &frm->stream;
+
+				chunk_appendf(&trace_buf, " uni=%d fin=%d id=%llu off=%llu len=%llu",
+							  !!(s->id & QUIC_STREAM_FRAME_ID_DIR_BIT),
+							  !!(frm->type & QUIC_STREAM_FRAME_TYPE_FIN_BIT),
+							  (unsigned long long)s->id,
+							  (unsigned long long)s->offset,
+							  (unsigned long long)s->len);
+			}
 		}
 	}
 	if (mask & QUIC_EV_CONN_LPKT) {
