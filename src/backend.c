@@ -827,36 +827,32 @@ out_ok:
 	return err;
 }
 
-/*
- * This function assigns a server address to a stream, and sets SF_ADDR_SET.
+/* Allocate an address for the destination endpoint
  * The address is taken from the currently assigned server, or from the
  * dispatch or transparent address.
  *
- * It may return :
- *   SRV_STATUS_OK       if everything is OK.
- *   SRV_STATUS_INTERNAL for other unrecoverable errors.
- *
- * Upon successful return, the stream flag SF_ADDR_SET is set. This flag is
- * not cleared, so it's to the caller to clear it if required.
+ * Returns SRV_STATUS_OK on success.
+ * On error, the allocated address is freed and SRV_STATUS_INTERNAL is returned.
  */
-int assign_server_address(struct stream *s)
+static int alloc_dst_address(struct sockaddr_storage **ss,
+                             struct server *srv, struct stream *s)
 {
 	struct connection *cli_conn = objt_conn(strm_orig(s));
 
-	DPRINTF(stderr,"assign_server_address : s=%p\n",s);
-
-	if (!sockaddr_alloc(&s->target_addr, NULL, 0))
-		return SRV_STATUS_INTERNAL;
+	*ss = NULL;
 
 	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
 		/* A server is necessarily known for this stream */
 		if (!(s->flags & SF_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
 
-		*s->target_addr = __objt_server(s->target)->addr;
-		set_host_port(s->target_addr, __objt_server(s->target)->svc_port);
+		if (!sockaddr_alloc(ss, NULL, 0))
+			return SRV_STATUS_INTERNAL;
 
-		if (!is_addr(s->target_addr) && cli_conn) {
+		**ss = srv->addr;
+		set_host_port(*ss, srv->svc_port);
+
+		if (!is_addr(*ss) && cli_conn) {
 			/* if the server has no address, we use the same address
 			 * the client asked, which is handy for remapping ports
 			 * locally on multiple addresses at once. Nothing is done
@@ -865,15 +861,17 @@ int assign_server_address(struct stream *s)
 			if (!conn_get_dst(cli_conn)) {
 				/* do nothing if we can't retrieve the address */
 			} else if (cli_conn->dst->ss_family == AF_INET) {
-				((struct sockaddr_in *)s->target_addr)->sin_addr = ((struct sockaddr_in *)cli_conn->dst)->sin_addr;
+				((struct sockaddr_in *)*ss)->sin_addr =
+				  ((struct sockaddr_in *)cli_conn->dst)->sin_addr;
 			} else if (cli_conn->dst->ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)s->target_addr)->sin6_addr = ((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr;
+				((struct sockaddr_in6 *)*ss)->sin6_addr =
+				  ((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr;
 			}
 		}
 
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
-		if ((__objt_server(s->target)->flags & SRV_F_MAPPORTS) && cli_conn) {
+		if ((srv->flags & SRV_F_MAPPORTS) && cli_conn) {
 			int base_port;
 
 			if (conn_get_dst(cli_conn)) {
@@ -881,20 +879,26 @@ int assign_server_address(struct stream *s)
 				base_port = get_host_port(cli_conn->dst);
 
 				/* Second, assign the outgoing connection's port */
-				base_port += get_host_port(s->target_addr);
-				set_host_port(s->target_addr, base_port);
+				base_port += get_host_port(*ss);
+				set_host_port(*ss, base_port);
 			}
 		}
 	}
 	else if (s->be->options & PR_O_DISPATCH) {
+		if (!sockaddr_alloc(ss, NULL, 0))
+			return SRV_STATUS_INTERNAL;
+
 		/* connect to the defined dispatch addr */
-		*s->target_addr = s->be->dispatch_addr;
+		**ss = s->be->dispatch_addr;
 	}
 	else if ((s->be->options & PR_O_TRANSP) && cli_conn) {
+		if (!sockaddr_alloc(ss, NULL, 0))
+			return SRV_STATUS_INTERNAL;
+
 		/* in transparent mode, use the original dest addr if no dispatch specified */
 		if (conn_get_dst(cli_conn) &&
 		    (cli_conn->dst->ss_family == AF_INET || cli_conn->dst->ss_family == AF_INET6))
-			*s->target_addr = *cli_conn->dst;
+			**ss = *cli_conn->dst;
 	}
 	else if (s->be->options & PR_O_HTTP_PROXY) {
 		/* If HTTP PROXY option is set, then server is already assigned
@@ -905,7 +909,6 @@ int assign_server_address(struct stream *s)
 		return SRV_STATUS_INTERNAL;
 	}
 
-	s->flags |= SF_ADDR_SET;
 	return SRV_STATUS_OK;
 }
 
@@ -1467,11 +1470,13 @@ skip_reuse:
 	}
 
 	if (!(s->flags & SF_ADDR_SET)) {
-		err = assign_server_address(s);
+		err = alloc_dst_address(&s->target_addr, srv, s);
 		if (err != SRV_STATUS_OK) {
 			conn_free(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
+
+		s->flags |= SF_ADDR_SET;
 	}
 
 	/* copy the target address into the connection */
