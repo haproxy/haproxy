@@ -2459,7 +2459,6 @@ static int promex_send_headers(struct appctx *appctx, struct stream_interface *s
 		goto full;
 	sl->info.res.status = 200;
 	if (!htx_add_header(htx, ist("Cache-Control"), ist("no-cache")) ||
-	    !htx_add_header(htx, ist("Connection"), ist("close")) ||
 	    !htx_add_header(htx, ist("Content-Type"), ist("text/plain; version=0.0.4")) ||
 	    !htx_add_header(htx, ist("Transfer-Encoding"), ist("chunked")) ||
 	    !htx_add_endof(htx, HTX_BLK_EOH))

@@ -37,22 +37,12 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.body ~ ".*haproxy_frontend.*"
 	expect resp.body ~ ".*haproxy_backend.*"
 	expect resp.body ~ ".*haproxy_server.*"
-} -run
 
-client c2 -connect ${h1_stats_sock} {
-	txreq -url "/metrics?scope"
-	rxresp
-	expect resp.status == 400
-} -run
-
-client c3 -connect ${h1_stats_sock} {
 	txreq -url "/metrics?scope="
 	rxresp
 	expect resp.status == 200
 	expect resp.bodylen == 0
-} -run
 
-client c4 -connect ${h1_stats_sock} {
 	txreq -url "/metrics?scope=server"
 	rxresp
 	expect resp.status == 200
@@ -60,9 +50,7 @@ client c4 -connect ${h1_stats_sock} {
 	expect resp.body !~ ".*haproxy_frontend.*"
 	expect resp.body !~ ".*haproxy_backend.*"
 	expect resp.body ~ ".*haproxy_server.*"
-} -run
 
-client c5 -connect ${h1_stats_sock} {
 	txreq -url "/metrics?scope=frontend&scope=backend"
 	rxresp
 	expect resp.status == 200
@@ -70,4 +58,8 @@ client c5 -connect ${h1_stats_sock} {
 	expect resp.body ~ ".*haproxy_frontend.*"
 	expect resp.body ~ ".*haproxy_backend.*"
 	expect resp.body !~ ".*haproxy_server.*"
+
+	txreq -url "/metrics?scope"
+	rxresp
+	expect resp.status == 400
 } -run
