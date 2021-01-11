@@ -254,7 +254,7 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 };
 
 /* one line of info */
-static THREAD_LOCAL struct field info[INF_TOTAL_FIELDS];
+THREAD_LOCAL struct field info[INF_TOTAL_FIELDS];
 
 /* description of statistics (static and dynamic) */
 static struct name_desc *stat_f[STATS_DOMAIN_COUNT];

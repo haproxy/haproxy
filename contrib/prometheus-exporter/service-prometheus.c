@@ -1325,29 +1325,13 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
 
-#ifdef USE_OPENSSL
-	int ssl_sess_rate = read_freq_ctr(&global.ssl_per_sec);
-	int ssl_key_rate = read_freq_ctr(&global.ssl_fe_keys_per_sec);
-	int ssl_reuse = 0;
+	if (!stats_fill_info(info, INF_TOTAL_FIELDS))
+		return -1;
 
-	if (ssl_key_rate < ssl_sess_rate) {
-		/* count the ssl reuse ratio and avoid overflows in both directions */
-		ssl_reuse = 100 - (100 * ssl_key_rate + (ssl_sess_rate - 1) / 2) / ssl_sess_rate;
-	}
-#endif
 	while (appctx->st2 && appctx->st2 < INF_TOTAL_FIELDS) {
 		switch (appctx->st2) {
 			case INF_BUILD_INFO:
 				metric = mkf_u32(FN_GAUGE, 1);
-				break;
-			case INF_NBTHREAD:
-				metric = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
-				break;
-			case INF_NBPROC:
-				metric = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbproc);
-				break;
-			case INF_PROCESS_NUM:
-				metric = mkf_u32(FO_KEY, relative_pid);
 				break;
 			case INF_UPTIME_SEC:
 				metric = mkf_u32(FN_DURATION, start_date.tv_sec);
@@ -1361,171 +1345,14 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 			case INF_POOL_USED_MB:
 				metric = mkf_u64(0, pool_total_used());
 				break;
-			case INF_POOL_FAILED:
-				metric = mkf_u32(FN_COUNTER, pool_total_failures());
-				break;
-			case INF_ULIMIT_N:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_nofile);
-				break;
-			case INF_MAXSOCK:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxsock);
-				break;
-			case INF_MAXCONN:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxconn);
-				break;
-			case INF_HARD_MAXCONN:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.hardmaxconn);
-				break;
-			case INF_CURR_CONN:
-				metric = mkf_u32(0, actconn);
-				break;
-			case INF_CUM_CONN:
-				metric = mkf_u32(FN_COUNTER, totalconn);
-				break;
-			case INF_CUM_REQ:
-				metric = mkf_u32(FN_COUNTER, global.req_count);
-				break;
-#ifdef USE_OPENSSL
-			case INF_MAX_SSL_CONNS:
-				metric = mkf_u32(FN_MAX, global.maxsslconn);
-				break;
-			case INF_CURR_SSL_CONNS:
-				metric = mkf_u32(0, sslconns);
-				break;
-			case INF_CUM_SSL_CONNS:
-				metric = mkf_u32(FN_COUNTER, totalsslconns);
-				break;
-#endif
-			case INF_MAXPIPES:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxpipes);
-				break;
-			case INF_PIPES_USED:
-				metric = mkf_u32(0, pipes_used);
-				break;
-			case INF_PIPES_FREE:
-				metric = mkf_u32(0, pipes_free);
-				break;
-			case INF_CONN_RATE:
-				metric = mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
-				break;
-			case INF_CONN_RATE_LIMIT:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.cps_lim);
-				break;
-			case INF_MAX_CONN_RATE:
-				metric = mkf_u32(FN_MAX, global.cps_max);
-				break;
-			case INF_SESS_RATE:
-				metric = mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
-				break;
-			case INF_SESS_RATE_LIMIT:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.sps_lim);
-				break;
-			case INF_MAX_SESS_RATE:
-				metric = mkf_u32(FN_RATE, global.sps_max);
-				break;
-#ifdef USE_OPENSSL
-			case INF_SSL_RATE:
-				metric = mkf_u32(FN_RATE, ssl_sess_rate);
-				break;
-			case INF_SSL_RATE_LIMIT:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.ssl_lim);
-				break;
-			case INF_MAX_SSL_RATE:
-				metric = mkf_u32(FN_MAX, global.ssl_max);
-				break;
-			case INF_SSL_FRONTEND_KEY_RATE:
-				metric = mkf_u32(0, ssl_key_rate);
-				break;
-			case INF_SSL_FRONTEND_MAX_KEY_RATE:
-				metric = mkf_u32(FN_MAX, global.ssl_fe_keys_max);
-				break;
-			case INF_SSL_FRONTEND_SESSION_REUSE_PCT:
-				metric = mkf_u32(0, ssl_reuse);
-				break;
-			case INF_SSL_BACKEND_KEY_RATE:
-				metric = mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
-				break;
-			case INF_SSL_BACKEND_MAX_KEY_RATE:
-				metric = mkf_u32(FN_MAX, global.ssl_be_keys_max);
-				break;
-			case INF_SSL_CACHE_LOOKUPS:
-				metric = mkf_u32(FN_COUNTER, global.shctx_lookups);
-				break;
-			case INF_SSL_CACHE_MISSES:
-				metric = mkf_u32(FN_COUNTER, global.shctx_misses);
-				break;
-#endif
-			case INF_COMPRESS_BPS_IN:
-				metric = mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
-				break;
-			case INF_COMPRESS_BPS_OUT:
-				metric = mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
-				break;
-			case INF_COMPRESS_BPS_RATE_LIM:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.comp_rate_lim);
-				break;
-#ifdef USE_ZLIB
-			case INF_ZLIB_MEM_USAGE:
-				metric = mkf_u32(0, zlib_used_memory);
-				break;
-			case INF_MAX_ZLIB_MEM_USAGE:
-				metric = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxzlibmem);
-				break;
-#endif
-			case INF_TASKS:
-				metric = mkf_u32(0, nb_tasks_cur);
-				break;
-			case INF_RUN_QUEUE:
-				metric = mkf_u32(0, tasks_run_queue_cur);
-				break;
-			case INF_IDLE_PCT:
-				metric = mkf_u32(FN_AVG, ti->idle_pct);
-				break;
-			case INF_STOPPING:
-				metric = mkf_u32(0, stopping);
-				break;
-			case INF_JOBS:
-				metric = mkf_u32(0, jobs);
-				break;
-			case INF_UNSTOPPABLE_JOBS:
-				metric = mkf_u32(0, unstoppable_jobs);
-				break;
-			case INF_LISTENERS:
-				metric = mkf_u32(0, listeners);
-				break;
-			case INF_ACTIVE_PEERS:
-				metric = mkf_u32(0, active_peers);
-				break;
-			case INF_CONNECTED_PEERS:
-				metric = mkf_u32(0, connected_peers);
-				break;
-			case INF_DROPPED_LOGS:
-				metric = mkf_u32(0, dropped_logs);
-				break;
-			case INF_BUSY_POLLING:
-				metric = mkf_u32(0, !!(global.tune.options & GTUNE_BUSY_POLLING));
-				break;
-			case INF_FAILED_RESOLUTIONS:
-				metric = mkf_u32(0, dns_failed_resolutions);
-				break;
-			case INF_TOTAL_BYTES_OUT:
-				metric = mkf_u64(0, global.out_bytes);
-				break;
-			case INF_TOTAL_SPLICED_BYTES_OUT:
-				metric = mkf_u64(0, global.spliced_out_bytes);
-				break;
-			case INF_BYTES_OUT_RATE:
-				metric = mkf_u64(FN_RATE, (unsigned long long)read_freq_ctr(&global.out_32bps) * 32);
-				break;
 
 			default:
-				goto next_metric;
+				metric = info[appctx->st2];
 		}
 
 		if (!promex_dump_metric(appctx, htx, prefix, &metric, &out, max))
 			goto full;
 
-	   next_metric:
 		appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
 		appctx->st2 = promex_global_metrics[appctx->st2];
 	}
