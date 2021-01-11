@@ -2992,6 +2992,9 @@ static int sample_conv_concat(const struct arg *arg_p, struct sample *smp, void 
 	int max;
 
 	trash = alloc_trash_chunk();
+	if (!trash)
+		return 0;
+
 	trash->data = smp->data.u.str.data;
 	if (trash->data > trash->size - 1)
 		trash->data = trash->size - 1;
