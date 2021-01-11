@@ -11,9 +11,27 @@ haproxy h1 -conf {
 		bind "fd@${feS_sni}"
 		server srv2 ${h1_feR_ssl_addr}:${h1_feR_ssl_port} ssl sni "req.hdr(x-sni)" verify none pool-low-conn 2
 
+	# set-dst
+	# specify dst1_addr for server, which should be identical to dst2_addr
+	# port is specified by the client in header x-dst-port
+	listen sender-set-dst
+		bind "fd@${feS_dst}"
+		http-request set-dst-port hdr(x-dst-port)
+		server srv2 ${h1_feR_dst1_addr}:0 pool-low-conn 2
+
 	listen receiver
 		bind "fd@${feR_ssl}" ssl crt ${testdir}/common.pem
 		http-request return status 200
+		http-after-response set-header http_first_request %[http_first_req]
+
+	listen receiver-dst1
+		bind "fd@${feR_dst1}"
+		http-request return status 200 hdr "x-dst" "dst1"
+		http-after-response set-header http_first_request %[http_first_req]
+
+	listen receiver-dst2
+		bind "fd@${feR_dst2}"
+		http-request return status 200 hdr "x-dst" "dst2"
 		http-after-response set-header http_first_request %[http_first_req]
 } -start
 
@@ -41,5 +59,43 @@ client c_sni -connect ${h1_feS_sni_sock} {
 	txreq \
 	  -hdr "x-sni: custom_sni_2"
 	rxresp
+	expect resp.http.http_first_request == "0"
+} -run
+
+# http-reuse with destination address
+client c_dst1 -connect ${h1_feS_dst_sock} {
+	txreq \
+	  -hdr "x-dst-port: ${h1_feR_dst1_port}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-dst == "dst1"
+	expect resp.http.http_first_request == "1"
+
+	txreq \
+	  -hdr "x-dst-port: ${h1_feR_dst1_port}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-dst == "dst1"
+	expect resp.http.http_first_request == "0"
+
+	txreq \
+	  -hdr "x-dst-port: ${h1_feR_dst2_port}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-dst == "dst2"
+	expect resp.http.http_first_request == "1"
+
+	txreq \
+	  -hdr "x-dst-port: ${h1_feR_dst1_port}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-dst == "dst1"
+	expect resp.http.http_first_request == "0"
+
+	txreq \
+	  -hdr "x-dst-port: ${h1_feR_dst2_port}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-dst == "dst2"
 	expect resp.http.http_first_request == "0"
 } -run
