@@ -27,6 +27,19 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/thread.h>
 
+/* Initialize a pre-allocated ring with the buffer area
+ * of size */
+void ring_init(struct ring *ring, void *area, size_t size)
+{
+	HA_RWLOCK_INIT(&ring->lock);
+	LIST_INIT(&ring->waiters);
+	ring->readers_count = 0;
+	ring->ofs = 0;
+	ring->buf = b_make(area, size, 0, 0);
+	/* write the initial RC byte */
+	b_putchr(&ring->buf, 0);
+}
+
 /* Creates and returns a ring buffer of size <size> bytes. Returns NULL on
  * allocation failure.
  */
@@ -46,13 +59,7 @@ struct ring *ring_new(size_t size)
 	if (!area)
 		goto fail;
 
-	HA_RWLOCK_INIT(&ring->lock);
-	LIST_INIT(&ring->waiters);
-	ring->readers_count = 0;
-	ring->ofs = 0;
-	ring->buf = b_make(area, size, 0, 0);
-	/* write the initial RC byte */
-	b_putchr(&ring->buf, 0);
+	ring_init(ring, area, size);
 	return ring;
  fail:
 	free(area);
