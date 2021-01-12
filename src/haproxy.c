@@ -3111,8 +3111,7 @@ int main(int argc, char **argv)
 			if (global.tune.options & GTUNE_STRICT_LIMITS) {
 				ha_alert("[%s.main()] Cannot raise FD limit to %d, limit is %d.\n",
 					 argv[0], global.rlimit_nofile, (int)limit.rlim_cur);
-				if (!(global.mode & MODE_MWORKER))
-					exit(1);
+				exit(1);
 			}
 			else {
 				/* try to set it to the max possible at least */
@@ -3135,8 +3134,7 @@ int main(int argc, char **argv)
 			if (global.tune.options & GTUNE_STRICT_LIMITS) {
 				ha_alert("[%s.main()] Cannot fix MEM limit to %d megs.\n",
 					 argv[0], global.rlimit_memmax);
-				if (!(global.mode & MODE_MWORKER))
-					exit(1);
+				exit(1);
 			}
 			else
 				ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
@@ -3147,8 +3145,7 @@ int main(int argc, char **argv)
 			if (global.tune.options & GTUNE_STRICT_LIMITS) {
 				ha_alert("[%s.main()] Cannot fix MEM limit to %d megs.\n",
 					 argv[0], global.rlimit_memmax);
-				if (!(global.mode & MODE_MWORKER))
-					exit(1);
+				exit(1);
 			}
 			else
 				ha_warning("[%s.main()] Cannot fix MEM limit to %d megs.\n",
@@ -3320,8 +3317,7 @@ int main(int argc, char **argv)
 				 "Please raise 'ulimit-n' to %d or more to avoid any trouble.\n",
 			         argv[0], (int)limit.rlim_cur, global.maxconn, global.maxsock,
 				 global.maxsock);
-			if (!(global.mode & MODE_MWORKER))
-				exit(1);
+			exit(1);
 		}
 		else
 			ha_alert("[%s.main()] FD limit (%d) too low for maxconn=%d/maxsock=%d. "
@@ -3608,8 +3604,7 @@ int main(int argc, char **argv)
 			if (global.tune.options & GTUNE_STRICT_LIMITS) {
 				ha_alert("[%s.main()] Failed to set the raise the maximum "
 					 "file size.\n", argv[0]);
-				if (!(global.mode & MODE_MWORKER))
-					exit(1);
+				exit(1);
 			}
 			else
 				ha_warning("[%s.main()] Failed to set the raise the maximum "
@@ -3622,8 +3617,7 @@ int main(int argc, char **argv)
 			if (global.tune.options & GTUNE_STRICT_LIMITS) {
 				ha_alert("[%s.main()] Failed to set the raise the core "
 					 "dump size.\n", argv[0]);
-				if (!(global.mode & MODE_MWORKER))
-					exit(1);
+				exit(1);
 			}
 			else
 				ha_warning("[%s.main()] Failed to set the raise the core "
