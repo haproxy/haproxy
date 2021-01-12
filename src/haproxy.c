@@ -1826,7 +1826,8 @@ static void init(int argc, char **argv)
 
 	/* in wait mode, we don't try to read the configuration files */
 	if (!(global.mode & MODE_MWORKER_WAIT)) {
-		struct buffer *trash = get_trash_chunk();
+		char *env_cfgfiles = NULL;
+		int env_err = 0;
 
 		/* handle cfgfiles that are actually directories */
 		cfgfiles_expand_directories();
@@ -1838,22 +1839,27 @@ static void init(int argc, char **argv)
 		list_for_each_entry(wl, &cfg_cfgfiles, list) {
 			int ret;
 
-			if (trash->data)
-				chunk_appendf(trash, ";");
-
-			chunk_appendf(trash, "%s", wl->s);
+			if (env_err == 0) {
+				if (!memprintf(&env_cfgfiles, "%s%s%s",
+					       (env_cfgfiles ? env_cfgfiles : ""),
+					       (env_cfgfiles ? ";" : ""), wl->s))
+					env_err = 1;
+			}
 
 			ret = readcfgfile(wl->s);
 			if (ret == -1) {
 				ha_alert("Could not open configuration file %s : %s\n",
 					 wl->s, strerror(errno));
+				free(env_cfgfiles);
 				exit(1);
 			}
 			if (ret & (ERR_ABORT|ERR_FATAL))
 				ha_alert("Error(s) found in configuration file : %s\n", wl->s);
 			err_code |= ret;
-			if (err_code & ERR_ABORT)
+			if (err_code & ERR_ABORT) {
+				free(env_cfgfiles);
 				exit(1);
+			}
 		}
 
 		/* do not try to resolve arguments nor to spot inconsistencies when
@@ -1862,10 +1868,15 @@ static void init(int argc, char **argv)
 		 */
 		if (err_code & (ERR_ABORT|ERR_FATAL)) {
 			ha_alert("Fatal errors found in configuration.\n");
+			free(env_cfgfiles);
 			exit(1);
 		}
-		if (trash->data)
-			setenv("HAPROXY_CFGFILES", trash->area, 1);
+		if (env_err) {
+			ha_alert("Could not allocate memory for HAPROXY_CFGFILES env variable\n");
+			exit(1);
+		}
+		setenv("HAPROXY_CFGFILES", env_cfgfiles, 1);
+		free(env_cfgfiles);
 
 	}
 	if (global.mode & MODE_MWORKER) {
