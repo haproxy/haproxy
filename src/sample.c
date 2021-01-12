@@ -839,7 +839,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 	const char *begw; /* beginning of word */
 	const char *endw; /* end of word */
 	const char *endt; /* end of term */
-	struct sample_expr *expr;
+	struct sample_expr *expr = NULL;
 	struct sample_fetch *fetch;
 	struct sample_conv *conv;
 	unsigned long prev_type;
@@ -1022,7 +1022,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 	return expr;
 
 out_error:
-	/* TODO: prune_sample_expr(expr); */
+	release_sample_expr(expr);
 	expr = NULL;
 	goto out;
 }
