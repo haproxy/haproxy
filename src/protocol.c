@@ -63,7 +63,7 @@ int protocol_bind_all(int verbose)
 	struct protocol *proto;
 	struct listener *listener;
 	struct receiver *receiver;
-	char msg[100];
+	char msg[1000];
 	char *errmsg;
 	int err, lerr;
 

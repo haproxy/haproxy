@@ -585,7 +585,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
 	int fd, err;
 	int ready;
-	char *msg = NULL;
+	struct buffer *msg = alloc_trash_chunk();
 
 	err = ERR_NONE;
 
@@ -597,7 +597,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		return ERR_NONE; /* already bound */
 
 	if (!(listener->rx.flags & RX_F_BOUND)) {
-		msg = "receiving socket not bound";
+		chunk_appendf(msg, "%sreceiving socket not bound", msg->data ? ", " : "");
 		goto tcp_return;
 	}
 
@@ -621,7 +621,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->maxseg > 0) {
 		if (setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG,
 			       &listener->maxseg, sizeof(listener->maxseg)) == -1) {
-			msg = "cannot set MSS";
+			chunk_appendf(msg, "%scannot set MSS", msg->data ? ", " : "");
 			err |= ERR_WARN;
 		}
 	} else {
@@ -639,7 +639,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		if (defaultmss > 0 &&
 		    tmpmaxseg != defaultmss &&
 		    setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG, &defaultmss, sizeof(defaultmss)) == -1) {
-			msg = "cannot set MSS";
+			chunk_appendf(msg, "%scannot set MSS", msg->data ? ", " : "");
 			err |= ERR_WARN;
 		}
 	}
@@ -648,7 +648,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (listener->tcp_ut) {
 		if (setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT,
 			       &listener->tcp_ut, sizeof(listener->tcp_ut)) == -1) {
-			msg = "cannot set TCP User Timeout";
+			chunk_appendf(msg, "%scannot set TCP User Timeout", msg->data ? ", " : "");
 			err |= ERR_WARN;
 		}
 	} else
@@ -660,7 +660,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		/* defer accept by up to one second */
 		int accept_delay = 1;
 		if (setsockopt(fd, IPPROTO_TCP, TCP_DEFER_ACCEPT, &accept_delay, sizeof(accept_delay)) == -1) {
-			msg = "cannot enable DEFER_ACCEPT";
+			chunk_appendf(msg, "%scannot enable DEFER_ACCEPT", msg->data ? ", " : "");
 			err |= ERR_WARN;
 		}
 	} else
@@ -672,7 +672,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		/* TFO needs a queue length, let's use the configured backlog */
 		int qlen = listener_backlog(listener);
 		if (setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, &qlen, sizeof(qlen)) == -1) {
-			msg = "cannot enable TCP_FASTOPEN";
+			chunk_appendf(msg, "%scannot enable TCP_FASTOPEN", msg->data ? ", " : "");
 			err |= ERR_WARN;
 		}
 	} else {
@@ -686,7 +686,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		    qlen != 0) {
 			if (setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, &zero,
 			    sizeof(zero)) == -1) {
-				msg = "cannot disable TCP_FASTOPEN";
+				chunk_appendf(msg, "%scannot disable TCP_FASTOPEN", msg->data ? ", " : "");
 				err |= ERR_WARN;
 			}
 		}
@@ -698,7 +698,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (!ready && /* only listen if not already done by external process */
 	    listen(fd, listener_backlog(listener)) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
-		msg = "cannot listen to socket";
+		chunk_appendf(msg, "%scannot listen to socket", msg->data ? ", " : "");
 		goto tcp_close_return;
 	}
 
@@ -709,7 +709,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		memset(&accept, 0, sizeof(accept));
 		strcpy(accept.af_name, "dataready");
 		if (setsockopt(fd, SOL_SOCKET, SO_ACCEPTFILTER, &accept, sizeof(accept)) == -1) {
-			msg = "cannot enable ACCEPT_FILTER";
+			chunk_appendf(msg, "%scannot enable ACCEPT_FILTER", msg->data ? ", " : "");
 			err |= ERR_WARN;
 		}
 	}
@@ -726,14 +726,18 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	goto tcp_return;
 
  tcp_close_return:
+	free_trash_chunk(msg);
+	msg = NULL;
 	close(fd);
  tcp_return:
-	if (msg && errlen) {
+	if (msg && errlen && msg->data) {
 		char pn[INET6_ADDRSTRLEN];
 
 		addr_to_str(&listener->rx.addr, pn, sizeof(pn));
-		snprintf(errmsg, errlen, "%s [%s:%d]", msg, pn, get_host_port(&listener->rx.addr));
+		snprintf(errmsg, errlen, "[%s:%d]: %s", pn, get_host_port(&listener->rx.addr), msg->area);
 	}
+	free_trash_chunk(msg);
+	msg = NULL;
 	return err;
 }
 
