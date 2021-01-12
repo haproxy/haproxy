@@ -1027,10 +1027,6 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 				dns_answer_record->data_len = len;
 				memcpy(dns_answer_record->target, tmpname, len);
 				dns_answer_record->target[len] = 0;
-				if (dns_answer_record->ar_item != NULL) {
-					pool_free(dns_answer_item_pool, dns_answer_record->ar_item);
-					dns_answer_record->ar_item = NULL;
-				}
 				break;
 
 			case DNS_RTYPE_AAAA:
@@ -1280,7 +1276,6 @@ static int dns_validate_dns_response(unsigned char *resp, unsigned char *bufend,
 			// looking for the SRV record in the response list linked to this additional record
 			list_for_each_entry(tmp_record, &dns_p->answer_list, list) {
 				if (tmp_record->type == DNS_RTYPE_SRV &&
-				    tmp_record->ar_item == NULL &&
 				    !dns_hostname_cmp(tmp_record->target, dns_answer_record->name, tmp_record->data_len)) {
 					/* Always use the received additional record to refresh info */
 					if (tmp_record->ar_item)
