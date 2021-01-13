@@ -56,15 +56,16 @@
 #define H1C_F_ST_ALIVE       (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED)
 /* 0x00004000 - 0x00008000 unused */
 
-#define H1C_F_WAIT_OPPOSITE  0x00010000 /* Don't read more data for now, waiting sync with opposite side */
-#define H1C_F_WANT_SPLICE    0x00020000 /* Don't read into a buffer because we want to use or we are using splicing */
-#define H1C_F_ERR_PENDING    0x00040000 /* Send an error and close the connection ASAP (implies H1C_F_ST_ERROR) */
-#define H1C_F_WAIT_NEXT_REQ  0x00080000 /*  waiting for the next request to start, use keep-alive timeout */
-#define H1C_F_UPG_H2C        0x00100000 /* set if an upgrade to h2 should be done */
-#define H1C_F_CO_MSG_MORE    0x00200000 /* set if CO_SFL_MSG_MORE must be set when calling xprt->snd_buf() */
-#define H1C_F_CO_STREAMER    0x00400000 /* set if CO_SFL_STREAMER must be set when calling xprt->snd_buf() */
-/* 0x00800000 - 0x40000000 unused */
+#define H1C_F_WANT_SPLICE    0x00010000 /* Don't read into a buffer because we want to use or we are using splicing */
+#define H1C_F_ERR_PENDING    0x00020000 /* Send an error and close the connection ASAP (implies H1C_F_ST_ERROR) */
+#define H1C_F_WAIT_NEXT_REQ  0x00040000 /*  waiting for the next request to start, use keep-alive timeout */
+#define H1C_F_UPG_H2C        0x00080000 /* set if an upgrade to h2 should be done */
+#define H1C_F_CO_MSG_MORE    0x00100000 /* set if CO_SFL_MSG_MORE must be set when calling xprt->snd_buf() */
+#define H1C_F_CO_STREAMER    0x00200000 /* set if CO_SFL_STREAMER must be set when calling xprt->snd_buf() */
+#define H1C_F_WAIT_OUTPUT    0x00400000 /* Don't read more data for now, waiting sync with output side */
+#define H1C_F_WAIT_INPUT     0x00800000 /* Don't send more data for now, waiting sync with input side */
 
+/* 0x01000000 - 0x40000000 unusued*/
 #define H1C_F_IS_BACK        0x80000000 /* Set on outgoing connection */
 
 /*
@@ -390,8 +391,8 @@ static inline int h1_recv_allowed(const struct h1c *h1c)
 		return 0;
 	}
 
-	if (h1c->flags & H1C_F_WAIT_OPPOSITE) {
-		TRACE_DEVEL("recv not allowed (wait_opposite)", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
+	if (h1c->flags & H1C_F_WAIT_OUTPUT) {
+		TRACE_DEVEL("recv not allowed (wait_output)", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 		return 0;
 	}
 
@@ -737,8 +738,8 @@ static void h1s_destroy(struct h1s *h1s)
 
 		h1_release_buf(h1c, &h1s->rxbuf);
 
-		h1c->flags &= ~(H1C_F_WAIT_OPPOSITE|H1C_F_WANT_SPLICE|H1C_F_ST_EMBRYONIC|
-				H1C_F_ST_ATTACHED|H1C_F_ST_READY|
+		h1c->flags &= ~(H1C_F_WAIT_INPUT|H1C_F_WAIT_OUTPUT|H1C_F_WANT_SPLICE|
+				H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED|H1C_F_ST_READY|
 				H1C_F_OUT_FULL|H1C_F_OUT_ALLOC|H1C_F_IN_SALLOC|
 				H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
 		if (h1s->flags & H1S_F_ERROR) {
@@ -801,7 +802,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->idle_exp = TICK_ETERNITY;
 
 	if (conn_is_back(conn)) {
-		h1c->flags |= (H1C_F_IS_BACK|H1C_F_WAIT_OPPOSITE);
+		h1c->flags |= (H1C_F_IS_BACK|H1C_F_WAIT_OUTPUT);
 		h1c->shut_timeout = h1c->timeout = proxy->timeout.server;
 		if (tick_isset(proxy->timeout.serverfin))
 			h1c->shut_timeout = proxy->timeout.serverfin;
@@ -1282,12 +1283,12 @@ static void h1_set_req_tunnel_mode(struct h1s *h1s)
 	if (!(h1s->h1c->flags & H1C_F_IS_BACK)) {
 		h1s->flags &= ~H1S_F_PARSING_DONE;
 		if (h1s->res.state < H1_MSG_DONE) {
-			h1s->h1c->flags |= H1C_F_WAIT_OPPOSITE;
-			TRACE_STATE("Disable read on h1c (wait_opposite)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+			h1s->h1c->flags |= H1C_F_WAIT_OUTPUT;
+			TRACE_STATE("Disable read on h1c (wait_output)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
 		}
 	}
-	else if (h1s->h1c->flags & H1C_F_WAIT_OPPOSITE) {
-		h1s->h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
+	else if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
+		h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
 		tasklet_wakeup(h1s->h1c->wait_event.tasklet);
 		TRACE_STATE("Re-enable read on h1c", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
 	}
@@ -1314,8 +1315,8 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 		 * it in tunnel mode.
 		 */
 		if (h1s->req.state < H1_MSG_DONE) {
-			h1s->h1c->flags |= H1C_F_WAIT_OPPOSITE;
-			TRACE_STATE("Disable read on h1c (wait_opposite)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
+			h1s->h1c->flags |= H1C_F_WAIT_OUTPUT;
+			TRACE_STATE("Disable read on h1c (wait_output)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
 		}
 		else if (h1s->status == 101 && h1s->req.state == H1_MSG_DONE) {
 			h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
@@ -1323,8 +1324,8 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 			TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
 		}
 	}
-	else if (h1s->h1c->flags & H1C_F_WAIT_OPPOSITE) {
-		h1s->h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
+	else if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
+		h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
 		tasklet_wakeup(h1s->h1c->wait_event.tasklet);
 		TRACE_STATE("Re-enable read on h1c", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
 	}
@@ -1552,13 +1553,19 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 
 			if (!(h1m->flags & H1_MF_RESP) && h1s->status == 101)
 				h1_set_req_tunnel_mode(h1s);
-			else if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE) {
-				h1c->flags |= H1C_F_WAIT_OPPOSITE;
-				TRACE_STATE("Disable read on h1c (wait_opposite)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1c->conn, h1s);
+			else {
+				if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE) {
+					/* Unfinished transaction: block this input side waiting the end of the output side */
+					h1c->flags |= H1C_F_WAIT_OUTPUT;
+					TRACE_STATE("Disable read on h1c (wait_output)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1c->conn, h1s);
+				}
+				if (h1s->h1c->flags & H1C_F_WAIT_INPUT) {
+					h1s->h1c->flags &= ~H1C_F_WAIT_INPUT;
+					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_SEND, &h1c->wait_event);
+					TRACE_STATE("Re-enable send on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
+				}
 				break;
 			}
-			else
-				break;
 		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
 			TRACE_PROTO("parsing tunneled data", H1_EV_RX_DATA, h1c->conn, h1s);
@@ -1658,6 +1665,12 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 			}
 			else if (h1m->state > H1_MSG_LAST_LF && h1m->state < H1_MSG_DONE)
 				h1s->cs->flags |= CS_FL_ERROR;
+
+			if (h1s->h1c->flags & H1C_F_WAIT_INPUT) {
+				h1s->h1c->flags &= ~H1C_F_WAIT_INPUT;
+				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_SEND, &h1c->wait_event);
+				TRACE_STATE("Re-enable send on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
+			}
 		}
 	}
 
@@ -1797,8 +1810,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				if (sl->flags & HTX_SL_F_BODYLESS)
 					h1m->flags |= H1_MF_CLEN;
 				h1m->state = H1_MSG_HDR_FIRST;
-				if (h1c->flags & H1C_F_WAIT_OPPOSITE) {
-					h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
+				if (h1c->flags & H1C_F_WAIT_OUTPUT) {
+					h1c->flags &= ~H1C_F_WAIT_OUTPUT;
 					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 					TRACE_STATE("Re-enable read on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 				}
@@ -2057,8 +2070,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1_set_req_tunnel_mode(h1s);
 					TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
-				else if (h1s->h1c->flags & H1C_F_WAIT_OPPOSITE) {
-					h1s->h1c->flags &= ~H1C_F_WAIT_OPPOSITE;
+				else if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
+					h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
 					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 					TRACE_STATE("Re-enable read on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 				}
@@ -2438,7 +2451,7 @@ static int h1_send(struct h1c *h1c)
 	}
 
   end:
-	if (!(h1c->flags & H1C_F_OUT_FULL))
+	if (!(h1c->flags & (H1C_F_OUT_FULL|H1C_F_WAIT_INPUT)))
 		h1_wake_stream_for_send(h1c->h1s);
 
 	/* We're done, no more to send */
