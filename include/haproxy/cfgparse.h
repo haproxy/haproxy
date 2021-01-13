@@ -141,6 +141,31 @@ static inline int warnifnotcap(struct proxy *proxy, int cap, const char *file, i
 	return 0;
 }
 
+/*
+ * Sends an alert if proxy <proxy> does not have at least one of the
+ * capabilities in <cap>. An optional <hint> may be added at the end
+ * of the alert to help the user. Returns 1 if an alert was emitted
+ * or 0 if the condition is valid.
+ */
+static inline int failifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint)
+{
+	char *msg;
+
+	switch (cap) {
+	case PR_CAP_BE: msg = "no backend"; break;
+	case PR_CAP_FE: msg = "no frontend"; break;
+	case PR_CAP_BE|PR_CAP_FE: msg = "neither frontend nor backend"; break;
+	default: msg = "not enough"; break;
+	}
+
+	if (!(proxy->cap & cap)) {
+		ha_alert("parsing [%s:%d] : '%s' not allowed because %s '%s' has %s capability.%s\n",
+			 file, line, arg, proxy_type_str(proxy), proxy->id, msg, hint ? hint : "");
+		return 1;
+	}
+	return 0;
+}
+
 /* simplified way to define a section parser */
 #define REGISTER_CONFIG_SECTION(name, parse, post)                            \
 	INITCALL3(STG_REGISTER, cfg_register_section, (name), (parse), (post))
