@@ -1961,8 +1961,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
+		else if (failifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL)) {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 
 		/* There is no mandatory first arguments for default server. */
 		if (srv && parse_addr) {
