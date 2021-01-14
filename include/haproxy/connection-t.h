@@ -477,8 +477,9 @@ enum conn_hash_params_t {
 	CONN_HASH_PARAMS_TYPE_DST_PORT = 0x4,
 	CONN_HASH_PARAMS_TYPE_SRC_ADDR = 0x8,
 	CONN_HASH_PARAMS_TYPE_SRC_PORT = 0x10,
+	CONN_HASH_PARAMS_TYPE_PROXY    = 0x20,
 };
-#define CONN_HASH_PARAMS_TYPE_COUNT 5
+#define CONN_HASH_PARAMS_TYPE_COUNT 6
 
 #define CONN_HASH_PAYLOAD_LEN \
 	(((sizeof(((struct connection *)0)->hash)) * 8) - CONN_HASH_PARAMS_TYPE_COUNT)
@@ -495,6 +496,7 @@ struct conn_hash_params {
 	XXH64_hash_t *sni_prehash;
 	struct sockaddr_storage *src_addr;
 	struct sockaddr_storage *dst_addr;
+	XXH64_hash_t *proxy_prehash;
 };
 
 /* This structure describes a connection with its methods and data.

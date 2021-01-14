@@ -38,5 +38,5 @@ client c1 -connect ${h1_feS_sock} {
         -hdr "in: bar"
     rxresp
     expect resp.http.http_unique_id == "TEST-bar"
-    expect resp.http.proxy_unique_id == "TEST-foo"
+    expect resp.http.proxy_unique_id == "TEST-bar"
 } -run

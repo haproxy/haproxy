@@ -1267,9 +1267,10 @@ int connect_server(struct stream *s)
 	int err;
 	struct sample *sni_smp = NULL;
 	struct sockaddr_storage *bind_addr;
+	int proxy_line_ret;
 	int64_t hash = 0;
 	struct conn_hash_params hash_params;
-	XXH64_hash_t sni_hash;
+	XXH64_hash_t sni_hash, proxy_hash;
 
 	/* first, set unique connection parameters and then calculate hash */
 	memset(&hash_params, 0, sizeof(hash_params));
@@ -1309,6 +1310,15 @@ int connect_server(struct stream *s)
 		return SF_ERR_INTERNAL;
 
 	hash_params.src_addr = bind_addr;
+
+	/* 4. proxy protocol */
+	if (srv && srv->pp_opts) {
+		proxy_line_ret = make_proxy_line(trash.area, trash.size, srv, cli_conn, s);
+		if (proxy_line_ret) {
+			proxy_hash = conn_hash_prehash(trash.area, proxy_line_ret);
+			hash_params.proxy_prehash = &proxy_hash;
+		}
+	}
 
 	if (srv)
 		hash = conn_calculate_hash(&hash_params);
@@ -1535,7 +1545,6 @@ skip_reuse:
 		srv_conn->send_proxy_ofs = 0;
 
 		if (srv && srv->pp_opts) {
-			conn_set_private(srv_conn);
 			srv_conn->flags |= CO_FL_SEND_PROXY;
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
 			if (cli_conn)

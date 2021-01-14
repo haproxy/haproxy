@@ -1486,7 +1486,12 @@ XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
 		                             CONN_HASH_PARAMS_TYPE_SRC_PORT);
 	}
 
-	hash = conn_hash_digest(buf, idx, hash_flags);
+	if (params->proxy_prehash) {
+		conn_hash_update(buf, &idx,
+		                 params->proxy_prehash, sizeof(*params->proxy_prehash),
+		                 &hash_flags, CONN_HASH_PARAMS_TYPE_PROXY);
+	}
 
+	hash = conn_hash_digest(buf, idx, hash_flags);
 	return hash;
 }
