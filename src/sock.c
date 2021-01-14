@@ -161,6 +161,9 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 
  fail_conn:
 	sockaddr_free(&addr);
+	/* The accept call already succeeded by the time we try to allocate the connection,
+	 * we need to close it in case of failure. */
+	close(cfd);
  fail_addr:
 	ret = CO_AC_PAUSE;
 	goto done;
