@@ -92,8 +92,11 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_UPTIME]                         = { .name = "Uptime",                      .desc = "How long ago this worker process was started (days+hours+minutes+seconds)" },
 	[INF_UPTIME_SEC]                     = { .name = "Uptime_sec",                  .desc = "How long ago this worker process was started (seconds)" },
 	[INF_MEMMAX_MB]                      = { .name = "Memmax_MB",                   .desc = "Worker process's hard limit on memory usage in MB (-m on command line)" },
+	[INF_MEMMAX_BYTES]                   = { .name = "Memmax_bytes",                .desc = "Worker process's hard limit on memory usage in byes (-m on command line)" },
 	[INF_POOL_ALLOC_MB]                  = { .name = "PoolAlloc_MB",                .desc = "Amount of memory allocated in pools (in MB)" },
+	[INF_POOL_ALLOC_BYTES]               = { .name = "PoolAlloc_bytes",             .desc = "Amount of memory allocated in pools (in bytes)" },
 	[INF_POOL_USED_MB]                   = { .name = "PoolUsed_MB",                 .desc = "Amount of pool memory currently used (in MB)" },
+	[INF_POOL_USED_BYTES]                = { .name = "PoolUsed_bytes",              .desc = "Amount of pool memory currently used (in bytes)" },
 	[INF_POOL_FAILED]                    = { .name = "PoolFailed",                  .desc = "Number of failed pool allocations since this worker was started" },
 	[INF_ULIMIT_N]                       = { .name = "Ulimit-n",                    .desc = "Hard limit on the number of per-process file descriptors" },
 	[INF_MAXSOCK]                        = { .name = "Maxsock",                     .desc = "Hard limit on the number of per-process sockets" },
@@ -3849,8 +3852,11 @@ int stats_fill_info(struct field *info, int len)
 
 	info[INF_UPTIME_SEC]                     = mkf_u32(FN_DURATION, up);
 	info[INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
+	info[INF_MEMMAX_BYTES]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
 	info[INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
+	info[INF_POOL_ALLOC_BYTES]               = mkf_u32(0, pool_total_allocated());
 	info[INF_POOL_USED_MB]                   = mkf_u32(0, (unsigned)(pool_total_used() / 1048576L));
+	info[INF_POOL_USED_BYTES]                = mkf_u32(0, pool_total_used());
 	info[INF_POOL_FAILED]                    = mkf_u32(FN_COUNTER, pool_total_failures());
 	info[INF_ULIMIT_N]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_nofile);
 	info[INF_MAXSOCK]                        = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxsock);

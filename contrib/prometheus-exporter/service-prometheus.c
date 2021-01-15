@@ -99,10 +99,10 @@ const int promex_global_metrics[INF_TOTAL_FIELDS] = {
 	[INF_PROCESS_NUM]                    = INF_UPTIME_SEC,
 	[INF_PID]                            = 0,
 	[INF_UPTIME]                         = 0,
-	[INF_UPTIME_SEC]                     = INF_MEMMAX_MB,
-	[INF_MEMMAX_MB]                      = INF_POOL_ALLOC_MB,
-	[INF_POOL_ALLOC_MB]                  = INF_POOL_USED_MB,
-	[INF_POOL_USED_MB]                   = INF_POOL_FAILED,
+	[INF_UPTIME_SEC]                     = INF_MEMMAX_BYTES,
+	[INF_MEMMAX_BYTES]                   = INF_POOL_ALLOC_BYTES,
+	[INF_POOL_ALLOC_BYTES]               = INF_POOL_USED_BYTES,
+	[INF_POOL_USED_BYTES]                = INF_POOL_FAILED,
 	[INF_POOL_FAILED]                    = INF_ULIMIT_N,
 	[INF_ULIMIT_N]                       = INF_MAXSOCK,
 	[INF_MAXSOCK]                        = INF_MAXCONN,
@@ -482,9 +482,9 @@ const struct ist promex_inf_metric_names[INF_TOTAL_FIELDS] = {
 	[INF_PID]                            = IST("pid"),
 	[INF_UPTIME]                         = IST("uptime"),
 	[INF_UPTIME_SEC]                     = IST("start_time_seconds"),
-	[INF_MEMMAX_MB]                      = IST("max_memory_bytes"),
-	[INF_POOL_ALLOC_MB]                  = IST("pool_allocated_bytes"),
-	[INF_POOL_USED_MB]                   = IST("pool_used_bytes"),
+	[INF_MEMMAX_BYTES]                   = IST("max_memory_bytes"),
+	[INF_POOL_ALLOC_BYTES]               = IST("pool_allocated_bytes"),
+	[INF_POOL_USED_BYTES]                = IST("pool_used_bytes"),
 	[INF_POOL_FAILED]                    = IST("pool_failures_total"),
 	[INF_ULIMIT_N]                       = IST("max_fds"),
 	[INF_MAXSOCK]                        = IST("max_sockets"),
@@ -655,9 +655,9 @@ const struct ist promex_inf_metric_desc[INF_TOTAL_FIELDS] = {
 	[INF_PID]                            = IST("HAProxy PID."),
 	[INF_UPTIME]                         = IST("Uptime in a human readable format."),
 	[INF_UPTIME_SEC]                     = IST("Start time in seconds."),
-	[INF_MEMMAX_MB]                      = IST("Per-process memory limit (in bytes); 0=unset."),
-	[INF_POOL_ALLOC_MB]                  = IST("Total amount of memory allocated in pools (in bytes)."),
-	[INF_POOL_USED_MB]                   = IST("Total amount of memory used in pools (in bytes)."),
+	[INF_MEMMAX_BYTES]                   = IST("Per-process memory limit (in bytes); 0=unset."),
+	[INF_POOL_ALLOC_BYTES]               = IST("Total amount of memory allocated in pools (in bytes)."),
+	[INF_POOL_USED_BYTES]                = IST("Total amount of memory used in pools (in bytes)."),
 	[INF_POOL_FAILED]                    = IST("Total number of failed pool allocations."),
 	[INF_ULIMIT_N]                       = IST("Maximum number of open file descriptors; 0=unset."),
 	[INF_MAXSOCK]                        = IST("Maximum number of open sockets."),
@@ -828,9 +828,9 @@ const struct ist promex_inf_metric_labels[INF_TOTAL_FIELDS] = {
 	[INF_PID]                            = IST(""),
 	[INF_UPTIME]                         = IST(""),
 	[INF_UPTIME_SEC]                     = IST(""),
-	[INF_MEMMAX_MB]                      = IST(""),
-	[INF_POOL_ALLOC_MB]                  = IST(""),
-	[INF_POOL_USED_MB]                   = IST(""),
+	[INF_MEMMAX_BYTES]                   = IST(""),
+	[INF_POOL_ALLOC_BYTES]               = IST(""),
+	[INF_POOL_USED_BYTES]                = IST(""),
 	[INF_POOL_FAILED]                    = IST(""),
 	[INF_ULIMIT_N]                       = IST(""),
 	[INF_MAXSOCK]                        = IST(""),
@@ -994,9 +994,9 @@ const struct ist promex_inf_metric_types[INF_TOTAL_FIELDS] = {
 	[INF_PID]                            = IST("untyped"),
 	[INF_UPTIME]                         = IST("untyped"),
 	[INF_UPTIME_SEC]                     = IST("gauge"),
-	[INF_MEMMAX_MB]                      = IST("gauge"),
-	[INF_POOL_ALLOC_MB]                  = IST("gauge"),
-	[INF_POOL_USED_MB]                   = IST("gauge"),
+	[INF_MEMMAX_BYTES]                   = IST("gauge"),
+	[INF_POOL_ALLOC_BYTES]               = IST("gauge"),
+	[INF_POOL_USED_BYTES]                = IST("gauge"),
 	[INF_POOL_FAILED]                    = IST("counter"),
 	[INF_ULIMIT_N]                       = IST("gauge"),
 	[INF_MAXSOCK]                        = IST("gauge"),
@@ -1335,15 +1335,6 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 				break;
 			case INF_UPTIME_SEC:
 				metric = mkf_u32(FN_DURATION, start_date.tv_sec);
-				break;
-			case INF_MEMMAX_MB:
-				metric = mkf_u64(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
-				break;
-			case INF_POOL_ALLOC_MB:
-				metric = mkf_u64(0, pool_total_allocated());
-				break;
-			case INF_POOL_USED_MB:
-				metric = mkf_u64(0, pool_total_used());
 				break;
 
 			default:
