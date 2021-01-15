@@ -645,77 +645,6 @@ const struct ist promex_st_metric_names[ST_F_TOTAL_FIELDS] = {
 	[ST_F_NEED_CONN_EST]  = IST("need_connections_current"),
 };
 
-/* Description of all info fields */
-const struct ist promex_inf_metric_desc[INF_TOTAL_FIELDS] = {
-	[INF_NAME]                           = IST("Product name."),
-	[INF_VERSION]                        = IST("HAProxy version."),
-	[INF_RELEASE_DATE]                   = IST("HAProxy release date."),
-	[INF_BUILD_INFO]                     = IST("HAProxy build info."),
-	[INF_NBTHREAD]                       = IST("Configured number of threads."),
-	[INF_NBPROC]                         = IST("Configured number of processes."),
-	[INF_PROCESS_NUM]                    = IST("Relative process id, starting at 1."),
-	[INF_PID]                            = IST("HAProxy PID."),
-	[INF_UPTIME]                         = IST("Uptime in a human readable format."),
-	[INF_UPTIME_SEC]                     = IST("Uptime in seconds."),
-	[INF_START_TIME_SEC]                 = IST("Start time in seconds."),
-	[INF_MEMMAX_BYTES]                   = IST("Per-process memory limit (in bytes); 0=unset."),
-	[INF_POOL_ALLOC_BYTES]               = IST("Total amount of memory allocated in pools (in bytes)."),
-	[INF_POOL_USED_BYTES]                = IST("Total amount of memory used in pools (in bytes)."),
-	[INF_POOL_FAILED]                    = IST("Total number of failed pool allocations."),
-	[INF_ULIMIT_N]                       = IST("Maximum number of open file descriptors; 0=unset."),
-	[INF_MAXSOCK]                        = IST("Maximum number of open sockets."),
-	[INF_MAXCONN]                        = IST("Maximum number of concurrent connections."),
-	[INF_HARD_MAXCONN]                   = IST("Initial Maximum number of concurrent connections."),
-	[INF_CURR_CONN]                      = IST("Number of active sessions."),
-	[INF_CUM_CONN]                       = IST("Total number of created sessions."),
-	[INF_CUM_REQ]                        = IST("Total number of requests (TCP or HTTP)."),
-	[INF_MAX_SSL_CONNS]                  = IST("Configured maximum number of concurrent SSL connections."),
-	[INF_CURR_SSL_CONNS]                 = IST("Number of opened SSL connections."),
-	[INF_CUM_SSL_CONNS]                  = IST("Total number of opened SSL connections."),
-	[INF_MAXPIPES]                       = IST("Configured maximum number of pipes."),
-	[INF_PIPES_USED]                     = IST("Number of pipes in used."),
-	[INF_PIPES_FREE]                     = IST("Number of pipes unused."),
-	[INF_CONN_RATE]                      = IST("Current number of connections per second over last elapsed second."),
-	[INF_CONN_RATE_LIMIT]                = IST("Configured maximum number of connections per second."),
-	[INF_MAX_CONN_RATE]                  = IST("Maximum observed number of connections per second."),
-	[INF_SESS_RATE]                      = IST("Current number of sessions per second over last elapsed second."),
-	[INF_SESS_RATE_LIMIT]                = IST("Configured maximum number of sessions per second."),
-	[INF_MAX_SESS_RATE]                  = IST("Maximum observed number of sessions per second."),
-	[INF_SSL_RATE]                       = IST("Current number of SSL sessions per second over last elapsed second."),
-	[INF_SSL_RATE_LIMIT]                 = IST("Configured maximum number of SSL sessions per second."),
-	[INF_MAX_SSL_RATE]                   = IST("Maximum observed number of SSL sessions per second."),
-	[INF_SSL_FRONTEND_KEY_RATE]          = IST("Current frontend SSL Key computation per second over last elapsed second."),
-	[INF_SSL_FRONTEND_MAX_KEY_RATE]      = IST("Maximum observed frontend SSL Key computation per second."),
-	[INF_SSL_FRONTEND_SESSION_REUSE_PCT] = IST("SSL session reuse ratio (percent)."),
-	[INF_SSL_BACKEND_KEY_RATE]           = IST("Current backend SSL Key computation per second over last elapsed second."),
-	[INF_SSL_BACKEND_MAX_KEY_RATE]       = IST("Maximum observed backend SSL Key computation per second."),
-	[INF_SSL_CACHE_LOOKUPS]              = IST("Total number of SSL session cache lookups."),
-	[INF_SSL_CACHE_MISSES]               = IST("Total number of SSL session cache misses."),
-	[INF_COMPRESS_BPS_IN]                = IST("Number of bytes per second over last elapsed second, before http compression."),
-	[INF_COMPRESS_BPS_OUT]               = IST("Number of bytes per second over last elapsed second, after http compression."),
-	[INF_COMPRESS_BPS_RATE_LIM]          = IST("Configured maximum input compression rate in bytes."),
-	[INF_ZLIB_MEM_USAGE]                 = IST("Current memory used for zlib in bytes."),
-	[INF_MAX_ZLIB_MEM_USAGE]             = IST("Configured maximum amount of memory for zlib in bytes."),
-	[INF_TASKS]                          = IST("Current number of tasks."),
-	[INF_RUN_QUEUE]                      = IST("Current number of tasks in the run-queue."),
-	[INF_IDLE_PCT]                       = IST("Idle to total ratio over last sample (percent)."),
-	[INF_NODE]                           = IST("Node name."),
-	[INF_DESCRIPTION]                    = IST("Node description."),
-	[INF_STOPPING]                       = IST("Non zero means stopping in progress."),
-	[INF_JOBS]                           = IST("Current number of active jobs (listeners, sessions, open devices)."),
-	[INF_UNSTOPPABLE_JOBS]               = IST("Current number of active jobs that can't be stopped during a soft stop."),
-	[INF_LISTENERS]                      = IST("Current number of active listeners."),
-	[INF_ACTIVE_PEERS]                   = IST("Current number of active peers."),
-	[INF_CONNECTED_PEERS]                = IST("Current number of connected peers."),
-	[INF_DROPPED_LOGS]                   = IST("Total number of dropped logs."),
-	[INF_BUSY_POLLING]                   = IST("Non zero if the busy polling is enabled."),
-	[INF_FAILED_RESOLUTIONS]             = IST("Total number of failed DNS resolutions."),
-	[INF_TOTAL_BYTES_OUT]                = IST("Total number of bytes emitted."),
-	[INF_TOTAL_SPLICED_BYTES_OUT]        = IST("Total number of bytes emitted through a kernel pipe."),
-	[INF_BYTES_OUT_RATE]                 = IST("Number of bytes emitted over the last elapsed second."),
-	[INF_DEBUG_COMMANDS_ISSUED]          = IST("Number of debug commands issued on this process (anything > 0 is unsafe)."),
-};
-
 /* Description of all stats fields */
 const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_PXNAME]         = IST("The proxy name."),
@@ -1230,20 +1159,26 @@ static int promex_dump_metric_header(struct appctx *appctx, struct htx *htx,
 {
 	const struct ist *desc, *types;
 
+	if (istcat(out, ist("# HELP "), max) == -1 ||
+	    istcat(out, name, max) == -1 ||
+	    istcat(out, ist(" "), max) == -1)
+		goto full;
+
 	if (appctx->ctx.stats.flags & PROMEX_FL_INFO_METRIC) {
-		desc  = promex_inf_metric_desc;
 		types = promex_inf_metric_types;
+
+		if (istcat(out, ist(info_fields[appctx->st2].desc), max) == -1)
+			goto full;
 	}
 	else {
 		desc  = promex_st_metric_desc;
 		types = promex_st_metric_types;
+
+		if (istcat(out, desc[appctx->st2], max) == -1)
+			goto full;
 	}
 
-	if (istcat(out, ist("# HELP "), max) == -1 ||
-	    istcat(out, name, max) == -1 ||
-	    istcat(out, ist(" "), max) == -1 ||
-	    istcat(out, desc[appctx->st2], max) == -1 ||
-	    istcat(out, ist("\n# TYPE "), max) == -1 ||
+	if (istcat(out, ist("\n# TYPE "), max) == -1 ||
 	    istcat(out, name, max) == -1 ||
 	    istcat(out, ist(" "), max) == -1 ||
 	    istcat(out, types[appctx->st2], max) == -1 ||
