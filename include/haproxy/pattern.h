@@ -195,6 +195,47 @@ int pat_ref_commit_elt(struct pat_ref *ref, struct pat_ref_elt *elt, char **err)
 int pat_ref_purge_older(struct pat_ref *ref, unsigned int oldest, int budget);
 void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace);
 
+/* Create a new generation number for next pattern updates and returns it. This
+ * must be used to atomically insert new patterns that will atomically replace
+ * all current ones on commit. Generation numbers start at zero and are only
+ * incremented and wrap at 2^32. There must not be more than 2^31-1 called
+ * without a commit. The new reserved number is returned. Locking is not
+ * necessary.
+ */
+static inline unsigned int pat_ref_newgen(struct pat_ref *ref)
+{
+	return HA_ATOMIC_ADD(&ref->next_gen, 1);
+}
+
+/* Give up a previously assigned generation number. By doing this the caller
+ * certifies that no element was inserted using this number, and that this
+ * number might safely be reused if none was assigned since. This is convenient
+ * to avoid wasting numbers in case an operation couldn't be started right
+ * after a call to pat_ref_newgen(), but it is absolutely not necessary. The
+ * main use case is to politely abandon an update attempt upon error just after
+ * having received a number (e.g. attempting to retrieve entries from the
+ * network, and failed to establish a connection). This is done atomically so
+ * no locking is necessary.
+ */
+static inline void pat_ref_giveup(struct pat_ref *ref, unsigned int gen)
+{
+	HA_ATOMIC_CAS(&ref->next_gen, &gen, gen - 1);
+}
+
+/* Commit the whole pattern reference by updating the generation number or
+ * failing in case someone else managed to do it meanwhile. While this could
+ * be done using a CAS, it must instead be called with the PATREF_LOCK held in
+ * order to guarantee the consistency of the generation number for all other
+ * functions that rely on it. It returns zero on success, non-zero on failure
+ * (technically speaking it returns the difference between the attempted
+ * generation and the effective one, so that it can be used for reporting).
+ */
+static inline int pat_ref_commit(struct pat_ref *ref, unsigned int gen)
+{
+	if ((int)(gen - ref->curr_gen) > 0)
+		ref->curr_gen = gen;
+	return gen - ref->curr_gen;
+}
 
 /*
  * pattern_head manipulation.
