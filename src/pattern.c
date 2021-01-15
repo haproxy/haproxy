@@ -1965,7 +1965,7 @@ int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
  * pointer <err> may have been updated (and the caller must free it). Failure
  * causes include memory allocation, parsing error or indexing error.
  */
-int pat_ref_commit(struct pat_ref *ref, struct pat_ref_elt *elt, char **err)
+int pat_ref_commit_elt(struct pat_ref *ref, struct pat_ref_elt *elt, char **err)
 {
 	struct pattern_expr *expr;
 
@@ -1996,7 +1996,7 @@ struct pat_ref_elt *pat_ref_load(struct pat_ref *ref, unsigned int gen,
 	elt = pat_ref_append(ref, pattern, sample, line);
 	if (elt) {
 		elt->gen_id = gen;
-		if (!pat_ref_commit(ref, elt, err))
+		if (!pat_ref_commit_elt(ref, elt, err))
 			elt = NULL;
 	} else
 		memprintf(err, "out of memory error");
