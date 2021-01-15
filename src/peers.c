@@ -2171,8 +2171,6 @@ static inline int peer_send_msgs(struct appctx *appctx,
                                  struct peer *peer, struct peers *peers)
 {
 	int repl;
-	struct stream_interface *si = appctx->owner;
-	struct stream *s = si_strm(si);
 
 	/* Need to request a resync */
 	if ((peer->flags & PEER_F_LEARN_ASSIGN) &&
