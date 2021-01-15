@@ -148,6 +148,7 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_BYTES_OUT_RATE]                 = { .name = "BytesOutRate",                .desc = "Number of bytes emitted by current worker process over the last second" },
 	[INF_DEBUG_COMMANDS_ISSUED]          = { .name = "DebugCommandsIssued",         .desc = "Number of debug commands issued on this process (anything > 0 is unsafe)" },
 	[INF_CUM_LOG_MSGS]                   = { .name = "CumRecvLogs",                 .desc = "Total number of log messages received by log-forwarding listeners on this worker process since started" },
+	[INF_BUILD_INFO]                     = { .name = "Build info",                  .desc = "Build info" },
 };
 
 const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
@@ -3835,6 +3836,7 @@ int stats_fill_info(struct field *info, int len)
 
 	info[INF_NAME]                           = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, PRODUCT_NAME);
 	info[INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
+	info[INF_BUILD_INFO]                     = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
 	info[INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_date);
 
 	info[INF_NBTHREAD]                       = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
@@ -3911,7 +3913,6 @@ int stats_fill_info(struct field *info, int len)
 	info[INF_BYTES_OUT_RATE]                 = mkf_u64(FN_RATE, (unsigned long long)read_freq_ctr(&global.out_32bps) * 32);
 	info[INF_DEBUG_COMMANDS_ISSUED]          = mkf_u32(0, debug_commands_issued);
 	info[INF_CUM_LOG_MSGS]                   = mkf_u32(FN_COUNTER, cum_log_messages);
-
 	return 1;
 }
 
