@@ -91,6 +91,7 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_PID]                            = { .name = "Pid",                         .desc = "This worker process identifier for the system" },
 	[INF_UPTIME]                         = { .name = "Uptime",                      .desc = "How long ago this worker process was started (days+hours+minutes+seconds)" },
 	[INF_UPTIME_SEC]                     = { .name = "Uptime_sec",                  .desc = "How long ago this worker process was started (seconds)" },
+	[INF_START_TIME_SEC]                 = { .name = "Start_time_sec",              .desc = "Start time in seconds" },
 	[INF_MEMMAX_MB]                      = { .name = "Memmax_MB",                   .desc = "Worker process's hard limit on memory usage in MB (-m on command line)" },
 	[INF_MEMMAX_BYTES]                   = { .name = "Memmax_bytes",                .desc = "Worker process's hard limit on memory usage in byes (-m on command line)" },
 	[INF_POOL_ALLOC_MB]                  = { .name = "PoolAlloc_MB",                .desc = "Amount of memory allocated in pools (in MB)" },
@@ -3851,6 +3852,7 @@ int stats_fill_info(struct field *info, int len)
 	chunk_appendf(out, "%ud %uh%02um%02us", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
 
 	info[INF_UPTIME_SEC]                     = mkf_u32(FN_DURATION, up);
+	info[INF_START_TIME_SEC]                 = mkf_u32(FN_DURATION, start_date.tv_sec);
 	info[INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
 	info[INF_MEMMAX_BYTES]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
 	info[INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));

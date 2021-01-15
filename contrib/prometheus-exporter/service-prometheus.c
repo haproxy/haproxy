@@ -99,7 +99,8 @@ const int promex_global_metrics[INF_TOTAL_FIELDS] = {
 	[INF_PROCESS_NUM]                    = INF_UPTIME_SEC,
 	[INF_PID]                            = 0,
 	[INF_UPTIME]                         = 0,
-	[INF_UPTIME_SEC]                     = INF_MEMMAX_BYTES,
+	[INF_UPTIME_SEC]                     = INF_START_TIME_SEC,
+	[INF_START_TIME_SEC]                 = INF_MEMMAX_BYTES,
 	[INF_MEMMAX_BYTES]                   = INF_POOL_ALLOC_BYTES,
 	[INF_POOL_ALLOC_BYTES]               = INF_POOL_USED_BYTES,
 	[INF_POOL_USED_BYTES]                = INF_POOL_FAILED,
@@ -481,7 +482,8 @@ const struct ist promex_inf_metric_names[INF_TOTAL_FIELDS] = {
 	[INF_PROCESS_NUM]                    = IST("relative_process_id"),
 	[INF_PID]                            = IST("pid"),
 	[INF_UPTIME]                         = IST("uptime"),
-	[INF_UPTIME_SEC]                     = IST("start_time_seconds"),
+	[INF_UPTIME_SEC]                     = IST("uptime_seconds"),
+	[INF_START_TIME_SEC]                 = IST("start_time_seconds"),
 	[INF_MEMMAX_BYTES]                   = IST("max_memory_bytes"),
 	[INF_POOL_ALLOC_BYTES]               = IST("pool_allocated_bytes"),
 	[INF_POOL_USED_BYTES]                = IST("pool_used_bytes"),
@@ -654,7 +656,8 @@ const struct ist promex_inf_metric_desc[INF_TOTAL_FIELDS] = {
 	[INF_PROCESS_NUM]                    = IST("Relative process id, starting at 1."),
 	[INF_PID]                            = IST("HAProxy PID."),
 	[INF_UPTIME]                         = IST("Uptime in a human readable format."),
-	[INF_UPTIME_SEC]                     = IST("Start time in seconds."),
+	[INF_UPTIME_SEC]                     = IST("Uptime in seconds."),
+	[INF_START_TIME_SEC]                 = IST("Start time in seconds."),
 	[INF_MEMMAX_BYTES]                   = IST("Per-process memory limit (in bytes); 0=unset."),
 	[INF_POOL_ALLOC_BYTES]               = IST("Total amount of memory allocated in pools (in bytes)."),
 	[INF_POOL_USED_BYTES]                = IST("Total amount of memory used in pools (in bytes)."),
@@ -828,6 +831,7 @@ const struct ist promex_inf_metric_labels[INF_TOTAL_FIELDS] = {
 	[INF_PID]                            = IST(""),
 	[INF_UPTIME]                         = IST(""),
 	[INF_UPTIME_SEC]                     = IST(""),
+	[INF_START_TIME_SEC]                 = IST(""),
 	[INF_MEMMAX_BYTES]                   = IST(""),
 	[INF_POOL_ALLOC_BYTES]               = IST(""),
 	[INF_POOL_USED_BYTES]                = IST(""),
@@ -994,6 +998,7 @@ const struct ist promex_inf_metric_types[INF_TOTAL_FIELDS] = {
 	[INF_PID]                            = IST("untyped"),
 	[INF_UPTIME]                         = IST("untyped"),
 	[INF_UPTIME_SEC]                     = IST("gauge"),
+	[INF_START_TIME_SEC]                 = IST("gauge"),
 	[INF_MEMMAX_BYTES]                   = IST("gauge"),
 	[INF_POOL_ALLOC_BYTES]               = IST("gauge"),
 	[INF_POOL_USED_BYTES]                = IST("gauge"),
@@ -1332,9 +1337,6 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 		switch (appctx->st2) {
 			case INF_BUILD_INFO:
 				metric = mkf_u32(FN_GAUGE, 1);
-				break;
-			case INF_UPTIME_SEC:
-				metric = mkf_u32(FN_DURATION, start_date.tv_sec);
 				break;
 
 			default:

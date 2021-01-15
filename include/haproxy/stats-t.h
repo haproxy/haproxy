@@ -327,6 +327,7 @@ enum info_field {
 	INF_MEMMAX_BYTES,
 	INF_POOL_ALLOC_BYTES,
 	INF_POOL_USED_BYTES,
+	INF_START_TIME_SEC,
 
 	/* must always be the last one */
 	INF_TOTAL_FIELDS
