@@ -182,6 +182,8 @@ static int thread_cpus_enabled()
 	if (cpuset_getaffinity(CPU_LEVEL_CPUSET, CPU_WHICH_PID, -1,
 	    sizeof(cpuset), &cpuset) == 0)
 		ret = CPU_COUNT(&cpuset);
+#elif defined(__APPLE__)
+	ret = (int)sysconf(_SC_NPROCESSORS_ONLN);
 #endif
 #endif
 	ret = MAX(ret, 1);
