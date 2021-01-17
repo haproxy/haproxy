@@ -882,8 +882,8 @@ INCLUDES = $(wildcard include/*/*.h)
 DEP = $(INCLUDES) .build_opts
 
 help:
-	$(Q)sed -ne "/^[^#]*$$/q;s/^# \{0,1\}\(.*\)/\1/;p" Makefile
-	$(Q)echo; \
+	@sed -ne "/^[^#]*$$/q;s/^# \{0,1\}\(.*\)/\1/;p" Makefile
+	@echo; \
 	   if [ -n "$(TARGET)" ]; then \
 	     if [ -n "$(set_target_defaults)" ]; then \
 	        echo "Current TARGET: $(TARGET)"; \
@@ -896,10 +896,10 @@ help:
 	     echo "  osx, openbsd, aix51, aix52, aix72-gcc, cygwin, haiku, generic,"; \
 	     echo "  custom"; \
 	   fi
-	$(Q)echo;echo "Enabled features for TARGET '$(TARGET)' (disable with 'USE_xxx=') :"
-	$(Q)set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),$(opt),)); echo "  $$*" | (fmt || cat) 2>/dev/null
-	$(Q)echo;echo "Disabled features for TARGET '$(TARGET)' (enable with 'USE_xxx=1') :"
-	$(Q)set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),,$(opt))); echo "  $$*" | (fmt || cat) 2>/dev/null
+	@echo;echo "Enabled features for TARGET '$(TARGET)' (disable with 'USE_xxx=') :"
+	@set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),$(opt),)); echo "  $$*" | (fmt || cat) 2>/dev/null
+	@echo;echo "Disabled features for TARGET '$(TARGET)' (enable with 'USE_xxx=1') :"
+	@set -- $(foreach opt,$(patsubst USE_%,%,$(use_opts)),$(if $(USE_$(opt)),,$(opt))); echo "  $$*" | (fmt || cat) 2>/dev/null
 
 # Used only to force a rebuild if some build options change, but we don't do
 # it for certain targets which take no build options
