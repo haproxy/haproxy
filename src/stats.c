@@ -266,7 +266,7 @@ static struct name_desc *stat_f[STATS_DOMAIN_COUNT];
 static size_t stat_count[STATS_DOMAIN_COUNT];
 
 /* one line for stats */
-static THREAD_LOCAL struct field *stat_l[STATS_DOMAIN_COUNT];
+THREAD_LOCAL struct field *stat_l[STATS_DOMAIN_COUNT];
 
 /* list of all registered stats module */
 static struct list stats_module_list[STATS_DOMAIN_COUNT] = {

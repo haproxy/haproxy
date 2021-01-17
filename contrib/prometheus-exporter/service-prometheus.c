@@ -1307,6 +1307,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	struct channel *chn = si_ic(appctx->owner);
 	struct ist out = ist2(trash.area, 0);
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
+	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	int ret = 1;
 
 	while (appctx->st2 && appctx->st2 < ST_F_TOTAL_FIELDS) {
@@ -1317,144 +1318,40 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
 				goto next_px;
 
+			if (!stats_fill_fe_stats(px, stats, ST_F_TOTAL_FIELDS, &(appctx->st2)))
+				return -1;
+
 			switch (appctx->st2) {
 				case ST_F_STATUS:
 					metric = mkf_u32(FO_STATUS, !px->disabled);
 					break;
-				case ST_F_SCUR:
-					metric = mkf_u32(0, px->feconn);
-					break;
-				case ST_F_SMAX:
-					metric = mkf_u32(FN_MAX, px->fe_counters.conn_max);
-					break;
-				case ST_F_SLIM:
-					metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->maxconn);
-					break;
-				case ST_F_STOT:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_sess);
-					break;
-				case ST_F_RATE_LIM:
-					metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->fe_sps_lim);
-					break;
-				case ST_F_RATE_MAX:
-					metric = mkf_u32(FN_MAX, px->fe_counters.sps_max);
-					break;
-				case ST_F_CONN_RATE_MAX:
-					metric = mkf_u32(FN_MAX, px->fe_counters.cps_max);
-					break;
-				case ST_F_CONN_TOT:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_conn);
-					break;
-				case ST_F_BIN:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.bytes_in);
-					break;
-				case ST_F_BOUT:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.bytes_out);
-					break;
-				case ST_F_DREQ:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_req);
-					break;
-				case ST_F_DRESP:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_resp);
-					break;
-				case ST_F_EREQ:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.failed_req);
-					break;
-				case ST_F_DCON:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_conn);
-					break;
-				case ST_F_DSES:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.denied_sess);
-					break;
-				case ST_F_WREW:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.failed_rewrites);
-					break;
-				case ST_F_EINT:
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.internal_errors);
-					break;
 				case ST_F_REQ_RATE_MAX:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					metric = mkf_u32(FN_MAX, px->fe_counters.p.http.rps_max);
-					break;
 				case ST_F_REQ_TOT:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cum_req);
-					break;
 				case ST_F_HRSP_1XX:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
-					break;
-				case ST_F_HRSP_2XX:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
-					break;
-				case ST_F_HRSP_3XX:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
-					break;
-				case ST_F_HRSP_4XX:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
-					break;
-				case ST_F_HRSP_5XX:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
-					break;
-				case ST_F_HRSP_OTHER:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
-					break;
 				case ST_F_INTERCEPTED:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.intercepted_req);
-					break;
 				case ST_F_CACHE_LOOKUPS:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_lookups);
-					break;
 				case ST_F_CACHE_HITS:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_hits);
-					break;
 				case ST_F_COMP_IN:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_in);
-					break;
 				case ST_F_COMP_OUT:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_out);
-					break;
 				case ST_F_COMP_BYP:
-					if (px->mode != PR_MODE_HTTP)
-						goto next_px;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.comp_byp);
-					break;
 				case ST_F_COMP_RSP:
 					if (px->mode != PR_MODE_HTTP)
 						goto next_px;
-					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.comp_rsp);
+					metric = stats[appctx->st2];
+					break;
+				case ST_F_HRSP_2XX:
+				case ST_F_HRSP_3XX:
+				case ST_F_HRSP_4XX:
+				case ST_F_HRSP_5XX:
+				case ST_F_HRSP_OTHER:
+					if (px->mode != PR_MODE_HTTP)
+						goto next_px;
+					metric = stats[appctx->st2];
+					appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
 					break;
 
 				default:
-					goto next_metric;
+					metric = stats[appctx->st2];
 			}
 
 			if (!promex_dump_metric(appctx, htx, prefix, &metric, &out, max))
@@ -1462,7 +1359,6 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 		  next_px:
 			appctx->ctx.stats.obj1 = px->next;
 		}
-	  next_metric:
 		appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
 		appctx->ctx.stats.obj1 = proxies_list;
 		appctx->st2 = promex_front_metrics[appctx->st2];

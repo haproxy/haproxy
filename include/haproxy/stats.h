@@ -38,6 +38,7 @@ extern const struct name_desc info_fields[];
 extern const char *stat_status_codes[];
 extern struct applet http_stats_applet;
 extern THREAD_LOCAL struct field info[];
+extern THREAD_LOCAL struct field *stat_l[];
 
 struct htx;
 int stats_putchk(struct channel *chn, struct htx *htx, struct buffer *chk);
