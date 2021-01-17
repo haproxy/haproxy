@@ -1340,7 +1340,7 @@ int hlua_proxy_get_stats(lua_State *L)
 	if (px->cap & PR_CAP_BE)
 		stats_fill_be_stats(px, STAT_SHLGNDS, stats, STATS_LEN);
 	else
-		stats_fill_fe_stats(px, stats, STATS_LEN);
+		stats_fill_fe_stats(px, stats, STATS_LEN, NULL);
 	lua_newtable(L);
 	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {
 		lua_pushstring(L, stat_fields[i].name);
