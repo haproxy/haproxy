@@ -425,7 +425,7 @@ static void peers_trace(enum trace_level level, uint64_t mask,
 			const struct peer *peer = a2;
 			struct peers *peers = NULL;
 
-			if (peer) {
+			if (peer && peer->appctx) {
 				struct stream_interface *si;
 
 				si = peer->appctx->owner;
