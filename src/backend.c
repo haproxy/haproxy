@@ -1247,6 +1247,11 @@ int connect_server(struct stream *s)
 	int init_mux = 0;
 	int err;
 	int64_t hash = 0;
+	struct conn_hash_params hash_params;
+
+	/* first, set unique connection parameters and then calculate hash */
+	memset(&hash_params, 0, sizeof(hash_params));
+	hash = conn_calculate_hash(&hash_params);
 
 	/* This will catch some corner cases such as lying connections resulting from
 	 * retries or connect timeouts but will rarely trigger.
@@ -1671,6 +1676,8 @@ skip_reuse:
 			return SF_ERR_INTERNAL;
 		}
 	}
+
+	srv_conn->hash = hash;
 
 	return SF_ERR_NONE;  /* connection is OK */
 }

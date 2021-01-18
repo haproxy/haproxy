@@ -1411,3 +1411,16 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
+XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
+{
+	char *buf;
+	size_t idx = 0;
+	XXH64_hash_t hash = 0;
+	enum conn_hash_params_t hash_flags = 0;
+
+	buf = trash.area;
+
+	hash = conn_hash_digest(buf, idx, hash_flags);
+	return hash;
+}

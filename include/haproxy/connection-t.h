@@ -30,6 +30,7 @@
 
 #include <import/ebmbtree.h>
 #include <import/ist.h>
+#include <import/xxhash.h>
 
 #include <haproxy/api-t.h>
 #include <haproxy/listener-t.h>
@@ -464,6 +465,28 @@ struct conn_stream {
 	void *data;                          /* pointer to upper layer's entity (eg: stream interface) */
 	const struct data_cb *data_cb;       /* data layer callbacks. Must be set before xprt->init() */
 	void *ctx;                           /* mux-specific context */
+};
+
+/* Hash header flag reflecting the input parameters present
+ * CAUTION! Always update CONN_HASH_PARAMS_TYPE_COUNT when adding a new entry.
+ */
+enum conn_hash_params_t {
+	/* to remove as soon as one useful parameter is present */
+	CONN_HASH_DUMMY_PARAM,
+};
+#define CONN_HASH_PARAMS_TYPE_COUNT 1
+
+#define CONN_HASH_PAYLOAD_LEN \
+	(((sizeof(((struct connection *)0)->hash)) * 8) - CONN_HASH_PARAMS_TYPE_COUNT)
+
+#define CONN_HASH_GET_PAYLOAD(hash) \
+	(((hash) << CONN_HASH_PARAMS_TYPE_COUNT) >> CONN_HASH_PARAMS_TYPE_COUNT)
+
+/* To avoid overflow, dynamically sized parameters must be pre-hashed. Their
+ * hashed will then be reused as input for the generation of the final
+ * connection hash.
+ */
+struct conn_hash_params {
 };
 
 /* This structure describes a connection with its methods and data.
