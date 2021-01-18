@@ -208,8 +208,8 @@ struct cache_entry *entry_exist(struct cache *cache, char *hash)
 static int secondary_key_cmp(const char *ref_key, const char *new_key)
 {
 	int retval = 0;
-	int idx = 0;
-	int offset = 0;
+	size_t idx = 0;
+	unsigned int offset = 0;
 	const struct vary_hashing_information *info;
 
 	for (idx = 0; idx < sizeof(vary_information)/sizeof(*vary_information) && !retval; ++idx) {
