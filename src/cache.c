@@ -97,7 +97,7 @@ struct vary_hashing_information {
 	enum vary_header_bit value;          /* Bit representing the header in a vary signature */
 	unsigned int hash_length;            /* Size of the sub hash for this header's value */
 	int(*norm_fn)(struct htx*,struct ist hdr_name,char* buf,unsigned int* buf_len);  /* Normalization function */
-	int(*cmp_fn)(const void *ref_hash, const void *new_hash, unsigned int hash_len); /* Comparison function, should return 0 if the hashes are alike */
+	int(*cmp_fn)(const void *ref, const void *new, unsigned int len); /* Comparison function, should return 0 if the hashes are alike */
 };
 
 static int http_request_prebuild_full_secondary_key(struct stream *s);
@@ -113,12 +113,12 @@ static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 static int default_normalizer(struct htx *htx, struct ist hdr_name,
 			      char *buf, unsigned int *buf_len);
 
-static int accept_encoding_hash_cmp(const void *ref_hash, const void *new_hash, unsigned int hash_len);
+static int accept_encoding_bitmap_cmp(const void *ref, const void *new, unsigned int len);
 
 /* Warning : do not forget to update HTTP_CACHE_SEC_KEY_LEN when new items are
  * added to this array. */
 const struct vary_hashing_information vary_information[] = {
-	{ IST("accept-encoding"), VARY_ACCEPT_ENCODING, sizeof(uint32_t), &accept_encoding_normalizer, &accept_encoding_hash_cmp },
+	{ IST("accept-encoding"), VARY_ACCEPT_ENCODING, sizeof(uint32_t), &accept_encoding_normalizer, &accept_encoding_bitmap_cmp },
 	{ IST("referer"), VARY_REFERER, sizeof(int), &default_normalizer, NULL },
 };
 
@@ -2354,15 +2354,15 @@ static int default_normalizer(struct htx *htx, struct ist hdr_name,
 }
 
 /*
- * Accept-Encoding sub-hash comparison function.
- * Returns 0 if the hashes are alike.
+ * Accept-Encoding bitmap comparison function.
+ * Returns 0 if the bitmaps are compatible.
  */
-static int accept_encoding_hash_cmp(const void *ref_hash, const void *new_hash, unsigned int hash_len)
+static int accept_encoding_bitmap_cmp(const void *ref, const void *new, unsigned int len)
 {
-	uint32_t ref = read_u32(ref_hash);
-	uint32_t new = read_u32(new_hash);
+	uint32_t ref_bitmap = read_u32(ref);
+	uint32_t new_bitmap = read_u32(new);
 
-	if (!(ref & VARY_ENCODING_OTHER)) {
+	if (!(ref_bitmap & VARY_ENCODING_OTHER)) {
 		/* All the bits set in the reference bitmap correspond to the
 		 * stored response' encoding and should all be set in the new
 		 * encoding bitmap in order for the client to be able to manage
@@ -2373,7 +2373,7 @@ static int accept_encoding_hash_cmp(const void *ref_hash, const void *new_hash, 
 		 * the cache (as far as the accept-encoding part is concerned).
 		 */
 
-		return (ref & new) != ref;
+		return (ref_bitmap & new_bitmap) != ref_bitmap;
 	}
 	else {
 		return 1;
