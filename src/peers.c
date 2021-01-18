@@ -2807,6 +2807,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 	struct session *sess;
 	struct stream *s;
 
+	peer->new_conn++;
 	peer->reconnect = tick_add(now_ms, MS_TO_TICKS(PEER_RECONNECT_TIMEOUT));
 	peer->heartbeat = TICK_ETERNITY;
 	peer->statuscode = PEER_SESS_SC_CONNECTCODE;
@@ -2931,7 +2932,6 @@ static struct task *process_peer_sync(struct task * task, void *context, unsigne
 
 						/* reschedule task for reconnect */
 						task->expire = tick_first(task->expire, ps->reconnect);
-						ps->new_conn++;
 					}
 					/* else do nothing */
 				} /* !ps->appctx */
