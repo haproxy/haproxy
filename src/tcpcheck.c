@@ -2013,24 +2013,20 @@ int tcpcheck_main(struct check *check)
 		check->code = 0;
 		switch (rule->action) {
 		case TCPCHK_ACT_CONNECT:
-			/* release the previous connection (from a previous connect rule) */
+			/* Not the first connection, release it first */
 			if (cs && check->current_step != rule) {
-				cs_close(cs);
-				if (check->wait_list.events)
-					cs->conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
-
-				/* We may have been scheduled to run, and the I/O handler
-				 * expects to have a cs, so remove the tasklet
-				 */
-				tasklet_remove_from_tasklet_list(check->wait_list.tasklet);
-				cs_destroy(cs);
-				cs = NULL;
-				conn = NULL;
-				check->cs = NULL;
-				retcode = -1; /* do not reuse the fd in the caller! */
+				check->state |= CHK_ST_CLOSE_CONN;
+				retcode = -1;
 			}
 
 			check->current_step = rule;
+
+			/* We are still waiting the connection gets closed */
+			if (cs && (check->state & CHK_ST_CLOSE_CONN)) {
+				eval_ret = TCPCHK_EVAL_WAIT;
+				break;
+			}
+
 			eval_ret = tcpcheck_eval_connect(check, rule);
 
 			/* Refresh conn-stream and connection */

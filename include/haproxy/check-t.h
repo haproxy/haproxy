@@ -52,6 +52,7 @@ enum chk_result {
 #define CHK_ST_PORT_MISS        0x0020  /* check can't be send because no port is configured to run it */
 #define CHK_ST_IN_ALLOC         0x0040  /* check blocked waiting for input buffer allocation */
 #define CHK_ST_OUT_ALLOC        0x0080  /* check blocked waiting for output buffer allocation */
+#define CHK_ST_CLOSE_CONN       0x0100  /* check is waiting that the connection gets closed */
 
 /* check status */
 enum healthcheck_status {

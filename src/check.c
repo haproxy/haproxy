@@ -793,12 +793,16 @@ static int wake_srv_chk(struct conn_stream *cs)
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
 
-	if (check->result != CHK_RES_UNKNOWN) {
+	if (check->result != CHK_RES_UNKNOWN || ret == -1) {
 		/* Check complete or aborted. If connection not yet closed do it
 		 * now and wake the check task up to be sure the result is
 		 * handled ASAP. */
 		cs_drain_and_close(cs);
 		ret = -1;
+
+		if (check->wait_list.events)
+			cs->conn->mux->unsubscribe(cs, check->wait_list.events, &check->wait_list);
+
 		/* We may have been scheduled to run, and the
 		 * I/O handler expects to have a cs, so remove
 		 * the tasklet
@@ -878,8 +882,18 @@ static struct task *process_chk_conn(struct task *t, void *context, unsigned sho
 			if ((conn->flags & CO_FL_ERROR) || cs->flags & CS_FL_ERROR || expired) {
 				chk_report_conn_err(check, 0, expired);
 			}
-			else
-				goto out_unlock; /* timeout not reached, wait again */
+			else {
+				if (check->state & CHK_ST_CLOSE_CONN) {
+					cs_destroy(cs);
+					cs = NULL;
+					conn = NULL;
+					check->cs = NULL;
+					check->state &= ~CHK_ST_CLOSE_CONN;
+					tcpcheck_main(check);
+				}
+				if (check->result == CHK_RES_UNKNOWN)
+					goto out_unlock; /* timeout not reached, wait again */
+			}
 		}
 
 		/* check complete or aborted */
