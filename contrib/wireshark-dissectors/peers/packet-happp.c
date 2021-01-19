@@ -36,9 +36,25 @@
 #include <epan/dissectors/packet-tcp.h>
 #include <epan/tvbuff.h>
 
+#ifndef WITHOUT_WS_VERSION
 #include <ws_version.h>
+#endif
+
+#ifndef WIRESHARK_VERSION_MAJOR
+#define WIRESHARK_VERSION_MAJOR VERSION_MAJOR
+#endif
+#ifndef WIRESHARK_VERSION_MINOR
+#define WIRESHARK_VERSION_MINOR VERSION_MINOR
+#endif
+#ifndef WIRESHARK_VERSION_MICRO
+#define WIRESHARK_VERSION_MICRO VERSION_MICRO
+#endif
+
+#define HAPP_STR(str)  #str
+#define HAPP_XSTR(str) HAPP_STR(str)
 
 WS_DLL_PUBLIC_DEF const gchar plugin_version[] = "0.0.1";
+WS_DLL_PUBLIC_DEF const gchar plugin_release[] = HAPP_XSTR(WIRESHARK_VERSION_MAJOR.WIRESHARK_VERSION_MINOR);
 WS_DLL_PUBLIC_DEF const int plugin_want_major = WIRESHARK_VERSION_MAJOR;
 WS_DLL_PUBLIC_DEF const int plugin_want_minor = WIRESHARK_VERSION_MINOR;
 WS_DLL_PUBLIC void plugin_register(void);

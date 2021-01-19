@@ -1,4 +1,4 @@
-CFLAGS = `pkg-config --cflags wireshark` -g -fPIC
+CFLAGS  = `pkg-config --cflags wireshark` -g -fPIC $(OPTS)
 LDFLAGS = `pkg-config --libs wireshark`
 
 NAME = packet-happp.so

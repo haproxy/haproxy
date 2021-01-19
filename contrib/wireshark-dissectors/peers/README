@@ -37,6 +37,16 @@ redhat-based ones.
 
 $ make
 
+It is possible that depending on your distribution the compilation may fail
+with such an error:
+
+  packet-happp.c:40:10: fatal error: ws_version.h: No such file or directory
+                #include <ws_version.h>
+
+In this case try to build this plugins with this OPTS variable:
+
+$ OPTS=-DWITHOUT_WS_VERSION make
+
 To install it in your home directory:
 
 $ make install
