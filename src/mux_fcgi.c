@@ -4104,6 +4104,17 @@ static void fcgi_show_fd(struct buffer *msg, struct connection *conn)
 		if (fstrm->cs)
 			chunk_appendf(msg, " .cs.flg=0x%08x .cs.data=%p",
 				      fstrm->cs->flags, fstrm->cs->data);
+		chunk_appendf(&trash, " .subs=%p", fstrm->subs);
+		if (fstrm->subs) {
+			if (fstrm->subs) {
+				chunk_appendf(&trash, "(ev=%d tl=%p", fstrm->subs->events, fstrm->subs->tasklet);
+				chunk_appendf(&trash, " tl.calls=%d tl.ctx=%p tl.fct=",
+					      fstrm->subs->tasklet->calls,
+					      fstrm->subs->tasklet->context);
+				resolve_sym_name(&trash, NULL, fstrm->subs->tasklet->process);
+				chunk_appendf(&trash, ")");
+			}
+		}
 	}
 }
 
