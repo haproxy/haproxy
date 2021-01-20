@@ -36,7 +36,8 @@ static size_t xprt_handshake_to_buf(struct connection *conn, void *xprt_ctx, str
 	return 0;
 }
 
-static struct task *xprt_handshake_io_cb(struct task *t, void *bctx, unsigned short state)
+/* xprt_handshake_io_cb is exported to see it resolved in "show fd" */
+struct task *xprt_handshake_io_cb(struct task *t, void *bctx, unsigned short state)
 {
 	struct xprt_handshake_ctx *ctx = bctx;
 	struct connection *conn = ctx->conn;

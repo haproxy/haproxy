@@ -545,7 +545,8 @@ static struct task *h2_timeout_task(struct task *t, void *context, unsigned shor
 static int h2_send(struct h2c *h2c);
 static int h2_recv(struct h2c *h2c);
 static int h2_process(struct h2c *h2c);
-static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short state);
+/* h2_io_cb is exported to see it resolved in "show fd" */
+struct task *h2_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
 static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len);
 static int h2_frt_transfer_data(struct h2s *h2s);
@@ -3696,7 +3697,7 @@ schedule:
 }
 
 /* this is the tasklet referenced in h2c->wait_event.tasklet */
-static struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
+struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 {
 	struct connection *conn;
 	struct tasklet *tl = (struct tasklet *)t;

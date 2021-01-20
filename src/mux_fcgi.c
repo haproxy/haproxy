@@ -353,7 +353,8 @@ DECLARE_STATIC_POOL(pool_head_fcgi_strm, "fcgi_strm", sizeof(struct fcgi_strm));
 
 static struct task *fcgi_timeout_task(struct task *t, void *context, unsigned short state);
 static int fcgi_process(struct fcgi_conn *fconn);
-static struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short state);
+/* fcgi_io_cb is exported to see it resolved in "show fd" */
+struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct fcgi_strm *fcgi_conn_st_by_id(struct fcgi_conn *fconn, int id);
 static struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned short state);
 static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct conn_stream *cs, struct session *sess);
@@ -2926,7 +2927,7 @@ schedule:
 }
 
 /* this is the tasklet referenced in fconn->wait_event.tasklet */
-static struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
+struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
 {
 	struct connection *conn;
 	struct fcgi_conn *fconn;

@@ -258,7 +258,8 @@ DECLARE_STATIC_POOL(pool_head_h1s, "h1s", sizeof(struct h1s));
 static int h1_recv(struct h1c *h1c);
 static int h1_send(struct h1c *h1c);
 static int h1_process(struct h1c *h1c);
-static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short state);
+/* h1_io_cb is exported to see it resolved in "show fd" */
+struct task *h1_io_cb(struct task *t, void *ctx, unsigned short state);
 static struct task *h1_timeout_task(struct task *t, void *context, unsigned short state);
 static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode);
 static void h1_wake_stream_for_recv(struct h1s *h1s);
@@ -2475,7 +2476,7 @@ static int h1_process(struct h1c * h1c)
 	return -1;
 }
 
-static struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
+struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 {
 	struct connection *conn;
 	struct tasklet *tl = (struct tasklet *)t;
