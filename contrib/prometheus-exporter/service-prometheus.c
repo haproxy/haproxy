@@ -63,12 +63,14 @@ enum {
 /* Prometheus exporter flags (appctx->ctx.stats.flags) */
 #define PROMEX_FL_METRIC_HDR    0x00000001
 #define PROMEX_FL_INFO_METRIC   0x00000002
-#define PROMEX_FL_STATS_METRIC  0x00000004
-#define PROMEX_FL_SCOPE_GLOBAL  0x00000008
-#define PROMEX_FL_SCOPE_FRONT   0x00000010
-#define PROMEX_FL_SCOPE_BACK    0x00000020
-#define PROMEX_FL_SCOPE_SERVER  0x00000040
-#define PROMEX_FL_NO_MAINT_SRV  0x00000080
+#define PROMEX_FL_FRONT_METRIC  0x00000004
+#define PROMEX_FL_BACK_METRIC   0x00000008
+#define PROMEX_FL_SRV_METRIC    0x00000010
+#define PROMEX_FL_SCOPE_GLOBAL  0x00000020
+#define PROMEX_FL_SCOPE_FRONT   0x00000040
+#define PROMEX_FL_SCOPE_BACK    0x00000080
+#define PROMEX_FL_SCOPE_SERVER  0x00000100
+#define PROMEX_FL_NO_MAINT_SRV  0x00000200
 
 #define PROMEX_FL_SCOPE_ALL (PROMEX_FL_SCOPE_GLOBAL|PROMEX_FL_SCOPE_FRONT|PROMEX_FL_SCOPE_BACK|PROMEX_FL_SCOPE_SERVER)
 
@@ -1762,7 +1764,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 			appctx->ctx.stats.obj1 = proxies_list;
 			appctx->ctx.stats.obj2 = NULL;
 			appctx->ctx.stats.flags &= ~PROMEX_FL_INFO_METRIC;
-			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_STATS_METRIC);
+			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_FRONT_METRIC);
 			appctx->st2 = promex_front_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_FRONT;
 			/* fall through */
@@ -1779,7 +1781,8 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 
 			appctx->ctx.stats.obj1 = proxies_list;
 			appctx->ctx.stats.obj2 = NULL;
-			appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
+			appctx->ctx.stats.flags &= ~PROMEX_FL_FRONT_METRIC;
+			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_BACK_METRIC);
 			appctx->st2 = promex_back_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_BACK;
 			/* fall through */
@@ -1796,7 +1799,8 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 
 			appctx->ctx.stats.obj1 = proxies_list;
 			appctx->ctx.stats.obj2 = (appctx->ctx.stats.obj1 ? ((struct proxy *)appctx->ctx.stats.obj1)->srv : NULL);
-			appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
+			appctx->ctx.stats.flags &= ~PROMEX_FL_BACK_METRIC;
+			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_SRV_METRIC);
 			appctx->st2 = promex_srv_metrics[ST_F_PXNAME];
 			appctx->st1 = PROMEX_DUMPER_SRV;
 			/* fall through */
@@ -1813,7 +1817,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 
 			appctx->ctx.stats.obj1 = NULL;
 			appctx->ctx.stats.obj2 = NULL;
-			appctx->ctx.stats.flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_INFO_METRIC|PROMEX_FL_STATS_METRIC);
+			appctx->ctx.stats.flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_SRV_METRIC);
 			appctx->st2 = 0;
 			appctx->st1 = PROMEX_DUMPER_DONE;
 			/* fall through */
