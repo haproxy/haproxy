@@ -74,6 +74,12 @@ enum {
 
 #define PROMEX_FL_SCOPE_ALL (PROMEX_FL_SCOPE_GLOBAL|PROMEX_FL_SCOPE_FRONT|PROMEX_FL_SCOPE_BACK|PROMEX_FL_SCOPE_SERVER)
 
+/* Promtheus metric type (gauge or counter) */
+enum promex_mt_type {
+	PROMEX_MT_GAUGE   = 1,
+	PROMEX_MT_COUNTER = 2,
+};
+
 /* The max length for metrics name. It is a hard limit but it should be
  * enough.
  */
@@ -88,6 +94,13 @@ enum {
 /* Some labels for build_info */
 #define PROMEX_VERSION_LABEL "version=\"" HAPROXY_VERSION "\""
 #define PROMEX_BUILDINFO_LABEL PROMEX_VERSION_LABEL
+
+/* Describe a prometheus metric */
+struct promex_metric {
+	const struct ist    n;      /* The metric name */
+	enum promex_mt_type type;   /* The metric type (gauge or counter) */
+	unsigned int        flags;  /* PROMEX_FL_* flags */
+};
 
 /* Matrix used to dump global metrics. Each metric points to the next one to be
  * processed or 0 to stop the dump. */
