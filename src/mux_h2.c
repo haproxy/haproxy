@@ -6240,7 +6240,7 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 		      (unsigned int)b_head_ofs(tmbuf), (unsigned int)b_size(tmbuf));
 
 	if (h2s) {
-		chunk_appendf(msg, " last_h2s=%p .id=%d .st=%s.flg=0x%04x .rxbuf=%u@%p+%u/%u .cs=%p",
+		chunk_appendf(msg, " last_h2s=%p .id=%d .st=%s .flg=0x%04x .rxbuf=%u@%p+%u/%u .cs=%p",
 			      h2s, h2s->id, h2s_st_to_str(h2s->st), h2s->flags,
 			      (unsigned int)b_data(&h2s->rxbuf), b_orig(&h2s->rxbuf),
 			      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf),
