@@ -1027,11 +1027,12 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 	 */
 	while (fd >= 0 && fd < global.maxsock) {
 		struct fdtab fdt;
-		struct listener *li = NULL;
-		struct server *sv = NULL;
-		struct proxy *px = NULL;
+		const struct listener *li = NULL;
+		const struct server *sv = NULL;
+		const struct proxy *px = NULL;
+		const struct connection *conn = NULL;
 		const struct mux_ops *mux = NULL;
-		void *ctx = NULL;
+		const void *ctx = NULL;
 		uint32_t conn_flags = 0;
 		int is_back = 0;
 
@@ -1047,13 +1048,14 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 				goto skip; // closed
 		}
 		else if (fdt.iocb == sock_conn_iocb) {
-			conn_flags = ((struct connection *)fdt.owner)->flags;
-			mux = ((struct connection *)fdt.owner)->mux;
-			ctx = ((struct connection *)fdt.owner)->ctx;
-			li = objt_listener(((struct connection *)fdt.owner)->target);
-			sv = objt_server(((struct connection *)fdt.owner)->target);
-			px = objt_proxy(((struct connection *)fdt.owner)->target);
-			is_back = conn_is_back((struct connection *)fdt.owner);
+			conn = (const struct connection *)fdt.owner;
+			conn_flags = conn->flags;
+			mux        = conn->mux;
+			ctx        = conn->ctx;
+			li         = objt_listener(conn->target);
+			sv         = objt_server(conn->target);
+			px         = objt_proxy(conn->target);
+			is_back    = conn_is_back(conn);
 		}
 		else if (fdt.iocb == sock_accept_iocb)
 			li = fdt.owner;
@@ -1104,11 +1106,13 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			              listener_state_str(li),
 			              li->bind_conf->frontend->id);
 		}
+		else
+			chunk_appendf(&trash, ")");
 
 #ifdef DEBUG_FD
 		chunk_appendf(&trash, " evcnt=%u", fdtab[fd].event_count);
 #endif
-		chunk_appendf(&trash, ")\n");
+		chunk_appendf(&trash, "\n");
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_rx_room_blk(si);
