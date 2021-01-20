@@ -4647,7 +4647,7 @@ static int dladdr_and_size(const void *addr, Dl_info *dli, size_t *size)
  * The symbol's base address is returned, or NULL when unresolved, in order to
  * allow the caller to match it against known ones.
  */
-const void *resolve_sym_name(struct buffer *buf, const char *pfx, void *addr)
+const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *addr)
 {
 	const struct {
 		const void *func;
