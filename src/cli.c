@@ -1106,8 +1106,12 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 				chunk_appendf(&trash, " nomux");
 
 			chunk_appendf(&trash, " xprt=%s", xprt ? xprt->name : "");
-			if (xprt)
-				chunk_appendf(&trash, " xprt_ctx=%p", xprt_ctx);
+			if (xprt) {
+				if (xprt_ctx || xprt->show_fd)
+					chunk_appendf(&trash, " xprt_ctx=%p", xprt_ctx);
+				if (xprt->show_fd)
+					xprt->show_fd(&trash, conn, xprt_ctx);
+			}
 		}
 		else if (fdt.iocb == sock_accept_iocb) {
 			chunk_appendf(&trash, ") l.st=%s fe=%s",
