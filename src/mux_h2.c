@@ -64,7 +64,9 @@ static const struct h2s *h2_idle_stream;
 #define H2_CF_GOAWAY_FAILED     0x00002000  // a GOAWAY frame failed to be sent
 #define H2_CF_WAIT_FOR_HS       0x00004000  // We did check that at least a stream was waiting for handshake
 #define H2_CF_IS_BACK           0x00008000  // this is an outgoing connection
-#define H2_CF_WINDOW_OPENED     0x00010000 // demux increased window already advertised
+#define H2_CF_WINDOW_OPENED     0x00010000  // demux increased window already advertised
+#define H2_CF_RCVD_SHUT         0x00020000  // a recv() attempt already failed on a shutdown
+#define H2_CF_END_REACHED       0x00040000  // pending data too short with RCVD_SHUT present
 
 /* H2 connection state, in h2c->st0 */
 enum h2_cs {
@@ -657,15 +659,15 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 }
 
 
-/* Detect a pending read0 for a H2 connection. It happens if a read0 is pending
- * on the connection AND if there is no more data in the demux buffer. The
- * function returns 1 to report a read0 or 0 otherwise.
+/* Detect a pending read0 for a H2 connection. It happens if a read0 was
+ * already reported on a previous xprt->rcvbuf() AND a frame parser failed
+ * to parse pending data, confirming no more progress is possible because
+ * we're facing a truncated frame. The function returns 1 to report a read0
+ * or 0 otherwise.
  */
-static int h2c_read0_pending(struct h2c *h2c)
+static inline int h2c_read0_pending(struct h2c *h2c)
 {
-	if (conn_xprt_read0_pending(h2c->conn) && !b_data(&h2c->dbuf))
-		return 1;
-	return 0;
+	return !!(h2c->flags & H2_CF_END_REACHED);
 }
 
 /* returns true if the connection is allowed to expire, false otherwise. A
@@ -3371,6 +3373,8 @@ static void h2_process_demux(struct h2c *h2c)
 		/* error or missing data condition met above ? */
 		if (ret <= 0) {
 			TRACE_DEVEL("insufficient data to proceed", H2_EV_RX_FRAME, h2c->conn, h2s);
+			if (h2c->flags & H2_CF_RCVD_SHUT)
+				h2c->flags |= H2_CF_END_REACHED;
 			break;
 		}
 
@@ -3394,8 +3398,7 @@ static void h2_process_demux(struct h2c *h2c)
 		h2c_send_conn_wu(h2c);
 	}
 
- fail:
-	/* we can go here on missing data, blocked response or error */
+ done:
 	if (h2s && h2s->cs &&
 	    (b_data(&h2s->rxbuf) ||
 	     h2c_read0_pending(h2c) ||
@@ -3416,6 +3419,15 @@ static void h2_process_demux(struct h2c *h2c)
 	h2c_restart_reading(h2c, 0);
  out:
 	TRACE_LEAVE(H2_EV_H2C_WAKE, h2c->conn);
+	return;
+
+ fail:
+	/* we can go here on missing data, blocked response or error, but we
+	 * need to check if we've met a short read condition.
+	 */
+	if (h2c->flags & H2_CF_RCVD_SHUT)
+		h2c->flags |= H2_CF_END_REACHED;
+	goto done;
 }
 
 /* resume each h2s eligible for sending in list head <head> */
@@ -3550,6 +3562,11 @@ static int h2_recv(struct h2c *h2c)
 		return 0;
 	}
 
+	if (h2c->flags & H2_CF_RCVD_SHUT) {
+		TRACE_DEVEL("leaving on rcvd_shut", H2_EV_H2C_RECV, h2c->conn);
+		return 0;
+	}
+
 	b_realign_if_empty(buf);
 	if (!b_data(buf)) {
 		/* try to pre-align the buffer like the
@@ -3569,8 +3586,13 @@ static int h2_recv(struct h2c *h2c)
 	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
 
 	if (max && !ret && h2_recv_allowed(h2c)) {
-		TRACE_DATA("failed to receive data, subscribing", H2_EV_H2C_RECV, h2c->conn);
-		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h2c->wait_event);
+		if (conn_xprt_read0_pending(h2c->conn)) {
+			TRACE_DATA("received read0", H2_EV_H2C_RECV, h2c->conn);
+			h2c->flags |= H2_CF_RCVD_SHUT;
+		} else {
+			TRACE_DATA("failed to receive data, subscribing", H2_EV_H2C_RECV, h2c->conn);
+			conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h2c->wait_event);
+		}
 	} else if (ret)
 		TRACE_DATA("received data", H2_EV_H2C_RECV, h2c->conn, 0, 0, (void*)(long)ret);
 
