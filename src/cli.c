@@ -1032,7 +1032,9 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 		const struct proxy *px = NULL;
 		const struct connection *conn = NULL;
 		const struct mux_ops *mux = NULL;
+		const struct xprt_ops *xprt = NULL;
 		const void *ctx = NULL;
+		const void *xprt_ctx = NULL;
 		uint32_t conn_flags = 0;
 		int is_back = 0;
 
@@ -1052,6 +1054,8 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			conn_flags = conn->flags;
 			mux        = conn->mux;
 			ctx        = conn->ctx;
+			xprt       = conn->xprt;
+			xprt_ctx   = conn->xprt_ctx;
 			li         = objt_listener(conn->target);
 			sv         = objt_server(conn->target);
 			px         = objt_proxy(conn->target);
@@ -1100,6 +1104,10 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			}
 			else
 				chunk_appendf(&trash, " nomux");
+
+			chunk_appendf(&trash, " xprt=%s", xprt ? xprt->name : "");
+			if (xprt)
+				chunk_appendf(&trash, " xprt_ctx=%p", xprt_ctx);
 		}
 		else if (fdt.iocb == sock_accept_iocb) {
 			chunk_appendf(&trash, ") l.st=%s fe=%s",
