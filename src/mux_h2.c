@@ -6247,8 +6247,20 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 			      (unsigned int)b_head_ofs(&h2s->rxbuf), (unsigned int)b_size(&h2s->rxbuf),
 			      h2s->cs);
 		if (h2s->cs)
-			chunk_appendf(msg, " .cs.flg=0x%08x .cs.data=%p",
+			chunk_appendf(msg, "(.flg=0x%08x .data=%p)",
 				      h2s->cs->flags, h2s->cs->data);
+
+		chunk_appendf(&trash, " .subs=%p", h2s->subs);
+		if (h2s->subs) {
+			if (h2s->subs) {
+				chunk_appendf(&trash, "(ev=%d tl=%p", h2s->subs->events, h2s->subs->tasklet);
+				chunk_appendf(&trash, " tl.calls=%d tl.ctx=%p tl.fct=",
+					      h2s->subs->tasklet->calls,
+					      h2s->subs->tasklet->context);
+				resolve_sym_name(&trash, NULL, h2s->subs->tasklet->process);
+				chunk_appendf(&trash, ")");
+			}
+		}
 	}
 }
 
