@@ -812,7 +812,9 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	}
 
 	/* prepare to read something */
-	if (h1_recv_allowed(h1c))
+	if (b_data(&h1c->ibuf))
+		tasklet_wakeup(h1c->wait_event.tasklet);
+	else if (h1_recv_allowed(h1c))
 		h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 
 	/* mux->wake will be called soon to complete the operation */
