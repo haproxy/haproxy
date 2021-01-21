@@ -6352,17 +6352,20 @@ static int ssl_check_async_engine_count(void) {
 #endif
 
 /* "show fd" helper to dump ssl internals. Warning: the output buffer is often
- * the common trash!
+ * the common trash! It returns non-zero if the connection entry looks suspicious.
  */
 static int ssl_sock_show_fd(struct buffer *buf, const struct connection *conn, const void *ctx)
 {
 	const struct ssl_sock_ctx *sctx = ctx;
+	int ret = 0;
 
 	if (!sctx)
-		return 0;
+		return ret;
 
-	if (sctx->conn != conn)
-		chunk_appendf(&trash, " xctx.conn=%p(BOGUS!)", sctx->conn);
+	if (sctx->conn != conn) {
+		chunk_appendf(&trash, " xctx.conn=%p(BOGUS)", sctx->conn);
+		ret = 1;
+	}
 	chunk_appendf(&trash, " xctx.st=%d", sctx->xprt_st);
 
 	if (sctx->xprt) {
@@ -6372,9 +6375,21 @@ static int ssl_sock_show_fd(struct buffer *buf, const struct connection *conn, c
 	}
 
 	chunk_appendf(&trash, " .wait.ev=%d", sctx->wait_event.events);
+
+	/* as soon as a shutdown is reported the lower layer unregisters its
+	 * subscriber, so the situations below are transient and rare enough to
+	 * be reported as suspicious. In any case they shouldn't last.
+	 */
+	if ((sctx->wait_event.events & 1) && (conn->flags & (CO_FL_SOCK_RD_SH|CO_FL_ERROR)))
+		ret = 1;
+	if ((sctx->wait_event.events & 2) && (conn->flags & (CO_FL_SOCK_WR_SH|CO_FL_ERROR)))
+		ret = 1;
+
 	chunk_appendf(&trash, " .subs=%p", sctx->subs);
 	if (sctx->subs) {
 		chunk_appendf(&trash, "(ev=%d tl=%p", sctx->subs->events, sctx->subs->tasklet);
+		if (sctx->subs->tasklet->calls >= 1000000)
+			ret = 1;
 		chunk_appendf(&trash, " tl.calls=%d tl.ctx=%p tl.fct=",
 			      sctx->subs->tasklet->calls,
 			      sctx->subs->tasklet->context);
@@ -6383,7 +6398,7 @@ static int ssl_sock_show_fd(struct buffer *buf, const struct connection *conn, c
 	}
 	chunk_appendf(&trash, " .sent_early=%d", sctx->sent_early_data);
 	chunk_appendf(&trash, " .early_in=%d", (int)sctx->early_buf.data);
-	return 0;
+	return ret;
 }
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
