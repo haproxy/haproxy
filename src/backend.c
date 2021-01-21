@@ -832,7 +832,7 @@ out_ok:
  * dispatch or transparent address.
  *
  * Returns SRV_STATUS_OK on success.
- * On error, the allocated address is freed and SRV_STATUS_INTERNAL is returned.
+ * On error, no address is allocated and SRV_STATUS_INTERNAL is returned.
  */
 static int alloc_dst_address(struct sockaddr_storage **ss,
                              struct server *srv, struct stream *s)
@@ -1034,69 +1034,85 @@ int assign_server_and_queue(struct stream *s)
 	}
 }
 
-/* If an explicit source binding is specified on the server and/or backend, and
- * this source makes use of the transparent proxy, then it is extracted now and
- * assigned to the stream's pending connection. This function assumes that an
- * outgoing connection has already been assigned to s->si[1].end.
+/* Allocate an address for source binding on the specified server or backend.
+ * The allocation is only performed if the connection is intended to be used
+ * with transparent mode.
+ *
+ * Returns SRV_STATUS_OK if no transparent mode or the address was successfully
+ * allocated. Otherwise returns SRV_STATUS_INTERNAL.
  */
-static void assign_tproxy_address(struct stream *s)
+static int alloc_bind_address(struct sockaddr_storage **ss,
+                              struct server *srv, struct stream *s)
 {
 #if defined(CONFIG_HAP_TRANSPARENT)
-	struct server *srv = objt_server(s->target);
-	struct conn_src *src;
+	struct conn_src *src = NULL;
 	struct connection *cli_conn;
-	struct connection *srv_conn;
+	struct sockaddr_in *sin;
+	char *vptr;
+	size_t vlen;
+#endif
 
-	if (objt_cs(s->si[1].end))
-		srv_conn = cs_conn(__objt_cs(s->si[1].end));
-	else
-		srv_conn = objt_conn(s->si[1].end);
+	*ss = NULL;
 
+#if defined(CONFIG_HAP_TRANSPARENT)
 	if (srv && srv->conn_src.opts & CO_SRC_BIND)
 		src = &srv->conn_src;
 	else if (s->be->conn_src.opts & CO_SRC_BIND)
 		src = &s->be->conn_src;
-	else
-		return;
 
-	if (!sockaddr_alloc(&srv_conn->src, NULL, 0))
-		return;
+	/* no transparent mode, no need to allocate an address, returns OK */
+	if (!src)
+		return SRV_STATUS_OK;
 
 	switch (src->opts & CO_SRC_TPROXY_MASK) {
 	case CO_SRC_TPROXY_ADDR:
-		*srv_conn->src = src->tproxy_addr;
+		if (!sockaddr_alloc(ss, NULL, 0))
+			return SRV_STATUS_INTERNAL;
+
+		**ss = src->tproxy_addr;
 		break;
+
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
 		cli_conn = objt_conn(strm_orig(s));
-		if (cli_conn && conn_get_src(cli_conn))
-			*srv_conn->src = *cli_conn->src;
-		else {
-			sockaddr_free(&srv_conn->src);
-		}
-		break;
-	case CO_SRC_TPROXY_DYN:
-		if (src->bind_hdr_occ && IS_HTX_STRM(s)) {
-			char *vptr;
-			size_t vlen;
+		if (!cli_conn || !conn_get_src(cli_conn))
+			return SRV_STATUS_INTERNAL;
 
-			/* bind to the IP in a header */
-			((struct sockaddr_in *)srv_conn->src)->sin_family = AF_INET;
-			((struct sockaddr_in *)srv_conn->src)->sin_port = 0;
-			((struct sockaddr_in *)srv_conn->src)->sin_addr.s_addr = 0;
-			if (http_get_htx_hdr(htxbuf(&s->req.buf),
-					     ist2(src->bind_hdr_name, src->bind_hdr_len),
-					     src->bind_hdr_occ, NULL, &vptr, &vlen)) {
-				((struct sockaddr_in *)srv_conn->src)->sin_addr.s_addr =
-					htonl(inetaddr_host_lim(vptr, vptr + vlen));
-			}
-		}
+		if (!sockaddr_alloc(ss, NULL, 0))
+			return SRV_STATUS_INTERNAL;
+
+		**ss = *cli_conn->src;
 		break;
+
+	case CO_SRC_TPROXY_DYN:
+		if (!src->bind_hdr_occ || !IS_HTX_STRM(s))
+			return SRV_STATUS_INTERNAL;
+
+		if (!sockaddr_alloc(ss, NULL, 0))
+			return SRV_STATUS_INTERNAL;
+
+		/* bind to the IP in a header */
+		sin = (struct sockaddr_in *)*ss;
+		sin->sin_family = AF_INET;
+		sin->sin_port = 0;
+		sin->sin_addr.s_addr = 0;
+		if (!http_get_htx_hdr(htxbuf(&s->req.buf),
+		                      ist2(src->bind_hdr_name, src->bind_hdr_len),
+		                      src->bind_hdr_occ, NULL, &vptr, &vlen)) {
+			sockaddr_free(ss);
+			return SRV_STATUS_INTERNAL;
+		}
+
+		sin->sin_addr.s_addr = htonl(inetaddr_host_lim(vptr, vptr + vlen));
+		break;
+
 	default:
-		sockaddr_free(&srv_conn->src);
+		;
 	}
 #endif
+
+	return SRV_STATUS_OK;
 }
 
 /* Attempt to get a backend connection from the specified mt_list array
@@ -1473,6 +1489,10 @@ skip_reuse:
 			if (reuse_mode == PR_O_REUSE_NEVR)
 				conn_set_private(srv_conn);
 
+			err = alloc_bind_address(&srv_conn->src, srv, s);
+			if (err != SRV_STATUS_OK)
+				return SF_ERR_INTERNAL;
+
 			if (!sockaddr_alloc(&srv_conn->dst, 0, 0)) {
 				conn_free(srv_conn);
 				return SF_ERR_RESOURCE;
@@ -1529,8 +1549,6 @@ skip_reuse:
 			if (cli_conn)
 				conn_get_dst(cli_conn);
 		}
-
-		assign_tproxy_address(s);
 
 		if (srv && (srv->flags & SRV_F_SOCKS4_PROXY)) {
 			srv_conn->send_proxy_ofs = 1;
