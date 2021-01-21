@@ -2399,38 +2399,40 @@ struct task *process_stream(struct task *t, void *context, unsigned short state)
 		DISGUISE(write(1, trash.area, trash.data));
 	}
 
-	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
-	if (!(s->flags & SF_IGNORE))
+	if (!(s->flags & SF_IGNORE)) {
+		s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
+
 		stream_process_counters(s);
 
-	if (s->txn && s->txn->status) {
-		int n;
+		if (s->txn && s->txn->status) {
+			int n;
 
-		n = s->txn->status / 100;
-		if (n < 1 || n > 5)
-			n = 0;
+			n = s->txn->status / 100;
+			if (n < 1 || n > 5)
+				n = 0;
 
-		if (sess->fe->mode == PR_MODE_HTTP) {
-			_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[n], 1);
+			if (sess->fe->mode == PR_MODE_HTTP) {
+				_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[n], 1);
+			}
+			if ((s->flags & SF_BE_ASSIGNED) &&
+			    (s->be->mode == PR_MODE_HTTP)) {
+				_HA_ATOMIC_ADD(&s->be->be_counters.p.http.rsp[n], 1);
+				_HA_ATOMIC_ADD(&s->be->be_counters.p.http.cum_req, 1);
+			}
 		}
-		if ((s->flags & SF_BE_ASSIGNED) &&
-		    (s->be->mode == PR_MODE_HTTP)) {
-			_HA_ATOMIC_ADD(&s->be->be_counters.p.http.rsp[n], 1);
-			_HA_ATOMIC_ADD(&s->be->be_counters.p.http.cum_req, 1);
+
+		/* let's do a final log if we need it */
+		if (!LIST_ISEMPTY(&sess->fe->logformat) && s->logs.logwait &&
+		    !(s->flags & SF_MONITOR) &&
+		    (!(sess->fe->options & PR_O_NULLNOLOG) || req->total)) {
+			/* we may need to know the position in the queue */
+			pendconn_free(s);
+			s->do_log(s);
 		}
-	}
 
-	/* let's do a final log if we need it */
-	if (!LIST_ISEMPTY(&sess->fe->logformat) && s->logs.logwait &&
-	    !(s->flags & SF_MONITOR) &&
-	    (!(sess->fe->options & PR_O_NULLNOLOG) || req->total)) {
-		/* we may need to know the position in the queue */
-		pendconn_free(s);
-		s->do_log(s);
+		/* update time stats for this stream */
+		stream_update_time_stats(s);
 	}
-
-	/* update time stats for this stream */
-	stream_update_time_stats(s);
 
 	/* the task MUST not be in the run queue anymore */
 	stream_free(s);
