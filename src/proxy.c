@@ -1457,7 +1457,9 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 					s->flags |= SF_IGNORE;
 					return 0;
 				}
-				s->flags |= SF_HTX;
+				s->req.flags &= ~(CF_READ_PARTIAL|CF_AUTO_CONNECT);
+				s->req.total = 0;
+				s->flags |= SF_IGNORE;
 			}
 		}
 		else if (IS_HTX_STRM(s) && be->mode != PR_MODE_HTTP) {
