@@ -14,6 +14,9 @@
  * in an environment able to catch a longjmp, otherwise a
  * critical error can be raised.
  */
+
+#define _GNU_SOURCE
+
 #include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
