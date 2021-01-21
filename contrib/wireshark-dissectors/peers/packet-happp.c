@@ -1624,6 +1624,14 @@ dissect_happp_heur_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void
 
 	proto_strlen = strlen(HAPPP_PROTOCOL);
 
+	if (tvb_captured_length(tvb) < 2)
+		return FALSE;
+
+	if (tvb_get_guint8(tvb, 0) == PEER_MSG_CLASS_STICKTABLE &&
+	    tvb_get_guint8(tvb, 1) >= PEER_MSG_STKT_UPDATE &&
+	    tvb_get_guint8(tvb, 1) <= PEER_MSG_STKT_ACK)
+		goto found;
+
 	if (tvb_captured_length(tvb) < proto_strlen + 1)
 		return FALSE;
 
@@ -1634,6 +1642,7 @@ dissect_happp_heur_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void
 	    tvb_get_guint8(tvb, proto_strlen) != ' ')
 		return FALSE;
 
+ found:
 	conversation = find_or_create_conversation(pinfo);
 	if (!conversation)
 		return FALSE;
