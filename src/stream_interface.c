@@ -607,6 +607,21 @@ static int si_cs_process(struct conn_stream *cs)
 			si->state = SI_ST_RDY;
 	}
 
+	/* Report EOS on the channel if it was reached from the mux point of
+	 * view.
+	 *
+	 * Note: This test is only required because si_cs_process is also the SI
+	 *       wake callback. Otherwise si_cs_recv()/si_cs_send() already take
+	 *       care of it.
+	 */
+	if (cs->flags & CS_FL_EOS && !(ic->flags & CF_SHUTR)) {
+		/* we received a shutdown */
+		ic->flags |= CF_READ_NULL;
+		if (ic->flags & CF_AUTO_CLOSE)
+			channel_shutw_now(ic);
+		stream_int_read0(si);
+	}
+
 	/* Report EOI on the channel if it was reached from the mux point of
 	 * view.
 	 *
