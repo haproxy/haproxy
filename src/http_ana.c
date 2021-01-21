@@ -92,9 +92,20 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
-	htx = htxbuf(&req->buf);
+	if (unlikely(!IS_HTX_STRM(s))) {
+		/* It is only possible when a TCP stream is upgrade to HTTP.
+		 * There is a transition period during which there is no
+		 * data. The stream is still in raw mode and SF_IGNORE flag is
+		 * still set. When this happens, the new mux is responsible to
+		 * handle all errors. Thus we may leave immediatly.
+		 */
+		BUG_ON(!(s->flags & SF_IGNORE) || !c_empty(&s->req));
 
-	BUG_ON(htx_is_empty(htx) || htx->first == -1);
+		DBG_TRACE_LEAVE(STRM_EV_STRM_ANA, s);
+		return 0;
+	}
+
+	htx = htxbuf(&req->buf);
 
 	/* Parsing errors are caught here */
 	if (htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR)) {
