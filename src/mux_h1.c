@@ -611,6 +611,28 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 	return NULL;
 }
 
+static struct conn_stream *h1s_upgrade_cs(struct h1s *h1s, struct buffer *input)
+{
+	TRACE_ENTER(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
+
+	if (stream_upgrade_from_cs(h1s->cs, input) < 0) {
+		TRACE_DEVEL("leaving on stream upgrade failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
+		goto err;
+	}
+
+	if (global.tune.options & GTUNE_USE_SPLICE) {
+		TRACE_STATE("notify the mux can use splicing", H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
+		h1s->cs->flags |= CS_FL_MAY_SPLICE;
+	}
+
+	h1s->h1c->flags |= H1C_F_ST_READY;
+	TRACE_LEAVE(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
+	return h1s->cs;
+
+  err:
+	return NULL;
+}
+
 static struct h1s *h1s_new(struct h1c *h1c)
 {
 	struct h1s *h1s;
@@ -806,6 +828,21 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		/* Create a new H1S now for backend connection only */
 		if (!h1c_bck_stream_new(h1c, conn_ctx, sess))
 			goto fail;
+	}
+	else if (conn_ctx) {
+		/* Upgraded frontend connection (from TCP) */
+		struct conn_stream *cs = conn_ctx;
+
+		if (!h1c_frt_stream_new(h1c))
+			goto fail;
+
+		h1c->h1s->cs = cs;
+		cs->ctx = h1c->h1s;
+
+		/* Attach the CS but Not ready yet */
+		h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED;
+		TRACE_DEVEL("Inherit the CS from TCP connection to perform an upgrade",
+			    H1_EV_H1C_NEW|H1_EV_STRM_NEW, h1c->conn, h1c->h1s);
 	}
 
 	if (t) {
@@ -1573,9 +1610,21 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 			goto end;
 		}
 
-		if (!h1s_new_cs(h1s, buf)) {
-			h1c->flags |= H1C_F_ST_ERROR;
-			goto err;
+		if (!(h1c->flags & H1C_F_ST_ATTACHED)) {
+			TRACE_DEVEL("request headers fully parsed, create and attach the CS", H1_EV_RX_DATA, h1c->conn, h1s);
+			BUG_ON(h1s->cs);
+			if (!h1s_new_cs(h1s, buf)) {
+				h1c->flags |= H1C_F_ST_ERROR;
+				goto err;
+			}
+		}
+		else {
+			TRACE_DEVEL("request headers fully parsed, upgrade the inherited CS", H1_EV_RX_DATA, h1c->conn, h1s);
+			BUG_ON(h1s->cs == NULL);
+			if (!h1s_upgrade_cs(h1s, buf)) {
+				h1c->flags |= H1C_F_ST_ERROR;
+				goto err;
+			}
 		}
 	}
 
@@ -2437,6 +2486,13 @@ static int h1_process(struct h1c * h1c)
 			/* Try to match H2 preface before parsing the request headers. */
 			if (b_isteq(&h1c->ibuf, 0, b_data(&h1c->ibuf), ist(H2_CONN_PREFACE)) > 0) {
 				h1c->flags |= H1C_F_UPG_H2C;
+				if (h1c->flags & H1C_F_ST_ATTACHED) {
+					/* Force the REOS here to be sure to release the CS.
+					   Here ATTACHED implies !READY, and h1s defined
+					*/
+					BUG_ON(!h1s ||  (h1c->flags & H1C_F_ST_READY));
+					h1s->flags |= H1S_F_REOS;
+				}
 				TRACE_STATE("release h1c to perform H2 upgrade ", H1_EV_RX_DATA|H1_EV_H1C_WAKE);
 				goto release;
 			}
@@ -2538,8 +2594,22 @@ static int h1_process(struct h1c * h1c)
 	return 0;
 
   release:
-	h1_release(h1c);
-	TRACE_DEVEL("leaving after releasing the connection", H1_EV_H1C_WAKE);
+	if (h1c->flags & H1C_F_ST_ATTACHED) {
+		/* Don't release the H1 connetion right now, we must destroy the
+		 * attached CS first. Here, the H1C must not be READY */
+		BUG_ON(!h1s || h1c->flags & H1C_F_ST_READY);
+
+		if (conn_xprt_read0_pending(conn) || (h1s->flags & H1S_F_REOS))
+			h1s->cs->flags |= CS_FL_EOS;
+		if ((h1c->flags & H1C_F_ST_ERROR) || (conn->flags & CO_FL_ERROR))
+			h1s->cs->flags |= CS_FL_ERROR;
+		h1_alert(h1s);
+		TRACE_DEVEL("waiting to release the CS before releasing the connection", H1_EV_H1C_WAKE);
+	}
+	else {
+		h1_release(h1c);
+		TRACE_DEVEL("leaving after releasing the connection", H1_EV_H1C_WAKE);
+	}
 	return -1;
 }
 
@@ -2670,6 +2740,17 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 				HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 				return t;
 			}
+		}
+
+		if (h1c->flags & H1C_F_ST_ATTACHED) {
+			/* Don't release the H1 connetion right now, we must destroy the
+			 * attached CS first. Here, the H1C must not be READY */
+			h1c->h1s->cs->flags |= (CS_FL_EOS|CS_FL_ERROR);
+			h1_alert(h1c->h1s);
+			h1_refresh_timeout(h1c);
+			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+			TRACE_DEVEL("waiting to release the CS before releasing the connection", H1_EV_H1C_WAKE);
+			return t;
 		}
 
 		/* We're about to destroy the connection, so make sure nobody attempts
