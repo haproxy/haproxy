@@ -9142,7 +9142,6 @@ lua_State *hlua_init_state(int thread_num)
 
 void hlua_init(void) {
 	int i;
-	int idx;
 #ifdef USE_OPENSSL
 	struct srv_kw *kw;
 	int tmp_error;
@@ -9273,8 +9272,8 @@ void hlua_init(void) {
 	socket_ssl.use_ssl = 1;
 	socket_ssl.xprt = xprt_get(XPRT_SSL);
 
-	for (idx = 0; args[idx] != NULL; idx++) {
-		if ((kw = srv_find_kw(args[idx])) != NULL) { /* Maybe it's registered server keyword */
+	for (i = 0; args[i] != NULL; i++) {
+		if ((kw = srv_find_kw(args[i])) != NULL) { /* Maybe it's registered server keyword */
 			/*
 			 *
 			 * If the keyword is not known, we can search in the registered
@@ -9282,13 +9281,13 @@ void hlua_init(void) {
 			 * features like client certificates and ssl_verify.
 			 *
 			 */
-			tmp_error = kw->parse(args, &idx, &socket_proxy, &socket_ssl, &error);
+			tmp_error = kw->parse(args, &i, &socket_proxy, &socket_ssl, &error);
 			if (tmp_error != 0) {
 				fprintf(stderr, "INTERNAL ERROR: %s\n", error);
 				abort(); /* This must be never arrives because the command line
 				            not editable by the user. */
 			}
-			idx += kw->skip;
+			i += kw->skip;
 		}
 	}
 #endif
