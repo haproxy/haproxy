@@ -147,6 +147,7 @@ enum {
 	PEER_MSG_CTRL_RESYNCFINISHED,
 	PEER_MSG_CTRL_RESYNCPARTIAL,
 	PEER_MSG_CTRL_RESYNCCONFIRM,
+	PEER_MSG_CTRL_HEARTBEAT,
 };
 
 /* Error messages */
@@ -533,6 +534,8 @@ static const char *control_msg_type_str_from_byte(guint8 c)
 		return "resync. partial";
 	case PEER_MSG_CTRL_RESYNCCONFIRM:
 		return "resync. confirm";
+	case PEER_MSG_CTRL_HEARTBEAT:
+		return "heartbeat";
 	default:
 		return "Unknown";
 	}
