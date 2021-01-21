@@ -15557,7 +15557,7 @@ htonl
   this converter is used, the input integer value is first casted to an
   unsigned 32-bit integer.
 
-hmac(<algorithm>, <key>)
+hmac(<algorithm>,<key>)
   Converts a binary input sample to a message authentication code with the given
   key. The result is a binary sample. The <algorithm> must be one of the
   registered OpenSSL message digest names (e.g. sha256). The <key> parameter must
@@ -15592,7 +15592,7 @@ in_table(<table>)
   the presence of a certain key in a table tracking some elements (e.g. whether
   or not a source IP address or an Authorization header was already seen).
 
-ipmask(<mask4>, [<mask6>])
+ipmask(<mask4>,[<mask6>])
   Apply a mask to an IP address, and use the result for lookups and storage.
   This can be used to make all hosts within a certain mask to share the same
   table entries and as such use the same server. The mask4 can be passed in
