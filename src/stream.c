@@ -285,6 +285,38 @@ int stream_create_from_cs(struct conn_stream *cs, struct buffer *input)
 	return 0;
 }
 
+/* Upgrade an existing TCP stream for connection <conn>. Return < 0 on error.
+ * This is only valid right after a TCP to H1 upgrade. The stream should be
+ * "reativated" by removing SF_IGNORE flag. And the right mode must be set.
+ * On success, <input> buffer is transferred to the stream and thus points to
+ * BUF_NULL. On error, it is unchanged and it is the caller responsibility to
+ * release it (this never happens for now).
+ */
+int stream_upgrade_from_cs(struct conn_stream *cs, struct buffer *input)
+{
+	struct stream_interface *si = cs->data;
+	struct stream *s = si_strm(si);
+
+	if (cs->conn->mux->flags & MX_FL_HTX)
+		s->flags |= SF_HTX;
+
+	if (!b_is_null(input)) {
+		/* Xfer the input buffer to the request channel. <input> will
+		 * than point to BUF_NULL. From this point, it is the stream
+		 * responsibility to release it.
+		 */
+		s->req.buf = *input;
+		*input = BUF_NULL;
+		s->req.total = (IS_HTX_STRM(s) ? htxbuf(&s->req.buf)->data : b_data(&s->req.buf));
+		s->req.flags |= (s->req.total ? CF_READ_PARTIAL : 0);
+	}
+
+	s->flags &= ~SF_IGNORE;
+
+	task_wakeup(s->task, TASK_WOKEN_INIT);
+	return 0;
+}
+
 /* Callback used to wake up a stream when an input buffer is available. The
  * stream <s>'s stream interfaces are checked for a failed buffer allocation
  * as indicated by the presence of the SI_FL_RXBLK_ROOM flag and the lack of a
