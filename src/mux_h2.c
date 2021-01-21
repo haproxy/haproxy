@@ -6202,9 +6202,10 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 	int tree_cnt = 0;
 	int orph_cnt = 0;
 	struct buffer *hmbuf, *tmbuf;
+	int ret = 0;
 
 	if (!h2c)
-		return 0;
+		return ret;
 
 	list_for_each_entry(h2s, &h2c->fctl_list, list)
 		fctl_cnt++;
@@ -6257,12 +6258,14 @@ static int h2_show_fd(struct buffer *msg, struct connection *conn)
 				chunk_appendf(&trash, " tl.calls=%d tl.ctx=%p tl.fct=",
 					      h2s->subs->tasklet->calls,
 					      h2s->subs->tasklet->context);
+				if (h2s->subs->tasklet->calls >= 1000000)
+					ret = 1;
 				resolve_sym_name(&trash, NULL, h2s->subs->tasklet->process);
 				chunk_appendf(&trash, ")");
 			}
 		}
 	}
-	return 0;
+	return ret;
 }
 
 /* Migrate the the connection to the current thread.
