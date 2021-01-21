@@ -3145,6 +3145,7 @@ static int h1_show_fd(struct buffer *msg, struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
 	struct h1s *h1s = h1c->h1s;
+	int ret = 0;
 
 	chunk_appendf(msg, " h1c.flg=0x%x .sub=%d .ibuf=%u@%p+%u/%u .obuf=%u@%p+%u/%u",
 		      h1c->flags,  h1c->wait_event.events,
@@ -3176,12 +3177,14 @@ static int h1_show_fd(struct buffer *msg, struct connection *conn)
 				chunk_appendf(&trash, " tl.calls=%d tl.ctx=%p tl.fct=",
 					      h1s->subs->tasklet->calls,
 					      h1s->subs->tasklet->context);
+				if (h1s->subs->tasklet->calls >= 1000000)
+					ret = 1;
 				resolve_sym_name(&trash, NULL, h1s->subs->tasklet->process);
 				chunk_appendf(&trash, ")");
 			}
 		}
 	}
-	return 0;
+	return ret;
 }
 
 
