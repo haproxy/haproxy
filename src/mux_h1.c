@@ -2084,6 +2084,23 @@ static void h1_wake_stream_for_send(struct h1s *h1s)
 	}
 }
 
+/* alerts the data layer following this sequence :
+ *   - if the h1s' data layer is subscribed to recv, then it's woken up for recv
+ *   - if its subscribed to send, then it's woken up for send
+ *   - if it was subscribed to neither, its ->wake() callback is called
+ */
+static void h1_alert(struct h1s *h1s)
+{
+	if (h1s->subs) {
+		h1_wake_stream_for_recv(h1s);
+		h1_wake_stream_for_send(h1s);
+	}
+	else if (h1s->cs && h1s->cs->data_cb->wake != NULL) {
+		TRACE_POINT(H1_EV_STRM_WAKE, h1s->h1c->conn, h1s);
+		h1s->cs->data_cb->wake(h1s->cs);
+	}
+}
+
 /* Try to send an HTTP error with h1c->errcode status code. It returns 1 on success
  * and 0 on error. The flag H1C_F_ERR_PENDING is set on the H1 connection for
  * retryable errors (allocation error or buffer full). On success, the error is
@@ -2491,10 +2508,7 @@ static int h1_process(struct h1c * h1c)
 			if ((h1c->flags & H1C_F_ST_ERROR) || (conn->flags & CO_FL_ERROR))
 				h1s->cs->flags |= CS_FL_ERROR;
 			TRACE_POINT(H1_EV_STRM_WAKE, h1c->conn, h1s);
-			if (h1s->cs->data_cb->wake) {
-				TRACE_POINT(H1_EV_STRM_WAKE, h1c->conn, h1s);
-				h1s->cs->data_cb->wake(h1s->cs);
-			}
+			h1_alert(h1s);
 		}
 	}
 
@@ -2590,10 +2604,8 @@ static int h1_wake(struct connection *conn)
 	if (ret == 0) {
 		struct h1s *h1s = h1c->h1s;
 
-		if ((h1c->flags & H1C_F_ST_ATTACHED) && h1s->cs->data_cb->wake) {
-			TRACE_POINT(H1_EV_STRM_WAKE, h1c->conn, h1s);
-			ret = h1s->cs->data_cb->wake(h1s->cs);
-		}
+		if (h1c->flags & H1C_F_ST_ATTACHED)
+			h1_alert(h1s);
 	}
 	return ret;
 }
