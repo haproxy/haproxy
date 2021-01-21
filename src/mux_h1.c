@@ -46,13 +46,15 @@
 
 /* Flags indicating the connection state */
 #define H1C_F_ST_EMBRYONIC   0x00000100 /* Set when a H1 stream with no conn-stream is attached to the connection */
-#define H1C_F_ST_ATTACHED    0x00000200 /* Set when a H1 stream with a conn-stream is attached to the connection */
+#define H1C_F_ST_ATTACHED    0x00000200 /* Set when a H1 stream with a conn-stream is attached to the connection (may be not READY) */
 #define H1C_F_ST_IDLE        0x00000400 /* connection is idle and may be reused
 					 * (exclusive to all H1C_F_ST flags and never set when an h1s is attached) */
 #define H1C_F_ST_ERROR       0x00000800 /* connection must be closed ASAP because an error occurred (conn-stream may still be attached) */
 #define H1C_F_ST_SHUTDOWN    0x00001000 /* connection must be shut down ASAP flushing output first (conn-stream may still be attached) */
+#define H1C_F_ST_READY       0x00002000 /* Set in ATTACHED state with a READY conn-stream. A conn-stream is not ready when
+					 * a TCP>H1 upgrade is in progress Thus this flag is only set if ATTACHED is also set */
 #define H1C_F_ST_ALIVE       (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED)
-/* 0x00002000 - 0x00008000 unused */
+/* 0x00004000 - 0x00008000 unused */
 
 #define H1C_F_WAIT_OPPOSITE  0x00010000 /* Don't read more data for now, waiting sync with opposite side */
 #define H1C_F_WANT_SPLICE    0x00020000 /* Don't read into a buffer because we want to use or we are using splicing */
@@ -499,10 +501,10 @@ static void h1_refresh_timeout(struct h1c *h1c)
 			h1c->task->expire = tick_add(now_ms, h1c->timeout);
 			TRACE_DEVEL("refreshing connection's timeout (pending outgoing data)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 		}
-		else if (!(h1c->flags & H1C_F_IS_BACK) && (h1c->flags & (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC))) {
-			/* front connections waiting for a stream need a timeout. */
+		else if (!(h1c->flags & (H1C_F_IS_BACK|H1C_F_ST_READY))) {
+			/* front connections waiting for a fully usable stream need a timeout. */
 			h1c->task->expire = tick_add(now_ms, h1c->timeout);
-			TRACE_DEVEL("refreshing connection's timeout (alive front h1c without a CS)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
+			TRACE_DEVEL("refreshing connection's timeout (alive front h1c but not ready)", H1_EV_H1C_SEND|H1_EV_H1C_RECV, h1c->conn);
 		}
 		else  {
 			/* alive back connections of front connections with a conn-stream attached */
@@ -539,7 +541,7 @@ static void h1_set_idle_expiration(struct h1c *h1c)
 			}
 		}
 	}
-	else if (h1c->flags & H1C_F_ST_EMBRYONIC) {
+	else if ((h1c->flags & H1C_F_ST_ALIVE) && !(h1c->flags & H1C_F_ST_READY)) {
 		if (!tick_isset(h1c->idle_exp)) {
 			h1c->idle_exp = tick_add_ifset(now_ms, h1c->px->timeout.httpreq);
 			TRACE_DEVEL("set idle expiration (http-request timeout)", H1_EV_H1C_RECV, h1c->conn);
@@ -588,7 +590,6 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 
 	if (h1s->flags & H1S_F_NOT_FIRST)
 		cs->flags |= CS_FL_NOT_FIRST;
-	h1s->h1c->flags = (h1s->h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED;
 
 	if (global.tune.options & GTUNE_USE_SPLICE) {
 		TRACE_STATE("notify the mux can use splicing", H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
@@ -600,6 +601,7 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 		goto err;
 	}
 
+	h1s->h1c->flags = (h1s->h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED | H1C_F_ST_READY;
 	TRACE_LEAVE(H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
 	return cs;
 
@@ -687,7 +689,7 @@ static struct h1s *h1c_bck_stream_new(struct h1c *h1c, struct conn_stream *cs, s
 	h1s->sess = sess;
 	cs->ctx = h1s;
 
-	h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED;
+	h1c->flags = (h1c->flags & ~H1C_F_ST_EMBRYONIC) | H1C_F_ST_ATTACHED | H1C_F_ST_READY;
 
 	if (h1c->px->options2 & PR_O2_RSPBUG_OK)
 		h1s->res.err_pos = -1;
@@ -713,7 +715,8 @@ static void h1s_destroy(struct h1s *h1s)
 
 		h1_release_buf(h1c, &h1s->rxbuf);
 
-		h1c->flags &= ~(H1C_F_WAIT_OPPOSITE|H1C_F_WANT_SPLICE|H1C_F_ST_EMBRYONIC|H1C_F_ST_ATTACHED|
+		h1c->flags &= ~(H1C_F_WAIT_OPPOSITE|H1C_F_WANT_SPLICE|H1C_F_ST_EMBRYONIC|
+				H1C_F_ST_ATTACHED|H1C_F_ST_READY|
 				H1C_F_OUT_FULL|H1C_F_OUT_ALLOC|H1C_F_IN_SALLOC|
 				H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
 		if (h1s->flags & H1S_F_ERROR) {
@@ -1557,7 +1560,13 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
 
-	if (!h1s->cs) {
+	if (!(h1c->flags & H1C_F_ST_READY)) {
+		/* The H1 connection is not ready. Most of time, there is no CS
+		 * attached, except for TCP>H1 upgrade, from a TCP frontend. In both
+		 * cases, it is only possible on the client side.
+		 */
+		BUG_ON(h1c->flags & H1C_F_IS_BACK);
+
 		if (h1m->state <= H1_MSG_LAST_LF) {
 			TRACE_STATE("Incomplete message, subscribing", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
@@ -2412,9 +2421,9 @@ static int h1_process(struct h1c * h1c)
 	TRACE_ENTER(H1_EV_H1C_WAKE, conn);
 
 	/* Try to parse now the first block of a request, creating the H1 stream if necessary */
-	if (b_data(&h1c->ibuf) &&                                /* Input data to be processed */
-	    (h1c->flags & (H1C_F_ST_IDLE|H1C_F_ST_EMBRYONIC)) && /* IDLE h1 connection or no CS attached to the h1 stream */
-	    !(h1c->flags & H1C_F_IN_SALLOC)) {                   /* No allocation failure on the stream rxbuf */
+	if (b_data(&h1c->ibuf) &&                                                /* Input data to be processed */
+	    (h1c->flags & H1C_F_ST_ALIVE) && !(h1c->flags & H1C_F_ST_READY) &&   /* ST_IDLE/ST_EMBRYONIC or ST_ATTACH but not ST_READY  */
+	    !(h1c->flags & H1C_F_IN_SALLOC)) {                                   /* No allocation failure on the stream rxbuf */
 		struct buffer *buf;
 		size_t count;
 
@@ -2423,8 +2432,8 @@ static int h1_process(struct h1c * h1c)
 			goto release;
 
 		/* First of all handle H1 to H2 upgrade (no need to create the H1 stream) */
-		if (((h1c->flags & (H1C_F_ST_IDLE|H1C_F_WAIT_NEXT_REQ)) == H1C_F_ST_IDLE) && /* First request with no h1s */
-		    !(h1c->px->options2 & PR_O2_NO_H2_UPGRADE)) {                            /* H2 upgrade supported by the proxy */
+		if (!(h1c->flags & H1C_F_WAIT_NEXT_REQ) &&         /* First request */
+		    !(h1c->px->options2 & PR_O2_NO_H2_UPGRADE)) {  /* H2 upgrade supported by the proxy */
 			/* Try to match H2 preface before parsing the request headers. */
 			if (b_isteq(&h1c->ibuf, 0, b_data(&h1c->ibuf), ist(H2_CONN_PREFACE)) > 0) {
 				h1c->flags |= H1C_F_UPG_H2C;
@@ -2476,8 +2485,8 @@ static int h1_process(struct h1c * h1c)
 	h1_send(h1c);
 
 	if ((conn->flags & CO_FL_ERROR) || conn_xprt_read0_pending(conn) || (h1c->flags & H1C_F_ST_ERROR)) {
-		if (!(h1c->flags & H1C_F_ST_ATTACHED)) {
-			/* No conn-stream */
+		if (!(h1c->flags & H1C_F_ST_READY)) {
+			/* No conn-stream or not ready */
 			/* shutdown for reads and error on the frontend connection: Send an error */
 			if (!(h1c->flags & (H1C_F_IS_BACK|H1C_F_ST_ERROR))) {
 				if (h1_handle_bad_req(h1c))
@@ -2641,10 +2650,10 @@ static struct task *h1_timeout_task(struct task *t, void *context, unsigned shor
 			return t;
 		}
 
-		/* If a conn-stream is still attached to the mux, wait for the
+		/* If a conn-stream is still attached and ready to the mux, wait for the
 		 * stream's timeout
 		 */
-		if (h1c->flags & H1C_F_ST_ATTACHED) {
+		if (h1c->flags & H1C_F_ST_READY) {
 			HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
 			t->expire = TICK_ETERNITY;
 			TRACE_DEVEL("leaving (CS still attached)", H1_EV_H1C_WAKE, h1c->conn, h1c->h1s);
@@ -2876,6 +2885,11 @@ static void h1_shutr(struct conn_stream *cs, enum cs_shr_mode mode)
 		goto do_shutr;
 	}
 
+	if (!(h1c->flags & (H1C_F_ST_READY|H1C_F_ST_ERROR))) {
+		/* Here attached is implicit because there is CS */
+		TRACE_STATE("keep connection alive (ALIVE but not READY nor ERROR)", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		goto end;
+	}
 	if (h1s->flags & H1S_F_WANT_KAL) {
 		TRACE_STATE("keep connection alive (want_kal)", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto end;
@@ -2914,6 +2928,11 @@ static void h1_shutw(struct conn_stream *cs, enum cs_shw_mode mode)
 		goto do_shutw;
 	}
 
+	if (!(h1c->flags & (H1C_F_ST_READY|H1C_F_ST_ERROR))) {
+		/* Here attached is implicit because there is CS */
+		TRACE_STATE("keep connection alive (ALIVE but not READY nor ERROR)", H1_EV_STRM_SHUT, h1c->conn, h1s);
+		goto end;
+	}
 	if (((h1s->flags & H1S_F_WANT_KAL) && h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE)) {
 		TRACE_STATE("keep connection alive (want_kal)", H1_EV_STRM_SHUT, h1c->conn, h1s);
 		goto end;
@@ -3015,6 +3034,13 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	size_t ret = 0;
 
 	TRACE_ENTER(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){count});
+
+	/* Do nothing for now if not READY */
+	if (!(h1c->flags & H1C_F_ST_READY)) {
+		TRACE_DEVEL("h1c not ready yet", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
+		goto end;
+	}
+
 	if (!(h1c->flags & H1C_F_IN_ALLOC))
 		ret = h1_process_input(h1c, buf, count);
 	else
@@ -3030,6 +3056,8 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		if (h1m->state != H1_MSG_DONE && !(h1c->wait_event.events & SUB_RETRY_RECV))
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 	}
+
+  end:
 	TRACE_LEAVE(H1_EV_STRM_RECV, h1c->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 }
