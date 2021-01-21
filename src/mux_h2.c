@@ -6192,7 +6192,7 @@ static size_t h2_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 }
 
 /* for debugging with CLI's "show fd" command */
-static void h2_show_fd(struct buffer *msg, struct connection *conn)
+static int h2_show_fd(struct buffer *msg, struct connection *conn)
 {
 	struct h2c *h2c = conn->ctx;
 	struct h2s *h2s = NULL;
@@ -6204,7 +6204,7 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 	struct buffer *hmbuf, *tmbuf;
 
 	if (!h2c)
-		return;
+		return 0;
 
 	list_for_each_entry(h2s, &h2c->fctl_list, list)
 		fctl_cnt++;
@@ -6262,6 +6262,7 @@ static void h2_show_fd(struct buffer *msg, struct connection *conn)
 			}
 		}
 	}
+	return 0;
 }
 
 /* Migrate the the connection to the current thread.

@@ -4053,7 +4053,7 @@ static size_t fcgi_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t co
 }
 
 /* for debugging with CLI's "show fd" command */
-static void fcgi_show_fd(struct buffer *msg, struct connection *conn)
+static int fcgi_show_fd(struct buffer *msg, struct connection *conn)
 {
 	struct fcgi_conn *fconn = conn->ctx;
 	struct fcgi_strm *fstrm = NULL;
@@ -4064,7 +4064,7 @@ static void fcgi_show_fd(struct buffer *msg, struct connection *conn)
 	struct buffer *hmbuf, *tmbuf;
 
 	if (!fconn)
-		return;
+		return 0;
 
 	list_for_each_entry(fstrm, &fconn->send_list, send_list)
 		send_cnt++;
@@ -4116,6 +4116,7 @@ static void fcgi_show_fd(struct buffer *msg, struct connection *conn)
 			}
 		}
 	}
+	return 0;
 }
 
 /* Migrate the the connection to the current thread.

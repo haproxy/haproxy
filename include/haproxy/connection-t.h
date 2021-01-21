@@ -381,7 +381,7 @@ struct xprt_ops {
 	int (*unsubscribe)(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es); /* Unsubscribe <es> from events */
 	int (*remove_xprt)(struct connection *conn, void *xprt_ctx, void *toremove_ctx, const struct xprt_ops *newops, void *newctx); /* Remove an xprt from the connection, used by temporary xprt such as the handshake one */
 	int (*add_xprt)(struct connection *conn, void *xprt_ctx, void *toadd_ctx, const struct xprt_ops *toadd_ops, void **oldxprt_ctx, const struct xprt_ops **oldxprt_ops); /* Add a new XPRT as the new xprt, and return the old one */
-	void (*show_fd)(struct buffer *, const struct connection *, const void *ctx); /* append some data about xprt for "show fd" */
+	int (*show_fd)(struct buffer *, const struct connection *, const void *ctx); /* append some data about xprt for "show fd"; returns non-zero if suspicious */
 };
 
 /* mux_ops describes the mux operations, which are to be performed at the
@@ -404,7 +404,7 @@ struct mux_ops {
 	struct conn_stream *(*attach)(struct connection *, struct session *sess); /* Create and attach a conn_stream to an outgoing connection */
 	const struct conn_stream *(*get_first_cs)(const struct connection *); /* retrieves any valid conn_stream from this connection */
 	void (*detach)(struct conn_stream *); /* Detach a conn_stream from an outgoing connection, when the request is done */
-	void (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd" */
+	int (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd"; returns non-zero if suspicious */
 	int (*subscribe)(struct conn_stream *cs, int event_type,  struct wait_event *es); /* Subscribe <es> to events, such as "being able to send" */
 	int (*unsubscribe)(struct conn_stream *cs, int event_type,  struct wait_event *es); /* Unsubscribe <es> from events */
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */

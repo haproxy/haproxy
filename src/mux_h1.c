@@ -3141,7 +3141,7 @@ static int h1_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *outp
 }
 
 /* for debugging with CLI's "show fd" command */
-static void h1_show_fd(struct buffer *msg, struct connection *conn)
+static int h1_show_fd(struct buffer *msg, struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
 	struct h1s *h1s = h1c->h1s;
@@ -3181,6 +3181,7 @@ static void h1_show_fd(struct buffer *msg, struct connection *conn)
 			}
 		}
 	}
+	return 0;
 }
 
 

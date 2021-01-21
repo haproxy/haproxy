@@ -6354,12 +6354,12 @@ static int ssl_check_async_engine_count(void) {
 /* "show fd" helper to dump ssl internals. Warning: the output buffer is often
  * the common trash!
  */
-static void ssl_sock_show_fd(struct buffer *buf, const struct connection *conn, const void *ctx)
+static int ssl_sock_show_fd(struct buffer *buf, const struct connection *conn, const void *ctx)
 {
 	const struct ssl_sock_ctx *sctx = ctx;
 
 	if (!sctx)
-		return;
+		return 0;
 
 	if (sctx->conn != conn)
 		chunk_appendf(&trash, " xctx.conn=%p(BOGUS!)", sctx->conn);
@@ -6383,6 +6383,7 @@ static void ssl_sock_show_fd(struct buffer *buf, const struct connection *conn, 
 	}
 	chunk_appendf(&trash, " .sent_early=%d", sctx->sent_early_data);
 	chunk_appendf(&trash, " .early_in=%d", (int)sctx->early_buf.data);
+	return 0;
 }
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)

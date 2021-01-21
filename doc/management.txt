@@ -2126,7 +2126,10 @@ show fd [<fd>]
   listener's state and its frontend are reported. There is no point in using
   this command without a good knowledge of the internals. It's worth noting
   that the output format may evolve over time so this output must not be parsed
-  by tools designed to be durable.
+  by tools designed to be durable. Some internal structure states may look
+  suspicious to the function listing them, in this case the output line will be
+  suffixed with an exclamation mark ('!'). This may help find a starting point
+  when trying to diagnose an incident.
 
 show info [typed|json] [desc]
   Dump info about haproxy status on current process. If "typed" is passed as an
