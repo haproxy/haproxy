@@ -16005,7 +16005,7 @@ secure_memcmp(<var>)
      # value, without leaking the contents using a timing attack.
      acl token_given str(my_secret_token),secure_memcmp(txn.token)
 
-set-var(<var name>)
+set-var(<var>)
   Sets a variable with the input content and returns the content on the output
   as-is. The variable keeps the value and the associated input type. The name of
   the variable starts with an indication about its scope. The scopes allowed are:
@@ -16311,7 +16311,7 @@ ungrpc(<field_number>,[<field_type>])
   interpret the previous binary sample.
 
 
-unset-var(<var name>)
+unset-var(<var>)
   Unsets a variable if the input content is defined. The name of the variable
   starts with an indication about its scope. The scopes allowed are:
     "proc" : the variable is shared with the whole process
