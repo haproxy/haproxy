@@ -415,7 +415,7 @@ static int promex_srv_status(struct server *sv)
 
 /* Convert a field to its string representation and write it in <out>, followed
  * by a newline, if there is enough space. non-numeric value are converted in
- * "Nan" because Prometheus only support numerical values (but it is unexepceted
+ * "NaN" because Prometheus only support numerical values (but it is unexepceted
  * to process this kind of value). It returns 1 on success. Otherwise, it
  * returns 0. The buffer's length must not exceed <max> value.
  */
@@ -424,14 +424,14 @@ static int promex_metric_to_str(struct buffer *out, struct field *f, size_t max)
 	int ret = 0;
 
 	switch (field_format(f, 0)) {
-		case FF_EMPTY: ret = chunk_strcat(out,  "Nan\n"); break;
+		case FF_EMPTY: ret = chunk_strcat(out,  "NaN\n"); break;
 		case FF_S32:   ret = chunk_appendf(out, "%d\n", f->u.s32); break;
 		case FF_U32:   ret = chunk_appendf(out, "%u\n", f->u.u32); break;
 		case FF_S64:   ret = chunk_appendf(out, "%lld\n", (long long)f->u.s64); break;
 		case FF_U64:   ret = chunk_appendf(out, "%llu\n", (unsigned long long)f->u.u64); break;
 		case FF_FLT:   ret = chunk_appendf(out, "%f\n", f->u.flt); break;
-		case FF_STR:   ret = chunk_strcat(out,  "Nan\n"); break;
-		default:       ret = chunk_strcat(out,  "Nan\n"); break;
+		case FF_STR:   ret = chunk_strcat(out,  "NaN\n"); break;
+		default:       ret = chunk_strcat(out,  "NaN\n"); break;
 	}
 	if (!ret || out->data > max)
 		return 0;
