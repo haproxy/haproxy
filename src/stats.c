@@ -1623,10 +1623,10 @@ int stats_dump_one_line(const struct field *stats, size_t stats_count,
 }
 
 /* Fill <stats> with the frontend statistics. <stats> is preallocated array of
- * length <len>. The length of the array must be at least ST_F_TOTAL_FIELDS. If
- * this length is less than this value, or if one field is not implemented, the
- * function returns 0, otherwise, it returns 1.  If selected_field is != NULL,
- * only fill this one
+ * length <len>. If <selected_field> is != NULL, only fill this one. The length
+ * of the array must be at least ST_F_TOTAL_FIELDS. If this length is less than
+ * this value, or if the selected field is not implemented for frontends, the
+ * function returns 0, otherwise, it returns 1.
  */
 int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 			enum stat_field *selected_field)
@@ -1787,8 +1787,12 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.cum_conn);
 				break;
 			default:
-				/* should never fall here unless non implemented */
-				return 0;
+				/* not used for frontends. If a specific metric
+				 * is requested, return an error. Otherwise continue.
+				 */
+				if (selected_field != NULL)
+					return 0;
+				continue;
 		}
 		stats[current_field] = metric;
 		if (selected_field != NULL)
