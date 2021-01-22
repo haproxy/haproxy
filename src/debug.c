@@ -144,7 +144,7 @@ void ha_backtrace_to_stderr()
 
 	ha_dump_backtrace(&b, "  ", 4);
 	if (b.data)
-		write(2, b.area, b.data);
+		DISGUISE(write(2, b.area, b.data));
 }
 
 /* Dumps to the buffer some known information for the desired thread, and
