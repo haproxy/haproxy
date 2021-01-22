@@ -322,6 +322,19 @@ static int debug_parse_cli_exit(char **args, char *payload, struct appctx *appct
 	return 1;
 }
 
+/* parse a "debug dev bug" command. It always returns 1, though it should never return.
+ * Note: we make sure not to make the function static so that it appears in the trace.
+ */
+int debug_parse_cli_bug(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	BUG_ON(one > zero);
+	return 1;
+}
+
 /* parse a "debug dev close" command. It always returns 1. */
 static int debug_parse_cli_close(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1144,6 +1157,7 @@ REGISTER_PER_THREAD_INIT(init_debug_per_thread);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
+	{{ "debug", "dev", "bug", NULL },   "debug dev bug               : call BUG_ON()",                   debug_parse_cli_bug,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "close", NULL }, "debug dev close <fd>        : close this file descriptor",      debug_parse_cli_close, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "delay", NULL }, "debug dev delay [ms]        : sleep this long",                 debug_parse_cli_delay, NULL, NULL, NULL, ACCESS_EXPERT },
 #if defined(DEBUG_DEV)
