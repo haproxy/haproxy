@@ -2796,6 +2796,16 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 			h2s_close(h2s);
 	}
 
+	/* Unblock busy server h2s waiting for the response headers to validate
+	 * the tunnel establishment or the end of the response of an oborted
+	 * tunnel
+	 */
+	if ((h2s->flags & (H2_SF_BODY_TUNNEL|H2_SF_BLK_MBUSY)) == (H2_SF_BODY_TUNNEL|H2_SF_BLK_MBUSY) ||
+	    (h2s->flags & (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_BLK_MBUSY)) == (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_BLK_MBUSY)) {
+		TRACE_STATE("Unblock h2s blocked on tunnel establishment/abort", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
+		h2s->flags &= ~H2_SF_BLK_MBUSY;
+	}
+
 	TRACE_USER("rcvd H2 response", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, 0, &h2s->rxbuf);
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	return h2s;
@@ -2895,6 +2905,15 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 			HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 			goto strm_err;
 		}
+	}
+
+	/* Unblock busy server h2s waiting for the end of the response for an
+	 * aborted tunnel
+	 */
+	if ((h2c->flags & H2_CF_IS_BACK) &&
+	    (h2s->flags & (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_BLK_MBUSY)) == (H2_SF_TUNNEL_ABRT|H2_SF_ES_RCVD|H2_SF_BLK_MBUSY)) {
+		TRACE_STATE("Unblock h2s blocked on tunnel abort", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
+		h2s->flags &= ~H2_SF_BLK_MBUSY;
 	}
 
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
@@ -5508,6 +5527,16 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	}
 	else if (type != HTX_BLK_DATA)
 		goto end;
+	else if ((h2c->flags & H2_CF_IS_BACK) &&
+		 (h2s->flags & (H2_SF_HEADERS_RCVD|H2_SF_BODY_TUNNEL)) == H2_SF_BODY_TUNNEL) {
+		/* The response HEADERS frame not received yet. Thus the tunnel
+		 * is not fully established yet. In this situation, we block
+		 * data sending.
+		 */
+		h2s->flags |= H2_SF_BLK_MBUSY;
+		TRACE_STATE("Request DATA frame blocked waiting for tunnel establishment", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
+		goto end;
+	}
 
 	mbuf = br_tail(h2c->mbuf);
  retry:
