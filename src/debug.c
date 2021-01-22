@@ -91,9 +91,10 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix)
 		addr = resolve_sym_name(buf, ": ", callers[j]);
 		if (dump == 0) {
 			/* dump not started, will start *after*
-			 * ha_thread_dump_all_to_trash and ha_panic
+			 * ha_thread_dump_all_to_trash, ha_panic and ha_backtrace_to_stderr
 			 */
-			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic)
+			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic ||
+			    addr == ha_backtrace_to_stderr)
 				dump = 1;
 			*buf = bak;
 			continue;
@@ -101,7 +102,8 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix)
 
 		if (dump == 1) {
 			/* starting */
-			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic) {
+			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic ||
+			    addr == ha_backtrace_to_stderr) {
 				*buf = bak;
 				continue;
 			}
@@ -119,6 +121,17 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix)
 		/* OK, line dumped */
 		chunk_appendf(buf, "\n");
 	}
+}
+
+/* dump a backtrace of current thread's stack to stderr. */
+void ha_backtrace_to_stderr()
+{
+	char area[2048];
+	struct buffer b = b_make(area, sizeof(area), 0, 0);
+
+	ha_dump_backtrace(&b, "  ");
+	if (b.data)
+		write(2, b.area, b.data);
 }
 
 /* Dumps to the buffer some known information for the desired thread, and
