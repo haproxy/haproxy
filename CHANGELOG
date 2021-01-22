@@ -1,6 +1,96 @@
 ChangeLog :
 ===========
 
+2021/01/22 : 2.4-dev6
+    - MINOR: converter: adding support for url_enc
+    - BUILD: SSL: guard TLS13 ciphersuites with HAVE_SSL_CTX_SET_CIPHERSUITES
+    - BUILD: ssl: guard EVP_PKEY_get_default_digest_nid with ASN1_PKEY_CTRL_DEFAULT_MD_NID
+    - BUILD: ssl: guard openssl specific with SSL_READ_EARLY_DATA_SUCCESS
+    - BUILD: Makefile: exclude broken tests by default
+    - CLEANUP: cfgparse: replace "realloc" with "my_realloc2" to fix to memory leak on error
+    - BUG/MINOR: hlua: Fix memory leak in hlua_alloc
+    - MINOR: contrib/prometheus-exporter: export build_info
+    - DOC: fix some spelling issues over multiple files
+    - CLEANUP: Fix spelling errors in comments
+    - SCRIPTS: announce-release: fix typo in help message
+    - CI: github: add a few more words to the codespell ignore list
+    - DOC: Add maintainers for the Prometheus exporter
+    - BUG/MINOR: sample: fix concat() converter's corruption with non-string variables
+    - BUG/MINOR: server: Memory leak of proxy.used_server_addr during deinit
+    - CLEANUP: sample: remove uneeded check in json validation
+    - MINOR: reg-tests: add a way to add service dependency
+    - BUG/MINOR: sample: check alloc_trash_chunk return value in concat()
+    - BUG/MINOR: reg-tests: fix service dependency script
+    - MINOR: reg-tests: add base prometheus test
+    - Revert "BUG/MINOR: dns: SRV records ignores duplicated AR records"
+    - BUG/MINOR: sample: Memory leak of sample_expr structure in case of error
+    - BUG/MINOR: check: Don't perform any check on servers defined in a frontend
+    - BUG/MINOR: init: enforce strict-limits when using master-worker
+    - MINOR: contrib/prometheus-exporter: avoid connection close header
+    - MINOR: contrib/prometheus-exporter: use fill_info for process dump
+    - BUG/MINOR: init: Use a dynamic buffer to set HAPROXY_CFGFILES env variable
+    - MINOR: config: Add failifnotcap() to emit an alert on proxy capabilities
+    - MINOR: server: Forbid server definitions in frontend sections
+    - BUG/MINOR: threads: Fixes the number of possible cpus report for Mac.
+    - CLEANUP: pattern: rename pat_ref_commit() to pat_ref_commit_elt()
+    - MINOR: pattern: add the missing generation ID manipulation functions
+    - MINOR: peers: Add traces for peer control messages.
+    - BUG/MINOR: dns: SRV records ignores duplicated AR records (v2)
+    - BUILD: peers: fix build warning about unused variable
+    - BUG/MEDIUM: stats: add missing INF_BUILD_INFO definition
+    - MINOR: cache: Do not store responses with an unknown encoding
+    - BUG/MINOR: peers: Possible appctx pointer dereference.
+    - MINOR: build: discard echoing in help target
+    - MINOR: cache: Remove the `hash` part of the accept-encoding secondary key
+    - CLEANUP: cache: Use proper data types in secondary_key_cmp()
+    - CLEANUP: Rename accept_encoding_hash_cmp to accept_encoding_bitmap_cmp
+    - BUG/MINOR: peers: Wrong "new_conn" value for "show peers" CLI command.
+    - MINOR: contrib: Make the wireshark peers dissector compile for more distribs.
+    - BUG/MINOR: mux_h2: missing space between "st" and ".flg" in the "show fd" helper
+    - CLEANUP: tools: make resolve_sym_name() take a const pointer
+    - CLEANUP: cli: make "show fd" use a const connection to access other fields
+    - MINOR: cli: make "show fd" also report the xprt and xprt_ctx
+    - MINOR: xprt: add a new show_fd() helper to complete some "show fd" dumps.
+    - MINOR: ssl: provide a "show fd" helper to report important SSL information
+    - MINOR: xprt/mux: export all *_io_cb functions so that "show fd" resolves them
+    - MINOR: mux-h2: make the "show fd" helper also decode the h2s subscriber when known
+    - MINOR: mux-h1: make the "show fd" helper also decode the h1s subscriber when known
+    - MINOR: mux-fcgi: make the "show fd" helper also decode the fstrm subscriber when known
+    - CI: Pin VTest to a known good commit
+    - MINOR: cli: give the show_fd helpers the ability to report a suspicious entry
+    - MINOR: cli/show_fd: report some easily detectable suspicious states
+    - MINOR: ssl/show_fd: report some FDs as suspicious when possible
+    - MINOR: mux-h2/show_fd: report as suspicious an entry with too many calls
+    - MINOR: mux-h1/show_fd: report as suspicious an entry with too many calls
+    - BUG/MINOR: mworker: define _GNU_SOURCE for strsignal()
+    - BUG/MEDIUM: tcpcheck: Don't destroy connection in the wake callback context
+    - BUG/MEDIUM: mux-h2: Xfer rxbuf to the upper layer when creating a front stream
+    - MINOR: http: Add HTTP 501-not-implemented error message
+    - MINOR: muxes: Add exit status for errors about not implemented features
+    - MINOR: mux-h1: Be prepared to return 501-not-implemented error during parsing
+    - MEDIUM: mux-h1: Return a 501-not-implemented for upgrade requests with a body
+    - DOC: Remove space after comma in converter signature
+    - DOC: Rename '<var name>' to '<var>' in converter signature
+    - MINOR: stats: duplicate 3 fields in bytes in info
+    - MINOR: stats: add new start time field
+    - MINOR: contrib/prometheus-exporter: merge info description from stats
+    - MEDIUM: stats: allow to select one field in `stats_fill_fe_stats`
+    - MINOR: contrib/prometheus-exporter: use fill_fe_stats for frontend dump
+    - MINOR: contrib/prometheus-exporter: Don't needlessly set empty label for metrics
+    - MINOR: contrib/prometheus-exporter: Split the PROMEX_FL_STATS_METRIC flag
+    - MINOR: contrib/prometheus-exporter: Add promex_metric struct defining a metric
+    - MEDIUM: contrib/prometheus-exporter: Rework matrices defining Promex metrics
+    - BUG/MINOR: stream: Don't update counters when TCP to H2 upgrades are performed
+    - BUG/MEDIUM: mux-h2: fix read0 handling on partial frames
+    - MINOR: debug: always export the my_backtrace function
+    - MINOR: debug: extract the backtrace dumping code to its own function
+    - MINOR: debug: create ha_backtrace_to_stderr() to dump an instant backtrace
+    - MEDIUM: debug: now always print a backtrace on CRASH_NOW() and friends
+    - MINOR: debug: let ha_dump_backtrace() dump a bit further for some callers
+    - BUILD: debug: fix build warning by consuming the write() result
+    - MINOR: lua: remove unused variable
+    - BUILD/MINOR: lua: define _GNU_SOURCE for LLONG_MAX
+
 2021/01/06 : 2.4-dev5
     - BUG/MEDIUM: mux_h2: Add missing braces in h2_snd_buf()around trace+wakeup
     - BUILD: hpack: hpack-tbl-t.h uses VAR_ARRAY but does not include compiler.h
