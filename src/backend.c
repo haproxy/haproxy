@@ -1288,8 +1288,9 @@ int connect_server(struct stream *s)
 			if (srv_conn)
 				reuse = 1;
 		}
+
 		/* if no available connections found, search for an idle/safe */
-		else if (srv->max_idle_conns && srv->curr_idle_conns > 0) {
+		if (!srv_conn && srv->max_idle_conns && srv->curr_idle_conns > 0) {
 			const int not_first_req = s->txn && s->txn->flags & TX_NOT_FIRST;
 			const int idle = srv->curr_idle_nb > 0;
 			const int safe = srv->curr_safe_nb > 0;
