@@ -4719,7 +4719,7 @@ next_frame:
 	if (!(msgf & H2_MSGF_RSP_1XX))
 		*flags |= H2_SF_HEADERS_RCVD;
 
-	if ((h2c->dff & H2_F_HEADERS_END_STREAM)) {
+	if (htx_get_tail_type(htx) != HTX_BLK_EOM && (h2c->dff & H2_F_HEADERS_END_STREAM)) {
 		/* Mark the end of message using EOM */
 		htx->flags |= HTX_FL_EOI; /* no more data are expected. Only EOM remains to add now */
 		if (!htx_add_endof(htx, HTX_BLK_EOM)) {
@@ -4857,12 +4857,19 @@ try_again:
 	 * transferred.
 	 */
 
-	if (h2c->dff & H2_F_DATA_END_STREAM) {
-		htx->flags |= HTX_FL_EOI; /* no more data are expected. Only EOM remains to add now */
-		if (!htx_add_endof(htx, HTX_BLK_EOM)) {
-			TRACE_STATE("h2s rxbuf is full, failed to add EOM", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
-			h2c->flags |= H2_CF_DEM_SFULL;
-			goto fail;
+	if (!(h2s->flags & H2_SF_BODY_TUNNEL) && (h2c->dff & H2_F_DATA_END_STREAM)) {
+		/* no more data are expected for this message. This add the EOM
+		 * flag but only on the response path or if no tunnel attempt
+		 * was aborted. Otherwise (request path + tunnel abrted), the
+		 * EOM was already reported.
+		 */
+		if ((h2c->flags & H2_CF_IS_BACK) || !(h2s->flags & H2_SF_TUNNEL_ABRT)) {
+			htx->flags |= HTX_FL_EOI; /* no more data are expected. Only EOM remains to add now */
+			if (!htx_add_endof(htx, HTX_BLK_EOM)) {
+				TRACE_STATE("h2s rxbuf is full, failed to add EOM", H2_EV_RX_FRAME|H2_EV_RX_DATA|H2_EV_H2S_BLK, h2c->conn, h2s);
+				h2c->flags |= H2_CF_DEM_SFULL;
+				goto fail;
+			}
 		}
 	}
 
@@ -5056,7 +5063,14 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 	 * FIXME: we should also set it when we know for sure that the
 	 * content-length is zero as well as on 204/304
 	 */
-	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM && h2s->status >= 200)
+	if ((h2s->flags & H2_SF_BODY_TUNNEL) && h2s->status >= 200 && h2s->status < 300) {
+		/* Don't set EOM if a tunnel is successfully established
+		 * (2xx responses to a connect). In this case, the EOM must be found
+		 */
+		if (!blk_end || htx_get_blk_type(blk_end) != HTX_BLK_EOM)
+			goto fail;
+	}
+	else if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM && h2s->status >= 200)
 		es_now = 1;
 
 	if (!h2s->cs || h2s->cs->flags & CS_FL_SHW)
@@ -5422,6 +5436,9 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			es_now = 1;
 	}
 	else {
+		/* For CONNECT requests, the EOM must be found and eaten without setting the ES */
+		if (!blk_end || htx_get_blk_type(blk_end) != HTX_BLK_EOM)
+			goto fail;
 		h2s->flags |= H2_SF_BODY_TUNNEL;
 	}
 
@@ -5754,7 +5771,12 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	if (type == HTX_BLK_EOM) {
 		total++; // EOM counts as one byte
 		count--;
-		es_now = 1;
+
+		/* EOM+empty: we may need to add END_STREAM (except for tunneled
+		 * message)
+		 */
+		if (!(h2s->flags & H2_SF_BODY_TUNNEL))
+			es_now = 1;
 	}
 
 	if (es_now)

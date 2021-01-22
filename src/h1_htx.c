@@ -43,16 +43,6 @@ static size_t h1_eval_htx_size(const struct ist p1, const struct ist p2, const s
 	return sz;
 }
 
-/* Switch the message to tunnel mode. On the request, it must only be called for
- * a CONNECT method. On the response, this function must only be called on
- * successful replies to CONNECT requests or on protocol switching.
- */
-static void h1_set_tunnel_mode(struct h1m *h1m)
-{
-	h1m->flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
-	h1m->state = H1_MSG_TUNNEL;
-}
-
 /* Check the validity of the request version. If the version is valid, it
  * returns 1. Otherwise, it returns 0.
  */
@@ -146,8 +136,6 @@ static unsigned int h1m_htx_sl_flags(struct h1m *h1m)
 		else
 			flags |= HTX_SL_F_BODYLESS;
 	}
-	if (h1m->state == H1_MSG_TUNNEL)
-		flags |= HTX_SL_F_BODYLESS;
 	if (h1m->flags & H1_MF_CONN_UPG)
 		flags |= HTX_SL_F_CONN_UPG;
 	return flags;
@@ -186,8 +174,8 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	h1m->flags |= H1_MF_XFER_LEN;
 
 	if (h1sl->rq.meth == HTTP_METH_CONNECT) {
-		/* Switch CONNECT requests to tunnel mode */
-		h1_set_tunnel_mode(h1m);
+		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
+		h1m->curr_len = h1m->body_len = 0;
 	}
 
 	used = htx_used_space(htx);
@@ -281,9 +269,9 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	}
 
 	if (((h1m->flags & H1_MF_METH_CONNECT) && code >= 200 && code < 300) || code == 101) {
-		/* Switch successful replies to CONNECT requests and
-		 * protocol switching to tunnel mode. */
-		h1_set_tunnel_mode(h1m);
+		h1m->flags &= ~(H1_MF_CLEN|H1_MF_CHNK);
+		h1m->flags |= H1_MF_XFER_LEN;
+		h1m->curr_len = h1m->body_len = 0;
 	}
 	else if ((h1m->flags & H1_MF_METH_HEAD) || (code >= 100 && code < 200) ||
 		 (code == 204) || (code == 304)) {

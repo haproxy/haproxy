@@ -1270,78 +1270,36 @@ static void h1_emit_chunk_crlf(struct buffer *buf)
 }
 
 /*
- * Switch the request to tunnel mode. This function must only be called for
- * CONNECT requests. On the client side, if the response is not finished, the
- * mux is mark as busy on input.
+ * Switch the stream to tunnel mode. This function must only be called on 2xx
+ * (successful) replies to CONNECT requests or on 101 (switching protocol).
  */
-static void h1_set_req_tunnel_mode(struct h1s *h1s)
+static void h1_set_tunnel_mode(struct h1s *h1s)
 {
-	h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
+	struct h1c *h1c = h1s->h1c;
+
 	h1s->req.state = H1_MSG_TUNNEL;
-	TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+	h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 
-	if (!(h1s->h1c->flags & H1C_F_IS_BACK)) {
-		h1s->flags &= ~H1S_F_PARSING_DONE;
-		if (h1s->res.state < H1_MSG_DONE) {
-			h1s->h1c->flags |= H1C_F_WAIT_OUTPUT;
-			TRACE_STATE("Disable read on h1c (wait_output)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
-		}
-	}
-	else if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
-		h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
-		tasklet_wakeup(h1s->h1c->wait_event.tasklet);
-		TRACE_STATE("Re-enable read on h1c", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
-	}
-}
-
-/*
- * Switch the response to tunnel mode. This function must only be called on
- * successful replies to CONNECT requests or on protocol switching. In this
- * last case, this function takes care to switch the request to tunnel mode if
- * possible. On the server side, if the request is not finished, the mux is mark
- * as busy on input.
- */
-static void h1_set_res_tunnel_mode(struct h1s *h1s)
-{
-
-	h1s->res.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 	h1s->res.state = H1_MSG_TUNNEL;
-	TRACE_STATE("switch H1 response in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+	h1s->res.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 
-	if (h1s->h1c->flags & H1C_F_IS_BACK) {
-		h1s->flags &= ~H1S_F_PARSING_DONE;
-		/* On protocol switching, switch the request to tunnel mode if it is in
-		 * DONE state. Otherwise we will wait the end of the request to switch
-		 * it in tunnel mode.
-		 */
-		if (h1s->req.state < H1_MSG_DONE) {
-			h1s->h1c->flags |= H1C_F_WAIT_OUTPUT;
-			TRACE_STATE("Disable read on h1c (wait_output)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
-		}
-		else  {
-			h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
-			h1s->req.state = H1_MSG_TUNNEL;
-			TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+	TRACE_STATE("switch H1 stream in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+	if (h1c->flags & H1C_F_IS_BACK)
+                h1s->flags &= ~H1S_F_PARSING_DONE;
 
-			if (h1s->h1c->flags & H1C_F_WAIT_INPUT) {
-				h1s->h1c->flags &= ~H1C_F_WAIT_INPUT;
-				h1_wake_stream_for_send(h1s);
-				if (b_data(&h1s->h1c->obuf))
-					tasklet_wakeup(h1s->h1c->wait_event.tasklet);
-				TRACE_STATE("Re-enable send on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
-			}
-		}
+	if (h1c->flags & H1C_F_WAIT_OUTPUT) {
+		h1c->flags &= ~H1C_F_WAIT_OUTPUT;
+		if (b_data(&h1c->ibuf))
+			h1_wake_stream_for_recv(h1s);
+		tasklet_wakeup(h1c->wait_event.tasklet);
+		TRACE_STATE("Re-enable read on h1c", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 	}
-	else {
-		h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
-		h1s->req.state = H1_MSG_TUNNEL;
-		TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
-
-		if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
-			h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
-			tasklet_wakeup(h1s->h1c->wait_event.tasklet);
-			TRACE_STATE("Re-enable read on h1c", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
-		}
+	if (h1c->flags & H1C_F_WAIT_INPUT) {
+		h1c->flags &= ~H1C_F_WAIT_INPUT;
+		h1_wake_stream_for_send(h1s);
+		if (b_data(&h1c->obuf))
+			tasklet_wakeup(h1c->wait_event.tasklet);
+		TRACE_STATE("Re-enable send on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 	}
 }
 
@@ -1383,16 +1341,11 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 		h1_capture_bad_message(h1s->h1c, h1s, h1m, buf);
 	}
 
-	if (!(h1m->flags & H1_MF_RESP)) {
+	if (!(h1m->flags & H1_MF_RESP))
 		h1s->meth = h1sl.rq.meth;
-		if (h1m->state == H1_MSG_TUNNEL)
-			h1_set_req_tunnel_mode(h1s);
-	}
-	else {
+	else
 		h1s->status = h1sl.st.status;
-		if (h1m->state == H1_MSG_TUNNEL)
-			h1_set_res_tunnel_mode(h1s);
-	}
+
 	h1_process_input_conn_mode(h1s, h1m, htx);
 	*ofs += ret;
 
@@ -1511,6 +1464,9 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	if (h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR))
 		goto end;
 
+	if (h1c->flags & H1C_F_WAIT_OUTPUT)
+		goto end;
+
 	do {
 		size_t used = htx_used_space(htx);
 
@@ -1565,8 +1521,9 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 					   H1_EV_RX_DATA|H1_EV_RX_EOI, h1c->conn, h1s, htx);
 			}
 
-			if (!(h1m->flags & H1_MF_RESP) && h1s->status == 101)
-				h1_set_req_tunnel_mode(h1s);
+			if ((h1m->flags & H1_MF_RESP) &&
+			    ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101))
+				h1_set_tunnel_mode(h1s);
 			else {
 				if (h1s->req.state < H1_MSG_DONE || h1s->res.state < H1_MSG_DONE) {
 					/* Unfinished transaction: block this input side waiting the end of the output side */
@@ -1596,7 +1553,8 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 
 		count -= htx_used_space(htx) - used;
-	} while (!(h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR)));
+	} while (!(h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR)) && !(h1c->flags & H1C_F_WAIT_OUTPUT));
+
 
 	if (h1s->flags & (H1S_F_PARSING_ERROR|H1S_F_NOT_IMPL_ERROR)) {
 		TRACE_PROTO("parsing or not-implemented error", H1_EV_RX_DATA|H1_EV_H1S_ERR, h1c->conn, h1s);
@@ -1660,10 +1618,11 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		h1s->cs->flags &= ~CS_FL_MAY_SPLICE;
 	}
 
-	/* Don't set EOI on the conn-stream for protocol upgrade requests, wait
-	 * the response to do so or not depending on the status code.
+	/* Don't set EOI on the conn-stream for protocol upgrade or connect
+	 * requests, wait the response to do so or not depending on the status
+	 * code.
 	 */
-	if ((h1s->flags & H1S_F_PARSING_DONE) && !(h1m->flags & H1_MF_CONN_UPG))
+	if ((h1s->flags & H1S_F_PARSING_DONE) && (h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG))
 		h1s->cs->flags |= CS_FL_EOI;
 
 	if (h1s_data_pending(h1s) && !htx_is_empty(htx))
@@ -1966,11 +1925,13 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					    H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 
 				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
-					goto done;
+					/* Must have a EOM before tunnel data */
+					h1m->state = H1_MSG_DONE;
 				}
 				else if ((h1m->flags & H1_MF_RESP) &&
 					 ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101)) {
-					goto done;
+					/* Must have a EOM before tunnel data */
+					h1m->state = H1_MSG_DONE;
 				}
 				else if ((h1m->flags & H1_MF_RESP) &&
 					 h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
@@ -2088,10 +2049,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					/* a successful reply to a CONNECT or a protocol switching is sent
 					 * to the client. Switch the response to tunnel mode.
 					 */
-					h1_set_res_tunnel_mode(h1s);
+					h1_set_tunnel_mode(h1s);
 					TRACE_STATE("switch H1 response in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
-				else if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
+
+				if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
 					h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
 					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 					TRACE_STATE("Re-enable read on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
