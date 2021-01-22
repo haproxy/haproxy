@@ -2860,6 +2860,19 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 		HA_ATOMIC_ADD(&h2c->px_counters->strm_proto_err, 1);
 		goto strm_err;
 	}
+	if (!(h2c->flags & H2_CF_IS_BACK) &&
+	    (h2s->flags & (H2_SF_TUNNEL_ABRT|H2_SF_ES_SENT)) == (H2_SF_TUNNEL_ABRT|H2_SF_ES_SENT) &&
+	    ((h2c->dfl - h2c->dpl) || !(h2c->dff & H2_F_DATA_END_STREAM))) {
+		/* a tunnel attempt was aborted but the client still try to send some raw data.
+		 * Thus the stream is closed with the CANCEL error. Here we take care it is not
+		 * an empty DATA Frame with the ES flag. The error is only handled if ES was
+		 * already sent to the client because depending on the scheduling, these data may
+		 * have been sent before the server respnse but not handle here.
+		 */
+		TRACE_ERROR("Request DATA frame for aborted tunnel", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
+		error = H2_ERR_CANCEL;
+		goto strm_err;
+	}
 
 	if (!h2_frt_transfer_data(h2s))
 		goto fail;
@@ -5535,6 +5548,22 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 		 */
 		h2s->flags |= H2_SF_BLK_MBUSY;
 		TRACE_STATE("Request DATA frame blocked waiting for tunnel establishment", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
+		goto end;
+	}
+	else if ((h2c->flags & H2_CF_IS_BACK) && (h2s->flags & H2_SF_TUNNEL_ABRT)) {
+		/* a tunnel attempt was aborted but the is pending raw data to xfer to the server.
+		 * Thus the stream is closed with the CANCEL error. The error will be reported to
+		 * the upper layer as aserver abort. But at this stage there is nothing more we can
+		 * do. We just wait for the end of the response to be sure to not truncate it.
+		 */
+		if (!(h2s->flags & H2_SF_ES_RCVD)) {
+			TRACE_STATE("Request DATA frame blocked waiting end of aborted tunnel", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
+			h2s->flags |= H2_SF_BLK_MBUSY;
+		}
+		else {
+			TRACE_ERROR("Request DATA frame for aborted tunnel", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
+			h2s_error(h2s, H2_ERR_CANCEL);
+		}
 		goto end;
 	}
 
