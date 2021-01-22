@@ -487,6 +487,7 @@ enum conn_hash_params_t {
  * connection hash.
  */
 struct conn_hash_params {
+	struct server *srv;
 };
 
 /* This structure describes a connection with its methods and data.

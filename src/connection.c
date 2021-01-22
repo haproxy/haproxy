@@ -1421,6 +1421,8 @@ XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
 
 	buf = trash.area;
 
+	conn_hash_update(buf, &idx, &params->srv, sizeof(params->srv), &hash_flags, 0);
+
 	hash = conn_hash_digest(buf, idx, hash_flags);
 	return hash;
 }

@@ -1251,14 +1251,17 @@ int connect_server(struct stream *s)
 
 	/* first, set unique connection parameters and then calculate hash */
 	memset(&hash_params, 0, sizeof(hash_params));
-	hash = conn_calculate_hash(&hash_params);
+
+	srv = objt_server(s->target);
+	hash_params.srv = srv;
+
+	if (srv)
+		hash = conn_calculate_hash(&hash_params);
 
 	/* This will catch some corner cases such as lying connections resulting from
 	 * retries or connect timeouts but will rarely trigger.
 	 */
 	si_release_endpoint(&s->si[1]);
-
-	srv = objt_server(s->target);
 
 	/* do not reuse if mode is http or if avail list is not allocated */
 	if ((s->be->mode != PR_MODE_HTTP) || (srv && !srv->available_conns_tree))
