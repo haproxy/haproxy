@@ -1,0 +1,45 @@
+varnishtest "Test the http-reuse with special connection parameters"
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+	defaults
+		mode http
+
+	# sni
+	listen sender-sni
+		bind "fd@${feS_sni}"
+		server srv2 ${h1_feR_ssl_addr}:${h1_feR_ssl_port} ssl sni "req.hdr(x-sni)" verify none pool-low-conn 2
+
+	listen receiver
+		bind "fd@${feR_ssl}" ssl crt ${testdir}/common.pem
+		http-request return status 200
+		http-after-response set-header http_first_request %[http_first_req]
+} -start
+
+# http-reuse with sni parameters
+client c_sni -connect ${h1_feS_sni_sock} {
+	# first request
+	txreq \
+	  -hdr "x-sni: custom_sni"
+	rxresp
+	expect resp.http.http_first_request == "1"
+
+	# second request with same sni, connection must be reused
+	txreq \
+	  -hdr "x-sni: custom_sni"
+	rxresp
+	expect resp.http.http_first_request == "0"
+
+	# third request with a different sni, a new connection must be used
+	txreq \
+	  -hdr "x-sni: custom_sni_2"
+	rxresp
+	expect resp.http.http_first_request == "1"
+
+	# fourth request, reuse sni2
+	txreq \
+	  -hdr "x-sni: custom_sni_2"
+	rxresp
+	expect resp.http.http_first_request == "0"
+} -run
