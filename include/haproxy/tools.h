@@ -993,13 +993,14 @@ int may_access(const void *ptr);
 const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *addr);
 const char *get_exec_path();
 
-#if defined(USE_BACKTRACE)
 /* Note that this may result in opening libgcc() on first call, so it may need
  * to have been called once before chrooting.
  */
 static forceinline int my_backtrace(void **buffer, int max)
 {
-#ifdef HA_HAVE_WORKING_BACKTRACE
+#if !defined(USE_BACKTRACE)
+	return 0;
+#elif defined(HA_HAVE_WORKING_BACKTRACE)
 	return backtrace(buffer, max);
 #else
 	const struct frame {
@@ -1016,7 +1017,6 @@ static forceinline int my_backtrace(void **buffer, int max)
 	return count;
 #endif
 }
-#endif
 
 /* same as realloc() except that ptr is also freed upon failure */
 static inline void *my_realloc2(void *ptr, size_t size)

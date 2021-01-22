@@ -100,7 +100,6 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	chunk_appendf(buf, "             curr_task=");
 	ha_task_dump(buf, sched->current, "             ");
 
-#ifdef USE_BACKTRACE
 	if (stuck) {
 		/* We only emit the backtrace for stuck threads in order not to
 		 * waste precious output buffer space with non-interesting data.
@@ -119,7 +118,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 		if (nptrs)
 			chunk_appendf(buf, "             call trace(%d):\n", nptrs);
 
-		for (j = 0; j < nptrs || dump < 2; j++) {
+		for (j = 0; nptrs && (j < nptrs || dump < 2); j++) {
 			if (j == nptrs && !dump) {
 				/* we failed to spot the starting point of the
 				 * dump, let's start over dumping everything we
@@ -162,7 +161,6 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 			chunk_appendf(buf, "\n");
 		}
 	}
-#endif
 }
 
 
@@ -1094,15 +1092,13 @@ static int init_debug_per_thread()
 static int init_debug()
 {
 	struct sigaction sa;
+	void *callers[1];
 
-#ifdef USE_BACKTRACE
 	/* calling backtrace() will access libgcc at runtime. We don't want to
 	 * do it after the chroot, so let's perform a first call to have it
 	 * ready in memory for later use.
 	 */
-	void *callers[1];
 	my_backtrace(callers, sizeof(callers)/sizeof(*callers));
-#endif
 	sa.sa_handler = NULL;
 	sa.sa_sigaction = debug_handler;
 	sigemptyset(&sa.sa_mask);
