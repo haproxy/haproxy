@@ -2291,7 +2291,7 @@ static void ssl_sock_switchctx_set(SSL *ssl, SSL_CTX *ctx)
 	SSL_set_SSL_CTX(ssl, ctx);
 }
 
-#if ((HA_OPENSSL_VERSION_NUMBER >= 0x10101000L) || defined(OPENSSL_IS_BORINGSSL))
+#ifdef HAVE_SSL_CLIENT_HELLO_CB
 
 int ssl_sock_switchctx_err_cbk(SSL *ssl, int *al, void *priv)
 {
