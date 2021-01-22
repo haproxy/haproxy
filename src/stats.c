@@ -1713,49 +1713,40 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				metric = mkf_u64(FN_COUNTER, px->fe_counters.internal_errors);
 				break;
 			case ST_F_HRSP_1XX:
-				if (px->mode != PR_MODE_HTTP)
-					break;
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[1]);
 				break;
 			case ST_F_HRSP_2XX:
-				if (px->mode != PR_MODE_HTTP)
-					break;
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[2]);
 				break;
 			case ST_F_HRSP_3XX:
-				if (px->mode != PR_MODE_HTTP)
-					break;
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[3]);
 				break;
 			case ST_F_HRSP_4XX:
-				if (px->mode != PR_MODE_HTTP)
-					break;
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[4]);
 				break;
 			case ST_F_HRSP_5XX:
-				if (px->mode != PR_MODE_HTTP)
-					break;
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[5]);
 				break;
 			case ST_F_HRSP_OTHER:
-				if (px->mode != PR_MODE_HTTP)
-					break;
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.rsp[0]);
 				break;
 			case ST_F_INTERCEPTED:
-				if (px->mode != PR_MODE_HTTP)
-					break;
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.intercepted_req);
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->fe_counters.intercepted_req);
 				break;
 			case ST_F_CACHE_LOOKUPS:
-				if (px->mode != PR_MODE_HTTP)
-					break;
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_lookups);
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_lookups);
 				break;
 			case ST_F_CACHE_HITS:
-				if (px->mode != PR_MODE_HTTP)
-					break;
-				metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_hits);
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->fe_counters.p.http.cache_hits);
 				break;
 			case ST_F_REQ_RATE:
 				metric = mkf_u32(FN_RATE, read_freq_ctr(&px->fe_req_per_sec));
