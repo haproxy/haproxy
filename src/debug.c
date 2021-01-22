@@ -55,16 +55,22 @@ static unsigned int debug_prng()
 /* dumps a backtrace of the current thread that is appended to buffer <buf>.
  * Lines are prefixed with the string <prefix> which may be empty (used for
  * indenting). It is recommended to use this at a function's tail so that
- * the function does not appear in the call stack.
+ * the function does not appear in the call stack. The <dump> argument
+ * indicates what dump state to start from, and should usually be zero. It
+ * may be among the following values:
+ *   - 0: search usual callers before step 1, or directly jump to 2
+ *   - 1: skip usual callers before step 2
+ *   - 2: dump until polling loop, scheduler, or main() (excluded)
+ *   - 3: end
+ *   - 4-7: like 0 but stops *after* main.
  */
-void ha_dump_backtrace(struct buffer *buf, const char *prefix)
+void ha_dump_backtrace(struct buffer *buf, const char *prefix, int dump)
 {
 	struct buffer bak;
 	char pfx2[100];
 	void *callers[100];
 	int j, nptrs;
 	const void *addr;
-	int dump = 0;
 
 	nptrs = my_backtrace(callers, sizeof(callers)/sizeof(*callers));
 	if (!nptrs)
@@ -77,43 +83,50 @@ void ha_dump_backtrace(struct buffer *buf, const char *prefix)
 	 * produce similar output to the following:
 	 */
 	chunk_appendf(buf, "%scall trace(%d):\n", prefix, nptrs);
-	for (j = 0; (j < nptrs || dump < 2); j++) {
-		if (j == nptrs && !dump) {
+	for (j = 0; (j < nptrs || (dump & 3) < 2); j++) {
+		if (j == nptrs && !(dump & 3)) {
 			/* we failed to spot the starting point of the
 			 * dump, let's start over dumping everything we
 			 * have.
 			 */
-			dump = 2;
+			dump += 2;
 			j = 0;
 		}
 		bak = *buf;
 		dump_addr_and_bytes(buf, pfx2, callers[j], 8);
 		addr = resolve_sym_name(buf, ": ", callers[j]);
-		if (dump == 0) {
+		if ((dump & 3) == 0) {
 			/* dump not started, will start *after*
 			 * ha_thread_dump_all_to_trash, ha_panic and ha_backtrace_to_stderr
 			 */
 			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic ||
 			    addr == ha_backtrace_to_stderr)
-				dump = 1;
+				dump++;
 			*buf = bak;
 			continue;
 		}
 
-		if (dump == 1) {
+		if ((dump & 3) == 1) {
 			/* starting */
 			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic ||
 			    addr == ha_backtrace_to_stderr) {
 				*buf = bak;
 				continue;
 			}
-			dump = 2;
+			dump++;
 		}
 
-		if (dump == 2) {
-			/* dumping */
-			if (addr == run_poll_loop || addr == main || addr == run_tasks_from_lists) {
-				dump = 3;
+		if ((dump & 3) == 2) {
+			/* still dumping */
+			if (dump == 6) {
+				/* we only stop *after* main and we must send the LF */
+				if (addr == main) {
+					j = nptrs;
+					dump++;
+				}
+			}
+			else if (addr == run_poll_loop || addr == main || addr == run_tasks_from_lists) {
+				dump++;
 				*buf = bak;
 				break;
 			}
@@ -129,7 +142,7 @@ void ha_backtrace_to_stderr()
 	char area[2048];
 	struct buffer b = b_make(area, sizeof(area), 0, 0);
 
-	ha_dump_backtrace(&b, "  ");
+	ha_dump_backtrace(&b, "  ", 4);
 	if (b.data)
 		write(2, b.area, b.data);
 }
@@ -189,7 +202,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 		 * so that the compiler uses tail merging and the current
 		 * function does not appear in the stack.
 		 */
-		ha_dump_backtrace(buf, "             ");
+		ha_dump_backtrace(buf, "             ", 0);
 	}
 }
 
