@@ -52,6 +52,75 @@ static unsigned int debug_prng()
         return y;
 }
 
+/* dumps a backtrace of the current thread that is appended to buffer <buf>.
+ * Lines are prefixed with the string <prefix> which may be empty (used for
+ * indenting). It is recommended to use this at a function's tail so that
+ * the function does not appear in the call stack.
+ */
+void ha_dump_backtrace(struct buffer *buf, const char *prefix)
+{
+	struct buffer bak;
+	char pfx2[100];
+	void *callers[100];
+	int j, nptrs;
+	const void *addr;
+	int dump = 0;
+
+	nptrs = my_backtrace(callers, sizeof(callers)/sizeof(*callers));
+	if (!nptrs)
+		return;
+
+	if (snprintf(pfx2, sizeof(pfx2), "%s| ", prefix) > sizeof(pfx2))
+		pfx2[0] = 0;
+
+	/* The call backtrace_symbols_fd(callers, nptrs, STDOUT_FILENO would
+	 * produce similar output to the following:
+	 */
+	chunk_appendf(buf, "%scall trace(%d):\n", prefix, nptrs);
+	for (j = 0; (j < nptrs || dump < 2); j++) {
+		if (j == nptrs && !dump) {
+			/* we failed to spot the starting point of the
+			 * dump, let's start over dumping everything we
+			 * have.
+			 */
+			dump = 2;
+			j = 0;
+		}
+		bak = *buf;
+		dump_addr_and_bytes(buf, pfx2, callers[j], 8);
+		addr = resolve_sym_name(buf, ": ", callers[j]);
+		if (dump == 0) {
+			/* dump not started, will start *after*
+			 * ha_thread_dump_all_to_trash and ha_panic
+			 */
+			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic)
+				dump = 1;
+			*buf = bak;
+			continue;
+		}
+
+		if (dump == 1) {
+			/* starting */
+			if (addr == ha_thread_dump_all_to_trash || addr == ha_panic) {
+				*buf = bak;
+				continue;
+			}
+			dump = 2;
+		}
+
+		if (dump == 2) {
+			/* dumping */
+			if (addr == run_poll_loop || addr == main || addr == run_tasks_from_lists) {
+				dump = 3;
+				*buf = bak;
+				break;
+			}
+		}
+		/* OK, line dumped */
+		chunk_appendf(buf, "\n");
+	}
+}
+
 /* Dumps to the buffer some known information for the desired thread, and
  * optionally extra info for the current thread. The dump will be appended to
  * the buffer, so the caller is responsible for preliminary initializing it.
@@ -103,63 +172,11 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 	if (stuck) {
 		/* We only emit the backtrace for stuck threads in order not to
 		 * waste precious output buffer space with non-interesting data.
+		 * Please leave this as the last instruction in this function
+		 * so that the compiler uses tail merging and the current
+		 * function does not appear in the stack.
 		 */
-		struct buffer bak;
-		void *callers[100];
-		int j, nptrs;
-		const void *addr;
-		int dump = 0;
-
-		nptrs = my_backtrace(callers, sizeof(callers)/sizeof(*callers));
-
-		/* The call backtrace_symbols_fd(callers, nptrs, STDOUT_FILENO)
-		   would produce similar output to the following: */
-
-		if (nptrs)
-			chunk_appendf(buf, "             call trace(%d):\n", nptrs);
-
-		for (j = 0; nptrs && (j < nptrs || dump < 2); j++) {
-			if (j == nptrs && !dump) {
-				/* we failed to spot the starting point of the
-				 * dump, let's start over dumping everything we
-				 * have.
-				 */
-				dump = 2;
-				j = 0;
-			}
-			bak = *buf;
-			dump_addr_and_bytes(buf, "             | ", callers[j], 8);
-			addr = resolve_sym_name(buf, ": ", callers[j]);
-			if (dump == 0) {
-				/* dump not started, will start *after*
-				 * ha_thread_dump_all_to_trash and ha_panic
-				 */
-				if (addr == ha_thread_dump_all_to_trash || addr == ha_panic)
-					dump = 1;
-				*buf = bak;
-				continue;
-			}
-
-			if (dump == 1) {
-				/* starting */
-				if (addr == ha_thread_dump_all_to_trash || addr == ha_panic) {
-					*buf = bak;
-					continue;
-				}
-				dump = 2;
-			}
-
-			if (dump == 2) {
-				/* dumping */
-				if (addr == run_poll_loop || addr == main || addr == run_tasks_from_lists) {
-					dump = 3;
-					*buf = bak;
-					break;
-				}
-			}
-			/* OK, line dumped */
-			chunk_appendf(buf, "\n");
-		}
+		ha_dump_backtrace(buf, "             ");
 	}
 }
 
