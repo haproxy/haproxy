@@ -1198,7 +1198,7 @@ enum act_return http_action_store_cache(struct act_rule *rule, struct proxy *px,
 	 * subsequent request having the same primary key will have its accepted
 	 * encodings tested upon the cached response's one.
 	 * We will not cache a response that has an unknown encoding (not
-	 * explicitely supported in parse_encoding_value function). */
+	 * explicitly supported in parse_encoding_value function). */
 	if (cache->vary_processing_enabled && vary_signature)
 		if (set_secondary_key_encoding(htx, object->secondary_key))
 		    goto out;
