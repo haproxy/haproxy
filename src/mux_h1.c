@@ -1318,16 +1318,30 @@ static void h1_set_res_tunnel_mode(struct h1s *h1s)
 			h1s->h1c->flags |= H1C_F_WAIT_OUTPUT;
 			TRACE_STATE("Disable read on h1c (wait_output)", H1_EV_RX_DATA|H1_EV_H1C_BLK, h1s->h1c->conn, h1s);
 		}
-		else if (h1s->status == 101 && h1s->req.state == H1_MSG_DONE) {
+		else  {
 			h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
 			h1s->req.state = H1_MSG_TUNNEL;
 			TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+
+			if (h1s->h1c->flags & H1C_F_WAIT_INPUT) {
+				h1s->h1c->flags &= ~H1C_F_WAIT_INPUT;
+				h1_wake_stream_for_send(h1s);
+				if (b_data(&h1s->h1c->obuf))
+					tasklet_wakeup(h1s->h1c->wait_event.tasklet);
+				TRACE_STATE("Re-enable send on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
+			}
 		}
 	}
-	else if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
-		h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
-		tasklet_wakeup(h1s->h1c->wait_event.tasklet);
-		TRACE_STATE("Re-enable read on h1c", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
+	else {
+		h1s->req.flags &= ~(H1_MF_XFER_LEN|H1_MF_CLEN|H1_MF_CHNK);
+		h1s->req.state = H1_MSG_TUNNEL;
+		TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1s->h1c->conn, h1s);
+
+		if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
+			h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
+			tasklet_wakeup(h1s->h1c->wait_event.tasklet);
+			TRACE_STATE("Re-enable read on h1c", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1s->h1c->conn, h1s);
+		}
 	}
 }
 
@@ -1713,6 +1727,9 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	if (h1s->flags & H1S_F_PROCESSING_ERROR)
 		goto end;
 
+	if (h1c->flags & H1C_F_WAIT_INPUT)
+		goto end;
+
 	if (!h1_get_buf(h1c, &h1c->obuf)) {
 		h1c->flags |= H1C_F_OUT_ALLOC;
 		TRACE_STATE("waiting for h1c obuf allocation", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
@@ -1741,7 +1758,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	 * the HTX blocks.
 	 */
 	if (!b_data(&h1c->obuf)) {
-		if (htx_nbblks(chn_htx) == 1 &&
+		if ((h1m->state == H1_MSG_DATA || h1m->state == H1_MSG_TUNNEL) &&
+		    htx_nbblks(chn_htx) == 1 &&
 		    htx_get_blk_type(blk) == HTX_BLK_DATA &&
 		    htx_get_blk_value(chn_htx, blk).len == count) {
 			void *old_area = h1c->obuf.area;
@@ -1782,7 +1800,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 	tmp.data = 0;
 	tmp.size = b_room(&h1c->obuf);
-	while (count && !(h1s->flags & H1S_F_PROCESSING_ERROR) && blk) {
+	while (count && !(h1s->flags & H1S_F_PROCESSING_ERROR) && !(h1c->flags & H1C_F_WAIT_INPUT) && blk) {
 		struct htx_sl *sl;
 		struct ist n, v;
 		enum htx_blk_type type = htx_get_blk_type(blk);
@@ -1948,16 +1966,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					    H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 
 				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
-					/* a CONNECT request is sent to the server. Switch it to tunnel mode. */
-					h1_set_req_tunnel_mode(h1s);
+					goto done;
 				}
 				else if ((h1m->flags & H1_MF_RESP) &&
 					 ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101)) {
-					/* a successful reply to a CONNECT or a protocol switching is sent
-					 * to the client. Switch the response to tunnel mode.
-					 */
-					h1_set_res_tunnel_mode(h1s);
-					TRACE_STATE("switch H1 response in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+					goto done;
 				}
 				else if ((h1m->flags & H1_MF_RESP) &&
 					 h1s->status < 200 && (h1s->status == 100 || h1s->status >= 102)) {
@@ -2066,9 +2079,17 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					goto error;
 			  done:
 				h1m->state = H1_MSG_DONE;
-				if (!(h1m->flags & H1_MF_RESP) && h1s->status == 101) {
-					h1_set_req_tunnel_mode(h1s);
-					TRACE_STATE("switch H1 request in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
+				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
+					h1c->flags |= H1C_F_WAIT_INPUT;
+					TRACE_STATE("Disable send on h1c (wait_input)", H1_EV_TX_DATA|H1_EV_H1C_BLK, h1c->conn, h1s);
+				}
+				else if ((h1m->flags & H1_MF_RESP) &&
+					 ((h1s->meth == HTTP_METH_CONNECT && h1s->status >= 200 && h1s->status < 300) || h1s->status == 101)) {
+					/* a successful reply to a CONNECT or a protocol switching is sent
+					 * to the client. Switch the response to tunnel mode.
+					 */
+					h1_set_res_tunnel_mode(h1s);
+					TRACE_STATE("switch H1 response in tunnel mode", H1_EV_TX_DATA|H1_EV_TX_HDRS, h1c->conn, h1s);
 				}
 				else if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
 					h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
@@ -2086,6 +2107,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				/* Unexpected error during output processing */
 				chn_htx->flags |= HTX_FL_PROCESSING_ERROR;
 				h1s->flags |= H1S_F_PROCESSING_ERROR;
+				h1c->flags |= H1C_F_ST_ERROR;
 				TRACE_STATE("processing error, set error on h1c/h1s", H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
 				TRACE_DEVEL("unexpected error", H1_EV_TX_DATA|H1_EV_STRM_ERR, h1c->conn, h1s);
 				break;
@@ -2113,18 +2135,24 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 	htx_to_buf(chn_htx, buf);
   out:
-	/* Both the request and the response reached the DONE state. So set EOI
-	 * flag on the conn-stream. Most of time, the flag will already be set,
-	 * except for protocol upgrades.
-	 */
-	if (h1s->cs && h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE)
-			h1s->cs->flags |= CS_FL_EOI;
-
 	if (!buf_room_for_htx_data(&h1c->obuf)) {
 		TRACE_STATE("h1c obuf full", H1_EV_TX_DATA|H1_EV_H1S_BLK, h1c->conn, h1s);
 		h1c->flags |= H1C_F_OUT_FULL;
 	}
   end:
+	/* Both the request and the response reached the DONE state. So set EOI
+	 * flag on the conn-stream. Most of time, the flag will already be set,
+	 * except for protocol upgrades. Report an error if data remains blocked
+	 * in the output buffer.
+	 */
+	if (h1s->req.state == H1_MSG_DONE && h1s->res.state == H1_MSG_DONE) {
+		if (!htx_is_empty(chn_htx)) {
+			h1c->flags |= H1C_F_ST_ERROR;
+			TRACE_STATE("txn done but data waiting to be sent, set error on h1c", H1_EV_H1C_ERR, h1c->conn, h1s);
+		}
+		h1s->cs->flags |= CS_FL_EOI;
+	}
+
 	TRACE_LEAVE(H1_EV_TX_DATA, h1c->conn, h1s, chn_htx, (size_t[]){total});
 	return total;
 
@@ -3180,6 +3208,12 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		return 0;
 	}
 
+	if (h1c->flags & H1C_F_ST_ERROR) {
+		cs->flags |= CS_FL_ERROR;
+		TRACE_DEVEL("H1 connection is in error, leaving in error", H1_EV_STRM_SEND|H1_EV_H1C_ERR|H1_EV_H1S_ERR|H1_EV_STRM_ERR, h1c->conn, h1s);
+		return 0;
+	}
+
 	/* Inherit some flags from the upper layer */
 	h1c->flags &= ~(H1C_F_CO_MSG_MORE|H1C_F_CO_STREAMER);
 	if (flags & CO_SFL_MSG_MORE)
@@ -3205,6 +3239,12 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		if ((h1c->wait_event.events & SUB_RETRY_SEND) || !h1_send(h1c))
 			break;
 	}
+
+	if (h1c->flags & H1C_F_ST_ERROR) {
+		TRACE_DEVEL("reporting error to the app-layer stream", H1_EV_STRM_SEND|H1_EV_H1S_ERR|H1_EV_STRM_ERR, h1c->conn, h1s);
+		cs->flags |= CS_FL_ERROR;
+	}
+
 	h1_refresh_timeout(h1c);
 	TRACE_LEAVE(H1_EV_STRM_SEND, h1c->conn, h1s, 0, (size_t[]){total});
 	return total;
