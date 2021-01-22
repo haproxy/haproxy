@@ -179,7 +179,9 @@ enum h2_ss {
 
 /* stream flags indicating how data is supposed to be sent */
 #define H2_SF_DATA_CLEN         0x00000100 // data sent using content-length
-/* unused flags: 0x00000200, 0x00000400 */
+/* unused flags: 0x00000200 */
+#define H2_SF_BODY_TUNNEL       0x00000400 // Attempt to establish a Tunnelled stream (the result depends on the status code)
+
 
 #define H2_SF_NOTIFIED          0x00000800  // a paused stream was notified to try to send again
 #define H2_SF_HEADERS_SENT      0x00001000  // a HEADERS frame was sent for this stream
@@ -190,6 +192,8 @@ enum h2_ss {
 #define H2_SF_WANT_SHUTR        0x00008000  // a stream couldn't shutr() (mux full/busy)
 #define H2_SF_WANT_SHUTW        0x00010000  // a stream couldn't shutw() (mux full/busy)
 #define H2_SF_KILL_CONN         0x00020000  // kill the whole connection with this stream
+
+#define H2_SF_TUNNEL_ABRT       0x00100000  // A tunnel attempt was aborted
 
 
 /* H2 stream descriptor, describing the stream as it appears in the H2C, and as
@@ -4641,6 +4645,7 @@ next_frame:
 
 	/* OK now we have our header list in <list> */
 	msgf = (h2c->dff & H2_F_HEADERS_END_STREAM) ? 0 : H2_MSGF_BODY;
+	msgf |= (*flags & H2_SF_BODY_TUNNEL) ? H2_MSGF_BODY_TUNNEL: 0;
 
 	if (*flags & H2_SF_HEADERS_RCVD)
 		goto trailers;
@@ -4663,6 +4668,15 @@ next_frame:
 			*flags |= H2_SF_DATA_CLEN;
 			htx->extra = *body_len;
 		}
+	}
+
+	if (msgf & H2_MSGF_BODY_TUNNEL)
+		*flags |= H2_SF_BODY_TUNNEL;
+	else {
+		/* Abort the tunnel attempt, if any */
+		if (*flags & H2_SF_BODY_TUNNEL)
+			*flags |= H2_SF_TUNNEL_ABRT;
+		*flags &= ~H2_SF_BODY_TUNNEL;
 	}
 
  done:
@@ -4896,6 +4910,11 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		/* 101 responses are not supported in H2, so return a error (RFC7540#8.1.1) */
 		TRACE_ERROR("will not encode an invalid status code", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 		goto fail;
+	}
+	else if ((h2s->flags & H2_SF_BODY_TUNNEL) && h2s->status >= 300) {
+		/* Abort the tunnel attempt */
+		h2s->flags &= ~H2_SF_BODY_TUNNEL;
+		h2s->flags |= H2_SF_TUNNEL_ABRT;
 	}
 
 	/* and the rest of the headers, that we dump starting at header 0 */
@@ -5362,13 +5381,17 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 	 *  - request already closed, or :
 	 *  - no transfer-encoding, and :
 	 *  - no content-length or content-length:0
-	 * Fixme: this doesn't take into account CONNECT requests.
+	 * except for CONNECT requests.
 	 */
-	if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM)
-		es_now = 1;
-
-	if (sl->flags & HTX_SL_F_BODYLESS)
-		es_now = 1;
+	if (likely(sl->info.req.meth != HTTP_METH_CONNECT)) {
+		if (blk_end && htx_get_blk_type(blk_end) == HTX_BLK_EOM)
+			es_now = 1;
+		if (sl->flags & HTX_SL_F_BODYLESS)
+			es_now = 1;
+	}
+	else {
+		h2s->flags |= H2_SF_BODY_TUNNEL;
+	}
 
 	if (!h2s->cs || h2s->cs->flags & CS_FL_SHW)
 		es_now = 1;
@@ -6021,8 +6044,12 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		cs->flags |= (CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
 	else {
 		cs->flags &= ~(CS_FL_RCV_MORE | CS_FL_WANT_ROOM);
-		if (h2s->flags & H2_SF_ES_RCVD)
+		if (h2s->flags & H2_SF_ES_RCVD) {
 			cs->flags |= CS_FL_EOI;
+			/* Add EOS flag for tunnel */
+			if (h2s->flags & H2_SF_BODY_TUNNEL)
+				cs->flags |= CS_FL_EOS;
+		}
 		if (h2c_read0_pending(h2c) || h2s->st == H2_SS_CLOSED)
 			cs->flags |= CS_FL_EOS;
 		if (cs->flags & CS_FL_ERR_PENDING)
