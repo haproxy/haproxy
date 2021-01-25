@@ -66,10 +66,14 @@
  * above which can more aggressively detect null dereferences. The builtin
  * below was introduced in gcc 4.5, and before it we didn't care.
  */
+#ifdef DEBUG_USE_ABORT
+#define my_unreachable() abort()
+#else
 #if __GNUC__ >= 5 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
 #define my_unreachable() __builtin_unreachable()
 #else
 #define my_unreachable()
+#endif
 #endif
 
 /* This macro may be used to block constant propagation that lets the compiler
