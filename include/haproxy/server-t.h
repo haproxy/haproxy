@@ -322,7 +322,6 @@ struct server {
 		char *verify_host;              /* hostname of certificate must match this host */
 		char *ca_file;			/* CAfile to use on verify */
 		char *crl_file;			/* CRLfile to use on verify */
-		char *client_crt;		/* client certificate to send */
 		struct sample_expr *sni;        /* sample expression for SNI */
 #ifdef OPENSSL_NPN_NEGOTIATED
 		char *npn_str;                  /* NPN protocol string */

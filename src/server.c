@@ -1535,8 +1535,6 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 		srv->ssl_ctx.ca_file = strdup(src->ssl_ctx.ca_file);
 	if (src->ssl_ctx.crl_file != NULL)
 		srv->ssl_ctx.crl_file = strdup(src->ssl_ctx.crl_file);
-	if (src->ssl_ctx.client_crt != NULL)
-		srv->ssl_ctx.client_crt = strdup(src->ssl_ctx.client_crt);
 
 	srv->ssl_ctx.verify = src->ssl_ctx.verify;
 

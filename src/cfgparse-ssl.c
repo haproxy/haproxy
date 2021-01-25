@@ -1442,17 +1442,25 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 /* parse the "crt" server keyword */
 static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
+	int retval = -1;
+	char *path = NULL;
+
 	if (!*args[*cur_arg + 1]) {
 		memprintf(err, "'%s' : missing certificate file path", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	if ((*args[*cur_arg + 1] != '/') && global_ssl.crt_base)
-		memprintf(&newsrv->ssl_ctx.client_crt, "%s/%s", global_ssl.crt_base, args[*cur_arg + 1]);
+		memprintf(&path, "%s/%s", global_ssl.crt_base, args[*cur_arg + 1]);
 	else
-		memprintf(&newsrv->ssl_ctx.client_crt, "%s", args[*cur_arg + 1]);
+		memprintf(&path, "%s", args[*cur_arg + 1]);
 
-	return ssl_sock_load_srv_cert(newsrv->ssl_ctx.client_crt, newsrv, err);
+	if (path) {
+		retval = ssl_sock_load_srv_cert(path, newsrv, err);
+		free(path);
+	}
+
+	return retval;
 }
 
 /* parse the "no-check-ssl" server keyword */
