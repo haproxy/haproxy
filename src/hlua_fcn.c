@@ -922,7 +922,8 @@ int hlua_server_get_stats(lua_State *L)
 		return 1;
 	}
 
-	stats_fill_sv_stats(srv->proxy, srv, STAT_SHLGNDS, stats, STATS_LEN);
+	stats_fill_sv_stats(srv->proxy, srv, STAT_SHLGNDS, stats,
+			    STATS_LEN, NULL);
 
 	lua_newtable(L);
 	for (i=0; i<ST_F_TOTAL_FIELDS; i++) {

@@ -1963,19 +1963,70 @@ static const char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
 	[SRV_STATS_STATE_NO_CHECK]		= "no check"
 };
 
-/* Fill <stats> with the server statistics. <stats> is
- * preallocated array of length <len>. The length of the array
- * must be at least ST_F_TOTAL_FIELDS. If this length is less
- * then this value, the function returns 0, otherwise, it
- * returns 1. <flags> can take the value STAT_SHLGNDS.
+/* Compute server state helper
+ */
+static void stats_fill_sv_stats_computestate(struct server *sv, struct server *ref,
+					     enum srv_stats_state *state)
+{
+	if (sv->cur_state == SRV_ST_RUNNING || sv->cur_state == SRV_ST_STARTING) {
+		if ((ref->check.state & CHK_ST_ENABLED) &&
+		    (ref->check.health < ref->check.rise + ref->check.fall - 1)) {
+			*state = SRV_STATS_STATE_UP_GOING_DOWN;
+		} else {
+			*state = SRV_STATS_STATE_UP;
+		}
+
+		if (sv->cur_admin & SRV_ADMF_DRAIN) {
+			if (ref->agent.state & CHK_ST_ENABLED)
+				*state = SRV_STATS_STATE_DRAIN_AGENT;
+			else if (*state == SRV_STATS_STATE_UP_GOING_DOWN)
+				*state = SRV_STATS_STATE_DRAIN_GOING_DOWN;
+			else
+				*state = SRV_STATS_STATE_DRAIN;
+		}
+
+		if (*state == SRV_STATS_STATE_UP && !(ref->check.state & CHK_ST_ENABLED)) {
+			*state = SRV_STATS_STATE_NO_CHECK;
+		}
+	}
+	else if (sv->cur_state == SRV_ST_STOPPING) {
+		if ((!(sv->check.state & CHK_ST_ENABLED) && !sv->track) ||
+		    (ref->check.health == ref->check.rise + ref->check.fall - 1)) {
+			*state = SRV_STATS_STATE_NOLB;
+		} else {
+			*state = SRV_STATS_STATE_NOLB_GOING_DOWN;
+		}
+	}
+	else {	/* stopped */
+		if ((ref->agent.state & CHK_ST_ENABLED) && !ref->agent.health) {
+			*state = SRV_STATS_STATE_DOWN_AGENT;
+		} else if ((ref->check.state & CHK_ST_ENABLED) && !ref->check.health) {
+			*state = SRV_STATS_STATE_DOWN; /* DOWN */
+		} else if ((ref->agent.state & CHK_ST_ENABLED) || (ref->check.state & CHK_ST_ENABLED)) {
+			*state = SRV_STATS_STATE_GOING_UP;
+		} else {
+			*state = SRV_STATS_STATE_DOWN; /* DOWN, unchecked */
+		}
+	}
+}
+
+/* Fill <stats> with the backend statistics. <stats> is preallocated array of
+ * length <len>. If <selected_field> is != NULL, only fill this one. The length
+ * of the array must be at least ST_F_TOTAL_FIELDS. If this length is less than
+ * this value, or if the selected field is not implemented for servers, the
+ * function returns 0, otherwise, it returns 1. <flags> can take the value
+ * STAT_SHLGNDS.
  */
 int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
-                        struct field *stats, int len)
+                        struct field *stats, int len,
+			enum stat_field *selected_field)
 {
-	struct server *via, *ref;
+	enum stat_field current_field = (selected_field != NULL ? *selected_field : 0);
+	struct server *via = sv->track ? sv->track : sv;
+	struct server *ref = via;
+	enum srv_stats_state state = 0;
 	char str[INET6_ADDRSTRLEN];
 	struct buffer *out = get_trash_chunk();
-	enum srv_stats_state state;
 	char *fld_status;
 	long long srv_samples_counter;
 	unsigned int srv_samples_window = TIME_STATS_SAMPLES;
@@ -1983,244 +2034,338 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 	if (len < ST_F_TOTAL_FIELDS)
 		return 0;
 
-	/* we have "via" which is the tracked server as described in the configuration,
-	 * and "ref" which is the checked server and the end of the chain.
-	 */
-	via = sv->track ? sv->track : sv;
-	ref = via;
-	while (ref->track)
-		ref = ref->track;
-
-	if (sv->cur_state == SRV_ST_RUNNING || sv->cur_state == SRV_ST_STARTING) {
-		if ((ref->check.state & CHK_ST_ENABLED) &&
-		    (ref->check.health < ref->check.rise + ref->check.fall - 1)) {
-			state = SRV_STATS_STATE_UP_GOING_DOWN;
-		} else {
-			state = SRV_STATS_STATE_UP;
-		}
-
-		if (sv->cur_admin & SRV_ADMF_DRAIN) {
-			if (ref->agent.state & CHK_ST_ENABLED)
-				state = SRV_STATS_STATE_DRAIN_AGENT;
-			else if (state == SRV_STATS_STATE_UP_GOING_DOWN)
-				state = SRV_STATS_STATE_DRAIN_GOING_DOWN;
-			else
-				state = SRV_STATS_STATE_DRAIN;
-		}
-
-		if (state == SRV_STATS_STATE_UP && !(ref->check.state & CHK_ST_ENABLED)) {
-			state = SRV_STATS_STATE_NO_CHECK;
-		}
-	}
-	else if (sv->cur_state == SRV_ST_STOPPING) {
-		if ((!(sv->check.state & CHK_ST_ENABLED) && !sv->track) ||
-		    (ref->check.health == ref->check.rise + ref->check.fall - 1)) {
-			state = SRV_STATS_STATE_NOLB;
-		} else {
-			state = SRV_STATS_STATE_NOLB_GOING_DOWN;
-		}
-	}
-	else {	/* stopped */
-		if ((ref->agent.state & CHK_ST_ENABLED) && !ref->agent.health) {
-			state = SRV_STATS_STATE_DOWN_AGENT;
-		} else if ((ref->check.state & CHK_ST_ENABLED) && !ref->check.health) {
-			state = SRV_STATS_STATE_DOWN; /* DOWN */
-		} else if ((ref->agent.state & CHK_ST_ENABLED) || (ref->check.state & CHK_ST_ENABLED)) {
-			state = SRV_STATS_STATE_GOING_UP;
-		} else {
-			state = SRV_STATS_STATE_DOWN; /* DOWN, unchecked */
-		}
-	}
-
 	chunk_reset(out);
 
-	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
-	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, sv->id);
-	stats[ST_F_MODE]     = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
-	stats[ST_F_QCUR]     = mkf_u32(0, sv->nbpend);
-	stats[ST_F_QMAX]     = mkf_u32(FN_MAX, sv->counters.nbpend_max);
-	stats[ST_F_SCUR]     = mkf_u32(0, sv->cur_sess);
-	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, sv->counters.cur_sess_max);
-
-	if (sv->maxconn)
-		stats[ST_F_SLIM] = mkf_u32(FO_CONFIG|FN_LIMIT, sv->maxconn);
-
-	stats[ST_F_SRV_ICUR] = mkf_u32(0, sv->curr_idle_conns);
-	if (sv->max_idle_conns != -1)
-		stats[ST_F_SRV_ILIM] = mkf_u32(FO_CONFIG|FN_LIMIT, sv->max_idle_conns);
-
-	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, sv->counters.cum_sess);
-	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, sv->counters.bytes_in);
-	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, sv->counters.bytes_out);
-	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, sv->counters.denied_resp);
-	stats[ST_F_ECON]     = mkf_u64(FN_COUNTER, sv->counters.failed_conns);
-	stats[ST_F_ERESP]    = mkf_u64(FN_COUNTER, sv->counters.failed_resp);
-	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, sv->counters.retries);
-	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, sv->counters.redispatches);
-	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, sv->counters.failed_rewrites);
-	stats[ST_F_EINT]     = mkf_u64(FN_COUNTER, sv->counters.internal_errors);
-	stats[ST_F_CONNECT]  = mkf_u64(FN_COUNTER, sv->counters.connect);
-	stats[ST_F_REUSE]    = mkf_u64(FN_COUNTER, sv->counters.reuse);
-
-	stats[ST_F_IDLE_CONN_CUR] = mkf_u32(0, sv->curr_idle_nb);
-	stats[ST_F_SAFE_CONN_CUR] = mkf_u32(0, sv->curr_safe_nb);
-	stats[ST_F_USED_CONN_CUR] = mkf_u32(0, sv->curr_used_conns);
-	stats[ST_F_NEED_CONN_EST] = mkf_u32(0, sv->est_need_conns);
-
-	/* status */
-	fld_status = chunk_newstr(out);
-	if (sv->cur_admin & SRV_ADMF_RMAINT)
-		chunk_appendf(out, "MAINT (resolution)");
-	else if (sv->cur_admin & SRV_ADMF_IMAINT)
-		chunk_appendf(out, "MAINT (via %s/%s)", via->proxy->id, via->id);
-	else if (sv->cur_admin & SRV_ADMF_MAINT)
-		chunk_appendf(out, "MAINT");
-	else
-		chunk_appendf(out,
-			      srv_hlt_st[state],
-			      (ref->cur_state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
-			      (ref->cur_state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
-
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, fld_status);
-	stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - sv->last_change);
-	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (sv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
-	stats[ST_F_UWEIGHT]  = mkf_u32(FN_AVG, sv->uweight);
-	stats[ST_F_ACT]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
-	stats[ST_F_BCK]      = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
-
-	/* check failures: unique, fatal; last change, total downtime */
-	if (sv->check.state & CHK_ST_ENABLED) {
-		stats[ST_F_CHKFAIL]  = mkf_u64(FN_COUNTER, sv->counters.failed_checks);
-		stats[ST_F_CHKDOWN]  = mkf_u64(FN_COUNTER, sv->counters.down_trans);
-		stats[ST_F_DOWNTIME] = mkf_u32(FN_COUNTER, srv_downtime(sv));
+	/* compute state for later use */
+	if (selected_field == NULL || *selected_field == ST_F_STATUS ||
+	    *selected_field == ST_F_CHECK_RISE || *selected_field == ST_F_CHECK_FALL ||
+	    *selected_field == ST_F_CHECK_HEALTH || *selected_field == ST_F_HANAFAIL) {
+		/* we have "via" which is the tracked server as described in the configuration,
+		 * and "ref" which is the checked server and the end of the chain.
+		 */
+		while (ref->track)
+			ref = ref->track;
+		stats_fill_sv_stats_computestate(sv, ref, &state);
 	}
 
-	if (sv->maxqueue)
-		stats[ST_F_QLIMIT]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->maxqueue);
-
-	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
-	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
-	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, sv->puid);
-
-	if (sv->cur_state == SRV_ST_STARTING && !server_is_draining(sv))
-		stats[ST_F_THROTTLE] = mkf_u32(FN_AVG, server_throttle_rate(sv));
-
-	stats[ST_F_LBTOT]    = mkf_u64(FN_COUNTER, sv->counters.cum_lbconn);
-
-	if (sv->track) {
-		char *fld_track = chunk_newstr(out);
-
-		chunk_appendf(out, "%s/%s", sv->track->proxy->id, sv->track->id);
-		stats[ST_F_TRACKED] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, fld_track);
+	/* compue time values for later use */
+	if (selected_field == NULL || *selected_field == ST_F_QTIME ||
+	    *selected_field == ST_F_CTIME || *selected_field == ST_F_RTIME ||
+	    *selected_field == ST_F_TTIME) {
+		srv_samples_counter = (px->mode == PR_MODE_HTTP) ? sv->counters.p.http.cum_req : sv->counters.cum_lbconn;
+		if (srv_samples_counter < TIME_STATS_SAMPLES && srv_samples_counter > 0)
+			srv_samples_window = srv_samples_counter;
 	}
 
-	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SV);
-	stats[ST_F_RATE]     = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
-	stats[ST_F_RATE_MAX] = mkf_u32(FN_MAX, sv->counters.sps_max);
+	for (; current_field < ST_F_TOTAL_FIELDS; current_field++) {
+		struct field metric = { 0 };
 
-	if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
-		const char *fld_chksts;
+		switch (current_field) {
+			case ST_F_PXNAME:
+				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+				break;
+			case ST_F_SVNAME:
+				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, sv->id);
+				break;
+			case ST_F_MODE:
+				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
+			case ST_F_QCUR:
+				break;
+				metric = mkf_u32(0, sv->nbpend);
+				break;
+			case ST_F_QMAX:
+				metric = mkf_u32(FN_MAX, sv->counters.nbpend_max);
+				break;
+			case ST_F_SCUR:
+				metric = mkf_u32(0, sv->cur_sess);
+				break;
+			case ST_F_SMAX:
+				metric = mkf_u32(FN_MAX, sv->counters.cur_sess_max);
+				break;
+			case ST_F_SLIM:
+				if (sv->maxconn)
+					metric = mkf_u32(FO_CONFIG|FN_LIMIT, sv->maxconn);
+				break;
+			case ST_F_SRV_ICUR:
+				metric = mkf_u32(0, sv->curr_idle_conns);
+				break;
+			case ST_F_SRV_ILIM:
+				if (sv->max_idle_conns != -1)
+					metric = mkf_u32(FO_CONFIG|FN_LIMIT, sv->max_idle_conns);
+				break;
+			case ST_F_STOT:
+				metric = mkf_u64(FN_COUNTER, sv->counters.cum_sess);
+				break;
+			case ST_F_BIN:
+				metric = mkf_u64(FN_COUNTER, sv->counters.bytes_in);
+				break;
+			case ST_F_BOUT:
+				metric = mkf_u64(FN_COUNTER, sv->counters.bytes_out);
+				break;
+			case ST_F_DRESP:
+				metric = mkf_u64(FN_COUNTER, sv->counters.denied_resp);
+				break;
+			case ST_F_ECON:
+				metric = mkf_u64(FN_COUNTER, sv->counters.failed_conns);
+				break;
+			case ST_F_ERESP:
+				metric = mkf_u64(FN_COUNTER, sv->counters.failed_resp);
+				break;
+			case ST_F_WRETR:
+				metric = mkf_u64(FN_COUNTER, sv->counters.retries);
+				break;
+			case ST_F_WREDIS:
+				metric = mkf_u64(FN_COUNTER, sv->counters.redispatches);
+				break;
+			case ST_F_WREW:
+				metric = mkf_u64(FN_COUNTER, sv->counters.failed_rewrites);
+				break;
+			case ST_F_EINT:
+				metric = mkf_u64(FN_COUNTER, sv->counters.internal_errors);
+				break;
+			case ST_F_CONNECT:
+				metric = mkf_u64(FN_COUNTER, sv->counters.connect);
+				break;
+			case ST_F_REUSE:
+				metric = mkf_u64(FN_COUNTER, sv->counters.reuse);
+				break;
+			case ST_F_IDLE_CONN_CUR:
+				metric = mkf_u32(0, sv->curr_idle_nb);
+				break;
+			case ST_F_SAFE_CONN_CUR:
+				metric = mkf_u32(0, sv->curr_safe_nb);
+				break;
+			case ST_F_USED_CONN_CUR:
+				metric = mkf_u32(0, sv->curr_used_conns);
+				break;
+			case ST_F_NEED_CONN_EST:
+				metric = mkf_u32(0, sv->est_need_conns);
+				break;
+			case ST_F_STATUS:
+				fld_status = chunk_newstr(out);
+				if (sv->cur_admin & SRV_ADMF_RMAINT)
+					chunk_appendf(out, "MAINT (resolution)");
+				else if (sv->cur_admin & SRV_ADMF_IMAINT)
+					chunk_appendf(out, "MAINT (via %s/%s)", via->proxy->id, via->id);
+				else if (sv->cur_admin & SRV_ADMF_MAINT)
+					chunk_appendf(out, "MAINT");
+				else
+					chunk_appendf(out,
+						      srv_hlt_st[state],
+						      (ref->cur_state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
+						      (ref->cur_state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
 
-		fld_chksts = chunk_newstr(out);
-		chunk_strcat(out, "* "); // for check in progress
-		chunk_strcat(out, get_check_status_info(sv->check.status));
-		if (!(sv->check.state & CHK_ST_INPROGRESS))
-			fld_chksts += 2; // skip "* "
-		stats[ST_F_CHECK_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
+				metric = mkf_str(FO_STATUS, fld_status);
+				break;
+			case ST_F_LASTCHG:
+				metric = mkf_u32(FN_AGE, now.tv_sec - sv->last_change);
+				break;
+			case ST_F_WEIGHT:
+				metric = mkf_u32(FN_AVG, (sv->cur_eweight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
+				break;
+			case ST_F_UWEIGHT:
+				metric = mkf_u32(FN_AVG, sv->uweight);
+				break;
+			case ST_F_ACT:
+				metric = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 0 : 1);
+				break;
+			case ST_F_BCK:
+				metric = mkf_u32(FO_STATUS, (sv->flags & SRV_F_BACKUP) ? 1 : 0);
+				break;
+			case ST_F_CHKFAIL:
+				if (sv->check.state & CHK_ST_ENABLED)
+					metric = mkf_u64(FN_COUNTER, sv->counters.failed_checks);
+				break;
+			case ST_F_CHKDOWN:
+				if (sv->check.state & CHK_ST_ENABLED)
+					metric = mkf_u64(FN_COUNTER, sv->counters.down_trans);
+				break;
+			case ST_F_DOWNTIME:
+				if (sv->check.state & CHK_ST_ENABLED)
+					metric = mkf_u32(FN_COUNTER, srv_downtime(sv));
+				break;
+			case ST_F_QLIMIT:
+				if (sv->maxqueue)
+					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->maxqueue);
+				break;
+			case ST_F_PID:
+				metric = mkf_u32(FO_KEY, relative_pid);
+				break;
+			case ST_F_IID:
+				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+				break;
+			case ST_F_SID:
+				metric = mkf_u32(FO_KEY|FS_SERVICE, sv->puid);
+				break;
+			case ST_F_THROTTLE:
+				if (sv->cur_state == SRV_ST_STARTING && !server_is_draining(sv))
+					metric = mkf_u32(FN_AVG, server_throttle_rate(sv));
+				break;
+			case ST_F_LBTOT:
+				metric = mkf_u64(FN_COUNTER, sv->counters.cum_lbconn);
+				break;
+			case ST_F_TRACKED:
+				if (sv->track) {
+					char *fld_track = chunk_newstr(out);
+					chunk_appendf(out, "%s/%s", sv->track->proxy->id, sv->track->id);
+					metric = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, fld_track);
+				}
+				break;
+			case ST_F_TYPE:
+				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SV);
+				break;
+			case ST_F_RATE:
+				metric = mkf_u32(FN_RATE, read_freq_ctr(&sv->sess_per_sec));
+				break;
+			case ST_F_RATE_MAX:
+				metric = mkf_u32(FN_MAX, sv->counters.sps_max);
+				break;
+			case ST_F_CHECK_STATUS:
+				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
+					const char *fld_chksts;
 
-		if (sv->check.status >= HCHK_STATUS_L57DATA)
-			stats[ST_F_CHECK_CODE] = mkf_u32(FN_OUTPUT, sv->check.code);
-
-		if (sv->check.status >= HCHK_STATUS_CHECKED)
-			stats[ST_F_CHECK_DURATION] = mkf_u64(FN_DURATION, sv->check.duration);
-
-		stats[ST_F_CHECK_DESC] = mkf_str(FN_OUTPUT, get_check_status_description(sv->check.status));
-		stats[ST_F_LAST_CHK] = mkf_str(FN_OUTPUT, sv->check.desc);
-		stats[ST_F_CHECK_RISE]   = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.rise);
-		stats[ST_F_CHECK_FALL]   = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.fall);
-		stats[ST_F_CHECK_HEALTH] = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.health);
-	}
-
-	if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
-		const char *fld_chksts;
-
-		fld_chksts = chunk_newstr(out);
-		chunk_strcat(out, "* "); // for check in progress
-		chunk_strcat(out, get_check_status_info(sv->agent.status));
-		if (!(sv->agent.state & CHK_ST_INPROGRESS))
-			fld_chksts += 2; // skip "* "
-		stats[ST_F_AGENT_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
-
-		if (sv->agent.status >= HCHK_STATUS_L57DATA)
-			stats[ST_F_AGENT_CODE] = mkf_u32(FN_OUTPUT, sv->agent.code);
-
-		if (sv->agent.status >= HCHK_STATUS_CHECKED)
-			stats[ST_F_AGENT_DURATION] = mkf_u64(FN_DURATION, sv->agent.duration);
-
-		stats[ST_F_AGENT_DESC] = mkf_str(FN_OUTPUT, get_check_status_description(sv->agent.status));
-		stats[ST_F_LAST_AGT] = mkf_str(FN_OUTPUT, sv->agent.desc);
-		stats[ST_F_AGENT_RISE]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.rise);
-		stats[ST_F_AGENT_FALL]   = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.fall);
-		stats[ST_F_AGENT_HEALTH] = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.health);
-	}
-
-	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
-	if (px->mode == PR_MODE_HTTP) {
-		stats[ST_F_REQ_TOT]    = mkf_u64(FN_COUNTER, sv->counters.p.http.cum_req);
-		stats[ST_F_HRSP_1XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[1]);
-		stats[ST_F_HRSP_2XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[2]);
-		stats[ST_F_HRSP_3XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[3]);
-		stats[ST_F_HRSP_4XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[4]);
-		stats[ST_F_HRSP_5XX]   = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[5]);
-		stats[ST_F_HRSP_OTHER] = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[0]);
-	}
-
-	if (ref->observe)
-		stats[ST_F_HANAFAIL] = mkf_u64(FN_COUNTER, sv->counters.failed_hana);
-
-	stats[ST_F_CLI_ABRT] = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);
-	stats[ST_F_SRV_ABRT] = mkf_u64(FN_COUNTER, sv->counters.srv_aborts);
-	stats[ST_F_LASTSESS] = mkf_s32(FN_AGE, srv_lastsession(sv));
-
-	srv_samples_counter = (px->mode == PR_MODE_HTTP) ? sv->counters.p.http.cum_req : sv->counters.cum_lbconn;
-	if (srv_samples_counter < TIME_STATS_SAMPLES && srv_samples_counter > 0)
-		srv_samples_window = srv_samples_counter;
-
-	stats[ST_F_QTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, srv_samples_window));
-	stats[ST_F_CTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.c_time, srv_samples_window));
-	stats[ST_F_RTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, srv_samples_window));
-	stats[ST_F_TTIME] = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, srv_samples_window));
-
-	stats[ST_F_QT_MAX] = mkf_u32(FN_MAX, sv->counters.qtime_max);
-	stats[ST_F_CT_MAX] = mkf_u32(FN_MAX, sv->counters.ctime_max);
-	stats[ST_F_RT_MAX] = mkf_u32(FN_MAX, sv->counters.dtime_max);
-	stats[ST_F_TT_MAX] = mkf_u32(FN_MAX, sv->counters.ttime_max);
-
-	if (flags & STAT_SHLGNDS) {
-		switch (addr_to_str(&sv->addr, str, sizeof(str))) {
-		case AF_INET:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_appendf(out, "%s:%d", str, sv->svc_port);
-			break;
-		case AF_INET6:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_appendf(out, "[%s]:%d", str, sv->svc_port);
-			break;
-		case AF_UNIX:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
-			break;
-		case -1:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_strcat(out, strerror(errno));
-			break;
-		default: /* address family not supported */
-			break;
+					fld_chksts = chunk_newstr(out);
+					chunk_strcat(out, "* "); // for check in progress
+					chunk_strcat(out, get_check_status_info(sv->check.status));
+					if (!(sv->check.state & CHK_ST_INPROGRESS))
+						fld_chksts += 2; // skip "* "
+					stats[ST_F_CHECK_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
+				}
+				break;
+			case ST_F_CHECK_CODE:
+				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED &&
+					sv->check.status >= HCHK_STATUS_L57DATA)
+					metric = mkf_u32(FN_OUTPUT, sv->check.code);
+				break;
+			case ST_F_CHECK_DURATION:
+				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED &&
+					sv->check.status >= HCHK_STATUS_CHECKED)
+					metric = mkf_u64(FN_DURATION, sv->check.duration);
+				break;
+			case ST_F_CHECK_DESC:
+				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_str(FN_OUTPUT, get_check_status_description(sv->check.status));
+				break;
+			case ST_F_LAST_CHK:
+				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_str(FN_OUTPUT, sv->check.desc);
+				break;
+			case ST_F_CHECK_RISE:
+				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.rise);
+				break;
+			case ST_F_CHECK_FALL:
+				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.fall);
+				break;
+			case ST_F_CHECK_HEALTH:
+				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.health);
+				break;
+			case ST_F_REQ_TOT:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.cum_req);
+				break;
+			case ST_F_HRSP_1XX:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[1]);
+				break;
+			case ST_F_HRSP_2XX:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[2]);
+				break;
+			case ST_F_HRSP_3XX:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[3]);
+				break;
+			case ST_F_HRSP_4XX:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[4]);
+				break;
+			case ST_F_HRSP_5XX:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[5]);
+				break;
+			case ST_F_HRSP_OTHER:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.rsp[0]);
+				break;
+			case ST_F_HANAFAIL:
+				if (ref->observe)
+					metric = mkf_u64(FN_COUNTER, sv->counters.failed_hana);
+				break;
+			case ST_F_CLI_ABRT:
+				metric = mkf_u64(FN_COUNTER, sv->counters.cli_aborts);
+				break;
+			case ST_F_SRV_ABRT:
+				metric = mkf_u64(FN_COUNTER, sv->counters.srv_aborts);
+				break;
+			case ST_F_LASTSESS:
+				metric = mkf_s32(FN_AGE, srv_lastsession(sv));
+				break;
+			case ST_F_QTIME:
+				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.q_time, srv_samples_window));
+				break;
+			case ST_F_CTIME:
+				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.c_time, srv_samples_window));
+				break;
+			case ST_F_RTIME:
+				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.d_time, srv_samples_window));
+				break;
+			case ST_F_TTIME:
+				metric = mkf_u32(FN_AVG, swrate_avg(sv->counters.t_time, srv_samples_window));
+				break;
+			case ST_F_QT_MAX:
+				metric = mkf_u32(FN_MAX, sv->counters.qtime_max);
+				break;
+			case ST_F_CT_MAX:
+				metric = mkf_u32(FN_MAX, sv->counters.ctime_max);
+				break;
+			case ST_F_RT_MAX:
+				metric = mkf_u32(FN_MAX, sv->counters.dtime_max);
+				break;
+			case ST_F_TT_MAX:
+				metric = mkf_u32(FN_MAX, sv->counters.ttime_max);
+				break;
+			case ST_F_ADDR:
+				if (flags & STAT_SHLGNDS) {
+					switch (addr_to_str(&sv->addr, str, sizeof(str))) {
+						case AF_INET:
+							metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+							chunk_appendf(out, "%s:%d", str, sv->svc_port);
+							break;
+						case AF_INET6:
+							metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+							chunk_appendf(out, "[%s]:%d", str, sv->svc_port);
+							break;
+						case AF_UNIX:
+							metric = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
+							break;
+						case -1:
+							metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+							chunk_strcat(out, strerror(errno));
+							break;
+						default: /* address family not supported */
+							break;
+					}
+				}
+				break;
+			case ST_F_COOKIE:
+				if (flags & STAT_SHLGNDS && sv->cookie)
+					metric = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
+				break;
+			default:
+				/* not used for servers. If a specific metric
+				 * is requested, return an error. Otherwise continue.
+				 */
+				if (selected_field != NULL)
+					return 0;
+				continue;
 		}
-
-		if (sv->cookie)
-			stats[ST_F_COOKIE] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, sv->cookie);
+		stats[current_field] = metric;
+		if (selected_field != NULL)
+			break;
 	}
-
 	return 1;
 }
 
@@ -2238,7 +2383,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, st
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_sv_stats(px, sv, appctx->ctx.stats.flags, stats, ST_F_TOTAL_FIELDS))
+	if (!stats_fill_sv_stats(px, sv, appctx->ctx.stats.flags, stats,
+				 ST_F_TOTAL_FIELDS, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
