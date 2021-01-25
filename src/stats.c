@@ -1632,12 +1632,13 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 			enum stat_field *selected_field)
 {
 	enum stat_field current_field = (selected_field != NULL ? *selected_field : 0);
-	struct field metric;
 
 	if (len < ST_F_TOTAL_FIELDS)
 		return 0;
 
 	for (; current_field < ST_F_TOTAL_FIELDS; current_field++) {
+		struct field metric = { 0 };
+
 		switch (current_field) {
 			case ST_F_PXNAME:
 				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
