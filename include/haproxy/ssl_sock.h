@@ -52,6 +52,7 @@ extern struct pool_head *pool_head_ssl_keylog;
 extern struct pool_head *pool_head_ssl_keylog_str;
 
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *, SSL_CTX *ctx, char **err);
+int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx);
 int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf);
 int ssl_sock_prepare_bind_conf(struct bind_conf *bind_conf);
 void ssl_sock_destroy_bind_conf(struct bind_conf *bind_conf);

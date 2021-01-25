@@ -4443,20 +4443,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 {
 	struct proxy *curproxy = srv->proxy;
 	int cfgerr = 0;
-	long options =
-		SSL_OP_ALL | /* all known workarounds for bugs */
-		SSL_OP_NO_SSLv2 |
-		SSL_OP_NO_COMPRESSION;
-	long mode =
-		SSL_MODE_ENABLE_PARTIAL_WRITE |
-		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
-		SSL_MODE_RELEASE_BUFFERS |
-		SSL_MODE_SMALL_BUFFERS;
-	int verify = SSL_VERIFY_NONE;
 	SSL_CTX *ctx = NULL;
-	struct tls_version_filter *conf_ssl_methods = &srv->ssl_ctx.methods;
-	int i, min, max, hole;
-	int flags = MC_SSL_O_ALL;
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
@@ -4488,6 +4475,35 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		cfgerr++;
 		return cfgerr;
 	}
+
+	srv->ssl_ctx.ctx = ctx;
+
+	cfgerr += ssl_sock_prepare_srv_ssl_ctx(srv, srv->ssl_ctx.ctx);
+
+	return cfgerr;
+}
+
+
+/* Initialize an SSL context that will be used on the backend side.
+ * Returns an error count.
+ */
+int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
+{
+	struct proxy *curproxy = srv->proxy;
+	int cfgerr = 0;
+	long options =
+		SSL_OP_ALL | /* all known workarounds for bugs */
+		SSL_OP_NO_SSLv2 |
+		SSL_OP_NO_COMPRESSION;
+	long mode =
+		SSL_MODE_ENABLE_PARTIAL_WRITE |
+		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+		SSL_MODE_RELEASE_BUFFERS |
+		SSL_MODE_SMALL_BUFFERS;
+	int verify = SSL_VERIFY_NONE;
+	const struct tls_version_filter *conf_ssl_methods = &srv->ssl_ctx.methods;
+	int i, min, max, hole;
+	int flags = MC_SSL_O_ALL;
 
 	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
 		ha_warning("config : %s '%s': no-sslv3/no-tlsv1x are ignored for server '%s'. "
@@ -4556,7 +4572,6 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		mode |= SSL_MODE_ASYNC;
 #endif
 	SSL_CTX_set_mode(ctx, mode);
-	srv->ssl_ctx.ctx = ctx;
 
 	if (srv->ssl_ctx.client_crt) {
 		if (SSL_CTX_use_PrivateKey_file(srv->ssl_ctx.ctx, srv->ssl_ctx.client_crt, SSL_FILETYPE_PEM) <= 0) {
@@ -4589,13 +4604,12 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 			verify = SSL_VERIFY_PEER;
 			break;
 	}
-	SSL_CTX_set_verify(srv->ssl_ctx.ctx,
-	                   verify,
+	SSL_CTX_set_verify(ctx, verify,
 	                   (srv->ssl_ctx.verify_host || (verify & SSL_VERIFY_PEER)) ? ssl_sock_srv_verifycbk : NULL);
 	if (verify & SSL_VERIFY_PEER) {
 		if (srv->ssl_ctx.ca_file) {
 			/* set CAfile to verify */
-			if (!ssl_set_verify_locations_file(srv->ssl_ctx.ctx, srv->ssl_ctx.ca_file)) {
+			if (!ssl_set_verify_locations_file(ctx, srv->ssl_ctx.ca_file)) {
 				ha_alert("Proxy '%s', server '%s' [%s:%d] unable to set CA file '%s'.\n",
 					 curproxy->id, srv->id,
 					 srv->conf.file, srv->conf.line, srv->ssl_ctx.ca_file);
@@ -4615,7 +4629,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		}
 #ifdef X509_V_FLAG_CRL_CHECK
 		if (srv->ssl_ctx.crl_file) {
-			X509_STORE *store = SSL_CTX_get_cert_store(srv->ssl_ctx.ctx);
+			X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
 			if (!ssl_set_cert_crl_file(store, srv->ssl_ctx.crl_file)) {
 				ha_alert("Proxy '%s', server '%s' [%s:%d] unable to configure CRL file '%s'.\n",
@@ -4630,11 +4644,10 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 #endif
 	}
 
-	SSL_CTX_set_session_cache_mode(srv->ssl_ctx.ctx, SSL_SESS_CACHE_CLIENT |
-	    SSL_SESS_CACHE_NO_INTERNAL_STORE);
-	SSL_CTX_sess_set_new_cb(srv->ssl_ctx.ctx, ssl_sess_new_srv_cb);
+	SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_NO_INTERNAL_STORE);
+	SSL_CTX_sess_set_new_cb(ctx, ssl_sess_new_srv_cb);
 	if (srv->ssl_ctx.ciphers &&
-		!SSL_CTX_set_cipher_list(srv->ssl_ctx.ctx, srv->ssl_ctx.ciphers)) {
+		!SSL_CTX_set_cipher_list(ctx, srv->ssl_ctx.ciphers)) {
 		ha_alert("Proxy '%s', server '%s' [%s:%d] : unable to set SSL cipher list to '%s'.\n",
 			 curproxy->id, srv->id,
 			 srv->conf.file, srv->conf.line, srv->ssl_ctx.ciphers);
@@ -4643,7 +4656,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (srv->ssl_ctx.ciphersuites &&
-		!SSL_CTX_set_ciphersuites(srv->ssl_ctx.ctx, srv->ssl_ctx.ciphersuites)) {
+		!SSL_CTX_set_ciphersuites(ctx, srv->ssl_ctx.ciphersuites)) {
 		ha_alert("Proxy '%s', server '%s' [%s:%d] : unable to set TLS 1.3 cipher suites to '%s'.\n",
 			 curproxy->id, srv->id,
 			 srv->conf.file, srv->conf.line, srv->ssl_ctx.ciphersuites);
@@ -4652,7 +4665,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 #endif
 #if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
 	if (srv->ssl_ctx.npn_str)
-		SSL_CTX_set_next_proto_select_cb(ctx, ssl_sock_srv_select_protos, srv);
+		SSL_CTX_set_next_proto_select_cb(ctx, ssl_sock_srv_select_protos, (struct server*)srv);
 #endif
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	if (srv->ssl_ctx.alpn_str)
