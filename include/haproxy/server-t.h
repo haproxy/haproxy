@@ -309,6 +309,9 @@ struct server {
 			int size;
 			int allocated_size;
 		} * reused_sess;
+
+		struct ckch_inst *inst; /* Instance of the ckch_store in which the certificate was loaded (might be null if server has no certificate) */
+
 		char *ciphers;			/* cipher suite to use if non-null */
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 		char *ciphersuites;			/* TLS 1.3 cipher suite to use if non-null */

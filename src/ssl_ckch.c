@@ -1328,6 +1328,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 						fcount = ckchi->crtlist_entry->fcount;
 					}
 
+					if (ckchi->is_server_instance)
+						goto error; /* Not managed yet */
+
 					errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, &new_inst, &err);
 
 					if (errcode & ERR_CODE)

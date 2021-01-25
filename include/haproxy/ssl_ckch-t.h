@@ -85,7 +85,9 @@ struct ckch_inst {
 	struct ssl_bind_conf *ssl_conf; /* pointer to the ssl_conf which is used by every sni_ctx of this inst */
 	struct ckch_store *ckch_store; /* pointer to the store used to generate this inst */
 	struct crtlist_entry *crtlist_entry; /* pointer to the crtlist_entry used, or NULL */
+	struct server *server; /* pointer to the server if is_server_instance is set, NULL otherwise */
 	unsigned int is_default:1;      /* This instance is used as the default ctx for this bind_conf */
+	unsigned int is_server_instance:1; /* This instance is used by a backend server */
 	/* space for more flag there */
 	struct list sni_ctx; /* list of sni_ctx using this ckch_inst */
 	struct list by_ckchs; /* chained in ckch_store's list of ckch_inst */

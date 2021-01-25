@@ -1452,7 +1452,7 @@ static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct ser
 	else
 		memprintf(&newsrv->ssl_ctx.client_crt, "%s", args[*cur_arg + 1]);
 
-	return 0;
+	return ssl_sock_load_srv_cert(newsrv->ssl_ctx.client_crt, newsrv, err);
 }
 
 /* parse the "no-check-ssl" server keyword */

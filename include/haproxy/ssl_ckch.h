@@ -49,6 +49,8 @@ void ckch_inst_free(struct ckch_inst *inst);
 struct ckch_inst *ckch_inst_new();
 int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct bind_conf *bind_conf,
                              struct ssl_bind_conf *ssl_conf, char **sni_filter, int fcount, struct ckch_inst **ckchi, char **err);
+int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
+                                 struct ckch_inst **ckchi, SSL_CTX **ssl_ctx, char **err);
 
 void ckch_deinit();
 

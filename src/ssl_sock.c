@@ -3244,6 +3244,44 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	return errcode;
 }
 
+
+/* Loads the info of a ckch built out of a backend certificate into an SSL ctx
+ * Returns a bitfield containing the flags:
+ *     ERR_FATAL in any fatal error case
+ *     ERR_ALERT if the reason of the error is available in err
+ *     ERR_WARN if a warning is available into err
+ * The value 0 means there is no error nor warning and
+ * the operation succeed.
+ */
+static int ssl_sock_put_srv_ckch_into_ctx(const char *path, const struct cert_key_and_chain *ckch,
+					  SSL_CTX *ctx, char **err)
+{
+	int errcode = 0;
+	STACK_OF(X509) *find_chain = NULL;
+
+	/* Load the private key */
+	if (SSL_CTX_use_PrivateKey(ctx, ckch->key) <= 0) {
+		memprintf(err, "%sunable to load SSL private key into SSL Context '%s'.\n",
+				err && *err ? *err : "", path);
+		errcode |= ERR_ALERT | ERR_FATAL;
+	}
+
+	/* Load certificate chain */
+	errcode |= ssl_sock_load_cert_chain(path, ckch, ctx, &find_chain, err);
+	if (errcode & ERR_CODE)
+		goto end;
+
+	if (SSL_CTX_check_private_key(ctx) <= 0) {
+		memprintf(err, "%sinconsistencies between private key and certificate loaded from PEM file '%s'.\n",
+			  err && *err ? *err : "", path);
+		errcode |= ERR_ALERT | ERR_FATAL;
+	}
+
+end:
+	return errcode;
+}
+
+
 /*
  * This function allocate a ckch_inst and create its snis
  *
@@ -3405,6 +3443,78 @@ error:
 	return errcode;
 }
 
+
+/*
+ * This function allocate a ckch_inst that will be used on the backend side
+ * (server line)
+ *
+ * Returns a bitfield containing the flags:
+ *     ERR_FATAL in any fatal error case
+ *     ERR_ALERT if the reason of the error is available in err
+ *     ERR_WARN if a warning is available into err
+ */
+int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
+				 struct ckch_inst **ckchi, SSL_CTX **ssl_ctx, char **err)
+{
+	SSL_CTX *ctx;
+	struct cert_key_and_chain *ckch;
+	struct ckch_inst *ckch_inst = NULL;
+	int errcode = 0;
+
+	*ckchi = NULL;
+
+	if (!ckchs || !ckchs->ckch)
+		return ERR_FATAL;
+
+	ckch = ckchs->ckch;
+
+	ctx = SSL_CTX_new(SSLv23_client_method());
+	if (!ctx) {
+		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
+		          err && *err ? *err : "", path);
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto error;
+	}
+
+	if (*ssl_ctx)
+		SSL_CTX_free(*ssl_ctx);
+	*ssl_ctx = ctx;
+
+	errcode |= ssl_sock_put_srv_ckch_into_ctx(path, ckch, ctx, err);
+	if (errcode & ERR_CODE)
+		goto error;
+
+	ckch_inst = ckch_inst_new();
+	if (!ckch_inst) {
+		memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
+		          err && *err ? *err : "", path);
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto error;
+	}
+
+	SSL_CTX_up_ref(ctx);
+
+	/* everything succeed, the ckch instance can be used */
+	ckch_inst->bind_conf = NULL;
+	ckch_inst->ssl_conf = NULL;
+	ckch_inst->ckch_store = ckchs;
+
+	SSL_CTX_free(ctx); /* we need to free the ctx since we incremented the refcount where it's used */
+
+	*ckchi = ckch_inst;
+	return errcode;
+
+error:
+	/* free the allocated sni_ctxs */
+	if (ckch_inst) {
+		ckch_inst_free(ckch_inst);
+		ckch_inst = NULL;
+	}
+	SSL_CTX_free(ctx);
+
+	return errcode;
+}
+
 /* Returns a set of ERR_* flags possibly with an error in <err>. */
 static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
                                struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
@@ -3419,6 +3529,23 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 		return errcode;
 
 	ssl_sock_load_cert_sni(*ckch_inst, bind_conf);
+
+	/* succeed, add the instance to the ckch_store's list of instance */
+	LIST_ADDQ(&ckchs->ckch_inst, &((*ckch_inst)->by_ckchs));
+	return errcode;
+}
+
+static int ssl_sock_load_srv_ckchs(const char *path, struct ckch_store *ckchs,
+				   struct ckch_inst **ckch_inst,
+				   SSL_CTX **ssl_ctx, char **err)
+{
+	int errcode = 0;
+
+	/* we found the ckchs in the tree, we can use it directly */
+	errcode |= ckch_inst_new_load_srv_store(path, ckchs, ckch_inst, ssl_ctx, err);
+
+	if (errcode & ERR_CODE)
+		return errcode;
 
 	/* succeed, add the instance to the ckch_store's list of instance */
 	LIST_ADDQ(&ckchs->ckch_inst, &((*ckch_inst)->by_ckchs));
@@ -3599,6 +3726,45 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
 				cfgerr |= ERR_ALERT | ERR_FATAL;
 			}
 #endif
+		}
+	}
+	if (!found) {
+		memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
+		          err && *err ? *err : "", path, strerror(errno));
+		cfgerr |= ERR_ALERT | ERR_FATAL;
+	}
+
+	return cfgerr;
+}
+
+
+/* Create a full ssl context and ckch instance that will be used for a specific
+ * backend server (server configuration line).
+ * Returns a set of ERR_* flags possibly with an error in <err>.
+ */
+int ssl_sock_load_srv_cert(char *path, struct server *server, char **err)
+{
+	struct stat buf;
+	int cfgerr = 0;
+	struct ckch_store *ckchs;
+	int found = 0; /* did we found a file to load ? */
+
+	if ((ckchs = ckchs_lookup(path))) {
+		/* we found the ckchs in the tree, we can use it directly */
+		 cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, &server->ssl_ctx.inst, &server->ssl_ctx.ctx, err);
+		 found++;
+	} else if (stat(path, &buf) == 0) {
+		/* We do not manage directories on backend side. */
+		if (S_ISDIR(buf.st_mode) == 0) {
+			++found;
+			ckchs =  ckchs_load_cert_file(path, err);
+			if (!ckchs)
+				cfgerr |= ERR_ALERT | ERR_FATAL;
+			cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, &server->ssl_ctx.inst, &server->ssl_ctx.ctx, err);
+			if (server->ssl_ctx.inst) {
+				server->ssl_ctx.inst->is_server_instance = 1;
+				server->ssl_ctx.inst->server = server;
+			}
 		}
 	}
 	if (!found) {
@@ -4472,7 +4638,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 {
 	struct proxy *curproxy = srv->proxy;
 	int cfgerr = 0;
-	SSL_CTX *ctx = NULL;
+	SSL_CTX *ctx = srv->ssl_ctx.ctx;
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
@@ -4496,16 +4662,20 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	if (srv->use_ssl == 1)
 		srv->xprt = &ssl_sock;
 
-	ctx = SSL_CTX_new(SSLv23_client_method());
+	/* The context will be uninitialized if there wasn't any "cert" option
+	 * in the server line. */
 	if (!ctx) {
-		ha_alert("config : %s '%s', server '%s': unable to allocate ssl context.\n",
-			 proxy_type_str(curproxy), curproxy->id,
-			 srv->id);
-		cfgerr++;
-		return cfgerr;
-	}
+		ctx = SSL_CTX_new(SSLv23_client_method());
+		if (!ctx) {
+			ha_alert("config : %s '%s', server '%s': unable to allocate ssl context.\n",
+				 proxy_type_str(curproxy), curproxy->id,
+				 srv->id);
+			cfgerr++;
+			return cfgerr;
+		}
 
-	srv->ssl_ctx.ctx = ctx;
+		srv->ssl_ctx.ctx = ctx;
+	}
 
 	cfgerr += ssl_sock_prepare_srv_ssl_ctx(srv, srv->ssl_ctx.ctx);
 
@@ -4601,27 +4771,6 @@ int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 		mode |= SSL_MODE_ASYNC;
 #endif
 	SSL_CTX_set_mode(ctx, mode);
-
-	if (srv->ssl_ctx.client_crt) {
-		if (SSL_CTX_use_PrivateKey_file(srv->ssl_ctx.ctx, srv->ssl_ctx.client_crt, SSL_FILETYPE_PEM) <= 0) {
-			ha_alert("config : %s '%s', server '%s': unable to load SSL private key from PEM file '%s'.\n",
-				 proxy_type_str(curproxy), curproxy->id,
-				 srv->id, srv->ssl_ctx.client_crt);
-			cfgerr++;
-		}
-		else if (SSL_CTX_use_certificate_chain_file(srv->ssl_ctx.ctx, srv->ssl_ctx.client_crt) <= 0) {
-			ha_alert("config : %s '%s', server '%s': unable to load ssl certificate from PEM file '%s'.\n",
-				 proxy_type_str(curproxy), curproxy->id,
-				 srv->id, srv->ssl_ctx.client_crt);
-			cfgerr++;
-		}
-		else if (SSL_CTX_check_private_key(srv->ssl_ctx.ctx) <= 0) {
-			ha_alert("config : %s '%s', server '%s': inconsistencies between private key and certificate loaded from PEM file '%s'.\n",
-				 proxy_type_str(curproxy), curproxy->id,
-				 srv->id, srv->ssl_ctx.client_crt);
-			cfgerr++;
-		}
-	}
 
 	if (global.ssl_server_verify == SSL_SERVER_VERIFY_REQUIRED)
 		verify = SSL_VERIFY_PEER;
