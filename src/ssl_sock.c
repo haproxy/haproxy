@@ -3093,7 +3093,8 @@ end:
 }
 #endif
 
-/* Loads the info in ckch into ctx
+
+/* Load a certificate chain into an SSL context.
  * Returns a bitfield containing the flags:
  *     ERR_FATAL in any fatal error case
  *     ERR_ALERT if the reason of the error is available in err
@@ -3101,16 +3102,14 @@ end:
  * The value 0 means there is no error nor warning and
  * the operation succeed.
  */
-static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_and_chain *ckch, SSL_CTX *ctx, char **err)
+static int ssl_sock_load_cert_chain(const char *path, const struct cert_key_and_chain *ckch,
+				    SSL_CTX *ctx, STACK_OF(X509) **find_chain, char **err)
 {
 	int errcode = 0;
-	STACK_OF(X509) *find_chain = NULL;
 
-	if (SSL_CTX_use_PrivateKey(ctx, ckch->key) <= 0) {
-		memprintf(err, "%sunable to load SSL private key into SSL Context '%s'.\n",
-				err && *err ? *err : "", path);
-		errcode |= ERR_ALERT | ERR_FATAL;
-		return errcode;
+	if (find_chain == NULL) {
+		errcode |= ERR_FATAL;
+		goto end;
 	}
 
 	if (!SSL_CTX_use_certificate(ctx, ckch->cert)) {
@@ -3121,24 +3120,24 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	}
 
 	if (ckch->chain) {
-		find_chain = ckch->chain;
+		*find_chain = ckch->chain;
 	} else {
 		/* Find Certificate Chain in global */
 		struct issuer_chain *issuer;
 		issuer = ssl_get0_issuer_chain(ckch->cert);
 		if (issuer)
-			find_chain = issuer->chain;
+			*find_chain = issuer->chain;
 	}
 
-	if (!find_chain) {
+	if (!*find_chain) {
 		/* always put a null chain stack in the SSL_CTX so it does not
 		 * try to build the chain from the verify store */
-		find_chain = sk_X509_new_null();
+		*find_chain = sk_X509_new_null();
 	}
 
 	/* Load all certs in the ckch into the ctx_chain for the ssl_ctx */
 #ifdef SSL_CTX_set1_chain
-	if (!SSL_CTX_set1_chain(ctx, find_chain)) {
+	if (!SSL_CTX_set1_chain(ctx, *find_chain)) {
 		memprintf(err, "%sunable to load chain certificate into SSL Context '%s'. Make sure you are linking against Openssl >= 1.0.2.\n",
 			  err && *err ? *err : "", path);
 		errcode |= ERR_ALERT | ERR_FATAL;
@@ -3148,7 +3147,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	{ /* legacy compat (< openssl 1.0.2) */
 		X509 *ca;
 		STACK_OF(X509) *chain;
-		chain = X509_chain_up_ref(find_chain);
+		chain = X509_chain_up_ref(*find_chain);
 		while ((ca = sk_X509_shift(chain)))
 			if (!SSL_CTX_add_extra_chain_cert(ctx, ca)) {
 				memprintf(err, "%sunable to load chain certificate into SSL Context '%s'.\n",
@@ -3172,6 +3171,36 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 		}
 	}
 #endif
+
+end:
+	return errcode;
+}
+
+
+/* Loads the info in ckch into ctx
+ * Returns a bitfield containing the flags:
+ *     ERR_FATAL in any fatal error case
+ *     ERR_ALERT if the reason of the error is available in err
+ *     ERR_WARN if a warning is available into err
+ * The value 0 means there is no error nor warning and
+ * the operation succeed.
+ */
+static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_and_chain *ckch, SSL_CTX *ctx, char **err)
+{
+	int errcode = 0;
+	STACK_OF(X509) *find_chain = NULL;
+
+	if (SSL_CTX_use_PrivateKey(ctx, ckch->key) <= 0) {
+		memprintf(err, "%sunable to load SSL private key into SSL Context '%s'.\n",
+				err && *err ? *err : "", path);
+		errcode |= ERR_ALERT | ERR_FATAL;
+		return errcode;
+	}
+
+	/* Load certificate chain */
+	errcode |= ssl_sock_load_cert_chain(path, ckch, ctx, &find_chain, err);
+	if (errcode & ERR_CODE)
+		goto end;
 
 #ifndef OPENSSL_NO_DH
 	/* store a NULL pointer to indicate we have not yet loaded
