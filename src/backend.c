@@ -1306,8 +1306,15 @@ int connect_server(struct stream *s)
 				/* search for a safe conn */
 				if (safe)
 					srv_conn = conn_backend_get(s, srv, 1, hash);
-				else if (reuse_mode == PR_O_REUSE_ALWS && idle)
+
+				/* search for an idle conn if no safe conn found
+				 * on always reuse mode */
+				if (!srv_conn &&
+				    reuse_mode == PR_O_REUSE_ALWS && idle) {
+					/* TODO conn_backend_get should not check the
+					 * safe list is this case */
 					srv_conn = conn_backend_get(s, srv, 0, hash);
+				}
 			}
 
 			if (srv_conn)
