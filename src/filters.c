@@ -632,6 +632,8 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 	unsigned int out = co_data(msg->chn);
 	int ret, data;
 
+	strm_flt(s)->flags &= ~STRM_FLT_FL_HOLD_HTTP_HDRS;
+
 	ret = data = len - out;
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s, s->txn, msg);
 	list_for_each_entry(filter, &strm_flt(s)->filters, list) {
@@ -656,11 +658,22 @@ flt_http_payload(struct stream *s, struct http_msg *msg, unsigned int len)
 		}
 	}
 
-	/* Only forward data if the last filter decides to forward something */
-	if (ret > 0) {
-		ret = data;
-		*strm_off += ret;
-	}
+	/* If nothing was forwarded yet, we take care to hold the headers if
+	 * following conditions are met :
+	 *
+	 *  - *strm_off == 0 (nothing forwarded yet)
+	 *  - ret == 0       (no data forwarded at all on this turn)
+	 *  - STRM_FLT_FL_HOLD_HTTP_HDRS flag set (at least one filter want to hold the headers)
+	 *
+	 * Be careful, STRM_FLT_FL_HOLD_HTTP_HDRS is removed before each http_payload loop.
+	 * Thus, it must explicitly be set when necessary. We must do that to hold the headers
+	 * when there is no payload.
+	 */
+	if (!ret && !*strm_off && (strm_flt(s)->flags & STRM_FLT_FL_HOLD_HTTP_HDRS))
+		goto end;
+
+	ret = data;
+	*strm_off += ret;
  end:
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA|STRM_EV_FLT_ANA, s);
 	return ret;

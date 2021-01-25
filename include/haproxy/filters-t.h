@@ -33,6 +33,7 @@
 
 /* Flags set on the stream, common to all filters attached to its stream */
 #define STRM_FLT_FL_HAS_FILTERS          0x0001 /* The stream has at least one filter */
+#define STRM_FLT_FL_HOLD_HTTP_HDRS       0x0002 /* At least one filter on the stream want to hold the message headers */
 
 
 struct http_msg;
