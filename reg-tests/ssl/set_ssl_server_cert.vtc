@@ -1,0 +1,104 @@
+#REGTEST_TYPE=devel
+
+# This reg-test uses the "set ssl cert" command to update a backend certificate over the CLI.
+# It requires socat to upload the certificate
+
+varnishtest "Test the 'set ssl cert' feature of the CLI"
+#REQUIRE_VERSION=2.4
+#REQUIRE_OPTIONS=OPENSSL
+#REQUIRE_BINARIES=socat
+feature ignore_unknown_macro
+
+server s1 -repeat 4 {
+  rxreq
+  txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httplog
+        ${no-htx} option http-use-htx
+        log stderr local0 debug err
+        option logasap
+        timeout connect 100ms
+        timeout client  1s
+        timeout server  1s
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        retries 0 # 2nd SSL connection must fail so skip the retry
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client1.pem
+
+    listen ssl-lst
+        # crt: certificate of the server
+        # ca-file: CA used for client authentication request
+        # crl-file: revocation list for client auth: the client1 certificate is revoked
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify optional crt-ignore-err all crl-file ${testdir}/crl-auth.pem
+
+        acl cert_expired ssl_c_verify 10
+        acl cert_revoked ssl_c_verify 23
+        acl cert_ok ssl_c_verify 0
+
+        http-response add-header X-SSL Ok if cert_ok
+        http-response add-header X-SSL Expired if cert_expired
+        http-response add-header X-SSL Revoked if cert_revoked
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_clearlst_sock} {
+  txreq
+  rxresp
+  expect resp.status == 200
+  expect resp.http.x-ssl == "Ok"
+} -run
+
+# Replace certificate with an expired one
+shell {
+    printf "set ssl cert ${testdir}/client1.pem <<\n$(cat ${testdir}/client2_expired.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+# The updated client certificate is an expired one so this request should fail
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Expired"
+} -run
+
+# Replace certificate with a revoked one
+shell {
+    printf "set ssl cert ${testdir}/client1.pem <<\n$(cat ${testdir}/client3_revoked.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+# The updated client certificate is a revoked one so this request should fail
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Revoked"
+} -run
+
+# Abort a transaction
+shell {
+    printf "set ssl cert ${testdir}/client1.pem <<\n$(cat ${testdir}/client3_revoked.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "abort ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+# The certificate was not updated so it should still be revoked
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Revoked"
+} -run
+
+

@@ -907,6 +907,8 @@ void ckch_inst_free(struct ckch_inst *inst)
 		ebmb_delete(&sni->name);
 		free(sni);
 	}
+	SSL_CTX_free(inst->ctx);
+	inst->ctx = NULL;
 	LIST_DEL(&inst->by_ckchs);
 	LIST_DEL(&inst->by_crtlist_entry);
 	free(inst);
@@ -1315,6 +1317,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					struct ckch_inst *new_inst;
 					char **sni_filter = NULL;
 					int fcount = 0;
+					SSL_CTX *ctx = NULL;
 
 					/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
 					if (y >= 10) {
@@ -1329,9 +1332,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					}
 
 					if (ckchi->is_server_instance)
-						goto error; /* Not managed yet */
-
-					errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, &new_inst, &err);
+						errcode |= ckch_inst_new_load_srv_store(new_ckchs->path, new_ckchs, &new_inst, &ctx, &err);
+					else
+						errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, &new_inst, &err);
 
 					if (errcode & ERR_CODE)
 						goto error;
@@ -1339,6 +1342,17 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					/* if the previous ckchi was used as the default */
 					if (ckchi->is_default)
 						new_inst->is_default = 1;
+
+					new_inst->is_server_instance = ckchi->is_server_instance;
+					new_inst->server = ckchi->server;
+					/* Create a new SSL_CTX and link it to the new instance. */
+					if (new_inst->is_server_instance) {
+						errcode |= ssl_sock_prepare_srv_ssl_ctx(ckchi->server, ctx);
+						if (errcode & ERR_CODE)
+							goto error;
+
+						new_inst->ctx = ctx;
+					}
 
 					/* create the link to the crtlist_entry */
 					new_inst->crtlist_entry = ckchi->crtlist_entry;
@@ -1388,14 +1402,41 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 
 				/* First, we insert every new SNIs in the trees, also replace the default_ctx */
 				list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
-					HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-					ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
-					HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+					/* The bind_conf will be null on server ckch_instances. */
+					if (ckchi->is_server_instance) {
+						struct ckch_inst *old_inst = ckchi->server->ssl_ctx.inst;
+						SSL_CTX *old_ctx = ckchi->server->ssl_ctx.ctx;
+
+						/* The certificate update on the server side (backend)
+						 * can be done by rewritting a single pointer so no
+						 * locks are needed here. */
+						SSL_CTX_up_ref(ckchi->ctx);
+						/* Actual ssl context update */
+						ckchi->server->ssl_ctx.ctx = ckchi->ctx;
+						ckchi->server->ssl_ctx.inst = ckchi;
+
+						__ha_barrier_store();
+
+						/* Clear any previous ssl context. */
+						if (old_ctx)
+							SSL_CTX_free(old_ctx);
+						if (old_inst)
+							ckch_inst_free(old_inst);
+
+					}
+					else {
+						HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+						ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
+						HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+					}
 				}
 
 				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
 				list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
 					struct bind_conf __maybe_unused *bind_conf = ckchi->bind_conf;
+					/* The bind_conf will be null on server ckch_instances. */
+					if (ckchi->is_server_instance)
+						continue;
 
 					HA_RWLOCK_WRLOCK(SNI_LOCK, &bind_conf->sni_lock);
 					ckch_inst_free(ckchi);

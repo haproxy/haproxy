@@ -3764,6 +3764,11 @@ int ssl_sock_load_srv_cert(char *path, struct server *server, char **err)
 			if (server->ssl_ctx.inst) {
 				server->ssl_ctx.inst->is_server_instance = 1;
 				server->ssl_ctx.inst->server = server;
+				/* Keep a reference to the SSL_CTX in the
+				 * ckch_inst in order to ease certificate update
+				 * (via CLI). */
+				SSL_CTX_up_ref(server->ssl_ctx.ctx);
+				server->ssl_ctx.inst->ctx = server->ssl_ctx.ctx;
 			}
 		}
 	}
