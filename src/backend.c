@@ -1268,7 +1268,7 @@ int connect_server(struct stream *s)
 		goto skip_reuse;
 
 	/* first, search for a matching connection in the session's idle conns */
-	srv_conn = session_get_conn(s->sess, s->target);
+	srv_conn = session_get_conn(s->sess, s->target, hash);
 	if (srv_conn)
 		reuse = 1;
 
