@@ -52,7 +52,8 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
                         struct field *stats, int len);
 int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
                         struct field *stats, int len);
-int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len);
+int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len,
+			enum stat_field *selected_field);
 
 void stats_io_handler(struct stream_interface *si);
 int stats_emit_raw_data_field(struct buffer *out, const struct field *f);

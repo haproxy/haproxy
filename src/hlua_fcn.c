@@ -1341,7 +1341,7 @@ int hlua_proxy_get_stats(lua_State *L)
 
 	px = hlua_check_proxy(L, 1);
 	if (px->cap & PR_CAP_BE)
-		stats_fill_be_stats(px, STAT_SHLGNDS, stats, STATS_LEN);
+		stats_fill_be_stats(px, STAT_SHLGNDS, stats, STATS_LEN, NULL);
 	else
 		stats_fill_fe_stats(px, stats, STATS_LEN, NULL);
 	lua_newtable(L);

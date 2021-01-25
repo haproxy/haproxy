@@ -2260,130 +2260,289 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, st
 	return stats_dump_one_line(stats, stats_count, appctx);
 }
 
-/* Fill <stats> with the backend statistics. <stats> is
- * preallocated array of length <len>. The length of the array
- * must be at least ST_F_TOTAL_FIELDS. If this length is less
- * then this value, the function returns 0, otherwise, it
- * returns 1. <flags> can take the value STAT_SHLGNDS.
+/* Helper to compute srv values for a given backend
  */
-int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len)
+static void stats_fill_be_stats_computesrv(struct proxy *px, int *nbup, int *nbsrv, int *totuw)
 {
+	int nbup_tmp, nbsrv_tmp, totuw_tmp;
+	const struct server *srv;
+
+	nbup_tmp = nbsrv_tmp = totuw_tmp = 0;
+	for (srv = px->srv; srv; srv = srv->next) {
+		if (srv->cur_state != SRV_ST_STOPPED) {
+			nbup_tmp++;
+			if (srv_currently_usable(srv) &&
+			    (!px->srv_act ^ !(srv->flags & SRV_F_BACKUP)))
+				totuw_tmp += srv->uweight;
+		}
+		nbsrv_tmp++;
+	}
+
+	HA_RWLOCK_RDLOCK(LBPRM_LOCK, &px->lbprm.lock);
+	if (!px->srv_act && px->lbprm.fbck)
+		totuw_tmp = px->lbprm.fbck->uweight;
+	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &px->lbprm.lock);
+
+	/* use tmp variable then assign result to make gcc happy */
+	*nbup = nbup_tmp;
+	*nbsrv = nbsrv_tmp;
+	*totuw = totuw_tmp;
+}
+
+/* Fill <stats> with the backend statistics. <stats> is preallocated array of
+ * length <len>. If <selected_field> is != NULL, only fill this one. The length
+ * of the array must be at least ST_F_TOTAL_FIELDS. If this length is less than
+ * this value, or if the selected field is not implemented for backends, the
+ * function returns 0, otherwise, it returns 1. <flags> can take the value
+ * STAT_SHLGNDS.
+ */
+int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int len,
+			enum stat_field *selected_field)
+{
+	enum stat_field current_field = (selected_field != NULL ? *selected_field : 0);
 	long long be_samples_counter;
 	unsigned int be_samples_window = TIME_STATS_SAMPLES;
 	struct buffer *out = get_trash_chunk();
-	const struct server *srv;
-	int nbup, nbsrv;
-	int totuw;
+	int nbup, nbsrv, totuw;
 	char *fld;
 
 	if (len < ST_F_TOTAL_FIELDS)
 		return 0;
 
-	totuw = 0;
-	nbup = nbsrv = 0;
-	for (srv = px->srv; srv; srv = srv->next) {
-		if (srv->cur_state != SRV_ST_STOPPED) {
-			nbup++;
-			if (srv_currently_usable(srv) &&
-			    (!px->srv_act ^ !(srv->flags & SRV_F_BACKUP)))
-				totuw += srv->uweight;
+	nbup = nbsrv = totuw = 0;
+	/* some srv values compute for later if we either select all fields or
+	 * need them for one of the mentioned ones */
+	if (selected_field == NULL || *selected_field == ST_F_STATUS ||
+	    *selected_field == ST_F_UWEIGHT)
+		stats_fill_be_stats_computesrv(px, &nbup, &nbsrv, &totuw);
+
+	/* same here but specific to time fields */
+	if (selected_field == NULL || *selected_field == ST_F_QTIME ||
+	    *selected_field == ST_F_CTIME || *selected_field == ST_F_RTIME ||
+	    *selected_field == ST_F_TTIME) {
+		be_samples_counter = (px->mode == PR_MODE_HTTP) ? px->be_counters.p.http.cum_req : px->be_counters.cum_lbconn;
+		if (be_samples_counter < TIME_STATS_SAMPLES && be_samples_counter > 0)
+			be_samples_window = be_samples_counter;
+	}
+
+	for (; current_field < ST_F_TOTAL_FIELDS; current_field++) {
+		struct field metric = { 0 };
+
+		switch (current_field) {
+			case ST_F_PXNAME:
+				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+				break;
+			case ST_F_SVNAME:
+				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "BACKEND");
+				break;
+			case ST_F_MODE:
+				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
+				break;
+			case ST_F_QCUR:
+				metric = mkf_u32(0, px->nbpend);
+				break;
+			case ST_F_QMAX:
+				metric = mkf_u32(FN_MAX, px->be_counters.nbpend_max);
+				break;
+			case ST_F_SCUR:
+				metric = mkf_u32(0, px->beconn);
+				break;
+			case ST_F_SMAX:
+				metric = mkf_u32(FN_MAX, px->be_counters.conn_max);
+				break;
+			case ST_F_SLIM:
+				metric = mkf_u32(FO_CONFIG|FN_LIMIT, px->fullconn);
+				break;
+			case ST_F_STOT:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.cum_conn);
+				break;
+			case ST_F_BIN:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.bytes_in);
+				break;
+			case ST_F_BOUT:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.bytes_out);
+				break;
+			case ST_F_DREQ:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.denied_req);
+				break;
+			case ST_F_DRESP:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.denied_resp);
+				break;
+			case ST_F_ECON:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.failed_conns);
+				break;
+			case ST_F_ERESP:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.failed_resp);
+				break;
+			case ST_F_WRETR:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.retries);
+				break;
+			case ST_F_WREDIS:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.redispatches);
+				break;
+			case ST_F_WREW:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.failed_rewrites);
+				break;
+			case ST_F_EINT:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.internal_errors);
+				break;
+			case ST_F_CONNECT:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.connect);
+				break;
+			case ST_F_REUSE:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.reuse);
+				break;
+			case ST_F_STATUS:
+				fld = chunk_newstr(out);
+				chunk_appendf(out, "%s", (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
+				if (flags & (STAT_HIDE_MAINT|STAT_HIDE_DOWN))
+					chunk_appendf(out, " (%d/%d)", nbup, nbsrv);
+				metric = mkf_str(FO_STATUS, fld);
+				break;
+			case ST_F_WEIGHT:
+				metric = mkf_u32(FN_AVG, (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
+				break;
+			case ST_F_UWEIGHT:
+				metric = mkf_u32(FN_AVG, totuw);
+				break;
+			case ST_F_ACT:
+				metric = mkf_u32(0, px->srv_act);
+				break;
+			case ST_F_BCK:
+				metric = mkf_u32(0, px->srv_bck);
+				break;
+			case ST_F_CHKDOWN:
+				metric = mkf_u64(FN_COUNTER, px->down_trans);
+				break;
+			case ST_F_LASTCHG:
+				metric = mkf_u32(FN_AGE, now.tv_sec - px->last_change);
+				break;
+			case ST_F_DOWNTIME:
+				if (px->srv)
+					metric = mkf_u32(FN_COUNTER, be_downtime(px));
+				break;
+			case ST_F_PID:
+				metric = mkf_u32(FO_KEY, relative_pid);
+				break;
+			case ST_F_IID:
+				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+				break;
+			case ST_F_SID:
+				metric = mkf_u32(FO_KEY|FS_SERVICE, 0);
+				break;
+			case ST_F_LBTOT:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.cum_lbconn);
+				break;
+			case ST_F_TYPE:
+				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_BE);
+				break;
+			case ST_F_RATE:
+				metric = mkf_u32(0, read_freq_ctr(&px->be_sess_per_sec));
+				break;
+			case ST_F_RATE_MAX:
+				metric = mkf_u32(0, px->be_counters.sps_max);
+				break;
+			case ST_F_COOKIE:
+				if (flags & STAT_SHLGNDS && px->cookie_name)
+					metric = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, px->cookie_name);
+				break;
+			case ST_F_ALGO:
+				if (flags & STAT_SHLGNDS)
+					metric = mkf_str(FO_CONFIG|FS_SERVICE, backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
+				break;
+			case ST_F_REQ_TOT:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.cum_req);
+				break;
+			case ST_F_HRSP_1XX:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[1]);
+				break;
+			case ST_F_HRSP_2XX:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[2]);
+				break;
+			case ST_F_HRSP_3XX:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[3]);
+				break;
+			case ST_F_HRSP_4XX:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[4]);
+				break;
+			case ST_F_HRSP_5XX:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[5]);
+				break;
+			case ST_F_HRSP_OTHER:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[0]);
+				break;
+			case ST_F_CACHE_LOOKUPS:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_lookups);
+				break;
+			case ST_F_CACHE_HITS:
+				if (px->mode == PR_MODE_HTTP)
+					metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_hits);
+				break;
+			case ST_F_CLI_ABRT:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.cli_aborts);
+				break;
+			case ST_F_SRV_ABRT:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.srv_aborts);
+				break;
+			case ST_F_COMP_IN:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_in);
+				break;
+			case ST_F_COMP_OUT:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_out);
+				break;
+			case ST_F_COMP_BYP:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.comp_byp);
+				break;
+			case ST_F_COMP_RSP:
+				metric = mkf_u64(FN_COUNTER, px->be_counters.p.http.comp_rsp);
+				break;
+			case ST_F_LASTSESS:
+				metric = mkf_s32(FN_AGE, be_lastsession(px));
+				break;
+			case ST_F_QTIME:
+				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.q_time, be_samples_window));
+				break;
+			case ST_F_CTIME:
+				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.c_time, be_samples_window));
+				break;
+			case ST_F_RTIME:
+				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.d_time, be_samples_window));
+				break;
+			case ST_F_TTIME:
+				metric = mkf_u32(FN_AVG, swrate_avg(px->be_counters.t_time, be_samples_window));
+				break;
+			case ST_F_QT_MAX:
+				metric = mkf_u32(FN_MAX, px->be_counters.qtime_max);
+				break;
+			case ST_F_CT_MAX:
+				metric = mkf_u32(FN_MAX, px->be_counters.ctime_max);
+				break;
+			case ST_F_RT_MAX:
+				metric = mkf_u32(FN_MAX, px->be_counters.dtime_max);
+				break;
+			case ST_F_TT_MAX:
+				metric = mkf_u32(FN_MAX, px->be_counters.ttime_max);
+				break;
+			default:
+				/* not used for backends. If a specific metric
+				 * is requested, return an error. Otherwise continue.
+				 */
+				if (selected_field != NULL)
+					return 0;
+				continue;
 		}
-		nbsrv++;
+		stats[current_field] = metric;
+		if (selected_field != NULL)
+			break;
 	}
-
-	HA_RWLOCK_RDLOCK(LBPRM_LOCK, &px->lbprm.lock);
-	if (!px->srv_act && px->lbprm.fbck)
-		totuw = px->lbprm.fbck->uweight;
-	HA_RWLOCK_RDUNLOCK(LBPRM_LOCK, &px->lbprm.lock);
-
-	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
-	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, "BACKEND");
-	stats[ST_F_MODE]     = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
-	stats[ST_F_QCUR]     = mkf_u32(0, px->nbpend);
-	stats[ST_F_QMAX]     = mkf_u32(FN_MAX, px->be_counters.nbpend_max);
-	stats[ST_F_SCUR]     = mkf_u32(0, px->beconn);
-	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, px->be_counters.conn_max);
-	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, px->fullconn);
-	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, px->be_counters.cum_conn);
-	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, px->be_counters.bytes_in);
-	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, px->be_counters.bytes_out);
-	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, px->be_counters.denied_req);
-	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, px->be_counters.denied_resp);
-	stats[ST_F_ECON]     = mkf_u64(FN_COUNTER, px->be_counters.failed_conns);
-	stats[ST_F_ERESP]    = mkf_u64(FN_COUNTER, px->be_counters.failed_resp);
-	stats[ST_F_WRETR]    = mkf_u64(FN_COUNTER, px->be_counters.retries);
-	stats[ST_F_WREDIS]   = mkf_u64(FN_COUNTER, px->be_counters.redispatches);
-	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, px->be_counters.failed_rewrites);
-	stats[ST_F_EINT]     = mkf_u64(FN_COUNTER, px->be_counters.internal_errors);
-	stats[ST_F_CONNECT]  = mkf_u64(FN_COUNTER, px->be_counters.connect);
-	stats[ST_F_REUSE]    = mkf_u64(FN_COUNTER, px->be_counters.reuse);
-
-	fld = chunk_newstr(out);
-	chunk_appendf(out, "%s", (px->lbprm.tot_weight > 0 || !px->srv) ? "UP" : "DOWN");
-	if (flags & (STAT_HIDE_MAINT|STAT_HIDE_DOWN))
-		chunk_appendf(out, " (%d/%d)", nbup, nbsrv);
-
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, fld);
-	stats[ST_F_WEIGHT]   = mkf_u32(FN_AVG, (px->lbprm.tot_weight * px->lbprm.wmult + px->lbprm.wdiv - 1) / px->lbprm.wdiv);
-	stats[ST_F_UWEIGHT]  = mkf_u32(FN_AVG, totuw);
-	stats[ST_F_ACT]      = mkf_u32(0, px->srv_act);
-	stats[ST_F_BCK]      = mkf_u32(0, px->srv_bck);
-	stats[ST_F_CHKDOWN]  = mkf_u64(FN_COUNTER, px->down_trans);
-	stats[ST_F_LASTCHG]  = mkf_u32(FN_AGE, now.tv_sec - px->last_change);
-	if (px->srv)
-		stats[ST_F_DOWNTIME] = mkf_u32(FN_COUNTER, be_downtime(px));
-
-	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
-	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
-	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, 0);
-	stats[ST_F_LBTOT]    = mkf_u64(FN_COUNTER, px->be_counters.cum_lbconn);
-	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_BE);
-	stats[ST_F_RATE]     = mkf_u32(0, read_freq_ctr(&px->be_sess_per_sec));
-	stats[ST_F_RATE_MAX] = mkf_u32(0, px->be_counters.sps_max);
-
-	if (flags & STAT_SHLGNDS) {
-		if (px->cookie_name)
-			stats[ST_F_COOKIE] = mkf_str(FO_CONFIG|FN_NAME|FS_SERVICE, px->cookie_name);
-		stats[ST_F_ALGO] = mkf_str(FO_CONFIG|FS_SERVICE, backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
-	}
-
-	/* http response: 1xx, 2xx, 3xx, 4xx, 5xx, other */
-	if (px->mode == PR_MODE_HTTP) {
-		stats[ST_F_REQ_TOT]     = mkf_u64(FN_COUNTER, px->be_counters.p.http.cum_req);
-		stats[ST_F_HRSP_1XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[1]);
-		stats[ST_F_HRSP_2XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[2]);
-		stats[ST_F_HRSP_3XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[3]);
-		stats[ST_F_HRSP_4XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[4]);
-		stats[ST_F_HRSP_5XX]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[5]);
-		stats[ST_F_HRSP_OTHER]  = mkf_u64(FN_COUNTER, px->be_counters.p.http.rsp[0]);
-		stats[ST_F_CACHE_LOOKUPS] = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_lookups);
-		stats[ST_F_CACHE_HITS]    = mkf_u64(FN_COUNTER, px->be_counters.p.http.cache_hits);
-	}
-
-	stats[ST_F_CLI_ABRT]     = mkf_u64(FN_COUNTER, px->be_counters.cli_aborts);
-	stats[ST_F_SRV_ABRT]     = mkf_u64(FN_COUNTER, px->be_counters.srv_aborts);
-
-	/* compression: in, out, bypassed, responses */
-	stats[ST_F_COMP_IN]      = mkf_u64(FN_COUNTER, px->be_counters.comp_in);
-	stats[ST_F_COMP_OUT]     = mkf_u64(FN_COUNTER, px->be_counters.comp_out);
-	stats[ST_F_COMP_BYP]     = mkf_u64(FN_COUNTER, px->be_counters.comp_byp);
-	stats[ST_F_COMP_RSP]     = mkf_u64(FN_COUNTER, px->be_counters.p.http.comp_rsp);
-	stats[ST_F_LASTSESS]     = mkf_s32(FN_AGE, be_lastsession(px));
-
-	be_samples_counter = (px->mode == PR_MODE_HTTP) ? px->be_counters.p.http.cum_req : px->be_counters.cum_lbconn;
-	if (be_samples_counter < TIME_STATS_SAMPLES && be_samples_counter > 0)
-		be_samples_window = be_samples_counter;
-
-	stats[ST_F_QTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.q_time, be_samples_window));
-	stats[ST_F_CTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.c_time, be_samples_window));
-	stats[ST_F_RTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.d_time, be_samples_window));
-	stats[ST_F_TTIME]        = mkf_u32(FN_AVG, swrate_avg(px->be_counters.t_time, be_samples_window));
-
-	stats[ST_F_QT_MAX]       = mkf_u32(FN_MAX, px->be_counters.qtime_max);
-	stats[ST_F_CT_MAX]       = mkf_u32(FN_MAX, px->be_counters.ctime_max);
-	stats[ST_F_RT_MAX]       = mkf_u32(FN_MAX, px->be_counters.dtime_max);
-	stats[ST_F_TT_MAX]       = mkf_u32(FN_MAX, px->be_counters.ttime_max);
-
 	return 1;
 }
 
@@ -2406,7 +2565,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px)
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_be_stats(px, appctx->ctx.stats.flags, stats, ST_F_TOTAL_FIELDS))
+	if (!stats_fill_be_stats(px, appctx->ctx.stats.flags, stats, ST_F_TOTAL_FIELDS, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
