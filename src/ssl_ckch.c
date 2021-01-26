@@ -1317,7 +1317,6 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					struct ckch_inst *new_inst;
 					char **sni_filter = NULL;
 					int fcount = 0;
-					SSL_CTX *ctx = NULL;
 
 					/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
 					if (y >= 10) {
@@ -1332,7 +1331,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					}
 
 					if (ckchi->is_server_instance)
-						errcode |= ckch_inst_new_load_srv_store(new_ckchs->path, new_ckchs, &new_inst, &ctx, &err);
+						errcode |= ckch_inst_new_load_srv_store(new_ckchs->path, new_ckchs, &new_inst, &err);
 					else
 						errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, &new_inst, &err);
 
@@ -1347,11 +1346,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					new_inst->server = ckchi->server;
 					/* Create a new SSL_CTX and link it to the new instance. */
 					if (new_inst->is_server_instance) {
-						errcode |= ssl_sock_prepare_srv_ssl_ctx(ckchi->server, ctx);
+						errcode |= ssl_sock_prepare_srv_ssl_ctx(ckchi->server, new_inst->ctx);
 						if (errcode & ERR_CODE)
 							goto error;
-
-						new_inst->ctx = ctx;
 					}
 
 					/* create the link to the crtlist_entry */

@@ -3454,7 +3454,7 @@ error:
  *     ERR_WARN if a warning is available into err
  */
 int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
-				 struct ckch_inst **ckchi, SSL_CTX **ssl_ctx, char **err)
+				 struct ckch_inst **ckchi, char **err)
 {
 	SSL_CTX *ctx;
 	struct cert_key_and_chain *ckch;
@@ -3476,10 +3476,6 @@ int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
 		goto error;
 	}
 
-	if (*ssl_ctx)
-		SSL_CTX_free(*ssl_ctx);
-	*ssl_ctx = ctx;
-
 	errcode |= ssl_sock_put_srv_ckch_into_ctx(path, ckch, ctx, err);
 	if (errcode & ERR_CODE)
 		goto error;
@@ -3492,14 +3488,11 @@ int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
 		goto error;
 	}
 
-	SSL_CTX_up_ref(ctx);
-
 	/* everything succeed, the ckch instance can be used */
 	ckch_inst->bind_conf = NULL;
 	ckch_inst->ssl_conf = NULL;
 	ckch_inst->ckch_store = ckchs;
-
-	SSL_CTX_free(ctx); /* we need to free the ctx since we incremented the refcount where it's used */
+	ckch_inst->ctx = ctx;
 
 	*ckchi = ckch_inst;
 	return errcode;
@@ -3536,13 +3529,12 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 }
 
 static int ssl_sock_load_srv_ckchs(const char *path, struct ckch_store *ckchs,
-				   struct ckch_inst **ckch_inst,
-				   SSL_CTX **ssl_ctx, char **err)
+				   struct ckch_inst **ckch_inst, char **err)
 {
 	int errcode = 0;
 
 	/* we found the ckchs in the tree, we can use it directly */
-	errcode |= ckch_inst_new_load_srv_store(path, ckchs, ckch_inst, ssl_ctx, err);
+	errcode |= ckch_inst_new_load_srv_store(path, ckchs, ckch_inst, err);
 
 	if (errcode & ERR_CODE)
 		return errcode;
@@ -3751,7 +3743,7 @@ int ssl_sock_load_srv_cert(char *path, struct server *server, char **err)
 
 	if ((ckchs = ckchs_lookup(path))) {
 		/* we found the ckchs in the tree, we can use it directly */
-		 cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, &server->ssl_ctx.inst, &server->ssl_ctx.ctx, err);
+		 cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, &server->ssl_ctx.inst, err);
 		 found++;
 	} else if (stat(path, &buf) == 0) {
 		/* We do not manage directories on backend side. */
@@ -3760,7 +3752,7 @@ int ssl_sock_load_srv_cert(char *path, struct server *server, char **err)
 			ckchs =  ckchs_load_cert_file(path, err);
 			if (!ckchs)
 				cfgerr |= ERR_ALERT | ERR_FATAL;
-			cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, &server->ssl_ctx.inst, &server->ssl_ctx.ctx, err);
+			cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, &server->ssl_ctx.inst, err);
 			if (server->ssl_ctx.inst) {
 				server->ssl_ctx.inst->is_server_instance = 1;
 				server->ssl_ctx.inst->server = server;
