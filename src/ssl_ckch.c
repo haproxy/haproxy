@@ -1404,27 +1404,18 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
 					/* The bind_conf will be null on server ckch_instances. */
 					if (ckchi->is_server_instance) {
-						struct ckch_inst *old_inst = ckchi->server->ssl_ctx.inst;
-						SSL_CTX *old_ctx = ckchi->server->ssl_ctx.ctx;
-
 						/* The certificate update on the server side (backend)
 						 * can be done by rewritting a single pointer so no
 						 * locks are needed here. */
-						SSL_CTX_up_ref(ckchi->ctx);
+						/* free the server current SSL_CTX */
+						SSL_CTX_free(ckchi->server->ssl_ctx.ctx);
 						/* Actual ssl context update */
+						SSL_CTX_up_ref(ckchi->ctx);
 						ckchi->server->ssl_ctx.ctx = ckchi->ctx;
+						__ha_barrier_store();
 						ckchi->server->ssl_ctx.inst = ckchi;
 
-						__ha_barrier_store();
-
-						/* Clear any previous ssl context. */
-						if (old_ctx)
-							SSL_CTX_free(old_ctx);
-						if (old_inst)
-							ckch_inst_free(old_inst);
-
-					}
-					else {
+					} else {
 						HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
 						ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
 						HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
@@ -1433,14 +1424,17 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 
 				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
 				list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
-					struct bind_conf __maybe_unused *bind_conf = ckchi->bind_conf;
-					/* The bind_conf will be null on server ckch_instances. */
-					if (ckchi->is_server_instance)
-						continue;
 
-					HA_RWLOCK_WRLOCK(SNI_LOCK, &bind_conf->sni_lock);
-					ckch_inst_free(ckchi);
-					HA_RWLOCK_WRUNLOCK(SNI_LOCK, &bind_conf->sni_lock);
+					if (ckchi->is_server_instance) {
+						/* no lock for servers */
+						ckch_inst_free(ckchi);
+					} else {
+						struct bind_conf __maybe_unused *bind_conf = ckchi->bind_conf;
+
+						HA_RWLOCK_WRLOCK(SNI_LOCK, &bind_conf->sni_lock);
+						ckch_inst_free(ckchi);
+						HA_RWLOCK_WRUNLOCK(SNI_LOCK, &bind_conf->sni_lock);
+					}
 				}
 
 				/* Replace the old ckchs by the new one */
