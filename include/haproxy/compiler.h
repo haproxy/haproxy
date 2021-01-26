@@ -22,6 +22,9 @@
 #ifndef _HAPROXY_COMPILER_H
 #define _HAPROXY_COMPILER_H
 
+#ifdef DEBUG_USE_ABORT
+#include <stdlib.h>
+#endif
 
 /*
  * Gcc before 3.0 needs [0] to declare a variable-size array
