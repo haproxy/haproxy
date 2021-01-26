@@ -1248,12 +1248,15 @@ int connect_server(struct stream *s)
 	 */
 	si_release_endpoint(&s->si[1]);
 
+	srv = objt_server(s->target);
+
+	if (s->be->mode != PR_MODE_HTTP)
+		goto skip_reuse;
+
 	/* first, search for a matching connection in the session's idle conns */
 	srv_conn = session_get_conn(s->sess, s->target);
 	if (srv_conn)
 		reuse = 1;
-
-	srv = objt_server(s->target);
 
 	if (srv && !reuse && reuse_mode != PR_O_REUSE_NEVR) {
 		/* Below we pick connections from the safe, idle  or
@@ -1391,6 +1394,7 @@ int connect_server(struct stream *s)
 	else
 		srv_conn = NULL;
 
+skip_reuse:
 	/* no reuse or failed to reuse the connection above, pick a new one */
 	if (!srv_conn) {
 		srv_conn = conn_new(s->target);
@@ -1541,21 +1545,26 @@ int connect_server(struct stream *s)
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
-		/* If we're doing http-reuse always, and the connection is not
-		 * private with available streams (an http2 connection), add it
-		 * to the available list, so that others can use it right
-		 * away. If the connection is private or we're doing http-reuse
-		 * safe and the mux protocol supports multiplexing, add it in
-		 * the session server list.
-		 */
-		if (srv && reuse_mode == PR_O_REUSE_ALWS &&
-		    !(srv_conn->flags & CO_FL_PRIVATE) && srv_conn->mux->avail_streams(srv_conn) > 0)
-			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
-		else if (srv_conn->flags & CO_FL_PRIVATE ||
-		         (reuse_mode == PR_O_REUSE_SAFE &&
-		          srv_conn->mux->flags & MX_FL_HOL_RISK)) {
-			/* If it fail now, the same will be done in mux->detach() callback */
-			session_add_conn(s->sess, srv_conn, srv_conn->target);
+		if (s->be->mode != PR_MODE_HTTP) {
+			/* If we're doing http-reuse always, and the connection
+			 * is not private with available streams (an http2
+			 * connection), add it to the available list, so that
+			 * others can use it right away. If the connection is
+			 * private or we're doing http-reuse safe and the mux
+			 * protocol supports multiplexing, add it in the
+			 * session server list.
+			 */
+			if (srv && reuse_mode == PR_O_REUSE_ALWS &&
+			    !(srv_conn->flags & CO_FL_PRIVATE) &&
+			    srv_conn->mux->avail_streams(srv_conn) > 0) {
+				LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
+			}
+			else if (srv_conn->flags & CO_FL_PRIVATE ||
+			         (reuse_mode == PR_O_REUSE_SAFE &&
+			          srv_conn->mux->flags & MX_FL_HOL_RISK)) {
+				/* If it fail now, the same will be done in mux->detach() callback */
+				session_add_conn(s->sess, srv_conn, srv_conn->target);
+			}
 		}
 	}
 
