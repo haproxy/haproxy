@@ -1301,12 +1301,7 @@ int connect_server(struct stream *s)
 				 srv->curr_idle_nb > 0) {
 				srv_conn = conn_backend_get(s, srv, 0);
 			}
-			/* If we've picked a connection from the pool, we now have to
-			 * detach it. We may have to get rid of the previous idle
-			 * connection we had, so for this we try to swap it with the
-			 * other owner's. That way it may remain alive for others to
-			 * pick.
-			 */
+
 			if (srv_conn)
 				reuse = 1;
 		}
