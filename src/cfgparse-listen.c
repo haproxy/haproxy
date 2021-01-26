@@ -2915,6 +2915,7 @@ stats_error_parsing:
 
 					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
 					curproxy->conn_src.opts |= CO_SRC_TPROXY_DYN;
+					free(curproxy->conn_src.bind_hdr_name);
 					curproxy->conn_src.bind_hdr_name = calloc(1, end - name + 1);
 					curproxy->conn_src.bind_hdr_len = end - name;
 					memcpy(curproxy->conn_src.bind_hdr_name, name, end - name);
