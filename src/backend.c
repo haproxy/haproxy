@@ -1237,6 +1237,7 @@ int connect_server(struct stream *s)
 	struct connection *srv_conn = NULL;
 	struct conn_stream *srv_cs = NULL;
 	struct server *srv;
+	const int reuse_mode = s->be->options & PR_O_REUSE_MASK;
 	int reuse = 0;
 	int init_mux = 0;
 	int err;
@@ -1254,9 +1255,7 @@ int connect_server(struct stream *s)
 
 	srv = objt_server(s->target);
 
-	if (srv && !reuse) {
-		srv_conn = NULL;
-
+	if (srv && !reuse && reuse_mode != PR_O_REUSE_NEVR) {
 		/* Below we pick connections from the safe, idle  or
 		 * available (which are safe too) lists based
 		 * on the strategy, the fact that this is a first or second
@@ -1275,31 +1274,29 @@ int connect_server(struct stream *s)
 		 * Idle conns are necessarily looked up on the same thread so
 		 * that there is no concurrency issues.
 		 */
-		if (srv->available_conns && !LIST_ISEMPTY(&srv->available_conns[tid]) &&
-		    ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR)) {
+		if (!LIST_ISEMPTY(&srv->available_conns[tid])) {
 			    srv_conn = LIST_ELEM(srv->available_conns[tid].n, struct connection *, list);
 			    reuse = 1;
 		}
-		else if (!srv_conn && srv->curr_idle_conns > 0) {
-			if (srv->idle_conns && srv->safe_conns &&
-			    ((s->be->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR &&
-			     s->txn && (s->txn->flags & TX_NOT_FIRST)) &&
-			    srv->curr_idle_nb + srv->curr_safe_nb > 0) {
-				/* we're on the second column of the tables above, let's
-				 * try idle then safe.
-				 */
-				srv_conn = conn_backend_get(s, srv, 0);
+		/* if no available connections found, search for an idle/safe */
+		else if (srv->max_idle_conns && srv->curr_idle_conns > 0) {
+			const int not_first_req = s->txn && s->txn->flags & TX_NOT_FIRST;
+			const int idle = srv->curr_idle_nb > 0;
+			const int safe = srv->curr_safe_nb > 0;
+
+			/* second column of the tables above,
+			 * search for an idle then safe conn */
+			if (not_first_req) {
+				if (idle || safe)
+					srv_conn = conn_backend_get(s, srv, 0);
 			}
-			else if (srv->safe_conns &&
-			         ((s->txn && (s->txn->flags & TX_NOT_FIRST)) ||
-				  (s->be->options & PR_O_REUSE_MASK) >= PR_O_REUSE_AGGR) &&
-				 srv->curr_safe_nb > 0) {
-				srv_conn = conn_backend_get(s, srv, 1);
-			}
-			else if (srv->idle_conns &&
-			         ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
-				 srv->curr_idle_nb > 0) {
-				srv_conn = conn_backend_get(s, srv, 0);
+			/* first column of the tables above */
+			else if (reuse_mode >= PR_O_REUSE_AGGR) {
+				/* search for a safe conn */
+				if (safe)
+					srv_conn = conn_backend_get(s, srv, 1);
+				else if (reuse_mode == PR_O_REUSE_ALWS && idle)
+					srv_conn = conn_backend_get(s, srv, 0);
 			}
 
 			if (srv_conn)
@@ -1401,7 +1398,7 @@ int connect_server(struct stream *s)
 
 		if (srv_conn) {
 			srv_conn->owner = s->sess;
-			if ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_NEVR)
+			if (reuse_mode == PR_O_REUSE_NEVR)
 				conn_set_private(srv_conn);
 		}
 	}
@@ -1551,11 +1548,11 @@ int connect_server(struct stream *s)
 		 * safe and the mux protocol supports multiplexing, add it in
 		 * the session server list.
 		 */
-		if (srv && ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
+		if (srv && reuse_mode == PR_O_REUSE_ALWS &&
 		    !(srv_conn->flags & CO_FL_PRIVATE) && srv_conn->mux->avail_streams(srv_conn) > 0)
 			LIST_ADDQ(&srv->available_conns[tid], mt_list_to_list(&srv_conn->list));
 		else if (srv_conn->flags & CO_FL_PRIVATE ||
-		         ((s->be->options & PR_O_REUSE_MASK) == PR_O_REUSE_SAFE &&
+		         (reuse_mode == PR_O_REUSE_SAFE &&
 		          srv_conn->mux->flags & MX_FL_HOL_RISK)) {
 			/* If it fail now, the same will be done in mux->detach() callback */
 			session_add_conn(s->sess, srv_conn, srv_conn->target);
