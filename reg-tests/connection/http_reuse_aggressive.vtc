@@ -1,0 +1,45 @@
+varnishtest "Test the http-reuse aggressive mode"
+
+#REQUIRE_VERSION=2.2
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+	defaults
+		mode http
+
+	listen sender
+		bind "fd@${feS}"
+		http-reuse aggressive
+		server srv ${h1_feR_addr}:${h1_feR_port}
+
+	listen receiver
+		bind "fd@${feR}"
+		http-request return status 200
+		http-after-response set-header http_first_request %[http_first_req]
+} -start
+
+# bootstrap
+client c1 -connect ${h1_feS_sock} {
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "1"
+} -run
+
+# first request should not be reused as no safe connection for the moment
+client c2 -connect ${h1_feS_sock} {
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "1"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+} -run
+
+# first request must be reused with the safe connection
+client c3 -connect ${h1_feS_sock} {
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+} -run

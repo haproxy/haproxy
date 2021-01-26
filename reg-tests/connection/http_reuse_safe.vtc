@@ -1,0 +1,78 @@
+varnishtest "Test the http-reuse safe mode"
+
+#REQUIRE_VERSION=2.2
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+	defaults
+		mode http
+
+	# limit idle pool to one connection
+	# this forces connection reuse for the transaction after the first one
+	listen sender
+		bind "fd@${feS}"
+		http-reuse safe
+		http-request set-header client-id %[req.hdr(client-id)] if { req.hdr(client-id) -m found }
+		server srv ${h1_feR_addr}:${h1_feR_port} pool-max-conn 1
+
+	listen receiver
+		bind "fd@${feR}"
+		http-request set-var(sess.client_id) req.hdr(client-id)
+		http-request return status 200
+		http-after-response set-header http_first_request %[http_first_req]
+		http-after-response set-header client-id %[var(sess.client_id)]
+} -start
+
+client c1 -connect ${h1_feS_sock} {
+	txreq \
+	  -hdr "client-id: c1"
+	rxresp
+	expect resp.http.http_first_request == "1"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c1"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c1"
+} -run
+
+client c2 -connect ${h1_feS_sock} {
+	txreq \
+	  -hdr "client-id: c2"
+	rxresp
+	expect resp.http.http_first_request == "1"
+	expect resp.http.client-id == "c2"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c1"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c1"
+} -run
+
+client c3 -connect ${h1_feS_sock} {
+	txreq \
+	  -hdr "client-id: c3"
+	rxresp
+	expect resp.http.http_first_request == "1"
+	expect resp.http.client-id == "c3"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c1"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c1"
+} -run
