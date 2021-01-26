@@ -3493,6 +3493,7 @@ int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
 	ckch_inst->ssl_conf = NULL;
 	ckch_inst->ckch_store = ckchs;
 	ckch_inst->ctx = ctx;
+	ckch_inst->is_server_instance = 1;
 
 	*ckchi = ckch_inst;
 	return errcode;
@@ -3528,8 +3529,12 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 	return errcode;
 }
 
+/* This function generates a <struct ckch_inst *> for a <struct server *>, and
+ * fill the SSL_CTX of the server.
+ *
+ * Returns a set of ERR_* flags possibly with an error in <err>. */
 static int ssl_sock_load_srv_ckchs(const char *path, struct ckch_store *ckchs,
-				   struct ckch_inst **ckch_inst, char **err)
+				   struct server *server, struct ckch_inst **ckch_inst, char **err)
 {
 	int errcode = 0;
 
@@ -3539,6 +3544,10 @@ static int ssl_sock_load_srv_ckchs(const char *path, struct ckch_store *ckchs,
 	if (errcode & ERR_CODE)
 		return errcode;
 
+	(*ckch_inst)->server = server;
+	/* Keep the reference to the SSL_CTX in the server. */
+	SSL_CTX_up_ref((*ckch_inst)->ctx);
+	server->ssl_ctx.ctx = (*ckch_inst)->ctx;
 	/* succeed, add the instance to the ckch_store's list of instance */
 	LIST_ADDQ(&ckchs->ckch_inst, &((*ckch_inst)->by_ckchs));
 	return errcode;
@@ -3743,7 +3752,7 @@ int ssl_sock_load_srv_cert(char *path, struct server *server, char **err)
 
 	if ((ckchs = ckchs_lookup(path))) {
 		/* we found the ckchs in the tree, we can use it directly */
-		 cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, &server->ssl_ctx.inst, err);
+		 cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, server, &server->ssl_ctx.inst, err);
 		 found++;
 	} else if (stat(path, &buf) == 0) {
 		/* We do not manage directories on backend side. */
@@ -3752,16 +3761,7 @@ int ssl_sock_load_srv_cert(char *path, struct server *server, char **err)
 			ckchs =  ckchs_load_cert_file(path, err);
 			if (!ckchs)
 				cfgerr |= ERR_ALERT | ERR_FATAL;
-			cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, &server->ssl_ctx.inst, err);
-			if (server->ssl_ctx.inst) {
-				server->ssl_ctx.inst->is_server_instance = 1;
-				server->ssl_ctx.inst->server = server;
-				/* Keep a reference to the SSL_CTX in the
-				 * ckch_inst in order to ease certificate update
-				 * (via CLI). */
-				SSL_CTX_up_ref(server->ssl_ctx.ctx);
-				server->ssl_ctx.inst->ctx = server->ssl_ctx.ctx;
-			}
+			cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, server, &server->ssl_ctx.inst, err);
 		}
 	}
 	if (!found) {
