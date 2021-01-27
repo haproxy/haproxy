@@ -2069,6 +2069,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 				break;
 			case ST_F_MODE:
 				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
+				break;
 			case ST_F_QCUR:
 				metric = mkf_u32(0, sv->nbpend);
 				break;
