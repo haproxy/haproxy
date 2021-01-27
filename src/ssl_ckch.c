@@ -101,9 +101,7 @@ int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct cert_k
 	struct buffer *sctl;
 
 	if (buf) {
-		tmp.area = buf;
-		tmp.data = strlen(buf);
-		tmp.size = tmp.data + 1;
+		chunk_initstr(&tmp, buf);
 		src = &tmp;
 	} else {
 		fd = open(sctl_path, O_RDONLY);
