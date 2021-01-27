@@ -295,7 +295,7 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_ERESP]          = IST("Total number of response errors."),
 	[ST_F_WRETR]          = IST("Total number of retry warnings."),
 	[ST_F_WREDIS]         = IST("Total number of redispatch warnings."),
-	[ST_F_STATUS]         = IST("Current status of the service (frontend: 0=STOP, 1=UP - backend: 0=DOWN, 1=UP - server: 0=DOWN, 1=UP, 2=MAINT, 3=DRAIN, 4=NOLB)."),
+	[ST_F_STATUS]         = IST("Current status of the service."),
 	[ST_F_WEIGHT]         = IST("Service weight."),
 	[ST_F_ACT]            = IST("Current number of active servers."),
 	[ST_F_BCK]            = IST("Current number of backup servers."),
@@ -530,8 +530,8 @@ static int promex_dump_metric_header(struct appctx *appctx, struct htx *htx,
  * success. Otherwise if <out> length exceeds <max>, it returns 0.
  */
 static int promex_dump_metric(struct appctx *appctx, struct htx *htx, struct ist prefix,
-			     const  struct promex_metric *metric, struct field *val,
-			      struct ist *out, size_t max)
+			      const  struct promex_metric *metric, struct field *val,
+			      struct ist metric_label, struct ist *out, size_t max)
 {
 	struct ist name = { .ptr = (char[PROMEX_MAX_NAME_LEN]){ 0 }, .len = 0 };
 	size_t len = out->len;
@@ -572,6 +572,8 @@ static int promex_dump_metric(struct appctx *appctx, struct htx *htx, struct ist
 		    (srv && istcat(out, ist("\""), max) == -1) ||
 		    (label.len && istcat(out, ist(","), max) == -1) ||
 		    (label.len && istcat(out, label, max) == -1) ||
+		    (metric_label.len && istcat(out, ist(","), max) == -1) ||
+		    (metric_label.len && istcat(out, metric_label, max) == -1) ||
 		    istcat(out, ist("} "), max) == -1)
 			goto full;
 	}
@@ -618,7 +620,8 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 				val = info[appctx->st2];
 		}
 
-		if (!promex_dump_metric(appctx, htx, prefix, &promex_global_metrics[appctx->st2], &val, &out, max))
+		if (!promex_dump_metric(appctx, htx, prefix, &promex_global_metrics[appctx->st2],
+					&val, IST_NULL, &out, max))
 			goto full;
 
 		appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
@@ -636,6 +639,19 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 	goto end;
 }
 
+/* Helper to generate state labels for ftd/bkd/srv */
+static int promex_state_label(struct ist *metric_label, struct ist state)
+{
+	struct buffer *state_label = get_trash_chunk();
+
+	*metric_label = ist2(state_label->area, 0);
+	if (istcat(metric_label, ist("state=\""), state_label->size) == -1 ||
+	    istcat(metric_label, state, state_label->size) == -1 ||
+	    istcat(metric_label, ist("\""), state_label->size) == -1)
+		return -1;
+	return 1;
+}
+
 /* Dump frontends metrics (prefixed by "haproxy_frontend_"). It returns 1 on success,
  * 0 if <htx> is full and -1 in case of any error. */
 static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
@@ -648,6 +664,9 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	int ret = 1;
+	enum promex_front_state state;
+	struct ist metric_label;
+	int i;
 
 	for (;appctx->st2 < ST_F_TOTAL_FIELDS; appctx->st2++) {
 		if (!(promex_st_metrics[appctx->st2].flags & appctx->ctx.stats.flags))
@@ -665,8 +684,16 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 
 			switch (appctx->st2) {
 				case ST_F_STATUS:
-					val = mkf_u32(FO_STATUS, !px->disabled);
-					break;
+					state = !px->disabled;
+					for (i = 0; i < PROMEX_FRONT_STATE_COUNT; i++) {
+						val = mkf_u32(FO_STATUS, state == i);
+						if (promex_state_label(&metric_label, promex_front_st[i]) == -1)
+							goto full;
+						if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
+									&val, metric_label, &out, max))
+							goto full;
+					}
+					goto next_px;
 				case ST_F_REQ_RATE_MAX:
 				case ST_F_REQ_TOT:
 				case ST_F_HRSP_1XX:
@@ -696,7 +723,8 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 					val = stats[appctx->st2];
 			}
 
-			if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2], &val, &out, max))
+			if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
+						&val, IST_NULL, &out, max))
 				goto full;
 		  next_px:
 			appctx->ctx.stats.obj1 = px->next;
@@ -730,6 +758,9 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	double secs;
+	enum promex_back_state state;
+	struct ist metric_label;
+	int i;
 
 	for (;appctx->st2 < ST_F_TOTAL_FIELDS; appctx->st2++) {
 		if (!(promex_st_metrics[appctx->st2].flags & appctx->ctx.stats.flags))
@@ -747,8 +778,16 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 
 			switch (appctx->st2) {
 				case ST_F_STATUS:
-					val = mkf_u32(FO_STATUS, (px->lbprm.tot_weight > 0 || !px->srv) ? 1 : 0);
-					break;
+					state = ((px->lbprm.tot_weight > 0 || !px->srv) ? 1 : 0);
+					for (i = 0; i < PROMEX_BACK_STATE_COUNT; i++) {
+						val = mkf_u32(FO_STATUS, state == i);
+						if (promex_state_label(&metric_label, promex_back_st[i]) == -1)
+							goto full;
+						if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
+									&val, metric_label, &out, max))
+							goto full;
+					}
+					goto next_px;
 				case ST_F_QTIME:
 					secs = (double)swrate_avg(px->be_counters.q_time, TIME_STATS_SAMPLES) / 1000.0;
 					val = mkf_flt(FN_AVG, secs);
@@ -809,7 +848,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			}
 
 			if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
-						&val, &out, max))
+						&val, IST_NULL, &out, max))
 				goto full;
 		  next_px:
 			appctx->ctx.stats.obj1 = px->next;
@@ -844,6 +883,9 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	double secs;
+	enum promex_srv_state state;
+	struct ist metric_label;
+	int i;
 
 	for (;appctx->st2 < ST_F_TOTAL_FIELDS; appctx->st2++) {
 		if (!(promex_st_metrics[appctx->st2].flags & appctx->ctx.stats.flags))
@@ -867,8 +909,16 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 
 				switch (appctx->st2) {
 					case ST_F_STATUS:
-						val = mkf_u32(FO_STATUS, promex_srv_status(sv));
-						break;
+						state = promex_srv_status(sv);
+						for (i = 0; i < PROMEX_SRV_STATE_COUNT; i++) {
+							val = mkf_u32(FO_STATUS, state == i);
+							if (promex_state_label(&metric_label, promex_srv_st[i]) == -1)
+								goto full;
+							if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
+										&val, metric_label, &out, max))
+								goto full;
+						}
+						goto next_sv;
 					case ST_F_QTIME:
 						secs = (double)swrate_avg(sv->counters.q_time, TIME_STATS_SAMPLES) / 1000.0;
 						val = mkf_flt(FN_AVG, secs);
@@ -938,7 +988,8 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						val = stats[appctx->st2];
 				}
 
-				if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2], &val, &out, max))
+				if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
+							&val, IST_NULL, &out, max))
 					goto full;
 			  next_sv:
 				appctx->ctx.stats.obj2 = sv->next;
