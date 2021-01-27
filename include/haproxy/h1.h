@@ -244,12 +244,12 @@ static inline int h1_skip_chunk_crlf(const struct buffer *buf, int start, int st
  * start of the body and the start of the data. Note: this function is designed
  * to parse wrapped CRLF at the end of the buffer.
  */
-static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int stop, unsigned int *res)
+static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int stop, uint64_t *res)
 {
 	const char *ptr = b_peek(buf, start);
 	const char *ptr_old = ptr;
 	const char *end = b_wrap(buf);
-	unsigned int chunk = 0;
+	uint64_t chunk = 0;
 
 	stop -= start; // bytes left
 	start = stop;  // bytes to transfer
@@ -267,9 +267,13 @@ static inline int h1_parse_chunk_size(const struct buffer *buf, int start, int s
 			break;
 		if (unlikely(++ptr >= end))
 			ptr = b_orig(buf);
-		if (unlikely(chunk & 0xF8000000)) /* integer overflow will occur if result >= 2GB */
-			goto error;
 		chunk = (chunk << 4) + c;
+		if (unlikely(chunk & 0xF0000000000000)) {
+			/* Don't get more than 13 hexa-digit (2^52 - 1) to never fed possibly
+			 * bogus values from languages that use floats for their integers
+			 */
+			goto error;
+		}
 		stop--;
 	}
 

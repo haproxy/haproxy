@@ -477,7 +477,7 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 			total += ret;
 		}
 		if (h1m->state == H1_MSG_CHUNK_SIZE) {
-			unsigned int chksz;
+			uint64_t chksz;
 
 			ret = h1_parse_chunk_size(srcbuf, ofs, b_data(srcbuf), &chksz);
 			if (ret <= 0)
