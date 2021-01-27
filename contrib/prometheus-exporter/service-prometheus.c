@@ -394,21 +394,63 @@ const struct ist promex_st_metric_labels[ST_F_TOTAL_FIELDS] = {
 	[ST_F_HRSP_OTHER] = IST("code=\"other\""),
 };
 
-/* Return the server status: 0=DOWN, 1=UP, 2=MAINT, 3=DRAIN, 4=NOLB. */
-static int promex_srv_status(struct server *sv)
+enum promex_front_state {
+	PROMEX_FRONT_STATE_DOWN = 0,
+	PROMEX_FRONT_STATE_UP,
+
+	PROMEX_FRONT_STATE_COUNT /* must be last */
+};
+
+const struct ist promex_front_st[PROMEX_FRONT_STATE_COUNT] = {
+	[PROMEX_FRONT_STATE_DOWN] = IST("DOWN"),
+	[PROMEX_FRONT_STATE_UP]   = IST("UP"),
+};
+
+enum promex_back_state {
+	PROMEX_BACK_STATE_DOWN = 0,
+	PROMEX_BACK_STATE_UP,
+
+	PROMEX_BACK_STATE_COUNT /* must be last */
+};
+
+const struct ist promex_back_st[PROMEX_BACK_STATE_COUNT] = {
+	[PROMEX_BACK_STATE_DOWN] = IST("DOWN"),
+	[PROMEX_BACK_STATE_UP]   = IST("UP"),
+};
+
+enum promex_srv_state {
+	PROMEX_SRV_STATE_DOWN = 0,
+	PROMEX_SRV_STATE_UP,
+	PROMEX_SRV_STATE_MAINT,
+	PROMEX_SRV_STATE_DRAIN,
+	PROMEX_SRV_STATE_NOLB,
+
+	PROMEX_SRV_STATE_COUNT /* must be last */
+};
+
+const struct ist promex_srv_st[PROMEX_SRV_STATE_COUNT] = {
+	[PROMEX_SRV_STATE_DOWN]  = IST("DOWN"),
+	[PROMEX_SRV_STATE_UP]    = IST("UP"),
+	[PROMEX_SRV_STATE_MAINT] = IST("MAINT"),
+	[PROMEX_SRV_STATE_DRAIN] = IST("DRAIN"),
+	[PROMEX_SRV_STATE_NOLB]  = IST("NOLB"),
+};
+
+/* Return the server status. */
+enum promex_srv_state promex_srv_status(struct server *sv)
 {
-	int state = 0;
+	int state = PROMEX_SRV_STATE_DOWN;
 
 	if (sv->cur_state == SRV_ST_RUNNING || sv->cur_state == SRV_ST_STARTING) {
-		state = 1;
+		state = PROMEX_SRV_STATE_UP;
 		if (sv->cur_admin & SRV_ADMF_DRAIN)
-			state = 3;
+			state = PROMEX_SRV_STATE_DRAIN;
 	}
 	else if (sv->cur_state == SRV_ST_STOPPING)
-		state = 4;
+		state = PROMEX_SRV_STATE_NOLB;
 
 	if (sv->cur_admin & SRV_ADMF_MAINT)
-		state = 2;
+		state = PROMEX_SRV_STATE_MAINT;
 
 	return state;
 }
