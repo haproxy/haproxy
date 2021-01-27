@@ -702,12 +702,16 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 
 	TRACE_ENTER(FCGI_EV_FSTRM_NEW);
 
-	if (!app)
+	if (!app) {
+		TRACE_ERROR("No FCGI app found, don't create fconn", FCGI_EV_FCONN_NEW|FCGI_EV_FCONN_END|FCGI_EV_FCONN_ERR);
 		goto fail_conn;
+	}
 
 	fconn = pool_alloc(pool_head_fcgi_conn);
-	if (!fconn)
+	if (!fconn) {
+		TRACE_ERROR("fconn allocation failure", FCGI_EV_FCONN_NEW|FCGI_EV_FCONN_END|FCGI_EV_FCONN_ERR);
 		goto fail_conn;
+	}
 
 	fconn->shut_timeout = fconn->timeout = px->timeout.server;
 	if (tick_isset(px->timeout.serverfin))
@@ -728,8 +732,10 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 	fconn->task = NULL;
 	if (tick_isset(fconn->timeout)) {
 		t = task_new(tid_bit);
-		if (!t)
+		if (!t) {
+			TRACE_ERROR("fconn task allocation failure", FCGI_EV_FCONN_NEW|FCGI_EV_FCONN_END|FCGI_EV_FCONN_ERR);
 			goto fail;
+		}
 
 		fconn->task = t;
 		t->process = fcgi_timeout_task;
@@ -1049,11 +1055,14 @@ static struct fcgi_strm *fcgi_strm_new(struct fcgi_conn *fconn, int id)
 	TRACE_ENTER(FCGI_EV_FSTRM_NEW, fconn->conn);
 
 	fstrm = pool_alloc(pool_head_fcgi_strm);
-	if (!fstrm)
+	if (!fstrm) {
+		TRACE_ERROR("fstrm allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR|FCGI_EV_FSTRM_END, fconn->conn);
 		goto out;
+	}
 
 	fstrm->shut_tl = tasklet_new();
 	if (!fstrm->shut_tl) {
+		TRACE_ERROR("fstrm shut tasklet allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR|FCGI_EV_FSTRM_END, fconn->conn);
 		pool_free(pool_head_fcgi_strm, fstrm);
 		goto out;
 	}
@@ -1101,19 +1110,19 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 
 	TRACE_ENTER(FCGI_EV_FSTRM_NEW, fconn->conn);
 	if (fconn->nb_streams >= fconn->streams_limit) {
-		TRACE_DEVEL("leaving on streams_limit reached", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
+		TRACE_ERROR("streams_limit reached", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
 		goto out;
 	}
 
 	if (fcgi_streams_left(fconn) < 1) {
-		TRACE_DEVEL("leaving on !streams_left", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
+		TRACE_ERROR("!streams_left", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
 		goto out;
 	}
 
 	/* Defer choosing the ID until we send the first message to create the stream */
 	fstrm = fcgi_strm_new(fconn, 0);
 	if (!fstrm) {
-		TRACE_DEVEL("leaving on fstrm creation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
+		TRACE_ERROR("fstream allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
 		goto out;
 	}
 
@@ -1126,6 +1135,7 @@ static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct co
 	return fstrm;
 
   out:
+	TRACE_DEVEL("leaving on error", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_END|FCGI_EV_FSTRM_ERR, fconn->conn);
 	return NULL;
 }
 
@@ -1564,8 +1574,10 @@ static int fcgi_conn_send_get_values(struct fcgi_conn *fconn)
 	return ret;
   full:
 	/* Too large to be encoded. For GET_VALUES records, it is an error */
-	if (!b_data(mbuf))
+	if (!b_data(mbuf)) {
+		TRACE_ERROR("GET_VALUES record too large", FCGI_EV_TX_RECORD|FCGI_EV_TX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
 		goto fail;
+	}
 
 	if ((mbuf = br_tail_add(fconn->mbuf)) != NULL)
 		goto retry;
@@ -1623,6 +1635,7 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 		ret = fcgi_aligned_decode_param(&inbuf, offset, &p);
 		if (!ret) {
 			/* name or value too large to be decoded at once */
+			TRACE_ERROR("error decoding GET_VALUES_RESULT param", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
 			goto fail;
 		}
 		offset += ret;
@@ -1657,8 +1670,10 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 	/* We must be sure to have read exactly the announced record length, no
 	 * more no less
 	 */
-	if (offset != fconn->drl)
+	if (offset != fconn->drl) {
+		TRACE_ERROR("invalid GET_VALUES_RESULT record length", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
 		goto fail;
+	}
 
 	TRACE_PROTO("FCGI GET_VALUES_RESULT record rcvd", FCGI_EV_RX_RECORD|FCGI_EV_RX_GETVAL, fconn->conn, 0, 0, (size_t[]){fconn->drl});
 	b_del(&fconn->dbuf, fconn->drl + fconn->drp);
@@ -2047,8 +2062,10 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 	}
 
   done:
-	if (!fcgi_set_default_param(fconn, fstrm, htx, sl, &params))
+	if (!fcgi_set_default_param(fconn, fstrm, htx, sl, &params)) {
+		TRACE_ERROR("error setting default params", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 		goto error;
+	}
 
 	if (!fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_CGI_GATEWAY) ||
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_DOC_ROOT)    ||
@@ -2065,8 +2082,10 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_SCRIPT_FILE) ||
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_PATH_TRANS)  ||
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_CONT_LEN)    ||
-	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_HTTPS))
+	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_HTTPS)) {
+		TRACE_ERROR("error encoding default params", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 		goto error;
+	}
 
 	/* update the record's size */
 	TRACE_PROTO("FCGI PARAMS record xferred", FCGI_EV_TX_RECORD|FCGI_EV_TX_PARAMS, fconn->conn, fstrm, 0, (size_t[]){outbuf.data - FCGI_RECORD_HEADER_SZ});
@@ -2088,7 +2107,7 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 
   error:
 	htx->flags |= HTX_FL_PROCESSING_ERROR;
-	TRACE_PROTO("processing error", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
+	TRACE_ERROR("processing error sending PARAMS record", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 	fcgi_strm_error(fstrm);
 	goto end;
 }
@@ -2266,7 +2285,7 @@ static size_t fcgi_strm_send_stdin(struct fcgi_conn *fconn, struct fcgi_strm *fs
 		if (!fcgi_strm_send_empty_stdin(fconn, fstrm)) {
 			/* bytes already reserved for this record. It should not fail */
 			htx->flags |= HTX_FL_PROCESSING_ERROR;
-			TRACE_PROTO("processing error", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
+			TRACE_ERROR("processing error sending empty STDIN record", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 		}
 	}
@@ -2453,8 +2472,10 @@ static int fcgi_strm_handle_end_request(struct fcgi_conn *fconn, struct fcgi_str
 	dbuf = &fconn->dbuf;
 
 	/* Record too large to be fully decoded */
-	if (b_size(dbuf) < (fconn->drl + fconn->drp))
+	if (b_size(dbuf) < (fconn->drl + fconn->drp)) {
+		TRACE_ERROR("END_REQUEST record too large", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ|FCGI_EV_FSTRM_ERR, fconn->conn, fstrm);
 		goto fail;
+	}
 
 	/* process full record only */
 	if (b_data(dbuf) < (fconn->drl + fconn->drp)) {
@@ -2472,8 +2493,10 @@ static int fcgi_strm_handle_end_request(struct fcgi_conn *fconn, struct fcgi_str
 
 	inbuf = b_make(b_head(dbuf), b_data(dbuf), 0, fconn->drl);
 
-	if (!fcgi_decode_end_request(&inbuf, 0, &endreq))
+	if (!fcgi_decode_end_request(&inbuf, 0, &endreq)) {
+		TRACE_ERROR("END_REQUEST record decoding failure", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ|FCGI_EV_FSTRM_ERR, fconn->conn, fstrm);
 		goto fail;
+	}
 
 	fstrm->flags |= FCGI_SF_ES_RCVD;
 	TRACE_STATE("end of script reported", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ|FCGI_EV_RX_EOI, fconn->conn, fstrm);
@@ -2516,13 +2539,15 @@ static void fcgi_process_demux(struct fcgi_conn *fconn)
 			/* ensure that what is pending is a valid GET_VALUES_RESULT record. */
 			TRACE_STATE("receiving FCGI record header", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR, fconn->conn);
 			ret = fcgi_decode_record_hdr(&fconn->dbuf, 0, &hdr);
-			if (!ret)
+			if (!ret) {
+				TRACE_ERROR("header record decoding failure", FCGI_EV_RX_RECORD|FCGI_EV_RX_ENDREQ|FCGI_EV_FSTRM_ERR, fconn->conn, fstrm);
 				goto fail;
+			}
 			b_del(&fconn->dbuf, ret);
 
 			if (hdr.id || (hdr.type != FCGI_GET_VALUES_RESULT && hdr.type != FCGI_UNKNOWN_TYPE)) {
 				fconn->state = FCGI_CS_CLOSED;
-				TRACE_PROTO("unexpected record type or flags", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
+				TRACE_ERROR("unexpected record type or flags", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
 				TRACE_STATE("switching to CLOSED", FCGI_EV_RX_RECORD|FCGI_EV_RX_FHDR|FCGI_EV_RX_GETVAL|FCGI_EV_FCONN_ERR, fconn->conn);
 				goto fail;
 			}
@@ -3279,7 +3304,7 @@ static size_t fcgi_strm_parse_headers(struct fcgi_strm *fstrm, struct h1m *h1m, 
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
-			TRACE_USER("rejected H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
+			TRACE_ERROR("parsing error, reject H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
 		}
@@ -3303,7 +3328,7 @@ static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, str
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm);
 		if ((*htx)->flags & HTX_FL_PARSING_ERROR) {
-			TRACE_USER("rejected H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
+			TRACE_ERROR("parsing error, reject H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
 		}
@@ -3325,7 +3350,7 @@ static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m,
 	if (!ret) {
 		TRACE_DEVEL("leaving on missing data or error", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm);
 		if (htx->flags & HTX_FL_PARSING_ERROR) {
-			TRACE_USER("rejected H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
+			TRACE_ERROR("parsing error, reject H1 response", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS|FCGI_EV_FSTRM_ERR, fstrm->fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 			fcgi_strm_capture_bad_message(fstrm->fconn, fstrm, h1m, buf);
 		}
@@ -3409,7 +3434,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 		}
 		else {
 			htx->flags |= HTX_FL_PROCESSING_ERROR;
-			TRACE_PROTO("processing error", FCGI_EV_RSP_DATA, fconn->conn, fstrm);
+			TRACE_ERROR("unexpected processing error", FCGI_EV_RSP_DATA|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 			fcgi_strm_error(fstrm);
 			break;
 		}
@@ -3446,17 +3471,20 @@ static struct conn_stream *fcgi_attach(struct connection *conn, struct session *
 	TRACE_ENTER(FCGI_EV_FSTRM_NEW, conn);
 	cs = cs_new(conn, conn->target);
 	if (!cs) {
-		TRACE_DEVEL("leaving on CS allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR, conn);
-		return NULL;
+		TRACE_ERROR("CS allocation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR, conn);
+		goto err;
 	}
 	fstrm = fcgi_conn_stream_new(fconn, cs, sess);
 	if (!fstrm) {
-		TRACE_DEVEL("leaving on stream creation failure", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR, conn);
 		cs_free(cs);
-		return NULL;
+		goto err;
 	}
 	TRACE_LEAVE(FCGI_EV_FSTRM_NEW, conn, fstrm);
 	return cs;
+
+  err:
+	TRACE_DEVEL("leaving on error", FCGI_EV_FSTRM_NEW|FCGI_EV_FSTRM_ERR, conn);
+	return NULL;
 }
 
 /* Retrieves the first valid conn_stream from this connection, or returns NULL.
