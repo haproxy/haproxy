@@ -3499,11 +3499,6 @@ int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
 	return errcode;
 
 error:
-	/* free the allocated sni_ctxs */
-	if (ckch_inst) {
-		ckch_inst_free(ckch_inst);
-		ckch_inst = NULL;
-	}
 	SSL_CTX_free(ctx);
 
 	return errcode;
