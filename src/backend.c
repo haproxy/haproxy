@@ -1250,7 +1250,8 @@ int connect_server(struct stream *s)
 
 	srv = objt_server(s->target);
 
-	if (s->be->mode != PR_MODE_HTTP)
+	/* do not reuse if mode is http or if avail list is not allocated */
+	if ((s->be->mode != PR_MODE_HTTP) || (srv && !srv->available_conns))
 		goto skip_reuse;
 
 	/* first, search for a matching connection in the session's idle conns */
