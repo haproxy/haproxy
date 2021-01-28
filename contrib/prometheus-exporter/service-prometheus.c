@@ -91,15 +91,20 @@ enum promex_mt_type {
  */
 #define PROMEX_MAX_METRIC_LENGTH 512
 
-/* Some labels for build_info */
-#define PROMEX_VERSION_LABEL "version=\"" HAPROXY_VERSION "\""
-#define PROMEX_BUILDINFO_LABEL PROMEX_VERSION_LABEL
+/* The max number of labels per metric */
+#define PROMEX_MAX_LABELS 8
 
 /* Describe a prometheus metric */
 struct promex_metric {
 	const struct ist    n;      /* The metric name */
 	enum promex_mt_type type;   /* The metric type (gauge or counter) */
 	unsigned int        flags;  /* PROMEX_FL_* flags */
+};
+
+/* Describe a prometheus metric label. It is just a key/value pair */
+struct promex_label {
+	struct ist name;
+	struct ist value;
 };
 
 /* Global metrics  */
@@ -379,19 +384,14 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_NEED_CONN_EST]  = IST("Estimated needed number of connections."),
 };
 
-/* Specific labels for all info fields. Empty by default. */
-const struct ist promex_inf_metric_labels[INF_TOTAL_FIELDS] = {
-	[INF_BUILD_INFO]  = IST(PROMEX_BUILDINFO_LABEL),
-};
-
-/* Specific labels for all stats fields. Empty by default. */
-const struct ist promex_st_metric_labels[ST_F_TOTAL_FIELDS] = {
-	[ST_F_HRSP_1XX]   = IST("code=\"1xx\""),
-	[ST_F_HRSP_2XX]   = IST("code=\"2xx\""),
-	[ST_F_HRSP_3XX]   = IST("code=\"3xx\""),
-	[ST_F_HRSP_4XX]   = IST("code=\"4xx\""),
-	[ST_F_HRSP_5XX]   = IST("code=\"5xx\""),
-	[ST_F_HRSP_OTHER] = IST("code=\"other\""),
+/* Specific labels for all ST_F_HRSP_* fields */
+const struct ist promex_hrsp_code[1 + ST_F_HRSP_OTHER - ST_F_HRSP_1XX] = {
+	[ST_F_HRSP_1XX - ST_F_HRSP_1XX]   = IST("1xx"),
+	[ST_F_HRSP_2XX - ST_F_HRSP_1XX]   = IST("2xx"),
+	[ST_F_HRSP_3XX - ST_F_HRSP_1XX]   = IST("3xx"),
+	[ST_F_HRSP_4XX - ST_F_HRSP_1XX]   = IST("4xx"),
+	[ST_F_HRSP_5XX - ST_F_HRSP_1XX]   = IST("5xx"),
+	[ST_F_HRSP_OTHER - ST_F_HRSP_1XX] = IST("other"),
 };
 
 enum promex_front_state {
@@ -531,7 +531,7 @@ static int promex_dump_metric_header(struct appctx *appctx, struct htx *htx,
  */
 static int promex_dump_metric(struct appctx *appctx, struct htx *htx, struct ist prefix,
 			      const  struct promex_metric *metric, struct field *val,
-			      struct ist metric_label, struct ist *out, size_t max)
+			      struct promex_label *labels, struct ist *out, size_t max)
 {
 	struct ist name = { .ptr = (char[PROMEX_MAX_NAME_LEN]){ 0 }, .len = 0 };
 	size_t len = out->len;
@@ -548,35 +548,34 @@ static int promex_dump_metric(struct appctx *appctx, struct htx *htx, struct ist
 	    !promex_dump_metric_header(appctx, htx, metric, name, out, max))
 		goto full;
 
-	if (appctx->ctx.stats.flags & PROMEX_FL_INFO_METRIC) {
-		const struct ist label = promex_inf_metric_labels[appctx->st2];
+	if (istcat(out, name, max) == -1)
+		goto full;
 
-		if (istcat(out, name, max) == -1 ||
-		    (label.len && istcat(out, ist("{"), max) == -1) ||
-		    (label.len && istcat(out, label, max) == -1) ||
-		    (label.len && istcat(out, ist("}"), max) == -1) ||
-		    istcat(out, ist(" "), max) == -1)
-			goto full;
-	}
-	else {
-		struct proxy *px = appctx->ctx.stats.obj1;
-		struct server *srv = appctx->ctx.stats.obj2;
-		const struct ist label = promex_st_metric_labels[appctx->st2];
+	if (isttest(labels[0].name)) {
+		int i;
 
-		if (istcat(out, name, max) == -1 ||
-		    istcat(out, ist("{proxy=\""), max) == -1 ||
-		    istcat(out, ist2(px->id, strlen(px->id)), max) == -1 ||
-		    istcat(out, ist("\""), max) == -1 ||
-		    (srv && istcat(out, ist(",server=\""), max) == -1) ||
-		    (srv && istcat(out, ist2(srv->id, strlen(srv->id)), max) == -1) ||
-		    (srv && istcat(out, ist("\""), max) == -1) ||
-		    (label.len && istcat(out, ist(","), max) == -1) ||
-		    (label.len && istcat(out, label, max) == -1) ||
-		    (metric_label.len && istcat(out, ist(","), max) == -1) ||
-		    (metric_label.len && istcat(out, metric_label, max) == -1) ||
-		    istcat(out, ist("} "), max) == -1)
+		if (istcat(out, ist("{"), max) == -1)
 			goto full;
+
+		for (i = 0; isttest(labels[i].name); i++) {
+			if (!isttest(labels[i].value))
+				continue;
+
+			if ((i && istcat(out, ist(","), max) == -1) ||
+			    istcat(out, labels[i].name, max) == -1 ||
+			    istcat(out, ist("=\""), max) == -1 ||
+			    istcat(out, labels[i].value, max) == -1 ||
+			    istcat(out, ist("\""), max) == -1)
+				goto full;
+		}
+
+		if (istcat(out, ist("}"), max) == -1)
+			goto full;
+
 	}
+
+	if (istcat(out, ist(" "), max) == -1)
+		goto full;
 
 	trash.data = out->len;
 	if (!promex_metric_to_str(&trash, val, max))
@@ -608,11 +607,15 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 		return -1;
 
 	for (; appctx->st2 < INF_TOTAL_FIELDS; appctx->st2++) {
+		struct promex_label labels[PROMEX_MAX_LABELS-1] = {};
+
 		if (!(promex_global_metrics[appctx->st2].flags & appctx->ctx.stats.flags))
 			continue;
 
 		switch (appctx->st2) {
 			case INF_BUILD_INFO:
+				labels[0].name  = ist("version");
+				labels[0].value = ist(HAPROXY_VERSION);
 				val = mkf_u32(FN_GAUGE, 1);
 				break;
 
@@ -621,7 +624,7 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 		}
 
 		if (!promex_dump_metric(appctx, htx, prefix, &promex_global_metrics[appctx->st2],
-					&val, IST_NULL, &out, max))
+					&val, labels, &out, max))
 			goto full;
 
 		appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
@@ -639,19 +642,6 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 	goto end;
 }
 
-/* Helper to generate state labels for ftd/bkd/srv */
-static int promex_state_label(struct ist *metric_label, struct ist state)
-{
-	struct buffer *state_label = get_trash_chunk();
-
-	*metric_label = ist2(state_label->area, 0);
-	if (istcat(metric_label, ist("state=\""), state_label->size) == -1 ||
-	    istcat(metric_label, state, state_label->size) == -1 ||
-	    istcat(metric_label, ist("\""), state_label->size) == -1)
-		return -1;
-	return 1;
-}
-
 /* Dump frontends metrics (prefixed by "haproxy_frontend_"). It returns 1 on success,
  * 0 if <htx> is full and -1 in case of any error. */
 static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
@@ -665,7 +655,6 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	enum promex_front_state state;
-	struct ist metric_label;
 	int i;
 
 	for (;appctx->st2 < ST_F_TOTAL_FIELDS; appctx->st2++) {
@@ -673,7 +662,12 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			continue;
 
 		while (appctx->ctx.stats.obj1) {
+			struct promex_label labels[PROMEX_MAX_LABELS-1] = {};
+
 			px = appctx->ctx.stats.obj1;
+
+			labels[0].name  = ist("proxy");
+			labels[0].value = ist2(px->id, strlen(px->id));
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
 			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_FE))
@@ -686,11 +680,11 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 				case ST_F_STATUS:
 					state = !px->disabled;
 					for (i = 0; i < PROMEX_FRONT_STATE_COUNT; i++) {
+						labels[1].name = ist("state");
+						labels[1].value = promex_front_st[i];
 						val = mkf_u32(FO_STATUS, state == i);
-						if (promex_state_label(&metric_label, promex_front_st[i]) == -1)
-							goto full;
 						if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
-									&val, metric_label, &out, max))
+									&val, labels, &out, max))
 							goto full;
 					}
 					goto next_px;
@@ -715,8 +709,10 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 				case ST_F_HRSP_OTHER:
 					if (px->mode != PR_MODE_HTTP)
 						goto next_px;
-					val = stats[appctx->st2];
 					appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
+					labels[1].name = ist("code");
+					labels[1].value = promex_hrsp_code[appctx->st2 - ST_F_HRSP_1XX];
+					val = stats[appctx->st2];
 					break;
 
 				default:
@@ -724,7 +720,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			}
 
 			if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
-						&val, IST_NULL, &out, max))
+						&val, labels, &out, max))
 				goto full;
 		  next_px:
 			appctx->ctx.stats.obj1 = px->next;
@@ -759,7 +755,6 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	int ret = 1;
 	double secs;
 	enum promex_back_state state;
-	struct ist metric_label;
 	int i;
 
 	for (;appctx->st2 < ST_F_TOTAL_FIELDS; appctx->st2++) {
@@ -767,7 +762,12 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			continue;
 
 		while (appctx->ctx.stats.obj1) {
+			struct promex_label labels[PROMEX_MAX_LABELS-1] = {};
+
 			px = appctx->ctx.stats.obj1;
+
+			labels[0].name  = ist("proxy");
+			labels[0].value = ist2(px->id, strlen(px->id));
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
 			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
@@ -780,11 +780,11 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 				case ST_F_STATUS:
 					state = ((px->lbprm.tot_weight > 0 || !px->srv) ? 1 : 0);
 					for (i = 0; i < PROMEX_BACK_STATE_COUNT; i++) {
+						labels[1].name = ist("state");
+						labels[1].value = promex_back_st[i];
 						val = mkf_u32(FO_STATUS, state == i);
-						if (promex_state_label(&metric_label, promex_back_st[i]) == -1)
-							goto full;
 						if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
-									&val, metric_label, &out, max))
+									&val, labels, &out, max))
 							goto full;
 					}
 					goto next_px;
@@ -840,6 +840,8 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 					if (px->mode != PR_MODE_HTTP)
 						goto next_px;
 					appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
+					labels[1].name = ist("code");
+					labels[1].value = promex_hrsp_code[appctx->st2 - ST_F_HRSP_1XX];
 					val = stats[appctx->st2];
 					break;
 
@@ -848,7 +850,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			}
 
 			if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
-						&val, IST_NULL, &out, max))
+						&val, labels, &out, max))
 				goto full;
 		  next_px:
 			appctx->ctx.stats.obj1 = px->next;
@@ -884,7 +886,6 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	int ret = 1;
 	double secs;
 	enum promex_srv_state state;
-	struct ist metric_label;
 	int i;
 
 	for (;appctx->st2 < ST_F_TOTAL_FIELDS; appctx->st2++) {
@@ -892,7 +893,12 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 			continue;
 
 		while (appctx->ctx.stats.obj1) {
+			struct promex_label labels[PROMEX_MAX_LABELS-1] = {};
+
 			px = appctx->ctx.stats.obj1;
+
+			labels[0].name  = ist("proxy");
+			labels[0].value = ist2(px->id, strlen(px->id));
 
 			/* skip the disabled proxies, global frontend and non-networked ones */
 			if (px->disabled || px->uuid <= 0 || !(px->cap & PR_CAP_BE))
@@ -900,6 +906,9 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 
 			while (appctx->ctx.stats.obj2) {
 				sv = appctx->ctx.stats.obj2;
+
+				labels[1].name  = ist("server");
+				labels[1].value = ist2(sv->id, strlen(sv->id));
 
 				if (!stats_fill_sv_stats(px, sv, 0, stats, ST_F_TOTAL_FIELDS, &(appctx->st2)))
 					return -1;
@@ -912,10 +921,10 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						state = promex_srv_status(sv);
 						for (i = 0; i < PROMEX_SRV_STATE_COUNT; i++) {
 							val = mkf_u32(FO_STATUS, state == i);
-							if (promex_state_label(&metric_label, promex_srv_st[i]) == -1)
-								goto full;
+							labels[2].name = ist("state");
+							labels[2].value = promex_srv_st[i];
 							if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
-										&val, metric_label, &out, max))
+										&val, labels, &out, max))
 								goto full;
 						}
 						goto next_sv;
@@ -981,6 +990,8 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						if (px->mode != PR_MODE_HTTP)
 							goto next_px;
 						appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
+						labels[2].name = ist("code");
+						labels[2].value = promex_hrsp_code[appctx->st2 - ST_F_HRSP_1XX];
 						val = stats[appctx->st2];
 						break;
 
@@ -989,7 +1000,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 				}
 
 				if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
-							&val, IST_NULL, &out, max))
+							&val, labels, &out, max))
 					goto full;
 			  next_sv:
 				appctx->ctx.stats.obj2 = sv->next;
