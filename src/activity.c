@@ -97,13 +97,29 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 	return 1;
 }
 
+static int cmp_sched_activity(const void *a, const void *b)
+{
+	const struct sched_activity *l = (const struct sched_activity *)a;
+	const struct sched_activity *r = (const struct sched_activity *)b;
+
+	if (l->calls > r->calls)
+		return -1;
+	else if (l->calls < r->calls)
+		return 1;
+	else
+		return 0;
+}
+
 /* This function dumps all profiling settings. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero.
  */
 static int cli_io_handler_show_profiling(struct appctx *appctx)
 {
+	struct sched_activity tmp_activity[256] __attribute__((aligned(64)));
 	struct stream_interface *si = appctx->owner;
+	struct buffer *name_buffer = get_trash_chunk();
 	const char *str;
+	int i, max;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
@@ -117,9 +133,37 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	default:                 str="off"; break;
 	}
 
+	memcpy(tmp_activity, sched_activity, sizeof(tmp_activity));
+	qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity);
+
 	chunk_printf(&trash,
 	             "Per-task CPU profiling              : %s      # set profiling tasks {on|auto|off}\n",
 	             str);
+
+	chunk_appendf(&trash, "Tasks activity:\n"
+		      "  function                      calls   cpu_tot   cpu_avg   lat_tot   lat_avg\n");
+
+	for (i = 0; i < 256 && tmp_activity[i].calls; i++) {
+		chunk_reset(name_buffer);
+
+		if (!tmp_activity[i].func)
+			chunk_printf(name_buffer, "other");
+		else
+			resolve_sym_name(name_buffer, "", tmp_activity[i].func);
+
+		/* reserve 35 chars for name+' '+#calls, knowing that longer names
+		 * are often used for less often called functions.
+		 */
+		max = 35 - name_buffer->data;
+		if (max < 1)
+			max = 1;
+		chunk_appendf(&trash, "  %s%*llu", name_buffer->area, max, (unsigned long long)tmp_activity[i].calls);
+
+		print_time_short(&trash, "   ", tmp_activity[i].cpu_time, "");
+		print_time_short(&trash, "   ", tmp_activity[i].cpu_time / tmp_activity[i].calls, "");
+		print_time_short(&trash, "   ", tmp_activity[i].lat_time, "");
+		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "\n");
+	}
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
 		/* failed, try again */
