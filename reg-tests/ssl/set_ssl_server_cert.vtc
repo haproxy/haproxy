@@ -48,6 +48,7 @@ haproxy h1 -conf {
         http-response add-header X-SSL Ok if cert_ok
         http-response add-header X-SSL Expired if cert_expired
         http-response add-header X-SSL Revoked if cert_revoked
+        http-response add-header x-ssl-sha1 %[ssl_c_sha1,hex]
 
         server s1 ${s1_addr}:${s1_port}
 } -start
@@ -56,6 +57,7 @@ client c1 -connect ${h1_clearlst_sock} {
   txreq
   rxresp
   expect resp.status == 200
+  expect resp.http.x-ssl-sha1 == "D9C3BAE37EA5A7EDB7B3C9BDD4DCB2FE58A412E4"
   expect resp.http.x-ssl == "Ok"
 } -run
 
@@ -81,6 +83,7 @@ client c1 -connect ${h1_clearlst_sock} {
     txreq
     rxresp
     expect resp.status == 200
+    expect resp.http.x-ssl-sha1 == "C625EB01A0A660294B9D7F44C5CEEE5AFC495BE4"
     expect resp.http.x-ssl == "Expired"
 } -run
 
@@ -100,6 +103,7 @@ client c1 -connect ${h1_clearlst_sock} {
     txreq
     rxresp
     expect resp.status == 200
+    expect resp.http.x-ssl-sha1 == "992386628A40C9D49C89BAC0058B5D45D8575151"
     expect resp.http.x-ssl == "Revoked"
 } -run
 
