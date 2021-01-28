@@ -59,11 +59,22 @@ client c1 -connect ${h1_clearlst_sock} {
   expect resp.http.x-ssl == "Ok"
 } -run
 
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/client1.pem"
+    expect ~ ".*SHA1 FingerPrint: D9C3BAE37EA5A7EDB7B3C9BDD4DCB2FE58A412E4"
+}
+
 # Replace certificate with an expired one
 shell {
     printf "set ssl cert ${testdir}/client1.pem <<\n$(cat ${testdir}/client2_expired.pem)\n\n" | socat "${tmpdir}/h1/stats" -
     echo "commit ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
 }
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/client1.pem"
+    expect ~ ".*SHA1 FingerPrint: C625EB01A0A660294B9D7F44C5CEEE5AFC495BE4"
+}
+
 
 # The updated client certificate is an expired one so this request should fail
 client c1 -connect ${h1_clearlst_sock} {
@@ -77,6 +88,11 @@ client c1 -connect ${h1_clearlst_sock} {
 shell {
     printf "set ssl cert ${testdir}/client1.pem <<\n$(cat ${testdir}/client3_revoked.pem)\n\n" | socat "${tmpdir}/h1/stats" -
     echo "commit ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/client1.pem"
+    expect ~ ".*SHA1 FingerPrint: 992386628A40C9D49C89BAC0058B5D45D8575151"
 }
 
 # The updated client certificate is a revoked one so this request should fail
