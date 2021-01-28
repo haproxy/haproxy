@@ -1350,22 +1350,23 @@ int connect_server(struct stream *s)
 				// see it possibly larger.
 				ALREADY_CHECKED(i);
 
-				HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+				HA_SPIN_LOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 				tokill_conn = MT_LIST_POP(&srv->idle_conns[i],
 				    struct connection *, list);
 				if (!tokill_conn)
 					tokill_conn = MT_LIST_POP(&srv->safe_conns[i],
 					    struct connection *, list);
+
 				if (tokill_conn) {
 					/* We got one, put it into the concerned thread's to kill list, and wake it's kill task */
 
 					MT_LIST_ADDQ(&idle_conns[i].toremove_conns,
 					    (struct mt_list *)&tokill_conn->list);
 					task_wakeup(idle_conns[i].cleanup_task, TASK_WOKEN_OTHER);
-					HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+					HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 					break;
 				}
-				HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[tid].takeover_lock);
+				HA_SPIN_UNLOCK(OTHER_LOCK, &idle_conns[i].takeover_lock);
 			}
 		}
 
