@@ -499,7 +499,7 @@ static inline void quic_packet_number_encode(unsigned char **buf,
 static inline unsigned int quic_ack_delay_ms(struct quic_ack *ack_frm,
                                              struct quic_conn *conn)
 {
-	return ack_frm->ack_delay << conn->rx_tps.ack_delay_exponent;
+	return ack_frm->ack_delay << conn->tx.params.ack_delay_exponent;
 }
 
 /* Initialize <dst> transport parameters from <quic_dflt_trasports_parame>.
@@ -958,11 +958,11 @@ static inline int quic_transport_params_store(struct quic_conn *conn, int server
                                               const unsigned char *buf,
                                               const unsigned char *end)
 {
-	if (!quic_transport_params_decode(&conn->rx_tps, server, buf, end))
+	if (!quic_transport_params_decode(&conn->tx.params, server, buf, end))
 		return 0;
 
-	if (conn->rx_tps.max_ack_delay)
-		conn->max_ack_delay = conn->rx_tps.max_ack_delay;
+	if (conn->tx.params.max_ack_delay)
+		conn->max_ack_delay = conn->tx.params.max_ack_delay;
 
 	return 1;
 }

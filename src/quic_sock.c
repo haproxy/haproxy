@@ -161,18 +161,18 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 	                      pkt->scid.data, pkt->scid.len))
 		goto err;
 
-	odcid = &qc->params.original_destination_connection_id;
+	odcid = &qc->rx.params.original_destination_connection_id;
 	/* Copy the transport parameters. */
-	qc->params = l->bind_conf->quic_params;
+	qc->rx.params = l->bind_conf->quic_params;
 	/* Copy original_destination_connection_id transport parameter. */
 	memcpy(odcid->data, &pkt->dcid, pkt->odcid_len);
 	odcid->len = pkt->odcid_len;
 	/* Copy the initial source connection ID. */
-	quic_cid_cpy(&qc->params.initial_source_connection_id, &qc->scid);
+	quic_cid_cpy(&qc->rx.params.initial_source_connection_id, &qc->scid);
 	qc->enc_params_len =
 		quic_transport_params_encode(qc->enc_params,
 		                             qc->enc_params + sizeof qc->enc_params,
-		                             &qc->params, 1);
+		                             &qc->rx.params, 1);
 	if (!qc->enc_params_len)
 		goto err;
 

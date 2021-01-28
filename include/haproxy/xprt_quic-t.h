@@ -571,8 +571,6 @@ struct quic_path {
 struct quic_conn {
 	uint32_t version;
 
-	/* Transport parameters. */
-	struct quic_transport_params params;
 	unsigned char enc_params[QUIC_TP_MAX_ENCLEN]; /* encoded QUIC transport parameters */
 	size_t enc_params_len;
 
@@ -589,9 +587,6 @@ struct quic_conn {
 	struct eb_root cids;
 
 	struct quic_enc_level els[QUIC_TLS_ENC_LEVEL_MAX];
-
-	struct quic_transport_params rx_tps;
-
 	struct quic_pktns pktns[QUIC_TLS_PKTNS_MAX];
 
 	/* Used only to reach the tasklet for the I/O handler from this quic_conn object. */
@@ -620,10 +615,14 @@ struct quic_conn {
 		 * when sending probe packets.
 		 */
 		int nb_pto_dgrams;
+		/* Transport parameters sent by the peer */
+		struct quic_transport_params params;
 	} tx;
 	struct {
 		/* Number of received bytes. */
 		uint64_t bytes;
+		/* Transport parameters the peer will receive */
+		struct quic_transport_params params;
 	} rx;
 	unsigned int max_ack_delay;
 	struct quic_path paths[1];

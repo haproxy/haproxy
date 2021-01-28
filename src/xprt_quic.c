@@ -1881,7 +1881,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *conn)
 		LIST_APPEND(&conn->tx.frms_to_send, &frm->list);
 	}
 
-	for (i = 1; i < conn->rx_tps.active_connection_id_limit; i++) {
+	for (i = 1; i < conn->tx.params.active_connection_id_limit; i++) {
 		struct quic_connection_id *cid;
 
 		frm = pool_alloc(pool_head_quic_frame);
@@ -4115,13 +4115,13 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		                          &ctx->ssl, &ctx->bio, ha_quic_meth, ctx) == -1) 
 			goto err;
 
-		quic_conn->params = srv->quic_params;
+		quic_conn->rx.params = srv->quic_params;
 		/* Copy the initial source connection ID. */
-		quic_cid_cpy(&quic_conn->params.initial_source_connection_id, &quic_conn->scid);
+		quic_cid_cpy(&quic_conn->rx.params.initial_source_connection_id, &quic_conn->scid);
 		quic_conn->enc_params_len =
 			quic_transport_params_encode(quic_conn->enc_params,
 			                             quic_conn->enc_params + sizeof quic_conn->enc_params,
-			                             &quic_conn->params, 0);
+			                             &quic_conn->rx.params, 0);
 		if (!quic_conn->enc_params_len)
 			goto err;
 
