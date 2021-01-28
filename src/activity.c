@@ -21,7 +21,7 @@
 
 
 /* bit field of profiling options. Beware, may be modified at runtime! */
-unsigned int profiling = HA_PROF_TASKS_AUTO;
+unsigned int profiling = HA_PROF_TASKS_AOFF;
 unsigned long task_profiling_mask = 0;
 
 /* One struct per thread containing all collected measurements */
@@ -49,7 +49,7 @@ static int cfg_parse_prof_tasks(char **args, int section_type, struct proxy *cur
 	if (strcmp(args[1], "on") == 0)
 		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON;
 	else if (strcmp(args[1], "auto") == 0)
-		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AUTO;
+		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AOFF;
 	else if (strcmp(args[1], "off") == 0)
 		profiling = (profiling & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_OFF;
 	else {
@@ -75,8 +75,14 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 	}
 	else if (strcmp(args[3], "auto") == 0) {
 		unsigned int old = profiling;
-		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AUTO))
-			;
+		unsigned int new;
+
+		do {
+			if ((old & HA_PROF_TASKS_MASK) >= HA_PROF_TASKS_AON)
+				new = (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AON;
+			else
+				new = (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_AOFF;
+		} while (!_HA_ATOMIC_CAS(&profiling, &old, new));
 	}
 	else if (strcmp(args[3], "off") == 0) {
 		unsigned int old = profiling;
@@ -103,7 +109,8 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	chunk_reset(&trash);
 
 	switch (profiling & HA_PROF_TASKS_MASK) {
-	case HA_PROF_TASKS_AUTO: str="auto"; break;
+	case HA_PROF_TASKS_AOFF: str="auto-off"; break;
+	case HA_PROF_TASKS_AON:  str="auto-on"; break;
 	case HA_PROF_TASKS_ON:   str="on"; break;
 	default:                 str="off"; break;
 	}

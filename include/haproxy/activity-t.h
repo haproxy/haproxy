@@ -27,8 +27,9 @@
 
 /* bit fields for the "profiling" global variable */
 #define HA_PROF_TASKS_OFF   0x00000000     /* per-task CPU profiling forced disabled */
-#define HA_PROF_TASKS_AUTO  0x00000001     /* per-task CPU profiling automatic */
-#define HA_PROF_TASKS_ON    0x00000002     /* per-task CPU profiling forced enabled */
+#define HA_PROF_TASKS_AOFF  0x00000001     /* per-task CPU profiling off (automatic) */
+#define HA_PROF_TASKS_AON   0x00000002     /* per-task CPU profiling on (automatic) */
+#define HA_PROF_TASKS_ON    0x00000003     /* per-task CPU profiling forced enabled */
 #define HA_PROF_TASKS_MASK  0x00000003     /* per-task CPU profiling mask */
 
 /* per-thread activity reports. It's important that it's aligned on cache lines

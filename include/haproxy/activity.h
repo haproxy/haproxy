@@ -69,24 +69,22 @@ static inline void activity_count_runtime()
 	}
 
 	run_time = (before_poll.tv_sec - after_poll.tv_sec) * 1000000U + (before_poll.tv_usec - after_poll.tv_usec);
-	swrate_add(&activity[tid].avg_loop_us, TIME_STATS_SAMPLES, run_time);
+	run_time = swrate_add(&activity[tid].avg_loop_us, TIME_STATS_SAMPLES, run_time);
 
-	/* reaching the "up" threshold on average switches profiling to "on"
-	 * when automatic, and going back below the "down" threshold switches
-	 * to off.
+	/* In automatic mode, reaching the "up" threshold on average switches
+	 * profiling to "on" when automatic, and going back below the "down"
+	 * threshold switches to off. The forced modes don't check the load.
 	 */
 	if (!(task_profiling_mask & tid_bit)) {
 		if (unlikely((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_ON ||
-			     ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AUTO && run_time >= up))) {
-			if (swrate_avg(activity[tid].avg_loop_us, TIME_STATS_SAMPLES) >= up)
-				_HA_ATOMIC_OR(&task_profiling_mask, tid_bit);
-		}
+		             ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AON &&
+		             swrate_avg(run_time, TIME_STATS_SAMPLES) >= up)))
+			_HA_ATOMIC_OR(&task_profiling_mask, tid_bit);
 	} else {
 		if (unlikely((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_OFF ||
-			     ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AUTO && run_time <= down))) {
-			if (swrate_avg(activity[tid].avg_loop_us, TIME_STATS_SAMPLES) <= down)
-				_HA_ATOMIC_AND(&task_profiling_mask, ~tid_bit);
-		}
+		             ((profiling & HA_PROF_TASKS_MASK) == HA_PROF_TASKS_AOFF &&
+		             swrate_avg(run_time, TIME_STATS_SAMPLES) <= down)))
+			_HA_ATOMIC_AND(&task_profiling_mask, ~tid_bit);
 	}
 }
 
