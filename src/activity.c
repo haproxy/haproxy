@@ -27,6 +27,8 @@ unsigned long task_profiling_mask = 0;
 /* One struct per thread containing all collected measurements */
 struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
 
+/* One struct per function pointer hash entry (256 values, 0=collision) */
+struct sched_activity sched_activity[256] __attribute__((aligned(64))) = { };
 
 /* Updates the current thread's statistics about stolen CPU time. The unit for
  * <stolen> is half-milliseconds.

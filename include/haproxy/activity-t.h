@@ -74,6 +74,19 @@ struct activity {
 	char __end[0] __attribute__((aligned(64))); // align size to 64.
 };
 
+
+/* global profiling stats from the scheduler: each entry corresponds to a
+ * task or tasklet ->process function pointer, with a number of calls and
+ * a total time. Each entry is unique, except entry 0 which is for colliding
+ * hashes (i.e. others). All of these must be accessed atomically.
+ */
+struct sched_activity {
+	const void *func;
+	uint64_t calls;
+	uint64_t cpu_time;
+	uint64_t lat_time;
+};
+
 #endif /* _HAPROXY_ACTIVITY_T_H */
 
 /*
