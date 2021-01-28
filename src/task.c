@@ -400,6 +400,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 	struct list *tl_queues = sched->tasklets;
 	struct task *t;
 	uint8_t budget_mask = (1 << TL_CLASSES) - 1;
+	struct sched_activity *profile_entry = NULL;
 	unsigned int done = 0;
 	unsigned int queue;
 	unsigned short state;
@@ -465,7 +466,18 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			__ha_barrier_store();
 			state = _HA_ATOMIC_XCHG(&t->state, state);
 			__ha_barrier_atomic_store();
-			process(t, ctx, state);
+
+			if (unlikely(task_profiling_mask & tid_bit)) {
+				uint64_t before;
+
+				profile_entry = sched_activity_entry(sched_activity, t->process);
+				before = now_mono_time();
+				process(t, ctx, state);
+				HA_ATOMIC_ADD(&profile_entry->calls, 1);
+				HA_ATOMIC_ADD(&profile_entry->cpu_time, now_mono_time() - before);
+			} else {
+				process(t, ctx, state);
+			}
 			done++;
 			sched->current = NULL;
 			__ha_barrier_store();
@@ -482,9 +494,13 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		_HA_ATOMIC_SUB(&task_per_thread[tid].task_list_size, 1);
 		if (unlikely(t->call_date)) {
 			uint64_t now_ns = now_mono_time();
+			uint64_t lat = now_ns - t->call_date;
 
-			t->lat_time += now_ns - t->call_date;
+			t->lat_time += lat;
 			t->call_date = now_ns;
+			profile_entry = sched_activity_entry(sched_activity, t->process);
+			HA_ATOMIC_ADD(&profile_entry->lat_time, lat);
+			HA_ATOMIC_ADD(&profile_entry->calls, 1);
 		}
 
 		__ha_barrier_store();
@@ -515,8 +531,11 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		 */
 		if (t != NULL) {
 			if (unlikely(t->call_date)) {
-				t->cpu_time += now_mono_time() - t->call_date;
+				uint64_t cpu = now_mono_time() - t->call_date;
+
+				t->cpu_time += cpu;
 				t->call_date = 0;
+				HA_ATOMIC_ADD(&profile_entry->cpu_time, cpu);
 			}
 
 			state = _HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
