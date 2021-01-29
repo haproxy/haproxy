@@ -820,7 +820,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 }
 
 /* This function checks if any I/O is wanted, and if so, attempts to do so */
-static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short state)
+struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short state)
 {
 	struct check *check = ctx;
 	struct conn_stream *cs = check->cs;
@@ -835,7 +835,7 @@ static struct task *event_srv_chk_io(struct task *t, void *ctx, unsigned short s
  * Please do NOT place any return statement in this function and only leave
  * via the out_unlock label.
  */
-static struct task *process_chk_conn(struct task *t, void *context, unsigned short state)
+struct task *process_chk_conn(struct task *t, void *context, unsigned short state)
 {
 	struct check *check = context;
 	struct proxy *proxy = check->proxy;
@@ -1107,7 +1107,7 @@ static int start_check_task(struct check *check, int mininter,
  * reached, the task automatically stops. Note that any server status change
  * must have updated s->last_change accordingly.
  */
-static struct task *server_warmup(struct task *t, void *context, unsigned short state)
+struct task *server_warmup(struct task *t, void *context, unsigned short state)
 {
 	struct server *s = context;
 
