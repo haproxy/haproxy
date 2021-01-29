@@ -1741,9 +1741,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	int last_data = 0;
 	int ws_key_found = 0;
 
-	if (!count)
-		goto end;
-
 	chn_htx = htxbuf(buf);
 	TRACE_ENTER(H1_EV_TX_DATA, h1c->conn, h1s, chn_htx, (size_t[]){count});
 
