@@ -209,7 +209,10 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	 * possible, using a sched_activity array to collect metrics with
 	 * limited collision, then we'll report statistics only. The tasks'
 	 * #calls will reflect the number of occurrences, and the lat_time will
-	 * reflect the latency when set.
+	 * reflect the latency when set. We prefer to take the time before
+	 * calling thread_isolate() so that the wait time doesn't impact the
+	 * measurement accuracy. However this requires to take care of negative
+	 * times since tasks might be queued after we retrieve it.
 	 */
 
 	now_ns = now_mono_time();
@@ -226,7 +229,8 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 		entry = sched_activity_entry(tmp_activity, t->process);
 		if (t->call_date) {
 			lat = now_ns - t->call_date;
-			entry->lat_time += lat;
+			if ((int64_t)lat > 0)
+				entry->lat_time += lat;
 		}
 		entry->calls++;
 		rqnode = eb32sc_next(rqnode, ~0UL);
@@ -241,7 +245,8 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 			entry = sched_activity_entry(tmp_activity, t->process);
 			if (t->call_date) {
 				lat = now_ns - t->call_date;
-				entry->lat_time += lat;
+				if ((int64_t)lat > 0)
+					entry->lat_time += lat;
 			}
 			entry->calls++;
 			rqnode = eb32sc_next(rqnode, ~0UL);
@@ -253,7 +258,8 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 			entry = sched_activity_entry(tmp_activity, t->process);
 			if (!TASK_IS_TASKLET(t) && t->call_date) {
 				lat = now_ns - t->call_date;
-				entry->lat_time += lat;
+				if ((int64_t)lat > 0)
+					entry->lat_time += lat;
 			}
 			entry->calls++;
 		}
@@ -265,7 +271,8 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 				entry = sched_activity_entry(tmp_activity, t->process);
 				if (!TASK_IS_TASKLET(t) && t->call_date) {
 					lat = now_ns - t->call_date;
-					entry->lat_time += lat;
+					if ((int64_t)lat > 0)
+						entry->lat_time += lat;
 				}
 				entry->calls++;
 			}
