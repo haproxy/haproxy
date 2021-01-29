@@ -769,15 +769,13 @@ static int smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char
 		smp->ctx.a[0] = ctx;
 	}
 
-	if (args) {
-		if (args[0].type != ARGT_STR)
-			return 0;
-		name.ptr = args[0].data.str.area;
-		name.len = args[0].data.str.data;
+	if (args[0].type != ARGT_STR)
+		return 0;
+	name.ptr = args[0].data.str.area;
+	name.len = args[0].data.str.data;
 
-		if (args[1].type == ARGT_SINT)
-			occ = args[1].data.sint;
-	}
+	if (args[1].type == ARGT_SINT)
+		occ = args[1].data.sint;
 
 	if (!htx)
 		return 0;
@@ -819,7 +817,7 @@ static int smp_fetch_fhdr_cnt(const struct arg *args, struct sample *smp, const 
 	if (!htx)
 		return 0;
 
-	if (args && args->type == ARGT_STR) {
+	if (args->type == ARGT_STR) {
 		name.ptr = args->data.str.area;
 		name.len = args->data.str.data;
 	} else {
@@ -851,7 +849,7 @@ static int smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const
 	if (!htx)
 		return 0;
 
-	if (args && args->type == ARGT_STR)
+	if (args->type == ARGT_STR)
 		del = *args[0].data.str.area;
 
 	temp = get_trash_chunk();
@@ -900,15 +898,13 @@ static int smp_fetch_hdr(const struct arg *args, struct sample *smp, const char 
 		smp->ctx.a[0] = ctx;
 	}
 
-	if (args) {
-		if (args[0].type != ARGT_STR)
-			return 0;
-		name.ptr = args[0].data.str.area;
-		name.len = args[0].data.str.data;
+	if (args[0].type != ARGT_STR)
+		return 0;
+	name.ptr = args[0].data.str.area;
+	name.len = args[0].data.str.data;
 
-		if (args[1].type == ARGT_SINT)
-			occ = args[1].data.sint;
-	}
+	if (args[1].type == ARGT_SINT)
+		occ = args[1].data.sint;
 
 	if (!htx)
 		return 0;
@@ -960,7 +956,7 @@ static int smp_fetch_hdr_cnt(const struct arg *args, struct sample *smp, const c
 	if (!htx)
 		return 0;
 
-	if (args && args->type == ARGT_STR) {
+	if (args->type == ARGT_STR) {
 		name.ptr = args->data.str.area;
 		name.len = args->data.str.data;
 	} else {
@@ -1341,7 +1337,7 @@ static int smp_fetch_http_auth(const struct arg *args, struct sample *smp, const
 	struct channel *chn = SMP_REQ_CHN(smp);
 	struct htx *htx = smp_prefetch_htx(smp, chn, NULL, 1);
 
-	if (!args || args->type != ARGT_USR)
+	if (args->type != ARGT_USR)
 		return 0;
 
 	if (!htx)
@@ -1361,7 +1357,7 @@ static int smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, c
 	struct channel *chn = SMP_REQ_CHN(smp);
 	struct htx *htx = smp_prefetch_htx(smp, chn, NULL, 1);
 
-	if (!args || args->type != ARGT_USR)
+	if (args->type != ARGT_USR)
 		return 0;
 
 	if (!htx)
@@ -1396,7 +1392,7 @@ static int smp_fetch_capture_req_hdr(const struct arg *args, struct sample *smp,
 	struct proxy *fe;
 	int idx;
 
-	if (!args || args->type != ARGT_SINT)
+	if (args->type != ARGT_SINT)
 		return 0;
 
 	if (!smp->strm)
@@ -1424,7 +1420,7 @@ static int smp_fetch_capture_res_hdr(const struct arg *args, struct sample *smp,
 	struct proxy *fe;
 	int idx;
 
-	if (!args || args->type != ARGT_SINT)
+	if (args->type != ARGT_SINT)
 		return 0;
 
 	if (!smp->strm)
@@ -1588,7 +1584,7 @@ static int smp_fetch_cookie(const struct arg *args, struct sample *smp, const ch
 	size_t cook_l = 0;
 	int found = 0;
 
-	if (args && args->type == ARGT_STR) {
+	if (args->type == ARGT_STR) {
 		cook = args->data.str.area;
 		cook_l = args->data.str.data;
 	}
@@ -1690,7 +1686,7 @@ static int smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, cons
 	size_t cook_l = 0;
 	int cnt;
 
-	if (args && args->type == ARGT_STR){
+	if (args->type == ARGT_STR){
 		cook = args->data.str.area;
 		cook_l = args->data.str.data;
 	}
@@ -1816,8 +1812,7 @@ static int smp_fetch_url_param(const struct arg *args, struct sample *smp, const
 	const char *name;
 	int name_len;
 
-	if (!args ||
-	    (args[0].type && args[0].type != ARGT_STR) ||
+	if ((args[0].type && args[0].type != ARGT_STR) ||
 	    (args[1].type && args[1].type != ARGT_STR))
 		return 0;
 
@@ -1868,7 +1863,7 @@ static int smp_fetch_body_param(const struct arg *args, struct sample *smp, cons
 	const char *name;
 	int name_len;
 
-	if (!args || (args[0].type && args[0].type != ARGT_STR))
+	if (args[0].type && args[0].type != ARGT_STR)
 		return 0;
 
 	name = "";
