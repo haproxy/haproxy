@@ -72,8 +72,17 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 
 	if (strcmp(args[3], "on") == 0) {
 		unsigned int old = profiling;
+		int i;
+
 		while (!_HA_ATOMIC_CAS(&profiling, &old, (old & ~HA_PROF_TASKS_MASK) | HA_PROF_TASKS_ON))
 			;
+		/* also flush current profiling stats */
+		for (i = 0; i < 256; i++) {
+			HA_ATOMIC_STORE(&sched_activity[i].calls, 0);
+			HA_ATOMIC_STORE(&sched_activity[i].cpu_time, 0);
+			HA_ATOMIC_STORE(&sched_activity[i].lat_time, 0);
+			HA_ATOMIC_STORE(&sched_activity[i].func, NULL);
+		}
 	}
 	else if (strcmp(args[3], "auto") == 0) {
 		unsigned int old = profiling;
