@@ -49,16 +49,16 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 	time_t curr_date;
 
 	/* add offset */
-	if (args && (args[0].type == ARGT_SINT))
+	if (args[0].type == ARGT_SINT)
 		smp->data.u.sint += args[0].data.sint;
 
         /* report in milliseconds */
-        if (args && args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_MS) {
+        if (args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_MS) {
 		sec_frac = smp->data.u.sint % 1000;
                 smp->data.u.sint /= 1000;
         }
         /* report in microseconds */
-        else if (args && args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_US) {
+        else if (args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_US) {
 		sec_frac = smp->data.u.sint % 1000000;
                 smp->data.u.sint /= 1000000;
         }
@@ -71,7 +71,7 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp, voi
 		return 0;
 
 	temp = get_trash_chunk();
-	if (args && args[1].type == ARGT_SINT && args[1].data.sint != TIME_UNIT_S) {
+	if (args[1].type == ARGT_SINT && args[1].data.sint != TIME_UNIT_S) {
 	    temp->data = snprintf(temp->area, temp->size - temp->data,
 	                          "%s, %02d %s %04d %02d:%02d:%02d.%d GMT",
 			          day[tm->tm_wday], tm->tm_mday, mon[tm->tm_mon],
@@ -258,7 +258,7 @@ static int sample_conv_url_dec(const struct arg *args, struct sample *smp, void 
 	/* Add final \0 required by url_decode(), and convert the input string. */
 	smp->data.u.str.area[smp->data.u.str.data] = '\0';
 
-	if (args && (args[0].type == ARGT_SINT))
+	if (args[0].type == ARGT_SINT)
 		in_form = !!args[0].data.sint;
 
 	len = url_decode(smp->data.u.str.area, in_form);
@@ -324,8 +324,7 @@ static int sample_conv_url_enc(const struct arg *args, struct sample *smp, void
 	char *ret;
 
 	enc_type = ENC_QUERY;
-	if (args)
-		enc_type = args->data.sint;
+	enc_type = args->data.sint;
 
 	/* Add final \0 required by encode_string() */
 	smp->data.u.str.area[smp->data.u.str.data] = '\0';
@@ -351,7 +350,7 @@ static int smp_conv_req_capture(const struct arg *args, struct sample *smp, void
 	struct cap_hdr *hdr;
 	int len;
 
-	if (!args || args->type != ARGT_SINT)
+	if (args->type != ARGT_SINT)
 		return 0;
 
 	if (!smp->strm)
@@ -396,7 +395,7 @@ static int smp_conv_res_capture(const struct arg *args, struct sample *smp, void
 	struct cap_hdr *hdr;
 	int len;
 
-	if (!args || args->type != ARGT_SINT)
+	if (args->type != ARGT_SINT)
 		return 0;
 
 	if (!smp->strm)
