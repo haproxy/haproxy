@@ -112,8 +112,10 @@ int accept_queue_push_mp(struct accept_queue_ring *ring, struct connection *conn
 	return 1;
 }
 
-/* proceed with accepting new connections */
-static struct task *accept_queue_process(struct task *t, void *context, unsigned short state)
+/* proceed with accepting new connections. Don't mark it static so that it appears
+ * in task dumps.
+ */
+struct task *accept_queue_process(struct task *t, void *context, unsigned short state)
 {
 	struct accept_queue_ring *ring = context;
 	struct connection *conn;

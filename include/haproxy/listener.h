@@ -213,6 +213,8 @@ static inline const char *listener_state_str(const struct listener *l)
 	return states[st];
 }
 
+struct task *accept_queue_process(struct task *t, void *context, unsigned short state);
+
 extern struct accept_queue_ring accept_queue_rings[MAX_THREADS] __attribute__((aligned(64)));
 
 #endif /* _HAPROXY_LISTENER_H */
