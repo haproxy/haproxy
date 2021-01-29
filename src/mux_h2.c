@@ -4943,10 +4943,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 			break;
 
 		if (type == HTX_BLK_HDR) {
-			if (!sl) {
-				TRACE_ERROR("no start-line", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
-				goto fail;
-			}
+			BUG_ON(!sl); /* The start-line mut be defined before any headers */
 			if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1)) {
 				TRACE_ERROR("too many headers", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 				goto fail;
@@ -4957,10 +4954,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 			hdr++;
 		}
 		else if (type == HTX_BLK_RES_SL) {
-			if (sl) {
-				TRACE_PROTO("multiple start-lines", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
-				goto fail;
-			}
+			BUG_ON(sl); /* Only one start-line expected */
 			sl = htx_get_blk_ptr(htx, blk);
 			h2s->status = sl->info.res.status;
 			if (h2s->status == 204 || h2s->status == 304)
@@ -4992,6 +4986,9 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 			goto fail;
 		}
 	}
+
+	/* The start-line me be defined */
+	BUG_ON(!sl);
 
 	/* marker for end of headers */
 	list[hdr].n = ist("");
@@ -5183,10 +5180,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			break;
 
 		if (type == HTX_BLK_REQ_SL) {
-			if (sl) {
-				TRACE_ERROR("multiple start-lines", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
-				goto fail;
-			}
+			BUG_ON(sl); /* Only one start-line expected */
 			sl = htx_get_blk_ptr(htx, blk);
 			meth = htx_sl_req_meth(sl);
 			uri  = htx_sl_req_uri(sl);
@@ -5198,10 +5192,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			}
 		}
 		else if (type == HTX_BLK_HDR) {
-			if (!sl) {
-				TRACE_ERROR("no start-line", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
-				goto fail;
-			}
+			BUG_ON(!sl); /* The start-line mut be defined before any headers */
 			if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1)) {
 				TRACE_ERROR("too many headers", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
 				goto fail;
@@ -5255,6 +5246,9 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			goto fail;
 		}
 	}
+
+	/* The start-line me be defined */
+	BUG_ON(!sl);
 
 	/* Now add the server name to a header (if requested) */
 	if ((h2c->flags & H2_CF_IS_BACK) && h2c->proxy->server_id_hdr_name) {
