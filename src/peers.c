@@ -2867,9 +2867,10 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 
 /*
  * Task processing function to manage re-connect, peer session
- * tasks wakeup on local update and heartbeat.
+ * tasks wakeup on local update and heartbeat. Let's keep it exported so that it
+ * resolves in stack traces and "show tasks".
  */
-static struct task *process_peer_sync(struct task * task, void *context, unsigned short state)
+struct task *process_peer_sync(struct task * task, void *context, unsigned short state)
 {
 	struct peers *peers = context;
 	struct peer *ps;
