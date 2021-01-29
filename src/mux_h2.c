@@ -551,7 +551,7 @@ static const struct h2s *h2_idle_stream = &(const struct h2s){
 	.id        = 0,
 };
 
-static struct task *h2_timeout_task(struct task *t, void *context, unsigned short state);
+struct task *h2_timeout_task(struct task *t, void *context, unsigned short state);
 static int h2_send(struct h2c *h2c);
 static int h2_recv(struct h2c *h2c);
 static int h2_process(struct h2c *h2c);
@@ -560,7 +560,7 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned short state);
 static inline struct h2s *h2c_st_by_id(struct h2c *h2c, int id);
 static int h2c_decode_headers(struct h2c *h2c, struct buffer *rxbuf, uint32_t *flags, unsigned long long *body_len, char *upgrade_protocol);
 static int h2_frt_transfer_data(struct h2s *h2s);
-static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state);
+struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state);
 static struct h2s *h2c_bck_stream_new(struct h2c *h2c, struct conn_stream *cs, struct session *sess);
 static void h2s_alert(struct h2s *h2s);
 
@@ -3956,7 +3956,7 @@ static int h2_wake(struct connection *conn)
  * immediately killed. If it's allocatable and empty, we attempt to send a
  * GOAWAY frame.
  */
-static struct task *h2_timeout_task(struct task *t, void *context, unsigned short state)
+struct task *h2_timeout_task(struct task *t, void *context, unsigned short state)
 {
 	struct h2c *h2c = context;
 	int expired = tick_is_expired(t->expire, now_ms);
@@ -4420,7 +4420,7 @@ static void h2_do_shutw(struct h2s *h2s)
  * deferred shutdowns when the h2_detach() was done but the mux buffer was full
  * and prevented the last frame from being emitted.
  */
-static struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state)
+struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned short state)
 {
 	struct h2s *h2s = ctx;
 	struct h2c *h2c = h2s->h2c;
