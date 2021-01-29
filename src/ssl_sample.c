@@ -400,7 +400,7 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 		goto out;
 
 	smp_trash = get_trash_chunk();
-	if (args && args[0].type == ARGT_STR && args[0].data.str.data > 0) {
+	if (args[0].type == ARGT_STR && args[0].data.str.data > 0) {
 		int pos = 1;
 
 		if (args[1].type == ARGT_SINT)
@@ -409,7 +409,7 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 		if (ssl_sock_get_dn_entry(name, &args[0].data.str, pos, smp_trash) <= 0)
 			goto out;
 	}
-	else if (args && args[2].type == ARGT_STR && args[2].data.str.data > 0) {
+	else if (args[2].type == ARGT_STR && args[2].data.str.data > 0) {
 		if (ssl_sock_get_dn_formatted(name, &args[2].data.str, smp_trash) <= 0)
 			goto out;
 	}
@@ -520,7 +520,7 @@ smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw,
 		goto out;
 
 	smp_trash = get_trash_chunk();
-	if (args && args[0].type == ARGT_STR && args[0].data.str.data > 0) {
+	if (args[0].type == ARGT_STR && args[0].data.str.data > 0) {
 		int pos = 1;
 
 		if (args[1].type == ARGT_SINT)
@@ -529,7 +529,7 @@ smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw,
 		if (ssl_sock_get_dn_entry(name, &args[0].data.str, pos, smp_trash) <= 0)
 			goto out;
 	}
-	else if (args && args[2].type == ARGT_STR && args[2].data.str.data > 0) {
+	else if (args[2].type == ARGT_STR && args[2].data.str.data > 0) {
 		if (ssl_sock_get_dn_formatted(name, &args[2].data.str, smp_trash) <= 0)
 			goto out;
 	}
