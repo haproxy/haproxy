@@ -3817,6 +3817,44 @@ int parse_http_date(const char *date, int len, struct tm *tm)
 	return 0;
 }
 
+/* print the time <ns> in a short form (exactly 7 chars) at the end of buffer
+ * <out>. "-" is printed if the value is zero, "inf" if larger than 1000 years.
+ * It returns the new buffer length, or 0 if it doesn't fit. The value will be
+ * surrounded by <pfx> and <sfx> respectively if not NULL.
+ */
+int print_time_short(struct buffer *out, const char *pfx, uint64_t ns, const char *sfx)
+{
+	double val = ns; // 52 bits of mantissa keep ns accuracy over 52 days
+	const char *unit;
+
+	if (!pfx)
+		pfx = "";
+	if (!sfx)
+		sfx = "";
+
+	do {
+		unit = "   -   "; if (val <= 0.0) break;
+		unit = "ns"; if (val < 1000.0) break;
+		unit = "us"; val /= 1000.0; if (val < 1000.0) break;
+		unit = "ms"; val /= 1000.0; if (val < 1000.0) break;
+		unit = "s "; val /= 1000.0; if (val <   60.0) break;
+		unit = "m "; val /=   60.0; if (val <   60.0) break;
+		unit = "h "; val /=   60.0; if (val <   24.0) break;
+		unit = "d "; val /=   24.0; if (val <  365.0) break;
+		unit = "yr"; val /=  365.0; if (val < 1000.0) break;
+		unit = "  inf  "; val = 0.0; break;
+	} while (0);
+
+	if (val <= 0.0)
+		return chunk_appendf(out, "%s%7s%s", pfx, unit, sfx);
+	else if (val < 10.0)
+		return chunk_appendf(out, "%s%1.3f%s%s", pfx, val, unit, sfx);
+	else if (val < 100.0)
+		return chunk_appendf(out, "%s%2.2f%s%s", pfx, val, unit, sfx);
+	else
+		return chunk_appendf(out, "%s%3.1f%s%s", pfx, val, unit, sfx);
+}
+
 /* Dynamically allocates a string of the proper length to hold the formatted
  * output. NULL is returned on error. The caller is responsible for freeing the
  * memory area using free(). The resulting string is returned in <out> if the

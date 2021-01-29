@@ -790,6 +790,7 @@ int parse_http_date(const char *date, int len, struct tm *tm);
 int parse_imf_date(const char *date, int len, struct tm *tm);
 int parse_rfc850_date(const char *date, int len, struct tm *tm);
 int parse_asctime_date(const char *date, int len, struct tm *tm);
+int print_time_short(struct buffer *out, const char *pfx, uint64_t ns, const char *sfx);
 
 /* Dynamically allocates a string of the proper length to hold the formatted
  * output. NULL is returned on error. The caller is responsible for freeing the
