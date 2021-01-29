@@ -2761,6 +2761,17 @@ show table <name> [ data.<type> <operator> <value> [data.<type> ...]] | [ key <k
           | fgrep 'key=' | cut -d' ' -f2 | cut -d= -f2 > abusers-ip.txt
           ( or | awk '/key/{ print a[split($2,a,"=")]; }' )
 
+show tasks
+  Dumps the number of tasks currently in the run queue, with the number of
+  occurrences for each function, and their average latency when it's known
+  (for pure tasks with task profiling enabled). The dump is a snapshot of the
+  instant it's done, and there may be variations depending on what tasks are
+  left in the queue at the moment it happens, especially in mono-thread mode
+  as there's less chance that I/Os can refill the queue (unless the queue is
+  full). This command takes exclusive access to the process and can cause
+  minor but measurable latencies when issued on a highly loaded process, so
+  it must not be abused by monitoring bots.
+
 show threads
   Dumps some internal states and structures for each thread, that may be useful
   to help developers understand a problem. The output tries to be readable by
