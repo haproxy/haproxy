@@ -1599,7 +1599,7 @@ static int sample_conv_sha2(const struct arg *arg_p, struct sample *smp, void *p
 {
 	struct buffer *trash = get_trash_chunk();
 	int bits = 256;
-	if (arg_p && arg_p->data.sint)
+	if (arg_p->data.sint)
 		bits = arg_p->data.sint;
 
 	switch (bits) {
@@ -1920,7 +1920,7 @@ static int sample_conv_djb2(const struct arg *arg_p, struct sample *smp, void *p
 {
 	smp->data.u.sint = hash_djb2(smp->data.u.str.area,
 				     smp->data.u.str.data);
-	if (arg_p && arg_p->data.sint)
+	if (arg_p->data.sint)
 		smp->data.u.sint = full_hash(smp->data.u.sint);
 	smp->data.type = SMP_T_SINT;
 	return 1;
@@ -2019,7 +2019,7 @@ static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp, void *p
 {
 	smp->data.u.sint = hash_sdbm(smp->data.u.str.area,
 				     smp->data.u.str.data);
-	if (arg_p && arg_p->data.sint)
+	if (arg_p->data.sint)
 		smp->data.u.sint = full_hash(smp->data.u.sint);
 	smp->data.type = SMP_T_SINT;
 	return 1;
@@ -2056,7 +2056,7 @@ static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp, void *pr
 {
 	smp->data.u.sint = hash_wt6(smp->data.u.str.area,
 				    smp->data.u.str.data);
-	if (arg_p && arg_p->data.sint)
+	if (arg_p->data.sint)
 		smp->data.u.sint = full_hash(smp->data.u.sint);
 	smp->data.type = SMP_T_SINT;
 	return 1;
@@ -2069,7 +2069,7 @@ static int sample_conv_xxh32(const struct arg *arg_p, struct sample *smp, void *
 {
 	unsigned int seed;
 
-	if (arg_p && arg_p->data.sint)
+	if (arg_p->data.sint)
 		seed = arg_p->data.sint;
 	else
 		seed = 0;
@@ -2089,7 +2089,7 @@ static int sample_conv_xxh64(const struct arg *arg_p, struct sample *smp, void *
 {
 	unsigned long long int seed;
 
-	if (arg_p && arg_p->data.sint)
+	if (arg_p->data.sint)
 		seed = (unsigned long long int)arg_p->data.sint;
 	else
 		seed = 0;
@@ -2103,7 +2103,7 @@ static int sample_conv_xxh3(const struct arg *arg_p, struct sample *smp, void *p
 {
 	unsigned long long int seed;
 
-	if (arg_p && arg_p->data.sint)
+	if (arg_p->data.sint)
 		seed = (unsigned long long int)arg_p->data.sint;
 	else
 		seed = 0;
@@ -2118,7 +2118,7 @@ static int sample_conv_crc32(const struct arg *arg_p, struct sample *smp, void *
 {
 	smp->data.u.sint = hash_crc32(smp->data.u.str.area,
 				      smp->data.u.str.data);
-	if (arg_p && arg_p->data.sint)
+	if (arg_p->data.sint)
 		smp->data.u.sint = full_hash(smp->data.u.sint);
 	smp->data.type = SMP_T_SINT;
 	return 1;
@@ -2129,7 +2129,7 @@ static int sample_conv_crc32c(const struct arg *arg_p, struct sample *smp, void 
 {
 	smp->data.u.sint = hash_crc32c(smp->data.u.str.area,
 				       smp->data.u.str.data);
-	if (arg_p && arg_p->data.sint)
+	if (arg_p->data.sint)
 		smp->data.u.sint = full_hash(smp->data.u.sint);
 	smp->data.type = SMP_T_SINT;
 	return 1;
@@ -2193,8 +2193,7 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *p
 	unsigned int ret;
 	char *p;
 
-	if (arg_p)
-		input_type = arg_p->data.sint;
+	input_type = arg_p->data.sint;
 
 	temp = get_trash_chunk();
 	temp->data = 0;
@@ -2321,11 +2320,6 @@ static int sample_conv_field_check(struct arg *args, struct sample_conv *conv,
                                   const char *file, int line, char **err)
 {
 	struct arg *arg = args;
-
-	if (!arg) {
-		memprintf(err, "Unexpected empty arg list");
-		return 0;
-	}
 
 	if (arg->type != ARGT_SINT) {
 		memprintf(err, "Unexpected arg type");
@@ -3543,7 +3537,7 @@ smp_fetch_env(const struct arg *args, struct sample *smp, const char *kw, void *
 {
 	char *env;
 
-	if (!args || args[0].type != ARGT_STR)
+	if (args[0].type != ARGT_STR)
 		return 0;
 
 	env = getenv(args[0].data.str.area);
@@ -3604,18 +3598,18 @@ smp_fetch_date(const struct arg *args, struct sample *smp, const char *kw, void 
 	smp->data.u.sint = date.tv_sec;
 
 	/* report in milliseconds */
-	if (args && args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_MS) {
+	if (args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_MS) {
 		smp->data.u.sint *= 1000;
 		smp->data.u.sint += date.tv_usec / 1000;
 	}
 	/* report in microseconds */
-	else if (args && args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_US) {
+	else if (args[1].type == ARGT_SINT && args[1].data.sint == TIME_UNIT_US) {
 		smp->data.u.sint *= 1000000;
 		smp->data.u.sint += date.tv_usec;
 	}
 
 	/* add offset */
-	if (args && args[0].type == ARGT_SINT)
+	if (args[0].type == ARGT_SINT)
 		smp->data.u.sint += args[0].data.sint;
 
 	smp->data.type = SMP_T_SINT;
@@ -3681,7 +3675,7 @@ smp_fetch_rand(const struct arg *args, struct sample *smp, const char *kw, void 
 	smp->data.u.sint = ha_random32();
 
 	/* reduce if needed. Don't do a modulo, use all bits! */
-	if (args && args[0].type == ARGT_SINT)
+	if (args[0].type == ARGT_SINT)
 		smp->data.u.sint = ((u64)smp->data.u.sint * (u64)args[0].data.sint) >> 32;
 
 	smp->data.type = SMP_T_SINT;
