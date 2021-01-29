@@ -5179,19 +5179,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		if (type == HTX_BLK_EOH)
 			break;
 
-		if (type == HTX_BLK_REQ_SL) {
-			BUG_ON(sl); /* Only one start-line expected */
-			sl = htx_get_blk_ptr(htx, blk);
-			meth = htx_sl_req_meth(sl);
-			uri  = htx_sl_req_uri(sl);
-			if (sl->info.req.meth == HTTP_METH_HEAD)
-				h2s->flags |= H2_SF_BODYLESS_RESP;
-			if (unlikely(uri.len == 0)) {
-				TRACE_ERROR("no URI in HTX request", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
-				goto fail;
-			}
-		}
-		else if (type == HTX_BLK_HDR) {
+		if (type == HTX_BLK_HDR) {
 			BUG_ON(!sl); /* The start-line mut be defined before any headers */
 			if (unlikely(hdr >= sizeof(list)/sizeof(list[0]) - 1)) {
 				TRACE_ERROR("too many headers", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
@@ -5240,6 +5228,18 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 				host = list[hdr].v;
 
 			hdr++;
+		}
+		else if (type == HTX_BLK_REQ_SL) {
+			BUG_ON(sl); /* Only one start-line expected */
+			sl = htx_get_blk_ptr(htx, blk);
+			meth = htx_sl_req_meth(sl);
+			uri  = htx_sl_req_uri(sl);
+			if (sl->info.req.meth == HTTP_METH_HEAD)
+				h2s->flags |= H2_SF_BODYLESS_RESP;
+			if (unlikely(uri.len == 0)) {
+				TRACE_ERROR("no URI in HTX request", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
+				goto fail;
+			}
 		}
 		else {
 			TRACE_ERROR("will not encode unexpected htx block", H2_EV_TX_FRAME|H2_EV_TX_HDR|H2_EV_H2S_ERR, h2c->conn, h2s);
