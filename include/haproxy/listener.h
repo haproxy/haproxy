@@ -214,6 +214,7 @@ static inline const char *listener_state_str(const struct listener *l)
 }
 
 struct task *accept_queue_process(struct task *t, void *context, unsigned short state);
+struct task *manage_global_listener_queue(struct task *t, void *context, unsigned short state);
 
 extern struct accept_queue_ring accept_queue_rings[MAX_THREADS] __attribute__((aligned(64)));
 

@@ -45,7 +45,6 @@ static struct bind_kw_list bind_keywords = {
 /* list of the temporarily limited listeners because of lack of resource */
 static struct mt_list global_listener_queue = MT_LIST_HEAD_INIT(global_listener_queue);
 static struct task *global_listener_queue_task;
-static struct task *manage_global_listener_queue(struct task *t, void *context, unsigned short state);
 
 
 #if defined(USE_THREAD)
@@ -1150,9 +1149,10 @@ REGISTER_POST_DEINIT(listener_queue_deinit);
 
 /* This is the global management task for listeners. It enables listeners waiting
  * for global resources when there are enough free resource, or at least once in
- * a while. It is designed to be called as a task.
+ * a while. It is designed to be called as a task. It's exported so that it's easy
+ * to spot in "show tasks" or "show profiling".
  */
-static struct task *manage_global_listener_queue(struct task *t, void *context, unsigned short state)
+struct task *manage_global_listener_queue(struct task *t, void *context, unsigned short state)
 {
 	/* If there are still too many concurrent connections, let's wait for
 	 * some of them to go away. We don't need to re-arm the timer because

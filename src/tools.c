@@ -4697,6 +4697,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 		{ .func = sock_conn_iocb, .name = "sock_conn_iocb" },
 		{ .func = dgram_fd_handler, .name = "dgram_fd_handler" },
 		{ .func = listener_accept, .name = "listener_accept" },
+		{ .func = manage_global_listener_queue, .name = "manage_global_listener_queue" },
 		{ .func = poller_pipe_io_handler, .name = "poller_pipe_io_handler" },
 		{ .func = mworker_accept_wrapper, .name = "mworker_accept_wrapper" },
 		{ .func = session_expire_embryonic, .name = "session_expire_embryonic" },
