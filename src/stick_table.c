@@ -2247,7 +2247,7 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 		smp.px = NULL;
 		smp.sess = sess;
 		smp.strm = strm;
-		if (!smp_fetch_src || !smp_fetch_src(NULL, &smp, NULL, NULL))
+		if (!smp_fetch_src || !smp_fetch_src(empty_arg_list, &smp, NULL, NULL))
 			return NULL;
 
 		/* Converts into key. */
@@ -2312,7 +2312,7 @@ smp_create_src_stkctr(struct session *sess, struct stream *strm, const struct ar
 	smp.px = NULL;
 	smp.sess = sess;
 	smp.strm = strm;
-	if (!smp_fetch_src || !smp_fetch_src(NULL, &smp, NULL, NULL))
+	if (!smp_fetch_src || !smp_fetch_src(empty_arg_list, &smp, NULL, NULL))
 		return NULL;
 
 	/* Converts into key. */
@@ -2844,7 +2844,7 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 		return 0;
 
 	/* Fetch source address in a sample. */
-	if (!smp_fetch_src || !smp_fetch_src(NULL, smp, NULL, NULL))
+	if (!smp_fetch_src || !smp_fetch_src(empty_arg_list, smp, NULL, NULL))
 		return 0;
 
 	/* Converts into key. */
