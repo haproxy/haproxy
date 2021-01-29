@@ -6966,16 +6966,13 @@ http-reuse { never | safe | aggressive | always }
                  used when it improves the situation over "aggressive".
 
   When http connection sharing is enabled, a great care is taken to respect the
-  connection properties and compatibility. Specifically :
-    - connections made with "usesrc" followed by a client-dependent value
-      ("client", "clientip", "hdr_ip") are marked private and never shared;
+  connection properties and compatibility. Indeed, some properties are specific
+  and it is not possibly to reuse it blindly. Those are the SSL SNI, source
+  and destination address and proxy protocol block. A connection is reused only
+  if it shares the same set of properties with the request.
 
-    - connections sent to a server with a variable value as TLS SNI extension
-      are marked private and are never shared. This is not the case if the SNI
-      is guaranteed to be a constant, as for example using a literal string;
-
-    - connections with certain bogus authentication schemes (relying on the
-      connection) like NTLM are detected, marked private and are never shared;
+  Also note that connections with certain bogus authentication schemes (relying
+  on the connection) like NTLM are marked private and never shared.
 
   A connection pool is involved and configurable with "pool-max-conn".
 
