@@ -28,7 +28,6 @@ DECLARE_POOL(pool_head_sess_srv_list, "session server list",
 		sizeof(struct sess_srv_list));
 
 int conn_complete_session(struct connection *conn);
-static struct task *session_expire_embryonic(struct task *t, void *context, unsigned short state);
 
 /* Create a a new session and assign it to frontend <fe>, listener <li>,
  * origin <origin>, set the current date and clear the stick counters pointers.
@@ -376,9 +375,10 @@ static void session_kill_embryonic(struct session *sess, unsigned short state)
 }
 
 /* Manages the embryonic session timeout. It is only called when the timeout
- * strikes and performs the required cleanup.
+ * strikes and performs the required cleanup. It's only exported to make it
+ * resolve in "show tasks".
  */
-static struct task *session_expire_embryonic(struct task *t, void *context, unsigned short state)
+struct task *session_expire_embryonic(struct task *t, void *context, unsigned short state)
 {
 	struct session *sess = context;
 

@@ -4699,6 +4699,7 @@ const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *ad
 		{ .func = listener_accept, .name = "listener_accept" },
 		{ .func = poller_pipe_io_handler, .name = "poller_pipe_io_handler" },
 		{ .func = mworker_accept_wrapper, .name = "mworker_accept_wrapper" },
+		{ .func = session_expire_embryonic, .name = "session_expire_embryonic" },
 #ifdef USE_THREAD
 		{ .func = accept_queue_process, .name = "accept_queue_process" },
 #endif
