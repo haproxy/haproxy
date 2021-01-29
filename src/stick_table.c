@@ -626,7 +626,7 @@ out_unlock:
  * Task processing function to trash expired sticky sessions. A pointer to the
  * task itself is returned since it never dies.
  */
-static struct task *process_table_expire(struct task *task, void *context, unsigned short state)
+struct task *process_table_expire(struct task *task, void *context, unsigned short state)
 {
 	struct stktable *t = context;
 
