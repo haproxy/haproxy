@@ -280,6 +280,7 @@ const struct promex_metric promex_st_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_SAFE_CONN_CUR]=   { .n = IST("safe_idle_connections_current"),    .type = PROMEX_MT_GAUGE,    .flags = (                                                 PROMEX_FL_SRV_METRIC) },
 	[ST_F_USED_CONN_CUR]  = { .n = IST("used_connections_current"),         .type = PROMEX_MT_GAUGE,    .flags = (                                                 PROMEX_FL_SRV_METRIC) },
 	[ST_F_NEED_CONN_EST]  = { .n = IST("need_connections_current"),         .type = PROMEX_MT_GAUGE,    .flags = (                                                 PROMEX_FL_SRV_METRIC) },
+	[ST_F_UWEIGHT]        = { .n = IST("uweight"),                          .type = PROMEX_MT_GAUGE,    .flags = (                         PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
 };
 
 /* Description of overriden stats fields */

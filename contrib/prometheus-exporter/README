@@ -243,6 +243,7 @@ Exported metrics
 | haproxy_backend_client_aborts_total                 | Total number of data transfers aborted by the client.                    |
 | haproxy_backend_server_aborts_total                 | Total number of data transfers aborted by the server.                    |
 | haproxy_backend_weight                              | Service weight.                                                          |
+| haproxy_backend_uweight                             | Sum of active servers'user weights for a backend                         |
 | haproxy_backend_active_servers                      | Current number of active servers.                                        |
 | haproxy_backend_backup_servers                      | Current number of backup servers.                                        |
 | haproxy_backend_check_up_down_total                 | Total number of UP->DOWN transitions.                                    |
@@ -296,6 +297,7 @@ Exported metrics
 | haproxy_server_client_aborts_total                 | Total number of data transfers aborted by the client.                     |
 | haproxy_server_server_aborts_total                 | Total number of data transfers aborted by the server.                     |
 | haproxy_server_weight                              | Service weight.                                                           |
+| haproxy_server_uweight                             | Server's user weight                                                      |
 | haproxy_server_check_status                        | Status of last health check, if enabled. (see below for the mapping)      |
 | haproxy_server_check_code                          | layer5-7 code, if available of the last health check.                     |
 | haproxy_server_check_duration_seconds              | Total duration of the latest server health check, in seconds.             |
