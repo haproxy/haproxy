@@ -639,7 +639,6 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 					goto next_px;
 				case ST_F_REQ_RATE_MAX:
 				case ST_F_REQ_TOT:
-				case ST_F_HRSP_1XX:
 				case ST_F_INTERCEPTED:
 				case ST_F_CACHE_LOOKUPS:
 				case ST_F_CACHE_HITS:
@@ -651,6 +650,7 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 						goto next_px;
 					val = stats[appctx->st2];
 					break;
+				case ST_F_HRSP_1XX:
 				case ST_F_HRSP_2XX:
 				case ST_F_HRSP_3XX:
 				case ST_F_HRSP_4XX:
@@ -658,7 +658,8 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 				case ST_F_HRSP_OTHER:
 					if (px->mode != PR_MODE_HTTP)
 						goto next_px;
-					appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
+					if (appctx->st2 != ST_F_HRSP_1XX)
+						appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
 					labels[1].name = ist("code");
 					labels[1].value = promex_hrsp_code[appctx->st2 - ST_F_HRSP_1XX];
 					val = stats[appctx->st2];
@@ -770,7 +771,6 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 					val = mkf_flt(FN_MAX, secs);
 					break;
 				case ST_F_REQ_TOT:
-				case ST_F_HRSP_1XX:
 				case ST_F_CACHE_LOOKUPS:
 				case ST_F_CACHE_HITS:
 				case ST_F_COMP_IN:
@@ -781,6 +781,7 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 						goto next_px;
 					val = stats[appctx->st2];
 					break;
+				case ST_F_HRSP_1XX:
 				case ST_F_HRSP_2XX:
 				case ST_F_HRSP_3XX:
 				case ST_F_HRSP_4XX:
@@ -788,7 +789,8 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 				case ST_F_HRSP_OTHER:
 					if (px->mode != PR_MODE_HTTP)
 						goto next_px;
-					appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
+					if (appctx->st2 != ST_F_HRSP_1XX)
+						appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
 					labels[1].name = ist("code");
 					labels[1].value = promex_hrsp_code[appctx->st2 - ST_F_HRSP_1XX];
 					val = stats[appctx->st2];
@@ -938,11 +940,11 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						val = mkf_flt(FN_DURATION, secs);
 						break;
 					case ST_F_REQ_TOT:
-					case ST_F_HRSP_1XX:
 						if (px->mode != PR_MODE_HTTP)
 							goto next_px;
 						val = stats[appctx->st2];
 						break;
+					case ST_F_HRSP_1XX:
 					case ST_F_HRSP_2XX:
 					case ST_F_HRSP_3XX:
 					case ST_F_HRSP_4XX:
@@ -950,7 +952,8 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 					case ST_F_HRSP_OTHER:
 						if (px->mode != PR_MODE_HTTP)
 							goto next_px;
-						appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
+						if (appctx->st2 != ST_F_HRSP_1XX)
+							appctx->ctx.stats.flags &= ~PROMEX_FL_METRIC_HDR;
 						labels[2].name = ist("code");
 						labels[2].value = promex_hrsp_code[appctx->st2 - ST_F_HRSP_1XX];
 						val = stats[appctx->st2];
