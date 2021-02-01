@@ -308,8 +308,8 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
  * For the requests, <h1sl> must always be provided. For responses, <h1sl> may
  * be NULL and <h1m> flags HTTP_METH_CONNECT of HTTP_METH_HEAD may be set.
  */
-int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
-		       struct buffer *srcbuf, size_t ofs, size_t max)
+size_t h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
+			 struct buffer *srcbuf, size_t ofs, size_t max)
 {
 	struct http_hdr hdrs[global.tune.max_http_hdr];
 	int ret = 0;
@@ -381,8 +381,8 @@ int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 /* Copy data from <srbuf> into an DATA block in <dsthtx>. If possible, a
  * zero-copy is performed. It returns the number of bytes copied.
  */
-static int h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_t ofs,
-			    size_t count, struct buffer *htxbuf)
+static size_t h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_t ofs,
+			       size_t count, struct buffer *htxbuf)
 {
 	struct htx *tmp_htx = *dsthtx;
 
@@ -425,29 +425,29 @@ static int h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_t o
  * HTX_FL_PARSING_ERROR and filling h1m->err_pos and h1m->err_state fields. This
  * functions is responsible to update the parser state <h1m>.
  */
-int h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
-		      struct buffer *srcbuf, size_t ofs, size_t max,
-		      struct buffer *htxbuf)
+size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
+			 struct buffer *srcbuf, size_t ofs, size_t max,
+			 struct buffer *htxbuf)
 {
-	size_t total = 0;
-	int32_t ret = 0;
+	size_t sz, total = 0;
+	int ret = 0;
 
 	if (h1m->flags & H1_MF_CLEN) {
 		/* content-length: read only h2m->body_len */
-		ret = htx_get_max_blksz(*dsthtx, max);
-		if ((uint64_t)ret > h1m->curr_len)
-			ret = h1m->curr_len;
-		if (ret > b_contig_data(srcbuf, ofs))
-			ret = b_contig_data(srcbuf, ofs);
-		if (ret) {
-			int32_t try = ret;
+		sz = htx_get_max_blksz(*dsthtx, max);
+		if (sz > h1m->curr_len)
+			sz = h1m->curr_len;
+		if (sz > b_contig_data(srcbuf, ofs))
+			sz = b_contig_data(srcbuf, ofs);
+		if (sz) {
+			size_t try = sz;
 
-			ret = h1_copy_msg_data(dsthtx, srcbuf, ofs, try, htxbuf);
-			h1m->curr_len -= ret;
-			max -= sizeof(struct htx_blk) + ret;
-			ofs += ret;
-			total += ret;
-			if (ret < try)
+			sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, try, htxbuf);
+			h1m->curr_len -= sz;
+			max -= sizeof(struct htx_blk) + sz;
+			ofs += sz;
+			total += sz;
+			if (sz < try)
 				goto end;
 		}
 
@@ -482,20 +482,20 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 				goto end;
 		}
 		if (h1m->state == H1_MSG_DATA) {
-			ret = htx_get_max_blksz(*dsthtx, max);
-			if ((uint64_t)ret > h1m->curr_len)
-				ret = h1m->curr_len;
-			if (ret > b_contig_data(srcbuf, ofs))
-				ret = b_contig_data(srcbuf, ofs);
-			if (ret) {
-				int32_t try = ret;
+			sz = htx_get_max_blksz(*dsthtx, max);
+			if (sz > h1m->curr_len)
+				sz = h1m->curr_len;
+			if (sz > b_contig_data(srcbuf, ofs))
+				sz = b_contig_data(srcbuf, ofs);
+			if (sz) {
+				size_t try = sz;
 
-				ret = h1_copy_msg_data(dsthtx, srcbuf, ofs, try, htxbuf);
-				h1m->curr_len -= ret;
-				max -= sizeof(struct htx_blk) + ret;
-				ofs += ret;
-				total += ret;
-				if (ret < try)
+				sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, try, htxbuf);
+				h1m->curr_len -= sz;
+				max -= sizeof(struct htx_blk) + sz;
+				ofs += sz;
+				total += sz;
+				if (sz < try)
 					goto end;
 			}
 			if (!h1m->curr_len) {
@@ -514,11 +514,11 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 	}
 	else {
 		/* no content length, read till SHUTW */
-		ret = htx_get_max_blksz(*dsthtx, max);
-		if (ret > b_contig_data(srcbuf, ofs))
-			ret = b_contig_data(srcbuf, ofs);
-		if (ret)
-			total += h1_copy_msg_data(dsthtx, srcbuf, ofs, ret, htxbuf);
+		sz = htx_get_max_blksz(*dsthtx, max);
+		if (sz > b_contig_data(srcbuf, ofs))
+			sz = b_contig_data(srcbuf, ofs);
+		if (sz)
+			total += h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, htxbuf);
 	}
 
   end:
@@ -540,8 +540,8 @@ int h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
  * HTX_FL_PARSING_ERROR and filling h1m->err_pos and h1m->err_state fields. This
  * functions is responsible to update the parser state <h1m>.
  */
-int h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
-		      struct buffer *srcbuf, size_t ofs, size_t max)
+size_t h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
+			 struct buffer *srcbuf, size_t ofs, size_t max)
 {
 	struct http_hdr hdrs[global.tune.max_http_hdr];
 	struct h1m tlr_h1m;

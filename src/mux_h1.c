@@ -1376,7 +1376,7 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
 				 struct buffer *buf, size_t *ofs, size_t max)
 {
 	union h1_sl h1sl;
-	int ret = 0;
+	size_t ret = 0;
 
 	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_HDRS, h1s->h1c->conn, h1s, 0, (size_t[]){max});
 
@@ -1446,7 +1446,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 			      struct buffer *buf, size_t *ofs, size_t max,
 			      struct buffer *htxbuf)
 {
-	int ret;
+	size_t ret;
 
 	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_BODY, h1s->h1c->conn, h1s, 0, (size_t[]){max});
 	ret = h1_parse_msg_data(h1m, htx, buf, *ofs, max, htxbuf);
@@ -1476,7 +1476,7 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
 static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
 				  struct buffer *buf, size_t *ofs, size_t max)
 {
-	int ret;
+	size_t ret;
 
 	TRACE_ENTER(H1_EV_RX_DATA|H1_EV_RX_TLRS, h1s->h1c->conn, h1s, 0, (size_t[]){max});
 	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);

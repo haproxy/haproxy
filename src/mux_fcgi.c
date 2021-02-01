@@ -3307,7 +3307,7 @@ static void fcgi_strm_capture_bad_message(struct fcgi_conn *fconn, struct fcgi_s
 static size_t fcgi_strm_parse_headers(struct fcgi_strm *fstrm, struct h1m *h1m, struct htx *htx,
 				      struct buffer *buf, size_t *ofs, size_t max)
 {
-	int ret;
+	size_t ret;
 
 	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_HDRS, fstrm->fconn->conn, fstrm, 0, (size_t[]){max});
 	ret = h1_parse_msg_hdrs(h1m, NULL, htx, buf, *ofs, max);
@@ -3331,7 +3331,7 @@ static size_t fcgi_strm_parse_headers(struct fcgi_strm *fstrm, struct h1m *h1m, 
 static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, struct htx **htx,
 				   struct buffer *buf, size_t *ofs, size_t max, struct buffer *htxbuf)
 {
-	int ret;
+	size_t ret;
 
 	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fstrm->fconn->conn, fstrm, 0, (size_t[]){max});
 	ret = h1_parse_msg_data(h1m, htx, buf, *ofs, max, htxbuf);
@@ -3353,7 +3353,7 @@ static size_t fcgi_strm_parse_data(struct fcgi_strm *fstrm, struct h1m *h1m, str
 static size_t fcgi_strm_parse_trailers(struct fcgi_strm *fstrm, struct h1m *h1m, struct htx *htx,
 				       struct buffer *buf, size_t *ofs, size_t max)
 {
-	int ret;
+	size_t ret;
 
 	TRACE_ENTER(FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fstrm->fconn->conn, fstrm, 0, (size_t[]){max});
 	ret = h1_parse_msg_tlrs(h1m, htx, buf, *ofs, max);
