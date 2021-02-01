@@ -19,8 +19,6 @@
 #include <haproxy/backend.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
-#include <haproxy/compression.h>
-#include <haproxy/dns.h>
 #include <haproxy/frontend.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
@@ -29,12 +27,9 @@
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
-#include <haproxy/pipe.h>
-#include <haproxy/pool.h>
 #include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
-#include <haproxy/ssl_sock.h>
 #include <haproxy/stats.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
