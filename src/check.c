@@ -152,6 +152,15 @@ static inline int unclean_errno(int err)
 	return err;
 }
 
+/* Converts check_status code to result code */
+short get_check_status_result(short check_status)
+{
+	if (check_status < HCHK_STATUS_SIZE)
+		return check_statuses[check_status].result;
+	else
+		return check_statuses[HCHK_STATUS_UNKNOWN].result;
+}
+
 /* Converts check_status code to description */
 const char *get_check_status_description(short check_status) {
 

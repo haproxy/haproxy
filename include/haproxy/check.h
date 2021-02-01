@@ -29,6 +29,7 @@
 extern struct data_cb check_conn_cb;
 extern struct proxy checks_fe;
 
+short get_check_status_result(short check_status);
 const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
 int httpchk_build_status_header(struct server *s, struct buffer *buf);
