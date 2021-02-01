@@ -18,6 +18,7 @@
 #include <haproxy/applet.h>
 #include <haproxy/backend.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/check.h>
 #include <haproxy/compression.h>
 #include <haproxy/dns.h>
 #include <haproxy/frontend.h>
@@ -319,7 +320,7 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_RATE]           = IST("Current number of sessions per second over last elapsed second."),
 	[ST_F_RATE_LIM]       = IST("Configured limit on new sessions per second."),
 	[ST_F_RATE_MAX]       = IST("Maximum observed number of sessions per second."),
-	[ST_F_CHECK_STATUS]   = IST("Status of last health check (HCHK_STATUS_* values)."),
+	[ST_F_CHECK_STATUS]   = IST("Status of last health check, per state label value."),
 	[ST_F_CHECK_CODE]     = IST("layer5-7 code, if available of the last health check."),
 	[ST_F_CHECK_DURATION] = IST("Total duration of the latest server health check, in seconds."),
 	[ST_F_HRSP_1XX]       = IST("Total number of HTTP responses."),
@@ -886,6 +887,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	int ret = 1;
 	double secs;
 	enum promex_srv_state state;
+	const char *check_state;
 	int i;
 
 	for (;appctx->st2 < ST_F_TOTAL_FIELDS; appctx->st2++) {
@@ -963,8 +965,19 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 					case ST_F_CHECK_STATUS:
 						if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) != CHK_ST_ENABLED)
 							goto next_sv;
-						val = mkf_u32(FN_OUTPUT, sv->check.status);
-						break;
+
+						for (i = 0; i < HCHK_STATUS_SIZE; i++) {
+							if (get_check_status_result(i) < CHK_RES_FAILED)
+								continue;
+							val = mkf_u32(FO_STATUS, sv->check.status == i);
+							check_state = get_check_status_info(i);
+							labels[2].name = ist("state");
+							labels[2].value = ist2(check_state, strlen(check_state));
+							if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
+										&val, labels, &out, max))
+								goto full;
+						}
+						goto next_sv;
 					case ST_F_CHECK_CODE:
 						if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) != CHK_ST_ENABLED)
 							goto next_sv;
