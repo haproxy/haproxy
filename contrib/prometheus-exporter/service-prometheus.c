@@ -604,7 +604,6 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 	struct field *stats = stat_l[STATS_DOMAIN_PROXY];
 	int ret = 1;
 	enum promex_front_state state;
-	int i;
 
 	for (;appctx->st2 < ST_F_TOTAL_FIELDS; appctx->st2++) {
 		if (!(promex_st_metrics[appctx->st2].flags & appctx->ctx.stats.flags))
@@ -628,14 +627,15 @@ static int promex_dump_front_metrics(struct appctx *appctx, struct htx *htx)
 			switch (appctx->st2) {
 				case ST_F_STATUS:
 					state = !px->disabled;
-					for (i = 0; i < PROMEX_FRONT_STATE_COUNT; i++) {
+					for (; appctx->ctx.stats.st_code < PROMEX_FRONT_STATE_COUNT; appctx->ctx.stats.st_code++) {
 						labels[1].name = ist("state");
-						labels[1].value = promex_front_st[i];
-						val = mkf_u32(FO_STATUS, state == i);
+						labels[1].value = promex_front_st[appctx->ctx.stats.st_code];
+						val = mkf_u32(FO_STATUS, state == appctx->ctx.stats.st_code);
 						if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
 									&val, labels, &out, max))
 							goto full;
 					}
+					appctx->ctx.stats.st_code = 0;
 					goto next_px;
 				case ST_F_REQ_RATE_MAX:
 				case ST_F_REQ_TOT:
@@ -705,7 +705,6 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 	int ret = 1;
 	double secs;
 	enum promex_back_state state;
-	int i;
 
 	for (;appctx->st2 < ST_F_TOTAL_FIELDS; appctx->st2++) {
 		if (!(promex_st_metrics[appctx->st2].flags & appctx->ctx.stats.flags))
@@ -729,14 +728,15 @@ static int promex_dump_back_metrics(struct appctx *appctx, struct htx *htx)
 			switch (appctx->st2) {
 				case ST_F_STATUS:
 					state = ((px->lbprm.tot_weight > 0 || !px->srv) ? 1 : 0);
-					for (i = 0; i < PROMEX_BACK_STATE_COUNT; i++) {
+					for (; appctx->ctx.stats.st_code < PROMEX_BACK_STATE_COUNT; appctx->ctx.stats.st_code++) {
 						labels[1].name = ist("state");
-						labels[1].value = promex_back_st[i];
-						val = mkf_u32(FO_STATUS, state == i);
+						labels[1].value = promex_back_st[appctx->ctx.stats.st_code];
+						val = mkf_u32(FO_STATUS, state == appctx->ctx.stats.st_code);
 						if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
 									&val, labels, &out, max))
 							goto full;
 					}
+					appctx->ctx.stats.st_code = 0;
 					goto next_px;
 				case ST_F_QTIME:
 					secs = (double)swrate_avg(px->be_counters.q_time, TIME_STATS_SAMPLES) / 1000.0;
@@ -838,7 +838,6 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	double secs;
 	enum promex_srv_state state;
 	const char *check_state;
-	int i;
 
 	for (;appctx->st2 < ST_F_TOTAL_FIELDS; appctx->st2++) {
 		if (!(promex_st_metrics[appctx->st2].flags & appctx->ctx.stats.flags))
@@ -871,14 +870,15 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 				switch (appctx->st2) {
 					case ST_F_STATUS:
 						state = promex_srv_status(sv);
-						for (i = 0; i < PROMEX_SRV_STATE_COUNT; i++) {
-							val = mkf_u32(FO_STATUS, state == i);
+					for (; appctx->ctx.stats.st_code < PROMEX_SRV_STATE_COUNT; appctx->ctx.stats.st_code++) {
+							val = mkf_u32(FO_STATUS, state == appctx->ctx.stats.st_code);
 							labels[2].name = ist("state");
-							labels[2].value = promex_srv_st[i];
+							labels[2].value = promex_srv_st[appctx->ctx.stats.st_code];
 							if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
 										&val, labels, &out, max))
 								goto full;
 						}
+						appctx->ctx.stats.st_code = 0;
 						goto next_sv;
 					case ST_F_QTIME:
 						secs = (double)swrate_avg(sv->counters.q_time, TIME_STATS_SAMPLES) / 1000.0;
@@ -916,17 +916,18 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 						if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) != CHK_ST_ENABLED)
 							goto next_sv;
 
-						for (i = 0; i < HCHK_STATUS_SIZE; i++) {
-							if (get_check_status_result(i) < CHK_RES_FAILED)
+						for (; appctx->ctx.stats.st_code < HCHK_STATUS_SIZE; appctx->ctx.stats.st_code++) {
+							if (get_check_status_result(appctx->ctx.stats.st_code) < CHK_RES_FAILED)
 								continue;
-							val = mkf_u32(FO_STATUS, sv->check.status == i);
-							check_state = get_check_status_info(i);
+							val = mkf_u32(FO_STATUS, sv->check.status == appctx->ctx.stats.st_code);
+							check_state = get_check_status_info(appctx->ctx.stats.st_code);
 							labels[2].name = ist("state");
 							labels[2].value = ist2(check_state, strlen(check_state));
 							if (!promex_dump_metric(appctx, htx, prefix, &promex_st_metrics[appctx->st2],
 										&val, labels, &out, max))
 								goto full;
 						}
+						appctx->ctx.stats.st_code = 0;
 						goto next_sv;
 					case ST_F_CHECK_CODE:
 						if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) != CHK_ST_ENABLED)
@@ -1006,6 +1007,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 			appctx->ctx.stats.obj1 = NULL;
 			appctx->ctx.stats.obj2 = NULL;
 			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_INFO_METRIC);
+			appctx->ctx.stats.st_code = 0;
 			appctx->st2 = INF_NAME;
 			appctx->st1 = PROMEX_DUMPER_GLOBAL;
 			/* fall through */
@@ -1024,6 +1026,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 			appctx->ctx.stats.obj2 = NULL;
 			appctx->ctx.stats.flags &= ~PROMEX_FL_INFO_METRIC;
 			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_FRONT_METRIC);
+			appctx->ctx.stats.st_code = 0;
 			appctx->st2 = ST_F_PXNAME;
 			appctx->st1 = PROMEX_DUMPER_FRONT;
 			/* fall through */
@@ -1042,6 +1045,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 			appctx->ctx.stats.obj2 = NULL;
 			appctx->ctx.stats.flags &= ~PROMEX_FL_FRONT_METRIC;
 			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_BACK_METRIC);
+			appctx->ctx.stats.st_code = 0;
 			appctx->st2 = ST_F_PXNAME;
 			appctx->st1 = PROMEX_DUMPER_BACK;
 			/* fall through */
@@ -1060,6 +1064,7 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 			appctx->ctx.stats.obj2 = (appctx->ctx.stats.obj1 ? ((struct proxy *)appctx->ctx.stats.obj1)->srv : NULL);
 			appctx->ctx.stats.flags &= ~PROMEX_FL_BACK_METRIC;
 			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_SRV_METRIC);
+			appctx->ctx.stats.st_code = 0;
 			appctx->st2 = ST_F_PXNAME;
 			appctx->st1 = PROMEX_DUMPER_SRV;
 			/* fall through */
