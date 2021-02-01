@@ -282,7 +282,7 @@ const struct promex_metric promex_st_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_NEED_CONN_EST]  = { .n = IST("need_connections_current"),         .type = PROMEX_MT_GAUGE,    .flags = (                                                 PROMEX_FL_SRV_METRIC) },
 };
 
-/* Description of all stats fields */
+/* Description of overriden stats fields */
 const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_PXNAME]         = IST("The proxy name."),
 	[ST_F_SVNAME]         = IST("The service name (FRONTEND for frontend, BACKEND for backend, any name for server/listener)."),
@@ -323,66 +323,14 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_CHECK_STATUS]   = IST("Status of last health check, per state label value."),
 	[ST_F_CHECK_CODE]     = IST("layer5-7 code, if available of the last health check."),
 	[ST_F_CHECK_DURATION] = IST("Total duration of the latest server health check, in seconds."),
-	[ST_F_HRSP_1XX]       = IST("Total number of HTTP responses."),
-	[ST_F_HRSP_2XX]       = IST("Total number of HTTP responses."),
-	[ST_F_HRSP_3XX]       = IST("Total number of HTTP responses."),
-	[ST_F_HRSP_4XX]       = IST("Total number of HTTP responses."),
-	[ST_F_HRSP_5XX]       = IST("Total number of HTTP responses."),
-	[ST_F_HRSP_OTHER]     = IST("Total number of HTTP responses."),
-	[ST_F_HANAFAIL]       = IST("Total number of failed health checks."),
-	[ST_F_REQ_RATE]       = IST("Current number of HTTP requests per second over last elapsed second."),
-	[ST_F_REQ_RATE_MAX]   = IST("Maximum observed number of HTTP requests per second."),
-	[ST_F_REQ_TOT]        = IST("Total number of HTTP requests received."),
-	[ST_F_CLI_ABRT]       = IST("Total number of data transfers aborted by the client."),
-	[ST_F_SRV_ABRT]       = IST("Total number of data transfers aborted by the server."),
-	[ST_F_COMP_IN]        = IST("Total number of HTTP response bytes fed to the compressor."),
-	[ST_F_COMP_OUT]       = IST("Total number of HTTP response bytes emitted by the compressor."),
-	[ST_F_COMP_BYP]       = IST("Total number of bytes that bypassed the HTTP compressor (CPU/BW limit)."),
-	[ST_F_COMP_RSP]       = IST("Total number of HTTP responses that were compressed."),
-	[ST_F_LASTSESS]       = IST("Number of seconds since last session assigned to server/backend."),
-	[ST_F_LAST_CHK]       = IST("Last health check contents or textual error"),
-	[ST_F_LAST_AGT]       = IST("Last agent check contents or textual error"),
 	[ST_F_QTIME]          = IST("Avg. queue time for last 1024 successful connections."),
 	[ST_F_CTIME]          = IST("Avg. connect time for last 1024 successful connections."),
 	[ST_F_RTIME]          = IST("Avg. response time for last 1024 successful connections."),
 	[ST_F_TTIME]          = IST("Avg. total time for last 1024 successful connections."),
-	[ST_F_AGENT_STATUS]   = IST("Status of last agent check."),
-	[ST_F_AGENT_CODE]     = IST("Numeric code reported by agent if any (unused for now)."),
-	[ST_F_AGENT_DURATION] = IST("Time in ms taken to finish last agent check."),
-	[ST_F_CHECK_DESC]     = IST("Short human-readable description of the last health status."),
-	[ST_F_AGENT_DESC]     = IST("Short human-readable description of the last agent status."),
-	[ST_F_CHECK_RISE]     = IST("Server's \"rise\" parameter used by health checks"),
-	[ST_F_CHECK_FALL]     = IST("Server's \"fall\" parameter used by health checks"),
-	[ST_F_CHECK_HEALTH]   = IST("Server's health check value between 0 and rise+fall-1"),
-	[ST_F_AGENT_RISE]     = IST("Agent's \"rise\" parameter, normally 1."),
-	[ST_F_AGENT_FALL]     = IST("Agent's \"fall\" parameter, normally 1."),
-	[ST_F_AGENT_HEALTH]   = IST("Agent's health parameter, between 0 and rise+fall-1"),
-	[ST_F_ADDR]           = IST("address:port or \"unix\". IPv6 has brackets around the address."),
-	[ST_F_COOKIE]         = IST("Server's cookie value or backend's cookie name."),
-	[ST_F_MODE]           = IST("Proxy mode (tcp, http, health, unknown)."),
-	[ST_F_ALGO]           = IST("Load balancing algorithm."),
-	[ST_F_CONN_RATE]      = IST("Current number of connections per second over the last elapsed second."),
-	[ST_F_CONN_RATE_MAX]  = IST("Maximum observed number of connections per second."),
-	[ST_F_CONN_TOT]       = IST("Total number of connections."),
-	[ST_F_INTERCEPTED]    = IST("Total number of intercepted HTTP requests."),
-	[ST_F_DCON]           = IST("Total number of requests denied by \"tcp-request connection\" rules."),
-	[ST_F_DSES]           = IST("Total number of requests denied by \"tcp-request session\" rules."),
-	[ST_F_WREW]           = IST("Total number of failed header rewriting warnings."),
-	[ST_F_CONNECT]        = IST("Total number of connection establishment attempts."),
-	[ST_F_REUSE]          = IST("Total number of connection reuses."),
-	[ST_F_CACHE_LOOKUPS]  = IST("Total number of HTTP cache lookups."),
-	[ST_F_CACHE_HITS]     = IST("Total number of HTTP cache hits."),
-	[ST_F_SRV_ICUR]       = IST("Current number of idle connections available for reuse"),
-	[ST_F_SRV_ILIM]       = IST("Limit on the number of available idle connections"),
 	[ST_F_QT_MAX]         = IST("Maximum observed time spent in the queue"),
 	[ST_F_CT_MAX]         = IST("Maximum observed time spent waiting for a connection to complete"),
 	[ST_F_RT_MAX]         = IST("Maximum observed time spent waiting for a server response"),
 	[ST_F_TT_MAX]         = IST("Maximum observed total request+response time (request+queue+connect+response+processing)"),
-	[ST_F_EINT]           = IST("Total number of internal errors."),
-	[ST_F_IDLE_CONN_CUR]  = IST("Current number of unsafe idle connections."),
-	[ST_F_SAFE_CONN_CUR]  = IST("Current number of safe idle connections."),
-	[ST_F_USED_CONN_CUR]  = IST("Current number of connections in use."),
-	[ST_F_NEED_CONN_EST]  = IST("Estimated needed number of connections."),
 };
 
 /* Specific labels for all ST_F_HRSP_* fields */
@@ -489,6 +437,7 @@ static int promex_dump_metric_header(struct appctx *appctx, struct htx *htx,
 				     struct ist *out, size_t max)
 {
 	struct ist type;
+	struct ist desc;
 
 	switch (metric->type) {
 		case PROMEX_MT_COUNTER:
@@ -503,16 +452,15 @@ static int promex_dump_metric_header(struct appctx *appctx, struct htx *htx,
 	    istcat(out, ist(" "), max) == -1)
 		goto full;
 
-	if (metric->flags & PROMEX_FL_INFO_METRIC) {
-		if (istcat(out, ist(info_fields[appctx->st2].desc), max) == -1)
-			goto full;
-	}
-	else {
-		if (istcat(out, promex_st_metric_desc[appctx->st2], max) == -1)
-			goto full;
-	}
+	if (metric->flags & PROMEX_FL_INFO_METRIC)
+		desc = ist(info_fields[appctx->st2].desc);
+	else if (!isttest(promex_st_metric_desc[appctx->st2]))
+		desc = ist(stat_fields[appctx->st2].desc);
+	else
+		desc = promex_st_metric_desc[appctx->st2];
 
-	if (istcat(out, ist("\n# TYPE "), max) == -1 ||
+	if (istcat(out, desc, max) == -1 ||
+	    istcat(out, ist("\n# TYPE "), max) == -1 ||
 	    istcat(out, name, max) == -1 ||
 	    istcat(out, ist(" "), max) == -1 ||
 	    istcat(out, type, max) == -1 ||
