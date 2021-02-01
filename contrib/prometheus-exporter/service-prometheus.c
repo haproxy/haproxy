@@ -177,6 +177,7 @@ const struct promex_metric promex_global_metrics[INF_TOTAL_FIELDS] = {
 	[INF_TOTAL_SPLICED_BYTES_OUT]        = { .n = IST("spliced_bytes_out_total"),       .type = PROMEX_MT_COUNTER, .flags = PROMEX_FL_INFO_METRIC },
 	[INF_BYTES_OUT_RATE]                 = { .n = IST("bytes_out_rate"),                .type = PROMEX_MT_GAUGE,   .flags = PROMEX_FL_INFO_METRIC },
 	//[INF_DEBUG_COMMANDS_ISSUED]          ignored
+	[INF_CUM_LOG_MSGS]                   = { .n = IST("recv_logs_total"),               .type = PROMEX_MT_COUNTER, .flags = PROMEX_FL_INFO_METRIC },
 };
 
 /* frontend/backend/server fields */

@@ -169,6 +169,8 @@ Exported metrics
 | haproxy_process_bytes_out_total                | Total number of bytes emitted.                                                |
 | haproxy_process_spliced_bytes_out_total        | Total number of bytes emitted through a kernel pipe.                          |
 | haproxy_process_bytes_out_rate                 | Number of bytes emitted over the last elapsed second.                         |
+| haproxy_process_recv_logs_total                | Total number of log messages received by log-forwarding listeners on this     |
+|                                                | worker process since started                                                  |
 +------------------------------------------------+-------------------------------------------------------------------------------+
 
 * Frontend metrics
