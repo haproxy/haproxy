@@ -158,8 +158,8 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_PXNAME]                        = { .name = "pxname",                      .desc = "Proxy name" },
 	[ST_F_SVNAME]                        = { .name = "svname",                      .desc = "Server name" },
-	[ST_F_QCUR]                          = { .name = "qcur",                        .desc = "Current number of connections waiting in the server of backend queue" },
-	[ST_F_QMAX]                          = { .name = "qmax",                        .desc = "Highest value of qcur encountered since process started" },
+	[ST_F_QCUR]                          = { .name = "qcur",                        .desc = "Number of current queued connections" },
+	[ST_F_QMAX]                          = { .name = "qmax",                        .desc = "Highest value of queued connections encountered since process started" },
 	[ST_F_SCUR]                          = { .name = "scur",                        .desc = "Current number of sessions on the frontend, backend or server" },
 	[ST_F_SMAX]                          = { .name = "smax",                        .desc = "Highest value of scur encountered since process started" },
 	[ST_F_SLIM]                          = { .name = "slim",                        .desc = "Frontend/listener/server's maxconn, backend's fullconn" },

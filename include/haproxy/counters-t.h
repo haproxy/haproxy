@@ -73,7 +73,7 @@ struct be_counters {
 
 	unsigned int cps_max;                   /* maximum of new connections received per second */
 	unsigned int sps_max;                   /* maximum of new connections accepted per second (sessions) */
-	unsigned int nbpend_max;                /* max number of pending connections with no server assigned yet (BE only) */
+	unsigned int nbpend_max;                /* max number of pending connections with no server assigned yet */
 	unsigned int cur_sess_max;		/* max number of currently active sessions */
 
 	long long bytes_in;                     /* number of bytes transferred from the client to the server */
