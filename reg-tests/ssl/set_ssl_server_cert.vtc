@@ -108,3 +108,23 @@ client c1 -connect ${h1_clearlst_sock} {
     expect resp.http.x-ssl == "Revoked"
 } -run
 
+# Abort a transaction
+shell {
+    printf "set ssl cert ${testdir}/client1.pem <<\n$(cat ${testdir}/client3_revoked.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "abort ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/client1.pem"
+    expect ~ ".*SHA1 FingerPrint: 992386628A40C9D49C89BAC0058B5D45D8575151"
+}
+
+# The certificate was not updated so it should still be revoked
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Revoked"
+} -run
+
+

@@ -86,3 +86,14 @@ client c1 -connect ${h1_clearlst_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+shell {
+    printf "set ssl cert ${testdir}/common.pem <<\n$(cat ${testdir}/common.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "abort ssl cert ${testdir}/common.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/common.pem"
+    expect ~ ".*SHA1 FingerPrint: A490D069DBAFBEE66DE434BEC34030ADE8BCCBF1"
+}
+
