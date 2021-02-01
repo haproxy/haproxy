@@ -1,4 +1,4 @@
-#REGTEST_TYPE=broken
+#REGTEST_TYPE=devel
 
 # This reg-test uses the "set ssl cert" command to update a backend certificate over the CLI.
 # It requires socat to upload the certificate
@@ -19,6 +19,8 @@ haproxy h1 -conf {
         tune.ssl.default-dh-param 2048
         tune.ssl.capture-cipherlist-size 1
         stats socket "${tmpdir}/h1/stats" level admin
+        nbthread 1
+        tune.ssl.cachesize 0
 
     defaults
         mode http
@@ -39,7 +41,7 @@ haproxy h1 -conf {
         # crt: certificate of the server
         # ca-file: CA used for client authentication request
         # crl-file: revocation list for client auth: the client1 certificate is revoked
-        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify optional crt-ignore-err all crl-file ${testdir}/crl-auth.pem
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify optional crt-ignore-err all crl-file ${testdir}/crl-auth.pem no-tls-tickets
 
         acl cert_expired ssl_c_verify 10
         acl cert_revoked ssl_c_verify 23
