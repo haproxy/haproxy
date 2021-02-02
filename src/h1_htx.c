@@ -382,14 +382,22 @@ size_t h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
  * zero-copy is performed. It returns the number of bytes copied.
  */
 static size_t h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_t ofs,
-			       size_t count, struct buffer *htxbuf)
+			       size_t count, size_t max, struct buffer *htxbuf)
 {
 	struct htx *tmp_htx = *dsthtx;
+	size_t block1, block2, ret = 0;
+
+	/* Be prepared to create at least one HTX block by reserving its size
+	 * and adjust <count> accordingly.
+	 */
+	max -= sizeof(struct htx_blk);
+	if (count > max)
+		count = max;
 
 	/* very often with large files we'll face the following
 	 * situation :
 	 *   - htx is empty and points to <htxbuf>
-	 *   - ret == srcbuf->data
+	 *   - count == srcbuf->data
 	 *   - srcbuf->head == sizeof(struct htx)
 	 *   => we can swap the buffers and place an htx header into
 	 *      the target buffer instead
@@ -417,7 +425,30 @@ static size_t h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_
 		return count;
 	}
 
-	return htx_add_data(*dsthtx, ist2(b_peek(srcbuf, ofs), count));
+	/* * First block is the copy of contiguous data starting at offset <ofs>
+	 *   with <count> as max. <max> is updated accordingly
+	 *
+	 * * Second block is the remaining (count - block1) if <max> is large
+	 *   enough. Another HTX block is reserved.
+	 */
+	block1 = b_contig_data(srcbuf, ofs);
+	block2 = 0;
+	if (block1 > count)
+		block1 = count;
+	max -= block1;
+
+	if (max > sizeof(struct htx_blk)) {
+		block2 = count - block1;
+		max -= sizeof(struct htx_blk);
+		if (block2 > max)
+			block2 = max;
+	}
+
+	ret = htx_add_data(tmp_htx, ist2(b_peek(srcbuf, ofs), block1));
+	if (ret == block1 && block2)
+		ret += htx_add_data(tmp_htx, ist2(b_orig(srcbuf), block2));
+  end:
+	return ret;
 }
 
 /* Parse HTTP/1 body. It returns the number of bytes parsed if > 0, or 0 if it
@@ -432,25 +463,18 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 	size_t sz, total = 0;
 	int ret = 0;
 
+	if (b_data(srcbuf) == ofs || !max)
+		goto end;
+
 	if (h1m->flags & H1_MF_CLEN) {
 		/* content-length: read only h2m->body_len */
-		sz = htx_get_max_blksz(*dsthtx, max);
-		if (sz > h1m->curr_len)
+		sz = b_data(srcbuf) - ofs;
+		if (unlikely(sz > h1m->curr_len))
 			sz = h1m->curr_len;
-		if (sz > b_contig_data(srcbuf, ofs))
-			sz = b_contig_data(srcbuf, ofs);
-		if (sz) {
-			size_t try = sz;
-
-			sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, try, htxbuf);
-			h1m->curr_len -= sz;
-			max -= sizeof(struct htx_blk) + sz;
-			ofs += sz;
-			total += sz;
-			if (sz < try)
-				goto end;
-		}
-
+		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf);
+		h1m->curr_len -= sz;
+		(*dsthtx)->extra = h1m->curr_len;
+		total += sz;
 		if (!h1m->curr_len) {
 			h1m->state = H1_MSG_DONE;
 			(*dsthtx)->flags |= HTX_FL_EOM;
@@ -482,22 +506,19 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 				goto end;
 		}
 		if (h1m->state == H1_MSG_DATA) {
-			sz = htx_get_max_blksz(*dsthtx, max);
-			if (sz > h1m->curr_len)
-				sz = h1m->curr_len;
-			if (sz > b_contig_data(srcbuf, ofs))
-				sz = b_contig_data(srcbuf, ofs);
-			if (sz) {
-				size_t try = sz;
+			size_t used = htx_used_space(*dsthtx);
 
-				sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, try, htxbuf);
-				h1m->curr_len -= sz;
-				max -= sizeof(struct htx_blk) + sz;
-				ofs += sz;
-				total += sz;
-				if (sz < try)
-					goto end;
-			}
+			if (b_data(srcbuf) == ofs || !max)
+				goto end;
+
+			sz =  b_data(srcbuf) - ofs;
+			if (unlikely(sz > h1m->curr_len))
+				sz = h1m->curr_len;
+			sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf);
+			max -= htx_used_space(*dsthtx) - used;
+			ofs += sz;
+			total += sz;
+			h1m->curr_len -= sz;
 			if (!h1m->curr_len) {
 				h1m->state = H1_MSG_CHUNK_CRLF;
 				goto new_chunk;
@@ -514,11 +535,9 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 	}
 	else {
 		/* no content length, read till SHUTW */
-		sz = htx_get_max_blksz(*dsthtx, max);
-		if (sz > b_contig_data(srcbuf, ofs))
-			sz = b_contig_data(srcbuf, ofs);
-		if (sz)
-			total += h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, htxbuf);
+		sz = b_data(srcbuf) - ofs;
+		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf);
+		total += sz;
 	}
 
   end:
