@@ -3420,7 +3420,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 				TRACE_USER("H1 response fully rcvd", FCGI_EV_RSP_DATA|FCGI_EV_RSP_EOM, fconn->conn, fstrm, htx);
 			}
 
-			if (!ret && h1m->state != H1_MSG_DONE)
+			if (h1m->state < H1_MSG_TRAILERS)
 				break;
 
 			TRACE_PROTO("rcvd response payload data", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fconn->conn, fstrm, htx);
@@ -3428,7 +3428,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 		else if (h1m->state == H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing response trailers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fconn->conn, fstrm);
 			ret = fcgi_strm_parse_trailers(fstrm, h1m, htx, &fstrm->rxbuf, &total, count);
-			if (!ret && h1m->state != H1_MSG_DONE)
+			if (h1m->state != H1_MSG_DONE)
 				break;
 
 			TRACE_PROTO("rcvd H1 response trailers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fconn->conn, fstrm, htx);

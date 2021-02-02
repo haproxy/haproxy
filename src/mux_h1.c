@@ -1553,7 +1553,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		else if (h1m->state < H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing message payload", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
 			ret = h1_process_data(h1s, h1m, &htx, &h1c->ibuf, &total, count, buf);
-			if (!ret && h1m->state != H1_MSG_DONE)
+			if (h1m->state < H1_MSG_TRAILERS)
 				break;
 
 			TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "rcvd H1 request payload data" : "rcvd H1 response payload data"),
@@ -1562,7 +1562,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		else if (h1m->state == H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing message trailers", H1_EV_RX_DATA|H1_EV_RX_TLRS, h1c->conn, h1s);
 			ret = h1_process_trailers(h1s, h1m, htx, &h1c->ibuf, &total, count);
-			if (!ret && h1m->state != H1_MSG_DONE)
+			if (h1m->state != H1_MSG_DONE)
 				break;
 
 			TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "rcvd H1 request trailers" : "rcvd H1 response trailers"),
