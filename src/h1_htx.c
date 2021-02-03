@@ -451,6 +451,83 @@ static size_t h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_
 	return ret;
 }
 
+/* Parses medium/large HTTP chunks. This version try to performed zero-copy if
+ * possible.
+ */
+static size_t h1_parse_msg_chunks(struct h1m *h1m, struct htx **dsthtx,
+			 struct buffer *srcbuf, size_t ofs, size_t max,
+			 struct buffer *htxbuf)
+{
+	uint64_t chksz;
+	size_t sz, used, total = 0;
+	int ret = 0;
+
+	switch (h1m->state) {
+	case H1_MSG_DATA:
+	  new_chunk:
+		used = htx_used_space(*dsthtx);
+
+		if (b_data(srcbuf) == ofs || !max)
+			break;
+
+		sz =  b_data(srcbuf) - ofs;
+		if (unlikely(sz > h1m->curr_len))
+			sz = h1m->curr_len;
+		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf);
+		max -= htx_used_space(*dsthtx) - used;
+		ofs += sz;
+		total += sz;
+		h1m->curr_len -= sz;
+		if (h1m->curr_len)
+			break;
+
+		h1m->state = H1_MSG_CHUNK_CRLF;
+		/*fall through */
+
+	case H1_MSG_CHUNK_CRLF:
+		ret = h1_skip_chunk_crlf(srcbuf, ofs, b_data(srcbuf));
+		if (ret <= 0)
+			break;
+		ofs += ret;
+		total += ret;
+		h1m->state = H1_MSG_CHUNK_SIZE;
+		/* fall through */
+
+	case H1_MSG_CHUNK_SIZE:
+		ret = h1_parse_chunk_size(srcbuf, ofs, b_data(srcbuf), &chksz);
+		if (ret <= 0)
+			break;
+		h1m->state = ((!chksz) ? H1_MSG_TRAILERS : H1_MSG_DATA);
+		h1m->curr_len  = chksz;
+		h1m->body_len += chksz;
+		ofs += ret;
+		total += ret;
+
+		if (h1m->curr_len) {
+			h1m->state = H1_MSG_DATA;
+			goto new_chunk;
+		}
+		h1m->state = H1_MSG_TRAILERS;
+		break;
+
+	default:
+		/* unexpected */
+		ret = -1;
+		break;
+	}
+
+	if (ret < 0) {
+		(*dsthtx)->flags |= HTX_FL_PARSING_ERROR;
+		h1m->err_state = h1m->state;
+		h1m->err_pos = ofs;
+		total = 0;
+	}
+
+	/* Don't forget to update htx->extra */
+	(*dsthtx)->extra = h1m->curr_len;
+	return total;
+}
+
 /* Parse HTTP/1 body. It returns the number of bytes parsed if > 0, or 0 if it
  * couldn't proceed. Parsing errors are reported by setting the htx flags
  * HTX_FL_PARSING_ERROR and filling h1m->err_pos and h1m->err_state fields. This
@@ -461,10 +538,9 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 			 struct buffer *htxbuf)
 {
 	size_t sz, total = 0;
-	int ret = 0;
 
 	if (b_data(srcbuf) == ofs || !max)
-		goto end;
+		return 0;
 
 	if (h1m->flags & H1_MF_CLEN) {
 		/* content-length: read only h2m->body_len */
@@ -482,49 +558,7 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 	}
 	else if (h1m->flags & H1_MF_CHNK) {
 		/* te:chunked : parse chunks */
-	  new_chunk:
-		if (h1m->state == H1_MSG_CHUNK_CRLF) {
-			ret = h1_skip_chunk_crlf(srcbuf, ofs, b_data(srcbuf));
-			if (ret <= 0)
-				goto end;
-			h1m->state = H1_MSG_CHUNK_SIZE;
-			ofs += ret;
-			total += ret;
-		}
-		if (h1m->state == H1_MSG_CHUNK_SIZE) {
-			uint64_t chksz;
-
-			ret = h1_parse_chunk_size(srcbuf, ofs, b_data(srcbuf), &chksz);
-			if (ret <= 0)
-				goto end;
-			h1m->state = ((!chksz) ? H1_MSG_TRAILERS : H1_MSG_DATA);
-			h1m->curr_len  = chksz;
-			h1m->body_len += chksz;
-			ofs += ret;
-			total += ret;
-			if (!h1m->curr_len)
-				goto end;
-		}
-		if (h1m->state == H1_MSG_DATA) {
-			size_t used = htx_used_space(*dsthtx);
-
-			if (b_data(srcbuf) == ofs || !max)
-				goto end;
-
-			sz =  b_data(srcbuf) - ofs;
-			if (unlikely(sz > h1m->curr_len))
-				sz = h1m->curr_len;
-			sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf);
-			max -= htx_used_space(*dsthtx) - used;
-			ofs += sz;
-			total += sz;
-			h1m->curr_len -= sz;
-			if (!h1m->curr_len) {
-				h1m->state = H1_MSG_CHUNK_CRLF;
-				goto new_chunk;
-			}
-			goto end;
-		}
+		total += h1_parse_msg_chunks(h1m, dsthtx, srcbuf, ofs, max, htxbuf);
 	}
 	else if (h1m->flags & H1_MF_XFER_LEN) {
 		/* XFER_LEN is set but not CLEN nor CHNK, it means there is no
@@ -540,17 +574,6 @@ size_t h1_parse_msg_data(struct h1m *h1m, struct htx **dsthtx,
 		total += sz;
 	}
 
-  end:
-	if (ret < 0) {
-		(*dsthtx)->flags |= HTX_FL_PARSING_ERROR;
-		h1m->err_state = h1m->state;
-		h1m->err_pos = ofs;
-		total = 0;
-	}
-
-	/* update htx->extra, only when the body length is known */
-	if (h1m->flags & H1_MF_XFER_LEN)
-		(*dsthtx)->extra = h1m->curr_len;
 	return total;
 }
 
