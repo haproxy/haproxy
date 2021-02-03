@@ -432,9 +432,9 @@ static struct name_desc h2_stats[] = {
 	                         .desc = "Count of currently open connections" },
 	[H2_ST_OPEN_STREAM]  = { .name = "h2_backend_open_streams",
 	                         .desc = "Count of currently open streams" },
-	[H2_ST_TOTAL_CONN]   = { .name = "h2_open_connections",
+	[H2_ST_TOTAL_CONN]   = { .name = "h2_total_connections",
 	                         .desc = "Total number of connections" },
-	[H2_ST_TOTAL_STREAM] = { .name = "h2_backend_open_streams",
+	[H2_ST_TOTAL_STREAM] = { .name = "h2_backend_total_streams",
 	                         .desc = "Total number of streams" },
 };
 
