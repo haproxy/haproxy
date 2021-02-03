@@ -5311,7 +5311,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 #ifdef SSL_READ_EARLY_DATA_SUCCESS
-		conn->flags |= CO_FL_EARLY_SSL_HS;
+		if (bc->ssl_conf.early_data)
+			conn->flags |= CO_FL_EARLY_SSL_HS;
 #endif
 
 		_HA_ATOMIC_ADD(&sslconns, 1);
