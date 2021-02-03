@@ -52,6 +52,7 @@ int spoe_prepare_healthcheck_request(char **req, int *len);
 int spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen);
 
 int set_srv_agent_send(struct server *srv, const char *send);
+void set_srv_agent_addr(struct server *srv, struct sockaddr_storage *sk);
 
 /* Use this one only. This inline version only ensures that we don't
  * call the function when the observe mode is disabled.

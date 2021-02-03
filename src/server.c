@@ -4383,9 +4383,14 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 			cli_err(appctx, "'set server <srv> agent' expects 'up' or 'down'.\n");
 	}
 	else if (strcmp(args[3], "agent-addr") == 0) {
+		struct sockaddr_storage sk;
+
+		memset(&sk, 0, sizeof(sk));
 		if (!(sv->agent.state & CHK_ST_ENABLED))
 			cli_err(appctx, "agent checks are not enabled on this server.\n");
-		else if (str2ip(args[4], &sv->agent.addr) == NULL)
+		else if (str2ip(args[4], &sk))
+			set_srv_agent_addr(sv, &sk);
+		else
 			cli_err(appctx, "incorrect addr address given for agent.\n");
 	}
 	else if (strcmp(args[3], "agent-send") == 0) {

@@ -1526,8 +1526,10 @@ static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct
 		goto error;
 	}
 
-	srv->check.addr = srv->agent.addr = *sk;
-	srv->flags |= SRV_F_AGENTADDR;
+	srv->check.addr = *sk;
+	/* if agentaddr was never set, we can use addr */
+	if (!(srv->flags & SRV_F_AGENTADDR))
+		srv->agent.addr = *sk;
 
   out:
 	return err_code;
@@ -1537,21 +1539,23 @@ static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct
 	goto out;
 }
 
-
 /* Parse the "agent-addr" server keyword */
 static int srv_parse_agent_addr(char **args, int *cur_arg, struct proxy *curpx, struct server *srv,
 				char **errmsg)
 {
+	struct sockaddr_storage sk;
 	int err_code = 0;
 
 	if (!*(args[*cur_arg+1])) {
 		memprintf(errmsg, "'%s' expects an address as argument.", args[*cur_arg]);
 		goto error;
 	}
-	if(str2ip(args[*cur_arg+1], &srv->agent.addr) == NULL) {
+	memset(&sk, 0, sizeof(sk));
+	if (str2ip(args[*cur_arg + 1], &sk) == NULL) {
 		memprintf(errmsg, "parsing agent-addr failed. Check if '%s' is correct address.", args[*cur_arg+1]);
 		goto error;
 	}
+	set_srv_agent_addr(srv, &sk);
 
   out:
 	return err_code;
@@ -1728,6 +1732,13 @@ int set_srv_agent_send(struct server *srv, const char *send)
 	free(str);
 	free(var);
 	return 0;
+}
+
+/* set agent addr and apprropriate flag */
+inline void set_srv_agent_addr(struct server *srv, struct sockaddr_storage *sk)
+{
+	srv->agent.addr = *sk;
+	srv->flags |= SRV_F_AGENTADDR;
 }
 
 /* Parse the "agent-send" server keyword */
