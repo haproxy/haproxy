@@ -34,7 +34,7 @@ haproxy h1 -conf {
     listen clear-lst
         bind "fd@${clearlst}"
         retries 0 # 2nd SSL connection must fail so skip the retry
-        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client1.pem no-ssl-reuse
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/client1.pem
 
     listen ssl-lst
         # crt: certificate of the server

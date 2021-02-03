@@ -1399,16 +1399,25 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
 					/* The bind_conf will be null on server ckch_instances. */
 					if (ckchi->is_server_instance) {
+						int i;
+
 						/* The certificate update on the server side (backend)
 						 * can be done by rewritting a single pointer so no
 						 * locks are needed here. */
 						/* free the server current SSL_CTX */
 						SSL_CTX_free(ckchi->server->ssl_ctx.ctx);
 						/* Actual ssl context update */
+						thread_isolate();
 						SSL_CTX_up_ref(ckchi->ctx);
 						ckchi->server->ssl_ctx.ctx = ckchi->ctx;
-						__ha_barrier_store();
 						ckchi->server->ssl_ctx.inst = ckchi;
+
+						/* flush the session cache of the server */
+						for (i = 0; i < global.nbthread; i++) {
+							free(ckchi->server->ssl_ctx.reused_sess[i].ptr);
+							ckchi->server->ssl_ctx.reused_sess[i].ptr = NULL;
+						}
+						thread_release();
 
 					} else {
 						HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
