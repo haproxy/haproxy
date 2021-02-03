@@ -935,6 +935,69 @@ struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type)
 	return blk;
 }
 
+/* Reserves the maximum possible size for an HTX data block, by extending an
+ * existing one or by creating a now one. It returns a compound result with the
+ * HTX block and the position where new data must be inserted (0 for a new
+ * block). If an error occurs or if there is no space left, NULL is returned
+ * instead of a pointer on an HTX block.
+ */
+struct htx_ret htx_reserve_max_data(struct htx *htx)
+{
+       struct htx_blk *blk, *tailblk;
+       uint32_t sz, room;
+       int32_t len = htx_free_data_space(htx);
+
+       if (htx->head == -1)
+               goto rsv_new_block;
+
+       if (!len)
+               return (struct htx_ret){.ret = 0, .blk = NULL};
+
+       /* get the tail and head block */
+       tailblk = htx_get_tail_blk(htx);
+       if (tailblk == NULL)
+               goto rsv_new_block;
+       sz = htx_get_blksz(tailblk);
+
+       /* Don't try to append data if the last inserted block is not of the
+        * same type */
+       if (htx_get_blk_type(tailblk) != HTX_BLK_DATA)
+               goto rsv_new_block;
+
+       /*
+        * Same type and enough space: append data
+        */
+       if (!htx->head_addr) {
+               if (tailblk->addr+sz != htx->tail_addr)
+                       goto rsv_new_block;
+               room = (htx_pos_to_addr(htx, htx->tail) - htx->tail_addr);
+       }
+       else {
+               if (tailblk->addr+sz != htx->head_addr)
+                       goto rsv_new_block;
+               room = (htx->end_addr - htx->head_addr);
+       }
+       BUG_ON((int32_t)room < 0);
+       if (room < len)
+               len = room;
+
+  append_data:
+       htx_change_blk_value_len(htx, tailblk, sz+len);
+
+       BUG_ON((int32_t)htx->tail_addr < 0);
+       BUG_ON((int32_t)htx->head_addr < 0);
+       BUG_ON(htx->end_addr > htx->tail_addr);
+       BUG_ON(htx->head_addr > htx->end_addr);
+       return (struct htx_ret){.ret = sz, .blk = tailblk};
+
+  rsv_new_block:
+       /* FIXME: check data.len (< 256MB) */
+       blk = htx_add_blk(htx, HTX_BLK_DATA, len);
+       if (!blk)
+               return (struct htx_ret){.ret = 0, .blk = NULL};
+       blk->info += len;
+       return (struct htx_ret){.ret = 0, .blk = blk};
+}
 
 /* Adds an HTX block of type DATA in <htx>. It first tries to append data if
  * possible. It returns the number of bytes consumed from <data>, which may be
