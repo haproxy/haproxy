@@ -2613,15 +2613,17 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	int srv_f_forced_id;
 	int fqdn_set_by_cli;
 	const char *fqdn;
-	const char *port_str;
-	unsigned int port;
+	const char *port_svc_st;
+	const char *port_check_st;
+	unsigned int port_svc;
+	unsigned int port_check;
 	char *srvrecord;
 #ifdef USE_OPENSSL
 	int use_ssl;
 #endif
 
 	fqdn = NULL;
-	port = 0;
+	port_svc = port_check = 0;
 	msg = get_trash_chunk();
 	switch (version) {
 		case 1:
@@ -2644,6 +2646,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			 * srv_port:             params[14]
 			 * srvrecord:            params[15]
 			 * srv_use_ssl:          params[16]
+			 * srv_check_port:       params[17]
 			 */
 
 			/* validating srv_op_state */
@@ -2767,12 +2770,20 @@ static void srv_update_state(struct server *srv, int version, char **params)
 				fqdn = NULL;
 			}
 
-			port_str = params[14];
-			if (port_str) {
-				port = strl2uic(port_str, strlen(port_str));
-				if (port > USHRT_MAX) {
-					chunk_appendf(msg, ", invalid srv_port value '%s'", port_str);
-					port_str = NULL;
+			port_svc_st = params[14];
+			if (port_svc_st) {
+				port_svc = strl2uic(port_svc_st, strlen(port_svc_st));
+				if (port_svc > USHRT_MAX) {
+					chunk_appendf(msg, ", invalid srv_port value '%s'", port_svc_st);
+					port_svc_st = NULL;
+				}
+			}
+			port_check_st = params[17];
+			if (port_check_st) {
+				port_check = strl2uic(port_check_st, strlen(port_check_st));
+				if (port_check > USHRT_MAX) {
+					chunk_appendf(msg, ", invalid srv_port value '%s'", port_check_st);
+					port_check_st = NULL;
 				}
 			}
 
@@ -2979,8 +2990,11 @@ static void srv_update_state(struct server *srv, int version, char **params)
 				srv->flags &= ~SRV_F_MAPPORTS;
 			}
 
-			if (port_str)
-				srv->svc_port = port;
+			if (port_svc_st)
+				srv->svc_port = port_svc;
+
+			if (!srv->check.port)
+				srv->check.port = port_check;
 
 #ifdef USE_OPENSSL
 			/* configure ssl if connection has been initiated at startup */
