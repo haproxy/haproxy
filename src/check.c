@@ -1527,7 +1527,6 @@ static int srv_parse_addr(char **args, int *cur_arg, struct proxy *curpx, struct
 	}
 
 	srv->check.addr = srv->agent.addr = *sk;
-	srv->flags |= SRV_F_CHECKADDR;
 	srv->flags |= SRV_F_AGENTADDR;
 
   out:
@@ -2050,7 +2049,6 @@ static int srv_parse_check_port(char **args, int *cur_arg, struct proxy *curpx, 
 
 	global.maxsock++;
 	srv->check.port = atol(args[*cur_arg+1]);
-	srv->flags |= SRV_F_CHECKPORT;
 
   out:
 	return err_code;

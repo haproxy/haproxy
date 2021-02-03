@@ -1660,8 +1660,6 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 	srv->flags                   |= src->flags;
 	srv->do_check                 = src->do_check;
 	srv->do_agent                 = src->do_agent;
-	if (srv->check.port)
-		srv->flags |= SRV_F_CHECKPORT;
 	srv->check.inter              = src->check.inter;
 	srv->check.fastinter          = src->check.fastinter;
 	srv->check.downinter          = src->check.downinter;
@@ -3657,7 +3655,7 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 				 * we're switching from a fixed port to a SRV_F_MAPPORTS (mapped) port
 				 * prevent PORT change if check doesn't have it's dedicated port while switching
 				 * to port mapping */
-				if ((s->check.state & CHK_ST_CONFIGURED) && !(s->flags & SRV_F_CHECKPORT)) {
+				if (!s->check.port) {
 					chunk_appendf(msg, "can't change <port> to port map because it is incompatible with current health check port configuration (use 'port' statement from the 'server' directive.");
 					goto out;
 				}
