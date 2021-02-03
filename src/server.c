@@ -3625,16 +3625,6 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 		ipcpy(&sa, &s->addr);
 		changed = 1;
 
-		/* we also need to update check's ADDR only if it uses the server's one */
-		if ((s->check.state & CHK_ST_CONFIGURED) && (s->flags & SRV_F_CHECKADDR)) {
-			ipcpy(&sa, &s->check.addr);
-		}
-
-		/* we also need to update agent ADDR only if it use the server's one */
-		if ((s->agent.state & CHK_ST_CONFIGURED) && (s->flags & SRV_F_AGENTADDR)) {
-			ipcpy(&sa, &s->agent.addr);
-		}
-
 		/* update report for caller */
 		chunk_printf(msg, "IP changed from '%s' to '%s'", current_addr, addr);
 	}
@@ -3714,11 +3704,6 @@ const char *update_server_addr_port(struct server *s, const char *addr, const ch
 			}
 
 			chunk_appendf(msg, "%d'", new_port);
-
-			/* we also need to update health checks port only if it uses server's realport */
-			if ((s->check.state & CHK_ST_CONFIGURED) && !(s->flags & SRV_F_CHECKPORT)) {
-				s->check.port = new_port;
-			}
 		}
 		else {
 			chunk_appendf(msg, "no need to change the port");
