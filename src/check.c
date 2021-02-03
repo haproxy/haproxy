@@ -1697,7 +1697,7 @@ static int srv_parse_agent_port(char **args, int *cur_arg, struct proxy *curpx, 
 	}
 
 	global.maxsock++;
-	srv->agent.port = atol(args[*cur_arg+1]);
+	set_srv_agent_port(srv, atol(args[*cur_arg + 1]));
 
   out:
 	return err_code;
@@ -1739,6 +1739,13 @@ inline void set_srv_agent_addr(struct server *srv, struct sockaddr_storage *sk)
 {
 	srv->agent.addr = *sk;
 	srv->flags |= SRV_F_AGENTADDR;
+}
+
+/* set agent port and apprropriate flag */
+inline void set_srv_agent_port(struct server *srv, int port)
+{
+	srv->agent.port = port;
+	srv->flags |= SRV_F_AGENTPORT;
 }
 
 /* Parse the "agent-send" server keyword */
@@ -2060,6 +2067,9 @@ static int srv_parse_check_port(char **args, int *cur_arg, struct proxy *curpx, 
 
 	global.maxsock++;
 	srv->check.port = atol(args[*cur_arg+1]);
+	/* if agentport was never set, we can use port */
+	if (!(srv->flags & SRV_F_AGENTPORT))
+		srv->agent.port = srv->check.port;
 
   out:
 	return err_code;

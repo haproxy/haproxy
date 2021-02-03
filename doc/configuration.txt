@@ -14061,11 +14061,11 @@ pool-purge-delay <delay>
 
 port <port>
   Using the "port" parameter, it becomes possible to use a different port to
-  send health-checks. On some servers, it may be desirable to dedicate a port
-  to a specific component able to perform complex tests which are more suitable
-  to health-checks than the application. It is common to run a simple script in
-  inetd for instance. This parameter is ignored if the "check" parameter is not
-  set. See also the "addr" parameter.
+  send health-checks or to probe the agent-check. On some servers, it may be
+  desirable to dedicate a port to a specific component able to perform complex
+  tests which are more suitable to health-checks than the application. It is
+  common to run a simple script in inetd for instance. This parameter is
+  ignored if the "check" parameter is not set. See also the "addr" parameter.
 
 proto <name>
   Forces the multiplexer's protocol to use for the outgoing connections to this
