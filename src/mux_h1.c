@@ -2519,7 +2519,7 @@ static int h1_recv(struct h1c *h1c)
 	 * it's probably cheaper than doing 2 recv() calls.
 	 */
 	if (b_data(&h1c->ibuf) > 0 && b_data(&h1c->ibuf) < 128)
-		b_slow_realign(&h1c->ibuf, trash.area, 0);
+		b_slow_realign_ofs(&h1c->ibuf, trash.area, sizeof(struct htx));
 
 	/* avoid useless reads after first responses */
 	if (!h1c->h1s ||

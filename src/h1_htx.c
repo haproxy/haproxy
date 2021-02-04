@@ -319,7 +319,7 @@ size_t h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 
 	/* Realing input buffer if necessary */
 	if (b_head(srcbuf) + b_data(srcbuf) > b_wrap(srcbuf))
-		b_slow_realign(srcbuf, trash.area, 0);
+		b_slow_realign_ofs(srcbuf, trash.area, 0);
 
 	if (!h1sl) {
 		/* If there no start-line, be sure to only parse the headers */
@@ -857,7 +857,7 @@ size_t h1_parse_msg_tlrs(struct h1m *h1m, struct htx *dsthtx,
 
 	/* Realing input buffer if necessary */
 	if (b_peek(srcbuf, ofs) > b_tail(srcbuf))
-		b_slow_realign(srcbuf, trash.area, 0);
+		b_slow_realign_ofs(srcbuf, trash.area, 0);
 
 	tlr_h1m.flags = (H1_MF_NO_PHDR|H1_MF_HDRS_ONLY);
 	ret = h1_headers_to_hdr_list(b_peek(srcbuf, ofs), b_tail(srcbuf),

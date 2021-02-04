@@ -1623,7 +1623,7 @@ static int fcgi_conn_handle_values_result(struct fcgi_conn *fconn)
 		 * at this stage because it should be the first record received
 		 * from the FCGI application.
 		 */
-		b_slow_realign(dbuf, trash.area, 0);
+		b_slow_realign_ofs(dbuf, trash.area, 0);
 	}
 
 	inbuf = b_make(b_head(dbuf), b_data(dbuf), 0, fconn->drl);
@@ -2488,7 +2488,7 @@ static int fcgi_strm_handle_end_request(struct fcgi_conn *fconn, struct fcgi_str
 		 * at this stage because it should be the first record received
 		 * from the FCGI application.
 		 */
-		b_slow_realign(dbuf, trash.area, 0);
+		b_slow_realign_ofs(dbuf, trash.area, 0);
 	}
 
 	inbuf = b_make(b_head(dbuf), b_data(dbuf), 0, fconn->drl);
