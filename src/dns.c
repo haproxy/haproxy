@@ -712,9 +712,6 @@ static void dns_check_dns_response(struct dns_resolution *res)
 
 				srv->svc_port = item->port;
 				srv->flags   &= ~SRV_F_MAPPORTS;
-				if ((srv->check.state & CHK_ST_CONFIGURED) &&
-				    !(srv->flags & SRV_F_CHECKPORT))
-					srv->check.port = item->port;
 
 				if (!srv->dns_opts.ignore_weight) {
 					char weight[9];
