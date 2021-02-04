@@ -791,15 +791,15 @@ XXH_PUBLIC_API XXH128_hash_t XXH128(const void* data, size_t len, XXH64_hash_t s
  * Method 1:
  *     `__attribute__((packed))` statement. It depends on compiler extensions
  *     and is therefore not portable.
- *     This method is safe if your compiler supports it, and *generally* as
- *     fast or faster than `memcpy`.
+ *     This method is safe _if_ your compiler supports it,
+ *     and *generally* as fast or faster than `memcpy`.
  * Method 2:
  *     Direct access via cast. This method doesn't depend on the compiler but
  *     violates the C standard.
  *     It can generate buggy code on targets which do not support unaligned
  *     memory accesses.
  *     But in some circumstances, it's the only known way to get the most
- *     performance (example: GCC + ARMv6)
+ *     performance.
  * Method 3:
  *     Byteshift. This can generate the best code on old compilers which don't
  *     inline small `memcpy()` calls, and it might also be faster on big-endian
@@ -808,10 +808,10 @@ XXH_PUBLIC_API XXH128_hash_t XXH128(const void* data, size_t len, XXH64_hash_t s
  * Prefer these methods in priority order (0 > 1 > 2 > 3)
  */
 #ifndef XXH_FORCE_MEMORY_ACCESS   /* can be defined externally, on command line for example */
-#  if !defined(__clang__) && defined(__GNUC__) && defined(__ARM_FEATURE_UNALIGNED) && defined(__ARM_ARCH) && (__ARM_ARCH == 6)
-#    define XXH_FORCE_MEMORY_ACCESS 2
-#  elif !defined(__clang__) && ((defined(__INTEL_COMPILER) && !defined(_WIN32)) || \
-  (defined(__GNUC__) && (defined(__ARM_ARCH) && __ARM_ARCH >= 7)))
+   /* prefer __packed__ structures (method 1) for gcc on armv7 and armv8 */
+#  if !defined(__clang__) && ( \
+    (defined(__INTEL_COMPILER) && !defined(_WIN32)) || \
+    (defined(__GNUC__) && (defined(__ARM_ARCH) && __ARM_ARCH >= 7)) )
 #    define XXH_FORCE_MEMORY_ACCESS 1
 #  endif
 #endif
