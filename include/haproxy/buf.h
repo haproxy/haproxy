@@ -469,6 +469,37 @@ static inline void b_slow_realign(struct buffer *b, char *swap, size_t output)
 	b->head = (output ? b_size(b) - output : 0);
 }
 
+/* b_slow_realign_ofs() : this function realigns a possibly wrapping buffer
+ * setting its new head at <ofs>. Depending of the <ofs> value, the resulting
+ * buffer may also wrap. A temporary swap area at least as large as b->size must
+ * be provided in <swap>. It's up to the caller to ensuze <ofs> is not larger
+ * than b->size.
+ */
+static inline void b_slow_realign_ofs(struct buffer *b, char *swap, size_t ofs)
+{
+	size_t block1 = b_data(b);
+	size_t block2 = 0;
+
+	if (__b_tail_ofs(b) >= b_size(b)) {
+		block2 = b_tail_ofs(b);
+		block1 -= block2;
+	}
+	memcpy(swap, b_head(b), block1);
+	memcpy(swap + block1, b_orig(b), block2);
+
+	block1 = b_data(b);
+	block2 = 0;
+	if (block1 > b_size(b) - ofs) {
+		block1 = b_size(b) - ofs;
+		block2 = b_data(b) - block1;
+	}
+	memcpy(b_orig(b) + ofs, swap, block1);
+	memcpy(b_orig(b), swap + block1, block2);
+
+	b->head = ofs;
+}
+
+
 /* b_putchar() : tries to append char <c> at the end of buffer <b>. Supports
  * wrapping. Data are truncated if buffer is full.
  */
