@@ -3110,6 +3110,8 @@ static void srv_state_parse_line(char *buf, const int version, char **params, ch
 					 * srv_fqdn:             params[17] => srv_params[13]
 					 * srv_port:             params[18] => srv_params[14]
 					 * srvrecord:            params[19] => srv_params[15]
+					 * srv_use_ssl:          params[20] => srv_params[16]
+					 * srv_check_port:       params[21] => srv_params[17]
 					 */
 					if (arg >= 4) {
 						srv_params[srv_arg] = cur;
