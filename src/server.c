@@ -2973,11 +2973,6 @@ static void srv_update_state(struct server *srv, int version, char **params)
 					goto out;
 				}
 
-				/* configure check.port accordingly */
-				if ((srv->check.state & CHK_ST_CONFIGURED) &&
-				    !(srv->flags & SRV_F_CHECKPORT))
-					srv->check.port = port;
-
 				/* Unset SRV_F_MAPPORTS for SRV records.
 				 * SRV_F_MAPPORTS is unfortunately set by parse_server()
 				 * because no ports are provided in the configuration file.
