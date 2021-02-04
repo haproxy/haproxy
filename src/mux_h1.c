@@ -2547,7 +2547,6 @@ static int h1_recv(struct h1c *h1c)
 			TRACE_STATE("h1c ibuf not full anymore", H1_EV_H1C_RECV|H1_EV_H1C_BLK);
 		}
 
-		b_realign_if_empty(&h1c->ibuf);
 		if (!b_data(&h1c->ibuf)) {
 			/* try to pre-align the buffer like the rxbufs will be
 			 * to optimize memory copies.

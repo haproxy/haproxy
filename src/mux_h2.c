@@ -3617,7 +3617,6 @@ static int h2_recv(struct h2c *h2c)
 		return 0;
 	}
 
-	b_realign_if_empty(buf);
 	if (!b_data(buf)) {
 		/* try to pre-align the buffer like the
 		 * rxbufs will be to optimize memory copies. We'll make
