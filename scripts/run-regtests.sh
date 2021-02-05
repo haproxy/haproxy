@@ -128,7 +128,7 @@ _startswith() {
 _findtests() {
   set -f
 
-  REGTESTS_TYPES="${REGTESTS_TYPES:-any}"
+  REGTESTS_TYPES="${REGTESTS_TYPES:-default,bug,devel,slow}"
   any_test=$(echo $REGTESTS_TYPES | grep -cw "any")
   for i in $( find "$1" -name *.vtc ); do
     skiptest=
