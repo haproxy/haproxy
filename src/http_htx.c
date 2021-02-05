@@ -904,7 +904,7 @@ int http_str_to_htx(struct buffer *buf, struct ist raw, char **errmsg)
 	b_reset(buf);
 	if (!raw.len) {
 		buf->size = 0;
-		buf->area = malloc(raw.len);
+		buf->area = NULL;
 		return 1;
 	}
 
