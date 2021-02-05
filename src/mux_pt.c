@@ -361,7 +361,7 @@ static int mux_pt_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *
 }
 
 /* The mux operations */
-const struct mux_ops mux_pt_ops = {
+const struct mux_ops mux_tcp_ops = {
 	.init = mux_pt_init,
 	.wake = mux_pt_wake,
 	.rcv_buf = mux_pt_rcv_buf,
@@ -385,8 +385,36 @@ const struct mux_ops mux_pt_ops = {
 	.name = "PASS",
 };
 
-/* PROT selection : default mux has empty name */
-static struct mux_proto_list mux_proto_pt =
-	{ .token = IST(""), .mode = PROTO_MODE_TCP, .side = PROTO_SIDE_BOTH, .mux = &mux_pt_ops };
 
-INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_pt);
+const struct mux_ops mux_pt_ops = {
+	.init = mux_pt_init,
+	.wake = mux_pt_wake,
+	.rcv_buf = mux_pt_rcv_buf,
+	.snd_buf = mux_pt_snd_buf,
+	.subscribe = mux_pt_subscribe,
+	.unsubscribe = mux_pt_unsubscribe,
+#if defined(USE_LINUX_SPLICE)
+	.rcv_pipe = mux_pt_rcv_pipe,
+	.snd_pipe = mux_pt_snd_pipe,
+#endif
+	.attach = mux_pt_attach,
+	.get_first_cs = mux_pt_get_first_cs,
+	.detach = mux_pt_detach,
+	.avail_streams = mux_pt_avail_streams,
+	.used_streams = mux_pt_used_streams,
+	.destroy = mux_pt_destroy_meth,
+	.ctl = mux_pt_ctl,
+	.shutr = mux_pt_shutr,
+	.shutw = mux_pt_shutw,
+	.flags = MX_FL_NONE|MX_FL_NO_UPG,
+	.name = "PASS",
+};
+
+/* PROT selection : default mux has empty name */
+static struct mux_proto_list mux_proto_none =
+	{ .token = IST("none"), .mode = PROTO_MODE_TCP, .side = PROTO_SIDE_BOTH, .mux = &mux_pt_ops };
+static struct mux_proto_list mux_proto_tcp =
+	{ .token = IST(""), .mode = PROTO_MODE_TCP, .side = PROTO_SIDE_BOTH, .mux = &mux_tcp_ops };
+
+INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_none);
+INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_tcp);
