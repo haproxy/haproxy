@@ -3178,7 +3178,7 @@ static void h2_process_demux(struct h2c *h2c)
 
 		if (!b_data(&h2c->dbuf)) {
 			TRACE_DEVEL("no more Rx data", H2_EV_RX_FRAME, h2c->conn);
-			break;
+			goto dbuf_empty;
 		}
 
 		if (h2c->st0 >= H2_CS_ERROR) {
@@ -3419,6 +3419,7 @@ static void h2_process_demux(struct h2c *h2c)
 			ret = h2c_send_rst_stream(h2c, h2s);
 		}
 
+	dbuf_empty:
 		/* error or missing data condition met above ? */
 		if (ret <= 0) {
 			TRACE_DEVEL("insufficient data to proceed", H2_EV_RX_FRAME, h2c->conn, h2s);
