@@ -1102,6 +1102,27 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			if (conn->handle.fd != fd) {
 				chunk_appendf(&trash, " fd=%d(BOGUS)", conn->handle.fd);
 				suspicious = 1;
+			} else {
+				struct sockaddr_storage sa;
+				socklen_t salen;
+
+				salen = sizeof(sa);
+				if (getsockname(fd, (struct sockaddr *)&sa, &salen) != -1) {
+					if (sa.ss_family == AF_INET)
+						chunk_appendf(&trash, " fam=ipv4 lport=%d", ntohs(((const struct sockaddr_in *)&sa)->sin_port));
+					else if (sa.ss_family == AF_INET6)
+						chunk_appendf(&trash, " fam=ipv6 lport=%d", ntohs(((const struct sockaddr_in6 *)&sa)->sin6_port));
+					else if (sa.ss_family == AF_UNIX)
+						chunk_appendf(&trash, " fam=unix");
+				}
+
+				salen = sizeof(sa);
+				if (getpeername(fd, (struct sockaddr *)&sa, &salen) != -1) {
+					if (sa.ss_family == AF_INET)
+						chunk_appendf(&trash, " rport=%d", ntohs(((const struct sockaddr_in *)&sa)->sin_port));
+					else if (sa.ss_family == AF_INET6)
+						chunk_appendf(&trash, " rport=%d", ntohs(((const struct sockaddr_in6 *)&sa)->sin6_port));
+				}
 			}
 
 			if (px)
@@ -1130,9 +1151,22 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			}
 		}
 		else if (fdt.iocb == sock_accept_iocb) {
+			struct sockaddr_storage sa;
+			socklen_t salen;
+
 			chunk_appendf(&trash, ") l.st=%s fe=%s",
 			              listener_state_str(li),
 			              li->bind_conf->frontend->id);
+
+			salen = sizeof(sa);
+			if (getsockname(fd, (struct sockaddr *)&sa, &salen) != -1) {
+				if (sa.ss_family == AF_INET)
+					chunk_appendf(&trash, " fam=ipv4 lport=%d", ntohs(((const struct sockaddr_in *)&sa)->sin_port));
+				else if (sa.ss_family == AF_INET6)
+					chunk_appendf(&trash, " fam=ipv6 lport=%d", ntohs(((const struct sockaddr_in6 *)&sa)->sin6_port));
+				else if (sa.ss_family == AF_UNIX)
+					chunk_appendf(&trash, " fam=unix");
+			}
 		}
 		else
 			chunk_appendf(&trash, ")");
