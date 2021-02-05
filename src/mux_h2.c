@@ -3634,11 +3634,11 @@ static int h2_recv(struct h2c *h2c)
 
 	ret = max ? conn->xprt->rcv_buf(conn, conn->xprt_ctx, buf, max, 0) : 0;
 
-	if (max && !ret && h2_recv_allowed(h2c)) {
+	if (max && !ret) {
 		if (conn_xprt_read0_pending(h2c->conn)) {
 			TRACE_DATA("received read0", H2_EV_H2C_RECV, h2c->conn);
 			h2c->flags |= H2_CF_RCVD_SHUT;
-		} else {
+		} else if (h2_recv_allowed(h2c)) {
 			TRACE_DATA("failed to receive data, subscribing", H2_EV_H2C_RECV, h2c->conn);
 			conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h2c->wait_event);
 		}
@@ -3843,7 +3843,8 @@ static int h2_process(struct h2c *h2c)
 
 	TRACE_ENTER(H2_EV_H2C_WAKE, conn);
 
-	if (b_data(&h2c->dbuf) && !(h2c->flags & H2_CF_DEM_BLOCK_ANY)) {
+	if (!(h2c->flags & H2_CF_DEM_BLOCK_ANY) &&
+	    (b_data(&h2c->dbuf) || (h2c->flags & H2_CF_RCVD_SHUT))) {
 		h2_process_demux(h2c);
 
 		if (h2c->st0 >= H2_CS_ERROR || conn->flags & CO_FL_ERROR)
