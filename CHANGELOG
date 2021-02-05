@@ -1,6 +1,161 @@
 ChangeLog :
 ===========
 
+2021/02/05 : 2.4-dev7
+    - BUG/MINOR: stats: Continue to fill frontend stats on unimplemented metric
+    - BUILD: ssl: guard Client Hello callbacks with HAVE_SSL_CLIENT_HELLO_CB macro instead of openssl version
+    - BUG/MINOR: stats: Init the metric variable when frontend stats are filled
+    - MINOR: contrib/prometheus-exporter: better output of Not-a-Number
+    - CLEANUP: stats: improve field selection for frontend http fields
+    - CLEANUP: assorted typo fixes in the code and comments
+    - DOC: Improve documentation of the various hdr() fetches
+    - MEDIUM: stats: allow to select one field in `stats_fill_be_stats`
+    - MINOR: contrib/prometheus-exporter: use fill_be_stats for backend dump
+    - MEDIUM: stats: allow to select one field in `stats_fill_sv_stats`
+    - MINOR: contrib/prometheus-exporter: use fill_sv_stats for server dump
+    - MINOR: abort() on my_unreachable() when DEBUG_USE_ABORT is set.
+    - BUG/MEDIUM: filters/htx: Fix data forwarding when payload length is unknown
+    - BUG/MINOR: config: fix leak on proxy.conn_src.bind_hdr_name
+    - MINOR: reg-tests: add http-reuse test
+    - CLEANUP: srv: fix comment for pool-max-conn
+    - CLEANUP: backend: remove an obsolete comment on conn_backend_get
+    - REORG: backend: simplify conn_backend_get
+    - MINOR: ssl: Server ssl context prepare function refactoring
+    - MINOR: ssl: Certificate chain loading refactorization
+    - MEDIUM: ssl: Load client certificates in a ckch for backend servers
+    - MEDIUM: ssl: Enable backend certificate hot update
+    - MINOR: ssl: Remove client_crt member of the server's ssl context
+    - CLEANUP: ssl/cli: rework free in cli_io_handler_commit_cert()
+    - CLEANUP: ssl: remove SSL_CTX function parameter
+    - CLEANUP: ssl: make load_srv_{ckchs,cert} match their bind counterpart
+    - BUILD: Include stdlib.h in compiler.h if DEBUG_USE_ABORT is set
+    - CI: Fix DEBUG_STRICT definition for Coverity
+    - BUG/MINOR: stats: Remove a break preventing ST_F_QCUR to be set for servers
+    - BUG/MINOR: stats: Add a break after filling ST_F_MODE field for servers
+    - CLEANUP: ssl: remove dead code in ckch_inst_new_load_srv_store()
+    - BUG/MINOR: ssl: init tmp chunk correctly in ssl_sock_load_sctl_from_file()
+    - BUG/MEDIUM: session: only retrieve ready idle conn from session
+    - BUG/MEDIUM: backend: never reuse a connection for tcp mode
+    - REGTESTS: set_ssl_server_cert.vtc: remove the abort command
+    - REGTESTS: set_ssl_server_cert.vtc: check the Sha1 Fingerprint
+    - REGTESTS: set_ssl_server_cert.vtc: check the sha1 from the server
+    - MEDIUM: stream-int: Take care of EOS if the SI wake callback function
+    - MINOR: mux-h1: Try to wake up data layer first before calling its wake callback
+    - MINOR: mux-h1: Wake up H1C after its creation if input buffer is not empty
+    - MEDIUM: mux-h1: Add ST_READY state for the H1 connections
+    - MINOR: stream: Add a function to validate TCP to H1 upgrades
+    - MEDIUM: http-ana: Do nothing in wait-for-request analyzer if not htx
+    - BUG/MEDIUM: stream: Don't immediatly ack the TCP to H1 upgrades
+    - BUG/MAJOR: mux-h1: Properly handle TCP to H1 upgrades
+    - MINOR: htx/http-ana: Save info about Upgrade option in the Connection header
+    - MEDIUM: http-ana: Refuse invalid 101-switching-protocols responses
+    - BUG/MINOR: h2/mux-h2: Reject 101 responses with a PROTOCOL_ERROR h2s error
+    - MINOR: mux-h1/mux-fcgi: Don't set TUNNEL mode if payload length is unknown
+    - MINOR: mux-h1: Split H1C_F_WAIT_OPPOSITE flag to separate input/output sides
+    - MINOR: mux-h2: Add 2 flags to help to properly handle tunnel mode
+    - MEDIUM: mux-h2: Block client data on server side waiting tunnel establishment
+    - MEDIUM: mux-h2: Close streams when processing data for an aborted tunnel
+    - MEDIUM: mux-h1: Properly handle tunnel establishments and aborts
+    - BUG/MAJOR: mux-h1/mux-h2/htx: Fix HTTP tunnel management at the mux level
+    - MINOR: htx: Rename HTX_FL_EOI flag into HTX_FL_EOM
+    - REGTESTS: Don't run http_msg_full_on_eom script on the 2.4 anymore
+    - MINOR: htx: Add a function to know if a block is the only one in a message
+    - MAJOR: htx: Remove the EOM block type and use HTX_FL_EOM instead
+    - MINOR: mux-h1: Add a flag on H1 streams with a response known to be bodyless
+    - MEDIUM: mux-h1: Don't emit any payload for bodyless responses
+    - MINOR: mux-h1: Don't emit C-L and T-E headers for 204 and 1xx responses
+    - MINOR: mux-h1: Don't add Connection close/keep-alive header for 1xx messages
+    - MINOR: h2/mux-h2: Add flags to notify the response is known to have no body
+    - MEDIUM: mux-h2: Don't emit DATA frame for bodyless responses
+    - MEDIUM: http-ana: Deal with L7 retries in HTTP analysers
+    - MINOR: h1: reject websocket handshake if missing key
+    - MEDIUM: h1: generate WebSocket key on response if needed
+    - MINOR: mux_h2: define H2_SF_EXT_CONNECT_SENT stream flag
+    - MEDIUM: h2: parse Extended CONNECT reponse to htx
+    - MEDIUM: mux_h2: generate Extended CONNECT from htx upgrade
+    - MEDIUM: h1: add a WebSocket key on handshake if needed
+    - MEDIUM: mux_h2: generate Extended CONNECT response
+    - MEDIUM: h2: parse Extended CONNECT request to htx
+    - MEDIUM: h2: send connect protocol h2 settings
+    - MINOR: vtc: add test for h1/h2 protocol upgrade translation
+    - MINOR: vtc: add websocket test
+    - REGTESTS: Fix required versions for several scripts
+    - REGTEST: Don't use the websocket to validate http-check
+    - MINOR: mux-h1/trace: add traces at level ERROR for all kind of errors
+    - MINOR: mux-fcgi/trace: add traces at level ERROR for all kind of errors
+    - MINOR: h1: Raise the chunk size limit up to (2^52 - 1)
+    - BUG/MEDIUM: listener: do not accept connections faster than we can process them
+    - REGTESTS: set_ssl_server_cert.vtc: set as broken
+    - Revert "BUG/MEDIUM: listener: do not accept connections faster than we can process them"
+    - BUG/MINOR: backend: check available list allocation for reuse
+    - CI: Fix the coverity builds
+    - DOC: management: fix "show resolvers" alphabetical ordering
+    - MINOR: tools: add print_time_short() to print a condensed duration value
+    - MINOR: activity: make profiling more manageable
+    - MINOR: activity: declare a new structure to collect per-function activity
+    - MEDIUM: tasks/activity: collect per-task statistics when profiling is enabled
+    - MINOR: activity: also report collected tasks stats in "show profiling"
+    - MINOR: activity: flush scheduler stats on "set profiling tasks on"
+    - MINOR: activity: add a new "show tasks" command to list currently active tasks
+    - MINOR: listener: export accept_queue_process
+    - MINOR: session: export session_expire_embryonic()
+    - MINOR: muxes: export the timeout and shutr task handlers
+    - MINOR: checks: export a few functions that appear often in trace dumps
+    - MINOR: peers: export process_peer_sync() to improve traces
+    - MINOR: stick-tables: export process_table_expire()
+    - MINOR: mux-h1: Remove first useless test on count in h1_process_output()
+    - BUG/MINOR: stick-table: Always call smp_fetch_src() with a valid arg list
+    - MINOR: http-fetch: Don't check if argument list is set in sample fetches
+    - MINOR: http-conv: Don't check if argument list is set in sample converters
+    - MINOR: sample: Don't check if argument list is set in sample fetches
+    - MINOR: ssl-sample: Don't check if argument list is set in sample fetches
+    - MINOR: mux-h2: Don't tests the start-line when sending HEADERS frame
+    - MINOR: mux-h2: Slightly improve request HEADERS frames sending
+    - MINOR: contrib/prometheus-exporter: declare states for objects
+    - MAJOR: contrib/prometheus-exporter: move ftd/bkd/srv states to labels
+    - MEDIUM: contrib/prometheus-exporter: Use dynamic labels instead of static ones
+    - MINOR: listener: export manage_global_listener_queue()
+    - BUG/MINOR: activity: take care of late wakeups in "show tasks"
+    - REGTESTS: set_ssl_server_cert.vtc: remove SSL caching and set as working
+    - REGTESTS: set_ssl_server_cert: cleanup the SSL caching option
+    - MINOR: checks: Add function to get the result code corresponding to a status
+    - MAJOR: contrib/prometheus-exporter: move health check status to labels
+    - MINOR: contrib/prometheus-exporter: improve service status description field
+    - MINOR: stats: improve pending connections description
+    - MINOR: stats: improve max stats descriptions
+    - MINOR: contrib/prometheus-exporter: use stats desc when possible
+    - MINOR: contrib/prometheus-exporter: add uweight field
+    - MINOR: contrib/prometheus-exporter: add recv logs_logs_total field
+    - CLEANUP: contrib/prometheus-exporter: remove unused includes
+    - CLEANUP: contrib/prometheus-exporter: align and reorder fields
+    - CLEANUP: contrib/prometheus-exporter: remove description in README
+    - DOC: contrib/prometheus-exporter: Add missing metrics in README
+    - BUG/MINOR: contrib/prometheus-exporter: Add missing label for ST_F_HRSP_1XX
+    - BUG/MINOR: contrib/prometheus-exporter: Restart labels dump at the right pos
+    - BUG/MEDIUM: ssl/cli: abort ssl cert is freeing the old store
+    - BUG/MEDIUM: ssl: check a connection's status before computing a handshake
+    - BUG/MINOR: mux_h2: fix incorrect stat titles
+    - MINOR: ssl/cli: flush the server session cache upon 'commit ssl cert'
+    - BUG/MINOR: cli: fix set server addr/port coherency with health checks
+    - MINOR: server: Don't set the check port during the update from a state file
+    - MINOR: dns: Don't set the check port during a server dns resolution
+    - MEDIUM: check: remove checkport checkaddr flag
+    - MEDIUM: server: adding support for check_port in server state
+    - BUG/MINOR: check: consitent way to set agentaddr
+    - MEDIUM: check: align agentaddr and agentport behaviour
+    - DOC: server: Add missing params in comment of the server state line parsing
+    - BUG/MINOR: xxhash: make sure armv6 uses memcpy()
+    - REGTESTS: mark http-check-send.vtc as 2.4-only
+    - REGTESTS: mark sample_fetches/hashes.vtc as 2.4-only
+    - BUG/MINOR: ssl: do not try to use early data if not configured
+    - REGTESTS: unbreak http-check-send.vtc
+    - MINOR: cli/show_fd: report local and report ports when known
+    - BUILD: Makefile: move REGTESTST_TYPE default setting
+    - BUG/MEDIUM: mux-h2: handle remaining read0 cases
+    - CLEANUP: http-htx: Set buffer area to NULL instead of malloc(0)
+    - BUG/MINOR: sock: Unclosed fd in case of connection allocation failure
+    - BUG/MEDIUM: mux-h2: do not quit the demux loop before setting END_REACHED
+
 2021/01/22 : 2.4-dev6
     - MINOR: converter: adding support for url_enc
     - BUILD: SSL: guard TLS13 ciphersuites with HAVE_SSL_CTX_SET_CIPHERSUITES
