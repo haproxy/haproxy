@@ -3828,7 +3828,7 @@ REGISTER_CONFIG_POSTPARSER("h1-headers-map", cfg_h1_headers_case_adjust_postpars
 /****************************************/
 
 /* The mux operations */
-static const struct mux_ops mux_h1_ops = {
+static const struct mux_ops mux_http_ops = {
 	.init        = h1_init,
 	.wake        = h1_wake,
 	.attach      = h1_attach,
@@ -3854,12 +3854,40 @@ static const struct mux_ops mux_h1_ops = {
 	.name        = "H1",
 };
 
+static const struct mux_ops mux_h1_ops = {
+	.init        = h1_init,
+	.wake        = h1_wake,
+	.attach      = h1_attach,
+	.get_first_cs = h1_get_first_cs,
+	.detach      = h1_detach,
+	.destroy     = h1_destroy,
+	.avail_streams = h1_avail_streams,
+	.used_streams = h1_used_streams,
+	.rcv_buf     = h1_rcv_buf,
+	.snd_buf     = h1_snd_buf,
+#if defined(USE_LINUX_SPLICE)
+	.rcv_pipe    = h1_rcv_pipe,
+	.snd_pipe    = h1_snd_pipe,
+#endif
+	.subscribe   = h1_subscribe,
+	.unsubscribe = h1_unsubscribe,
+	.shutr       = h1_shutr,
+	.shutw       = h1_shutw,
+	.show_fd     = h1_show_fd,
+	.ctl         = h1_ctl,
+	.takeover    = h1_takeover,
+	.flags       = MX_FL_HTX|MX_FL_NO_UPG,
+	.name        = "H1",
+};
 
-/* this mux registers default HTX proto */
-static struct mux_proto_list mux_proto_htx =
-{ .token = IST(""), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &mux_h1_ops };
+/* this mux registers default HTX proto but also h1 proto (to be referenced in the conf */
+static struct mux_proto_list mux_proto_h1 =
+	{ .token = IST("h1"), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &mux_h1_ops };
+static struct mux_proto_list mux_proto_http =
+	{ .token = IST(""), .mode = PROTO_MODE_HTTP, .side = PROTO_SIDE_BOTH, .mux = &mux_http_ops };
 
-INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_htx);
+INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_h1);
+INITCALL1(STG_REGISTER, register_mux_proto, &mux_proto_http);
 
 /*
  * Local variables:
