@@ -2178,7 +2178,7 @@ int strl2irc(const char *s, int len, int *ret)
  * applications designed for hostile environments. It returns zero when the
  * number has successfully been converted, non-zero otherwise. When an error
  * is returned, the <ret> value is left untouched. It is about 3 times slower
- * than str2irc().
+ * than strl2irc().
  */
 
 int strl2llrc(const char *s, int len, long long *ret)
