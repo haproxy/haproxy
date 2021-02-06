@@ -6922,7 +6922,7 @@ static struct action_kw_list http_req_actions = {ILH, {
 
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+#ifdef HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT
 
 static void ssl_sock_sctl_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
 {
@@ -7020,7 +7020,7 @@ static void __ssl_sock_init(void)
 #if defined(USE_THREAD) && (HA_OPENSSL_VERSION_NUMBER < 0x10100000L)
 	ssl_locking_init();
 #endif
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+#ifdef HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT
 	sctl_ex_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_sctl_free_func);
 #endif
 
