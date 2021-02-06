@@ -1004,7 +1004,7 @@ int check_buf_available(void *target)
 }
 
 /*
- * Allocate a buffer. If if fails, it adds the check in buffer wait queue.
+ * Allocate a buffer. If it fails, it adds the check in buffer wait queue.
  */
 struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
 {
@@ -1211,10 +1211,10 @@ static int start_checks()
 
 	srand((unsigned)time(NULL));
 
-	/*
-	 * 2- start them as far as possible from each others. For this, we will
-	 * start them after their interval set to the min interval divided by
-	 * the number of servers, weighted by the server's position in the list.
+	/* 2- start them as far as possible from each other. For this, we will
+	 * start them after their interval is set to the min interval divided
+	 * by the number of servers, weighted by the server's position in the
+	 * list.
 	 */
 	for (px = proxies_list; px; px = px->next) {
 		if ((px->options2 & PR_O2_CHK_ANY) == PR_O2_EXT_CHK) {
@@ -1261,7 +1261,7 @@ static int srv_check_healthcheck_port(struct check *chk)
 
 	srv = chk->server;
 
-	/* by default, we use the health check port ocnfigured */
+	/* by default, we use the health check port configured */
 	if (chk->port > 0)
 		return chk->port;
 
@@ -1734,14 +1734,14 @@ int set_srv_agent_send(struct server *srv, const char *send)
 	return 0;
 }
 
-/* set agent addr and apprropriate flag */
+/* set agent addr and appropriate flag */
 inline void set_srv_agent_addr(struct server *srv, struct sockaddr_storage *sk)
 {
 	srv->agent.addr = *sk;
 	srv->flags |= SRV_F_AGENTADDR;
 }
 
-/* set agent port and apprropriate flag */
+/* set agent port and appropriate flag */
 inline void set_srv_agent_port(struct server *srv, int port)
 {
 	srv->agent.port = port;
@@ -2092,7 +2092,7 @@ static struct srv_kw_list srv_kws = { "CHK", { }, {
 	{ "check-via-socks4",    srv_parse_check_via_socks4,    0,  1 }, /* Enable socks4 proxy for health checks */
 	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1 }, /* Do not enable any auxiliary agent check */
 	{ "no-check",            srv_parse_no_check,            0,  1 }, /* Disable health checks */
-	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* Disable PROXY protol for health checks */
+	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1 }, /* Disable PROXY protocol for health checks */
 	{ "rise",                srv_parse_check_rise,          1,  1 }, /* Set rise value for health checks */
 	{ "fall",                srv_parse_check_fall,          1,  1 }, /* Set fall value for health checks */
 	{ "inter",               srv_parse_check_inter,         1,  1 }, /* Set inter value for health checks */
