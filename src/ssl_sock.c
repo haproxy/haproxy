@@ -1497,7 +1497,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 #endif
 
 
-#ifdef HAVE_SL_CTX_ADD_SERVER_CUSTOM_EXT
+#ifdef HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT
 
 #define CT_EXTENSION_TYPE 18
 
@@ -3217,7 +3217,7 @@ static int ssl_sock_put_ckch_into_ctx(const char *path, const struct cert_key_an
 	}
 #endif
 
-#ifdef HAVE_SL_CTX_ADD_SERVER_CUSTOM_EXT
+#ifdef HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT
 	if (sctl_ex_index >= 0 && ckch->sctl) {
 		if (ssl_sock_load_sctl(ctx, ckch->sctl) < 0) {
 			memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
