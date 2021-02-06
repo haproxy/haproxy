@@ -708,6 +708,18 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto tcp_close_return;
 	}
 
+#if !defined(TCP_DEFER_ACCEPT) && defined(SO_ACCEPTFILTER)
+	/* the socket needs to listen first */
+	if (listener->options & LI_O_DEF_ACCEPT) {
+		struct accept_filter_arg accept;
+		memset(&accept, 0, sizeof(accept));
+		strcpy(accept.af_name, "dataready");
+		if (setsockopt(fd, SOL_SOCKET, SO_ACCEPTFILTER, &accept, sizeof(accept)) == -1) {
+			msg = "cannot enable ACCEPT_FILTER";
+			err |= ERR_WARN;
+		}
+	}
+#endif
 #if defined(TCP_QUICKACK)
 	if (listener->options & LI_O_NOQUICKACK)
 		setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));

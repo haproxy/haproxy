@@ -61,7 +61,7 @@ static int bind_parse_transparent(char **args, int cur_arg, struct proxy *px, st
 }
 #endif
 
-#ifdef TCP_DEFER_ACCEPT
+#if defined(TCP_DEFER_ACCEPT) || defined(SO_ACCEPTFILTER)
 /* parse the "defer-accept" bind keyword */
 static int bind_parse_defer_accept(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -243,7 +243,7 @@ static int srv_parse_tcp_ut(char **args, int *cur_arg, struct proxy *px, struct 
  * not enabled.
  */
 static struct bind_kw_list bind_kws = { "TCP", { }, {
-#ifdef TCP_DEFER_ACCEPT
+#if defined(TCP_DEFER_ACCEPT) || defined(SO_ACCEPTFILTER)
 	{ "defer-accept",  bind_parse_defer_accept, 0 }, /* wait for some data for 1 second max before doing accept */
 #endif
 #ifdef SO_BINDTODEVICE
