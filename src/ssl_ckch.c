@@ -1402,7 +1402,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 						int i;
 
 						/* The certificate update on the server side (backend)
-						 * can be done by rewritting a single pointer so no
+						 * can be done by rewriting a single pointer so no
 						 * locks are needed here. */
 						/* free the server current SSL_CTX */
 						SSL_CTX_free(ckchi->server->ssl_ctx.ctx);

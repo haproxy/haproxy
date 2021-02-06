@@ -241,7 +241,7 @@ const struct promex_metric promex_st_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_COMP_BYP]       = { .n = IST("http_comp_bytes_bypassed_total"),   .type = PROMEX_MT_COUNTER,  .flags = (PROMEX_FL_FRONT_METRIC | PROMEX_FL_BACK_METRIC                       ) },
 	[ST_F_COMP_RSP]       = { .n = IST("http_comp_responses_total"),        .type = PROMEX_MT_COUNTER,  .flags = (PROMEX_FL_FRONT_METRIC | PROMEX_FL_BACK_METRIC                       ) },
 	[ST_F_LASTSESS]       = { .n = IST("last_session_seconds"),             .type = PROMEX_MT_GAUGE,    .flags = (                         PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
-	//[ST_F_LAST_CHK]       ignroed
+	//[ST_F_LAST_CHK]       ignored
 	//[ST_F_LAST_AGT]       ignored
 	[ST_F_QTIME]          = { .n = IST("queue_time_average_seconds"),       .type = PROMEX_MT_GAUGE,    .flags = (                         PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
 	[ST_F_CTIME]          = { .n = IST("connect_time_average_seconds"),     .type = PROMEX_MT_GAUGE,    .flags = (                         PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
@@ -287,7 +287,7 @@ const struct promex_metric promex_st_metrics[ST_F_TOTAL_FIELDS] = {
 	[ST_F_UWEIGHT]        = { .n = IST("uweight"),                          .type = PROMEX_MT_GAUGE,    .flags = (                         PROMEX_FL_BACK_METRIC | PROMEX_FL_SRV_METRIC) },
 };
 
-/* Description of overriden stats fields */
+/* Description of overridden stats fields */
 const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_STATUS]         = IST("Current status of the service, per state label value."),
 	[ST_F_CHECK_STATUS]   = IST("Status of last health check, per state label value."),

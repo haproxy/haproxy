@@ -97,7 +97,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		 * There is a transition period during which there is no
 		 * data. The stream is still in raw mode and SF_IGNORE flag is
 		 * still set. When this happens, the new mux is responsible to
-		 * handle all errors. Thus we may leave immediatly.
+		 * handle all errors. Thus we may leave immediately.
 		 */
 		BUG_ON(!(s->flags & SF_IGNORE) || !c_empty(&s->req));
 
@@ -1312,7 +1312,7 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	b_set_data(&req->buf, b_size(&req->buf));
 	co_set_data(req, b_data(&si->l7_buffer));
 
-	DBG_TRACE_DEVEL("perfrom a L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, s->txn);
+	DBG_TRACE_DEVEL("perform a L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, s->txn);
 	b_reset(&res->buf);
 	co_set_data(res, 0);
 	return 0;

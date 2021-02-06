@@ -182,7 +182,7 @@ enum h2_err {
 #define H2_MSGF_RSP_1XX        0x0010    // a 1xx ( != 101) HEADERS frame was received
 #define H2_MSGF_BODYLESS_RSP   0x0020    // response message is known to have no body
                                          // (response to HEAD request or 204/304 response)
-#define H2_MSGF_EXT_CONNECT    0x0040    // Extented CONNECT method from rfc 8441
+#define H2_MSGF_EXT_CONNECT    0x0040    // Extended CONNECT method from rfc 8441
 
 #define H2_MAX_STREAM_ID       ((1U << 31) - 1)
 #define H2_MAX_FRAME_LEN       ((1U << 24) - 1)

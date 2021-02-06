@@ -2880,7 +2880,7 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 		 * Thus the stream is closed with the CANCEL error. Here we take care it is not
 		 * an empty DATA Frame with the ES flag. The error is only handled if ES was
 		 * already sent to the client because depending on the scheduling, these data may
-		 * have been sent before the server respnse but not handle here.
+		 * have been sent before the server response but not handle here.
 		 */
 		TRACE_ERROR("Request DATA frame for aborted tunnel", H2_EV_RX_FRAME|H2_EV_RX_DATA, h2c->conn, h2s);
 		error = H2_ERR_CANCEL;
@@ -4694,7 +4694,7 @@ next_frame:
 	msgf = (h2c->dff & H2_F_HEADERS_END_STREAM) ? 0 : H2_MSGF_BODY;
 	msgf |= (*flags & H2_SF_BODY_TUNNEL) ? H2_MSGF_BODY_TUNNEL: 0;
 	/* If an Extended CONNECT has been sent on this stream, set message flag
-	 * to convert 200 response to 101 htx reponse */
+	 * to convert 200 response to 101 htx response */
 	msgf |= (*flags & H2_SF_EXT_CONNECT_SENT) ? H2_MSGF_EXT_CONNECT: 0;
 
 	if (*flags & H2_SF_HEADERS_RCVD)
@@ -5196,7 +5196,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			    isteq(list[hdr].n, ist2(h2c->proxy->server_id_hdr_name, h2c->proxy->server_id_hdr_len)))
 				continue;
 
-			/* Convert connection: upgrade to Extented connect from rfc 8441 */
+			/* Convert connection: upgrade to Extended connect from rfc 8441 */
 			if (isteqi(list[hdr].n, ist("connection"))) {
 				/* rfc 7230 #6.1 Connection = list of tokens */
 				struct ist connection_ist = list[hdr].v;
@@ -5836,7 +5836,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 /* Skip the message payload (DATA blocks) and emit an empty DATA frame with the
  * ES flag set for stream <h2s>. This function is called for response known to
  * have no payload. Only DATA blocks are skipped. This means the trailers are
- * still emited. The caller must check the stream's status to detect any error
+ * still emitted. The caller must check the stream's status to detect any error
  * which might have happened subsequently to a successful send. Returns the
  * number of data bytes consumed, or zero if nothing done.
  */

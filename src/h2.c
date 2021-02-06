@@ -608,7 +608,7 @@ static struct htx_sl *h2_prepare_htx_stsline(uint32_t fields, struct ist *phdr, 
 	 * On 1xx responses there is no ES on the HEADERS frame but there is no
 	 * body. So remove the flag H2_MSGF_BODY and add H2_MSGF_RSP_1XX to
 	 * notify the decoder another HEADERS frame is expected.
-	 * 204/304 resposne have no body by definition. So remove the flag
+	 * 204/304 response have no body by definition. So remove the flag
 	 * H2_MSGF_BODY and set H2_MSGF_BODYLESS_RSP.
 	 *
 	 * Note however that there is a special condition for Extended CONNECT.
@@ -782,7 +782,7 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 
 	if (!(*msgf & H2_MSGF_BODY) || ((*msgf & H2_MSGF_BODY_CL) && *body_len == 0) ||
 	    (*msgf & H2_MSGF_BODY_TUNNEL)) {
-		/* Response without body or tunnel sucessfully established */
+		/* Response without body or tunnel successfully established */
 		sl_flags |= HTX_SL_F_BODYLESS;
 		htx->flags |= HTX_FL_EOM;
 	}

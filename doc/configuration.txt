@@ -18814,7 +18814,7 @@ shdr([<name>[,<occ>]]) : string (deprecated)
   This fetch works like the req.hdr() fetch with the difference that it acts
   on the headers within an HTTP response.
 
-  Like req.hdr() the res.hdr() fetch considers the comma to be a delimeter. If
+  Like req.hdr() the res.hdr() fetch considers the comma to be a delimiter. If
   this is not desired res.fhdr() should be used.
 
   It may be used in tcp-check based expect rules.
@@ -18835,7 +18835,7 @@ shdr_cnt([<name>]) : integer (deprecated)
   acts on the headers within an HTTP response.
 
   Like req.hdr_cnt() the res.hdr_cnt() fetch considers the comma to be a
-  delimeter. If this is not desired res.fhdr_cnt() should be used.
+  delimiter. If this is not desired res.fhdr_cnt() should be used.
 
   It may be used in tcp-check based expect rules.
 

@@ -81,7 +81,7 @@
 #define H1S_F_NOT_FIRST      0x00000080 /* The H1 stream is not the first one */
 #define H1S_F_BODYLESS_RESP  0x00000100 /* Bodyless response message */
 
-/* 0x00000200 unsued */
+/* 0x00000200 unused */
 #define H1S_F_NOT_IMPL_ERROR 0x00000400 /* Set when a feature is not implemented during the message parsing */
 #define H1S_F_PARSING_ERROR  0x00000800 /* Set when an error occurred during the message parsing */
 #define H1S_F_PROCESSING_ERROR 0x00001000 /* Set when an error occurred during the message xfer */
@@ -2771,7 +2771,7 @@ static int h1_process(struct h1c * h1c)
 
   release:
 	if (h1c->flags & H1C_F_ST_ATTACHED) {
-		/* Don't release the H1 connetion right now, we must destroy the
+		/* Don't release the H1 connection right now, we must destroy the
 		 * attached CS first. Here, the H1C must not be READY */
 		BUG_ON(!h1s || h1c->flags & H1C_F_ST_READY);
 
@@ -2920,7 +2920,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned short state
 		}
 
 		if (h1c->flags & H1C_F_ST_ATTACHED) {
-			/* Don't release the H1 connetion right now, we must destroy the
+			/* Don't release the H1 connection right now, we must destroy the
 			 * attached CS first. Here, the H1C must not be READY */
 			h1c->h1s->cs->flags |= (CS_FL_EOS|CS_FL_ERROR);
 			h1_alert(h1c->h1s);
