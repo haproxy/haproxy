@@ -1,6 +1,6 @@
 varnishtest "prometheus exporter test"
 
-#REQUIRE_VERSION=2.0
+#REQUIRE_VERSION=2.4
 #REQUIRE_SERVICES=prometheus-exporter
 
 feature ignore_unknown_macro
@@ -26,6 +26,7 @@ haproxy h1 -conf {
 	default_backend be
 
     backend be
+	stick-table type ip size 1m expire 10s store http_req_rate(10s)
 	server s1 ${s1_addr}:${s1_port}
 } -start
 
@@ -37,6 +38,7 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.body ~ ".*haproxy_frontend.*"
 	expect resp.body ~ ".*haproxy_backend.*"
 	expect resp.body ~ ".*haproxy_server.*"
+	expect resp.body ~ ".*haproxy_sticktable.*"
 
 	txreq -url "/metrics?scope="
 	rxresp
@@ -50,6 +52,7 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.body !~ ".*haproxy_frontend.*"
 	expect resp.body !~ ".*haproxy_backend.*"
 	expect resp.body ~ ".*haproxy_server.*"
+	expect resp.body !~ ".*haproxy_sticktable.*"
 
 	txreq -url "/metrics?scope=frontend&scope=backend"
 	rxresp
@@ -58,6 +61,7 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.body ~ ".*haproxy_frontend.*"
 	expect resp.body ~ ".*haproxy_backend.*"
 	expect resp.body !~ ".*haproxy_server.*"
+	expect resp.body !~ ".*haproxy_sticktable.*"
 
 	txreq -url "/metrics?scope"
 	rxresp

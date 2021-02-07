@@ -47,28 +47,33 @@ enum {
 
 /* Prometheus exporter dumper states (appctx->st1) */
 enum {
-        PROMEX_DUMPER_INIT = 0, /* initialized */
-        PROMEX_DUMPER_GLOBAL,   /* dump metrics of globals */
-        PROMEX_DUMPER_FRONT,    /* dump metrics of frontend proxies */
-        PROMEX_DUMPER_BACK,     /* dump metrics of backend proxies */
-        PROMEX_DUMPER_LI,       /* dump metrics of listeners */
-        PROMEX_DUMPER_SRV,      /* dump metrics of servers */
-	PROMEX_DUMPER_DONE,     /* finished */
+	PROMEX_DUMPER_INIT = 0,   /* initialized */
+	PROMEX_DUMPER_GLOBAL,     /* dump metrics of globals */
+	PROMEX_DUMPER_FRONT,      /* dump metrics of frontend proxies */
+	PROMEX_DUMPER_BACK,       /* dump metrics of backend proxies */
+	PROMEX_DUMPER_LI,         /* dump metrics of listeners */
+	PROMEX_DUMPER_SRV,        /* dump metrics of servers */
+	PROMEX_DUMPER_STICKTABLE, /* dump metrics of stick tables */
+	PROMEX_DUMPER_DONE,       /* finished */
 };
 
 /* Prometheus exporter flags (appctx->ctx.stats.flags) */
-#define PROMEX_FL_METRIC_HDR    0x00000001
-#define PROMEX_FL_INFO_METRIC   0x00000002
-#define PROMEX_FL_FRONT_METRIC  0x00000004
-#define PROMEX_FL_BACK_METRIC   0x00000008
-#define PROMEX_FL_SRV_METRIC    0x00000010
-#define PROMEX_FL_SCOPE_GLOBAL  0x00000020
-#define PROMEX_FL_SCOPE_FRONT   0x00000040
-#define PROMEX_FL_SCOPE_BACK    0x00000080
-#define PROMEX_FL_SCOPE_SERVER  0x00000100
-#define PROMEX_FL_NO_MAINT_SRV  0x00000200
+#define PROMEX_FL_METRIC_HDR        0x00000001
+#define PROMEX_FL_INFO_METRIC       0x00000002
+#define PROMEX_FL_FRONT_METRIC      0x00000004
+#define PROMEX_FL_BACK_METRIC       0x00000008
+#define PROMEX_FL_SRV_METRIC        0x00000010
+#define PROMEX_FL_SCOPE_GLOBAL      0x00000020
+#define PROMEX_FL_SCOPE_FRONT       0x00000040
+#define PROMEX_FL_SCOPE_BACK        0x00000080
+#define PROMEX_FL_SCOPE_SERVER      0x00000100
+#define PROMEX_FL_NO_MAINT_SRV      0x00000200
+#define PROMEX_FL_STICKTABLE_METRIC 0x00000400
+#define PROMEX_FL_SCOPE_STICKTABLE  0x00000800
 
-#define PROMEX_FL_SCOPE_ALL (PROMEX_FL_SCOPE_GLOBAL|PROMEX_FL_SCOPE_FRONT|PROMEX_FL_SCOPE_BACK|PROMEX_FL_SCOPE_SERVER)
+#define PROMEX_FL_SCOPE_ALL (PROMEX_FL_SCOPE_GLOBAL | PROMEX_FL_SCOPE_FRONT | \
+			     PROMEX_FL_SCOPE_BACK | PROMEX_FL_SCOPE_SERVER | \
+			     PROMEX_FL_SCOPE_STICKTABLE)
 
 /* Promtheus metric type (gauge or counter) */
 enum promex_mt_type {
@@ -298,6 +303,25 @@ const struct ist promex_st_metric_desc[ST_F_TOTAL_FIELDS] = {
 	[ST_F_TT_MAX]         = IST("Maximum observed total request+response time (request+queue+connect+response+processing)"),
 };
 
+/* stick table base fields */
+enum sticktable_field {
+	STICKTABLE_SIZE = 0,
+	STICKTABLE_USED,
+	/* must always be the last one */
+	STICKTABLE_TOTAL_FIELDS
+};
+
+const struct promex_metric promex_sticktable_metrics[STICKTABLE_TOTAL_FIELDS] = {
+	[STICKTABLE_SIZE] = { .n = IST("size"), .type = PROMEX_MT_GAUGE, .flags = PROMEX_FL_STICKTABLE_METRIC },
+	[STICKTABLE_USED] = { .n = IST("used"), .type = PROMEX_MT_GAUGE, .flags = PROMEX_FL_STICKTABLE_METRIC },
+};
+
+/* stick table base description */
+const struct ist promex_sticktable_metric_desc[STICKTABLE_TOTAL_FIELDS] = {
+	[STICKTABLE_SIZE] = IST("Stick table size."),
+	[STICKTABLE_USED] = IST("Number of entries used in this stick table."),
+};
+
 /* Specific labels for all ST_F_HRSP_* fields */
 const struct ist promex_hrsp_code[1 + ST_F_HRSP_OTHER - ST_F_HRSP_1XX] = {
 	[ST_F_HRSP_1XX - ST_F_HRSP_1XX]   = IST("1xx"),
@@ -419,6 +443,8 @@ static int promex_dump_metric_header(struct appctx *appctx, struct htx *htx,
 
 	if (metric->flags & PROMEX_FL_INFO_METRIC)
 		desc = ist(info_fields[appctx->st2].desc);
+	else if (metric->flags & PROMEX_FL_STICKTABLE_METRIC)
+		desc = promex_sticktable_metric_desc[appctx->st2];
 	else if (!isttest(promex_st_metric_desc[appctx->st2]))
 		desc = ist(stat_fields[appctx->st2].desc);
 	else
@@ -958,6 +984,68 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 	goto end;
 }
 
+/* Dump stick table metrics (prefixed by "haproxy_sticktable_"). It returns 1 on success,
+ * 0 if <htx> is full and -1 in case of any error. */
+static int promex_dump_sticktable_metrics(struct appctx *appctx, struct htx *htx)
+{
+	static struct ist prefix = IST("haproxy_sticktable_");
+	struct field val;
+	struct channel *chn = si_ic(appctx->owner);
+	struct ist out = ist2(trash.area, 0);
+	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
+	int ret = 1;
+	struct stktable *t;
+
+	for (; appctx->st2 < STICKTABLE_TOTAL_FIELDS; appctx->st2++) {
+		if (!(promex_sticktable_metrics[appctx->st2].flags & appctx->ctx.stats.flags))
+			continue;
+
+		while (appctx->ctx.stats.obj1) {
+			struct promex_label labels[PROMEX_MAX_LABELS - 1] = {};
+
+			t = appctx->ctx.stats.obj1;
+			if (!t->size)
+				goto next_px;
+
+			labels[0].name  = ist("name");
+			labels[0].value = ist2(t->id, strlen(t->id));
+			labels[1].name  = ist("type");
+			labels[1].value = ist2(stktable_types[t->type].kw, strlen(stktable_types[t->type].kw));
+			switch (appctx->st2) {
+				case STICKTABLE_SIZE:
+					val = mkf_u32(FN_GAUGE, t->size);
+					break;
+				case STICKTABLE_USED:
+					val = mkf_u32(FN_GAUGE, t->current);
+					break;
+				default:
+					goto next_px;
+			}
+
+			if (!promex_dump_metric(appctx, htx, prefix,
+						&promex_sticktable_metrics[appctx->st2],
+						&val, labels, &out, max))
+				goto full;
+
+		  next_px:
+			appctx->ctx.stats.obj1 = t->next;
+		}
+		appctx->ctx.stats.flags |= PROMEX_FL_METRIC_HDR;
+		appctx->ctx.stats.obj1 = stktables_list;
+	}
+
+  end:
+	if (out.len) {
+		if (!htx_add_data_atonce(htx, out))
+			return -1; /* Unexpected and unrecoverable error */
+		channel_add_input(chn, out.len);
+	}
+	return ret;
+  full:
+	ret = 0;
+	goto end;
+}
+
 /* Dump all metrics (global, frontends, backends and servers) depending on the
  * dumper state (appctx->st1). It returns 1 on success, 0 if <htx> is full and
  * -1 in case of any error.
@@ -1044,9 +1132,27 @@ static int promex_dump_metrics(struct appctx *appctx, struct stream_interface *s
 				}
 			}
 
-			appctx->ctx.stats.obj1 = NULL;
+			appctx->ctx.stats.obj1 = stktables_list;
 			appctx->ctx.stats.obj2 = NULL;
 			appctx->ctx.stats.flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_SRV_METRIC);
+			appctx->ctx.stats.flags |= (PROMEX_FL_METRIC_HDR|PROMEX_FL_STICKTABLE_METRIC);
+			appctx->st2 = STICKTABLE_SIZE;
+			appctx->st1 = PROMEX_DUMPER_STICKTABLE;
+			/* fall through */
+
+		case PROMEX_DUMPER_STICKTABLE:
+			if (appctx->ctx.stats.flags & PROMEX_FL_SCOPE_STICKTABLE) {
+				ret = promex_dump_sticktable_metrics(appctx, htx);
+				if (ret <= 0) {
+					if (ret == -1)
+						goto error;
+					goto full;
+				}
+			}
+
+			appctx->ctx.stats.obj1 = NULL;
+			appctx->ctx.stats.obj2 = NULL;
+			appctx->ctx.stats.flags &= ~(PROMEX_FL_METRIC_HDR|PROMEX_FL_STICKTABLE_METRIC);
 			appctx->st2 = 0;
 			appctx->st1 = PROMEX_DUMPER_DONE;
 			/* fall through */
@@ -1155,6 +1261,8 @@ static int promex_parse_uri(struct appctx *appctx, struct stream_interface *si)
 				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_BACK;
 			else if (strcmp(value, "frontend") == 0)
 				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_FRONT;
+			else if (strcmp(value, "sticktable") == 0)
+				appctx->ctx.stats.flags |= PROMEX_FL_SCOPE_STICKTABLE;
 			else
 				goto error;
 		}

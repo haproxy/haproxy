@@ -72,6 +72,7 @@ exported. Here are examples:
   /metrics?scope=frontend&scope=backend # ==> Frontend and backend metrics will be exported
   /metrics?scope=*&scope=               # ==> no metrics will be exported
   /metrics?scope=&scope=global          # ==> global metrics will be exported
+  /metrics?scope=sticktable             # ==> stick tables metrics will be exported
 
 * How do I prevent my prometheus instance to explode?
 
@@ -319,4 +320,13 @@ See prometheus export for the description of each field.
 | haproxy_server_used_connections_current            |
 | haproxy_server_need_connections_current            |
 | haproxy_server_uweight                             |
++----------------------------------------------------+
+
+* Stick table metrics
+
++----------------------------------------------------+
+|    Metric name                                     |
++----------------------------------------------------+
+| haproxy_sticktable_size                            |
+| haproxy_sticktable_used                            |
 +----------------------------------------------------+
