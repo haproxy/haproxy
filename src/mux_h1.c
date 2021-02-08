@@ -2082,8 +2082,10 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				else {
 					/* EOM flag is set and it is the last block */
 					if (htx_is_unique_blk(chn_htx, blk) && (chn_htx->flags & HTX_FL_EOM)) {
-						if ((h1m->flags & H1_MF_CHNK) && !chunk_memcat(&tmp, "\r\n0\r\n\r\n", 7))
-							goto full;
+						if (h1m->flags & H1_MF_CHNK) {
+							if (!chunk_memcat(&tmp, "\r\n0\r\n\r\n", 7))
+								goto full;
+						}
 						else if (!chunk_memcat(&tmp, "\r\n", 2))
 							goto full;
 						goto done;
