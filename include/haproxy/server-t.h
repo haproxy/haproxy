@@ -129,7 +129,7 @@ enum srv_initaddr {
     "srv_check_port"
 
 #define SRV_STATE_FILE_MAX_FIELDS 22
-#define SRV_STATE_FILE_NB_FIELDS_VERSION_1 21
+#define SRV_STATE_FILE_NB_FIELDS_VERSION_1 22
 #define SRV_STATE_LINE_MAXLEN 512
 
 /* server flags -- 32 bits */
