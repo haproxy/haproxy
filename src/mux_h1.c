@@ -1681,11 +1681,15 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		h1s->cs->flags &= ~CS_FL_MAY_SPLICE;
 	}
 
-	/* Don't set EOI on the conn-stream for protocol upgrade or connect
-	 * requests, wait the response to do so or not depending on the status
+	/* Set EOI on conn-stream in DONE state iff:
+	 *  - it is a response
+	 *  - it is a request but no a protocol upgrade nor a CONNECT
+	 *
+	 * If not set, Wait the response to do so or not depending on the status
 	 * code.
 	 */
-	if ((h1m->state == H1_MSG_DONE) && (h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG))
+	if (((h1m->state == H1_MSG_DONE) && (h1m->flags & H1_MF_RESP)) ||
+	    ((h1m->state == H1_MSG_DONE) && (h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG)))
 		h1s->cs->flags |= CS_FL_EOI;
 
 	if (h1s_data_pending(h1s) && !htx_is_empty(htx))
