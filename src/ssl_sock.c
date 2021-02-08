@@ -4411,7 +4411,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 #endif /* OPENSSL_NO_DH */
 
 	SSL_CTX_set_info_callback(ctx, ssl_sock_infocbk);
-#if HA_OPENSSL_VERSION_NUMBER >= 0x00907000L
+#ifdef SSL_CTRL_SET_MSG_CALLBACK
 	SSL_CTX_set_msg_callback(ctx, ssl_sock_msgcbk);
 #endif
 #ifdef HAVE_OPENSSL_KEYLOG
