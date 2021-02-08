@@ -1786,15 +1786,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 	 */
 	if (!b_data(&h1c->obuf)) {
 		if ((h1m->state == H1_MSG_DATA || h1m->state == H1_MSG_TUNNEL) &&
+		    (!(h1m->flags & H1_MF_RESP) || !(h1s->flags & H1S_F_BODYLESS_RESP)) &&
 		    htx_nbblks(chn_htx) == 1 &&
 		    htx_get_blk_type(blk) == HTX_BLK_DATA &&
 		    htx_get_blk_value(chn_htx, blk).len == count) {
 			void *old_area;
-
-			if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
-				TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
-				goto skip_zero_copy;
-			}
 
 			TRACE_PROTO("sending message data (zero-copy)", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){count});
 			if (h1m->state == H1_MSG_DATA && chn_htx->flags & HTX_FL_EOM) {
@@ -1834,7 +1830,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
 					    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){count});
 
-		  skip_zero_copy:
 			total += count;
 			if (last_data) {
 				h1m->state = H1_MSG_DONE;
@@ -2103,6 +2098,9 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 			case H1_MSG_DATA:
 			case H1_MSG_TUNNEL:
 				if (type == HTX_BLK_EOT || type == HTX_BLK_TLR) {
+					if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP))
+						goto trailers;
+
 					/* If the message is not chunked, never
 					 * add the last chunk. */
 					if ((h1m->flags & H1_MF_CHNK) && !chunk_memcat(&tmp, "0\r\n", 3))
@@ -2112,11 +2110,6 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				}
 				else if (type != HTX_BLK_DATA)
 					goto error;
-
-				if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
-					TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
-					break;
-				}
 
 				TRACE_PROTO("sending message data", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx, (size_t[]){sz});
 
@@ -2131,6 +2124,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					/* Get the maximum amount of data we can xferred */
 					vlen = count;
 					last_data = 0;
+				}
+
+				if (h1m->state == H1_MSG_DATA && (h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
+					TRACE_PROTO("Skip data for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
+					goto skip_data;
 				}
 
 				chklen = 0;
@@ -2169,6 +2167,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				else
 					TRACE_PROTO((!(h1m->flags & H1_MF_RESP) ? "H1 request tunneled data xferred" : "H1 response tunneled data xferred"),
 						    H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, 0, (size_t[]){v.len});
+
+			  skip_data:
 				if (last_data)
 					goto done;
 				break;
@@ -2186,6 +2186,8 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 				if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
 					TRACE_PROTO("Skip trailers for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
+					if (type == HTX_BLK_EOT)
+						goto done;
 					break;
 				}
 
