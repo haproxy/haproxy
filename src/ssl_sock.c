@@ -3984,11 +3984,16 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 
 	s = __objt_server(conn->target);
 
+	/* RWLOCK: only read lock the SSL cache even when writing in it because there is
+	 * one cache per thread, it only prevents to flush it from the CLI in
+	 * another thread */
+
 	if (!(s->ssl_ctx.options & SRV_SSL_O_NO_REUSE)) {
 		int len;
 		unsigned char *ptr;
 
 		len = i2d_SSL_SESSION(sess, NULL);
+		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 		if (s->ssl_ctx.reused_sess[tid].ptr && s->ssl_ctx.reused_sess[tid].allocated_size >= len) {
 			ptr = s->ssl_ctx.reused_sess[tid].ptr;
 		} else {
@@ -4000,9 +4005,12 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 			s->ssl_ctx.reused_sess[tid].size = i2d_SSL_SESSION(sess,
 			    &ptr);
 		}
+		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	} else {
+		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 		free(s->ssl_ctx.reused_sess[tid].ptr);
 		s->ssl_ctx.reused_sess[tid].ptr = NULL;
+		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	}
 
 	return 0;
@@ -5265,6 +5273,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			goto err;
 
 		SSL_set_connect_state(ctx->ssl);
+		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &(__objt_server(conn->target)->ssl_ctx.lock));
 		if (__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
 			const unsigned char *ptr = __objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr;
 			SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, __objt_server(conn->target)->ssl_ctx.reused_sess[tid].size);
@@ -5276,6 +5285,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 				SSL_SESSION_free(sess);
 			}
 		}
+		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &(__objt_server(conn->target)->ssl_ctx.lock));
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
@@ -5658,9 +5668,18 @@ reneg_ok:
 	ERR_clear_error();
 
 	/* free resumed session if exists */
-	if (objt_server(conn->target) && __objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr) {
-		free(__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
-		__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr = NULL;
+	if (objt_server(conn->target)) {
+		struct server *s = __objt_server(conn->target);
+		/* RWLOCK: only rdlock the SSL cache even when writing in it because there is
+		 * one cache per thread, it only prevents to flush it from the CLI in
+		 * another thread */
+
+		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
+		if (s->ssl_ctx.reused_sess[tid].ptr) {
+			free(s->ssl_ctx.reused_sess[tid].ptr);
+			s->ssl_ctx.reused_sess[tid].ptr = NULL;
+		}
+		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	}
 
 	if (counters) {

@@ -1400,14 +1400,11 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					/* The bind_conf will be null on server ckch_instances. */
 					if (ckchi->is_server_instance) {
 						int i;
-
-						/* The certificate update on the server side (backend)
-						 * can be done by rewriting a single pointer so no
-						 * locks are needed here. */
+						/* a lock is needed here since we have to free the SSL cache */
+						HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &ckchi->server->ssl_ctx.lock);
 						/* free the server current SSL_CTX */
 						SSL_CTX_free(ckchi->server->ssl_ctx.ctx);
 						/* Actual ssl context update */
-						thread_isolate();
 						SSL_CTX_up_ref(ckchi->ctx);
 						ckchi->server->ssl_ctx.ctx = ckchi->ctx;
 						ckchi->server->ssl_ctx.inst = ckchi;
@@ -1417,7 +1414,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 							free(ckchi->server->ssl_ctx.reused_sess[i].ptr);
 							ckchi->server->ssl_ctx.reused_sess[i].ptr = NULL;
 						}
-						thread_release();
+						HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &ckchi->server->ssl_ctx.lock);
 
 					} else {
 						HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);

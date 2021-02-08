@@ -398,6 +398,7 @@ enum lock_label {
 	PROTO_LOCK,
 	CKCH_LOCK,
 	SNI_LOCK,
+	SSL_SERVER_LOCK,
 	SFT_LOCK, /* sink forward target */
 	OTHER_LOCK,
 	LOCK_LABELS

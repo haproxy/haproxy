@@ -1775,6 +1775,9 @@ struct server *new_server(struct proxy *proxy)
 #endif
 
 	srv->extra_counters = NULL;
+#ifdef USE_OPENSSL
+	HA_RWLOCK_INIT(&srv->ssl_ctx.lock);
+#endif
 
 	/* please don't put default server settings here, they are set in
 	 * init_default_instance().

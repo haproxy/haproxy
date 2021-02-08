@@ -311,6 +311,7 @@ struct server {
 		} * reused_sess;
 
 		struct ckch_inst *inst; /* Instance of the ckch_store in which the certificate was loaded (might be null if server has no certificate) */
+		__decl_thread(HA_RWLOCK_T lock); /* lock the cache and SSL_CTX during commit operations */
 
 		char *ciphers;			/* cipher suite to use if non-null */
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
