@@ -156,7 +156,13 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
 	if (curr < freq)
 		return 0;
 
-	wait = 999 / curr;
+	/* too many events already, let's count how long to wait before they're
+	 * processed. For this we'll subtract from the number of pending events
+	 * the ones programmed for the current period, to know how long to wait
+	 * for the next period. Each event takes 1/freq sec, thus 1000/freq ms.
+	 */
+	curr -= freq;
+	wait = curr * 1000 / (freq ? freq : 1);
 	return MAX(wait, 1);
 }
 
