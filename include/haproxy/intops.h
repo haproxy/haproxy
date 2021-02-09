@@ -55,7 +55,7 @@ void mask_prep_rank_map(unsigned long m,
  */
 static inline unsigned int mul32hi(unsigned int a, unsigned int b)
 {
-	return ((unsigned long long)a * b) >> 32;
+	return ((unsigned long long)a * b + a) >> 32;
 }
 
 /* gcc does not know when it can safely divide 64 bits by 32 bits. Use this
