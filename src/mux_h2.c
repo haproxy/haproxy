@@ -4882,8 +4882,20 @@ try_again:
 		 * was aborted. Otherwise (request path + tunnel abrted), the
 		 * EOM was already reported.
 		 */
-		if ((h2c->flags & H2_CF_IS_BACK) || !(h2s->flags & H2_SF_TUNNEL_ABRT))
+		if ((h2c->flags & H2_CF_IS_BACK) || !(h2s->flags & H2_SF_TUNNEL_ABRT)) {
+			/* If we receive an empty DATA frame with ES flag while the HTX
+			 * message is empty, we must be sure to push a block to be sure
+			 * the HTX EOM flag will be handled on the other side. It is a
+			 * workaround because for now it is not possible to push empty
+			 * HTX DATA block. And without this block, there is no way to
+			 * "commit" the end of the message.
+			 */
+			if (htx_is_empty(htx)) {
+				if (!htx_add_endof(htx, HTX_BLK_EOT))
+					goto fail;
+			}
 			htx->flags |= HTX_FL_EOM;
+		}
 	}
 
 	h2c->rcvd_c += h2c->dpl;
