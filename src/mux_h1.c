@@ -2394,7 +2394,6 @@ static int h1_handle_internal_err(struct h1c *h1c)
 	int ret = 1;
 
 	session_inc_http_req_ctr(sess);
-	session_inc_http_err_ctr(sess);
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[5], 1);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
@@ -2447,7 +2446,6 @@ static int h1_handle_not_impl_err(struct h1c *h1c)
 		goto end;
 
 	session_inc_http_req_ctr(sess);
-	session_inc_http_err_ctr(sess);
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[4], 1);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
@@ -2474,7 +2472,6 @@ static int h1_handle_req_tout(struct h1c *h1c)
 		goto end;
 
 	session_inc_http_req_ctr(sess);
-	session_inc_http_err_ctr(sess);
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[4], 1);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
