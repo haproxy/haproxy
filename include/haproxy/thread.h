@@ -442,6 +442,7 @@ static inline const char *lock_label(enum lock_label label)
 	case PROTO_LOCK:           return "PROTO";
 	case CKCH_LOCK:            return "CKCH";
 	case SNI_LOCK:             return "SNI";
+	case SSL_SERVER_LOCK:      return "SSL_SERVER";
 	case SFT_LOCK:             return "SFT";
 	case OTHER_LOCK:           return "OTHER";
 	case LOCK_LABELS:          break; /* keep compiler happy */
