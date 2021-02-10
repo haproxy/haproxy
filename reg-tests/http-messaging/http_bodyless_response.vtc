@@ -1,0 +1,122 @@
+varnishtest "A test to be sure payload is skipped for bodyless responses"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.4
+
+server s1 {
+        rxreq
+        txresp \
+          -status 200 \
+          -body "skipped data"
+
+        rxreq
+        txresp \
+          -status 200 \
+          -bodylen 20000
+
+        rxreq
+        txresp \
+          -status 200 \
+	  -nolen -hdr "Transfer-Encoding: chunked"
+       chunkedlen 15
+       chunkedlen 1024
+       chunkedlen 4048
+       chunkedlen 0
+
+        rxreq
+        txresp \
+          -status 200 \
+          -body "last response"
+} -repeat 2 -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    listen fe1
+        bind "fd@${fe1}"
+        # Rewrite the method to be sure to get the response payload
+        # on the server side
+        http-request set-method GET
+        server s1 ${s1_addr}:${s1_port}
+
+    listen int
+        bind "fd@${int}" proto h2
+        # Rewrite the method to be sure to get the response payload
+        # on the server side
+        http-request set-method GET
+        server s1 ${s1_addr}:${s1_port}
+        #server s1 ${h1_fe1_addr}:${h1_fe1_port}
+
+    listen fe2
+        bind "fd@${fe2}"
+        server s1 ${h1_int_addr}:${h1_int_port} proto h2
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+        txreq \
+            -req "HEAD" \
+            -url "/req1"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == ""
+
+        txreq \
+            -req "HEAD" \
+            -url "/req2"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == ""
+
+        txreq \
+            -req "HEAD" \
+            -url "/req3"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == ""
+
+        # The last one have a body and validate the connection was not closed
+        # unexpectedly and no payload was received for previous requests
+        txreq \
+            -req "GET" \
+            -url "/req4"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == "last response"
+} -run
+
+client c2 -connect ${h1_fe2_sock} {
+        txreq \
+            -req "HEAD" \
+            -url "/req1"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == ""
+
+        txreq \
+            -req "HEAD" \
+            -url "/req2"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == ""
+
+        txreq \
+            -req "HEAD" \
+            -url "/req3"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == ""
+
+        # The last one have a body and validate the connection was not closed
+        # unexpectedly and no payload was received for previous requests
+        txreq \
+            -req "GET" \
+            -url "/req4"
+        rxresp
+        expect resp.status == 200
+        expect resp.body == "last response"
+} -run
