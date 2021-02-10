@@ -110,10 +110,11 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	/* Parsing errors are caught here */
 	if (htx->flags & (HTX_FL_PARSING_ERROR|HTX_FL_PROCESSING_ERROR)) {
 		stream_inc_http_req_ctr(s);
-		stream_inc_http_err_ctr(s);
 		proxy_inc_fe_req_ctr(sess->listener, sess->fe);
-		if (htx->flags & HTX_FL_PARSING_ERROR)
+		if (htx->flags & HTX_FL_PARSING_ERROR) {
+			stream_inc_http_err_ctr(s);
 			goto return_bad_req;
+		}
 		else
 			goto return_int_err;
 	}
