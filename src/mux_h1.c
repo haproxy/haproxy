@@ -2218,6 +2218,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				goto error; /* For now return an error */
 
 			  done:
+				if (!(chn_htx->flags & HTX_FL_EOM)) {
+					TRACE_STATE("No EOM flags in done state", H1_EV_TX_DATA|H1_EV_H1C_ERR|H1_EV_H1S_ERR, h1c->conn, h1s);
+					goto error; /* For now return an error */
+				}
+
 				h1m->state = H1_MSG_DONE;
 				if (!(h1m->flags & H1_MF_RESP) && h1s->meth == HTTP_METH_CONNECT) {
 					h1c->flags |= H1C_F_WAIT_INPUT;
