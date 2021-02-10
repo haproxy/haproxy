@@ -2184,7 +2184,6 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	if ((end - 1) == (payload + strlen(PAYLOAD_PATTERN))) {
 		/* if the payload pattern is at the end */
 		s->pcli_flags |= PCLI_F_PAYLOAD;
-		ret = reql;
 	}
 
 	*(end-1) = '\n';
