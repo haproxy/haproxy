@@ -2181,8 +2181,11 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 				/* If the message is not chunked, ignore
 				 * trailers. It may happen with H2 messages. */
-				if (!(h1m->flags & H1_MF_CHNK))
+				if (!(h1m->flags & H1_MF_CHNK)) {
+					if (type == HTX_BLK_EOT)
+						goto done;
 					break;
+				}
 
 				if ((h1m->flags & H1_MF_RESP) && (h1s->flags & H1S_F_BODYLESS_RESP)) {
 					TRACE_PROTO("Skip trailers for bodyless response", H1_EV_TX_DATA|H1_EV_TX_BODY, h1c->conn, h1s, chn_htx);
