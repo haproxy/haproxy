@@ -1418,6 +1418,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				}
 				txn->status = 425;
 			}
+			else
+				stream_inc_http_fail_ctr(s);
 
 			s->si[1].flags |= SI_FL_NOLINGER;
 			http_reply_and_close(s, txn->status, http_error_message(s));
@@ -1449,6 +1451,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			rep->analysers &= AN_RES_FLT_END;
 			txn->status = 504;
+			stream_inc_http_fail_ctr(s);
 			s->si[1].flags |= SI_FL_NOLINGER;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 
@@ -1507,6 +1510,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 			rep->analysers &= AN_RES_FLT_END;
 			txn->status = 502;
+			stream_inc_http_fail_ctr(s);
 			s->si[1].flags |= SI_FL_NOLINGER;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 
@@ -1613,6 +1617,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 	if (n == 4)
 		stream_inc_http_err_ctr(s);
+
+	if (n == 5 && txn->status != 501 && txn->status != 505)
+		stream_inc_http_fail_ctr(s);
 
 	if (objt_server(s->target)) {
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.p.http.rsp[n], 1);
@@ -1784,6 +1791,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		return 0;
 	}
 	txn->status = 502;
+	stream_inc_http_fail_ctr(s);
 	/* fall through */
 
  return_prx_cond:
@@ -2081,6 +2089,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
  return_bad_res:
 	txn->status = 502;
+	stream_inc_http_fail_ctr(s);
 	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
 	if (objt_server(s->target)) {
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
@@ -2331,6 +2340,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		_HA_ATOMIC_ADD(&sess->listener->counters->srv_aborts, 1);
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.srv_aborts, 1);
+	stream_inc_http_fail_ctr(s);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_SRVCL;
 	goto return_error;
@@ -2363,6 +2373,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
 		health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_RSP);
 	}
+	stream_inc_http_fail_ctr(s);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_SRVCL;
 	/* fall through */

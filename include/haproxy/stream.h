@@ -270,6 +270,21 @@ static inline void stream_inc_http_err_ctr(struct stream *s)
 	}
 }
 
+/* Increase the number of cumulated failed HTTP responses in the tracked
+ * counters. Only some 5xx responses should be counted here so that we can
+ * distinguish between server failures and errors triggered by the client
+ * (i.e. 501 and 505 may be triggered and must be ignored).
+ */
+static inline void stream_inc_http_fail_ctr(struct stream *s)
+{
+	int i;
+
+	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+		if (!stkctr_inc_http_fail_ctr(&s->stkctr[i]))
+			stkctr_inc_http_fail_ctr(&s->sess->stkctr[i]);
+	}
+}
+
 static inline void __stream_add_srv_conn(struct stream *sess, struct server *srv)
 {
 	sess->srv_conn = srv;

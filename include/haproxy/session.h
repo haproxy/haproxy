@@ -97,6 +97,19 @@ static inline void session_inc_http_err_ctr(struct session *sess)
 		stkctr_inc_http_err_ctr(&sess->stkctr[i]);
 }
 
+/* Increase the number of cumulated failed HTTP responses in the tracked
+ * counters. Only some 5xx responses should be counted here so that we can
+ * distinguish between server failures and errors triggered by the client
+ * (i.e. 501 and 505 may be triggered and must be ignored).
+ */
+static inline void session_inc_http_fail_ctr(struct session *sess)
+{
+	int i;
+
+	for (i = 0; i < MAX_SESS_STKCTR; i++)
+		stkctr_inc_http_fail_ctr(&sess->stkctr[i]);
+}
+
 
 /* Remove the connection from the session list, and destroy the srv_list if it's now empty */
 static inline void session_unown_conn(struct session *sess, struct connection *conn)

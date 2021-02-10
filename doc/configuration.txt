@@ -10838,6 +10838,19 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       http_err_cnt above for what is accounted as an error). The result is an
       integer which can be matched using ACLs.
 
+    - http_fail_cnt : HTTP Failure Count. It is a positive 32-bit integer which
+      counts the absolute number of HTTP response failures induced by servers
+      which matched this entry. Errors are counted on invalid and truncated
+      responses, as well as any 5xx response other than 501 or 505. It aims at
+      being used combined with path or URI to detect service failures.
+
+    - http_fail_rate(<period>) : frequency counter (takes 12 bytes). It takes
+      an integer parameter <period> which indicates in milliseconds the length
+      of the period over which the average is measured. It reports the average
+      HTTP response failure rate over that period, in requests per period (see
+      http_fail_cnt above for what is accounted as a failure). The result is an
+      integer which can be matched using ACLs.
+
     - bytes_in_cnt : client to server byte count. It is a positive 64-bit
       integer which counts the cumulative number of bytes received from clients
       which matched this entry. Headers are included in the count. This may be
@@ -16162,6 +16175,21 @@ table_http_err_rate(<table>)
   period configured in the table. See also the sc_http_err_rate sample fetch
   keyword.
 
+table_http_fail_cnt(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the cumulative number of HTTP
+  failures associated with the input sample in the designated table. See also
+  the sc_http_fail_cnt sample fetch keyword.
+
+table_http_fail_rate(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the average rate of HTTP failures associated with the
+  input sample in the designated table, measured in amount of failures over the
+  period configured in the table. See also the sc_http_fail_rate sample fetch
+  keyword.
+
 table_http_req_cnt(<table>)
   Uses the string representation of the input sample to perform a look up in
   the specified table. If the key is not found in the table, integer value zero
@@ -17166,6 +17194,23 @@ sc2_http_err_rate([<table>]) : integer
   includes the both request errors and 4xx error responses. See also
   src_http_err_rate.
 
+sc_http_fail_cnt(<ctr>[,<table>]) : integer
+sc0_http_fail_cnt([<table>]) : integer
+sc1_http_fail_cnt([<table>]) : integer
+sc2_http_fail_cnt([<table>]) : integer
+  Returns the cumulative number of HTTP response failures from the currently
+  tracked counters. This includes the both response errors and 5xx status codes
+  other than 501 and 505. See also src_http_fail_cnt.
+
+sc_http_fail_rate(<ctr>[,<table>]) : integer
+sc0_http_fail_rate([<table>]) : integer
+sc1_http_fail_rate([<table>]) : integer
+sc2_http_fail_rate([<table>]) : integer
+  Returns the average rate of HTTP response failures from the currently tracked
+  counters, measured in amount of failures over the period configured in the
+  table. This includes the both response errors and 5xx status codes other than
+  501 and 505. See also src_http_fail_rate.
+
 sc_http_req_cnt(<ctr>[,<table>]) : integer
 sc0_http_req_cnt([<table>]) : integer
 sc1_http_req_cnt([<table>]) : integer
@@ -17401,6 +17446,21 @@ src_http_err_rate([<table>]) : integer
   measured in amount of errors over the period configured in the table. This
   includes the both request errors and 4xx error responses. If the address is
   not found, zero is returned. See also sc/sc0/sc1/sc2_http_err_rate.
+
+src_http_fail_cnt([<table>]) : integer
+  Returns the cumulative number of HTTP response failures triggered by the
+  incoming connection's source address in the current proxy's stick-table or in
+  the designated stick-table. This includes the both repsonse errors and 5xx
+  status codes other than 501 and 505. See also sc/sc0/sc1/sc2_http_fail_cnt.
+  If the address is not found, zero is returned.
+
+src_http_fail_rate([<table>]) : integer
+  Returns the average rate of HTTP response failures triggered by the incoming
+  connection's source address in the current proxy's stick-table or in the
+  designated stick-table, measured in amount of failures over the period
+  configured in the table. This includes the both response errors and 5xx
+  status codes other than 501 and 505. If the address is not found, zero is
+  returned. See also sc/sc0/sc1/sc2_http_fail_rate.
 
 src_http_req_cnt([<table>]) : integer
   Returns the cumulative number of HTTP requests from the incoming connection's

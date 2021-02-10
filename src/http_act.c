@@ -1777,10 +1777,10 @@ static enum act_return http_action_track_sc(struct act_rule *rule, struct proxy 
 	struct stktable *t;
 	struct stksess *ts;
 	struct stktable_key *key;
-	void *ptr1, *ptr2, *ptr3, *ptr4;
+	void *ptr1, *ptr2, *ptr3, *ptr4, *ptr5, *ptr6;
 	int opt;
 
-	ptr1 = ptr2 = ptr3 = ptr4 = NULL;
+	ptr1 = ptr2 = ptr3 = ptr4 = ptr5 = ptr6 = NULL;
 	opt = ((rule->from == ACT_F_HTTP_REQ) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES) | SMP_OPT_FINAL;
 
 	t = rule->arg.trk_ctr.table.t;
@@ -1810,7 +1810,13 @@ static enum act_return http_action_track_sc(struct act_rule *rule, struct proxy 
 		ptr4 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_RATE);
 	}
 
-	if (ptr1 || ptr2 || ptr3 || ptr4) {
+	if (rule->from == ACT_F_HTTP_RES && (unsigned)(s->txn->status - 500) < 100 &&
+	    s->txn->status != 501 && s->txn->status != 505) {
+		ptr5 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_FAIL_CNT);
+		ptr6 = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_FAIL_RATE);
+	}
+
+	if (ptr1 || ptr2 || ptr3 || ptr4 || ptr5 || ptr6) {
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 		if (ptr1)
@@ -1823,6 +1829,11 @@ static enum act_return http_action_track_sc(struct act_rule *rule, struct proxy 
 		if (ptr4)
 			update_freq_ctr_period(&stktable_data_cast(ptr4, http_err_rate),
 					       t->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
+		if (ptr5)
+			stktable_data_cast(ptr5, http_fail_cnt)++;
+		if (ptr6)
+			update_freq_ctr_period(&stktable_data_cast(ptr6, http_fail_rate),
+					       t->data_arg[STKTABLE_DT_HTTP_FAIL_RATE].u, 1);
 
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 

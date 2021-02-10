@@ -267,6 +267,38 @@ static inline int stkctr_inc_http_err_ctr(struct stkctr *stkctr)
 	return 1;
 }
 
+/* Increase the number of cumulated failed HTTP responses in the tracked counter
+ * <stkctr>. It returns 0 if the entry pointer does not exist and nothing is
+ * performed. Otherwise it returns 1.
+ */
+static inline int stkctr_inc_http_fail_ctr(struct stkctr *stkctr)
+{
+	struct stksess *ts;
+	void *ptr1, *ptr2;
+
+	ts = stkctr_entry(stkctr);
+	if (!ts)
+		return 0;
+
+	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
+	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_FAIL_CNT);
+	if (ptr1)
+		stktable_data_cast(ptr1, http_fail_cnt)++;
+
+	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_FAIL_RATE);
+	if (ptr2)
+		update_freq_ctr_period(&stktable_data_cast(ptr2, http_fail_rate),
+				       stkctr->table->data_arg[STKTABLE_DT_HTTP_FAIL_RATE].u, 1);
+
+	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+	/* If data was modified, we need to touch to re-schedule sync */
+	if (ptr1 || ptr2)
+		stktable_touch_local(stkctr->table, ts, 0);
+	return 1;
+}
+
 /* Increase the number of bytes received in the tracked counter <stkctr>. It
  * returns 0 if the entry pointer does not exist and nothing is
  * performed. Otherwise it returns 1.

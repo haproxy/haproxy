@@ -57,6 +57,9 @@ enum {
 	STKTABLE_DT_GPC1,         /* General Purpose Counter 1 (unsigned 32-bit integer) */
 	STKTABLE_DT_GPC1_RATE,    /* General Purpose Counter 1's event rate */
 	STKTABLE_DT_SERVER_KEY,   /* The server key */
+	STKTABLE_DT_HTTP_FAIL_CNT, /* cumulated number of HTTP server failures */
+	STKTABLE_DT_HTTP_FAIL_RATE,/* HTTP server failures rate */
+
 	STKTABLE_STATIC_DATA_TYPES,/* number of types above */
 	/* up to STKTABLE_EXTRA_DATA_TYPES types may be registered here, always
 	 * followed by the number of data types, must always be last.
@@ -137,6 +140,8 @@ union stktable_data {
 	struct freq_ctr_period bytes_in_rate;
 	unsigned long long bytes_out_cnt;
 	struct freq_ctr_period bytes_out_rate;
+	unsigned int http_fail_cnt;
+	struct freq_ctr_period http_fail_rate;
 };
 
 /* known data types */
