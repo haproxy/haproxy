@@ -2625,6 +2625,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	unsigned int port_svc;
 	char *srvrecord;
 	char *addr;
+	int partial_apply = 0;
 #ifdef USE_OPENSSL
 	int use_ssl;
 #endif
@@ -2795,6 +2796,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 		/* don't apply anything if one error has been detected */
 		if (msg->data)
 			goto out;
+		partial_apply = 1;
 
 		/* recover operational state and apply it to this server
 		 * and all servers tracking this one */
@@ -3031,9 +3033,12 @@ static void srv_update_state(struct server *srv, int version, char **params)
  out:
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	if (msg->data) {
-		chunk_appendf(msg, "\n");
-		ha_warning("server-state application failed for server '%s/%s'%s",
-			   srv->proxy->id, srv->id, msg->area);
+		if (partial_apply == 1)
+			ha_warning("server-state partially applied for server '%s/%s'%s\n",
+				   srv->proxy->id, srv->id, msg->area);
+		else
+			ha_warning("server-state application failed for server '%s/%s'%s\n",
+				   srv->proxy->id, srv->id, msg->area);
 	}
  end:
 	free_trash_chunk(msg);
