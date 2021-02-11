@@ -2632,391 +2632,383 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	fqdn = NULL;
 	port_svc = port_check = 0;
 	msg = get_trash_chunk();
-	switch (version) {
-		case 1:
-			/*
-			 * now we can proceed with server's state update:
-			 * srv_addr:             params[0]
-			 * srv_op_state:         params[1]
-			 * srv_admin_state:      params[2]
-			 * srv_uweight:          params[3]
-			 * srv_iweight:          params[4]
-			 * srv_last_time_change: params[5]
-			 * srv_check_status:     params[6]
-			 * srv_check_result:     params[7]
-			 * srv_check_health:     params[8]
-			 * srv_check_state:      params[9]
-			 * srv_agent_state:      params[10]
-			 * bk_f_forced_id:       params[11]
-			 * srv_f_forced_id:      params[12]
-			 * srv_fqdn:             params[13]
-			 * srv_port:             params[14]
-			 * srvrecord:            params[15]
-			 * srv_use_ssl:          params[16]
-			 * srv_check_port:       params[17]
-			 */
+	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 
-			/* validating srv_op_state */
-			p = NULL;
-			errno = 0;
-			srv_op_state = strtol(params[1], &p, 10);
-			if ((p == params[1]) || errno == EINVAL || errno == ERANGE ||
-			    (srv_op_state != SRV_ST_STOPPED &&
-			     srv_op_state != SRV_ST_STARTING &&
-			     srv_op_state != SRV_ST_RUNNING &&
-			     srv_op_state != SRV_ST_STOPPING)) {
-				chunk_appendf(msg, ", invalid srv_op_state value '%s'", params[1]);
+	if (version >= 1) {
+		/* srv_addr:             params[0]
+		 * srv_op_state:         params[1]
+		 * srv_admin_state:      params[2]
+		 * srv_uweight:          params[3]
+		 * srv_iweight:          params[4]
+		 * srv_last_time_change: params[5]
+		 * srv_check_status:     params[6]
+		 * srv_check_result:     params[7]
+		 * srv_check_health:     params[8]
+		 * srv_check_state:      params[9]
+		 * srv_agent_state:      params[10]
+		 * bk_f_forced_id:       params[11]
+		 * srv_f_forced_id:      params[12]
+		 * srv_fqdn:             params[13]
+		 * srv_port:             params[14]
+		 * srvrecord:            params[15]
+		 */
+
+		/* validating srv_op_state */
+		p = NULL;
+		errno = 0;
+		srv_op_state = strtol(params[1], &p, 10);
+		if ((p == params[1]) || errno == EINVAL || errno == ERANGE ||
+		    (srv_op_state != SRV_ST_STOPPED &&
+		     srv_op_state != SRV_ST_STARTING &&
+		     srv_op_state != SRV_ST_RUNNING &&
+		     srv_op_state != SRV_ST_STOPPING)) {
+			chunk_appendf(msg, ", invalid srv_op_state value '%s'", params[1]);
+		}
+
+		/* validating srv_admin_state */
+		p = NULL;
+		errno = 0;
+		srv_admin_state = strtol(params[2], &p, 10);
+		fqdn_set_by_cli = !!(srv_admin_state & SRV_ADMF_HMAINT);
+
+		/* inherited statuses will be recomputed later.
+		 * Also disable SRV_ADMF_HMAINT flag (set from stats socket fqdn).
+		 */
+		srv_admin_state &= ~SRV_ADMF_IDRAIN & ~SRV_ADMF_IMAINT & ~SRV_ADMF_HMAINT;
+
+		if ((p == params[2]) || errno == EINVAL || errno == ERANGE ||
+		    (srv_admin_state != 0 &&
+		     srv_admin_state != SRV_ADMF_FMAINT &&
+		     srv_admin_state != SRV_ADMF_CMAINT &&
+		     srv_admin_state != (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT) &&
+		     srv_admin_state != (SRV_ADMF_CMAINT | SRV_ADMF_FDRAIN) &&
+		     srv_admin_state != SRV_ADMF_FDRAIN)) {
+			chunk_appendf(msg, ", invalid srv_admin_state value '%s'", params[2]);
+		}
+
+		/* validating srv_uweight */
+		p = NULL;
+		errno = 0;
+		srv_uweight = strtol(params[3], &p, 10);
+		if ((p == params[3]) || errno == EINVAL || errno == ERANGE || (srv_uweight > SRV_UWGHT_MAX))
+			chunk_appendf(msg, ", invalid srv_uweight value '%s'", params[3]);
+
+		/* validating srv_iweight */
+		p = NULL;
+		errno = 0;
+		srv_iweight = strtol(params[4], &p, 10);
+		if ((p == params[4]) || errno == EINVAL || errno == ERANGE || (srv_iweight > SRV_UWGHT_MAX))
+			chunk_appendf(msg, ", invalid srv_iweight value '%s'", params[4]);
+
+		/* validating srv_last_time_change */
+		p = NULL;
+		errno = 0;
+		srv_last_time_change = strtol(params[5], &p, 10);
+		if ((p == params[5]) || errno == EINVAL || errno == ERANGE)
+			chunk_appendf(msg, ", invalid srv_last_time_change value '%s'", params[5]);
+
+		/* validating srv_check_status */
+		p = NULL;
+		errno = 0;
+		srv_check_status = strtol(params[6], &p, 10);
+		if (p == params[6] || errno == EINVAL || errno == ERANGE ||
+		    (srv_check_status >= HCHK_STATUS_SIZE))
+			chunk_appendf(msg, ", invalid srv_check_status value '%s'", params[6]);
+
+		/* validating srv_check_result */
+		p = NULL;
+		errno = 0;
+		srv_check_result = strtol(params[7], &p, 10);
+		if ((p == params[7]) || errno == EINVAL || errno == ERANGE ||
+		    (srv_check_result != CHK_RES_UNKNOWN &&
+		     srv_check_result != CHK_RES_NEUTRAL &&
+		     srv_check_result != CHK_RES_FAILED &&
+		     srv_check_result != CHK_RES_PASSED &&
+		     srv_check_result != CHK_RES_CONDPASS)) {
+			chunk_appendf(msg, ", invalid srv_check_result value '%s'", params[7]);
+		}
+
+		/* validating srv_check_health */
+		p = NULL;
+		errno = 0;
+		srv_check_health = strtol(params[8], &p, 10);
+		if (p == params[8] || errno == EINVAL || errno == ERANGE)
+			chunk_appendf(msg, ", invalid srv_check_health value '%s'", params[8]);
+
+		/* validating srv_check_state */
+		p = NULL;
+		errno = 0;
+		srv_check_state = strtol(params[9], &p, 10);
+		if (p == params[9] || errno == EINVAL || errno == ERANGE ||
+		    (srv_check_state & ~(CHK_ST_INPROGRESS | CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_PAUSED | CHK_ST_AGENT)))
+			chunk_appendf(msg, ", invalid srv_check_state value '%s'", params[9]);
+
+		/* validating srv_agent_state */
+		p = NULL;
+		errno = 0;
+		srv_agent_state = strtol(params[10], &p, 10);
+		if (p == params[10] || errno == EINVAL || errno == ERANGE ||
+		    (srv_agent_state & ~(CHK_ST_INPROGRESS | CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_PAUSED | CHK_ST_AGENT)))
+			chunk_appendf(msg, ", invalid srv_agent_state value '%s'", params[10]);
+
+		/* validating bk_f_forced_id */
+		p = NULL;
+		errno = 0;
+		bk_f_forced_id = strtol(params[11], &p, 10);
+		if (p == params[11] || errno == EINVAL || errno == ERANGE || !((bk_f_forced_id == 0) || (bk_f_forced_id == 1)))
+			chunk_appendf(msg, ", invalid bk_f_forced_id value '%s'", params[11]);
+
+		/* validating srv_f_forced_id */
+		p = NULL;
+		errno = 0;
+		srv_f_forced_id = strtol(params[12], &p, 10);
+		if (p == params[12] || errno == EINVAL || errno == ERANGE || !((srv_f_forced_id == 0) || (srv_f_forced_id == 1)))
+			chunk_appendf(msg, ", invalid srv_f_forced_id value '%s'", params[12]);
+
+		/* validating srv_fqdn */
+		fqdn = params[13];
+		if (fqdn && *fqdn == '-')
+			fqdn = NULL;
+		if (fqdn && (strlen(fqdn) > DNS_MAX_NAME_SIZE || invalid_domainchar(fqdn))) {
+			chunk_appendf(msg, ", invalid srv_fqdn value '%s'", params[13]);
+			fqdn = NULL;
+		}
+
+		port_svc_st = params[14];
+		if (port_svc_st) {
+			port_svc = strl2uic(port_svc_st, strlen(port_svc_st));
+			if (port_svc > USHRT_MAX) {
+				chunk_appendf(msg, ", invalid srv_port value '%s'", port_svc_st);
+				port_svc_st = NULL;
 			}
+		}
 
-			/* validating srv_admin_state */
-			p = NULL;
-			errno = 0;
-			srv_admin_state = strtol(params[2], &p, 10);
-			fqdn_set_by_cli = !!(srv_admin_state & SRV_ADMF_HMAINT);
+		/* SRV record
+		 * NOTE: in HAProxy, SRV records must start with an underscore '_'
+		 */
+		srvrecord = params[15];
+		if (srvrecord && *srvrecord != '_')
+			srvrecord = NULL;
 
-			/* inherited statuses will be recomputed later.
-			 * Also disable SRV_ADMF_HMAINT flag (set from stats socket fqdn).
-			 */
-			srv_admin_state &= ~SRV_ADMF_IDRAIN & ~SRV_ADMF_IMAINT & ~SRV_ADMF_HMAINT;
+		/* don't apply anything if one error has been detected */
+		if (msg->data)
+			goto out;
 
-			if ((p == params[2]) || errno == EINVAL || errno == ERANGE ||
-			    (srv_admin_state != 0 &&
-			     srv_admin_state != SRV_ADMF_FMAINT &&
-			     srv_admin_state != SRV_ADMF_CMAINT &&
-			     srv_admin_state != (SRV_ADMF_CMAINT | SRV_ADMF_FMAINT) &&
-			     srv_admin_state != (SRV_ADMF_CMAINT | SRV_ADMF_FDRAIN) &&
-			     srv_admin_state != SRV_ADMF_FDRAIN)) {
-				chunk_appendf(msg, ", invalid srv_admin_state value '%s'", params[2]);
-			}
-
-			/* validating srv_uweight */
-			p = NULL;
-			errno = 0;
-			srv_uweight = strtol(params[3], &p, 10);
-			if ((p == params[3]) || errno == EINVAL || errno == ERANGE || (srv_uweight > SRV_UWGHT_MAX))
-				chunk_appendf(msg, ", invalid srv_uweight value '%s'", params[3]);
-
-			/* validating srv_iweight */
-			p = NULL;
-			errno = 0;
-			srv_iweight = strtol(params[4], &p, 10);
-			if ((p == params[4]) || errno == EINVAL || errno == ERANGE || (srv_iweight > SRV_UWGHT_MAX))
-				chunk_appendf(msg, ", invalid srv_iweight value '%s'", params[4]);
-
-			/* validating srv_last_time_change */
-			p = NULL;
-			errno = 0;
-			srv_last_time_change = strtol(params[5], &p, 10);
-			if ((p == params[5]) || errno == EINVAL || errno == ERANGE)
-				chunk_appendf(msg, ", invalid srv_last_time_change value '%s'", params[5]);
-
-			/* validating srv_check_status */
-			p = NULL;
-			errno = 0;
-			srv_check_status = strtol(params[6], &p, 10);
-			if (p == params[6] || errno == EINVAL || errno == ERANGE ||
-			    (srv_check_status >= HCHK_STATUS_SIZE))
-				chunk_appendf(msg, ", invalid srv_check_status value '%s'", params[6]);
-
-			/* validating srv_check_result */
-			p = NULL;
-			errno = 0;
-			srv_check_result = strtol(params[7], &p, 10);
-			if ((p == params[7]) || errno == EINVAL || errno == ERANGE ||
-			    (srv_check_result != CHK_RES_UNKNOWN &&
-			     srv_check_result != CHK_RES_NEUTRAL &&
-			     srv_check_result != CHK_RES_FAILED &&
-			     srv_check_result != CHK_RES_PASSED &&
-			     srv_check_result != CHK_RES_CONDPASS)) {
-				chunk_appendf(msg, ", invalid srv_check_result value '%s'", params[7]);
-			}
-
-			/* validating srv_check_health */
-			p = NULL;
-			errno = 0;
-			srv_check_health = strtol(params[8], &p, 10);
-			if (p == params[8] || errno == EINVAL || errno == ERANGE)
-				chunk_appendf(msg, ", invalid srv_check_health value '%s'", params[8]);
-
-			/* validating srv_check_state */
-			p = NULL;
-			errno = 0;
-			srv_check_state = strtol(params[9], &p, 10);
-			if (p == params[9] || errno == EINVAL || errno == ERANGE ||
-			    (srv_check_state & ~(CHK_ST_INPROGRESS | CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_PAUSED | CHK_ST_AGENT)))
-				chunk_appendf(msg, ", invalid srv_check_state value '%s'", params[9]);
-
-			/* validating srv_agent_state */
-			p = NULL;
-			errno = 0;
-			srv_agent_state = strtol(params[10], &p, 10);
-			if (p == params[10] || errno == EINVAL || errno == ERANGE ||
-			    (srv_agent_state & ~(CHK_ST_INPROGRESS | CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_PAUSED | CHK_ST_AGENT)))
-				chunk_appendf(msg, ", invalid srv_agent_state value '%s'", params[10]);
-
-			/* validating bk_f_forced_id */
-			p = NULL;
-			errno = 0;
-			bk_f_forced_id = strtol(params[11], &p, 10);
-			if (p == params[11] || errno == EINVAL || errno == ERANGE || !((bk_f_forced_id == 0) || (bk_f_forced_id == 1)))
-				chunk_appendf(msg, ", invalid bk_f_forced_id value '%s'", params[11]);
-
-			/* validating srv_f_forced_id */
-			p = NULL;
-			errno = 0;
-			srv_f_forced_id = strtol(params[12], &p, 10);
-			if (p == params[12] || errno == EINVAL || errno == ERANGE || !((srv_f_forced_id == 0) || (srv_f_forced_id == 1)))
-				chunk_appendf(msg, ", invalid srv_f_forced_id value '%s'", params[12]);
-
-			/* validating srv_fqdn */
-			fqdn = params[13];
-			if (fqdn && *fqdn == '-')
-				fqdn = NULL;
-			if (fqdn && (strlen(fqdn) > DNS_MAX_NAME_SIZE || invalid_domainchar(fqdn))) {
-				chunk_appendf(msg, ", invalid srv_fqdn value '%s'", params[13]);
-				fqdn = NULL;
-			}
-
-			port_svc_st = params[14];
-			if (port_svc_st) {
-				port_svc = strl2uic(port_svc_st, strlen(port_svc_st));
-				if (port_svc > USHRT_MAX) {
-					chunk_appendf(msg, ", invalid srv_port value '%s'", port_svc_st);
-					port_svc_st = NULL;
-				}
-			}
-			port_check_st = params[17];
-			if (port_check_st) {
-				port_check = strl2uic(port_check_st, strlen(port_check_st));
-				if (port_check > USHRT_MAX) {
-					chunk_appendf(msg, ", invalid srv_port value '%s'", port_check_st);
-					port_check_st = NULL;
-				}
-			}
-
-			/* SRV record
-			 * NOTE: in HAProxy, SRV records must start with an underscore '_'
-			 */
-			srvrecord = params[15];
-			if (srvrecord && *srvrecord != '_')
-				srvrecord = NULL;
-
-#ifdef USE_OPENSSL
-			use_ssl = strtol(params[16], &p, 10);
-#endif
-
-			/* don't apply anything if one error has been detected */
-			if (msg->data)
-				goto out;
-
-			HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-			/* recover operational state and apply it to this server
-			 * and all servers tracking this one */
-			srv->check.health = srv_check_health;
-			switch (srv_op_state) {
-				case SRV_ST_STOPPED:
-					srv->check.health = 0;
-					srv_set_stopped(srv, "changed from server-state after a reload", NULL);
-					break;
-				case SRV_ST_STARTING:
-					/* If rise == 1 there is no STARTING state, let's switch to
-					 * RUNNING
-					 */
-					if (srv->check.rise == 1) {
-						srv->check.health = srv->check.rise + srv->check.fall - 1;
-						srv_set_running(srv, "", NULL);
-						break;
-					}
-					if (srv->check.health < 1 || srv->check.health >= srv->check.rise)
-						srv->check.health = srv->check.rise - 1;
-					srv->next_state = srv_op_state;
-					break;
-				case SRV_ST_STOPPING:
-					/* If fall == 1 there is no STOPPING state, let's switch to
-					 * STOPPED
-					 */
-					if (srv->check.fall == 1) {
-						srv->check.health = 0;
-						srv_set_stopped(srv, "changed from server-state after a reload", NULL);
-						break;
-					}
-					if (srv->check.health < srv->check.rise ||
-					    srv->check.health > srv->check.rise + srv->check.fall - 2)
-						srv->check.health = srv->check.rise;
-					srv_set_stopping(srv, "changed from server-state after a reload", NULL);
-					break;
-				case SRV_ST_RUNNING:
+		/* recover operational state and apply it to this server
+		 * and all servers tracking this one */
+		srv->check.health = srv_check_health;
+		switch (srv_op_state) {
+			case SRV_ST_STOPPED:
+				srv->check.health = 0;
+				srv_set_stopped(srv, "changed from server-state after a reload", NULL);
+				break;
+			case SRV_ST_STARTING:
+				/* If rise == 1 there is no STARTING state, let's switch to
+				 * RUNNING
+				 */
+				if (srv->check.rise == 1) {
 					srv->check.health = srv->check.rise + srv->check.fall - 1;
 					srv_set_running(srv, "", NULL);
 					break;
-			}
+				}
+				if (srv->check.health < 1 || srv->check.health >= srv->check.rise)
+					srv->check.health = srv->check.rise - 1;
+				srv->next_state = srv_op_state;
+				break;
+			case SRV_ST_STOPPING:
+				/* If fall == 1 there is no STOPPING state, let's switch to
+				 * STOPPED
+				 */
+				if (srv->check.fall == 1) {
+					srv->check.health = 0;
+					srv_set_stopped(srv, "changed from server-state after a reload", NULL);
+					break;
+				}
+				if (srv->check.health < srv->check.rise ||
+				    srv->check.health > srv->check.rise + srv->check.fall - 2)
+					srv->check.health = srv->check.rise;
+				srv_set_stopping(srv, "changed from server-state after a reload", NULL);
+				break;
+			case SRV_ST_RUNNING:
+				srv->check.health = srv->check.rise + srv->check.fall - 1;
+				srv_set_running(srv, "", NULL);
+				break;
+		}
 
-			/* When applying server state, the following rules apply:
-			 * - in case of a configuration change, we apply the setting from the new
-			 *   configuration, regardless of old running state
-			 * - if no configuration change, we apply old running state only if old running
-			 *   state is different from new configuration state
+		/* When applying server state, the following rules apply:
+		 * - in case of a configuration change, we apply the setting from the new
+		 *   configuration, regardless of old running state
+		 * - if no configuration change, we apply old running state only if old running
+		 *   state is different from new configuration state
+		 */
+		/* configuration has changed */
+		if ((srv_admin_state & SRV_ADMF_CMAINT) != (srv->next_admin & SRV_ADMF_CMAINT)) {
+			if (srv->next_admin & SRV_ADMF_CMAINT)
+				srv_adm_set_maint(srv);
+			else
+				srv_adm_set_ready(srv);
+		}
+		/* configuration is the same, let's compate old running state and new conf state */
+		else {
+			if (srv_admin_state & SRV_ADMF_FMAINT && !(srv->next_admin & SRV_ADMF_CMAINT))
+				srv_adm_set_maint(srv);
+			else if (!(srv_admin_state & SRV_ADMF_FMAINT) && (srv->next_admin & SRV_ADMF_CMAINT))
+				srv_adm_set_ready(srv);
+		}
+		/* apply drain mode if server is currently enabled */
+		if (!(srv->next_admin & SRV_ADMF_FMAINT) && (srv_admin_state & SRV_ADMF_FDRAIN)) {
+			/* The SRV_ADMF_FDRAIN flag is inherited when srv->iweight is 0
+			 * (srv->iweight is the weight set up in configuration).
+			 * There are two possible reasons for FDRAIN to have been present :
+			 *   - previous config weight was zero
+			 *   - "set server b/s drain" was sent to the CLI
+			 *
+			 * In the first case, we simply want to drop this drain state
+			 * if the new weight is not zero anymore, meaning the administrator
+			 * has intentionally turned the weight back to a positive value to
+			 * enable the server again after an operation. In the second case,
+			 * the drain state was forced on the CLI regardless of the config's
+			 * weight so we don't want a change to the config weight to lose this
+			 * status. What this means is :
+			 *   - if previous weight was 0 and new one is >0, drop the DRAIN state.
+			 *   - if the previous weight was >0, keep it.
 			 */
-			/* configuration has changed */
-			if ((srv_admin_state & SRV_ADMF_CMAINT) != (srv->next_admin & SRV_ADMF_CMAINT)) {
-				if (srv->next_admin & SRV_ADMF_CMAINT)
-					srv_adm_set_maint(srv);
-				else
-					srv_adm_set_ready(srv);
+			if (srv_iweight > 0 || srv->iweight == 0)
+				srv_adm_set_drain(srv);
+		}
+
+		srv->last_change = date.tv_sec - srv_last_time_change;
+		srv->check.status = srv_check_status;
+		srv->check.result = srv_check_result;
+
+		/* Only case we want to apply is removing ENABLED flag which could have been
+		 * done by the "disable health" command over the stats socket
+		 */
+		if ((srv->check.state & CHK_ST_CONFIGURED) &&
+		    (srv_check_state & CHK_ST_CONFIGURED) &&
+		    !(srv_check_state & CHK_ST_ENABLED))
+			srv->check.state &= ~CHK_ST_ENABLED;
+
+		/* Only case we want to apply is removing ENABLED flag which could have been
+		 * done by the "disable agent" command over the stats socket
+		 */
+		if ((srv->agent.state & CHK_ST_CONFIGURED) &&
+		    (srv_agent_state & CHK_ST_CONFIGURED) &&
+		    !(srv_agent_state & CHK_ST_ENABLED))
+			srv->agent.state &= ~CHK_ST_ENABLED;
+
+		/* We want to apply the previous 'running' weight (srv_uweight) only if there
+		 * was no change in the configuration: both previous and new iweight are equals
+		 *
+		 * It means that a configuration file change has precedence over a unix socket change
+		 * for server's weight
+		 *
+		 * by default, HAProxy applies the following weight when parsing the configuration
+		 *    srv->uweight = srv->iweight
+		 */
+		if (srv_iweight == srv->iweight) {
+			srv->uweight = srv_uweight;
+		}
+		server_recalc_eweight(srv, 1);
+
+		/* load server IP address */
+		if (strcmp(params[0], "-") != 0)
+			srv->lastaddr = strdup(params[0]);
+
+		if (fqdn && srv->hostname) {
+			if (strcmp(srv->hostname, fqdn) == 0) {
+				/* Here we reset the 'set from stats socket FQDN' flag
+				 * to support such transitions:
+				 * Let's say initial FQDN value is foo1 (in configuration file).
+				 * - FQDN changed from stats socket, from foo1 to foo2 value,
+				 * - FQDN changed again from file configuration (with the same previous value
+				     set from stats socket, from foo1 to foo2 value),
+				 * - reload for any other reason than a FQDN modification,
+				 * the configuration file FQDN matches the fqdn server state file value.
+				 * So we must reset the 'set from stats socket FQDN' flag to be consistent with
+				 * any further FQDN modification.
+				 */
+				srv->next_admin &= ~SRV_ADMF_HMAINT;
 			}
-			/* configuration is the same, let's compate old running state and new conf state */
 			else {
-				if (srv_admin_state & SRV_ADMF_FMAINT && !(srv->next_admin & SRV_ADMF_CMAINT))
-					srv_adm_set_maint(srv);
-				else if (!(srv_admin_state & SRV_ADMF_FMAINT) && (srv->next_admin & SRV_ADMF_CMAINT))
-					srv_adm_set_ready(srv);
-			}
-			/* apply drain mode if server is currently enabled */
-			if (!(srv->next_admin & SRV_ADMF_FMAINT) && (srv_admin_state & SRV_ADMF_FDRAIN)) {
-				/* The SRV_ADMF_FDRAIN flag is inherited when srv->iweight is 0
-				 * (srv->iweight is the weight set up in configuration).
-				 * There are two possible reasons for FDRAIN to have been present :
-				 *   - previous config weight was zero
-				 *   - "set server b/s drain" was sent to the CLI
-				 *
-				 * In the first case, we simply want to drop this drain state
-				 * if the new weight is not zero anymore, meaning the administrator
-				 * has intentionally turned the weight back to a positive value to
-				 * enable the server again after an operation. In the second case,
-				 * the drain state was forced on the CLI regardless of the config's
-				 * weight so we don't want a change to the config weight to lose this
-				 * status. What this means is :
-				 *   - if previous weight was 0 and new one is >0, drop the DRAIN state.
-				 *   - if the previous weight was >0, keep it.
+				/* If the FDQN has been changed from stats socket,
+				 * apply fqdn state file value (which is the value set
+				 * from stats socket).
+				 * Also ensure the runtime resolver will process this resolution.
 				 */
-				if (srv_iweight > 0 || srv->iweight == 0)
-					srv_adm_set_drain(srv);
-			}
-
-			srv->last_change = date.tv_sec - srv_last_time_change;
-			srv->check.status = srv_check_status;
-			srv->check.result = srv_check_result;
-
-			/* Only case we want to apply is removing ENABLED flag which could have been
-			 * done by the "disable health" command over the stats socket
-			 */
-			if ((srv->check.state & CHK_ST_CONFIGURED) &&
-			    (srv_check_state & CHK_ST_CONFIGURED) &&
-			    !(srv_check_state & CHK_ST_ENABLED))
-				srv->check.state &= ~CHK_ST_ENABLED;
-
-			/* Only case we want to apply is removing ENABLED flag which could have been
-			 * done by the "disable agent" command over the stats socket
-			 */
-			if ((srv->agent.state & CHK_ST_CONFIGURED) &&
-			    (srv_agent_state & CHK_ST_CONFIGURED) &&
-			    !(srv_agent_state & CHK_ST_ENABLED))
-				srv->agent.state &= ~CHK_ST_ENABLED;
-
-			/* We want to apply the previous 'running' weight (srv_uweight) only if there
-			 * was no change in the configuration: both previous and new iweight are equals
-			 *
-			 * It means that a configuration file change has precedence over a unix socket change
-			 * for server's weight
-			 *
-			 * by default, HAProxy applies the following weight when parsing the configuration
-			 *    srv->uweight = srv->iweight
-			 */
-			if (srv_iweight == srv->iweight) {
-				srv->uweight = srv_uweight;
-			}
-			server_recalc_eweight(srv, 1);
-
-			/* load server IP address */
-			if (strcmp(params[0], "-") != 0)
-				srv->lastaddr = strdup(params[0]);
-
-			if (fqdn && srv->hostname) {
-				if (strcmp(srv->hostname, fqdn) == 0) {
-					/* Here we reset the 'set from stats socket FQDN' flag
-					 * to support such transitions:
-					 * Let's say initial FQDN value is foo1 (in configuration file).
-					 * - FQDN changed from stats socket, from foo1 to foo2 value,
-					 * - FQDN changed again from file configuration (with the same previous value
-					     set from stats socket, from foo1 to foo2 value),
-					 * - reload for any other reason than a FQDN modification,
-					 * the configuration file FQDN matches the fqdn server state file value.
-					 * So we must reset the 'set from stats socket FQDN' flag to be consistent with
-					 * any further FQDN modification.
-					 */
-					srv->next_admin &= ~SRV_ADMF_HMAINT;
-				}
-				else {
-					/* If the FDQN has been changed from stats socket,
-					 * apply fqdn state file value (which is the value set
-					 * from stats socket).
-					 * Also ensure the runtime resolver will process this resolution.
-					 */
-					if (fqdn_set_by_cli) {
-						srv_set_fqdn(srv, fqdn, 0);
-						srv->flags &= ~SRV_F_NO_RESOLUTION;
-						srv->next_admin |= SRV_ADMF_HMAINT;
-					}
+				if (fqdn_set_by_cli) {
+					srv_set_fqdn(srv, fqdn, 0);
+					srv->flags &= ~SRV_F_NO_RESOLUTION;
+					srv->next_admin |= SRV_ADMF_HMAINT;
 				}
 			}
-			/* If all the conditions below are validated, this means
-			 * we're evaluating a server managed by SRV resolution
-			 */
-			else if (fqdn && !srv->hostname && srvrecord) {
-				int res;
+		}
+		/* If all the conditions below are validated, this means
+		 * we're evaluating a server managed by SRV resolution
+		 */
+		else if (fqdn && !srv->hostname && srvrecord) {
+			int res;
 
-				/* we can't apply previous state if SRV record has changed */
-				if (srv->srvrq && strcmp(srv->srvrq->name, srvrecord) != 0) {
-					chunk_appendf(msg, ", SRV record mismatch between configuration ('%s') and state file ('%s) for server '%s'. Previous state not applied", srv->srvrq->name, srvrecord, srv->id);
-					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
-					goto out;
-				}
-
-				/* create or find a SRV resolution for this srv record */
-				if (srv->srvrq == NULL && (srv->srvrq = find_srvrq_by_name(srvrecord, srv->proxy)) == NULL)
-					srv->srvrq = new_dns_srvrq(srv, srvrecord);
-				if (srv->srvrq == NULL) {
-					chunk_appendf(msg, ", can't create or find SRV resolution '%s' for server '%s'", srvrecord, srv->id);
-					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
-					goto out;
-				}
-
-				/* prepare DNS resolution for this server */
-				res = srv_prepare_for_resolution(srv, fqdn);
-				if (res == -1) {
-					chunk_appendf(msg, ", can't allocate memory for DNS resolution for server '%s'", srv->id);
-					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
-					goto out;
-				}
-
-				/* Unset SRV_F_MAPPORTS for SRV records.
-				 * SRV_F_MAPPORTS is unfortunately set by parse_server()
-				 * because no ports are provided in the configuration file.
-				 * This is because HAProxy will use the port found into the SRV record.
-				 */
-				srv->flags &= ~SRV_F_MAPPORTS;
+			/* we can't apply previous state if SRV record has changed */
+			if (srv->srvrq && strcmp(srv->srvrq->name, srvrecord) != 0) {
+				chunk_appendf(msg, ", SRV record mismatch between configuration ('%s') and state file ('%s) for server '%s'. Previous state not applied", srv->srvrq->name, srvrecord, srv->id);
+				goto out;
 			}
 
-			if (port_svc_st)
-				srv->svc_port = port_svc;
+			/* create or find a SRV resolution for this srv record */
+			if (srv->srvrq == NULL && (srv->srvrq = find_srvrq_by_name(srvrecord, srv->proxy)) == NULL)
+				srv->srvrq = new_dns_srvrq(srv, srvrecord);
+			if (srv->srvrq == NULL) {
+				chunk_appendf(msg, ", can't create or find SRV resolution '%s' for server '%s'", srvrecord, srv->id);
+				goto out;
+			}
 
-			if (!srv->check.port)
-				srv->check.port = port_check;
+			/* prepare DNS resolution for this server */
+			res = srv_prepare_for_resolution(srv, fqdn);
+			if (res == -1) {
+				chunk_appendf(msg, ", can't allocate memory for DNS resolution for server '%s'", srv->id);
+				goto out;
+			}
+
+			/* Unset SRV_F_MAPPORTS for SRV records.
+			 * SRV_F_MAPPORTS is unfortunately set by parse_server()
+			 * because no ports are provided in the configuration file.
+			 * This is because HAProxy will use the port found into the SRV record.
+			 */
+			srv->flags &= ~SRV_F_MAPPORTS;
+		}
+
+		if (port_svc_st)
+			srv->svc_port = port_svc;
+
+	}
+	if (version >= 2) {
+		/* srv_use_ssl:          params[16]
+		 * srv_check_port:       params[17]
+		 */
 
 #ifdef USE_OPENSSL
-			/* configure ssl if connection has been initiated at startup */
-			if (srv->ssl_ctx.ctx != NULL)
-				ssl_sock_set_srv(srv, use_ssl);
+		use_ssl = strtol(params[16], &p, 10);
 #endif
+		port_check_st = params[17];
+		if (port_check_st) {
+			port_check = strl2uic(port_check_st, strlen(port_check_st));
+			if (port_check > USHRT_MAX)
+				chunk_appendf(msg, ", invalid srv_port value '%s'", port_check_st);
+		}
 
-			HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+#ifdef USE_OPENSSL
+		/* configure ssl if connection has been initiated at startup */
+		if (srv->ssl_ctx.ctx != NULL)
+			ssl_sock_set_srv(srv, use_ssl);
+#endif
+		if (!srv->check.port)
+			srv->check.port = port_check;
 
-			break;
-		default:
-			chunk_appendf(msg, ", version '%d' not supported", version);
 	}
 
  out:
+	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	if (msg->data) {
 		chunk_appendf(msg, "\n");
 		ha_warning("server-state application failed for server '%s/%s'%s",
@@ -3098,33 +3090,32 @@ static void srv_state_parse_line(char *buf, const int version, char **params, ch
 			++cur;
 			while (isspace((unsigned char)*cur))
 				++cur;
-			switch (version) {
-				case 1:
-					/*
-					 * srv_addr:             params[4]  => srv_params[0]
-					 * srv_op_state:         params[5]  => srv_params[1]
-					 * srv_admin_state:      params[6]  => srv_params[2]
-					 * srv_uweight:          params[7]  => srv_params[3]
-					 * srv_iweight:          params[8]  => srv_params[4]
-					 * srv_last_time_change: params[9]  => srv_params[5]
-					 * srv_check_status:     params[10] => srv_params[6]
-					 * srv_check_result:     params[11] => srv_params[7]
-					 * srv_check_health:     params[12] => srv_params[8]
-					 * srv_check_state:      params[13] => srv_params[9]
-					 * srv_agent_state:      params[14] => srv_params[10]
-					 * bk_f_forced_id:       params[15] => srv_params[11]
-					 * srv_f_forced_id:      params[16] => srv_params[12]
-					 * srv_fqdn:             params[17] => srv_params[13]
-					 * srv_port:             params[18] => srv_params[14]
-					 * srvrecord:            params[19] => srv_params[15]
-					 * srv_use_ssl:          params[20] => srv_params[16]
-					 * srv_check_port:       params[21] => srv_params[17]
-					 */
-					if (arg >= 4) {
-						srv_params[srv_arg] = cur;
-						++srv_arg;
-					}
-					break;
+
+			/* v1
+			 * srv_addr:             params[4]  => srv_params[0]
+			 * srv_op_state:         params[5]  => srv_params[1]
+			 * srv_admin_state:      params[6]  => srv_params[2]
+			 * srv_uweight:          params[7]  => srv_params[3]
+			 * srv_iweight:          params[8]  => srv_params[4]
+			 * srv_last_time_change: params[9]  => srv_params[5]
+			 * srv_check_status:     params[10] => srv_params[6]
+			 * srv_check_result:     params[11] => srv_params[7]
+			 * srv_check_health:     params[12] => srv_params[8]
+			 * srv_check_state:      params[13] => srv_params[9]
+			 * srv_agent_state:      params[14] => srv_params[10]
+			 * bk_f_forced_id:       params[15] => srv_params[11]
+			 * srv_f_forced_id:      params[16] => srv_params[12]
+			 * srv_fqdn:             params[17] => srv_params[13]
+			 * srv_port:             params[18] => srv_params[14]
+			 * srvrecord:            params[19] => srv_params[15]
+			 * v2
+			 * srv_use_ssl:          params[20] => srv_params[16]
+			 * srv_check_port:       params[21] => srv_params[17]
+			 */
+			if ((version == 1 && arg >= 4 && arg <= 19) ||
+			     (version == 2 && arg >= 4)) {
+				srv_params[srv_arg] = cur;
+				++srv_arg;
 			}
 
 			params[arg] = cur;
@@ -3137,16 +3128,9 @@ static void srv_state_parse_line(char *buf, const int version, char **params, ch
 
 	/* if line is incomplete line, then ignore it.
 	 * otherwise, update useful flags */
-	switch (version) {
-		case 1:
-			if (arg < SRV_STATE_FILE_NB_FIELDS_VERSION_1) {
-				params[0] = NULL;
-				return;
-			}
-			break;
-	}
-
-	return;
+	if ((version == 1 && arg < SRV_STATE_FILE_NB_FIELDS_VERSION_1) ||
+	    (version == 2 && arg < SRV_STATE_FILE_NB_FIELDS_VERSION_2))
+		params[0] = NULL;
 }
 
 
@@ -3433,6 +3417,7 @@ void apply_server_state(void)
 				 * otherwise, update useful flags */
 				switch (version) {
 					case 1:
+					case 2:
 						bk_f_forced_id = (atoi(params[15]) & PR_O_FORCED_ID);
 						check_id = (atoi(params[0]) == curproxy->uuid);
 						check_name = (strcmp(curproxy->id, params[1]) == 0);
