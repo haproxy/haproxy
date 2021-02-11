@@ -1412,6 +1412,49 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
+/* private function to handle sockaddr as input for connection hash */
+static void conn_calculate_hash_sockaddr(const struct sockaddr_storage *ss,
+                                         char *buf, size_t *idx,
+                                         enum conn_hash_params_t *hash_flags,
+                                         enum conn_hash_params_t param_type_addr,
+                                         enum conn_hash_params_t param_type_port)
+{
+	struct sockaddr_in *addr;
+	struct sockaddr_in6 *addr6;
+
+	switch (ss->ss_family) {
+	case AF_INET:
+		addr = (struct sockaddr_in *)ss;
+
+		conn_hash_update(buf, idx,
+		                 &addr->sin_addr, sizeof(addr->sin_addr),
+		                 hash_flags, param_type_addr);
+
+		if (addr->sin_port) {
+			conn_hash_update(buf, idx,
+			                 &addr->sin_port, sizeof(addr->sin_port),
+			                 hash_flags, param_type_port);
+		}
+
+		break;
+
+	case AF_INET6:
+		addr6 = (struct sockaddr_in6 *)ss;
+
+		conn_hash_update(buf, idx,
+		                 &addr6->sin6_addr, sizeof(addr6->sin6_addr),
+		                 hash_flags, param_type_addr);
+
+		if (addr6->sin6_port) {
+			conn_hash_update(buf, idx,
+			                 &addr6->sin6_port, sizeof(addr6->sin6_port),
+			                 hash_flags, param_type_port);
+		}
+
+		break;
+	}
+}
+
 XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
 {
 	char *buf;
@@ -1429,6 +1472,14 @@ XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
 		                 &hash_flags, CONN_HASH_PARAMS_TYPE_SNI);
 	}
 
+	if (params->dst_addr) {
+		conn_calculate_hash_sockaddr(params->dst_addr,
+		                             buf, &idx, &hash_flags,
+		                             CONN_HASH_PARAMS_TYPE_DST_ADDR,
+		                             CONN_HASH_PARAMS_TYPE_DST_PORT);
+	}
+
 	hash = conn_hash_digest(buf, idx, hash_flags);
+
 	return hash;
 }

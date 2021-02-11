@@ -472,9 +472,11 @@ struct conn_stream {
  * CAUTION! Always update CONN_HASH_PARAMS_TYPE_COUNT when adding a new entry.
  */
 enum conn_hash_params_t {
-	CONN_HASH_PARAMS_TYPE_SNI = 0x1,
+	CONN_HASH_PARAMS_TYPE_SNI      = 0x1,
+	CONN_HASH_PARAMS_TYPE_DST_ADDR = 0x2,
+	CONN_HASH_PARAMS_TYPE_DST_PORT = 0x4,
 };
-#define CONN_HASH_PARAMS_TYPE_COUNT 1
+#define CONN_HASH_PARAMS_TYPE_COUNT 3
 
 #define CONN_HASH_PAYLOAD_LEN \
 	(((sizeof(((struct connection *)0)->hash)) * 8) - CONN_HASH_PARAMS_TYPE_COUNT)
@@ -489,6 +491,7 @@ enum conn_hash_params_t {
 struct conn_hash_params {
 	struct server *srv;
 	XXH64_hash_t *sni_prehash;
+	struct sockaddr_storage *dst_addr;
 };
 
 /* This structure describes a connection with its methods and data.

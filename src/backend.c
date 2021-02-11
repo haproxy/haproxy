@@ -1274,6 +1274,18 @@ int connect_server(struct stream *s)
 	}
 #endif /* USE_OPENSSL */
 
+	/* 2. destination address */
+	if (!(s->flags & SF_ADDR_SET)) {
+		err = alloc_dst_address(&s->target_addr, srv, s);
+		if (err != SRV_STATUS_OK)
+			return SF_ERR_INTERNAL;
+
+		s->flags |= SF_ADDR_SET;
+	}
+
+	if (srv && (!is_addr(&srv->addr) || srv->flags & SRV_F_MAPPORTS))
+		hash_params.dst_addr = s->target_addr;
+
 	if (srv)
 		hash = conn_calculate_hash(&hash_params);
 
@@ -1460,23 +1472,15 @@ skip_reuse:
 			srv_conn->owner = s->sess;
 			if (reuse_mode == PR_O_REUSE_NEVR)
 				conn_set_private(srv_conn);
+
+			if (!sockaddr_alloc(&srv_conn->dst, 0, 0)) {
+				conn_free(srv_conn);
+				return SF_ERR_RESOURCE;
+			}
 		}
-	}
-
-	if (!srv_conn || !sockaddr_alloc(&srv_conn->dst, 0, 0)) {
-		if (srv_conn)
-			conn_free(srv_conn);
-		return SF_ERR_RESOURCE;
-	}
-
-	if (!(s->flags & SF_ADDR_SET)) {
-		err = alloc_dst_address(&s->target_addr, srv, s);
-		if (err != SRV_STATUS_OK) {
-			conn_free(srv_conn);
-			return SF_ERR_INTERNAL;
+		else {
+			return SF_ERR_RESOURCE;
 		}
-
-		s->flags |= SF_ADDR_SET;
 	}
 
 	/* copy the target address into the connection */
