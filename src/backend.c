@@ -1266,6 +1266,7 @@ int connect_server(struct stream *s)
 	int init_mux = 0;
 	int err;
 	struct sample *sni_smp = NULL;
+	struct sockaddr_storage *bind_addr;
 	int64_t hash = 0;
 	struct conn_hash_params hash_params;
 	XXH64_hash_t sni_hash;
@@ -1301,6 +1302,13 @@ int connect_server(struct stream *s)
 
 	if (srv && (!is_addr(&srv->addr) || srv->flags & SRV_F_MAPPORTS))
 		hash_params.dst_addr = s->target_addr;
+
+	/* 3. source address */
+	err = alloc_bind_address(&bind_addr, srv, s);
+	if (err != SRV_STATUS_OK)
+		return SF_ERR_INTERNAL;
+
+	hash_params.src_addr = bind_addr;
 
 	if (srv)
 		hash = conn_calculate_hash(&hash_params);
@@ -1381,21 +1389,6 @@ int connect_server(struct stream *s)
 	/* here reuse might have been set above, indicating srv_conn finally
 	 * is OK.
 	 */
-	if (reuse) {
-		/* Disable connection reuse if a dynamic source is used.
-		 * As long as we don't share connections between servers,
-		 * we don't need to disable connection reuse on no-idempotent
-		 * requests nor when PROXY protocol is used.
-		 */
-		if (srv && srv->conn_src.opts & CO_SRC_BIND) {
-			if ((srv->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_DYN)
-				reuse = 0;
-		}
-		else if (s->be->conn_src.opts & CO_SRC_BIND) {
-			if ((s->be->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_DYN)
-				reuse = 0;
-		}
-	}
 
 	if (ha_used_fds > global.tune.pool_high_count && srv && srv->idle_conns_tree) {
 		struct connection *tokill_conn = NULL;
@@ -1489,9 +1482,7 @@ skip_reuse:
 			if (reuse_mode == PR_O_REUSE_NEVR)
 				conn_set_private(srv_conn);
 
-			err = alloc_bind_address(&srv_conn->src, srv, s);
-			if (err != SRV_STATUS_OK)
-				return SF_ERR_INTERNAL;
+			srv_conn->src = bind_addr;
 
 			if (!sockaddr_alloc(&srv_conn->dst, 0, 0)) {
 				conn_free(srv_conn);
@@ -1499,6 +1490,7 @@ skip_reuse:
 			}
 		}
 		else {
+			sockaddr_free(&bind_addr);
 			return SF_ERR_RESOURCE;
 		}
 	}

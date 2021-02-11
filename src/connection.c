@@ -1479,6 +1479,13 @@ XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
 		                             CONN_HASH_PARAMS_TYPE_DST_PORT);
 	}
 
+	if (params->src_addr) {
+		conn_calculate_hash_sockaddr(params->src_addr,
+		                             buf, &idx, &hash_flags,
+		                             CONN_HASH_PARAMS_TYPE_SRC_ADDR,
+		                             CONN_HASH_PARAMS_TYPE_SRC_PORT);
+	}
+
 	hash = conn_hash_digest(buf, idx, hash_flags);
 
 	return hash;
