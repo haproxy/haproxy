@@ -4810,8 +4810,10 @@ int parse_dotted_uints(const char *str, unsigned int **nums, size_t *sz)
 		/* Expected characters after having read an uint: '\0' or '.',
 		 * if '.', must not be terminal.
 		 */
-		if (*s != '\0'&& (*s++ != '.' || s == end))
+		if (*s != '\0'&& (*s++ != '.' || s == end)) {
+			free(n);
 			return 0;
+		}
 
 		n = my_realloc2(n, (*sz + 1) * sizeof *n);
 		if (!n)
