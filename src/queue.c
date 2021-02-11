@@ -281,12 +281,12 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 
 	if (!p && !pp)
 		return 0;
+	else if (!pp)
+		goto use_p; /*  p != NULL */
+	else if (!p)
+		goto use_pp; /* pp != NULL */
 
-	if (p && !pp)
-		goto use_p;
-
-	if (pp && !p)
-		goto use_pp;
+	/* p != NULL && pp != NULL*/
 
 	if (KEY_CLASS(p->node.key) < KEY_CLASS(pp->node.key))
 		goto use_p;
