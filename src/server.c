@@ -54,6 +54,8 @@ static int srv_set_fqdn(struct server *srv, const char *fqdn, int dns_locked);
 static void srv_state_parse_line(char *buf, const int version, char **params, char **srv_params);
 static int srv_state_get_version(FILE *f);
 static void srv_cleanup_connections(struct server *srv);
+static const char *update_server_check_addr_port(struct server *s, const char *addr,
+						 const char *port);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -3574,6 +3576,59 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char
 	return 0;
 }
 
+/* update server health check address and port
+ * addr must be ip4 or ip6, it won't be resolved
+ * if one error occurs, don't apply anything
+ * must be called with the server lock held.
+ */
+static const char *update_server_check_addr_port(struct server *s, const char *addr,
+						 const char *port)
+{
+	struct sockaddr_storage sk;
+	struct buffer *msg;
+	int new_port;
+
+	msg = get_trash_chunk();
+	chunk_reset(msg);
+
+	if (!(s->check.state & CHK_ST_ENABLED)) {
+		chunk_strcat(msg, "health checks are not enabled on this server");
+		goto out;
+	}
+	if (addr) {
+		memset(&sk, 0, sizeof(struct sockaddr_storage));
+		if (str2ip2(addr, &sk, 0) == NULL) {
+			chunk_appendf(msg, "invalid addr '%s'", addr);
+			goto out;
+		}
+	}
+	if (port) {
+		if (strl2irc(port, strlen(port), &new_port) != 0) {
+			chunk_appendf(msg, "provided port is not an integer");
+			goto out;
+		}
+		if (new_port < 0 || new_port > 65535) {
+			chunk_appendf(msg, "provided port is invalid");
+			goto out;
+		}
+		/* prevent the update of port to 0 if MAPPORTS are in use */
+		if ((s->flags & SRV_F_MAPPORTS) && new_port == 0) {
+			chunk_appendf(msg, "can't unset 'port' since MAPPORTS is in use");
+			goto out;
+		}
+	}
+out:
+	if (msg->data)
+		return msg->area;
+	else {
+		if (addr)
+			s->check.addr = sk;
+		if (port)
+			s->check.port = new_port;
+	}
+	return NULL;
+}
+
 /*
  * This function update a server's addr and port only for AF_INET and AF_INET6 families.
  *
@@ -4406,23 +4461,32 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 				cli_err(appctx, "cannot allocate memory for new string.\n");
 		}
 	}
+	else if (strcmp(args[3], "check-addr") == 0) {
+		char *addr = NULL;
+		char *port = NULL;
+		if (strlen(args[4]) == 0) {
+			cli_err(appctx, "set server <b>/<s> check-addr requires"
+					" an address and optionally a port.\n");
+			goto out_unlock;
+		}
+		addr = args[4];
+		if (strcmp(args[5], "port") == 0)
+			port = args[6];
+		warning = update_server_check_addr_port(sv, addr, port);
+		if (warning)
+			cli_msg(appctx, LOG_WARNING, warning);
+	}
 	else if (strcmp(args[3], "check-port") == 0) {
-		int i = 0;
-		if (strl2irc(args[4], strlen(args[4]), &i) != 0) {
-			cli_err(appctx, "'set server <srv> check-port' expects an integer as argument.\n");
+		char *port = NULL;
+		if (strlen(args[4]) == 0) {
+			cli_err(appctx, "set server <b>/<s> check-port requires"
+					" a port.\n");
 			goto out_unlock;
 		}
-		if ((i < 0) || (i > 65535)) {
-			cli_err(appctx, "provided port is not valid.\n");
-			goto out_unlock;
-		}
-		/* prevent the update of port to 0 if MAPPORTS are in use */
-		if ((sv->flags & SRV_F_MAPPORTS) && (i == 0)) {
-			cli_err(appctx, "can't unset 'port' since MAPPORTS is in use.\n");
-			goto out_unlock;
-		}
-		sv->check.port = i;
-		cli_msg(appctx, LOG_NOTICE, "health check port updated.\n");
+		port = args[4];
+		warning = update_server_check_addr_port(sv, NULL, port);
+		if (warning)
+			cli_msg(appctx, LOG_WARNING, warning);
 	}
 	else if (strcmp(args[3], "addr") == 0) {
 		char *addr = NULL;
@@ -4476,8 +4540,9 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 #endif
 	} else {
 		cli_err(appctx,
-			"'set server <srv>' only supports 'agent', 'health', 'state',"
-			" 'weight', 'addr', 'fqdn', 'check-port' and 'ssl'.\n");
+			"'set server <srv>' only supports 'agent', 'health', "
+			"'state', 'weight', 'addr', 'fqdn', 'check-addr', "
+			"'check-port' and 'ssl'.\n");
 	}
  out_unlock:
 	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
