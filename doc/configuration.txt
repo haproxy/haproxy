@@ -18476,6 +18476,12 @@ base32+src : binary
   depending on the source address family. This can be used to track per-IP,
   per-URL counters.
 
+baseq : string
+  This returns the concatenation of the first Host header and the path part of
+  the request with the query-string, which starts at the first slash. Using this
+  instead of "base" allows one to properly identify the target resource, for
+  statistics or caching use cases. See also "path", "pathq" and "base".
+
 capture.req.hdr(<idx>) : string
   This extracts the content of the header captured by the "capture request
   header", idx is the position of the capture keyword in the configuration.

@@ -1040,7 +1040,7 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
 	sl = http_get_stline(htx);
 	path = http_get_path(htx_sl_req_uri(sl));
 
-	if (kw[0] == 'p' && kw[4] == 'q') // pathq
+	if (kw[4] == 'q' && (kw[0] == 'p' || kw[0] == 'b')) // pathq or baseq
 		path = http_get_path(htx_sl_req_uri(sl));
 	else
 		path = iststop(http_get_path(htx_sl_req_uri(sl)), '?');
@@ -1089,8 +1089,12 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 	if (isttest(path)) {
 		size_t len;
 
-		for (len = 0; len < path.len && *(path.ptr + len) != '?'; len++)
-			;
+		if (kw[4] == 'q' && kw[0] == 'b') { // baseq
+			len = path.len;
+		} else {
+			for (len = 0; len < path.len && *(path.ptr + len) != '?'; len++)
+				;
+		}
 
 		if (len && *(path.ptr) == '/')
 			chunk_memcat(temp, path.ptr, len);
@@ -2044,6 +2048,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "base",               smp_fetch_base,               0,                NULL,   SMP_T_STR,  SMP_USE_HRQHV },
 	{ "base32",             smp_fetch_base32,             0,                NULL,   SMP_T_SINT, SMP_USE_HRQHV },
 	{ "base32+src",         smp_fetch_base32_src,         0,                NULL,   SMP_T_BIN,  SMP_USE_HRQHV },
+	{ "baseq",              smp_fetch_base,               0,                NULL,   SMP_T_STR,  SMP_USE_HRQHV },
 
 	/* capture are allocated and are permanent in the stream */
 	{ "capture.req.hdr",    smp_fetch_capture_req_hdr,    ARG1(1,SINT),     NULL,   SMP_T_STR,  SMP_USE_HRQHP },
