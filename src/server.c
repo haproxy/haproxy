@@ -56,6 +56,8 @@ static int srv_state_get_version(FILE *f);
 static void srv_cleanup_connections(struct server *srv);
 static const char *update_server_check_addr_port(struct server *s, const char *addr,
 						 const char *port);
+static const char *update_server_agent_addr_port(struct server *s, const char *addr,
+						 const char *port);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -3576,6 +3578,54 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char
 	return 0;
 }
 
+/* update agent health check address and port
+ * addr can be ip4/ip6 or a hostname
+ * if one error occurs, don't apply anything
+ * must be called with the server lock held.
+ */
+static const char *update_server_agent_addr_port(struct server *s, const char *addr,
+						 const char *port)
+{
+	struct sockaddr_storage sk;
+	struct buffer *msg;
+	int new_port;
+
+	msg = get_trash_chunk();
+	chunk_reset(msg);
+
+	if (!(s->agent.state & CHK_ST_ENABLED)) {
+		chunk_strcat(msg, "agent checks are not enabled on this server");
+		goto out;
+	}
+	if (addr) {
+		memset(&sk, 0, sizeof(struct sockaddr_storage));
+		if (str2ip(addr, &sk) == NULL) {
+			chunk_appendf(msg, "invalid addr '%s'", addr);
+			goto out;
+		}
+	}
+	if (port) {
+		if (strl2irc(port, strlen(port), &new_port) != 0) {
+			chunk_appendf(msg, "provided port is not an integer");
+			goto out;
+		}
+		if (new_port < 0 || new_port > 65535) {
+			chunk_appendf(msg, "provided port is invalid");
+			goto out;
+		}
+	}
+out:
+	if (msg->data)
+		return msg->area;
+	else {
+		if (addr)
+			set_srv_agent_addr(s, &sk);
+		if (port)
+			set_srv_agent_port(s, new_port);
+	}
+	return NULL;
+}
+
 /* update server health check address and port
  * addr must be ip4 or ip6, it won't be resolved
  * if one error occurs, don't apply anything
@@ -4443,15 +4493,31 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 			cli_err(appctx, "'set server <srv> agent' expects 'up' or 'down'.\n");
 	}
 	else if (strcmp(args[3], "agent-addr") == 0) {
-		struct sockaddr_storage sk;
-
-		memset(&sk, 0, sizeof(sk));
-		if (!(sv->agent.state & CHK_ST_ENABLED))
-			cli_err(appctx, "agent checks are not enabled on this server.\n");
-		else if (str2ip(args[4], &sk))
-			set_srv_agent_addr(sv, &sk);
-		else
-			cli_err(appctx, "incorrect addr address given for agent.\n");
+		char *addr = NULL;
+		char *port = NULL;
+		if (strlen(args[4]) == 0) {
+			cli_err(appctx, "set server <b>/<s> agent-addr requires"
+					" an address and optionally a port.\n");
+			goto out_unlock;
+		}
+		addr = args[4];
+		if (strcmp(args[5], "port") == 0)
+			port = args[6];
+		warning = update_server_agent_addr_port(sv, addr, port);
+		if (warning)
+			cli_msg(appctx, LOG_WARNING, warning);
+	}
+	else if (strcmp(args[3], "agent-port") == 0) {
+		char *port = NULL;
+		if (strlen(args[4]) == 0) {
+			cli_err(appctx, "set server <b>/<s> agent-port requires"
+					" a port.\n");
+			goto out_unlock;
+		}
+		port = args[4];
+		warning = update_server_agent_addr_port(sv, NULL, port);
+		if (warning)
+			cli_msg(appctx, LOG_WARNING, warning);
 	}
 	else if (strcmp(args[3], "agent-send") == 0) {
 		if (!(sv->agent.state & CHK_ST_ENABLED))
