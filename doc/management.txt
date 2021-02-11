@@ -2455,7 +2455,10 @@ show servers state [<backend>]
      srv_port:                    Server port.
      srvrecord:                   DNS SRV record associated to this SRV.
      srv_use_ssl:                 use ssl for server connections.
-     srv_check_port:              Server check port.
+     srv_check_port:              Server health check port.
+     srv_check_addr:              Server health check address.
+     srv_agent_addr:              Server health agent address.
+     srv_agent_port:              Server health agent port.
 
 show sess
   Dump all known sessions. Avoid doing this on slow connections as this can

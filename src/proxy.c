@@ -1749,6 +1749,21 @@ static int cli_parse_show_servers(char **args, char *payload, struct appctx *app
 	return 0;
 }
 
+/* helper to dump server addr */
+static void dump_server_addr(const struct sockaddr_storage *addr, char *addr_str)
+{
+	addr_str[0] = '\0';
+	switch (addr->ss_family) {
+		case AF_INET:
+		case AF_INET6:
+			addr_to_str(addr, addr_str, INET6_ADDRSTRLEN + 1);
+			break;
+		default:
+			memcpy(addr_str, "-\0", 2);
+			break;
+	}
+}
+
 /* dumps server state information for all the servers found in backend cli.p0.
  * These information are all the parameters which may change during HAProxy runtime.
  * By default, we only export to the last known server state file format.
@@ -1762,6 +1777,8 @@ static int dump_servers_state(struct stream_interface *si)
 	struct proxy *px = appctx->ctx.cli.p0;
 	struct server *srv;
 	char srv_addr[INET6_ADDRSTRLEN + 1];
+	char srv_agent_addr[INET6_ADDRSTRLEN + 1];
+	char srv_check_addr[INET6_ADDRSTRLEN + 1];
 	time_t srv_time_since_last_change;
 	int bk_f_forced_id, srv_f_forced_id;
 	char *srvrecord;
@@ -1775,21 +1792,11 @@ static int dump_servers_state(struct stream_interface *si)
 
 	for (; appctx->ctx.cli.p1 != NULL; appctx->ctx.cli.p1 = srv->next) {
 		srv = appctx->ctx.cli.p1;
-		srv_addr[0] = '\0';
 
-		switch (srv->addr.ss_family) {
-			case AF_INET:
-				inet_ntop(srv->addr.ss_family, &((struct sockaddr_in *)&srv->addr)->sin_addr,
-					  srv_addr, INET_ADDRSTRLEN + 1);
-				break;
-			case AF_INET6:
-				inet_ntop(srv->addr.ss_family, &((struct sockaddr_in6 *)&srv->addr)->sin6_addr,
-					  srv_addr, INET6_ADDRSTRLEN + 1);
-				break;
-			default:
-				memcpy(srv_addr, "-\0", 2);
-				break;
-		}
+		dump_server_addr(&srv->addr, srv_addr);
+		dump_server_addr(&srv->check.addr, srv_check_addr);
+		dump_server_addr(&srv->agent.addr, srv_agent_addr);
+
 		srv_time_since_last_change = now.tv_sec - srv->last_change;
 		bk_f_forced_id = px->options & PR_O_FORCED_ID ? 1 : 0;
 		srv_f_forced_id = srv->flags & SRV_F_FORCED_ID ? 1 : 0;
@@ -1806,14 +1813,16 @@ static int dump_servers_state(struct stream_interface *si)
 			             "%d %d %d %d %ld "
 			             "%d %d %d %d %d "
 			             "%d %d %s %u "
-				     "%s %d %d"
+				     "%s %d %d "
+				     "%s %s %d"
 			             "\n",
 			             px->uuid, px->id,
 			             srv->puid, srv->id, srv_addr,
 			             srv->cur_state, srv->cur_admin, srv->uweight, srv->iweight, (long int)srv_time_since_last_change,
 			             srv->check.status, srv->check.result, srv->check.health, srv->check.state, srv->agent.state,
 			             bk_f_forced_id, srv_f_forced_id, srv->hostname ? srv->hostname : "-", srv->svc_port,
-			             srvrecord ? srvrecord : "-", srv->use_ssl, srv->check.port);
+			             srvrecord ? srvrecord : "-", srv->use_ssl, srv->check.port,
+				     srv_check_addr, srv_agent_addr, srv->agent.port);
 		} else {
 			/* show servers conn */
 			int thr;

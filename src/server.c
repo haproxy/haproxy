@@ -2604,6 +2604,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 {
 	char *p;
 	struct buffer *msg;
+	const char *warning;
 
 	/* fields since version 1
 	 * and common to all other upcoming versions
@@ -2620,18 +2621,19 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	int srv_f_forced_id;
 	int fqdn_set_by_cli;
 	const char *fqdn;
-	const char *port_svc_st;
-	const char *port_check_st;
+	const char *port_st;
 	unsigned int port_svc;
-	unsigned int port_check;
 	char *srvrecord;
+	char *addr;
 #ifdef USE_OPENSSL
 	int use_ssl;
 #endif
 
 	fqdn = NULL;
-	port_svc = port_check = 0;
-	msg = get_trash_chunk();
+	port_svc = 0;
+	msg = alloc_trash_chunk();
+	if (!msg)
+		goto end;
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
 
 	if (version >= 1) {
@@ -2774,12 +2776,12 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			fqdn = NULL;
 		}
 
-		port_svc_st = params[14];
-		if (port_svc_st) {
-			port_svc = strl2uic(port_svc_st, strlen(port_svc_st));
+		port_st = params[14];
+		if (port_st) {
+			port_svc = strl2uic(port_st, strlen(port_st));
 			if (port_svc > USHRT_MAX) {
-				chunk_appendf(msg, ", invalid srv_port value '%s'", port_svc_st);
-				port_svc_st = NULL;
+				chunk_appendf(msg, ", invalid srv_port value '%s'", port_st);
+				port_st = NULL;
 			}
 		}
 
@@ -2978,33 +2980,52 @@ static void srv_update_state(struct server *srv, int version, char **params)
 			srv->flags &= ~SRV_F_MAPPORTS;
 		}
 
-		if (port_svc_st)
+		if (port_st)
 			srv->svc_port = port_svc;
 
 	}
 	if (version >= 2) {
 		/* srv_use_ssl:          params[16]
 		 * srv_check_port:       params[17]
+		 * srv_check_addr:       params[18]
+		 * srv_agent_addr:       params[19]
+		 * srv_agent_port:       params[20]
 		 */
 
 #ifdef USE_OPENSSL
 		use_ssl = strtol(params[16], &p, 10);
-#endif
-		port_check_st = params[17];
-		if (port_check_st) {
-			port_check = strl2uic(port_check_st, strlen(port_check_st));
-			if (port_check > USHRT_MAX)
-				chunk_appendf(msg, ", invalid srv_port value '%s'", port_check_st);
-		}
 
-#ifdef USE_OPENSSL
 		/* configure ssl if connection has been initiated at startup */
 		if (srv->ssl_ctx.ctx != NULL)
 			ssl_sock_set_srv(srv, use_ssl);
 #endif
-		if (!srv->check.port)
-			srv->check.port = port_check;
+		port_st = NULL;
+		if (strcmp(params[17], "0") != 0)
+			port_st = params[17];
+		addr = NULL;
+		if (strcmp(params[18], "-") != 0)
+			addr = params[18];
+		if (addr || port_st) {
+			warning = update_server_check_addr_port(srv, addr, port_st);
+			if (warning) {
+				chunk_appendf(msg, ", %s", warning);
+				goto out;
+			}
+		}
 
+		port_st = NULL;
+		if (strcmp(params[17], "0") != 0)
+			port_st = params[20];
+		addr = NULL;
+		if (strcmp(params[19], "-") != 0)
+			addr = params[19];
+		if (addr || port_st) {
+			warning = update_server_agent_addr_port(srv, addr, port_st);
+			if (warning) {
+				chunk_appendf(msg, ", %s", warning);
+				goto out;
+			}
+		}
 	}
 
  out:
@@ -3014,6 +3035,8 @@ static void srv_update_state(struct server *srv, int version, char **params)
 		ha_warning("server-state application failed for server '%s/%s'%s",
 			   srv->proxy->id, srv->id, msg->area);
 	}
+ end:
+	free_trash_chunk(msg);
 }
 
 
@@ -3111,6 +3134,9 @@ static void srv_state_parse_line(char *buf, const int version, char **params, ch
 			 * v2
 			 * srv_use_ssl:          params[20] => srv_params[16]
 			 * srv_check_port:       params[21] => srv_params[17]
+			 * srv_check_addr:       params[22] => srv_params[18]
+			 * srv_agent_addr:       params[23] => srv_params[19]
+			 * srv_agent_port:       params[24] => srv_params[20]
 			 */
 			if ((version == 1 && arg >= 4 && arg <= 19) ||
 			     (version == 2 && arg >= 4)) {
