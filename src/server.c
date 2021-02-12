@@ -3186,7 +3186,6 @@ void apply_server_state(void)
 	char *srv_params[SRV_STATE_FILE_MAX_FIELDS] = {0};
 	int version, global_file_version;
 	FILE *f;
-	char *filepath;
 	char globalfilepath[MAXPATHLEN + 1];
 	char localfilepath[MAXPATHLEN + 1];
 	int len, fileopenerr, globalfilepathlen, localfilepathlen;
@@ -3314,7 +3313,6 @@ void apply_server_state(void)
 		if (!(curproxy->cap & PR_CAP_BE))
 			continue;
 		fileopenerr = 0;
-		filepath = NULL;
 
 		/* search server state file path and name */
 		switch (curproxy->load_server_state_from_file) {
@@ -3323,7 +3321,6 @@ void apply_server_state(void)
 				/* there was an error while generating global server state file path */
 				if (globalfilepathlen == 0)
 					continue;
-				filepath = globalfilepath;
 				fileopenerr = 1;
 				break;
 			/* this backend has its own file */
@@ -3375,7 +3372,6 @@ void apply_server_state(void)
  localfileerror:
 				if (localfilepathlen == 0)
 					continue;
-				filepath = localfilepath;
 
 				break;
 			case PR_SRV_STATE_FILE_NONE:
@@ -3418,9 +3414,9 @@ void apply_server_state(void)
 		else {
 			/* load 'local' state file */
 			errno = 0;
-			f = fopen(filepath, "r");
+			f = fopen(localfilepath, "r");
 			if (errno && fileopenerr)
-				ha_warning("Can't open server state file '%s': %s\n", filepath, strerror(errno));
+				ha_warning("Can't open server state file '%s': %s\n", localfilepath, strerror(errno));
 			if (!f)
 				continue;
 
@@ -3429,7 +3425,7 @@ void apply_server_state(void)
 			/* first character of first line of the file must contain the version of the export */
 			version = srv_state_get_version(f);
 			if (version == 0) {
-				ha_warning("Can't get version of the server state file '%s'\n", filepath);
+				ha_warning("Can't get version of the server state file '%s'\n", localfilepath);
 				goto fileclose;
 			}
 
