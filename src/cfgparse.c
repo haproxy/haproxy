@@ -44,7 +44,6 @@
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
 #include <haproxy/connection.h>
-#include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
 #include <haproxy/frontend.h>
@@ -66,6 +65,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/protocol.h>
 #include <haproxy/proxy.h>
+#include <haproxy/resolvers.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/session.h>

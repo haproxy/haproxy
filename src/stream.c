@@ -30,7 +30,6 @@
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/dict.h>
-#include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/fd.h>
 #include <haproxy/filters.h>
@@ -48,6 +47,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/server.h>
+#include <haproxy/resolvers.h>
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>

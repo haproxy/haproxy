@@ -26,9 +26,9 @@
 
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
-#include <haproxy/dns-t.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/proxy-t.h>
+#include <haproxy/resolvers-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/task.h>
 #include <haproxy/thread-t.h>

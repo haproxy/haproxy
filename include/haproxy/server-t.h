@@ -32,11 +32,11 @@
 #include <haproxy/check-t.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/counters-t.h>
-#include <haproxy/dns-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/openssl-compat.h>
+#include <haproxy/resolvers-t.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/task-t.h>

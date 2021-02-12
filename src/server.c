@@ -27,7 +27,6 @@
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
 #include <haproxy/dict-t.h>
-#include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
 #include <haproxy/log.h>
@@ -36,6 +35,7 @@
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
 #include <haproxy/queue.h>
+#include <haproxy/resolvers.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock.h>

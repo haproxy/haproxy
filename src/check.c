@@ -36,7 +36,6 @@
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
 #include <haproxy/dgram.h>
-#include <haproxy/dns.h>
 #include <haproxy/dynbuf-t.h>
 #include <haproxy/extcheck.h>
 #include <haproxy/fd.h>
@@ -55,6 +54,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/regex.h>
+#include <haproxy/resolvers.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock.h>
