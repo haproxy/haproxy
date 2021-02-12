@@ -422,48 +422,6 @@ unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, char **er
 }
 #endif
 
-void init_default_instance()
-{
-	init_new_proxy(&defproxy);
-	defproxy.mode = PR_MODE_TCP;
-	defproxy.disabled = 0;
-	defproxy.maxconn = cfg_maxpconn;
-	defproxy.conn_retries = CONN_RETRIES;
-	defproxy.redispatch_after = 0;
-	defproxy.options = PR_O_REUSE_SAFE;
-	defproxy.max_out_conns = MAX_SRV_LIST;
-
-	defproxy.defsrv.check.inter = DEF_CHKINTR;
-	defproxy.defsrv.check.fastinter = 0;
-	defproxy.defsrv.check.downinter = 0;
-	defproxy.defsrv.agent.inter = DEF_CHKINTR;
-	defproxy.defsrv.agent.fastinter = 0;
-	defproxy.defsrv.agent.downinter = 0;
-	defproxy.defsrv.check.rise = DEF_RISETIME;
-	defproxy.defsrv.check.fall = DEF_FALLTIME;
-	defproxy.defsrv.agent.rise = DEF_AGENT_RISETIME;
-	defproxy.defsrv.agent.fall = DEF_AGENT_FALLTIME;
-	defproxy.defsrv.check.port = 0;
-	defproxy.defsrv.agent.port = 0;
-	defproxy.defsrv.maxqueue = 0;
-	defproxy.defsrv.minconn = 0;
-	defproxy.defsrv.maxconn = 0;
-	defproxy.defsrv.max_reuse = -1;
-	defproxy.defsrv.max_idle_conns = -1;
-	defproxy.defsrv.pool_purge_delay = 5000;
-	defproxy.defsrv.slowstart = 0;
-	defproxy.defsrv.onerror = DEF_HANA_ONERR;
-	defproxy.defsrv.consecutive_errors_limit = DEF_HANA_ERRLIMIT;
-	defproxy.defsrv.uweight = defproxy.defsrv.iweight = 1;
-
-	defproxy.email_alert.level = LOG_ALERT;
-	defproxy.load_server_state_from_file = PR_SRV_STATE_FILE_UNSPEC;
-#if defined(USE_QUIC)
-	quic_transport_params_init(&defproxy.defsrv.quic_params, 0);
-#endif
-
-}
-
 /* Allocate and initialize the frontend of a "peers" section found in
  * file <file> at line <linenum> with <id> as ID.
  * Return 0 if succeeded, -1 if not.

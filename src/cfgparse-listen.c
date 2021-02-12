@@ -526,7 +526,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		deinit_proxy_tcpcheck(&defproxy);
 
 		/* we cannot free uri_auth because it might already be used */
-		init_default_instance();
+		init_new_proxy(&defproxy);
+		proxy_preset_defaults(&defproxy);
 		curproxy = &defproxy;
 		curproxy->conf.args.file = curproxy->conf.file = strdup(file);
 		curproxy->conf.args.line = curproxy->conf.line = linenum;

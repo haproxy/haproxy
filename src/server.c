@@ -1784,7 +1784,7 @@ struct server *new_server(struct proxy *proxy)
 #endif
 
 	/* please don't put default server settings here, they are set in
-	 * init_default_instance().
+	 * proxy_preset_defaults().
 	 */
 	return srv;
 }
