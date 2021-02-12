@@ -70,7 +70,7 @@ struct buffer *http_load_errorfile(const char *file, char **errmsg);
 struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **errmsg);
 struct buffer *http_parse_errorfile(int status, const char *file, char **errmsg);
 struct buffer *http_parse_errorloc(int errloc, int status, const char *url, char **errmsg);
-int proxy_dup_default_conf_errors(struct proxy *curpx, struct proxy *defpx, char **errmsg);
+int proxy_dup_default_conf_errors(struct proxy *curpx, const struct proxy *defpx, char **errmsg);
 void proxy_release_conf_errors(struct proxy *px);
 
 #endif /* _HAPROXY_HTTP_HTX_H */

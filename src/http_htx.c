@@ -2080,7 +2080,7 @@ static int post_check_errors()
 	return err_code;
 }
 
-int proxy_dup_default_conf_errors(struct proxy *curpx, struct proxy *defpx, char **errmsg)
+int proxy_dup_default_conf_errors(struct proxy *curpx, const struct proxy *defpx, char **errmsg)
 {
 	struct conf_errors *conf_err, *new_conf_err = NULL;
 	int ret = 0;
