@@ -1179,6 +1179,17 @@ void proxy_destroy_defaults(struct proxy *px)
 	free(px);
 }
 
+void proxy_destroy_all_defaults()
+{
+	struct ebpt_node *n;
+
+	while ((n = ebpt_first(&defproxy_by_name))) {
+		struct proxy *px = container_of(n, struct proxy, conf.by_name);
+		BUG_ON(!(px->cap & PR_CAP_DEF));
+		proxy_destroy_defaults(px);
+	}
+}
+
 /* Allocates a new proxy <name> of type <cap> found at position <file:linenum>,
  * preset it from the defaults of <defproxy> and returns it. Un case of error,
  * an alert is printed and NULL is returned. If <errmsg> is not NULL, an error

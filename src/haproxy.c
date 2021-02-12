@@ -1963,6 +1963,9 @@ static void init(int argc, char **argv)
 		           global.nbproc);
 	}
 
+	/* defaults sections are not needed anymore */
+	proxy_destroy_all_defaults();
+
 	err_code |= check_config_validity();
 	for (px = proxies_list; px; px = px->next) {
 		struct server *srv;

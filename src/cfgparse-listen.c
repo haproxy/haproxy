@@ -34,8 +34,6 @@
 #include <haproxy/uri_auth.h>
 
 
-static struct proxy defproxy; /* fake proxy used to assign default values on all instances */
-
 /* Report a warning if a rule is placed after a 'tcp-request session' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
@@ -173,6 +171,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curproxy = NULL;
 	static struct proxy *curr_defproxy = NULL;
+	static struct proxy *last_defproxy = NULL;
 	const char *err;
 	int rc;
 	unsigned val;
@@ -181,14 +180,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	char *errmsg = NULL;
 	struct bind_conf *bind_conf;
 
-	if (defproxy.obj_type != OBJ_TYPE_PROXY) {
-		/* defproxy not initialized yet */
-		init_new_proxy(&defproxy);
-		proxy_preset_defaults(&defproxy);
+	if (!last_defproxy) {
+		/* we need a default proxy and none was created yet */
+		last_defproxy = alloc_new_proxy("", PR_CAP_DEF|PR_CAP_LISTEN, "INIT", 0, NULL, &errmsg);
+		curr_defproxy = last_defproxy;
+		if (!last_defproxy) {
+			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 	}
-
-	if (!curr_defproxy)
-		curr_defproxy = &defproxy;
 
 	if (strcmp(args[0], "listen") == 0)
 		rc = PR_CAP_LISTEN;
@@ -196,12 +197,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rc = PR_CAP_FE;
 	else if (strcmp(args[0], "backend") == 0)
 		rc = PR_CAP_BE;
-	else if (strcmp(args[0], "defaults") == 0)
-		rc = PR_CAP_DEF;
+	else if (strcmp(args[0], "defaults") == 0) {
+		/* "defaults" must first delete the last no-name defaults if any */
+		proxy_destroy_defaults(proxy_find_by_name("", PR_CAP_DEF, 0));
+		curr_defproxy = NULL;
+		rc = PR_CAP_DEF | PR_CAP_LISTEN;
+	}
 	else
 		rc = PR_CAP_NONE;
 
-	if (rc & PR_CAP_LISTEN) {  /* new proxy */
+	if ((rc & PR_CAP_LISTEN) && !(rc & PR_CAP_DEF)) {  /* new proxy */
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : '%s' expects an <id> argument\n",
 				 file, linenum, args[0]);
@@ -237,34 +242,24 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				ha_alert("parsing [%s:%d] : please use the 'bind' keyword for listening addresses.\n", file, linenum);
 			goto out;
 		}
+	}
 
+	if (rc & PR_CAP_LISTEN) {  /* new proxy or defaults section */
 		curproxy = alloc_new_proxy(args[1], rc, file, linenum, curr_defproxy, &errmsg);
 		if (!curproxy) {
-			/* message already printed by alloc_new_proxy() */
 			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
-		curproxy->next = proxies_list;
-		proxies_list = curproxy;
 
-		goto out;
-	}
-	else if (strcmp(args[0], "defaults") == 0) {  /* use this one to assign default values */
-		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
-			err_code |= ERR_ABORT;
-			goto out;
+		if (rc & PR_CAP_DEF) {
+			/* last and current proxies must be updated to this one */
+			curr_defproxy = last_defproxy = curproxy;
+		} else {
+			/* regular proxies are in a list */
+			curproxy->next = proxies_list;
+			proxies_list = curproxy;
 		}
-
-		/* let's first free previous defaults */
-		proxy_free_defaults(curr_defproxy);
-		init_new_proxy(curr_defproxy);
-		proxy_preset_defaults(curr_defproxy);
-		curproxy = curr_defproxy;
-		curproxy->id = strdup(args[1]); // may be empty
-		curproxy->conf.args.file = curproxy->conf.file = strdup(file);
-		curproxy->conf.args.line = curproxy->conf.line = linenum;
-		defproxy.cap = PR_CAP_DEF | PR_CAP_LISTEN; /* all caps for now */
 		goto out;
 	}
 	else if (curproxy == NULL) {
