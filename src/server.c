@@ -51,7 +51,7 @@ static void srv_update_status(struct server *s);
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static int srv_set_fqdn(struct server *srv, const char *fqdn, int resolv_locked);
-static void srv_state_parse_line(char *buf, const int version, char **params, char **srv_params);
+static int srv_state_parse_line(char *buf, const int version, char **params, char **srv_params);
 static int srv_state_get_version(FILE *f);
 static void srv_cleanup_connections(struct server *srv);
 static const char *update_server_check_addr_port(struct server *s, const char *addr,
@@ -3071,57 +3071,53 @@ static int srv_state_get_version(FILE *f) {
 
 /*
  * parses server state line stored in <buf> and supposedly in version <version>.
- * Set <params> and <srv_params> accordingly.
- * In case of error, params[0] is set to NULL.
+ * Set <params> and <srv_params> accordingly on success. It returns 1 on
+ * success, 0 if the line must be ignored and -1 on error.
  * The caller must provide a supported version
  */
-static void srv_state_parse_line(char *buf, const int version, char **params, char **srv_params)
+static int srv_state_parse_line(char *buf, const int version, char **params, char **srv_params)
 {
-	int buflen, arg, srv_arg;
-	char *cur, *end;
+	int buflen, arg, srv_arg, ret;
+	char *cur;
 
 	buflen = strlen(buf);
 	cur = buf;
-	end = cur + buflen;
+	ret = 1; /* be optimistic and pretend a success */
 
-	/* we need at least one character */
-	if (buflen == 0) {
-		params[0] = NULL;
-		return;
+	/* we need at least one character (the newline) and a non-truncated line */
+	if (buflen == 0 || buf[buflen - 1] != '\n') {
+		ret = -1;
+		goto out;
 	}
 
-	/* ignore blank characters at the beginning of the line */
-	while (isspace((unsigned char)*cur))
+	/* skip blank characters at the beginning of the line */
+	while (isblank((unsigned char)*cur))
 		++cur;
 
-	/* Ignore empty or commented lines */
-	if (cur == end || *cur == '#') {
-		params[0] = NULL;
-		return;
+	/* ignore empty or commented lines */
+	if (!*cur || *cur == '\n' || *cur == '#') {
+		ret = 0;
+		goto out;
 	}
 
-	/* truncated lines */
-	if (buf[buflen - 1] != '\n') {
-		//ha_warning("server-state file '%s': truncated line\n", filepath);
-		params[0] = NULL;
-		return;
-	}
-
-	/* Removes trailing '\n' */
+	/* Removes trailing '\n' to ease parsing */
 	buf[buflen - 1] = '\0';
 
-	/* we're now ready to move the line into *srv_params[] */
+	/* we're now ready to move the line into <params> and <srv_params> */
 	memset(params, 0, SRV_STATE_FILE_MAX_FIELDS * sizeof(*params));
 	memset(srv_params, 0, SRV_STATE_FILE_MAX_FIELDS * sizeof(*srv_params));
-
 	arg = 0;
 	srv_arg = 0;
-	while (*cur && arg < SRV_STATE_FILE_MAX_FIELDS) {
-		/* Search begining of the current field */
-		while (isspace((unsigned char)*cur)) {
+	while (*cur) {
+		/* first of all, stop if there are too many fields */
+		if (arg >= SRV_STATE_FILE_MAX_FIELDS)
+			break;
+
+		/* then skip leading spaces */
+		while (*cur && isblank((unsigned char)*cur)) {
 			++cur;
 			if (!*cur)
-				goto end;
+				break;
 		}
 
 		/* v1
@@ -3148,27 +3144,29 @@ static void srv_state_parse_line(char *buf, const int version, char **params, ch
 		 * srv_agent_addr:       params[23] => srv_params[19] (optional field)
 		 * srv_agent_port:       params[24] => srv_params[20] (optional field)
 		 */
-		if ((version == 1 && arg >= 4))
+		if (arg >= 4)
 			srv_params[srv_arg++] = cur;
 		params[arg++] = cur;
 
-		/* Search end of the current field: first space or \0 */
-		/* Search begining of the current field */
-		while (!isspace((unsigned char)*cur)) {
+		/* look for the end of the current field */
+		while (*cur && !isblank((unsigned char)*cur)) {
 			++cur;
 			if (!*cur)
-				goto end;
+				break;
 		}
+
+		/* otherwise, cut the field and move to the next one */
 		*cur++ = '\0';
 	}
 
-  end:
-	/* if line is incomplete line, then ignore it.
-	 * otherwise, update useful flags */
+	/* if the number of fields does not match the version, then return an error */
 	if (version == 1 &&
 	    (arg < SRV_STATE_FILE_MIN_FIELDS_VERSION_1 ||
 	     arg > SRV_STATE_FILE_MAX_FIELDS_VERSION_1))
-		params[0] = NULL;
+		ret = -1;
+
+  out:
+	return ret;
 }
 
 
@@ -3266,14 +3264,16 @@ void apply_server_state(void)
 			goto out_load_server_state_in_tree;
 
 		while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
+			int ret;
+
 			line = NULL;
 
 			line = strdup(mybuf);
 			if (line == NULL)
 				continue;
 
-			srv_state_parse_line(mybuf, global_file_version, params, srv_params);
-			if (params[0] == NULL)
+			ret = srv_state_parse_line(mybuf, global_file_version, params, srv_params);
+			if (ret <= 0)
 				goto nextline;
 
 			/* bkname */
@@ -3396,6 +3396,7 @@ void apply_server_state(void)
 			while (srv) {
 				struct ebmb_node *node;
 				struct state_line *st;
+				int ret;
 
 				chunk_printf(&trash, "%s %s", curproxy->id, srv->id);
 				node = ebst_lookup(&state_file, trash.area);
@@ -3406,8 +3407,8 @@ void apply_server_state(void)
 				memcpy(mybuf, st->line, strlen(st->line));
 				mybuf[strlen(st->line)] = 0;
 
-				srv_state_parse_line(mybuf, global_file_version, params, srv_params);
-				if (params[0] == NULL)
+				ret = srv_state_parse_line(mybuf, global_file_version, params, srv_params);
+				if (ret <= 0)
 					goto next;
 
 				srv_update_state(srv, global_file_version, srv_params);
@@ -3440,12 +3441,11 @@ void apply_server_state(void)
 				int bk_f_forced_id = 0;
 				int check_id = 0;
 				int check_name = 0;
+				int ret;
 
-				srv_state_parse_line(mybuf, version, params, srv_params);
-
-				if (params[0] == NULL) {
+				ret = srv_state_parse_line(mybuf, version, params, srv_params);
+				if (ret <= 0)
 					continue;
-				}
 
 				/* if line is incomplete line, then ignore it.
 				 * otherwise, update useful flags */
