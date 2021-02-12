@@ -9720,13 +9720,17 @@ server <name> <address>[:[port]] [param*]
   See also: "default-server", "http-send-name-header" and section 5 about
              server options
 
-server-state-file-name [<file>]
+server-state-file-name [ { use-backend-name | <file> } ]
   Set the server state file to read, load and apply to servers available in
-  this backend. It only applies when the directive "load-server-state-from-file"
-  is set to "local". When <file> is not provided or if this directive is not
-  set, then backend name is used. If <file> starts with a slash '/', then it is
-  considered as an absolute path. Otherwise, <file> is concatenated to the
-  global directive "server-state-file-base".
+  this backend.
+  May be used in sections:    defaults | frontend | listen | backend
+                                  no   |    no   |   yes  |   yes
+
+  It only applies when the directive "load-server-state-from-file" is set to
+  "local". When <file> is not provided, if "use-backend-name" is used or if
+  this directive is not set, then backend name is used. If <file> starts with a
+  slash '/', then it is considered as an absolute path. Otherwise, <file> is
+  concatenated to the global directive "server-state-base".
 
   Example: the minimal configuration below would make HAProxy look for the
            state server file '/etc/haproxy/states/bk':
@@ -9737,7 +9741,7 @@ server-state-file-name [<file>]
     backend bk
       load-server-state-from-file
 
-  See also: "server-state-file-base", "load-server-state-from-file", and
+  See also: "server-state-base", "load-server-state-from-file", and
   "show servers state"
 
 server-template <prefix> <num | range> <fqdn>[:<port>] [params*]

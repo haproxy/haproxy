@@ -1204,13 +1204,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "server-state-file-name") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects 'use-backend-name' or a string. Got no argument\n",
-				 file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
-		}
-		else if (strcmp(args[1], "use-backend-name") == 0)
+
+		free(curproxy->server_state_file_name);
+		curproxy->server_state_file_name = NULL;
+
+		if (*(args[1]) == 0 || strcmp(args[1], "use-backend-name") == 0)
 			curproxy->server_state_file_name = strdup(curproxy->id);
 		else
 			curproxy->server_state_file_name = strdup(args[1]);
