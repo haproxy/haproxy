@@ -41,8 +41,9 @@ Summary
 2.1.      Configuration file format
 2.2.      Quoting and escaping
 2.3.      Environment variables
-2.4.      Time format
-2.5.      Examples
+2.4.      Conditional blocks
+2.5.      Time format
+2.6.      Examples
 
 3.    Global parameters
 3.1.      Process management and security
@@ -743,7 +744,75 @@ file, or could be inherited by a program (See 3.7. Programs):
 
 See also "external-check command" for other variables.
 
-2.4. Time format
+
+2.4. Conditional blocks
+-----------------------
+
+It may sometimes be convenient to be able to conditionally enable or disable
+some arbitrary parts of the configuration, for example to enable/disable SSL or
+ciphers, enable or disable some pre-production listeners without modifying the
+configuration, or adjust the configuration's syntax to support two distinct
+versions of HAProxy during a migration.. HAProxy brings a set of nestable
+preprocessor-like directives which allow to integrate or ignore some blocks of
+text. These directives must be placed on their own line and they act on the
+lines that follow them. Two of them support an expression, the other ones only
+switch to an alternate block or end a current level. The 4 following directives
+are defined to form conditional blocks:
+
+  - .if <condition>
+  - .elif <condition>
+  - .else
+  - .endif
+
+The ".if" directive nests a new level, ".elif" stays at the same level, ".else"
+as well, and ".endif" closes a level. Each ".if" must be terminated by a
+matching ".endif". The ".elif" may only be placed after ".if" or ".elif", and
+there is no limit to the number of ".elif" that may be chained. There may be
+only one ".else" per ".if" and it must always be after the ".if" or the last
+".elif" of a block.
+
+Comments may be placed on the same line if needed after a '#', they will be
+ignored. The directives are tokenized like other configuration directives, and
+as such it is possible to use environment variables in conditions.
+
+The conditions are currently limited to:
+
+  - an empty string, always returns "false"
+  - the integer zero ('0'), always returns "false"
+  - a non-nul integer (e.g. '1'), always returns "true".
+
+Other patterns are not supported yet but the purpose is to bring a few
+functions to test for certain build options and supported features.
+
+Three other directives are provided to report some status:
+
+  - .notice "message"  : emit this message at level NOTICE
+  - .warning "message" : emit this message at level WARNING
+  - .alert "message"   : emit this message at level ALERT
+
+Messages emitted at level WARNING may cause the process to fail to start if the
+"strict-mode" is enabled. Messages emitted at level ALERT will always cause a
+fatal error. These can be used to detect some inappropriate conditions and
+provide advice to the user.
+
+Example:
+
+  .if "${A}"
+    .if "${B}"
+       .notice "A=1, B=1"
+    .elif "${C}"
+       .notice "A=1, B=0, C=1"
+    .elif "${D}"
+       .warning "A=1, B=0, C=0, D=1"
+    .else
+       .alert "A=1, B=0, C=0, D=0"
+    .endif
+  .else
+       .notice "A=0"
+  .endif
+
+
+2.5. Time format
 ----------------
 
 Some parameters involve values representing time, such as timeouts. These
@@ -760,7 +829,7 @@ for every keyword. Supported units are :
   - d  : days.    1d = 24h = 1440m = 86400s = 86400000ms
 
 
-2.5. Examples
+2.6. Examples
 -------------
 
     # Simple configuration for an HTTP proxy listening on port 80 on all
@@ -10741,7 +10810,7 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                was last created, refreshed or matched. The expiration delay is
                defined using the standard time format, similarly as the various
                timeouts. The maximum duration is slightly above 24 days. See
-               section 2.4 for more information. If this delay is not specified,
+               section 2.5 for more information. If this delay is not specified,
                the session won't automatically expire, but older entries will
                be removed once full. Be sure not to use the "nopurge" parameter
                if not expiration delay is specified.
@@ -10924,7 +10993,7 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
         # computed over a sliding window of 30 seconds.
         stick-table type ip size 1m expire 5m store gpc0,conn_rate(30s)
 
-  See also : "stick match", "stick on", "stick store-request", section 2.4
+  See also : "stick match", "stick on", "stick store-request", section 2.5
              about time format and section 7 about ACLs.
 
 

@@ -98,6 +98,23 @@ struct cfg_kw_list cfg_keywords = {
 	.list = LIST_HEAD_INIT(cfg_keywords.list)
 };
 
+/* nested if/elif/else/endif block states */
+enum nested_cond_state {
+	NESTED_COND_IF_TAKE,      // "if" with a true condition
+	NESTED_COND_IF_DROP,      // "if" with a false condition
+	NESTED_COND_IF_SKIP,      // "if" masked by an outer false condition
+
+	NESTED_COND_ELIF_TAKE,    // "elif" with a true condition from a false one
+	NESTED_COND_ELIF_DROP,    // "elif" with a false condition from a false one
+	NESTED_COND_ELIF_SKIP,    // "elif" masked by an outer false condition or a previously taken if
+
+	NESTED_COND_ELSE_TAKE,    // taken "else" after an if false condition
+	NESTED_COND_ELSE_DROP,    // "else" masked by outer false condition or an if true condition
+};
+
+/* 100 levels of nested conditions should already be sufficient */
+#define MAXNESTEDCONDS 100
+
 /*
  * converts <str> to a list of listeners which are dynamically allocated.
  * The format is "{addr|'*'}:port[-end][,{addr|'*'}:port[-end]]*", where :
@@ -1798,6 +1815,8 @@ int readcfgfile(const char *file)
 	size_t outlinesize = 0;
 	int fatal = 0;
 	int missing_lf = -1;
+	int nested_cond_lvl = 0;
+	enum nested_cond_state nested_conds[MAXNESTEDCONDS];
 
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
 		ha_alert("parsing [%s] : out of memory.\n", file);
@@ -1969,6 +1988,137 @@ next_line:
 		if (!**args)
 			continue;
 
+		/* check for config macros */
+		if (*args[0] == '.') {
+			if (strcmp(args[0], ".if") == 0) {
+				nested_cond_lvl++;
+				if (nested_cond_lvl >= MAXNESTEDCONDS) {
+					ha_alert("parsing [%s:%d]: too many nested '.if', max is %d.\n", file, linenum, MAXNESTEDCONDS);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					goto err;
+				}
+
+				if (nested_conds[nested_cond_lvl - 1] == NESTED_COND_IF_DROP ||
+				    nested_conds[nested_cond_lvl - 1] == NESTED_COND_IF_SKIP ||
+				    nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELIF_DROP ||
+				    nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELIF_SKIP ||
+				    nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELSE_DROP) {
+					nested_conds[nested_cond_lvl] = NESTED_COND_IF_SKIP;
+				} else if (!*args[1] || *args[1] == '0') {
+					/* empty = false */
+					nested_conds[nested_cond_lvl] = NESTED_COND_IF_DROP;
+				} else if (atoi(args[1]) > 0) {
+					/* true */
+					nested_conds[nested_cond_lvl] = NESTED_COND_IF_TAKE;
+				} else {
+					ha_alert("parsing [%s:%d]: unparsable conditional expression '%s'.\n", file, linenum, args[1]);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					goto err;
+				}
+				goto next_line;
+			}
+			else if (strcmp(args[0], ".elif") == 0) {
+				if (!nested_cond_lvl) {
+					ha_alert("parsing [%s:%d]: lone '.elif' with no matching '.if'.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					goto err;
+				}
+
+				if (nested_conds[nested_cond_lvl] == NESTED_COND_ELSE_TAKE ||
+				    nested_conds[nested_cond_lvl] == NESTED_COND_ELSE_DROP) {
+					ha_alert("parsing [%s:%d]: '.elif' after '.else' is not permitted.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					goto err;
+				}
+
+				if (nested_conds[nested_cond_lvl] == NESTED_COND_IF_TAKE ||
+				    nested_conds[nested_cond_lvl] == NESTED_COND_IF_SKIP ||
+				    nested_conds[nested_cond_lvl] == NESTED_COND_ELIF_SKIP) {
+					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_SKIP;
+				} else if (!*args[1] || *args[1] == '0') {
+					/* empty = false */
+					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_DROP;
+				} else if (atoi(args[1]) > 0) {
+					/* true */
+					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_TAKE;
+				} else {
+					ha_alert("parsing [%s:%d]: unparsable conditional expression '%s'.\n", file, linenum, args[1]);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					goto err;
+				}
+				goto next_line;
+			}
+			else if (strcmp(args[0], ".else") == 0) {
+				if (!nested_cond_lvl) {
+					ha_alert("parsing [%s:%d]: lone '.else' with no matching '.if'.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					goto err;
+				}
+
+				if (nested_conds[nested_cond_lvl] == NESTED_COND_ELSE_TAKE ||
+				    nested_conds[nested_cond_lvl] == NESTED_COND_ELSE_DROP) {
+					ha_alert("parsing [%s:%d]: '.else' after '.else' is not permitted.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					goto err;
+				}
+
+				if (nested_conds[nested_cond_lvl] == NESTED_COND_IF_TAKE ||
+				    nested_conds[nested_cond_lvl] == NESTED_COND_IF_SKIP ||
+				    nested_conds[nested_cond_lvl] == NESTED_COND_ELIF_TAKE ||
+				    nested_conds[nested_cond_lvl] == NESTED_COND_ELIF_SKIP) {
+					nested_conds[nested_cond_lvl] = NESTED_COND_ELSE_DROP;
+				} else {
+					/* otherwise we take the "else" */
+					nested_conds[nested_cond_lvl] = NESTED_COND_ELSE_TAKE;
+				}
+				goto next_line;
+			}
+			else if (strcmp(args[0], ".endif") == 0) {
+				if (!nested_cond_lvl) {
+					ha_alert("parsing [%s:%d]: lone '.endif' with no matching '.if'.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					fatal++;
+					break;
+				}
+				nested_cond_lvl--;
+				goto next_line;
+			}
+		}
+
+		if (nested_cond_lvl &&
+		    (nested_conds[nested_cond_lvl] == NESTED_COND_IF_DROP ||
+		     nested_conds[nested_cond_lvl] == NESTED_COND_IF_SKIP ||
+		     nested_conds[nested_cond_lvl] == NESTED_COND_ELIF_DROP ||
+		     nested_conds[nested_cond_lvl] == NESTED_COND_ELIF_SKIP ||
+		     nested_conds[nested_cond_lvl] == NESTED_COND_ELSE_DROP)) {
+			/* The current block is masked out by the conditions */
+			goto next_line;
+		}
+
+		/* .warning/.error/.notice */
+		if (*args[0] == '.') {
+			if (strcmp(args[0], ".alert") == 0) {
+				ha_alert("parsing [%s:%d]: '%s'.\n", file, linenum, args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+				goto err;
+			}
+			else if (strcmp(args[0], ".warning") == 0) {
+				ha_warning("parsing [%s:%d]: '%s'.\n", file, linenum, args[1]);
+				err_code |= ERR_WARN;
+				goto next_line;
+			}
+			else if (strcmp(args[0], ".notice") == 0) {
+				ha_notice("parsing [%s:%d]: '%s'.\n", file, linenum, args[1]);
+				goto next_line;
+			}
+			else {
+				ha_alert("parsing [%s:%d]: unknown directive '%s'.\n", file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				fatal++;
+				break;
+			}
+		}
+
 		/* check for keyword modifiers "no" and "default" */
 		if (strcmp(args[0], "no") == 0) {
 			char *tmp;
@@ -2046,6 +2196,10 @@ next_line:
 	if (cs && cs->post_section_parser)
 		err_code |= cs->post_section_parser();
 
+	if (nested_cond_lvl) {
+		ha_alert("parsing [%s:%d]: non-terminated '.if' block.\n", file, linenum);
+		err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+	}
 err:
 	free(cfg_scope);
 	cfg_scope = NULL;
