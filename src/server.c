@@ -51,7 +51,7 @@ static void srv_update_status(struct server *s);
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static int srv_set_fqdn(struct server *srv, const char *fqdn, int resolv_locked);
-static int srv_state_parse_line(char *buf, const int version, char **params, char **srv_params);
+static int srv_state_parse_line(char *buf, const int version, char **params);
 static int srv_state_get_version(FILE *f);
 static void srv_cleanup_connections(struct server *srv);
 static const char *update_server_check_addr_port(struct server *s, const char *addr,
@@ -3071,13 +3071,13 @@ static int srv_state_get_version(FILE *f) {
 
 /*
  * parses server state line stored in <buf> and supposedly in version <version>.
- * Set <params> and <srv_params> accordingly on success. It returns 1 on
- * success, 0 if the line must be ignored and -1 on error.
+ * Set <params> accordingly on success. It returns 1 on success, 0 if the line
+ * must be ignored and -1 on error.
  * The caller must provide a supported version
  */
-static int srv_state_parse_line(char *buf, const int version, char **params, char **srv_params)
+static int srv_state_parse_line(char *buf, const int version, char **params)
 {
-	int buflen, arg, srv_arg, ret;
+	int buflen, arg, ret;
 	char *cur;
 
 	buflen = strlen(buf);
@@ -3103,11 +3103,9 @@ static int srv_state_parse_line(char *buf, const int version, char **params, cha
 	/* Removes trailing '\n' to ease parsing */
 	buf[buflen - 1] = '\0';
 
-	/* we're now ready to move the line into <params> and <srv_params> */
+	/* we're now ready to move the line into <params> */
 	memset(params, 0, SRV_STATE_FILE_MAX_FIELDS * sizeof(*params));
-	memset(srv_params, 0, SRV_STATE_FILE_MAX_FIELDS * sizeof(*srv_params));
 	arg = 0;
-	srv_arg = 0;
 	while (*cur) {
 		/* first of all, stop if there are too many fields */
 		if (arg >= SRV_STATE_FILE_MAX_FIELDS)
@@ -3120,32 +3118,37 @@ static int srv_state_parse_line(char *buf, const int version, char **params, cha
 				break;
 		}
 
-		/* v1
-		 * srv_addr:             params[4]  => srv_params[0]
-		 * srv_op_state:         params[5]  => srv_params[1]
-		 * srv_admin_state:      params[6]  => srv_params[2]
-		 * srv_uweight:          params[7]  => srv_params[3]
-		 * srv_iweight:          params[8]  => srv_params[4]
-		 * srv_last_time_change: params[9]  => srv_params[5]
-		 * srv_check_status:     params[10] => srv_params[6]
-		 * srv_check_result:     params[11] => srv_params[7]
-		 * srv_check_health:     params[12] => srv_params[8]
-		 * srv_check_state:      params[13] => srv_params[9]
-		 * srv_agent_state:      params[14] => srv_params[10]
-		 * bk_f_forced_id:       params[15] => srv_params[11]
-		 * srv_f_forced_id:      params[16] => srv_params[12]
-		 * srv_fqdn:             params[17] => srv_params[13]
-		 * srv_port:             params[18] => srv_params[14]
-		 * srvrecord:            params[19] => srv_params[15]
+		/*
+		 * idx:
+		 *   be_id:                params[0]
+		 *   be_name:              params[1]
+		 *   srv_id:               params[2]
+		 *   srv_name:             params[3]
+		 * v1
+		 *   srv_addr:             params[4]
+		 *   srv_op_state:         params[5]
+		 *   srv_admin_state:      params[6]
+		 *   srv_uweight:          params[7]
+		 *   srv_iweight:          params[8]
+		 *   srv_last_time_change: params[9]
+		 *   srv_check_status:     params[10]
+		 *   srv_check_result:     params[11]
+		 *   srv_check_health:     params[12]
+		 *   srv_check_state:      params[13]
+		 *   srv_agent_state:      params[14]
+		 *   bk_f_forced_id:       params[15]
+		 *   srv_f_forced_id:      params[16]
+		 *   srv_fqdn:             params[17]
+		 *   srv_port:             params[18]
+		 *   srvrecord:            params[19]
 		 *
-		 * srv_use_ssl:          params[20] => srv_params[16] (optional field)
-		 * srv_check_port:       params[21] => srv_params[17] (optional field)
-		 * srv_check_addr:       params[22] => srv_params[18] (optional field)
-		 * srv_agent_addr:       params[23] => srv_params[19] (optional field)
-		 * srv_agent_port:       params[24] => srv_params[20] (optional field)
+		 *   srv_use_ssl:          params[20]  (optional field)
+		 *   srv_check_port:       params[21]  (optional field)
+		 *   srv_check_addr:       params[22]  (optional field)
+		 *   srv_agent_addr:       params[23]  (optional field)
+		 *   srv_agent_port:       params[24]  (optional field)
+		 *
 		 */
-		if (arg >= 4)
-			srv_params[srv_arg++] = cur;
 		params[arg++] = cur;
 
 		/* look for the end of the current field */
@@ -3188,7 +3191,6 @@ void apply_server_state(void)
 {
 	char mybuf[SRV_STATE_LINE_MAXLEN];
 	char *params[SRV_STATE_FILE_MAX_FIELDS] = {0};
-	char *srv_params[SRV_STATE_FILE_MAX_FIELDS] = {0};
 	int version, global_file_version;
 	FILE *f;
 	char globalfilepath[MAXPATHLEN + 1];
@@ -3272,7 +3274,7 @@ void apply_server_state(void)
 			if (line == NULL)
 				continue;
 
-			ret = srv_state_parse_line(mybuf, global_file_version, params, srv_params);
+			ret = srv_state_parse_line(mybuf, global_file_version, params);
 			if (ret <= 0)
 				goto nextline;
 
@@ -3407,11 +3409,11 @@ void apply_server_state(void)
 				memcpy(mybuf, st->line, strlen(st->line));
 				mybuf[strlen(st->line)] = 0;
 
-				ret = srv_state_parse_line(mybuf, global_file_version, params, srv_params);
+				ret = srv_state_parse_line(mybuf, global_file_version, params);
 				if (ret <= 0)
 					goto next;
 
-				srv_update_state(srv, global_file_version, srv_params);
+				srv_update_state(srv, global_file_version, params+4);
 
  next:
 				srv = srv->next;
@@ -3443,7 +3445,7 @@ void apply_server_state(void)
 				int check_name = 0;
 				int ret;
 
-				ret = srv_state_parse_line(mybuf, version, params, srv_params);
+				ret = srv_state_parse_line(mybuf, version, params);
 				if (ret <= 0)
 					continue;
 
@@ -3488,7 +3490,7 @@ void apply_server_state(void)
 				}
 
 				/* now we can proceed with server's state update */
-				srv_update_state(srv, version, srv_params);
+				srv_update_state(srv, version, params+4);
 			}
 
 			fileclose:
