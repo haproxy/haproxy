@@ -648,7 +648,7 @@ error:
 	return -1;
 }
 
-int proxy_parse_external_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_external_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 				   const char *file, int line)
 {
 	int err_code = 0;

@@ -35,7 +35,7 @@ int proxy_parse_extcheck(char **args, int section, struct proxy *curpx,
                          struct proxy *defpx, const char *file, int line,
                          char **errmsg);
 
-int proxy_parse_external_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_external_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
                                    const char *file, int line);
 
 
