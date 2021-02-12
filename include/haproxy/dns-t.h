@@ -36,6 +36,9 @@
 /* DNS header size */
 #define DNS_HEADER_SIZE  ((int)sizeof(struct dns_header))
 
+/* max pending requests per stream */
+#define DNS_STREAM_MAX_PIPELINED_REQ	4
+
 #define DNS_TCP_MSG_MAX_SIZE 65535
 #define DNS_TCP_MSG_RING_MAX_SIZE (1 + 1 + 3 + DNS_TCP_MSG_MAX_SIZE) // varint_bytes(DNS_TCP_MSG_MAX_SIZE) == 3
 
@@ -70,10 +73,62 @@ struct dns_additional_record {
  * extension set (client subnet, tcp keepalive, etc...)*/
 } __attribute__ ((packed));
 
+/* Structure describing a name server used during name resolution.
+ * A name server belongs to a resolvers section.
+ */
+struct dns_stream_server {
+	struct server *srv;
+	struct ring *ring_req;
+	int max_slots;
+	int maxconn;
+	int idle_conns;
+	int cur_conns;
+	int max_active_conns;
+	size_t ofs_req;           // ring buffer reader offset
+	size_t ofs_rsp;           // ring buffer reader offset
+	struct task *task_req;    /* req conn management */
+	struct task *task_rsp;    /* rsp management */
+	struct task *task_idle;   /* handle idle sess */
+	struct list free_sess;
+	struct list idle_sess;
+	struct list wait_sess;
+	__decl_thread(HA_SPINLOCK_T lock); // lock to protect current struct
+};
+
 struct dns_dgram_server {
 	struct dgram_conn conn;  /* transport layer */
 	struct ring *ring_req;
 	size_t ofs_req;           // ring buffer reader offset
+};
+
+struct dns_query {
+	struct eb32_node qid;
+	uint16_t original_qid;
+	int expire;
+	struct list list;
+};
+
+struct dns_session {
+	struct appctx *appctx; // appctx of current session
+	struct dns_stream_server *dss;
+	uint16_t tx_msg_offset;
+	int nb_queries;
+	int onfly_queries;
+	int query_counter;
+	struct list list;
+	struct list waiter;
+	struct list queries;
+	struct task *task_exp;
+	struct eb_root query_ids; /* tree to quickly lookup/retrieve query ids currently in use */
+	size_t ofs;            // ring buffer reader offset
+	struct ring ring;
+	struct  {
+		uint16_t len;
+		uint16_t offset;
+		char *area;
+	} rx_msg;
+	unsigned char *tx_ring_area;
+	int shutdown;
 };
 
 /* Structure describing a name server
@@ -88,6 +143,7 @@ struct dns_nameserver {
 
 	int (*process_responses)(struct dns_nameserver *ns); /* callback used to process responses */
 	struct dns_dgram_server *dgram;  /* used for dgram dns */
+	struct dns_stream_server *stream; /* used for tcp dns */
 
 	EXTRA_COUNTERS(extra_counters);
 	struct dns_counters *counters;
