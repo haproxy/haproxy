@@ -284,7 +284,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		struct listener *l;
 		int cur_arg;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -435,7 +435,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "id") == 0) {
 		struct eb32_node *node;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n",
 				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -478,7 +478,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		int i, len=0;
 		char *d;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n",
 				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -531,7 +531,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->bind_proc = set;
 	}
 	else if (strcmp(args[0], "acl") == 0) {  /* add an ACL */
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -959,7 +959,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_WARN;
 
 		if (strcmp(args[1], "cookie") == 0) {  /* name of a cookie to capture */
-			if (curproxy == &defproxy) {
+			if (curproxy->cap & PR_CAP_DEF) {
 				ha_alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -983,7 +983,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		else if (strcmp(args[1], "request") == 0 && strcmp(args[2], "header") == 0) {
 			struct cap_hdr *hdr;
 
-			if (curproxy == &defproxy) {
+			if (curproxy->cap & PR_CAP_DEF) {
 				ha_alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -1012,7 +1012,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		else if (strcmp(args[1], "response") == 0 && strcmp(args[2], "header") == 0) {
 			struct cap_hdr *hdr;
 
-			if (curproxy == &defproxy) {
+			if (curproxy->cap & PR_CAP_DEF) {
 				ha_alert("parsing [%s:%d] : '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -1062,7 +1062,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "http-request") == 0) {	/* request access control: allow/deny/auth */
 		struct act_rule *rule;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1093,7 +1093,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "http-response") == 0) {	/* response access control */
 		struct act_rule *rule;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1123,7 +1123,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "http-after-response") == 0) {
 		struct act_rule *rule;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1177,7 +1177,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *rule;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1199,7 +1199,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "use_backend") == 0) {
 		struct switching_rule *rule;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1254,7 +1254,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "use-server") == 0) {
 		struct server_rule *rule;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1298,7 +1298,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		 (strcmp(args[0], "ignore-persist") == 0)) {
 		struct persist_rule *rule;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1339,7 +1339,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "stick-table") == 0) {
 		struct stktable *other;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : 'stick-table' is not supported in 'defaults' section.\n",
 				 file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -1390,7 +1390,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		const char *name = NULL;
 		int flags;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -1498,7 +1498,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			LIST_ADDQ(&curproxy->sticking_rules, &rule->list);
 	}
 	else if (strcmp(args[0], "stats") == 0) {
-		if (curproxy != &defproxy && curproxy->uri_auth == defproxy.uri_auth)
+		if (!(curproxy->cap & PR_CAP_DEF) && curproxy->uri_auth == defproxy.uri_auth)
 			curproxy->uri_auth = NULL; /* we must detach from the default config */
 
 		if (!*args[1]) {
@@ -1506,7 +1506,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		} else if (strcmp(args[1], "admin") == 0) {
 			struct stats_admin_rule *rule;
 
-			if (curproxy == &defproxy) {
+			if (curproxy->cap & PR_CAP_DEF) {
 				ha_alert("parsing [%s:%d]: '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -1588,7 +1588,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		} else if (strcmp(args[1], "http-request") == 0) {    /* request access control: allow/deny/auth */
 			struct act_rule *rule;
 
-			if (curproxy == &defproxy) {
+			if (curproxy->cap & PR_CAP_DEF) {
 				ha_alert("parsing [%s:%d]: '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
@@ -1928,7 +1928,7 @@ stats_error_parsing:
 				if (alertif_too_many_args_idx(1, 1, file, linenum, args, &err_code))
 					goto out;
 			}
-			if (curproxy->conf.logformat_string && curproxy == &defproxy) {
+			if (curproxy->conf.logformat_string && curproxy->cap & PR_CAP_DEF) {
 				char *oldlogformat = "log-format";
 				char *clflogformat = "";
 
@@ -1953,14 +1953,14 @@ stats_error_parsing:
 			curproxy->conf.lfs_file = strdup(curproxy->conf.args.file);
 			curproxy->conf.lfs_line = curproxy->conf.args.line;
 
-			if (curproxy != &defproxy && !(curproxy->cap & PR_CAP_FE)) {
+			if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
 				ha_warning("parsing [%s:%d] : backend '%s' : 'option httplog' directive is ignored in backends.\n",
 					file, linenum, curproxy->id);
 				err_code |= ERR_WARN;
 			}
 		}
 		else if (strcmp(args[1], "tcplog") == 0) {
-			if (curproxy->conf.logformat_string && curproxy == &defproxy) {
+			if (curproxy->conf.logformat_string && curproxy->cap & PR_CAP_DEF) {
 				char *oldlogformat = "log-format";
 
 				if (curproxy->conf.logformat_string == default_http_log_format)
@@ -1986,7 +1986,7 @@ stats_error_parsing:
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
 
-			if (curproxy != &defproxy && !(curproxy->cap & PR_CAP_FE)) {
+			if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
 				ha_warning("parsing [%s:%d] : backend '%s' : 'option tcplog' directive is ignored in backends.\n",
 					file, linenum, curproxy->id);
 				err_code |= ERR_WARN;
@@ -2220,7 +2220,7 @@ stats_error_parsing:
 		}
 	}
 	else if (strcmp(args[0], "monitor") == 0) {
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -2336,7 +2336,7 @@ stats_error_parsing:
 		struct sockaddr_storage *sk;
 		int port1, port2;
 
-		if (curproxy == &defproxy) {
+		if (curproxy->cap & PR_CAP_DEF) {
 			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -2498,7 +2498,7 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		if (curproxy->conf.logformat_string && curproxy == &defproxy) {
+		if (curproxy->conf.logformat_string && curproxy->cap & PR_CAP_DEF) {
 			char *oldlogformat = "log-format";
 
 			if (curproxy->conf.logformat_string == default_http_log_format)
@@ -2523,7 +2523,7 @@ stats_error_parsing:
 		/* get a chance to improve log-format error reporting by
 		 * reporting the correct line-number when possible.
 		 */
-		if (curproxy != &defproxy && !(curproxy->cap & PR_CAP_FE)) {
+		if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
 			ha_warning("parsing [%s:%d] : backend '%s' : 'log-format' directive is ignored in backends.\n",
 				   file, linenum, curproxy->id);
 			err_code |= ERR_WARN;
@@ -2552,7 +2552,7 @@ stats_error_parsing:
 		/* get a chance to improve log-format-sd error reporting by
 		 * reporting the correct line-number when possible.
 		 */
-		if (curproxy != &defproxy && !(curproxy->cap & PR_CAP_FE)) {
+		if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
 			ha_warning("parsing [%s:%d] : backend '%s' : 'log-format-sd' directive is ignored in backends.\n",
 				   file, linenum, curproxy->id);
 			err_code |= ERR_WARN;
