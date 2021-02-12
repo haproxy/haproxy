@@ -1037,6 +1037,11 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->filter_configs);
 	LIST_INIT(&p->tcpcheck_rules.preset_vars);
 
+	p->defsrv.id = "default-server";
+	p->conf.used_listener_id = EB_ROOT;
+	p->conf.used_server_id   = EB_ROOT;
+	p->used_server_addr      = EB_ROOT_UNIQUE;
+
 	/* Timeouts are defined as -1 */
 	proxy_reset_timeouts(p);
 	p->tcp_rep.inspect_delay = TICK_ETERNITY;
@@ -1097,7 +1102,8 @@ void proxy_preset_defaults(struct proxy *defproxy)
 /* Allocates a new proxy <name> of type <cap> found at position <file:linenum>,
  * preset it from the defaults of <defproxy> and returns it. Un case of error,
  * an alert is printed and NULL is returned. If <errmsg> is not NULL, an error
- * message will be returned there in case of fatal error.
+ * message will be returned there in case of fatal error. If <defproxy> is NULL,
+ * the documented default settings will be used instead.
  */
 struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *file, int linenum, const struct proxy *defproxy, char **errmsg)
 {
@@ -1118,9 +1124,13 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *fi
 	curproxy->cap = cap;
 	proxy_store_name(curproxy);
 
-	/* set default values */
+	if (!defproxy) {
+		proxy_preset_defaults(curproxy);
+		goto done;
+	}
+
+	/* set default values from the specified default proxy */
 	memcpy(&curproxy->defsrv, &defproxy->defsrv, sizeof(curproxy->defsrv));
-	curproxy->defsrv.id = "default-server";
 
 	curproxy->disabled = defproxy->disabled;
 	curproxy->options = defproxy->options;
@@ -1334,9 +1344,6 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *fi
 	}
 
 	curproxy->grace  = defproxy->grace;
-	curproxy->conf.used_listener_id = EB_ROOT;
-	curproxy->conf.used_server_id = EB_ROOT;
-	curproxy->used_server_addr = EB_ROOT_UNIQUE;
 
 	if (defproxy->check_path)
 		curproxy->check_path = strdup(defproxy->check_path);
@@ -1353,6 +1360,8 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *fi
 		curproxy->email_alert.myhostname = strdup(defproxy->email_alert.myhostname);
 	curproxy->email_alert.level = defproxy->email_alert.level;
 	curproxy->email_alert.set = defproxy->email_alert.set;
+
+ done:
 	return curproxy;
  fail:
 	/* Note: in case of fatal error here, we WILL make valgrind unhappy,
