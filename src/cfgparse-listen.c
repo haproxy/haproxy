@@ -189,8 +189,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 	if (rc != PR_CAP_NONE) {  /* new proxy */
 		if (!*args[1]) {
-			ha_alert("parsing [%s:%d] : '%s' expects an <id> argument and\n"
-				 "  optionally supports [addr1]:port1[-end1]{,[addr]:port[-end]}...\n",
+			ha_alert("parsing [%s:%d] : '%s' expects an <id> argument\n",
 				 file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
