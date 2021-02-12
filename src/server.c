@@ -3372,10 +3372,10 @@ void apply_server_state(void)
 					localfilepathlen += len;
 					localfilepath[localfilepathlen++] = 0;
 				}
-				filepath = localfilepath;
  localfileerror:
 				if (localfilepathlen == 0)
-					localfilepath[0] = '\0';
+					continue;
+				filepath = localfilepath;
 
 				break;
 			case PR_SRV_STATE_FILE_NONE:
