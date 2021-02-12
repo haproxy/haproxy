@@ -89,6 +89,9 @@
 #define PEER_RECONNECT_TIMEOUT      5000 /* 5 seconds */
 #define PEER_HEARTBEAT_TIMEOUT      3000 /* 3 seconds */
 
+/* flags for "show peers" */
+#define PEERS_SHOW_F_DICT           0x00000001 /* also show the contents of the dictionary */
+
 /*****************************/
 /* Sync message class        */
 /*****************************/
@@ -3313,6 +3316,13 @@ static int cli_parse_show_peers(char **args, char *payload, struct appctx *appct
 {
 	appctx->ctx.cfgpeers.target = NULL;
 
+	if (strcmp(args[2], "dict") == 0) {
+		/* show the dictionaries (large dump) */
+		appctx->ctx.cfgpeers.flags |= PEERS_SHOW_F_DICT;
+		args++;
+	} else if (strcmp(args[2], "-") == 0)
+		args++; // allows to show a section called "dict"
+
 	if (*args[2]) {
 		struct peers *p;
 
@@ -3364,7 +3374,7 @@ static int peers_dump_head(struct buffer *msg, struct stream_interface *si, stru
  * Returns 0 if the output buffer is full and needs to be called again, non-zero
  * if not. Dedicated to be called by cli_io_handler_show_peers() cli I/O handler.
  */
-static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, struct peer *peer)
+static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, struct peer *peer, int flags)
 {
 	struct connection *conn;
 	char pn[INET6_ADDRSTRLEN];
@@ -3480,31 +3490,35 @@ static int peers_dump_peer(struct buffer *msg, struct stream_interface *si, stru
 			chunk_appendf(&trash, "\n              table:%p id=%s update=%u localupdate=%u"
 			              " commitupdate=%u syncing=%u",
 			              t, t->id, t->update, t->localupdate, t->commitupdate, t->syncing);
-			chunk_appendf(&trash, "\n        TX dictionary cache:");
-			count = 0;
-			for (i = 0; i < dcache->max_entries; i++) {
-				struct ebpt_node *node;
-				struct dict_entry *de;
+			if (flags & PEERS_SHOW_F_DICT) {
+				chunk_appendf(&trash, "\n        TX dictionary cache:");
+				count = 0;
+				for (i = 0; i < dcache->max_entries; i++) {
+					struct ebpt_node *node;
+					struct dict_entry *de;
 
-				node = &dcache->tx->entries[i];
-				if (!node->key)
-					break;
+					node = &dcache->tx->entries[i];
+					if (!node->key)
+						break;
 
-				if (!count++)
-					chunk_appendf(&trash, "\n        ");
-				de = node->key;
-				chunk_appendf(&trash, "  %3u -> %s", i, (char *)de->value.key);
-				count &= 0x3;
-			}
-			chunk_appendf(&trash, "\n        RX dictionary cache:");
-			count = 0;
-			for (i = 0; i < dcache->max_entries; i++) {
-				if (!count++)
-					chunk_appendf(&trash, "\n        ");
-				chunk_appendf(&trash, "  %3u -> %s", i,
-				              dcache->rx[i].de ?
-				                  (char *)dcache->rx[i].de->value.key : "-");
-				count &= 0x3;
+					if (!count++)
+						chunk_appendf(&trash, "\n        ");
+					de = node->key;
+					chunk_appendf(&trash, "  %3u -> %s", i, (char *)de->value.key);
+					count &= 0x3;
+				}
+				chunk_appendf(&trash, "\n        RX dictionary cache:");
+				count = 0;
+				for (i = 0; i < dcache->max_entries; i++) {
+					if (!count++)
+						chunk_appendf(&trash, "\n        ");
+					chunk_appendf(&trash, "  %3u -> %s", i,
+						      dcache->rx[i].de ?
+						      (char *)dcache->rx[i].de->value.key : "-");
+					count &= 0x3;
+				}
+			} else {
+				chunk_appendf(&trash, "\n        Dictionary cache not dumped (use \"show peers dict\")");
 			}
 		}
 	}
@@ -3576,7 +3590,7 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
 					appctx->st2 = STAT_ST_END;
 			}
 			else {
-				if (!peers_dump_peer(&trash, si, appctx->ctx.cfgpeers.peer))
+				if (!peers_dump_peer(&trash, si, appctx->ctx.cfgpeers.peer, appctx->ctx.cfgpeers.flags))
 					goto out;
 
 				appctx->ctx.cfgpeers.peer = appctx->ctx.cfgpeers.peer->next;

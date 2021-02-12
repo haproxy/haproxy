@@ -171,6 +171,7 @@ struct appctx {
 			void *target;
 			struct peers *peers; /* "peers" section being currently dumped. */
 			struct peer *peer;   /* "peer" being currently dumped. */
+			int flags;           /* non-zero if "dict" dump requested */
 		} cfgpeers;
 		struct {
 			char *path;

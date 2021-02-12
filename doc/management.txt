@@ -2259,11 +2259,13 @@ show map [<map>]
   are not directly a list of available maps, but are the list of all patterns
   composing any map. Many of these patterns can be shared with ACL.
 
-show peers [<peers section>]
+show peers [dict|-] [<peers section>]
   Dump info about the peers configured in "peers" sections. Without argument,
   the list of the peers belonging to all the "peers" sections are listed. If
   <peers section> is specified, only the information about the peers belonging
-  to this "peers" section are dumped.
+  to this "peers" section are dumped. When "dict" is specified before the peers
+  section name, the entire Tx/Rx dictionary caches will also be dumped (very
+  large). Passing "-" may be required to dump a peers section called "dict".
 
   Here are two examples of outputs where hostA, hostB and hostC peers belong to
   "sharedlb" peers sections. Only hostA and hostB are connected. Only hostA has
