@@ -30,6 +30,7 @@
 #include <haproxy/filters.h>
 #include <haproxy/global.h>
 #include <haproxy/http_ana.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
 #include <haproxy/obj_type-t.h>
@@ -44,6 +45,7 @@
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
+#include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
 
 
@@ -1090,6 +1092,276 @@ void proxy_preset_defaults(struct proxy *defproxy)
 #if defined(USE_QUIC)
 	quic_transport_params_init(&defproxy->defsrv.quic_params, 0);
 #endif
+}
+
+/* Allocates a new proxy <name> of type <cap> found at position <file:linenum>,
+ * preset it from the defaults of <defproxy> and returns it. Un case of error,
+ * an alert is printed and NULL is returned. If <errmsg> is not NULL, an error
+ * message will be returned there in case of fatal error.
+ */
+struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *file, int linenum, const struct proxy *defproxy, char **errmsg)
+{
+	struct logsrv *tmplogsrv;
+	struct proxy *curproxy;
+	char *tmpmsg = NULL;
+
+	if ((curproxy = calloc(1, sizeof(*curproxy))) == NULL) {
+		memprintf(errmsg, "proxy '%s': out of memory", name);
+		goto fail;
+	}
+
+	init_new_proxy(curproxy);
+	curproxy->conf.args.file = curproxy->conf.file = strdup(file);
+	curproxy->conf.args.line = curproxy->conf.line = linenum;
+	curproxy->last_change = now.tv_sec;
+	curproxy->id = strdup(name);
+	curproxy->cap = cap;
+	proxy_store_name(curproxy);
+
+	/* set default values */
+	memcpy(&curproxy->defsrv, &defproxy->defsrv, sizeof(curproxy->defsrv));
+	curproxy->defsrv.id = "default-server";
+
+	curproxy->disabled = defproxy->disabled;
+	curproxy->options = defproxy->options;
+	curproxy->options2 = defproxy->options2;
+	curproxy->no_options = defproxy->no_options;
+	curproxy->no_options2 = defproxy->no_options2;
+	curproxy->bind_proc = defproxy->bind_proc;
+	curproxy->except_net = defproxy->except_net;
+	curproxy->except_mask = defproxy->except_mask;
+	curproxy->except_to = defproxy->except_to;
+	curproxy->except_mask_to = defproxy->except_mask_to;
+	curproxy->retry_type = defproxy->retry_type;
+
+	if (defproxy->fwdfor_hdr_len) {
+		curproxy->fwdfor_hdr_len  = defproxy->fwdfor_hdr_len;
+		curproxy->fwdfor_hdr_name = strdup(defproxy->fwdfor_hdr_name);
+	}
+
+	if (defproxy->orgto_hdr_len) {
+		curproxy->orgto_hdr_len  = defproxy->orgto_hdr_len;
+		curproxy->orgto_hdr_name = strdup(defproxy->orgto_hdr_name);
+	}
+
+	if (defproxy->server_id_hdr_len) {
+		curproxy->server_id_hdr_len  = defproxy->server_id_hdr_len;
+		curproxy->server_id_hdr_name = strdup(defproxy->server_id_hdr_name);
+	}
+
+	/* initialize error relocations */
+	if (!proxy_dup_default_conf_errors(curproxy, defproxy, &tmpmsg)) {
+		memprintf(errmsg, "proxy '%s' : %s", curproxy->id, tmpmsg);
+		goto fail;
+	}
+
+	if (curproxy->cap & PR_CAP_FE) {
+		curproxy->maxconn = defproxy->maxconn;
+		curproxy->backlog = defproxy->backlog;
+		curproxy->fe_sps_lim = defproxy->fe_sps_lim;
+
+		curproxy->to_log = defproxy->to_log & ~LW_COOKIE & ~LW_REQHDR & ~ LW_RSPHDR;
+		curproxy->max_out_conns = defproxy->max_out_conns;
+
+		curproxy->clitcpka_cnt   = defproxy->clitcpka_cnt;
+		curproxy->clitcpka_idle  = defproxy->clitcpka_idle;
+		curproxy->clitcpka_intvl = defproxy->clitcpka_intvl;
+	}
+
+	if (curproxy->cap & PR_CAP_BE) {
+		curproxy->lbprm.algo = defproxy->lbprm.algo;
+		curproxy->lbprm.hash_balance_factor = defproxy->lbprm.hash_balance_factor;
+		curproxy->fullconn = defproxy->fullconn;
+		curproxy->conn_retries = defproxy->conn_retries;
+		curproxy->redispatch_after = defproxy->redispatch_after;
+		curproxy->max_ka_queue = defproxy->max_ka_queue;
+
+		curproxy->tcpcheck_rules.flags = (defproxy->tcpcheck_rules.flags & ~TCPCHK_RULES_UNUSED_RS);
+		curproxy->tcpcheck_rules.list  = defproxy->tcpcheck_rules.list;
+		if (!LIST_ISEMPTY(&defproxy->tcpcheck_rules.preset_vars)) {
+			if (!dup_tcpcheck_vars(&curproxy->tcpcheck_rules.preset_vars,
+					       &defproxy->tcpcheck_rules.preset_vars)) {
+				memprintf(errmsg, "proxy '%s': failed to duplicate tcpcheck preset-vars", name);
+				goto fail;
+			}
+		}
+
+		curproxy->ck_opts = defproxy->ck_opts;
+		if (defproxy->cookie_name)
+			curproxy->cookie_name = strdup(defproxy->cookie_name);
+		curproxy->cookie_len = defproxy->cookie_len;
+
+		if (defproxy->dyncookie_key)
+			curproxy->dyncookie_key = strdup(defproxy->dyncookie_key);
+		if (defproxy->cookie_domain)
+			curproxy->cookie_domain = strdup(defproxy->cookie_domain);
+
+		if (defproxy->cookie_maxidle)
+			curproxy->cookie_maxidle = defproxy->cookie_maxidle;
+
+		if (defproxy->cookie_maxlife)
+			curproxy->cookie_maxlife = defproxy->cookie_maxlife;
+
+		if (defproxy->rdp_cookie_name)
+			curproxy->rdp_cookie_name = strdup(defproxy->rdp_cookie_name);
+		curproxy->rdp_cookie_len = defproxy->rdp_cookie_len;
+
+		if (defproxy->cookie_attrs)
+			curproxy->cookie_attrs = strdup(defproxy->cookie_attrs);
+
+		if (defproxy->lbprm.arg_str)
+			curproxy->lbprm.arg_str = strdup(defproxy->lbprm.arg_str);
+		curproxy->lbprm.arg_len  = defproxy->lbprm.arg_len;
+		curproxy->lbprm.arg_opt1 = defproxy->lbprm.arg_opt1;
+		curproxy->lbprm.arg_opt2 = defproxy->lbprm.arg_opt2;
+		curproxy->lbprm.arg_opt3 = defproxy->lbprm.arg_opt3;
+
+		if (defproxy->conn_src.iface_name)
+			curproxy->conn_src.iface_name = strdup(defproxy->conn_src.iface_name);
+		curproxy->conn_src.iface_len = defproxy->conn_src.iface_len;
+		curproxy->conn_src.opts = defproxy->conn_src.opts;
+#if defined(CONFIG_HAP_TRANSPARENT)
+		curproxy->conn_src.tproxy_addr = defproxy->conn_src.tproxy_addr;
+#endif
+		curproxy->load_server_state_from_file = defproxy->load_server_state_from_file;
+
+		curproxy->srvtcpka_cnt   = defproxy->srvtcpka_cnt;
+		curproxy->srvtcpka_idle  = defproxy->srvtcpka_idle;
+		curproxy->srvtcpka_intvl = defproxy->srvtcpka_intvl;
+	}
+
+	if (curproxy->cap & PR_CAP_FE) {
+		if (defproxy->capture_name)
+			curproxy->capture_name = strdup(defproxy->capture_name);
+		curproxy->capture_namelen = defproxy->capture_namelen;
+		curproxy->capture_len = defproxy->capture_len;
+	}
+
+	if (curproxy->cap & PR_CAP_FE) {
+		curproxy->timeout.client = defproxy->timeout.client;
+		curproxy->timeout.clientfin = defproxy->timeout.clientfin;
+		curproxy->timeout.tarpit = defproxy->timeout.tarpit;
+		curproxy->timeout.httpreq = defproxy->timeout.httpreq;
+		curproxy->timeout.httpka = defproxy->timeout.httpka;
+		if (defproxy->monitor_uri)
+			curproxy->monitor_uri = strdup(defproxy->monitor_uri);
+		curproxy->monitor_uri_len = defproxy->monitor_uri_len;
+		if (defproxy->defbe.name)
+			curproxy->defbe.name = strdup(defproxy->defbe.name);
+
+		/* get either a pointer to the logformat string or a copy of it */
+		curproxy->conf.logformat_string = defproxy->conf.logformat_string;
+		if (curproxy->conf.logformat_string &&
+		    curproxy->conf.logformat_string != default_http_log_format &&
+		    curproxy->conf.logformat_string != default_tcp_log_format &&
+		    curproxy->conf.logformat_string != clf_http_log_format)
+			curproxy->conf.logformat_string = strdup(curproxy->conf.logformat_string);
+
+		if (defproxy->conf.lfs_file) {
+			curproxy->conf.lfs_file = strdup(defproxy->conf.lfs_file);
+			curproxy->conf.lfs_line = defproxy->conf.lfs_line;
+		}
+
+		/* get either a pointer to the logformat string for RFC5424 structured-data or a copy of it */
+		curproxy->conf.logformat_sd_string = defproxy->conf.logformat_sd_string;
+		if (curproxy->conf.logformat_sd_string &&
+		    curproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
+			curproxy->conf.logformat_sd_string = strdup(curproxy->conf.logformat_sd_string);
+
+		if (defproxy->conf.lfsd_file) {
+			curproxy->conf.lfsd_file = strdup(defproxy->conf.lfsd_file);
+			curproxy->conf.lfsd_line = defproxy->conf.lfsd_line;
+		}
+	}
+
+	if (curproxy->cap & PR_CAP_BE) {
+		curproxy->timeout.connect = defproxy->timeout.connect;
+		curproxy->timeout.server = defproxy->timeout.server;
+		curproxy->timeout.serverfin = defproxy->timeout.serverfin;
+		curproxy->timeout.check = defproxy->timeout.check;
+		curproxy->timeout.queue = defproxy->timeout.queue;
+		curproxy->timeout.tarpit = defproxy->timeout.tarpit;
+		curproxy->timeout.httpreq = defproxy->timeout.httpreq;
+		curproxy->timeout.httpka = defproxy->timeout.httpka;
+		curproxy->timeout.tunnel = defproxy->timeout.tunnel;
+		curproxy->conn_src.source_addr = defproxy->conn_src.source_addr;
+	}
+
+	curproxy->mode = defproxy->mode;
+	curproxy->uri_auth = defproxy->uri_auth; /* for stats */
+
+	/* copy default logsrvs to curproxy */
+	list_for_each_entry(tmplogsrv, &defproxy->logsrvs, list) {
+		struct logsrv *node = malloc(sizeof(*node));
+
+		if (!node) {
+			memprintf(errmsg, "proxy '%s': out of memory", name);
+			goto fail;
+		}
+		memcpy(node, tmplogsrv, sizeof(struct logsrv));
+		node->ref = tmplogsrv->ref;
+		LIST_INIT(&node->list);
+		LIST_ADDQ(&curproxy->logsrvs, &node->list);
+	}
+
+	curproxy->conf.uniqueid_format_string = defproxy->conf.uniqueid_format_string;
+	if (curproxy->conf.uniqueid_format_string)
+		curproxy->conf.uniqueid_format_string = strdup(curproxy->conf.uniqueid_format_string);
+
+	chunk_dup(&curproxy->log_tag, &defproxy->log_tag);
+
+	if (defproxy->conf.uif_file) {
+		curproxy->conf.uif_file = strdup(defproxy->conf.uif_file);
+		curproxy->conf.uif_line = defproxy->conf.uif_line;
+	}
+
+	/* copy default header unique id */
+	if (isttest(defproxy->header_unique_id)) {
+		const struct ist copy = istdup(defproxy->header_unique_id);
+
+		if (!isttest(copy)) {
+			memprintf(errmsg, "proxy '%s': out of memory for unique-id-header", name);
+			goto fail;
+		}
+		curproxy->header_unique_id = copy;
+	}
+
+	/* default compression options */
+	if (defproxy->comp != NULL) {
+		curproxy->comp = calloc(1, sizeof(*curproxy->comp));
+		curproxy->comp->algos = defproxy->comp->algos;
+		curproxy->comp->types = defproxy->comp->types;
+	}
+
+	curproxy->grace  = defproxy->grace;
+	curproxy->conf.used_listener_id = EB_ROOT;
+	curproxy->conf.used_server_id = EB_ROOT;
+	curproxy->used_server_addr = EB_ROOT_UNIQUE;
+
+	if (defproxy->check_path)
+		curproxy->check_path = strdup(defproxy->check_path);
+	if (defproxy->check_command)
+		curproxy->check_command = strdup(defproxy->check_command);
+
+	if (defproxy->email_alert.mailers.name)
+		curproxy->email_alert.mailers.name = strdup(defproxy->email_alert.mailers.name);
+	if (defproxy->email_alert.from)
+		curproxy->email_alert.from = strdup(defproxy->email_alert.from);
+	if (defproxy->email_alert.to)
+		curproxy->email_alert.to = strdup(defproxy->email_alert.to);
+	if (defproxy->email_alert.myhostname)
+		curproxy->email_alert.myhostname = strdup(defproxy->email_alert.myhostname);
+	curproxy->email_alert.level = defproxy->email_alert.level;
+	curproxy->email_alert.set = defproxy->email_alert.set;
+	return curproxy;
+ fail:
+	/* Note: in case of fatal error here, we WILL make valgrind unhappy,
+	 * but its not worth trying to unroll everything here just before
+	 * quitting.
+	 */
+	free(tmpmsg);
+	free(curproxy);
+	return NULL;
 }
 
 /* to be called under the proxy lock after stopping some listeners. This will
