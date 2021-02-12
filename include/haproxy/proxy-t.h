@@ -33,6 +33,7 @@
 #include <haproxy/api-t.h>
 #include <haproxy/arg-t.h>
 #include <haproxy/backend-t.h>
+#include <haproxy/compression-t.h>
 #include <haproxy/counters-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/obj_type-t.h>
