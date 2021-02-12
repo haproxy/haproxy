@@ -3172,6 +3172,35 @@ static int srv_state_parse_line(char *buf, const int version, char **params)
 	return ret;
 }
 
+/* Helper function to get the server-state file path.
+ * If <filename> starts with a '/', it is considered as an absolute path. In
+ * this case or if <global.server_state_base> is not set, <filename> only is
+ * considered. Otherwise, the <global.server_state_base> is concatenated to
+ * <filename> to produce the file path and copied to <dst_path>. in both cases,
+ * the result must not exceeds <maxpathlen>.
+ *
+ * The len is returned on success or -1 if the path is too long. On error, the
+ * caller must not rely on <dst_path>.
+ */
+static inline int srv_state_get_filepath(char *dst_path, int maxpathlen, const char *filename)
+{
+	char *sep = (global.server_state_base[strlen(global.server_state_base)-1] != '/' ? "/":  "");
+	int len = 0;
+
+	/* create the globalfilepath variable */
+	if (*filename == '/' || !global.server_state_base) {
+		/* absolute path or no base directory provided */
+		len = strlen(filename);
+		if (len < maxpathlen)
+			strcpy(dst_path, global.server_state_file);
+	}
+	else {
+		/* concat base directory and global server-state file */
+		len = snprintf(dst_path, maxpathlen, "%s%s%s", global.server_state_base, sep, filename);
+	}
+	return (len < maxpathlen ? len: -1);
+}
+
 
 /* This function parses all the proxies and only take care of the backends (since we're looking for server)
  * For each proxy, it does the following:
@@ -3189,326 +3218,210 @@ static int srv_state_parse_line(char *buf, const int version, char **params)
  */
 void apply_server_state(void)
 {
-	char mybuf[SRV_STATE_LINE_MAXLEN];
-	char *params[SRV_STATE_FILE_MAX_FIELDS] = {0};
-	int version, global_file_version;
-	FILE *f;
-	char globalfilepath[MAXPATHLEN + 1];
-	char localfilepath[MAXPATHLEN + 1];
-	int len, fileopenerr, globalfilepathlen, localfilepathlen;
-	struct proxy *curproxy, *bk;
+	struct proxy *curproxy;
 	struct server *srv;
-	char *line;
-	char *bkname, *srvname;
 	struct state_line *st;
 	struct ebmb_node *node, *next_node;
+	FILE *f;
+	char *params[SRV_STATE_FILE_MAX_FIELDS] = {0};
+	char mybuf[SRV_STATE_LINE_MAXLEN];
+	char file[MAXPATHLEN];
+	int local_vsn, global_vsn, len;
 
-	f = NULL;
-	global_file_version = 0;
-	globalfilepathlen = 0;
-	/* create the globalfilepath variable */
-	if (global.server_state_file) {
-		/* absolute path or no base directory provided */
-	        if ((global.server_state_file[0] == '/') || (!global.server_state_base)) {
-			len = strlen(global.server_state_file);
-			if (len > MAXPATHLEN) {
-				globalfilepathlen = 0;
-				goto globalfileerror;
-			}
-			memcpy(globalfilepath, global.server_state_file, len);
-			globalfilepath[len] = '\0';
-			globalfilepathlen = len;
-		}
-		else if (global.server_state_base) {
-			len = strlen(global.server_state_base);
-			if (len > MAXPATHLEN) {
-				globalfilepathlen = 0;
-				goto globalfileerror;
-			}
-			memcpy(globalfilepath, global.server_state_base, len);
-			globalfilepath[len] = 0;
-			globalfilepathlen = len;
-
-			/* append a slash if needed */
-			if (!globalfilepathlen || globalfilepath[globalfilepathlen - 1] != '/') {
-				if (globalfilepathlen + 1 > MAXPATHLEN) {
-					globalfilepathlen = 0;
-					goto globalfileerror;
-				}
-				globalfilepath[globalfilepathlen++] = '/';
-			}
-
-			len = strlen(global.server_state_file);
-			if (globalfilepathlen + len > MAXPATHLEN) {
-				globalfilepathlen = 0;
-				goto globalfileerror;
-			}
-			memcpy(globalfilepath + globalfilepathlen, global.server_state_file, len);
-			globalfilepathlen += len;
-			globalfilepath[globalfilepathlen++] = 0;
-		}
+	global_vsn = 0; /* no global file */
+	if (!global.server_state_file)
+		goto no_globalfile;
+	len = srv_state_get_filepath(file, MAXPATHLEN, global.server_state_file);
+	if (len == -1) {
+		ha_warning("config: Can't load global server state file: file too long.\n");
+		goto no_globalfile;
 	}
- globalfileerror:
-	if (globalfilepathlen == 0)
-		globalfilepath[0] = '\0';
 
 	/* Load global server state in a tree */
-	if (globalfilepathlen > 0) {
-		errno = 0;
-		f = fopen(globalfilepath, "r");
-		if (errno)
-			ha_warning("Can't open global server state file '%s': %s\n", globalfilepath, strerror(errno));
-		if (!f)
-			goto out_load_server_state_in_tree;
+	errno = 0;
+	f = fopen(file, "r");
+	if (!f) {
+		ha_warning("config: Can't open global server state file '%s': %s\n", file, strerror(errno));
+		goto no_globalfile;
+	}
 
-		global_file_version = srv_state_get_version(f);
-		if (global_file_version == 0)
-			goto out_load_server_state_in_tree;
+	global_vsn = srv_state_get_version(f);
+	if (global_vsn == 0) {
+		ha_warning("config: Can't get version of the global server state file '%s'.\n",
+			   file);
+		goto close_globalfile;
+	}
 
-		while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
-			int ret;
+	while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
+		char *line;
+		int ret;
 
-			line = NULL;
-
-			line = strdup(mybuf);
-			if (line == NULL)
-				continue;
-
-			ret = srv_state_parse_line(mybuf, global_file_version, params);
-			if (ret <= 0)
-				goto nextline;
-
-			/* bkname */
-			bkname = params[1];
-			/* srvname */
-			srvname = params[3];
-
-			/* key */
-			chunk_printf(&trash, "%s %s", bkname, srvname);
-
-			/* store line in tree */
-			st = calloc(1, sizeof(*st) + trash.data + 1);
-			if (st == NULL) {
-				goto nextline;
-			}
-			memcpy(st->name_name.key, trash.area, trash.data + 1);
-			if (ebst_insert(&state_file, &st->name_name) != &st->name_name) {
-				/* this is a duplicate key, probably a hand-crafted file,
-				 * drop it!
-				 */
-				goto nextline;
-			}
-
-			/* save line */
-			st->line = line;
-
+		/* Duplicate line before parsing */
+		line = strdup(mybuf);
+		if (line == NULL)
 			continue;
 
- nextline:
-			/* free up memory in case of error during the processing of the line */
-			free(line);
+		ret = srv_state_parse_line(mybuf, global_vsn, params);
+		if (ret <= 0)
+			goto nextline;
+
+		/* key : "be_name srv_name */
+		chunk_printf(&trash, "%s %s", params[1], params[3]);
+
+			/* store line in tree */
+		st = calloc(1, sizeof(*st) + trash.data + 1);
+		if (st == NULL) {
+			goto nextline;
 		}
-	}
- out_load_server_state_in_tree:
+		memcpy(st->name_name.key, trash.area, trash.data + 1);
+		if (ebst_insert(&state_file, &st->name_name) != &st->name_name) {
+			/* this is a duplicate key, probably a hand-crafted file,
+			 * drop it!
+			 */
+			free(st);
+			goto nextline;
+		}
 
-	if (f) {
-		fclose(f);
-		f = NULL;
+		/* save line */
+		st->line = line;
+		line = NULL;
+	  nextline:
+		/* free up memory in case of error during the processing of the line */
+		free(line);
 	}
+  close_globalfile:
+	fclose(f);
 
+  no_globalfile:
 	/* parse all proxies and load states form tree (global file) or from local file */
 	for (curproxy = proxies_list; curproxy != NULL; curproxy = curproxy->next) {
 		/* servers are only in backends */
 		if (!(curproxy->cap & PR_CAP_BE))
-			continue;
-		fileopenerr = 0;
+			continue; /* next proxy */
 
-		/* search server state file path and name */
-		switch (curproxy->load_server_state_from_file) {
-			/* read servers state from global file */
-			case PR_SRV_STATE_FILE_GLOBAL:
-				/* there was an error while generating global server state file path */
-				if (globalfilepathlen == 0)
-					continue;
-				fileopenerr = 1;
-				break;
-			/* this backend has its own file */
-			case PR_SRV_STATE_FILE_LOCAL:
-				localfilepathlen = 0;
-				localfilepath[0] = '\0';
-				len = 0;
-				/* create the localfilepath variable */
-				/* absolute path or no base directory provided */
-				if ((curproxy->server_state_file_name[0] == '/') || (!global.server_state_base)) {
-					len = strlen(curproxy->server_state_file_name);
-					if (len > MAXPATHLEN) {
-						localfilepathlen = 0;
-						goto localfileerror;
-					}
-					memcpy(localfilepath, curproxy->server_state_file_name, len);
-					localfilepath[len] = '\0';
-					localfilepathlen = len;
-				}
-				else if (global.server_state_base) {
-					len = strlen(global.server_state_base);
-					localfilepathlen += len;
+		/* No server-state file for this proxy */
+		if (curproxy->load_server_state_from_file == PR_SRV_STATE_FILE_NONE)
+			continue;  /* next proxy */
 
-					if (localfilepathlen > MAXPATHLEN) {
-						localfilepathlen = 0;
-						goto localfileerror;
-					}
-					memcpy(localfilepath, global.server_state_base, len);
-					localfilepath[localfilepathlen] = 0;
-
-					/* append a slash if needed */
-					if (!localfilepathlen || localfilepath[localfilepathlen - 1] != '/') {
-						if (localfilepathlen + 1 > MAXPATHLEN) {
-							localfilepathlen = 0;
-							goto localfileerror;
-						}
-						localfilepath[localfilepathlen++] = '/';
-					}
-
-					len = strlen(curproxy->server_state_file_name);
-					if (localfilepathlen + len > MAXPATHLEN) {
-						localfilepathlen = 0;
-						goto localfileerror;
-					}
-					memcpy(localfilepath + localfilepathlen, curproxy->server_state_file_name, len);
-					localfilepathlen += len;
-					localfilepath[localfilepathlen++] = 0;
-				}
- localfileerror:
-				if (localfilepathlen == 0)
-					continue;
-
-				break;
-			case PR_SRV_STATE_FILE_NONE:
-			default:
-				continue;
-		}
-
-		/* when global file is used, we get data from the tree
-		 * Note that in such case we don't check backend name neither uuid.
-		 * Backend name can't be wrong since it's used as a key to retrieve the server state
-		 * line from the tree.
-		 */
 		if (curproxy->load_server_state_from_file == PR_SRV_STATE_FILE_GLOBAL) {
-			struct server *srv = curproxy->srv;
-			while (srv) {
-				struct ebmb_node *node;
-				struct state_line *st;
+			/* when global file is used, we get data from the tree
+			 * Note that in such case we don't check backend name neither uuid.
+			 * Backend name can't be wrong since it's used as a key to retrieve the server state
+			 * line from the tree.
+			 */
+
+			/* there was an error while generating global server state file path */
+			if (global_vsn == 0)
+				continue; /* next proxy */
+
+			for (srv = curproxy->srv; srv; srv = srv->next) {
 				int ret;
 
 				chunk_printf(&trash, "%s %s", curproxy->id, srv->id);
 				node = ebst_lookup(&state_file, trash.area);
 				if (!node)
-					goto next;
+					continue; /* next server */
+				st = ebmb_entry(node, struct state_line, name_name);
+				strcpy(mybuf, st->line); /* st->line is always small enough */
 
-				st = container_of(node, struct state_line, name_name);
-				memcpy(mybuf, st->line, strlen(st->line));
-				mybuf[strlen(st->line)] = 0;
-
-				ret = srv_state_parse_line(mybuf, global_file_version, params);
+				ret = srv_state_parse_line(mybuf, global_vsn, params);
 				if (ret <= 0)
-					goto next;
+					continue; /* next server */
 
-				srv_update_state(srv, global_file_version, params+4);
-
- next:
-				srv = srv->next;
+				srv_update_state(srv, global_vsn, params+4);
 			}
 
-			continue; /* next proxy in list */
+			continue; /* next proxy */
 		}
-		else {
-			/* load 'local' state file */
-			errno = 0;
-			f = fopen(localfilepath, "r");
-			if (errno && fileopenerr)
-				ha_warning("Can't open server state file '%s': %s\n", localfilepath, strerror(errno));
-			if (!f)
+
+		/*
+		 * Here we load a local server state-file
+		 */
+
+		/* create file variable */
+		len = srv_state_get_filepath(file, MAXPATHLEN, curproxy->server_state_file_name);
+		if (len == -1) {
+			ha_warning("Proxy '%s': Can't load local server state file: file too long.\n", curproxy->id);
+			continue; /* next proxy */
+		}
+
+		/* Load local server state in a tree */
+		errno = 0;
+		f = fopen(file, "r");
+		if (!f) {
+			ha_warning("Proxy '%s': Can't open server state file '%s': %s.\n",
+				   curproxy->id, file, strerror(errno));
+			continue; /* next proxy */
+		}
+
+
+		/* first character of first line of the file must contain the version of the export */
+		local_vsn = srv_state_get_version(f);
+		if (local_vsn == 0) {
+			ha_warning("Proxy '%s': Can't get version of the server state file '%s'.\n",
+				   curproxy->id, file);
+			goto close_localfile;
+		}
+
+		while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
+			int bk_f_forced_id, check_id, check_name, ret;
+
+			ret = srv_state_parse_line(mybuf, local_vsn, params);
+			if (ret <= 0)
 				continue;
 
-			mybuf[0] = '\0';
+			bk_f_forced_id = (atoi(params[15]) & PR_O_FORCED_ID);
+			check_id = (atoi(params[0]) == curproxy->uuid);
+			check_name = (strcmp(curproxy->id, params[1]) == 0);
 
-			/* first character of first line of the file must contain the version of the export */
-			version = srv_state_get_version(f);
-			if (version == 0) {
-				ha_warning("Can't get version of the server state file '%s'\n", localfilepath);
-				goto fileclose;
+			/* if backend can't be found, let's continue */
+			if (!check_id && !check_name)
+				continue;
+			else if (!check_id && check_name) {
+				ha_warning("Proxy '%s': backend ID mismatch: from server state file: '%s', from running config '%d'\n",
+					   curproxy->id, params[0], curproxy->uuid);
+				send_log(curproxy, LOG_NOTICE, "backend ID mismatch: from server state file: '%s', from running config '%d'\n",
+					 params[0], curproxy->uuid);
+			}
+			else if (check_id && !check_name) {
+				ha_warning("Proxy '%s': backend name mismatch: from server state file: '%s', from running config '%s'\n",
+					   curproxy->id, params[1], curproxy->id);
+				send_log(curproxy, LOG_NOTICE, "backend name mismatch: from server state file: '%s', from running config '%s'\n",
+					 params[1], curproxy->id);
+				/* if name doesn't match, we still want to update curproxy if the backend id
+				 * was forced in previous the previous configuration */
+				if (!bk_f_forced_id)
+					continue;
 			}
 
-			while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
-				int bk_f_forced_id = 0;
-				int check_id = 0;
-				int check_name = 0;
-				int ret;
-
-				ret = srv_state_parse_line(mybuf, version, params);
-				if (ret <= 0)
-					continue;
-
-				/* if line is incomplete line, then ignore it.
-				 * otherwise, update useful flags */
-				switch (version) {
-					case 1:
-						bk_f_forced_id = (atoi(params[15]) & PR_O_FORCED_ID);
-						check_id = (atoi(params[0]) == curproxy->uuid);
-						check_name = (strcmp(curproxy->id, params[1]) == 0);
-						break;
-				}
-
-				bk = curproxy;
-
-				/* if backend can't be found, let's continue */
-				if (!check_id && !check_name)
-					continue;
-				else if (!check_id && check_name) {
-					ha_warning("backend ID mismatch: from server state file: '%s', from running config '%d'\n", params[0], bk->uuid);
-					send_log(bk, LOG_NOTICE, "backend ID mismatch: from server state file: '%s', from running config '%d'\n", params[0], bk->uuid);
-				}
-				else if (check_id && !check_name) {
-					ha_warning("backend name mismatch: from server state file: '%s', from running config '%s'\n", params[1], bk->id);
-					send_log(bk, LOG_NOTICE, "backend name mismatch: from server state file: '%s', from running config '%s'\n", params[1], bk->id);
-					/* if name doesn't match, we still want to update curproxy if the backend id
-					 * was forced in previous the previous configuration */
-					if (!bk_f_forced_id)
-						continue;
-				}
-
-				/* look for the server by its name: param[3] */
-				srv = server_find_best_match(bk, params[3], 0, NULL);
-
-				if (!srv) {
-					/* if no server found, then warning and continue with next line */
-					ha_warning("can't find server '%s' in backend '%s'\n",
-						   params[3], params[1]);
-					send_log(bk, LOG_NOTICE, "can't find server '%s' in backend '%s'\n",
-						 params[3], params[1]);
-					continue;
-				}
-
-				/* now we can proceed with server's state update */
-				srv_update_state(srv, version, params+4);
+			/* look for the server by its name: param[3] */
+			srv = server_find_best_match(curproxy, params[3], 0, NULL);
+			if (!srv) {
+				/* if no server found, then warning and continue with next line */
+				ha_warning("Proxy '%s': can't find server '%s' in backend '%s'\n",
+					   curproxy->id, params[3], params[1]);
+				send_log(curproxy, LOG_NOTICE, "can't find server '%s' in backend '%s'\n",
+					 params[3], params[1]);
+				continue;
 			}
 
-			fileclose:
-				fclose(f);
-
+			/* now we can proceed with server's state update */
+			srv_update_state(srv, local_vsn, params+4);
 		}
+
+	close_localfile:
+		fclose(f);
 	}
 
-	/* now free memory allocated for the tree */
-	for (node = ebmb_first(&state_file), next_node = node ? ebmb_next(node) : NULL;
-             node;
-             node = next_node, next_node = node ? ebmb_next(node) : NULL) {
-		st = container_of(node, struct state_line, name_name);
-		ebmb_delete(&st->name_name);
+	node = ebmb_first(&state_file);
+        while (node) {
+                st = ebmb_entry(node, struct state_line, name_name);
+                next_node = ebmb_next(node);
+                ebmb_delete(node);
 		free(st->line);
 		free(st);
-	}
-
+                node = next_node;
+        }
 }
 
 /*
