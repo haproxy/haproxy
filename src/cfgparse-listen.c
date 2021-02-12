@@ -261,6 +261,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		init_new_proxy(curr_defproxy);
 		proxy_preset_defaults(curr_defproxy);
 		curproxy = curr_defproxy;
+		curproxy->id = strdup(args[1]); // may be empty
 		curproxy->conf.args.file = curproxy->conf.file = strdup(file);
 		curproxy->conf.args.line = curproxy->conf.line = linenum;
 		defproxy.cap = PR_CAP_DEF | PR_CAP_LISTEN; /* all caps for now */

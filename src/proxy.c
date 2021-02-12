@@ -1111,6 +1111,7 @@ void proxy_preset_defaults(struct proxy *defproxy)
  */
 void proxy_free_defaults(struct proxy *defproxy)
 {
+	free(defproxy->id); defproxy->id = NULL;
 	free(defproxy->conf.file); defproxy->conf.file = NULL;
 	free(defproxy->check_command); defproxy->check_command = NULL;
 	free(defproxy->check_path); defproxy->check_path = NULL;
