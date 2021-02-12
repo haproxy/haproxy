@@ -2677,7 +2677,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 		/* inherited statuses will be recomputed later.
 		 * Also disable SRV_ADMF_HMAINT flag (set from stats socket fqdn).
 		 */
-		srv_admin_state &= ~SRV_ADMF_IDRAIN & ~SRV_ADMF_IMAINT & ~SRV_ADMF_HMAINT;
+		srv_admin_state &= ~SRV_ADMF_IDRAIN & ~SRV_ADMF_IMAINT & ~SRV_ADMF_HMAINT & ~SRV_ADMF_RMAINT;
 
 		if ((p == params[2]) || errno == EINVAL || errno == ERANGE ||
 		    (srv_admin_state != 0 &&
