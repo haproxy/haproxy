@@ -1107,38 +1107,39 @@ void proxy_preset_defaults(struct proxy *defproxy)
  */
 void proxy_free_defaults(struct proxy *defproxy)
 {
-	free(defproxy->conf.file);
-	free(defproxy->check_command);
-	free(defproxy->check_path);
-	free(defproxy->cookie_name);
-	free(defproxy->rdp_cookie_name);
-	free(defproxy->dyncookie_key);
-	free(defproxy->cookie_domain);
-	free(defproxy->cookie_attrs);
-	free(defproxy->lbprm.arg_str);
-	free(defproxy->capture_name);
-	free(defproxy->monitor_uri);
-	free(defproxy->defbe.name);
-	free(defproxy->conn_src.iface_name);
-	free(defproxy->fwdfor_hdr_name);
-	defproxy->fwdfor_hdr_len = 0;
-	free(defproxy->orgto_hdr_name);
-	defproxy->orgto_hdr_len = 0;
-	free(defproxy->server_id_hdr_name);
-	defproxy->server_id_hdr_len = 0;
+	free(defproxy->conf.file); defproxy->conf.file = NULL;
+	free(defproxy->check_command); defproxy->check_command = NULL;
+	free(defproxy->check_path); defproxy->check_path = NULL;
+	free(defproxy->cookie_name); defproxy->cookie_name = NULL;
+	free(defproxy->rdp_cookie_name); defproxy->rdp_cookie_name = NULL;
+	free(defproxy->dyncookie_key); defproxy->dyncookie_key = NULL;
+	free(defproxy->cookie_domain); defproxy->cookie_domain = NULL;
+	free(defproxy->cookie_attrs);  defproxy->cookie_attrs = NULL;
+	free(defproxy->lbprm.arg_str); defproxy->lbprm.arg_str = NULL;
+	free(defproxy->capture_name); defproxy->capture_name = NULL;
+	free(defproxy->monitor_uri); defproxy->monitor_uri = NULL;
+	free(defproxy->defbe.name); defproxy->defbe.name = NULL;
+	free(defproxy->conn_src.iface_name); defproxy->conn_src.iface_name = NULL;
+	free(defproxy->fwdfor_hdr_name); defproxy->fwdfor_hdr_name = NULL; defproxy->fwdfor_hdr_len = 0;
+	free(defproxy->orgto_hdr_name); defproxy->orgto_hdr_name = NULL; defproxy->orgto_hdr_len = 0;
+	free(defproxy->server_id_hdr_name); defproxy->server_id_hdr_name = NULL; defproxy->server_id_hdr_len = 0;
 
 	if (defproxy->conf.logformat_string != default_http_log_format &&
 	    defproxy->conf.logformat_string != default_tcp_log_format &&
-	    defproxy->conf.logformat_string != clf_http_log_format)
+	    defproxy->conf.logformat_string != clf_http_log_format) {
 		free(defproxy->conf.logformat_string);
+		defproxy->conf.logformat_string = NULL;
+	}
 
-	if (defproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
+	if (defproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format) {
 		free(defproxy->conf.logformat_sd_string);
+		defproxy->conf.logformat_sd_string = NULL;
+	}
 
-	free(defproxy->conf.uniqueid_format_string);
-	free(defproxy->conf.lfs_file);
-	free(defproxy->conf.lfsd_file);
-	free(defproxy->conf.uif_file);
+	free(defproxy->conf.uniqueid_format_string); defproxy->conf.uniqueid_format_string = NULL;
+	free(defproxy->conf.lfs_file); defproxy->conf.lfs_file = NULL;
+	free(defproxy->conf.lfsd_file); defproxy->conf.lfsd_file = NULL;
+	free(defproxy->conf.uif_file); defproxy->conf.uif_file = NULL;
 	chunk_destroy(&defproxy->log_tag);
 
 	free_email_alert(defproxy);
