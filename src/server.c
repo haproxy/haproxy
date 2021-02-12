@@ -1940,7 +1940,7 @@ static int server_template_init(struct server *srv, struct proxy *px)
 }
 
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy,
-                 struct proxy *defproxy, int parse_addr, int in_peers_section, int initial_resolve)
+                 const struct proxy *defproxy, int parse_addr, int in_peers_section, int initial_resolve)
 {
 	struct server *newsrv = NULL;
 	const char *err = NULL;
