@@ -192,10 +192,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rc = PR_CAP_FE;
 	else if (strcmp(args[0], "backend") == 0)
 		rc = PR_CAP_BE;
+	else if (strcmp(args[0], "defaults") == 0)
+		rc = PR_CAP_DEF;
 	else
 		rc = PR_CAP_NONE;
 
-	if (rc != PR_CAP_NONE) {  /* new proxy */
+	if (rc & PR_CAP_LISTEN) {  /* new proxy */
 		if (!*args[1]) {
 			ha_alert("parsing [%s:%d] : '%s' expects an <id> argument\n",
 				 file, linenum, args[0]);
@@ -257,7 +259,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy = &defproxy;
 		curproxy->conf.args.file = curproxy->conf.file = strdup(file);
 		curproxy->conf.args.line = curproxy->conf.line = linenum;
-		defproxy.cap = PR_CAP_LISTEN; /* all caps for now */
+		defproxy.cap = PR_CAP_DEF | PR_CAP_LISTEN; /* all caps for now */
 		goto out;
 	}
 	else if (curproxy == NULL) {

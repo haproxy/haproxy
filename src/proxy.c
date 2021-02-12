@@ -116,11 +116,15 @@ const struct cfg_opt cfg_opts2[] =
 /*
  * This function returns a string containing a name describing capabilities to
  * report comprehensible error messages. Specifically, it will return the words
- * "frontend", "backend" when appropriate, or "proxy" for all other
- * cases including the proxies declared in "listen" mode.
+ * "frontend", "backend" when appropriate, "defaults" if it corresponds to a
+ * defaults section, or "proxy" for all other cases including the proxies
+ * declared in "listen" mode.
  */
 const char *proxy_cap_str(int cap)
 {
+	if (cap & PR_CAP_DEF)
+		return "defaults";
+
 	if ((cap & PR_CAP_LISTEN) != PR_CAP_LISTEN) {
 		if (cap & PR_CAP_FE)
 			return "frontend";
