@@ -57,6 +57,7 @@ struct server *findserver(const struct proxy *px, const char *name);
 int proxy_cfg_ensure_no_http(struct proxy *curproxy);
 void init_new_proxy(struct proxy *p);
 void proxy_preset_defaults(struct proxy *defproxy);
+void proxy_free_defaults(struct proxy *defproxy);
 struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *file, int linenum,
                               const struct proxy *defproxy, char **errmsg);
 int get_backend_server(const char *bk_name, const char *sv_name,

@@ -1099,6 +1099,57 @@ void proxy_preset_defaults(struct proxy *defproxy)
 #endif
 }
 
+/* Frees all dynamic settings allocated on a default proxy that's about to be
+ * destroyed. This is a subset of the complete proxy deinit code, but these
+ * should probably be merged ultimately. Note that most of the fields are not
+ * even reset, so extreme care is required here, and calling
+ * proxy_preset_defaults() afterwards would be safer.
+ */
+void proxy_free_defaults(struct proxy *defproxy)
+{
+	free(defproxy->conf.file);
+	free(defproxy->check_command);
+	free(defproxy->check_path);
+	free(defproxy->cookie_name);
+	free(defproxy->rdp_cookie_name);
+	free(defproxy->dyncookie_key);
+	free(defproxy->cookie_domain);
+	free(defproxy->cookie_attrs);
+	free(defproxy->lbprm.arg_str);
+	free(defproxy->capture_name);
+	free(defproxy->monitor_uri);
+	free(defproxy->defbe.name);
+	free(defproxy->conn_src.iface_name);
+	free(defproxy->fwdfor_hdr_name);
+	defproxy->fwdfor_hdr_len = 0;
+	free(defproxy->orgto_hdr_name);
+	defproxy->orgto_hdr_len = 0;
+	free(defproxy->server_id_hdr_name);
+	defproxy->server_id_hdr_len = 0;
+
+	if (defproxy->conf.logformat_string != default_http_log_format &&
+	    defproxy->conf.logformat_string != default_tcp_log_format &&
+	    defproxy->conf.logformat_string != clf_http_log_format)
+		free(defproxy->conf.logformat_string);
+
+	if (defproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
+		free(defproxy->conf.logformat_sd_string);
+
+	free(defproxy->conf.uniqueid_format_string);
+	free(defproxy->conf.lfs_file);
+	free(defproxy->conf.lfsd_file);
+	free(defproxy->conf.uif_file);
+	chunk_destroy(&defproxy->log_tag);
+
+	free_email_alert(defproxy);
+	proxy_release_conf_errors(defproxy);
+	deinit_proxy_tcpcheck(defproxy);
+
+	/* FIXME: we cannot free uri_auth because it might already be used by
+	 * another proxy (legacy code for stats URI ...). Refcount anyone ?
+	 */
+}
+
 /* Allocates a new proxy <name> of type <cap> found at position <file:linenum>,
  * preset it from the defaults of <defproxy> and returns it. Un case of error,
  * an alert is printed and NULL is returned. If <errmsg> is not NULL, an error

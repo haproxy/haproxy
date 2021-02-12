@@ -236,55 +236,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		goto out;
 	}
 	else if (strcmp(args[0], "defaults") == 0) {  /* use this one to assign default values */
-		/* some variables may have already been initialized earlier */
-		/* FIXME-20070101: we should do this too at the end of the
-		 * config parsing to free all default values.
-		 */
 		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
 			err_code |= ERR_ABORT;
 			goto out;
 		}
 
-		free(defproxy.conf.file);
-		free(defproxy.check_command);
-		free(defproxy.check_path);
-		free(defproxy.cookie_name);
-		free(defproxy.rdp_cookie_name);
-		free(defproxy.dyncookie_key);
-		free(defproxy.cookie_domain);
-		free(defproxy.cookie_attrs);
-		free(defproxy.lbprm.arg_str);
-		free(defproxy.capture_name);
-		free(defproxy.monitor_uri);
-		free(defproxy.defbe.name);
-		free(defproxy.conn_src.iface_name);
-		free(defproxy.fwdfor_hdr_name);
-		defproxy.fwdfor_hdr_len = 0;
-		free(defproxy.orgto_hdr_name);
-		defproxy.orgto_hdr_len = 0;
-		free(defproxy.server_id_hdr_name);
-		defproxy.server_id_hdr_len = 0;
-
-		if (defproxy.conf.logformat_string != default_http_log_format &&
-		    defproxy.conf.logformat_string != default_tcp_log_format &&
-		    defproxy.conf.logformat_string != clf_http_log_format)
-			free(defproxy.conf.logformat_string);
-
-		free(defproxy.conf.uniqueid_format_string);
-		free(defproxy.conf.lfs_file);
-		free(defproxy.conf.uif_file);
-		chunk_destroy(&defproxy.log_tag);
-		free_email_alert(&defproxy);
-
-		if (defproxy.conf.logformat_sd_string != default_rfc5424_sd_log_format)
-			free(defproxy.conf.logformat_sd_string);
-		free(defproxy.conf.lfsd_file);
-
-		proxy_release_conf_errors(&defproxy);
-
-		deinit_proxy_tcpcheck(&defproxy);
-
-		/* we cannot free uri_auth because it might already be used */
+		/* let's first free previous defaults */
+		proxy_free_defaults(&defproxy);
 		init_new_proxy(&defproxy);
 		proxy_preset_defaults(&defproxy);
 		curproxy = &defproxy;
