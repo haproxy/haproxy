@@ -2498,6 +2498,7 @@ void deinit(void)
 		free(p->cookie_domain);
 		free(p->cookie_attrs);
 		free(p->lbprm.arg_str);
+		free(p->server_state_file_name);
 		free(p->capture_name);
 		free(p->monitor_uri);
 		free(p->rdp_cookie_name);
@@ -2765,6 +2766,8 @@ void deinit(void)
 	free(oldpids);        oldpids = NULL;
 	free(old_argv);       old_argv = NULL;
 	free(localpeer);      localpeer = NULL;
+	free(global.server_state_base); global.server_state_base = NULL;
+	free(global.server_state_file); global.server_state_file = NULL;
 	task_destroy(idle_conn_task);
 	idle_conn_task = NULL;
 
