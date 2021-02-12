@@ -14621,10 +14621,18 @@ accepted_payload_size <nb>
   Note: the maximum allowed value is 8192.
 
 nameserver <id> <ip>:<port>
-  DNS server description:
+  UDP DNS server description:
     <id>   : label of the server, should be unique
     <ip>   : IP address of the server
     <port> : port where the DNS service actually runs
+
+server <name> <address> [param*]
+  Used to configure a DNS TCP or stream server. This supports for all
+  "server" parameters found in 5.2 paragraph. Some of these parameters
+  are irrelevant for DNS resolving. Note: currently 4 queries are pipelined
+  on the same connections. A batch of idle connections are removed every
+  5 seconds. "maxconn" can be configured to limit the amount of those
+  concurrent connections and TLS should also usable if the server supports.
 
 parse-resolv-conf
   Adds all nameservers found in /etc/resolv.conf to this resolvers nameservers
