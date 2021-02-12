@@ -3119,15 +3119,10 @@ timeout client <timeout>
 ----------
 
 Proxy configuration can be located in a set of sections :
- - defaults [<name>]
- - frontend <name>
- - backend  <name>
- - listen   <name>
-
-A "defaults" section sets default parameters for all other sections following
-its declaration. Those default parameters are reset by the next "defaults"
-section. See below for the list of parameters which can be set in a "defaults"
-section. The name is optional but its use is encouraged for better readability.
+ - defaults [<name>] [ from <defaults_name> ]
+ - frontend <name>   [ from <defaults_name> ]
+ - backend  <name>   [ from <defaults_name> ]
+ - listen   <name>   [ from <defaults_name> ]
 
 A "frontend" section describes a set of listening sockets accepting client
 connections.
@@ -3137,6 +3132,29 @@ to forward incoming connections.
 
 A "listen" section defines a complete proxy with its frontend and backend
 parts combined in one section. It is generally useful for TCP-only traffic.
+
+A "defaults" section resets all settings to the documented ones and presets new
+ones for use by subsequent sections. All of "frontend", "backend" and "listen"
+sections always take their initial settings from a defaults section, by default
+the latest one that appears before the newly created section. It is possible to
+explicitly designate a specific "defaults" section to load the initial settings
+from by indicating its name on the section line after the optional keyword
+"from". While "defaults" section do not impose a name, this use is encouraged
+for better readability. It is also the only way to designate a specific section
+to use instead of the default previous one. Since "defaults" section names are
+optional, by default a very permissive check is applied on their name and these
+are even permitted to overlap. However if a "defaults" section is referenced by
+any other section, its name must comply with the syntax imposed on all proxy
+names, and this name must be unique among the defaults sections. Please note
+that regardless of what is currently permitted, it is recommended to avoid
+duplicate section names in general and to respect the same syntax as for proxy
+names. This rule might be enforced in a future version.
+
+Note that it is even possible for a defaults section to take its initial
+settings from another one, and as such, inherit settings across multiple levels
+of defaults sections. This can be convenient to establish certain configuration
+profiles to carry groups of default settings (e.g. TCP vs HTTP or short vs long
+timeouts) but can quickly become confusing to follow.
 
 All proxy names must be formed from upper and lower case letters, digits,
 '-' (dash), '_' (underscore) , '.' (dot) and ':' (colon). ACL names are

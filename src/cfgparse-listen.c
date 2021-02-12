@@ -237,7 +237,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+		if ((*args[2] && (!*args[3] || strcmp(args[2], "from") != 0)) ||
+		    alertif_too_many_args(3, file, linenum, args, &err_code)) {
 			if (rc & PR_CAP_FE)
 				ha_alert("parsing [%s:%d] : please use the 'bind' keyword for listening addresses.\n", file, linenum);
 			goto out;
@@ -245,7 +246,46 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	}
 
 	if (rc & PR_CAP_LISTEN) {  /* new proxy or defaults section */
-		curproxy = alloc_new_proxy(args[1], rc, file, linenum, curr_defproxy, &errmsg);
+		const char *name = args[1];
+		int arg = 2;
+
+		if (rc & PR_CAP_DEF && strcmp(args[1], "from") == 0 && *args[2] && !*args[3]) {
+			// also support "defaults from blah" (no name then)
+			arg = 1;
+			name = "";
+		}
+
+		/* only regular proxies inherit from the previous defaults section */
+		if (!(rc & PR_CAP_DEF))
+			curr_defproxy = last_defproxy;
+
+		if (strcmp(args[arg], "from") == 0) {
+			curr_defproxy = proxy_find_by_name(args[arg+1], PR_CAP_DEF, 0);
+
+			if (!curr_defproxy) {
+				ha_alert("parsing [%s:%d] : defaults section '%s' not found for %s '%s'.\n", file, linenum, args[arg+1], proxy_cap_str(rc), name);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+
+			if (ebpt_next_dup(&curr_defproxy->conf.by_name)) {
+				struct proxy *px2 = container_of(ebpt_next_dup(&curr_defproxy->conf.by_name), struct proxy, conf.by_name);
+
+				ha_alert("parsing [%s:%d] : ambiguous defaults section name '%s' referenced by %s '%s' exists at least at %s:%d and %s:%d.\n",
+					 file, linenum, args[arg+1], proxy_cap_str(rc), name,
+					 curr_defproxy->conf.file, curr_defproxy->conf.line, px2->conf.file, px2->conf.line);
+				err_code |= ERR_ALERT | ERR_FATAL;
+			}
+
+			err = invalid_char(args[arg+1]);
+			if (err) {
+				ha_alert("parsing [%s:%d] : character '%c' is not permitted in defaults section name '%s' when designated by its name (section found at %s:%d).\n",
+					 file, linenum, *err, args[arg+1], curr_defproxy->conf.file, curr_defproxy->conf.line);
+				err_code |= ERR_ALERT | ERR_FATAL;
+			}
+		}
+
+		curproxy = alloc_new_proxy(name, rc, file, linenum, curr_defproxy, &errmsg);
 		if (!curproxy) {
 			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 			err_code |= ERR_ALERT | ERR_ABORT;
