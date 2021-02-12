@@ -49,25 +49,25 @@ haproxy h1 -conf {
 client c_sni -connect ${h1_feS_sni_sock} {
 	# first request
 	txreq \
-	  -hdr "x-sni: custom_sni"
+	  -hdr "x-sni: www.custom.com"
 	rxresp
 	expect resp.http.http_first_request == "1"
 
 	# second request with same sni, connection must be reused
 	txreq \
-	  -hdr "x-sni: custom_sni"
+	  -hdr "x-sni: www.custom.com"
 	rxresp
 	expect resp.http.http_first_request == "0"
 
 	# third request with a different sni, a new connection must be used
 	txreq \
-	  -hdr "x-sni: custom_sni_2"
+	  -hdr "x-sni: www.custom2.com"
 	rxresp
 	expect resp.http.http_first_request == "1"
 
 	# fourth request, reuse sni2
 	txreq \
-	  -hdr "x-sni: custom_sni_2"
+	  -hdr "x-sni: www.custom2.com"
 	rxresp
 	expect resp.http.http_first_request == "0"
 } -run
