@@ -1045,7 +1045,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	proto = protocol_by_family(conn->dst->ss_family);
 
 	port = 0;
-	if (!port && connect->port)
+	if (connect->port)
 		port = connect->port;
 	if (!port && connect->port_expr) {
 		struct sample *smp;
