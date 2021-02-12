@@ -2998,33 +2998,10 @@ out_uri_auth_compat:
 		 * We must still support older configurations, so let's find out whether those
 		 * parameters have been set or must be copied from contimeouts.
 		 */
-		if (curproxy != &defproxy) {
-			if (!curproxy->timeout.tarpit ||
-			    curproxy->timeout.tarpit == defproxy.timeout.tarpit) {
-				/* tarpit timeout not set. We search in the following order:
-				 * default.tarpit, curr.connect, default.connect.
-				 */
-				if (defproxy.timeout.tarpit)
-					curproxy->timeout.tarpit = defproxy.timeout.tarpit;
-				else if (curproxy->timeout.connect)
-					curproxy->timeout.tarpit = curproxy->timeout.connect;
-				else if (defproxy.timeout.connect)
-					curproxy->timeout.tarpit = defproxy.timeout.connect;
-			}
-			if ((curproxy->cap & PR_CAP_BE) &&
-			    (!curproxy->timeout.queue ||
-			     curproxy->timeout.queue == defproxy.timeout.queue)) {
-				/* queue timeout not set. We search in the following order:
-				 * default.queue, curr.connect, default.connect.
-				 */
-				if (defproxy.timeout.queue)
-					curproxy->timeout.queue = defproxy.timeout.queue;
-				else if (curproxy->timeout.connect)
-					curproxy->timeout.queue = curproxy->timeout.connect;
-				else if (defproxy.timeout.connect)
-					curproxy->timeout.queue = defproxy.timeout.connect;
-			}
-		}
+		if (!curproxy->timeout.tarpit)
+			curproxy->timeout.tarpit = curproxy->timeout.connect;
+		if ((curproxy->cap & PR_CAP_BE) && !curproxy->timeout.queue)
+			curproxy->timeout.queue = curproxy->timeout.connect;
 
 		if ((curproxy->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_TCP_RS)) {
 			ha_warning("config : %s '%s' uses tcp-check rules without 'option tcp-check', so the rules are ignored.\n",
