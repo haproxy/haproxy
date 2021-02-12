@@ -254,9 +254,10 @@ void free_tcpcheck_vars(struct list *vars)
 }
 
 /* Duplicate a list of preset tcp-check variables */
-int dup_tcpcheck_vars(struct list *dst, struct list *src)
+int dup_tcpcheck_vars(struct list *dst, const struct list *src)
 {
-	struct tcpcheck_var *var, *new = NULL;
+	const struct tcpcheck_var *var;
+	struct tcpcheck_var *new = NULL;
 
 	list_for_each_entry(var, src, list) {
 		new = create_tcpcheck_var(var->name);

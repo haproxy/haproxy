@@ -47,7 +47,7 @@ void deinit_proxy_tcpcheck(struct proxy *px);
 
 struct tcpcheck_var *create_tcpcheck_var(const struct ist name);
 void free_tcpcheck_var(struct tcpcheck_var *var);
-int dup_tcpcheck_vars(struct list *dst, struct list *src);
+int dup_tcpcheck_vars(struct list *dst, const struct list *src);
 void free_tcpcheck_vars(struct list *vars);
 
 int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str);
