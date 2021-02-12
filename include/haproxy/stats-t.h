@@ -41,6 +41,7 @@
 #define STAT_SHOW_FDESC 0x00001000      /* show the field descriptions when possible */
 #define STAT_SHMODULES  0x00002000      /* conf: show modules */
 #define STAT_HIDE_MAINT 0x00004000	/* hide maint/disabled servers */
+#define STAT_CONVDONE   0x00008000	/* conf: rules conversion done */
 
 #define STAT_BOUND      0x00800000	/* bound statistics to selected proxies/types/services */
 #define STAT_STARTED    0x01000000	/* some output has occurred */

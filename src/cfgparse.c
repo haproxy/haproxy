@@ -2842,7 +2842,7 @@ int check_config_validity()
 			}
 		}
 
-		if (curproxy->uri_auth && curproxy->uri_auth != defproxy.uri_auth &&
+		if (curproxy->uri_auth && !(curproxy->uri_auth->flags & STAT_CONVDONE) &&
 		    !LIST_ISEMPTY(&curproxy->uri_auth->http_req_rules) &&
 		    (curproxy->uri_auth->userlist || curproxy->uri_auth->auth_realm )) {
 			ha_alert("%s '%s': stats 'auth'/'realm' and 'http-request' can't be used at the same time.\n",
@@ -2852,7 +2852,7 @@ int check_config_validity()
 		}
 
 		if (curproxy->uri_auth && curproxy->uri_auth->userlist &&
-		    (curproxy->uri_auth != defproxy.uri_auth ||
+		    (!(curproxy->uri_auth->flags & STAT_CONVDONE) ||
 		     LIST_ISEMPTY(&curproxy->uri_auth->http_req_rules))) {
 			const char *uri_auth_compat_req[10];
 			struct act_rule *rule;
@@ -2883,6 +2883,7 @@ int check_config_validity()
 				free(curproxy->uri_auth->auth_realm);
 				curproxy->uri_auth->auth_realm = NULL;
 			}
+			curproxy->uri_auth->flags |= STAT_CONVDONE;
 		}
 out_uri_auth_compat:
 
