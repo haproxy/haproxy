@@ -1822,9 +1822,6 @@ static void init(int argc, char **argv)
 
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
 
-	init_new_proxy(&defproxy);
-	proxy_preset_defaults(&defproxy);
-
 	/* in wait mode, we don't try to read the configuration files */
 	if (!(global.mode & MODE_MWORKER_WAIT)) {
 		char *env_cfgfiles = NULL;

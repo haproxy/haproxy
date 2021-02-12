@@ -33,6 +33,9 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/uri_auth.h>
 
+
+static struct proxy defproxy; /* fake proxy used to assign default values on all instances */
+
 /* Report a warning if a rule is placed after a 'tcp-request session' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
@@ -176,6 +179,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	struct acl_cond *cond = NULL;
 	char *errmsg = NULL;
 	struct bind_conf *bind_conf;
+
+	if (defproxy.obj_type != OBJ_TYPE_PROXY) {
+		/* defproxy not initialized yet */
+		init_new_proxy(&defproxy);
+		proxy_preset_defaults(&defproxy);
+	}
 
 	if (strcmp(args[0], "listen") == 0)
 		rc = PR_CAP_LISTEN;

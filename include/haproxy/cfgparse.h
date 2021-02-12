@@ -84,7 +84,6 @@ extern int cfg_maxconn;
 extern char *cfg_scope;
 extern struct cfg_kw_list cfg_keywords;
 extern char *cursection;
-extern struct proxy defproxy;
 
 int cfg_parse_global(const char *file, int linenum, char **args, int inv);
 int cfg_parse_listen(const char *file, int linenum, char **args, int inv);

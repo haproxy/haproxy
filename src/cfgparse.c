@@ -89,7 +89,6 @@ struct list sections = LIST_HEAD_INIT(sections);
 struct list postparsers = LIST_HEAD_INIT(postparsers);
 
 char *cursection = NULL;
-struct proxy defproxy = { };		/* fake proxy used to assign default values on all instances */
 int cfg_maxpconn = 0;                   /* # of simultaneous connections per proxy (-N) */
 int cfg_maxconn = 0;			/* # of simultaneous connections, (-n) */
 char *cfg_scope = NULL;                 /* the current scope during the configuration parsing */
