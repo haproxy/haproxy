@@ -1265,12 +1265,17 @@ int connect_server(struct stream *s)
 	int reuse = 0;
 	int init_mux = 0;
 	int err;
+#ifdef USE_OPENSSL
 	struct sample *sni_smp = NULL;
+#endif
 	struct sockaddr_storage *bind_addr;
 	int proxy_line_ret;
 	int64_t hash = 0;
 	struct conn_hash_params hash_params;
-	XXH64_hash_t sni_hash, proxy_hash;
+#ifdef USE_OPENSSL
+	XXH64_hash_t sni_hash;
+#endif
+	XXH64_hash_t proxy_hash;
 
 	/* first, set unique connection parameters and then calculate hash */
 	memset(&hash_params, 0, sizeof(hash_params));
