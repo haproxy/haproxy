@@ -3872,7 +3872,7 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 }
 
 /* Parses the "option redis-check" proxy keyword */
-int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 				const char *file, int line)
 {
 	static char *redis_req = "*1\r\n$4\r\nPING\r\n";
@@ -3946,7 +3946,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 
 
 /* Parses the "option ssl-hello-chk" proxy keyword */
-int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 				  const char *file, int line)
 {
 	/* This is the SSLv3 CLIENT HELLO packet used in conjunction with the
@@ -4045,7 +4045,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 }
 
 /* Parses the "option smtpchk" proxy keyword */
-int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			    const char *file, int line)
 {
 	static char *smtp_req = "%[var(check.smtp_cmd)]\r\n";
@@ -4186,7 +4186,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 }
 
 /* Parses the "option pgsql-check" proxy keyword */
-int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 				const char *file, int line)
 {
 	static char pgsql_req[] = {
@@ -4333,7 +4333,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 
 
 /* Parses the "option mysql-check" proxy keyword */
-int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 				const char *file, int line)
 {
 	/* This is an example of a MySQL >=4.0 client Authentication packet kindly provided by Cyril Bonte.
@@ -4556,7 +4556,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, s
 	goto out;
 }
 
-int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			       const char *file, int line)
 {
 	static char *ldap_req = "300C020101600702010304008000";
@@ -4636,7 +4636,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, st
 	goto out;
 }
 
-int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			       const char *file, int line)
 {
 	struct tcpcheck_ruleset *rs = NULL;
@@ -4841,7 +4841,7 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 }
 
 /* Parses the "option httpchck" proxy keyword */
-int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			    const char *file, int line)
 {
 	struct tcpcheck_ruleset *rs = NULL;
@@ -4911,7 +4911,7 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, struc
 }
 
 /* Parses the "option tcp-check" proxy keyword */
-int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, struct proxy *defpx,
+int proxy_parse_tcp_check_opt(char **args, int cur_arg, struct proxy *curpx, const struct proxy *defpx,
 			      const char *file, int line)
 {
 	struct tcpcheck_ruleset *rs = NULL;
