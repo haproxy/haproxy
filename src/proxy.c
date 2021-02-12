@@ -53,6 +53,7 @@ int listeners;	/* # of proxy listeners, set by cfgparse */
 struct proxy *proxies_list  = NULL;	/* list of all existing proxies */
 struct eb_root used_proxy_id = EB_ROOT;	/* list of proxy IDs in use */
 struct eb_root proxy_by_name = EB_ROOT; /* tree of proxies sorted by name */
+struct eb_root defproxy_by_name = EB_ROOT; /* tree of default proxies sorted by name (dups possible) */
 unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then incremented */
 
 /* proxy->options */
@@ -738,13 +739,16 @@ static int proxy_parse_tcpka_intvl(char **args, int section, struct proxy *proxy
 }
 #endif
 
-/* This function inserts proxy <px> into the tree of known proxies. The proxy's
- * name is used as the storing key so it must already have been initialized.
+/* This function inserts proxy <px> into the tree of known proxies (regular
+ * ones or defaults depending on px->cap & PR_CAP_DEF). The proxy's name is
+ * used as the storing key so it must already have been initialized.
  */
 void proxy_store_name(struct proxy *px)
 {
+	struct eb_root *root = (px->cap & PR_CAP_DEF) ? &defproxy_by_name : &proxy_by_name;
+
 	px->conf.by_name.key = px->id;
-	ebis_insert(&proxy_by_name, &px->conf.by_name);
+	ebis_insert(root, &px->conf.by_name);
 }
 
 /* Returns a pointer to the first proxy matching capabilities <cap> and id
@@ -774,21 +778,25 @@ struct proxy *proxy_find_by_id(int id, int cap, int table)
 
 /* Returns a pointer to the first proxy matching either name <name>, or id
  * <name> if <name> begins with a '#'. NULL is returned if no match is found.
- * If <table> is non-zero, it only considers proxies having a table.
+ * If <table> is non-zero, it only considers proxies having a table. The search
+ * is made into the regular proxies, unless <cap> has PR_CAP_DEF set in which
+ * case it's searched into the defproxy tree.
  */
 struct proxy *proxy_find_by_name(const char *name, int cap, int table)
 {
 	struct proxy *curproxy;
 
-	if (*name == '#') {
+	if (*name == '#' && !(cap & PR_CAP_DEF)) {
 		curproxy = proxy_find_by_id(atoi(name + 1), cap, table);
 		if (curproxy)
 			return curproxy;
 	}
 	else {
+		struct eb_root *root;
 		struct ebpt_node *node;
 
-		for (node = ebis_lookup(&proxy_by_name, name); node; node = ebpt_next(node)) {
+		root = (cap & PR_CAP_DEF) ? &defproxy_by_name : &proxy_by_name;
+		for (node = ebis_lookup(root, name); node; node = ebpt_next(node)) {
 			curproxy = container_of(node, struct proxy, conf.by_name);
 
 			if (strcmp(curproxy->id, name) != 0)
@@ -1154,6 +1162,21 @@ void proxy_free_defaults(struct proxy *defproxy)
 	/* FIXME: we cannot free uri_auth because it might already be used by
 	 * another proxy (legacy code for stats URI ...). Refcount anyone ?
 	 */
+}
+
+/* delete a defproxy from the tree if still in it, frees its content and its
+ * storage. Nothing is done if <px> is NULL or if it doesn't have PR_CAP_DEF
+ * set, allowing to pass it the direct result of a lookup function.
+ */
+void proxy_destroy_defaults(struct proxy *px)
+{
+	if (!px)
+		return;
+	if (!(px->cap & PR_CAP_DEF))
+		return;
+	ebpt_delete(&px->conf.by_name);
+	proxy_free_defaults(px);
+	free(px);
 }
 
 /* Allocates a new proxy <name> of type <cap> found at position <file:linenum>,
