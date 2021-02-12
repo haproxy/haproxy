@@ -172,6 +172,7 @@ int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, c
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curproxy = NULL;
+	static struct proxy *curr_defproxy = NULL;
 	const char *err;
 	int rc;
 	unsigned val;
@@ -185,6 +186,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		init_new_proxy(&defproxy);
 		proxy_preset_defaults(&defproxy);
 	}
+
+	if (!curr_defproxy)
+		curr_defproxy = &defproxy;
 
 	if (strcmp(args[0], "listen") == 0)
 		rc = PR_CAP_LISTEN;
@@ -234,7 +238,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		curproxy = alloc_new_proxy(args[1], rc, file, linenum, &defproxy, &errmsg);
+		curproxy = alloc_new_proxy(args[1], rc, file, linenum, curr_defproxy, &errmsg);
 		if (!curproxy) {
 			/* message already printed by alloc_new_proxy() */
 			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
@@ -253,10 +257,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* let's first free previous defaults */
-		proxy_free_defaults(&defproxy);
-		init_new_proxy(&defproxy);
-		proxy_preset_defaults(&defproxy);
-		curproxy = &defproxy;
+		proxy_free_defaults(curr_defproxy);
+		init_new_proxy(curr_defproxy);
+		proxy_preset_defaults(curr_defproxy);
+		curproxy = curr_defproxy;
 		curproxy->conf.args.file = curproxy->conf.file = strdup(file);
 		curproxy->conf.args.line = curproxy->conf.line = linenum;
 		defproxy.cap = PR_CAP_DEF | PR_CAP_LISTEN; /* all caps for now */
@@ -276,7 +280,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	if (strcmp(args[0], "server") == 0         ||
 	    strcmp(args[0], "default-server") == 0 ||
 	    strcmp(args[0], "server-template") == 0) {
-		err_code |= parse_server(file, linenum, args, curproxy, &defproxy, 1, 0, 0);
+		err_code |= parse_server(file, linenum, args, curproxy, curr_defproxy, 1, 0, 0);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
@@ -1498,7 +1502,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			LIST_ADDQ(&curproxy->sticking_rules, &rule->list);
 	}
 	else if (strcmp(args[0], "stats") == 0) {
-		if (!(curproxy->cap & PR_CAP_DEF) && curproxy->uri_auth == defproxy.uri_auth)
+		if (!(curproxy->cap & PR_CAP_DEF) && curproxy->uri_auth == curr_defproxy->uri_auth)
 			curproxy->uri_auth = NULL; /* we must detach from the default config */
 
 		if (!*args[1]) {
@@ -2006,52 +2010,52 @@ stats_error_parsing:
 				curproxy->options |= PR_O_TCP_SRV_KA;
 		}
 		else if (strcmp(args[1], "httpchk") == 0) {
-			err_code |= proxy_parse_httpchk_opt(args, 0, curproxy, &defproxy, file, linenum);
+			err_code |= proxy_parse_httpchk_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (strcmp(args[1], "ssl-hello-chk") == 0) {
-			err_code |= proxy_parse_ssl_hello_chk_opt(args, 0, curproxy, &defproxy, file, linenum);
+			err_code |= proxy_parse_ssl_hello_chk_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (strcmp(args[1], "smtpchk") == 0) {
-			err_code |= proxy_parse_smtpchk_opt(args, 0, curproxy, &defproxy, file, linenum);
+			err_code |= proxy_parse_smtpchk_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (strcmp(args[1], "pgsql-check") == 0) {
-			err_code |= proxy_parse_pgsql_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			err_code |= proxy_parse_pgsql_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (strcmp(args[1], "redis-check") == 0) {
-			err_code |= proxy_parse_redis_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			err_code |= proxy_parse_redis_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (strcmp(args[1], "mysql-check") == 0) {
-			err_code |= proxy_parse_mysql_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			err_code |= proxy_parse_mysql_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (strcmp(args[1], "ldap-check") == 0) {
-			err_code |= proxy_parse_ldap_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			err_code |= proxy_parse_ldap_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (strcmp(args[1], "spop-check") == 0) {
-			err_code |= proxy_parse_spop_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			err_code |= proxy_parse_spop_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (strcmp(args[1], "tcp-check") == 0) {
-			err_code |= proxy_parse_tcp_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			err_code |= proxy_parse_tcp_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
 		else if (strcmp(args[1], "external-check") == 0) {
-			err_code |= proxy_parse_external_check_opt(args, 0, curproxy, &defproxy, file, linenum);
+			err_code |= proxy_parse_external_check_opt(args, 0, curproxy, curr_defproxy, file, linenum);
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
@@ -2858,7 +2862,7 @@ stats_error_parsing:
 					continue;
 				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
 					/* prepare error message just in case */
-					rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, &defproxy, file, linenum, &errmsg);
+					rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, curr_defproxy, file, linenum, &errmsg);
 					if (rc < 0) {
 						ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 						err_code |= ERR_ALERT | ERR_FATAL;
