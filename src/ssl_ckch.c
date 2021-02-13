@@ -320,7 +320,7 @@ int ssl_sock_load_files_into_ckch(const char *path, struct cert_key_and_chain *c
 		goto end;
 	}
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+#ifdef HAVE_SSL_SCTL
 	/* try to load the sctl file */
 	if (global_ssl.extra_files & SSL_GF_SCTL) {
 		struct stat st;
@@ -939,7 +939,7 @@ enum {
 	CERT_TYPE_OCSP,
 #endif
 	CERT_TYPE_ISSUER,
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+#ifdef HAVE_SSL_SCTL
 	CERT_TYPE_SCTL,
 #endif
 	CERT_TYPE_MAX,
@@ -956,7 +956,7 @@ struct {
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
 	[CERT_TYPE_OCSP]   = { "ocsp",    CERT_TYPE_OCSP,     &ssl_sock_load_ocsp_response_from_file },
 #endif
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+#ifdef HAVE_SSL_SCTL
 	[CERT_TYPE_SCTL]   = { "sctl",    CERT_TYPE_SCTL,     &ssl_sock_load_sctl_from_file },
 #endif
 	[CERT_TYPE_ISSUER] = { "issuer",  CERT_TYPE_ISSUER,   &ssl_sock_load_issuer_file_into_ckch },
