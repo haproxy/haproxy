@@ -1,6 +1,113 @@
 ChangeLog :
 ===========
 
+2021/02/13 : 2.4-dev8
+    - BUILD: ssl: fix typo in HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT macro
+    - BUILD: ssl: guard SSL_CTX_add_server_custom_ext with special macro
+    - BUG/MINOR: mux-h1: Don't emit extra CRLF for empty chunked messages
+    - MINOR: contrib/prometheus-exporter: use stats desc when possible followup
+    - MEDIUM: contrib/prometheus-exporter: export base stick table stats
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CLEANUP: check: fix some typo in comments
+    - CLEANUP: tools: typo in `strl2irc` mention
+    - BUILD: ssl: guard SSL_CTX_set_msg_callback with SSL_CTRL_SET_MSG_CALLBACK macro
+    - MEDIUM: ssl: add a rwlock for SSL server session cache
+    - BUG/MINOR: intops: fix mul32hi()'s off-by-one
+    - BUG/MINOR: freq_ctr: fix a wrong delay calculation in next_event_delay()
+    - MINOR: stick-tables/counters: add http_fail_cnt and http_fail_rate data types
+    - MINOR: ssl: add SSL_SERVER_LOCK label in threads.h
+    - BUG/MINOR: mux-h1: Don't increment HTTP error counter for 408/500/501 errors
+    - BUG/MINOR: http-ana: Don't increment HTTP error counter on internal errors
+    - BUG/MEDIUM: mux-h1: Always set CS_FL_EOI for response in MSG_DONE state
+    - BUG/MINOR: mux-h1: Fix data skipping for bodyless responses
+    - BUG/MINOR: mux-h1: Don't blindly skip EOT block for non-chunked messages
+    - BUG/MEDIUM: mux-h2: Add EOT block when EOM flag is set on an empty HTX message
+    - MINOR: mux-h1: Be sure EOM flag is set when processing end of outgoing message
+    - REGTESTS: Add a script to test payload skipping for bodyless HTTP responses
+    - BUG/MINOR: server: re-align state file fields number
+    - CLEANUP: muxes: Remove useless calls to b_realign_if_empty()
+    - BUG/MINOR: tools: Fix a memory leak on error path in parse_dotted_uints()
+    - CLEANUP: remove unused variable assigned found by Coverity
+    - CLEANUP: queue: Remove useless tests on p or pp in pendconn_process_next_strm()
+    - BUG/MINOR: backend: hold correctly lock when killing idle conn
+    - MEDIUM: connection: protect idle conn lists with locks
+    - MEDIUM: connection: replace idle conn lists by eb trees
+    - MINOR: backend: search conn in idle/safe trees after available
+    - MINOR: backend: search conn in idle tree after safe on always reuse
+    - MINOR: connection: prepare hash calcul for server conns
+    - MINOR: connection: use the srv pointer for the srv conn hash
+    - MINOR: backend: compare conn hash for session conn reuse
+    - MINOR: connection: use sni as parameter for srv conn hash
+    - MINOR: reg-tests: test http-reuse with sni
+    - MINOR: backend: rewrite alloc of stream target address
+    - MINOR: connection: use dst addr as parameter for srv conn hash
+    - MINOR: reg-test: test http-reuse with specific dst addr
+    - MINOR: backend: rewrite alloc of connection src address
+    - MINOR: connection: use src addr as parameter for srv conn hash
+    - MINOR: connection: use proxy protocol as parameter for srv conn hash
+    - MINOR: reg-tests: test http-reuse with proxy protocol
+    - MINOR: doc: update http reuse for new eligilible connections
+    - BUG/MINOR: backend: fix compilation without ssl
+    - REGTESTS: adjust http_reuse_conn_hash requirements
+    - REGTESTS: deactivate a failed test on CI in http_reuse_conn_hash
+    - REGTESTS: fix sni used in http_reuse_conn_hash for libressl 3.3.0
+    - CI: cirrus: update FreeBSD image to 12.2
+    - MEDIUM: cli: add check-addr command
+    - MEDIUM: cli: add agent-port command
+    - MEDIUM: server: add server-states version 2
+    - MEDIUM: server: support {check,agent}_addr, agent_port in server state
+    - MINOR: server: enhance error precision when applying server state
+    - BUG/MINOR: server: Fix server-state-file-name directive
+    - CLEANUP: deinit: release global and per-proxy server-state variables on deinit
+    - BUG/MEDIUM: config: don't pick unset values from last defaults section
+    - BUG/MINOR: stats: revert the change on ST_CONVDONE
+    - BUG/MINOR: cfgparse: do not mention "addr:port" as supported on proxy lines
+    - BUG/MINOR: http-htx: defpx must be a const in proxy_dup_default_conf_errors()
+    - BUG/MINOR: tcpheck: the source list must be a const in dup_tcpcheck_var()
+    - BUILD: proxy: add missing compression-t.h to proxy-t.h
+    - REORG: move init_default_instance() to proxy.c and pass it the defproxy pointer
+    - REORG: proxy: centralize the proxy allocation code into alloc_new_proxy()
+    - MEDIUM: proxy: only take defaults when a default proxy is passed.
+    - MINOR: proxy: move the defproxy freeing code to proxy.c
+    - MINOR: proxy: always properly reset the just freed default instance pointers
+    - BUG/MINOR: extcheck: proxy_parse_extcheck() must take a const for the defproxy
+    - BUG/MINOR: tcpcheck: proxy_parse_*check*() must take a const for the defproxy
+    - BUG/MINOR: server: parse_server() must take a const for the defproxy
+    - MINOR: cfgparse: move defproxy to cfgparse-listen as a static
+    - MINOR: proxy: add a new capability PR_CAP_DEF
+    - MINOR: cfgparse: check PR_CAP_DEF instead of comparing poiner against defproxy
+    - MINOR: cfgparse: use a pointer to the current default proxy
+    - MINOR: proxy: also store the name for a defaults section
+    - MINOR: proxy: support storing defaults sections into their own tree
+    - MEDIUM: proxy: store the default proxies in a tree by name
+    - MEDIUM: cfgparse: allow a proxy to designate the defaults section to use
+    - MINOR: http: add baseq sample fetch
+    - CLEANUP: tcpcheck: Remove a useless test on port variable
+    - BUG/MINOR: server: Don't call fopen() with server-state filepath set to NULL
+    - CLEANUP: server: Remove useless "filepath" variable in apply_server_state()
+    - MINOR: peers/cli: do not dump the peers dictionaries by default on "show peers"
+    - MINOR: cfgparse: implement a simple if/elif/else/endif macro block handler
+    - DOC: tune: explain the origin of block size for ssl.cachesize
+    - MINOR: tcp: add support for defer-accept on FreeBSD.
+    - MINOR: ring: adds new ring_init function.
+    - CLEANUP: channel: fix comment in ci_putblk.
+    - BUG/MINOR: dns: add missing sent counter and parent id to dns counters.
+    - BUG/MINOR: resolvers: fix attribute packed struct for dns
+    - MINOR: resolvers: renames some resolvers internal types and removes dns prefix
+    - MINOR: resolvers: renames type dns_resolvers to resolvers.
+    - MINOR: resolvers: renames some resolvers specific types to not use dns prefix
+    - MINOR: resolvers: renames some dns prefixed types using resolv prefix.
+    - MINOR: resolvers: renames resolvers DNS_RESP_* errcodes RSLV_RESP_*
+    - MINOR: resolvers: renames resolvers DNS_UPD_* returncodes to RSLV_UPD_*
+    - MINOR: resolvers: rework prototype suffixes to split resolving and dns.
+    - MEDIUM: resolvers: move resolvers section parsing from cfgparse.c to dns.c
+    - MINOR: resolvers: replace nameserver's resolver ref by generic parent pointer
+    - MINOR: resolvers: rework dns stats prototype because specific to resolvers
+    - MEDIUM: resolvers: split resolving and dns message exchange layers.
+    - MEDIUM: resolvers/dns: split dns.c into dns.c and resolvers.c
+    - MEDIUM: dns: adds code to support pipelined DNS requests over TCP.
+    - MEDIUM: resolvers: add supports of TCP nameservers in resolvers.
+
 2021/02/05 : 2.4-dev7
     - BUG/MINOR: stats: Continue to fill frontend stats on unimplemented metric
     - BUILD: ssl: guard Client Hello callbacks with HAVE_SSL_CLIENT_HELLO_CB macro instead of openssl version
