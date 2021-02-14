@@ -70,6 +70,7 @@ exported. Here are examples:
 
   /metrics?scope=server                 # ==> server metrics will be exported
   /metrics?scope=frontend&scope=backend # ==> Frontend and backend metrics will be exported
+  /metrics?scope=listener               # ==> listener metrics will be exported
   /metrics?scope=*&scope=               # ==> no metrics will be exported
   /metrics?scope=&scope=global          # ==> global metrics will be exported
   /metrics?scope=sticktable             # ==> stick tables metrics will be exported
@@ -102,7 +103,7 @@ except the server_check_status, you may configure prometheus that way:
 - <job>
    metric_relabel_configs:
    - source_labels: ['__name__']
-      regex: 'haproxy_(process_|frontend_|backend_|server_check_status).*'
+      regex: 'haproxy_(process_|frontend_|listener_|backend_|server_check_status).*'
       action: keep
 
 Exported metrics
@@ -210,6 +211,27 @@ See prometheus export for the description of each field.
 | haproxy_frontend_http_cache_lookups_total       |
 | haproxy_frontend_http_cache_hits_total          |
 | haproxy_frontend_internal_errors_total          |
++-------------------------------------------------+
+
+* Listener metrics
+
++-------------------------------------------------+
+|    Metric name                                  |
++-------------------------------------------------+
+| haproxy_listener_current_sessions               |
+| haproxy_listener_max_sessions                   |
+| haproxy_listener_limit_sessions                 |
+| haproxy_listener_sessions_total                 |
+| haproxy_listener_bytes_in_total                 |
+| haproxy_listener_bytes_out_total                |
+| haproxy_listener_requests_denied_total          |
+| haproxy_listener_responses_denied_total         |
+| haproxy_listener_request_errors_total           |
+| haproxy_listener_status                         |
+| haproxy_listener_denied_connections_total       |
+| haproxy_listener_denied_sessions_total          |
+| haproxy_listener_failed_header_rewriting_total  |
+| haproxy_listener_internal_errors_total          |
 +-------------------------------------------------+
 
 * Backend metrics

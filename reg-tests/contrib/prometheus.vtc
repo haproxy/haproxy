@@ -16,6 +16,7 @@ haproxy h1 -conf {
 	timeout connect 1s
 	timeout client  1s
 	timeout server  1s
+	option socket-stats
 
     listen stats
 	bind "fd@${stats}"
@@ -36,6 +37,7 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.status == 200
 	expect resp.body ~ ".*haproxy_process.*"
 	expect resp.body ~ ".*haproxy_frontend.*"
+	expect resp.body ~ ".*haproxy_listener.*"
 	expect resp.body ~ ".*haproxy_backend.*"
 	expect resp.body ~ ".*haproxy_server.*"
 	expect resp.body ~ ".*haproxy_sticktable.*"
@@ -50,6 +52,7 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.status == 200
 	expect resp.body !~ ".*haproxy_process.*"
 	expect resp.body !~ ".*haproxy_frontend.*"
+	expect resp.body !~ ".*haproxy_listener.*"
 	expect resp.body !~ ".*haproxy_backend.*"
 	expect resp.body ~ ".*haproxy_server.*"
 	expect resp.body !~ ".*haproxy_sticktable.*"
@@ -59,6 +62,7 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.status == 200
 	expect resp.body !~ ".*haproxy_process.*"
 	expect resp.body ~ ".*haproxy_frontend.*"
+	expect resp.body !~ ".*haproxy_listener.*"
 	expect resp.body ~ ".*haproxy_backend.*"
 	expect resp.body !~ ".*haproxy_server.*"
 	expect resp.body !~ ".*haproxy_sticktable.*"
