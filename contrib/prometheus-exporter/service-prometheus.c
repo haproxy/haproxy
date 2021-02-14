@@ -861,7 +861,7 @@ static int promex_dump_srv_metrics(struct appctx *appctx, struct htx *htx)
 				switch (appctx->st2) {
 					case ST_F_STATUS:
 						state = promex_srv_status(sv);
-					for (; appctx->ctx.stats.st_code < PROMEX_SRV_STATE_COUNT; appctx->ctx.stats.st_code++) {
+						for (; appctx->ctx.stats.st_code < PROMEX_SRV_STATE_COUNT; appctx->ctx.stats.st_code++) {
 							val = mkf_u32(FO_STATUS, state == appctx->ctx.stats.st_code);
 							labels[2].name = ist("state");
 							labels[2].value = promex_srv_st[appctx->ctx.stats.st_code];
