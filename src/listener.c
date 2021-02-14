@@ -46,6 +46,12 @@ static struct bind_kw_list bind_keywords = {
 static struct mt_list global_listener_queue = MT_LIST_HEAD_INIT(global_listener_queue);
 static struct task *global_listener_queue_task;
 
+/* listener status for stats */
+const char* li_status_st[LI_STATE_COUNT] = {
+	[LI_STATUS_WAITING] = "WAITING",
+	[LI_STATUS_OPEN]    = "OPEN",
+	[LI_STATUS_FULL]    = "FULL",
+};
 
 #if defined(USE_THREAD)
 
@@ -182,6 +188,18 @@ static int accept_queue_init()
 REGISTER_CONFIG_POSTPARSER("multi-threaded accept queue", accept_queue_init);
 
 #endif // USE_THREAD
+
+/* helper to get listener status for stats */
+enum li_status get_li_status(struct listener *l)
+{
+	if (!l->maxconn || l->nbconn < l->maxconn) {
+		if (l->state == LI_LIMITED)
+			return LI_STATUS_WAITING;
+		else
+			return LI_STATUS_OPEN;
+	}
+	return LI_STATUS_FULL;
+}
 
 /* adjust the listener's state and its proxy's listener counters if needed.
  * It must be called under the listener's lock, but uses atomic ops to change

@@ -218,6 +218,9 @@ struct task *manage_global_listener_queue(struct task *t, void *context, unsigne
 
 extern struct accept_queue_ring accept_queue_rings[MAX_THREADS] __attribute__((aligned(64)));
 
+extern const char* li_status_st[LI_STATE_COUNT];
+enum li_status get_li_status(struct listener *l);
+
 #endif /* _HAPROXY_LISTENER_H */
 
 /*

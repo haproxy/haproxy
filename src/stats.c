@@ -1898,7 +1898,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 				metric = mkf_u64(FN_COUNTER, l->counters->denied_sess);
 				break;
 			case ST_F_STATUS:
-				metric = mkf_str(FO_STATUS, (!l->maxconn || l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
+				metric = mkf_str(FO_STATUS, li_status_st[get_li_status(l)]);
 				break;
 			case ST_F_PID:
 				metric = mkf_u32(FO_KEY, relative_pid);

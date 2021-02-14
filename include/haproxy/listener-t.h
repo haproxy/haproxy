@@ -84,6 +84,15 @@ enum li_state {
  * not rely on this state.
  */
 
+/* listener status for stats */
+enum li_status {
+	LI_STATUS_WAITING = 0,
+	LI_STATUS_OPEN,
+	LI_STATUS_FULL,
+
+	LI_STATE_COUNT /* must be last */
+};
+
 /* listener socket options */
 #define LI_O_NONE               0x0000
 #define LI_O_NOLINGER           0x0001  /* disable linger on this socket */
