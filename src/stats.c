@@ -1831,15 +1831,16 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 	return stats_dump_one_line(stats, stats_count, appctx);
 }
 
-/* Fill <stats> with the listener statistics. <stats> is
- * preallocated array of length <len>. The length of the array
- * must be at least ST_F_TOTAL_FIELDS. If this length is less
- * then this value, the function returns 0, otherwise, it
- * returns 1. <flags> can take the value STAT_SHLGNDS.
+/* Fill <stats> with the listener statistics. <stats> is preallocated array of
+ * length <len>. The length of the array must be at least ST_F_TOTAL_FIELDS. If
+ * this length is less then this value, the function returns 0, otherwise, it
+ * returns 1.  If selected_field is != NULL, only fill this one. <flags> can
+ * take the value STAT_SHLGNDS.
  */
 int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
-                        struct field *stats, int len)
+                        struct field *stats, int len, enum stat_field *selected_field)
 {
+	enum stat_field current_field = (selected_field != NULL ? *selected_field : 0);
 	struct buffer *out = get_trash_chunk();
 
 	if (len < ST_F_TOTAL_FIELDS)
@@ -1850,54 +1851,112 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 
 	chunk_reset(out);
 
-	stats[ST_F_PXNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
-	stats[ST_F_SVNAME]   = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, l->name);
-	stats[ST_F_MODE]     = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
-	stats[ST_F_SCUR]     = mkf_u32(0, l->nbconn);
-	stats[ST_F_SMAX]     = mkf_u32(FN_MAX, l->counters->conn_max);
-	stats[ST_F_SLIM]     = mkf_u32(FO_CONFIG|FN_LIMIT, l->maxconn);
-	stats[ST_F_STOT]     = mkf_u64(FN_COUNTER, l->counters->cum_conn);
-	stats[ST_F_BIN]      = mkf_u64(FN_COUNTER, l->counters->bytes_in);
-	stats[ST_F_BOUT]     = mkf_u64(FN_COUNTER, l->counters->bytes_out);
-	stats[ST_F_DREQ]     = mkf_u64(FN_COUNTER, l->counters->denied_req);
-	stats[ST_F_DRESP]    = mkf_u64(FN_COUNTER, l->counters->denied_resp);
-	stats[ST_F_EREQ]     = mkf_u64(FN_COUNTER, l->counters->failed_req);
-	stats[ST_F_DCON]     = mkf_u64(FN_COUNTER, l->counters->denied_conn);
-	stats[ST_F_DSES]     = mkf_u64(FN_COUNTER, l->counters->denied_sess);
-	stats[ST_F_STATUS]   = mkf_str(FO_STATUS, (!l->maxconn || l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
-	stats[ST_F_PID]      = mkf_u32(FO_KEY, relative_pid);
-	stats[ST_F_IID]      = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
-	stats[ST_F_SID]      = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
-	stats[ST_F_TYPE]     = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
-	stats[ST_F_WREW]     = mkf_u64(FN_COUNTER, l->counters->failed_rewrites);
-	stats[ST_F_EINT]     = mkf_u64(FN_COUNTER, l->counters->internal_errors);
+	for (; current_field < ST_F_TOTAL_FIELDS; current_field++) {
+		struct field metric = { 0 };
 
-	if (flags & STAT_SHLGNDS) {
-		char str[INET6_ADDRSTRLEN];
-		int port;
+		switch (current_field) {
+			case ST_F_PXNAME:
+				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, px->id);
+				break;
+			case ST_F_SVNAME:
+				metric = mkf_str(FO_KEY|FN_NAME|FS_SERVICE, l->name);
+				break;
+			case ST_F_MODE:
+				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
+				break;
+			case ST_F_SCUR:
+				metric = mkf_u32(0, l->nbconn);
+				break;
+			case ST_F_SMAX:
+				metric = mkf_u32(FN_MAX, l->counters->conn_max);
+				break;
+			case ST_F_SLIM:
+				metric = mkf_u32(FO_CONFIG|FN_LIMIT, l->maxconn);
+				break;
+			case ST_F_STOT:
+				metric = mkf_u64(FN_COUNTER, l->counters->cum_conn);
+				break;
+			case ST_F_BIN:
+				metric = mkf_u64(FN_COUNTER, l->counters->bytes_in);
+				break;
+			case ST_F_BOUT:
+				metric = mkf_u64(FN_COUNTER, l->counters->bytes_out);
+				break;
+			case ST_F_DREQ:
+				metric = mkf_u64(FN_COUNTER, l->counters->denied_req);
+				break;
+			case ST_F_DRESP:
+				metric = mkf_u64(FN_COUNTER, l->counters->denied_resp);
+				break;
+			case ST_F_EREQ:
+				metric = mkf_u64(FN_COUNTER, l->counters->failed_req);
+				break;
+			case ST_F_DCON:
+				metric = mkf_u64(FN_COUNTER, l->counters->denied_conn);
+				break;
+			case ST_F_DSES:
+				metric = mkf_u64(FN_COUNTER, l->counters->denied_sess);
+				break;
+			case ST_F_STATUS:
+				metric = mkf_str(FO_STATUS, (!l->maxconn || l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
+				break;
+			case ST_F_PID:
+				metric = mkf_u32(FO_KEY, relative_pid);
+				break;
+			case ST_F_IID:
+				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
+				break;
+			case ST_F_SID:
+				metric = mkf_u32(FO_KEY|FS_SERVICE, l->luid);
+				break;
+			case ST_F_TYPE:
+				metric = mkf_u32(FO_CONFIG|FS_SERVICE, STATS_TYPE_SO);
+				break;
+			case ST_F_WREW:
+				metric = mkf_u64(FN_COUNTER, l->counters->failed_rewrites);
+				break;
+			case ST_F_EINT:
+				metric = mkf_u64(FN_COUNTER, l->counters->internal_errors);
+				break;
+			case ST_F_ADDR:
+				if (flags & STAT_SHLGNDS) {
+					char str[INET6_ADDRSTRLEN];
+					int port;
 
-		port = get_host_port(&l->rx.addr);
-		switch (addr_to_str(&l->rx.addr, str, sizeof(str))) {
-		case AF_INET:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_appendf(out, "%s:%d", str, port);
-			break;
-		case AF_INET6:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_appendf(out, "[%s]:%d", str, port);
-			break;
-		case AF_UNIX:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
-			break;
-		case -1:
-			stats[ST_F_ADDR] = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
-			chunk_strcat(out, strerror(errno));
-			break;
-		default: /* address family not supported */
-			break;
+					port = get_host_port(&l->rx.addr);
+					switch (addr_to_str(&l->rx.addr, str, sizeof(str))) {
+					case AF_INET:
+						metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+						chunk_appendf(out, "%s:%d", str, port);
+						break;
+					case AF_INET6:
+						metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+						chunk_appendf(out, "[%s]:%d", str, port);
+						break;
+					case AF_UNIX:
+						metric = mkf_str(FO_CONFIG|FS_SERVICE, "unix");
+						break;
+					case -1:
+						metric = mkf_str(FO_CONFIG|FS_SERVICE, chunk_newstr(out));
+						chunk_strcat(out, strerror(errno));
+						break;
+					default: /* address family not supported */
+						break;
+					}
+				}
+				break;
+			default:
+				/* not used for listen. If a specific metric
+				 * is requested, return an error. Otherwise continue.
+				 */
+				if (selected_field != NULL)
+					return 0;
+				continue;
 		}
+		stats[current_field] = metric;
+		if (selected_field != NULL)
+			break;
 	}
-
 	return 1;
 }
 
@@ -1914,7 +1973,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 
 	memset(stats, 0, sizeof(struct field) * stat_count[STATS_DOMAIN_PROXY]);
 
-	if (!stats_fill_li_stats(px, l, appctx->ctx.stats.flags, stats, ST_F_TOTAL_FIELDS))
+	if (!stats_fill_li_stats(px, l, appctx->ctx.stats.flags, stats,
+				 ST_F_TOTAL_FIELDS, NULL))
 		return 0;
 
 	list_for_each_entry(mod, &stats_module_list[STATS_DOMAIN_PROXY], list) {
