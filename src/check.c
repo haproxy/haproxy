@@ -178,8 +178,8 @@ const char *get_check_status_description(short check_status) {
 }
 
 /* Converts check_status code to short info */
-const char *get_check_status_info(short check_status) {
-
+const char *get_check_status_info(short check_status)
+{
 	const char *info;
 
 	if (check_status < HCHK_STATUS_SIZE)
