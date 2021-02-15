@@ -1033,7 +1033,13 @@ struct dns_session *dns_session_new(struct dns_stream_server *dss)
 		goto error;
 
 	ring_init(&ds->ring, ds->tx_ring_area, DNS_TCP_MSG_RING_MAX_SIZE);
-	ring_attach(&ds->ring);
+	if (!ring_attach(&ds->ring)) {
+		/* Should never happen
+		 * since we are the first attached
+		 * here
+		 */
+		goto error;
+	}
 
 	if ((ds->task_exp = task_new(tid_bit)) == NULL)
 		goto error;
