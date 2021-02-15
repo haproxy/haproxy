@@ -75,8 +75,10 @@ static int dns_connect_nameserver(struct dns_nameserver *ns)
 		dgram->t.sock.fd = fd;
 		fd_insert(fd, dgram, dgram_fd_handler, MAX_THREADS_MASK);
 		fd_want_recv(fd);
+		return 0;
 	}
-	return 0;
+
+	return -1;
 }
 
 /* Sends a message to a name server
