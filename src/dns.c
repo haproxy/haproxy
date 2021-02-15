@@ -117,7 +117,6 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 			}
 			ns->counters->snd_error++;
 			fd_delete(fd);
-			close(fd);
 			dgram->t.sock.fd = -1;
 			return -1;
 		}
@@ -164,7 +163,6 @@ ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size)
 				return 0;
 			}
 			fd_delete(fd);
-			close(fd);
 			dgram->t.sock.fd = -1;
 			return -1;
 		}
@@ -342,7 +340,6 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 			}
 			ns->counters->snd_error++;
 			fd_delete(fd);
-			close(fd);
 			fd = dgram->t.sock.fd = -1;
 			goto out;
 		}
