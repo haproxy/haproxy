@@ -3273,8 +3273,8 @@ void apply_server_state(void)
 		if (st == NULL) {
 			goto nextline;
 		}
-		memcpy(st->name_name.key, trash.area, trash.data + 1);
-		if (ebst_insert(&state_file, &st->name_name) != &st->name_name) {
+		memcpy(st->node.key, trash.area, trash.data + 1);
+		if (ebst_insert(&state_file, &st->node) != &st->node) {
 			/* this is a duplicate key, probably a hand-crafted file,
 			 * drop it!
 			 */
@@ -3321,7 +3321,7 @@ void apply_server_state(void)
 				node = ebst_lookup(&state_file, trash.area);
 				if (!node)
 					continue; /* next server */
-				st = ebmb_entry(node, struct state_line, name_name);
+				st = ebmb_entry(node, struct state_line, node);
 				strcpy(mybuf, st->line); /* st->line is always small enough */
 
 				ret = srv_state_parse_line(mybuf, global_vsn, params);
@@ -3415,7 +3415,7 @@ void apply_server_state(void)
 
 	node = ebmb_first(&state_file);
         while (node) {
-                st = ebmb_entry(node, struct state_line, name_name);
+                st = ebmb_entry(node, struct state_line, node);
                 next_node = ebmb_next(node);
                 ebmb_delete(node);
 		free(st->line);

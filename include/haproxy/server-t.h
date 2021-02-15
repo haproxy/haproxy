@@ -377,8 +377,8 @@ struct server {
  */
 struct state_line {
 	char *line;
-	struct ebmb_node name_name;
-	/* WARNING don't put anything after name_name, it's used by the key */
+	struct ebmb_node node;
+	/* WARNING don't put anything after node, it's used by the key */
 };
 
 
