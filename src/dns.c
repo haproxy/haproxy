@@ -592,7 +592,15 @@ static void dns_session_io_handler(struct appctx *appctx)
 			}
 			trash.data += len;
 
-			ci_putchk(si_ic(si), &trash);
+			if (ci_putchk(si_ic(si), &trash) == -1) {
+				/* should never happen since we
+				 * check available_room is large
+				 * enought here.
+				 */
+				si_rx_room_blk(si);
+				ret = 0;
+				break;
+			}
 
 			if (ds->tx_msg_offset) {
 				/* msg was not fully processed, we must  be awake to drain pending data */
