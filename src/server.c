@@ -3049,20 +3049,26 @@ static void srv_update_state(struct server *srv, int version, char **params)
  * Note that this should be the first read on <f>
  */
 static int srv_state_get_version(FILE *f) {
-	char buf[2];
-	int ret;
+	char mybuf[SRV_STATE_LINE_MAXLEN];
+	char *endptr;
+	long int vsn;
 
 	/* first character of first line of the file must contain the version of the export */
-	if (fgets(buf, 2, f) == NULL) {
+	if (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f) == NULL)
+		return 0;
+
+	vsn = strtol(mybuf, &endptr, 10);
+	if (endptr == mybuf || *endptr != '\n') {
+		/* Empty or truncated line */
 		return 0;
 	}
 
-	ret = atoi(buf);
-	if ((ret < SRV_STATE_FILE_VERSION_MIN) ||
-	    (ret > SRV_STATE_FILE_VERSION_MAX))
+	if (vsn < SRV_STATE_FILE_VERSION_MIN || vsn > SRV_STATE_FILE_VERSION_MAX) {
+		/* Wrong version number */
 		return 0;
+	}
 
-	return ret;
+	return vsn;
 }
 
 
