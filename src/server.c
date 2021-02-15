@@ -16,7 +16,7 @@
 #include <ctype.h>
 #include <errno.h>
 
-#include <import/ebsttree.h>
+#include <import/eb64tree.h>
 #include <import/xxhash.h>
 
 #include <haproxy/api.h>
@@ -3226,7 +3226,7 @@ void apply_server_state(void)
 	struct proxy *curproxy;
 	struct server *srv;
 	struct server_state_line *st_line;
-	struct ebmb_node *node, *next_node;
+	struct eb64_node *node, *next_node;
 	FILE *f;
 	char *params[SRV_STATE_FILE_MAX_FIELDS] = {0};
 	char mybuf[SRV_STATE_LINE_MAXLEN];
@@ -3258,41 +3258,39 @@ void apply_server_state(void)
 	}
 
 	while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
-		char *line;
 		int ret;
 
-		/* Duplicate line before parsing */
-		line = strdup(mybuf);
-		if (line == NULL)
-			continue;
-
-		ret = srv_state_parse_line(mybuf, global_vsn, params);
-		if (ret <= 0)
-			goto nextline;
-
-		/* key : "be_name srv_name */
-		chunk_printf(&trash, "%s %s", params[1], params[3]);
-
-			/* store line in tree */
-		st_line = calloc(1, sizeof(*st_line) + trash.data + 1);
+		/* store line in tree and duplicate the line */
+		st_line = calloc(1, sizeof(*st_line));
 		if (st_line == NULL) {
 			goto nextline;
 		}
-		memcpy(st_line->node.key, trash.area, trash.data + 1);
-		if (ebst_insert(&global_state_tree, &st_line->node) != &st_line->node) {
+		st_line->line = strdup(mybuf);
+		if (st_line->line == NULL)
+			goto nextline;
+
+		ret = srv_state_parse_line(st_line->line, global_vsn, st_line->params);
+		if (ret <= 0)
+			goto nextline;
+
+		/* The key: be_name srv_name (params[1] params[3]) */
+		chunk_printf(&trash, "%s %s", st_line->params[1], st_line->params[3]);
+		st_line->node.key = XXH3(trash.area, trash.data, 0);
+		if (eb64_insert(&global_state_tree, &st_line->node) != &st_line->node) {
 			/* this is a duplicate key, probably a hand-crafted file,
 			 * drop it!
 			 */
-			free(st_line);
 			goto nextline;
 		}
 
-		/* save line */
-		st_line->line = line;
-		line = NULL;
+		/* reset for next line */
+		st_line = NULL;
 	  nextline:
 		/* free up memory in case of error during the processing of the line */
-		free(line);
+		if (st_line) {
+			free(st_line->line);
+			free(st_line);
+		}
 	}
   close_globalfile:
 	fclose(f);
@@ -3320,20 +3318,15 @@ void apply_server_state(void)
 				continue; /* next proxy */
 
 			for (srv = curproxy->srv; srv; srv = srv->next) {
-				int ret;
+				unsigned long key;
 
 				chunk_printf(&trash, "%s %s", curproxy->id, srv->id);
-				node = ebst_lookup(&global_state_tree, trash.area);
+				key = XXH3(trash.area, trash.data, 0);
+				node = eb64_lookup(&global_state_tree, key);
 				if (!node)
 					continue; /* next server */
-				st_line = ebmb_entry(node, typeof(*st_line), node);
-				strcpy(mybuf, st_line->line); /* st_line->line is always small enough */
-
-				ret = srv_state_parse_line(mybuf, global_vsn, params);
-				if (ret <= 0)
-					continue; /* next server */
-
-				srv_update_state(srv, global_vsn, params+4);
+				st_line = eb64_entry(node, typeof(*st_line), node);
+				srv_update_state(srv, global_vsn, st_line->params+4);
 			}
 
 			continue; /* next proxy */
@@ -3400,7 +3393,7 @@ void apply_server_state(void)
 			}
 
 			/* look for the server by its name: param[3] */
-			srv = server_find_best_match(curproxy, params[3], 0, NULL);
+			srv = server_find_by_name(curproxy, params[3]);
 			if (!srv) {
 				/* if no server found, then warning and continue with next line */
 				ha_warning("Proxy '%s': can't find server '%s' in backend '%s'\n",
@@ -3418,11 +3411,11 @@ void apply_server_state(void)
 		fclose(f);
 	}
 
-	node = ebmb_first(&global_state_tree);
+	node = eb64_first(&global_state_tree);
         while (node) {
-                st_line = ebmb_entry(node, typeof(*st_line), node);
-                next_node = ebmb_next(node);
-                ebmb_delete(node);
+                st_line = eb64_entry(node, typeof(*st_line), node);
+                next_node = eb64_next(node);
+                eb64_delete(node);
 		free(st_line->line);
 		free(st_line);
                 node = next_node;

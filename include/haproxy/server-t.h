@@ -377,8 +377,8 @@ struct server {
  */
 struct server_state_line {
 	char *line;
-	struct ebmb_node node;
-	/* WARNING don't put anything after node, it's used by the key */
+	char *params[SRV_STATE_FILE_MAX_FIELDS];
+	struct eb64_node node;
 };
 
 
