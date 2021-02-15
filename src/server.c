@@ -3220,7 +3220,7 @@ void apply_server_state(void)
 {
 	struct proxy *curproxy;
 	struct server *srv;
-	struct state_line *st;
+	struct server_state_line *st_line;
 	struct ebmb_node *node, *next_node;
 	FILE *f;
 	char *params[SRV_STATE_FILE_MAX_FIELDS] = {0};
@@ -3269,21 +3269,21 @@ void apply_server_state(void)
 		chunk_printf(&trash, "%s %s", params[1], params[3]);
 
 			/* store line in tree */
-		st = calloc(1, sizeof(*st) + trash.data + 1);
-		if (st == NULL) {
+		st_line = calloc(1, sizeof(*st_line) + trash.data + 1);
+		if (st_line == NULL) {
 			goto nextline;
 		}
-		memcpy(st->node.key, trash.area, trash.data + 1);
-		if (ebst_insert(&state_file, &st->node) != &st->node) {
+		memcpy(st_line->node.key, trash.area, trash.data + 1);
+		if (ebst_insert(&state_file, &st_line->node) != &st_line->node) {
 			/* this is a duplicate key, probably a hand-crafted file,
 			 * drop it!
 			 */
-			free(st);
+			free(st_line);
 			goto nextline;
 		}
 
 		/* save line */
-		st->line = line;
+		st_line->line = line;
 		line = NULL;
 	  nextline:
 		/* free up memory in case of error during the processing of the line */
@@ -3321,8 +3321,8 @@ void apply_server_state(void)
 				node = ebst_lookup(&state_file, trash.area);
 				if (!node)
 					continue; /* next server */
-				st = ebmb_entry(node, struct state_line, node);
-				strcpy(mybuf, st->line); /* st->line is always small enough */
+				st_line = ebmb_entry(node, typeof(*st_line), node);
+				strcpy(mybuf, st_line->line); /* st_line->line is always small enough */
 
 				ret = srv_state_parse_line(mybuf, global_vsn, params);
 				if (ret <= 0)
@@ -3415,11 +3415,11 @@ void apply_server_state(void)
 
 	node = ebmb_first(&state_file);
         while (node) {
-                st = ebmb_entry(node, struct state_line, node);
+                st_line = ebmb_entry(node, typeof(*st_line), node);
                 next_node = ebmb_next(node);
                 ebmb_delete(node);
-		free(st->line);
-		free(st);
+		free(st_line->line);
+		free(st_line);
                 node = next_node;
         }
 }

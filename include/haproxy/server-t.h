@@ -375,7 +375,7 @@ struct server {
 /* Storage structure to load server-state lines from a flat file into
  * an ebtree, for faster processing
  */
-struct state_line {
+struct server_state_line {
 	char *line;
 	struct ebmb_node node;
 	/* WARNING don't put anything after node, it's used by the key */
