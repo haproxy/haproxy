@@ -74,9 +74,6 @@ struct dict server_key_dict = {
 	.values = EB_ROOT_UNIQUE,
 };
 
-/* tree where global state_file is loaded */
-struct eb_root state_file = EB_ROOT_UNIQUE;
-
 int srv_downtime(const struct server *s)
 {
 	if ((s->cur_state != SRV_ST_STOPPED) || s->last_change >= now.tv_sec)		// ignore negative time
@@ -3218,6 +3215,8 @@ static inline int srv_state_get_filepath(char *dst_path, int maxpathlen, const c
  */
 void apply_server_state(void)
 {
+	/* tree where global state_file is loaded */
+	struct eb_root global_state_tree = EB_ROOT_UNIQUE;
 	struct proxy *curproxy;
 	struct server *srv;
 	struct server_state_line *st_line;
@@ -3274,7 +3273,7 @@ void apply_server_state(void)
 			goto nextline;
 		}
 		memcpy(st_line->node.key, trash.area, trash.data + 1);
-		if (ebst_insert(&state_file, &st_line->node) != &st_line->node) {
+		if (ebst_insert(&global_state_tree, &st_line->node) != &st_line->node) {
 			/* this is a duplicate key, probably a hand-crafted file,
 			 * drop it!
 			 */
@@ -3318,7 +3317,7 @@ void apply_server_state(void)
 				int ret;
 
 				chunk_printf(&trash, "%s %s", curproxy->id, srv->id);
-				node = ebst_lookup(&state_file, trash.area);
+				node = ebst_lookup(&global_state_tree, trash.area);
 				if (!node)
 					continue; /* next server */
 				st_line = ebmb_entry(node, typeof(*st_line), node);
@@ -3413,7 +3412,7 @@ void apply_server_state(void)
 		fclose(f);
 	}
 
-	node = ebmb_first(&state_file);
+	node = ebmb_first(&global_state_tree);
         while (node) {
                 st_line = ebmb_entry(node, typeof(*st_line), node);
                 next_node = ebmb_next(node);
