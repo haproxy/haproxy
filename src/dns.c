@@ -522,6 +522,13 @@ static void dns_session_io_handler(struct appctx *appctx)
 
 				/* backup original query id */
 				len = b_getblk(buf, (char *)&original_qid, sizeof(original_qid), ofs + cnt);
+				if (!len) {
+					/* should never happen since messages are atomically
+					 * written into ring
+					 */
+					ret = 0;
+					break;
+				}
 
 				/* generates new query id */
 				new_qid = ++ds->query_counter;
