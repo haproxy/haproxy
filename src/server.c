@@ -4619,9 +4619,10 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 #endif
 	} else {
 		cli_err(appctx,
-			"'set server <srv>' only supports 'agent', 'health', "
-			"'state', 'weight', 'addr', 'fqdn', 'check-addr', "
-			"'check-port' and 'ssl'.\n");
+			"usage: set server <backend>/<server> "
+			"addr | agent | agent-addr | agent-port | agent-send | "
+			"check-addr | check-port | fqdn | health | ssl | "
+			"state | weight\n");
 	}
  out_unlock:
 	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
