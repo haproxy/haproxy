@@ -26,7 +26,7 @@ haproxy h1 -conf {
 	listen sender-proxy
 		bind "fd@${feS_proxy}" accept-proxy
 		http-reuse always
-		server srv2 ${h1_feR_proxy_addr}:${h1_feR_proxy_port} send-proxy
+		server srv2 ${h1_feR_proxy_addr}:${h1_feR_proxy_port} send-proxy pool-low-conn 2
 
 	listen receiver
 		bind "fd@${feR_ssl}" ssl crt ${testdir}/common.pem
@@ -146,9 +146,8 @@ client c_proxy -connect ${h1_feS_proxy_sock} -proxy1 "127.0.0.1:50000 ${h1_feS_p
 	expect resp.status == 200
 	expect resp.http.http_first_request == "0"
 
-	# TODO this test does not pass on the CI
-	#txreq
-	#rxresp
-	#expect resp.status == 200
-	#expect resp.http.http_first_request == "0"
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.http_first_request == "0"
 } -run
