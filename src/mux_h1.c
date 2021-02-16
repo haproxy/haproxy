@@ -1372,8 +1372,8 @@ static int h1_search_websocket_key(struct h1s *h1s, struct h1m *h1m, struct htx 
  * it couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR
  * flag. If relies on the function http_parse_msg_hdrs() to do the parsing.
  */
-static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
-				 struct buffer *buf, size_t *ofs, size_t max)
+static size_t h1_handle_headers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
+				struct buffer *buf, size_t *ofs, size_t max)
 {
 	union h1_sl h1sl;
 	size_t ret = 0;
@@ -1442,9 +1442,9 @@ static size_t h1_process_headers(struct h1s *h1s, struct h1m *h1m, struct htx *h
  * couldn't proceed. Parsing errors are reported by setting H1S_F_*_ERROR flag.
  * If relies on the function http_parse_msg_data() to do the parsing.
  */
-static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx,
-			      struct buffer *buf, size_t *ofs, size_t max,
-			      struct buffer *htxbuf)
+static size_t h1_handle_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx,
+			     struct buffer *buf, size_t *ofs, size_t max,
+			     struct buffer *htxbuf)
 {
 	size_t ret;
 
@@ -1473,8 +1473,8 @@ static size_t h1_process_data(struct h1s *h1s, struct h1m *h1m, struct htx **htx
  * flag and filling h1s->err_pos and h1s->err_state fields. This functions is
  * responsible to update the parser state <h1m>.
  */
-static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
-				  struct buffer *buf, size_t *ofs, size_t max)
+static size_t h1_handle_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *htx,
+				 struct buffer *buf, size_t *ofs, size_t max)
 {
 	size_t ret;
 
@@ -1502,7 +1502,7 @@ static size_t h1_process_trailers(struct h1s *h1s, struct h1m *h1m, struct htx *
  * <buf>. It returns the number of bytes parsed and transferred if > 0, or 0 if
  * it couldn't proceed.
  */
-static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count)
+static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count)
 {
 	struct h1s *h1s = h1c->h1s;
 	struct h1m *h1m;
@@ -1528,7 +1528,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 
 		if (h1m->state <= H1_MSG_LAST_LF) {
 			TRACE_PROTO("parsing message headers", H1_EV_RX_DATA|H1_EV_RX_HDRS, h1c->conn, h1s);
-			ret = h1_process_headers(h1s, h1m, htx, &h1c->ibuf, &total, count);
+			ret = h1_handle_headers(h1s, h1m, htx, &h1c->ibuf, &total, count);
 			if (!ret)
 				break;
 
@@ -1552,7 +1552,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 		else if (h1m->state < H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing message payload", H1_EV_RX_DATA|H1_EV_RX_BODY, h1c->conn, h1s);
-			ret = h1_process_data(h1s, h1m, &htx, &h1c->ibuf, &total, count, buf);
+			ret = h1_handle_data(h1s, h1m, &htx, &h1c->ibuf, &total, count, buf);
 			if (h1m->state < H1_MSG_TRAILERS)
 				break;
 
@@ -1561,7 +1561,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 		else if (h1m->state == H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing message trailers", H1_EV_RX_DATA|H1_EV_RX_TLRS, h1c->conn, h1s);
-			ret = h1_process_trailers(h1s, h1m, htx, &h1c->ibuf, &total, count);
+			ret = h1_handle_trailers(h1s, h1m, htx, &h1c->ibuf, &total, count);
 			if (h1m->state != H1_MSG_DONE)
 				break;
 
@@ -1591,7 +1591,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		}
 		else if (h1m->state == H1_MSG_TUNNEL) {
 			TRACE_PROTO("parsing tunneled data", H1_EV_RX_DATA, h1c->conn, h1s);
-			ret = h1_process_data(h1s, h1m, &htx, &h1c->ibuf, &total, count, buf);
+			ret = h1_handle_data(h1s, h1m, &htx, &h1c->ibuf, &total, count, buf);
 			if (!ret)
 				break;
 
@@ -1724,7 +1724,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
  * h1c->obuf. It returns the number of bytes parsed and transferred if > 0, or
  * 0 if it couldn't proceed.
  */
-static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t count)
+static size_t h1_process_mux(struct h1c *h1c, struct buffer *buf, size_t count)
 {
 	struct h1s *h1s = h1c->h1s;
 	struct h1m *h1m;
@@ -2691,7 +2691,7 @@ static int h1_process(struct h1c * h1c)
 		}
 
 		count = (buf->size - sizeof(struct htx) - global.tune.maxrewrite);
-		h1_process_input(h1c, buf, count);
+		h1_process_demux(h1c, buf, count);
 		h1_release_buf(h1c, &h1s->rxbuf);
 		h1_set_idle_expiration(h1c);
 
@@ -3330,7 +3330,7 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	}
 
 	if (!(h1c->flags & H1C_F_IN_ALLOC))
-		ret = h1_process_input(h1c, buf, count);
+		ret = h1_process_demux(h1c, buf, count);
 	else
 		TRACE_DEVEL("h1c ibuf not allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 
@@ -3388,7 +3388,7 @@ static size_t h1_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 		size_t ret = 0;
 
 		if (!(h1c->flags & (H1C_F_OUT_FULL|H1C_F_OUT_ALLOC)))
-			ret = h1_process_output(h1c, buf, count);
+			ret = h1_process_mux(h1c, buf, count);
 		else
 			TRACE_DEVEL("h1c obuf not allocated", H1_EV_STRM_SEND|H1_EV_H1S_BLK, h1c->conn, h1s);
 
