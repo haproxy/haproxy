@@ -3042,6 +3042,33 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	free_trash_chunk(msg);
 }
 
+/*
+ * Loop on the proxy's servers and try to load its state from <st_tree> using
+ * srv_update_state(). The proxy name and the server name are concatenated to
+ * form the key. If found the entry is removed from the tree.
+ */
+static void srv_state_px_update(const struct proxy *px, int vsn, struct eb_root *st_tree)
+{
+	struct server_state_line *st_line;
+	struct eb64_node *node;
+	struct server *srv;
+	unsigned long key;
+
+	for (srv = px->srv; srv; srv = srv->next) {
+		chunk_printf(&trash, "%s %s", px->id, srv->id);
+		key = XXH3(trash.area, trash.data, 0);
+		node = eb64_lookup(st_tree, key);
+		if (!node)
+			continue; /* next server */
+		st_line = eb64_entry(node, typeof(*st_line), node);
+		srv_update_state(srv, vsn, st_line->params+4);
+
+		/* the node may be released now */
+		eb64_delete(node);
+		free(st_line->line);
+		free(st_line);
+	}
+}
 
 /*
  * read next line from file <f> and return the server state version if one found.
@@ -3312,28 +3339,8 @@ void apply_server_state(void)
 			 * Backend name can't be wrong since it's used as a key to retrieve the server state
 			 * line from the tree.
 			 */
-
-			/* there was an error while generating global server state file path */
-			if (global_vsn == 0)
-				continue; /* next proxy */
-
-			for (srv = curproxy->srv; srv; srv = srv->next) {
-				unsigned long key;
-
-				chunk_printf(&trash, "%s %s", curproxy->id, srv->id);
-				key = XXH3(trash.area, trash.data, 0);
-				node = eb64_lookup(&global_state_tree, key);
-				if (!node)
-					continue; /* next server */
-				st_line = eb64_entry(node, typeof(*st_line), node);
-				srv_update_state(srv, global_vsn, st_line->params+4);
-
-				/* the node may be released now */
-				eb64_delete(node);
-				free(st_line->line);
-				free(st_line);
-			}
-
+			if (global_vsn)
+				srv_state_px_update(curproxy, global_vsn, &global_state_tree);
 			continue; /* next proxy */
 		}
 
