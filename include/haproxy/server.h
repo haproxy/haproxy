@@ -45,8 +45,10 @@ int srv_downtime(const struct server *s);
 int srv_lastsession(const struct server *s);
 int srv_getinter(const struct check *check);
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, const struct proxy *defproxy, int parse_addr, int in_peers_section, int initial_resolve);
-int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char *updater);
-const char *update_server_addr_port(struct server *s, const char *addr, const char *port, char *updater);
+int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *updater);
+const char *srv_update_addr_port(struct server *s, const char *addr, const char *port, char *updater);
+const char *srv_update_check_addr_port(struct server *s, const char *addr, const char *port);
+const char *srv_update_agent_addr_port(struct server *s, const char *addr, const char *port);
 struct server *server_find_by_id(struct proxy *bk, int id);
 struct server *server_find_by_name(struct proxy *bk, const char *name);
 struct server *server_find_best_match(struct proxy *bk, char *name, int id, int *diff);
@@ -58,8 +60,10 @@ struct server *cli_find_server(struct appctx *appctx, char *arg);
 struct server *new_server(struct proxy *proxy);
 
 /* functions related to server name resolution */
+int srv_prepare_for_resolution(struct server *srv, const char *hostname);
 int snr_update_srv_status(struct server *s, int has_no_ip);
-const char *update_server_fqdn(struct server *server, const char *fqdn, const char *updater, int dns_locked);
+int srv_set_fqdn(struct server *srv, const char *fqdn, int resolv_locked);
+const char *srv_update_fqdn(struct server *server, const char *fqdn, const char *updater, int dns_locked);
 int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *counters);
 int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code);
 int snr_resolution_error_cb(struct resolv_requester *requester, int error_code);

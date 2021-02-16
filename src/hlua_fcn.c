@@ -1055,7 +1055,7 @@ int hlua_server_set_addr(lua_State *L)
 		port = NULL;
 
 	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-	err = update_server_addr_port(srv, addr, port, "Lua script");
+	err = srv_update_addr_port(srv, addr, port, "Lua script");
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	if (!err)
 		lua_pushnil(L);

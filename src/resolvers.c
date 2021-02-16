@@ -637,10 +637,10 @@ static void resolv_check_response(struct resolv_resolution *res)
 
 					switch (item->ar_item->type) {
 						case DNS_RTYPE_A:
-							update_server_addr(srv, &(((struct sockaddr_in*)&item->ar_item->address)->sin_addr), AF_INET, "DNS additional record");
+							srv_update_addr(srv, &(((struct sockaddr_in*)&item->ar_item->address)->sin_addr), AF_INET, "DNS additional record");
 						break;
 						case DNS_RTYPE_AAAA:
-							update_server_addr(srv, &(((struct sockaddr_in6*)&item->ar_item->address)->sin6_addr), AF_INET6, "DNS additional record");
+							srv_update_addr(srv, &(((struct sockaddr_in6*)&item->ar_item->address)->sin6_addr), AF_INET6, "DNS additional record");
 						break;
 					}
 
@@ -656,7 +656,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 						HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 						continue;
 					}
-					msg = update_server_fqdn(srv, hostname, "SRV record", 1);
+					msg = srv_update_fqdn(srv, hostname, "SRV record", 1);
 					if (msg)
 						send_log(srv->proxy, LOG_NOTICE, "%s", msg);
 				}

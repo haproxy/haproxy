@@ -50,14 +50,9 @@
 static void srv_update_status(struct server *s);
 static void srv_update_state(struct server *srv, int version, char **params);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
-static int srv_set_fqdn(struct server *srv, const char *fqdn, int resolv_locked);
 static int srv_state_parse_line(char *buf, const int version, char **params);
 static int srv_state_get_version(FILE *f);
 static void srv_cleanup_connections(struct server *srv);
-static const char *update_server_check_addr_port(struct server *s, const char *addr,
-						 const char *port);
-static const char *update_server_agent_addr_port(struct server *s, const char *addr,
-						 const char *port);
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -1377,11 +1372,11 @@ const char *server_parse_addr_change_request(struct server *sv,
 	unsigned char ip[INET6_ADDRSTRLEN];
 
 	if (inet_pton(AF_INET6, addr_str, ip)) {
-		update_server_addr(sv, ip, AF_INET6, updater);
+		srv_update_addr(sv, ip, AF_INET6, updater);
 		return NULL;
 	}
 	if (inet_pton(AF_INET, addr_str, ip)) {
-		update_server_addr(sv, ip, AF_INET, updater);
+		srv_update_addr(sv, ip, AF_INET, updater);
 		return NULL;
 	}
 
@@ -1588,7 +1583,7 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
  * May be safely called with a default server as <src> argument (without hostname).
  * Returns -1 in case of any allocation failure, 0 if not.
  */
-static int srv_prepare_for_resolution(struct server *srv, const char *hostname)
+int srv_prepare_for_resolution(struct server *srv, const char *hostname)
 {
 	char *hostname_dn;
 	int   hostname_len, hostname_dn_len;
@@ -3007,7 +3002,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	if (params[18] && strcmp(params[18], "-") != 0)
 		addr = params[18];
 	if (addr || port_st) {
-		warning = update_server_check_addr_port(srv, addr, port_st);
+		warning = srv_update_check_addr_port(srv, addr, port_st);
 		if (warning) {
 			chunk_appendf(msg, ", %s", warning);
 			goto out;
@@ -3021,7 +3016,7 @@ static void srv_update_state(struct server *srv, int version, char **params)
 	if (params[19] && strcmp(params[19], "-") != 0)
 		addr = params[19];
 	if (addr || port_st) {
-		warning = update_server_agent_addr_port(srv, addr, port_st);
+		warning = srv_update_agent_addr_port(srv, addr, port_st);
 		if (warning) {
 			chunk_appendf(msg, ", %s", warning);
 			goto out;
@@ -3359,7 +3354,7 @@ void apply_server_state(void)
 		goto close_globalfile;
 	}
 
-	for (linenum = 0; fgets(mybuf, SRV_STATE_LINE_MAXLEN, f); linenum++) {
+	for (linenum = 1; fgets(mybuf, SRV_STATE_LINE_MAXLEN, f); linenum++) {
 		int ret;
 
 		ret = srv_state_parse_and_store_line(mybuf, global_vsn, &global_state_tree, NULL);
@@ -3428,7 +3423,7 @@ void apply_server_state(void)
 		}
 
 		/* First, parse lines of the local server-state file and store them in a eb-tree */
-		for (linenum = 0; fgets(mybuf, SRV_STATE_LINE_MAXLEN, f); linenum++) {
+		for (linenum = 1; fgets(mybuf, SRV_STATE_LINE_MAXLEN, f); linenum++) {
 			int ret;
 
 			ret = srv_state_parse_and_store_line(mybuf, local_vsn, &local_state_tree, curproxy);
@@ -3489,7 +3484,7 @@ void apply_server_state(void)
  *
  * Must be called with the server lock held.
  */
-int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char *updater)
+int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *updater)
 {
 	/* save the new IP family & address if necessary */
 	switch (ip_sin_family) {
@@ -3570,8 +3565,7 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, const char
  * if one error occurs, don't apply anything
  * must be called with the server lock held.
  */
-static const char *update_server_agent_addr_port(struct server *s, const char *addr,
-						 const char *port)
+const char *srv_update_agent_addr_port(struct server *s, const char *addr, const char *port)
 {
 	struct sockaddr_storage sk;
 	struct buffer *msg;
@@ -3618,8 +3612,7 @@ out:
  * if one error occurs, don't apply anything
  * must be called with the server lock held.
  */
-static const char *update_server_check_addr_port(struct server *s, const char *addr,
-						 const char *port)
+const char *srv_update_check_addr_port(struct server *s, const char *addr, const char *port)
 {
 	struct sockaddr_storage sk;
 	struct buffer *msg;
@@ -3685,7 +3678,7 @@ out:
  *
  * Must be called with the server lock held.
  */
-const char *update_server_addr_port(struct server *s, const char *addr, const char *port, char *updater)
+const char *srv_update_addr_port(struct server *s, const char *addr, const char *port, char *updater)
 {
 	struct sockaddr_storage sa;
 	int ret, port_change_required;
@@ -4025,7 +4018,7 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 	}
 	else
 		chunk_printf(chk, "DNS cache");
-	update_server_addr(s, firstip, firstip_sin_family, (char *) chk->area);
+	srv_update_addr(s, firstip, firstip_sin_family, (char *) chk->area);
 
  update_status:
 	snr_update_srv_status(s, has_no_ip);
@@ -4414,7 +4407,7 @@ int srv_init_addr(void)
 /*
  * Must be called with the server lock held.
  */
-const char *update_server_fqdn(struct server *server, const char *fqdn, const char *updater, int resolv_locked)
+const char *srv_update_fqdn(struct server *server, const char *fqdn, const char *updater, int resolv_locked)
 {
 
 	struct buffer *msg;
@@ -4565,7 +4558,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		addr = args[4];
 		if (strcmp(args[5], "port") == 0)
 			port = args[6];
-		warning = update_server_agent_addr_port(sv, addr, port);
+		warning = srv_update_agent_addr_port(sv, addr, port);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
@@ -4577,7 +4570,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 			goto out_unlock;
 		}
 		port = args[4];
-		warning = update_server_agent_addr_port(sv, NULL, port);
+		warning = srv_update_agent_addr_port(sv, NULL, port);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
@@ -4600,7 +4593,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		addr = args[4];
 		if (strcmp(args[5], "port") == 0)
 			port = args[6];
-		warning = update_server_check_addr_port(sv, addr, port);
+		warning = srv_update_check_addr_port(sv, addr, port);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
@@ -4612,7 +4605,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 			goto out_unlock;
 		}
 		port = args[4];
-		warning = update_server_check_addr_port(sv, NULL, port);
+		warning = srv_update_check_addr_port(sv, NULL, port);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
@@ -4629,7 +4622,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (strcmp(args[5], "port") == 0) {
 			port = args[6];
 		}
-		warning = update_server_addr_port(sv, addr, port, "stats socket command");
+		warning = srv_update_addr_port(sv, addr, port, "stats socket command");
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 		srv_clr_admin_flag(sv, SRV_ADMF_RMAINT);
@@ -4643,7 +4636,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (sv->flags & SRV_F_NO_RESOLUTION) {
 			sv->flags &= ~SRV_F_NO_RESOLUTION;
 		}
-		warning = update_server_fqdn(sv, args[4], "stats socket command", 0);
+		warning = srv_update_fqdn(sv, args[4], "stats socket command", 0);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
