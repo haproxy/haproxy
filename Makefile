@@ -616,9 +616,6 @@ OPTIONS_OBJS    += src/hlua.o src/hlua_fcn.o
 endif
 
 ifneq ($(USE_DEVICEATLAS),)
-ifeq ($(USE_PCRE),)
-$(error the DeviceAtlas module needs the PCRE library in order to compile)
-endif
 # Use DEVICEATLAS_SRC and possibly DEVICEATLAS_INC and DEVICEATLAS_LIB to force path
 # to DeviceAtlas headers and libraries if needed.
 DEVICEATLAS_SRC =
@@ -627,6 +624,14 @@ DEVICEATLAS_LIB = $(DEVICEATLAS_SRC)
 ifeq ($(DEVICEATLAS_SRC),)
 OPTIONS_LDFLAGS += -lda
 else
+ifeq ($(USE_PCRE),)
+ifeq ($(USE_PCRE2),)
+$(error the DeviceAtlas module needs the PCRE or the PCRE2 library in order to compile)
+endif
+endif
+ifneq ($(USE_PCRE2),)
+OPTIONS_CFLAGS  += -DDA_REGEX_HDR=\"dac_pcre2.c\" -DDA_REGEX_TAG=2
+endif
 OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/json.o
 OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dac.o
 endif

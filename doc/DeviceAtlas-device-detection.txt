@@ -2,10 +2,10 @@ DeviceAtlas Device Detection
 ----------------------------
 
 In order to add DeviceAtlas Device Detection support, you would need to download
-the API source code from https://deviceatlas.com/deviceatlas-haproxy-module and
-once extracted :
+the API source code from https://deviceatlas.com/deviceatlas-haproxy-module.
+The build supports the USE_PCRE and USE_PCRE2 options. Once extracted :
 
-    $ make TARGET=<target> USE_PCRE=1 USE_DEVICEATLAS=1 DEVICEATLAS_SRC=<path to the API root folder>
+    $ make TARGET=<target> USE_PCRE (or USE_PCRE2=1) USE_DEVICEATLAS=1 DEVICEATLAS_SRC=<path to the API root folder>
 
 Optionally DEVICEATLAS_INC and DEVICEATLAS_LIB may be set to override the path
 to the include files and libraries respectively if they're not in the source
