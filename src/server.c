@@ -3255,7 +3255,6 @@ void apply_server_state(void)
 	struct server_state_line *st_line;
 	struct eb64_node *node, *next_node;
 	FILE *f;
-	char *params[SRV_STATE_FILE_MAX_FIELDS] = {0};
 	char mybuf[SRV_STATE_LINE_MAXLEN];
 	char file[MAXPATHLEN];
 	int local_vsn, global_vsn, len;
@@ -3325,6 +3324,8 @@ void apply_server_state(void)
   no_globalfile:
 	/* parse all proxies and load states form tree (global file) or from local file */
 	for (curproxy = proxies_list; curproxy != NULL; curproxy = curproxy->next) {
+		struct eb_root local_state_tree = EB_ROOT_UNIQUE;
+
 		/* servers are only in backends */
 		if (!(curproxy->cap & PR_CAP_BE))
 			continue; /* next proxy */
@@ -3373,50 +3374,86 @@ void apply_server_state(void)
 			goto close_localfile;
 		}
 
+		/* First, parse lines of the local server-state file and store them in a eb-tree */
 		while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
 			int bk_f_forced_id, check_id, check_name, ret;
 
-			ret = srv_state_parse_line(mybuf, local_vsn, params);
-			if (ret <= 0)
-				continue;
+			/* store line in tree and duplicate the line */
+			st_line = calloc(1, sizeof(*st_line));
+			if (st_line == NULL) {
+				goto nextlline;
+			}
+			st_line->line = strdup(mybuf);
+			if (st_line->line == NULL)
+				goto nextlline;
 
-			bk_f_forced_id = (atoi(params[15]) & PR_O_FORCED_ID);
-			check_id = (atoi(params[0]) == curproxy->uuid);
-			check_name = (strcmp(curproxy->id, params[1]) == 0);
+			ret = srv_state_parse_line(st_line->line, local_vsn, st_line->params);
+			if (ret <= 0)
+				goto nextlline;
+
+			bk_f_forced_id = (atoi(st_line->params[15]) & PR_O_FORCED_ID);
+			check_id = (atoi(st_line->params[0]) == curproxy->uuid);
+			check_name = (strcmp(curproxy->id, st_line->params[1]) == 0);
 
 			/* if backend can't be found, let's continue */
 			if (!check_id && !check_name)
-				continue;
+				goto nextlline;
 			else if (!check_id && check_name) {
 				ha_warning("Proxy '%s': backend ID mismatch: from server state file: '%s', from running config '%d'\n",
-					   curproxy->id, params[0], curproxy->uuid);
+					   curproxy->id, st_line->params[0], curproxy->uuid);
 				send_log(curproxy, LOG_NOTICE, "backend ID mismatch: from server state file: '%s', from running config '%d'\n",
-					 params[0], curproxy->uuid);
+					 st_line->params[0], curproxy->uuid);
 			}
 			else if (check_id && !check_name) {
 				ha_warning("Proxy '%s': backend name mismatch: from server state file: '%s', from running config '%s'\n",
-					   curproxy->id, params[1], curproxy->id);
+					   curproxy->id, st_line->params[1], curproxy->id);
 				send_log(curproxy, LOG_NOTICE, "backend name mismatch: from server state file: '%s', from running config '%s'\n",
-					 params[1], curproxy->id);
+					 st_line->params[1], curproxy->id);
 				/* if name doesn't match, we still want to update curproxy if the backend id
 				 * was forced in previous the previous configuration */
 				if (!bk_f_forced_id)
-					continue;
+					goto nextlline;
 			}
 
-			/* look for the server by its name: param[3] */
-			srv = server_find_by_name(curproxy, params[3]);
-			if (!srv) {
-				/* if no server found, then warning and continue with next line */
-				ha_warning("Proxy '%s': can't find server '%s' in backend '%s'\n",
-					   curproxy->id, params[3], params[1]);
-				send_log(curproxy, LOG_NOTICE, "can't find server '%s' in backend '%s'\n",
-					 params[3], params[1]);
-				continue;
+			/* The key: be_name srv_name (curproxy->id params[3]) */
+			chunk_printf(&trash, "%s %s", curproxy->id, params[3]);
+			st_line->node.key = XXH3(trash.area, trash.data, 0);
+			if (eb64_insert(&global_state_tree, &st_line->node) != &st_line->node) {
+				/* this is a duplicate key, probably a hand-crafted file,
+				 * drop it!
+				 */
+				goto nextlline;
 			}
 
-			/* now we can proceed with server's state update */
-			srv_update_state(srv, local_vsn, params+4);
+			/* reset for next line */
+			st_line = NULL;
+		  nextlline:
+			/* free up memory in case of error during the processing of the line */
+			if (st_line) {
+				free(st_line->line);
+				free(st_line);
+			}
+		}
+
+		if (local_vsn)
+			srv_state_px_update(curproxy, local_vsn, &local_state_tree);
+
+		/* Remove unsused server-state lines */
+		node = eb64_first(&local_state_tree);
+		while (node) {
+			st_line = eb64_entry(node, typeof(*st_line), node);
+			next_node = eb64_next(node);
+			eb64_delete(node);
+
+			/* if no server found, then warn */
+			ha_warning("Proxy '%s': can't find server '%s' in backend '%s'\n",
+				   curproxy->id, st_line->params[3], st_line->params[1]);
+			send_log(curproxy, LOG_NOTICE, "can't find server '%s' in backend '%s'\n",
+				 st_line->params[3], st_line->params[1]);
+
+			free(st_line->line);
+			free(st_line);
+			node = next_node;
 		}
 
 	close_localfile:
