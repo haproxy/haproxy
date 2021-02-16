@@ -84,6 +84,18 @@ struct task_per_thread {
 	__attribute__((aligned(64))) char end[0];
 };
 
+
+#ifdef DEBUG_TASK
+#define TASK_DEBUG_STORAGE                   \
+	struct {                             \
+		const char *caller_file[2];  \
+		int caller_line[2];          \
+		int caller_idx;              \
+	} debug
+#else
+#define TASK_DEBUG_STORAGE
+#endif
+
 /* This part is common between struct task and struct tasklet so that tasks
  * can be used as-is as tasklets.
  */
@@ -94,6 +106,7 @@ struct task_per_thread {
 		unsigned int calls; /* number of times process was called */ \
 		struct task *(*process)(struct task *t, void *ctx, unsigned short state); /* the function which processes the task */ \
 		void *context; /* the task's context */			\
+		TASK_DEBUG_STORAGE;					\
 	}
 
 /* The base for all tasks */

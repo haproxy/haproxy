@@ -172,9 +172,12 @@ static inline int thread_has_tasks(void)
 
 /* puts the task <t> in run queue with reason flags <f>, and returns <t> */
 /* This will put the task in the local runqueue if the task is only runnable
- * by the current thread, in the global runqueue otherwies.
+ * by the current thread, in the global runqueue otherwies. With DEBUG_TASK,
+ * the <file>:<line> from the call place are stored into the task for tracing
+ * purposes.
  */
-static inline void task_wakeup(struct task *t, unsigned int f)
+#define task_wakeup(t, f) _task_wakeup(t, f, __FILE__, __LINE__)
+static inline void _task_wakeup(struct task *t, unsigned int f, const char *file, int line)
 {
 	unsigned short state;
 
@@ -192,6 +195,11 @@ static inline void task_wakeup(struct task *t, unsigned int f)
 	state = _HA_ATOMIC_OR(&t->state, f);
 	while (!(state & (TASK_RUNNING | TASK_QUEUED))) {
 		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED)) {
+#ifdef DEBUG_TASK
+			t->debug.caller_idx = !t->debug.caller_idx;
+			t->debug.caller_file[t->debug.caller_idx] = file;
+			t->debug.caller_line[t->debug.caller_idx] = line;
+#endif
 			__task_wakeup(t, root);
 			break;
 		}
@@ -324,9 +332,12 @@ static inline struct task *task_unlink_rq(struct task *t)
 /* schedules tasklet <tl> to run onto thread <thr> or the current thread if
  * <thr> is negative. Note that it is illegal to wakeup a foreign tasklet if
  * its tid is negative and it is illegal to self-assign a tasklet that was
- * at least once scheduled on a specific thread.
+ * at least once scheduled on a specific thread. With DEBUG_TASK, the
+ * <file>:<line> from the call place are stored into the tasklet for tracing
+ * purposes.
  */
-static inline void tasklet_wakeup_on(struct tasklet *tl, int thr)
+#define tasklet_wakeup_on(tl, thr) _tasklet_wakeup_on(tl, thr, __FILE__, __LINE__)
+static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *file, int line)
 {
 	unsigned short state = tl->state;
 
@@ -336,7 +347,12 @@ static inline void tasklet_wakeup_on(struct tasklet *tl, int thr)
 			return;
 	} while (!_HA_ATOMIC_CAS(&tl->state, &state, state | TASK_IN_LIST));
 
-	/* at this pint we're the first ones to add this task to the list */
+	/* at this point we're the first ones to add this task to the list */
+#ifdef DEBUG_TASK
+	tl->debug.caller_idx = !tl->debug.caller_idx;
+	tl->debug.caller_file[tl->debug.caller_idx] = file;
+	tl->debug.caller_line[tl->debug.caller_idx] = line;
+#endif
 
 	if (likely(thr < 0)) {
 		/* this tasklet runs on the caller thread */
@@ -369,12 +385,25 @@ static inline void tasklet_wakeup_on(struct tasklet *tl, int thr)
 }
 
 /* schedules tasklet <tl> to run onto the thread designated by tl->tid, which
- * is either its owner thread if >= 0 or the current thread if < 0.
+ * is either its owner thread if >= 0 or the current thread if < 0. When
+ * DEBUG_TASK is set, the <file>:<line> from the call place are stored into the
+ * task for tracing purposes.
  */
-static inline void tasklet_wakeup(struct tasklet *tl)
-{
-	tasklet_wakeup_on(tl, tl->tid);
-}
+#define tasklet_wakeup(tl) _tasklet_wakeup_on(tl, (tl)->tid, __FILE__, __LINE__)
+
+/* This macro shows the current function name and the last known caller of the
+ * task (or tasklet) wakeup.
+ */
+#ifdef DEBUG_TASK
+#define DEBUG_TASK_PRINT_CALLER(t) do {				\
+	printf("%s woken up from %s:%d\n", __FUNCTION__,		\
+	       (t)->debug.caller_file[(t)->debug.caller_idx],	\
+	       (t)->debug.caller_line[(t)->debug.caller_idx]);	\
+} while (0)
+#else
+#define DEBUG_TASK_PRINT_CALLER(t)
+#endif
+
 
 /* Try to remove a tasklet from the list. This call is inherently racy and may
  * only be performed on the thread that was supposed to dequeue this tasklet.
