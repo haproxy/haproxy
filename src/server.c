@@ -3327,6 +3327,11 @@ void apply_server_state(void)
 					continue; /* next server */
 				st_line = eb64_entry(node, typeof(*st_line), node);
 				srv_update_state(srv, global_vsn, st_line->params+4);
+
+				/* the node may be released now */
+				eb64_delete(node);
+				free(st_line->line);
+				free(st_line);
 			}
 
 			continue; /* next proxy */
