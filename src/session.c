@@ -118,7 +118,7 @@ static void session_count_new(struct session *sess)
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
 		if (ptr)
-			stktable_data_cast(ptr, sess_cnt)++;
+			HA_ATOMIC_ADD(&stktable_data_cast(ptr, sess_cnt), 1);
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
 		if (ptr)
