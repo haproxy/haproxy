@@ -504,6 +504,14 @@ static inline void conn_free(struct connection *conn)
 			srv_release_conn(__objt_server(conn->target), conn);
 	}
 
+	/* Remove the conn from toremove_list.
+	 *
+	 * This is needed to prevent a double-free in case the connection was
+	 * already scheduled from cleaning but is freed before via another
+	 * call.
+	 */
+	MT_LIST_DEL(&conn->toremove_list);
+
 	sockaddr_free(&conn->src);
 	sockaddr_free(&conn->dst);
 
