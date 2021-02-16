@@ -3202,6 +3202,83 @@ static int srv_state_parse_line(char *buf, const int version, char **params)
 	return ret;
 }
 
+/*
+ * parses a server state line using srv_state_parse_line() and store the result
+ * in <st_tree>. If an error occurred during the parsing, the line is
+ * ignored. if <px> is defined, it is used to check the backend id/name against
+ * the parsed params and to compute the key of the line.
+ */
+static int srv_state_parse_and_store_line(char *line, int vsn, struct eb_root *st_tree,
+					  struct proxy *px)
+{
+	struct server_state_line *st_line;
+	int ret = 0;
+
+	/* store line in tree and duplicate the line */
+	st_line = calloc(1, sizeof(*st_line));
+	if (st_line == NULL)
+		goto skip_line;
+	st_line->line = strdup(line);
+	if (st_line->line == NULL)
+		goto skip_line;
+
+	ret = srv_state_parse_line(st_line->line, vsn, st_line->params);
+	if (ret <= 0)
+		goto skip_line;
+
+	/* Check backend name against params if <px> is defined */
+	if (px) {
+		int check_id = (atoi(st_line->params[0]) == px->uuid);
+		int check_name = (strcmp(px->id, st_line->params[1]) == 0);
+		int bk_f_forced_id = (atoi(st_line->params[15]) & PR_O_FORCED_ID);
+
+
+		if (!check_id && !check_name) {
+			/* backend does not match at all: skip the line */
+			goto skip_line;
+		}
+		else if (!check_id) {
+			/* Id mismatch: warn but continue */
+			ha_warning("Proxy '%s': backend ID mismatch: from server state file: '%s', from running config '%d'\n",
+				   px->id, st_line->params[0], px->uuid);
+			send_log(px, LOG_NOTICE, "backend ID mismatch: from server state file: '%s', from running config '%d'\n",
+				 st_line->params[0], px->uuid);
+		}
+		else if (!check_name) {
+			/* Name mismatch: warn and skip the line, except if the backend id was forced
+			 * in the previous configuration */
+			ha_warning("Proxy '%s': backend name mismatch: from server state file: '%s', from running config '%s'\n",
+				   px->id, st_line->params[1], px->id);
+			send_log(px, LOG_NOTICE, "backend name mismatch: from server state file: '%s', from running config '%s'\n",
+				 st_line->params[1], px->id);
+			if (!bk_f_forced_id)
+				goto skip_line;
+		}
+	}
+
+	/*
+	 * The key: "be_name srv_name"
+	 *   if <px> is defined:  be_name == px->id
+	 *   otherwise: be_name == params[1]
+	 */
+	chunk_printf(&trash, "%s %s", (px ? px->id : st_line->params[1]), st_line->params[3]);
+	st_line->node.key = XXH3(trash.area, trash.data, 0);
+	if (eb64_insert(st_tree, &st_line->node) != &st_line->node) {
+		/* this is a duplicate key, probably a hand-crafted file, drop it! */
+		goto skip_line;
+	}
+
+	return ret;
+
+  skip_line:
+	/* free up memory in case of error during the processing of the line */
+	if (st_line) {
+		free(st_line->line);
+		free(st_line);
+	}
+	return ret;
+}
+
 /* Helper function to get the server-state file path.
  * If <filename> starts with a '/', it is considered as an absolute path. In
  * this case or if <global.server_state_base> is not set, <filename> only is
@@ -3251,7 +3328,6 @@ void apply_server_state(void)
 	/* tree where global state_file is loaded */
 	struct eb_root global_state_tree = EB_ROOT_UNIQUE;
 	struct proxy *curproxy;
-	struct server *srv;
 	struct server_state_line *st_line;
 	struct eb64_node *node, *next_node;
 	FILE *f;
@@ -3283,41 +3359,9 @@ void apply_server_state(void)
 		goto close_globalfile;
 	}
 
-	while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
-		int ret;
+	while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f))
+		srv_state_parse_and_store_line(mybuf, global_vsn, &global_state_tree, NULL);
 
-		/* store line in tree and duplicate the line */
-		st_line = calloc(1, sizeof(*st_line));
-		if (st_line == NULL) {
-			goto nextline;
-		}
-		st_line->line = strdup(mybuf);
-		if (st_line->line == NULL)
-			goto nextline;
-
-		ret = srv_state_parse_line(st_line->line, global_vsn, st_line->params);
-		if (ret <= 0)
-			goto nextline;
-
-		/* The key: be_name srv_name (params[1] params[3]) */
-		chunk_printf(&trash, "%s %s", st_line->params[1], st_line->params[3]);
-		st_line->node.key = XXH3(trash.area, trash.data, 0);
-		if (eb64_insert(&global_state_tree, &st_line->node) != &st_line->node) {
-			/* this is a duplicate key, probably a hand-crafted file,
-			 * drop it!
-			 */
-			goto nextline;
-		}
-
-		/* reset for next line */
-		st_line = NULL;
-	  nextline:
-		/* free up memory in case of error during the processing of the line */
-		if (st_line) {
-			free(st_line->line);
-			free(st_line);
-		}
-	}
   close_globalfile:
 	fclose(f);
 
@@ -3375,65 +3419,8 @@ void apply_server_state(void)
 		}
 
 		/* First, parse lines of the local server-state file and store them in a eb-tree */
-		while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f)) {
-			int bk_f_forced_id, check_id, check_name, ret;
-
-			/* store line in tree and duplicate the line */
-			st_line = calloc(1, sizeof(*st_line));
-			if (st_line == NULL) {
-				goto nextlline;
-			}
-			st_line->line = strdup(mybuf);
-			if (st_line->line == NULL)
-				goto nextlline;
-
-			ret = srv_state_parse_line(st_line->line, local_vsn, st_line->params);
-			if (ret <= 0)
-				goto nextlline;
-
-			bk_f_forced_id = (atoi(st_line->params[15]) & PR_O_FORCED_ID);
-			check_id = (atoi(st_line->params[0]) == curproxy->uuid);
-			check_name = (strcmp(curproxy->id, st_line->params[1]) == 0);
-
-			/* if backend can't be found, let's continue */
-			if (!check_id && !check_name)
-				goto nextlline;
-			else if (!check_id && check_name) {
-				ha_warning("Proxy '%s': backend ID mismatch: from server state file: '%s', from running config '%d'\n",
-					   curproxy->id, st_line->params[0], curproxy->uuid);
-				send_log(curproxy, LOG_NOTICE, "backend ID mismatch: from server state file: '%s', from running config '%d'\n",
-					 st_line->params[0], curproxy->uuid);
-			}
-			else if (check_id && !check_name) {
-				ha_warning("Proxy '%s': backend name mismatch: from server state file: '%s', from running config '%s'\n",
-					   curproxy->id, st_line->params[1], curproxy->id);
-				send_log(curproxy, LOG_NOTICE, "backend name mismatch: from server state file: '%s', from running config '%s'\n",
-					 st_line->params[1], curproxy->id);
-				/* if name doesn't match, we still want to update curproxy if the backend id
-				 * was forced in previous the previous configuration */
-				if (!bk_f_forced_id)
-					goto nextlline;
-			}
-
-			/* The key: be_name srv_name (curproxy->id params[3]) */
-			chunk_printf(&trash, "%s %s", curproxy->id, params[3]);
-			st_line->node.key = XXH3(trash.area, trash.data, 0);
-			if (eb64_insert(&global_state_tree, &st_line->node) != &st_line->node) {
-				/* this is a duplicate key, probably a hand-crafted file,
-				 * drop it!
-				 */
-				goto nextlline;
-			}
-
-			/* reset for next line */
-			st_line = NULL;
-		  nextlline:
-			/* free up memory in case of error during the processing of the line */
-			if (st_line) {
-				free(st_line->line);
-				free(st_line);
-			}
-		}
+		while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f))
+			srv_state_parse_and_store_line(mybuf, local_vsn, &local_state_tree, curproxy);
 
 		if (local_vsn)
 			srv_state_px_update(curproxy, local_vsn, &local_state_tree);
@@ -3447,9 +3434,9 @@ void apply_server_state(void)
 
 			/* if no server found, then warn */
 			ha_warning("Proxy '%s': can't find server '%s' in backend '%s'\n",
-				   curproxy->id, st_line->params[3], st_line->params[1]);
+				   curproxy->id, st_line->params[3], curproxy->id);
 			send_log(curproxy, LOG_NOTICE, "can't find server '%s' in backend '%s'\n",
-				 st_line->params[3], st_line->params[1]);
+				 st_line->params[3], curproxy->id);
 
 			free(st_line->line);
 			free(st_line);
