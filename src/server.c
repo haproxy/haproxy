@@ -3333,7 +3333,7 @@ void apply_server_state(void)
 	FILE *f;
 	char mybuf[SRV_STATE_LINE_MAXLEN];
 	char file[MAXPATHLEN];
-	int local_vsn, global_vsn, len;
+	int local_vsn, global_vsn, len, linenum;
 
 	global_vsn = 0; /* no global file */
 	if (!global.server_state_file)
@@ -3359,8 +3359,17 @@ void apply_server_state(void)
 		goto close_globalfile;
 	}
 
-	while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f))
-		srv_state_parse_and_store_line(mybuf, global_vsn, &global_state_tree, NULL);
+	for (linenum = 0; fgets(mybuf, SRV_STATE_LINE_MAXLEN, f); linenum++) {
+		int ret;
+
+		ret = srv_state_parse_and_store_line(mybuf, global_vsn, &global_state_tree, NULL);
+		if (ret == -1) {
+			ha_warning("config: corrupted global server state file '%s' at line %d.\n",
+				   file, linenum);
+			global_vsn = 0;
+			break;
+		}
+	}
 
   close_globalfile:
 	fclose(f);
@@ -3419,8 +3428,17 @@ void apply_server_state(void)
 		}
 
 		/* First, parse lines of the local server-state file and store them in a eb-tree */
-		while (fgets(mybuf, SRV_STATE_LINE_MAXLEN, f))
-			srv_state_parse_and_store_line(mybuf, local_vsn, &local_state_tree, curproxy);
+		for (linenum = 0; fgets(mybuf, SRV_STATE_LINE_MAXLEN, f); linenum++) {
+			int ret;
+
+			ret = srv_state_parse_and_store_line(mybuf, local_vsn, &local_state_tree, curproxy);
+			if (ret == -1) {
+				ha_warning("Proxy '%s': corrupted server state file '%s' at line %d.\n",
+					   curproxy->id, file, linenum);
+				local_vsn = 0;
+				break;
+			}
+		}
 
 		if (local_vsn)
 			srv_state_px_update(curproxy, local_vsn, &local_state_tree);
@@ -3432,11 +3450,13 @@ void apply_server_state(void)
 			next_node = eb64_next(node);
 			eb64_delete(node);
 
-			/* if no server found, then warn */
-			ha_warning("Proxy '%s': can't find server '%s' in backend '%s'\n",
-				   curproxy->id, st_line->params[3], curproxy->id);
-			send_log(curproxy, LOG_NOTICE, "can't find server '%s' in backend '%s'\n",
-				 st_line->params[3], curproxy->id);
+			if (local_vsn) {
+				/* if no server found, then warn */
+				ha_warning("Proxy '%s': can't find server '%s' in backend '%s'\n",
+					   curproxy->id, st_line->params[3], curproxy->id);
+				send_log(curproxy, LOG_NOTICE, "can't find server '%s' in backend '%s'\n",
+					 st_line->params[3], curproxy->id);
+			}
 
 			free(st_line->line);
 			free(st_line);
