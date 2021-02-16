@@ -816,7 +816,7 @@ void apply_server_state(void)
 		struct eb_root local_state_tree = EB_ROOT_UNIQUE;
 
 		/* servers are only in backends */
-		if (!(curproxy->cap & PR_CAP_BE))
+		if (!(curproxy->cap & PR_CAP_BE) || !curproxy->srv)
 			continue; /* next proxy */
 
 		/* No server-state file for this proxy */
