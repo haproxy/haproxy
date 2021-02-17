@@ -1272,10 +1272,6 @@ int connect_server(struct stream *s)
 	int proxy_line_ret;
 	int64_t hash = 0;
 	struct conn_hash_params hash_params;
-#ifdef USE_OPENSSL
-	XXH64_hash_t sni_hash;
-#endif
-	XXH64_hash_t proxy_hash;
 
 	/* first, set unique connection parameters and then calculate hash */
 	memset(&hash_params, 0, sizeof(hash_params));
@@ -1295,9 +1291,9 @@ int connect_server(struct stream *s)
 		 * not the case
 		 */
 		if (sni_smp) {
-			sni_hash = conn_hash_prehash(sni_smp->data.u.str.area,
-			                             sni_smp->data.u.str.data);
-			hash_params.sni_prehash = &sni_hash;
+			hash_params.sni_prehash =
+			  conn_hash_prehash(sni_smp->data.u.str.area,
+			                    sni_smp->data.u.str.data);
 		}
 	}
 #endif /* USE_OPENSSL */
@@ -1325,8 +1321,8 @@ int connect_server(struct stream *s)
 	if (srv && srv->pp_opts) {
 		proxy_line_ret = make_proxy_line(trash.area, trash.size, srv, cli_conn, s);
 		if (proxy_line_ret) {
-			proxy_hash = conn_hash_prehash(trash.area, proxy_line_ret);
-			hash_params.proxy_prehash = &proxy_hash;
+			hash_params.proxy_prehash =
+			  conn_hash_prehash(trash.area, proxy_line_ret);
 		}
 	}
 

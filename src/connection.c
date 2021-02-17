@@ -1468,7 +1468,7 @@ XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
 
 	if (params->sni_prehash) {
 		conn_hash_update(buf, &idx,
-		                 params->sni_prehash, sizeof(*params->sni_prehash),
+		                 &params->sni_prehash, sizeof(params->sni_prehash),
 		                 &hash_flags, CONN_HASH_PARAMS_TYPE_SNI);
 	}
 
@@ -1488,7 +1488,7 @@ XXH64_hash_t conn_calculate_hash(const struct conn_hash_params *params)
 
 	if (params->proxy_prehash) {
 		conn_hash_update(buf, &idx,
-		                 params->proxy_prehash, sizeof(*params->proxy_prehash),
+		                 &params->proxy_prehash, sizeof(params->proxy_prehash),
 		                 &hash_flags, CONN_HASH_PARAMS_TYPE_PROXY);
 	}
 
