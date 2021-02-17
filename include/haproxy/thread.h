@@ -402,6 +402,14 @@ enum lock_label {
 	SFT_LOCK, /* sink forward target */
 	IDLE_CONNS_LOCK,
 	OTHER_LOCK,
+	/* WT: make sure never to use these ones outside of development,
+	 * we need them for lock profiling!
+	 */
+	DEBUG1_LOCK,
+	DEBUG2_LOCK,
+	DEBUG3_LOCK,
+	DEBUG4_LOCK,
+	DEBUG5_LOCK,
 	LOCK_LABELS
 };
 
@@ -447,6 +455,11 @@ static inline const char *lock_label(enum lock_label label)
 	case SFT_LOCK:             return "SFT";
 	case IDLE_CONNS_LOCK:      return "IDLE_CONNS";
 	case OTHER_LOCK:           return "OTHER";
+	case DEBUG1_LOCK:          return "DEBUG1";
+	case DEBUG2_LOCK:          return "DEBUG2";
+	case DEBUG3_LOCK:          return "DEBUG3";
+	case DEBUG4_LOCK:          return "DEBUG4";
+	case DEBUG5_LOCK:          return "DEBUG5";
 	case LOCK_LABELS:          break; /* keep compiler happy */
 	};
 	/* only way to come here is consecutive to an internal bug */
