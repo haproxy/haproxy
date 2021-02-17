@@ -404,7 +404,7 @@ void check_notify_stopping(struct check *check)
 }
 
 /* note: use health_adjust() only, which first checks that the observe mode is
- * enabled.
+ * enabled. This will take the server lock if needed.
  */
 void __health_adjust(struct server *s, short status)
 {
@@ -444,6 +444,13 @@ void __health_adjust(struct server *s, short status)
 	chunk_printf(&trash, "Detected %d consecutive errors, last one was: %s",
 	             s->consecutive_errors, get_analyze_status(status));
 
+	if (s->check.fastinter)
+		expire = tick_add(now_ms, MS_TO_TICKS(s->check.fastinter));
+	else
+		expire = TICK_ETERNITY;
+
+	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
+
 	switch (s->onerror) {
 		case HANA_ONERR_FASTINTER:
 		/* force fastinter - nothing to do here as all modes force it */
@@ -476,16 +483,14 @@ void __health_adjust(struct server *s, short status)
 			break;
 	}
 
+	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+
 	s->consecutive_errors = 0;
 	_HA_ATOMIC_ADD(&s->counters.failed_hana, 1);
 
-	if (s->check.fastinter) {
-		expire = tick_add(now_ms, MS_TO_TICKS(s->check.fastinter));
-		if (tick_is_lt(expire, s->check.task->expire)) {
-			s->check.task->expire = expire;
-			/* requeue check task with new expire */
-			task_queue(s->check.task);
-		}
+	if (tick_is_lt(expire, s->check.task->expire)) {
+		/* requeue check task with new expire */
+		task_schedule(s->check.task, expire);
 	}
 }
 
