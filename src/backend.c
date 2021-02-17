@@ -1670,11 +1670,8 @@ skip_reuse:
 		s->flags |= SF_CURR_SESS;
 		count = _HA_ATOMIC_ADD(&srv->cur_sess, 1);
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.cur_sess_max, count);
-		if (s->be->lbprm.server_take_conn) {
-			HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-			s->be->lbprm.server_take_conn(srv);
-			HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
-		}
+		if (s->be->lbprm.server_take_conn)
+			s->be->lbprm.server_take_conn(srv, 0);
 	}
 
 	/* Now handle synchronously connected sockets. We know the stream-int

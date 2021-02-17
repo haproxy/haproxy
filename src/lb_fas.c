@@ -61,16 +61,23 @@ static inline void fas_queue_srv(struct server *s)
  * connection or after it has released one. Note that it is possible that
  * the server has been moved out of the tree due to failed health-checks.
  *
- * The server's lock must be held. The lbprm's lock will be used.
+ * <locked> must reflect the server's lock ownership. The lbprm's lock will
+ * be used.
  */
-static void fas_srv_reposition(struct server *s)
+static void fas_srv_reposition(struct server *s, int locked)
 {
+	if (!locked)
+		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
+
 	HA_RWLOCK_WRLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
 	if (s->lb_tree) {
 		fas_dequeue_srv(s);
 		fas_queue_srv(s);
 	}
 	HA_RWLOCK_WRUNLOCK(LBPRM_LOCK, &s->proxy->lbprm.lock);
+
+	if (!locked)
+		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 }
 
 /* This function updates the server trees according to server <srv>'s new

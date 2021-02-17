@@ -2541,11 +2541,8 @@ void sess_change_server(struct stream *sess, struct server *newsrv)
 		_HA_ATOMIC_SUB(&oldsrv->served, 1);
 		_HA_ATOMIC_SUB(&oldsrv->proxy->served, 1);
 		__ha_barrier_atomic_store();
-		if (oldsrv->proxy->lbprm.server_drop_conn) {
-			HA_SPIN_LOCK(SERVER_LOCK, &oldsrv->lock);
-			oldsrv->proxy->lbprm.server_drop_conn(oldsrv);
-			HA_SPIN_UNLOCK(SERVER_LOCK, &oldsrv->lock);
-		}
+		if (oldsrv->proxy->lbprm.server_drop_conn)
+			oldsrv->proxy->lbprm.server_drop_conn(oldsrv, 0);
 		stream_del_srv_conn(sess);
 	}
 
@@ -2553,11 +2550,8 @@ void sess_change_server(struct stream *sess, struct server *newsrv)
 		_HA_ATOMIC_ADD(&newsrv->served, 1);
 		_HA_ATOMIC_ADD(&newsrv->proxy->served, 1);
 		__ha_barrier_atomic_store();
-		if (newsrv->proxy->lbprm.server_take_conn) {
-			HA_SPIN_LOCK(SERVER_LOCK, &newsrv->lock);
-			newsrv->proxy->lbprm.server_take_conn(newsrv);
-			HA_SPIN_UNLOCK(SERVER_LOCK, &newsrv->lock);
-		}
+		if (newsrv->proxy->lbprm.server_take_conn)
+			newsrv->proxy->lbprm.server_take_conn(newsrv, 0);
 		stream_add_srv_conn(sess, newsrv);
 	}
 }

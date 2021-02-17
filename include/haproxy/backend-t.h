@@ -160,12 +160,15 @@ struct lbprm {
 	__decl_thread(HA_RWLOCK_T lock);
 	struct server *fbck;		/* first backup server when !PR_O_USE_ALL_BK, or NULL */
 
-	/* Call backs for some actions. Any of them may be NULL (thus should be ignored). */
-	void (*update_server_eweight)(struct server *);  /* to be called after eweight change */
-	void (*set_server_status_up)(struct server *);   /* to be called after status changes to UP */
-	void (*set_server_status_down)(struct server *); /* to be called after status changes to DOWN */
-	void (*server_take_conn)(struct server *);       /* to be called when connection is assigned */
-	void (*server_drop_conn)(struct server *);       /* to be called when connection is dropped */
+	/* Call backs for some actions. Any of them may be NULL (thus should be ignored).
+	 * Those marked "srvlock" will need to be called with the server lock held.
+	 * The other ones might take it themselves if needed, based on indications.
+	 */
+	void (*update_server_eweight)(struct server *);  /* to be called after eweight change // srvlock */
+	void (*set_server_status_up)(struct server *);   /* to be called after status changes to UP // srvlock */
+	void (*set_server_status_down)(struct server *); /* to be called after status changes to DOWN // srvlock */
+	void (*server_take_conn)(struct server *, int locked); /* to be called when connection is assigned */
+	void (*server_drop_conn)(struct server *, int locked); /* to be called when connection is dropped */
 };
 
 #endif /* _HAPROXY_BACKEND_T_H */
