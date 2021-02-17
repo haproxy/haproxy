@@ -1289,7 +1289,12 @@ int connect_server(struct stream *s)
 		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
 		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
 		                               srv->ssl_ctx.sni, SMP_T_STR);
-		if (smp_make_safe(sni_smp)) {
+
+		/* only test if the sample is not null as smp_make_safe (called
+		 * before ssl_sock_set_servername) can only fails if this is
+		 * not the case
+		 */
+		if (sni_smp) {
 			sni_hash = conn_hash_prehash(sni_smp->data.u.str.area,
 			                             sni_smp->data.u.str.data);
 			hash_params.sni_prehash = &sni_hash;
