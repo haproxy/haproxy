@@ -285,17 +285,10 @@ static inline void stream_inc_http_fail_ctr(struct stream *s)
 	}
 }
 
-static inline void __stream_add_srv_conn(struct stream *sess, struct server *srv)
-{
-	sess->srv_conn = srv;
-	LIST_ADD(&srv->actconns, &sess->by_srv);
-}
-
 static inline void stream_add_srv_conn(struct stream *sess, struct server *srv)
 {
-	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-	__stream_add_srv_conn(sess, srv);
-	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+	MT_LIST_ADD(&srv->actconns, &sess->by_srv);
+	HA_ATOMIC_STORE(&sess->srv_conn, srv);
 }
 
 static inline void stream_del_srv_conn(struct stream *sess)
@@ -305,16 +298,14 @@ static inline void stream_del_srv_conn(struct stream *sess)
 	if (!srv)
 		return;
 
-	HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-	sess->srv_conn = NULL;
-	LIST_DEL(&sess->by_srv);
-	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+	MT_LIST_DEL(&sess->by_srv);
+	HA_ATOMIC_STORE(&sess->srv_conn, NULL);
 }
 
 static inline void stream_init_srv_conn(struct stream *sess)
 {
 	sess->srv_conn = NULL;
-	LIST_INIT(&sess->by_srv);
+	MT_LIST_INIT(&sess->by_srv);
 }
 
 static inline void stream_choose_redispatch(struct stream *s)

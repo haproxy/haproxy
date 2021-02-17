@@ -328,7 +328,7 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 	__ha_barrier_atomic_store();
 	if (px->lbprm.server_take_conn)
 		px->lbprm.server_take_conn(srv);
-	__stream_add_srv_conn(p->strm, srv);
+	stream_add_srv_conn(p->strm, srv);
 
 	task_wakeup(p->strm->task, TASK_WOKEN_RES);
 

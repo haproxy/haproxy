@@ -2532,17 +2532,19 @@ void stream_update_time_stats(struct stream *s)
  */
 void sess_change_server(struct stream *sess, struct server *newsrv)
 {
-	if (sess->srv_conn == newsrv)
+	struct server *oldsrv = sess->srv_conn;
+
+	if (oldsrv == newsrv)
 		return;
 
-	if (sess->srv_conn) {
-		_HA_ATOMIC_SUB(&sess->srv_conn->served, 1);
-		_HA_ATOMIC_SUB(&sess->srv_conn->proxy->served, 1);
+	if (oldsrv) {
+		_HA_ATOMIC_SUB(&oldsrv->served, 1);
+		_HA_ATOMIC_SUB(&oldsrv->proxy->served, 1);
 		__ha_barrier_atomic_store();
-		if (sess->srv_conn->proxy->lbprm.server_drop_conn) {
-			HA_SPIN_LOCK(SERVER_LOCK, &sess->srv_conn->lock);
-			sess->srv_conn->proxy->lbprm.server_drop_conn(sess->srv_conn);
-			HA_SPIN_UNLOCK(SERVER_LOCK, &sess->srv_conn->lock);
+		if (oldsrv->proxy->lbprm.server_drop_conn) {
+			HA_SPIN_LOCK(SERVER_LOCK, &oldsrv->lock);
+			oldsrv->proxy->lbprm.server_drop_conn(oldsrv);
+			HA_SPIN_UNLOCK(SERVER_LOCK, &oldsrv->lock);
 		}
 		stream_del_srv_conn(sess);
 	}

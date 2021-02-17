@@ -228,7 +228,7 @@ struct server {
 	struct be_counters counters;		/* statistics counters */
 
 	struct eb_root pendconns;		/* pending connections */
-	struct list actconns;			/* active connections */
+	struct mt_list actconns;		/* active connections (used by "shutdown server sessions") */
 	struct eb_root *idle_conns_tree;        /* shareable idle connections*/
 	struct eb_root *safe_conns_tree;        /* safe idle connections */
 	struct eb_root *available_conns_tree;   /* Connection in used, but with still new streams available */

@@ -900,9 +900,10 @@ static int srv_parse_tfo(char **args, int *cur_arg, struct proxy *px, struct ser
  */
 void srv_shutdown_streams(struct server *srv, int why)
 {
-	struct stream *stream, *stream_bck;
+	struct stream *stream;
+	struct mt_list *elt1, elt2;
 
-	list_for_each_entry_safe(stream, stream_bck, &srv->actconns, by_srv)
+	mt_list_for_each_entry_safe(stream, &srv->actconns, by_srv, elt1, elt2)
 		if (stream->srv_conn == srv)
 			stream_shutdown(stream, why);
 }
@@ -1757,7 +1758,7 @@ struct server *new_server(struct proxy *proxy)
 
 	srv->obj_type = OBJ_TYPE_SERVER;
 	srv->proxy = proxy;
-	LIST_INIT(&srv->actconns);
+	MT_LIST_INIT(&srv->actconns);
 	srv->pendconns = EB_ROOT;
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
