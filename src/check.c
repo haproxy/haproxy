@@ -481,7 +481,7 @@ void __health_adjust(struct server *s, short status)
 
 	if (s->check.fastinter) {
 		expire = tick_add(now_ms, MS_TO_TICKS(s->check.fastinter));
-		if (s->check.task->expire > expire) {
+		if (tick_is_lt(expire, s->check.task->expire)) {
 			s->check.task->expire = expire;
 			/* requeue check task with new expire */
 			task_queue(s->check.task);
