@@ -47,6 +47,7 @@
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
+#include <haproxy/xprt_quic.h>
 
 
 int listeners;	/* # of proxy listeners, set by cfgparse */
