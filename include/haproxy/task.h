@@ -196,6 +196,8 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const char *file
 	while (!(state & (TASK_RUNNING | TASK_QUEUED))) {
 		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED)) {
 #ifdef DEBUG_TASK
+			if ((unsigned int)t->debug.caller_idx > 1)
+				ABORT_NOW();
 			t->debug.caller_idx = !t->debug.caller_idx;
 			t->debug.caller_file[t->debug.caller_idx] = file;
 			t->debug.caller_line[t->debug.caller_idx] = line;
@@ -349,6 +351,8 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 
 	/* at this point we're the first ones to add this task to the list */
 #ifdef DEBUG_TASK
+	if ((unsigned int)tl->debug.caller_idx > 1)
+		ABORT_NOW();
 	tl->debug.caller_idx = !tl->debug.caller_idx;
 	tl->debug.caller_file[tl->debug.caller_idx] = file;
 	tl->debug.caller_line[tl->debug.caller_idx] = line;
@@ -439,6 +443,9 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
 	t->cpu_time = 0;
 	t->lat_time = 0;
 	t->expire = TICK_ETERNITY;
+#ifdef DEBUG_TASK
+	t->debug.caller_idx = 0;
+#endif
 	return t;
 }
 
@@ -453,6 +460,9 @@ static inline void tasklet_init(struct tasklet *t)
 	t->state = 0;
 	t->process = NULL;
 	t->tid = -1;
+#ifdef DEBUG_TASK
+	t->debug.caller_idx = 0;
+#endif
 	LIST_INIT(&t->list);
 }
 
@@ -495,6 +505,13 @@ static inline void __task_free(struct task *t)
 		__ha_barrier_store();
 	}
 	BUG_ON(task_in_wq(t) || task_in_rq(t));
+
+#ifdef DEBUG_TASK
+	if ((unsigned int)t->debug.caller_idx > 1)
+		ABORT_NOW();
+	t->debug.caller_idx |= 2; // keep parity and make sure to crash if used after free
+#endif
+
 	pool_free(pool_head_task, t);
 	if (unlikely(stopping))
 		pool_flush(pool_head_task);
@@ -532,6 +549,11 @@ static inline void tasklet_free(struct tasklet *tl)
 	if (MT_LIST_DEL((struct mt_list *)&tl->list))
 		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 
+#ifdef DEBUG_TASK
+	if ((unsigned int)tl->debug.caller_idx > 1)
+		ABORT_NOW();
+	tl->debug.caller_idx |= 2; // keep parity and make sure to crash if used after free
+#endif
 	pool_free(pool_head_tasklet, tl);
 	if (unlikely(stopping))
 		pool_flush(pool_head_tasklet);
