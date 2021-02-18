@@ -123,15 +123,9 @@ client c_proxy -connect ${h1_feS_proxy_sock} -proxy1 "127.0.0.1:40000 ${h1_feS_p
 	expect resp.http.http_first_request == "0"
 } -run
 
-## second request with same proxy protocol entry
-client c_proxy -connect ${h1_feS_proxy_sock} -proxy1 "127.0.0.1:40000 ${h1_feS_proxy_addr}:${h1_feS_proxy_port}" {
-	txreq
-	rxresp
-	expect resp.status == 200
-	expect resp.http.http_first_request == "0"
-} -run
-
-## third request with different proxy protocol entry, no reuse
+## second request with different proxy protocol
+# this have the nice effect to fill the server pool to 2 connection
+# (pool-low-conn value) to allow takeover on multi thread run
 client c_proxy -connect ${h1_feS_proxy_sock} -proxy1 "127.0.0.1:50000 ${h1_feS_proxy_addr}:${h1_feS_proxy_port}" {
 	txreq
 	rxresp
@@ -139,7 +133,23 @@ client c_proxy -connect ${h1_feS_proxy_sock} -proxy1 "127.0.0.1:50000 ${h1_feS_p
 	expect resp.http.http_first_request == "1"
 } -run
 
-## fourth request, reuse proxy protocol
+## third request, reuse same proxy protocol entry
+client c_proxy -connect ${h1_feS_proxy_sock} -proxy1 "127.0.0.1:40000 ${h1_feS_proxy_addr}:${h1_feS_proxy_port}" {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.http_first_request == "0"
+} -run
+
+## fourth request with different proxy protocol entry, no reuse
+client c_proxy -connect ${h1_feS_proxy_sock} -proxy1 "127.0.0.1:60000 ${h1_feS_proxy_addr}:${h1_feS_proxy_port}" {
+	txreq
+	rxresp
+	expect resp.status == 200
+	expect resp.http.http_first_request == "1"
+} -run
+
+## fifth request, reuse proxy protocol
 client c_proxy -connect ${h1_feS_proxy_sock} -proxy1 "127.0.0.1:50000 ${h1_feS_proxy_addr}:${h1_feS_proxy_port}" {
 	txreq
 	rxresp
