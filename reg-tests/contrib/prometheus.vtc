@@ -10,6 +10,11 @@ server s1 {
 	txresp
 } -repeat 2 -start
 
+server s2 {
+	rxreq
+	txresp
+} -repeat 2 -start
+
 haproxy h1 -conf {
     defaults
 	mode http
@@ -29,11 +34,13 @@ haproxy h1 -conf {
     backend be
 	stick-table type ip size 1m expire 10s store http_req_rate(10s)
 	server s1 ${s1_addr}:${s1_port}
+	server s2 ${s2_addr}:${s2_port} check maxqueue 10 maxconn 12 pool-max-conn 42
 } -start
 
 client c1 -connect ${h1_stats_sock} {
 	txreq -url "/metrics"
 	rxresp
+	# test general metrics
 	expect resp.status == 200
 	expect resp.body ~ ".*haproxy_process.*"
 	expect resp.body ~ ".*haproxy_frontend.*"
@@ -42,6 +49,29 @@ client c1 -connect ${h1_stats_sock} {
 	expect resp.body ~ ".*haproxy_server.*"
 	expect resp.body ~ ".*haproxy_sticktable.*"
 
+	# test expected NaN values
+	expect resp.body ~ ".*haproxy_server_check_failures_total{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*haproxy_server_check_up_down_total{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*haproxy_server_check_failures_total{proxy=\"be\",server=\"s2\"} 0.*"
+	expect resp.body ~ ".*haproxy_server_check_up_down_total{proxy=\"be\",server=\"s2\"} 0.*"
+
+	expect resp.body ~ ".*haproxy_server_queue_limit{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*haproxy_server_queue_limit{proxy=\"be\",server=\"s2\"} 10.*"
+
+	expect resp.body ~ ".*haproxy_server_limit_sessions{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*haproxy_server_limit_sessions{proxy=\"be\",server=\"s2\"} 12.*"
+
+	expect resp.body ~ ".*haproxy_backend_downtime_seconds_total{proxy=\"stats\"} NaN.*"
+	expect resp.body ~ ".*haproxy_backend_downtime_seconds_total{proxy=\"be\"} 0.*"
+	expect resp.body ~ ".*haproxy_server_downtime_seconds_total{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*haproxy_server_downtime_seconds_total{proxy=\"be\",server=\"s2\"} 0.*"
+
+	expect resp.body ~ ".*haproxy_server_current_throttle{proxy=\"be\",server=\"s1\"} NaN.*"
+
+	expect resp.body ~ ".*haproxy_server_idle_connections_limit{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*haproxy_server_idle_connections_limit{proxy=\"be\",server=\"s2\"} 42.*"
+
+	# test scope
 	txreq -url "/metrics?scope="
 	rxresp
 	expect resp.status == 200
