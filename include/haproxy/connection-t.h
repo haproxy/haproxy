@@ -50,6 +50,7 @@ struct session;
 struct pipe;
 struct quic_conn;
 struct bind_conf;
+struct qcs;
 
 /* Note: subscribing to these events is only valid after the caller has really
  * attempted to perform the operation, and failed to proceed or complete.
@@ -421,7 +422,13 @@ struct mux_ops {
 	int (*show_fd)(struct buffer *, struct connection *); /* append some data about connection into chunk for "show fd"; returns non-zero if suspicious */
 	int (*subscribe)(struct conn_stream *cs, int event_type,  struct wait_event *es); /* Subscribe <es> to events, such as "being able to send" */
 	int (*unsubscribe)(struct conn_stream *cs, int event_type,  struct wait_event *es); /* Unsubscribe <es> from events */
+	int (*ruqs_subscribe)(struct qcs *qcs, int event_type,  struct wait_event *es); /* Subscribe <es> to events, "being able to receive" only */
+	int (*ruqs_unsubscribe)(struct qcs *qcs, int event_type,  struct wait_event *es); /* Unsubscribe <es> from events */
+	int (*luqs_subscribe)(struct qcs *qcs, int event_type,  struct wait_event *es); /* Subscribe <es> to events, "being able to send" only */
+	int (*luqs_unsubscribe)(struct qcs *qcs, int event_type,  struct wait_event *es); /* Unsubscribe <es> from events */
 	int (*avail_streams)(struct connection *conn); /* Returns the number of streams still available for a connection */
+	int (*avail_streams_bidi)(struct connection *conn); /* Returns the number of bidirectional streams still available for a connection */
+	int (*avail_streams_uni)(struct connection *conn); /* Returns the number of unidirectional streams still available for a connection */
 	int (*used_streams)(struct connection *conn);  /* Returns the number of streams in use on a connection. */
 	void (*destroy)(void *ctx); /* Let the mux know one of its users left, so it may have to disappear */
 	int (*ctl)(struct connection *conn, enum mux_ctl_type mux_ctl, void *arg); /* Provides information about the mux */
