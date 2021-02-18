@@ -628,6 +628,8 @@ struct quic_conn {
 	struct quic_path paths[1];
 	struct quic_path *path;
 
+	/* MUX */
+	struct qcc *qcc;
 	struct task *timer_task;
 	unsigned int timer;
 };
