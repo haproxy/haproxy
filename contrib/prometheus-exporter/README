@@ -27,7 +27,6 @@ and the corresponding HTTP proxy must enable the HTX support. For instance:
     frontend test
         mode http
         ...
-        option http-use-htx
         http-request use-service prometheus-exporter if { path /metrics }
         ...
 
