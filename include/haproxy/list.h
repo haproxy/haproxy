@@ -300,28 +300,28 @@
 			__ha_barrier_store();                              \
 			continue;                                          \
 		}                                                          \
-		n2 = _HA_ATOMIC_XCHG(&el->next, MT_LIST_BUSY);             \
-		if (n2 != el) { /* element already linked */               \
-			if (n2 != MT_LIST_BUSY)                            \
-				el->next = n2;                             \
-			p->next = n;                                       \
-			__ha_barrier_store();                              \
-			lh->prev = p;                                      \
-			__ha_barrier_store();                              \
-			if (n2 == MT_LIST_BUSY)                            \
-				continue;                                  \
-			break;                                             \
-		}                                                          \
 		p2 = _HA_ATOMIC_XCHG(&el->prev, MT_LIST_BUSY);             \
 		if (p2 != el) {                                            \
 			if (p2 != MT_LIST_BUSY)                            \
 				el->prev = p2;                             \
 			p->next = n;                                       \
-			el->next = el;                                     \
 			__ha_barrier_store();                              \
 			lh->prev = p;                                      \
 			__ha_barrier_store();                              \
 			if (p2 == MT_LIST_BUSY)                            \
+				continue;                                  \
+			break;                                             \
+		}                                                          \
+		n2 = _HA_ATOMIC_XCHG(&el->next, MT_LIST_BUSY);             \
+		if (n2 != el) { /* element already linked */               \
+			if (n2 != MT_LIST_BUSY)                            \
+				el->next = n2;                             \
+			p->next = n;                                       \
+			el->prev = el;                                     \
+			__ha_barrier_store();                              \
+			lh->prev = p;                                      \
+			__ha_barrier_store();                              \
+			if (n2 == MT_LIST_BUSY)                            \
 				continue;                                  \
 			break;                                             \
 		}                                                          \
