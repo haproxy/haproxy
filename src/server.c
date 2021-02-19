@@ -3110,6 +3110,8 @@ static void srv_state_parse_line(char *buf, const int version, char **params, ch
 	buf[buflen - 1] = '\0';
 
 	/* we're now ready to move the line into *srv_params[] */
+	memset(params, 0, SRV_STATE_FILE_MAX_FIELDS * sizeof(*params));
+	memset(srv_params, 0, SRV_STATE_FILE_MAX_FIELDS * sizeof(*srv_params));
 	params[0] = cur;
 	arg = 1;
 	srv_arg = 0;
