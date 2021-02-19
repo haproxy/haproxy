@@ -3431,7 +3431,7 @@ out_uri_auth_compat:
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
 			if (!listener->maxaccept)
-				listener->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : 64;
+				listener->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
 
 			/* we want to have an optimal behaviour on single process mode to
 			 * maximize the work at once, but in multi-process we want to keep

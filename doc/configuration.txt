@@ -2403,14 +2403,15 @@ tune.lua.service-timeout <timeout>
 tune.maxaccept <number>
   Sets the maximum number of consecutive connections a process may accept in a
   row before switching to other work. In single process mode, higher numbers
-  give better performance at high connection rates. However in multi-process
-  modes, keeping a bit of fairness between processes generally is better to
-  increase performance. This value applies individually to each listener, so
-  that the number of processes a listener is bound to is taken into account.
-  This value defaults to 64. In multi-process mode, it is divided by twice
-  the number of processes the listener is bound to. Setting this value to -1
-  completely disables the limitation. It should normally not be needed to tweak
-  this value.
+  used to give better performance at high connection rates, though this is not
+  the case anymore with the multi-queue. This value applies individually to
+  each listener, so that the number of processes a listener is bound to is
+  taken into account. This value defaults to 4 which showed best results. If a
+  significantly higher value was inherited from an ancient config, it might be
+  worth removing it as it will both increase performance and lower response
+  time. In multi-process mode, it is divided by twice the number of processes
+  the listener is bound to. Setting this value to -1 completely disables the
+  limitation. It should normally not be needed to tweak this value.
 
 tune.maxpollevents <number>
   Sets the maximum amount of events that can be processed at once in a call to

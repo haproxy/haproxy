@@ -170,6 +170,22 @@
 #define MAX_POLL_EVENTS 200
 #endif
 
+// The maximum number of connections accepted at once by a thread for a single
+// listener. It used to default to 64 divided by the number of processes but
+// the tasklet-based model is much more scalable and benefits from smaller
+// values. Experimentation has shown that 4 gives the highest accept rate for
+// all thread values, and that 3 and 5 come very close, as shown below (HTTP/1
+// connections forwarded per second at multi-accept 4 and 64):
+//
+// ac\thr|    1    2     4     8     16
+// ------+------------------------------
+//      4|   80k  106k  168k  270k  336k
+//     64|   63k   89k  145k  230k  274k
+//
+#ifndef MAX_ACCEPT
+#define MAX_ACCEPT 4
+#endif
+
 // the max number of tasks to run at once. Tests have shown the following
 // number of requests/s for 1 to 16 threads (1c1t, 1c2t, 2c4t, 4c8t, 4c16t):
 //
