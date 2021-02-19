@@ -193,7 +193,7 @@ ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size)
 				 * elem is removed from the list */
 				__ha_barrier_store();
 
-				/* awake appctx beacause it may have other
+				/* awake appctx because it may have other
 				 * message to receive
 				 */
 				appctx_wakeup(ds->appctx);
@@ -592,7 +592,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* should never happen since we
 				 * check available_room is large
-				 * enought here.
+				 * enough here.
 				 */
 				si_rx_room_blk(si);
 				ret = 0;
@@ -626,7 +626,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 
 read:
 
-	/* if session is not a waiter it means there is no commited
+	/* if session is not a waiter it means there is no committed
 	 * message into rx_buf and we are free to use it
 	 * Note: we need a load barrier here to not miss the
 	 * delete from the list
@@ -674,7 +674,7 @@ read:
 				break;
 			}
 
-			/* enougth data is available into the channel to read the message until the end */
+			/* enough data is available into the channel to read the message until the end */
 
 			/* read from the channel until the end of the message */
 			co_getblk(si_oc(si), ds->rx_msg.area + ds->rx_msg.offset, ds->rx_msg.len - ds->rx_msg.offset, 0);
@@ -980,7 +980,7 @@ static struct task *dns_process_idle_exp(struct task *t, void *context, unsigned
 		/* force session shutdown */
 		ds->shutdown = 1;
 
-		/* to be sure that the appctx wont miss shutdown */
+		/* to be sure that the appctx won't miss shutdown */
 		__ha_barrier_store();
 
 		/* wake appctx to perform the shutdown */
@@ -1127,7 +1127,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned shor
 		myist.len = len;
 
 		ads = NULL;
-		/* try to push request into activ sess with free slot */
+		/* try to push request into active sess with free slot */
 		if (!LIST_ISEMPTY(&dss->free_sess)) {
 			ds = LIST_NEXT(&dss->free_sess, struct dns_session *, list);
 
@@ -1147,7 +1147,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned shor
 		}
 
 		if (!ads) {
-			/* try to push request into idle, this one should have enought free space */
+			/* try to push request into idle, this one should have enough free space */
 			if (!LIST_ISEMPTY(&dss->idle_sess)) {
 				ds = LIST_NEXT(&dss->idle_sess, struct dns_session *, list);
 
@@ -1171,7 +1171,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned shor
 			}
 		}
 
-		/* we didn't find a session avalaible with large enough room */
+		/* we didn't find a session available with large enough room */
 		if (!ads) {
 			/* allocate a new session */
 			ads = dns_session_new(dss);
@@ -1272,7 +1272,7 @@ int dns_stream_init(struct dns_nameserver *ns, struct server *srv)
 	dss->task_idle->context = dss;
 	dss->task_idle->expire = tick_add(now_ms, 5000);
 
-	/* let start the task to free idle conns immediatly */
+	/* let start the task to free idle conns immediately */
 	task_queue(dss->task_idle);
 
 	LIST_INIT(&dss->free_sess);

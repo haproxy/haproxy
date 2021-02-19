@@ -17557,7 +17557,7 @@ src_http_err_rate([<table>]) : integer
 src_http_fail_cnt([<table>]) : integer
   Returns the cumulative number of HTTP response failures triggered by the
   incoming connection's source address in the current proxy's stick-table or in
-  the designated stick-table. This includes the both repsonse errors and 5xx
+  the designated stick-table. This includes the both response errors and 5xx
   status codes other than 501 and 505. See also sc/sc0/sc1/sc2_http_fail_cnt.
   If the address is not found, zero is returned.
 
