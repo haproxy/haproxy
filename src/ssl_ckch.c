@@ -923,18 +923,42 @@ struct ckch_inst *ckch_inst_new()
 
 
 /********************  ssl_store functions ******************************/
-struct eb_root cafile_tree = EB_ROOT_UNIQUE;
+struct eb_root cafile_tree = EB_ROOT;
 
-X509_STORE* ssl_store_get0_locations_file(char *path)
+/*
+ * Returns the cafile_entry found in the cafile_tree indexed by the path 'path'.
+ * If 'oldest_entry' is 1, returns the "original" cafile_entry (since
+ * during a set cafile/commit cafile cycle there might be two entries for any
+ * given path, the original one and the new one set via the CLI but not
+ * committed yet).
+ */
+static struct cafile_entry *ssl_store_get_cafile_entry(char *path, int oldest_entry)
 {
+	struct cafile_entry *ca_e = NULL;
 	struct ebmb_node *eb;
 
 	eb = ebst_lookup(&cafile_tree, path);
-	if (eb) {
-		struct cafile_entry *ca_e;
+	while (eb) {
 		ca_e = ebmb_entry(eb, struct cafile_entry, node);
-		return ca_e->ca_store;
+		/* The ebst_lookup in a tree that has duplicates returns the
+		 * oldest entry first. If we want the latest entry, we need to
+		 * iterate over all the duplicates until we find the last one
+		 * (in our case there should never be more than two entries for
+		 * any given path). */
+		if (oldest_entry)
+			return ca_e;
+		eb = ebmb_next_dup(eb);
 	}
+	return ca_e;
+}
+
+X509_STORE* ssl_store_get0_locations_file(char *path)
+{
+	struct cafile_entry *ca_e = ssl_store_get_cafile_entry(path, 0);
+
+	if (ca_e)
+		return ca_e->ca_store;
+
 	return NULL;
 }
 
