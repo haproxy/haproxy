@@ -3904,15 +3904,19 @@ static int h2_process(struct h2c *h2c)
 		}
 
 		/* connections in error must be removed from the idle lists */
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		conn_delete_from_tree(&conn->hash_node);
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		if (conn->flags & CO_FL_LIST_MASK) {
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			conn_delete_from_tree(&conn->hash_node);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		}
 	}
 	else if (h2c->st0 == H2_CS_ERROR) {
 		/* connections in error must be removed from the idle lists */
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		conn_delete_from_tree(&conn->hash_node);
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		if (conn->flags & CO_FL_LIST_MASK) {
+			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			conn_delete_from_tree(&conn->hash_node);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		}
 	}
 
 	if (!b_data(&h2c->dbuf))
@@ -4049,9 +4053,11 @@ do_leave:
 	}
 
 	/* in any case this connection must not be considered idle anymore */
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-	conn_delete_from_tree(&h2c->conn->hash_node);
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	if (h2c->conn->flags & CO_FL_LIST_MASK) {
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		conn_delete_from_tree(&h2c->conn->hash_node);
+		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+	}
 
 	/* either we can release everything now or it will be done later once
 	 * the last stream closes.
