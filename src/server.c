@@ -3112,54 +3112,60 @@ static void srv_state_parse_line(char *buf, const int version, char **params, ch
 	/* we're now ready to move the line into *srv_params[] */
 	memset(params, 0, SRV_STATE_FILE_MAX_FIELDS * sizeof(*params));
 	memset(srv_params, 0, SRV_STATE_FILE_MAX_FIELDS * sizeof(*srv_params));
-	params[0] = cur;
-	arg = 1;
+
+	arg = 0;
 	srv_arg = 0;
 	while (*cur && arg < SRV_STATE_FILE_MAX_FIELDS) {
-		if (isspace((unsigned char)*cur)) {
-			*cur = '\0';
+		/* Search begining of the current field */
+		while (isspace((unsigned char)*cur)) {
 			++cur;
-			while (isspace((unsigned char)*cur))
-				++cur;
-
-			/* v1
-			 * srv_addr:             params[4]  => srv_params[0]
-			 * srv_op_state:         params[5]  => srv_params[1]
-			 * srv_admin_state:      params[6]  => srv_params[2]
-			 * srv_uweight:          params[7]  => srv_params[3]
-			 * srv_iweight:          params[8]  => srv_params[4]
-			 * srv_last_time_change: params[9]  => srv_params[5]
-			 * srv_check_status:     params[10] => srv_params[6]
-			 * srv_check_result:     params[11] => srv_params[7]
-			 * srv_check_health:     params[12] => srv_params[8]
-			 * srv_check_state:      params[13] => srv_params[9]
-			 * srv_agent_state:      params[14] => srv_params[10]
-			 * bk_f_forced_id:       params[15] => srv_params[11]
-			 * srv_f_forced_id:      params[16] => srv_params[12]
-			 * srv_fqdn:             params[17] => srv_params[13]
-			 * srv_port:             params[18] => srv_params[14]
-			 * srvrecord:            params[19] => srv_params[15]
-			 * v2
-			 * srv_use_ssl:          params[20] => srv_params[16]
-			 * srv_check_port:       params[21] => srv_params[17]
-			 * srv_check_addr:       params[22] => srv_params[18]
-			 * srv_agent_addr:       params[23] => srv_params[19]
-			 * srv_agent_port:       params[24] => srv_params[20]
-			 */
-			if ((version == 1 && arg >= 4 && arg <= 19) ||
-			     (version == 2 && arg >= 4)) {
-				srv_params[srv_arg] = cur;
-				++srv_arg;
-			}
-
-			params[arg] = cur;
-			++arg;
+			if (!*cur)
+				goto end;
 		}
-		else {
+
+		/* v1
+		 * srv_addr:             params[4]  => srv_params[0]
+		 * srv_op_state:         params[5]  => srv_params[1]
+		 * srv_admin_state:      params[6]  => srv_params[2]
+		 * srv_uweight:          params[7]  => srv_params[3]
+		 * srv_iweight:          params[8]  => srv_params[4]
+		 * srv_last_time_change: params[9]  => srv_params[5]
+		 * srv_check_status:     params[10] => srv_params[6]
+		 * srv_check_result:     params[11] => srv_params[7]
+		 * srv_check_health:     params[12] => srv_params[8]
+		 * srv_check_state:      params[13] => srv_params[9]
+		 * srv_agent_state:      params[14] => srv_params[10]
+		 * bk_f_forced_id:       params[15] => srv_params[11]
+		 * srv_f_forced_id:      params[16] => srv_params[12]
+		 * srv_fqdn:             params[17] => srv_params[13]
+		 * srv_port:             params[18] => srv_params[14]
+		 * srvrecord:            params[19] => srv_params[15]
+		 * v2
+		 * srv_use_ssl:          params[20] => srv_params[16]
+		 * srv_check_port:       params[21] => srv_params[17]
+		 * srv_check_addr:       params[22] => srv_params[18]
+		 * srv_agent_addr:       params[23] => srv_params[19]
+		 * srv_agent_port:       params[24] => srv_params[20]
+		 */
+		if ((version == 1 && arg >= 4 && arg <= 19) ||
+		    (version == 2 && arg >= 4)) {
+			srv_params[srv_arg] = cur;
+			++srv_arg;
+		}
+		params[arg] = cur;
+		++arg;
+
+		/* Search end of the current field: first space or \0 */
+		/* Search begining of the current field */
+		while (!isspace((unsigned char)*cur)) {
 			++cur;
+			if (!*cur)
+				goto end;
 		}
+		*cur++ = '\0';
 	}
 
+  end:
 	/* if line is incomplete line, then ignore it.
 	 * otherwise, update useful flags */
 	if ((version == 1 && arg < SRV_STATE_FILE_NB_FIELDS_VERSION_1) ||
