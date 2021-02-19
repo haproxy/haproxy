@@ -28,6 +28,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/session.h>
 #include <haproxy/signal.h>
+#include <haproxy/sink.h>
 #include <haproxy/spoe.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
@@ -3021,6 +3022,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 	struct flt_conf    *f;
 	struct spoe_config *conf = fconf->conf;
 	struct proxy       *target;
+	struct logsrv      *logsrv;
 	int i;
 
 	/* Check all SPOE filters for proxy <px> to be sure all SPOE agent names
@@ -3080,6 +3082,21 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 		LIST_INIT(&conf->agent->rt[i].sending_queue);
 		LIST_INIT(&conf->agent->rt[i].waiting_queue);
 		HA_SPIN_INIT(&conf->agent->rt[i].lock);
+	}
+
+	list_for_each_entry(logsrv, &conf->agent_fe.logsrvs, list) {
+		if (logsrv->type == LOG_TARGET_BUFFER) {
+			struct sink *sink = sink_find(logsrv->ring_name);
+
+			if (!sink || sink->type != SINK_TYPE_BUFFER) {
+				ha_alert("Proxy %s : log server used by SPOE agent '%s' declared"
+					 " at %s:%d uses unkown ring named '%s'.\n",
+					 px->id, conf->agent->id, conf->agent->conf.file,
+					 conf->agent->conf.line, logsrv->ring_name);
+				return 1;
+			}
+			logsrv->sink = sink;
+		}
 	}
 
 	free(conf->agent->b.name);
