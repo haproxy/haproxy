@@ -3002,7 +3002,7 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
 
 	conn_in_list = conn->flags & CO_FL_LIST_MASK;
 	if (conn_in_list)
-		conn_delete_from_tree(&conn->hash_node);
+		conn_delete_from_tree(&conn->hash_node->node);
 
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
@@ -3023,9 +3023,9 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (conn_in_list == CO_FL_SAFE_LIST)
-			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
+			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		else
-			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
+			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 	return NULL;
@@ -3176,7 +3176,7 @@ struct task *fcgi_timeout_task(struct task *t, void *context, unsigned short sta
 		 * to steal it from us.
 		 */
 		if (fconn->conn->flags & CO_FL_LIST_MASK)
-			conn_delete_from_tree(&fconn->conn->hash_node);
+			conn_delete_from_tree(&fconn->conn->hash_node->node);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
@@ -3619,12 +3619,12 @@ static void fcgi_detach(struct conn_stream *cs)
 				TRACE_DEVEL("reusable idle connection", FCGI_EV_STRM_END, fconn->conn);
 				return;
 			}
-			else if (!fconn->conn->hash_node.node.leaf_p &&
+			else if (!fconn->conn->hash_node->node.node.leaf_p &&
 				 fcgi_avail_streams(fconn->conn) > 0 && objt_server(fconn->conn->target) &&
 				 !LIST_ADDED(&fconn->conn->session_list)) {
 				ebmb_insert(&__objt_server(fconn->conn->target)->available_conns_tree[tid],
-				            &fconn->conn->hash_node,
-				            sizeof(fconn->conn->hash));
+				            &fconn->conn->hash_node->node,
+				            sizeof(fconn->conn->hash_node->hash));
 			}
 		}
 	}

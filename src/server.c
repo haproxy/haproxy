@@ -5428,7 +5428,7 @@ struct task *srv_cleanup_toremove_connections(struct task *task, void *context, 
 static int srv_migrate_conns_to_remove(struct eb_root *idle_tree, struct mt_list *toremove_list, int toremove_nb)
 {
 	struct eb_node *node, *next;
-	struct connection *conn;
+	struct conn_hash_node *hash_node;
 	int i = 0;
 
 	node = eb_first(idle_tree);
@@ -5437,9 +5437,9 @@ static int srv_migrate_conns_to_remove(struct eb_root *idle_tree, struct mt_list
 		if (toremove_nb != -1 && i >= toremove_nb)
 			break;
 
-		conn = ebmb_entry(node, struct connection, hash_node);
+		hash_node = ebmb_entry(node, struct conn_hash_node, node);
 		eb_delete(node);
-		MT_LIST_ADDQ(toremove_list, &conn->toremove_list);
+		MT_LIST_ADDQ(toremove_list, &hash_node->conn->toremove_list);
 		i++;
 
 		node = next;

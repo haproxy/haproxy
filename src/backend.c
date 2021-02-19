@@ -1135,7 +1135,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	conn = srv_lookup_conn(&tree[tid], hash);
 	if (conn)
-		conn_delete_from_tree(&conn->hash_node);
+		conn_delete_from_tree(&conn->hash_node->node);
 
 	/* If we failed to pick a connection from the idle list, let's try again with
 	 * the safe list.
@@ -1143,7 +1143,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	if (!conn && !is_safe && srv->curr_safe_nb > 0) {
 		conn = srv_lookup_conn(&srv->safe_conns_tree[tid], hash);
 		if (conn) {
-			conn_delete_from_tree(&conn->hash_node);
+			conn_delete_from_tree(&conn->hash_node->node);
 			is_safe = 1;
 			tree = srv->safe_conns_tree;
 		}
@@ -1185,7 +1185,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 		conn = srv_lookup_conn(&tree[i], hash);
 		while (conn) {
 			if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
-				conn_delete_from_tree(&conn->hash_node);
+				conn_delete_from_tree(&conn->hash_node->node);
 				_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 				found = 1;
 				break;
@@ -1198,7 +1198,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 			conn = srv_lookup_conn(&srv->safe_conns_tree[i], hash);
 			while (conn) {
 				if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
-					conn_delete_from_tree(&conn->hash_node);
+					conn_delete_from_tree(&conn->hash_node->node);
 					_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 					found = 1;
 					is_safe = 1;
@@ -1234,7 +1234,9 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 			session_add_conn(s->sess, conn, conn->target);
 		}
 		else {
-			ebmb_insert(&srv->available_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
+			ebmb_insert(&srv->available_conns_tree[tid],
+			            &conn->hash_node->node,
+			            sizeof(conn->hash_node->hash));
 		}
 	}
 	return conn;
@@ -1408,6 +1410,7 @@ int connect_server(struct stream *s)
 
 	if (ha_used_fds > global.tune.pool_high_count && srv && srv->idle_conns_tree) {
 		struct connection *tokill_conn = NULL;
+		struct conn_hash_node *conn_node = NULL;
 		struct ebmb_node *node = NULL;
 
 		/* We can't reuse a connection, and e have more FDs than deemd
@@ -1417,7 +1420,8 @@ int connect_server(struct stream *s)
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		node = ebmb_first(&srv->idle_conns_tree[tid]);
 		if (node) {
-			tokill_conn = ebmb_entry(node, struct connection, hash_node);
+			conn_node = ebmb_entry(node, struct conn_hash_node, node);
+			tokill_conn = conn_node->conn;
 			ebmb_delete(node);
 			tokill_conn->mux->destroy(tokill_conn->ctx);
 		}
@@ -1437,14 +1441,16 @@ int connect_server(struct stream *s)
 				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
 				node = ebmb_first(&srv->idle_conns_tree[i]);
 				if (node) {
-					tokill_conn = ebmb_entry(node, struct connection, hash_node);
+					conn_node = ebmb_entry(node, struct conn_hash_node, node);
+					tokill_conn = conn_node->conn;
 					ebmb_delete(node);
 				}
 
 				if (!tokill_conn) {
 					node = ebmb_first(&srv->safe_conns_tree[i]);
 					if (node) {
-						tokill_conn = ebmb_entry(node, struct connection, hash_node);
+						conn_node = ebmb_entry(node, struct conn_hash_node, node);
+						tokill_conn = conn_node->conn;
 						ebmb_delete(node);
 					}
 				}
@@ -1469,7 +1475,7 @@ int connect_server(struct stream *s)
 
 			if (avail <= 1) {
 				/* No more streams available, remove it from the list */
-				conn_delete_from_tree(&srv_conn->hash_node);
+				conn_delete_from_tree(&srv_conn->hash_node->node);
 			}
 
 			if (avail >= 1) {
@@ -1633,7 +1639,7 @@ skip_reuse:
 			if (srv && reuse_mode == PR_O_REUSE_ALWS &&
 			    !(srv_conn->flags & CO_FL_PRIVATE) &&
 			    srv_conn->mux->avail_streams(srv_conn) > 0) {
-				ebmb_insert(&srv->available_conns_tree[tid], &srv_conn->hash_node, sizeof(srv_conn->hash));
+				ebmb_insert(&srv->available_conns_tree[tid], &srv_conn->hash_node->node, sizeof(srv_conn->hash_node->hash));
 			}
 			else if (srv_conn->flags & CO_FL_PRIVATE ||
 			         (reuse_mode == PR_O_REUSE_SAFE &&
@@ -1716,7 +1722,8 @@ skip_reuse:
 		}
 	}
 
-	srv_conn->hash = hash;
+	if (srv)
+		srv_conn->hash_node->hash = hash;
 
 	return SF_ERR_NONE;  /* connection is OK */
 }

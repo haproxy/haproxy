@@ -38,6 +38,7 @@
 
 extern struct pool_head *pool_head_connection;
 extern struct pool_head *pool_head_connstream;
+extern struct pool_head *pool_head_conn_hash_node;
 extern struct pool_head *pool_head_sockaddr;
 extern struct pool_head *pool_head_authority;
 extern struct xprt_ops *registered_xprt[XPRT_ENTRIES];
@@ -356,8 +357,22 @@ static inline void conn_init(struct connection *conn, void *target)
 	conn->dst = NULL;
 	conn->proxy_authority = NULL;
 	conn->proxy_unique_id = IST_NULL;
-	memset(&conn->hash_node, 0, sizeof(conn->hash_node));
-	conn->hash = 0;
+	conn->hash_node = NULL;
+}
+
+static inline struct conn_hash_node *conn_alloc_hash_node(struct connection *conn)
+{
+	struct conn_hash_node *hash_node = NULL;
+
+	hash_node = pool_alloc(pool_head_conn_hash_node);
+	if (unlikely(!hash_node))
+		return NULL;
+
+	memset(&hash_node->node, 0, sizeof(hash_node->node));
+	hash_node->hash = 0;
+	hash_node->conn = conn;
+
+	return hash_node;
 }
 
 /* sets <owner> as the connection's owner */
@@ -421,13 +436,26 @@ static inline void sockaddr_free(struct sockaddr_storage **sap)
 static inline struct connection *conn_new(void *target)
 {
 	struct connection *conn;
+	struct conn_hash_node *hash_node;
 
 	conn = pool_alloc(pool_head_connection);
-	if (likely(conn != NULL)) {
-		conn_init(conn, target);
-		if (obj_type(target) == OBJ_TYPE_SERVER)
-			srv_use_conn(__objt_server(target), conn);
+	if (unlikely(!conn))
+		return NULL;
+
+	conn_init(conn, target);
+
+	if (obj_type(target) == OBJ_TYPE_SERVER) {
+		srv_use_conn(__objt_server(target), conn);
+
+		hash_node = conn_alloc_hash_node(conn);
+		if (unlikely(!hash_node)) {
+			pool_free(pool_head_connection, conn);
+			return NULL;
+		}
+
+		conn->hash_node = hash_node;
 	}
+
 	return conn;
 }
 
@@ -522,6 +550,10 @@ static inline void conn_free(struct connection *conn)
 	if (isttest(conn->proxy_unique_id)) {
 		pool_free(pool_head_uniqueid, conn->proxy_unique_id.ptr);
 		conn->proxy_unique_id = IST_NULL;
+	}
+	if (conn->hash_node) {
+		pool_free(pool_head_conn_hash_node, conn->hash_node);
+		conn->hash_node = NULL;
 	}
 
 	/* By convention we always place a NULL where the ctx points to if the

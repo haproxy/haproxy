@@ -482,7 +482,7 @@ enum conn_hash_params_t {
 #define CONN_HASH_PARAMS_TYPE_COUNT 6
 
 #define CONN_HASH_PAYLOAD_LEN \
-	(((sizeof(((struct connection *)0)->hash)) * 8) - CONN_HASH_PARAMS_TYPE_COUNT)
+	(((sizeof(((struct conn_hash_node *)0)->hash)) * 8) - CONN_HASH_PARAMS_TYPE_COUNT)
 
 #define CONN_HASH_GET_PAYLOAD(hash) \
 	(((hash) << CONN_HASH_PARAMS_TYPE_COUNT) >> CONN_HASH_PARAMS_TYPE_COUNT)
@@ -536,8 +536,19 @@ struct connection {
 	struct ist proxy_unique_id;  /* Value of the unique ID TLV received via PROXYv2 */
 	struct quic_conn *qc;         /* Only present if this connection is a QUIC one */
 
-	struct ebmb_node hash_node;
-	int64_t hash;
+	/* used to identify a backend connection for http-reuse,
+	 * thus only present if conn.target is of type OBJ_TYPE_SERVER
+	 */
+	struct conn_hash_node *hash_node;
+};
+
+/* node for backend connection in the idle trees for http-reuse
+ * A connection is identified by a hash generated from its specific parameters
+ */
+struct conn_hash_node {
+	struct ebmb_node node;
+	int64_t hash;            /* key for ebmb tree */
+	struct connection *conn; /* connection owner of the node */
 };
 
 struct mux_proto_list {

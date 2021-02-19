@@ -3803,7 +3803,7 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 	 * to use it while we handle the I/O events
 	 */
 	if (conn_in_list)
-		conn_delete_from_tree(&conn->hash_node);
+		conn_delete_from_tree(&conn->hash_node->node);
 
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
@@ -3824,9 +3824,9 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned short status)
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (conn_in_list == CO_FL_SAFE_LIST)
-			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
+			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		else
-			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
+			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 
@@ -3906,7 +3906,7 @@ static int h2_process(struct h2c *h2c)
 		/* connections in error must be removed from the idle lists */
 		if (conn->flags & CO_FL_LIST_MASK) {
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			conn_delete_from_tree(&conn->hash_node);
+			conn_delete_from_tree(&conn->hash_node->node);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		}
 	}
@@ -3914,7 +3914,7 @@ static int h2_process(struct h2c *h2c)
 		/* connections in error must be removed from the idle lists */
 		if (conn->flags & CO_FL_LIST_MASK) {
 			HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-			conn_delete_from_tree(&conn->hash_node);
+			conn_delete_from_tree(&conn->hash_node->node);
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		}
 	}
@@ -4003,7 +4003,7 @@ struct task *h2_timeout_task(struct task *t, void *context, unsigned short state
 		 * to steal it from us.
 		 */
 		if (h2c->conn->flags & CO_FL_LIST_MASK)
-			conn_delete_from_tree(&h2c->conn->hash_node);
+			conn_delete_from_tree(&h2c->conn->hash_node->node);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
@@ -4055,7 +4055,7 @@ do_leave:
 	/* in any case this connection must not be considered idle anymore */
 	if (h2c->conn->flags & CO_FL_LIST_MASK) {
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		conn_delete_from_tree(&h2c->conn->hash_node);
+		conn_delete_from_tree(&h2c->conn->hash_node->node);
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 
@@ -4253,12 +4253,12 @@ static void h2_detach(struct conn_stream *cs)
 					return;
 
 				}
-				else if (!h2c->conn->hash_node.node.leaf_p &&
+				else if (!h2c->conn->hash_node->node.node.leaf_p &&
 					 h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target) &&
 					 !LIST_ADDED(&h2c->conn->session_list)) {
 					ebmb_insert(&__objt_server(h2c->conn->target)->available_conns_tree[tid],
-					            &h2c->conn->hash_node,
-					            sizeof(h2c->conn->hash));
+					            &h2c->conn->hash_node->node,
+					            sizeof(h2c->conn->hash_node->hash));
 				}
 			}
 		}

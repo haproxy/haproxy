@@ -27,10 +27,11 @@
 #include <haproxy/stream_interface.h>
 
 
-DECLARE_POOL(pool_head_connection, "connection",  sizeof(struct connection));
-DECLARE_POOL(pool_head_connstream, "conn_stream", sizeof(struct conn_stream));
-DECLARE_POOL(pool_head_sockaddr,   "sockaddr",    sizeof(struct sockaddr_storage));
-DECLARE_POOL(pool_head_authority,  "authority",   PP2_AUTHORITY_MAX);
+DECLARE_POOL(pool_head_connection,     "connection",     sizeof(struct connection));
+DECLARE_POOL(pool_head_connstream,     "conn_stream",    sizeof(struct conn_stream));
+DECLARE_POOL(pool_head_conn_hash_node, "conn_hash_node", sizeof(struct conn_hash_node));
+DECLARE_POOL(pool_head_sockaddr,       "sockaddr",       sizeof(struct sockaddr_storage));
+DECLARE_POOL(pool_head_authority,      "authority",      PP2_AUTHORITY_MAX);
 
 struct idle_conns idle_conns[MAX_THREADS] = { };
 struct xprt_ops *registered_xprt[XPRT_ENTRIES] = { NULL, };
@@ -69,7 +70,7 @@ int conn_create_mux(struct connection *conn)
 		 */
 		if (srv && ((srv->proxy->options & PR_O_REUSE_MASK) == PR_O_REUSE_ALWS) &&
 		    !(conn->flags & CO_FL_PRIVATE) && conn->mux->avail_streams(conn) > 0)
-			ebmb_insert(&srv->available_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
+			ebmb_insert(&srv->available_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		else if (conn->flags & CO_FL_PRIVATE) {
 			/* If it fail now, the same will be done in mux->detach() callback */
 			session_add_conn(sess, conn, conn->target);

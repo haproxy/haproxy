@@ -280,7 +280,7 @@ static inline void srv_release_conn(struct server *srv, struct connection *conn)
 
 	/* Remove the connection from any tree (safe, idle or available) */
 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-	conn_delete_from_tree(&conn->hash_node);
+	conn_delete_from_tree(&conn->hash_node->node);
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 }
 
@@ -316,15 +316,15 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 		_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		conn_delete_from_tree(&conn->hash_node);
+		conn_delete_from_tree(&conn->hash_node->node);
 
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
-			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
+			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
 			_HA_ATOMIC_ADD(&srv->curr_safe_nb, 1);
 		} else {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_IDLE_LIST;
-			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
+			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
 			_HA_ATOMIC_ADD(&srv->curr_idle_nb, 1);
 		}
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
@@ -358,10 +358,13 @@ static inline struct connection *srv_lookup_conn(struct eb_root *tree, uint64_t 
 {
 	struct ebmb_node *node = NULL;
 	struct connection *conn = NULL;
+	struct conn_hash_node *hash_node = NULL;
 
-	node = ebmb_lookup(tree, &hash, sizeof(conn->hash));
-	if (node)
-		conn = ebmb_entry(node, struct connection, hash_node);
+	node = ebmb_lookup(tree, &hash, sizeof(hash_node->hash));
+	if (node) {
+		hash_node = ebmb_entry(node, struct conn_hash_node, node);
+		conn = hash_node->conn;
+	}
 
 	return conn;
 }
@@ -371,12 +374,15 @@ static inline struct connection *srv_lookup_conn(struct eb_root *tree, uint64_t 
  */
 static inline struct connection *srv_lookup_conn_next(struct connection *conn)
 {
-	struct ebmb_node *next_node = NULL;
+	struct ebmb_node *node = NULL;
 	struct connection *next_conn = NULL;
+	struct conn_hash_node *hash_node = NULL;
 
-	next_node = ebmb_next_dup(&conn->hash_node);
-	if (next_node)
-		next_conn = ebmb_entry(next_node, struct connection, hash_node);
+	node = ebmb_next_dup(&conn->hash_node->node);
+	if (node) {
+		hash_node = ebmb_entry(node, struct conn_hash_node, node);
+		next_conn = hash_node->conn;
+	}
 
 	return next_conn;
 }

@@ -2828,7 +2828,7 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 	 */
 	conn_in_list = conn->flags & CO_FL_LIST_MASK;
 	if (conn_in_list)
-		conn_delete_from_tree(&conn->hash_node);
+		conn_delete_from_tree(&conn->hash_node->node);
 
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
@@ -2848,9 +2848,9 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned short status)
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (conn_in_list == CO_FL_SAFE_LIST)
-			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
+			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		else
-			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node, sizeof(conn->hash));
+			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 	return NULL;
@@ -2946,7 +2946,7 @@ struct task *h1_timeout_task(struct task *t, void *context, unsigned short state
 		 * to steal it from us.
 		 */
 		if (h1c->conn->flags & CO_FL_LIST_MASK)
-			conn_delete_from_tree(&h1c->conn->hash_node);
+			conn_delete_from_tree(&h1c->conn->hash_node->node);
 
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
