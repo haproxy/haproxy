@@ -101,9 +101,9 @@ enum srv_initaddr {
 } __attribute__((packed));
 
 /* server-state-file version */
-#define SRV_STATE_FILE_VERSION 2
+#define SRV_STATE_FILE_VERSION 1
 #define SRV_STATE_FILE_VERSION_MIN 1
-#define SRV_STATE_FILE_VERSION_MAX 2
+#define SRV_STATE_FILE_VERSION_MAX 1
 #define SRV_STATE_FILE_FIELD_NAMES \
     "be_id "                      \
     "be_name "                    \
@@ -132,8 +132,8 @@ enum srv_initaddr {
     "srv_agent_port"
 
 #define SRV_STATE_FILE_MAX_FIELDS 25
-#define SRV_STATE_FILE_NB_FIELDS_VERSION_1 20
-#define SRV_STATE_FILE_NB_FIELDS_VERSION_2 25
+#define SRV_STATE_FILE_MIN_FIELDS_VERSION_1 20
+#define SRV_STATE_FILE_MAX_FIELDS_VERSION_1 25
 #define SRV_STATE_LINE_MAXLEN 512
 
 /* server flags -- 32 bits */
