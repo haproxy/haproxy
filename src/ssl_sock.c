@@ -320,7 +320,9 @@ __decl_thread(HA_SPINLOCK_T ckch_lock);
 static int ssl_set_cert_crl_file(X509_STORE *store_ctx, char *path)
 {
 	X509_STORE *store;
-	store = ssl_store_get0_locations_file(path);
+	struct cafile_entry *ca_e = ssl_store_get_cafile_entry(path, 0);
+	if (ca_e)
+		store = ca_e->ca_store;
 	if (store_ctx && store) {
 		int i;
 		X509_OBJECT *obj;
@@ -4218,7 +4220,7 @@ error:
  * This function applies the SSL configuration on a SSL_CTX
  * It returns an error code and fills the <err> buffer
  */
-int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf, SSL_CTX *ctx, char **err)
+static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf, SSL_CTX *ctx, char **err)
 {
 	struct proxy *curproxy = bind_conf->frontend;
 	int cfgerr = 0;
@@ -4444,6 +4446,28 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_
 	return cfgerr;
 }
 
+
+/*
+ * Prepare the SSL_CTX based on the bind line configuration.
+ * Since the CA file loading is made depending on the verify option of the bind
+ * line, the link between the SSL_CTX and the CA file tree entry is made here.
+ * If we want to create a link between the CA file entry and the corresponding
+ * ckch instance (for CA file hot update), it needs to be done after
+ * ssl_sock_prepare_ctx.
+ * Returns 0 in case of success.
+ */
+int ssl_sock_prep_ctx_and_inst(struct bind_conf *bind_conf, struct ssl_bind_conf *ssl_conf,
+			       SSL_CTX *ctx, struct ckch_inst *ckch_inst, char **err)
+{
+	int errcode = 0;
+
+	errcode |= ssl_sock_prepare_ctx(bind_conf, ssl_conf, ctx, err);
+	if (!errcode && ckch_inst)
+		ckch_inst_add_cafile_link(ckch_inst, bind_conf, ssl_conf, NULL);
+
+	return errcode;
+}
+
 static int ssl_sock_srv_hostcheck(const char *pattern, const char *hostname)
 {
 	const char *pattern_wildcard, *pattern_left_label_end, *hostname_left_label_end;
@@ -4631,16 +4655,15 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 		srv->ssl_ctx.ctx = ctx;
 	}
 
-	cfgerr += ssl_sock_prepare_srv_ssl_ctx(srv, srv->ssl_ctx.ctx);
+	cfgerr += ssl_sock_prep_srv_ctx_and_inst(srv, srv->ssl_ctx.ctx, srv->ssl_ctx.inst);
 
 	return cfgerr;
 }
 
-
 /* Initialize an SSL context that will be used on the backend side.
  * Returns an error count.
  */
-int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
+static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 {
 	struct proxy *curproxy = srv->proxy;
 	int cfgerr = 0;
@@ -4809,6 +4832,29 @@ int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 }
 
 /*
+ * Prepare the frontend's SSL_CTX based on the server line configuration.
+ * Since the CA file loading is made depending on the verify option of the
+ * server line, the link between the SSL_CTX and the CA file tree entry is
+ * made here.
+ * If we want to create a link between the CA file entry and the corresponding
+ * ckch instance (for CA file hot update), it needs to be done after
+ * ssl_sock_prepare_srv_ssl_ctx.
+ * Returns an error count.
+ */
+int ssl_sock_prep_srv_ctx_and_inst(const struct server *srv, SSL_CTX *ctx,
+				   struct ckch_inst *ckch_inst)
+{
+	int cfgerr = 0;
+
+	cfgerr += ssl_sock_prepare_srv_ssl_ctx(srv, ctx);
+	if (!cfgerr && ckch_inst)
+		ckch_inst_add_cafile_link(ckch_inst, NULL, NULL, srv);
+
+	return cfgerr;
+}
+
+
+/*
  * Create an initial CTX used to start the SSL connections.
  * May be used by QUIC xprt which makes usage of SSL sessions initialized from SSL_CTXs.
  * Returns 0 if succeeded, or something >0 if not.
@@ -4854,18 +4900,20 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 		/* It should not be necessary to call this function, but it's
 		   necessary first to check and move all initialisation related
 		   to initial_ctx in ssl_initial_ctx. */
-		errcode |= ssl_sock_prepare_ctx(bind_conf, NULL, bind_conf->initial_ctx, &errmsg);
+		errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, NULL, bind_conf->initial_ctx, NULL, &errmsg);
 	}
-	if (bind_conf->default_ctx)
-		errcode |= ssl_sock_prepare_ctx(bind_conf, bind_conf->default_ssl_conf, bind_conf->default_ctx, &errmsg);
+	if (bind_conf->default_ctx) {
+		errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, bind_conf->default_ssl_conf, bind_conf->default_ctx, NULL, &errmsg);
+	}
 
 	node = ebmb_first(&bind_conf->sni_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
-		if (!sni->order && sni->ctx != bind_conf->default_ctx)
+		if (!sni->order && sni->ctx != bind_conf->default_ctx) {
 			/* only initialize the CTX on its first occurrence and
 			   if it is not the default_ctx */
-			errcode |= ssl_sock_prepare_ctx(bind_conf, sni->conf, sni->ctx, &errmsg);
+			errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, sni->conf, sni->ctx, sni->ckch_inst, &errmsg);
+		}
 		node = ebmb_next(node);
 	}
 
@@ -4875,7 +4923,7 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 		if (!sni->order && sni->ctx != bind_conf->default_ctx) {
 			/* only initialize the CTX on its first occurrence and
 			   if it is not the default_ctx */
-			errcode |= ssl_sock_prepare_ctx(bind_conf, sni->conf, sni->ctx, &errmsg);
+			errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, sni->conf, sni->ctx, sni->ckch_inst, &errmsg);
 		}
 		node = ebmb_next(node);
 	}

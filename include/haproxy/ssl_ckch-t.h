@@ -75,6 +75,23 @@ struct ckch_store {
 struct ssl_bind_conf;
 struct crtlist_entry;
 
+
+/* Used to keep a list of all the instances using a specific cafile_entry.
+ * It enables to link instances regardless of how they are using the CA file
+ * (either via the ca-file, ca-verify-file or crl-file option). */
+struct ckch_inst_link {
+       struct ckch_inst *ckch_inst;
+       struct list list;
+};
+
+/* Used to keep in a ckch instance a list of all the ckch_inst_link which
+ * reference it. This way, when deleting a ckch_inst, we can ensure that no
+ * dangling reference on it will remain. */
+struct ckch_inst_link_ref {
+       struct ckch_inst_link *link;
+       struct list list;
+};
+
 /*
  * This structure describe a ckch instance. An instance is generated for each
  * bind_conf.  The instance contains a linked list of the sni ctx which uses
@@ -93,6 +110,7 @@ struct ckch_inst {
 	struct list sni_ctx; /* list of sni_ctx using this ckch_inst */
 	struct list by_ckchs; /* chained in ckch_store's list of ckch_inst */
 	struct list by_crtlist_entry; /* chained in crtlist_entry list of inst */
+	struct list cafile_link_refs; /* list of ckch_inst_link pointing to this instance */
 };
 
 
@@ -102,6 +120,7 @@ struct ckch_inst {
 struct cafile_entry {
 	X509_STORE *ca_store;
 	STACK_OF(X509_NAME) *ca_list;
+	struct list ckch_inst_link; /* list of ckch_inst which use this CA file entry */
 	struct ebmb_node node;
 	char path[0];
 };

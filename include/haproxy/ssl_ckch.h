@@ -53,8 +53,11 @@ int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
                                  struct ckch_inst **ckchi, char **err);
 
 void ckch_deinit();
+void ckch_inst_add_cafile_link(struct ckch_inst *ckch_inst, struct bind_conf *bind_conf,
+			       struct ssl_bind_conf *ssl_conf, const struct server *srv);
 
 /* ssl_store functions */
+struct cafile_entry *ssl_store_get_cafile_entry(char *path, int oldest_entry);
 X509_STORE* ssl_store_get0_locations_file(char *path);
 int ssl_store_load_locations_file(char *path, int create_if_none);
 
