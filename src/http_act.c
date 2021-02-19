@@ -2026,6 +2026,7 @@ static enum act_return http_action_return(struct act_rule *rule, struct proxy *p
 {
 	struct channel *req = &s->req;
 
+	s->txn->status = rule->arg.http_reply->status;
 	if (http_reply_message(s, rule->arg.http_reply) == -1)
 		return ACT_RET_ERR;
 
