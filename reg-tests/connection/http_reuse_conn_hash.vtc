@@ -9,9 +9,11 @@ haproxy h1 -conf {
 		mode http
 
 	# sni
+	# ssl-reuse is disabled because it seems to be the origin of a crash with
+	# libressl from 3.2.2 on the CI (cf github issue #1115)
 	listen sender-sni
 		bind "fd@${feS_sni}"
-		server srv2 ${h1_feR_ssl_addr}:${h1_feR_ssl_port} ssl sni "req.hdr(x-sni)" verify none pool-low-conn 2
+		server srv2 ${h1_feR_ssl_addr}:${h1_feR_ssl_port} ssl sni "req.hdr(x-sni)" verify none pool-low-conn 2 no-ssl-reuse
 
 	# set-dst
 	# specify dst1_addr for server, which should be identical to dst2_addr
