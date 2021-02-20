@@ -2464,10 +2464,8 @@ int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 
 bad_input:
 	memprintf(err, "an hex digit is expected (found '%c')", p[i-1]);
-	if (alloc) {
-		free(*binstr);
-		*binstr = NULL;
-	}
+	if (alloc)
+		ha_free(binstr);
 	return 0;
 }
 
@@ -3957,8 +3955,7 @@ char *memvprintf(char **out, const char *format, va_list orig_args)
 
 	if (needed < 0) {
 		/* an error was encountered */
-		free(ret);
-		ret = NULL;
+		ha_free(&ret);
 	}
 
 	if (out) {

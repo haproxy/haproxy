@@ -50,8 +50,7 @@ void email_alert_free(struct email_alert *alert)
 			free_tcpcheck(rule, 1);
 		}
 		free_tcpcheck_vars(&alert->rules.preset_vars);
-		free(alert->rules.list);
-		alert->rules.list = NULL;
+		ha_free(&alert->rules.list);
 	}
 	pool_free(pool_head_email_alert, alert);
 }

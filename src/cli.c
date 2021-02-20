@@ -98,8 +98,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx)
 	struct buffer *tmp = get_trash_chunk();
 	struct buffer out;
 
-	free(dynamic_usage_msg);
-	dynamic_usage_msg = NULL;
+	ha_free(&dynamic_usage_msg);
 
 	if (LIST_ISEMPTY(&cli_keywords.list))
 		goto end;
@@ -851,8 +850,7 @@ static void cli_io_handler(struct appctx *appctx)
 				if (cli_output_msg(res, msg, sev, cli_get_severity_output(appctx)) != -1) {
 					if (appctx->st0 == CLI_ST_PRINT_FREE ||
 					    appctx->st0 == CLI_ST_PRINT_DYN) {
-						free(appctx->ctx.cli.err);
-						appctx->ctx.cli.err = NULL;
+						ha_free(&appctx->ctx.cli.err);
 					}
 					appctx->st0 = CLI_ST_PROMPT;
 				}
@@ -961,8 +959,7 @@ static void cli_release_handler(struct appctx *appctx)
 		appctx->io_release = NULL;
 	}
 	else if (appctx->st0 == CLI_ST_PRINT_FREE || appctx->st0 == CLI_ST_PRINT_DYN) {
-		free(appctx->ctx.cli.err);
-		appctx->ctx.cli.err = NULL;
+		ha_free(&appctx->ctx.cli.err);
 	}
 }
 
@@ -2580,8 +2577,7 @@ int mworker_cli_proxy_create()
 		                       &errmsg, NULL, NULL, PA_O_STREAM)) == 0) {
 			goto error;
 		}
-		free(msg);
-		msg = NULL;
+		ha_free(&msg);
 
 		if (!proto->connect) {
 			goto error;
@@ -2605,13 +2601,11 @@ error:
 	list_for_each_entry(child, &proc_list, list) {
 		free((char *)child->srv->conf.file); /* cast because of const char *  */
 		free(child->srv->id);
-		free(child->srv);
-		child->srv = NULL;
+		ha_free(&child->srv);
 	}
 	free(mworker_proxy->id);
 	free(mworker_proxy->conf.file);
-	free(mworker_proxy);
-	mworker_proxy = NULL;
+	ha_free(&mworker_proxy);
 	free(errmsg);
 	free(msg);
 
@@ -2765,8 +2759,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 		ha_alert("Cannot create a CLI sockpair listener for process #%d\n", proc);
 		goto error;
 	}
-	free(path);
-	path = NULL;
+	ha_free(&path);
 
 	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 		l->accept = session_accept_fd;

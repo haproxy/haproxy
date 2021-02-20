@@ -629,7 +629,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		curproxy->ck_opts = 0;
 		curproxy->cookie_maxidle = curproxy->cookie_maxlife = 0;
-		free(curproxy->cookie_domain); curproxy->cookie_domain = NULL;
+		ha_free(&curproxy->cookie_domain);
 		free(curproxy->cookie_name);
 		curproxy->cookie_name = strdup(args[1]);
 		curproxy->cookie_len = strlen(curproxy->cookie_name);
@@ -975,8 +975,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
 			goto out;
 
-		free(curproxy->server_state_file_name);
-		curproxy->server_state_file_name = NULL;
+		ha_free(&curproxy->server_state_file_name);
 
 		if (*(args[1]) == 0 || strcmp(args[1], "use-backend-name") == 0)
 			curproxy->server_state_file_name = strdup(curproxy->id);
@@ -2666,8 +2665,7 @@ stats_error_parsing:
 
 		/* we must first clear any optional default setting */
 		curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
-		free(curproxy->conn_src.iface_name);
-		curproxy->conn_src.iface_name = NULL;
+		ha_free(&curproxy->conn_src.iface_name);
 		curproxy->conn_src.iface_len = 0;
 
 		sk = str2sa_range(args[1], NULL, &port1, &port2, NULL, NULL,

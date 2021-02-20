@@ -649,8 +649,7 @@ static void deinit_pollers_per_thread()
 /* Release the pollers per thread, to be called late */
 static void free_pollers_per_thread()
 {
-	free(fd_updt);
-	fd_updt = NULL;
+	ha_free(&fd_updt);
 }
 
 /*
@@ -723,9 +722,9 @@ void deinit_pollers() {
 			bp->term(bp);
 	}
 
-	free(fdinfo);   fdinfo   = NULL;
-	free(fdtab);    fdtab    = NULL;
-	free(polled_mask); polled_mask = NULL;
+	ha_free(&fdinfo);
+	ha_free(&fdtab);
+	ha_free(&polled_mask);
 }
 
 /*

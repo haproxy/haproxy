@@ -42,8 +42,7 @@ static struct dict_entry *new_dict_entry(char *s)
 	return de;
 
  err:
-	free(de->value.key);
-	de->value.key = NULL;
+	ha_free(&de->value.key);
 	de->len = 0;
 	free(de);
 	return NULL;
@@ -55,8 +54,7 @@ static struct dict_entry *new_dict_entry(char *s)
 static void free_dict_entry(struct dict_entry *de)
 {
 	de->refcount = 0;
-	free(de->value.key);
-	de->value.key = NULL;
+	ha_free(&de->value.key);
 	free(de);
 }
 

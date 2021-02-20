@@ -68,8 +68,7 @@ static int alloc_raw_htx_chunk_per_thread()
 
 static void free_raw_htx_chunk_per_thread()
 {
-	free(static_raw_htx_buf);
-	static_raw_htx_buf = NULL;
+	ha_free(&static_raw_htx_buf);
 }
 
 REGISTER_PER_THREAD_ALLOC(alloc_raw_htx_chunk_per_thread);

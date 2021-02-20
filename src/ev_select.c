@@ -241,10 +241,8 @@ static int init_select_per_thread()
 
 static void deinit_select_per_thread()
 {
-	free(tmp_evts[DIR_WR]);
-	tmp_evts[DIR_WR] = NULL;
-	free(tmp_evts[DIR_RD]);
-	tmp_evts[DIR_RD] = NULL;
+	ha_free(&tmp_evts[DIR_WR]);
+	ha_free(&tmp_evts[DIR_RD]);
 }
 
 /*

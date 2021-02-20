@@ -309,8 +309,7 @@ static int init_evports_per_thread()
 	return 1;
 
  fail_fd:
-	free(evports_evlist);
-	evports_evlist = NULL;
+	ha_free(&evports_evlist);
 	evports_evlist_max = 0;
  fail_alloc:
 	return 0;
@@ -321,8 +320,7 @@ static void deinit_evports_per_thread()
 	if (MAX_THREADS > 1 && tid)
 		close(evports_fd[tid]);
 
-	free(evports_evlist);
-	evports_evlist = NULL;
+	ha_free(&evports_evlist);
 	evports_evlist_max = 0;
 }
 
@@ -362,8 +360,7 @@ static void _do_term(struct poller *p)
 	p->private = NULL;
 	p->pref = 0;
 
-	free(evports_evlist);
-	evports_evlist = NULL;
+	ha_free(&evports_evlist);
 	evports_evlist_max = 0;
 }
 

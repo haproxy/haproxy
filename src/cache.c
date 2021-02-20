@@ -2058,8 +2058,7 @@ int cfg_post_parse_section_cache()
 		return err_code;
 	}
 out:
-	free(tmp_cache_config);
-	tmp_cache_config = NULL;
+	ha_free(&tmp_cache_config);
 	return err_code;
 
 }

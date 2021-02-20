@@ -552,8 +552,7 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 		/* Place the filter at its right position */
 		LIST_DEL(&f->list);
 		free(f);
-		free(name);
-		name = NULL;
+		ha_free(&name);
 		break;
 	}
 

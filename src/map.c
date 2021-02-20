@@ -585,8 +585,7 @@ static int cli_io_handler_map_lookup(struct appctx *appctx)
 
 static void cli_release_mlook(struct appctx *appctx)
 {
-	free(appctx->ctx.map.chunk.area);
-	appctx->ctx.map.chunk.area = NULL;
+	ha_free(&appctx->ctx.map.chunk.area);
 }
 
 

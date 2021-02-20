@@ -572,10 +572,8 @@ static void resolv_check_response(struct resolv_resolution *res)
 					    item->data_len == srv->hostname_dn_len &&
 					    !resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
 						snr_update_srv_status(srv, 1);
-						free(srv->hostname);
-						free(srv->hostname_dn);
-						srv->hostname        = NULL;
-						srv->hostname_dn     = NULL;
+						ha_free(&srv->hostname);
+						ha_free(&srv->hostname_dn);
 						srv->hostname_dn_len = 0;
 						memset(&srv->addr, 0, sizeof(srv->addr));
 						srv->svc_port = 0;
@@ -2509,7 +2507,7 @@ static int action_prepare_for_resolution(struct stream *stream, const char *host
 	return 0;
 
  err:
-	free(stream->resolv_ctx.hostname_dn); stream->resolv_ctx.hostname_dn = NULL;
+	ha_free(&stream->resolv_ctx.hostname_dn);
 	resolv_failed_resolutions += 1;
 	return -1;
 }
@@ -2620,8 +2618,7 @@ enum act_return resolv_action_do_resolve(struct act_rule *rule, struct proxy *px
 	return ret;
 
   release_requester:
-	free(s->resolv_ctx.hostname_dn);
-	s->resolv_ctx.hostname_dn = NULL;
+	ha_free(&s->resolv_ctx.hostname_dn);
 	s->resolv_ctx.hostname_dn_len = 0;
 	if (s->resolv_ctx.requester) {
 		resolv_unlink_resolution(s->resolv_ctx.requester);
@@ -2750,8 +2747,8 @@ enum act_parse_ret resolv_parse_do_resolve(const char **args, int *orig_arg, str
 	return ACT_RET_PRS_OK;
 
  do_resolve_parse_error:
-	free(rule->arg.resolv.varname); rule->arg.resolv.varname = NULL;
-	free(rule->arg.resolv.resolvers_id); rule->arg.resolv.resolvers_id = NULL;
+	ha_free(&rule->arg.resolv.varname);
+	ha_free(&rule->arg.resolv.resolvers_id);
 	memprintf(err, "Can't parse '%s'. Expects 'do-resolve(<varname>,<resolvers>[,<options>]) <expr>'. Available options are 'ipv4' and 'ipv6'",
 			args[cur_arg]);
 	return ACT_RET_PRS_ERR;

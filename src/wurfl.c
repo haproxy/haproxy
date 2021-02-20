@@ -406,10 +406,8 @@ static void ha_wurfl_deinit(void)
 	send_log(NULL, LOG_NOTICE, "WURFL: Unloading module v.%s\n", HA_WURFL_MODULE_VERSION);
 	wurfl_destroy(global_wurfl.handle);
 	global_wurfl.handle = NULL;
-	free(global_wurfl.data_file);
-	global_wurfl.data_file = NULL;
-	free(global_wurfl.cache_size);
-	global_wurfl.cache_size = NULL;
+	ha_free(&global_wurfl.data_file);
+	ha_free(&global_wurfl.cache_size);
 
 	list_for_each_entry_safe(wi, wi2, &global_wurfl.information_list, list) {
 		LIST_DEL(&wi->list);

@@ -358,15 +358,13 @@ err:
 	if (check->envp) {
 		for (i = 0; i < EXTCHK_SIZE; i++)
 			free(check->envp[i]);
-		free(check->envp);
-		check->envp = NULL;
+		ha_free(&check->envp);
 	}
 
 	if (check->argv) {
 		for (i = 1; i < 5; i++)
 			free(check->argv[i]);
-		free(check->argv);
-		check->argv = NULL;
+		ha_free(&check->argv);
 	}
 	return 0;
 }

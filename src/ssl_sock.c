@@ -2960,8 +2960,7 @@ void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_
 				/* it's a duplicate, we should remove and free it */
 				LIST_DEL(&sc0->by_ckch_inst);
 				SSL_CTX_free(sc0->ctx);
-				free(sc0);
-				sc0 = NULL;
+				ha_free(&sc0);
 				break;
 			}
 		}
@@ -4008,8 +4007,7 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	} else {
 		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
-		free(s->ssl_ctx.reused_sess[tid].ptr);
-		s->ssl_ctx.reused_sess[tid].ptr = NULL;
+		ha_free(&s->ssl_ctx.reused_sess[tid].ptr);
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	}
 
@@ -5151,8 +5149,7 @@ ssl_sock_free_ca(struct bind_conf *bind_conf)
 {
 	if (bind_conf->ca_sign_ckch) {
 		ssl_sock_free_cert_key_and_chain_contents(bind_conf->ca_sign_ckch);
-		free(bind_conf->ca_sign_ckch);
-		bind_conf->ca_sign_ckch = NULL;
+		ha_free(&bind_conf->ca_sign_ckch);
 	}
 }
 
@@ -5280,8 +5277,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			SSL_SESSION *sess = d2i_SSL_SESSION(NULL, &ptr, __objt_server(conn->target)->ssl_ctx.reused_sess[tid].size);
 			if (sess && !SSL_set_session(ctx->ssl, sess)) {
 				SSL_SESSION_free(sess);
-				free(__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
-				__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr = NULL;
+				ha_free(&__objt_server(conn->target)->ssl_ctx.reused_sess[tid].ptr);
 			} else if (sess) {
 				SSL_SESSION_free(sess);
 			}
@@ -5676,10 +5672,8 @@ reneg_ok:
 		 * another thread */
 
 		HA_RWLOCK_RDLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
-		if (s->ssl_ctx.reused_sess[tid].ptr) {
-			free(s->ssl_ctx.reused_sess[tid].ptr);
-			s->ssl_ctx.reused_sess[tid].ptr = NULL;
-		}
+		if (s->ssl_ctx.reused_sess[tid].ptr)
+			ha_free(&s->ssl_ctx.reused_sess[tid].ptr);
 		HA_RWLOCK_RDUNLOCK(SSL_SERVER_LOCK, &s->ssl_ctx.lock);
 	}
 

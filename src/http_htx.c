@@ -1009,8 +1009,7 @@ void release_http_reply(struct http_reply *http_reply)
 	if (!http_reply)
 		return;
 
-	free(http_reply->ctype);
-	http_reply->ctype = NULL;
+	ha_free(&http_reply->ctype);
 	list_for_each_entry_safe(hdr, hdrb, &http_reply->hdrs, list) {
 		LIST_DEL(&hdr->list);
 		list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
@@ -1024,8 +1023,7 @@ void release_http_reply(struct http_reply *http_reply)
 	}
 
 	if (http_reply->type == HTTP_REPLY_ERRFILES) {
-		free(http_reply->body.http_errors);
-		http_reply->body.http_errors = NULL;
+		ha_free(&http_reply->body.http_errors);
 	}
 	else if (http_reply->type == HTTP_REPLY_RAW)
 		chunk_destroy(&http_reply->body.obj);
@@ -1067,8 +1065,7 @@ static int http_htx_init(void)
 		}
 
 		/* Reset errmsg */
-		free(errmsg);
-		errmsg = NULL;
+		ha_free(&errmsg);
 
 		http_err_chunks[rc] = chk;
 		http_err_replies[rc].type = HTTP_REPLY_ERRMSG;
@@ -1627,8 +1624,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			ha_warning("parsing [%s:%d] : content-type '%s' ignored by the http reply because"
 				   " neither errorfile nor payload defined.\n",
 				   px->conf.args.file, px->conf.args.line, reply->ctype);
-			free(reply->ctype);
-			reply->ctype = NULL;
+			ha_free(&reply->ctype);
 		}
 	}
 	else if (reply->type == HTTP_REPLY_ERRFILES || reply->type == HTTP_REPLY_ERRMSG) { /* errorfiles or errorfile */
@@ -1653,8 +1649,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			ha_warning("parsing [%s:%d] : content-type '%s' ignored by the http reply when used "
 				   "with an erorrfile.\n",
 				   px->conf.args.file, px->conf.args.line, reply->ctype);
-			free(reply->ctype);
-			reply->ctype = NULL;
+			ha_free(&reply->ctype);
 		}
 		if (!LIST_ISEMPTY(&reply->hdrs)) {
 			ha_warning("parsing [%s:%d] : hdr parameters ignored by the http reply when used "
@@ -1686,8 +1681,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 			ha_warning("parsing [%s:%d] : content-type '%s' ignored by the http reply when used "
 				   "with an empty payload.\n",
 				   px->conf.args.file, px->conf.args.line, reply->ctype);
-			free(reply->ctype);
-			reply->ctype = NULL;
+			ha_free(&reply->ctype);
 		}
 		if (b_room(&reply->body.obj) < global.tune.maxrewrite) {
 			ha_warning("parsing [%s:%d] : http reply payload runs over the buffer space reserved to headers rewriting."

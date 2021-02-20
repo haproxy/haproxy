@@ -3474,9 +3474,8 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		goto out;
 	}
 
-	free(px->check_command);
-	free(px->check_path);
-	px->check_command = px->check_path = NULL;
+	ha_free(&px->check_command);
+	ha_free(&px->check_path);
 
 	if (!px->tcpcheck_rules.list) {
 		ha_alert("config : proxy '%s' : tcp-check configured but no ruleset defined.\n", px->id);
@@ -3546,10 +3545,8 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	 * comment is assigned to the following rule(s).
 	 */
 	list_for_each_entry_safe(chk, back, px->tcpcheck_rules.list, list) {
-		if (chk->action != prev_action && prev_action != TCPCHK_ACT_COMMENT) {
-			free(comment);
-			comment = NULL;
-		}
+		if (chk->action != prev_action && prev_action != TCPCHK_ACT_COMMENT)
+			ha_free(&comment);
 
 		prev_action = chk->action;
 		switch (chk->action) {
@@ -3564,8 +3561,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 				chk->comment = strdup(comment);
 			/* fall through */
 		case TCPCHK_ACT_ACTION_KW:
-			free(comment);
-			comment = NULL;
+			ha_free(&comment);
 			break;
 		case TCPCHK_ACT_SEND:
 		case TCPCHK_ACT_EXPECT:
@@ -3574,8 +3570,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 			break;
 		}
 	}
-	free(comment);
-	comment = NULL;
+	ha_free(&comment);
 
   out:
 	return ret;
@@ -4864,8 +4859,7 @@ int proxy_parse_httpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	if (errmsg) {
 		ha_warning("parsing [%s:%d]: '%s %s' : %s\n", file, line, args[0], args[1], errmsg);
 		err_code |= ERR_WARN;
-		free(errmsg);
-		errmsg = NULL;
+		ha_free(&errmsg);
 	}
 
   no_request:

@@ -252,8 +252,7 @@ static void deinit_kqueue_per_thread()
 	if (MAX_THREADS > 1 && tid)
 		close(kqueue_fd[tid]);
 
-	free(kev);
-	kev = NULL;
+	ha_free(&kev);
 }
 
 /*
@@ -283,8 +282,7 @@ static int _do_init(struct poller *p)
 	return 1;
 
  fail_fd:
-	free(kev_out);
-	kev_out = NULL;
+	ha_free(&kev_out);
 fail_alloc:
 	p->pref = 0;
 	return 0;
@@ -304,8 +302,7 @@ static void _do_term(struct poller *p)
 	p->private = NULL;
 	p->pref = 0;
 	if (kev_out) {
-		free(kev_out);
-		kev_out = NULL;
+		ha_free(&kev_out);
 	}
 }
 

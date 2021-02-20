@@ -258,8 +258,7 @@ static int init_poll_per_thread()
 
 static void deinit_poll_per_thread()
 {
-	free(poll_events);
-	poll_events = NULL;
+	ha_free(&poll_events);
 }
 
 /*

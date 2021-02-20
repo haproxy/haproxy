@@ -1606,8 +1606,8 @@ int srv_prepare_for_resolution(struct server *srv, const char *hostname)
 	return 0;
 
  err:
-	free(srv->hostname);    srv->hostname    = NULL;
-	free(srv->hostname_dn); srv->hostname_dn = NULL;
+	ha_free(&srv->hostname);
+	ha_free(&srv->hostname_dn);
 	return -1;
 }
 

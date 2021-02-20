@@ -73,6 +73,17 @@
 #define BUG_ON(cond)
 #endif
 
+/* more reliable free() that clears the pointer */
+#define ha_free(x) do {							\
+		typeof(x) __x = (x);					\
+		if (__builtin_constant_p((x)) || __builtin_constant_p(*(x))) { \
+			/* provoke a build-time error */		\
+			extern volatile int call_to_ha_free_attempts_to_free_a_constant; \
+			call_to_ha_free_attempts_to_free_a_constant = 1; \
+		}							\
+		free(*__x);						\
+		*__x = NULL;						\
+	} while (0)
 
 #if defined(DEBUG_MEM_STATS)
 #include <stdlib.h>
@@ -127,6 +138,26 @@ struct mem_stats {
 	if (__x)							\
 		_HA_ATOMIC_ADD(&_.calls, 1);				\
 	free(__x);							\
+})
+
+#undef ha_free
+#define ha_free(x)  ({							\
+	typeof(x) __x = (x);						\
+	static struct mem_stats _ __attribute__((used,__section__("mem_stats"))) = { \
+		.file = __FILE__, .line = __LINE__,			\
+		.type = MEM_STATS_TYPE_FREE,				\
+	};								\
+	__asm__(".globl __start_mem_stats");				\
+	__asm__(".globl __stop_mem_stats");				\
+	if (__builtin_constant_p((x)) || __builtin_constant_p(*(x))) {  \
+		/* provoke a build-time error */			\
+		extern volatile int call_to_ha_free_attempts_to_free_a_constant; \
+		call_to_ha_free_attempts_to_free_a_constant = 1;	\
+	}								\
+	if (*__x)							\
+		_HA_ATOMIC_ADD(&_.calls, 1);				\
+	free(*__x);							\
+	*__x = NULL;							\
 })
 
 #undef malloc

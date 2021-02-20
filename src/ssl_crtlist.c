@@ -35,29 +35,20 @@ void ssl_sock_free_ssl_conf(struct ssl_bind_conf *conf)
 {
 	if (conf) {
 #if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
-		free(conf->npn_str);
-		conf->npn_str = NULL;
+		ha_free(&conf->npn_str);
 #endif
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
-		free(conf->alpn_str);
-		conf->alpn_str = NULL;
+		ha_free(&conf->alpn_str);
 #endif
-		free(conf->ca_file);
-		conf->ca_file = NULL;
-		free(conf->ca_verify_file);
-		conf->ca_verify_file = NULL;
-		free(conf->crl_file);
-		conf->crl_file = NULL;
-		free(conf->ciphers);
-		conf->ciphers = NULL;
+		ha_free(&conf->ca_file);
+		ha_free(&conf->ca_verify_file);
+		ha_free(&conf->crl_file);
+		ha_free(&conf->ciphers);
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
-		free(conf->ciphersuites);
-		conf->ciphersuites = NULL;
+		ha_free(&conf->ciphersuites);
 #endif
-		free(conf->curves);
-		conf->curves = NULL;
-		free(conf->ecdhe);
-		conf->ecdhe = NULL;
+		ha_free(&conf->curves);
+		ha_free(&conf->ecdhe);
 	}
 }
 
@@ -430,8 +421,7 @@ error:
 	crtlist_free_filters(entry->filters);
 	entry->filters = NULL;
 	ssl_sock_free_ssl_conf(entry->ssl_conf);
-	free(entry->ssl_conf);
-	entry->ssl_conf = NULL;
+	ha_free(&entry->ssl_conf);
 	return cfgerr;
 }
 

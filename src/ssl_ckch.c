@@ -130,14 +130,12 @@ int ssl_sock_load_sctl_from_file(const char *sctl_path, char *buf, struct cert_k
 
 	sctl = calloc(1, sizeof(*sctl));
 	if (!chunk_dup(sctl, src)) {
-		free(sctl);
-		sctl = NULL;
+		ha_free(&sctl);
 		goto end;
 	}
 	/* no error, fill ckch with new context, old context must be free */
 	if (ckch->sctl) {
-		free(ckch->sctl->area);
-		ckch->sctl->area = NULL;
+		ha_free(&ckch->sctl->area);
 		free(ckch->sctl);
 	}
 	ckch->sctl = sctl;
@@ -212,14 +210,12 @@ int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, char *buf, stru
 
 	ocsp_response = calloc(1, sizeof(*ocsp_response));
 	if (!chunk_dup(ocsp_response, src)) {
-		free(ocsp_response);
-		ocsp_response = NULL;
+		ha_free(&ocsp_response);
 		goto end;
 	}
 	/* no error, fill ckch with new context, old context must be free */
 	if (ckch->ocsp_response) {
-		free(ckch->ocsp_response->area);
-		ckch->ocsp_response->area = NULL;
+		ha_free(&ckch->ocsp_response->area);
 		free(ckch->ocsp_response);
 	}
 	ckch->ocsp_response = ocsp_response;
@@ -562,17 +558,13 @@ int ssl_sock_load_pem_into_ckch(const char *path, char *buf, struct cert_key_and
 
 	/* once it loaded the PEM, it should remove everything else in the ckch */
 	if (ckch->ocsp_response) {
-		free(ckch->ocsp_response->area);
-		ckch->ocsp_response->area = NULL;
-		free(ckch->ocsp_response);
-		ckch->ocsp_response = NULL;
+		ha_free(&ckch->ocsp_response->area);
+		ha_free(&ckch->ocsp_response);
 	}
 
 	if (ckch->sctl) {
-		free(ckch->sctl->area);
-		ckch->sctl->area = NULL;
-		free(ckch->sctl);
-		ckch->sctl = NULL;
+		ha_free(&ckch->sctl->area);
+		ha_free(&ckch->sctl);
 	}
 
 	if (ckch->ocsp_issuer) {
@@ -632,17 +624,13 @@ void ssl_sock_free_cert_key_and_chain_contents(struct cert_key_and_chain *ckch)
 	ckch->dh = NULL;
 
 	if (ckch->sctl) {
-		free(ckch->sctl->area);
-		ckch->sctl->area = NULL;
-		free(ckch->sctl);
-		ckch->sctl = NULL;
+		ha_free(&ckch->sctl->area);
+		ha_free(&ckch->sctl);
 	}
 
 	if (ckch->ocsp_response) {
-		free(ckch->ocsp_response->area);
-		ckch->ocsp_response->area = NULL;
-		free(ckch->ocsp_response);
-		ckch->ocsp_response = NULL;
+		ha_free(&ckch->ocsp_response->area);
+		ha_free(&ckch->ocsp_response);
 	}
 
 	if (ckch->ocsp_issuer)
@@ -689,8 +677,7 @@ struct cert_key_and_chain *ssl_sock_copy_cert_key_and_chain(struct cert_key_and_
 
 		sctl = calloc(1, sizeof(*sctl));
 		if (!chunk_dup(sctl, src->sctl)) {
-			free(sctl);
-			sctl = NULL;
+			ha_free(&sctl);
 			goto error;
 		}
 		dst->sctl = sctl;
@@ -701,8 +688,7 @@ struct cert_key_and_chain *ssl_sock_copy_cert_key_and_chain(struct cert_key_and_
 
 		ocsp_response = calloc(1, sizeof(*ocsp_response));
 		if (!chunk_dup(ocsp_response, src->ocsp_response)) {
-			free(ocsp_response);
-			ocsp_response = NULL;
+			ha_free(&ocsp_response);
 			goto error;
 		}
 		dst->ocsp_response = ocsp_response;
@@ -788,8 +774,7 @@ void ckch_store_free(struct ckch_store *store)
 
 	ssl_sock_free_cert_key_and_chain_contents(store->ckch);
 
-	free(store->ckch);
-	store->ckch = NULL;
+	ha_free(&store->ckch);
 
 	list_for_each_entry_safe(inst, inst_s, &store->ckch_inst, by_ckchs) {
 		ckch_inst_free(inst);
@@ -1418,10 +1403,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 						ckchi->server->ssl_ctx.inst = ckchi;
 
 						/* flush the session cache of the server */
-						for (i = 0; i < global.nbthread; i++) {
-							free(ckchi->server->ssl_ctx.reused_sess[i].ptr);
-							ckchi->server->ssl_ctx.reused_sess[i].ptr = NULL;
-						}
+						for (i = 0; i < global.nbthread; i++)
+							ha_free(&ckchi->server->ssl_ctx.reused_sess[i].ptr);
+
 						HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &ckchi->server->ssl_ctx.lock);
 
 					} else {
@@ -1453,8 +1437,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				/* fallthrough */
 			case SETCERT_ST_FIN:
 				/* we achieved the transaction, we can set everything to NULL */
-				free(ckchs_transaction.path);
-				ckchs_transaction.path = NULL;
+				ha_free(&ckchs_transaction.path);
 				ckchs_transaction.new_ckchs = NULL;
 				ckchs_transaction.old_ckchs = NULL;
 				goto end;
@@ -1714,8 +1697,7 @@ end:
 
 		appctx->ctx.ssl.old_ckchs = NULL;
 
-		free(appctx->ctx.ssl.path);
-		appctx->ctx.ssl.path = NULL;
+		ha_free(&appctx->ctx.ssl.path);
 
 		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
@@ -1757,8 +1739,7 @@ static int cli_parse_abort_cert(char **args, char *payload, struct appctx *appct
 	ckch_store_free(ckchs_transaction.new_ckchs);
 	ckchs_transaction.new_ckchs = NULL;
 	ckchs_transaction.old_ckchs = NULL;
-	free(ckchs_transaction.path);
-	ckchs_transaction.path = NULL;
+	ha_free(&ckchs_transaction.path);
 
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 

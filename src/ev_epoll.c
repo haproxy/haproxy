@@ -287,8 +287,7 @@ static void deinit_epoll_per_thread()
 	if (MAX_THREADS > 1 && tid)
 		close(epoll_fd[tid]);
 
-	free(epoll_events);
-	epoll_events = NULL;
+	ha_free(&epoll_events);
 }
 
 /*

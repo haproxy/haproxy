@@ -1081,14 +1081,10 @@ out:
 
 void free_email_alert(struct proxy *p)
 {
-	free(p->email_alert.mailers.name);
-	p->email_alert.mailers.name = NULL;
-	free(p->email_alert.from);
-	p->email_alert.from = NULL;
-	free(p->email_alert.to);
-	p->email_alert.to = NULL;
-	free(p->email_alert.myhostname);
-	p->email_alert.myhostname = NULL;
+	ha_free(&p->email_alert.mailers.name);
+	ha_free(&p->email_alert.from);
+	ha_free(&p->email_alert.to);
+	ha_free(&p->email_alert.myhostname);
 }
 
 
@@ -1816,8 +1812,7 @@ next_line:
 		err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 	}
 err:
-	free(cfg_scope);
-	cfg_scope = NULL;
+	ha_free(&cfg_scope);
 	cursection = NULL;
 	free(thisline);
 	free(outline);
@@ -1986,8 +1981,7 @@ int check_config_validity()
 			 * allocated yet) but let's skip them.
 			 */
 			if (curproxy->table) {
-				free((void *)curproxy->table->peers.name);
-				curproxy->table->peers.name = NULL;
+				ha_free(&curproxy->table->peers.name);
 				curproxy->table->peers.p = NULL;
 			}
 			continue;
@@ -2209,8 +2203,7 @@ int check_config_validity()
 				cfgerr++;
 			}
 			if (clear) {
-				free(curproxy->check_command);
-				curproxy->check_command = NULL;
+				ha_free(&curproxy->check_command);
 			}
 		}
 
@@ -2219,8 +2212,7 @@ int check_config_validity()
 				ha_warning("config : '%s' will be ignored for %s '%s' (requires 'option external-check').\n",
 					   "external-check path", proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
-				free(curproxy->check_path);
-				curproxy->check_path = NULL;
+				ha_free(&curproxy->check_path);
 			}
 		}
 
@@ -2606,8 +2598,7 @@ int check_config_validity()
 			LIST_ADDQ(&curproxy->uri_auth->http_req_rules, &rule->list);
 
 			if (curproxy->uri_auth->auth_realm) {
-				free(curproxy->uri_auth->auth_realm);
-				curproxy->uri_auth->auth_realm = NULL;
+				ha_free(&curproxy->uri_auth->auth_realm);
 			}
 			curproxy->uri_auth->flags |= STAT_CONVDONE;
 		}
@@ -2631,15 +2622,13 @@ out_uri_auth_compat:
 			    curproxy->conf.logformat_string != clf_http_log_format)
 				free(curproxy->conf.logformat_string);
 			curproxy->conf.logformat_string = NULL;
-			free(curproxy->conf.lfs_file);
-			curproxy->conf.lfs_file = NULL;
+			ha_free(&curproxy->conf.lfs_file);
 			curproxy->conf.lfs_line = 0;
 
 			if (curproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
 				free(curproxy->conf.logformat_sd_string);
 			curproxy->conf.logformat_sd_string = NULL;
-			free(curproxy->conf.lfsd_file);
-			curproxy->conf.lfsd_file = NULL;
+			ha_free(&curproxy->conf.lfsd_file);
 			curproxy->conf.lfsd_line = 0;
 		}
 
@@ -2937,8 +2926,7 @@ out_uri_auth_compat:
 				newsrv->tracknext = srv->trackers;
 				srv->trackers = newsrv;
 
-				free(newsrv->trackit);
-				newsrv->trackit = NULL;
+				ha_free(&newsrv->trackit);
 			}
 
 		next_srv:

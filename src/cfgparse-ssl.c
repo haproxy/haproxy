@@ -106,8 +106,7 @@ static int ssl_load_global_issuers_from_path(char **args, int section_type, stru
 		ssl_load_global_issuer_from_BIO(in, fp, &warn);
 		if (warn) {
 			ha_warning("%s", warn);
-			free(warn);
-			warn = NULL;
+			ha_free(&warn);
 		}
 	next:
 		if (in)
@@ -1467,8 +1466,7 @@ static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct ser
 static int srv_parse_no_check_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	newsrv->check.use_ssl = -1;
-	free(newsrv->ssl_ctx.ciphers);
-	newsrv->ssl_ctx.ciphers = NULL;
+	ha_free(&newsrv->ssl_ctx.ciphers);
 	newsrv->ssl_ctx.options &= ~global_ssl.connect_default_ssloptions;
 	return 0;
 }
@@ -1497,8 +1495,7 @@ static int srv_parse_no_ssl(char **args, int *cur_arg, struct proxy *px, struct 
 	if (newsrv->use_ssl == 1)
 		ssl_sock_init_srv(newsrv);
 	else {
-		free(newsrv->ssl_ctx.ciphers);
-		newsrv->ssl_ctx.ciphers = NULL;
+		ha_free(&newsrv->ssl_ctx.ciphers);
 	}
 	newsrv->use_ssl = -1;
 	return 0;

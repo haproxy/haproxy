@@ -305,8 +305,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				goto out_free_smp;
 			}
 		}
-		free(ckw);
-		ckw = NULL;
+		ha_free(&ckw);
 	}
 	else {
 		/* This is not an ACL keyword, so we hope this is a sample fetch

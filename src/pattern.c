@@ -1772,8 +1772,7 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **
 						*err = *merr;
 					} else {
 						memprintf(err, "%s, %s", *err, *merr);
-						free(*merr);
-						*merr = NULL;
+						ha_free(merr);
 					}
 				}
 			}

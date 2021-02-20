@@ -399,8 +399,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	 * in between, there is no arg at all.
 	 */
 	if (!pos) {
-		free(*argp);
-		*argp = NULL;
+		ha_free(argp);
 	}
 
 	if (pos >= min_arg)

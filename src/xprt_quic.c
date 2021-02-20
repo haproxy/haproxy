@@ -2342,8 +2342,7 @@ static void quic_conn_enc_level_uninit(struct quic_enc_level *qel)
 			qel->tx.crypto.bufs[i] = NULL;
 		}
 	}
-	free(qel->tx.crypto.bufs);
-	qel->tx.crypto.bufs = NULL;
+	ha_free(&qel->tx.crypto.bufs);
 }
 
 /* Initialize QUIC TLS encryption level with <level<> as level for <qc> QUIC
@@ -2384,8 +2383,7 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	return 1;
 
  err:
-	free(qel->tx.crypto.bufs);
-	qel->tx.crypto.bufs = NULL;
+	ha_free(&qel->tx.crypto.bufs);
 	return 0;
 }
 
@@ -2405,10 +2403,8 @@ static inline void free_quic_conn_tx_bufs(struct q_buf **bufs, size_t nb)
 			p++;
 			continue;
 		}
-		free((*p)->area);
-		(*p)->area = NULL;
-		free(*p);
-		*p = NULL;
+		ha_free(&(*p)->area);
+		ha_free(p);
 		p++;
 	}
 	free(bufs);

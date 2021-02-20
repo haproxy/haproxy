@@ -841,13 +841,11 @@ void mworker_reload()
 	execvp(next_argv[0], next_argv);
 
 	ha_warning("Failed to reexecute the master process [%d]: %s\n", pid, strerror(errno));
-	free(next_argv);
-	next_argv = NULL;
+	ha_free(&next_argv);
 	return;
 
 alloc_error:
-	free(next_argv);
-	next_argv = NULL;
+	ha_free(&next_argv);
 	ha_warning("Failed to reexecute the master process [%d]: Cannot allocate memory\n", pid);
 	return;
 }
@@ -2758,17 +2756,17 @@ void deinit(void)
 	list_for_each_entry(pdf, &post_deinit_list, list)
 		pdf->fct();
 
-	free(global.log_send_hostname); global.log_send_hostname = NULL;
+	ha_free(&global.log_send_hostname);
 	chunk_destroy(&global.log_tag);
-	free(global.chroot);  global.chroot = NULL;
-	free(global.pidfile); global.pidfile = NULL;
-	free(global.node);    global.node = NULL;
-	free(global.desc);    global.desc = NULL;
-	free(oldpids);        oldpids = NULL;
-	free(old_argv);       old_argv = NULL;
-	free(localpeer);      localpeer = NULL;
-	free(global.server_state_base); global.server_state_base = NULL;
-	free(global.server_state_file); global.server_state_file = NULL;
+	ha_free(&global.chroot);
+	ha_free(&global.pidfile);
+	ha_free(&global.node);
+	ha_free(&global.desc);
+	ha_free(&oldpids);
+	ha_free(&old_argv);
+	ha_free(&localpeer);
+	ha_free(&global.server_state_base);
+	ha_free(&global.server_state_file);
 	task_destroy(idle_conn_task);
 	idle_conn_task = NULL;
 
@@ -3314,8 +3312,7 @@ int main(int argc, char **argv)
 
 	if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL)) {
 		nb_oldpids = 0;
-		free(oldpids);
-		oldpids = NULL;
+		ha_free(&oldpids);
 	}
 
 
@@ -3452,7 +3449,7 @@ int main(int argc, char **argv)
 		}
 
 		/* We won't ever use this anymore */
-		free(global.pidfile); global.pidfile = NULL;
+		ha_free(&global.pidfile);
 
 		if (proc == global.nbproc) {
 			if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT)) {
@@ -3527,8 +3524,7 @@ int main(int argc, char **argv)
 			}
 		}
 
-		free(global.chroot);
-		global.chroot = NULL;
+		ha_free(&global.chroot);
 		set_identity(argv[0]);
 
 		/* pass through every cli socket, and check if it's bound to

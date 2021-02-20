@@ -199,8 +199,7 @@ int userlist_postinit()
 				curuser->u.groups = grl;
 			}
 
-			free(ag->groupusers);
-			ag->groupusers = NULL;
+			ha_free(&ag->groupusers);
 		}
 
 #ifdef DEBUG_AUTH

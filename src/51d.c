@@ -728,7 +728,7 @@ static void deinit_51degrees(void)
 #endif
 	fiftyoneDegreesDataSetFree(&global_51degrees.data_set);
 
-	free(global_51degrees.data_file_path); global_51degrees.data_file_path = NULL;
+	ha_free(&global_51degrees.data_file_path);
 	list_for_each_entry_safe(_51d_prop_name, _51d_prop_nameb, &global_51degrees.property_names, list) {
 		LIST_DEL(&_51d_prop_name->list);
 		free(_51d_prop_name);

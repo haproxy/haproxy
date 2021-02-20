@@ -82,9 +82,9 @@ static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 	return sink;
 
  err:
-	free(sink->name); sink->name = NULL;
-	free(sink->desc); sink->desc = NULL;
-	free(sink); sink = NULL;
+	ha_free(&sink->name);
+	ha_free(&sink->desc);
+	ha_free(&sink);
 
 	return NULL;
 }

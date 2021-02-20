@@ -1062,8 +1062,7 @@ void free_check(struct check *check)
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
 	if (check->cs) {
-		free(check->cs->conn);
-		check->cs->conn = NULL;
+		ha_free(&check->cs->conn);
 		cs_free(check->cs);
 		check->cs = NULL;
 	}
@@ -1478,8 +1477,7 @@ static void deinit_srv_agent_check(struct server *srv)
 {
 	if (srv->agent.tcpcheck_rules) {
 		free_tcpcheck_vars(&srv->agent.tcpcheck_rules->preset_vars);
-		free(srv->agent.tcpcheck_rules);
-		srv->agent.tcpcheck_rules = NULL;
+		ha_free(&srv->agent.tcpcheck_rules);
 	}
 
 	if (srv->agent.state & CHK_ST_CONFIGURED)

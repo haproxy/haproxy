@@ -3099,8 +3099,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 		}
 	}
 
-	free(conf->agent->b.name);
-	conf->agent->b.name = NULL;
+	ha_free(&conf->agent->b.name);
 	conf->agent->b.be = target;
 	return 0;
 }

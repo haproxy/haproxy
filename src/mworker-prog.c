@@ -307,18 +307,14 @@ error:
 			int i;
 
 			for (i = 0; ext_child->command[i]; i++) {
-				free(ext_child->command[i]);
-				ext_child->command[i] = NULL;
+				ha_free(&ext_child->command[i]);
 			}
-			free(ext_child->command);
-			ext_child->command = NULL;
+			ha_free(&ext_child->command);
 		}
-		free(ext_child->id);
-		ext_child->id = NULL;
+		ha_free(&ext_child->id);
 	}
 
-	free(ext_child);
-	ext_child = NULL;
+	ha_free(&ext_child);
 
 out:
 	return err_code;

@@ -410,8 +410,7 @@ int sock_get_old_sockets(const char *unixsocket)
 		socklen = sizeof(xfer_sock->addr);
 		if (getsockname(fd, (struct sockaddr *)&xfer_sock->addr, &socklen) != 0) {
 			ha_warning("Failed to get socket address\n");
-			free(xfer_sock);
-			xfer_sock = NULL;
+			ha_free(&xfer_sock);
 			continue;
 		}
 

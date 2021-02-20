@@ -5064,8 +5064,7 @@ static void deinit_stat_lines_per_thread(void)
 	for (i = 0; i < STATS_DOMAIN_COUNT; ++i) {
 		const int domain = domains[i];
 
-		free(stat_l[domain]);
-		stat_l[domain] = NULL;
+		ha_free(&stat_l[domain]);
 	}
 }
 

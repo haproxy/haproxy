@@ -1304,8 +1304,7 @@ int init_dns_buffers()
 
 void deinit_dns_buffers()
 {
-	free(dns_msg_trash);
-	dns_msg_trash = NULL;
+	ha_free(&dns_msg_trash);
 }
 
 REGISTER_PER_THREAD_ALLOC(init_dns_buffers);
