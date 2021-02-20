@@ -608,7 +608,7 @@ static inline struct buffer *fcgi_get_buf(struct fcgi_conn *fconn, struct buffer
 	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
 		fconn->buf_wait.target = fconn;
 		fconn->buf_wait.wakeup_cb = fcgi_buf_available;
-		MT_LIST_ADDQ(&buffer_wq, &fconn->buf_wait.list);
+		MT_LIST_ADDQ(&ti->buffer_wq, &fconn->buf_wait.list);
 	}
 	return buf;
 }

@@ -22,17 +22,19 @@
 
 struct pool_head *pool_head_buffer;
 
-/* list of objects waiting for at least one buffer */
-struct mt_list buffer_wq = LIST_HEAD_INIT(buffer_wq);
-
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
 {
 	void *buffer;
+	int thr;
 
 	pool_head_buffer = create_pool("buffer", global.tune.bufsize, MEM_F_SHARED|MEM_F_EXACT);
 	if (!pool_head_buffer)
 		return 0;
+
+	for (thr = 0; thr < MAX_THREADS; thr++)
+		MT_LIST_INIT(&ha_thread_info[thr].buffer_wq);
+
 
 	/* The reserved buffer is what we leave behind us. Thus we always need
 	 * at least one extra buffer in minavail otherwise we'll end up waking
@@ -112,7 +114,7 @@ void __offer_buffer(void *from, unsigned int threshold)
 	 */
 	avail = pool_head_buffer->allocated - pool_head_buffer->used - global.tune.reserved_bufs / 2;
 
-	mt_list_for_each_entry_safe(wait, &buffer_wq, list, elt1, elt2) {
+	mt_list_for_each_entry_safe(wait, &ti->buffer_wq, list, elt1, elt2) {
 		if (avail <= threshold)
 			break;
 

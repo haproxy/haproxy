@@ -45,6 +45,8 @@ struct thread_info {
 #ifdef CONFIG_HAP_LOCAL_POOLS
 	struct list pool_lru_head;                         /* oldest objects   */
 #endif
+	struct mt_list buffer_wq;  /* buffer waiters */
+
 	/* pad to cache line (64B) */
 	char __pad[0];            /* unused except to check remaining room */
 	char __end[0] __attribute__((aligned(64)));

@@ -1019,7 +1019,7 @@ struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
 	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
 		check->buf_wait.target = check;
 		check->buf_wait.wakeup_cb = check_buf_available;
-		MT_LIST_ADDQ(&buffer_wq, &check->buf_wait.list);
+		MT_LIST_ADDQ(&ti->buffer_wq, &check->buf_wait.list);
 	}
 	return buf;
 }

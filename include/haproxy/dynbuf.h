@@ -35,7 +35,6 @@
 #include <haproxy/pool.h>
 
 extern struct pool_head *pool_head_buffer;
-extern struct mt_list buffer_wq;
 
 int init_buffer();
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
@@ -192,13 +191,13 @@ static inline struct buffer *b_alloc_margin(struct buffer *buf, int margin)
  * passing a buffer to oneself in case of failed allocations (e.g. need two
  * buffers, get one, fail, release it and wake up self again). In case of
  * normal buffer release where it is expected that the caller is not waiting
- * for a buffer, NULL is fine.
+ * for a buffer, NULL is fine. It will wake waiters on the current thread only.
  */
 void __offer_buffer(void *from, unsigned int threshold);
 
 static inline void offer_buffers(void *from, unsigned int threshold)
 {
-	if (!MT_LIST_ISEMPTY(&buffer_wq))
+	if (!MT_LIST_ISEMPTY(&ti->buffer_wq))
 		__offer_buffer(from, threshold);
 }
 

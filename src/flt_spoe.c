@@ -2828,7 +2828,7 @@ spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 	if (b_alloc_margin(buf, global.tune.reserved_bufs))
 		return 1;
 
-	MT_LIST_ADDQ(&buffer_wq, &buffer_wait->list);
+	MT_LIST_ADDQ(&ti->buffer_wq, &buffer_wait->list);
 	return 0;
 }
 
