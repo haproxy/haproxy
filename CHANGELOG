@@ -1,6 +1,62 @@
 ChangeLog :
 ===========
 
+2021/02/20 : 2.4-dev9
+    - BUG/MINOR: server: Remove RMAINT from admin state when loading server state
+    - CLEANUP: check: fix get_check_status_info declaration
+    - CLEANUP: contrib/prometheus-exporter: align for with srv status case
+    - MEDIUM: stats: allow to select one field in `stats_fill_li_stats`
+    - MINOR: stats: add helper to get status string
+    - MEDIUM: contrib/prometheus-exporter: add listen stats
+    - BUG/MINOR: dns: add test on result getting value from buffer into ring.
+    - BUG/MINOR: dns: dns_connect_server must return -1 unsupported nameserver's type
+    - BUG/MINOR: dns: missing test writing in output channel in session handler
+    - BUG/MINOR: dns: fix ring attach control on dns_session_new
+    - BUG/MEDIUM: dns: fix multiple double close on fd in dns.c
+    - BUG/MAJOR: connection: prevent double free if conn selected for removal
+    - BUG/MINOR: session: atomically increment the tracked sessions counter
+    - REGTESTS: fix http_reuse_conn_hash proxy test
+    - BUG/MINOR: backend: do not call smp_make_safe for sni conn hash
+    - MINOR: connection: remove pointers for prehash in conn_hash_params
+    - BUG/MINOR: checks: properly handle wrapping time in __health_adjust()
+    - BUG/MEDIUM: checks: don't needlessly take the server lock in health_adjust()
+    - DEBUG: thread: add 5 extra lock labels for statistics and debugging
+    - OPTIM: server: switch the actconn list to an mt-list
+    - Revert "MINOR: threads: change lock_t to an unsigned int"
+    - MINOR: lb/api: let callers of take_conn/drop_conn tell if they have the lock
+    - OPTIM: lb-first: do not take the server lock on take_conn/drop_conn
+    - OPTIM: lb-leastconn: do not take the server lock on take_conn/drop_conn
+    - OPTIM: lb-leastconn: do not unlink the server if it did not change
+    - MINOR: tasks: add DEBUG_TASK to report caller info in a task
+    - MINOR: tasks/debug: add some extra controls of use-after-free in DEBUG_TASK
+    - BUG/MINOR: sample: Always consider zero size string samples as unsafe
+    - MINOR: cli: add missing agent commands for set server
+    - BUILD/MEDIUM: da Adding pcre2 support.
+    - BUILD: ssl: introduce fine guard for OpenSSL specific SCTL functions
+    - REGTESTS: reorder reuse conn proxy protocol test
+    - DOC: explain the relation between pool-low-conn and tune.idle-pool.shared
+    - MINOR: tasks: refine the default run queue depth
+    - MINOR: listener: refine the default MAX_ACCEPT from 64 to 4
+    - MINOR: mux_h2: do not try to remove front conn from idle trees
+    - REGTESTS: workaround for a crash with recent libressl on http-reuse sni
+    - BUG/MEDIUM: lists: Avoid an infinite loop in MT_LIST_TRY_ADDQ().
+    - MINOR: connection: allocate dynamically hash node for backend conns
+    - DOC: DeviceAtlas documentation typo fix.
+    - BUG/MEDIUM: spoe: Resolve the sink if a SPOE logs in a ring buffer
+    - BUG/MINOR: http-rules: Always replace the response status on a return action
+    - BUG/MINOR: server: Init params before parsing a new server-state line
+    - BUG/MINOR: server: Be sure to cut the last parsed field of a server-state line
+    - MEDIUM: server: Don't introduce a new server-state file version
+    - DOC: contrib/prometheus-exporter: remove htx reference
+    - REGTESTS: contrib/prometheus-exporter: test NaN values
+    - REGTESTS: contrib/prometheus-exporter: test well known labels
+    - CI: github actions: switch to stable LibreSSL release
+    - BUG/MINOR: server: Fix test on number of fields allowed in a server-state line
+    - MINOR: dynbuf: make the buffer wait queue per thread
+    - MINOR: dynbuf: use regular lists instead of mt_lists for buffer_wait
+    - MINOR: dynbuf: pass offer_buffers() the number of buffers instead of a threshold
+    - MINOR: sched: have one runqueue ticks counter per thread
+
 2021/02/13 : 2.4-dev8
     - BUILD: ssl: fix typo in HAVE_SSL_CTX_ADD_SERVER_CUSTOM_EXT macro
     - BUILD: ssl: guard SSL_CTX_add_server_custom_ext with special macro
