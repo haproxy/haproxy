@@ -448,11 +448,11 @@ static inline struct buffer *h1_get_buf(struct h1c *h1c, struct buffer *bptr)
 {
 	struct buffer *buf = NULL;
 
-	if (likely(!MT_LIST_ADDED(&h1c->buf_wait.list)) &&
+	if (likely(!LIST_ADDED(&h1c->buf_wait.list)) &&
 	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
 		h1c->buf_wait.target = h1c;
 		h1c->buf_wait.wakeup_cb = h1_buf_available;
-		MT_LIST_ADDQ(&ti->buffer_wq, &h1c->buf_wait.list);
+		LIST_ADDQ(&ti->buffer_wq, &h1c->buf_wait.list);
 	}
 	return buf;
 }
@@ -798,7 +798,7 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 	h1c->h1s   = NULL;
 	h1c->task  = NULL;
 
-	MT_LIST_INIT(&h1c->buf_wait.list);
+	LIST_INIT(&h1c->buf_wait.list);
 	h1c->wait_event.tasklet = tasklet_new();
 	if (!h1c->wait_event.tasklet)
 		goto fail;
@@ -913,8 +913,8 @@ static void h1_release(struct h1c *h1c)
 		}
 
 
-		if (MT_LIST_ADDED(&h1c->buf_wait.list))
-			MT_LIST_DEL(&h1c->buf_wait.list);
+		if (LIST_ADDED(&h1c->buf_wait.list))
+			LIST_DEL_INIT(&h1c->buf_wait.list);
 
 		h1_release_buf(h1c, &h1c->ibuf);
 		h1_release_buf(h1c, &h1c->obuf);

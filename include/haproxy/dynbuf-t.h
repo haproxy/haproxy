@@ -28,7 +28,7 @@
 struct buffer_wait {
 	void *target;              /* The waiting object that should be woken up */
 	int (*wakeup_cb)(void *);  /* The function used to wake up the <target>, passed as argument */
-	struct mt_list list;        /* Next element in the <buffer_wq> list */
+	struct list list;          /* Next element in the <buffer_wq> list */
 };
 
 #endif /* _HAPROXY_DYNBUF_T_H */

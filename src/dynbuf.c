@@ -33,7 +33,7 @@ int init_buffer()
 		return 0;
 
 	for (thr = 0; thr < MAX_THREADS; thr++)
-		MT_LIST_INIT(&ha_thread_info[thr].buffer_wq);
+		LIST_INIT(&ha_thread_info[thr].buffer_wq);
 
 
 	/* The reserved buffer is what we leave behind us. Thus we always need
@@ -99,8 +99,7 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 /* see offer_buffer() for details */
 void __offer_buffer(void *from, unsigned int threshold)
 {
-	struct buffer_wait *wait;
-	struct mt_list *elt1, elt2;
+	struct buffer_wait *wait, *wait_back;
 	int avail;
 
 	/* For now, we consider that all objects need 1 buffer, so we can stop
@@ -114,14 +113,14 @@ void __offer_buffer(void *from, unsigned int threshold)
 	 */
 	avail = pool_head_buffer->allocated - pool_head_buffer->used - global.tune.reserved_bufs / 2;
 
-	mt_list_for_each_entry_safe(wait, &ti->buffer_wq, list, elt1, elt2) {
+	list_for_each_entry_safe(wait, wait_back, &ti->buffer_wq, list) {
 		if (avail <= threshold)
 			break;
 
 		if (wait->target == from || !wait->wakeup_cb(wait->target))
 			continue;
 
-		MT_LIST_DEL_SAFE(elt1);
+		LIST_DEL_INIT(&wait->list);
 		avail--;
 	}
 }

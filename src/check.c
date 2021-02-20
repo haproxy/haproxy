@@ -1015,11 +1015,11 @@ struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
 {
 	struct buffer *buf = NULL;
 
-	if (likely(!MT_LIST_ADDED(&check->buf_wait.list)) &&
+	if (likely(!LIST_ADDED(&check->buf_wait.list)) &&
 	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
 		check->buf_wait.target = check;
 		check->buf_wait.wakeup_cb = check_buf_available;
-		MT_LIST_ADDQ(&ti->buffer_wq, &check->buf_wait.list);
+		LIST_ADDQ(&ti->buffer_wq, &check->buf_wait.list);
 	}
 	return buf;
 }
@@ -1042,7 +1042,7 @@ const char *init_check(struct check *check, int type)
 
 	check->bi = BUF_NULL;
 	check->bo = BUF_NULL;
-	MT_LIST_INIT(&check->buf_wait.list);
+	LIST_INIT(&check->buf_wait.list);
 
 	check->wait_list.tasklet = tasklet_new();
 	if (!check->wait_list.tasklet)

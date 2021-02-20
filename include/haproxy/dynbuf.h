@@ -197,7 +197,7 @@ void __offer_buffer(void *from, unsigned int threshold);
 
 static inline void offer_buffers(void *from, unsigned int threshold)
 {
-	if (!MT_LIST_ISEMPTY(&ti->buffer_wq))
+	if (!LIST_ISEMPTY(&ti->buffer_wq))
 		__offer_buffer(from, threshold);
 }
 

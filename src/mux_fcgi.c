@@ -604,11 +604,11 @@ static inline struct buffer *fcgi_get_buf(struct fcgi_conn *fconn, struct buffer
 {
 	struct buffer *buf = NULL;
 
-	if (likely(!MT_LIST_ADDED(&fconn->buf_wait.list)) &&
+	if (likely(!LIST_ADDED(&fconn->buf_wait.list)) &&
 	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
 		fconn->buf_wait.target = fconn;
 		fconn->buf_wait.wakeup_cb = fcgi_buf_available;
-		MT_LIST_ADDQ(&ti->buffer_wq, &fconn->buf_wait.list);
+		LIST_ADDQ(&ti->buffer_wq, &fconn->buf_wait.list);
 	}
 	return buf;
 }
@@ -766,7 +766,7 @@ static int fcgi_init(struct connection *conn, struct proxy *px, struct session *
 	br_init(fconn->mbuf, sizeof(fconn->mbuf) / sizeof(fconn->mbuf[0]));
 	fconn->streams_by_id = EB_ROOT;
 	LIST_INIT(&fconn->send_list);
-	MT_LIST_INIT(&fconn->buf_wait.list);
+	LIST_INIT(&fconn->buf_wait.list);
 
 	conn->ctx = fconn;
 
@@ -845,8 +845,8 @@ static void fcgi_release(struct fcgi_conn *fconn)
 
 		TRACE_DEVEL("freeing fconn", FCGI_EV_FCONN_END, conn);
 
-		if (MT_LIST_ADDED(&fconn->buf_wait.list))
-			MT_LIST_DEL(&fconn->buf_wait.list);
+		if (LIST_ADDED(&fconn->buf_wait.list))
+			LIST_DEL_INIT(&fconn->buf_wait.list);
 
 		fcgi_release_buf(fconn, &fconn->dbuf);
 		fcgi_release_mbuf(fconn);

@@ -1973,7 +1973,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	SPOE_APPCTX(appctx)->buffer          = BUF_NULL;
 	SPOE_APPCTX(appctx)->cur_fpa         = 0;
 
-	MT_LIST_INIT(&SPOE_APPCTX(appctx)->buffer_wait.list);
+	LIST_INIT(&SPOE_APPCTX(appctx)->buffer_wait.list);
 	SPOE_APPCTX(appctx)->buffer_wait.target = appctx;
 	SPOE_APPCTX(appctx)->buffer_wait.wakeup_cb = (int (*)(void *))spoe_wakeup_appctx;
 
@@ -2822,21 +2822,21 @@ spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 	if (buf->size)
 		return 1;
 
-	if (MT_LIST_ADDED(&buffer_wait->list))
-		MT_LIST_DEL(&buffer_wait->list);
+	if (LIST_ADDED(&buffer_wait->list))
+		LIST_DEL_INIT(&buffer_wait->list);
 
 	if (b_alloc_margin(buf, global.tune.reserved_bufs))
 		return 1;
 
-	MT_LIST_ADDQ(&ti->buffer_wq, &buffer_wait->list);
+	LIST_ADDQ(&ti->buffer_wq, &buffer_wait->list);
 	return 0;
 }
 
 static void
 spoe_release_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 {
-	if (MT_LIST_ADDED(&buffer_wait->list))
-		MT_LIST_DEL(&buffer_wait->list);
+	if (LIST_ADDED(&buffer_wait->list))
+		LIST_DEL_INIT(&buffer_wait->list);
 
 	/* Release the buffer if needed */
 	if (buf->size) {
@@ -2870,7 +2870,7 @@ spoe_create_context(struct stream *s, struct filter *filter)
 	ctx->events      = conf->agent->events;
 	ctx->groups      = &conf->agent->groups;
 	ctx->buffer      = BUF_NULL;
-	MT_LIST_INIT(&ctx->buffer_wait.list);
+	LIST_INIT(&ctx->buffer_wait.list);
 	ctx->buffer_wait.target = ctx;
 	ctx->buffer_wait.wakeup_cb = (int (*)(void *))spoe_wakeup_context;
 	LIST_INIT(&ctx->list);
