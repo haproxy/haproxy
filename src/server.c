@@ -3166,8 +3166,8 @@ static void srv_state_parse_line(char *buf, const int version, char **params, ch
 	/* if line is incomplete line, then ignore it.
 	 * otherwise, update useful flags */
 	if (version == 1 &&
-	    arg < SRV_STATE_FILE_MIN_FIELDS_VERSION_1 &&
-	    arg > SRV_STATE_FILE_MAX_FIELDS_VERSION_1)
+	    (arg < SRV_STATE_FILE_MIN_FIELDS_VERSION_1 ||
+	     arg > SRV_STATE_FILE_MAX_FIELDS_VERSION_1))
 		params[0] = NULL;
 }
 
