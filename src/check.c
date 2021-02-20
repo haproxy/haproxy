@@ -1032,7 +1032,7 @@ void check_release_buf(struct check *check, struct buffer *bptr)
 {
 	if (bptr->size) {
 		b_free(bptr);
-		offer_buffers(check->buf_wait.target, tasks_run_queue);
+		offer_buffers(check->buf_wait.target, 1);
 	}
 }
 

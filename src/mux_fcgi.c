@@ -617,7 +617,7 @@ static inline void fcgi_release_buf(struct fcgi_conn *fconn, struct buffer *bptr
 {
 	if (bptr->size) {
 		b_free(bptr);
-		offer_buffers(NULL, tasks_run_queue);
+		offer_buffers(NULL, 1);
 	}
 }
 
@@ -631,7 +631,7 @@ static inline void fcgi_release_mbuf(struct fcgi_conn *fconn)
 		count++;
 	}
 	if (count)
-		offer_buffers(NULL, tasks_run_queue);
+		offer_buffers(NULL, count);
 }
 
 /* Returns the number of allocatable outgoing streams for the connection taking
@@ -1027,7 +1027,7 @@ static void fcgi_strm_destroy(struct fcgi_strm *fstrm)
 	eb32_delete(&fstrm->by_id);
 	if (b_size(&fstrm->rxbuf)) {
 		b_free(&fstrm->rxbuf);
-		offer_buffers(NULL, tasks_run_queue);
+		offer_buffers(NULL, 1);
 	}
 	if (fstrm->subs)
 		fstrm->subs->events = 0;
@@ -2910,7 +2910,7 @@ static int fcgi_send(struct fcgi_conn *fconn)
 		}
 
 		if (released)
-			offer_buffers(NULL, tasks_run_queue);
+			offer_buffers(NULL, released);
 
 		/* wrote at least one byte, the buffer is not full anymore */
 		if (fconn->flags & (FCGI_CF_MUX_MFULL | FCGI_CF_DEM_MROOM))
@@ -3224,7 +3224,7 @@ do_leave:
 		}
 
 		if (released)
-			offer_buffers(NULL, tasks_run_queue);
+			offer_buffers(NULL, released);
 	}
 
   end:

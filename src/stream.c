@@ -638,9 +638,11 @@ static void stream_free(struct stream *s)
 		LIST_DEL_INIT(&s->buffer_wait.list);
 
 	if (s->req.buf.size || s->res.buf.size) {
+		int count = !!s->req.buf.size + !!s->res.buf.size;
+
 		b_free(&s->req.buf);
 		b_free(&s->res.buf);
-		offer_buffers(NULL, tasks_run_queue);
+		offer_buffers(NULL, count);
 	}
 
 	pool_free(pool_head_uniqueid, s->unique_id.ptr);
@@ -788,11 +790,11 @@ void stream_release_buffers(struct stream *s)
 	int offer = 0;
 
 	if (c_size(&s->req) && c_empty(&s->req)) {
-		offer = 1;
+		offer++;
 		b_free(&s->req.buf);
 	}
 	if (c_size(&s->res) && c_empty(&s->res)) {
-		offer = 1;
+		offer++;
 		b_free(&s->res.buf);
 	}
 
@@ -800,7 +802,7 @@ void stream_release_buffers(struct stream *s)
 	 * someone waiting, we can wake up a waiter and offer them.
 	 */
 	if (offer)
-		offer_buffers(s, tasks_run_queue);
+		offer_buffers(s, offer);
 }
 
 void stream_process_counters(struct stream *s)

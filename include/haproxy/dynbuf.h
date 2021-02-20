@@ -186,19 +186,19 @@ static inline struct buffer *b_alloc_margin(struct buffer *buf, int margin)
 }
 
 
-/* Offer a buffer currently belonging to target <from> to whoever needs one.
- * Any pointer is valid for <from>, including NULL. Its purpose is to avoid
- * passing a buffer to oneself in case of failed allocations (e.g. need two
- * buffers, get one, fail, release it and wake up self again). In case of
- * normal buffer release where it is expected that the caller is not waiting
+/* Offer one or multiple buffer currently belonging to target <from> to whoever
+ * needs one. Any pointer is valid for <from>, including NULL. Its purpose is
+ * to avoid passing a buffer to oneself in case of failed allocations (e.g.
+ * need two buffers, get one, fail, release it and wake up self again). In case
+ * of normal buffer release where it is expected that the caller is not waiting
  * for a buffer, NULL is fine. It will wake waiters on the current thread only.
  */
-void __offer_buffer(void *from, unsigned int threshold);
+void __offer_buffers(void *from, unsigned int count);
 
-static inline void offer_buffers(void *from, unsigned int threshold)
+static inline void offer_buffers(void *from, unsigned int count)
 {
 	if (!LIST_ISEMPTY(&ti->buffer_wq))
-		__offer_buffer(from, threshold);
+		__offer_buffers(from, count);
 }
 
 

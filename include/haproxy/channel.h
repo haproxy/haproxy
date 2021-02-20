@@ -864,7 +864,7 @@ static inline void channel_release_buffer(struct channel *chn, struct buffer_wai
 {
 	if (c_size(chn) && c_empty(chn)) {
 		b_free(&chn->buf);
-		offer_buffers(wait->target, tasks_run_queue);
+		offer_buffers(wait->target, 1);
 	}
 }
 

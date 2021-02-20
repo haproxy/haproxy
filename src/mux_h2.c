@@ -819,7 +819,7 @@ static inline void h2_release_buf(struct h2c *h2c, struct buffer *bptr)
 {
 	if (bptr->size) {
 		b_free(bptr);
-		offer_buffers(NULL, tasks_run_queue);
+		offer_buffers(NULL, 1);
 	}
 }
 
@@ -833,7 +833,7 @@ static inline void h2_release_mbuf(struct h2c *h2c)
 		count++;
 	}
 	if (count)
-		offer_buffers(NULL, tasks_run_queue);
+		offer_buffers(NULL, count);
 }
 
 /* returns the number of allocatable outgoing streams for the connection taking
@@ -1393,7 +1393,7 @@ static void h2s_destroy(struct h2s *h2s)
 	eb32_delete(&h2s->by_id);
 	if (b_size(&h2s->rxbuf)) {
 		b_free(&h2s->rxbuf);
-		offer_buffers(NULL, tasks_run_queue);
+		offer_buffers(NULL, 1);
 	}
 
 	if (h2s->subs)
@@ -3740,7 +3740,7 @@ static int h2_send(struct h2c *h2c)
 		}
 
 		if (released)
-			offer_buffers(NULL, tasks_run_queue);
+			offer_buffers(NULL, released);
 
 		/* wrote at least one byte, the buffer is not full anymore */
 		if (sent)
@@ -4049,7 +4049,7 @@ do_leave:
 		}
 
 		if (released)
-			offer_buffers(NULL, tasks_run_queue);
+			offer_buffers(NULL, released);
 	}
 
 	/* in any case this connection must not be considered idle anymore */
@@ -6242,7 +6242,7 @@ static size_t h2_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 			cs->flags |= CS_FL_ERROR;
 		if (b_size(&h2s->rxbuf)) {
 			b_free(&h2s->rxbuf);
-			offer_buffers(NULL, tasks_run_queue);
+			offer_buffers(NULL, 1);
 		}
 	}
 

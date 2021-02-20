@@ -465,7 +465,7 @@ static inline void h1_release_buf(struct h1c *h1c, struct buffer *bptr)
 {
 	if (bptr->size) {
 		b_free(bptr);
-		offer_buffers(h1c->buf_wait.target, tasks_run_queue);
+		offer_buffers(h1c->buf_wait.target, 1);
 	}
 }
 

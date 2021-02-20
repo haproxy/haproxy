@@ -96,32 +96,26 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 	fflush(o);
 }
 
-/* see offer_buffer() for details */
-void __offer_buffer(void *from, unsigned int threshold)
+/* see offer_buffers() for details */
+void __offer_buffers(void *from, unsigned int count)
 {
 	struct buffer_wait *wait, *wait_back;
-	int avail;
 
 	/* For now, we consider that all objects need 1 buffer, so we can stop
 	 * waking up them once we have enough of them to eat all the available
 	 * buffers. Note that we don't really know if they are streams or just
 	 * other tasks, but that's a rough estimate. Similarly, for each cached
-	 * event we'll need 1 buffer. If no buffer is currently used, always
-	 * wake up the number of tasks we can offer a buffer based on what is
-	 * allocated, and in any case at least one task per two reserved
-	 * buffers.
+	 * event we'll need 1 buffer.
 	 */
-	avail = pool_head_buffer->allocated - pool_head_buffer->used - global.tune.reserved_bufs / 2;
-
 	list_for_each_entry_safe(wait, wait_back, &ti->buffer_wq, list) {
-		if (avail <= threshold)
+		if (!count)
 			break;
 
 		if (wait->target == from || !wait->wakeup_cb(wait->target))
 			continue;
 
 		LIST_DEL_INIT(&wait->list);
-		avail--;
+		count--;
 	}
 }
 
