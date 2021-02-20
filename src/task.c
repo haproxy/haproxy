@@ -48,11 +48,11 @@ __decl_aligned_spinlock(rq_lock); /* spin lock related to run queue */
 __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
 
 #ifdef USE_THREAD
-struct eb_root timers;      /* sorted timers tree, global */
-struct eb_root rqueue;      /* tree constituting the run queue */
+struct eb_root timers;      /* sorted timers tree, global, accessed under wq_lock */
+struct eb_root rqueue;      /* tree constituting the global run queue, accessed under rq_lock */
+static unsigned int global_rqueue_ticks;  /* insertion count in the grq, use rq_lock */
 #endif
 
-static unsigned int rqueue_ticks;  /* insertion count */
 
 struct task_per_thread task_per_thread[MAX_THREADS];
 
@@ -130,10 +130,11 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 #ifdef USE_THREAD
 	if (root == &rqueue) {
 		global_tasks_mask |= t->thread_mask;
+		t->rq.key = ++global_rqueue_ticks;
 		__ha_barrier_store();
-	}
+	} else
 #endif
-	t->rq.key = _HA_ATOMIC_ADD(&rqueue_ticks, 1);
+		t->rq.key = ++sched->rqueue_ticks;
 
 	if (likely(t->nice)) {
 		int offset;
@@ -643,7 +644,7 @@ void process_runnable_tasks()
 		if ((global_tasks_mask & tid_bit) && !grq) {
 #ifdef USE_THREAD
 			HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-			grq = eb32sc_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
+			grq = eb32sc_lookup_ge(&rqueue, global_rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 			if (unlikely(!grq)) {
 				grq = eb32sc_first(&rqueue, tid_bit);
 				if (!grq) {
@@ -659,7 +660,7 @@ void process_runnable_tasks()
 		 */
 
 		if (!lrq) {
-			lrq = eb32sc_lookup_ge(&tt->rqueue, rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
+			lrq = eb32sc_lookup_ge(&tt->rqueue, tt->rqueue_ticks - TIMER_LOOK_BACK, tid_bit);
 			if (unlikely(!lrq))
 				lrq = eb32sc_first(&tt->rqueue, tid_bit);
 		}
