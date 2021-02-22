@@ -1015,6 +1015,55 @@ void ssl_store_delete_cafile_entry(struct cafile_entry *ca_e)
 	free(ca_e);
 }
 
+/*
+ * Build a cafile_entry out of a buffer instead of out of a file.
+ * This function is used when the "commit ssl ca-file" cli command is used.
+ * It can parse CERTIFICATE sections as well as CRL ones.
+ * Returns 0 in case of success, 1 otherwise.
+ */
+int ssl_store_load_ca_from_buf(struct cafile_entry *ca_e, char *cert_buf)
+{
+	int retval = 0;
+
+	if (!ca_e)
+		return 1;
+
+	if (!ca_e->ca_store) {
+		ca_e->ca_store = X509_STORE_new();
+		if (ca_e->ca_store) {
+			BIO *bio = BIO_new_mem_buf(cert_buf, strlen(cert_buf));
+			if (bio) {
+				X509_INFO *info;
+				int i;
+				STACK_OF(X509_INFO) *infos = PEM_X509_INFO_read_bio(bio, NULL, NULL, NULL);
+				if (!infos)
+				{
+					BIO_free(bio);
+					return 1;
+				}
+
+				for (i = 0; i < sk_X509_INFO_num(infos) && !retval; i++) {
+					info = sk_X509_INFO_value(infos, i);
+					/* X509_STORE_add_cert and X509_STORE_add_crl return 1 on success */
+					if (info->x509) {
+						retval = !X509_STORE_add_cert(ca_e->ca_store, info->x509);
+					}
+					if (!retval && info->crl) {
+						retval = !X509_STORE_add_crl(ca_e->ca_store, info->crl);
+					}
+				}
+				retval = retval || (i != sk_X509_INFO_num(infos));
+
+				/* Cleanup */
+				sk_X509_INFO_pop_free(infos, X509_INFO_free);
+				BIO_free(bio);
+			}
+		}
+	}
+
+	return retval;
+}
+
 int ssl_store_load_locations_file(char *path, int create_if_none)
 {
 	X509_STORE *store = ssl_store_get0_locations_file(path);

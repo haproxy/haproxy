@@ -61,6 +61,7 @@ struct cafile_entry *ssl_store_get_cafile_entry(char *path, int oldest_entry);
 X509_STORE* ssl_store_get0_locations_file(char *path);
 struct cafile_entry *ssl_store_create_cafile_entry(char *path, X509_STORE *store);
 void ssl_store_delete_cafile_entry(struct cafile_entry *ca_e);
+int ssl_store_load_ca_from_buf(struct cafile_entry *ca_e, char *cert_buf);
 int ssl_store_load_locations_file(char *path, int create_if_none);
 
 #endif /* USE_OPENSSL */
