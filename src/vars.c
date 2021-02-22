@@ -332,31 +332,8 @@ static inline struct var *var_get(struct vars *vars, const char *name)
 static int smp_fetch_var(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	const struct var_desc *var_desc = &args[0].data.var;
-	struct var *var;
-	struct vars *vars;
 
-	/* Check the availibity of the variable. */
-	vars = get_vars(smp->sess, smp->strm, var_desc->scope);
-	if (!vars || vars->scope != var_desc->scope)
-		return 0;
-
-	HA_RWLOCK_RDLOCK(VARS_LOCK, &vars->rwlock);
-	var = var_get(vars, var_desc->name);
-
-	/* check for the variable avalaibility */
-	if (!var) {
-		HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
-		return 0;
-	}
-
-	/* Duplicate the sample data because it could modified by another
-	 * thread */
-	smp->data = var->data;
-	smp_dup(smp);
-	smp->flags |= SMP_F_CONST;
-
-	HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
-	return 1;
+	return vars_get_by_desc(var_desc, smp);
 }
 
 /* This function search in the <head> a variable with the same
