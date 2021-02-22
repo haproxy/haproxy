@@ -971,6 +971,50 @@ X509_STORE* ssl_store_get0_locations_file(char *path)
 	return NULL;
 }
 
+/* Create a cafile_entry object, without adding it to the cafile_tree. */
+struct cafile_entry *ssl_store_create_cafile_entry(char *path, X509_STORE *store)
+{
+	struct cafile_entry *ca_e;
+	int pathlen;
+
+	pathlen = strlen(path);
+
+	ca_e = calloc(1, sizeof(*ca_e) + pathlen + 1);
+	if (ca_e) {
+		memcpy(ca_e->path, path, pathlen + 1);
+		ca_e->ca_store = store;
+		LIST_INIT(&ca_e->ckch_inst_link);
+	}
+	return ca_e;
+}
+
+/* Delete a cafile_entry. The caller is responsible from removing this entry
+ * from the cafile_tree first if is was previously added into it. */
+void ssl_store_delete_cafile_entry(struct cafile_entry *ca_e)
+{
+	struct ckch_inst_link *link, *link_s;
+	if (!ca_e)
+		return;
+
+	X509_STORE_free(ca_e->ca_store);
+
+	list_for_each_entry_safe(link, link_s, &ca_e->ckch_inst_link, list) {
+		struct ckch_inst *inst = link->ckch_inst;
+		struct ckch_inst_link_ref *link_ref, *link_ref_s;
+		list_for_each_entry_safe(link_ref, link_ref_s, &inst->cafile_link_refs, list) {
+			if (link_ref->link == link) {
+				LIST_DELETE(&link_ref->list);
+				free(link_ref);
+				break;
+			}
+		}
+		LIST_DELETE(&link->list);
+		free(link);
+	}
+
+	free(ca_e);
+}
+
 int ssl_store_load_locations_file(char *path, int create_if_none)
 {
 	X509_STORE *store = ssl_store_get0_locations_file(path);
@@ -982,13 +1026,8 @@ int ssl_store_load_locations_file(char *path, int create_if_none)
 		struct cafile_entry *ca_e;
 		store = X509_STORE_new();
 		if (X509_STORE_load_locations(store, path, NULL)) {
-			int pathlen;
-			pathlen = strlen(path);
-			ca_e = calloc(1, sizeof(*ca_e) + pathlen + 1);
+			ca_e = ssl_store_create_cafile_entry(path, store);
 			if (ca_e) {
-				memcpy(ca_e->path, path, pathlen + 1);
-				ca_e->ca_store = store;
-				LIST_INIT(&ca_e->ckch_inst_link);
 				ebst_insert(&cafile_tree, &ca_e->node);
 			}
 		} else {
