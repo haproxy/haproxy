@@ -840,6 +840,8 @@ struct ckch_store *ckchs_dup(const struct ckch_store *src)
 		return NULL;
 
 	dst = ckch_store_new(src->path);
+	if (!dst)
+		return NULL;
 
 	if (!ssl_sock_copy_cert_key_and_chain(src->ckch, dst->ckch))
 		goto error;
