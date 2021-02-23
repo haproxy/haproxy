@@ -961,6 +961,11 @@ struct cafile_entry *ssl_store_get_cafile_entry(char *path, int oldest_entry)
 	return ca_e;
 }
 
+int ssl_store_add_uncommitted_cafile_entry(struct cafile_entry *entry)
+{
+	return (ebst_insert(&cafile_tree, &entry->node) != &entry->node);
+}
+
 X509_STORE* ssl_store_get0_locations_file(char *path)
 {
 	struct cafile_entry *ca_e = ssl_store_get_cafile_entry(path, 0);
