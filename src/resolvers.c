@@ -1238,12 +1238,14 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 					if (tmp_record->ar_item)
 						pool_free(resolv_answer_item_pool, tmp_record->ar_item);
 					tmp_record->ar_item = answer_record;
+					answer_record = NULL;
 					break;
 				}
 			}
-			if (tmp_record->ar_item != answer_record)
+			if (answer_record) {
 				pool_free(resolv_answer_item_pool, answer_record);
-			answer_record = NULL;
+				answer_record = NULL;
+			}
 		}
 	} /* for i 0 to arcount */
 
