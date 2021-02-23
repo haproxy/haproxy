@@ -1046,7 +1046,8 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		}
 
 		if (found == 1) {
-			tmp_record->last_seen = now.tv_sec;
+			if (tmp_record->type != DNS_RTYPE_SRV || tmp_record->ar_item != NULL)
+				tmp_record->last_seen = now.tv_sec;
 			pool_free(resolv_answer_item_pool, answer_record);
 			answer_record = NULL;
 		}
@@ -1238,6 +1239,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 					if (tmp_record->ar_item)
 						pool_free(resolv_answer_item_pool, tmp_record->ar_item);
 					tmp_record->ar_item = answer_record;
+					tmp_record->last_seen = answer_record->last_seen;
 					answer_record = NULL;
 					break;
 				}
