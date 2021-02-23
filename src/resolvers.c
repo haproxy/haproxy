@@ -577,6 +577,8 @@ static void resolv_check_response(struct resolv_resolution *res)
 						srv->hostname        = NULL;
 						srv->hostname_dn     = NULL;
 						srv->hostname_dn_len = 0;
+						memset(&srv->addr, 0, sizeof(srv->addr));
+						srv->svc_port = 0;
 						resolv_unlink_resolution(srv->resolv_requester);
 					}
 					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);

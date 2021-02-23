@@ -4135,6 +4135,8 @@ int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code
 			s->hostname        = NULL;
 			s->hostname_dn     = NULL;
 			s->hostname_dn_len = 0;
+			memset(&s->addr, 0, sizeof(s->addr));
+			s->svc_port = 0;
 			resolv_unlink_resolution(s->resolv_requester);
 		}
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
