@@ -2396,7 +2396,20 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 	/* Init cursors */
 	for (st = peer->tables; st ; st = st->next) {
 		st->last_get = st->last_acked = 0;
+		HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+		/* if st->update appears to be in future it means
+		 * that the last acked value is very old and we
+		 * remain unconnected a too long time to use this
+		 * acknowlegement as a reset.
+		 * We should update the protocol to be able to
+		 * signal the remote peer that it needs a full resync.
+		 * Here a partial fix consist to set st->update at
+		 * the max past value
+		 */
+		if ((int)(st->table->localupdate - st->update) < 0)
+			st->update = st->table->localupdate + (2147483648U);
 		st->teaching_origin = st->last_pushed = st->update;
+		HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 	}
 
 	/* reset teaching and learning flags to 0 */
@@ -2433,7 +2446,20 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 	/* Init cursors */
 	for (st = peer->tables; st ; st = st->next) {
 		st->last_get = st->last_acked = 0;
+		HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
+		/* if st->update appears to be in future it means
+		 * that the last acked value is very old and we
+		 * remain unconnected a too long time to use this
+		 * acknowlegement as a reset.
+		 * We should update the protocol to be able to
+		 * signal the remote peer that it needs a full resync.
+		 * Here a partial fix consist to set st->update at
+		 * the max past value.
+		 */
+		if ((int)(st->table->localupdate - st->update) < 0)
+			st->update = st->table->localupdate + (2147483648U);
 		st->teaching_origin = st->last_pushed = st->update;
+		HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 	}
 
 	/* Init confirm counter */
