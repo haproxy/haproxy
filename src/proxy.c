@@ -1633,9 +1633,12 @@ struct task *hard_stop(struct task *t, void *context, unsigned short state)
 		}
 		p = p->next;
 	}
+
+	thread_isolate();
 	list_for_each_entry(s, &streams, list) {
 		stream_shutdown(s, SF_ERR_KILLED);
 	}
+	thread_release();
 
 	killed = 1;
 	t->expire = tick_add(now_ms, MS_TO_TICKS(1000));
