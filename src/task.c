@@ -97,7 +97,7 @@ void task_kill(struct task *t)
 			MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list,
 			             (struct mt_list *)&((struct tasklet *)t)->list);
 			_HA_ATOMIC_ADD(&task_per_thread[thr].rq_total, 1);
-			_HA_ATOMIC_ADD(&task_per_thread[thr].task_list_size, 1);
+			_HA_ATOMIC_ADD(&task_per_thread[thr].tasks_in_list, 1);
 			if (sleeping_thread_mask & (1UL << thr)) {
 				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
 				wake_thread(thr);
@@ -485,7 +485,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		/* OK then this is a regular task */
 
-		_HA_ATOMIC_SUB(&task_per_thread[tid].task_list_size, 1);
+		_HA_ATOMIC_SUB(&task_per_thread[tid].tasks_in_list, 1);
 		if (unlikely(t->call_date)) {
 			uint64_t now_ns = now_mono_time();
 			uint64_t lat = now_ns - t->call_date;
@@ -631,7 +631,7 @@ void process_runnable_tasks()
 	/* pick up to max[TL_NORMAL] regular tasks from prio-ordered run queues */
 	/* Note: the grq lock is always held when grq is not null */
 	picked = 0;
-	budget = max[TL_NORMAL] - tt->task_list_size;
+	budget = max[TL_NORMAL] - tt->tasks_in_list;
 	while (picked < budget) {
 		if ((global_tasks_mask & tid_bit) && !grq) {
 #ifdef USE_THREAD
@@ -693,7 +693,7 @@ void process_runnable_tasks()
 
 	if (picked) {
 		tt->tl_class_mask |= 1 << TL_NORMAL;
-		_HA_ATOMIC_ADD(&tt->task_list_size, picked);
+		_HA_ATOMIC_ADD(&tt->tasks_in_list, picked);
 		_HA_ATOMIC_ADD(&tt->rq_total, picked);
 		activity[tid].tasksw += picked;
 	}

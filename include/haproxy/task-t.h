@@ -77,7 +77,7 @@ struct task_per_thread {
 	struct mt_list shared_tasklet_list; /* Tasklet to be run, woken up by other threads */
 	struct list tasklets[TL_CLASSES]; /* tasklets (and/or tasks) to run, by class */
 	unsigned int rqueue_ticks; /* Insertion counter for the run queue */
-	int task_list_size;     /* Number of tasks among the tasklets */
+	int tasks_in_list;      /* Number of tasks in the per-thread tasklets list */
 	int current_queue;      /* points to current tasklet list being run, -1 if none */
 	unsigned int rq_total;  /* total size of the run queue, prio_tree + tasklets */
 	struct task *current;   /* current task (not tasklet) */
