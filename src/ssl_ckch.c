@@ -1536,6 +1536,112 @@ static void cli_release_commit_cert(struct appctx *appctx)
 	}
 }
 
+
+/*
+ * Rebuild a new instance 'new_inst' based on an old instance 'ckchi' and a
+ * specific ckch_store.
+ * Returns 0 in case of success, 1 otherwise.
+ */
+static int ckch_inst_rebuild(struct ckch_store *ckch_store, struct ckch_inst *ckchi,
+			     struct ckch_inst **new_inst, char **err)
+{
+	int retval = 0;
+	int errcode = 0;
+	struct sni_ctx *sc0, *sc0s;
+	char **sni_filter = NULL;
+	int fcount = 0;
+
+	if (ckchi->crtlist_entry) {
+		sni_filter = ckchi->crtlist_entry->filters;
+		fcount = ckchi->crtlist_entry->fcount;
+	}
+
+	if (ckchi->is_server_instance)
+		errcode |= ckch_inst_new_load_srv_store(ckch_store->path, ckch_store, new_inst, err);
+	else
+		errcode |= ckch_inst_new_load_store(ckch_store->path, ckch_store, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, new_inst, err);
+
+	if (errcode & ERR_CODE)
+		return 1;
+
+	/* if the previous ckchi was used as the default */
+	if (ckchi->is_default)
+		(*new_inst)->is_default = 1;
+
+	(*new_inst)->is_server_instance = ckchi->is_server_instance;
+	(*new_inst)->server = ckchi->server;
+	/* Create a new SSL_CTX and link it to the new instance. */
+	if ((*new_inst)->is_server_instance) {
+		retval = ssl_sock_prep_srv_ctx_and_inst(ckchi->server, (*new_inst)->ctx, (*new_inst));
+		if (retval)
+			return 1;
+	}
+
+	/* create the link to the crtlist_entry */
+	(*new_inst)->crtlist_entry = ckchi->crtlist_entry;
+
+	/* we need to initialize the SSL_CTX generated */
+	/* this iterate on the newly generated SNIs in the new instance to prepare their SSL_CTX */
+	list_for_each_entry_safe(sc0, sc0s, &(*new_inst)->sni_ctx, by_ckch_inst) {
+		if (!sc0->order) { /* we initialized only the first SSL_CTX because it's the same in the other sni_ctx's */
+			errcode |= ssl_sock_prep_ctx_and_inst(ckchi->bind_conf, ckchi->ssl_conf, sc0->ctx, *new_inst, err);
+			if (errcode & ERR_CODE)
+				return 1;
+		}
+	}
+
+	return 0;
+}
+
+/*
+ * Load all the new SNIs of a newly built ckch instance in the trees, or replace
+ * a server's main ckch instance.
+ */
+static void __ssl_sock_load_new_ckch_instance(struct ckch_inst *ckchi)
+{
+	/* The bind_conf will be null on server ckch_instances. */
+	if (ckchi->is_server_instance) {
+		int i;
+		/* a lock is needed here since we have to free the SSL cache */
+		HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &ckchi->server->ssl_ctx.lock);
+		/* free the server current SSL_CTX */
+		SSL_CTX_free(ckchi->server->ssl_ctx.ctx);
+		/* Actual ssl context update */
+		SSL_CTX_up_ref(ckchi->ctx);
+		ckchi->server->ssl_ctx.ctx = ckchi->ctx;
+		ckchi->server->ssl_ctx.inst = ckchi;
+
+		/* flush the session cache of the server */
+		for (i = 0; i < global.nbthread; i++) {
+			ha_free(&ckchi->server->ssl_ctx.reused_sess[i].ptr);
+		}
+		HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &ckchi->server->ssl_ctx.lock);
+
+	} else {
+		HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+		ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
+		HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
+	}
+}
+
+/*
+ * Delete a ckch instance that was replaced after a CLI command.
+ */
+static void __ckch_inst_free_locked(struct ckch_inst *ckchi)
+{
+	if (ckchi->is_server_instance) {
+		/* no lock for servers */
+		ckch_inst_free(ckchi);
+	} else {
+		struct bind_conf __maybe_unused *bind_conf = ckchi->bind_conf;
+
+		HA_RWLOCK_WRLOCK(SNI_LOCK, &bind_conf->sni_lock);
+		ckch_inst_free(ckchi);
+		HA_RWLOCK_WRUNLOCK(SNI_LOCK, &bind_conf->sni_lock);
+	}
+}
+
+
 /*
  * This function tries to create the new ckch_inst and their SNIs
  */
@@ -1545,11 +1651,9 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	int y = 0;
 	char *err = NULL;
 	int errcode = 0;
-	int retval = 0;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
 	struct ckch_inst *ckchi, *ckchis;
 	struct buffer *trash = alloc_trash_chunk();
-	struct sni_ctx *sc0, *sc0s;
 	struct crtlist_entry *entry;
 
 	if (trash == NULL)
@@ -1593,8 +1697,6 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				/* walk through the old ckch_inst and creates new ckch_inst using the updated ckchs */
 				list_for_each_entry_from(ckchi, &old_ckchs->ckch_inst, by_ckchs) {
 					struct ckch_inst *new_inst;
-					char **sni_filter = NULL;
-					int fcount = 0;
 
 					/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
 					if (y >= 10) {
@@ -1603,45 +1705,8 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 						goto yield;
 					}
 
-					if (ckchi->crtlist_entry) {
-						sni_filter = ckchi->crtlist_entry->filters;
-						fcount = ckchi->crtlist_entry->fcount;
-					}
-
-					if (ckchi->is_server_instance)
-						errcode |= ckch_inst_new_load_srv_store(new_ckchs->path, new_ckchs, &new_inst, &err);
-					else
-						errcode |= ckch_inst_new_load_store(new_ckchs->path, new_ckchs, ckchi->bind_conf, ckchi->ssl_conf, sni_filter, fcount, &new_inst, &err);
-
-					if (errcode & ERR_CODE)
+					if (ckch_inst_rebuild(new_ckchs, ckchi, &new_inst, &err))
 						goto error;
-
-					/* if the previous ckchi was used as the default */
-					if (ckchi->is_default)
-						new_inst->is_default = 1;
-
-					new_inst->is_server_instance = ckchi->is_server_instance;
-					new_inst->server = ckchi->server;
-					/* Create a new SSL_CTX and link it to the new instance. */
-					if (new_inst->is_server_instance) {
-						retval = ssl_sock_prep_srv_ctx_and_inst(ckchi->server, new_inst->ctx, new_inst);
-						if (retval)
-							goto error;
-					}
-
-					/* create the link to the crtlist_entry */
-					new_inst->crtlist_entry = ckchi->crtlist_entry;
-
-					/* we need to initialize the SSL_CTX generated */
-					/* this iterate on the newly generated SNIs in the new instance to prepare their SSL_CTX */
-					list_for_each_entry_safe(sc0, sc0s, &new_inst->sni_ctx, by_ckch_inst) {
-						if (!sc0->order) { /* we initialized only the first SSL_CTX because it's the same in the other sni_ctx's */
-							errcode |= ssl_sock_prep_ctx_and_inst(ckchi->bind_conf, ckchi->ssl_conf, sc0->ctx, sc0->ckch_inst, &err);
-							if (errcode & ERR_CODE)
-								goto error;
-						}
-					}
-
 
 					/* display one dot per new instance */
 					chunk_appendf(trash, ".");
@@ -1677,44 +1742,12 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 
 				/* First, we insert every new SNIs in the trees, also replace the default_ctx */
 				list_for_each_entry_safe(ckchi, ckchis, &new_ckchs->ckch_inst, by_ckchs) {
-					/* The bind_conf will be null on server ckch_instances. */
-					if (ckchi->is_server_instance) {
-						int i;
-						/* a lock is needed here since we have to free the SSL cache */
-						HA_RWLOCK_WRLOCK(SSL_SERVER_LOCK, &ckchi->server->ssl_ctx.lock);
-						/* free the server current SSL_CTX */
-						SSL_CTX_free(ckchi->server->ssl_ctx.ctx);
-						/* Actual ssl context update */
-						SSL_CTX_up_ref(ckchi->ctx);
-						ckchi->server->ssl_ctx.ctx = ckchi->ctx;
-						ckchi->server->ssl_ctx.inst = ckchi;
-
-						/* flush the session cache of the server */
-						for (i = 0; i < global.nbthread; i++)
-							ha_free(&ckchi->server->ssl_ctx.reused_sess[i].ptr);
-
-						HA_RWLOCK_WRUNLOCK(SSL_SERVER_LOCK, &ckchi->server->ssl_ctx.lock);
-
-					} else {
-						HA_RWLOCK_WRLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-						ssl_sock_load_cert_sni(ckchi, ckchi->bind_conf);
-						HA_RWLOCK_WRUNLOCK(SNI_LOCK, &ckchi->bind_conf->sni_lock);
-					}
+					__ssl_sock_load_new_ckch_instance(ckchi);
 				}
 
 				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
 				list_for_each_entry_safe(ckchi, ckchis, &old_ckchs->ckch_inst, by_ckchs) {
-
-					if (ckchi->is_server_instance) {
-						/* no lock for servers */
-						ckch_inst_free(ckchi);
-					} else {
-						struct bind_conf __maybe_unused *bind_conf = ckchi->bind_conf;
-
-						HA_RWLOCK_WRLOCK(SNI_LOCK, &bind_conf->sni_lock);
-						ckch_inst_free(ckchi);
-						HA_RWLOCK_WRUNLOCK(SNI_LOCK, &bind_conf->sni_lock);
-					}
+					__ckch_inst_free_locked(ckchi);
 				}
 
 				/* Replace the old ckchs by the new one */
