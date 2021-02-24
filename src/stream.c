@@ -540,9 +540,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 
 	s->tunnel_timeout = TICK_ETERNITY;
 
-	HA_SPIN_LOCK(STRMS_LOCK, &ti->streams_lock);
 	LIST_ADDQ(&ti->streams, &s->list);
-	HA_SPIN_UNLOCK(STRMS_LOCK, &ti->streams_lock);
 
 	if (flt_stream_init(s) < 0 || flt_stream_start(s) < 0)
 		goto out_fail_accept;
@@ -711,19 +709,20 @@ static void stream_free(struct stream *s)
 
 	stream_store_counters(s);
 
-	HA_SPIN_LOCK(STRMS_LOCK, &ti->streams_lock);
 	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
 		/* we have to unlink all watchers. We must not relink them if
-		 * this stream was the last one in the list.
+		 * this stream was the last one in the list. This is safe to do
+		 * here because we're touching our thread's list so we know
+		 * that other streams are not active, and the watchers will
+		 * only touch their node under thread isolation.
 		 */
-		LIST_DEL(&bref->users);
-		LIST_INIT(&bref->users);
+		LIST_DEL_INIT(&bref->users);
 		if (s->list.n != &ti->streams)
 			LIST_ADDQ(&LIST_ELEM(s->list.n, struct stream *, list)->back_refs, &bref->users);
 		bref->ref = s->list.n;
+		__ha_barrier_store();
 	}
 	LIST_DEL(&s->list);
-	HA_SPIN_UNLOCK(STRMS_LOCK, &ti->streams_lock);
 
 	/* applets do not release session yet */
 	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->si[0].end;
@@ -3447,10 +3446,15 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 static void cli_release_show_sess(struct appctx *appctx)
 {
 	if (appctx->st2 == STAT_ST_LIST && appctx->ctx.sess.thr < global.nbthread) {
-		HA_SPIN_LOCK(STRMS_LOCK, &ha_thread_info[appctx->ctx.sess.thr].streams_lock);
+		/* a dump was aborted, either in error or timeout. We need to
+		 * safely detach from the target stream's list. It's mandatory
+		 * to lock because a stream on the target thread could be moving
+		 * our node.
+		 */
+		thread_isolate();
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users))
 			LIST_DEL(&appctx->ctx.sess.bref.users);
-		HA_SPIN_UNLOCK(STRMS_LOCK, &ha_thread_info[appctx->ctx.sess.thr].streams_lock);
+		thread_release();
 	}
 }
 

@@ -46,9 +46,7 @@ struct thread_info {
 	struct list pool_lru_head;                         /* oldest objects   */
 #endif
 	struct list buffer_wq;     /* buffer waiters */
-
 	struct list streams;       /* list of streams attached to this thread */
-	__decl_thread(HA_SPINLOCK_T streams_lock); /* shared with "show sess" */
 
 	/* pad to cache line (64B) */
 	char __pad[0];            /* unused except to check remaining room */
