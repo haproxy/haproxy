@@ -134,6 +134,7 @@ struct appctx {
 		struct {
 			struct bref bref;	/* back-reference from the session being dumped */
 			void *target;		/* session we want to dump, or NULL for all */
+			unsigned int thr;       /* the thread number being explored (0..MAX_THREADS-1) */
 			unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
 			int section;		/* section of the session being dumped */
 			int pos;		/* last position of the current session's buffer */

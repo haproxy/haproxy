@@ -1639,9 +1639,13 @@ struct task *hard_stop(struct task *t, void *context, unsigned short state)
 	}
 
 	thread_isolate();
-	list_for_each_entry(s, &streams, list) {
-		stream_shutdown(s, SF_ERR_KILLED);
+
+	for (thr = 0; thr < global.nbthread; thr++) {
+		list_for_each_entry(s, &ha_thread_info[thr].streams, list) {
+			stream_shutdown(s, SF_ERR_KILLED);
+		}
 	}
+
 	thread_release();
 
 	killed = 1;

@@ -54,7 +54,6 @@ extern struct trace_source trace_strm;
 
 extern struct pool_head *pool_head_stream;
 extern struct pool_head *pool_head_uniqueid;
-extern struct list streams;
 
 extern struct data_cb sess_conn_cb;
 

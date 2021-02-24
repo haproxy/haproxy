@@ -139,7 +139,7 @@ struct stream {
 	int16_t priority_class;         /* priority class of the stream for the pending queue */
 	int32_t priority_offset;        /* priority offset of the stream for the pending queue */
 
-	struct list list;               /* position in global streams list */
+	struct list list;               /* position in the thread's streams list */
 	struct mt_list by_srv;          /* position in server stream list */
 	struct list back_refs;          /* list of users tracking this stream */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
