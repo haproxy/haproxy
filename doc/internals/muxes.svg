@@ -1,0 +1,914 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Creator: fig2dev Version 3.2.7b -->
+<!-- CreationDate: 2021-02-24 09:03:04 -->
+<!-- Magnification: 1 -->
+<svg	xmlns="http://www.w3.org/2000/svg"
+	xmlns:xlink="http://www.w3.org/1999/xlink"
+	width="954pt" height="764pt"
+	viewBox="254 -90 15885 12723">
+<g fill="none">
+<!-- Line -->
+<rect x="12000" y="10800" width="1800" height="600" rx="105" fill="#458dba"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Line -->
+<polygon points=" 900,3300 900,9900 8100,9900 8100,3300" fill="#bbf2e2"
+	stroke="#a7ceb3" stroke-width="45px"/>
+<!-- Line -->
+<polygon points=" 8700,3300 8700,9900 15900,9900 15900,3300" fill="#bbf2e2"
+	stroke="#a7ceb3" stroke-width="45px"/>
+<!-- Line -->
+<rect x="3600" y="10800" width="1800" height="600" rx="105" fill="#458dba"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Line -->
+<rect x="1575" y="12300" width="525" height="300" rx="105" fill="#458dba"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Line -->
+<rect x="6375" y="12300" width="525" height="300" rx="105" fill="#bbf2e2"
+	stroke="#a7ceb3" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Line -->
+<polygon points=" 4761,9751 4761,8751 4261,8751 4261,9751" fill="#dae8fc"/>
+<!-- Line -->
+<polygon points=" 1986,4576 1986,3576 1486,3576 1486,4576" fill="#dae8fc"/>
+<!-- Line -->
+<polygon points=" 3786,4576 3786,3576 3286,3576 3286,4576" fill="#dae8fc"/>
+<!-- Line -->
+<polygon points=" 5586,4576 5586,3576 5086,3576 5086,4576" fill="#dae8fc"/>
+<!-- Line -->
+<polygon points=" 7461,4576 7461,3576 6961,3576 6961,4576" fill="#dae8fc"/>
+<!-- Text -->
+<text xml:space="preserve" x="12900" y="11175" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="216" text-anchor="middle">Transport</text>
+<!-- Line -->
+<polygon points=" 6692,1761 9959,1761 9959,1261 6692,1261" fill="#dae8fc"/>
+<!-- Line -->
+<polygon points=" 12425,8661 12825,8661 12825,8161 12425,8161" fill="#dae8fc"/>
+<!-- Line -->
+<polygon points=" 11750,8661 12150,8661 12150,8161 11750,8161" fill="#dae8fc"/>
+<!-- Line -->
+<polygon points=" 11075,8661 11475,8661 11475,8161 11075,8161" fill="#dae8fc"/>
+<!-- Line -->
+<polygon points=" 10400,8661 10800,8661 10800,8161 10400,8161" fill="#dae8fc"/>
+<!-- Line -->
+<polygon points=" 13100,8661 13500,8661 13500,8161 13100,8161" fill="#dae8fc"/>
+<!-- Line -->
+<polygon points=" 13775,8661 14175,8661 14175,8161 13775,8161" fill="#dae8fc"/>
+<!-- Ellipse -->
+<ellipse cx="11400" cy="11925" rx="225" ry="150" fill="#ffc1e7"
+	stroke="#d10000" stroke-width="45px"/>
+<!-- Text -->
+<text xml:space="preserve" x="11850" y="12000" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">I/O tasklet</text>
+<!-- Line -->
+<polygon points=" 11157,12581 11614,12581 11614,12331 11157,12331" fill="#dae8fc"/>
+<!-- Circle -->
+<circle cx="10725" cy="5700" r="75" fill="#000000"
+	stroke="#000000" stroke-width="30px"/>
+<!-- Circle -->
+<circle cx="12750" cy="5700" r="75" fill="#000000"
+	stroke="#000000" stroke-width="30px"/>
+<!-- Circle -->
+<circle cx="13875" cy="5700" r="75" fill="#000000"
+	stroke="#000000" stroke-width="30px"/>
+<!-- Circle -->
+<circle cx="11700" cy="5700" r="75" fill="#000000"
+	stroke="#000000" stroke-width="30px"/>
+<!-- Circle -->
+<circle cx="2925" cy="6750" r="75" fill="#000000"
+	stroke="#000000" stroke-width="30px"/>
+<!-- Circle -->
+<circle cx="4950" cy="6750" r="75" fill="#000000"
+	stroke="#000000" stroke-width="30px"/>
+<!-- Circle -->
+<circle cx="6075" cy="6750" r="75" fill="#000000"
+	stroke="#000000" stroke-width="30px"/>
+<!-- Circle -->
+<circle cx="3900" cy="6750" r="75" fill="#000000"
+	stroke="#000000" stroke-width="30px"/>
+<!-- Ellipse -->
+<ellipse cx="9525" cy="4140" rx="583" ry="250" fill="#ffe6cc"
+	stroke="#e9b000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="11341" cy="4140" rx="583" ry="250" fill="#ffe6cc"
+	stroke="#e9b000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="13154" cy="4140" rx="583" ry="250" fill="#ffe6cc"
+	stroke="#e9b000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="15033" cy="4140" rx="583" ry="250" fill="#ffe6cc"
+	stroke="#e9b000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="7182" cy="5173" rx="583" ry="250" fill="#ffe6cc"
+	stroke="#e9b000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="3507" cy="5173" rx="583" ry="250" fill="#ffe6cc"
+	stroke="#e9b000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="1719" cy="5173" rx="583" ry="250" fill="#ffe6cc"
+	stroke="#e9b000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="5325" cy="5175" rx="583" ry="250" fill="#ffe6cc"
+	stroke="#e9b000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="8400" cy="600" rx="900" ry="210" fill="#ffc1e7"
+	stroke="#d10000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="12333" cy="7025" rx="417" ry="250" fill="#87cfff"
+	stroke="#0000d1" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="12392" cy="9240" rx="808" ry="210" fill="#ffc1e7"
+	stroke="#d10000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="3167" cy="9240" rx="808" ry="210" fill="#ffc1e7"
+	stroke="#d10000" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="1800" cy="11925" rx="225" ry="150" fill="#ffe6cc"
+	stroke="#e9b000" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 2550,3300 2550,6150"
+	stroke="#000000" stroke-width="8px" stroke-linejoin="round" stroke-dasharray="40 40"/>
+<!-- Line -->
+<polyline points=" 4500,3300 4500,6150"
+	stroke="#000000" stroke-width="8px" stroke-linejoin="round" stroke-dasharray="40 40"/>
+<!-- Line -->
+<polyline points=" 6300,3300 6300,6150"
+	stroke="#000000" stroke-width="8px" stroke-linejoin="round" stroke-dasharray="40 40"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp0">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 645,11504 555,11504 582,11718 618,11718z"/>
+</clipPath>
+</defs>
+<polyline points=" 600,8025 600,11700" clip-path="url(#cp0)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 600,11700 -->
+<polygon points=" 555,11504 600,11684 645,11504 555,11504"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp1">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 555,1996 645,1996 618,1782 582,1782z"/>
+</clipPath>
+</defs>
+<polyline points=" 600,3150 600,1800" clip-path="url(#cp1)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 600,1800 -->
+<polygon points=" 645,1996 600,1816 555,1996 645,1996"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp2">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 555,346 645,346 618,132 582,132z"/>
+</clipPath>
+</defs>
+<polyline points=" 600,1500 600,150" clip-path="url(#cp2)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 600,150 -->
+<polygon points=" 645,346 600,166 555,346 645,346"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp3">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 7304,555 7304,645 7518,618 7518,582z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 3000,3300 3000,1425 3675,600 7500,600" clip-path="url(#cp3)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 7500,600 -->
+<polygon points=" 7304,645 7484,600 7304,555 7304,645"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Backward arrow to point 3000,3300 -->
+<polygon points=" 2955,3104 3000,3284 3045,3104 2955,3104"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp4">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 6554,1455 6554,1545 6768,1518 6768,1482z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 3525,3525 3525,2625 4500,1500 6750,1500" clip-path="url(#cp4)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 6750,1500 -->
+<polygon points=" 6554,1545 6734,1500 6554,1455 6554,1545"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp5">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 11661,5428 11578,5465 11691,5649 11724,5634z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 11295,4425 11295,4725 11700,5625" clip-path="url(#cp5)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 11700,5625 -->
+<polygon points=" 11578,5465 11693,5610 11661,5428 11578,5465"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp6">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 10571,5541 10514,5611 10698,5725 10720,5697z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 9495,4425 9495,4725 10695,5700" clip-path="url(#cp6)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 10695,5700 -->
+<polygon points=" 10514,5611 10682,5690 10571,5541 10514,5611"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp7">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 12905,5461 12822,5427 12764,5635 12798,5649z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 13163,4425 13163,4725 12788,5625" clip-path="url(#cp7)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 12788,5625 -->
+<polygon points=" 12822,5427 12794,5610 12905,5461 12822,5427"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp8">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 14066,5607 14007,5539 13863,5700 13886,5727z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 15013,4427 15013,4725 13888,5702" clip-path="url(#cp8)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 13888,5702 -->
+<polygon points=" 14007,5539 13900,5691 14066,5607 14007,5539"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp9">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 9555,3689 9495,3689 9507,3843 9543,3843z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 9525,3525 9525,3825" clip-path="url(#cp9)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 9525,3825 -->
+<polygon points=" 9495,3689 9525,3809 9555,3689 9495,3689"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp10">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 13155,3689 13095,3689 13107,3843 13143,3843z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 13125,3525 13125,3825" clip-path="url(#cp10)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 13125,3825 -->
+<polygon points=" 13095,3689 13125,3809 13155,3689 13095,3689"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp11">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 15030,3689 14970,3689 14982,3843 15018,3843z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 15000,3525 15000,3825" clip-path="url(#cp11)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 15000,3825 -->
+<polygon points=" 14970,3689 15000,3809 15030,3689 14970,3689"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp12">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 10229,8355 10229,8445 10443,8418 10443,8382z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 12300,7275 12300,7725 9975,7725 9975,8400 10425,8400" clip-path="url(#cp12)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 10425,8400 -->
+<polygon points=" 10229,8445 10409,8400 10229,8355 10229,8445"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp13">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 12345,6629 12255,6629 12282,6843 12318,6843z
+		M 3045,3104 2955,3104 2982,3318 3018,3318z"/>
+</clipPath>
+</defs>
+<polyline points=" 11775,5850 12300,6450 12300,6825" clip-path="url(#cp13)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 12300,6825 -->
+<polygon points=" 12255,6629 12300,6809 12345,6629 12255,6629"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<polyline points=" 11475,6150 13200,6150 13200,6825"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round" stroke-dasharray="80 80"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp14">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 12345,6629 12255,6629 12282,6843 12318,6843z
+		M 4051,7087 4124,7035 3979,6875 3950,6896z"/>
+</clipPath>
+</defs>
+<polyline points=" 3975,6900 4500,7650 4500,7875" clip-path="url(#cp14)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Backward arrow to point 3975,6900 -->
+<polygon points=" 4124,7035 3984,6913 4051,7087 4124,7035"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp15">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 12345,6629 12255,6629 12282,6843 12318,6843z
+		M 3450,5671 3540,5671 3513,5457 3477,5457z"/>
+</clipPath>
+</defs>
+<polyline points=" 3495,5475 3495,5775 3900,6675" clip-path="url(#cp15)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Backward arrow to point 3495,5475 -->
+<polygon points=" 3540,5671 3495,5491 3450,5671 3540,5671"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp16">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 12345,6629 12255,6629 12282,6843 12318,6843z
+		M 1650,5671 1740,5671 1713,5457 1677,5457z"/>
+</clipPath>
+</defs>
+<polyline points=" 1695,5475 1695,5775 2895,6750" clip-path="url(#cp16)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Backward arrow to point 1695,5475 -->
+<polygon points=" 1740,5671 1695,5491 1650,5671 1740,5671"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp17">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 12345,6629 12255,6629 12282,6843 12318,6843z
+		M 7168,5673 7258,5673 7231,5459 7195,5459z"/>
+</clipPath>
+</defs>
+<polyline points=" 7213,5477 7213,5775 6088,6752" clip-path="url(#cp17)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Backward arrow to point 7213,5477 -->
+<polygon points=" 7258,5673 7213,5493 7168,5673 7258,5673"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp18">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 1695,4711 1755,4711 1743,4557 1707,4557z
+		M 7168,5673 7258,5673 7231,5459 7195,5459z"/>
+</clipPath>
+</defs>
+<polyline points=" 1725,4875 1725,4575" clip-path="url(#cp18)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 1725,4575 -->
+<polygon points=" 1755,4711 1725,4591 1695,4711 1755,4711"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp19">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 3495,4711 3555,4711 3543,4557 3507,4557z
+		M 7168,5673 7258,5673 7231,5459 7195,5459z"/>
+</clipPath>
+</defs>
+<polyline points=" 3525,4875 3525,4575" clip-path="url(#cp19)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 3525,4575 -->
+<polygon points=" 3555,4711 3525,4591 3495,4711 3555,4711"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp20">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 5295,4711 5355,4711 5343,4557 5307,4557z
+		M 7168,5673 7258,5673 7231,5459 7195,5459z"/>
+</clipPath>
+</defs>
+<polyline points=" 5325,4875 5325,4575" clip-path="url(#cp20)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 5325,4575 -->
+<polygon points=" 5355,4711 5325,4591 5295,4711 5355,4711"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp21">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 7170,4711 7230,4711 7218,4557 7182,4557z
+		M 7168,5673 7258,5673 7231,5459 7195,5459z"/>
+</clipPath>
+</defs>
+<polyline points=" 7200,4875 7200,4575" clip-path="url(#cp21)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 7200,4575 -->
+<polygon points=" 7230,4711 7200,4591 7170,4711 7230,4711"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp22">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 7170,4711 7230,4711 7218,4557 7182,4557z
+		M 4455,8521 4545,8521 4518,8307 4482,8307z"/>
+</clipPath>
+</defs>
+<polyline points=" 4500,8325 4500,8721" clip-path="url(#cp22)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Backward arrow to point 4500,8325 -->
+<polygon points=" 4545,8521 4500,8341 4455,8521 4545,8521"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<polyline points=" 3225,7875 3225,7350 4725,7350"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round" stroke-dasharray="80 80"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp23">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 3272,9646 3353,9605 3233,9426 3201,9442z
+		M 3853,10604 3772,10645 3892,10824 3924,10808z"/>
+</clipPath>
+</defs>
+<polyline points=" 3900,10800 3225,9450" clip-path="url(#cp23)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 3225,9450 -->
+<polygon points=" 3353,9605 3232,9464 3272,9646 3353,9605"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Backward arrow to point 3900,10800 -->
+<polygon points=" 3772,10645 3893,10786 3853,10604 3772,10645"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp24">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 4455,9946 4545,9946 4518,9732 4482,9732z
+		M 3853,10604 3772,10645 3892,10824 3924,10808z"/>
+</clipPath>
+</defs>
+<polyline points=" 4500,10800 4500,9750" clip-path="url(#cp24)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 4500,9750 -->
+<polygon points=" 4545,9946 4500,9766 4455,9946 4545,9946"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp25">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 12330,9646 12420,9646 12393,9432 12357,9432z
+		M 12420,10604 12330,10604 12357,10818 12393,10818z"/>
+</clipPath>
+</defs>
+<polyline points=" 12375,10800 12375,9750 12375,9450" clip-path="url(#cp25)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 12375,9450 -->
+<polygon points=" 12420,9646 12375,9466 12330,9646 12420,9646"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Backward arrow to point 12375,10800 -->
+<polygon points=" 12330,10604 12375,10784 12420,10604 12330,10604"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<polyline points=" 12225,3300 12225,5025"
+	stroke="#000000" stroke-width="8px" stroke-linejoin="round" stroke-dasharray="40 40"/>
+<!-- Line -->
+<polyline points=" 10425,3300 10425,5025"
+	stroke="#000000" stroke-width="8px" stroke-linejoin="round" stroke-dasharray="40 40"/>
+<!-- Line -->
+<polyline points=" 14025,3300 14025,5025"
+	stroke="#000000" stroke-width="8px" stroke-linejoin="round" stroke-dasharray="40 40"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp26">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 11370,3629 11280,3629 11307,3843 11343,3843z
+		M 12420,10604 12330,10604 12357,10818 12393,10818z"/>
+</clipPath>
+</defs>
+<polyline points=" 9975,1500 10800,1500 11325,2100 11325,3825" clip-path="url(#cp26)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 11325,3825 -->
+<polygon points=" 11280,3629 11325,3809 11370,3629 11280,3629"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp27">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 11820,3104 11730,3104 11757,3318 11793,3318z
+		M 9496,645 9496,555 9282,582 9282,618z"/>
+</clipPath>
+</defs>
+<polyline points=" 9300,600 11175,600 11775,1275 11775,3300" clip-path="url(#cp27)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 11775,3300 -->
+<polygon points=" 11730,3104 11775,3284 11820,3104 11730,3104"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Backward arrow to point 9300,600 -->
+<polygon points=" 9496,555 9316,600 9496,645 9496,555"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp28">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 11820,3104 11730,3104 11757,3318 11793,3318z
+		M 13245,10604 13155,10604 13182,10818 13218,10818z"/>
+</clipPath>
+</defs>
+<polyline points=" 13200,10800 13200,10200 14625,9750 14625,8400 14175,8400" clip-path="url(#cp28)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Backward arrow to point 13200,10800 -->
+<polygon points=" 13155,10604 13200,10784 13245,10604 13155,10604"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp29">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 11820,3104 11730,3104 11757,3318 11793,3318z
+		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
+</clipPath>
+</defs>
+<polyline points=" 5325,5475 5325,5775 4950,6675" clip-path="url(#cp29)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Backward arrow to point 5325,5475 -->
+<polygon points=" 5370,5671 5325,5491 5280,5671 5370,5671"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp30">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 555,3496 645,3496 618,3282 582,3282z
+		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
+</clipPath>
+</defs>
+<polyline points=" 600,5400 600,3300" clip-path="url(#cp30)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 600,3300 -->
+<polygon points=" 645,3496 600,3316 555,3496 645,3496"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<polyline points=" 600,7800 600,5700"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp31">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 12314,8370 12314,8430 12468,8418 12468,8382z
+		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
+</clipPath>
+</defs>
+<polyline points=" 12150,8400 12450,8400" clip-path="url(#cp31)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 12450,8400 -->
+<polygon points=" 12314,8430 12434,8400 12314,8370 12314,8430"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp32">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 11639,8370 11639,8430 11793,8418 11793,8382z
+		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
+</clipPath>
+</defs>
+<polyline points=" 11475,8400 11775,8400" clip-path="url(#cp32)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 11775,8400 -->
+<polygon points=" 11639,8430 11759,8400 11639,8370 11639,8430"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp33">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 10964,8370 10964,8430 11118,8418 11118,8382z
+		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
+</clipPath>
+</defs>
+<polyline points=" 10800,8400 11100,8400" clip-path="url(#cp33)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 11100,8400 -->
+<polygon points=" 10964,8430 11084,8400 10964,8370 10964,8430"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp34">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 12989,8370 12989,8430 13143,8418 13143,8382z
+		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
+</clipPath>
+</defs>
+<polyline points=" 12825,8400 13125,8400" clip-path="url(#cp34)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 13125,8400 -->
+<polygon points=" 12989,8430 13109,8400 12989,8370 12989,8430"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp35">
+	<path clip-rule="evenodd" d="M 254,-90 H 16139 V 12633 H 254 z
+		M 13664,8370 13664,8430 13818,8418 13818,8382z
+		M 5280,5671 5370,5671 5343,5457 5307,5457z"/>
+</clipPath>
+</defs>
+<polyline points=" 13500,8400 13800,8400" clip-path="url(#cp35)"
+	stroke="#000000" stroke-width="30px" stroke-linejoin="round"/>
+<!-- Forward arrow to point 13800,8400 -->
+<polygon points=" 13664,8430 13784,8400 13664,8370 13664,8430"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Text -->
+<g transform="translate(450,825) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">application</text>
+</g><!-- Text -->
+<g transform="translate(450,9450) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">connection = cs-&gt;conn</text>
+</g><!-- Text -->
+<g transform="translate(2850,3225) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">mux-&gt;subscribe(SUB_RECV)</text>
+</g><!-- Text -->
+<g transform="translate(900,825) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">(eg: checks,</text>
+</g><!-- Text -->
+<g transform="translate(1125,750) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">stream-int)</text>
+</g><!-- Text -->
+<text xml:space="preserve" x="12300" y="7125" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="192" text-anchor="middle">MUX</text>
+<!-- Text -->
+<text xml:space="preserve" x="3600" y="8100" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="end">Stream ID</text>
+<!-- Text -->
+<text xml:space="preserve" x="12825" y="7125" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">Stream ID</text>
+<!-- Text -->
+<text xml:space="preserve" x="3300" y="10125" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="end">tasklet_wakeup()</text>
+<!-- Text -->
+<text xml:space="preserve" x="12150" y="10125" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="end">tasklet_wakeup()</text>
+<!-- Text -->
+<text xml:space="preserve" x="11175" y="3150" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="end">mux-&gt;snd_buf()</text>
+<!-- Text -->
+<text xml:space="preserve" x="3675" y="3225" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">mux-&gt;rcv_buf()</text>
+<!-- Text -->
+<text xml:space="preserve" x="13425" y="10575" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">xprt-&gt;snd_buf(mbuf)</text>
+<!-- Text -->
+<text xml:space="preserve" x="4725" y="10500" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">xprt-&gt;rcv_buf(dbuf)</text>
+<!-- Text -->
+<text xml:space="preserve" x="8400" y="2100" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">HTX contents when mode==HTTP</text>
+<!-- Text -->
+<text xml:space="preserve" x="13125" y="675" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">snd_buf() will move the</text>
+<!-- Text -->
+<text xml:space="preserve" x="13125" y="975" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">buffer (zero-copy) when</text>
+<!-- Text -->
+<text xml:space="preserve" x="13125" y="1275" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">the destination is empty.</text>
+<!-- Text -->
+<text xml:space="preserve" x="7500" y="450" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="end">tasklet_wakeup()</text>
+<!-- Text -->
+<text xml:space="preserve" x="9300" y="450" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">tasklet_wakeup()</text>
+<!-- Text -->
+<g transform="translate(12075,3225) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">mux-&gt;subscribe(SUB_SEND)</text>
+</g><!-- Text -->
+<g transform="translate(450,4500) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">mux streams</text>
+</g><!-- Text -->
+<g transform="translate(450,6750) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">mux=conn-&gt;mux</text>
+</g><!-- Text -->
+<g transform="translate(450,2550) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">conn_stream</text>
+</g><!-- Text -->
+<text xml:space="preserve" x="12900" y="75" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">Notes:</text>
+<!-- Text -->
+<text xml:space="preserve" x="12975" y="375" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">- mux-&gt;rcv_buf() and</text>
+<!-- Text -->
+<text xml:space="preserve" x="12975" y="1650" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">- the application is also</text>
+<!-- Text -->
+<text xml:space="preserve" x="13125" y="1950" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">called the data layer and</text>
+<!-- Text -->
+<text xml:space="preserve" x="13125" y="2250" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">is cs-&gt;data and cs-&gt;data_cb</text>
+<!-- Text -->
+<text xml:space="preserve" x="12975" y="2550" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">- transport layers (xprt) are</text>
+<!-- Text -->
+<text xml:space="preserve" x="13125" y="2775" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">stackable. conn-&gt;xprt is</text>
+<!-- Text -->
+<text xml:space="preserve" x="13125" y="3000" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">the topmost one.</text>
+<!-- Text -->
+<text xml:space="preserve" x="4500" y="11175" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="216" text-anchor="middle">Transport</text>
+<!-- Text -->
+<text xml:space="preserve" x="2250" y="12000" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">encoding/decoding function</text>
+<!-- Text -->
+<text xml:space="preserve" x="2250" y="12525" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">transport layer</text>
+<!-- Text -->
+<text xml:space="preserve" x="7050" y="12525" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">multiplexer (MUX/DEMUX)</text>
+<!-- Text -->
+<text xml:space="preserve" x="7050" y="12000" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">general processing function</text>
+<!-- Text -->
+<text xml:space="preserve" x="11775" y="12525" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="start">stream buffer (byte-level FIFO)</text>
+<!-- Text -->
+<text xml:space="preserve" x="3675" y="10725" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="end">xprt-&gt;subscribe(SUB_RECV)</text>
+<!-- Text -->
+<text xml:space="preserve" x="12225" y="10725" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="end">xprt-&gt;subscribe(SUB_SEND)</text>
+<!-- Line -->
+<polyline points=" 4261,9751 4261,8751 4761,8751 4761,9751"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 1486,4576 1486,3576 1986,3576 1986,4576"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 3286,4576 3286,3576 3786,3576 3786,4576"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 5086,4576 5086,3576 5586,3576 5586,4576"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 6961,4576 6961,3576 7461,3576 7461,4576"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 6692,1261 9959,1261 9959,1761 6692,1761"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 12425,8161 12825,8161 12825,8661 12425,8661"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 11750,8161 12150,8161 12150,8661 11750,8661"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 11075,8161 11475,8161 11475,8661 11075,8661"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 10400,8161 10800,8161 10800,8661 10400,8661"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 13100,8161 13500,8161 13500,8661 13100,8661"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 13775,8161 14175,8161 14175,8661 13775,8661"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Line -->
+<polyline points=" 11157,12331 11614,12331 11614,12581 11157,12581"
+	stroke="#458dba" stroke-width="45px"/>
+<!-- Text -->
+<text xml:space="preserve" x="8409" y="657" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">si_cs_io_cb</text>
+<!-- Text -->
+<text xml:space="preserve" x="9534" y="4200" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">encode</text>
+<!-- Text -->
+<text xml:space="preserve" x="11325" y="4200" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">encode</text>
+<!-- Text -->
+<text xml:space="preserve" x="13134" y="4200" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">encode</text>
+<!-- Text -->
+<text xml:space="preserve" x="15009" y="4200" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">encode</text>
+<!-- Text -->
+<text xml:space="preserve" x="1725" y="5250" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">decode</text>
+<!-- Text -->
+<text xml:space="preserve" x="3525" y="5250" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">decode</text>
+<!-- Text -->
+<text xml:space="preserve" x="5325" y="5250" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">decode</text>
+<!-- Text -->
+<text xml:space="preserve" x="7200" y="5250" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">decode</text>
+<!-- Text -->
+<text xml:space="preserve" x="12375" y="9300" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">mux_io_cb</text>
+<!-- Text -->
+<text xml:space="preserve" x="3159" y="9300" fill="#1a1a1a" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="144" text-anchor="middle">mux_io_cb</text>
+<!-- Line -->
+<polyline points=" 4261,8850 4761,8850"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 4261,8925 4761,8925"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 4261,9000 4761,9000"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 1486,3675 1986,3675"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 1486,3750 1986,3750"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 1486,3825 1986,3825"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 3286,3675 3786,3675"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 3286,3750 3786,3750"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 3286,3825 3786,3825"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 5086,3675 5586,3675"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 5086,3750 5586,3750"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 5086,3825 5586,3825"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 6961,3675 7461,3675"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 6961,3750 7461,3750"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 6961,3825 7461,3825"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 9750,1261 9750,1761"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 9525,1261 9525,1761"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 9300,1261 9300,1761"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 12600,8161 12600,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 12675,8161 12675,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 12750,8161 12750,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 11925,8161 11925,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 12000,8161 12000,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 12075,8161 12075,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 11250,8161 11250,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 11325,8161 11325,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 11400,8161 11400,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 10575,8161 10575,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 10650,8161 10650,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 10725,8161 10725,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 13275,8161 13275,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 13350,8161 13350,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 13425,8161 13425,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 13950,8161 13950,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 14025,8161 14025,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 14100,8161 14100,8661"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 11357,12331 11357,12581"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 11443,12331 11443,12581"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Line -->
+<polyline points=" 11529,12331 11529,12581"
+	stroke="#458dba" stroke-width="15px"/>
+<!-- Text -->
+<text xml:space="preserve" x="8025" y="1575" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="192" text-anchor="middle">channel buf</text>
+<!-- Text -->
+<g transform="translate(3600,4200) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="192" text-anchor="middle">rxbuf</text>
+</g><!-- Text -->
+<g transform="translate(4575,9375) rotate(-90)" >
+<text xml:space="preserve" x="0" y="0" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="192" text-anchor="middle">dbuf</text>
+</g><!-- Text -->
+<text xml:space="preserve" x="14625" y="8175" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="192" text-anchor="middle">mbuf</text>
+<!-- Ellipse -->
+<ellipse cx="4488" cy="8082" rx="612" ry="250" fill="#87cfff"
+	stroke="#0000d1" stroke-width="45px"/>
+<!-- Ellipse -->
+<ellipse cx="6600" cy="11925" rx="225" ry="150" fill="#87cfff"
+	stroke="#0000d1" stroke-width="45px"/>
+<!-- Text -->
+<text xml:space="preserve" x="4500" y="8175" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="192" text-anchor="middle">DEMUX</text>
+</g>
+</svg>
