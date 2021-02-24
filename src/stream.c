@@ -3444,17 +3444,22 @@ static int cli_parse_shutdown_session(char **args, char *payload, struct appctx 
 
 	ptr = (void *)strtoul(args[2], NULL, 0);
 
+	thread_isolate();
+
 	/* first, look for the requested stream in the stream table */
 	list_for_each_entry(strm, &streams, list) {
-		if (strm == ptr)
+		if (strm == ptr) {
+			stream_shutdown(strm, SF_ERR_KILLED);
 			break;
+		}
 	}
+
+	thread_release();
 
 	/* do we have the stream ? */
 	if (strm != ptr)
 		return cli_err(appctx, "No such session (use 'show sess').\n");
 
-	stream_shutdown(strm, SF_ERR_KILLED);
 	return 1;
 }
 
