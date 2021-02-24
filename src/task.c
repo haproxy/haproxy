@@ -150,13 +150,8 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 	if (root == &rqueue) {
 		_HA_ATOMIC_OR(&t->state, TASK_GLOBAL);
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
-	} else
-#endif
-	{
-		int nb = ((void *)root - (void *)&task_per_thread[0].rqueue) / sizeof(task_per_thread[0]);
-		task_per_thread[nb].rqueue_size++;
 	}
-#ifdef USE_THREAD
+
 	/* If all threads that are supposed to handle this task are sleeping,
 	 * wake one.
 	 */
@@ -428,7 +423,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 			if (unlikely(queue > TL_NORMAL &&
 				     budget_mask & (1 << TL_NORMAL) &&
-				     ((sched->rqueue_size > 0) ||
+				     (!eb_is_empty(&sched->rqueue) ||
 				      (global_tasks_mask & tid_bit)))) {
 				/* a task was woken up by a bulk tasklet or another thread */
 				break;
@@ -609,7 +604,7 @@ void process_runnable_tasks()
 
 	/* normal tasklets list gets a default weight of ~37% */
 	if ((tt->tl_class_mask & (1 << TL_NORMAL)) ||
-	    (sched->rqueue_size > 0) || (global_tasks_mask & tid_bit))
+	    !eb_is_empty(&sched->rqueue) || (global_tasks_mask & tid_bit))
 		max[TL_NORMAL] = default_weights[TL_NORMAL];
 
 	/* bulk tasklets list gets a default weight of ~13% */

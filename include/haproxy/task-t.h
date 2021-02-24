@@ -78,10 +78,9 @@ struct task_per_thread {
 	struct list tasklets[TL_CLASSES]; /* tasklets (and/or tasks) to run, by class */
 	unsigned int rqueue_ticks; /* Insertion counter for the run queue */
 	int task_list_size;     /* Number of tasks among the tasklets */
-	int rqueue_size;        /* Number of elements in the per-thread run queue */
 	int current_queue;      /* points to current tasklet list being run, -1 if none */
-	struct task *current;   /* current task (not tasklet) */
 	unsigned int rq_total;  /* total size of the run queue, prio_tree + tasklets */
+	struct task *current;   /* current task (not tasklet) */
 	uint8_t tl_class_mask;  /* bit mask of non-empty tasklets classes */
 	__attribute__((aligned(64))) char end[0];
 };

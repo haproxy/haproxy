@@ -179,7 +179,7 @@ static inline int task_in_wq(struct task *t)
 static inline int thread_has_tasks(void)
 {
 	return (!!(global_tasks_mask & tid_bit) |
-	        (sched->rqueue_size > 0) |
+		!eb_is_empty(&sched->rqueue) |
 	        !!sched->tl_class_mask |
 		!MT_LIST_ISEMPTY(&sched->shared_tasklet_list));
 }
@@ -325,7 +325,6 @@ static inline struct task *__task_unlink_rq(struct task *t)
 	else
 #endif
 	{
-		sched->rqueue_size--;
 		_HA_ATOMIC_SUB(&sched->rq_total, 1);
 	}
 	eb32sc_delete(&t->rq);
