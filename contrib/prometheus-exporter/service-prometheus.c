@@ -718,11 +718,11 @@ static int promex_dump_listener_metrics(struct appctx *appctx, struct htx *htx)
 			li = appctx->ctx.stats.obj2;
 			list_for_each_entry_from(li, &px->conf.listeners, by_fe) {
 
-				labels[1].name  = ist("listener");
-				labels[1].value = ist2(li->name, strlen(li->name));
-
 				if (!li->counters)
 					continue;
+
+				labels[1].name  = ist("listener");
+				labels[1].value = ist2(li->name, strlen(li->name));
 
 				if (!stats_fill_li_stats(px, li, 0, stats,
 							 ST_F_TOTAL_FIELDS, &(appctx->st2)))
