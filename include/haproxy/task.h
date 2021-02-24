@@ -108,7 +108,7 @@ __decl_thread(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue 
 __decl_thread(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait queue */
 
 void task_kill(struct task *t);
-void __task_wakeup(struct task *t, struct eb_root *);
+void __task_wakeup(struct task *t);
 void __task_queue(struct task *task, struct eb_root *wq);
 
 struct work_list *work_list_create(int nbthread,
@@ -195,17 +195,6 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const char *file
 {
 	unsigned short state;
 
-#ifdef USE_THREAD
-	struct eb_root *root;
-
-	if (t->thread_mask == tid_bit || global.nbthread == 1)
-		root = &sched->rqueue;
-	else
-		root = &rqueue;
-#else
-	struct eb_root *root = &sched->rqueue;
-#endif
-
 	state = _HA_ATOMIC_OR(&t->state, f);
 	while (!(state & (TASK_RUNNING | TASK_QUEUED))) {
 		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED)) {
@@ -216,7 +205,7 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const char *file
 			t->debug.caller_file[t->debug.caller_idx] = file;
 			t->debug.caller_line[t->debug.caller_idx] = line;
 #endif
-			__task_wakeup(t, root);
+			__task_wakeup(t);
 			break;
 		}
 	}

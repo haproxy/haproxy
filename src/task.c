@@ -115,14 +115,16 @@ void task_kill(struct task *t)
  * The task must not already be in the run queue. If unsure, use the safer
  * task_wakeup() function.
  */
-void __task_wakeup(struct task *t, struct eb_root *root)
+void __task_wakeup(struct task *t)
 {
-#ifdef USE_THREAD
-	if (root == &rqueue) {
-		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-	}
+	struct eb_root *root = &sched->rqueue;
 
-	if (root == &rqueue) {
+#ifdef USE_THREAD
+	if (t->thread_mask != tid_bit && global.nbthread != 1) {
+		root = &rqueue;
+
+		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
+
 		global_tasks_mask |= t->thread_mask;
 		grq_total++;
 		t->rq.key = ++global_rqueue_ticks;
@@ -146,6 +148,7 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 		t->call_date = now_mono_time();
 
 	eb32sc_insert(root, &t->rq, t->thread_mask);
+
 #ifdef USE_THREAD
 	if (root == &rqueue) {
 		_HA_ATOMIC_OR(&t->state, TASK_GLOBAL);
