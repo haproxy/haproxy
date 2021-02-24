@@ -780,7 +780,7 @@ static struct appctx *dns_session_create(struct dns_session *ds);
 static void dns_session_release(struct appctx *appctx)
 {
 	struct dns_session *ds = appctx->ctx.sft.ptr;
-	struct dns_stream_server *dss;
+	struct dns_stream_server *dss __maybe_unused;
 
 	if (!ds)
 		return;
