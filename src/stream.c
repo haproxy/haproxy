@@ -3192,16 +3192,6 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	 * it so that we know which streams were already there before us.
 	 */
 	si_strm(appctx->owner)->stream_epoch = _HA_ATOMIC_XADD(&stream_epoch, 1);
-
-	/* we need to put an end marker into the streams list. We're just moving
-	 * ourselves there, so that once we found ourselves we know we've reached
-	 * the end. Without this we can run forever if new streams arrive faster
-	 * than we can dump them.
-	 */
-	HA_SPIN_LOCK(STRMS_LOCK, &streams_lock);
-	LIST_DEL(&si_strm(appctx->owner)->list);
-	LIST_ADDQ(&streams, &si_strm(appctx->owner)->list);
-	HA_SPIN_UNLOCK(STRMS_LOCK, &streams_lock);
 	return 0;
 }
 
@@ -3253,12 +3243,16 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			LIST_INIT(&appctx->ctx.sess.bref.users);
 		}
 
-		/* and start from where we stopped, never going further than ourselves */
-		while (appctx->ctx.sess.bref.ref != si_strm(appctx->owner)->list.n) {
+		/* and start from where we stopped */
+		while (appctx->ctx.sess.bref.ref != &streams) {
 			char pn[INET6_ADDRSTRLEN];
 			struct stream *curr_strm;
 
 			curr_strm = LIST_ELEM(appctx->ctx.sess.bref.ref, struct stream *, list);
+
+			/* check if we've found a stream created after issuing the "show sess" */
+			if ((int)(curr_strm->stream_epoch - si_strm(appctx->owner)->stream_epoch) > 0)
+				break;
 
 			if (appctx->ctx.sess.target) {
 				if (appctx->ctx.sess.target != (void *)-1 && appctx->ctx.sess.target != curr_strm)
