@@ -81,6 +81,7 @@ struct task_per_thread {
 	int rqueue_size;        /* Number of elements in the per-thread run queue */
 	int current_queue;      /* points to current tasklet list being run, -1 if none */
 	struct task *current;   /* current task (not tasklet) */
+	unsigned int rq_total;  /* total size of the run queue, prio_tree + tasklets */
 	uint8_t tl_class_mask;  /* bit mask of non-empty tasklets classes */
 	__attribute__((aligned(64))) char end[0];
 };

@@ -37,8 +37,6 @@ DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification)
 
 unsigned int nb_tasks = 0;
 volatile unsigned long global_tasks_mask = 0; /* Mask of threads with tasks in the global runqueue */
-unsigned int tasks_run_queue = 0;
-unsigned int tasks_run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
@@ -50,6 +48,7 @@ __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
 #ifdef USE_THREAD
 struct eb_root timers;      /* sorted timers tree, global, accessed under wq_lock */
 struct eb_root rqueue;      /* tree constituting the global run queue, accessed under rq_lock */
+unsigned int grq_total;     /* total number of entries in the global run queue, use grq_lock */
 static unsigned int global_rqueue_ticks;  /* insertion count in the grq, use rq_lock */
 #endif
 
@@ -97,7 +96,7 @@ void task_kill(struct task *t)
 			/* Beware: tasks that have never run don't have their ->list empty yet! */
 			MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list,
 			             (struct mt_list *)&((struct tasklet *)t)->list);
-			_HA_ATOMIC_ADD(&tasks_run_queue, 1);
+			_HA_ATOMIC_ADD(&task_per_thread[thr].rq_total, 1);
 			_HA_ATOMIC_ADD(&task_per_thread[thr].task_list_size, 1);
 			if (sleeping_thread_mask & (1UL << thr)) {
 				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
@@ -122,19 +121,18 @@ void __task_wakeup(struct task *t, struct eb_root *root)
 	if (root == &rqueue) {
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 	}
-#endif
-	/* Make sure if the task isn't in the runqueue, nobody inserts it
-	 * in the meanwhile.
-	 */
-	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
-#ifdef USE_THREAD
+
 	if (root == &rqueue) {
 		global_tasks_mask |= t->thread_mask;
+		grq_total++;
 		t->rq.key = ++global_rqueue_ticks;
 		__ha_barrier_store();
 	} else
 #endif
+	{
+		_HA_ATOMIC_ADD(&sched->rq_total, 1);
 		t->rq.key = ++sched->rqueue_ticks;
+	}
 
 	if (likely(t->nice)) {
 		int offset;
@@ -460,7 +458,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		t->calls++;
 		sched->current = t;
 
-		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
+		_HA_ATOMIC_SUB(&sched->rq_total, 1);
 
 		if (TASK_IS_TASKLET(t)) {
 			LIST_DEL_INIT(&((struct tasklet *)t)->list);
@@ -595,7 +593,6 @@ void process_runnable_tasks()
 		return;
 	}
 
-	tasks_run_queue_cur = tasks_run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
 	max_processed = global.tune.runqueue_depth;
 
@@ -702,7 +699,7 @@ void process_runnable_tasks()
 	if (picked) {
 		tt->tl_class_mask |= 1 << TL_NORMAL;
 		_HA_ATOMIC_ADD(&tt->task_list_size, picked);
-		_HA_ATOMIC_ADD(&tasks_run_queue, picked);
+		_HA_ATOMIC_ADD(&tt->rq_total, picked);
 		activity[tid].tasksw += picked;
 	}
 

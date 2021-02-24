@@ -89,8 +89,7 @@
 /* a few exported variables */
 extern unsigned int nb_tasks;     /* total number of tasks */
 extern volatile unsigned long global_tasks_mask; /* Mask of threads with tasks in the global runqueue */
-extern unsigned int tasks_run_queue;    /* run queue size */
-extern unsigned int tasks_run_queue_cur;
+extern unsigned int grq_total;    /* total number of entries in the global run queue */
 extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool_head_task;
@@ -144,7 +143,22 @@ int next_timer_expiry();
  */
 void mworker_cleantasks();
 
+/* returns the number of running tasks+tasklets on the whole process. Note
+ * that this *is* racy since a task may move from the global to a local
+ * queue for example and be counted twice. This is only for statistics
+ * reporting.
+ */
+static inline int total_run_queues()
+{
+	int thr, ret = 0;
 
+#ifdef USE_THREAD
+	ret = _HA_ATOMIC_LOAD(&grq_total);
+#endif
+	for (thr = 0; thr < global.nbthread; thr++)
+		ret += _HA_ATOMIC_LOAD(&task_per_thread[thr].rq_total);
+	return ret;
+}
 
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
@@ -294,21 +308,26 @@ static inline void task_set_affinity(struct task *t, unsigned long thread_mask)
 }
 
 /*
- * Unlink the task from the run queue. The tasks_run_queue size and number of
- * niced tasks are updated too. A pointer to the task itself is returned. The
- * task *must* already be in the run queue before calling this function. If
- * unsure, use the safer task_unlink_rq() function. Note that the pointer to the
- * next run queue entry is neither checked nor updated.
+ * Unlink the task from the run queue. The run queue size and number of niced
+ * tasks are updated too. A pointer to the task itself is returned. The task
+ * *must* already be in the run queue before calling this function. If the task
+ * is in the global run queue, the global run queue's lock must already be held.
+ * If unsure, use the safer task_unlink_rq() function. Note that the pointer to
+ * the next run queue entry is neither checked nor updated.
  */
 static inline struct task *__task_unlink_rq(struct task *t)
 {
-	_HA_ATOMIC_SUB(&tasks_run_queue, 1);
 #ifdef USE_THREAD
-	if (t->state & TASK_GLOBAL)
+	if (t->state & TASK_GLOBAL) {
+		grq_total--;
 		_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
+	}
 	else
 #endif
+	{
 		sched->rqueue_size--;
+		_HA_ATOMIC_SUB(&sched->rq_total, 1);
+	}
 	eb32sc_delete(&t->rq);
 	if (likely(t->nice))
 		_HA_ATOMIC_SUB(&niced_tasks, 1);
@@ -377,15 +396,16 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 			LIST_ADDQ(&sched->tasklets[sched->current_queue], &tl->list);
 			sched->tl_class_mask |= 1 << sched->current_queue;
 		}
+		_HA_ATOMIC_ADD(&sched->rq_total, 1);
 	} else {
 		/* this tasklet runs on a specific thread. */
 		MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list, (struct mt_list *)&tl->list);
+		_HA_ATOMIC_ADD(&task_per_thread[thr].rq_total, 1);
 		if (sleeping_thread_mask & (1UL << thr)) {
 			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
 			wake_thread(thr);
 		}
 	}
-	_HA_ATOMIC_ADD(&tasks_run_queue, 1);
 }
 
 /* schedules tasklet <tl> to run onto the thread designated by tl->tid, which
@@ -419,7 +439,7 @@ static inline void tasklet_remove_from_tasklet_list(struct tasklet *t)
 {
 	if (MT_LIST_DEL((struct mt_list *)&t->list)) {
 		_HA_ATOMIC_AND(&t->state, ~TASK_IN_LIST);
-		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
+		_HA_ATOMIC_SUB(&task_per_thread[t->tid >= 0 ? t->tid : tid].rq_total, 1);
 	}
 }
 
@@ -547,7 +567,7 @@ static inline void task_destroy(struct task *t)
 static inline void tasklet_free(struct tasklet *tl)
 {
 	if (MT_LIST_DEL((struct mt_list *)&tl->list))
-		_HA_ATOMIC_SUB(&tasks_run_queue, 1);
+		_HA_ATOMIC_SUB(&task_per_thread[tl->tid >= 0 ? tl->tid : tid].rq_total, 1);
 
 #ifdef DEBUG_TASK
 	if ((unsigned int)tl->debug.caller_idx > 1)

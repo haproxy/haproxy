@@ -175,7 +175,7 @@ void ha_thread_dump(struct buffer *buf, int thr, int calling_tid)
 			LIST_ISEMPTY(&task_per_thread[thr].tasklets[TL_BULK]) &&
 			MT_LIST_ISEMPTY(&task_per_thread[thr].shared_tasklet_list)),
 	              task_per_thread[thr].task_list_size,
-	              task_per_thread[thr].rqueue_size,
+	              task_per_thread[thr].rq_total,
 	              stuck,
 	              !!(task_profiling_mask & thr_bit));
 
