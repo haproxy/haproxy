@@ -105,6 +105,44 @@ void task_kill(struct task *t)
 	}
 }
 
+/* Do not call this one, please use tasklet_wakeup_on() instead, as this one is
+ * the slow path of tasklet_wakeup_on() which performs some preliminary checks
+ * and sets TASK_IN_LIST before calling this one. A negative <thr> designates
+ * the current thread.
+ */
+void __tasklet_wakeup_on(struct tasklet *tl, int thr)
+{
+	if (likely(thr < 0)) {
+		/* this tasklet runs on the caller thread */
+		if (tl->state & TASK_SELF_WAKING) {
+			LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
+			sched->tl_class_mask |= 1 << TL_BULK;
+		}
+		else if ((struct task *)tl == sched->current) {
+			_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
+			LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
+			sched->tl_class_mask |= 1 << TL_BULK;
+		}
+		else if (sched->current_queue < 0) {
+			LIST_ADDQ(&sched->tasklets[TL_URGENT], &tl->list);
+			sched->tl_class_mask |= 1 << TL_URGENT;
+		}
+		else {
+			LIST_ADDQ(&sched->tasklets[sched->current_queue], &tl->list);
+			sched->tl_class_mask |= 1 << sched->current_queue;
+		}
+		_HA_ATOMIC_ADD(&sched->rq_total, 1);
+	} else {
+		/* this tasklet runs on a specific thread. */
+		MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list, (struct mt_list *)&tl->list);
+		_HA_ATOMIC_ADD(&task_per_thread[thr].rq_total, 1);
+		if (sleeping_thread_mask & (1UL << thr)) {
+			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
+			wake_thread(thr);
+		}
+	}
+}
+
 /* Puts the task <t> in run queue at a position depending on t->nice. <t> is
  * returned. The nice value assigns boosts in 32th of the run queue size. A
  * nice value of -1024 sets the task to -tasks_run_queue*32, while a nice value

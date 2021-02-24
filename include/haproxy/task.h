@@ -105,6 +105,7 @@ extern struct task_per_thread task_per_thread[MAX_THREADS];
 __decl_thread(extern HA_SPINLOCK_T rq_lock);  /* spin lock related to run queue */
 __decl_thread(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait queue */
 
+void __tasklet_wakeup_on(struct tasklet *tl, int thr);
 void task_kill(struct task *t);
 void __task_wakeup(struct task *t);
 void __task_queue(struct task *task, struct eb_root *wq);
@@ -375,36 +376,7 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 	tl->debug.caller_file[tl->debug.caller_idx] = file;
 	tl->debug.caller_line[tl->debug.caller_idx] = line;
 #endif
-
-	if (likely(thr < 0)) {
-		/* this tasklet runs on the caller thread */
-		if (tl->state & TASK_SELF_WAKING) {
-			LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
-			sched->tl_class_mask |= 1 << TL_BULK;
-		}
-		else if ((struct task *)tl == sched->current) {
-			_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
-			LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
-			sched->tl_class_mask |= 1 << TL_BULK;
-		}
-		else if (sched->current_queue < 0) {
-			LIST_ADDQ(&sched->tasklets[TL_URGENT], &tl->list);
-			sched->tl_class_mask |= 1 << TL_URGENT;
-		}
-		else {
-			LIST_ADDQ(&sched->tasklets[sched->current_queue], &tl->list);
-			sched->tl_class_mask |= 1 << sched->current_queue;
-		}
-		_HA_ATOMIC_ADD(&sched->rq_total, 1);
-	} else {
-		/* this tasklet runs on a specific thread. */
-		MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list, (struct mt_list *)&tl->list);
-		_HA_ATOMIC_ADD(&task_per_thread[thr].rq_total, 1);
-		if (sleeping_thread_mask & (1UL << thr)) {
-			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
-			wake_thread(thr);
-		}
-	}
+	__tasklet_wakeup_on(tl, thr);
 }
 
 /* schedules tasklet <tl> to run onto the thread designated by tl->tid, which
