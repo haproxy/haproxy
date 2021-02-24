@@ -87,10 +87,8 @@
 
 
 /* a few exported variables */
-extern unsigned int nb_tasks;     /* total number of tasks */
 extern volatile unsigned long global_tasks_mask; /* Mask of threads with tasks in the global runqueue */
 extern unsigned int grq_total;    /* total number of entries in the global run queue */
-extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
@@ -157,6 +155,19 @@ static inline int total_run_queues()
 #endif
 	for (thr = 0; thr < global.nbthread; thr++)
 		ret += _HA_ATOMIC_LOAD(&task_per_thread[thr].rq_total);
+	return ret;
+}
+
+/* returns the number of allocated tasks across all threads. Note that this
+ * *is* racy since some threads might be updating their counts while we're
+ * looking, but this is only for statistics reporting.
+ */
+static inline int total_allocated_tasks()
+{
+	int thr, ret;
+
+	for (thr = ret = 0; thr < global.nbthread; thr++)
+		ret += _HA_ATOMIC_LOAD(&task_per_thread[thr].nb_tasks);
 	return ret;
 }
 
@@ -496,7 +507,7 @@ static inline struct task *task_new(unsigned long thread_mask)
 {
 	struct task *t = pool_alloc(pool_head_task);
 	if (t) {
-		_HA_ATOMIC_ADD(&nb_tasks, 1);
+		sched->nb_tasks++;
 		task_init(t, thread_mask);
 	}
 	return t;
@@ -521,9 +532,9 @@ static inline void __task_free(struct task *t)
 #endif
 
 	pool_free(pool_head_task, t);
+	sched->nb_tasks--;
 	if (unlikely(stopping))
 		pool_flush(pool_head_task);
-	_HA_ATOMIC_SUB(&nb_tasks, 1);
 }
 
 /* Destroys a task : it's unlinked from the wait queues and is freed if it's

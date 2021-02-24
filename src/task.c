@@ -35,9 +35,7 @@ DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));
  */
 DECLARE_POOL(pool_head_notification, "notification", sizeof(struct notification));
 
-unsigned int nb_tasks = 0;
 volatile unsigned long global_tasks_mask = 0; /* Mask of threads with tasks in the global runqueue */
-unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 
 THREAD_LOCAL struct task_per_thread *sched = &task_per_thread[0]; /* scheduler context for the current thread */
@@ -591,7 +589,6 @@ void process_runnable_tasks()
 		return;
 	}
 
-	nb_tasks_cur = nb_tasks;
 	max_processed = global.tune.runqueue_depth;
 
 	if (likely(niced_tasks))
