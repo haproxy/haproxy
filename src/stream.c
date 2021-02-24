@@ -64,6 +64,8 @@
 DECLARE_POOL(pool_head_stream, "stream", sizeof(struct stream));
 DECLARE_POOL(pool_head_uniqueid, "uniqueid", UNIQUEID_LEN);
 
+/* incremented by each "show sess" to fix a delimiter between streams */
+unsigned stream_epoch = 0;
 struct list streams = LIST_HEAD_INIT(streams);
 __decl_spinlock(streams_lock);
 
@@ -414,6 +416,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	s->si[0].flags = SI_FL_NONE;
 	s->si[1].flags = SI_FL_ISBACK;
 
+	s->stream_epoch = _HA_ATOMIC_LOAD(&stream_epoch);
 	s->uniq_id = _HA_ATOMIC_XADD(&global.req_count, 1);
 
 	/* OK, we're keeping the stream, so let's properly initialize the stream */
@@ -2885,9 +2888,9 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		}
 
 		chunk_appendf(&trash,
-			     "  flags=0x%x, conn_retries=%d, srv_conn=%p, pend_pos=%p waiting=%d\n",
+			     "  flags=0x%x, conn_retries=%d, srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
 			     strm->flags, strm->si[1].conn_retries, strm->srv_conn, strm->pend_pos,
-			     LIST_ADDED(&strm->buffer_wait.list));
+			     LIST_ADDED(&strm->buffer_wait.list), strm->stream_epoch);
 
 		chunk_appendf(&trash,
 			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",
@@ -3185,6 +3188,11 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	appctx->ctx.sess.section = 0; /* start with stream status */
 	appctx->ctx.sess.pos = 0;
 
+	/* let's set our own stream's epoch to the current one and increment
+	 * it so that we know which streams were already there before us.
+	 */
+	si_strm(appctx->owner)->stream_epoch = _HA_ATOMIC_XADD(&stream_epoch, 1);
+
 	/* we need to put an end marker into the streams list. We're just moving
 	 * ourselves there, so that once we found ourselves we know we've reached
 	 * the end. Without this we can run forever if new streams arrive faster
@@ -3302,8 +3310,8 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 			}
 
 			chunk_appendf(&trash,
-				     " ts=%02x age=%s calls=%u rate=%u cpu=%llu lat=%llu",
-				     curr_strm->task->state,
+				     " ts=%02x epoch=%#x age=%s calls=%u rate=%u cpu=%llu lat=%llu",
+			             curr_strm->task->state, curr_strm->stream_epoch,
 				     human_time(now.tv_sec - curr_strm->logs.tv_accept.tv_sec, 1),
 			             curr_strm->task->calls, read_freq_ctr(&curr_strm->call_rate),
 			             (unsigned long long)curr_strm->task->cpu_time, (unsigned long long)curr_strm->task->lat_time);
