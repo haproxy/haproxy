@@ -179,6 +179,10 @@ struct appctx {
 			struct ckch_store *old_ckchs;
 			struct ckch_store *new_ckchs;
 			struct ckch_inst *next_ckchi;
+
+			struct ckch_inst_link *next_ckchi_link;
+			struct cafile_entry *old_cafile_entry;
+			struct cafile_entry *new_cafile_entry;
 		} ssl;
 		struct {
 			void *ptr;

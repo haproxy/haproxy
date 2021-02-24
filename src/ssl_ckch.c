@@ -42,6 +42,14 @@ static struct {
 	char *path;
 } ckchs_transaction;
 
+/* Uncommitted CA file transaction */
+
+static struct {
+	struct cafile_entry *old_cafile_entry;
+	struct cafile_entry *new_cafile_entry;
+	char *path;
+} cafile_transaction;
+
 
 
 /********************  cert_key_and_chain functions *************************
@@ -2162,6 +2170,360 @@ error:
 	return cli_dynerr(appctx, err);
 }
 
+
+/*
+ * Parsing function of `set ssl ca-file`
+ */
+static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *err = NULL;
+	int errcode = 0;
+	struct buffer *buf;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3] || !payload)
+		return cli_err(appctx, "'set ssl ca-file expects a filename and CAs as a payload\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't update the CA file!\nOperations on certificates are currently locked!\n");
+
+	if ((buf = alloc_trash_chunk()) == NULL) {
+		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+
+	if (!chunk_strcpy(buf, args[3])) {
+		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+
+	appctx->ctx.ssl.old_cafile_entry = NULL;
+	appctx->ctx.ssl.new_cafile_entry = NULL;
+
+	/* if there is an ongoing transaction */
+	if (cafile_transaction.path) {
+		/* if there is an ongoing transaction, check if this is the same file */
+		if (strcmp(cafile_transaction.path, buf->area) != 0) {
+			memprintf(&err, "The ongoing transaction is about '%s' but you are trying to set '%s'\n", cafile_transaction.path, buf->area);
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+		appctx->ctx.ssl.old_cafile_entry = cafile_transaction.old_cafile_entry;
+	}
+	else {
+		/* lookup for the certificate in the tree */
+		appctx->ctx.ssl.old_cafile_entry = ssl_store_get_cafile_entry(buf->area, 0);
+	}
+
+	if (!appctx->ctx.ssl.old_cafile_entry) {
+		memprintf(&err, "%sCan't replace a CA file which is not referenced by the configuration!\n",
+		          err ? err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+
+	if (!appctx->ctx.ssl.path) {
+		/* this is a new transaction, set the path of the transaction */
+		appctx->ctx.ssl.path = strdup(appctx->ctx.ssl.old_cafile_entry->path);
+		if (!appctx->ctx.ssl.path) {
+			memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
+			errcode |= ERR_ALERT | ERR_FATAL;
+			goto end;
+		}
+	}
+
+	if (appctx->ctx.ssl.new_cafile_entry)
+		ssl_store_delete_cafile_entry(appctx->ctx.ssl.new_cafile_entry);
+
+	/* Create a new cafile_entry without adding it to the cafile tree. */
+	appctx->ctx.ssl.new_cafile_entry = ssl_store_create_cafile_entry(appctx->ctx.ssl.path, NULL);
+	if (!appctx->ctx.ssl.new_cafile_entry) {
+		memprintf(&err, "%sCannot allocate memory!\n",
+			  err ? err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+
+	/* Fill the new entry with the new CAs. */
+	if (ssl_store_load_ca_from_buf(appctx->ctx.ssl.new_cafile_entry, payload)) {
+		memprintf(&err, "%sInvalid payload\n", err ? err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
+
+	/* we succeed, we can save the ca in the transaction */
+
+	/* if there wasn't a transaction, update the old CA */
+	if (!cafile_transaction.old_cafile_entry) {
+		cafile_transaction.old_cafile_entry = appctx->ctx.ssl.old_cafile_entry;
+		cafile_transaction.path = appctx->ctx.ssl.path;
+		err = memprintf(&err, "transaction created for CA %s!\n", cafile_transaction.path);
+	} else {
+		err = memprintf(&err, "transaction updated for CA %s!\n", cafile_transaction.path);
+	}
+
+	/* free the previous CA if there was a transaction */
+	ssl_store_delete_cafile_entry(cafile_transaction.new_cafile_entry);
+
+	cafile_transaction.new_cafile_entry = appctx->ctx.ssl.new_cafile_entry;
+
+	/* creates the SNI ctxs later in the IO handler */
+
+end:
+	free_trash_chunk(buf);
+
+	if (errcode & ERR_CODE) {
+		ssl_store_delete_cafile_entry(appctx->ctx.ssl.new_cafile_entry);
+		appctx->ctx.ssl.new_cafile_entry = NULL;
+		appctx->ctx.ssl.old_cafile_entry = NULL;
+
+		free(appctx->ctx.ssl.path);
+		appctx->ctx.ssl.path = NULL;
+
+		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+		return cli_dynerr(appctx, memprintf(&err, "%sCan't update %s!\n", err ? err : "", args[3]));
+	} else {
+
+		HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+		return cli_dynmsg(appctx, LOG_NOTICE, err);
+	}
+}
+
+
+/*
+ * Parsing function of 'commit ssl ca-file'
+ */
+static int cli_parse_commit_cafile(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *err = NULL;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "'commit ssl ca-file expects a filename\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't commit the CA file!\nOperations on certificates are currently locked!\n");
+
+	if (!cafile_transaction.path) {
+		memprintf(&err, "No ongoing transaction! !\n");
+		goto error;
+	}
+
+	if (strcmp(cafile_transaction.path, args[3]) != 0) {
+		memprintf(&err, "The ongoing transaction is about '%s' but you are trying to set '%s'\n", cafile_transaction.path, args[3]);
+		goto error;
+	}
+	/* init the appctx structure */
+	appctx->st2 = SETCERT_ST_INIT;
+	appctx->ctx.ssl.next_ckchi_link = NULL;
+	appctx->ctx.ssl.old_cafile_entry = cafile_transaction.old_cafile_entry;
+	appctx->ctx.ssl.new_cafile_entry = cafile_transaction.new_cafile_entry;
+
+	return 0;
+
+error:
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	err = memprintf(&err, "%sCan't commit %s!\n", err ? err : "", args[3]);
+
+	return cli_dynerr(appctx, err);
+}
+
+enum {
+	CREATE_NEW_INST_OK = 0,
+	CREATE_NEW_INST_YIELD = -1,
+	CREATE_NEW_INST_ERR = -2
+};
+
+static inline int __create_new_instance(struct appctx *appctx, struct ckch_inst *ckchi, int *count,
+					struct buffer *trash, char *err)
+{
+	struct ckch_inst *new_inst;
+
+	/* it takes a lot of CPU to creates SSL_CTXs, so we yield every 10 CKCH instances */
+	if (*count >= 10) {
+		/* save the next ckchi to compute */
+		appctx->ctx.ssl.next_ckchi = ckchi;
+		return CREATE_NEW_INST_YIELD;
+	}
+
+	/* Rebuild a new ckch instance that uses the same ckch_store
+	 * than a reference ckchi instance but will use a new CA file. */
+	if (ckch_inst_rebuild(ckchi->ckch_store, ckchi, &new_inst, &err))
+		return CREATE_NEW_INST_ERR;
+
+	/* display one dot per new instance */
+	chunk_appendf(trash, ".");
+	++(*count);
+
+	return CREATE_NEW_INST_OK;
+}
+
+/*
+ * This function tries to create new ckch instances and their SNIs using a newly
+ * set certificate authority (CA file)
+ */
+static int cli_io_handler_commit_cafile(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	int y = 0;
+	char *err = NULL;
+	int errcode = 0;
+	struct cafile_entry *old_cafile_entry, *new_cafile_entry;
+	struct ckch_inst_link *ckchi_link;
+	struct buffer *trash = alloc_trash_chunk();
+
+	if (trash == NULL)
+		goto error;
+
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+		goto error;
+
+	while (1) {
+		switch (appctx->st2) {
+			case SETCERT_ST_INIT:
+				/* This state just print the update message */
+				chunk_printf(trash, "Committing %s", cafile_transaction.path);
+				if (ci_putchk(si_ic(si), trash) == -1) {
+					si_rx_room_blk(si);
+					goto yield;
+				}
+				appctx->st2 = SETCERT_ST_GEN;
+				/* fallthrough */
+			case SETCERT_ST_GEN:
+				/*
+				 * This state generates the ckch instances with their
+				 * sni_ctxs and SSL_CTX.
+				 *
+				 * Since the SSL_CTX generation can be CPU consumer, we
+				 * yield every 10 instances.
+				 */
+				old_cafile_entry = appctx->ctx.ssl.old_cafile_entry;
+				new_cafile_entry = appctx->ctx.ssl.new_cafile_entry;
+
+				if (!new_cafile_entry)
+					continue;
+
+				/* get the next ckchi to regenerate */
+				ckchi_link = appctx->ctx.ssl.next_ckchi_link;
+				/* we didn't start yet, set it to the first elem */
+				if (ckchi_link == NULL) {
+					ckchi_link = LIST_ELEM(old_cafile_entry->ckch_inst_link.n, typeof(ckchi_link), list);
+					/* Add the newly created cafile_entry to the tree so that
+					 * any new ckch instance created from now can use it. */
+					if (ssl_store_add_uncommitted_cafile_entry(new_cafile_entry))
+						goto error;
+				}
+
+				list_for_each_entry_from(ckchi_link, &old_cafile_entry->ckch_inst_link, list) {
+					switch (__create_new_instance(appctx, ckchi_link->ckch_inst, &y, trash, err)) {
+					case CREATE_NEW_INST_YIELD:
+						appctx->ctx.ssl.next_ckchi_link = ckchi_link;
+						goto yield;
+					case CREATE_NEW_INST_ERR:
+						goto error;
+					default: break;
+					}
+				}
+
+				appctx->st2 = SETCERT_ST_INSERT;
+				/* fallthrough */
+			case SETCERT_ST_INSERT:
+				/* The generation is finished, we can insert everything */
+
+				old_cafile_entry = appctx->ctx.ssl.old_cafile_entry;
+				new_cafile_entry = appctx->ctx.ssl.new_cafile_entry;
+
+				if (!new_cafile_entry)
+					continue;
+
+				/* insert the new ckch_insts in the crtlist_entry */
+				list_for_each_entry(ckchi_link, &new_cafile_entry->ckch_inst_link, list) {
+					if (ckchi_link->ckch_inst->crtlist_entry)
+						LIST_INSERT(&ckchi_link->ckch_inst->crtlist_entry->ckch_inst,
+							    &ckchi_link->ckch_inst->by_crtlist_entry);
+				}
+
+				/* First, we insert every new SNIs in the trees, also replace the default_ctx */
+				list_for_each_entry(ckchi_link, &new_cafile_entry->ckch_inst_link, list) {
+					__ssl_sock_load_new_ckch_instance(ckchi_link->ckch_inst);
+				}
+
+				/* delete the old sni_ctx, the old ckch_insts and the ckch_store */
+				list_for_each_entry(ckchi_link, &old_cafile_entry->ckch_inst_link, list) {
+					__ckch_inst_free_locked(ckchi_link->ckch_inst);
+				}
+
+
+				/* Remove the old cafile entry from the tree */
+				ebmb_delete(&old_cafile_entry->node);
+				ssl_store_delete_cafile_entry(old_cafile_entry);
+
+				appctx->st2 = SETCERT_ST_FIN;
+				/* fallthrough */
+			case SETCERT_ST_FIN:
+				/* we achieved the transaction, we can set everything to NULL */
+				ha_free(&cafile_transaction.path);
+				cafile_transaction.old_cafile_entry = NULL;
+				cafile_transaction.new_cafile_entry = NULL;
+				goto end;
+		}
+	}
+end:
+
+	chunk_appendf(trash, "\n");
+	if (errcode & ERR_WARN)
+		chunk_appendf(trash, "%s", err);
+	chunk_appendf(trash, "Success!\n");
+	if (ci_putchk(si_ic(si), trash) == -1)
+		si_rx_room_blk(si);
+	free_trash_chunk(trash);
+	/* success: call the release function and don't come back */
+	return 1;
+yield:
+	/* store the state */
+	if (ci_putchk(si_ic(si), trash) == -1)
+		si_rx_room_blk(si);
+	free_trash_chunk(trash);
+	si_rx_endp_more(si); /* let's come back later */
+	return 0; /* should come back */
+
+error:
+	/* spin unlock and free are done in the release function */
+	if (trash) {
+		chunk_appendf(trash, "\n%sFailed!\n", err);
+		if (ci_putchk(si_ic(si), trash) == -1)
+			si_rx_room_blk(si);
+		free_trash_chunk(trash);
+	}
+	/* error: call the release function and don't come back */
+	return 1;
+}
+
+/* release function of the `commit ssl ca-file' command, free things and unlock the spinlock */
+static void cli_release_commit_cafile(struct appctx *appctx)
+{
+	if (appctx->st2 != SETCERT_ST_FIN) {
+		struct cafile_entry *new_cafile_entry = appctx->ctx.ssl.new_cafile_entry;
+
+		/* Remove the uncommitted cafile_entry from the tree. */
+		ebmb_delete(&new_cafile_entry->node);
+		ssl_store_delete_cafile_entry(new_cafile_entry);
+	}
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+}
+
+
 void ckch_deinit()
 {
 	struct eb_node *node, *next;
@@ -2178,12 +2540,15 @@ void ckch_deinit()
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "new", "ssl", "cert", NULL },    "new ssl cert <certfile>                 : create a new certificate file to be used in a crt-list or a directory", cli_parse_new_cert, NULL, NULL },
-	{ { "set", "ssl", "cert", NULL },    "set ssl cert <certfile> <payload>       : replace a certificate file",                                            cli_parse_set_cert, NULL, NULL },
-	{ { "commit", "ssl", "cert", NULL }, "commit ssl cert <certfile>              : commit a certificate file",                                             cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
-	{ { "abort", "ssl", "cert", NULL },  "abort ssl cert <certfile>               : abort a transaction for a certificate file",                            cli_parse_abort_cert, NULL, NULL },
-	{ { "del", "ssl", "cert", NULL },    "del ssl cert <certfile>                 : delete an unused certificate file",                                     cli_parse_del_cert, NULL, NULL },
-	{ { "show", "ssl", "cert", NULL },   "show ssl cert [<certfile>]              : display the SSL certificates used in memory, or the details of a file", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
+	{ { "new", "ssl", "cert", NULL },       "new ssl cert <certfile>                 : create a new certificate file to be used in a crt-list or a directory", cli_parse_new_cert, NULL, NULL },
+	{ { "set", "ssl", "cert", NULL },       "set ssl cert <certfile> <payload>       : replace a certificate file",                                            cli_parse_set_cert, NULL, NULL },
+	{ { "commit", "ssl", "cert", NULL },    "commit ssl cert <certfile>              : commit a certificate file",                                             cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
+	{ { "abort", "ssl", "cert", NULL },     "abort ssl cert <certfile>               : abort a transaction for a certificate file",                            cli_parse_abort_cert, NULL, NULL },
+	{ { "del", "ssl", "cert", NULL },       "del ssl cert <certfile>                 : delete an unused certificate file",                                     cli_parse_del_cert, NULL, NULL },
+	{ { "show", "ssl", "cert", NULL },      "show ssl cert [<certfile>]              : display the SSL certificates used in memory, or the details of a file", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
+
+	{ { "set", "ssl", "ca-file", NULL },    "set ssl ca-file <cafile> <payload>      : replace a CA file",                                                     cli_parse_set_cafile, NULL, NULL },
+	{ { "commit", "ssl", "ca-file", NULL }, "commit ssl ca-file <cafile>             : commit a CA file",                                                      cli_parse_commit_cafile, cli_io_handler_commit_cafile, cli_release_commit_cafile },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
