@@ -153,18 +153,18 @@ void __task_wakeup(struct task *t)
 	if (root == &rqueue) {
 		_HA_ATOMIC_OR(&t->state, TASK_GLOBAL);
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
-	}
 
-	/* If all threads that are supposed to handle this task are sleeping,
-	 * wake one.
-	 */
-	if ((((t->thread_mask & all_threads_mask) & sleeping_thread_mask) ==
-	     (t->thread_mask & all_threads_mask))) {
-		unsigned long m = (t->thread_mask & all_threads_mask) &~ tid_bit;
+		/* If all threads that are supposed to handle this task are sleeping,
+		 * wake one.
+		 */
+		if ((((t->thread_mask & all_threads_mask) & sleeping_thread_mask) ==
+		     (t->thread_mask & all_threads_mask))) {
+			unsigned long m = (t->thread_mask & all_threads_mask) &~ tid_bit;
 
-		m = (m & (m - 1)) ^ m; // keep lowest bit set
-		_HA_ATOMIC_AND(&sleeping_thread_mask, ~m);
-		wake_thread(my_ffsl(m) - 1);
+			m = (m & (m - 1)) ^ m; // keep lowest bit set
+			_HA_ATOMIC_AND(&sleeping_thread_mask, ~m);
+			wake_thread(my_ffsl(m) - 1);
+		}
 	}
 #endif
 	return;
