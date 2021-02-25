@@ -3950,7 +3950,10 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 			appctx->ctx.stats.flags |= STAT_HIDE_DOWN;
 			break;
 		}
-		if (memcmp(h, ";no-maint", 3) == 0) {
+	}
+
+	for (h = lookup; h <= end - 9; h++) {
+		if (memcmp(h, ";no-maint", 9) == 0) {
 			appctx->ctx.stats.flags |= STAT_HIDE_MAINT;
 			break;
 		}
