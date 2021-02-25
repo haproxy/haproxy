@@ -701,7 +701,6 @@ void process_runnable_tasks()
 		if (likely(!grq || (lrq && (int)(lrq->key - grq->key) <= 0))) {
 			t = eb32sc_entry(lrq, struct task, rq);
 			lrq = eb32sc_next(lrq, tid_bit);
-			_HA_ATOMIC_SUB(&sched->rq_total, 1);
 			eb32sc_delete(&t->rq);
 			lpicked++;
 		}
@@ -739,7 +738,8 @@ void process_runnable_tasks()
 	if (lpicked + gpicked) {
 		tt->tl_class_mask |= 1 << TL_NORMAL;
 		_HA_ATOMIC_ADD(&tt->tasks_in_list, lpicked + gpicked);
-		_HA_ATOMIC_ADD(&tt->rq_total, lpicked + gpicked);
+		if (gpicked)
+			_HA_ATOMIC_ADD(&tt->rq_total, gpicked);
 		activity[tid].tasksw += lpicked + gpicked;
 	}
 
