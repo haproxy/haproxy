@@ -309,44 +309,37 @@ static inline void task_set_affinity(struct task *t, unsigned long thread_mask)
 }
 
 /*
- * Unlink the task from the run queue. The run queue size and number of niced
- * tasks are updated too. A pointer to the task itself is returned. The task
- * *must* already be in the run queue before calling this function. If the task
- * is in the global run queue, the global run queue's lock must already be held.
- * If unsure, use the safer task_unlink_rq() function. Note that the pointer to
- * the next run queue entry is neither checked nor updated.
- */
-static inline struct task *__task_unlink_rq(struct task *t)
-{
-#ifdef USE_THREAD
-	if (t->state & TASK_GLOBAL) {
-		grq_total--;
-		_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
-	}
-	else
-#endif
-	{
-		_HA_ATOMIC_SUB(&sched->rq_total, 1);
-	}
-	eb32sc_delete(&t->rq);
-	if (likely(t->nice))
-		_HA_ATOMIC_SUB(&niced_tasks, 1);
-	return t;
-}
-
-/* This function unlinks task <t> from the run queue if it is in it. It also
- * takes care of updating the next run queue task if it was this task.
+ * Unlink the task <t> from the run queue if it's in it. The run queue size and
+ * number of niced tasks are updated too. A pointer to the task itself is
+ * returned. If the task is in the global run queue, the global run queue's
+ * lock will be used during the operation.
  */
 static inline struct task *task_unlink_rq(struct task *t)
 {
 	int is_global = t->state & TASK_GLOBAL;
+	int done = 0;
 
 	if (is_global)
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
-	if (likely(task_in_rq(t)))
-		__task_unlink_rq(t);
+
+	if (likely(task_in_rq(t))) {
+		eb32sc_delete(&t->rq);
+		if (is_global) {
+			grq_total--;
+		done = 1;
+	}
+
 	if (is_global)
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
+
+	if (done) {
+		if (is_global)
+			_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
+		else
+			_HA_ATOMIC_SUB(&sched->rq_total, 1);
+		if (t->nice)
+			_HA_ATOMIC_SUB(&niced_tasks, 1);
+	}
 	return t;
 }
 
