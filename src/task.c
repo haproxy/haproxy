@@ -495,25 +495,32 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		_HA_ATOMIC_SUB(&sched->rq_total, 1);
 
 		if (TASK_IS_TASKLET(t)) {
+			uint64_t before = 0;
+
 			LIST_DEL_INIT(&((struct tasklet *)t)->list);
 			__ha_barrier_store();
-			state = _HA_ATOMIC_XCHG(&t->state, state);
-			__ha_barrier_atomic_store();
 
 			if (unlikely(task_profiling_mask & tid_bit)) {
-				uint64_t before;
-
 				profile_entry = sched_activity_entry(sched_activity, t->process);
 				before = now_mono_time();
 #ifdef DEBUG_TASK
-				HA_ATOMIC_ADD(&profile_entry->lat_time, before - ((struct tasklet *)t)->call_date);
+				if (((struct tasklet *)t)->call_date) {
+					HA_ATOMIC_ADD(&profile_entry->lat_time, before - ((struct tasklet *)t)->call_date);
+					((struct tasklet *)t)->call_date = 0;
+				}
 #endif
-				process(t, ctx, state);
+			}
+
+			state = _HA_ATOMIC_XCHG(&t->state, state);
+			__ha_barrier_atomic_store();
+
+			process(t, ctx, state);
+
+			if (unlikely(task_profiling_mask & tid_bit)) {
 				HA_ATOMIC_ADD(&profile_entry->calls, 1);
 				HA_ATOMIC_ADD(&profile_entry->cpu_time, now_mono_time() - before);
-			} else {
-				process(t, ctx, state);
 			}
+
 			done++;
 			sched->current = NULL;
 			__ha_barrier_store();
