@@ -3270,14 +3270,14 @@ out_uri_auth_compat:
 					if (!idle_conn_task)
 						goto err;
 
-					idle_conn_task->process = srv_cleanup_idle_connections;
+					idle_conn_task->process = srv_cleanup_idle_conns;
 					idle_conn_task->context = NULL;
 
 					for (i = 0; i < global.nbthread; i++) {
 						idle_conns[i].cleanup_task = task_new(1UL << i);
 						if (!idle_conns[i].cleanup_task)
 							goto err;
-						idle_conns[i].cleanup_task->process = srv_cleanup_toremove_connections;
+						idle_conns[i].cleanup_task->process = srv_cleanup_toremove_conns;
 						idle_conns[i].cleanup_task->context = NULL;
 						HA_SPIN_INIT(&idle_conns[i].idle_conns_lock);
 						MT_LIST_INIT(&idle_conns[i].toremove_conns);
