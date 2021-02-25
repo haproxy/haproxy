@@ -88,7 +88,7 @@
 
 /* a few exported variables */
 extern volatile unsigned long global_tasks_mask; /* Mask of threads with tasks in the global runqueue */
-extern unsigned int grq_total;    /* total number of entries in the global run queue */
+extern unsigned int grq_total;    /* total number of entries in the global run queue, atomic */
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool_head_task;
 extern struct pool_head *pool_head_tasklet;
@@ -324,8 +324,6 @@ static inline struct task *task_unlink_rq(struct task *t)
 
 	if (likely(task_in_rq(t))) {
 		eb32sc_delete(&t->rq);
-		if (is_global) {
-			grq_total--;
 		done = 1;
 	}
 
@@ -333,8 +331,10 @@ static inline struct task *task_unlink_rq(struct task *t)
 		HA_SPIN_UNLOCK(TASK_RQ_LOCK, &rq_lock);
 
 	if (done) {
-		if (is_global)
+		if (is_global) {
 			_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
+			_HA_ATOMIC_SUB(&grq_total, 1);
+		}
 		else
 			_HA_ATOMIC_SUB(&sched->rq_total, 1);
 		if (t->nice)

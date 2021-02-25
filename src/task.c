@@ -46,7 +46,7 @@ __decl_aligned_rwlock(wq_lock);   /* RW lock related to the wait queue */
 #ifdef USE_THREAD
 struct eb_root timers;      /* sorted timers tree, global, accessed under wq_lock */
 struct eb_root rqueue;      /* tree constituting the global run queue, accessed under rq_lock */
-unsigned int grq_total;     /* total number of entries in the global run queue, use grq_lock */
+unsigned int grq_total;     /* total number of entries in the global run queue, atomic */
 static unsigned int global_rqueue_ticks;  /* insertion count in the grq, use rq_lock */
 #endif
 
@@ -159,10 +159,10 @@ void __task_wakeup(struct task *t)
 	if (t->thread_mask != tid_bit && global.nbthread != 1) {
 		root = &rqueue;
 
+		_HA_ATOMIC_ADD(&grq_total, 1);
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 
 		global_tasks_mask |= t->thread_mask;
-		grq_total++;
 		t->rq.key = ++global_rqueue_ticks;
 		__ha_barrier_store();
 	} else
@@ -708,7 +708,6 @@ void process_runnable_tasks()
 		else {
 			t = eb32sc_entry(grq, struct task, rq);
 			grq = eb32sc_next(grq, tid_bit);
-			grq_total--;
 			_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
 			eb32sc_delete(&t->rq);
 
@@ -738,8 +737,10 @@ void process_runnable_tasks()
 	if (lpicked + gpicked) {
 		tt->tl_class_mask |= 1 << TL_NORMAL;
 		_HA_ATOMIC_ADD(&tt->tasks_in_list, lpicked + gpicked);
-		if (gpicked)
+		if (gpicked) {
+			_HA_ATOMIC_SUB(&grq_total, gpicked);
 			_HA_ATOMIC_ADD(&tt->rq_total, gpicked);
+		}
 		activity[tid].tasksw += lpicked + gpicked;
 	}
 
