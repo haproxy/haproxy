@@ -3540,16 +3540,14 @@ static int h1_show_fd(struct buffer *msg, struct connection *conn)
 
 		chunk_appendf(&trash, " .subs=%p", h1s->subs);
 		if (h1s->subs) {
-			if (h1s->subs) {
-				chunk_appendf(&trash, "(ev=%d tl=%p", h1s->subs->events, h1s->subs->tasklet);
-				chunk_appendf(&trash, " tl.calls=%d tl.ctx=%p tl.fct=",
-					      h1s->subs->tasklet->calls,
-					      h1s->subs->tasklet->context);
-				if (h1s->subs->tasklet->calls >= 1000000)
-					ret = 1;
-				resolve_sym_name(&trash, NULL, h1s->subs->tasklet->process);
-				chunk_appendf(&trash, ")");
-			}
+			chunk_appendf(&trash, "(ev=%d tl=%p", h1s->subs->events, h1s->subs->tasklet);
+			chunk_appendf(&trash, " tl.calls=%d tl.ctx=%p tl.fct=",
+				      h1s->subs->tasklet->calls,
+				      h1s->subs->tasklet->context);
+			if (h1s->subs->tasklet->calls >= 1000000)
+				ret = 1;
+			resolve_sym_name(&trash, NULL, h1s->subs->tasklet->process);
+			chunk_appendf(&trash, ")");
 		}
 	}
 	return ret;
