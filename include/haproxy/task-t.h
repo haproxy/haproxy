@@ -127,6 +127,9 @@ struct task {
 struct tasklet {
 	TASK_COMMON;			/* must be at the beginning! */
 	struct list list;
+#ifdef DEBUG_TASK
+	uint64_t call_date;		/* date of the last tasklet wakeup or call */
+#endif
 	int tid;                        /* TID of the tasklet owner, <0 if local */
 };
 

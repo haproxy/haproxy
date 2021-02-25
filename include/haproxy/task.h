@@ -368,6 +368,8 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 	tl->debug.caller_idx = !tl->debug.caller_idx;
 	tl->debug.caller_file[tl->debug.caller_idx] = file;
 	tl->debug.caller_line[tl->debug.caller_idx] = line;
+	if (task_profiling_mask & tid_bit)
+		tl->call_date = now_mono_time();
 #endif
 	__tasklet_wakeup_on(tl, thr);
 }

@@ -505,6 +505,9 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 				profile_entry = sched_activity_entry(sched_activity, t->process);
 				before = now_mono_time();
+#ifdef DEBUG_TASK
+				HA_ATOMIC_ADD(&profile_entry->lat_time, before - ((struct tasklet *)t)->call_date);
+#endif
 				process(t, ctx, state);
 				HA_ATOMIC_ADD(&profile_entry->calls, 1);
 				HA_ATOMIC_ADD(&profile_entry->cpu_time, now_mono_time() - before);
