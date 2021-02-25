@@ -701,14 +701,18 @@ void process_runnable_tasks()
 		if (likely(!grq || (lrq && (int)(lrq->key - grq->key) <= 0))) {
 			t = eb32sc_entry(lrq, struct task, rq);
 			lrq = eb32sc_next(lrq, tid_bit);
-			__task_unlink_rq(t);
+			_HA_ATOMIC_SUB(&sched->rq_total, 1);
+			eb32sc_delete(&t->rq);
 			lpicked++;
 		}
 #ifdef USE_THREAD
 		else {
 			t = eb32sc_entry(grq, struct task, rq);
 			grq = eb32sc_next(grq, tid_bit);
-			__task_unlink_rq(t);
+			grq_total--;
+			_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
+			eb32sc_delete(&t->rq);
+
 			if (unlikely(!grq)) {
 				grq = eb32sc_first(&rqueue, tid_bit);
 				if (!grq) {
@@ -719,6 +723,8 @@ void process_runnable_tasks()
 			gpicked++;
 		}
 #endif
+		if (t->nice)
+			_HA_ATOMIC_SUB(&niced_tasks, 1);
 
 		/* Add it to the local task list */
 		LIST_ADDQ(&tt->tasklets[TL_NORMAL], &((struct tasklet *)t)->list);
