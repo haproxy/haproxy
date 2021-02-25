@@ -142,4 +142,18 @@ struct name_desc {
 	const char *desc;
 };
 
+struct net_addr {
+	int family; /* AF_INET or AF_INET6 if defined, AF_UNSET if undefined */
+	union {
+		struct {
+			struct in_addr ip;
+			struct in_addr mask;
+		} v4;
+		struct {
+			struct in6_addr ip;
+			struct in6_addr mask;
+		} v6;
+	} addr;
+};
+
 #endif /* _HAPROXY_TOOLS_T_H */
