@@ -4996,22 +4996,24 @@ void ssl_sock_free_srv_ctx(struct server *srv)
 {
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	if (srv->ssl_ctx.alpn_str)
-		free(srv->ssl_ctx.alpn_str);
+		ha_free(&srv->ssl_ctx.alpn_str);
 #endif
 #ifdef OPENSSL_NPN_NEGOTIATED
 	if (srv->ssl_ctx.npn_str)
-		free(srv->ssl_ctx.npn_str);
+		ha_free(&srv->ssl_ctx.npn_str);
 #endif
 	if (srv->ssl_ctx.reused_sess) {
 		int i;
 
 		for (i = 0; i < global.nbthread; i++)
-			free(srv->ssl_ctx.reused_sess[i].ptr);
-		free(srv->ssl_ctx.reused_sess);
+			ha_free(&srv->ssl_ctx.reused_sess[i].ptr);
+		ha_free(&srv->ssl_ctx.reused_sess);
 	}
 
-	if (srv->ssl_ctx.ctx)
+	if (srv->ssl_ctx.ctx) {
 		SSL_CTX_free(srv->ssl_ctx.ctx);
+		srv->ssl_ctx.ctx = NULL;
+	}
 }
 
 /* Walks down the two trees in bind_conf and frees all the certs. The pointer may
