@@ -2312,7 +2312,7 @@ int check_config_validity()
 					 target->conf.file, target->conf.line);
 				cfgerr++;
 			} else {
-				free((void *)rule->be.name);
+				ha_free(&rule->be.name);
 				rule->be.backend = target;
 			}
 		}
@@ -2364,7 +2364,7 @@ int check_config_validity()
 				cfgerr++;
 				continue;
 			}
-			free((void *)srule->srv.name);
+			ha_free(&srule->srv.name);
 			srule->srv.ptr = target;
 		}
 
@@ -2397,7 +2397,7 @@ int check_config_validity()
 				cfgerr++;
 			}
 			else {
-				free((void *)mrule->table.name);
+				ha_free(&mrule->table.name);
 				mrule->table.t = target;
 				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL);
 				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_KEY, NULL);
@@ -2435,7 +2435,7 @@ int check_config_validity()
 				cfgerr++;
 			}
 			else {
-				free((void *)mrule->table.name);
+				ha_free(&mrule->table.name);
 				mrule->table.t = target;
 				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL);
 				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_KEY, NULL);
@@ -2511,7 +2511,7 @@ int check_config_validity()
 
 			for (curpeers = cfg_peers; curpeers; curpeers = curpeers->next) {
 				if (strcmp(curpeers->id, curproxy->table->peers.name) == 0) {
-					free((void *)curproxy->table->peers.name);
+					ha_free(&curproxy->table->peers.name);
 					curproxy->table->peers.p = curpeers;
 					break;
 				}
@@ -2520,7 +2520,7 @@ int check_config_validity()
 			if (!curpeers) {
 				ha_alert("Proxy '%s': unable to find sync peers '%s'.\n",
 					 curproxy->id, curproxy->table->peers.name);
-				free((void *)curproxy->table->peers.name);
+				ha_free(&curproxy->table->peers.name);
 				curproxy->table->peers.p = NULL;
 				cfgerr++;
 			}
