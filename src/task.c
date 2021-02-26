@@ -114,7 +114,11 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 {
 	if (likely(thr < 0)) {
 		/* this tasklet runs on the caller thread */
-		if (tl->state & (TASK_SELF_WAKING|TASK_HEAVY)) {
+		if (tl->state & TASK_HEAVY) {
+			LIST_ADDQ(&sched->tasklets[TL_HEAVY], &tl->list);
+			sched->tl_class_mask |= 1 << TL_HEAVY;
+		}
+		else if (tl->state & TASK_SELF_WAKING) {
 			LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
 			sched->tl_class_mask |= 1 << TL_BULK;
 		}
