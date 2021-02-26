@@ -141,11 +141,11 @@ unsigned int var_clear(struct var *var)
 	unsigned int size = 0;
 
 	if (var->data.type == SMP_T_STR || var->data.type == SMP_T_BIN) {
-		free(var->data.u.str.area);
+		ha_free(&var->data.u.str.area);
 		size += var->data.u.str.data;
 	}
 	else if (var->data.type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
-		free(var->data.u.meth.str.area);
+		ha_free(&var->data.u.meth.str.area);
 		size += var->data.u.meth.str.data;
 	}
 	LIST_DEL(&var->l);
@@ -352,12 +352,12 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 		/* free its used memory. */
 		if (var->data.type == SMP_T_STR ||
 		    var->data.type == SMP_T_BIN) {
-			free(var->data.u.str.area);
+			ha_free(&var->data.u.str.area);
 			var_accounting_diff(vars, smp->sess, smp->strm,
 					    -var->data.u.str.data);
 		}
 		else if (var->data.type == SMP_T_METH && var->data.u.meth.meth == HTTP_METH_OTHER) {
-			free(var->data.u.meth.str.area);
+			ha_free(&var->data.u.meth.str.area);
 			var_accounting_diff(vars, smp->sess, smp->strm,
 					    -var->data.u.meth.str.data);
 		}
