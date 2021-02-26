@@ -673,12 +673,8 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			/* Add an X-Forwarded-For header unless the source IP is
 			 * in the 'except' network range.
 			 */
-			if ((!sess->fe->except_mask.s_addr ||
-			     (((struct sockaddr_in *)cli_conn->src)->sin_addr.s_addr & sess->fe->except_mask.s_addr)
-			     != sess->fe->except_net.s_addr) &&
-			    (!s->be->except_mask.s_addr ||
-			     (((struct sockaddr_in *)cli_conn->src)->sin_addr.s_addr & s->be->except_mask.s_addr)
-			     != s->be->except_net.s_addr)) {
+			if (ipcmp2net(cli_conn->src, &sess->fe->except_xff_net) &&
+			    ipcmp2net(cli_conn->src, &s->be->except_xff_net)) {
 				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)cli_conn->src)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
@@ -692,23 +688,26 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			}
 		}
 		else if (cli_conn && conn_get_src(cli_conn) && cli_conn->src->ss_family == AF_INET6) {
-			/* FIXME: for the sake of completeness, we should also support
-			 * 'except' here, although it is mostly useless in this case.
+			/* Add an X-Forwarded-For header unless the source IP is
+			 * in the 'except' network range.
 			 */
-			char pn[INET6_ADDRSTRLEN];
+			if (ipcmp2net(cli_conn->src, &sess->fe->except_xff_net) &&
+			    ipcmp2net(cli_conn->src, &s->be->except_xff_net)) {
+				char pn[INET6_ADDRSTRLEN];
 
-			inet_ntop(AF_INET6,
-				  (const void *)&((struct sockaddr_in6 *)(cli_conn->src))->sin6_addr,
-				  pn, sizeof(pn));
+				inet_ntop(AF_INET6,
+					  (const void *)&((struct sockaddr_in6 *)(cli_conn->src))->sin6_addr,
+					  pn, sizeof(pn));
 
-			/* Note: we rely on the backend to get the header name to be used for
-			 * x-forwarded-for, because the header is really meant for the backends.
-			 * However, if the backend did not specify any option, we have to rely
-			 * on the frontend's header name.
-			 */
-			chunk_printf(&trash, "%s", pn);
-			if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
-				goto return_int_err;
+				/* Note: we rely on the backend to get the header name to be used for
+				 * x-forwarded-for, because the header is really meant for the backends.
+				 * However, if the backend did not specify any option, we have to rely
+				 * on the frontend's header name.
+				 */
+				chunk_printf(&trash, "%s", pn);
+				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
+					goto return_int_err;
+			}
 		}
 	}
 
@@ -717,20 +716,15 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * asks for it.
 	 */
 	if ((sess->fe->options | s->be->options) & PR_O_ORGTO) {
+		struct ist hdr = ist2(s->be->orgto_hdr_len ? s->be->orgto_hdr_name : sess->fe->orgto_hdr_name,
+				      s->be->orgto_hdr_len ? s->be->orgto_hdr_len  : sess->fe->orgto_hdr_len);
 
-		/* FIXME: don't know if IPv6 can handle that case too. */
 		if (cli_conn && conn_get_dst(cli_conn) && cli_conn->dst->ss_family == AF_INET) {
 			/* Add an X-Original-To header unless the destination IP is
 			 * in the 'except' network range.
 			 */
-			if (cli_conn->dst->ss_family == AF_INET &&
-			    ((!sess->fe->except_mask_to.s_addr ||
-			      (((struct sockaddr_in *)cli_conn->dst)->sin_addr.s_addr & sess->fe->except_mask_to.s_addr)
-			      != sess->fe->except_to.s_addr) &&
-			     (!s->be->except_mask_to.s_addr ||
-			      (((struct sockaddr_in *)cli_conn->dst)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
-			      != s->be->except_to.s_addr))) {
-				struct ist hdr;
+			if (ipcmp2net(cli_conn->dst, &sess->fe->except_xot_net) &&
+			    ipcmp2net(cli_conn->dst, &s->be->except_xot_net)) {
 				unsigned char *pn = (unsigned char *)&((struct sockaddr_in *)cli_conn->dst)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
@@ -738,12 +732,29 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 				 * However, if the backend did not specify any option, we have to rely
 				 * on the frontend's header name.
 				 */
-				if (s->be->orgto_hdr_len)
-					hdr = ist2(s->be->orgto_hdr_name, s->be->orgto_hdr_len);
-				else
-					hdr = ist2(sess->fe->orgto_hdr_name, sess->fe->orgto_hdr_len);
-
 				chunk_printf(&trash, "%d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
+					goto return_int_err;
+			}
+		}
+		else if (cli_conn && conn_get_dst(cli_conn) && cli_conn->dst->ss_family == AF_INET6) {
+			/* Add an X-Original-To header unless the source IP is
+			 * in the 'except' network range.
+			 */
+			if (ipcmp2net(cli_conn->dst, &sess->fe->except_xot_net) &&
+			    ipcmp2net(cli_conn->dst, &s->be->except_xot_net)) {
+				char pn[INET6_ADDRSTRLEN];
+
+				inet_ntop(AF_INET6,
+					  (const void *)&((struct sockaddr_in6 *)(cli_conn->dst))->sin6_addr,
+					  pn, sizeof(pn));
+
+				/* Note: we rely on the backend to get the header name to be used for
+				 * x-forwarded-for, because the header is really meant for the backends.
+				 * However, if the backend did not specify any option, we have to rely
+				 * on the frontend's header name.
+				 */
+				chunk_printf(&trash, "%s", pn);
 				if (unlikely(!http_add_header(htx, hdr, ist2(trash.area, trash.data))))
 					goto return_int_err;
 			}

@@ -1229,10 +1229,8 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *fi
 	curproxy->no_options = defproxy->no_options;
 	curproxy->no_options2 = defproxy->no_options2;
 	curproxy->bind_proc = defproxy->bind_proc;
-	curproxy->except_net = defproxy->except_net;
-	curproxy->except_mask = defproxy->except_mask;
-	curproxy->except_to = defproxy->except_to;
-	curproxy->except_mask_to = defproxy->except_mask_to;
+	curproxy->except_xff_net = defproxy->except_xff_net;
+	curproxy->except_xot_net = defproxy->except_xot_net;
 	curproxy->retry_type = defproxy->retry_type;
 
 	if (defproxy->fwdfor_hdr_len) {

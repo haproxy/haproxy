@@ -2107,20 +2107,35 @@ stats_error_parsing:
 			free(curproxy->fwdfor_hdr_name);
 			curproxy->fwdfor_hdr_name = strdup(DEF_XFORWARDFOR_HDR);
 			curproxy->fwdfor_hdr_len  = strlen(DEF_XFORWARDFOR_HDR);
+			curproxy->except_xff_net.family = AF_UNSPEC;
 
 			/* loop to go through arguments - start at 2, since 0+1 = "option" "forwardfor" */
 			cur_arg = 2;
 			while (*(args[cur_arg])) {
 				if (strcmp(args[cur_arg], "except") == 0) {
+					unsigned char mask;
+					int i;
+
 					/* suboption except - needs additional argument for it */
-					if (!*(args[cur_arg+1]) || !str2net(args[cur_arg+1], 1, &curproxy->except_net, &curproxy->except_mask)) {
+					if (*(args[cur_arg+1]) &&
+					    str2net(args[cur_arg+1], 1, &curproxy->except_xff_net.addr.v4.ip, &curproxy->except_xff_net.addr.v4.mask)) {
+						curproxy->except_xff_net.family = AF_INET;
+						curproxy->except_xff_net.addr.v4.ip.s_addr &= curproxy->except_xff_net.addr.v4.mask.s_addr;
+					}
+					else if (*(args[cur_arg+1]) &&
+						 str62net(args[cur_arg+1], &curproxy->except_xff_net.addr.v6.ip, &mask)) {
+						curproxy->except_xff_net.family = AF_INET6;
+						len2mask6(mask, &curproxy->except_xff_net.addr.v6.mask);
+						for (i = 0; i < 16; i++)
+							curproxy->except_xff_net.addr.v6.ip.s6_addr[i] &= curproxy->except_xff_net.addr.v6.mask.s6_addr[i];
+					}
+					else {
 						ha_alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
 							 file, linenum, args[0], args[1], args[cur_arg]);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
 					/* flush useless bits */
-					curproxy->except_net.s_addr &= curproxy->except_mask.s_addr;
 					cur_arg += 2;
 				} else if (strcmp(args[cur_arg], "header") == 0) {
 					/* suboption header - needs additional argument for it */
@@ -2158,20 +2173,34 @@ stats_error_parsing:
 			free(curproxy->orgto_hdr_name);
 			curproxy->orgto_hdr_name = strdup(DEF_XORIGINALTO_HDR);
 			curproxy->orgto_hdr_len  = strlen(DEF_XORIGINALTO_HDR);
+			curproxy->except_xot_net.family = AF_UNSPEC;
 
 			/* loop to go through arguments - start at 2, since 0+1 = "option" "originalto" */
 			cur_arg = 2;
 			while (*(args[cur_arg])) {
 				if (strcmp(args[cur_arg], "except") == 0) {
+					unsigned char mask;
+					int i;
+
 					/* suboption except - needs additional argument for it */
-					if (!*(args[cur_arg+1]) || !str2net(args[cur_arg+1], 1, &curproxy->except_to, &curproxy->except_mask_to)) {
+					if (*(args[cur_arg+1]) &&
+					    str2net(args[cur_arg+1], 1, &curproxy->except_xot_net.addr.v4.ip, &curproxy->except_xot_net.addr.v4.mask)) {
+						curproxy->except_xot_net.family = AF_INET;
+						curproxy->except_xot_net.addr.v4.ip.s_addr &= curproxy->except_xot_net.addr.v4.mask.s_addr;
+					}
+					else if (*(args[cur_arg+1]) &&
+						 str62net(args[cur_arg+1], &curproxy->except_xot_net.addr.v6.ip, &mask)) {
+						curproxy->except_xot_net.family = AF_INET6;
+						len2mask6(mask, &curproxy->except_xot_net.addr.v6.mask);
+						for (i = 0; i < 16; i++)
+							curproxy->except_xot_net.addr.v6.ip.s6_addr[i] &= curproxy->except_xot_net.addr.v6.mask.s6_addr[i];
+					}
+					else {
 						ha_alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
 							 file, linenum, args[0], args[1], args[cur_arg]);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
-					/* flush useless bits */
-					curproxy->except_to.s_addr &= curproxy->except_mask_to.s_addr;
 					cur_arg += 2;
 				} else if (strcmp(args[cur_arg], "header") == 0) {
 					/* suboption header - needs additional argument for it */

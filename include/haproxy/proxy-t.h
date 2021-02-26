@@ -41,6 +41,7 @@
 #include <haproxy/stats-t.h>
 #include <haproxy/tcpcheck-t.h>
 #include <haproxy/thread-t.h>
+#include <haproxy/tools-t.h>
 #include <haproxy/uri_auth-t.h>
 
 /* values for proxy->mode */
@@ -341,9 +342,8 @@ struct proxy {
 	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	unsigned int tot_fe_maxconn;		/* #maxconn of frontends linked to that backend, it is used to compute fullconn */
-	struct in_addr except_net, except_mask; /* don't x-forward-for for this address. FIXME: should support IPv6 */
-	struct in_addr except_to;		/* don't x-original-to for this address. */
-	struct in_addr except_mask_to;		/* the netmask for except_to. */
+	struct net_addr except_xff_net;         /* don't x-forward-for for this address. */
+	struct net_addr except_xot_net;         /* don't x-original-to for this address. */
 	char *fwdfor_hdr_name;			/* header to use - default: "x-forwarded-for" */
 	char *orgto_hdr_name;			/* header to use - default: "x-original-to" */
 	int fwdfor_hdr_len;			/* length of "x-forwarded-for" header */

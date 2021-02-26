@@ -7973,7 +7973,7 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
   header for a known source address or network by adding the "except" keyword
   followed by the network address. In this case, any source IP matching the
   network will not cause an addition of this header. Most common uses are with
-  private networks or 127.0.0.1.
+  private networks or 127.0.0.1. IPv4 and IPv6 are both supported.
 
   Alternatively, the keyword "if-none" states that the header will only be
   added if it is not present. This should only be used in perfectly trusted
@@ -8773,7 +8773,7 @@ option originalto [ except <network> ] [ header <name> ]
   header for a known source address or network by adding the "except" keyword
   followed by the network address. In this case, any source IP matching the
   network will not cause an addition of this header. Most common uses are with
-  private networks or 127.0.0.1.
+  private networks or 127.0.0.1.  IPv4 and IPv6 are both supported.
 
   This option may be specified either in the frontend or in the backend. If at
   least one of them uses it, the header will be added. Note that the backend's
