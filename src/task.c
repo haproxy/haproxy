@@ -441,7 +441,6 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 	unsigned int done = 0;
 	unsigned int queue;
 	unsigned short state;
-	char heavy_calls = 0;
 	void *ctx;
 
 	for (queue = 0; queue < TL_CLASSES;) {
@@ -489,19 +488,6 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		budgets[queue]--;
 		t = (struct task *)LIST_ELEM(tl_queues[queue].n, struct tasklet *, list);
 		state = t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING|TASK_HEAVY|TASK_KILLED);
-
-		if (state & TASK_HEAVY) {
-			/* This is a heavy task. We'll call no more than one
-			 * per function call. If we called one already, we'll
-			 * return and announce the max possible weight so that
-			 * the caller doesn't come back too soon.
-			 */
-			if (heavy_calls) {
-				done = INT_MAX;  // 11ms instead of 3 without this
-				break; // too many heavy tasks processed already
-			}
-			heavy_calls = 1;
-		}
 
 		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
@@ -647,6 +633,7 @@ void process_runnable_tasks()
 	unsigned int queue;
 	int max_processed;
 	int lpicked, gpicked;
+	int heavy_queued = 0;
 	int budget;
 
 	ti->flags &= ~TI_FL_STUCK; // this thread is still running
@@ -679,12 +666,16 @@ void process_runnable_tasks()
 		max[TL_BULK] = default_weights[TL_BULK];
 
 	/* heavy tasks are processed only once and never refilled in a
-	 * call round.
+	 * call round. That budget is not lost either as we don't reset
+	 * it unless consumed.
 	 */
-	if ((tt->tl_class_mask & (1 << TL_HEAVY)))
-		max[TL_HEAVY] = default_weights[TL_HEAVY];
-	else
-		max[TL_HEAVY] = 0;
+	if (!heavy_queued) {
+		if ((tt->tl_class_mask & (1 << TL_HEAVY)))
+			max[TL_HEAVY] = default_weights[TL_HEAVY];
+		else
+			max[TL_HEAVY] = 0;
+		heavy_queued = 1;
+	}
 
 	/* Now compute a fair share of the weights. Total may slightly exceed
 	 * 100% due to rounding, this is not a problem. Note that while in
@@ -700,6 +691,12 @@ void process_runnable_tasks()
 
 	for (queue = 0; queue < TL_CLASSES; queue++)
 		max[queue]  = ((unsigned)max_processed * max[queue] + max_total - 1) / max_total;
+
+	/* The heavy queue must never process more than one task at once
+	 * anyway.
+	 */
+	if (max[TL_HEAVY] > 1)
+		max[TL_HEAVY] = 1;
 
 	lrq = grq = NULL;
 
