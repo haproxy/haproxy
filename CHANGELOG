@@ -1,6 +1,86 @@
 ChangeLog :
 ===========
 
+2021/02/26 : 2.4-dev10
+    - BUILD: SSL: introduce fine guard for RAND_keep_random_devices_open
+    - MINOR: Configure the `cpp` userdiff driver for *.[ch] in .gitattributes
+    - BUG/MINOR: ssl/cli: potential null pointer dereference in "set ssl cert"
+    - BUG/MINOR: sample: secure convs that accept base64 string and var name as args
+    - BUG/MEDIUM: vars: make functions vars_get_by_{name,desc} thread-safe
+    - CLEANUP: vars: make smp_fetch_var() to reuse vars_get_by_desc()
+    - DOC: muxes: add a diagram of the exchanges between muxes and outer world
+    - BUG/MEDIUM: proxy: use thread-safe stream killing on hard-stop
+    - BUG/MEDIUM: cli/shutdown sessions: make it thread-safe
+    - BUG/MINOR: proxy: wake up all threads when sending the hard-stop signal
+    - MINOR: stream: add an "epoch" to figure which streams appeared when
+    - MINOR: cli/streams: make "show sess" dump all streams till the new epoch
+    - MINOR: streams: use one list per stream instead of a global one
+    - MEDIUM: streams: do not use the streams lock anymore
+    - BUILD: dns: avoid a build warning when threads are disabled (dss unused)
+    - MEDIUM: task: remove the tasks_run_queue counter and have one per thread
+    - MINOR: tasks: do not maintain the rqueue_size counter anymore
+    - CLEANUP: tasks: use a less confusing name for task_list_size
+    - CLEANUP: task: move the tree root detection from __task_wakeup() to task_wakeup()
+    - MINOR: task: limit the remote thread wakeup to the global runqueue only
+    - MINOR: task: move the allocated tasks counter to the per-thread struct
+    - CLEANUP: task: split the large tasklet_wakeup_on() function in two
+    - BUG/MINOR: fd: properly wait for !running_mask in fd_set_running_excl()
+    - BUG/MINOR: resolvers: Fix condition to release received ARs if not assigned
+    - BUG/MINOR: resolvers: Only renew TTL for SRV records with an additional record
+    - BUG/MINOR: resolvers: new callback to properly handle SRV record errors
+    - BUG/MEDIUM: resolvers: Reset server address and port for obselete SRV records
+    - BUG/MEDIUM: resolvers: Reset address for unresolved servers
+    - DOC: Update the module list in MAINTAINERS file
+    - MINOR: htx: Add function to reserve the max possible size for an HTX DATA block
+    - DOC: Update the HTX API documentation
+    - DOC: Update the filters guide
+    - BUG/MEDIUM: contrib/prometheus-exporter: fix segfault in listener name dump
+    - MINOR: task: split the counts of local and global tasks picked
+    - MINOR: task: do not use __task_unlink_rq() from process_runnable_tasks()
+    - MINOR: task: don't decrement then increment the local run queue
+    - CLEANUP: task: re-merge __task_unlink_rq() with task_unlink_rq()
+    - MINOR: task: make grq_total atomic to move it outside of the grq_lock
+    - MINOR: tasks: also compute the tasklet latency when DEBUG_TASK is set
+    - MINOR: task: make tasklet wakeup latency measurements more accurate
+    - MINOR: server: Be more strict on the server-state line parsing
+    - MINOR: server: Only fill one array when parsing a server-state line
+    - MEDIUM: server: Refactor apply_server_state() to make it more readable
+    - CLEANUP: server: Rename state_line node to node instead of name_name
+    - CLEANUP: server: Rename state_line structure into server_state_line
+    - CLEANUP: server: Use a local eb-tree to store lines of the global server-state file
+    - MINOR: server: Be more strict when reading the version of a server-state file
+    - MEDIUM: server: Store parsed params of a server-state line in the tree
+    - MINOR: server: Remove cached line from global server-state tree when found
+    - MINOR: server: Move loading state of servers in a dedicated function
+    - MEDIUM: server: Use a tree to store local server-state lines
+    - MINOR: server: Parse and store server-state lines in a dedicated function
+    - MEDIUM: server: Don't load server-state file if a line is corrupted
+    - REORG: server: Export and rename some functions updating server info
+    - REORG: server-state: Move functions to deal with server-state in its own file
+    - MINOR: server-state: Don't load server-state file for serverless proxies
+    - CLEANUP: muxes: Remove useless if condition in show_fd function
+    - BUG/MINOR: stats: fix compare of no-maint url suffix
+    - MINOR: task: limit the number of subsequent heavy tasks with flag TASK_HEAVY
+    - MINOR: ssl: mark the SSL handshake tasklet as heavy
+    - CLEANUP: server: rename srv_cleanup_{idle,toremove}_connections()
+    - BUG/MINOR: ssl: potential null pointer dereference in ckchs_dup()
+    - MINOR: task: add one extra tasklet class: TL_HEAVY
+    - MINOR: task: place the heavy elements in TL_HEAVY
+    - MINOR: task: only limit TL_HEAVY tasks but not others
+    - BUG/MINOR: http-ana: Only consider dst address to process originalto option
+    - MINOR: tools: Add net_addr structure describing a network addess
+    - MINOR: tools: Add function to compare an address to a network address
+    - MEDIUM: http-ana: Add IPv6 support for forwardfor and orignialto options
+    - CLEANUP: hlua: Use net_addr structure internally to parse and compare addresses
+    - REGTESTS: Add script to test except param for fowardedfor/originalto options
+    - DOC: scheduler: add a diagram showing the different queues and their usages
+    - CLEANUP: tree-wide: replace free(x);x=NULL with ha_free(&x)
+    - CLEANUP: config: replace a few free() with ha_free()
+    - CLEANUP: vars: always zero the pointers after a free()
+    - CLEANUP: ssl: remove a useless "if" before freeing an error message
+    - CLEANUP: ssl: make ssl_sock_free_srv_ctx() zero the pointers after free
+    - CLEANUP: ssl: use realloc() instead of free()+malloc()
+
 2021/02/20 : 2.4-dev9
     - BUG/MINOR: server: Remove RMAINT from admin state when loading server state
     - CLEANUP: check: fix get_check_status_info declaration
