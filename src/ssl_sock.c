@@ -5117,7 +5117,7 @@ ssl_sock_load_ca(struct bind_conf *bind_conf)
 	if (ssl_sock_load_files_into_ckch(bind_conf->ca_sign_file, ckch, &err)) {
 		ha_alert("Proxy '%s': Failed to read CA certificate file '%s' at [%s:%d]. Chain loading failed: %s\n",
 			px->id, bind_conf->ca_sign_file, bind_conf->file, bind_conf->line, err);
-		if (err) free(err);
+		free(err);
 		goto failed;
 	}
 
