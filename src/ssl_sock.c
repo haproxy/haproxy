@@ -3996,8 +3996,8 @@ static int ssl_sess_new_srv_cb(SSL *ssl, SSL_SESSION *sess)
 		if (s->ssl_ctx.reused_sess[tid].ptr && s->ssl_ctx.reused_sess[tid].allocated_size >= len) {
 			ptr = s->ssl_ctx.reused_sess[tid].ptr;
 		} else {
-			free(s->ssl_ctx.reused_sess[tid].ptr);
-			ptr = s->ssl_ctx.reused_sess[tid].ptr = malloc(len);
+			ptr = realloc(s->ssl_ctx.reused_sess[tid].ptr, len);
+			s->ssl_ctx.reused_sess[tid].ptr = ptr;
 			s->ssl_ctx.reused_sess[tid].allocated_size = len;
 		}
 		if (s->ssl_ctx.reused_sess[tid].ptr) {
