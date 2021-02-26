@@ -176,20 +176,6 @@ struct hlua_concat {
 	int len;
 };
 
-struct hlua_addr {
-	union {
-		struct {
-			struct in_addr ip;
-			struct in_addr mask;
-		} v4;
-		struct {
-			struct in6_addr ip;
-			struct in6_addr mask;
-		} v6;
-	} addr;
-	int type;
-};
-
 #else /* USE_LUA */
 /************************ For use when Lua is disabled ********************/
 

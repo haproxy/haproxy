@@ -33,6 +33,7 @@
 #include <haproxy/stats.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;
@@ -1481,24 +1482,24 @@ int hlua_tokenize(lua_State *L)
 
 int hlua_parse_addr(lua_State *L)
 {
-	struct hlua_addr *addr;
+	struct net_addr *addr;
 	const char *str = luaL_checkstring(L, 1);
 	unsigned char mask;
 
-	addr = lua_newuserdata(L, sizeof(struct hlua_addr));
+	addr = lua_newuserdata(L, sizeof(struct net_addr));
 	if (!addr) {
 		lua_pushnil(L);
 		return 1;
 	}
 
 	if (str2net(str, PAT_MF_NO_DNS, &addr->addr.v4.ip, &addr->addr.v4.mask)) {
-		addr->type = AF_INET;
+		addr->family = AF_INET;
 		return 1;
 	}
 
 	if (str62net(str, &addr->addr.v6.ip, &mask)) {
 		len2mask6(mask, &addr->addr.v6.mask);
-		addr->type = AF_INET6;
+		addr->family = AF_INET6;
 		return 1;
 	}
 
@@ -1509,8 +1510,8 @@ int hlua_parse_addr(lua_State *L)
 
 int hlua_match_addr(lua_State *L)
 {
-	struct hlua_addr *addr1;
-	struct hlua_addr *addr2;
+	struct net_addr *addr1;
+	struct net_addr *addr2;
 
 	if (!lua_isuserdata(L, 1) ||
 	    !lua_isuserdata(L, 2)) {
@@ -1521,12 +1522,12 @@ int hlua_match_addr(lua_State *L)
 	addr1 = lua_touserdata(L, 1);
 	addr2 = lua_touserdata(L, 2);
 
-	if (addr1->type != addr2->type) {
+	if (addr1->family != addr2->family) {
 		lua_pushboolean(L, 0);
 		return 1;
 	}
 
-	if (addr1->type == AF_INET) {
+	if (addr1->family == AF_INET) {
 		if ((addr1->addr.v4.ip.s_addr & addr2->addr.v4.mask.s_addr) ==
 		    (addr2->addr.v4.ip.s_addr & addr1->addr.v4.mask.s_addr)) {
 			lua_pushboolean(L, 1);
