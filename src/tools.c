@@ -46,6 +46,7 @@
 #include <haproxy/hlua.h>
 #include <haproxy/listener.h>
 #include <haproxy/namespace.h>
+#include <haproxy/net_helper.h>
 #include <haproxy/protocol.h>
 #include <haproxy/resolvers.h>
 #include <haproxy/sock.h>
@@ -3105,6 +3106,40 @@ int ipcmp(struct sockaddr_storage *ss1, struct sockaddr_storage *ss2)
 			return memcmp(&((struct sockaddr_in6 *)ss1)->sin6_addr,
 				      &((struct sockaddr_in6 *)ss2)->sin6_addr,
 				      sizeof(struct in6_addr)) != 0;
+	}
+
+	return 1;
+}
+
+/* compare a struct sockaddr_storage to a struct net_addr and return :
+ *  0 (true)  if <addr> is matching <net>
+ *  1 (false) if <addr> is not matching <net>
+ *  -1 (unable) if <addr> or <net> is not AF_INET*
+ */
+int ipcmp2net(const struct sockaddr_storage *addr, const struct net_addr *net)
+{
+	if ((addr->ss_family != AF_INET) && (addr->ss_family != AF_INET6))
+		return -1;
+
+	if ((net->family != AF_INET) && (net->family != AF_INET6))
+		return -1;
+
+	if (addr->ss_family != net->family)
+		return 1;
+
+	if (addr->ss_family == AF_INET &&
+	    (((struct sockaddr_in *)addr)->sin_addr.s_addr & net->addr.v4.mask.s_addr) == net->addr.v4.ip.s_addr)
+		return 0;
+	else {
+		const struct in6_addr *addr6  = &(((const struct sockaddr_in6*)addr)->sin6_addr);
+		const struct in6_addr *nip6   = &net->addr.v6.ip;
+		const struct in6_addr *nmask6 = &net->addr.v6.mask;
+
+		if ((read_u32(&addr6->s6_addr[0]) & read_u32(&nmask6->s6_addr[0])) == read_u32(&nip6->s6_addr[0]) &&
+		    (read_u32(&addr6->s6_addr[4]) & read_u32(&nmask6->s6_addr[4])) == read_u32(&nip6->s6_addr[4]) &&
+		    (read_u32(&addr6->s6_addr[8]) & read_u32(&nmask6->s6_addr[8])) == read_u32(&nip6->s6_addr[8]) &&
+		    (read_u32(&addr6->s6_addr[12]) & read_u32(&nmask6->s6_addr[12])) == read_u32(&nip6->s6_addr[12]))
+			return 0;
 	}
 
 	return 1;

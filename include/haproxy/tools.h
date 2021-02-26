@@ -740,6 +740,13 @@ extern int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr);
  */
 int ipcmp(struct sockaddr_storage *ss1, struct sockaddr_storage *ss2);
 
+/* compare a struct sockaddr_storage to a struct net_addr and return :
+ *  0 (true)  if <addr> is matching <net>
+ *  1 (false) if <addr> is not matching <net>
+ *  -1 (unable) if <addr> or <net> is not AF_INET*
+ */
+int ipcmp2net(const struct sockaddr_storage *addr, const struct net_addr *net);
+
 /* copy ip from <source> into <dest>
  * the caller must clear <dest> before calling.
  * Returns a pointer to the destination
