@@ -635,6 +635,7 @@ void process_runnable_tasks()
 		[TL_URGENT] = 64, // ~50% of CPU bandwidth for I/O
 		[TL_NORMAL] = 48, // ~37% of CPU bandwidth for tasks
 		[TL_BULK]   = 16, // ~13% of CPU bandwidth for self-wakers
+		[TL_HEAVY]  = 1,  // never more than 1 heavy task at once
 	};
 	unsigned int max[TL_CLASSES]; // max to be run per class
 	unsigned int max_total;       // sum of max above
@@ -673,6 +674,14 @@ void process_runnable_tasks()
 	if ((tt->tl_class_mask & (1 << TL_BULK)))
 		max[TL_BULK] = default_weights[TL_BULK];
 
+	/* heavy tasks are processed only once and never refilled in a
+	 * call round.
+	 */
+	if ((tt->tl_class_mask & (1 << TL_HEAVY)))
+		max[TL_HEAVY] = default_weights[TL_HEAVY];
+	else
+		max[TL_HEAVY] = 0;
+
 	/* Now compute a fair share of the weights. Total may slightly exceed
 	 * 100% due to rounding, this is not a problem. Note that while in
 	 * theory the sum cannot be NULL as we cannot get there without tasklets
@@ -681,7 +690,7 @@ void process_runnable_tasks()
 	 * a first MT_LIST_ISEMPTY() to succeed for thread_has_task() and the
 	 * one above to finally fail. This is extremely rare and not a problem.
 	 */
-	max_total = max[TL_URGENT] + max[TL_NORMAL] + max[TL_BULK];
+	max_total = max[TL_URGENT] + max[TL_NORMAL] + max[TL_BULK] + max[TL_HEAVY];
 	if (!max_total)
 		return;
 
@@ -881,7 +890,7 @@ void mworker_cleantasks()
 /* perform minimal intializations */
 static void init_task()
 {
-	int i;
+	int i, q;
 
 #ifdef USE_THREAD
 	memset(&timers, 0, sizeof(timers));
@@ -889,9 +898,8 @@ static void init_task()
 #endif
 	memset(&task_per_thread, 0, sizeof(task_per_thread));
 	for (i = 0; i < MAX_THREADS; i++) {
-		LIST_INIT(&task_per_thread[i].tasklets[TL_URGENT]);
-		LIST_INIT(&task_per_thread[i].tasklets[TL_NORMAL]);
-		LIST_INIT(&task_per_thread[i].tasklets[TL_BULK]);
+		for (q = 0; q < TL_CLASSES; q++)
+			LIST_INIT(&task_per_thread[i].tasklets[q]);
 		MT_LIST_INIT(&task_per_thread[i].shared_tasklet_list);
 	}
 }
