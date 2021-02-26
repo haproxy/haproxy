@@ -719,7 +719,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	if ((sess->fe->options | s->be->options) & PR_O_ORGTO) {
 
 		/* FIXME: don't know if IPv6 can handle that case too. */
-		if (cli_conn && conn_get_src(cli_conn) && cli_conn->src->ss_family == AF_INET && conn_get_dst(cli_conn)) {
+		if (cli_conn && conn_get_dst(cli_conn) && cli_conn->dst->ss_family == AF_INET) {
 			/* Add an X-Original-To header unless the destination IP is
 			 * in the 'except' network range.
 			 */
