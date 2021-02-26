@@ -1,0 +1,137 @@
+varnishtest "Test IPv4/IPv6 except param for the forwardfor and originalto options"
+#REQUIRE_VERSION=2.4
+
+# This config tests the except parameter for the HTTP forwardfor and originalto
+# options.
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request set-src hdr(x-src)
+        http-request set-dst hdr(x-dst)
+	use_backend be1 if { path /req1 }
+	use_backend be2 if { path /req2 }
+	use_backend be3 if { path /req3 }
+	use_backend be4 if { path /req4 }
+	use_backend be5 if { path /req5 }
+
+    frontend fe2
+        bind "fd@${fe2}"
+	http-request return status 200 hdr x-ff "%[req.hdr(x-forwarded-for)]" hdr x-ot "%[req.hdr(x-original-to)]"
+
+    backend be1
+        option forwardfor except 127.0.0.1
+        option originalto except 127.0.0.1
+        server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+    backend be2
+        option forwardfor except 10.0.0.1/25
+        option originalto except 10.0.0.1/25
+        server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+    backend be3
+        option forwardfor except ::1
+        option originalto except ::1
+        server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+    backend be4
+        option forwardfor except 2001:db8::1:0:0:1
+        option originalto except 2001:db8::1:0:0:1
+        server s1 ${h1_fe2_addr}:${h1_fe2_port}
+
+    backend be5
+        option forwardfor except 2001:db8:1f89::/48
+        option originalto except 2001:db8:1f89::/48
+        server s1 ${h1_fe2_addr}:${h1_fe2_port}
+} -start
+
+client c1 -connect ${h1_fe1_sock} {
+    txreq -req GET -url /req1 \
+        -hdr "x-src: 127.0.0.1" \
+        -hdr "x-dst: 127.0.0.1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == <undef>
+    expect resp.http.x-ot == <undef>
+
+    txreq -req GET -url /req1 \
+        -hdr "x-src: 127.0.0.2" \
+        -hdr "x-dst: 127.0.0.2"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == "127.0.0.2"
+    expect resp.http.x-ot == "127.0.0.2"
+
+
+    txreq -req GET -url /req2 \
+        -hdr "x-src: 10.0.0.1" \
+        -hdr "x-dst: 10.0.0.1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == <undef>
+    expect resp.http.x-ot == <undef>
+
+    txreq -req GET -url /req2 \
+        -hdr "x-src: 10.0.0.128" \
+        -hdr "x-dst: 10.0.0.128"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == "10.0.0.128"
+    expect resp.http.x-ot == "10.0.0.128"
+
+    txreq -req GET -url /req3 \
+        -hdr "x-src: ::1" \
+        -hdr "x-dst: ::1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == <undef>
+    expect resp.http.x-ot == <undef>
+
+    txreq -req GET -url /req3 \
+        -hdr "x-src: ::2" \
+        -hdr "x-dst: ::2"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == "::2"
+    expect resp.http.x-ot == "::2"
+
+    txreq -req GET -url /req4 \
+        -hdr "x-src: 2001:db8::1:0:0:1" \
+        -hdr "x-dst: 2001:db8::1:0:0:1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == <undef>
+    expect resp.http.x-ot == <undef>
+
+    txreq -req GET -url /req4 \
+        -hdr "x-src: 2001:db8::1:0:0:2" \
+        -hdr "x-dst: 2001:db8::1:0:0:2"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == "2001:db8::1:0:0:2"
+    expect resp.http.x-ot == "2001:db8::1:0:0:2"
+
+    txreq -req GET -url /req5 \
+        -hdr "x-src: 2001:db8:1f89::1" \
+        -hdr "x-dst: 2001:db8:1f89::1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == <undef>
+    expect resp.http.x-ot == <undef>
+
+    txreq -req GET -url /req5 \
+        -hdr "x-src: 2001:db8:1f90::1" \
+        -hdr "x-dst: 2001:db8:1f90::1"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ff == "2001:db8:1f90::1"
+    expect resp.http.x-ot == "2001:db8:1f90::1"
+} -run
