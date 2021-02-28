@@ -770,8 +770,7 @@ static int smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char
 
 	if (args[0].type != ARGT_STR)
 		return 0;
-	name.ptr = args[0].data.str.area;
-	name.len = args[0].data.str.data;
+	name = ist2(args[0].data.str.area, args[0].data.str.data);
 
 	if (args[1].type == ARGT_SINT)
 		occ = args[1].data.sint;
@@ -817,11 +816,9 @@ static int smp_fetch_fhdr_cnt(const struct arg *args, struct sample *smp, const 
 		return 0;
 
 	if (args->type == ARGT_STR) {
-		name.ptr = args->data.str.area;
-		name.len = args->data.str.data;
+		name = ist2(args->data.str.area, args->data.str.data);
 	} else {
-		name.ptr = NULL;
-		name.len = 0;
+		name = ist2(NULL, 0);
 	}
 
 	ctx.blk = NULL;
@@ -899,8 +896,7 @@ static int smp_fetch_hdr(const struct arg *args, struct sample *smp, const char 
 
 	if (args[0].type != ARGT_STR)
 		return 0;
-	name.ptr = args[0].data.str.area;
-	name.len = args[0].data.str.data;
+	name = ist2(args[0].data.str.area, args[0].data.str.data);
 
 	if (args[1].type == ARGT_SINT)
 		occ = args[1].data.sint;
@@ -956,11 +952,9 @@ static int smp_fetch_hdr_cnt(const struct arg *args, struct sample *smp, const c
 		return 0;
 
 	if (args->type == ARGT_STR) {
-		name.ptr = args->data.str.area;
-		name.len = args->data.str.data;
+		name = ist2(args->data.str.area, args->data.str.data);
 	} else {
-		name.ptr = NULL;
-		name.len = 0;
+		name = ist2(NULL, 0);
 	}
 
 	ctx.blk = NULL;

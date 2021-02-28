@@ -5366,8 +5366,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 				uri.len -= len + 3;
 
 				/* find the auth part of the URI */
-				auth.ptr = uri.ptr;
-				auth.len = 0;
+				auth = ist2(uri.ptr, 0);
 				while (auth.len < uri.len && auth.ptr[auth.len] != '/')
 					auth.len++;
 

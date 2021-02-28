@@ -742,8 +742,7 @@ static const char *ha_wurfl_retrieve_header(const char *header_name, const void 
 		return NULL;
 	}
 
-	name.ptr = (char *)header_name;
-	name.len = strlen(header_name);
+	name = ist2((char *)header_name, strlen(header_name));
 
 	// If 4th param is set, it works on full-line headers in whose comma is not a delimiter but is
 	// part of the syntax

@@ -242,8 +242,8 @@ static void _51d_set_headers(struct sample *smp, fiftyoneDegreesWorkset *ws)
 	ALREADY_CHECKED(htx);
 
 	for (i = 0; i < global_51degrees.header_count; i++) {
-		name.ptr = (global_51degrees.header_names + i)->area;
-		name.len = (global_51degrees.header_names + i)->data;
+		name = ist2((global_51degrees.header_names + i)->area,
+			    (global_51degrees.header_names + i)->data);
 		ctx.blk = NULL;
 
 		if (http_find_header(htx, name, &ctx, 1)) {
@@ -281,8 +281,8 @@ static void _51d_set_device_offsets(struct sample *smp, fiftyoneDegreesDeviceOff
 	ALREADY_CHECKED(htx);
 
 	for (i = 0; i < global_51degrees.header_count; i++) {
-		name.ptr = (global_51degrees.header_names + i)->area;
-		name.len = (global_51degrees.header_names + i)->data;
+		name = ist2((global_51degrees.header_names + i)->area,
+			    (global_51degrees.header_names + i)->data);
 		ctx.blk = NULL;
 
 		if (http_find_header(htx, name, &ctx, 1)) {

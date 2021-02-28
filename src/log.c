@@ -2915,8 +2915,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				while (spc < end && !HTTP_IS_SPHT(*spc))
 					spc++;
 
-				path.ptr = uri;
-				path.len = spc - uri;
+				path = ist2(uri, spc - uri);
 
 				// extract relative path without query params from url
 				path = iststop(http_get_path(path), '?');

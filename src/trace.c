@@ -216,8 +216,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 		b_reset(&trace_buf);
 		b_istput(&trace_buf, msg);
 		cb(level, mask, src, where, ist_func, a1, a2, a3, a4);
-		line[words].ptr = trace_buf.area;
-		line[words].len = trace_buf.data;
+		line[words] = ist2(trace_buf.area, trace_buf.data);
 		words++;
 	}
 	else {

@@ -105,8 +105,7 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 			if (errno == EAGAIN) {
 				struct ist myist;
 
-				myist.ptr = buf;
-				myist.len = len;
+				myist = ist2(buf, len);
 				ret = ring_write(ns->dgram->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
 				if (!ret) {
 					ns->counters->snd_error++;
@@ -125,8 +124,7 @@ int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len)
 	else if (ns->stream) {
 		struct ist myist;
 
-		myist.ptr = buf;
-		myist.len = len;
+		myist = ist2(buf, len);
                 ret = ring_write(ns->stream->ring_req, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
 		if (!ret) {
 			ns->counters->snd_error++;
@@ -1123,8 +1121,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned shor
 
 		len = b_getblk(buf, dns_msg_trash, msg_len, ofs + cnt);
 
-		myist.ptr = dns_msg_trash;
-		myist.len = len;
+		myist = ist2(dns_msg_trash, len);
 
 		ads = NULL;
 		/* try to push request into active sess with free slot */
