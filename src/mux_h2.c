@@ -5361,7 +5361,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			if (len + 2 < uri.len && uri.ptr[len + 1] == '/' && uri.ptr[len + 2] == '/') {
 				/* make the uri start at the authority now */
 				scheme.ptr = uri.ptr;
-				scheme.len = len,
+				scheme.len = len;
 				uri.ptr += len + 3;
 				uri.len -= len + 3;
 
