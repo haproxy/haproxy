@@ -91,6 +91,7 @@ static enum act_return tcp_action_req_set_dst(struct act_rule *rule, struct prox
 			if (smp->data.type == SMP_T_IPV4) {
 				((struct sockaddr_in *)cli_conn->dst)->sin_family = AF_INET;
 				((struct sockaddr_in *)cli_conn->dst)->sin_addr.s_addr = smp->data.u.ipv4.s_addr;
+				((struct sockaddr_in *)cli_conn->dst)->sin_port = port;
 			} else if (smp->data.type == SMP_T_IPV6) {
 				((struct sockaddr_in6 *)cli_conn->dst)->sin6_family = AF_INET6;
 				memcpy(&((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr, &smp->data.u.ipv6, sizeof(struct in6_addr));
