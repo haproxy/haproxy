@@ -1183,7 +1183,8 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 		if (!srv->curr_idle_thr[i] || i == tid)
 			continue;
 
-		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
+		if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock) != 0)
+			continue;
 		conn = srv_lookup_conn(&tree[i], hash);
 		while (conn) {
 			if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
