@@ -1432,8 +1432,6 @@ spoe_handle_connecting_appctx(struct appctx *appctx)
 			goto stop;
 
 		default:
-			/* HELLO handshake is finished, set the idle timeout and
-			 * add the applet in the list of running applets. */
 			_HA_ATOMIC_ADD(&agent->counters.idles, 1);
 			appctx->st0 = SPOE_APPCTX_ST_IDLE;
 			SPOE_APPCTX(appctx)->node.key = 0;
@@ -1721,6 +1719,20 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == SPOE_APPCTX_ST_PROCESSING && SPOE_APPCTX(appctx)->cur_fpa < agent->max_fpa) {
+		struct server *srv = objt_server(si_strm(si)->target);
+
+		/* With several threads, close the applet if there are pending
+		 * connections or if the server is full. Otherwise, add the
+		 * applet in the idle list.
+		 */
+		if (global.nbthread > 1 &&
+		    (agent->b.be->nbpend ||
+		     (srv && (srv->nbpend || (srv->maxconn && srv->served >=srv_dynamic_maxconn(srv)))))) {
+			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NONE;
+			appctx->st0 = SPOE_APPCTX_ST_DISCONNECT;
+			appctx->st1 = SPOE_APPCTX_ERR_NONE;
+			goto next;
+		}
 		_HA_ATOMIC_ADD(&agent->counters.idles, 1);
 		appctx->st0 = SPOE_APPCTX_ST_IDLE;
 		eb32_insert(&agent->rt[tid].idle_applets, &SPOE_APPCTX(appctx)->node);
