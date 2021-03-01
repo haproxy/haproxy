@@ -517,36 +517,34 @@ static forceinline int __ha_cas_dw(void *target, void *compare, const void *set)
 {
 	/* There's no status set by the CASP instruction so we need to keep a
 	 * copy of the original registers and compare them afterwards to detect
-	 * if we could apply the change. The problem is that we need to force
-	 * register pairs but there appears to be no gcc constraint to enforce
-	 * these. So instead we declare them as local variables of type
-	 * register. This causes extra moves in the code but remains better
-	 * than the LL/SC versions on many cores.
+	 * if we could apply the change. In order to pass a pair, we simply map
+	 * a register pair on a struct so that the compiler can emit register
+	 * pairs that we can use thanks to the undocumented "%H" modifier
+	 * mentionned on the link below:
+	 *   https://patchwork.ozlabs.org/project/gcc/patch/59368A74.2060908@foss.arm.com/
 	 */
-	void *back0 = ((void **)compare)[0];
-	void *back1 = ((void **)compare)[1];
-	register void *cmp0 asm("x0") = back0;
-	register void *cmp1 asm("x1") = back1;
-	register const void *set0 asm("x2") = ((void * const *)set)[0];
-	register const void *set1 asm("x3") = ((void * const *)set)[1];
-	long ret;
+	struct pair { uint64_t r[2]; };
+	register struct pair bck = *(struct pair *)compare;
+	register struct pair cmp = bck;
+	int ret;
 
-	__asm__ __volatile__("casp %0, %1, %3, %4, [%2]\n"
-			     : "+r" (cmp0),                   // %0
-			       "+r" (cmp1)                    // %1
-			     : "r" (target),                  // %2
-			       "r" (set0),                    // %3
-			       "r" (set1)                     // %4
+	__asm__ __volatile__("casp %0, %H0, %2, %H2, [%1]\n"
+			     : "+r" (cmp)                      // %0
+			     : "r" (target),                   // %1
+			       "r" (*(const struct pair*)set)  // %2
 			     : "memory");
 
 	/* if the old value is still the same unchanged, we won, otherwise we
-	 * store the refreshed old value. This construct remains more efficient
-	 * than an or(xor,xor).
+	 * store the refreshed old value.
 	 */
-	ret = cmp0 == back0 && cmp1 == back1;
-	if (!ret) {
-		((void **)compare)[0] = cmp0;
-		((void **)compare)[1] = cmp1;
+	ret = cmp.r[0] == bck.r[0] && cmp.r[1] == bck.r[1];
+	if (unlikely(!ret)) {
+		/* update the old value on failure. Note that in this case the
+		 * caller will likely relax and jump backwards so we don't care
+		 * about this cost provided that it doesn't enlarge the fast
+		 * code path.
+		 */
+		*(struct pair *)compare = cmp;
 	}
 	return ret;
 }
