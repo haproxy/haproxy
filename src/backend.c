@@ -535,7 +535,7 @@ static struct server *get_server_rnd(struct stream *s, const struct server *avoi
 	curr = NULL;
 	do {
 		prev = curr;
-		hash = ha_random32();
+		hash = statistical_prng();
 		curr = chash_get_server_hash(px, hash, avoid);
 		if (!curr)
 			break;
