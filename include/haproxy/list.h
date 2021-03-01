@@ -229,7 +229,7 @@
      ({                                                                    \
         int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
-	while (1) {                                                        \
+	for (;;__ha_cpu_relax()) {                                         \
 		struct mt_list *n, *n2;                                    \
 		struct mt_list *p, *p2;                                    \
 		n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);            \
@@ -288,7 +288,7 @@
     ({                                                                     \
 	int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
-	while (1) {                                                        \
+	for (;;__ha_cpu_relax()) {                                         \
 		struct mt_list *n, *n2;                                    \
 		struct mt_list *p, *p2;                                    \
 		p = _HA_ATOMIC_XCHG(&(lh)->prev, MT_LIST_BUSY);            \
@@ -346,7 +346,7 @@
      ({                                                                    \
         int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
-	while (1) {                                                        \
+	for (;;__ha_cpu_relax()) {                                         \
 		struct mt_list *n;                                         \
 		struct mt_list *p;                                         \
 		n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);            \
@@ -379,7 +379,7 @@
     ({                                                                     \
 	int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
-	while (1) {                                                        \
+	for (;;__ha_cpu_relax()) {                                         \
 		struct mt_list *n;                                         \
 		struct mt_list *p;                                         \
 		p = _HA_ATOMIC_XCHG(&(lh)->prev, MT_LIST_BUSY);            \
@@ -416,7 +416,7 @@
         struct mt_list *lh = (_lh);                                 \
 	struct mt_list *_n;                                         \
 	struct mt_list *_p;                                         \
-	while (1) {                                                 \
+	for (;;__ha_cpu_relax()) {                                  \
 		_p = _HA_ATOMIC_XCHG(&(lh)->prev, MT_LIST_BUSY);    \
 		if (_p == MT_LIST_BUSY)                             \
 		        continue;                                   \
@@ -459,7 +459,7 @@
     ({                                                                     \
         int _ret = 0;                                                      \
 	struct mt_list *el = (_el);                                        \
-	while (1) {                                                        \
+	for (;;__ha_cpu_relax()) {                                         \
 		struct mt_list *n, *n2;                                    \
 		struct mt_list *p, *p2 = NULL;                             \
 		n = _HA_ATOMIC_XCHG(&(el)->next, MT_LIST_BUSY);            \
@@ -510,7 +510,7 @@
 	({                                                                 \
 		 void *_ret;                                               \
 		 struct mt_list *lh = (_lh);                               \
-		 while (1) {                                               \
+		 for (;;__ha_cpu_relax()) {                                \
 			 struct mt_list *n, *n2;                           \
 			 struct mt_list *p, *p2;                           \
 			 n = _HA_ATOMIC_XCHG(&(lh)->next, MT_LIST_BUSY);   \
@@ -601,7 +601,7 @@
 	({                                                                 \
 		struct mt_list ret;                                        \
 		struct mt_liet *el = (_el);                                \
-		while (1) {                                                \
+		for (;;__ha_cpu_relax()) {                                 \
 			struct mt_list *n, *n2;                            \
 			struct mt_list *p, *p2 = NULL;                     \
 			n = _HA_ATOMIC_XCHG(&(el)->next, MT_LIST_BUSY);    \
@@ -676,7 +676,7 @@
 #define _MT_LIST_LOCK_NEXT(el)                                             \
 	({                                                                 \
 	        struct mt_list *n = NULL;                                  \
-		while (1) {                                                \
+		for (;;__ha_cpu_relax()) {                                 \
 			struct mt_list *n2;                                \
 			n = _HA_ATOMIC_XCHG(&((el)->next), MT_LIST_BUSY);  \
 			if (n == MT_LIST_BUSY)                             \
@@ -697,7 +697,7 @@
 #define _MT_LIST_LOCK_PREV(el)                                             \
 	({                                                                 \
 	        struct mt_list *p = NULL;                                  \
-		while (1) {                                                \
+		for (;;__ha_cpu_relax()) {                                 \
 			struct mt_list *p2;                                \
 			p = _HA_ATOMIC_XCHG(&((el)->prev), MT_LIST_BUSY);  \
 			if (p == MT_LIST_BUSY)                             \
