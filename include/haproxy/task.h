@@ -441,7 +441,6 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
  */
 static inline void tasklet_init(struct tasklet *t)
 {
-	t->nice = 0;
 	t->calls = 0;
 	t->state = TASK_F_TASKLET;
 	t->process = NULL;
