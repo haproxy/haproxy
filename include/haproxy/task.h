@@ -83,7 +83,7 @@
 #define TIMER_LOOK_BACK       (1U << 31)
 
 /* tasklets are recognized with nice==-32768 */
-#define TASK_IS_TASKLET(t) ((t)->nice == -32768)
+#define TASK_IS_TASKLET(t) ((t)->state & TASK_F_TASKLET)
 
 
 /* a few exported variables */
@@ -435,15 +435,15 @@ static inline struct task *task_init(struct task *t, unsigned long thread_mask)
 	return t;
 }
 
-/* Initialize a new tasklet. It's identified as a tasklet by ->nice=-32768. It
- * is expected to run on the calling thread by default, it's up to the caller
- * to change ->tid if it wants to own it.
+/* Initialize a new tasklet. It's identified as a tasklet by its flags
+ * TASK_F_TASKLET. It is expected to run on the calling thread by default,
+ * it's up to the caller to change ->tid if it wants to own it.
  */
 static inline void tasklet_init(struct tasklet *t)
 {
-	t->nice = -32768;
+	t->nice = 0;
 	t->calls = 0;
-	t->state = 0;
+	t->state = TASK_F_TASKLET;
 	t->process = NULL;
 	t->tid = -1;
 #ifdef DEBUG_TASK

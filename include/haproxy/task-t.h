@@ -50,6 +50,8 @@
 #define TASK_WOKEN_RES    0x2000  /* woken up because of available resource */
 #define TASK_WOKEN_OTHER  0x4000  /* woken up for an unspecified reason */
 
+#define TASK_F_TASKLET    0x8000  /* nature of this task: 0=task 1=tasklet */
+
 /* use this to check a task state or to clean it up before queueing */
 #define TASK_WOKEN_ANY    (TASK_WOKEN_OTHER|TASK_WOKEN_INIT|TASK_WOKEN_TIMER| \
                            TASK_WOKEN_IO|TASK_WOKEN_SIGNAL|TASK_WOKEN_MSG| \
@@ -113,7 +115,7 @@ struct task_per_thread {
 #define TASK_COMMON							\
 	struct {							\
 		unsigned short state; /* task state : bitfield of TASK_	*/ \
-		short nice; /* task prio from -1024 to +1024, or -32768 for tasklets */ \
+		short nice; /* task prio from -1024 to +1024 */ \
 		unsigned int calls; /* number of times process was called */ \
 		struct task *(*process)(struct task *t, void *ctx, unsigned short state); /* the function which processes the task */ \
 		void *context; /* the task's context */			\

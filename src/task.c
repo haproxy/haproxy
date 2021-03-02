@@ -487,7 +487,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		budgets[queue]--;
 		t = (struct task *)LIST_ELEM(tl_queues[queue].n, struct tasklet *, list);
-		state = t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING|TASK_HEAVY|TASK_KILLED);
+		state = t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING|TASK_HEAVY|TASK_F_TASKLET|TASK_KILLED);
 
 		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
@@ -498,7 +498,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		_HA_ATOMIC_SUB(&sched->rq_total, 1);
 
-		if (TASK_IS_TASKLET(t)) {
+		if (state & TASK_F_TASKLET) {
 			uint64_t before = 0;
 
 			LIST_DEL_INIT(&((struct tasklet *)t)->list);
