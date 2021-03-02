@@ -152,6 +152,7 @@
 #define __ha_barrier_store()        do { } while (0)
 #define __ha_barrier_full()         do { } while (0)
 #define __ha_compiler_barrier()     do { } while (0)
+#define __ha_cpu_relax()            ({ 1; })
 
 #else /* !USE_THREAD */
 
@@ -395,6 +396,9 @@ __ha_cas_dw(void *target, void *compare, const void *set)
         return (ret);
 }
 
+/* short-lived CPU relaxation */
+#define __ha_cpu_relax() ({ asm volatile("rep;nop\n"); 1; })
+
 #elif defined(__arm__) && (defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__))
 
 static __inline void
@@ -457,6 +461,9 @@ static __inline int __ha_cas_dw(void *target, void *compare, const void *set)
 	return (tmp);
 }
 
+/* short-lived CPU relaxation */
+#define __ha_cpu_relax() ({ asm volatile(""); 1; })
+
 #elif defined (__aarch64__)
 
 static __inline void
@@ -498,6 +505,11 @@ __ha_barrier_atomic_full(void)
 	__asm __volatile("dmb ish" ::: "memory");
 }
 
+/* short-lived CPU relaxation; this was shown to improve fairness on
+ * modern ARMv8 cores such as Neoverse N1.
+ */
+#define __ha_cpu_relax() ({ asm volatile("isb" ::: "memory"); 1; })
+
 static __inline int __ha_cas_dw(void *target, void *compare, void *set)
 {
 	void *value[2];
@@ -533,6 +545,9 @@ static __inline int __ha_cas_dw(void *target, void *compare, void *set)
 #define __ha_barrier_store __sync_synchronize
 #define __ha_barrier_full __sync_synchronize
 /* Note: there is no generic DWCAS */
+
+/* short-lived CPU relaxation */
+#define __ha_cpu_relax() ({ asm volatile(""); 1; })
 
 #endif /* end of arch-specific barrier/dwcas */
 
