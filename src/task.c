@@ -487,7 +487,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		budgets[queue]--;
 		t = (struct task *)LIST_ELEM(tl_queues[queue].n, struct tasklet *, list);
-		state = t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING|TASK_HEAVY|TASK_F_TASKLET|TASK_KILLED);
+		state = t->state & (TASK_SHARED_WQ|TASK_SELF_WAKING|TASK_HEAVY|TASK_F_TASKLET|TASK_KILLED|TASK_F_USR1);
 
 		ti->flags &= ~TI_FL_STUCK; // this thread is still running
 		activity[tid].ctxsw++;
@@ -533,7 +533,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		LIST_DEL_INIT(&((struct tasklet *)t)->list);
 		__ha_barrier_store();
-		state = _HA_ATOMIC_XCHG(&t->state, state | TASK_RUNNING);
+		state = _HA_ATOMIC_XCHG(&t->state, state|TASK_RUNNING|TASK_F_USR1);
 		__ha_barrier_atomic_store();
 
 		/* OK then this is a regular task */

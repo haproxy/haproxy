@@ -56,7 +56,8 @@
                            TASK_WOKEN_RES)
 
 #define TASK_F_TASKLET    0x00008000  /* nature of this task: 0=task 1=tasklet */
-/* unused: 0x10000..0x80000000 */
+#define TASK_F_USR1       0x00010000  /* preserved user flag 1, application-specific, def:0 */
+/* unused: 0x20000..0x80000000 */
 
 
 enum {
