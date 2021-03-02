@@ -60,7 +60,7 @@ jobs:
         brew install lua
     - name: Install VTest
       run: |
-        curl -fsSL https://github.com/vtest/VTest/archive/02a9bc16d78e70d1d415b40d5349b9f3e56df05b.tar.gz -o VTest.tar.gz
+        curl -fsSL https://github.com/vtest/VTest/archive/master.tar.gz -o VTest.tar.gz
         mkdir VTest
         tar xvf VTest.tar.gz -C VTest --strip-components=1
         make -C VTest -j$(nproc) FLAGS="-O2 -s -Wall"
