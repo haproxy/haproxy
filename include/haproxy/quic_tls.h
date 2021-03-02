@@ -144,7 +144,7 @@ static inline enum quic_tls_enc_level ssl_to_quic_enc_level(enum ssl_encryption_
 }
 
 /* These two following functions map our encryption level to the TLS implementation ones. */
-static inline enum quic_tls_enc_level quic_to_ssl_enc_level(enum quic_tls_enc_level level)
+static inline enum ssl_encryption_level_t quic_to_ssl_enc_level(enum quic_tls_enc_level level)
 {
 	switch (level) {
 	case QUIC_TLS_ENC_LEVEL_INITIAL:
