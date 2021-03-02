@@ -1,0 +1,79 @@
+varnishtest "Test the proper interaction between http-reuse and dispatch mode"
+
+# With dispatch, the connection are considered as private and should only be
+# reused for requests of the same session
+# This is similar to the http-reuse never mode
+
+#REQUIRE_VERSION=2.4
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+	defaults
+		mode http
+
+	listen sender
+		bind "fd@${feS}"
+		http-request set-header client-id %[req.hdr(client-id)] if { req.hdr(client-id) -m found }
+		dispatch ${h1_feR_addr}:${h1_feR_port}
+
+	listen receiver
+		bind "fd@${feR}"
+		http-request set-var(sess.client_id) req.hdr(client-id)
+		http-request return status 200
+		http-after-response set-header http_first_request %[http_first_req]
+		http-after-response set-header client-id %[var(sess.client_id)]
+} -start
+
+client c1 -connect ${h1_feS_sock} {
+	txreq \
+	  -hdr "client-id: c1"
+	rxresp
+	expect resp.http.http_first_request == "1"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c1"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c1"
+} -run
+
+client c2 -connect ${h1_feS_sock} {
+	txreq \
+	  -hdr "client-id: c2"
+	rxresp
+	expect resp.http.http_first_request == "1"
+	expect resp.http.client-id == "c2"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c2"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c2"
+} -run
+
+client c3 -connect ${h1_feS_sock} {
+	txreq \
+	  -hdr "client-id: c3"
+	rxresp
+	expect resp.http.http_first_request == "1"
+	expect resp.http.client-id == "c3"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c3"
+
+	txreq
+	rxresp
+	expect resp.http.http_first_request == "0"
+	expect resp.http.client-id == "c3"
+} -run
