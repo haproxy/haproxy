@@ -2733,7 +2733,7 @@ void stream_dump_and_crash(enum obj_type *obj, int rate)
 
 	ha_alert("%s", msg);
 	send_log(NULL, LOG_EMERG, "%s", msg);
-	abort();
+	ABORT_NOW();
 }
 
 /* initialize the require structures */
