@@ -1506,18 +1506,23 @@ skip_reuse:
 			if (reuse_mode == PR_O_REUSE_NEVR)
 				conn_set_private(srv_conn);
 
+			/* assign bind_addr to srv_conn */
 			srv_conn->src = bind_addr;
+			bind_addr = NULL;
 
 			if (!sockaddr_alloc(&srv_conn->dst, 0, 0)) {
 				conn_free(srv_conn);
 				return SF_ERR_RESOURCE;
 			}
 		}
-		else {
-			sockaddr_free(&bind_addr);
-			return SF_ERR_RESOURCE;
-		}
 	}
+
+	/* if bind_addr is non NULL free it */
+	sockaddr_free(&bind_addr);
+
+	/* srv_conn is still NULL only on allocation failure */
+	if (!srv_conn)
+		return SF_ERR_RESOURCE;
 
 	/* copy the target address into the connection */
 	*srv_conn->dst = *s->target_addr;
