@@ -249,6 +249,12 @@ typedef struct { } empty_t;
 #define HA_HAVE_MALLOC_TRIM
 #endif
 
+/* glibc 2.26 includes a thread-local cache which makes it fast enough in threads */
+#if (defined(__GNU_LIBRARY__) && (__GLIBC__ > 2 || __GLIBC__ == 2 && __GLIBC_MINOR__ >= 26))
+#include <malloc.h>
+#define HA_HAVE_FAST_MALLOC
+#endif
+
 /* Max number of file descriptors we send in one sendmsg(). Linux seems to be
  * able to send 253 fds per sendmsg(), not sure about the other OSes.
  */

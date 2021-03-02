@@ -170,7 +170,63 @@ void pool_evict_from_cache()
 }
 #endif
 
-#ifdef CONFIG_HAP_LOCKLESS_POOLS
+#if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
+
+/* simply fall back on the default OS' allocator */
+
+void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
+{
+	int allocated = pool->allocated;
+	int limit = pool->limit;
+	void *ptr = NULL;
+
+	if (limit && allocated >= limit) {
+		_HA_ATOMIC_ADD(&pool->allocated, 1);
+		activity[tid].pool_fail++;
+		return NULL;
+	}
+
+	ptr = pool_alloc_area(pool->size + POOL_EXTRA);
+	if (!ptr) {
+		_HA_ATOMIC_ADD(&pool->failed, 1);
+		activity[tid].pool_fail++;
+		return NULL;
+	}
+
+	_HA_ATOMIC_ADD(&pool->allocated, 1);
+	_HA_ATOMIC_ADD(&pool->used, 1);
+
+#ifdef DEBUG_MEMORY_POOLS
+	/* keep track of where the element was allocated from */
+	*POOL_LINK(pool, ptr) = (void *)pool;
+#endif
+	return ptr;
+}
+
+/* legacy stuff */
+void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
+{
+	void *ptr;
+
+	ptr = __pool_refill_alloc(pool, avail);
+	return ptr;
+}
+
+/* legacy stuff */
+void pool_flush(struct pool_head *pool)
+{
+}
+
+/* This function might ask the malloc library to trim its buffers. */
+void pool_gc(struct pool_head *pool_ctx)
+{
+#if defined(HA_HAVE_MALLOC_TRIM)
+	malloc_trim(0);
+#endif
+}
+
+#elif defined(CONFIG_HAP_LOCKLESS_POOLS)
+
 /* Allocates new entries for pool <pool> until there are at least <avail> + 1
  * available, then returns the last one for immediate use, so that at least
  * <avail> are left available in the pool upon return. NULL is returned if the

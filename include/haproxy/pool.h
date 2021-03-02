@@ -150,7 +150,25 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t 
 #endif // CONFIG_HAP_LOCAL_POOLS
 
 
-#ifdef CONFIG_HAP_LOCKLESS_POOLS
+#if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
+
+/* this is essentially used with local caches and a fast malloc library,
+ * which may sometimes be faster than the local shared pools because it
+ * will maintain its own per-thread arenas.
+ */
+static inline void *__pool_get_first(struct pool_head *pool)
+{
+	return NULL;
+}
+
+static inline void __pool_free(struct pool_head *pool, void *ptr)
+{
+	_HA_ATOMIC_SUB(&pool->used, 1);
+	_HA_ATOMIC_SUB(&pool->allocated, 1);
+	pool_free_area(ptr, pool->size + POOL_EXTRA);
+}
+
+#elif defined(CONFIG_HAP_LOCKLESS_POOLS)
 
 /****************** Lockless pools implementation ******************/
 
@@ -274,11 +292,11 @@ static inline void *pool_get_first(struct pool_head *pool)
 		return p;
 #endif
 
-#ifndef CONFIG_HAP_LOCKLESS_POOLS
+#if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 #endif
 	p = __pool_get_first(pool);
-#ifndef CONFIG_HAP_LOCKLESS_POOLS
+#if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 #endif
 	return p;
@@ -298,12 +316,12 @@ static inline void *pool_alloc_dirty(struct pool_head *pool)
 		return p;
 #endif
 
-#ifndef CONFIG_HAP_LOCKLESS_POOLS
+#if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 #endif
 	if ((p = __pool_get_first(pool)) == NULL)
 		p = __pool_refill_alloc(pool, 0);
-#ifndef CONFIG_HAP_LOCKLESS_POOLS
+#if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 #endif
 	return p;

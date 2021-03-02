@@ -40,6 +40,16 @@
 #define CONFIG_HAP_LOCAL_POOLS
 #endif
 
+/* On modern architectures with many threads, a fast memory allocator, and
+ * local pools, the global pools with their single list can be way slower than
+ * the standard allocator which already has its own per-thread arenas. In this
+ * case we disable global pools. The global pools may still be enforced
+ * using CONFIG_HAP_GLOBAL_POOLS though.
+ */
+#if defined(USE_THREAD) && defined(HA_HAVE_FAST_MALLOC) && defined(CONFIG_HAP_LOCAL_POOLS) && !defined(CONFIG_HAP_GLOBAL_POOLS)
+#define CONFIG_HAP_NO_GLOBAL_POOLS
+#endif
+
 /* Pools of very similar size are shared by default, unless macro
  * DEBUG_DONT_SHARE_POOLS is set.
  */
