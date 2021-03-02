@@ -2799,38 +2799,45 @@ static int h1_process(struct h1c * h1c)
 	return -1;
 }
 
-struct task *h1_io_cb(struct task *t, void *ctx, unsigned int status)
+struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
 {
 	struct connection *conn;
 	struct tasklet *tl = (struct tasklet *)t;
 	int conn_in_list;
-	struct h1c *h1c;
+	struct h1c *h1c = ctx;
 	int ret = 0;
 
-
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-	if (tl->context == NULL) {
-		/* The connection has been taken over by another thread,
-		 * we're no longer responsible for it, so just free the
-		 * tasklet, and do nothing.
+	if (state & TASK_F_USR1) {
+		/* the tasklet was idling on an idle connection, it might have
+		 * been stolen, let's be careful!
 		 */
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		if (tl->context == NULL) {
+			/* The connection has been taken over by another thread,
+			 * we're no longer responsible for it, so just free the
+			 * tasklet, and do nothing.
+			 */
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			tasklet_free(tl);
+			return NULL;
+		}
+		conn = h1c->conn;
+		TRACE_POINT(H1_EV_H1C_WAKE, conn);
+
+		/* Remove the connection from the list, to be sure nobody attempts
+		 * to use it while we handle the I/O events
+		 */
+		conn_in_list = conn->flags & CO_FL_LIST_MASK;
+		if (conn_in_list)
+			conn_delete_from_tree(&conn->hash_node->node);
+
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		tasklet_free(tl);
-		return NULL;
+	} else {
+		/* we're certain the connection was not in an idle list */
+		conn = h1c->conn;
+		TRACE_ENTER(H1_EV_H1C_WAKE, conn);
+		conn_in_list = 0;
 	}
-	h1c = ctx;
-	conn = h1c->conn;
-
-	TRACE_POINT(H1_EV_H1C_WAKE, conn);
-
-	/* Remove the connection from the list, to be sure nobody attempts
-	 * to use it while we handle the I/O events
-	 */
-	conn_in_list = conn->flags & CO_FL_LIST_MASK;
-	if (conn_in_list)
-		conn_delete_from_tree(&conn->hash_node->node);
-
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
 	if (!(h1c->wait_event.events & SUB_RETRY_SEND))
 		ret = h1_send(h1c);
@@ -2998,6 +3005,9 @@ static struct conn_stream *h1_attach(struct connection *conn, struct session *se
 		goto err;
 	}
 
+	/* the connection is not idle anymore, let's mark this */
+	HA_ATOMIC_AND(&h1c->wait_event.tasklet->state, ~TASK_F_USR1);
+
 	TRACE_LEAVE(H1_EV_STRM_NEW, conn, h1s);
 	return cs;
   err:
@@ -3090,6 +3100,11 @@ static void h1_detach(struct conn_stream *cs)
 		else {
 			if (h1c->conn->owner == sess)
 				h1c->conn->owner = NULL;
+
+			/* mark that the tasklet may lose its context to another thread and
+			 * that the handler needs to check it under the idle conns lock.
+			 */
+			HA_ATOMIC_OR(&h1c->wait_event.tasklet->state, TASK_F_USR1);
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
 			if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn, is_not_first)) {
 				/* The server doesn't want it, let's kill the connection right away */

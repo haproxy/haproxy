@@ -2975,36 +2975,42 @@ schedule:
 }
 
 /* this is the tasklet referenced in fconn->wait_event.tasklet */
-struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int status)
+struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 {
 	struct connection *conn;
-	struct fcgi_conn *fconn;
+	struct fcgi_conn *fconn = ctx;
 	struct tasklet *tl = (struct tasklet *)t;
 	int conn_in_list;
 	int ret = 0;
 
-
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-	if (tl->context == NULL) {
-		/* The connection has been taken over by another thread,
-		 * we're no longer responsible for it, so just free the
-		 * tasklet, and do nothing.
+	if (state & TASK_F_USR1) {
+		/* the tasklet was idling on an idle connection, it might have
+		 * been stolen, let's be careful!
 		 */
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		if (tl->context == NULL) {
+			/* The connection has been taken over by another thread,
+			 * we're no longer responsible for it, so just free the
+			 * tasklet, and do nothing.
+			 */
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			tasklet_free(tl);
+			return NULL;
+		}
+		conn = fconn->conn;
+		TRACE_POINT(FCGI_EV_FCONN_WAKE, conn);
+
+		conn_in_list = conn->flags & CO_FL_LIST_MASK;
+		if (conn_in_list)
+			conn_delete_from_tree(&conn->hash_node->node);
+
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		tasklet_free(tl);
-		return NULL;
-
+	} else {
+		/* we're certain the connection was not in an idle list */
+		conn = fconn->conn;
+		TRACE_ENTER(FCGI_EV_FCONN_WAKE, conn);
+		conn_in_list = 0;
 	}
-	fconn = ctx;
-	conn = fconn->conn;
-
-	TRACE_POINT(FCGI_EV_FCONN_WAKE, conn);
-
-	conn_in_list = conn->flags & CO_FL_LIST_MASK;
-	if (conn_in_list)
-		conn_delete_from_tree(&conn->hash_node->node);
-
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 
 	if (!(fconn->wait_event.events & SUB_RETRY_SEND))
 		ret = fcgi_send(fconn);
@@ -3480,6 +3486,10 @@ static struct conn_stream *fcgi_attach(struct connection *conn, struct session *
 		cs_free(cs);
 		goto err;
 	}
+
+	/* the connection is not idle anymore, let's mark this */
+	HA_ATOMIC_AND(&fconn->wait_event.tasklet->state, ~TASK_F_USR1);
+
 	TRACE_LEAVE(FCGI_EV_FSTRM_NEW, conn, fstrm);
 	return cs;
 
@@ -3606,6 +3616,10 @@ static void fcgi_detach(struct conn_stream *cs)
 					fconn->conn->owner = NULL;
 				}
 
+				/* mark that the tasklet may lose its context to another thread and
+				 * that the handler needs to check it under the idle conns lock.
+				 */
+				HA_ATOMIC_OR(&fconn->wait_event.tasklet->state, TASK_F_USR1);
 				if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn, 1)) {
 					/* The server doesn't want it, let's kill the connection right away */
 					fconn->conn->mux->destroy(fconn);
