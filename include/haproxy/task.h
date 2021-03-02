@@ -111,7 +111,7 @@ void __task_wakeup(struct task *t);
 void __task_queue(struct task *task, struct eb_root *wq);
 
 struct work_list *work_list_create(int nbthread,
-                                   struct task *(*fct)(struct task *, void *, unsigned short),
+                                   struct task *(*fct)(struct task *, void *, unsigned int),
                                    void *arg);
 void work_list_destroy(struct work_list *work, int nbthread);
 unsigned int run_tasks_from_lists(unsigned int budgets[]);
@@ -205,7 +205,7 @@ static inline int thread_has_tasks(void)
 #define task_wakeup(t, f) _task_wakeup(t, f, __FILE__, __LINE__)
 static inline void _task_wakeup(struct task *t, unsigned int f, const char *file, int line)
 {
-	unsigned short state;
+	unsigned int state;
 
 	state = _HA_ATOMIC_OR(&t->state, f);
 	while (!(state & (TASK_RUNNING | TASK_QUEUED))) {
@@ -353,7 +353,7 @@ static inline struct task *task_unlink_rq(struct task *t)
 #define tasklet_wakeup_on(tl, thr) _tasklet_wakeup_on(tl, thr, __FILE__, __LINE__)
 static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *file, int line)
 {
-	unsigned short state = tl->state;
+	unsigned int state = tl->state;
 
 	do {
 		/* do nothing if someone else already added it */

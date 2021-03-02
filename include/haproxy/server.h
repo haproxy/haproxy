@@ -68,8 +68,8 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code);
 int snr_resolution_error_cb(struct resolv_requester *requester, int error_code);
 struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char *ip_family);
-struct task *srv_cleanup_idle_conns(struct task *task, void *ctx, unsigned short state);
-struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsigned short state);
+struct task *srv_cleanup_idle_conns(struct task *task, void *ctx, unsigned int state);
+struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsigned int state);
 
 /*
  * Registers the server keyword list <kwl> as a list of valid keywords for next

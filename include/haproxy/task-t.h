@@ -30,32 +30,34 @@
 #include <haproxy/api-t.h>
 #include <haproxy/thread-t.h>
 
-/* values for task->state */
-#define TASK_SLEEPING     0x0000  /* task sleeping */
-#define TASK_RUNNING      0x0001  /* the task is currently running */
-#define TASK_GLOBAL       0x0002  /* The task is currently in the global runqueue */
-#define TASK_QUEUED       0x0004  /* The task has been (re-)added to the run queue */
-#define TASK_SHARED_WQ    0x0008  /* The task's expiration may be updated by other
-                                   * threads, must be set before first queue/wakeup */
-#define TASK_SELF_WAKING  0x0010  /* task/tasklet found waking itself */
-#define TASK_KILLED       0x0020  /* task/tasklet killed, may now be freed */
-#define TASK_IN_LIST      0x0040  /* tasklet is in a tasklet list */
-#define TASK_HEAVY        0x0080  /* this task/tasklet is extremely heavy */
+/* values for task->state (32 bits) */
+#define TASK_SLEEPING     0x00000000  /* task sleeping */
+#define TASK_RUNNING      0x00000001  /* the task is currently running */
+#define TASK_GLOBAL       0x00000002  /* The task is currently in the global runqueue */
+#define TASK_QUEUED       0x00000004  /* The task has been (re-)added to the run queue */
+#define TASK_SHARED_WQ    0x00000008  /* The task's expiration may be updated by other
+                                       * threads, must be set before first queue/wakeup */
+#define TASK_SELF_WAKING  0x00000010  /* task/tasklet found waking itself */
+#define TASK_KILLED       0x00000020  /* task/tasklet killed, may now be freed */
+#define TASK_IN_LIST      0x00000040  /* tasklet is in a tasklet list */
+#define TASK_HEAVY        0x00000080  /* this task/tasklet is extremely heavy */
 
-#define TASK_WOKEN_INIT   0x0100  /* woken up for initialisation purposes */
-#define TASK_WOKEN_TIMER  0x0200  /* woken up because of expired timer */
-#define TASK_WOKEN_IO     0x0400  /* woken up because of completed I/O */
-#define TASK_WOKEN_SIGNAL 0x0800  /* woken up by a system signal */
-#define TASK_WOKEN_MSG    0x1000  /* woken up by another task's message */
-#define TASK_WOKEN_RES    0x2000  /* woken up because of available resource */
-#define TASK_WOKEN_OTHER  0x4000  /* woken up for an unspecified reason */
-
-#define TASK_F_TASKLET    0x8000  /* nature of this task: 0=task 1=tasklet */
+#define TASK_WOKEN_INIT   0x00000100  /* woken up for initialisation purposes */
+#define TASK_WOKEN_TIMER  0x00000200  /* woken up because of expired timer */
+#define TASK_WOKEN_IO     0x00000400  /* woken up because of completed I/O */
+#define TASK_WOKEN_SIGNAL 0x00000800  /* woken up by a system signal */
+#define TASK_WOKEN_MSG    0x00001000  /* woken up by another task's message */
+#define TASK_WOKEN_RES    0x00002000  /* woken up because of available resource */
+#define TASK_WOKEN_OTHER  0x00004000  /* woken up for an unspecified reason */
 
 /* use this to check a task state or to clean it up before queueing */
 #define TASK_WOKEN_ANY    (TASK_WOKEN_OTHER|TASK_WOKEN_INIT|TASK_WOKEN_TIMER| \
                            TASK_WOKEN_IO|TASK_WOKEN_SIGNAL|TASK_WOKEN_MSG| \
                            TASK_WOKEN_RES)
+
+#define TASK_F_TASKLET    0x00008000  /* nature of this task: 0=task 1=tasklet */
+/* unused: 0x10000..0x80000000 */
+
 
 enum {
 	TL_URGENT = 0,   /* urgent tasklets (I/O callbacks) */
@@ -114,10 +116,10 @@ struct task_per_thread {
  */
 #define TASK_COMMON							\
 	struct {							\
-		unsigned short state; /* task state : bitfield of TASK_	*/ \
+		unsigned int state; /* task state : bitfield of TASK_	*/ \
 		/* 16-bit hole here */ \
 		unsigned int calls; /* number of times process was called */ \
-		struct task *(*process)(struct task *t, void *ctx, unsigned short state); /* the function which processes the task */ \
+		struct task *(*process)(struct task *t, void *ctx, unsigned int state); /* the function which processes the task */ \
 		void *context; /* the task's context */			\
 		TASK_DEBUG_STORAGE;					\
 	}

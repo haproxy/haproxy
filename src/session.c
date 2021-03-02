@@ -324,7 +324,7 @@ static void session_prepare_log_prefix(struct session *sess)
  * disabled and finally kills the file descriptor. This function requires that
  * sess->origin points to the incoming connection.
  */
-static void session_kill_embryonic(struct session *sess, unsigned short state)
+static void session_kill_embryonic(struct session *sess, unsigned int state)
 {
 	int level = LOG_INFO;
 	struct connection *conn = __objt_conn(sess->origin);
@@ -378,7 +378,7 @@ static void session_kill_embryonic(struct session *sess, unsigned short state)
  * strikes and performs the required cleanup. It's only exported to make it
  * resolve in "show tasks".
  */
-struct task *session_expire_embryonic(struct task *t, void *context, unsigned short state)
+struct task *session_expire_embryonic(struct task *t, void *context, unsigned int state)
 {
 	struct session *sess = context;
 

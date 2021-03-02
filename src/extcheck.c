@@ -475,7 +475,7 @@ out:
  * Please do NOT place any return statement in this function and only leave
  * via the out_unlock label.
  */
-struct task *process_chk_proc(struct task *t, void *context, unsigned short state)
+struct task *process_chk_proc(struct task *t, void *context, unsigned int state)
 {
 	struct check *check = context;
 	struct server *s = check->server;

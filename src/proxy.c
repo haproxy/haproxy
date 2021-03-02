@@ -1506,7 +1506,7 @@ void proxy_cond_disable(struct proxy *p)
  * called as a task which is woken up upon stopping or when rate limiting must
  * be enforced.
  */
-struct task *manage_proxy(struct task *t, void *context, unsigned short state)
+struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 {
 	struct proxy *p = context;
 	int next = TICK_ETERNITY;
@@ -1604,7 +1604,7 @@ static int proxy_parse_hard_stop_after(char **args, int section_type, struct pro
 	return 0;
 }
 
-struct task *hard_stop(struct task *t, void *context, unsigned short state)
+struct task *hard_stop(struct task *t, void *context, unsigned int state)
 {
 	struct proxy *p;
 	struct stream *s;

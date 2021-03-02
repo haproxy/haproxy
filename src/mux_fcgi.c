@@ -353,12 +353,12 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 DECLARE_STATIC_POOL(pool_head_fcgi_conn, "fcgi_conn", sizeof(struct fcgi_conn));
 DECLARE_STATIC_POOL(pool_head_fcgi_strm, "fcgi_strm", sizeof(struct fcgi_strm));
 
-struct task *fcgi_timeout_task(struct task *t, void *context, unsigned short state);
+struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state);
 static int fcgi_process(struct fcgi_conn *fconn);
 /* fcgi_io_cb is exported to see it resolved in "show fd" */
-struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short state);
+struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state);
 static inline struct fcgi_strm *fcgi_conn_st_by_id(struct fcgi_conn *fconn, int id);
-struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned short state);
+struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state);
 static struct fcgi_strm *fcgi_conn_stream_new(struct fcgi_conn *fconn, struct conn_stream *cs, struct session *sess);
 static void fcgi_strm_notify_recv(struct fcgi_strm *fstrm);
 static void fcgi_strm_notify_send(struct fcgi_strm *fstrm);
@@ -2975,7 +2975,7 @@ schedule:
 }
 
 /* this is the tasklet referenced in fconn->wait_event.tasklet */
-struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned short status)
+struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int status)
 {
 	struct connection *conn;
 	struct fcgi_conn *fconn;
@@ -3147,7 +3147,7 @@ static int fcgi_ctl(struct connection *conn, enum mux_ctl_type mux_ctl, void *ou
  * immediately killed. If it's allocatable and empty, we attempt to send a
  * ABORT records.
  */
-struct task *fcgi_timeout_task(struct task *t, void *context, unsigned short state)
+struct task *fcgi_timeout_task(struct task *t, void *context, unsigned int state)
 {
 	struct fcgi_conn *fconn = context;
 	int expired = tick_is_expired(t->expire, now_ms);
@@ -3758,7 +3758,7 @@ static void fcgi_do_shutw(struct fcgi_strm *fstrm)
  * deferred shutdowns when the fcgi_detach() was done but the mux buffer was full
  * and prevented the last record from being emitted.
  */
-struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned short state)
+struct task *fcgi_deferred_shut(struct task *t, void *ctx, unsigned int state)
 {
 	struct fcgi_strm *fstrm = ctx;
 	struct fcgi_conn *fconn = fstrm->fconn;

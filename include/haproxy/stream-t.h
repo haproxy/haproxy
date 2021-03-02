@@ -134,7 +134,7 @@ struct stream {
 	struct http_txn *txn;           /* current HTTP transaction being processed. Should become a list. */
 
 	struct task *task;              /* the task associated with this stream */
-	unsigned short pending_events;	/* the pending events not yet processed by the stream.
+	unsigned int pending_events;	/* the pending events not yet processed by the stream.
 					 * This is a bit field of TASK_WOKEN_* */
 	int16_t priority_class;         /* priority class of the stream for the pending queue */
 	int32_t priority_offset;        /* priority offset of the stream for the pending queue */

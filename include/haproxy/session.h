@@ -37,7 +37,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 void session_free(struct session *sess);
 int session_accept_fd(struct connection *cli_conn);
 int conn_complete_session(struct connection *conn);
-struct task *session_expire_embryonic(struct task *t, void *context, unsigned short state);
+struct task *session_expire_embryonic(struct task *t, void *context, unsigned int state);
 
 /* Remove the refcount from the session to the tracked counters, and clear the
  * pointer to ensure this is only performed once. The caller is responsible for

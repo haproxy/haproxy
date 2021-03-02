@@ -706,7 +706,7 @@ static inline void cs_attach(struct conn_stream *cs, void *data, const struct da
 	cs->data = data;
 }
 
-static inline struct wait_event *wl_set_waitcb(struct wait_event *wl, struct task *(*cb)(struct task *, void *, unsigned short), void *ctx)
+static inline struct wait_event *wl_set_waitcb(struct wait_event *wl, struct task *(*cb)(struct task *, void *, unsigned int), void *ctx)
 {
 	if (!wl->tasklet->process) {
 		wl->tasklet->process = cb;

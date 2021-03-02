@@ -64,7 +64,7 @@ struct task_per_thread task_per_thread[MAX_THREADS];
  */
 void task_kill(struct task *t)
 {
-	unsigned short state = t->state;
+	unsigned int state = t->state;
 	unsigned int thr;
 
 	BUG_ON(state & TASK_KILLED);
@@ -433,14 +433,14 @@ int next_timer_expiry()
  */
 unsigned int run_tasks_from_lists(unsigned int budgets[])
 {
-	struct task *(*process)(struct task *t, void *ctx, unsigned short state);
+	struct task *(*process)(struct task *t, void *ctx, unsigned int state);
 	struct list *tl_queues = sched->tasklets;
 	struct task *t;
 	uint8_t budget_mask = (1 << TL_CLASSES) - 1;
 	struct sched_activity *profile_entry = NULL;
 	unsigned int done = 0;
 	unsigned int queue;
-	unsigned short state;
+	unsigned int state;
 	void *ctx;
 
 	for (queue = 0; queue < TL_CLASSES;) {
@@ -806,7 +806,7 @@ void process_runnable_tasks()
  * is returned on success, otherwise NULL on failure.
  */
 struct work_list *work_list_create(int nbthread,
-                                   struct task *(*fct)(struct task *, void *, unsigned short),
+                                   struct task *(*fct)(struct task *, void *, unsigned int),
                                    void *arg)
 {
 	struct work_list *wl;

@@ -1525,7 +1525,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
  * and each function is called only if at least another function has changed at
  * least one flag it is interested in.
  */
-struct task *process_stream(struct task *t, void *context, unsigned short state)
+struct task *process_stream(struct task *t, void *context, unsigned int state)
 {
 	struct server *srv;
 	struct stream *s = context;

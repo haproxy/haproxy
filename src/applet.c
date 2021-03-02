@@ -58,7 +58,7 @@ int appctx_buf_available(void *arg)
 }
 
 /* Default applet handler */
-struct task *task_run_applet(struct task *t, void *context, unsigned short state)
+struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 {
 	struct appctx *app = context;
 	struct stream_interface *si = app->owner;

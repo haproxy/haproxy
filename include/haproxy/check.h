@@ -39,7 +39,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired);
 void check_notify_failure(struct check *check);
 void check_notify_stopping(struct check *check);
 void check_notify_success(struct check *check);
-struct task *process_chk(struct task *t, void *context, unsigned short state);
+struct task *process_chk(struct task *t, void *context, unsigned int state);
 
 int check_buf_available(void *target);
 struct buffer *check_get_buf(struct check *check, struct buffer *bptr);

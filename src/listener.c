@@ -120,7 +120,7 @@ int accept_queue_push_mp(struct accept_queue_ring *ring, struct connection *conn
 /* proceed with accepting new connections. Don't mark it static so that it appears
  * in task dumps.
  */
-struct task *accept_queue_process(struct task *t, void *context, unsigned short state)
+struct task *accept_queue_process(struct task *t, void *context, unsigned int state)
 {
 	struct accept_queue_ring *ring = context;
 	struct connection *conn;
@@ -1170,7 +1170,7 @@ REGISTER_POST_DEINIT(listener_queue_deinit);
  * a while. It is designed to be called as a task. It's exported so that it's easy
  * to spot in "show tasks" or "show profiling".
  */
-struct task *manage_global_listener_queue(struct task *t, void *context, unsigned short state)
+struct task *manage_global_listener_queue(struct task *t, void *context, unsigned int state)
 {
 	/* If there are still too many concurrent connections, let's wait for
 	 * some of them to go away. We don't need to re-arm the timer because

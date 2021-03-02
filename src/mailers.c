@@ -55,7 +55,7 @@ void email_alert_free(struct email_alert *alert)
 	pool_free(pool_head_email_alert, alert);
 }
 
-static struct task *process_email_alert(struct task *t, void *context, unsigned short state)
+static struct task *process_email_alert(struct task *t, void *context, unsigned int state)
 {
 	struct check        *check = context;
 	struct email_alertq *q;

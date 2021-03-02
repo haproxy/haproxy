@@ -70,7 +70,7 @@ struct ist stream_generate_unique_id(struct stream *strm, struct list *format);
 
 void stream_process_counters(struct stream *s);
 void sess_change_server(struct stream *sess, struct server *newsrv);
-struct task *process_stream(struct task *t, void *context, unsigned short state);
+struct task *process_stream(struct task *t, void *context, unsigned int state);
 void default_srv_error(struct stream *s, struct stream_interface *si);
 int parse_track_counters(char **args, int *arg,
 			 int section_type, struct proxy *curpx,

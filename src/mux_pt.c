@@ -56,7 +56,7 @@ static void mux_pt_destroy(struct mux_pt_ctx *ctx)
 /* Callback, used when we get I/Os while in idle mode. This one is exported so
  * that "show fd" can resolve it.
  */
-struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned short status)
+struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 {
 	struct mux_pt_ctx *ctx = tctx;
 

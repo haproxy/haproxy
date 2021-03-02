@@ -27,7 +27,7 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/task-t.h>
 
-struct task *process_chk_proc(struct task *t, void *context, unsigned short state);
+struct task *process_chk_proc(struct task *t, void *context, unsigned int state);
 int prepare_external_check(struct check *check);
 int init_pid_list(void);
 

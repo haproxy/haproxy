@@ -2462,7 +2462,7 @@ static void quic_conn_free(struct quic_conn *conn)
 }
 
 /* Callback called upon loss detection and PTO timer expirations. */
-static struct task *process_timer(struct task *task, void *ctx, unsigned short state)
+static struct task *process_timer(struct task *task, void *ctx, unsigned int state)
 {
 	struct quic_conn_ctx *conn_ctx;
 	struct quic_conn *qc;
@@ -3848,7 +3848,7 @@ int qc_prep_phdshk_pkts(struct quic_conn *qc)
 }
 
 /* QUIC connection packet handler task. */
-struct task *quic_conn_io_cb(struct task *t, void *context, unsigned short state)
+struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 {
 	struct quic_conn_ctx *ctx = context;
 

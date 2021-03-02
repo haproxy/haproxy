@@ -183,7 +183,7 @@ static struct stats_module ssl_stats_module = {
 INITCALL1(STG_REGISTER, stats_register_module, &ssl_stats_module);
 
 /* ssl_sock_io_cb is exported to see it resolved in "show fd" */
-struct task *ssl_sock_io_cb(struct task *, void *, unsigned short);
+struct task *ssl_sock_io_cb(struct task *, void *, unsigned int);
 static int ssl_sock_handshake(struct connection *conn, unsigned int flag);
 
 /* Methods to implement OpenSSL BIO */
@@ -5797,7 +5797,7 @@ static int ssl_remove_xprt(struct connection *conn, void *xprt_ctx, void *toremo
 	return (ctx->xprt->remove_xprt(conn, ctx->xprt_ctx, toremove_ctx, newops, newctx));
 }
 
-struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned short state)
+struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 {
 	struct tasklet *tl = (struct tasklet *)t;
 	struct ssl_sock_ctx *ctx = context;

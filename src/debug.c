@@ -729,7 +729,7 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 	return 1;
 }
 
-static struct task *debug_task_handler(struct task *t, void *ctx, unsigned short state)
+static struct task *debug_task_handler(struct task *t, void *ctx, unsigned int state)
 {
 	unsigned long *tctx = ctx; // [0] = #tasks, [1] = inter, [2+] = { tl | (tsk+1) }
 	unsigned long inter = tctx[1];
@@ -752,7 +752,7 @@ static struct task *debug_task_handler(struct task *t, void *ctx, unsigned short
 	return t;
 }
 
-static struct task *debug_tasklet_handler(struct task *t, void *ctx, unsigned short state)
+static struct task *debug_tasklet_handler(struct task *t, void *ctx, unsigned int state)
 {
 	unsigned long *tctx = ctx; // [0] = #tasks, [1] = inter, [2+] = { tl | (tsk+1) }
 	unsigned long rnd;

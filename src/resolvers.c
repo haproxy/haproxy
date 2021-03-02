@@ -2005,7 +2005,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
  * resolutions and retry them if possible. Else a timeout is reported. Then, it
  * checks the wait list to trigger new resolutions.
  */
-static struct task *process_resolvers(struct task *t, void *context, unsigned short state)
+static struct task *process_resolvers(struct task *t, void *context, unsigned int state)
 {
 	struct resolvers  *resolvers = context;
 	struct resolv_resolution *res, *resback;

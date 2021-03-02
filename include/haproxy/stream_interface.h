@@ -45,7 +45,7 @@ void si_applet_wake_cb(struct stream_interface *si);
 void si_update_rx(struct stream_interface *si);
 void si_update_tx(struct stream_interface *si);
 int si_cs_recv(struct conn_stream *cs);
-struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state);
+struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state);
 void si_update_both(struct stream_interface *si_f, struct stream_interface *si_b);
 void si_sync_send(struct stream_interface *si);
 

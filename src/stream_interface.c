@@ -767,7 +767,7 @@ int si_cs_send(struct conn_stream *cs)
  * stream interface. Thus it is always safe to perform a tasklet_wakeup() on a
  * stream interface, as the presence of the CS is checked there.
  */
-struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned short state)
+struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state)
 {
 	struct stream_interface *si = ctx;
 	struct conn_stream *cs = objt_cs(si->end);

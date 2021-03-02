@@ -925,7 +925,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 /* Task processing expiration of unresponded queries, this one is supposed
  * to be stuck on the same thread than the appctx handler
  */
-static struct task *dns_process_query_exp(struct task *t, void *context, unsigned short state)
+static struct task *dns_process_query_exp(struct task *t, void *context, unsigned int state)
 {
 	struct dns_session *ds = (struct dns_session *)context;
 	struct dns_query *query, *queryb;
@@ -949,7 +949,7 @@ static struct task *dns_process_query_exp(struct task *t, void *context, unsigne
 }
 
 /* Task processing expiration of idle sessions */
-static struct task *dns_process_idle_exp(struct task *t, void *context, unsigned short state)
+static struct task *dns_process_idle_exp(struct task *t, void *context, unsigned int state)
 {
 	struct dns_stream_server *dss = (struct dns_stream_server *)context;
 	struct dns_session *ds, *dsb;
@@ -1059,7 +1059,7 @@ error:
  * and forward them to dns_session ring.
  * Note: If no slot found a new dns_session is allocated
  */
-static struct task *dns_process_req(struct task *t, void *context, unsigned short state)
+static struct task *dns_process_req(struct task *t, void *context, unsigned int state)
 {
 	struct dns_nameserver *ns = (struct dns_nameserver *)context;
 	struct dns_stream_server *dss = ns->stream;
@@ -1193,7 +1193,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned shor
  * Task used to consume response
  * Note: upper layer callback is called
  */
-static struct task *dns_process_rsp(struct task *t, void *context, unsigned short state)
+static struct task *dns_process_rsp(struct task *t, void *context, unsigned int state)
 {
 	struct dns_nameserver *ns = (struct dns_nameserver *)context;
 
