@@ -721,7 +721,7 @@ int assign_server(struct stream *s)
 					uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 					if (s->be->lbprm.arg_opt1 & 2) {
 						uri = http_get_path(uri);
-						if (!uri.ptr)
+						if (!isttest(uri))
 							uri = ist("");
 					}
 					srv = get_server_uh(s->be, uri.ptr, uri.len, prev_srv);

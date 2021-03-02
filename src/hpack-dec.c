@@ -118,7 +118,7 @@ static inline struct ist hpack_alloc_string(struct buffer *store, uint32_t idx,
 
 	out.len = in.len;
 	out.ptr = chunk_newstr(store);
-	if (unlikely(!out.ptr))
+	if (unlikely(!isttest(out)))
 		return out;
 
 	if (unlikely(store->data + out.len > store->size)) {

@@ -200,7 +200,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	words++;
 	line[words++] = ist("] ");
 
-	if (ist_func.ptr) {
+	if (isttest(ist_func)) {
 		line[words++] = ist_func;
 		line[words++] = ist("(): ");
 	}

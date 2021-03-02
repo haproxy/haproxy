@@ -5462,7 +5462,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			 * is present, otherwise it must be deleted.
 			 */
 			v = istist(v, ist("trailers"));
-			if (!v.ptr || (v.len > 8 && v.ptr[8] != ','))
+			if (!isttest(v) || (v.len > 8 && v.ptr[8] != ','))
 				continue;
 			v = ist("trailers");
 		}

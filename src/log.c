@@ -3562,7 +3562,7 @@ void parse_log_message(char *buf, size_t buflen, int *level, int *facility,
 				metadata[LOG_META_TAG].len = p - metadata[LOG_META_TAG].ptr;
 				metadata[LOG_META_PID].ptr = p + 1;
 			}
-			else if (*p == ']' && metadata[LOG_META_PID].ptr) {
+			else if (*p == ']' && isttest(metadata[LOG_META_PID])) {
 				if (p[1] != ':')
 					return;
 				metadata[LOG_META_PID].len = p - metadata[LOG_META_PID].ptr;

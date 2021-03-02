@@ -3586,7 +3586,7 @@ static int add_hdr_case_adjust(const char *from, const char *to, char **err)
 
 	entry->node.key = strdup(from);
 	entry->name = ist2(strdup(to), strlen(to));
-	if (!entry->node.key || !entry->name.ptr) {
+	if (!entry->node.key || !isttest(entry->name)) {
 		free(entry->node.key);
 		istfree(&entry->name);
 		free(entry);
