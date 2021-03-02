@@ -5765,6 +5765,37 @@ static int ssl_takeover(struct connection *conn, void *xprt_ctx, int orig_tid)
 	return 0;
 }
 
+/* notify the next xprt that the connection is about to become idle and that it
+ * may be stolen at any time after the function returns and that any tasklet in
+ * the chain must be careful before dereferencing its context.
+ */
+static void ssl_set_idle(struct connection *conn, void *xprt_ctx)
+{
+	struct ssl_sock_ctx *ctx = xprt_ctx;
+
+	if (!ctx || !ctx->wait_event.tasklet)
+		return;
+
+	HA_ATOMIC_OR(&ctx->wait_event.tasklet->state, TASK_F_USR1);
+	if (ctx->xprt)
+		xprt_set_idle(conn, ctx->xprt, ctx->xprt_ctx);
+}
+
+/* notify the next xprt that the connection is not idle anymore and that it may
+ * not be stolen before the next xprt_set_idle().
+ */
+static void ssl_set_used(struct connection *conn, void *xprt_ctx)
+{
+	struct ssl_sock_ctx *ctx = xprt_ctx;
+
+	if (!ctx || !ctx->wait_event.tasklet)
+		return;
+
+	HA_ATOMIC_OR(&ctx->wait_event.tasklet->state, TASK_F_USR1);
+	if (ctx->xprt)
+		xprt_set_used(conn, ctx->xprt, ctx->xprt_ctx);
+}
+
 /* Use the provided XPRT as an underlying XPRT, and provide the old one.
  * Returns 0 on success, and non-zero on failure.
  */
@@ -5805,17 +5836,26 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 	int conn_in_list;
 	int ret = 0;
 
-	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-	if (tl->context == NULL) {
+	if (state & TASK_F_USR1) {
+		/* the tasklet was idling on an idle connection, it might have
+		 * been stolen, let's be careful!
+		 */
+		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		if (tl->context == NULL) {
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+			tasklet_free(tl);
+			return NULL;
+		}
+		conn = ctx->conn;
+		conn_in_list = conn->flags & CO_FL_LIST_MASK;
+		if (conn_in_list)
+			conn_delete_from_tree(&conn->hash_node->node);
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		tasklet_free(tl);
-		return NULL;
+	} else {
+		conn = ctx->conn;
+		conn_in_list = 0;
 	}
-	conn = ctx->conn;
-	conn_in_list = conn->flags & CO_FL_LIST_MASK;
-	if (conn_in_list)
-		conn_delete_from_tree(&conn->hash_node->node);
-	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
 	/* First if we're doing an handshake, try that */
 	if (ctx->conn->flags & CO_FL_SSL_WAIT_HS) {
 		ssl_sock_handshake(ctx->conn, CO_FL_SSL_WAIT_HS);
@@ -6908,6 +6948,8 @@ struct xprt_ops ssl_sock = {
 	.destroy_srv = ssl_sock_free_srv_ctx,
 	.get_alpn = ssl_sock_get_alpn,
 	.takeover = ssl_takeover,
+	.set_idle = ssl_set_idle,
+	.set_used = ssl_set_used,
 	.name     = "SSL",
 	.show_fd  = ssl_sock_show_fd,
 };
