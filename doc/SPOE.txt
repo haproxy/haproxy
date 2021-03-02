@@ -761,6 +761,10 @@ Here are the list of official capabilities that HAProxy and agents can support:
 
 Unsupported or unknown capabilities are silently ignored, when possible.
 
+NOTE: HAProxy does not support the fragmentation for now. This means it is not
+      able to handle fragmented frames. However, if an agent announces the
+      fragmentation support, HAProxy may choose to send fragemented frames.
+
 3.2.2. Frame types overview
 ----------------------------
 
