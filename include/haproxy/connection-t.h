@@ -492,7 +492,7 @@ enum conn_hash_params_t {
  * connection hash.
  */
 struct conn_hash_params {
-	struct server *srv;
+	void *target;
 	XXH64_hash_t sni_prehash;
 	struct sockaddr_storage *src_addr;
 	struct sockaddr_storage *dst_addr;

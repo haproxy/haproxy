@@ -1277,14 +1277,18 @@ int connect_server(struct stream *s)
 	int64_t hash = 0;
 	struct conn_hash_params hash_params;
 
+	/* in standard configuration, srv will be valid
+	 * it can be NULL for dispatch mode or transparent backend */
+	srv = objt_server(s->target);
+
 	/* first, set unique connection parameters and then calculate hash */
 	memset(&hash_params, 0, sizeof(hash_params));
 
-	srv = objt_server(s->target);
-	hash_params.srv = srv;
+	/* 1. target */
+	hash_params.target = s->target;
 
 #ifdef USE_OPENSSL
-	/* 1. sni */
+	/* 2. sni */
 	if (srv && srv->ssl_ctx.sni) {
 		sni_smp = sample_fetch_as_type(s->be, s->sess, s,
 		                               SMP_OPT_DIR_REQ | SMP_OPT_FINAL,
@@ -1302,7 +1306,7 @@ int connect_server(struct stream *s)
 	}
 #endif /* USE_OPENSSL */
 
-	/* 2. destination address */
+	/* 3. destination address */
 	if (!(s->flags & SF_ADDR_SET)) {
 		err = alloc_dst_address(&s->target_addr, srv, s);
 		if (err != SRV_STATUS_OK)
@@ -1314,14 +1318,14 @@ int connect_server(struct stream *s)
 	if (srv && (!is_addr(&srv->addr) || srv->flags & SRV_F_MAPPORTS))
 		hash_params.dst_addr = s->target_addr;
 
-	/* 3. source address */
+	/* 4. source address */
 	err = alloc_bind_address(&bind_addr, srv, s);
 	if (err != SRV_STATUS_OK)
 		return SF_ERR_INTERNAL;
 
 	hash_params.src_addr = bind_addr;
 
-	/* 4. proxy protocol */
+	/* 5. proxy protocol */
 	if (srv && srv->pp_opts) {
 		proxy_line_ret = make_proxy_line(trash.area, trash.size, srv, cli_conn, s);
 		if (proxy_line_ret) {
@@ -1330,8 +1334,7 @@ int connect_server(struct stream *s)
 		}
 	}
 
-	if (srv)
-		hash = conn_calculate_hash(&hash_params);
+	hash = conn_calculate_hash(&hash_params);
 
 	/* This will catch some corner cases such as lying connections resulting from
 	 * retries or connect timeouts but will rarely trigger.
@@ -1503,7 +1506,11 @@ skip_reuse:
 
 		if (srv_conn) {
 			srv_conn->owner = s->sess;
-			if (reuse_mode == PR_O_REUSE_NEVR)
+
+			/* connection will be attached to the session if
+			 * http-reuse mode is never or it is not targeted to a
+			 * server */
+			if (reuse_mode == PR_O_REUSE_NEVR || !srv)
 				conn_set_private(srv_conn);
 
 			/* assign bind_addr to srv_conn */
@@ -1729,8 +1736,7 @@ skip_reuse:
 		}
 	}
 
-	if (srv)
-		srv_conn->hash_node->hash = hash;
+	srv_conn->hash_node->hash = hash;
 
 	return SF_ERR_NONE;  /* connection is OK */
 }

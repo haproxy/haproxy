@@ -429,6 +429,15 @@ static inline void sockaddr_free(struct sockaddr_storage **sap)
 	*sap = NULL;
 }
 
+/* returns 0 if the connection is valid and is a frontend connection, otherwise
+ * returns 1 indicating it's a backend connection. And uninitialized connection
+ * also returns 1 to better handle the usage in the middle of initialization.
+ */
+static inline int conn_is_back(const struct connection *conn)
+{
+	return !objt_listener(conn->target);
+}
+
 /* Tries to allocate a new connection and initialized its main fields. The
  * connection is returned on success, NULL on failure. The connection must
  * be released using pool_free() or conn_free().
@@ -444,8 +453,9 @@ static inline struct connection *conn_new(void *target)
 
 	conn_init(conn, target);
 
-	if (obj_type(target) == OBJ_TYPE_SERVER) {
-		srv_use_conn(__objt_server(target), conn);
+	if (conn_is_back(conn)) {
+		if (obj_type(target) == OBJ_TYPE_SERVER)
+			srv_use_conn(__objt_server(target), conn);
 
 		hash_node = conn_alloc_hash_node(conn);
 		if (unlikely(!hash_node)) {
@@ -966,15 +976,6 @@ static inline const struct mux_ops *conn_get_best_mux(struct connection *conn,
 	item = conn_get_best_mux_entry(mux_proto, proto_side, proto_mode);
 
 	return item ? item->mux : NULL;
-}
-
-/* returns 0 if the connection is valid and is a frontend connection, otherwise
- * returns 1 indicating it's a backend connection. And uninitialized connection
- * also returns 1 to better handle the usage in the middle of initialization.
- */
-static inline int conn_is_back(const struct connection *conn)
-{
-	return !objt_listener(conn->target);
 }
 
 /* returns a pointer to the proxy associated with this connection. For a front
