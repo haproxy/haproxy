@@ -3489,6 +3489,7 @@ static struct conn_stream *fcgi_attach(struct connection *conn, struct session *
 
 	/* the connection is not idle anymore, let's mark this */
 	HA_ATOMIC_AND(&fconn->wait_event.tasklet->state, ~TASK_F_USR1);
+	xprt_set_used(conn, conn->xprt, conn->xprt_ctx);
 
 	TRACE_LEAVE(FCGI_EV_FSTRM_NEW, conn, fstrm);
 	return cs;
@@ -3620,6 +3621,8 @@ static void fcgi_detach(struct conn_stream *cs)
 				 * that the handler needs to check it under the idle conns lock.
 				 */
 				HA_ATOMIC_OR(&fconn->wait_event.tasklet->state, TASK_F_USR1);
+				xprt_set_idle(fconn->conn, fconn->conn->xprt, fconn->conn->xprt_ctx);
+
 				if (!srv_add_to_idle_list(objt_server(fconn->conn->target), fconn->conn, 1)) {
 					/* The server doesn't want it, let's kill the connection right away */
 					fconn->conn->mux->destroy(fconn);

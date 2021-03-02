@@ -4106,6 +4106,7 @@ static struct conn_stream *h2_attach(struct connection *conn, struct session *se
 
 	/* the connection is not idle anymore, let's mark this */
 	HA_ATOMIC_AND(&h2c->wait_event.tasklet->state, ~TASK_F_USR1);
+	xprt_set_used(h2c->conn, h2c->conn->xprt, h2c->conn->xprt_ctx);
 
 	TRACE_LEAVE(H2_EV_H2S_NEW, conn, h2s);
 	return cs;
@@ -4254,6 +4255,8 @@ static void h2_detach(struct conn_stream *cs)
 					 * that the handler needs to check it under the idle conns lock.
 					 */
 					HA_ATOMIC_OR(&h2c->wait_event.tasklet->state, TASK_F_USR1);
+					xprt_set_idle(h2c->conn, h2c->conn->xprt, h2c->conn->xprt_ctx);
+
 					if (!srv_add_to_idle_list(objt_server(h2c->conn->target), h2c->conn, 1)) {
 						/* The server doesn't want it, let's kill the connection right away */
 						h2c->conn->mux->destroy(h2c);

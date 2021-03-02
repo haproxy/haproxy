@@ -868,6 +868,25 @@ static inline int xprt_add_hs(struct connection *conn)
 	return 0;
 }
 
+/* notify the next xprt that the connection is about to become idle and that it
+ * may be stolen at any time after the function returns and that any tasklet in
+ * the chain must be careful before dereferencing its context.
+ */
+static inline void xprt_set_idle(struct connection *conn, const struct xprt_ops *xprt, void *xprt_ctx)
+{
+	if (xprt->set_idle)
+		xprt->set_idle(conn, conn->xprt_ctx);
+}
+
+/* notify the next xprt that the connection is not idle anymore and that it may
+ * not be stolen before the next xprt_set_idle().
+ */
+static inline void xprt_set_used(struct connection *conn, const struct xprt_ops *xprt, void *xprt_ctx)
+{
+	if (xprt->set_used)
+		xprt->set_used(conn, conn->xprt_ctx);
+}
+
 static inline int conn_get_alpn(const struct connection *conn, const char **str, int *len)
 {
 	if (!conn_xprt_ready(conn) || !conn->xprt->get_alpn)

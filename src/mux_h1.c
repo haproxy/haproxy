@@ -3007,6 +3007,7 @@ static struct conn_stream *h1_attach(struct connection *conn, struct session *se
 
 	/* the connection is not idle anymore, let's mark this */
 	HA_ATOMIC_AND(&h1c->wait_event.tasklet->state, ~TASK_F_USR1);
+	xprt_set_used(conn, conn->xprt, conn->xprt_ctx);
 
 	TRACE_LEAVE(H1_EV_STRM_NEW, conn, h1s);
 	return cs;
@@ -3106,6 +3107,8 @@ static void h1_detach(struct conn_stream *cs)
 			 */
 			HA_ATOMIC_OR(&h1c->wait_event.tasklet->state, TASK_F_USR1);
 			h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+			xprt_set_idle(h1c->conn, h1c->conn->xprt, h1c->conn->xprt_ctx);
+
 			if (!srv_add_to_idle_list(objt_server(h1c->conn->target), h1c->conn, is_not_first)) {
 				/* The server doesn't want it, let's kill the connection right away */
 				h1c->conn->mux->destroy(h1c);

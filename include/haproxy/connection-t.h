@@ -380,6 +380,8 @@ struct xprt_ops {
 	void (*destroy_srv)(struct server *srv);    /* destroy a server context */
 	int  (*get_alpn)(const struct connection *conn, void *xprt_ctx, const char **str, int *len); /* get application layer name */
 	int (*takeover)(struct connection *conn, void *xprt_ctx, int orig_tid); /* Let the xprt know the fd have been taken over */
+	void (*set_idle)(struct connection *conn, void *xprt_ctx); /* notify the xprt that the connection becomes idle. implies set_used. */
+	void (*set_used)(struct connection *conn, void *xprt_ctx); /* notify the xprt that the connection leaves idle. implies set_idle. */
 	char name[8];                               /* transport layer name, zero-terminated */
 	int (*subscribe)(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es); /* Subscribe <es> to events, such as "being able to send" */
 	int (*unsubscribe)(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es); /* Unsubscribe <es> from events */
