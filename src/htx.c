@@ -543,8 +543,7 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 		blk = tailblk;
 		goto end;
 	}
-	data.ptr += len;
-	data.len -= len;
+	data = istadv(data, len);
 
   add_new_block:
 	/* FIXME: check data.len (< 256MB) */

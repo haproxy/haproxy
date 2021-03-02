@@ -5361,16 +5361,14 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			if (len + 2 < uri.len && uri.ptr[len + 1] == '/' && uri.ptr[len + 2] == '/') {
 				/* make the uri start at the authority now */
 				scheme = ist2(uri.ptr, len);
-				uri.ptr += len + 3;
-				uri.len -= len + 3;
+				uri = istadv(uri, len + 3);
 
 				/* find the auth part of the URI */
 				auth = ist2(uri.ptr, 0);
 				while (auth.len < uri.len && auth.ptr[auth.len] != '/')
 					auth.len++;
 
-				uri.ptr += auth.len;
-				uri.len -= auth.len;
+				uri = istadv(uri, auth.len);
 			}
 		}
 

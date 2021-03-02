@@ -620,8 +620,7 @@ cache_store_http_payload(struct stream *s, struct filter *filter, struct http_ms
 
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(htx, blk);
-				v.ptr += offset;
-				v.len -= offset;
+				v = istadv(v, offset);
 				if (v.len > len)
 					v.len = len;
 

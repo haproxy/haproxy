@@ -143,8 +143,7 @@ trace_htx_hexdump(struct htx *htx, unsigned int offset, unsigned int len)
 		}
 
 		v = htx_get_blk_value(htx, blk);
-		v.ptr += offset;
-		v.len -= offset;
+		v = istadv(v, offset);
 		offset = 0;
 
 		if (v.len > len)
