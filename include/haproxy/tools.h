@@ -1055,4 +1055,20 @@ static inline int32_t ha_random()
 	return ha_random32() >> 1;
 }
 
+extern THREAD_LOCAL unsigned int statistical_prng_state;
+
+/* Xorshift RNGs from http://www.jstatsoft.org/v08/i14/paper.
+ * This has a (2^32)-1 period, only zero is never returned.
+ */
+static inline unsigned int statistical_prng()
+{
+	unsigned int x = statistical_prng_state;
+
+	x ^= x << 13;
+	x ^= x >> 17;
+	x ^= x << 5;
+	return statistical_prng_state = x;
+}
+
+
 #endif /* _HAPROXY_TOOLS_H */

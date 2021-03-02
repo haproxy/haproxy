@@ -78,6 +78,12 @@ THREAD_LOCAL int itoa_idx = 0; /* index of next itoa_str to use */
 THREAD_LOCAL char quoted_str[NB_QSTR][QSTR_SIZE + 1];
 THREAD_LOCAL int quoted_idx = 0;
 
+/* thread-local PRNG state. It's modified to start from a different sequence
+ * on all threads upon startup. It must not be used or anything beyond getting
+ * statistical values as it's 100% predictable.
+ */
+THREAD_LOCAL unsigned int statistical_prng_state = 2463534242U;
+
 /*
  * unsigned long long ASCII representation
  *
@@ -5362,6 +5368,16 @@ size_t sanitize_for_printing(char *line, size_t pos, size_t width)
 	*out++ = 0;
 	return pos - shift;
 }
+
+static int init_tools_per_thread()
+{
+	/* Let's make each thread start from a different position */
+	statistical_prng_state += tid * MAX_THREADS;
+	if (!statistical_prng_state)
+		statistical_prng_state++;
+	return 1;
+}
+REGISTER_PER_THREAD_INIT(init_tools_per_thread);
 
 /*
  * Local variables:

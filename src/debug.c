@@ -42,16 +42,6 @@
 volatile unsigned long threads_to_dump = 0;
 unsigned int debug_commands_issued = 0;
 
-/* Xorshift RNGs from http://www.jstatsoft.org/v08/i14/paper */
-static THREAD_LOCAL unsigned int y = 2463534242U;
-static unsigned int debug_prng()
-{
-        y ^= y << 13;
-        y ^= y >> 17;
-        y ^= y << 5;
-        return y;
-}
-
 /* dumps a backtrace of the current thread that is appended to buffer <buf>.
  * Lines are prefixed with the string <prefix> which may be empty (used for
  * indenting). It is recommended to use this at a function's tail so that
@@ -748,7 +738,7 @@ static struct task *debug_task_handler(struct task *t, void *ctx, unsigned short
 	t->expire = tick_add(now_ms, inter);
 
 	/* half of the calls will wake up another entry */
-	rnd = debug_prng();
+	rnd = statistical_prng();
 	if (rnd & 1) {
 		rnd >>= 1;
 		rnd %= tctx[0];
@@ -770,7 +760,7 @@ static struct task *debug_tasklet_handler(struct task *t, void *ctx, unsigned sh
 
 	/* wake up two random entries */
 	for (i = 0; i < 2; i++) {
-		rnd = debug_prng() % tctx[0];
+		rnd = statistical_prng() % tctx[0];
 		rnd = tctx[rnd + 2];
 
 		if (rnd & 1)
