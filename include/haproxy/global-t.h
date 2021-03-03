@@ -91,6 +91,7 @@ struct global {
 	int external_check;
 	int nbproc;
 	int nbthread;
+	int mode;
 	unsigned int hard_stop_after;	/* maximum time allowed to perform a soft-stop */
 	int maxconn, hardmaxconn;
 	int maxsslconn;
@@ -100,21 +101,6 @@ struct global {
 	int ssl_used_backend;       /* non-zero if SSL is used in a backend */
 	int ssl_used_async_engines; /* number of used async engines */
 	unsigned int ssl_server_verify; /* default verify mode on servers side */
-	struct freq_ctr conn_per_sec;
-	struct freq_ctr sess_per_sec;
-	struct freq_ctr ssl_per_sec;
-	struct freq_ctr ssl_fe_keys_per_sec;
-	struct freq_ctr ssl_be_keys_per_sec;
-	struct freq_ctr comp_bps_in;	/* bytes per second, before http compression */
-	struct freq_ctr comp_bps_out;	/* bytes per second, after http compression */
-	struct freq_ctr out_32bps;      /* #of 32-byte blocks emitted per second */
-	unsigned long long out_bytes;   /* total #of bytes emitted */
-	unsigned long long spliced_out_bytes; /* total #of bytes emitted though a kernel pipe */
-	int cps_lim, cps_max;
-	int sps_lim, sps_max;
-	int ssl_lim, ssl_max;
-	int ssl_fe_keys_max, ssl_be_keys_max;
-	unsigned int shctx_lookups, shctx_misses;
 	int comp_rate_lim;           /* HTTP compression rate limit */
 	int maxpipes;		/* max # of pipes */
 	int maxsock;		/* max # of sockets */
@@ -122,9 +108,7 @@ struct global {
 	int rlimit_memmax_all;	/* default all-process memory limit in megs ; 0=unset */
 	int rlimit_memmax;	/* default per-process memory limit in megs ; 0=unset */
 	long maxzlibmem;        /* max RAM for zlib in bytes */
-	int mode;
-	unsigned int req_count; /* request counter (HTTP or TCP session) for logs and unique_id */
-	int last_checks;
+
 	int spread_checks;
 	int max_spread_checks;
 	int max_syslog_len;
@@ -173,7 +157,6 @@ struct global {
 		} ux;
 	} unix_bind;
 	struct proxy *stats_fe;     /* the frontend holding the stats settings */
-	struct vars   vars;         /* list of variables for the process scope. */
 #ifdef USE_CPU_AFFINITY
 	struct {
 		unsigned long proc[MAX_PROCS];      /* list of CPU masks for the 32/64 first processes */
@@ -181,6 +164,33 @@ struct global {
 		unsigned long thread[MAX_THREADS];  /* list of CPU masks for the 32/64 first threads of the 1st process */
 	} cpu_map;
 #endif
+	/* The info above is config stuff, it doesn't change during the process' life */
+	/* A number of the elements below are updated by all threads in real time and
+	 * suffer high contention, so we need to put them in their own cache lines, if
+	 * possible grouped by changes.
+	 */
+	ALWAYS_ALIGN(64);
+	struct freq_ctr conn_per_sec;
+	struct freq_ctr sess_per_sec;
+	struct freq_ctr ssl_per_sec;
+	struct freq_ctr ssl_fe_keys_per_sec;
+	struct freq_ctr ssl_be_keys_per_sec;
+	struct freq_ctr comp_bps_in;	/* bytes per second, before http compression */
+	struct freq_ctr comp_bps_out;	/* bytes per second, after http compression */
+	struct freq_ctr out_32bps;      /* #of 32-byte blocks emitted per second */
+	unsigned long long out_bytes;   /* total #of bytes emitted */
+	unsigned long long spliced_out_bytes; /* total #of bytes emitted though a kernel pipe */
+	int cps_lim, cps_max;
+	int sps_lim, sps_max;
+	int ssl_lim, ssl_max;
+	int ssl_fe_keys_max, ssl_be_keys_max;
+	unsigned int shctx_lookups, shctx_misses;
+	unsigned int req_count; /* request counter (HTTP or TCP session) for logs and unique_id */
+	int last_checks;
+	struct vars   vars;         /* list of variables for the process scope. */
+
+	/* leave this at the end to make sure we don't share this cache line by accident */
+	ALWAYS_ALIGN(64);
 };
 
 #endif /* _HAPROXY_GLOBAL_T_H */
