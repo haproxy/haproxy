@@ -4277,6 +4277,25 @@ static size_t quic_conn_from_buf(struct connection *conn, void *xprt_ctx, const 
 	return done;
 }
 
+/* Called from the upper layer, to subscribe <es> to events <event_type>. The
+ * event subscriber <es> is not allowed to change from a previous call as long
+ * as at least one event is still subscribed. The <event_type> must only be a
+ * combination of SUB_RETRY_RECV and SUB_RETRY_SEND. It always returns 0.
+ */
+static int quic_conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
+{
+	return conn_subscribe(conn, xprt_ctx, event_type, es);
+}
+
+/* Called from the upper layer, to unsubscribe <es> from events <event_type>.
+ * The <es> pointer is not allowed to differ from the one passed to the
+ * subscribe() call. It always returns zero.
+ */
+static int quic_conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es)
+{
+	return conn_unsubscribe(conn, xprt_ctx, event_type, es);
+}
+
 /* Initialize a QUIC connection (quic_conn struct) to be attached to <conn>
  * connection with <xprt_ctx> as address of the xprt context.
  * Returns 1 if succeeded, 0 if not.
@@ -4403,6 +4422,8 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 static struct xprt_ops ssl_quic = {
 	.snd_buf  = quic_conn_from_buf,
 	.rcv_buf  = quic_conn_to_buf,
+	.subscribe = quic_conn_subscribe,
+	.unsubscribe = quic_conn_unsubscribe,
 	.init     = qc_conn_init,
 	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
