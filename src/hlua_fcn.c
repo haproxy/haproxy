@@ -172,12 +172,13 @@ int hlua_fcn_pushfield(lua_State *L, struct field *field)
 const char *hlua_pushstrippedstring(lua_State *L, const char *str)
 {
 	const char *p;
-	const char *e;
+	int l;
 
 	for (p = str; HTTP_IS_LWS(*p); p++);
-	for (e = p + strlen(p) - 1; e > p && HTTP_IS_LWS(*e); e--);
 
-	return lua_pushlstring(L, p, e - p);
+	for (l = strlen(p); l && HTTP_IS_LWS(p[l-1]); l--);
+
+	return lua_pushlstring(L, p, l);
 }
 
 /* The three following functions are useful for adding entries
