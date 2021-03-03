@@ -1338,7 +1338,7 @@ int connect_server(struct stream *s)
 	 */
 	si_release_endpoint(&s->si[1]);
 
-	/* do not reuse if mode is http or if avail list is not allocated */
+	/* do not reuse if mode is not http or if avail list is not allocated */
 	if ((s->be->mode != PR_MODE_HTTP) || (srv && !srv->available_conns_tree))
 		goto skip_reuse;
 
