@@ -4148,19 +4148,12 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	return t;
 }
 
-/* Receive up to <count> bytes from connection <conn>'s socket and store them
- * into buffer <buf>. Only one call to recv() is performed, unless the
- * buffer wraps, in which case a second call may be performed. The connection's
- * flags are updated with whatever special event is detected (error, read0,
- * empty). The caller is responsible for taking care of those events and
- * avoiding the call if inappropriate. The function does not call the
- * connection's polling update function, so the caller is responsible for this.
- * errno is cleared before starting so that the caller knows that if it spots an
- * error without errno, it's pending and can be retrieved via getsockopt(SO_ERROR).
+/* Copy up to <count> bytes from connection <conn> internal stream storage into buffer <buf>.
+ * Return the number of bytes which have been copied.
  */
-static size_t quic_conn_to_buf(struct connection *conn, void *xprt_ctx, struct buffer *buf, size_t count, int flags)
+static size_t quic_conn_to_buf(struct connection *conn, void *xprt_ctx,
+                               struct buffer *buf, size_t count, int flags)
 {
-	ssize_t ret;
 	size_t try, done = 0;
 
 	if (!conn_ctrl_ready(conn))
@@ -4170,24 +4163,10 @@ static size_t quic_conn_to_buf(struct connection *conn, void *xprt_ctx, struct b
 		return 0;
 
 	conn->flags &= ~CO_FL_WAIT_ROOM;
-	errno = 0;
-
-	if (unlikely(!(fdtab[conn->handle.fd].state & FD_POLL_IN))) {
-		/* stop here if we reached the end of data */
-		if ((fdtab[conn->handle.fd].state & (FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_HUP)
-			goto read0;
-
-		/* report error on POLL_ERR before connection establishment */
-		if ((fdtab[conn->handle.fd].state & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
-			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
-			goto leave;
-		}
-	}
 
 	/* read the largest possible block. For this, we perform only one call
 	 * to recv() unless the buffer wraps and we exactly fill the first hunk,
-	 * in which case we accept to do it once again. A new attempt is made on
-	 * EINTR too.
+	 * in which case we accept to do it once again.
 	 */
 	while (count > 0) {
 		try = b_contig_space(buf);
@@ -4197,42 +4176,9 @@ static size_t quic_conn_to_buf(struct connection *conn, void *xprt_ctx, struct b
 		if (try > count)
 			try = count;
 
-		ret = recvfrom(conn->handle.fd, b_tail(buf), try, 0, NULL, 0);
-
-		if (ret > 0) {
-			b_add(buf, ret);
-			done += ret;
-			if (ret < try) {
-				/* unfortunately, on level-triggered events, POLL_HUP
-				 * is generally delivered AFTER the system buffer is
-				 * empty, unless the poller supports POLL_RDHUP. If
-				 * we know this is the case, we don't try to read more
-				 * as we know there's no more available. Similarly, if
-				 * there's no problem with lingering we don't even try
-				 * to read an unlikely close from the client since we'll
-				 * close first anyway.
-				 */
-				if (fdtab[conn->handle.fd].state & FD_POLL_HUP)
-					goto read0;
-
-				if (!(fdtab[conn->handle.fd].state & FD_LINGER_RISK) ||
-				    (cur_poller.flags & HAP_POLL_F_RDHUP)) {
-					break;
-				}
-			}
-			count -= ret;
-		}
-		else if (ret == 0) {
-			goto read0;
-		}
-		else if (errno == EAGAIN || errno == ENOTCONN) {
-			fd_cant_recv(conn->handle.fd);
-			break;
-		}
-		else if (errno != EINTR) {
-			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
-			break;
-		}
+		b_add(buf, try);
+		done += try;
+		count -= try;
 	}
 
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
