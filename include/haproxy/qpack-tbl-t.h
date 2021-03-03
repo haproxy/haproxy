@@ -26,6 +26,39 @@
 #ifndef _HAPROXY_QPACK_TBL_T_H
 #define _HAPROXY_QPACK_TBL_T_H
 
+/*
+ * Gcc before 3.0 needs [0] to declare a variable-size array
+ */
+#ifndef VAR_ARRAY
+#if defined(__GNUC__) && (__GNUC__ < 3)
+#define VAR_ARRAY	0
+#else
+#define VAR_ARRAY
+#endif
+#endif
+
+/* One dynamic table entry descriptor */
+struct qpack_dte {
+	uint32_t addr;  /* storage address, relative to the dte address */
+	uint16_t nlen;  /* header name length */
+	uint16_t vlen;  /* header value length */
+};
+
+/* Note: the table's head plus a struct qpack_dte must be smaller than or equal to 32
+ * bytes so that a single large header can always fit. Here that's 16 bytes for
+ * the header, plus 8 bytes per slot.
+ * Note that when <used> == 0, front, head, and wrap are undefined.
+ */
+struct qpack_dht {
+	uint32_t size;  /* allocated table size in bytes */
+	uint32_t total; /* sum of nlen + vlen in bytes */
+	uint16_t front; /* slot number of the first node after the idx table */
+	uint16_t wrap;  /* number of allocated slots, wraps here */
+	uint16_t head;  /* last inserted slot number */
+	uint16_t used;  /* number of slots in use */
+	struct qpack_dte dte[VAR_ARRAY]; /* dynamic table entries */
+};
+
 /* static header table as in draft-ietf-quic-qpack-20 Appendix A. [0] unused. */
 #define QPACK_SHT_SIZE 99
 

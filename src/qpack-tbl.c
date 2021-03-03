@@ -24,9 +24,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <inttypes.h>
+#include <stdio.h>
+
 #include <import/ist.h>
 #include <haproxy/http-hdr-t.h>
-#include <haproxy/qpack-tbl-t.h>
+#include <haproxy/qpack-tbl.h>
 
 /* static header table as in draft-ietf-quic-qpack-20 Appendix A. [0] unused. */
 const struct http_hdr qpack_sht[QPACK_SHT_SIZE] = {
@@ -139,3 +142,274 @@ const struct http_hdr qpack_sht[QPACK_SHT_SIZE] = {
 	[98] = { .n = IST("x-frame-options"),                  .v = IST("sameorigin")               },
 };
 
+struct pool_head *pool_head_qpack_tbl = NULL;
+
+#ifdef DEBUG_HPACK
+/* dump the whole dynamic header table */
+void qpack_dht_dump(FILE *out, const struct qpack_dht *dht)
+{
+	unsigned int i;
+	unsigned int slot;
+	char name[4096], value[4096];
+
+	for (i = HPACK_SHT_SIZE; i < HPACK_SHT_SIZE + dht->used; i++) {
+		slot = (qpack_get_dte(dht, i - HPACK_SHT_SIZE + 1) - dht->dte);
+		fprintf(out, "idx=%d slot=%u name=<%s> value=<%s> addr=%u-%u\n",
+			i, slot,
+			istpad(name, qpack_idx_to_name(dht, i)).ptr,
+			istpad(value, qpack_idx_to_value(dht, i)).ptr,
+			dht->dte[slot].addr, dht->dte[slot].addr+dht->dte[slot].nlen+dht->dte[slot].vlen-1);
+	}
+}
+
+/* check for the whole dynamic header table consistency, abort on failures */
+void qpack_dht_check_consistency(const struct qpack_dht *dht)
+{
+	unsigned slot = qpack_dht_get_tail(dht);
+	unsigned used2 = dht->used;
+	unsigned total = 0;
+
+	if (!dht->used)
+		return;
+
+	if (dht->front >= dht->wrap)
+		abort();
+
+	if (dht->used > dht->wrap)
+		abort();
+
+	if (dht->head >= dht->wrap)
+		abort();
+
+	while (used2--) {
+		total += dht->dte[slot].nlen + dht->dte[slot].vlen;
+		slot++;
+		if (slot >= dht->wrap)
+			slot = 0;
+	}
+
+	if (total != dht->total) {
+		fprintf(stderr, "%d: total=%u dht=%u\n", __LINE__, total, dht->total);
+		abort();
+	}
+}
+#endif // DEBUG_HPACK
+
+/* rebuild a new dynamic header table from <dht> with an unwrapped index and
+ * contents at the end. The new table is returned, the caller must not use the
+ * previous one anymore. NULL may be returned if no table could be allocated.
+ */
+static struct qpack_dht *qpack_dht_defrag(struct qpack_dht *dht)
+{
+	struct qpack_dht *alt_dht;
+	uint16_t old, new;
+	uint32_t addr;
+
+	/* Note: for small tables we could use alloca() instead but
+	 * portability especially for large tables can be problematic.
+	 */
+	alt_dht = qpack_dht_alloc();
+	if (!alt_dht)
+		return NULL;
+
+	alt_dht->total = dht->total;
+	alt_dht->used = dht->used;
+	alt_dht->wrap = dht->used;
+
+	new = 0;
+	addr = alt_dht->size;
+
+	if (dht->used) {
+		/* start from the tail */
+		old = qpack_dht_get_tail(dht);
+		do {
+			alt_dht->dte[new].nlen = dht->dte[old].nlen;
+			alt_dht->dte[new].vlen = dht->dte[old].vlen;
+			addr -= dht->dte[old].nlen + dht->dte[old].vlen;
+			alt_dht->dte[new].addr = addr;
+
+			memcpy((void *)alt_dht + alt_dht->dte[new].addr,
+			       (void *)dht + dht->dte[old].addr,
+			       dht->dte[old].nlen + dht->dte[old].vlen);
+
+			old++;
+			if (old >= dht->wrap)
+				old = 0;
+			new++;
+		} while (new < dht->used);
+	}
+
+	alt_dht->front = alt_dht->head = new - 1;
+
+	memcpy(dht, alt_dht, dht->size);
+	qpack_dht_free(alt_dht);
+
+	return dht;
+}
+
+/* Purges table dht until a header field of <needed> bytes fits according to
+ * the protocol (adding 32 bytes overhead). Returns non-zero on success, zero
+ * on failure (ie: table empty but still not sufficient). It must only be
+ * called when the table is not large enough to suit the new entry and there
+ * are some entries left. In case of doubt, use dht_make_room() instead.
+ */
+int __qpack_dht_make_room(struct qpack_dht *dht, unsigned int needed)
+{
+	unsigned int used = dht->used;
+	unsigned int wrap = dht->wrap;
+	unsigned int tail;
+
+	do {
+		tail = ((dht->head + 1U < used) ? wrap : 0) + dht->head + 1U - used;
+		dht->total -= dht->dte[tail].nlen + dht->dte[tail].vlen;
+		if (tail == dht->front)
+			dht->front = dht->head;
+		used--;
+	} while (used && used * 32 + dht->total + needed + 32 > dht->size);
+
+	dht->used = used;
+
+	/* realign if empty */
+	if (!used)
+		dht->front = dht->head = 0;
+
+	/* pack the table if it doesn't wrap anymore */
+	if (dht->head + 1U >= used)
+		dht->wrap = dht->head + 1;
+
+	/* no need to check for 'used' here as if it doesn't fit, used==0 */
+	return needed + 32 <= dht->size;
+}
+
+/* tries to insert a new header <name>:<value> in front of the current head. A
+ * negative value is returned on error.
+ */
+int qpack_dht_insert(struct qpack_dht *dht, struct ist name, struct ist value)
+{
+	unsigned int used;
+	unsigned int head;
+	unsigned int prev;
+	unsigned int wrap;
+	unsigned int tail;
+	uint32_t headroom, tailroom;
+
+	if (!qpack_dht_make_room(dht, name.len + value.len))
+		return 0;
+
+	/* Now there is enough room in the table, that's guaranteed by the
+	 * protocol, but not necessarily where we need it.
+	 */
+
+	used = dht->used;
+	if (!used) {
+		/* easy, the table was empty */
+		dht->front = dht->head = 0;
+		dht->wrap  = dht->used = 1;
+		dht->total = 0;
+		head = 0;
+		dht->dte[head].addr = dht->size - (name.len + value.len);
+		goto copy;
+	}
+
+	/* compute the new head, used and wrap position */
+	prev = head = dht->head;
+	wrap = dht->wrap;
+	tail = qpack_dht_get_tail(dht);
+
+	used++;
+	head++;
+
+	if (head >= wrap) {
+		/* head is leading the entries, we either need to push the
+		 * table further or to loop back to released entries. We could
+		 * force to loop back when at least half of the allocatable
+		 * entries are free but in practice it never happens.
+		 */
+		if ((sizeof(*dht) + (wrap + 1) * sizeof(dht->dte[0]) <= dht->dte[dht->front].addr))
+			wrap++;
+		else if (head >= used) /* there's a hole at the beginning */
+			head = 0;
+		else {
+			/* no more room, head hits tail and the index cannot be
+			 * extended, we have to realign the whole table.
+			 */
+			if (!qpack_dht_defrag(dht))
+				return -1;
+
+			wrap = dht->wrap + 1;
+			head = dht->head + 1;
+			prev = head - 1;
+			tail = 0;
+		}
+	}
+	else if (used >= wrap) {
+		/* we've hit the tail, we need to reorganize the index so that
+		 * the head is at the end (but not necessarily move the data).
+		 */
+		if (!qpack_dht_defrag(dht))
+			return -1;
+
+		wrap = dht->wrap + 1;
+		head = dht->head + 1;
+		prev = head - 1;
+		tail = 0;
+	}
+
+	/* Now we have updated head, used and wrap, we know that there is some
+	 * available room at least from the protocol's perspective. This space
+	 * is split in two areas :
+	 *
+	 *   1: if the previous head was the front cell, the space between the
+	 *      end of the index table and the front cell's address.
+	 *   2: if the previous head was the front cell, the space between the
+	 *      end of the tail and the end of the table ; or if the previous
+	 *      head was not the front cell, the space between the end of the
+	 *      tail and the head's address.
+	 */
+	if (prev == dht->front) {
+		/* the area was contiguous */
+		headroom = dht->dte[dht->front].addr - (sizeof(*dht) + wrap * sizeof(dht->dte[0]));
+		tailroom = dht->size - dht->dte[tail].addr - dht->dte[tail].nlen - dht->dte[tail].vlen;
+	}
+	else {
+		/* it's already wrapped so we can't store anything in the headroom */
+		headroom = 0;
+		tailroom = dht->dte[prev].addr - dht->dte[tail].addr - dht->dte[tail].nlen - dht->dte[tail].vlen;
+	}
+
+	/* We can decide to stop filling the headroom as soon as there's enough
+	 * room left in the tail to suit the protocol, but tests show that in
+	 * practice it almost never happens in other situations so the extra
+	 * test is useless and we simply fill the headroom as long as it's
+	 * available and we don't wrap.
+	 */
+	if (prev == dht->front && headroom >= name.len + value.len) {
+		/* install upfront and update ->front */
+		dht->dte[head].addr = dht->dte[dht->front].addr - (name.len + value.len);
+		dht->front = head;
+	}
+	else if (tailroom >= name.len + value.len) {
+		dht->dte[head].addr = dht->dte[tail].addr + dht->dte[tail].nlen + dht->dte[tail].vlen + tailroom - (name.len + value.len);
+	}
+	else {
+		/* need to defragment the table before inserting upfront */
+		dht = qpack_dht_defrag(dht);
+		wrap = dht->wrap + 1;
+		head = dht->head + 1;
+		dht->dte[head].addr = dht->dte[dht->front].addr - (name.len + value.len);
+		dht->front = head;
+	}
+
+	dht->wrap = wrap;
+	dht->head = head;
+	dht->used = used;
+
+ copy:
+	dht->total         += name.len + value.len;
+	dht->dte[head].nlen = name.len;
+	dht->dte[head].vlen = value.len;
+
+	memcpy((void *)dht + dht->dte[head].addr, name.ptr, name.len);
+	memcpy((void *)dht + dht->dte[head].addr + name.len, value.ptr, value.len);
+	return 0;
+}
