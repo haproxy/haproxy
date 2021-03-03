@@ -247,16 +247,18 @@ static inline enum srv_initaddr srv_get_next_initaddr(unsigned int *list)
 
 static inline void srv_use_conn(struct server *srv, struct connection *conn)
 {
-	_HA_ATOMIC_ADD(&srv->curr_used_conns, 1);
+	unsigned int curr;
+
+	curr = _HA_ATOMIC_ADD(&srv->curr_used_conns, 1);
 
 	/* It's ok not to do that atomically, we don't need an
 	 * exact max.
 	 */
-	if (srv->max_used_conns < srv->curr_used_conns)
-		srv->max_used_conns = srv->curr_used_conns;
+	if (srv->max_used_conns < curr)
+		srv->max_used_conns = curr;
 
-	if (srv->est_need_conns < srv->curr_used_conns)
-		srv->est_need_conns = srv->curr_used_conns;
+	if (srv->est_need_conns < curr)
+		srv->est_need_conns = curr;
 }
 
 static inline void conn_delete_from_tree(struct ebmb_node *node)
