@@ -3831,9 +3831,9 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state)
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		if (conn_in_list == CO_FL_SAFE_LIST)
-			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			ebmb_insert(&srv->per_thr[tid].safe_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		else
-			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			ebmb_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
 
@@ -4274,7 +4274,7 @@ static void h2_detach(struct conn_stream *cs)
 				else if (!h2c->conn->hash_node->node.node.leaf_p &&
 					 h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target) &&
 					 !LIST_ADDED(&h2c->conn->session_list)) {
-					ebmb_insert(&__objt_server(h2c->conn->target)->available_conns_tree[tid],
+					ebmb_insert(&__objt_server(h2c->conn->target)->per_thr[tid].avail_conns,
 					            &h2c->conn->hash_node->node,
 					            sizeof(h2c->conn->hash_node->hash));
 				}

@@ -9177,8 +9177,6 @@ void hlua_init(void) {
 	socket_tcp.obj_type = OBJ_TYPE_SERVER;
 	MT_LIST_INIT(&socket_tcp.actconns);
 	socket_tcp.pendconns = EB_ROOT;
-	socket_tcp.idle_conns_tree = NULL;
-	socket_tcp.safe_conns_tree = NULL;
 	LIST_ADD(&servers_list, &socket_tcp.global_list);
 	socket_tcp.next_state = SRV_ST_RUNNING; /* early server setup */
 	socket_tcp.last_change = 0;
@@ -9225,8 +9223,6 @@ void hlua_init(void) {
 	socket_ssl.obj_type = OBJ_TYPE_SERVER;
 	MT_LIST_INIT(&socket_ssl.actconns);
 	socket_ssl.pendconns = EB_ROOT;
-	socket_ssl.idle_conns_tree = NULL;
-	socket_ssl.safe_conns_tree = NULL;
 	LIST_ADD(&servers_list, &socket_ssl.global_list);
 	socket_ssl.next_state = SRV_ST_RUNNING; /* early server setup */
 	socket_ssl.last_change = 0;
@@ -9296,8 +9292,12 @@ static void hlua_deinit()
 		if (hlua_states[thr])
 			lua_close(hlua_states[thr]);
 	}
+
+	ha_free(&socket_tcp.per_thr);
 	ha_free((char**)&socket_tcp.conf.file);
+
 #ifdef USE_OPENSSL
+	ha_free(&socket_ssl.per_thr);
 	ha_free((char**)&socket_ssl.conf.file);
 #endif
 }

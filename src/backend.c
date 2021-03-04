@@ -1123,7 +1123,6 @@ static int alloc_bind_address(struct sockaddr_storage **ss,
  */
 static struct connection *conn_backend_get(struct stream *s, struct server *srv, int is_safe, int64_t hash)
 {
-	struct eb_root *tree = is_safe ? srv->safe_conns_tree : srv->idle_conns_tree;
 	struct connection *conn = NULL;
 	int i; // thread number
 	int found = 0;
@@ -1135,7 +1134,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	 */
 	i = tid;
 	HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-	conn = srv_lookup_conn(&tree[tid], hash);
+	conn = srv_lookup_conn(is_safe ? &srv->per_thr[tid].safe_conns : &srv->per_thr[tid].idle_conns, hash);
 	if (conn)
 		conn_delete_from_tree(&conn->hash_node->node);
 
@@ -1143,11 +1142,10 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 	 * the safe list.
 	 */
 	if (!conn && !is_safe && srv->curr_safe_nb > 0) {
-		conn = srv_lookup_conn(&srv->safe_conns_tree[tid], hash);
+		conn = srv_lookup_conn(&srv->per_thr[tid].safe_conns, hash);
 		if (conn) {
 			conn_delete_from_tree(&conn->hash_node->node);
 			is_safe = 1;
-			tree = srv->safe_conns_tree;
 		}
 	}
 	HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
@@ -1185,7 +1183,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 
 		if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock) != 0)
 			continue;
-		conn = srv_lookup_conn(&tree[i], hash);
+		conn = srv_lookup_conn(is_safe ? &srv->per_thr[i].safe_conns : &srv->per_thr[i].idle_conns, hash);
 		while (conn) {
 			if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
 				conn_delete_from_tree(&conn->hash_node->node);
@@ -1198,14 +1196,13 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 		}
 
 		if (!found && !is_safe && srv->curr_safe_nb > 0) {
-			conn = srv_lookup_conn(&srv->safe_conns_tree[i], hash);
+			conn = srv_lookup_conn(&srv->per_thr[i].safe_conns, hash);
 			while (conn) {
 				if (conn->mux->takeover && conn->mux->takeover(conn, i) == 0) {
 					conn_delete_from_tree(&conn->hash_node->node);
 					_HA_ATOMIC_ADD(&activity[tid].fd_takeover, 1);
 					found = 1;
 					is_safe = 1;
-					tree = srv->safe_conns_tree;
 					break;
 				}
 
@@ -1237,7 +1234,7 @@ static struct connection *conn_backend_get(struct stream *s, struct server *srv,
 			session_add_conn(s->sess, conn, conn->target);
 		}
 		else {
-			ebmb_insert(&srv->available_conns_tree[tid],
+			ebmb_insert(&srv->per_thr[tid].avail_conns,
 			            &conn->hash_node->node,
 			            sizeof(conn->hash_node->hash));
 		}
@@ -1342,8 +1339,8 @@ int connect_server(struct stream *s)
 	 */
 	si_release_endpoint(&s->si[1]);
 
-	/* do not reuse if mode is not http or if avail list is not allocated */
-	if ((s->be->mode != PR_MODE_HTTP) || (srv && !srv->available_conns_tree))
+	/* do not reuse if mode is not http */
+	if (s->be->mode != PR_MODE_HTTP)
 		goto skip_reuse;
 
 	/* first, search for a matching connection in the session's idle conns */
@@ -1370,8 +1367,8 @@ int connect_server(struct stream *s)
 		 * Idle conns are necessarily looked up on the same thread so
 		 * that there is no concurrency issues.
 		 */
-		if (!eb_is_empty(&srv->available_conns_tree[tid])) {
-			srv_conn = srv_lookup_conn(&srv->available_conns_tree[tid], hash);
+		if (!eb_is_empty(&srv->per_thr[tid].avail_conns)) {
+			srv_conn = srv_lookup_conn(&srv->per_thr[tid].avail_conns, hash);
 			if (srv_conn)
 				reuse = 1;
 		}
@@ -1414,7 +1411,7 @@ int connect_server(struct stream *s)
 	 * is OK.
 	 */
 
-	if (ha_used_fds > global.tune.pool_high_count && srv && srv->idle_conns_tree) {
+	if (ha_used_fds > global.tune.pool_high_count && srv) {
 		struct connection *tokill_conn = NULL;
 		struct conn_hash_node *conn_node = NULL;
 		struct ebmb_node *node = NULL;
@@ -1424,7 +1421,7 @@ int connect_server(struct stream *s)
 		 */
 		/* First, try from our own idle list */
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		node = ebmb_first(&srv->idle_conns_tree[tid]);
+		node = ebmb_first(&srv->per_thr[tid].idle_conns);
 		if (node) {
 			conn_node = ebmb_entry(node, struct conn_hash_node, node);
 			tokill_conn = conn_node->conn;
@@ -1445,7 +1442,7 @@ int connect_server(struct stream *s)
 				ALREADY_CHECKED(i);
 
 				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
-				node = ebmb_first(&srv->idle_conns_tree[i]);
+				node = ebmb_first(&srv->per_thr[i].idle_conns);
 				if (node) {
 					conn_node = ebmb_entry(node, struct conn_hash_node, node);
 					tokill_conn = conn_node->conn;
@@ -1453,7 +1450,7 @@ int connect_server(struct stream *s)
 				}
 
 				if (!tokill_conn) {
-					node = ebmb_first(&srv->safe_conns_tree[i]);
+					node = ebmb_first(&srv->per_thr[i].safe_conns);
 					if (node) {
 						conn_node = ebmb_entry(node, struct conn_hash_node, node);
 						tokill_conn = conn_node->conn;
@@ -1654,7 +1651,7 @@ skip_reuse:
 			if (srv && reuse_mode == PR_O_REUSE_ALWS &&
 			    !(srv_conn->flags & CO_FL_PRIVATE) &&
 			    srv_conn->mux->avail_streams(srv_conn) > 0) {
-				ebmb_insert(&srv->available_conns_tree[tid], &srv_conn->hash_node->node, sizeof(srv_conn->hash_node->hash));
+				ebmb_insert(&srv->per_thr[tid].avail_conns, &srv_conn->hash_node->node, sizeof(srv_conn->hash_node->hash));
 			}
 			else if (srv_conn->flags & CO_FL_PRIVATE ||
 			         (reuse_mode == PR_O_REUSE_SAFE &&

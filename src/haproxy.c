@@ -2658,9 +2658,7 @@ void deinit(void)
 			free(s->hostname);
 			free(s->hostname_dn);
 			free((char*)s->conf.file);
-			free(s->idle_conns_tree);
-			free(s->safe_conns_tree);
-			free(s->available_conns_tree);
+			free(s->per_thr);
 			free(s->curr_idle_thr);
 			free(s->resolvers_id);
 			free(s->addr_node.key);

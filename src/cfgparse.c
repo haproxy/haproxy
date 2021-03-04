@@ -3247,17 +3247,19 @@ out_uri_auth_compat:
 		/* initialize idle conns lists */
 		int i;
 
-		newsrv->available_conns_tree = calloc(global.nbthread, sizeof(*newsrv->available_conns_tree));
-
-		if (!newsrv->available_conns_tree) {
-			ha_alert("parsing [%s:%d] : failed to allocate idle connections for server '%s'.\n",
-				 newsrv->conf.file, newsrv->conf.line, newsrv->id);
+		newsrv->per_thr = calloc(global.nbthread, sizeof(*newsrv->per_thr));
+		if (!newsrv->per_thr) {
+			ha_alert("parsing [%s:%d] : failed to allocate per-thread lists for server '%s'.\n",
+			         newsrv->conf.file, newsrv->conf.line, newsrv->id);
 			cfgerr++;
 			continue;
 		}
 
-		for (i = 0; i < global.nbthread; i++)
-			newsrv->available_conns_tree[i] = EB_ROOT;
+		for (i = 0; i < global.nbthread; i++) {
+			newsrv->per_thr[i].idle_conns = EB_ROOT;
+			newsrv->per_thr[i].safe_conns = EB_ROOT;
+			newsrv->per_thr[i].avail_conns = EB_ROOT;
+		}
 
 		if (newsrv->max_idle_conns != 0) {
 			if (idle_conn_task == NULL) {
@@ -3278,28 +3280,6 @@ out_uri_auth_compat:
 					MT_LIST_INIT(&idle_conns[i].toremove_conns);
 				}
 			}
-
-			newsrv->idle_conns_tree = calloc((unsigned short)global.nbthread, sizeof(*newsrv->idle_conns_tree));
-			if (!newsrv->idle_conns_tree) {
-				ha_alert("parsing [%s:%d] : failed to allocate idle connections for server '%s'.\n",
-					 newsrv->conf.file, newsrv->conf.line, newsrv->id);
-				cfgerr++;
-				continue;
-			}
-
-			for (i = 0; i < global.nbthread; i++)
-				newsrv->idle_conns_tree[i] = EB_ROOT;
-
-			newsrv->safe_conns_tree = calloc(global.nbthread, sizeof(*newsrv->safe_conns_tree));
-			if (!newsrv->safe_conns_tree) {
-				ha_alert("parsing [%s:%d] : failed to allocate idle connections for server '%s'.\n",
-					 newsrv->conf.file, newsrv->conf.line, newsrv->id);
-				cfgerr++;
-				continue;
-			}
-
-			for (i = 0; i < global.nbthread; i++)
-				newsrv->safe_conns_tree[i] = EB_ROOT;
 
 			newsrv->curr_idle_thr = calloc(global.nbthread, sizeof(*newsrv->curr_idle_thr));
 			if (!newsrv->curr_idle_thr)

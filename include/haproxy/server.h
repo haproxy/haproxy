@@ -308,8 +308,8 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 	    ((srv->proxy->options & PR_O_REUSE_MASK) != PR_O_REUSE_NEVR) &&
 	    ha_used_fds < global.tune.pool_high_count &&
 	    (srv->max_idle_conns == -1 || srv->max_idle_conns > srv->curr_idle_conns) &&
-	    ((eb_is_empty(&srv->safe_conns_tree[tid]) &&
-	      (is_safe || eb_is_empty(&srv->idle_conns_tree[tid]))) ||
+	    ((eb_is_empty(&srv->per_thr[tid].safe_conns) &&
+	      (is_safe || eb_is_empty(&srv->per_thr[tid].idle_conns))) ||
 	     (ha_used_fds < global.tune.pool_low_count &&
 	      (srv->curr_used_conns + srv->curr_idle_conns <=
 	       MAX(srv->curr_used_conns, srv->est_need_conns) + srv->low_idle_conns))) &&
@@ -328,11 +328,11 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
-			ebmb_insert(&srv->safe_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			ebmb_insert(&srv->per_thr[tid].safe_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
 			_HA_ATOMIC_ADD(&srv->curr_safe_nb, 1);
 		} else {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_IDLE_LIST;
-			ebmb_insert(&srv->idle_conns_tree[tid], &conn->hash_node->node, sizeof(conn->hash_node->hash));
+			ebmb_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
 			_HA_ATOMIC_ADD(&srv->curr_idle_nb, 1);
 		}
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
