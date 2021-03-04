@@ -815,9 +815,12 @@ void apply_server_state(void)
 	for (curproxy = proxies_list; curproxy != NULL; curproxy = curproxy->next) {
 		struct eb_root local_state_tree = EB_ROOT_UNIQUE;
 
-		/* servers are only in backends */
-		if (!(curproxy->cap & PR_CAP_BE) || !curproxy->srv)
+		/* Must be an enabled backend with at least a server */
+		if (!(curproxy->cap & PR_CAP_BE) || curproxy->disabled || !curproxy->srv)
 			continue; /* next proxy */
+
+		/* Mode must be specified */
+		BUG_ON(curproxy->load_server_state_from_file == PR_SRV_STATE_FILE_UNSPEC);
 
 		/* No server-state file for this proxy */
 		if (curproxy->load_server_state_from_file == PR_SRV_STATE_FILE_NONE)
