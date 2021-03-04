@@ -881,7 +881,7 @@ void apply_server_state(void)
 		if (local_vsn)
 			srv_state_px_update(curproxy, local_vsn, &local_state_tree);
 
-		/* Remove unsused server-state lines */
+		/* Remove unused server-state lines */
 		node = eb64_first(&local_state_tree);
 		while (node) {
 			st_line = eb64_entry(node, typeof(*st_line), node);

@@ -216,7 +216,7 @@ tunneled data. But tunneled data will never be mixed with message data to avoid
 ambiguities. Thus once the flag marking the end of the message is set, it is
 easy to know the message ends. The end is reached if the HTX message is empty or
 on the tail HTX block in the HTX message. Once all blocks of the HTX message are
-consumed, tunneled data, if any, may be transfered.
+consumed, tunneled data, if any, may be transferred.
 
 
 3.1. The start-line
@@ -519,8 +519,8 @@ block :
       pointing on the block payload is returned.
 
     - htx_is_unique_blk() may be used to know if a block is the only one
-      remaining inside an HTX message, excluding unsued blocks. This function is
-      pretty useful to determine the end of a HTX message, in conjonction with
+      remaining inside an HTX message, excluding unused blocks. This function is
+      pretty useful to determine the end of a HTX message, in conjunction with
       HTX_FL_EOM flag.
 
 4.7. Advanced functions

@@ -3102,7 +3102,7 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 
 			if (!sink || sink->type != SINK_TYPE_BUFFER) {
 				ha_alert("Proxy %s : log server used by SPOE agent '%s' declared"
-					 " at %s:%d uses unkown ring named '%s'.\n",
+					 " at %s:%d uses unknown ring named '%s'.\n",
 					 px->id, conf->agent->id, conf->agent->conf.file,
 					 conf->agent->conf.line, logsrv->ring_name);
 				return 1;

@@ -296,7 +296,7 @@ instances attached to a stream :
         unsigned short flags;               /* STRM_FL_* */
         unsigned char  nb_req_data_filters; /* Number of data filters registered on the request channel */
         unsigned char  nb_rsp_data_filters; /* Number of data filters registered on the response channel */
-        unsigned long long offset[2];       /* gloal offset of input data already filtered for a specific channle
+        unsigned long long offset[2];       /* gloal offset of input data already filtered for a specific channel
                                              * 0: request channel, 1: response channel */
     };
 
@@ -628,7 +628,7 @@ For instance :
         /* ... */
     }
 
-Finally, it may be interesting to notifiy the filter when the stream is woken up
+Finally, it may be interesting to notify the filter when the stream is woken up
 because of an expired timer. This could let a chance to check some internal
 timeouts, if any. To do so the following callback must be used :
 
@@ -709,7 +709,7 @@ instance :
     'include/haproxy/channels-t.h'.
 
   * 'chn' is the channel on which the analyzing is done. It is possible to
-    dertermine if it is the request or the response channel by testing if
+    determine if it is the request or the response channel by testing if
     CF_ISRESP flag is set :
 
       │ ((chn->flags & CF_ISRESP) == CF_ISRESP)
@@ -986,7 +986,7 @@ available data (available from its point of view), blocking the data forwarding.
 Internally, filters own 2 offsets representing the number of bytes already
 analyzed in the available input data, one per channel. There is also an offset
 couple at the stream level, in the strm_flt object, representing the total
-number of bytes already forwarded. These offsets may be retrived and updated
+number of bytes already forwarded. These offsets may be retrieved and updated
 using following macros :
 
   * FLT_OFF(flt, chn)
@@ -1180,7 +1180,7 @@ update data itself, i.e. the buffer offsets, using following function :
 
   * 'flt_update_offsets()' : This function must be called when a filter alter
     incoming data. It updates offsets of the stream and of all filters
-    preceeding the calling one. Do not call this function when a filter change
+    preceding the calling one. Do not call this function when a filter change
     the size of incoming data leads to an undefined behavior.
 
 A good example of filter changing the data size is the HTTP compression filter.
