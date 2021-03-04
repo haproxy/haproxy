@@ -1813,6 +1813,10 @@ static inline int peer_treat_ackmsg(struct appctx *appctx, struct peer *p,
 	uint32_t update;
 	struct shared_table *st;
 
+	/* ignore ack during teaching process */
+	if (p->flags & PEER_F_TEACH_PROCESS)
+		return 1;
+
 	table_id = intdecode(msg_cur, msg_end);
 	if (!*msg_cur || (*msg_cur + sizeof(update) > msg_end)) {
 		/* malformed message */
