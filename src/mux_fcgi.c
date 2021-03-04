@@ -1269,7 +1269,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 				if (addr_to_str(cli_conn->dst, b_tail(params->p), b_room(params->p)) != -1)
 					ptr = b_tail(params->p);
 			if (ptr) {
-				params->srv_name = ist2(ptr, strlen(ptr));
+				params->srv_name = ist(ptr);
 				params->p->data += params->srv_name.len;
 			}
 		}
@@ -1281,7 +1281,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 			if (addr_to_str(cli_conn->src, b_tail(params->p), b_room(params->p)) != -1)
 				ptr = b_tail(params->p);
 		if (ptr) {
-			params->rem_addr = ist2(ptr, strlen(ptr));
+			params->rem_addr = ist(ptr);
 			params->p->data += params->rem_addr.len;
 		}
 	}

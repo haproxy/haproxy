@@ -1851,7 +1851,7 @@ static int srv_parse_check_proto(char **args, int *cur_arg,
 		memprintf(err, "'%s' : missing value", args[*cur_arg]);
 		goto error;
 	}
-	newsrv->check.mux_proto = get_mux_proto(ist2(args[*cur_arg + 1], strlen(args[*cur_arg + 1])));
+	newsrv->check.mux_proto = get_mux_proto(ist(args[*cur_arg + 1]));
 	if (!newsrv->check.mux_proto) {
 		memprintf(err, "'%s' :  unknown MUX protocol '%s'", args[*cur_arg], args[*cur_arg+1]);
 		goto error;

@@ -1496,7 +1496,7 @@ static int bind_parse_proto(char **args, int cur_arg, struct proxy *px, struct b
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	proto = ist2(args[cur_arg + 1], strlen(args[cur_arg + 1]));
+	proto = ist(args[cur_arg + 1]);
 	conf->mux_proto = get_mux_proto(proto);
 	if (!conf->mux_proto) {
 		memprintf(err, "'%s' :  unknown MUX protocol '%s'", args[cur_arg], args[cur_arg+1]);

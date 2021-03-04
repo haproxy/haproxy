@@ -4057,7 +4057,7 @@ static int stats_send_http_headers(struct stream_interface *si, struct htx *htx)
 
 	if (uri->refresh > 0 && !(appctx->ctx.stats.flags & STAT_NO_REFRESH)) {
 		const char *refresh = U2A(uri->refresh);
-		if (!htx_add_header(htx, ist("Refresh"), ist2(refresh, strlen(refresh))))
+		if (!htx_add_header(htx, ist("Refresh"), ist(refresh)))
 			goto full;
 	}
 

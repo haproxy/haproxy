@@ -2733,7 +2733,7 @@ int http_res_set_status(unsigned int status, struct ist reason, struct stream *s
 	/* Do we have a custom reason format string? */
 	if (!isttest(reason)) {
 		const char *str = http_get_reason(status);
-		reason = ist2(str, strlen(str));
+		reason = ist(str);
 	}
 
 	if (!http_replace_res_status(htx, ist2(trash.area, trash.data), reason))

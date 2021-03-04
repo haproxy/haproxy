@@ -2273,7 +2273,7 @@ struct tcpcheck_rule *parse_tcpcheck_connect(char **args, int cur_arg, struct pr
 				memprintf(errmsg, "'%s' expects a MUX protocol as argument.", args[cur_arg]);
 				goto error;
 			}
-			mux_proto = get_mux_proto(ist2(args[cur_arg+1], strlen(args[cur_arg+1])));
+			mux_proto = get_mux_proto(ist(args[cur_arg + 1]));
 			if (!mux_proto) {
 				memprintf(errmsg, "'%s' : unknown MUX protocol '%s'.", args[cur_arg], args[cur_arg+1]);
 				goto error;
@@ -2439,7 +2439,7 @@ struct tcpcheck_rule *parse_tcpcheck_send(char **args, int cur_arg, struct proxy
 
 	switch (chk->send.type) {
 	case TCPCHK_SEND_STRING:
-		chk->send.data = ist2(strdup(data), strlen(data));
+		chk->send.data = ist(strdup(data));
 		if (!isttest(chk->send.data)) {
 			memprintf(errmsg, "out of memory");
 			goto error;
@@ -2535,8 +2535,8 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 				 strcasecmp(args[cur_arg+1], "transfer-encoding") == 0)
 				goto skip_hdr;
 
-			hdrs[i].n = ist2(args[cur_arg+1], strlen(args[cur_arg+1]));
-			hdrs[i].v = ist2(args[cur_arg+2], strlen(args[cur_arg+2]));
+			hdrs[i].n = ist(args[cur_arg + 1]);
+			hdrs[i].v = ist(args[cur_arg + 2]);
 			i++;
 		  skip_hdr:
 			cur_arg += 2;
@@ -2605,7 +2605,7 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 			}
 		}
 		else {
-			chk->send.http.uri = ist2(strdup(uri), strlen(uri));
+			chk->send.http.uri = ist(strdup(uri));
 			if (!isttest(chk->send.http.uri)) {
 				memprintf(errmsg, "out of memory");
 				goto error;
@@ -2613,7 +2613,7 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 		}
 	}
 	if (vsn) {
-		chk->send.http.vsn = ist2(strdup(vsn), strlen(vsn));
+		chk->send.http.vsn = ist(strdup(vsn));
 		if (!isttest(chk->send.http.vsn)) {
 			memprintf(errmsg, "out of memory");
 			goto error;
@@ -2649,7 +2649,7 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 			}
 		}
 		else {
-			chk->send.http.body = ist2(strdup(body), strlen(body));
+			chk->send.http.body = ist(strdup(body));
 			if (!isttest(chk->send.http.body)) {
 				memprintf(errmsg, "out of memory");
 				goto error;
@@ -3174,7 +3174,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 	}
 	case TCPCHK_EXPECT_STRING:
 	case TCPCHK_EXPECT_HTTP_BODY:
-		chk->expect.data = ist2(strdup(pattern), strlen(pattern));
+		chk->expect.data = ist(strdup(pattern));
 		if (!isttest(chk->expect.data)) {
 			memprintf(errmsg, "out of memory");
 			goto error;
@@ -3229,7 +3229,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 			}
 		}
 		else {
-			chk->expect.hdr.name = ist2(strdup(npat), strlen(npat));
+			chk->expect.hdr.name = ist(strdup(npat));
 			if (!isttest(chk->expect.hdr.name)) {
 				memprintf(errmsg, "out of memory");
 				goto error;
@@ -3259,7 +3259,7 @@ struct tcpcheck_rule *parse_tcpcheck_expect(char **args, int cur_arg, struct pro
 			}
 		}
 		else {
-			chk->expect.hdr.value = ist2(strdup(vpat), strlen(vpat));
+			chk->expect.hdr.value = ist(strdup(vpat));
 			if (!isttest(chk->expect.hdr.value)) {
 				memprintf(errmsg, "out of memory");
 				goto error;
@@ -3621,7 +3621,7 @@ int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str)
 	expect->ok_status = HCHK_STATUS_L7OKD;
 	expect->err_status = HCHK_STATUS_L7RSP;
 	expect->tout_status = HCHK_STATUS_L7TOUT;
-	expect->data = ist2(strdup(str), strlen(str));
+	expect->data = ist(strdup(str));
 	if (!isttest(expect->data)) {
 		pool_free(pool_head_tcpcheck_rule, tcpcheck);
 		return 0;
@@ -4766,14 +4766,14 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 		}
 	}
 	if (uri) {
-		chk->send.http.uri = ist2(strdup(uri), strlen(uri));
+		chk->send.http.uri = ist(strdup(uri));
 		if (!isttest(chk->send.http.uri)) {
 			memprintf(errmsg, "out of memory");
 			goto error;
 		}
 	}
 	if (vsn) {
-		chk->send.http.vsn = ist2(strdup(vsn), strlen(vsn));
+		chk->send.http.vsn = ist(strdup(vsn));
 		if (!isttest(chk->send.http.vsn)) {
 			memprintf(errmsg, "out of memory");
 			goto error;
@@ -4820,7 +4820,7 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 
 	/* Copy the body */
 	if (body) {
-		chk->send.http.body = ist2(strdup(body), strlen(body));
+		chk->send.http.body = ist(strdup(body));
 		if (!isttest(chk->send.http.body)) {
 			memprintf(errmsg, "out of memory");
 			goto error;

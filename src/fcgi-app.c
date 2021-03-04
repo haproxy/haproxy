@@ -854,7 +854,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 			goto out;
 		istfree(&curapp->docroot);
-		curapp->docroot = ist2(strdup(args[1]), strlen(args[1]));
+		curapp->docroot = ist(strdup(args[1]));
 		if (!isttest(curapp->docroot)) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
@@ -887,7 +887,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 			goto out;
 		istfree(&curapp->index);
-		curapp->index = ist2(strdup(args[1]), strlen(args[1]));
+		curapp->index = ist(strdup(args[1]));
 		if (!isttest(curapp->index)) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
