@@ -535,7 +535,7 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 		 * insert "; " before the new value.
 		 */
 		fs += tl; // first one is already counted
-		for (; (ck = list[ck].n.len) >= 0 ; ) {
+		while ((ck = list[ck].n.len) >= 0) {
 			vl = list[ck].v.len;
 			tl += vl + 2;
 			if (tl > fs)
