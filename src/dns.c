@@ -41,44 +41,40 @@ DECLARE_STATIC_POOL(dns_query_pool, "dns_query", sizeof(struct dns_query));
 DECLARE_STATIC_POOL(dns_msg_buf, "dns_msg_buf", DNS_TCP_MSG_RING_MAX_SIZE);
 
 /* Opens an UDP socket on the namesaver's IP/Port, if required. Returns 0 on
- * success, -1 otherwise.
+ * success, -1 otherwise. ns->dgram must be defined.
  */
 static int dns_connect_nameserver(struct dns_nameserver *ns)
 {
-	if (ns->dgram) {
-		struct dgram_conn *dgram = &ns->dgram->conn;
-		int fd;
+	struct dgram_conn *dgram = &ns->dgram->conn;
+	int fd;
 
-		/* Already connected */
-		if (dgram->t.sock.fd != -1)
-			return 0;
-
-		/* Create an UDP socket and connect it on the nameserver's IP/Port */
-		if ((fd = socket(dgram->addr.to.ss_family, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-			send_log(NULL, LOG_WARNING,
-			         "DNS : section '%s': can't create socket for nameserver '%s'.\n",
-			         ns->counters->pid, ns->id);
-			return -1;
-		}
-		if (connect(fd, (struct sockaddr*)&dgram->addr.to, get_addr_len(&dgram->addr.to)) == -1) {
-			send_log(NULL, LOG_WARNING,
-			         "DNS : section '%s': can't connect socket for nameserver '%s'.\n",
-			         ns->counters->id, ns->id);
-			close(fd);
-			return -1;
-		}
-
-		/* Make the socket non blocking */
-		fcntl(fd, F_SETFL, O_NONBLOCK);
-
-		/* Add the fd in the fd list and update its parameters */
-		dgram->t.sock.fd = fd;
-		fd_insert(fd, dgram, dgram_fd_handler, MAX_THREADS_MASK);
-		fd_want_recv(fd);
+	/* Already connected */
+	if (dgram->t.sock.fd != -1)
 		return 0;
+
+	/* Create an UDP socket and connect it on the nameserver's IP/Port */
+	if ((fd = socket(dgram->addr.to.ss_family, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+		send_log(NULL, LOG_WARNING,
+			 "DNS : section '%s': can't create socket for nameserver '%s'.\n",
+			 ns->counters->pid, ns->id);
+		return -1;
+	}
+	if (connect(fd, (struct sockaddr*)&dgram->addr.to, get_addr_len(&dgram->addr.to)) == -1) {
+		send_log(NULL, LOG_WARNING,
+			 "DNS : section '%s': can't connect socket for nameserver '%s'.\n",
+			 ns->counters->id, ns->id);
+		close(fd);
+		return -1;
 	}
 
-	return -1;
+	/* Make the socket non blocking */
+	fcntl(fd, F_SETFL, O_NONBLOCK);
+
+	/* Add the fd in the fd list and update its parameters */
+	dgram->t.sock.fd = fd;
+	fd_insert(fd, dgram, dgram_fd_handler, MAX_THREADS_MASK);
+	fd_want_recv(fd);
+	return 0;
 }
 
 /* Sends a message to a name server
