@@ -8770,10 +8770,11 @@ option originalto [ except <network> ] [ header <name> ]
   Sometimes, a same HAProxy instance may be shared between a direct client
   access and a reverse-proxy access (for instance when an SSL reverse-proxy is
   used to decrypt HTTPS traffic). It is possible to disable the addition of the
-  header for a known source address or network by adding the "except" keyword
-  followed by the network address. In this case, any source IP matching the
-  network will not cause an addition of this header. Most common uses are with
-  private networks or 127.0.0.1.  IPv4 and IPv6 are both supported.
+  header for a known destination address or network by adding the "except"
+  keyword followed by the network address. In this case, any destination IP
+  matching the network will not cause an addition of this header. Most common
+  uses are with private networks or 127.0.0.1. IPv4 and IPv6 are both
+  supported.
 
   This option may be specified either in the frontend or in the backend. If at
   least one of them uses it, the header will be added. Note that the backend's
