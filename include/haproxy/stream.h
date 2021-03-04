@@ -292,7 +292,7 @@ static inline void stream_add_srv_conn(struct stream *sess, struct server *srv)
 	 * from a conflict with an adjacent MT_LIST_DEL, and using it improves
 	 * the performance by about 3% on 32-cores.
 	 */
-	MT_LIST_ADD(&srv->actconns, &sess->by_srv);
+	MT_LIST_ADD(&srv->per_thr[tid].streams, &sess->by_srv);
 	HA_ATOMIC_STORE(&sess->srv_conn, srv);
 }
 

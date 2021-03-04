@@ -3259,6 +3259,7 @@ out_uri_auth_compat:
 			newsrv->per_thr[i].idle_conns = EB_ROOT;
 			newsrv->per_thr[i].safe_conns = EB_ROOT;
 			newsrv->per_thr[i].avail_conns = EB_ROOT;
+			MT_LIST_INIT(&newsrv->per_thr[i].streams);
 		}
 
 		if (newsrv->max_idle_conns != 0) {

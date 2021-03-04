@@ -9175,7 +9175,6 @@ void hlua_init(void) {
 	socket_tcp.next = NULL;
 	socket_tcp.proxy = &socket_proxy;
 	socket_tcp.obj_type = OBJ_TYPE_SERVER;
-	MT_LIST_INIT(&socket_tcp.actconns);
 	socket_tcp.pendconns = EB_ROOT;
 	LIST_ADD(&servers_list, &socket_tcp.global_list);
 	socket_tcp.next_state = SRV_ST_RUNNING; /* early server setup */
@@ -9221,7 +9220,6 @@ void hlua_init(void) {
 	socket_ssl.next = NULL;
 	socket_ssl.proxy = &socket_proxy;
 	socket_ssl.obj_type = OBJ_TYPE_SERVER;
-	MT_LIST_INIT(&socket_ssl.actconns);
 	socket_ssl.pendconns = EB_ROOT;
 	LIST_ADD(&servers_list, &socket_ssl.global_list);
 	socket_ssl.next_state = SRV_ST_RUNNING; /* early server setup */

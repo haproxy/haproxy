@@ -205,6 +205,7 @@ struct tree_occ {
 
 /* Each server will have one occurrence of this structure per thread */
 struct srv_per_thread {
+	struct mt_list streams;                 /* streams using this server (used by "shutdown server sessions") */
 	struct eb_root idle_conns;              /* Shareable idle connections */
 	struct eb_root safe_conns;              /* Safe idle connections */
 	struct eb_root avail_conns;             /* Connections in use, but with still new streams available */
@@ -236,8 +237,7 @@ struct server {
 	struct be_counters counters;		/* statistics counters */
 
 	struct eb_root pendconns;		/* pending connections */
-	struct mt_list actconns;		/* active connections (used by "shutdown server sessions") */
-	struct srv_per_thread *per_thr;         /* array of per-thread stuff such as connections lists, may be null */
+	struct srv_per_thread *per_thr;         /* array of per-thread stuff such as connections lists */
 	unsigned int pool_purge_delay;          /* Delay before starting to purge the idle conns pool */
 	unsigned int low_idle_conns;            /* min idle connection count to start picking from other threads */
 	unsigned int max_idle_conns;            /* Max number of connection allowed in the orphan connections list */
