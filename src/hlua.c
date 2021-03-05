@@ -9181,6 +9181,8 @@ void hlua_init(void) {
 	socket_tcp.safe_conns_tree = NULL;
 	socket_tcp.next_state = SRV_ST_RUNNING; /* early server setup */
 	socket_tcp.last_change = 0;
+	socket_tcp.conf.file = strdup("HLUA_INTERNAL");
+	socket_tcp.conf.line = 1;
 	socket_tcp.id = "LUA-TCP-CONN";
 	socket_tcp.check.state &= ~CHK_ST_ENABLED; /* Disable health checks. */
 	socket_tcp.agent.state &= ~CHK_ST_ENABLED; /* Disable health checks. */
@@ -9226,6 +9228,8 @@ void hlua_init(void) {
 	socket_ssl.safe_conns_tree = NULL;
 	socket_ssl.next_state = SRV_ST_RUNNING; /* early server setup */
 	socket_ssl.last_change = 0;
+	socket_ssl.conf.file = strdup("HLUA_INTERNAL");
+	socket_ssl.conf.line = 2;
 	socket_ssl.id = "LUA-SSL-CONN";
 	socket_ssl.check.state &= ~CHK_ST_ENABLED; /* Disable health checks. */
 	socket_ssl.agent.state &= ~CHK_ST_ENABLED; /* Disable health checks. */
@@ -9290,6 +9294,10 @@ static void hlua_deinit()
 		if (hlua_states[thr])
 			lua_close(hlua_states[thr]);
 	}
+	ha_free((char**)&socket_tcp.conf.file);
+#ifdef USE_OPENSSL
+	ha_free((char**)&socket_ssl.conf.file);
+#endif
 }
 
 REGISTER_POST_DEINIT(hlua_deinit);
