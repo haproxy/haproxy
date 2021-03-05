@@ -1,6 +1,68 @@
 ChangeLog :
 ===========
 
+2021/03/05 : 2.4-dev11
+    - CI: codespell: skip Makefile for spell check
+    - CLEANUP: assorted typo fixes in the code and comments
+    - BUG/MINOR: tcp-act: Don't forget to set the original port for IPv4 set-dst rule
+    - BUG/MINOR: connection: Use the client's dst family for adressless servers
+    - BUG/MEDIUM: spoe: Kill applets if there are pending connections and nbthread > 1
+    - CLEANUP: Use ist2(const void*, size_t) whenever possible
+    - CLEANUP: Use IST_NULL whenever possible
+    - BUILD: proxy: Missing header inclusion for quic_transport_params_init()
+    - BUILD: quic: Implicit conversion between SSL related enums.
+    - DOC: spoe: Add a note about fragmentation support in HAProxy
+    - MINOR: contrib: add support for heartbeat control messages.
+    - MINOR: contrib: Enhance peers dissector heuristic.
+    - BUG/MINOR: mux-h2: Fix typo in scheme adjustment
+    - CLEANUP: Reapply the ist2() replacement patch
+    - CLEANUP: Use istadv(const struct ist, const size_t) whenever possible
+    - CLEANUP: Use isttest(const struct ist) whenever possible
+    - Revert "CI: Pin VTest to a known good commit"
+    - CLEANUP: backend: fix a wrong comment
+    - BUG/MINOR: backend: free allocated bind_addr if reuse conn
+    - MINOR: backend: handle reuse for conns with no server as target
+    - REGTESTS: test http-reuse if no server target
+    - BUG/MINOR: hlua: Don't strip last non-LWS char in hlua_pushstrippedstring()
+    - BUG/MINOR: server-state: Don't load server-state file for disabled backends
+    - CLEANUP: dns: Use DISGUISE() on a never-failing ring_attach() call
+    - CLEANUP: dns: Remove useless test on ns->dgram in dns_connect_nameserver()
+    - DOC: fix originalto except clause on destination address
+    - CLEANUP: Use the ist() macro whenever possible
+    - CLEANUP: Replace for loop with only a condition by while
+    - REORG: atomic: reimplement pl_cpu_relax() from atomic-ops.h
+    - BUG/MINOR: mt-list: always perform a cpu_relax call on failure
+    - MINOR: atomic: add armv8.1-a atomics variant for cas-dw
+    - MINOR: atomic: implement a more efficient arm64 __ha_cas_dw() using pairs
+    - BUG/MINOR: ssl: don't truncate the file descriptor to 16 bits in debug mode
+    - MEDIUM: pools: add CONFIG_HAP_NO_GLOBAL_POOLS and CONFIG_HAP_GLOBAL_POOLS
+    - MINOR: pools: double the local pool cache size to 1 MB
+    - MINOR: stream: use ABORT_NOW() and not abort() in stream_dump_and_crash()
+    - CLEANUP: stream: explain why we queue the stream at the head of the server list
+    - MEDIUM: backend: use a trylock when trying to grab an idle connection
+    - REORG: tools: promote the debug PRNG to more general use as a statistical one
+    - OPTIM: lb-random: use a cheaper PRNG to pick a server
+    - MINOR: task: stop abusing the nice field to detect a tasklet
+    - MINOR: task: move the nice field to the struct task only
+    - MEDIUM: task: extend the state field to 32 bits
+    - MINOR: task: add an application specific flag to the state: TASK_F_USR1
+    - MEDIUM: muxes: mark idle conns tasklets with TASK_F_USR1
+    - MINOR: xprt: add new xprt_set_idle and xprt_set_used methods
+    - MEDIUM: ssl: implement xprt_set_used and xprt_set_idle to relax context checks
+    - MINOR: server: don't read curr_used_conns multiple times
+    - CLEANUP: global: reorder some fields to respect cache lines
+    - CLEANUP: sockpair: silence a coverity check about fcntl()
+    - CLEANUP: lua: set a dummy file name and line number on the dummy servers
+    - MINOR: server: add a global list of all known servers
+    - MINOR: cfgparse: finish to set up servers outside of the proxy setup loop
+    - MINOR: server: allocate a per-thread struct for the per-thread connections stuff
+    - MINOR: server: move actconns to the per-thread structure
+    - CLEANUP: server: reorder some fields in the server struct to respect cache lines
+    - MINOR: backend: add a BUG_ON if conn mux NULL in connect_server
+    - BUG/MINOR: backend: fix condition for reuse on mode HTTP
+    - BUILD: Fix build when using clang without optimizing.
+    - CLEANUP: assorted typo fixes in the code and comments
+
 2021/02/26 : 2.4-dev10
     - BUILD: SSL: introduce fine guard for RAND_keep_random_devices_open
     - MINOR: Configure the `cpp` userdiff driver for *.[ch] in .gitattributes
