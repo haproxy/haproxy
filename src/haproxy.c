@@ -2675,6 +2675,7 @@ void deinit(void)
 				srvdf->fct(s);
 
 			EXTRA_COUNTERS_FREE(s->extra_counters);
+			LIST_DEL(&s->global_list);
 			free(s);
 			s = s_next;
 		}/* end while(s) */

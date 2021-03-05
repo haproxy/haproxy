@@ -58,6 +58,7 @@ static struct srv_kw_list srv_keywords = {
 __decl_thread(HA_SPINLOCK_T idle_conn_srv_lock);
 struct eb_root idle_conn_srv = EB_ROOT;
 struct task *idle_conn_task = NULL;
+struct list servers_list = LIST_HEAD_INIT(servers_list);
 
 /* The server names dictionary */
 struct dict server_key_dict = {
@@ -1736,6 +1737,9 @@ static void srv_settings_cpy(struct server *srv, struct server *src, int srv_tmp
 	srv->socks4_addr              = src->socks4_addr;
 }
 
+/* allocate a server and attach it to the global servers_list. Returns
+ * the server on success, otherwise NULL.
+ */
 struct server *new_server(struct proxy *proxy)
 {
 	struct server *srv;
@@ -1748,6 +1752,7 @@ struct server *new_server(struct proxy *proxy)
 	srv->proxy = proxy;
 	MT_LIST_INIT(&srv->actconns);
 	srv->pendconns = EB_ROOT;
+	LIST_ADDQ(&servers_list, &srv->global_list);
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
 	srv->last_change = now.tv_sec;
@@ -1923,6 +1928,7 @@ static int server_template_init(struct server *srv, struct proxy *px)
 #endif
 		free_check(&newsrv->agent);
 		free_check(&newsrv->check);
+		LIST_DEL(&newsrv->global_list);
 	}
 	free(newsrv);
 	return i - srv->tmpl_info.nb_low;

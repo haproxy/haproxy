@@ -48,7 +48,7 @@
 #include <haproxy/proxy-t.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
-#include <haproxy/server-t.h>
+#include <haproxy/server.h>
 #include <haproxy/session.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/stream.h>
@@ -9179,6 +9179,7 @@ void hlua_init(void) {
 	socket_tcp.pendconns = EB_ROOT;
 	socket_tcp.idle_conns_tree = NULL;
 	socket_tcp.safe_conns_tree = NULL;
+	LIST_ADD(&servers_list, &socket_tcp.global_list);
 	socket_tcp.next_state = SRV_ST_RUNNING; /* early server setup */
 	socket_tcp.last_change = 0;
 	socket_tcp.conf.file = strdup("HLUA_INTERNAL");
@@ -9226,6 +9227,7 @@ void hlua_init(void) {
 	socket_ssl.pendconns = EB_ROOT;
 	socket_ssl.idle_conns_tree = NULL;
 	socket_ssl.safe_conns_tree = NULL;
+	LIST_ADD(&servers_list, &socket_ssl.global_list);
 	socket_ssl.next_state = SRV_ST_RUNNING; /* early server setup */
 	socket_ssl.last_change = 0;
 	socket_ssl.conf.file = strdup("HLUA_INTERNAL");
