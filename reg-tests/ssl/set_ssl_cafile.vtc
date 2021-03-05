@@ -1,0 +1,101 @@
+#REGTEST_TYPE=devel
+
+# This reg-test uses the "set ssl ca-file" command to update a CA file over the CLI.
+#
+# It is based on two CA certificates, set_cafile_interCA1.crt and set_cafile_interCA2.crt,
+# and a client certificate that was signed with set_cafile_interCA1.crt (set_cafile_client.pem)
+# and a server certificate that was signed with set_cafile_interCA2.crt (set_cafile_server.pem).
+# The CA files used by the client and the server will be updated through the CLI until a
+# proper connection can be established between them.
+#
+# It requires socat to upload the certificate
+#
+# If this test does not work anymore:
+# - Check that you have socat
+
+varnishtest "Test the 'set ssl ca-file' feature of the CLI"
+#REQUIRE_VERSION=2.5
+#REQUIRE_OPTIONS=OPENSSL
+#REQUIRE_BINARIES=socat
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+  rxreq
+  txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httplog
+        ${no-htx} option http-use-htx
+        log stderr local0 debug err
+        option logasap
+        timeout connect 100ms
+        timeout client  1s
+        timeout server  1s
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        server s1 "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify none
+
+    listen clear-verified-lst
+        bind "fd@${clearverifiedlst}"
+        server s1 "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify required
+
+    listen ssl-lst
+        # crt: certificate of the server
+        # ca-file: CA used for client authentication request
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA2.crt verify required crt-ignore-err all
+        http-response add-header X-SSL-Client-Verify %[ssl_c_verify]
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+# This first connection should fail because the client's certificate was signed with the
+# set_cafile_interCA1.crt certificate which is not known by the backend.
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    # unable to verify the client certificate
+    expect resp.http.X-SSL-Client-Verify == 21
+} -run
+
+
+# Update the bind line's ca-file in order to accept the client certificate
+shell {
+    printf "set ssl ca-file ${testdir}/set_cafile_interCA2.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n$(cat ${testdir}/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/set_cafile_interCA2.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+
+# The backend's certificate can't be verified by the frontend because it was signed with
+# the set_cafile_interCA2.crt certificate.
+client c1 -connect ${h1_clearverifiedlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 503
+} -run
+
+
+# Update the server line's ca-file. The server certificate should now be accepted by
+# the frontend. We replace the single CA by a list of CAs that includes the correct one.
+shell {
+    printf "set ssl ca-file ${testdir}/set_cafile_interCA1.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n$(cat ${testdir}/set_cafile_interCA2.crt)\n$(cat ${testdir}/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/set_cafile_interCA1.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+
+client c1 -connect ${h1_clearverifiedlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    # there should be no error on the backend side but one on the frontend side
+    expect resp.http.X-SSL-Client-Verify == 0
+} -run
