@@ -479,7 +479,7 @@ struct connection *sockpair_accept_conn(struct listener *l, int *status)
 	int cfd;
 
 	if ((cfd = recv_fd_uxst(l->rx.fd)) != -1)
-		fcntl(cfd, F_SETFL, O_NONBLOCK);
+		DISGUISE(fcntl(cfd, F_SETFL, O_NONBLOCK));
 
 	if (likely(cfd != -1)) {
 		/* Perfect, the connection was accepted */
