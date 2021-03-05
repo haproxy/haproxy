@@ -565,12 +565,6 @@ int tcp_connect_server(struct connection *conn, int flags)
 		fd_cant_recv(fd);
 	}
 
-	if (conn_xprt_init(conn) < 0) {
-		conn_full_close(conn);
-		conn->flags |= CO_FL_ERROR;
-		return SF_ERR_RESOURCE;
-	}
-
 	return SF_ERR_NONE;  /* connection is OK */
 }
 

@@ -1535,14 +1535,19 @@ skip_reuse:
 	/* Copy network namespace from client connection */
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
 
-	if (!conn_xprt_ready(srv_conn) && !srv_conn->mux) {
+	if (!srv_conn->xprt) {
 		/* set the correct protocol on the output stream interface */
-		if (srv)
-			conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), srv->xprt);
-		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
+		if (srv) {
+			if (conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), srv->xprt)) {
+				conn_free(srv_conn);
+				return SF_ERR_INTERNAL;
+			}
+		} else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
+			int ret;
+
 			/* proxies exclusively run on raw_sock right now */
-			conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), xprt_get(XPRT_RAW));
-			if (!(srv_conn->ctrl)) {
+			ret = conn_prepare(srv_conn, protocol_by_family(srv_conn->dst->ss_family), xprt_get(XPRT_RAW));
+			if (ret < 0 || !(srv_conn->ctrl)) {
 				conn_free(srv_conn);
 				return SF_ERR_INTERNAL;
 			}
@@ -1579,10 +1584,6 @@ skip_reuse:
 			srv_conn->send_proxy_ofs = 1;
 			srv_conn->flags |= CO_FL_SOCKS4;
 		}
-	}
-	else if (!conn_xprt_ready(srv_conn)) {
-		if (srv_conn->mux->reset)
-			srv_conn->mux->reset(srv_conn);
 	}
 	else {
 		/* Currently there seems to be no known cases of xprt ready
@@ -1633,6 +1634,7 @@ skip_reuse:
 			return SF_ERR_INTERNAL;
 		}
 	}
+	conn_xprt_start(srv_conn);
 
 	/* We have to defer the mux initialization until after si_connect()
 	 * has been called, as we need the xprt to have been properly

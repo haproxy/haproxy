@@ -148,7 +148,9 @@ int session_accept_fd(struct connection *cli_conn)
 
 	cli_conn->proxy_netns = l->rx.settings->netns;
 
-	conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt);
+	if (conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt) < 0)
+		goto out_free_conn;
+
 	conn_ctrl_init(cli_conn);
 
 	/* wait for a PROXY protocol header */
@@ -158,9 +160,6 @@ int session_accept_fd(struct connection *cli_conn)
 	/* wait for a NetScaler client IP insertion protocol header */
 	if (l->options & LI_O_ACC_CIP)
 		cli_conn->flags |= CO_FL_ACCEPT_CIP;
-
-	if (conn_xprt_init(cli_conn) < 0)
-		goto out_free_conn;
 
 	/* Add the handshake pseudo-XPRT */
 	if (cli_conn->flags & (CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP)) {
@@ -182,6 +181,9 @@ int session_accept_fd(struct connection *cli_conn)
 		ret = 0; /* successful termination */
 		goto out_free_sess;
 	}
+	/* TCP rules may flag the connection as needing proxy protocol, now that it's done we can start ourxprt */
+	if (conn_xprt_start(cli_conn) < 0)
+		goto out_free_conn;
 
 	/* Adjust some socket options */
 	if (l->rx.addr.ss_family == AF_INET || l->rx.addr.ss_family == AF_INET6) {

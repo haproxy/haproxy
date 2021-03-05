@@ -364,12 +364,6 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 	conn_ctrl_init(conn);       /* registers the FD */
 	fdtab[fd].linger_risk = 0;  /* no need to disable lingering */
 
-	if (conn_xprt_init(conn) < 0) {
-		conn_full_close(conn);
-		conn->flags |= CO_FL_ERROR;
-		return SF_ERR_RESOURCE;
-	}
-
 	return SF_ERR_NONE;  /* connection is OK */
 }
 

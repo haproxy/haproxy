@@ -133,8 +133,6 @@ static int xprt_handshake_init(struct connection *conn, void **xprt_ctx)
 	/* already initialized */
 	if (*xprt_ctx)
 		return 0;
-	if (!conn_ctrl_ready(conn))
-		return 0;
 
 	ctx = pool_alloc(xprt_handshake_ctx_pool);
 	if (!ctx) {

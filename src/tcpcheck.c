@@ -1072,7 +1072,11 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		? xprt_get(XPRT_SSL)
 		: ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) ? check->xprt : xprt_get(XPRT_RAW)));
 
-	conn_prepare(conn, proto, xprt);
+	if (conn_prepare(conn, proto, xprt) < 0) {
+		status = SF_ERR_RESOURCE;
+		goto fail_check;
+	}
+
 	cs_attach(cs, check, &check_conn_cb);
 
 	if ((connect->options & TCPCHK_OPT_SOCKS4) && s && (s->flags & SRV_F_SOCKS4_PROXY)) {
@@ -1130,6 +1134,11 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	if (conn_ctrl_ready(conn) && (conn->flags & (CO_FL_SEND_PROXY | CO_FL_SOCKS4))) {
 		if (xprt_add_hs(conn) < 0)
 			status = SF_ERR_RESOURCE;
+	}
+
+	if (conn_xprt_start(conn) < 0) {
+		status = SF_ERR_RESOURCE;
+		goto fail_check;
 	}
 
 	/* The mux may be initialized now if there isn't server attached to the

@@ -35,7 +35,8 @@ int quic_session_accept(struct connection *cli_conn)
 	struct session *sess;
 
 	cli_conn->proxy_netns = l->rx.settings->netns;
-	conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt);
+	if (conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt) < 0)
+		goto out_free_conn;
 
 	/* This flag is ordinarily set by conn_ctrl_init() which cannot
 	 * be called for now.
@@ -50,14 +51,15 @@ int quic_session_accept(struct connection *cli_conn)
 	if (l->options & LI_O_ACC_CIP)
 		cli_conn->flags |= CO_FL_ACCEPT_CIP;
 
-	if (conn_xprt_init(cli_conn) < 0)
-		goto out_free_conn;
-
 	/* Add the handshake pseudo-XPRT */
 	if (cli_conn->flags & (CO_FL_ACCEPT_PROXY | CO_FL_ACCEPT_CIP)) {
 		if (xprt_add_hs(cli_conn) != 0)
 			goto out_free_conn;
 	}
+
+	if (conn_xpt_start(cli_conn < 0))
+		goto out_free_conn;
+
 	sess = session_new(p, l, &cli_conn->obj_type);
 	if (!sess)
 		goto out_free_conn;

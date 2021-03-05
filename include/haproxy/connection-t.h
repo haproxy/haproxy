@@ -128,7 +128,7 @@ enum {
 
 	/* These flags indicate whether the Control and Transport layers are initialized */
 	CO_FL_CTRL_READY    = 0x00000100, /* FD was registered, fd_delete() needed */
-	CO_FL_XPRT_READY    = 0x00000200, /* xprt_init() done, xprt_close() needed */
+	CO_FL_XPRT_READY    = 0x00000200, /* xprt_start() done, xprt can be used */
 
 	/* unused : 0x00000400 */
 
@@ -374,6 +374,7 @@ struct xprt_ops {
 	void (*shutw)(struct connection *conn, void *xprt_ctx, int);    /* shutw function */
 	void (*close)(struct connection *conn, void *xprt_ctx);         /* close the transport layer */
 	int  (*init)(struct connection *conn, void **ctx);      /* initialize the transport layer */
+	int  (*start)(struct connection *conn, void *ctx);      /* Start the transport layer, if needed */
 	int  (*prepare_bind_conf)(struct bind_conf *conf); /* prepare a whole bind_conf */
 	void (*destroy_bind_conf)(struct bind_conf *conf); /* destroy a whole bind_conf */
 	int  (*prepare_srv)(struct server *srv);    /* prepare a server context */

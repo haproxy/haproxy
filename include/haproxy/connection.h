@@ -74,28 +74,29 @@ int conn_create_mux(struct connection *conn);
 
 extern struct idle_conns idle_conns[MAX_THREADS];
 
-/* returns true is the transport layer is ready */
+/* returns true if the transport layer is ready */
 static inline int conn_xprt_ready(const struct connection *conn)
 {
 	return (conn->flags & CO_FL_XPRT_READY);
 }
 
-/* returns true is the control layer is ready */
+/* returns true if the control layer is ready */
 static inline int conn_ctrl_ready(const struct connection *conn)
 {
 	return (conn->flags & CO_FL_CTRL_READY);
 }
 
-/* Calls the init() function of the transport layer if any and if not done yet,
- * and sets the CO_FL_XPRT_READY flag to indicate it was properly initialized.
- * Returns <0 in case of error.
- */
-static inline int conn_xprt_init(struct connection *conn)
+/*
+ * Calls the start() function of the transport layer, if needed.
+ * Returns < 0 in case of error.
+*/
+
+static inline int conn_xprt_start(struct connection *conn)
 {
 	int ret = 0;
 
-	if (!conn_xprt_ready(conn) && conn->xprt && conn->xprt->init)
-		ret = conn->xprt->init(conn, &conn->xprt_ctx);
+	if (!conn_xprt_ready(conn) && conn->xprt && conn->xprt->start)
+		ret = conn->xprt->start(conn, conn->xprt_ctx);
 
 	if (ret >= 0)
 		conn->flags |= CO_FL_XPRT_READY;
@@ -104,17 +105,18 @@ static inline int conn_xprt_init(struct connection *conn)
 }
 
 /* Calls the close() function of the transport layer if any and if not done
- * yet, and clears the CO_FL_XPRT_READY flag. However this is not done if the
- * CO_FL_XPRT_TRACKED flag is set, which allows logs to take data from the
- * transport layer very late if needed.
+ * yet, and clears the CO_FL_XPRT_READY flags
+ * However this is not done if the CO_FL_XPRT_TRACKED flag is set,
+ * which allows logs to take data from the transport layer very late if needed.
  */
 static inline void conn_xprt_close(struct connection *conn)
 {
-	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_XPRT_TRACKED)) == CO_FL_XPRT_READY) {
+	if (conn->xprt && !(conn->flags & CO_FL_XPRT_TRACKED)) {
 		if (conn->xprt->close)
 			conn->xprt->close(conn, conn->xprt_ctx);
 		conn->xprt_ctx = NULL;
 		conn->flags &= ~CO_FL_XPRT_READY;
+		conn->xprt = NULL;
 	}
 }
 
@@ -138,7 +140,7 @@ static inline void conn_ctrl_init(struct connection *conn)
  */
 static inline void conn_ctrl_close(struct connection *conn)
 {
-	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_CTRL_READY)) == CO_FL_CTRL_READY) {
+	if (!conn->xprt && (conn->flags & CO_FL_CTRL_READY)) {
 		conn->flags &= ~CO_FL_CTRL_READY;
 		if (conn->ctrl->ctrl_close)
 			conn->ctrl->ctrl_close(conn);
@@ -313,13 +315,21 @@ static inline int conn_xprt_read0_pending(struct connection *c)
  * set prior to calling this function so that the function may make use of it
  * in the future to refine the mux choice if needed.
  */
-static inline void conn_prepare(struct connection *conn, const struct protocol *proto, const struct xprt_ops *xprt)
+static inline int conn_prepare(struct connection *conn, const struct protocol *proto, const struct xprt_ops *xprt)
 {
+	int ret = 0;
+
 	conn->ctrl = proto;
 	conn->xprt = xprt;
 	conn->mux  = NULL;
 	conn->xprt_ctx = NULL;
 	conn->ctx = NULL;
+	if (xprt->init) {
+		ret = xprt->init(conn, &conn->xprt_ctx);
+		if (ret < 0)
+			conn->xprt = NULL;
+	}
+	return ret;
 }
 
 /*
@@ -359,6 +369,7 @@ static inline void conn_init(struct connection *conn, void *target)
 	conn->proxy_unique_id = IST_NULL;
 	conn->qc = NULL;
 	conn->hash_node = NULL;
+	conn->xprt = NULL;
 }
 
 static inline struct conn_hash_node *conn_alloc_hash_node(struct connection *conn)
@@ -795,7 +806,7 @@ static inline const char *conn_get_ctrl_name(const struct connection *conn)
 
 static inline const char *conn_get_xprt_name(const struct connection *conn)
 {
-	if (!conn || !conn_xprt_ready(conn))
+	if (!conn || !conn->xprt)
 		return "NONE";
 	return conn->xprt->name;
 }

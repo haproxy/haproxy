@@ -4063,9 +4063,6 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	if (*xprt_ctx)
 		goto out;
 
-	if (!conn_ctrl_ready(conn))
-		goto out;
-
 	ctx = pool_alloc(pool_head_quic_conn_ctx);
 	if (!ctx) {
 		conn->err_code = CO_ER_SYS_MEMLIM;

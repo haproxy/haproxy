@@ -5226,9 +5226,6 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	if (*xprt_ctx)
 		return 0;
 
-	if (!conn_ctrl_ready(conn))
-		return 0;
-
 	ctx = pool_alloc(ssl_sock_ctx_pool);
 	if (!ctx) {
 		conn->err_code = CO_ER_SSL_NO_MEM;
