@@ -1644,7 +1644,7 @@ skip_reuse:
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
-		if (s->be->mode != PR_MODE_HTTP) {
+		if (s->be->mode == PR_MODE_HTTP) {
 			/* If we're doing http-reuse always, and the connection
 			 * is not private with available streams (an http2
 			 * connection), add it to the available list, so that
