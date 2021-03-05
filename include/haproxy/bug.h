@@ -73,13 +73,25 @@
 #define BUG_ON(cond)
 #endif
 
+/* When not optimizing, clang won't remove that code, so only compile it in when optimizing */
+#ifdef __OPTIMIZE__
+#define HA_LINK_ERROR(what)                                                  \
+	do {                                                                 \
+		/* provoke a build-time error */                             \
+		extern volatile int what;                                    \
+		what = 1;                                                    \
+	} while (0)
+#else
+#define HA_LINK_ERROR(what)                                                  \
+	do {                                                                 \
+	} while (0)
+#endif /* __OPTIMIZE__ */
+
 /* more reliable free() that clears the pointer */
 #define ha_free(x) do {							\
 		typeof(x) __x = (x);					\
 		if (__builtin_constant_p((x)) || __builtin_constant_p(*(x))) { \
-			/* provoke a build-time error */		\
-			extern volatile int call_to_ha_free_attempts_to_free_a_constant; \
-			call_to_ha_free_attempts_to_free_a_constant = 1; \
+			HA_LINK_ERROR(call_to_ha_free_attempts_to_free_a_constant); \
 		}							\
 		free(*__x);						\
 		*__x = NULL;						\
@@ -150,9 +162,7 @@ struct mem_stats {
 	__asm__(".globl __start_mem_stats");				\
 	__asm__(".globl __stop_mem_stats");				\
 	if (__builtin_constant_p((x)) || __builtin_constant_p(*(x))) {  \
-		/* provoke a build-time error */			\
-		extern volatile int call_to_ha_free_attempts_to_free_a_constant; \
-		call_to_ha_free_attempts_to_free_a_constant = 1;	\
+		HA_LINK_ERROR(call_to_ha_free_attempts_to_free_a_constant); \
 	}								\
 	if (*__x)							\
 		_HA_ATOMIC_ADD(&_.calls, 1);				\
