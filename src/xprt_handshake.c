@@ -127,6 +127,22 @@ out:
 	return t;
 }
 
+static int xprt_handshake_start(struct connection *conn, void *xprt_ctx)
+{
+	struct xprt_handshake_ctx *ctx = xprt_ctx;
+
+	if (ctx->xprt->start) {
+		int ret;
+
+		ret = ctx->xprt->start(conn, ctx->xprt_ctx);
+		if (ret < 0)
+			return ret;
+	}
+	tasklet_wakeup(ctx->wait_event.tasklet);
+
+	return 0;
+}
+
 static int xprt_handshake_init(struct connection *conn, void **xprt_ctx)
 {
 	struct xprt_handshake_ctx *ctx;
@@ -149,10 +165,7 @@ static int xprt_handshake_init(struct connection *conn, void **xprt_ctx)
 	ctx->wait_event.tasklet->process = xprt_handshake_io_cb;
 	ctx->wait_event.tasklet->context = ctx;
 	ctx->wait_event.events = 0;
-	/* This XPRT expects the underlying XPRT to be provided later,
-	 * with an add_xprt() call, so we start trying to do the handshake
-	 * there, when we'll be provided an XPRT.
-	 */
+
 	ctx->xprt = NULL;
 	ctx->xprt_ctx = NULL;
 	ctx->subs = NULL;
@@ -242,8 +255,7 @@ static int xprt_handshake_add_xprt(struct connection *conn, void *xprt_ctx, void
 		*oldxprt_ctx = ctx->xprt_ctx;
 	ctx->xprt = toadd_ops;
 	ctx->xprt_ctx = toadd_ctx;
-	/* Ok we know have an xprt, so let's try to do the handshake */
-	tasklet_wakeup(ctx->wait_event.tasklet);
+
 	return 0;
 }
 
@@ -271,6 +283,7 @@ struct xprt_ops xprt_handshake = {
 	.remove_xprt = xprt_handshake_remove_xprt,
 	.add_xprt = xprt_handshake_add_xprt,
 	.init = xprt_handshake_init,
+	.start = xprt_handshake_start,
 	.close= xprt_handshake_close,
 	.rcv_pipe = NULL,
 	.snd_pipe = NULL,
