@@ -1585,6 +1585,11 @@ skip_reuse:
 			srv_conn->mux->reset(srv_conn);
 	}
 	else {
+		/* Currently there seems to be no known cases of xprt ready
+		 * without the mux installed here.
+		 */
+		BUG_ON(!srv_conn->mux);
+
 		/* Only consider we're doing reuse if the connection was
 		 * ready.
 		 */
