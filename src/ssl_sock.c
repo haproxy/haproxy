@@ -5213,6 +5213,25 @@ int ssl_bio_and_sess_init(struct connection *conn, SSL_CTX *ssl_ctx,
 	return -1;
 }
 
+/* This function is called when all the XPRT have been initialized. We can
+ * now attempt to start the SSL handshake.
+ */
+static int ssl_sock_start(struct connection *conn, void *xprt_ctx)
+{
+	struct ssl_sock_ctx *ctx = xprt_ctx;
+
+	if (ctx->xprt->start) {
+		int ret;
+
+		ret = ctx->xprt->start(conn, ctx->xprt_ctx);
+		if (ret < 0)
+			return ret;
+	}
+	tasklet_wakeup(ctx->wait_event.tasklet);
+
+	return 0;
+}
+
 /*
  * This function is called if SSL * context is not yet allocated. The function
  * is designed to be called before any other data-layer operation and sets the
@@ -5289,8 +5308,6 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		_HA_ATOMIC_ADD(&sslconns, 1);
 		_HA_ATOMIC_ADD(&totalsslconns, 1);
 		*xprt_ctx = ctx;
-		/* Start the handshake */
-		tasklet_wakeup(ctx->wait_event.tasklet);
 		return 0;
 	}
 	else if (objt_listener(conn->target)) {
@@ -5324,8 +5341,6 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		_HA_ATOMIC_ADD(&sslconns, 1);
 		_HA_ATOMIC_ADD(&totalsslconns, 1);
 		*xprt_ctx = ctx;
-		/* Start the handshake */
-		tasklet_wakeup(ctx->wait_event.tasklet);
 		return 0;
 	}
 	/* don't know how to handle such a target */
@@ -6939,6 +6954,7 @@ struct xprt_ops ssl_sock = {
 	.shutw    = ssl_sock_shutw,
 	.close    = ssl_sock_close,
 	.init     = ssl_sock_init,
+	.start    = ssl_sock_start,
 	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
 	.prepare_srv = ssl_sock_prepare_srv_ctx,
