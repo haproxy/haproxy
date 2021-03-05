@@ -213,10 +213,12 @@ struct srv_per_thread {
 
 struct proxy;
 struct server {
+	/* mostly config or admin stuff, doesn't change often */
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
 	enum srv_state next_state, cur_state;   /* server state among SRV_ST_* */
 	enum srv_admin next_admin, cur_admin;   /* server maintenance status : SRV_ADMF_* */
 	signed char use_ssl;		        /* ssl enabled (1: on, 0: disabled, -1 forced off)  */
+	unsigned int flags;                     /* server flags (SRV_F_*) */
 	unsigned int pp_opts;                   /* proxy protocol options (SRV_PP_*) */
 	struct list global_list;                /* attach point in the global servers_list */
 	struct server *next;
@@ -227,45 +229,24 @@ struct server {
 
 	struct proxy *proxy;			/* the proxy this server belongs to */
 	const struct mux_proto_list *mux_proto;       /* the mux to use for all outgoing connections (specified by the "proto" keyword) */
-	int served;				/* # of active sessions currently being served (ie not pending) */
-	int cur_sess;				/* number of currently active sessions (including syn_sent) */
 	unsigned maxconn, minconn;		/* max # of active sessions (0 = unlimited), min# for dynamic limit. */
-	int nbpend;				/* number of pending connections */
-	unsigned int queue_idx;			/* count of pending connections which have been de-queued */
-	int maxqueue;				/* maximum number of pending connections allowed */
-	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
-	struct be_counters counters;		/* statistics counters */
-
-	struct eb_root pendconns;		/* pending connections */
 	struct srv_per_thread *per_thr;         /* array of per-thread stuff such as connections lists */
+	unsigned int *curr_idle_thr;            /* Current number of orphan idling connections per thread */
+
 	unsigned int pool_purge_delay;          /* Delay before starting to purge the idle conns pool */
 	unsigned int low_idle_conns;            /* min idle connection count to start picking from other threads */
 	unsigned int max_idle_conns;            /* Max number of connection allowed in the orphan connections list */
-	unsigned int curr_idle_conns;           /* Current number of orphan idling connections, both the idle and the safe lists */
-	unsigned int curr_idle_nb;              /* Current number of connections in the idle list */
-	unsigned int curr_safe_nb;              /* Current number of connections in the safe list */
-	unsigned int curr_used_conns;           /* Current number of used connections */
-	unsigned int max_used_conns;            /* Max number of used connections (the counter is reset at each connection purges */
-	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
-	unsigned int next_takeover;             /* thread ID to try to steal connections from next time */
-	unsigned int *curr_idle_thr;            /* Current number of orphan idling connections per thread */
 	int max_reuse;                          /* Max number of requests on a same connection */
-	__decl_thread(HA_SPINLOCK_T lock);      /* may enclose the proxy's lock, must not be taken under */
-	struct eb32_node idle_node;             /* When to next do cleanup in the idle connections */
 	struct task *warmup;                    /* the task dedicated to the warmup when slowstart is set */
-
-	struct conn_src conn_src;               /* connection source settings */
 
 	struct server *track;                   /* the server we're currently tracking, if any */
 	struct server *trackers;                /* the list of servers tracking us, if any */
 	struct server *tracknext;               /* next server tracking <track> in <track>'s trackers list */
 	char *trackit;				/* temporary variable to make assignment deferrable */
-	int consecutive_errors;			/* current number of consecutive errors */
 	int consecutive_errors_limit;		/* number of consecutive errors that triggers an event */
 	short observe, onerror;			/* observing mode: one of HANA_OBS_*; what to do on error: on of ANA_ONERR_* */
 	short onmarkeddown;			/* what to do when marked down: one of HANA_ONMARKEDDOWN_* */
 	short onmarkedup;			/* what to do when marked up: one of HANA_ONMARKEDUP_* */
-	unsigned int flags;                     /* server flags (SRV_F_*) */
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
 
 	char *id;				/* just for identification */
@@ -274,17 +255,51 @@ struct server {
 	unsigned next_eweight;			/* next pending eweight to commit */
 	unsigned rweight;			/* remainder of weight in the current LB tree */
 	unsigned cumulative_weight;		/* weight of servers prior to this one in the same group, for chash balancing */
-	unsigned npos, lpos;			/* next and last positions in the LB tree */
+	int maxqueue;				/* maximum number of pending connections allowed */
+
+	/* The elements below may be changed on every single request by any
+	 * thread, and generally at the same time.
+	 */
+	ALWAYS_ALIGN(64);
+	struct eb32_node idle_node;             /* When to next do cleanup in the idle connections */
+	unsigned int curr_idle_conns;           /* Current number of orphan idling connections, both the idle and the safe lists */
+	unsigned int curr_idle_nb;              /* Current number of connections in the idle list */
+	unsigned int curr_safe_nb;              /* Current number of connections in the safe list */
+	unsigned int curr_used_conns;           /* Current number of used connections */
+	unsigned int max_used_conns;            /* Max number of used connections (the counter is reset at each connection purges */
+	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
+	unsigned int next_takeover;             /* thread ID to try to steal connections from next time */
+
+	struct eb_root pendconns;		/* pending connections */
+
+	/* Element below are usd by LB algorithms and must be doable in
+	 * parallel to other threads reusing connections above.
+	 */
+	ALWAYS_ALIGN(64);
+	__decl_thread(HA_SPINLOCK_T lock);      /* may enclose the proxy's lock, must not be taken under */
+	unsigned npos, lpos;			/* next and last positions in the LB tree, protected by LB lock */
 	struct eb32_node lb_node;               /* node used for tree-based load balancing */
-	struct eb_root *lb_tree;                /* we want to know in what tree the server is */
 	struct server *next_full;               /* next server in the temporary full list */
+
+	/* usually atomically updated by any thread during parsing or on end of request */
+	ALWAYS_ALIGN(64);
+	int cur_sess;				/* number of currently active sessions (including syn_sent) */
+	int served;				/* # of active sessions currently being served (ie not pending) */
+	int nbpend;				/* number of pending connections */
+	int consecutive_errors;			/* current number of consecutive errors */
+	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
+	unsigned int queue_idx;			/* count of pending connections which have been de-queued */
+	struct be_counters counters;		/* statistics counters */
+
+	/* Below are some relatively stable settings, only changed under the lock */
+	ALWAYS_ALIGN(64);
+
+	struct eb_root *lb_tree;                /* we want to know in what tree the server is */
+	struct tree_occ *lb_nodes;              /* lb_nodes_tot * struct tree_occ */
 	unsigned lb_nodes_tot;                  /* number of allocated lb_nodes (C-HASH) */
 	unsigned lb_nodes_now;                  /* number of lb_nodes placed in the tree (C-HASH) */
-	struct tree_occ *lb_nodes;              /* lb_nodes_tot * struct tree_occ */
 
 	const struct netns_entry *netns;        /* contains network namespace name or NULL. Network namespace comes from configuration */
-	/* warning, these structs are huge, keep them at the bottom */
-	struct sockaddr_storage addr;           /* the address to connect to, doesn't include the port */
 	struct xprt_ops *xprt;                  /* transport-layer operations */
 	unsigned int svc_port;                  /* the port to connect to (for relevant families) */
 	unsigned down_time;			/* total time the server was down */
@@ -372,6 +387,9 @@ struct server {
 	} op_st_chg;				/* operational status change's reason */
 	char adm_st_chg_cause[48];		/* administrative status change's cause */
 
+	/* warning, these structs are huge, keep them at the bottom */
+	struct conn_src conn_src;               /* connection source settings */
+	struct sockaddr_storage addr;           /* the address to connect to, doesn't include the port */
 	struct sockaddr_storage socks4_addr;	/* the address of the SOCKS4 Proxy, including the port */
 
 	EXTRA_COUNTERS(extra_counters);
