@@ -553,18 +553,14 @@ static inline void conn_free(struct connection *conn)
 	sockaddr_free(&conn->src);
 	sockaddr_free(&conn->dst);
 
-	if (conn->proxy_authority != NULL) {
-		pool_free(pool_head_authority, conn->proxy_authority);
-		conn->proxy_authority = NULL;
-	}
-	if (isttest(conn->proxy_unique_id)) {
-		pool_free(pool_head_uniqueid, conn->proxy_unique_id.ptr);
-		conn->proxy_unique_id = IST_NULL;
-	}
-	if (conn->hash_node) {
-		pool_free(pool_head_conn_hash_node, conn->hash_node);
-		conn->hash_node = NULL;
-	}
+	pool_free(pool_head_authority, conn->proxy_authority);
+	conn->proxy_authority = NULL;
+
+	pool_free(pool_head_uniqueid, conn->proxy_unique_id.ptr);
+	conn->proxy_unique_id = IST_NULL;
+
+	pool_free(pool_head_conn_hash_node, conn->hash_node);
+	conn->hash_node = NULL;
 
 	/* By convention we always place a NULL where the ctx points to if the
 	 * mux is null. It may have been used to store the connection as a
