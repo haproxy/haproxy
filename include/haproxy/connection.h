@@ -556,7 +556,7 @@ static inline void conn_free(struct connection *conn)
 	pool_free(pool_head_authority, conn->proxy_authority);
 	conn->proxy_authority = NULL;
 
-	pool_free(pool_head_uniqueid, conn->proxy_unique_id.ptr);
+	pool_free(pool_head_uniqueid, istptr(conn->proxy_unique_id));
 	conn->proxy_unique_id = IST_NULL;
 
 	pool_free(pool_head_conn_hash_node, conn->hash_node);

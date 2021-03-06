@@ -499,7 +499,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			case PP2_TYPE_UNIQUE_ID: {
 				const struct ist tlv = ist2((const char *)tlv_packet->value, tlv_len);
 
-				if (tlv.len > UNIQUEID_LEN)
+				if (istlen(tlv) > UNIQUEID_LEN)
 					goto bad_header;
 				conn->proxy_unique_id = ist2(pool_alloc(pool_head_uniqueid), 0);
 				if (!isttest(conn->proxy_unique_id))
@@ -1384,8 +1384,8 @@ int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const 
 
 	smp->flags = 0;
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.area = conn->proxy_unique_id.ptr;
-	smp->data.u.str.data = conn->proxy_unique_id.len;
+	smp->data.u.str.area = istptr(conn->proxy_unique_id);
+	smp->data.u.str.data = istlen(conn->proxy_unique_id);
 
 	return 1;
 }
