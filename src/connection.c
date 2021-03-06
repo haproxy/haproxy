@@ -447,15 +447,15 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		/* TLV parsing */
 		while (tlv_offset < total_v2_len) {
 			struct tlv *tlv_packet;
-			size_t tlv_len;
+			struct ist tlv;
 
 			/* Verify that we have at least TLV_HEADER_SIZE bytes left */
 			if (tlv_offset + TLV_HEADER_SIZE > total_v2_len)
 				goto bad_header;
 
 			tlv_packet = (struct tlv *) &trash.area[tlv_offset];
-			tlv_len = get_tlv_length(tlv_packet);
-			tlv_offset += tlv_len + TLV_HEADER_SIZE;
+			tlv = ist2((const char *)tlv_packet->value, get_tlv_length(tlv_packet));
+			tlv_offset += istlen(tlv) + TLV_HEADER_SIZE;
 
 			/* Verify that the TLV length does not exceed the total PROXYv2 length */
 			if (tlv_offset > total_v2_len)
@@ -466,11 +466,11 @@ int conn_recv_proxy(struct connection *conn, int flag)
 				uint32_t n_crc32c;
 
 				/* Verify that this TLV is exactly 4 bytes long */
-				if (tlv_len != 4)
+				if (istlen(tlv) != 4)
 					goto bad_header;
 
-				n_crc32c = read_n32(tlv_packet->value);
-				write_n32(tlv_packet->value, 0); // compute with CRC==0
+				n_crc32c = read_n32(istptr(tlv));
+				write_n32(istptr(tlv), 0); // compute with CRC==0
 
 				if (hash_crc32c(trash.area, total_v2_len) != n_crc32c)
 					goto bad_header;
@@ -480,15 +480,13 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			case PP2_TYPE_NETNS: {
 				const struct netns_entry *ns;
 
-				ns = netns_store_lookup((char*)tlv_packet->value, tlv_len);
+				ns = netns_store_lookup(istptr(tlv), istlen(tlv));
 				if (ns)
 					conn->proxy_netns = ns;
 				break;
 			}
 #endif
 			case PP2_TYPE_AUTHORITY: {
-				const struct ist tlv = ist2((const char *)tlv_packet->value, tlv_len);
-
 				if (istlen(tlv) > PP2_AUTHORITY_MAX)
 					goto bad_header;
 				conn->proxy_authority = ist2(pool_alloc(pool_head_authority), 0);
@@ -503,8 +501,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
 				break;
 			}
 			case PP2_TYPE_UNIQUE_ID: {
-				const struct ist tlv = ist2((const char *)tlv_packet->value, tlv_len);
-
 				if (istlen(tlv) > UNIQUEID_LEN)
 					goto bad_header;
 				conn->proxy_unique_id = ist2(pool_alloc(pool_head_uniqueid), 0);
