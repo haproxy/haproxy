@@ -487,13 +487,19 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			}
 #endif
 			case PP2_TYPE_AUTHORITY: {
-				if (tlv_len > PP2_AUTHORITY_MAX)
+				const struct ist tlv = ist2((const char *)tlv_packet->value, tlv_len);
+
+				if (istlen(tlv) > PP2_AUTHORITY_MAX)
 					goto bad_header;
-				conn->proxy_authority = pool_alloc(pool_head_authority);
-				if (conn->proxy_authority == NULL)
+				conn->proxy_authority = ist2(pool_alloc(pool_head_authority), 0);
+				if (!isttest(conn->proxy_authority))
 					goto fail;
-				memcpy(conn->proxy_authority, (const char *)tlv_packet->value, tlv_len);
-				conn->proxy_authority_len = tlv_len;
+				if (istcpy(&conn->proxy_authority, tlv, PP2_AUTHORITY_MAX) < 0) {
+					/* This is technically unreachable, because we verified above
+					 * that the TLV value fits.
+					 */
+					goto fail;
+				}
 				break;
 			}
 			case PP2_TYPE_UNIQUE_ID: {
@@ -1188,9 +1194,9 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 
 	if (srv->pp_opts & SRV_PP_V2_AUTHORITY) {
 		value = NULL;
-		if (remote && remote->proxy_authority) {
-			value = remote->proxy_authority;
-			value_len = remote->proxy_authority_len;
+		if (remote && isttest(remote->proxy_authority)) {
+			value = istptr(remote->proxy_authority);
+			value_len = istlen(remote->proxy_authority);
 		}
 #ifdef USE_OPENSSL
 		else {
@@ -1354,13 +1360,13 @@ int smp_fetch_fc_pp_authority(const struct arg *args, struct sample *smp, const 
 		return 0;
 	}
 
-	if (conn->proxy_authority == NULL)
+	if (!isttest(conn->proxy_authority))
 		return 0;
 
 	smp->flags = 0;
 	smp->data.type = SMP_T_STR;
-	smp->data.u.str.area = conn->proxy_authority;
-	smp->data.u.str.data = conn->proxy_authority_len;
+	smp->data.u.str.area = istptr(conn->proxy_authority);
+	smp->data.u.str.data = istlen(conn->proxy_authority);
 
 	return 1;
 }

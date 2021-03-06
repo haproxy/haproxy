@@ -533,9 +533,8 @@ struct connection {
 	void (*destroy_cb)(struct connection *conn);  /* callback to notify of imminent death of the connection */
 	struct sockaddr_storage *src; /* source address (pool), when known, otherwise NULL */
 	struct sockaddr_storage *dst; /* destination address (pool), when known, otherwise NULL */
-	char *proxy_authority;	      /* Value of authority TLV received via PROXYv2 */
-	uint8_t proxy_authority_len;  /* Length of authority TLV received via PROXYv2 */
-	struct ist proxy_unique_id;  /* Value of the unique ID TLV received via PROXYv2 */
+	struct ist proxy_authority;   /* Value of the authority TLV received via PROXYv2 */
+	struct ist proxy_unique_id;   /* Value of the unique ID TLV received via PROXYv2 */
 	struct quic_conn *qc;         /* Only present if this connection is a QUIC one */
 
 	/* used to identify a backend connection for http-reuse,

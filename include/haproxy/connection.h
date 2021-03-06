@@ -355,7 +355,7 @@ static inline void conn_init(struct connection *conn, void *target)
 	conn->subs = NULL;
 	conn->src = NULL;
 	conn->dst = NULL;
-	conn->proxy_authority = NULL;
+	conn->proxy_authority = IST_NULL;
 	conn->proxy_unique_id = IST_NULL;
 	conn->hash_node = NULL;
 }
@@ -553,8 +553,8 @@ static inline void conn_free(struct connection *conn)
 	sockaddr_free(&conn->src);
 	sockaddr_free(&conn->dst);
 
-	pool_free(pool_head_authority, conn->proxy_authority);
-	conn->proxy_authority = NULL;
+	pool_free(pool_head_authority, istptr(conn->proxy_authority));
+	conn->proxy_authority = IST_NULL;
 
 	pool_free(pool_head_uniqueid, istptr(conn->proxy_unique_id));
 	conn->proxy_unique_id = IST_NULL;
