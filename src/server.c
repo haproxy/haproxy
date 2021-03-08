@@ -2213,21 +2213,18 @@ void free_server(struct server *srv)
 }
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-static int server_sni_expr_init(const char *file, int linenum, char **args, int cur_arg,
-                                struct server *srv, struct proxy *proxy)
+static int server_sni_expr_init(char **args, int cur_arg,
+                                struct server *srv, struct proxy *proxy,
+                                char **errmsg)
 {
 	int ret;
-	char *err = NULL;
 
 	if (!srv->sni_expr)
 		return 0;
 
-	ret = server_parse_sni_expr(srv, proxy, &err);
+	ret = server_parse_sni_expr(srv, proxy, errmsg);
 	if (!ret)
 	    return 0;
-
-	display_parser_err(file, linenum, args, cur_arg, ret, &err);
-	free(err);
 
 	return ret;
 }
@@ -2238,27 +2235,27 @@ static int server_sni_expr_init(const char *file, int linenum, char **args, int 
  * Initialize health check, agent check and SNI expression if enabled.
  * Must not be called for a default server instance.
  */
-static int server_finalize_init(const char *file, int linenum, char **args, int cur_arg,
-                                struct server *srv, struct proxy *px)
+static int server_finalize_init(char **args, int cur_arg,
+                                struct server *srv, struct proxy *px,
+                                char **errmsg)
 {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	int ret;
 #endif
 
 	if (srv->do_check && srv->trackit) {
-		ha_alert("parsing [%s:%d]: unable to enable checks and tracking at the same time!\n",
-			 file, linenum);
+		memprintf(errmsg, "unable to enable checks and tracking at the same time!");
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	if (srv->do_agent && !srv->agent.port) {
-		ha_alert("parsing [%s:%d] : server %s does not have agent port. Agent check has been disabled.\n",
-			  file, linenum, srv->id);
+		memprintf(errmsg, "server %s does not have agent port. Agent check has been disabled.",
+		          srv->id);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	if ((ret = server_sni_expr_init(file, linenum, args, cur_arg, srv, px)) != 0)
+	if ((ret = server_sni_expr_init(args, cur_arg, srv, px, errmsg)) != 0)
 		return ret;
 #endif
 
@@ -2374,12 +2371,12 @@ static int server_template_init(struct server *srv, struct proxy *px)
  * of memory exhaustion, ERR_ABORT is set. If the server cannot be allocated,
  * <srv> will be set to NULL.
  */
-static int _srv_parse_init(struct server **srv, const char *file, int linenum, char **args, int *cur_arg, struct proxy *curproxy,
-                           int parse_addr, int in_peers_section, int initial_resolve)
+static int _srv_parse_init(struct server **srv, char **args, int *cur_arg, struct proxy *curproxy,
+                           int parse_addr, int in_peers_section, int initial_resolve,
+                           char **errmsg)
 {
 	struct server *newsrv = NULL;
 	const char *err = NULL;
-	char *errmsg = NULL;
 	int err_code = 0;
 	char *fqdn = NULL;
 
@@ -2398,8 +2395,8 @@ static int _srv_parse_init(struct server **srv, const char *file, int linenum, c
 		if (srv_kw && parse_addr) {
 			if (!*args[2]) {
 				/* 'server' line number of argument check. */
-				ha_alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
-				         file, linenum, args[0]);
+				memprintf(errmsg, "'%s' expects <name> and <addr>[:<port>] as arguments.",
+				          args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -2409,8 +2406,8 @@ static int _srv_parse_init(struct server **srv, const char *file, int linenum, c
 		else if (srv_tmpl) {
 			if (!*args[3]) {
 				/* 'server-template' line number of argument check. */
-				ha_alert("parsing [%s:%d] : '%s' expects <prefix> <nb | range> <addr>[:<port>] as arguments.\n",
-					  file, linenum, args[0]);
+				memprintf(errmsg, "'%s' expects <prefix> <nb | range> <addr>[:<port>] as arguments.",
+				          args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -2419,8 +2416,8 @@ static int _srv_parse_init(struct server **srv, const char *file, int linenum, c
 		}
 
 		if (err) {
-			ha_alert("parsing [%s:%d] : character '%c' is not permitted in %s %s '%s'.\n",
-			      file, linenum, *err, args[0], srv_kw ? "name" : "prefix", args[1]);
+			memprintf(errmsg, "character '%c' is not permitted in %s %s '%s'.",
+			          *err, args[0], srv_kw ? "name" : "prefix", args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2429,8 +2426,8 @@ static int _srv_parse_init(struct server **srv, const char *file, int linenum, c
 		if (srv_tmpl) {
 			/* Parse server-template <nb | range> arg. */
 			if (srv_tmpl_parse_range(newsrv, args[*cur_arg], &tmpl_range_low, &tmpl_range_high) < 0) {
-				ha_alert("parsing [%s:%d] : Wrong %s number or range arg '%s'.\n",
-					  file, linenum, args[0], args[*cur_arg]);
+				memprintf(errmsg, "Wrong %s number or range arg '%s'.",
+				          args[0], args[*cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -2443,7 +2440,7 @@ static int _srv_parse_init(struct server **srv, const char *file, int linenum, c
 
 			*srv = newsrv = new_server(curproxy);
 			if (!newsrv) {
-				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				memprintf(errmsg, "out of memory.");
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
@@ -2476,10 +2473,10 @@ static int _srv_parse_init(struct server **srv, const char *file, int linenum, c
 				goto skip_addr;
 
 			sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL,
-			                  &errmsg, NULL, &fqdn,
+			                  errmsg, NULL, &fqdn,
 			                  (initial_resolve ? PA_O_RESOLVE : 0) | PA_O_PORT_OK | PA_O_PORT_OFS | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 			if (!sk) {
-				ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
+				memprintf(errmsg, "'%s %s' : %s", args[0], args[1], *errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -2501,8 +2498,8 @@ static int _srv_parse_init(struct server **srv, const char *file, int linenum, c
 					}
 				}
 				else if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
-					ha_alert("parsing [%s:%d] : Can't create DNS resolution for server '%s'\n",
-					      file, linenum, newsrv->id);
+					memprintf(errmsg, "Can't create DNS resolution for server '%s'",
+					          newsrv->id);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -2515,8 +2512,8 @@ static int _srv_parse_init(struct server **srv, const char *file, int linenum, c
 			srv_set_addr_desc(newsrv);
 
 			if (!newsrv->srvrq && !newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
-				ha_alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
-				      file, linenum, newsrv->addr.ss_family, args[*cur_arg]);
+				memprintf(errmsg, "Unknown protocol family %d '%s'",
+				          newsrv->addr.ss_family, args[*cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -2552,65 +2549,47 @@ out:
  * A mask of errors is returned. ERR_FATAL is set if the parsing should be
  * interrupted.
  */
-static int _srv_parse_kw(struct server *srv, int defsrv, const char *file, int linenum, char **args, int *cur_arg, struct proxy *curproxy,
-                         int parse_addr, int in_peers_section, int initial_resolve)
+static int _srv_parse_kw(struct server *srv, int defsrv, char **args, int *cur_arg, struct proxy *curproxy,
+                         int parse_addr, int in_peers_section, int initial_resolve,
+                         char **errmsg)
 {
 	int err_code = 0;
 	struct srv_kw *kw;
 	const char *best;
 
 	kw = srv_find_kw(args[*cur_arg]);
-	if (kw) {
-		char *err = NULL;
-		int code;
+	if (!kw) {
+		best = srv_find_best_kw(args[*cur_arg]);
+		if (best)
+			memprintf(errmsg, "unknown keyword '%s'; did you mean '%s' maybe ?",
+			          args[*cur_arg], best);
+		else
+			memprintf(errmsg, "unknown keyword '%s'.",
+			          args[*cur_arg]);
 
-		if (!kw->parse) {
-			ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
-			      file, linenum, args[0], args[1], args[*cur_arg]);
-			if (kw->skip != -1)
-				*cur_arg += 1 + kw->skip ;
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		if (defsrv && !kw->default_ok) {
-			ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not accepted in default-server sections.\n",
-			      file, linenum, args[0], args[1], args[*cur_arg]);
-			if (kw->skip != -1)
-				*cur_arg += 1 + kw->skip ;
-			err_code |= ERR_ALERT;
-			return 0;
-		}
-
-		code = kw->parse(args, &*cur_arg, curproxy, srv, &err);
-		err_code |= code;
-
-		if (code) {
-			display_parser_err(file, linenum, args, *cur_arg, code, &err);
-			if (code & ERR_FATAL) {
-				free(err);
-				if (kw->skip != -1)
-					*cur_arg += 1 + kw->skip;
-				goto out;
-			}
-		}
-		free(err);
-		if (kw->skip != -1)
-			*cur_arg += 1 + kw->skip;
-		return 0;
+		return ERR_ALERT | ERR_FATAL;
 	}
 
-	best = srv_find_best_kw(args[*cur_arg]);
-	if (best)
-		ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'; did you mean '%s' maybe ?\n",
-		         file, linenum, args[0], args[1], args[*cur_arg], best);
-	else
-		ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.\n",
-		         file, linenum, args[0], args[1], args[*cur_arg]);
+	if (!kw->parse) {
+		memprintf(errmsg, "'%s' option is not implemented in this version (check build options)",
+		          args[*cur_arg]);
+		err_code = ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
 
-	err_code |= ERR_ALERT | ERR_FATAL;
+	if (defsrv && !kw->default_ok) {
+		memprintf(errmsg, "'%s' option is not accepted in default-server sections",
+		          args[*cur_arg]);
+		err_code = ERR_ALERT;
+		goto out;
+	}
+
+	err_code = kw->parse(args, cur_arg, curproxy, srv, errmsg);
 
 out:
+	if (kw->skip != -1)
+		*cur_arg += 1 + kw->skip;
+
 	return err_code;
 }
 
@@ -2618,6 +2597,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
                  const struct proxy *defproxy, int parse_addr, int in_peers_section, int initial_resolve)
 {
 	struct server *newsrv = NULL;
+	char *errmsg = NULL;
 	int err_code = 0;
 
 	if (strcmp(args[0], "server") == 0         ||
@@ -2645,23 +2625,45 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					return 0;
 			}
 		}
-		err_code = _srv_parse_init(&newsrv, file, linenum, args, &cur_arg, curproxy,
-		                           parse_addr, in_peers_section, initial_resolve);
+		err_code = _srv_parse_init(&newsrv, args, &cur_arg, curproxy,
+		                           parse_addr, in_peers_section, initial_resolve, &errmsg);
+		if (errmsg) {
+			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+			free(errmsg);
+		}
+
 		if (err_code & ERR_CODE)
 			goto out;
 
+		newsrv->conf.file = strdup(file);
+		newsrv->conf.line = linenum;
+
 		while (*args[cur_arg]) {
-			err_code = _srv_parse_kw(newsrv, defsrv, file, linenum, args, &cur_arg, curproxy,
-			                         parse_addr, in_peers_section, initial_resolve);
+			errmsg = NULL;
+			err_code |= _srv_parse_kw(newsrv, defsrv, args, &cur_arg,
+			                          curproxy,
+			                          parse_addr, in_peers_section, initial_resolve, &errmsg);
+
+			if (err_code & ERR_ALERT) {
+				display_parser_err(file, linenum, args, cur_arg, err_code, &errmsg);
+				free(errmsg);
+			}
 
 			if (err_code & ERR_FATAL)
 				goto out;
 		}
 
-		if (!defsrv)
-			err_code |= server_finalize_init(file, linenum, args, cur_arg, newsrv, curproxy);
-		if (err_code & ERR_FATAL)
-			goto out;
+		if (!defsrv) {
+			err_code |= server_finalize_init(args, cur_arg, newsrv, curproxy, &errmsg);
+			if (err_code) {
+				display_parser_err(file, linenum, args, cur_arg, err_code, &errmsg);
+				free(errmsg);
+			}
+
+			if (err_code & ERR_FATAL)
+				goto out;
+		}
+
 		if (srv_tmpl)
 			server_template_init(newsrv, curproxy);
 	}
