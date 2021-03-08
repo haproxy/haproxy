@@ -148,6 +148,7 @@ enum srv_initaddr {
 #define SRV_F_FASTOPEN     0x0200        /* Use TCP Fast Open to connect to server */
 #define SRV_F_SOCKS4_PROXY 0x0400        /* this server uses SOCKS4 proxy */
 #define SRV_F_NO_RESOLUTION 0x0800       /* disable runtime DNS resolution on this server */
+#define SRV_F_DYNAMIC      0x1000        /* dynamic server instantiated at runtime */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1               0x0001   /* proxy protocol version 1 */
@@ -418,6 +419,7 @@ struct srv_kw {
 	int (*parse)(char **args, int *cur_arg, struct proxy *px, struct server *srv, char **err);
 	int skip; /* nb min of args to skip, for use when kw is not handled */
 	int default_ok; /* non-zero if kw is supported in default-server section */
+	int dynamic_ok; /* non-zero if kw is supported in add server cli command */
 };
 
 /*
@@ -436,7 +438,8 @@ struct srv_kw_list {
 #define SRV_PARSE_TEMPLATE        0x02    /* 'server-template' keyword */
 #define SRV_PARSE_IN_PEER_SECTION 0x04    /* keyword in a peer section */
 #define SRV_PARSE_PARSE_ADDR      0x08    /* required to parse the server address in the second argument */
-#define SRV_PARSE_INITIAL_RESOLVE 0x10    /* resolve immediately the fqdn to an ip address */
+#define SRV_PARSE_DYNAMIC         0x10    /* dynamic server created at runtime with cli */
+#define SRV_PARSE_INITIAL_RESOLVE 0x20    /* resolve immediately the fqdn to an ip address */
 
 #endif /* _HAPROXY_SERVER_T_H */
 
