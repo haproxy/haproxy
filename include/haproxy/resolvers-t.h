@@ -41,7 +41,7 @@ extern struct pool_head *resolv_requester_pool;
  */
 #define DNS_MAX_LABEL_SIZE   63
 #define DNS_MAX_NAME_SIZE    255
-#define DNS_MAX_UDP_MESSAGE  8192
+#define DNS_MAX_UDP_MESSAGE  65535
 
 /* DNS minimum record size: 1 char + 1 NULL + type + class */
 #define DNS_MIN_RECORD_SIZE  (1 + 1 + 2 + 2)

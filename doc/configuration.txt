@@ -14629,7 +14629,12 @@ accepted_payload_size <nb>
   <nb> is in bytes. If not set, HAProxy announces 512. (minimal value defined
        by RFC 6891)
 
-  Note: the maximum allowed value is 8192.
+  Note: the maximum allowed value is 65535. Recommended value for UDP is
+        4096 and it is not recommended to exceed 8192 except if you are sure
+        that your system and network can handle this (over 65507 makes no sense
+        since is the maximum UDP payload size). If you are using only TCP
+        nameservers to handle huge DNS responses, you should put this value
+        to the max: 65535.
 
 nameserver <id> <ip>:<port>
   UDP DNS server description:
