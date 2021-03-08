@@ -2363,8 +2363,19 @@ static int server_template_init(struct server *srv, struct proxy *px)
 	return i - srv->tmpl_info.nb_low;
 }
 
-int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy,
-                 const struct proxy *defproxy, int parse_addr, int in_peers_section, int initial_resolve)
+/* Allocate a new server pointed by <srv> and try to parse the first arguments
+ * in <args> as an address for a server or an address-range for a template or
+ * nothing for a default-server. <cur_arg> is incremented to the next argument.
+ *
+ * This function is first intented to be used through parse_server to
+ * initialize a new server on startup.
+ *
+ * A mask of errors is returned. On a parsing error, ERR_FATAL is set. In case
+ * of memory exhaustion, ERR_ABORT is set. If the server cannot be allocated,
+ * <srv> will be set to NULL.
+ */
+static int _srv_parse_init(struct server **srv, const char *file, int linenum, char **args, int *cur_arg, struct proxy *curproxy,
+                           int parse_addr, int in_peers_section, int initial_resolve)
 {
 	struct server *newsrv = NULL;
 	const char *err = NULL;
@@ -2372,39 +2383,25 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 	int err_code = 0;
 	char *fqdn = NULL;
 
+	*srv = NULL;
+
 	if (strcmp(args[0], "server") == 0         ||
 	    strcmp(args[0], "peer") == 0           ||
 	    strcmp(args[0], "default-server") == 0 ||
 	    strcmp(args[0], "server-template") == 0) {
-		int cur_arg;
 		int defsrv = (*args[0] == 'd');
-		int srv = !defsrv && (*args[0] == 'p' || strcmp(args[0], "server") == 0);
-		int srv_tmpl = !defsrv && !srv;
+		int srv_kw = !defsrv && (*args[0] == 'p' || strcmp(args[0], "server") == 0);
+		int srv_tmpl = !defsrv && !srv_kw;
 		int tmpl_range_low = 0, tmpl_range_high = 0;
 
-		if (!defsrv && curproxy == defproxy) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (failifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL)) {
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
 		/* There is no mandatory first arguments for default server. */
-		if (srv && parse_addr) {
+		if (srv_kw && parse_addr) {
 			if (!*args[2]) {
-				if (in_peers_section) {
-					return 0;
-				}
-				else {
-					/* 'server' line number of argument check. */
-					ha_alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
-						  file, linenum, args[0]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
+				/* 'server' line number of argument check. */
+				ha_alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
+				         file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
 			}
 
 			err = invalid_char(args[1]);
@@ -2423,28 +2420,28 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 		if (err) {
 			ha_alert("parsing [%s:%d] : character '%c' is not permitted in %s %s '%s'.\n",
-			      file, linenum, *err, args[0], srv ? "name" : "prefix", args[1]);
+			      file, linenum, *err, args[0], srv_kw ? "name" : "prefix", args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		cur_arg = 2;
+		*cur_arg = 2;
 		if (srv_tmpl) {
 			/* Parse server-template <nb | range> arg. */
-			if (srv_tmpl_parse_range(newsrv, args[cur_arg], &tmpl_range_low, &tmpl_range_high) < 0) {
+			if (srv_tmpl_parse_range(newsrv, args[*cur_arg], &tmpl_range_low, &tmpl_range_high) < 0) {
 				ha_alert("parsing [%s:%d] : Wrong %s number or range arg '%s'.\n",
-					  file, linenum, args[0], args[cur_arg]);
+					  file, linenum, args[0], args[*cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			cur_arg++;
+			(*cur_arg)++;
 		}
 
 		if (!defsrv) {
 			struct sockaddr_storage *sk;
 			int port1, port2, port;
 
-			newsrv = new_server(curproxy);
+			*srv = newsrv = new_server(curproxy);
 			if (!newsrv) {
 				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
@@ -2459,13 +2456,11 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			/* the servers are linked backwards first */
 			newsrv->next = curproxy->srv;
 			curproxy->srv = newsrv;
-			newsrv->conf.file = strdup(file);
-			newsrv->conf.line = linenum;
 			/* Note: for a server template, its id is its prefix.
 			 * This is a temporary id which will be used for server allocations to come
 			 * after parsing.
 			 */
-			if (srv)
+			if (srv_kw)
 				newsrv->id = strdup(args[1]);
 			else
 				newsrv->tmpl_info.prefix = strdup(args[1]);
@@ -2480,7 +2475,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			if (!parse_addr)
 				goto skip_addr;
 
-			sk = str2sa_range(args[cur_arg], &port, &port1, &port2, NULL, NULL,
+			sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL,
 			                  &errmsg, NULL, &fqdn,
 			                  (initial_resolve ? PA_O_RESOLVE : 0) | PA_O_PORT_OK | PA_O_PORT_OFS | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 			if (!sk) {
@@ -2521,78 +2516,146 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			if (!newsrv->srvrq && !newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
 				ha_alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
-				      file, linenum, newsrv->addr.ss_family, args[cur_arg]);
+				      file, linenum, newsrv->addr.ss_family, args[*cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 
-			cur_arg++;
+			(*cur_arg)++;
  skip_addr:
 			/* Copy default server settings to new server settings. */
 			srv_settings_cpy(newsrv, &curproxy->defsrv, 0);
 			HA_SPIN_INIT(&newsrv->lock);
 		} else {
-			newsrv = &curproxy->defsrv;
-			cur_arg = 1;
+			*srv = newsrv = &curproxy->defsrv;
+			*cur_arg = 1;
 			newsrv->resolv_opts.family_prio = AF_INET6;
 			newsrv->resolv_opts.accept_duplicate_ip = 0;
 		}
+	}
 
-		while (*args[cur_arg]) {
-			struct srv_kw *kw;
-			const char *best;
+	free(fqdn);
+	return 0;
 
-			kw = srv_find_kw(args[cur_arg]);
-			if (kw) {
-				char *err = NULL;
-				int code;
+out:
+	free(fqdn);
+	return err_code;
+}
 
-				if (!kw->parse) {
-					ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
-					         file, linenum, args[0], args[1], args[cur_arg]);
-					if (kw->skip != -1)
-						cur_arg += 1 + kw->skip ;
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
+/* Parse the server keyword in <args>.
+ * <cur_arg> is incremented beyond the keyword optional value. Note that this
+ * might not be the case if an error is reported.
+ *
+ * This function is first intented to be used through parse_server to
+ * initialize a new server on startup.
+ *
+ * A mask of errors is returned. ERR_FATAL is set if the parsing should be
+ * interrupted.
+ */
+static int _srv_parse_kw(struct server *srv, int defsrv, const char *file, int linenum, char **args, int *cur_arg, struct proxy *curproxy,
+                         int parse_addr, int in_peers_section, int initial_resolve)
+{
+	int err_code = 0;
+	struct srv_kw *kw;
+	const char *best;
 
-				if (defsrv && !kw->default_ok) {
-					ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not accepted in default-server sections.\n",
-					         file, linenum, args[0], args[1], args[cur_arg]);
-					if (kw->skip != -1)
-						cur_arg += 1 + kw->skip;
-					err_code |= ERR_ALERT;
-					continue;
-				}
+	kw = srv_find_kw(args[*cur_arg]);
+	if (kw) {
+		char *err = NULL;
+		int code;
 
-				code = kw->parse(args, &cur_arg, curproxy, newsrv, &err);
-				err_code |= code;
-
-				if (code) {
-					display_parser_err(file, linenum, args, cur_arg, code, &err);
-					if (code & ERR_FATAL) {
-						free(err);
-						if (kw->skip != -1)
-							cur_arg += 1 + kw->skip;
-						goto out;
-					}
-				}
-				free(err);
-				if (kw->skip != -1)
-					cur_arg += 1 + kw->skip;
-				continue;
-			}
-
-			best = srv_find_best_kw(args[cur_arg]);
-			if (best)
-				ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'; did you mean '%s' maybe ?\n",
-				         file, linenum, args[0], args[1], args[cur_arg], best);
-			else
-				ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.\n",
-				         file, linenum, args[0], args[1], args[cur_arg]);
-
+		if (!kw->parse) {
+			ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
+			      file, linenum, args[0], args[1], args[*cur_arg]);
+			if (kw->skip != -1)
+				*cur_arg += 1 + kw->skip ;
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
+		}
+
+		if (defsrv && !kw->default_ok) {
+			ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not accepted in default-server sections.\n",
+			      file, linenum, args[0], args[1], args[*cur_arg]);
+			if (kw->skip != -1)
+				*cur_arg += 1 + kw->skip ;
+			err_code |= ERR_ALERT;
+			return 0;
+		}
+
+		code = kw->parse(args, &*cur_arg, curproxy, srv, &err);
+		err_code |= code;
+
+		if (code) {
+			display_parser_err(file, linenum, args, *cur_arg, code, &err);
+			if (code & ERR_FATAL) {
+				free(err);
+				if (kw->skip != -1)
+					*cur_arg += 1 + kw->skip;
+				goto out;
+			}
+		}
+		free(err);
+		if (kw->skip != -1)
+			*cur_arg += 1 + kw->skip;
+		return 0;
+	}
+
+	best = srv_find_best_kw(args[*cur_arg]);
+	if (best)
+		ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'; did you mean '%s' maybe ?\n",
+		         file, linenum, args[0], args[1], args[*cur_arg], best);
+	else
+		ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.\n",
+		         file, linenum, args[0], args[1], args[*cur_arg]);
+
+	err_code |= ERR_ALERT | ERR_FATAL;
+
+out:
+	return err_code;
+}
+
+int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy,
+                 const struct proxy *defproxy, int parse_addr, int in_peers_section, int initial_resolve)
+{
+	struct server *newsrv = NULL;
+	int err_code = 0;
+
+	if (strcmp(args[0], "server") == 0         ||
+	    strcmp(args[0], "peer") == 0           ||
+	    strcmp(args[0], "default-server") == 0 ||
+	    strcmp(args[0], "server-template") == 0) {
+		int cur_arg;
+		int defsrv = (*args[0] == 'd');
+		int srv = !defsrv && (*args[0] == 'p' || strcmp(args[0], "server") == 0);
+		int srv_tmpl = !defsrv && !srv;
+
+		if (!defsrv && curproxy == defproxy) {
+			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (failifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL)) {
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (srv && parse_addr) {
+			if (!*args[2]) {
+				if (in_peers_section)
+					return 0;
+			}
+		}
+		err_code = _srv_parse_init(&newsrv, file, linenum, args, &cur_arg, curproxy,
+		                           parse_addr, in_peers_section, initial_resolve);
+		if (err_code & ERR_CODE)
+			goto out;
+
+		while (*args[cur_arg]) {
+			err_code = _srv_parse_kw(newsrv, defsrv, file, linenum, args, &cur_arg, curproxy,
+			                         parse_addr, in_peers_section, initial_resolve);
+
+			if (err_code & ERR_FATAL)
+				goto out;
 		}
 
 		if (!defsrv)
@@ -2602,12 +2665,9 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		if (srv_tmpl)
 			server_template_init(newsrv, curproxy);
 	}
-	free(fqdn);
 	return 0;
 
  out:
-	free(fqdn);
-	free(errmsg);
 	return err_code;
 }
 
