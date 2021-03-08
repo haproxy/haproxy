@@ -918,7 +918,7 @@ static void back_establish(struct stream *s)
 	if (objt_server(s->target))
 		health_adjust(objt_server(s->target), HANA_STATUS_L4_OK);
 
-	if (s->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
+	if (!IS_HTX_STRM(s)) { /* let's allow immediate data connection in this case */
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. */
 		if (!LIST_ISEMPTY(&strm_fe(s)->logformat) && !(s->logs.logwait & LW_BYTES)) {
@@ -935,7 +935,7 @@ static void back_establish(struct stream *s)
 
 	/* Be sure to filter response headers if the backend is an HTTP proxy
 	 * and if there are filters attached to the stream. */
-	if (s->be->mode == PR_MODE_HTTP && HAS_FILTERS(s))
+	if (IS_HTX_STRM(s) && HAS_FILTERS(s))
 		rep->analysers |= AN_RES_FLT_HTTP_HDRS;
 
 	si_rx_endp_more(si);

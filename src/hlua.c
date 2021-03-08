@@ -2952,7 +2952,7 @@ __LJMP static int hlua_channel_dup_yield(lua_State *L, int status, lua_KContext 
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
-	if (chn_strm(chn)->be->mode == PR_MODE_HTTP) {
+	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
@@ -2982,7 +2982,7 @@ __LJMP static int hlua_channel_get_yield(lua_State *L, int status, lua_KContext 
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
-	if (chn_strm(chn)->be->mode == PR_MODE_HTTP) {
+	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
@@ -3024,7 +3024,7 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
-	if (chn_strm(chn)->be->mode == PR_MODE_HTTP) {
+	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
@@ -3074,7 +3074,7 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 	int ret;
 	int max;
 
-	if (chn_strm(chn)->be->mode == PR_MODE_HTTP) {
+	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
@@ -3148,7 +3148,7 @@ __LJMP static int hlua_channel_set(lua_State *L)
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	lua_pushinteger(L, 0);
 
-	if (chn_strm(chn)->be->mode == PR_MODE_HTTP) {
+	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
@@ -3179,7 +3179,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 		return 1;
 	}
 
-	if (chn_strm(chn)->be->mode == PR_MODE_HTTP) {
+	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
@@ -3290,7 +3290,7 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L, int status, lua_KCont
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
-	if (chn_strm(chn)->be->mode == PR_MODE_HTTP) {
+	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
@@ -5505,7 +5505,7 @@ static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, int dir
 
 	/* Creates the HTTP object is the current proxy allows http. */
 	lua_pushstring(L, "http");
-	if (p->mode == PR_MODE_HTTP) {
+	if (IS_HTX_STRM(s)) {
 		if (!hlua_http_new(L, htxn))
 			return 0;
 	}

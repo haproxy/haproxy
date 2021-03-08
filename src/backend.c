@@ -1340,7 +1340,7 @@ int connect_server(struct stream *s)
 	si_release_endpoint(&s->si[1]);
 
 	/* do not reuse if mode is not http */
-	if (s->be->mode != PR_MODE_HTTP)
+	if (!IS_HTX_STRM(s))
 		goto skip_reuse;
 
 	/* first, search for a matching connection in the session's idle conns */
@@ -1576,7 +1576,7 @@ skip_reuse:
 #if defined(USE_OPENSSL) && defined(TLSEXT_TYPE_application_layer_protocol_negotiation)
 		if (!srv ||
 		    (srv->use_ssl != 1 || (!(srv->ssl_ctx.alpn_str) && !(srv->ssl_ctx.npn_str)) ||
-		     srv->mux_proto || s->be->mode != PR_MODE_HTTP))
+		     srv->mux_proto || !IS_HTX_STRM(s)))
 #endif
 			init_mux = 1;
 
@@ -1656,7 +1656,7 @@ skip_reuse:
 			conn_full_close(srv_conn);
 			return SF_ERR_INTERNAL;
 		}
-		if (s->be->mode == PR_MODE_HTTP) {
+		if (IS_HTX_STRM(s)) {
 			/* If we're doing http-reuse always, and the connection
 			 * is not private with available streams (an http2
 			 * connection), add it to the available list, so that
