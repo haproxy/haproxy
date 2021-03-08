@@ -2405,9 +2405,6 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg, struc
 				newsrv->tmpl_info.nb_high = tmpl_range_high;
 			}
 
-			/* the servers are linked backwards first */
-			newsrv->next = curproxy->srv;
-			curproxy->srv = newsrv;
 			/* Note: for a server template, its id is its prefix.
 			 * This is a temporary id which will be used for server allocations to come
 			 * after parsing.
@@ -2648,6 +2645,12 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			free(errmsg);
 		}
 
+		/* the servers are linked backwards first */
+		if (newsrv && !defsrv) {
+			newsrv->next = curproxy->srv;
+			curproxy->srv = newsrv;
+		}
+
 		if (err_code & ERR_CODE)
 			goto out;
 
@@ -2683,6 +2686,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		if (srv_tmpl)
 			_srv_parse_tmpl_init(newsrv, curproxy);
 	}
+
 	return 0;
 
  out:
