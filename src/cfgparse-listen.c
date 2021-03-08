@@ -342,10 +342,27 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	curproxy->conf.args.line = linenum;
 
 	/* Now let's parse the proxy-specific keywords */
-	if (strcmp(args[0], "server") == 0         ||
-	    strcmp(args[0], "default-server") == 0 ||
-	    strcmp(args[0], "server-template") == 0) {
-		err_code |= parse_server(file, linenum, args, curproxy, curr_defproxy, 1, 0, 0);
+	if ((strcmp(args[0], "server") == 0)) {
+		err_code |= parse_server(file, linenum, args,
+		                         curproxy, curr_defproxy,
+		                         SRV_PARSE_PARSE_ADDR);
+
+		if (err_code & ERR_FATAL)
+			goto out;
+	}
+	else if (strcmp(args[0], "default-server") == 0) {
+		err_code |= parse_server(file, linenum, args,
+		                         curproxy, curr_defproxy,
+		                         SRV_PARSE_DEFAULT_SERVER);
+
+		if (err_code & ERR_FATAL)
+			goto out;
+	}
+	else if (strcmp(args[0], "server-template") == 0) {
+		err_code |= parse_server(file, linenum, args,
+		                         curproxy, curr_defproxy,
+		                         SRV_PARSE_TEMPLATE|SRV_PARSE_PARSE_ADDR);
+
 		if (err_code & ERR_FATAL)
 			goto out;
 	}

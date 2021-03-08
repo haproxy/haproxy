@@ -2971,7 +2971,8 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		HA_SPIN_INIT(&curr_resolvers->lock);
 	}
 	else if (strcmp(args[0],"server") == 0) {
-		err_code |= parse_server(file, linenum, args, curr_resolvers->px, NULL, 1, 0, 1);
+		err_code |= parse_server(file, linenum, args, curr_resolvers->px, NULL,
+		                         SRV_PARSE_PARSE_ADDR|SRV_PARSE_INITIAL_RESOLVE);
         }
 	else if (strcmp(args[0], "nameserver") == 0) { /* nameserver definition */
 		struct dns_nameserver *newnameserver = NULL;

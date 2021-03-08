@@ -2326,39 +2326,21 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
  * of memory exhaustion, ERR_ABORT is set. If the server cannot be allocated,
  * <srv> will be set to NULL.
  */
-static int _srv_parse_init(struct server **srv, char **args, int *cur_arg, struct proxy *curproxy,
-                           int parse_addr, int in_peers_section, int initial_resolve,
-                           char **errmsg)
+static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
+                           struct proxy *curproxy,
+                           int parse_flags, char **errmsg)
 {
 	struct server *newsrv = NULL;
 	const char *err = NULL;
 	int err_code = 0;
 	char *fqdn = NULL;
+	int tmpl_range_low = 0, tmpl_range_high = 0;
 
 	*srv = NULL;
 
-	if (strcmp(args[0], "server") == 0         ||
-	    strcmp(args[0], "peer") == 0           ||
-	    strcmp(args[0], "default-server") == 0 ||
-	    strcmp(args[0], "server-template") == 0) {
-		int defsrv = (*args[0] == 'd');
-		int srv_kw = !defsrv && (*args[0] == 'p' || strcmp(args[0], "server") == 0);
-		int srv_tmpl = !defsrv && !srv_kw;
-		int tmpl_range_low = 0, tmpl_range_high = 0;
-
-		/* There is no mandatory first arguments for default server. */
-		if (srv_kw && parse_addr) {
-			if (!*args[2]) {
-				/* 'server' line number of argument check. */
-				memprintf(errmsg, "'%s' expects <name> and <addr>[:<port>] as arguments.",
-				          args[0]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			err = invalid_char(args[1]);
-		}
-		else if (srv_tmpl) {
+	/* There is no mandatory first arguments for default server. */
+	if (parse_flags & SRV_PARSE_PARSE_ADDR) {
+		if (parse_flags & SRV_PARSE_TEMPLATE) {
 			if (!*args[3]) {
 				/* 'server-template' line number of argument check. */
 				memprintf(errmsg, "'%s' expects <prefix> <nb | range> <addr>[:<port>] as arguments.",
@@ -2369,118 +2351,130 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg, struc
 
 			err = invalid_prefix_char(args[1]);
 		}
+		else {
+			if (!*args[2]) {
+				/* 'server' line number of argument check. */
+				memprintf(errmsg, "'%s' expects <name> and <addr>[:<port>] as arguments.",
+				          args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			err = invalid_char(args[1]);
+		}
 
 		if (err) {
 			memprintf(errmsg, "character '%c' is not permitted in %s %s '%s'.",
-			          *err, args[0], srv_kw ? "name" : "prefix", args[1]);
+			          *err, args[0], !(parse_flags & SRV_PARSE_TEMPLATE) ? "name" : "prefix", args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
+
+	*cur_arg = 2;
+	if (parse_flags & SRV_PARSE_TEMPLATE) {
+		/* Parse server-template <nb | range> arg. */
+		if (_srv_parse_tmpl_range(newsrv, args[*cur_arg], &tmpl_range_low, &tmpl_range_high) < 0) {
+			memprintf(errmsg, "Wrong %s number or range arg '%s'.",
+			          args[0], args[*cur_arg]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		(*cur_arg)++;
+	}
+
+	if (!(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {
+		struct sockaddr_storage *sk;
+		int port1, port2, port;
+
+		*srv = newsrv = new_server(curproxy);
+		if (!newsrv) {
+			memprintf(errmsg, "out of memory.");
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		if (parse_flags & SRV_PARSE_TEMPLATE) {
+			newsrv->tmpl_info.nb_low = tmpl_range_low;
+			newsrv->tmpl_info.nb_high = tmpl_range_high;
+		}
+
+		/* Note: for a server template, its id is its prefix.
+		 * This is a temporary id which will be used for server allocations to come
+		 * after parsing.
+		 */
+		if (!(parse_flags & SRV_PARSE_TEMPLATE))
+			newsrv->id = strdup(args[1]);
+		else
+			newsrv->tmpl_info.prefix = strdup(args[1]);
+
+		/* several ways to check the port component :
+		 *  - IP    => port=+0, relative (IPv4 only)
+		 *  - IP:   => port=+0, relative
+		 *  - IP:N  => port=N, absolute
+		 *  - IP:+N => port=+N, relative
+		 *  - IP:-N => port=-N, relative
+		 */
+		if (!(parse_flags & SRV_PARSE_PARSE_ADDR))
+			goto skip_addr;
+
+		sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL,
+		                  errmsg, NULL, &fqdn,
+		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK | PA_O_PORT_OFS | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
+		if (!sk) {
+			memprintf(errmsg, "'%s %s' : %s", args[0], args[1], *errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		*cur_arg = 2;
-		if (srv_tmpl) {
-			/* Parse server-template <nb | range> arg. */
-			if (_srv_parse_tmpl_range(newsrv, args[*cur_arg], &tmpl_range_low, &tmpl_range_high) < 0) {
-				memprintf(errmsg, "Wrong %s number or range arg '%s'.",
-				          args[0], args[*cur_arg]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			(*cur_arg)++;
+		if (!port1 || !port2) {
+			/* no port specified, +offset, -offset */
+			newsrv->flags |= SRV_F_MAPPORTS;
 		}
 
-		if (!defsrv) {
-			struct sockaddr_storage *sk;
-			int port1, port2, port;
-
-			*srv = newsrv = new_server(curproxy);
-			if (!newsrv) {
-				memprintf(errmsg, "out of memory.");
-				err_code |= ERR_ALERT | ERR_ABORT;
-				goto out;
-			}
-
-			if (srv_tmpl) {
-				newsrv->tmpl_info.nb_low = tmpl_range_low;
-				newsrv->tmpl_info.nb_high = tmpl_range_high;
-			}
-
-			/* Note: for a server template, its id is its prefix.
-			 * This is a temporary id which will be used for server allocations to come
-			 * after parsing.
-			 */
-			if (srv_kw)
-				newsrv->id = strdup(args[1]);
-			else
-				newsrv->tmpl_info.prefix = strdup(args[1]);
-
-			/* several ways to check the port component :
-			 *  - IP    => port=+0, relative (IPv4 only)
-			 *  - IP:   => port=+0, relative
-			 *  - IP:N  => port=N, absolute
-			 *  - IP:+N => port=+N, relative
-			 *  - IP:-N => port=-N, relative
-			 */
-			if (!parse_addr)
-				goto skip_addr;
-
-			sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL,
-			                  errmsg, NULL, &fqdn,
-			                  (initial_resolve ? PA_O_RESOLVE : 0) | PA_O_PORT_OK | PA_O_PORT_OFS | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
-			if (!sk) {
-				memprintf(errmsg, "'%s %s' : %s", args[0], args[1], *errmsg);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-
-			if (!port1 || !port2) {
-				/* no port specified, +offset, -offset */
-				newsrv->flags |= SRV_F_MAPPORTS;
-			}
-
-			/* save hostname and create associated name resolution */
-			if (fqdn) {
-				if (fqdn[0] == '_') { /* SRV record */
-					/* Check if a SRV request already exists, and if not, create it */
-					if ((newsrv->srvrq = find_srvrq_by_name(fqdn, curproxy)) == NULL)
-						newsrv->srvrq = new_resolv_srvrq(newsrv, fqdn);
-					if (newsrv->srvrq == NULL) {
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-				}
-				else if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
-					memprintf(errmsg, "Can't create DNS resolution for server '%s'",
-					          newsrv->id);
+		/* save hostname and create associated name resolution */
+		if (fqdn) {
+			if (fqdn[0] == '_') { /* SRV record */
+				/* Check if a SRV request already exists, and if not, create it */
+				if ((newsrv->srvrq = find_srvrq_by_name(fqdn, curproxy)) == NULL)
+					newsrv->srvrq = new_resolv_srvrq(newsrv, fqdn);
+				if (newsrv->srvrq == NULL) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 			}
-
-			newsrv->addr = *sk;
-			newsrv->svc_port = port;
-			// we don't need to lock the server here, because
-			// we are in the process of initializing
-			srv_set_addr_desc(newsrv);
-
-			if (!newsrv->srvrq && !newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
-				memprintf(errmsg, "Unknown protocol family %d '%s'",
-				          newsrv->addr.ss_family, args[*cur_arg]);
+			else if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
+				memprintf(errmsg, "Can't create DNS resolution for server '%s'",
+				          newsrv->id);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-
-			(*cur_arg)++;
- skip_addr:
-			/* Copy default server settings to new server settings. */
-			srv_settings_cpy(newsrv, &curproxy->defsrv, 0);
-			HA_SPIN_INIT(&newsrv->lock);
-		} else {
-			*srv = newsrv = &curproxy->defsrv;
-			*cur_arg = 1;
-			newsrv->resolv_opts.family_prio = AF_INET6;
-			newsrv->resolv_opts.accept_duplicate_ip = 0;
 		}
+
+		newsrv->addr = *sk;
+		newsrv->svc_port = port;
+		// we don't need to lock the server here, because
+		// we are in the process of initializing
+		srv_set_addr_desc(newsrv);
+
+		if (!newsrv->srvrq && !newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
+			memprintf(errmsg, "Unknown protocol family %d '%s'",
+			          newsrv->addr.ss_family, args[*cur_arg]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		(*cur_arg)++;
+ skip_addr:
+		/* Copy default server settings to new server settings. */
+		srv_settings_cpy(newsrv, &curproxy->defsrv, 0);
+		HA_SPIN_INIT(&newsrv->lock);
+	}
+	else {
+		*srv = newsrv = &curproxy->defsrv;
+		*cur_arg = 1;
+		newsrv->resolv_opts.family_prio = AF_INET6;
+		newsrv->resolv_opts.accept_duplicate_ip = 0;
 	}
 
 	free(fqdn);
@@ -2501,9 +2495,9 @@ out:
  * A mask of errors is returned. ERR_FATAL is set if the parsing should be
  * interrupted.
  */
-static int _srv_parse_kw(struct server *srv, int defsrv, char **args, int *cur_arg, struct proxy *curproxy,
-                         int parse_addr, int in_peers_section, int initial_resolve,
-                         char **errmsg)
+static int _srv_parse_kw(struct server *srv, char **args, int *cur_arg,
+                         struct proxy *curproxy,
+                         int parse_flags, char **errmsg)
 {
 	int err_code = 0;
 	struct srv_kw *kw;
@@ -2529,7 +2523,7 @@ static int _srv_parse_kw(struct server *srv, int defsrv, char **args, int *cur_a
 		goto out;
 	}
 
-	if (defsrv && !kw->default_ok) {
+	if ((parse_flags & SRV_PARSE_DEFAULT_SERVER) && !kw->default_ok) {
 		memprintf(errmsg, "'%s' option is not accepted in default-server sections",
 		          args[*cur_arg]);
 		err_code = ERR_ALERT;
@@ -2606,86 +2600,78 @@ static int _srv_parse_finalize(char **args, int cur_arg,
 	return 0;
 }
 
-int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy,
-                 const struct proxy *defproxy, int parse_addr, int in_peers_section, int initial_resolve)
+int parse_server(const char *file, int linenum, char **args,
+                 struct proxy *curproxy, const struct proxy *defproxy,
+                 int parse_flags)
 {
 	struct server *newsrv = NULL;
 	char *errmsg = NULL;
 	int err_code = 0;
 
-	if (strcmp(args[0], "server") == 0         ||
-	    strcmp(args[0], "peer") == 0           ||
-	    strcmp(args[0], "default-server") == 0 ||
-	    strcmp(args[0], "server-template") == 0) {
-		int cur_arg;
-		int defsrv = (*args[0] == 'd');
-		int srv = !defsrv && (*args[0] == 'p' || strcmp(args[0], "server") == 0);
-		int srv_tmpl = !defsrv && !srv;
+	int cur_arg;
 
-		if (!defsrv && curproxy == defproxy) {
-			ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (failifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL)) {
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
+	if (!(parse_flags & SRV_PARSE_DEFAULT_SERVER) && curproxy == defproxy) {
+		ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+	else if (failifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL)) {
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
 
-		if (srv && parse_addr) {
-			if (!*args[2]) {
-				if (in_peers_section)
-					return 0;
-			}
-		}
-		err_code = _srv_parse_init(&newsrv, args, &cur_arg, curproxy,
-		                           parse_addr, in_peers_section, initial_resolve, &errmsg);
-		if (errmsg) {
-			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+	if ((parse_flags & (SRV_PARSE_IN_PEER_SECTION|SRV_PARSE_PARSE_ADDR)) ==
+	    (SRV_PARSE_IN_PEER_SECTION|SRV_PARSE_PARSE_ADDR)) {
+		if (!*args[2])
+			return 0;
+	}
+
+	err_code = _srv_parse_init(&newsrv, args, &cur_arg, curproxy,
+	                           parse_flags, &errmsg);
+	if (errmsg) {
+		ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+		free(errmsg);
+	}
+
+	/* the servers are linked backwards first */
+	if (newsrv && !(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {
+		newsrv->next = curproxy->srv;
+		curproxy->srv = newsrv;
+	}
+
+	if (err_code & ERR_CODE)
+		goto out;
+
+	newsrv->conf.file = strdup(file);
+	newsrv->conf.line = linenum;
+
+	while (*args[cur_arg]) {
+		errmsg = NULL;
+		err_code = _srv_parse_kw(newsrv, args, &cur_arg, curproxy,
+		                         parse_flags, &errmsg);
+
+		if (err_code & ERR_ALERT) {
+			display_parser_err(file, linenum, args, cur_arg, err_code, &errmsg);
 			free(errmsg);
 		}
 
-		/* the servers are linked backwards first */
-		if (newsrv && !defsrv) {
-			newsrv->next = curproxy->srv;
-			curproxy->srv = newsrv;
-		}
-
-		if (err_code & ERR_CODE)
+		if (err_code & ERR_FATAL)
 			goto out;
-
-		newsrv->conf.file = strdup(file);
-		newsrv->conf.line = linenum;
-
-		while (*args[cur_arg]) {
-			errmsg = NULL;
-			err_code |= _srv_parse_kw(newsrv, defsrv, args, &cur_arg,
-			                          curproxy,
-			                          parse_addr, in_peers_section, initial_resolve, &errmsg);
-
-			if (err_code & ERR_ALERT) {
-				display_parser_err(file, linenum, args, cur_arg, err_code, &errmsg);
-				free(errmsg);
-			}
-
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-
-		if (!defsrv) {
-			err_code |= _srv_parse_finalize(args, cur_arg, newsrv, curproxy, &errmsg);
-			if (err_code) {
-				display_parser_err(file, linenum, args, cur_arg, err_code, &errmsg);
-				free(errmsg);
-			}
-
-			if (err_code & ERR_FATAL)
-				goto out;
-		}
-
-		if (srv_tmpl)
-			_srv_parse_tmpl_init(newsrv, curproxy);
 	}
+
+	if (!(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {
+		err_code |= _srv_parse_finalize(args, cur_arg, newsrv, curproxy, &errmsg);
+		if (err_code) {
+			display_parser_err(file, linenum, args, cur_arg, err_code, &errmsg);
+			free(errmsg);
+		}
+
+		if (err_code & ERR_FATAL)
+			goto out;
+	}
+
+	if (parse_flags & SRV_PARSE_TEMPLATE)
+		_srv_parse_tmpl_init(newsrv, curproxy);
 
 	return 0;
 

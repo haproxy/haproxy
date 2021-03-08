@@ -432,6 +432,12 @@ struct srv_kw_list {
 	struct srv_kw kw[VAR_ARRAY];
 };
 
+#define SRV_PARSE_DEFAULT_SERVER  0x01    /* 'default-server' keyword */
+#define SRV_PARSE_TEMPLATE        0x02    /* 'server-template' keyword */
+#define SRV_PARSE_IN_PEER_SECTION 0x04    /* keyword in a peer section */
+#define SRV_PARSE_PARSE_ADDR      0x08    /* required to parse the server address in the second argument */
+#define SRV_PARSE_INITIAL_RESOLVE 0x10    /* resolve immediately the fqdn to an ip address */
+
 #endif /* _HAPROXY_SERVER_T_H */
 
 /*
