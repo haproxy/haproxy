@@ -933,11 +933,6 @@ static void back_establish(struct stream *s)
 
 	rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
 
-	/* Be sure to filter response headers if the backend is an HTTP proxy
-	 * and if there are filters attached to the stream. */
-	if (IS_HTX_STRM(s) && HAS_FILTERS(s))
-		rep->analysers |= AN_RES_FLT_HTTP_HDRS;
-
 	si_rx_endp_more(si);
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (objt_cs(si->end)) {

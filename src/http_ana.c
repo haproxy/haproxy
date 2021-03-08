@@ -452,6 +452,9 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		if (!(s->flags & SF_FINST_MASK))
 			s->flags |= SF_FINST_R;
 
+		if (HAS_FILTERS(s))
+			req->analysers |= AN_REQ_FLT_HTTP_HDRS;
+
 		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
 		req->analysers &= (AN_REQ_HTTP_BODY | AN_REQ_FLT_HTTP_HDRS | AN_REQ_FLT_END);
 		req->analysers &= ~AN_REQ_FLT_XFER_DATA;
@@ -776,6 +779,12 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			}
 		}
 	}
+
+	/* Filter the request headers if there are filters attached to the
+	 * stream.
+	 */
+	if (HAS_FILTERS(s))
+		req->analysers |= AN_REQ_FLT_HTTP_HDRS;
 
 	/* If we have no server assigned yet and we're balancing on url_param
 	 * with a POST request, we may be interested in checking the body for
@@ -2070,6 +2079,12 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	 */
 	if (!http_eval_after_res_rules(s))
 		goto return_int_err;
+
+	/* Filter the response headers if there are filters attached to the
+	 * stream.
+	 */
+	if (HAS_FILTERS(s))
+		rep->analysers |= AN_RES_FLT_HTTP_HDRS;
 
 	/* Always enter in the body analyzer */
 	rep->analysers &= ~AN_RES_FLT_XFER_DATA;

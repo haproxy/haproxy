@@ -2153,11 +2153,6 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		http_init_txn(s);
 	}
 
-	/* Be sure to filter request headers if the backend is an HTTP proxy and
-	 * if there are filters attached to the stream. */
-	if (s->be->mode == PR_MODE_HTTP && HAS_FILTERS(s))
-		s->req.analysers |= AN_REQ_FLT_HTTP_HDRS;
-
 	if (s->txn) {
 		/* If we chain a TCP frontend to an HTX backend, we must upgrade
 		 * the client mux */
