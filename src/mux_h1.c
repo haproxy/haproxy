@@ -2411,7 +2411,7 @@ static int h1_handle_internal_err(struct h1c *h1c)
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[5], 1);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
-	if (sess->listener->counters)
+	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
 
 	h1c->errcode = 500;
@@ -2436,7 +2436,7 @@ static int h1_handle_bad_req(struct h1c *h1c)
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[4], 1);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
-	if (sess->listener->counters)
+	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
 	h1c->errcode = 400;
@@ -2463,7 +2463,7 @@ static int h1_handle_not_impl_err(struct h1c *h1c)
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[4], 1);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
-	if (sess->listener->counters)
+	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
 	h1c->errcode = 501;
@@ -2489,7 +2489,7 @@ static int h1_handle_req_tout(struct h1c *h1c)
 	proxy_inc_fe_req_ctr(sess->listener, sess->fe);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.p.http.rsp[4], 1);
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
-	if (sess->listener->counters)
+	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 
 	h1c->errcode = 408;

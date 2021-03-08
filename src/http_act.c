@@ -124,7 +124,7 @@ static enum act_return http_action_set_req_line(struct act_rule *rule, struct pr
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
-	if (sess->listener->counters)
+	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
@@ -253,7 +253,7 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
-	if (sess->listener->counters)
+	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
@@ -329,7 +329,7 @@ static enum act_return action_http_set_status(struct act_rule *rule, struct prox
 		_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 		if (s->flags & SF_BE_ASSIGNED)
 			_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
-		if (sess->listener->counters)
+		if (sess->listener && sess->listener->counters)
 			_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
 		if (objt_server(s->target))
 			_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
@@ -1256,7 +1256,7 @@ static enum act_return http_action_set_header(struct act_rule *rule, struct prox
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
-	if (sess->listener->counters)
+	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
@@ -1369,7 +1369,7 @@ static enum act_return http_action_replace_header(struct act_rule *rule, struct 
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 	if (s->flags & SF_BE_ASSIGNED)
 		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
-	if (sess->listener->counters)
+	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);

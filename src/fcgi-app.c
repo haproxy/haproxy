@@ -477,7 +477,7 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
   rewrite_err:
 	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
 	_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
-	if (sess->listener->counters)
+	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);

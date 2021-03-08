@@ -373,7 +373,7 @@ resume_execution:
   deny:
 	_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.denied_resp, 1);
 	_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
-	if (s->sess->listener->counters)
+	if (s->sess->listener && s->sess->listener->counters)
 		_HA_ATOMIC_ADD(&s->sess->listener->counters->denied_resp, 1);
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.denied_resp, 1);
@@ -382,7 +382,7 @@ resume_execution:
  internal:
 	_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.internal_errors, 1);
 	_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
-	if (s->sess->listener->counters)
+	if (s->sess->listener && s->sess->listener->counters)
 		_HA_ATOMIC_ADD(&s->sess->listener->counters->internal_errors, 1);
 	if (objt_server(s->target))
 		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.internal_errors, 1);
