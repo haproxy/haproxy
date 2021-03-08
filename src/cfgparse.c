@@ -1938,6 +1938,7 @@ int check_config_validity()
 	char *err;
 	struct cfg_postparser *postparser;
 	struct resolvers *curr_resolvers = NULL;
+	int i;
 
 	bind_conf = NULL;
 	/*
@@ -2617,7 +2618,8 @@ int check_config_validity()
 		     LIST_ISEMPTY(&curproxy->uri_auth->http_req_rules))) {
 			const char *uri_auth_compat_req[10];
 			struct act_rule *rule;
-			int i = 0;
+			i = 0;
+
 			/* build the ACL condition from scratch. We're relying on anonymous ACLs for that */
 			uri_auth_compat_req[i++] = "auth";
 
@@ -3288,8 +3290,6 @@ out_uri_auth_compat:
 
 	list_for_each_entry(newsrv, &servers_list, global_list) {
 		/* initialize idle conns lists */
-		int i;
-
 		newsrv->per_thr = calloc(global.nbthread, sizeof(*newsrv->per_thr));
 		if (!newsrv->per_thr) {
 			ha_alert("parsing [%s:%d] : failed to allocate per-thread lists for server '%s'.\n",
@@ -3306,37 +3306,39 @@ out_uri_auth_compat:
 		}
 
 		if (newsrv->max_idle_conns != 0) {
-			if (idle_conn_task == NULL) {
-				idle_conn_task = task_new(MAX_THREADS_MASK);
-				if (!idle_conn_task)
-					goto err;
-
-				idle_conn_task->process = srv_cleanup_idle_conns;
-				idle_conn_task->context = NULL;
-
-				for (i = 0; i < global.nbthread; i++) {
-					idle_conns[i].cleanup_task = task_new(1UL << i);
-					if (!idle_conns[i].cleanup_task)
-						goto err;
-					idle_conns[i].cleanup_task->process = srv_cleanup_toremove_conns;
-					idle_conns[i].cleanup_task->context = NULL;
-					HA_SPIN_INIT(&idle_conns[i].idle_conns_lock);
-					MT_LIST_INIT(&idle_conns[i].toremove_conns);
-				}
-			}
-
 			newsrv->curr_idle_thr = calloc(global.nbthread, sizeof(*newsrv->curr_idle_thr));
-			if (!newsrv->curr_idle_thr)
-				goto err;
-			continue;
-		err:
-			ha_alert("parsing [%s:%d] : failed to allocate idle connection tasks for server '%s'.\n",
-				 newsrv->conf.file, newsrv->conf.line, newsrv->id);
-			cfgerr++;
-			continue;
+			if (!newsrv->curr_idle_thr) {
+				ha_alert("parsing [%s:%d] : failed to allocate idle connection tasks for server '%s'.\n",
+				         newsrv->conf.file, newsrv->conf.line, newsrv->id);
+				cfgerr++;
+				continue;
+			}
 		}
 	}
 
+	idle_conn_task = task_new(MAX_THREADS_MASK);
+	if (!idle_conn_task) {
+		ha_alert("parsing : failed to allocate global idle connection task.\n");
+		cfgerr++;
+	}
+	else {
+		idle_conn_task->process = srv_cleanup_idle_conns;
+		idle_conn_task->context = NULL;
+
+		for (i = 0; i < global.nbthread; i++) {
+			idle_conns[i].cleanup_task = task_new(1UL << i);
+			if (!idle_conns[i].cleanup_task) {
+				ha_alert("parsing : failed to allocate idle connection tasks for thread '%d'.\n", i);
+				cfgerr++;
+				break;
+			}
+
+			idle_conns[i].cleanup_task->process = srv_cleanup_toremove_conns;
+			idle_conns[i].cleanup_task->context = NULL;
+			HA_SPIN_INIT(&idle_conns[i].idle_conns_lock);
+			MT_LIST_INIT(&idle_conns[i].toremove_conns);
+		}
+	}
 
 	/* Check multi-process mode compatibility */
 
