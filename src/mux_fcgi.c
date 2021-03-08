@@ -4240,7 +4240,7 @@ static const struct mux_ops mux_fcgi_ops = {
 	.ctl           = fcgi_ctl,
 	.show_fd       = fcgi_show_fd,
 	.takeover      = fcgi_takeover,
-	.flags         = MX_FL_HTX|MX_FL_HOL_RISK,
+	.flags         = MX_FL_HTX|MX_FL_HOL_RISK|MX_FL_NO_UPG,
 	.name          = "FCGI",
 };
 
