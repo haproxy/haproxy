@@ -658,7 +658,7 @@ static void stream_free(struct stream *s)
 	hlua_ctx_destroy(s->hlua);
 	s->hlua = NULL;
 	if (s->txn)
-		http_end_txn(s);
+		http_destroy_txn(s);
 
 	/* ensure the client-side transport layer is destroyed */
 	if (cli_cs)
@@ -669,11 +669,6 @@ static void stream_free(struct stream *s)
 			continue;
 		stksess_free(s->store[i].table, s->store[i].ts);
 		s->store[i].ts = NULL;
-	}
-
-	if (s->txn) {
-		pool_free(pool_head_http_txn, s->txn);
-		s->txn = NULL;
 	}
 
 	if (s->resolv_ctx.requester) {

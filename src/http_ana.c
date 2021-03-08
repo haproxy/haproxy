@@ -5044,14 +5044,19 @@ void http_txn_reset_res(struct http_txn *txn)
 }
 
 /*
- * Initialize a new HTTP transaction for stream <s>. It is assumed that all
- * the required fields are properly allocated and that we only need to (re)init
- * them. This should be used before processing any new request.
+ * Create and initialize a new HTTP transaction for stream <s>. This should be
+ * used before processing any new request. It returns the transaction or NLULL
+ * on error.
  */
-void http_init_txn(struct stream *s)
+struct http_txn *http_create_txn(struct stream *s)
 {
-	struct http_txn *txn = s->txn;
+	struct http_txn *txn;
 	struct conn_stream *cs = objt_cs(s->si[0].end);
+
+	txn = pool_alloc(pool_head_http_txn);
+	if (!txn)
+		return NULL;
+	s->txn = txn;
 
 	txn->flags = ((cs && cs->flags & CS_FL_NOT_FIRST) ? TX_NOT_FIRST : 0);
 	txn->status = -1;
@@ -5075,10 +5080,12 @@ void http_init_txn(struct stream *s)
 
 	vars_init(&s->vars_txn,    SCOPE_TXN);
 	vars_init(&s->vars_reqres, SCOPE_REQ);
+
+	return txn;
 }
 
 /* to be used at the end of a transaction */
-void http_end_txn(struct stream *s)
+void http_destroy_txn(struct stream *s)
 {
 	struct http_txn *txn = s->txn;
 
@@ -5097,6 +5104,9 @@ void http_end_txn(struct stream *s)
 		vars_prune(&s->vars_txn, s->sess, s);
 	if (!LIST_ISEMPTY(&s->vars_reqres.head))
 		vars_prune(&s->vars_reqres, s->sess, s);
+
+	pool_free(pool_head_http_txn, txn);
+	s->txn = NULL;
 }
 
 

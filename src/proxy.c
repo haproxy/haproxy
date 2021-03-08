@@ -2145,13 +2145,8 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	/* If the target backend requires HTTP processing, we have to allocate
 	 * the HTTP transaction if we did not have one.
 	 */
-	if (unlikely(!s->txn && be->http_needed)) {
-		if (unlikely(!http_alloc_txn(s)))
-			return 0; /* not enough memory */
-
-		/* and now initialize the HTTP transaction state */
-		http_init_txn(s);
-	}
+	if (unlikely(!s->txn && be->http_needed && !http_create_txn(s)))
+			return 0;
 
 	if (s->txn) {
 		/* If we chain a TCP frontend to an HTX backend, we must upgrade

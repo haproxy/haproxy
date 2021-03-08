@@ -145,17 +145,8 @@ int frontend_accept(struct stream *s)
 			goto out_free_reqcap;	/* no memory */
 	}
 
-	if (fe->http_needed || IS_HTX_STRM(s)) {
-		/* we have to allocate header indexes only if we know
-		 * that we may make use of them. This of course includes
-		 * (mode == PR_MODE_HTTP).
-		 */
-		if (unlikely(!http_alloc_txn(s)))
-			goto out_free_rspcap; /* no memory */
-
-		/* and now initialize the HTTP transaction state */
-		http_init_txn(s);
-	}
+	if ((fe->http_needed || IS_HTX_STRM(s)) && !http_create_txn(s))
+		goto out_free_rspcap;
 
 	/* everything's OK, let's go on */
 	return 1;

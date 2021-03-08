@@ -208,12 +208,8 @@ struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct che
 		return NULL;
 	}
 
-	if (!s->txn) {
-		if (unlikely(!http_alloc_txn(s)))
-			return NULL; /* not enough memory */
-		http_init_txn(s);
-		txn = s->txn;
-	}
+	if (!s->txn && !http_create_txn(s))
+		return NULL;
 	txn = s->txn;
 	msg = (!(chn->flags & CF_ISRESP) ? &txn->req : &txn->rsp);
 
