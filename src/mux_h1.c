@@ -2665,7 +2665,8 @@ static int h1_process(struct h1c * h1c)
 
 		/* First of all handle H1 to H2 upgrade (no need to create the H1 stream) */
 		if (!(h1c->flags & H1C_F_WAIT_NEXT_REQ) &&         /* First request */
-		    !(h1c->px->options2 & PR_O2_NO_H2_UPGRADE)) {  /* H2 upgrade supported by the proxy */
+		    !(h1c->px->options2 & PR_O2_NO_H2_UPGRADE) &&  /* H2 upgrade supported by the proxy */
+		    !(conn->mux->flags & MX_FL_NO_UPG)) {          /* the current mux supports upgrades */
 			/* Try to match H2 preface before parsing the request headers. */
 			if (b_isteq(&h1c->ibuf, 0, b_data(&h1c->ibuf), ist(H2_CONN_PREFACE)) > 0) {
 				h1c->flags |= H1C_F_UPG_H2C;
