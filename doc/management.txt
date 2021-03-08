@@ -1423,6 +1423,18 @@ add map <map> <payload>
 
     >
 
+add server <backend>/<server> [args]*
+  Instantiate a new server attached to the backend <backend>. Only supported on
+  a CLI connection running in experimental mode (see "experimental-mode on").
+  This method is still in development and may change in the future.
+
+  The <server> name must not be already used in the backend. A special
+  restriction is put on the backend which must used a compatible load-balancing
+  algorithm with consistent hashing method. A subset of keywords from the
+  server config file statement can be used to configure the server behavior.
+  They can also be specified via an existing 'default-server' statement in the
+  backend. For the moment, no keywords are supported.
+
 add ssl crt-list <crtlist> <certificate>
 add ssl crt-list <crtlist> <payload>
   Add an certificate in a crt-list. It can also be used for directories since

@@ -38,7 +38,7 @@
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock.h>
-#include <haproxy/stats-t.h>
+#include <haproxy/stats.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
@@ -4278,6 +4278,168 @@ static int cli_parse_enable_server(char **args, char *payload, struct appctx *ap
 	return 1;
 }
 
+/* Allocates data structure related to load balancing for the server <sv>. It
+ * is only required for dynamic servers.
+ *
+ * At the moment, the server lock is not used as this function is only called
+ * for a dynamic server not yet registered.
+ *
+ * Returns 1 on success, 0 on allocation failure.
+ */
+static int srv_alloc_lb(struct server *sv, struct proxy *be)
+{
+	int node;
+
+	sv->lb_tree = (sv->flags & SRV_F_BACKUP) ?
+	              &be->lbprm.chash.bck : &be->lbprm.chash.act;
+	sv->lb_nodes_tot = sv->uweight * BE_WEIGHT_SCALE;
+	sv->lb_nodes_now = 0;
+
+	if ((be->lbprm.algo & BE_LB_PARM) == BE_LB_RR_RANDOM) {
+		sv->lb_nodes = calloc(sv->lb_nodes_tot, sizeof(*sv->lb_nodes));
+
+		if (!sv->lb_nodes)
+			return 0;
+
+		for (node = 0; node < sv->lb_nodes_tot; node++) {
+			sv->lb_nodes[node].server = sv;
+			sv->lb_nodes[node].node.key = full_hash(sv->puid * SRV_EWGHT_RANGE + node);
+		}
+	}
+
+	return 1;
+}
+
+/* Parse a "add server" command
+ * Returns 0 if the server has been successfully initialized, 1 on failure.
+ */
+static int cli_parse_add_server(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct proxy *be;
+	struct server *srv;
+	char *be_name, *sv_name;
+	char *errmsg = NULL;
+	int errcode, argc;
+	int i;
+	const int parse_flags = SRV_PARSE_DYNAMIC|SRV_PARSE_PARSE_ADDR;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	++args;
+
+	sv_name = be_name = args[1];
+	/* split backend/server arg */
+	while (*sv_name && *(++sv_name)) {
+		if (*sv_name == '/') {
+			*sv_name = '\0';
+			++sv_name;
+			break;
+		}
+	}
+
+	if (!*sv_name)
+		return cli_err(appctx, "Require 'backend/server'.");
+
+	get_backend_server(be_name, sv_name, &be, &srv);
+	if (!be)
+		return cli_err(appctx, "No such backend.");
+
+	if (!(be->lbprm.algo & BE_LB_PROP_DYN)) {
+		cli_err(appctx, "Backend must use a consistent hashing method for load balancing to support dynamic servers.");
+		return 1;
+	}
+
+	if (srv)
+		return cli_err(appctx, "Already exists a server with the same name in backend.");
+
+	args[1] = sv_name;
+	errcode = _srv_parse_init(&srv, args, &argc, be, parse_flags, &errmsg);
+	if (errcode) {
+		if (errmsg)
+			cli_dynerr(appctx, errmsg);
+		goto out;
+	}
+
+	while (*args[argc]) {
+		errcode = _srv_parse_kw(srv, args, &argc, be, parse_flags, &errmsg);
+
+		if (errcode) {
+			if (errmsg)
+				cli_dynerr(appctx, errmsg);
+			goto out;
+		}
+	}
+
+	_srv_parse_finalize(args, argc, srv, be, parse_flags, &errmsg);
+	if (errmsg) {
+		cli_dynerr(appctx, errmsg);
+		goto out;
+	}
+
+	srv->per_thr = calloc(global.nbthread, sizeof(*srv->per_thr));
+	if (!srv->per_thr) {
+		cli_err(appctx, "failed to allocate per-thread lists for server.");
+		goto out;
+	}
+
+	for (i = 0; i < global.nbthread; i++) {
+		srv->per_thr[i].idle_conns = EB_ROOT;
+		srv->per_thr[i].safe_conns = EB_ROOT;
+		srv->per_thr[i].avail_conns = EB_ROOT;
+		MT_LIST_INIT(&srv->per_thr[i].streams);
+	}
+
+	if (srv->max_idle_conns != 0) {
+		srv->curr_idle_thr = calloc(global.nbthread, sizeof(*srv->curr_idle_thr));
+		if (!srv->curr_idle_thr) {
+			cli_err(appctx, "failed to allocate counters for server.");
+			goto out;
+		}
+	}
+
+	if (!srv_alloc_lb(srv, be)) {
+		cli_err(appctx, "Failed to initialize load-balancing data.");
+		goto out;
+	}
+
+	if (!stats_allocate_proxy_counters_internal(&srv->extra_counters,
+	                                            COUNTERS_SV,
+	                                            STATS_PX_CAP_SRV)) {
+		cli_err(appctx, "failed to allocate extra counters for server.");
+		goto out;
+	}
+
+	/* attach the server to the end of proxy linked list
+	 *
+	 * The proxy servers list is currently not protected by a lock, so this
+	 * requires thread_isolate/release.
+	 */
+	thread_isolate();
+	/* TODO use a double-linked list for px->srv */
+	if (be->srv) {
+		struct server *next;
+		for (next = be->srv; next->next; next = next->next)
+			;
+
+		next->next = srv;
+	}
+	else {
+		srv->next = be->srv;
+		be->srv = srv;
+	}
+	thread_release();
+
+	cli_msg(appctx, LOG_INFO, "New server registered.");
+
+	return 0;
+
+out:
+	if (srv)
+		free_server(srv);
+	return 1;
+}
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "disable", "agent",  NULL }, "disable agent  : disable agent checks (use 'set server' instead)", cli_parse_disable_agent, NULL },
@@ -4290,6 +4452,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "server", NULL }, "set server     : change a server's state, weight, address or ssl",  cli_parse_set_server },
 	{ { "get", "weight", NULL }, "get weight     : report a server's current weight",  cli_parse_get_weight },
 	{ { "set", "weight", NULL }, "set weight     : change a server's weight (deprecated)",  cli_parse_set_weight },
+	{ { "add", "server", NULL }, "add server     : create a new server (EXPERIMENTAL)", cli_parse_add_server, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
 
 	{{},}
 }};
