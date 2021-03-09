@@ -2532,9 +2532,9 @@ void stream_update_time_stats(struct stream *s)
  * expect to be informed about any change in the number of active streams on a
  * server.
  */
-void sess_change_server(struct stream *sess, struct server *newsrv)
+void sess_change_server(struct stream *strm, struct server *newsrv)
 {
-	struct server *oldsrv = sess->srv_conn;
+	struct server *oldsrv = strm->srv_conn;
 
 	if (oldsrv == newsrv)
 		return;
@@ -2545,7 +2545,7 @@ void sess_change_server(struct stream *sess, struct server *newsrv)
 		__ha_barrier_atomic_store();
 		if (oldsrv->proxy->lbprm.server_drop_conn)
 			oldsrv->proxy->lbprm.server_drop_conn(oldsrv, 0);
-		stream_del_srv_conn(sess);
+		stream_del_srv_conn(strm);
 	}
 
 	if (newsrv) {
@@ -2554,7 +2554,7 @@ void sess_change_server(struct stream *sess, struct server *newsrv)
 		__ha_barrier_atomic_store();
 		if (newsrv->proxy->lbprm.server_take_conn)
 			newsrv->proxy->lbprm.server_take_conn(newsrv, 0);
-		stream_add_srv_conn(sess, newsrv);
+		stream_add_srv_conn(strm, newsrv);
 	}
 }
 

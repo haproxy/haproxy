@@ -69,7 +69,7 @@ void stream_dump_and_crash(enum obj_type *obj, int rate);
 struct ist stream_generate_unique_id(struct stream *strm, struct list *format);
 
 void stream_process_counters(struct stream *s);
-void sess_change_server(struct stream *sess, struct server *newsrv);
+void sess_change_server(struct stream *strm, struct server *newsrv);
 struct task *process_stream(struct task *t, void *context, unsigned int state);
 void default_srv_error(struct stream *s, struct stream_interface *si);
 
@@ -280,7 +280,7 @@ static inline void stream_inc_http_fail_ctr(struct stream *s)
 	}
 }
 
-static inline void stream_add_srv_conn(struct stream *sess, struct server *srv)
+static inline void stream_add_srv_conn(struct stream *strm, struct server *srv)
 {
 	/* note: this inserts in reverse order but we do not care, it's only
 	 * used for massive kills (i.e. almost never). MT_LIST_ADD() is a bit
@@ -288,25 +288,25 @@ static inline void stream_add_srv_conn(struct stream *sess, struct server *srv)
 	 * from a conflict with an adjacent MT_LIST_DEL, and using it improves
 	 * the performance by about 3% on 32-cores.
 	 */
-	MT_LIST_ADD(&srv->per_thr[tid].streams, &sess->by_srv);
-	HA_ATOMIC_STORE(&sess->srv_conn, srv);
+	MT_LIST_ADD(&srv->per_thr[tid].streams, &strm->by_srv);
+	HA_ATOMIC_STORE(&strm->srv_conn, srv);
 }
 
-static inline void stream_del_srv_conn(struct stream *sess)
+static inline void stream_del_srv_conn(struct stream *strm)
 {
-	struct server *srv = sess->srv_conn;
+	struct server *srv = strm->srv_conn;
 
 	if (!srv)
 		return;
 
-	MT_LIST_DEL(&sess->by_srv);
-	HA_ATOMIC_STORE(&sess->srv_conn, NULL);
+	MT_LIST_DEL(&strm->by_srv);
+	HA_ATOMIC_STORE(&strm->srv_conn, NULL);
 }
 
-static inline void stream_init_srv_conn(struct stream *sess)
+static inline void stream_init_srv_conn(struct stream *strm)
 {
-	sess->srv_conn = NULL;
-	MT_LIST_INIT(&sess->by_srv);
+	strm->srv_conn = NULL;
+	MT_LIST_INIT(&strm->by_srv);
 }
 
 static inline void stream_choose_redispatch(struct stream *s)
