@@ -4732,7 +4732,7 @@ remove:
 
 /* config parser for global "tune.idle-pool.shared", accepts "on" or "off" */
 static int cfg_parse_idle_pool_shared(char **args, int section_type, struct proxy *curpx,
-                                      struct proxy *defpx, const char *file, int line,
+                                      const struct proxy *defpx, const char *file, int line,
                                       char **err)
 {
 	if (too_many_args(1, args, err, NULL))
@@ -4751,7 +4751,7 @@ static int cfg_parse_idle_pool_shared(char **args, int section_type, struct prox
 
 /* config parser for global "tune.pool-{low,high}-fd-ratio" */
 static int cfg_parse_pool_fd_ratio(char **args, int section_type, struct proxy *curpx,
-                                   struct proxy *defpx, const char *file, int line,
+                                   const struct proxy *defpx, const char *file, int line,
                                    char **err)
 {
 	int arg = -1;

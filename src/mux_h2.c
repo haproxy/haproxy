@@ -6588,7 +6588,7 @@ static int h2_takeover(struct connection *conn, int orig_tid)
 
 /* config parser for global "tune.h2.header-table-size" */
 static int h2_parse_header_table_size(char **args, int section_type, struct proxy *curpx,
-                                      struct proxy *defpx, const char *file, int line,
+                                      const struct proxy *defpx, const char *file, int line,
                                       char **err)
 {
 	if (too_many_args(1, args, err, NULL))
@@ -6604,7 +6604,7 @@ static int h2_parse_header_table_size(char **args, int section_type, struct prox
 
 /* config parser for global "tune.h2.initial-window-size" */
 static int h2_parse_initial_window_size(char **args, int section_type, struct proxy *curpx,
-                                        struct proxy *defpx, const char *file, int line,
+                                        const struct proxy *defpx, const char *file, int line,
                                         char **err)
 {
 	if (too_many_args(1, args, err, NULL))
@@ -6620,7 +6620,7 @@ static int h2_parse_initial_window_size(char **args, int section_type, struct pr
 
 /* config parser for global "tune.h2.max-concurrent-streams" */
 static int h2_parse_max_concurrent_streams(char **args, int section_type, struct proxy *curpx,
-                                           struct proxy *defpx, const char *file, int line,
+                                           const struct proxy *defpx, const char *file, int line,
                                            char **err)
 {
 	if (too_many_args(1, args, err, NULL))
@@ -6636,7 +6636,7 @@ static int h2_parse_max_concurrent_streams(char **args, int section_type, struct
 
 /* config parser for global "tune.h2.max-frame-size" */
 static int h2_parse_max_frame_size(char **args, int section_type, struct proxy *curpx,
-                                   struct proxy *defpx, const char *file, int line,
+                                   const struct proxy *defpx, const char *file, int line,
                                    char **err)
 {
 	if (too_many_args(1, args, err, NULL))

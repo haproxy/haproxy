@@ -602,7 +602,7 @@ struct task *process_chk_proc(struct task *t, void *context, unsigned int state)
 
 /* Parses the "external-check" proxy keyword */
 int proxy_parse_extcheck(char **args, int section, struct proxy *curpx,
-                         struct proxy *defpx, const char *file, int line,
+                         const struct proxy *defpx, const char *file, int line,
                          char **errmsg)
 {
 	int cur_arg, ret = 0;

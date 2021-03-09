@@ -1507,7 +1507,7 @@ static int bind_parse_proto(char **args, int cur_arg, struct proxy *px, struct b
 
 /* config parser for global "tune.listener.multi-queue", accepts "on" or "off" */
 static int cfg_parse_tune_listener_mq(char **args, int section_type, struct proxy *curpx,
-                                      struct proxy *defpx, const char *file, int line,
+                                      const struct proxy *defpx, const char *file, int line,
                                       char **err)
 {
 	if (too_many_args(1, args, err, NULL))

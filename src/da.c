@@ -35,7 +35,7 @@ static struct {
 };
 
 static int da_json_file(char **args, int section_type, struct proxy *curpx,
-                        struct proxy *defpx, const char *file, int line,
+                        const struct proxy *defpx, const char *file, int line,
                         char **err)
 {
 	if (*(args[1]) == 0) {
@@ -47,7 +47,7 @@ static int da_json_file(char **args, int section_type, struct proxy *curpx,
 }
 
 static int da_log_level(char **args, int section_type, struct proxy *curpx,
-                        struct proxy *defpx, const char *file, int line,
+                        const struct proxy *defpx, const char *file, int line,
                         char **err)
 {
 	int loglevel;
@@ -67,7 +67,7 @@ static int da_log_level(char **args, int section_type, struct proxy *curpx,
 }
 
 static int da_property_separator(char **args, int section_type, struct proxy *curpx,
-                                 struct proxy *defpx, const char *file, int line,
+                                 const struct proxy *defpx, const char *file, int line,
                                  char **err)
 {
 	if (*(args[1]) == 0) {
@@ -79,7 +79,7 @@ static int da_property_separator(char **args, int section_type, struct proxy *cu
 }
 
 static int da_properties_cookie(char **args, int section_type, struct proxy *curpx,
-                          struct proxy *defpx, const char *file, int line,
+                          const struct proxy *defpx, const char *file, int line,
                           char **err)
 {
 	if (*(args[1]) == 0) {

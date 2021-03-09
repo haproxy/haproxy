@@ -558,7 +558,7 @@ static int cli_parse_reload(char **args, char *payload, struct appctx *appctx, v
 
 
 static int mworker_parse_global_max_reloads(char **args, int section_type, struct proxy *curpx,
-           struct proxy *defpx, const char *file, int linenum, char **err)
+           const struct proxy *defpx, const char *file, int linenum, char **err)
 {
 
 	int err_code = 0;

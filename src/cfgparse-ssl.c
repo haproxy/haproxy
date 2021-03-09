@@ -42,7 +42,7 @@
 /****************** Global Section Parsing ********************************************/
 
 static int ssl_load_global_issuers_from_path(char **args, int section_type, struct proxy *curpx,
-					      struct proxy *defpx, const char *file, int line,
+					      const struct proxy *defpx, const char *file, int line,
 					      char **err)
 {
 	char *path;
@@ -121,7 +121,7 @@ static int ssl_load_global_issuers_from_path(char **args, int section_type, stru
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_ssl_async(char **args, int section_type, struct proxy *curpx,
-                                       struct proxy *defpx, const char *file, int line,
+                                       const struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
 #ifdef SSL_MODE_ASYNC
@@ -139,7 +139,7 @@ static int ssl_parse_global_ssl_async(char **args, int section_type, struct prox
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_ssl_engine(char **args, int section_type, struct proxy *curpx,
-                                       struct proxy *defpx, const char *file, int line,
+                                       const struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
 	char *algo;
@@ -182,7 +182,7 @@ add_engine:
  * in global section. Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_ciphers(char **args, int section_type, struct proxy *curpx,
-                                    struct proxy *defpx, const char *file, int line,
+                                    const struct proxy *defpx, const char *file, int line,
                                     char **err)
 {
 	char **target;
@@ -207,7 +207,7 @@ static int ssl_parse_global_ciphers(char **args, int section_type, struct proxy 
  * in global section. Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_ciphersuites(char **args, int section_type, struct proxy *curpx,
-                                    struct proxy *defpx, const char *file, int line,
+                                    const struct proxy *defpx, const char *file, int line,
                                     char **err)
 {
 	char **target;
@@ -234,7 +234,7 @@ static int ssl_parse_global_ciphersuites(char **args, int section_type, struct p
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_curves(char **args, int section_type, struct proxy *curpx,
-                                   struct proxy *defpx, const char *file, int line,
+                                   const struct proxy *defpx, const char *file, int line,
 				   char **err)
 {
 	char **target;
@@ -257,7 +257,7 @@ static int ssl_parse_global_curves(char **args, int section_type, struct proxy *
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_int(char **args, int section_type, struct proxy *curpx,
-                                struct proxy *defpx, const char *file, int line,
+                                const struct proxy *defpx, const char *file, int line,
                                 char **err)
 {
 	int *target;
@@ -294,7 +294,7 @@ static int ssl_parse_global_int(char **args, int section_type, struct proxy *cur
 }
 
 static int ssl_parse_global_capture_cipherlist(char **args, int section_type, struct proxy *curpx,
-                                               struct proxy *defpx, const char *file, int line,
+                                               const struct proxy *defpx, const char *file, int line,
                                                char **err)
 {
 	int ret;
@@ -319,7 +319,7 @@ static int ssl_parse_global_capture_cipherlist(char **args, int section_type, st
 /* init the SSLKEYLOGFILE pool */
 #ifdef HAVE_OPENSSL_KEYLOG
 static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *curpx,
-                                       struct proxy *defpx, const char *file, int line,
+                                       const struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
 
@@ -358,7 +358,7 @@ static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_private_cache(char **args, int section_type, struct proxy *curpx,
-                                          struct proxy *defpx, const char *file, int line,
+                                          const struct proxy *defpx, const char *file, int line,
                                           char **err)
 {
 	if (too_many_args(0, args, err, NULL))
@@ -372,7 +372,7 @@ static int ssl_parse_global_private_cache(char **args, int section_type, struct 
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_lifetime(char **args, int section_type, struct proxy *curpx,
-                                     struct proxy *defpx, const char *file, int line,
+                                     const struct proxy *defpx, const char *file, int line,
                                      char **err)
 {
 	const char *res;
@@ -408,7 +408,7 @@ static int ssl_parse_global_lifetime(char **args, int section_type, struct proxy
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_dh_param_file(char **args, int section_type, struct proxy *curpx,
-                                       struct proxy *defpx, const char *file, int line,
+                                       const struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
 	if (too_many_args(1, args, err, NULL))
@@ -430,7 +430,7 @@ static int ssl_parse_global_dh_param_file(char **args, int section_type, struct 
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_default_dh(char **args, int section_type, struct proxy *curpx,
-                                       struct proxy *defpx, const char *file, int line,
+                                       const struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
 	if (too_many_args(1, args, err, NULL))
@@ -456,7 +456,7 @@ static int ssl_parse_global_default_dh(char **args, int section_type, struct pro
  * multiple arguments are allowed: "bundle", "sctl", "ocsp", "issuer", "all", "none"
  */
 static int ssl_parse_global_extra_files(char **args, int section_type, struct proxy *curpx,
-                                       struct proxy *defpx, const char *file, int line,
+                                       const struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
 	int i;
@@ -519,7 +519,7 @@ err_arg:
 
 /* parse 'ssl-load-extra-del-ext */
 static int ssl_parse_global_extra_noext(char **args, int section_type, struct proxy *curpx,
-                                       struct proxy *defpx, const char *file, int line,
+                                       const struct proxy *defpx, const char *file, int line,
                                        char **err)
 {
 	global_ssl.extra_files_noext = 1;
@@ -1619,7 +1619,7 @@ static int srv_parse_verifyhost(char **args, int *cur_arg, struct proxy *px, str
 
 /* parse the "ssl-default-bind-options" keyword in global section */
 static int ssl_parse_default_bind_options(char **args, int section_type, struct proxy *curpx,
-                                          struct proxy *defpx, const char *file, int line,
+                                          const struct proxy *defpx, const char *file, int line,
                                           char **err) {
 	int i = 1;
 
@@ -1651,7 +1651,7 @@ static int ssl_parse_default_bind_options(char **args, int section_type, struct 
 
 /* parse the "ssl-default-server-options" keyword in global section */
 static int ssl_parse_default_server_options(char **args, int section_type, struct proxy *curpx,
-                                            struct proxy *defpx, const char *file, int line,
+                                            const struct proxy *defpx, const char *file, int line,
                                             char **err) {
 	int i = 1;
 
@@ -1683,7 +1683,7 @@ static int ssl_parse_default_server_options(char **args, int section_type, struc
  * Returns <0 on alert, >0 on warning, 0 on success.
  */
 static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct proxy *curpx,
-                                        struct proxy *defpx, const char *file, int line,
+                                        const struct proxy *defpx, const char *file, int line,
                                         char **err)
 {
 	char **target;
@@ -1708,7 +1708,7 @@ static int ssl_parse_global_ca_crt_base(char **args, int section_type, struct pr
 
 /* parse the "ssl-skip-self-issued-ca" keyword in global section.  */
 static int ssl_parse_skip_self_issued_ca(char **args, int section_type, struct proxy *curpx,
-					 struct proxy *defpx, const char *file, int line,
+					 const struct proxy *defpx, const char *file, int line,
 					 char **err)
 {
 #ifdef SSL_CTX_build_cert_chain

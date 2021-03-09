@@ -257,7 +257,7 @@ static struct proxy *alloc_stats_fe(const char *name, const char *file, int line
  * the first word after "stats".
  */
 static int stats_parse_global(char **args, int section_type, struct proxy *curpx,
-                              struct proxy *defpx, const char *file, int line,
+                              const struct proxy *defpx, const char *file, int line,
                               char **err)
 {
 	struct bind_conf *bind_conf;

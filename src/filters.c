@@ -174,7 +174,7 @@ list_filters(FILE *out)
  */
 static int
 parse_filter(char **args, int section_type, struct proxy *curpx,
-	     struct proxy *defpx, const char *file, int line, char **err)
+	     const struct proxy *defpx, const char *file, int line, char **err)
 {
 	struct flt_conf *fconf = NULL;
 

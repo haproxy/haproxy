@@ -57,7 +57,7 @@ static struct {
 };
 
 static int _51d_data_file(char **args, int section_type, struct proxy *curpx,
-                          struct proxy *defpx, const char *file, int line,
+                          const struct proxy *defpx, const char *file, int line,
                           char **err)
 {
 	if (*(args[1]) == 0) {
@@ -75,7 +75,7 @@ static int _51d_data_file(char **args, int section_type, struct proxy *curpx,
 }
 
 static int _51d_property_name_list(char **args, int section_type, struct proxy *curpx,
-                                   struct proxy *defpx, const char *file, int line,
+                                   const struct proxy *defpx, const char *file, int line,
                                    char **err)
 {
 	int cur_arg = 1;
@@ -99,7 +99,7 @@ static int _51d_property_name_list(char **args, int section_type, struct proxy *
 }
 
 static int _51d_property_separator(char **args, int section_type, struct proxy *curpx,
-                                   struct proxy *defpx, const char *file, int line,
+                                   const struct proxy *defpx, const char *file, int line,
                                    char **err)
 {
 	if (*(args[1]) == 0) {
@@ -121,7 +121,7 @@ static int _51d_property_separator(char **args, int section_type, struct proxy *
 }
 
 static int _51d_cache_size(char **args, int section_type, struct proxy *curpx,
-                           struct proxy *defpx, const char *file, int line,
+                           const struct proxy *defpx, const char *file, int line,
                            char **err)
 {
 	if (*(args[1]) == 0) {

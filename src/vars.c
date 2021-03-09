@@ -798,7 +798,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 }
 
 static int vars_max_size(char **args, int section_type, struct proxy *curpx,
-                         struct proxy *defpx, const char *file, int line,
+                         const struct proxy *defpx, const char *file, int line,
                          char **err, unsigned int *limit)
 {
 	char *error;
@@ -812,42 +812,42 @@ static int vars_max_size(char **args, int section_type, struct proxy *curpx,
 }
 
 static int vars_max_size_global(char **args, int section_type, struct proxy *curpx,
-                                struct proxy *defpx, const char *file, int line,
+                                const struct proxy *defpx, const char *file, int line,
                                 char **err)
 {
 	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_global_limit);
 }
 
 static int vars_max_size_proc(char **args, int section_type, struct proxy *curpx,
-                                struct proxy *defpx, const char *file, int line,
+                                const struct proxy *defpx, const char *file, int line,
                                 char **err)
 {
 	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_proc_limit);
 }
 
 static int vars_max_size_sess(char **args, int section_type, struct proxy *curpx,
-                              struct proxy *defpx, const char *file, int line,
+                              const struct proxy *defpx, const char *file, int line,
                               char **err)
 {
 	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_sess_limit);
 }
 
 static int vars_max_size_txn(char **args, int section_type, struct proxy *curpx,
-                             struct proxy *defpx, const char *file, int line,
+                             const struct proxy *defpx, const char *file, int line,
                              char **err)
 {
 	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_txn_limit);
 }
 
 static int vars_max_size_reqres(char **args, int section_type, struct proxy *curpx,
-                                struct proxy *defpx, const char *file, int line,
+                                const struct proxy *defpx, const char *file, int line,
                                 char **err)
 {
 	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_reqres_limit);
 }
 
 static int vars_max_size_check(char **args, int section_type, struct proxy *curpx,
-                                struct proxy *defpx, const char *file, int line,
+                                const struct proxy *defpx, const char *file, int line,
                                 char **err)
 {
 	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_check_limit);

@@ -619,7 +619,7 @@ struct flt_ops comp_ops = {
 
 static int
 parse_compression_options(char **args, int section, struct proxy *proxy,
-			  struct proxy *defpx, const char *file, int line,
+			  const struct proxy *defpx, const char *file, int line,
 			  char **err)
 {
 	struct comp    *comp;

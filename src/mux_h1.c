@@ -3779,7 +3779,7 @@ static int cfg_h1_headers_case_adjust_postparser()
 
 /* config parser for global "h1-outgoing-header-case-adjust" */
 static int cfg_parse_h1_header_case_adjust(char **args, int section_type, struct proxy *curpx,
-					   struct proxy *defpx, const char *file, int line,
+					   const struct proxy *defpx, const char *file, int line,
 					   char **err)
 {
         if (too_many_args(2, args, err, NULL))
@@ -3793,7 +3793,7 @@ static int cfg_parse_h1_header_case_adjust(char **args, int section_type, struct
 
 /* config parser for global "h1-outgoing-headers-case-adjust-file" */
 static int cfg_parse_h1_headers_case_adjust_file(char **args, int section_type, struct proxy *curpx,
-						 struct proxy *defpx, const char *file, int line,
+						 const struct proxy *defpx, const char *file, int line,
 						 char **err)
 {
         if (too_many_args(1, args, err, NULL))

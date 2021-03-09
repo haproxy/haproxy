@@ -581,7 +581,7 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 
 /* Parses the "use-fcgi-app" proxy keyword */
 static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curpx,
-				    struct proxy *defpx, const char *file, int line,
+				    const struct proxy *defpx, const char *file, int line,
 				    char **err)
 {
 	struct flt_conf *fconf = NULL;

@@ -8132,7 +8132,7 @@ __LJMP static int hlua_register_cli(lua_State *L)
 }
 
 static int hlua_read_timeout(char **args, int section_type, struct proxy *curpx,
-                             struct proxy *defpx, const char *file, int line,
+                             const struct proxy *defpx, const char *file, int line,
                              char **err, unsigned int *timeout)
 {
 	const char *error;
@@ -8156,7 +8156,7 @@ static int hlua_read_timeout(char **args, int section_type, struct proxy *curpx,
 }
 
 static int hlua_session_timeout(char **args, int section_type, struct proxy *curpx,
-                                struct proxy *defpx, const char *file, int line,
+                                const struct proxy *defpx, const char *file, int line,
                                 char **err)
 {
 	return hlua_read_timeout(args, section_type, curpx, defpx,
@@ -8164,7 +8164,7 @@ static int hlua_session_timeout(char **args, int section_type, struct proxy *cur
 }
 
 static int hlua_task_timeout(char **args, int section_type, struct proxy *curpx,
-                             struct proxy *defpx, const char *file, int line,
+                             const struct proxy *defpx, const char *file, int line,
                              char **err)
 {
 	return hlua_read_timeout(args, section_type, curpx, defpx,
@@ -8172,7 +8172,7 @@ static int hlua_task_timeout(char **args, int section_type, struct proxy *curpx,
 }
 
 static int hlua_applet_timeout(char **args, int section_type, struct proxy *curpx,
-                               struct proxy *defpx, const char *file, int line,
+                               const struct proxy *defpx, const char *file, int line,
                                char **err)
 {
 	return hlua_read_timeout(args, section_type, curpx, defpx,
@@ -8180,7 +8180,7 @@ static int hlua_applet_timeout(char **args, int section_type, struct proxy *curp
 }
 
 static int hlua_forced_yield(char **args, int section_type, struct proxy *curpx,
-                             struct proxy *defpx, const char *file, int line,
+                             const struct proxy *defpx, const char *file, int line,
                              char **err)
 {
 	char *error;
@@ -8194,7 +8194,7 @@ static int hlua_forced_yield(char **args, int section_type, struct proxy *curpx,
 }
 
 static int hlua_parse_maxmem(char **args, int section_type, struct proxy *curpx,
-                             struct proxy *defpx, const char *file, int line,
+                             const struct proxy *defpx, const char *file, int line,
                              char **err)
 {
 	char *error;
@@ -8270,7 +8270,7 @@ static int hlua_load_state(char *filename, lua_State *L, char **err)
 }
 
 static int hlua_load(char **args, int section_type, struct proxy *curpx,
-                     struct proxy *defpx, const char *file, int line,
+                     const struct proxy *defpx, const char *file, int line,
                      char **err)
 {
 	if (*(args[1]) == 0) {
@@ -8285,7 +8285,7 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 }
 
 static int hlua_load_per_thread(char **args, int section_type, struct proxy *curpx,
-                                struct proxy *defpx, const char *file, int line,
+                                const struct proxy *defpx, const char *file, int line,
                                 char **err)
 {
 	int len;
@@ -8345,7 +8345,7 @@ static int hlua_prepend_path(lua_State *L, char *type, char *path)
 }
 
 static int hlua_config_prepend_path(char **args, int section_type, struct proxy *curpx,
-                                    struct proxy *defpx, const char *file, int line,
+                                    const struct proxy *defpx, const char *file, int line,
                                     char **err)
 {
 	char *path;

@@ -198,14 +198,14 @@ int get_backend_server(const char *bk_name, const char *sv_name,
  * "{cli|srv|con}timeout" in args[0].
  */
 static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
-                               struct proxy *defpx, const char *file, int line,
+                               const struct proxy *defpx, const char *file, int line,
                                char **err)
 {
 	unsigned timeout;
 	int retval, cap;
 	const char *res, *name;
 	int *tv = NULL;
-	int *td = NULL;
+	const int *td = NULL;
 
 	retval = 0;
 
@@ -328,13 +328,13 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
  * parsed, and <defpx> to the default proxy or NULL.
  */
 static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
-                                  struct proxy *defpx, const char *file, int line,
+                                  const struct proxy *defpx, const char *file, int line,
                                   char **err)
 {
 	int retval;
 	char *res;
 	unsigned int *tv = NULL;
-	unsigned int *td = NULL;
+	const unsigned int *td = NULL;
 	unsigned int val;
 
 	retval = 0;
@@ -381,7 +381,7 @@ static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
  * the proxy being parsed, and <defpx> to the default proxy or NULL.
  */
 static int proxy_parse_max_ka_queue(char **args, int section, struct proxy *proxy,
-                                    struct proxy *defpx, const char *file, int line,
+                                    const struct proxy *defpx, const char *file, int line,
                                     char **err)
 {
 	int retval;
@@ -420,7 +420,7 @@ static int proxy_parse_max_ka_queue(char **args, int section, struct proxy *prox
  * default proxy or NULL.
  */
 static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
-                               struct proxy *defpx, const char *file, int line,
+                               const struct proxy *defpx, const char *file, int line,
                                char **err)
 {
 	/* Capture keyword wannot be declared in a default proxy. */
@@ -515,7 +515,7 @@ static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
 /* This function parses a "retry-on" statement */
 static int
 proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
-                               struct proxy *defpx, const char *file, int line,
+                               const struct proxy *defpx, const char *file, int line,
                                char **err)
 {
 	int i;
@@ -584,7 +584,7 @@ proxy_parse_retry_on(char **args, int section, struct proxy *curpx,
 #ifdef TCP_KEEPCNT
 /* This function parses "{cli|srv}tcpka-cnt" statements */
 static int proxy_parse_tcpka_cnt(char **args, int section, struct proxy *proxy,
-                                    struct proxy *defpx, const char *file, int line,
+                                    const struct proxy *defpx, const char *file, int line,
                                     char **err)
 {
 	int retval;
@@ -631,7 +631,7 @@ static int proxy_parse_tcpka_cnt(char **args, int section, struct proxy *proxy,
 #ifdef TCP_KEEPIDLE
 /* This function parses "{cli|srv}tcpka-idle" statements */
 static int proxy_parse_tcpka_idle(char **args, int section, struct proxy *proxy,
-                                  struct proxy *defpx, const char *file, int line,
+                                  const struct proxy *defpx, const char *file, int line,
                                   char **err)
 {
 	int retval;
@@ -687,7 +687,7 @@ static int proxy_parse_tcpka_idle(char **args, int section, struct proxy *proxy,
 #ifdef TCP_KEEPINTVL
 /* This function parses "{cli|srv}tcpka-intvl" statements */
 static int proxy_parse_tcpka_intvl(char **args, int section, struct proxy *proxy,
-		                   struct proxy *defpx, const char *file, int line,
+		                   const struct proxy *defpx, const char *file, int line,
                                    char **err)
 {
 	int retval;
@@ -1577,7 +1577,7 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 
 
 static int proxy_parse_hard_stop_after(char **args, int section_type, struct proxy *curpx,
-                                struct proxy *defpx, const char *file, int line,
+                                const struct proxy *defpx, const char *file, int line,
                                 char **err)
 {
 	const char *res;

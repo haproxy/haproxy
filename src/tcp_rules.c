@@ -568,7 +568,7 @@ int tcp_exec_l5_rules(struct session *sess)
 
 /* Parse a tcp-response rule. Return a negative value in case of failure */
 static int tcp_parse_response_rule(char **args, int arg, int section_type,
-                                   struct proxy *curpx, struct proxy *defpx,
+                                   struct proxy *curpx, const struct proxy *defpx,
                                    struct act_rule *rule, char **err,
                                    unsigned int where,
                                    const char *file, int line)
@@ -731,7 +731,7 @@ static void release_tcp_track_sc(struct act_rule * rule)
 
 /* Parse a tcp-request rule. Return a negative value in case of failure */
 static int tcp_parse_request_rule(char **args, int arg, int section_type,
-                                  struct proxy *curpx, struct proxy *defpx,
+                                  struct proxy *curpx, const struct proxy *defpx,
                                   struct act_rule *rule, char **err,
                                   unsigned int where, const char *file, int line)
 {
@@ -986,7 +986,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
  * keyword.
  */
 static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
-                             struct proxy *defpx, const char *file, int line,
+                             const struct proxy *defpx, const char *file, int line,
                              char **err)
 {
 	const char *ptr = NULL;
@@ -1097,7 +1097,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
  * keyword.
  */
 static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
-                             struct proxy *defpx, const char *file, int line,
+                             const struct proxy *defpx, const char *file, int line,
                              char **err)
 {
 	const char *ptr = NULL;

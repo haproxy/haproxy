@@ -129,7 +129,7 @@ typedef struct {
  * configuration parameters parsing functions
  */
 static int ha_wurfl_cfg_data_file(char **args, int section_type, struct proxy *curpx,
-                                  struct proxy *defpx, const char *file, int line,
+                                  const struct proxy *defpx, const char *file, int line,
                                   char **err)
 {
 
@@ -143,7 +143,7 @@ static int ha_wurfl_cfg_data_file(char **args, int section_type, struct proxy *c
 }
 
 static int ha_wurfl_cfg_cache(char **args, int section_type, struct proxy *curpx,
-                              struct proxy *defpx, const char *file, int line,
+                              const struct proxy *defpx, const char *file, int line,
                               char **err)
 {
 	if (*(args[1]) == 0) {
@@ -156,7 +156,7 @@ static int ha_wurfl_cfg_cache(char **args, int section_type, struct proxy *curpx
 }
 
 static int ha_wurfl_cfg_engine_mode(char **args, int section_type, struct proxy *curpx,
-                                    struct proxy *defpx, const char *file, int line,
+                                    const struct proxy *defpx, const char *file, int line,
                                     char **err)
 {
 	// kept for backward conf file compat
@@ -164,7 +164,7 @@ static int ha_wurfl_cfg_engine_mode(char **args, int section_type, struct proxy 
 }
 
 static int ha_wurfl_cfg_information_list_separator(char **args, int section_type, struct proxy *curpx,
-                                                   struct proxy *defpx, const char *file, int line,
+                                                   const struct proxy *defpx, const char *file, int line,
                                                    char **err)
 {
 	if (*(args[1]) == 0) {
@@ -182,7 +182,7 @@ static int ha_wurfl_cfg_information_list_separator(char **args, int section_type
 }
 
 static int ha_wurfl_cfg_information_list(char **args, int section_type, struct proxy *curpx,
-                                         struct proxy *defpx, const char *file, int line,
+                                         const struct proxy *defpx, const char *file, int line,
                                          char **err)
 {
 	int argIdx = 1;
@@ -212,7 +212,7 @@ static int ha_wurfl_cfg_information_list(char **args, int section_type, struct p
 }
 
 static int ha_wurfl_cfg_patch_file_list(char **args, int section_type, struct proxy *curpx,
-                                        struct proxy *defpx, const char *file, int line,
+                                        const struct proxy *defpx, const char *file, int line,
                                         char **err)
 {
 	int argIdx = 1;
@@ -240,7 +240,7 @@ static int ha_wurfl_cfg_patch_file_list(char **args, int section_type, struct pr
 }
 
 static int ha_wurfl_cfg_useragent_priority(char **args, int section_type, struct proxy *curpx,
-                                           struct proxy *defpx, const char *file, int line,
+                                           const struct proxy *defpx, const char *file, int line,
                                            char **err)
 {
 	// this feature is deprecated, keeping only not to break compatibility

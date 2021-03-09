@@ -1721,7 +1721,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 
 /* Parses the "errorloc[302|303]" proxy keyword */
 static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
-				  struct proxy *defpx, const char *file, int line,
+				  const struct proxy *defpx, const char *file, int line,
 				  char **errmsg)
 {
 	struct conf_errors *conf_err;
@@ -1788,7 +1788,7 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 
 /* Parses the "errorfile" proxy keyword */
 static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
-				 struct proxy *defpx, const char *file, int line,
+				 const struct proxy *defpx, const char *file, int line,
 				 char **errmsg)
 {
 	struct conf_errors *conf_err;
@@ -1853,7 +1853,7 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 
 /* Parses the "errorfiles" proxy keyword */
 static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
-				  struct proxy *defpx, const char *file, int line,
+				  const struct proxy *defpx, const char *file, int line,
 				  char **err)
 {
 	struct conf_errors *conf_err = NULL;
@@ -1916,7 +1916,7 @@ static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
 
 /* Parses the "http-error" proxy keyword */
 static int proxy_parse_http_error(char **args, int section, struct proxy *curpx,
-				  struct proxy *defpx, const char *file, int line,
+				  const struct proxy *defpx, const char *file, int line,
 				  char **errmsg)
 {
 	struct conf_errors *conf_err;

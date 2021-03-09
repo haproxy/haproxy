@@ -72,10 +72,6 @@ void stream_process_counters(struct stream *s);
 void sess_change_server(struct stream *sess, struct server *newsrv);
 struct task *process_stream(struct task *t, void *context, unsigned int state);
 void default_srv_error(struct stream *s, struct stream_interface *si);
-int parse_track_counters(char **args, int *arg,
-			 int section_type, struct proxy *curpx,
-			 struct track_ctr_prm *prm,
-			 struct proxy *defpx, char **err);
 
 /* Update the stream's backend and server time stats */
 void stream_update_time_stats(struct stream *s);

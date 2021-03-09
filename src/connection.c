@@ -1298,7 +1298,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 
 /* returns 0 on success */
 static int cfg_parse_pp2_never_send_local(char **args, int section_type, struct proxy *curpx,
-                                          struct proxy *defpx, const char *file, int line,
+                                          const struct proxy *defpx, const char *file, int line,
                                           char **err)
 {
 	if (too_many_args(0, args, err, NULL))

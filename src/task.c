@@ -909,7 +909,7 @@ static void init_task()
 
 /* config parser for global "tune.sched.low-latency", accepts "on" or "off" */
 static int cfg_parse_tune_sched_low_latency(char **args, int section_type, struct proxy *curpx,
-                                      struct proxy *defpx, const char *file, int line,
+                                      const struct proxy *defpx, const char *file, int line,
                                       char **err)
 {
 	if (too_many_args(1, args, err, NULL))
