@@ -74,7 +74,7 @@
 #endif
 
 /* When not optimizing, clang won't remove that code, so only compile it in when optimizing */
-#ifdef __OPTIMIZE__
+#if defined(__GNUC__) && defined(__OPTIMIZE__)
 #define HA_LINK_ERROR(what)                                                  \
 	do {                                                                 \
 		/* provoke a build-time error */                             \
