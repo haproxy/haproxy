@@ -771,10 +771,12 @@ void process_runnable_tasks()
 	if (lpicked + gpicked) {
 		tt->tl_class_mask |= 1 << TL_NORMAL;
 		_HA_ATOMIC_ADD(&tt->tasks_in_list, lpicked + gpicked);
+#ifdef USE_THREAD
 		if (gpicked) {
 			_HA_ATOMIC_SUB(&grq_total, gpicked);
 			_HA_ATOMIC_ADD(&tt->rq_total, gpicked);
 		}
+#endif
 		activity[tid].tasksw += lpicked + gpicked;
 	}
 
