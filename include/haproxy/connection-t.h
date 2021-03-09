@@ -648,7 +648,7 @@ struct tlv {
 	uint8_t type;
 	uint8_t length_hi;
 	uint8_t length_lo;
-	uint8_t value[VAR_ARRAY];
+	uint8_t value[0]; // WT: don't use VAR_ARRAY here, it's an end of struct marker
 }__attribute__((packed));
 
 struct tlv_ssl {
