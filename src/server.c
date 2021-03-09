@@ -1626,48 +1626,48 @@ void srv_compute_all_admin_states(struct proxy *px)
  * Note: -1 as ->skip value means that the number of arguments are variable.
  */
 static struct srv_kw_list srv_kws = { "ALL", { }, {
-	{ "backup",              srv_parse_backup,              0,  1,  0 }, /* Flag as backup server */
+	{ "backup",              srv_parse_backup,              0,  1,  1 }, /* Flag as backup server */
 	{ "cookie",              srv_parse_cookie,              1,  1,  0 }, /* Assign a cookie to the server */
-	{ "disabled",            srv_parse_disabled,            0,  1,  0 }, /* Start the server in 'disabled' state */
-	{ "enabled",             srv_parse_enabled,             0,  1,  0 }, /* Start the server in 'enabled' state */
+	{ "disabled",            srv_parse_disabled,            0,  1,  1 }, /* Start the server in 'disabled' state */
+	{ "enabled",             srv_parse_enabled,             0,  1,  1 }, /* Start the server in 'enabled' state */
 	{ "error-limit",         srv_parse_error_limit,         1,  1,  0 }, /* Configure the consecutive count of check failures to consider a server on error */
-	{ "id",                  srv_parse_id,                  1,  0,  0 }, /* set id# of server */
+	{ "id",                  srv_parse_id,                  1,  0,  1 }, /* set id# of server */
 	{ "init-addr",           srv_parse_init_addr,           1,  1,  0 }, /* */
 	{ "log-proto",           srv_parse_log_proto,           1,  1,  0 }, /* Set the protocol for event messages, only relevant in a ring section */
-	{ "maxconn",             srv_parse_maxconn,             1,  1,  0 }, /* Set the max number of concurrent connection */
-	{ "maxqueue",            srv_parse_maxqueue,            1,  1,  0 }, /* Set the max number of connection to put in queue */
+	{ "maxconn",             srv_parse_maxconn,             1,  1,  1 }, /* Set the max number of concurrent connection */
+	{ "maxqueue",            srv_parse_maxqueue,            1,  1,  1 }, /* Set the max number of connection to put in queue */
 	{ "max-reuse",           srv_parse_max_reuse,           1,  1,  0 }, /* Set the max number of requests on a connection, -1 means unlimited */
-	{ "minconn",             srv_parse_minconn,             1,  1,  0 }, /* Enable a dynamic maxconn limit */
+	{ "minconn",             srv_parse_minconn,             1,  1,  1 }, /* Enable a dynamic maxconn limit */
 	{ "namespace",           srv_parse_namespace,           1,  1,  0 }, /* Namespace the server socket belongs to (if supported) */
-	{ "no-backup",           srv_parse_no_backup,           0,  1,  0 }, /* Flag as non-backup server */
-	{ "no-send-proxy",       srv_parse_no_send_proxy,       0,  1,  0 }, /* Disable use of PROXY V1 protocol */
-	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1,  0 }, /* Disable use of PROXY V2 protocol */
-	{ "no-tfo",              srv_parse_no_tfo,              0,  1,  0 }, /* Disable use of TCP Fast Open */
+	{ "no-backup",           srv_parse_no_backup,           0,  1,  1 }, /* Flag as non-backup server */
+	{ "no-send-proxy",       srv_parse_no_send_proxy,       0,  1,  1 }, /* Disable use of PROXY V1 protocol */
+	{ "no-send-proxy-v2",    srv_parse_no_send_proxy_v2,    0,  1,  1 }, /* Disable use of PROXY V2 protocol */
+	{ "no-tfo",              srv_parse_no_tfo,              0,  1,  1 }, /* Disable use of TCP Fast Open */
 	{ "non-stick",           srv_parse_non_stick,           0,  1,  0 }, /* Disable stick-table persistence */
 	{ "observe",             srv_parse_observe,             1,  1,  0 }, /* Enables health adjusting based on observing communication with the server */
 	{ "on-error",            srv_parse_on_error,            1,  1,  0 }, /* Configure the action on check failure */
 	{ "on-marked-down",      srv_parse_on_marked_down,      1,  1,  0 }, /* Configure the action when a server is marked down */
 	{ "on-marked-up",        srv_parse_on_marked_up,        1,  1,  0 }, /* Configure the action when a server is marked up */
-	{ "pool-low-conn",       srv_parse_pool_low_conn,       1,  1,  0 }, /* Set the min number of orphan idle connecbefore being allowed to pick from other threads */
-	{ "pool-max-conn",       srv_parse_pool_max_conn,       1,  1,  0 }, /* Set the max number of orphan idle connections, -1 means unlimited */
-	{ "pool-purge-delay",    srv_parse_pool_purge_delay,    1,  1,  0 }, /* Set the time before we destroy orphan idle connections, defaults to 1s */
+	{ "pool-low-conn",       srv_parse_pool_low_conn,       1,  1,  1 }, /* Set the min number of orphan idle connecbefore being allowed to pick from other threads */
+	{ "pool-max-conn",       srv_parse_pool_max_conn,       1,  1,  1 }, /* Set the max number of orphan idle connections, -1 means unlimited */
+	{ "pool-purge-delay",    srv_parse_pool_purge_delay,    1,  1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 1s */
 	{ "proto",               srv_parse_proto,               1,  1,  0 }, /* Set the proto to use for all outgoing connections */
-	{ "proxy-v2-options",    srv_parse_proxy_v2_options,    1,  1,  0 }, /* options for send-proxy-v2 */
+	{ "proxy-v2-options",    srv_parse_proxy_v2_options,    1,  1,  1 }, /* options for send-proxy-v2 */
 	{ "redir",               srv_parse_redir,               1,  1,  0 }, /* Enable redirection mode */
 	{ "resolve-net",         srv_parse_resolve_net,         1,  1,  0 }, /* Set the prefered network range for name resolution */
 	{ "resolve-opts",        srv_parse_resolve_opts,        1,  1,  0 }, /* Set options for name resolution */
 	{ "resolve-prefer",      srv_parse_resolve_prefer,      1,  1,  0 }, /* Set the prefered family for name resolution */
 	{ "resolvers",           srv_parse_resolvers,           1,  1,  0 }, /* Configure the resolver to use for name resolution */
-	{ "send-proxy",          srv_parse_send_proxy,          0,  1,  0 }, /* Enforce use of PROXY V1 protocol */
-	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1,  0 }, /* Enforce use of PROXY V2 protocol */
+	{ "send-proxy",          srv_parse_send_proxy,          0,  1,  1 }, /* Enforce use of PROXY V1 protocol */
+	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1,  1 }, /* Enforce use of PROXY V2 protocol */
 	{ "slowstart",           srv_parse_slowstart,           1,  1,  0 }, /* Set the warm-up timer for a previously failed server */
-	{ "source",              srv_parse_source,             -1,  1,  0 }, /* Set the source address to be used to connect to the server */
+	{ "source",              srv_parse_source,             -1,  1,  1 }, /* Set the source address to be used to connect to the server */
 	{ "stick",               srv_parse_stick,               0,  1,  0 }, /* Enable stick-table persistence */
-	{ "tfo",                 srv_parse_tfo,                 0,  1,  0 }, /* enable TCP Fast Open of server */
+	{ "tfo",                 srv_parse_tfo,                 0,  1,  1 }, /* enable TCP Fast Open of server */
 	{ "track",               srv_parse_track,               1,  1,  0 }, /* Set the current state of the server, tracking another one */
 	{ "socks4",              srv_parse_socks4,              1,  1,  0 }, /* Set the socks4 proxy of the server*/
-	{ "usesrc",              srv_parse_usesrc,              0,  1,  0 }, /* safe-guard against usesrc without preceding <source> keyword */
-	{ "weight",              srv_parse_weight,              1,  1,  0 }, /* Set the load-balancing weight */
+	{ "usesrc",              srv_parse_usesrc,              0,  1,  1 }, /* safe-guard against usesrc without preceding <source> keyword */
+	{ "weight",              srv_parse_weight,              1,  1,  1 }, /* Set the load-balancing weight */
 	{ NULL, NULL, 0 },
 }};
 

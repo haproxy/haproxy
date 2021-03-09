@@ -1432,8 +1432,31 @@ add server <backend>/<server> [args]*
   restriction is put on the backend which must used a compatible load-balancing
   algorithm with consistent hashing method. A subset of keywords from the
   server config file statement can be used to configure the server behavior.
-  They can also be specified via an existing 'default-server' statement in the
-  backend. For the moment, no keywords are supported.
+  Also note that no settings will be reused from an hypothetical
+  'defaut-server' statement in the same backend.
+
+  Here is the list of the currently supported keywords :
+
+  - backup
+  - disabled
+  - enabled
+  - id
+  - maxconn
+  - maxqueue
+  - minconn
+  - pool-low-conn
+  - pool-max-conn
+  - pool-purge-delay
+  - proxy-v2-options
+  - send-proxy
+  - send-proxy-v2
+  - source
+  - tfo
+  - usesrc
+  - weight
+
+  Their syntax is similar to the server line from the configuration file,
+  please refer to their individual documentation for details.
 
 add ssl crt-list <crtlist> <certificate>
 add ssl crt-list <crtlist> <payload>
