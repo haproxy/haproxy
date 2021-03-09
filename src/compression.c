@@ -655,7 +655,7 @@ static int deflate_end(struct comp_ctx **comp_ctx)
 
 /* config parser for global "tune.zlibmemlevel" */
 static int zlib_parse_global_memlevel(char **args, int section_type, struct proxy *curpx,
-                                      struct proxy *defpx, const char *file, int line,
+                                      const struct proxy *defpx, const char *file, int line,
                                       char **err)
 {
         if (too_many_args(1, args, err, NULL))
@@ -677,7 +677,7 @@ static int zlib_parse_global_memlevel(char **args, int section_type, struct prox
 
 /* config parser for global "tune.zlibwindowsize" */
 static int zlib_parse_global_windowsize(char **args, int section_type, struct proxy *curpx,
-                                        struct proxy *defpx, const char *file, int line,
+                                        const struct proxy *defpx, const char *file, int line,
                                         char **err)
 {
         if (too_many_args(1, args, err, NULL))
