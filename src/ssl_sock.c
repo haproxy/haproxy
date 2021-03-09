@@ -5861,7 +5861,7 @@ struct task *ssl_sock_io_cb(struct task *t, void *context, unsigned int state)
 		ssl_sock_handshake(ctx->conn, CO_FL_SSL_WAIT_HS);
 		if (!(ctx->conn->flags & CO_FL_SSL_WAIT_HS)) {
 			/* handshake completed, leave the bulk queue */
-			_HA_ATOMIC_AND(&tl->state, ~TASK_SELF_WAKING);
+			_HA_ATOMIC_AND(&tl->state, ~TASK_HEAVY);
 		}
 	}
 	/* If we had an error, or the handshake is done and I/O is available,
