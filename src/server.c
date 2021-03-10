@@ -3296,12 +3296,10 @@ int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code
 		if (s->srvrq == srvrq) {
 			resolv_unlink_resolution(s->resolv_requester, 1);
 			srvrq_update_srv_status(s, 1);
-			free(s->hostname);
-			free(s->hostname_dn);
-			s->hostname        = NULL;
-			s->hostname_dn     = NULL;
-			s->hostname_dn_len = 0;
 			memset(&s->addr, 0, sizeof(s->addr));
+			ha_free(&s->hostname);
+			ha_free(&s->hostname_dn);
+			s->hostname_dn_len = 0;
 			s->svc_port = 0;
 		}
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
