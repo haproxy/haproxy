@@ -31,6 +31,7 @@ extern unsigned int resolv_failed_resolutions;
 struct resolvers *find_resolvers_by_id(const char *id);
 struct resolv_srvrq *find_srvrq_by_name(const char *name, struct proxy *px);
 struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn);
+struct resolv_answer_item *find_srvrq_answer_record(const struct resolv_requester *requester);
 
 int resolv_str_to_dn_label(const char *str, int str_len, char *dn, int dn_len);
 int resolv_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len);
