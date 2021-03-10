@@ -1784,6 +1784,10 @@ static enum act_return http_action_track_sc(struct act_rule *rule, struct proxy 
 	opt = ((rule->from == ACT_F_HTTP_REQ) ? SMP_OPT_DIR_REQ : SMP_OPT_DIR_RES) | SMP_OPT_FINAL;
 
 	t = rule->arg.trk_ctr.table.t;
+
+	if (stkctr_entry(&s->stkctr[rule->action]))
+		goto end;
+
 	key = stktable_fetch_key(t, s->be, sess, s, opt, rule->arg.trk_ctr.expr, NULL);
 
 	if (!key)
