@@ -1683,11 +1683,21 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 	return res;
 }
 
+void resolv_purge_resolution_answer_records(struct resolv_resolution *resolution)
+{
+	struct resolv_answer_item *item, *itemback;
+
+	list_for_each_entry_safe(item, itemback, &resolution->response.answer_list, list) {
+		LIST_DEL(&item->list);
+		pool_free(resolv_answer_item_pool, item->ar_item);
+		pool_free(resolv_answer_item_pool, item);
+	}
+}
+
 /* Releases a resolution from its requester(s) and move it back to the pool */
 static void resolv_free_resolution(struct resolv_resolution *resolution)
 {
 	struct resolv_requester *req, *reqback;
-	struct resolv_answer_item *item, *itemback;
 
 	/* clean up configuration */
 	resolv_reset_resolution(resolution);
@@ -1698,16 +1708,7 @@ static void resolv_free_resolution(struct resolv_resolution *resolution)
 		LIST_DEL(&req->list);
 		req->resolution = NULL;
 	}
-
-	list_for_each_entry_safe(item, itemback, &resolution->response.answer_list, list) {
-		LIST_DEL(&item->list);
-		if (item->ar_item) {
-			pool_free(resolv_answer_item_pool, item->ar_item);
-			item->ar_item = NULL;
-		}
-		pool_free(resolv_answer_item_pool, item);
-	}
-
+	resolv_purge_resolution_answer_records(resolution);
 	LIST_DEL(&resolution->list);
 	pool_free(resolv_resolution_pool, resolution);
 }
