@@ -583,6 +583,9 @@ static void resolv_check_response(struct resolv_resolution *res)
 
 		/* clean up obsolete Additional record */
 		if (ar_item && (ar_item->last_seen + resolvers->hold.obsolete / 1000) < now.tv_sec) {
+			/* Cleaning up the AR item will trigger an extra DNS  resolution, except if the SRV
+			 * item is also obsolete.
+			 */
 			pool_free(resolv_answer_item_pool, ar_item);
 			item->ar_item = NULL;
 		}
@@ -655,14 +658,17 @@ static void resolv_check_response(struct resolv_resolution *res)
 
 			/* And update this server, if found (srv is locked here) */
 			if (srv) {
+				/* re-enable DNS resolution for this server by default */
+				srv->flags &= ~SRV_F_NO_RESOLUTION;
+
 				/* Check if an Additional Record is associated to this SRV record.
 				 * Perform some sanity checks too to ensure the record can be used.
 				 * If all fine, we simply pick up the IP address found and associate
-				 * it to the server.
+				 * it to the server. And DNS resolution is disabled for this server.
 				 */
 				if ((item->ar_item != NULL) &&
 				    (item->ar_item->type == DNS_RTYPE_A || item->ar_item->type == DNS_RTYPE_AAAA))
-				    {
+				{
 
 					switch (item->ar_item->type) {
 						case DNS_RTYPE_A:
@@ -674,6 +680,11 @@ static void resolv_check_response(struct resolv_resolution *res)
 					}
 
 					srv->flags |= SRV_F_NO_RESOLUTION;
+
+					/* Unlink A/AAAA resolution for this server if there is an AR item.
+					 * It is usless to perform an extra resolution
+					 */
+					resolv_unlink_resolution(srv->resolv_requester);
 				}
 
 				if (!srv->hostname_dn) {
@@ -688,6 +699,14 @@ static void resolv_check_response(struct resolv_resolution *res)
 					msg = srv_update_fqdn(srv, hostname, "SRV record", 1);
 					if (msg)
 						send_log(srv->proxy, LOG_NOTICE, "%s", msg);
+				}
+
+				if (!(srv->flags & SRV_F_NO_RESOLUTION)) {
+					/* If there is no AR item responsible of the FQDN resolution,
+					 * trigger a dedicated DNS resolution
+					 */
+					if (!srv->resolv_requester || !srv->resolv_requester->resolution)
+						resolv_link_resolution(srv, OBJ_TYPE_SERVER, 1);
 				}
 
 				/* Update the server status */
