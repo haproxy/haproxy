@@ -2494,12 +2494,13 @@ tune.recv_enough <number>
 
 tune.runqueue-depth <number>
   Sets the maximum amount of task that can be processed at once when running
-  tasks. The default value is 40 which tends to show the highest request rates
-  and lowest latencies. Increasing it may incur latency when dealing with I/Os,
-  making it too small can incur extra overhead. When experimenting with much
-  larger values, it may be useful to also enable tune.sched.low-latency and
-  possibly tune.fd.edge-triggered to limit the maximum latency to the lowest
-  possible.
+  tasks. The default value depends on the number of threads but sits between 35
+  and 280, which tend to show the highest request rates and lowest latencies.
+  Increasing it may incur latency when dealing with I/Os, making it too small
+  can incur extra overhead. Higher thread counts benefit from lower values.
+  When experimenting with much larger values, it may be useful to also enable
+  tune.sched.low-latency and possibly tune.fd.edge-triggered to limit the
+  maximum latency to the lowest possible.
 
 tune.sched.low-latency { on | off }
   Enables ('on') or disables ('off') the low-latency task scheduler. By default

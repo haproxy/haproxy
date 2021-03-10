@@ -186,19 +186,12 @@
 #define MAX_ACCEPT 4
 #endif
 
-// the max number of tasks to run at once. Tests have shown the following
-// number of requests/s for 1 to 16 threads (1c1t, 1c2t, 2c4t, 4c8t, 4c16t):
-//
-// rq\thr|    1     2     4     8    16
-// ------+------------------------------
-//     32|  120k  159k  276k  477k  698k
-//     40|  122k  160k  276k  478k  722k
-//     48|  121k  159k  274k  482k  720k
-//     64|  121k  160k  274k  469k  710k
-//    200|  114k  150k  247k  415k  613k
-//
+// The base max number of tasks to run at once to be used when not set by
+// tune.runqueue-depth. It will automatically be divided by the square root
+// of the number of threads for better fairness. As such, 64 threads will
+// use 35 and a single thread will use 280.
 #ifndef RUNQUEUE_DEPTH
-#define RUNQUEUE_DEPTH 40
+#define RUNQUEUE_DEPTH 280
 #endif
 
 // cookie delimiter in "prefix" mode. This character is inserted between the
