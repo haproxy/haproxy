@@ -15650,7 +15650,7 @@ fix_tag_value(<tag>)
   from the tag <tag>. <tag> can be a string or an integer pointing to the
   desired tag. Any integer value is accepted, but only the following strings
   are translated into their integer equivalent: BeginString, BodyLength,
-  MsgType, SenderComID, TargetComID, CheckSum. More tag names can be easily
+  MsgType, SenderCompID, TargetCompID, CheckSum. More tag names can be easily
   added.
 
   Due to current HAProxy design, only the first message sent by the client and

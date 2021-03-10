@@ -77,12 +77,12 @@ static inline unsigned int fix_tagid(const struct ist tag)
 		return FIX_TAG_CheckSum;
 	else if (isteqi(tag, ist("BodyLength")))
 		return FIX_TAG_BodyLength;
-	else if (isteqi(tag, ist("TargetComID")))
-		return FIX_TAG_TargetComID;
+	else if (isteqi(tag, ist("TargetCompID")))
+		return FIX_TAG_TargetCompID;
 	else if (isteqi(tag, ist("BeginString")))
 		return FIX_TAG_BeginString;
-	else if (isteqi(tag, ist("SenderComID")))
-		return FIX_TAG_SenderComID;
+	else if (isteqi(tag, ist("SenderCompID")))
+		return FIX_TAG_SenderCompID;
 
 	return 0;
 }

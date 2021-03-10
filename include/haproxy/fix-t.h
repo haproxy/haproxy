@@ -47,8 +47,8 @@
 #define FIX_TAG_BodyLength     9
 #define FIX_TAG_CheckSum       10
 #define FIX_TAG_MsgType        35
-#define FIX_TAG_SenderComID    49
-#define FIX_TAG_TargetComID    56
+#define FIX_TAG_SenderCompID    49
+#define FIX_TAG_TargetCompID    56
 
 
 #define FIX_MSG_MINSIZE        26 /* Minimal length for a FIX Message */

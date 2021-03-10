@@ -73,8 +73,8 @@ haproxy h1 -conf {
         tcp-request content set-var(req.fix_vsn)    req.payload(0,0),fix_tag_value(BeginString)
         tcp-request content set-var(req.fix_len)    req.payload(0,0),fix_tag_value(BodyLength)
         tcp-request content set-var(req.fix_type)   req.payload(0,0),fix_tag_value(MsgType)
-        tcp-request content set-var(req.fix_sender) req.payload(0,0),fix_tag_value(SenderComID)
-        tcp-request content set-var(req.fix_target) req.payload(0,0),fix_tag_value(TargetComID)
+        tcp-request content set-var(req.fix_sender) req.payload(0,0),fix_tag_value(SenderCompID)
+        tcp-request content set-var(req.fix_target) req.payload(0,0),fix_tag_value(TargetCompID)
         tcp-request content set-var(req.fix_chksum) req.payload(0,0),fix_tag_value(CheckSum)
         tcp-request content reject if ! { var(req.fix_vsn) "FIX.4.4" } || ! { var(req.fix_len) "102" }
         tcp-request content reject if ! { var(req.fix_type) "A" } || ! { var(req.fix_sender) "CLIENT1" }
