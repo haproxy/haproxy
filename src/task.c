@@ -648,6 +648,13 @@ void process_runnable_tasks()
 	if (likely(niced_tasks))
 		max_processed = (max_processed + 3) / 4;
 
+	if (max_processed < sched->rq_total && sched->rq_total <= 2*max_processed) {
+		/* If the run queue exceeds the budget by up to 50%, let's cut it
+		 * into two identical halves to improve latency.
+		 */
+		max_processed = sched->rq_total / 2;
+	}
+
  not_done_yet:
 	max[TL_URGENT] = max[TL_NORMAL] = max[TL_BULK] = 0;
 
