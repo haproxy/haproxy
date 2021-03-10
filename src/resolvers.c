@@ -1187,27 +1187,33 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 		/* Move forward answer_record->data_len for analyzing next
 		 * record in the response */
-		reader += ((answer_record->type == DNS_RTYPE_SRV)
-			   ? offset
-			   : answer_record->data_len);
+		reader += answer_record->data_len;
 
 		/* Lookup to see if we already had this entry */
 		found = 0;
 		list_for_each_entry(tmp_record, &r_res->answer_list, list) {
-			if (tmp_record->type != answer_record->type)
+			struct resolv_answer_item *ar_item;
+
+			if (tmp_record->type != DNS_RTYPE_SRV || !tmp_record->ar_item)
 				continue;
 
-			switch(tmp_record->type) {
+			ar_item = tmp_record->ar_item;
+			if (ar_item->type != answer_record->type ||
+			    len != tmp_record->data_len ||
+			    resolv_hostname_cmp(answer_record->name, tmp_record->target, tmp_record->data_len))
+				continue;
+
+			switch(ar_item->type) {
 				case DNS_RTYPE_A:
 					if (!memcmp(&((struct sockaddr_in *)&answer_record->address)->sin_addr,
-						    &((struct sockaddr_in *)&tmp_record->address)->sin_addr,
+						    &((struct sockaddr_in *)&ar_item->address)->sin_addr,
 						    sizeof(in_addr_t)))
 						found = 1;
 					break;
 
 				case DNS_RTYPE_AAAA:
 					if (!memcmp(&((struct sockaddr_in6 *)&answer_record->address)->sin6_addr,
-						    &((struct sockaddr_in6 *)&tmp_record->address)->sin6_addr,
+						    &((struct sockaddr_in6 *)&ar_item->address)->sin6_addr,
 						    sizeof(struct in6_addr)))
 						found = 1;
 					break;
@@ -1221,7 +1227,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		}
 
 		if (found == 1) {
-			tmp_record->last_seen = now.tv_sec;
+			tmp_record->ar_item->last_seen = now.tv_sec;
 			pool_free(resolv_answer_item_pool, answer_record);
 			answer_record = NULL;
 		}
