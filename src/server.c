@@ -50,16 +50,12 @@ static void srv_update_status(struct server *s);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static void srv_cleanup_connections(struct server *srv);
 
-/* some keywords that are still being parsed using strcmp() and are not
- * registered anywhere. They are used as suggestions for mistyped words.
+/* extra keywords used as value for other arguments. They are used as
+ * suggestions for mistyped words.
  */
-static const char *common_kw_list[] = {
-	"init-addr", "resolvers", "resolve-opts", "resolve-prefer", "ipv4",
-	"ipv6", "resolve-net", "weight", "log-proto", "legacy", "octet-count",
-	"minconn", "maxconn", "maxqueue", "slowstart", "on-error", "fastinter",
-	"fail-check", "sudden-death", "mark-down", "on-marked-down",
-	"shutdown-sessions", "on-marked-up", "shutdown-backup-sessions",
-	"error-limit", "usesrc",
+static const char *extra_kw_list[] = {
+	"ipv4", "ipv6", "legacy", "octet-count",
+	"fastinter", "fail-check", "sudden-death", "mark-down",
 	NULL /* must be last */
 };
 
@@ -328,7 +324,7 @@ static const char *srv_find_best_kw(const char *word)
 		}
 	}
 
-	for (extra = common_kw_list; *extra; extra++) {
+	for (extra = extra_kw_list; *extra; extra++) {
 		make_word_fingerprint(list_sig, *extra);
 		dist = word_fingerprint_distance(word_sig, list_sig);
 		if (dist < best_dist) {
@@ -390,6 +386,119 @@ static int srv_parse_enabled(char **args, int *cur_arg,
 	newsrv->next_state = SRV_ST_RUNNING;
 	newsrv->check.state &= ~CHK_ST_PAUSED;
 	newsrv->check.health = newsrv->check.rise;
+	return 0;
+}
+
+/* Parse the "error-limit" server keyword */
+static int srv_parse_error_limit(char **args, int *cur_arg,
+                                 struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' expects an integer argument.",
+		          args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	newsrv->consecutive_errors_limit = atoi(args[*cur_arg + 1]);
+
+	if (newsrv->consecutive_errors_limit <= 0) {
+		memprintf(err, "%s has to be > 0.",
+		          args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
+/* Parse the "init-addr" server keyword */
+static int srv_parse_init_addr(char **args, int *cur_arg,
+                               struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *p, *end;
+	int done;
+	struct sockaddr_storage sa;
+
+	newsrv->init_addr_methods = 0;
+	memset(&newsrv->init_addr, 0, sizeof(newsrv->init_addr));
+
+	for (p = args[*cur_arg + 1]; *p; p = end) {
+		/* cut on next comma */
+		for (end = p; *end && *end != ','; end++);
+		if (*end)
+			*(end++) = 0;
+
+		memset(&sa, 0, sizeof(sa));
+		if (strcmp(p, "libc") == 0) {
+			done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_LIBC);
+		}
+		else if (strcmp(p, "last") == 0) {
+			done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_LAST);
+		}
+		else if (strcmp(p, "none") == 0) {
+			done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_NONE);
+		}
+		else if (str2ip2(p, &sa, 0)) {
+			if (is_addr(&newsrv->init_addr)) {
+				memprintf(err, "'%s' : initial address already specified, cannot add '%s'.",
+				          args[*cur_arg], p);
+				return ERR_ALERT | ERR_FATAL;
+			}
+			newsrv->init_addr = sa;
+			done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_IP);
+		}
+		else {
+			memprintf(err, "'%s' : unknown init-addr method '%s', supported methods are 'libc', 'last', 'none'.",
+			          args[*cur_arg], p);
+			return ERR_ALERT | ERR_FATAL;
+		}
+		if (!done) {
+			memprintf(err, "'%s' : too many init-addr methods when trying to add '%s'",
+			          args[*cur_arg], p);
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+
+	return 0;
+}
+
+/* Parse the "log-proto" server keyword */
+static int srv_parse_log_proto(char **args, int *cur_arg,
+                               struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (strcmp(args[*cur_arg + 1], "legacy") == 0)
+		newsrv->log_proto = SRV_LOG_PROTO_LEGACY;
+	else if (strcmp(args[*cur_arg + 1], "octet-count") == 0)
+		newsrv->log_proto = SRV_LOG_PROTO_OCTET_COUNTING;
+	else {
+		memprintf(err, "'%s' expects one of 'legacy' or 'octet-count' but got '%s'",
+		          args[*cur_arg], args[*cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
+/* Parse the "maxconn" server keyword */
+static int srv_parse_maxconn(char **args, int *cur_arg,
+                             struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->maxconn = atol(args[*cur_arg + 1]);
+	return 0;
+}
+
+/* Parse the "maxqueue" server keyword */
+static int srv_parse_maxqueue(char **args, int *cur_arg,
+                              struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->maxqueue = atol(args[*cur_arg + 1]);
+	return 0;
+}
+
+/* Parse the "minconn" server keyword */
+static int srv_parse_minconn(char **args, int *cur_arg,
+                             struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	newsrv->minconn = atol(args[*cur_arg + 1]);
 	return 0;
 }
 
@@ -690,6 +799,58 @@ static int srv_parse_observe(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "on-error" server keyword */
+static int srv_parse_on_error(char **args, int *cur_arg,
+                              struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (strcmp(args[*cur_arg + 1], "fastinter") == 0)
+		newsrv->onerror = HANA_ONERR_FASTINTER;
+	else if (strcmp(args[*cur_arg + 1], "fail-check") == 0)
+		newsrv->onerror = HANA_ONERR_FAILCHK;
+	else if (strcmp(args[*cur_arg + 1], "sudden-death") == 0)
+		newsrv->onerror = HANA_ONERR_SUDDTH;
+	else if (strcmp(args[*cur_arg + 1], "mark-down") == 0)
+		newsrv->onerror = HANA_ONERR_MARKDWN;
+	else {
+		memprintf(err, "'%s' expects one of 'fastinter', "
+		          "'fail-check', 'sudden-death' or 'mark-down' but got '%s'",
+		          args[*cur_arg], args[*cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
+/* Parse the "on-marked-down" server keyword */
+static int srv_parse_on_marked_down(char **args, int *cur_arg,
+                                    struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (strcmp(args[*cur_arg + 1], "shutdown-sessions") == 0)
+		newsrv->onmarkeddown = HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS;
+	else {
+		memprintf(err, "'%s' expects 'shutdown-sessions' but got '%s'",
+		          args[*cur_arg], args[*cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
+/* Parse the "on-marked-up" server keyword */
+static int srv_parse_on_marked_up(char **args, int *cur_arg,
+                                  struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (strcmp(args[*cur_arg + 1], "shutdown-backup-sessions") == 0)
+		newsrv->onmarkedup = HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS;
+	else {
+		memprintf(err, "'%s' expects 'shutdown-backup-sessions' but got '%s'",
+		          args[*cur_arg], args[*cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 /* Parse the "redir" server keyword */
 static int srv_parse_redir(char **args, int *cur_arg,
                            struct proxy *curproxy, struct server *newsrv, char **err)
@@ -709,6 +870,120 @@ static int srv_parse_redir(char **args, int *cur_arg,
 	return 0;
 }
 
+/* Parse the "resolvers" server keyword */
+static int srv_parse_resolvers(char **args, int *cur_arg,
+                           struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	free(newsrv->resolvers_id);
+	newsrv->resolvers_id = strdup(args[*cur_arg + 1]);
+	return 0;
+}
+
+/* Parse the "resolve-net" server keyword */
+static int srv_parse_resolve_net(char **args, int *cur_arg,
+                                 struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *p, *e;
+	unsigned char mask;
+	struct resolv_options *opt;
+
+	if (!args[*cur_arg + 1] || args[*cur_arg + 1][0] == '\0') {
+		memprintf(err, "'%s' expects a list of networks.",
+		          args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	opt = &newsrv->resolv_opts;
+
+	/* Split arguments by comma, and convert it from ipv4 or ipv6
+	 * string network in in_addr or in6_addr.
+	 */
+	p = args[*cur_arg + 1];
+	e = p;
+	while (*p != '\0') {
+		/* If no room available, return error. */
+		if (opt->pref_net_nb >= SRV_MAX_PREF_NET) {
+			memprintf(err, "'%s' exceed %d networks.",
+			          args[*cur_arg], SRV_MAX_PREF_NET);
+			return ERR_ALERT | ERR_FATAL;
+		}
+		/* look for end or comma. */
+		while (*e != ',' && *e != '\0')
+			e++;
+		if (*e == ',') {
+			*e = '\0';
+			e++;
+		}
+		if (str2net(p, 0, &opt->pref_net[opt->pref_net_nb].addr.in4,
+		                  &opt->pref_net[opt->pref_net_nb].mask.in4)) {
+			/* Try to convert input string from ipv4 or ipv6 network. */
+			opt->pref_net[opt->pref_net_nb].family = AF_INET;
+		} else if (str62net(p, &opt->pref_net[opt->pref_net_nb].addr.in6,
+		                     &mask)) {
+			/* Try to convert input string from ipv6 network. */
+			len2mask6(mask, &opt->pref_net[opt->pref_net_nb].mask.in6);
+			opt->pref_net[opt->pref_net_nb].family = AF_INET6;
+		} else {
+			/* All network conversions fail, return error. */
+			memprintf(err, "'%s' invalid network '%s'.",
+			          args[*cur_arg], p);
+			return ERR_ALERT | ERR_FATAL;
+		}
+		opt->pref_net_nb++;
+		p = e;
+	}
+
+	return 0;
+}
+
+/* Parse the "resolve-opts" server keyword */
+static int srv_parse_resolve_opts(char **args, int *cur_arg,
+                                  struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	char *p, *end;
+
+	for (p = args[*cur_arg + 1]; *p; p = end) {
+		/* cut on next comma */
+		for (end = p; *end && *end != ','; end++);
+		if (*end)
+			*(end++) = 0;
+
+		if (strcmp(p, "allow-dup-ip") == 0) {
+			newsrv->resolv_opts.accept_duplicate_ip = 1;
+		}
+		else if (strcmp(p, "ignore-weight") == 0) {
+			newsrv->resolv_opts.ignore_weight = 1;
+		}
+		else if (strcmp(p, "prevent-dup-ip") == 0) {
+			newsrv->resolv_opts.accept_duplicate_ip = 0;
+		}
+		else {
+			memprintf(err, "'%s' : unknown resolve-opts option '%s', supported methods are 'allow-dup-ip', 'ignore-weight', and 'prevent-dup-ip'.",
+			          args[*cur_arg], p);
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
+
+	return 0;
+}
+
+/* Parse the "resolve-prefer" server keyword */
+static int srv_parse_resolve_prefer(char **args, int *cur_arg,
+                                    struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	if (strcmp(args[*cur_arg + 1], "ipv4") == 0)
+		newsrv->resolv_opts.family_prio = AF_INET;
+	else if (strcmp(args[*cur_arg + 1], "ipv6") == 0)
+		newsrv->resolv_opts.family_prio = AF_INET6;
+	else {
+		memprintf(err, "'%s' expects either ipv4 or ipv6 as argument.",
+		          args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 /* Parse the "send-proxy" server keyword */
 static int srv_parse_send_proxy(char **args, int *cur_arg,
                                 struct proxy *curproxy, struct server *newsrv, char **err)
@@ -723,6 +998,33 @@ static int srv_parse_send_proxy_v2(char **args, int *cur_arg,
 	return srv_enable_pp_flags(newsrv, SRV_PP_V2);
 }
 
+/* Parse the "slowstart" server keyword */
+static int srv_parse_slowstart(char **args, int *cur_arg,
+                               struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	/* slowstart is stored in seconds */
+	unsigned int val;
+	const char *time_err = parse_time_err(args[*cur_arg + 1], &val, TIME_UNIT_MS);
+
+	if (time_err == PARSE_TIME_OVER) {
+		memprintf(err, "overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).",
+		          args[*cur_arg+1], args[*cur_arg], newsrv->id);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	else if (time_err == PARSE_TIME_UNDER) {
+		memprintf(err, "underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.",
+		          args[*cur_arg+1], args[*cur_arg], newsrv->id);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	else if (time_err) {
+		memprintf(err, "unexpected character '%c' in 'slowstart' argument of server %s.",
+		          *time_err, newsrv->id);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	newsrv->slowstart = (val + 999) / 1000;
+
+	return 0;
+}
 
 /* Parse the "source" server keyword */
 static int srv_parse_source(char **args, int *cur_arg,
@@ -934,6 +1236,30 @@ static int srv_parse_socks4(char **args, int *cur_arg,
 static int srv_parse_tfo(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	newsrv->flags |= SRV_F_FASTOPEN;
+	return 0;
+}
+
+/* parse the "usesrc" server keyword */
+static int srv_parse_usesrc(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	memprintf(err, "'%s' only allowed after a '%s' statement.",
+	          "usesrc", "source");
+	return ERR_ALERT | ERR_FATAL;
+}
+
+/* parse the "weight" server keyword */
+static int srv_parse_weight(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	int w;
+
+	w = atol(args[*cur_arg + 1]);
+	if (w < 0 || w > SRV_UWGHT_MAX) {
+		memprintf(err, "weight of server %s is not within 0 and %d (%d).",
+		          newsrv->id, SRV_UWGHT_MAX, w);
+		return ERR_ALERT | ERR_FATAL;
+	}
+	newsrv->uweight = newsrv->iweight = w;
+
 	return 0;
 }
 
@@ -1304,8 +1630,14 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "cookie",              srv_parse_cookie,              1,  1 }, /* Assign a cookie to the server */
 	{ "disabled",            srv_parse_disabled,            0,  1 }, /* Start the server in 'disabled' state */
 	{ "enabled",             srv_parse_enabled,             0,  1 }, /* Start the server in 'enabled' state */
+	{ "error-limit",         srv_parse_error_limit,         1,  1 }, /* Configure the consecutive count of check failures to consider a server on error */
 	{ "id",                  srv_parse_id,                  1,  0 }, /* set id# of server */
+	{ "init-addr",           srv_parse_init_addr,           1,  1 }, /* */
+	{ "log-proto",           srv_parse_log_proto,           1,  1 }, /* Set the protocol for event messages, only relevant in a ring section */
+	{ "maxconn",             srv_parse_maxconn,             1,  1 }, /* Set the max number of concurrent connection */
+	{ "maxqueue",            srv_parse_maxqueue,            1,  1 }, /* Set the max number of connection to put in queue */
 	{ "max-reuse",           srv_parse_max_reuse,           1,  1 }, /* Set the max number of requests on a connection, -1 means unlimited */
+	{ "minconn",             srv_parse_minconn,             1,  1 }, /* Enable a dynamic maxconn limit */
 	{ "namespace",           srv_parse_namespace,           1,  1 }, /* Namespace the server socket belongs to (if supported) */
 	{ "no-backup",           srv_parse_no_backup,           0,  1 }, /* Flag as non-backup server */
 	{ "no-send-proxy",       srv_parse_no_send_proxy,       0,  1 }, /* Disable use of PROXY V1 protocol */
@@ -1313,19 +1645,29 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "no-tfo",              srv_parse_no_tfo,              0,  1 }, /* Disable use of TCP Fast Open */
 	{ "non-stick",           srv_parse_non_stick,           0,  1 }, /* Disable stick-table persistence */
 	{ "observe",             srv_parse_observe,             1,  1 }, /* Enables health adjusting based on observing communication with the server */
+	{ "on-error",            srv_parse_on_error,            1,  1 }, /* Configure the action on check failure */
+	{ "on-marked-down",      srv_parse_on_marked_down,      1,  1 }, /* Configure the action when a server is marked down */
+	{ "on-marked-up",        srv_parse_on_marked_up,        1,  1 }, /* Configure the action when a server is marked up */
 	{ "pool-low-conn",       srv_parse_pool_low_conn,       1,  1 }, /* Set the min number of orphan idle connecbefore being allowed to pick from other threads */
 	{ "pool-max-conn",       srv_parse_pool_max_conn,       1,  1 }, /* Set the max number of orphan idle connections, -1 means unlimited */
 	{ "pool-purge-delay",    srv_parse_pool_purge_delay,    1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 1s */
 	{ "proto",               srv_parse_proto,               1,  1 }, /* Set the proto to use for all outgoing connections */
 	{ "proxy-v2-options",    srv_parse_proxy_v2_options,    1,  1 }, /* options for send-proxy-v2 */
 	{ "redir",               srv_parse_redir,               1,  1 }, /* Enable redirection mode */
+	{ "resolve-net",         srv_parse_resolve_net,         1,  1 }, /* Set the prefered network range for name resolution */
+	{ "resolve-opts",        srv_parse_resolve_opts,        1,  1 }, /* Set options for name resolution */
+	{ "resolve-prefer",      srv_parse_resolve_prefer,      1,  1 }, /* Set the prefered family for name resolution */
+	{ "resolvers",           srv_parse_resolvers,           1,  1 }, /* Configure the resolver to use for name resolution */
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1 }, /* Enforce use of PROXY V1 protocol */
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1 }, /* Enforce use of PROXY V2 protocol */
+	{ "slowstart",           srv_parse_slowstart,           1,  1 }, /* Set the warm-up timer for a previously failed server */
 	{ "source",              srv_parse_source,             -1,  1 }, /* Set the source address to be used to connect to the server */
 	{ "stick",               srv_parse_stick,               0,  1 }, /* Enable stick-table persistence */
 	{ "tfo",                 srv_parse_tfo,                 0,  1 }, /* enable TCP Fast Open of server */
 	{ "track",               srv_parse_track,               1,  1 }, /* Set the current state of the server, tracking another one */
 	{ "socks4",              srv_parse_socks4,              1,  1 }, /* Set the socks4 proxy of the server*/
+	{ "usesrc",              srv_parse_usesrc,              0,  1 }, /* safe-guard against usesrc without preceding <source> keyword */
+	{ "weight",              srv_parse_weight,              1,  1 }, /* Set the load-balancing weight */
 	{ NULL, NULL, 0 },
 }};
 
@@ -2028,7 +2370,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 	const char *err = NULL;
 	char *errmsg = NULL;
 	int err_code = 0;
-	unsigned val;
 	char *fqdn = NULL;
 
 	if (strcmp(args[0], "server") == 0         ||
@@ -2198,343 +2539,60 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		}
 
 		while (*args[cur_arg]) {
-			if (strcmp(args[cur_arg], "init-addr") == 0) {
-				char *p, *end;
-				int done;
-				struct sockaddr_storage sa;
+			struct srv_kw *kw;
+			const char *best;
 
-				newsrv->init_addr_methods = 0;
-				memset(&newsrv->init_addr, 0, sizeof(newsrv->init_addr));
+			kw = srv_find_kw(args[cur_arg]);
+			if (kw) {
+				char *err = NULL;
+				int code;
 
-				for (p = args[cur_arg + 1]; *p; p = end) {
-					/* cut on next comma */
-					for (end = p; *end && *end != ','; end++);
-					if (*end)
-						*(end++) = 0;
-
-					memset(&sa, 0, sizeof(sa));
-					if (strcmp(p, "libc") == 0) {
-						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_LIBC);
-					}
-					else if (strcmp(p, "last") == 0) {
-						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_LAST);
-					}
-					else if (strcmp(p, "none") == 0) {
-						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_NONE);
-					}
-					else if (str2ip2(p, &sa, 0)) {
-						if (is_addr(&newsrv->init_addr)) {
-							ha_alert("parsing [%s:%d]: '%s' : initial address already specified, cannot add '%s'.\n",
-							      file, linenum, args[cur_arg], p);
-							err_code |= ERR_ALERT | ERR_FATAL;
-							goto out;
-						}
-						newsrv->init_addr = sa;
-						done = srv_append_initaddr(&newsrv->init_addr_methods, SRV_IADDR_IP);
-					}
-					else {
-						ha_alert("parsing [%s:%d]: '%s' : unknown init-addr method '%s', supported methods are 'libc', 'last', 'none'.\n",
-							file, linenum, args[cur_arg], p);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					if (!done) {
-						ha_alert("parsing [%s:%d]: '%s' : too many init-addr methods when trying to add '%s'\n",
-							file, linenum, args[cur_arg], p);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-				}
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "resolvers") == 0) {
-				free(newsrv->resolvers_id);
-				newsrv->resolvers_id = strdup(args[cur_arg + 1]);
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "resolve-opts") == 0) {
-				char *p, *end;
-
-				for (p = args[cur_arg + 1]; *p; p = end) {
-					/* cut on next comma */
-					for (end = p; *end && *end != ','; end++);
-					if (*end)
-						*(end++) = 0;
-
-					if (strcmp(p, "allow-dup-ip") == 0) {
-						newsrv->resolv_opts.accept_duplicate_ip = 1;
-					}
-					else if (strcmp(p, "ignore-weight") == 0) {
-						newsrv->resolv_opts.ignore_weight = 1;
-					}
-					else if (strcmp(p, "prevent-dup-ip") == 0) {
-						newsrv->resolv_opts.accept_duplicate_ip = 0;
-					}
-					else {
-						ha_alert("parsing [%s:%d]: '%s' : unknown resolve-opts option '%s', supported methods are 'allow-dup-ip', 'ignore-weight', and 'prevent-dup-ip'.\n",
-								file, linenum, args[cur_arg], p);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-				}
-
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "resolve-prefer") == 0) {
-				if (strcmp(args[cur_arg + 1], "ipv4") == 0)
-					newsrv->resolv_opts.family_prio = AF_INET;
-				else if (strcmp(args[cur_arg + 1], "ipv6") == 0)
-					newsrv->resolv_opts.family_prio = AF_INET6;
-				else {
-					ha_alert("parsing [%s:%d]: '%s' expects either ipv4 or ipv6 as argument.\n",
-						file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "resolve-net") == 0) {
-				char *p, *e;
-				unsigned char mask;
-				struct resolv_options *opt;
-
-				if (!args[cur_arg + 1] || args[cur_arg + 1][0] == '\0') {
-					ha_alert("parsing [%s:%d]: '%s' expects a list of networks.\n",
-					      file, linenum, args[cur_arg]);
+				if (!kw->parse) {
+					ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
+					         file, linenum, args[0], args[1], args[cur_arg]);
+					if (kw->skip != -1)
+						cur_arg += 1 + kw->skip ;
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 
-				opt = &newsrv->resolv_opts;
-
-				/* Split arguments by comma, and convert it from ipv4 or ipv6
-				 * string network in in_addr or in6_addr.
-				 */
-				p = args[cur_arg + 1];
-				e = p;
-				while (*p != '\0') {
-					/* If no room available, return error. */
-					if (opt->pref_net_nb >= SRV_MAX_PREF_NET) {
-						ha_alert("parsing [%s:%d]: '%s' exceed %d networks.\n",
-						      file, linenum, args[cur_arg], SRV_MAX_PREF_NET);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					/* look for end or comma. */
-					while (*e != ',' && *e != '\0')
-						e++;
-					if (*e == ',') {
-						*e = '\0';
-						e++;
-					}
-					if (str2net(p, 0, &opt->pref_net[opt->pref_net_nb].addr.in4,
-					                  &opt->pref_net[opt->pref_net_nb].mask.in4)) {
-						/* Try to convert input string from ipv4 or ipv6 network. */
-						opt->pref_net[opt->pref_net_nb].family = AF_INET;
-					} else if (str62net(p, &opt->pref_net[opt->pref_net_nb].addr.in6,
-					                     &mask)) {
-						/* Try to convert input string from ipv6 network. */
-						len2mask6(mask, &opt->pref_net[opt->pref_net_nb].mask.in6);
-						opt->pref_net[opt->pref_net_nb].family = AF_INET6;
-					} else {
-						/* All network conversions fail, return error. */
-						ha_alert("parsing [%s:%d]: '%s': invalid network '%s'.\n",
-						      file, linenum, args[cur_arg], p);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-					opt->pref_net_nb++;
-					p = e;
-				}
-
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "weight") == 0) {
-				int w;
-				w = atol(args[cur_arg + 1]);
-				if (w < 0 || w > SRV_UWGHT_MAX) {
-					ha_alert("parsing [%s:%d] : weight of server %s is not within 0 and %d (%d).\n",
-					      file, linenum, newsrv->id, SRV_UWGHT_MAX, w);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				newsrv->uweight = newsrv->iweight = w;
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "log-proto") == 0) {
-				if (strcmp(args[cur_arg + 1], "legacy") == 0)
-					newsrv->log_proto = SRV_LOG_PROTO_LEGACY;
-				else if (strcmp(args[cur_arg + 1], "octet-count") == 0)
-					newsrv->log_proto = SRV_LOG_PROTO_OCTET_COUNTING;
-				else {
-					ha_alert("parsing [%s:%d]: '%s' expects one of 'legacy' or "
-						"'octet-count' but got '%s'\n",
-						file, linenum, args[cur_arg], args[cur_arg + 1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "minconn") == 0) {
-				newsrv->minconn = atol(args[cur_arg + 1]);
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "maxconn") == 0) {
-				newsrv->maxconn = atol(args[cur_arg + 1]);
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "maxqueue") == 0) {
-				newsrv->maxqueue = atol(args[cur_arg + 1]);
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "slowstart") == 0) {
-				/* slowstart is stored in seconds */
-				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
-
-				if (err == PARSE_TIME_OVER) {
-					ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to <%s> of server %s, maximum value is 2147483647 ms (~24.8 days).\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (err == PARSE_TIME_UNDER) {
-					ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to <%s> of server %s, minimum non-null value is 1 ms.\n",
-						 file, linenum, args[cur_arg+1], args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				else if (err) {
-					ha_alert("parsing [%s:%d] : unexpected character '%c' in 'slowstart' argument of server %s.\n",
-					      file, linenum, *err, newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				newsrv->slowstart = (val + 999) / 1000;
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "on-error") == 0) {
-				if (strcmp(args[cur_arg + 1], "fastinter") == 0)
-					newsrv->onerror = HANA_ONERR_FASTINTER;
-				else if (strcmp(args[cur_arg + 1], "fail-check") == 0)
-					newsrv->onerror = HANA_ONERR_FAILCHK;
-				else if (strcmp(args[cur_arg + 1], "sudden-death") == 0)
-					newsrv->onerror = HANA_ONERR_SUDDTH;
-				else if (strcmp(args[cur_arg + 1], "mark-down") == 0)
-					newsrv->onerror = HANA_ONERR_MARKDWN;
-				else {
-					ha_alert("parsing [%s:%d]: '%s' expects one of 'fastinter', "
-						"'fail-check', 'sudden-death' or 'mark-down' but got '%s'\n",
-						file, linenum, args[cur_arg], args[cur_arg + 1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "on-marked-down") == 0) {
-				if (strcmp(args[cur_arg + 1], "shutdown-sessions") == 0)
-					newsrv->onmarkeddown = HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS;
-				else {
-					ha_alert("parsing [%s:%d]: '%s' expects 'shutdown-sessions' but got '%s'\n",
-						file, linenum, args[cur_arg], args[cur_arg + 1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "on-marked-up") == 0) {
-				if (strcmp(args[cur_arg + 1], "shutdown-backup-sessions") == 0)
-					newsrv->onmarkedup = HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS;
-				else {
-					ha_alert("parsing [%s:%d]: '%s' expects 'shutdown-backup-sessions' but got '%s'\n",
-						file, linenum, args[cur_arg], args[cur_arg + 1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "error-limit") == 0) {
-				if (!*args[cur_arg + 1]) {
-					ha_alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
-						file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				newsrv->consecutive_errors_limit = atoi(args[cur_arg + 1]);
-
-				if (newsrv->consecutive_errors_limit <= 0) {
-					ha_alert("parsing [%s:%d]: %s has to be > 0.\n",
-						file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				cur_arg += 2;
-			}
-			else if (strcmp(args[cur_arg], "usesrc") == 0) {  /* address to use outside: needs "source" first */
-				ha_alert("parsing [%s:%d] : '%s' only allowed after a '%s' statement.\n",
-				      file, linenum, "usesrc", "source");
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			else {
-				struct srv_kw *kw;
-				const char *best;
-
-				kw = srv_find_kw(args[cur_arg]);
-				if (kw) {
-					char *err = NULL;
-					int code;
-
-					if (!kw->parse) {
-						ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
-						      file, linenum, args[0], args[1], args[cur_arg]);
-						if (kw->skip != -1)
-							cur_arg += 1 + kw->skip ;
-						err_code |= ERR_ALERT | ERR_FATAL;
-						goto out;
-					}
-
-					if (defsrv && !kw->default_ok) {
-						ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not accepted in default-server sections.\n",
-						      file, linenum, args[0], args[1], args[cur_arg]);
-						if (kw->skip != -1)
-							cur_arg += 1 + kw->skip ;
-						err_code |= ERR_ALERT;
-						continue;
-					}
-
-					code = kw->parse(args, &cur_arg, curproxy, newsrv, &err);
-					err_code |= code;
-
-					if (code) {
-						display_parser_err(file, linenum, args, cur_arg, code, &err);
-						if (code & ERR_FATAL) {
-							free(err);
-							if (kw->skip != -1)
-								cur_arg += 1 + kw->skip;
-							goto out;
-						}
-					}
-					free(err);
+				if (defsrv && !kw->default_ok) {
+					ha_alert("parsing [%s:%d] : '%s %s' : '%s' option is not accepted in default-server sections.\n",
+					         file, linenum, args[0], args[1], args[cur_arg]);
 					if (kw->skip != -1)
 						cur_arg += 1 + kw->skip;
+					err_code |= ERR_ALERT;
 					continue;
 				}
 
-				best = srv_find_best_kw(args[cur_arg]);
-				if (best)
-					ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'; did you mean '%s' maybe ?\n",
-						 file, linenum, args[0], args[1], args[cur_arg], best);
-				else
-					ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.\n",
-						 file, linenum, args[0], args[1], args[cur_arg]);
+				code = kw->parse(args, &cur_arg, curproxy, newsrv, &err);
+				err_code |= code;
 
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
+				if (code) {
+					display_parser_err(file, linenum, args, cur_arg, code, &err);
+					if (code & ERR_FATAL) {
+						free(err);
+						if (kw->skip != -1)
+							cur_arg += 1 + kw->skip;
+						goto out;
+					}
+				}
+				free(err);
+				if (kw->skip != -1)
+					cur_arg += 1 + kw->skip;
+				continue;
 			}
+
+			best = srv_find_best_kw(args[cur_arg]);
+			if (best)
+				ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'; did you mean '%s' maybe ?\n",
+				         file, linenum, args[0], args[1], args[cur_arg], best);
+			else
+				ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.\n",
+				         file, linenum, args[0], args[1], args[cur_arg]);
+
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 
 		if (!defsrv)
