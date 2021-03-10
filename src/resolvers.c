@@ -659,8 +659,8 @@ static void resolv_check_response(struct resolv_resolution *res)
 						send_log(srv->proxy, LOG_NOTICE, "%s", msg);
 				}
 
-				/* now we have an IP address associated to this server, we can update its status */
-				snr_update_srv_status(srv, 0);
+				/* Update the server status */
+				snr_update_srv_status(srv, (srv->addr.ss_family != AF_INET && srv->addr.ss_family != AF_INET6));
 
 				srv->svc_port = item->port;
 				srv->flags   &= ~SRV_F_MAPPORTS;
