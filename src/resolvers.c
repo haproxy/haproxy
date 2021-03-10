@@ -571,13 +571,13 @@ static void resolv_check_response(struct resolv_resolution *res)
 					if (srv->srvrq == srvrq && srv->svc_port == item->port &&
 					    item->data_len == srv->hostname_dn_len &&
 					    !resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
+						resolv_unlink_resolution(srv->resolv_requester);
 						snr_update_srv_status(srv, 1);
 						ha_free(&srv->hostname);
 						ha_free(&srv->hostname_dn);
 						srv->hostname_dn_len = 0;
 						memset(&srv->addr, 0, sizeof(srv->addr));
 						srv->svc_port = 0;
-						resolv_unlink_resolution(srv->resolv_requester);
 					}
 					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				}
