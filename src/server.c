@@ -3293,8 +3293,8 @@ int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 	if (!s)
 		return 1;
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
-	snr_update_srv_status(s, 1);
-	memset(&s->addr, 0, sizeof(s->addr));
+	if (!snr_update_srv_status(s, 1))
+		memset(&s->addr, 0, sizeof(s->addr));
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 	return 1;
 }
