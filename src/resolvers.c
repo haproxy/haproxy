@@ -573,7 +573,7 @@ int resolv_read_name(unsigned char *buffer, unsigned char *bufend,
 static void resolv_check_response(struct resolv_resolution *res)
 {
 	struct resolvers   *resolvers = res->resolvers;
-	struct resolv_requester   *req, *reqback;
+	struct resolv_requester   *req;
 	struct resolv_answer_item *item, *itemback;
 	struct server          *srv;
 	struct resolv_srvrq       *srvrq;
@@ -595,7 +595,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 			if (item->type != DNS_RTYPE_SRV)
 				goto rm_obselete_item;
 
-			list_for_each_entry_safe(req, reqback, &res->requesters, list) {
+			list_for_each_entry(req, &res->requesters, list) {
 				if ((srvrq = objt_resolv_srvrq(req->owner)) == NULL)
 					continue;
 
@@ -631,7 +631,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 			continue;
 
 		/* Now process SRV records */
-		list_for_each_entry_safe(req, reqback, &res->requesters, list) {
+		list_for_each_entry(req, &res->requesters, list) {
 			if ((srvrq = objt_resolv_srvrq(req->owner)) == NULL)
 				continue;
 
