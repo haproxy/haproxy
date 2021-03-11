@@ -3294,7 +3294,7 @@ int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code
 	for (s = srvrq->proxy->srv; s != NULL; s = s->next) {
 		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 		if (s->srvrq == srvrq) {
-			resolv_unlink_resolution(s->resolv_requester);
+			resolv_unlink_resolution(s->resolv_requester, 1);
 			srvrq_update_srv_status(s, 1);
 			free(s->hostname);
 			free(s->hostname_dn);
@@ -3448,7 +3448,7 @@ int srv_set_fqdn(struct server *srv, const char *hostname, int resolv_locked)
 	    strcmp(resolution->hostname_dn, hostname_dn) == 0)
 		goto end;
 
-	resolv_unlink_resolution(srv->resolv_requester);
+	resolv_unlink_resolution(srv->resolv_requester, 0);
 
 	free(srv->hostname);
 	free(srv->hostname_dn);
