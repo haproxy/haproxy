@@ -113,7 +113,7 @@ struct resolv_answer_item {
 	uint16_t        data_len;                    /* number of bytes in target below */
 	struct sockaddr address;                     /* IPv4 or IPv6, network format */
 	char            target[DNS_MAX_NAME_SIZE+1]; /* Response data: SRV or CNAME type target */
-	time_t          last_seen;                   /* When was the answer was last seen */
+	unsigned int    last_seen;                   /* When was the answer was last seen */
 	struct resolv_answer_item *ar_item;          /* pointer to a RRset from the additional section, if exists */
 	struct list     list;
 };
