@@ -69,8 +69,6 @@ int quic_session_accept(struct connection *cli_conn)
 	if (conn_complete_session(cli_conn) >= 0)
 		return 1;
 
-	return 0;
-
  out_free_sess:
 	/* prevent call to listener_release during session_free. It will be
 	* done below, for all errors. */
@@ -83,7 +81,7 @@ int quic_session_accept(struct connection *cli_conn)
 	conn_free(cli_conn);
  out:
 
-	return 0;
+	return -1;
 }
 
 /*
