@@ -3295,7 +3295,7 @@ int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code
 		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 		if (s->srvrq == srvrq) {
 			resolv_unlink_resolution(s->resolv_requester);
-			snr_update_srv_status(s, 1);
+			srvrq_update_srv_status(s, 1);
 			free(s->hostname);
 			free(s->hostname_dn);
 			s->hostname        = NULL;

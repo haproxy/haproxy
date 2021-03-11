@@ -606,7 +606,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 					    item->data_len == srv->hostname_dn_len &&
 					    !resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
 						resolv_unlink_resolution(srv->resolv_requester);
-						snr_update_srv_status(srv, 1);
+						srvrq_update_srv_status(srv, 1);
 						ha_free(&srv->hostname);
 						ha_free(&srv->hostname_dn);
 						srv->hostname_dn_len = 0;
@@ -710,7 +710,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 				}
 
 				/* Update the server status */
-				snr_update_srv_status(srv, (srv->addr.ss_family != AF_INET && srv->addr.ss_family != AF_INET6));
+				srvrq_update_srv_status(srv, (srv->addr.ss_family != AF_INET && srv->addr.ss_family != AF_INET6));
 
 				srv->svc_port = item->port;
 				srv->flags   &= ~SRV_F_MAPPORTS;
