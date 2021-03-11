@@ -2510,6 +2510,50 @@ error:
 	return 1;
 }
 
+
+/* parsing function of 'abort ssl ca-file' */
+static int cli_parse_abort_cafile(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *err = NULL;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "'abort ssl ca-file' expects a filename\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't abort!\nOperations on certificates are currently locked!\n");
+
+	if (!cafile_transaction.path) {
+		memprintf(&err, "No ongoing transaction!\n");
+		goto error;
+	}
+
+	if (strcmp(cafile_transaction.path, args[3]) != 0) {
+		memprintf(&err, "The ongoing transaction is about '%s' but you are trying to abort a transaction for '%s'\n", cafile_transaction.path, args[3]);
+		goto error;
+	}
+
+	/* Only free the uncommitted cafile_entry here, because the SNI and instances were not generated yet */
+	ssl_store_delete_cafile_entry(cafile_transaction.new_cafile_entry);
+	cafile_transaction.new_cafile_entry = NULL;
+	cafile_transaction.old_cafile_entry = NULL;
+	ha_free(&cafile_transaction.path);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+	err = memprintf(&err, "Transaction aborted for certificate '%s'!\n", args[3]);
+	return cli_dynmsg(appctx, LOG_NOTICE, err);
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+	return cli_dynerr(appctx, err);
+}
+
 /* release function of the `commit ssl ca-file' command, free things and unlock the spinlock */
 static void cli_release_commit_cafile(struct appctx *appctx)
 {
@@ -2549,6 +2593,7 @@ static struct cli_kw_list cli_kws = {{ },{
 
 	{ { "set", "ssl", "ca-file", NULL },    "set ssl ca-file <cafile> <payload>      : replace a CA file",                                                     cli_parse_set_cafile, NULL, NULL },
 	{ { "commit", "ssl", "ca-file", NULL }, "commit ssl ca-file <cafile>             : commit a CA file",                                                      cli_parse_commit_cafile, cli_io_handler_commit_cafile, cli_release_commit_cafile },
+	{ { "abort", "ssl", "ca-file", NULL },  "abort ssl ca-file <cafile>              : abort a transaction for a CA file",                                     cli_parse_abort_cafile, NULL, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 

@@ -1,6 +1,7 @@
 #REGTEST_TYPE=devel
 
 # This reg-test uses the "set ssl ca-file" command to update a CA file over the CLI.
+# It also tests the "abort ssl ca-file" command.
 #
 # It is based on two CA certificates, set_cafile_interCA1.crt and set_cafile_interCA2.crt,
 # and a client certificate that was signed with set_cafile_interCA1.crt (set_cafile_client.pem)
@@ -19,7 +20,7 @@ varnishtest "Test the 'set ssl ca-file' feature of the CLI"
 #REQUIRE_BINARIES=socat
 feature ignore_unknown_macro
 
-server s1 -repeat 3 {
+server s1 -repeat 4 {
   rxreq
   txresp
 } -start
@@ -66,6 +67,27 @@ client c1 -connect ${h1_clearlst_sock} {
     # unable to verify the client certificate
     expect resp.http.X-SSL-Client-Verify == 21
 } -run
+
+# Set a new ca-file without committing it and check that the new ca-file is not taken into account
+shell {
+    printf "set ssl ca-file ${testdir}/set_cafile_ca2.crt <<\n$(cat ${testdir}/set_cafile_ca1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+}
+
+# This connection should still fail for the same reasons as previously
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    # unable to verify the client certificate
+    expect resp.http.X-SSL-Client-Verify == 21
+} -run
+
+haproxy h1 -cli {
+    send "abort ssl ca-file ${testdir}/set_cafile_ca2.crt"
+    expect ~ "Transaction aborted for certificate '${testdir}/set_cafile_ca2.crt'!"
+    send "commit ssl ca-file ${testdir}/set_cafile_ca2.crt"
+    expect ~ "No ongoing transaction!"
+}
 
 
 # Update the bind line's ca-file in order to accept the client certificate
