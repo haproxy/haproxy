@@ -62,6 +62,7 @@ struct server *new_server(struct proxy *proxy);
 
 /* functions related to server name resolution */
 int srv_prepare_for_resolution(struct server *srv, const char *hostname);
+int srvrq_update_srv_status(struct server *s, int has_no_ip);
 int snr_update_srv_status(struct server *s, int has_no_ip);
 int srv_set_fqdn(struct server *srv, const char *fqdn, int resolv_locked);
 const char *srv_update_fqdn(struct server *server, const char *fqdn, const char *updater, int dns_locked);

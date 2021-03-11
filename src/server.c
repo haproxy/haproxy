@@ -2990,6 +2990,31 @@ out:
 	return msg->area;
 }
 
+/*
+ * update server status based on result of SRV resolution
+ * returns:
+ *  0 if server status is updated
+ *  1 if server status has not changed
+ *
+ * Must be called with the server lock held.
+ */
+int srvrq_update_srv_status(struct server *s, int has_no_ip)
+{
+	if (!s->srvrq)
+		return 1;
+
+	/* since this server has an IP, it can go back in production */
+	if (has_no_ip == 0) {
+		srv_clr_admin_flag(s, SRV_ADMF_RMAINT);
+		return 1;
+	}
+
+	if (s->next_admin & SRV_ADMF_RMAINT)
+		return 1;
+
+	srv_set_admin_flag(s, SRV_ADMF_RMAINT, "entry removed from SRV record");
+	return 0;
+}
 
 /*
  * update server status based on result of name resolution
@@ -3006,19 +3031,8 @@ int snr_update_srv_status(struct server *s, int has_no_ip)
 	int exp;
 
 	/* If resolution is NULL we're dealing with SRV records Additional records */
-	if (resolution == NULL) {
-		/* since this server has an IP, it can go back in production */
-		if (has_no_ip == 0) {
-			srv_clr_admin_flag(s, SRV_ADMF_RMAINT);
-			return 1;
-		}
-
-		if (s->next_admin & SRV_ADMF_RMAINT)
-			return 1;
-
-		srv_set_admin_flag(s, SRV_ADMF_RMAINT, "entry removed from SRV record");
-		return 0;
-	}
+	if (resolution == NULL)
+		return srvrq_update_srv_status(s, has_no_ip);
 
 	switch (resolution->status) {
 		case RSLV_STATUS_NONE:
