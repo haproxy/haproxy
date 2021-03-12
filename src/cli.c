@@ -2645,6 +2645,7 @@ int mworker_cli_proxy_new_listener(char *line)
 
 	bind_conf->level &= ~ACCESS_LVL_MASK;
 	bind_conf->level |= ACCESS_LVL_ADMIN;
+	bind_conf->level |= ACCESS_MASTER | ACCESS_MASTER_ONLY;
 
 	if (!str2listener(args[0], mworker_proxy, bind_conf, "master-socket", 0, &err)) {
 		ha_alert("Cannot create the listener of the master CLI\n");
