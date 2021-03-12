@@ -111,7 +111,7 @@ struct act_rule {
 	                              struct session *sess, struct stream *s, int opts);
 	int (*check_ptr)(struct act_rule *rule, struct proxy *px, char **err); /* ptr to check function */
 	void (*release_ptr)(struct act_rule *rule); /* ptr to release function */
-	struct action_kw *kw;
+	const struct action_kw *kw;
 	struct applet applet;                  /* used for the applet registration. */
 	union {
 		struct {
