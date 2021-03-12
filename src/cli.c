@@ -94,6 +94,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	struct cli_kw *kw;
 	struct buffer *tmp = get_trash_chunk();
 	struct buffer out;
+	struct { struct cli_kw *kw; int dist; } matches[CLI_MAX_MATCHES], swp;
 	int idx;
 	int length = 0;
 
@@ -122,15 +123,76 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 		}
 	}
 
-	/* now <length> equals the number of matching words */
-
+	/* now <length> equals the number of exactly matching words */
 	chunk_reset(tmp);
 	if (!args) // this is the help message.
 		chunk_strcat(tmp, "The following commands are valid at this level:\n");
-	else if (!length) // no match
+	else if (!length && (!*args || !**args)) // no match
 		chunk_strcat(tmp, "Unknown command. Please enter one of the following commands only:\n");
 	else // partial match
 		chunk_strcat(tmp, "Unknown command, but maybe one of the following ones is a better match:\n");
+
+	for (idx = 0; idx < CLI_MAX_MATCHES; idx++) {
+		matches[idx].kw = NULL;
+		matches[idx].dist = INT_MAX;
+	}
+
+	/* In case of partial match we'll look for the best matching entries
+	 * starting from position <length>
+	 */
+	if (args[length] && *args[length]) {
+		list_for_each_entry(kw_list, &cli_keywords.list, list) {
+			for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
+				if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT))
+					continue;
+				if ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
+				    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
+					continue;
+
+				for (idx = 0; idx < length; idx++) {
+					if (!kw->str_kw[idx])
+						break; // end of keyword
+					if (!args || !args[idx] || !*args[idx])
+						break; // end of command line
+					if (strcmp(kw->str_kw[idx], args[idx]) != 0)
+						break;
+				}
+
+				/* extra non-matching words are fuzzy-matched */
+				if (kw->usage && idx == length && args[idx] && *args[idx]) {
+					uint8_t word_sig[1024];
+					uint8_t list_sig[1024];
+					int dist = 0;
+					int totlen = 0;
+
+					/* this one matches, let's compute the distance between the two
+					 * on the remaining words
+					 */
+					while (idx < CLI_PREFIX_KW_NB && kw->str_kw[idx] && args[idx] && *args[idx]) {
+						make_word_fingerprint(word_sig, args[idx]);
+						make_word_fingerprint(list_sig, kw->str_kw[idx]);
+						totlen += strlen(args[idx]) + strlen(kw->str_kw[idx]);
+						dist += word_fingerprint_distance(word_sig, list_sig);
+						idx++;
+					}
+
+					/* insert this one at its place if relevant, in order to keep only
+					 * the best matches.
+					 */
+					swp.kw = kw; swp.dist = dist;
+					if (dist < totlen && dist < matches[CLI_MAX_MATCHES-1].dist) {
+						matches[CLI_MAX_MATCHES-1] = swp;
+						for (idx = CLI_MAX_MATCHES - 1; --idx >= 0;) {
+							if (matches[idx+1].dist >= matches[idx].dist)
+								break;
+							matches[idx+1] = matches[idx];
+							matches[idx] = swp;
+						}
+					}
+				}
+			}
+		}
+	}
 
 	list_for_each_entry(kw_list, &cli_keywords.list, list) {
 		for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
@@ -157,8 +219,19 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 					break;
 			}
 
-			if (kw->usage && idx == length)
-				chunk_appendf(tmp, "  %s\n", kw->usage);
+			if (kw->usage && idx == length) {
+				/* if we've filled some fuzzy matches, let's compare them. We'll
+				 * just set the idx to their position if they're found and are no
+				 * further than twice the distance of the best match, otherwise
+				 * idx will be CLI_MAX_MATCHES, indicating "not found".
+				 */
+				for (idx = 0; matches[0].kw && idx < CLI_MAX_MATCHES; idx++)
+					if (kw == matches[idx].kw && matches[idx].dist <= 2*matches[0].dist)
+						break;
+
+				if (idx < CLI_MAX_MATCHES)
+					chunk_appendf(tmp, "  %s\n", kw->usage);
+			}
 		}
 	}
 
