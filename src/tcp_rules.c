@@ -603,11 +603,17 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 			if (kw->parse((const char **)args, &arg, curpx, rule, err) == ACT_RET_PRS_ERR)
 				return -1;
 		} else {
+			const char *extra[] = { "accept", "reject", "close", NULL };
+			const char *best = action_suggest(args[arg], &tcp_res_cont_keywords, extra);
+
 			action_build_list(&tcp_res_cont_keywords, &trash);
 			memprintf(err,
-			          "'%s %s' expects 'accept', 'close', 'reject', %s in %s '%s' (got '%s')",
+			          "'%s %s' expects 'accept', 'close', 'reject', %s in %s '%s' (got '%s').%s%s%s",
 			          args[0], args[1], trash.area,
-			          proxy_type_str(curpx), curpx->id, args[arg]);
+			          proxy_type_str(curpx), curpx->id, args[arg],
+			          best ? " Did you mean '" : "",
+			          best ? best : "",
+			          best ? "' maybe ?" : "");
 			return -1;
 		}
 	}
@@ -949,18 +955,32 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			if (kw->parse((const char **)args, &arg, curpx, rule, err) == ACT_RET_PRS_ERR)
 				return -1;
 		} else {
-			if (where & SMP_VAL_FE_CON_ACC)
+			const char *extra[] = { "accept", "reject", "capture", "track-sc", "expect-proxy", "expect-netscaler-ip", NULL };
+			const char *best = NULL;
+
+
+			if (where & SMP_VAL_FE_CON_ACC) {
 				action_build_list(&tcp_req_conn_keywords, &trash);
-			else if (where & SMP_VAL_FE_SES_ACC)
+				best = action_suggest(args[arg], &tcp_req_conn_keywords, extra);
+			}
+			else if (where & SMP_VAL_FE_SES_ACC) {
 				action_build_list(&tcp_req_sess_keywords, &trash);
-			else
+				best = action_suggest(args[arg], &tcp_req_sess_keywords, extra);
+			}
+			else {
 				action_build_list(&tcp_req_cont_keywords, &trash);
+				best = action_suggest(args[arg], &tcp_req_cont_keywords, extra);
+			}
+
 			memprintf(err,
 			          "'%s %s' expects 'accept', 'reject', 'capture', 'expect-proxy', 'expect-netscaler-ip', 'track-sc0' ... 'track-sc%d', %s "
-			          "in %s '%s' (got '%s').\n",
+			          "in %s '%s' (got '%s').%s%s%s\n",
 			          args[0], args[1], MAX_SESS_STKCTR-1,
 			          trash.area, proxy_type_str(curpx),
-			          curpx->id, args[arg]);
+			          curpx->id, args[arg],
+			          best ? " Did you mean '" : "",
+			          best ? best : "",
+			          best ? "' maybe ?" : "");
 			return -1;
 		}
 	}
