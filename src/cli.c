@@ -68,13 +68,6 @@
 static struct applet cli_applet;
 static struct applet mcli_applet;
 
-static const char stats_sock_usage_msg[] =
-	"Unknown command. Please enter one of the following commands only :\n"
-	"  help           : this message\n"
-	"  prompt         : toggle interactive mode with prompt\n"
-	"  quit           : disconnect\n"
-	"";
-
 static const char stats_permission_denied_msg[] =
 	"Permission denied\n"
 	"";
@@ -91,20 +84,54 @@ extern const char *stat_status_codes[];
 
 static struct proxy *mworker_proxy; /* CLI proxy of the master */
 
-static char *cli_gen_usage_msg(struct appctx *appctx)
+/* This will show the help message and list the commands supported at the
+ * current level that match all of the first words of <args> if args is not
+ * NULL, or all args if none matches or if args is null.
+ */
+static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 {
 	struct cli_kw_list *kw_list;
 	struct cli_kw *kw;
 	struct buffer *tmp = get_trash_chunk();
 	struct buffer out;
+	int idx;
+	int length = 0;
 
 	ha_free(&dynamic_usage_msg);
 
-	if (LIST_ISEMPTY(&cli_keywords.list))
-		goto end;
+	/* first, let's measure the longest match */
+	list_for_each_entry(kw_list, &cli_keywords.list, list) {
+		for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
+			if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT))
+				continue;
+			if ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
+			    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
+				continue;
+
+			/* OK this command is visible */
+			for (idx = 0; idx < CLI_PREFIX_KW_NB; idx++) {
+				if (!kw->str_kw[idx])
+					break; // end of keyword
+				if (!args || !args[idx] || !*args[idx])
+					break; // end of command line
+				if (strcmp(kw->str_kw[idx], args[idx]) != 0)
+					break;
+				if (idx + 1 > length)
+					length = idx + 1;
+			}
+		}
+	}
+
+	/* now <length> equals the number of matching words */
 
 	chunk_reset(tmp);
-	chunk_strcat(tmp, stats_sock_usage_msg);
+	if (!args) // this is the help message.
+		chunk_strcat(tmp, "The following commands are valid at this level:\n");
+	else if (!length) // no match
+		chunk_strcat(tmp, "Unknown command. Please enter one of the following commands only:\n");
+	else // partial match
+		chunk_strcat(tmp, "Unknown command, but maybe one of the following ones is a better match:\n");
+
 	list_for_each_entry(kw_list, &cli_keywords.list, list) {
 		for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
 
@@ -121,23 +148,32 @@ static char *cli_gen_usage_msg(struct appctx *appctx)
 			    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
 				continue;
 
-			if (kw->usage)
+			for (idx = 0; idx < length; idx++) {
+				if (!kw->str_kw[idx])
+					break; // end of keyword
+				if (!args || !args[idx] || !*args[idx])
+					break; // end of command line
+				if (strcmp(kw->str_kw[idx], args[idx]) != 0)
+					break;
+			}
+
+			if (kw->usage && idx == length)
 				chunk_appendf(tmp, "  %s\n", kw->usage);
 		}
 	}
+
+	/* always show the prompt/help/quit commands */
+	chunk_strcat(tmp,
+	             "  help           : full commands list\n"
+	             "  prompt         : toggle interactive mode with prompt\n"
+	             "  quit           : disconnect\n");
+
 	chunk_init(&out, NULL, 0);
 	chunk_dup(&out, tmp);
 	dynamic_usage_msg = out.area;
 
-end:
-	if (dynamic_usage_msg) {
-		appctx->ctx.cli.severity = LOG_INFO;
-		appctx->ctx.cli.msg = dynamic_usage_msg;
-	}
-	else {
-		appctx->ctx.cli.severity = LOG_INFO;
-		appctx->ctx.cli.msg = stats_sock_usage_msg;
-	}
+	appctx->ctx.cli.severity = LOG_INFO;
+	appctx->ctx.cli.msg = dynamic_usage_msg;
 	appctx->st0 = CLI_ST_PRINT;
 
 	return dynamic_usage_msg;
@@ -594,7 +630,7 @@ static int cli_parse_request(struct appctx *appctx)
 	    (kw->level & ~appctx->cli_level & ACCESS_MASTER_ONLY) ||
 	    (appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) == (ACCESS_MASTER_ONLY|ACCESS_MASTER)) {
 		/* keyword not found in this mode */
-		cli_gen_usage_msg(appctx);
+		cli_gen_usage_msg(appctx, args);
 		return 0;
 	}
 
@@ -1879,7 +1915,7 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 {
 	if (*args[0] == 'h')
 		/* help */
-		cli_gen_usage_msg(appctx);
+		cli_gen_usage_msg(appctx, NULL);
 	else if (*args[0] == 'p')
 		/* prompt */
 		appctx->st1 ^= APPCTX_CLI_ST1_PROMPT;
