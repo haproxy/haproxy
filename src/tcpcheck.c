@@ -836,22 +836,22 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 
 		/* first, health statuses */
 		if (strcasecmp(cmd, "up") == 0) {
-			check->server->check.health = check->server->check.rise + check->server->check.fall - 1;
+			check->health = check->rise + check->fall - 1;
 			status = HCHK_STATUS_L7OKD;
 			hs = cmd;
 		}
 		else if (strcasecmp(cmd, "down") == 0) {
-			check->server->check.health = 0;
+			check->health = 0;
 			status = HCHK_STATUS_L7STS;
 			hs = cmd;
 		}
 		else if (strcasecmp(cmd, "stopped") == 0) {
-			check->server->check.health = 0;
+			check->health = 0;
 			status = HCHK_STATUS_L7STS;
 			hs = cmd;
 		}
 		else if (strcasecmp(cmd, "fail") == 0) {
-			check->server->check.health = 0;
+			check->health = 0;
 			status = HCHK_STATUS_L7STS;
 			hs = cmd;
 		}
