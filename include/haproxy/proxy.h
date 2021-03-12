@@ -117,7 +117,7 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 static inline void proxy_inc_fe_conn_ctr(struct listener *l, struct proxy *fe)
 {
 	_HA_ATOMIC_ADD(&fe->fe_counters.cum_conn, 1);
-	if (l->counters)
+	if (l && l->counters)
 		_HA_ATOMIC_ADD(&l->counters->cum_conn, 1);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.cps_max,
 			     update_freq_ctr(&fe->fe_conn_per_sec, 1));
@@ -128,7 +128,7 @@ static inline void proxy_inc_fe_sess_ctr(struct listener *l, struct proxy *fe)
 {
 
 	_HA_ATOMIC_ADD(&fe->fe_counters.cum_sess, 1);
-	if (l->counters)
+	if (l && l->counters)
 		_HA_ATOMIC_ADD(&l->counters->cum_sess, 1);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.sps_max,
 			     update_freq_ctr(&fe->fe_sess_per_sec, 1));
@@ -146,7 +146,7 @@ static inline void proxy_inc_be_ctr(struct proxy *be)
 static inline void proxy_inc_fe_req_ctr(struct listener *l, struct proxy *fe)
 {
 	_HA_ATOMIC_ADD(&fe->fe_counters.p.http.cum_req, 1);
-	if (l->counters)
+	if (l && l->counters)
 		_HA_ATOMIC_ADD(&l->counters->p.http.cum_req, 1);
 	HA_ATOMIC_UPDATE_MAX(&fe->fe_counters.p.http.rps_max,
 			     update_freq_ctr(&fe->fe_req_per_sec, 1));
