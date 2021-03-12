@@ -520,7 +520,7 @@ static forceinline int __ha_cas_dw(void *target, void *compare, const void *set)
 	 * if we could apply the change. In order to pass a pair, we simply map
 	 * a register pair on a struct so that the compiler can emit register
 	 * pairs that we can use thanks to the undocumented "%H" modifier
-	 * mentionned on the link below:
+	 * mentioned on the link below:
 	 *   https://patchwork.ozlabs.org/project/gcc/patch/59368A74.2060908@foss.arm.com/
 	 */
 	struct pair { uint64_t r[2]; };
