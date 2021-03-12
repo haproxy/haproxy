@@ -106,27 +106,23 @@ static char *cli_gen_usage_msg(struct appctx *appctx)
 	chunk_reset(tmp);
 	chunk_strcat(tmp, stats_sock_usage_msg);
 	list_for_each_entry(kw_list, &cli_keywords.list, list) {
-		kw = &kw_list->kw[0];
-		while (kw->str_kw[0]) {
+		for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
 
-			/* in a worker or normal process, don't display master only commands */
-			if (appctx->applet == &cli_applet && (kw->level & ACCESS_MASTER_ONLY))
-				goto next_kw;
+			/* in a worker or normal process, don't display master-only commands
+			 * nor expert mode commands if not in this mode.
+			 */
+			if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT))
+				continue;
 
-			/* in master don't displays if we don't have the master bits */
-			if (appctx->applet == &mcli_applet && !(kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
-				goto next_kw;
-
-			/* only show expert commands in expert mode */
-			if ((kw->level & ~appctx->cli_level) & ACCESS_EXPERT)
-				goto next_kw;
+			/* in master don't display commands that have neither the master bit
+			 * nor the master-only bit.
+			 */
+			if ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
+			    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
+				continue;
 
 			if (kw->usage)
 				chunk_appendf(tmp, "  %s\n", kw->usage);
-
-next_kw:
-
-			kw++;
 		}
 	}
 	chunk_init(&out, NULL, 0);
@@ -596,16 +592,17 @@ static int cli_parse_request(struct appctx *appctx)
 	if (!kw)
 		return 0;
 
-	/* in a worker or normal process, don't display master only commands */
-	if (appctx->applet == &cli_applet && (kw->level & ACCESS_MASTER_ONLY))
+	/* in a worker or normal process, don't handle master-only commands
+	 * nor expert mode commands if not in this mode.
+	 */
+	if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT))
 		return 0;
 
-	/* in master don't displays if we don't have the master bits */
-	if (appctx->applet == &mcli_applet && !(kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)))
-		return 0;
-
-	/* only accept expert commands in expert mode */
-	if ((kw->level & ~appctx->cli_level) & ACCESS_EXPERT)
+	/* in master don't handle commands that have neither the master bit
+	 * nor the master-only bit.
+	 */
+	if ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
+	    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
 		return 0;
 
 	appctx->io_handler = kw->io_handler;
