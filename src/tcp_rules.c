@@ -956,7 +956,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			else
 				action_build_list(&tcp_req_cont_keywords, &trash);
 			memprintf(err,
-			          "'%s %s' expects 'accept', 'reject', 'track-sc0' ... 'track-sc%d', %s "
+			          "'%s %s' expects 'accept', 'reject', 'capture', 'expect-proxy', 'expect-netscaler-ip', 'track-sc0' ... 'track-sc%d', %s "
 			          "in %s '%s' (got '%s').\n",
 			          args[0], args[1], MAX_SESS_STKCTR-1,
 			          trash.area, proxy_type_str(curpx),
