@@ -2795,9 +2795,9 @@ static struct applet mcli_applet = {
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "help", NULL }, NULL, cli_parse_simple, NULL },
-	{ { "prompt", NULL }, NULL, cli_parse_simple, NULL },
-	{ { "quit", NULL }, NULL, cli_parse_simple, NULL },
+	{ { "help", NULL }, NULL, cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
+	{ { "prompt", NULL }, NULL, cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
+	{ { "quit", NULL }, NULL, cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
 	{ { "set", "maxconn", "global",  NULL }, "set maxconn global : change the per-process maxconn setting", cli_parse_set_maxconn_global, NULL },
 	{ { "set", "rate-limit", NULL }, "set rate-limit : change a rate limiting value", cli_parse_set_ratelimit, NULL },
 	{ { "set", "severity-output",  NULL }, "set severity-output [none|number|string] : set presence of severity level in feedback information", cli_parse_set_severity_output, NULL, NULL },
