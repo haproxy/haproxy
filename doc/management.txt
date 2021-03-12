@@ -1447,6 +1447,7 @@ add server <backend>/<server> [args]*
   - pool-low-conn
   - pool-max-conn
   - pool-purge-delay
+  - proto
   - proxy-v2-options
   - send-proxy
   - send-proxy-v2

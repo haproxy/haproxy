@@ -26,6 +26,10 @@ haproxy h1 -conf {
 
 	backend other
 		balance static-rr
+
+	backend other2
+		balance random
+		mode tcp
 } -start
 
 client c1 -connect ${h1_feS_sock} {
@@ -51,6 +55,10 @@ haproxy h1 -cli {
 	send "experimental-mode on; add server other/s1 ${s1_addr}:${s1_port}"
 	expect ~ "Backend must use a consistent hashing method for load balancing to support dynamic servers."
 
+	# invalid mux proto
+	send "experimental-mode on; add server other2/s1 ${s1_addr}:${s1_port} proto h2"
+	expect ~ "MUX protocol is not usable for server."
+
 	# valid command
 	send "experimental-mode on; add server test/s1 ${s1_addr}:${s1_port}"
 	expect ~ "New server registered."
@@ -58,6 +66,11 @@ haproxy h1 -cli {
 	# duplicate server
 	send "experimental-mode on; add server test/s1 ${s1_addr}:${s1_port}"
 	expect ~ "Already exists a server with the same name in backend."
+
+	# valid command
+	# specify the proto, it should be accepted for this backend
+	send "experimental-mode on; add server test/s2 ${s1_addr}:${s1_port} proto h2"
+	expect ~ "New server registered."
 }
 
 # dynamic servers are created on MAINT mode and should not be available at first

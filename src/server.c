@@ -1651,7 +1651,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "pool-low-conn",       srv_parse_pool_low_conn,       1,  1,  1 }, /* Set the min number of orphan idle connecbefore being allowed to pick from other threads */
 	{ "pool-max-conn",       srv_parse_pool_max_conn,       1,  1,  1 }, /* Set the max number of orphan idle connections, -1 means unlimited */
 	{ "pool-purge-delay",    srv_parse_pool_purge_delay,    1,  1,  1 }, /* Set the time before we destroy orphan idle connections, defaults to 1s */
-	{ "proto",               srv_parse_proto,               1,  1,  0 }, /* Set the proto to use for all outgoing connections */
+	{ "proto",               srv_parse_proto,               1,  1,  1 }, /* Set the proto to use for all outgoing connections */
 	{ "proxy-v2-options",    srv_parse_proxy_v2_options,    1,  1,  1 }, /* options for send-proxy-v2 */
 	{ "redir",               srv_parse_redir,               1,  1,  0 }, /* Enable redirection mode */
 	{ "resolve-net",         srv_parse_resolve_net,         1,  1,  0 }, /* Set the prefered network range for name resolution */
@@ -4375,6 +4375,13 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (errmsg) {
 		cli_dynerr(appctx, errmsg);
 		goto out;
+	}
+
+	if (srv->mux_proto) {
+		if (!conn_get_best_mux_entry(srv->mux_proto->token, PROTO_SIDE_BE, be->mode)) {
+			cli_err(appctx, "MUX protocol is not usable for server.");
+			goto out;
+		}
 	}
 
 	srv->per_thr = calloc(global.nbthread, sizeof(*srv->per_thr));
