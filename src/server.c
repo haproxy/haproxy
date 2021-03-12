@@ -50,6 +50,19 @@ static void srv_update_status(struct server *s);
 static int srv_apply_lastaddr(struct server *srv, int *err_code);
 static void srv_cleanup_connections(struct server *srv);
 
+/* some keywords that are still being parsed using strcmp() and are not
+ * registered anywhere. They are used as suggestions for mistyped words.
+ */
+static const char *common_kw_list[] = {
+	"init-addr", "resolvers", "resolve-opts", "resolve-prefer", "ipv4",
+	"ipv6", "resolve-net", "weight", "log-proto", "legacy", "octet-count",
+	"minconn", "maxconn", "maxqueue", "slowstart", "on-error", "fastinter",
+	"fail-check", "sudden-death", "mark-down", "on-marked-down",
+	"shutdown-sessions", "on-marked-up", "shutdown-backup-sessions",
+	"error-limit", "usesrc",
+	NULL /* must be last */
+};
+
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
 	.list = LIST_HEAD_INIT(srv_keywords.list)
@@ -285,6 +298,50 @@ void srv_dump_kws(char **out)
 			}
 		}
 	}
+}
+
+/* Try to find in srv_keyword the word that looks closest to <word> by counting
+ * transitions between letters, digits and other characters. Will return the
+ * best matching word if found, otherwise NULL. An optional array of extra
+ * words to compare may be passed in <extra>, but it must then be terminated
+ * by a NULL entry. If unused it may be NULL.
+ */
+static const char *srv_find_best_kw(const char *word)
+{
+	uint8_t word_sig[1024];
+	uint8_t list_sig[1024];
+	const struct srv_kw_list *kwl;
+	const char *best_ptr = NULL;
+	int dist, best_dist = INT_MAX;
+	const char **extra;
+	int index;
+
+	make_word_fingerprint(word_sig, word);
+	list_for_each_entry(kwl, &srv_keywords.list, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			make_word_fingerprint(list_sig, kwl->kw[index].kw);
+			dist = word_fingerprint_distance(word_sig, list_sig);
+			if (dist < best_dist) {
+				best_dist = dist;
+				best_ptr = kwl->kw[index].kw;
+			}
+		}
+	}
+
+	for (extra = common_kw_list; *extra; extra++) {
+		make_word_fingerprint(list_sig, *extra);
+		dist = word_fingerprint_distance(word_sig, list_sig);
+		if (dist < best_dist) {
+			best_dist = dist;
+			best_ptr = *extra;
+		}
+		extra++;
+	}
+
+	if (best_dist > 2 * strlen(word) || (best_ptr && best_dist > 2 * strlen(best_ptr)))
+		best_ptr = NULL;
+
+	return best_ptr;
 }
 
 /* Parse the "backup" server keyword */
@@ -2394,9 +2451,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto out;
 			}
 			else {
-				static int srv_dumped;
 				struct srv_kw *kw;
-				char *err;
+				const char *best;
 
 				kw = srv_find_kw(args[cur_arg]);
 				if (kw) {
@@ -2439,17 +2495,13 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					continue;
 				}
 
-				err = NULL;
-				if (!srv_dumped) {
-					srv_dump_kws(&err);
-					indent_msg(&err, 4);
-					srv_dumped = 1;
-				}
-
-				ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.%s%s\n",
-				      file, linenum, args[0], args[1], args[cur_arg],
-				      err ? " Registered keywords :" : "", err ? err : "");
-				free(err);
+				best = srv_find_best_kw(args[cur_arg]);
+				if (best)
+					ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'; did you mean '%s' maybe ?\n",
+						 file, linenum, args[0], args[1], args[cur_arg], best);
+				else
+					ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.\n",
+						 file, linenum, args[0], args[1], args[cur_arg]);
 
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
