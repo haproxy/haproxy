@@ -33,6 +33,26 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/uri_auth.h>
 
+/* some keywords that are still being parsed using strcmp() and are not
+ * registered anywhere. They are used as suggestions for mistyped words.
+ */
+static const char *common_kw_list[] = {
+	"listen", "frontend", "backend", "defaults", "server",
+	"default-server", "server-template", "bind", "monitor-net",
+	"monitor-uri", "mode", "id", "description", "disabled", "enabled",
+	"bind-process", "acl", "dynamic-cookie-key", "cookie", "email-alert",
+	"persist", "appsession", "load-server-state-from-file",
+	"server-state-file-name", "max-session-srv-conns", "capture",
+	"retries", "http-request", "http-response", "http-after-response",
+	"http-send-name-header", "block", "redirect", "use_backend",
+	"use-server", "force-persist", "ignore-persist", "force-persist",
+	"stick-table", "stick", "stats", "option", "default_backend",
+	"http-reuse", "monitor", "transparent", "maxconn", "backlog",
+	"fullconn", "grace", "dispatch", "balance", "hash-type",
+	"hash-balance-factor", "unique-id-format", "unique-id-header",
+	"log-format", "log-format-sd", "log-tag", "log", "source", "usesrc",
+	NULL /* must be last */
+};
 
 /* Report a warning if a rule is placed after a 'tcp-request session' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
@@ -2917,6 +2937,7 @@ stats_error_parsing:
 	}
 	else {
 		struct cfg_kw_list *kwl;
+		const char *best;
 		int index;
 
 		list_for_each_entry(kwl, &cfg_keywords.list, list) {
@@ -2941,7 +2962,11 @@ stats_error_parsing:
 			}
 		}
 
-		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
+		best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_LISTEN, common_kw_list);
+		if (best)
+			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
+		else
+			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
