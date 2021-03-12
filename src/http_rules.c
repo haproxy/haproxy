@@ -76,7 +76,7 @@ struct action_kw *action_http_after_res_custom(const char *kw)
 struct act_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
 {
 	struct act_rule *rule;
-	struct action_kw *custom = NULL;
+	const struct action_kw *custom = NULL;
 	int cur_arg;
 
 	rule = calloc(1, sizeof(*rule));
@@ -104,10 +104,15 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		}
 	}
 	else {
+		const char *best = action_suggest(args[0], &http_req_keywords.list, NULL);
+
 		action_build_list(&http_req_keywords.list, &trash);
-		ha_alert("parsing [%s:%d]: 'http-request' expects %s, but got '%s'%s.\n",
-			 file, linenum, trash.area,
-			 args[0], *args[0] ? "" : " (missing argument)");
+		ha_alert("parsing [%s:%d]: 'http-request' expects %s, but got '%s'%s.%s%s%s\n",
+		         file, linenum, trash.area,
+		         args[0], *args[0] ? "" : " (missing argument)",
+		         best ? " Did you mean '" : "",
+		         best ? best : "",
+		         best ? "' maybe ?" : "");
 		goto out_err;
 	}
 
@@ -140,7 +145,7 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 struct act_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
 {
 	struct act_rule *rule;
-	struct action_kw *custom = NULL;
+	const struct action_kw *custom = NULL;
 	int cur_arg;
 
 	rule = calloc(1, sizeof(*rule));
@@ -168,10 +173,15 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		}
 	}
 	else {
+		const char *best = action_suggest(args[0], &http_res_keywords.list, NULL);
+
 		action_build_list(&http_res_keywords.list, &trash);
-		ha_alert("parsing [%s:%d]: 'http-response' expects %s, but got '%s'%s.\n",
-			 file, linenum, trash.area,
-			 args[0], *args[0] ? "" : " (missing argument)");
+		ha_alert("parsing [%s:%d]: 'http-response' expects %s, but got '%s'%s.%s%s%s\n",
+		         file, linenum, trash.area,
+		         args[0], *args[0] ? "" : " (missing argument)",
+		         best ? " Did you mean '" : "",
+		         best ? best : "",
+		         best ? "' maybe ?" : "");
 		goto out_err;
 	}
 
@@ -205,7 +215,7 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 struct act_rule *parse_http_after_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
 {
 	struct act_rule *rule;
-	struct action_kw *custom = NULL;
+	const struct action_kw *custom = NULL;
 	int cur_arg;
 
 	rule = calloc(1, sizeof(*rule));
@@ -233,10 +243,15 @@ struct act_rule *parse_http_after_res_cond(const char **args, const char *file, 
 		}
 	}
 	else {
+		const char *best = action_suggest(args[0], &http_after_res_keywords.list, NULL);
+
 		action_build_list(&http_after_res_keywords.list, &trash);
-		ha_alert("parsing [%s:%d]: 'http-after-response' expects %s, but got '%s'%s.\n",
-			 file, linenum, trash.area,
-			 args[0], *args[0] ? "" : " (missing argument)");
+		ha_alert("parsing [%s:%d]: 'http-after-response' expects %s, but got '%s'%s.%s%s%s\n",
+		         file, linenum, trash.area,
+		         args[0], *args[0] ? "" : " (missing argument)",
+		         best ? " Did you mean '" : "",
+		         best ? best : "",
+		         best ? "' maybe ?" : "");
 		goto out_err;
 	}
 
