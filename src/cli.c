@@ -504,8 +504,9 @@ static int cli_get_severity_output(struct appctx *appctx)
 }
 
 /* Processes the CLI interpreter on the stats socket. This function is called
- * from the CLI's IO handler running in an appctx context. The function returns 1
- * if the request was understood, otherwise zero. It is called with appctx->st0
+ * from the CLI's IO handler running in an appctx context. The function returns
+ * 1 if the request was understood, otherwise zero (in which case an error
+ * message will be displayed). It is called with appctx->st0
  * set to CLI_ST_GETREQ and presets ->st2 to 0 so that parsers don't have to do
  * it. It will possilbly leave st0 to CLI_ST_CALLBACK if the keyword needs to
  * have its own I/O handler called again. Most of the time, parsers will only
@@ -589,21 +590,19 @@ static int cli_parse_request(struct appctx *appctx)
 		args[i] = p;
 
 	kw = cli_find_kw(args);
-	if (!kw)
+	if (!kw ||
+	    (kw->level & ~appctx->cli_level & ACCESS_MASTER_ONLY) ||
+	    (appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) == (ACCESS_MASTER_ONLY|ACCESS_MASTER)) {
+		/* keyword not found in this mode */
+		cli_gen_usage_msg(appctx);
 		return 0;
+	}
 
-	/* in a worker or normal process, don't handle master-only commands
-	 * nor expert mode commands if not in this mode.
-	 */
-	if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT))
+	/* don't handle expert mode commands if not in this mode. */
+	if (kw->level & ~appctx->cli_level & ACCESS_EXPERT) {
+		cli_err(appctx, "This command is restricted to expert mode only.\n");
 		return 0;
-
-	/* in master don't handle commands that have neither the master bit
-	 * nor the master-only bit.
-	 */
-	if ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
-	    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
-		return 0;
+	}
 
 	appctx->io_handler = kw->io_handler;
 	appctx->io_release = kw->io_release;
@@ -779,10 +778,7 @@ static void cli_io_handler(struct appctx *appctx)
 					/* remove the last two \n */
 					appctx->chunk->data -= 2;
 					appctx->chunk->area[appctx->chunk->data] = 0;
-
-					if (!cli_parse_request(appctx))
-						cli_gen_usage_msg(appctx);
-
+					cli_parse_request(appctx);
 					chunk_reset(appctx->chunk);
 					/* NB: cli_sock_parse_request() may have put
 					 * another CLI_ST_O_* into appctx->st0.
@@ -801,9 +797,7 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->st1 |= APPCTX_CLI_ST1_PAYLOAD;
 				else {
 					/* no payload, the command is complete: parse the request */
-					if (!cli_parse_request(appctx))
-						cli_gen_usage_msg(appctx);
-
+					cli_parse_request(appctx);
 					chunk_reset(appctx->chunk);
 				}
 			}
