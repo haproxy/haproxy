@@ -105,8 +105,8 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 	}
 	else {
 		action_build_list(&http_req_keywords.list, &trash);
-		ha_alert("parsing [%s:%d]: 'http-request' expects %s%s, but got '%s'%s.\n",
-			 file, linenum, *trash.area ? ", " : "", trash.area,
+		ha_alert("parsing [%s:%d]: 'http-request' expects %s, but got '%s'%s.\n",
+			 file, linenum, trash.area,
 			 args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
@@ -169,8 +169,8 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 	}
 	else {
 		action_build_list(&http_res_keywords.list, &trash);
-		ha_alert("parsing [%s:%d]: 'http-response' expects %s%s, but got '%s'%s.\n",
-			 file, linenum, *trash.area ? ", " : "", trash.area,
+		ha_alert("parsing [%s:%d]: 'http-response' expects %s, but got '%s'%s.\n",
+			 file, linenum, trash.area,
 			 args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
@@ -234,8 +234,8 @@ struct act_rule *parse_http_after_res_cond(const char **args, const char *file, 
 	}
 	else {
 		action_build_list(&http_after_res_keywords.list, &trash);
-		ha_alert("parsing [%s:%d]: 'http-after-response' expects %s%s, but got '%s'%s.\n",
-			 file, linenum, *trash.area ? ", " : "", trash.area,
+		ha_alert("parsing [%s:%d]: 'http-after-response' expects %s, but got '%s'%s.\n",
+			 file, linenum, trash.area,
 			 args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
