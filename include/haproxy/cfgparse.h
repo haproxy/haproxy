@@ -113,6 +113,7 @@ int alertif_too_many_args(int maxarg, const char *file, int linenum, char **args
 int parse_process_number(const char *arg, unsigned long *proc, int max, int *autoinc, char **err);
 unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, char **err);
 void free_email_alert(struct proxy *p);
+const char *cfg_find_best_match(const char *word, const struct list *list, int section, const char **extra);
 
 /*
  * Sends a warning if proxy <proxy> does not have at least one of the

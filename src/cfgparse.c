@@ -332,6 +332,52 @@ int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where, const
 	return ERR_WARN;
 }
 
+/* try to find in <list> the word that looks closest to <word> by counting
+ * transitions between letters, digits and other characters. Will return the
+ * best matching word if found, otherwise NULL. An optional array of extra
+ * words to compare may be passed in <extra>, but it must then be terminated
+ * by a NULL entry. If unused it may be NULL.
+ */
+const char *cfg_find_best_match(const char *word, const struct list *list, int section, const char **extra)
+{
+	uint8_t word_sig[1024]; // 0..25=letter, 26=digit, 27=other, 28=begin, 29=end
+	uint8_t list_sig[1024];
+	const struct cfg_kw_list *kwl;
+	int index;
+	const char *best_ptr = NULL;
+	int dist, best_dist = INT_MAX;
+
+	make_word_fingerprint(word_sig, word);
+	list_for_each_entry(kwl, list, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			if (kwl->kw[index].section != section)
+				continue;
+
+			make_word_fingerprint(list_sig, kwl->kw[index].kw);
+			dist = word_fingerprint_distance(word_sig, list_sig);
+			if (dist < best_dist) {
+				best_dist = dist;
+				best_ptr = kwl->kw[index].kw;
+			}
+		}
+	}
+
+	while (extra && *extra) {
+		make_word_fingerprint(list_sig, *extra);
+		dist = word_fingerprint_distance(word_sig, list_sig);
+		if (dist < best_dist) {
+			best_dist = dist;
+			best_ptr = *extra;
+		}
+		extra++;
+	}
+
+	if (best_dist > 2 * strlen(word) || (best_ptr && best_dist > 2 * strlen(best_ptr)))
+		best_ptr = NULL;
+	return best_ptr;
+}
+
+
 /* Parse a string representing a process number or a set of processes. It must
  * be "all", "odd", "even", a number between 1 and <max> or a range with
  * two such numbers delimited by a dash ('-'). On success, it returns
