@@ -1250,7 +1250,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 				continue;
 
 			ar_item = tmp_record->ar_item;
-			if (ar_item->type != answer_record->type ||
+			if (ar_item->type != answer_record->type || ar_item->last_seen == now_ms ||
 			    len != tmp_record->data_len ||
 			    resolv_hostname_cmp(answer_record->name, tmp_record->target, tmp_record->data_len))
 				continue;
