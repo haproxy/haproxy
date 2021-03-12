@@ -3708,6 +3708,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 	if (!LIST_ISEMPTY(&rs->rules)) {
 		chk = LIST_PREV(&rs->rules, typeof(chk), list);
 		index = chk->index + 1;
+		chk = NULL;
 	}
 
 	cur_arg = 1;
@@ -3809,6 +3810,7 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 		chk = LIST_PREV(&rs->rules, typeof(chk), list);
 		if (chk->action != TCPCHK_ACT_SEND || !(chk->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT))
 			index = chk->index + 1;
+		chk = NULL;
 	}
 
 	if (strcmp(args[cur_arg], "connect") == 0)
