@@ -168,13 +168,16 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 					/* this one matches, let's compute the distance between the two
 					 * on the remaining words
 					 */
+					memset(word_sig, 0, sizeof(word_sig));
+					memset(list_sig, 0, sizeof(list_sig));
+
 					while (idx < CLI_PREFIX_KW_NB && kw->str_kw[idx] && args[idx] && *args[idx]) {
-						make_word_fingerprint(word_sig, args[idx]);
-						make_word_fingerprint(list_sig, kw->str_kw[idx]);
+						update_word_fingerprint(word_sig, args[idx]);
+						update_word_fingerprint(list_sig, kw->str_kw[idx]);
 						totlen += strlen(args[idx]) + strlen(kw->str_kw[idx]);
-						dist += word_fingerprint_distance(word_sig, list_sig);
 						idx++;
 					}
+					dist = word_fingerprint_distance(word_sig, list_sig);
 
 					/* insert this one at its place if relevant, in order to keep only
 					 * the best matches.
