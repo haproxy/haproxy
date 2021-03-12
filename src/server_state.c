@@ -727,7 +727,7 @@ static int srv_state_parse_and_store_line(char *line, int vsn, struct eb_root *s
  */
 static inline int srv_state_get_filepath(char *dst_path, int maxpathlen, const char *filename)
 {
-	char *sep = (global.server_state_base[strlen(global.server_state_base)-1] != '/' ? "/":  "");
+	char *sep;
 	int len = 0;
 
 	/* create the globalfilepath variable */
@@ -739,6 +739,7 @@ static inline int srv_state_get_filepath(char *dst_path, int maxpathlen, const c
 	}
 	else {
 		/* concat base directory and global server-state file */
+		sep = (global.server_state_base[strlen(global.server_state_base)-1] != '/' ? "/":  "");
 		len = snprintf(dst_path, maxpathlen, "%s%s%s", global.server_state_base, sep, filename);
 	}
 	return (len < maxpathlen ? len: -1);
