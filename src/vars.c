@@ -737,7 +737,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	}
 
 	if (*var_name != '(') {
-		memprintf(err, "invalid variable '%s'. Expects 'set-var(<var-name>)' or 'unset-var(<var-name>)'",
+		memprintf(err, "invalid or incomplete action '%s'. Expects 'set-var(<var-name>)' or 'unset-var(<var-name>)'",
 			  args[*arg-1]);
 		return ACT_RET_PRS_ERR;
 	}
@@ -745,7 +745,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	var_len = strlen(var_name);
 	var_len--; /* remove the ')' */
 	if (var_name[var_len] != ')') {
-		memprintf(err, "invalid variable '%s'. Expects 'set-var(<var-name>)' or 'unset-var(<var-name>)'",
+		memprintf(err, "incomplete expression after action '%s'. Expects 'set-var(<var-name>)' or 'unset-var(<var-name>)'",
 			  args[*arg-1]);
 		return ACT_RET_PRS_ERR;
 	}
