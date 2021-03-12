@@ -525,13 +525,14 @@ static forceinline int __ha_cas_dw(void *target, void *compare, const void *set)
 	 */
 	struct pair { uint64_t r[2]; };
 	register struct pair bck = *(struct pair *)compare;
-	register struct pair cmp = bck;
+	register struct pair cmp asm("x0") = bck;
+	register struct pair new asm("x2") = *(const struct pair*)set;
 	int ret;
 
 	__asm__ __volatile__("casp %0, %H0, %2, %H2, [%1]\n"
 			     : "+r" (cmp)                      // %0
 			     : "r" (target),                   // %1
-			       "r" (*(const struct pair*)set)  // %2
+			       "r" (new)                       // %2
 			     : "memory");
 
 	/* if the old value is still the same unchanged, we won, otherwise we
