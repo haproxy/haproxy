@@ -29,6 +29,7 @@
 
 int act_resolution_cb(struct resolv_requester *requester, struct dns_counters *counters);
 int act_resolution_error_cb(struct resolv_requester *requester, int error_code);
+const char *action_suggest(const char *word, const struct list *keywords, const char **extra);
 
 static inline struct action_kw *action_lookup(struct list *keywords, const char *kw)
 {

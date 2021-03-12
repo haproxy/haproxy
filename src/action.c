@@ -206,3 +206,56 @@ int cfg_parse_rule_set_timeout(const char **args, int idx, int *out_timeout,
 
 	return 0;
 }
+
+/* tries to find in list <keywords> a similar looking action as the one in
+ * <word>, and returns it otherwise NULL. <word> may be NULL or empty. An
+ * optional array of extra words to compare may be passed in <extra>, but it
+ * must then be terminated by a NULL entry. If unused it may be NULL.
+ */
+const char *action_suggest(const char *word, const struct list *keywords, const char **extra)
+{
+	uint8_t word_sig[1024];
+	uint8_t list_sig[1024];
+	const struct action_kw_list *kwl;
+	const struct action_kw *best_kw = NULL;
+	const char *best_ptr = NULL;
+	int dist, best_dist = INT_MAX;
+	int index;
+
+	if (!word || !*word)
+		return NULL;
+
+	make_word_fingerprint(word_sig, word);
+	list_for_each_entry(kwl, keywords, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			make_word_fingerprint(list_sig, kwl->kw[index].kw);
+			dist = word_fingerprint_distance(word_sig, list_sig);
+			if (dist < best_dist) {
+				best_dist = dist;
+				best_kw   = &kwl->kw[index];
+				best_ptr  = best_kw->kw;
+			}
+		}
+	}
+
+	while (extra && *extra) {
+		make_word_fingerprint(list_sig, *extra);
+		dist = word_fingerprint_distance(word_sig, list_sig);
+		if (dist < best_dist) {
+			best_dist = dist;
+			best_kw   = NULL;
+			best_ptr  = *extra;
+		}
+		extra++;
+	}
+
+	/* eliminate too different ones, with more tolerance for prefixes
+	 * when they're known to exist (not from extra list).
+	 */
+	if (best_ptr &&
+	    (best_dist > (2 + (best_kw && best_kw->match_pfx)) * strlen(word) ||
+	     best_dist > (2 + (best_kw && best_kw->match_pfx)) * strlen(best_ptr)))
+		best_ptr = NULL;
+
+	return best_ptr;
+}
