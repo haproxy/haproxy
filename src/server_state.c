@@ -733,9 +733,7 @@ static inline int srv_state_get_filepath(char *dst_path, int maxpathlen, const c
 	/* create the globalfilepath variable */
 	if (*filename == '/' || !global.server_state_base) {
 		/* absolute path or no base directory provided */
-		len = strlen(filename);
-		if (len < maxpathlen)
-			strcpy(dst_path, global.server_state_file);
+		len = strlcpy2(dst_path, filename, maxpathlen);
 	}
 	else {
 		/* concat base directory and global server-state file */
