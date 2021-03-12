@@ -55,7 +55,7 @@ static void srv_cleanup_connections(struct server *srv);
  */
 static const char *extra_kw_list[] = {
 	"ipv4", "ipv6", "legacy", "octet-count",
-	"fastinter", "fail-check", "sudden-death", "mark-down",
+	"fail-check", "sudden-death", "mark-down",
 	NULL /* must be last */
 };
 
