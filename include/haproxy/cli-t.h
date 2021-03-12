@@ -24,18 +24,17 @@
 
 #include <haproxy/applet-t.h>
 
-/* Access level for a stats socket */
-#define ACCESS_LVL_NONE     0
-#define ACCESS_LVL_USER     1
-#define ACCESS_LVL_OPER     2
-#define ACCESS_LVL_ADMIN    3
-#define ACCESS_LVL_MASK     0x3
+/* Access level for a stats socket (appctx->cli_level) */
+#define ACCESS_LVL_NONE     0x0000
+#define ACCESS_LVL_USER     0x0001
+#define ACCESS_LVL_OPER     0x0002
+#define ACCESS_LVL_ADMIN    0x0003
+#define ACCESS_LVL_MASK     0x0003
 
-#define ACCESS_FD_LISTENERS 0x4  /* expose listeners FDs on stats socket */
-#define ACCESS_MASTER       0x8  /* works with the master (and every other processes) */
-#define ACCESS_MASTER_ONLY  0x10 /* only works with the worker */
-
-#define ACCESS_EXPERT       0x20 /* access to dangerous commands reserved to experts */
+#define ACCESS_FD_LISTENERS 0x0004  /* expose listeners FDs on stats socket */
+#define ACCESS_MASTER       0x0008  /* works with the master (and every other processes) */
+#define ACCESS_MASTER_ONLY  0x0010  /* only works with the master */
+#define ACCESS_EXPERT       0x0020  /* access to dangerous commands reserved to experts */
 
 /* flags for appctx->st1 */
 #define APPCTX_CLI_ST1_PROMPT  (1 << 0)
