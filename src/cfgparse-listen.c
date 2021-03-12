@@ -389,9 +389,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
-			static int bind_dumped;
 			struct bind_kw *kw;
-			char *err;
+			const char *best;
 
 			kw = bind_find_kw(args[cur_arg]);
 			if (kw) {
@@ -431,17 +430,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				continue;
 			}
 
-			err = NULL;
-			if (!bind_dumped) {
-				bind_dump_kws(&err);
-				indent_msg(&err, 4);
-				bind_dumped = 1;
-			}
-
-			ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.%s%s\n",
-				 file, linenum, args[0], args[1], args[cur_arg],
-				 err ? " Registered keywords :" : "", err ? err : "");
-			free(err);
+			best = bind_find_best_kw(args[cur_arg]);
+			if (best)
+				ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'; did you mean '%s' maybe ?\n",
+					 file, linenum, args[0], args[1], args[cur_arg], best);
+			else
+				ha_alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.\n",
+					 file, linenum, args[0], args[1], args[cur_arg]);
 
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

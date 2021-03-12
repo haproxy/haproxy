@@ -3894,7 +3894,6 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (strcmp(args[0], "bind") == 0) {
 		int cur_arg;
-		static int kws_dumped;
 		struct bind_conf *bind_conf;
 		struct bind_kw *kw;
 		struct listener *l;
@@ -3949,24 +3948,19 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			cur_arg += 1 + kw->skip;
 		}
 		if (*args[cur_arg] != 0) {
-			char *kws = NULL;
-
-			if (!kws_dumped) {
-				kws_dumped = 1;
-				bind_dump_kws(&kws);
-				indent_msg(&kws, 4);
-			}
-			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section.%s%s\n",
-			         file, linenum, args[cur_arg], cursection,
-			         kws ? " Registered keywords :" : "", kws ? kws: "");
-			free(kws);
+			const char *best = bind_find_best_kw(args[cur_arg]);
+			if (best)
+				ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n",
+					 file, linenum, args[cur_arg], cursection, best);
+			else
+				ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section.\n",
+					 file, linenum, args[cur_arg], cursection);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 	}
 	else if (strcmp(args[0], "dgram-bind") == 0) {
 		int cur_arg;
-		static int kws_dumped;
 		struct bind_conf *bind_conf;
 		struct bind_kw *kw;
 		struct listener *l;
@@ -4015,17 +4009,13 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 			cur_arg += 1 + kw->skip;
 		}
 		if (*args[cur_arg] != 0) {
-			char *kws = NULL;
-
-			if (!kws_dumped) {
-				kws_dumped = 1;
-				bind_dump_kws(&kws);
-				indent_msg(&kws, 4);
-			}
-			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section.%s%s\n",
-			         file, linenum, args[cur_arg], cursection,
-				 kws ? " Registered keywords :" : "", kws ? kws: "");
-			free(kws);
+			const char *best = bind_find_best_kw(args[cur_arg]);
+			if (best)
+				ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n",
+					 file, linenum, args[cur_arg], cursection, best);
+			else
+				ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section.\n",
+					 file, linenum, args[cur_arg], cursection);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

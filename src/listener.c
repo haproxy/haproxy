@@ -1261,6 +1261,37 @@ void bind_dump_kws(char **out)
 	}
 }
 
+/* Try to find in srv_keyword the word that looks closest to <word> by counting
+ * transitions between letters, digits and other characters. Will return the
+ * best matching word if found, otherwise NULL.
+ */
+const char *bind_find_best_kw(const char *word)
+{
+	uint8_t word_sig[1024];
+	uint8_t list_sig[1024];
+	const struct bind_kw_list *kwl;
+	const char *best_ptr = NULL;
+	int dist, best_dist = INT_MAX;
+	int index;
+
+	make_word_fingerprint(word_sig, word);
+	list_for_each_entry(kwl, &bind_keywords.list, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			make_word_fingerprint(list_sig, kwl->kw[index].kw);
+			dist = word_fingerprint_distance(word_sig, list_sig);
+			if (dist < best_dist) {
+				best_dist = dist;
+				best_ptr = kwl->kw[index].kw;
+			}
+		}
+	}
+
+	if (best_dist > 2 * strlen(word) || (best_ptr && best_dist > 2 * strlen(best_ptr)))
+		best_ptr = NULL;
+
+	return best_ptr;
+}
+
 /************************************************************************/
 /*      All supported sample and ACL keywords must be declared here.    */
 /************************************************************************/

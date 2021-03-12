@@ -290,8 +290,8 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 
 		cur_arg = 3;
 		while (*args[cur_arg]) {
-			static int bind_dumped;
 			struct bind_kw *kw;
+			const char *best;
 
 			kw = bind_find_kw(args[cur_arg]);
 			if (kw) {
@@ -314,15 +314,13 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 				continue;
 			}
 
-			if (!bind_dumped) {
-				bind_dump_kws(err);
-				indent_msg(err, 4);
-				bind_dumped = 1;
-			}
-
-			memprintf(err, "'%s %s' : unknown keyword '%s'.%s%s",
-			          args[0], args[1], args[cur_arg],
-			          err && *err ? " Registered keywords :" : "", err && *err ? *err : "");
+			best = bind_find_best_kw(args[cur_arg]);
+			if (best)
+				memprintf(err, "'%s %s' : unknown keyword '%s'. Did you mean '%s' maybe ?",
+				          args[0], args[1], args[cur_arg], best);
+			else
+				memprintf(err, "'%s %s' : unknown keyword '%s'.",
+				          args[0], args[1], args[cur_arg]);
 			return -1;
 		}
 
@@ -2656,8 +2654,8 @@ int mworker_cli_proxy_new_listener(char *line)
 	cur_arg = 1;
 
 	while (*args[cur_arg]) {
-			static int bind_dumped;
 			struct bind_kw *kw;
+			const char *best;
 
 			kw = bind_find_kw(args[cur_arg]);
 			if (kw) {
@@ -2680,15 +2678,13 @@ int mworker_cli_proxy_new_listener(char *line)
 				continue;
 			}
 
-			if (!bind_dumped) {
-				bind_dump_kws(&err);
-				indent_msg(&err, 4);
-				bind_dumped = 1;
-			}
-
-			memprintf(&err, "'%s %s' : unknown keyword '%s'.%s%s",
-			          args[0], args[1], args[cur_arg],
-			          err ? " Registered keywords :" : "", err ? err : "");
+			best = bind_find_best_kw(args[cur_arg]);
+			if (best)
+				memprintf(&err, "'%s %s' : unknown keyword '%s'. Did you mean '%s' maybe ?",
+				          args[0], args[1], args[cur_arg], best);
+			else
+				memprintf(&err, "'%s %s' : unknown keyword '%s'.",
+				          args[0], args[1], args[cur_arg]);
 			goto err;
 	}
 
