@@ -19,6 +19,32 @@
 #include <haproxy/peers.h>
 #include <haproxy/tools.h>
 
+/* some keywords that are still being parsed using strcmp() and are not
+ * registered anywhere. They are used as suggestions for mistyped words.
+ */
+static const char *common_kw_list[] = {
+	"global", "daemon", "master-worker", "noepoll", "nokqueue",
+	"noevports", "nopoll", "busy-polling", "set-dumpable",
+	"insecure-fork-wanted", "insecure-setuid-wanted", "nosplice",
+	"nogetaddrinfo", "noreuseport", "quiet", "zero-warning",
+	"tune.runqueue-depth", "tune.maxpollevents", "tune.maxaccept",
+	"tune.chksize", "tune.recv_enough", "tune.buffers.limit",
+	"tune.buffers.reserve", "tune.bufsize", "tune.maxrewrite",
+	"tune.idletimer", "tune.rcvbuf.client", "tune.rcvbuf.server",
+	"tune.sndbuf.client", "tune.sndbuf.server", "tune.pipesize",
+	"tune.http.cookielen", "tune.http.logurilen", "tune.http.maxhdr",
+	"tune.comp.maxlevel", "tune.pattern.cache-size", "uid", "gid",
+	"external-check", "user", "group", "nbproc", "nbthread", "maxconn",
+	"ssl-server-verify", "maxconnrate", "maxsessrate", "maxsslrate",
+	"maxcomprate", "maxpipes", "maxzlibmem", "maxcompcpuusage", "ulimit-n",
+	"chroot", "description", "node", "pidfile", "unix-bind", "log",
+	"log-send-hostname", "server-state-base", "server-state-file",
+	"log-tag", "spread-checks", "max-spread-checks", "cpu-map", "setenv",
+	"presetenv", "unsetenv", "resetenv", "strict-limits", "localpeer",
+	"defaults", "listen", "frontend", "backend", "peers", "resolvers",
+	NULL /* must be last */
+};
+
 /*
  * parse a line in a <global> section. Returns the error code, 0 if OK, or
  * any combination of :
@@ -1235,6 +1261,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	else {
 		struct cfg_kw_list *kwl;
+		const char *best;
 		int index;
 		int rc;
 
@@ -1258,7 +1285,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 		
-		ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "global");
+		best = cfg_find_best_match(args[0], &cfg_keywords.list, CFG_LISTEN, common_kw_list);
+		if (best)
+			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section; did you mean '%s' maybe ?\n", file, linenum, args[0], cursection, best);
+		else
+			ha_alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], "global");
 		err_code |= ERR_ALERT | ERR_FATAL;
 	}
 
