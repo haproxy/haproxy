@@ -1,0 +1,78 @@
+varnishtest "Add server via cli"
+
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.4
+
+server s1 {
+	rxreq
+	txresp
+} -start
+
+haproxy h1 -conf {
+	defaults
+		mode http
+		${no-htx} option http-use-htx
+		timeout connect 1s
+		timeout client  1s
+		timeout server  1s
+
+	frontend fe
+		bind "fd@${feS}"
+		default_backend test
+
+	backend test
+		balance random
+
+	backend other
+		balance static-rr
+} -start
+
+client c1 -connect ${h1_feS_sock} {
+	txreq
+	rxresp
+	expect resp.status == 503
+} -run
+
+haproxy h1 -cli {
+	# experimental mode disabled
+	send "add server foo/s1 ${s1_addr}:${s1_port}"
+	expect ~ "This command is restricted to experimental mode only."
+
+	# non existent backend
+	send "experimental-mode on; add server foo/s1 ${s1_addr}:${s1_port}"
+	expect ~ "No such backend."
+
+	# missing address
+	send "experimental-mode on; add server test/s1"
+	expect ~ "'server' expects <name> and <addr>\\[:<port>\\] as arguments."
+
+	# invalid load-balancing algo
+	send "experimental-mode on; add server other/s1 ${s1_addr}:${s1_port}"
+	expect ~ "Backend must use a consistent hashing method for load balancing to support dynamic servers."
+
+	# valid command
+	send "experimental-mode on; add server test/s1 ${s1_addr}:${s1_port}"
+	expect ~ "New server registered."
+
+	# duplicate server
+	send "experimental-mode on; add server test/s1 ${s1_addr}:${s1_port}"
+	expect ~ "Already exists a server with the same name in backend."
+}
+
+# dynamic servers are created on MAINT mode and should not be available at first
+client c2 -connect ${h1_feS_sock} {
+	txreq
+	rxresp
+	expect resp.status == 503
+} -run
+
+haproxy h1 -cli {
+	send "experimental-mode on; enable server test/s1"
+}
+
+client c3 -connect ${h1_feS_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run
