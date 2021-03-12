@@ -5369,18 +5369,17 @@ size_t sanitize_for_printing(char *line, size_t pos, size_t width)
 	return pos - shift;
 }
 
-/* Initialize array <fp> with the fingerprint of word <word> by counting the
+/* Update array <fp> with the fingerprint of word <word> by counting the
  * transitions between characters. <fp> is a 1024-entries array indexed as
  * 32*from+to. Positions for 'from' and 'to' are:
  *   0..25=letter, 26=digit, 27=other, 28=begin, 29=end, others unused.
  */
-void make_word_fingerprint(uint8_t *fp, const char *word)
+void update_word_fingerprint(uint8_t *fp, const char *word)
 {
 	const char *p;
 	int from, to;
 	int c;
 
-	memset(fp, 0, 1024);
 	from = 28; // begin
 	for (p = word; *p; p++) {
 		c = tolower(*p);
@@ -5395,6 +5394,17 @@ void make_word_fingerprint(uint8_t *fp, const char *word)
 	}
 	to = 28; // end
 	fp[32 * from + to]++;
+}
+
+/* Initialize array <fp> with the fingerprint of word <word> by counting the
+ * transitions between characters. <fp> is a 1024-entries array indexed as
+ * 32*from+to. Positions for 'from' and 'to' are:
+ *   0..25=letter, 26=digit, 27=other, 28=begin, 29=end, others unused.
+ */
+void make_word_fingerprint(uint8_t *fp, const char *word)
+{
+	memset(fp, 0, 1024);
+	update_word_fingerprint(fp, word);
 }
 
 /* Return the distance between two word fingerprints created by function

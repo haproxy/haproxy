@@ -865,6 +865,7 @@ int my_unsetenv(const char *name);
 char *env_expand(char *in);
 uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbargs, uint32_t opts, char **errptr);
 size_t sanitize_for_printing(char *line, size_t pos, size_t width);
+void update_word_fingerprint(uint8_t *fp, const char *word);
 void make_word_fingerprint(uint8_t *fp, const char *word);
 int word_fingerprint_distance(const uint8_t *fp1, const uint8_t *fp2);
 
@@ -1072,5 +1073,33 @@ static inline unsigned int statistical_prng()
 	return statistical_prng_state = x;
 }
 
+/* Update array <fp> with the character transition <prev> to <curr>. If <prev>
+ * is zero, it's assumed that <curr> is the first character. If <curr> is zero
+ * its assumed to mark the end. Both may be zero. <fp> is a 1024-entries array
+ * indexed as 32*from+to. Positions for 'from' and 'to' are:
+ *   0..25=letter, 26=digit, 27=other, 28=begin, 29=end, others unused.
+ */
+static inline void update_char_fingerprint(uint8_t *fp, char prev, char curr)
+{
+	int from, to;
+
+	switch (prev) {
+	case 0:         from = 26; break; // begin
+	case 'a'...'z': from = prev - 'a'; break;
+	case 'A'...'Z': from = tolower(prev) - 'a'; break;
+	case '0'...'9': from = 26; break;
+	default:        from = 27; break;
+	}
+
+	switch (curr) {
+	case 0:         to = 28; break; // end
+	case 'a'...'z': to = curr - 'a'; break;
+	case 'A'...'Z': to = tolower(curr) - 'a'; break;
+	case '0'...'9': to = 26; break;
+	default:        to = 27; break;
+	}
+
+	fp[32 * from + to]++;
+}
 
 #endif /* _HAPROXY_TOOLS_H */
