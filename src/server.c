@@ -335,7 +335,6 @@ static const char *srv_find_best_kw(const char *word)
 			best_dist = dist;
 			best_ptr = *extra;
 		}
-		extra++;
 	}
 
 	if (best_dist > 2 * strlen(word) || (best_ptr && best_dist > 2 * strlen(best_ptr)))
