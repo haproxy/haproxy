@@ -865,6 +865,8 @@ int my_unsetenv(const char *name);
 char *env_expand(char *in);
 uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbargs, uint32_t opts, char **errptr);
 size_t sanitize_for_printing(char *line, size_t pos, size_t width);
+void make_word_fingerprint(uint8_t *fp, const char *word);
+int word_fingerprint_distance(const uint8_t *fp1, const uint8_t *fp2);
 
 /* debugging macro to emit messages using write() on fd #-1 so that strace sees
  * them.

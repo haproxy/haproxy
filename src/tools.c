@@ -5369,6 +5369,49 @@ size_t sanitize_for_printing(char *line, size_t pos, size_t width)
 	return pos - shift;
 }
 
+/* Initialize array <fp> with the fingerprint of word <word> by counting the
+ * transitions between characters. <fp> is a 1024-entries array indexed as
+ * 32*from+to. Positions for 'from' and 'to' are:
+ *   0..25=letter, 26=digit, 27=other, 28=begin, 29=end, others unused.
+ */
+void make_word_fingerprint(uint8_t *fp, const char *word)
+{
+	const char *p;
+	int from, to;
+	int c;
+
+	memset(fp, 0, 1024);
+	from = 28; // begin
+	for (p = word; *p; p++) {
+		c = tolower(*p);
+		switch(c) {
+		case 'a'...'z': to = c - 'a'; break;
+		case 'A'...'Z': to = tolower(c) - 'a'; break;
+		case '0'...'9': to = 26; break;
+		default: to = 27; break;
+		}
+		fp[32 * from + to]++;
+		from = to;
+	}
+	to = 28; // end
+	fp[32 * from + to]++;
+}
+
+/* Return the distance between two word fingerprints created by function
+ * make_word_fingerprint(). It's a positive integer calculated as the sum of
+ * the squares of the differences between each location.
+ */
+int word_fingerprint_distance(const uint8_t *fp1, const uint8_t *fp2)
+{
+	int i, k, dist = 0;
+
+	for (i = 0; i < 1024; i++) {
+		k = (int)fp1[i] - (int)fp2[i];
+		dist += k * k;
+	}
+	return dist;
+}
+
 static int init_tools_per_thread()
 {
 	/* Let's make each thread start from a different position */
