@@ -434,6 +434,13 @@ static int raw_sock_unsubscribe(struct connection *conn, void *xprt_ctx, int eve
 	return conn_unsubscribe(conn, xprt_ctx, event_type, es);
 }
 
+static void raw_sock_close(struct connection *conn, void *xprt_ctx)
+{
+	if (conn->subs != NULL) {
+		conn_unsubscribe(conn, NULL, conn->subs->events, conn->subs);
+	}
+}
+
 /* We can't have an underlying XPRT, so just return -1 to signify failure */
 static int raw_sock_remove_xprt(struct connection *conn, void *xprt_ctx, void *toremove_ctx, const struct xprt_ops *newops, void *newctx)
 {
@@ -457,7 +464,7 @@ static struct xprt_ops raw_sock = {
 #endif
 	.shutr    = NULL,
 	.shutw    = NULL,
-	.close    = NULL,
+	.close    = raw_sock_close,
 	.name     = "RAW",
 };
 
