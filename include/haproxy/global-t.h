@@ -156,7 +156,7 @@ struct global {
 			mode_t mode;    /* 0 to leave unchanged */
 		} ux;
 	} unix_bind;
-	struct proxy *stats_fe;     /* the frontend holding the stats settings */
+	struct proxy *cli_fe;           /* the frontend holding the stats settings */
 #ifdef USE_CPU_AFFINITY
 	struct {
 		unsigned long proc[MAX_PROCS];      /* list of CPU masks for the 32/64 first processes */

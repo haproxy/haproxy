@@ -713,11 +713,11 @@ int delete_oldpid(int pid)
 static void get_cur_unixsocket()
 {
 	/* if -x was used, try to update the stat socket if not available anymore */
-	if (global.stats_fe) {
+	if (global.cli_fe) {
 		struct bind_conf *bind_conf;
 
 		/* pass through all stats socket */
-		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+		list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
 			struct listener *l;
 
 			list_for_each_entry(l, &bind_conf->listeners, by_bind) {
@@ -2069,8 +2069,8 @@ static void init(int argc, char **argv)
 	if (cfg_maxconn > 0)
 		global.maxconn = cfg_maxconn;
 
-	if (global.stats_fe)
-		global.maxsock += global.stats_fe->maxconn;
+	if (global.cli_fe)
+		global.maxsock += global.cli_fe->maxconn;
 
 	if (cfg_peers) {
 		/* peers also need to bypass global maxconn */
@@ -3537,10 +3537,10 @@ int main(int argc, char **argv)
 		 * Caution: the GTUNE_SOCKET_TRANSFER is now set after the fork.
 		 * */
 
-		if (global.stats_fe) {
+		if (global.cli_fe) {
 			struct bind_conf *bind_conf;
 
-			list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+			list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
 				if (bind_conf->level & ACCESS_FD_LISTENERS) {
 					if (!bind_conf->settings.bind_proc || bind_conf->settings.bind_proc & (1UL << proc)) {
 						global.tune.options |= GTUNE_SOCKET_TRANSFER;

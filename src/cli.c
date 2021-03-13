@@ -68,7 +68,7 @@
 static struct applet cli_applet;
 static struct applet mcli_applet;
 
-static const char stats_permission_denied_msg[] =
+static const char cli_permission_denied_msg[] =
 	"Permission denied\n"
 	"";
 
@@ -331,7 +331,7 @@ void cli_register_kw(struct cli_kw_list *kw_list)
 /* allocate a new stats frontend named <name>, and return it
  * (or NULL in case of lack of memory).
  */
-static struct proxy *alloc_stats_fe(const char *name, const char *file, int line)
+static struct proxy *cli_alloc_fe(const char *name, const char *file, int line)
 {
 	struct proxy *fe;
 
@@ -364,9 +364,9 @@ static struct proxy *alloc_stats_fe(const char *name, const char *file, int line
  * '\n' must not be written. The function must be called with <args> pointing to
  * the first word after "stats".
  */
-static int stats_parse_global(char **args, int section_type, struct proxy *curpx,
-                              const struct proxy *defpx, const char *file, int line,
-                              char **err)
+static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
+                            const struct proxy *defpx, const char *file, int line,
+                            char **err)
 {
 	struct bind_conf *bind_conf;
 	struct listener *l;
@@ -379,18 +379,18 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			return -1;
 		}
 
-		if (!global.stats_fe) {
-			if ((global.stats_fe = alloc_stats_fe("GLOBAL", file, line)) == NULL) {
+		if (!global.cli_fe) {
+			if ((global.cli_fe = cli_alloc_fe("GLOBAL", file, line)) == NULL) {
 				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
 		}
 
-		bind_conf = bind_conf_alloc(global.stats_fe, file, line, args[2], xprt_get(XPRT_RAW));
+		bind_conf = bind_conf_alloc(global.cli_fe, file, line, args[2], xprt_get(XPRT_RAW));
 		bind_conf->level &= ~ACCESS_LVL_MASK;
 		bind_conf->level |= ACCESS_LVL_OPER; /* default access level */
 
-		if (!str2listener(args[2], global.stats_fe, bind_conf, file, line, err)) {
+		if (!str2listener(args[2], global.cli_fe, bind_conf, file, line, err)) {
 			memprintf(err, "parsing [%s:%d] : '%s %s' : %s\n",
 			          file, line, args[0], args[1], err && *err ? *err : "error");
 			return -1;
@@ -409,7 +409,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 					return -1;
 				}
 
-				if (kw->parse(args, cur_arg, global.stats_fe, bind_conf, err) != 0) {
+				if (kw->parse(args, cur_arg, global.cli_fe, bind_conf, err) != 0) {
 					if (err && *err)
 						memprintf(err, "'%s %s' : '%s'", args[0], args[1], *err);
 					else
@@ -434,7 +434,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			l->accept = session_accept_fd;
-			l->default_target = global.stats_fe->default_target;
+			l->default_target = global.cli_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 			l->nice = -64;  /* we want to boost priority for local stats */
 			global.maxsock++; /* for the listening socket */
@@ -463,13 +463,13 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			memprintf(err, "'%s %s' expects a positive value", args[0], args[1]);
 			return -1;
 		}
-		if (!global.stats_fe) {
-			if ((global.stats_fe = alloc_stats_fe("GLOBAL", file, line)) == NULL) {
+		if (!global.cli_fe) {
+			if ((global.cli_fe = cli_alloc_fe("GLOBAL", file, line)) == NULL) {
 				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
 		}
-		global.stats_fe->timeout.client = MS_TO_TICKS(timeout);
+		global.cli_fe->timeout.client = MS_TO_TICKS(timeout);
 	}
 	else if (strcmp(args[1], "maxconn") == 0) {
 		int maxconn = atol(args[2]);
@@ -479,20 +479,20 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			return -1;
 		}
 
-		if (!global.stats_fe) {
-			if ((global.stats_fe = alloc_stats_fe("GLOBAL", file, line)) == NULL) {
+		if (!global.cli_fe) {
+			if ((global.cli_fe = cli_alloc_fe("GLOBAL", file, line)) == NULL) {
 				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
 		}
-		global.stats_fe->maxconn = maxconn;
+		global.cli_fe->maxconn = maxconn;
 	}
 	else if (strcmp(args[1], "bind-process") == 0) {  /* enable the socket only on some processes */
 		int cur_arg = 2;
 		unsigned long set = 0;
 
-		if (!global.stats_fe) {
-			if ((global.stats_fe = alloc_stats_fe("GLOBAL", file, line)) == NULL) {
+		if (!global.cli_fe) {
+			if ((global.cli_fe = cli_alloc_fe("GLOBAL", file, line)) == NULL) {
 				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
@@ -509,7 +509,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			}
 			cur_arg++;
 		}
-		global.stats_fe->bind_proc = set;
+		global.cli_fe->bind_proc = set;
 	}
 	else {
 		memprintf(err, "'%s' only supports 'socket', 'maxconn', 'bind-process' and 'timeout' (got '%s')", args[0], args[1]);
@@ -573,7 +573,7 @@ int listeners_setenv(struct proxy *frontend, const char *varname)
 
 int cli_socket_setenv()
 {
-	if (listeners_setenv(global.stats_fe, "HAPROXY_CLI") < 0)
+	if (listeners_setenv(global.cli_fe, "HAPROXY_CLI") < 0)
 		return -1;
 	if (listeners_setenv(mworker_proxy, "HAPROXY_MASTER_CLI") < 0)
 		return -1;
@@ -592,7 +592,7 @@ int cli_has_level(struct appctx *appctx, int level)
 {
 
 	if ((appctx->cli_level & ACCESS_LVL_MASK) < level) {
-		cli_err(appctx, stats_permission_denied_msg);
+		cli_err(appctx, cli_permission_denied_msg);
 		return 0;
 	}
 	return 1;
@@ -1419,8 +1419,8 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 			/* fall through */
 
 		case STAT_ST_LIST:
-			if (global.stats_fe) {
-				list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+			if (global.cli_fe) {
+				list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
 					struct listener *l;
 
 					/*
@@ -1429,7 +1429,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 					 */
 
 					if (appctx->ctx.cli.p0  &&
-					    &bind_conf->by_fe == (&global.stats_fe->conf.bind)->n) {
+					    &bind_conf->by_fe == (&global.cli_fe->conf.bind)->n) {
 						/* change the current node to the latest dumped and continue the loop */
 						bind_conf = LIST_ELEM(appctx->ctx.cli.p0, typeof(bind_conf), by_fe);
 						continue;
@@ -2769,7 +2769,7 @@ int mworker_cli_proxy_new_listener(char *line)
 					goto err;
 				}
 
-				if (kw->parse(args, cur_arg, global.stats_fe, bind_conf, &err) != 0) {
+				if (kw->parse(args, cur_arg, global.cli_fe, bind_conf, &err) != 0) {
 					if (err)
 						memprintf(&err, "'%s %s' : '%s'", args[0], args[1], err);
 					else
@@ -2832,14 +2832,14 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	}
 
 	/* XXX: we might want to use a separate frontend at some point */
-	if (!global.stats_fe) {
-		if ((global.stats_fe = alloc_stats_fe("GLOBAL", "master-socket", 0)) == NULL) {
+	if (!global.cli_fe) {
+		if ((global.cli_fe = cli_alloc_fe("GLOBAL", "master-socket", 0)) == NULL) {
 			ha_alert("out of memory trying to allocate the stats frontend");
 			goto error;
 		}
 	}
 
-	bind_conf = bind_conf_alloc(global.stats_fe, "master-socket", 0, "", xprt_get(XPRT_RAW));
+	bind_conf = bind_conf_alloc(global.cli_fe, "master-socket", 0, "", xprt_get(XPRT_RAW));
 	if (!bind_conf)
 		goto error;
 
@@ -2847,14 +2847,14 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 	bind_conf->level |= ACCESS_LVL_ADMIN; /* TODO: need to lower the rights with a CLI keyword*/
 
 	bind_conf->settings.bind_proc = 1UL << proc;
-	global.stats_fe->bind_proc = 0; /* XXX: we should be careful with that, it can be removed by configuration */
+	global.cli_fe->bind_proc = 0; /* XXX: we should be careful with that, it can be removed by configuration */
 
 	if (!memprintf(&path, "sockpair@%d", mworker_proc->ipc_fd[1])) {
 		ha_alert("Cannot allocate listener.\n");
 		goto error;
 	}
 
-	if (!str2listener(path, global.stats_fe, bind_conf, "master-socket", 0, &err)) {
+	if (!str2listener(path, global.cli_fe, bind_conf, "master-socket", 0, &err)) {
 		free(path);
 		ha_alert("Cannot create a CLI sockpair listener for process #%d\n", proc);
 		goto error;
@@ -2863,7 +2863,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 
 	list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 		l->accept = session_accept_fd;
-		l->default_target = global.stats_fe->default_target;
+		l->default_target = global.cli_fe->default_target;
 		l->options |= (LI_O_UNLIMITED | LI_O_NOSTOP);
 		HA_ATOMIC_ADD(&unstoppable_jobs, 1);
 		/* it's a sockpair but we don't want to keep the fd in the master */
@@ -2921,7 +2921,7 @@ static struct cli_kw_list cli_kws = {{ },{
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 static struct cfg_kw_list cfg_kws = {ILH, {
-	{ CFG_GLOBAL, "stats", stats_parse_global },
+	{ CFG_GLOBAL, "stats", cli_parse_global },
 	{ 0, NULL, NULL },
 }};
 

@@ -145,7 +145,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		}
 
 		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, err,
-		                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix,
+		                   curproxy == global.cli_fe ? NULL : global.unix_bind.prefix,
 		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_STREAM | PA_O_XPRT);
 		if (!ss2)
@@ -206,7 +206,7 @@ int str2receiver(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		}
 
 		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, err,
-		                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix,
+		                   curproxy == global.cli_fe ? NULL : global.unix_bind.prefix,
 		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_DGRAM | PA_O_XPRT);
 		if (!ss2)
@@ -2132,7 +2132,7 @@ int check_config_validity()
 			break;
 		}
 
-		if (curproxy != global.stats_fe && (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners)) {
+		if (curproxy != global.cli_fe && (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners)) {
 			ha_warning("config : %s '%s' has no 'bind' directive. Please declare it as a backend if this was intended.\n",
 				   proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;
@@ -3338,18 +3338,18 @@ out_uri_auth_compat:
 
 	/* Check multi-process mode compatibility */
 
-	if (global.nbproc > 1 && global.stats_fe) {
-		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+	if (global.nbproc > 1 && global.cli_fe) {
+		list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
 			unsigned long mask;
 
-			mask  = proc_mask(global.stats_fe->bind_proc) && all_proc_mask;
+			mask  = proc_mask(global.cli_fe->bind_proc) && all_proc_mask;
 			mask &= proc_mask(bind_conf->settings.bind_proc);
 
 			/* stop here if more than one process is used */
 			if (atleast2(mask))
 				break;
 		}
-		if (&bind_conf->by_fe != &global.stats_fe->conf.bind) {
+		if (&bind_conf->by_fe != &global.cli_fe->conf.bind) {
 			ha_warning("stats socket will not work as expected in multi-process mode (nbproc > 1), you should force process binding globally using 'stats bind-process' or per socket using the 'process' attribute.\n");
 		}
 	}
@@ -3368,14 +3368,14 @@ out_uri_auth_compat:
 		curproxy->bind_proc = proc_mask(curproxy->bind_proc);
 	}
 
-	if (global.stats_fe) {
-		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+	if (global.cli_fe) {
+		list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
 			unsigned long mask;
 
 			mask = bind_conf->settings.bind_proc ? bind_conf->settings.bind_proc : 0;
-			global.stats_fe->bind_proc |= mask;
+			global.cli_fe->bind_proc |= mask;
 		}
-		global.stats_fe->bind_proc = proc_mask(global.stats_fe->bind_proc);
+		global.cli_fe->bind_proc = proc_mask(global.cli_fe->bind_proc);
 	}
 
 	/* propagate bindings from frontends to backends. Don't do it if there
