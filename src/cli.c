@@ -628,7 +628,7 @@ static int cli_get_severity_output(struct appctx *appctx)
  */
 static int cli_parse_request(struct appctx *appctx)
 {
-	char *args[MAX_STATS_ARGS + 1], *p, *end, *payload = NULL;
+	char *args[MAX_CLI_ARGS + 1], *p, *end, *payload = NULL;
 	int i = 0;
 	struct cli_kw *kw;
 
@@ -658,7 +658,7 @@ static int cli_parse_request(struct appctx *appctx)
 	 * Get pointers on words.
 	 * One extra slot is reserved to store a pointer on a null byte.
 	 */
-	while (i < MAX_STATS_ARGS && p < end) {
+	while (i < MAX_CLI_ARGS && p < end) {
 		int j, k;
 
 		/* skip leading spaces/tabs */
@@ -698,7 +698,7 @@ static int cli_parse_request(struct appctx *appctx)
 	}
 	/* fill unused slots */
 	p = appctx->chunk->area + appctx->chunk->data;
-	for (; i < MAX_STATS_ARGS + 1; i++)
+	for (; i < MAX_CLI_ARGS + 1; i++)
 		args[i] = p;
 
 	kw = cli_find_kw(args);
@@ -2182,7 +2182,7 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 {
 	char *str = (char *)ci_head(req);
 	char *end = (char *)ci_stop(req);
-	char *args[MAX_STATS_ARGS + 1]; /* +1 for storing a NULL */
+	char *args[MAX_CLI_ARGS + 1]; /* +1 for storing a NULL */
 	int argl; /* number of args */
 	char *p;
 	char *trim = NULL;
@@ -2239,7 +2239,7 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 	*(end-1) = '\0';
 
 	/* splits the command in words */
-	while (i < MAX_STATS_ARGS && p < end) {
+	while (i < MAX_CLI_ARGS && p < end) {
 		/* skip leading spaces/tabs */
 		p += strspn(p, " \t");
 		if (!*p)
@@ -2264,7 +2264,7 @@ int pcli_parse_request(struct stream *s, struct channel *req, char **errmsg, int
 
 	argl = i;
 
-	for (; i < MAX_STATS_ARGS + 1; i++)
+	for (; i < MAX_CLI_ARGS + 1; i++)
 		args[i] = NULL;
 
 	wtrim = pcli_find_and_exec_kw(s, args, argl, errmsg, next_pid);

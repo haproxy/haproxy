@@ -110,9 +110,9 @@
 // max # args on crt-bind-list configuration line
 #define MAX_CRT_ARGS  2048
 
-// max # args on a stats socket
+// max # args on a command issued on the CLI ("stats socket")
 // This should cover at least 5 + twice the # of data_types
-#define MAX_STATS_ARGS  64
+#define MAX_CLI_ARGS  64
 
 // max # of matches per regexp
 #define	MAX_MATCH       10
