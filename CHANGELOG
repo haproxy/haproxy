@@ -1,6 +1,81 @@
 ChangeLog :
 ===========
 
+2021/03/13 : 2.4-dev12
+    - CLEANUP: connection: Use `VAR_ARRAY` in `struct tlv` definition
+    - CLEANUP: connection: Remove useless test for NULL before calling `pool_free()`
+    - CLEANUP: connection: Use istptr / istlen for proxy_unique_id
+    - MINOR: connection: Use a `struct ist` to store proxy_authority
+    - CLEANUP: connection: Consistently use `struct ist` to process all TLV types
+    - BUILD: task: fix build at -O0 with threads disabled
+    - BUILD: bug: refine HA_LINK_ERROR() to only be used on gcc and derivatives
+    - CLEANUP: config: make the cfg_keyword parsers take a const for the defproxy
+    - BUILD: connection: do not use VAR_ARRAY in struct tlv
+    - BUG/MEDIUM: session: NULL dereference possible when accessing the listener
+    - MINOR: build: force CC to set a return code when probing options
+    - CLEANUP: stream: rename a few remaining occurrences of "stream *sess"
+    - BUG/MEDIUM: resolvers: handle huge responses over tcp servers.
+    - CLEANUP: config: also address the cfg_keyword API change in the compression code
+    - BUG/MEDIUM: ssl: properly remove the TASK_HEAVY flag at end of handshake
+    - BUG/MINOR: sample: Rename SenderComID/TargetComID to SenderCompID/TargetCompID
+    - MINOR: task: give the scheduler a bit more flexibility in the runqueue size
+    - OPTIM: task: automatically adjust the default runqueue-depth to the threads
+    - BUG/MINOR: connection: Missing QUIC initialization
+    - BUG/MEDIUM: stick-tables: fix ref counter in table entry using multiple http tracksc.
+    - BUILD: atomic/arm64: force the register pairs to use in __ha_cas_dw()
+    - BUG/MEDIUM: filters: Set CF_FL_ANALYZE on channels when filters are attached
+    - BUG/MINOR: tcpcheck: Update .health threshold of agent inside an agent-check
+    - BUG/MINOR: proxy/session: Be sure to have a listener to increment its counters
+    - BUG/MINOR: tcpcheck: Fix double free on error path when parsing tcp/http-check
+    - BUG/MINOR: server-state: properly handle the case where the base is not set
+    - BUG/MINOR: server-state: use the argument, not the global state
+    - CLEANUP: tcp-rules: add missing actions in the tcp-request error message
+    - CLEANUP: vars: make the error message clearer on missing arguments for set-var
+    - CLEANUP: http-rules: remove the unexpected comma before the list of action keywords
+    - CLEANUP: actions: the keyword must always be const from the rule
+    - MINOR: tools: add simple word fingerprinting to find similar-looking words
+    - MINOR: cfgparse: add cfg_find_best_match() to suggest an existing word
+    - MINOR: cfgparse: suggest correct spelling for unknown words in proxy sections
+    - MINOR: cfgparse: suggest correct spelling for unknown words in global section
+    - MINOR: cfgparse/server: try to fix spelling mistakes on server lines
+    - MINOR: cfgparse/bind: suggest correct spelling for unknown bind keywords
+    - MINOR: actions: add a function to suggest an action ressembling a given word
+    - MINOR: http-rules: suggest approaching action names on mismatch
+    - MINOR: tcp-rules: suggest approaching action names on mismatch
+    - BUG/MINOR: cfgparse/server: increment the extra keyword counter one at a time
+    - Revert "BUG/MINOR: resolvers: Only renew TTL for SRV records with an additional record"
+    - BUG/MINOR: resolvers: Consider server to have no IP on DNS resolution error
+    - BUG/MINOR: resolvers: Reset server address on DNS error only on status change
+    - BUG/MINOR: resolvers: Unlink DNS resolution to set RMAINT on SRV resolution
+    - BUG/MEDIUM: resolvers: Don't set an address-less server as UP
+    - BUG/MEDIUM: resolvers: Fix the loop looking for an existing ADD item
+    - MINOR: resolvers: new function find_srvrq_answer_record()
+    - BUG/MINOR; resolvers: Ignore DNS resolution for expired SRV item
+    - BUG/MEDIUM: resolvers: Trigger a DNS resolution if an ADD item is obsolete
+    - MINOR: resolvers: Use a function to remove answers attached to a resolution
+    - MINOR: resolvers: Purge answer items when a SRV resolution triggers an error
+    - MINOR: resolvers: Add function to change the srv status based on SRV resolution
+    - MINOR: resolvers: Directly call srvrq_update_srv_state() when possible
+    - BUG/MEDIUM: resolvers: Don't release resolution from a requester callbacks
+    - BUG/MEDIUM: resolvers: Skip DNS resolution at startup if SRV resolution is set
+    - MINOR: resolvers: Use milliseconds for cached items in resolver responses
+    - MINOR: resolvers: Don't try to match immediatly renewed ADD items
+    - CLEANUP: resolvers: Use ha_free() in srvrq_resolution_error_cb()
+    - CLEANUP: resolvers: Perform unsafe loop on requester list when possible
+    - BUG/MINOR: cli: make sure "help", "prompt", "quit" are enabled at master level
+    - CLEANUP: cli: fix misleading comment and better indent the access level flags
+    - MINOR: cli: set the ACCESS_MASTER* bits on the master bind_conf
+    - MINOR: cli: test the appctx level for master access instead of comparing pointers
+    - MINOR: cli: print the error message in the parser function itself
+    - MINOR: cli: filter the list of commands to the matching part
+    - MEDIUM: cli: apply spelling fixes for known commands before listing them
+    - MINOR: tools: add the ability to update a word fingerprint
+    - MINOR: cli: apply the fuzzy matching on the whole command instead of words
+    - CLEANUP: cli: rename MAX_STATS_ARGS to MAX_CLI_ARGS
+    - CLEANUP: cli: rename the last few "stats_" to "cli_"
+    - CLEANUP: task: make sure tasklet handlers always indicate their statuses
+    - CLEANUP: assorted typo fixes in the code and comments
+
 2021/03/05 : 2.4-dev11
     - CI: codespell: skip Makefile for spell check
     - CLEANUP: assorted typo fixes in the code and comments
