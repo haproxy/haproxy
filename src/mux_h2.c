@@ -3793,6 +3793,7 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state)
 			 */
 			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 			tasklet_free(tl);
+			t = NULL;
 			goto leave;
 		}
 		conn = h2c->conn;
@@ -3826,6 +3827,9 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state)
 	 * the connection (testing !ret is enough, if h2_process() wasn't
 	 * called then ret will be 0 anyway.
 	 */
+	if (ret < 0)
+		t = NULL;
+
 	if (!ret && conn_in_list) {
 		struct server *srv = objt_server(conn->target);
 
@@ -3839,7 +3843,7 @@ struct task *h2_io_cb(struct task *t, void *ctx, unsigned int state)
 
 leave:
 	TRACE_LEAVE(H2_EV_H2C_WAKE);
-	return NULL;
+	return t;
 }
 
 /* callback called on any event by the connection handler.
@@ -4473,13 +4477,15 @@ struct task *h2_deferred_shut(struct task *t, void *ctx, unsigned int state)
 
 		if (!h2s->cs) {
 			h2s_destroy(h2s);
-			if (h2c_is_dead(h2c))
+			if (h2c_is_dead(h2c)) {
 				h2_release(h2c);
+				t = NULL;
+			}
 		}
 	}
  end:
 	TRACE_LEAVE(H2_EV_STRM_SHUT);
-	return NULL;
+	return t;
 }
 
 /* shutr() called by the conn_stream (mux_ops.shutr) */

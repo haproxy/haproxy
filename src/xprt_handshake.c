@@ -122,8 +122,9 @@ out:
 		}
 		tasklet_free(ctx->wait_event.tasklet);
 		pool_free(xprt_handshake_ctx_pool, ctx);
+		t = NULL;
 	}
-	return NULL;
+	return t;
 }
 
 static int xprt_handshake_init(struct connection *conn, void **xprt_ctx)

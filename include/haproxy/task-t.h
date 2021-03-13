@@ -114,6 +114,11 @@ struct task_per_thread {
 
 /* This part is common between struct task and struct tasklet so that tasks
  * can be used as-is as tasklets.
+ *
+ * Note that the process() function must ALWAYS return the task/tasklet's
+ * pointer if the task/tasklet remains valid, and return NULL if it has been
+ * deleted. The scheduler relies on this to know if it should update its state
+ * on return.
  */
 #define TASK_COMMON							\
 	struct {							\

@@ -5915,7 +5915,7 @@ leave:
 			ebmb_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
-	return NULL;
+	return t;
 }
 
 /* Receive up to <count> bytes from connection <conn>'s socket and store them

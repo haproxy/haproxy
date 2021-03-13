@@ -75,16 +75,18 @@ struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 			ctx->conn->subs = NULL;
 		} else if (ctx->cs->data_cb->wake)
 			ctx->cs->data_cb->wake(ctx->cs);
-		return NULL;
+		return t;
 	}
 	conn_ctrl_drain(ctx->conn);
-	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH))
+	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)) {
 		mux_pt_destroy(ctx);
+		t = NULL;
+	}
 	else
 		ctx->conn->xprt->subscribe(ctx->conn, ctx->conn->xprt_ctx, SUB_RETRY_RECV,
 		    &ctx->wait_event);
 
-	return NULL;
+	return t;
 }
 
 /* Initialize the mux once it's attached. It is expected that conn->ctx

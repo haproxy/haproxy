@@ -3024,6 +3024,9 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 	 * the connection (testing !ret is enough, if fcgi_process() wasn't
 	 * called then ret will be 0 anyway.
 	 */
+	if (ret < 0)
+		t = NULL;
+
 	if (!ret && conn_in_list) {
 		struct server *srv = objt_server(conn->target);
 
@@ -3034,7 +3037,7 @@ struct task *fcgi_io_cb(struct task *t, void *ctx, unsigned int state)
 			ebmb_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
-	return NULL;
+	return t;
 }
 
 /* callback called on any event by the connection handler.

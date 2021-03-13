@@ -774,7 +774,7 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state)
 	int ret = 0;
 
 	if (!cs)
-		return NULL;
+		return t;
 
 	if (!(si->wait_event.events & SUB_RETRY_SEND) && !channel_is_empty(si_oc(si)))
 		ret = si_cs_send(cs);
@@ -784,7 +784,7 @@ struct task *si_cs_io_cb(struct task *t, void *ctx, unsigned int state)
 		si_cs_process(cs);
 
 	stream_release_buffers(si_strm(si));
-	return (NULL);
+	return t;
 }
 
 /* This function is designed to be called from within the stream handler to

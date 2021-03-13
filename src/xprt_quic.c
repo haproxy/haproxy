@@ -3864,7 +3864,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		qc_send_ppkts(ctx);
 	}
 
-	return NULL;
+	return t;
 }
 
 /* Receive up to <count> bytes from connection <conn>'s socket and store them

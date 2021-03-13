@@ -2845,11 +2845,15 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
 		ret |= h1_recv(h1c);
 	if (ret || b_data(&h1c->ibuf))
 		ret = h1_process(h1c);
+
 	/* If we were in an idle list, we want to add it back into it,
 	 * unless h1_process() returned -1, which mean it has destroyed
 	 * the connection (testing !ret is enough, if h1_process() wasn't
 	 * called then ret will be 0 anyway.
 	 */
+	if (ret < 0)
+		t = NULL;
+
 	if (!ret && conn_in_list) {
 		struct server *srv = objt_server(conn->target);
 
@@ -2860,7 +2864,7 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
 			ebmb_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 	}
-	return NULL;
+	return t;
 }
 
 static void h1_reset(struct connection *conn)
