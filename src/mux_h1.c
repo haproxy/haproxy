@@ -2867,11 +2867,6 @@ struct task *h1_io_cb(struct task *t, void *ctx, unsigned int state)
 	return t;
 }
 
-static void h1_reset(struct connection *conn)
-{
-
-}
-
 static int h1_wake(struct connection *conn)
 {
 	struct h1c *h1c = conn->ctx;
@@ -3849,7 +3844,6 @@ static const struct mux_ops mux_h1_ops = {
 	.shutr       = h1_shutr,
 	.shutw       = h1_shutw,
 	.show_fd     = h1_show_fd,
-	.reset       = h1_reset,
 	.ctl         = h1_ctl,
 	.takeover    = h1_takeover,
 	.flags       = MX_FL_HTX,
