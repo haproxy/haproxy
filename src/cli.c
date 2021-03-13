@@ -140,7 +140,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	/* In case of partial match we'll look for the best matching entries
 	 * starting from position <length>
 	 */
-	if (args[length] && *args[length]) {
+	if (args && args[length] && *args[length]) {
 		list_for_each_entry(kw_list, &cli_keywords.list, list) {
 			for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
 				if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT))
