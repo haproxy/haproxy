@@ -1077,28 +1077,30 @@ static inline unsigned int statistical_prng()
  * is zero, it's assumed that <curr> is the first character. If <curr> is zero
  * its assumed to mark the end. Both may be zero. <fp> is a 1024-entries array
  * indexed as 32*from+to. Positions for 'from' and 'to' are:
- *   0..25=letter, 26=digit, 27=other, 28=begin, 29=end, others unused.
+ *   1..26=letter, 27=digit, 28=other/begin/end.
+ * Row "from=0" is used to mark the character's presence. Others unused.
  */
 static inline void update_char_fingerprint(uint8_t *fp, char prev, char curr)
 {
 	int from, to;
 
 	switch (prev) {
-	case 0:         from = 26; break; // begin
-	case 'a'...'z': from = prev - 'a'; break;
-	case 'A'...'Z': from = tolower(prev) - 'a'; break;
-	case '0'...'9': from = 26; break;
-	default:        from = 27; break;
+	case 0:         from = 28; break; // begin
+	case 'a'...'z': from = prev - 'a' + 1; break;
+	case 'A'...'Z': from = tolower(prev) - 'a' + 1; break;
+	case '0'...'9': from = 27; break;
+	default:        from = 28; break;
 	}
 
 	switch (curr) {
 	case 0:         to = 28; break; // end
-	case 'a'...'z': to = curr - 'a'; break;
-	case 'A'...'Z': to = tolower(curr) - 'a'; break;
-	case '0'...'9': to = 26; break;
-	default:        to = 27; break;
+	case 'a'...'z': to = curr - 'a' + 1; break;
+	case 'A'...'Z': to = tolower(curr) - 'a' + 1; break;
+	case '0'...'9': to = 27; break;
+	default:        to = 28; break;
 	}
-
+	if (curr)
+		fp[to] = 1;
 	fp[32 * from + to]++;
 }
 

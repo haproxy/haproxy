@@ -5372,7 +5372,8 @@ size_t sanitize_for_printing(char *line, size_t pos, size_t width)
 /* Update array <fp> with the fingerprint of word <word> by counting the
  * transitions between characters. <fp> is a 1024-entries array indexed as
  * 32*from+to. Positions for 'from' and 'to' are:
- *   0..25=letter, 26=digit, 27=other, 28=begin, 29=end, others unused.
+ *   1..26=letter, 27=digit, 28=other/begin/end.
+ * Row "from=0" is used to mark the character's presence. Others unused.
  */
 void update_word_fingerprint(uint8_t *fp, const char *word)
 {
@@ -5384,11 +5385,12 @@ void update_word_fingerprint(uint8_t *fp, const char *word)
 	for (p = word; *p; p++) {
 		c = tolower(*p);
 		switch(c) {
-		case 'a'...'z': to = c - 'a'; break;
-		case 'A'...'Z': to = tolower(c) - 'a'; break;
-		case '0'...'9': to = 26; break;
-		default: to = 27; break;
+		case 'a'...'z': to = c - 'a' + 1; break;
+		case 'A'...'Z': to = tolower(c) - 'a' + 1; break;
+		case '0'...'9': to = 27; break;
+		default:        to = 28; break;
 		}
+		fp[to] = 1;
 		fp[32 * from + to]++;
 		from = to;
 	}
