@@ -3055,7 +3055,7 @@ out_uri_auth_compat:
 			err_code |= ERR_WARN;
 		}
 
-		if (curproxy->mode != PR_MODE_HTTP) {
+		if (curproxy->mode != PR_MODE_HTTP && !(curproxy->options & PR_O_HTTP_UPG)) {
 			int optnum;
 
 			if (curproxy->uri_auth) {

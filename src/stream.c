@@ -2870,6 +2870,9 @@ static int check_tcp_switch_stream_mode(struct act_rule *rule, struct proxy *px,
 	enum pr_mode pr_mode = (uintptr_t)rule->arg.act.p[0];
 	enum proto_proxy_mode mode = (1 << (pr_mode == PR_MODE_HTTP));
 
+	if (pr_mode == PR_MODE_HTTP)
+		px->options |= PR_O_HTTP_UPG;
+
 	if (mux_proto) {
 		mux_ent = conn_get_best_mux_entry(mux_proto->token, PROTO_SIDE_FE, mode);
 		if (!mux_ent || !isteq(mux_ent->token, mux_proto->token)) {
