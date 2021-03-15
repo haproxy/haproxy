@@ -101,6 +101,22 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		 */
 		BUG_ON(!(s->flags & SF_IGNORE) || !c_empty(&s->req));
 
+		/* Don't connect for now */
+		channel_dont_connect(req);
+
+		/* A SHUTR at this stage means we are performing a "destructive"
+		 * HTTP upgrade (TCP>H2). In this case, we can leave.
+		 */
+		if (req->flags & CF_SHUTR) {
+			s->logs.logwait = 0;
+                        s->logs.level = 0;
+			channel_abort(&s->req);
+			channel_abort(&s->res);
+			req->analysers &= AN_REQ_FLT_END;
+			req->analyse_exp = TICK_ETERNITY;
+			DBG_TRACE_LEAVE(STRM_EV_STRM_ANA, s);
+			return 1;
+		}
 		DBG_TRACE_LEAVE(STRM_EV_STRM_ANA, s);
 		return 0;
 	}
