@@ -1681,9 +1681,6 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 	ret1 = b_isteq(&h2c->dbuf, 0, b_data(&h2c->dbuf), ist(H2_CONN_PREFACE));
 
 	if (unlikely(ret1 <= 0)) {
-		if (ret1 < 0)
-			sess_log(h2c->conn->owner);
-
 		if (ret1 < 0 || conn_xprt_read0_pending(h2c->conn)) {
 			TRACE_ERROR("I/O error or short read", H2_EV_RX_FRAME|H2_EV_RX_PREFACE, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
