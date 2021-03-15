@@ -5411,7 +5411,7 @@ void make_word_fingerprint(uint8_t *fp, const char *word)
 
 /* Return the distance between two word fingerprints created by function
  * make_word_fingerprint(). It's a positive integer calculated as the sum of
- * the squares of the differences between each location.
+ * the differences between each location.
  */
 int word_fingerprint_distance(const uint8_t *fp1, const uint8_t *fp2)
 {
@@ -5419,7 +5419,7 @@ int word_fingerprint_distance(const uint8_t *fp1, const uint8_t *fp2)
 
 	for (i = 0; i < 1024; i++) {
 		k = (int)fp1[i] - (int)fp2[i];
-		dist += k * k;
+		dist += abs(k);
 	}
 	return dist;
 }
