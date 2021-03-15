@@ -203,7 +203,26 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 		}
 	}
 
+	if (matches[0].kw) {
+		/* we have fuzzy matches, let's propose them */
+		for (idx = 0; idx < CLI_MAX_MATCHES; idx++) {
+			kw = matches[idx].kw;
+			if (!kw)
+				break;
+
+			/* stop the dump if some words look very unlikely candidates */
+			if (matches[idx].dist > 5*matches[0].dist/2)
+				break;
+
+			chunk_appendf(tmp, "  %s\n", kw->usage);
+		}
+	}
+
 	list_for_each_entry(kw_list, &cli_keywords.list, list) {
+		/* no full dump if we've already found nice candidates */
+		if (matches[0].kw)
+			break;
+
 		for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
 
 			/* in a worker or normal process, don't display master-only commands
@@ -228,19 +247,8 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 					break;
 			}
 
-			if (kw->usage && idx == length) {
-				/* if we've filled some fuzzy matches, let's compare them. We'll
-				 * just set the idx to their position if they're found and are no
-				 * further than twice the distance of the best match, otherwise
-				 * idx will be CLI_MAX_MATCHES, indicating "not found".
-				 */
-				for (idx = 0; matches[0].kw && idx < CLI_MAX_MATCHES; idx++)
-					if (kw == matches[idx].kw && matches[idx].dist <= 5*matches[0].dist/2)
-						break;
-
-				if (idx < CLI_MAX_MATCHES)
-					chunk_appendf(tmp, "  %s\n", kw->usage);
-			}
+			if (kw->usage && idx == length)
+				chunk_appendf(tmp, "  %s\n", kw->usage);
 		}
 	}
 
