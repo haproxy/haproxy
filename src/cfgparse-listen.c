@@ -54,6 +54,15 @@ static const char *common_kw_list[] = {
 	NULL /* must be last */
 };
 
+static const char *common_options[] = {
+	"httpclose", "forceclose", "http-server-close", "http-keep-alive",
+	"http-tunnel", "redispatch", "httplog", "tcplog", "tcpka", "httpchk",
+	"ssl-hello-chk", "smtpchk", "pgsql-check", "redis-check",
+	"mysql-check", "ldap-check", "spop-check", "tcp-check",
+	"external-check", "forwardfor", "original-to",
+	NULL /* must be last */
+};
+
 /* Report a warning if a rule is placed after a 'tcp-request session' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
@@ -2238,7 +2247,13 @@ stats_error_parsing:
 			} /* end while loop */
 		}
 		else {
-			ha_alert("parsing [%s:%d] : unknown option '%s'.\n", file, linenum, args[1]);
+			const char *best = proxy_find_best_option(args[1], common_options);
+
+			if (best)
+				ha_alert("parsing [%s:%d] : unknown option '%s'; did you mean '%s' maybe ?\n", file, linenum, args[1], best);
+			else
+				ha_alert("parsing [%s:%d] : unknown option '%s'.\n", file, linenum, args[1]);
+
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

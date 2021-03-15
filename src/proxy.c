@@ -152,6 +152,55 @@ const char *proxy_mode_str(int mode) {
 		return "unknown";
 }
 
+/* try to find among known options the one that looks closest to <word> by
+ * counting transitions between letters, digits and other characters. Will
+ * return the best matching word if found, otherwise NULL. An optional array
+ * of extra words to compare may be passed in <extra>, but it must then be
+ * terminated by a NULL entry. If unused it may be NULL.
+ */
+const char *proxy_find_best_option(const char *word, const char **extra)
+{
+	uint8_t word_sig[1024];
+	uint8_t list_sig[1024];
+	const char *best_ptr = NULL;
+	int dist, best_dist = INT_MAX;
+	int index;
+
+	make_word_fingerprint(word_sig, word);
+
+	for (index = 0; cfg_opts[index].name; index++) {
+		make_word_fingerprint(list_sig, cfg_opts[index].name);
+		dist = word_fingerprint_distance(word_sig, list_sig);
+		if (dist < best_dist) {
+			best_dist = dist;
+			best_ptr = cfg_opts[index].name;
+		}
+	}
+
+	for (index = 0; cfg_opts2[index].name; index++) {
+		make_word_fingerprint(list_sig, cfg_opts2[index].name);
+		dist = word_fingerprint_distance(word_sig, list_sig);
+		if (dist < best_dist) {
+			best_dist = dist;
+			best_ptr = cfg_opts2[index].name;
+		}
+	}
+
+	while (extra && *extra) {
+		make_word_fingerprint(list_sig, *extra);
+		dist = word_fingerprint_distance(word_sig, list_sig);
+		if (dist < best_dist) {
+			best_dist = dist;
+			best_ptr = *extra;
+		}
+		extra++;
+	}
+
+	if (best_dist > 2 * strlen(word) || (best_ptr && best_dist > 2 * strlen(best_ptr)))
+		best_ptr = NULL;
+	return best_ptr;
+}
+
 /*
  * This function scans the list of backends and servers to retrieve the first
  * backend and the first server with the given names, and sets them in both

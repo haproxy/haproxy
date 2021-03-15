@@ -49,6 +49,7 @@ int  stream_set_backend(struct stream *s, struct proxy *be);
 
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
+const char *proxy_find_best_option(const char *word, const char **extra);
 void proxy_store_name(struct proxy *px);
 struct proxy *proxy_find_by_id(int id, int cap, int table);
 struct proxy *proxy_find_by_name(const char *name, int cap, int table);
