@@ -164,26 +164,32 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 					uint8_t list_sig[1024];
 					int dist = 0;
 					int totlen = 0;
+					int i;
 
 					/* this one matches, let's compute the distance between the two
-					 * on the remaining words
+					 * on the remaining words. For this we're computing the signature
+					 * of everything that remains and the cumulated length of the
+					 * strings.
 					 */
 					memset(word_sig, 0, sizeof(word_sig));
-					memset(list_sig, 0, sizeof(list_sig));
-
-					while (idx < CLI_PREFIX_KW_NB && kw->str_kw[idx] && args[idx] && *args[idx]) {
-						update_word_fingerprint(word_sig, args[idx]);
-						update_word_fingerprint(list_sig, kw->str_kw[idx]);
-						totlen += strlen(args[idx]) + strlen(kw->str_kw[idx]);
-						idx++;
+					for (i = idx; i < CLI_PREFIX_KW_NB && args[i] && *args[i]; i++) {
+						update_word_fingerprint(word_sig, args[i]);
+						totlen += strlen(args[i]);
 					}
+
+					memset(list_sig, 0, sizeof(list_sig));
+					for (i = idx; i < CLI_PREFIX_KW_NB && kw->str_kw[i]; i++) {
+						update_word_fingerprint(list_sig, kw->str_kw[i]);
+						totlen += strlen(kw->str_kw[i]);
+					}
+
 					dist = word_fingerprint_distance(word_sig, list_sig);
 
 					/* insert this one at its place if relevant, in order to keep only
 					 * the best matches.
 					 */
 					swp.kw = kw; swp.dist = dist;
-					if (dist < totlen && dist < matches[CLI_MAX_MATCHES-1].dist) {
+					if (dist < 5*totlen/2 && dist < matches[CLI_MAX_MATCHES-1].dist) {
 						matches[CLI_MAX_MATCHES-1] = swp;
 						for (idx = CLI_MAX_MATCHES - 1; --idx >= 0;) {
 							if (matches[idx+1].dist >= matches[idx].dist)
@@ -229,7 +235,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 				 * idx will be CLI_MAX_MATCHES, indicating "not found".
 				 */
 				for (idx = 0; matches[0].kw && idx < CLI_MAX_MATCHES; idx++)
-					if (kw == matches[idx].kw && matches[idx].dist <= 2*matches[0].dist)
+					if (kw == matches[idx].kw && matches[idx].dist <= 5*matches[0].dist/2)
 						break;
 
 				if (idx < CLI_MAX_MATCHES)
