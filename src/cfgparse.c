@@ -3083,6 +3083,12 @@ out_uri_auth_compat:
 				err_code |= ERR_WARN;
 			}
 
+			if (!LIST_ISEMPTY(&curproxy->http_after_res_rules)) {
+				ha_warning("config : 'http-after-response' rules ignored for %s '%s' as they require HTTP mode.\n",
+					   proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+			}
+
 			if (!LIST_ISEMPTY(&curproxy->redirect_rules)) {
 				ha_warning("config : 'redirect' rules ignored for %s '%s' as they require HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
