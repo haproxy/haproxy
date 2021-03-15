@@ -504,6 +504,14 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
 	s->req.analysers = sess->listener ? sess->listener->analysers : 0;
 
+	if (IS_HTX_STRM(s)) {
+		/* Be sure to have HTTP analysers because in case of
+		 * "destructive" stream upgrade, they may be missing (e.g
+		 * TCP>H2)
+		 */
+		s->req.analysers |= AN_REQ_WAIT_HTTP|AN_REQ_HTTP_PROCESS_FE;
+	}
+
 	if (!sess->fe->fe_req_ana) {
 		channel_auto_connect(&s->req);  /* don't wait to establish connection */
 		channel_auto_close(&s->req);    /* let the producer forward close requests */
