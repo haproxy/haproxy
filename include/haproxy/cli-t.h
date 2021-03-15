@@ -42,7 +42,7 @@
 #define APPCTX_CLI_ST1_NOLF    (1 << 2)
 
 #define CLI_PREFIX_KW_NB 5
-#define CLI_MAX_MATCHES 10
+#define CLI_MAX_MATCHES 5
 
 /* CLI states */
 enum {
