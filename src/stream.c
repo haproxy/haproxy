@@ -1478,6 +1478,66 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 	return 1;
 }
 
+/* Set the stream to HTTP mode, if necessary. The minimal request HTTP analysers
+ * are set and the client mux is upgraded. It returns 1 if the stream processing
+ * may continue or 0 if it should be stopped. It happens on error or if the
+ * upgrade required a new stream.
+ */
+int stream_set_http_mode(struct stream *s)
+{
+	struct connection  *conn;
+	struct conn_stream *cs;
+
+	/* Already an HTTP stream */
+	if (IS_HTX_STRM(s))
+		return 1;
+
+	s->req.analysers |= AN_REQ_WAIT_HTTP|AN_REQ_HTTP_PROCESS_FE;
+
+	if (unlikely(!s->txn && !http_create_txn(s)))
+		return 0;
+
+	conn = objt_conn(strm_sess(s)->origin);
+	cs = objt_cs(s->si[0].end);
+	if (conn && cs) {
+		si_rx_endp_more(&s->si[0]);
+		/* Make sure we're unsubscribed, the the new
+		 * mux will probably want to subscribe to
+		 * the underlying XPRT
+		 */
+		if (s->si[0].wait_event.events)
+			conn->mux->unsubscribe(cs, s->si[0].wait_event.events,
+					       &s->si[0].wait_event);
+		if (conn->mux->flags & MX_FL_NO_UPG)
+			return 0;
+		if (conn_upgrade_mux_fe(conn, cs, &s->req.buf, ist(""), PROTO_MODE_HTTP)  == -1)
+			return 0;
+
+		s->req.flags &= ~(CF_READ_PARTIAL|CF_AUTO_CONNECT);
+		s->req.total = 0;
+		s->flags |= SF_IGNORE;
+		if (strcmp(conn->mux->name, "H2") == 0) {
+			/* For HTTP/2, destroy the conn_stream, disable logging,
+			 * and abort the stream process. Thus it will be
+			 * silently destroyed. The new mux will create new
+			 * streams.
+			 */
+			cs_free(cs);
+			si_detach_endpoint(&s->si[0]);
+			s->logs.logwait = 0;
+			s->logs.level = 0;
+			channel_abort(&s->req);
+			channel_abort(&s->res);
+			s->req.analysers &= AN_REQ_FLT_END;
+			s->req.analyse_exp = TICK_ETERNITY;
+		}
+	}
+
+	return 1;
+}
+
+
+
 /* This macro is very specific to the function below. See the comments in
  * process_stream() below to understand the logic and the tests.
  */
