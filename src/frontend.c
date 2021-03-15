@@ -145,7 +145,7 @@ int frontend_accept(struct stream *s)
 			goto out_free_reqcap;	/* no memory */
 	}
 
-	if (fe->http_needed) {
+	if (fe->http_needed || IS_HTX_STRM(s)) {
 		/* we have to allocate header indexes only if we know
 		 * that we may make use of them. This of course includes
 		 * (mode == PR_MODE_HTTP).
