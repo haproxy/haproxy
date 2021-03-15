@@ -1481,9 +1481,9 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 /* Set the stream to HTTP mode, if necessary. The minimal request HTTP analysers
  * are set and the client mux is upgraded. It returns 1 if the stream processing
  * may continue or 0 if it should be stopped. It happens on error or if the
- * upgrade required a new stream.
+ * upgrade required a new stream. The mux protocol may be specified.
  */
-int stream_set_http_mode(struct stream *s)
+int stream_set_http_mode(struct stream *s, const struct mux_proto_list *mux_proto)
 {
 	struct connection  *conn;
 	struct conn_stream *cs;
@@ -1508,9 +1508,12 @@ int stream_set_http_mode(struct stream *s)
 		if (s->si[0].wait_event.events)
 			conn->mux->unsubscribe(cs, s->si[0].wait_event.events,
 					       &s->si[0].wait_event);
+
 		if (conn->mux->flags & MX_FL_NO_UPG)
 			return 0;
-		if (conn_upgrade_mux_fe(conn, cs, &s->req.buf, ist(""), PROTO_MODE_HTTP)  == -1)
+		if (conn_upgrade_mux_fe(conn, cs, &s->req.buf,
+					(mux_proto ? mux_proto->token : ist("")),
+					PROTO_MODE_HTTP)  == -1)
 			return 0;
 
 		s->req.flags &= ~(CF_READ_PARTIAL|CF_AUTO_CONNECT);
@@ -2843,6 +2846,109 @@ struct ist stream_generate_unique_id(struct stream *strm, struct list *format)
 /************************************************************************/
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
+static enum act_return tcp_action_switch_stream_mode(struct act_rule *rule, struct proxy *px,
+						  struct session *sess, struct stream *s, int flags)
+{
+	enum pr_mode mode = (uintptr_t)rule->arg.act.p[0];
+	const struct mux_proto_list *mux_proto = rule->arg.act.p[1];
+
+	if (!IS_HTX_STRM(s) && mode == PR_MODE_HTTP) {
+		if (!stream_set_http_mode(s, mux_proto)) {
+			channel_abort(&s->req);
+			channel_abort(&s->res);
+			return ACT_RET_ABRT;
+		}
+	}
+	return ACT_RET_STOP;
+}
+
+
+static int check_tcp_switch_stream_mode(struct act_rule *rule, struct proxy *px, char **err)
+{
+	const struct mux_proto_list *mux_ent;
+	const struct mux_proto_list *mux_proto = rule->arg.act.p[1];
+	enum pr_mode pr_mode = (uintptr_t)rule->arg.act.p[0];
+	enum proto_proxy_mode mode = (1 << (pr_mode == PR_MODE_HTTP));
+
+	if (mux_proto) {
+		mux_ent = conn_get_best_mux_entry(mux_proto->token, PROTO_SIDE_FE, mode);
+		if (!mux_ent || !isteq(mux_ent->token, mux_proto->token)) {
+			memprintf(err, "MUX protocol '%.*s' is not compatible with the selected mode",
+				  (int)mux_proto->token.len, mux_proto->token.ptr);
+			return 0;
+		}
+	}
+	else {
+		mux_ent = conn_get_best_mux_entry(IST_NULL, PROTO_SIDE_FE, mode);
+		if (!mux_ent) {
+			memprintf(err, "Unable to find compatible MUX protocol with the selected mode");
+			return 0;
+		}
+	}
+
+	/* Update the mux */
+	rule->arg.act.p[1] = (void *)mux_ent;
+	return 1;
+
+}
+
+static enum act_parse_ret stream_parse_switch_mode(const char **args, int *cur_arg,
+						   struct proxy *px, struct act_rule *rule,
+						   char **err)
+{
+	const struct mux_proto_list *mux_proto = NULL;
+	struct ist proto;
+	enum pr_mode mode;
+
+	/* must have at least the mode */
+	if (*(args[*cur_arg]) == 0) {
+		memprintf(err, "'%s %s' expects a mode as argument.", args[0], args[*cur_arg-1]);
+		return ACT_RET_PRS_ERR;
+	}
+
+	if (!(px->cap & PR_CAP_FE)) {
+		memprintf(err, "'%s %s' not allowed because %s '%s' has no frontend capability",
+			  args[0], args[*cur_arg-1], proxy_type_str(px), px->id);
+		return ACT_RET_PRS_ERR;
+	}
+	/* Check if the mode. For now "tcp" is disabled because downgrade is not
+	 * supported and PT is the only TCP mux.
+	 */
+	if (strcmp(args[*cur_arg], "http") == 0)
+		mode = PR_MODE_HTTP;
+	else {
+		memprintf(err, "'%s %s' expects a valid mode (got '%s').", args[0], args[*cur_arg-1], args[*cur_arg]);
+		return ACT_RET_PRS_ERR;
+	}
+
+	/* check the proto, if specified */
+	if (*(args[*cur_arg+1]) && strcmp(args[*cur_arg+1], "proto") == 0) {
+		if (*(args[*cur_arg+2]) == 0) {
+			memprintf(err, "'%s %s': '%s' expects a protocol as argument.",
+				  args[0], args[*cur_arg-1], args[*cur_arg+1]);
+			return ACT_RET_PRS_ERR;
+		}
+
+		proto = ist2(args[*cur_arg+2], strlen(args[*cur_arg+2]));
+		mux_proto = get_mux_proto(proto);
+		if (!mux_proto) {
+			memprintf(err, "'%s %s': '%s' expects a valid MUX protocol, if specified (got '%s')",
+				  args[0], args[*cur_arg-1], args[*cur_arg+1], args[*cur_arg+2]);
+			return ACT_RET_PRS_ERR;
+		}
+		*cur_arg += 2;
+	}
+
+	(*cur_arg)++;
+
+	/* Register processing function. */
+	rule->action_ptr = tcp_action_switch_stream_mode;
+	rule->check_ptr  = check_tcp_switch_stream_mode;
+	rule->action = ACT_CUSTOM;
+	rule->arg.act.p[0] = (void *)(uintptr_t)mode;
+	rule->arg.act.p[1] = (void *)mux_proto;
+	return ACT_RET_PRS_OK;
+}
 
 /* 0=OK, <0=Alert, >0=Warning */
 static enum act_parse_ret stream_parse_use_service(const char **args, int *cur_arg,
@@ -3593,6 +3699,7 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /* main configuration keyword registration. */
 static struct action_kw_list stream_tcp_keywords = { ILH, {
+	{ "switch-mode", stream_parse_switch_mode },
 	{ "use-service", stream_parse_use_service },
 	{ /* END */ }
 }};

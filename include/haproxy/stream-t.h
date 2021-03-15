@@ -52,7 +52,6 @@
 #define SF_FORCE_PRST	0x00000010	/* force persistence here, even if server is down */
 #define SF_MONITOR	0x00000020	/* this stream comes from a monitoring system */
 #define SF_CURR_SESS	0x00000040	/* a connection is currently being counted on the server */
-/* unused: 0x00000080 */
 #define SF_REDISP	0x00000100	/* set if this stream was redispatched from one server to another */
 #define SF_IGNORE	0x00000200      /* The stream lead to a mux upgrade, and should be ignored */
 #define SF_REDIRECTABLE	0x00000400	/* set if this stream is redirectable (GET or HEAD) */

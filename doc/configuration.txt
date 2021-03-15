@@ -11746,8 +11746,8 @@ tcp-request content <action> [{if | unless} <condition>]
   A request's contents can be analyzed at an early stage of request processing
   called "TCP content inspection". During this stage, ACL-based rules are
   evaluated every time the request contents are updated, until either an
-  "accept" or a "reject" rule matches, or the TCP request inspection delay
-  expires with no matching rule.
+  "accept", a "reject" or a "switch-mode" rule matches, or the TCP request
+  inspection delay expires with no matching rule.
 
   The first difference between these rules and "tcp-request connection" rules
   is that "tcp-request content" rules can make use of contents to take a
@@ -11780,6 +11780,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - set-dst <expr>
     - set-dst-port <expr>
     - set-var(<var-name>) <expr>
+    - switch-mode http [ proto <name> ]
     - unset-var(<var-name>)
     - silent-drop
     - send-spoe-group <engine-name> <group-name>
@@ -11849,6 +11850,17 @@ tcp-request content <action> [{if | unless} <condition>]
     <expr>     Is a standard HAProxy expression formed by a sample-fetch
                followed by some converters.
 
+  The "switch-mode" is used to perform a conntection upgrade. Only HTTP
+  upgrades are supported for now. The protocol may optionally be
+  specified. This action is only available for a proxy with the frontend
+  capability. The connection upgrade is immediately performed, following
+  "tcp-request content" rules are not evaluated. This upgrade method should be
+  preferred to the implicit one consisting to rely on the backend mode. When
+  used, it is possible to set HTTP directives in a frontend without any
+  warning. These directives will be conditionnaly evaluated if the HTTP upgrade
+  is performed. However, an HTTP backend must still be selected. It remains
+  unsupported to route an HTTP connection (upgraded or not) to a TCP server.
+
   The "unset-var" is used to unset a variable. See above for details about
   <var-name>.
 
@@ -11897,11 +11909,20 @@ tcp-request content <action> [{if | unless} <condition>]
 
   Example:
         # Accept HTTP requests containing a Host header saying "example.com"
-        # and reject everything else.
+        # and reject everything else. (Only works for HTTP/1 connections)
         acl is_host_com hdr(Host) -i example.com
         tcp-request inspect-delay 30s
         tcp-request content accept if is_host_com
         tcp-request content reject
+
+        # Accept HTTP requests containing a Host header saying "example.com"
+        # and reject everything else. (works for HTTP/1 and HTTP/2 connections)
+        acl is_host_com hdr(Host) -i example.com
+        tcp-request inspect-delay 5s
+        tcp-request switch-mode http if HTTP
+        tcp-request reject   # non-HTTP traffic is implicit here
+        ...
+        http-request reject unless is_host_com
 
   Example:
         # reject SMTP connection if client speaks first

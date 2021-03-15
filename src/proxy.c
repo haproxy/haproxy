@@ -2160,7 +2160,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	if (!IS_HTX_STRM(s) && be->mode == PR_MODE_HTTP) {
 		/* If we chain a TCP frontend to an HTX backend, we must upgrade
 		 * the client mux */
-		if (!stream_set_http_mode(s))
+		if (!stream_set_http_mode(s, NULL))
 			return 0;
 	}
 	else if (IS_HTX_STRM(s) && be->mode != PR_MODE_HTTP) {
