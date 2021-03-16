@@ -2187,6 +2187,54 @@ error:
 }
 
 
+
+/* parsing function of 'new ssl ca-file' */
+static int cli_parse_new_cafile(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct cafile_entry *cafile_entry;
+	char *err = NULL;
+	char *path;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "'new ssl ca-file' expects a filename\n");
+
+	path = args[3];
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't create a CA file!\nOperations on certificates are currently locked!\n");
+
+	cafile_entry = ssl_store_get_cafile_entry(path, 0);
+	if (cafile_entry) {
+		memprintf(&err, "CA file '%s' already exists!\n", path);
+		goto error;
+	}
+
+	cafile_entry = ssl_store_create_cafile_entry(path, NULL, CAFILE_CERT);
+	if (!cafile_entry) {
+		memprintf(&err, "%sCannot allocate memory!\n",
+			  err ? err : "");
+		goto error;
+	}
+
+	/* Add the newly created cafile_entry to the tree so that
+	 * any new ckch instance created from now can use it. */
+	if (ssl_store_add_uncommitted_cafile_entry(cafile_entry))
+		goto error;
+
+	memprintf(&err, "New CA file created '%s'!\n", path);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynmsg(appctx, LOG_NOTICE, err);
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynerr(appctx, err);
+}
+
 /*
  * Parsing function of `set ssl ca-file`
  */
@@ -2813,6 +2861,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "del", "ssl", "cert", NULL },       "del ssl cert <certfile>                 : delete an unused certificate file",                                     cli_parse_del_cert, NULL, NULL },
 	{ { "show", "ssl", "cert", NULL },      "show ssl cert [<certfile>]              : display the SSL certificates used in memory, or the details of a file", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
 
+	{ { "new", "ssl", "ca-file", NULL },    "new ssl cafile <cafile>                 : create a new CA file to be used in a crt-list",                         cli_parse_new_cafile, NULL, NULL },
 	{ { "set", "ssl", "ca-file", NULL },    "set ssl ca-file <cafile> <payload>      : replace a CA file",                                                     cli_parse_set_cafile, NULL, NULL },
 	{ { "commit", "ssl", "ca-file", NULL }, "commit ssl ca-file <cafile>             : commit a CA file",                                                      cli_parse_commit_cafile, cli_io_handler_commit_cafile, cli_release_commit_cafile },
 	{ { "abort", "ssl", "ca-file", NULL },  "abort ssl ca-file <cafile>              : abort a transaction for a CA file",                                     cli_parse_abort_cafile, NULL, NULL },
