@@ -2660,31 +2660,10 @@ void deinit(void)
 		while (s) {
 			s_next = s->next;
 
-
-			task_destroy(s->warmup);
-
-			free(s->id);
-			free(s->cookie);
-			free(s->hostname);
-			free(s->hostname_dn);
-			free((char*)s->conf.file);
-			free(s->per_thr);
-			free(s->curr_idle_thr);
-			free(s->resolvers_id);
-			free(s->addr_node.key);
-
-			if (s->use_ssl == 1 || s->check.use_ssl == 1 || (s->proxy->options & PR_O_TCPCHK_SSL)) {
-				if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
-					xprt_get(XPRT_SSL)->destroy_srv(s);
-			}
-			HA_SPIN_DESTROY(&s->lock);
-
 			list_for_each_entry(srvdf, &server_deinit_list, list)
 				srvdf->fct(s);
 
-			EXTRA_COUNTERS_FREE(s->extra_counters);
-			LIST_DEL(&s->global_list);
-			free(s);
+			free_server(s);
 			s = s_next;
 		}/* end while(s) */
 

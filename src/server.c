@@ -1840,6 +1840,36 @@ struct server *new_server(struct proxy *proxy)
 	return srv;
 }
 
+/* Deallocate a server <srv> and its member. <srv> must be allocated.
+ */
+void free_server(struct server *srv)
+{
+	task_destroy(srv->warmup);
+
+	free(srv->id);
+	free(srv->cookie);
+	free(srv->hostname);
+	free(srv->hostname_dn);
+	free((char*)srv->conf.file);
+	free(srv->per_thr);
+	free(srv->curr_idle_thr);
+	free(srv->resolvers_id);
+	free(srv->addr_node.key);
+
+	if (srv->use_ssl == 1 || srv->check.use_ssl == 1 || (srv->proxy->options & PR_O_TCPCHK_SSL)) {
+		if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->destroy_srv)
+			xprt_get(XPRT_SSL)->destroy_srv(srv);
+	}
+	HA_SPIN_DESTROY(&srv->lock);
+
+	LIST_DEL(&srv->global_list);
+
+	EXTRA_COUNTERS_FREE(srv->extra_counters);
+
+	free(srv);
+	srv = NULL;
+}
+
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 static int server_sni_expr_init(const char *file, int linenum, char **args, int cur_arg,
                                 struct server *srv, struct proxy *proxy)
