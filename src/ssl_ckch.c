@@ -2584,6 +2584,212 @@ static void cli_release_commit_cafile(struct appctx *appctx)
 }
 
 
+/* IO handler of details "show ssl ca-file <filename[:index]>" */
+static int cli_io_handler_show_cafile_detail(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct cafile_entry *cafile_entry = appctx->ctx.cli.p0;
+	struct buffer *out = alloc_trash_chunk();
+	int i;
+	X509 *cert;
+	STACK_OF(X509_OBJECT) *objs;
+	int retval = 0;
+	long ca_index = (long)appctx->ctx.cli.p1;
+
+	if (!out)
+		goto end_no_putchk;
+
+	chunk_appendf(out, "Filename: ");
+	if (cafile_entry == cafile_transaction.new_cafile_entry)
+		chunk_appendf(out, "*");
+	chunk_appendf(out, "%s\n", cafile_entry->path);
+
+	chunk_appendf(out, "Status: ");
+	if (!cafile_entry->ca_store)
+		chunk_appendf(out, "Empty\n");
+	else if (LIST_ISEMPTY(&cafile_entry->ckch_inst_link))
+		chunk_appendf(out, "Unused\n");
+	else
+		chunk_appendf(out, "Used\n");
+
+	if (!cafile_entry->ca_store)
+		goto end;
+
+	objs = X509_STORE_get0_objects(cafile_entry->ca_store);
+	for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {
+		cert = X509_OBJECT_get0_X509(sk_X509_OBJECT_value(objs, i));
+		if (!cert)
+			continue;
+
+		/* Certificate indexes start at 1 on the CLI output. */
+		if (ca_index && ca_index-1 != i)
+			continue;
+
+		chunk_appendf(out, "\nCertificate #%d:\n", i+1);
+		retval = show_cert_detail(cert, NULL, out);
+		if (retval < 0)
+			goto end_no_putchk;
+		else if (retval || ca_index)
+			goto end;
+	}
+
+end:
+	if (ci_putchk(si_ic(si), out) == -1) {
+		si_rx_room_blk(si);
+		goto yield;
+	}
+
+end_no_putchk:
+	free_trash_chunk(out);
+	return 1;
+yield:
+	free_trash_chunk(out);
+	return 0; /* should come back */
+}
+
+
+/* parsing function for 'show ssl ca-file [cafile[:index]]' */
+static int cli_parse_show_cafile(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct cafile_entry *cafile_entry;
+	long ca_index = 0;
+	char *colons;
+	char *err = NULL;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return cli_err(appctx, "Can't allocate memory!\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't show!\nOperations on certificates are currently locked!\n");
+
+	/* check if there is a certificate to lookup */
+	if (*args[3]) {
+
+		/* Look for an optional CA index after the CA file name */
+		colons = strchr(args[3], ':');
+		if (colons) {
+			char *endptr;
+
+			ca_index = strtol(colons + 1, &endptr, 10);
+			/* Indexes start at 1 */
+			if (colons + 1 == endptr || *endptr != '\0' || ca_index <= 0) {
+				memprintf(&err, "wrong CA index after colons in '%s'!", args[3]);
+				goto error;
+			}
+			*colons = '\0';
+		}
+
+		if (*args[3] == '*') {
+			if (!cafile_transaction.new_cafile_entry)
+				goto error;
+
+			cafile_entry = cafile_transaction.new_cafile_entry;
+
+			if (strcmp(args[3] + 1, cafile_entry->path) != 0)
+				goto error;
+
+		} else {
+			/* Get the "original" cafile_entry and not the
+			 * uncommitted one if it exists. */
+			if ((cafile_entry = ssl_store_get_cafile_entry(args[3], 1)) == NULL || cafile_entry->type != CAFILE_CERT)
+				goto error;
+		}
+
+		appctx->ctx.cli.p0 = cafile_entry;
+		appctx->ctx.cli.p1 = (void*)ca_index;
+		/* use the IO handler that shows details */
+		appctx->io_handler = cli_io_handler_show_cafile_detail;
+	}
+
+	return 0;
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	if (err)
+		return cli_dynerr(appctx, err);
+	return cli_err(appctx, "Can't display the CA file : Not found!\n");
+}
+
+
+/* release function of the 'show ssl ca-file' command */
+static void cli_release_show_cafile(struct appctx *appctx)
+{
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+}
+
+
+/* This function returns the number of certificates in a cafile_entry. */
+static int get_certificate_count(struct cafile_entry *cafile_entry)
+{
+	int cert_count = 0;
+	STACK_OF(X509_OBJECT) *objs;
+
+	if (cafile_entry && cafile_entry->ca_store) {
+		objs = X509_STORE_get0_objects(cafile_entry->ca_store);
+		if (objs)
+			cert_count = sk_X509_OBJECT_num(objs);
+	}
+	return cert_count;
+}
+
+/* IO handler of "show ssl ca-file". The command taking a specific CA file name
+ * is managed in cli_io_handler_show_cafile_detail. */
+static int cli_io_handler_show_cafile(struct appctx *appctx)
+{
+	struct buffer *trash = alloc_trash_chunk();
+	struct ebmb_node *node;
+	struct stream_interface *si = appctx->owner;
+	struct cafile_entry *cafile_entry;
+
+	if (trash == NULL)
+		return 1;
+
+	if (!appctx->ctx.ssl.old_cafile_entry) {
+		if (cafile_transaction.old_cafile_entry) {
+			chunk_appendf(trash, "# transaction\n");
+			chunk_appendf(trash, "*%s", cafile_transaction.old_cafile_entry->path);
+
+			chunk_appendf(trash, " - %d certificate(s)\n", get_certificate_count(cafile_transaction.new_cafile_entry));
+		}
+	}
+
+	/* First time in this io_handler. */
+	if (!appctx->ctx.cli.p0) {
+		chunk_appendf(trash, "# filename\n");
+		node = ebmb_first(&cafile_tree);
+	} else {
+		/* We yielded during a previous call. */
+		node = &((struct cafile_entry*)appctx->ctx.cli.p0)->node;
+	}
+
+	while (node) {
+		cafile_entry = ebmb_entry(node, struct cafile_entry, node);
+		if (cafile_entry->type == CAFILE_CERT) {
+			chunk_appendf(trash, "%s", cafile_entry->path);
+
+			chunk_appendf(trash, " - %d certificate(s)\n", get_certificate_count(cafile_entry));
+		}
+
+		node = ebmb_next(node);
+		if (ci_putchk(si_ic(si), trash) == -1) {
+			si_rx_room_blk(si);
+			goto yield;
+		}
+	}
+
+	appctx->ctx.cli.p0 = NULL;
+	free_trash_chunk(trash);
+	return 1;
+yield:
+
+	free_trash_chunk(trash);
+	appctx->ctx.cli.p0 = cafile_entry;
+	return 0; /* should come back */
+}
+
+
 void ckch_deinit()
 {
 	struct eb_node *node, *next;
@@ -2610,6 +2816,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ca-file", NULL },    "set ssl ca-file <cafile> <payload>      : replace a CA file",                                                     cli_parse_set_cafile, NULL, NULL },
 	{ { "commit", "ssl", "ca-file", NULL }, "commit ssl ca-file <cafile>             : commit a CA file",                                                      cli_parse_commit_cafile, cli_io_handler_commit_cafile, cli_release_commit_cafile },
 	{ { "abort", "ssl", "ca-file", NULL },  "abort ssl ca-file <cafile>              : abort a transaction for a CA file",                                     cli_parse_abort_cafile, NULL, NULL },
+	{ { "show", "ssl", "ca-file", NULL },   "show ssl ca-file [<cafile>[:<index>]]   : display the SSL CA files used in memory, or the details of a <cafile>, or a single certificate of index <index> of a CA file <cafile>", cli_parse_show_cafile, cli_io_handler_show_cafile, cli_release_show_cafile },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
