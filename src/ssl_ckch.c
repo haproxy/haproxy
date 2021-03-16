@@ -1336,44 +1336,24 @@ void ckch_inst_add_cafile_link(struct ckch_inst *ckch_inst, struct bind_conf *bi
 
 
 
-
-/* IO handler of the details "show ssl cert <filename>" */
-static int cli_io_handler_show_cert_detail(struct appctx *appctx)
+static int show_cert_detail(X509 *cert, STACK_OF(X509) *chain, struct buffer *out)
 {
-	struct stream_interface *si = appctx->owner;
-	struct ckch_store *ckchs = appctx->ctx.cli.p0;
-	struct buffer *out = alloc_trash_chunk();
-	struct buffer *tmp = alloc_trash_chunk();
-	X509_NAME *name = NULL;
-	STACK_OF(X509) *chain;
-	unsigned int len = 0;
-	int write = -1;
 	BIO *bio = NULL;
+	struct buffer *tmp = alloc_trash_chunk();
 	int i;
+	int write = -1;
+	unsigned int len = 0;
+	X509_NAME *name = NULL;
 
-	if (!tmp || !out)
-		goto end_no_putchk;
+	if (!tmp)
+		return -1;
 
-	chunk_appendf(out, "Filename: ");
-	if (ckchs == ckchs_transaction.new_ckchs)
-		chunk_appendf(out, "*");
-	chunk_appendf(out, "%s\n", ckchs->path);
-
-	chunk_appendf(out, "Status: ");
-	if (ckchs->ckch->cert == NULL)
-		chunk_appendf(out, "Empty\n");
-	else if (LIST_ISEMPTY(&ckchs->ckch_inst))
-		chunk_appendf(out, "Unused\n");
-	else
-		chunk_appendf(out, "Used\n");
-
-	if (ckchs->ckch->cert == NULL)
+	if (!cert)
 		goto end;
 
-	chain = ckchs->ckch->chain;
 	if (chain == NULL) {
 		struct issuer_chain *issuer;
-		issuer = ssl_get0_issuer_chain(ckchs->ckch->cert);
+		issuer = ssl_get0_issuer_chain(cert);
 		if (issuer) {
 			chain = issuer->chain;
 			chunk_appendf(out, "Chain Filename: ");
@@ -1381,7 +1361,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		}
 	}
 	chunk_appendf(out, "Serial: ");
-	if (ssl_sock_get_serial(ckchs->ckch->cert, tmp) == -1)
+	if (ssl_sock_get_serial(cert, tmp) == -1)
 		goto end;
 	dump_binary(out, tmp->area, tmp->data);
 	chunk_appendf(out, "\n");
@@ -1390,7 +1370,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	chunk_reset(tmp);
 	if ((bio = BIO_new(BIO_s_mem())) ==  NULL)
 		goto end;
-	if (ASN1_TIME_print(bio, X509_getm_notBefore(ckchs->ckch->cert)) == 0)
+	if (ASN1_TIME_print(bio, X509_getm_notBefore(cert)) == 0)
 		goto end;
 	write = BIO_read(bio, tmp->area, tmp->size-1);
 	tmp->area[write] = '\0';
@@ -1402,7 +1382,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	chunk_reset(tmp);
 	if ((bio = BIO_new(BIO_s_mem())) == NULL)
 		goto end;
-	if (ASN1_TIME_print(bio, X509_getm_notAfter(ckchs->ckch->cert)) == 0)
+	if (ASN1_TIME_print(bio, X509_getm_notAfter(cert)) == 0)
 		goto end;
 	if ((write = BIO_read(bio, tmp->area, tmp->size-1)) <= 0)
 		goto end;
@@ -1413,27 +1393,27 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	chunk_appendf(out, "Subject Alternative Name: ");
-	if (ssl_sock_get_san_oneline(ckchs->ckch->cert, out) == -1)
+	if (ssl_sock_get_san_oneline(cert, out) == -1)
 		goto end;
 	*(out->area + out->data) = '\0';
 	chunk_appendf(out, "\n");
 #endif
 	chunk_reset(tmp);
 	chunk_appendf(out, "Algorithm: ");
-	if (cert_get_pkey_algo(ckchs->ckch->cert, tmp) == 0)
+	if (cert_get_pkey_algo(cert, tmp) == 0)
 		goto end;
 	chunk_appendf(out, "%s\n", tmp->area);
 
 	chunk_reset(tmp);
 	chunk_appendf(out, "SHA1 FingerPrint: ");
-	if (X509_digest(ckchs->ckch->cert, EVP_sha1(), (unsigned char *) tmp->area, &len) == 0)
+	if (X509_digest(cert, EVP_sha1(), (unsigned char *) tmp->area, &len) == 0)
 		goto end;
 	tmp->data = len;
 	dump_binary(out, tmp->area, tmp->data);
 	chunk_appendf(out, "\n");
 
 	chunk_appendf(out, "Subject: ");
-	if ((name = X509_get_subject_name(ckchs->ckch->cert)) == NULL)
+	if ((name = X509_get_subject_name(cert)) == NULL)
 		goto end;
 	if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
 		goto end;
@@ -1441,7 +1421,7 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	chunk_appendf(out, "%s\n", tmp->area);
 
 	chunk_appendf(out, "Issuer: ");
-	if ((name = X509_get_issuer_name(ckchs->ckch->cert)) == NULL)
+	if ((name = X509_get_issuer_name(cert)) == NULL)
 		goto end;
 	if ((ssl_sock_get_dn_oneline(name, tmp)) == -1)
 		goto end;
@@ -1470,19 +1450,54 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 	}
 
 end:
+	if (bio)
+		BIO_free(bio);
+	free_trash_chunk(tmp);
+
+	return 0;
+}
+
+
+/* IO handler of the details "show ssl cert <filename>" */
+static int cli_io_handler_show_cert_detail(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct ckch_store *ckchs = appctx->ctx.cli.p0;
+	struct buffer *out = alloc_trash_chunk();
+	int retval = 0;
+
+	if (!out)
+		goto end_no_putchk;
+
+	chunk_appendf(out, "Filename: ");
+	if (ckchs == ckchs_transaction.new_ckchs)
+		chunk_appendf(out, "*");
+	chunk_appendf(out, "%s\n", ckchs->path);
+
+	chunk_appendf(out, "Status: ");
+	if (ckchs->ckch->cert == NULL)
+		chunk_appendf(out, "Empty\n");
+	else if (LIST_ISEMPTY(&ckchs->ckch_inst))
+		chunk_appendf(out, "Unused\n");
+	else
+		chunk_appendf(out, "Used\n");
+
+	retval = show_cert_detail(ckchs->ckch->cert, ckchs->ckch->chain, out);
+	if (retval < 0)
+		goto end_no_putchk;
+	else if (retval)
+		goto end;
+
+end:
 	if (ci_putchk(si_ic(si), out) == -1) {
 		si_rx_room_blk(si);
 		goto yield;
 	}
 
 end_no_putchk:
-	if (bio)
-		BIO_free(bio);
-	free_trash_chunk(tmp);
 	free_trash_chunk(out);
 	return 1;
 yield:
-	free_trash_chunk(tmp);
 	free_trash_chunk(out);
 	return 0; /* should come back */
 }
