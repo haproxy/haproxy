@@ -1950,6 +1950,10 @@ static void init(int argc, char **argv)
 		}
 	}
 
+	if (!LIST_ISEMPTY(&mworker_cli_conf) && !(arg_mode & MODE_MWORKER)) {
+		ha_warning("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
+	}
+
 	if (global.nbproc > 1 && !global.nbthread) {
 		ha_warning("nbproc is deprecated!\n"
 			   "  | For suffering many limitations, the 'nbproc' directive is now deprecated\n"
