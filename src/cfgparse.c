@@ -88,6 +88,8 @@ struct list sections = LIST_HEAD_INIT(sections);
 
 struct list postparsers = LIST_HEAD_INIT(postparsers);
 
+extern struct proxy *mworker_proxy;
+
 char *cursection = NULL;
 int cfg_maxpconn = 0;                   /* # of simultaneous connections per proxy (-N) */
 int cfg_maxconn = 0;			/* # of simultaneous connections, (-n) */
@@ -145,7 +147,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		}
 
 		ss2 = str2sa_range(str, NULL, &port, &end, &fd, &proto, err,
-		                   curproxy == global.cli_fe ? NULL : global.unix_bind.prefix,
+		                   (curproxy == global.cli_fe || curproxy == mworker_proxy) ? NULL : global.unix_bind.prefix,
 		                   NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_PORT_RANGE |
 		                          PA_O_SOCKET_FD | PA_O_STREAM | PA_O_XPRT);
 		if (!ss2)

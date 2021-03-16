@@ -82,7 +82,7 @@ static struct cli_kw_list cli_keywords = {
 
 extern const char *stat_status_codes[];
 
-static struct proxy *mworker_proxy; /* CLI proxy of the master */
+struct proxy *mworker_proxy; /* CLI proxy of the master */
 
 /* This will show the help message and list the commands supported at the
  * current level that match all of the first words of <args> if args is not
