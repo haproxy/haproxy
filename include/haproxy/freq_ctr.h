@@ -262,7 +262,7 @@ static inline unsigned int swrate_add(unsigned int *sum, unsigned int n, unsigne
 	old_sum = *sum;
 	do {
 		new_sum = old_sum - (old_sum + n - 1) / n + v;
-	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum));
+	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum) && __ha_cpu_relax());
 	return new_sum;
 }
 
@@ -280,7 +280,7 @@ static inline unsigned int swrate_add_dynamic(unsigned int *sum, unsigned int n,
 	old_sum = *sum;
 	do {
 		new_sum = old_sum - (n ? (old_sum + n - 1) / n : 0) + v;
-	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum));
+	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum) && __ha_cpu_relax());
 	return new_sum;
 }
 
@@ -314,7 +314,7 @@ static inline unsigned int swrate_add_scaled(unsigned int *sum, unsigned int n, 
 	old_sum = *sum;
 	do {
 		new_sum = old_sum + v * s - div64_32((unsigned long long)(old_sum + n) * s, n);
-	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum));
+	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum) && __ha_cpu_relax());
 	return new_sum;
 }
 
