@@ -28,7 +28,7 @@ THREAD_LOCAL struct timeval before_poll;     /* system date before calling poll(
 THREAD_LOCAL struct timeval after_poll;      /* system date after leaving poll() */
 
 static THREAD_LOCAL struct timeval tv_offset;  /* per-thread time ofsset relative to global time */
-static volatile unsigned long long global_now; /* common date between all threads (32:32) */
+volatile unsigned long long global_now;      /* common date between all threads (32:32) */
 
 static THREAD_LOCAL unsigned int iso_time_sec;     /* last iso time value for this thread */
 static THREAD_LOCAL char         iso_time_str[34]; /* ISO time representation of gettimeofday() */
