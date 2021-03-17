@@ -2212,70 +2212,11 @@ void free_server(struct server *srv)
 	srv = NULL;
 }
 
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-static int server_sni_expr_init(char **args, int cur_arg,
-                                struct server *srv, struct proxy *proxy,
-                                char **errmsg)
-{
-	int ret;
-
-	if (!srv->sni_expr)
-		return 0;
-
-	ret = server_parse_sni_expr(srv, proxy, errmsg);
-	if (!ret)
-	    return 0;
-
-	return ret;
-}
-#endif
-
-/*
- * Server initializations finalization.
- * Initialize health check, agent check and SNI expression if enabled.
- * Must not be called for a default server instance.
+/* This function is first intented to be used through parse_server to
+ * initialize a new server on startup.
  */
-static int server_finalize_init(char **args, int cur_arg,
-                                struct server *srv, struct proxy *px,
-                                char **errmsg)
-{
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	int ret;
-#endif
-
-	if (srv->do_check && srv->trackit) {
-		memprintf(errmsg, "unable to enable checks and tracking at the same time!");
-		return ERR_ALERT | ERR_FATAL;
-	}
-
-	if (srv->do_agent && !srv->agent.port) {
-		memprintf(errmsg, "server %s does not have agent port. Agent check has been disabled.",
-		          srv->id);
-		return ERR_ALERT | ERR_FATAL;
-	}
-
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	if ((ret = server_sni_expr_init(args, cur_arg, srv, px, errmsg)) != 0)
-		return ret;
-#endif
-
-	if (srv->flags & SRV_F_BACKUP)
-		px->srv_bck++;
-	else
-		px->srv_act++;
-	srv_lb_commit_status(srv);
-
-	return 0;
-}
-
-/*
- * Parse as much as possible such a range string argument: low[-high]
- * Set <nb_low> and <nb_high> values so that they may be reused by this loop
- * for(int i = nb_low; i <= nb_high; i++)... with nb_low >= 1.
- * Fails if 'low' < 0 or 'high' is present and not higher than 'low'.
- * Returns 0 if succeeded, -1 if not.
- */
-static int srv_tmpl_parse_range(struct server *srv, const char *arg, int *nb_low, int *nb_high)
+static int _srv_parse_tmpl_range(struct server *srv, const char *arg,
+                                 int *nb_low, int *nb_high)
 {
 	char *nb_high_arg;
 
@@ -2298,22 +2239,36 @@ static int srv_tmpl_parse_range(struct server *srv, const char *arg, int *nb_low
 	return 0;
 }
 
-static inline void srv_set_id_from_prefix(struct server *srv, const char *prefix, int nb)
+/* Parse as much as possible such a range string argument: low[-high]
+ * Set <nb_low> and <nb_high> values so that they may be reused by this loop
+ * for(int i = nb_low; i <= nb_high; i++)... with nb_low >= 1.
+ *
+ * This function is first intented to be used through parse_server to
+ * initialize a new server on startup.
+ *
+ * Fails if 'low' < 0 or 'high' is present and not higher than 'low'.
+ * Returns 0 if succeeded, -1 if not.
+ */
+static inline void _srv_parse_set_id_from_prefix(struct server *srv,
+                                                 const char *prefix, int nb)
 {
 	chunk_printf(&trash, "%s%d", prefix, nb);
 	free(srv->id);
 	srv->id = strdup(trash.area);
 }
 
-/*
- * Initialize as much as possible servers from <srv> server template.
+/* Initialize as much as possible servers from <srv> server template.
  * Note that a server template is a special server with
  * a few different parameters than a server which has
  * been parsed mostly the same way as a server.
+ *
+ * This function is first intented to be used through parse_server to
+ * initialize a new server on startup.
+ *
  * Returns the number of servers successfully allocated,
  * 'srv' template included.
  */
-static int server_template_init(struct server *srv, struct proxy *px)
+static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 {
 	int i;
 	struct server *newsrv;
@@ -2336,18 +2291,18 @@ static int server_template_init(struct server *srv, struct proxy *px)
 		}
 #endif
 		/* Set this new server ID. */
-		srv_set_id_from_prefix(newsrv, srv->tmpl_info.prefix, i);
+		_srv_parse_set_id_from_prefix(newsrv, srv->tmpl_info.prefix, i);
 
 		/* Linked backwards first. This will be restablished after parsing. */
 		newsrv->next = px->srv;
 		px->srv = newsrv;
 	}
-	srv_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
+	_srv_parse_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
 
 	return i - srv->tmpl_info.nb_low;
 
  err:
-	srv_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
+	_srv_parse_set_id_from_prefix(srv, srv->tmpl_info.prefix, srv->tmpl_info.nb_low);
 	if (newsrv)  {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 		release_sample_expr(newsrv->ssl_ctx.sni);
@@ -2425,7 +2380,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg, struc
 		*cur_arg = 2;
 		if (srv_tmpl) {
 			/* Parse server-template <nb | range> arg. */
-			if (srv_tmpl_parse_range(newsrv, args[*cur_arg], &tmpl_range_low, &tmpl_range_high) < 0) {
+			if (_srv_parse_tmpl_range(newsrv, args[*cur_arg], &tmpl_range_low, &tmpl_range_high) < 0) {
 				memprintf(errmsg, "Wrong %s number or range arg '%s'.",
 				          args[0], args[*cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -2593,6 +2548,67 @@ out:
 	return err_code;
 }
 
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+/* This function is first intented to be used through parse_server to
+ * initialize a new server on startup.
+ */
+static int _srv_parse_sni_expr_init(char **args, int cur_arg,
+                                    struct server *srv, struct proxy *proxy,
+                                    char **errmsg)
+{
+	int ret;
+
+	if (!srv->sni_expr)
+		return 0;
+
+	ret = server_parse_sni_expr(srv, proxy, errmsg);
+	if (!ret)
+	    return 0;
+
+	return ret;
+}
+#endif
+
+/* Server initializations finalization.
+ * Initialize health check, agent check and SNI expression if enabled.
+ * Must not be called for a default server instance.
+ *
+ * This function is first intented to be used through parse_server to
+ * initialize a new server on startup.
+ */
+static int _srv_parse_finalize(char **args, int cur_arg,
+                               struct server *srv, struct proxy *px,
+                               char **errmsg)
+{
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	int ret;
+#endif
+
+	if (srv->do_check && srv->trackit) {
+		memprintf(errmsg, "unable to enable checks and tracking at the same time!");
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (srv->do_agent && !srv->agent.port) {
+		memprintf(errmsg, "server %s does not have agent port. Agent check has been disabled.",
+		          srv->id);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	if ((ret = _srv_parse_sni_expr_init(args, cur_arg, srv, px, errmsg)) != 0)
+		return ret;
+#endif
+
+	if (srv->flags & SRV_F_BACKUP)
+		px->srv_bck++;
+	else
+		px->srv_act++;
+	srv_lb_commit_status(srv);
+
+	return 0;
+}
+
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy,
                  const struct proxy *defproxy, int parse_addr, int in_peers_section, int initial_resolve)
 {
@@ -2654,7 +2670,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		}
 
 		if (!defsrv) {
-			err_code |= server_finalize_init(args, cur_arg, newsrv, curproxy, &errmsg);
+			err_code |= _srv_parse_finalize(args, cur_arg, newsrv, curproxy, &errmsg);
 			if (err_code) {
 				display_parser_err(file, linenum, args, cur_arg, err_code, &errmsg);
 				free(errmsg);
@@ -2665,7 +2681,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		}
 
 		if (srv_tmpl)
-			server_template_init(newsrv, curproxy);
+			_srv_parse_tmpl_init(newsrv, curproxy);
 	}
 	return 0;
 
