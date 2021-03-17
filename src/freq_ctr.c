@@ -51,7 +51,7 @@ unsigned int read_freq_ctr(struct freq_ctr *ctr)
 			break;
 	}
 
-	age = now.tv_sec - curr_sec;
+	age = (global_now >> 32) - curr_sec;
 	if (unlikely(age > 1))
 		return 0;
 
@@ -94,7 +94,7 @@ unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned i
 			break;
 	}
 
-	age = now.tv_sec - curr_sec;
+	age = (global_now >> 32) - curr_sec;
 	if (unlikely(age > 1))
 		curr = 0;
 	else {
@@ -141,7 +141,7 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
 			break;
 	}
 
-	age = now.tv_sec - curr_sec;
+	age = (global_now >> 32) - curr_sec;
 	if (unlikely(age > 1))
 		curr = 0;
 	else {
@@ -169,7 +169,7 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
 /* Reads a frequency counter taking history into account for missing time in
  * current period. The period has to be passed in number of ticks and must
  * match the one used to feed the counter. The counter value is reported for
- * current date (now_ms). The return value has the same precision as one input
+ * current global date. The return value has the same precision as one input
  * data sample, so low rates over the period will be inaccurate but still
  * appropriate for max checking. One trick we use for low values is to specially
  * handle the case where the rate is between 0 and 1 in order to avoid flapping
@@ -206,7 +206,7 @@ unsigned int read_freq_ctr_period(struct freq_ctr_period *ctr, unsigned int peri
 			break;
 	};
 
-	remain = curr_tick + period - now_ms;
+	remain = curr_tick + period - (uint32_t)global_now / 1000;
 	if (unlikely((int)remain < 0)) {
 		/* We're past the first period, check if we can still report a
 		 * part of last period or if we're too far away.
@@ -253,7 +253,7 @@ unsigned int freq_ctr_remain_period(struct freq_ctr_period *ctr, unsigned int pe
 			break;
 	};
 
-	remain = curr_tick + period - now_ms;
+	remain = curr_tick + period - (uint32_t)global_now / 1000;
 	if (likely((int)remain < 0)) {
 		/* We're past the first period, check if we can still report a
 		 * part of last period or if we're too far away.

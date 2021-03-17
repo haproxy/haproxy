@@ -36,6 +36,7 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 {
 	int elapsed;
 	unsigned int curr_sec;
+	uint32_t now_tmp;
 
 
 	/* we manipulate curr_ctr using atomic ops out of the lock, since
@@ -47,16 +48,17 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 	 * same uncertainty as well.
 	 */
 	curr_sec = ctr->curr_sec;
-	if (curr_sec == (now.tv_sec & 0x7fffffff))
-		return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
-
 	do {
+		now_tmp = global_now >> 32;
+		if (curr_sec == (now_tmp & 0x7fffffff))
+			return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
+
 		/* remove the bit, used for the lock */
 		curr_sec &= 0x7fffffff;
 	} while (!_HA_ATOMIC_CAS(&ctr->curr_sec, &curr_sec, curr_sec | 0x80000000));
 	__ha_barrier_atomic_store();
 
-	elapsed = (now.tv_sec & 0x7fffffff)- curr_sec;
+	elapsed = (now_tmp & 0x7fffffff) - curr_sec;
 	if (unlikely(elapsed > 0)) {
 		ctr->prev_ctr = ctr->curr_ctr;
 		_HA_ATOMIC_SUB(&ctr->curr_ctr, ctr->prev_ctr);
@@ -64,7 +66,7 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 			/* we missed more than one second */
 			ctr->prev_ctr = 0;
 		}
-		curr_sec = now.tv_sec;
+		curr_sec = now_tmp;
 	}
 
 	/* release the lock and update the time in case of rotate. */
@@ -82,25 +84,27 @@ static inline unsigned int update_freq_ctr_period(struct freq_ctr_period *ctr,
 						  unsigned int period, unsigned int inc)
 {
 	unsigned int curr_tick;
+	uint32_t now_ms_tmp;
 
 	curr_tick = ctr->curr_tick;
-	if (now_ms - curr_tick < period)
-		return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
-
 	do {
+		now_ms_tmp = (uint32_t)global_now / 1000;
+		if (now_ms_tmp - curr_tick < period)
+			return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
+
 		/* remove the bit, used for the lock */
 		curr_tick &= ~1;
 	} while (!_HA_ATOMIC_CAS(&ctr->curr_tick, &curr_tick, curr_tick | 0x1));
 	__ha_barrier_atomic_store();
 
-	if (now_ms - curr_tick >= period) {
+	if (now_ms_tmp - curr_tick >= period) {
 		ctr->prev_ctr = ctr->curr_ctr;
 		_HA_ATOMIC_SUB(&ctr->curr_ctr, ctr->prev_ctr);
 		curr_tick += period;
-		if (likely(now_ms - curr_tick >= period)) {
+		if (likely(now_ms_tmp - curr_tick >= period)) {
 			/* we missed at least two periods */
 			ctr->prev_ctr = 0;
-			curr_tick = now_ms;
+			curr_tick = now_ms_tmp;
 		}
 		curr_tick &= ~1;
 	}
