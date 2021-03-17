@@ -2942,7 +2942,6 @@ void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_
 
 	struct sni_ctx *sc0, *sc0b, *sc1;
 	struct ebmb_node *node;
-	int def = 0;
 
 	list_for_each_entry_safe(sc0, sc0b, &ckch_inst->sni_ctx, by_ckch_inst) {
 
@@ -2976,14 +2975,13 @@ void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_
 			ebst_insert(&bind_conf->sni_w_ctx, &sc0->name);
 		else
 			ebst_insert(&bind_conf->sni_ctx, &sc0->name);
+	}
 
-		/* replace the default_ctx if required with the first ctx */
-		if (ckch_inst->is_default && !def) {
-			SSL_CTX_free(bind_conf->default_ctx);
-			SSL_CTX_up_ref(sc0->ctx);
-			bind_conf->default_ctx = sc0->ctx;
-			def = 1;
-		}
+	/* replace the default_ctx if required with the instance's ctx. */
+	if (ckch_inst->is_default) {
+		SSL_CTX_free(bind_conf->default_ctx);
+		SSL_CTX_up_ref(ckch_inst->ctx);
+		bind_conf->default_ctx = ckch_inst->ctx;
 	}
 }
 
@@ -3420,6 +3418,12 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 		ckch_inst->is_default = 1;
 		SSL_CTX_up_ref(ctx);
 	}
+
+	/* Always keep a reference to the newly constructed SSL_CTX in the
+	 * instance. This way if the instance has no SNIs, the SSL_CTX will
+	 * still be linked. */
+	SSL_CTX_up_ref(ctx);
+	ckch_inst->ctx = ctx;
 
 	/* everything succeed, the ckch instance can be used */
 	ckch_inst->bind_conf = bind_conf;

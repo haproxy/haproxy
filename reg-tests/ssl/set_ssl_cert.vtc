@@ -3,10 +3,18 @@
 # This reg-test uses the "set ssl cert" command to update a certificate over the CLI.
 # It requires socat to upload the certificate
 #
-# this check does 3 requests, the first one will use "www.test1.com" as SNI,
+# This check has two separate parts.
+# In the first part, there are 3 requests, the first one will use "www.test1.com" as SNI,
 # the second one with the same but that must fail and the third one will use
 # "localhost". Since vtest can't do SSL, we use haproxy as an SSL client with 2
 # chained listen section.
+#
+# In the second part, we check the update of a default certificate in a crt-list.
+# This corresponds to a bug raised in https://github.com/haproxy/haproxy/issues/1143.
+# A certificate is used as default certificate as well as regular one, and during the update
+# the default certificate would not be properly updated if the default instance did not have
+# any SNI. The test consists in checking that the used certificate is the right one after
+# updating it via a "set ssl cert" call.
 #
 # If this test does not work anymore:
 # - Check that you have socat
@@ -17,7 +25,7 @@ varnishtest "Test the 'set ssl cert' feature of the CLI"
 #REQUIRE_BINARIES=socat
 feature ignore_unknown_macro
 
-server s1 -repeat 3 {
+server s1 -repeat 9 {
   rxreq
   txresp
 } -start
@@ -27,6 +35,7 @@ haproxy h1 -conf {
         tune.ssl.default-dh-param 2048
         tune.ssl.capture-cipherlist-size 1
         stats socket "${tmpdir}/h1/stats" level admin
+        crt-base ${testdir}
 
     defaults
         mode http
@@ -41,15 +50,30 @@ haproxy h1 -conf {
     listen clear-lst
         bind "fd@${clearlst}"
         balance roundrobin
+
+        http-response set-header X-SSL-Server-SHA1 %[ssl_s_sha1,hex]
+
         retries 0 # 2nd SSL connection must fail so skip the retry
         server s1 "${tmpdir}/ssl.sock" ssl verify none sni str(www.test1.com)
         server s2 "${tmpdir}/ssl.sock" ssl verify none sni str(www.test1.com)
         server s3 "${tmpdir}/ssl.sock" ssl verify none sni str(localhost)
 
+        server s4 "${tmpdir}/other-ssl.sock" ssl verify none sni str(www.test1.com)
+        server s5 "${tmpdir}/other-ssl.sock" ssl verify none sni str(other.test1.com) # uses the default certificate
+        server s6 "${tmpdir}/other-ssl.sock" ssl verify none sni str(www.test1.com)
+        server s7 "${tmpdir}/other-ssl.sock" ssl verify none sni str(other.test1.com) # uses the default certificate
+
+        server s8 "${tmpdir}/other-ssl.sock" ssl verify none sni str(www.test1.com)
+        server s9 "${tmpdir}/other-ssl.sock" ssl verify none sni str(other.test1.com) # uses the default certificate
+
     listen ssl-lst
         bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem strict-sni
-
         server s1 ${s1_addr}:${s1_port}
+
+    listen other-ssl-lst
+        bind "${tmpdir}/other-ssl.sock" ssl crt-list ${testdir}/set_default_cert.crt-list
+        server s1 ${s1_addr}:${s1_port}
+
 } -start
 
 
@@ -97,3 +121,84 @@ haproxy h1 -cli {
     expect ~ ".*SHA1 FingerPrint: A490D069DBAFBEE66DE434BEC34030ADE8BCCBF1"
 }
 
+
+
+# The following requests are aimed at a backend that uses the set_default_cert.crt-list file
+
+# Uses the www.test1.com sni
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.http.X-SSL-Server-SHA1 == "9DC18799428875976DDE706E9956035EE88A4CB3"
+    expect resp.status == 200
+} -run
+
+# Uses the other.test1.com sni and the default line of the crt-list
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.http.X-SSL-Server-SHA1 == "9DC18799428875976DDE706E9956035EE88A4CB3"
+    expect resp.status == 200
+} -run
+
+shell {
+    printf "set ssl cert ${testdir}/set_default_cert.pem <<\n$(cat ${testdir}/common.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+}
+
+# Certificate should not have changed yet
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/set_default_cert.pem"
+    expect ~ ".*SHA1 FingerPrint: 9DC18799428875976DDE706E9956035EE88A4CB3"
+}
+
+shell {
+    echo "commit ssl cert ${testdir}/set_default_cert.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/set_default_cert.pem"
+    expect ~ ".*SHA1 FingerPrint: 2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
+}
+
+# Uses the www.test1.com sni
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.http.X-SSL-Server-SHA1 == "2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
+    expect resp.status == 200
+} -run
+
+# Uses the other.test1.com sni and the default line of the crt-list
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.http.X-SSL-Server-SHA1 == "2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
+    expect resp.status == 200
+} -run
+
+# Restore original certificate
+shell {
+    printf "set ssl cert ${testdir}/set_default_cert.pem <<\n$(cat ${testdir}/set_default_cert.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/set_default_cert.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl cert ${testdir}/set_default_cert.pem"
+    expect ~ ".*SHA1 FingerPrint: 9DC18799428875976DDE706E9956035EE88A4CB"
+}
+
+# Uses the www.test1.com sni
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.http.X-SSL-Server-SHA1 == "9DC18799428875976DDE706E9956035EE88A4CB3"
+    expect resp.status == 200
+} -run
+
+# Uses the other.test1.com sni and the default line of the crt-list
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.http.X-SSL-Server-SHA1 == "9DC18799428875976DDE706E9956035EE88A4CB3"
+    expect resp.status == 200
+} -run
