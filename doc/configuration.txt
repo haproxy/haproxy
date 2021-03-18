@@ -15630,7 +15630,7 @@ fix_is_valid
     numeric
   - checks the BeginString tag is the first tag with a valid FIX version
   - checks the BodyLength tag is the second one with the right body length
-  - checks the MstType tag is the third tag.
+  - checks the MsgType tag is the third tag.
   - checks that last tag in the message is the CheckSum tag with a valid
     checksum
 
