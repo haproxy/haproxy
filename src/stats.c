@@ -4859,8 +4859,8 @@ static int cli_io_handler_dump_json_schema(struct appctx *appctx)
 	return stats_dump_json_schema_to_buffer(appctx->owner);
 }
 
-static int stats_allocate_proxy_counters_internal(struct extra_counters **counters,
-                                                  int type, int px_cap)
+int stats_allocate_proxy_counters_internal(struct extra_counters **counters,
+                                           int type, int px_cap)
 {
 	struct stats_module *mod;
 
