@@ -39,6 +39,7 @@
 #include <haproxy/quic_cc.h>
 #include <haproxy/quic_frame.h>
 #include <haproxy/quic_loss.h>
+#include <haproxy/mux_quic.h>
 #include <haproxy/xprt_quic-t.h>
 
 #include <openssl/rand.h>
@@ -46,6 +47,12 @@
 extern struct pool_head *pool_head_quic_connection_id;
 
 int ssl_quic_initial_ctx(struct bind_conf *bind_conf);
+
+/* Update the mux stream-related transport parameters from <qc> connection */
+static inline void quic_transport_params_update(struct quic_conn *qc)
+{
+	quic_mux_transport_params_update(qc->qcc);
+}
 
 /* Returns the required length in bytes to encode <cid> QUIC connection ID. */
 static inline size_t sizeof_quic_cid(const struct quic_cid *cid)
