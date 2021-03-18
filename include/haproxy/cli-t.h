@@ -35,6 +35,7 @@
 #define ACCESS_MASTER       0x0008  /* works with the master (and every other processes) */
 #define ACCESS_MASTER_ONLY  0x0010  /* only works with the master */
 #define ACCESS_EXPERT       0x0020  /* access to dangerous commands reserved to experts */
+#define ACCESS_EXPERIMENTAL 0x0040
 
 /* flags for appctx->st1 */
 #define APPCTX_CLI_ST1_PROMPT  (1 << 0)

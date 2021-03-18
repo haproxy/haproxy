@@ -1677,11 +1677,21 @@ enable server <backend>/<server>
   This command is restricted and can only be issued on sockets configured for
   level "admin".
 
+experimental-mode [on|off]
+  Without options, this indicates whether the experimental mode is enabled or
+  disabled on the current connection. When passed "on", it turns the
+  experimental mode on for the current CLI connection only. With "off" it turns
+  it off.
+
+  The experimental mode is used to access to extra features still in
+  development. These features are currently not stable and should be used with
+  care. They may be subject to breaking changes accross versions.
+
 expert-mode [on|off]
-  Without options, this indicates whether the expert mode is enabled or
-  disabled on the current connection. When passed "on", it turns the expert
-  mode on for the current CLI connection only. With "off" it turns it off. The
-  expert mode enables displaying of expert commands that can be extremely
+  This command is similar to experimental-mode but is used to toggle the
+  expert mode.
+
+  The expert mode enables displaying of expert commands that can be extremely
   dangerous for the process and which may occasionally help developers collect
   important information about complex bugs. Any misuse of these features will
   likely lead to a process crash. Do not use this option without being invited
@@ -1984,11 +1994,13 @@ show cli level
 
 operator
   Decrease the CLI level of the current CLI session to operator. It can't be
-  increased. It also drops expert mode. See also "show cli level".
+  increased. It also drops expert and experimental mode. See also "show cli
+  level".
 
 user
   Decrease the CLI level of the current CLI session to user. It can't be
-  increased. It also drops expert mode. See also "show cli level".
+  increased. It also drops expert and experimental mode. See also "show cli
+  level".
 
 show activity
   Reports some counters about internal events that will help developers and

@@ -103,7 +103,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	/* first, let's measure the longest match */
 	list_for_each_entry(kw_list, &cli_keywords.list, list) {
 		for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
-			if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT))
+			if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
 				continue;
 			if ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
 			    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
@@ -143,7 +143,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	if (args && args[length] && *args[length]) {
 		list_for_each_entry(kw_list, &cli_keywords.list, list) {
 			for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
-				if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT))
+				if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
 					continue;
 				if ((appctx->cli_level & ~kw->level & (ACCESS_MASTER_ONLY|ACCESS_MASTER)) ==
 				    (ACCESS_MASTER_ONLY|ACCESS_MASTER))
@@ -226,9 +226,9 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 		for (kw = &kw_list->kw[0]; kw->str_kw[0]; kw++) {
 
 			/* in a worker or normal process, don't display master-only commands
-			 * nor expert mode commands if not in this mode.
+			 * nor expert/experimental mode commands if not in this mode.
 			 */
-			if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT))
+			if (kw->level & ~appctx->cli_level & (ACCESS_MASTER_ONLY|ACCESS_EXPERT|ACCESS_EXPERIMENTAL))
 				continue;
 
 			/* in master don't display commands that have neither the master bit
@@ -727,6 +727,11 @@ static int cli_parse_request(struct appctx *appctx)
 	/* don't handle expert mode commands if not in this mode. */
 	if (kw->level & ~appctx->cli_level & ACCESS_EXPERT) {
 		cli_err(appctx, "This command is restricted to expert mode only.\n");
+		return 0;
+	}
+
+	if (kw->level & ~appctx->cli_level & ACCESS_EXPERIMENTAL) {
+		cli_err(appctx, "This command is restricted to experimental mode only.\n");
 		return 0;
 	}
 
@@ -1677,28 +1682,44 @@ static int cli_parse_set_lvl(char **args, char *payload, struct appctx *appctx, 
 		appctx->cli_level &= ~ACCESS_LVL_MASK;
 		appctx->cli_level |= ACCESS_LVL_USER;
 	}
-	appctx->cli_level &= ~ACCESS_EXPERT;
+	appctx->cli_level &= ~(ACCESS_EXPERT|ACCESS_EXPERIMENTAL);
 	return 1;
 }
 
 
-/* parse and set the CLI expert-mode dynamically */
-static int cli_parse_expert_mode(char **args, char *payload, struct appctx *appctx, void *private)
+/* parse and set the CLI expert/experimental-mode dynamically */
+static int cli_parse_expert_experimental_mode(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	int level;
+	char *level_str;
+	char *output = NULL;
+
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (!*args[1])
-		return (appctx->cli_level & ACCESS_EXPERT)
-			? cli_msg(appctx, LOG_INFO, "expert-mode is ON\n")
-			: cli_msg(appctx, LOG_INFO, "expert-mode is OFF\n");
+	if (!strcmp(args[0], "expert-mode")) {
+		level = ACCESS_EXPERT;
+		level_str = "expert-mode";
+	}
+	else if (!strcmp(args[0], "experimental-mode")) {
+		level = ACCESS_EXPERIMENTAL;
+		level_str = "experimental-mode";
+	}
+	else {
+		return 1;
+	}
 
-	appctx->cli_level &= ~ACCESS_EXPERT;
+	if (!*args[1]) {
+		memprintf(&output, "%s is %s\n", level_str,
+		          (appctx->cli_level & level) ? "ON" : "OFF");
+		return cli_dynmsg(appctx, LOG_INFO, output);
+	}
+
+	appctx->cli_level &= ~level;
 	if (strcmp(args[1], "on") == 0)
-		appctx->cli_level |= ACCESS_EXPERT;
+		appctx->cli_level |= level;
 	return 1;
 }
-
 
 int cli_parse_default(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -2928,7 +2949,8 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "operator", NULL },  "operator       : lower the level of the current CLI session to operator", cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "user", NULL },      "user           : lower the level of the current CLI session to user", cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{ { "_getsocks", NULL }, NULL,  _getsocks, NULL },
-	{ { "expert-mode", NULL },  NULL,  cli_parse_expert_mode, NULL }, // not listed
+	{ { "expert-mode", NULL },  NULL,  cli_parse_expert_experimental_mode, NULL }, // not listed
+	{ { "experimental-mode", NULL },  NULL,  cli_parse_expert_experimental_mode, NULL }, // not listed
 	{{},}
 }};
 
