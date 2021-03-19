@@ -264,9 +264,13 @@ void ha_task_dump(struct buffer *buf, const struct task *task, const char *pfx)
 	}
 
 	if (hlua && hlua->T) {
-		luaL_traceback(hlua->T, hlua->T, NULL, 0);
-		if (!append_prefixed_str(buf, lua_tostring(hlua->T, -1), pfx, '\n', 1))
-			b_putchr(buf, '\n');
+		if (hlua_not_dumpable == 0) {
+			luaL_traceback(hlua->T, hlua->T, NULL, 0);
+			if (!append_prefixed_str(buf, lua_tostring(hlua->T, -1), pfx, '\n', 1))
+				b_putchr(buf, '\n');
+		}
+		else
+			chunk_appendf(buf, "Inside non-rentrant part, Stack traceback not available\n");
 	}
 	else
 		b_putchr(buf, '\n');
