@@ -1,6 +1,48 @@
 ChangeLog :
 ===========
 
+2021/03/19 : 2.4-dev13
+    - BUG/MEDIUM: cli: fix "help" crashing since recent spelling fixes
+    - BUG/MINOR: cfgparse: use the GLOBAL not LISTEN keywords list for spell checking
+    - MINOR: tools: improve word fingerprinting by counting presence
+    - MINOR: tools: do not sum squares of differences for word fingerprints
+    - MINOR: cli: improve fuzzy matching to work on all remaining words at once
+    - MINOR: cli: sort the suggestions by order of relevance
+    - MINOR: cli: limit spelling suggestions to 5
+    - MINOR: cfgparse/proxy: also support spelling fixes on options
+    - BUG/MINOR: resolvers: Add missing case-insensitive comparisons of DNS hostnames
+    - MINOR: time: export the global_now variable
+    - BUG/MINOR: freq_ctr/threads: make use of the last updated global time
+    - MINOR: freq_ctr/threads: relax when failing to update a sliding window value
+    - MINOR/BUG: mworker/cli: do not use the unix_bind prefix for the master CLI socket
+    - MINOR: mworker/cli: alert the user if we enabled a master CLI but not the master-worker mode
+    - MINOR: cli: implement experimental-mode
+    - REORG: server: add a free server function
+    - MINOR: cfgparse: always alloc idle conns task
+    - REORG: server: move keywords in srv_kws
+    - MINOR: server: remove fastinter from mistyped kw list
+    - REORG: server: split parse_server
+    - REORG: server: move alert traces in parse_server
+    - REORG: server: rename internal functions from parse_server
+    - REORG: server: attach servers in parse_server
+    - REORG: server: use flags for parse_server
+    - MINOR: server: prepare parsing for dynamic servers
+    - MINOR: stats: export function to allocate extra proxy counters
+    - MEDIUM: server: implement 'add server' cli command
+    - REGTESTS: implement test for 'add server' cli
+    - MINOR: server: enable standard options for dynamic servers
+    - MINOR: server: support keyword proto in 'add server' cli
+    - BUG/MINOR: protocol: add missing support of dgram unix socket.
+    - CLEANUP: Fix a typo in fix_is_valid description
+    - MINOR: raw_sock: Add a close method.
+    - MEDIUM: connections: Introduce a new XPRT method, start().
+    - MEDIUM: connections: Implement a start() method for xprt_handshake.
+    - MEDIUM: connections: Implement a start() method in ssl_sock.
+    - MINOR: muxes: garbage collect the reset() method.
+    - CLEANUP: tcp-rules: Fix a typo in error messages about expect-netscaler-cip
+    - MEDIUM: lua: Use a per-thread counter to track some non-reentrant parts of lua
+    - BUG/MEDIUM: debug/lua: Don't dump the lua stack if not dumpable
+
 2021/03/13 : 2.4-dev12
     - CLEANUP: connection: Use `VAR_ARRAY` in `struct tlv` definition
     - CLEANUP: connection: Remove useless test for NULL before calling `pool_free()`
