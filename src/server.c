@@ -1654,9 +1654,9 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "proto",               srv_parse_proto,               1,  1,  1 }, /* Set the proto to use for all outgoing connections */
 	{ "proxy-v2-options",    srv_parse_proxy_v2_options,    1,  1,  1 }, /* options for send-proxy-v2 */
 	{ "redir",               srv_parse_redir,               1,  1,  0 }, /* Enable redirection mode */
-	{ "resolve-net",         srv_parse_resolve_net,         1,  1,  0 }, /* Set the prefered network range for name resolution */
+	{ "resolve-net",         srv_parse_resolve_net,         1,  1,  0 }, /* Set the preferred network range for name resolution */
 	{ "resolve-opts",        srv_parse_resolve_opts,        1,  1,  0 }, /* Set options for name resolution */
-	{ "resolve-prefer",      srv_parse_resolve_prefer,      1,  1,  0 }, /* Set the prefered family for name resolution */
+	{ "resolve-prefer",      srv_parse_resolve_prefer,      1,  1,  0 }, /* Set the preferred family for name resolution */
 	{ "resolvers",           srv_parse_resolvers,           1,  1,  0 }, /* Configure the resolver to use for name resolution */
 	{ "send-proxy",          srv_parse_send_proxy,          0,  1,  1 }, /* Enforce use of PROXY V1 protocol */
 	{ "send-proxy-v2",       srv_parse_send_proxy_v2,       0,  1,  1 }, /* Enforce use of PROXY V2 protocol */
@@ -2247,7 +2247,7 @@ static int _srv_parse_tmpl_range(struct server *srv, const char *arg,
  * Set <nb_low> and <nb_high> values so that they may be reused by this loop
  * for(int i = nb_low; i <= nb_high; i++)... with nb_low >= 1.
  *
- * This function is first intented to be used through parse_server to
+ * This function is first intended to be used through parse_server to
  * initialize a new server on startup.
  *
  * Fails if 'low' < 0 or 'high' is present and not higher than 'low'.
@@ -2266,7 +2266,7 @@ static inline void _srv_parse_set_id_from_prefix(struct server *srv,
  * a few different parameters than a server which has
  * been parsed mostly the same way as a server.
  *
- * This function is first intented to be used through parse_server to
+ * This function is first intended to be used through parse_server to
  * initialize a new server on startup.
  *
  * Returns the number of servers successfully allocated,
@@ -2323,7 +2323,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
  * in <args> as an address for a server or an address-range for a template or
  * nothing for a default-server. <cur_arg> is incremented to the next argument.
  *
- * This function is first intented to be used through parse_server to
+ * This function is first intended to be used through parse_server to
  * initialize a new server on startup.
  *
  * A mask of errors is returned. On a parsing error, ERR_FATAL is set. In case
@@ -2506,7 +2506,7 @@ out:
  * <cur_arg> is incremented beyond the keyword optional value. Note that this
  * might not be the case if an error is reported.
  *
- * This function is first intented to be used through parse_server to
+ * This function is first intended to be used through parse_server to
  * initialize a new server on startup.
  *
  * A mask of errors is returned. ERR_FATAL is set if the parsing should be
@@ -2563,7 +2563,7 @@ out:
 }
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-/* This function is first intented to be used through parse_server to
+/* This function is first intended to be used through parse_server to
  * initialize a new server on startup.
  */
 static int _srv_parse_sni_expr_init(char **args, int cur_arg,
@@ -2587,7 +2587,7 @@ static int _srv_parse_sni_expr_init(char **args, int cur_arg,
  * Initialize health check, agent check and SNI expression if enabled.
  * Must not be called for a default server instance.
  *
- * This function is first intented to be used through parse_server to
+ * This function is first intended to be used through parse_server to
  * initialize a new server on startup.
  */
 static int _srv_parse_finalize(char **args, int cur_arg,

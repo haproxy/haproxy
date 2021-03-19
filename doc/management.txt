@@ -1721,7 +1721,7 @@ experimental-mode [on|off]
 
   The experimental mode is used to access to extra features still in
   development. These features are currently not stable and should be used with
-  care. They may be subject to breaking changes accross versions.
+  care. They may be subject to breaking changes across versions.
 
 expert-mode [on|off]
   This command is similar to experimental-mode but is used to toggle the
