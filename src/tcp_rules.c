@@ -955,7 +955,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			if (kw->parse((const char **)args, &arg, curpx, rule, err) == ACT_RET_PRS_ERR)
 				return -1;
 		} else {
-			const char *extra[] = { "accept", "reject", "capture", "track-sc", "expect-proxy", "expect-netscaler-ip", NULL };
+			const char *extra[] = { "accept", "reject", "capture", "track-sc", "expect-proxy", "expect-netscaler-cip", NULL };
 			const char *best = NULL;
 
 
@@ -973,7 +973,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			}
 
 			memprintf(err,
-			          "'%s %s' expects 'accept', 'reject', 'capture', 'expect-proxy', 'expect-netscaler-ip', 'track-sc0' ... 'track-sc%d', %s "
+			          "'%s %s' expects 'accept', 'reject', 'capture', 'expect-proxy', 'expect-netscaler-cip', 'track-sc0' ... 'track-sc%d', %s "
 			          "in %s '%s' (got '%s').%s%s%s\n",
 			          args[0], args[1], MAX_SESS_STKCTR-1,
 			          trash.area, proxy_type_str(curpx),
