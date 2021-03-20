@@ -175,26 +175,6 @@ struct sh_ssl_sess_hdr {
 	unsigned char key_data[SSL_MAX_SSL_SESSION_ID_LENGTH];
 };
 
-#if HA_OPENSSL_VERSION_NUMBER >= 0x1000200fL
-
-#define SSL_SOCK_POSSIBLE_KT_COMBOS (1<<(SSL_SOCK_NUM_KEYTYPES))
-
-struct key_combo_ctx {
-	SSL_CTX *ctx;
-	int order;
-};
-
-/* Map used for processing multiple keypairs for a single purpose
- *
- * This maps CN/SNI name to certificate type
- */
-struct sni_keytype {
-	int keytypes;			  /* BITMASK for keytypes */
-	struct ebmb_node name;    /* node holding the servername value */
-};
-
-#endif
-
 /* issuer chain store with hash of Subject Key Identifier
    certificate/issuer matching is verify with X509_check_issued
 */
