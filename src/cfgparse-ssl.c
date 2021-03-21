@@ -722,7 +722,7 @@ static int bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct 
 /* parse the "ecdhe" bind keyword keyword */
 static int ssl_bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
-#if HA_OPENSSL_VERSION_NUMBER < 0x0090800fL
+#if !defined(SSL_CTX_set_tmp_ecdh)
 	memprintf(err, "'%s' : library does not support elliptic curve Diffie-Hellman (too old)", args[cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #elif defined(OPENSSL_NO_ECDH)
