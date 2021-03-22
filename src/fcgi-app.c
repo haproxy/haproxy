@@ -289,7 +289,7 @@ static int fcgi_flt_start(struct stream *s, struct filter *filter)
 	struct fcgi_flt_conf *fcgi_conf  = FLT_CONF(filter);
 	struct fcgi_flt_ctx *fcgi_ctx;
 
-	fcgi_ctx = pool_alloc_dirty(pool_head_fcgi_flt_ctx);
+	fcgi_ctx = pool_alloc(pool_head_fcgi_flt_ctx);
 	if (fcgi_ctx == NULL) {
 		// FIXME: send a warning
 		return 0;
@@ -398,7 +398,7 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 			ebpt_delete(node);
 		}
 		else {
-			param_rule = pool_alloc_dirty(pool_head_fcgi_param_rule);
+			param_rule = pool_alloc(pool_head_fcgi_param_rule);
 			if (param_rule == NULL)
 				goto param_rule_err;
 		}
@@ -428,7 +428,7 @@ static int fcgi_flt_http_headers(struct stream *s, struct filter *filter, struct
 			ebpt_delete(node);
 		}
 		else {
-			hdr_rule = pool_alloc_dirty(pool_head_fcgi_hdr_rule);
+			hdr_rule = pool_alloc(pool_head_fcgi_hdr_rule);
 			if (hdr_rule == NULL)
 				goto hdr_rule_err;
 		}
