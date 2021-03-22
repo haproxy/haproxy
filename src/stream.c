@@ -1109,11 +1109,21 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		/* To ensure correct connection accounting on the backend, we
 		 * have to assign one if it was not set (eg: a listen). This
 		 * measure also takes care of correctly setting the default
-		 * backend if any.
+		 * backend if any. Don't do anything if an upgrade is already in
+		 * progress.
 		 */
-		if (!(s->flags & SF_BE_ASSIGNED))
+		if (!(s->flags & (SF_BE_ASSIGNED|SF_IGNORE)))
 			if (!stream_set_backend(s, fe->defbe.be ? fe->defbe.be : s->be))
 				goto sw_failed;
+
+		/* No backend assigned but no error reported. It happens when a
+		 * TCP stream is upgraded to HTTP/2.
+		 */
+		if ((s->flags & (SF_BE_ASSIGNED|SF_IGNORE)) == SF_IGNORE) {
+			DBG_TRACE_DEVEL("leaving with no backend because of a destructive upgrade", STRM_EV_STRM_ANA, s);
+			return 0;
+		}
+
 	}
 
 	/* we don't want to run the TCP or HTTP filters again if the backend has not changed */
