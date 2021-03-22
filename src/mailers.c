@@ -184,9 +184,8 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	LIST_INIT(&alert->rules.preset_vars); /* unused for email alerts */
 	alert->srv = s;
 
-	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
+	if ((tcpcheck = pool_zalloc(pool_head_tcpcheck_rule)) == NULL)
 		goto error;
-	memset(tcpcheck, 0, sizeof(*tcpcheck));
 	tcpcheck->action       = TCPCHK_ACT_CONNECT;
 	tcpcheck->comment      = NULL;
 
