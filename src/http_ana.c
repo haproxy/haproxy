@@ -1135,9 +1135,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			 */
 			DBG_TRACE_STATE("enable L7 retry, save the request", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 			si->flags |= SI_FL_L7_RETRY;
-			if (b_is_null(&si->l7_buffer))
-				b_alloc(&si->l7_buffer);
-			if (b_is_null(&si->l7_buffer))
+			if (b_alloc(&si->l7_buffer) == NULL)
 				si->flags &= ~SI_FL_L7_RETRY;
 			else {
 				memcpy(b_orig(&si->l7_buffer), b_orig(&req->buf), b_size(&req->buf));
