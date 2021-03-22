@@ -25,6 +25,7 @@
 #include <import/ist.h>
 
 #include <haproxy/api.h>
+#include <haproxy/buf.h>
 #include <haproxy/connection-t.h>
 #include <haproxy/fd.h>
 #include <haproxy/http_ana.h>
@@ -928,6 +929,7 @@ static inline struct mux_proto_list *get_mux_proto(const struct ist proto)
 static inline void list_mux_proto(FILE *out)
 {
 	struct mux_proto_list *item;
+	struct buffer *chk = get_trash_chunk();
 	struct ist proto;
 	char *mode, *side;
 
@@ -954,8 +956,19 @@ static inline void list_mux_proto(FILE *out)
 		else
 			side = "NONE";
 
-		fprintf(out, " %15s : mode=%-10s side=%-8s  mux=%s\n",
-			(proto.len ? proto.ptr : "<default>"), mode, side, item->mux->name);
+		chunk_reset(chk);
+		if (item->mux->flags & MX_FL_HTX)
+			chunk_strcpy(chk, "HTX");
+		if (item->mux->flags & MX_FL_CLEAN_ABRT)
+			chunk_appendf(chk, "%sCLEAN_ABRT", (b_data(chk) ? "|": ""));
+		if (item->mux->flags & MX_FL_HOL_RISK)
+			chunk_appendf(chk, "%sHOL_RISK", (b_data(chk) ? "|": ""));
+		if (item->mux->flags & MX_FL_NO_UPG)
+			chunk_appendf(chk, "%sNO_UPG", (b_data(chk) ? "|": ""));
+
+		fprintf(out, " %15s : mode=%-10s side=%-8s  mux=%-8s flags=%.*s\n",
+			(proto.len ? proto.ptr : "<default>"), mode, side, item->mux->name,
+			(int)b_data(chk), b_orig(chk));
 	}
 }
 
