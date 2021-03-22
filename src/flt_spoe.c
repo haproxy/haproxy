@@ -1965,7 +1965,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	if ((appctx = appctx_new(&spoe_applet, tid_bit)) == NULL)
 		goto out_error;
 
-	appctx->ctx.spoe.ptr = pool_alloc_dirty(pool_head_spoe_appctx);
+	appctx->ctx.spoe.ptr = pool_alloc(pool_head_spoe_appctx);
 	if (SPOE_APPCTX(appctx) == NULL)
 		goto out_free_appctx;
 	memset(appctx->ctx.spoe.ptr, 0, pool_head_spoe_appctx->size);
@@ -2870,7 +2870,7 @@ spoe_create_context(struct stream *s, struct filter *filter)
 	struct spoe_config  *conf = FLT_CONF(filter);
 	struct spoe_context *ctx;
 
-	ctx = pool_alloc_dirty(pool_head_spoe_ctx);
+	ctx = pool_alloc(pool_head_spoe_ctx);
 	if (ctx == NULL) {
 		return NULL;
 	}
