@@ -82,6 +82,7 @@ client c2 -connect ${h1_feS_sock} {
 
 haproxy h1 -cli {
 	send "enable server test/s1"
+	expect ~ ".*"
 }
 
 client c3 -connect ${h1_feS_sock} {
