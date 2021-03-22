@@ -376,12 +376,10 @@ static inline struct conn_hash_node *conn_alloc_hash_node(struct connection *con
 {
 	struct conn_hash_node *hash_node = NULL;
 
-	hash_node = pool_alloc(pool_head_conn_hash_node);
+	hash_node = pool_zalloc(pool_head_conn_hash_node);
 	if (unlikely(!hash_node))
 		return NULL;
 
-	memset(&hash_node->node, 0, sizeof(hash_node->node));
-	hash_node->hash = 0;
 	hash_node->conn = conn;
 
 	return hash_node;
