@@ -398,10 +398,9 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 	if (IS_HTX_STRM(s) && !(fconf->flags & FLT_CFG_FL_HTX))
 		return 0;
 
-	f = pool_alloc(pool_head_filter);
+	f = pool_zalloc(pool_head_filter);
 	if (!f) /* not enough memory */
 		return -1;
-	memset(f, 0, sizeof(*f));
 	f->config = fconf;
 	f->flags |= flags;
 
