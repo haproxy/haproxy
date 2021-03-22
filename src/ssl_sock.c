@@ -1788,11 +1788,9 @@ static void ssl_init_keylog(struct connection *conn, int write_p, int version,
 	if (SSL_get_ex_data(ssl, ssl_keylog_index))
 		return;
 
-	keylog = pool_alloc(pool_head_ssl_keylog);
+	keylog = pool_zalloc(pool_head_ssl_keylog);
 	if (!keylog)
 		return;
-
-	memset(keylog, 0, sizeof(*keylog));
 
 	if (!SSL_set_ex_data(ssl, ssl_keylog_index, keylog)) {
 		pool_free(pool_head_ssl_keylog, keylog);
