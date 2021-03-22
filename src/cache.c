@@ -493,7 +493,7 @@ cache_store_strm_init(struct stream *s, struct filter *filter)
 {
 	struct cache_st *st;
 
-	st = pool_alloc_dirty(pool_head_cache_st);
+	st = pool_alloc(pool_head_cache_st);
 	if (st == NULL)
 		return -1;
 
