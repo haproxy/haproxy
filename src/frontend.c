@@ -136,15 +136,13 @@ int frontend_accept(struct stream *s)
 		s->req.flags |= CF_READ_DONTWAIT; /* one read is usually enough */
 
 	if (unlikely(fe->nb_req_cap > 0)) {
-		if ((s->req_cap = pool_alloc(fe->req_cap_pool)) == NULL)
+		if ((s->req_cap = pool_zalloc(fe->req_cap_pool)) == NULL)
 			goto out_return;	/* no memory */
-		memset(s->req_cap, 0, fe->nb_req_cap * sizeof(void *));
 	}
 
 	if (unlikely(fe->nb_rsp_cap > 0)) {
-		if ((s->res_cap = pool_alloc(fe->rsp_cap_pool)) == NULL)
+		if ((s->res_cap = pool_zalloc(fe->rsp_cap_pool)) == NULL)
 			goto out_free_reqcap;	/* no memory */
-		memset(s->res_cap, 0, fe->nb_rsp_cap * sizeof(void *));
 	}
 
 	if (fe->http_needed) {
