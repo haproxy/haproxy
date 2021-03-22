@@ -87,7 +87,7 @@ comp_strm_init(struct stream *s, struct filter *filter)
 {
 	struct comp_state *st;
 
-	st = pool_alloc_dirty(pool_head_comp_state);
+	st = pool_alloc(pool_head_comp_state);
 	if (st == NULL)
 		return -1;
 
