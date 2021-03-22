@@ -3618,9 +3618,8 @@ int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str)
 	struct tcpcheck_rule *tcpcheck, *prev_check;
 	struct tcpcheck_expect *expect;
 
-	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
+	if ((tcpcheck = pool_zalloc(pool_head_tcpcheck_rule)) == NULL)
 		return 0;
-	memset(tcpcheck, 0, sizeof(*tcpcheck));
 	tcpcheck->action = TCPCHK_ACT_EXPECT;
 
 	expect = &tcpcheck->expect;
@@ -3661,9 +3660,8 @@ int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *str
 	char *dst;
 	int i;
 
-	if ((tcpcheck = pool_alloc(pool_head_tcpcheck_rule)) == NULL)
+	if ((tcpcheck = pool_zalloc(pool_head_tcpcheck_rule)) == NULL)
 		return 0;
-	memset(tcpcheck, 0, sizeof(*tcpcheck));
 	tcpcheck->action       = TCPCHK_ACT_SEND;
 
 	send = &tcpcheck->send;
