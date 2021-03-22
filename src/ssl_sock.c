@@ -1763,7 +1763,7 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 	if (msg + rec_len > end || msg + rec_len < msg)
 		return;
 
-	capture = pool_alloc_dirty(pool_head_ssl_capture);
+	capture = pool_alloc(pool_head_ssl_capture);
 	if (!capture)
 		return;
 	/* Compute the xxh64 of the ciphersuite. */
