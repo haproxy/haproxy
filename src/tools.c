@@ -910,7 +910,9 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 	memset(&ss, 0, sizeof(ss));
 
 	/* prepare the default socket types */
-	if ((opts & (PA_O_STREAM|PA_O_DGRAM)) == PA_O_DGRAM)
+	if (((opts & (PA_O_STREAM|PA_O_DGRAM)) == PA_O_DGRAM))
+	    || (((opts & (PA_O_STREAM|PA_O_DGRAM)) == (PA_O_DGRAM|PA_O_STREAM))
+	        && (opts & PA_O_DEFAULT_DGRAM))
 		sock_type = ctrl_type = SOCK_DGRAM;
 	else
 		sock_type = ctrl_type = SOCK_STREAM;

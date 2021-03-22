@@ -95,10 +95,11 @@
 #define PA_O_PORT_OFS           0x00000010   /* port offsets are supported */
 #define PA_O_SOCKET_FD          0x00000020   /* inherited socket FDs are supported */
 #define PA_O_RAW_FD             0x00000040   /* inherited raw FDs are supported (pipes, ttys, ...) */
-#define PA_O_DGRAM              0x00000080   /* the address will be used for a datagram socket (in or out) */
-#define PA_O_STREAM             0x00000100   /* the address will be used for streams (in or out) */
+#define PA_O_DGRAM              0x00000080   /* the address can be used for a datagram socket (in or out) */
+#define PA_O_STREAM             0x00000100   /* the address can be used for streams (in or out) */
 #define PA_O_XPRT               0x00000200   /* transport protocols may be specified */
 #define PA_O_CONNECT            0x00000400   /* the protocol must have a ->connect method */
+#define PA_O_DEFAULT_DGRAM      0x00000800   /* by default, this address will be used for a datagram socket */
 
 /* UTF-8 decoder status */
 #define UTF8_CODE_OK       0x00
