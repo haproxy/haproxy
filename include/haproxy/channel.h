@@ -832,23 +832,15 @@ static inline int ci_space_for_replace(const struct channel *chn)
 	return end - ci_tail(chn);
 }
 
-/* Allocates a buffer for channel <chn>, but only if it's guaranteed that it's
- * not the last available buffer or it's the response buffer. Unless the buffer
- * is the response buffer, an extra control is made so that we always keep
- * <tune.buffers.reserved> buffers available after this allocation. Returns 0 in
- * case of failure, non-zero otherwise.
+/* Allocates a buffer for channel <chn>. Returns 0 in case of failure, non-zero
+ * otherwise.
  *
  * If no buffer are available, the requester, represented by <wait> pointer,
  * will be added in the list of objects waiting for an available buffer.
  */
 static inline int channel_alloc_buffer(struct channel *chn, struct buffer_wait *wait)
 {
-	int margin = 0;
-
-	if (!(chn->flags & CF_ISRESP))
-		margin = global.tune.reserved_bufs;
-
-	if (b_alloc_margin(&chn->buf, margin) != NULL)
+	if (b_alloc(&chn->buf) != NULL)
 		return 1;
 
 	if (!LIST_ADDED(&wait->list))
