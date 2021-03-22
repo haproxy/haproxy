@@ -1660,9 +1660,8 @@ static struct resolv_resolution *resolv_pick_resolution(struct resolvers *resolv
 
   from_pool:
 	/* No resolution could be found, so let's allocate a new one */
-	res = pool_alloc(resolv_resolution_pool);
+	res = pool_zalloc(resolv_resolution_pool);
 	if (res) {
-		memset(res, 0, sizeof(*res));
 		res->resolvers  = resolvers;
 		res->uuid       = resolution_uuid;
 		res->status     = RSLV_STATUS_NONE;
