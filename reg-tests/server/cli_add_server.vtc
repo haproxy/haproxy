@@ -81,7 +81,7 @@ client c2 -connect ${h1_feS_sock} {
 } -run
 
 haproxy h1 -cli {
-	send "experimental-mode on; enable server test/s1"
+	send "enable server test/s1"
 }
 
 client c3 -connect ${h1_feS_sock} {
