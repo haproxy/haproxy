@@ -2837,7 +2837,7 @@ spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 	if (LIST_ADDED(&buffer_wait->list))
 		LIST_DEL_INIT(&buffer_wait->list);
 
-	if (b_alloc_margin(buf, global.tune.reserved_bufs))
+	if (b_alloc(buf))
 		return 1;
 
 	LIST_ADDQ(&ti->buffer_wq, &buffer_wait->list);

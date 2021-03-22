@@ -570,14 +570,14 @@ static int fcgi_buf_available(void *target)
 	struct fcgi_conn *fconn = target;
 	struct fcgi_strm *fstrm;
 
-	if ((fconn->flags & FCGI_CF_DEM_DALLOC) && b_alloc_margin(&fconn->dbuf, 0)) {
+	if ((fconn->flags & FCGI_CF_DEM_DALLOC) && b_alloc(&fconn->dbuf)) {
 		TRACE_STATE("unblocking fconn, dbuf allocated", FCGI_EV_FCONN_RECV|FCGI_EV_FCONN_BLK|FCGI_EV_FCONN_WAKE, fconn->conn);
 		fconn->flags &= ~FCGI_CF_DEM_DALLOC;
 		fcgi_conn_restart_reading(fconn, 1);
 		return 1;
 	}
 
-	if ((fconn->flags & FCGI_CF_MUX_MALLOC) && b_alloc_margin(br_tail(fconn->mbuf), 0)) {
+	if ((fconn->flags & FCGI_CF_MUX_MALLOC) && b_alloc(br_tail(fconn->mbuf))) {
 		TRACE_STATE("unblocking fconn, mbuf allocated", FCGI_EV_FCONN_SEND|FCGI_EV_FCONN_BLK|FCGI_EV_FCONN_WAKE, fconn->conn);
 		fconn->flags &= ~FCGI_CF_MUX_MALLOC;
 		if (fconn->flags & FCGI_CF_DEM_MROOM) {
@@ -589,7 +589,7 @@ static int fcgi_buf_available(void *target)
 
 	if ((fconn->flags & FCGI_CF_DEM_SALLOC) &&
 	    (fstrm = fcgi_conn_st_by_id(fconn, fconn->dsi)) && fstrm->cs &&
-	    b_alloc_margin(&fstrm->rxbuf, 0)) {
+	    b_alloc(&fstrm->rxbuf)) {
 		TRACE_STATE("unblocking fstrm, rxbuf allocated", FCGI_EV_STRM_RECV|FCGI_EV_FSTRM_BLK|FCGI_EV_STRM_WAKE, fconn->conn, fstrm);
 		fconn->flags &= ~FCGI_CF_DEM_SALLOC;
 		fcgi_conn_restart_reading(fconn, 1);
@@ -605,7 +605,7 @@ static inline struct buffer *fcgi_get_buf(struct fcgi_conn *fconn, struct buffer
 	struct buffer *buf = NULL;
 
 	if (likely(!LIST_ADDED(&fconn->buf_wait.list)) &&
-	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
+	    unlikely((buf = b_alloc(bptr)) == NULL)) {
 		fconn->buf_wait.target = fconn;
 		fconn->buf_wait.wakeup_cb = fcgi_buf_available;
 		LIST_ADDQ(&ti->buffer_wq, &fconn->buf_wait.list);

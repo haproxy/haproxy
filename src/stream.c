@@ -329,10 +329,10 @@ int stream_buf_available(void *arg)
 	struct stream *s = arg;
 
 	if (!s->req.buf.size && !s->req.pipe && (s->si[0].flags & SI_FL_RXBLK_BUFF) &&
-	    b_alloc_margin(&s->req.buf, global.tune.reserved_bufs))
+	    b_alloc(&s->req.buf))
 		si_rx_buff_rdy(&s->si[0]);
 	else if (!s->res.buf.size && !s->res.pipe && (s->si[1].flags & SI_FL_RXBLK_BUFF) &&
-		 b_alloc_margin(&s->res.buf, 0))
+		 b_alloc(&s->res.buf))
 		si_rx_buff_rdy(&s->si[1]);
 	else
 		return 0;
@@ -772,7 +772,7 @@ static int stream_alloc_work_buffer(struct stream *s)
 	if (LIST_ADDED(&s->buffer_wait.list))
 		LIST_DEL_INIT(&s->buffer_wait.list);
 
-	if (b_alloc_margin(&s->res.buf, 0))
+	if (b_alloc(&s->res.buf))
 		return 1;
 
 	LIST_ADDQ(&ti->buffer_wq, &s->buffer_wait.list);

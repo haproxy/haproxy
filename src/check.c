@@ -994,12 +994,12 @@ int check_buf_available(void *target)
 {
 	struct check *check = target;
 
-	if ((check->state & CHK_ST_IN_ALLOC) && b_alloc_margin(&check->bi, 0)) {
+	if ((check->state & CHK_ST_IN_ALLOC) && b_alloc(&check->bi)) {
 		check->state &= ~CHK_ST_IN_ALLOC;
 		tasklet_wakeup(check->wait_list.tasklet);
 		return 1;
 	}
-	if ((check->state & CHK_ST_OUT_ALLOC) && b_alloc_margin(&check->bo, 0)) {
+	if ((check->state & CHK_ST_OUT_ALLOC) && b_alloc(&check->bo)) {
 		check->state &= ~CHK_ST_OUT_ALLOC;
 		tasklet_wakeup(check->wait_list.tasklet);
 		return 1;
@@ -1016,7 +1016,7 @@ struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
 	struct buffer *buf = NULL;
 
 	if (likely(!LIST_ADDED(&check->buf_wait.list)) &&
-	    unlikely((buf = b_alloc_margin(bptr, 0)) == NULL)) {
+	    unlikely((buf = b_alloc(bptr)) == NULL)) {
 		check->buf_wait.target = check;
 		check->buf_wait.wakeup_cb = check_buf_available;
 		LIST_ADDQ(&ti->buffer_wq, &check->buf_wait.list);

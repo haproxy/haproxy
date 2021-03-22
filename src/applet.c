@@ -48,7 +48,7 @@ int appctx_buf_available(void *arg)
 		return 0;
 
 	/* allocation possible now ? */
-	if (!b_alloc_margin(&si_ic(si)->buf, global.tune.reserved_bufs)) {
+	if (!b_alloc(&si_ic(si)->buf)) {
 		si_rx_buff_blk(si);
 		return 0;
 	}
