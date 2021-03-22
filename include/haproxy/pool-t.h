@@ -81,6 +81,10 @@
 
 #define POOL_AVG_SAMPLES 1024
 
+/* possible flags for __pool_alloc() */
+#define POOL_F_NO_POISON    0x00000001  // do not poison the area
+#define POOL_F_MUST_ZERO    0x00000002  // zero the returned area
+
 
 struct pool_cache_head {
 	struct list list;    /* head of objects in this pool */

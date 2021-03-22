@@ -286,16 +286,16 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
  * dynamically allocated. In the first case, <pool_type> is updated to point to
- * the next element in the list. No memory poisonning is ever performed on the
- * returned area.
+ * the next element in the list. <flags> is a binary-OR of POOL_F_* flags.
+ * Prefer using pool_alloc() which does the right thing without flags.
  */
-static inline void *pool_alloc_dirty(struct pool_head *pool)
+static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 {
 	void *p;
 
 #ifdef CONFIG_HAP_LOCAL_POOLS
 	if (likely(p = __pool_get_from_cache(pool)))
-		return p;
+		goto ret;
 #endif
 
 #if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
@@ -306,24 +306,23 @@ static inline void *pool_alloc_dirty(struct pool_head *pool)
 #if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 #endif
+ ret:
+	if (p) {
+		if (flags & POOL_F_MUST_ZERO)
+			memset(p, 0, pool->size);
+		else if (!(flags & POOL_F_NO_POISON) && mem_poison_byte >= 0)
+			memset(p, mem_poison_byte, pool->size);
+	}
 	return p;
 }
 
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
- * dynamically allocated. In the first case, <pool_type> is updated to point to
- * the next element in the list. Memory poisonning is performed if enabled.
+ * dynamically allocated. Memory poisonning is performed if enabled.
  */
 static inline void *pool_alloc(struct pool_head *pool)
 {
-	void *p;
-
-	p = pool_alloc_dirty(pool);
-	if (p && mem_poison_byte >= 0) {
-		memset(p, mem_poison_byte, pool->size);
-	}
-
-	return p;
+	return __pool_alloc(pool, 0);
 }
 
 /*
