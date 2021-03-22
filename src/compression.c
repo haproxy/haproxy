@@ -294,11 +294,8 @@ static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int 
 		 * data and need a buffer now. We reuse the same buffer, as it's
 		 * not used out of the scope of a series of add_data()*, end().
 		 */
-		if (unlikely(!tmpbuf.size)) {
-			/* this is the first time we need the compression buffer */
-			if (b_alloc(&tmpbuf) == NULL)
-				return -1; /* no memory */
-		}
+		if (b_alloc(&tmpbuf) == NULL)
+			return -1; /* no memory */
 		b_reset(&tmpbuf);
 		memcpy(b_tail(&tmpbuf), comp_ctx->direct_ptr, comp_ctx->direct_len);
 		b_add(&tmpbuf, comp_ctx->direct_len);
