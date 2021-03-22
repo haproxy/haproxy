@@ -56,14 +56,16 @@ static inline int buffer_almost_full(const struct buffer *buf)
 /* Functions below are used for buffer allocation */
 /**************************************************/
 
-/* Allocates a buffer and assigns it to *buf. If no memory is available,
- * ((char *)1) is assigned instead with a zero size. No control is made to
- * check if *buf already pointed to another buffer. The allocated buffer is
+/* Ensures that <buf> is allocated, or allocates it. If no memory is available,
+ * ((char *)1) is assigned instead with a zero size. The allocated buffer is
  * returned, or NULL in case no memory is available.
  */
 static inline struct buffer *b_alloc(struct buffer *buf)
 {
 	char *area;
+
+	if (buf->size)
+		return buf;
 
 	*buf = BUF_WANTED;
 	area = pool_alloc_dirty(pool_head_buffer);

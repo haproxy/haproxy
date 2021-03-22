@@ -547,13 +547,12 @@ buffer_almost_full  | const buffer *buf| returns true if the buffer is not null
                     | ret: int         | and at least 3/4 of the buffer's space
                     |                  | are used. A waiting buffer will match.
 --------------------+------------------+---------------------------------------
-b_alloc             | buffer *buf      | allocates a buffer and assigns it to
-                    | ret: buffer *    | *buf. If no memory is available, (1)
+b_alloc             | buffer *buf      | ensures that <buf> is allocated or
+                    | ret: buffer *    | allocates a buffer and assigns it to
+                    |                  | *buf. If no memory is available, (1)
                     |                  | is assigned instead with a zero size.
-                    |                  | No control is made to check if *buf
-                    |                  | already pointed to another buffer. The
-                    |                  | allocated buffer is returned, or NULL
-                    |                  | in case no memory is available
+                    |                  | The allocated buffer is returned, or
+                    |                  | NULL in case no memory is available
 --------------------+------------------+---------------------------------------
 b_alloc_fast        | buffer *buf      | allocates a buffer and assigns it to
                     | ret: buffer *    | *buf. If no memory is available, (1)
