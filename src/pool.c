@@ -695,8 +695,8 @@ int mem_should_fail(const struct pool_head *pool)
 
 /* config parser for global "tune.fail-alloc" */
 static int mem_parse_global_fail_alloc(char **args, int section_type, struct proxy *curpx,
-                                      struct proxy *defpx, const char *file, int line,
-                                      char **err)
+                                       const struct proxy *defpx, const char *file, int line,
+                                       char **err)
 {
 	if (too_many_args(1, args, err, NULL))
 		return -1;
