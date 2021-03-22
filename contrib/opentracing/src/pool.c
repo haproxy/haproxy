@@ -43,7 +43,7 @@ void *flt_ot_pool_alloc(struct pool_head *pool, size_t size, bool flag_clear, ch
 	FLT_OT_FUNC("%p, %zu, %hhu, %p:%p", pool, size, flag_clear, FLT_OT_DPTR_ARGS(err));
 
 	if (pool != NULL) {
-		retptr = pool_alloc_dirty(pool);
+		retptr = pool_alloc(pool);
 		if (retptr != NULL)
 			FLT_OT_DBG(2, "POOL_ALLOC: %s:%d(%p %zu)", __func__, __LINE__, retptr, FLT_OT_DEREF(pool, size, size));
 	} else {
@@ -82,7 +82,7 @@ void *flt_ot_pool_strndup(struct pool_head *pool, const char *s, size_t size, ch
 	FLT_OT_FUNC("%p, \"%.*s\", %zu, %p:%p", pool, (int)size, s, size, FLT_OT_DPTR_ARGS(err));
 
 	if (pool != NULL) {
-		retptr = pool_alloc_dirty(pool);
+		retptr = pool_alloc(pool);
 		if (retptr != NULL) {
 			(void)memcpy(retptr, s, MIN(pool->size - 1, size));
 
