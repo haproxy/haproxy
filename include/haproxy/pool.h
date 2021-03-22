@@ -326,6 +326,15 @@ static inline void *pool_alloc(struct pool_head *pool)
 }
 
 /*
+ * Returns a pointer to type <type> taken from the pool <pool_type> or
+ * dynamically allocated. The area is zeroed.
+ */
+static inline void *pool_zalloc(struct pool_head *pool)
+{
+	return __pool_alloc(pool, POOL_F_MUST_ZERO);
+}
+
+/*
  * Puts a memory area back to the corresponding pool.
  * Items are chained directly through a pointer that
  * is written in the beginning of the memory area, so
