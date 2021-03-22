@@ -572,18 +572,6 @@ __b_free            | buffer *buf      | releases <buf> which must be allocated
 b_free              | buffer *buf      | releases <buf> only if it is allocated
                     | ret: void        | and marks it empty
 --------------------+------------------+---------------------------------------
-b_alloc_margin      | buffer *buf      | ensures that <buf> is allocated. If an
-                    | int margin       | allocation is needed, it ensures that
-                    | ret: buffer *    | there are still at least <margin>
-                    |                  | buffers available in the pool after
-                    |                  | this allocation so that we don't leave
-                    |                  | the pool in a condition where a
-                    |                  | session or a response buffer could not
-                    |                  | be allocated anymore, resulting in a
-                    |                  | deadlock. This means that we sometimes
-                    |                  | need to try to allocate extra entries
-                    |                  | even if only one buffer is needed
---------------------+------------------+---------------------------------------
 offer_buffers()     | void *from       | offer a buffer currently belonging to
                     | uint threshold   | target <from> to whoever needs
                     | ret: void        | one. Any pointer is valid for <from>,
