@@ -2322,9 +2322,8 @@ struct quic_conn *new_quic_conn(uint32_t version)
 {
 	struct quic_conn *quic_conn;
 
-	quic_conn = pool_alloc(pool_head_quic_conn);
+	quic_conn = pool_zalloc(pool_head_quic_conn);
 	if (quic_conn) {
-		memset(quic_conn, 0, sizeof *quic_conn);
 		quic_conn->version = version;
 	}
 
@@ -4217,11 +4216,10 @@ static ssize_t quic_dgram_read(char *buf, size_t len, void *owner,
 		int ret;
 		struct quic_rx_packet *pkt;
 
-		pkt = pool_alloc(pool_head_quic_rx_packet);
+		pkt = pool_zalloc(pool_head_quic_rx_packet);
 		if (!pkt)
 			goto err;
 
-		memset(pkt, 0, sizeof(*pkt));
 		quic_rx_packet_refinc(pkt);
 		ret = func(&pos, end, pkt, &dgram_ctx, saddr);
 		if (ret == -1) {
