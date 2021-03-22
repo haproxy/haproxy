@@ -79,27 +79,6 @@ static inline struct buffer *b_alloc(struct buffer *buf)
 	return buf;
 }
 
-/* Allocates a buffer and assigns it to *buf. If no memory is available,
- * ((char *)1) is assigned instead with a zero size. No control is made to
- * check if *buf already pointed to another buffer. The allocated buffer is
- * returned, or NULL in case no memory is available. The difference with
- * b_alloc() is that this function only picks from the pool and never calls
- * malloc(), so it can fail even if some memory is available.
- */
-static inline struct buffer *b_alloc_fast(struct buffer *buf)
-{
-	char *area;
-
-	*buf = BUF_WANTED;
-	area = pool_get_first(pool_head_buffer);
-	if (unlikely(!area))
-		return NULL;
-
-	buf->area = area;
-	buf->size = pool_head_buffer->size;
-	return buf;
-}
-
 /* Releases buffer <buf> (no check of emptiness). The buffer's head is marked
  * empty.
  */

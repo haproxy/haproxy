@@ -554,18 +554,6 @@ b_alloc             | buffer *buf      | ensures that <buf> is allocated or
                     |                  | The allocated buffer is returned, or
                     |                  | NULL in case no memory is available
 --------------------+------------------+---------------------------------------
-b_alloc_fast        | buffer *buf      | allocates a buffer and assigns it to
-                    | ret: buffer *    | *buf. If no memory is available, (1)
-                    |                  | is assigned instead with a zero size.
-                    |                  | No control is made to check if *buf
-                    |                  | already pointed to another buffer. The
-                    |                  | allocated buffer is returned, or NULL
-                    |                  | in case no memory is available. The
-                    |                  | difference with b_alloc() is that this
-                    |                  | function only picks from the pool and
-                    |                  | never calls malloc(), so it can fail
-                    |                  | even if some memory is available
---------------------+------------------+---------------------------------------
 __b_free            | buffer *buf      | releases <buf> which must be allocated
                     | ret: void        | and marks it empty
 --------------------+------------------+---------------------------------------
