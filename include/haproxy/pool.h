@@ -283,24 +283,6 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 
 /****************** Common high-level code ******************/
 
-static inline void *pool_get_first(struct pool_head *pool)
-{
-	void *p;
-
-#ifdef CONFIG_HAP_LOCAL_POOLS
-	if (likely(p = __pool_get_from_cache(pool)))
-		return p;
-#endif
-
-#if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
-	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-#endif
-	p = __pool_get_first(pool);
-#if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
-	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-#endif
-	return p;
-}
 /*
  * Returns a pointer to type <type> taken from the pool <pool_type> or
  * dynamically allocated. In the first case, <pool_type> is updated to point to
