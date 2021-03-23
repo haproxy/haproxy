@@ -302,7 +302,7 @@ struct crtlist *crtlist_new(const char *filename, int unique)
  *  <crt_path> is a ptr in <line>
  *  Return an error code
  */
-int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry, const char *file, int linenum, char **err)
+int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry, const char *file, int linenum, int from_cli, char **err)
 {
 	int cfgerr = 0;
 	int arg, newarg, cur_arg, i, ssl_b = 0, ssl_e = 0;
@@ -386,13 +386,14 @@ int crtlist_parse_line(char *line, char **crt_path, struct crtlist_entry *entry,
 			goto error;
 		}
 	}
+
 	cur_arg = ssl_b ? ssl_b : 1;
 	while (cur_arg < ssl_e) {
 		newarg = 0;
 		for (i = 0; ssl_bind_kws[i].kw != NULL; i++) {
 			if (strcmp(ssl_bind_kws[i].kw, args[cur_arg]) == 0) {
 				newarg = 1;
-				cfgerr |= ssl_bind_kws[i].parse(args, cur_arg, NULL, ssl_conf, err);
+				cfgerr |= ssl_bind_kws[i].parse(args, cur_arg, NULL, ssl_conf, from_cli, err);
 				if (cur_arg + 1 + ssl_bind_kws[i].skip > ssl_e) {
 					memprintf(err, "parsing [%s:%d]: ssl args out of '[]' for %s",
 					          file, linenum, args[cur_arg]);
@@ -502,7 +503,7 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 			goto error;
 		}
 
-		cfgerr |= crtlist_parse_line(thisline, &crt_path, entry, file, linenum, err);
+		cfgerr |= crtlist_parse_line(thisline, &crt_path, entry, file, linenum, 0, err);
 		if (cfgerr & ERR_CODE)
 			goto error;
 
@@ -1206,7 +1207,7 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 			goto error;
 		}
 		/* cert_path is filled here */
-		cfgerr |= crtlist_parse_line(payload, &cert_path, entry, "CLI", 1, &err);
+		cfgerr |= crtlist_parse_line(payload, &cert_path, entry, "CLI", 1, 1, &err);
 		if (cfgerr & ERR_CODE)
 			goto error;
 	} else {

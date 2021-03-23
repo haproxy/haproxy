@@ -340,11 +340,16 @@ static X509_STORE* ssl_store_get0_locations_file(char *path)
 	return NULL;
 }
 
-int ssl_store_load_locations_file(char *path)
+int ssl_store_load_locations_file(char *path, int create_if_none)
 {
-	if (ssl_store_get0_locations_file(path) == NULL) {
+	X509_STORE *store = ssl_store_get0_locations_file(path);
+
+	/* If this function is called by the CLI, we should not call the
+	 * X509_STORE_load_locations function because it performs forbidden disk
+	 * accesses. */
+	if (!store && create_if_none) {
 		struct cafile_entry *ca_e;
-		X509_STORE *store = X509_STORE_new();
+		store = X509_STORE_new();
 		if (X509_STORE_load_locations(store, path, NULL)) {
 			int pathlen;
 			pathlen = strlen(path);
@@ -353,13 +358,13 @@ int ssl_store_load_locations_file(char *path)
 				memcpy(ca_e->path, path, pathlen + 1);
 				ca_e->ca_store = store;
 				ebst_insert(&cafile_tree, &ca_e->node);
-				return 1;
 			}
+		} else {
+			X509_STORE_free(store);
+			store = NULL;
 		}
-		X509_STORE_free(store);
-		return 0;
 	}
-	return 1;
+	return (store != NULL);
 }
 
 /* mimic what X509_STORE_load_locations do with store_ctx */

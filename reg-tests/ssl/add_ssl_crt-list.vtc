@@ -93,3 +93,22 @@ client c1 -connect ${h1_clearlst_sock} {
     rxresp
     expect resp.status == 200
 } -run
+
+
+# Try to add a new line that mentions an "unknown" CA file (not loaded yet).
+# It should fail since no disk access are allowed during runtime.
+shell {
+    printf "add ssl crt-list ${testdir}/localhost.crt-list/ <<\n${testdir}/ecdsa.pem [ca-file ${testdir}/ca-auth.crt] localhost\n\n" | socat "${tmpdir}/h1/stats" - | grep "unable to load ${testdir}/ca-auth.crt"
+}
+shell {
+    printf "add ssl crt-list ${testdir}/localhost.crt-list/ <<\n${testdir}/ecdsa.pem [ca-verify-file ${testdir}/ca-auth.crt] localhost\n\n" | socat "${tmpdir}/h1/stats" - | grep "unable to load ${testdir}/ca-auth.crt"
+}
+shell {
+    printf "add ssl crt-list ${testdir}/localhost.crt-list/ <<\n${testdir}/ecdsa.pem [crl-file ${testdir}/ca-auth.crt] localhost\n\n" | socat "${tmpdir}/h1/stats" - | grep "unable to load ${testdir}/ca-auth.crt"
+}
+
+# Check that the new line was not added to the crt-list.
+haproxy h1 -cli {
+    send "show ssl crt-list ${testdir}/localhost.crt-list//"
+    expect !~ ".*ca-file ${testdir}/ca-auth.crt"
+}

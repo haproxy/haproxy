@@ -529,7 +529,7 @@ static int ssl_parse_global_extra_noext(char **args, int section_type, struct pr
 /***************************** Bind keyword Parsing ********************************************/
 
 /* for ca-file and ca-verify-file */
-static int ssl_bind_parse_ca_file_common(char **args, int cur_arg, char **ca_file_p, char **err)
+static int ssl_bind_parse_ca_file_common(char **args, int cur_arg, char **ca_file_p, int from_cli, char **err)
 {
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing CAfile path", args[cur_arg]);
@@ -541,7 +541,7 @@ static int ssl_bind_parse_ca_file_common(char **args, int cur_arg, char **ca_fil
 	else
 		memprintf(ca_file_p, "%s", args[cur_arg + 1]);
 
-	if (!ssl_store_load_locations_file(*ca_file_p)) {
+	if (!ssl_store_load_locations_file(*ca_file_p, !from_cli)) {
 		memprintf(err, "'%s' : unable to load %s", args[cur_arg], *ca_file_p);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -549,23 +549,23 @@ static int ssl_bind_parse_ca_file_common(char **args, int cur_arg, char **ca_fil
 }
 
 /* parse the "ca-file" bind keyword */
-static int ssl_bind_parse_ca_file(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_ca_file(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
-	return ssl_bind_parse_ca_file_common(args, cur_arg, &conf->ca_file, err);
+	return ssl_bind_parse_ca_file_common(args, cur_arg, &conf->ca_file, from_cli, err);
 }
 static int bind_parse_ca_file(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_ca_file(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_ca_file(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 /* parse the "ca-verify-file" bind keyword */
-static int ssl_bind_parse_ca_verify_file(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_ca_verify_file(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
-	return ssl_bind_parse_ca_file_common(args, cur_arg, &conf->ca_verify_file, err);
+	return ssl_bind_parse_ca_file_common(args, cur_arg, &conf->ca_verify_file, from_cli, err);
 }
 static int bind_parse_ca_verify_file(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_ca_verify_file(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_ca_verify_file(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 /* parse the "ca-sign-file" bind keyword */
@@ -596,7 +596,7 @@ static int bind_parse_ca_sign_pass(char **args, int cur_arg, struct proxy *px, s
 }
 
 /* parse the "ciphers" bind keyword */
-static int ssl_bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing cipher suite", args[cur_arg]);
@@ -609,12 +609,12 @@ static int ssl_bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, st
 }
 static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_ciphers(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_ciphers(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 /* parse the "ciphersuites" bind keyword */
-static int ssl_bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing cipher suite", args[cur_arg]);
@@ -627,7 +627,7 @@ static int ssl_bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *p
 }
 static int bind_parse_ciphersuites(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_ciphersuites(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_ciphersuites(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 #endif
 
@@ -671,7 +671,7 @@ static int bind_parse_crt_list(char **args, int cur_arg, struct proxy *px, struc
 }
 
 /* parse the "crl-file" bind keyword */
-static int ssl_bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 #ifndef X509_V_FLAG_CRL_CHECK
 	memprintf(err, "'%s' : library does not support CRL verify", args[cur_arg]);
@@ -687,7 +687,7 @@ static int ssl_bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, s
 	else
 		memprintf(&conf->crl_file, "%s", args[cur_arg + 1]);
 
-	if (!ssl_store_load_locations_file(conf->crl_file)) {
+	if (!ssl_store_load_locations_file(conf->crl_file, !from_cli)) {
 		memprintf(err, "'%s' : unable to load %s", args[cur_arg], conf->crl_file);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -696,11 +696,11 @@ static int ssl_bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, s
 }
 static int bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_crl_file(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_crl_file(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 /* parse the "curves" bind keyword keyword */
-static int ssl_bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 #if defined(SSL_CTX_set1_curves_list)
 	if (!*args[cur_arg + 1]) {
@@ -716,11 +716,11 @@ static int ssl_bind_parse_curves(char **args, int cur_arg, struct proxy *px, str
 }
 static int bind_parse_curves(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_curves(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_curves(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 /* parse the "ecdhe" bind keyword keyword */
-static int ssl_bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 #if HA_OPENSSL_VERSION_NUMBER < 0x0090800fL
 	memprintf(err, "'%s' : library does not support elliptic curve Diffie-Hellman (too old)", args[cur_arg]);
@@ -741,7 +741,7 @@ static int ssl_bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, stru
 }
 static int bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_ecdhe(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_ecdhe(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 /* parse the "crt-ignore-err" and "ca-ignore-err" bind keywords */
@@ -850,7 +850,7 @@ static int parse_tls_method_minmax(char **args, int cur_arg, struct tls_version_
 	return 0;
 }
 
-static int ssl_bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_tls_method_minmax(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 	int ret;
 
@@ -884,7 +884,7 @@ static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px,
 }
 
 /* parse the "allow-0rtt" bind keyword */
-static int ssl_bind_parse_allow_0rtt(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_allow_0rtt(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 	conf->early_data = 1;
 	return 0;
@@ -897,7 +897,7 @@ static int bind_parse_allow_0rtt(char **args, int cur_arg, struct proxy *px, str
 }
 
 /* parse the "npn" bind keyword */
-static int ssl_bind_parse_npn(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_npn(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 #if defined(OPENSSL_NPN_NEGOTIATED) && !defined(OPENSSL_NO_NEXTPROTONEG)
 	char *p1, *p2;
@@ -948,7 +948,7 @@ static int ssl_bind_parse_npn(char **args, int cur_arg, struct proxy *px, struct
 
 static int bind_parse_npn(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_npn(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_npn(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 
@@ -1014,7 +1014,7 @@ int ssl_sock_parse_alpn(char *arg, char **alpn_str, int *alpn_len, char **err)
 }
 
 /* parse the "alpn" bind keyword */
-static int ssl_bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	int ret;
@@ -1033,7 +1033,7 @@ static int ssl_bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struc
 
 static int bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_alpn(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_alpn(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 /* parse the "ssl" bind keyword */
@@ -1202,7 +1202,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 }
 
 /* parse the "verify" bind keyword */
-static int ssl_bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing verify method", args[cur_arg]);
@@ -1225,18 +1225,18 @@ static int ssl_bind_parse_verify(char **args, int cur_arg, struct proxy *px, str
 }
 static int bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_verify(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_verify(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 /* parse the "no-ca-names" bind keyword */
-static int ssl_bind_parse_no_ca_names(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err)
+static int ssl_bind_parse_no_ca_names(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err)
 {
 	conf->no_ca_names = 1;
 	return 0;
 }
 static int bind_parse_no_ca_names(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	return ssl_bind_parse_no_ca_names(args, cur_arg, px, &conf->ssl_conf, err);
+	return ssl_bind_parse_no_ca_names(args, cur_arg, px, &conf->ssl_conf, 0, err);
 }
 
 /***************************** "server" keywords Parsing ********************************************/
@@ -1334,7 +1334,7 @@ static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct
 	else
 		memprintf(&newsrv->ssl_ctx.ca_file, "%s", args[*cur_arg + 1]);
 
-	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.ca_file)) {
+	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.ca_file, 1)) {
 		memprintf(err, "'%s' : unable to load %s", args[*cur_arg], newsrv->ssl_ctx.ca_file);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -1430,7 +1430,7 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 	else
 		memprintf(&newsrv->ssl_ctx.crl_file, "%s", args[*cur_arg + 1]);
 
-	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.crl_file)) {
+	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.crl_file, 1)) {
 		memprintf(err, "'%s' : unable to load %s", args[*cur_arg], newsrv->ssl_ctx.crl_file);
 		return ERR_ALERT | ERR_FATAL;
 	}

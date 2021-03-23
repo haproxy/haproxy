@@ -252,7 +252,7 @@ struct bind_kw {
 };
 struct ssl_bind_kw {
 	const char *kw;
-	int (*parse)(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, char **err);
+	int (*parse)(char **args, int cur_arg, struct proxy *px, struct ssl_bind_conf *conf, int from_cli, char **err);
 	int skip; /* nb of args to skip */
 };
 
