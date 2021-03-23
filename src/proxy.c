@@ -1237,17 +1237,12 @@ void proxy_destroy_all_defaults()
 	}
 }
 
-/* Allocates a new proxy <name> of type <cap> found at position <file:linenum>,
- * preset it from the defaults of <defproxy> and returns it. Un case of error,
- * an alert is printed and NULL is returned. If <errmsg> is not NULL, an error
- * message will be returned there in case of fatal error. If <defproxy> is NULL,
- * the documented default settings will be used instead.
+/* Allocates a new proxy <name> of type <cap>.
+ * Returns the proxy instance on success. On error, NULL is returned.
  */
-struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *file, int linenum, const struct proxy *defproxy, char **errmsg)
+struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 {
-	struct logsrv *tmplogsrv;
 	struct proxy *curproxy;
-	char *tmpmsg = NULL;
 
 	if ((curproxy = calloc(1, sizeof(*curproxy))) == NULL) {
 		memprintf(errmsg, "proxy '%s': out of memory", name);
@@ -1255,17 +1250,32 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *fi
 	}
 
 	init_new_proxy(curproxy);
-	curproxy->conf.args.file = curproxy->conf.file = strdup(file);
-	curproxy->conf.args.line = curproxy->conf.line = linenum;
 	curproxy->last_change = now.tv_sec;
 	curproxy->id = strdup(name);
 	curproxy->cap = cap;
 	proxy_store_name(curproxy);
 
-	if (!defproxy) {
-		proxy_preset_defaults(curproxy);
-		goto done;
-	}
+ done:
+	return curproxy;
+
+ fail:
+	/* Note: in case of fatal error here, we WILL make valgrind unhappy,
+	 * but its not worth trying to unroll everything here just before
+	 * quitting.
+	 */
+	free(curproxy);
+	return NULL;
+}
+
+/* Copy the proxy settings from <defproxy> to <curproxy>.
+ * Returns 0 on success.
+ * Returns 1 on error. <errmsg> will be allocated with an error description.
+ */
+static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defproxy,
+                              char **errmsg)
+{
+	struct logsrv *tmplogsrv;
+	char *tmpmsg = NULL;
 
 	/* set default values from the specified default proxy */
 	memcpy(&curproxy->defsrv, &defproxy->defsrv, sizeof(curproxy->defsrv));
@@ -1298,7 +1308,8 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *fi
 	/* initialize error relocations */
 	if (!proxy_dup_default_conf_errors(curproxy, defproxy, &tmpmsg)) {
 		memprintf(errmsg, "proxy '%s' : %s", curproxy->id, tmpmsg);
-		goto fail;
+		free(tmpmsg);
+		return 1;
 	}
 
 	if (curproxy->cap & PR_CAP_FE) {
@@ -1327,8 +1338,8 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *fi
 		if (!LIST_ISEMPTY(&defproxy->tcpcheck_rules.preset_vars)) {
 			if (!dup_tcpcheck_vars(&curproxy->tcpcheck_rules.preset_vars,
 					       &defproxy->tcpcheck_rules.preset_vars)) {
-				memprintf(errmsg, "proxy '%s': failed to duplicate tcpcheck preset-vars", name);
-				goto fail;
+				memprintf(errmsg, "proxy '%s': failed to duplicate tcpcheck preset-vars", curproxy->id);
+				return 1;
 			}
 		}
 
@@ -1441,8 +1452,8 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *fi
 		struct logsrv *node = malloc(sizeof(*node));
 
 		if (!node) {
-			memprintf(errmsg, "proxy '%s': out of memory", name);
-			goto fail;
+			memprintf(errmsg, "proxy '%s': out of memory", curproxy->id);
+			return 1;
 		}
 		memcpy(node, tmplogsrv, sizeof(struct logsrv));
 		node->ref = tmplogsrv->ref;
@@ -1466,8 +1477,8 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *fi
 		const struct ist copy = istdup(defproxy->header_unique_id);
 
 		if (!isttest(copy)) {
-			memprintf(errmsg, "proxy '%s': out of memory for unique-id-header", name);
-			goto fail;
+			memprintf(errmsg, "proxy '%s': out of memory for unique-id-header", curproxy->id);
+			return 1;
 		}
 		curproxy->header_unique_id = copy;
 	}
@@ -1497,16 +1508,43 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *fi
 	curproxy->email_alert.level = defproxy->email_alert.level;
 	curproxy->email_alert.set = defproxy->email_alert.set;
 
- done:
+	return 0;
+}
+
+/* Allocates a new proxy <name> of type <cap> found at position <file:linenum>,
+ * preset it from the defaults of <defproxy> and returns it. In case of error,
+ * an alert is printed and NULL is returned.
+ */
+struct proxy *parse_new_proxy(const char *name, unsigned int cap,
+                              const char *file, int linenum,
+                              const struct proxy *defproxy)
+{
+	struct proxy *curproxy = NULL;
+	char *errmsg;
+
+	if (!(curproxy = alloc_new_proxy(name, cap, &errmsg))) {
+		ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+		free(errmsg);
+		return NULL;
+	}
+
+	if (defproxy) {
+		if (proxy_defproxy_cpy(curproxy, defproxy, &errmsg)) {
+			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+			free(errmsg);
+
+			ha_free(&curproxy);
+			return NULL;
+		}
+	}
+	else {
+		proxy_preset_defaults(curproxy);
+	}
+
+	curproxy->conf.args.file = curproxy->conf.file = strdup(file);
+	curproxy->conf.args.line = curproxy->conf.line = linenum;
+
 	return curproxy;
- fail:
-	/* Note: in case of fatal error here, we WILL make valgrind unhappy,
-	 * but its not worth trying to unroll everything here just before
-	 * quitting.
-	 */
-	free(tmpmsg);
-	free(curproxy);
-	return NULL;
 }
 
 /* to be called under the proxy lock after stopping some listeners. This will

@@ -211,7 +211,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 	if (!last_defproxy) {
 		/* we need a default proxy and none was created yet */
-		last_defproxy = alloc_new_proxy("", PR_CAP_DEF|PR_CAP_LISTEN, "INIT", 0, NULL, &errmsg);
+		last_defproxy = alloc_new_proxy("", PR_CAP_DEF|PR_CAP_LISTEN, &errmsg);
+		proxy_preset_defaults(last_defproxy);
+
 		curr_defproxy = last_defproxy;
 		if (!last_defproxy) {
 			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
@@ -314,9 +316,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		curproxy = alloc_new_proxy(name, rc, file, linenum, curr_defproxy, &errmsg);
+		curproxy = parse_new_proxy(name, rc, file, linenum, curr_defproxy);
 		if (!curproxy) {
-			ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}

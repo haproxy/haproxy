@@ -61,8 +61,11 @@ void proxy_preset_defaults(struct proxy *defproxy);
 void proxy_free_defaults(struct proxy *defproxy);
 void proxy_destroy_defaults(struct proxy *px);
 void proxy_destroy_all_defaults();
-struct proxy *alloc_new_proxy(const char *name, unsigned int cap, const char *file, int linenum,
-                              const struct proxy *defproxy, char **errmsg);
+struct proxy *alloc_new_proxy(const char *name, unsigned int cap,
+                              char **errmsg);
+struct proxy *parse_new_proxy(const char *name, unsigned int cap,
+                              const char *file, int linenum,
+                              const struct proxy *defproxy);
 int get_backend_server(const char *bk_name, const char *sv_name,
 		       struct proxy **bk, struct server **sv);
 void proxy_capture_error(struct proxy *proxy, int is_back,
