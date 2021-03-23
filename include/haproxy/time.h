@@ -61,6 +61,7 @@ extern struct timeval start_date;       /* the process's start date */
 extern THREAD_LOCAL struct timeval before_poll;      /* system date before calling poll() */
 extern THREAD_LOCAL struct timeval after_poll;       /* system date after leaving poll() */
 extern volatile unsigned long long global_now;
+extern volatile unsigned int global_now_ms;
 
 
 /**** exported functions *************************************************/
