@@ -1426,9 +1426,17 @@ int connect_server(struct stream *s)
 			conn_node = ebmb_entry(node, struct conn_hash_node, node);
 			tokill_conn = conn_node->conn;
 			ebmb_delete(node);
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+
+			/* Release the idle lock before calling mux->destroy.
+			 * It will in turn call srv_release_conn through
+			 * conn_free which also uses it.
+			 */
 			tokill_conn->mux->destroy(tokill_conn->ctx);
 		}
-		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		else {
+			HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
+		}
 
 		/* If not, iterate over other thread's idling pool, and try to grab one */
 		if (!tokill_conn) {
