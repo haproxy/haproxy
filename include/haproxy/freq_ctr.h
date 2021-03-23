@@ -88,7 +88,7 @@ static inline unsigned int update_freq_ctr_period(struct freq_ctr_period *ctr,
 
 	curr_tick = ctr->curr_tick;
 	do {
-		now_ms_tmp = (uint32_t)global_now / 1000;
+		now_ms_tmp = global_now_ms;
 		if (now_ms_tmp - curr_tick < period)
 			return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
 

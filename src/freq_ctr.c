@@ -206,7 +206,7 @@ unsigned int read_freq_ctr_period(struct freq_ctr_period *ctr, unsigned int peri
 			break;
 	};
 
-	remain = curr_tick + period - (uint32_t)global_now / 1000;
+	remain = curr_tick + period - global_now_ms;
 	if (unlikely((int)remain < 0)) {
 		/* We're past the first period, check if we can still report a
 		 * part of last period or if we're too far away.
@@ -253,7 +253,7 @@ unsigned int freq_ctr_remain_period(struct freq_ctr_period *ctr, unsigned int pe
 			break;
 	};
 
-	remain = curr_tick + period - (uint32_t)global_now / 1000;
+	remain = curr_tick + period - global_now_ms;
 	if (likely((int)remain < 0)) {
 		/* We're past the first period, check if we can still report a
 		 * part of last period or if we're too far away.
