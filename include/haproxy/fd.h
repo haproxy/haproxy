@@ -341,13 +341,6 @@ static inline int fd_set_running(int fd)
 #endif
 }
 
-static inline void fd_set_running_excl(int fd)
-{
-	unsigned long old_mask = 0;
-	while (!_HA_ATOMIC_CAS(&fdtab[fd].running_mask, &old_mask, tid_bit))
-		old_mask = 0;
-}
-
 /* remove tid_bit from the fd's running mask and returns the bits that remain
  * after the atomic operation.
  */
