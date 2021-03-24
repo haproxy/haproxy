@@ -1342,10 +1342,14 @@ void proxy_preset_defaults(struct proxy *defproxy)
 {
 	defproxy->mode = PR_MODE_TCP;
 	defproxy->disabled = 0;
-	defproxy->maxconn = cfg_maxpconn;
-	defproxy->conn_retries = CONN_RETRIES;
+	if (!(defproxy->cap & PR_CAP_LUA)) {
+		defproxy->maxconn = cfg_maxpconn;
+		defproxy->conn_retries = CONN_RETRIES;
+	}
 	defproxy->redispatch_after = 0;
 	defproxy->options = PR_O_REUSE_SAFE;
+	if (defproxy->cap & PR_CAP_LUA)
+		defproxy->options2 |= PR_O2_INDEPSTR;
 	defproxy->max_out_conns = MAX_SRV_LIST;
 
 	defproxy->defsrv.check.inter = DEF_CHKINTR;
@@ -1376,6 +1380,9 @@ void proxy_preset_defaults(struct proxy *defproxy)
 #if defined(USE_QUIC)
 	quic_transport_params_init(&defproxy->defsrv.quic_params, 0);
 #endif
+
+	if (defproxy->cap & PR_CAP_LUA)
+		defproxy->timeout.connect = 5000;
 }
 
 /* Frees all dynamic settings allocated on a default proxy that's about to be
@@ -1470,7 +1477,9 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 	curproxy->last_change = now.tv_sec;
 	curproxy->id = strdup(name);
 	curproxy->cap = cap;
-	proxy_store_name(curproxy);
+
+	if (!(cap & PR_CAP_LUA))
+		proxy_store_name(curproxy);
 
  done:
 	return curproxy;

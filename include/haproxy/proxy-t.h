@@ -68,6 +68,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_CAP_BE      0x0002
 #define PR_CAP_LISTEN  (PR_CAP_FE|PR_CAP_BE)
 #define PR_CAP_DEF     0x0004           /* defaults section */
+#define PR_CAP_LUA     0x0008           /* internal proxy used by lua engine */
 
 /* bits for proxy->options */
 #define PR_O_REDISP     0x00000001      /* allow reconnection to dispatch in case of errors */
