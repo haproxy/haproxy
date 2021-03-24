@@ -25,6 +25,7 @@
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/freq_ctr.h>
+#include <haproxy/list.h>
 #include <haproxy/listener-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
@@ -47,6 +48,7 @@ int resume_proxy(struct proxy *p);
 void stop_proxy(struct proxy *p);
 int  stream_set_backend(struct stream *s, struct proxy *be);
 
+void free_proxy(struct proxy *p);
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
 const char *proxy_find_best_option(const char *word, const char **extra);

@@ -20,6 +20,7 @@
 #include <import/eb32tree.h>
 #include <import/ebistree.h>
 
+#include <haproxy/acl.h>
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
 #include <haproxy/capture-t.h>
@@ -114,6 +115,222 @@ const struct cfg_opt cfg_opts2[] =
 	{"disable-h2-upgrade",            PR_O2_NO_H2_UPGRADE, PR_CAP_FE, 0, PR_MODE_HTTP },
 	{ NULL, 0, 0, 0 }
 };
+
+static void free_stick_rules(struct list *rules)
+{
+	struct sticking_rule *rule, *ruleb;
+
+	list_for_each_entry_safe(rule, ruleb, rules, list) {
+		LIST_DEL(&rule->list);
+		free_acl_cond(rule->cond);
+		release_sample_expr(rule->expr);
+		free(rule);
+	}
+}
+
+void free_proxy(struct proxy *p)
+{
+	struct server *s,*s_next;
+	struct cap_hdr *h,*h_next;
+	struct listener *l,*l_next;
+	struct bind_conf *bind_conf, *bind_back;
+	struct acl_cond *cond, *condb;
+	struct acl *acl, *aclb;
+	struct server_rule *srule, *sruleb;
+	struct switching_rule *rule, *ruleb;
+	struct redirect_rule *rdr, *rdrb;
+	struct logsrv *log, *logb;
+	struct logformat_node *lf, *lfb;
+	struct proxy_deinit_fct *pxdf;
+	struct server_deinit_fct *srvdf;
+
+	free(p->conf.file);
+	free(p->id);
+	free(p->cookie_name);
+	free(p->cookie_domain);
+	free(p->cookie_attrs);
+	free(p->lbprm.arg_str);
+	free(p->server_state_file_name);
+	free(p->capture_name);
+	free(p->monitor_uri);
+	free(p->rdp_cookie_name);
+	free(p->invalid_rep);
+	free(p->invalid_req);
+#if defined(CONFIG_HAP_TRANSPARENT)
+	free(p->conn_src.bind_hdr_name);
+#endif
+	if (p->conf.logformat_string != default_http_log_format &&
+	    p->conf.logformat_string != default_tcp_log_format &&
+	    p->conf.logformat_string != clf_http_log_format)
+		free(p->conf.logformat_string);
+
+	free(p->conf.lfs_file);
+	free(p->conf.uniqueid_format_string);
+	istfree(&p->header_unique_id);
+	free(p->conf.uif_file);
+	if ((p->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_MAP)
+		free(p->lbprm.map.srv);
+
+	if (p->conf.logformat_sd_string != default_rfc5424_sd_log_format)
+		free(p->conf.logformat_sd_string);
+	free(p->conf.lfsd_file);
+
+	list_for_each_entry_safe(cond, condb, &p->mon_fail_cond, list) {
+		LIST_DEL(&cond->list);
+		prune_acl_cond(cond);
+		free(cond);
+	}
+
+	EXTRA_COUNTERS_FREE(p->extra_counters_fe);
+	EXTRA_COUNTERS_FREE(p->extra_counters_be);
+
+	list_for_each_entry_safe(acl, aclb, &p->acl, list) {
+		LIST_DEL(&acl->list);
+		prune_acl(acl);
+		free(acl);
+	}
+
+	list_for_each_entry_safe(srule, sruleb, &p->server_rules, list) {
+		LIST_DEL(&srule->list);
+		prune_acl_cond(srule->cond);
+		list_for_each_entry_safe(lf, lfb, &srule->expr, list) {
+			LIST_DEL(&lf->list);
+			release_sample_expr(lf->expr);
+			free(lf->arg);
+			free(lf);
+		}
+		free(srule->file);
+		free(srule->cond);
+		free(srule);
+	}
+
+	list_for_each_entry_safe(rule, ruleb, &p->switching_rules, list) {
+		LIST_DEL(&rule->list);
+		if (rule->cond) {
+			prune_acl_cond(rule->cond);
+			free(rule->cond);
+		}
+		free(rule->file);
+		free(rule);
+	}
+
+	list_for_each_entry_safe(rdr, rdrb, &p->redirect_rules, list) {
+		LIST_DEL(&rdr->list);
+		if (rdr->cond) {
+			prune_acl_cond(rdr->cond);
+			free(rdr->cond);
+		}
+		free(rdr->rdr_str);
+		list_for_each_entry_safe(lf, lfb, &rdr->rdr_fmt, list) {
+			LIST_DEL(&lf->list);
+			free(lf);
+		}
+		free(rdr);
+	}
+
+	list_for_each_entry_safe(log, logb, &p->logsrvs, list) {
+		LIST_DEL(&log->list);
+		free(log);
+	}
+
+	list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
+		LIST_DEL(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+
+	list_for_each_entry_safe(lf, lfb, &p->logformat_sd, list) {
+		LIST_DEL(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+
+	list_for_each_entry_safe(lf, lfb, &p->format_unique_id, list) {
+		LIST_DEL(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+
+	free_act_rules(&p->tcp_req.inspect_rules);
+	free_act_rules(&p->tcp_rep.inspect_rules);
+	free_act_rules(&p->tcp_req.l4_rules);
+	free_act_rules(&p->tcp_req.l5_rules);
+	free_act_rules(&p->http_req_rules);
+	free_act_rules(&p->http_res_rules);
+	free_act_rules(&p->http_after_res_rules);
+
+	free_stick_rules(&p->storersp_rules);
+	free_stick_rules(&p->sticking_rules);
+
+	h = p->req_cap;
+	while (h) {
+		h_next = h->next;
+		free(h->name);
+		pool_destroy(h->pool);
+		free(h);
+		h = h_next;
+	}/* end while(h) */
+
+	h = p->rsp_cap;
+	while (h) {
+		h_next = h->next;
+		free(h->name);
+		pool_destroy(h->pool);
+		free(h);
+		h = h_next;
+	}/* end while(h) */
+
+	s = p->srv;
+	while (s) {
+		s_next = s->next;
+		list_for_each_entry(srvdf, &server_deinit_list, list)
+			srvdf->fct(s);
+		free_server(s);
+		s = s_next;
+	}/* end while(s) */
+
+	list_for_each_entry_safe(l, l_next, &p->conf.listeners, by_fe) {
+		LIST_DEL(&l->by_fe);
+		LIST_DEL(&l->by_bind);
+		free(l->name);
+		free(l->counters);
+
+		EXTRA_COUNTERS_FREE(l->extra_counters);
+		free(l);
+	}
+
+	/* Release unused SSL configs. */
+	list_for_each_entry_safe(bind_conf, bind_back, &p->conf.bind, by_fe) {
+		if (bind_conf->xprt->destroy_bind_conf)
+			bind_conf->xprt->destroy_bind_conf(bind_conf);
+		free(bind_conf->file);
+		free(bind_conf->arg);
+		LIST_DEL(&bind_conf->by_fe);
+		free(bind_conf);
+	}
+
+	flt_deinit(p);
+
+	list_for_each_entry(pxdf, &proxy_deinit_list, list)
+		pxdf->fct(p);
+
+	free(p->desc);
+	free(p->fwdfor_hdr_name);
+
+	task_destroy(p->task);
+
+	pool_destroy(p->req_cap_pool);
+	pool_destroy(p->rsp_cap_pool);
+	if (p->table)
+		pool_destroy(p->table->pool);
+
+	HA_RWLOCK_DESTROY(&p->lbprm.lock);
+	HA_RWLOCK_DESTROY(&p->lock);
+	ha_free(&p);
+}
 
 /*
  * This function returns a string containing a name describing capabilities to
