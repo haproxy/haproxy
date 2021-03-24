@@ -353,19 +353,17 @@ const char *hlua_get_top_error_string(lua_State *L)
 	return lua_tostring(L, -1);
 }
 
-__LJMP static const char *hlua_traceback(lua_State *L)
+__LJMP const char *hlua_traceback(lua_State *L, const char* sep)
 {
 	lua_Debug ar;
 	int level = 0;
 	struct buffer *msg = get_trash_chunk();
-	int filled = 0;
 
 	while (lua_getstack(L, level++, &ar)) {
 
 		/* Add separator */
-		if (filled)
-			chunk_appendf(msg, ", ");
-		filled = 1;
+		if (b_data(msg))
+			chunk_appendf(msg, "%s", sep);
 
 		/* Fill fields:
 		 * 'S': fills in the fields source, short_src, linedefined, lastlinedefined, and what;
@@ -377,9 +375,9 @@ __LJMP static const char *hlua_traceback(lua_State *L)
 
 		/* Append code localisation */
 		if (ar.currentline > 0)
-			chunk_appendf(msg, "%s:%d ", ar.short_src, ar.currentline);
+			chunk_appendf(msg, "%s:%d: ", ar.short_src, ar.currentline);
 		else
-			chunk_appendf(msg, "%s ", ar.short_src);
+			chunk_appendf(msg, "%s: ", ar.short_src);
 
 		/*
 		 * Get function name
@@ -389,13 +387,13 @@ __LJMP static const char *hlua_traceback(lua_State *L)
 		 * or "main" for main code.
 		 */
 		if (*ar.namewhat != '\0' && ar.name != NULL)  /* is there a name from code? */
-			chunk_appendf(msg, "%s '%s'", ar.namewhat, ar.name);  /* use it */
+			chunk_appendf(msg, "in %s '%s'", ar.namewhat, ar.name);  /* use it */
 
 		else if (*ar.what == 'm')  /* "main", the code is not executed in a function */
-			chunk_appendf(msg, "main chunk");
+			chunk_appendf(msg, "in main chunk");
 
 		else if (*ar.what != 'C')  /* for Lua functions, use <file:line> */
-			chunk_appendf(msg, "C function line %d", ar.linedefined);
+			chunk_appendf(msg, "in function line %d", ar.linedefined);
 
 		else  /* nothing left... */
 			chunk_appendf(msg, "?");
@@ -1350,7 +1348,7 @@ resume_execution:
 		msg = lua_tostring(lua->T, -1);
 		lua_settop(lua->T, 0); /* Empty the stack. */
 		lua_pop(lua->T, 1);
-		trace = hlua_traceback(lua->T);
+		trace = hlua_traceback(lua->T, ", ");
 		if (msg)
 			lua_pushfstring(lua->T, "[state-id %d] runtime error: %s from %s", lua->state_id, msg, trace);
 		else
@@ -8478,7 +8476,7 @@ int hlua_post_init_state(lua_State *L)
 			msg = lua_tostring(L, -1);
 			lua_settop(L, 0); /* Empty the stack. */
 			lua_pop(L, 1);
-			trace = hlua_traceback(L);
+			trace = hlua_traceback(L, ", ");
 			if (msg)
 				ha_alert("Lua init: %s: '%s' from %s\n", kind, msg, trace);
 			else
@@ -8500,7 +8498,7 @@ int hlua_post_init_state(lua_State *L)
 				kind = "out of memory error";
 			lua_settop(L, 0);
 			lua_pop(L, 1);
-			trace = hlua_traceback(L);
+			trace = hlua_traceback(L, ", ");
 			ha_alert("Lua init: %s: %s\n", kind, trace);
 			return_status = 0;
 			break;
