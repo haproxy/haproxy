@@ -432,11 +432,8 @@ static inline void fd_update_events(int fd, unsigned char evts)
 /* Prepares <fd> for being polled */
 static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned long thread_mask)
 {
-	int locked = fdtab[fd].running_mask != tid_bit;
 	extern void sock_conn_iocb(int);
 
-	if (locked)
-		fd_set_running_excl(fd);
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;
 	fdtab[fd].ev = 0;
@@ -456,8 +453,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	/* note: do not reset polled_mask here as it indicates which poller
 	 * still knows this FD from a possible previous round.
 	 */
-	if (locked)
-		fd_clr_running(fd);
+
 	/* the two directions are ready until proven otherwise */
 	fd_may_both(fd);
 	_HA_ATOMIC_ADD(&ha_used_fds, 1);
