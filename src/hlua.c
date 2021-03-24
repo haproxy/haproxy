@@ -6403,6 +6403,7 @@ static int hlua_register_task(lua_State *L)
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	HLUA_INIT(hlua);
 
 	/* We are in the common lua state, execute the task anywhere,
 	 * otherwise, inherit the current thread identifier
@@ -6449,11 +6450,15 @@ static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp,
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!stream->hlua) {
-		stream->hlua = pool_alloc(pool_head_hlua);
-		if (!stream->hlua) {
+		struct hlua *hlua;
+
+		hlua = pool_alloc(pool_head_hlua);
+		if (!hlua) {
 			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
+		HLUA_INIT(hlua);
+		stream->hlua = hlua;
 		if (!hlua_ctx_init(stream->hlua, fcn_ref_to_stack_id(fcn), stream->task, 0)) {
 			SEND_ERR(stream->be, "Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
@@ -6582,11 +6587,15 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!stream->hlua) {
-		stream->hlua = pool_alloc(pool_head_hlua);
-		if (!stream->hlua) {
+		struct hlua *hlua;
+
+		hlua = pool_alloc(pool_head_hlua);
+		if (!hlua) {
 			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
 		}
+		hlua->T = NULL;
+		stream->hlua = hlua;
 		if (!hlua_ctx_init(stream->hlua, fcn_ref_to_stack_id(fcn), stream->task, 0)) {
 			SEND_ERR(stream->be, "Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 			return 0;
@@ -6893,12 +6902,16 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
 	 * Lua initialization cause 5% performances loss.
 	 */
 	if (!s->hlua) {
-		s->hlua = pool_alloc(pool_head_hlua);
-		if (!s->hlua) {
+		struct hlua *hlua;
+
+		hlua = pool_alloc(pool_head_hlua);
+		if (!hlua) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
 			         rule->arg.hlua_rule->fcn->name);
 			goto end;
 		}
+		HLUA_INIT(hlua);
+		s->hlua = hlua;
 		if (!hlua_ctx_init(s->hlua, fcn_ref_to_stack_id(rule->arg.hlua_rule->fcn), s->task, 0)) {
 			SEND_ERR(px, "Lua action '%s': can't initialize Lua context.\n",
 			         rule->arg.hlua_rule->fcn->name);
