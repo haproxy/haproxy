@@ -294,23 +294,14 @@ done:
 #undef _GET_NEXT
 #undef _GET_PREV
 
-/* Deletes an FD from the fdsets.
- * The file descriptor is also closed.
+/* deletes the FD once nobody uses it anymore, as detected by the caller by its
+ * thread_mask being zero and its running mask turning to zero. There is no
+ * protection against concurrent accesses, it's up to the caller to make sure
+ * only the last thread will call it. This is only for internal use, please use
+ * fd_delete() instead.
  */
-void fd_delete(int fd)
+void _fd_delete_orphan(int fd)
 {
-	int locked = fdtab[fd].running_mask != tid_bit;
-
-	/* We're just trying to protect against a concurrent fd_insert()
-	 * here, not against fd_takeover(), because either we're called
-	 * directly from the iocb(), and we're already locked, or we're
-	 * called from the mux tasklet, but then the mux is responsible for
-	 * making sure the tasklet does nothing, and the connection is never
-	 * destroyed.
-	 */
-	if (locked)
-		fd_set_running_excl(fd);
-
 	if (fdtab[fd].linger_risk) {
 		/* this is generally set when connecting to servers */
 		DISGUISE(setsockopt(fd, SOL_SOCKET, SO_LINGER,
@@ -328,12 +319,39 @@ void fd_delete(int fd)
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	fdinfo[fd].port_range = NULL;
 	fdtab[fd].owner = NULL;
-	fdtab[fd].thread_mask = 0;
 	fdtab[fd].exported = 0;
+	/* perform the close() call last as it's what unlocks the instant reuse
+	 * of this FD by any other thread.
+	 */
 	close(fd);
 	_HA_ATOMIC_SUB(&ha_used_fds, 1);
-	if (locked)
-		fd_clr_running(fd);
+}
+
+/* Deletes an FD from the fdsets. The file descriptor is also closed, possibly
+ * asynchronously. Only the owning thread may do this.
+ */
+void fd_delete(int fd)
+{
+	/* we must postpone removal of an FD that may currently be in use
+	 * by another thread. This can happend in the following two situations:
+	 *   - after a takeover, the owning thread closes the connection but
+	 *     the previous one just woke up from the poller and entered
+	 *     the FD handler iocb. That thread holds an entry in running_mask
+	 *     and requires removal protection.
+	 *   - multiple threads are accepting connections on a listener, and
+	 *     one of them (or even an separate one) decides to unbind the
+	 *     listener under the listener's lock while other ones still hold
+	 *     the running bit.
+	 * In both situations the FD is marked as unused (thread_mask = 0) and
+	 * will not take new bits in its running_mask so we have the guarantee
+	 * that the last thread eliminating running_mask is the one allowed to
+	 * safely delete the FD. Most of the time it will be the current thread.
+	 */
+
+	HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
+	HA_ATOMIC_STORE(&fdtab[fd].thread_mask, 0);
+	if (fd_clr_running(fd) == 0)
+		_fd_delete_orphan(fd);
 }
 
 #ifndef HA_HAVE_CAS_DW

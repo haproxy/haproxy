@@ -59,6 +59,7 @@ extern volatile int ha_used_fds; // Number of FDs we're currently using
  * The file descriptor is also closed.
  */
 void fd_delete(int fd);
+void _fd_delete_orphan(int fd);
 
 /*
  * Take over a FD belonging to another thread.
@@ -413,7 +414,9 @@ static inline void fd_update_events(int fd, unsigned char evts)
 		if (fd_set_running(fd) == -1)
 			return;
 		fdtab[fd].iocb(fd);
-		fd_clr_running(fd);
+		if ((fdtab[fd].running_mask & tid_bit) &&
+		    fd_clr_running(fd) == 0 && !fdtab[fd].thread_mask)
+			_fd_delete_orphan(fd);
 	}
 
 	/* we had to stop this FD and it still must be stopped after the I/O
