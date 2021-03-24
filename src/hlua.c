@@ -201,7 +201,7 @@ static lua_State *hlua_states[MAX_THREADS + 1];
 DECLARE_STATIC_POOL(pool_head_hlua, "hlua", sizeof(struct hlua));
 
 /* Used for Socket connection. */
-static struct proxy socket_proxy;
+static struct proxy *socket_proxy;
 static struct server socket_tcp;
 #ifdef USE_OPENSSL
 static struct server socket_ssl;
@@ -2837,7 +2837,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	LIST_INIT(&appctx->ctx.hlua_cosocket.wake_on_read);
 
 	/* Now create a session, task and stream for this applet */
-	sess = session_new(&socket_proxy, NULL, &appctx->obj_type);
+	sess = session_new(socket_proxy, NULL, &appctx->obj_type);
 	if (!sess) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_sess;
@@ -9141,6 +9141,7 @@ lua_State *hlua_init_state(int thread_num)
 
 void hlua_init(void) {
 	int i;
+	char *errmsg;
 #ifdef USE_OPENSSL
 	struct srv_kw *kw;
 	int tmp_error;
@@ -9168,23 +9169,17 @@ void hlua_init(void) {
 	hlua_states[1] = hlua_init_state(1);
 
 	/* Proxy and server configuration initialisation. */
-	memset(&socket_proxy, 0, sizeof(socket_proxy));
-	init_new_proxy(&socket_proxy);
-	socket_proxy.parent = NULL;
-	socket_proxy.last_change = now.tv_sec;
-	socket_proxy.id = "LUA-SOCKET";
-	socket_proxy.cap = PR_CAP_FE | PR_CAP_BE;
-	socket_proxy.maxconn = 0;
-	socket_proxy.accept = NULL;
-	socket_proxy.options2 |= PR_O2_INDEPSTR;
-	socket_proxy.srv = NULL;
-	socket_proxy.conn_retries = 0;
-	socket_proxy.timeout.connect = 5000; /* By default the timeout connection is 5s. */
+	socket_proxy = alloc_new_proxy("LUA-SOCKET", PR_CAP_FE|PR_CAP_BE|PR_CAP_LUA, &errmsg);
+	if (!socket_proxy) {
+		fprintf(stderr, "Lua init: %s\n", errmsg);
+		exit(1);
+	}
+	proxy_preset_defaults(socket_proxy);
 
 	/* Init TCP server: unchanged parameters */
 	memset(&socket_tcp, 0, sizeof(socket_tcp));
 	socket_tcp.next = NULL;
-	socket_tcp.proxy = &socket_proxy;
+	socket_tcp.proxy = socket_proxy;
 	socket_tcp.obj_type = OBJ_TYPE_SERVER;
 	socket_tcp.pendconns = EB_ROOT;
 	LIST_ADD(&servers_list, &socket_tcp.global_list);
@@ -9200,26 +9195,26 @@ void hlua_init(void) {
 	/* XXX: Copy default parameter from default server,
 	 * but the default server is not initialized.
 	 */
-	socket_tcp.maxqueue     = socket_proxy.defsrv.maxqueue;
-	socket_tcp.minconn      = socket_proxy.defsrv.minconn;
-	socket_tcp.maxconn      = socket_proxy.defsrv.maxconn;
-	socket_tcp.slowstart    = socket_proxy.defsrv.slowstart;
-	socket_tcp.onerror      = socket_proxy.defsrv.onerror;
-	socket_tcp.onmarkeddown = socket_proxy.defsrv.onmarkeddown;
-	socket_tcp.onmarkedup   = socket_proxy.defsrv.onmarkedup;
-	socket_tcp.consecutive_errors_limit = socket_proxy.defsrv.consecutive_errors_limit;
-	socket_tcp.uweight      = socket_proxy.defsrv.iweight;
-	socket_tcp.iweight      = socket_proxy.defsrv.iweight;
+	socket_tcp.maxqueue     = socket_proxy->defsrv.maxqueue;
+	socket_tcp.minconn      = socket_proxy->defsrv.minconn;
+	socket_tcp.maxconn      = socket_proxy->defsrv.maxconn;
+	socket_tcp.slowstart    = socket_proxy->defsrv.slowstart;
+	socket_tcp.onerror      = socket_proxy->defsrv.onerror;
+	socket_tcp.onmarkeddown = socket_proxy->defsrv.onmarkeddown;
+	socket_tcp.onmarkedup   = socket_proxy->defsrv.onmarkedup;
+	socket_tcp.consecutive_errors_limit = socket_proxy->defsrv.consecutive_errors_limit;
+	socket_tcp.uweight      = socket_proxy->defsrv.iweight;
+	socket_tcp.iweight      = socket_proxy->defsrv.iweight;
 
 	socket_tcp.check.status = HCHK_STATUS_INI;
-	socket_tcp.check.rise   = socket_proxy.defsrv.check.rise;
-	socket_tcp.check.fall   = socket_proxy.defsrv.check.fall;
+	socket_tcp.check.rise   = socket_proxy->defsrv.check.rise;
+	socket_tcp.check.fall   = socket_proxy->defsrv.check.fall;
 	socket_tcp.check.health = socket_tcp.check.rise;   /* socket, but will fall down at first failure */
 	socket_tcp.check.server = &socket_tcp;
 
 	socket_tcp.agent.status = HCHK_STATUS_INI;
-	socket_tcp.agent.rise   = socket_proxy.defsrv.agent.rise;
-	socket_tcp.agent.fall   = socket_proxy.defsrv.agent.fall;
+	socket_tcp.agent.rise   = socket_proxy->defsrv.agent.rise;
+	socket_tcp.agent.fall   = socket_proxy->defsrv.agent.fall;
 	socket_tcp.agent.health = socket_tcp.agent.rise;   /* socket, but will fall down at first failure */
 	socket_tcp.agent.server = &socket_tcp;
 
@@ -9229,7 +9224,7 @@ void hlua_init(void) {
 	/* Init TCP server: unchanged parameters */
 	memset(&socket_ssl, 0, sizeof(socket_ssl));
 	socket_ssl.next = NULL;
-	socket_ssl.proxy = &socket_proxy;
+	socket_ssl.proxy = socket_proxy;
 	socket_ssl.obj_type = OBJ_TYPE_SERVER;
 	socket_ssl.pendconns = EB_ROOT;
 	LIST_ADD(&servers_list, &socket_ssl.global_list);
@@ -9245,26 +9240,26 @@ void hlua_init(void) {
 	/* XXX: Copy default parameter from default server,
 	 * but the default server is not initialized.
 	 */
-	socket_ssl.maxqueue     = socket_proxy.defsrv.maxqueue;
-	socket_ssl.minconn      = socket_proxy.defsrv.minconn;
-	socket_ssl.maxconn      = socket_proxy.defsrv.maxconn;
-	socket_ssl.slowstart    = socket_proxy.defsrv.slowstart;
-	socket_ssl.onerror      = socket_proxy.defsrv.onerror;
-	socket_ssl.onmarkeddown = socket_proxy.defsrv.onmarkeddown;
-	socket_ssl.onmarkedup   = socket_proxy.defsrv.onmarkedup;
-	socket_ssl.consecutive_errors_limit = socket_proxy.defsrv.consecutive_errors_limit;
-	socket_ssl.uweight      = socket_proxy.defsrv.iweight;
-	socket_ssl.iweight      = socket_proxy.defsrv.iweight;
+	socket_ssl.maxqueue     = socket_proxy->defsrv.maxqueue;
+	socket_ssl.minconn      = socket_proxy->defsrv.minconn;
+	socket_ssl.maxconn      = socket_proxy->defsrv.maxconn;
+	socket_ssl.slowstart    = socket_proxy->defsrv.slowstart;
+	socket_ssl.onerror      = socket_proxy->defsrv.onerror;
+	socket_ssl.onmarkeddown = socket_proxy->defsrv.onmarkeddown;
+	socket_ssl.onmarkedup   = socket_proxy->defsrv.onmarkedup;
+	socket_ssl.consecutive_errors_limit = socket_proxy->defsrv.consecutive_errors_limit;
+	socket_ssl.uweight      = socket_proxy->defsrv.iweight;
+	socket_ssl.iweight      = socket_proxy->defsrv.iweight;
 
 	socket_ssl.check.status = HCHK_STATUS_INI;
-	socket_ssl.check.rise   = socket_proxy.defsrv.check.rise;
-	socket_ssl.check.fall   = socket_proxy.defsrv.check.fall;
+	socket_ssl.check.rise   = socket_proxy->defsrv.check.rise;
+	socket_ssl.check.fall   = socket_proxy->defsrv.check.fall;
 	socket_ssl.check.health = socket_ssl.check.rise;   /* socket, but will fall down at first failure */
 	socket_ssl.check.server = &socket_ssl;
 
 	socket_ssl.agent.status = HCHK_STATUS_INI;
-	socket_ssl.agent.rise   = socket_proxy.defsrv.agent.rise;
-	socket_ssl.agent.fall   = socket_proxy.defsrv.agent.fall;
+	socket_ssl.agent.rise   = socket_proxy->defsrv.agent.rise;
+	socket_ssl.agent.fall   = socket_proxy->defsrv.agent.fall;
 	socket_ssl.agent.health = socket_ssl.agent.rise;   /* socket, but will fall down at first failure */
 	socket_ssl.agent.server = &socket_ssl;
 
@@ -9280,7 +9275,7 @@ void hlua_init(void) {
 			 * features like client certificates and ssl_verify.
 			 *
 			 */
-			tmp_error = kw->parse(args, &i, &socket_proxy, &socket_ssl, &error);
+			tmp_error = kw->parse(args, &i, socket_proxy, &socket_ssl, &error);
 			if (tmp_error != 0) {
 				fprintf(stderr, "INTERNAL ERROR: %s\n", error);
 				abort(); /* This must be never arrives because the command line
@@ -9309,6 +9304,8 @@ static void hlua_deinit()
 	ha_free(&socket_ssl.per_thr);
 	ha_free((char**)&socket_ssl.conf.file);
 #endif
+
+	free_proxy(socket_proxy);
 }
 
 REGISTER_POST_DEINIT(hlua_deinit);
