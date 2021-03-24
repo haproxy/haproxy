@@ -51,7 +51,6 @@ void hlua_applet_tcp_fct(struct appctx *ctx);
 void hlua_applet_http_fct(struct appctx *ctx);
 struct task *hlua_process_task(struct task *task, void *context, unsigned int state);
 
-extern THREAD_LOCAL unsigned int hlua_not_dumpable;
 #else /* USE_LUA */
 
 /************************ For use when Lua is disabled ********************/
