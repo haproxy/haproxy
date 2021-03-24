@@ -309,6 +309,8 @@ void _fd_delete_orphan(int fd)
 	}
 	if (cur_poller.clo)
 		cur_poller.clo(fd);
+
+	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	polled_mask[fd].poll_recv = polled_mask[fd].poll_send = 0;
 
 	fdtab[fd].state = 0;
@@ -316,7 +318,6 @@ void _fd_delete_orphan(int fd)
 #ifdef DEBUG_FD
 	fdtab[fd].event_count = 0;
 #endif
-	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	fdinfo[fd].port_range = NULL;
 	fdtab[fd].owner = NULL;
 	fdtab[fd].exported = 0;
