@@ -347,10 +347,12 @@ static inline void fd_set_running_excl(int fd)
 		old_mask = 0;
 }
 
-
-static inline void fd_clr_running(int fd)
+/* remove tid_bit from the fd's running mask and returns the bits that remain
+ * after the atomic operation.
+ */
+static inline long fd_clr_running(int fd)
 {
-	_HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+	return _HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
 }
 
 /* Update events seen for FD <fd> and its state if needed. This should be
