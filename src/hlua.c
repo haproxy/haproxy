@@ -202,9 +202,9 @@ DECLARE_STATIC_POOL(pool_head_hlua, "hlua", sizeof(struct hlua));
 
 /* Used for Socket connection. */
 static struct proxy *socket_proxy;
-static struct server socket_tcp;
+static struct server *socket_tcp;
 #ifdef USE_OPENSSL
-static struct server socket_ssl;
+static struct server *socket_ssl;
 #endif
 
 /* List head of the function called at the initialisation time. */
@@ -2719,7 +2719,7 @@ __LJMP static int hlua_socket_connect_ssl(struct lua_State *L)
 	si = appctx->owner;
 	s = si_strm(si);
 
-	s->target = &socket_ssl.obj_type;
+	s->target = &socket_ssl->obj_type;
 	xref_unlock(&socket->xref, peer);
 	return MAY_LJMP(hlua_socket_connect(L));
 }
@@ -2860,7 +2860,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	/* Force destination server. */
 	strm->flags |= SF_DIRECT | SF_ASSIGNED | SF_BE_ASSIGNED;
-	strm->target = &socket_tcp.obj_type;
+	strm->target = &socket_tcp->obj_type;
 
 	return 1;
 
@@ -8531,10 +8531,10 @@ int hlua_post_init()
 
 #if USE_OPENSSL
 	/* Initialize SSL server. */
-	if (socket_ssl.xprt->prepare_srv) {
+	if (socket_ssl->xprt->prepare_srv) {
 		int saved_used_backed = global.ssl_used_backend;
 		// don't affect maxconn automatic computation
-		socket_ssl.xprt->prepare_srv(&socket_ssl);
+		socket_ssl->xprt->prepare_srv(socket_ssl);
 		global.ssl_used_backend = saved_used_backed;
 	}
 #endif
@@ -9177,94 +9177,22 @@ void hlua_init(void) {
 	proxy_preset_defaults(socket_proxy);
 
 	/* Init TCP server: unchanged parameters */
-	memset(&socket_tcp, 0, sizeof(socket_tcp));
-	socket_tcp.next = NULL;
-	socket_tcp.proxy = socket_proxy;
-	socket_tcp.obj_type = OBJ_TYPE_SERVER;
-	socket_tcp.pendconns = EB_ROOT;
-	LIST_ADD(&servers_list, &socket_tcp.global_list);
-	socket_tcp.next_state = SRV_ST_RUNNING; /* early server setup */
-	socket_tcp.last_change = 0;
-	socket_tcp.conf.file = strdup("HLUA_INTERNAL");
-	socket_tcp.conf.line = 1;
-	socket_tcp.id = "LUA-TCP-CONN";
-	socket_tcp.check.state &= ~CHK_ST_ENABLED; /* Disable health checks. */
-	socket_tcp.agent.state &= ~CHK_ST_ENABLED; /* Disable health checks. */
-	socket_tcp.pp_opts = 0; /* Remove proxy protocol. */
-
-	/* XXX: Copy default parameter from default server,
-	 * but the default server is not initialized.
-	 */
-	socket_tcp.maxqueue     = socket_proxy->defsrv.maxqueue;
-	socket_tcp.minconn      = socket_proxy->defsrv.minconn;
-	socket_tcp.maxconn      = socket_proxy->defsrv.maxconn;
-	socket_tcp.slowstart    = socket_proxy->defsrv.slowstart;
-	socket_tcp.onerror      = socket_proxy->defsrv.onerror;
-	socket_tcp.onmarkeddown = socket_proxy->defsrv.onmarkeddown;
-	socket_tcp.onmarkedup   = socket_proxy->defsrv.onmarkedup;
-	socket_tcp.consecutive_errors_limit = socket_proxy->defsrv.consecutive_errors_limit;
-	socket_tcp.uweight      = socket_proxy->defsrv.iweight;
-	socket_tcp.iweight      = socket_proxy->defsrv.iweight;
-
-	socket_tcp.check.status = HCHK_STATUS_INI;
-	socket_tcp.check.rise   = socket_proxy->defsrv.check.rise;
-	socket_tcp.check.fall   = socket_proxy->defsrv.check.fall;
-	socket_tcp.check.health = socket_tcp.check.rise;   /* socket, but will fall down at first failure */
-	socket_tcp.check.server = &socket_tcp;
-
-	socket_tcp.agent.status = HCHK_STATUS_INI;
-	socket_tcp.agent.rise   = socket_proxy->defsrv.agent.rise;
-	socket_tcp.agent.fall   = socket_proxy->defsrv.agent.fall;
-	socket_tcp.agent.health = socket_tcp.agent.rise;   /* socket, but will fall down at first failure */
-	socket_tcp.agent.server = &socket_tcp;
-
-	socket_tcp.xprt = xprt_get(XPRT_RAW);
+	socket_tcp = new_server(socket_proxy);
+	if (!socket_tcp) {
+		fprintf(stderr, "Lua init: failed to allocate tcp server socket\n");
+		exit(1);
+	}
 
 #ifdef USE_OPENSSL
 	/* Init TCP server: unchanged parameters */
-	memset(&socket_ssl, 0, sizeof(socket_ssl));
-	socket_ssl.next = NULL;
-	socket_ssl.proxy = socket_proxy;
-	socket_ssl.obj_type = OBJ_TYPE_SERVER;
-	socket_ssl.pendconns = EB_ROOT;
-	LIST_ADD(&servers_list, &socket_ssl.global_list);
-	socket_ssl.next_state = SRV_ST_RUNNING; /* early server setup */
-	socket_ssl.last_change = 0;
-	socket_ssl.conf.file = strdup("HLUA_INTERNAL");
-	socket_ssl.conf.line = 2;
-	socket_ssl.id = "LUA-SSL-CONN";
-	socket_ssl.check.state &= ~CHK_ST_ENABLED; /* Disable health checks. */
-	socket_ssl.agent.state &= ~CHK_ST_ENABLED; /* Disable health checks. */
-	socket_ssl.pp_opts = 0; /* Remove proxy protocol. */
+	socket_ssl = new_server(socket_proxy);
+	if (!socket_ssl) {
+		fprintf(stderr, "Lua init: failed to allocate ssl server socket\n");
+		exit(1);
+	}
 
-	/* XXX: Copy default parameter from default server,
-	 * but the default server is not initialized.
-	 */
-	socket_ssl.maxqueue     = socket_proxy->defsrv.maxqueue;
-	socket_ssl.minconn      = socket_proxy->defsrv.minconn;
-	socket_ssl.maxconn      = socket_proxy->defsrv.maxconn;
-	socket_ssl.slowstart    = socket_proxy->defsrv.slowstart;
-	socket_ssl.onerror      = socket_proxy->defsrv.onerror;
-	socket_ssl.onmarkeddown = socket_proxy->defsrv.onmarkeddown;
-	socket_ssl.onmarkedup   = socket_proxy->defsrv.onmarkedup;
-	socket_ssl.consecutive_errors_limit = socket_proxy->defsrv.consecutive_errors_limit;
-	socket_ssl.uweight      = socket_proxy->defsrv.iweight;
-	socket_ssl.iweight      = socket_proxy->defsrv.iweight;
-
-	socket_ssl.check.status = HCHK_STATUS_INI;
-	socket_ssl.check.rise   = socket_proxy->defsrv.check.rise;
-	socket_ssl.check.fall   = socket_proxy->defsrv.check.fall;
-	socket_ssl.check.health = socket_ssl.check.rise;   /* socket, but will fall down at first failure */
-	socket_ssl.check.server = &socket_ssl;
-
-	socket_ssl.agent.status = HCHK_STATUS_INI;
-	socket_ssl.agent.rise   = socket_proxy->defsrv.agent.rise;
-	socket_ssl.agent.fall   = socket_proxy->defsrv.agent.fall;
-	socket_ssl.agent.health = socket_ssl.agent.rise;   /* socket, but will fall down at first failure */
-	socket_ssl.agent.server = &socket_ssl;
-
-	socket_ssl.use_ssl = 1;
-	socket_ssl.xprt = xprt_get(XPRT_SSL);
+	socket_ssl->use_ssl = 1;
+	socket_ssl->xprt = xprt_get(XPRT_SSL);
 
 	for (i = 0; args[i] != NULL; i++) {
 		if ((kw = srv_find_kw(args[i])) != NULL) { /* Maybe it's registered server keyword */
@@ -9275,7 +9203,7 @@ void hlua_init(void) {
 			 * features like client certificates and ssl_verify.
 			 *
 			 */
-			tmp_error = kw->parse(args, &i, socket_proxy, &socket_ssl, &error);
+			tmp_error = kw->parse(args, &i, socket_proxy, socket_ssl, &error);
 			if (tmp_error != 0) {
 				fprintf(stderr, "INTERNAL ERROR: %s\n", error);
 				abort(); /* This must be never arrives because the command line
@@ -9297,12 +9225,10 @@ static void hlua_deinit()
 			lua_close(hlua_states[thr]);
 	}
 
-	ha_free(&socket_tcp.per_thr);
-	ha_free((char**)&socket_tcp.conf.file);
+	free_server(socket_tcp);
 
 #ifdef USE_OPENSSL
-	ha_free(&socket_ssl.per_thr);
-	ha_free((char**)&socket_ssl.conf.file);
+	free_server(socket_ssl);
 #endif
 
 	free_proxy(socket_proxy);
