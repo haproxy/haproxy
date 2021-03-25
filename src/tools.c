@@ -1447,7 +1447,9 @@ int str62net(const char *str, struct in6_addr *addr, unsigned char *mask)
 
 
 /*
- * Parse IPv4 address found in url.
+ * Parse IPv4 address found in url. Return the number of bytes parsed. It
+ * expects exactly 4 numbers between 0 and 255 delimited by dots, and returns
+ * zero in case of mismatch.
  */
 int url2ipv4(const char *addr, struct in_addr *dst)
 {
@@ -1460,9 +1462,10 @@ int url2ipv4(const char *addr, struct in_addr *dst)
 	*(tp = tmp) = 0;
 
 	while (*addr) {
-		unsigned char digit = (ch = *addr++) - '0';
+		unsigned char digit = (ch = *addr) - '0';
 		if (digit > 9 && ch != '.')
 			break;
+		addr++;
 		if (digit <= 9) {
 			u_int new = *tp * 10 + digit;
 			if (new > 255)
@@ -1486,7 +1489,7 @@ int url2ipv4(const char *addr, struct in_addr *dst)
 		return 0;
 
 	memcpy(&dst->s_addr, tmp, 4);
-	return addr-cp-1;
+	return addr - cp;
 }
 
 /*
