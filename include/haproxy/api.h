@@ -33,6 +33,6 @@
 #include <haproxy/api-t.h>
 #include <haproxy/atomic.h>
 #include <haproxy/bug.h>
-#include <haproxy/initcall.h>
+#include <haproxy/init.h>
 
 #endif

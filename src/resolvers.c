@@ -28,7 +28,6 @@
 #include <haproxy/dns.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
-#include <haproxy/global.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>

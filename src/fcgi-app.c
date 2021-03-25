@@ -17,7 +17,6 @@
 #include <haproxy/errors.h>
 #include <haproxy/fcgi-app.h>
 #include <haproxy/filters.h>
-#include <haproxy/global.h>
 #include <haproxy/http_fetch.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/log.h>
