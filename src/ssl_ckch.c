@@ -2837,6 +2837,50 @@ yield:
 	return 0; /* should come back */
 }
 
+/* parsing function of 'del ssl ca-file' */
+static int cli_parse_del_cafile(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct cafile_entry *cafile_entry;
+	char *err = NULL;
+	char *filename;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "'del ssl ca-file' expects a CA file name\n");
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't delete the CA file!\nOperations on certificates are currently locked!\n");
+
+	filename = args[3];
+
+	cafile_entry = ssl_store_get_cafile_entry(filename, 0);
+	if (!cafile_entry) {
+		memprintf(&err, "CA file '%s' doesn't exist!\n", filename);
+		goto error;
+	}
+
+	if (!LIST_ISEMPTY(&cafile_entry->ckch_inst_link)) {
+		memprintf(&err, "CA file '%s' in use, can't be deleted!\n", filename);
+		goto error;
+	}
+
+	/* Remove the cafile_entry from the tree */
+	ebmb_delete(&cafile_entry->node);
+	ssl_store_delete_cafile_entry(cafile_entry);
+
+	memprintf(&err, "CA file '%s' deleted!\n", filename);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynmsg(appctx, LOG_NOTICE, err);
+
+error:
+	memprintf(&err, "Can't remove the CA file: %s\n", err ? err : "");
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynerr(appctx, err);
+}
+
 
 void ckch_deinit()
 {
@@ -2865,6 +2909,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "ca-file", NULL },    "set ssl ca-file <cafile> <payload>      : replace a CA file",                                                     cli_parse_set_cafile, NULL, NULL },
 	{ { "commit", "ssl", "ca-file", NULL }, "commit ssl ca-file <cafile>             : commit a CA file",                                                      cli_parse_commit_cafile, cli_io_handler_commit_cafile, cli_release_commit_cafile },
 	{ { "abort", "ssl", "ca-file", NULL },  "abort ssl ca-file <cafile>              : abort a transaction for a CA file",                                     cli_parse_abort_cafile, NULL, NULL },
+	{ { "del", "ssl", "ca-file", NULL },    "del ssl ca-file <cafile>                : delete an unused CA file",                                              cli_parse_del_cafile, NULL, NULL },
 	{ { "show", "ssl", "ca-file", NULL },   "show ssl ca-file [<cafile>[:<index>]]   : display the SSL CA files used in memory, or the details of a <cafile>, or a single certificate of index <index> of a CA file <cafile>", cli_parse_show_cafile, cli_io_handler_show_cafile, cli_release_show_cafile },
 	{ { NULL }, NULL, NULL, NULL }
 }};
