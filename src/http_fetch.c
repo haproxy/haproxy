@@ -988,19 +988,30 @@ static int smp_fetch_hdr_val(const struct arg *args, struct sample *smp, const c
 
 /* Fetch an HTTP header's IP value. takes a mandatory argument of type string
  * and an optional one of type int to designate a specific occurrence.
- * It returns an IPv4 or IPv6 address.
+ * It returns an IPv4 or IPv6 address. Addresses surrounded by invalid chars
+ * are rejected. However IPv4 addresses may be followed with a colon and a
+ * valid port number.
  */
 static int smp_fetch_hdr_ip(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int ret;
 	struct buffer *temp = get_trash_chunk();
+	int ret, len;
+	int port;
 
 	while ((ret = smp_fetch_hdr(args, smp, kw, private)) > 0) {
 		if (smp->data.u.str.data < temp->size - 1) {
 			memcpy(temp->area, smp->data.u.str.area,
 			       smp->data.u.str.data);
 			temp->area[smp->data.u.str.data] = '\0';
-			if (url2ipv4((char *) temp->area, &smp->data.u.ipv4)) {
+			len = url2ipv4((char *) temp->area, &smp->data.u.ipv4);
+			if (len == smp->data.u.str.data) {
+				/* plain IPv4 address */
+				smp->data.type = SMP_T_IPV4;
+				break;
+			} else if (len > 0 && temp->area[len] == ':' &&
+				   strl2irc(temp->area + len + 1, smp->data.u.str.data - len - 1, &port) == 0 &&
+				   port >= 0 && port <= 65535) {
+				/* IPv4 address suffixed with ':' followed by a valid port number */
 				smp->data.type = SMP_T_IPV4;
 				break;
 			} else if (inet_pton(AF_INET6, temp->area, &smp->data.u.ipv6)) {

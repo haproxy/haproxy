@@ -18757,7 +18757,11 @@ hdr_ip([<name>[,<occ>]]) : ip (deprecated)
   This extracts the last occurrence of header <name> in an HTTP request,
   converts it to an IPv4 or IPv6 address and returns this address. When used
   with ACLs, all occurrences are checked, and if <name> is omitted, every value
-  of every header is checked.
+  of every header is checked. The parser strictly adheres to the format
+  described in RFC7239, with the extension that IPv4 addresses may optionally
+  be followed by a colon (':') and a valid decimal port number (0 to 65535),
+  which will be silently dropped. All other forms will not match and will
+  cause the address to be ignored.
 
   The <occ> parameter is processed as with req.hdr().
 
