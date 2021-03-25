@@ -1302,6 +1302,26 @@ int init_acl()
 	return err;
 }
 
+void free_acl_cond(struct acl_cond *cond)
+{
+	struct acl_term_suite *suite, *suiteb;
+	struct acl_term *term, *termb;
+
+	if (!cond)
+		return;
+
+	list_for_each_entry_safe(suite, suiteb, &cond->suites, list) {
+		list_for_each_entry_safe(term, termb, &suite->terms, list) {
+			LIST_DEL(&term->list);
+			free(term);
+		}
+		LIST_DEL(&suite->list);
+		free(suite);
+	}
+
+	free(cond);
+}
+
 /************************************************************************/
 /*      All supported sample and ACL keywords must be declared here.    */
 /************************************************************************/

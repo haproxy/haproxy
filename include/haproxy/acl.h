@@ -146,6 +146,7 @@ void acl_unregister_keywords(struct acl_kw_list *kwl);
  */
 int init_acl();
 
+void free_acl_cond(struct acl_cond *cond);
 
 #endif /* _HAPROXY_ACL_H */
 

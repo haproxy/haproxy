@@ -80,6 +80,7 @@
 #include <import/sha1.h>
 
 #include <haproxy/acl.h>
+#include <haproxy/action.h>
 #include <haproxy/activity.h>
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
@@ -2135,46 +2136,13 @@ static void init(int argc, char **argv)
 	free(err_msg);
 }
 
-static void deinit_acl_cond(struct acl_cond *cond)
-{
-	struct acl_term_suite *suite, *suiteb;
-	struct acl_term *term, *termb;
-
-	if (!cond)
-		return;
-
-	list_for_each_entry_safe(suite, suiteb, &cond->suites, list) {
-		list_for_each_entry_safe(term, termb, &suite->terms, list) {
-			LIST_DEL(&term->list);
-			free(term);
-		}
-		LIST_DEL(&suite->list);
-		free(suite);
-	}
-
-	free(cond);
-}
-
-static void deinit_act_rules(struct list *rules)
-{
-	struct act_rule *rule, *ruleb;
-
-	list_for_each_entry_safe(rule, ruleb, rules, list) {
-		LIST_DEL(&rule->list);
-		deinit_acl_cond(rule->cond);
-		if (rule->release_ptr)
-			rule->release_ptr(rule);
-		free(rule);
-	}
-}
-
 static void deinit_stick_rules(struct list *rules)
 {
 	struct sticking_rule *rule, *ruleb;
 
 	list_for_each_entry_safe(rule, ruleb, rules, list) {
 		LIST_DEL(&rule->list);
-		deinit_acl_cond(rule->cond);
+		free_acl_cond(rule->cond);
 		release_sample_expr(rule->expr);
 		free(rule);
 	}
@@ -2367,13 +2335,13 @@ void deinit(void)
 			free(lf);
 		}
 
-		deinit_act_rules(&p->tcp_req.inspect_rules);
-		deinit_act_rules(&p->tcp_rep.inspect_rules);
-		deinit_act_rules(&p->tcp_req.l4_rules);
-		deinit_act_rules(&p->tcp_req.l5_rules);
-		deinit_act_rules(&p->http_req_rules);
-		deinit_act_rules(&p->http_res_rules);
-		deinit_act_rules(&p->http_after_res_rules);
+		free_act_rules(&p->tcp_req.inspect_rules);
+		free_act_rules(&p->tcp_rep.inspect_rules);
+		free_act_rules(&p->tcp_req.l4_rules);
+		free_act_rules(&p->tcp_req.l5_rules);
+		free_act_rules(&p->http_req_rules);
+		free_act_rules(&p->http_res_rules);
+		free_act_rules(&p->http_after_res_rules);
 
 		deinit_stick_rules(&p->storersp_rules);
 		deinit_stick_rules(&p->sticking_rules);
@@ -2461,7 +2429,7 @@ void deinit(void)
 		free(uap->desc);
 
 		userlist_free(uap->userlist);
-		deinit_act_rules(&uap->http_req_rules);
+		free_act_rules(&uap->http_req_rules);
 
 		scope = uap->scope;
 		while (scope) {

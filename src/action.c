@@ -10,6 +10,7 @@
  *
  */
 
+#include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <haproxy/errors.h>
@@ -258,4 +259,17 @@ const char *action_suggest(const char *word, const struct list *keywords, const 
 		best_ptr = NULL;
 
 	return best_ptr;
+}
+
+void free_act_rules(struct list *rules)
+{
+	struct act_rule *rule, *ruleb;
+
+	list_for_each_entry_safe(rule, ruleb, rules, list) {
+		LIST_DEL(&rule->list);
+		free_acl_cond(rule->cond);
+		if (rule->release_ptr)
+			rule->release_ptr(rule);
+		free(rule);
+	}
 }
