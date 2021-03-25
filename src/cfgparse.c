@@ -34,7 +34,7 @@
 #include <unistd.h>
 
 #include <haproxy/acl.h>
-#include <haproxy/action-t.h>
+#include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <haproxy/auth.h>
 #include <haproxy/backend.h>
@@ -2007,7 +2007,6 @@ int check_config_validity()
 		struct switching_rule *rule;
 		struct server_rule *srule;
 		struct sticking_rule *mrule;
-		struct act_rule *arule;
 		struct logsrv *tmplogsrv;
 		unsigned int next_id;
 		int nbproc;
@@ -2494,65 +2493,14 @@ int check_config_validity()
 			}
 		}
 
-		/* check validity for 'tcp-request' layer 4 rules */
-		list_for_each_entry(arule, &curproxy->tcp_req.l4_rules, list) {
-			err = NULL;
-			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
-				ha_alert("Proxy '%s': %s.\n", curproxy->id, err);
-				free(err);
-				cfgerr++;
-			}
-		}
-
-		/* check validity for 'tcp-request' layer 5 rules */
-		list_for_each_entry(arule, &curproxy->tcp_req.l5_rules, list) {
-			err = NULL;
-			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
-				ha_alert("Proxy '%s': %s.\n", curproxy->id, err);
-				free(err);
-				cfgerr++;
-			}
-		}
-
-		/* check validity for 'tcp-request' layer 6 rules */
-		list_for_each_entry(arule, &curproxy->tcp_req.inspect_rules, list) {
-			err = NULL;
-			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
-				ha_alert("Proxy '%s': %s.\n", curproxy->id, err);
-				free(err);
-				cfgerr++;
-			}
-		}
-
-		/* check validity for 'http-request' layer 7 rules */
-		list_for_each_entry(arule, &curproxy->http_req_rules, list) {
-			err = NULL;
-			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
-				ha_alert("Proxy '%s': %s.\n", curproxy->id, err);
-				free(err);
-				cfgerr++;
-			}
-		}
-
-		/* check validity for 'http-response' layer 7 rules */
-		list_for_each_entry(arule, &curproxy->http_res_rules, list) {
-			err = NULL;
-			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
-				ha_alert("Proxy '%s': %s.\n", curproxy->id, err);
-				free(err);
-				cfgerr++;
-			}
-		}
-
-		/* check validity for 'http-after-response' layer 7 rules */
-		list_for_each_entry(arule, &curproxy->http_after_res_rules, list) {
-			err = NULL;
-			if (arule->check_ptr && !arule->check_ptr(arule, curproxy, &err)) {
-				ha_alert("Proxy '%s': %s.\n", curproxy->id, err);
-				free(err);
-				cfgerr++;
-			}
-		}
+		/* check validity for 'tcp-request' layer 4/5/6/7 rules */
+		cfgerr += check_action_rules(&curproxy->tcp_req.l4_rules, curproxy, &err_code);
+		cfgerr += check_action_rules(&curproxy->tcp_req.l5_rules, curproxy, &err_code);
+		cfgerr += check_action_rules(&curproxy->tcp_req.inspect_rules, curproxy, &err_code);
+		cfgerr += check_action_rules(&curproxy->tcp_rep.inspect_rules, curproxy, &err_code);
+		cfgerr += check_action_rules(&curproxy->http_req_rules, curproxy, &err_code);
+		cfgerr += check_action_rules(&curproxy->http_res_rules, curproxy, &err_code);
+		cfgerr += check_action_rules(&curproxy->http_after_res_rules, curproxy, &err_code);
 
 		/* Warn is a switch-mode http is used on a TCP listener with servers but no backend */
 		if (!curproxy->defbe.name && LIST_ISEMPTY(&curproxy->switching_rules) && curproxy->srv) {

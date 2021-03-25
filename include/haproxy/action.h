@@ -76,6 +76,11 @@ static inline void action_build_list(struct list *keywords,
 		*p = '\0';
 }
 
+/* Check an action ruleset validity. It returns the number of error encountered
+ * andd err_code is updated if a warning is emitted.
+ */
+int check_action_rules(struct list *rules, struct proxy *px, int *err_code);
+
 /* Find and check the target table used by an action track-sc*. This
  * function should be called during the configuration validity check.
  *
