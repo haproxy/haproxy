@@ -2729,7 +2729,7 @@ int val_blk_arg(struct arg *arg, char **err_msg)
  * Note: htx sample fetches should only used for development purpose.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
-	{ "internal.strm.is_htx",         smp_fetch_is_htx,           0,            NULL,           SMP_T_BOOL, SMP_USE_L6REQ },
+	{ "internal.strm.is_htx",         smp_fetch_is_htx,           0,            NULL,           SMP_T_BOOL, SMP_USE_INTRN },
 
 	{ "internal.htx.nbblks",          smp_fetch_htx_nbblks,       0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
 	{ "internal.htx.size",            smp_fetch_htx_size,         0,            NULL,           SMP_T_SINT,  SMP_USE_HRQHV|SMP_USE_HRSHV},
