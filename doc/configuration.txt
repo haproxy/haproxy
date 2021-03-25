@@ -18404,6 +18404,14 @@ sample fetch methods to ensure that the expected data are complete and usable,
 for example through TCP request content inspection. Please see the "tcp-request
 content" keyword for more detailed information on the subject.
 
+Warning : Following sample fetches are ignored if used from HTTP proxies. They
+          only deal with raw contents found in the buffers. On their side,
+          HTTTP proxies use structured content. Thus raw representation of
+          these data are meaningless. A warning is emitted if an ACL relies on
+          one of the following sample fetches. But it is not possible to detect
+          all invalid usage (for instance inside a log-format string or a
+          sample expression). So be careful.
+
 payload(<offset>,<length>) : binary (deprecated)
   This is an alias for "req.payload" when used in the context of a request (e.g.
   "stick on", "stick match"), and for "res.payload" when used in the context of

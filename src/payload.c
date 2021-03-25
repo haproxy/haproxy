@@ -50,6 +50,8 @@ smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *
 {
 	if (smp->strm) {
 		struct channel *chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+
+		/* Not accurate but kept for backward compatibility purpose */
 		if (IS_HTX_STRM(smp->strm)) {
 			struct htx *htx = htxbuf(&chn->buf);
 			smp->data.u.sint = htx->data - co_data(chn);
@@ -59,6 +61,8 @@ smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *
 	}
 	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
 		struct check *check = __objt_check(smp->sess->origin);
+
+		/* Not accurate but kept for backward compatibility purpose */
 		smp->data.u.sint = ((check->cs && IS_HTX_CS(check->cs)) ? (htxbuf(&check->bi))->data: b_data(&check->bi));
 	}
 	else
@@ -84,7 +88,13 @@ smp_fetch_req_ssl_st_ext(const struct arg *args, struct sample *smp, const char 
 	if (!smp->strm)
 		goto not_ssl_hello;
 
+	/* meaningless for HTX buffers */
+	if (IS_HTX_STRM(smp->strm))
+		goto not_ssl_hello;
+
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+
+
 	bleft = ci_data(chn);
 	data = (unsigned char *)ci_head(chn);
 
@@ -214,6 +224,10 @@ smp_fetch_req_ssl_ec_ext(const struct arg *args, struct sample *smp, const char 
 	if (!smp->strm)
 		goto not_ssl_hello;
 
+	/* meaningless for HTX buffers */
+	if (IS_HTX_STRM(smp->strm))
+		goto not_ssl_hello;
+
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	bleft = ci_data(chn);
 	data = (unsigned char *)ci_head(chn);
@@ -335,6 +349,10 @@ smp_fetch_ssl_hello_type(const struct arg *args, struct sample *smp, const char 
 	if (!smp->strm)
 		goto not_ssl_hello;
 
+	/* meaningless for HTX buffers */
+	if (IS_HTX_STRM(smp->strm))
+		goto not_ssl_hello;
+
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	bleft = ci_data(chn);
 	data = (const unsigned char *)ci_head(chn);
@@ -399,7 +417,11 @@ smp_fetch_req_ssl_ver(const struct arg *args, struct sample *smp, const char *kw
 	struct channel *req;
 
 	if (!smp->strm)
-		return 0;
+		goto not_ssl;
+
+	/* meaningless for HTX buffers */
+	if (IS_HTX_STRM(smp->strm))
+		goto not_ssl;
 
 	req = &smp->strm->req;
 	msg_len = 0;
@@ -539,6 +561,10 @@ smp_fetch_ssl_hello_sni(const struct arg *args, struct sample *smp, const char *
 	unsigned char *data;
 
 	if (!smp->strm)
+		goto not_ssl_hello;
+
+	/* meaningless for HTX buffers */
+	if (IS_HTX_STRM(smp->strm))
 		goto not_ssl_hello;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
@@ -705,6 +731,10 @@ smp_fetch_ssl_hello_alpn(const struct arg *args, struct sample *smp, const char 
 	unsigned char *data;
 
 	if (!smp->strm)
+		goto not_ssl_hello;
+
+	/* meaningless for HTX buffers */
+	if (IS_HTX_STRM(smp->strm))
 		goto not_ssl_hello;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
@@ -933,6 +963,10 @@ smp_fetch_rdp_cookie(const struct arg *args, struct sample *smp, const char *kw,
 	if (!smp->strm)
 		return 0;
 
+	/* meaningless for HTX buffers */
+	if (IS_HTX_STRM(smp->strm))
+		return 0;
+
 	return fetch_rdp_cookie_name(smp->strm, smp,
 				     args ? args->data.str.area : NULL,
 				     args ? args->data.str.data : 0);
@@ -973,14 +1007,21 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 	/* buf offset could be absolute or relative to len offset + len size if prefixed by + or - */
 
 	if (smp->strm) {
+		/* meaningless for HTX buffers */
+		if (IS_HTX_STRM(smp->strm))
+			return 0;
 		chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 		head = ci_head(chn);
 		data = ci_data(chn);
 	}
 	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
-		struct buffer *buf = &(__objt_check(smp->sess->origin)->bi);
-		head = b_head(buf);
-		data = b_data(buf);
+		struct check *check = __objt_check(smp->sess->origin);
+
+		/* meaningless for HTX buffers */
+		if (check->cs && IS_HTX_CS(check->cs))
+			return 0;
+		head = b_head(&check->bi);
+		data = b_data(&check->bi);
 	}
 	max = global.tune.bufsize;
 	if (!head)
@@ -1035,14 +1076,21 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 	size_t max, data;
 
 	if (smp->strm) {
+		/* meaningless for HTX buffers */
+		if (IS_HTX_STRM(smp->strm))
+			return 0;
 		chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 		head = ci_head(chn);
 		data = ci_data(chn);
 	}
 	else if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK) {
-		struct buffer *buf = &(__objt_check(smp->sess->origin)->bi);
-		head = b_head(buf);
-		data = b_data(buf);
+		struct check *check = __objt_check(smp->sess->origin);
+
+		/* meaningless for HTX buffers */
+		if (check->cs && IS_HTX_CS(check->cs))
+			return 0;
+		head = b_head(&check->bi);
+		data = b_data(&check->bi);
 	}
 	max = global.tune.bufsize;
 	if (!head)
@@ -1143,6 +1191,10 @@ smp_fetch_distcc_param(const struct arg *arg_p, struct sample *smp, const char *
 	if (!smp->strm)
 		return 0;
 
+	/* meaningless for HTX buffers */
+	if (IS_HTX_STRM(smp->strm))
+		return 0;
+
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 
 	ofs = 0; occ = 0;
@@ -1218,6 +1270,10 @@ smp_fetch_distcc_body(const struct arg *arg_p, struct sample *smp, const char *k
 	/* Format is (token[,occ]). occ starts at 1. */
 
 	if (!smp->strm)
+		return 0;
+
+	/* meaningless for HTX buffers */
+	if (IS_HTX_STRM(smp->strm))
 		return 0;
 
 	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
