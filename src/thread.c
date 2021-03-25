@@ -48,13 +48,15 @@ struct lock_stat lock_stats[LOCK_LABELS];
 #endif
 
 /* Marks the thread as harmless until the last thread using the rendez-vous
- * point quits. Given that we can wait for a long time, sched_yield() is used
- * when available to offer the CPU resources to competing threads if needed.
+ * point quits, excluding the current one. Thus an isolated thread may be safely
+ * marked as harmless. Given that we can wait for a long time, sched_yield() is
+ * used when available to offer the CPU resources to competing threads if
+ * needed.
  */
 void thread_harmless_till_end()
 {
 		_HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
-		while (threads_want_rdv_mask & all_threads_mask) {
+		while (threads_want_rdv_mask & ~tid_bit) {
 			ha_thread_relax();
 		}
 }
