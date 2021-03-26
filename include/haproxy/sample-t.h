@@ -96,6 +96,7 @@ enum {
 	SMP_CKP_FE_LOG_END,  /* FE log at the end of the txn/stream */
 	SMP_CKP_BE_CHK_RUL,  /* BE tcp-check rules */
 	SMP_CKP_CFG_PARSER,  /* config parser (i.e. before boot) */
+	SMP_CKP_CLI_PARSER,  /* command line parser */
 	SMP_CKP_ENTRIES /* nothing after this */
 };
 
@@ -164,6 +165,7 @@ enum {
 	SMP_VAL_FE_LOG_END = 1 << SMP_CKP_FE_LOG_END,  /* FE log at the end of the txn/stream */
 	SMP_VAL_BE_CHK_RUL = 1 << SMP_CKP_BE_CHK_RUL,  /* BE tcp-check rule */
 	SMP_VAL_CFG_PARSER = 1 << SMP_CKP_CFG_PARSER,  /* within config parser */
+	SMP_VAL_CLI_PARSER = 1 << SMP_CKP_CLI_PARSER,  /* within command line parser */
 
 	/* a few combinations to decide what direction to try to fetch (useful for logs) */
 	SMP_VAL_REQUEST    = SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |

@@ -76,7 +76,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL_CFG_PARSER),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL_CFG_PARSER |
+	                   SMP_VAL_CLI_PARSER ),
 
 	[SMP_SRC_INTRN] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
 	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
@@ -84,7 +85,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________ |
+	                   SMP_VAL_CLI_PARSER ),
 
 	[SMP_SRC_LISTN] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
 	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
@@ -92,7 +94,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_FTEND] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
 	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
@@ -100,7 +103,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_L4CLI] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
 	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
@@ -108,7 +112,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_L5CLI] = (SMP_VAL___________ | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
 	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
@@ -116,7 +121,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_TRACK] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
 	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
@@ -124,7 +130,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_L6REQ] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_FE_REQ_CNT |
 	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
@@ -132,7 +139,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
-	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_HRQHV] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_FE_REQ_CNT |
 	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
@@ -140,7 +148,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
-	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_HRQHP] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_FE_REQ_CNT |
 	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
@@ -148,7 +157,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_HRQBO] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
@@ -156,7 +166,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
-	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_BKEND] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -164,7 +175,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_SERVR] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -172,7 +184,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_L4SRV] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -180,7 +193,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_L5SRV] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -188,7 +202,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_L6RES] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -196,7 +211,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL___________ | SMP_VAL_BE_CHK_RUL | SMP_VAL___________),
+	                   SMP_VAL___________ | SMP_VAL_BE_CHK_RUL | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_HRSHV] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -204,7 +220,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL___________ | SMP_VAL_BE_CHK_RUL | SMP_VAL___________),
+	                   SMP_VAL___________ | SMP_VAL_BE_CHK_RUL | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_HRSHP] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -212,7 +229,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
 	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL_BE_CHK_RUL | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_HRSBO] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -220,7 +238,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
 	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
-	                   SMP_VAL___________ | SMP_VAL_BE_CHK_RUL | SMP_VAL___________),
+	                   SMP_VAL___________ | SMP_VAL_BE_CHK_RUL | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_RQFIN] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -228,7 +247,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_RSFIN] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -236,7 +256,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_TXFIN] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -244,7 +265,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 
 	[SMP_SRC_SSFIN] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
@@ -252,7 +274,8 @@ const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
 	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
-	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________),
+	                   SMP_VAL_FE_LOG_END | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ ),
 };
 
 static const char *fetch_src_names[SMP_SRC_ENTRIES] = {
