@@ -1778,7 +1778,7 @@ static inline int sample_check_arg_base64(struct arg *arg, char **err)
 	return 1;
 }
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL)
+#ifdef EVP_CIPH_GCM_MODE
 static int check_aes_gcm(struct arg *args, struct sample_conv *conv,
 						  const char *file, int line, char **err)
 {
@@ -1920,7 +1920,7 @@ err:
 	free_trash_chunk(smp_trash);
 	return 0;
 }
-#endif /* HA_OPENSSL_VERSION_NUMBER */
+#endif
 
 static int check_crypto_digest(struct arg *args, struct sample_conv *conv,
 						  const char *file, int line, char **err)
@@ -4120,7 +4120,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "sha1",   sample_conv_sha1,      0,            NULL, SMP_T_BIN,  SMP_T_BIN  },
 #ifdef USE_OPENSSL
 	{ "sha2",   sample_conv_sha2,      ARG1(0, SINT), smp_check_sha2, SMP_T_BIN,  SMP_T_BIN  },
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1000100fL)
+#ifdef EVP_CIPH_GCM_MODE
 	{ "aes_gcm_dec", sample_conv_aes_gcm_dec,   ARG4(4,SINT,STR,STR,STR), check_aes_gcm,       SMP_T_BIN, SMP_T_BIN },
 #endif
 	{ "digest",      sample_conv_crypto_digest, ARG1(1,STR),              check_crypto_digest, SMP_T_BIN, SMP_T_BIN },
