@@ -3299,7 +3299,55 @@ weakest option and close is the strongest.
             ----+-----+-----+----
             CLO | CLO | CLO | CLO
 
+It is possible to chain a TCP frontend to an HTTP backend. It is pointless if
+only HTTP traffic is handled. But It may be used to handle several protocols
+into the same frontend. It this case, the client's connection is first handled
+as a raw tcp connection before being upgraded to HTTP. Before the upgrade, the
+content processings are performend on raw data. Once upgraded, data are parsed
+and stored using an internal representation called HTX and it is no longer
+possible to rely on raw representation. There is no way to go back.
 
+There are two kind of upgrades, in-place upgrades and destructive upgrades. The
+first ones concern the TCP to HTTP/1 upgrades. In HTTP/1, the request
+processings are serialized, thus the applicative stream can be preserved. The
+second ones concern the TCP to HTTP/2 upgrades. Because it is a multiplexed
+protocol, the applicative stream cannot be associated to any HTTP/2 stream and
+is destroyed. New applicative streams are then created when HAProxy receives
+new HTTP/2 streams at the lower level, in the H2 multiplexer. It is important
+to understand this difference because that drastically change the way to
+process data. When an HTTP/1 upgrade is performed, the content processings
+already performed on raw data are neither lost nor reexecuted while for an
+HTTP/2 upgrade, applicative streams are distinct and all frontend rules are
+evaluated systematically on each one. And as said, the first stream, the TCP
+one, is destroyed, but only after the frontend rules were evaluated.
+
+There is another importnat point to understand when HTTP processings are
+performed from a TCP proxy. While HAProxy is able to parse HTTP/1 in-fly from
+tcp-request content rules, it is not possible for HTTP/2. Only the HTTP/2
+preface can be parsed. This is a huge limitation regarding the HTTP content
+analysis in TCP. Concretely it is only possible to know if received data are
+HTTP. For instance, it is not possible to choose a backend based on the Host
+header value while it is trivial in HTTP/1. Hopefully, there is a solution to
+mitigate this drawback.
+
+It exists two way to perform HTTP upgrades. The first one, the historical
+method, is to select an HTTP backend. The upgrade happens when the backend is
+set. Thus, for in-place upgrades, only the backend configuration is considered
+in the HTTP data processing. For destructive upgrades, the applicative stream
+is destroyed, thus its processing is stopped. With this method, possibilities
+to choose a backend with an HTTP/2 connection are really limited, as mentioned
+above, and a bit useless because the stream is destroyed. The second method is
+to upgrade during the tcp-request content rules evaluation, thanks to the
+"switch-mode http" action. In this case, the upgrade is performed in the
+frontend context and it is possible to define HTTP directives in this
+frontend. For in-place upgrades, it offers all the power of the HTTP analysis
+as soon as possible. It is not that far from an HTTP frontend. For destructive
+upgrades, it does not change anything except it is useless to choose a backend
+on limited information. It is of course the recommended method. Thus, testing
+the request protocol from the tcp-request content rules to perform an HTTP
+upgrade is enough. All the remaining HTTP manipulation may be moved to the
+frontend http-request ruleset. But keep in mind that tcp-request content rules
+remains evaluated on each streams, that can't be changed.
 
 4.1. Proxy keywords matrix
 --------------------------
@@ -11861,6 +11909,8 @@ tcp-request content <action> [{if | unless} <condition>]
   is performed. However, an HTTP backend must still be selected. It remains
   unsupported to route an HTTP connection (upgraded or not) to a TCP server.
 
+  See section 4 about Proxies for more details on HTTP upgrades.
+
   The "unset-var" is used to unset a variable. See above for details about
   <var-name>.
 
@@ -18621,6 +18671,14 @@ content inspection, it may be necessary to support an inspection delay in order
 to let the request or response come in first. These fetches may require a bit
 more CPU resources than the layer 4 ones, but not much since the request and
 response are indexed.
+
+Note : Regarding HTTP processing from the tcp-request content rules, everything
+       will work as expected from an HTTP proxy. However, from a TCP proxy,
+       without an HTTP upgrade, it will only work for HTTP/1 content. For
+       HTTP/2 content, only the preface is visible. Thus, it is only possible
+       to rely to "req.proto_http", "req.ver" and eventually "method" sample
+       fetches. All other L7 sample fetches will fail. After an HTTP upgrade,
+       they will work in the same manner than from an HTTP proxy.
 
 base : string
   This returns the concatenation of the first Host header and the path part of
