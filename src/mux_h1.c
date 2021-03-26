@@ -3238,6 +3238,9 @@ static void h1_shutw_conn(struct connection *conn, enum cs_shw_mode mode)
 {
 	struct h1c *h1c = conn->ctx;
 
+	if (conn->flags & CO_FL_SOCK_WR_SH)
+		return;
+
 	TRACE_ENTER(H1_EV_STRM_SHUT, conn, h1c->h1s);
 	conn_xprt_shutw(conn);
 	conn_sock_shutw(conn, (mode == CS_SHW_NORMAL));
