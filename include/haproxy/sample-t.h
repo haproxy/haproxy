@@ -45,6 +45,7 @@ enum {
  * use and are not meant to be known outside the sample management code.
  */
 enum {
+	SMP_SRC_CONST,  /* constat elements known at configuration time */
 	SMP_SRC_INTRN,  /* internal context-less information */
 	SMP_SRC_LISTN,  /* listener which accepted the connection */
 	SMP_SRC_FTEND,  /* frontend which accepted the connection */
@@ -105,6 +106,7 @@ enum {
  * stored in smp->use.
  */
 enum {
+	SMP_USE_CONST = 1 << SMP_SRC_CONST,  /* constant values known at config time */
 	SMP_USE_INTRN = 1 << SMP_SRC_INTRN,  /* internal context-less information */
 	SMP_USE_LISTN = 1 << SMP_SRC_LISTN,  /* listener which accepted the connection */
 	SMP_USE_FTEND = 1 << SMP_SRC_FTEND,  /* frontend which accepted the connection */
