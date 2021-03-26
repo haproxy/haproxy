@@ -34,6 +34,33 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
+
+/* These are a few short names for commonly used types whose size and sometimes
+ * signedness depends on the architecture. Be careful not to rely on a few
+ * common but wrong assumptions:
+ *  - char is not always signed (ARM, AARCH64, PPC)
+ *  - long is not always large enough for a pointer (Windows)
+ * These types are needed with the standard C API (string.h, printf, syscalls).
+ *
+ * When a fixed size is needed (protocol interoperability), better use the
+ * standard types provided by stdint.h:
+ *   - size_t    : unsigned int of default word size, large enough for any
+ *                 object in memory
+ *   - ssize_t   : signed int of default word size, used by some syscalls
+ *   - uintptr_t : an unsigned int large enough to store any pointer
+ *   - ptrdiff_t : a signed int large enough to hold a distance between 2 ptrs
+ *   - int<size>_t : a signed int of <size> bits (8,16,32,64 work everywhere)
+ *   - uint<size>_t : an unsigned int of <size> bits
+ */
+typedef signed char        schar;
+typedef unsigned char      uchar;
+typedef unsigned short     ushort;
+typedef unsigned int       uint;
+typedef unsigned long      ulong;
+typedef unsigned long long ullong;
+typedef long long          llong;
+
+
 /* set any optional field in a struct to this type to save ifdefs. Its address
  * will still be valid but it will not reserve any room nor require any
  * initialization.
