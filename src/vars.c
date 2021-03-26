@@ -864,7 +864,7 @@ REGISTER_POST_DEINIT(vars_deinit);
 
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 
-	{ "var", smp_fetch_var, ARG1(1,STR), smp_check_var, SMP_T_STR, SMP_USE_L4CLI },
+	{ "var", smp_fetch_var, ARG1(1,STR), smp_check_var, SMP_T_STR, SMP_USE_INTRN },
 	{ /* END */ },
 }};
 
