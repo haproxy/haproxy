@@ -334,6 +334,23 @@ int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where, const
 	return ERR_WARN;
 }
 
+/* Report it if an ACL uses a L6 sample fetch from an HTTP proxy.  It returns
+ * either 0 or ERR_WARN so that its result can be or'ed with err_code. Note that
+ * <cond> may be NULL and then will be ignored.
+*/
+int warnif_tcp_http_cond(const struct proxy *px, const struct acl_cond *cond)
+{
+	if (!cond || px->mode != PR_MODE_HTTP)
+		return 0;
+
+	if (cond->use & (SMP_USE_L6REQ|SMP_USE_L6RES)) {
+		ha_warning("Proxy '%s': L6 sample fetches ignored on HTTP proxies (declared at %s:%d).\n",
+			   px->id, cond->file, cond->line);
+		return ERR_WARN;
+	}
+	return 0;
+}
+
 /* try to find in <list> the word that looks closest to <word> by counting
  * transitions between letters, digits and other characters. Will return the
  * best matching word if found, otherwise NULL. An optional array of extra
@@ -378,7 +395,6 @@ const char *cfg_find_best_match(const char *word, const struct list *list, int s
 		best_ptr = NULL;
 	return best_ptr;
 }
-
 
 /* Parse a string representing a process number or a set of processes. It must
  * be "all", "odd", "even", a number between 1 and <max> or a range with
@@ -2362,6 +2378,7 @@ int check_config_validity()
 				ha_free(&rule->be.name);
 				rule->be.backend = target;
 			}
+			err_code |= warnif_tcp_http_cond(curproxy, rule->cond);
 		}
 
 		/* find the target server for 'use_server' rules */
@@ -2404,6 +2421,7 @@ int check_config_validity()
 			srule->dynamic = 0;
 			srule->srv.name = server_name;
 			target = findserver(curproxy, srule->srv.name);
+			err_code |= warnif_tcp_http_cond(curproxy, srule->cond);
 
 			if (!target) {
 				ha_alert("config : %s '%s' : unable to find server '%s' referenced in a 'use-server' rule.\n",
@@ -2453,6 +2471,7 @@ int check_config_validity()
 					target->proxies_list = curproxy;
 				}
 			}
+			err_code |= warnif_tcp_http_cond(curproxy, mrule->cond);
 		}
 
 		/* find the target table for 'store response' rules */

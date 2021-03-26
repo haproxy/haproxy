@@ -512,6 +512,11 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 		goto error_free;
 	}
 
+	if ((options & LOG_OPT_HTTP) && (expr->fetch->use & (SMP_USE_L6REQ|SMP_USE_L6RES))) {
+		ha_warning("parsing [%s:%d] : L6 sample fetch <%s> ignored in HTTP log-format string.\n",
+			   curpx->conf.args.file, curpx->conf.args.line, text);
+	}
+
 	/* check if we need to allocate an http_txn struct for HTTP parsing */
 	/* Note, we may also need to set curpx->to_log with certain fetches */
 	curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);

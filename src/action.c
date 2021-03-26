@@ -13,6 +13,7 @@
 #include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
 #include <haproxy/obj_type.h>
@@ -37,7 +38,7 @@ int check_action_rules(struct list *rules, struct proxy *px, int *err_code)
 			ha_alert("Proxy '%s': %s.\n", px->id, errmsg);
 			err++;
 		}
-
+		*err_code |= warnif_tcp_http_cond(px, rule->cond);
 		free(errmsg);
 		errmsg = NULL;
 	}
