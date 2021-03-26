@@ -35,6 +35,7 @@ enum act_from {
 	ACT_F_HTTP_RES,    /* http-response */
 	ACT_F_TCP_CHK,     /* tcp-check. */
 	ACT_F_CFG_PARSER,  /* config parser */
+	ACT_F_CLI_PARSER,  /* command line parser */
 };
 
 enum act_return {

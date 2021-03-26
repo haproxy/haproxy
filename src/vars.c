@@ -654,6 +654,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	case ACT_F_HTTP_RES:    dir = SMP_OPT_DIR_RES; break;
 	case ACT_F_TCP_CHK:     dir = SMP_OPT_DIR_REQ; break;
 	case ACT_F_CFG_PARSER:  dir = SMP_OPT_DIR_REQ;  break; /* not used anyway */
+	case ACT_F_CLI_PARSER:  dir = SMP_OPT_DIR_REQ;  break; /* not used anyway */
 	default:
 		send_log(px, LOG_ERR, "Vars: internal error while execute action store.");
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
@@ -780,6 +781,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	case ACT_F_HTTP_RES:    flags = SMP_VAL_BE_HRS_HDR; break;
 	case ACT_F_TCP_CHK:     flags = SMP_VAL_BE_CHK_RUL; break;
 	case ACT_F_CFG_PARSER:  flags = SMP_VAL_CFG_PARSER; break;
+	case ACT_F_CLI_PARSER:  flags = SMP_VAL_CLI_PARSER; break;
 	default:
 		memprintf(err,
 			  "internal error, unexpected rule->from=%d, please report this bug!",
