@@ -755,6 +755,7 @@ const struct {
 	{ .name = "HTTP",           .expr = {"req.proto_http",""}},
 	{ .name = "HTTP_1.0",       .expr = {"req.ver","1.0",""}},
 	{ .name = "HTTP_1.1",       .expr = {"req.ver","1.1",""}},
+	{ .name = "HTTP_2.0",       .expr = {"req.ver","2.0",""}},
 	{ .name = "METH_CONNECT",   .expr = {"method","CONNECT",""}},
 	{ .name = "METH_DELETE",    .expr = {"method","DELETE",""}},
 	{ .name = "METH_GET",       .expr = {"method","GET","HEAD",""}},
