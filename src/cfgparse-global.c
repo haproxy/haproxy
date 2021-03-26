@@ -42,7 +42,8 @@ static const char *common_kw_list[] = {
 	"log-send-hostname", "server-state-base", "server-state-file",
 	"log-tag", "spread-checks", "max-spread-checks", "cpu-map", "setenv",
 	"presetenv", "unsetenv", "resetenv", "strict-limits", "localpeer",
-	"defaults", "listen", "frontend", "backend", "peers", "resolvers",
+	"numa-cpu-mapping", "defaults", "listen", "frontend", "backend",
+	"peers", "resolvers",
 	NULL /* must be last */
 };
 
@@ -1287,6 +1288,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		setenv("HAPROXY_LOCALPEER", localpeer, 1);
+	}
+	else if (strcmp(args[0], "numa-cpu-mapping") == 0) {
+		global.numa_cpu_mapping = (kwm == KWM_NO) ? 0 : 1;
 	}
 	else {
 		struct cfg_kw_list *kwl;

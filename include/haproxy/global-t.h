@@ -166,6 +166,7 @@ struct global {
 		struct hap_cpuset thread[MAX_THREADS];  /* list of CPU masks for the 32/64 first threads of the 1st process */
 	} cpu_map;
 #endif
+	int numa_cpu_mapping;
 	/* The info above is config stuff, it doesn't change during the process' life */
 	/* A number of the elements below are updated by all threads in real time and
 	 * suffer high contention, so we need to put them in their own cache lines, if

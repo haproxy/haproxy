@@ -1846,10 +1846,12 @@ next_line:
 		if (kwm != KWM_STD && strcmp(args[0], "option") != 0 &&
 		    strcmp(args[0], "log") != 0 && strcmp(args[0], "busy-polling") != 0 &&
 		    strcmp(args[0], "set-dumpable") != 0 && strcmp(args[0], "strict-limits") != 0 &&
-		    strcmp(args[0], "insecure-fork-wanted") != 0) {
+		    strcmp(args[0], "insecure-fork-wanted") != 0 &&
+		    strcmp(args[0], "numa-cpu-mapping") != 0) {
 			ha_alert("parsing [%s:%d]: negation/default currently "
 				 "supported only for options, log, busy-polling, "
-				 "set-dumpable, strict-limits, and insecure-fork-wanted.\n", file, linenum);
+				 "set-dumpable, strict-limits, insecure-fork-wanted "
+				 "and numa-cpu-mapping.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			fatal++;
 		}
@@ -2189,7 +2191,7 @@ int check_config_validity()
 		if (global.nbproc == 1) {
 			int numa_cores = 0;
 #if defined(__linux__) && defined USE_CPU_AFFINITY
-			if (!thread_cpu_mask_forced())
+			if (global.numa_cpu_mapping && !thread_cpu_mask_forced())
 				numa_cores = numa_detect_topology();
 #endif
 			global.nbthread = numa_cores ? numa_cores :
