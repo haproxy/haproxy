@@ -912,6 +912,68 @@ static int vars_parse_cli_get_var(char **args, char *payload, struct appctx *app
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
 
+/* parse CLI's "set var <name> <expression>" */
+static int vars_parse_cli_set_var(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct proxy px = {
+		.id = "CLI",
+		.conf.args.file = "CLI",
+		.conf.args.line = 0,
+	};
+	struct act_rule rule = {
+		.arg.vars.scope = SCOPE_PROC,
+		.from = ACT_F_CLI_PARSER,
+	};
+	enum act_parse_ret p_ret;
+	char *old_arg2;
+	char *tmp_arg2;
+	char *err = NULL;
+	int arg = 2; // variable name
+	int nberr;
+
+	LIST_INIT(&px.conf.args.list);
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	if (!*args[2] || !*args[3])
+		return cli_err(appctx, "Missing process-wide variable identifier and expression.\n");
+
+	tmp_arg2 = NULL;
+	if (!memprintf(&tmp_arg2, "set-var(%s)", args[2])) {
+		memprintf(&err, "memory allocation error.");
+		goto fail;
+	}
+
+	/* parse_store() will always return a message in <err> on error */
+	old_arg2 = args[2]; args[2] = tmp_arg2;
+	p_ret = parse_store((const char **)(args + 1), &arg, &px, &rule, &err);
+	free(args[2]); args[2] = old_arg2;
+
+	if (p_ret != ACT_RET_PRS_OK)
+		goto fail;
+
+	if (rule.arg.vars.scope != SCOPE_PROC) {
+		memprintf(&err, "'%s %s': cannot set variable '%s', only scope 'proc' is permitted in the global section.", args[0], args[1], args[2]);
+		goto fail;
+	}
+
+	err = NULL;
+	nberr = smp_resolve_args(&px, &err);
+	if (nberr) {
+		release_sample_expr(rule.arg.vars.expr);
+		indent_msg(&err, 2);
+		goto fail;
+	}
+
+	action_store(&rule, &px, NULL, NULL, 0);
+	release_sample_expr(rule.arg.vars.expr);
+	appctx->st0 = CLI_ST_PROMPT;
+	return 0;
+ fail:
+	return cli_dynerr(appctx, err);
+}
+
 static int vars_max_size(char **args, int section_type, struct proxy *curpx,
                          const struct proxy *defpx, const char *file, int line,
                          char **err, unsigned int *limit)
@@ -1066,6 +1128,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "get",   "var", NULL }, "get var <name> : retrieve contents of a process-wide variable", vars_parse_cli_get_var, NULL },
+	{ { "set",   "var", NULL }, "set var <name> <expr> : set variable from an expression", vars_parse_cli_set_var, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);

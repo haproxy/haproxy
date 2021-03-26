@@ -64,3 +64,15 @@ haproxy h1 -cli {
     send "get var proc.int5"
     expect ~ "^proc.int5: type=sint value=<20>$"
 }
+
+haproxy h1 -cli {
+    send "experimental-mode on; set var proc.str str(updated)"
+    expect ~ .*
+}
+
+client c3 -connect ${h1_fe1_sock} {
+    txreq -req GET -url /req3_1
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-var ~ "proc=40 sess=40 req=20 str=updated uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
+} -run
