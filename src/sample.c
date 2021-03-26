@@ -1090,9 +1090,10 @@ struct sample *sample_process(struct proxy *px, struct session *sess,
 
 /*
  * Resolve all remaining arguments in proxy <p>. Returns the number of
- * errors or 0 if everything is fine.
+ * errors or 0 if everything is fine. If at least one error is met, it will
+ * be appended to *err. If *err==NULL it will be allocated first.
  */
-int smp_resolve_args(struct proxy *p)
+int smp_resolve_args(struct proxy *p, char **err)
 {
 	struct arg_list *cur, *bak;
 	const char *ctx, *where;
@@ -1108,7 +1109,7 @@ int smp_resolve_args(struct proxy *p)
 		struct server *srv;
 		struct stktable *t;
 		char *pname, *sname, *stktname;
-		char *err;
+		char *err2;
 
 		arg = cur->arg;
 
@@ -1146,8 +1147,8 @@ int smp_resolve_args(struct proxy *p)
 		switch (arg->type) {
 		case ARGT_SRV:
 			if (!arg->data.str.data) {
-				ha_alert("parsing [%s:%d] : missing server name in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line,
+				memprintf(err, "%sparsing [%s:%d]: missing server name in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+					 *err ? *err : "", cur->file, cur->line,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
 				continue;
@@ -1162,8 +1163,8 @@ int smp_resolve_args(struct proxy *p)
 
 				px = proxy_be_by_name(pname);
 				if (!px) {
-					ha_alert("parsing [%s:%d] : unable to find proxy '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-						 cur->file, cur->line, pname,
+					memprintf(err, "%sparsing [%s:%d]: unable to find proxy '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+						 *err ? *err : "", cur->file, cur->line, pname,
 						 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 					cfgerr++;
 					break;
@@ -1174,8 +1175,8 @@ int smp_resolve_args(struct proxy *p)
 
 			srv = findserver(px, sname);
 			if (!srv) {
-				ha_alert("parsing [%s:%d] : unable to find server '%s' in proxy '%s', referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line, sname, pname,
+				memprintf(err, "%sparsing [%s:%d]: unable to find server '%s' in proxy '%s', referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+					 *err ? *err : "", cur->file, cur->line, sname, pname,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
 				break;
@@ -1193,16 +1194,16 @@ int smp_resolve_args(struct proxy *p)
 			}
 
 			if (!px) {
-				ha_alert("parsing [%s:%d] : unable to find frontend '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line, pname,
+				memprintf(err, "%sparsing [%s:%d]: unable to find frontend '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+					 *err ? *err : "", cur->file, cur->line, pname,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
 				break;
 			}
 
 			if (!(px->cap & PR_CAP_FE)) {
-				ha_alert("parsing [%s:%d] : proxy '%s', referenced in arg %d of %s%s%s%s '%s' %s proxy '%s', has not frontend capability.\n",
-					 cur->file, cur->line, pname,
+				memprintf(err, "%sparsing [%s:%d]: proxy '%s', referenced in arg %d of %s%s%s%s '%s' %s proxy '%s', has not frontend capability.\n",
+					 *err ? *err : "", cur->file, cur->line, pname,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
 				break;
@@ -1220,16 +1221,16 @@ int smp_resolve_args(struct proxy *p)
 			}
 
 			if (!px) {
-				ha_alert("parsing [%s:%d] : unable to find backend '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line, pname,
+				memprintf(err, "%sparsing [%s:%d]: unable to find backend '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+					 *err ? *err : "", cur->file, cur->line, pname,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
 				break;
 			}
 
 			if (!(px->cap & PR_CAP_BE)) {
-				ha_alert("parsing [%s:%d] : proxy '%s', referenced in arg %d of %s%s%s%s '%s' %s proxy '%s', has not backend capability.\n",
-					 cur->file, cur->line, pname,
+				memprintf(err, "%sparsing [%s:%d]: proxy '%s', referenced in arg %d of %s%s%s%s '%s' %s proxy '%s', has not backend capability.\n",
+					 *err ? *err : "", cur->file, cur->line, pname,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
 				break;
@@ -1248,24 +1249,24 @@ int smp_resolve_args(struct proxy *p)
 
 			t = stktable_find_by_name(stktname);
 			if (!t) {
-				ha_alert("parsing [%s:%d] : unable to find table '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line, stktname,
+				memprintf(err, "%sparsing [%s:%d]: unable to find table '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+					 *err ? *err : "", cur->file, cur->line, stktname,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
 				break;
 			}
 
 			if (!t->size) {
-				ha_alert("parsing [%s:%d] : no table in proxy '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line, stktname,
+				memprintf(err, "%sparsing [%s:%d]: no table in proxy '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+					 *err ? *err : "", cur->file, cur->line, stktname,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
 				break;
 			}
 
 			if (t->proxy && (p->bind_proc & ~t->proxy->bind_proc)) {
-				ha_alert("parsing [%s:%d] : stick-table '%s' not present on all processes covered by proxy '%s'.\n",
-					 cur->file, cur->line, t->proxy->id, p->id);
+				memprintf(err, "%sparsing [%s:%d]: stick-table '%s' not present on all processes covered by proxy '%s'.\n",
+					 *err ? *err : "", cur->file, cur->line, t->proxy->id, p->id);
 				cfgerr++;
 				break;
 			}
@@ -1282,8 +1283,8 @@ int smp_resolve_args(struct proxy *p)
 
 		case ARGT_USR:
 			if (!arg->data.str.data) {
-				ha_alert("parsing [%s:%d] : missing userlist name in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line,
+				memprintf(err, "%sparsing [%s:%d]: missing userlist name in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+					 *err ? *err : "", cur->file, cur->line,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
 				break;
@@ -1296,8 +1297,8 @@ int smp_resolve_args(struct proxy *p)
 				ul = auth_find_userlist(arg->data.str.area);
 
 			if (!ul) {
-				ha_alert("parsing [%s:%d] : unable to find userlist '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line,
+				memprintf(err, "%sparsing [%s:%d]: unable to find userlist '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+					 *err ? *err : "", cur->file, cur->line,
 					 arg->data.str.area,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
@@ -1311,8 +1312,8 @@ int smp_resolve_args(struct proxy *p)
 
 		case ARGT_REG:
 			if (!arg->data.str.data) {
-				ha_alert("parsing [%s:%d] : missing regex in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
-					 cur->file, cur->line,
+				memprintf(err, "%sparsing [%s:%d]: missing regex in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+					 *err ? *err : "", cur->file, cur->line,
 					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
 				cfgerr++;
 				continue;
@@ -1320,13 +1321,13 @@ int smp_resolve_args(struct proxy *p)
 
 			rflags = 0;
 			rflags |= (arg->type_flags & ARGF_REG_ICASE) ? REG_ICASE : 0;
-			err = NULL;
+			err2 = NULL;
 
-			if (!(reg = regex_comp(arg->data.str.area, !(rflags & REG_ICASE), 1 /* capture substr */, &err))) {
-				ha_alert("parsing [%s:%d] : error in regex '%s' in arg %d of %s%s%s%s '%s' %s proxy '%s' : %s.\n",
-					 cur->file, cur->line,
+			if (!(reg = regex_comp(arg->data.str.area, !(rflags & REG_ICASE), 1 /* capture substr */, &err2))) {
+				memprintf(err, "%sparsing [%s:%d]: error in regex '%s' in arg %d of %s%s%s%s '%s' %s proxy '%s' : %s.\n",
+					  *err ? *err : "", cur->file, cur->line,
 					 arg->data.str.area,
-					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id, err);
+					 cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id, err2);
 				cfgerr++;
 				continue;
 			}

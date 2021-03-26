@@ -2742,8 +2742,14 @@ out_uri_auth_compat:
 		/* only now we can check if some args remain unresolved.
 		 * This must be done after the users and groups resolution.
 		 */
-		cfgerr += smp_resolve_args(curproxy);
-		if (!cfgerr)
+		err = NULL;
+		i = smp_resolve_args(curproxy, &err);
+		cfgerr += i;
+		if (i) {
+			indent_msg(&err, 8);
+			ha_alert("%s%s\n", i > 1 ? "multiple argument resolution errors:" : "", err);
+			ha_free(&err);
+		} else
 			cfgerr += acl_find_targets(curproxy);
 
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
