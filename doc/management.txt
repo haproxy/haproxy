@@ -1770,6 +1770,12 @@ get acl <acl> <value>
 
      type="<type>":         The type of the returned sample.
 
+get var <name>
+  Show the existence, type and contents of the process-wide variable 'name'.
+  Only process-wide variables are readable, so the name must begin with
+  'proc.' otherwise no variable will be found. This command requires levels
+  "operator" or "admin".
+
 get weight <backend>/<server>
   Report the current weight and the initial weight of server <server> in
   backend <backend> or an error if either doesn't exist. The initial weight is

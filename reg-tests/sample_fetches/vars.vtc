@@ -26,6 +26,11 @@ haproxy h1 -conf {
 	http-request return status 200 hdr x-var "proc=%[var(proc.int5)] sess=%[var(sess.int5)] req=%[var(req.int5)] str=%[var(proc.str)] uuid=%[var(proc.uuid)]"
 } -start
 
+haproxy h1 -cli {
+    send "get var proc.int5"
+    expect ~ "^proc.int5: type=sint value=<5>$"
+}
+
 client c1 -connect ${h1_fe1_sock} {
     txreq -req GET -url /req1_1
     rxresp
@@ -38,6 +43,11 @@ client c1 -connect ${h1_fe1_sock} {
     expect resp.http.x-var ~ "proc=10 sess=20 req=10 str=this is a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
 } -run
 
+haproxy h1 -cli {
+    send "get var proc.int5"
+    expect ~ "^proc.int5: type=sint value=<10>$"
+}
+
 client c2 -connect ${h1_fe1_sock} {
     txreq -req GET -url /req2_1
     rxresp
@@ -49,3 +59,8 @@ client c2 -connect ${h1_fe1_sock} {
     expect resp.status == 200
     expect resp.http.x-var ~ "proc=20 sess=40 req=20 str=this is a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
 } -run
+
+haproxy h1 -cli {
+    send "get var proc.int5"
+    expect ~ "^proc.int5: type=sint value=<20>$"
+}

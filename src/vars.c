@@ -2,8 +2,10 @@
 
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
+#include <haproxy/buf.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/check.h>
+#include <haproxy/cli.h>
 #include <haproxy/global.h>
 #include <haproxy/http.h>
 #include <haproxy/http_rules.h>
@@ -867,6 +869,49 @@ static int vars_parse_global_set_var(char **args, int section_type, struct proxy
 	return ret;
 }
 
+/* parse CLI's "get var <name>" */
+static int vars_parse_cli_get_var(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct vars *vars;
+	struct sample smp;
+	int i;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return 1;
+
+	if (!*args[2])
+		return cli_err(appctx, "Missing process-wide variable identifier.\n");
+
+	vars = get_vars(NULL, NULL, SCOPE_PROC);
+	if (!vars || vars->scope != SCOPE_PROC)
+		return 0;
+
+	if (!vars_get_by_name(args[2], strlen(args[2]), &smp))
+		return cli_err(appctx, "Variable not found.\n");
+
+	/* the sample returned by vars_get_by_name() is allocated into a trash
+	 * chunk so we have no constraint to manipulate it.
+	 */
+	chunk_printf(&trash, "%s: type=%s value=", args[2], smp_to_type[smp.data.type]);
+
+	if (!sample_casts[smp.data.type][SMP_T_STR] ||
+	    !sample_casts[smp.data.type][SMP_T_STR](&smp)) {
+		chunk_appendf(&trash, "(undisplayable)");
+	} else {
+		/* Display the displayable chars*. */
+		b_putchr(&trash, '<');
+		for (i = 0; i < smp.data.u.str.data; i++) {
+			if (isprint((unsigned char)smp.data.u.str.area[i]))
+				b_putchr(&trash, smp.data.u.str.area[i]);
+			else
+				b_putchr(&trash, '.');
+		}
+		b_putchr(&trash, '>');
+		b_putchr(&trash, 0);
+	}
+	return cli_msg(appctx, LOG_INFO, trash.area);
+}
+
 static int vars_max_size(char **args, int section_type, struct proxy *curpx,
                          const struct proxy *defpx, const char *file, int line,
                          char **err, unsigned int *limit)
@@ -1016,3 +1061,11 @@ static struct cfg_kw_list cfg_kws = {{ },{
 }};
 
 INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
+
+
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "get",   "var", NULL }, "get var <name> : retrieve contents of a process-wide variable", vars_parse_cli_get_var, NULL },
+	{ { NULL }, NULL, NULL, NULL }
+}};
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
