@@ -1,0 +1,104 @@
+#REGTEST_TYPE=devel
+
+# This reg-test uses the "del ssl crt-list" command to remove a line from a crt-list.
+
+# It performs three requests towards a frontend that uses simple.crt-list.
+# Between the second and third requests, a line is deleted from the crt-list,
+# which makes the third request fail since it would have used the deleted line
+# and the strict-sni option is enabled on the frontend.
+# Another test is performed as well. A line corresponding to the default instance
+# of a frontend that does not have the strict-sni option enabled cannot be deleted.
+
+varnishtest "Test the 'del ssl crt-list' feature of the CLI"
+#REQUIRE_VERSION=2.2
+#REQUIRE_OPTIONS=OPENSSL
+feature ignore_unknown_macro
+
+server s1 -repeat 2 {
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        crt-base ${testdir}
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httplog
+        ${no-htx} option http-use-htx
+        log stderr local0 debug err
+        option logasap
+        timeout connect 100ms
+        timeout client  1s
+        timeout server  1s
+
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        http-response set-header X-SSL-Server-SHA1 %[ssl_s_sha1,hex]
+        server s1 "${tmpdir}/first-ssl.sock" ssl verify none sni str(record2.bug940.domain.tld)
+        server s2 "${tmpdir}/first-ssl.sock" ssl verify none sni str(record3.bug940.domain.tld)
+        server s3 "${tmpdir}/first-ssl.sock" ssl verify none sni str(record2.bug940.domain.tld)
+
+    listen first-ssl-fe
+        mode http
+        ${no-htx} option http-use-htx
+        bind "${tmpdir}/first-ssl.sock" ssl strict-sni crt-list ${testdir}/simple.crt-list
+        server s1 ${s1_addr}:${s1_port}
+
+    listen second-ssl-fe
+        mode http
+        ${no-htx} option http-use-htx
+        bind "${tmpdir}/second-ssl.sock" ssl crt-list ${testdir}/localhost.crt-list
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.http.X-SSL-Server-SHA1 == "2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
+    expect resp.status == 200
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.http.X-SSL-Server-SHA1 == "A490D069DBAFBEE66DE434BEC34030ADE8BCCBF1"
+    expect resp.status == 200
+} -run
+
+haproxy h1 -cli {
+    send "del ssl crt-list ${testdir}/simple.crt-list ${testdir}/common.pem:2"
+    expect ~ "Entry '${testdir}/common.pem' deleted in crtlist '${testdir}/simple.crt-list'!"
+}
+
+haproxy h1 -cli {
+    send "show ssl crt-list -n ${testdir}/simple.crt-list"
+    expect !~ "common.pem:2"
+}
+
+# This connection should fail since the corresponding line was deleted from the crt-list
+# and the strict-sni option is enabled.
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 503
+} -run
+
+# We should not be able to delete the crt-list's first line since it is the
+# default certificate of this bind line and the strict-sni option is not enabled.
+haproxy h1 -cli {
+    send "del ssl crt-list ${testdir}/localhost.crt-list ${testdir}/common.pem:1"
+    expect ~ "Can't delete the entry: certificate '${testdir}/common.pem' cannot be deleted, it is used as default certificate by the following frontends:"
+}
+
+# We should be able to delete any line of the crt-list since the strict-sni option is enabled.
+haproxy h1 -cli {
+    send "del ssl crt-list ${testdir}/simple.crt-list ${testdir}/common.pem:1"
+    expect ~ "Entry '${testdir}/common.pem' deleted in crtlist '${testdir}/simple.crt-list'!"
+}
