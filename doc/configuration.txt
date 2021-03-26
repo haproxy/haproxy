@@ -923,6 +923,7 @@ The following keywords are supported in the "global" section :
    - ulimit-n
    - user
    - set-dumpable
+   - set-var
    - setenv
    - stats
    - ssl-default-bind-ciphers
@@ -1597,6 +1598,23 @@ server-state-file <file>
   for each server found in the file and available in its current running
   configuration. See also "server-state-base" and "show servers state",
   "load-server-state-from-file" and "server-state-file-name"
+
+set-var <var-name> <expr>
+  Sets the process-wide variable '<var-name>' to the result of the evaluation
+  of the sample expression <expr>. The variable '<var-name>' may only be a
+  process-wide variable (using the 'proc.' prefix). It works exactly like the
+  'set-var' action in TCP or HTTP rules except that the expression is evaluated
+  at configuration parsing time and that the variable is instantly set. The
+  sample fetch functions and converters permitted in the expression are only
+  those using internal data, typically 'int(value)' or 'str(value)'. It's is
+  possible to reference previously allocated variables as well. These variables
+  will then be readable (and modifiable) from the regular rule sets.
+
+  Example:
+      global
+          set-var proc.current_state str(primary)
+          set-var proc.prio int(100)
+          set-var proc.threshold int(200),sub(proc.prio)
 
 setenv <name> <value>
   Sets environment variable <name> to value <value>. If the variable exists, it

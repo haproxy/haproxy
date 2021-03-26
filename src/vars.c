@@ -718,7 +718,8 @@ static int conv_check_var(struct arg *args, struct sample_conv *conv,
  *
  * It returns ACT_RET_PRS_ERR if fails and <err> is filled with an error
  * message. Otherwise, it returns ACT_RET_PRS_OK and the variable <expr>
- * is filled with the pointer to the expression to execute.
+ * is filled with the pointer to the expression to execute. The proxy is
+ * only used to retrieve the ->conf entries.
  */
 static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy *px,
                                       struct act_rule *rule, char **err)
@@ -797,6 +798,71 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	rule->action_ptr = action_store;
 	rule->release_ptr = release_store_rule;
 	return ACT_RET_PRS_OK;
+}
+
+
+/* parses a global "set-var" directive. It will create a temporary rule and
+ * expression that are parsed, processed, and released on the fly so that we
+ * respect the real set-var syntax. These directives take the following format:
+ *    set-var <name> <expression>
+ * Note that parse_store() expects "set-var(name) <expression>" so we have to
+ * temporarily replace the keyword here.
+ */
+static int vars_parse_global_set_var(char **args, int section_type, struct proxy *curpx,
+                                     const struct proxy *defpx, const char *file, int line,
+                                     char **err)
+{
+	struct proxy px = {
+		.id = "CLI",
+		.conf.args.file = file,
+		.conf.args.line = line,
+	};
+	struct act_rule rule = {
+		.arg.vars.scope = SCOPE_PROC,
+		.from = ACT_F_CFG_PARSER,
+	};
+	enum act_parse_ret p_ret;
+	char *old_arg1;
+	char *tmp_arg1;
+	int arg = 2; // variable name
+	int ret = -1;
+
+	LIST_INIT(&px.conf.args.list);
+
+	if (!*args[1] || !*args[2]) {
+		memprintf(err, "'%s' requires a process-wide variable name ('proc.<name>') and a sample expression.", args[0]);
+		goto end;
+	}
+
+	tmp_arg1 = NULL;
+	if (!memprintf(&tmp_arg1, "set-var(%s)", args[1]))
+		goto end;
+
+	/* parse_store() will always return a message in <err> on error */
+	old_arg1 = args[1]; args[1] = tmp_arg1;
+	p_ret = parse_store((const char **)args, &arg, &px, &rule, err);
+	free(args[1]); args[1] = old_arg1;
+
+	if (p_ret != ACT_RET_PRS_OK)
+		goto end;
+
+	if (rule.arg.vars.scope != SCOPE_PROC) {
+		memprintf(err, "'%s': cannot set variable '%s', only scope 'proc' is permitted in the global section.", args[0], args[1]);
+		goto end;
+	}
+
+	if (smp_resolve_args(&px, err) != 0) {
+		release_sample_expr(rule.arg.vars.expr);
+		indent_msg(err, 2);
+		goto end;
+	}
+
+	action_store(&rule, &px, NULL, NULL, 0);
+	release_sample_expr(rule.arg.vars.expr);
+
+	ret = 0;
+ end:
+	return ret;
 }
 
 static int vars_max_size(char **args, int section_type, struct proxy *curpx,
@@ -937,6 +1003,7 @@ static struct action_kw_list http_after_res_kws = { { }, {
 INITCALL1(STG_REGISTER, http_after_res_keywords_register, &http_after_res_kws);
 
 static struct cfg_kw_list cfg_kws = {{ },{
+	{ CFG_GLOBAL, "set-var",              vars_parse_global_set_var },
 	{ CFG_GLOBAL, "tune.vars.global-max-size", vars_max_size_global },
 	{ CFG_GLOBAL, "tune.vars.proc-max-size",   vars_max_size_proc   },
 	{ CFG_GLOBAL, "tune.vars.sess-max-size",   vars_max_size_sess   },
