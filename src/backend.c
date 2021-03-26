@@ -1449,7 +1449,9 @@ int connect_server(struct stream *s)
 				// see it possibly larger.
 				ALREADY_CHECKED(i);
 
-				HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock);
+				if (HA_SPIN_TRYLOCK(IDLE_CONNS_LOCK, &idle_conns[i].idle_conns_lock) != 0)
+					continue;
+
 				node = ebmb_first(&srv->per_thr[i].idle_conns);
 				if (node) {
 					conn_node = ebmb_entry(node, struct conn_hash_node, node);
