@@ -414,4 +414,7 @@
 #define XXH_INLINE_ALL
 #endif
 
+/* system sysfs directory */
+#define NUMA_DETECT_SYSTEM_SYSFS_PATH "/sys/devices/system"
+
 #endif /* _HAPROXY_DEFAULTS_H */

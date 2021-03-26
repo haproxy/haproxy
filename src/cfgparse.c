@@ -20,6 +20,7 @@
 #endif
 #endif /* USE_LIBCRYPT */
 
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1975,6 +1976,167 @@ void propagate_processes(struct proxy *from, struct proxy *to)
 	}
 }
 
+#if defined(__linux__) && defined USE_CPU_AFFINITY
+/* filter directory name of the pattern node<X> */
+static int numa_filter(const struct dirent *dir)
+{
+	char *endptr;
+
+	/* dir name must start with "node" prefix */
+	if (strncmp(dir->d_name, "node", 4))
+		return 0;
+
+	/* dir name must be at least 5 characters long */
+	if (!dir->d_name[4])
+		return 0;
+
+	/* dir name must end with a numeric id */
+	if (strtol(&dir->d_name[4], &endptr, 10) < 0 || *endptr)
+		return 0;
+
+	/* all tests succeeded */
+	return 1;
+}
+
+/* Parse a linux cpu map string representing to a numeric cpu mask map
+ * The cpu map string is a list of 4-byte hex strings separated by commas, with
+ * most-significant byte first, one bit per cpu number.
+ */
+static void parse_cpumap(char *cpumap_str, struct hap_cpuset *cpu_set)
+{
+	unsigned long cpumap;
+	char *start, *endptr, *comma;
+	int i, j;
+
+	ha_cpuset_zero(cpu_set);
+
+	i = 0;
+	do {
+		/* reverse-search for a comma, parse the string after the comma
+		 * or at the beginning if no comma found
+		 */
+		comma = strrchr(cpumap_str, ',');
+		start = comma ? comma + 1 : cpumap_str;
+
+		cpumap = strtoul(start, &endptr, 16);
+		for (j = 0; cpumap; cpumap >>= 1, ++j) {
+			if (cpumap & 0x1)
+				ha_cpuset_set(cpu_set, j + i * 32);
+		}
+
+		if (comma)
+			*comma = '\0';
+		++i;
+	} while (comma);
+}
+
+/* Read the first line of a file from <path> into the trash buffer.
+ * Returns 0 on success, otherwise non-zero.
+ */
+static int read_file_to_trash(const char *path)
+{
+	FILE *file;
+	int ret = 1;
+
+	file = fopen(path, "r");
+	if (file) {
+		if (fgets(trash.area, trash.size, file))
+			ret = 0;
+
+		fclose(file);
+	}
+
+	return ret;
+}
+
+/* Inspect the cpu topology of the machine on startup. If a multi-socket
+ * machine is detected, try to bind on the first node with active cpu. This is
+ * done to prevent an impact on the overall performance when the topology of
+ * the machine is unknown. This function is not called if one of the conditions
+ * is met :
+ * - a non-null nbthread directive is active
+ * - a restrictive cpu-map directive is active
+ * - a restrictive affinity is already applied, for example via taskset
+ *
+ * Returns the count of cpus selected. If no automatic binding was required or
+ * an error occurred and the topology is unknown, 0 is returned.
+ */
+static int numa_detect_topology()
+{
+	struct dirent **node_dirlist;
+	int node_dirlist_size;
+
+	struct hap_cpuset active_cpus, node_cpu_set;
+	const char *parse_cpu_set_args[2];
+	char cpumap_path[PATH_MAX];
+	char *err = NULL;
+
+	/* node_cpu_set count is used as return value */
+	ha_cpuset_zero(&node_cpu_set);
+
+	/* 1. count the sysfs node<X> directories */
+	node_dirlist_size = scandir(NUMA_DETECT_SYSTEM_SYSFS_PATH"/node", &node_dirlist, numa_filter, alphasort);
+	if (node_dirlist_size <= 1)
+		goto free_scandir_entries;
+
+	/* 2. read and parse the list of currently online cpu */
+	if (read_file_to_trash(NUMA_DETECT_SYSTEM_SYSFS_PATH"/cpu/online")) {
+		ha_notice("Cannot read online CPUs list, will not try to refine binding\n");
+		goto free_scandir_entries;
+	}
+
+	parse_cpu_set_args[0] = trash.area;
+	parse_cpu_set_args[1] = "\0";
+	if (parse_cpu_set(parse_cpu_set_args, &active_cpus, 1, &err)) {
+		ha_notice("Cannot read online CPUs list: '%s'. Will not try to refine binding\n", err);
+		free(err);
+		goto free_scandir_entries;
+	}
+
+	/* 3. loop through nodes dirs and find the first one with active cpus */
+	while (node_dirlist_size--) {
+		const char *node = node_dirlist[node_dirlist_size]->d_name;
+		ha_cpuset_zero(&node_cpu_set);
+
+		snprintf(cpumap_path, PATH_MAX, "%s/node/%s/cpumap",
+		         NUMA_DETECT_SYSTEM_SYSFS_PATH, node);
+
+		if (read_file_to_trash(cpumap_path)) {
+			ha_notice("Cannot read CPUs list of '%s', will not select them to refine binding\n", node);
+			free(node_dirlist[node_dirlist_size]);
+			continue;
+		}
+
+		parse_cpumap(trash.area, &node_cpu_set);
+		ha_cpuset_and(&node_cpu_set, &active_cpus);
+
+		/* 5. set affinity on the first found node with active cpus */
+		if (!ha_cpuset_count(&node_cpu_set)) {
+			free(node_dirlist[node_dirlist_size]);
+			continue;
+		}
+
+		ha_diag_warning("Multi-socket cpu detected, automatically binding on active CPUs of '%s' (%u active cpu(s))\n", node, ha_cpuset_count(&node_cpu_set));
+		if (sched_setaffinity(getpid(), sizeof(node_cpu_set.cpuset), &node_cpu_set.cpuset) == -1) {
+			ha_warning("Cannot set the cpu affinity for this multi-cpu machine\n");
+
+			/* clear the cpuset used as return value */
+			ha_cpuset_zero(&node_cpu_set);
+		}
+
+		free(node_dirlist[node_dirlist_size]);
+		break;
+	}
+
+ free_scandir_entries:
+	while (node_dirlist_size-- > 0)
+		free(node_dirlist[node_dirlist_size]);
+	free(node_dirlist);
+
+	return ha_cpuset_count(&node_cpu_set);
+}
+#endif /* __linux__ && USE_CPU_AFFINITY */
+
 /*
  * Returns the error code, 0 if OK, or any combination of :
  *  - ERR_ABORT: must abort ASAP
@@ -2022,9 +2184,17 @@ int check_config_validity()
 		 * allows to easily control the number of threads using taskset.
 		 */
 		global.nbthread = 1;
+
 #if defined(USE_THREAD)
-		if (global.nbproc == 1)
-			global.nbthread = thread_cpus_enabled_at_boot;
+		if (global.nbproc == 1) {
+			int numa_cores = 0;
+#if defined(__linux__) && defined USE_CPU_AFFINITY
+			if (!thread_cpu_mask_forced())
+				numa_cores = numa_detect_topology();
+#endif
+			global.nbthread = numa_cores ? numa_cores :
+			                               thread_cpus_enabled_at_boot;
+		}
 		all_threads_mask = nbits(global.nbthread);
 #endif
 	}
