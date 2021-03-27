@@ -1,6 +1,90 @@
 ChangeLog :
 ===========
 
+2021/03/27 : 2.4-dev14
+    - MEDIUM: quic: Fix build.
+    - MEDIUM: quic: Fix build.
+    - CI: codespell: whitelist "Dragan Dosen"
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CI: github actions: update LibreSSL to 3.2.5
+    - REGTESTS: revert workaround for a crash with recent libressl on http-reuse sni
+    - CLEANUP: mark defproxy as const on parse tune.fail-alloc
+    - REGTESTS: remove unneeded experimental-mode in cli add server test
+    - REGTESTS: wait for proper return of enable server in cli add server test
+    - MINOR: compression: use pool_alloc(), not pool_alloc_dirty()
+    - MINOR: spoe: use pool_alloc(), not pool_alloc_dirty()
+    - MINOR: fcgi-app: use pool_alloc(), not pool_alloc_dirty()
+    - MINOR: cache: use pool_alloc(), not pool_alloc_dirty()
+    - MINOR: ssl: use pool_alloc(), not pool_alloc_dirty()
+    - MINOR: opentracing: use pool_alloc(), not pool_alloc_dirty()
+    - MINOR: dynbuf: make b_alloc() always check if the buffer is allocated
+    - CLEANUP: compression: do not test for buffer before calling b_alloc()
+    - CLEANUP: l7-retries: do not test the buffer before calling b_alloc()
+    - MINOR: channel: simplify the channel's buffer allocation
+    - MEDIUM: dynbuf: remove last usages of b_alloc_margin()
+    - CLEANUP: dynbuf: remove b_alloc_margin()
+    - CLEANUP: dynbuf: remove the unused b_alloc_fast() function
+    - CLEANUP: pools: remove the unused pool_get_first() function
+    - MINOR: pools: make the pool allocator support a few flags
+    - MINOR: pools: add pool_zalloc() to return a zeroed area
+    - CLEANUP: connection: use pool_zalloc() in conn_alloc_hash_node()
+    - CLEANUP: filters: use pool_zalloc() in flt_stream_add_filter()
+    - CLEANUP: spoe: use pool_zalloc() instead of pool_alloc+memset
+    - CLEANUP: frontend: use pool_zalloc() in frontend_accept()
+    - CLEANUP: mailers: use pool_zalloc() in enqueue_one_email_alert()
+    - CLEANUP: resolvers: use pool_zalloc() in resolv_link_resolution()
+    - CLEANUP: ssl: use pool_zalloc() in ssl_init_keylog()
+    - CLEANUP: tcpcheck: use pool_zalloc() instead of pool_alloc+memset
+    - CLEANUP: quic: use pool_zalloc() instead of pool_alloc+memset
+    - MINOR: time: also provide a global, monotonic global_now_ms timer
+    - BUG/MEDIUM: freq_ctr/threads: use the global_now_ms variable
+    - MINOR: tools: introduce new option PA_O_DEFAULT_DGRAM on str2sa_range.
+    - BUILD: tools: fix build error with new PA_O_DEFAULT_DGRAM
+    - BUG/MINOR: ssl: Prevent disk access when using "add ssl crt-list"
+    - CLEANUP: ssl: remove unused definitions
+    - BUILD: ssl: guard ecdh functions with SSL_CTX_set_tmp_ecdh macro
+    - MINOR: lua: Slightly improve function dumping the lua traceback
+    - BUG/MEDIUM: debug/lua: Use internal hlua function to dump the lua traceback
+    - BUG/MEDIUM: lua: Always init the lua stack before referencing the context
+    - MINOR: fd: make fd_clr_running() return the remaining running mask
+    - MINOR: fd: remove the unneeded running bit from fd_insert()
+    - BUG/MEDIUM: fd: do not wait on FD removal in fd_delete()
+    - CLEANUP: fd: remove unused fd_set_running_excl()
+    - CLEANUP: fd: slightly simplify up _fd_delete_orphan()
+    - BUG/MEDIUM: fd: Take the fd_mig_lock when closing if no DWCAS is available.
+    - BUG/MEDIUM: release lock on idle conn killing on reached pool high count
+    - BUG/MEDIUM: thread: Fix a deadlock if an isolated thread is marked as harmless
+    - MINOR: tools: make url2ipv4 return the exact number of bytes parsed
+    - BUG/MINOR: http_fetch: make hdr_ip() reject trailing characters
+    - BUG/MEDIUM: mux-h1: make h1_shutw_conn() idempotent
+    - BUG/MINOR: ssl: Fix update of default certificate
+    - BUG/MINOR: ssl: Prevent removal of crt-list line if the instance is a default one
+    - BUILD: ssl: introduce fine guard for ssl random extraction functions
+    - REORG: global: move initcall register code in a dedicated file
+    - REORG: global: move free acl/action in their related source files
+    - REORG: split proxy allocation functions
+    - MINOR: proxy: implement a free_proxy function
+    - MINOR: proxy: define cap PR_CAP_LUA
+    - MINOR: lua: properly allocate the lua Socket proxy
+    - MINOR: lua: properly allocate the lua Socket servers
+    - MINOR: vars: make get_vars() allow the session to be null
+    - MINOR: vars: make the var() sample fetch keyword depend on nothing
+    - CLEANUP: sample: remove duplicate "stopping" sample fetch keyword
+    - MINOR: sample: make smp_resolve_args() return an allocate error message
+    - MINOR: sample: add a new SMP_SRC_CONST sample capability
+    - MINOR: sample: mark the truly constant sample fetch keywords as such
+    - MINOR: sample: add a new CFG_PARSER context for samples
+    - MINOR: action: add a new ACT_F_CFG_PARSER origin designation
+    - MEDIUM: vars: add support for a "set-var" global directive
+    - REGTESTS: add a basic reg-test for some "set-var" commands
+    - MINOR: sample: add a new CLI_PARSER context for samples
+    - MINOR: action: add a new ACT_F_CLI_PARSER origin designation
+    - MINOR: vars/cli: add a "get var" CLI command to retrieve global variables
+    - MEDIUM: cli: add a new experimental "set var" command
+    - MINOR: compat: add short aliases for a few very commonly used types
+    - BUILD: ssl: use EVP_CIPH_GCM_MODE macro instead of HA_OPENSSL_VERSION
+    - MEDIUM: backend: use a trylock to grab a connection on high FD counts as well
+
 2021/03/19 : 2.4-dev13
     - BUG/MEDIUM: cli: fix "help" crashing since recent spelling fixes
     - BUG/MINOR: cfgparse: use the GLOBAL not LISTEN keywords list for spell checking
