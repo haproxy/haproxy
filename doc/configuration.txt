@@ -6634,6 +6634,31 @@ http-request use-service <service-name> [ { if | unless } <condition> ]
   Example:
     http-request use-service prometheus-exporter if { path /metrics }
 
+http-request wait-for-body time <time> [ at-least <bytes> ]
+             [ { if | unless } <condition> ]
+
+  This will delay the processing of the request waiting for the payload for at
+  most <time> milliseconds. if "at-least" argument is specified, HAProxy stops
+  to wait the payload when the first <bytes> bytes are received. 0 means no
+  limit, it is the default value. Regardless the "at-least" argument value,
+  HAProxy stops to wait if the whole payload is received or if the request
+  buffer is full.  This action may be used as a replacement to "option
+  http-buffer-request".
+
+  Arguments :
+
+    <time>    is mandatory. It is the maximum time to wait for the body. It
+              follows the HAProxy time format and is expressed in milliseconds.
+
+    <bytes>   is optional. It is the minimum payload size to receive to stop to
+              wait. It fallows the HAProxy size format and is expressed in
+              bytes.
+
+  Example:
+    http-request wait-for-body time 1s at-least 1k if METH_POST
+
+  See also : "option http-buffer-request"
+
 http-request wait-for-handshake [ { if | unless } <condition> ]
 
   This will delay the processing of the request until the SSL handshake
@@ -7064,6 +7089,27 @@ http-response unset-var(<var-name>) [ { if | unless } <condition> ]
   Example:
     http-response unset-var(sess.last_redir)
 
+http-response wait-for-body time <time> [ at-least <bytes> ]
+             [ { if | unless } <condition> ]
+
+  This will delay the processing of the response waiting for the payload for at
+  most <time> milliseconds. if "at-least" argument is specified, HAProxy stops
+  to wait the payload when the first <bytes> bytes are received. 0 means no
+  limit, it is the default value. Regardless the "at-least" argument value,
+  HAProxy stops to wait if the whole payload is received or if the response
+  buffer is full.
+
+  Arguments :
+
+    <time>    is mandatory. It is the maximum time to wait for the body. It
+              follows the HAProxy time format and is expressed in milliseconds.
+
+    <bytes>   is optional. It is the minimum payload size to receive to stop to
+              wait. It fallows the HAProxy size format and is expressed in
+              bytes.
+
+  Example:
+    http-response wait-for-body time 1s at-least 10k
 
 http-reuse { never | safe | aggressive | always }
   Declare how idle HTTP connections may be shared between requests
@@ -8159,7 +8205,8 @@ no option http-buffer-request
   transmissions between the frontend and the backend, so this should definitely
   not be used by default.
 
-  See also : "option http-no-delay", "timeout http-request"
+  See also : "option http-no-delay", "timeout http-request",
+             "http-request wait-for-body"
 
 
 option http-ignore-probes

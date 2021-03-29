@@ -913,65 +913,23 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &s->txn->req;
-	struct htx *htx;
 
 	DBG_TRACE_ENTER(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn, msg);
 
-	htx = htxbuf(&req->buf);
 
-	if (htx->flags & HTX_FL_PARSING_ERROR)
+	switch (http_wait_for_msg_body(s, req, s->be->timeout.httpreq, 0)) {
+	case HTTP_RULE_RES_CONT:
+		goto http_end;
+	case HTTP_RULE_RES_YIELD:
+		goto missing_data_or_waiting;
+	case HTTP_RULE_RES_BADREQ:
 		goto return_bad_req;
-	if (htx->flags & HTX_FL_PROCESSING_ERROR)
+	case HTTP_RULE_RES_ERROR:
 		goto return_int_err;
-
-	/* Do nothing for bodyless and CONNECT requests */
-	if (txn->meth == HTTP_METH_CONNECT || (msg->flags & HTTP_MSGF_BODYLESS))
-		goto http_end;
-
-	/* We have to parse the HTTP request body to find any required data.
-	 * "balance url_param check_post" should have been the only way to get
-	 * into this. We were brought here after HTTP header analysis, so all
-	 * related structures are ready.
-	 */
-
-	if (msg->msg_state < HTTP_MSG_DATA) {
-		if (http_handle_expect_hdr(s, htx, msg) == -1)
-			goto return_int_err;
-	}
-
-	msg->msg_state = HTTP_MSG_DATA;
-
-	/* Now we're in HTTP_MSG_DATA. We just need to know if all data have
-	 * been received or if the buffer is full.
-	 */
-	if ((htx->flags & HTX_FL_EOM) || htx_get_tail_type(htx) > HTX_BLK_DATA ||
-	    channel_htx_full(req, htx, global.tune.maxrewrite))
-		goto http_end;
-
-	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
-		txn->status = 408;
-		if (!(s->flags & SF_ERR_MASK))
-			s->flags |= SF_ERR_CLITO;
-		_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
-		if (sess->listener && sess->listener->counters)
-			_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+	case HTTP_RULE_RES_ABRT:
 		goto return_prx_cond;
-	}
-
-	/* we get here if we need to wait for more data */
-	if (!(req->flags & (CF_SHUTR | CF_READ_ERROR))) {
-		/* Not enough data. We'll re-use the http-request
-		 * timeout here. Ideally, we should set the timeout
-		 * relative to the accept() date. We just set the
-		 * request timeout once at the beginning of the
-		 * request.
-		 */
-		channel_dont_connect(req);
-		if (!tick_isset(req->analyse_exp))
-			req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
-		DBG_TRACE_DEVEL("waiting for more data",
-				STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
-		return 0;
+	default:
+		goto return_int_err;
 	}
 
  http_end:
@@ -982,6 +940,12 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 	return 1;
 
+ missing_data_or_waiting:
+	channel_dont_connect(req);
+	DBG_TRACE_DEVEL("waiting for more data",
+			STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
+	return 0;
+
  return_int_err:
 	txn->status = 500;
 	if (!(s->flags & SF_ERR_MASK))
@@ -991,7 +955,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
-	goto return_prx_cond;
+	goto return_prx_err;
 
  return_bad_req: /* let's centralize all bad requests */
 	txn->status = 400;
@@ -1000,9 +964,11 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
 	/* fall through */
 
- return_prx_cond:
+ return_prx_err:
 	http_reply_and_close(s, txn->status, http_error_message(s));
+	/* fall through */
 
+ return_prx_cond:
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
 	if (!(s->flags & SF_FINST_MASK))
@@ -4132,6 +4098,115 @@ static int http_handle_stats(struct stream *s, struct channel *req)
 
 	s->task->nice = -32; /* small boost for HTTP statistics */
 	return 1;
+}
+
+/* This function waits for the message payload at most <time> milliseconds (may
+ * be set to TICK_ETERNITY). It stops to wait if at least <bytes> bytes of the
+ * payload are received (0 means no limit). It returns HTTP_RULE_* depending on
+ * the result:
+ *
+ *   - HTTP_RULE_RES_CONT when  conditions are met to stop waiting
+ *   - HTTP_RULE_RES_YIELD to wait for more data
+ *   - HTTP_RULE_RES_ABRT when a timeout occured.
+ *   - HTTP_RULE_RES_BADREQ if a parsing error is raised by lower level
+ *   - HTTP_RULE_RES_ERROR if an internal error occured
+ *
+ * If a timeout occured, this function is responsible to emit the right response
+ * to the client, depending on the channel (408 on request side, 504 on response
+ * side). All other errors must be handled by the caller.
+ */
+enum rule_result http_wait_for_msg_body(struct stream *s, struct channel *chn,
+					unsigned int time, unsigned int bytes)
+{
+	struct session *sess = s->sess;
+	struct http_txn *txn = s->txn;
+	struct http_msg *msg = ((chn->flags & CF_ISRESP) ? &txn->rsp : &txn->req);
+	struct htx *htx;
+	enum rule_result ret = HTTP_RULE_RES_CONT;
+
+	htx = htxbuf(&chn->buf);
+
+	if (htx->flags & HTX_FL_PARSING_ERROR) {
+		ret = HTTP_RULE_RES_BADREQ;
+		goto end;
+	}
+	if (htx->flags & HTX_FL_PROCESSING_ERROR) {
+		ret = HTTP_RULE_RES_ERROR;
+		goto end;
+	}
+
+	/* Do nothing for bodyless and CONNECT requests */
+	if (txn->meth == HTTP_METH_CONNECT || (msg->flags & HTTP_MSGF_BODYLESS))
+		goto end;
+
+	if (!(chn->flags & CF_ISRESP) && msg->msg_state < HTTP_MSG_DATA) {
+		if (http_handle_expect_hdr(s, htx, msg) == -1) {
+			ret = HTTP_RULE_RES_ERROR;
+			goto end;
+		}
+	}
+
+	msg->msg_state = HTTP_MSG_DATA;
+
+	/* Now we're in HTTP_MSG_DATA. We just need to know if all data have
+	 * been received or if the buffer is full.
+	 */
+	if ((htx->flags & HTX_FL_EOM) || htx_get_tail_type(htx) > HTX_BLK_DATA ||
+	    channel_htx_full(chn, htx, global.tune.maxrewrite))
+		goto end;
+
+	if (bytes) {
+		struct htx_blk *blk;
+		unsigned int len = 0;
+
+		for (blk = htx_get_first_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+			if (htx_get_blk_type(blk) != HTX_BLK_DATA)
+				continue;
+			len += htx_get_blksz(blk);
+			if (len >= bytes)
+				goto end;
+		}
+	}
+
+	if ((chn->flags & CF_READ_TIMEOUT) || tick_is_expired(chn->analyse_exp, now_ms)) {
+		if (!(chn->flags & CF_ISRESP))
+			goto abort_req;
+		goto abort_res;
+	}
+
+	/* we get here if we need to wait for more data */
+	if (!(chn->flags & (CF_SHUTR | CF_READ_ERROR))) {
+		if (!tick_isset(chn->analyse_exp))
+			chn->analyse_exp = tick_add_ifset(now_ms, time);
+		ret = HTTP_RULE_RES_YIELD;
+	}
+
+  end:
+	return ret;
+
+  abort_req:
+	txn->status = 408;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_CLITO;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_D;
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+	http_reply_and_close(s, txn->status, http_error_message(s));
+	ret = HTTP_RULE_RES_ABRT;
+	goto end;
+
+  abort_res:
+	txn->status = 504;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_SRVTO;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_D;
+	stream_inc_http_fail_ctr(s);
+	http_reply_and_close(s, txn->status, http_error_message(s));
+	ret = HTTP_RULE_RES_ABRT;
+	goto end;
 }
 
 void http_perform_server_redirect(struct stream *s, struct stream_interface *si)

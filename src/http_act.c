@@ -2072,6 +2072,111 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
 	return ACT_RET_PRS_OK;
 }
 
+
+
+/* This function executes a wait-for-body action. It waits for the message
+ * payload for a max configured time (.arg.p[0]) and eventually for only first
+ * <arg.p[1]> bytes (0 means no limit). It relies on http_wait_for_msg_body()
+ * function. it returns ACT_RET_CONT when conditions are met to stop to wait.
+ * Otherwise ACT_RET_YIELD is returned to wait for more data. ACT_RET_INV is
+ * returned if a parsing error is raised by lower level and ACT_RET_ERR if an
+ * internal error occured. Finally ACT_RET_ABRT is returned when a timeout
+ * occured.
+ */
+static enum act_return http_action_wait_for_body(struct act_rule *rule, struct proxy *px,
+						 struct session *sess, struct stream *s, int flags)
+{
+	struct channel *chn = ((rule->from == ACT_F_HTTP_REQ) ? &s->req : &s->res);
+	unsigned int time = (uintptr_t)rule->arg.act.p[0];
+	unsigned int bytes = (uintptr_t)rule->arg.act.p[1];
+
+	switch (http_wait_for_msg_body(s, chn, time, bytes)) {
+	case HTTP_RULE_RES_CONT:
+		return ACT_RET_CONT;
+	case HTTP_RULE_RES_YIELD:
+		return ACT_RET_YIELD;
+	case HTTP_RULE_RES_BADREQ:
+		return ACT_RET_INV;
+	case HTTP_RULE_RES_ERROR:
+		return ACT_RET_ERR;
+	case HTTP_RULE_RES_ABRT:
+		return ACT_RET_ABRT;
+	default:
+		return ACT_RET_ERR;
+	}
+}
+
+/* Parse a "wait-for-body" action. It returns ACT_RET_PRS_OK on success,
+ * ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_wait_for_body(const char **args, int *orig_arg, struct proxy *px,
+						   struct act_rule *rule, char **err)
+{
+	int cur_arg;
+	unsigned int time, bytes;
+	const char *res;
+
+	cur_arg = *orig_arg;
+	if (!*args[cur_arg]) {
+		memprintf(err, "expects time <time> [ at-least <bytes> ]");
+		return ACT_RET_PRS_ERR;
+	}
+
+	time = UINT_MAX; /* To be sure it is set */
+	bytes = 0; /* Default value, wait all the body */
+	while (*(args[cur_arg])) {
+		if (strcmp(args[cur_arg], "time") == 0) {
+			if (!*args[cur_arg + 1]) {
+				memprintf(err, "missing argument for '%s'", args[cur_arg]);
+				return ACT_RET_PRS_ERR;
+			}
+			res = parse_time_err(args[cur_arg+1], &time, TIME_UNIT_MS);
+			if (res == PARSE_TIME_OVER) {
+				memprintf(err, "time overflow (maximum value is 2147483647 ms or ~24.8 days)");
+				return ACT_RET_PRS_ERR;
+			}
+			if (res == PARSE_TIME_UNDER) {
+				memprintf(err, "time underflow (minimum non-null value is 1 ms)");
+				return ACT_RET_PRS_ERR;
+			}
+			if (res) {
+				memprintf(err, "unexpected character '%c'", *res);
+				return ACT_RET_PRS_ERR;
+			}
+			cur_arg++;
+		}
+		else if (strcmp(args[cur_arg], "at-least") == 0) {
+			if (!*args[cur_arg + 1]) {
+				memprintf(err, "missing argument for '%s'", args[cur_arg]);
+				return ACT_RET_PRS_ERR;
+			}
+			res = parse_size_err(args[cur_arg+1], &bytes);
+			if (res) {
+				memprintf(err, "unexpected character '%c'", *res);
+				return ACT_RET_PRS_ERR;
+			}
+			cur_arg++;
+		}
+		else
+			break;
+		cur_arg++;
+	}
+
+	if (time == UINT_MAX) {
+		memprintf(err, "expects time <time> [ at-least <bytes> ]");
+		return ACT_RET_PRS_ERR;
+	}
+
+	rule->arg.act.p[0] = (void *)(uintptr_t)time;
+	rule->arg.act.p[1] = (void *)(uintptr_t)bytes;
+
+	*orig_arg = cur_arg;
+
+	rule->action = ACT_CUSTOM;
+	rule->action_ptr = http_action_wait_for_body;
+	return ACT_RET_PRS_OK;
+}
+
 /************************************************************************/
 /*   All supported http-request action keywords must be declared here.  */
 /************************************************************************/
@@ -2112,6 +2217,7 @@ static struct action_kw_list http_req_actions = {
 		{ "tarpit",           parse_http_deny,                 0 },
 		{ "track-sc",         parse_http_track_sc,             1 },
 		{ "set-timeout",      parse_http_set_timeout,          0 },
+		{ "wait-for-body",    parse_http_wait_for_body,        0 },
 		{ NULL, NULL }
 	}
 };
@@ -2141,6 +2247,7 @@ static struct action_kw_list http_res_actions = {
 		{ "set-tos",         parse_http_set_tos,        0 },
 		{ "strict-mode",     parse_http_strict_mode,    0 },
 		{ "track-sc",        parse_http_track_sc,       1 },
+		{ "wait-for-body",   parse_http_wait_for_body,  0 },
 		{ NULL, NULL }
 	}
 };
