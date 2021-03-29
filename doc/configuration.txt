@@ -4263,7 +4263,7 @@ compression offload
   Compression is disabled when:
     * the request does not advertise a supported compression algorithm in the
       "Accept-Encoding" header
-    * the response message is not HTTP/1.1
+    * the response message is not HTTP/1.1 or above
     * HTTP status code is not one of 200, 201, 202, or 203
     * response contain neither a "Content-Length" header nor a
       "Transfer-Encoding" whose last value is "chunked"
