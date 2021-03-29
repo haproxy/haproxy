@@ -1,0 +1,137 @@
+#REGTEST_TYPE=devel
+
+# This test uses the "new ssl ca-file" and "del ssl ca-file" commands to create
+# a new CA file or delete an unused CA file.
+#
+# It requires socat to upload the CA file.
+#
+# If this test does not work anymore:
+# - Check that you have socat
+
+varnishtest "Test the 'new ssl ca-file' and 'del ssl ca-file' commands of the CLI"
+#REQUIRE_VERSION=2.5
+#REQUIRE_OPTIONS=OPENSSL
+#REQUIRE_BINARIES=socat
+feature ignore_unknown_macro
+
+server s1 -repeat 2 {
+  rxreq
+  txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        stats socket "${tmpdir}/h1/stats" level admin
+        crt-base ${testdir}
+
+    defaults
+        mode http
+        option httplog
+        ${no-htx} option http-use-htx
+        log stderr local0 debug err
+        option logasap
+        timeout connect 100ms
+        timeout client  1s
+        timeout server  1s
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        balance roundrobin
+        use_backend with_ca_be if { path /with-ca }
+        default_backend default_be
+
+    backend default_be
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/set_cafile_client.pem sni str(www.test1.com)
+
+    backend with_ca_be
+        server s1 "${tmpdir}/ssl.sock" ssl verify none crt ${testdir}/set_cafile_client.pem sni str(with-ca.com)
+
+    listen ssl-lst
+        bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/localhost.crt-list ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA2.crt verify required crt-ignore-err all
+        http-response add-header X-SSL-Client-Verify %[ssl_c_verify]
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+# Request using the default backend and the www.test1.com sni
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    # The CA file known by the frontend does not allow to verify the client's certificate
+    expect resp.http.X-SSL-Client-Verify == 21
+} -run
+
+# This connection should fail because the with-ca.com sni is not mentioned in the crt-list yet.
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/with-ca"
+    rxresp
+    expect resp.status == 503
+} -run
+
+# Create a new unlinked CA file
+haproxy h1 -cli {
+    send "new ssl ca-file new_cafile.crt"
+    expect ~ "New CA file created 'new_cafile.crt'!"
+}
+
+shell {
+    printf "set ssl ca-file new_cafile.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file new_cafile.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl ca-file"
+    expect ~ ".*new_cafile.crt - 1 certificate.*"
+
+    send "show ssl ca-file new_cafile.crt"
+    expect ~ ".*SHA1 FingerPrint: 4FFF535278883264693CEA72C4FAD13F995D0098"
+}
+
+# The new CA file is still not linked anywhere so the request should fail.
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/with-ca"
+    rxresp
+    expect resp.status == 503
+} -run
+
+# Add a new certificate that will use the new CA file
+shell {
+    echo "new ssl cert ${testdir}/set_cafile_server.pem" | socat "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/set_cafile_server.pem <<\n$(cat ${testdir}/set_cafile_server.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl cert ${testdir}/set_cafile_server.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+# Create a new crt-list line that will use the new CA file
+shell {
+    printf "add ssl crt-list ${testdir}/localhost.crt-list <<\n${testdir}/set_cafile_server.pem [ca-file new_cafile.crt] with-ca.com\n\n" | socat "${tmpdir}/h1/stats" -
+}
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/with-ca"
+    rxresp
+    expect resp.status == 200
+    # Thanks to the newly added CA file, the client's certificate can be verified
+    expect resp.http.X-SSL-Client-Verify == 0
+} -run
+
+# Delete the newly added crt-list line and CA file
+haproxy h1 -cli {
+    send "del ssl crt-list ${testdir}/localhost.crt-list ${testdir}/set_cafile_server.pem"
+    expect ~ "Entry '${testdir}/set_cafile_server.pem' deleted in crtlist '${testdir}/localhost.crt-list'!"
+
+    send "del ssl ca-file new_cafile.crt"
+    expect ~ "CA file 'new_cafile.crt' deleted!"
+
+    send "show ssl ca-file"
+    expect !~ "new_cafile.crt"
+}
+
+# The connection should now fail since the crt-list line was deleted
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/with-ca"
+    rxresp
+    expect resp.status == 503
+} -run
+
