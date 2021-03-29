@@ -579,6 +579,11 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		HA_DIAG_WARNING_COND(global.nbthread,
+		                     "parsing [%s:%d] : nbthread is already defined and will be overridden.\n",
+		                     file, linenum);
+
 		global.nbthread = parse_nbthread(args[1], &errmsg);
 		if (!global.nbthread) {
 			ha_alert("parsing [%s:%d] : '%s' %s.\n",
