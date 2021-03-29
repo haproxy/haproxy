@@ -1134,6 +1134,42 @@ void ha_warning(const char *fmt, ...)
 }
 
 /*
+ * Variant of _ha_diag_warning with va_list.
+ * Use it only if MODE_DIAG has been previously checked.
+ */
+void _ha_vdiag_warning(const char *fmt, va_list argp)
+{
+	print_message("DIAG/WARNING", fmt, argp);
+}
+
+/*
+ * Output a diagnostic warning.
+ * Use it only if MODE_DIAG has been previously checked.
+ */
+void _ha_diag_warning(const char *fmt, ...)
+{
+	va_list argp;
+
+	va_start(argp, fmt);
+	_ha_vdiag_warning(fmt, argp);
+	va_end(argp);
+}
+
+/*
+ * Output a diagnostic warning. Do nothing of MODE_DIAG is not on.
+ */
+void ha_diag_warning(const char *fmt, ...)
+{
+	va_list argp;
+
+	if (global.mode & MODE_DIAG) {
+		va_start(argp, fmt);
+		_ha_vdiag_warning(fmt, argp);
+		va_end(argp);
+	}
+}
+
+/*
  * Displays the message on stderr with the date and pid.
  */
 void ha_notice(const char *fmt, ...)

@@ -75,6 +75,22 @@ void ha_warning(const char *fmt, ...)
 	__attribute__ ((format(printf, 1, 2)));
 
 /*
+ * These functions are reserved to output diagnostics on MODE_DIAG.
+ * Use the underscore variants only if MODE_DIAG has already been checked.
+ */
+void _ha_vdiag_warning(const char *fmt, va_list argp);
+void _ha_diag_warning(const char *fmt, ...);
+void ha_diag_warning(const char *fmt, ...)
+	__attribute__ ((format(printf, 1 ,2)));
+
+/* Check for both MODE_DIAG and <cond> before outputting a diagnostic warning */
+#define HA_DIAG_WARNING_COND(cond, fmt, ...)                  \
+	do {                                                  \
+		if ((global.mode & MODE_DIAG) && (cond))      \
+			_ha_diag_warning((fmt), __VA_ARGS__); \
+	} while (0)
+
+/*
  * Displays the message on stderr with the date and pid.
  */
 void ha_notice(const char *fmt, ...)

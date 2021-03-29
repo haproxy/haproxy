@@ -403,6 +403,7 @@ static void usage(char *name)
 		"        -dr ignores server address resolution failures\n"
 		"        -dV disables SSL verify on servers side\n"
 		"        -dW fails if any warning is emitted\n"
+		"        -dD diagnostic mode : warn about suspicious configuration statements\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids.\n"
 		"        -x <unix_socket> get listening sockets from a unix socket\n"
 		"        -S <bind>[,<bind options>...] new master CLI\n"
@@ -1401,6 +1402,8 @@ static void init(int argc, char **argv)
 				arg_mode |= MODE_VERBOSE;
 			else if (*flag == 'd' && flag[1] == 'b')
 				arg_mode |= MODE_FOREGROUND;
+			else if (*flag == 'd' && flag[1] == 'D')
+				arg_mode |= MODE_DIAG;
 			else if (*flag == 'd' && flag[1] == 'W')
 				arg_mode |= MODE_ZERO_WARNING;
 			else if (*flag == 'd' && flag[1] == 'M')
@@ -1541,7 +1544,8 @@ static void init(int argc, char **argv)
 	}
 
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
-				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING));
+				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING
+				    | MODE_DIAG));
 
 	if (getenv("HAPROXY_MWORKER_WAIT_ONLY")) {
 		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
