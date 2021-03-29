@@ -984,7 +984,7 @@ smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw
 	}
 	max = global.tune.bufsize;
 	if (!head)
-		return 0;
+		goto too_short;
 
 	if (len_offset + len_size > data)
 		goto too_short;
@@ -1046,7 +1046,7 @@ smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, v
 	}
 	max = global.tune.bufsize;
 	if (!head)
-		return 0;
+		goto too_short;
 
 	if (buf_size > max || buf_offset + buf_size > max) {
 		/* will never match */
