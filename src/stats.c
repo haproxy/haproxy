@@ -1079,13 +1079,13 @@ static int stats_dump_fields_html(struct buffer *out,
 		    strcmp(field_str(stats, ST_F_STATUS), "DOWN (agent)") == 0) {
 			style = "down";
 		}
-		else if (strcmp(field_str(stats, ST_F_STATUS), "DOWN ") == 0) {
+		else if (strncmp(field_str(stats, ST_F_STATUS), "DOWN ", strlen("DOWN ")) == 0) {
 			style = "going_up";
 		}
 		else if (strcmp(field_str(stats, ST_F_STATUS), "DRAIN") == 0) {
 			style = "draining";
 		}
-		else if (strcmp(field_str(stats, ST_F_STATUS), "NOLB ") == 0) {
+		else if (strncmp(field_str(stats, ST_F_STATUS), "NOLB ", strlen("NOLB ")) == 0) {
 			style = "going_down";
 		}
 		else if (strcmp(field_str(stats, ST_F_STATUS), "NOLB") == 0) {
