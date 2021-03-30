@@ -87,6 +87,7 @@
 #include <haproxy/auth.h>
 #include <haproxy/base64.h>
 #include <haproxy/capture-t.h>
+#include <haproxy/cfgdiag.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
@@ -1804,6 +1805,10 @@ static void init(int argc, char **argv)
 		}
 		qfprintf(stdout, "Configuration file has no error but will not start (no listener) => exit(2).\n");
 		exit(2);
+	}
+
+	if (global.mode & MODE_DIAG) {
+		cfg_run_diagnostics();
 	}
 
 	/* now we know the buffer size, we can initialize the channels and buffers */
