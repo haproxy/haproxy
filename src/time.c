@@ -268,7 +268,7 @@ void tv_update_date(int max_wait, int interrupted)
 	old_now_ms = global_now_ms;
 	do {
 		new_now_ms = old_now_ms;
-		if (tick_is_lt(new_now_ms, now_ms))
+		if (tick_is_lt(new_now_ms, now_ms) || !new_now_ms)
 			new_now_ms = now_ms;
 	}  while (!_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, new_now_ms));
 
