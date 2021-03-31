@@ -193,6 +193,19 @@ static int thread_cpus_enabled()
 	return ret;
 }
 
+/* Returns 1 if the cpu set is currently restricted for the process else 0.
+ * Currently only implemented for the Linux platform.
+ */
+int thread_cpu_mask_forced()
+{
+#if defined(__linux__)
+	const int cpus_avail = sysconf(_SC_NPROCESSORS_ONLN);
+	return cpus_avail != thread_cpus_enabled();
+#else
+	return 0;
+#endif
+}
+
 /* Depending on the platform and how libpthread was built, pthread_exit() may
  * involve some code in libgcc_s that would be loaded on exit for the first
  * time, causing aborts if the process is chrooted. It's harmless bit very

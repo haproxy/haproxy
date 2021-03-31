@@ -277,6 +277,10 @@ static inline unsigned long thread_isolated()
 	return threads_want_rdv_mask & ~threads_harmless_mask & tid_bit;
 }
 
+/* Returns 1 if the cpu set is currently restricted for the process else 0.
+ * Currently only implemented for the Linux platform.
+ */
+int thread_cpu_mask_forced();
 
 #if !defined(DEBUG_THREAD) && !defined(DEBUG_FULL)
 
