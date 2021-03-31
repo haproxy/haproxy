@@ -1,0 +1,161 @@
+varnishtest "Test connection upgrades from TCP to HTTP"
+
+#REQUIRE_VERSION=2.4
+
+feature ignore_unknown_macro
+
+server s1 {
+    # TCP > H1 using "switch-mode http"
+    rxreq
+    expect req.http.x-stream-mode == tcp
+    expect req.http.x-name == fe1
+    txresp
+    rxreq
+    expect req.http.x-stream-mode == http
+    expect req.http.x-name == fe1
+    txresp
+
+    accept
+
+    # TCP > H1 using backend mode
+    rxreq
+    expect req.http.x-name == be
+    txresp
+    rxreq
+    expect req.http.x-name == be
+    txresp
+
+    accept
+
+    # TCP > H2 using "switch-mode http"
+    rxreq
+    expect req.http.x-stream-mode == http
+    expect req.http.x-name == fe1
+    txresp
+    rxreq
+    expect req.http.x-stream-mode == http
+    expect req.http.x-name == fe1
+    txresp
+
+    # To be sure no other request was received
+    accept
+    rxreq
+    txresp
+} -start
+
+haproxy h1 -conf {
+    frontend fe1
+        mode tcp
+        bind "fd@${fe1h1}"
+
+        tcp-request inspect-delay 1s
+        tcp-request content set-var(req.stream_mode) internal.strm.is_htx,iif(http,tcp)
+        tcp-request content switch-mode http if HTTP
+        tcp-request content reject # never reached
+
+        http-request set-header x-stream-mode %[var(req.stream_mode)]
+        http-request set-header x-name %[fe_name]
+
+        default_backend be
+
+    frontend fe2
+        mode tcp
+        bind "fd@${fe2h1}"
+        default_backend be
+
+    backend be
+        mode http
+        http-request set-header x-name %[be_name] unless { req.fhdr(x-name) -m found }
+        server s1 ${s1_addr}:${s1_port}
+
+    listen li1
+        mode http
+        bind "fd@${li1h1}"
+        server s1 ${h1_fe1h1_addr}:${h1_fe1h1_port} proto h2
+
+    listen err1
+        mode http
+        bind "fd@${err1h1}" proto h1
+        server s1 ${s1_addr}:${s1_port}
+
+    listen err2
+        mode tcp
+        bind "fd@${err2h1}"
+
+        tcp-request inspect-delay 1s
+        tcp-request content switch-mode http proto h1 if HTTP
+        tcp-request content reject # never reached
+
+        default_backend be
+
+    listen err3
+        mode tcp
+        bind "fd@${err3h1}" proto none
+
+        tcp-request inspect-delay 1s
+        tcp-request content switch-mode http if HTTP
+        tcp-request content reject # never reached
+
+        default_backend be
+} -start
+
+# TCP > H1 using "switch-mode http"
+client c1 -connect ${h1_fe1h1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+# TCP > H1 using backend mode
+client c2 -connect ${h1_fe2h1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+
+# TCP > H2 using "switch-mode http"
+client c3 -connect ${h1_li1h1_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+# implicit H1 > H2 upgrade not performed
+client c_err1 -connect ${h1_err1h1_sock} {
+    send "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+    rxresp
+    expect resp.status == 400
+} -run
+
+
+# TCP > H1 > H2 upgrade not allowed
+client c_err2 -connect ${h1_err2h1_sock} {
+    send "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+    expect_close
+} -run
+
+
+# TCP > HTTP upgrade not allowed
+client c_err3 -connect ${h1_err3h1_sock} {
+    txreq
+    expect_close
+} -run
+
+# To be sure no other request was received by the server
+client c_end -connect ${s1_sock} {
+    txreq
+    rxresp
+} -run
