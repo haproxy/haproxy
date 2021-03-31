@@ -2554,6 +2554,14 @@ int check_config_validity()
 			}
 		}
 
+		/* Warn is a switch-mode http is used on a TCP listener with servers but no backend */
+		if (!curproxy->defbe.name && LIST_ISEMPTY(&curproxy->switching_rules) && curproxy->srv) {
+			if ((curproxy->options & PR_O_HTTP_UPG) && curproxy->mode == PR_MODE_TCP)
+				ha_warning("Proxy '%s' : 'switch-mode http' configured for a %s %s with no backend. "
+					   "Incoming connections upgraded to HTTP cannot be routed to TCP servers\n",
+					   curproxy->id, proxy_mode_str(curproxy->mode), proxy_type_str(curproxy));
+		}
+
 		if (curproxy->table && curproxy->table->peers.name) {
 			struct peers *curpeers;
 
