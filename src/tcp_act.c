@@ -211,8 +211,13 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 		setsockopt(conn->handle.fd, SOL_IP, IP_TTL, &one, sizeof(one));
 #endif
 #ifdef IPV6_UNICAST_HOPS
+#if defined(SOL_IPV6)
 	if (conn->src && conn->src->ss_family == AF_INET6)
 		setsockopt(conn->handle.fd, SOL_IPV6, IPV6_UNICAST_HOPS, &one, sizeof(one));
+#elif defined(IPPROTO_IPV6)
+	if (conn->src && conn->src->ss_family == AF_INET6)
+		setsockopt(conn->handle.fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &one, sizeof(one));
+#endif
 #endif
  out:
 	/* kill the stream if any */
