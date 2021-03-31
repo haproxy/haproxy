@@ -50,10 +50,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#ifndef SOL_TCP
-#define SOL_TCP IPPROTO_TCP
-#endif
-
 #ifndef MSG_MORE
 #define MSG_MORE 0
 #endif
@@ -316,7 +312,7 @@ int wait_on_fd(int fd, int events)
 
 int tcp_set_nodelay(int sock, const char *arg)
 {
-	return setsockopt(sock, SOL_TCP, TCP_NODELAY, &one, sizeof(one));
+	return setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
 }
 
 int tcp_set_nolinger(int sock, const char *arg)
@@ -328,7 +324,7 @@ int tcp_set_noquickack(int sock, const char *arg)
 {
 #ifdef TCP_QUICKACK
 	/* warning: do not use during connect if nothing is to be sent! */
-	return setsockopt(sock, SOL_TCP, TCP_QUICKACK, &zero, sizeof(zero));
+	return setsockopt(sock, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #else
 	return 0;
 #endif

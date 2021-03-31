@@ -182,7 +182,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	/* re-enable quickack if it was disabled to ack all data and avoid
 	 * retransmits from the client that might trigger a real reset.
 	 */
-	setsockopt(conn->handle.fd, SOL_TCP, TCP_QUICKACK, &one, sizeof(one));
+	setsockopt(conn->handle.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
 	/* lingering must absolutely be disabled so that we don't send a
 	 * shutdown(), this is critical to the TCP_REPAIR trick. When no stream
@@ -197,7 +197,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	fdtab[conn->handle.fd].linger_risk = 1;
 
 #ifdef TCP_REPAIR
-	if (setsockopt(conn->handle.fd, SOL_TCP, TCP_REPAIR, &one, sizeof(one)) == 0) {
+	if (setsockopt(conn->handle.fd, IPPROTO_TCP, TCP_REPAIR, &one, sizeof(one)) == 0) {
 		/* socket will be quiet now */
 		goto out;
 	}
@@ -208,16 +208,11 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	 */
 #ifdef IP_TTL
 	if (conn->src && conn->src->ss_family == AF_INET)
-		setsockopt(conn->handle.fd, SOL_IP, IP_TTL, &one, sizeof(one));
+		setsockopt(conn->handle.fd, IPPROTO_IP, IP_TTL, &one, sizeof(one));
 #endif
 #ifdef IPV6_UNICAST_HOPS
-#if defined(SOL_IPV6)
-	if (conn->src && conn->src->ss_family == AF_INET6)
-		setsockopt(conn->handle.fd, SOL_IPV6, IPV6_UNICAST_HOPS, &one, sizeof(one));
-#elif defined(IPPROTO_IPV6)
 	if (conn->src && conn->src->ss_family == AF_INET6)
 		setsockopt(conn->handle.fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &one, sizeof(one));
-#endif
 #endif
  out:
 	/* kill the stream if any */

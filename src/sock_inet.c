@@ -154,7 +154,7 @@ int sock_inet_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 		 * other families because v6-mapped IPv4 addresses are still
 		 * reported as v4.
 		 */
-		if (getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, sa, &salen) == 0)
+		if (getsockopt(fd, IPPROTO_IP, SO_ORIGINAL_DST, sa, &salen) == 0)
 			return 0;
 #endif
 		return ret;
@@ -174,12 +174,12 @@ int sock_inet_is_foreign(int fd, sa_family_t family)
 	case AF_INET:
 #if defined(IP_TRANSPARENT)
 		val = 0; len = sizeof(val);
-		if (getsockopt(fd, SOL_IP, IP_TRANSPARENT, &val, &len) == 0 && val)
+		if (getsockopt(fd, IPPROTO_IP, IP_TRANSPARENT, &val, &len) == 0 && val)
 			return 1;
 #endif
 #if defined(IP_FREEBIND)
 		val = 0; len = sizeof(val);
-		if (getsockopt(fd, SOL_IP, IP_FREEBIND, &val, &len) == 0 && val)
+		if (getsockopt(fd, IPPROTO_IP, IP_FREEBIND, &val, &len) == 0 && val)
 			return 1;
 #endif
 #if defined(IP_BINDANY)
@@ -195,14 +195,14 @@ int sock_inet_is_foreign(int fd, sa_family_t family)
 		break;
 
 	case AF_INET6:
-#if defined(IPV6_TRANSPARENT) && defined(SOL_IPV6)
+#if defined(IPV6_TRANSPARENT)
 		val = 0; len = sizeof(val);
-		if (getsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &val, &len) == 0 && val)
+		if (getsockopt(fd, IPPROTO_IPV6, IPV6_TRANSPARENT, &val, &len) == 0 && val)
 			return 1;
 #endif
 #if defined(IP_FREEBIND)
 		val = 0; len = sizeof(val);
-		if (getsockopt(fd, SOL_IP, IP_FREEBIND, &val, &len) == 0 && val)
+		if (getsockopt(fd, IPPROTO_IP, IP_FREEBIND, &val, &len) == 0 && val)
 			return 1;
 #endif
 #if defined(IPV6_BINDANY)
@@ -229,10 +229,10 @@ int sock_inet4_make_foreign(int fd)
 {
 	return
 #if defined(IP_TRANSPARENT)
-		setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == 0 ||
+		setsockopt(fd, IPPROTO_IP, IP_TRANSPARENT, &one, sizeof(one)) == 0 ||
 #endif
 #if defined(IP_FREEBIND)
-		setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0 ||
+		setsockopt(fd, IPPROTO_IP, IP_FREEBIND, &one, sizeof(one)) == 0 ||
 #endif
 #if defined(IP_BINDANY)
 		setsockopt(fd, IPPROTO_IP, IP_BINDANY, &one, sizeof(one)) == 0 ||
@@ -251,11 +251,11 @@ int sock_inet4_make_foreign(int fd)
 int sock_inet6_make_foreign(int fd)
 {
 	return
-#if defined(IPV6_TRANSPARENT) && defined(SOL_IPV6)
-		setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == 0 ||
+#if defined(IPV6_TRANSPARENT)
+		setsockopt(fd, IPPROTO_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == 0 ||
 #endif
 #if defined(IP_FREEBIND)
-		setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0 ||
+		setsockopt(fd, IPPROTO_IP, IP_FREEBIND, &one, sizeof(one)) == 0 ||
 #endif
 #if defined(IPV6_BINDANY)
 		setsockopt(fd, IPPROTO_IPV6, IPV6_BINDANY, &one, sizeof(one)) == 0 ||

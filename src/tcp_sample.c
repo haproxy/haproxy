@@ -260,7 +260,7 @@ static inline int get_tcp_info(const struct arg *args, struct sample *smp,
 	/* The fd may not be available for the tcp_info struct, and the
 	  syscal can fail. */
 	optlen = sizeof(info);
-	if (getsockopt(conn->handle.fd, SOL_TCP, TCP_INFO, &info, &optlen) == -1)
+	if (getsockopt(conn->handle.fd, IPPROTO_TCP, TCP_INFO, &info, &optlen) == -1)
 		return 0;
 
 	/* extract the value. */

@@ -443,7 +443,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 		else {
 #ifdef IP_BIND_ADDRESS_NO_PORT
 			static THREAD_LOCAL int bind_address_no_port = 1;
-			setsockopt(fd, SOL_IP, IP_BIND_ADDRESS_NO_PORT, (const void *) &bind_address_no_port, sizeof(int));
+			setsockopt(fd, IPPROTO_IP, IP_BIND_ADDRESS_NO_PORT, (const void *) &bind_address_no_port, sizeof(int));
 #endif
 			ret = tcp_bind_socket(fd, flags, &src->source_addr, conn->src);
 			if (ret != 0)
