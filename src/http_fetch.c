@@ -1004,7 +1004,7 @@ static int smp_fetch_hdr_ip(const struct arg *args, struct sample *smp, const ch
 			       smp->data.u.str.data);
 			temp->area[smp->data.u.str.data] = '\0';
 			len = url2ipv4((char *) temp->area, &smp->data.u.ipv4);
-			if (len == smp->data.u.str.data) {
+			if (len > 0 && len == smp->data.u.str.data) {
 				/* plain IPv4 address */
 				smp->data.type = SMP_T_IPV4;
 				break;
