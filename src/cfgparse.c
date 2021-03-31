@@ -1465,6 +1465,23 @@ cfg_parse_track_sc_num(unsigned int *track_sc_num,
 }
 
 /*
+ * Detect a global section after a non-global one and output a diagnostic
+ * warning.
+ */
+static void check_section_position(char *section_name,
+                                   const char *file, int linenum,
+                                   int *non_global_parsed)
+{
+	if (!strcmp(section_name, "global")) {
+		if (*non_global_parsed == 1)
+		        _ha_diag_warning("parsing [%s:%d] : global section detected after a non-global one, the prevalence of their statements is unspecified\n", file, linenum);
+	}
+	else if (*non_global_parsed == 0) {
+		*non_global_parsed = 1;
+	}
+}
+
+/*
  * This function reads and parses the configuration file given in the argument.
  * Returns the error code, 0 if OK, or any combination of :
  *  - ERR_ABORT: must abort ASAP
@@ -1491,6 +1508,7 @@ int readcfgfile(const char *file)
 	int missing_lf = -1;
 	int nested_cond_lvl = 0;
 	enum nested_cond_state nested_conds[MAXNESTEDCONDS];
+	int non_global_section_parsed = 0;
 
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
 		ha_alert("parsing [%s] : out of memory.\n", file);
@@ -1827,6 +1845,12 @@ next_line:
 				cursection = ics->section_name;
 				pcs = cs;
 				cs = ics;
+
+				if (global.mode & MODE_DIAG) {
+					check_section_position(args[0], file, linenum,
+					                       &non_global_section_parsed);
+				}
+
 				break;
 			}
 		}
