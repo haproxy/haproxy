@@ -1525,7 +1525,7 @@ static int smp_fetch_capture_req_ver(const struct arg *args, struct sample *smp,
 		return 0;
 
 	txn = smp->strm->txn;
-	if (!txn || txn->req.msg_state >= HTTP_MSG_BODY)
+	if (!txn || txn->req.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->req.flags & HTTP_MSGF_VER_11)
@@ -1551,7 +1551,7 @@ static int smp_fetch_capture_res_ver(const struct arg *args, struct sample *smp,
 		return 0;
 
 	txn = smp->strm->txn;
-	if (!txn || txn->rsp.msg_state >= HTTP_MSG_BODY)
+	if (!txn || txn->rsp.msg_state < HTTP_MSG_BODY)
 		return 0;
 
 	if (txn->rsp.flags & HTTP_MSGF_VER_11)
