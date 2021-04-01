@@ -19,11 +19,14 @@
 
 #define B64BASE	'#'		/* arbitrary chosen base value */
 #define B64CMIN	'+'
+#define UB64CMIN	'-'
 #define B64CMAX	'z'
 #define B64PADV	64		/* Base64 chosen special pad value */
 
 const char base64tab[65]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const char base64rev[]="b###cXYZ[\\]^_`a###d###$%&'()*+,-./0123456789:;<=######>?@ABCDEFGHIJKLMNOPQRSTUVW";
+const char ubase64tab[65]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+const char ubase64rev[]="b##XYZ[\\]^_`a###c###$%&'()*+,-./0123456789:;<=####c#>?@ABCDEFGHIJKLMNOPQRSTUVW";
 
 /* Encodes <ilen> bytes from <in> to <out> for at most <olen> chars (including
  * the trailing zero). Returns the number of bytes written. No check is made
@@ -63,6 +66,48 @@ int a2base64(char *in, int ilen, char *out, int olen)
 		}
 		out[3] = '=';
 		out[4] = '\0';
+	}
+
+	return convlen;
+}
+
+/* url variant of a2base64 */
+int a2base64url(const char *in, size_t ilen, char *out, size_t olen)
+{
+	int convlen;
+
+	convlen = ((ilen + 2) / 3) * 4;
+
+	if (convlen >= olen)
+		return -1;
+
+	/* we don't need to check olen anymore */
+	while (ilen >= 3) {
+		out[0] = ubase64tab[(((unsigned char)in[0]) >> 2)];
+		out[1] = ubase64tab[(((unsigned char)in[0] & 0x03) << 4) | (((unsigned char)in[1]) >> 4)];
+		out[2] = ubase64tab[(((unsigned char)in[1] & 0x0F) << 2) | (((unsigned char)in[2]) >> 6)];
+		out[3] = ubase64tab[(((unsigned char)in[2] & 0x3F))];
+		out += 4;
+		in += 3;
+		ilen -= 3;
+	}
+
+	if (!ilen) {
+		out[0] = '\0';
+		return convlen;
+	}
+
+	out[0] = ubase64tab[((unsigned char)in[0]) >> 2];
+	if (ilen == 1) {
+		out[1] = ubase64tab[((unsigned char)in[0] & 0x03) << 4];
+		out[2] = '\0';
+		convlen -= 2;
+	} else {
+		out[1] = ubase64tab[(((unsigned char)in[0] & 0x03) << 4) |
+		                    (((unsigned char)in[1]) >> 4)];
+		out[2] = ubase64tab[((unsigned char)in[1] & 0x0F) << 2];
+		out[3] = '\0';
+		convlen -= 1;
 	}
 
 	return convlen;
@@ -138,6 +183,72 @@ int base64dec(const char *in, size_t ilen, char *out, size_t olen) {
 	return convlen;
 }
 
+/* url variant of base64dec */
+/* The reverse tab used to decode base64 is generated via /dev/base64/base64rev-gen.c */
+int base64urldec(const char *in, size_t ilen, char *out, size_t olen)
+{
+	unsigned char t[4];
+	signed char b;
+	int convlen = 0, i = 0, pad = 0, padlen = 0;
+
+	if (olen < ((ilen / 4 * 3)))
+		return -2;
+
+	switch (ilen % 4) {
+		case 0:
+			break;
+		case 2:
+			padlen = pad = 2;
+			break;
+		case 3:
+			padlen = pad = 1;
+			break;
+		default:
+			return -1;
+	}
+
+	while (ilen + pad) {
+		if (ilen) {
+			/* if (*p < UB64CMIN || *p > B64CMAX) */
+			b = (signed char) * in - UB64CMIN;
+			if ((unsigned char)b > (B64CMAX - UB64CMIN))
+				return -1;
+
+			b = ubase64rev[b] - B64BASE - 1;
+			/* b == -1: invalid character */
+			if (b < 0)
+				return -1;
+
+			in++;
+			ilen--;
+
+		} else {
+			b = B64PADV;
+			pad--;
+		}
+
+		t[i++] = b;
+
+		if (i == 4) {
+			/*
+			 * WARNING: we allow to write little more data than we
+			 * should, but the checks from the beginning of the
+			 * functions guarantee that we can safely do that.
+			 */
+
+			/* xx000000 xx001111 xx111122 xx222222 */
+			out[convlen]   = ((t[0] << 2) + (t[1] >> 4));
+			out[convlen + 1] = ((t[1] << 4) + (t[2] >> 2));
+			out[convlen + 2] = ((t[2] << 6) + (t[3] >> 0));
+
+			convlen += 3;
+			i = 0;
+		}
+	}
+	convlen -= padlen;
+
+	return convlen;
+}
 
 /* Converts the lower 30 bits of an integer to a 5-char base64 string. The
  * caller is responsible for ensuring that the output buffer can accept 6 bytes

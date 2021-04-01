@@ -15660,11 +15660,14 @@ and(<value>)
 b64dec
   Converts (decodes) a base64 encoded input string to its binary
   representation. It performs the inverse operation of base64().
+  For base64url("URL and Filename Safe Alphabet" (RFC 4648)) variant
+  see "ub64dec".
 
 base64
   Converts a binary input sample to a base64 string. It is used to log or
   transfer binary content in a way that can be reliably transferred (e.g.
-  an SSL ID can be copied in a header).
+  an SSL ID can be copied in a header). For base64url("URL and Filename
+  Safe Alphabet" (RFC 4648)) variant see "ub64enc".
 
 bool
   Returns a boolean TRUE if the input value of type signed integer is
@@ -16564,6 +16567,18 @@ table_trackers(<table>)
   layer7 tracking. It can be used to tell a server how many concurrent
   connections there are from a given address for example. See also the
   sc_trackers sample fetch keyword.
+
+ub64dec
+  This converter is the base64url variant of b64dec converter. base64url
+  encoding is the "URL and Filename Safe Alphabet" variant of base64 encoding.
+  It is also the encoding used in JWT (JSON Web Token) standard.
+
+  Example:
+    # Decoding a JWT payload:
+    http-request set-var(txn.token_payload) req.hdr(Authorization),word(2,.),ub64dec
+
+ub64enc
+  This converter is the base64url variant of base64 converter.
 
 upper
   Convert a string sample to upper case. This can only be placed after a string

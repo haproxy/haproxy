@@ -1567,6 +1567,24 @@ static int sample_conv_base642bin(const struct arg *arg_p, struct sample *smp, v
 	return 1;
 }
 
+static int sample_conv_base64url2bin(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	int bin_len;
+
+	trash->data = 0;
+	bin_len = base64urldec(smp->data.u.str.area, smp->data.u.str.data,
+			    trash->area, trash->size);
+	if (bin_len < 0)
+		return 0;
+
+	trash->data = bin_len;
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_BIN;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct buffer *trash = get_trash_chunk();
@@ -1574,6 +1592,24 @@ static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, v
 
 	trash->data = 0;
 	b64_len = a2base64(smp->data.u.str.area, smp->data.u.str.data,
+			   trash->area, trash->size);
+	if (b64_len < 0)
+		return 0;
+
+	trash->data = b64_len;
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_STR;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
+static int sample_conv_bin2base64url(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	int b64_len;
+
+	trash->data = 0;
+	b64_len = a2base64url(smp->data.u.str.area, smp->data.u.str.data,
 			   trash->area, trash->size);
 	if (b64_len < 0)
 		return 0;
@@ -4096,6 +4132,8 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "debug",  sample_conv_debug,     ARG2(0,STR,STR), smp_check_debug, SMP_T_ANY,  SMP_T_ANY },
 	{ "b64dec", sample_conv_base642bin,0,            NULL, SMP_T_STR,  SMP_T_BIN  },
 	{ "base64", sample_conv_bin2base64,0,            NULL, SMP_T_BIN,  SMP_T_STR  },
+	{ "ub64dec", sample_conv_base64url2bin,0,        NULL, SMP_T_STR,  SMP_T_BIN  },
+	{ "ub64enc", sample_conv_bin2base64url,0,        NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "upper",  sample_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "length", sample_conv_length,    0,            NULL, SMP_T_STR,  SMP_T_SINT },

@@ -17,7 +17,9 @@
 #include <haproxy/api.h>
 
 int a2base64(char *in, int ilen, char *out, int olen);
+int a2base64url(const char *in, size_t ilen, char *out, size_t olen);
 int base64dec(const char *in, size_t ilen, char *out, size_t olen);
+int base64urldec(const char *in, size_t ilen, char *out, size_t olen);
 const char *s30tob64(int in, char *out);
 int b64tos30(const char *in);
 

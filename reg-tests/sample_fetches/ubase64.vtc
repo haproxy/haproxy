@@ -1,0 +1,51 @@
+varnishtest "ub64dec sample fetche Test"
+
+#REQUIRE_VERSION=2.4
+
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        timeout connect 1s
+        timeout client  1s
+        timeout server  1s
+
+    frontend fe
+        bind "fd@${fe}"
+				acl input hdr(encode) -m found
+        http-request return content-type text/plain hdr encode %[hdr(encode),ub64enc] hdr decode %[hdr(decode),ub64dec] if input
+        http-request return content-type text/plain hdr encode %[bin(14fb9c03d97f12d97e),ub64enc] hdr decode %[str(FPucA9l_Etl-),ub64dec,hex,lower] if !input
+
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+    txreq -hdr "encode: f" -hdr "decode: Zg"
+    rxresp
+    expect resp.http.encode == "Zg"
+    expect resp.http.decode == "f"
+    txreq -hdr "encode: fo" -hdr "decode: Zm8"
+    rxresp
+    expect resp.http.encode == "Zm8"
+    expect resp.http.decode == "fo"
+    txreq -hdr "encode: foo" -hdr "decode: Zm9v"
+    rxresp
+    expect resp.http.encode == "Zm9v"
+    expect resp.http.decode == "foo"
+    txreq -hdr "encode: foob" -hdr "decode: Zm9vYg"
+    rxresp
+    expect resp.http.encode == "Zm9vYg"
+    expect resp.http.decode == "foob"
+    txreq -hdr "encode: fooba" -hdr "decode: Zm9vYmE"
+    rxresp
+    expect resp.http.encode == "Zm9vYmE"
+    expect resp.http.decode == "fooba"
+    txreq -hdr "encode: foobar" -hdr "decode: Zm9vYmFy"
+    rxresp
+    expect resp.http.encode == "Zm9vYmFy"
+    expect resp.http.decode == "foobar"
+    txreq
+    rxresp
+    expect resp.http.encode == "FPucA9l_Etl-"
+    expect resp.http.decode == "14fb9c03d97f12d97e"
+} -run
