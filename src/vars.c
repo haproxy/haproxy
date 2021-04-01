@@ -873,7 +873,7 @@ static int vars_parse_global_set_var(char **args, int section_type, struct proxy
 static int vars_parse_cli_get_var(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	struct vars *vars;
-	struct sample smp;
+	struct sample smp = { };
 	int i;
 
 	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
