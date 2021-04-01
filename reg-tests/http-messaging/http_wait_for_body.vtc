@@ -1,0 +1,172 @@
+varnishtest "A test for the wait-for-body HTTP action"
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.4
+#REGTEST_TYPE=slow
+
+server s1 {
+    rxreq
+    expect req.bodylen == 1001
+    txresp
+
+    rxreq
+    expect req.bodylen == 1001
+    txresp
+} -start
+
+
+server s2 {
+    rxreq
+    send "HTTP/1.1 200 OK\r\n"
+    send "Content-Length: 1001\r\n\r\n"
+    delay 0.01
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+
+    expect_close
+    accept
+
+    rxreq
+    send "HTTP/1.1 200 OK\r\n"
+    send "Content-Length: 1001\r\n\r\n"
+    delay 0.01
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    delay 0.01
+    send "1"
+
+    rxreq
+    send "HTTP/1.1 201 OK\r\n"
+    send "Content-Length: 1001\r\n\r\n"
+    delay 0.01
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    delay 0.1
+    send "1"
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        timeout client  1s
+        timeout server  1s
+        timeout connect 1s
+
+    frontend fe1
+        bind "fd@${fe1}"
+        http-request wait-for-body time 100ms if { path /a }
+        http-request wait-for-body time 100ms at-least 1000 if { path /b }
+        use_backend be1
+
+    backend be1
+        server srv1 ${s1_addr}:${s1_port}
+
+    frontend fe2
+        bind "fd@${fe2}"
+        use_backend be2
+
+    backend be2
+        http-response wait-for-body time 100ms if { status eq 200 }
+        http-response wait-for-body time 100ms at-least 1000 if { status eq 201 }
+        server srv1 ${s2_addr}:${s2_port}
+} -start
+
+
+client c1 -connect ${h1_fe1_sock} {
+    send "GET /a HTTP/1.1\r\n"
+    send "Content-Length: 1001\r\n\r\n"
+    delay 0.01
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    rxresp
+    expect resp.status == 408
+} -run
+
+client c2 -connect ${h1_fe1_sock} {
+    send "GET /a HTTP/1.1\r\n"
+    send "Content-Length: 1001\r\n\r\n"
+    delay 0.01
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    delay 0.01
+    send "1"
+    rxresp
+    expect resp.status == 200
+
+    send "GET /b HTTP/1.1\r\n"
+    send "Content-Length: 1001\r\n\r\n"
+    delay 0.01
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    send "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789=====================================\n"
+    delay 0.1
+    send "1"
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c3 -connect ${h1_fe2_sock} {
+    txreq
+    rxresp
+    expect resp.status == 504
+} -run
+
+client c4 -connect ${h1_fe2_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.bodylen == 1001
+
+    txreq
+    rxresp
+    expect resp.status == 201
+    expect resp.bodylen == 1001
+} -run
