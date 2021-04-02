@@ -812,6 +812,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 {
 	struct smp_log_range *smp_rgs = NULL;
 	struct sockaddr_storage *sk;
+	struct protocol *proto;
 	struct logsrv *logsrv = NULL;
 	int port1, port2;
 	int cur_arg;
@@ -1035,8 +1036,9 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 		goto done;
 	}
 
-	sk = str2sa_range(args[1], NULL, &port1, &port2, &fd, NULL,
-	                  err, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_RAW_FD | PA_O_DGRAM);
+	sk = str2sa_range(args[1], NULL, &port1, &port2, &fd, &proto,
+	                  err, NULL, NULL,
+	                  PA_O_RESOLVE | PA_O_PORT_OK | PA_O_RAW_FD | PA_O_DGRAM | PA_O_STREAM | PA_O_DEFAULT_DGRAM);
 	if (!sk)
 		goto error;
 
@@ -1047,6 +1049,18 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 	if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
 		if (!port1)
 			set_host_port(&logsrv->addr, SYSLOG_PORT);
+	}
+
+	if (proto->ctrl_type == SOCK_STREAM) {
+		static unsigned long ring_ids;
+
+		/* Implicit sink buffer will be
+		 * initialized in post_check
+		 */
+		logsrv->type = LOG_TARGET_BUFFER;
+		logsrv->sink = NULL;
+		/* compute uniq name for the ring */
+		memprintf(&logsrv->ring_name, "ring#%lu", ++ring_ids);
 	}
 
  done:

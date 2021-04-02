@@ -7415,6 +7415,10 @@ no log
                  when used as a complement this can help troubleshooting by
                  having the logs instantly available.
 
+               - An explicit stream address prefix such as "tcp@","tcp6@",
+                 "tcp4@" or "uxst@" will allocate an implicit ring buffer with
+                 a stream forward server targeting the given address.
+
                You may want to reference some environment variables in the
                address parameter, see section 2.3 about environment variables.
 
@@ -7522,7 +7526,8 @@ no log
     log stdout format raw daemon            # send everything to stdout
     log stderr format raw daemon notice     # send important events to stderr
     log 127.0.0.1:514 local0 notice         # only send important events
-    log 127.0.0.1:514 local0 notice notice  # same but limit output level
+    log tcp@127.0.0.1:514 local0 notice notice  # same but limit output
+                                                # level and send in tcp
     log "${LOCAL_SYSLOG}:514" local0 notice   # send to local server
 
 

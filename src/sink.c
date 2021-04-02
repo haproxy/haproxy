@@ -918,6 +918,158 @@ err:
 	return err_code;
 }
 
+/* Creates an new sink buffer from a log server.
+ *
+ * It uses the logsrvaddress to declare a forward
+ * server for this buffer. And it initializes the
+ * forwarding.
+ *
+ * The function returns a pointer on the
+ * allocated struct sink if allocate
+ * and initialize succeed, else if it fails
+ * it returns NULL.
+ *
+ * Note: the sink is created using the name
+ *       specified inot logsrv->ring_name
+ */
+struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
+{
+	struct proxy *p = NULL;
+	struct sink *sink = NULL;
+	struct server *srv = NULL;
+	struct sink_forward_target *sft = NULL;
+	int i;
+
+	/* allocate new proxy to handle
+	 * forward to a stream server
+	 */
+	p = calloc(1, sizeof *p);
+	if (!p) {
+		goto error;
+        }
+
+	init_new_proxy(p);
+	sink_setup_proxy(p);
+	p->id = strdup(logsrv->ring_name);
+	p->conf.args.file = p->conf.file = strdup(logsrv->conf.file);
+	p->conf.args.line = p->conf.line = logsrv->conf.line;
+
+	/* allocate a new server to forward messages
+	 * from ring buffer
+	 */
+	srv = new_server(p);
+	if (!srv)
+		goto error;
+
+	/* init server */
+	srv->id = strdup(logsrv->ring_name);
+	srv->conf.file = strdup(logsrv->conf.file);
+	srv->conf.line = logsrv->conf.line;
+	srv->addr = logsrv->addr;
+        srv->svc_port = get_host_port(&logsrv->addr);
+	HA_SPIN_INIT(&srv->lock);
+
+	/* process per thread init */
+	srv->per_thr = calloc(global.nbthread, sizeof(*srv->per_thr));
+	if (!srv->per_thr)
+		goto error;
+
+	for (i = 0; i < global.nbthread; i++) {
+		srv->per_thr[i].idle_conns = EB_ROOT;
+		srv->per_thr[i].safe_conns = EB_ROOT;
+		srv->per_thr[i].avail_conns = EB_ROOT;
+		MT_LIST_INIT(&srv->per_thr[i].streams);
+	}
+
+	/* the servers are linked backwards
+	 * first into proxy
+	 */
+	p->srv = srv;
+	srv->next = p->srv;
+
+	/* allocate sink_forward_target descriptor */
+	sft = calloc(1, sizeof(*sft));
+	if (!sft)
+		goto error;
+
+	/* init sink_forward_target offset */
+	sft->srv = srv;
+	sft->appctx = NULL;
+	sft->ofs = ~0;
+	HA_SPIN_INIT(&sft->lock);
+
+	/* prepare descrition for sink */
+	chunk_reset(&trash);
+	chunk_printf(&trash, "created from logserver declared into '%s' at line %d", logsrv->conf.file, logsrv->conf.line);
+
+	/* allocate a new sink buffer */
+	sink = sink_new_buf(logsrv->ring_name, trash.area, logsrv->format, BUFSIZE);
+	if (!sink || sink->type != SINK_TYPE_BUFFER) {
+		goto error;
+	}
+
+	/* link sink_forward_target to proxy */
+	sink->forward_px = p;
+	p->parent = sink;
+
+	/* insert into sink_forward_targets
+	 * list into sink
+	 */
+	sft->next = sink->sft;
+	sink->sft = sft;
+
+	/* mark server as an attached reader to the ring */
+	if (!ring_attach(sink->ctx.ring)) {
+		/* should never fail since there is
+		 * only one reader
+		 */
+		goto error;
+	}
+
+	/* initialize sink buffer forwarding */
+	if (!sink_init_forward(sink))
+		goto error;
+
+	/* reset familyt of logsrv to consider the ring buffer target */
+	logsrv->addr.ss_family = AF_UNSPEC;
+
+	return sink;
+error:
+	if (p) {
+		if (p->id)
+			free(p->id);
+		if (p->conf.file)
+			free(p->conf.file);
+
+		free(p);
+	}
+
+	if (srv) {
+		if (srv->id)
+			free(srv->id);
+		if (srv->conf.file)
+			free((void *)srv->conf.file);
+		if (srv->per_thr)
+		       free(srv->per_thr);
+		free(srv);
+	}
+
+	if (sft)
+		free(sft);
+
+	if (sink) {
+		if (sink->ctx.ring)
+			ring_free(sink->ctx.ring);
+
+		LIST_DEL(&sink->sink_list);
+		free(sink->name);
+		free(sink->desc);
+		free(sink);
+	}
+
+	return NULL;
+}
+
 /*
  * Post parsing "ring" section.
  *
@@ -992,20 +1144,61 @@ int post_sink_resolve()
 	list_for_each_entry_safe(logsrv, logb, &global.logsrvs, list) {
 		if (logsrv->type == LOG_TARGET_BUFFER) {
 			sink = sink_find(logsrv->ring_name);
-			if (!sink || sink->type != SINK_TYPE_BUFFER) {
-				ha_alert("global log server declared in file '%s' at line %d uses unknown ring named '%s'.\n", logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
+			if (!sink) {
+				/* LOG_TARGET_BUFFER but !AF_UNSPEC
+				 * means we must allocate a sink
+				 * buffer to send messages to this logsrv
+				 */
+				if (logsrv->addr.ss_family != AF_UNSPEC) {
+					sink = sink_new_from_logsrv(logsrv);
+					if (!sink) {
+						ha_alert("global stream log server declared in file '%s' at line %d cannot be initialized'.\n",
+						         logsrv->conf.file, logsrv->conf.line);
+						err_code |= ERR_ALERT | ERR_FATAL;
+					}
+				}
+				else {
+					ha_alert("global log server declared in file '%s' at line %d uses unknown ring named '%s'.\n",
+					         logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
+					err_code |= ERR_ALERT | ERR_FATAL;
+				}
+			}
+			else if (sink->type != SINK_TYPE_BUFFER) {
+				ha_alert("global log server declared in file '%s' at line %d uses incompatible ring '%s'.\n",
+				         logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
 				err_code |= ERR_ALERT | ERR_FATAL;
 			}
 			logsrv->sink = sink;
 		}
+
 	}
 
 	for (px = proxies_list; px; px = px->next) {
 		list_for_each_entry_safe(logsrv, logb, &px->logsrvs, list) {
 			if (logsrv->type == LOG_TARGET_BUFFER) {
 				sink = sink_find(logsrv->ring_name);
-				if (!sink || sink->type != SINK_TYPE_BUFFER) {
-					ha_alert("log server declared in proxy section '%s' in file '%s' at line %d uses unknown ring named '%s'.\n", px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
+				if (!sink) {
+					/* LOG_TARGET_BUFFER but !AF_UNSPEC
+					 * means we must allocate a sink
+					 * buffer to send messages to this logsrv
+					 */
+					if (logsrv->addr.ss_family != AF_UNSPEC) {
+						sink = sink_new_from_logsrv(logsrv);
+						if (!sink) {
+							ha_alert("log server declared in proxy section '%s' file '%s' at line %d cannot be initialized'.\n",
+							         px->id, logsrv->conf.file, logsrv->conf.line);
+							err_code |= ERR_ALERT | ERR_FATAL;
+						}
+					}
+					else {
+						ha_alert("log server declared in proxy section '%s' in file '%s' at line %d uses unknown ring named '%s'.\n",
+						         px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
+						err_code |= ERR_ALERT | ERR_FATAL;
+					}
+				}
+				else if (sink->type != SINK_TYPE_BUFFER) {
+					ha_alert("log server declared in proxy section '%s' in file '%s' at line %d uses incomatible ring named '%s'.\n",
+					         px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
 					err_code |= ERR_ALERT | ERR_FATAL;
 				}
 				logsrv->sink = sink;
@@ -1017,8 +1210,28 @@ int post_sink_resolve()
 		list_for_each_entry_safe(logsrv, logb, &px->logsrvs, list) {
 			if (logsrv->type == LOG_TARGET_BUFFER) {
 				sink = sink_find(logsrv->ring_name);
-				if (!sink || sink->type != SINK_TYPE_BUFFER) {
-					ha_alert("log server declared in log-forward section '%s' in file '%s' at line %d uses unknown ring named '%s'.\n", px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
+				if (!sink) {
+					/* LOG_TARGET_BUFFER but !AF_UNSPEC
+					 * means we must allocate a sink
+					 * buffer to send messages to this logsrv
+					 */
+					if (logsrv->addr.ss_family != AF_UNSPEC) {
+						sink = sink_new_from_logsrv(logsrv);
+						if (!sink) {
+							ha_alert("log server declared in log-forward section '%s' file '%s' at line %d cannot be initialized'.\n",
+							         px->id, logsrv->conf.file, logsrv->conf.line);
+							err_code |= ERR_ALERT | ERR_FATAL;
+						}
+					}
+					else {
+						ha_alert("log server declared in log-forward section '%s' in file '%s' at line %d uses unknown ring named '%s'.\n",
+							 px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
+						err_code |= ERR_ALERT | ERR_FATAL;
+					}
+				}
+				else if (sink->type != SINK_TYPE_BUFFER) {
+					ha_alert("log server declared in log-forward section '%s' in file '%s' at line %d uses unknown ring named '%s'.\n",
+						 px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
 					err_code |= ERR_ALERT | ERR_FATAL;
 				}
 				logsrv->sink = sink;
