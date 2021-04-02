@@ -652,7 +652,7 @@ ifneq ($(USE_51DEGREES),)
 51DEGREES_LIB = $(51DEGREES_SRC)
 OPTIONS_OBJS    += $(51DEGREES_LIB)/../cityhash/city.o
 OPTIONS_OBJS    += $(51DEGREES_LIB)/51Degrees.o
-OPTIONS_OBJS    += src/51d.o
+OPTIONS_OBJS    += addons/51degrees/51d.o
 OPTIONS_CFLAGS  += $(if $(51DEGREES_INC),-I$(51DEGREES_INC))
 ifeq ($(USE_THREAD),)
 OPTIONS_CFLAGS  += -DFIFTYONEDEGREES_NO_THREADING
@@ -1004,6 +1004,7 @@ clean:
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
 	$(Q)rm -f {admin,dev,contrib}/*/*.[oas] {admin,dev,contrib}/*/*/*.[oas] {admin,dev,contrib}/*/*/*/*.[oas]
 	$(Q)rm -f addons/promex/*.[oas]
+	$(Q)rm -f addons/51degrees/*.[oas] addons/51degrees/dummy/*.[oas] addons/51degrees/dummy/*/*.[oas]
 	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range admin/halog/halog
 	$(Q)rm -f dev/flags/flags dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht

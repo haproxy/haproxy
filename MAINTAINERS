@@ -20,7 +20,7 @@ List of maintainers
 
 51Degrees device identification
 Maintainer: Ben Shillito <ben@51degrees.com>
-Files: src/51d.c, contrib/51d, doc/51Degrees-device-detection.txt
+Files: addons/51degrees, doc/51Degrees-device-detection.txt
 
 Cache
 Maintainer: William Lallemand <wlallemand@haproxy.com>

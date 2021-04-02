@@ -83,7 +83,7 @@ for CC in ["gcc", "clang"]:
                 "DEVICEATLAS_SRC=contrib/deviceatlas",
                 "USE_PROMEX=1",
                 "USE_51DEGREES=1",
-                "51DEGREES_SRC=contrib/51d/src/pattern",
+                "51DEGREES_SRC=addons/51degrees/dummy/pattern",
             ],
         }
     )
@@ -149,7 +149,7 @@ matrix.append(
             "DEVICEATLAS_SRC=contrib/deviceatlas",
             "USE_PROMEX=1",
             "USE_51DEGREES=1",
-            "51DEGREES_SRC=contrib/51d/src/pattern",
+            "51DEGREES_SRC=addons/51degrees/dummy/pattern",
         ],
     }
 )

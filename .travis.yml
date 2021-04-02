@@ -13,7 +13,7 @@ env:
   global:
     - FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=contrib/wurfl WURFL_LIB=contrib/wurfl USE_DEVICEATLAS=1 DEVICEATLAS_SRC=contrib/deviceatlas USE_51DEGREES=1"
     - TMPDIR=/tmp
-    - FIFTYONEDEGREES_SRC="contrib/51d/src/pattern"
+    - FIFTYONEDEGREES_SRC="addons/51degrees/dummy/pattern"
     - DEBUG_OPTIONS="DEBUG_STRICT=1"
 
 addons:
@@ -49,7 +49,7 @@ matrix:
   - os: linux
     if: type == cron
     compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.0l FIFTYONEDEGREES_SRC="contrib/51d/src/trie" CC=clang-9
+    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.0l FIFTYONEDEGREES_SRC="addons/51degrees/dummy/trie" CC=clang-9
     name: openssl-1.1.1 | 51d trie
   - os: linux
     env: DEBUG_OPTIONS=""

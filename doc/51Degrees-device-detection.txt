@@ -54,14 +54,14 @@ Trie data. Free Hash Trie data file can be obtained by signing up for a licence
 key at https://51degrees.com/products/store/on-premise-device-detection.
 
 For HAProxy developers who need to verify that their changes didn't affect the
-51Degrees implementation, a dummy library if provided in the contrib/51d
-directory. This does not function, but implements the API such that the
-51Degrees module can be used (but not return any meaningful information). To
-test either Pattern or Hash Trie, build with:
+51Degrees implementation, a dummy library is provided in the
+"addons/51degrees/dummy" directory. This does not function, but implements the
+API such that the 51Degrees module can be used (but not return any meaningful
+information). To test either Pattern or Hash Trie, build with:
 
-    $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC=contrib/51d/src/pattern
+    $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/pattern
 or
-    $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC=contrib/51d/src/trie
+    $ make TARGET=<target> USE_51DEGREES=1 51DEGREES_SRC=addons/51degrees/dummy/trie
 
 respectively.
 
