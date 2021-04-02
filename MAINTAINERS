@@ -95,7 +95,7 @@ Files: src/pattern.c, include/haproxy/pattern*.h
 
 Master-worker
 Maintainer: William Lallemand <wlallemand@haproxy.com>
-Note: Please CC William when touching src/haproxy.c and contrib/systemd
+Note: Please CC William when touching src/haproxy.c and admin/systemd
 
 Multi-threading
 Maintainer: Christopher Faulet <cfaulet@haproxy.com>

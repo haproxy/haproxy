@@ -994,10 +994,11 @@ uninstall:
 
 clean:
 	$(Q)rm -f *.[oas] src/*.[oas] haproxy test .build_opts .build_opts.new
-	$(Q)for dir in . src dev/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
+	$(Q)for dir in . src dev/* admin/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
-	$(Q)rm -f {dev,contrib}/*/*.[oas] {dev,contrib}/*/*/*.[oas] {dev,contrib}/*/*/*/*.[oas]
+	$(Q)rm -f {admin,dev,contrib}/*/*.[oas] {admin,dev,contrib}/*/*/*.[oas] {admin,dev,contrib}/*/*/*/*.[oas]
+	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range
 	$(Q)rm -f contrib/halog/halog dev/flags/flags dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
 
