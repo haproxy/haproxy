@@ -2326,6 +2326,7 @@ const char *parse_time_err(const char *text, unsigned *ret, unsigned unit_flags)
 		if (text[1] == 's') {
 			idiv = 1000000;
 			text++;
+			break;
 		}
 		return text;
 	case 'm': /* millisecond : "ms" or minute: "m" */
