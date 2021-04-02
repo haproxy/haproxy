@@ -932,6 +932,9 @@ contrib/halog/halog:
 dev/flags/flags: dev/flags/flags.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
+dev/hpack/%: dev/hpack/%.o
+	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+
 dev/poll/poll:
 	$(Q)$(MAKE) -C dev/poll poll CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
 
@@ -996,6 +999,7 @@ clean:
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
 	$(Q)rm -f {dev,contrib}/*/*.[oas] {dev,contrib}/*/*/*.[oas] {dev,contrib}/*/*/*/*.[oas]
 	$(Q)rm -f contrib/halog/halog dev/flags/flags dev/poll/poll dev/tcploop/tcploop
+	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
 
 tags:
 	$(Q)find src include \( -name '*.c' -o -name '*.h' \) -print0 | \

@@ -21,4 +21,4 @@ jobs:
         make dev/poll/poll
     - name: Compile dev/hpack
       run: |
-        make -C dev/hpack
+        make dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
