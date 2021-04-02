@@ -6,7 +6,7 @@
 
 /* Stress test the mt_lists.
  * Compile from the haproxy directory with :
- * cc -Iinclude tests/test-list.c -lpthread -O2 -o test-list
+ * cc -I../../include test-list.c -pthread -O2 -o test-list
  * The only argument it takes is the number of threads to be used.
  * ./test-list 4
  */

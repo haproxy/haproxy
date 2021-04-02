@@ -20,8 +20,9 @@
 #include <syslog.h>
 
 
-main() {
+int main() {
     printf("sizeof sockaddr=%d\n", sizeof(struct sockaddr));
     printf("sizeof sockaddr_in=%d\n", sizeof(struct sockaddr_in));
     printf("sizeof sockaddr_in6=%d\n", sizeof(struct sockaddr_in6));
+    return 0;
 }

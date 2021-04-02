@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "proto/arg.h"
+#include <haproxy/arg.h>
 
 int main(int argc, char **argv)
 {
@@ -23,7 +23,7 @@ int main(int argc, char **argv)
 
 	printf("Using mask=0x%08x\n", mask);
 	nbargs = make_arg_list(argv[1], strlen(argv[1]), mask,
-			       &argp, &err_msg, &err_ptr, &err_arg);
+			       &argp, &err_msg, &err_ptr, &err_arg, NULL);
 
 	printf("nbargs=%d\n", nbargs);
 	if (nbargs < 0) {
@@ -38,7 +38,7 @@ int main(int argc, char **argv)
 
 		for (arg = 0; arg < nbargs; arg++)
 			printf("arg %d: type=%d, int=0x%08x\n",
-			       arg, argp[arg].type, *(int*)&argp[arg].data.uint);
+			       arg, argp[arg].type, *(int*)&argp[arg].data.sint);
 	}
 	return 0;
 }

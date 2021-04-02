@@ -9,7 +9,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "common/ist.h"
+#include <import/ist.h>
 
 
 // pre-extracted from ist.h using the following expression :
