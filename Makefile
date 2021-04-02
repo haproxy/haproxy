@@ -47,6 +47,7 @@
 #   USE_DL               : enable it if your system requires -ldl. Automatic on Linux.
 #   USE_RT               : enable it if your system requires -lrt. Automatic on Linux.
 #   USE_BACKTRACE        : enable backtrace(). Automatic on Linux.
+#   USE_PROMEX           : enable the Prometheus exporter
 #   USE_DEVICEATLAS      : enable DeviceAtlas api.
 #   USE_51DEGREES        : enable third party device detection library from 51Degrees
 #   USE_WURFL            : enable WURFL detection library from Scientiamobile
@@ -303,7 +304,7 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS     \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
            USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP USE_EVPORTS USE_OT   \
-           USE_QUIC
+           USE_QUIC USE_PROMEX
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -613,6 +614,10 @@ ifneq ($(USE_DL),)
 OPTIONS_LDFLAGS += -ldl
 endif
 OPTIONS_OBJS    += src/hlua.o src/hlua_fcn.o
+endif
+
+ifneq ($(USE_PROMEX),)
+OPTIONS_OBJS    += contrib/prometheus-exporter/service-prometheus.o
 endif
 
 ifneq ($(USE_DEVICEATLAS),)
