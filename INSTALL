@@ -71,13 +71,24 @@ can use a relatively similar one and adjust specific variables by hand.
 Most configuration variables are in fact booleans. Some options are detected and
 enabled by default if available on the target platform. This is the case for all
 those named "USE_<feature>". These booleans are enabled by "USE_<feature>=1"
-and are disabled by "USE_<feature>=" (with no value). The last occurrence on the
-command line overrides any previous one. Example :
+and are disabled by "USE_<feature>=" (with no value). An exhaustive list of the
+supported USE_* features is located at the top of the main Makefile. The last
+occurrence of such an option on the command line overrides any previous one.
+Example :
 
   $ make TARGET=generic USE_THREAD=
 
 In case of error or missing TARGET, a help screen is displayed. It is also
 possible to display a list of all known options using "make help".
+
+Some optional components which may depend on third-party libraries, are used
+with popular tools which are not necessarily standard implementations, or are
+maintained at slower pace than the core of the project, are located in the
+"addons/" directory. These ones may disappear in a future version if the
+product they depend on disappears or if their maintainers do not assign enough
+resources to maintain them any more. For this reason they are not built by
+default, but some USE_* options are usually provided for them, and their build
+is routinely tested anyway.
 
 
 3) Build environment
