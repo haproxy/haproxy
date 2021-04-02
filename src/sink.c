@@ -993,7 +993,7 @@ int post_sink_resolve()
 		if (logsrv->type == LOG_TARGET_BUFFER) {
 			sink = sink_find(logsrv->ring_name);
 			if (!sink || sink->type != SINK_TYPE_BUFFER) {
-				ha_alert("global log server uses unknown ring named '%s'.\n", logsrv->ring_name);
+				ha_alert("global log server declared in file '%s' at line %d uses unknown ring named '%s'.\n", logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
 				err_code |= ERR_ALERT | ERR_FATAL;
 			}
 			logsrv->sink = sink;
@@ -1005,7 +1005,7 @@ int post_sink_resolve()
 			if (logsrv->type == LOG_TARGET_BUFFER) {
 				sink = sink_find(logsrv->ring_name);
 				if (!sink || sink->type != SINK_TYPE_BUFFER) {
-					ha_alert("proxy '%s' log server uses unknown ring named '%s'.\n", px->id, logsrv->ring_name);
+					ha_alert("log server declared in proxy section '%s' in file '%s' at line %d uses unknown ring named '%s'.\n", px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
 					err_code |= ERR_ALERT | ERR_FATAL;
 				}
 				logsrv->sink = sink;
@@ -1018,7 +1018,7 @@ int post_sink_resolve()
 			if (logsrv->type == LOG_TARGET_BUFFER) {
 				sink = sink_find(logsrv->ring_name);
 				if (!sink || sink->type != SINK_TYPE_BUFFER) {
-					ha_alert("log-forward '%s' log server uses unknown ring named '%s'.\n", px->id, logsrv->ring_name);
+					ha_alert("log server declared in log-forward section '%s' in file '%s' at line %d uses unknown ring named '%s'.\n", px->id, logsrv->conf.file, logsrv->conf.line, logsrv->ring_name);
 					err_code |= ERR_ALERT | ERR_FATAL;
 				}
 				logsrv->sink = sink;

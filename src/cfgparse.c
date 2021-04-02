@@ -730,7 +730,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
-		if (!parse_logsrv(args, &curpeers->peers_fe->logsrvs, (kwm == KWM_NO), &errmsg)) {
+		if (!parse_logsrv(args, &curpeers->peers_fe->logsrvs, (kwm == KWM_NO), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

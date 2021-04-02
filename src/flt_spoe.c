@@ -3773,7 +3773,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "log") == 0) {
 		char *errmsg = NULL;
 
-		if (!parse_logsrv(args, &curlogsrvs, (kwm == 1), &errmsg)) {
+		if (!parse_logsrv(args, &curlogsrvs, (kwm == 1), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

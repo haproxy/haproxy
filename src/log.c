@@ -808,7 +808,7 @@ int smp_log_range_cmp(const void *a, const void *b)
  * The function returns 1 in success case, otherwise, it returns 0 and err is
  * filled.
  */
-int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
+int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file, int linenum, char **err)
 {
 	struct smp_log_range *smp_rgs = NULL;
 	struct sockaddr_storage *sk;
@@ -858,6 +858,8 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 			node->ref = logsrv;
 			LIST_INIT(&node->list);
 			LIST_ADDQ(logsrvs, &node->list);
+			node->conf.file = strdup(file);
+			node->conf.line = linenum;
 
 		  skip_logsrv:
 			continue;
@@ -885,6 +887,9 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 		memprintf(err, "out of memory");
 		goto error;
 	}
+
+	logsrv->conf.file = strdup(file);
+	logsrv->conf.line = linenum;
 
 	/* skip address for now, it will be parsed at the end */
 	cur_arg = 2;
@@ -1040,18 +1045,20 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err)
 	logsrv->addr = *sk;
 
 	if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
-		logsrv->addr = *sk;
 		if (!port1)
 			set_host_port(&logsrv->addr, SYSLOG_PORT);
 	}
+
  done:
 	LIST_ADDQ(logsrvs, &logsrv->list);
 	return 1;
 
   error:
 	free(smp_rgs);
-	if (logsrv)
+	if (logsrv) {
+		free(logsrv->conf.file);
 		free(logsrv->ring_name);
+	}
 	free(logsrv);
 	return 0;
 }
@@ -4062,7 +4069,7 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (strcmp(args[0], "log") == 0) {
-		if (!parse_logsrv(args, &cfg_log_forward->logsrvs, (kwm == KWM_NO), &errmsg)) {
+		if (!parse_logsrv(args, &cfg_log_forward->logsrvs, (kwm == KWM_NO), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			         err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

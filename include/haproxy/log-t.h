@@ -237,6 +237,10 @@ struct logsrv {
 	int minlvl;
 	int maxlen;
 	struct logsrv *ref;
+	struct {
+                char *file;                     /* file where the logsrv appears */
+                int line;                       /* line where the logsrv appears */
+        } conf;
 	__decl_thread(HA_SPINLOCK_T lock);
 };
 

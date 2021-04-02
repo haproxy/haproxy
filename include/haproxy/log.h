@@ -86,7 +86,7 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
 int parse_logformat_string(const char *str, struct proxy *curproxy, struct list *list_format, int options, int cap, char **err);
 
 /* Parse "log" keyword and update the linked list. */
-int parse_logsrv(char **args, struct list *logsrvs, int do_del, char **err);
+int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file, int linenum, char **err);
 
 /*
  * This function adds a header to the message and sends the syslog message

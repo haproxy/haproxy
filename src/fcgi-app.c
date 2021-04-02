@@ -1056,7 +1056,7 @@ static int cfg_parse_fcgi_app(const char *file, int linenum, char **args, int kw
 		}
 	}
 	else if (strcmp(args[0], "log-stderr") == 0) {
-		if (!parse_logsrv(args, &curapp->logsrvs, (kwm == KWM_NO), &errmsg)) {
+		if (!parse_logsrv(args, &curapp->logsrvs, (kwm == KWM_NO), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}

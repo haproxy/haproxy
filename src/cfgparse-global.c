@@ -904,7 +904,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
                 }
 	}
 	else if (strcmp(args[0], "log") == 0) { /* "no log" or "log ..." */
-		if (!parse_logsrv(args, &global.logsrvs, (kwm == KWM_NO), &errmsg)) {
+		if (!parse_logsrv(args, &global.logsrvs, (kwm == KWM_NO), file, linenum, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
