@@ -21218,7 +21218,7 @@ filter opentracing [id <id>] config <file>
                 filter must have its own scope defined.
 
 More detailed documentation related to the operation, configuration and use
-of the filter can be found in the contrib/opentracing directory.
+of the filter can be found in the addons/ot directory.
 
 
 10. FastCGI applications

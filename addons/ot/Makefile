@@ -43,19 +43,19 @@ $(error OpenTracing C wrapper : can't find library)
 endif
 
 OPTIONS_OBJS += \
-	contrib/opentracing/src/cli.o         \
-	contrib/opentracing/src/conf.o        \
-	contrib/opentracing/src/event.o       \
-	contrib/opentracing/src/filter.o      \
-	contrib/opentracing/src/group.o       \
-	contrib/opentracing/src/http.o        \
-	contrib/opentracing/src/opentracing.o \
-	contrib/opentracing/src/parser.o      \
-	contrib/opentracing/src/pool.o        \
-	contrib/opentracing/src/scope.o       \
-	contrib/opentracing/src/util.o        \
-	contrib/opentracing/src/vars.o
+	addons/ot/src/cli.o         \
+	addons/ot/src/conf.o        \
+	addons/ot/src/event.o       \
+	addons/ot/src/filter.o      \
+	addons/ot/src/group.o       \
+	addons/ot/src/http.o        \
+	addons/ot/src/opentracing.o \
+	addons/ot/src/parser.o      \
+	addons/ot/src/pool.o        \
+	addons/ot/src/scope.o       \
+	addons/ot/src/util.o        \
+	addons/ot/src/vars.o
 
-OPTIONS_CFLAGS  += $(OT_CFLAGS) -Icontrib/opentracing/include
+OPTIONS_CFLAGS  += $(OT_CFLAGS) -Iaddons/ot/include
 OPTIONS_LDFLAGS += $(OT_LDFLAGS)
 OPTIONS_CFLAGS  += $(OT_DEFINE)
