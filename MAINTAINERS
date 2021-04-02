@@ -127,7 +127,7 @@ Note: William is the referent regarding Prometheus. He should be consulted for
 
 ScientiaMobile WURFL Device Detection
 Maintainer: Paul Borile, Massimiliano Bellomi <wurfl-haproxy-support@scientiamobile.com>
-Files: src/wurfl.c, contrib/wurfl, doc/WURFL-device-detection.txt
+Files: addons/wurfl, doc/WURFL-device-detection.txt
 
 SPOE
 Maintainer: Christopher Faulet <cfaulet@haproxy.com>

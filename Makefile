@@ -669,7 +669,7 @@ ifneq ($(USE_WURFL),)
 WURFL_SRC =
 WURFL_INC = $(WURFL_SRC)
 WURFL_LIB = $(WURFL_SRC)
-OPTIONS_OBJS    += src/wurfl.o
+OPTIONS_OBJS    += addons/wurfl/wurfl.o
 OPTIONS_CFLAGS  += $(if $(WURFL_INC),-I$(WURFL_INC))
 ifneq ($(WURFL_DEBUG),)
 OPTIONS_CFLAGS  += -DWURFL_DEBUG
@@ -1006,6 +1006,7 @@ clean:
 	$(Q)rm -f addons/promex/*.[oas]
 	$(Q)rm -f addons/51degrees/*.[oas] addons/51degrees/dummy/*.[oas] addons/51degrees/dummy/*/*.[oas]
 	$(Q)rm -f addons/deviceatlas/*.[oas] addons/deviceatlas/dummy/*.[oas]
+	$(Q)rm -f addons/wurfl/*.[oas] addons/wurfl/dummy/*.[oas]
 	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range admin/halog/halog
 	$(Q)rm -f dev/flags/flags dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht

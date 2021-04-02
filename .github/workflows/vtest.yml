@@ -78,7 +78,7 @@ jobs:
       run: env ${{ matrix.ssl }} scripts/build-ssl.sh
     - name: Build WURFL
       if: ${{ contains(matrix.FLAGS, 'USE_WURFL=1') }}
-      run: make -C contrib/wurfl
+      run: make -C addons/wurfl/dummy
     - name: Compile HAProxy with ${{ matrix.CC }}
       run: |
         make -j$(nproc) all \
