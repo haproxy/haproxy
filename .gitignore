@@ -20,6 +20,7 @@
 !/VERDATE
 !/VERSION
 !/contrib
+!/admin
 !/dev
 !/doc
 !/ebtree
@@ -38,10 +39,10 @@
 *.orig
 *.bak
 # And reject some specific files
-/contrib/halog/halog
-/contrib/ip6range/ip6range
-/contrib/iprange/iprange
-/contrib/systemd/haproxy.service
+/admin/halog/halog
+/admin/iprange/ip6range
+/admin/iprange/iprange
+/admin/systemd/haproxy.service
 /contrib/spoa_example/spoa
 dev/base64/base64rev-gen
 dev/flags/flags

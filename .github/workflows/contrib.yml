@@ -10,9 +10,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Compile contrib/halog/halog
+    - name: Compile admin/halog/halog
       run: |
-        make contrib/halog/halog
+        make admin/halog/halog
     - name: Compile dev/flags/flags
       run: |
         make dev/flags/flags

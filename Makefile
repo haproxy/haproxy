@@ -926,8 +926,8 @@ objsize: haproxy
 %.o:	%.c $(DEP)
 	$(cmd_CC) $(COPTS) -c -o $@ $<
 
-contrib/halog/halog:
-	$(Q)$(MAKE) -C contrib/halog halog CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
+admin/halog/halog:
+	$(Q)$(MAKE) -C admin/halog halog CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
 
 dev/flags/flags: dev/flags/flags.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
@@ -998,8 +998,8 @@ clean:
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
 	$(Q)rm -f {admin,dev,contrib}/*/*.[oas] {admin,dev,contrib}/*/*/*.[oas] {admin,dev,contrib}/*/*/*/*.[oas]
-	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range
-	$(Q)rm -f contrib/halog/halog dev/flags/flags dev/poll/poll dev/tcploop/tcploop
+	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range admin/halog/halog
+	$(Q)rm -f dev/flags/flags dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
 
 tags:
