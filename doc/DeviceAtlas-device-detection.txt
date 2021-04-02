@@ -13,12 +13,12 @@ directory.
 
 For HAProxy developers who need to verify that their changes didn't accidentally
 break the DeviceAtlas code, it is possible to build a dummy library provided in
-the contrib/deviceatlas directory and to use it as an alternative for the full
-library. This will not provide the full functionalities, it will just allow
+the addons/deviceatlas/dummy directory and to use it as an alternative for the
+full library. This will not provide the full functionalities, it will just allow
 haproxy to start with a deviceatlas configuration, which generally is enough to
 validate API changes :
 
-    $ make TARGET=<target> USE_PCRE=1 USE_DEVICEATLAS=1 DEVICEATLAS_SRC=$PWD/contrib/deviceatlas
+    $ make TARGET=<target> USE_PCRE=1 USE_DEVICEATLAS=1 DEVICEATLAS_SRC=$PWD/addons/deviceatlas/dummy
 
 These are supported DeviceAtlas directives (see doc/configuration.txt) :
   - deviceatlas-json-file <path to the DeviceAtlas JSON data file>.

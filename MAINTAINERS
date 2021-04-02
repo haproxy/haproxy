@@ -28,7 +28,7 @@ Files: src/cache.c, include/haproxy/cache*.h
 
 DeviceAtlas device identification
 Maintainer: David Carlier <dcarlier@deviceatlas.com>
-Files: src/da.c, contrib/deviceatlas, doc/DeviceAtlas-device-detection.txt
+Files: addons/deviceatlas, doc/DeviceAtlas-device-detection.txt
 
 DNS and Resolvers
 Maintainer: Emeric Brun <ebrun@haproxy.com>

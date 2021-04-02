@@ -640,7 +640,7 @@ endif
 OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/json.o
 OPTIONS_OBJS	+= $(DEVICEATLAS_LIB)/dac.o
 endif
-OPTIONS_OBJS	+= src/da.o
+OPTIONS_OBJS	+= addons/deviceatlas/da.o
 OPTIONS_CFLAGS += $(if $(DEVICEATLAS_INC),-I$(DEVICEATLAS_INC))
 endif
 
@@ -1005,6 +1005,7 @@ clean:
 	$(Q)rm -f {admin,dev,contrib}/*/*.[oas] {admin,dev,contrib}/*/*/*.[oas] {admin,dev,contrib}/*/*/*/*.[oas]
 	$(Q)rm -f addons/promex/*.[oas]
 	$(Q)rm -f addons/51degrees/*.[oas] addons/51degrees/dummy/*.[oas] addons/51degrees/dummy/*/*.[oas]
+	$(Q)rm -f addons/deviceatlas/*.[oas] addons/deviceatlas/dummy/*.[oas]
 	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range admin/halog/halog
 	$(Q)rm -f dev/flags/flags dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
