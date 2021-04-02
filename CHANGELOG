@@ -1,6 +1,77 @@
 ChangeLog :
 ===========
 
+2021/04/02 : 2.4-dev15
+    - BUG/MINOR: payload: Wait for more data if buffer is empty in payload/payload_lv
+    - BUG/MINOR: stats: Apply proper styles in HTML status page.
+    - BUG/MEDIUM: time: make sure to always initialize the global tick
+    - BUG/MINOR: tcp: fix silent-drop workaround for IPv6
+    - BUILD: tcp: use IPPROTO_IPV6 instead of SOL_IPV6 on FreeBSD/MacOS
+    - CLEANUP: socket: replace SOL_IP/IPV6/TCP with IPPROTO_IP/IPV6/TCP
+    - BUG/MINOR: http_fetch: make hdr_ip() resistant to empty fields
+    - BUG/MINOR: mux-h2: Don't emit log twice if an error occurred on the preface
+    - MINOR: stream: Don't trigger errors on destructive HTTP upgrades
+    - MINOR: frontend: Create HTTP txn for HTX streams
+    - MINOR: stream: Be sure to set HTTP analysers when creating an HTX stream
+    - BUG/MINOR: stream: Properly handle TCP>H1>H2 upgrades in http_wait_for_request
+    - BUG/MINOR: config: Add warning for http-after-response rules in TCP mode
+    - MINOR: muxes: Add a flag to notify a mux does not support any upgrade
+    - MINOR: mux-h1: Don't perform implicit HTTP/2 upgrade if not supported by mux
+    - MINOR: mux-pt: Don't perform implicit HTTP upgrade if not supported by mux
+    - MEDIUM: mux-h1: Expose h1 in the list of supported mux protocols
+    - MEDIUM: mux-pt: Expose passthrough in the list of supported mux protocols
+    - MINOR: muxes: Show muxes flags when the mux list is displayed
+    - DOC: config: Improve documentation about proto/check-proto keywords
+    - MINOR: stream: Use stream type instead of proxy mode when appropriate
+    - MINOR: filters/http-ana: Decide to filter HTTP headers in HTTP analysers
+    - MINOR: http-ana: Simplify creation/destruction of HTTP transactions
+    - MINOR: stream: Handle stream HTTP upgrade in a dedicated function
+    - MEDIUM: Add tcp-request switch-mode action to perform HTTP upgrade
+    - MINOR: config/proxy: Don't warn for HTTP rules in TCP if 'switch-mode http' set
+    - MINOR: config/proxy: Warn if a TCP proxy without backend is upgradable to HTTP
+    - DOC: config: Add documentation about TCP to HTTP upgrades
+    - REGTESTS: Add script to tests TCP to HTTP upgrades
+    - BUG/MINOR: payload/htx: Ingore L6 sample fetches for HTX streams/checks
+    - MINOR: htx: Make internal.strm.is_htx an internal sample fetch
+    - MINOR: action: Use a generic function to check validity of an action rule list
+    - MINOR: payload/config: Warn if a L6 sample fetch is used from an HTTP proxy
+    - MEDIUM: http-rules: Add wait-for-body action on request and response side
+    - REGTESTS: Add script to tests the wait-for-body HTTP action
+    - BUG/MINOR: http-fetch: Fix test on message state to capture the version
+    - CLEANUP: vars: always pre-initialize smp in vars_parse_cli_get_var()
+    - MINOR: global: define diagnostic mode of execution
+    - MINOR: cfgparse: diag for multiple nbthread statements
+    - MINOR: server: diag for 0 weight server
+    - MINOR: diag: create cfgdiag module
+    - MINOR: diag: diag if servers use the same cookie value
+    - MINOR: config: diag if global section after non-global
+    - TESTS: slightly reorganize the code in the tests/ directory
+    - TESTS: move tests/*.cfg to tests/config
+    - REGTESTS: ssl: "set ssl cert" and multi-certificates bundle
+    - REGTESTS: ssl: mark set_ssl_cert_bundle.vtc as broken
+    - CONTRIB: halog: fix issue with array of type char
+    - CONTRIB: tcploop: add a shutr command
+    - CONTRIB: debug: add the show-fd-to-flags script
+    - CONTRIB: debug: split poll from flags
+    - CONTRIB: move some dev-specific tools to dev/
+    - BUILD: makefile: always build the flags utility
+    - DEV: flags: replace the unneeded makefile with a README
+    - BUILD: makefile: integrate the hpack tools
+    - CONTRIB: merge ip6range with iprange
+    - CONTRIB: move some admin-related sub-projects to admin/
+    - CONTRIB: move halog to admin/
+    - ADMIN: halog: automatically enable USE_MEMCHR on the right glibc version
+    - BUILD: makefile: build halog with the correct flags
+    - BUILD: makefile: add a "USE_PROMEX" variable to ease building prometheus-exporter
+    - CONTRIB: move prometheus-exporter to addons/promex
+    - DOC: add a few words about USE_* and the addons directory
+    - CONTRIB: move 51Degrees to addons/51degrees
+    - CONTRIB: move src/da.c and contrib/deviceatlas to addons/deviceatlas
+    - CONTRIB: move src/wurfl.c and contrib/wurfl to addons/wurfl
+    - CONTRIB: move contrib/opentracing to addons/ot
+    - BUG/MINOR: opentracing: initialization after establishing daemon mode
+    - DOC: clarify that compression works for HTTP/2
+
 2021/03/27 : 2.4-dev14
     - MEDIUM: quic: Fix build.
     - MEDIUM: quic: Fix build.
