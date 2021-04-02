@@ -926,8 +926,8 @@ objsize: haproxy
 %.o:	%.c $(DEP)
 	$(cmd_CC) $(COPTS) -c -o $@ $<
 
-admin/halog/halog:
-	$(Q)$(MAKE) -C admin/halog halog CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
+admin/halog/halog: admin/halog/halog.o admin/halog/fgets2.o src/ebtree.o src/eb32tree.o src/eb64tree.o src/ebmbtree.o src/ebsttree.o src/ebistree.o src/ebimtree.o
+	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 dev/flags/flags: dev/flags/flags.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)

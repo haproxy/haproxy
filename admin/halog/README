@@ -1,0 +1,4 @@
+This needs to be built from the top makefile, for example :
+
+  make admin/halog/halog
+
