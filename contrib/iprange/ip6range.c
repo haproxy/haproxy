@@ -314,7 +314,7 @@ static void usage(const char *argv0)
 		"\n", argv0);
 }
 
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	char line[MAXLINE];
 	int l, lnum;
@@ -393,4 +393,5 @@ main(int argc, char **argv)
 			convert_range(&sa, &da, he, NULL);
 		}
 	}
+	return 0;
 }

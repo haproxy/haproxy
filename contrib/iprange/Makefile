@@ -1,8 +1,8 @@
-CC       = gcc
+CC       = cc
 OPTIMIZE = -O3
 LDFLAGS  = -s
 
-OBJS     = iprange
+OBJS     = iprange ip6range
 
 all: $(OBJS)
 
