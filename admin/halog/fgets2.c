@@ -34,6 +34,11 @@
 #define FGETS2_BUFSIZE		(256*1024)
 #endif
 
+/* memchr() is faster in glibc with SSE since commit 093ecf92998de2 */
+#if defined(__x86_64__) &&  (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 15))
+#define USE_MEMCHR
+#endif
+
 /* return non-zero if the integer contains at least one zero byte */
 static inline __attribute__((unused)) unsigned int has_zero32(unsigned int x)
 {
