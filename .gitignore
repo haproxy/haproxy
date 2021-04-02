@@ -44,6 +44,7 @@
 /contrib/systemd/haproxy.service
 /contrib/spoa_example/spoa
 contrib/debug/flags
+contrib/poll/poll
 contrib/mod_defender/defender
 contrib/modsecurity/modsecurity
 contrib/hpack/decode

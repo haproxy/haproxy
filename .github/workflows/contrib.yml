@@ -16,9 +16,9 @@ jobs:
     - name: Compile contrib/debug/flags
       run: |
         make contrib/debug/flags
-    - name: Compile contrib/debug/poll
+    - name: Compile contrib/poll/poll
       run: |
-        make contrib/debug/poll
+        make contrib/poll/poll
     - name: Compile contrib/hpack
       run: |
         make -C contrib/hpack

@@ -995,7 +995,7 @@ clean:
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
 	$(Q)rm -f contrib/*/*.[oas] contrib/*/*/*.[oas] contrib/*/*/*/*.[oas]
-	$(Q)rm -f contrib/halog/halog contrib/debug/flags contrib/debug/poll contrib/tcploop/tcploop
+	$(Q)rm -f contrib/halog/halog contrib/debug/flags contrib/poll/poll contrib/tcploop/tcploop
 
 tags:
 	$(Q)find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
