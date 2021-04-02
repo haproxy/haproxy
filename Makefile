@@ -837,7 +837,7 @@ all:
 	@echo
 	@exit 1
 else
-all: haproxy $(EXTRA)
+all: haproxy dev/flags/flags $(EXTRA)
 endif
 endif
 
