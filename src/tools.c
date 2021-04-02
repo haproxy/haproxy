@@ -930,10 +930,26 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		abstract = 0;
 		ss.ss_family = AF_UNIX;
 	}
+	else if (strncmp(str2, "uxdg@", 5) == 0) {
+		str2 += 5;
+		abstract = 0;
+		ss.ss_family = AF_UNIX;
+		sock_type = ctrl_type = SOCK_DGRAM;
+	}
+	else if (strncmp(str2, "uxst@", 5) == 0) {
+		str2 += 5;
+		abstract = 0;
+		ss.ss_family = AF_UNIX;
+		sock_type = ctrl_type = SOCK_STREAM;
+	}
 	else if (strncmp(str2, "abns@", 5) == 0) {
 		str2 += 5;
 		abstract = 1;
 		ss.ss_family = AF_UNIX;
+	}
+	else if (strncmp(str2, "ip@", 3) == 0) {
+		str2 += 3;
+		ss.ss_family = AF_UNSPEC;
 	}
 	else if (strncmp(str2, "ipv4@", 5) == 0) {
 		str2 += 5;
@@ -943,15 +959,30 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 		str2 += 5;
 		ss.ss_family = AF_INET6;
 	}
+	else if (strncmp(str2, "tcp4@", 5) == 0) {
+		str2 += 5;
+		ss.ss_family = AF_INET;
+		sock_type = ctrl_type = SOCK_STREAM;
+	}
 	else if (strncmp(str2, "udp4@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET;
 		sock_type = ctrl_type = SOCK_DGRAM;
 	}
+	else if (strncmp(str2, "tcp6@", 5) == 0) {
+		str2 += 5;
+		ss.ss_family = AF_INET6;
+		sock_type = ctrl_type = SOCK_STREAM;
+	}
 	else if (strncmp(str2, "udp6@", 5) == 0) {
 		str2 += 5;
 		ss.ss_family = AF_INET6;
 		sock_type = ctrl_type = SOCK_DGRAM;
+	}
+	else if (strncmp(str2, "tcp@", 4) == 0) {
+		str2 += 4;
+		ss.ss_family = AF_UNSPEC;
+		sock_type = ctrl_type = SOCK_STREAM;
 	}
 	else if (strncmp(str2, "udp@", 4) == 0) {
 		str2 += 4;
