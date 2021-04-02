@@ -439,7 +439,7 @@ int main(int argc, char **argv)
 			/* stop at the end of the number and trim any C suffix like "UL" */
 			err = value;
 			while (*err == '-' || *err == '+' ||
-			       (isalnum(*err) && toupper(*err) != 'U' && toupper(*err) != 'L'))
+			       (isalnum((unsigned char)*err) && toupper((unsigned char)*err) != 'U' && toupper((unsigned char)*err) != 'L'))
 				err++;
 			if (err)
 				*err = 0;
