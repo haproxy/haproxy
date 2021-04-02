@@ -929,14 +929,14 @@ objsize: haproxy
 contrib/halog/halog:
 	$(Q)$(MAKE) -C contrib/halog halog CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
 
-contrib/debug/flags:
-	$(Q)$(MAKE) -C contrib/debug flags CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
+dev/flags/flags: dev/flags/flags.o
+	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
-contrib/debug/poll:
-	$(Q)$(MAKE) -C contrib/debug poll CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
+dev/poll/poll:
+	$(Q)$(MAKE) -C dev/poll poll CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
 
-contrib/tcploop/tcploop:
-	$(Q)$(MAKE) -C contrib/tcploop tcploop CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
+dev/tcploop/tcploop:
+	$(Q)$(MAKE) -C dev/tcploop tcploop CC='$(cmd_CC)' OPTIMIZE='$(COPTS)'
 
 # rebuild it every time
 .PHONY: src/version.c
@@ -991,11 +991,11 @@ uninstall:
 
 clean:
 	$(Q)rm -f *.[oas] src/*.[oas] haproxy test .build_opts .build_opts.new
-	$(Q)for dir in . src include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
+	$(Q)for dir in . src dev/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
-	$(Q)rm -f contrib/*/*.[oas] contrib/*/*/*.[oas] contrib/*/*/*/*.[oas]
-	$(Q)rm -f contrib/halog/halog contrib/debug/flags contrib/poll/poll contrib/tcploop/tcploop
+	$(Q)rm -f {dev,contrib}/*/*.[oas] {dev,contrib}/*/*/*.[oas] {dev,contrib}/*/*/*/*.[oas]
+	$(Q)rm -f contrib/halog/halog dev/flags/flags dev/poll/poll dev/tcploop/tcploop
 
 tags:
 	$(Q)find src include \( -name '*.c' -o -name '*.h' \) -print0 | \

@@ -13,12 +13,12 @@ jobs:
     - name: Compile contrib/halog/halog
       run: |
         make contrib/halog/halog
-    - name: Compile contrib/debug/flags
+    - name: Compile dev/flags/flags
       run: |
-        make contrib/debug/flags
-    - name: Compile contrib/poll/poll
+        make dev/flags/flags
+    - name: Compile dev/poll/poll
       run: |
-        make contrib/poll/poll
-    - name: Compile contrib/hpack
+        make dev/poll/poll
+    - name: Compile dev/hpack
       run: |
-        make -C contrib/hpack
+        make -C dev/hpack

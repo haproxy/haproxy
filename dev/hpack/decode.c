@@ -2,7 +2,7 @@
  * HPACK stream decoder. Takes a series of hex codes on stdin using one line
  * per HEADERS frame. Spaces, tabs, CR, '-' and ',' are silently skipped.
  * e.g. :
- *   echo 82864188f439ce75c875fa5784 | contrib/hpack/decode
+ *   echo 82864188f439ce75c875fa5784 | dev/hpack/decode
  *
  * The DHT size may optionally be changed in argv[1].
  *
