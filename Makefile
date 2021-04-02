@@ -617,7 +617,7 @@ OPTIONS_OBJS    += src/hlua.o src/hlua_fcn.o
 endif
 
 ifneq ($(USE_PROMEX),)
-OPTIONS_OBJS    += contrib/prometheus-exporter/service-prometheus.o
+OPTIONS_OBJS    += addons/promex/service-prometheus.o
 endif
 
 ifneq ($(USE_DEVICEATLAS),)
@@ -999,10 +999,11 @@ uninstall:
 
 clean:
 	$(Q)rm -f *.[oas] src/*.[oas] haproxy test .build_opts .build_opts.new
-	$(Q)for dir in . src dev/* admin/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
+	$(Q)for dir in . src dev/* admin/* addons/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
 	$(Q)rm -f {admin,dev,contrib}/*/*.[oas] {admin,dev,contrib}/*/*/*.[oas] {admin,dev,contrib}/*/*/*/*.[oas]
+	$(Q)rm -f addons/promex/*.[oas]
 	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range admin/halog/halog
 	$(Q)rm -f dev/flags/flags dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht

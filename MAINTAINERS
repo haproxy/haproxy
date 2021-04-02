@@ -119,7 +119,7 @@ Files: src/peers.c, include/haproxy/peers*.h
 Prometheus Exporter
 Maintainer: Christopher Faulet <cfaulet@haproxy.com>
 Maintainer: William Dauchy <wdauchy@gmail.com>
-Files: contrib/prometheus-exporter
+Files: addons/promex
 Note: William is the referent regarding Prometheus. He should be consulted for
       all additions and modifications of features. Christopher is the referent
       for the code itself. He should be consulted for questions regarding the
