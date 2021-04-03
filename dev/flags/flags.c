@@ -441,8 +441,7 @@ int main(int argc, char **argv)
 			while (*err == '-' || *err == '+' ||
 			       (isalnum((unsigned char)*err) && toupper((unsigned char)*err) != 'U' && toupper((unsigned char)*err) != 'L'))
 				err++;
-			if (err)
-				*err = 0;
+			*err = 0;
 		} else {
 			value = argv[0];
 			argv++; argc--;
