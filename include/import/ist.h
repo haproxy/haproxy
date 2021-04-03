@@ -554,7 +554,7 @@ static inline struct ist ist2bin(char *dst, const struct ist src)
  * already been checked. An ist made of the output and its length (not counting
  * the trailing zero) are returned.
  */
-static inline struct ist ist2str(char *dst, const struct ist src, size_t count)
+static inline struct ist ist2str(char *dst, const struct ist src)
 {
 	size_t ofs = 0;
 
@@ -599,7 +599,7 @@ static inline struct ist ist2bin_lc(char *dst, const struct ist src)
  * the frame length has already been checked. An ist made of the output and its
  * length (not counting the trailing zero) are returned.
  */
-static inline struct ist ist2str_lc(char *dst, const struct ist src, size_t count)
+static inline struct ist ist2str_lc(char *dst, const struct ist src)
 {
 	size_t ofs = 0;
 
@@ -644,7 +644,7 @@ static inline struct ist ist2bin_uc(char *dst, const struct ist src)
  * the frame length has already been checked. An ist made of the output and its
  * length (not counting the trailing zero) are returned.
  */
-static inline struct ist ist2str_uc(char *dst, const struct ist src, size_t count)
+static inline struct ist ist2str_uc(char *dst, const struct ist src)
 {
 	size_t ofs = 0;
 
