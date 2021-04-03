@@ -33,7 +33,7 @@ extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
 extern struct http_reply http_err_replies[HTTP_ERR_SIZE];
 extern struct list http_errors_list;
 
-struct htx_sl *http_get_stline(struct htx *htx);
+struct htx_sl *http_get_stline(const struct htx *htx);
 size_t http_get_hdrs_size(struct htx *htx);
 int http_find_header(const struct htx *htx, const struct ist name, struct http_hdr_ctx *ctx, int full);
 int http_find_str_header(const struct htx *htx, const struct ist name, struct http_hdr_ctx *ctx, int full);

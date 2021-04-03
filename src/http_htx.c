@@ -60,7 +60,7 @@ struct conf_errors {
  * if the start-line is undefined (first == -1). Otherwise, it returns the
  * pointer on the htx_sl structure.
  */
-struct htx_sl *http_get_stline(struct htx *htx)
+struct htx_sl *http_get_stline(const struct htx *htx)
 {
 	struct htx_blk *blk;
 
