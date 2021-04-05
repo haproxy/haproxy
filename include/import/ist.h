@@ -801,6 +801,20 @@ static inline struct ist istadv(const struct ist ist, const size_t nb)
 	return ist2(ist.ptr + nb, ist.len - nb);
 }
 
+/* Splits the given <ist> at the given character. The returned ist is
+ * equivalent to iststop(ist, delim). The passed <ist> will contain the
+ * remainder of the string, not including the delimiter. In other words
+ * it will be advanced by the length of the returned string plus 1.
+ */
+static inline struct ist istsplit(struct ist *ist, char delim)
+{
+	const struct ist result = iststop(*ist, delim);
+
+	*ist = istadv(*ist, result.len + 1);
+
+	return result;
+}
+
 /*
  * compare 2 ists and return non-zero if they are the same
  */
