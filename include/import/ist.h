@@ -240,6 +240,21 @@ static inline struct ist istnext(const struct ist ist)
 	return ret;
 }
 
+/* Returns the first character of the <ist> and advances the <ist> by 1.
+ * If the <ist> is empty the result is undefined.
+ */
+static inline char istshift(struct ist *ist)
+{
+	if (ist->len) {
+		char c = *ist->ptr;
+		*ist = istnext(*ist);
+
+		return c;
+	}
+
+	return 0;
+}
+
 /* copies the contents from string <ist> to buffer <buf> and adds a trailing
  * zero. The caller must ensure <buf> is large enough.
  */
