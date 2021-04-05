@@ -407,6 +407,16 @@ static inline int istneq(const struct ist ist1, const struct ist ist2, size_t co
 	return isteq(l, r);
 }
 
+/* appends <src> after <dst>. The caller must ensure that the underlying buffer
+ * is large enough to fit the character.
+ */
+static inline struct ist istappend(struct ist dst, const char src)
+{
+	dst.ptr[dst.len++] = src;
+
+	return dst;
+}
+
 /* copies <src> over <dst> for a maximum of <count> bytes. Returns the number
  * of characters copied (src.len), or -1 if it does not fit. In all cases, the
  * contents are copied prior to reporting an error, so that the destination
