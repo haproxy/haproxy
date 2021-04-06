@@ -1203,7 +1203,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.state & FD_POLL_PRI) ? 'P' : 'p',
 			     (fdt.state & FD_POLL_IN)  ? 'I' : 'i',
 			     (fdt.state & FD_LINGER_RISK) ? 'L' : 'l',
-			     fdt.cloned ? 'C' : 'c',
+			     (fdt.state & FD_CLONED) ? 'C' : 'c',
 			     fdt.thread_mask, fdt.update_mask,
 			     fdt.owner,
 			     fdt.iocb);

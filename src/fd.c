@@ -819,7 +819,7 @@ int fork_poller()
 	int fd;
 	for (fd = 0; fd < global.maxsock; fd++) {
 		if (fdtab[fd].owner) {
-			fdtab[fd].cloned = 1;
+			HA_ATOMIC_OR(&fdtab[fd].state, FD_CLONED);
 		}
 	}
 

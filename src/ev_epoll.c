@@ -41,7 +41,7 @@ static int epoll_fd[MAX_THREADS]; // per-thread epoll_fd
  */
 static void __fd_clo(int fd)
 {
-	if (unlikely(fdtab[fd].cloned)) {
+	if (unlikely(fdtab[fd].state & FD_CLONED)) {
 		unsigned long m = polled_mask[fd].poll_recv | polled_mask[fd].poll_send;
 		struct epoll_event ev;
 		int i;

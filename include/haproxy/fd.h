@@ -433,7 +433,6 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;
 	fdtab[fd].state = 0;
-	fdtab[fd].cloned = 0;
 	fdtab[fd].et_possible = 0;
 	fdtab[fd].exported = 0;
 #ifdef DEBUG_FD
