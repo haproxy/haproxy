@@ -1889,7 +1889,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	 * the caller know how much it should expect.
 	 */
 	for (cur_fd = 0;cur_fd < global.maxsock; cur_fd++)
-		tot_fd_nb += fdtab[cur_fd].exported;
+		tot_fd_nb += !!(fdtab[cur_fd].state & FD_EXPORTED);
 
 	if (tot_fd_nb == 0)
 		goto out;
@@ -1933,7 +1933,7 @@ static int _getsocks(char **args, char *payload, struct appctx *appctx, void *pr
 	nb_queued = 0;
 	iov.iov_base = tmpbuf;
 	for (cur_fd = 0; cur_fd < global.maxsock; cur_fd++) {
-		if (!(fdtab[cur_fd].exported))
+		if (!(fdtab[cur_fd].state & FD_EXPORTED))
 			continue;
 
 		ns_name = if_name = "";

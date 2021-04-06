@@ -320,7 +320,6 @@ void _fd_delete_orphan(int fd)
 #endif
 	fdinfo[fd].port_range = NULL;
 	fdtab[fd].owner = NULL;
-	fdtab[fd].exported = 0;
 	/* perform the close() call last as it's what unlocks the instant reuse
 	 * of this FD by any other thread.
 	 */

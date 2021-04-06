@@ -67,6 +67,7 @@ enum {
 #define FD_CLONED_BIT      17  /* cloned socket, requires EPOLL_CTL_DEL on close */
 #define FD_INITIALIZED_BIT 18  /* init phase was done (e.g. output pipe set non-blocking) */
 #define FD_ET_POSSIBLE_BIT 19  /* edge-triggered is possible on this FD */
+#define FD_EXPORTED_BIT    20  /* FD is exported and must not be closed */
 
 
 /* and flag values */
@@ -105,6 +106,7 @@ enum {
 #define FD_CLONED           (1U << FD_CLONED_BIT)
 #define FD_INITIALIZED      (1U << FD_INITIALIZED_BIT)
 #define FD_ET_POSSIBLE      (1U << FD_ET_POSSIBLE_BIT)
+#define FD_EXPORTED         (1U << FD_EXPORTED_BIT)
 
 /* This is the value used to mark a file descriptor as dead. This value is
  * negative, this is important so that tests on fd < 0 properly match. It
@@ -153,7 +155,6 @@ struct fdtab {
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
 	unsigned int state;                  /* FD state for read and write directions (FD_EV_*) + FD_POLL_* */
-	unsigned char exported:1;            /* 1 if the FD is exported and must not be closed */
 #ifdef DEBUG_FD
 	unsigned int event_count;            /* number of events reported */
 #endif

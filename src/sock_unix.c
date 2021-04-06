@@ -289,7 +289,7 @@ int sock_unix_bind_receiver(struct receiver *rx, char **errmsg)
 
 	/* for now, all regularly bound TCP listeners are exportable */
 	if (!(rx->flags & RX_F_INHERITED))
-		fdtab[fd].exported = 1;
+		HA_ATOMIC_OR(&fdtab[fd].state, FD_EXPORTED);
 
 	return err;
 
