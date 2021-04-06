@@ -3485,18 +3485,17 @@ static int h1_snd_pipe(struct conn_stream *cs, struct pipe *pipe)
 
 	TRACE_ENTER(H1_EV_STRM_SEND, cs->conn, h1s, 0, (size_t[]){pipe->data});
 
-	if (b_data(&h1s->h1c->obuf))
-		goto end;
-
-	ret = cs->conn->xprt->snd_pipe(cs->conn, cs->conn->xprt_ctx, pipe);
-  end:
-	if (pipe->data) {
+	if (b_data(&h1s->h1c->obuf)) {
 		if (!(h1s->h1c->wait_event.events & SUB_RETRY_SEND)) {
 			TRACE_STATE("more data to send, subscribing", H1_EV_STRM_SEND, cs->conn, h1s);
 			cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, SUB_RETRY_SEND, &h1s->h1c->wait_event);
 		}
+		goto end;
 	}
 
+	ret = cs->conn->xprt->snd_pipe(cs->conn, cs->conn->xprt_ctx, pipe);
+
+  end:
 	TRACE_LEAVE(H1_EV_STRM_SEND, cs->conn, h1s, 0, (size_t[]){ret});
 	return ret;
 }
