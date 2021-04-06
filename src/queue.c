@@ -400,7 +400,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	if (srv) {
 		unsigned int old_max, new_max;
 
-		new_max = _HA_ATOMIC_ADD(&srv->nbpend, 1);
+		new_max = _HA_ATOMIC_ADD_FETCH(&srv->nbpend, 1);
 		old_max = srv->counters.nbpend_max;
 		while (new_max > old_max) {
 			if (likely(_HA_ATOMIC_CAS(&srv->counters.nbpend_max, &old_max, new_max)))
@@ -416,7 +416,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	else {
 		unsigned int old_max, new_max;
 
-		new_max = _HA_ATOMIC_ADD(&px->nbpend, 1);
+		new_max = _HA_ATOMIC_ADD_FETCH(&px->nbpend, 1);
 		old_max = px->be_counters.nbpend_max;
 		while (new_max > old_max) {
 			if (likely(_HA_ATOMIC_CAS(&px->be_counters.nbpend_max, &old_max, new_max)))

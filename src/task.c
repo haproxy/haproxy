@@ -585,7 +585,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 				HA_ATOMIC_ADD(&profile_entry->cpu_time, cpu);
 			}
 
-			state = _HA_ATOMIC_AND(&t->state, ~TASK_RUNNING);
+			state = _HA_ATOMIC_AND_FETCH(&t->state, ~TASK_RUNNING);
 			if (unlikely(state & TASK_KILLED)) {
 				task_unlink_wq(t);
 				__task_free(t);

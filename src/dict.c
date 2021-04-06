@@ -116,7 +116,7 @@ void dict_entry_unref(struct dict *d, struct dict_entry *de)
 	if (!de)
 		return;
 
-	if (HA_ATOMIC_SUB(&de->refcount, 1) != 0)
+	if (HA_ATOMIC_SUB_FETCH(&de->refcount, 1) != 0)
 		return;
 
 	HA_RWLOCK_WRLOCK(DICT_LOCK, &d->rwlock);

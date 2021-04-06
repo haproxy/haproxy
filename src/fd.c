@@ -374,7 +374,7 @@ int fd_takeover(int fd, void *expected_owner)
 	int ret = -1;
 
 #ifndef HA_HAVE_CAS_DW
-	if (_HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit) == tid_bit) {
+	if (_HA_ATOMIC_OR_FETCH(&fdtab[fd].running_mask, tid_bit) == tid_bit) {
 		HA_RWLOCK_WRLOCK(OTHER_LOCK, &fd_mig_lock);
 		if (fdtab[fd].owner == expected_owner) {
 			fdtab[fd].thread_mask = tid_bit;
@@ -388,7 +388,7 @@ int fd_takeover(int fd, void *expected_owner)
 
 	new_masks[0] = new_masks[1] = tid_bit;
 
-	old_masks[0] = _HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
+	old_masks[0] = _HA_ATOMIC_OR_FETCH(&fdtab[fd].running_mask, tid_bit);
 	old_masks[1] = fdtab[fd].thread_mask;
 
 	/* protect ourself against a delete then an insert for the same fd,

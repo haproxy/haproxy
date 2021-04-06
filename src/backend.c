@@ -1703,7 +1703,7 @@ skip_reuse:
 		int count;
 
 		s->flags |= SF_CURR_SESS;
-		count = _HA_ATOMIC_ADD(&srv->cur_sess, 1);
+		count = _HA_ATOMIC_ADD_FETCH(&srv->cur_sess, 1);
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.cur_sess_max, count);
 		if (s->be->lbprm.server_take_conn)
 			s->be->lbprm.server_take_conn(srv, 0);

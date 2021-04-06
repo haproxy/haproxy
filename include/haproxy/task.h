@@ -207,7 +207,7 @@ static inline void _task_wakeup(struct task *t, unsigned int f, const char *file
 {
 	unsigned int state;
 
-	state = _HA_ATOMIC_OR(&t->state, f);
+	state = _HA_ATOMIC_OR_FETCH(&t->state, f);
 	while (!(state & (TASK_RUNNING | TASK_QUEUED))) {
 		if (_HA_ATOMIC_CAS(&t->state, &state, state | TASK_QUEUED)) {
 #ifdef DEBUG_TASK

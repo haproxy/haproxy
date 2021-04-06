@@ -1943,7 +1943,7 @@ ssl_sock_do_create_cert(const char *servername, struct bind_conf *bind_conf, SSL
 	 * number */
 	if (X509_set_version(newcrt, 2L) != 1)
 		goto mkcert_error;
-	ASN1_INTEGER_set(X509_get_serialNumber(newcrt), _HA_ATOMIC_ADD(&ssl_ctx_serial, 1));
+	ASN1_INTEGER_set(X509_get_serialNumber(newcrt), _HA_ATOMIC_ADD_FETCH(&ssl_ctx_serial, 1));
 
 	/* Set duration for the certificate */
 	if (!X509_gmtime_adj(X509_getm_notBefore(newcrt), (long)-60*60*24) ||

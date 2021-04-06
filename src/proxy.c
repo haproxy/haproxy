@@ -2126,7 +2126,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 
 	s->be = be;
 	HA_ATOMIC_UPDATE_MAX(&be->be_counters.conn_max,
-			     HA_ATOMIC_ADD(&be->beconn, 1));
+			     HA_ATOMIC_ADD_FETCH(&be->beconn, 1));
 	proxy_inc_be_ctr(be);
 
 	/* assign new parameters to the stream from the new backend */

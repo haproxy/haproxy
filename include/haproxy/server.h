@@ -252,7 +252,7 @@ static inline void srv_use_conn(struct server *srv, struct connection *conn)
 {
 	unsigned int curr;
 
-	curr = _HA_ATOMIC_ADD(&srv->curr_used_conns, 1);
+	curr = _HA_ATOMIC_ADD_FETCH(&srv->curr_used_conns, 1);
 
 	/* It's ok not to do that atomically, we don't need an
 	 * exact max.
@@ -318,7 +318,7 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 	    !conn->mux->used_streams(conn) && conn->mux->avail_streams(conn)) {
 		int retadd;
 
-		retadd = _HA_ATOMIC_ADD(&srv->curr_idle_conns, 1);
+		retadd = _HA_ATOMIC_ADD_FETCH(&srv->curr_idle_conns, 1);
 		if (retadd > srv->max_idle_conns) {
 			_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
 			return 0;

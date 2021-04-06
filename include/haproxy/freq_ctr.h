@@ -51,7 +51,7 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 	do {
 		now_tmp = global_now >> 32;
 		if (curr_sec == (now_tmp & 0x7fffffff))
-			return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
+			return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
 
 		/* remove the bit, used for the lock */
 		curr_sec &= 0x7fffffff;
@@ -72,7 +72,7 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 	/* release the lock and update the time in case of rotate. */
 	_HA_ATOMIC_STORE(&ctr->curr_sec, curr_sec & 0x7fffffff);
 
-	return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
+	return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
 }
 
 /* Update a frequency counter by <inc> incremental units. It is automatically
@@ -90,7 +90,7 @@ static inline unsigned int update_freq_ctr_period(struct freq_ctr_period *ctr,
 	do {
 		now_ms_tmp = global_now_ms;
 		if (now_ms_tmp - curr_tick < period)
-			return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
+			return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
 
 		/* remove the bit, used for the lock */
 		curr_tick &= ~1;
@@ -112,7 +112,7 @@ static inline unsigned int update_freq_ctr_period(struct freq_ctr_period *ctr,
 	/* release the lock and update the time in case of rotate. */
 	_HA_ATOMIC_STORE(&ctr->curr_tick, curr_tick);
 
-	return _HA_ATOMIC_ADD(&ctr->curr_ctr, inc);
+	return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
 }
 
 /* Read a frequency counter taking history into account for missing time in

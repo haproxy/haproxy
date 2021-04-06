@@ -126,7 +126,7 @@ static inline void done_update_polling(int fd)
 {
 	unsigned long update_mask;
 
-	update_mask = _HA_ATOMIC_AND(&fdtab[fd].update_mask, ~tid_bit);
+	update_mask = _HA_ATOMIC_AND_FETCH(&fdtab[fd].update_mask, ~tid_bit);
 	while ((update_mask & all_threads_mask)== 0) {
 		/* If we were the last one that had to update that entry, remove it from the list */
 		fd_rm_from_fd_list(&update_list, fd, offsetof(struct fdtab, update));
@@ -346,7 +346,7 @@ static inline int fd_set_running(int fd)
  */
 static inline long fd_clr_running(int fd)
 {
-	return _HA_ATOMIC_AND(&fdtab[fd].running_mask, ~tid_bit);
+	return _HA_ATOMIC_AND_FETCH(&fdtab[fd].running_mask, ~tid_bit);
 }
 
 /* Update events seen for FD <fd> and its state if needed. This should be

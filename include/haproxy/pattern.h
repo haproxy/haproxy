@@ -204,7 +204,7 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace);
  */
 static inline unsigned int pat_ref_newgen(struct pat_ref *ref)
 {
-	return HA_ATOMIC_ADD(&ref->next_gen, 1);
+	return HA_ATOMIC_ADD_FETCH(&ref->next_gen, 1);
 }
 
 /* Give up a previously assigned generation number. By doing this the caller
