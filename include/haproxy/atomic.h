@@ -330,13 +330,13 @@
 #define HA_ATOMIC_BTS(val, bit)						\
 	({								\
 		typeof(*(val)) __b_bts = (1UL << (bit));		\
-		__sync_fetch_and_or((val), __b_bts) & __b_bts;		\
+		__atomic_fetch_or((val), __b_bts, __ATOMIC_SEQ_CST) & __b_bts; \
 	})
 
 #define HA_ATOMIC_BTR(val, bit)						\
 	({								\
 		typeof(*(val)) __b_btr = (1UL << (bit));		\
-		__sync_fetch_and_and((val), ~__b_btr) & __b_btr;	\
+		__atomic_fetch_and((val), ~__b_btr, __ATOMIC_SEQ_CST) & __b_btr; \
 	})
 
 #define HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
@@ -393,6 +393,18 @@
 #define _HA_ATOMIC_FETCH_OR(val, flags)  __atomic_fetch_or(val,  flags, __ATOMIC_RELAXED)
 #define _HA_ATOMIC_FETCH_ADD(val, i)     __atomic_fetch_add(val, i, __ATOMIC_RELAXED)
 #define _HA_ATOMIC_FETCH_SUB(val, i)     __atomic_fetch_sub(val, i, __ATOMIC_RELAXED)
+
+#define _HA_ATOMIC_BTS(val, bit)					\
+	({								\
+		typeof(*(val)) __b_bts = (1UL << (bit));		\
+		__atomic_fetch_or((val), __b_bts, __ATOMIC_RELAXED) & __b_bts; \
+	})
+
+#define _HA_ATOMIC_BTR(val, bit)					\
+	({								\
+		typeof(*(val)) __b_btr = (1UL << (bit));		\
+		__atomic_fetch_and((val), ~__b_btr, __ATOMIC_RELAXED) & __b_btr; \
+	})
 
 #define _HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)
 /* warning, n is a pointer to the double value for dwcas */
@@ -689,6 +701,14 @@ static inline void __ha_compiler_barrier(void)
 
 
 /* fallbacks to remap all undefined _HA_ATOMIC_* on to their safe equivalent */
+#ifndef _HA_ATOMIC_BTR
+#define _HA_ATOMIC_BTR HA_ATOMIC_BTR
+#endif /* !_HA_ATOMIC_BTR */
+
+#ifndef _HA_ATOMIC_BTS
+#define _HA_ATOMIC_BTS HA_ATOMIC_BTS
+#endif /* !_HA_ATOMIC_BTS */
+
 #ifndef _HA_ATOMIC_CAS
 #define _HA_ATOMIC_CAS HA_ATOMIC_CAS
 #endif /* !_HA_ATOMIC_CAS */
