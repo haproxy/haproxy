@@ -77,6 +77,8 @@
 #define HA_ATOMIC_OR(val, flags)     do { *(val) |= (flags);} while (0)
 #define HA_ATOMIC_ADD(val, i)        do { *(val) += (i);} while (0)
 #define HA_ATOMIC_SUB(val, i)        do { *(val) -= (i);} while (0)
+#define HA_ATOMIC_INC(val)           do { *(val) += 1;} while (0)
+#define HA_ATOMIC_DEC(val)           do { *(val) -= 1;} while (0)
 
 #define HA_ATOMIC_AND_FETCH(val, flags) ({ *(val) &= (flags); })
 #define HA_ATOMIC_OR_FETCH(val, flags)  ({ *(val) |= (flags); })
@@ -226,6 +228,8 @@
 #define HA_ATOMIC_OR(val, flags)     do { __sync_or_and_fetch(val,  flags); } while (0)
 #define HA_ATOMIC_ADD(val, i)        do { __sync_add_and_fetch(val, i); } while (0)
 #define HA_ATOMIC_SUB(val, i)        do { __sync_sub_and_fetch(val, i); } while (0)
+#define HA_ATOMIC_INC(val)           do { __sync_add_and_fetch(val, 1); } while (0)
+#define HA_ATOMIC_DEC(val)           do { __sync_sub_and_fetch(val, 1); } while (0)
 
 #define HA_ATOMIC_AND_FETCH(val, flags) __sync_and_and_fetch(val, flags)
 #define HA_ATOMIC_OR_FETCH(val, flags)  __sync_or_and_fetch(val,  flags)
@@ -310,6 +314,8 @@
 #define HA_ATOMIC_OR(val, flags)     do { __atomic_or_fetch(val,  flags, __ATOMIC_SEQ_CST); } while (0)
 #define HA_ATOMIC_ADD(val, i)        do { __atomic_add_fetch(val, i, __ATOMIC_SEQ_CST); } while (0)
 #define HA_ATOMIC_SUB(val, i)        do { __atomic_sub_fetch(val, i, __ATOMIC_SEQ_CST); } while (0)
+#define HA_ATOMIC_INC(val)           do { __atomic_add_fetch(val, 1, __ATOMIC_SEQ_CST); } while (0)
+#define HA_ATOMIC_DEC(val)           do { __atomic_sub_fetch(val, 1, __ATOMIC_SEQ_CST); } while (0)
 
 #define HA_ATOMIC_AND_FETCH(val, flags) __atomic_and_fetch(val, flags, __ATOMIC_SEQ_CST)
 #define HA_ATOMIC_OR_FETCH(val, flags)  __atomic_or_fetch(val,  flags, __ATOMIC_SEQ_CST)
@@ -375,6 +381,8 @@
 #define _HA_ATOMIC_OR(val, flags)     do { __atomic_or_fetch(val,  flags, __ATOMIC_RELAXED); } while (0)
 #define _HA_ATOMIC_ADD(val, i)        do { __atomic_add_fetch(val, i, __ATOMIC_RELAXED); } while (0)
 #define _HA_ATOMIC_SUB(val, i)        do { __atomic_sub_fetch(val, i, __ATOMIC_RELAXED); } while (0)
+#define _HA_ATOMIC_INC(val)           do { __atomic_add_fetch(val, 1, __ATOMIC_RELAXED); } while (0)
+#define _HA_ATOMIC_DEC(val)           do { __atomic_sub_fetch(val, 1, __ATOMIC_RELAXED); } while (0)
 
 #define _HA_ATOMIC_AND_FETCH(val, flags) __atomic_and_fetch(val, flags, __ATOMIC_RELAXED)
 #define _HA_ATOMIC_OR_FETCH(val, flags)  __atomic_or_fetch(val,  flags, __ATOMIC_RELAXED)
@@ -712,6 +720,14 @@ static inline void __ha_compiler_barrier(void)
 #ifndef _HA_ATOMIC_FETCH_SUB
 #define _HA_ATOMIC_FETCH_SUB HA_ATOMIC_FETCH_SUB
 #endif /* !_HA_ATOMIC_FETCH_SUB */
+
+#ifndef _HA_ATOMIC_INC
+#define _HA_ATOMIC_INC HA_ATOMIC_INC
+#endif /* !_HA_ATOMIC_INC */
+
+#ifndef _HA_ATOMIC_DEC
+#define _HA_ATOMIC_DEC HA_ATOMIC_DEC
+#endif /* !_HA_ATOMIC_DEC */
 
 #ifndef _HA_ATOMIC_AND
 #define _HA_ATOMIC_AND HA_ATOMIC_AND
