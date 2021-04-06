@@ -354,11 +354,11 @@ static inline long fd_clr_running(int fd)
  * doesn't need to also pass FD_EV_SHUT_*, it's implied. ERR and SHUT are
  * allowed to be reported regardless of R/W readiness.
  */
-static inline void fd_update_events(int fd, unsigned char evts)
+static inline void fd_update_events(int fd, uint evts)
 {
 	unsigned long locked = atleast2(fdtab[fd].thread_mask);
-	unsigned char old, new;
-	int new_flags, must_stop;
+	uint old, new;
+	uint new_flags, must_stop;
 
 	new_flags =
 	      ((evts & FD_EV_READY_R) ? FD_POLL_IN  : 0) |

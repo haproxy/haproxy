@@ -1197,7 +1197,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.state & FD_EV_ACTIVE_R) ? 'A' : 'a',
 			     (fdt.state & FD_EV_READY_W)  ? 'R' : 'r',
 			     (fdt.state & FD_EV_ACTIVE_W) ? 'A' : 'a',
-			     fdt.ev,
+			     fdt.ev >> 8,
 			     (fdt.ev & FD_POLL_HUP) ? 'H' : 'h',
 			     (fdt.ev & FD_POLL_ERR) ? 'E' : 'e',
 			     (fdt.ev & FD_POLL_OUT) ? 'O' : 'o',
