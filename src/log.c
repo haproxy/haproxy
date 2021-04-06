@@ -2194,7 +2194,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		be_conn = NULL;
 		status = 0;
 		s_flags = SF_ERR_PRXCOND | SF_FINST_R;
-		uniq_id = _HA_ATOMIC_XADD(&global.req_count, 1);
+		uniq_id = _HA_ATOMIC_FETCH_ADD(&global.req_count, 1);
 
 		/* prepare a valid log structure */
 		tmp_strm_log.tv_accept = sess->tv_accept;

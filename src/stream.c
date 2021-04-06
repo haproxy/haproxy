@@ -415,7 +415,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	s->si[1].flags = SI_FL_ISBACK;
 
 	s->stream_epoch = _HA_ATOMIC_LOAD(&stream_epoch);
-	s->uniq_id = _HA_ATOMIC_XADD(&global.req_count, 1);
+	s->uniq_id = _HA_ATOMIC_FETCH_ADD(&global.req_count, 1);
 
 	/* OK, we're keeping the stream, so let's properly initialize the stream */
 	LIST_INIT(&s->back_refs);
@@ -3376,7 +3376,7 @@ static int cli_parse_show_sess(char **args, char *payload, struct appctx *appctx
 	/* let's set our own stream's epoch to the current one and increment
 	 * it so that we know which streams were already there before us.
 	 */
-	si_strm(appctx->owner)->stream_epoch = _HA_ATOMIC_XADD(&stream_epoch, 1);
+	si_strm(appctx->owner)->stream_epoch = _HA_ATOMIC_FETCH_ADD(&stream_epoch, 1);
 	return 0;
 }
 

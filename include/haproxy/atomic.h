@@ -83,12 +83,36 @@
 #define HA_ATOMIC_ADD_FETCH(val, i)     ({ *(val) += (i); })
 #define HA_ATOMIC_SUB_FETCH(val, i)     ({ *(val) -= (i); })
 
-#define HA_ATOMIC_XADD(val, i)						\
+#define HA_ATOMIC_FETCH_AND(val, i)					\
 	({								\
-		typeof((val)) __p_xadd = (val);				\
-		typeof(*(val)) __old_xadd = *__p_xadd;			\
-		*__p_xadd += i;						\
-		__old_xadd;						\
+		typeof((val)) __p_val = (val);				\
+		typeof(*(val)) __old_val = *__p_val;			\
+		*__p_val &= (i);					\
+		__old_val;						\
+	})
+
+#define HA_ATOMIC_FETCH_OR(val, i)					\
+	({								\
+		typeof((val)) __p_val = (val);				\
+		typeof(*(val)) __old_val = *__p_val;			\
+		*__p_val |= (i);					\
+		__old_val;						\
+	})
+
+#define HA_ATOMIC_FETCH_ADD(val, i)					\
+	({								\
+		typeof((val)) __p_val = (val);				\
+		typeof(*(val)) __old_val = *__p_val;			\
+		*__p_val += (i);					\
+		__old_val;						\
+	})
+
+#define HA_ATOMIC_FETCH_SUB(val, i)					\
+	({								\
+		typeof((val)) __p_val = (val);				\
+		typeof(*(val)) __old_val = *__p_val;			\
+		*__p_val -= (i);					\
+		__old_val;						\
 	})
 
 #define HA_ATOMIC_BTS(val, bit)						\
@@ -208,7 +232,10 @@
 #define HA_ATOMIC_ADD_FETCH(val, i)     __sync_add_and_fetch(val, i)
 #define HA_ATOMIC_SUB_FETCH(val, i)     __sync_sub_and_fetch(val, i)
 
-#define HA_ATOMIC_XADD(val, i)       __sync_fetch_and_add(val, i)
+#define HA_ATOMIC_FETCH_AND(val, flags) __sync_fetch_and_and(val, flags)
+#define HA_ATOMIC_FETCH_OR(val, flags)  __sync_fetch_and_or(val,  flags)
+#define HA_ATOMIC_FETCH_ADD(val, i)     __sync_fetch_and_add(val, i)
+#define HA_ATOMIC_FETCH_SUB(val, i)     __sync_fetch_and_sub(val, i)
 
 #define HA_ATOMIC_BTS(val, bit)						\
 	({								\
@@ -289,7 +316,10 @@
 #define HA_ATOMIC_ADD_FETCH(val, i)     __atomic_add_fetch(val, i, __ATOMIC_SEQ_CST)
 #define HA_ATOMIC_SUB_FETCH(val, i)     __atomic_sub_fetch(val, i, __ATOMIC_SEQ_CST)
 
-#define HA_ATOMIC_XADD(val, i)       __atomic_fetch_add(val, i, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_FETCH_AND(val, flags) __atomic_fetch_and(val, flags, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_FETCH_OR(val, flags)  __atomic_fetch_or(val,  flags, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_FETCH_ADD(val, i)     __atomic_fetch_add(val, i, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_FETCH_SUB(val, i)     __atomic_fetch_sub(val, i, __ATOMIC_SEQ_CST)
 
 #define HA_ATOMIC_BTS(val, bit)						\
 	({								\
@@ -351,7 +381,11 @@
 #define _HA_ATOMIC_ADD_FETCH(val, i)     __atomic_add_fetch(val, i, __ATOMIC_RELAXED)
 #define _HA_ATOMIC_SUB_FETCH(val, i)     __atomic_sub_fetch(val, i, __ATOMIC_RELAXED)
 
-#define _HA_ATOMIC_XADD(val, i)       __atomic_fetch_add(val, i, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_FETCH_AND(val, flags) __atomic_fetch_and(val, flags, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_FETCH_OR(val, flags)  __atomic_fetch_or(val,  flags, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_FETCH_ADD(val, i)     __atomic_fetch_add(val, i, __ATOMIC_RELAXED)
+#define _HA_ATOMIC_FETCH_SUB(val, i)     __atomic_fetch_sub(val, i, __ATOMIC_RELAXED)
+
 #define _HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)
 /* warning, n is a pointer to the double value for dwcas */
 #define _HA_ATOMIC_DWCAS(val, o, n)   __ha_cas_dw(val, o, n)
@@ -663,9 +697,9 @@ static inline void __ha_compiler_barrier(void)
 #define _HA_ATOMIC_ADD_FETCH HA_ATOMIC_ADD_FETCH
 #endif /* !_HA_ATOMIC_ADD_FETCH */
 
-#ifndef _HA_ATOMIC_XADD
-#define _HA_ATOMIC_XADD HA_ATOMIC_XADD
-#endif /* !_HA_ATOMIC_SUB */
+#ifndef _HA_ATOMIC_FETCH_ADD
+#define _HA_ATOMIC_FETCH_ADD HA_ATOMIC_FETCH_ADD
+#endif /* !_HA_ATOMIC_FETCH_ADD */
 
 #ifndef _HA_ATOMIC_SUB
 #define _HA_ATOMIC_SUB HA_ATOMIC_SUB
@@ -675,6 +709,10 @@ static inline void __ha_compiler_barrier(void)
 #define _HA_ATOMIC_SUB_FETCH HA_ATOMIC_SUB_FETCH
 #endif /* !_HA_ATOMIC_SUB_FETCH */
 
+#ifndef _HA_ATOMIC_FETCH_SUB
+#define _HA_ATOMIC_FETCH_SUB HA_ATOMIC_FETCH_SUB
+#endif /* !_HA_ATOMIC_FETCH_SUB */
+
 #ifndef _HA_ATOMIC_AND
 #define _HA_ATOMIC_AND HA_ATOMIC_AND
 #endif /* !_HA_ATOMIC_AND */
@@ -683,6 +721,10 @@ static inline void __ha_compiler_barrier(void)
 #define _HA_ATOMIC_AND_FETCH HA_ATOMIC_AND_FETCH
 #endif /* !_HA_ATOMIC_AND_FETCH */
 
+#ifndef _HA_ATOMIC_FETCH_AND
+#define _HA_ATOMIC_FETCH_AND HA_ATOMIC_FETCH_AND
+#endif /* !_HA_ATOMIC_FETCH_AND */
+
 #ifndef _HA_ATOMIC_OR
 #define _HA_ATOMIC_OR HA_ATOMIC_OR
 #endif /* !_HA_ATOMIC_OR */
@@ -690,6 +732,10 @@ static inline void __ha_compiler_barrier(void)
 #ifndef _HA_ATOMIC_OR_FETCH
 #define _HA_ATOMIC_OR_FETCH HA_ATOMIC_OR_FETCH
 #endif /* !_HA_ATOMIC_OR_FETCH */
+
+#ifndef _HA_ATOMIC_FETCH_OR
+#define _HA_ATOMIC_FETCH_OR HA_ATOMIC_FETCH_OR
+#endif /* !_HA_ATOMIC_FETCH_OR */
 
 #ifndef _HA_ATOMIC_XCHG
 #define _HA_ATOMIC_XCHG HA_ATOMIC_XCHG

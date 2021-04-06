@@ -2220,7 +2220,7 @@ void proxy_capture_error(struct proxy *proxy, int is_back,
 	int len1, len2;
 	unsigned int ev_id;
 
-	ev_id = HA_ATOMIC_XADD(&error_snapshot_id, 1);
+	ev_id = HA_ATOMIC_FETCH_ADD(&error_snapshot_id, 1);
 
 	buf_len = b_data(buf) - buf_out;
 

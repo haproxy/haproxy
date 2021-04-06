@@ -2501,7 +2501,7 @@ static void *run_thread_poll_loop(void *data)
 	 */
 	if (!(global.tune.options & GTUNE_INSECURE_SETUID) && !master) {
 		static int warn_fail;
-		if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1 && !_HA_ATOMIC_XADD(&warn_fail, 1)) {
+		if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1 && !_HA_ATOMIC_FETCH_ADD(&warn_fail, 1)) {
 			ha_warning("Failed to disable setuid, please report to developers with detailed "
 				   "information about your operating system. You can silence this warning "
 				   "by adding 'insecure-setuid-wanted' in the 'global' section.\n");
@@ -2519,7 +2519,7 @@ static void *run_thread_poll_loop(void *data)
 		struct rlimit limit = { .rlim_cur = 0, .rlim_max = 0 };
 		static int warn_fail;
 
-		if (setrlimit(RLIMIT_NPROC, &limit) == -1 && !_HA_ATOMIC_XADD(&warn_fail, 1)) {
+		if (setrlimit(RLIMIT_NPROC, &limit) == -1 && !_HA_ATOMIC_FETCH_ADD(&warn_fail, 1)) {
 			ha_warning("Failed to disable forks, please report to developers with detailed "
 				   "information about your operating system. You can silence this warning "
 				   "by adding 'insecure-fork-wanted' in the 'global' section.\n");
