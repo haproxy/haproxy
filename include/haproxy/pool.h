@@ -163,8 +163,8 @@ static inline void *__pool_get_first(struct pool_head *pool)
 
 static inline void __pool_free(struct pool_head *pool, void *ptr)
 {
-	_HA_ATOMIC_SUB(&pool->used, 1);
-	_HA_ATOMIC_SUB(&pool->allocated, 1);
+	_HA_ATOMIC_DEC(&pool->used);
+	_HA_ATOMIC_DEC(&pool->allocated);
 	pool_free_area(ptr, pool->size + POOL_EXTRA);
 }
 
@@ -194,7 +194,7 @@ static inline void *__pool_get_first(struct pool_head *pool)
 	} while (HA_ATOMIC_DWCAS((void *)&pool->free_list, (void *)&cmp, (void *)&new) == 0);
 	__ha_barrier_atomic_store();
 
-	_HA_ATOMIC_ADD(&pool->used, 1);
+	_HA_ATOMIC_INC(&pool->used);
 #ifdef DEBUG_MEMORY_POOLS
 	/* keep track of where the element was allocated from */
 	*POOL_LINK(pool, cmp.free_list) = (void *)pool;
@@ -210,11 +210,11 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 {
 	void **free_list = pool->free_list;
 
-	_HA_ATOMIC_SUB(&pool->used, 1);
+	_HA_ATOMIC_DEC(&pool->used);
 
 	if (unlikely(pool_is_crowded(pool))) {
 		pool_free_area(ptr, pool->size + POOL_EXTRA);
-		_HA_ATOMIC_SUB(&pool->allocated, 1);
+		_HA_ATOMIC_DEC(&pool->allocated);
 	} else {
 		do {
 			*POOL_LINK(pool, ptr) = (void *)free_list;

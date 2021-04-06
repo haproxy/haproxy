@@ -86,7 +86,7 @@ struct dict_entry *dict_insert(struct dict *d, char *s)
 	de = __dict_lookup(d, s);
 	HA_RWLOCK_RDUNLOCK(DICT_LOCK, &d->rwlock);
 	if (de) {
-		HA_ATOMIC_ADD(&de->refcount, 1);
+		HA_ATOMIC_INC(&de->refcount);
 		return de;
 	}
 

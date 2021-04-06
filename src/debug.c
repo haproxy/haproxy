@@ -320,7 +320,7 @@ static int debug_parse_cli_exit(char **args, char *payload, struct appctx *appct
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	exit(code);
 	return 1;
 }
@@ -333,7 +333,7 @@ int debug_parse_cli_bug(char **args, char *payload, struct appctx *appctx, void 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	BUG_ON(one > zero);
 	return 1;
 }
@@ -356,7 +356,7 @@ static int debug_parse_cli_close(char **args, char *payload, struct appctx *appc
 	if (!fdtab[fd].owner)
 		return cli_msg(appctx, LOG_INFO, "File descriptor was already closed.\n");
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	fd_delete(fd);
 	return 1;
 }
@@ -369,7 +369,7 @@ static int debug_parse_cli_delay(char **args, char *payload, struct appctx *appc
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	usleep((long)delay * 1000);
 	return 1;
 }
@@ -382,7 +382,7 @@ static int debug_parse_cli_log(char **args, char *payload, struct appctx *appctx
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	chunk_reset(&trash);
 	for (arg = 3; *args[arg]; arg++) {
 		if (arg > 3)
@@ -403,7 +403,7 @@ static int debug_parse_cli_loop(char **args, char *payload, struct appctx *appct
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	gettimeofday(&curr, NULL);
 	tv_ms_add(&deadline, &curr, loop);
 
@@ -419,7 +419,7 @@ static int debug_parse_cli_panic(char **args, char *payload, struct appctx *appc
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	ha_panic();
 	return 1;
 }
@@ -435,7 +435,7 @@ static int debug_parse_cli_exec(char **args, char *payload, struct appctx *appct
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	chunk_reset(&trash);
 	for (arg = 3; *args[arg]; arg++) {
 		if (arg > 3)
@@ -515,7 +515,7 @@ static int debug_parse_cli_hex(char **args, char *payload, struct appctx *appctx
 	if (!start)
 		return cli_err(appctx, "Will not dump from NULL address.\n");
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 
 	/* by default, dump ~128 till next block of 16 */
 	len = strtoul(args[4], NULL, 0);
@@ -546,7 +546,7 @@ static int debug_parse_cli_tkill(char **args, char *payload, struct appctx *appc
 	if (*args[4])
 		sig = atoi(args[4]);
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	if (thr)
 		ha_tkill(thr - 1, sig);
 	else
@@ -566,7 +566,7 @@ static int debug_parse_cli_write(char **args, char *payload, struct appctx *appc
 	if (len >= trash.size)
 		return cli_err(appctx, "Output too large, must be <tune.bufsize.\n");
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 
 	chunk_reset(&trash);
 	trash.data = len;
@@ -612,7 +612,7 @@ static int debug_parse_cli_stream(char **args, char *payload, struct appctx *app
 			       );
 	}
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	for (arg = 3; *args[arg]; arg++) {
 		old = 0;
 		end = word = args[arg];
@@ -809,7 +809,7 @@ static int debug_parse_cli_sched(char **args, char *payload, struct appctx *appc
 
 	mode = strcmp(args[3], "task") == 0;
 
-	_HA_ATOMIC_ADD(&debug_commands_issued, 1);
+	_HA_ATOMIC_INC(&debug_commands_issued);
 	for (arg = 4; *args[arg]; arg++) {
 		end = word = args[arg];
 		while (*end && *end != '=' && *end != '^' && *end != '+' && *end != '-')

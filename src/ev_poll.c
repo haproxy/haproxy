@@ -220,7 +220,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		fd = poll_events[count].fd;
 
 #ifdef DEBUG_FD
-		_HA_ATOMIC_ADD(&fdtab[fd].event_count, 1);
+		_HA_ATOMIC_INC(&fdtab[fd].event_count);
 #endif
 		if (!(e & ( POLLOUT | POLLIN | POLLERR | POLLHUP | POLLRDHUP )))
 			continue;

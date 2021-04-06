@@ -237,9 +237,9 @@ void ring_detach_appctx(struct ring *ring, struct appctx *appctx, size_t ofs)
 		ofs -= ring->ofs;
 		BUG_ON(ofs >= b_size(&ring->buf));
 		LIST_DEL_INIT(&appctx->wait_entry);
-		HA_ATOMIC_SUB(b_peek(&ring->buf, ofs), 1);
+		HA_ATOMIC_DEC(b_peek(&ring->buf, ofs));
 	}
-	HA_ATOMIC_SUB(&ring->readers_count, 1);
+	HA_ATOMIC_DEC(&ring->readers_count);
 	HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 }
 
@@ -308,7 +308,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		if (appctx->ctx.cli.i0 & 2)
 			ofs += b_data(buf) - 1;
 
-		HA_ATOMIC_ADD(b_peek(buf, ofs), 1);
+		HA_ATOMIC_INC(b_peek(buf, ofs));
 		ofs += ring->ofs;
 	}
 
@@ -317,7 +317,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 	 */
 	ofs -= ring->ofs;
 	BUG_ON(ofs >= buf->size);
-	HA_ATOMIC_SUB(b_peek(buf, ofs), 1);
+	HA_ATOMIC_DEC(b_peek(buf, ofs));
 
 	/* in this loop, ofs always points to the counter byte that precedes
 	 * the message so that we can take our reference there if we have to
@@ -351,7 +351,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		ofs += cnt + msg_len;
 	}
 
-	HA_ATOMIC_ADD(b_peek(buf, ofs), 1);
+	HA_ATOMIC_INC(b_peek(buf, ofs));
 	ofs += ring->ofs;
 	appctx->ctx.cli.o0 = ofs;
 	HA_RWLOCK_RDUNLOCK(LOGSRV_LOCK, &ring->lock);

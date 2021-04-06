@@ -138,7 +138,7 @@ struct task *accept_queue_process(struct task *t, void *context, unsigned int st
 			break;
 
 		li = __objt_listener(conn->target);
-		_HA_ATOMIC_ADD(&li->thr_conn[tid], 1);
+		_HA_ATOMIC_INC(&li->thr_conn[tid]);
 		ret = li->accept(conn);
 		if (ret <= 0) {
 			/* connection was terminated by the application */
@@ -213,21 +213,21 @@ void listener_set_state(struct listener *l, enum li_state st)
 		/* from state */
 		switch (l->state) {
 		case LI_NEW: /* first call */
-			_HA_ATOMIC_ADD(&px->li_all, 1);
+			_HA_ATOMIC_INC(&px->li_all);
 			break;
 		case LI_INIT:
 		case LI_ASSIGNED:
 			break;
 		case LI_PAUSED:
-			_HA_ATOMIC_SUB(&px->li_paused, 1);
+			_HA_ATOMIC_DEC(&px->li_paused);
 			break;
 		case LI_LISTEN:
-			_HA_ATOMIC_SUB(&px->li_bound, 1);
+			_HA_ATOMIC_DEC(&px->li_bound);
 			break;
 		case LI_READY:
 		case LI_FULL:
 		case LI_LIMITED:
-			_HA_ATOMIC_SUB(&px->li_ready, 1);
+			_HA_ATOMIC_DEC(&px->li_ready);
 			break;
 		}
 
@@ -239,17 +239,17 @@ void listener_set_state(struct listener *l, enum li_state st)
 			break;
 		case LI_PAUSED:
 			BUG_ON(l->rx.fd == -1);
-			_HA_ATOMIC_ADD(&px->li_paused, 1);
+			_HA_ATOMIC_INC(&px->li_paused);
 			break;
 		case LI_LISTEN:
 			BUG_ON(l->rx.fd == -1);
-			_HA_ATOMIC_ADD(&px->li_bound, 1);
+			_HA_ATOMIC_INC(&px->li_bound);
 			break;
 		case LI_READY:
 		case LI_FULL:
 		case LI_LIMITED:
 			BUG_ON(l->rx.fd == -1);
-			_HA_ATOMIC_ADD(&px->li_ready, 1);
+			_HA_ATOMIC_INC(&px->li_ready);
 			break;
 		}
 	}
@@ -664,8 +664,8 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 		l->extra_counters = NULL;
 
 		HA_SPIN_INIT(&l->lock);
-		_HA_ATOMIC_ADD(&jobs, 1);
-		_HA_ATOMIC_ADD(&listeners, 1);
+		_HA_ATOMIC_INC(&jobs);
+		_HA_ATOMIC_INC(&listeners);
 	}
 	return 1;
 }
@@ -683,8 +683,8 @@ void __delete_listener(struct listener *listener)
 		listener_set_state(listener, LI_INIT);
 		LIST_DEL(&listener->rx.proto_list);
 		listener->rx.proto->nb_receivers--;
-		_HA_ATOMIC_SUB(&jobs, 1);
-		_HA_ATOMIC_SUB(&listeners, 1);
+		_HA_ATOMIC_DEC(&jobs);
+		_HA_ATOMIC_DEC(&listeners);
 	}
 }
 
@@ -860,11 +860,11 @@ void listener_accept(struct listener *l)
 				goto end;
 
 			case CO_AC_RETRY: /* likely a signal */
-				_HA_ATOMIC_SUB(&l->nbconn, 1);
+				_HA_ATOMIC_DEC(&l->nbconn);
 				if (p)
-					_HA_ATOMIC_SUB(&p->feconn, 1);
+					_HA_ATOMIC_DEC(&p->feconn);
 				if (!(l->options & LI_O_UNLIMITED))
-					_HA_ATOMIC_SUB(&actconn, 1);
+					_HA_ATOMIC_DEC(&actconn);
 				continue;
 
 			case CO_AC_YIELD:
@@ -890,7 +890,7 @@ void listener_accept(struct listener *l)
 			HA_ATOMIC_UPDATE_MAX(&global.cps_max, count);
 		}
 
-		_HA_ATOMIC_ADD(&activity[tid].accepted, 1);
+		_HA_ATOMIC_INC(&activity[tid].accepted);
 
 		if (unlikely(cli_conn->handle.fd >= global.maxsock)) {
 			send_log(p, LOG_EMERG,
@@ -1015,18 +1015,18 @@ void listener_accept(struct listener *l)
 			 */
 			ring = &accept_queue_rings[t];
 			if (accept_queue_push_mp(ring, cli_conn)) {
-				_HA_ATOMIC_ADD(&activity[t].accq_pushed, 1);
+				_HA_ATOMIC_INC(&activity[t].accq_pushed);
 				tasklet_wakeup(ring->tasklet);
 				continue;
 			}
 			/* If the ring is full we do a synchronous accept on
 			 * the local thread here.
 			 */
-			_HA_ATOMIC_ADD(&activity[t].accq_full, 1);
+			_HA_ATOMIC_INC(&activity[t].accq_full);
 		}
 #endif // USE_THREAD
 
-		_HA_ATOMIC_ADD(&l->thr_conn[tid], 1);
+		_HA_ATOMIC_INC(&l->thr_conn[tid]);
 		ret = l->accept(cli_conn);
 		if (unlikely(ret <= 0)) {
 			/* The connection was closed by stream_accept(). Either
@@ -1059,13 +1059,13 @@ void listener_accept(struct listener *l)
 
  end:
 	if (next_conn)
-		_HA_ATOMIC_SUB(&l->nbconn, 1);
+		_HA_ATOMIC_DEC(&l->nbconn);
 
 	if (p && next_feconn)
-		_HA_ATOMIC_SUB(&p->feconn, 1);
+		_HA_ATOMIC_DEC(&p->feconn);
 
 	if (next_actconn)
-		_HA_ATOMIC_SUB(&actconn, 1);
+		_HA_ATOMIC_DEC(&actconn);
 
 	if ((l->state == LI_FULL && (!l->maxconn || l->nbconn < l->maxconn)) ||
 	    (l->state == LI_LIMITED &&
@@ -1123,11 +1123,11 @@ void listener_release(struct listener *l)
 	struct proxy *fe = l->bind_conf->frontend;
 
 	if (!(l->options & LI_O_UNLIMITED))
-		_HA_ATOMIC_SUB(&actconn, 1);
+		_HA_ATOMIC_DEC(&actconn);
 	if (fe)
-		_HA_ATOMIC_SUB(&fe->feconn, 1);
-	_HA_ATOMIC_SUB(&l->nbconn, 1);
-	_HA_ATOMIC_SUB(&l->thr_conn[tid], 1);
+		_HA_ATOMIC_DEC(&fe->feconn);
+	_HA_ATOMIC_DEC(&l->nbconn);
+	_HA_ATOMIC_DEC(&l->thr_conn[tid]);
 
 	if (l->state == LI_FULL || l->state == LI_LIMITED)
 		resume_listener(l);

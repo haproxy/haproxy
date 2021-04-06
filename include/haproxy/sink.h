@@ -72,7 +72,7 @@ static inline ssize_t sink_write(struct sink *sink, const struct ist msg[], size
 
  fail:
 	if (unlikely(sent <= 0))
-		HA_ATOMIC_ADD(&sink->ctx.dropped, 1);
+		HA_ATOMIC_INC(&sink->ctx.dropped);
 
 	return sent;
 }

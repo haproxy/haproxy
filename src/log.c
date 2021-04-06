@@ -1918,7 +1918,7 @@ static inline void __do_send_log(struct logsrv *logsrv, int nblogger, int level,
 		static char once;
 
 		if (errno == EAGAIN)
-			_HA_ATOMIC_ADD(&dropped_logs, 1);
+			_HA_ATOMIC_INC(&dropped_logs);
 		else if (!once) {
 			once = 1; /* note: no need for atomic ops here */
 			ha_alert("sendmsg()/writev() failed in logger #%d: %s (errno=%d)\n",
@@ -3276,7 +3276,7 @@ void strm_log(struct stream *s)
 
 	size = build_logline(s, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
-		_HA_ATOMIC_ADD(&sess->fe->log_count, 1);
+		_HA_ATOMIC_INC(&sess->fe->log_count);
 		__send_log(&sess->fe->logsrvs, &sess->fe->log_tag, level,
 			   logline, size + 1, logline_rfc5424, sd_size);
 		s->logs.logwait = 0;
@@ -3315,7 +3315,7 @@ void sess_log(struct session *sess)
 
 	size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
-		_HA_ATOMIC_ADD(&sess->fe->log_count, 1);
+		_HA_ATOMIC_INC(&sess->fe->log_count);
 		__send_log(&sess->fe->logsrvs, &sess->fe->log_tag, level,
 			   logline, size + 1, logline_rfc5424, sd_size);
 	}
@@ -3704,7 +3704,7 @@ void syslog_fd_handler(int fd)
 			buf->data = ret;
 
 			/* update counters */
-			_HA_ATOMIC_ADD(&cum_log_messages, 1);
+			_HA_ATOMIC_INC(&cum_log_messages);
 			proxy_inc_fe_req_ctr(l, l->bind_conf->frontend);
 
 			parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
@@ -3811,7 +3811,7 @@ static void syslog_io_handler(struct appctx *appctx)
 		co_skip(si_oc(si), to_skip);
 
 		/* update counters */
-		_HA_ATOMIC_ADD(&cum_log_messages, 1);
+		_HA_ATOMIC_INC(&cum_log_messages);
 		proxy_inc_fe_req_ctr(l, frontend);
 
 		parse_log_message(buf->area, buf->data, &level, &facility, metadata, &message, &size);
@@ -3834,15 +3834,15 @@ missing_budget:
 
 parse_error:
 	if (l->counters)
-		_HA_ATOMIC_ADD(&l->counters->failed_req, 1);
-	_HA_ATOMIC_ADD(&frontend->fe_counters.failed_req, 1);
+		_HA_ATOMIC_INC(&l->counters->failed_req);
+	_HA_ATOMIC_INC(&frontend->fe_counters.failed_req);
 
 	goto close;
 
 cli_abort:
 	if (l->counters)
-		_HA_ATOMIC_ADD(&l->counters->cli_aborts, 1);
-	_HA_ATOMIC_ADD(&frontend->fe_counters.cli_aborts, 1);
+		_HA_ATOMIC_INC(&l->counters->cli_aborts);
+	_HA_ATOMIC_INC(&frontend->fe_counters.cli_aborts);
 
 close:
 	si_shutw(si);

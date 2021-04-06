@@ -333,12 +333,12 @@ static inline struct task *task_unlink_rq(struct task *t)
 	if (done) {
 		if (is_global) {
 			_HA_ATOMIC_AND(&t->state, ~TASK_GLOBAL);
-			_HA_ATOMIC_SUB(&grq_total, 1);
+			_HA_ATOMIC_DEC(&grq_total);
 		}
 		else
-			_HA_ATOMIC_SUB(&sched->rq_total, 1);
+			_HA_ATOMIC_DEC(&sched->rq_total);
 		if (t->nice)
-			_HA_ATOMIC_SUB(&niced_tasks, 1);
+			_HA_ATOMIC_DEC(&niced_tasks);
 	}
 	return t;
 }
@@ -405,7 +405,7 @@ static inline void tasklet_remove_from_tasklet_list(struct tasklet *t)
 {
 	if (MT_LIST_DEL((struct mt_list *)&t->list)) {
 		_HA_ATOMIC_AND(&t->state, ~TASK_IN_LIST);
-		_HA_ATOMIC_SUB(&task_per_thread[t->tid >= 0 ? t->tid : tid].rq_total, 1);
+		_HA_ATOMIC_DEC(&task_per_thread[t->tid >= 0 ? t->tid : tid].rq_total);
 	}
 }
 
@@ -532,7 +532,7 @@ static inline void task_destroy(struct task *t)
 static inline void tasklet_free(struct tasklet *tl)
 {
 	if (MT_LIST_DEL((struct mt_list *)&tl->list))
-		_HA_ATOMIC_SUB(&task_per_thread[tl->tid >= 0 ? tl->tid : tid].rq_total, 1);
+		_HA_ATOMIC_DEC(&task_per_thread[tl->tid >= 0 ? tl->tid : tid].rq_total);
 
 #ifdef DEBUG_TASK
 	if ((unsigned int)tl->debug.caller_idx > 1)

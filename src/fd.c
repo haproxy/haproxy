@@ -324,7 +324,7 @@ void _fd_delete_orphan(int fd)
 	 * of this FD by any other thread.
 	 */
 	close(fd);
-	_HA_ATOMIC_SUB(&ha_used_fds, 1);
+	_HA_ATOMIC_DEC(&ha_used_fds);
 }
 
 #ifndef HA_HAVE_CAS_DW

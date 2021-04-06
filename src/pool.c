@@ -181,20 +181,20 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 	void *ptr = NULL;
 
 	if (limit && allocated >= limit) {
-		_HA_ATOMIC_ADD(&pool->allocated, 1);
+		_HA_ATOMIC_INC(&pool->allocated);
 		activity[tid].pool_fail++;
 		return NULL;
 	}
 
 	ptr = pool_alloc_area(pool->size + POOL_EXTRA);
 	if (!ptr) {
-		_HA_ATOMIC_ADD(&pool->failed, 1);
+		_HA_ATOMIC_INC(&pool->failed);
 		activity[tid].pool_fail++;
 		return NULL;
 	}
 
-	_HA_ATOMIC_ADD(&pool->allocated, 1);
-	_HA_ATOMIC_ADD(&pool->used, 1);
+	_HA_ATOMIC_INC(&pool->allocated);
+	_HA_ATOMIC_INC(&pool->used);
 
 #ifdef DEBUG_MEMORY_POOLS
 	/* keep track of where the element was allocated from */
@@ -257,7 +257,7 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 
 		ptr = pool_alloc_area(size + POOL_EXTRA);
 		if (!ptr) {
-			_HA_ATOMIC_ADD(&pool->failed, 1);
+			_HA_ATOMIC_INC(&pool->failed);
 			if (failed) {
 				activity[tid].pool_fail++;
 				return NULL;
@@ -278,7 +278,7 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 	__ha_barrier_atomic_store();
 
 	_HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
-	_HA_ATOMIC_ADD(&pool->used, 1);
+	_HA_ATOMIC_INC(&pool->used);
 
 #ifdef DEBUG_MEMORY_POOLS
 	/* keep track of where the element was allocated from */
@@ -353,7 +353,7 @@ void pool_gc(struct pool_head *pool_ctx)
 			if (HA_ATOMIC_DWCAS(&entry->free_list, &cmp, &new) == 0)
 				continue;
 			pool_free_area(cmp.free_list, entry->size + POOL_EXTRA);
-			_HA_ATOMIC_SUB(&entry->allocated, 1);
+			_HA_ATOMIC_DEC(&entry->allocated);
 		}
 	}
 

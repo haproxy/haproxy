@@ -281,9 +281,9 @@ comp_http_end(struct stream *s, struct filter *filter,
 		goto end;
 
 	if (strm_fe(s)->mode == PR_MODE_HTTP)
-		_HA_ATOMIC_ADD(&strm_fe(s)->fe_counters.p.http.comp_rsp, 1);
+		_HA_ATOMIC_INC(&strm_fe(s)->fe_counters.p.http.comp_rsp);
 	if ((s->flags & SF_BE_ASSIGNED) && (s->be->mode == PR_MODE_HTTP))
-		_HA_ATOMIC_ADD(&s->be->be_counters.p.http.comp_rsp, 1);
+		_HA_ATOMIC_INC(&s->be->be_counters.p.http.comp_rsp);
  end:
 	return 1;
 }

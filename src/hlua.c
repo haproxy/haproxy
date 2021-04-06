@@ -5889,7 +5889,7 @@ __LJMP static int hlua_txn_done(lua_State *L)
 		/* let's log the request time */
 		s->logs.tv_request = now;
 		if (s->sess->fe == s->be) /* report it if the request was intercepted by the frontend */
-			_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.intercepted_req, 1);
+			_HA_ATOMIC_INC(&s->sess->fe->fe_counters.intercepted_req);
 	}
 
   done:

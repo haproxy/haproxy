@@ -159,7 +159,7 @@ void srv_set_dyncookie(struct server *s);
 /* increase the number of cumulated connections on the designated server */
 static inline void srv_inc_sess_ctr(struct server *s)
 {
-	_HA_ATOMIC_ADD(&s->counters.cum_sess, 1);
+	_HA_ATOMIC_INC(&s->counters.cum_sess);
 	HA_ATOMIC_UPDATE_MAX(&s->counters.sps_max,
 			     update_freq_ctr(&s->sess_per_sec, 1));
 }
@@ -277,15 +277,15 @@ static inline void srv_release_conn(struct server *srv, struct connection *conn)
 		/* The connection is currently in the server's idle list, so tell it
 		 * there's one less connection available in that list.
 		 */
-		_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
-		_HA_ATOMIC_SUB(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb, 1);
-		_HA_ATOMIC_SUB(&srv->curr_idle_thr[tid], 1);
+		_HA_ATOMIC_DEC(&srv->curr_idle_conns);
+		_HA_ATOMIC_DEC(conn->flags & CO_FL_SAFE_LIST ? &srv->curr_safe_nb : &srv->curr_idle_nb);
+		_HA_ATOMIC_DEC(&srv->curr_idle_thr[tid]);
 	}
 	else {
 		/* The connection is not private and not in any server's idle
 		 * list, so decrement the current number of used connections
 		 */
-		_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);
+		_HA_ATOMIC_DEC(&srv->curr_used_conns);
 	}
 
 	/* Remove the connection from any tree (safe, idle or available) */
@@ -320,10 +320,10 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 
 		retadd = _HA_ATOMIC_ADD_FETCH(&srv->curr_idle_conns, 1);
 		if (retadd > srv->max_idle_conns) {
-			_HA_ATOMIC_SUB(&srv->curr_idle_conns, 1);
+			_HA_ATOMIC_DEC(&srv->curr_idle_conns);
 			return 0;
 		}
-		_HA_ATOMIC_SUB(&srv->curr_used_conns, 1);
+		_HA_ATOMIC_DEC(&srv->curr_used_conns);
 
 		HA_SPIN_LOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
 		conn_delete_from_tree(&conn->hash_node->node);
@@ -331,14 +331,14 @@ static inline int srv_add_to_idle_list(struct server *srv, struct connection *co
 		if (is_safe) {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_SAFE_LIST;
 			ebmb_insert(&srv->per_thr[tid].safe_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
-			_HA_ATOMIC_ADD(&srv->curr_safe_nb, 1);
+			_HA_ATOMIC_INC(&srv->curr_safe_nb);
 		} else {
 			conn->flags = (conn->flags & ~CO_FL_LIST_MASK) | CO_FL_IDLE_LIST;
 			ebmb_insert(&srv->per_thr[tid].idle_conns, &conn->hash_node->node, sizeof(conn->hash_node->hash));
-			_HA_ATOMIC_ADD(&srv->curr_idle_nb, 1);
+			_HA_ATOMIC_INC(&srv->curr_idle_nb);
 		}
 		HA_SPIN_UNLOCK(IDLE_CONNS_LOCK, &idle_conns[tid].idle_conns_lock);
-		_HA_ATOMIC_ADD(&srv->curr_idle_thr[tid], 1);
+		_HA_ATOMIC_INC(&srv->curr_idle_thr[tid]);
 
 		__ha_barrier_full();
 		if ((volatile void *)srv->idle_node.node.leaf_p == NULL) {

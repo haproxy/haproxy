@@ -94,8 +94,8 @@ void task_kill(struct task *t)
 			/* Beware: tasks that have never run don't have their ->list empty yet! */
 			MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list,
 			             (struct mt_list *)&((struct tasklet *)t)->list);
-			_HA_ATOMIC_ADD(&task_per_thread[thr].rq_total, 1);
-			_HA_ATOMIC_ADD(&task_per_thread[thr].tasks_in_list, 1);
+			_HA_ATOMIC_INC(&task_per_thread[thr].rq_total);
+			_HA_ATOMIC_INC(&task_per_thread[thr].tasks_in_list);
 			if (sleeping_thread_mask & (1UL << thr)) {
 				_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
 				wake_thread(thr);
@@ -135,11 +135,11 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 			LIST_ADDQ(&sched->tasklets[sched->current_queue], &tl->list);
 			sched->tl_class_mask |= 1 << sched->current_queue;
 		}
-		_HA_ATOMIC_ADD(&sched->rq_total, 1);
+		_HA_ATOMIC_INC(&sched->rq_total);
 	} else {
 		/* this tasklet runs on a specific thread. */
 		MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list, (struct mt_list *)&tl->list);
-		_HA_ATOMIC_ADD(&task_per_thread[thr].rq_total, 1);
+		_HA_ATOMIC_INC(&task_per_thread[thr].rq_total);
 		if (sleeping_thread_mask & (1UL << thr)) {
 			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
 			wake_thread(thr);
@@ -163,7 +163,7 @@ void __task_wakeup(struct task *t)
 	if (t->thread_mask != tid_bit && global.nbthread != 1) {
 		root = &rqueue;
 
-		_HA_ATOMIC_ADD(&grq_total, 1);
+		_HA_ATOMIC_INC(&grq_total);
 		HA_SPIN_LOCK(TASK_RQ_LOCK, &rq_lock);
 
 		global_tasks_mask |= t->thread_mask;
@@ -172,14 +172,14 @@ void __task_wakeup(struct task *t)
 	} else
 #endif
 	{
-		_HA_ATOMIC_ADD(&sched->rq_total, 1);
+		_HA_ATOMIC_INC(&sched->rq_total);
 		t->rq.key = ++sched->rqueue_ticks;
 	}
 
 	if (likely(t->nice)) {
 		int offset;
 
-		_HA_ATOMIC_ADD(&niced_tasks, 1);
+		_HA_ATOMIC_INC(&niced_tasks);
 		offset = t->nice * (int)global.tune.runqueue_depth;
 		t->rq.key += offset;
 	}
@@ -496,7 +496,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 		t->calls++;
 		sched->current = t;
 
-		_HA_ATOMIC_SUB(&sched->rq_total, 1);
+		_HA_ATOMIC_DEC(&sched->rq_total);
 
 		if (state & TASK_F_TASKLET) {
 			uint64_t before = 0;
@@ -521,7 +521,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			process(t, ctx, state);
 
 			if (unlikely(task_profiling_mask & tid_bit)) {
-				HA_ATOMIC_ADD(&profile_entry->calls, 1);
+				HA_ATOMIC_INC(&profile_entry->calls);
 				HA_ATOMIC_ADD(&profile_entry->cpu_time, now_mono_time() - before);
 			}
 
@@ -538,7 +538,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 
 		/* OK then this is a regular task */
 
-		_HA_ATOMIC_SUB(&task_per_thread[tid].tasks_in_list, 1);
+		_HA_ATOMIC_DEC(&task_per_thread[tid].tasks_in_list);
 		if (unlikely(t->call_date)) {
 			uint64_t now_ns = now_mono_time();
 			uint64_t lat = now_ns - t->call_date;
@@ -547,7 +547,7 @@ unsigned int run_tasks_from_lists(unsigned int budgets[])
 			t->call_date = now_ns;
 			profile_entry = sched_activity_entry(sched_activity, t->process);
 			HA_ATOMIC_ADD(&profile_entry->lat_time, lat);
-			HA_ATOMIC_ADD(&profile_entry->calls, 1);
+			HA_ATOMIC_INC(&profile_entry->calls);
 		}
 
 		__ha_barrier_store();
@@ -763,7 +763,7 @@ void process_runnable_tasks()
 		}
 #endif
 		if (t->nice)
-			_HA_ATOMIC_SUB(&niced_tasks, 1);
+			_HA_ATOMIC_DEC(&niced_tasks);
 
 		/* Add it to the local task list */
 		LIST_ADDQ(&tt->tasklets[TL_NORMAL], &((struct tasklet *)t)->list);

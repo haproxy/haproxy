@@ -357,7 +357,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	if (unlikely(ofs == ~0)) {
 		ofs = 0;
 
-		HA_ATOMIC_ADD(b_peek(buf, ofs), 1);
+		HA_ATOMIC_INC(b_peek(buf, ofs));
 		ofs += ring->ofs;
 	}
 
@@ -371,7 +371,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 		 */
 		ofs -= ring->ofs;
 		BUG_ON(ofs >= buf->size);
-		HA_ATOMIC_SUB(b_peek(buf, ofs), 1);
+		HA_ATOMIC_DEC(b_peek(buf, ofs));
 
 		ret = 1;
 		while (ofs + 1 < b_data(buf)) {
@@ -401,7 +401,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 			ofs += cnt + msg_len;
 		}
 
-		HA_ATOMIC_ADD(b_peek(buf, ofs), 1);
+		HA_ATOMIC_INC(b_peek(buf, ofs));
 		ofs += ring->ofs;
 		sft->ofs = ofs;
 	}
@@ -497,7 +497,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	if (unlikely(ofs == ~0)) {
 		ofs = 0;
 
-		HA_ATOMIC_ADD(b_peek(buf, ofs), 1);
+		HA_ATOMIC_INC(b_peek(buf, ofs));
 		ofs += ring->ofs;
 	}
 
@@ -511,7 +511,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 		 */
 		ofs -= ring->ofs;
 		BUG_ON(ofs >= buf->size);
-		HA_ATOMIC_SUB(b_peek(buf, ofs), 1);
+		HA_ATOMIC_DEC(b_peek(buf, ofs));
 
 		ret = 1;
 		while (ofs + 1 < b_data(buf)) {
@@ -545,7 +545,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 			ofs += cnt + msg_len;
 		}
 
-		HA_ATOMIC_ADD(b_peek(buf, ofs), 1);
+		HA_ATOMIC_INC(b_peek(buf, ofs));
 		ofs += ring->ofs;
 		sft->ofs = ofs;
 	}

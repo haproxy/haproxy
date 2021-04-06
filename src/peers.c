@@ -934,9 +934,9 @@ void __peer_session_deinit(struct peer *peer)
 		return;
 
 	if (peer->appctx->st0 == PEER_SESS_ST_WAITMSG)
-		HA_ATOMIC_SUB(&connected_peers, 1);
+		HA_ATOMIC_DEC(&connected_peers);
 
-	HA_ATOMIC_SUB(&active_peers, 1);
+	HA_ATOMIC_DEC(&active_peers);
 
 	flush_dcache(peer);
 
@@ -1758,7 +1758,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			if (de) {
 				data_ptr = stktable_data_ptr(st->table, ts, data_type);
 				if (data_ptr) {
-					HA_ATOMIC_ADD(&de->refcount, 1);
+					HA_ATOMIC_INC(&de->refcount);
 					stktable_data_cast(data_ptr, std_t_dict) = de;
 				}
 			}
@@ -2546,7 +2546,7 @@ switchstate:
 				curpeer->flags |= PEER_F_ALIVE;
 				appctx->ctx.peers.ptr = curpeer;
 				appctx->st0 = PEER_SESS_ST_SENDSUCCESS;
-				_HA_ATOMIC_ADD(&active_peers, 1);
+				_HA_ATOMIC_INC(&active_peers);
 			}
 			/* fall through */
 			case PEER_SESS_ST_SENDSUCCESS: {
@@ -2570,7 +2570,7 @@ switchstate:
 				init_accepted_peer(curpeer, curpeers);
 
 				/* switch to waiting message state */
-				_HA_ATOMIC_ADD(&connected_peers, 1);
+				_HA_ATOMIC_INC(&connected_peers);
 				appctx->st0 = PEER_SESS_ST_WAITMSG;
 				goto switchstate;
 			}
@@ -2635,7 +2635,7 @@ switchstate:
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
-				_HA_ATOMIC_ADD(&connected_peers, 1);
+				_HA_ATOMIC_INC(&connected_peers);
 				appctx->st0 = PEER_SESS_ST_WAITMSG;
 			}
 			/* fall through */
@@ -2698,7 +2698,7 @@ send_msgs:
 			}
 			case PEER_SESS_ST_EXIT:
 				if (prev_state == PEER_SESS_ST_WAITMSG)
-					_HA_ATOMIC_SUB(&connected_peers, 1);
+					_HA_ATOMIC_DEC(&connected_peers);
 				prev_state = appctx->st0;
 				if (peer_send_status_errormsg(appctx) == -1)
 					goto out;
@@ -2706,7 +2706,7 @@ send_msgs:
 				goto switchstate;
 			case PEER_SESS_ST_ERRSIZE: {
 				if (prev_state == PEER_SESS_ST_WAITMSG)
-					_HA_ATOMIC_SUB(&connected_peers, 1);
+					_HA_ATOMIC_DEC(&connected_peers);
 				prev_state = appctx->st0;
 				if (peer_send_error_size_limitmsg(appctx) == -1)
 					goto out;
@@ -2719,7 +2719,7 @@ send_msgs:
 				if (curpeer)
 					curpeer->proto_err++;
 				if (prev_state == PEER_SESS_ST_WAITMSG)
-					_HA_ATOMIC_SUB(&connected_peers, 1);
+					_HA_ATOMIC_DEC(&connected_peers);
 				prev_state = appctx->st0;
 				if (peer_send_error_protomsg(appctx) == -1) {
 					TRACE_PROTO("could not send error message", PEERS_EV_PROTOERR);
@@ -2731,7 +2731,7 @@ send_msgs:
 			/* fall through */
 			case PEER_SESS_ST_END: {
 				if (prev_state == PEER_SESS_ST_WAITMSG)
-					_HA_ATOMIC_SUB(&connected_peers, 1);
+					_HA_ATOMIC_DEC(&connected_peers);
 				prev_state = appctx->st0;
 				if (curpeer) {
 					HA_SPIN_UNLOCK(PEER_LOCK, &curpeer->lock);
@@ -2853,7 +2853,7 @@ static struct appctx *peer_session_create(struct peers *peers, struct peer *peer
 
 	peer->appctx = appctx;
 	task_wakeup(s->task, TASK_WOKEN_INIT);
-	_HA_ATOMIC_ADD(&active_peers, 1);
+	_HA_ATOMIC_INC(&active_peers);
 	return appctx;
 
 	/* Error unrolling */
@@ -3036,7 +3036,7 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 			/* We've just received the signal */
 			if (!(peers->flags & PEERS_F_DONOTSTOP)) {
 				/* add DO NOT STOP flag if not present */
-				_HA_ATOMIC_ADD(&jobs, 1);
+				_HA_ATOMIC_INC(&jobs);
 				peers->flags |= PEERS_F_DONOTSTOP;
 				ps = peers->local;
 				for (st = ps->tables; st ; st = st->next)
@@ -3060,7 +3060,7 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 		if (ps->flags & PEER_F_TEACH_COMPLETE) {
 			if (peers->flags & PEERS_F_DONOTSTOP) {
 				/* resync of new process was complete, current process can die now */
-				_HA_ATOMIC_SUB(&jobs, 1);
+				_HA_ATOMIC_DEC(&jobs);
 				peers->flags &= ~PEERS_F_DONOTSTOP;
 				for (st = ps->tables; st ; st = st->next)
 					st->table->syncing--;
@@ -3084,7 +3084,7 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 				/* Other error cases */
 				if (peers->flags & PEERS_F_DONOTSTOP) {
 					/* unable to resync new process, current process can die now */
-					_HA_ATOMIC_SUB(&jobs, 1);
+					_HA_ATOMIC_DEC(&jobs);
 					peers->flags &= ~PEERS_F_DONOTSTOP;
 					for (st = ps->tables; st ; st = st->next)
 						st->table->syncing--;

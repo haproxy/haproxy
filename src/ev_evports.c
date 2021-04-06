@@ -217,7 +217,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		events = evports_evlist[i].portev_events;
 
 #ifdef DEBUG_FD
-		_HA_ATOMIC_ADD(&fdtab[fd].event_count, 1);
+		_HA_ATOMIC_INC(&fdtab[fd].event_count);
 #endif
 		if (fdtab[fd].owner == NULL) {
 			activity[tid].poll_dead_fd++;

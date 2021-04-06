@@ -78,7 +78,7 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
 		LIST_INIT(&appctx->buffer_wait.list);
 		appctx->buffer_wait.target = appctx;
 		appctx->buffer_wait.wakeup_cb = appctx_buf_available;
-		_HA_ATOMIC_ADD(&nb_applets, 1);
+		_HA_ATOMIC_INC(&nb_applets);
 	}
 	return appctx;
 }
@@ -91,7 +91,7 @@ static inline void __appctx_free(struct appctx *appctx)
 		LIST_DEL_INIT(&appctx->buffer_wait.list);
 
 	pool_free(pool_head_appctx, appctx);
-	_HA_ATOMIC_SUB(&nb_applets, 1);
+	_HA_ATOMIC_DEC(&nb_applets);
 }
 
 static inline void appctx_free(struct appctx *appctx)

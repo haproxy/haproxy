@@ -50,8 +50,8 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->task = NULL;
 		sess->t_handshake = -1; /* handshake not done yet */
 		sess->t_idle = -1;
-		_HA_ATOMIC_ADD(&totalconn, 1);
-		_HA_ATOMIC_ADD(&jobs, 1);
+		_HA_ATOMIC_INC(&totalconn);
+		_HA_ATOMIC_INC(&jobs);
 		LIST_INIT(&sess->srv_list);
 		sess->idle_conns = 0;
 		sess->flags = SESS_FL_NONE;
@@ -90,7 +90,7 @@ void session_free(struct session *sess)
 		pool_free(pool_head_sess_srv_list, srv_list);
 	}
 	pool_free(pool_head_session, sess);
-	_HA_ATOMIC_SUB(&jobs, 1);
+	_HA_ATOMIC_DEC(&jobs);
 }
 
 /* callback used from the connection/mux layer to notify that a connection is
@@ -118,7 +118,7 @@ static void session_count_new(struct session *sess)
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
 		if (ptr)
-			HA_ATOMIC_ADD(&stktable_data_cast(ptr, sess_cnt), 1);
+			HA_ATOMIC_INC(&stktable_data_cast(ptr, sess_cnt));
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
 		if (ptr)

@@ -559,7 +559,7 @@ static inline void __ha_rwlock_wrlock(enum lock_label lbl, struct ha_rwlock *l,
 	__RWLOCK_WRLOCK(&l->lock);
 	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (nsec_now() - start_time));
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
 
 	l->info.cur_writer             = tid_bit;
 	l->info.last_location.function = func;
@@ -588,7 +588,7 @@ static inline int __ha_rwlock_trywrlock(enum lock_label lbl, struct ha_rwlock *l
 		HA_ATOMIC_AND(&l->info.wait_writers, ~tid_bit);
 		return r;
 	}
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
 
 	l->info.cur_writer             = tid_bit;
 	l->info.last_location.function = func;
@@ -615,7 +615,7 @@ static inline void __ha_rwlock_wrunlock(enum lock_label lbl,struct ha_rwlock *l,
 
 	__RWLOCK_WRUNLOCK(&l->lock);
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_unlocked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_unlocked);
 }
 
 static inline void __ha_rwlock_rdlock(enum lock_label lbl,struct ha_rwlock *l)
@@ -630,7 +630,7 @@ static inline void __ha_rwlock_rdlock(enum lock_label lbl,struct ha_rwlock *l)
 	start_time = nsec_now();
 	__RWLOCK_RDLOCK(&l->lock);
 	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (nsec_now() - start_time));
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_read_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
 
 	HA_ATOMIC_OR(&l->info.cur_readers, tid_bit);
 
@@ -648,7 +648,7 @@ static inline int __ha_rwlock_tryrdlock(enum lock_label lbl,struct ha_rwlock *l)
 	r = __RWLOCK_TRYRDLOCK(&l->lock);
 	if (unlikely(r))
 		return r;
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_read_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
 
 	HA_ATOMIC_OR(&l->info.cur_readers, tid_bit);
 
@@ -666,7 +666,7 @@ static inline void __ha_rwlock_rdunlock(enum lock_label lbl,struct ha_rwlock *l)
 
 	__RWLOCK_RDUNLOCK(&l->lock);
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_read_unlocked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_read_unlocked);
 }
 
 static inline void __ha_rwlock_wrtord(enum lock_label lbl, struct ha_rwlock *l,
@@ -686,7 +686,7 @@ static inline void __ha_rwlock_wrtord(enum lock_label lbl, struct ha_rwlock *l,
 	__RWLOCK_WRTORD(&l->lock);
 	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (nsec_now() - start_time));
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_read_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
 
 	HA_ATOMIC_OR(&l->info.cur_readers, tid_bit);
 	HA_ATOMIC_AND(&l->info.cur_writer, ~tid_bit);
@@ -714,7 +714,7 @@ static inline void __ha_rwlock_wrtosk(enum lock_label lbl, struct ha_rwlock *l,
 	__RWLOCK_WRTOSK(&l->lock);
 	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (nsec_now() - start_time));
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_seek_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 
 	HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
 	HA_ATOMIC_AND(&l->info.cur_writer, ~tid_bit);
@@ -739,7 +739,7 @@ static inline void __ha_rwlock_sklock(enum lock_label lbl, struct ha_rwlock *l,
 	__RWLOCK_SKLOCK(&l->lock);
 	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_seek, (nsec_now() - start_time));
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_seek_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 
 	HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
 	l->info.last_location.function = func;
@@ -766,7 +766,7 @@ static inline void __ha_rwlock_sktowr(enum lock_label lbl, struct ha_rwlock *l,
 	__RWLOCK_SKTOWR(&l->lock);
 	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (nsec_now() - start_time));
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
 
 	HA_ATOMIC_OR(&l->info.cur_writer, tid_bit);
 	HA_ATOMIC_AND(&l->info.cur_seeker, ~tid_bit);
@@ -794,7 +794,7 @@ static inline void __ha_rwlock_sktord(enum lock_label lbl, struct ha_rwlock *l,
 	__RWLOCK_SKTORD(&l->lock);
 	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_read, (nsec_now() - start_time));
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_read_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_read_locked);
 
 	HA_ATOMIC_OR(&l->info.cur_readers, tid_bit);
 	HA_ATOMIC_AND(&l->info.cur_seeker, ~tid_bit);
@@ -818,7 +818,7 @@ static inline void __ha_rwlock_skunlock(enum lock_label lbl,struct ha_rwlock *l,
 
 	__RWLOCK_SKUNLOCK(&l->lock);
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_seek_unlocked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_seek_unlocked);
 }
 
 static inline int __ha_rwlock_trysklock(enum lock_label lbl, struct ha_rwlock *l,
@@ -838,7 +838,7 @@ static inline int __ha_rwlock_trysklock(enum lock_label lbl, struct ha_rwlock *l
 
 	if (likely(!r)) {
 		/* got the lock ! */
-		HA_ATOMIC_ADD(&lock_stats[lbl].num_seek_locked, 1);
+		HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 		HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
 		l->info.last_location.function = func;
 		l->info.last_location.file     = file;
@@ -869,7 +869,7 @@ static inline int __ha_rwlock_tryrdtosk(enum lock_label lbl, struct ha_rwlock *l
 
 	if (likely(!r)) {
 		/* got the lock ! */
-		HA_ATOMIC_ADD(&lock_stats[lbl].num_seek_locked, 1);
+		HA_ATOMIC_INC(&lock_stats[lbl].num_seek_locked);
 		HA_ATOMIC_OR(&l->info.cur_seeker, tid_bit);
 		HA_ATOMIC_AND(&l->info.cur_readers, ~tid_bit);
 		l->info.last_location.function = func;
@@ -909,7 +909,7 @@ static inline void __spin_lock(enum lock_label lbl, struct ha_spinlock *l,
 	__SPIN_LOCK(&l->lock);
 	HA_ATOMIC_ADD(&lock_stats[lbl].nsec_wait_for_write, (nsec_now() - start_time));
 
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
 
 
 	l->info.owner                  = tid_bit;
@@ -934,7 +934,7 @@ static inline int __spin_trylock(enum lock_label lbl, struct ha_spinlock *l,
 	r = __SPIN_TRYLOCK(&l->lock);
 	if (unlikely(r))
 		return r;
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_locked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_locked);
 
 	l->info.owner                  = tid_bit;
 	l->info.last_location.function = func;
@@ -958,7 +958,7 @@ static inline void __spin_unlock(enum lock_label lbl, struct ha_spinlock *l,
 	l->info.last_location.line     = line;
 
 	__SPIN_UNLOCK(&l->lock);
-	HA_ATOMIC_ADD(&lock_stats[lbl].num_write_unlocked, 1);
+	HA_ATOMIC_INC(&lock_stats[lbl].num_write_unlocked);
 }
 
 #endif  /* DEBUG_THREAD */

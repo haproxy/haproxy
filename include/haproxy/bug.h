@@ -130,7 +130,7 @@ struct mem_stats {
 	};								\
 	__asm__(".globl __start_mem_stats");				\
 	__asm__(".globl __stop_mem_stats");				\
-	_HA_ATOMIC_ADD(&_.calls, 1);					\
+	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __x * __y);				\
 	calloc(__x,__y);						\
 })
@@ -148,7 +148,7 @@ struct mem_stats {
 	__asm__(".globl __start_mem_stats");				\
 	__asm__(".globl __stop_mem_stats");				\
 	if (__x)							\
-		_HA_ATOMIC_ADD(&_.calls, 1);				\
+		_HA_ATOMIC_INC(&_.calls);				\
 	free(__x);							\
 })
 
@@ -165,7 +165,7 @@ struct mem_stats {
 		HA_LINK_ERROR(call_to_ha_free_attempts_to_free_a_constant); \
 	}								\
 	if (*__x)							\
-		_HA_ATOMIC_ADD(&_.calls, 1);				\
+		_HA_ATOMIC_INC(&_.calls);				\
 	free(*__x);							\
 	*__x = NULL;							\
 })
@@ -179,7 +179,7 @@ struct mem_stats {
 	};								\
 	__asm__(".globl __start_mem_stats");				\
 	__asm__(".globl __stop_mem_stats");				\
-	_HA_ATOMIC_ADD(&_.calls, 1);					\
+	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __x);					\
 	malloc(__x);							\
 })
@@ -193,7 +193,7 @@ struct mem_stats {
 	};								\
 	__asm__(".globl __start_mem_stats");				\
 	__asm__(".globl __stop_mem_stats");				\
-	_HA_ATOMIC_ADD(&_.calls, 1);					\
+	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __y);					\
 	realloc(__x,__y);						\
 })
@@ -207,7 +207,7 @@ struct mem_stats {
 	};								\
 	__asm__(".globl __start_mem_stats");				\
 	__asm__(".globl __stop_mem_stats");				\
-	_HA_ATOMIC_ADD(&_.calls, 1);					\
+	_HA_ATOMIC_INC(&_.calls);					\
 	_HA_ATOMIC_ADD(&_.size, __y);					\
 	strdup(__x);							\
 })

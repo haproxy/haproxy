@@ -448,7 +448,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 
 	/* the two directions are ready until proven otherwise */
 	fd_may_both(fd);
-	_HA_ATOMIC_ADD(&ha_used_fds, 1);
+	_HA_ATOMIC_INC(&ha_used_fds);
 }
 
 /* Computes the bounded poll() timeout based on the next expiration timer <next>

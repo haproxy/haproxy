@@ -193,8 +193,8 @@ void pendconn_unlink(struct pendconn *p)
 		}
 		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
 		if (done) {
-			_HA_ATOMIC_SUB(&p->srv->nbpend, 1);
-			_HA_ATOMIC_SUB(&p->px->totpend, 1);
+			_HA_ATOMIC_DEC(&p->srv->nbpend);
+			_HA_ATOMIC_DEC(&p->px->totpend);
 		}
 	}
 	else {
@@ -206,8 +206,8 @@ void pendconn_unlink(struct pendconn *p)
 		}
 		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->px->lock);
 		if (done) {
-			_HA_ATOMIC_SUB(&p->px->nbpend, 1);
-			_HA_ATOMIC_SUB(&p->px->totpend, 1);
+			_HA_ATOMIC_DEC(&p->px->nbpend);
+			_HA_ATOMIC_DEC(&p->px->totpend);
 		}
 	}
 }
@@ -309,22 +309,22 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
  use_pp:
 	/* Let's switch from the server pendconn to the proxy pendconn */
 	__pendconn_unlink_prx(pp);
-	_HA_ATOMIC_SUB(&px->nbpend, 1);
-	_HA_ATOMIC_SUB(&px->totpend, 1);
+	_HA_ATOMIC_DEC(&px->nbpend);
+	_HA_ATOMIC_DEC(&px->totpend);
 	px->queue_idx++;
 	p = pp;
 	goto unlinked;
  use_p:
 	__pendconn_unlink_srv(p);
-	_HA_ATOMIC_SUB(&srv->nbpend, 1);
-	_HA_ATOMIC_SUB(&px->totpend, 1);
+	_HA_ATOMIC_DEC(&srv->nbpend);
+	_HA_ATOMIC_DEC(&px->totpend);
 	srv->queue_idx++;
  unlinked:
 	p->strm_flags |= SF_ASSIGNED;
 	p->target = srv;
 
-	_HA_ATOMIC_ADD(&srv->served, 1);
-	_HA_ATOMIC_ADD(&srv->proxy->served, 1);
+	_HA_ATOMIC_INC(&srv->served);
+	_HA_ATOMIC_INC(&srv->proxy->served);
 	__ha_barrier_atomic_store();
 	if (px->lbprm.server_take_conn)
 		px->lbprm.server_take_conn(srv, 1);
@@ -431,7 +431,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	}
 	strm->pend_pos = p;
 
-	_HA_ATOMIC_ADD(&px->totpend, 1);
+	_HA_ATOMIC_INC(&px->totpend);
 	return p;
 }
 

@@ -2497,7 +2497,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		 */
 
 		if (s->flags & SF_BE_ASSIGNED) {
-			HA_ATOMIC_SUB(&be->beconn, 1);
+			HA_ATOMIC_DEC(&be->beconn);
 			if (unlikely(s->srv_conn))
 				sess_change_server(s, NULL);
 		}
@@ -2542,7 +2542,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		if (objt_server(s->target)) {
 			if (s->flags & SF_CURR_SESS) {
 				s->flags &= ~SF_CURR_SESS;
-				HA_ATOMIC_SUB(&__objt_server(s->target)->cur_sess, 1);
+				HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
 			}
 			if (may_dequeue_tasks(__objt_server(s->target), be))
 				process_srv_queue(__objt_server(s->target));
@@ -2901,7 +2901,7 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 		l->accept = session_accept_fd;
 		l->default_target = global.cli_fe->default_target;
 		l->options |= (LI_O_UNLIMITED | LI_O_NOSTOP);
-		HA_ATOMIC_ADD(&unstoppable_jobs, 1);
+		HA_ATOMIC_INC(&unstoppable_jobs);
 		/* it's a sockpair but we don't want to keep the fd in the master */
 		l->rx.flags &= ~RX_F_INHERITED;
 		l->nice = -64;  /* we want to boost priority for local stats */

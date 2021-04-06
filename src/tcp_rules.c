@@ -209,23 +209,23 @@ resume_execution:
 	return 0;
 
  deny:
-	_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_req, 1);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.denied_req);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_ADD(&sess->listener->counters->denied_req, 1);
+		_HA_ATOMIC_INC(&sess->listener->counters->denied_req);
 	goto reject;
 
  internal:
-	_HA_ATOMIC_ADD(&sess->fe->fe_counters.internal_errors, 1);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_ADD(&sess->listener->counters->internal_errors, 1);
+		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
 	goto reject;
 
  invalid:
-	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_req, 1);
+	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
 	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_ADD(&sess->listener->counters->failed_req, 1);
+		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
 
  reject:
 	si_must_kill_conn(chn_prod(req));
@@ -371,29 +371,29 @@ resume_execution:
 	return 0;
 
   deny:
-	_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.denied_resp, 1);
-	_HA_ATOMIC_ADD(&s->be->be_counters.denied_resp, 1);
+	_HA_ATOMIC_INC(&s->sess->fe->fe_counters.denied_resp);
+	_HA_ATOMIC_INC(&s->be->be_counters.denied_resp);
 	if (s->sess->listener && s->sess->listener->counters)
-		_HA_ATOMIC_ADD(&s->sess->listener->counters->denied_resp, 1);
+		_HA_ATOMIC_INC(&s->sess->listener->counters->denied_resp);
 	if (objt_server(s->target))
-		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.denied_resp, 1);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.denied_resp);
 	goto reject;
 
  internal:
-	_HA_ATOMIC_ADD(&s->sess->fe->fe_counters.internal_errors, 1);
-	_HA_ATOMIC_ADD(&s->be->be_counters.internal_errors, 1);
+	_HA_ATOMIC_INC(&s->sess->fe->fe_counters.internal_errors);
+	_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (s->sess->listener && s->sess->listener->counters)
-		_HA_ATOMIC_ADD(&s->sess->listener->counters->internal_errors, 1);
+		_HA_ATOMIC_INC(&s->sess->listener->counters->internal_errors);
 	if (objt_server(s->target))
-		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.internal_errors, 1);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.internal_errors);
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_INTERNAL;
 	goto reject;
 
  invalid:
-	_HA_ATOMIC_ADD(&s->be->be_counters.failed_resp, 1);
+	_HA_ATOMIC_INC(&s->be->be_counters.failed_resp);
 	if (objt_server(s->target))
-		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_resp, 1);
+		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.failed_resp);
 
  reject:
 	si_must_kill_conn(chn_prod(rep));
@@ -468,9 +468,9 @@ int tcp_exec_l4_rules(struct session *sess)
 				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-				_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_conn, 1);
+				_HA_ATOMIC_INC(&sess->fe->fe_counters.denied_conn);
 				if (sess->listener && sess->listener->counters)
-					_HA_ATOMIC_ADD(&sess->listener->counters->denied_conn, 1);
+					_HA_ATOMIC_INC(&sess->listener->counters->denied_conn);
 
 				result = 0;
 				goto end;
@@ -553,9 +553,9 @@ int tcp_exec_l5_rules(struct session *sess)
 				goto end;
 			}
 			else if (rule->action == ACT_ACTION_DENY) {
-				_HA_ATOMIC_ADD(&sess->fe->fe_counters.denied_sess, 1);
+				_HA_ATOMIC_INC(&sess->fe->fe_counters.denied_sess);
 				if (sess->listener && sess->listener->counters)
-					_HA_ATOMIC_ADD(&sess->listener->counters->denied_sess, 1);
+					_HA_ATOMIC_INC(&sess->listener->counters->denied_sess);
 
 				result = 0;
 				goto end;

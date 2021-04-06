@@ -1768,9 +1768,9 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
 		return ACT_RET_CONT;
 
 	if (px == strm_fe(s))
-		_HA_ATOMIC_ADD(&px->fe_counters.p.http.cache_lookups, 1);
+		_HA_ATOMIC_INC(&px->fe_counters.p.http.cache_lookups);
 	else
-		_HA_ATOMIC_ADD(&px->be_counters.p.http.cache_lookups, 1);
+		_HA_ATOMIC_INC(&px->be_counters.p.http.cache_lookups);
 
 	shctx_lock(shctx_ptr(cache));
 	res = entry_exist(cache, s->txn->cache_hash);
@@ -1822,9 +1822,9 @@ enum act_return http_action_req_cache_use(struct act_rule *rule, struct proxy *p
                                 should_send_notmodified_response(cache, htxbuf(&s->req.buf), res);
 
 			if (px == strm_fe(s))
-				_HA_ATOMIC_ADD(&px->fe_counters.p.http.cache_hits, 1);
+				_HA_ATOMIC_INC(&px->fe_counters.p.http.cache_hits);
 			else
-				_HA_ATOMIC_ADD(&px->be_counters.p.http.cache_hits, 1);
+				_HA_ATOMIC_INC(&px->be_counters.p.http.cache_hits);
 			return ACT_RET_CONT;
 		} else {
 			shctx_lock(shctx_ptr(cache));

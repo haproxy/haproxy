@@ -752,8 +752,8 @@ void ssl_async_fd_free(int fd)
 
 	/* Now we can safely call SSL_free, no more pending job in engines */
 	SSL_free(ssl);
-	_HA_ATOMIC_SUB(&sslconns, 1);
-	_HA_ATOMIC_SUB(&jobs, 1);
+	_HA_ATOMIC_DEC(&sslconns);
+	_HA_ATOMIC_DEC(&jobs);
 }
 /*
  * function used to manage a returned SSL_ERROR_WANT_ASYNC
@@ -5312,8 +5312,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 
-		_HA_ATOMIC_ADD(&sslconns, 1);
-		_HA_ATOMIC_ADD(&totalsslconns, 1);
+		_HA_ATOMIC_INC(&sslconns);
+		_HA_ATOMIC_INC(&totalsslconns);
 		*xprt_ctx = ctx;
 		return 0;
 	}
@@ -5345,8 +5345,8 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 			conn->flags |= CO_FL_EARLY_SSL_HS;
 #endif
 
-		_HA_ATOMIC_ADD(&sslconns, 1);
-		_HA_ATOMIC_ADD(&totalsslconns, 1);
+		_HA_ATOMIC_INC(&sslconns);
+		_HA_ATOMIC_INC(&totalsslconns);
 		*xprt_ctx = ctx;
 		return 0;
 	}
@@ -6253,7 +6253,7 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 				}
 				tasklet_free(ctx->wait_event.tasklet);
 				pool_free(ssl_sock_ctx_pool, ctx);
-				_HA_ATOMIC_ADD(&jobs, 1);
+				_HA_ATOMIC_INC(&jobs);
 				return;
 			}
 			/* Else we can remove the fds from the fdtab
@@ -6270,7 +6270,7 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 		b_free(&ctx->early_buf);
 		tasklet_free(ctx->wait_event.tasklet);
 		pool_free(ssl_sock_ctx_pool, ctx);
-		_HA_ATOMIC_SUB(&sslconns, 1);
+		_HA_ATOMIC_DEC(&sslconns);
 	}
 }
 
