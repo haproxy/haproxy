@@ -327,6 +327,59 @@
 #define HA_ATOMIC_FETCH_ADD(val, i)     __atomic_fetch_add(val, i, __ATOMIC_SEQ_CST)
 #define HA_ATOMIC_FETCH_SUB(val, i)     __atomic_fetch_sub(val, i, __ATOMIC_SEQ_CST)
 
+#if defined(__GCC_ASM_FLAG_OUTPUTS__) && (defined(__i386__) || defined (__x86_64__))
+#define HA_ATOMIC_BTS(val, bit)						\
+	({								\
+		unsigned char __ret;					\
+		if (sizeof(long) == 8 && sizeof(*(val)) == 8) {		\
+			asm volatile("lock btsq %2, %0\n"		\
+				     : "+m" (*(val)), "=@ccc"(__ret)	\
+				     : "Ir" ((unsigned long)(bit))	\
+				     : "cc");				\
+		} else if (sizeof(*(val)) == 4) {			\
+			asm volatile("lock btsl %2, %0\n"		\
+				     : "+m" (*(val)), "=@ccc"(__ret)	\
+				     : "Ir" ((unsigned int)(bit))	\
+				     : "cc");				\
+		} else if (sizeof(*(val)) == 2) {			\
+			asm volatile("lock btsw %2, %0\n"		\
+				     : "+m" (*(val)), "=@ccc"(__ret)	\
+				     : "Ir" ((unsigned short)(bit))	\
+				     : "cc");				\
+		} else {						\
+			typeof(*(val)) __b_bts = (1UL << (bit));	\
+			__ret = !!(__atomic_fetch_or((val), __b_bts, __ATOMIC_SEQ_CST) & __b_bts); \
+		}							\
+		__ret;							\
+	})
+
+#define HA_ATOMIC_BTR(val, bit)						\
+	({								\
+		unsigned char __ret;					\
+		if (sizeof(long) == 8 && sizeof(*(val)) == 8) {		\
+			asm volatile("lock btrq %2, %0\n"		\
+				     : "+m" (*(val)), "=@ccc"(__ret)	\
+				     : "Ir" ((unsigned long)(bit))	\
+				     : "cc");				\
+		} else if (sizeof(*(val)) == 4) {			\
+			asm volatile("lock btrl %2, %0\n"		\
+				     : "+m" (*(val)), "=@ccc"(__ret)	\
+				     : "Ir" ((unsigned int)(bit))	\
+				     : "cc");				\
+		} else if (sizeof(*(val)) == 2) {			\
+			asm volatile("lock btrw %2, %0\n"		\
+				     : "+m" (*(val)), "=@ccc"(__ret)	\
+				     : "Ir" ((unsigned short)(bit))	\
+				     : "cc");				\
+		} else {						\
+			typeof(*(val)) __b_bts = (1UL << (bit));	\
+			__ret = !!(__atomic_fetch_and((val), ~__b_bts, __ATOMIC_SEQ_CST) & __b_bts); \
+		}							\
+		__ret;							\
+	})
+
+#else // not x86 or !__GCC_ASM_FLAG_OUTPUTS__
+
 #define HA_ATOMIC_BTS(val, bit)						\
 	({								\
 		typeof(*(val)) __b_bts = (1UL << (bit));		\
@@ -338,6 +391,8 @@
 		typeof(*(val)) __b_btr = (1UL << (bit));		\
 		__atomic_fetch_and((val), ~__b_btr, __ATOMIC_SEQ_CST) & __b_btr; \
 	})
+
+#endif // x86 || __GCC_ASM_FLAG_OUTPUTS__
 
 #define HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
 
@@ -394,6 +449,7 @@
 #define _HA_ATOMIC_FETCH_ADD(val, i)     __atomic_fetch_add(val, i, __ATOMIC_RELAXED)
 #define _HA_ATOMIC_FETCH_SUB(val, i)     __atomic_fetch_sub(val, i, __ATOMIC_RELAXED)
 
+#if defined(__GCC_ASM_FLAG_OUTPUTS__) && (defined(__i386__) || defined (__x86_64__))
 #define _HA_ATOMIC_BTS(val, bit)					\
 	({								\
 		typeof(*(val)) __b_bts = (1UL << (bit));		\
@@ -405,6 +461,7 @@
 		typeof(*(val)) __b_btr = (1UL << (bit));		\
 		__atomic_fetch_and((val), ~__b_btr, __ATOMIC_RELAXED) & __b_btr; \
 	})
+#endif
 
 #define _HA_ATOMIC_CAS(val, old, new) __atomic_compare_exchange_n(val, old, new, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)
 /* warning, n is a pointer to the double value for dwcas */
