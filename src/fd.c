@@ -514,8 +514,8 @@ ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t
 		ha_thread_relax();
 	}
 
-	if (unlikely(!fdtab[fd].initialized)) {
-		fdtab[fd].initialized = 1;
+	if (unlikely(!(fdtab[fd].state & FD_INITIALIZED))) {
+		HA_ATOMIC_OR(&fdtab[fd].state, FD_INITIALIZED);
 		if (!isatty(fd))
 			fcntl(fd, F_SETFL, O_NONBLOCK);
 	}
