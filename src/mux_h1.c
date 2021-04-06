@@ -586,11 +586,6 @@ static struct conn_stream *h1s_new_cs(struct h1s *h1s, struct buffer *input)
 	if (h1s->flags & H1S_F_NOT_FIRST)
 		cs->flags |= CS_FL_NOT_FIRST;
 
-	if (global.tune.options & GTUNE_USE_SPLICE) {
-		TRACE_STATE("notify the mux can use splicing", H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
-		cs->flags |= CS_FL_MAY_SPLICE;
-	}
-
 	if (stream_create_from_cs(cs, input) < 0) {
 		TRACE_DEVEL("leaving on stream creation failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
 		goto err;
@@ -614,11 +609,6 @@ static struct conn_stream *h1s_upgrade_cs(struct h1s *h1s, struct buffer *input)
 	if (stream_upgrade_from_cs(h1s->cs, input) < 0) {
 		TRACE_ERROR("stream upgrade failure", H1_EV_STRM_NEW|H1_EV_STRM_END|H1_EV_STRM_ERR, h1s->h1c->conn, h1s);
 		goto err;
-	}
-
-	if (global.tune.options & GTUNE_USE_SPLICE) {
-		TRACE_STATE("notify the mux can use splicing", H1_EV_STRM_NEW, h1s->h1c->conn, h1s);
-		h1s->cs->flags |= CS_FL_MAY_SPLICE;
 	}
 
 	h1s->h1c->flags |= H1C_F_ST_READY;
@@ -3349,11 +3339,9 @@ static size_t h1_rcv_buf(struct conn_stream *cs, struct buffer *buf, size_t coun
 	else
 		TRACE_DEVEL("h1c ibuf not allocated", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
 
-	if (flags & CO_RFL_BUF_FLUSH) {
-		if (h1m->state == H1_MSG_TUNNEL || (h1m->state == H1_MSG_DATA && h1m->curr_len)) {
-			h1c->flags |= H1C_F_WANT_SPLICE;
-			TRACE_STATE("Block xprt rcv_buf to flush stream's buffer (want_splice)", H1_EV_STRM_RECV, h1c->conn, h1s);
-		}
+	if ((flags & CO_RFL_BUF_FLUSH) && (cs->flags & CS_FL_MAY_SPLICE)) {
+		h1c->flags |= H1C_F_WANT_SPLICE;
+		TRACE_STATE("Block xprt rcv_buf to flush stream's buffer (want_splice)", H1_EV_STRM_RECV, h1c->conn, h1s);
 	}
 	else {
 		if (((flags & CO_RFL_KEEP_RECV) || (h1m->state != H1_MSG_DONE)) && !(h1c->wait_event.events & SUB_RETRY_RECV))
@@ -3451,10 +3439,6 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 		goto end;
 	}
 
-	if (!(h1c->flags & H1C_F_WANT_SPLICE)) {
-		h1c->flags |= H1C_F_WANT_SPLICE;
-		TRACE_STATE("Block xprt rcv_buf to perform splicing", H1_EV_STRM_RECV, cs->conn, h1s);
-	}
 	if (h1s_data_pending(h1s)) {
 		TRACE_STATE("flush input buffer before splicing", H1_EV_STRM_RECV, cs->conn, h1s);
 		goto end;
