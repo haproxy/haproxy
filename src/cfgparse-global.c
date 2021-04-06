@@ -1070,7 +1070,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if (parse_cpu_set((const char **)args+2, &cpus, &errmsg)) {
+		if (parse_cpu_set((const char **)args+2, &cpus, 0, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;

@@ -462,26 +462,35 @@ int parse_process_number(const char *arg, unsigned long *proc, int max, int *aut
 #ifdef USE_CPU_AFFINITY
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
  * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
- * ('-'). Multiple CPU numbers or ranges may be specified. On success, it
- * returns 0. otherwise it returns 1 with an error message in <err>.
+ * ('-'). If <comma_allowed> is set, each CPU set can be a list of unique
+ * numbers or ranges separated by a comma. It is also possible to specify
+ * multiple cpu numbers or ranges in distinct argument in <args>. On success,
+ * it returns 0, otherwise it returns 1 with an error message in <err>.
  */
-unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char **err)
+unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set,
+                            int comma_allowed, char **err)
 {
 	int cur_arg = 0;
+	const char *arg;
 
 	ha_cpuset_zero(cpu_set);
 
-	while (*args[cur_arg]) {
-		char        *dash;
+	arg = args[cur_arg];
+	while (*arg) {
+		const char *dash, *comma;
 		unsigned int low, high;
 
 		if (!isdigit((unsigned char)*args[cur_arg])) {
-			memprintf(err, "'%s' is not a CPU range.", args[cur_arg]);
+			memprintf(err, "'%s' is not a CPU range.", arg);
 			return -1;
 		}
 
-		low = high = str2uic(args[cur_arg]);
-		if ((dash = strchr(args[cur_arg], '-')) != NULL)
+		low = high = str2uic(arg);
+
+		comma = comma_allowed ? strchr(arg, ',') : NULL;
+		dash = strchr(arg, '-');
+
+		if (dash && (!comma || dash < comma))
 			high = *(dash+1) ? str2uic(dash + 1) : ha_cpuset_size() - 1;
 
 		if (high < low) {
@@ -499,7 +508,9 @@ unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char 
 		while (low <= high)
 			ha_cpuset_set(cpu_set, low++);
 
-		cur_arg++;
+		/* if a comma is present, parse the rest of the arg, else
+		 * skip to the next arg */
+		arg = comma ? comma + 1 : args[++cur_arg];
 	}
 	return 0;
 }
