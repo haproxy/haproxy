@@ -204,7 +204,7 @@ void quic_sock_fd_iocb(int fd)
 	if (!l)
 		ABORT_NOW();
 
-	if (!(fdtab[fd].ev & FD_POLL_IN) || !fd_recv_ready(fd))
+	if (!(fdtab[fd].state & FD_POLL_IN) || !fd_recv_ready(fd))
 		return;
 
 	buf = get_trash_chunk();

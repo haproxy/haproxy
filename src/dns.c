@@ -251,7 +251,7 @@ static void dns_resolve_recv(struct dgram_conn *dgram)
 
 	/* no need to go further if we can't retrieve the nameserver */
 	if ((ns = dgram->owner) == NULL) {
-		_HA_ATOMIC_AND(&fdtab[fd].ev, ~(FD_POLL_HUP|FD_POLL_ERR));
+		_HA_ATOMIC_AND(&fdtab[fd].state, ~(FD_POLL_HUP|FD_POLL_ERR));
 		fd_stop_recv(fd);
 		return;
 	}
@@ -277,7 +277,7 @@ static void dns_resolve_send(struct dgram_conn *dgram)
 
 	/* no need to go further if we can't retrieve the nameserver */
 	if ((ns = dgram->owner) == NULL) {
-		_HA_ATOMIC_AND(&fdtab[fd].ev, ~(FD_POLL_HUP|FD_POLL_ERR));
+		_HA_ATOMIC_AND(&fdtab[fd].state, ~(FD_POLL_HUP|FD_POLL_ERR));
 		fd_stop_send(fd);
 		return;
 	}

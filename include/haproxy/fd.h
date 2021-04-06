@@ -367,7 +367,7 @@ static inline void fd_update_events(int fd, uint evts)
 	      ((evts & FD_EV_ERR_RW)  ? FD_POLL_ERR : 0);
 
 	/* SHUTW reported while FD was active for writes is an error */
-	if ((fdtab[fd].ev & FD_EV_ACTIVE_W) && (evts & FD_EV_SHUT_W))
+	if ((fdtab[fd].state & FD_EV_ACTIVE_W) && (evts & FD_EV_SHUT_W))
 		new_flags |= FD_POLL_ERR;
 
 	/* compute the inactive events reported late that must be stopped */
@@ -385,22 +385,22 @@ static inline void fd_update_events(int fd, uint evts)
 		must_stop = FD_POLL_OUT;
 	}
 
-	old = fdtab[fd].ev;
+	old = fdtab[fd].state;
 	new = (old & ~FD_POLL_UPDT_MASK) | new_flags;
 
 	if (unlikely(locked)) {
 		/* Locked FDs (those with more than 2 threads) are atomically updated */
-		while (unlikely(new != old && !_HA_ATOMIC_CAS(&fdtab[fd].ev, &old, new)))
+		while (unlikely(new != old && !_HA_ATOMIC_CAS(&fdtab[fd].state, &old, new)))
 			new = (old & ~FD_POLL_UPDT_MASK) | new_flags;
 	} else {
 		if (new != old)
-			fdtab[fd].ev = new;
+			fdtab[fd].state = new;
 	}
 
-	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
+	if (fdtab[fd].state & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
 		fd_may_recv(fd);
 
-	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
+	if (fdtab[fd].state & (FD_POLL_OUT | FD_POLL_ERR))
 		fd_may_send(fd);
 
 	if (fdtab[fd].iocb && fd_active(fd)) {
@@ -432,7 +432,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;
-	fdtab[fd].ev = 0;
+	fdtab[fd].state = 0;
 	fdtab[fd].linger_risk = 0;
 	fdtab[fd].cloned = 0;
 	fdtab[fd].et_possible = 0;

@@ -31,23 +31,18 @@ enum {
 	DIR_WR=1,
 };
 
-/* Polling status flags returned in fdtab[].ev :
- * FD_POLL_IN remains set as long as some data is pending for read.
- * FD_POLL_OUT remains set as long as the fd accepts to write data.
- * FD_POLL_ERR and FD_POLL_ERR remain set forever (until processed).
- */
-#define FD_POLL_IN	0x00000100
-#define FD_POLL_PRI	0x00000200
-#define FD_POLL_OUT	0x00000400
-#define FD_POLL_ERR	0x00000800
-#define FD_POLL_HUP	0x00001000
 
-#define FD_POLL_UPDT_MASK   (FD_POLL_IN | FD_POLL_PRI | FD_POLL_OUT)
-
-/* FD_EV_* are the values used in fdtab[].state to define the polling states in
- * each direction. Most of them are manipulated using test-and-set operations
- * which require the bit position in the mask, which is given in the _BIT
- * variant.
+/* fdtab[].state is a composite state describing what is known about the FD.
+ * For now, the following information are stored in it:
+ *   - event configuration and status for each direction (R,W) split into
+ *     active, ready, shutdown categories (FD_EV_*). These are known by their
+ *     bit values as well so that test-and-set bit operations are possible.
+ *
+ *   - last known polling status (FD_POLL_*). For ease of troubleshooting,
+ *     avoid visually mixing these ones with the other ones above. 3 of these
+ *     flags are updated on each poll() report (FD_POLL_IN, FD_POLL_OUT,
+ *     FD_POLL_PRI). FD_POLL_HUP and FD_POLL_ERR are "sticky" in that once they
+ *     are reported, they will not be cleared until the FD is closed.
  */
 
 /* bits positions for a few flags */
@@ -60,6 +55,13 @@ enum {
 #define FD_EV_READY_W_BIT  5
 #define FD_EV_SHUT_W_BIT   6
 #define FD_EV_ERR_RW_BIT   7
+
+#define FD_POLL_IN_BIT     8
+#define FD_POLL_PRI_BIT    9
+#define FD_POLL_OUT_BIT   10
+#define FD_POLL_ERR_BIT   11
+#define FD_POLL_HUP_BIT   12
+
 
 /* and flag values */
 #define FD_EV_ACTIVE_R  (1U << FD_EV_ACTIVE_R_BIT)
@@ -79,6 +81,18 @@ enum {
  * directions at once (write error, socket dead, etc).
  */
 #define FD_EV_ERR_RW    (1U << FD_EV_ERR_RW_BIT)
+
+/* mask covering all use cases above */
+#define FD_EV_ANY       (FD_EV_ACTIVE_RW | FD_EV_READY_RW | FD_EV_SHUT_RW | FD_EV_ERR_RW)
+
+/* polling status */
+#define FD_POLL_IN          (1U << FD_POLL_IN_BIT)
+#define FD_POLL_PRI         (1U << FD_POLL_PRI_BIT)
+#define FD_POLL_OUT         (1U << FD_POLL_OUT_BIT)
+#define FD_POLL_ERR         (1U << FD_POLL_ERR_BIT)
+#define FD_POLL_HUP         (1U << FD_POLL_HUP_BIT)
+#define FD_POLL_UPDT_MASK   (FD_POLL_IN | FD_POLL_PRI | FD_POLL_OUT)
+#define FD_POLL_ANY_MASK    (FD_POLL_IN | FD_POLL_PRI | FD_POLL_OUT | FD_POLL_ERR | FD_POLL_HUP)
 
 
 /* This is the value used to mark a file descriptor as dead. This value is
@@ -127,8 +141,7 @@ struct fdtab {
 	struct fdlist_entry update;          /* Entry in the global update list */
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
-	unsigned char state;                 /* FD state for read and write directions (FD_EV_*) */
-	unsigned int  ev;                    /* event seen in return of poll() : FD_POLL_* */
+	unsigned int state;                  /* FD state for read and write directions (FD_EV_*) + FD_POLL_* */
 	unsigned char linger_risk:1;         /* 1 if we must kill lingering before closing */
 	unsigned char cloned:1;              /* 1 if a cloned socket, requires EPOLL_CTL_DEL on close */
 	unsigned char initialized:1;         /* 1 if init phase was done on this fd (e.g. set non-blocking) */

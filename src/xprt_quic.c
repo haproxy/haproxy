@@ -3890,13 +3890,13 @@ static size_t quic_conn_to_buf(struct connection *conn, void *xprt_ctx, struct b
 	conn->flags &= ~CO_FL_WAIT_ROOM;
 	errno = 0;
 
-	if (unlikely(!(fdtab[conn->handle.fd].ev & FD_POLL_IN))) {
+	if (unlikely(!(fdtab[conn->handle.fd].state & FD_POLL_IN))) {
 		/* stop here if we reached the end of data */
-		if ((fdtab[conn->handle.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_HUP)
+		if ((fdtab[conn->handle.fd].state & (FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_HUP)
 			goto read0;
 
 		/* report error on POLL_ERR before connection establishment */
-		if ((fdtab[conn->handle.fd].ev & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
+		if ((fdtab[conn->handle.fd].state & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			goto leave;
 		}
@@ -3930,7 +3930,7 @@ static size_t quic_conn_to_buf(struct connection *conn, void *xprt_ctx, struct b
 				 * to read an unlikely close from the client since we'll
 				 * close first anyway.
 				 */
-				if (fdtab[conn->handle.fd].ev & FD_POLL_HUP)
+				if (fdtab[conn->handle.fd].state & FD_POLL_HUP)
 					goto read0;
 
 				if ((!fdtab[conn->handle.fd].linger_risk) ||
@@ -3970,7 +3970,7 @@ static size_t quic_conn_to_buf(struct connection *conn, void *xprt_ctx, struct b
 	 * of recv()'s return value 0, so we have no way to tell there was
 	 * an error without checking.
 	 */
-	if (unlikely(fdtab[conn->handle.fd].ev & FD_POLL_ERR))
+	if (unlikely(fdtab[conn->handle.fd].state & FD_POLL_ERR))
 		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 	goto leave;
 }
@@ -4297,7 +4297,7 @@ static size_t quic_conn_handler(int fd, void *ctx, qpkt_read_func *func)
  */
 void quic_fd_handler(int fd)
 {
-	if (fdtab[fd].ev & FD_POLL_IN)
+	if (fdtab[fd].state & FD_POLL_IN)
 		quic_conn_handler(fd, fdtab[fd].owner, &qc_lstnr_pkt_rcv);
 }
 
@@ -4306,7 +4306,7 @@ void quic_fd_handler(int fd)
  */
 void quic_conn_fd_handler(int fd)
 {
-	if (fdtab[fd].ev & FD_POLL_IN)
+	if (fdtab[fd].state & FD_POLL_IN)
 		quic_conn_handler(fd, fdtab[fd].owner, &qc_srv_pkt_rcv);
 }
 

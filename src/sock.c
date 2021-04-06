@@ -103,13 +103,13 @@ struct connection *sock_accept_conn(struct listener *l, int *status)
 	switch (errno) {
 	case EAGAIN:
 		ret = CO_AC_DONE; /* nothing more to accept */
-		if (fdtab[l->rx.fd].ev & (FD_POLL_HUP|FD_POLL_ERR)) {
+		if (fdtab[l->rx.fd].state & (FD_POLL_HUP|FD_POLL_ERR)) {
 			/* the listening socket might have been disabled in a shared
 			 * process and we're a collateral victim. We'll just pause for
 			 * a while in case it comes back. In the mean time, we need to
 			 * clear this sticky flag.
 			 */
-			_HA_ATOMIC_AND(&fdtab[l->rx.fd].ev, ~(FD_POLL_HUP|FD_POLL_ERR));
+			_HA_ATOMIC_AND(&fdtab[l->rx.fd].state, ~(FD_POLL_HUP|FD_POLL_ERR));
 			ret = CO_AC_PAUSE;
 		}
 		fd_cant_recv(l->rx.fd);
@@ -683,11 +683,11 @@ int sock_conn_check(struct connection *conn)
 	 */
 	if (cur_poller.flags & HAP_POLL_F_ERRHUP) {
 		/* modern poller, able to report ERR/HUP */
-		if ((fdtab[fd].ev & (FD_POLL_IN|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_IN)
+		if ((fdtab[fd].state & (FD_POLL_IN|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_IN)
 			goto done;
-		if ((fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_OUT)
+		if ((fdtab[fd].state & (FD_POLL_OUT|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_OUT)
 			goto done;
-		if (!(fdtab[fd].ev & (FD_POLL_ERR|FD_POLL_HUP)))
+		if (!(fdtab[fd].state & (FD_POLL_ERR|FD_POLL_HUP)))
 			goto wait;
 		/* error present, fall through common error check path */
 	}
@@ -832,7 +832,7 @@ int sock_drain(struct connection *conn)
 	int fd = conn->handle.fd;
 	int len;
 
-	if (fdtab[fd].ev & (FD_POLL_ERR|FD_POLL_HUP))
+	if (fdtab[fd].state & (FD_POLL_ERR|FD_POLL_HUP))
 		goto shut;
 
 	if (!fd_recv_ready(fd))

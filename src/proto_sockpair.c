@@ -495,13 +495,13 @@ struct connection *sockpair_accept_conn(struct listener *l, int *status)
 	switch (errno) {
 	case EAGAIN:
 		ret = CO_AC_DONE; /* nothing more to accept */
-		if (fdtab[l->rx.fd].ev & (FD_POLL_HUP|FD_POLL_ERR)) {
+		if (fdtab[l->rx.fd].state & (FD_POLL_HUP|FD_POLL_ERR)) {
 			/* the listening socket might have been disabled in a shared
 			 * process and we're a collateral victim. We'll just pause for
 			 * a while in case it comes back. In the mean time, we need to
 			 * clear this sticky flag.
 			 */
-			_HA_ATOMIC_AND(&fdtab[l->rx.fd].ev, ~(FD_POLL_HUP|FD_POLL_ERR));
+			_HA_ATOMIC_AND(&fdtab[l->rx.fd].state, ~(FD_POLL_HUP|FD_POLL_ERR));
 			ret = CO_AC_PAUSE;
 		}
 		fd_cant_recv(l->rx.fd);

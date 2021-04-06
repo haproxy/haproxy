@@ -3679,7 +3679,7 @@ void syslog_fd_handler(int fd)
 	if(!l)
 		ABORT_NOW();
 
-	if (fdtab[fd].ev & FD_POLL_IN) {
+	if (fdtab[fd].state & FD_POLL_IN) {
 
 		if (!fd_recv_ready(fd))
 			return;
