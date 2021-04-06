@@ -3933,7 +3933,7 @@ static size_t quic_conn_to_buf(struct connection *conn, void *xprt_ctx, struct b
 				if (fdtab[conn->handle.fd].state & FD_POLL_HUP)
 					goto read0;
 
-				if ((!fdtab[conn->handle.fd].linger_risk) ||
+				if (!(fdtab[conn->handle.fd].state & FD_LINGER_RISK) ||
 				    (cur_poller.flags & HAP_POLL_F_RDHUP)) {
 					break;
 				}

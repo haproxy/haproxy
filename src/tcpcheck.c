@@ -1128,7 +1128,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 	if (conn_ctrl_ready(conn) && (connect->options & TCPCHK_OPT_LINGER)) {
 		/* Some servers don't like reset on close */
-		fdtab[cs->conn->handle.fd].linger_risk = 0;
+		HA_ATOMIC_AND(&fdtab[cs->conn->handle.fd].state, ~FD_LINGER_RISK);
 	}
 
 	if (conn_ctrl_ready(conn) && (conn->flags & (CO_FL_SEND_PROXY | CO_FL_SOCKS4))) {

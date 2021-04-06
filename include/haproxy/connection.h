@@ -178,7 +178,7 @@ static inline void conn_sock_read0(struct connection *c)
 		/* we don't risk keeping ports unusable if we found the
 		 * zero from the other side.
 		 */
-		fdtab[c->handle.fd].linger_risk = 0;
+		HA_ATOMIC_AND(&fdtab[c->handle.fd].state, ~FD_LINGER_RISK);
 	}
 }
 

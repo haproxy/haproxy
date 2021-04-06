@@ -726,8 +726,8 @@ int sock_conn_check(struct connection *conn)
 	/* Write error on the file descriptor. Report it to the connection
 	 * and disable polling on this FD.
 	 */
-	fdtab[fd].linger_risk = 0;
 	conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+	HA_ATOMIC_AND(&fdtab[fd].state, ~FD_LINGER_RISK);
 	fd_stop_both(fd);
 	return 0;
 
@@ -870,7 +870,7 @@ int sock_drain(struct connection *conn)
 
  shut:
 	/* we're certain the connection was shut down */
-	fdtab[fd].linger_risk = 0;
+	HA_ATOMIC_AND(&fdtab[fd].state, ~FD_LINGER_RISK);
 	return 1;
 }
 

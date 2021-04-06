@@ -194,7 +194,7 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	/* We're on the client-facing side, we must force to disable lingering to
 	 * ensure we will use an RST exclusively and kill any pending data.
 	 */
-	fdtab[conn->handle.fd].linger_risk = 1;
+	HA_ATOMIC_OR(&fdtab[conn->handle.fd].state, FD_LINGER_RISK);
 
 #ifdef TCP_REPAIR
 	if (setsockopt(conn->handle.fd, IPPROTO_TCP, TCP_REPAIR, &one, sizeof(one)) == 0) {

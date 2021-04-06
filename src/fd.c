@@ -302,7 +302,7 @@ done:
  */
 void _fd_delete_orphan(int fd)
 {
-	if (fdtab[fd].linger_risk) {
+	if (fdtab[fd].state & FD_LINGER_RISK) {
 		/* this is generally set when connecting to servers */
 		DISGUISE(setsockopt(fd, SOL_SOCKET, SO_LINGER,
 			   (struct linger *) &nolinger, sizeof(struct linger)));

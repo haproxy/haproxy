@@ -62,6 +62,9 @@ enum {
 #define FD_POLL_ERR_BIT   11
 #define FD_POLL_HUP_BIT   12
 
+/* info/config bits */
+#define FD_LINGER_RISK_BIT 16  /* must kill lingering before closing */
+
 
 /* and flag values */
 #define FD_EV_ACTIVE_R  (1U << FD_EV_ACTIVE_R_BIT)
@@ -94,6 +97,8 @@ enum {
 #define FD_POLL_UPDT_MASK   (FD_POLL_IN | FD_POLL_PRI | FD_POLL_OUT)
 #define FD_POLL_ANY_MASK    (FD_POLL_IN | FD_POLL_PRI | FD_POLL_OUT | FD_POLL_ERR | FD_POLL_HUP)
 
+/* information/configuration flags */
+#define FD_LINGER_RISK      (1U << FD_LINGER_RISK_BIT)
 
 /* This is the value used to mark a file descriptor as dead. This value is
  * negative, this is important so that tests on fd < 0 properly match. It
@@ -142,7 +147,6 @@ struct fdtab {
 	void (*iocb)(int fd);                /* I/O handler */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
 	unsigned int state;                  /* FD state for read and write directions (FD_EV_*) + FD_POLL_* */
-	unsigned char linger_risk:1;         /* 1 if we must kill lingering before closing */
 	unsigned char cloned:1;              /* 1 if a cloned socket, requires EPOLL_CTL_DEL on close */
 	unsigned char initialized:1;         /* 1 if init phase was done on this fd (e.g. set non-blocking) */
 	unsigned char et_possible:1;         /* 1 if edge-triggered is possible on this FD */

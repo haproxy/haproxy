@@ -362,7 +362,7 @@ static int sockpair_connect_server(struct connection *conn, int flags)
 		conn->flags |= CO_FL_SEND_PROXY;
 
 	conn_ctrl_init(conn);       /* registers the FD */
-	fdtab[fd].linger_risk = 0;  /* no need to disable lingering */
+	HA_ATOMIC_AND(&fdtab[fd].state, ~FD_LINGER_RISK);  /* no need to disable lingering */
 
 	return SF_ERR_NONE;  /* connection is OK */
 }

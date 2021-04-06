@@ -557,7 +557,7 @@ int tcp_connect_server(struct connection *conn, int flags)
 	conn->flags |= CO_FL_ADDR_TO_SET;
 
 	conn_ctrl_init(conn);       /* registers the FD */
-	fdtab[fd].linger_risk = 1;  /* close hard if needed */
+	HA_ATOMIC_OR(&fdtab[fd].state, FD_LINGER_RISK);  /* close hard if needed */
 
 	if (conn->flags & CO_FL_WAIT_L4_CONN) {
 		fd_want_send(fd);

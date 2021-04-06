@@ -209,7 +209,7 @@ int session_accept_fd(struct connection *cli_conn)
 		}
 
 		if (p->options & PR_O_TCP_NOLING)
-			fdtab[cfd].linger_risk = 1;
+			HA_ATOMIC_OR(&fdtab[cfd].state, FD_LINGER_RISK);
 
 #if defined(TCP_MAXSEG)
 		if (l->maxseg < 0) {

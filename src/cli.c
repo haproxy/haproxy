@@ -1190,7 +1190,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			suspicious = 1;
 
 		chunk_printf(&trash,
-			     "  %5d : st=0x%04x(R:%c%c W:%c%c %c%c%c%c%c) [%c%c] tmask=0x%lx umask=0x%lx owner=%p iocb=%p(",
+			     "  %5d : st=0x%06x(R:%c%c W:%c%c %c%c%c%c%c %c%c) tmask=0x%lx umask=0x%lx owner=%p iocb=%p(",
 			     fd,
 			     fdt.state,
 			     (fdt.state & FD_EV_READY_R)  ? 'R' : 'r',
@@ -1202,7 +1202,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			     (fdt.state & FD_POLL_OUT) ? 'O' : 'o',
 			     (fdt.state & FD_POLL_PRI) ? 'P' : 'p',
 			     (fdt.state & FD_POLL_IN)  ? 'I' : 'i',
-			     fdt.linger_risk ? 'L' : 'l',
+			     (fdt.state & FD_LINGER_RISK) ? 'L' : 'l',
 			     fdt.cloned ? 'C' : 'c',
 			     fdt.thread_mask, fdt.update_mask,
 			     fdt.owner,
