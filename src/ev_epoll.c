@@ -60,7 +60,7 @@ static void _update_fd(int fd)
 	en = fdtab[fd].state;
 
 	/* Try to force EPOLLET on FDs that support it */
-	if (fdtab[fd].et_possible) {
+	if (fdtab[fd].state & FD_ET_POSSIBLE) {
 		/* already done ? */
 		if (polled_mask[fd].poll_recv & polled_mask[fd].poll_send & tid_bit)
 			return;

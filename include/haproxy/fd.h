@@ -433,7 +433,6 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 	fdtab[fd].owner = owner;
 	fdtab[fd].iocb = iocb;
 	fdtab[fd].state = 0;
-	fdtab[fd].et_possible = 0;
 	fdtab[fd].exported = 0;
 #ifdef DEBUG_FD
 	fdtab[fd].event_count = 0;
@@ -441,7 +440,7 @@ static inline void fd_insert(int fd, void *owner, void (*iocb)(int fd), unsigned
 
 	/* conn_fd_handler should support edge-triggered FDs */
 	if ((global.tune.options & GTUNE_FD_ET) && fdtab[fd].iocb == sock_conn_iocb)
-		fdtab[fd].et_possible = 1;
+		fdtab[fd].state |= FD_ET_POSSIBLE;
 
 	fdtab[fd].thread_mask = thread_mask;
 	/* note: do not reset polled_mask here as it indicates which poller
