@@ -386,12 +386,12 @@ static inline void fd_update_events(int fd, unsigned char evts)
 	}
 
 	old = fdtab[fd].ev;
-	new = (old & FD_POLL_STICKY) | new_flags;
+	new = (old & ~FD_POLL_UPDT_MASK) | new_flags;
 
 	if (unlikely(locked)) {
 		/* Locked FDs (those with more than 2 threads) are atomically updated */
 		while (unlikely(new != old && !_HA_ATOMIC_CAS(&fdtab[fd].ev, &old, new)))
-			new = (old & FD_POLL_STICKY) | new_flags;
+			new = (old & ~FD_POLL_UPDT_MASK) | new_flags;
 	} else {
 		if (new != old)
 			fdtab[fd].ev = new;

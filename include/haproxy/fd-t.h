@@ -42,8 +42,7 @@ enum {
 #define FD_POLL_ERR	0x08
 #define FD_POLL_HUP	0x10
 
-#define FD_POLL_DATA    (FD_POLL_IN  | FD_POLL_OUT)
-#define FD_POLL_STICKY  (FD_POLL_ERR | FD_POLL_HUP)
+#define FD_POLL_UPDT_MASK   (FD_POLL_IN | FD_POLL_PRI | FD_POLL_OUT)
 
 /* FD_EV_* are the values used in fdtab[].state to define the polling states in
  * each direction. Most of them are manipulated using test-and-set operations
