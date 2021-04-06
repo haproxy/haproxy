@@ -550,8 +550,27 @@ static forceinline int __ha_cas_dw(void *target, void *compare, const void *set)
 	return ret;
 }
 
-#else // no ARMv8.1-A atomics
+#elif defined(__SIZEOF_INT128__) && defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16) // no ARMv8.1-A atomics but 128-bit atomics
 
+/* According to https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html
+ * we can use atomics on __int128. The availability of CAS is defined there:
+ *   https://gcc.gnu.org/onlinedocs/cpp/Common-Predefined-Macros.html
+ * However these usually involve a function call which can be expensive for some
+ * cases, but gcc 10.2 and above can reroute the function call to either LL/SC for
+ * v8.0 or LSE for v8.1+, which allows to use a more scalable version on v8.1+ at
+ * the extra cost of a function call.
+ */
+
+/* returns 0 on failure, non-zero on success */
+static __inline int __ha_cas_dw(void *target, void *compare, const void *set)
+{
+	return __atomic_compare_exchange((__int128*)target, (__int128*)compare, (const __int128*)set,
+	                                 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+}
+
+#else // neither ARMv8.1-A atomics nor 128-bit atomics
+
+/* returns 0 on failure, non-zero on success */
 static __inline int __ha_cas_dw(void *target, void *compare, void *set)
 {
 	void *value[2];
