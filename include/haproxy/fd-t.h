@@ -68,6 +68,7 @@ enum {
 #define FD_INITIALIZED_BIT 18  /* init phase was done (e.g. output pipe set non-blocking) */
 #define FD_ET_POSSIBLE_BIT 19  /* edge-triggered is possible on this FD */
 #define FD_EXPORTED_BIT    20  /* FD is exported and must not be closed */
+#define FD_EXCL_SYSCALL_BIT 21 /* a syscall claims exclusivity on this FD */
 
 
 /* and flag values */
@@ -107,6 +108,7 @@ enum {
 #define FD_INITIALIZED      (1U << FD_INITIALIZED_BIT)
 #define FD_ET_POSSIBLE      (1U << FD_ET_POSSIBLE_BIT)
 #define FD_EXPORTED         (1U << FD_EXPORTED_BIT)
+#define FD_EXCL_SYSCALL     (1U << FD_EXCL_SYSCALL_BIT)
 
 /* This is the value used to mark a file descriptor as dead. This value is
  * negative, this is important so that tests on fd < 0 properly match. It

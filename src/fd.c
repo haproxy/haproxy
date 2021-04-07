@@ -444,7 +444,6 @@ void updt_fd_polling(const int fd)
 	}
 }
 
-__decl_spinlock(log_lock);
 /* Tries to send <npfx> parts from <prefix> followed by <nmsg> parts from <msg>
  * optionally followed by a newline if <nl> is non-null, to file descriptor
  * <fd>. The message is sent atomically using writev(). It may be truncated to
@@ -503,7 +502,7 @@ ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t
 	 * up.
 	 */
 
-	while (HA_SPIN_TRYLOCK(OTHER_LOCK, &log_lock) != 0) {
+	while (HA_ATOMIC_BTS(&fdtab[fd].state, FD_EXCL_SYSCALL_BIT)) {
 		if (++attempts >= 200) {
 			/* so that the caller knows the message couldn't be delivered */
 			sent = -1;
@@ -519,7 +518,7 @@ ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t
 			fcntl(fd, F_SETFL, O_NONBLOCK);
 	}
 	sent = writev(fd, iovec, vec);
-	HA_SPIN_UNLOCK(OTHER_LOCK, &log_lock);
+	HA_ATOMIC_BTR(&fdtab[fd].state, FD_EXCL_SYSCALL_BIT);
 
  leave:
 	/* sent > 0 if the message was delivered */
