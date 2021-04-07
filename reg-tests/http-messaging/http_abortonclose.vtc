@@ -1,0 +1,114 @@
+varnishtest "A test for the abortonclose option (H1 only)"
+feature ignore_unknown_macro
+
+# NOTE : This test may fail if too many vtest are running in parallel because
+#        the port reserved for closed s1 server may be reused by another vtest
+
+#REQUIRE_VERSION=2.3
+#REGTEST_TYPE=slow
+
+# b1 : Don't send /c4 before /c3 was received by s2 server
+# b2 : Don't finish c2 before c1 and c3 before c4 (from syslog POV)
+# b3 : finish c3 before s2
+
+barrier b1 cond 2 -cyclic
+barrier b2 cond 2 -cyclic
+barrier b3 cond 2 -cyclic
+
+server s1 {
+} -start
+server s1 -break
+
+server s2 {
+    rxreq
+
+    # unlock c4
+    barrier b1 sync
+
+    # wait end of c3
+    barrier b3 sync
+
+    expect_close
+} -start
+
+syslog S -level info {
+    recv
+    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/-1/-1/[0-9]* 503 .* - - SC-- .* .* \"GET /c1 HTTP/1\\.1\""
+    barrier b2 sync
+    recv
+    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/-1/-1/[0-9]* 503 .* - - CC-- .* .* \"GET /c2 HTTP/1\\.1\""
+
+    recv
+    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be2/<NOSRV> [0-9]*/[0-9]*/-1/-1/[0-9]* 503 .* - - CQ-- .* .* \"GET /c4 HTTP/1\\.1\""
+    barrier b2 sync
+    recv
+    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be2/srv1 [0-9]*/[0-9]*/[0-9]*/-1/[0-9]* 400 .* - - CH-- .* .* \"GET /c3 HTTP/1\\.1\""
+} -start
+
+haproxy h1 -conf {
+    defaults
+        mode http
+        ${no-htx} option http-use-htx
+        option abortonclose
+        retries 3
+        timeout client  10s
+        timeout server  10s
+        timeout connect 100ms
+        timeout queue   5s
+
+    frontend fe1
+        option httplog
+        log ${S_addr}:${S_port} local0 debug err
+        bind "fd@${fe1}"
+        use_backend be1
+
+    frontend fe2
+        option httplog
+        log ${S_addr}:${S_port} local0 debug err
+        bind "fd@${fe2}"
+        use_backend be2
+
+    backend be1
+        server srv1 ${s1_addr}:${s1_port}
+
+    backend be2
+        server srv1 ${s2_addr}:${s2_port} maxconn 1
+} -start
+
+# No server, wait all connection retries : SC--
+client  c1 -connect ${h1_fe1_sock} {
+    txreq -url /c1
+    expect_close
+} -run
+
+# Wait c1 log entry
+barrier b2 sync
+
+# No server, abort during connections retries : CC--
+client  c2 -connect ${h1_fe1_sock} {
+    txreq -url /c2
+} -run
+
+# server with maxconn=1, abort waiting the server reply : CH--
+client  c3 -connect ${h1_fe2_sock} {
+    txreq -url /c3
+
+    # Wait c4 log entry
+    barrier b2 sync
+} -start
+
+# server with maxconn=1, abort waiting in the queue (c3 still attached) : CQ--
+client  c4 -connect ${h1_fe2_sock} {
+    # Wait s2 receives c3 request
+    barrier b1 sync
+
+    txreq -url /c4
+    delay .2
+} -run
+
+client c3 -wait
+
+# unlock s2
+barrier b3 sync
+
+syslog S -wait
