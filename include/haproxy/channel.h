@@ -432,6 +432,39 @@ static inline int channel_may_send(const struct channel *chn)
 	return chn_cons(chn)->state == SI_ST_EST;
 }
 
+/* HTX version of channel_may_recv(). Returns non-zero if the channel can still
+ * receive data. */
+static inline int channel_htx_may_recv(const struct channel *chn, const struct htx *htx)
+{
+	uint32_t rem;
+
+	if (!htx->size)
+		return 1;
+
+	rem = htx_free_data_space(htx);
+	if (!rem)
+		return 0; /* htx already full */
+
+	if (rem > global.tune.maxrewrite)
+		return 1; /* reserve not yet reached */
+
+	if (!channel_may_send(chn))
+		return 0; /* don't touch reserve until we can send */
+
+	/* Now we know there's some room left in the reserve and we may
+	 * forward. As long as i-to_fwd < size-maxrw, we may still
+	 * receive. This is equivalent to i+maxrw-size < to_fwd,
+	 * which is logical since i+maxrw-size is what overlaps with
+	 * the reserve, and we want to ensure they're covered by scheduled
+	 * forwards.
+	 */
+	rem += co_data(chn);
+	if (rem > global.tune.maxrewrite)
+		return 1;
+
+	return (global.tune.maxrewrite - rem < chn->to_forward);
+}
+
 /* Returns non-zero if the channel can still receive data. This is used to
  * decide when to stop reading into a buffer when we want to ensure that we
  * leave the reserve untouched after all pending outgoing data are forwarded.
@@ -446,6 +479,9 @@ static inline int channel_may_send(const struct channel *chn)
 static inline int channel_may_recv(const struct channel *chn)
 {
 	int rem = chn->buf.size;
+
+	if (IS_HTX_STRM(chn_strm(chn)))
+		return channel_htx_may_recv(chn, htxbuf(&chn->buf));
 
 	if (b_is_null(&chn->buf))
 		return 1;
@@ -469,39 +505,6 @@ static inline int channel_may_recv(const struct channel *chn)
 	 */
 	rem = ci_data(chn) + global.tune.maxrewrite - chn->buf.size;
 	return rem < 0 || (unsigned int)rem < chn->to_forward;
-}
-
-/* HTX version of channel_may_recv(). Returns non-zero if the channel can still
- * receive data. */
-static inline int channel_htx_may_recv(const struct channel *chn, const struct htx *htx)
-{
-	uint32_t rem;
-
-	if (!htx->size)
-		return 1;
-
-	if (!channel_may_send(chn))
-		return 0; /* don't touch reserve until we can send */
-
-	rem = htx_free_data_space(htx);
-	if (!rem)
-		return 0; /* htx already full */
-
-	if (rem > global.tune.maxrewrite)
-		return 1; /* reserve not yet reached */
-
-	/* Now we know there's some room left in the reserve and we may
-	 * forward. As long as i-to_fwd < size-maxrw, we may still
-	 * receive. This is equivalent to i+maxrw-size < to_fwd,
-	 * which is logical since i+maxrw-size is what overlaps with
-	 * the reserve, and we want to ensure they're covered by scheduled
-	 * forwards.
-	 */
-	rem += co_data(chn);
-	if (rem > global.tune.maxrewrite)
-		return 1;
-
-	return (global.tune.maxrewrite - rem < chn->to_forward);
 }
 
 /* Returns true if the channel's input is already closed */
