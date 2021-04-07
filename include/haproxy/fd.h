@@ -206,7 +206,7 @@ static inline void fd_stop_send(int fd)
 /* Disable processing of events on fd <fd> for both directions. */
 static inline void fd_stop_both(int fd)
 {
-	unsigned char old, new;
+	uint old, new;
 
 	old = fdtab[fd].state;
 	do {
