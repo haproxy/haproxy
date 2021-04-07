@@ -811,7 +811,7 @@ void si_update_rx(struct stream_interface *si)
 	else
 		si_rx_chan_rdy(si);
 
-	if (!channel_is_empty(ic)) {
+	if (!channel_may_recv(ic)) {
 		/* stop reading, imposed by channel's policy or contents */
 		si_rx_room_blk(si);
 	}
