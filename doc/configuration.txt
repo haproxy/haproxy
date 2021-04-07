@@ -14828,18 +14828,16 @@ accepted_payload_size <nb>
         nameservers to handle huge DNS responses, you should put this value
         to the max: 65535.
 
-nameserver <id> <ip>:<port>
-  UDP DNS server description:
-    <id>   : label of the server, should be unique
-    <ip>   : IP address of the server
-    <port> : port where the DNS service actually runs
-
-server <name> <address> [param*]
-  Used to configure a DNS TCP or stream server. This supports for all
-  "server" parameters found in 5.2 paragraph. Some of these parameters
-  are irrelevant for DNS resolving. Note: currently 4 queries are pipelined
-  on the same connections. A batch of idle connections are removed every
-  5 seconds. "maxconn" can be configured to limit the amount of those
+nameserver <name> <address>[:port] [param*]
+  Used to configure a nameserver. <name> of the nameserver should ne unique.
+  By default the <address> is considered of type datagram. This means if an
+  IPv4 or IPv6 is configured without special address prefixes (paragraph 11.)
+  the UDP protocol will be used.  If an stream protocol address prefix is used,
+  the nameserver will be considered as a stream server (TCP for instance) and
+  "server" parameters found in 5.2 paragraph which are relevant for DNS
+  resolving will be considered.  Note: currently, in TCP mode, 4 queries are
+  pipelined on the same connections. A batch of idle connections are removed
+  every 5 seconds. "maxconn" can be configured to limit the amount of those
   concurrent connections and TLS should also usable if the server supports.
 
 parse-resolv-conf
@@ -14885,6 +14883,7 @@ timeout <event> <time>
    resolvers mydns
      nameserver dns1 10.0.0.1:53
      nameserver dns2 10.0.0.2:53
+     nameserver dns3 tcp@10.0.0.3:53
      parse-resolv-conf
      resolve_retries       3
      timeout resolve       1s

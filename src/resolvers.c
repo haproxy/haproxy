@@ -2968,14 +2968,11 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&curr_resolvers->resolutions.wait);
 		HA_SPIN_INIT(&curr_resolvers->lock);
 	}
-	else if (strcmp(args[0],"server") == 0) {
-		err_code |= parse_server(file, linenum, args, curr_resolvers->px, NULL,
-		                         SRV_PARSE_PARSE_ADDR|SRV_PARSE_INITIAL_RESOLVE);
-        }
 	else if (strcmp(args[0], "nameserver") == 0) { /* nameserver definition */
 		struct dns_nameserver *newnameserver = NULL;
 		struct sockaddr_storage *sk;
 		int port1, port2;
+		struct protocol *proto;
 
 		if (!*args[2]) {
 			ha_alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
@@ -3001,8 +2998,8 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, NULL,
-		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_DGRAM);
+		sk = str2sa_range(args[2], NULL, &port1, &port2, NULL, &proto,
+		                  &errmsg, NULL, NULL, PA_O_RESOLVE | PA_O_PORT_OK | PA_O_PORT_MAND | PA_O_DGRAM | PA_O_STREAM | PA_O_DEFAULT_DGRAM);
 		if (!sk) {
 			ha_alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3015,7 +3012,21 @@ int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (dns_dgram_init(newnameserver, sk) < 0) {
+		if (proto && proto->ctrl_type == SOCK_STREAM) {
+			err_code |= parse_server(file, linenum, args, curr_resolvers->px, NULL,
+			                         SRV_PARSE_PARSE_ADDR|SRV_PARSE_INITIAL_RESOLVE);
+			if (err_code & (ERR_FATAL|ERR_ABORT)) {
+				err_code |= ERR_ABORT;
+				goto out;
+			}
+
+			if (dns_stream_init(newnameserver, curr_resolvers->px->srv) < 0) {
+				ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT|ERR_ABORT;
+				goto out;
+			}
+		}
+		else if (dns_dgram_init(newnameserver, sk) < 0) {
 			ha_alert("parsing [%s:%d] : out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -3316,18 +3327,6 @@ int cfg_post_parse_resolvers()
 		if (curr_resolvers->px) {
 			srv = curr_resolvers->px->srv;
 			while (srv) {
-				struct dns_nameserver *ns;
-
-				list_for_each_entry(ns, &curr_resolvers->nameservers, list) {
-					/* Error if two resolvers owns the same name */
-					if (strcmp(ns->id, srv->id) == 0) {
-						ha_alert("Parsing [%s:%d]: nameserver '%s' has same name as another nameserver (declared at %s:%d).\n",
-							 srv->conf.file, srv->conf.line, srv->id, ns->conf.file, ns->conf.line);
-						err_code |= ERR_ALERT | ERR_FATAL;
-						break;
-					}
-				}
-
 				/* init ssl if needed */
 				if (srv->use_ssl == 1 && xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv) {
 					if (xprt_get(XPRT_SSL)->prepare_srv(srv)) {
@@ -3336,37 +3335,6 @@ int cfg_post_parse_resolvers()
 						break;
 					}
 				}
-
-				/* allocate nameserver */
-				ns = calloc(1, sizeof(*ns));
-				if (!ns) {
-					ha_alert("memory allocation error initializing tcp server '%s' in resolvers section '%s'.\n", srv->id, curr_resolvers->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					break;
-				}
-
-				if (dns_stream_init(ns, srv) < 0) {
-					ha_alert("memory allocation error initializing tcp server '%s' in resolvers section '%s'.\n", srv->id, curr_resolvers->id);
-					err_code |= ERR_ALERT|ERR_ABORT;
-					break;
-				}
-
-				ns->conf.file = strdup(srv->conf.file);
-				if (!ns->conf.file) {
-					ha_alert("memory allocation error initializing tcp server '%s' in resolvers section '%s'.\n", srv->id, curr_resolvers->id);
-					err_code |= ERR_ALERT|ERR_ABORT;
-					break;
-				}
-				ns->id = strdup(srv->id);
-				if (!ns->id) {
-					ha_alert("memory allocation error initializing tcp server '%s' in resolvers section '%s'.\n", srv->id, curr_resolvers->id);
-					err_code |= ERR_ALERT|ERR_ABORT;
-					break;
-				}
-				ns->conf.line = srv->conf.line;
-				ns->process_responses = resolv_process_responses;
-				ns->parent = curr_resolvers;
-				LIST_ADDQ(&curr_resolvers->nameservers, &ns->list);
 				srv = srv->next;
 			}
 		}
