@@ -1051,7 +1051,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 			set_host_port(&logsrv->addr, SYSLOG_PORT);
 	}
 
-	if (proto->ctrl_type == SOCK_STREAM) {
+	if (proto && proto->ctrl_type == SOCK_STREAM) {
 		static unsigned long ring_ids;
 
 		/* Implicit sink buffer will be

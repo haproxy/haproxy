@@ -1218,7 +1218,8 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 
 	if (proto || (opts & PA_O_CONNECT)) {
 		/* Note: if the caller asks for a proto, we must find one,
-		 * except if we return with an fqdn that will resolve later,
+		 * except if we inherit from a raw FD (family == AF_CUST_EXISTING_FD)
+		 * orif we return with an fqdn that will resolve later,
 		 * in which case the address is not known yet (this is only
 		 * for servers actually).
 		 */
@@ -1226,7 +1227,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *port, int *low, int 
 					    sock_type == SOCK_DGRAM,
 					    ctrl_type == SOCK_DGRAM);
 
-		if (!new_proto && (!fqdn || !*fqdn)) {
+		if (!new_proto && (!fqdn || !*fqdn) && (ss.ss_family != AF_CUST_EXISTING_FD)) {
 			memprintf(err, "unsupported protocol family %d for address '%s'", ss.ss_family, str);
 			goto out;
 		}
