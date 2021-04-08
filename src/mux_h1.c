@@ -393,11 +393,6 @@ static inline int h1_recv_allowed(const struct h1c *h1c)
 		return 0;
 	}
 
-	if (h1c->flags & H1C_F_WAIT_OUTPUT) {
-		TRACE_DEVEL("recv not allowed (wait_output)", H1_EV_H1C_RECV|H1_EV_H1C_BLK, h1c->conn);
-		return 0;
-	}
-
 	if (!(h1c->flags & (H1C_F_IN_ALLOC|H1C_F_IN_FULL|H1C_F_IN_SALLOC)))
 		return 1;
 
@@ -1538,7 +1533,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 		goto end;
 
 	if (h1c->flags & H1C_F_WAIT_OUTPUT)
-		goto end;
+		goto out;
 
 	do {
 		size_t used = htx_used_space(htx);
@@ -1698,6 +1693,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 	    ((h1m->state == H1_MSG_DONE) && (h1s->meth != HTTP_METH_CONNECT) && !(h1m->flags & H1_MF_CONN_UPG)))
 		h1s->cs->flags |= CS_FL_EOI;
 
+  out:
 	if (h1s_data_pending(h1s) && !htx_is_empty(htx))
 		h1s->cs->flags |= CS_FL_RCV_MORE | CS_FL_WANT_ROOM;
 	else {
