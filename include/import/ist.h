@@ -425,7 +425,7 @@ static inline int istneq(const struct ist ist1, const struct ist ist2, size_t co
 /* appends <src> after <dst>. The caller must ensure that the underlying buffer
  * is large enough to fit the character.
  */
-static inline struct ist istappend(struct ist dst, const char src)
+static inline struct ist __istappend(struct ist dst, const char src)
 {
 	dst.ptr[dst.len++] = src;
 
