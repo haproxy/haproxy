@@ -273,6 +273,7 @@ enum {
 	CO_RFL_BUF_WET     = 0x0001,    /* Buffer still has some output data present */
 	CO_RFL_BUF_FLUSH   = 0x0002,    /* Flush mux's buffers but don't read more data */
 	CO_RFL_READ_ONCE   = 0x0004,    /* don't loop even if the request/response is small */
+	CO_RFL_KEEP_RECV   = 0x0008,    /* Instruct the mux to still wait for read events  */
 };
 
 /* flags that can be passed to xprt->snd_buf() and mux->snd_buf() */
