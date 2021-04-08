@@ -909,7 +909,7 @@ int http_str_to_htx(struct buffer *buf, struct ist raw, char **errmsg)
 	}
 
 	buf->size = global.tune.bufsize;
-	buf->area = (char *)malloc(buf->size);
+	buf->area = malloc(buf->size);
 	if (!buf->area)
 		goto error;
 

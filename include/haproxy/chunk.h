@@ -283,7 +283,7 @@ static inline char *chunk_dup(struct buffer *dst, const struct buffer *src)
 	if (dst->size < src->size || !src->size)
 		dst->size++;
 
-	dst->area = (char *)malloc(dst->size);
+	dst->area = malloc(dst->size);
 	if (!dst->area) {
 		dst->head = 0;
 		dst->data = 0;

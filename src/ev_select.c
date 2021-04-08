@@ -226,10 +226,10 @@ static int init_select_per_thread()
 	int fd_set_bytes;
 
 	fd_set_bytes = sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE;
-	tmp_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes);
+	tmp_evts[DIR_RD] = calloc(1, fd_set_bytes);
 	if (tmp_evts[DIR_RD] == NULL)
 		goto fail;
-	tmp_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes);
+	tmp_evts[DIR_WR] = calloc(1, fd_set_bytes);
 	if (tmp_evts[DIR_WR] == NULL)
 		goto fail;
 	return 1;
