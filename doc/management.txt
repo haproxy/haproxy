@@ -1392,6 +1392,11 @@ enough privilege, you will get an error "Permission denied". Please check
 the "level" option of the "bind" keyword lines in the configuration manual
 for more information.
 
+abort ssl ca-file <cafile>
+  Abort and destroy a temporary CA file update transaction.
+
+  See also "set ssl ca-file" and "commit ssl ca-file".
+
 abort ssl cert <filename>
   Abort and destroy a temporary SSL certificate update transaction.
 
@@ -1600,6 +1605,27 @@ commit map @<ver> <map>
   map by calling "prepare map" first then committing without adding any
   entries.
 
+commit ssl ca-file <cafile>
+  Commit a temporary SSL CA file update transaction.
+
+  In the case of an existing CA file (in a "Used" state in "show ssl ca-file"),
+  the new CA file tree entry is inserted in the CA file tree and every instance
+  that used the CA file entry is rebuilt, along with the SSL contexts it needs.
+  All the contexts previously used by the rebuilt instances are removed.
+  Upon success, the previous CA file entry is removed from the tree.
+  Upon failure, nothing is removed or deleted, and all the original SSL
+  contexts are kept and used.
+  Once the temporary transaction is committed, it is destroyed.
+
+  In the case of a new CA file (after a "new ssl ca-file" and in a "Unused"
+  state in "show ssl ca-file"), the CA file will be inserted in the CA file
+  tree but it won't be used anywhere in HAProxy. To use it and generate SSL
+  contexts that use it, you will need to add it to a crt-list with "add ssl
+  crt-list".
+
+  See also "new ssl ca-file", "set ssl ca-file", "abort ssl ca-file" and
+  "add ssl crt-list".
+
 commit ssl cert <filename>
   Commit a temporary SSL certificate update transaction.
 
@@ -1616,7 +1642,7 @@ commit ssl cert <filename>
   its SNIs you will need to add it to a crt-list or a directory with "add ssl
   crt-list".
 
-  See also "new ssl cert", "ssl set cert", "abort ssl cert" and
+  See also "new ssl cert", "set ssl cert", "abort ssl cert" and
   "add ssl crt-list".
 
 debug dev <command> [args]*
@@ -1642,6 +1668,12 @@ del map <map> [<key>|#<ref>]
   this command delete only the listed reference. The reference can be found with
   listing the content of the map. Note that if the reference <map> is a file and
   is shared with a acl, the entry will be also deleted in the map.
+
+del ssl ca-file <cafile>
+  Delete a CA file tree entry from HAProxy. The CA file must be unused and
+  removed from any crt-list. "show ssl ca-file" displays the status of the CA
+  files. The deletion doesn't work with a certificate referenced directly with
+  the "ca-file" or "ca-verify-file" directives in the configuration.
 
 del ssl cert <certfile>
   Delete a certificate store from HAProxy. The certificate must be unused and
@@ -1845,6 +1877,11 @@ help [<command>]
   the requested one. The same help screen is also displayed for unknown
   commands.
 
+new ssl ca-file <cafile>
+  Create a new empty CA file tree entry to be filled with a set of CA
+  certificates and added to a crt-list. This command should be used in
+  combination with "set ssl ca-file" and "add ssl crt-list".
+
 new ssl cert <filename>
   Create a new empty SSL certificate store to be filled with a certificate and
   added to a directory or a crt-list. This command should be used in
@@ -2013,6 +2050,22 @@ set server <backend>/<server> ssl [ on | off ]
 set severity-output [ none | number | string ]
   Change the severity output format of the stats socket connected to for the
   duration of the current session.
+
+set ssl ca-file <cafile> <payload>
+  This command is part of a transaction system, the "commit ssl ca-file" and
+  "abort ssl ca-file" commands could be required.
+  If there is no on-going transaction, it will create a CA file tree entry into
+  which the certificates contained in the payload will be stored. The CA file
+  entry will not be stored in the CA file tree and will only be kept in a
+  temporary transaction. If a transaction with the same filename already exists,
+  the previous CA file entry will be deleted and replaced by the new one.
+  Once the modifications are done, you have to commit the transaction through
+  a "commit ssl ca-file" call.
+
+  Example:
+    echo -e "set ssl ca-file cafile.pem <<\n$(cat rootCA.crt)\n" | \
+    socat /var/run/haproxy.stat -
+    echo "commit ssl ca-file cafile.pem" | socat /var/run/haproxy.stat -
 
 set ssl cert <filename> <payload>
   This command is part of a transaction system, the "commit ssl cert" and
@@ -2825,6 +2878,50 @@ show stat [domain <dns|proxy>] [{<iid>|<proxy>} <type> <sid>] [typed|json] \
 
   $ echo "show stat json" | socat /var/run/haproxy.sock stdio | \
     python -m json.tool
+
+show ssl ca-file [<cafile>[:<index>]]
+  Display the list of CA files used by HAProxy and their respective certificate
+  counts. If a filename is prefixed by an asterisk, it is a transaction which
+  is not committed yet. If a <cafile> is specified without <index>, it will show
+  the status of the CA file ("Used"/"Unused") followed by details about all the
+  certificates contained in the CA file. The details displayed for every
+  certificate are the same as the ones displayed by a "show ssl cert" command.
+  If a <cafile> is specified followed by an <index>, it will only display the
+  details of the certificate having the specified index. Indexes start from 1.
+  If the index is invalid (too big for instance), nothing will be displayed.
+  This command can be useful to check if a CA file was properly updated.
+  You can also display the details of an ongoing transaction by prefixing the
+  filename by an asterisk.
+
+  Example :
+
+    $ echo "show ssl ca-file" | socat /var/run/haproxy.master -
+    # transaction
+    *cafile.crt - 2 certificate(s)
+    # filename
+    cafile.crt - 1 certificate(s)
+
+    $ echo "show ssl ca-file cafile.crt" | socat /var/run/haproxy.master -
+    Filename: /home/tricot/work/haproxy/reg-tests/ssl/set_cafile_ca2.crt
+    Status: Used
+
+    Certificate #1:
+    Serial: 11A4D2200DC84376E7D233CAFF39DF44BF8D1211
+    notBefore: Apr  1 07:40:53 2021 GMT
+    notAfter: Aug 17 07:40:53 2048 GMT
+    Subject Alternative Name:
+    Algorithm: RSA4096
+    SHA1 FingerPrint: A111EF0FEFCDE11D47FE3F33ADCA8435EBEA4864
+    Subject: /C=FR/ST=Some-State/O=HAProxy Technologies/CN=HAProxy Technologies CA
+    Issuer: /C=FR/ST=Some-State/O=HAProxy Technologies/CN=HAProxy Technologies CA
+
+    $ echo "show ssl ca-file *cafile.crt:2" | socat /var/run/haproxy.master -
+    Filename: */home/tricot/work/haproxy/reg-tests/ssl/set_cafile_ca2.crt
+    Status: Unused
+
+    Certificate #2:
+    Serial: 587A1CE5ED855040A0C82BF255FF300ADB7C8136
+    [...]
 
 show ssl cert [<filename>]
   Display the list of certificates used on frontends and backends.
