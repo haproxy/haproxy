@@ -1,6 +1,45 @@
 ChangeLog :
 ===========
 
+2021/04/09 : 2.4-dev16
+    - CLEANUP: dev/flags: remove useless test in the stdin number parser
+    - MINOR: No longer rely on deprecated sample fetches for predefined ACLs
+    - MINOR: acl: Add HTTP_2.0 predefined macro
+    - BUG/MINOR: hlua: Detect end of request when reading data for an HTTP applet
+    - BUG/MINOR: tools: fix parsing "us" unit for timers
+    - MINOR: server/bind: add support of new prefixes for addresses.
+    - MINOR: log: register config file and line number on log servers.
+    - MEDIUM: log: support tcp or stream addresses on log lines.
+    - BUG/MEDIUM: log: fix config parse error logging on stdout/stderr or any raw fd
+    - CLEANUP: fd: remove FD_POLL_DATA and FD_POLL_STICKY
+    - MEDIUM: fd: prepare FD_POLL_* to move to bits 8-15
+    - MEDIUM: fd: merge fdtab[].ev and state for FD_EV_* and FD_POLL_* into state
+    - MINOR: fd: move .linger_risk into fdtab[].state
+    - MINOR: fd: move .cloned into fdtab[].state
+    - MINOR: fd: move .initialized into fdtab[].state
+    - MINOR: fd: move .et_possible into fdtab[].state
+    - MINOR: fd: move .exported into fdtab[].state
+    - MINOR: fd: implement an exclusive syscall bit to remove the ugly "log" lock
+    - MINOR: cli/show-fd: slightly reorganize the FD status flags
+    - MINOR: atomic/arm64: detect and use builtins for the double-word CAS
+    - CLEANUP: atomic: add an explicit _FETCH variant for add/sub/and/or
+    - CLEANUP: atomic: make all standard add/or/and/sub operations return void
+    - CLEANUP: atomic: add a fetch-and-xxx variant for common operations
+    - CLEANUP: atomic: add HA_ATOMIC_INC/DEC for unit increments
+    - CLEANUP: atomic/tree-wide: replace single increments/decrements with inc/dec
+    - CLEANUP: atomic: use the __atomic variant of BTS/BTR on modern compilers
+    - MINOR: atomic: implement native BTS/BTR for x86
+    - MINOR: ist: Add `istappend(struct ist, char)`
+    - MINOR: ist: Add `istshift(struct ist*)`
+    - MINOR: ist: Add `istsplit(struct ist*, char)`
+    - BUG/MAJOR: fd: switch temp values to uint in fd_stop_both()
+    - MINOR: opentracing: register config file and line number on log servers
+    - MEDIUM: resolvers: add support of tcp address on nameserver line.
+    - MINOR: ist: Rename istappend() to __istappend()
+    - CLEANUP: htx: Make http_get_stline take a `const struct`
+    - CLEANUP: ist: Remove unused `count` argument from `ist2str*`
+    - CLEANUP: Remove useless malloc() casts
+
 2021/04/02 : 2.4-dev15
     - BUG/MINOR: payload: Wait for more data if buffer is empty in payload/payload_lv
     - BUG/MINOR: stats: Apply proper styles in HTML status page.
