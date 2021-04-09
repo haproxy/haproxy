@@ -3432,10 +3432,6 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 	if ((h1m->flags & H1_MF_CHNK) || (h1m->state != H1_MSG_DATA && h1m->state != H1_MSG_TUNNEL)) {
 		h1c->flags &= ~H1C_F_WANT_SPLICE;
 		TRACE_STATE("Allow xprt rcv_buf on !(msg_data|msg_tunnel)", H1_EV_STRM_RECV, cs->conn, h1s);
-		if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
-			TRACE_STATE("restart receiving data, subscribing", H1_EV_STRM_RECV, cs->conn, h1s);
-			cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
-		}
 		goto end;
 	}
 
@@ -3467,11 +3463,13 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 		TRACE_STATE("Allow xprt rcv_buf on read0", H1_EV_STRM_RECV, cs->conn, h1s);
 	}
 
-	if ((h1s->flags & H1S_F_REOS) ||
-	    (h1m->state != H1_MSG_TUNNEL && h1m->state != H1_MSG_DATA) ||
-	    (h1m->state == H1_MSG_DATA && !h1m->curr_len)) {
+	if (!(h1c->flags & H1C_F_WANT_SPLICE)) {
 		TRACE_STATE("notify the mux can't use splicing anymore", H1_EV_STRM_RECV, h1c->conn, h1s);
 		cs->flags &= ~CS_FL_MAY_SPLICE;
+		if (!(h1c->wait_event.events & SUB_RETRY_RECV)) {
+			TRACE_STATE("restart receiving data, subscribing", H1_EV_STRM_RECV, cs->conn, h1s);
+			cs->conn->xprt->subscribe(cs->conn, cs->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+		}
 	}
 
 	TRACE_LEAVE(H1_EV_STRM_RECV, cs->conn, h1s, 0, (size_t[]){ret});
