@@ -1286,16 +1286,12 @@ static void h1_set_tunnel_mode(struct h1s *h1s)
 
 	if (h1c->flags & H1C_F_WAIT_OUTPUT) {
 		h1c->flags &= ~H1C_F_WAIT_OUTPUT;
-		if (b_data(&h1c->ibuf))
-			h1_wake_stream_for_recv(h1s);
-		tasklet_wakeup(h1c->wait_event.tasklet);
+		h1_wake_stream_for_recv(h1s);
 		TRACE_STATE("Re-enable read on h1c", H1_EV_RX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 	}
 	if (h1c->flags & H1C_F_WAIT_INPUT) {
 		h1c->flags &= ~H1C_F_WAIT_INPUT;
 		h1_wake_stream_for_send(h1s);
-		if (b_data(&h1c->obuf))
-			tasklet_wakeup(h1c->wait_event.tasklet);
 		TRACE_STATE("Re-enable send on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 	}
 }
@@ -1585,7 +1581,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 				}
 				if (h1s->h1c->flags & H1C_F_WAIT_INPUT) {
 					h1s->h1c->flags &= ~H1C_F_WAIT_INPUT;
-					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_SEND, &h1c->wait_event);
+					h1_wake_stream_for_send(h1s);
 					TRACE_STATE("Re-enable send on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 				}
 				break;
@@ -1702,7 +1698,7 @@ static size_t h1_process_input(struct h1c *h1c, struct buffer *buf, size_t count
 
 			if (h1s->h1c->flags & H1C_F_WAIT_INPUT) {
 				h1s->h1c->flags &= ~H1C_F_WAIT_INPUT;
-				h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_SEND, &h1c->wait_event);
+				h1_wake_stream_for_send(h1s);
 				TRACE_STATE("Re-enable send on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 			}
 		}
@@ -1827,7 +1823,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 				h1m->state = H1_MSG_DONE;
 				if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
 					h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
-					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+					h1_wake_stream_for_recv(h1s);
 					TRACE_STATE("Re-enable read on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 				}
 
@@ -1875,7 +1871,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 					h1s->flags |= H1S_F_BODYLESS_RESP;
 				if (h1c->flags & H1C_F_WAIT_OUTPUT) {
 					h1c->flags &= ~H1C_F_WAIT_OUTPUT;
-					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+					h1_wake_stream_for_recv(h1s);
 					TRACE_STATE("Re-enable read on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 				}
 				break;
@@ -2231,7 +2227,7 @@ static size_t h1_process_output(struct h1c *h1c, struct buffer *buf, size_t coun
 
 				if (h1s->h1c->flags & H1C_F_WAIT_OUTPUT) {
 					h1s->h1c->flags &= ~H1C_F_WAIT_OUTPUT;
-					h1c->conn->xprt->subscribe(h1c->conn, h1c->conn->xprt_ctx, SUB_RETRY_RECV, &h1c->wait_event);
+					h1_wake_stream_for_recv(h1s);
 					TRACE_STATE("Re-enable read on h1c", H1_EV_TX_DATA|H1_EV_H1C_BLK|H1_EV_H1C_WAKE, h1c->conn, h1s);
 				}
 
