@@ -1,5 +1,3 @@
-# build status appears on https://travis-ci.com/haproxy/haproxy
-
 dist: focal
 
 language: c
@@ -7,91 +5,42 @@ language: c
 branches:
   only:
     - master
-    - next
 
 env:
   global:
-    - FLAGS="USE_ZLIB=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=addons/wurfl/dummy WURFL_LIB=addons/wurfl/dummy USE_DEVICEATLAS=1 DEVICEATLAS_SRC=addons/deviceatlas/dummy USE_51DEGREES=1"
+    - FLAGS="USE_LUA=1 USE_OPENSSL=1 USE_PCRE=1 USE_PCRE_JIT=1 USE_SYSTEMD=1 USE_ZLIB=1"
     - TMPDIR=/tmp
-    - FIFTYONEDEGREES_SRC="addons/51degrees/dummy/pattern"
-    - DEBUG_OPTIONS="DEBUG_STRICT=1"
 
 addons:
   apt:
     update: true
-    packages: [ liblua5.3-dev, libsystemd-dev, libpcre2-dev, clang-9, socat, ninja-build, libpcre3-dev ]
-
-cache:
-  directories:
-  - download-cache
-  - ${HOME}/opt
+    packages: [ liblua5.3-dev, libsystemd-dev, libpcre2-dev, socat, libpcre3-dev ]
 
 matrix:
   include:
   - os: linux
     arch: ppc64le
-    if: type == cron
     compiler: gcc
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.0.2u
-    name: openssl-1.0.2
+    if: type == cron
   - os: linux
     arch: arm64
-    if: type == push
-    compiler: clang
-    env: TARGET=linux-glibc CC=clang-9
-    name: openssl-1.1.1
+    compiler: gcc
+    if: type == cron
   - os: linux
     arch: s390x
-    if: type == push
     compiler: gcc
-    env: TARGET=linux-glibc
-    name: openssl-1.1.1
-  - os: linux
     if: type == cron
-    compiler: clang
-    env: TARGET=linux-glibc OPENSSL_VERSION=1.1.0l FIFTYONEDEGREES_SRC="addons/51degrees/dummy/trie" CC=clang-9
-    name: openssl-1.1.1 | 51d trie
-  - os: linux
-    env: DEBUG_OPTIONS=""
-    if: type == cron
-    compiler: clang
-    env: TARGET=linux-glibc LIBRESSL_VERSION=3.0.2 CC=clang-9
-    name: libressl-3.0.2 | ERR=
-  - os: linux
-    if: type == cron
-    compiler: clang
-    env: TARGET=linux-glibc FLAGS="USE_SLZ=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_LUA=1 USE_OPENSSL=1 USE_SYSTEMD=1 USE_WURFL=1 WURFL_INC=addons/wurfl/dummy WURFL_LIB=addons/wurfl/dummy USE_51DEGREES=1" CC=clang-9
-    before_script:
-      - git clone https://github.com/wtarreau/libslz
-      - cd libslz && make && make PREFIX=${HOME}/opt install && cd ..
-      - export SLZ_INC=${HOME}/opt/include SLZ_LIB=${HOME}/opt/lib
-      - export ADDLIB="-Wl,-rpath,$SLZ_LIB"
-    name: openssl-1.1.1 | slz | pcre2
 
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
   # Special flags due to: https://github.com/vtest/VTest/issues/12
   - make -C ../vtest FLAGS="-O2 -s -Wall"
-  - |
-    if [ ! -z ${OPENSSL_VERSION+x} ] || [ ! -z ${LIBRESSL_VERSION+x} ] || [ ! -z ${BORINGSSL+x} ]; then
-       travis_wait bash -c 'scripts/build-ssl.sh >build-ssl.log 2>&1' || (cat build-ssl.log && exit 1)
-       export SSL_LIB=${HOME}/opt/lib SSL_INC=${HOME}/opt/include
-       export ADDLIB="-Wl,-rpath,$SSL_LIB"
-    fi
 
 script:
-  - if [ "${CC%-*}"  = "clang" ]; then export FLAGS="$FLAGS USE_OBSOLETE_LINKER=1" DEBUG_CFLAGS="-g -fsanitize=address" LDFLAGS="-fsanitize=address" ASAN_OPTIONS="log_path=asan.log"; fi
-  - make -C addons/wurfl/dummy
-  - make -j3 CC=$CC CPU_CFLAGS.generic="-O1" V=1 ERR=1 TARGET=$TARGET $FLAGS DEBUG_CFLAGS="$DEBUG_CFLAGS" LDFLAGS="$LDFLAGS" ADDLIB="$ADDLIB" SSL_LIB="$SSL_LIB" SSL_INC="$SSL_INC" SLZ_LIB="$SLZ_LIB" SLZ_INC="$SLZ_INC" 51DEGREES_SRC="$FIFTYONEDEGREES_SRC" EXTRA_OBJS="$EXTRA_OBJS" $DEBUG_OPTIONS
+  - make -j$(nproc) ERR=1 TARGET=linux-glibc CC=$CC DEBUG=-DDEBUG_STRICT=1 $FLAGS
   - ./haproxy -vv
-  - if [ "${TRAVIS_OS_NAME}" = "linux" ]; then ldd haproxy; fi
-  - if [ "${TRAVIS_OS_NAME}" = "osx" ]; then otool -L haproxy; fi
+  - ldd haproxy
   - make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
-  - |
-    if ls asan.log* 1>/dev/null 2>&1; then
-       cat asan.log*
-       exit 1
-    fi
 
 after_failure:
   - |
