@@ -49,9 +49,6 @@
 #define MINTIME(old, new)	(((new)<0)?(old):(((old)<0||(new)<(old))?(new):(old)))
 #define SETNOW(a)		(*a=now)
 
-extern THREAD_LOCAL unsigned int   curr_sec_ms;      /* millisecond of current second (0..999) */
-extern THREAD_LOCAL unsigned int   ms_left_scaled;   /* milliseconds left for current second (0..2^32-1) */
-extern THREAD_LOCAL unsigned int   curr_sec_ms_scaled;  /* millisecond of current second (0..2^32-1) */
 extern THREAD_LOCAL unsigned int   now_ms;           /* internal date in milliseconds (may wrap) */
 extern THREAD_LOCAL unsigned int   samp_time;        /* total elapsed time over current sample */
 extern THREAD_LOCAL unsigned int   idle_time;        /* total idle time over current sample */

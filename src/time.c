@@ -18,7 +18,6 @@
 #include <haproxy/ticks.h>
 #include <haproxy/tools.h>
 
-THREAD_LOCAL unsigned int   ms_left_scaled;  /* milliseconds left for current second (0..2^32-1) */
 THREAD_LOCAL unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
 THREAD_LOCAL unsigned int   samp_time;       /* total elapsed time over current sample */
 THREAD_LOCAL unsigned int   idle_time;       /* total idle time over current sample */
@@ -178,7 +177,6 @@ int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
 void tv_update_date(int max_wait, int interrupted)
 {
 	struct timeval adjusted, deadline, tmp_now, tmp_adj;
-	unsigned int   curr_sec_ms;     /* millisecond of current second (0..999) */
 	unsigned int old_now_ms, new_now_ms;
 	unsigned long long old_now;
 	unsigned long long new_now;
@@ -250,19 +248,7 @@ void tv_update_date(int max_wait, int interrupted)
 
  to_ms:
 	now = adjusted;
-	curr_sec_ms = now.tv_usec / 1000;            /* ms of current second */
-
-	/* For frequency counters, we'll need to know the ratio of the previous
-	 * value to add to current value depending on the current millisecond.
-	 * The principle is that during the first millisecond, we use 999/1000
-	 * of the past value and that during the last millisecond we use 0/1000
-	 * of the past value. In summary, we only use the past value during the
-	 * first 999 ms of a second, and the last ms is used to complete the
-	 * current measure. The value is scaled to (2^32-1) so that a simple
-	 * multiply followed by a shift gives us the final value.
-	 */
-	ms_left_scaled = (999U - curr_sec_ms) * 4294967U;
-	now_ms = now.tv_sec * 1000 + curr_sec_ms;
+	now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
 
 	/* update the global current millisecond */
 	old_now_ms = global_now_ms;
