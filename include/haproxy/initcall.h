@@ -83,9 +83,9 @@ struct initcall {
 #if !defined(USE_OBSOLETE_LINKER)
 
 #ifdef __APPLE__
-#define HA_SECTION(s) __section__("__DATA, i_" # s)
+#define HA_INIT_SECTION(s) __section__("__DATA, i_" # s)
 #else
-#define HA_SECTION(s) __section__("i_" # s)
+#define HA_INIT_SECTION(s) __section__("i_" # s)
 #endif
 
 /* Declare a static variable in the init section dedicated to stage <stg>,
@@ -104,7 +104,7 @@ struct initcall {
         __GLOBL(__start_i_##stg );                                 \
         __GLOBL(__stop_i_##stg );                                  \
 	static const struct initcall *__initcb_##linenum           \
-	    __attribute__((__used__,HA_SECTION(stg))) =            \
+	    __attribute__((__used__,HA_INIT_SECTION(stg))) =       \
 	        (stg < STG_SIZE) ? &(const struct initcall) {      \
 		.fct = (void (*)(void *,void *,void *))function,   \
 		.arg1 = (void *)(a1),                              \
