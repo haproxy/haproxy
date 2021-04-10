@@ -713,7 +713,7 @@ static int peer_prepare_updatemsg(char *msg, size_t size, struct peer_prep_param
 					break;
 				}
 				case STD_T_FRQP: {
-					struct freq_ctr_period *frqp;
+					struct freq_ctr *frqp;
 
 					frqp = &stktable_data_cast(data_ptr, std_t_frqp);
 					intencode((unsigned int)(now_ms - frqp->curr_tick), &cursor);
@@ -1667,11 +1667,11 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 			break;
 
 		case STD_T_FRQP: {
-			struct freq_ctr_period data;
+			struct freq_ctr data;
 
-			/* First bit is reserved for the freq_ctr_period lock
+			/* First bit is reserved for the freq_ctr lock
 			Note: here we're still protected by the stksess lock
-			so we don't need to update the update the freq_ctr_period
+			so we don't need to update the update the freq_ctr
 			using its internal lock */
 
 			data.curr_tick = tick_add(now_ms, -decoded_int) & ~0x1;

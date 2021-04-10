@@ -28,7 +28,7 @@
 #include <haproxy/time.h>
 
 /* exported functions from freq_ctr.c */
-ullong freq_ctr_total(struct freq_ctr_period *ctr, uint period, int pend);
+ullong freq_ctr_total(struct freq_ctr *ctr, uint period, int pend);
 
 /* Update a frequency counter by <inc> incremental units. It is automatically
  * rotated if the period is over. It is important that it correctly initializes
@@ -49,7 +49,7 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 	 * we operate, since timing variations would have resulted in the
 	 * same uncertainty as well.
 	 */
-	curr_sec = ctr->curr_sec;
+	curr_sec = ctr->curr_tick;
 	do {
 		now_tmp = global_now >> 32;
 		if (curr_sec == (now_tmp & 0x7fffffff))
@@ -57,7 +57,7 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 
 		/* remove the bit, used for the lock */
 		curr_sec &= 0x7fffffff;
-	} while (!_HA_ATOMIC_CAS(&ctr->curr_sec, &curr_sec, curr_sec | 0x80000000));
+	} while (!_HA_ATOMIC_CAS(&ctr->curr_tick, &curr_sec, curr_sec | 0x80000000));
 	__ha_barrier_atomic_store();
 
 	elapsed = (now_tmp & 0x7fffffff) - curr_sec;
@@ -72,7 +72,7 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
 	}
 
 	/* release the lock and update the time in case of rotate. */
-	_HA_ATOMIC_STORE(&ctr->curr_sec, curr_sec & 0x7fffffff);
+	_HA_ATOMIC_STORE(&ctr->curr_tick, curr_sec & 0x7fffffff);
 
 	return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
 }
@@ -82,7 +82,7 @@ static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int in
  * a null area. This one works on frequency counters which have a period
  * different from one second.
  */
-static inline unsigned int update_freq_ctr_period(struct freq_ctr_period *ctr,
+static inline unsigned int update_freq_ctr_period(struct freq_ctr *ctr,
 						  unsigned int period, unsigned int inc)
 {
 	unsigned int curr_tick;
@@ -135,7 +135,7 @@ unsigned int read_freq_ctr(struct freq_ctr *ctr);
  * instead which does not have the flapping correction, so that even frequencies
  * as low as one event/period are properly handled.
  */
-static inline uint read_freq_ctr_period(struct freq_ctr_period *ctr, uint period)
+static inline uint read_freq_ctr_period(struct freq_ctr *ctr, uint period)
 {
 	ullong total = freq_ctr_total(ctr, period, -1);
 
@@ -152,7 +152,7 @@ unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned i
  * while respecting <freq> events per period, and taking into account that
  * <pend> events are already known to be pending. Returns 0 if limit was reached.
  */
-static inline uint freq_ctr_remain_period(struct freq_ctr_period *ctr, uint period, uint freq, uint pend)
+static inline uint freq_ctr_remain_period(struct freq_ctr *ctr, uint period, uint freq, uint pend)
 {
 	ullong total = freq_ctr_total(ctr, period, pend);
 	uint avg     = div64_32(total, period);
@@ -176,7 +176,7 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
  * time, which will be rounded down 1ms for better accuracy, with a minimum
  * of one ms.
  */
-static inline uint next_event_delay_period(struct freq_ctr_period *ctr, uint period, uint freq, uint pend)
+static inline uint next_event_delay_period(struct freq_ctr *ctr, uint period, uint freq, uint pend)
 {
 	ullong total = freq_ctr_total(ctr, period, pend);
 	ullong limit = (ullong)freq * period;
@@ -196,7 +196,7 @@ static inline uint next_event_delay_period(struct freq_ctr_period *ctr, uint per
 }
 
 /* process freq counters over configurable periods */
-unsigned int read_freq_ctr_period(struct freq_ctr_period *ctr, unsigned int period);
+unsigned int read_freq_ctr_period(struct freq_ctr *ctr, unsigned int period);
 
 /* While the functions above report average event counts per period, we are
  * also interested in average values per event. For this we use a different

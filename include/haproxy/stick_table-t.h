@@ -72,7 +72,7 @@ enum {
 	STD_T_SINT = 0,           /* data is of type signed int */
 	STD_T_UINT,               /* data is of type unsigned int */
 	STD_T_ULL,                /* data is of type unsigned long long */
-	STD_T_FRQP,               /* data is of type freq_ctr_period */
+	STD_T_FRQP,               /* data is of type freq_ctr */
 	STD_T_DICT,               /* data is of type key of dictionary entry */
 };
 
@@ -116,7 +116,7 @@ union stktable_data {
 	int std_t_sint;
 	unsigned int std_t_uint;
 	unsigned long long std_t_ull;
-	struct freq_ctr_period std_t_frqp;
+	struct freq_ctr std_t_frqp;
 	struct dict_entry *std_t_dict;
 
 	/* types of each storable data */
@@ -124,24 +124,24 @@ union stktable_data {
 	struct dict_entry *server_key;
 	unsigned int gpt0;
 	unsigned int gpc0;
-	struct freq_ctr_period gpc0_rate;
+	struct freq_ctr gpc0_rate;
 	unsigned int gpc1;
-	struct freq_ctr_period gpc1_rate;
+	struct freq_ctr gpc1_rate;
 	unsigned int conn_cnt;
-	struct freq_ctr_period conn_rate;
+	struct freq_ctr conn_rate;
 	unsigned int conn_cur;
 	unsigned int sess_cnt;
-	struct freq_ctr_period sess_rate;
+	struct freq_ctr sess_rate;
 	unsigned int http_req_cnt;
-	struct freq_ctr_period http_req_rate;
+	struct freq_ctr http_req_rate;
 	unsigned int http_err_cnt;
-	struct freq_ctr_period http_err_rate;
+	struct freq_ctr http_err_rate;
 	unsigned long long bytes_in_cnt;
-	struct freq_ctr_period bytes_in_rate;
+	struct freq_ctr bytes_in_rate;
 	unsigned long long bytes_out_cnt;
-	struct freq_ctr_period bytes_out_rate;
+	struct freq_ctr bytes_out_rate;
 	unsigned int http_fail_cnt;
-	struct freq_ctr_period http_fail_rate;
+	struct freq_ctr http_fail_rate;
 };
 
 /* known data types */

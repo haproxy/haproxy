@@ -37,7 +37,7 @@ unsigned int read_freq_ctr(struct freq_ctr *ctr)
 		__ha_compiler_barrier();
 		_past = ctr->prev_ctr;
 		__ha_compiler_barrier();
-		_curr_sec = ctr->curr_sec;
+		_curr_sec = ctr->curr_tick;
 		__ha_compiler_barrier();
 		if (_curr_sec & 0x80000000)
 			continue;
@@ -45,7 +45,7 @@ unsigned int read_freq_ctr(struct freq_ctr *ctr)
 		__ha_compiler_barrier();
 		past = ctr->prev_ctr;
 		__ha_compiler_barrier();
-		curr_sec = ctr->curr_sec;
+		curr_sec = ctr->curr_tick;
 		__ha_compiler_barrier();
 		if (_curr == curr && _past == past && _curr_sec == curr_sec)
 			break;
@@ -80,7 +80,7 @@ unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned i
 		__ha_compiler_barrier();
 		_past = ctr->prev_ctr;
 		__ha_compiler_barrier();
-		_curr_sec = ctr->curr_sec;
+		_curr_sec = ctr->curr_tick;
 		__ha_compiler_barrier();
 		if (_curr_sec & 0x80000000)
 			continue;
@@ -88,7 +88,7 @@ unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned i
 		__ha_compiler_barrier();
 		past = ctr->prev_ctr;
 		__ha_compiler_barrier();
-		curr_sec = ctr->curr_sec;
+		curr_sec = ctr->curr_tick;
 		__ha_compiler_barrier();
 		if (_curr == curr && _past == past && _curr_sec == curr_sec)
 			break;
@@ -127,7 +127,7 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
 		__ha_compiler_barrier();
 		_past = ctr->prev_ctr;
 		__ha_compiler_barrier();
-		_curr_sec = ctr->curr_sec;
+		_curr_sec = ctr->curr_tick;
 		__ha_compiler_barrier();
 		if (_curr_sec & 0x80000000)
 			continue;
@@ -135,7 +135,7 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
 		__ha_compiler_barrier();
 		past = ctr->prev_ctr;
 		__ha_compiler_barrier();
-		curr_sec = ctr->curr_sec;
+		curr_sec = ctr->curr_tick;
 		__ha_compiler_barrier();
 		if (_curr == curr && _past == past && _curr_sec == curr_sec)
 			break;
@@ -176,7 +176,7 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
  * read_freq_ctr_period() to avoid reporting ups and downs on low-frequency
  * events when the past value is <= 1.
  */
-ullong freq_ctr_total(struct freq_ctr_period *ctr, uint period, int pend)
+ullong freq_ctr_total(struct freq_ctr *ctr, uint period, int pend)
 {
 	ullong curr, past;
 	uint curr_tick;

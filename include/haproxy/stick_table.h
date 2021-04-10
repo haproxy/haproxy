@@ -79,7 +79,7 @@ static inline int stktable_type_size(int type)
 	case STD_T_ULL:
 		return sizeof(unsigned long long);
 	case STD_T_FRQP:
-		return sizeof(struct freq_ctr_period);
+		return sizeof(struct freq_ctr);
 	case STD_T_DICT:
 		return sizeof(struct dict_entry *);
 	}

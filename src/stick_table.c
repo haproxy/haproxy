@@ -3627,7 +3627,7 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 	int data_type;
 	int cur_arg;
 	void *ptr;
-	struct freq_ctr_period *frqp;
+	struct freq_ctr *frqp;
 
 	if (!*args[4])
 		return cli_err(appctx, "Key value expected\n");
@@ -3764,9 +3764,9 @@ static int table_process_entry_per_key(struct appctx *appctx, char **args)
 				 * push measures without having to update them too often.
 				 */
 				frqp = &stktable_data_cast(ptr, std_t_frqp);
-				/* First bit is reserved for the freq_ctr_period lock
+				/* First bit is reserved for the freq_ctr lock
 				   Note: here we're still protected by the stksess lock
-				   so we don't need to update the update the freq_ctr_period
+				   so we don't need to update the update the freq_ctr
 				   using its internal lock */
 				frqp->curr_tick = now_ms & ~0x1;
 				frqp->prev_ctr = 0;

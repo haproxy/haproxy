@@ -214,7 +214,7 @@ enum {
 	STD_T_SINT = 0, /* signed int */
 	STD_T_UINT,     /* unsigned int */
 	STD_T_ULL,      /* unsigned long long */
-	STD_T_FRQP,     /* freq_ctr_period structure made of three unsigned int */
+	STD_T_FRQP,     /* freq_ctr structure made of three unsigned int */
 };
 
 /* Prototypes */

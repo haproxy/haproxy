@@ -57,7 +57,7 @@ struct activity {
 	ALWAYS_ALIGN(64);
 
 	struct freq_ctr cpust_1s;  // avg amount of half-ms stolen over last second
-	struct freq_ctr_period cpust_15s; // avg amount of half-ms stolen over last 15s
+	struct freq_ctr cpust_15s; // avg amount of half-ms stolen over last 15s
 	unsigned int avg_loop_us;  // average run time per loop over last 1024 runs
 	unsigned int accepted;     // accepted incoming connections
 	unsigned int accq_pushed;  // accept queue connections pushed

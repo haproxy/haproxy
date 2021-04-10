@@ -24,25 +24,15 @@
 
 #include <haproxy/api-t.h>
 
-/* The implicit freq_ctr counter counts a rate of events per second. It is the
- * preferred form to count rates over a one-second period, because it does not
- * involve any divide.
+/* The generic freq_ctr counter counts a rate of events per period, where the
+ * period has to be known by the user. The period is measured in ticks and
+ * must be at least 2 ticks long. This form is slightly more CPU intensive for
+ * reads than the per-second form as it involves a divide.
  */
 struct freq_ctr {
-	unsigned int curr_sec; /* start date of current period (seconds from now.tv_sec) */
+	unsigned int curr_tick; /* start date of current period (wrapping ticks) */
 	unsigned int curr_ctr; /* cumulated value for current period */
 	unsigned int prev_ctr; /* value for last period */
-};
-
-/* The generic freq_ctr_period counter counts a rate of events per period, where
- * the period has to be known by the user. The period is measured in ticks and
- * must be at least 2 ticks long. This form is slightly more CPU intensive than
- * the per-second form.
- */
-struct freq_ctr_period {
-	unsigned int curr_tick; /* start date of current period (wrapping ticks) */
-	unsigned int curr_ctr;  /* cumulated value for current period */
-	unsigned int prev_ctr;  /* value for last period */
 };
 
 #endif /* _HAPROXY_FREQ_CTR_T_H */

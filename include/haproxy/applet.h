@@ -48,7 +48,7 @@ static inline void appctx_init(struct appctx *appctx, unsigned long thread_mask)
 	appctx->chunk = NULL;
 	appctx->io_release = NULL;
 	appctx->thread_mask = thread_mask;
-	appctx->call_rate.curr_sec = 0;
+	appctx->call_rate.curr_tick = 0;
 	appctx->call_rate.curr_ctr = 0;
 	appctx->call_rate.prev_ctr = 0;
 	appctx->state = 0;
