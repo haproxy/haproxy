@@ -39,6 +39,16 @@
  */
 #define TRC_5ARGS(a0,a1,a2,a3,a4,a5,...) DEFNULL(a1),DEFNULL(a2),DEFNULL(a3),DEFNULL(a4),DEFNULL(a5)
 
+/* sends a trace for the given source. Arguments are passed in the exact same
+ * order as in the __trace() function, which is only called if (src)->state is
+ * not TRACE_STATE_STOPPED. This is the only case where arguments are evaluated.
+ */
+#define _trace(level, mask, src, args...)				\
+	do {								\
+		if (unlikely((src)->state != TRACE_STATE_STOPPED))	\
+			__trace(level, mask, src, ##args);		\
+	} while (0)
+
 /* For convenience, TRACE() alone uses the file's default TRACE_LEVEL, most
  * likely TRACE_LEVEL_DEVELOPER, though the other explicit variants specify
  * the desired level and will work when TRACE_LEVEL is not set. The 5 optional
@@ -49,36 +59,41 @@
  * ordering allows many TRACE() calls to be placed using copy-paste and just
  * change the message at the beginning. Only TRACE_DEVEL(), TRACE_ENTER() and
  * TRACE_LEAVE() will report the calling function's name.
+ *
+ * TRACE_* will call the _trace() macro which will test if the trace is enabled
+ * before calling the __trace() function. _trace() shouldn't be a function (nor
+ * inline) itself because we don't want the caller to compute its arguments if
+ * traces are not enabled.
  */
 #define TRACE(msg, mask, args...)    \
-	trace(TRACE_LEVEL,           (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL,           (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_ERROR(msg, mask, args...)			\
-	trace(TRACE_LEVEL_ERROR,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_ERROR,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_USER(msg, mask, args...)			\
-	trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_USER,      (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_DATA(msg, mask, args...)  \
-	trace(TRACE_LEVEL_DATA,   (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_DATA,   (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_PROTO(msg, mask, args...)    \
-	trace(TRACE_LEVEL_PROTO,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_PROTO,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_STATE(msg, mask, args...)    \
-	trace(TRACE_LEVEL_STATE,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_STATE,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_DEVEL(msg, mask, args...)    \
-	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_ENTER(mask, args...)  \
-	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("entering"))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("entering"))
 
 #define TRACE_LEAVE(mask, args...)  \
-	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("leaving"))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("leaving"))
 
 #define TRACE_POINT(mask, args...)  \
-	trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("in"))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("in"))
 
 #if defined(DEBUG_DEV) || defined(DEBUG_FULL)
 #    define DBG_TRACE(msg, mask, args...)        TRACE(msg, mask, ##args)
@@ -142,19 +157,6 @@ static inline void trace_register_source(struct trace_source *source)
 	source->state = TRACE_STATE_STOPPED;
 	source->lockon_ptr = NULL;
 	LIST_ADDQ(&trace_sources, &source->source_link);
-}
-
-/* sends a trace for the given source */
-static inline void trace(enum trace_level level, uint64_t mask, struct trace_source *src,
-                         const struct ist where, const char *func,
-                         const void *a1, const void *a2, const void *a3, const void *a4,
-                         void (*cb)(enum trace_level level, uint64_t mask, const struct trace_source *src,
-                                    const struct ist where, const struct ist func,
-                                    const void *a1, const void *a2, const void *a3, const void *a4),
-                         const struct ist msg)
-{
-	if (unlikely(src->state != TRACE_STATE_STOPPED))
-		__trace(level, mask, src, where, func, a1, a2, a3, a4, cb, msg);
 }
 
 #endif /* _HAPROXY_TRACE_H */
