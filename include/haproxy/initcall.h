@@ -29,6 +29,8 @@
 #ifndef _HAPROXY_INITCALL_H
 #define _HAPROXY_INITCALL_H
 
+#include <haproxy/compiler.h>
+
 /* List of known init stages. If others are added, please declare their
  * section at the end of the file below.
  */
@@ -82,11 +84,7 @@ struct initcall {
 
 #if !defined(USE_OBSOLETE_LINKER)
 
-#ifdef __APPLE__
-#define HA_INIT_SECTION(s) __section__("__DATA, i_" # s)
-#else
-#define HA_INIT_SECTION(s) __section__("i_" # s)
-#endif
+#define HA_INIT_SECTION(s)  HA_SECTION("i_" # s)
 
 /* Declare a static variable in the init section dedicated to stage <stg>,
  * with an element referencing function <function> and arguments <a1..a3>.
@@ -104,7 +102,7 @@ struct initcall {
         __GLOBL(__start_i_##stg );                                 \
         __GLOBL(__stop_i_##stg );                                  \
 	static const struct initcall *__initcb_##linenum           \
-	    __attribute__((__used__,HA_INIT_SECTION(stg))) =       \
+	    __attribute__((__used__)) HA_INIT_SECTION(stg) =	   \
 	        (stg < STG_SIZE) ? &(const struct initcall) {      \
 		.fct = (void (*)(void *,void *,void *))function,   \
 		.arg1 = (void *)(a1),                              \
@@ -195,16 +193,9 @@ __attribute__((constructor)) static void __initcb_##linenum()      \
  * empty. The corresponding sections must contain exclusively pointers to
  * make sure each location may safely be visited by incrementing a pointer.
  */
-#ifdef __APPLE__
 #define DECLARE_INIT_SECTION(stg)                                                   \
-	extern __attribute__((__weak__)) const struct initcall *__start_i_##stg __asm("section$start$__DATA$i_" # stg); \
-	extern __attribute__((__weak__)) const struct initcall *__stop_i_##stg __asm("section$end$__DATA$i_" # stg)
-
-#else
-#define DECLARE_INIT_SECTION(stg)                                                   \
-	extern __attribute__((__weak__)) const struct initcall *__start_i_##stg; \
-	extern __attribute__((__weak__)) const struct initcall *__stop_i_##stg
-#endif
+	extern __attribute__((__weak__)) const struct initcall *__start_i_##stg HA_SECTION_START("i_" # stg); \
+	extern __attribute__((__weak__)) const struct initcall *__stop_i_##stg  HA_SECTION_STOP("i_" # stg)
 
 /* Declare all initcall sections here */
 DECLARE_INIT_SECTION(STG_PREPARE);
