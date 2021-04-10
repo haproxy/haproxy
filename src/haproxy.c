@@ -135,6 +135,16 @@
 /* array of init calls for older platforms */
 DECLARE_INIT_STAGES;
 
+/* create a read_mostly section to hold variables which are accessed a lot
+ * but which almost never change. The purpose is to isolate them in their
+ * own cache lines where they don't risk to be perturbated by write accesses
+ * to neighbor variables. We need to create an empty aligned variable for
+ * this. The fact that the variable is of size zero means that it will be
+ * eliminated at link time if no other variable uses it, but alignment will
+ * be respected.
+ */
+empty_t __read_mostly_align HA_SECTION("read_mostly") ALIGNED(64);
+
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
