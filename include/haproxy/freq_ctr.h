@@ -27,6 +27,8 @@
 #include <haproxy/intops.h>
 #include <haproxy/time.h>
 
+/* exported functions from freq_ctr.c */
+ullong freq_ctr_total(struct freq_ctr_period *ctr, uint period, int pend);
 
 /* Update a frequency counter by <inc> incremental units. It is automatically
  * rotated if the period is over. It is important that it correctly initializes
