@@ -63,6 +63,31 @@
  */
 #define __maybe_unused __attribute__((unused))
 
+/* These macros are used to declare a section name for a variable.
+ * WARNING: keep section names short, as MacOS limits them to 16 characters.
+ * The _START and _STOP attributes have to be placed after the start and stop
+ * weak symbol declarations, and are only used by MacOS.
+ */
+#if !defined(USE_OBSOLETE_LINKER)
+
+#ifdef __APPLE__
+#define HA_SECTION(s)           __attribute__((__section__("__DATA, " s)))
+#define HA_SECTION_START(s)     __asm("section$start$__DATA$" s)
+#define HA_SECTION_STOP(s)      __asm("section$end$__DATA$" s)
+#else
+#define HA_SECTION(s)           __attribute__((__section__(s)))
+#define HA_SECTION_START(s)
+#define HA_SECTION_STOP(s)
+#endif
+
+#else // obsolete linker below, let's just not force any section
+
+#define HA_SECTION(s)
+#define HA_SECTION_START(s)
+#define HA_SECTION_STOP(s)
+
+#endif // USE_OBSOLETE_LINKER
+
 /* This allows gcc to know that some locations are never reached, for example
  * after a longjmp() in the Lua code, hence that some errors caught by such
  * methods cannot propagate further. This is important with gcc versions 6 and
