@@ -139,7 +139,7 @@ static THREAD_LOCAL struct sample_data static_sample_data;
 struct list pattern_reference = LIST_HEAD_INIT(pattern_reference);
 
 static THREAD_LOCAL struct lru64_head *pat_lru_tree;
-static unsigned long long pat_lru_seed;
+static unsigned long long pat_lru_seed __read_mostly;
 
 /*
  *
