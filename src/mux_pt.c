@@ -250,17 +250,16 @@ struct task *mux_pt_io_cb(struct task *t, void *tctx, unsigned int status)
 	}
 	conn_ctrl_drain(ctx->conn);
 	if (ctx->conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH)) {
-		TRACE_DEVEL("destroying pt context", PT_EV_CONN_WAKE, ctx->conn);
+		TRACE_DEVEL("leaving destroying pt context", PT_EV_CONN_WAKE, ctx->conn);
 		mux_pt_destroy(ctx);
 		t = NULL;
 	}
 	else {
-		TRACE_DEVEL("subscribing for reads", PT_EV_CONN_WAKE, ctx->conn);
 		ctx->conn->xprt->subscribe(ctx->conn, ctx->conn->xprt_ctx, SUB_RETRY_RECV,
 					   &ctx->wait_event);
+		TRACE_DEVEL("leaving subscribing for reads", PT_EV_CONN_WAKE, ctx->conn);
 	}
 
-	TRACE_LEAVE(PT_EV_CONN_WAKE, ctx->conn);
 	return t;
 }
 
