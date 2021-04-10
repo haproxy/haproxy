@@ -25,57 +25,11 @@
 #include <haproxy/api.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/intops.h>
+#include <haproxy/ticks.h>
 #include <haproxy/time.h>
 
 /* exported functions from freq_ctr.c */
 ullong freq_ctr_total(struct freq_ctr *ctr, uint period, int pend);
-
-/* Update a frequency counter by <inc> incremental units. It is automatically
- * rotated if the period is over. It is important that it correctly initializes
- * a null area.
- */
-static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int inc)
-{
-	int elapsed;
-	unsigned int curr_sec;
-	uint32_t now_tmp;
-
-
-	/* we manipulate curr_ctr using atomic ops out of the lock, since
-	 * it's the most frequent access. However if we detect that a change
-	 * is needed, it's done under the date lock. We don't care whether
-	 * the value we're adding is considered as part of the current or
-	 * new period if another thread starts to rotate the period while
-	 * we operate, since timing variations would have resulted in the
-	 * same uncertainty as well.
-	 */
-	curr_sec = ctr->curr_tick;
-	do {
-		now_tmp = global_now >> 32;
-		if (curr_sec == (now_tmp & 0x7fffffff))
-			return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
-
-		/* remove the bit, used for the lock */
-		curr_sec &= 0x7fffffff;
-	} while (!_HA_ATOMIC_CAS(&ctr->curr_tick, &curr_sec, curr_sec | 0x80000000));
-	__ha_barrier_atomic_store();
-
-	elapsed = (now_tmp & 0x7fffffff) - curr_sec;
-	if (unlikely(elapsed > 0)) {
-		ctr->prev_ctr = ctr->curr_ctr;
-		_HA_ATOMIC_SUB(&ctr->curr_ctr, ctr->prev_ctr);
-		if (likely(elapsed != 1)) {
-			/* we missed more than one second */
-			ctr->prev_ctr = 0;
-		}
-		curr_sec = now_tmp;
-	}
-
-	/* release the lock and update the time in case of rotate. */
-	_HA_ATOMIC_STORE(&ctr->curr_tick, curr_sec & 0x7fffffff);
-
-	return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
-}
 
 /* Update a frequency counter by <inc> incremental units. It is automatically
  * rotated if the period is over. It is important that it correctly initializes
@@ -117,10 +71,14 @@ static inline unsigned int update_freq_ctr_period(struct freq_ctr *ctr,
 	return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
 }
 
-/* Read a frequency counter taking history into account for missing time in
- * current period.
+/* Update a 1-sec frequency counter by <inc> incremental units. It is automatically
+ * rotated if the period is over. It is important that it correctly initializes
+ * a null area.
  */
-unsigned int read_freq_ctr(struct freq_ctr *ctr);
+static inline unsigned int update_freq_ctr(struct freq_ctr *ctr, unsigned int inc)
+{
+	return update_freq_ctr_period(ctr, MS_TO_TICKS(1000), inc);
+}
 
 /* Reads a frequency counter taking history into account for missing time in
  * current period. The period has to be passed in number of ticks and must
@@ -142,11 +100,13 @@ static inline uint read_freq_ctr_period(struct freq_ctr *ctr, uint period)
 	return div64_32(total, period);
 }
 
-/* returns the number of remaining events that can occur on this freq counter
- * while respecting <freq> and taking into account that <pend> events are
- * already known to be pending. Returns 0 if limit was reached.
+/* Read a 1-sec frequency counter taking history into account for missing time
+ * in current period.
  */
-unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned int pend);
+static inline unsigned int read_freq_ctr(struct freq_ctr *ctr)
+{
+	return read_freq_ctr_period(ctr, MS_TO_TICKS(1000));
+}
 
 /* Returns the number of remaining events that can occur on this freq counter
  * while respecting <freq> events per period, and taking into account that
@@ -162,13 +122,14 @@ static inline uint freq_ctr_remain_period(struct freq_ctr *ctr, uint period, uin
 	return freq - avg;
 }
 
-/* return the expected wait time in ms before the next event may occur,
- * respecting frequency <freq>, and assuming there may already be some pending
- * events. It returns zero if we can proceed immediately, otherwise the wait
- * time, which will be rounded down 1ms for better accuracy, with a minimum
- * of one ms.
+/* returns the number of remaining events that can occur on this freq counter
+ * while respecting <freq> and taking into account that <pend> events are
+ * already known to be pending. Returns 0 if limit was reached.
  */
-unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned int pend);
+static inline unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned int pend)
+{
+	return freq_ctr_remain_period(ctr, MS_TO_TICKS(1000), freq, pend);
+}
 
 /* return the expected wait time in ms before the next event may occur,
  * respecting frequency <freq>, and assuming there may already be some pending
@@ -195,8 +156,16 @@ static inline uint next_event_delay_period(struct freq_ctr *ctr, uint period, ui
 	return MAX(wait, 1);
 }
 
-/* process freq counters over configurable periods */
-unsigned int read_freq_ctr_period(struct freq_ctr *ctr, unsigned int period);
+/* Returns the expected wait time in ms before the next event may occur,
+ * respecting frequency <freq> over 1 second, and assuming there may already be
+ * some pending events. It returns zero if we can proceed immediately, otherwise
+ * the wait time, which will be rounded down 1ms for better accuracy, with a
+ * minimum of one ms.
+ */
+static inline unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned int pend)
+{
+	return next_event_delay_period(ctr, MS_TO_TICKS(1000), freq, pend);
+}
 
 /* While the functions above report average event counts per period, we are
  * also interested in average values per event. For this we use a different
