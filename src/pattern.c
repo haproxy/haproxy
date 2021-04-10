@@ -28,7 +28,7 @@
 #include <haproxy/tools.h>
 
 
-char *pat_match_names[PAT_MATCH_NUM] = {
+const char *const pat_match_names[PAT_MATCH_NUM] = {
 	[PAT_MATCH_FOUND] = "found",
 	[PAT_MATCH_BOOL]  = "bool",
 	[PAT_MATCH_INT]   = "int",
@@ -45,7 +45,7 @@ char *pat_match_names[PAT_MATCH_NUM] = {
 	[PAT_MATCH_REGM]  = "regm",
 };
 
-int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char **) = {
+int (*const pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char **) = {
 	[PAT_MATCH_FOUND] = pat_parse_nothing,
 	[PAT_MATCH_BOOL]  = pat_parse_nothing,
 	[PAT_MATCH_INT]   = pat_parse_int,
@@ -62,7 +62,7 @@ int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char *
 	[PAT_MATCH_REGM]  = pat_parse_reg,
 };
 
-int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **) = {
+int (*const pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **) = {
 	[PAT_MATCH_FOUND] = pat_idx_list_val,
 	[PAT_MATCH_BOOL]  = pat_idx_list_val,
 	[PAT_MATCH_INT]   = pat_idx_list_val,
@@ -79,7 +79,7 @@ int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, ch
 	[PAT_MATCH_REGM]  = pat_idx_list_regm,
 };
 
-void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *) = {
+void (*const pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *) = {
 	[PAT_MATCH_FOUND] = pat_prune_gen,
 	[PAT_MATCH_BOOL]  = pat_prune_gen,
 	[PAT_MATCH_INT]   = pat_prune_gen,
@@ -96,7 +96,7 @@ void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *) = {
 	[PAT_MATCH_REGM]  = pat_prune_gen,
 };
 
-struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int) = {
+struct pattern *(*const pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int) = {
 	[PAT_MATCH_FOUND] = NULL,
 	[PAT_MATCH_BOOL]  = pat_match_nothing,
 	[PAT_MATCH_INT]   = pat_match_int,
@@ -114,7 +114,7 @@ struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern
 };
 
 /* Just used for checking configuration compatibility */
-int pat_match_types[PAT_MATCH_NUM] = {
+int const pat_match_types[PAT_MATCH_NUM] = {
 	[PAT_MATCH_FOUND] = SMP_T_SINT,
 	[PAT_MATCH_BOOL]  = SMP_T_SINT,
 	[PAT_MATCH_INT]   = SMP_T_SINT,

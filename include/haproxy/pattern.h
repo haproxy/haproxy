@@ -29,13 +29,13 @@
 #include <haproxy/sample-t.h>
 
 /* pattern management function arrays */
-extern char *pat_match_names[PAT_MATCH_NUM];
-extern int pat_match_types[PAT_MATCH_NUM];
+extern const char *const pat_match_names[PAT_MATCH_NUM];
+extern int const pat_match_types[PAT_MATCH_NUM];
 
-extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char **);
-extern int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
-extern void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *);
-extern struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int);
+extern int (*const pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char **);
+extern int (*const pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
+extern void (*const pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *);
+extern struct pattern *(*const pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int);
 
 /* This is the root of the list of all pattern_ref avalaibles. */
 extern struct list pattern_reference;
