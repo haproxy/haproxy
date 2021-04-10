@@ -65,7 +65,81 @@
 #include <haproxy/thread.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
+#include <haproxy/trace.h>
 #include <haproxy/vars.h>
+
+/* trace source and events */
+static void check_trace(enum trace_level level, uint64_t mask,
+			const struct trace_source *src,
+			const struct ist where, const struct ist func,
+			const void *a1, const void *a2, const void *a3, const void *a4);
+
+/* The event representation is split like this :
+ *   check  - check
+ *
+ * CHECK_EV_* macros are defined in <haproxy/check.h>
+ */
+static const struct trace_event check_trace_events[] = {
+	{ .mask = CHK_EV_TASK_WAKE,   .name = "task_wake",        .desc = "Check task woken up" },
+	{ .mask = CHK_EV_HCHK_START,  .name = "hchck_start",      .desc = "Health-check started" },
+	{ .mask = CHK_EV_HCHK_WAKE,   .name = "hchck_wake",       .desc = "Health-check woken up" },
+	{ .mask = CHK_EV_HCHK_RUN,    .name = "hchck_run",        .desc = "Health-check running" },
+	{ .mask = CHK_EV_HCHK_END,    .name = "hchck_end",        .desc = "Health-check terminated" },
+	{ .mask = CHK_EV_HCHK_SUCC,   .name = "hchck_succ",       .desc = "Health-check success" },
+	{ .mask = CHK_EV_HCHK_ERR,    .name = "hchck_err",        .desc = "Health-check failure" },
+
+	{ .mask = CHK_EV_TCPCHK_EVAL, .name = "tcp_check_eval",   .desc = "tcp-check rules evaluation" },
+	{ .mask = CHK_EV_TCPCHK_ERR,  .name = "tcp_check_err",    .desc = "tcp-check evaluation error" },
+	{ .mask = CHK_EV_TCPCHK_CONN, .name = "tcp_check_conn",   .desc = "tcp-check connection rule" },
+	{ .mask = CHK_EV_TCPCHK_SND,  .name = "tcp_check_send",   .desc = "tcp-check send rule" },
+	{ .mask = CHK_EV_TCPCHK_EXP,  .name = "tcp_check_expect", .desc = "tcp-check expect rule" },
+	{ .mask = CHK_EV_TCPCHK_ACT,  .name = "tcp_check_action", .desc = "tcp-check action rule" },
+
+	{ .mask = CHK_EV_RX_DATA,     .name = "rx_data",          .desc = "receipt of data" },
+	{ .mask = CHK_EV_RX_BLK,      .name = "rx_blk",           .desc = "receipt blocked" },
+	{ .mask = CHK_EV_RX_ERR,      .name = "rx_err",           .desc = "receipt error" },
+
+	{ .mask = CHK_EV_TX_DATA,     .name = "tx_data",          .desc = "transmission of data" },
+	{ .mask = CHK_EV_TX_BLK,      .name = "tx_blk",           .desc = "transmission blocked" },
+	{ .mask = CHK_EV_TX_ERR,      .name = "tx_err",           .desc = "transmission error" },
+
+	{}
+};
+
+static const struct name_desc check_trace_lockon_args[4] = {
+	/* arg1 */ { /* already used by the check */ },
+	/* arg2 */ { },
+	/* arg3 */ { },
+	/* arg4 */ { }
+};
+
+static const struct name_desc check_trace_decoding[] = {
+#define CHK_VERB_CLEAN    1
+	{ .name="clean",    .desc="only user-friendly stuff, generally suitable for level \"user\"" },
+#define CHK_VERB_MINIMAL  2
+	{ .name="minimal",  .desc="report info on stream and stream-interfaces" },
+#define CHK_VERB_SIMPLE   3
+	{ .name="simple",   .desc="add info on request and response channels" },
+#define CHK_VERB_ADVANCED 4
+	{ .name="advanced", .desc="add info on channel's buffer for data and developer levels only" },
+#define CHK_VERB_COMPLETE 5
+	{ .name="complete", .desc="add info on channel's buffer" },
+	{ /* end */ }
+};
+
+struct trace_source trace_check = {
+	.name = IST("check"),
+	.desc = "Health-check",
+	.arg_def = TRC_ARG1_CHK,  // TRACE()'s first argument is always a stream
+	.default_cb = check_trace,
+	.known_events = check_trace_events,
+	.lockon_args = check_trace_lockon_args,
+	.decoding = check_trace_decoding,
+	.report_events = ~0,  // report everything by default
+};
+
+#define TRACE_SOURCE &trace_check
+INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 
 static int wake_srv_chk(struct conn_stream *cs);
@@ -77,6 +151,154 @@ struct data_cb check_conn_cb = {
 
 /* Dummy frontend used to create all checks sessions. */
 struct proxy checks_fe;
+
+
+static inline void check_trace_buf(const struct buffer *buf, size_t ofs, size_t len)
+{
+	size_t block1, block2;
+	int line, ptr, newptr;
+
+	block1 = b_contig_data(buf, ofs);
+	block2 = 0;
+	if (block1 > len)
+		block1 = len;
+	block2 = len - block1;
+
+	ofs = b_peek_ofs(buf, ofs);
+
+	line = 0;
+	ptr = ofs;
+	while (ptr < ofs + block1) {
+		newptr = dump_text_line(&trace_buf, b_orig(buf), b_size(buf), ofs + block1, &line, ptr);
+		if (newptr == ptr)
+			break;
+		ptr = newptr;
+	}
+
+	line = ptr = 0;
+	while (ptr < block2) {
+		newptr = dump_text_line(&trace_buf, b_orig(buf), b_size(buf), block2, &line, ptr);
+		if (newptr == ptr)
+			break;
+		ptr = newptr;
+	}
+}
+
+/* trace source and events */
+static void check_trace(enum trace_level level, uint64_t mask,
+			const struct trace_source *src,
+			const struct ist where, const struct ist func,
+			const void *a1, const void *a2, const void *a3, const void *a4)
+{
+	const struct check *check = a1;
+	const struct server *srv = (check ? check->server : NULL);
+	const size_t        *val = a4;
+	const char *res;
+
+	if (!check || src->verbosity < CHK_VERB_CLEAN)
+		return;
+
+	chunk_appendf(&trace_buf, " : [%c] SRV=%s",
+		      ((check->type == PR_O2_EXT_CHK) ? 'E' : (check->state & CHK_ST_AGENT ? 'A' : 'H')),
+		      srv->id);
+
+	chunk_appendf(&trace_buf, " status=%d/%d %s",
+		      (check->health >= check->rise) ? check->health - check->rise + 1 : check->health,
+		      (check->health >= check->rise) ? check->fall : check->rise,
+		      (check->health >= check->rise) ? (srv->uweight ? "UP" : "DRAIN") : "DOWN");
+
+	switch (check->result) {
+	case CHK_RES_NEUTRAL: res = "-";     break;
+	case CHK_RES_FAILED:   res = "FAIL"; break;
+	case CHK_RES_PASSED:   res = "PASS"; break;
+	case CHK_RES_CONDPASS: res = "COND"; break;
+	default:               res = "UNK";  break;
+	}
+
+	if (src->verbosity == CHK_VERB_CLEAN)
+		return;
+
+	chunk_appendf(&trace_buf, " - last=%s(%d)/%s(%d)",
+		      get_check_status_info(check->status), check->status,
+		      res, check->result);
+
+	/* Display the value to the 4th argument (level > STATE) */
+	if (src->level > TRACE_LEVEL_STATE && val)
+		chunk_appendf(&trace_buf, " - VAL=%lu", (long)*val);
+
+	chunk_appendf(&trace_buf, " check=%p(0x%08x)", check, check->state);
+
+	if (src->verbosity == CHK_VERB_MINIMAL)
+		return;
+
+
+	if (check->cs) {
+		chunk_appendf(&trace_buf, " - conn=%p(0x%08x)", check->cs->conn, check->cs->conn->flags);
+		chunk_appendf(&trace_buf, " cs=%p(0x%08x)", check->cs, check->cs->flags);
+	}
+
+	if (mask & CHK_EV_TCPCHK) {
+		const char *type;
+
+		switch (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) {
+			case TCPCHK_RULES_PGSQL_CHK: type = "PGSQL"; break;
+			case TCPCHK_RULES_REDIS_CHK: type = "REDIS"; break;
+			case TCPCHK_RULES_SMTP_CHK:  type = "SMTP";  break;
+			case TCPCHK_RULES_HTTP_CHK:  type = "HTTP";  break;
+			case TCPCHK_RULES_MYSQL_CHK: type = "MYSQL"; break;
+			case TCPCHK_RULES_LDAP_CHK:  type = "LDAP";  break;
+			case TCPCHK_RULES_SSL3_CHK:  type = "SSL3";  break;
+			case TCPCHK_RULES_AGENT_CHK: type = "AGENT"; break;
+			case TCPCHK_RULES_SPOP_CHK:  type = "SPOP";  break;
+			case TCPCHK_RULES_TCP_CHK:   type = "TCP";   break;
+			default:                     type = "???"; break;
+		}
+		if (check->current_step)
+			chunk_appendf(&trace_buf, " - tcp-check=(%s,%d)", type, tcpcheck_get_step_id(check, NULL));
+		else
+			chunk_appendf(&trace_buf, " - tcp-check=(%s,-)", type);
+	}
+
+	/* Display bi and bo buffer info (level > USER & verbosity > SIMPLE) */
+	if (src->level > TRACE_LEVEL_USER) {
+		const struct buffer *buf = NULL;
+
+		chunk_appendf(&trace_buf, " bi=%u@%p+%u/%u",
+			      (unsigned int)b_data(&check->bi), b_orig(&check->bi),
+			      (unsigned int)b_head_ofs(&check->bi), (unsigned int)b_size(&check->bi));
+		chunk_appendf(&trace_buf, " bo=%u@%p+%u/%u",
+			      (unsigned int)b_data(&check->bo), b_orig(&check->bo),
+			      (unsigned int)b_head_ofs(&check->bo), (unsigned int)b_size(&check->bo));
+
+		if (src->verbosity >= CHK_VERB_ADVANCED && (mask & (CHK_EV_RX)))
+			buf = (b_is_null(&check->bi) ? NULL : &check->bi);
+		else if (src->verbosity >= CHK_VERB_ADVANCED && (mask & (CHK_EV_TX)))
+			buf = (b_is_null(&check->bo) ? NULL : &check->bo);
+
+		if (buf) {
+			if ((check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_HTTP_CHK) {
+				int full = (src->verbosity == CHK_VERB_COMPLETE);
+
+				chunk_memcat(&trace_buf, "\n\t", 2);
+				htx_dump(&trace_buf, htxbuf(buf), full);
+			}
+			else {
+				int max = ((src->verbosity == CHK_VERB_COMPLETE) ? 1024 : 256);
+
+				chunk_memcat(&trace_buf, "\n", 1);
+				if (b_data(buf) > max) {
+					check_trace_buf(buf, 0, max);
+					chunk_memcat(&trace_buf, "  ...\n", 6);
+				}
+				else
+					check_trace_buf(buf, 0, b_data(buf));
+			}
+
+		}
+	}
+
+}
+
 
 /**************************************************************************/
 /************************ Handle check results ****************************/
@@ -222,6 +444,8 @@ void set_server_check_status(struct check *check, short status, const char *desc
 	short prev_status = check->status;
 	int report = 0;
 
+	TRACE_POINT(CHK_EV_HCHK_RUN, check);
+
 	if (status == HCHK_STATUS_START) {
 		check->result = CHK_RES_UNKNOWN;	/* no result yet */
 		check->desc[0] = '\0';
@@ -260,6 +484,7 @@ void set_server_check_status(struct check *check, short status, const char *desc
 	if (!s)
 	    return;
 	report = 0;
+
 
 	switch (check->result) {
 	case CHK_RES_FAILED:
@@ -338,6 +563,7 @@ void check_notify_failure(struct check *check)
 	if (check->health > 0)
 		return;
 
+	TRACE_STATE("health-check failed, set server DOWN", CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 	/* We only report a reason for the check if we did not do so previously */
 	srv_set_stopped(s, NULL, (!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL);
 }
@@ -372,6 +598,7 @@ void check_notify_success(struct check *check)
 	if ((check->state & CHK_ST_AGENT) && s->next_state == SRV_ST_STOPPING)
 		return;
 
+	TRACE_STATE("health-check succeeded, set server RUNNING", CHK_EV_HCHK_END|CHK_EV_HCHK_SUCC, check);
 	srv_set_running(s, NULL, (!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL);
 }
 
@@ -400,6 +627,7 @@ void check_notify_stopping(struct check *check)
 	if ((s->agent.state & CHK_ST_ENABLED) && (s->agent.health < s->agent.rise))
 		return;
 
+	TRACE_STATE("health-check condionnaly succeeded, set server STOPPING", CHK_EV_HCHK_END|CHK_EV_HCHK_SUCC, check);
 	srv_set_stopping(s, NULL, (!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL);
 }
 
@@ -554,8 +782,9 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	struct buffer *chk;
 	int step;
 
-	if (check->result != CHK_RES_UNKNOWN)
+	if (check->result != CHK_RES_UNKNOWN) {
 		return;
+	}
 
 	errno = unclean_errno(errno_bck);
 	if (conn && errno)
@@ -564,6 +793,8 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	if (conn && !(conn->flags & CO_FL_ERROR) &&
 	    !(cs->flags & CS_FL_ERROR) && !expired)
 		return;
+
+	TRACE_ENTER(CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check, 0, 0, (size_t[]){expired});
 
 	/* we'll try to build a meaningful error message depending on the
 	 * context of the error possibly present in conn->err_code, and the
@@ -575,8 +806,10 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 	if (check->type == PR_O2_TCPCHK_CHK &&
 	    (check->tcpcheck_rules->flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK) {
 		step = tcpcheck_get_step_id(check, NULL);
-		if (!step)
+		if (!step) {
+			TRACE_DEVEL("initial connection failure", CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 			chunk_printf(chk, " at initial connection step of tcp-check");
+		}
 		else {
 			chunk_printf(chk, " at step %d of tcp-check", step);
 			/* we were looking for a string */
@@ -585,6 +818,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 					chunk_appendf(chk, " (connect port %d)" ,check->current_step->connect.port);
 				else
 					chunk_appendf(chk, " (connect)");
+				TRACE_DEVEL("connection failure", CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 			}
 			else if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT) {
 				struct tcpcheck_expect *expect = &check->current_step->expect;
@@ -633,9 +867,11 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 					chunk_appendf(chk, " (undefined expect!)");
 					break;
 				}
+				TRACE_DEVEL("expect rule failed", CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 			}
 			else if (check->current_step && check->current_step->action == TCPCHK_ACT_SEND) {
 				chunk_appendf(chk, " (send)");
+				TRACE_DEVEL("send rule failed", CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 			}
 
 			if (check->current_step && check->current_step->comment)
@@ -665,7 +901,6 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 
 	if (check->state & CHK_ST_PORT_MISS) {
 		/* NOTE: this is reported after <fall> tries */
-		chunk_printf(chk, "No port available for the TCP connection");
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 	}
 
@@ -709,6 +944,7 @@ void chk_report_conn_err(struct check *check, int errno_bck, int expired)
 		set_server_check_status(check, tout, err_msg);
 	}
 
+	TRACE_LEAVE(CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 	return;
 }
 
@@ -785,6 +1021,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 	struct email_alertq *q = container_of(check, typeof(*q), check);
 	int ret = 0;
 
+	TRACE_ENTER(CHK_EV_HCHK_WAKE, check);
 	if (check->server)
 		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	else
@@ -803,6 +1040,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 		 * main processing task so let's simply wake it up. If we get here,
 		 * we expect errno to still be valid.
 		 */
+		TRACE_ERROR("report connection error", CHK_EV_HCHK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 		chk_report_conn_err(check, errno, 0);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
@@ -830,6 +1068,7 @@ static int wake_srv_chk(struct conn_stream *cs)
 	else
 		HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 
+	TRACE_LEAVE(CHK_EV_HCHK_WAKE, check);
 	return ret;
 }
 
@@ -858,25 +1097,32 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	int rv;
 	int expired = tick_is_expired(t->expire, now_ms);
 
+	TRACE_ENTER(CHK_EV_TASK_WAKE, check);
+
 	if (check->server)
 		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 	if (!(check->state & CHK_ST_INPROGRESS)) {
 		/* no check currently running */
-		if (!expired) /* woke up too early */
+		if (!expired) /* woke up too early */ {
+			TRACE_STATE("health-check wake up too early", CHK_EV_TASK_WAKE, check);
 			goto out_unlock;
+		}
 
 		/* we don't send any health-checks when the proxy is
 		 * stopped, the server should not be checked or the check
 		 * is disabled.
 		 */
 		if (((check->state & (CHK_ST_ENABLED | CHK_ST_PAUSED)) != CHK_ST_ENABLED) ||
-		    proxy->disabled)
+		    proxy->disabled) {
+			TRACE_STATE("health-check paused or disabled", CHK_EV_TASK_WAKE, check);
 			goto reschedule;
+		}
 
 		/* we'll initiate a new check */
 		set_server_check_status(check, HCHK_STATUS_START, NULL);
 
 		check->state |= CHK_ST_INPROGRESS;
+		TRACE_STATE("init new health-check", CHK_EV_TASK_WAKE|CHK_EV_HCHK_START, check);
 
 		task_set_affinity(t, tid_bit);
 
@@ -894,10 +1140,12 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 			 * error would have already been detected
 			 */
 			if ((conn->flags & CO_FL_ERROR) || cs->flags & CS_FL_ERROR || expired) {
+				TRACE_ERROR("report connection error", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 				chk_report_conn_err(check, 0, expired);
 			}
 			else {
 				if (check->state & CHK_ST_CLOSE_CONN) {
+					TRACE_DEVEL("closing current connection", CHK_EV_TASK_WAKE|CHK_EV_HCHK_RUN, check);
 					cs_destroy(cs);
 					cs = NULL;
 					conn = NULL;
@@ -905,12 +1153,15 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 					check->state &= ~CHK_ST_CLOSE_CONN;
 					tcpcheck_main(check);
 				}
-				if (check->result == CHK_RES_UNKNOWN)
+				if (check->result == CHK_RES_UNKNOWN) {
+					TRACE_DEVEL("health-check not expired", CHK_EV_TASK_WAKE|CHK_EV_HCHK_RUN, check);
 					goto out_unlock; /* timeout not reached, wait again */
+				}
 			}
 		}
 
 		/* check complete or aborted */
+		TRACE_STATE("health-check complete or aborted", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END, check);
 
 		check->current_step = NULL;
 
@@ -945,14 +1196,17 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		if (check->server) {
 			if (check->result == CHK_RES_FAILED) {
 				/* a failure or timeout detected */
+				TRACE_DEVEL("report failure", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
 				check_notify_failure(check);
 			}
 			else if (check->result == CHK_RES_CONDPASS) {
 				/* check is OK but asks for stopping mode */
+				TRACE_DEVEL("report conditionnal success", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_SUCC, check);
 				check_notify_stopping(check);
 			}
 			else if (check->result == CHK_RES_PASSED) {
 				/* a success was detected */
+				TRACE_DEVEL("report success", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_SUCC, check);
 				check_notify_success(check);
 			}
 		}
@@ -977,6 +1231,8 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
  out_unlock:
 	if (check->server)
 		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
+
+	TRACE_LEAVE(CHK_EV_TASK_WAKE, check);
 	return t;
 }
 
@@ -995,11 +1251,13 @@ int check_buf_available(void *target)
 	struct check *check = target;
 
 	if ((check->state & CHK_ST_IN_ALLOC) && b_alloc(&check->bi)) {
+		TRACE_STATE("unblocking check, input buffer allocated", CHK_EV_TCPCHK_EXP|CHK_EV_RX_BLK, check);
 		check->state &= ~CHK_ST_IN_ALLOC;
 		tasklet_wakeup(check->wait_list.tasklet);
 		return 1;
 	}
 	if ((check->state & CHK_ST_OUT_ALLOC) && b_alloc(&check->bo)) {
+		TRACE_STATE("unblocking check, output buffer allocated", CHK_EV_TCPCHK_SND|CHK_EV_TX_BLK, check);
 		check->state &= ~CHK_ST_OUT_ALLOC;
 		tasklet_wakeup(check->wait_list.tasklet);
 		return 1;

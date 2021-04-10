@@ -35,8 +35,8 @@
 extern struct action_kw_list tcp_check_keywords;
 extern struct pool_head *pool_head_tcpcheck_rule;
 
-int tcpcheck_get_step_id(struct check *check, struct tcpcheck_rule *rule);
-struct tcpcheck_rule *get_first_tcpcheck_rule(struct tcpcheck_rules *rules);
+int tcpcheck_get_step_id(const struct check *check, const struct tcpcheck_rule *rule);
+struct tcpcheck_rule *get_first_tcpcheck_rule(const struct tcpcheck_rules *rules);
 
 struct tcpcheck_ruleset *create_tcpcheck_ruleset(const char *name);
 struct tcpcheck_ruleset *find_tcpcheck_ruleset(const char *name);

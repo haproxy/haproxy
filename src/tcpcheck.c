@@ -58,8 +58,11 @@
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
+#include <haproxy/trace.h>
 #include <haproxy/vars.h>
 
+
+#define TRACE_SOURCE &trace_check
 
 /* Global tree to share all tcp-checks */
 struct eb_root shared_tcpchecks = EB_ROOT;
@@ -345,7 +348,7 @@ void free_tcpcheck_ruleset(struct tcpcheck_ruleset *rs)
 /**************** Everything about tcp-checks execution *******************/
 /**************************************************************************/
 /* Returns the id of a step in a tcp-check ruleset */
-int tcpcheck_get_step_id(struct check *check, struct tcpcheck_rule *rule)
+int tcpcheck_get_step_id(const struct check *check, const struct tcpcheck_rule *rule)
 {
 	if (!rule)
 		rule = check->current_step;
@@ -366,7 +369,7 @@ int tcpcheck_get_step_id(struct check *check, struct tcpcheck_rule *rule)
 /* Returns the first non COMMENT/ACTION_KW tcp-check rule from list <list> or
  * NULL if none was found.
  */
-struct tcpcheck_rule *get_first_tcpcheck_rule(struct tcpcheck_rules *rules)
+struct tcpcheck_rule *get_first_tcpcheck_rule(const struct tcpcheck_rules *rules)
 {
 	struct tcpcheck_rule *r;
 
@@ -550,6 +553,8 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 	unsigned int err = 0, plen = 0;
 
 
+	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
+
 	/* 3 Bytes for the packet length and 1 byte for the sequence id */
 	if (b_data(&check->bi) < offset+4) {
 		if (!last_read)
@@ -596,6 +601,7 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 
   out:
 	free_trash_chunk(msg);
+	TRACE_LEAVE(CHK_EV_TCPCHK_EXP, check, 0, 0, (size_t[]){ret});
 	return ret;
 
   error:
@@ -608,6 +614,7 @@ static enum tcpcheck_eval_ret tcpcheck_mysql_expect_packet(struct check *check, 
 	goto out;
 
   wait_more_data:
+	TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
 	ret = TCPCHK_EVAL_WAIT;
 	goto out;
 }
@@ -650,6 +657,8 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 	struct buffer *msg = NULL;
 	struct ist desc = IST_NULL;
 	unsigned short msglen = 0;
+
+	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
 
 	/* Check if the server speaks LDAP (ASN.1/BER)
 	 * http://en.wikipedia.org/wiki/Basic_Encoding_Rules
@@ -695,6 +704,7 @@ enum tcpcheck_eval_ret tcpcheck_ldap_expect_bindrsp(struct check *check, struct 
 
   out:
 	free_trash_chunk(msg);
+	TRACE_LEAVE(CHK_EV_TCPCHK_EXP, check, 0, 0, (size_t[]){ret});
 	return ret;
 
   error:
@@ -718,6 +728,7 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_agenthello(struct check *check, stru
 	struct ist desc = IST_NULL;
 	unsigned int framesz;
 
+	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
 
 	memcpy(&framesz, b_head(&check->bi), 4);
 	framesz = ntohl(framesz);
@@ -737,6 +748,7 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_agenthello(struct check *check, stru
 
   out:
 	free_trash_chunk(msg);
+	TRACE_LEAVE(CHK_EV_TCPCHK_EXP, check, 0, 0, (size_t[]){ret});
 	return ret;
 
   error:
@@ -748,6 +760,7 @@ enum tcpcheck_eval_ret tcpcheck_spop_expect_agenthello(struct check *check, stru
 	goto out;
 
   wait_more_data:
+	TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
 	ret = TCPCHK_EVAL_WAIT;
 	goto out;
 }
@@ -767,6 +780,8 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 	const char *err = NULL; /* first error to report */
 	const char *wrn = NULL; /* first warning to report */
 	char *cmd, *p;
+
+	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
 
 	/* We're getting an agent check response. The agent could
 	 * have been disabled in the mean time with a long check
@@ -892,18 +907,25 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 	 * present after going back up.
 	 */
 	if (as) {
-		if (strcasecmp(as, "drain") == 0)
+		if (strcasecmp(as, "drain") == 0) {
+			TRACE_DEVEL("set server into DRAIN mode", CHK_EV_TCPCHK_EXP, check);
 			srv_adm_set_drain(check->server);
-		else if (strcasecmp(as, "maint") == 0)
+		}
+		else if (strcasecmp(as, "maint") == 0) {
+			TRACE_DEVEL("set server into MAINT mode", CHK_EV_TCPCHK_EXP, check);
 			srv_adm_set_maint(check->server);
-		else
+		}
+		else {
+			TRACE_DEVEL("set server into READY mode", CHK_EV_TCPCHK_EXP, check);
 			srv_adm_set_ready(check->server);
+		}
 	}
 
 	/* now change weights */
 	if (ps) {
 		const char *msg;
 
+		TRACE_DEVEL("change server weigth", CHK_EV_TCPCHK_EXP, check);
 		msg = server_parse_weight_change_request(check->server, ps);
 		if (!wrn || !*wrn)
 			wrn = msg;
@@ -914,6 +936,7 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 
 		cs += strlen("maxconn:");
 
+		TRACE_DEVEL("change server maxconn", CHK_EV_TCPCHK_EXP, check);
 		msg = server_parse_maxconn_change_request(check->server, cs);
 		if (!wrn || !*wrn)
 			wrn = msg;
@@ -940,12 +963,14 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 		chunk_printf(t, "via agent : %s%s%s%s",
 			     hs, *msg ? " (" : "",
 			     msg, *msg ? ")" : "");
+		TRACE_DEVEL("update server health status", CHK_EV_TCPCHK_EXP, check);
 		set_server_check_status(check, status, t->area);
 	}
 	else if (err && *err) {
 		/* No status change but we'd like to report something odd.
 		 * Just report the current state and copy the message.
 		 */
+		TRACE_DEVEL("agent reports an error", CHK_EV_TCPCHK_EXP, check);
 		chunk_printf(&trash, "agent reports an error : %s", err);
 		set_server_check_status(check, status/*check->status*/, trash.area);
 	}
@@ -953,16 +978,21 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 		/* No status change but we'd like to report something odd.
 		 * Just report the current state and copy the message.
 		 */
+		TRACE_DEVEL("agent reports a warning", CHK_EV_TCPCHK_EXP, check);
 		chunk_printf(&trash, "agent warns : %s", wrn);
 		set_server_check_status(check, status/*check->status*/, trash.area);
 	}
-	else
+	else {
+		TRACE_DEVEL("update server health status", CHK_EV_TCPCHK_EXP, check);
 		set_server_check_status(check, status, NULL);
+	}
 
   out:
+	TRACE_LEAVE(CHK_EV_TCPCHK_EXP, check, 0, 0, (size_t[]){ret});
 	return ret;
 
   wait_more_data:
+	TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
 	ret = TCPCHK_EVAL_WAIT;
 	goto out;
 }
@@ -985,6 +1015,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	struct tcpcheck_rule *next;
 	int status, port;
 
+	TRACE_ENTER(CHK_EV_TCPCHK_CONN, check);
+
 	next = get_next_tcpcheck_rule(check->tcpcheck_rules, rule);
 
 	/* current connection already created, check if it is established or not */
@@ -995,6 +1027,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 				if (!(check->wait_list.events & SUB_RETRY_SEND))
 					conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
 				ret = TCPCHK_EVAL_WAIT;
+				TRACE_DEVEL("not connected yet", CHK_EV_TCPCHK_CONN, check);
 			}
 			else
 				ret = tcpcheck_eval_recv(check, rule);
@@ -1017,6 +1050,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 			chunk_appendf(&trash, " comment: '%s'", rule->comment);
 		set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 		ret = TCPCHK_EVAL_STOP;
+		TRACE_ERROR("conn-stream allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		goto out;
 	}
 
@@ -1031,6 +1065,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 
 	/* no client address */
 	if (!sockaddr_alloc(&conn->dst, NULL, 0)) {
+		TRACE_ERROR("sockaddr allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		status = SF_ERR_RESOURCE;
 		goto fail_check;
 	}
@@ -1067,12 +1102,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 		port = s->svc_port;
 	}
 	set_host_port(conn->dst, port);
+	TRACE_DEVEL("set port", CHK_EV_TCPCHK_CONN, check, 0, 0, (size_t[]){port});
 
 	xprt = ((connect->options & TCPCHK_OPT_SSL)
 		? xprt_get(XPRT_SSL)
 		: ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) ? check->xprt : xprt_get(XPRT_RAW)));
 
 	if (conn_prepare(conn, proto, xprt) < 0) {
+		TRACE_ERROR("xprt allocation error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 		status = SF_ERR_RESOURCE;
 		goto fail_check;
 	}
@@ -1082,19 +1119,23 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	if ((connect->options & TCPCHK_OPT_SOCKS4) && s && (s->flags & SRV_F_SOCKS4_PROXY)) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SOCKS4;
+		TRACE_DEVEL("configure SOCKS4 proxy", CHK_EV_TCPCHK_CONN);
 	}
 	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.via_socks4 && (s->flags & SRV_F_SOCKS4_PROXY)) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SOCKS4;
+		TRACE_DEVEL("configure SOCKS4 proxy", CHK_EV_TCPCHK_CONN);
 	}
 
 	if (connect->options & TCPCHK_OPT_SEND_PROXY) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SEND_PROXY;
+		TRACE_DEVEL("configure PROXY protocol", CHK_EV_TCPCHK_CONN, check);
 	}
 	else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && s && s->check.send_proxy && !(check->state & CHK_ST_AGENT)) {
 		conn->send_proxy_ofs = 1;
 		conn->flags |= CO_FL_SEND_PROXY;
+		TRACE_DEVEL("configure PROXY protocol", CHK_EV_TCPCHK_CONN, check);
 	}
 
 	status = SF_ERR_INTERNAL;
@@ -1149,6 +1190,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	    connect->mux_proto || (!connect->alpn && !check->alpn_str)) {
 		const struct mux_ops *mux_ops;
 
+		TRACE_DEVEL("try to install mux now", CHK_EV_TCPCHK_CONN, check);
 		if (connect->mux_proto)
 			mux_ops = connect->mux_proto->mux;
 		else if ((connect->options & TCPCHK_OPT_DEFAULT_CONNECT) && check->mux_proto)
@@ -1161,6 +1203,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 			mux_ops = conn_get_best_mux(conn, IST_NULL, PROTO_SIDE_BE, mode);
 		}
 		if (mux_ops && conn_install_mux(conn, mux_ops, cs, proxy, check->sess) < 0) {
+			TRACE_ERROR("failed to install mux", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 			status = SF_ERR_INTERNAL;
 			goto fail_check;
 		}
@@ -1196,6 +1239,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 	case SF_ERR_PRXCOND:
 	case SF_ERR_RESOURCE:
 	case SF_ERR_INTERNAL:
+		TRACE_ERROR("report connection error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check, 0, 0, (size_t[]){status});
 		chk_report_conn_err(check, errno, 0);
 		ret = TCPCHK_EVAL_STOP;
 		goto out;
@@ -1210,16 +1254,20 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
 				conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
 		}
 		ret = TCPCHK_EVAL_WAIT;
+		TRACE_DEVEL("not connected yet", CHK_EV_TCPCHK_CONN, check);
 		goto out;
 	}
 
   out:
-	if (conn && check->result == CHK_RES_FAILED)
+	if (conn && check->result == CHK_RES_FAILED) {
 		conn->flags |= CO_FL_ERROR;
+		TRACE_ERROR("connect failed, report conncetion error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
+	}
 
 	if (ret == TCPCHK_EVAL_CONTINUE && check->proxy->timeout.check)
 		check->task->expire = tick_add_ifset(now_ms, check->proxy->timeout.check);
 
+	TRACE_LEAVE(CHK_EV_TCPCHK_CONN, check, 0, 0, (size_t[]){ret});
 	return ret;
 }
 
@@ -1237,20 +1285,26 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	struct htx *htx = NULL;
 	int connection_hdr = 0;
 
+	TRACE_ENTER(CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
+
 	if (check->state & CHK_ST_OUT_ALLOC) {
 		ret = TCPCHK_EVAL_WAIT;
+		TRACE_STATE("waiting for output buffer allocation", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA|CHK_EV_TX_BLK, check);
 		goto out;
 	}
 
 	if (!check_get_buf(check, &check->bo)) {
 		check->state |= CHK_ST_OUT_ALLOC;
 		ret = TCPCHK_EVAL_WAIT;
+		TRACE_STATE("waiting for output buffer allocation", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA|CHK_EV_TX_BLK, check);
 		goto out;
 	}
 
 	/* Data already pending in the output buffer, send them now */
-	if (b_data(&check->bo))
+	if (b_data(&check->bo)) {
+		TRACE_DEVEL("Data still pending, try to send it now", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
 		goto do_send;
+	}
 
 	/* Always release input buffer when a new send is evaluated */
 	check_release_buf(check, &check->bi);
@@ -1382,16 +1436,19 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	};
 
   do_send:
+	TRACE_DATA("send data", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
 	if (conn->mux->snd_buf(cs, &check->bo,
 			       (IS_HTX_CONN(conn) ? (htxbuf(&check->bo))->data: b_data(&check->bo)), 0) <= 0) {
 		if ((conn->flags & CO_FL_ERROR) || (cs->flags & CS_FL_ERROR)) {
 			ret = TCPCHK_EVAL_STOP;
+			TRACE_DEVEL("connection error during send", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA|CHK_EV_TX_ERR, check);
 			goto out;
 		}
 	}
 	if ((IS_HTX_CONN(conn) && !htx_is_empty(htxbuf(&check->bo))) || b_data(&check->bo)) {
 		cs->conn->mux->subscribe(cs, SUB_RETRY_SEND, &check->wait_list);
 		ret = TCPCHK_EVAL_WAIT;
+		TRACE_DEVEL("data not fully sent, wait", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA, check);
 		goto out;
 	}
 
@@ -1399,6 +1456,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	free_trash_chunk(tmp);
 	if (!b_data(&check->bo) || ret == TCPCHK_EVAL_STOP)
 		check_release_buf(check, &check->bo);
+
+	TRACE_LEAVE(CHK_EV_TCPCHK_SND, check, 0, 0, (size_t[]){ret});
 	return ret;
 
   error_htx:
@@ -1408,6 +1467,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
 	}
 	chunk_printf(&trash, "tcp-check send : failed to build HTTP request at step %d",
 		     tcpcheck_get_step_id(check, rule));
+	TRACE_ERROR("failed to build HTTP request", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA|CHK_EV_TCPCHK_ERR, check);
 	set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
 	ret = TCPCHK_EVAL_STOP;
 	goto out;
@@ -1415,6 +1475,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_send(struct check *check, struct tcpcheck_r
   error_lf:
 	chunk_printf(&trash, "tcp-check send : failed to build log-format string at step %d",
 		     tcpcheck_get_step_id(check, rule));
+	TRACE_ERROR("failed to build log-format string", CHK_EV_TCPCHK_SND|CHK_EV_TX_DATA|CHK_EV_TCPCHK_ERR, check);
 	set_server_check_status(check, HCHK_STATUS_L7RSP, trash.area);
 	ret = TCPCHK_EVAL_STOP;
 	goto out;
@@ -1435,17 +1496,24 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 	int is_empty;
 	int read_poll = MAX_READ_POLL_LOOPS;
 
-	if (check->wait_list.events & SUB_RETRY_RECV)
+	TRACE_ENTER(CHK_EV_RX_DATA, check);
+
+	if (check->wait_list.events & SUB_RETRY_RECV) {
+		TRACE_DEVEL("waiting for response", CHK_EV_RX_DATA, check);
 		goto wait_more_data;
+	}
 
 	if (cs->flags & CS_FL_EOS)
 		goto end_recv;
 
-	if (check->state & CHK_ST_IN_ALLOC)
+	if (check->state & CHK_ST_IN_ALLOC) {
+		TRACE_STATE("waiting for input buffer allocation", CHK_EV_RX_DATA|CHK_EV_RX_BLK, check);
 		goto wait_more_data;
+	}
 
 	if (!check_get_buf(check, &check->bi)) {
 		check->state |= CHK_ST_IN_ALLOC;
+		TRACE_STATE("waiting for input buffer allocation", CHK_EV_RX_DATA|CHK_EV_RX_BLK, check);
 		goto wait_more_data;
 	}
 
@@ -1474,11 +1542,13 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 		 * or not. It is very common that an RST sent by the server is
 		 * reported as an error just after the last data chunk.
 		 */
+		TRACE_ERROR("connection error during recv", CHK_EV_RX_DATA|CHK_EV_RX_ERR, check);
 		goto stop;
 	}
 	if (!cur_read) {
 		if (!(cs->flags & (CS_FL_WANT_ROOM|CS_FL_ERROR|CS_FL_EOS))) {
 			conn->mux->subscribe(cs, SUB_RETRY_RECV, &check->wait_list);
+			TRACE_DEVEL("waiting for response", CHK_EV_RX_DATA, check);
 			goto wait_more_data;
 		}
 		if (is_empty) {
@@ -1489,15 +1559,19 @@ enum tcpcheck_eval_ret tcpcheck_eval_recv(struct check *check, struct tcpcheck_r
 			if (rule->comment)
 				chunk_appendf(&trash, " comment: '%s'", rule->comment);
 
+			TRACE_ERROR("empty response", CHK_EV_RX_DATA|CHK_EV_RX_ERR, check);
 			status = ((rule->expect.err_status != HCHK_STATUS_UNKNOWN) ? rule->expect.err_status : HCHK_STATUS_L7RSP);
 			set_server_check_status(check, status, trash.area);
 			goto stop;
 		}
 	}
+	TRACE_DATA("data received", CHK_EV_RX_DATA, check, 0, 0, (size_t[]){cur_read});
 
   out:
 	if (!b_data(&check->bi) || ret == TCPCHK_EVAL_STOP)
 		check_release_buf(check, &check->bi);
+
+	TRACE_LEAVE(CHK_EV_RX_DATA, check, 0, 0, (size_t[]){ret});
 	return ret;
 
   stop:
@@ -1526,18 +1600,23 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 	struct ist desc = IST_NULL;
 	int i, match, inverse;
 
+	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
+
 	last_read |= (!htx_free_data_space(htx) || (htx->flags & HTX_FL_EOM));
 
 	if (htx->flags & HTX_FL_PARSING_ERROR) {
+		TRACE_ERROR("invalid response", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 		status = HCHK_STATUS_L7RSP;
 		goto error;
 	}
 
 	if (htx_is_empty(htx)) {
 		if (last_read) {
+			TRACE_ERROR("empty response received", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 			status = HCHK_STATUS_L7RSP;
 			goto error;
 		}
+		TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
 		goto wait_more_data;
 	}
 
@@ -1549,6 +1628,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 	    (check->server->next_state != SRV_ST_STOPPED) &&
 	    (check->code == 404)) {
 		/* 404 may be accepted as "stopping" only if the server was up */
+		TRACE_STATE("404 response & disable-404", CHK_EV_TCPCHK_EXP, check);
 		goto out;
 	}
 
@@ -1592,12 +1672,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 			if (!nbuf) {
 				status = HCHK_STATUS_L7RSP;
 				desc = ist("Failed to allocate buffer to eval log-format string");
+				TRACE_ERROR("buffer allocation failure", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 				goto error;
 			}
 			nbuf->data = sess_build_logline(check->sess, NULL, b_orig(nbuf), b_size(nbuf), &expect->hdr.name_fmt);
 			if (!b_data(nbuf)) {
 				status = HCHK_STATUS_L7RSP;
 				desc = ist("log-format string evaluated to an empty string");
+				TRACE_ERROR("invalid log-format string (hdr name)", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 				goto error;
 			}
 			npat = ist2(b_orig(nbuf), b_data(nbuf));
@@ -1610,12 +1692,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 			if (!vbuf) {
 				status = HCHK_STATUS_L7RSP;
 				desc = ist("Failed to allocate buffer to eval log-format string");
+				TRACE_ERROR("buffer allocation failure", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 				goto error;
 			}
 			vbuf->data = sess_build_logline(check->sess, NULL, b_orig(vbuf), b_size(vbuf), &expect->hdr.value_fmt);
 			if (!b_data(vbuf)) {
 				status = HCHK_STATUS_L7RSP;
 				desc = ist("log-format string evaluated to an empty string");
+				TRACE_ERROR("invalid log-format string (hdr value)", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 				goto error;
 			}
 			vpat = ist2(b_orig(vbuf), b_data(vbuf));
@@ -1727,11 +1811,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 		}
 
 		if (!b_data(&trash)) {
-			if (!last_read)
+			if (!last_read) {
+				TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
 				goto wait_more_data;
+			}
 			status = ((status != HCHK_STATUS_UNKNOWN) ? status : HCHK_STATUS_L7RSP);
 			if (LIST_ISEMPTY(&expect->onerror_fmt))
 				desc = ist("HTTP content check could not find a response body");
+			TRACE_ERROR("no response boduy found while expected", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 			goto error;
 		}
 
@@ -1740,12 +1827,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 			if (!tmp) {
 				status = HCHK_STATUS_L7RSP;
 				desc = ist("Failed to allocate buffer to eval log-format string");
+				TRACE_ERROR("buffer allocation failure", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 				goto error;
 			}
 			tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &expect->fmt);
 			if (!b_data(tmp)) {
 				status = HCHK_STATUS_L7RSP;
 				desc = ist("log-format string evaluated to an empty string");
+				TRACE_ERROR("invalid log-format string", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 				goto error;
 			}
 		}
@@ -1770,6 +1859,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 		 */
 		if (!match && !last_read && (expect->min_recv == -1)) {
 			ret = TCPCHK_EVAL_WAIT;
+			TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
 			goto out;
 		}
 
@@ -1788,17 +1878,23 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect_http(struct check *check, struct tcp
 		goto error;
 	}
 
-	if (!(match ^ inverse))
+	if (!(match ^ inverse)) {
+		TRACE_STATE("expect rule failed", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 		goto error;
+	}
+
+	TRACE_STATE("expect rule succeeded", CHK_EV_TCPCHK_EXP, check);
 
   out:
 	free_trash_chunk(tmp);
 	free_trash_chunk(nbuf);
 	free_trash_chunk(vbuf);
 	free_trash_chunk(msg);
+	TRACE_LEAVE(CHK_EV_TCPCHK_EXP, check, 0, 0, (size_t[]){ret});
 	return ret;
 
   error:
+	TRACE_STATE("expect rule failed", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 	ret = TCPCHK_EVAL_STOP;
 	msg = alloc_trash_chunk();
 	if (msg)
@@ -1824,6 +1920,8 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck
 	enum healthcheck_status status;
 	int match, inverse;
 
+	TRACE_ENTER(CHK_EV_TCPCHK_EXP, check);
+
 	last_read |= b_full(&check->bi);
 
 	/* The current expect might need more data than the previous one, check again
@@ -1833,10 +1931,12 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck
 		if ((expect->type == TCPCHK_EXPECT_STRING || expect->type == TCPCHK_EXPECT_BINARY) &&
 		    (b_data(&check->bi) < istlen(expect->data))) {
 			ret = TCPCHK_EVAL_WAIT;
+			TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
 			goto out;
 		}
 		if (expect->min_recv > 0 && (b_data(&check->bi) < expect->min_recv)) {
 			ret = TCPCHK_EVAL_WAIT;
+			TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
 			goto out;
 		}
 	}
@@ -1868,12 +1968,14 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck
 		if (!tmp) {
 			status = HCHK_STATUS_L7RSP;
 			desc = ist("Failed to allocate buffer to eval format string");
+			TRACE_ERROR("buffer allocation failure", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 			goto error;
 		}
 		tmp->data = sess_build_logline(check->sess, NULL, b_orig(tmp), b_size(tmp), &expect->fmt);
 		if (!b_data(tmp)) {
 			status = HCHK_STATUS_L7RSP;
 			desc = ist("log-format string evaluated to an empty string");
+			TRACE_ERROR("invalid log-format string", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 			goto error;
 		}
 		if (expect->type == TCPCHK_EXPECT_BINARY_LF) {
@@ -1881,6 +1983,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck
 			if (parse_binary(b_orig(tmp),  &tmp->area, &len, NULL) == 0) {
 				status = HCHK_STATUS_L7RSP;
 				desc = ist("Failed to parse hexastring resulting of eval of a log-format string");
+				TRACE_ERROR("invalid binary log-format string", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 				goto error;
 			}
 			tmp->data = len;
@@ -1888,6 +1991,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck
 		if (b_data(&check->bi) < tmp->data) {
 			if (!last_read) {
 				ret = TCPCHK_EVAL_WAIT;
+				TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
 				goto out;
 			}
 			break;
@@ -1911,15 +2015,19 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck
 	 */
 	if (!match && !last_read && (expect->min_recv == -1)) {
 		ret = TCPCHK_EVAL_WAIT;
+		TRACE_DEVEL("waiting for more data", CHK_EV_TCPCHK_EXP, check);
 		goto out;
 	}
 
 	/* Result as expected, next rule. */
-	if (match ^ inverse)
+	if (match ^ inverse) {
+		TRACE_STATE("expect rule succeeded", CHK_EV_TCPCHK_EXP, check);
 		goto out;
+	}
 
   error:
 	/* From this point on, we matched something we did not want, this is an error state. */
+	TRACE_STATE("expect rule failed", CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ERR, check);
 	ret = TCPCHK_EVAL_STOP;
 	msg = alloc_trash_chunk();
 	if (msg)
@@ -1929,6 +2037,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_expect(struct check *check, struct tcpcheck
 
   out:
 	free_trash_chunk(tmp);
+	TRACE_LEAVE(CHK_EV_TCPCHK_EXP, check, 0, 0, (size_t[]){ret});
 	return ret;
 }
 
@@ -1975,6 +2084,8 @@ int tcpcheck_main(struct check *check)
 	if (check->result != CHK_RES_UNKNOWN)
 		goto out;
 
+	TRACE_ENTER(CHK_EV_TCPCHK_EVAL, check);
+
 	/* Note: the conn-stream and the connection may only be undefined before
 	 * the first rule evaluation (it is always a connect rule) or when the
 	 * conn-stream allocation failed on a connect rule, during cs allocation.
@@ -1986,8 +2097,10 @@ int tcpcheck_main(struct check *check)
 
 	/* 2- check if a rule must be resume. It happens if check->current_step
 	 *    is defined. */
-	else if (check->current_step)
+	else if (check->current_step) {
 		rule = check->current_step;
+		TRACE_PROTO("resume rule evaluation", CHK_EV_TCPCHK_EVAL, check, 0, 0, (size_t[]){ tcpcheck_get_step_id(check, rule)});
+	}
 
 	/* 3- It is the first evaluation. We must create a session and preset
 	 *    tcp-check variables */
@@ -1998,6 +2111,7 @@ int tcpcheck_main(struct check *check)
 		check->sess = session_new(&checks_fe, NULL, &check->obj_type);
 		if (!check->sess) {
 			chunk_printf(&trash, "TCPCHK error allocating check session");
+			TRACE_ERROR("session allocation failure", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_ERR, check);
 			set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 			goto out_end_tcpcheck;
 		}
@@ -2013,6 +2127,7 @@ int tcpcheck_main(struct check *check)
 			smp.data = var->data;
 			vars_set_by_name_ifexist(istptr(var->name), istlen(var->name), &smp);
 		}
+		TRACE_PROTO("start rules evaluation", CHK_EV_TCPCHK_EVAL, check);
 	}
 
 	/* Now evaluate the tcp-check rules */
@@ -2031,10 +2146,12 @@ int tcpcheck_main(struct check *check)
 
 			/* We are still waiting the connection gets closed */
 			if (cs && (check->state & CHK_ST_CLOSE_CONN)) {
+				TRACE_DEVEL("wait previous connection closure", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_CONN, check);
 				eval_ret = TCPCHK_EVAL_WAIT;
 				break;
 			}
 
+			TRACE_PROTO("eval connect rule", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_CONN, check);
 			eval_ret = tcpcheck_eval_connect(check, rule);
 
 			/* Refresh conn-stream and connection */
@@ -2045,11 +2162,13 @@ int tcpcheck_main(struct check *check)
 			break;
 		case TCPCHK_ACT_SEND:
 			check->current_step = rule;
+			TRACE_PROTO("eval send rule", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_SND, check);
 			eval_ret = tcpcheck_eval_send(check, rule);
 			must_read = 1;
 			break;
 		case TCPCHK_ACT_EXPECT:
 			check->current_step = rule;
+			TRACE_PROTO("eval expect rule", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_EXP, check);
 			if (must_read) {
 				eval_ret = tcpcheck_eval_recv(check, rule);
 				if (eval_ret == TCPCHK_EVAL_STOP)
@@ -2072,6 +2191,7 @@ int tcpcheck_main(struct check *check)
 			break;
 		case TCPCHK_ACT_ACTION_KW:
 			/* Don't update the current step */
+			TRACE_PROTO("eval action kw rule", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_ACT, check);
 			eval_ret = tcpcheck_eval_action_kw(check, rule);
 			break;
 		default:
@@ -2096,6 +2216,8 @@ int tcpcheck_main(struct check *check)
 	if (check->current_step) {
 		rule = check->current_step;
 
+		TRACE_DEVEL("eval tcp-check result", CHK_EV_TCPCHK_EVAL, check);
+
 		if (rule->action == TCPCHK_ACT_EXPECT) {
 			struct buffer *msg;
 			enum healthcheck_status status;
@@ -2105,6 +2227,7 @@ int tcpcheck_main(struct check *check)
 			    (check->server->next_state != SRV_ST_STOPPED) &&
 			    (check->code == 404)) {
 				set_server_check_status(check, HCHK_STATUS_L7OKCD, NULL);
+				TRACE_PROTO("tcp-check conditionally passed (disable-404)", CHK_EV_TCPCHK_EVAL, check);
 				goto out_end_tcpcheck;
 			}
 
@@ -2127,18 +2250,23 @@ int tcpcheck_main(struct check *check)
 		else
 			set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
 	}
-	else
+	else {
 		set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
+	}
+	TRACE_PROTO("tcp-check passed", CHK_EV_TCPCHK_EVAL, check);
 
   out_end_tcpcheck:
-	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR))
+	if ((conn && conn->flags & CO_FL_ERROR) || (cs && cs->flags & CS_FL_ERROR)) {
+		TRACE_ERROR("report connection error", CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_ERR, check);
 		chk_report_conn_err(check, errno, 0);
+	}
 
 	/* the tcpcheck is finished, release in/out buffer now */
 	check_release_buf(check, &check->bi);
 	check_release_buf(check, &check->bo);
 
   out:
+	TRACE_LEAVE(CHK_EV_HCHK_RUN, check);
 	return retcode;
 }
 

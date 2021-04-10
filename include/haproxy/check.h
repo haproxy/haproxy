@@ -25,6 +25,39 @@
 #include <haproxy/check-t.h>
 #include <haproxy/proxy-t.h>
 #include <haproxy/server-t.h>
+#include <haproxy/trace-t.h>
+
+extern struct trace_source trace_check;
+
+/* Details about these events are defined in <src/check.c> */
+#define CHK_EV_TASK_WAKE       (1ULL <<  0)
+#define CHK_EV_HCHK_START      (1ULL <<  1)
+#define CHK_EV_HCHK_WAKE       (1ULL <<  2)
+#define CHK_EV_HCHK_RUN        (1ULL <<  3)
+#define CHK_EV_HCHK_END        (1ULL <<  4)
+#define CHK_EV_HCHK_SUCC       (1ULL <<  5)
+#define CHK_EV_HCHK_ERR        (1ULL <<  6)
+#define CHK_EV_HCHK            (CHK_EV_HCHK_START|CHK_EV_HCHK_WAKE|CHK_EV_HCHK_RUN|\
+				CHK_EV_HCHK_END|CHK_EV_HCHK_SUCC|CHK_EV_HCHK_ERR)
+
+#define CHK_EV_TCPCHK_EVAL     (1ULL <<  7)
+#define CHK_EV_TCPCHK_ERR      (1ULL <<  8)
+#define CHK_EV_TCPCHK_CONN     (1ULL <<  9)
+#define CHK_EV_TCPCHK_SND      (1ULL << 10)
+#define CHK_EV_TCPCHK_EXP      (1ULL << 11)
+#define CHK_EV_TCPCHK_ACT      (1ULL << 12)
+#define CHK_EV_TCPCHK          (CHK_EV_TCPCHK_EVAL|CHK_EV_TCPCHK_ERR|CHK_EV_TCPCHK_CONN|\
+				CHK_EV_TCPCHK_SND|CHK_EV_TCPCHK_EXP|CHK_EV_TCPCHK_ACT)
+
+#define CHK_EV_RX_DATA         (1ULL << 13)
+#define CHK_EV_RX_BLK          (1ULL << 14)
+#define CHK_EV_RX_ERR          (1ULL << 15)
+#define CHK_EV_RX              (CHK_EV_RX_DATA|CHK_EV_RX_BLK|CHK_EV_RX_ERR)
+
+#define CHK_EV_TX_DATA         (1ULL << 16)
+#define CHK_EV_TX_BLK          (1ULL << 17)
+#define CHK_EV_TX_ERR          (1ULL << 18)
+#define CHK_EV_TX              (CHK_EV_TX_DATA|CHK_EV_TX_BLK|CHK_EV_TX_ERR)
 
 extern struct data_cb check_conn_cb;
 extern struct proxy checks_fe;
