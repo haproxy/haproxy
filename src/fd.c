@@ -95,14 +95,14 @@
 #include <haproxy/tools.h>
 
 
-struct fdtab *fdtab = NULL;     /* array of all the file descriptors */
-struct polled_mask *polled_mask = NULL; /* Array for the polled_mask of each fd */
-struct fdinfo *fdinfo = NULL;   /* less-often used infos for file descriptors */
+struct fdtab *fdtab             __read_mostly = NULL;  /* array of all the file descriptors */
+struct polled_mask *polled_mask __read_mostly = NULL;  /* Array for the polled_mask of each fd */
+struct fdinfo *fdinfo           __read_mostly = NULL;  /* less-often used infos for file descriptors */
 int totalconn;                  /* total # of terminated sessions */
 int actconn;                    /* # of active sessions */
 
-struct poller pollers[MAX_POLLERS];
-struct poller cur_poller;
+struct poller pollers[MAX_POLLERS] __read_mostly;
+struct poller cur_poller           __read_mostly;
 int nbpollers = 0;
 
 volatile struct fdlist update_list; // Global update list
@@ -110,7 +110,7 @@ volatile struct fdlist update_list; // Global update list
 THREAD_LOCAL int *fd_updt  = NULL;  // FD updates list
 THREAD_LOCAL int  fd_nbupdt = 0;   // number of updates in the list
 THREAD_LOCAL int poller_rd_pipe = -1; // Pipe to wake the thread
-int poller_wr_pipe[MAX_THREADS]; // Pipe to wake the threads
+int poller_wr_pipe[MAX_THREADS] __read_mostly; // Pipe to wake the threads
 
 volatile int ha_used_fds = 0; // Number of FD we're currently using
 
