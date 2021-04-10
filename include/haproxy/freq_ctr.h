@@ -170,6 +170,31 @@ static inline uint freq_ctr_remain_period(struct freq_ctr_period *ctr, uint peri
  */
 unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned int pend);
 
+/* return the expected wait time in ms before the next event may occur,
+ * respecting frequency <freq>, and assuming there may already be some pending
+ * events. It returns zero if we can proceed immediately, otherwise the wait
+ * time, which will be rounded down 1ms for better accuracy, with a minimum
+ * of one ms.
+ */
+static inline uint next_event_delay_period(struct freq_ctr_period *ctr, uint period, uint freq, uint pend)
+{
+	ullong total = freq_ctr_total(ctr, period, pend);
+	ullong limit = (ullong)freq * period;
+	uint wait;
+
+	if (total < limit)
+		return 0;
+
+	/* too many events already, let's count how long to wait before they're
+	 * processed. For this we'll subtract from the number of pending events
+	 * the ones programmed for the current period, to know how long to wait
+	 * for the next period. Each event takes period/freq ticks.
+	 */
+	total -= limit;
+	wait = div64_32(total, (freq ? freq : 1));
+	return MAX(wait, 1);
+}
+
 /* process freq counters over configurable periods */
 unsigned int read_freq_ctr_period(struct freq_ctr_period *ctr, unsigned int period);
 
