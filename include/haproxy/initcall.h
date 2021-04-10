@@ -85,7 +85,7 @@ struct initcall {
 #ifdef __APPLE__
 #define HA_SECTION(s) __section__("__DATA, i_" # s)
 #else
-#define HA_SECTION(s) __section__("init_" # s)
+#define HA_SECTION(s) __section__("i_" # s)
 #endif
 
 /* Declare a static variable in the init section dedicated to stage <stg>,
@@ -101,8 +101,8 @@ struct initcall {
 #define __GLOBL1(sym)   __asm__(".globl " #sym)
 #define __GLOBL(sym)    __GLOBL1(sym)
 #define __DECLARE_INITCALL(stg, linenum, function, a1, a2, a3)     \
-        __GLOBL(__start_init_##stg );                              \
-	__GLOBL(__stop_init_##stg );                               \
+        __GLOBL(__start_i_##stg );                                 \
+        __GLOBL(__stop_i_##stg );                                  \
 	static const struct initcall *__initcb_##linenum           \
 	    __attribute__((__used__,HA_SECTION(stg))) =            \
 	        (stg < STG_SIZE) ? &(const struct initcall) {      \
@@ -179,7 +179,7 @@ __attribute__((constructor)) static void __initcb_##linenum()      \
  * stage <stg>.
  */
 #define FOREACH_INITCALL(p,stg)                                               \
-	for ((p) = &(__start_init_##stg); (p) < &(__stop_init_##stg); (p)++)
+	for ((p) = &(__start_i_##stg); (p) < &(__stop_i_##stg); (p)++)
 
 #else // USE_OBSOLETE_LINKER
 
@@ -197,13 +197,13 @@ __attribute__((constructor)) static void __initcb_##linenum()      \
  */
 #ifdef __APPLE__
 #define DECLARE_INIT_SECTION(stg)                                                   \
-	extern __attribute__((__weak__)) const struct initcall *__start_init_##stg __asm("section$start$__DATA$i_" # stg); \
-	extern __attribute__((__weak__)) const struct initcall *__stop_init_##stg __asm("section$end$__DATA$i_" # stg)
+	extern __attribute__((__weak__)) const struct initcall *__start_i_##stg __asm("section$start$__DATA$i_" # stg); \
+	extern __attribute__((__weak__)) const struct initcall *__stop_i_##stg __asm("section$end$__DATA$i_" # stg)
 
 #else
 #define DECLARE_INIT_SECTION(stg)                                                   \
-	extern __attribute__((__weak__)) const struct initcall *__start_init_##stg; \
-	extern __attribute__((__weak__)) const struct initcall *__stop_init_##stg
+	extern __attribute__((__weak__)) const struct initcall *__start_i_##stg; \
+	extern __attribute__((__weak__)) const struct initcall *__stop_i_##stg
 #endif
 
 /* Declare all initcall sections here */
