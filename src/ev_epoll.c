@@ -26,7 +26,7 @@
 
 /* private data */
 static THREAD_LOCAL struct epoll_event *epoll_events = NULL;
-static int epoll_fd[MAX_THREADS]; // per-thread epoll_fd
+static int epoll_fd[MAX_THREADS] __read_mostly; // per-thread epoll_fd
 
 #ifndef EPOLLRDHUP
 /* EPOLLRDHUP was defined late in libc, and it appeared in kernel 2.6.17 */
