@@ -20,7 +20,7 @@
 #include "include.h"
 
 
-static struct pool_head *pool_head_ot_span_context = NULL;
+static struct pool_head *pool_head_ot_span_context __read_mostly = NULL;
 
 #ifdef USE_POOL_OT_SPAN_CONTEXT
 REGISTER_POOL(&pool_head_ot_span_context, "ot_span_context", MAX(sizeof(struct otc_span), sizeof(struct otc_span_context)));

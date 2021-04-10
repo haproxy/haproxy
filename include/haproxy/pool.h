@@ -37,12 +37,12 @@
 
 /* This macro declares a pool head <ptr> and registers its creation */
 #define DECLARE_POOL(ptr, name, size)   \
-	struct pool_head *(ptr) = NULL; \
+	struct pool_head *(ptr) __read_mostly = NULL; \
 	REGISTER_POOL(&ptr, name, size)
 
 /* This macro declares a static pool head <ptr> and registers its creation */
 #define DECLARE_STATIC_POOL(ptr, name, size) \
-	static struct pool_head *(ptr);      \
+	static struct pool_head *(ptr) __read_mostly; \
 	REGISTER_POOL(&ptr, name, size)
 
 /* poison each newly allocated area with this byte if >= 0 */

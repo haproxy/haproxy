@@ -43,7 +43,7 @@
 
 
 static struct list pid_list = LIST_HEAD_INIT(pid_list);
-static struct pool_head *pool_head_pid_list;
+static struct pool_head *pool_head_pid_list __read_mostly;
 __decl_spinlock(pid_list_lock);
 
 struct extcheck_env {

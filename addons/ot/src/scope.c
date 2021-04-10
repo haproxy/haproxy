@@ -20,9 +20,9 @@
 #include "include.h"
 
 
-static struct pool_head *pool_head_ot_scope_span = NULL;
-static struct pool_head *pool_head_ot_scope_context = NULL;
-static struct pool_head *pool_head_ot_runtime_context = NULL;
+static struct pool_head *pool_head_ot_scope_span __read_mostly = NULL;
+static struct pool_head *pool_head_ot_scope_context __read_mostly = NULL;
+static struct pool_head *pool_head_ot_runtime_context __read_mostly = NULL;
 
 #ifdef USE_POOL_OT_SCOPE_SPAN
 REGISTER_POOL(&pool_head_ot_scope_span, "ot_scope_span", sizeof(struct flt_ot_scope_span));

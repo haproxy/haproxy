@@ -42,8 +42,8 @@
 
 extern const char *stat_status_codes[];
 
-struct pool_head *pool_head_requri = NULL;
-struct pool_head *pool_head_capture = NULL;
+struct pool_head *pool_head_requri __read_mostly = NULL;
+struct pool_head *pool_head_capture __read_mostly = NULL;
 
 
 static void http_end_request(struct stream *s);

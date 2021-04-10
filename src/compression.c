@@ -48,11 +48,11 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size);
 static void free_zlib(void *opaque, void *ptr);
 
 /* zlib allocation  */
-static struct pool_head *zlib_pool_deflate_state = NULL;
-static struct pool_head *zlib_pool_window = NULL;
-static struct pool_head *zlib_pool_prev = NULL;
-static struct pool_head *zlib_pool_head = NULL;
-static struct pool_head *zlib_pool_pending_buf = NULL;
+static struct pool_head *zlib_pool_deflate_state __read_mostly = NULL;
+static struct pool_head *zlib_pool_window __read_mostly = NULL;
+static struct pool_head *zlib_pool_prev __read_mostly = NULL;
+static struct pool_head *zlib_pool_head __read_mostly = NULL;
+static struct pool_head *zlib_pool_pending_buf __read_mostly = NULL;
 
 long zlib_used_memory = 0;
 

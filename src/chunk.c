@@ -26,12 +26,12 @@ static THREAD_LOCAL struct buffer trash_chunk1;
 static THREAD_LOCAL struct buffer trash_chunk2;
 
 /* trash buffers used for various conversions */
-static int trash_size;
+static int trash_size __read_mostly;
 static THREAD_LOCAL char *trash_buf1;
 static THREAD_LOCAL char *trash_buf2;
 
 /* the trash pool for reentrant allocations */
-struct pool_head *pool_head_trash = NULL;
+struct pool_head *pool_head_trash __read_mostly = NULL;
 
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
 THREAD_LOCAL struct buffer trash = { };

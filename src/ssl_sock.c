@@ -482,14 +482,14 @@ static STACK_OF(X509_NAME)* ssl_get_client_ca_file(char *path)
 	return ca_e->ca_list;
 }
 
-struct pool_head *pool_head_ssl_capture = NULL;
+struct pool_head *pool_head_ssl_capture __read_mostly = NULL;
 int ssl_capture_ptr_index = -1;
 int ssl_app_data_index = -1;
 
 #ifdef HAVE_OPENSSL_KEYLOG
 int ssl_keylog_index = -1;
-struct pool_head *pool_head_ssl_keylog = NULL;
-struct pool_head *pool_head_ssl_keylog_str = NULL;
+struct pool_head *pool_head_ssl_keylog __read_mostly = NULL;
+struct pool_head *pool_head_ssl_keylog_str __read_mostly = NULL;
 #endif
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)

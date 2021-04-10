@@ -99,7 +99,7 @@ const struct http_hdr hpack_sht[HPACK_SHT_SIZE] = {
 	[61] = { .n = IST("www-authenticate"),             .v = IST("")              },
 };
 
-struct pool_head *pool_head_hpack_tbl = NULL;
+struct pool_head *pool_head_hpack_tbl __read_mostly = NULL;
 
 #ifdef DEBUG_HPACK
 /* dump the whole dynamic header table */
