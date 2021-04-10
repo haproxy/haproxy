@@ -66,7 +66,7 @@ static struct srv_kw_list srv_keywords = {
 
 __decl_thread(HA_SPINLOCK_T idle_conn_srv_lock);
 struct eb_root idle_conn_srv = EB_ROOT;
-struct task *idle_conn_task = NULL;
+struct task *idle_conn_task __read_mostly = NULL;
 struct list servers_list = LIST_HEAD_INIT(servers_list);
 
 /* The server names dictionary */
