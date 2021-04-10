@@ -50,7 +50,7 @@ static inline unsigned int update_freq_ctr_period(struct freq_ctr *ctr,
 
 		/* remove the bit, used for the lock */
 		curr_tick &= ~1;
-	} while (!_HA_ATOMIC_CAS(&ctr->curr_tick, &curr_tick, curr_tick | 0x1));
+	} while (!_HA_ATOMIC_CAS(&ctr->curr_tick, &curr_tick, curr_tick | 0x1) && __ha_cpu_relax());
 	__ha_barrier_atomic_store();
 
 	if (now_ms_tmp - curr_tick >= period) {
