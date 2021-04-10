@@ -166,64 +166,6 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
 	return MAX(wait, 1);
 }
 
-/* Reads a frequency counter taking history into account for missing time in
- * current period. The period has to be passed in number of ticks and must
- * match the one used to feed the counter. The counter value is reported for
- * current global date. The return value has the same precision as one input
- * data sample, so low rates over the period will be inaccurate but still
- * appropriate for max checking. One trick we use for low values is to specially
- * handle the case where the rate is between 0 and 1 in order to avoid flapping
- * while waiting for the next event.
- *
- * For immediate limit checking, it's recommended to use freq_ctr_period_remain()
- * instead which does not have the flapping correction, so that even frequencies
- * as low as one event/period are properly handled.
- *
- * For measures over a 1-second period, it's better to use the implicit functions
- * above.
- */
-unsigned int read_freq_ctr_period(struct freq_ctr_period *ctr, unsigned int period)
-{
-	unsigned int _curr, _past, curr, past;
-	unsigned int remain, _curr_tick, curr_tick;
-
-	while (1) {
-		_curr = ctr->curr_ctr;
-		__ha_compiler_barrier();
-		_past = ctr->prev_ctr;
-		__ha_compiler_barrier();
-		_curr_tick = ctr->curr_tick;
-		__ha_compiler_barrier();
-		if (_curr_tick & 0x1)
-			continue;
-		curr = ctr->curr_ctr;
-		__ha_compiler_barrier();
-		past = ctr->prev_ctr;
-		__ha_compiler_barrier();
-		curr_tick = ctr->curr_tick;
-		__ha_compiler_barrier();
-		if (_curr == curr && _past == past && _curr_tick == curr_tick)
-			break;
-	};
-
-	remain = curr_tick + period - global_now_ms;
-	if (unlikely((int)remain < 0)) {
-		/* We're past the first period, check if we can still report a
-		 * part of last period or if we're too far away.
-		 */
-		remain += period;
-		if ((int)remain < 0)
-			return 0;
-		past = curr;
-		curr = 0;
-	}
-	if (past <= 1 && !curr)
-		return past; /* very low rate, avoid flapping */
-
-	curr += div64_32((unsigned long long)past * remain, period);
-	return curr;
-}
-
 /* Returns the number of remaining events that can occur on this freq counter
  * while respecting <freq> events per period, and taking into account that
  * <pend> events are already known to be pending. Returns 0 if limit was reached.

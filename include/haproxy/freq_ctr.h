@@ -122,6 +122,26 @@ static inline unsigned int update_freq_ctr_period(struct freq_ctr_period *ctr,
  */
 unsigned int read_freq_ctr(struct freq_ctr *ctr);
 
+/* Reads a frequency counter taking history into account for missing time in
+ * current period. The period has to be passed in number of ticks and must
+ * match the one used to feed the counter. The counter value is reported for
+ * current global date. The return value has the same precision as one input
+ * data sample, so low rates over the period will be inaccurate but still
+ * appropriate for max checking. One trick we use for low values is to specially
+ * handle the case where the rate is between 0 and 1 in order to avoid flapping
+ * while waiting for the next event.
+ *
+ * For immediate limit checking, it's recommended to use freq_ctr_period_remain()
+ * instead which does not have the flapping correction, so that even frequencies
+ * as low as one event/period are properly handled.
+ */
+static inline uint read_freq_ctr_period(struct freq_ctr_period *ctr, uint period)
+{
+	ullong total = freq_ctr_total(ctr, period, -1);
+
+	return div64_32(total, period);
+}
+
 /* returns the number of remaining events that can occur on this freq counter
  * while respecting <freq> and taking into account that <pend> events are
  * already known to be pending. Returns 0 if limit was reached.
