@@ -34,10 +34,10 @@ THREAD_LOCAL struct thread_info *ti = &ha_thread_info[0];
 
 #ifdef USE_THREAD
 
-volatile unsigned long threads_want_rdv_mask = 0;
+volatile unsigned long threads_want_rdv_mask __read_mostly = 0;
 volatile unsigned long threads_harmless_mask = 0;
 volatile unsigned long threads_sync_mask = 0;
-volatile unsigned long all_threads_mask  = 1; // nbthread 1 assumed by default
+volatile unsigned long all_threads_mask __read_mostly  = 1; // nbthread 1 assumed by default
 THREAD_LOCAL unsigned int  tid           = 0;
 THREAD_LOCAL unsigned long tid_bit       = (1UL << 0);
 int thread_cpus_enabled_at_boot          = 1;
