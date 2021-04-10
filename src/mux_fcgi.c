@@ -335,7 +335,7 @@ static const struct name_desc fcgi_trace_decoding[] = {
 	{ /* end */ }
 };
 
-static struct trace_source trace_fcgi = {
+static struct trace_source trace_fcgi __read_mostly = {
 	.name = IST("fcgi"),
 	.desc = "FastCGI multiplexer",
 	.arg_def = TRC_ARG1_CONN,  // TRACE()'s first argument is always a connection

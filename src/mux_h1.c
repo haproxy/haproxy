@@ -244,7 +244,7 @@ static const struct name_desc h1_trace_decoding[] = {
 	{ /* end */ }
 };
 
-static struct trace_source trace_h1 = {
+static struct trace_source trace_h1 __read_mostly = {
 	.name = IST("h1"),
 	.desc = "HTTP/1 multiplexer",
 	.arg_def = TRC_ARG1_CONN,  // TRACE()'s first argument is always a connection
