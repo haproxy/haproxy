@@ -27,7 +27,7 @@
 
 
 /* private data */
-static int kqueue_fd[MAX_THREADS]; // per-thread kqueue_fd
+static int kqueue_fd[MAX_THREADS] __read_mostly; // per-thread kqueue_fd
 static THREAD_LOCAL struct kevent *kev = NULL;
 static struct kevent *kev_out = NULL; // Trash buffer for kevent() to write the eventlist in
 
