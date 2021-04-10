@@ -24,7 +24,7 @@
 
 /* List head of all registered protocols */
 static struct list protocols = LIST_HEAD_INIT(protocols);
-struct protocol *__protocol_by_family[AF_CUST_MAX][2][2] = { };
+struct protocol *__protocol_by_family[AF_CUST_MAX][2][2] __read_mostly = { };
 
 /* This is the global spinlock we may need to register/unregister listeners or
  * protocols. Its main purpose is in fact to serialize the rare stop/deinit()
