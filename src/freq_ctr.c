@@ -166,56 +166,6 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
 	return MAX(wait, 1);
 }
 
-/* Returns the number of remaining events that can occur on this freq counter
- * while respecting <freq> events per period, and taking into account that
- * <pend> events are already known to be pending. Returns 0 if limit was reached.
- */
-unsigned int freq_ctr_remain_period(struct freq_ctr_period *ctr, unsigned int period,
-				    unsigned int freq, unsigned int pend)
-{
-	unsigned int _curr, _past, curr, past;
-	unsigned int remain, _curr_tick, curr_tick;
-
-	while (1) {
-		_curr = ctr->curr_ctr;
-		__ha_compiler_barrier();
-		_past = ctr->prev_ctr;
-		__ha_compiler_barrier();
-		_curr_tick = ctr->curr_tick;
-		__ha_compiler_barrier();
-		if (_curr_tick & 0x1)
-			continue;
-		curr = ctr->curr_ctr;
-		__ha_compiler_barrier();
-		past = ctr->prev_ctr;
-		__ha_compiler_barrier();
-		curr_tick = ctr->curr_tick;
-		__ha_compiler_barrier();
-		if (_curr == curr && _past == past && _curr_tick == curr_tick)
-			break;
-	};
-
-	remain = curr_tick + period - global_now_ms;
-	if (likely((int)remain < 0)) {
-		/* We're past the first period, check if we can still report a
-		 * part of last period or if we're too far away.
-		 */
-		past = curr;
-		curr = 0;
-		remain += period;
-		if ((int)remain < 0)
-			past = 0;
-	}
-	if (likely(past))
-		curr += div64_32((unsigned long long)past * remain, period);
-
-	curr += pend;
-	freq -= curr;
-	if ((int)freq < 0)
-		freq = 0;
-	return freq;
-}
-
 /* Returns the total number of events over the current + last period, including
  * a number of already pending events <pend>. The average frequency will be
  * obtained by dividing the output by <period>. This is essentially made to

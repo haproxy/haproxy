@@ -148,6 +148,20 @@ static inline uint read_freq_ctr_period(struct freq_ctr_period *ctr, uint period
  */
 unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned int pend);
 
+/* Returns the number of remaining events that can occur on this freq counter
+ * while respecting <freq> events per period, and taking into account that
+ * <pend> events are already known to be pending. Returns 0 if limit was reached.
+ */
+static inline uint freq_ctr_remain_period(struct freq_ctr_period *ctr, uint period, uint freq, uint pend)
+{
+	ullong total = freq_ctr_total(ctr, period, pend);
+	uint avg     = div64_32(total, period);
+
+	if (avg > freq)
+		avg = freq;
+	return freq - avg;
+}
+
 /* return the expected wait time in ms before the next event may occur,
  * respecting frequency <freq>, and assuming there may already be some pending
  * events. It returns zero if we can proceed immediately, otherwise the wait
@@ -158,8 +172,6 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
 
 /* process freq counters over configurable periods */
 unsigned int read_freq_ctr_period(struct freq_ctr_period *ctr, unsigned int period);
-unsigned int freq_ctr_remain_period(struct freq_ctr_period *ctr, unsigned int period,
-				    unsigned int freq, unsigned int pend);
 
 /* While the functions above report average event counts per period, we are
  * also interested in average values per event. For this we use a different
