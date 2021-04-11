@@ -178,7 +178,7 @@ int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
 void tv_update_date(int max_wait, int interrupted)
 {
 	struct timeval adjusted, deadline, tmp_now;
-	unsigned int old_now_ms, new_now_ms;
+	unsigned int old_now_ms;
 	unsigned long long old_now;
 	unsigned long long new_now;
 
@@ -206,10 +206,12 @@ void tv_update_date(int max_wait, int interrupted)
 	 * otherwise catch up.
 	 */
 	old_now = global_now;
+	old_now_ms = global_now_ms;
 
 	do {
 		tmp_now.tv_sec  = (unsigned int)(old_now >> 32);
 		tmp_now.tv_usec = old_now & 0xFFFFFFFFU;
+		old_now_ms = tmp_now.tv_sec * 1000 + tmp_now.tv_usec / 1000;
 
 		if (__tv_islt(&now, &tmp_now))
 			now = tmp_now;
@@ -218,9 +220,15 @@ void tv_update_date(int max_wait, int interrupted)
 		 * equal to <global_now> or newer.
 		 */
 		new_now = ((ullong)now.tv_sec << 32) + (uint)now.tv_usec;
+		now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
+		if (tick_is_lt(now_ms, old_now_ms))
+			now_ms = old_now_ms;
 
-		/* let's try to update the global <now> or loop again */
-	} while (!_HA_ATOMIC_CAS(&global_now, &old_now, new_now));
+		/* let's try to update the global <now> (both in timeval
+		 * and ms forms) or loop again.
+		 */
+	} while (!_HA_ATOMIC_CAS(&global_now, &old_now, new_now) ||
+		 !_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, now_ms));
 
 	/* the new global date when we looked was old_now, and the new one is
 	 * new_now == now. We can recompute our local offset.
@@ -231,16 +239,6 @@ void tv_update_date(int max_wait, int interrupted)
 		tv_offset.tv_usec += 1000000;
 		tv_offset.tv_sec--;
 	}
-
-	now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
-
-	/* update the global current millisecond */
-	old_now_ms = global_now_ms;
-	do {
-		new_now_ms = old_now_ms;
-		if (tick_is_lt(new_now_ms, now_ms))
-			new_now_ms = now_ms;
-	}  while (!_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, new_now_ms));
 
 	return;
 }
