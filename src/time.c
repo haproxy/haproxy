@@ -177,7 +177,7 @@ int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
  */
 void tv_update_date(int max_wait, int interrupted)
 {
-	struct timeval adjusted, deadline, tmp_now, tmp_adj;
+	struct timeval adjusted, deadline, tmp_now;
 	unsigned int old_now_ms, new_now_ms;
 	unsigned long long old_now;
 	unsigned long long new_now;
@@ -199,6 +199,8 @@ void tv_update_date(int max_wait, int interrupted)
 		_tv_ms_add(&adjusted, &now, interrupted ? 0 : max_wait);
 	}
 
+	now = adjusted;
+
 	/* now that we have bounded the local time, let's check if it's
 	 * realistic regarding the global date, which only moves forward,
 	 * otherwise catch up.
@@ -208,32 +210,28 @@ void tv_update_date(int max_wait, int interrupted)
 	do {
 		tmp_now.tv_sec  = (unsigned int)(old_now >> 32);
 		tmp_now.tv_usec = old_now & 0xFFFFFFFFU;
-		tmp_adj = adjusted;
 
-		if (__tv_islt(&tmp_adj, &tmp_now))
-			tmp_adj = tmp_now;
+		if (__tv_islt(&now, &tmp_now))
+			now = tmp_now;
 
-		/* now <adjusted> is expected to be the most accurate date,
+		/* now <now> is expected to be the most accurate date,
 		 * equal to <global_now> or newer.
 		 */
-		new_now = (((unsigned long long)tmp_adj.tv_sec) << 32) + (unsigned int)tmp_adj.tv_usec;
+		new_now = ((ullong)now.tv_sec << 32) + (uint)now.tv_usec;
 
 		/* let's try to update the global <now> or loop again */
 	} while (!_HA_ATOMIC_CAS(&global_now, &old_now, new_now));
 
-	adjusted = tmp_adj;
-
 	/* the new global date when we looked was old_now, and the new one is
-	 * new_now == adjusted. We can recompute our local offset.
+	 * new_now == now. We can recompute our local offset.
 	 */
-	tv_offset.tv_sec  = adjusted.tv_sec  - date.tv_sec;
-	tv_offset.tv_usec = adjusted.tv_usec - date.tv_usec;
+	tv_offset.tv_sec  = now.tv_sec  - date.tv_sec;
+	tv_offset.tv_usec = now.tv_usec - date.tv_usec;
 	if (tv_offset.tv_usec < 0) {
 		tv_offset.tv_usec += 1000000;
 		tv_offset.tv_sec--;
 	}
 
-	now = adjusted;
 	now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
 
 	/* update the global current millisecond */
