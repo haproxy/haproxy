@@ -27,9 +27,9 @@ struct timeval start_date;      /* the process's start date */
 THREAD_LOCAL struct timeval before_poll;     /* system date before calling poll() */
 THREAD_LOCAL struct timeval after_poll;      /* system date after leaving poll() */
 
-static THREAD_LOCAL struct timeval tv_offset;  /* per-thread time ofsset relative to global time */
-volatile unsigned long long global_now;      /* common date between all threads (32:32) */
-volatile unsigned int global_now_ms;         /* common date in milliseconds (may wrap) */
+static unsigned long long now_offset;        /* global offset between system time and global time */
+volatile unsigned long long global_now;      /* common monotonic date between all threads (32:32) */
+volatile unsigned int global_now_ms;         /* common monotonic date in milliseconds (may wrap) */
 
 static THREAD_LOCAL unsigned int iso_time_sec;     /* last iso time value for this thread */
 static THREAD_LOCAL char         iso_time_str[34]; /* ISO time representation of gettimeofday() */
@@ -168,38 +168,61 @@ int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
  * tv_init_process_date() must have been called once first, and
  * tv_init_thread_date() must also have been called once for each thread.
  *
- * An offset is used to adjust the current time (date), to have a monotonic time
- * (now). It must be global and thread-safe. But a timeval cannot be atomically
- * updated. So instead, we store it in a 64-bits integer (offset) whose 32 MSB
- * contain the signed seconds adjustment and the 32 LSB contain the unsigned
- * microsecond adjustment. We cannot use a timeval for this since it's never
- * clearly specified whether a timeval may hold negative values or not.
+ * An offset is used to adjust the current time (date), to figure a monotonic
+ * local time (now). The offset is not critical, as it is only updated after a
+ * clock jump is detected. From this point all threads will apply it to their
+ * locally measured time, and will then agree around a common monotonic
+ * global_now value that serves to further refine their local time. As it is
+ * not possible to atomically update a timeval, both global_now and the
+ * now_offset values are instead stored as 64-bit integers made of two 32 bit
+ * values for the tv_sec and tv_usec parts. The offset is made of two signed
+ * ints so that the clock can be adjusted in the two directions.
  */
 void tv_update_date(int max_wait, int interrupted)
 {
-	struct timeval adjusted, deadline, tmp_now;
+	struct timeval min_deadline, max_deadline, tmp_now;
 	unsigned int old_now_ms;
 	unsigned long long old_now;
 	unsigned long long new_now;
+	ullong ofs = HA_ATOMIC_LOAD(&now_offset);
+	uint sec_ofs, usec_ofs;
 
 	gettimeofday(&date, NULL);
-	__tv_add(&adjusted, &date, &tv_offset);
 
 	/* compute the minimum and maximum local date we may have reached based
-	 * on our past date and the associated timeout.
+	 * on our past date and the associated timeout. There are three possible
+	 * extremities:
+	 *    - the new date cannot be older than before_poll
+	 *    - if not interrupted, the new date cannot be older than
+	 *      before_poll+max_wait
+	 *    - in any case the new date cannot be newer than
+	 *      before_poll+max_wait+some margin (100ms used here).
+	 * In case of violation, we'll ignore the current date and instead
+	 * restart from the last date we knew.
 	 */
-	_tv_ms_add(&deadline, &now, max_wait + MAX_DELAY_MS);
+	_tv_ms_add(&min_deadline, &before_poll, max_wait);
+	_tv_ms_add(&max_deadline, &before_poll, max_wait + 100);
 
-	if (unlikely(__tv_islt(&adjusted, &now) || __tv_islt(&deadline, &adjusted))) {
-		/* Large jump. If the poll was interrupted, we consider that the
-		 * date has not changed (immediate wake-up), otherwise we add
-		 * the poll time-out to the previous date. The new offset is
-		 * recomputed.
+	if (unlikely(__tv_islt(&date, &before_poll)                    || // big jump backwards
+		     (!interrupted && __tv_islt(&date, &min_deadline)) || // small jump backwards
+		     __tv_islt(&max_deadline, &date))) {                  // big jump forwards
+		if (!interrupted)
+			_tv_ms_add(&now, &now, max_wait);
+	} else {
+		/* The date is still within expectations. Let's apply the
+		 * now_offset to the system date. Note: ofs if made of two
+		 * independent signed ints.
 		 */
-		_tv_ms_add(&adjusted, &now, interrupted ? 0 : max_wait);
+		now.tv_sec  = date.tv_sec  + (int)(ofs >> 32); // note: may be positive or negative
+		now.tv_usec = date.tv_usec + (int)ofs;         // note: may be positive or negative
+		if ((int)now.tv_usec < 0) {
+			now.tv_usec += 1000000;
+			now.tv_sec  -= 1;
+		} else if (now.tv_usec >= 1000000) {
+			now.tv_usec -= 1000000;
+			now.tv_sec  += 1;
+		}
 	}
-
-	now = adjusted;
 
 	/* now that we have bounded the local time, let's check if it's
 	 * realistic regarding the global date, which only moves forward,
@@ -230,23 +253,26 @@ void tv_update_date(int max_wait, int interrupted)
 	} while (!_HA_ATOMIC_CAS(&global_now, &old_now, new_now) ||
 		 !_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, now_ms));
 
-	/* the new global date when we looked was old_now, and the new one is
-	 * new_now == now. We can recompute our local offset.
+	/* <now> and <now_ms> are now updated to the last value of global_now
+	 * and global_now_ms, which were also monotonically updated. We can
+	 * compute the latest offset, we don't care who writes it last, the
+	 * variations will not break the monotonic property.
 	 */
-	tv_offset.tv_sec  = now.tv_sec  - date.tv_sec;
-	tv_offset.tv_usec = now.tv_usec - date.tv_usec;
-	if (tv_offset.tv_usec < 0) {
-		tv_offset.tv_usec += 1000000;
-		tv_offset.tv_sec--;
-	}
 
-	return;
+	sec_ofs  = now.tv_sec  - date.tv_sec;
+	usec_ofs = now.tv_usec - date.tv_usec;
+	if ((int)usec_ofs < 0) {
+		usec_ofs += 1000000;
+		sec_ofs  -= 1;
+	}
+	ofs = ((ullong)sec_ofs << 32) + usec_ofs;
+	HA_ATOMIC_STORE(&now_offset, ofs);
 }
 
 /* must be called once at boot to initialize some global variables */
 void tv_init_process_date()
 {
-	tv_zero(&tv_offset);
+	now_offset = 0;
 	gettimeofday(&date, NULL);
 	now = after_poll = before_poll = date;
 	global_now = ((ullong)date.tv_sec << 32) + (uint)date.tv_usec;
@@ -269,14 +295,6 @@ void tv_init_thread_date()
 	old_now = _HA_ATOMIC_LOAD(&global_now);
 	now.tv_sec = old_now >> 32;
 	now.tv_usec = (uint)old_now;
-
-	tv_offset.tv_sec  = now.tv_sec  - date.tv_sec;
-	tv_offset.tv_usec = now.tv_usec - date.tv_usec;
-	if (tv_offset.tv_usec < 0) {
-		tv_offset.tv_usec += 1000000;
-		tv_offset.tv_sec--;
-	}
-
 	samp_time = idle_time = 0;
 	ti->idle_pct = 100;
 	tv_update_date(0, 1);
