@@ -42,33 +42,37 @@ static inline unsigned int update_freq_ctr_period(struct freq_ctr *ctr,
 	unsigned int curr_tick;
 	uint32_t now_ms_tmp;
 
-	curr_tick = ctr->curr_tick;
-	do {
+	/* atomically update the counter if still within the period, even if
+	 * a rotation is in progress (no big deal).
+	 */
+	for (;; __ha_cpu_relax()) {
+		__ha_barrier_load();
 		now_ms_tmp = global_now_ms;
+		curr_tick = ctr->curr_tick;
+
 		if (now_ms_tmp - curr_tick < period)
 			return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
 
-		/* remove the bit, used for the lock */
-		curr_tick &= ~1;
-	} while (!_HA_ATOMIC_CAS(&ctr->curr_tick, &curr_tick, curr_tick | 0x1) && __ha_cpu_relax());
-	__ha_barrier_atomic_store();
+		/* a rotation is needed */
+		if (!(curr_tick & 1) &&
+		    HA_ATOMIC_CAS(&ctr->curr_tick, &curr_tick, curr_tick | 0x1))
+			break;
+	}
 
-	if (now_ms_tmp - curr_tick >= period) {
-		ctr->prev_ctr = ctr->curr_ctr;
-		_HA_ATOMIC_SUB(&ctr->curr_ctr, ctr->prev_ctr);
-		curr_tick += period;
-		if (likely(now_ms_tmp - curr_tick >= period)) {
-			/* we missed at least two periods */
-			ctr->prev_ctr = 0;
-			curr_tick = now_ms_tmp;
-		}
-		curr_tick &= ~1;
+	/* atomically switch the new period into the old one without losing any
+	 * potential concurrent update.
+	 */
+	_HA_ATOMIC_STORE(&ctr->prev_ctr, _HA_ATOMIC_FETCH_SUB(&ctr->curr_ctr, ctr->curr_ctr - inc));
+	curr_tick += period;
+	if (likely(now_ms_tmp - curr_tick >= period)) {
+		/* we missed at least two periods */
+		_HA_ATOMIC_STORE(&ctr->prev_ctr, 0);
+		curr_tick = now_ms_tmp;
 	}
 
 	/* release the lock and update the time in case of rotate. */
-	_HA_ATOMIC_STORE(&ctr->curr_tick, curr_tick);
-
-	return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
+	_HA_ATOMIC_STORE(&ctr->curr_tick, curr_tick & ~1);
+	return ctr->curr_ctr;
 }
 
 /* Update a 1-sec frequency counter by <inc> incremental units. It is automatically
