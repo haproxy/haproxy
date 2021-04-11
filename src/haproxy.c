@@ -1311,7 +1311,7 @@ static void init(int argc, char **argv)
 #endif
 
 	tzset();
-	tv_update_date(-1,-1);
+	tv_init_process_date();
 	start_date = now;
 
 	ha_random_boot(argv);
@@ -2457,7 +2457,7 @@ static void *run_thread_poll_loop(void *data)
 		init_left = global.nbthread;
 	init_left--;
 
-	tv_update_date(-1,-1);
+	tv_init_thread_date();
 
 	/* per-thread alloc calls performed here are not allowed to snoop on
 	 * other threads, so they are free to initialize at their own rhythm

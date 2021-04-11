@@ -163,9 +163,10 @@ int _tv_isgt(const struct timeval *tv1, const struct timeval *tv2)
  * an offset to correct them. This function should be called once after each
  * poll, and never farther apart than MAX_DELAY_MS*2. The poll's timeout should
  * be passed in <max_wait>, and the return value in <interrupted> (a non-zero
- * value means that we have not expired the timeout). Calling it with (-1,*)
- * sets both <date> and <now> to current date, and calling it with (0,1) simply
- * updates the values.
+ * value means that we have not expired the timeout).
+ *
+ * tv_init_process_date() must have been called once first, and
+ * tv_init_thread_date() must also have been called once for each thread.
  *
  * An offset is used to adjust the current time (date), to have a monotonic time
  * (now). It must be global and thread-safe. But a timeval cannot be atomically
@@ -182,20 +183,6 @@ void tv_update_date(int max_wait, int interrupted)
 	unsigned long long new_now;
 
 	gettimeofday(&date, NULL);
-	if (unlikely(max_wait < 0)) {
-		tv_zero(&tv_offset);
-		adjusted = date;
-		after_poll = date;
-		samp_time = idle_time = 0;
-		ti->idle_pct = 100;
-		old_now = global_now;
-		if (!old_now) { // never set
-			new_now = (((unsigned long long)adjusted.tv_sec) << 32) + (unsigned int)adjusted.tv_usec;
-			_HA_ATOMIC_CAS(&global_now, &old_now, new_now);
-		}
-		goto to_ms;
-	}
-
 	__tv_add(&adjusted, &date, &tv_offset);
 
 	/* compute the minimum and maximum local date we may have reached based
@@ -246,7 +233,6 @@ void tv_update_date(int max_wait, int interrupted)
 		tv_offset.tv_sec--;
 	}
 
- to_ms:
 	now = adjusted;
 	now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
 
@@ -254,11 +240,50 @@ void tv_update_date(int max_wait, int interrupted)
 	old_now_ms = global_now_ms;
 	do {
 		new_now_ms = old_now_ms;
-		if (tick_is_lt(new_now_ms, now_ms) || !new_now_ms)
+		if (tick_is_lt(new_now_ms, now_ms))
 			new_now_ms = now_ms;
 	}  while (!_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, new_now_ms));
 
 	return;
+}
+
+/* must be called once at boot to initialize some global variables */
+void tv_init_process_date()
+{
+	tv_zero(&tv_offset);
+	gettimeofday(&date, NULL);
+	now = after_poll = before_poll = date;
+	global_now = ((ullong)date.tv_sec << 32) + (uint)date.tv_usec;
+	global_now_ms = now.tv_sec * 1000 + now.tv_usec / 1000;
+	samp_time = idle_time = 0;
+	ti->idle_pct = 100;
+	tv_update_date(0, 1);
+}
+
+/* must be called once per thread to initialize their thread-local variables.
+ * Note that other threads might also be initializing and running in parallel.
+ */
+void tv_init_thread_date()
+{
+	ullong old_now;
+
+	gettimeofday(&date, NULL);
+	after_poll = before_poll = date;
+
+	old_now = _HA_ATOMIC_LOAD(&global_now);
+	now.tv_sec = old_now >> 32;
+	now.tv_usec = (uint)old_now;
+
+	tv_offset.tv_sec  = now.tv_sec  - date.tv_sec;
+	tv_offset.tv_usec = now.tv_usec - date.tv_usec;
+	if (tv_offset.tv_usec < 0) {
+		tv_offset.tv_usec += 1000000;
+		tv_offset.tv_sec--;
+	}
+
+	samp_time = idle_time = 0;
+	ti->idle_pct = 100;
+	tv_update_date(0, 1);
 }
 
 /* returns the current date as returned by gettimeofday() in ISO+microsecond
