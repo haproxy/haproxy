@@ -7847,7 +7847,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 	const char *env;
 	int ref;
 	int len;
-	struct hlua_function *fcn;
+	struct hlua_function *fcn = NULL;
 	struct buffer *trash;
 	struct action_kw *akw;
 
@@ -7879,16 +7879,16 @@ __LJMP static int hlua_register_service(lua_State *L)
 	/* Allocate and fill the sample fetch keyword struct. */
 	akl = calloc(1, sizeof(*akl) + sizeof(struct action_kw) * 2);
 	if (!akl)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 	fcn = new_hlua_function();
 	if (!fcn)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 
 	/* Fill fcn. */
 	len = strlen("<lua.>") + strlen(name) + 1;
 	fcn->name = calloc(1, len);
 	if (!fcn->name)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 	snprintf((char *)fcn->name, len, "<lua.%s>", name);
 	fcn->function_ref[hlua_state_id] = ref;
 
@@ -7899,7 +7899,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 	len = strlen("lua.") + strlen(name) + 1;
 	akl->kw[0].kw = calloc(1, len);
 	if (!akl->kw[0].kw)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 
 	snprintf((char *)akl->kw[0].kw, len, "lua.%s", name);
 
@@ -7908,9 +7908,14 @@ __LJMP static int hlua_register_service(lua_State *L)
 		akl->kw[0].parse = action_register_service_tcp;
 	else if (strcmp(env, "http") == 0)
 		akl->kw[0].parse = action_register_service_http;
-	else
+	else {
+		release_hlua_function(fcn);
+		if (akl)
+			ha_free((char **)&(akl->kw[0].kw));
+		ha_free(&akl);
 		WILL_LJMP(luaL_error(L, "Lua service environment '%s' is unknown. "
 		                        "'tcp' or 'http' are expected.", env));
+	}
 
 	akl->kw[0].match_pfx = 0;
 	akl->kw[0].private = fcn;
@@ -7922,6 +7927,12 @@ __LJMP static int hlua_register_service(lua_State *L)
 	service_keywords_register(akl);
 
 	return 0;
+
+  alloc_error:
+	release_hlua_function(fcn);
+	ha_free(&akl);
+	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	return 0; /* Never reached */
 }
 
 /* This function initialises Lua cli handler. It copies the
