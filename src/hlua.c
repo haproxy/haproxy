@@ -8116,12 +8116,13 @@ __LJMP static int hlua_register_cli(lua_State *L)
 	const char *message;
 	int ref_io;
 	int len;
-	struct hlua_function *fcn;
+	struct hlua_function *fcn = NULL;
 	int index;
 	int i;
 	struct buffer *trash;
 	const char *kw[5];
 	struct cli_kw *cli_kw;
+	const char *errmsg;
 
 	MAY_LJMP(check_args(L, 3, "register_cli"));
 
@@ -8166,39 +8167,53 @@ __LJMP static int hlua_register_cli(lua_State *L)
 
 	/* Allocate and fill the sample fetch keyword struct. */
 	cli_kws = calloc(1, sizeof(*cli_kws) + sizeof(struct cli_kw) * 2);
-	if (!cli_kws)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	if (!cli_kws) {
+		errmsg = "Lua out of memory error.";
+		goto error;
+	}
 	fcn = new_hlua_function();
-	if (!fcn)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	if (!fcn) {
+		errmsg = "Lua out of memory error.";
+		goto error;
+	}
 
 	/* Fill path. */
 	index = 0;
 	lua_pushnil(L);
 	while(lua_next(L, 1) != 0) {
-		if (index >= 5)
-			WILL_LJMP(luaL_argerror(L, 1, "1st argument must be a table with a maximum of 5 entries"));
-		if (lua_type(L, -1) != LUA_TSTRING)
-			WILL_LJMP(luaL_argerror(L, 1, "1st argument must be a table filled with strings"));
+		if (index >= 5) {
+			errmsg = "1st argument must be a table with a maximum of 5 entries";
+			goto error;
+		}
+		if (lua_type(L, -1) != LUA_TSTRING) {
+			errmsg = "1st argument must be a table filled with strings";
+			goto error;
+		}
 		cli_kws->kw[0].str_kw[index] = strdup(lua_tostring(L, -1));
-		if (!cli_kws->kw[0].str_kw[index])
-			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		if (!cli_kws->kw[0].str_kw[index]) {
+			errmsg = "Lua out of memory error.";
+			goto error;
+		}
 		index++;
 		lua_pop(L, 1);
 	}
 
 	/* Copy help message. */
 	cli_kws->kw[0].usage = strdup(message);
-	if (!cli_kws->kw[0].usage)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	if (!cli_kws->kw[0].usage) {
+		errmsg = "Lua out of memory error.";
+		goto error;
+	}
 
 	/* Fill fcn io handler. */
 	len = strlen("<lua.cli>") + 1;
 	for (i = 0; i < index; i++)
 		len += strlen(cli_kws->kw[0].str_kw[i]) + 1;
 	fcn->name = calloc(1, len);
-	if (!fcn->name)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	if (!fcn->name) {
+		errmsg = "Lua out of memory error.";
+		goto error;
+	}
 	strncat((char *)fcn->name, "<lua.cli", len);
 	for (i = 0; i < index; i++) {
 		strncat((char *)fcn->name, ".", len);
@@ -8217,6 +8232,17 @@ __LJMP static int hlua_register_cli(lua_State *L)
 	cli_register_kw(cli_kws);
 
 	return 0;
+
+  error:
+	release_hlua_function(fcn);
+	if (cli_kws) {
+		for (i = 0; i < index; i++)
+			ha_free((char **)&(cli_kws->kw[0].str_kw[i]));
+		ha_free((char **)&(cli_kws->kw[0].usage));
+	}
+	ha_free(&cli_kws);
+	WILL_LJMP(luaL_error(L, errmsg));
+	return 0; /* Never reached */
 }
 
 static int hlua_read_timeout(char **args, int section_type, struct proxy *curpx,
