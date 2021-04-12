@@ -6402,8 +6402,8 @@ __LJMP static int hlua_register_init(lua_State *L)
  */
 static int hlua_register_task(lua_State *L)
 {
-	struct hlua *hlua;
-	struct task *task;
+	struct hlua *hlua = NULL;
+	struct task *task = NULL;
 	int ref;
 	int state_id;
 
@@ -6424,7 +6424,7 @@ static int hlua_register_task(lua_State *L)
 
 	hlua = pool_alloc(pool_head_hlua);
 	if (!hlua)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 	HLUA_INIT(hlua);
 
 	/* We are in the common lua state, execute the task anywhere,
@@ -6435,13 +6435,13 @@ static int hlua_register_task(lua_State *L)
 	else
 		task = task_new(tid_bit);
 	if (!task)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 
 	task->context = hlua;
 	task->process = hlua_process_task;
 
 	if (!hlua_ctx_init(hlua, state_id, task, 1))
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 
 	/* Restore the function in the stack. */
 	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ref);
@@ -6451,6 +6451,12 @@ static int hlua_register_task(lua_State *L)
 	task_schedule(task, now_ms);
 
 	return 0;
+
+  alloc_error:
+	task_destroy(task);
+	hlua_ctx_destroy(hlua);
+	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	return 0; /* Never reached */
 }
 
 /* Wrapper called by HAProxy to execute an LUA converter. This wrapper
