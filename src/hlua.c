@@ -6820,7 +6820,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	int ref;
 	int len;
 	struct sample_fetch_kw_list *sfk;
-	struct hlua_function *fcn;
+	struct hlua_function *fcn = NULL;
 	struct sample_fetch *sf;
 	struct buffer *trash;
 
@@ -6849,15 +6849,15 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	/* Allocate and fill the sample fetch keyword struct. */
 	sfk = calloc(1, sizeof(*sfk) + sizeof(struct sample_fetch) * 2);
 	if (!sfk)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 	fcn = new_hlua_function();
 	if (!fcn)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 
 	/* Fill fcn. */
 	fcn->name = strdup(name);
 	if (!fcn->name)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 	fcn->function_ref[hlua_state_id] = ref;
 
 	/* List head */
@@ -6867,7 +6867,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	len = strlen("lua.") + strlen(name) + 1;
 	sfk->kw[0].kw = calloc(1, len);
 	if (!sfk->kw[0].kw)
-		return luaL_error(L, "Lua out of memory error.");
+		goto alloc_error;
 
 	snprintf((char *)sfk->kw[0].kw, len, "lua.%s", name);
 	sfk->kw[0].process = hlua_sample_fetch_wrapper;
@@ -6882,6 +6882,12 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	sample_register_fetches(sfk);
 
 	return 0;
+
+  alloc_error:
+	release_hlua_function(fcn);
+	ha_free(&sfk);
+	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	return 0; /* Never reached */
 }
 
 /* This function is a lua binding to set the wake_time.
