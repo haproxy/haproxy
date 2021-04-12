@@ -174,19 +174,27 @@ unsigned int bind_map_thread_id(const struct bind_conf *conf, unsigned int r);
 
 /* allocate an bind_conf struct for a bind line, and chain it to the frontend <fe>.
  * If <arg> is not NULL, it is duplicated into ->arg to store useful config
- * information for error reporting.
+ * information for error reporting. NULL is returned on error.
  */
 static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *file,
                                  int line, const char *arg, struct xprt_ops *xprt)
 {
 	struct bind_conf *bind_conf = calloc(1, sizeof(struct bind_conf));
 
-	bind_conf->file = strdup(file);
-	bind_conf->line = line;
-	LIST_ADDQ(&fe->conf.bind, &bind_conf->by_fe);
-	if (arg)
-		bind_conf->arg = strdup(arg);
+	if (!bind_conf)
+		goto err;
 
+	bind_conf->file = strdup(file);
+	if (!bind_conf->file)
+		goto err;
+	bind_conf->line = line;
+	if (arg) {
+		bind_conf->arg = strdup(arg);
+		if (!bind_conf->arg)
+			goto err;
+	}
+
+	LIST_ADDQ(&fe->conf.bind, &bind_conf->by_fe);
 	bind_conf->settings.ux.uid = -1;
 	bind_conf->settings.ux.gid = -1;
 	bind_conf->settings.ux.mode = 0;
@@ -200,6 +208,14 @@ static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *fi
 #endif
 	LIST_INIT(&bind_conf->listeners);
 	return bind_conf;
+
+  err:
+	if (bind_conf) {
+		ha_free(&bind_conf->file);
+		ha_free(&bind_conf->arg);
+	}
+	ha_free(&bind_conf);
+	return NULL;
 }
 
 static inline const char *listener_state_str(const struct listener *l)

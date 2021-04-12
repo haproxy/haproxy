@@ -4031,6 +4031,11 @@ int cfg_parse_log_forward(const char *file, int linenum, char **args, int kwm)
 
 		bind_conf = bind_conf_alloc(cfg_log_forward, file, linenum,
 		                            NULL, xprt_get(XPRT_RAW));
+		if (!bind_conf) {
+			ha_alert("parsing [%s:%d] : out of memory error.", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 
 		if (!str2receiver(args[1], cfg_log_forward, bind_conf, file, linenum, &errmsg)) {
 			if (errmsg && *errmsg) {

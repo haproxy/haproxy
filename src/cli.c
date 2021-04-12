@@ -401,6 +401,10 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 		}
 
 		bind_conf = bind_conf_alloc(global.cli_fe, file, line, args[2], xprt_get(XPRT_RAW));
+		if (!bind_conf) {
+			memprintf(err, "'%s %s' : out of memory trying to allocate a bind_conf", args[0], args[1]);
+			return -1;
+		}
 		bind_conf->level &= ~ACCESS_LVL_MASK;
 		bind_conf->level |= ACCESS_LVL_OPER; /* default access level */
 

@@ -387,7 +387,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		bind_conf = bind_conf_alloc(curproxy, file, linenum, args[1], xprt_get(XPRT_RAW));
-
+		if (!bind_conf) {
+			ha_alert("Out of memory error.\n");
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 		/* use default settings for unix sockets */
 		bind_conf->settings.ux.uid  = global.unix_bind.ux.uid;
 		bind_conf->settings.ux.gid  = global.unix_bind.ux.gid;
