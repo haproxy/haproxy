@@ -7581,7 +7581,7 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	rule->arg.hlua_rule = calloc(1, sizeof(*rule->arg.hlua_rule));
 	if (!rule->arg.hlua_rule) {
 		memprintf(err, "out of memory error");
-		return ACT_RET_PRS_ERR;
+		goto error;
 	}
 
 	/* Memory for arguments. */
@@ -7589,7 +7589,7 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 					   sizeof(*rule->arg.hlua_rule->args));
 	if (!rule->arg.hlua_rule->args) {
 		memprintf(err, "out of memory error");
-		return ACT_RET_PRS_ERR;
+		goto error;
 	}
 
 	/* Reference the Lua function and store the reference. */
@@ -7599,12 +7599,12 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	for (i = 0; i < fcn->nargs; i++) {
 		if (*args[*cur_arg] == '\0') {
 			memprintf(err, "expect %d arguments", fcn->nargs);
-			return ACT_RET_PRS_ERR;
+			goto error;
 		}
 		rule->arg.hlua_rule->args[i] = strdup(args[*cur_arg]);
 		if (!rule->arg.hlua_rule->args[i]) {
 			memprintf(err, "out of memory error");
-			return ACT_RET_PRS_ERR;
+			goto error;
 		}
 		(*cur_arg)++;
 	}
@@ -7613,6 +7613,17 @@ static enum act_parse_ret action_register_lua(const char **args, int *cur_arg, s
 	rule->action = ACT_CUSTOM;
 	rule->action_ptr = hlua_action;
 	return ACT_RET_PRS_OK;
+
+  error:
+	if (rule->arg.hlua_rule) {
+		if (rule->arg.hlua_rule->args) {
+			for (i = 0; i < fcn->nargs; i++)
+				ha_free(&rule->arg.hlua_rule->args[i]);
+			ha_free(&rule->arg.hlua_rule->args);
+		}
+		ha_free(&rule->arg.hlua_rule);
+	}
+	return ACT_RET_PRS_ERR;
 }
 
 static enum act_parse_ret action_register_service_http(const char **args, int *cur_arg, struct proxy *px,
