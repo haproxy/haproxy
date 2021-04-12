@@ -7672,11 +7672,11 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
  */
 __LJMP static int hlua_register_action(lua_State *L)
 {
-	struct action_kw_list *akl;
+	struct action_kw_list *akl = NULL;
 	const char *name;
 	int ref;
 	int len;
-	struct hlua_function *fcn;
+	struct hlua_function *fcn = NULL;
 	int nargs;
 	struct buffer *trash;
 	struct action_kw *akw;
@@ -7738,15 +7738,15 @@ __LJMP static int hlua_register_action(lua_State *L)
 		/* Allocate and fill the sample fetch keyword struct. */
 		akl = calloc(1, sizeof(*akl) + sizeof(struct action_kw) * 2);
 		if (!akl)
-			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+			goto alloc_error;;
 		fcn = new_hlua_function();
 		if (!fcn)
-			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+			goto alloc_error;
 
 		/* Fill fcn. */
 		fcn->name = strdup(name);
 		if (!fcn->name)
-			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+			goto alloc_error;
 		fcn->function_ref[hlua_state_id] = ref;
 
 		/* Set the expected number of arguments. */
@@ -7759,7 +7759,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 		len = strlen("lua.") + strlen(name) + 1;
 		akl->kw[0].kw = calloc(1, len);
 		if (!akl->kw[0].kw)
-			WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+			goto alloc_error;
 
 		snprintf((char *)akl->kw[0].kw, len, "lua.%s", name);
 
@@ -7776,15 +7776,30 @@ __LJMP static int hlua_register_action(lua_State *L)
 			http_req_keywords_register(akl);
 		else if (strcmp(lua_tostring(L, -1), "http-res") == 0)
 			http_res_keywords_register(akl);
-		else
+		else {
+			release_hlua_function(fcn);
+			if (akl)
+				ha_free((char **)&(akl->kw[0].kw));
+			ha_free(&akl);
 			WILL_LJMP(luaL_error(L, "Lua action environment '%s' is unknown. "
 			                        "'tcp-req', 'tcp-res', 'http-req' or 'http-res' "
 			                        "are expected.", lua_tostring(L, -1)));
+		}
 
 		/* pop the environment string. */
 		lua_pop(L, 1);
+
+		/* reset for next loop */
+		akl = NULL;
+		fcn = NULL;
 	}
 	return ACT_RET_PRS_OK;
+
+  alloc_error:
+	release_hlua_function(fcn);
+	ha_free(&akl);
+	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	return 0; /* Never reached */
 }
 
 static enum act_parse_ret action_register_service_tcp(const char **args, int *cur_arg, struct proxy *px,
