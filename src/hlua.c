@@ -6741,7 +6741,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	const char *name;
 	int ref;
 	int len;
-	struct hlua_function *fcn;
+	struct hlua_function *fcn = NULL;
 	struct sample_conv *sc;
 	struct buffer *trash;
 
@@ -6770,15 +6770,15 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	/* Allocate and fill the sample fetch keyword struct. */
 	sck = calloc(1, sizeof(*sck) + sizeof(struct sample_conv) * 2);
 	if (!sck)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 	fcn = new_hlua_function();
 	if (!fcn)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 
 	/* Fill fcn. */
 	fcn->name = strdup(name);
 	if (!fcn->name)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 	fcn->function_ref[hlua_state_id] = ref;
 
 	/* List head */
@@ -6788,7 +6788,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	len = strlen("lua.") + strlen(name) + 1;
 	sck->kw[0].kw = calloc(1, len);
 	if (!sck->kw[0].kw)
-		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+		goto alloc_error;
 
 	snprintf((char *)sck->kw[0].kw, len, "lua.%s", name);
 	sck->kw[0].process = hlua_sample_conv_wrapper;
@@ -6802,6 +6802,12 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	sample_register_convs(sck);
 
 	return 0;
+
+  alloc_error:
+	release_hlua_function(fcn);
+	ha_free(&sck);
+	WILL_LJMP(luaL_error(L, "Lua out of memory error."));
+	return 0; /* Never reached */
 }
 
 /* This function is an LUA binding used for registering
