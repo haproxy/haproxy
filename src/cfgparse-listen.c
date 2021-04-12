@@ -1313,20 +1313,24 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		rule = calloc(1, sizeof(*rule));
-		if (!rule) {
-			ha_alert("Out of memory error.\n");
-			goto out;
-		}
+		if (!rule)
+			goto use_backend_alloc_error;
 		rule->cond = cond;
 		rule->be.name = strdup(args[1]);
-		if (!rule->be.name) {
-			ha_alert("Out of memory error.\n");
-			goto out;
-		}
+		if (!rule->be.name)
+			goto use_backend_alloc_error;
 		rule->line = linenum;
 		rule->file = strdup(file);
 		if (!rule->file) {
+		  use_backend_alloc_error:
+			if (cond)
+				prune_acl_cond(cond);
+			ha_free(&cond);
+			if (rule)
+				ha_free(&(rule->be.name));
+			ha_free(&rule);
 			ha_alert("Out of memory error.\n");
+			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 		LIST_INIT(&rule->list);
@@ -1367,10 +1371,26 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, file, linenum);
 
 		rule = calloc(1, sizeof(*rule));
+		if (!rule)
+			goto use_server_alloc_error;
 		rule->cond = cond;
 		rule->srv.name = strdup(args[1]);
+		if (!rule->srv.name)
+			goto use_server_alloc_error;
 		rule->line = linenum;
 		rule->file = strdup(file);
+		if (!rule->file) {
+		  use_server_alloc_error:
+			if (cond)
+				prune_acl_cond(cond);
+			ha_free(&cond);
+			if (rule)
+				ha_free(&(rule->srv.name));
+			ha_free(&rule);
+			ha_alert("Out of memory error.\n");
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->server_rules, &rule->list);
 		curproxy->be_req_ana |= AN_REQ_SRV_RULES;
@@ -1408,6 +1428,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_REQ_CNT, file, linenum);
 
 		rule = calloc(1, sizeof(*rule));
+		if (!rule) {
+			if (cond)
+				prune_acl_cond(cond);
+			ha_free(&cond);
+			ha_alert("Out of memory error.\n");
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 		rule->cond = cond;
 		if (strcmp(args[0], "force-persist") == 0) {
 			rule->type = PERSIST_TYPE_FORCE;
@@ -1448,8 +1476,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		err_code |= parse_stick_table(file, linenum, args, curproxy->table,
 		                              curproxy->id, curproxy->id, NULL);
-		if (err_code & ERR_FATAL)
+		if (err_code & ERR_FATAL) {
+			ha_free(&curproxy->table);
 			goto out;
+		}
 
 		/* Store the proxy in the stick-table. */
 		curproxy->table->proxy = curproxy;
@@ -1568,6 +1598,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, file, linenum);
 
 		rule = calloc(1, sizeof(*rule));
+		if (!rule) {
+			if (cond)
+				prune_acl_cond(cond);
+			ha_free(&cond);
+			ha_alert("Out of memory error.\n");
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 		rule->cond = cond;
 		rule->expr = expr;
 		rule->flags = flags;
@@ -1617,6 +1655,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			                                  file, linenum);
 
 			rule = calloc(1, sizeof(*rule));
+			if (!rule) {
+				if (cond)
+					prune_acl_cond(cond);
+				ha_free(&cond);
+				ha_alert("Out of memory error.\n");
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 			rule->cond = cond;
 			LIST_INIT(&rule->list);
 			LIST_ADDQ(&curproxy->uri_auth->admin_rules, &rule->list);
