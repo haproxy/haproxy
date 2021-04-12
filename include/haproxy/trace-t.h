@@ -42,31 +42,37 @@
 #define TRC_ARG_CONN  (1 << 0)
 #define TRC_ARG_SESS  (1 << 1)
 #define TRC_ARG_STRM  (1 << 2)
+#define TRC_ARG_CHK   (1 << 3)
 
 #define TRC_ARG1_PRIV (TRC_ARG_PRIV << 0)
 #define TRC_ARG1_CONN (TRC_ARG_CONN << 0)
 #define TRC_ARG1_SESS (TRC_ARG_SESS << 0)
 #define TRC_ARG1_STRM (TRC_ARG_STRM << 0)
+#define TRC_ARG1_CHK  (TRC_ARG_CHK  << 0)
 
 #define TRC_ARG2_PRIV (TRC_ARG_PRIV << 8)
 #define TRC_ARG2_CONN (TRC_ARG_CONN << 8)
 #define TRC_ARG2_SESS (TRC_ARG_SESS << 8)
 #define TRC_ARG2_STRM (TRC_ARG_STRM << 8)
+#define TRC_ARG2_CHK  (TRC_ARG_CHK  << 8)
 
 #define TRC_ARG3_PRIV (TRC_ARG_PRIV << 16)
 #define TRC_ARG3_CONN (TRC_ARG_CONN << 16)
 #define TRC_ARG3_SESS (TRC_ARG_SESS << 16)
 #define TRC_ARG3_STRM (TRC_ARG_STRM << 16)
+#define TRC_ARG3_CHK  (TRC_ARG_CHK  << 16)
 
 #define TRC_ARG4_PRIV (TRC_ARG_PRIV << 24)
 #define TRC_ARG4_CONN (TRC_ARG_CONN << 24)
 #define TRC_ARG4_SESS (TRC_ARG_SESS << 24)
 #define TRC_ARG4_STRM (TRC_ARG_STRM << 24)
+#define TRC_ARG4_CHK  (TRC_ARG_CHK  << 24)
 
 /* usable to detect the presence of any arg of the desired type */
 #define TRC_ARGS_CONN (TRC_ARG_CONN * 0x01010101U)
 #define TRC_ARGS_SESS (TRC_ARG_SESS * 0x01010101U)
 #define TRC_ARGS_STRM (TRC_ARG_STRM * 0x01010101U)
+#define TRC_ARGS_CHK  (TRC_ARG_CHK  * 0x01010101U)
 
 
 enum trace_state {
@@ -97,6 +103,7 @@ enum trace_lockon {
 	TRACE_LOCKON_CONNECTION,  // lock on the connection that started the trace
 	TRACE_LOCKON_SESSION,     // lock on the session that started the trace
 	TRACE_LOCKON_STREAM,      // lock on the stream that started the trace
+	TRACE_LOCKON_CHECK,       // lock on the check that started the trace
 	TRACE_LOCKON_ARG1,        // lock on arg1, totally source-dependent
 	TRACE_LOCKON_ARG2,        // lock on arg2, totally source-dependent
 	TRACE_LOCKON_ARG3,        // lock on arg3, totally source-dependent

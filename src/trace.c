@@ -85,6 +85,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	const struct session *sess = NULL;
 	const struct stream *strm = NULL;
 	const struct connection *conn = NULL;
+	const struct check *check = NULL;
 	const void *lockon_ptr = NULL;
 	struct ist ist_func = ist(func);
 	char tnum[4];
@@ -108,10 +109,15 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	if (src->arg_def & TRC_ARGS_STRM)
 		strm = trace_pick_arg(src->arg_def & TRC_ARGS_STRM, a1, a2, a3, a4);
 
+	if (src->arg_def & TRC_ARGS_CHK)
+		check = trace_pick_arg(src->arg_def & TRC_ARGS_CHK, a1, a2, a3, a4);
+
 	if (!sess && strm)
 		sess = strm->sess;
 	else if (!sess && conn)
 		sess = conn->owner;
+	else if (!sess && check)
+		sess = check->sess;
 
 	if (sess) {
 		fe = sess->fe;
@@ -127,6 +133,10 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 	if (strm) {
 		be = strm->be;
 		srv = strm->srv_conn;
+	}
+	if (check) {
+		srv = check->server;
+		be = srv->proxy;
 	}
 
 	if (!srv && conn)
@@ -159,6 +169,7 @@ void __trace(enum trace_level level, uint64_t mask, struct trace_source *src,
 		case TRACE_LOCKON_SERVER:     lockon_ptr = srv;  break;
 		case TRACE_LOCKON_SESSION:    lockon_ptr = sess; break;
 		case TRACE_LOCKON_STREAM:     lockon_ptr = strm; break;
+		case TRACE_LOCKON_CHECK:      lockon_ptr = check; break;
 		case TRACE_LOCKON_THREAD:     lockon_ptr = ti;   break;
 		case TRACE_LOCKON_ARG1:       lockon_ptr = a1;   break;
 		case TRACE_LOCKON_ARG2:       lockon_ptr = a2;   break;
@@ -447,6 +458,10 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 				chunk_appendf(&trash, "  %c backend    : lock on the backend that started the trace\n",
 				              src->lockon == TRACE_LOCKON_BACKEND ? '*' : ' ');
 
+			if (src->arg_def & TRC_ARGS_CHK)
+				chunk_appendf(&trash, "  %c check      : lock on the check that started the trace\n",
+				              src->lockon == TRACE_LOCKON_CHECK ? '*' : ' ');
+
 			if (src->arg_def & TRC_ARGS_CONN)
 				chunk_appendf(&trash, "  %c connection : lock on the connection that started the trace\n",
 				              src->lockon == TRACE_LOCKON_CONNECTION ? '*' : ' ');
@@ -502,6 +517,10 @@ static int cli_parse_trace(char **args, char *payload, struct appctx *appctx, vo
 		}
 		else if ((src->arg_def & (TRC_ARGS_CONN|TRC_ARGS_STRM)) && strcmp(name, "backend") == 0) {
 			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_BACKEND);
+			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
+		}
+		else if ((src->arg_def & TRC_ARGS_CHK) && strcmp(name, "check") == 0) {
+			HA_ATOMIC_STORE(&src->lockon, TRACE_LOCKON_CHECK);
 			HA_ATOMIC_STORE(&src->lockon_ptr, NULL);
 		}
 		else if ((src->arg_def & TRC_ARGS_CONN) && strcmp(name, "connection") == 0) {
