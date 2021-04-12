@@ -496,6 +496,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(curproxy->monitor_uri);
 		curproxy->monitor_uri_len = strlen(args[1]);
 		curproxy->monitor_uri = calloc(1, curproxy->monitor_uri_len + 1);
+		if (!curproxy->monitor_uri) {
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 		memcpy(curproxy->monitor_uri, args[1], curproxy->monitor_uri_len);
 		curproxy->monitor_uri[curproxy->monitor_uri_len] = '\0';
 
@@ -581,6 +586,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			len += strlen(args[i]) + 1;
 
 		d = calloc(1, len);
+		if (!d) {
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 		curproxy->desc = d;
 
 		d += snprintf(d, curproxy->desc + len - d, "%s", args[1]);
@@ -678,6 +688,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		ha_free(&curproxy->cookie_domain);
 		free(curproxy->cookie_name);
 		curproxy->cookie_name = strdup(args[1]);
+		if (!curproxy->cookie_name) {
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 		curproxy->cookie_len = strlen(curproxy->cookie_name);
 
 		cur_arg = 2;
@@ -740,14 +755,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					 * building the string which will be returned along with
 					 * the cookie.
 					 */
-					char *new_ptr;
-					int new_len = strlen(curproxy->cookie_domain) +
-						strlen("; domain=") + strlen(args[cur_arg + 1]) + 1;
-					new_ptr = malloc(new_len);
-					snprintf(new_ptr, new_len, "%s; domain=%s", curproxy->cookie_domain, args[cur_arg+1]);
-					free(curproxy->cookie_domain);
-					curproxy->cookie_domain = new_ptr;
+					memprintf(&curproxy->cookie_domain, "%s; domain=%s", curproxy->cookie_domain, args[cur_arg+1]);
 				}
+
+				if (!curproxy->cookie_domain) {
+					ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
+
 				cur_arg++;
 			}
 			else if (strcmp(args[cur_arg], "maxidle") == 0) {
@@ -846,6 +862,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					curproxy->cookie_attrs = strdup(args[cur_arg + 1]);
 				else
 					memprintf(&curproxy->cookie_attrs, "%s; %s", curproxy->cookie_attrs, args[cur_arg + 1]);
+
+				if (!curproxy->cookie_attrs) {
+					ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
 				cur_arg++;
 			}
 
@@ -892,6 +914,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			free(curproxy->email_alert.from);
 			curproxy->email_alert.from = strdup(args[2]);
+			if (!curproxy->email_alert.from) {
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 		}
 		else if (strcmp(args[1], "mailers") == 0) {
 			if (*(args[1]) == 0) {
@@ -902,6 +929,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			free(curproxy->email_alert.mailers.name);
 			curproxy->email_alert.mailers.name = strdup(args[2]);
+			if (!curproxy->email_alert.mailers.name) {
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 		}
 		else if (strcmp(args[1], "myhostname") == 0) {
 			if (*(args[1]) == 0) {
@@ -912,6 +944,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			free(curproxy->email_alert.myhostname);
 			curproxy->email_alert.myhostname = strdup(args[2]);
+			if (!curproxy->email_alert.myhostname) {
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 		}
 		else if (strcmp(args[1], "level") == 0) {
 			curproxy->email_alert.level = get_log_level(args[2]);
@@ -931,6 +968,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			free(curproxy->email_alert.to);
 			curproxy->email_alert.to = strdup(args[2]);
+			if (!curproxy->email_alert.to) {
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 		}
 		else {
 			ha_alert("parsing [%s:%d] : email-alert: unknown argument '%s'.\n",
@@ -970,11 +1012,21 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 				free(curproxy->rdp_cookie_name);
 				curproxy->rdp_cookie_name = my_strndup(beg, end - beg);
+				if (!curproxy->rdp_cookie_name) {
+					ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
 				curproxy->rdp_cookie_len = end-beg;
 			}
 			else if (*(args[1] + 10) == '\0') { /* default cookie name 'msts' */
 				free(curproxy->rdp_cookie_name);
 				curproxy->rdp_cookie_name = strdup("msts");
+				if (!curproxy->rdp_cookie_name) {
+					ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
 				curproxy->rdp_cookie_len = strlen(curproxy->rdp_cookie_name);
 			}
 			else { /* syntax */
@@ -1027,6 +1079,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->server_state_file_name = strdup(curproxy->id);
 		else
 			curproxy->server_state_file_name = strdup(args[1]);
+
+		if (!curproxy->server_state_file_name) {
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 	}
 	else if (strcmp(args[0], "max-session-srv-conns") == 0) {
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
@@ -1061,6 +1119,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			free(curproxy->capture_name);
 			curproxy->capture_name = strdup(args[2]);
+			if (!curproxy->capture_name) {
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 			curproxy->capture_namelen = strlen(curproxy->capture_name);
 			curproxy->capture_len = atol(args[4]);
 			curproxy->to_log |= LW_COOKIE;
@@ -1085,11 +1148,24 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 
 			hdr = calloc(1, sizeof(*hdr));
+			if (!hdr)
+				goto req_caphdr_alloc_error;
 			hdr->next = curproxy->req_cap;
 			hdr->name = strdup(args[3]);
+			if (!hdr->name)
+				goto req_caphdr_alloc_error;
 			hdr->namelen = strlen(args[3]);
 			hdr->len = atol(args[5]);
 			hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
+			if (!hdr->pool) {
+			  req_caphdr_alloc_error:
+				if (hdr)
+					ha_free(&hdr->name);
+				ha_free(&hdr);
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 			hdr->index = curproxy->nb_req_cap++;
 			curproxy->req_cap = hdr;
 			curproxy->to_log |= LW_REQHDR;
@@ -1113,11 +1189,24 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 			hdr = calloc(1, sizeof(*hdr));
+			if (!hdr)
+				goto res_caphdr_alloc_error;
 			hdr->next = curproxy->rsp_cap;
 			hdr->name = strdup(args[3]);
+			if (!hdr->name)
+				goto res_caphdr_alloc_error;
 			hdr->namelen = strlen(args[3]);
 			hdr->len = atol(args[5]);
 			hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
+			if (!hdr->pool) {
+			  res_caphdr_alloc_error:
+				if (hdr)
+					ha_free(&hdr->name);
+				ha_free(&hdr);
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 			hdr->index = curproxy->nb_rsp_cap++;
 			curproxy->rsp_cap = hdr;
 			curproxy->to_log |= LW_RSPHDR;
@@ -1250,6 +1339,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* set the desired header name, in lower case */
 		free(curproxy->server_id_hdr_name);
 		curproxy->server_id_hdr_name = strdup(args[1]);
+		if (!curproxy->server_id_hdr_name) {
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 		curproxy->server_id_hdr_len  = strlen(curproxy->server_id_hdr_name);
 		ist2bin_lc(curproxy->server_id_hdr_name, ist2(curproxy->server_id_hdr_name, curproxy->server_id_hdr_len));
 	}
@@ -2197,6 +2291,11 @@ stats_error_parsing:
 
 			free(curproxy->fwdfor_hdr_name);
 			curproxy->fwdfor_hdr_name = strdup(DEF_XFORWARDFOR_HDR);
+			if (!curproxy->fwdfor_hdr_name) {
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 			curproxy->fwdfor_hdr_len  = strlen(DEF_XFORWARDFOR_HDR);
 			curproxy->except_xff_net.family = AF_UNSPEC;
 
@@ -2238,6 +2337,11 @@ stats_error_parsing:
 					}
 					free(curproxy->fwdfor_hdr_name);
 					curproxy->fwdfor_hdr_name = strdup(args[cur_arg+1]);
+					if (!curproxy->fwdfor_hdr_name) {
+						ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+						err_code |= ERR_ALERT | ERR_ABORT;
+						goto out;
+					}
 					curproxy->fwdfor_hdr_len  = strlen(curproxy->fwdfor_hdr_name);
 					cur_arg += 2;
 				} else if (strcmp(args[cur_arg], "if-none") == 0) {
@@ -2263,6 +2367,11 @@ stats_error_parsing:
 
 			free(curproxy->orgto_hdr_name);
 			curproxy->orgto_hdr_name = strdup(DEF_XORIGINALTO_HDR);
+			if (!curproxy->orgto_hdr_name) {
+				ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
 			curproxy->orgto_hdr_len  = strlen(DEF_XORIGINALTO_HDR);
 			curproxy->except_xot_net.family = AF_UNSPEC;
 
@@ -2303,6 +2412,11 @@ stats_error_parsing:
 					}
 					free(curproxy->orgto_hdr_name);
 					curproxy->orgto_hdr_name = strdup(args[cur_arg+1]);
+					if (!curproxy->orgto_hdr_name) {
+						ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+						err_code |= ERR_ALERT | ERR_ABORT;
+						goto out;
+					}
 					curproxy->orgto_hdr_len  = strlen(curproxy->orgto_hdr_name);
 					cur_arg += 2;
 				} else {
@@ -2338,6 +2452,11 @@ stats_error_parsing:
 		}
 		free(curproxy->defbe.name);
 		curproxy->defbe.name = strdup(args[1]);
+		if (!curproxy->defbe.name) {
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 
 		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
 			goto out;
@@ -2629,6 +2748,11 @@ stats_error_parsing:
 		}
 		free(curproxy->conf.uniqueid_format_string);
 		curproxy->conf.uniqueid_format_string = strdup(args[1]);
+		if (!curproxy->conf.uniqueid_format_string) {
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 
 		free(curproxy->conf.uif_file);
 		curproxy->conf.uif_file = strdup(curproxy->conf.args.file);
@@ -2681,6 +2805,11 @@ stats_error_parsing:
 		    curproxy->conf.logformat_string != clf_http_log_format)
 			free(curproxy->conf.logformat_string);
 		curproxy->conf.logformat_string = strdup(args[1]);
+		if (!curproxy->conf.logformat_string) {
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 
 		free(curproxy->conf.lfs_file);
 		curproxy->conf.lfs_file = strdup(curproxy->conf.args.file);
@@ -2710,6 +2839,11 @@ stats_error_parsing:
 		if (curproxy->conf.logformat_sd_string != default_rfc5424_sd_log_format)
 			free(curproxy->conf.logformat_sd_string);
 		curproxy->conf.logformat_sd_string = strdup(args[1]);
+		if (!curproxy->conf.logformat_sd_string) {
+			ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
 
 		free(curproxy->conf.lfsd_file);
 		curproxy->conf.lfsd_file = strdup(curproxy->conf.args.file);
@@ -2810,6 +2944,11 @@ stats_error_parsing:
 					curproxy->conn_src.opts |= CO_SRC_TPROXY_DYN;
 					free(curproxy->conn_src.bind_hdr_name);
 					curproxy->conn_src.bind_hdr_name = calloc(1, end - name + 1);
+					if (!curproxy->conn_src.bind_hdr_name) {
+						ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+						err_code |= ERR_ALERT | ERR_ABORT;
+						goto out;
+					}
 					curproxy->conn_src.bind_hdr_len = end - name;
 					memcpy(curproxy->conn_src.bind_hdr_name, name, end - name);
 					curproxy->conn_src.bind_hdr_name[end-name] = '\0';
@@ -2871,6 +3010,11 @@ stats_error_parsing:
 				}
 				free(curproxy->conn_src.iface_name);
 				curproxy->conn_src.iface_name = strdup(args[cur_arg + 1]);
+				if (!curproxy->conn_src.iface_name) {
+					ha_alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+					err_code |= ERR_ALERT | ERR_ABORT;
+					goto out;
+				}
 				curproxy->conn_src.iface_len  = strlen(curproxy->conn_src.iface_name);
 				global.last_checks |= LSTCHK_NETADM;
 #else
