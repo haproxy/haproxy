@@ -318,6 +318,16 @@ static inline struct hlua_function *new_hlua_function()
 	return fcn;
 }
 
+static inline void release_hlua_function(struct hlua_function *fcn)
+{
+	if (!fcn)
+		return;
+	if (fcn->name)
+		ha_free(&fcn->name);
+	LIST_DEL(&fcn->l);
+	ha_free(&fcn);
+}
+
 /* If the common state is set, the stack id is 0, otherwise it is the tid + 1 */
 static inline int fcn_ref_to_stack_id(struct hlua_function *fcn)
 {
