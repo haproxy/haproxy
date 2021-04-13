@@ -95,5 +95,16 @@ struct ckch_inst {
 	struct list by_crtlist_entry; /* chained in crtlist_entry list of inst */
 };
 
+
+/*
+ * deduplicate cafile (and crlfile)
+ */
+struct cafile_entry {
+	X509_STORE *ca_store;
+	STACK_OF(X509_NAME) *ca_list;
+	struct ebmb_node node;
+	char path[0];
+};
+
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CKCH_T_H */

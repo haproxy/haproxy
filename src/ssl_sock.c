@@ -315,57 +315,6 @@ static int ssl_locking_init(void)
 __decl_thread(HA_SPINLOCK_T ckch_lock);
 
 
-/*
- * deduplicate cafile (and crlfile)
- */
-struct cafile_entry {
-	X509_STORE *ca_store;
-	STACK_OF(X509_NAME) *ca_list;
-	struct ebmb_node node;
-	char path[0];
-};
-
-static struct eb_root cafile_tree = EB_ROOT_UNIQUE;
-
-static X509_STORE* ssl_store_get0_locations_file(char *path)
-{
-	struct ebmb_node *eb;
-
-	eb = ebst_lookup(&cafile_tree, path);
-	if (eb) {
-		struct cafile_entry *ca_e;
-		ca_e = ebmb_entry(eb, struct cafile_entry, node);
-		return ca_e->ca_store;
-	}
-	return NULL;
-}
-
-int ssl_store_load_locations_file(char *path, int create_if_none)
-{
-	X509_STORE *store = ssl_store_get0_locations_file(path);
-
-	/* If this function is called by the CLI, we should not call the
-	 * X509_STORE_load_locations function because it performs forbidden disk
-	 * accesses. */
-	if (!store && create_if_none) {
-		struct cafile_entry *ca_e;
-		store = X509_STORE_new();
-		if (X509_STORE_load_locations(store, path, NULL)) {
-			int pathlen;
-			pathlen = strlen(path);
-			ca_e = calloc(1, sizeof(*ca_e) + pathlen + 1);
-			if (ca_e) {
-				memcpy(ca_e->path, path, pathlen + 1);
-				ca_e->ca_store = store;
-				ebst_insert(&cafile_tree, &ca_e->node);
-			}
-		} else {
-			X509_STORE_free(store);
-			store = NULL;
-		}
-	}
-	return (store != NULL);
-}
 
 /* mimic what X509_STORE_load_locations do with store_ctx */
 static int ssl_set_cert_crl_file(X509_STORE *store_ctx, char *path)

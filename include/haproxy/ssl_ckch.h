@@ -54,5 +54,9 @@ int ckch_inst_new_load_srv_store(const char *path, struct ckch_store *ckchs,
 
 void ckch_deinit();
 
+/* ssl_store functions */
+X509_STORE* ssl_store_get0_locations_file(char *path);
+int ssl_store_load_locations_file(char *path, int create_if_none);
+
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CRTLIST_H */
