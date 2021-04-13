@@ -164,6 +164,7 @@ struct bind_conf {
 	unsigned long long crt_ignerr; /* ignored verify errors in handshake if depth == 0 */
 	SSL_CTX *initial_ctx;      /* SSL context for initial negotiation */
 	SSL_CTX *default_ctx;      /* SSL context of first/default certificate */
+	struct ckch_inst *default_inst;
 	struct ssl_bind_conf *default_ssl_conf; /* custom SSL conf of default_ctx */
 	int strict_sni;            /* refuse negotiation if sni doesn't match a certificate */
 	int ssl_options;           /* ssl options */

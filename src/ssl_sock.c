@@ -2933,6 +2933,7 @@ void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_
 		SSL_CTX_free(bind_conf->default_ctx);
 		SSL_CTX_up_ref(ckch_inst->ctx);
 		bind_conf->default_ctx = ckch_inst->ctx;
+		bind_conf->default_inst = ckch_inst;
 	}
 }
 
@@ -3368,6 +3369,7 @@ int ckch_inst_new_load_store(const char *path, struct ckch_store *ckchs, struct 
 		bind_conf->default_ssl_conf = ssl_conf;
 		ckch_inst->is_default = 1;
 		SSL_CTX_up_ref(ctx);
+		bind_conf->default_inst = ckch_inst;
 	}
 
 	/* Always keep a reference to the newly constructed SSL_CTX in the
@@ -4903,7 +4905,7 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 		errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, NULL, bind_conf->initial_ctx, NULL, &errmsg);
 	}
 	if (bind_conf->default_ctx) {
-		errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, bind_conf->default_ssl_conf, bind_conf->default_ctx, NULL, &errmsg);
+		errcode |= ssl_sock_prep_ctx_and_inst(bind_conf, bind_conf->default_ssl_conf, bind_conf->default_ctx, bind_conf->default_inst, &errmsg);
 	}
 
 	node = ebmb_first(&bind_conf->sni_ctx);
@@ -5054,6 +5056,7 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 	bind_conf->initial_ctx = NULL;
 	SSL_CTX_free(bind_conf->default_ctx);
 	bind_conf->default_ctx = NULL;
+	bind_conf->default_inst = NULL;
 	bind_conf->default_ssl_conf = NULL;
 }
 
