@@ -281,6 +281,36 @@ static inline struct ist isttrim(const struct ist ist, size_t size)
 	return ret;
 }
 
+/* Sets the <len> of the <ist> to zero and returns the previous length.
+ *
+ * This function is meant to be used in functions that receive an ist containing
+ * the destination buffer and the buffer's size. The returned size must be stored
+ * to prevent an overflow of such a destination buffer.
+ *
+ * If you simply want to clear an ist and do not care about the previous length
+ * then you should use `isttrim(ist, 0)`.
+ *
+ * Example Usage (fill the complete buffer with 'x'):
+ *
+ * void my_func(struct ist* dst)
+ * {
+ * 	size_t dst_size = istclear(dst);
+ * 	size_t i;
+ *
+ * 	for (i = 0; i < dst_size; i++)
+ * 		*dst = __istappend(*dst, 'x');
+ * }
+ */
+__attribute__((warn_unused_result))
+static inline size_t istclear(struct ist* ist)
+{
+	size_t len = ist->len;
+
+	ist->len = 0;
+
+	return len;
+}
+
 /* trims string <ist> to no more than <size>-1 characters and ensures that a
  * zero is placed after <ist.len> (possibly reduced by one) and before <size>,
  * unless <size> is already zero. The string is returned. This is mostly aimed
