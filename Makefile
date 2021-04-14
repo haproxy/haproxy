@@ -563,6 +563,10 @@ ifneq ($(USE_BACKTRACE),)
 OPTIONS_LDFLAGS += -Wl,$(if $(EXPORT_SYMBOL),$(EXPORT_SYMBOL),--export-dynamic)
 endif
 
+ifneq ($(USE_CPU_AFFINITY),)
+OPTIONS_OBJS   += src/cpuset.o
+endif
+
 ifneq ($(USE_OPENSSL),)
 SSL_INC =
 SSL_LIB =
