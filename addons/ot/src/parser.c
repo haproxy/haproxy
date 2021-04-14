@@ -189,7 +189,7 @@ static const char *flt_ot_parse_invalid_char(const char *name, int type)
  */
 static int flt_ot_parse_cfg_check(const char *file, int linenum, char **args, const void *id, const struct flt_ot_parse_data *parse_data, size_t parse_data_size, const struct flt_ot_parse_data **pdata, char **err)
 {
-	int i, retval = ERR_NONE;
+	int i, argc, retval = ERR_NONE;
 
 	FLT_OT_FUNC("\"%s\", %d, %p, %p, %p, %zu, %p:%p, %p:%p", file, linenum, args, id, parse_data, parse_data_size, FLT_OT_DPTR_ARGS(pdata), FLT_OT_DPTR_ARGS(err));
 
@@ -197,12 +197,15 @@ static int flt_ot_parse_cfg_check(const char *file, int linenum, char **args, co
 
 	*pdata = NULL;
 
+	/* First check here if args[0] is the correct keyword. */
 	for (i = 0; (*pdata == NULL) && (i < parse_data_size); i++)
 		if (strcmp(parse_data[i].name, args[0]) == 0)
 			*pdata = parse_data + i;
 
 	if (*pdata == NULL)
 		FLT_OT_PARSE_ERR(err, "'%s' : unknown keyword", args[0]);
+	else
+		argc = flt_ot_args_count(args);
 
 	if ((retval & ERR_CODE) || (id == NULL))
 		/* Do nothing. */;
@@ -214,20 +217,16 @@ static int flt_ot_parse_cfg_check(const char *file, int linenum, char **args, co
 	 * line than is required.
 	 */
 	if (!(retval & ERR_CODE))
-		for (i = 1; i < (*pdata)->args_min; i++)
-			if (!FLT_OT_ARG_ISVALID(i))
-				FLT_OT_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[0], (*pdata)->name, (*pdata)->usage);
+		if (argc < (*pdata)->args_min)
+			FLT_OT_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[0], (*pdata)->name, (*pdata)->usage);
 
 	/*
 	 * Checking that more arguments are specified in the configuration
 	 * line than the maximum allowed.
 	 */
-	if (!(retval & ERR_CODE) && ((*pdata)->args_max > 0)) {
-		for ( ; (i <= (*pdata)->args_max) && FLT_OT_ARG_ISVALID(i); i++);
-
-		if (i > (*pdata)->args_max)
+	if (!(retval & ERR_CODE) && ((*pdata)->args_max > 0))
+		if (argc > (*pdata)->args_max)
 			FLT_OT_PARSE_ERR(err, "'%s' : too many arguments (use '%s%s')", args[0], (*pdata)->name, (*pdata)->usage);
-	}
 
 	/* Checking that the first argument has only allowed characters. */
 	if (!(retval & ERR_CODE) && ((*pdata)->check_name > 0)) {

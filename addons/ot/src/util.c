@@ -37,13 +37,13 @@
  */
 void flt_ot_args_dump(char **args)
 {
-	int i, n;
+	int i, argc;
 
-	for (n = 1; FLT_OT_ARG_ISVALID(n); n++);
+	argc = flt_ot_args_count(args);
 
-	(void)fprintf(stderr, FLT_OT_DBG_FMT("%.*sargs[%d]: { '%s' "), dbg_indent_level, FLT_OT_DBG_INDENT, n, args[0]);
+	(void)fprintf(stderr, FLT_OT_DBG_FMT("%.*sargs[%d]: { '%s' "), dbg_indent_level, FLT_OT_DBG_INDENT, argc, args[0]);
 
-	for (i = 1; FLT_OT_ARG_ISVALID(i); i++)
+	for (i = 1; i < argc; i++)
 		(void)fprintf(stderr, "'%s' ", args[i]);
 
 	(void)fprintf(stderr, "}\n");
@@ -365,10 +365,30 @@ ssize_t flt_ot_chunk_add(struct buffer *chk, const void *src, size_t n, char **e
  */
 int flt_ot_args_count(char **args)
 {
-	int retval = 0;
+	int i, retval = 0;
 
-	if (args != NULL)
-		for ( ; FLT_OT_ARG_ISVALID(retval); retval++);
+	if (args == NULL)
+		return retval;
+
+	/*
+	 * It is possible that some arguments within the configuration line
+	 * are not specified; that is, they are set to a blank string.
+	 *
+	 * For example:
+	 *   keyword '' arg_2
+	 *
+	 * In that case the content of the args field will be like this:
+	 *   args[0]:                  'keyword'
+	 *   args[1]:                  NULL pointer
+	 *   args[2]:                  'arg_2'
+	 *   args[3 .. MAX_LINE_ARGS): NULL pointers
+	 *
+	 * The total number of arguments is the index of the last argument
+	 * (increased by 1) that is not a NULL pointer.
+	 */
+	for (i = 0; i < MAX_LINE_ARGS; i++)
+		if (FLT_OT_ARG_ISVALID(i))
+			retval = i + 1;
 
 	return retval;
 }
@@ -391,13 +411,15 @@ int flt_ot_args_count(char **args)
  */
 void flt_ot_args_to_str(char **args, int idx, char **str)
 {
-	int i;
+	int i, argc;
 
 	if ((args == NULL) || (*args == NULL))
 		return;
 
-	for (i = idx; FLT_OT_ARG_ISVALID(i); i++)
-		(void)memprintf(str, "%s%s%s", (*str == NULL) ? "" : *str, (i == idx) ? "" : " ", args[i]);
+	argc = flt_ot_args_count(args);
+
+	for (i = idx; i < argc; i++)
+		(void)memprintf(str, "%s%s%s", (*str == NULL) ? "" : *str, (i == idx) ? "" : " ", (args[i] == NULL) ? "" : args[i]);
 }
 
 
