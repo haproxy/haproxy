@@ -2188,10 +2188,10 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 		 * A request error is reported as it's the only element we have
 		 * here and which justifies emitting such a log.
 		 */
-		be = fe;
+		be = ((obj_type(sess->origin) == OBJ_TYPE_CHECK) ? __objt_check(sess->origin)->proxy : fe);
 		txn = NULL;
 		fe_conn = objt_conn(sess->origin);
-		be_conn = NULL;
+		be_conn = ((obj_type(sess->origin) == OBJ_TYPE_CHECK) ? cs_conn(__objt_check(sess->origin)->cs) : NULL);
 		status = 0;
 		s_flags = SF_ERR_PRXCOND | SF_FINST_R;
 		uniq_id = _HA_ATOMIC_FETCH_ADD(&global.req_count, 1);
@@ -2518,7 +2518,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				if (iret == 0)
 					goto out;
 				tmplog += iret;
-				if (sess->listener->bind_conf->xprt == xprt_get(XPRT_SSL))
+				if (sess->listener && sess->listener->bind_conf->xprt == xprt_get(XPRT_SSL))
 					LOGCHAR('~');
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
@@ -2561,12 +2561,17 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_SERVER: // %s
-				switch (obj_type(s ? s->target : NULL)) {
+				switch (obj_type(s ? s->target : sess->origin)) {
 				case OBJ_TYPE_SERVER:
 					src = __objt_server(s->target)->id;
 					break;
 				case OBJ_TYPE_APPLET:
 					src = __objt_applet(s->target)->name;
+					break;
+				case OBJ_TYPE_CHECK:
+					src = (__objt_check(sess->origin)->server
+					       ? __objt_check(sess->origin)->server->id
+					       : "<NOSRV>");
 					break;
 				default:
 					src = "<NOSRV>";
@@ -2768,9 +2773,21 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				break;
 
 			case LOG_FMT_SRVCONN:  // %sc
-				ret = ultoa_o(objt_server(s ? s->target : NULL) ?
-				                 objt_server(s->target)->cur_sess :
-				                 0, tmplog, dst + maxsize - tmplog);
+				switch (obj_type(s ? s->target : sess->origin)) {
+				case OBJ_TYPE_SERVER:
+					ret = ultoa_o(__objt_server(s->target)->cur_sess,
+						      tmplog, dst + maxsize - tmplog);
+					break;
+				case OBJ_TYPE_CHECK:
+					ret = ultoa_o(__objt_check(sess->origin)->server
+						      ? __objt_check(sess->origin)->server->cur_sess
+						      : 0, tmplog, dst + maxsize - tmplog);
+					break;
+				default:
+					ret = ultoa_o(0, tmplog, dst + maxsize - tmplog);
+					break;
+				}
+
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
