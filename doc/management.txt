@@ -1949,7 +1949,7 @@ set ssl cert <filename> <payload>
   This command is part of a transaction system, the "commit ssl cert" and
   "abort ssl cert" commands could be required.
   This whole transaction system works on any certificate displayed by the
-  "show ssl cert" command, that is only frontend certificates for now.
+  "show ssl cert" command, so on any frontend or backend certificate.
   If there is no on-going transaction, it will duplicate the certificate
   <filename> in memory to a temporary transaction, then update this
   transaction with the PEM file in the payload. If a transaction exists with
@@ -2723,12 +2723,12 @@ show stat [domain <dns|proxy>] [{<iid>|<proxy>} <type> <sid>] [typed|json] \
     python -m json.tool
 
 show ssl cert [<filename>]
-  Display the list of certificates used on frontends. If a filename is prefixed
-  by an asterisk, it is a transaction which is not committed yet.  If a
-  filename is specified, it will show details about the certificate. This
-  command can be useful to check if a certificate was well updated. You can
-  also display details on a transaction by prefixing the filename by an
-  asterisk.
+  Display the list of certificates used on frontends and backends.
+  If a filename is prefixed by an asterisk, it is a transaction which is not
+  committed yet. If a filename is specified, it will show details about the
+  certificate. This command can be useful to check if a certificate was well
+  updated. You can also display details on a transaction by prefixing the
+  filename by an asterisk.
 
   Example :
 
