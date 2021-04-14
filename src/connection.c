@@ -1315,8 +1315,13 @@ static int cfg_parse_pp2_never_send_local(char **args, int section_type, struct 
 static int
 smp_fetch_fc_http_major(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-										smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+	struct connection *conn = NULL;
+
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+        else
+                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
 	/* No connection or a connection with a RAW muxx */
 	if (!conn || (conn->mux && !(conn->mux->flags & MX_FL_HTX)))
