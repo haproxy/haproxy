@@ -38,6 +38,7 @@
 #define FLT_OT_PARSE_SPAN_REF_CHILD         "child-of"
 #define FLT_OT_PARSE_SPAN_REF_FOLLOWS       "follows-from"
 #define FLT_OT_PARSE_CTX_AUTONAME           "-"
+#define FLT_OT_PARSE_CTX_IGNORE_NAME        '-'
 #define FLT_OT_PARSE_CTX_USE_HEADERS        "use-headers"
 #define FLT_OT_PARSE_CTX_USE_VARS           "use-vars"
 #define FLT_OT_PARSE_OPTION_HARDERR         "hard-errors"

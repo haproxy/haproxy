@@ -99,6 +99,19 @@ struct otc_text_map *flt_ot_http_headers_get(struct channel *chn, const char *pr
 	if (chn == NULL)
 		FLT_OT_RETURN(retptr);
 
+	/*
+	 * The keyword 'inject' allows you to define the name of the OpenTracing
+	 * context without using a prefix.  In that case all HTTP headers are
+	 * transferred because it is not possible to separate them from the
+	 * OpenTracing context (this separation is usually done via a prefix).
+	 *
+	 * When using the 'extract' keyword, the context name must be specified.
+	 * To allow all HTTP headers to be extracted, the first character of
+	 * that name must be set to FLT_OT_PARSE_CTX_IGNORE_NAME.
+	 */
+	if (FLT_OT_STR_ISVALID(prefix) && (*prefix == FLT_OT_PARSE_CTX_IGNORE_NAME))
+		prefix_len = 0;
+
 	htx = htxbuf(&(chn->buf));
 
 	for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
