@@ -43,6 +43,7 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
+#include <haproxy/cpuset.h>
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
@@ -460,27 +461,28 @@ int parse_process_number(const char *arg, unsigned long *proc, int max, int *aut
 
 #ifdef USE_CPU_AFFINITY
 /* Parse cpu sets. Each CPU set is either a unique number between 0 and
- * <LONGBITS> or a range with two such numbers delimited by a dash
+ * ha_cpuset_size() - 1 or a range with two such numbers delimited by a dash
  * ('-'). Multiple CPU numbers or ranges may be specified. On success, it
  * returns 0. otherwise it returns 1 with an error message in <err>.
  */
-unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, char **err)
+unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char **err)
 {
 	int cur_arg = 0;
 
-	*cpu_set = 0;
+	ha_cpuset_zero(cpu_set);
+
 	while (*args[cur_arg]) {
 		char        *dash;
 		unsigned int low, high;
 
 		if (!isdigit((unsigned char)*args[cur_arg])) {
-			memprintf(err, "'%s' is not a CPU range.\n", args[cur_arg]);
+			memprintf(err, "'%s' is not a CPU range.", args[cur_arg]);
 			return -1;
 		}
 
 		low = high = str2uic(args[cur_arg]);
 		if ((dash = strchr(args[cur_arg], '-')) != NULL)
-			high = ((!*(dash+1)) ? LONGBITS-1 : str2uic(dash + 1));
+			high = *(dash+1) ? str2uic(dash + 1) : ha_cpuset_size() - 1;
 
 		if (high < low) {
 			unsigned int swap = low;
@@ -488,13 +490,14 @@ unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, char **er
 			high = swap;
 		}
 
-		if (high >= LONGBITS) {
-			memprintf(err, "supports CPU numbers from 0 to %d.\n", LONGBITS - 1);
+		if (high >= ha_cpuset_size()) {
+			memprintf(err, "supports CPU numbers from 0 to %d.",
+			          ha_cpuset_size() - 1);
 			return 1;
 		}
 
 		while (low <= high)
-			*cpu_set |= 1UL << low++;
+			ha_cpuset_set(cpu_set, low++);
 
 		cur_arg++;
 	}

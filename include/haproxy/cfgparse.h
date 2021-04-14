@@ -26,6 +26,8 @@
 #include <haproxy/errors.h>
 #include <haproxy/proxy.h>
 
+struct hap_cpuset;
+
 /* configuration sections */
 #define CFG_NONE	0
 #define CFG_GLOBAL	1
@@ -112,7 +114,7 @@ int too_many_args(int maxarg, char **args, char **msg, int *err_code);
 int alertif_too_many_args_idx(int maxarg, int index, const char *file, int linenum, char **args, int *err_code);
 int alertif_too_many_args(int maxarg, const char *file, int linenum, char **args, int *err_code);
 int parse_process_number(const char *arg, unsigned long *proc, int max, int *autoinc, char **err);
-unsigned long parse_cpu_set(const char **args, unsigned long *cpu_set, char **err);
+unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, char **err);
 void free_email_alert(struct proxy *p);
 const char *cfg_find_best_match(const char *word, const struct list *list, int section, const char **extra);
 

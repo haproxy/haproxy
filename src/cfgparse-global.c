@@ -1,3 +1,4 @@
+#define _GNU_SOURCE  /* for CPU_* from cpuset.h */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +14,7 @@
 
 #include <haproxy/buf.h>
 #include <haproxy/cfgparse.h>
+#include <haproxy/cpuset.h>
 #include <haproxy/compression.h>
 #include <haproxy/global.h>
 #include <haproxy/log.h>
@@ -1027,7 +1029,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 #ifdef USE_CPU_AFFINITY
 		char *slash;
 		unsigned long proc = 0, thread = 0, cpus;
-		int i, j, n, autoinc;
+		int i, j, n, k, autoinc;
+		struct hap_cpuset cpuset;
 
 		if (!*args[1] || !*args[2]) {
 			ha_alert("parsing [%s:%d] : %s expects a process number "
@@ -1068,12 +1071,23 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if (parse_cpu_set((const char **)args+2, &cpus, &errmsg)) {
+		if (parse_cpu_set((const char **)args+2, &cpuset, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-
+#if defined(CPUSET_USE_CPUSET)
+		k = 0;
+		while (CPU_COUNT(&cpuset.cpuset)) {
+			while (!CPU_ISSET(k, &cpuset.cpuset))
+				++k;
+			cpus |= 1 << k;
+			CPU_CLR(k, &cpuset.cpuset);
+			++k;
+		}
+#elif defined(CPUSET_USE_ULONG)
+		cpus = cpuset.cpuset;
+#endif
 		if (autoinc &&
 		    my_popcountl(proc)  != my_popcountl(cpus) &&
 		    my_popcountl(thread) != my_popcountl(cpus)) {
