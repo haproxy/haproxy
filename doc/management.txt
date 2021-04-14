@@ -1948,6 +1948,8 @@ set severity-output [ none | number | string ]
 set ssl cert <filename> <payload>
   This command is part of a transaction system, the "commit ssl cert" and
   "abort ssl cert" commands could be required.
+  This whole transaction system works on any certificate displayed by the
+  "show ssl cert" command, that is only frontend certificates for now.
   If there is no on-going transaction, it will duplicate the certificate
   <filename> in memory to a temporary transaction, then update this
   transaction with the PEM file in the payload. If a transaction exists with
