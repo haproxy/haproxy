@@ -265,7 +265,7 @@ static inline void thread_harmless_end()
 {
 	while (1) {
 		HA_ATOMIC_AND(&threads_harmless_mask, ~tid_bit);
-		if (likely((threads_want_rdv_mask & all_threads_mask) == 0))
+		if (likely((threads_want_rdv_mask & ~tid_bit) == 0))
 			break;
 		thread_harmless_till_end();
 	}
