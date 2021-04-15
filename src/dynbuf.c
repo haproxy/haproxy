@@ -27,6 +27,7 @@ int init_buffer()
 {
 	void *buffer;
 	int thr;
+	int done;
 
 	pool_head_buffer = create_pool("buffer", global.tune.bufsize, MEM_F_SHARED|MEM_F_EXACT);
 	if (!pool_head_buffer)
@@ -47,11 +48,12 @@ int init_buffer()
 	if (global.tune.buf_limit)
 		pool_head_buffer->limit = global.tune.buf_limit;
 
-	buffer = pool_refill_alloc(pool_head_buffer, pool_head_buffer->minavail - 1);
-	if (!buffer)
-		return 0;
-
-	pool_free(pool_head_buffer, buffer);
+	for (done = 0; done < pool_head_buffer->minavail - 1; done++) {
+		buffer = pool_refill_alloc(pool_head_buffer, 1);
+		if (!buffer)
+			return 0;
+		pool_free(pool_head_buffer, buffer);
+	}
 	return 1;
 }
 
