@@ -42,7 +42,7 @@ struct thread_info {
 	unsigned int idle_pct;     /* idle to total ratio over last sample (percent) */
 	unsigned int flags;        /* thread info flags, TI_FL_* */
 
-#ifdef CONFIG_HAP_LOCAL_POOLS
+#ifdef CONFIG_HAP_POOLS
 	struct list pool_lru_head;                         /* oldest objects   */
 #endif
 	struct list buffer_wq;     /* buffer waiters */

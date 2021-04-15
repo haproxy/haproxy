@@ -71,7 +71,7 @@ static inline int pool_is_crowded(const struct pool_head *pool)
 }
 
 
-#ifdef CONFIG_HAP_LOCAL_POOLS
+#ifdef CONFIG_HAP_POOLS
 
 /****************** Thread-local cache management ******************/
 
@@ -123,7 +123,7 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
 		pool_evict_from_cache();
 }
 
-#endif // CONFIG_HAP_LOCAL_POOLS
+#endif // CONFIG_HAP_POOLS
 
 
 #if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
@@ -269,7 +269,7 @@ static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 {
 	void *p;
 
-#ifdef CONFIG_HAP_LOCAL_POOLS
+#ifdef CONFIG_HAP_POOLS
 	if (likely(p = __pool_get_from_cache(pool)))
 		goto ret;
 #endif
@@ -330,7 +330,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		if (unlikely(mem_poison_byte >= 0))
 			memset(ptr, mem_poison_byte, pool->size);
 
-#ifdef CONFIG_HAP_LOCAL_POOLS
+#ifdef CONFIG_HAP_POOLS
 		/* put the object back into the cache only if there are not too
 		 * many objects yet in this pool (no more than half of the cached
 		 * is used or this pool uses no more than 1/8 of the cache size).

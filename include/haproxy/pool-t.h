@@ -26,18 +26,18 @@
 #include <haproxy/list-t.h>
 #include <haproxy/thread-t.h>
 
+/* Pools are always enabled unless explicitly disabled. When disabled, the
+ * calls are directly passed to the underlying OS functions.
+ */
+#if !defined(DEBUG_NO_POOLS) && !defined(DEBUG_UAF) && !defined(DEBUG_FAIL_ALLOC)
+#define CONFIG_HAP_POOLS
+#endif
+
 /* On architectures supporting threads and double-word CAS, we can implement
  * lock-less memory pools. This isn't supported for debugging modes however.
  */
 #if defined(USE_THREAD) && defined(HA_HAVE_CAS_DW) && !defined(DEBUG_NO_LOCKLESS_POOLS) && !defined(DEBUG_UAF) && !defined(DEBUG_FAIL_ALLOC)
 #define CONFIG_HAP_LOCKLESS_POOLS
-#endif
-
-/* On architectures supporting threads we can amortize the locking cost using
- * local pools.
- */
-#if defined(USE_THREAD) && !defined(DEBUG_NO_LOCAL_POOLS) && !defined(DEBUG_UAF) && !defined(DEBUG_FAIL_ALLOC)
-#define CONFIG_HAP_LOCAL_POOLS
 #endif
 
 /* On modern architectures with many threads, a fast memory allocator, and
@@ -46,7 +46,7 @@
  * case we disable global pools. The global pools may still be enforced
  * using CONFIG_HAP_GLOBAL_POOLS though.
  */
-#if defined(USE_THREAD) && defined(HA_HAVE_FAST_MALLOC) && defined(CONFIG_HAP_LOCAL_POOLS) && !defined(CONFIG_HAP_GLOBAL_POOLS)
+#if defined(USE_THREAD) && defined(HA_HAVE_FAST_MALLOC) && defined(CONFIG_HAP_POOLS) && !defined(CONFIG_HAP_GLOBAL_POOLS)
 #define CONFIG_HAP_NO_GLOBAL_POOLS
 #endif
 
@@ -117,7 +117,7 @@ struct pool_head {
 	unsigned int failed;	/* failed allocations */
 	struct list list;	/* list of all known pools */
 	char name[12];		/* name of the pool */
-#ifdef CONFIG_HAP_LOCAL_POOLS
+#ifdef CONFIG_HAP_POOLS
 	struct pool_cache_head cache[MAX_THREADS]; /* pool caches */
 #endif
 } __attribute__((aligned(64)));

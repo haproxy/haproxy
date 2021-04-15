@@ -27,7 +27,7 @@
 #include <haproxy/tools.h>
 
 
-#ifdef CONFIG_HAP_LOCAL_POOLS
+#ifdef CONFIG_HAP_POOLS
 /* These ones are initialized per-thread on startup by init_pools() */
 THREAD_LOCAL size_t pool_cache_bytes = 0;                /* total cache size */
 THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
@@ -107,7 +107,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		pool->flags = flags;
 		LIST_ADDQ(start, &pool->list);
 
-#ifdef CONFIG_HAP_LOCAL_POOLS
+#ifdef CONFIG_HAP_POOLS
 		/* update per-thread pool cache if necessary */
 		for (thr = 0; thr < MAX_THREADS; thr++) {
 			LIST_INIT(&pool->cache[thr].list);
@@ -119,7 +119,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	return pool;
 }
 
-#ifdef CONFIG_HAP_LOCAL_POOLS
+#ifdef CONFIG_HAP_POOLS
 /* Evicts some of the oldest objects from the local cache, pushing them to the
  * global pool.
  */
@@ -602,7 +602,7 @@ void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size)
 /* Initializes all per-thread arrays on startup */
 static void init_pools()
 {
-#ifdef CONFIG_HAP_LOCAL_POOLS
+#ifdef CONFIG_HAP_POOLS
 	int thr;
 
 	for (thr = 0; thr < MAX_THREADS; thr++) {
