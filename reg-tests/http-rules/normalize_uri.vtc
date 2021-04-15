@@ -8,7 +8,7 @@ feature ignore_unknown_macro
 server s1 {
     rxreq
     txresp
-} -repeat 10 -start
+} -repeat 21 -start
 
 haproxy h1 -conf {
     defaults
@@ -22,6 +22,18 @@ haproxy h1 -conf {
 
         http-request set-var(txn.before) url
         http-request normalize-uri merge-slashes
+        http-request set-var(txn.after) url
+
+        http-response add-header before  %[var(txn.before)]
+        http-response add-header after  %[var(txn.after)]
+
+        default_backend be
+
+    frontend fe_dotdot
+        bind "fd@${fe_dotdot}"
+
+        http-request set-var(txn.before) url
+        http-request normalize-uri dotdot
         http-request set-var(txn.after) url
 
         http-response add-header before  %[var(txn.before)]
@@ -79,6 +91,63 @@ client c1 -connect ${h1_fe_merge_slashes_sock} {
     rxresp
     expect resp.http.before == "//foo?bar=///"
     expect resp.http.after == "/foo?bar=///"
+
+    txreq -req OPTIONS -url "*"
+    rxresp
+    expect resp.http.before == "*"
+    expect resp.http.after == "*"
+} -run
+
+client c2 -connect ${h1_fe_dotdot_sock} {
+    txreq -url "/foo/bar"
+    rxresp
+    expect resp.http.before == "/foo/bar"
+    expect resp.http.after == "/foo/bar"
+
+    txreq -url "/foo/.."
+    rxresp
+    expect resp.http.before == "/foo/.."
+    expect resp.http.after == "/"
+
+    txreq -url "/foo/../"
+    rxresp
+    expect resp.http.before == "/foo/../"
+    expect resp.http.after == "/"
+
+    txreq -url "/foo/bar/../"
+    rxresp
+    expect resp.http.before == "/foo/bar/../"
+    expect resp.http.after == "/foo/"
+
+    txreq -url "/foo/../bar"
+    rxresp
+    expect resp.http.before == "/foo/../bar"
+    expect resp.http.after == "/bar"
+
+    txreq -url "/foo/../bar/"
+    rxresp
+    expect resp.http.before == "/foo/../bar/"
+    expect resp.http.after == "/bar/"
+
+    txreq -url "/foo/../../bar/"
+    rxresp
+    expect resp.http.before == "/foo/../../bar/"
+    expect resp.http.after == "/../bar/"
+
+    txreq -url "/foo//../../bar/"
+    rxresp
+    expect resp.http.before == "/foo//../../bar/"
+    expect resp.http.after == "/bar/"
+
+    txreq -url "/foo/?bar=/foo/../"
+    rxresp
+    expect resp.http.before == "/foo/?bar=/foo/../"
+    expect resp.http.after == "/foo/?bar=/foo/../"
+
+    txreq -url "/foo/../?bar=/foo/../"
+    rxresp
+    expect resp.http.before == "/foo/../?bar=/foo/../"
+    expect resp.http.after == "/?bar=/foo/../"
 
     txreq -req OPTIONS -url "*"
     rxresp

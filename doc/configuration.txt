@@ -6012,10 +6012,23 @@ http-request early-hint <name> <fmt> [ { if | unless } <condition> ]
   See RFC 8297 for more information.
 
 http-request normalize-uri <normalizer> [ { if | unless } <condition> ]
+http-request normalize-uri dotdot [ { if | unless } <condition> ]
 http-request normalize-uri merge-slashes [ { if | unless } <condition> ]
 
   Performs normalization of the request's URI. The following normalizers are
   available:
+
+  - dotdot: Normalizes "/../" segments within the "path" component. This merges
+      segments that attempt to access the parent directory with their preceding
+      segment. Empty segments do not receive special treatment. Use the
+      "merge-slashes" normalizer first if this is undesired.
+
+      Example:
+      - /foo/../     -> /
+      - /foo/../bar/ -> /bar/
+      - /foo/bar/../ -> /foo/
+      - /../bar/     -> /../bar/
+      - /foo//../    -> /foo/
 
   - merge-slashes: Merges adjacent slashes within the "path" component into a
       single slash.

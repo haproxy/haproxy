@@ -232,6 +232,23 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 
 			break;
 		}
+		case ACT_NORMALIZE_URI_DOTDOT: {
+			const struct ist path = http_get_path(uri);
+			struct ist newpath = ist2(replace->area, replace->size);
+
+			if (!isttest(path))
+				goto leave;
+
+			err = uri_normalizer_path_dotdot(iststop(path, '?'), &newpath);
+
+			if (err != URI_NORMALIZER_ERR_NONE)
+				break;
+
+			if (!http_replace_req_path(htx, newpath, 0))
+				goto fail_rewrite;
+
+			break;
+		}
 	}
 
 	switch (err) {
@@ -296,6 +313,11 @@ static enum act_parse_ret parse_http_normalize_uri(const char **args, int *orig_
 		cur_arg++;
 
 		rule->action = ACT_NORMALIZE_URI_MERGE_SLASHES;
+	}
+	else if (strcmp(args[cur_arg], "dotdot") == 0) {
+		cur_arg++;
+
+		rule->action = ACT_NORMALIZE_URI_DOTDOT;
 	}
 	else {
 		memprintf(err, "unknown normalizer '%s'", args[cur_arg]);

@@ -15,6 +15,88 @@
 #include <haproxy/api.h>
 #include <haproxy/uri_normalizer.h>
 
+/* Merges `/../` with preceding path segments. */
+enum uri_normalizer_err uri_normalizer_path_dotdot(const struct ist path, struct ist *dst)
+{
+	enum uri_normalizer_err err;
+
+	const size_t size = istclear(dst);
+	char * const tail = istptr(*dst) + size;
+	char *head = tail;
+
+	ssize_t offset = istlen(path) - 1;
+
+	int up = 0;
+
+	/* The path will either be shortened or have the same length. */
+	if (size < istlen(path)) {
+		err = URI_NORMALIZER_ERR_ALLOC;
+		goto fail;
+	}
+
+	/* Handle `/..` at the end of the path without a trailing slash. */
+	if (offset >= 2 && istmatch(istadv(path, offset - 2), ist("/.."))) {
+		up++;
+		offset -= 2;
+	}
+
+	while (offset >= 0) {
+		if (offset >= 3 && istmatch(istadv(path, offset - 3), ist("/../"))) {
+			up++;
+			offset -= 3;
+			continue;
+		}
+
+		if (up > 0) {
+			/* Skip the slash. */
+			offset--;
+
+			/* First check whether we already reached the start of the path,
+			 * before popping the current `/../`.
+			 */
+			if (offset >= 0) {
+				up--;
+
+				/* Skip the current path segment. */
+				while (offset >= 0 && istptr(path)[offset] != '/')
+					offset--;
+			}
+		}
+		else {
+			/* Prepend the slash. */
+			*(--head) = istptr(path)[offset];
+			offset--;
+
+			/* Prepend the current path segment. */
+			while (offset >= 0 && istptr(path)[offset] != '/') {
+				*(--head) = istptr(path)[offset];
+				offset--;
+			}
+		}
+	}
+
+	if (up > 0) {
+		/* Prepend a trailing slash. */
+		*(--head) = '/';
+
+		/* Prepend unconsumed `/..`. */
+		do {
+			*(--head) = '.';
+			*(--head) = '.';
+			*(--head) = '/';
+			up--;
+		} while (up > 0);
+	}
+
+	*dst = ist2(head, tail - head);
+
+	return URI_NORMALIZER_ERR_NONE;
+
+  fail:
+
+	return err;
+}
+
 /* Merges adjacent slashes in the given path. */
 enum uri_normalizer_err uri_normalizer_path_merge_slashes(const struct ist path, struct ist *dst)
 {
