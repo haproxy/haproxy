@@ -3739,26 +3739,30 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 					return 0;
 
 				smp->data.type = SMP_T_SINT;
+
+				return 1;
 			} else {
 				double double_val;
 
-				if (mjson_get_number(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, &double_val) == 0) {
+				if (mjson_get_number(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, &double_val) == 0)
 					return 0;
-				} else {
-					trash->data = snprintf(trash->area,trash->size,"%g",double_val);
-					smp->data.u.str = *trash;
-					smp->data.type = SMP_T_STR;
-				}
+
+				trash->data = snprintf(trash->area,trash->size,"%g",double_val);
+				smp->data.u.str = *trash;
+				smp->data.type = SMP_T_STR;
+
+				return 1;
 			}
-			break;
 		case MJSON_TOK_TRUE:
 			smp->data.type = SMP_T_BOOL;
 			smp->data.u.sint = 1;
-			break;
+
+			return 1;
 		case MJSON_TOK_FALSE:
 			smp->data.type = SMP_T_BOOL;
 			smp->data.u.sint = 0;
-			break;
+
+			return 1;
 		case MJSON_TOK_STRING: {
 			int len;
 
@@ -3767,12 +3771,13 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 			if (len == -1) {
 				/* invalid string */
 				return 0;
-			} else {
-				trash->data = len;
-				smp->data.u.str = *trash;
-				smp->data.type = SMP_T_STR;
 			}
-			break;
+
+			trash->data = len;
+			smp->data.u.str = *trash;
+			smp->data.type = SMP_T_STR;
+
+			return 1;
 		}
 		case MJSON_TOK_NULL:
 		case MJSON_TOK_ARRAY:
@@ -3789,7 +3794,9 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 			 */
 			return 0;
 	}
-	return 1;
+
+	my_unreachable();
+	return 0;
 }
 
 
