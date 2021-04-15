@@ -655,16 +655,10 @@ static struct cli_kw_list cli_kws = {{ },{
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 #ifdef DEBUG_FAIL_ALLOC
-#define MEM_FAIL_MAX_CHAR 32
-#define MEM_FAIL_MAX_STR 128
-static int mem_fail_cur_idx;
-static char mem_fail_str[MEM_FAIL_MAX_CHAR * MEM_FAIL_MAX_STR];
-__decl_thread(static HA_SPINLOCK_T mem_fail_lock);
 
 int mem_should_fail(const struct pool_head *pool)
 {
 	int ret = 0;
-	int n;
 
 	if (mem_fail_rate > 0 && !(global.mode & MODE_STARTING)) {
 		int randnb = ha_random() % 100;
@@ -674,20 +668,6 @@ int mem_should_fail(const struct pool_head *pool)
 		else
 			ret = 0;
 	}
-	HA_SPIN_LOCK(POOL_LOCK, &mem_fail_lock);
-	n = snprintf(&mem_fail_str[mem_fail_cur_idx * MEM_FAIL_MAX_CHAR],
-	    MEM_FAIL_MAX_CHAR - 2,
-	    "%d %.18s %d %d", mem_fail_cur_idx, pool->name, ret, tid);
-	while (n < MEM_FAIL_MAX_CHAR - 1)
-		mem_fail_str[mem_fail_cur_idx * MEM_FAIL_MAX_CHAR + n++] = ' ';
-	if (mem_fail_cur_idx < MEM_FAIL_MAX_STR - 1)
-		mem_fail_str[mem_fail_cur_idx * MEM_FAIL_MAX_CHAR + n] = '\n';
-	else
-		mem_fail_str[mem_fail_cur_idx * MEM_FAIL_MAX_CHAR + n] = 0;
-	mem_fail_cur_idx++;
-	if (mem_fail_cur_idx == MEM_FAIL_MAX_STR)
-		mem_fail_cur_idx = 0;
-	HA_SPIN_UNLOCK(POOL_LOCK, &mem_fail_lock);
 	return ret;
 
 }
