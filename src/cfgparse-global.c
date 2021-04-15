@@ -1156,6 +1156,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					}
 				}
 			}
+
+			HA_DIAG_WARNING_COND(proc != 0x1 && thread != 0x1,
+			                     "parsing [%s:%d] : cpu-map statement is considered invalid and thus ignored as it addresses multiple processes and threads at the same time. At least one of them should be 1 and only 1.", file, linenum);
 		}
 #else
 		ha_alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_CPU_AFFINITY.\n",
