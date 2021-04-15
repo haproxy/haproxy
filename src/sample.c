@@ -3723,16 +3723,17 @@ static int sample_check_json_query(struct arg *arg, struct sample_conv *conv,
 static int sample_conv_json_query(const struct arg *args, struct sample *smp, void *private)
 {
 	struct buffer *trash = get_trash_chunk();
-	const char *p; /* holds the temporary string from mjson_find */
-	int tok, n;    /* holds the token enum and the length of the value */
-	int rc;        /* holds the return code from mjson_get_string */
+	const char *token; /* holds the temporary string from mjson_find */
+	int token_size;    /* holds the length of <token> */
 
-	tok = mjson_find(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, &p, &n);
+	enum mjson_tok token_type;
 
-	switch(tok) {
+	token_type = mjson_find(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, &token, &token_size);
+
+	switch (token_type) {
 		case MJSON_TOK_NUMBER:
 			if (args[1].type == ARGT_SINT) {
-				smp->data.u.sint = atoll(p);
+				smp->data.u.sint = atoll(token);
 
 				if (smp->data.u.sint < JSON_INT_MIN || smp->data.u.sint > JSON_INT_MAX)
 					return 0;
@@ -3740,6 +3741,7 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 				smp->data.type = SMP_T_SINT;
 			} else {
 				double double_val;
+
 				if (mjson_get_number(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, &double_val) == 0) {
 					return 0;
 				} else {
@@ -3757,17 +3759,21 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 			smp->data.type = SMP_T_BOOL;
 			smp->data.u.sint = 0;
 			break;
-		case MJSON_TOK_STRING:
-			rc = mjson_get_string(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, trash->area, trash->size);
-			if (rc == -1) {
+		case MJSON_TOK_STRING: {
+			int len;
+
+			len = mjson_get_string(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, trash->area, trash->size);
+
+			if (len == -1) {
 				/* invalid string */
 				return 0;
 			} else {
-				trash->data = rc;
+				trash->data = len;
 				smp->data.u.str = *trash;
 				smp->data.type = SMP_T_STR;
 			}
 			break;
+		}
 		default:
 			/* no valid token found */
 			return 0;
