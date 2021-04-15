@@ -209,19 +209,25 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
  * Returns a pointer to type <type> taken from the pool <pool_type> if
  * available, otherwise returns NULL. No malloc() is attempted, and poisonning
  * is never performed. The purpose is to get the fastest possible allocation.
+ * This version takes the pool's lock in order to do this.
  */
 static inline void *__pool_get_first(struct pool_head *pool)
 {
 	void *p;
 
+	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 	if ((p = pool->free_list) != NULL) {
 		pool->free_list = *POOL_LINK(pool, p);
 		pool->used++;
+	}
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+
 #ifdef DEBUG_MEMORY_POOLS
+	if (p) {
 		/* keep track of where the element was allocated from */
 		*POOL_LINK(pool, p) = (void *)pool;
-#endif
 	}
+#endif
 	return p;
 }
 
@@ -274,13 +280,7 @@ static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 		goto ret;
 #endif
 
-#if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
-	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-#endif
 	p = __pool_get_first(pool);
-#if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
-	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-#endif
 	if (!p)
 		p = pool_alloc_nocache(pool);
  ret:
