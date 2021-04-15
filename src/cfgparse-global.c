@@ -1110,22 +1110,34 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				}
 			}
 		} else {
-			/* Mapping at the thread level. All threads are retained
-			 * for process 1, and only thread 1 is retained for other
-			 * processes.
+			/* Mapping at the thread level.
+			 * Either proc and/or thread must be 1 and only 1. All
+			 * other combinations are silently ignored.
 			 */
 			if (thread == 0x1) {
+				int val;
+
 				/* first thread, iterate on processes. E.g. cpu-map 1-4/1 0-3 */
 				for (i = n = 0; i < MAX_PROCS; i++) {
 					/* No mapping for this process */
 					if (!(proc & (1UL << i)))
 						continue;
-					if (!autoinc)
-						global.cpu_map.proc_t1[i] = cpus;
+
+					if (!autoinc) {
+						val = cpus;
+					}
 					else {
 						n += my_ffsl(cpus >> n);
-						global.cpu_map.proc_t1[i] = (1UL << (n-1));
+						val = 1UL << (n - 1);
 					}
+
+					/* For first process, thread[0] is used.
+					 * Use proc_t1[N] for all others
+					 */
+					if (!i)
+						global.cpu_map.thread[0] = val;
+					else
+						global.cpu_map.proc_t1[i] = val;
 				}
 			}
 
