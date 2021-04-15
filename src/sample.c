@@ -16,6 +16,7 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 
+#include <import/mjson.h>
 #include <import/sha1.h>
 #include <import/xxhash.h>
 
@@ -3689,6 +3690,92 @@ static int sample_conv_rtrim(const struct arg *arg_p, struct sample *smp, void *
 	return 1;
 }
 
+/* This function checks the "json_query" converter's arguments. */
+static int sample_check_json_query(struct arg *arg, struct sample_conv *conv,
+                           const char *file, int line, char **err)
+{
+	if (arg[0].data.str.data == 0) {
+		memprintf(err, "json_path must not be empty");
+		return 0;
+	}
+
+	if (arg[1].data.str.data != 0) {
+		if (strcmp(arg[1].data.str.area, "int") != 0) {
+			memprintf(err, "output_type only supports \"int\" as argument");
+			return 0;
+		} else {
+			arg[1].type = ARGT_SINT;
+			arg[1].data.sint = 0;
+		}
+	}
+	return 1;
+}
+
+/* Limit JSON integer values to the range [-(2**53)+1, (2**53)-1] as per
+ * the recommendation for interoperable integers in section 6 of RFC 7159.
+ */
+#define JSON_INT_MAX ((1LL << 53) - 1)
+#define JSON_INT_MIN (-JSON_INT_MAX)
+
+/* This sample function get the value from a given json string.
+ * The mjson library is used to parse the JSON struct
+ */
+static int sample_conv_json_query(const struct arg *args, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	const char *p; /* holds the temporary string from mjson_find */
+	int tok, n;    /* holds the token enum and the length of the value */
+	int rc;        /* holds the return code from mjson_get_string */
+
+	tok = mjson_find(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, &p, &n);
+
+	switch(tok) {
+		case MJSON_TOK_NUMBER:
+			if (args[1].type == ARGT_SINT) {
+				smp->data.u.sint = atoll(p);
+
+				if (smp->data.u.sint < JSON_INT_MIN || smp->data.u.sint > JSON_INT_MAX)
+					return 0;
+
+				smp->data.type = SMP_T_SINT;
+			} else {
+				double double_val;
+				if (mjson_get_number(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, &double_val) == 0) {
+					return 0;
+				} else {
+					trash->data = snprintf(trash->area,trash->size,"%g",double_val);
+					smp->data.u.str = *trash;
+					smp->data.type = SMP_T_STR;
+				}
+			}
+			break;
+		case MJSON_TOK_TRUE:
+			smp->data.type = SMP_T_BOOL;
+			smp->data.u.sint = 1;
+			break;
+		case MJSON_TOK_FALSE:
+			smp->data.type = SMP_T_BOOL;
+			smp->data.u.sint = 0;
+			break;
+		case MJSON_TOK_STRING:
+			rc = mjson_get_string(smp->data.u.str.area, smp->data.u.str.data, args[0].data.str.area, trash->area, trash->size);
+			if (rc == -1) {
+				/* invalid string */
+				return 0;
+			} else {
+				trash->data = rc;
+				smp->data.u.str = *trash;
+				smp->data.type = SMP_T_STR;
+			}
+			break;
+		default:
+			/* no valid token found */
+			return 0;
+	}
+	return 1;
+}
+
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -4203,6 +4290,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "cut_crlf", sample_conv_cut_crlf,           0, NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "ltrim",    sample_conv_ltrim,    ARG1(1,STR), NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "rtrim",    sample_conv_rtrim,    ARG1(1,STR), NULL, SMP_T_STR,  SMP_T_STR  },
+	{ "json_query", sample_conv_json_query, ARG2(1,STR,STR),  sample_check_json_query , SMP_T_STR, SMP_T_ANY },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

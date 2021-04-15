@@ -1,0 +1,95 @@
+varnishtest "JSON Query converters Test"
+#REQUIRE_VERSION=2.4
+
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 8 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+	option http-buffer-request
+
+    frontend fe
+	bind "fd@${fe}"
+	tcp-request inspect-delay 1s
+
+	http-request set-var(sess.header_json) req.hdr(Authorization),json_query('$.iss')
+	http-request set-var(sess.pay_json) req.body,json_query('$.iss')
+	http-request set-var(sess.pay_int) req.body,json_query('$.integer',"int"),add(1)
+	http-request set-var(sess.pay_neg_int) req.body,json_query('$.negativ-integer',"int"),add(1)
+	http-request set-var(sess.pay_double) req.body,json_query('$.double')
+	http-request set-var(sess.pay_boolean_true) req.body,json_query('$.boolean-true')
+	http-request set-var(sess.pay_boolean_false) req.body,json_query('$.boolean-false')
+	http-request set-var(sess.pay_mykey) req.body,json_query('$.my\\.key')
+
+	http-response set-header x-var_header %[var(sess.header_json)]
+	http-response set-header x-var_body %[var(sess.pay_json)]
+	http-response set-header x-var_body_int %[var(sess.pay_int)]
+	http-response set-header x-var_body_neg_int %[var(sess.pay_neg_int)]
+	http-response set-header x-var_body_double %[var(sess.pay_double)]
+	http-response set-header x-var_body_boolean_true %[var(sess.pay_boolean_true)]
+	http-response set-header x-var_body_boolean_false %[var(sess.pay_boolean_false)]
+	http-response set-header x-var_body_mykey %[var(sess.pay_mykey)]
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/" \
+	  -hdr "Authorization: {\"iss\":\"kubernetes.io/serviceaccount\"}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-var_header ~ "kubernetes.io/serviceaccount"
+
+	txreq -url "/" \
+	  -body "{\"iss\":\"kubernetes.io/serviceaccount\"}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-var_body ~ "kubernetes.io/serviceaccount"
+
+	txreq -url "/" \
+	  -body "{\"integer\":4}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-var_body_int ~ "5"
+
+	txreq -url "/" \
+	  -body "{\"integer\":-4}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-var_body_int ~ "-3"
+
+	txreq -url "/" \
+	  -body "{\"double\":4.5}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-var_body_double ~ "4.5"
+
+	txreq -url "/" \
+	  -body "{\"boolean-true\":true}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-var_body_boolean_true == 1
+
+	txreq -url "/" \
+	  -body "{\"boolean-false\":false}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-var_body_boolean_false == 0
+
+	txreq -url "/" \
+	  -body "{\"my.key\":\"myvalue\"}"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.x-var_body_mykey ~ "myvalue"
+} -run
