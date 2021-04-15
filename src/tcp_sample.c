@@ -47,8 +47,13 @@
 static int
 smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-		smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+	struct connection *conn;
+
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+        else
+                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
 	if (!conn)
 		return 0;
@@ -79,8 +84,13 @@ smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *
 static int
 smp_fetch_sport(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-		smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+	struct connection *conn;
+
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+        else
+                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
 	if (!conn)
 		return 0;
@@ -102,8 +112,13 @@ smp_fetch_sport(const struct arg *args, struct sample *smp, const char *kw, void
 static int
 smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-		smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+	struct connection *conn;
+
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+        else
+                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
 	if (!conn)
 		return 0;
@@ -174,8 +189,13 @@ int smp_fetch_src_is_local(const struct arg *args, struct sample *smp, const cha
 static int
 smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
-		smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+	struct connection *conn;
+
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+        else
+                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
 	if (!conn)
 		return 0;
