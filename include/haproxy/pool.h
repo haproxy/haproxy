@@ -141,6 +141,7 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
 {
 	_HA_ATOMIC_DEC(&pool->used);
 	_HA_ATOMIC_DEC(&pool->allocated);
+	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
 	pool_free_area(ptr, pool->size + POOL_EXTRA);
 }
 

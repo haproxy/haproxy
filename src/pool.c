@@ -165,6 +165,8 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 		return NULL;
 	}
 
+	swrate_add_scaled(&pool->needed_avg, POOL_AVG_SAMPLES, pool->allocated, POOL_AVG_SAMPLES/4);
+
 	ptr = pool_alloc_area(pool->size + POOL_EXTRA);
 	if (!ptr) {
 		_HA_ATOMIC_INC(&pool->failed);
