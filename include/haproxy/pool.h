@@ -131,7 +131,7 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
  * which may sometimes be faster than the local shared pools because it
  * will maintain its own per-thread arenas.
  */
-static inline void *__pool_get_first(struct pool_head *pool)
+static inline void *pool_get_from_shared_cache(struct pool_head *pool)
 {
 	return NULL;
 }
@@ -153,7 +153,7 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
  * available, otherwise returns NULL. No malloc() is attempted, and poisonning
  * is never performed. The purpose is to get the fastest possible allocation.
  */
-static inline void *__pool_get_first(struct pool_head *pool)
+static inline void *pool_get_from_shared_cache(struct pool_head *pool)
 {
 	struct pool_free_list cmp, new;
 
@@ -211,7 +211,7 @@ static inline void __pool_free(struct pool_head *pool, void *ptr)
  * is never performed. The purpose is to get the fastest possible allocation.
  * This version takes the pool's lock in order to do this.
  */
-static inline void *__pool_get_first(struct pool_head *pool)
+static inline void *pool_get_from_shared_cache(struct pool_head *pool)
 {
 	void *p;
 
@@ -280,7 +280,7 @@ static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 		goto ret;
 #endif
 
-	p = __pool_get_first(pool);
+	p = pool_get_from_shared_cache(pool);
 	if (!p)
 		p = pool_alloc_nocache(pool);
  ret:
