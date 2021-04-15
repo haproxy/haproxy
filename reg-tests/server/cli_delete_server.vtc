@@ -1,0 +1,100 @@
+varnishtest "Delete server via cli"
+
+feature ignore_unknown_macro
+
+#REQUIRE_VERSION=2.4
+
+# static server
+server s1 -repeat 3 {
+	rxreq
+	txresp \
+	  -body "resp from s1"
+} -start
+
+# use as a dynamic server, added then deleted via CLI
+server s2 -repeat 3 {
+	rxreq
+	txresp \
+	  -body "resp from s2"
+} -start
+
+haproxy h1 -conf {
+	defaults
+		mode http
+		${no-htx} option http-use-htx
+		timeout connect 1s
+		timeout client  1s
+		timeout server  1s
+
+	frontend fe
+		bind "fd@${feS}"
+		default_backend test
+
+	backend test
+		server s1 ${s1_addr}:${s1_port}
+} -start
+
+# add a new dynamic server to be able to delete it then
+haproxy h1 -cli {
+	# add a dynamic server and enable it
+	send "experimental-mode on; add server test/s2 ${s2_addr}:${s2_port}"
+	expect ~ "New server registered."
+
+	send "enable server test/s2"
+	expect ~ ".*"
+}
+
+haproxy h1 -cli {
+	# experimental mode disabled
+	send "del server test/s1"
+	expect ~ "This command is restricted to experimental mode only."
+
+	# non existent backend
+	send "experimental-mode on; del server foo/s1"
+	expect ~ "No such backend."
+
+	# non existent server
+	send "experimental-mode on; del server test/other"
+	expect ~ "No such server."
+
+	# static server
+	send "experimental-mode on; del server test/s1"
+	expect ~ "Only servers added at runtime via <add server> CLI cmd can be deleted."
+}
+
+# first check that both servers are active
+client c1 -connect ${h1_feS_sock} {
+	txreq
+	rxresp
+	expect resp.body == "resp from s1"
+
+	txreq
+	rxresp
+	expect resp.body == "resp from s2"
+} -run
+
+# delete the dynamic server
+haproxy h1 -cli {
+	# server not in maintenance mode
+	send "experimental-mode on; del server test/s2"
+	expect ~ "Only servers in maintenance mode can be deleted."
+
+	send "disable server test/s2"
+	expect ~ ".*"
+
+	# valid command
+	send "experimental-mode on; del server test/s2"
+	expect ~ "Server deleted."
+}
+
+# now check that only the first server is used
+client c2 -connect ${h1_feS_sock} {
+	txreq
+	rxresp
+	expect resp.body == "resp from s1"
+
+	txreq
+	rxresp
+	expect resp.body == "resp from s1"
+} -run
+

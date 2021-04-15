@@ -4468,6 +4468,131 @@ out:
 	return 1;
 }
 
+/* Parse a "del server" command
+ * Returns 0 if the server has been successfully initialized, 1 on failure.
+ */
+static int cli_parse_delete_server(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct proxy *be;
+	struct server *srv;
+	char *be_name, *sv_name;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	++args;
+
+	sv_name = be_name = args[1];
+	/* split backend/server arg */
+	while (*sv_name && *(++sv_name)) {
+		if (*sv_name == '/') {
+			*sv_name = '\0';
+			++sv_name;
+			break;
+		}
+	}
+
+	if (!*sv_name)
+		return cli_err(appctx, "Require 'backend/server'.");
+
+	/* The proxy servers list is currently not protected by a lock so this
+	 * requires thread isolation.
+	 */
+
+	/* WARNING there is maybe a potential violation of the thread isolation
+	 * mechanism by the pool allocator. The allocator marks the thread as
+	 * harmless before the allocation, but a processing outside of it could
+	 * relies on a particular server triggered at the same time by a
+	 * 'delete server'. Currently, it is unknown if such case is present in
+	 * the current code. If it happens to be, the thread isolation
+	 * mechanism should be improved, maybe with a differentiation between
+	 * read and read+write safe sections.
+	 */
+	thread_isolate();
+
+	get_backend_server(be_name, sv_name, &be, &srv);
+	if (!be) {
+		cli_err(appctx, "No such backend.");
+		goto out;
+	}
+
+	if (!srv) {
+		cli_err(appctx, "No such server.");
+		goto out;
+	}
+
+	if (!(srv->flags & SRV_F_DYNAMIC)) {
+		cli_err(appctx, "Only servers added at runtime via <add server> CLI cmd can be deleted.");
+		goto out;
+	}
+
+	/* Only servers in maintenance can be deleted. This ensures that the
+	 * server is not present anymore in the lb structures (through
+	 * lbprm.set_server_status_down).
+	 */
+	if (!(srv->cur_admin & SRV_ADMF_MAINT)) {
+		cli_err(appctx, "Only servers in maintenance mode can be deleted.");
+		goto out;
+	}
+
+	/* Ensure that there is no active/idle/pending connection on the server.
+	 *
+	 * TODO idle connections should not prevent server deletion. A proper
+	 * cleanup function should be implemented to be used here.
+	 */
+	if (srv->cur_sess || srv->curr_idle_conns ||
+	    !eb_is_empty(&srv->pendconns)) {
+		cli_err(appctx, "Server still has connections attached to it, cannot remove it.");
+		goto out;
+	}
+
+	/* TODO remove server for check list once 'check' will be implemented for
+	 * dynamic servers
+	 */
+
+	/* detach the server from the proxy linked list
+	 * The proxy servers list is currently not protected by a lock, so this
+	 * requires thread_isolate/release.
+	 */
+
+	/* be->srv cannot be empty since we have already found the server with
+	 * get_backend_server */
+	BUG_ON(!be->srv);
+	if (be->srv == srv) {
+		be->srv = srv->next;
+	}
+	else {
+		struct server *next;
+		for (next = be->srv; next && srv != next->next; next = next->next)
+			;
+
+		/* srv cannot be not found since we have already found it
+		 * with get_backend_server */
+		BUG_ON(!next);
+		next->next = srv->next;
+	}
+
+	/* remove srv from addr_node tree */
+	ebpt_delete(&srv->addr_node);
+
+	/* remove srv from idle_node tree for idle conn cleanup */
+	eb32_delete(&srv->idle_node);
+
+	thread_release();
+
+	ha_notice("Server %s/%s deleted.\n", be->id, srv->id);
+	free_server(srv);
+
+	cli_msg(appctx, LOG_INFO, "Server deleted.");
+
+	return 0;
+
+out:
+	thread_release();
+
+	return 1;
+}
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "disable", "agent",  NULL }, "disable agent  : disable agent checks (use 'set server' instead)", cli_parse_disable_agent, NULL },
@@ -4481,6 +4606,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "get", "weight", NULL }, "get weight     : report a server's current weight",  cli_parse_get_weight },
 	{ { "set", "weight", NULL }, "set weight     : change a server's weight (deprecated)",  cli_parse_set_weight },
 	{ { "add", "server", NULL }, "add server     : create a new server (EXPERIMENTAL)", cli_parse_add_server, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
+	{ { "del", "server", NULL }, "del server     : remove a dynamically added server (EXPERIMENTAL)", cli_parse_delete_server, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
 
 	{{},}
 }};

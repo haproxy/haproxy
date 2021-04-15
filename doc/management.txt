@@ -1609,6 +1609,12 @@ del ssl crt-list <filename> <certfile[:line]>
   you will need to provide which line you want to delete. To display the line
   numbers, use "show ssl crt-list -n <crtlist>".
 
+del server <backend>/<server>
+  Remove a server attached to the backend <backend>. Only valid on a server
+  added at runtime. The server must be put in maintenance mode prior to its
+  deletion. The operation is cancelled if the serveur still has active
+  or idle connection or its connection queue is not empty.
+
 disable agent <backend>/<server>
   Mark the auxiliary agent check as temporarily stopped.
 
