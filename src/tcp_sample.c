@@ -41,27 +41,28 @@
 #include <haproxy/tools.h>
 
 
-/* Fetch the connection's source IPv4/IPv6 address. Note that this is also
- * directly called by stick_table.c and as such must remain publicly visible.
+/* Fetch the connection's source IPv4/IPv6 address. Depending on the keyword, it
+ * may be the frontend or the backend connection.
  */
 static int
 smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *cli_conn = objt_conn(smp->sess->origin);
+	struct connection *conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+		smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
-	if (!cli_conn)
+	if (!conn)
 		return 0;
 
-	if (!conn_get_src(cli_conn))
+	if (!conn_get_src(conn))
 		return 0;
 
-	switch (cli_conn->src->ss_family) {
+	switch (conn->src->ss_family) {
 	case AF_INET:
-		smp->data.u.ipv4 = ((struct sockaddr_in *)cli_conn->src)->sin_addr;
+		smp->data.u.ipv4 = ((struct sockaddr_in *)conn->src)->sin_addr;
 		smp->data.type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.u.ipv6 = ((struct sockaddr_in6 *)cli_conn->src)->sin6_addr;
+		smp->data.u.ipv6 = ((struct sockaddr_in6 *)conn->src)->sin6_addr;
 		smp->data.type = SMP_T_IPV6;
 		break;
 	default:
@@ -72,45 +73,51 @@ smp_fetch_src(const struct arg *args, struct sample *smp, const char *kw, void *
 	return 1;
 }
 
-/* set temp integer to the connection's source port */
+/* set temp integer to the connection's source port. Depending on the
+ * keyword, it may be the frontend or the backend connection.
+ */
 static int
-smp_fetch_sport(const struct arg *args, struct sample *smp, const char *k, void *private)
+smp_fetch_sport(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *cli_conn = objt_conn(smp->sess->origin);
+	struct connection *conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+		smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
-	if (!cli_conn)
+	if (!conn)
 		return 0;
 
-	if (!conn_get_src(cli_conn))
+	if (!conn_get_src(conn))
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	if (!(smp->data.u.sint = get_host_port(cli_conn->src)))
+	if (!(smp->data.u.sint = get_host_port(conn->src)))
 		return 0;
 
 	smp->flags = 0;
 	return 1;
 }
 
-/* fetch the connection's destination IPv4/IPv6 address */
+/* fetch the connection's destination IPv4/IPv6 address. Depending on the
+ * keyword, it may be the frontend or the backend connection.
+ */
 static int
 smp_fetch_dst(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *cli_conn = objt_conn(smp->sess->origin);
+	struct connection *conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+		smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
-	if (!cli_conn)
+	if (!conn)
 		return 0;
 
-	if (!conn_get_dst(cli_conn))
+	if (!conn_get_dst(conn))
 		return 0;
 
-	switch (cli_conn->dst->ss_family) {
+	switch (conn->dst->ss_family) {
 	case AF_INET:
-		smp->data.u.ipv4 = ((struct sockaddr_in *)cli_conn->dst)->sin_addr;
+		smp->data.u.ipv4 = ((struct sockaddr_in *)conn->dst)->sin_addr;
 		smp->data.type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.u.ipv6 = ((struct sockaddr_in6 *)cli_conn->dst)->sin6_addr;
+		smp->data.u.ipv6 = ((struct sockaddr_in6 *)conn->dst)->sin6_addr;
 		smp->data.type = SMP_T_IPV6;
 		break;
 	default:
@@ -161,20 +168,23 @@ int smp_fetch_src_is_local(const struct arg *args, struct sample *smp, const cha
 	return smp->data.u.sint >= 0;
 }
 
-/* set temp integer to the frontend connexion's destination port */
+/* set temp integer to the connexion's destination port. Depending on the
+ * keyword, it may be the frontend or the backend connection.
+ */
 static int
 smp_fetch_dport(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *cli_conn = objt_conn(smp->sess->origin);
+	struct connection *conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+		smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 
-	if (!cli_conn)
+	if (!conn)
 		return 0;
 
-	if (!conn_get_dst(cli_conn))
+	if (!conn_get_dst(conn))
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	if (!(smp->data.u.sint = get_host_port(cli_conn->dst)))
+	if (!(smp->data.u.sint = get_host_port(conn->dst)))
 		return 0;
 
 	smp->flags = 0;
@@ -383,6 +393,11 @@ smp_fetch_fc_reordering(const struct arg *args, struct sample *smp, const char *
  * instance v4/v6 must be declared v4.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
+	{ "bc_dst",      smp_fetch_dst,   0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
+	{ "bc_dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
+	{ "bc_src",      smp_fetch_src,   0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
+	{ "bc_src_port", smp_fetch_sport, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
+
 	{ "dst",      smp_fetch_dst,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
 	{ "dst_is_local", smp_fetch_dst_is_local, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "dst_port", smp_fetch_dport, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
