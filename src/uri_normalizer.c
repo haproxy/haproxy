@@ -15,8 +15,13 @@
 #include <haproxy/api.h>
 #include <haproxy/uri_normalizer.h>
 
-/* Merges `/../` with preceding path segments. */
-enum uri_normalizer_err uri_normalizer_path_dotdot(const struct ist path, struct ist *dst)
+/* Merges `/../` with preceding path segments.
+ *
+ * If `full` is set to `0` then `/../` will be printed at the start of the resulting
+ * path if the number of `/../` exceeds the number of other segments. If `full` is
+ * set to `1` these will not be printed.
+ */
+enum uri_normalizer_err uri_normalizer_path_dotdot(const struct ist path, int full, struct ist *dst)
 {
 	enum uri_normalizer_err err;
 
@@ -79,13 +84,15 @@ enum uri_normalizer_err uri_normalizer_path_dotdot(const struct ist path, struct
 		/* Prepend a trailing slash. */
 		*(--head) = '/';
 
-		/* Prepend unconsumed `/..`. */
-		do {
-			*(--head) = '.';
-			*(--head) = '.';
-			*(--head) = '/';
-			up--;
-		} while (up > 0);
+		if (!full) {
+			/* Prepend unconsumed `/..`. */
+			do {
+				*(--head) = '.';
+				*(--head) = '.';
+				*(--head) = '/';
+				up--;
+			} while (up > 0);
+		}
 	}
 
 	*dst = ist2(head, tail - head);

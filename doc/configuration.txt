@@ -6012,7 +6012,7 @@ http-request early-hint <name> <fmt> [ { if | unless } <condition> ]
   See RFC 8297 for more information.
 
 http-request normalize-uri <normalizer> [ { if | unless } <condition> ]
-http-request normalize-uri dotdot [ { if | unless } <condition> ]
+http-request normalize-uri dotdot [ full ] [ { if | unless } <condition> ]
 http-request normalize-uri merge-slashes [ { if | unless } <condition> ]
 
   Performs normalization of the request's URI. The following normalizers are
@@ -6028,7 +6028,15 @@ http-request normalize-uri merge-slashes [ { if | unless } <condition> ]
       - /foo/../bar/ -> /bar/
       - /foo/bar/../ -> /foo/
       - /../bar/     -> /../bar/
+      - /bar/../../  -> /../
       - /foo//../    -> /foo/
+
+      If the "full" option is specified then "../" at the beginning will be
+      removed as well:
+
+      Example:
+      - /../bar/     -> /bar/
+      - /bar/../../  -> /
 
   - merge-slashes: Merges adjacent slashes within the "path" component into a
       single slash.

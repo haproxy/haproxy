@@ -232,14 +232,15 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 
 			break;
 		}
-		case ACT_NORMALIZE_URI_DOTDOT: {
+		case ACT_NORMALIZE_URI_DOTDOT:
+		case ACT_NORMALIZE_URI_DOTDOT_FULL: {
 			const struct ist path = http_get_path(uri);
 			struct ist newpath = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
 				goto leave;
 
-			err = uri_normalizer_path_dotdot(iststop(path, '?'), &newpath);
+			err = uri_normalizer_path_dotdot(iststop(path, '?'), rule->action == ACT_NORMALIZE_URI_DOTDOT_FULL, &newpath);
 
 			if (err != URI_NORMALIZER_ERR_NONE)
 				break;
@@ -317,7 +318,17 @@ static enum act_parse_ret parse_http_normalize_uri(const char **args, int *orig_
 	else if (strcmp(args[cur_arg], "dotdot") == 0) {
 		cur_arg++;
 
-		rule->action = ACT_NORMALIZE_URI_DOTDOT;
+		if (strcmp(args[cur_arg], "full") == 0) {
+			cur_arg++;
+			rule->action = ACT_NORMALIZE_URI_DOTDOT_FULL;
+		}
+		else if (!*args[cur_arg]) {
+			rule->action = ACT_NORMALIZE_URI_DOTDOT;
+		}
+		else if (strcmp(args[cur_arg], "if") != 0 && strcmp(args[cur_arg], "unless") != 0) {
+			memprintf(err, "unknown argument '%s' for 'dotdot' normalizer", args[cur_arg]);
+			return ACT_RET_PRS_ERR;
+		}
 	}
 	else {
 		memprintf(err, "unknown normalizer '%s'", args[cur_arg]);
