@@ -27,6 +27,12 @@ matrix:
     compiler: gcc
     if: type == cron
   - os: linux
+    arch: arm64-graviton2
+    group: edge
+    virt: vm
+    compiler: gcc
+    if: type == cron
+  - os: linux
     arch: s390x
     compiler: gcc
     if: type == cron
