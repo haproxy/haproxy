@@ -46,7 +46,7 @@
  * case we disable global pools. The global pools may still be enforced
  * using CONFIG_HAP_GLOBAL_POOLS though.
  */
-#if defined(USE_THREAD) && defined(HA_HAVE_FAST_MALLOC) && defined(CONFIG_HAP_POOLS) && !defined(CONFIG_HAP_GLOBAL_POOLS)
+#if defined(USE_THREAD) && defined(HA_HAVE_FAST_MALLOC) && !defined(CONFIG_HAP_GLOBAL_POOLS)
 #define CONFIG_HAP_NO_GLOBAL_POOLS
 #endif
 
