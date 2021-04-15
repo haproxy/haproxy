@@ -3774,8 +3774,19 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 			}
 			break;
 		}
-		default:
-			/* no valid token found */
+		case MJSON_TOK_NULL:
+		case MJSON_TOK_ARRAY:
+		case MJSON_TOK_OBJECT:
+			/* We cannot handle these. */
+			return 0;
+		case MJSON_TOK_INVALID:
+			/* Nothing matches the query. */
+			return 0;
+		case MJSON_TOK_KEY:
+			/* This is not a valid return value according to the
+			 * mjson documentation, but we handle it to benefit
+			 * from '-Wswitch'.
+			 */
 			return 0;
 	}
 	return 1;
