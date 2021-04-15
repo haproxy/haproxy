@@ -6014,6 +6014,7 @@ http-request early-hint <name> <fmt> [ { if | unless } <condition> ]
 http-request normalize-uri <normalizer> [ { if | unless } <condition> ]
 http-request normalize-uri dotdot [ full ] [ { if | unless } <condition> ]
 http-request normalize-uri merge-slashes [ { if | unless } <condition> ]
+http-request normalize-uri sort-query [ { if | unless } <condition> ]
 
   Performs normalization of the request's URI. The following normalizers are
   available:
@@ -6044,6 +6045,15 @@ http-request normalize-uri merge-slashes [ { if | unless } <condition> ]
       Example:
       - //        -> /
       - /foo//bar -> /foo/bar
+
+  - sort-query: Sorts the query string parameters by parameter name.
+      Parameters are assumed to be delimited by '&'. Shorter names sort before
+      longer names and identical parameter names maintain their relative order.
+
+      Example:
+      - /?c=3&a=1&b=2         -> /?a=1&b=2&c=3
+      - /?aaa=3&a=1&aa=2      -> /?a=1&aa=2&aaa=3
+      - /?a=3&b=4&a=1&b=5&a=2 -> /?a=3&a=1&a=2&b=4&b=5
 
 http-request redirect <rule> [ { if | unless } <condition> ]
 

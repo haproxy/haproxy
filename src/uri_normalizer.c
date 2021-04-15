@@ -13,6 +13,8 @@
 #include <import/ist.h>
 
 #include <haproxy/api.h>
+#include <haproxy/buf.h>
+#include <haproxy/chunk.h>
 #include <haproxy/uri_normalizer.h>
 
 /* Merges `/../` with preceding path segments.
@@ -140,6 +142,93 @@ enum uri_normalizer_err uri_normalizer_path_merge_slashes(const struct ist path,
 	return err;
 }
 
+/* Compares two query parameters by name. Query parameters are ordered
+ * as with memcmp. Shorter parameter names are ordered lower. Identical
+ * parameter names are compared by their pointer to maintain a stable
+ * sort.
+ */
+static int query_param_cmp(const void *a, const void *b)
+{
+	const struct ist param_a = *(struct ist*)a;
+	const struct ist param_b = *(struct ist*)b;
+	const struct ist param_a_name = iststop(param_a, '=');
+	const struct ist param_b_name = iststop(param_b, '=');
+
+	int cmp = istdiff(param_a_name, param_b_name);
+
+	if (cmp != 0)
+		return cmp;
+
+	/* The contents are identical: Compare the pointer. */
+	if (istptr(param_a) < istptr(param_b))
+		return -1;
+
+	if (istptr(param_a) > istptr(param_b))
+		return 1;
+
+	return 0;
+}
+
+/* Sorts the parameters within the given query string. */
+enum uri_normalizer_err uri_normalizer_query_sort(const struct ist query, const char delim, struct ist *dst)
+{
+	enum uri_normalizer_err err;
+
+	const size_t size = istclear(dst);
+	struct ist newquery = *dst;
+
+	struct ist scanner = query;
+
+	const struct buffer *trash = get_trash_chunk();
+	struct ist *params = (struct ist *)b_orig(trash);
+	const size_t max_param = b_size(trash) / sizeof(*params); 
+	size_t param_count = 0;
+
+	size_t i;
+
+	/* The query will have the same length. */
+	if (size < istlen(query)) {
+		err = URI_NORMALIZER_ERR_ALLOC;
+		goto fail;
+	}
+
+	/* Handle the leading '?'. */
+	newquery = __istappend(newquery, istshift(&scanner));
+
+	while (istlen(scanner) > 0) {
+		const struct ist param = istsplit(&scanner, delim);
+
+		if (param_count + 1 > max_param) {
+			err = URI_NORMALIZER_ERR_ALLOC;
+			goto fail;
+		}
+
+		params[param_count] = param;
+		param_count++;
+	}
+
+	qsort(params, param_count, sizeof(*params), query_param_cmp);
+
+	for (i = 0; i < param_count; i++) {
+		if (i > 0)
+			newquery = __istappend(newquery, '&');
+
+		if (istcat(&newquery, params[i], size) < 0) {
+			/* This is impossible, because we checked the size of the destination buffer. */
+			my_unreachable();
+			err = URI_NORMALIZER_ERR_INTERNAL_ERROR;
+			goto fail;
+		}
+	}
+
+	*dst = newquery;
+
+	return URI_NORMALIZER_ERR_NONE;
+
+  fail:
+
+	return err;
+}
 
 /*
  * Local variables:

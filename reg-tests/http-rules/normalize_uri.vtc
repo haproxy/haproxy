@@ -8,7 +8,7 @@ feature ignore_unknown_macro
 server s1 {
     rxreq
     txresp
-} -repeat 21 -start
+} -repeat 34 -start
 
 haproxy h1 -conf {
     defaults
@@ -43,6 +43,18 @@ haproxy h1 -conf {
         http-response add-header before  %[var(txn.before)]
         http-response add-header after  %[var(txn.after)]
         http-response add-header after-full  %[var(txn.after_full)]
+
+        default_backend be
+
+    frontend fe_sort_query
+        bind "fd@${fe_sort_query}"
+
+        http-request set-var(txn.before) url
+        http-request normalize-uri sort-query
+        http-request set-var(txn.after) url
+
+        http-response add-header before  %[var(txn.before)]
+        http-response add-header after  %[var(txn.after)]
 
         default_backend be
 
@@ -169,4 +181,71 @@ client c2 -connect ${h1_fe_dotdot_sock} {
     expect resp.http.before == "*"
     expect resp.http.after == "*"
     expect resp.http.after-full == "*"
+} -run
+
+client c3 -connect ${h1_fe_sort_query_sock} {
+    txreq -url "/?a=a"
+    rxresp
+    expect resp.http.before == "/?a=a"
+    expect resp.http.after == "/?a=a"
+
+    txreq -url "/?a=a&z=z"
+    rxresp
+    expect resp.http.before == "/?a=a&z=z"
+    expect resp.http.after == "/?a=a&z=z"
+
+    txreq -url "/?z=z&a=a"
+    rxresp
+    expect resp.http.before == "/?z=z&a=a"
+    expect resp.http.after == "/?a=a&z=z"
+
+    txreq -url "/?a=z&z=a"
+    rxresp
+    expect resp.http.before == "/?a=z&z=a"
+    expect resp.http.after == "/?a=z&z=a"
+
+    txreq -url "/?z=a&a=z"
+    rxresp
+    expect resp.http.before == "/?z=a&a=z"
+    expect resp.http.after == "/?a=z&z=a"
+
+    txreq -url "/?c&b&a&z&x&y"
+    rxresp
+    expect resp.http.before == "/?c&b&a&z&x&y"
+    expect resp.http.after == "/?a&b&c&x&y&z"
+
+    txreq -url "/?a=&aa=&aaa=&aaaa="
+    rxresp
+    expect resp.http.before == "/?a=&aa=&aaa=&aaaa="
+    expect resp.http.after == "/?a=&aa=&aaa=&aaaa="
+
+    txreq -url "/?aaaa=&a=&aa=&aaa="
+    rxresp
+    expect resp.http.before == "/?aaaa=&a=&aa=&aaa="
+    expect resp.http.after == "/?a=&aa=&aaa=&aaaa="
+
+    txreq -url "/?a=5&a=3&a=1&a=2&a=4"
+    rxresp
+    expect resp.http.before == "/?a=5&a=3&a=1&a=2&a=4"
+    expect resp.http.after == "/?a=5&a=3&a=1&a=2&a=4"
+
+    txreq -url "/?a=5&b=3&a=1&a=2&b=4"
+    rxresp
+    expect resp.http.before == "/?a=5&b=3&a=1&a=2&b=4"
+    expect resp.http.after == "/?a=5&a=1&a=2&b=3&b=4"
+
+    txreq -url "/"
+    rxresp
+    expect resp.http.before == "/"
+    expect resp.http.after == "/"
+
+    txreq -url "/?"
+    rxresp
+    expect resp.http.before == "/?"
+    expect resp.http.after == "/?"
+
+    txreq -req OPTIONS -url "*"
+    rxresp
+    expect resp.http.before == "*"
+    expect resp.http.after == "*"
 } -run

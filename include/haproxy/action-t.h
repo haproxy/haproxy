@@ -105,6 +105,7 @@ enum act_normalize_uri {
 	ACT_NORMALIZE_URI_MERGE_SLASHES,
 	ACT_NORMALIZE_URI_DOTDOT,
 	ACT_NORMALIZE_URI_DOTDOT_FULL,
+	ACT_NORMALIZE_URI_SORT_QUERY,
 };
 
 /* NOTE: if <.action_ptr> is defined, the referenced function will always be
