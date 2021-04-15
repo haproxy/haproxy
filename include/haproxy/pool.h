@@ -277,11 +277,12 @@ static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 #if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 #endif
-	if ((p = __pool_get_first(pool)) == NULL)
-		p = pool_alloc_nocache(pool);
+	p = __pool_get_first(pool);
 #if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 #endif
+	if (!p)
+		p = pool_alloc_nocache(pool);
  ret:
 	if (p) {
 		if (flags & POOL_F_MUST_ZERO)
