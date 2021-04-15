@@ -48,8 +48,7 @@
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
 
-void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail);
-void *pool_refill_alloc(struct pool_head *pool, unsigned int avail);
+void *pool_alloc_nocache(struct pool_head *pool);
 void dump_pools_to_trash();
 void dump_pools(void);
 int pool_total_failures();
@@ -279,7 +278,7 @@ static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 #endif
 	if ((p = __pool_get_first(pool)) == NULL)
-		p = __pool_refill_alloc(pool, 0);
+		p = pool_alloc_nocache(pool);
 #if !defined(CONFIG_HAP_LOCKLESS_POOLS) && !defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 #endif

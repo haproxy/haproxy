@@ -49,7 +49,7 @@ int init_buffer()
 		pool_head_buffer->limit = global.tune.buf_limit;
 
 	for (done = 0; done < pool_head_buffer->minavail - 1; done++) {
-		buffer = pool_refill_alloc(pool_head_buffer, 1);
+		buffer = pool_alloc_nocache(pool_head_buffer);
 		if (!buffer)
 			return 0;
 		pool_free(pool_head_buffer, buffer);

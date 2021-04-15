@@ -146,9 +146,13 @@ void pool_evict_from_cache()
 }
 #endif
 
-/* simply fall back on the default OS' allocator */
-
-void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
+/* Tries to allocate an object for the pool <pool> using the system's allocator
+ * and directly returns it. The pool's counters are updated but the object is
+ * never cached, so this is usable with and without local or shared caches.
+ * This may be called with or without the pool lock held, so it must not use
+ * the pool's lock.
+ */
+void *pool_alloc_nocache(struct pool_head *pool)
 {
 	int allocated = pool->allocated;
 	int limit = pool->limit;
@@ -182,14 +186,6 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 	return ptr;
 }
 
-/* legacy stuff */
-void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
-{
-	void *ptr;
-
-	ptr = __pool_refill_alloc(pool, avail);
-	return ptr;
-}
 
 #if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 
