@@ -77,12 +77,12 @@ static inline int pool_is_crowded(const struct pool_head *pool)
 extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
 extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 
-void pool_evict_from_cache();
+void pool_evict_from_local_caches();
 
 /* Tries to retrieve an object from the local pool cache corresponding to pool
  * <pool>. Returns NULL if none is available.
  */
-static inline void *__pool_get_from_cache(struct pool_head *pool)
+static inline void *pool_get_from_local_cache(struct pool_head *pool)
 {
 	struct pool_cache_item *item;
 	struct pool_cache_head *ph;
@@ -107,7 +107,7 @@ static inline void *__pool_get_from_cache(struct pool_head *pool)
 /* Frees an object to the local cache, possibly pushing oldest objects to the
  * global pool.
  */
-static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
+static inline void pool_put_to_local_cache(struct pool_head *pool, void *ptr)
 {
 	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
 	struct pool_cache_head *ph = &pool->cache[tid];
@@ -119,7 +119,7 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
 	pool_cache_bytes += pool->size;
 
 	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
-		pool_evict_from_cache();
+		pool_evict_from_local_caches();
 }
 
 #endif // CONFIG_HAP_POOLS
@@ -276,7 +276,7 @@ static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 	void *p;
 
 #ifdef CONFIG_HAP_POOLS
-	if (likely(p = __pool_get_from_cache(pool)))
+	if (likely(p = pool_get_from_local_cache(pool)))
 		goto ret;
 #endif
 
@@ -338,7 +338,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		 */
 		if ((pool_cache_bytes <= CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 ||
 		     pool->cache[tid].count < 16 + pool_cache_count / 8)) {
-			pool_put_to_cache(pool, ptr);
+			pool_put_to_local_cache(pool, ptr);
 			return;
 		}
 #endif
