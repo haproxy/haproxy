@@ -11,12 +11,17 @@
  *
  */
 
-#ifndef _HAPROXY_URI_NORMALIZER_H
-#define _HAPROXY_URI_NORMALIZER_H
+#ifndef _HAPROXY_URI_NORMALIZER_T_H
+#define _HAPROXY_URI_NORMALIZER_T_H
 
-#include <haproxy/uri_normalizer-t.h>
+enum uri_normalizer_err {
+	URI_NORMALIZER_ERR_NONE = 0,
+	URI_NORMALIZER_ERR_ALLOC,
+	URI_NORMALIZER_ERR_INVALID_INPUT,
+	URI_NORMALIZER_ERR_INTERNAL_ERROR = 0xdead,
+};
 
-#endif /* _HAPROXY_URI_NORMALIZER_H */
+#endif /* _HAPROXY_URI_NORMALIZER_T_H */
 
 /*
  * Local variables:
