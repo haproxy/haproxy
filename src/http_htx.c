@@ -64,11 +64,9 @@ struct htx_sl *http_get_stline(const struct htx *htx)
 {
 	struct htx_blk *blk;
 
-	BUG_ON(htx->first == -1);
 	blk = htx_get_first_blk(htx);
-	if (!blk)
+	if (!blk || (htx_get_blk_type(blk) != HTX_BLK_REQ_SL && htx_get_blk_type(blk) != HTX_BLK_RES_SL))
 		return NULL;
-	BUG_ON(htx_get_blk_type(blk) != HTX_BLK_REQ_SL && htx_get_blk_type(blk) != HTX_BLK_RES_SL);
 	return htx_get_blk_ptr(htx, blk);
 }
 
