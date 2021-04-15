@@ -8,7 +8,7 @@ feature ignore_unknown_macro
 server s1 {
     rxreq
     txresp
-} -repeat 34 -start
+} -repeat 43 -start
 
 haproxy h1 -conf {
     defaults
@@ -51,6 +51,30 @@ haproxy h1 -conf {
 
         http-request set-var(txn.before) url
         http-request normalize-uri sort-query
+        http-request set-var(txn.after) url
+
+        http-response add-header before  %[var(txn.before)]
+        http-response add-header after  %[var(txn.after)]
+
+        default_backend be
+
+    frontend fe_percent_upper
+        bind "fd@${fe_percent_upper}"
+
+        http-request set-var(txn.before) url
+        http-request normalize-uri percent-upper
+        http-request set-var(txn.after) url
+
+        http-response add-header before  %[var(txn.before)]
+        http-response add-header after  %[var(txn.after)]
+
+        default_backend be
+
+    frontend fe_percent_upper_strict
+        bind "fd@${fe_percent_upper_strict}"
+
+        http-request set-var(txn.before) url
+        http-request normalize-uri percent-upper strict
         http-request set-var(txn.after) url
 
         http-response add-header before  %[var(txn.before)]
@@ -248,4 +272,43 @@ client c3 -connect ${h1_fe_sort_query_sock} {
     rxresp
     expect resp.http.before == "*"
     expect resp.http.after == "*"
+} -run
+
+client c4 -connect ${h1_fe_percent_upper_sock} {
+    txreq -url "/a?a=a"
+    rxresp
+    expect resp.http.before == "/a?a=a"
+    expect resp.http.after == "/a?a=a"
+
+    txreq -url "/%aa?a=%aa"
+    rxresp
+    expect resp.http.before == "/%aa?a=%aa"
+    expect resp.http.after == "/%AA?a=%AA"
+
+    txreq -url "/%zz?a=%zz"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.before == "/%zz?a=%zz"
+    expect resp.http.after == "/%zz?a=%zz"
+
+    txreq -req OPTIONS -url "*"
+    rxresp
+    expect resp.http.before == "*"
+    expect resp.http.after == "*"
+} -run
+
+client c5 -connect ${h1_fe_percent_upper_strict_sock} {
+    txreq -url "/a?a=a"
+    rxresp
+    expect resp.http.before == "/a?a=a"
+    expect resp.http.after == "/a?a=a"
+
+    txreq -url "/%aa?a=%aa"
+    rxresp
+    expect resp.http.before == "/%aa?a=%aa"
+    expect resp.http.after == "/%AA?a=%AA"
+
+    txreq -url "/%zz?a=%zz"
+    rxresp
+    expect resp.status == 400
 } -run

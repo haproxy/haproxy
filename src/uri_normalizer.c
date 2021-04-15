@@ -15,7 +15,65 @@
 #include <haproxy/api.h>
 #include <haproxy/buf.h>
 #include <haproxy/chunk.h>
+#include <haproxy/tools.h>
 #include <haproxy/uri_normalizer.h>
+
+/* Uppercases letters used in percent encoding.
+ *
+ * If `strict` is set to 0 then percent characters that are not followed by a
+ * hexadecimal digit are returned as-is without modifying the following letters.
+ * If `strict` is set to 1 then `URI_NORMALIZER_ERR_INVALID_INPUT` is returned
+ * for invalid sequences.
+ */
+enum uri_normalizer_err uri_normalizer_percent_upper(const struct ist input, int strict, struct ist *dst)
+{
+	enum uri_normalizer_err err;
+
+	const size_t size = istclear(dst);
+	struct ist output = *dst;
+
+	struct ist scanner = input;
+
+	/* The output will have the same length. */
+	if (size < istlen(input)) {
+		err = URI_NORMALIZER_ERR_ALLOC;
+		goto fail;
+	}
+
+	while (istlen(scanner)) {
+		const char current = istshift(&scanner);
+
+		if (current == '%') {
+			if (istlen(scanner) >= 2) {
+				if (ishex(istptr(scanner)[0]) && ishex(istptr(scanner)[1])) {
+					output = __istappend(output, current);
+					output = __istappend(output, toupper(istshift(&scanner)));
+					output = __istappend(output, toupper(istshift(&scanner)));
+					continue;
+				}
+			}
+
+			if (strict) {
+				err = URI_NORMALIZER_ERR_INVALID_INPUT;
+				goto fail;
+			}
+			else {
+				output = __istappend(output, current);
+			}
+		}
+		else {
+			output = __istappend(output, current);
+		}
+	}
+
+	*dst = output;
+
+	return URI_NORMALIZER_ERR_NONE;
+
+  fail:
+
+	return err;
+}
 
 /* Merges `/../` with preceding path segments.
  *

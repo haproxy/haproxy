@@ -106,6 +106,8 @@ enum act_normalize_uri {
 	ACT_NORMALIZE_URI_DOTDOT,
 	ACT_NORMALIZE_URI_DOTDOT_FULL,
 	ACT_NORMALIZE_URI_SORT_QUERY,
+	ACT_NORMALIZE_URI_PERCENT_UPPER,
+	ACT_NORMALIZE_URI_PERCENT_UPPER_STRICT,
 };
 
 /* NOTE: if <.action_ptr> is defined, the referenced function will always be

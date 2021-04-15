@@ -267,6 +267,24 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 
 			break;
 		}
+		case ACT_NORMALIZE_URI_PERCENT_UPPER:
+		case ACT_NORMALIZE_URI_PERCENT_UPPER_STRICT: {
+			const struct ist path = http_get_path(uri);
+			struct ist newpath = ist2(replace->area, replace->size);
+
+			if (!isttest(path))
+				goto leave;
+
+			err = uri_normalizer_percent_upper(path, rule->action == ACT_NORMALIZE_URI_PERCENT_UPPER_STRICT, &newpath);
+
+			if (err != URI_NORMALIZER_ERR_NONE)
+				break;
+
+			if (!http_replace_req_path(htx, newpath, 1))
+				goto fail_rewrite;
+
+			break;
+		}
 	}
 
 	switch (err) {
@@ -351,6 +369,21 @@ static enum act_parse_ret parse_http_normalize_uri(const char **args, int *orig_
 		cur_arg++;
 
 		rule->action = ACT_NORMALIZE_URI_SORT_QUERY;
+	}
+	else if (strcmp(args[cur_arg], "percent-upper") == 0) {
+		cur_arg++;
+
+		if (strcmp(args[cur_arg], "strict") == 0) {
+			cur_arg++;
+			rule->action = ACT_NORMALIZE_URI_PERCENT_UPPER_STRICT;
+		}
+		else if (!*args[cur_arg]) {
+			rule->action = ACT_NORMALIZE_URI_PERCENT_UPPER;
+		}
+		else if (strcmp(args[cur_arg], "if") != 0 && strcmp(args[cur_arg], "unless") != 0) {
+			memprintf(err, "unknown argument '%s' for 'percent-upper' normalizer", args[cur_arg]);
+			return ACT_RET_PRS_ERR;
+		}
 	}
 	else {
 		memprintf(err, "unknown normalizer '%s'", args[cur_arg]);
