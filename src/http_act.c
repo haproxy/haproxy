@@ -36,6 +36,7 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 #include <haproxy/uri_auth-t.h>
+#include <haproxy/uri_normalizer.h>
 #include <haproxy/version.h>
 
 
@@ -191,6 +192,100 @@ static enum act_parse_ret parse_set_req_line(const char **args, int *orig_arg, s
 	}
 
 	(*orig_arg)++;
+	return ACT_RET_PRS_OK;
+}
+
+/* This function executes the http-request normalize-uri action.
+ * `rule->action` is expected to be a value from `enum act_normalize_uri`.
+ *
+ * On success, it returns ACT_RET_CONT. If an error
+ * occurs while soft rewrites are enabled, the action is canceled, but the rule
+ * processing continue. Otherwsize ACT_RET_ERR is returned.
+ */
+static enum act_return http_action_normalize_uri(struct act_rule *rule, struct proxy *px,
+                                                 struct session *sess, struct stream *s, int flags)
+{
+	enum act_return ret = ACT_RET_CONT;
+	struct htx *htx = htxbuf(&s->req.buf);
+	const struct ist uri = htx_sl_req_uri(http_get_stline(htx));
+	struct buffer *replace = alloc_trash_chunk();
+	enum uri_normalizer_err err = URI_NORMALIZER_ERR_INTERNAL_ERROR;
+
+	if (!replace)
+		goto fail_alloc;
+
+	switch ((enum act_normalize_uri) rule->action) {
+		case ACT_NORMALIZE_URI_PLACEHOLDER:
+			(void) uri;
+	}
+
+	switch (err) {
+	case URI_NORMALIZER_ERR_NONE:
+		break;
+	case URI_NORMALIZER_ERR_INTERNAL_ERROR:
+		ret = ACT_RET_ERR;
+		break;
+	case URI_NORMALIZER_ERR_INVALID_INPUT:
+		ret = ACT_RET_INV;
+		break;
+	case URI_NORMALIZER_ERR_ALLOC:
+		goto fail_alloc;
+	}
+
+  leave:
+	free_trash_chunk(replace);
+	return ret;
+
+  fail_alloc:
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_RESOURCE;
+	ret = ACT_RET_ERR;
+	goto leave;
+
+  fail_rewrite:
+	_HA_ATOMIC_ADD(&sess->fe->fe_counters.failed_rewrites, 1);
+	if (s->flags & SF_BE_ASSIGNED)
+		_HA_ATOMIC_ADD(&s->be->be_counters.failed_rewrites, 1);
+	if (sess->listener && sess->listener->counters)
+		_HA_ATOMIC_ADD(&sess->listener->counters->failed_rewrites, 1);
+	if (objt_server(s->target))
+		_HA_ATOMIC_ADD(&__objt_server(s->target)->counters.failed_rewrites, 1);
+
+	if (!(s->txn->req.flags & HTTP_MSGF_SOFT_RW)) {
+		ret = ACT_RET_ERR;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_PRXCOND;
+	}
+	goto leave;
+}
+
+/* Parses the http-request normalize-uri action. It expects a single <normalizer>
+ * argument, corresponding too a value in `enum act_normalize_uri`.
+ *
+ * It returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret parse_http_normalize_uri(const char **args, int *orig_arg, struct proxy *px,
+                                                   struct act_rule *rule, char **err)
+{
+	int cur_arg = *orig_arg;
+
+	rule->action_ptr = http_action_normalize_uri;
+	rule->release_ptr = NULL;
+
+	if (!*args[cur_arg]) {
+		memprintf(err, "missing argument <normalizer>");
+		return ACT_RET_PRS_ERR;
+	}
+
+	if (0) {
+
+	}
+	else {
+		memprintf(err, "unknown normalizer '%s'", args[cur_arg]);
+		return ACT_RET_PRS_ERR;
+	}
+
+	*orig_arg = cur_arg;
 	return ACT_RET_PRS_OK;
 }
 
@@ -2194,6 +2289,7 @@ static struct action_kw_list http_req_actions = {
 		{ "deny",             parse_http_deny,                 0 },
 		{ "disable-l7-retry", parse_http_req_disable_l7_retry, 0 },
 		{ "early-hint",       parse_http_set_header,           0 },
+		{ "normalize-uri",    parse_http_normalize_uri,        0 },
 		{ "redirect",         parse_http_redirect,             0 },
 		{ "reject",           parse_http_action_reject,        0 },
 		{ "replace-header",   parse_http_replace_header,       0 },

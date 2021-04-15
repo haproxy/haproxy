@@ -101,6 +101,10 @@ enum act_timeout_name {
 	ACT_TIMEOUT_TUNNEL,
 };
 
+enum act_normalize_uri {
+	ACT_NORMALIZE_URI_PLACEHOLDER,
+};
+
 /* NOTE: if <.action_ptr> is defined, the referenced function will always be
  *       called regardless the action type. */
 struct act_rule {
