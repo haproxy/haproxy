@@ -6011,6 +6011,19 @@ http-request early-hint <name> <fmt> [ { if | unless } <condition> ]
 
   See RFC 8297 for more information.
 
+http-request normalize-uri <normalizer> [ { if | unless } <condition> ]
+http-request normalize-uri merge-slashes [ { if | unless } <condition> ]
+
+  Performs normalization of the request's URI. The following normalizers are
+  available:
+
+  - merge-slashes: Merges adjacent slashes within the "path" component into a
+      single slash.
+
+      Example:
+      - //        -> /
+      - /foo//bar -> /foo/bar
+
 http-request redirect <rule> [ { if | unless } <condition> ]
 
   This performs an HTTP redirection based on a redirect rule. This is exactly

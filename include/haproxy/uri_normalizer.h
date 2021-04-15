@@ -14,7 +14,11 @@
 #ifndef _HAPROXY_URI_NORMALIZER_H
 #define _HAPROXY_URI_NORMALIZER_H
 
+#include <import/ist.h>
+
 #include <haproxy/uri_normalizer-t.h>
+
+enum uri_normalizer_err uri_normalizer_path_merge_slashes(const struct ist path, struct ist *dst);
 
 #endif /* _HAPROXY_URI_NORMALIZER_H */
 

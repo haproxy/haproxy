@@ -102,7 +102,7 @@ enum act_timeout_name {
 };
 
 enum act_normalize_uri {
-	ACT_NORMALIZE_URI_PLACEHOLDER,
+	ACT_NORMALIZE_URI_MERGE_SLASHES,
 };
 
 /* NOTE: if <.action_ptr> is defined, the referenced function will always be

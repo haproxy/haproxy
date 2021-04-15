@@ -215,8 +215,23 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 		goto fail_alloc;
 
 	switch ((enum act_normalize_uri) rule->action) {
-		case ACT_NORMALIZE_URI_PLACEHOLDER:
-			(void) uri;
+		case ACT_NORMALIZE_URI_MERGE_SLASHES: {
+			const struct ist path = http_get_path(uri);
+			struct ist newpath = ist2(replace->area, replace->size);
+
+			if (!isttest(path))
+				goto leave;
+
+			err = uri_normalizer_path_merge_slashes(iststop(path, '?'), &newpath);
+
+			if (err != URI_NORMALIZER_ERR_NONE)
+				break;
+
+			if (!http_replace_req_path(htx, newpath, 0))
+				goto fail_rewrite;
+
+			break;
+		}
 	}
 
 	switch (err) {
@@ -277,8 +292,10 @@ static enum act_parse_ret parse_http_normalize_uri(const char **args, int *orig_
 		return ACT_RET_PRS_ERR;
 	}
 
-	if (0) {
+	if (strcmp(args[cur_arg], "merge-slashes") == 0) {
+		cur_arg++;
 
+		rule->action = ACT_NORMALIZE_URI_MERGE_SLASHES;
 	}
 	else {
 		memprintf(err, "unknown normalizer '%s'", args[cur_arg]);
