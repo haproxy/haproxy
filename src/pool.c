@@ -146,8 +146,6 @@ void pool_evict_from_cache()
 }
 #endif
 
-#if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
-
 /* simply fall back on the default OS' allocator */
 
 void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
@@ -193,6 +191,8 @@ void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 	return ptr;
 }
 
+#if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
+
 /* legacy stuff */
 void pool_flush(struct pool_head *pool)
 {
@@ -208,76 +208,6 @@ void pool_gc(struct pool_head *pool_ctx)
 
 #elif defined(CONFIG_HAP_LOCKLESS_POOLS)
 
-/* Allocates new entries for pool <pool> until there are at least <avail> + 1
- * available, then returns the last one for immediate use, so that at least
- * <avail> are left available in the pool upon return. NULL is returned if the
- * last entry could not be allocated. It's important to note that at least one
- * allocation is always performed even if there are enough entries in the pool.
- * A call to the garbage collector is performed at most once in case malloc()
- * returns an error, before returning NULL.
- */
-void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
-{
-	void *ptr = NULL, **free_list;
-	int failed = 0;
-	int size = pool->size;
-	int limit = pool->limit;
-	int allocated = pool->allocated, allocated_orig = allocated;
-
-#ifdef DEBUG_FAIL_ALLOC
-	if (mem_should_fail(pool))
-		return NULL;
-#endif
-	/* stop point */
-	avail += pool->used;
-
-	while (1) {
-		if (limit && allocated >= limit) {
-			_HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
-			activity[tid].pool_fail++;
-			return NULL;
-		}
-
-		swrate_add_scaled(&pool->needed_avg, POOL_AVG_SAMPLES, pool->allocated, POOL_AVG_SAMPLES/4);
-
-		ptr = pool_alloc_area(size + POOL_EXTRA);
-		if (!ptr) {
-			_HA_ATOMIC_INC(&pool->failed);
-			if (failed) {
-				activity[tid].pool_fail++;
-				return NULL;
-			}
-			failed++;
-			pool_gc(pool);
-			continue;
-		}
-		if (++allocated > avail)
-			break;
-
-		free_list = pool->free_list;
-		do {
-			*POOL_LINK(pool, ptr) = free_list;
-			__ha_barrier_store();
-		} while (_HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr) == 0);
-	}
-	__ha_barrier_atomic_store();
-
-	_HA_ATOMIC_ADD(&pool->allocated, allocated - allocated_orig);
-	_HA_ATOMIC_INC(&pool->used);
-
-#ifdef DEBUG_MEMORY_POOLS
-	/* keep track of where the element was allocated from */
-	*POOL_LINK(pool, ptr) = (void *)pool;
-#endif
-	return ptr;
-}
-void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
-{
-	void *ptr;
-
-	ptr = __pool_refill_alloc(pool, avail);
-	return ptr;
-}
 /*
  * This function frees whatever can be freed in pool <pool>.
  */
@@ -352,72 +282,6 @@ void pool_gc(struct pool_head *pool_ctx)
 
 #else /* CONFIG_HAP_LOCKLESS_POOLS */
 
-/* Allocates new entries for pool <pool> until there are at least <avail> + 1
- * available, then returns the last one for immediate use, so that at least
- * <avail> are left available in the pool upon return. NULL is returned if the
- * last entry could not be allocated. It's important to note that at least one
- * allocation is always performed even if there are enough entries in the pool.
- * A call to the garbage collector is performed at most once in case malloc()
- * returns an error, before returning NULL.
- */
-void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
-{
-	void *ptr = NULL;
-	int failed = 0;
-
-#ifdef DEBUG_FAIL_ALLOC
-	if (mem_should_fail(pool))
-		return NULL;
-#endif
-	/* stop point */
-	avail += pool->used;
-
-	while (1) {
-		if (pool->limit && pool->allocated >= pool->limit) {
-			activity[tid].pool_fail++;
-			return NULL;
-		}
-
-		swrate_add_scaled(&pool->needed_avg, POOL_AVG_SAMPLES, pool->allocated, POOL_AVG_SAMPLES/4);
-		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-		ptr = pool_alloc_area(pool->size + POOL_EXTRA);
-#ifdef DEBUG_MEMORY_POOLS
-		/* keep track of where the element was allocated from. This
-		 * is done out of the lock so that the system really allocates
-		 * the data without harming other threads waiting on the lock.
-		 */
-		if (ptr)
-			*POOL_LINK(pool, ptr) = (void *)pool;
-#endif
-		HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-		if (!ptr) {
-			pool->failed++;
-			if (failed) {
-				activity[tid].pool_fail++;
-				return NULL;
-			}
-			failed++;
-			pool_gc(pool);
-			continue;
-		}
-		if (++pool->allocated > avail)
-			break;
-
-		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
-		pool->free_list = ptr;
-	}
-	pool->used++;
-	return ptr;
-}
-void *pool_refill_alloc(struct pool_head *pool, unsigned int avail)
-{
-	void *ptr;
-
-	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-	ptr = __pool_refill_alloc(pool, avail);
-	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-	return ptr;
-}
 /*
  * This function frees whatever can be freed in pool <pool>.
  */
