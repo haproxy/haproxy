@@ -181,7 +181,6 @@ void *__pool_refill_alloc(struct pool_head *pool, unsigned int avail)
 	void *ptr = NULL;
 
 	if (limit && allocated >= limit) {
-		_HA_ATOMIC_INC(&pool->allocated);
 		activity[tid].pool_fail++;
 		return NULL;
 	}
