@@ -543,7 +543,7 @@ static int ssl_bind_parse_ca_file_common(char **args, int cur_arg, char **ca_fil
 	else
 		memprintf(ca_file_p, "%s", args[cur_arg + 1]);
 
-	if (!ssl_store_load_locations_file(*ca_file_p, !from_cli)) {
+	if (!ssl_store_load_locations_file(*ca_file_p, !from_cli, CAFILE_CERT)) {
 		memprintf(err, "'%s' : unable to load %s", args[cur_arg], *ca_file_p);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -689,7 +689,7 @@ static int ssl_bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, s
 	else
 		memprintf(&conf->crl_file, "%s", args[cur_arg + 1]);
 
-	if (!ssl_store_load_locations_file(conf->crl_file, !from_cli)) {
+	if (!ssl_store_load_locations_file(conf->crl_file, !from_cli, CAFILE_CRL)) {
 		memprintf(err, "'%s' : unable to load %s", args[cur_arg], conf->crl_file);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -1336,7 +1336,7 @@ static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct
 	else
 		memprintf(&newsrv->ssl_ctx.ca_file, "%s", args[*cur_arg + 1]);
 
-	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.ca_file, 1)) {
+	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.ca_file, 1, CAFILE_CERT)) {
 		memprintf(err, "'%s' : unable to load %s", args[*cur_arg], newsrv->ssl_ctx.ca_file);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -1432,7 +1432,7 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 	else
 		memprintf(&newsrv->ssl_ctx.crl_file, "%s", args[*cur_arg + 1]);
 
-	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.crl_file, 1)) {
+	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.crl_file, 1, CAFILE_CRL)) {
 		memprintf(err, "'%s' : unable to load %s", args[*cur_arg], newsrv->ssl_ctx.crl_file);
 		return ERR_ALERT | ERR_FATAL;
 	}

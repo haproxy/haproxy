@@ -985,7 +985,7 @@ X509_STORE* ssl_store_get0_locations_file(char *path)
 }
 
 /* Create a cafile_entry object, without adding it to the cafile_tree. */
-struct cafile_entry *ssl_store_create_cafile_entry(char *path, X509_STORE *store)
+struct cafile_entry *ssl_store_create_cafile_entry(char *path, X509_STORE *store, enum cafile_type type)
 {
 	struct cafile_entry *ca_e;
 	int pathlen;
@@ -996,6 +996,7 @@ struct cafile_entry *ssl_store_create_cafile_entry(char *path, X509_STORE *store
 	if (ca_e) {
 		memcpy(ca_e->path, path, pathlen + 1);
 		ca_e->ca_store = store;
+		ca_e->type = type;
 		LIST_INIT(&ca_e->ckch_inst_link);
 	}
 	return ca_e;
@@ -1077,7 +1078,7 @@ int ssl_store_load_ca_from_buf(struct cafile_entry *ca_e, char *cert_buf)
 	return retval;
 }
 
-int ssl_store_load_locations_file(char *path, int create_if_none)
+int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_type type)
 {
 	X509_STORE *store = ssl_store_get0_locations_file(path);
 
@@ -1088,7 +1089,7 @@ int ssl_store_load_locations_file(char *path, int create_if_none)
 		struct cafile_entry *ca_e;
 		store = X509_STORE_new();
 		if (X509_STORE_load_locations(store, path, NULL)) {
-			ca_e = ssl_store_create_cafile_entry(path, store);
+			ca_e = ssl_store_create_cafile_entry(path, store, type);
 			if (ca_e) {
 				ebst_insert(&cafile_tree, &ca_e->node);
 			}
@@ -2242,7 +2243,7 @@ static int cli_parse_set_cafile(char **args, char *payload, struct appctx *appct
 		ssl_store_delete_cafile_entry(appctx->ctx.ssl.new_cafile_entry);
 
 	/* Create a new cafile_entry without adding it to the cafile tree. */
-	appctx->ctx.ssl.new_cafile_entry = ssl_store_create_cafile_entry(appctx->ctx.ssl.path, NULL);
+	appctx->ctx.ssl.new_cafile_entry = ssl_store_create_cafile_entry(appctx->ctx.ssl.path, NULL, CAFILE_CERT);
 	if (!appctx->ctx.ssl.new_cafile_entry) {
 		memprintf(&err, "%sCannot allocate memory!\n",
 			  err ? err : "");

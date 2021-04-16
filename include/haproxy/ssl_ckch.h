@@ -60,10 +60,10 @@ void ckch_inst_add_cafile_link(struct ckch_inst *ckch_inst, struct bind_conf *bi
 struct cafile_entry *ssl_store_get_cafile_entry(char *path, int oldest_entry);
 X509_STORE* ssl_store_get0_locations_file(char *path);
 int ssl_store_add_uncommitted_cafile_entry(struct cafile_entry *entry);
-struct cafile_entry *ssl_store_create_cafile_entry(char *path, X509_STORE *store);
+struct cafile_entry *ssl_store_create_cafile_entry(char *path, X509_STORE *store, enum cafile_type type);
 void ssl_store_delete_cafile_entry(struct cafile_entry *ca_e);
 int ssl_store_load_ca_from_buf(struct cafile_entry *ca_e, char *cert_buf);
-int ssl_store_load_locations_file(char *path, int create_if_none);
+int ssl_store_load_locations_file(char *path, int create_if_none, enum cafile_type type);
 
 #endif /* USE_OPENSSL */
 #endif /* _HAPROXY_SSL_CRTLIST_H */

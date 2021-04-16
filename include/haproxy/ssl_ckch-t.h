@@ -114,6 +114,13 @@ struct ckch_inst {
 };
 
 
+/* Option through which a cafile_entry was created, either
+ * ca-file/ca-verify-file or crl-file. */
+enum cafile_type {
+	CAFILE_CERT,
+	CAFILE_CRL
+};
+
 /*
  * deduplicate cafile (and crlfile)
  */
@@ -121,6 +128,7 @@ struct cafile_entry {
 	X509_STORE *ca_store;
 	STACK_OF(X509_NAME) *ca_list;
 	struct list ckch_inst_link; /* list of ckch_inst which use this CA file entry */
+	enum cafile_type type;
 	struct ebmb_node node;
 	char path[0];
 };
