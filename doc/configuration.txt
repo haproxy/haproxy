@@ -6017,8 +6017,18 @@ http-request normalize-uri path-strip-dotdot [ full ] [ { if | unless } <conditi
 http-request normalize-uri percent-to-uppercase [ strict ] [ { if | unless } <condition> ]
 http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
 
-  Performs normalization of the request's URI. The following normalizers are
-  available:
+  Performs normalization of the request's URI.
+
+  Each normalizer handles a single type of normalization to allow for a
+  fine-grained selection of the level of normalization that is appropriate for
+  the supported backend.
+
+  As an example the "path-strip-dotdot" normalizer might be useful for a static
+  fileserver that directly maps the requested URI to the path within the local
+  filesystem. However it might break routing of an API that expects a specific
+  number of segments in the path.
+
+  The following normalizers are available:
 
   - path-strip-dotdot: Normalizes "/../" segments within the "path" component.
       This merges segments that attempt to access the parent directory with
