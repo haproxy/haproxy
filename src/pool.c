@@ -28,14 +28,7 @@
 
 
 #ifdef CONFIG_HAP_LOCAL_POOLS
-/* These are the most common pools, expected to be initialized first. These
- * ones are allocated from an array, allowing to map them to an index.
- */
-struct pool_head pool_base_start[MAX_BASE_POOLS] = { };
-unsigned int pool_base_count = 0;
-
 /* These ones are initialized per-thread on startup by init_pools() */
-struct pool_cache_head pool_cache[MAX_THREADS][MAX_BASE_POOLS];
 THREAD_LOCAL size_t pool_cache_bytes = 0;                /* total cache size */
 THREAD_LOCAL size_t pool_cache_count = 0;                /* #cache objects   */
 #endif
@@ -60,7 +53,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	struct pool_head *entry;
 	struct list *start;
 	unsigned int align;
-	int idx __maybe_unused;
+	int thr __maybe_unused;
 
 	/* We need to store a (void *) at the end of the chunks. Since we know
 	 * that the malloc() function will never return such a small size,
@@ -103,21 +96,6 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	}
 
 	if (!pool) {
-#ifdef CONFIG_HAP_LOCAL_POOLS
-		if (pool_base_count < MAX_BASE_POOLS)
-			pool = &pool_base_start[pool_base_count++];
-
-		if (!pool) {
-			/* look for a freed entry */
-			for (entry = pool_base_start; entry != pool_base_start + MAX_BASE_POOLS; entry++) {
-				if (!entry->size) {
-					pool = entry;
-					break;
-				}
-			}
-		}
-#endif
-
 		if (!pool)
 			pool = calloc(1, sizeof(*pool));
 
@@ -131,12 +109,9 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 
 #ifdef CONFIG_HAP_LOCAL_POOLS
 		/* update per-thread pool cache if necessary */
-		idx = pool_get_index(pool);
-		if (idx >= 0) {
-			int thr;
-
-			for (thr = 0; thr < MAX_THREADS; thr++)
-				pool_cache[thr][idx].size = size;
+		for (thr = 0; thr < MAX_THREADS; thr++) {
+			LIST_INIT(&pool->cache[thr].list);
+			pool->cache[thr].size = size;
 		}
 #endif
 		HA_SPIN_INIT(&pool->lock);
@@ -153,6 +128,7 @@ void pool_evict_from_cache()
 {
 	struct pool_cache_item *item;
 	struct pool_cache_head *ph;
+	struct pool_head *pool;
 
 	do {
 		item = LIST_PREV(&ti->pool_lru_head, struct pool_cache_item *, by_lru);
@@ -160,12 +136,13 @@ void pool_evict_from_cache()
 		 * oldest in their own pools, thus their next is the pool's head.
 		 */
 		ph = LIST_NEXT(&item->by_pool, struct pool_cache_head *, list);
+		pool = container_of(ph - tid, struct pool_head, cache);
 		LIST_DEL(&item->by_pool);
 		LIST_DEL(&item->by_lru);
 		ph->count--;
 		pool_cache_count--;
 		pool_cache_bytes -= ph->size;
-		__pool_free(pool_base_start + (ph - pool_cache[tid]), item);
+		__pool_free(pool, item);
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }
 #endif
@@ -506,13 +483,8 @@ void *pool_destroy(struct pool_head *pool)
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
 			HA_SPIN_DESTROY(&pool->lock);
 #endif
-
-#ifdef CONFIG_HAP_LOCAL_POOLS
-			if ((pool - pool_base_start) < MAX_BASE_POOLS)
-				memset(pool, 0, sizeof(*pool));
-			else
-#endif
-				free(pool);
+			/* note that if used == 0, the cache is empty */
+			free(pool);
 		}
 	}
 	return NULL;
@@ -540,11 +512,11 @@ void dump_pools_to_trash()
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
 		HA_SPIN_LOCK(POOL_LOCK, &entry->lock);
 #endif
-		chunk_appendf(&trash, "  - Pool %s (%u bytes) : %u allocated (%u bytes), %u used, needed_avg %u, %u failures, %u users, @%p=%02d%s\n",
+		chunk_appendf(&trash, "  - Pool %s (%u bytes) : %u allocated (%u bytes), %u used, needed_avg %u, %u failures, %u users, @%p%s\n",
 			 entry->name, entry->size, entry->allocated,
 		         entry->size * entry->allocated, entry->used,
 		         swrate_avg(entry->needed_avg, POOL_AVG_SAMPLES), entry->failed,
-			 entry->users, entry, (int)pool_get_index(entry),
+			 entry->users, entry,
 			 (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
 
 		allocated += entry->allocated * entry->size;
@@ -632,13 +604,9 @@ void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size)
 static void init_pools()
 {
 #ifdef CONFIG_HAP_LOCAL_POOLS
-	int thr, idx;
+	int thr;
 
 	for (thr = 0; thr < MAX_THREADS; thr++) {
-		for (idx = 0; idx < MAX_BASE_POOLS; idx++) {
-			LIST_INIT(&pool_cache[thr][idx].list);
-			pool_cache[thr][idx].size = 0;
-		}
 		LIST_INIT(&ha_thread_info[thr].pool_lru_head);
 	}
 #endif

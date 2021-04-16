@@ -75,10 +75,6 @@
 #define POOL_LINK(pool, item) ((void **)(item))
 #endif
 
-#ifndef MAX_BASE_POOLS
-#define MAX_BASE_POOLS 64
-#endif
-
 #define POOL_AVG_SAMPLES 1024
 
 /* possible flags for __pool_alloc() */
@@ -90,7 +86,7 @@ struct pool_cache_head {
 	struct list list;    /* head of objects in this pool */
 	size_t size;         /* size of an object */
 	unsigned int count;  /* number of objects in this pool */
-};
+} THREAD_ALIGNED(64);
 
 struct pool_cache_item {
 	struct list by_pool; /* link to objects in this pool */
@@ -122,6 +118,9 @@ struct pool_head {
 	unsigned int failed;	/* failed allocations */
 	struct list list;	/* list of all known pools */
 	char name[12];		/* name of the pool */
+#ifdef CONFIG_HAP_LOCAL_POOLS
+	struct pool_cache_head cache[MAX_THREADS]; /* pool caches */
+#endif
 } __attribute__((aligned(64)));
 
 #endif /* _HAPROXY_POOL_T_H */

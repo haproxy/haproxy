@@ -75,39 +75,20 @@ static inline int pool_is_crowded(const struct pool_head *pool)
 
 /****************** Thread-local cache management ******************/
 
-extern struct pool_head pool_base_start[MAX_BASE_POOLS];
-extern unsigned int pool_base_count;
-extern struct pool_cache_head pool_cache[][MAX_BASE_POOLS];
 extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
 extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 
 void pool_evict_from_cache();
-
-/* returns the pool index for pool <pool>, or -1 if this pool has no index */
-static inline ssize_t pool_get_index(const struct pool_head *pool)
-{
-	size_t idx;
-
-	idx = pool - pool_base_start;
-	if (idx < MAX_BASE_POOLS)
-		return idx;
-	return -1;
-}
 
 /* Tries to retrieve an object from the local pool cache corresponding to pool
  * <pool>. Returns NULL if none is available.
  */
 static inline void *__pool_get_from_cache(struct pool_head *pool)
 {
-	ssize_t idx = pool_get_index(pool);
 	struct pool_cache_item *item;
 	struct pool_cache_head *ph;
 
-	/* pool not in cache */
-	if (idx < 0)
-		return NULL;
-
-	ph = &pool_cache[tid][idx];
+	ph = &pool->cache[tid];
 	if (LIST_ISEMPTY(&ph->list))
 		return NULL; // empty
 
@@ -127,10 +108,10 @@ static inline void *__pool_get_from_cache(struct pool_head *pool)
 /* Frees an object to the local cache, possibly pushing oldest objects to the
  * global pool.
  */
-static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t idx)
+static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
 {
 	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
-	struct pool_cache_head *ph = &pool_cache[tid][idx];
+	struct pool_cache_head *ph = &pool->cache[tid];
 
 	LIST_ADD(&ph->list, &item->by_pool);
 	LIST_ADD(&ti->pool_lru_head, &item->by_lru);
@@ -141,11 +122,6 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t 
 	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
 		pool_evict_from_cache();
 }
-
-#else // CONFIG_HAP_LOCAL_POOLS
-
-/* always return index -1 when thread-local pools are disabled */
-#define pool_get_index(pool) ((ssize_t)-1)
 
 #endif // CONFIG_HAP_LOCAL_POOLS
 
@@ -346,8 +322,6 @@ static inline void *pool_zalloc(struct pool_head *pool)
 static inline void pool_free(struct pool_head *pool, void *ptr)
 {
         if (likely(ptr != NULL)) {
-		ssize_t idx __maybe_unused;
-
 #ifdef DEBUG_MEMORY_POOLS
 		/* we'll get late corruption if we refill to the wrong pool or double-free */
 		if (*POOL_LINK(pool, ptr) != (void *)pool)
@@ -361,11 +335,9 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		 * many objects yet in this pool (no more than half of the cached
 		 * is used or this pool uses no more than 1/8 of the cache size).
 		 */
-		idx = pool_get_index(pool);
-		if (idx >= 0 &&
-		    (pool_cache_bytes <= CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 ||
-		     pool_cache[tid][idx].count < 16 + pool_cache_count / 8)) {
-			pool_put_to_cache(pool, ptr, idx);
+		if ((pool_cache_bytes <= CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 ||
+		     pool->cache[tid].count < 16 + pool_cache_count / 8)) {
+			pool_put_to_cache(pool, ptr);
 			return;
 		}
 #endif
