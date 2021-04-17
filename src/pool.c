@@ -119,6 +119,26 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 	return pool;
 }
 
+/* Tries to allocate an object for the pool <pool> using the system's allocator
+ * and directly returns it. The pool's allocated counter is checked and updated,
+ * but no other checks are performed. The pool's lock is not used and is not a
+ * problem either.
+ */
+void *pool_get_from_os(struct pool_head *pool)
+{
+	if (!pool->limit || pool->allocated < pool->limit) {
+		void *ptr = pool_alloc_area(pool->size + POOL_EXTRA);
+		if (ptr) {
+			_HA_ATOMIC_INC(&pool->allocated);
+			return ptr;
+		}
+		_HA_ATOMIC_INC(&pool->failed);
+	}
+	activity[tid].pool_fail++;
+	return NULL;
+
+}
+
 #ifdef CONFIG_HAP_POOLS
 /* Evicts some of the oldest objects from the local cache, pushing them to the
  * global pool.
@@ -154,25 +174,13 @@ void pool_evict_from_local_caches()
  */
 void *pool_alloc_nocache(struct pool_head *pool)
 {
-	int allocated = pool->allocated;
-	int limit = pool->limit;
 	void *ptr = NULL;
 
-	if (limit && allocated >= limit) {
-		activity[tid].pool_fail++;
+	ptr = pool_get_from_os(pool);
+	if (!ptr)
 		return NULL;
-	}
 
-	swrate_add_scaled(&pool->needed_avg, POOL_AVG_SAMPLES, pool->allocated, POOL_AVG_SAMPLES/4);
-
-	ptr = pool_alloc_area(pool->size + POOL_EXTRA);
-	if (!ptr) {
-		_HA_ATOMIC_INC(&pool->failed);
-		activity[tid].pool_fail++;
-		return NULL;
-	}
-
-	_HA_ATOMIC_INC(&pool->allocated);
+	swrate_add_scaled(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used, POOL_AVG_SAMPLES/4);
 	_HA_ATOMIC_INC(&pool->used);
 
 #ifdef DEBUG_MEMORY_POOLS

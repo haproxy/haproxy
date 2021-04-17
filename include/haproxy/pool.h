@@ -48,6 +48,7 @@
 /* poison each newly allocated area with this byte if >= 0 */
 extern int mem_poison_byte;
 
+void *pool_get_from_os(struct pool_head *pool);
 void *pool_alloc_nocache(struct pool_head *pool);
 void dump_pools_to_trash();
 void dump_pools(void);
