@@ -136,7 +136,7 @@ static inline void *pool_get_from_shared_cache(struct pool_head *pool)
 	return NULL;
 }
 
-static inline void __pool_free(struct pool_head *pool, void *ptr)
+static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 {
 	_HA_ATOMIC_DEC(&pool->used);
 	_HA_ATOMIC_DEC(&pool->allocated);
@@ -182,7 +182,7 @@ static inline void *pool_get_from_shared_cache(struct pool_head *pool)
  * Both the pool and the pointer must be valid. Use pool_free() for normal
  * operations.
  */
-static inline void __pool_free(struct pool_head *pool, void *ptr)
+static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 {
 	void **free_list = pool->free_list;
 
@@ -234,7 +234,7 @@ static inline void *pool_get_from_shared_cache(struct pool_head *pool)
 /* unconditionally stores the object as-is into the global pool. The object
  * must not be NULL. Use pool_free() instead.
  */
-static inline void __pool_free(struct pool_head *pool, void *ptr)
+static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 {
 #ifndef DEBUG_UAF /* normal pool behaviour */
 	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
@@ -342,7 +342,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 			return;
 		}
 #endif
-		__pool_free(pool, ptr);
+		pool_put_to_shared_cache(pool, ptr);
 	}
 }
 

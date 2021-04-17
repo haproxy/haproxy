@@ -141,7 +141,7 @@ void pool_evict_from_local_caches()
 		ph->count--;
 		pool_cache_count--;
 		pool_cache_bytes -= pool->size;
-		__pool_free(pool, item);
+		pool_put_to_shared_cache(pool, item);
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }
 #endif
