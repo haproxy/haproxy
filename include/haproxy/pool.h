@@ -237,26 +237,31 @@ static inline void *pool_get_from_shared_cache(struct pool_head *pool)
  */
 static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 {
-#ifndef DEBUG_UAF /* normal pool behaviour */
 	_HA_ATOMIC_DEC(&pool->used);
+
+#ifndef DEBUG_UAF /* normal pool behaviour */
+
 	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-	if (pool_is_crowded(pool)) {
-		pool_free_area(ptr, pool->size + POOL_EXTRA);
-		_HA_ATOMIC_DEC(&pool->allocated);
-	} else {
+	if (!pool_is_crowded(pool)) {
 		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
 		pool->free_list = (void *)ptr;
+		ptr = NULL;
+	}
+	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
+
+#else
+	/* release the entry for real to detect use after free */
+	/* ensure we crash on double free or free of a const area */
+	*(uint32_t *)ptr = 0xDEADADD4;
+
+#endif /* DEBUG_UAF */
+
+	if (ptr) {
+		/* still not freed */
+		pool_free_area(ptr, pool->size + POOL_EXTRA);
+		_HA_ATOMIC_DEC(&pool->allocated);
 	}
 	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
-	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-#else  /* release the entry for real to detect use after free */
-	/* ensure we crash on double free or free of a const area*/
-	*(uint32_t *)ptr = 0xDEADADD4;
-	pool_free_area(ptr, pool->size + POOL_EXTRA);
-	_HA_ATOMIC_DEC(&pool->allocated);
-	_HA_ATOMIC_DEC(&pool->used);
-	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
-#endif /* DEBUG_UAF */
 }
 
 #endif /* CONFIG_HAP_LOCKLESS_POOLS */
