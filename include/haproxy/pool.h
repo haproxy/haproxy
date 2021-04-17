@@ -275,6 +275,11 @@ static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 {
 	void *p;
 
+#ifdef DEBUG_FAIL_ALLOC
+	if (!(flags & POOL_F_NO_FAIL) && mem_should_fail(pool))
+		return NULL;
+#endif
+
 #ifdef CONFIG_HAP_POOLS
 	if (likely(p = pool_get_from_local_cache(pool)))
 		goto ret;

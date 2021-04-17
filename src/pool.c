@@ -158,10 +158,6 @@ void *pool_alloc_nocache(struct pool_head *pool)
 	int limit = pool->limit;
 	void *ptr = NULL;
 
-#ifdef DEBUG_FAIL_ALLOC
-	if (mem_should_fail(pool))
-		return NULL;
-#endif
 	if (limit && allocated >= limit) {
 		activity[tid].pool_fail++;
 		return NULL;
