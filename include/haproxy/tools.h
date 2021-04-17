@@ -1073,6 +1073,14 @@ static inline unsigned int statistical_prng()
 	return statistical_prng_state = x;
 }
 
+/* returns a random number between 0 and <range> - 1 that is evenly distributed
+ * over the range.
+ */
+static inline uint statistical_prng_range(uint range)
+{
+	return mul32hi(statistical_prng(), range);
+}
+
 /* Update array <fp> with the character transition <prev> to <curr>. If <prev>
  * is zero, it's assumed that <curr> is the first character. If <curr> is zero
  * its assumed to mark the end. Both may be zero. <fp> is a 1024-entries array
