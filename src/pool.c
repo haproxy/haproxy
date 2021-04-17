@@ -139,6 +139,15 @@ void *pool_get_from_os(struct pool_head *pool)
 
 }
 
+/* Releases a pool item back to the operating system and atomically updates
+ * the allocation counter.
+ */
+void pool_put_to_os(struct pool_head *pool, void *ptr)
+{
+	pool_free_area(ptr, pool->size + POOL_EXTRA);
+	_HA_ATOMIC_DEC(&pool->allocated);
+}
+
 #ifdef CONFIG_HAP_POOLS
 /* Evicts some of the oldest objects from the local cache, pushing them to the
  * global pool.
@@ -190,6 +199,17 @@ void *pool_alloc_nocache(struct pool_head *pool)
 	return ptr;
 }
 
+/* Release a pool item back to the OS and keeps the pool's counters up to date.
+ * This is always defined even when pools are not enabled (their usage stats
+ * are maintained).
+ */
+void pool_free_nocache(struct pool_head *pool, void *ptr)
+{
+	_HA_ATOMIC_DEC(&pool->used);
+	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
+	pool_put_to_os(pool, ptr);
+}
+
 
 #if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 
@@ -231,8 +251,7 @@ void pool_flush(struct pool_head *pool)
 	while (next) {
 		temp = next;
 		next = *POOL_LINK(pool, temp);
-		pool_free_area(temp, pool->size + POOL_EXTRA);
-		_HA_ATOMIC_DEC(&pool->allocated);
+		pool_put_to_os(pool, temp);
 	}
 	pool->free_list = next;
 	/* here, we should have pool->allocate == pool->used */
@@ -265,8 +284,7 @@ void pool_gc(struct pool_head *pool_ctx)
 			new.seq = cmp.seq + 1;
 			if (HA_ATOMIC_DWCAS(&entry->free_list, &cmp, &new) == 0)
 				continue;
-			pool_free_area(cmp.free_list, entry->size + POOL_EXTRA);
-			_HA_ATOMIC_DEC(&entry->allocated);
+			pool_put_to_os(entry, cmp.free_list);
 		}
 	}
 
@@ -299,8 +317,7 @@ void pool_flush(struct pool_head *pool)
 		}
 		pool->free_list = *POOL_LINK(pool, temp);
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-		pool_free_area(temp, pool->size + POOL_EXTRA);
-		_HA_ATOMIC_DEC(&pool->allocated);
+		pool_put_to_os(pool, temp);
 	}
 	/* here, we should have pool->allocated == pool->used */
 }
@@ -325,8 +342,7 @@ void pool_gc(struct pool_head *pool_ctx)
 		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
 			temp = entry->free_list;
 			entry->free_list = *POOL_LINK(entry, temp);
-			pool_free_area(temp, entry->size + POOL_EXTRA);
-			_HA_ATOMIC_DEC(&entry->allocated);
+			pool_put_to_os(entry, temp);
 		}
 	}
 

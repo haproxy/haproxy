@@ -49,7 +49,9 @@
 extern int mem_poison_byte;
 
 void *pool_get_from_os(struct pool_head *pool);
+void pool_put_to_os(struct pool_head *pool, void *ptr);
 void *pool_alloc_nocache(struct pool_head *pool);
+void pool_free_nocache(struct pool_head *pool, void *ptr);
 void dump_pools_to_trash();
 void dump_pools(void);
 int pool_total_failures();
@@ -139,10 +141,7 @@ static inline void *pool_get_from_shared_cache(struct pool_head *pool)
 
 static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 {
-	_HA_ATOMIC_DEC(&pool->used);
-	_HA_ATOMIC_DEC(&pool->allocated);
-	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
-	pool_free_area(ptr, pool->size + POOL_EXTRA);
+	pool_free_nocache(pool, ptr);
 }
 
 #elif defined(CONFIG_HAP_LOCKLESS_POOLS)
@@ -190,8 +189,7 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 	_HA_ATOMIC_DEC(&pool->used);
 
 	if (unlikely(pool_is_crowded(pool))) {
-		pool_free_area(ptr, pool->size + POOL_EXTRA);
-		_HA_ATOMIC_DEC(&pool->allocated);
+		pool_put_to_os(pool, ptr);
 	} else {
 		do {
 			*POOL_LINK(pool, ptr) = (void *)free_list;
@@ -258,8 +256,7 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 
 	if (ptr) {
 		/* still not freed */
-		pool_free_area(ptr, pool->size + POOL_EXTRA);
-		_HA_ATOMIC_DEC(&pool->allocated);
+		pool_put_to_os(pool, ptr);
 	}
 	swrate_add(&pool->needed_avg, POOL_AVG_SAMPLES, pool->used);
 }
