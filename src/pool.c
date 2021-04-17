@@ -215,7 +215,6 @@ void pool_flush(struct pool_head *pool)
 {
 	struct pool_free_list cmp, new;
 	void **next, *temp;
-	int removed = 0;
 
 	if (!pool)
 		return;
@@ -232,11 +231,10 @@ void pool_flush(struct pool_head *pool)
 	while (next) {
 		temp = next;
 		next = *POOL_LINK(pool, temp);
-		removed++;
 		pool_free_area(temp, pool->size + POOL_EXTRA);
+		_HA_ATOMIC_DEC(&pool->allocated);
 	}
 	pool->free_list = next;
-	_HA_ATOMIC_SUB(&pool->allocated, removed);
 	/* here, we should have pool->allocate == pool->used */
 }
 
@@ -300,9 +298,9 @@ void pool_flush(struct pool_head *pool)
 			break;
 		}
 		pool->free_list = *POOL_LINK(pool, temp);
-		pool->allocated--;
 		HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
 		pool_free_area(temp, pool->size + POOL_EXTRA);
+		_HA_ATOMIC_DEC(&pool->allocated);
 	}
 	/* here, we should have pool->allocated == pool->used */
 }
@@ -327,8 +325,8 @@ void pool_gc(struct pool_head *pool_ctx)
 		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
 			temp = entry->free_list;
 			entry->free_list = *POOL_LINK(entry, temp);
-			entry->allocated--;
 			pool_free_area(temp, entry->size + POOL_EXTRA);
+			_HA_ATOMIC_DEC(&entry->allocated);
 		}
 	}
 
