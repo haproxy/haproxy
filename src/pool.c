@@ -498,9 +498,7 @@ int mem_should_fail(const struct pool_head *pool)
 	int ret = 0;
 
 	if (mem_fail_rate > 0 && !(global.mode & MODE_STARTING)) {
-		int randnb = ha_random() % 100;
-
-		if (mem_fail_rate > randnb)
+		if (mem_fail_rate > statistical_prng_range(100))
 			ret = 1;
 		else
 			ret = 0;
