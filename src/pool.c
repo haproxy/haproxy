@@ -111,7 +111,6 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 		/* update per-thread pool cache if necessary */
 		for (thr = 0; thr < MAX_THREADS; thr++) {
 			LIST_INIT(&pool->cache[thr].list);
-			pool->cache[thr].size = size;
 		}
 #endif
 		HA_SPIN_INIT(&pool->lock);
@@ -141,7 +140,7 @@ void pool_evict_from_cache()
 		LIST_DEL(&item->by_lru);
 		ph->count--;
 		pool_cache_count--;
-		pool_cache_bytes -= ph->size;
+		pool_cache_bytes -= pool->size;
 		__pool_free(pool, item);
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }

@@ -94,7 +94,7 @@ static inline void *__pool_get_from_cache(struct pool_head *pool)
 
 	item = LIST_NEXT(&ph->list, typeof(item), by_pool);
 	ph->count--;
-	pool_cache_bytes -= ph->size;
+	pool_cache_bytes -= pool->size;
 	pool_cache_count--;
 	LIST_DEL(&item->by_pool);
 	LIST_DEL(&item->by_lru);
@@ -117,7 +117,7 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
 	LIST_ADD(&ti->pool_lru_head, &item->by_lru);
 	ph->count++;
 	pool_cache_count++;
-	pool_cache_bytes += ph->size;
+	pool_cache_bytes += pool->size;
 
 	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
 		pool_evict_from_cache();

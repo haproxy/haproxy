@@ -84,7 +84,6 @@
 
 struct pool_cache_head {
 	struct list list;    /* head of objects in this pool */
-	size_t size;         /* size of an object */
 	unsigned int count;  /* number of objects in this pool */
 } THREAD_ALIGNED(64);
 
