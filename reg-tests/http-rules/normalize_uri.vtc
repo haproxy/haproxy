@@ -17,11 +17,11 @@ haproxy h1 -conf {
         timeout client  1s
         timeout server  1s
 
-    frontend fe_merge_slashes
-        bind "fd@${fe_merge_slashes}"
+    frontend fe_path_merge_slashes
+        bind "fd@${fe_path_merge_slashes}"
 
         http-request set-var(txn.before) url
-        http-request normalize-uri merge-slashes
+        http-request normalize-uri path-merge-slashes
         http-request set-var(txn.after) url
 
         http-response add-header before  %[var(txn.before)]
@@ -29,15 +29,15 @@ haproxy h1 -conf {
 
         default_backend be
 
-    frontend fe_dotdot
-        bind "fd@${fe_dotdot}"
+    frontend fe_path_strip_dotdot
+        bind "fd@${fe_path_strip_dotdot}"
 
         http-request set-var(txn.before) url
-        http-request normalize-uri dotdot
+        http-request normalize-uri path-strip-dotdot
         http-request set-var(txn.after) url
 
         http-request set-uri %[var(txn.before)]
-        http-request normalize-uri dotdot full
+        http-request normalize-uri path-strip-dotdot full
         http-request set-var(txn.after_full) url
 
         http-response add-header before  %[var(txn.before)]
@@ -46,11 +46,11 @@ haproxy h1 -conf {
 
         default_backend be
 
-    frontend fe_sort_query
-        bind "fd@${fe_sort_query}"
+    frontend fe_sort_query_by_name
+        bind "fd@${fe_sort_query_by_name}"
 
         http-request set-var(txn.before) url
-        http-request normalize-uri sort-query
+        http-request normalize-uri query-sort-by-name
         http-request set-var(txn.after) url
 
         http-response add-header before  %[var(txn.before)]
@@ -58,11 +58,11 @@ haproxy h1 -conf {
 
         default_backend be
 
-    frontend fe_percent_upper
-        bind "fd@${fe_percent_upper}"
+    frontend fe_percent_to_uppercase
+        bind "fd@${fe_percent_to_uppercase}"
 
         http-request set-var(txn.before) url
-        http-request normalize-uri percent-upper
+        http-request normalize-uri percent-to-uppercase
         http-request set-var(txn.after) url
 
         http-response add-header before  %[var(txn.before)]
@@ -70,11 +70,11 @@ haproxy h1 -conf {
 
         default_backend be
 
-    frontend fe_percent_upper_strict
-        bind "fd@${fe_percent_upper_strict}"
+    frontend fe_percent_to_uppercase_strict
+        bind "fd@${fe_percent_to_uppercase_strict}"
 
         http-request set-var(txn.before) url
-        http-request normalize-uri percent-upper strict
+        http-request normalize-uri percent-to-uppercase strict
         http-request set-var(txn.after) url
 
         http-response add-header before  %[var(txn.before)]
@@ -87,7 +87,7 @@ haproxy h1 -conf {
 
 } -start
 
-client c1 -connect ${h1_fe_merge_slashes_sock} {
+client c1 -connect ${h1_fe_path_merge_slashes_sock} {
     txreq -url "/foo/bar"
     rxresp
     expect resp.http.before == "/foo/bar"
@@ -139,7 +139,7 @@ client c1 -connect ${h1_fe_merge_slashes_sock} {
     expect resp.http.after == "*"
 } -run
 
-client c2 -connect ${h1_fe_dotdot_sock} {
+client c2 -connect ${h1_fe_path_strip_dotdot_sock} {
     txreq -url "/foo/bar"
     rxresp
     expect resp.http.before == "/foo/bar"
@@ -207,7 +207,7 @@ client c2 -connect ${h1_fe_dotdot_sock} {
     expect resp.http.after-full == "*"
 } -run
 
-client c3 -connect ${h1_fe_sort_query_sock} {
+client c3 -connect ${h1_fe_sort_query_by_name_sock} {
     txreq -url "/?a=a"
     rxresp
     expect resp.http.before == "/?a=a"
@@ -274,7 +274,7 @@ client c3 -connect ${h1_fe_sort_query_sock} {
     expect resp.http.after == "*"
 } -run
 
-client c4 -connect ${h1_fe_percent_upper_sock} {
+client c4 -connect ${h1_fe_percent_to_uppercase_sock} {
     txreq -url "/a?a=a"
     rxresp
     expect resp.http.before == "/a?a=a"
@@ -297,7 +297,7 @@ client c4 -connect ${h1_fe_percent_upper_sock} {
     expect resp.http.after == "*"
 } -run
 
-client c5 -connect ${h1_fe_percent_upper_strict_sock} {
+client c5 -connect ${h1_fe_percent_to_uppercase_strict_sock} {
     txreq -url "/a?a=a"
     rxresp
     expect resp.http.before == "/a?a=a"

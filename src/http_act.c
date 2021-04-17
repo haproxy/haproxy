@@ -215,7 +215,7 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 		goto fail_alloc;
 
 	switch ((enum act_normalize_uri) rule->action) {
-		case ACT_NORMALIZE_URI_MERGE_SLASHES: {
+		case ACT_NORMALIZE_URI_PATH_MERGE_SLASHES: {
 			const struct ist path = http_get_path(uri);
 			struct ist newpath = ist2(replace->area, replace->size);
 
@@ -232,15 +232,15 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 
 			break;
 		}
-		case ACT_NORMALIZE_URI_DOTDOT:
-		case ACT_NORMALIZE_URI_DOTDOT_FULL: {
+		case ACT_NORMALIZE_URI_PATH_STRIP_DOTDOT:
+		case ACT_NORMALIZE_URI_PATH_STRIP_DOTDOT_FULL: {
 			const struct ist path = http_get_path(uri);
 			struct ist newpath = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
 				goto leave;
 
-			err = uri_normalizer_path_dotdot(iststop(path, '?'), rule->action == ACT_NORMALIZE_URI_DOTDOT_FULL, &newpath);
+			err = uri_normalizer_path_dotdot(iststop(path, '?'), rule->action == ACT_NORMALIZE_URI_PATH_STRIP_DOTDOT_FULL, &newpath);
 
 			if (err != URI_NORMALIZER_ERR_NONE)
 				break;
@@ -250,7 +250,7 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 
 			break;
 		}
-		case ACT_NORMALIZE_URI_SORT_QUERY: {
+		case ACT_NORMALIZE_URI_QUERY_SORT_BY_NAME: {
 			const struct ist path = http_get_path(uri);
 			struct ist newquery = ist2(replace->area, replace->size);
 
@@ -267,15 +267,15 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 
 			break;
 		}
-		case ACT_NORMALIZE_URI_PERCENT_UPPER:
-		case ACT_NORMALIZE_URI_PERCENT_UPPER_STRICT: {
+		case ACT_NORMALIZE_URI_PERCENT_TO_UPPERCASE:
+		case ACT_NORMALIZE_URI_PERCENT_TO_UPPERCASE_STRICT: {
 			const struct ist path = http_get_path(uri);
 			struct ist newpath = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
 				goto leave;
 
-			err = uri_normalizer_percent_upper(path, rule->action == ACT_NORMALIZE_URI_PERCENT_UPPER_STRICT, &newpath);
+			err = uri_normalizer_percent_upper(path, rule->action == ACT_NORMALIZE_URI_PERCENT_TO_UPPERCASE_STRICT, &newpath);
 
 			if (err != URI_NORMALIZER_ERR_NONE)
 				break;
@@ -345,40 +345,40 @@ static enum act_parse_ret parse_http_normalize_uri(const char **args, int *orig_
 		return ACT_RET_PRS_ERR;
 	}
 
-	if (strcmp(args[cur_arg], "merge-slashes") == 0) {
+	if (strcmp(args[cur_arg], "path-merge-slashes") == 0) {
 		cur_arg++;
 
-		rule->action = ACT_NORMALIZE_URI_MERGE_SLASHES;
+		rule->action = ACT_NORMALIZE_URI_PATH_MERGE_SLASHES;
 	}
-	else if (strcmp(args[cur_arg], "dotdot") == 0) {
+	else if (strcmp(args[cur_arg], "path-strip-dotdot") == 0) {
 		cur_arg++;
 
 		if (strcmp(args[cur_arg], "full") == 0) {
 			cur_arg++;
-			rule->action = ACT_NORMALIZE_URI_DOTDOT_FULL;
+			rule->action = ACT_NORMALIZE_URI_PATH_STRIP_DOTDOT_FULL;
 		}
 		else if (!*args[cur_arg]) {
-			rule->action = ACT_NORMALIZE_URI_DOTDOT;
+			rule->action = ACT_NORMALIZE_URI_PATH_STRIP_DOTDOT;
 		}
 		else if (strcmp(args[cur_arg], "if") != 0 && strcmp(args[cur_arg], "unless") != 0) {
 			memprintf(err, "unknown argument '%s' for 'dotdot' normalizer", args[cur_arg]);
 			return ACT_RET_PRS_ERR;
 		}
 	}
-	else if (strcmp(args[cur_arg], "sort-query") == 0) {
+	else if (strcmp(args[cur_arg], "query-sort-by-name") == 0) {
 		cur_arg++;
 
-		rule->action = ACT_NORMALIZE_URI_SORT_QUERY;
+		rule->action = ACT_NORMALIZE_URI_QUERY_SORT_BY_NAME;
 	}
-	else if (strcmp(args[cur_arg], "percent-upper") == 0) {
+	else if (strcmp(args[cur_arg], "percent-to-uppercase") == 0) {
 		cur_arg++;
 
 		if (strcmp(args[cur_arg], "strict") == 0) {
 			cur_arg++;
-			rule->action = ACT_NORMALIZE_URI_PERCENT_UPPER_STRICT;
+			rule->action = ACT_NORMALIZE_URI_PERCENT_TO_UPPERCASE_STRICT;
 		}
 		else if (!*args[cur_arg]) {
-			rule->action = ACT_NORMALIZE_URI_PERCENT_UPPER;
+			rule->action = ACT_NORMALIZE_URI_PERCENT_TO_UPPERCASE;
 		}
 		else if (strcmp(args[cur_arg], "if") != 0 && strcmp(args[cur_arg], "unless") != 0) {
 			memprintf(err, "unknown argument '%s' for 'percent-upper' normalizer", args[cur_arg]);

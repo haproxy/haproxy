@@ -6012,18 +6012,18 @@ http-request early-hint <name> <fmt> [ { if | unless } <condition> ]
   See RFC 8297 for more information.
 
 http-request normalize-uri <normalizer> [ { if | unless } <condition> ]
-http-request normalize-uri dotdot [ full ] [ { if | unless } <condition> ]
-http-request normalize-uri merge-slashes [ { if | unless } <condition> ]
-http-request normalize-uri percent-upper [ strict ] [ { if | unless } <condition> ]
-http-request normalize-uri sort-query [ { if | unless } <condition> ]
+http-request normalize-uri path-merge-slashes [ { if | unless } <condition> ]
+http-request normalize-uri path-strip-dotdot [ full ] [ { if | unless } <condition> ]
+http-request normalize-uri percent-to-uppercase [ strict ] [ { if | unless } <condition> ]
+http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
 
   Performs normalization of the request's URI. The following normalizers are
   available:
 
-  - dotdot: Normalizes "/../" segments within the "path" component. This merges
-      segments that attempt to access the parent directory with their preceding
-      segment. Empty segments do not receive special treatment. Use the
-      "merge-slashes" normalizer first if this is undesired.
+  - path-strip-dotdot: Normalizes "/../" segments within the "path" component.
+      This merges segments that attempt to access the parent directory with
+      their preceding segment. Empty segments do not receive special treatment.
+      Use the "path-merge-slashes" normalizer first if this is undesired.
 
       Example:
       - /foo/../     -> /
@@ -6040,14 +6040,14 @@ http-request normalize-uri sort-query [ { if | unless } <condition> ]
       - /../bar/     -> /bar/
       - /bar/../../  -> /
 
-  - merge-slashes: Merges adjacent slashes within the "path" component into a
-      single slash.
+  - path-merge-slashes: Merges adjacent slashes within the "path" component
+      into a single slash.
 
       Example:
       - //        -> /
       - /foo//bar -> /foo/bar
 
-  - percent-upper: Uppercases letters within percent-encoded sequences
+  - percent-to-uppercase: Uppercases letters within percent-encoded sequences
       (RFC 3986#6.2.21).
 
       Example:
@@ -6060,7 +6060,7 @@ http-request normalize-uri sort-query [ { if | unless } <condition> ]
       Example:
       - /%zz -> HTTP 400
 
-  - sort-query: Sorts the query string parameters by parameter name.
+  - query-sort-by-name: Sorts the query string parameters by parameter name.
       Parameters are assumed to be delimited by '&'. Shorter names sort before
       longer names and identical parameter names maintain their relative order.
 
