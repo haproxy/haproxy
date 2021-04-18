@@ -148,33 +148,6 @@ void pool_put_to_os(struct pool_head *pool, void *ptr)
 	_HA_ATOMIC_DEC(&pool->allocated);
 }
 
-#ifdef CONFIG_HAP_POOLS
-/* Evicts some of the oldest objects from the local cache, pushing them to the
- * global pool.
- */
-void pool_evict_from_local_caches()
-{
-	struct pool_cache_item *item;
-	struct pool_cache_head *ph;
-	struct pool_head *pool;
-
-	do {
-		item = LIST_PREV(&ti->pool_lru_head, struct pool_cache_item *, by_lru);
-		/* note: by definition we remove oldest objects so they also are the
-		 * oldest in their own pools, thus their next is the pool's head.
-		 */
-		ph = LIST_NEXT(&item->by_pool, struct pool_cache_head *, list);
-		pool = container_of(ph - tid, struct pool_head, cache);
-		LIST_DEL(&item->by_pool);
-		LIST_DEL(&item->by_lru);
-		ph->count--;
-		pool_cache_count--;
-		pool_cache_bytes -= pool->size;
-		pool_put_to_shared_cache(pool, item);
-	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
-}
-#endif
-
 /* Tries to allocate an object for the pool <pool> using the system's allocator
  * and directly returns it. The pool's counters are updated but the object is
  * never cached, so this is usable with and without local or shared caches.
@@ -210,6 +183,33 @@ void pool_free_nocache(struct pool_head *pool, void *ptr)
 	pool_put_to_os(pool, ptr);
 }
 
+
+#ifdef CONFIG_HAP_POOLS
+
+/* Evicts some of the oldest objects from the local cache, pushing them to the
+ * global pool.
+ */
+void pool_evict_from_local_caches()
+{
+	struct pool_cache_item *item;
+	struct pool_cache_head *ph;
+	struct pool_head *pool;
+
+	do {
+		item = LIST_PREV(&ti->pool_lru_head, struct pool_cache_item *, by_lru);
+		/* note: by definition we remove oldest objects so they also are the
+		 * oldest in their own pools, thus their next is the pool's head.
+		 */
+		ph = LIST_NEXT(&item->by_pool, struct pool_cache_head *, list);
+		pool = container_of(ph - tid, struct pool_head, cache);
+		LIST_DEL(&item->by_pool);
+		LIST_DEL(&item->by_lru);
+		ph->count--;
+		pool_cache_count--;
+		pool_cache_bytes -= pool->size;
+		pool_put_to_shared_cache(pool, item);
+	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
+}
 
 #if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 
@@ -349,7 +349,24 @@ void pool_gc(struct pool_head *pool_ctx)
 	if (!isolated)
 		thread_release();
 }
+#endif /* CONFIG_HAP_LOCKLESS_POOLS */
+
+#else  /* CONFIG_HAP_POOLS */
+
+/* legacy stuff */
+void pool_flush(struct pool_head *pool)
+{
+}
+
+/* This function might ask the malloc library to trim its buffers. */
+void pool_gc(struct pool_head *pool_ctx)
+{
+#if defined(HA_HAVE_MALLOC_TRIM)
+	malloc_trim(0);
 #endif
+}
+
+#endif /* CONFIG_HAP_POOLS */
 
 /*
  * This function destroys a pool by freeing it completely, unless it's still

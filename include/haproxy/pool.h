@@ -65,14 +65,6 @@ void *pool_destroy(struct pool_head *pool);
 void pool_destroy_all();
 
 
-/* returns true if the pool is considered to have too many free objects */
-static inline int pool_is_crowded(const struct pool_head *pool)
-{
-	return pool->allocated >= swrate_avg(pool->needed_avg + pool->needed_avg / 4, POOL_AVG_SAMPLES) &&
-	       (int)(pool->allocated - pool->used) >= pool->minavail;
-}
-
-
 #ifdef CONFIG_HAP_POOLS
 
 /****************** Thread-local cache management ******************/
@@ -81,6 +73,13 @@ extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
 extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 
 void pool_evict_from_local_caches();
+
+/* returns true if the pool is considered to have too many free objects */
+static inline int pool_is_crowded(const struct pool_head *pool)
+{
+	return pool->allocated >= swrate_avg(pool->needed_avg + pool->needed_avg / 4, POOL_AVG_SAMPLES) &&
+	       (int)(pool->allocated - pool->used) >= pool->minavail;
+}
 
 /* Tries to retrieve an object from the local pool cache corresponding to pool
  * <pool>. Returns NULL if none is available.
@@ -124,8 +123,6 @@ static inline void pool_put_to_local_cache(struct pool_head *pool, void *ptr)
 	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
 		pool_evict_from_local_caches();
 }
-
-#endif // CONFIG_HAP_POOLS
 
 
 #if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
@@ -263,6 +260,8 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 
 #endif /* CONFIG_HAP_LOCKLESS_POOLS */
 
+#endif /* CONFIG_HAP_POOLS */
+
 
 /****************** Common high-level code ******************/
 
@@ -274,7 +273,7 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
  */
 static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 {
-	void *p;
+	void *p = NULL;
 
 #ifdef DEBUG_FAIL_ALLOC
 	if (!(flags & POOL_F_NO_FAIL) && mem_should_fail(pool))
@@ -282,14 +281,15 @@ static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 #endif
 
 #ifdef CONFIG_HAP_POOLS
-	if (likely(p = pool_get_from_local_cache(pool)))
-		goto ret;
-#endif
+	if (!p)
+		p = pool_get_from_local_cache(pool);
 
-	p = pool_get_from_shared_cache(pool);
+	if (!p)
+		p = pool_get_from_shared_cache(pool);
+#endif
 	if (!p)
 		p = pool_alloc_nocache(pool);
- ret:
+
 	if (p) {
 		if (flags & POOL_F_MUST_ZERO)
 			memset(p, 0, pool->size);
@@ -347,8 +347,10 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 			pool_put_to_local_cache(pool, ptr);
 			return;
 		}
-#endif
 		pool_put_to_shared_cache(pool, ptr);
+#else
+		pool_free_nocache(pool, ptr);
+#endif
 	}
 }
 

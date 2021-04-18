@@ -36,7 +36,7 @@
 /* On architectures supporting threads and double-word CAS, we can implement
  * lock-less memory pools. This isn't supported for debugging modes however.
  */
-#if defined(USE_THREAD) && defined(HA_HAVE_CAS_DW) && !defined(DEBUG_NO_LOCKLESS_POOLS) && !defined(DEBUG_UAF) && !defined(DEBUG_FAIL_ALLOC)
+#if defined(USE_THREAD) && defined(HA_HAVE_CAS_DW) && defined(CONFIG_HAP_POOLS) && !defined(DEBUG_NO_LOCKLESS_POOLS)
 #define CONFIG_HAP_LOCKLESS_POOLS
 #endif
 
