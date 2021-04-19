@@ -38,7 +38,6 @@ int mem_poison_byte = -1;
 
 #ifdef DEBUG_FAIL_ALLOC
 static int mem_fail_rate = 0;
-static int mem_should_fail(const struct pool_head *);
 #endif
 
 /* Try to find an existing shared pool with the same characteristics and

@@ -63,6 +63,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 void create_pool_callback(struct pool_head **ptr, char *name, unsigned int size);
 void *pool_destroy(struct pool_head *pool);
 void pool_destroy_all();
+int mem_should_fail(const struct pool_head *pool);
 
 
 #ifdef CONFIG_HAP_POOLS
