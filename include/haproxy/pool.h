@@ -74,61 +74,12 @@ extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 
 void pool_evict_from_local_cache(struct pool_head *pool);
 void pool_evict_from_local_caches();
-static inline void *pool_get_from_shared_cache(struct pool_head *pool);
 
 /* returns true if the pool is considered to have too many free objects */
 static inline int pool_is_crowded(const struct pool_head *pool)
 {
 	return pool->allocated >= swrate_avg(pool->needed_avg + pool->needed_avg / 4, POOL_AVG_SAMPLES) &&
 	       (int)(pool->allocated - pool->used) >= pool->minavail;
-}
-
-/* Tries to retrieve an object from the local pool cache corresponding to pool
- * <pool>. If none is available, tries to allocate from the shared cache, and
- * returns NULL if nothing is available.
- */
-static inline void *pool_get_from_local_cache(struct pool_head *pool)
-{
-	struct pool_cache_item *item;
-	struct pool_cache_head *ph;
-
-	ph = &pool->cache[tid];
-	if (LIST_ISEMPTY(&ph->list))
-		return pool_get_from_shared_cache(pool);
-
-	item = LIST_NEXT(&ph->list, typeof(item), by_pool);
-	ph->count--;
-	pool_cache_bytes -= pool->size;
-	pool_cache_count--;
-	LIST_DEL(&item->by_pool);
-	LIST_DEL(&item->by_lru);
-#ifdef DEBUG_MEMORY_POOLS
-	/* keep track of where the element was allocated from */
-	*POOL_LINK(pool, item) = (void *)pool;
-#endif
-	return item;
-}
-
-/* Frees an object to the local cache, possibly pushing oldest objects to the
- * global pool.
- */
-static inline void pool_put_to_local_cache(struct pool_head *pool, void *ptr)
-{
-	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
-	struct pool_cache_head *ph = &pool->cache[tid];
-
-	LIST_ADD(&ph->list, &item->by_pool);
-	LIST_ADD(&ti->pool_lru_head, &item->by_lru);
-	ph->count++;
-	pool_cache_count++;
-	pool_cache_bytes += pool->size;
-
-	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 &&
-	             ph->count >= 16 + pool_cache_count / 8))
-		pool_evict_from_local_cache(pool);
-
-	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
-		pool_evict_from_local_caches();
 }
 
 
@@ -271,27 +222,54 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
  * cache first, then from the second level if it exists.
  */
 
-
-/* Tries to allocate from the local cache first, then from the shared cache if
- * it exists. Returns the item found or NULL if none was found.
+/* Tries to retrieve an object from the local pool cache corresponding to pool
+ * <pool>. If none is available, tries to allocate from the shared cache, and
+ * returns NULL if nothing is available.
  */
 static inline void *pool_get_from_cache(struct pool_head *pool)
 {
-	void *ptr;
+	struct pool_cache_item *item;
+	struct pool_cache_head *ph;
 
-	ptr = pool_get_from_local_cache(pool);
-	return ptr;
+	ph = &pool->cache[tid];
+	if (LIST_ISEMPTY(&ph->list))
+		return pool_get_from_shared_cache(pool);
+
+	item = LIST_NEXT(&ph->list, typeof(item), by_pool);
+	ph->count--;
+	pool_cache_bytes -= pool->size;
+	pool_cache_count--;
+	LIST_DEL(&item->by_pool);
+	LIST_DEL(&item->by_lru);
+#ifdef DEBUG_MEMORY_POOLS
+	/* keep track of where the element was allocated from */
+	*POOL_LINK(pool, item) = (void *)pool;
+#endif
+	return item;
 }
 
-/* Releases the object to the cache. Usually the local cache will be used,
- * unless it is too crowded in which case the cache may decide to move objects
- * to the shared cache, which itself may decide to release some of them to the
- * OS. While it is unspecified what the object becomes past this point, it is
+/* Frees an object to the local cache, possibly pushing oldest objects to the
+ * shared cache, which itself may decide to release some of them to the OS.
+ * While it is unspecified what the object becomes past this point, it is
  * guaranteed to be released from the users' perpective.
  */
 static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
 {
-	pool_put_to_local_cache(pool, ptr);
+	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
+	struct pool_cache_head *ph = &pool->cache[tid];
+
+	LIST_ADD(&ph->list, &item->by_pool);
+	LIST_ADD(&ti->pool_lru_head, &item->by_lru);
+	ph->count++;
+	pool_cache_count++;
+	pool_cache_bytes += pool->size;
+
+	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 &&
+	             ph->count >= 16 + pool_cache_count / 8))
+		pool_evict_from_local_cache(pool);
+
+	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
+		pool_evict_from_local_caches();
 }
 
 
