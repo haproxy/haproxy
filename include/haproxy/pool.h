@@ -74,6 +74,7 @@ extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 
 void pool_evict_from_local_cache(struct pool_head *pool);
 void pool_evict_from_local_caches();
+static inline void *pool_get_from_shared_cache(struct pool_head *pool);
 
 /* returns true if the pool is considered to have too many free objects */
 static inline int pool_is_crowded(const struct pool_head *pool)
@@ -83,7 +84,8 @@ static inline int pool_is_crowded(const struct pool_head *pool)
 }
 
 /* Tries to retrieve an object from the local pool cache corresponding to pool
- * <pool>. Returns NULL if none is available.
+ * <pool>. If none is available, tries to allocate from the shared cache, and
+ * returns NULL if nothing is available.
  */
 static inline void *pool_get_from_local_cache(struct pool_head *pool)
 {
@@ -92,7 +94,7 @@ static inline void *pool_get_from_local_cache(struct pool_head *pool)
 
 	ph = &pool->cache[tid];
 	if (LIST_ISEMPTY(&ph->list))
-		return NULL; // empty
+		return pool_get_from_shared_cache(pool);
 
 	item = LIST_NEXT(&ph->list, typeof(item), by_pool);
 	ph->count--;
@@ -278,8 +280,6 @@ static inline void *pool_get_from_cache(struct pool_head *pool)
 	void *ptr;
 
 	ptr = pool_get_from_local_cache(pool);
-	if (!ptr)
-		ptr = pool_get_from_shared_cache(pool);
 	return ptr;
 }
 
