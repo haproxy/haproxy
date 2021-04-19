@@ -234,6 +234,30 @@ void pool_evict_from_local_caches()
 	} while (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 7 / 8);
 }
 
+/* Frees an object to the local cache, possibly pushing oldest objects to the
+ * shared cache, which itself may decide to release some of them to the OS.
+ * While it is unspecified what the object becomes past this point, it is
+ * guaranteed to be released from the users' perpective.
+ */
+void pool_put_to_cache(struct pool_head *pool, void *ptr)
+{
+	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
+	struct pool_cache_head *ph = &pool->cache[tid];
+
+	LIST_ADD(&ph->list, &item->by_pool);
+	LIST_ADD(&ti->pool_lru_head, &item->by_lru);
+	ph->count++;
+	pool_cache_count++;
+	pool_cache_bytes += pool->size;
+
+	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4)) {
+		if (ph->count >= 16 + pool_cache_count / 8)
+			pool_evict_from_local_cache(pool);
+		if (pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE)
+			pool_evict_from_local_caches();
+	}
+}
+
 #if defined(CONFIG_HAP_NO_GLOBAL_POOLS)
 
 /* legacy stuff */
