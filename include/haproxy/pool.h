@@ -72,6 +72,7 @@ void pool_destroy_all();
 extern THREAD_LOCAL size_t pool_cache_bytes;   /* total cache size */
 extern THREAD_LOCAL size_t pool_cache_count;   /* #cache objects   */
 
+void pool_evict_from_local_cache(struct pool_head *pool);
 void pool_evict_from_local_caches();
 
 /* returns true if the pool is considered to have too many free objects */
@@ -119,6 +120,10 @@ static inline void pool_put_to_local_cache(struct pool_head *pool, void *ptr)
 	ph->count++;
 	pool_cache_count++;
 	pool_cache_bytes += pool->size;
+
+	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 &&
+	             ph->count >= 16 + pool_cache_count / 8))
+		pool_evict_from_local_cache(pool);
 
 	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
 		pool_evict_from_local_caches();
@@ -286,16 +291,7 @@ static inline void *pool_get_from_cache(struct pool_head *pool)
  */
 static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
 {
-	/* put the object back into the cache only if there are not too
-	 * many objects yet in this pool (no more than half of the cached
-	 * is used or this pool uses no more than 1/8 of the cache size).
-	 */
-	if ((pool_cache_bytes <= CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4 ||
-	     pool->cache[tid].count < 16 + pool_cache_count / 8)) {
-		pool_put_to_local_cache(pool, ptr);
-		return;
-	}
-	pool_put_to_shared_cache(pool, ptr);
+	pool_put_to_local_cache(pool, ptr);
 }
 
 

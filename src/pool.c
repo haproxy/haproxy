@@ -196,7 +196,6 @@ void pool_evict_from_local_cache(struct pool_head *pool)
 {
 	struct pool_cache_head *ph = &pool->cache[tid];
 	struct pool_cache_item *item;
-	struct pool_head *pool;
 
 	while (ph->count >= 16 + pool_cache_count / 8 &&
 	       pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4) {
