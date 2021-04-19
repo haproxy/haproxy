@@ -139,7 +139,7 @@ static inline void pool_put_to_cache(struct pool_head *pool, void *ptr, ssize_t 
 	pool_cache_bytes += ph->size;
 
 	if (unlikely(pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE))
-		pool_evict_from_cache(pool, ptr, idx);
+		pool_evict_from_cache();
 }
 
 #else // CONFIG_HAP_LOCAL_POOLS
