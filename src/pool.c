@@ -186,6 +186,30 @@ void pool_free_nocache(struct pool_head *pool, void *ptr)
 
 #ifdef CONFIG_HAP_POOLS
 
+/* Evicts some of the oldest objects from one local cache, until its number of
+ * objects is no more than 16+1/8 of the total number of locally cached objects
+ * or the total size of the local cache is no more than 75% of its maximum (i.e.
+ * we don't want a single cache to use all the cache for itself). For this, the
+ * list is scanned in reverse.
+ */
+void pool_evict_from_local_cache(struct pool_head *pool)
+{
+	struct pool_cache_head *ph = &pool->cache[tid];
+	struct pool_cache_item *item;
+	struct pool_head *pool;
+
+	while (ph->count >= 16 + pool_cache_count / 8 &&
+	       pool_cache_bytes > CONFIG_HAP_POOL_CACHE_SIZE * 3 / 4) {
+		item = LIST_NEXT(&ph->list, typeof(item), by_pool);
+		ph->count--;
+		pool_cache_bytes -= pool->size;
+		pool_cache_count--;
+		LIST_DEL(&item->by_pool);
+		LIST_DEL(&item->by_lru);
+		pool_put_to_shared_cache(pool, item);
+	}
+}
+
 /* Evicts some of the oldest objects from the local cache, pushing them to the
  * global pool.
  */
