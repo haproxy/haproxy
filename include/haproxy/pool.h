@@ -249,6 +249,19 @@ static inline void *pool_get_from_cache(struct pool_head *pool)
 	return item;
 }
 
+#else /* CONFIG_HAP_POOLS */
+
+/* no cache pools implementation */
+
+static inline void *pool_get_from_cache(struct pool_head *pool)
+{
+	return NULL;
+}
+
+static inline void pool_put_to_cache(struct pool_head *pool, void *ptr)
+{
+	pool_free_nocache(pool, ptr);
+}
 
 #endif /* CONFIG_HAP_POOLS */
 
@@ -270,10 +283,8 @@ static inline void *__pool_alloc(struct pool_head *pool, unsigned int flags)
 		return NULL;
 #endif
 
-#ifdef CONFIG_HAP_POOLS
 	if (!p)
 		p = pool_get_from_cache(pool);
-#endif
 	if (!p)
 		p = pool_alloc_nocache(pool);
 
@@ -324,11 +335,7 @@ static inline void pool_free(struct pool_head *pool, void *ptr)
 		if (unlikely(mem_poison_byte >= 0))
 			memset(ptr, mem_poison_byte, pool->size);
 
-#ifdef CONFIG_HAP_POOLS
 		pool_put_to_cache(pool, ptr);
-#else
-		pool_free_nocache(pool, ptr);
-#endif
 	}
 }
 
