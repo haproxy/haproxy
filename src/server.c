@@ -4347,7 +4347,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (!*sv_name)
 		return cli_err(appctx, "Require 'backend/server'.");
 
-	get_backend_server(be_name, sv_name, &be, &srv);
+	be = proxy_be_by_name(be_name);
 	if (!be)
 		return cli_err(appctx, "No such backend.");
 
@@ -4355,9 +4355,6 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		cli_err(appctx, "Backend must use a consistent hashing method for load balancing to support dynamic servers.");
 		return 1;
 	}
-
-	if (srv)
-		return cli_err(appctx, "Already exists a server with the same name in backend.");
 
 	args[1] = sv_name;
 	errcode = _srv_parse_init(&srv, args, &argc, be, parse_flags, &errmsg);
@@ -4423,17 +4420,33 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		goto out;
 	}
 
-	/* attach the server to the end of proxy linked list
+	/* Attach the server to the end of the proxy linked list. The proxy
+	 * servers list is currently not protected by a lock, so this requires
+	 * thread_isolate/release.
 	 *
-	 * The proxy servers list is currently not protected by a lock, so this
-	 * requires thread_isolate/release.
+	 * If a server with the same name is found, reject the new one. This
+	 * operation requires thread-safety and thus cannot be executed at the
+	 * beginning without having server allocation under locks/isolation.
 	 */
 	thread_isolate();
+
 	/* TODO use a double-linked list for px->srv */
 	if (be->srv) {
-		struct server *next;
-		for (next = be->srv; next->next; next = next->next)
-			;
+		struct server *next = be->srv;
+
+		while (1) {
+			/* check for duplicate server */
+			if (!strcmp(srv->id, next->id)) {
+				thread_release();
+				cli_err(appctx, "Already exists a server with the same name in backend.");
+				goto out;
+			}
+
+			if (!next->next)
+				break;
+
+			next = next->next;
+		}
 
 		next->next = srv;
 	}
@@ -4441,6 +4454,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		srv->next = be->srv;
 		be->srv = srv;
 	}
+
 	thread_release();
 
 	cli_msg(appctx, LOG_INFO, "New server registered.");
