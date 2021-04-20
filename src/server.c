@@ -4299,7 +4299,8 @@ static int srv_alloc_lb(struct server *sv, struct proxy *be)
 	sv->lb_nodes_tot = sv->uweight * BE_WEIGHT_SCALE;
 	sv->lb_nodes_now = 0;
 
-	if ((be->lbprm.algo & BE_LB_PARM) == BE_LB_RR_RANDOM) {
+	if (((be->lbprm.algo & (BE_LB_KIND | BE_LB_PARM)) == (BE_LB_KIND_RR | BE_LB_RR_RANDOM)) ||
+	    ((be->lbprm.algo & (BE_LB_KIND | BE_LB_HASH_TYPE)) == (BE_LB_KIND_HI | BE_LB_HASH_CONS))) {
 		sv->lb_nodes = calloc(sv->lb_nodes_tot, sizeof(*sv->lb_nodes));
 
 		if (!sv->lb_nodes)
