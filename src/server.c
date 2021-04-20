@@ -4457,6 +4457,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 	thread_release();
 
+	ha_notice("New server %s/%s registered.\n", be->id, srv->id);
 	cli_msg(appctx, LOG_INFO, "New server registered.");
 
 	return 0;
