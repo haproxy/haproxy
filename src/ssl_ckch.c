@@ -3250,6 +3250,284 @@ error:
 }
 
 
+/*
+ * Display a Certificate Resignation List's information.
+ * The information displayed is inspired by the output of 'openssl crl -in
+ * crl.pem -text'.
+ * Returns 0 in case of success.
+ */
+static int show_crl_detail(X509_CRL *crl, struct buffer *out)
+{
+	BIO *bio = NULL;
+	struct buffer *tmp = alloc_trash_chunk();
+	long version;
+	X509_NAME *issuer;
+	int write = -1;
+	STACK_OF(X509_REVOKED) *rev = NULL;
+	X509_REVOKED *rev_entry = NULL;
+	int i;
+
+	if (!tmp)
+		return -1;
+
+	if ((bio = BIO_new(BIO_s_mem())) == NULL)
+		goto end;
+
+	/* Version (as displayed by 'openssl crl') */
+	version = X509_CRL_get_version(crl);
+	chunk_appendf(out, "Version %ld\n", version + 1);
+
+	/* Signature Algorithm */
+	chunk_appendf(out, "Signature Algorithm: %s\n", OBJ_nid2ln(X509_CRL_get_signature_nid(crl)));
+
+	/* Issuer */
+	chunk_appendf(out, "Issuer: ");
+	if ((issuer = X509_CRL_get_issuer(crl)) == NULL)
+		goto end;
+	if ((ssl_sock_get_dn_oneline(issuer, tmp)) == -1)
+		goto end;
+	*(tmp->area + tmp->data) = '\0';
+	chunk_appendf(out, "%s\n", tmp->area);
+
+	/* Last Update */
+	chunk_appendf(out, "Last Update: ");
+	chunk_reset(tmp);
+	BIO_reset(bio);
+	if (ASN1_TIME_print(bio, X509_CRL_get0_lastUpdate(crl)) == 0)
+		goto end;
+	write = BIO_read(bio, tmp->area, tmp->size-1);
+	tmp->area[write] = '\0';
+	chunk_appendf(out, "%s\n", tmp->area);
+
+
+	/* Next Update */
+	chunk_appendf(out, "Next Update: ");
+	chunk_reset(tmp);
+	BIO_reset(bio);
+	if (ASN1_TIME_print(bio, X509_CRL_get0_nextUpdate(crl)) == 0)
+		goto end;
+	write = BIO_read(bio, tmp->area, tmp->size-1);
+	tmp->area[write] = '\0';
+	chunk_appendf(out, "%s\n", tmp->area);
+
+
+	/* Revoked Certificates */
+	rev = X509_CRL_get_REVOKED(crl);
+	if (sk_X509_REVOKED_num(rev) > 0)
+		chunk_appendf(out, "Revoked Certificates:\n");
+	else
+		chunk_appendf(out, "No Revoked Certificates.\n");
+
+	for (i = 0; i < sk_X509_REVOKED_num(rev); i++) {
+		rev_entry = sk_X509_REVOKED_value(rev, i);
+
+		/* Serial Number and Revocation Date */
+		BIO_reset(bio);
+		BIO_printf(bio , "    Serial Number: ");
+		i2a_ASN1_INTEGER(bio, X509_REVOKED_get0_serialNumber(rev_entry));
+		BIO_printf(bio, "\n        Revocation Date: ");
+		ASN1_TIME_print(bio, X509_REVOKED_get0_revocationDate(rev_entry));
+		BIO_printf(bio, "\n");
+
+		write = BIO_read(bio, tmp->area, tmp->size-1);
+		tmp->area[write] = '\0';
+		chunk_appendf(out, "%s", tmp->area);
+	}
+
+end:
+	free_trash_chunk(tmp);
+	if (bio)
+		BIO_free(bio);
+
+	return 0;
+}
+
+/* IO handler of details "show ssl crl-file <filename[:index]>" */
+static int cli_io_handler_show_crlfile_detail(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct cafile_entry *cafile_entry = appctx->ctx.cli.p0;
+	struct buffer *out = alloc_trash_chunk();
+	int i;
+	X509_CRL *crl;
+	STACK_OF(X509_OBJECT) *objs;
+	int retval = 0;
+	long index = (long)appctx->ctx.cli.p1;
+
+	if (!out)
+		goto end_no_putchk;
+
+	chunk_appendf(out, "Filename: ");
+	if (cafile_entry == crlfile_transaction.new_crlfile_entry)
+		chunk_appendf(out, "*");
+	chunk_appendf(out, "%s\n", cafile_entry->path);
+
+	chunk_appendf(out, "Status: ");
+	if (!cafile_entry->ca_store)
+		chunk_appendf(out, "Empty\n");
+	else if (LIST_ISEMPTY(&cafile_entry->ckch_inst_link))
+		chunk_appendf(out, "Unused\n");
+	else
+		chunk_appendf(out, "Used\n");
+
+	if (!cafile_entry->ca_store)
+		goto end;
+
+	objs = X509_STORE_get0_objects(cafile_entry->ca_store);
+	for (i = 0; i < sk_X509_OBJECT_num(objs); i++) {
+		crl = X509_OBJECT_get0_X509_CRL(sk_X509_OBJECT_value(objs, i));
+		if (!crl)
+			continue;
+
+		/* CRL indexes start at 1 on the CLI output. */
+		if (index && index-1 != i)
+			continue;
+
+		chunk_appendf(out, "\nCertificate Revocation List #%d:\n", i+1);
+		retval = show_crl_detail(crl, out);
+		if (retval < 0)
+			goto end_no_putchk;
+		else if (retval || index)
+			goto end;
+	}
+
+end:
+	if (ci_putchk(si_ic(si), out) == -1) {
+		si_rx_room_blk(si);
+		goto yield;
+	}
+
+end_no_putchk:
+	free_trash_chunk(out);
+	return 1;
+yield:
+	free_trash_chunk(out);
+	return 0; /* should come back */
+}
+
+/* parsing function for 'show ssl crl-file [crlfile[:index]]' */
+static int cli_parse_show_crlfile(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct cafile_entry *cafile_entry;
+	long index = 0;
+	char *colons;
+	char *err = NULL;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_OPER))
+		return cli_err(appctx, "Can't allocate memory!\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't show!\nOperations on certificates are currently locked!\n");
+
+	/* check if there is a certificate to lookup */
+	if (*args[3]) {
+
+		/* Look for an optional index after the CRL file name */
+		colons = strchr(args[3], ':');
+		if (colons) {
+			char *endptr;
+
+			index = strtol(colons + 1, &endptr, 10);
+			/* Indexes start at 1 */
+			if (colons + 1 == endptr || *endptr != '\0' || index <= 0) {
+				memprintf(&err, "wrong CRL index after colons in '%s'!", args[3]);
+				goto error;
+			}
+			*colons = '\0';
+		}
+
+		if (*args[3] == '*') {
+			if (!crlfile_transaction.new_crlfile_entry)
+				goto error;
+
+			cafile_entry = crlfile_transaction.new_crlfile_entry;
+
+			if (strcmp(args[3] + 1, cafile_entry->path) != 0)
+				goto error;
+
+		} else {
+			/* Get the "original" cafile_entry and not the
+			 * uncommitted one if it exists. */
+			if ((cafile_entry = ssl_store_get_cafile_entry(args[3], 1)) == NULL || cafile_entry->type != CAFILE_CRL)
+				goto error;
+		}
+
+		appctx->ctx.cli.p0 = cafile_entry;
+		appctx->ctx.cli.p1 = (void*)index;
+		/* use the IO handler that shows details */
+		appctx->io_handler = cli_io_handler_show_crlfile_detail;
+	}
+
+	return 0;
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	if (err)
+		return cli_dynerr(appctx, err);
+	return cli_err(appctx, "Can't display the CA file : Not found!\n");
+}
+
+/* IO handler of "show ssl crl-file". The command taking a specific CRL file name
+ * is managed in cli_io_handler_show_crlfile_detail. */
+static int cli_io_handler_show_crlfile(struct appctx *appctx)
+{
+	struct buffer *trash = alloc_trash_chunk();
+	struct ebmb_node *node;
+	struct stream_interface *si = appctx->owner;
+	struct cafile_entry *cafile_entry;
+
+	if (trash == NULL)
+		return 1;
+
+	if (!appctx->ctx.ssl.old_crlfile_entry) {
+		if (crlfile_transaction.old_crlfile_entry) {
+			chunk_appendf(trash, "# transaction\n");
+			chunk_appendf(trash, "*%s\n", crlfile_transaction.old_crlfile_entry->path);
+		}
+	}
+
+	/* First time in this io_handler. */
+	if (!appctx->ctx.cli.p0) {
+		chunk_appendf(trash, "# filename\n");
+		node = ebmb_first(&cafile_tree);
+	} else {
+		/* We yielded during a previous call. */
+		node = &((struct cafile_entry*)appctx->ctx.cli.p0)->node;
+	}
+
+	while (node) {
+		cafile_entry = ebmb_entry(node, struct cafile_entry, node);
+		if (cafile_entry->type == CAFILE_CRL) {
+			chunk_appendf(trash, "%s\n", cafile_entry->path);
+		}
+
+		node = ebmb_next(node);
+		if (ci_putchk(si_ic(si), trash) == -1) {
+			si_rx_room_blk(si);
+			goto yield;
+		}
+	}
+
+	appctx->ctx.cli.p0 = NULL;
+	free_trash_chunk(trash);
+	return 1;
+yield:
+
+	free_trash_chunk(trash);
+	appctx->ctx.cli.p0 = cafile_entry;
+	return 0; /* should come back */
+}
+
+
+/* release function of the 'show ssl crl-file' command */
+static void cli_release_show_crlfile(struct appctx *appctx)
+{
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+}
+
+
 void ckch_deinit()
 {
 	struct eb_node *node, *next;
@@ -3285,6 +3563,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "commit", "ssl", "crl-file", NULL },"commit ssl crl-file <crlfile>           : commit a CRL file",                                                     cli_parse_commit_crlfile, cli_io_handler_commit_cafile_crlfile, cli_release_commit_crlfile },
 	{ { "abort", "ssl", "crl-file", NULL }, "abort ssl crl-file <crlfile>            : abort a transaction for a CRL file",                                    cli_parse_abort_crlfile, NULL, NULL },
 	{ { "del", "ssl", "crl-file", NULL },   "del ssl crl-file <crlfile>              : delete an unused CRL file",                                             cli_parse_del_crlfile, NULL, NULL },
+	{ { "show", "ssl", "crl-file", NULL },  "show ssl crl-file [<crlfile[:<index>>]] : display the SSL CRL files used in memory, or the details of a <crlfile>, or a single CRL of index <index> of CRL file <crlfile>", cli_parse_show_crlfile, cli_io_handler_show_crlfile, cli_release_show_crlfile },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
