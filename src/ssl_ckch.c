@@ -1302,20 +1302,27 @@ void ckch_inst_add_cafile_link(struct ckch_inst *ckch_inst, struct bind_conf *bi
 	if (verify & SSL_VERIFY_PEER) {
 		struct cafile_entry *ca_file_entry = NULL;
 		struct cafile_entry *ca_verify_file_entry = NULL;
+		struct cafile_entry *crl_file_entry = NULL;
 		if (srv) {
 			if (srv->ssl_ctx.ca_file) {
 				ca_file_entry = ssl_store_get_cafile_entry(srv->ssl_ctx.ca_file, 0);
 
 			}
+			if (srv->ssl_ctx.crl_file) {
+				crl_file_entry = ssl_store_get_cafile_entry(srv->ssl_ctx.crl_file, 0);
+			}
 		}
 		else {
 			char *ca_file = (ssl_conf && ssl_conf->ca_file) ? ssl_conf->ca_file : bind_conf->ssl_conf.ca_file;
 			char *ca_verify_file = (ssl_conf && ssl_conf->ca_verify_file) ? ssl_conf->ca_verify_file : bind_conf->ssl_conf.ca_verify_file;
+			char *crl_file = (ssl_conf && ssl_conf->crl_file) ? ssl_conf->crl_file : bind_conf->ssl_conf.crl_file;
 
 			if (ca_file)
 				ca_file_entry = ssl_store_get_cafile_entry(ca_file, 0);
 			if (ca_verify_file)
 				ca_verify_file_entry = ssl_store_get_cafile_entry(ca_verify_file, 0);
+			if (crl_file)
+				crl_file_entry = ssl_store_get_cafile_entry(crl_file, 0);
 		}
 
 		if (ca_file_entry) {
@@ -1329,6 +1336,12 @@ void ckch_inst_add_cafile_link(struct ckch_inst *ckch_inst, struct bind_conf *bi
 			/* If we have a ckch instance that is not already in the
 			 * cafile_entry's list, add it to it. */
 			if (do_chain_inst_and_cafile(ca_verify_file_entry, ckch_inst))
+				return;
+		}
+		if (crl_file_entry) {
+			/* If we have a ckch instance that is not already in the
+			 * cafile_entry's list, add it to it. */
+			if (do_chain_inst_and_cafile(crl_file_entry, ckch_inst))
 				return;
 		}
 	}
