@@ -2278,6 +2278,7 @@ void deinit(void)
 
 	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {
 			LIST_DELETE(&log->list);
+			free(log->conf.file);
 			free(log);
 		}
 	list_for_each_entry_safe(wl, wlb, &cfg_cfgfiles, list) {
