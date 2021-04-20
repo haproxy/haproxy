@@ -3206,6 +3206,49 @@ error:
 	return cli_dynerr(appctx, err);
 }
 
+/* parsing function of 'abort ssl crl-file' */
+static int cli_parse_abort_crlfile(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *err = NULL;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "'abort ssl crl-file' expects a filename\n");
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't abort!\nOperations on certificates are currently locked!\n");
+
+	if (!crlfile_transaction.path) {
+		memprintf(&err, "No ongoing transaction!\n");
+		goto error;
+	}
+
+	if (strcmp(crlfile_transaction.path, args[3]) != 0) {
+		memprintf(&err, "The ongoing transaction is about '%s' but you are trying to abort a transaction for '%s'\n", crlfile_transaction.path, args[3]);
+		goto error;
+	}
+
+	/* Only free the uncommitted cafile_entry here, because the SNI and instances were not generated yet */
+	ssl_store_delete_cafile_entry(crlfile_transaction.new_crlfile_entry);
+	crlfile_transaction.new_crlfile_entry = NULL;
+	crlfile_transaction.old_crlfile_entry = NULL;
+	ha_free(&crlfile_transaction.path);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+	err = memprintf(&err, "Transaction aborted for certificate '%s'!\n", args[3]);
+	return cli_dynmsg(appctx, LOG_NOTICE, err);
+
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+
+	return cli_dynerr(appctx, err);
+}
+
 
 void ckch_deinit()
 {
@@ -3240,6 +3283,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "new", "ssl", "crl-file", NULL },   "new ssl crlfile <crlfile>               : create a new CRL file to be used in a crt-list",                        cli_parse_new_crlfile, NULL, NULL },
 	{ { "set", "ssl", "crl-file", NULL },   "set ssl crl-file <crlfile> <payload>    : replace a CRL file",                                                    cli_parse_set_crlfile, NULL, NULL },
 	{ { "commit", "ssl", "crl-file", NULL },"commit ssl crl-file <crlfile>           : commit a CRL file",                                                     cli_parse_commit_crlfile, cli_io_handler_commit_cafile_crlfile, cli_release_commit_crlfile },
+	{ { "abort", "ssl", "crl-file", NULL }, "abort ssl crl-file <crlfile>            : abort a transaction for a CRL file",                                    cli_parse_abort_crlfile, NULL, NULL },
 	{ { "del", "ssl", "crl-file", NULL },   "del ssl crl-file <crlfile>              : delete an unused CRL file",                                             cli_parse_del_crlfile, NULL, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
