@@ -183,6 +183,10 @@ struct appctx {
 			struct ckch_inst_link *next_ckchi_link;
 			struct cafile_entry *old_cafile_entry;
 			struct cafile_entry *new_cafile_entry;
+
+			struct cafile_entry *old_crlfile_entry;
+			struct cafile_entry *new_crlfile_entry;
+			int cafile_type; /* either CA or CRL, depending on the current command */
 		} ssl;
 		struct {
 			void *ptr;
