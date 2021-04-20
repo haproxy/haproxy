@@ -19,6 +19,7 @@
 #include <haproxy/uri_normalizer-t.h>
 
 enum uri_normalizer_err uri_normalizer_percent_upper(const struct ist input, int strict, struct ist *dst);
+enum uri_normalizer_err uri_normalizer_path_dot(const struct ist path, struct ist *dst);
 enum uri_normalizer_err uri_normalizer_path_dotdot(const struct ist path, int full, struct ist *dst);
 enum uri_normalizer_err uri_normalizer_path_merge_slashes(const struct ist path, struct ist *dst);
 enum uri_normalizer_err uri_normalizer_query_sort(const struct ist query, const char delim, struct ist *dst);

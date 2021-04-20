@@ -8,7 +8,7 @@ feature ignore_unknown_macro
 server s1 {
     rxreq
     txresp
-} -repeat 43 -start
+} -repeat 54 -start
 
 haproxy h1 -conf {
     defaults
@@ -75,6 +75,18 @@ haproxy h1 -conf {
 
         http-request set-var(txn.before) url
         http-request normalize-uri percent-to-uppercase strict
+        http-request set-var(txn.after) url
+
+        http-response add-header before  %[var(txn.before)]
+        http-response add-header after  %[var(txn.after)]
+
+        default_backend be
+
+    frontend fe_dot
+        bind "fd@${fe_dot}"
+
+        http-request set-var(txn.before) url
+        http-request normalize-uri path-strip-dot
         http-request set-var(txn.after) url
 
         http-response add-header before  %[var(txn.before)]
@@ -311,4 +323,71 @@ client c5 -connect ${h1_fe_percent_to_uppercase_strict_sock} {
     txreq -url "/%zz?a=%zz"
     rxresp
     expect resp.status == 400
+} -run
+
+client c6 -connect ${h1_fe_dot_sock} {
+    txreq -url "/"
+    rxresp
+    expect resp.http.before == "/"
+    expect resp.http.after == "/"
+
+    txreq -url "/a/b"
+    rxresp
+    expect resp.http.before == "/a/b"
+    expect resp.http.after == "/a/b"
+
+    txreq -url "/."
+    rxresp
+    expect resp.http.before == "/."
+    expect resp.http.after == "/"
+
+    txreq -url "/./"
+    rxresp
+    expect resp.http.before == "/./"
+    expect resp.http.after == "/"
+
+    txreq -url "/a/."
+    rxresp
+    expect resp.http.before == "/a/."
+    expect resp.http.after == "/a/"
+
+    txreq -url "/a."
+    rxresp
+    expect resp.http.before == "/a."
+    expect resp.http.after == "/a."
+
+    txreq -url "/.a"
+    rxresp
+    expect resp.http.before == "/.a"
+    expect resp.http.after == "/.a"
+
+    txreq -url "/a/."
+    rxresp
+    expect resp.http.before == "/a/."
+    expect resp.http.after == "/a/"
+
+    txreq -url "/a/./"
+    rxresp
+    expect resp.http.before == "/a/./"
+    expect resp.http.after == "/a/"
+
+    txreq -url "/a/./a"
+    rxresp
+    expect resp.http.before == "/a/./a"
+    expect resp.http.after == "/a/a"
+
+    txreq -url "/a/../"
+    rxresp
+    expect resp.http.before == "/a/../"
+    expect resp.http.after == "/a/../"
+
+    txreq -url "/a/../a"
+    rxresp
+    expect resp.http.before == "/a/../a"
+    expect resp.http.after == "/a/../a"
+
+    txreq -url "/?a=/./"
+    rxresp
+    expect resp.http.before == "/?a=/./"
+    expect resp.http.after == "/?a=/./"
 } -run

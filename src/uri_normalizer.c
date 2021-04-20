@@ -75,6 +75,47 @@ enum uri_normalizer_err uri_normalizer_percent_upper(const struct ist input, int
 	return err;
 }
 
+/* Removes `/./` from the given path. */
+enum uri_normalizer_err uri_normalizer_path_dot(const struct ist path, struct ist *dst)
+{
+	enum uri_normalizer_err err;
+
+	const size_t size = istclear(dst);
+	struct ist newpath = *dst;
+
+	struct ist scanner = path;
+
+	/* The path will either be shortened or have the same length. */
+	if (size < istlen(path)) {
+		err = URI_NORMALIZER_ERR_ALLOC;
+		goto fail;
+	}
+
+	while (istlen(scanner) > 0) {
+		const struct ist segment = istsplit(&scanner, '/');
+
+		if (!isteq(segment, ist("."))) {
+			if (istcat(&newpath, segment, size) < 0) {
+				/* This is impossible, because we checked the size of the destination buffer. */
+				my_unreachable();
+				err = URI_NORMALIZER_ERR_INTERNAL_ERROR;
+				goto fail;
+			}
+
+			if (istend(segment) != istend(scanner))
+				newpath = __istappend(newpath, '/');
+		}
+	}
+
+	*dst = newpath;
+
+	return URI_NORMALIZER_ERR_NONE;
+
+  fail:
+
+	return err;
+}
+
 /* Merges `/../` with preceding path segments.
  *
  * If `full` is set to `0` then `/../` will be printed at the start of the resulting

@@ -6013,6 +6013,7 @@ http-request early-hint <name> <fmt> [ { if | unless } <condition> ]
 
 http-request normalize-uri <normalizer> [ { if | unless } <condition> ]
 http-request normalize-uri path-merge-slashes [ { if | unless } <condition> ]
+http-request normalize-uri path-strip-dot [ { if | unless } <condition> ]
 http-request normalize-uri path-strip-dotdot [ full ] [ { if | unless } <condition> ]
 http-request normalize-uri percent-to-uppercase [ strict ] [ { if | unless } <condition> ]
 http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
@@ -6034,6 +6035,14 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
   number of segments in the path.
 
   The following normalizers are available:
+
+  - path-strip-dot: Removes "/./" segments within the "path" component.
+
+    Example:
+    - /.            -> /
+    - /./bar/       -> /bar/
+    - /a/./a        -> /a/a
+    - /.well-known/ -> /.well-known/ (no change)
 
   - path-strip-dotdot: Normalizes "/../" segments within the "path" component.
       This merges segments that attempt to access the parent directory with
