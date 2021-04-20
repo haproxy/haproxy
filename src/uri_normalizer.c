@@ -239,7 +239,7 @@ enum uri_normalizer_err uri_normalizer_query_sort(const struct ist query, const 
 
 	const struct buffer *trash = get_trash_chunk();
 	struct ist *params = (struct ist *)b_orig(trash);
-	const size_t max_param = b_size(trash) / sizeof(*params); 
+	const size_t max_param = b_size(trash) / sizeof(*params);
 	size_t param_count = 0;
 
 	size_t i;
