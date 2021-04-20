@@ -269,7 +269,7 @@ enum uri_normalizer_err uri_normalizer_query_sort(const struct ist query, const 
 
 	for (i = 0; i < param_count; i++) {
 		if (i > 0)
-			newquery = __istappend(newquery, '&');
+			newquery = __istappend(newquery, delim);
 
 		if (istcat(&newquery, params[i], size) < 0) {
 			/* This is impossible, because we checked the size of the destination buffer. */
