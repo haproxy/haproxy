@@ -2413,6 +2413,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 		if ((int)(st->table->localupdate - st->update) < 0)
 			st->update = st->table->localupdate + (2147483648U);
 		st->teaching_origin = st->last_pushed = st->update;
+		st->flags = 0;
 		if ((int)(st->last_pushed - st->table->commitupdate) > 0)
 			st->table->commitupdate = st->last_pushed;
 		HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
@@ -2465,6 +2466,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		if ((int)(st->table->localupdate - st->update) < 0)
 			st->update = st->table->localupdate + (2147483648U);
 		st->teaching_origin = st->last_pushed = st->update;
+		st->flags = 0;
 		if ((int)(st->last_pushed - st->table->commitupdate) > 0)
 			st->table->commitupdate = st->last_pushed;
 		HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
