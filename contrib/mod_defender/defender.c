@@ -18,10 +18,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include <haproxy/api.h>
-#include <haproxy/chunk.h>
 #include <haproxy/spoe.h>
-#include <haproxy/time.h>
 #include <haproxy/tools.h>
 
 #include <http_core.h>
