@@ -4642,7 +4642,7 @@ next_frame:
 		 * above). The hole moves after the new aggragated frame.
 		 */
 		b_move(&h2c->dbuf, b_peek_ofs(&h2c->dbuf, h2c->dfl + hole + 9), clen, -(h2c->dpl + hole + 9));
-		h2c->dfl += clen - h2c->dpl;
+		h2c->dfl += hdr.len - h2c->dpl;
 		hole     += h2c->dpl + 9;
 		h2c->dpl  = 0;
 		TRACE_STATE("waiting for next continuation frame", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_CONT|H2_EV_RX_HDR, h2c->conn);
