@@ -4563,12 +4563,12 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	}
 	else {
 		struct server *next;
-		for (next = be->srv; next && srv != next->next; next = next->next)
-			;
+		for (next = be->srv; srv != next->next; next = next->next) {
+			/* srv cannot be not found since we have already found
+			 * it with get_backend_server */
+			BUG_ON(!next);
+		}
 
-		/* srv cannot be not found since we have already found it
-		 * with get_backend_server */
-		BUG_ON(!next);
 		next->next = srv->next;
 	}
 
