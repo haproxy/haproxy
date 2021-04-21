@@ -818,9 +818,7 @@ exhaustive:
 
   - poll      any of the pollers
 
-  - halog     the halog sub-component in the contrib directory
-
-  - contrib   any addition to the contrib directory
+  - halog     the halog sub-component in the admin directory
 
   - htx       general HTX subsystem
 

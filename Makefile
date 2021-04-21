@@ -1008,7 +1008,7 @@ clean:
 	$(Q)for dir in . src dev/* admin/* addons/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
-	$(Q)rm -f {admin,dev,contrib}/*/*.[oas] {admin,dev,contrib}/*/*/*.[oas] {admin,dev,contrib}/*/*/*/*.[oas]
+	$(Q)rm -f {admin,dev}/*/*.[oas] {admin,dev}/*/*/*.[oas] {admin,dev}/*/*/*/*.[oas]
 	$(Q)rm -f addons/promex/*.[oas]
 	$(Q)rm -f addons/51degrees/*.[oas] addons/51degrees/dummy/*.[oas] addons/51degrees/dummy/*/*.[oas]
 	$(Q)rm -f addons/deviceatlas/*.[oas] addons/deviceatlas/dummy/*.[oas]
