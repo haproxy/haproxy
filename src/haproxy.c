@@ -555,7 +555,7 @@ void mworker_reload()
 		old_argc++;
 
 	/* 1 for haproxy -sf, 2 for -x /socket */
-	next_argv = calloc(old_argc + 1 + 2 + mworker_child_nb() + nb_oldpids + 1,
+	next_argv = calloc(old_argc + 1 + 2 + mworker_child_nb() + 1,
 			   sizeof(*next_argv));
 	if (next_argv == NULL)
 		goto alloc_error;
@@ -2816,12 +2816,6 @@ int main(int argc, char **argv)
 	/* send a SIGTERM to workers who have a too high reloads number  */
 	if ((global.mode & MODE_MWORKER) && !(global.mode & MODE_MWORKER_WAIT))
 		mworker_kill_max_reloads(SIGTERM);
-
-	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_REEXEC") == NULL)) {
-		nb_oldpids = 0;
-		ha_free(&oldpids);
-	}
-
 
 	/* Note that any error at this stage will be fatal because we will not
 	 * be able to restart the old pids.
