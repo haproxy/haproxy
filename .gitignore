@@ -50,6 +50,5 @@ dev/tcploop/tcploop
 dev/hpack/decode
 dev/hpack/gen-rht
 contrib/mod_defender/defender
-contrib/modsecurity/modsecurity
 /src/dlmalloc.c
 /tests/test_hashes
