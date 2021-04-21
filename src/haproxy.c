@@ -2817,7 +2817,7 @@ int main(int argc, char **argv)
 	if ((global.mode & MODE_MWORKER) && !(global.mode & MODE_MWORKER_WAIT))
 		mworker_kill_max_reloads(SIGTERM);
 
-	if ((getenv("HAPROXY_MWORKER_REEXEC") == NULL)) {
+	if ((global.mode & MODE_MWORKER) && (getenv("HAPROXY_MWORKER_REEXEC") == NULL)) {
 		nb_oldpids = 0;
 		ha_free(&oldpids);
 	}
