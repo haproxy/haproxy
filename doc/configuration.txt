@@ -1063,14 +1063,16 @@ cpu-map [auto:]<process-set>[/<thread-set>] <cpu-set>...
   a dash ('-'). It also is possible to specify all processes at once using
   "all", only odd numbers using "odd" or even numbers using "even", just like
   with the "bind-process" directive. The second and forthcoming arguments are
-  CPU sets. Each CPU set is either a unique number between 0 and 31 or 63 or a
-  range with two such numbers delimited by a dash ('-'). Multiple CPU numbers
-  or ranges may be specified, and the processes or threads will be allowed to
-  bind to all of them. Obviously, multiple "cpu-map" directives may be
-  specified. Each "cpu-map" directive will replace the previous ones when they
-  overlap. A thread will be bound on the intersection of its mapping and the
-  one of the process on which it is attached. If the intersection is null, no
-  specific binding will be set for the thread.
+  CPU sets. Each CPU set is either a unique number starting at 0 for the first
+  CPU or a range with two such numbers delimited by a dash ('-'). Outside of
+  Linux and BSDs, there may be a limitation on the maximum CPU index to either
+  31 or 63. Multiple CPU numbers or ranges may be specified, and the processes
+  or threads will be allowed to bind to all of them. Obviously, multiple
+  "cpu-map" directives may be specified. Each "cpu-map" directive will replace
+  the previous ones when they overlap. A thread will be bound on the
+  intersection of its mapping and the one of the process on which it is
+  attached. If the intersection is null, no specific binding will be set for
+  the thread.
 
   Ranges can be partially defined. The higher bound can be omitted. In such
   case, it is replaced by the corresponding maximum value, 32 or 64 depending

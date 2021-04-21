@@ -1,4 +1,3 @@
-#define _GNU_SOURCE  /* for CPU_* from cpuset.h */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1028,9 +1027,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		/* map a process list to a CPU set */
 #ifdef USE_CPU_AFFINITY
 		char *slash;
-		unsigned long proc = 0, thread = 0, cpus;
-		int i, j, n, k, autoinc;
-		struct hap_cpuset cpuset;
+		unsigned long proc = 0, thread = 0;
+		int i, j, n, autoinc;
+		struct hap_cpuset cpus, cpus_copy;
 
 		if (!*args[1] || !*args[2]) {
 			ha_alert("parsing [%s:%d] : %s expects a process number "
@@ -1071,26 +1070,15 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if (parse_cpu_set((const char **)args+2, &cpuset, &errmsg)) {
+		if (parse_cpu_set((const char **)args+2, &cpus, &errmsg)) {
 			ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-#if defined(CPUSET_USE_CPUSET)
-		k = 0;
-		while (CPU_COUNT(&cpuset.cpuset)) {
-			while (!CPU_ISSET(k, &cpuset.cpuset))
-				++k;
-			cpus |= 1 << k;
-			CPU_CLR(k, &cpuset.cpuset);
-			++k;
-		}
-#elif defined(CPUSET_USE_ULONG)
-		cpus = cpuset.cpuset;
-#endif
+
 		if (autoinc &&
-		    my_popcountl(proc)  != my_popcountl(cpus) &&
-		    my_popcountl(thread) != my_popcountl(cpus)) {
+		    my_popcountl(proc) != ha_cpuset_count(&cpus) &&
+		    my_popcountl(thread) != ha_cpuset_count(&cpus)) {
 			ha_alert("parsing [%s:%d] : %s : PROC/THREAD range and CPU sets "
 				 "must have the same size to be automatically bound\n",
 				 file, linenum, args[0]);
@@ -1111,16 +1099,19 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		 */
 		if (!thread) {
 			/* mapping for whole processes. E.g. cpu-map 1-4 0-3 */
+			ha_cpuset_assign(&cpus_copy, &cpus);
 			for (i = n = 0; i < MAX_PROCS; i++) {
 				/* No mapping for this process */
 				if (!(proc & (1UL << i)))
 					continue;
 
 				if (!autoinc)
-					global.cpu_map.proc[i] = cpus;
+					ha_cpuset_assign(&global.cpu_map.proc[i], &cpus);
 				else {
-					n += my_ffsl(cpus >> n);
-					global.cpu_map.proc[i] = (1UL << (n-1));
+					ha_cpuset_zero(&global.cpu_map.proc[i]);
+					n = ha_cpuset_ffs(&cpus_copy) - 1;
+					ha_cpuset_clr(&cpus_copy, n);
+					ha_cpuset_set(&global.cpu_map.proc[i], n);
 				}
 			}
 		} else {
@@ -1129,44 +1120,48 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			 * other combinations are silently ignored.
 			 */
 			if (thread == 0x1) {
-				int val;
-
 				/* first thread, iterate on processes. E.g. cpu-map 1-4/1 0-3 */
+				struct hap_cpuset *dst;
+
+				ha_cpuset_assign(&cpus_copy, &cpus);
 				for (i = n = 0; i < MAX_PROCS; i++) {
 					/* No mapping for this process */
 					if (!(proc & (1UL << i)))
 						continue;
 
-					if (!autoinc) {
-						val = cpus;
-					}
-					else {
-						n += my_ffsl(cpus >> n);
-						val = 1UL << (n - 1);
-					}
-
 					/* For first process, thread[0] is used.
 					 * Use proc_t1[N] for all others
 					 */
-					if (!i)
-						global.cpu_map.thread[0] = val;
-					else
-						global.cpu_map.proc_t1[i] = val;
+					dst = i ? &global.cpu_map.proc_t1[i] :
+					          &global.cpu_map.thread[0];
+
+					if (!autoinc) {
+						ha_cpuset_assign(dst, &cpus);
+					}
+					else {
+						ha_cpuset_zero(dst);
+						n = ha_cpuset_ffs(&cpus_copy) - 1;
+						ha_cpuset_clr(&cpus_copy, n);
+						ha_cpuset_set(dst, n);
+					}
 				}
 			}
 
 			if (proc == 0x1) {
 				/* first process, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
+				ha_cpuset_assign(&cpus_copy, &cpus);
 				for (j = n = 0; j < MAX_THREADS; j++) {
 					/* No mapping for this thread */
 					if (!(thread & (1UL << j)))
 						continue;
 
 					if (!autoinc)
-						global.cpu_map.thread[j] = cpus;
+						ha_cpuset_assign(&global.cpu_map.thread[j], &cpus);
 					else {
-						n += my_ffsl(cpus >> n);
-						global.cpu_map.thread[j] = (1UL << (n-1));
+						ha_cpuset_zero(&global.cpu_map.thread[j]);
+						n = ha_cpuset_ffs(&cpus_copy) - 1;
+						ha_cpuset_clr(&cpus_copy, n);
+						ha_cpuset_set(&global.cpu_map.thread[j], n);
 					}
 				}
 			}

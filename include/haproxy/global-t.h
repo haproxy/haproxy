@@ -24,6 +24,7 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
+#include <haproxy/cpuset-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/vars-t.h>
 
@@ -160,9 +161,9 @@ struct global {
 	struct proxy *cli_fe;           /* the frontend holding the stats settings */
 #ifdef USE_CPU_AFFINITY
 	struct {
-		unsigned long proc[MAX_PROCS];      /* list of CPU masks for the 32/64 first processes */
-		unsigned long proc_t1[MAX_PROCS];   /* list of CPU masks for the 1st thread of each process */
-		unsigned long thread[MAX_THREADS];  /* list of CPU masks for the 32/64 first threads of the 1st process */
+		struct hap_cpuset proc[MAX_PROCS];      /* list of CPU masks for the 32/64 first processes */
+		struct hap_cpuset proc_t1[MAX_PROCS];   /* list of CPU masks for the 1st thread of each process */
+		struct hap_cpuset thread[MAX_THREADS];  /* list of CPU masks for the 32/64 first threads of the 1st process */
 	} cpu_map;
 #endif
 	/* The info above is config stuff, it doesn't change during the process' life */

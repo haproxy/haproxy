@@ -92,6 +92,7 @@
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
+#include <haproxy/cpuset.h>
 #include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
@@ -1268,6 +1269,7 @@ static void init(int argc, char **argv)
 	struct proxy *px;
 	struct post_check_fct *pcf;
 	int ideal_maxconn;
+	int i;
 
 	global.mode = MODE_STARTING;
 	old_argv = copy_argv(argc, argv);
@@ -1575,6 +1577,12 @@ static void init(int argc, char **argv)
 	}
 
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
+
+	for (i = 0; i < MAX_PROCS; ++i) {
+		ha_cpuset_zero(&global.cpu_map.proc[i]);
+		ha_cpuset_zero(&global.cpu_map.proc_t1[i]);
+		ha_cpuset_zero(&global.cpu_map.thread[i]);
+	}
 
 	/* in wait mode, we don't try to read the configuration files */
 	if (!(global.mode & MODE_MWORKER_WAIT)) {
@@ -2925,23 +2933,15 @@ int main(int argc, char **argv)
 #ifdef USE_CPU_AFFINITY
 		if (proc < global.nbproc &&  /* child */
 		    proc < MAX_PROCS &&       /* only the first 32/64 processes may be pinned */
-		    global.cpu_map.proc[proc])    /* only do this if the process has a CPU map */
-#ifdef __FreeBSD__
-		{
-			cpuset_t cpuset;
-			int i;
-			unsigned long cpu_map = global.cpu_map.proc[proc];
+		    ha_cpuset_count(&global.cpu_map.proc[proc])) {   /* only do this if the process has a CPU map */
 
-			CPU_ZERO(&cpuset);
-			while ((i = ffsl(cpu_map)) > 0) {
-				CPU_SET(i - 1, &cpuset);
-				cpu_map &= ~(1UL << (i - 1));
-			}
-			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(cpuset), &cpuset);
-		}
+			struct hap_cpuset *set = &global.cpu_map.proc[proc];
+#ifdef __FreeBSD__
+			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(set->cpuset), &set->cpuset);
 #elif defined(__linux__) || defined(__DragonFly__)
-			sched_setaffinity(0, sizeof(unsigned long), (void *)&global.cpu_map.proc[proc]);
+			sched_setaffinity(0, sizeof(set->cpuset), &set->cpuset);
 #endif
+		}
 #endif
 		/* close the pidfile both in children and father */
 		if (pidfd >= 0) {
@@ -3179,14 +3179,14 @@ int main(int argc, char **argv)
 			global.cpu_map.thread[0] = global.cpu_map.proc_t1[relative_pid-1];
 
 		for (i = 0; i < global.nbthread; i++) {
-			if (global.cpu_map.proc[relative_pid-1])
-				global.cpu_map.thread[i] &= global.cpu_map.proc[relative_pid-1];
+			if (ha_cpuset_count(&global.cpu_map.proc[relative_pid-1]))
+				ha_cpuset_and(&global.cpu_map.thread[i], &global.cpu_map.proc[relative_pid-1]);
 
 			if (i < MAX_THREADS &&       /* only the first 32/64 threads may be pinned */
-			    global.cpu_map.thread[i]) {/* only do this if the thread has a THREAD map */
+			    ha_cpuset_count(&global.cpu_map.thread[i])) {/* only do this if the thread has a THREAD map */
 #if defined(__APPLE__)
 				int j;
-				unsigned long cpu_map = global.cpu_map.thread[i];
+				unsigned long cpu_map = global.cpu_map.thread[i].cpuset;
 
 				while ((j = ffsl(cpu_map)) > 0) {
 					thread_affinity_policy_data_t cpu_set = { j - 1 };
@@ -3195,22 +3195,9 @@ int main(int argc, char **argv)
 					cpu_map &= ~(1UL << (j - 1));
 				}
 #else
-#if defined(__FreeBSD__) || defined(__NetBSD__)
-				cpuset_t cpuset;
-#else
-				cpu_set_t cpuset;
-#endif
-				int j;
-				unsigned long cpu_map = global.cpu_map.thread[i];
-
-				CPU_ZERO(&cpuset);
-
-				while ((j = ffsl(cpu_map)) > 0) {
-					CPU_SET(j - 1, &cpuset);
-					cpu_map &= ~(1UL << (j - 1));
-				}
+				struct hap_cpuset *set = &global.cpu_map.thread[i];
 				pthread_setaffinity_np(ha_thread_info[i].pthread,
-						       sizeof(cpuset), &cpuset);
+				                       sizeof(set->cpuset), &set->cpuset);
 #endif
 			}
 		}
