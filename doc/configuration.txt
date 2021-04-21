@@ -6086,7 +6086,7 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
       - /foo//bar -> /foo/bar
 
   - percent-to-uppercase: Uppercases letters within percent-encoded sequences
-      (RFC 3986#6.2.21).
+      (RFC 3986#6.2.2.1).
 
       Example:
       - /%6f -> /%6F
