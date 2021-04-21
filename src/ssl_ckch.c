@@ -1259,6 +1259,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	int y = 0;
 	char *err = NULL;
 	int errcode = 0;
+	int retval = 0;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
 	struct ckch_inst *ckchi, *ckchis;
 	struct buffer *trash = alloc_trash_chunk();
@@ -1337,8 +1338,8 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					new_inst->server = ckchi->server;
 					/* Create a new SSL_CTX and link it to the new instance. */
 					if (new_inst->is_server_instance) {
-						errcode |= ssl_sock_prepare_srv_ssl_ctx(ckchi->server, new_inst->ctx);
-						if (errcode & ERR_CODE)
+						retval = ssl_sock_prepare_srv_ssl_ctx(ckchi->server, new_inst->ctx);
+						if (retval)
 							goto error;
 					}
 
