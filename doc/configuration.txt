@@ -6050,7 +6050,8 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
 
   The following normalizers are available:
 
-  - path-strip-dot: Removes "/./" segments within the "path" component.
+  - path-strip-dot: Removes "/./" segments within the "path" component
+      (RFC 3986#6.2.2.3).
 
       Example:
       - /.            -> /
@@ -6058,7 +6059,9 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
       - /a/./a        -> /a/a
       - /.well-known/ -> /.well-known/ (no change)
 
-  - path-strip-dotdot: Normalizes "/../" segments within the "path" component.
+  - path-strip-dotdot: Normalizes "/../" segments within the "path" component
+      (RFC 3986#6.2.2.3).
+
       This merges segments that attempt to access the parent directory with
       their preceding segment. Empty segments do not receive special treatment.
       Use the "path-merge-slashes" normalizer first if this is undesired.
