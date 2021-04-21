@@ -6052,11 +6052,11 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
 
   - path-strip-dot: Removes "/./" segments within the "path" component.
 
-    Example:
-    - /.            -> /
-    - /./bar/       -> /bar/
-    - /a/./a        -> /a/a
-    - /.well-known/ -> /.well-known/ (no change)
+      Example:
+      - /.            -> /
+      - /./bar/       -> /bar/
+      - /a/./a        -> /a/a
+      - /.well-known/ -> /.well-known/ (no change)
 
   - path-strip-dotdot: Normalizes "/../" segments within the "path" component.
       This merges segments that attempt to access the parent directory with
