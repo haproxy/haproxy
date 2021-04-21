@@ -18,6 +18,101 @@
 #include <haproxy/tools.h>
 #include <haproxy/uri_normalizer.h>
 
+/* Returns 1 if the given character is part of the 'unreserved' set in the
+ * RFC 3986 ABNF.
+ * Returns 0 if not.
+ */
+static int is_unreserved_character(unsigned char c)
+{
+	switch (c) {
+	case 'A'...'Z': /* ALPHA */
+	case 'a'...'z': /* ALPHA */
+	case '0'...'9': /* DIGIT */
+	case '-':
+	case '.':
+	case '_':
+	case '~':
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+/* Decodes percent encoded characters that are part of the 'unreserved' set.
+ *
+ * RFC 3986, section 2.3:
+ * >  URIs that differ in the replacement of an unreserved character with
+ * >  its corresponding percent-encoded US-ASCII octet are equivalent [...]
+ * >  when found in a URI, should be decoded to their corresponding unreserved
+ * >  characters by URI normalizers.
+ *
+ * If `strict` is set to 0 then percent characters that are not followed by a
+ * hexadecimal digit are returned as-is without performing any decoding.
+ * If `strict` is set to 1 then `URI_NORMALIZER_ERR_INVALID_INPUT` is returned
+ * for invalid sequences.
+ */
+enum uri_normalizer_err uri_normalizer_percent_decode_unreserved(const struct ist input, int strict, struct ist *dst)
+{
+	enum uri_normalizer_err err;
+
+	const size_t size = istclear(dst);
+	struct ist output = *dst;
+
+	struct ist scanner = input;
+
+	/* The output will either be shortened or have the same length. */
+	if (size < istlen(input)) {
+		err = URI_NORMALIZER_ERR_ALLOC;
+		goto fail;
+	}
+
+	while (istlen(scanner)) {
+		const char current = istshift(&scanner);
+
+		if (current == '%') {
+			if (istlen(scanner) >= 2) {
+				if (ishex(istptr(scanner)[0]) && ishex(istptr(scanner)[1])) {
+					char hex1, hex2, c;
+
+					hex1 = istshift(&scanner);
+					hex2 = istshift(&scanner);
+					c = (hex2i(hex1) << 4) + hex2i(hex2);
+
+					if (is_unreserved_character(c)) {
+						output = __istappend(output, c);
+					}
+					else {
+						output = __istappend(output, current);
+						output = __istappend(output, hex1);
+						output = __istappend(output, hex2);
+					}
+
+					continue;
+				}
+			}
+
+			if (strict) {
+				err = URI_NORMALIZER_ERR_INVALID_INPUT;
+				goto fail;
+			}
+			else {
+				output = __istappend(output, current);
+			}
+		}
+		else {
+			output = __istappend(output, current);
+		}
+	}
+
+	*dst = output;
+
+	return URI_NORMALIZER_ERR_NONE;
+
+  fail:
+
+	return err;
+}
+
 /* Uppercases letters used in percent encoding.
  *
  * If `strict` is set to 0 then percent characters that are not followed by a

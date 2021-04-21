@@ -8,7 +8,7 @@ feature ignore_unknown_macro
 server s1 {
     rxreq
     txresp
-} -repeat 54 -start
+} -repeat 63 -start
 
 haproxy h1 -conf {
     defaults
@@ -87,6 +87,30 @@ haproxy h1 -conf {
 
         http-request set-var(txn.before) url
         http-request normalize-uri path-strip-dot
+        http-request set-var(txn.after) url
+
+        http-response add-header before  %[var(txn.before)]
+        http-response add-header after  %[var(txn.after)]
+
+        default_backend be
+
+    frontend fe_percent_decode_unreserved
+        bind "fd@${fe_percent_decode_unreserved}"
+
+        http-request set-var(txn.before) url
+        http-request normalize-uri percent-decode-unreserved
+        http-request set-var(txn.after) url
+
+        http-response add-header before  %[var(txn.before)]
+        http-response add-header after  %[var(txn.after)]
+
+        default_backend be
+
+    frontend fe_percent_decode_unreserved_strict
+        bind "fd@${fe_percent_decode_unreserved_strict}"
+
+        http-request set-var(txn.before) url
+        http-request normalize-uri percent-decode-unreserved strict
         http-request set-var(txn.after) url
 
         http-response add-header before  %[var(txn.before)]
@@ -390,4 +414,53 @@ client c6 -connect ${h1_fe_dot_sock} {
     rxresp
     expect resp.http.before == "/?a=/./"
     expect resp.http.after == "/?a=/./"
+} -run
+
+client c7 -connect ${h1_fe_percent_decode_unreserved_sock} {
+    txreq -url "/a?a=a"
+    rxresp
+    expect resp.http.before == "/a?a=a"
+    expect resp.http.after == "/a?a=a"
+
+    txreq -url "/%61?%61=%61"
+    rxresp
+    expect resp.http.before == "/%61?%61=%61"
+    expect resp.http.after == "/a?a=a"
+
+    txreq -url "/%3F?foo=bar"
+    rxresp
+    expect resp.http.before == "/%3F?foo=bar"
+    expect resp.http.after == "/%3F?foo=bar"
+
+    txreq -url "/%%36%36"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.before == "/%%36%36"
+    expect resp.http.after == "/%66"
+
+    txreq -req OPTIONS -url "*"
+    rxresp
+    expect resp.http.before == "*"
+    expect resp.http.after == "*"
+} -run
+
+client c8 -connect ${h1_fe_percent_decode_unreserved_strict_sock} {
+    txreq -url "/a?a=a"
+    rxresp
+    expect resp.http.before == "/a?a=a"
+    expect resp.http.after == "/a?a=a"
+
+    txreq -url "/%61?%61=%61"
+    rxresp
+    expect resp.http.before == "/%61?%61=%61"
+    expect resp.http.after == "/a?a=a"
+
+    txreq -url "/%3F?foo=bar"
+    rxresp
+    expect resp.http.before == "/%3F?foo=bar"
+    expect resp.http.after == "/%3F?foo=bar"
+
+    txreq -url "/%%36%36"
+    rxresp
+    expect resp.status == 400
 } -run

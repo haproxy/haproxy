@@ -6029,6 +6029,7 @@ http-request normalize-uri <normalizer> [ { if | unless } <condition> ]
 http-request normalize-uri path-merge-slashes [ { if | unless } <condition> ]
 http-request normalize-uri path-strip-dot [ { if | unless } <condition> ]
 http-request normalize-uri path-strip-dotdot [ full ] [ { if | unless } <condition> ]
+http-request normalize-uri percent-decode-unreserved [ strict ] [ { if | unless } <condition> ]
 http-request normalize-uri percent-to-uppercase [ strict ] [ { if | unless } <condition> ]
 http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
 
@@ -6048,10 +6049,24 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
   filesystem. However it might break routing of an API that expects a specific
   number of segments in the path.
 
+  It is important to note that some normalizers might result in unsafe
+  transformations for broken URIs. It might also be possible that a combination
+  of normalizers that are safe by themselves results in unsafe transformations
+  when improperly combined.
+
+  As an example the "percent-decode-unreserved" normalizer might result in
+  unexpected results when a broken URI includes bare percent characters. One
+  such a broken URI is "/%%36%36" which would be decoded to "/%66" which in
+  turn is equivalent to "/f". By specifying the "strict" option requests to
+  such a broken URI would safely be rejected.
+
   The following normalizers are available:
 
   - path-strip-dot: Removes "/./" segments within the "path" component
       (RFC 3986#6.2.2.3).
+
+      Segments including percent encoded dots ("%2E") will not be detected. Use
+      the "percent-decode-unreserved" normalizer first if this is undesired.
 
       Example:
       - /.            -> /
@@ -6063,8 +6078,13 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
       (RFC 3986#6.2.2.3).
 
       This merges segments that attempt to access the parent directory with
-      their preceding segment. Empty segments do not receive special treatment.
-      Use the "path-merge-slashes" normalizer first if this is undesired.
+      their preceding segment.
+
+      Empty segments do not receive special treatment. Use the "merge-slashes"
+      normalizer first if this is undesired.
+
+      Segments including percent encoded dots ("%2E") will not be detected. Use
+      the "percent-decode-unreserved" normalizer first if this is undesired.
 
       Example:
       - /foo/../     -> /
@@ -6073,6 +6093,7 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
       - /../bar/     -> /../bar/
       - /bar/../../  -> /../
       - /foo//../    -> /foo/
+      - /foo/%2E%2E/ -> /foo/%2E%2E/
 
       If the "full" option is specified then "../" at the beginning will be
       removed as well:
@@ -6087,6 +6108,25 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
       Example:
       - //        -> /
       - /foo//bar -> /foo/bar
+
+  - percent-decode-unreserved: Decodes unreserved percent encoded characters to
+      their representation as a regular character (RFC 3986#6.2.2.2).
+
+      The set of unreserved characters includes all letters, all digits, "-",
+      ".", "_", and "~".
+
+      Example:
+      - /%61dmin       -> /admin
+      - /foo%3Fbar=baz -> /foo%3Fbar=baz (no change)
+      - /%%36%36       -> /%66           (unsafe)
+      - /%ZZ           -> /%ZZ
+
+      If the "strict" option is specified then invalid sequences will result
+      in a HTTP 400 Bad Request being returned.
+
+      Example:
+      - /%%36%36 -> HTTP 400
+      - /%ZZ     -> HTTP 400
 
   - percent-to-uppercase: Uppercases letters within percent-encoded sequences
       (RFC 3986#6.2.2.1).
