@@ -1008,13 +1008,14 @@ clean:
 	$(Q)for dir in . src dev/* admin/* addons/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
-	$(Q)rm -f {admin,dev}/*/*.[oas] {admin,dev}/*/*/*.[oas] {admin,dev}/*/*/*/*.[oas]
 	$(Q)rm -f addons/promex/*.[oas]
 	$(Q)rm -f addons/51degrees/*.[oas] addons/51degrees/dummy/*.[oas] addons/51degrees/dummy/*/*.[oas]
 	$(Q)rm -f addons/deviceatlas/*.[oas] addons/deviceatlas/dummy/*.[oas]
 	$(Q)rm -f addons/ot/src/*.[oas]
 	$(Q)rm -f addons/wurfl/*.[oas] addons/wurfl/dummy/*.[oas]
+	$(Q)rm -f admin/*/*.[oas] admin/*/*/*.[oas]
 	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range admin/halog/halog
+	$(Q)rm -f dev/*/*.[oas]
 	$(Q)rm -f dev/flags/flags dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
 
