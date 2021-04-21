@@ -43,7 +43,6 @@
 /admin/iprange/ip6range
 /admin/iprange/iprange
 /admin/systemd/haproxy.service
-/contrib/spoa_example/spoa
 dev/base64/base64rev-gen
 dev/flags/flags
 dev/poll/poll

@@ -77,6 +77,10 @@ and "http-response" rules. And it only supports variables definition. But, in
 spite of these limited features, we can easily imagine to implement SSO
 solution, ip reputation or ip geolocation services.
 
+Some example implementations in various languages are linked to from the
+HAProxy Wiki page dedicated to this mechanism:
+
+ https://github.com/haproxy/wiki/wiki/SPOE:-Stream-Processing-Offloading-Engine
 
 2. SPOE configuration
 ----------------------

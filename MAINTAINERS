@@ -131,8 +131,7 @@ Files: addons/wurfl, doc/WURFL-device-detection.txt
 
 SPOE
 Maintainer: Christopher Faulet <cfaulet@haproxy.com>
-Files: src/flt_spoe.c, include/haproxy/spoe*.h
-Files: contrib/spoa_example, doc/SPOE.txt
+Files: src/flt_spoe.c, include/haproxy/spoe*.h, doc/SPOE.txt
 
 SSL
 Maintainer: Emeric Brun <ebrun@haproxy.com>
