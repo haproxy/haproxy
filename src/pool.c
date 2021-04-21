@@ -104,7 +104,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			strlcpy2(pool->name, name, sizeof(pool->name));
 		pool->size = size;
 		pool->flags = flags;
-		LIST_ADDQ(start, &pool->list);
+		LIST_APPEND(start, &pool->list);
 
 #ifdef CONFIG_HAP_POOLS
 		/* update per-thread pool cache if necessary */
@@ -202,8 +202,8 @@ void pool_evict_from_local_cache(struct pool_head *pool)
 		ph->count--;
 		pool_cache_bytes -= pool->size;
 		pool_cache_count--;
-		LIST_DEL(&item->by_pool);
-		LIST_DEL(&item->by_lru);
+		LIST_DELETE(&item->by_pool);
+		LIST_DELETE(&item->by_lru);
 		pool_put_to_shared_cache(pool, item);
 	}
 }
@@ -224,8 +224,8 @@ void pool_evict_from_local_caches()
 		 */
 		ph = LIST_NEXT(&item->by_pool, struct pool_cache_head *, list);
 		pool = container_of(ph - tid, struct pool_head, cache);
-		LIST_DEL(&item->by_pool);
-		LIST_DEL(&item->by_lru);
+		LIST_DELETE(&item->by_pool);
+		LIST_DELETE(&item->by_lru);
 		ph->count--;
 		pool_cache_count--;
 		pool_cache_bytes -= pool->size;
@@ -243,8 +243,8 @@ void pool_put_to_cache(struct pool_head *pool, void *ptr)
 	struct pool_cache_item *item = (struct pool_cache_item *)ptr;
 	struct pool_cache_head *ph = &pool->cache[tid];
 
-	LIST_ADD(&ph->list, &item->by_pool);
-	LIST_ADD(&ti->pool_lru_head, &item->by_lru);
+	LIST_INSERT(&ph->list, &item->by_pool);
+	LIST_INSERT(&ti->pool_lru_head, &item->by_lru);
 	ph->count++;
 	pool_cache_count++;
 	pool_cache_bytes += pool->size;
@@ -429,7 +429,7 @@ void *pool_destroy(struct pool_head *pool)
 			return pool;
 		pool->users--;
 		if (!pool->users) {
-			LIST_DEL(&pool->list);
+			LIST_DELETE(&pool->list);
 #ifndef CONFIG_HAP_LOCKLESS_POOLS
 			HA_SPIN_DESTROY(&pool->lock);
 #endif

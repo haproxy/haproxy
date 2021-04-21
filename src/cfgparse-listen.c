@@ -1216,7 +1216,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	                                          (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
 	                                          file, linenum);
 
-		LIST_ADDQ(&curproxy->http_req_rules, &rule->list);
+		LIST_APPEND(&curproxy->http_req_rules, &rule->list);
 	}
 	else if (strcmp(args[0], "http-response") == 0) {	/* response access control */
 		struct act_rule *rule;
@@ -1246,7 +1246,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	                                          (curproxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
 	                                          file, linenum);
 
-		LIST_ADDQ(&curproxy->http_res_rules, &rule->list);
+		LIST_APPEND(&curproxy->http_res_rules, &rule->list);
 	}
 	else if (strcmp(args[0], "http-after-response") == 0) {
 		struct act_rule *rule;
@@ -1276,7 +1276,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	                                          (curproxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
 	                                          file, linenum);
 
-		LIST_ADDQ(&curproxy->http_after_res_rules, &rule->list);
+		LIST_APPEND(&curproxy->http_after_res_rules, &rule->list);
 	}
 	else if (strcmp(args[0], "http-send-name-header") == 0) { /* send server name in request header */
 		/* set the header name and length into the proxy structure */
@@ -1320,7 +1320,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		LIST_ADDQ(&curproxy->redirect_rules, &rule->list);
+		LIST_APPEND(&curproxy->redirect_rules, &rule->list);
 		err_code |= warnif_misplaced_redirect(curproxy, file, linenum, args[0]);
 		err_code |= warnif_cond_conflicts(rule->cond,
 	                                          (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
@@ -1381,7 +1381,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto alloc_error;
 		}
 		LIST_INIT(&rule->list);
-		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
+		LIST_APPEND(&curproxy->switching_rules, &rule->list);
 	}
 	else if (strcmp(args[0], "use-server") == 0) {
 		struct server_rule *rule;
@@ -1437,7 +1437,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto alloc_error;
 		}
 		LIST_INIT(&rule->list);
-		LIST_ADDQ(&curproxy->server_rules, &rule->list);
+		LIST_APPEND(&curproxy->server_rules, &rule->list);
 		curproxy->be_req_ana |= AN_REQ_SRV_RULES;
 	}
 	else if ((strcmp(args[0], "force-persist") == 0) ||
@@ -1486,7 +1486,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			rule->type = PERSIST_TYPE_IGNORE;
 		}
 		LIST_INIT(&rule->list);
-		LIST_ADDQ(&curproxy->persist_rules, &rule->list);
+		LIST_APPEND(&curproxy->persist_rules, &rule->list);
 	}
 	else if (strcmp(args[0], "stick-table") == 0) {
 		struct stktable *other;
@@ -1653,9 +1653,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rule->table.name = name ? strdup(name) : NULL;
 		LIST_INIT(&rule->list);
 		if (flags & STK_ON_RSP)
-			LIST_ADDQ(&curproxy->storersp_rules, &rule->list);
+			LIST_APPEND(&curproxy->storersp_rules, &rule->list);
 		else
-			LIST_ADDQ(&curproxy->sticking_rules, &rule->list);
+			LIST_APPEND(&curproxy->sticking_rules, &rule->list);
 	}
 	else if (strcmp(args[0], "stats") == 0) {
 		if (!(curproxy->cap & PR_CAP_DEF) && curproxy->uri_auth == curr_defproxy->uri_auth)
@@ -1701,7 +1701,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			rule->cond = cond;
 			LIST_INIT(&rule->list);
-			LIST_ADDQ(&curproxy->uri_auth->admin_rules, &rule->list);
+			LIST_APPEND(&curproxy->uri_auth->admin_rules, &rule->list);
 		} else if (strcmp(args[1], "uri") == 0) {
 			if (*(args[2]) == 0) {
 				ha_alert("parsing [%s:%d] : 'uri' needs an URI prefix.\n", file, linenum);
@@ -1768,7 +1768,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= warnif_cond_conflicts(rule->cond,
 			                                  (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
 			                                  file, linenum);
-			LIST_ADDQ(&curproxy->uri_auth->http_req_rules, &rule->list);
+			LIST_APPEND(&curproxy->uri_auth->http_req_rules, &rule->list);
 
 		} else if (strcmp(args[1], "auth") == 0) {
 			if (*(args[2]) == 0) {
@@ -2418,7 +2418,7 @@ stats_error_parsing:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			LIST_ADDQ(&curproxy->mon_fail_cond, &cond->list);
+			LIST_APPEND(&curproxy->mon_fail_cond, &cond->list);
 		}
 		else {
 			ha_alert("parsing [%s:%d] : '%s' only supports 'fail'.\n", file, linenum, args[0]);

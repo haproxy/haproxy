@@ -1181,7 +1181,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	HA_RWLOCK_INIT(&keys_ref->lock);
 	conf->keys_ref = keys_ref;
 
-	LIST_ADD(&tlskeys_reference, &keys_ref->list);
+	LIST_INSERT(&tlskeys_reference, &keys_ref->list);
 
 	return 0;
 

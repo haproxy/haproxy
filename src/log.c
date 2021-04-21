@@ -393,7 +393,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 						goto error_free;
 					}
 					curproxy->to_log |= logformat_keywords[j].lw;
-					LIST_ADDQ(list_format, &node->list);
+					LIST_APPEND(list_format, &node->list);
 				}
 				if (logformat_keywords[j].replace_by)
 					ha_warning("parsing [%s:%d] : deprecated variable '%s' in '%s', please replace it with '%s'.\n",
@@ -447,7 +447,7 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
 		str[end - start] = '\0';
 		node->arg = str;
 		node->type = LOG_FMT_TEXT; // type string
-		LIST_ADDQ(list_format, &node->list);
+		LIST_APPEND(list_format, &node->list);
 	} else if (type == LF_SEPARATOR) {
 		struct logformat_node *node = calloc(1, sizeof(*node));
 		if (!node) {
@@ -455,7 +455,7 @@ int add_to_logformat_list(char *start, char *end, int type, struct list *list_fo
 			return 0;
 		}
 		node->type = LOG_FMT_SEPARATOR;
-		LIST_ADDQ(list_format, &node->list);
+		LIST_APPEND(list_format, &node->list);
 	}
 	return 1;
 }
@@ -528,7 +528,7 @@ int add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct prox
 	curpx->to_log |= LW_XPRT;
 	if (curpx->http_needed)
 		curpx->to_log |= LW_REQ;
-	LIST_ADDQ(list_format, &node->list);
+	LIST_APPEND(list_format, &node->list);
 	return 1;
 
   error_free:
@@ -574,7 +574,7 @@ int parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list 
 
 	/* flush the list first. */
 	list_for_each_entry_safe(tmplf, back, list_format, list) {
-		LIST_DEL(&tmplf->list);
+		LIST_DELETE(&tmplf->list);
 		release_sample_expr(tmplf->expr);
 		free(tmplf->arg);
 		free(tmplf);
@@ -831,7 +831,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 		}
 
 		list_for_each_entry_safe(logsrv, back, logsrvs, list) {
-			LIST_DEL(&logsrv->list);
+			LIST_DELETE(&logsrv->list);
 			free(logsrv);
 		}
 		return 1;
@@ -858,7 +858,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 			memcpy(node, logsrv, sizeof(struct logsrv));
 			node->ref = logsrv;
 			LIST_INIT(&node->list);
-			LIST_ADDQ(logsrvs, &node->list);
+			LIST_APPEND(logsrvs, &node->list);
 			node->conf.file = strdup(file);
 			node->conf.line = linenum;
 
@@ -1064,7 +1064,7 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 	}
 
  done:
-	LIST_ADDQ(logsrvs, &logsrv->list);
+	LIST_APPEND(logsrvs, &logsrv->list);
 	return 1;
 
   error:

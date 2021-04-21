@@ -154,7 +154,7 @@ void deinit_signals()
 		if (sig != SIGPROF)
 			signal(sig, SIG_DFL);
 		list_for_each_entry_safe(sh, shb, &signal_state[sig].handlers, list) {
-			LIST_DEL(&sh->list);
+			LIST_DELETE(&sh->list);
 			pool_free(pool_head_sig_handlers, sh);
 		}
 	}
@@ -188,7 +188,7 @@ struct sig_handler *signal_register_fct(int sig, void (*fct)(struct sig_handler 
 	sh->handler = fct;
 	sh->arg = arg;
 	sh->flags = SIG_F_TYPE_FCT;
-	LIST_ADDQ(&signal_state[sig].handlers, &sh->list);
+	LIST_APPEND(&signal_state[sig].handlers, &sh->list);
 	return sh;
 }
 
@@ -220,7 +220,7 @@ struct sig_handler *signal_register_task(int sig, struct task *task, int reason)
 	sh->handler = task;
 	sh->arg = reason & ~TASK_WOKEN_ANY;
 	sh->flags = SIG_F_TYPE_TASK;
-	LIST_ADDQ(&signal_state[sig].handlers, &sh->list);
+	LIST_APPEND(&signal_state[sig].handlers, &sh->list);
 	return sh;
 }
 
@@ -229,7 +229,7 @@ struct sig_handler *signal_register_task(int sig, struct task *task, int reason)
  */
 void signal_unregister_handler(struct sig_handler *handler)
 {
-	LIST_DEL(&handler->list);
+	LIST_DELETE(&handler->list);
 	pool_free(pool_head_sig_handlers, handler);
 }
 
@@ -251,7 +251,7 @@ void signal_unregister_target(int sig, void *target)
 
 	list_for_each_entry_safe(sh, shb, &signal_state[sig].handlers, list) {
 		if (sh->handler == target) {
-			LIST_DEL(&sh->list);
+			LIST_DELETE(&sh->list);
 			pool_free(pool_head_sig_handlers, sh);
 			break;
 		}
@@ -271,7 +271,7 @@ void signal_unregister(int sig)
 		return;
 
 	list_for_each_entry_safe(sh, shb, &signal_state[sig].handlers, list) {
-		LIST_DEL(&sh->list);
+		LIST_DELETE(&sh->list);
 		pool_free(pool_head_sig_handlers, sh);
 	}
 

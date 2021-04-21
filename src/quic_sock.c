@@ -151,7 +151,7 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 		goto err;
 
 	qc = pkt->qc;
-	LIST_DEL(&pkt->rx_list);
+	LIST_DELETE(&pkt->rx_list);
 	if (!new_quic_cli_conn(qc, l, &pkt->saddr))
 		goto err;
 

@@ -312,7 +312,7 @@ static inline struct hlua_function *new_hlua_function()
 	fcn = calloc(1, sizeof(*fcn));
 	if (!fcn)
 		return NULL;
-	LIST_ADDQ(&referenced_functions, &fcn->l);
+	LIST_APPEND(&referenced_functions, &fcn->l);
 	for (i = 0; i < MAX_THREADS + 1; i++)
 		fcn->function_ref[i] = -1;
 	return fcn;
@@ -324,7 +324,7 @@ static inline void release_hlua_function(struct hlua_function *fcn)
 		return;
 	if (fcn->name)
 		ha_free(&fcn->name);
-	LIST_DEL(&fcn->l);
+	LIST_DELETE(&fcn->l);
 	ha_free(&fcn);
 }
 
@@ -6387,7 +6387,7 @@ __LJMP static int hlua_register_init(lua_State *L)
 		WILL_LJMP(luaL_error(L, "Lua out of memory error."));
 
 	init->function_ref = ref;
-	LIST_ADDQ(&hlua_init_functions[hlua_state_id], &init->l);
+	LIST_APPEND(&hlua_init_functions[hlua_state_id], &init->l);
 	return 0;
 }
 
@@ -8499,7 +8499,7 @@ static int hlua_config_prepend_path(char **args, int section_type, struct proxy 
 		memprintf(err, "memory allocation failed");
 		goto err2;
 	}
-	LIST_ADDQ(&prepend_path_list, &p->l);
+	LIST_APPEND(&prepend_path_list, &p->l);
 
 	hlua_prepend_path(hlua_states[0], type, path);
 	hlua_prepend_path(hlua_states[1], type, path);

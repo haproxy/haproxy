@@ -371,7 +371,7 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 		cur_block->len = 0;
 		cur_block->refcount = 0;
 		cur_block->block_count = 1;
-		LIST_ADDQ(&shctx->avail, &cur_block->list);
+		LIST_APPEND(&shctx->avail, &cur_block->list);
 		shctx->nbav++;
 		cur += sizeof(struct shared_block) + blocksize;
 	}

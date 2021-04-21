@@ -753,7 +753,7 @@ check_implicit_http_comp_flt(struct proxy *proxy)
 	fconf->id   = http_comp_flt_id;
 	fconf->conf = NULL;
 	fconf->ops  = &comp_ops;
-	LIST_ADDQ(&proxy->filter_configs, &fconf->list);
+	LIST_APPEND(&proxy->filter_configs, &fconf->list);
  end:
 	return err;
 }

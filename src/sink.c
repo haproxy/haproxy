@@ -77,7 +77,7 @@ static struct sink *__sink_new(const char *name, const char *desc, int fmt)
 	sink->ctx.fd = -1;
 	sink->ctx.dropped = 0;
 	HA_RWLOCK_INIT(&sink->ctx.lock);
-	LIST_ADDQ(&sink_list, &sink->sink_list);
+	LIST_APPEND(&sink_list, &sink->sink_list);
  end:
 	return sink;
 
@@ -139,7 +139,7 @@ struct sink *sink_new_buf(const char *name, const char *desc, enum log_fmt fmt, 
 
 	sink->ctx.ring = ring_new(size);
 	if (!sink->ctx.ring) {
-		LIST_DEL(&sink->sink_list);
+		LIST_DELETE(&sink->sink_list);
 		free(sink->name);
 		free(sink->desc);
 		free(sink);
@@ -410,7 +410,7 @@ static void sink_forward_io_handler(struct appctx *appctx)
 	if (ret) {
 		/* let's be woken up once new data arrive */
 		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
-		LIST_ADDQ(&ring->waiters, &appctx->wait_entry);
+		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 		si_rx_endp_done(si);
 	}
@@ -554,7 +554,7 @@ static void sink_forward_oc_io_handler(struct appctx *appctx)
 	if (ret) {
 		/* let's be woken up once new data arrive */
 		HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
-		LIST_ADDQ(&ring->waiters, &appctx->wait_entry);
+		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 		si_rx_endp_done(si);
 	}
@@ -680,7 +680,7 @@ static struct appctx *sink_forward_session_create(struct sink *sink, struct sink
 
 	/* Error unrolling */
  out_free_strm:
-	LIST_DEL(&s->list);
+	LIST_DELETE(&s->list);
 	pool_free(pool_head_stream, s);
  out_free_sess:
 	session_free(sess);
@@ -1061,7 +1061,7 @@ error:
 		if (sink->ctx.ring)
 			ring_free(sink->ctx.ring);
 
-		LIST_DEL(&sink->sink_list);
+		LIST_DELETE(&sink->sink_list);
 		free(sink->name);
 		free(sink->desc);
 		free(sink);
@@ -1256,7 +1256,7 @@ static void sink_deinit()
 	list_for_each_entry_safe(sink, sb, &sink_list, sink_list) {
 		if (sink->type == SINK_TYPE_BUFFER)
 			ring_free(sink->ctx.ring);
-		LIST_DEL(&sink->sink_list);
+		LIST_DELETE(&sink->sink_list);
 		free(sink->name);
 		free(sink->desc);
 		free(sink);

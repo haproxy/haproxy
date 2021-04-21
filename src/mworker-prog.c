@@ -70,7 +70,7 @@ int mworker_ext_launch_all()
 				}
 
 
-				LIST_DEL(&child->list);
+				LIST_DELETE(&child->list);
 				mworker_free_child(child);
 				child = NULL;
 
@@ -183,7 +183,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 			goto error;
 		}
 
-		LIST_ADDQ(&proc_list, &ext_child->list);
+		LIST_APPEND(&proc_list, &ext_child->list);
 
 	} else if (strcmp(args[0], "command") == 0) {
 		int arg_nb = 0;
@@ -302,7 +302,7 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 
 error:
 	if (ext_child) {
-		LIST_DEL(&ext_child->list);
+		LIST_DELETE(&ext_child->list);
 		if (ext_child->command) {
 			int i;
 

@@ -1009,9 +1009,9 @@ void release_http_reply(struct http_reply *http_reply)
 
 	ha_free(&http_reply->ctype);
 	list_for_each_entry_safe(hdr, hdrb, &http_reply->hdrs, list) {
-		LIST_DEL(&hdr->list);
+		LIST_DELETE(&hdr->list);
 		list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
-			LIST_DEL(&lf->list);
+			LIST_DELETE(&lf->list);
 			release_sample_expr(lf->expr);
 			free(lf->arg);
 			free(lf);
@@ -1027,7 +1027,7 @@ void release_http_reply(struct http_reply *http_reply)
 		chunk_destroy(&http_reply->body.obj);
 	else if (http_reply->type == HTTP_REPLY_LOGFMT) {
 		list_for_each_entry_safe(lf, lfb, &http_reply->body.fmt, list) {
-			LIST_DEL(&lf->list);
+			LIST_DELETE(&lf->list);
 			release_sample_expr(lf->expr);
 			free(lf->arg);
 			free(lf);
@@ -1100,12 +1100,12 @@ static void http_htx_deinit(void)
 		free(http_errs->id);
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
 			release_http_reply(http_errs->replies[rc]);
-		LIST_DEL(&http_errs->list);
+		LIST_DELETE(&http_errs->list);
 		free(http_errs);
 	}
 
 	list_for_each_entry_safe(http_rep, http_repb, &http_replies_list, list) {
-		LIST_DEL(&http_rep->list);
+		LIST_DELETE(&http_rep->list);
 		release_http_reply(http_rep);
 	}
 }
@@ -1598,7 +1598,7 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 				memprintf(errmsg, "'%s' : out of memory", args[cur_arg-1]);
 				goto error;
 			}
-			LIST_ADDQ(&reply->hdrs, &hdr->list);
+			LIST_APPEND(&reply->hdrs, &hdr->list);
 			LIST_INIT(&hdr->value);
 			hdr->name = ist(strdup(args[cur_arg]));
 			if (!isttest(hdr->name)) {
@@ -1654,9 +1654,9 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 				   "with an erorrfile.\n",
 				   px->conf.args.file, px->conf.args.line);
 			list_for_each_entry_safe(hdr, hdrb, &reply->hdrs, list) {
-				LIST_DEL(&hdr->list);
+				LIST_DELETE(&hdr->list);
 				list_for_each_entry_safe(lf, lfb, &hdr->value, list) {
-					LIST_DEL(&lf->list);
+					LIST_DELETE(&lf->list);
 					release_sample_expr(lf->expr);
 					free(lf->arg);
 					free(lf);
@@ -1759,7 +1759,7 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 	reply->ctype = NULL;
 	LIST_INIT(&reply->hdrs);
 	reply->body.errmsg = msg;
-	LIST_ADDQ(&http_replies_list, &reply->list);
+	LIST_APPEND(&http_replies_list, &reply->list);
 
 	conf_err = calloc(1, sizeof(*conf_err));
 	if (!conf_err) {
@@ -1774,7 +1774,7 @@ static int proxy_parse_errorloc(char **args, int section, struct proxy *curpx,
 
 	conf_err->file = strdup(file);
 	conf_err->line = line;
-	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
+	LIST_APPEND(&curpx->conf.errors, &conf_err->list);
 
 	/* handle warning message */
 	if (*errmsg)
@@ -1825,7 +1825,7 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 	reply->ctype = NULL;
 	LIST_INIT(&reply->hdrs);
 	reply->body.errmsg = msg;
-	LIST_ADDQ(&http_replies_list, &reply->list);
+	LIST_APPEND(&http_replies_list, &reply->list);
 
 	conf_err = calloc(1, sizeof(*conf_err));
 	if (!conf_err) {
@@ -1839,7 +1839,7 @@ static int proxy_parse_errorfile(char **args, int section, struct proxy *curpx,
 	conf_err->info.errorfile.reply = reply;
 	conf_err->file = strdup(file);
 	conf_err->line = line;
-	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
+	LIST_APPEND(&curpx->conf.errors, &conf_err->list);
 
 	/* handle warning message */
 	if (*errmsg)
@@ -1901,7 +1901,7 @@ static int proxy_parse_errorfiles(char **args, int section, struct proxy *curpx,
 	}
 	conf_err->file = strdup(file);
 	conf_err->line = line;
-	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
+	LIST_APPEND(&curpx->conf.errors, &conf_err->list);
   out:
 	return ret;
 
@@ -1970,11 +1970,11 @@ static int proxy_parse_http_error(char **args, int section, struct proxy *curpx,
 		conf_err->type = 1;
 		conf_err->info.errorfile.status = reply->status;
 		conf_err->info.errorfile.reply = reply;
-		LIST_ADDQ(&http_replies_list, &reply->list);
+		LIST_APPEND(&http_replies_list, &reply->list);
 	}
 	conf_err->file = strdup(file);
 	conf_err->line = line;
-	LIST_ADDQ(&curpx->conf.errors, &conf_err->list);
+	LIST_APPEND(&curpx->conf.errors, &conf_err->list);
 
 	/* handle warning message */
 	if (*errmsg)
@@ -2036,7 +2036,7 @@ static int proxy_check_errors(struct proxy *px)
 			}
 		}
 	  next:
-		LIST_DEL(&conf_err->list);
+		LIST_DELETE(&conf_err->list);
 		free(conf_err->file);
 		free(conf_err);
 	}
@@ -2099,7 +2099,7 @@ int proxy_dup_default_conf_errors(struct proxy *curpx, const struct proxy *defpx
 		}
 		new_conf_err->file = strdup(conf_err->file);
 		new_conf_err->line = conf_err->line;
-		LIST_ADDQ(&curpx->conf.errors, &new_conf_err->list);
+		LIST_APPEND(&curpx->conf.errors, &new_conf_err->list);
 		new_conf_err = NULL;
 	}
 	ret = 1;
@@ -2116,7 +2116,7 @@ void proxy_release_conf_errors(struct proxy *px)
 	list_for_each_entry_safe(conf_err, conf_err_back, &px->conf.errors, list) {
 		if (conf_err->type == 0)
 			free(conf_err->info.errorfiles.name);
-		LIST_DEL(&conf_err->list);
+		LIST_DELETE(&conf_err->list);
 		free(conf_err->file);
 		free(conf_err);
 	}
@@ -2168,7 +2168,7 @@ static int cfg_parse_http_errors(const char *file, int linenum, char **args, int
 			goto out;
 		}
 
-		LIST_ADDQ(&http_errors_list, &curr_errs->list);
+		LIST_APPEND(&http_errors_list, &curr_errs->list);
 		curr_errs->id = strdup(args[1]);
 		curr_errs->conf.file = strdup(file);
 		curr_errs->conf.line = linenum;

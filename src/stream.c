@@ -548,7 +548,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 
 	s->tunnel_timeout = TICK_ETERNITY;
 
-	LIST_ADDQ(&ti->streams, &s->list);
+	LIST_APPEND(&ti->streams, &s->list);
 
 	if (flt_stream_init(s) < 0 || flt_stream_start(s) < 0)
 		goto out_fail_accept;
@@ -586,7 +586,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	flt_stream_release(s, 0);
 	task_destroy(t);
 	tasklet_free(s->si[1].wait_event.tasklet);
-	LIST_DEL(&s->list);
+	LIST_DELETE(&s->list);
 out_fail_alloc_si1:
 	tasklet_free(s->si[0].wait_event.tasklet);
  out_fail_alloc:
@@ -641,7 +641,7 @@ static void stream_free(struct stream *s)
 		put_pipe(s->res.pipe);
 
 	/* We may still be present in the buffer wait queue */
-	if (LIST_ADDED(&s->buffer_wait.list))
+	if (LIST_INLIST(&s->buffer_wait.list))
 		LIST_DEL_INIT(&s->buffer_wait.list);
 
 	if (s->req.buf.size || s->res.buf.size) {
@@ -721,11 +721,11 @@ static void stream_free(struct stream *s)
 		 */
 		LIST_DEL_INIT(&bref->users);
 		if (s->list.n != &ti->streams)
-			LIST_ADDQ(&LIST_ELEM(s->list.n, struct stream *, list)->back_refs, &bref->users);
+			LIST_APPEND(&LIST_ELEM(s->list.n, struct stream *, list)->back_refs, &bref->users);
 		bref->ref = s->list.n;
 		__ha_barrier_store();
 	}
-	LIST_DEL(&s->list);
+	LIST_DELETE(&s->list);
 
 	/* applets do not release session yet */
 	must_free_sess = objt_appctx(sess->origin) && sess->origin == s->si[0].end;
@@ -772,13 +772,13 @@ static void stream_free(struct stream *s)
  */
 static int stream_alloc_work_buffer(struct stream *s)
 {
-	if (LIST_ADDED(&s->buffer_wait.list))
+	if (LIST_INLIST(&s->buffer_wait.list))
 		LIST_DEL_INIT(&s->buffer_wait.list);
 
 	if (b_alloc(&s->res.buf))
 		return 1;
 
-	LIST_ADDQ(&ti->buffer_wq, &s->buffer_wait.list);
+	LIST_APPEND(&ti->buffer_wq, &s->buffer_wait.list);
 	return 0;
 }
 
@@ -2988,7 +2988,7 @@ static enum act_parse_ret stream_parse_use_service(const char **args, int *cur_a
 
 void service_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_ADDQ(&service_keywords, &kw_list->list);
+	LIST_APPEND(&service_keywords, &kw_list->list);
 }
 
 struct action_kw *service_find(const char *kw)
@@ -3074,7 +3074,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 		chunk_appendf(&trash,
 			     "  flags=0x%x, conn_retries=%d, srv_conn=%p, pend_pos=%p waiting=%d epoch=%#x\n",
 			     strm->flags, strm->si[1].conn_retries, strm->srv_conn, strm->pend_pos,
-			     LIST_ADDED(&strm->buffer_wait.list), strm->stream_epoch);
+			     LIST_INLIST(&strm->buffer_wait.list), strm->stream_epoch);
 
 		chunk_appendf(&trash,
 			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",
@@ -3398,7 +3398,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 		 */
 		if (appctx->st2 == STAT_ST_LIST) {
 			if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users)) {
-				LIST_DEL(&appctx->ctx.sess.bref.users);
+				LIST_DELETE(&appctx->ctx.sess.bref.users);
 				LIST_INIT(&appctx->ctx.sess.bref.users);
 			}
 		}
@@ -3424,7 +3424,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 	case STAT_ST_LIST:
 		/* first, let's detach the back-ref from a possible previous stream */
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users)) {
-			LIST_DEL(&appctx->ctx.sess.bref.users);
+			LIST_DELETE(&appctx->ctx.sess.bref.users);
 			LIST_INIT(&appctx->ctx.sess.bref.users);
 		}
 
@@ -3455,13 +3455,13 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				if (appctx->ctx.sess.target != (void *)-1 && appctx->ctx.sess.target != curr_strm)
 					goto next_sess;
 
-				LIST_ADDQ(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
+				LIST_APPEND(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
 				/* call the proper dump() function and return if we're missing space */
 				if (!stats_dump_full_strm_to_buffer(si, curr_strm))
 					goto full;
 
 				/* stream dump complete */
-				LIST_DEL(&appctx->ctx.sess.bref.users);
+				LIST_DELETE(&appctx->ctx.sess.bref.users);
 				LIST_INIT(&appctx->ctx.sess.bref.users);
 				if (appctx->ctx.sess.target != (void *)-1) {
 					appctx->ctx.sess.target = NULL;
@@ -3583,7 +3583,7 @@ static int cli_io_handler_dump_sess(struct appctx *appctx)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				LIST_ADDQ(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
+				LIST_APPEND(&curr_strm->back_refs, &appctx->ctx.sess.bref.users);
 				goto full;
 			}
 
@@ -3630,7 +3630,7 @@ static void cli_release_show_sess(struct appctx *appctx)
 		 */
 		thread_isolate();
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users))
-			LIST_DEL(&appctx->ctx.sess.bref.users);
+			LIST_DELETE(&appctx->ctx.sess.bref.users);
 		thread_release();
 	}
 }

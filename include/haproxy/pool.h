@@ -241,8 +241,8 @@ static inline void *pool_get_from_cache(struct pool_head *pool)
 	ph->count--;
 	pool_cache_bytes -= pool->size;
 	pool_cache_count--;
-	LIST_DEL(&item->by_pool);
-	LIST_DEL(&item->by_lru);
+	LIST_DELETE(&item->by_pool);
+	LIST_DELETE(&item->by_lru);
 #ifdef DEBUG_MEMORY_POOLS
 	/* keep track of where the element was allocated from */
 	*POOL_LINK(pool, item) = (void *)pool;

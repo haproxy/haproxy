@@ -156,7 +156,7 @@ static inline void trace_register_source(struct trace_source *source)
 	source->sink = NULL;
 	source->state = TRACE_STATE_STOPPED;
 	source->lockon_ptr = NULL;
-	LIST_ADDQ(&trace_sources, &source->source_link);
+	LIST_APPEND(&trace_sources, &source->source_link);
 }
 
 #endif /* _HAPROXY_TRACE_H */

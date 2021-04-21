@@ -49,7 +49,7 @@ static inline enum acl_test_res pat2acl(struct pattern *pat)
  */
 void acl_register_keywords(struct acl_kw_list *kwl)
 {
-	LIST_ADDQ(&acl_keywords.list, &kwl->list);
+	LIST_APPEND(&acl_keywords.list, &kwl->list);
 }
 
 /*
@@ -57,7 +57,7 @@ void acl_register_keywords(struct acl_kw_list *kwl)
  */
 void acl_unregister_keywords(struct acl_kw_list *kwl)
 {
-	LIST_DEL(&kwl->list);
+	LIST_DELETE(&kwl->list);
 	LIST_INIT(&kwl->list);
 }
 
@@ -278,7 +278,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			if (!conv_expr)
 				goto out_free_smp;
 
-			LIST_ADDQ(&(smp->conv_exprs), &(conv_expr->list));
+			LIST_APPEND(&(smp->conv_exprs), &(conv_expr->list));
 			conv_expr->conv = conv;
 			acl_conv_found = 1;
 
@@ -653,7 +653,7 @@ struct acl *prune_acl(struct acl *acl) {
 	free(acl->name);
 
 	list_for_each_entry_safe(expr, exprb, &acl->expr, list) {
-		LIST_DEL(&expr->list);
+		LIST_DELETE(&expr->list);
 		prune_acl_expr(expr);
 		free(expr);
 	}
@@ -721,7 +721,7 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err, str
 		}
 
 		LIST_INIT(&cur_acl->expr);
-		LIST_ADDQ(known_acl, &cur_acl->list);
+		LIST_APPEND(known_acl, &cur_acl->list);
 		cur_acl->name = name;
 	}
 
@@ -731,7 +731,7 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err, str
 	 */
 	cur_acl->use |= acl_expr->smp->fetch->use;
 	cur_acl->val |= acl_expr->smp->fetch->val;
-	LIST_ADDQ(&cur_acl->expr, &acl_expr->list);
+	LIST_APPEND(&cur_acl->expr, &acl_expr->list);
 	return cur_acl;
 
  out_free_name:
@@ -824,9 +824,9 @@ static struct acl *find_acl_default(const char *acl_name, struct list *known_acl
 	cur_acl->use |= acl_expr->smp->fetch->use;
 	cur_acl->val |= acl_expr->smp->fetch->val;
 	LIST_INIT(&cur_acl->expr);
-	LIST_ADDQ(&cur_acl->expr, &acl_expr->list);
+	LIST_APPEND(&cur_acl->expr, &acl_expr->list);
 	if (known_acl)
-		LIST_ADDQ(known_acl, &cur_acl->list);
+		LIST_APPEND(known_acl, &cur_acl->list);
 
 	return cur_acl;
 
@@ -990,9 +990,9 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 				goto out_free_term;
 			}
 			LIST_INIT(&cur_suite->terms);
-			LIST_ADDQ(&cond->suites, &cur_suite->list);
+			LIST_APPEND(&cond->suites, &cur_suite->list);
 		}
-		LIST_ADDQ(&cur_suite->terms, &cur_term->list);
+		LIST_APPEND(&cur_suite->terms, &cur_term->list);
 		neg = 0;
 	}
 
@@ -1313,10 +1313,10 @@ void free_acl_cond(struct acl_cond *cond)
 
 	list_for_each_entry_safe(suite, suiteb, &cond->suites, list) {
 		list_for_each_entry_safe(term, termb, &suite->terms, list) {
-			LIST_DEL(&term->list);
+			LIST_DELETE(&term->list);
 			free(term);
 		}
-		LIST_DEL(&suite->list);
+		LIST_DELETE(&suite->list);
 		free(suite);
 	}
 

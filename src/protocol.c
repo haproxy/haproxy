@@ -36,7 +36,7 @@ __decl_spinlock(proto_lock);
 void protocol_register(struct protocol *proto)
 {
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
-	LIST_ADDQ(&protocols, &proto->list);
+	LIST_APPEND(&protocols, &proto->list);
 	if (proto->fam->sock_domain >= 0 && proto->fam->sock_domain < AF_CUST_MAX)
 		__protocol_by_family[proto->fam->sock_domain]
 			[proto->sock_type == SOCK_DGRAM]
@@ -50,7 +50,7 @@ void protocol_register(struct protocol *proto)
 void protocol_unregister(struct protocol *proto)
 {
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
-	LIST_DEL(&proto->list);
+	LIST_DELETE(&proto->list);
 	LIST_INIT(&proto->list);
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }

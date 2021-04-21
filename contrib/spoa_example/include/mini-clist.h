@@ -31,13 +31,13 @@ struct list {
 #define LIST_HEAD_INIT(l) { &l, &l }
 
 /* adds an element at the beginning of a list ; returns the element */
-#define LIST_ADD(lh, el) ({ (el)->n = (lh)->n; (el)->n->p = (lh)->n = (el); (el)->p = (lh); (el); })
+#define LIST_INSERT(lh, el) ({ (el)->n = (lh)->n; (el)->n->p = (lh)->n = (el); (el)->p = (lh); (el); })
 
 /* adds an element at the end of a list ; returns the element */
-#define LIST_ADDQ(lh, el) ({ (el)->p = (lh)->p; (el)->p->n = (lh)->p = (el); (el)->n = (lh); (el); })
+#define LIST_APPEND(lh, el) ({ (el)->p = (lh)->p; (el)->p->n = (lh)->p = (el); (el)->n = (lh); (el); })
 
 /* removes an element from a list and returns it */
-#define LIST_DEL(el) ({ typeof(el) __ret = (el); (el)->n->p = (el)->p; (el)->p->n = (el)->n; (__ret); })
+#define LIST_DELETE(el) ({ typeof(el) __ret = (el); (el)->n->p = (el)->p; (el)->p->n = (el)->n; (__ret); })
 
 /* returns a pointer of type <pt> to a structure containing a list head called
  * <el> at address <lh>. Note that <lh> can be the result of a function or macro

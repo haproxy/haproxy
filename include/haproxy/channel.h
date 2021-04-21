@@ -843,8 +843,8 @@ static inline int channel_alloc_buffer(struct channel *chn, struct buffer_wait *
 	if (b_alloc(&chn->buf) != NULL)
 		return 1;
 
-	if (!LIST_ADDED(&wait->list))
-		LIST_ADDQ(&ti->buffer_wq, &wait->list);
+	if (!LIST_INLIST(&wait->list))
+		LIST_APPEND(&ti->buffer_wq, &wait->list);
 
 	return 0;
 }

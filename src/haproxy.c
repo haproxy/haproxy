@@ -282,7 +282,7 @@ void hap_register_build_opts(const char *str, int must_free)
 	}
 	b->str = str;
 	b->must_free = must_free;
-	LIST_ADDQ(&build_opts_list, &b->list);
+	LIST_APPEND(&build_opts_list, &b->list);
 }
 
 static void display_version()
@@ -880,7 +880,7 @@ next_dir_entry:
 
 		/* remove the current directory (wl) from cfg_cfgfiles */
 		free(wl->s);
-		LIST_DEL(&wl->list);
+		LIST_DELETE(&wl->list);
 		free(wl);
 	}
 
@@ -1463,7 +1463,7 @@ static void init(int argc, char **argv)
 					ha_alert("Cannot allocate memory\n");
 					exit(EXIT_FAILURE);
 				}
-				LIST_ADD(&mworker_cli_conf, &c->list);
+				LIST_INSERT(&mworker_cli_conf, &c->list);
 
 				argv++;
 				argc--;
@@ -1654,7 +1654,7 @@ static void init(int argc, char **argv)
 
 			proc_self = tmproc;
 
-			LIST_ADDQ(&proc_list, &tmproc->list);
+			LIST_APPEND(&proc_list, &tmproc->list);
 		}
 
 		for (proc = 0; proc < global.nbproc; proc++) {
@@ -1677,7 +1677,7 @@ static void init(int argc, char **argv)
 				exit(EXIT_FAILURE);
 			}
 
-			LIST_ADDQ(&proc_list, &tmproc->list);
+			LIST_APPEND(&proc_list, &tmproc->list);
 		}
 	}
 	if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT)) {
@@ -1699,7 +1699,7 @@ static void init(int argc, char **argv)
 					ha_alert("Can't create the master's CLI.\n");
 					exit(EXIT_FAILURE);
 				}
-				LIST_DEL(&c->list);
+				LIST_DELETE(&c->list);
 				free(c->s);
 				free(c);
 			}
@@ -2277,69 +2277,69 @@ void deinit(void)
 	idle_conn_task = NULL;
 
 	list_for_each_entry_safe(log, logb, &global.logsrvs, list) {
-			LIST_DEL(&log->list);
+			LIST_DELETE(&log->list);
 			free(log);
 		}
 	list_for_each_entry_safe(wl, wlb, &cfg_cfgfiles, list) {
 		free(wl->s);
-		LIST_DEL(&wl->list);
+		LIST_DELETE(&wl->list);
 		free(wl);
 	}
 
 	list_for_each_entry_safe(bol, bolb, &build_opts_list, list) {
 		if (bol->must_free)
 			free((void *)bol->str);
-		LIST_DEL(&bol->list);
+		LIST_DELETE(&bol->list);
 		free(bol);
 	}
 
 	list_for_each_entry_safe(pxdf, pxdfb, &proxy_deinit_list, list) {
-		LIST_DEL(&pxdf->list);
+		LIST_DELETE(&pxdf->list);
 		free(pxdf);
 	}
 
 	list_for_each_entry_safe(pdf, pdfb, &post_deinit_list, list) {
-		LIST_DEL(&pdf->list);
+		LIST_DELETE(&pdf->list);
 		free(pdf);
 	}
 
 	list_for_each_entry_safe(srvdf, srvdfb, &server_deinit_list, list) {
-		LIST_DEL(&srvdf->list);
+		LIST_DELETE(&srvdf->list);
 		free(srvdf);
 	}
 
 	list_for_each_entry_safe(pcf, pcfb, &post_check_list, list) {
-		LIST_DEL(&pcf->list);
+		LIST_DELETE(&pcf->list);
 		free(pcf);
 	}
 
 	list_for_each_entry_safe(pscf, pscfb, &post_server_check_list, list) {
-		LIST_DEL(&pscf->list);
+		LIST_DELETE(&pscf->list);
 		free(pscf);
 	}
 
 	list_for_each_entry_safe(ppcf, ppcfb, &post_proxy_check_list, list) {
-		LIST_DEL(&ppcf->list);
+		LIST_DELETE(&ppcf->list);
 		free(ppcf);
 	}
 
 	list_for_each_entry_safe(tif, tifb, &per_thread_init_list, list) {
-		LIST_DEL(&tif->list);
+		LIST_DELETE(&tif->list);
 		free(tif);
 	}
 
 	list_for_each_entry_safe(tdf, tdfb, &per_thread_deinit_list, list) {
-		LIST_DEL(&tdf->list);
+		LIST_DELETE(&tdf->list);
 		free(tdf);
 	}
 
 	list_for_each_entry_safe(taf, tafb, &per_thread_alloc_list, list) {
-		LIST_DEL(&taf->list);
+		LIST_DELETE(&taf->list);
 		free(taf);
 	}
 
 	list_for_each_entry_safe(tff, tffb, &per_thread_free_list, list) {
-		LIST_DEL(&tff->list);
+		LIST_DELETE(&tff->list);
 		free(tff);
 	}
 
@@ -3004,7 +3004,7 @@ int main(int argc, char **argv)
 					proc_self = child;
 					continue;
 				}
-				LIST_DEL(&child->list);
+				LIST_DELETE(&child->list);
 				mworker_free_child(child);
 				child = NULL;
 			}

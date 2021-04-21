@@ -206,13 +206,13 @@ ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size)
 					 * so we can add if to free_sess list
 					 * to receive a new request
 					*/
-					LIST_ADD(&ds->dss->free_sess, &ds->list);
+					LIST_INSERT(&ds->dss->free_sess, &ds->list);
 				}
 				else {
 					/* there is no more pipelined requests
 					 * into this session, so we move it
 					 * to idle_sess list */
-					LIST_ADD(&ds->dss->idle_sess, &ds->list);
+					LIST_INSERT(&ds->dss->idle_sess, &ds->list);
 
 					/* update the counter of idle sessions */
 					ds->dss->idle_conns++;
@@ -548,7 +548,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 						 * to destroy the task */
 						task_queue(ds->task_exp);
 					}
-					LIST_ADDQ(&ds->queries, &query->list);
+					LIST_APPEND(&ds->queries, &query->list);
 					eb32_insert(&ds->query_ids, &query->qid);
 					ds->onfly_queries++;
 				}
@@ -613,7 +613,7 @@ static void dns_session_io_handler(struct appctx *appctx)
 	if (ret) {
 		/* let's be woken up once new request to write arrived */
 		HA_RWLOCK_WRLOCK(DNS_LOCK, &ring->lock);
-		LIST_ADDQ(&ring->waiters, &appctx->wait_entry);
+		LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 		HA_RWLOCK_WRUNLOCK(DNS_LOCK, &ring->lock);
 		si_rx_endp_done(si);
 	}
@@ -626,7 +626,7 @@ read:
 	 * delete from the list
 	 */
 	__ha_barrier_load();
-	if (!LIST_ADDED(&ds->waiter)) {
+	if (!LIST_INLIST(&ds->waiter)) {
 		while (1) {
 			uint16_t query_id;
 			struct eb32_node *eb;
@@ -697,7 +697,7 @@ read:
 
 			/* remove query ids mapping from pending queries list/tree */
 			eb32_delete(&query->qid);
-			LIST_DEL(&query->list);
+			LIST_DELETE(&query->list);
 			pool_free(dns_query_pool, query);
 			ds->onfly_queries--;
 
@@ -708,7 +708,7 @@ read:
 			 * wait_sess list where the task processing
 			 * response will pop available responses
 			 */
-			LIST_ADDQ(&ds->dss->wait_sess, &ds->waiter);
+			LIST_APPEND(&ds->dss->wait_sess, &ds->waiter);
 
 			/* lock the dns_stream_server containing lists heads */
 			HA_SPIN_UNLOCK(DNS_LOCK, &ds->dss->lock);
@@ -719,7 +719,7 @@ read:
 			break;
 		}
 
-		if (!LIST_ADDED(&ds->waiter)) {
+		if (!LIST_INLIST(&ds->waiter)) {
 			/* there is no more pending data to read and the con was closed by the server side */
 			if (!co_data(si_oc(si)) && (si_oc(si)->flags & CF_SHUTW)) {
 				goto close;
@@ -742,7 +742,7 @@ void dns_queries_flush(struct dns_session *ds)
 
 	list_for_each_entry_safe(query, queryb, &ds->queries, list) {
 		eb32_delete(&query->qid);
-		LIST_DEL(&query->list);
+		LIST_DELETE(&query->list);
 		pool_free(dns_query_pool, query);
 	}
 }
@@ -824,7 +824,7 @@ static void dns_session_release(struct appctx *appctx)
 	 * message offsets if the session
 	 * was closed with an incomplete pending response
 	 */
-	if (!LIST_ADDED(&ds->waiter))
+	if (!LIST_INLIST(&ds->waiter))
 		ds->rx_msg.len = ds->rx_msg.offset = 0;
 
 	/* we flush pending sent queries because we never
@@ -850,7 +850,7 @@ static void dns_session_release(struct appctx *appctx)
 	}
 
 	if (ds->nb_queries < DNS_STREAM_MAX_PIPELINED_REQ)
-		LIST_ADD(&ds->dss->free_sess, &ds->list);
+		LIST_INSERT(&ds->dss->free_sess, &ds->list);
 
 	HA_SPIN_UNLOCK(DNS_LOCK, &dss->lock);
 }
@@ -912,7 +912,7 @@ static struct appctx *dns_session_create(struct dns_session *ds)
 
 	/* Error unrolling */
  out_free_strm:
-	LIST_DEL(&s->list);
+	LIST_DELETE(&s->list);
 	pool_free(pool_head_stream, s);
  out_free_sess:
 	session_free(sess);
@@ -935,7 +935,7 @@ static struct task *dns_process_query_exp(struct task *t, void *context, unsigne
 	list_for_each_entry_safe(query, queryb, &ds->queries, list) {
 		if (tick_is_expired(query->expire, now_ms)) {
 			eb32_delete(&query->qid);
-			LIST_DEL(&query->list);
+			LIST_DELETE(&query->list);
 			pool_free(dns_query_pool, query);
 			ds->onfly_queries--;
 		}
@@ -1130,7 +1130,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 				 * it may be close to be full so we put it at the end
 				 * of free conn list */
 				LIST_DEL_INIT(&ds->list);
-				LIST_ADDQ(&dss->free_sess, &ds->list);
+				LIST_APPEND(&dss->free_sess, &ds->list);
 			}
 		}
 
@@ -1154,7 +1154,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 				 * this request, this request may be large and fill
 				 * the ring buffer so we prefer to put at the end of free
 				 * list. */
-				LIST_ADDQ(&dss->free_sess, &ds->list);
+				LIST_APPEND(&dss->free_sess, &ds->list);
 				ads = ds;
 			}
 		}
@@ -1167,7 +1167,7 @@ static struct task *dns_process_req(struct task *t, void *context, unsigned int 
 				/* ring is empty so this ring_write should never fail */
 				ring_write(&ads->ring, DNS_TCP_MSG_MAX_SIZE, NULL, 0, &myist, 1);
 				ads->nb_queries++;
-				LIST_ADD(&dss->free_sess, &ads->list);
+				LIST_INSERT(&dss->free_sess, &ads->list);
 			}
 			else
 				ns->counters->snd_error++;

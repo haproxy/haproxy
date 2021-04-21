@@ -79,7 +79,7 @@ static void free_tcpcheck_fmt(struct list *fmt)
 	struct logformat_node *lf, *lfb;
 
 	list_for_each_entry_safe(lf, lfb, fmt, list) {
-		LIST_DEL(&lf->list);
+		LIST_DELETE(&lf->list);
 		release_sample_expr(lf->expr);
 		free(lf->arg);
 		free(lf);
@@ -105,7 +105,7 @@ static void free_tcpcheck_http_hdrs(struct list *hdrs)
 	struct tcpcheck_http_hdr *hdr, *bhdr;
 
 	list_for_each_entry_safe(hdr, bhdr, hdrs, list) {
-		LIST_DEL(&hdr->list);
+		LIST_DELETE(&hdr->list);
 		free_tcpcheck_http_hdr(hdr);
 	}
 }
@@ -251,7 +251,7 @@ void free_tcpcheck_vars(struct list *vars)
 	struct tcpcheck_var *var, *back;
 
 	list_for_each_entry_safe(var, back, vars, list) {
-		LIST_DEL(&var->list);
+		LIST_DELETE(&var->list);
 		free_tcpcheck_var(var);
 	}
 }
@@ -281,7 +281,7 @@ int dup_tcpcheck_vars(struct list *dst, const struct list *src)
 		}
 		else
 			new->data.u = var->data.u;
-		LIST_ADDQ(dst, &new->list);
+		LIST_APPEND(dst, &new->list);
 	}
 	return 1;
 
@@ -337,7 +337,7 @@ void free_tcpcheck_ruleset(struct tcpcheck_ruleset *rs)
 	ebpt_delete(&rs->node);
 	free(rs->node.key);
 	list_for_each_entry_safe(r, rb, &rs->rules, list) {
-		LIST_DEL(&r->list);
+		LIST_DELETE(&r->list);
 		free_tcpcheck(r, 0);
 	}
 	free(rs);
@@ -2772,7 +2772,7 @@ struct tcpcheck_rule *parse_tcpcheck_send_http(char **args, int cur_arg, struct 
 		ist0(hdrs[i].v);
 		if (!parse_logformat_string(istptr(hdrs[i].v), px, &hdr->value, 0, SMP_VAL_BE_CHK_RUL, errmsg))
 			goto error;
-		LIST_ADDQ(&chk->send.http.hdrs, &hdr->list);
+		LIST_APPEND(&chk->send.http.hdrs, &hdr->list);
 		hdr = NULL;
 	}
 
@@ -3470,8 +3470,8 @@ void tcpcheck_overwrite_send_http_rule(struct tcpcheck_rule *old, struct tcpchec
 		old->send.http.flags |= TCPCHK_SND_HTTP_FL_URI_FMT;
 		LIST_INIT(&old->send.http.uri_fmt);
 		list_for_each_entry_safe(lf, lfb, &new->send.http.uri_fmt, list) {
-			LIST_DEL(&lf->list);
-			LIST_ADDQ(&old->send.http.uri_fmt, &lf->list);
+			LIST_DELETE(&lf->list);
+			LIST_APPEND(&old->send.http.uri_fmt, &lf->list);
 		}
 	}
 
@@ -3483,8 +3483,8 @@ void tcpcheck_overwrite_send_http_rule(struct tcpcheck_rule *old, struct tcpchec
 
 	free_tcpcheck_http_hdrs(&old->send.http.hdrs);
 	list_for_each_entry_safe(hdr, bhdr, &new->send.http.hdrs, list) {
-		LIST_DEL(&hdr->list);
-		LIST_ADDQ(&old->send.http.hdrs, &hdr->list);
+		LIST_DELETE(&hdr->list);
+		LIST_APPEND(&old->send.http.hdrs, &hdr->list);
 	}
 
 	if (!(new->send.http.flags & TCPCHK_SND_HTTP_FL_BODY_FMT) && isttest(new->send.http.body)) {
@@ -3504,8 +3504,8 @@ void tcpcheck_overwrite_send_http_rule(struct tcpcheck_rule *old, struct tcpchec
 		old->send.http.flags |= TCPCHK_SND_HTTP_FL_BODY_FMT;
 		LIST_INIT(&old->send.http.body_fmt);
 		list_for_each_entry_safe(lf, lfb, &new->send.http.body_fmt, list) {
-			LIST_DEL(&lf->list);
-			LIST_ADDQ(&old->send.http.body_fmt, &lf->list);
+			LIST_DELETE(&lf->list);
+			LIST_APPEND(&old->send.http.body_fmt, &lf->list);
 		}
 	}
 }
@@ -3546,11 +3546,11 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rules *rul
 		if (r && r->action == TCPCHK_ACT_CONNECT)
 			r = get_next_tcpcheck_rule(rules, r);
 		if (!r || r->action != TCPCHK_ACT_SEND)
-			LIST_ADD(rules->list, &chk->list);
+			LIST_INSERT(rules->list, &chk->list);
 		else if (r->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT) {
-			LIST_DEL(&r->list);
+			LIST_DELETE(&r->list);
 			free_tcpcheck(r, 0);
-			LIST_ADD(rules->list, &chk->list);
+			LIST_INSERT(rules->list, &chk->list);
 		}
 		else {
 			tcpcheck_overwrite_send_http_rule(r, chk);
@@ -3588,12 +3588,12 @@ int tcpcheck_add_http_rule(struct tcpcheck_rule *chk, struct tcpcheck_rules *rul
 			if (r && r->action == TCPCHK_ACT_SEND && (r->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)) {
 				tcpcheck_overwrite_send_http_rule(r, chk);
 				free_tcpcheck(chk, 0);
-				LIST_DEL(&r->list);
+				LIST_DELETE(&r->list);
 				r->send.http.flags &= ~TCPCHK_SND_HTTP_FROM_OPT;
 				chk = r;
 			}
 		}
-		LIST_ADDQ(rules->list, &chk->list);
+		LIST_APPEND(rules->list, &chk->list);
 	}
 	return 1;
 }
@@ -3632,8 +3632,8 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		if (chk && chk->action == TCPCHK_ACT_SEND && (chk->send.http.flags & TCPCHK_SND_HTTP_FROM_OPT)) {
 			next = get_next_tcpcheck_rule(&px->tcpcheck_rules, chk);
 			if (next && next->action == TCPCHK_ACT_CONNECT) {
-				LIST_DEL(&chk->list);
-				LIST_ADD(&next->list, &chk->list);
+				LIST_DELETE(&chk->list);
+				LIST_INSERT(&next->list, &chk->list);
 				chk->index = next->index;
 			}
 		}
@@ -3654,7 +3654,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 				ret |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			LIST_ADDQ(px->tcpcheck_rules.list, &next->list);
+			LIST_APPEND(px->tcpcheck_rules.list, &next->list);
 			next->index = chk->index;
 		}
 	}
@@ -3675,7 +3675,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		}
 		chk->action = TCPCHK_ACT_CONNECT;
 		chk->connect.options = (TCPCHK_OPT_DEFAULT_CONNECT|TCPCHK_OPT_IMPLICIT);
-		LIST_ADD(px->tcpcheck_rules.list, &chk->list);
+		LIST_INSERT(px->tcpcheck_rules.list, &chk->list);
 	}
 
 	/* Remove all comment rules. To do so, when a such rule is found, the
@@ -3690,7 +3690,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 		case TCPCHK_ACT_COMMENT:
 			free(comment);
 			comment = chk->comment;
-			LIST_DEL(&chk->list);
+			LIST_DELETE(&chk->list);
 			free(chk);
 			break;
 		case TCPCHK_ACT_CONNECT:
@@ -3733,7 +3733,7 @@ static void deinit_tcpchecks()
 		free(node->key);
 		rs = container_of(node, typeof(*rs), node);
 		list_for_each_entry_safe(r, rb, &rs->rules, list) {
-			LIST_DEL(&r->list);
+			LIST_DELETE(&r->list);
 			free_tcpcheck(r, 0);
 		}
 		free(rs);
@@ -3776,7 +3776,7 @@ int add_tcpcheck_expect_str(struct tcpcheck_rules *rules, const char *str)
 		if (prev_check->action != TCPCHK_ACT_COMMENT && prev_check->action != TCPCHK_ACT_ACTION_KW)
 			break;
 	}
-	LIST_ADDQ(rules->list, &tcpcheck->list);
+	LIST_APPEND(rules->list, &tcpcheck->list);
 	return 1;
 }
 
@@ -3809,7 +3809,7 @@ int add_tcpcheck_send_strs(struct tcpcheck_rules *rules, const char * const *str
 		for (in = strs[i]; (*dst = *in++); dst++);
 	*dst = 0;
 
-	LIST_ADDQ(rules->list, &tcpcheck->list);
+	LIST_APPEND(rules->list, &tcpcheck->list);
 	return 1;
 }
 
@@ -3877,7 +3877,7 @@ static int proxy_parse_tcpcheck(char **args, int section, struct proxy *curpx,
 
 	/* No error: add the tcp-check rule in the list */
 	chk->index = index;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	if ((curpx->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
 	    (curpx->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) == TCPCHK_RULES_TCP_CHK) {
@@ -3991,7 +3991,7 @@ static int proxy_parse_httpcheck(char **args, int section, struct proxy *curpx,
 	else {
 		/* mark this ruleset as unused for now */
 		curpx->tcpcheck_rules.flags |= TCPCHK_RULES_UNUSED_HTTP_RS;
-		LIST_ADDQ(&rs->rules, &chk->list);
+		LIST_APPEND(&rs->rules, &chk->list);
 	}
 
   out:
@@ -4046,7 +4046,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		goto error;
 	}
 	chk->index = 0;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "string", redis_res,
 				               "error-status", "L7STS",
@@ -4059,7 +4059,7 @@ int proxy_parse_redis_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		goto error;
 	}
 	chk->index = 1;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -4147,7 +4147,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 		goto error;
 	}
 	chk->index = 0;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rbinary", "^1[56]",
 				                "min-recv", "5", "ok-status", "L6OK",
@@ -4159,7 +4159,7 @@ int proxy_parse_ssl_hello_chk_opt(char **args, int cur_arg, struct proxy *curpx,
 		goto error;
 	}
 	chk->index = 1;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -4225,7 +4225,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 	var->data.u.str.area = cmd;
 	var->data.u.str.data = strlen(cmd);
 	LIST_INIT(&var->list);
-	LIST_ADDQ(&rules->preset_vars, &var->list);
+	LIST_APPEND(&rules->preset_vars, &var->list);
 	cmd = NULL;
 	var = NULL;
 
@@ -4246,7 +4246,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 		goto error;
 	}
 	chk->index = 0;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^[0-9]{3}[ \r]",
 				               "min-recv", "4",
@@ -4259,7 +4259,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 		goto error;
 	}
 	chk->index = 1;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^2[0-9]{2}[ \r]",
 				               "min-recv", "4",
@@ -4273,7 +4273,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 		goto error;
 	}
 	chk->index = 2;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-lf", smtp_req, ""},
 				  1, curpx, &rs->rules, file, line, &errmsg);
@@ -4282,7 +4282,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 		goto error;
 	}
 	chk->index = 3;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rstring", "^2[0-9]{2}[- \r]",
 				               "min-recv", "4",
@@ -4297,7 +4297,7 @@ int proxy_parse_smtpchk_opt(char **args, int cur_arg, struct proxy *curpx, const
 		goto error;
 	}
 	chk->index = 4;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -4369,7 +4369,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		var->data.u.str.area = user;
 		var->data.u.str.data = strlen(user);
 		LIST_INIT(&var->list);
-		LIST_ADDQ(&rules->preset_vars, &var->list);
+		LIST_APPEND(&rules->preset_vars, &var->list);
 		user = NULL;
 		var = NULL;
 
@@ -4381,7 +4381,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		var->data.type = SMP_T_SINT;
 		var->data.u.sint = packetlen;
 		LIST_INIT(&var->list);
-		LIST_ADDQ(&rules->preset_vars, &var->list);
+		LIST_APPEND(&rules->preset_vars, &var->list);
 		var = NULL;
 	}
 	else {
@@ -4407,7 +4407,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		goto error;
 	}
 	chk->index = 0;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary-lf", pgsql_req, ""},
 				  1, curpx, &rs->rules, file, line, &errmsg);
@@ -4416,7 +4416,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		goto error;
 	}
 	chk->index = 1;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "!rstring", "^E",
 				               "min-recv", "5",
@@ -4429,7 +4429,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		goto error;
 	}
 	chk->index = 2;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rbinary", "^52000000(08|0A|0C)000000(00|02|03|04|05|06)",
 				               "min-recv", "9",
@@ -4443,7 +4443,7 @@ int proxy_parse_pgsql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		goto error;
 	}
 	chk->index = 3;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -4599,7 +4599,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		var->data.u.str.area = hdr;
 		var->data.u.str.data = 4;
 		LIST_INIT(&var->list);
-		LIST_ADDQ(&rules->preset_vars, &var->list);
+		LIST_APPEND(&rules->preset_vars, &var->list);
 		hdr = NULL;
 		var = NULL;
 
@@ -4612,7 +4612,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		var->data.u.str.area = user;
 		var->data.u.str.data = strlen(user);
 		LIST_INIT(&var->list);
-		LIST_ADDQ(&rules->preset_vars, &var->list);
+		LIST_APPEND(&rules->preset_vars, &var->list);
 		user = NULL;
 		var = NULL;
 	}
@@ -4634,7 +4634,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		goto error;
 	}
 	chk->index = index++;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	if (mysql_req) {
 		chk = parse_tcpcheck_send((char *[]){"tcp-check", "send-binary-lf", mysql_req, ""},
@@ -4644,7 +4644,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 			goto error;
 		}
 		chk->index = index++;
-		LIST_ADDQ(&rs->rules, &chk->list);
+		LIST_APPEND(&rs->rules, &chk->list);
 	}
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
@@ -4655,7 +4655,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	}
 	chk->expect.custom = tcpcheck_mysql_expect_iniths;
 	chk->index = index++;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	if (mysql_req) {
 		chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
@@ -4666,7 +4666,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 		}
 		chk->expect.custom = tcpcheck_mysql_expect_ok;
 		chk->index = index++;
-		LIST_ADDQ(&rs->rules, &chk->list);
+		LIST_APPEND(&rs->rules, &chk->list);
 	}
 
   ruleset_found:
@@ -4729,7 +4729,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 		goto error;
 	}
 	chk->index = 0;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "rbinary", "^30",
 				               "min-recv", "14",
@@ -4741,7 +4741,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 		goto error;
 	}
 	chk->index = 1;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
 		                    1, curpx, &rs->rules, TCPCHK_RULES_LDAP_CHK, file, line, &errmsg);
@@ -4751,7 +4751,7 @@ int proxy_parse_ldap_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 	}
 	chk->expect.custom = tcpcheck_ldap_expect_bindrsp;
 	chk->index = 2;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -4817,7 +4817,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 		goto error;
 	}
 	chk->index = 0;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", "min-recv", "4", ""},
 		                    1, curpx, &rs->rules, TCPCHK_RULES_SPOP_CHK, file, line, &errmsg);
@@ -4827,7 +4827,7 @@ int proxy_parse_spop_check_opt(char **args, int cur_arg, struct proxy *curpx, co
 	}
 	chk->expect.custom = tcpcheck_spop_expect_agenthello;
 	chk->index = 1;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -4951,7 +4951,7 @@ static struct tcpcheck_rule *proxy_parse_httpchk_req(char **args, int cur_arg, s
 			ist0(tmp_hdrs[i].v);
 			if (!parse_logformat_string(istptr(tmp_hdrs[i].v), px, &hdr->value, 0, SMP_VAL_BE_CHK_RUL, errmsg))
 				goto error;
-			LIST_ADDQ(&chk->send.http.hdrs, &hdr->list);
+			LIST_APPEND(&chk->send.http.hdrs, &hdr->list);
 		}
 	}
 

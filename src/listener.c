@@ -353,7 +353,7 @@ void default_add_listener(struct protocol *proto, struct listener *listener)
 		return;
 	listener_set_state(listener, LI_ASSIGNED);
 	listener->rx.proto = proto;
-	LIST_ADDQ(&proto->receivers, &listener->rx.proto_list);
+	LIST_APPEND(&proto->receivers, &listener->rx.proto_list);
 	proto->nb_receivers++;
 }
 
@@ -440,7 +440,7 @@ int pause_listener(struct listener *l)
 	if (l->rx.proto->suspend)
 		ret = l->rx.proto->suspend(l);
 
-	MT_LIST_DEL(&l->wait_queue);
+	MT_LIST_DELETE(&l->wait_queue);
 
 	listener_set_state(l, LI_PAUSED);
 
@@ -474,7 +474,7 @@ int resume_listener(struct listener *l)
 	/* check that another thread didn't to the job in parallel (e.g. at the
 	 * end of listen_accept() while we'd come from dequeue_all_listeners().
 	 */
-	if (MT_LIST_ADDED(&l->wait_queue))
+	if (MT_LIST_INLIST(&l->wait_queue))
 		goto end;
 
 	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
@@ -513,7 +513,7 @@ static void listener_full(struct listener *l)
 {
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 	if (l->state >= LI_READY) {
-		MT_LIST_DEL(&l->wait_queue);
+		MT_LIST_DELETE(&l->wait_queue);
 		if (l->state != LI_FULL) {
 			l->rx.proto->disable(l);
 			listener_set_state(l, LI_FULL);
@@ -529,7 +529,7 @@ static void limit_listener(struct listener *l, struct mt_list *list)
 {
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 	if (l->state == LI_READY) {
-		MT_LIST_TRY_ADDQ(list, &l->wait_queue);
+		MT_LIST_TRY_APPEND(list, &l->wait_queue);
 		l->rx.proto->disable(l);
 		listener_set_state(l, LI_LIMITED);
 	}
@@ -597,7 +597,7 @@ void default_unbind_listener(struct listener *listener)
  */
 void do_unbind_listener(struct listener *listener)
 {
-	MT_LIST_DEL(&listener->wait_queue);
+	MT_LIST_DELETE(&listener->wait_queue);
 
 	if (listener->rx.proto->unbind)
 		listener->rx.proto->unbind(listener);
@@ -641,8 +641,8 @@ int create_listeners(struct bind_conf *bc, const struct sockaddr_storage *ss,
 			return 0;
 		}
 		l->obj_type = OBJ_TYPE_LISTENER;
-		LIST_ADDQ(&bc->frontend->conf.listeners, &l->by_fe);
-		LIST_ADDQ(&bc->listeners, &l->by_bind);
+		LIST_APPEND(&bc->frontend->conf.listeners, &l->by_fe);
+		LIST_APPEND(&bc->listeners, &l->by_bind);
 		l->bind_conf = bc;
 		l->rx.settings = &bc->settings;
 		l->rx.owner = l;
@@ -681,7 +681,7 @@ void __delete_listener(struct listener *listener)
 {
 	if (listener->state == LI_ASSIGNED) {
 		listener_set_state(listener, LI_INIT);
-		LIST_DEL(&listener->rx.proto_list);
+		LIST_DELETE(&listener->rx.proto_list);
 		listener->rx.proto->nb_receivers--;
 		_HA_ATOMIC_DEC(&jobs);
 		_HA_ATOMIC_DEC(&listeners);
@@ -1199,7 +1199,7 @@ struct task *manage_global_listener_queue(struct task *t, void *context, unsigne
  */
 void bind_register_keywords(struct bind_kw_list *kwl)
 {
-	LIST_ADDQ(&bind_keywords.list, &kwl->list);
+	LIST_APPEND(&bind_keywords.list, &kwl->list);
 }
 
 /* Return a pointer to the bind keyword <kw>, or NULL if not found. If the

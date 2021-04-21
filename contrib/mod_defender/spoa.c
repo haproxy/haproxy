@@ -967,11 +967,11 @@ release_frame(struct spoe_frame *frame)
 		event_del(&frame->process_frame_event);
 
 	worker = frame->worker;
-	LIST_DEL(&frame->list);
+	LIST_DELETE(&frame->list);
 	if (frame->frag_buf)
 		free(frame->frag_buf);
 	memset(frame, 0, sizeof(*frame)+max_frame_size+4);
-	LIST_ADDQ(&worker->frames, &frame->list);
+	LIST_APPEND(&worker->frames, &frame->list);
 }
 
 static void
@@ -984,7 +984,7 @@ release_client(struct client *c)
 
 	DEBUG(c->worker, "<%lu> Release client", c->id);
 
-	LIST_DEL(&c->by_worker);
+	LIST_DELETE(&c->by_worker);
 	c->worker->nbclients--;
 
 	unuse_spoe_engine(c);
@@ -1056,12 +1056,12 @@ use_spoe_engine(struct client *client)
 	LIST_INIT(&eng->clients);
 	LIST_INIT(&eng->processing_frames);
 	LIST_INIT(&eng->outgoing_frames);
-	LIST_ADDQ(&client->worker->engines, &eng->list);
+	LIST_APPEND(&client->worker->engines, &eng->list);
 	LOG(client->worker, "Add new SPOE engine '%s'", eng->id);
 
   end:
 	client->engine = eng;
-	LIST_ADDQ(&eng->clients, &client->by_engine);
+	LIST_APPEND(&eng->clients, &client->by_engine);
 }
 
 static void
@@ -1075,12 +1075,12 @@ unuse_spoe_engine(struct client *client)
 
 	eng = client->engine;
 	client->engine = NULL;
-	LIST_DEL(&client->by_engine);
+	LIST_DELETE(&client->by_engine);
 	if (!LIST_ISEMPTY(&eng->clients))
 		return;
 
 	LOG(client->worker, "Remove SPOE engine '%s'", eng->id);
-	LIST_DEL(&eng->list);
+	LIST_DELETE(&eng->list);
 
 	list_for_each_entry_safe(frame, back, &eng->processing_frames, list) {
 		release_frame(frame);
@@ -1110,7 +1110,7 @@ acquire_incoming_frame(struct client *client)
 	}
 	else {
 		frame = LIST_NEXT(&client->worker->frames, typeof(frame), list);
-		LIST_DEL(&frame->list);
+		LIST_DELETE(&frame->list);
 	}
 
 	reset_frame(frame);
@@ -1138,12 +1138,12 @@ acquire_outgoing_frame(struct client *client)
 		frame = client->outgoing_frame;
 	else if (!LIST_ISEMPTY(&client->outgoing_frames)) {
 		frame = LIST_NEXT(&client->outgoing_frames, typeof(frame), list);
-		LIST_DEL(&frame->list);
+		LIST_DELETE(&frame->list);
 		client->outgoing_frame = frame;
 	}
 	else if (engine!= NULL && !LIST_ISEMPTY(&engine->outgoing_frames)) {
 		frame = LIST_NEXT(&engine->outgoing_frames, typeof(frame), list);
-		LIST_DEL(&frame->list);
+		LIST_DELETE(&frame->list);
 		client->outgoing_frame = frame;
 	}
 	return frame;
@@ -1154,7 +1154,7 @@ write_frame(struct client *client, struct spoe_frame *frame)
 {
 	uint32_t netint;
 
-	LIST_DEL(&frame->list);
+	LIST_DELETE(&frame->list);
 
 	frame->buf    = (char *)(frame->data);
 	frame->offset = 0;
@@ -1170,7 +1170,7 @@ write_frame(struct client *client, struct spoe_frame *frame)
 			if (client->outgoing_frame == NULL)
 				client->outgoing_frame = frame;
 			else
-				LIST_ADD(&client->outgoing_frames, &frame->list);
+				LIST_INSERT(&client->outgoing_frames, &frame->list);
 		}
 		else {
 			client->outgoing_frame = frame;
@@ -1179,12 +1179,12 @@ write_frame(struct client *client, struct spoe_frame *frame)
 	}
 	else { /* for all other frames */
 		if (frame->client == NULL) { /* async mode ! */
-			LIST_ADDQ(&frame->engine->outgoing_frames, &frame->list);
+			LIST_APPEND(&frame->engine->outgoing_frames, &frame->list);
 			list_for_each_entry(client, &frame->engine->clients, by_engine)
 				event_add(&client->write_frame_event, NULL);
 		}
 		else if (frame->client->pipelining) {
-			LIST_ADDQ(&frame->client->outgoing_frames, &frame->list);
+			LIST_APPEND(&frame->client->outgoing_frames, &frame->list);
 			event_add(&frame->client->write_frame_event, NULL);
 		}
 		else {
@@ -1208,10 +1208,10 @@ process_incoming_frame(struct spoe_frame *frame)
 
 	if (client->async) {
 		frame->client = NULL;
-		LIST_ADDQ(&frame->engine->processing_frames, &frame->list);
+		LIST_APPEND(&frame->engine->processing_frames, &frame->list);
 	}
 	else if (client->pipelining)
-		LIST_ADDQ(&client->processing_frames, &frame->list);
+		LIST_APPEND(&client->processing_frames, &frame->list);
 	else
 		event_del(&client->read_frame_event);
 }
@@ -1603,7 +1603,7 @@ accept_cb(int listener, short event, void *arg)
 	LIST_INIT(&client->processing_frames);
 	LIST_INIT(&client->outgoing_frames);
 
-	LIST_ADDQ(&worker->clients, &client->by_worker);
+	LIST_APPEND(&worker->clients, &client->by_worker);
 
 	worker->nbclients++;
 
@@ -1633,7 +1633,7 @@ worker_function(void *data)
 	}
 
 	list_for_each_entry_safe(frame, fback, &worker->frames, list) {
-		LIST_DEL(&frame->list);
+		LIST_DELETE(&frame->list);
 		free(frame);
 	}
 

@@ -84,7 +84,7 @@ void hap_register_post_check(int (*fct)())
 		exit(1);
 	}
 	b->fct = fct;
-	LIST_ADDQ(&post_check_list, &b->list);
+	LIST_APPEND(&post_check_list, &b->list);
 }
 
 /* used to register some initialization functions to call for each proxy after
@@ -100,7 +100,7 @@ void hap_register_post_proxy_check(int (*fct)(struct proxy *))
 		exit(1);
 	}
 	b->fct = fct;
-	LIST_ADDQ(&post_proxy_check_list, &b->list);
+	LIST_APPEND(&post_proxy_check_list, &b->list);
 }
 
 /* used to register some initialization functions to call for each server after
@@ -116,7 +116,7 @@ void hap_register_post_server_check(int (*fct)(struct server *))
 		exit(1);
 	}
 	b->fct = fct;
-	LIST_ADDQ(&post_server_check_list, &b->list);
+	LIST_APPEND(&post_server_check_list, &b->list);
 }
 
 /* used to register some de-initialization functions to call after everything
@@ -132,7 +132,7 @@ void hap_register_post_deinit(void (*fct)())
 		exit(1);
 	}
 	b->fct = fct;
-	LIST_ADDQ(&post_deinit_list, &b->list);
+	LIST_APPEND(&post_deinit_list, &b->list);
 }
 
 /* used to register some per proxy de-initialization functions to call after
@@ -148,7 +148,7 @@ void hap_register_proxy_deinit(void (*fct)(struct proxy *))
 		exit(1);
 	}
 	b->fct = fct;
-	LIST_ADDQ(&proxy_deinit_list, &b->list);
+	LIST_APPEND(&proxy_deinit_list, &b->list);
 }
 
 /* used to register some per server de-initialization functions to call after
@@ -164,7 +164,7 @@ void hap_register_server_deinit(void (*fct)(struct server *))
 		exit(1);
 	}
 	b->fct = fct;
-	LIST_ADDQ(&server_deinit_list, &b->list);
+	LIST_APPEND(&server_deinit_list, &b->list);
 }
 
 /* used to register some allocation functions to call for each thread. */
@@ -178,7 +178,7 @@ void hap_register_per_thread_alloc(int (*fct)())
 		exit(1);
 	}
 	b->fct = fct;
-	LIST_ADDQ(&per_thread_alloc_list, &b->list);
+	LIST_APPEND(&per_thread_alloc_list, &b->list);
 }
 
 /* used to register some initialization functions to call for each thread. */
@@ -192,7 +192,7 @@ void hap_register_per_thread_init(int (*fct)())
 		exit(1);
 	}
 	b->fct = fct;
-	LIST_ADDQ(&per_thread_init_list, &b->list);
+	LIST_APPEND(&per_thread_init_list, &b->list);
 }
 
 /* used to register some de-initialization functions to call for each thread. */
@@ -206,7 +206,7 @@ void hap_register_per_thread_deinit(void (*fct)())
 		exit(1);
 	}
 	b->fct = fct;
-	LIST_ADDQ(&per_thread_deinit_list, &b->list);
+	LIST_APPEND(&per_thread_deinit_list, &b->list);
 }
 
 /* used to register some free functions to call for each thread. */
@@ -220,5 +220,5 @@ void hap_register_per_thread_free(void (*fct)())
 		exit(1);
 	}
 	b->fct = fct;
-	LIST_ADDQ(&per_thread_free_list, &b->list);
+	LIST_APPEND(&per_thread_free_list, &b->list);
 }

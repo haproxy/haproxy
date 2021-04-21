@@ -590,7 +590,7 @@ int ssl_sock_register_msg_callback(ssl_sock_msg_callback_func func)
 
 	cbk->func = func;
 
-	LIST_ADDQ(&ssl_sock_msg_callbacks, &cbk->list);
+	LIST_APPEND(&ssl_sock_msg_callbacks, &cbk->list);
 
 	return 1;
 }
@@ -625,7 +625,7 @@ static void ssl_sock_unregister_msg_callbacks(void)
 	struct ssl_sock_msg_callback *cbk, *cbkback;
 
 	list_for_each_entry_safe(cbk, cbkback, &ssl_sock_msg_callbacks, list) {
-		LIST_DEL(&cbk->list);
+		LIST_DELETE(&cbk->list);
 		free(cbk);
 	}
 }
@@ -686,7 +686,7 @@ int ssl_init_single_engine(const char *engine_id, const char *def_algorithms)
 
 	el = calloc(1, sizeof(*el));
 	el->e = engine;
-	LIST_ADD(&openssl_engines, &el->list);
+	LIST_INSERT(&openssl_engines, &el->list);
 	nb_engines++;
 	if (global_ssl.async)
 		global.ssl_used_async_engines = nb_engines;
@@ -1233,20 +1233,20 @@ static int tlskeys_finalize_config(void)
 
 	/* This sort the reference list by id. */
 	list_for_each_entry_safe(ref, ref2, &tlskeys_reference, list) {
-		LIST_DEL(&ref->list);
+		LIST_DELETE(&ref->list);
 		list_for_each_entry(ref3, &tkr, list) {
 			if (ref->unique_id < ref3->unique_id) {
-				LIST_ADDQ(&ref3->list, &ref->list);
+				LIST_APPEND(&ref3->list, &ref->list);
 				break;
 			}
 		}
 		if (&ref3->list == &tkr)
-			LIST_ADDQ(&tkr, &ref->list);
+			LIST_APPEND(&tkr, &ref->list);
 	}
 
 	/* swap root */
-	LIST_ADD(&tkr, &tlskeys_reference);
-	LIST_DEL(&tkr);
+	LIST_INSERT(&tkr, &tlskeys_reference);
+	LIST_DELETE(&tkr);
 	return ERR_NONE;
 }
 #endif /* SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB */
@@ -2926,7 +2926,7 @@ static int ckch_inst_add_cert_sni(SSL_CTX *ctx, struct ckch_inst *ckch_inst,
 		sc->wild = wild;
 		sc->name.node.leaf_p = NULL;
 		sc->ckch_inst = ckch_inst;
-		LIST_ADDQ(&ckch_inst->sni_ctx, &sc->by_ckch_inst);
+		LIST_APPEND(&ckch_inst->sni_ctx, &sc->by_ckch_inst);
 	}
 	return order;
 }
@@ -2960,7 +2960,7 @@ void ssl_sock_load_cert_sni(struct ckch_inst *ckch_inst, struct bind_conf *bind_
 			if (sc1->ctx == sc0->ctx && sc1->conf == sc0->conf
 			    && sc1->neg == sc0->neg && sc1->wild == sc0->wild) {
 				/* it's a duplicate, we should remove and free it */
-				LIST_DEL(&sc0->by_ckch_inst);
+				LIST_DELETE(&sc0->by_ckch_inst);
 				SSL_CTX_free(sc0->ctx);
 				ha_free(&sc0);
 				break;
@@ -3526,7 +3526,7 @@ static int ssl_sock_load_ckchs(const char *path, struct ckch_store *ckchs,
 	ssl_sock_load_cert_sni(*ckch_inst, bind_conf);
 
 	/* succeed, add the instance to the ckch_store's list of instance */
-	LIST_ADDQ(&ckchs->ckch_inst, &((*ckch_inst)->by_ckchs));
+	LIST_APPEND(&ckchs->ckch_inst, &((*ckch_inst)->by_ckchs));
 	return errcode;
 }
 
@@ -3550,7 +3550,7 @@ static int ssl_sock_load_srv_ckchs(const char *path, struct ckch_store *ckchs,
 	SSL_CTX_up_ref((*ckch_inst)->ctx);
 	server->ssl_ctx.ctx = (*ckch_inst)->ctx;
 	/* succeed, add the instance to the ckch_store's list of instance */
-	LIST_ADDQ(&ckchs->ckch_inst, &((*ckch_inst)->by_ckchs));
+	LIST_APPEND(&ckchs->ckch_inst, &((*ckch_inst)->by_ckchs));
 	return errcode;
 }
 
@@ -3634,7 +3634,7 @@ int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_con
 			memprintf(err, "error processing line %d in file '%s' : %s", entry->linenum, file, *err);
 			goto error;
 		}
-		LIST_ADDQ(&entry->ckch_inst, &ckch_inst->by_crtlist_entry);
+		LIST_APPEND(&entry->ckch_inst, &ckch_inst->by_crtlist_entry);
 		ckch_inst->crtlist_entry = entry;
 	}
 
@@ -5037,7 +5037,7 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 		back = ebmb_next(node);
 		ebmb_delete(node);
 		SSL_CTX_free(sni->ctx);
-		LIST_DEL(&sni->by_ckch_inst);
+		LIST_DELETE(&sni->by_ckch_inst);
 		free(sni);
 		node = back;
 	}
@@ -5048,7 +5048,7 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 		back = ebmb_next(node);
 		ebmb_delete(node);
 		SSL_CTX_free(sni->ctx);
-		LIST_DEL(&sni->by_ckch_inst);
+		LIST_DELETE(&sni->by_ckch_inst);
 		free(sni);
 		node = back;
 	}
@@ -5079,7 +5079,7 @@ void ssl_sock_destroy_bind_conf(struct bind_conf *bind_conf)
 	if (bind_conf->keys_ref && !--bind_conf->keys_ref->refcount) {
 		free(bind_conf->keys_ref->filename);
 		free(bind_conf->keys_ref->tlskeys);
-		LIST_DEL(&bind_conf->keys_ref->list);
+		LIST_DELETE(&bind_conf->keys_ref->list);
 		free(bind_conf->keys_ref);
 	}
 	bind_conf->keys_ref = NULL;
@@ -7217,7 +7217,7 @@ void ssl_free_engines(void) {
 	list_for_each_entry_safe(wl, wlb, &openssl_engines, list) {
 		ENGINE_finish(wl->e);
 		ENGINE_free(wl->e);
-		LIST_DEL(&wl->list);
+		LIST_DELETE(&wl->list);
 		free(wl);
 	}
 }

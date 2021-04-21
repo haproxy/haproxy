@@ -289,7 +289,7 @@ void free_act_rules(struct list *rules)
 	struct act_rule *rule, *ruleb;
 
 	list_for_each_entry_safe(rule, ruleb, rules, list) {
-		LIST_DEL(&rule->list);
+		LIST_DELETE(&rule->list);
 		free_acl_cond(rule->cond);
 		if (rule->release_ptr)
 			rule->release_ptr(rule);

@@ -894,14 +894,14 @@ void ckch_inst_free(struct ckch_inst *inst)
 
 	list_for_each_entry_safe(sni, sni_s, &inst->sni_ctx, by_ckch_inst) {
 		SSL_CTX_free(sni->ctx);
-		LIST_DEL(&sni->by_ckch_inst);
+		LIST_DELETE(&sni->by_ckch_inst);
 		ebmb_delete(&sni->name);
 		free(sni);
 	}
 	SSL_CTX_free(inst->ctx);
 	inst->ctx = NULL;
-	LIST_DEL(&inst->by_ckchs);
-	LIST_DEL(&inst->by_crtlist_entry);
+	LIST_DELETE(&inst->by_ckchs);
+	LIST_DELETE(&inst->by_crtlist_entry);
 	free(inst);
 }
 
@@ -1359,7 +1359,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 					/* display one dot per new instance */
 					chunk_appendf(trash, ".");
 					/* link the new ckch_inst to the duplicate */
-					LIST_ADDQ(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
+					LIST_APPEND(&new_ckchs->ckch_inst, &new_inst->by_ckchs);
 					y++;
 				}
 				appctx->st2 = SETCERT_ST_INSERT;
@@ -1385,7 +1385,7 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 				/* insert the new ckch_insts in the crtlist_entry */
 				list_for_each_entry(ckchi, &new_ckchs->ckch_inst, by_ckchs) {
 					if (ckchi->crtlist_entry)
-						LIST_ADD(&ckchi->crtlist_entry->ckch_inst, &ckchi->by_crtlist_entry);
+						LIST_INSERT(&ckchi->crtlist_entry->ckch_inst, &ckchi->by_crtlist_entry);
 				}
 
 				/* First, we insert every new SNIs in the trees, also replace the default_ctx */

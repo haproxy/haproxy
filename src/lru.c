@@ -25,8 +25,8 @@
 #include <import/lru.h>
 
 /* Minimal list manipulation macros for lru64_list */
-#define LIST_ADD(lh, el) ({ (el)->n = (lh)->n; (el)->n->p = (lh)->n = (el); (el)->p = (lh); })
-#define LIST_DEL(el)     ({ (el)->n->p = (el)->p; (el)->p->n = (el)->n; })
+#define LIST_INSERT(lh, el) ({ (el)->n = (lh)->n; (el)->n->p = (lh)->n = (el); (el)->p = (lh); })
+#define LIST_DELETE(el)     ({ (el)->n->p = (el)->p; (el)->p->n = (el)->n; })
 
 
 /* Lookup key <key> in LRU cache <lru> for use with domain <domain> whose data's
@@ -46,8 +46,8 @@ struct lru64 *lru64_lookup(unsigned long long key, struct lru64_head *lru,
 		 * head of the LRU list.
 		 */
 		if (elem->domain == domain && elem->revision == revision) {
-			LIST_DEL(&elem->lru);
-			LIST_ADD(&lru->list, &elem->lru);
+			LIST_DELETE(&elem->lru);
+			LIST_INSERT(&lru->list, &elem->lru);
 			return elem;
 		}
 	}
@@ -87,8 +87,8 @@ struct lru64 *lru64_get(unsigned long long key, struct lru64_head *lru,
 		 * head of the LRU list.
 		 */
 		if (elem->domain == domain && elem->revision == revision) {
-			LIST_DEL(&elem->lru);
-			LIST_ADD(&lru->list, &elem->lru);
+			LIST_DELETE(&elem->lru);
+			LIST_INSERT(&lru->list, &elem->lru);
 			return elem;
 		}
 
@@ -96,7 +96,7 @@ struct lru64 *lru64_get(unsigned long long key, struct lru64_head *lru,
 			return NULL; // currently locked
 
 		/* recycle this entry */
-		LIST_DEL(&elem->lru);
+		LIST_DELETE(&elem->lru);
 	}
 	else {
 		/* New entry inserted, initialize and move to the head of the
@@ -107,7 +107,7 @@ struct lru64 *lru64_get(unsigned long long key, struct lru64_head *lru,
 	}
 
 	elem->domain = NULL;
-	LIST_ADD(&lru->list, &elem->lru);
+	LIST_INSERT(&lru->list, &elem->lru);
 
 	if (lru->cache_usage > lru->cache_size) {
 		/* try to kill oldest entry */
@@ -116,7 +116,7 @@ struct lru64 *lru64_get(unsigned long long key, struct lru64_head *lru,
 		old = container_of(lru->list.p, typeof(*old), lru);
 		if (old->domain) {
 			/* not locked */
-			LIST_DEL(&old->lru);
+			LIST_DELETE(&old->lru);
 			__eb64_delete(&old->node);
 			if (old->data && old->free)
 				old->free(old->data);
@@ -181,7 +181,7 @@ int lru64_destroy(struct lru64_head *lru)
 		next = container_of(elem->lru.p, typeof(*next), lru);
 		if (elem->domain) {
 			/* not locked */
-			LIST_DEL(&elem->lru);
+			LIST_DELETE(&elem->lru);
 			eb64_delete(&elem->node);
 			if (elem->data && elem->free)
 				elem->free(elem->data);
@@ -211,7 +211,7 @@ void lru64_kill_oldest(struct lru64_head *lru, unsigned long int nb)
 		if (!elem->domain)
 			continue; /* locked entry */
 
-		LIST_DEL(&elem->lru);
+		LIST_DELETE(&elem->lru);
 		eb64_delete(&elem->node);
 		if (elem->data && elem->free)
 			elem->free(elem->data);

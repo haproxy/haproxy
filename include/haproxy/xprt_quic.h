@@ -1016,7 +1016,7 @@ static inline void quic_pktns_discard(struct quic_pktns *pktns,
 		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
 		node = eb64_next(node);
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
-			LIST_DEL(&frm->list);
+			LIST_DELETE(&frm->list);
 			pool_free(pool_head_quic_tx_frm, frm);
 		}
 		eb64_delete(&pkt->pn_node);
@@ -1188,14 +1188,14 @@ static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
 static inline void quic_rx_packet_list_addq(struct list *list,
                                             struct quic_rx_packet *pkt)
 {
-	LIST_ADDQ(list, &pkt->list);
+	LIST_APPEND(list, &pkt->list);
 	quic_rx_packet_refinc(pkt);
 }
 
 /* Remove <pkt> RX packet from <list>, decrementing its reference counter. */
 static inline void quic_rx_packet_list_del(struct quic_rx_packet *pkt)
 {
-	LIST_DEL(&pkt->list);
+	LIST_DELETE(&pkt->list);
 	quic_rx_packet_refdec(pkt);
 }
 

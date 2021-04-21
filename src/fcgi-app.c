@@ -141,7 +141,7 @@ static void fcgi_release_rule(struct fcgi_rule *rule)
 		struct logformat_node *lf, *lfb;
 
 		list_for_each_entry_safe(lf, lfb, &rule->value, list) {
-			LIST_DEL(&lf->list);
+			LIST_DELETE(&lf->list);
 			release_sample_expr(lf->expr);
 			free(lf->arg);
 			free(lf);
@@ -205,12 +205,12 @@ static void fcgi_flt_deinit(struct proxy *px, struct flt_conf *fconf)
 	free(fcgi_conf->name);
 
 	list_for_each_entry_safe(rule, back, &fcgi_conf->param_rules, list) {
-		LIST_DEL(&rule->list);
+		LIST_DELETE(&rule->list);
 		fcgi_release_rule(rule);
 	}
 
 	list_for_each_entry_safe(rule, back, &fcgi_conf->hdr_rules, list) {
-		LIST_DEL(&rule->list);
+		LIST_DELETE(&rule->list);
 		fcgi_release_rule(rule);
 	}
 
@@ -270,9 +270,9 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 		}
 
 		if (rule->type == FCGI_RULE_SET_PARAM || rule->type == FCGI_RULE_UNSET_PARAM)
-			LIST_ADDQ(&fcgi_conf->param_rules, &rule->list);
+			LIST_APPEND(&fcgi_conf->param_rules, &rule->list);
 		else /* FCGI_RULE_PASS_HDR/FCGI_RULE_HIDE_HDR */
-			LIST_ADDQ(&fcgi_conf->hdr_rules, &rule->list);
+			LIST_APPEND(&fcgi_conf->hdr_rules, &rule->list);
 		rule = NULL;
 	}
 	return 0;
@@ -549,7 +549,7 @@ parse_fcgi_flt(char **args, int *cur_arg, struct proxy *px,
 		}
 
 		/* Place the filter at its right position */
-		LIST_DEL(&f->list);
+		LIST_DELETE(&f->list);
 		free(f);
 		ha_free(&name);
 		break;
@@ -627,7 +627,7 @@ static int proxy_parse_use_fcgi_app(char **args, int section, struct proxy *curp
 	fconf->id = fcgi_flt_id;
 	fconf->conf = fcgi_conf;
 	fconf->ops  = &fcgi_flt_ops;
-	LIST_ADDQ(&curpx->filter_configs, &fconf->list);
+	LIST_APPEND(&curpx->filter_configs, &fconf->list);
 
   end:
 	return retval;
@@ -743,7 +743,7 @@ static int fcgi_app_add_rule(struct fcgi_app *curapp, enum fcgi_rule_type type, 
 			goto err;
 	}
 	rule->cond = cond;
-	LIST_ADDQ(&curapp->conf.rules, &rule->list);
+	LIST_APPEND(&curapp->conf.rules, &rule->list);
 	return 1;
 
   err:
@@ -1090,12 +1090,12 @@ void fcgi_apps_deinit()
 		free(curapp->conf.file);
 
 		list_for_each_entry_safe(log, logb, &curapp->logsrvs, list) {
-			LIST_DEL(&log->list);
+			LIST_DELETE(&log->list);
 			free(log);
 		}
 
 		list_for_each_entry_safe(rule, back, &curapp->conf.rules, list) {
-			LIST_DEL(&rule->list);
+			LIST_DELETE(&rule->list);
 			fcgi_release_rule_conf(rule);
 		}
 

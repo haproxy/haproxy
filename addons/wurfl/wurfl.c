@@ -204,7 +204,7 @@ static int ha_wurfl_cfg_information_list(char **args, int section_type, struct p
 		wi->data.name = strdup(args[argIdx]);
 		wi->data.type = HA_WURFL_DATA_TYPE_UNKNOWN;
 		wi->data.func_callback = NULL;
-		LIST_ADDQ(&global_wurfl.information_list, &wi->list);
+		LIST_APPEND(&global_wurfl.information_list, &wi->list);
 		++argIdx;
 	}
 
@@ -232,7 +232,7 @@ static int ha_wurfl_cfg_patch_file_list(char **args, int section_type, struct pr
 		}
 
 		wp->patch_file_path = strdup(args[argIdx]);
-		LIST_ADDQ(&global_wurfl.patch_file_list, &wp->list);
+		LIST_APPEND(&global_wurfl.patch_file_list, &wp->list);
 		++argIdx;
 	}
 
@@ -410,12 +410,12 @@ static void ha_wurfl_deinit(void)
 	ha_free(&global_wurfl.cache_size);
 
 	list_for_each_entry_safe(wi, wi2, &global_wurfl.information_list, list) {
-		LIST_DEL(&wi->list);
+		LIST_DELETE(&wi->list);
 		free(wi);
 	}
 
 	list_for_each_entry_safe(wp, wp2, &global_wurfl.patch_file_list, list) {
-		LIST_DEL(&wp->list);
+		LIST_DELETE(&wp->list);
 		free(wp);
 	}
 

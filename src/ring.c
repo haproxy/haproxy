@@ -363,7 +363,7 @@ int cli_io_handler_show_ring(struct appctx *appctx)
 		if (!si_oc(si)->output && !(si_oc(si)->flags & CF_SHUTW)) {
 			/* let's be woken up once new data arrive */
 			HA_RWLOCK_WRLOCK(LOGSRV_LOCK, &ring->lock);
-			LIST_ADDQ(&ring->waiters, &appctx->wait_entry);
+			LIST_APPEND(&ring->waiters, &appctx->wait_entry);
 			HA_RWLOCK_WRUNLOCK(LOGSRV_LOCK, &ring->lock);
 			si_rx_endp_done(si);
 			ret = 0;

@@ -398,7 +398,7 @@ void sample_register_fetches(struct sample_fetch_kw_list *kwl)
 			if (sf->use & (1 << bit))
 				sf->val |= fetch_cap[bit];
 	}
-	LIST_ADDQ(&sample_fetches.list, &kwl->list);
+	LIST_APPEND(&sample_fetches.list, &kwl->list);
 }
 
 /*
@@ -407,7 +407,7 @@ void sample_register_fetches(struct sample_fetch_kw_list *kwl)
  */
 void sample_register_convs(struct sample_conv_kw_list *pckl)
 {
-	LIST_ADDQ(&sample_convs.list, &pckl->list);
+	LIST_APPEND(&sample_convs.list, &pckl->list);
 }
 
 /*
@@ -1018,7 +1018,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, in
 		if (!conv_expr)
 			goto out_error;
 
-		LIST_ADDQ(&(expr->conv_exprs), &(conv_expr->list));
+		LIST_APPEND(&(expr->conv_exprs), &(conv_expr->list));
 		conv_expr->conv = conv;
 
 		al->kw = expr->fetch->kw;
@@ -1372,7 +1372,7 @@ int smp_resolve_args(struct proxy *p, char **err)
 
 		}
 
-		LIST_DEL(&cur->list);
+		LIST_DELETE(&cur->list);
 		free(cur);
 	} /* end of args processing */
 
@@ -1455,7 +1455,7 @@ void release_sample_expr(struct sample_expr *expr)
 		return;
 
 	list_for_each_entry_safe(conv_expr, conv_exprb, &expr->conv_exprs, list) {
-		LIST_DEL(&conv_expr->list);
+		LIST_DELETE(&conv_expr->list);
 		release_sample_arg(conv_expr->arg_p);
 		free(conv_expr);
 	}

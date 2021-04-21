@@ -67,7 +67,7 @@ static void *flt_ot_conf_hdr_init(size_t size, const char *id, int linenum, stru
 		retptr->cfg_line = linenum;
 
 		if (head != NULL)
-			LIST_ADDQ(head, &(retptr->list));
+			LIST_APPEND(head, &(retptr->list));
 	} else {
 		FLT_OT_ERR("out of memory");
 	}
@@ -680,7 +680,7 @@ void flt_ot_conf_tracer_free(struct flt_ot_conf_tracer **ptr)
 	}
 	FLT_OT_DBG(2, "- deleting proxy_log.logsrvs list %s", flt_ot_list_debug(&((*ptr)->proxy_log.logsrvs)));
 	list_for_each_entry_safe(logsrv, logsrvback, &((*ptr)->proxy_log.logsrvs), list) {
-		LIST_DEL(&(logsrv->list));
+		LIST_DELETE(&(logsrv->list));
 		FLT_OT_FREE(logsrv);
 	}
 	FLT_OT_LIST_DESTROY(ph_group, &((*ptr)->ph_groups));

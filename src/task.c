@@ -92,7 +92,7 @@ void task_kill(struct task *t)
 			thr = my_ffsl(t->thread_mask) - 1;
 
 			/* Beware: tasks that have never run don't have their ->list empty yet! */
-			MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list,
+			MT_LIST_APPEND(&task_per_thread[thr].shared_tasklet_list,
 			             (struct mt_list *)&((struct tasklet *)t)->list);
 			_HA_ATOMIC_INC(&task_per_thread[thr].rq_total);
 			_HA_ATOMIC_INC(&task_per_thread[thr].tasks_in_list);
@@ -115,30 +115,30 @@ void __tasklet_wakeup_on(struct tasklet *tl, int thr)
 	if (likely(thr < 0)) {
 		/* this tasklet runs on the caller thread */
 		if (tl->state & TASK_HEAVY) {
-			LIST_ADDQ(&sched->tasklets[TL_HEAVY], &tl->list);
+			LIST_APPEND(&sched->tasklets[TL_HEAVY], &tl->list);
 			sched->tl_class_mask |= 1 << TL_HEAVY;
 		}
 		else if (tl->state & TASK_SELF_WAKING) {
-			LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
+			LIST_APPEND(&sched->tasklets[TL_BULK], &tl->list);
 			sched->tl_class_mask |= 1 << TL_BULK;
 		}
 		else if ((struct task *)tl == sched->current) {
 			_HA_ATOMIC_OR(&tl->state, TASK_SELF_WAKING);
-			LIST_ADDQ(&sched->tasklets[TL_BULK], &tl->list);
+			LIST_APPEND(&sched->tasklets[TL_BULK], &tl->list);
 			sched->tl_class_mask |= 1 << TL_BULK;
 		}
 		else if (sched->current_queue < 0) {
-			LIST_ADDQ(&sched->tasklets[TL_URGENT], &tl->list);
+			LIST_APPEND(&sched->tasklets[TL_URGENT], &tl->list);
 			sched->tl_class_mask |= 1 << TL_URGENT;
 		}
 		else {
-			LIST_ADDQ(&sched->tasklets[sched->current_queue], &tl->list);
+			LIST_APPEND(&sched->tasklets[sched->current_queue], &tl->list);
 			sched->tl_class_mask |= 1 << sched->current_queue;
 		}
 		_HA_ATOMIC_INC(&sched->rq_total);
 	} else {
 		/* this tasklet runs on a specific thread. */
-		MT_LIST_ADDQ(&task_per_thread[thr].shared_tasklet_list, (struct mt_list *)&tl->list);
+		MT_LIST_APPEND(&task_per_thread[thr].shared_tasklet_list, (struct mt_list *)&tl->list);
 		_HA_ATOMIC_INC(&task_per_thread[thr].rq_total);
 		if (sleeping_thread_mask & (1UL << thr)) {
 			_HA_ATOMIC_AND(&sleeping_thread_mask, ~(1UL << thr));
@@ -688,7 +688,7 @@ void process_runnable_tasks()
 	 * 100% due to rounding, this is not a problem. Note that while in
 	 * theory the sum cannot be NULL as we cannot get there without tasklets
 	 * to process, in practice it seldom happens when multiple writers
-	 * conflict and rollback on MT_LIST_TRY_ADDQ(shared_tasklet_list), causing
+	 * conflict and rollback on MT_LIST_TRY_APPEND(shared_tasklet_list), causing
 	 * a first MT_LIST_ISEMPTY() to succeed for thread_has_task() and the
 	 * one above to finally fail. This is extremely rare and not a problem.
 	 */
@@ -766,7 +766,7 @@ void process_runnable_tasks()
 			_HA_ATOMIC_DEC(&niced_tasks);
 
 		/* Add it to the local task list */
-		LIST_ADDQ(&tt->tasklets[TL_NORMAL], &((struct tasklet *)t)->list);
+		LIST_APPEND(&tt->tasklets[TL_NORMAL], &((struct tasklet *)t)->list);
 	}
 
 	/* release the rqueue lock */

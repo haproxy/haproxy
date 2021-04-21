@@ -4935,7 +4935,7 @@ void stats_register_module(struct stats_module *m)
 {
 	const uint8_t domain = stats_get_domain(m->domain_flags);
 
-	LIST_ADDQ(&stats_module_list[domain], &m->list);
+	LIST_APPEND(&stats_module_list[domain], &m->list);
 	stat_count[domain] += m->stats_count;
 }
 

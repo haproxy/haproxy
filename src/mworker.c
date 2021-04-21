@@ -184,7 +184,7 @@ void mworker_env_to_proc_list()
 			/* this is a process inherited from a reload that should be leaving */
 			child->options |= PROC_O_LEAVING;
 
-			LIST_ADDQ(&proc_list, &child->list);
+			LIST_APPEND(&proc_list, &child->list);
 		} else {
 			mworker_free_child(child);
 		}
@@ -276,7 +276,7 @@ restart_wait:
 			if (child->pid != exitpid)
 				continue;
 
-			LIST_DEL(&child->list);
+			LIST_DELETE(&child->list);
 			close(child->ipc_fd[0]);
 			childfound = 1;
 			break;

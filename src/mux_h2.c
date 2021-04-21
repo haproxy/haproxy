@@ -806,11 +806,11 @@ static inline struct buffer *h2_get_buf(struct h2c *h2c, struct buffer *bptr)
 {
 	struct buffer *buf = NULL;
 
-	if (likely(!LIST_ADDED(&h2c->buf_wait.list)) &&
+	if (likely(!LIST_INLIST(&h2c->buf_wait.list)) &&
 	    unlikely((buf = b_alloc(bptr)) == NULL)) {
 		h2c->buf_wait.target = h2c;
 		h2c->buf_wait.wakeup_cb = h2_buf_available;
-		LIST_ADDQ(&ti->buffer_wq, &h2c->buf_wait.list);
+		LIST_APPEND(&ti->buffer_wq, &h2c->buf_wait.list);
 	}
 	return buf;
 }
@@ -1074,7 +1074,7 @@ static void h2_release(struct h2c *h2c)
 		TRACE_DEVEL("freeing h2c", H2_EV_H2C_END, conn);
 		hpack_dht_free(h2c->ddht);
 
-		if (LIST_ADDED(&h2c->buf_wait.list))
+		if (LIST_INLIST(&h2c->buf_wait.list))
 			LIST_DEL_INIT(&h2c->buf_wait.list);
 
 		h2_release_buf(h2c, &h2c->dbuf);
@@ -2125,7 +2125,7 @@ static void h2c_unblock_sfctl(struct h2c *h2c)
 			LIST_DEL_INIT(&h2s->list);
 			if ((h2s->subs && h2s->subs->events & SUB_RETRY_SEND) ||
 			    h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW))
-				LIST_ADDQ(&h2c->send_list, &h2s->list);
+				LIST_APPEND(&h2c->send_list, &h2s->list);
 		}
 		node = eb32_next(node);
 	}
@@ -2478,7 +2478,7 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 			LIST_DEL_INIT(&h2s->list);
 			if ((h2s->subs && h2s->subs->events & SUB_RETRY_SEND) ||
 			    h2s->flags & (H2_SF_WANT_SHUTR|H2_SF_WANT_SHUTW))
-				LIST_ADDQ(&h2c->send_list, &h2s->list);
+				LIST_APPEND(&h2c->send_list, &h2s->list);
 		}
 	}
 	else {
@@ -4274,7 +4274,7 @@ static void h2_detach(struct conn_stream *cs)
 				}
 				else if (!h2c->conn->hash_node->node.node.leaf_p &&
 					 h2_avail_streams(h2c->conn) > 0 && objt_server(h2c->conn->target) &&
-					 !LIST_ADDED(&h2c->conn->session_list)) {
+					 !LIST_INLIST(&h2c->conn->session_list)) {
 					ebmb_insert(&__objt_server(h2c->conn->target)->per_thr[tid].avail_conns,
 					            &h2c->conn->hash_node->node,
 					            sizeof(h2c->conn->hash_node->hash));
@@ -4361,11 +4361,11 @@ add_to_list:
 	 * again.
 	 */
 	h2s->flags |= H2_SF_WANT_SHUTR;
-	if (!LIST_ADDED(&h2s->list)) {
+	if (!LIST_INLIST(&h2s->list)) {
 		if (h2s->flags & H2_SF_BLK_MFCTL)
-			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
+			LIST_APPEND(&h2c->fctl_list, &h2s->list);
 		else if (h2s->flags & (H2_SF_BLK_MBUSY|H2_SF_BLK_MROOM))
-			LIST_ADDQ(&h2c->send_list, &h2s->list);
+			LIST_APPEND(&h2c->send_list, &h2s->list);
 	}
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2c->conn, h2s);
 	return;
@@ -4436,11 +4436,11 @@ static void h2_do_shutw(struct h2s *h2s)
 	 * again.
 	 */
 	h2s->flags |= H2_SF_WANT_SHUTW;
-	if (!LIST_ADDED(&h2s->list)) {
+	if (!LIST_INLIST(&h2s->list)) {
 		if (h2s->flags & H2_SF_BLK_MFCTL)
-			LIST_ADDQ(&h2c->fctl_list, &h2s->list);
+			LIST_APPEND(&h2c->fctl_list, &h2s->list);
 		else if (h2s->flags & (H2_SF_BLK_MBUSY|H2_SF_BLK_MROOM))
-			LIST_ADDQ(&h2c->send_list, &h2s->list);
+			LIST_APPEND(&h2c->send_list, &h2s->list);
 	}
 	TRACE_LEAVE(H2_EV_STRM_SHUT, h2c->conn, h2s);
 	return;
@@ -5765,9 +5765,9 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 
 	if (h2s_mws(h2s) <= 0) {
 		h2s->flags |= H2_SF_BLK_SFCTL;
-		if (LIST_ADDED(&h2s->list))
+		if (LIST_INLIST(&h2s->list))
 			LIST_DEL_INIT(&h2s->list);
-		LIST_ADDQ(&h2c->blocked_list, &h2s->list);
+		LIST_APPEND(&h2c->blocked_list, &h2s->list);
 		TRACE_STATE("stream window <=0, flow-controlled", H2_EV_TX_FRAME|H2_EV_TX_DATA|H2_EV_H2S_FCTL, h2c->conn, h2s);
 		goto end;
 	}
@@ -6151,11 +6151,11 @@ static int h2_subscribe(struct conn_stream *cs, int event_type, struct wait_even
 	if (event_type & SUB_RETRY_SEND) {
 		TRACE_DEVEL("subscribe(send)", H2_EV_STRM_SEND, h2c->conn, h2s);
 		if (!(h2s->flags & H2_SF_BLK_SFCTL) &&
-		    !LIST_ADDED(&h2s->list)) {
+		    !LIST_INLIST(&h2s->list)) {
 			if (h2s->flags & H2_SF_BLK_MFCTL)
-				LIST_ADDQ(&h2c->fctl_list, &h2s->list);
+				LIST_APPEND(&h2c->fctl_list, &h2s->list);
 			else
-				LIST_ADDQ(&h2c->send_list, &h2s->list);
+				LIST_APPEND(&h2c->send_list, &h2s->list);
 		}
 	}
 	TRACE_LEAVE(H2_EV_STRM_SEND|H2_EV_STRM_RECV, h2c->conn, h2s);

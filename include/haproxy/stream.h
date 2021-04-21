@@ -284,12 +284,12 @@ static inline void stream_inc_http_fail_ctr(struct stream *s)
 static inline void stream_add_srv_conn(struct stream *strm, struct server *srv)
 {
 	/* note: this inserts in reverse order but we do not care, it's only
-	 * used for massive kills (i.e. almost never). MT_LIST_ADD() is a bit
-	 * faster than MT_LIST_ADDQ under contention due to a faster recovery
-	 * from a conflict with an adjacent MT_LIST_DEL, and using it improves
+	 * used for massive kills (i.e. almost never). MT_LIST_INSERT() is a bit
+	 * faster than MT_LIST_APPEND under contention due to a faster recovery
+	 * from a conflict with an adjacent MT_LIST_DELETE, and using it improves
 	 * the performance by about 3% on 32-cores.
 	 */
-	MT_LIST_ADD(&srv->per_thr[tid].streams, &strm->by_srv);
+	MT_LIST_INSERT(&srv->per_thr[tid].streams, &strm->by_srv);
 	HA_ATOMIC_STORE(&strm->srv_conn, srv);
 }
 
@@ -300,7 +300,7 @@ static inline void stream_del_srv_conn(struct stream *strm)
 	if (!srv)
 		return;
 
-	MT_LIST_DEL(&strm->by_srv);
+	MT_LIST_DELETE(&strm->by_srv);
 	HA_ATOMIC_STORE(&strm->srv_conn, NULL);
 }
 

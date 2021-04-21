@@ -121,7 +121,7 @@ static void free_stick_rules(struct list *rules)
 	struct sticking_rule *rule, *ruleb;
 
 	list_for_each_entry_safe(rule, ruleb, rules, list) {
-		LIST_DEL(&rule->list);
+		LIST_DELETE(&rule->list);
 		free_acl_cond(rule->cond);
 		release_sample_expr(rule->expr);
 		free(rule);
@@ -176,7 +176,7 @@ void free_proxy(struct proxy *p)
 	free(p->conf.lfsd_file);
 
 	list_for_each_entry_safe(cond, condb, &p->mon_fail_cond, list) {
-		LIST_DEL(&cond->list);
+		LIST_DELETE(&cond->list);
 		prune_acl_cond(cond);
 		free(cond);
 	}
@@ -185,16 +185,16 @@ void free_proxy(struct proxy *p)
 	EXTRA_COUNTERS_FREE(p->extra_counters_be);
 
 	list_for_each_entry_safe(acl, aclb, &p->acl, list) {
-		LIST_DEL(&acl->list);
+		LIST_DELETE(&acl->list);
 		prune_acl(acl);
 		free(acl);
 	}
 
 	list_for_each_entry_safe(srule, sruleb, &p->server_rules, list) {
-		LIST_DEL(&srule->list);
+		LIST_DELETE(&srule->list);
 		prune_acl_cond(srule->cond);
 		list_for_each_entry_safe(lf, lfb, &srule->expr, list) {
-			LIST_DEL(&lf->list);
+			LIST_DELETE(&lf->list);
 			release_sample_expr(lf->expr);
 			free(lf->arg);
 			free(lf);
@@ -205,7 +205,7 @@ void free_proxy(struct proxy *p)
 	}
 
 	list_for_each_entry_safe(rule, ruleb, &p->switching_rules, list) {
-		LIST_DEL(&rule->list);
+		LIST_DELETE(&rule->list);
 		if (rule->cond) {
 			prune_acl_cond(rule->cond);
 			free(rule->cond);
@@ -215,40 +215,40 @@ void free_proxy(struct proxy *p)
 	}
 
 	list_for_each_entry_safe(rdr, rdrb, &p->redirect_rules, list) {
-		LIST_DEL(&rdr->list);
+		LIST_DELETE(&rdr->list);
 		if (rdr->cond) {
 			prune_acl_cond(rdr->cond);
 			free(rdr->cond);
 		}
 		free(rdr->rdr_str);
 		list_for_each_entry_safe(lf, lfb, &rdr->rdr_fmt, list) {
-			LIST_DEL(&lf->list);
+			LIST_DELETE(&lf->list);
 			free(lf);
 		}
 		free(rdr);
 	}
 
 	list_for_each_entry_safe(log, logb, &p->logsrvs, list) {
-		LIST_DEL(&log->list);
+		LIST_DELETE(&log->list);
 		free(log);
 	}
 
 	list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
-		LIST_DEL(&lf->list);
+		LIST_DELETE(&lf->list);
 		release_sample_expr(lf->expr);
 		free(lf->arg);
 		free(lf);
 	}
 
 	list_for_each_entry_safe(lf, lfb, &p->logformat_sd, list) {
-		LIST_DEL(&lf->list);
+		LIST_DELETE(&lf->list);
 		release_sample_expr(lf->expr);
 		free(lf->arg);
 		free(lf);
 	}
 
 	list_for_each_entry_safe(lf, lfb, &p->format_unique_id, list) {
-		LIST_DEL(&lf->list);
+		LIST_DELETE(&lf->list);
 		release_sample_expr(lf->expr);
 		free(lf->arg);
 		free(lf);
@@ -293,8 +293,8 @@ void free_proxy(struct proxy *p)
 	}/* end while(s) */
 
 	list_for_each_entry_safe(l, l_next, &p->conf.listeners, by_fe) {
-		LIST_DEL(&l->by_fe);
-		LIST_DEL(&l->by_bind);
+		LIST_DELETE(&l->by_fe);
+		LIST_DELETE(&l->by_bind);
 		free(l->name);
 		free(l->counters);
 
@@ -308,7 +308,7 @@ void free_proxy(struct proxy *p)
 			bind_conf->xprt->destroy_bind_conf(bind_conf);
 		free(bind_conf->file);
 		free(bind_conf->arg);
-		LIST_DEL(&bind_conf->by_fe);
+		LIST_DELETE(&bind_conf->by_fe);
 		free(bind_conf);
 	}
 
@@ -1684,7 +1684,7 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		memcpy(node, tmplogsrv, sizeof(struct logsrv));
 		node->ref = tmplogsrv->ref;
 		LIST_INIT(&node->list);
-		LIST_ADDQ(&curproxy->logsrvs, &node->list);
+		LIST_APPEND(&curproxy->logsrvs, &node->list);
 	}
 
 	curproxy->conf.uniqueid_format_string = defproxy->conf.uniqueid_format_string;

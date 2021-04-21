@@ -91,7 +91,7 @@ static int _51d_property_name_list(char **args, int section_type, struct proxy *
 	while (*(args[cur_arg])) {
 		name = calloc(1, sizeof(*name));
 		name->name = strdup(args[cur_arg]);
-		LIST_ADDQ(&global_51degrees.property_names, &name->list);
+		LIST_APPEND(&global_51degrees.property_names, &name->list);
 		++cur_arg;
 	}
 
@@ -730,7 +730,7 @@ static void deinit_51degrees(void)
 
 	ha_free(&global_51degrees.data_file_path);
 	list_for_each_entry_safe(_51d_prop_name, _51d_prop_nameb, &global_51degrees.property_names, list) {
-		LIST_DEL(&_51d_prop_name->list);
+		LIST_DELETE(&_51d_prop_name->list);
 		free(_51d_prop_name);
 	}
 

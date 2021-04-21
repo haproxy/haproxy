@@ -855,7 +855,7 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 		frm->type = QUIC_FT_CRYPTO;
 		frm->crypto.offset = cf_offset;
 		frm->crypto.len = cf_len;
-		LIST_ADDQ(&qel->pktns->tx.frms, &frm->list);
+		LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
 	}
 
 	return len == 0;
@@ -1156,7 +1156,7 @@ static inline void qc_treat_acked_tx_frm(struct quic_tx_frm *frm,
                                          struct quic_conn_ctx *ctx)
 {
 	TRACE_PROTO("Removing frame", QUIC_EV_CONN_PRSAFRM, ctx->conn, frm);
-	LIST_DEL(&frm->list);
+	LIST_DELETE(&frm->list);
 	pool_free(pool_head_quic_tx_frm, frm);
 }
 
@@ -1188,7 +1188,7 @@ static inline struct eb64_node *qc_ackrng_pkts(struct eb_root *pkts, unsigned in
 
 		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
 		*pkt_flags |= pkt->flags;
-		LIST_ADD(newly_acked_pkts, &pkt->list);
+		LIST_INSERT(newly_acked_pkts, &pkt->list);
 		TRACE_PROTO("Removing packet #", QUIC_EV_CONN_PRSAFRM, ctx->conn,, &pkt->pn_node.key);
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
 			qc_treat_acked_tx_frm(frm, ctx);
@@ -1207,8 +1207,8 @@ static inline void qc_treat_nacked_tx_frm(struct quic_tx_frm *frm,
                                           struct quic_conn_ctx *ctx)
 {
 	TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, ctx->conn, frm);
-	LIST_DEL(&frm->list);
-	LIST_ADD(&pktns->tx.frms, &frm->list);
+	LIST_DELETE(&frm->list);
+	LIST_INSERT(&pktns->tx.frms, &frm->list);
 }
 
 
@@ -1218,7 +1218,7 @@ static inline void free_quic_tx_pkts(struct list *pkts)
 	struct quic_tx_packet *pkt, *tmp;
 
 	list_for_each_entry_safe(pkt, tmp, pkts, list) {
-		LIST_DEL(&pkt->list);
+		LIST_DELETE(&pkt->list);
 		eb64_delete(&pkt->pn_node);
 		pool_free(pool_head_quic_tx_packet, pkt);
 	}
@@ -1267,7 +1267,7 @@ static inline void qc_treat_newly_acked_pkts(struct quic_conn_ctx *ctx,
 		ev.ack.acked = pkt->in_flight_len;
 		ev.ack.time_sent = pkt->time_sent;
 		quic_cc_event(&qc->path->cc, &ev);
-		LIST_DEL(&pkt->list);
+		LIST_DELETE(&pkt->list);
 		eb64_delete(&pkt->pn_node);
 		pool_free(pool_head_quic_tx_packet, pkt);
 	}
@@ -1302,7 +1302,7 @@ static inline void qc_release_lost_pkts(struct quic_pktns *pktns,
 		/* Treat the frames of this lost packet. */
 		list_for_each_entry_safe(frm, frmbak, &pkt->frms, list)
 			qc_treat_nacked_tx_frm(frm, pktns, ctx);
-		LIST_DEL(&pkt->list);
+		LIST_DELETE(&pkt->list);
 		if (!oldest_lost) {
 			oldest_lost = newest_lost = pkt;
 		}
@@ -1368,7 +1368,7 @@ static void qc_packet_loss_lookup(struct quic_pktns *pktns,
 		if (tick_is_le(time_sent, now_ms) ||
 			(int64_t)largest_acked_pn >= pkt->pn_node.key + QUIC_LOSS_PACKET_THRESHOLD) {
 			eb64_delete(&pkt->pn_node);
-			LIST_ADDQ(lost_pkts, &pkt->list);
+			LIST_APPEND(lost_pkts, &pkt->list);
 		}
 		else {
 			pktns->tx.loss_time = tick_first(pktns->tx.loss_time, loss_time_limit);
@@ -1851,7 +1851,7 @@ int qc_send_ppkts(struct quic_conn_ctx *ctx)
 			if (p->in_flight_len)
 				qc_set_timer(ctx);
 			TRACE_PROTO("sent pkt", QUIC_EV_CONN_SPPKTS, ctx->conn, p);
-			LIST_DEL(&p->list);
+			LIST_DELETE(&p->list);
 		}
 	}
 
@@ -1875,7 +1875,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *conn)
 			return 0;
 
 		frm->type = QUIC_FT_HANDSHAKE_DONE;
-		LIST_ADDQ(&conn->tx.frms_to_send, &frm->list);
+		LIST_APPEND(&conn->tx.frms_to_send, &frm->list);
 	}
 
 	for (i = 1; i < conn->rx_tps.active_connection_id_limit; i++) {
@@ -1887,7 +1887,7 @@ static int quic_build_post_handshake_frames(struct quic_conn *conn)
 			goto err;
 
 		quic_connection_id_to_frm_cpy(frm, cid);
-		LIST_ADDQ(&conn->tx.frms_to_send, &frm->list);
+		LIST_APPEND(&conn->tx.frms_to_send, &frm->list);
 	}
 
     return 1;
@@ -2982,7 +2982,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			 */
 			pkt->odcid_len = dcid_len;
 			/* Enqueue this packet. */
-			LIST_ADDQ(&l->rx.qpkts, &pkt->rx_list);
+			LIST_APPEND(&l->rx.qpkts, &pkt->rx_list);
 			/* Try to accept a new connection. */
 			listener_accept(l);
 			if (!qc->conn) {
@@ -3276,8 +3276,8 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
 		room -= cflen;
 		if (dlen == cf->crypto.len) {
 			/* <cf> CRYPTO data have been consumed. */
-			LIST_DEL(&cf->list);
-			LIST_ADDQ(&pkt->frms, &cf->list);
+			LIST_DELETE(&cf->list);
+			LIST_APPEND(&pkt->frms, &cf->list);
 		}
 		else {
 			struct quic_tx_frm *new_cf;
@@ -3291,7 +3291,7 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
 			new_cf->type = QUIC_FT_CRYPTO;
 			new_cf->crypto.len = dlen;
 			new_cf->crypto.offset = cf->crypto.offset;
-			LIST_ADDQ(&pkt->frms, &new_cf->list);
+			LIST_APPEND(&pkt->frms, &new_cf->list);
 			/* Consume <dlen> bytes of the current frame. */
 			cf->crypto.len -= dlen;
 			cf->crypto.offset += dlen;
@@ -3516,7 +3516,7 @@ static inline void free_quic_tx_packet(struct quic_tx_packet *pkt)
 	struct quic_tx_frm *frm, *frmbak;
 
 	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
-		LIST_DEL(&frm->list);
+		LIST_DELETE(&frm->list);
 		pool_free(pool_head_quic_tx_frm, frm);
 	}
 	pool_free(pool_head_quic_tx_packet, pkt);
@@ -3594,7 +3594,7 @@ static ssize_t qc_build_hdshk_pkt(struct q_buf *buf, struct quic_conn *qc, int p
 	/* Increment the number of bytes in <buf> buffer by the length of this packet. */
 	buf->data += pkt_len;
 	/* Attach this packet to <buf>. */
-	LIST_ADDQ(&buf->pkts, &pkt->list);
+	LIST_APPEND(&buf->pkts, &pkt->list);
 	TRACE_LEAVE(QUIC_EV_CONN_HPKT, qc->conn, pkt);
 
 	return pkt_len;
@@ -3712,8 +3712,8 @@ static ssize_t qc_do_build_phdshk_apkt(struct q_buf *wbuf,
 			break;
 		}
 
-		LIST_DEL(&frm->list);
-		LIST_ADDQ(&pkt->frms, &frm->list);
+		LIST_DELETE(&frm->list);
+		LIST_APPEND(&pkt->frms, &frm->list);
 		pos = ppos;
 	}
 
@@ -3792,7 +3792,7 @@ static ssize_t qc_build_phdshk_apkt(struct q_buf *wbuf, struct quic_conn *qc)
 	/* Increment the number of bytes in <buf> buffer by the length of this packet. */
 	wbuf->data += pkt_len;
 	/* Attach this packet to <buf>. */
-	LIST_ADDQ(&wbuf->pkts, &pkt->list);
+	LIST_APPEND(&wbuf->pkts, &pkt->list);
 
 	TRACE_LEAVE(QUIC_EV_CONN_PAPKT, qc->conn, pkt);
 

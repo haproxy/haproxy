@@ -604,11 +604,11 @@ static inline struct buffer *fcgi_get_buf(struct fcgi_conn *fconn, struct buffer
 {
 	struct buffer *buf = NULL;
 
-	if (likely(!LIST_ADDED(&fconn->buf_wait.list)) &&
+	if (likely(!LIST_INLIST(&fconn->buf_wait.list)) &&
 	    unlikely((buf = b_alloc(bptr)) == NULL)) {
 		fconn->buf_wait.target = fconn;
 		fconn->buf_wait.wakeup_cb = fcgi_buf_available;
-		LIST_ADDQ(&ti->buffer_wq, &fconn->buf_wait.list);
+		LIST_APPEND(&ti->buffer_wq, &fconn->buf_wait.list);
 	}
 	return buf;
 }
@@ -845,7 +845,7 @@ static void fcgi_release(struct fcgi_conn *fconn)
 
 		TRACE_DEVEL("freeing fconn", FCGI_EV_FCONN_END, conn);
 
-		if (LIST_ADDED(&fconn->buf_wait.list))
+		if (LIST_INLIST(&fconn->buf_wait.list))
 			LIST_DEL_INIT(&fconn->buf_wait.list);
 
 		fcgi_release_buf(fconn, &fconn->dbuf);
@@ -3641,7 +3641,7 @@ static void fcgi_detach(struct conn_stream *cs)
 			}
 			else if (!fconn->conn->hash_node->node.node.leaf_p &&
 				 fcgi_avail_streams(fconn->conn) > 0 && objt_server(fconn->conn->target) &&
-				 !LIST_ADDED(&fconn->conn->session_list)) {
+				 !LIST_INLIST(&fconn->conn->session_list)) {
 				ebmb_insert(&__objt_server(fconn->conn->target)->per_thr[tid].avail_conns,
 				            &fconn->conn->hash_node->node,
 				            sizeof(fconn->conn->hash_node->hash));
@@ -3708,9 +3708,9 @@ static void fcgi_do_shutr(struct fcgi_strm *fstrm)
 	 * automatically called via the shut_tl tasklet when there's room
 	 * again.
 	 */
-	if (!LIST_ADDED(&fstrm->send_list)) {
+	if (!LIST_INLIST(&fstrm->send_list)) {
 		if (fstrm->flags & (FCGI_SF_BLK_MBUSY|FCGI_SF_BLK_MROOM)) {
-			LIST_ADDQ(&fconn->send_list, &fstrm->send_list);
+			LIST_APPEND(&fconn->send_list, &fstrm->send_list);
 		}
 	}
 	fstrm->flags |= FCGI_SF_WANT_SHUTR;
@@ -3764,9 +3764,9 @@ static void fcgi_do_shutw(struct fcgi_strm *fstrm)
 	 * automatically called via the shut_tl tasklet when there's room
 	 * again.
 	 */
-	if (!LIST_ADDED(&fstrm->send_list)) {
+	if (!LIST_INLIST(&fstrm->send_list)) {
 		if (fstrm->flags & (FCGI_SF_BLK_MBUSY|FCGI_SF_BLK_MROOM)) {
-			LIST_ADDQ(&fconn->send_list, &fstrm->send_list);
+			LIST_APPEND(&fconn->send_list, &fstrm->send_list);
 		}
 	}
 	fstrm->flags |= FCGI_SF_WANT_SHUTW;
@@ -3859,8 +3859,8 @@ static int fcgi_subscribe(struct conn_stream *cs, int event_type, struct wait_ev
 
 	if (event_type & SUB_RETRY_SEND) {
 		TRACE_DEVEL("unsubscribe(send)", FCGI_EV_STRM_SEND, fconn->conn, fstrm);
-		if (!LIST_ADDED(&fstrm->send_list))
-			LIST_ADDQ(&fconn->send_list, &fstrm->send_list);
+		if (!LIST_INLIST(&fstrm->send_list))
+			LIST_APPEND(&fconn->send_list, &fstrm->send_list);
 	}
 	return 0;
 }

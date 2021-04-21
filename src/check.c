@@ -1273,11 +1273,11 @@ struct buffer *check_get_buf(struct check *check, struct buffer *bptr)
 {
 	struct buffer *buf = NULL;
 
-	if (likely(!LIST_ADDED(&check->buf_wait.list)) &&
+	if (likely(!LIST_INLIST(&check->buf_wait.list)) &&
 	    unlikely((buf = b_alloc(bptr)) == NULL)) {
 		check->buf_wait.target = check;
 		check->buf_wait.wakeup_cb = check_buf_available;
-		LIST_ADDQ(&ti->buffer_wq, &check->buf_wait.list);
+		LIST_APPEND(&ti->buffer_wq, &check->buf_wait.list);
 	}
 	return buf;
 }
@@ -1701,7 +1701,7 @@ static int init_srv_agent_check(struct server *srv)
 		}
 		chk->action = TCPCHK_ACT_CONNECT;
 		chk->connect.options = (TCPCHK_OPT_DEFAULT_CONNECT|TCPCHK_OPT_IMPLICIT);
-		LIST_ADD(srv->agent.tcpcheck_rules->list, &chk->list);
+		LIST_INSERT(srv->agent.tcpcheck_rules->list, &chk->list);
 	}
 
 
@@ -1874,7 +1874,7 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 		goto error;
 	}
 	chk->index = 0;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
 	chk = parse_tcpcheck_expect((char *[]){"tcp-check", "expect", "custom", ""},
 		                    1, curpx, &rs->rules, TCPCHK_RULES_AGENT_CHK,
@@ -1885,7 +1885,7 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 	}
 	chk->expect.custom = tcpcheck_agent_expect_reply;
 	chk->index = 1;
-	LIST_ADDQ(&rs->rules, &chk->list);
+	LIST_APPEND(&rs->rules, &chk->list);
 
   ruleset_found:
 	rules->list = &rs->rules;
@@ -1986,7 +1986,7 @@ int set_srv_agent_send(struct server *srv, const char *send)
 	var->data.u.str.area = str;
 	var->data.u.str.data = strlen(str);
 	LIST_INIT(&var->list);
-	LIST_ADDQ(&rules->preset_vars, &var->list);
+	LIST_APPEND(&rules->preset_vars, &var->list);
 
 	return 1;
 

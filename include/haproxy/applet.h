@@ -87,7 +87,7 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
 static inline void __appctx_free(struct appctx *appctx)
 {
 	task_destroy(appctx->t);
-	if (LIST_ADDED(&appctx->buffer_wait.list))
+	if (LIST_INLIST(&appctx->buffer_wait.list))
 		LIST_DEL_INIT(&appctx->buffer_wait.list);
 
 	pool_free(pool_head_appctx, appctx);

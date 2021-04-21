@@ -448,11 +448,11 @@ static inline struct buffer *h1_get_buf(struct h1c *h1c, struct buffer *bptr)
 {
 	struct buffer *buf = NULL;
 
-	if (likely(!LIST_ADDED(&h1c->buf_wait.list)) &&
+	if (likely(!LIST_INLIST(&h1c->buf_wait.list)) &&
 	    unlikely((buf = b_alloc(bptr)) == NULL)) {
 		h1c->buf_wait.target = h1c;
 		h1c->buf_wait.wakeup_cb = h1_buf_available;
-		LIST_ADDQ(&ti->buffer_wq, &h1c->buf_wait.list);
+		LIST_APPEND(&ti->buffer_wq, &h1c->buf_wait.list);
 	}
 	return buf;
 }
@@ -913,7 +913,7 @@ static void h1_release(struct h1c *h1c)
 		}
 
 
-		if (LIST_ADDED(&h1c->buf_wait.list))
+		if (LIST_INLIST(&h1c->buf_wait.list))
 			LIST_DEL_INIT(&h1c->buf_wait.list);
 
 		h1_release_buf(h1c, &h1c->ibuf);

@@ -46,7 +46,7 @@ void email_alert_free(struct email_alert *alert)
 
 	if (alert->rules.list) {
 		list_for_each_entry_safe(rule, back, alert->rules.list, list) {
-			LIST_DEL(&rule->list);
+			LIST_DELETE(&rule->list);
 			free_tcpcheck(rule, 1);
 		}
 		free_tcpcheck_vars(&alert->rules.preset_vars);
@@ -74,7 +74,7 @@ static struct task *process_email_alert(struct task *t, void *context, unsigned 
 			}
 
 			alert = LIST_NEXT(&q->email_alerts, typeof(alert), list);
-			LIST_DEL(&alert->list);
+			LIST_DELETE(&alert->list);
 			t->expire             = now_ms;
 			check->tcpcheck_rules = &alert->rules;
 			check->status         = HCHK_STATUS_INI;
@@ -189,7 +189,7 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 	tcpcheck->action       = TCPCHK_ACT_CONNECT;
 	tcpcheck->comment      = NULL;
 
-	LIST_ADDQ(alert->rules.list, &tcpcheck->list);
+	LIST_APPEND(alert->rules.list, &tcpcheck->list);
 
 	if (!add_tcpcheck_expect_str(&alert->rules, "220 "))
 		goto error;
@@ -269,7 +269,7 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 
 	HA_SPIN_LOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	task_wakeup(check->task, TASK_WOKEN_MSG);
-	LIST_ADDQ(&q->email_alerts, &alert->list);
+	LIST_APPEND(&q->email_alerts, &alert->list);
 	HA_SPIN_UNLOCK(EMAIL_ALERTS_LOCK, &q->lock);
 	return 1;
 

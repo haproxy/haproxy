@@ -78,7 +78,7 @@ struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos)
 	if (new) {
 		new->arg = arg;
 		new->arg_pos = pos;
-		LIST_ADDQ(&orig->list, &new->list);
+		LIST_APPEND(&orig->list, &new->list);
 	}
 	return new;
 }

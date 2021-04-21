@@ -1163,7 +1163,7 @@ void pat_prune_gen(struct pattern_expr *expr)
 	struct pattern_list *pat, *tmp;
 
 	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
-		LIST_DEL(&pat->list);
+		LIST_DELETE(&pat->list);
 		pat_unlink_from_head(&pat->pat.ref->list_head, &pat->from_ref);
 		if (pat->pat.sflags & PAT_SF_REGFREE)
 			regex_free(pat->pat.ptr.ptr);
@@ -1200,7 +1200,7 @@ int pat_idx_list_val(struct pattern_expr *expr, struct pattern *pat, char **err)
 	memcpy(&patl->pat, pat, sizeof(*pat));
 
 	/* chain pattern in the expression */
-	LIST_ADDQ(&expr->patterns, &patl->list);
+	LIST_APPEND(&expr->patterns, &patl->list);
 	/* and from the reference */
 	patl->from_ref = pat->ref->list_head;
 	pat->ref->list_head = &patl->from_ref;
@@ -1232,7 +1232,7 @@ int pat_idx_list_ptr(struct pattern_expr *expr, struct pattern *pat, char **err)
 	memcpy(patl->pat.ptr.ptr, pat->ptr.ptr, pat->len);
 
 	/* chain pattern in the expression */
-	LIST_ADDQ(&expr->patterns, &patl->list);
+	LIST_APPEND(&expr->patterns, &patl->list);
 	/* and from the reference */
 	patl->from_ref = pat->ref->list_head;
 	pat->ref->list_head = &patl->from_ref;
@@ -1265,7 +1265,7 @@ int pat_idx_list_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	patl->pat.ptr.str[patl->pat.len] = '\0';
 
 	/* chain pattern in the expression */
-	LIST_ADDQ(&expr->patterns, &patl->list);
+	LIST_APPEND(&expr->patterns, &patl->list);
 	/* and from the reference */
 	patl->from_ref = pat->ref->list_head;
 	pat->ref->list_head = &patl->from_ref;
@@ -1298,7 +1298,7 @@ int pat_idx_list_reg_cap(struct pattern_expr *expr, struct pattern *pat, int cap
 	}
 
 	/* chain pattern in the expression */
-	LIST_ADDQ(&expr->patterns, &patl->list);
+	LIST_APPEND(&expr->patterns, &patl->list);
 	/* and from the reference */
 	patl->from_ref = pat->ref->list_head;
 	pat->ref->list_head = &patl->from_ref;
@@ -1506,7 +1506,7 @@ void pat_delete_gen(struct pat_ref *ref, struct pat_ref_elt *elt)
 		BUG_ON(pat->pat.ref != elt);
 
 		/* Delete and free entry. */
-		LIST_DEL(&pat->list);
+		LIST_DELETE(&pat->list);
 		if (pat->pat.sflags & PAT_SF_REGFREE)
 			regex_free(pat->pat.ptr.reg);
 		else
@@ -1597,10 +1597,10 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
 	 * not relink them if this elt was the last one in the list.
 	 */
 	list_for_each_entry_safe(bref, back, &elt->back_refs, users) {
-		LIST_DEL(&bref->users);
+		LIST_DELETE(&bref->users);
 		LIST_INIT(&bref->users);
 		if (elt->list.n != &ref->head)
-			LIST_ADDQ(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
+			LIST_APPEND(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
 		bref->ref = elt->list.n;
 	}
 
@@ -1613,7 +1613,7 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt)
 	list_for_each_entry(expr, &ref->pat, list)
 		HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &expr->lock);
 
-	LIST_DEL(&elt->list);
+	LIST_DELETE(&elt->list);
 	free(elt->sample);
 	free(elt->pattern);
 	free(elt);
@@ -1823,7 +1823,7 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 	LIST_INIT(&ref->head);
 	LIST_INIT(&ref->pat);
 	HA_SPIN_INIT(&ref->lock);
-	LIST_ADDQ(&pattern_reference, &ref->list);
+	LIST_APPEND(&pattern_reference, &ref->list);
 
 	return ref;
 }
@@ -1859,7 +1859,7 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 	LIST_INIT(&ref->head);
 	LIST_INIT(&ref->pat);
 	HA_SPIN_INIT(&ref->lock);
-	LIST_ADDQ(&pattern_reference, &ref->list);
+	LIST_APPEND(&pattern_reference, &ref->list);
 
 	return ref;
 }
@@ -1893,7 +1893,7 @@ struct pat_ref_elt *pat_ref_append(struct pat_ref *ref, const char *pattern, con
 	LIST_INIT(&elt->back_refs);
 	elt->list_head = NULL;
 	elt->tree_head = NULL;
-	LIST_ADDQ(&ref->head, &elt->list);
+	LIST_APPEND(&ref->head, &elt->list);
 	return elt;
  fail:
 	if (elt)
@@ -2052,17 +2052,17 @@ int pat_ref_purge_older(struct pat_ref *ref, unsigned int oldest, int budget)
 		 * not relink them if this elt was the last one in the list.
 		 */
 		list_for_each_entry_safe(bref, bref_bck, &elt->back_refs, users) {
-			LIST_DEL(&bref->users);
+			LIST_DELETE(&bref->users);
 			LIST_INIT(&bref->users);
 			if (elt->list.n != &ref->head)
-				LIST_ADDQ(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
+				LIST_APPEND(&LIST_ELEM(elt->list.n, typeof(elt), list)->back_refs, &bref->users);
 			bref->ref = elt->list.n;
 		}
 
 		/* delete the storage for all representations of this pattern. */
 		pat_delete_gen(ref, elt);
 
-		LIST_DEL(&elt->list);
+		LIST_DELETE(&elt->list);
 		free(elt->pattern);
 		free(elt->sample);
 		free(elt);
@@ -2107,15 +2107,15 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
 			bref->ref = NULL;
 		}
 		pat_delete_gen(ref, elt);
-		LIST_DEL(&elt->list);
+		LIST_DELETE(&elt->list);
 		free(elt->pattern);
 		free(elt->sample);
 		free(elt);
 	}
 
 	/* switch pat_ret_elt lists */
-	LIST_ADD(&replace->head, &ref->head);
-	LIST_DEL(&replace->head);
+	LIST_INSERT(&replace->head, &ref->head);
+	LIST_DELETE(&replace->head);
 
 	list_for_each_entry(expr, &ref->pat, list) {
 		list_for_each_entry(elt, &ref->head, list) {
@@ -2255,9 +2255,9 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 		/* This new pattern expression reference one of his heads. */
 		expr->pat_head = head;
 
-		/* Link with ref, or to self to facilitate LIST_DEL() */
+		/* Link with ref, or to self to facilitate LIST_DELETE() */
 		if (ref)
-			LIST_ADDQ(&ref->pat, &expr->list);
+			LIST_APPEND(&ref->pat, &expr->list);
 		else
 			LIST_INIT(&expr->list);
 
@@ -2281,7 +2281,7 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 	list->expr = expr;
 
 	/* Link the list element with the pattern_head. */
-	LIST_ADDQ(&head->head, &list->list);
+	LIST_APPEND(&head->head, &list->list);
 	return expr;
 }
 
@@ -2637,9 +2637,9 @@ void pattern_prune(struct pattern_head *head)
 	struct pattern_expr_list *list, *safe;
 
 	list_for_each_entry_safe(list, safe, &head->head, list) {
-		LIST_DEL(&list->list);
+		LIST_DELETE(&list->list);
 		if (list->do_free) {
-			LIST_DEL(&list->expr->list);
+			LIST_DELETE(&list->expr->list);
 			HA_RWLOCK_WRLOCK(PATEXP_LOCK, &list->expr->lock);
 			head->prune(list->expr);
 			HA_RWLOCK_WRUNLOCK(PATEXP_LOCK, &list->expr->lock);
@@ -2754,11 +2754,11 @@ int pattern_finalize_config(void)
 
 	/* Convert back to linked list */
 	for (i = 0; i < len; i++)
-		LIST_ADDQ(&pr, &arr[i]->list);
+		LIST_APPEND(&pr, &arr[i]->list);
 
 	/* swap root */
-	LIST_ADD(&pr, &pattern_reference);
-	LIST_DEL(&pr);
+	LIST_INSERT(&pr, &pattern_reference);
+	LIST_DELETE(&pr);
 
 	free(arr);
 	return 0;

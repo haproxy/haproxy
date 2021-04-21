@@ -397,13 +397,13 @@ static inline void _tasklet_wakeup_on(struct tasklet *tl, int thr, const char *f
 
 /* Try to remove a tasklet from the list. This call is inherently racy and may
  * only be performed on the thread that was supposed to dequeue this tasklet.
- * This way it is safe to call MT_LIST_DEL without first removing the
+ * This way it is safe to call MT_LIST_DELETE without first removing the
  * TASK_IN_LIST bit, which must absolutely be removed afterwards in case
  * another thread would want to wake this tasklet up in parallel.
  */
 static inline void tasklet_remove_from_tasklet_list(struct tasklet *t)
 {
-	if (MT_LIST_DEL((struct mt_list *)&t->list)) {
+	if (MT_LIST_DELETE((struct mt_list *)&t->list)) {
 		_HA_ATOMIC_AND(&t->state, ~TASK_IN_LIST);
 		_HA_ATOMIC_DEC(&task_per_thread[t->tid >= 0 ? t->tid : tid].rq_total);
 	}
@@ -531,7 +531,7 @@ static inline void task_destroy(struct task *t)
 /* Should only be called by the thread responsible for the tasklet */
 static inline void tasklet_free(struct tasklet *tl)
 {
-	if (MT_LIST_DEL((struct mt_list *)&tl->list))
+	if (MT_LIST_DELETE((struct mt_list *)&tl->list))
 		_HA_ATOMIC_DEC(&task_per_thread[tl->tid >= 0 ? tl->tid : tid].rq_total);
 
 #ifdef DEBUG_TASK
@@ -595,8 +595,8 @@ static inline struct notification *notification_new(struct list *purge, struct l
 	struct notification *com = pool_alloc(pool_head_notification);
 	if (!com)
 		return NULL;
-	LIST_ADDQ(purge, &com->purge_me);
-	LIST_ADDQ(event, &com->wake_me);
+	LIST_APPEND(purge, &com->purge_me);
+	LIST_APPEND(event, &com->wake_me);
 	HA_SPIN_INIT(&com->lock);
 	com->task = wakeup;
 	return com;
@@ -616,7 +616,7 @@ static inline void notification_purge(struct list *purge)
 	/* Delete all pending communication signals. */
 	list_for_each_entry_safe(com, back, purge, purge_me) {
 		HA_SPIN_LOCK(NOTIF_LOCK, &com->lock);
-		LIST_DEL(&com->purge_me);
+		LIST_DELETE(&com->purge_me);
 		if (!com->task) {
 			HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
 			pool_free(pool_head_notification, com);
@@ -642,7 +642,7 @@ static inline void notification_gc(struct list *purge)
 	list_for_each_entry_safe (com, back, purge, purge_me) {
 		if (com->task)
 			continue;
-		LIST_DEL(&com->purge_me);
+		LIST_DELETE(&com->purge_me);
 		pool_free(pool_head_notification, com);
 	}
 }
@@ -660,7 +660,7 @@ static inline void notification_wake(struct list *wake)
 	/* Wake task and delete all pending communication signals. */
 	list_for_each_entry_safe(com, back, wake, wake_me) {
 		HA_SPIN_LOCK(NOTIF_LOCK, &com->lock);
-		LIST_DEL(&com->wake_me);
+		LIST_DELETE(&com->wake_me);
 		if (!com->task) {
 			HA_SPIN_UNLOCK(NOTIF_LOCK, &com->lock);
 			pool_free(pool_head_notification, com);
@@ -682,7 +682,7 @@ static inline int notification_registered(struct list *wake)
 /* adds list item <item> to work list <work> and wake up the associated task */
 static inline void work_list_add(struct work_list *work, struct mt_list *item)
 {
-	MT_LIST_TRY_ADDQ(&work->head, item);
+	MT_LIST_TRY_APPEND(&work->head, item);
 	task_wakeup(work->task, TASK_WOKEN_OTHER);
 }
 

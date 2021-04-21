@@ -123,7 +123,7 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 	 * conn->owner that points to a dead session, but in this case the
 	 * element is not linked.
 	 */
-	if (!LIST_ADDED(&conn->session_list))
+	if (!LIST_INLIST(&conn->session_list))
 		return;
 
 	if (conn->flags & CO_FL_SESS_IDLE)
@@ -133,7 +133,7 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 	list_for_each_entry(srv_list, &sess->srv_list, srv_list) {
 		if (srv_list->target == conn->target) {
 			if (LIST_ISEMPTY(&srv_list->conn_list)) {
-				LIST_DEL(&srv_list->srv_list);
+				LIST_DELETE(&srv_list->srv_list);
 				pool_free(pool_head_sess_srv_list, srv_list);
 			}
 			break;
@@ -168,9 +168,9 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 			return 0;
 		srv_list->target = target;
 		LIST_INIT(&srv_list->conn_list);
-		LIST_ADDQ(&sess->srv_list, &srv_list->srv_list);
+		LIST_APPEND(&sess->srv_list, &srv_list->srv_list);
 	}
-	LIST_ADDQ(&srv_list->conn_list, &conn->session_list);
+	LIST_APPEND(&srv_list->conn_list, &conn->session_list);
 	return 1;
 }
 

@@ -1581,7 +1581,7 @@ static int parse_cache_rule(struct proxy *proxy, const char *name, struct act_ru
 	fconf->id = cache_store_flt_id;
 	fconf->conf = cconf;
 	fconf->ops  = &cache_ops;
-	LIST_ADDQ(&proxy->filter_configs, &fconf->list);
+	LIST_APPEND(&proxy->filter_configs, &fconf->list);
 
 	rule->arg.act.p[0] = cconf;
 	return 1;
@@ -2052,7 +2052,7 @@ int cfg_post_parse_section_cache()
 		/* add to the list of cache to init and reinit tmp_cache_config
 		 * for next cache section, if any.
 		 */
-		LIST_ADDQ(&caches_config, &tmp_cache_config->list);
+		LIST_APPEND(&caches_config, &tmp_cache_config->list);
 		tmp_cache_config = NULL;
 		return err_code;
 	}
@@ -2091,8 +2091,8 @@ int post_check_cache()
 		memcpy(shctx->data, cache_config, sizeof(struct cache));
 		cache = (struct cache *)shctx->data;
 		cache->entries = EB_ROOT;
-		LIST_ADDQ(&caches, &cache->list);
-		LIST_DEL(&cache_config->list);
+		LIST_APPEND(&caches, &cache->list);
+		LIST_DELETE(&cache_config->list);
 		free(cache_config);
 
 		/* Find all references for this cache in the existing filters
@@ -2511,7 +2511,7 @@ parse_cache_flt(char **args, int *cur_arg, struct proxy *px,
 		}
 
 		/* Remove the implicit filter. <cconf> is kept for the explicit one */
-		LIST_DEL(&f->list);
+		LIST_DELETE(&f->list);
 		free(f);
 		free(name);
 		break;

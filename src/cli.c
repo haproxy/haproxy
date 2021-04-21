@@ -338,7 +338,7 @@ struct cli_kw* cli_find_kw_exact(char **args)
 
 void cli_register_kw(struct cli_kw_list *kw_list)
 {
-	LIST_ADDQ(&cli_keywords.list, &kw_list->list);
+	LIST_APPEND(&cli_keywords.list, &kw_list->list);
 }
 
 

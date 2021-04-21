@@ -150,7 +150,7 @@ unsigned int var_clear(struct var *var)
 		ha_free(&var->data.u.meth.str.area);
 		size += var->data.u.meth.str.data;
 	}
-	LIST_DEL(&var->l);
+	LIST_DELETE(&var->l);
 	pool_free(var_pool, var);
 	size += sizeof(struct var);
 	return size;
@@ -373,7 +373,7 @@ static int sample_store(struct vars *vars, const char *name, struct sample *smp)
 		var = pool_alloc(var_pool);
 		if (!var)
 			return 0;
-		LIST_ADDQ(&vars->head, &var->l);
+		LIST_APPEND(&vars->head, &var->l);
 		var->name = name;
 	}
 

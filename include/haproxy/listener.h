@@ -194,7 +194,7 @@ static inline struct bind_conf *bind_conf_alloc(struct proxy *fe, const char *fi
 			goto err;
 	}
 
-	LIST_ADDQ(&fe->conf.bind, &bind_conf->by_fe);
+	LIST_APPEND(&fe->conf.bind, &bind_conf->by_fe);
 	bind_conf->settings.ux.uid = -1;
 	bind_conf->settings.ux.gid = -1;
 	bind_conf->settings.ux.mode = 0;

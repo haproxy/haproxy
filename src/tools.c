@@ -4427,7 +4427,7 @@ int list_append_word(struct list *li, const char *str, char **err)
 		goto fail_wl_s;
 	}
 
-	LIST_ADDQ(li, &wl->list);
+	LIST_APPEND(li, &wl->list);
 
 	return 1;
 

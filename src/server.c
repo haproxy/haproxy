@@ -233,7 +233,7 @@ static void srv_set_addr_desc(struct server *s)
  */
 void srv_register_keywords(struct srv_kw_list *kwl)
 {
-	LIST_ADDQ(&srv_keywords.list, &kwl->list);
+	LIST_APPEND(&srv_keywords.list, &kwl->list);
 }
 
 /* Return a pointer to the server keyword <kw>, or NULL if not found. If the
@@ -2151,7 +2151,7 @@ struct server *new_server(struct proxy *proxy)
 	srv->obj_type = OBJ_TYPE_SERVER;
 	srv->proxy = proxy;
 	srv->pendconns = EB_ROOT;
-	LIST_ADDQ(&servers_list, &srv->global_list);
+	LIST_APPEND(&servers_list, &srv->global_list);
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
 	srv->last_change = now.tv_sec;
@@ -2204,7 +2204,7 @@ void free_server(struct server *srv)
 	}
 	HA_SPIN_DESTROY(&srv->lock);
 
-	LIST_DEL(&srv->global_list);
+	LIST_DELETE(&srv->global_list);
 
 	EXTRA_COUNTERS_FREE(srv->extra_counters);
 
@@ -2313,7 +2313,7 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 #endif
 		free_check(&newsrv->agent);
 		free_check(&newsrv->check);
-		LIST_DEL(&newsrv->global_list);
+		LIST_DELETE(&newsrv->global_list);
 	}
 	free(newsrv);
 	return i - srv->tmpl_info.nb_low;
@@ -5045,7 +5045,7 @@ static int srv_migrate_conns_to_remove(struct eb_root *idle_tree, struct mt_list
 
 		hash_node = ebmb_entry(node, struct conn_hash_node, node);
 		eb_delete(node);
-		MT_LIST_ADDQ(toremove_list, &hash_node->conn->toremove_list);
+		MT_LIST_APPEND(toremove_list, &hash_node->conn->toremove_list);
 		i++;
 
 		node = next;

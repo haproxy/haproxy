@@ -53,7 +53,7 @@
 #define FLT_OT_RUN_ONCE(f)         do { static bool __f = 1; if (__f) { __f = 0; f; } } while (0)
 
 #define FLT_OT_LIST_ISVALID(a)     (((a) != NULL) && ((a)->n != NULL) && ((a)->p != NULL))
-#define FLT_OT_LIST_DEL(a)         do { if (FLT_OT_LIST_ISVALID(a)) LIST_DEL(a); } while (0)
+#define FLT_OT_LIST_DEL(a)         do { if (FLT_OT_LIST_ISVALID(a)) LIST_DELETE(a); } while (0)
 #define FLT_OT_LIST_DESTROY(t,h)                                                  \
 	do {                                                                      \
 		struct flt_ot_conf_##t *_ptr, *_back;                             \

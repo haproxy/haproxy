@@ -128,11 +128,11 @@ spoe_release_message(struct spoe_message *msg)
 	list_for_each_entry_safe(arg, argback, &msg->args, list) {
 		release_sample_expr(arg->expr);
 		free(arg->name);
-		LIST_DEL(&arg->list);
+		LIST_DELETE(&arg->list);
 		free(arg);
 	}
 	list_for_each_entry_safe(acl, aclback, &msg->acls, list) {
-		LIST_DEL(&acl->list);
+		LIST_DELETE(&acl->list);
 		prune_acl(acl);
 		free(acl);
 	}
@@ -169,11 +169,11 @@ spoe_release_agent(struct spoe_agent *agent)
 	free(agent->var_t_process);
 	free(agent->var_t_total);
 	list_for_each_entry_safe(msg, msgback, &agent->messages, list) {
-		LIST_DEL(&msg->list);
+		LIST_DELETE(&msg->list);
 		spoe_release_message(msg);
 	}
 	list_for_each_entry_safe(grp, grpback, &agent->groups, list) {
-		LIST_DEL(&grp->list);
+		LIST_DELETE(&grp->list);
 		spoe_release_group(grp);
 	}
 	if (agent->rt) {
@@ -1233,7 +1233,7 @@ spoe_release_appctx(struct appctx *appctx)
 	_HA_ATOMIC_DEC(&agent->counters.applets);
 	HA_SPIN_LOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
 	if (!LIST_ISEMPTY(&spoe_appctx->list)) {
-		LIST_DEL(&spoe_appctx->list);
+		LIST_DELETE(&spoe_appctx->list);
 		LIST_INIT(&spoe_appctx->list);
 	}
 	HA_SPIN_UNLOCK(SPOE_APPLET_LOCK, &agent->rt[tid].lock);
@@ -1259,7 +1259,7 @@ spoe_release_appctx(struct appctx *appctx)
 
 	/* Notify all waiting streams */
 	list_for_each_entry_safe(ctx, back, &spoe_appctx->waiting_queue, list) {
-		LIST_DEL(&ctx->list);
+		LIST_DELETE(&ctx->list);
 		LIST_INIT(&ctx->list);
 		_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
 		spoe_update_stat_time(&ctx->stats.tv_wait, &ctx->stats.t_waiting);
@@ -1289,7 +1289,7 @@ spoe_release_appctx(struct appctx *appctx)
 
 	/* If this was the last running applet, notify all waiting streams */
 	list_for_each_entry_safe(ctx, back, &agent->rt[tid].sending_queue, list) {
-		LIST_DEL(&ctx->list);
+		LIST_DELETE(&ctx->list);
 		LIST_INIT(&ctx->list);
 		_HA_ATOMIC_DEC(&agent->counters.nb_sending);
 		spoe_update_stat_time(&ctx->stats.tv_queue, &ctx->stats.t_queue);
@@ -1299,7 +1299,7 @@ spoe_release_appctx(struct appctx *appctx)
 		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
 	}
 	list_for_each_entry_safe(ctx, back, &agent->rt[tid].waiting_queue, list) {
-		LIST_DEL(&ctx->list);
+		LIST_DELETE(&ctx->list);
 		LIST_INIT(&ctx->list);
 		_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
 		spoe_update_stat_time(&ctx->stats.tv_wait, &ctx->stats.t_waiting);
@@ -1500,7 +1500,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 				goto abort_frag_frame;
 
 			spoe_release_buffer(&ctx->buffer, &ctx->buffer_wait);
-			LIST_DEL(&ctx->list);
+			LIST_DELETE(&ctx->list);
 			LIST_INIT(&ctx->list);
 			_HA_ATOMIC_DEC(&agent->counters.nb_sending);
 			spoe_update_stat_time(&ctx->stats.tv_queue, &ctx->stats.t_queue);
@@ -1520,7 +1520,7 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
 				goto abort_frag_frame;
 
 			spoe_release_buffer(&ctx->buffer, &ctx->buffer_wait);
-			LIST_DEL(&ctx->list);
+			LIST_DELETE(&ctx->list);
 			LIST_INIT(&ctx->list);
 			_HA_ATOMIC_DEC(&agent->counters.nb_sending);
 			spoe_update_stat_time(&ctx->stats.tv_queue, &ctx->stats.t_queue);
@@ -1546,16 +1546,16 @@ spoe_handle_sending_frame_appctx(struct appctx *appctx, int *skip)
   no_frag_frame_sent:
 	if (SPOE_APPCTX(appctx)->flags & SPOE_APPCTX_FL_ASYNC) {
 		appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
-		LIST_ADDQ(&agent->rt[tid].waiting_queue, &ctx->list);
+		LIST_APPEND(&agent->rt[tid].waiting_queue, &ctx->list);
 	}
 	else if (SPOE_APPCTX(appctx)->flags & SPOE_APPCTX_FL_PIPELINING) {
 		appctx->st0 = SPOE_APPCTX_ST_PROCESSING;
-		LIST_ADDQ(&SPOE_APPCTX(appctx)->waiting_queue, &ctx->list);
+		LIST_APPEND(&SPOE_APPCTX(appctx)->waiting_queue, &ctx->list);
 	}
 	else {
 		appctx->st0 = SPOE_APPCTX_ST_WAITING_SYNC_ACK;
 		*skip = 1;
-		LIST_ADDQ(&SPOE_APPCTX(appctx)->waiting_queue, &ctx->list);
+		LIST_APPEND(&SPOE_APPCTX(appctx)->waiting_queue, &ctx->list);
 	}
 	_HA_ATOMIC_INC(&agent->counters.nb_waiting);
 	ctx->stats.tv_wait = now;
@@ -1611,7 +1611,7 @@ spoe_handle_receiving_frame_appctx(struct appctx *appctx, int *skip)
 			break;
 
 		default:
-			LIST_DEL(&ctx->list);
+			LIST_DELETE(&ctx->list);
 			LIST_INIT(&ctx->list);
 			_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
 			spoe_update_stat_time(&ctx->stats.tv_wait, &ctx->stats.t_waiting);
@@ -2008,7 +2008,7 @@ spoe_create_appctx(struct spoe_config *conf)
 	strm->res.flags |= CF_READ_DONTWAIT;
 
 	HA_SPIN_LOCK(SPOE_APPLET_LOCK, &conf->agent->rt[tid].lock);
-	LIST_ADDQ(&conf->agent->rt[tid].applets, &SPOE_APPCTX(appctx)->list);
+	LIST_APPEND(&conf->agent->rt[tid].applets, &SPOE_APPCTX(appctx)->list);
 	HA_SPIN_UNLOCK(SPOE_APPLET_LOCK, &conf->agent->rt[tid].lock);
 	_HA_ATOMIC_INC(&conf->agent->counters.applets);
 
@@ -2101,7 +2101,7 @@ spoe_queue_context(struct spoe_context *ctx)
 	ctx->stats.tv_queue = now;
 	if (ctx->spoe_appctx)
 		return 1;
-	LIST_ADDQ(&agent->rt[tid].sending_queue, &ctx->list);
+	LIST_APPEND(&agent->rt[tid].sending_queue, &ctx->list);
 
 	SPOE_PRINTF(stderr, "%d.%06d [SPOE/%-15s] %s: stream=%p"
 		    " - Add stream in sending queue"
@@ -2624,7 +2624,7 @@ spoe_stop_processing(struct spoe_agent *agent, struct spoe_context *ctx)
 		else
 			_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
 
-		LIST_DEL(&ctx->list);
+		LIST_DELETE(&ctx->list);
 		LIST_INIT(&ctx->list);
 	}
 }
@@ -2833,20 +2833,20 @@ spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 	if (buf->size)
 		return 1;
 
-	if (LIST_ADDED(&buffer_wait->list))
+	if (LIST_INLIST(&buffer_wait->list))
 		LIST_DEL_INIT(&buffer_wait->list);
 
 	if (b_alloc(buf))
 		return 1;
 
-	LIST_ADDQ(&ti->buffer_wq, &buffer_wait->list);
+	LIST_APPEND(&ti->buffer_wq, &buffer_wait->list);
 	return 0;
 }
 
 static void
 spoe_release_buffer(struct buffer *buf, struct buffer_wait *buffer_wait)
 {
-	if (LIST_ADDED(&buffer_wait->list))
+	if (LIST_INLIST(&buffer_wait->list))
 		LIST_DEL_INIT(&buffer_wait->list);
 
 	/* Release the buffer if needed */
@@ -3439,7 +3439,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 			ph->id = strdup(args[cur_arg]);
-			LIST_ADDQ(&curmphs, &ph->list);
+			LIST_APPEND(&curmphs, &ph->list);
 			cur_arg++;
 		}
 	}
@@ -3463,7 +3463,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 			ph->id = strdup(args[cur_arg]);
-			LIST_ADDQ(&curgphs, &ph->list);
+			LIST_APPEND(&curgphs, &ph->list);
 			cur_arg++;
 		}
 	}
@@ -3766,7 +3766,7 @@ cfg_parse_spoe_agent(const char *file, int linenum, char **args, int kwm)
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
-			LIST_ADDQ(&curvars, &vph->list);
+			LIST_APPEND(&curvars, &vph->list);
 			cur_arg++;
 		}
 	}
@@ -3841,7 +3841,7 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 		curgrp->conf.line = linenum;
 		LIST_INIT(&curgrp->phs);
 		LIST_INIT(&curgrp->messages);
-		LIST_ADDQ(&curgrps, &curgrp->list);
+		LIST_APPEND(&curgrps, &curgrp->list);
 	}
 	else if (strcmp(args[0], "messages") == 0) {
 		int cur_arg = 1;
@@ -3863,7 +3863,7 @@ cfg_parse_spoe_group(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 			ph->id = strdup(args[cur_arg]);
-			LIST_ADDQ(&curgrp->phs, &ph->list);
+			LIST_APPEND(&curgrp->phs, &ph->list);
 			cur_arg++;
 		}
 	}
@@ -3937,7 +3937,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&curmsg->acls);
 		LIST_INIT(&curmsg->by_evt);
 		LIST_INIT(&curmsg->by_grp);
-		LIST_ADDQ(&curmsgs, &curmsg->list);
+		LIST_APPEND(&curmsgs, &curmsg->list);
 	}
 	else if (strcmp(args[0], "args") == 0) {
 		int cur_arg = 1;
@@ -3976,7 +3976,7 @@ cfg_parse_spoe_message(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 			curmsg->nargs++;
-			LIST_ADDQ(&curmsg->args, &arg->list);
+			LIST_APPEND(&curmsg->args, &arg->list);
 			cur_arg++;
 		}
 		curproxy->conf.args.file = NULL;
@@ -4342,7 +4342,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 				}
 
 				msg->agent = curagent;
-				LIST_ADDQ(&curagent->events[msg->event], &msg->by_evt);
+				LIST_APPEND(&curagent->events[msg->event], &msg->by_evt);
 				goto next_mph;
 			}
 		}
@@ -4359,8 +4359,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 		list_for_each_entry_safe(grp, grpback, &curgrps, list) {
 			if (strcmp(grp->id, ph->id) == 0) {
 				grp->agent = curagent;
-				LIST_DEL(&grp->list);
-				LIST_ADDQ(&curagent->groups, &grp->list);
+				LIST_DELETE(&grp->list);
+				LIST_APPEND(&curagent->groups, &grp->list);
 				goto next_aph;
 			}
 		}
@@ -4390,8 +4390,8 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 					 * them only if a rule use the corresponding SPOE group. */
 					msg->agent = curagent;
 					msg->group = grp;
-					LIST_DEL(&ph->list);
-					LIST_ADDQ(&grp->messages, &msg->by_grp);
+					LIST_DELETE(&ph->list);
+					LIST_APPEND(&grp->messages, &msg->by_grp);
 					goto next_mph_grp;
 				}
 			}
@@ -4423,16 +4423,16 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 	conf->agent_fe.options2 |= curpxopts2;
 
 	list_for_each_entry_safe(logsrv, logsrvback, &curlogsrvs, list) {
-		LIST_DEL(&logsrv->list);
-		LIST_ADDQ(&conf->agent_fe.logsrvs, &logsrv->list);
+		LIST_DELETE(&logsrv->list);
+		LIST_APPEND(&conf->agent_fe.logsrvs, &logsrv->list);
 	}
 
 	list_for_each_entry_safe(ph, phback, &curmphs, list) {
-		LIST_DEL(&ph->list);
+		LIST_DELETE(&ph->list);
 		spoe_release_placeholder(ph);
 	}
 	list_for_each_entry_safe(ph, phback, &curgphs, list) {
-		LIST_DEL(&ph->list);
+		LIST_DELETE(&ph->list);
 		spoe_release_placeholder(ph);
 	}
 	list_for_each_entry_safe(vph, vphback, &curvars, list) {
@@ -4451,12 +4451,12 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 			goto error;
 		}
 
-		LIST_DEL(&vph->list);
+		LIST_DELETE(&vph->list);
 		free(vph->name);
 		free(vph);
 	}
 	list_for_each_entry_safe(grp, grpback, &curgrps, list) {
-		LIST_DEL(&grp->list);
+		LIST_DELETE(&grp->list);
 		spoe_release_group(grp);
 	}
 	*cur_arg    = pos;
@@ -4468,28 +4468,28 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
  error:
 	spoe_release_agent(curagent);
 	list_for_each_entry_safe(ph, phback, &curmphs, list) {
-		LIST_DEL(&ph->list);
+		LIST_DELETE(&ph->list);
 		spoe_release_placeholder(ph);
 	}
 	list_for_each_entry_safe(ph, phback, &curgphs, list) {
-		LIST_DEL(&ph->list);
+		LIST_DELETE(&ph->list);
 		spoe_release_placeholder(ph);
 	}
 	list_for_each_entry_safe(vph, vphback, &curvars, list) {
-		LIST_DEL(&vph->list);
+		LIST_DELETE(&vph->list);
 		free(vph->name);
 		free(vph);
 	}
 	list_for_each_entry_safe(grp, grpback, &curgrps, list) {
-		LIST_DEL(&grp->list);
+		LIST_DELETE(&grp->list);
 		spoe_release_group(grp);
 	}
 	list_for_each_entry_safe(msg, msgback, &curmsgs, list) {
-		LIST_DEL(&msg->list);
+		LIST_DELETE(&msg->list);
 		spoe_release_message(msg);
 	}
 	list_for_each_entry_safe(logsrv, logsrvback, &curlogsrvs, list) {
-		LIST_DEL(&logsrv->list);
+		LIST_DELETE(&logsrv->list);
 		free(logsrv);
 	}
 	free(conf);

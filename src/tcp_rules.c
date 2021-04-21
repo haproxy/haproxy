@@ -45,22 +45,22 @@ struct list tcp_res_cont_keywords = LIST_HEAD_INIT(tcp_res_cont_keywords);
  */
 void tcp_req_conn_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_ADDQ(&tcp_req_conn_keywords, &kw_list->list);
+	LIST_APPEND(&tcp_req_conn_keywords, &kw_list->list);
 }
 
 void tcp_req_sess_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_ADDQ(&tcp_req_sess_keywords, &kw_list->list);
+	LIST_APPEND(&tcp_req_sess_keywords, &kw_list->list);
 }
 
 void tcp_req_cont_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_ADDQ(&tcp_req_cont_keywords, &kw_list->list);
+	LIST_APPEND(&tcp_req_cont_keywords, &kw_list->list);
 }
 
 void tcp_res_cont_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_ADDQ(&tcp_res_cont_keywords, &kw_list->list);
+	LIST_APPEND(&tcp_res_cont_keywords, &kw_list->list);
 }
 
 /*
@@ -1097,7 +1097,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 			warn++;
 		}
 
-		LIST_ADDQ(&curpx->tcp_rep.inspect_rules, &rule->list);
+		LIST_APPEND(&curpx->tcp_rep.inspect_rules, &rule->list);
 	}
 	else {
 		memprintf(err,
@@ -1213,7 +1213,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 		/* the following function directly emits the warning */
 		warnif_misplaced_tcp_cont(curpx, file, line, args[0]);
-		LIST_ADDQ(&curpx->tcp_req.inspect_rules, &rule->list);
+		LIST_APPEND(&curpx->tcp_req.inspect_rules, &rule->list);
 	}
 	else if (strcmp(args[1], "connection") == 0) {
 		arg++;
@@ -1258,7 +1258,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 		/* the following function directly emits the warning */
 		warnif_misplaced_tcp_conn(curpx, file, line, args[0]);
-		LIST_ADDQ(&curpx->tcp_req.l4_rules, &rule->list);
+		LIST_APPEND(&curpx->tcp_req.l4_rules, &rule->list);
 	}
 	else if (strcmp(args[1], "session") == 0) {
 		arg++;
@@ -1302,7 +1302,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 		/* the following function directly emits the warning */
 		warnif_misplaced_tcp_sess(curpx, file, line, args[0]);
-		LIST_ADDQ(&curpx->tcp_req.l5_rules, &rule->list);
+		LIST_APPEND(&curpx->tcp_req.l5_rules, &rule->list);
 	}
 	else {
 		if (curpx == defpx)

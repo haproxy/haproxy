@@ -116,7 +116,7 @@ static inline void action_kw_tcp_check_build_list(struct buffer *chk)
 
 static inline void tcp_check_keywords_register(struct action_kw_list *kw_list)
 {
-	LIST_ADDQ(&tcp_check_keywords.list, &kw_list->list);
+	LIST_APPEND(&tcp_check_keywords.list, &kw_list->list);
 }
 
 #endif /* _HAPROXY_TCPCHECK_H */

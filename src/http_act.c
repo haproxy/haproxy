@@ -51,7 +51,7 @@ static void release_http_action(struct act_rule *rule)
 	if (rule->arg.http.re)
 		regex_free(rule->arg.http.re);
 	list_for_each_entry_safe(lf, lfb, &rule->arg.http.fmt, list) {
-		LIST_DEL(&lf->list);
+		LIST_DELETE(&lf->list);
 		release_sample_expr(lf->expr);
 		free(lf->arg);
 		free(lf);
@@ -1744,7 +1744,7 @@ static void release_http_redir(struct act_rule *rule)
 	struct redirect_rule *redir;
 
 	redir = rule->arg.redir;
-	LIST_DEL(&redir->list);
+	LIST_DELETE(&redir->list);
 	if (redir->cond) {
 		prune_acl_cond(redir->cond);
 		free(redir->cond);
@@ -1752,7 +1752,7 @@ static void release_http_redir(struct act_rule *rule)
 	free(redir->rdr_str);
 	free(redir->cookie_str);
 	list_for_each_entry_safe(lf, lfb, &redir->rdr_fmt, list) {
-		LIST_DEL(&lf->list);
+		LIST_DELETE(&lf->list);
 		free(lf);
 	}
 	free(redir);
@@ -1876,14 +1876,14 @@ static void release_http_map(struct act_rule *rule)
 
 	free(rule->arg.map.ref);
 	list_for_each_entry_safe(lf, lfb, &rule->arg.map.key, list) {
-		LIST_DEL(&lf->list);
+		LIST_DELETE(&lf->list);
 		release_sample_expr(lf->expr);
 		free(lf->arg);
 		free(lf);
 	}
 	if (rule->action == 1) {
 		list_for_each_entry_safe(lf, lfb, &rule->arg.map.value, list) {
-			LIST_DEL(&lf->list);
+			LIST_DELETE(&lf->list);
 			release_sample_expr(lf->expr);
 			free(lf->arg);
 			free(lf);

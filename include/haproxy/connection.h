@@ -545,7 +545,7 @@ static inline void conn_free(struct connection *conn)
 {
 	/* If the connection is owned by the session, remove it from its list
 	 */
-	if (LIST_ADDED(&conn->session_list)) {
+	if (LIST_INLIST(&conn->session_list)) {
 		session_unown_conn(conn->owner, conn);
 	}
 	else if (!(conn->flags & CO_FL_PRIVATE)) {
@@ -559,7 +559,7 @@ static inline void conn_free(struct connection *conn)
 	 * already scheduled from cleaning but is freed before via another
 	 * call.
 	 */
-	MT_LIST_DEL(&conn->toremove_list);
+	MT_LIST_DELETE(&conn->toremove_list);
 
 	sockaddr_free(&conn->src);
 	sockaddr_free(&conn->dst);
@@ -904,13 +904,13 @@ static inline int conn_get_alpn(const struct connection *conn, const char **str,
 /* registers proto mux list <list>. Modifies the list element! */
 static inline void register_mux_proto(struct mux_proto_list *list)
 {
-	LIST_ADDQ(&mux_proto_list.list, &list->list);
+	LIST_APPEND(&mux_proto_list.list, &list->list);
 }
 
 /* unregisters proto mux list <list> */
 static inline void unregister_mux_proto(struct mux_proto_list *list)
 {
-	LIST_DEL(&list->list);
+	LIST_DELETE(&list->list);
 	LIST_INIT(&list->list);
 }
 

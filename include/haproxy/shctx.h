@@ -194,24 +194,24 @@ static inline void shctx_block_append_hot(struct shared_context *shctx,
                                           struct shared_block *s)
 {
 	shctx->nbav--;
-	LIST_DEL(&s->list);
-	LIST_ADD(head, &s->list);
+	LIST_DELETE(&s->list);
+	LIST_INSERT(head, &s->list);
 }
 
 static inline void shctx_block_set_hot(struct shared_context *shctx,
 				    struct shared_block *s)
 {
 	shctx->nbav--;
-	LIST_DEL(&s->list);
-	LIST_ADDQ(&shctx->hot, &s->list);
+	LIST_DELETE(&s->list);
+	LIST_APPEND(&shctx->hot, &s->list);
 }
 
 static inline void shctx_block_set_avail(struct shared_context *shctx,
 				      struct shared_block *s)
 {
 	shctx->nbav++;
-	LIST_DEL(&s->list);
-	LIST_ADDQ(&shctx->avail, &s->list);
+	LIST_DELETE(&s->list);
+	LIST_APPEND(&shctx->avail, &s->list);
 }
 
 #endif /* __HAPROXY_SHCTX_H */

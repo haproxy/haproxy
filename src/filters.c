@@ -89,7 +89,7 @@ static struct flt_kw_list flt_keywords = {
 void
 flt_register_keywords(struct flt_kw_list *kwl)
 {
-	LIST_ADDQ(&flt_keywords.list, &kwl->list);
+	LIST_APPEND(&flt_keywords.list, &kwl->list);
 }
 
 /*
@@ -238,7 +238,7 @@ parse_filter(char **args, int section_type, struct proxy *curpx,
 			goto error;
 		}
 
-		LIST_ADDQ(&curpx->filter_configs, &fconf->list);
+		LIST_APPEND(&curpx->filter_configs, &fconf->list);
 	}
 	return 0;
 
@@ -358,7 +358,7 @@ flt_deinit(struct proxy *proxy)
 	list_for_each_entry_safe(fconf, back, &proxy->filter_configs, list) {
 		if (fconf->ops->deinit)
 			fconf->ops->deinit(proxy, fconf);
-		LIST_DEL(&fconf->list);
+		LIST_DELETE(&fconf->list);
 		free(fconf);
 	}
 }
@@ -412,7 +412,7 @@ flt_stream_add_filter(struct stream *s, struct flt_conf *fconf, unsigned int fla
 		}
 	}
 
-	LIST_ADDQ(&strm_flt(s)->filters, &f->list);
+	LIST_APPEND(&strm_flt(s)->filters, &f->list);
 	strm_flt(s)->flags |= STRM_FLT_FL_HAS_FILTERS;
 	return 0;
 }
@@ -450,7 +450,7 @@ flt_stream_release(struct stream *s, int only_backend)
 		if (!only_backend || (filter->flags & FLT_FL_IS_BACKEND_FILTER)) {
 			if (FLT_OPS(filter)->detach)
 				FLT_OPS(filter)->detach(s, filter);
-			LIST_DEL(&filter->list);
+			LIST_DELETE(&filter->list);
 			pool_free(pool_head_filter, filter);
 		}
 	}

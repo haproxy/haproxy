@@ -44,10 +44,10 @@
 #define LIST_HEAD_INIT(l) { &l, &l }
 
 /* adds an element at the beginning of a list ; returns the element */
-#define LIST_ADD(lh, el) ({ (el)->n = (lh)->n; (el)->n->p = (lh)->n = (el); (el)->p = (lh); (el); })
+#define LIST_INSERT(lh, el) ({ (el)->n = (lh)->n; (el)->n->p = (lh)->n = (el); (el)->p = (lh); (el); })
 
 /* adds an element at the end of a list ; returns the element */
-#define LIST_ADDQ(lh, el) ({ (el)->p = (lh)->p; (el)->p->n = (lh)->p = (el); (el)->n = (lh); (el); })
+#define LIST_APPEND(lh, el) ({ (el)->p = (lh)->p; (el)->p->n = (lh)->p = (el); (el)->n = (lh); (el); })
 
 /* adds the contents of a list <old> at the beginning of another list <new>. The old list head remains untouched. */
 #define LIST_SPLICE(new, old) do {				     \
@@ -71,10 +71,10 @@
 	} while (0)
 
 /* removes an element from a list and returns it */
-#define LIST_DEL(el) ({ typeof(el) __ret = (el); (el)->n->p = (el)->p; (el)->p->n = (el)->n; (__ret); })
+#define LIST_DELETE(el) ({ typeof(el) __ret = (el); (el)->n->p = (el)->p; (el)->p->n = (el)->n; (__ret); })
 
 /* removes an element from a list, initializes it and returns it.
- * This is faster than LIST_DEL+LIST_INIT as we avoid reloading the pointers.
+ * This is faster than LIST_DELETE+LIST_INIT as we avoid reloading the pointers.
  */
 #define LIST_DEL_INIT(el) ({ \
 	typeof(el) __ret = (el);                        \
@@ -98,7 +98,7 @@
 /* checks if the list element <el> was added to a list or not. This only
  * works when detached elements are reinitialized (using LIST_DEL_INIT)
  */
-#define LIST_ADDED(el) ((el)->n != (el))
+#define LIST_INLIST(el) ((el)->n != (el))
 
 /* returns a pointer of type <pt> to a structure following the element
  * which contains list head <lh>, which is known as element <el> in
@@ -224,7 +224,7 @@
  * Returns 1 if we added the item, 0 otherwise (because it was already in a
  * list).
  */
-#define MT_LIST_TRY_ADD(_lh, _el)                                              \
+#define MT_LIST_TRY_INSERT(_lh, _el)                                              \
      ({                                                                    \
         int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
@@ -283,7 +283,7 @@
  * Returns 1 if we added the item, 0 otherwise (because it was already in a
  * list).
  */
-#define MT_LIST_TRY_ADDQ(_lh, _el)                                             \
+#define MT_LIST_TRY_APPEND(_lh, _el)                                             \
     ({                                                                     \
 	int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
@@ -341,7 +341,7 @@
  * Add an item at the beginning of a list.
  * It is assumed the element can't already be in a list, so it isn't checked.
  */
-#define MT_LIST_ADD(_lh, _el)                                              \
+#define MT_LIST_INSERT(_lh, _el)                                              \
      ({                                                                    \
         int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
@@ -374,7 +374,7 @@
  * Add an item at the end of a list.
  * It is assumed the element can't already be in a list, so it isn't checked
  */
-#define MT_LIST_ADDQ(_lh, _el)                                     \
+#define MT_LIST_APPEND(_lh, _el)                                     \
     ({                                                                     \
 	int _ret = 0;                                                      \
 	struct mt_list *lh = (_lh), *el = (_el);                           \
@@ -406,8 +406,8 @@
 /*
  * Detach a list from its head. A pointer to the first element is returned
  * and the list is closed. If the list was empty, NULL is returned. This may
- * exclusively be used with lists modified by MT_LIST_TRY_ADD/MT_LIST_TRY_ADDQ. This
- * is incompatible with MT_LIST_DEL run concurrently.
+ * exclusively be used with lists modified by MT_LIST_TRY_INSERT/MT_LIST_TRY_APPEND. This
+ * is incompatible with MT_LIST_DELETE run concurrently.
  * If there's at least one element, the next of the last element will always
  * be NULL.
  */
@@ -454,7 +454,7 @@
 /* Remove an item from a list.
  * Returns 1 if we removed the item, 0 otherwise (because it was in no list).
  */
-#define MT_LIST_DEL(_el)                                                   \
+#define MT_LIST_DELETE(_el)                                                   \
     ({                                                                     \
         int _ret = 0;                                                      \
 	struct mt_list *el = (_el);                                        \
@@ -589,7 +589,7 @@
 /* checks if the list element <el> was added to a list or not. This only
  * works when detached elements are reinitialized (using LIST_DEL_INIT)
  */
-#define MT_LIST_ADDED(el) ((el)->next != (el))
+#define MT_LIST_INLIST(el) ((el)->next != (el))
 
 /* Lock an element in the list, to be sure it won't be removed.
  * It needs to be synchronized somehow to be sure it's not removed
@@ -722,10 +722,10 @@
 	    p->next = n;                                                   \
     } while (0);
 
-/* Equivalent of MT_LIST_DEL(), to be used when parsing the list with mt_list_entry_for_each_safe().
+/* Equivalent of MT_LIST_DELETE(), to be used when parsing the list with mt_list_entry_for_each_safe().
  * It should be the element currently parsed (tmpelt1)
  */
-#define MT_LIST_DEL_SAFE(_el)                                              \
+#define MT_LIST_DELETE_SAFE(_el)                                              \
 	do {                                                               \
 		struct mt_list *el = (_el);                                \
 		(el)->prev = (el);                                         \
@@ -733,8 +733,8 @@
 		(_el) = NULL;                                              \
 	} while (0)
 
-/* Safe as MT_LIST_DEL_SAFE, but it won't reinit the element */
-#define MT_LIST_DEL_SAFE_NOINIT(_el)                                       \
+/* Safe as MT_LIST_DELETE_SAFE, but it won't reinit the element */
+#define MT_LIST_DELETE_SAFE_NOINIT(_el)                                       \
 	do {                                                               \
 		(_el) = NULL;                                              \
 	} while (0)
@@ -745,10 +745,10 @@
  * the list is passed in <list_head>. A temporary variable <back> of same type
  * as <item> is needed so that <item> may safely be deleted if needed.
  * tmpelt1 is a temporary struct mt_list *, and tmpelt2 is a temporary
- * struct mt_list, used internally, both are needed for MT_LIST_DEL_SAFE.
+ * struct mt_list, used internally, both are needed for MT_LIST_DELETE_SAFE.
  * Example: list_for_each_entry_safe(cur_acl, tmp, known_acl, list, elt1, elt2)
  * { ... };
- * If you want to remove the current element, please use MT_LIST_DEL_SAFE.
+ * If you want to remove the current element, please use MT_LIST_DELETE_SAFE.
  */
 #define mt_list_for_each_entry_safe(item, list_head, member, tmpelt, tmpelt2)           \
         for ((tmpelt) = NULL; (tmpelt) != MT_LIST_BUSY; ({                    \

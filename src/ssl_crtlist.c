@@ -177,8 +177,8 @@ void crtlist_entry_free(struct crtlist_entry *entry)
 		return;
 
 	ebpt_delete(&entry->node);
-	LIST_DEL(&entry->by_crtlist);
-	LIST_DEL(&entry->by_ckch_store);
+	LIST_DELETE(&entry->by_crtlist);
+	LIST_DELETE(&entry->by_ckch_store);
 	crtlist_free_filters(entry->filters);
 	ssl_sock_free_ssl_conf(entry->ssl_conf);
 	free(entry->ssl_conf);
@@ -240,7 +240,7 @@ struct crtlist_entry *crtlist_entry_new()
 
 	LIST_INIT(&entry->ckch_inst);
 
-	/* initialize the nodes so we can LIST_DEL in any cases */
+	/* initialize the nodes so we can LIST_DELETE in any cases */
 	LIST_INIT(&entry->by_crtlist);
 	LIST_INIT(&entry->by_ckch_store);
 
@@ -540,8 +540,8 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 				entry->node.key = ckchs;
 				entry->crtlist = newlist;
 				ebpt_insert(&newlist->entries, &entry->node);
-				LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
-				LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
+				LIST_APPEND(&newlist->ord_entries, &entry->by_crtlist);
+				LIST_APPEND(&ckchs->crtlist_entry, &entry->by_ckch_store);
 
 			} else if (global_ssl.extra_files & SSL_GF_BUNDLE) {
 				/* If we didn't find the file, this could be a
@@ -588,8 +588,8 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 					entry_dup->node.key = ckchs;
 					entry_dup->crtlist = newlist;
 					ebpt_insert(&newlist->entries, &entry_dup->node);
-					LIST_ADDQ(&newlist->ord_entries, &entry_dup->by_crtlist);
-					LIST_ADDQ(&ckchs->crtlist_entry, &entry_dup->by_ckch_store);
+					LIST_APPEND(&newlist->ord_entries, &entry_dup->by_crtlist);
+					LIST_APPEND(&ckchs->crtlist_entry, &entry_dup->by_ckch_store);
 
 					entry_dup = NULL; /* the entry was used, we need a new one next round */
 				}
@@ -611,8 +611,8 @@ int crtlist_parse_file(char *file, struct bind_conf *bind_conf, struct proxy *cu
 			entry->node.key = ckchs;
 			entry->crtlist = newlist;
 			ebpt_insert(&newlist->entries, &entry->node);
-			LIST_ADDQ(&newlist->ord_entries, &entry->by_crtlist);
-			LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
+			LIST_APPEND(&newlist->ord_entries, &entry->by_crtlist);
+			LIST_APPEND(&ckchs->crtlist_entry, &entry->by_ckch_store);
 			found++;
 		}
 		entry = NULL;
@@ -706,8 +706,8 @@ int crtlist_load_cert_dir(char *path, struct bind_conf *bind_conf, struct crtlis
 			}
 			entry->node.key = ckchs;
 			entry->crtlist = dir;
-			LIST_ADDQ(&ckchs->crtlist_entry, &entry->by_ckch_store);
-			LIST_ADDQ(&dir->ord_entries, &entry->by_crtlist);
+			LIST_APPEND(&ckchs->crtlist_entry, &entry->by_ckch_store);
+			LIST_APPEND(&dir->ord_entries, &entry->by_crtlist);
 			ebpt_insert(&dir->entries, &entry->node);
 
 ignore_entry:
@@ -1016,8 +1016,8 @@ static void cli_release_add_crtlist(struct appctx *appctx)
 		struct ckch_inst *inst, *inst_s;
 		/* upon error free the ckch_inst and everything inside */
 		ebpt_delete(&entry->node);
-		LIST_DEL(&entry->by_crtlist);
-		LIST_DEL(&entry->by_ckch_store);
+		LIST_DELETE(&entry->by_crtlist);
+		LIST_DELETE(&entry->by_ckch_store);
 
 		list_for_each_entry_safe(inst, inst_s, &entry->ckch_inst, by_ckchs) {
 			ckch_inst_free(inst);
@@ -1102,8 +1102,8 @@ static int cli_io_handler_add_crtlist(struct appctx *appctx)
 					/* display one dot for each new instance */
 					chunk_appendf(trash, ".");
 					i++;
-					LIST_ADDQ(&store->ckch_inst, &new_inst->by_ckchs);
-					LIST_ADDQ(&entry->ckch_inst, &new_inst->by_crtlist_entry);
+					LIST_APPEND(&store->ckch_inst, &new_inst->by_ckchs);
+					LIST_APPEND(&entry->ckch_inst, &new_inst->by_crtlist_entry);
 					new_inst->crtlist_entry = entry;
 				}
 				appctx->st2 = SETCERT_ST_INSERT;
@@ -1272,9 +1272,9 @@ static int cli_parse_add_crtlist(char **args, char *payload, struct appctx *appc
 		goto error;
 	}
 
-	LIST_ADDQ(&crtlist->ord_entries, &entry->by_crtlist);
+	LIST_APPEND(&crtlist->ord_entries, &entry->by_crtlist);
 	entry->crtlist = crtlist;
-	LIST_ADDQ(&store->crtlist_entry, &entry->by_ckch_store);
+	LIST_APPEND(&store->crtlist_entry, &entry->by_ckch_store);
 
 	appctx->st2 = SETCERT_ST_INIT;
 	appctx->ctx.cli.p0 = crtlist;
@@ -1402,8 +1402,8 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 	/* upon error free the ckch_inst and everything inside */
 
 	ebpt_delete(&entry->node);
-	LIST_DEL(&entry->by_crtlist);
-	LIST_DEL(&entry->by_ckch_store);
+	LIST_DELETE(&entry->by_crtlist);
+	LIST_DELETE(&entry->by_ckch_store);
 
 	list_for_each_entry_safe(inst, inst_s, &entry->ckch_inst, by_crtlist_entry) {
 		struct sni_ctx *sni, *sni_s;
@@ -1411,12 +1411,12 @@ static int cli_parse_del_crtlist(char **args, char *payload, struct appctx *appc
 		HA_RWLOCK_WRLOCK(SNI_LOCK, &inst->bind_conf->sni_lock);
 		list_for_each_entry_safe(sni, sni_s, &inst->sni_ctx, by_ckch_inst) {
 			ebmb_delete(&sni->name);
-			LIST_DEL(&sni->by_ckch_inst);
+			LIST_DELETE(&sni->by_ckch_inst);
 			SSL_CTX_free(sni->ctx);
 			free(sni);
 		}
 		HA_RWLOCK_WRUNLOCK(SNI_LOCK, &inst->bind_conf->sni_lock);
-		LIST_DEL(&inst->by_ckchs);
+		LIST_DELETE(&inst->by_ckchs);
 		free(inst);
 	}
 

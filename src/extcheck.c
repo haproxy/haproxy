@@ -124,7 +124,7 @@ static struct pid_list *pid_list_add(pid_t pid, struct task *t)
 	LIST_INIT(&elem->list);
 
 	HA_SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
-	LIST_ADD(&pid_list, &elem->list);
+	LIST_INSERT(&pid_list, &elem->list);
 	HA_SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
 
 	return elem;
@@ -138,7 +138,7 @@ static void pid_list_del(struct pid_list *elem)
 		return;
 
 	HA_SPIN_LOCK(PID_LIST_LOCK, &pid_list_lock);
-	LIST_DEL(&elem->list);
+	LIST_DELETE(&elem->list);
 	HA_SPIN_UNLOCK(PID_LIST_LOCK, &pid_list_lock);
 
 	if (!elem->exited)

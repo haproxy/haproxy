@@ -2372,7 +2372,7 @@ int check_config_validity()
 				/* Only one element in the list, a simple string: free the expression and
 				 * fall back to static rule
 				 */
-				LIST_DEL(&node->list);
+				LIST_DELETE(&node->list);
 				free(node->arg);
 				free(node);
 			}
@@ -2437,7 +2437,7 @@ int check_config_validity()
 				/* Only one element in the list, a simple string: free the expression and
 				 * fall back to static rule
 				 */
-				LIST_DEL(&node->list);
+				LIST_DELETE(&node->list);
 				free(node->arg);
 				free(node);
 			}
@@ -2643,7 +2643,7 @@ int check_config_validity()
 				break;
 			}
 
-			LIST_ADDQ(&curproxy->uri_auth->http_req_rules, &rule->list);
+			LIST_APPEND(&curproxy->uri_auth->http_req_rules, &rule->list);
 
 			if (curproxy->uri_auth->auth_realm) {
 				ha_free(&curproxy->uri_auth->auth_realm);
@@ -3766,7 +3766,7 @@ out_uri_auth_compat:
  */
 void cfg_register_keywords(struct cfg_kw_list *kwl)
 {
-	LIST_ADDQ(&cfg_keywords.list, &kwl->list);
+	LIST_APPEND(&cfg_keywords.list, &kwl->list);
 }
 
 /*
@@ -3774,7 +3774,7 @@ void cfg_register_keywords(struct cfg_kw_list *kwl)
  */
 void cfg_unregister_keywords(struct cfg_kw_list *kwl)
 {
-	LIST_DEL(&kwl->list);
+	LIST_DELETE(&kwl->list);
 	LIST_INIT(&kwl->list);
 }
 
@@ -3806,7 +3806,7 @@ int cfg_register_section(char *section_name,
 	cs->section_parser = section_parser;
 	cs->post_section_parser = post_section_parser;
 
-	LIST_ADDQ(&sections, &cs->list);
+	LIST_APPEND(&sections, &cs->list);
 
 	return 1;
 }
@@ -3827,7 +3827,7 @@ int cfg_register_postparser(char *name, int (*func)())
 	cp->name = name;
 	cp->func = func;
 
-	LIST_ADDQ(&postparsers, &cp->list);
+	LIST_APPEND(&postparsers, &cp->list);
 
 	return 1;
 }
@@ -3840,7 +3840,7 @@ void cfg_unregister_sections(void)
 	struct cfg_section *cs, *ics;
 
 	list_for_each_entry_safe(cs, ics, &sections, list) {
-		LIST_DEL(&cs->list);
+		LIST_DELETE(&cs->list);
 		free(cs);
 	}
 }
@@ -3850,8 +3850,8 @@ void cfg_backup_sections(struct list *backup_sections)
 	struct cfg_section *cs, *ics;
 
 	list_for_each_entry_safe(cs, ics, &sections, list) {
-		LIST_DEL(&cs->list);
-		LIST_ADDQ(backup_sections, &cs->list);
+		LIST_DELETE(&cs->list);
+		LIST_APPEND(backup_sections, &cs->list);
 	}
 }
 
@@ -3860,8 +3860,8 @@ void cfg_restore_sections(struct list *backup_sections)
 	struct cfg_section *cs, *ics;
 
 	list_for_each_entry_safe(cs, ics, backup_sections, list) {
-		LIST_DEL(&cs->list);
-		LIST_ADDQ(&sections, &cs->list);
+		LIST_DELETE(&cs->list);
+		LIST_APPEND(&sections, &cs->list);
 	}
 }
 

@@ -330,7 +330,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 		 */
 		if (appctx->st2 == STAT_ST_LIST) {
 			if (!LIST_ISEMPTY(&appctx->ctx.map.bref.users)) {
-				LIST_DEL(&appctx->ctx.map.bref.users);
+				LIST_DELETE(&appctx->ctx.map.bref.users);
 				LIST_INIT(&appctx->ctx.map.bref.users);
 			}
 		}
@@ -359,7 +359,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 
 		if (!LIST_ISEMPTY(&appctx->ctx.map.bref.users)) {
-			LIST_DEL(&appctx->ctx.map.bref.users);
+			LIST_DELETE(&appctx->ctx.map.bref.users);
 			LIST_INIT(&appctx->ctx.map.bref.users);
 		}
 
@@ -384,7 +384,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				LIST_ADDQ(&elt->back_refs, &appctx->ctx.map.bref.users);
+				LIST_APPEND(&elt->back_refs, &appctx->ctx.map.bref.users);
 				HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 				si_rx_room_blk(si);
 				return 0;
@@ -635,7 +635,7 @@ static void cli_release_show_map(struct appctx *appctx)
 	if (appctx->st2 == STAT_ST_LIST) {
 		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 		if (!LIST_ISEMPTY(&appctx->ctx.map.bref.users))
-			LIST_DEL(&appctx->ctx.map.bref.users);
+			LIST_DELETE(&appctx->ctx.map.bref.users);
 		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 	}
 }

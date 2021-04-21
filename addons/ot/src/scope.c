@@ -256,7 +256,7 @@ struct flt_ot_scope_span *flt_ot_scope_span_init(struct flt_ot_runtime_context *
 	retptr->ref_type    = ref_type;
 	retptr->ref_span    = ref_span;
 	retptr->ref_ctx     = ref_ctx;
-	LIST_ADD(&(rt_ctx->spans), &(retptr->list));
+	LIST_INSERT(&(rt_ctx->spans), &(retptr->list));
 
 	FLT_OT_DBG_SCOPE_SPAN("new span ", retptr);
 
@@ -352,7 +352,7 @@ struct flt_ot_scope_context *flt_ot_scope_context_init(struct flt_ot_runtime_con
 	retptr->id_len      = id_len;
 	retptr->smp_opt_dir = dir;
 	retptr->context     = span_ctx;
-	LIST_ADD(&(rt_ctx->contexts), &(retptr->list));
+	LIST_INSERT(&(rt_ctx->contexts), &(retptr->list));
 
 	FLT_OT_DBG_SCOPE_CONTEXT("new context ", retptr);
 
