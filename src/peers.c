@@ -3041,17 +3041,20 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 				ps = peers->local;
 				for (st = ps->tables; st ; st = st->next)
 					st->table->syncing++;
-			}
 
-			/* disconnect all connected peers */
-			for (ps = peers->remote; ps; ps = ps->next) {
-				/* we're killing a connection, we must apply a random delay before
-				 * retrying otherwise the other end will do the same and we can loop
-				 * for a while.
+				/* disconnect all connected peers to process a local sync
+				 * this must be done only the first time we are switching
+				 * in stopping state
 				 */
-				ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
-				if (ps->appctx) {
-					peer_session_forceshutdown(ps);
+				for (ps = peers->remote; ps; ps = ps->next) {
+					/* we're killing a connection, we must apply a random delay before
+					 * retrying otherwise the other end will do the same and we can loop
+					 * for a while.
+					 */
+					ps->reconnect = tick_add(now_ms, MS_TO_TICKS(50 + ha_random() % 2000));
+					if (ps->appctx) {
+						peer_session_forceshutdown(ps);
+					}
 				}
 			}
 		}
@@ -3077,8 +3080,10 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 				 * or previous tcp connect succeeded but init state incomplete
 				 * or during previous connect, peer replies a try again statuscode */
 
-				/* connect to the peer */
-				peer_session_create(peers, ps);
+				/* connect to the local peer if we must push a local sync */
+				if (peers->flags & PEERS_F_DONOTSTOP) {
+					peer_session_create(peers, ps);
+				}
 			}
 			else {
 				/* Other error cases */
