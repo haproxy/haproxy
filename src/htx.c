@@ -651,49 +651,30 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			     enum htx_blk_type mark)
 {
 	struct htx_blk   *blk, *dstblk;
+	struct htx_blk   *srcref, *dstref;
 	enum htx_blk_type type;
 	uint32_t	  info, max, sz, ret;
-	int inside_trailers = 0;
 
 	ret = htx_used_space(dst);
-	blk = htx_get_blk(src, htx_get_head(src));
-	dstblk = NULL;
+	srcref = dstref = dstblk = NULL;
 
-	while (blk && count) {
+	/* blocks are not removed yet from <src> HTX message to be able to
+	 * rollback the transfer if all the headers/trailers are not copied.
+	 */
+	for (blk = htx_get_head_blk(src); blk && count; blk = htx_get_next_blk(src, blk)) {
 		type = htx_get_blk_type(blk);
 
 		/* Ignore unused block */
 		if (type == HTX_BLK_UNUSED)
-			goto next;
+			continue;
 
-		/* Be sure to have enough space to xfer all headers/trailers in
-		 * one time. If not while <dst> is empty, we report a parsing
-		 * error on <src>.
-		 */
-		if (mark >= HTX_BLK_EOH && (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL)) {
-			struct htx_sl *sl = htx_get_blk_ptr(src, blk);
 
-			if (sl->hdrs_bytes != -1 && sl->hdrs_bytes > count) {
-				if (htx_is_empty(dst))
-					src->flags |= HTX_FL_PARSING_ERROR;
-				break;
-			}
-		}
-		else if ((type == HTX_BLK_TLR || type == HTX_BLK_EOT) &&
-			 !inside_trailers && mark >= HTX_BLK_EOT) {
-			inside_trailers = 1;
-			if (htx_used_space(src) > count) {
-				if (htx_is_empty(dst))
-					src->flags |= HTX_FL_PARSING_ERROR;
-				break;
-			}
-		}
-
-		sz = htx_get_blksz(blk);
-		info = blk->info;
 		max = htx_get_max_blksz(dst, count);
 		if (!max)
 			break;
+
+		sz = htx_get_blksz(blk);
+		info = blk->info;
 		if (sz > max) {
 			/* Only DATA blocks can be partially xferred */
 			if (type != HTX_BLK_DATA)
@@ -715,10 +696,51 @@ struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			htx_cut_data_blk(src, blk, sz);
 			break;
 		}
-	  next:
-		blk = htx_remove_blk(src, blk);
-		if (type != HTX_BLK_UNUSED && type == mark)
+
+		if (type == mark) {
+			blk = htx_get_next_blk(src, blk);
+			srcref = dstref = NULL;
 			break;
+		}
+
+		/* Save <blk> to <srcref> and <dstblk> to <dstref> when we start
+		 * to xfer headers or trailers. When EOH/EOT block is reached,
+		 * both are reset. It is mandatory to be able to rollback a
+		 * partial transfer.
+		 */
+		if (!srcref && !dstref &&
+		    (type == HTX_BLK_REQ_SL || type == HTX_BLK_RES_SL || type == HTX_BLK_TLR)) {
+			srcref = blk;
+			dstref = dstblk;
+		}
+		else if (type == HTX_BLK_EOH || type == HTX_BLK_EOT)
+			srcref = dstref = NULL;
+	}
+
+	if (unlikely(dstref)) {
+		/* Headers or trailers part was partially xferred, so rollback the copy
+		 * by removing all block between <dstref> and <dstblk>, both included.
+		 */
+		while (dstref && dstref != dstblk)
+			dstref = htx_remove_blk(dst, dstref);
+		htx_remove_blk(dst, dstblk);
+
+		/* <dst> HTX message is empty, it means the headers or trailers
+		 * part is too big to be copied at once.
+		 */
+		if (htx_is_empty(dst))
+			src->flags |= HTX_FL_PARSING_ERROR;
+	}
+
+	/* Now, remove xferred blocks from <src> htx message */
+	if (!blk && !srcref) {
+		/* End of src reached, all blocks were consumed, drain all data */
+		htx_drain(src, src->data);
+	}
+	else {
+		/* Remove all block from the head to <blk>, or <srcref> if defined, excluded */
+		srcref = (srcref ? srcref : blk);
+		for (blk = htx_get_head_blk(src); blk && blk != srcref; blk = htx_remove_blk(src, blk));
 	}
 
   end:
