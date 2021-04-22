@@ -1304,18 +1304,6 @@ int slz_rfc1950_finish(struct slz_stream *strm, unsigned char *buf)
 	return strm->outbuf - buf;
 }
 
-/* This used to be the function called to build the CRC table at init time.
- * Now it does nothing, it's only kept for API/ABI compatibility.
- */
-void slz_make_crc_table(void)
-{
-}
-
-/* does nothing anymore, only kept for ABI compatibility */
-void slz_prepare_dist_table()
-{
-}
-
 __attribute__((constructor))
 static void __slz_initialize(void)
 {
