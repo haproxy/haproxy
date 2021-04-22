@@ -65,14 +65,6 @@ jobs:
         tar xvf VTest.tar.gz -C VTest --strip-components=1
         make -C VTest -j$(nproc) FLAGS="-O2 -s -Wall"
         sudo install -m755 VTest/vtest /usr/local/bin/vtest
-    - name: Install SLZ
-      if: ${{ contains(matrix.FLAGS, 'USE_SLZ=1') }}
-      run: |
-        curl -fsSL https://github.com/wtarreau/libslz/archive/master.tar.gz -o libslz.tar.gz
-        mkdir libslz
-        tar xvf libslz.tar.gz -C libslz --strip-components=1
-        make -C libslz
-        sudo make -C libslz install
     - name: Install SSL ${{ matrix.ssl }}
       if: ${{ matrix.ssl && matrix.ssl != 'stock' }}
       run: env ${{ matrix.ssl }} scripts/build-ssl.sh
