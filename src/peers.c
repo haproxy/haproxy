@@ -2223,7 +2223,7 @@ static inline int peer_send_msgs(struct appctx *appctx,
 				}
 				HA_SPIN_UNLOCK(STK_TABLE_LOCK, &st->table->lock);
 			}
-			else {
+			else if (!(peer->flags & PEER_F_TEACH_FINISHED)) {
 				if (!(st->flags & SHTABLE_F_TEACH_STAGE1)) {
 					repl = peer_send_teach_stage1_msgs(appctx, peer, st);
 					if (repl <= 0)
