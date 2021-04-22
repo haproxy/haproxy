@@ -152,7 +152,6 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	struct htx_sl *sl;
 	struct ist meth, uri, vsn;
 	unsigned int flags;
-	size_t used;
 
 	/* <h1sl> is always defined for a request */
 	meth = h1sl->rq.m;
@@ -178,7 +177,6 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		h1m->curr_len = h1m->body_len = 0;
 	}
 
-	used = htx_used_space(htx);
 	flags = h1m_htx_sl_flags(h1m);
 	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, uri, vsn);
 	if (!sl || !htx_add_all_headers(htx, hdrs))
@@ -194,8 +192,6 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		if (uri.len > 4 && (uri.ptr[0] | 0x20) == 'h')
 			sl->flags |= ((uri.ptr[4] == ':') ? HTX_SL_F_SCHM_HTTP : HTX_SL_F_SCHM_HTTPS);
 	}
-	/* Set bytes used in the HTX message for the headers now */
-	sl->hdrs_bytes = htx_used_space(htx) - used;
 
 	/* If body length cannot be determined, set htx->extra to
 	 * ULLONG_MAX. This value is impossible in other cases.
@@ -222,7 +218,6 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 	struct htx_sl *sl;
 	struct ist vsn, status, reason;
 	unsigned int flags;
-	size_t used;
 	uint16_t code = 0;
 
 	if (h1sl) {
@@ -285,15 +280,11 @@ static int h1_postparse_res_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		h1m->flags |= H1_MF_XFER_LEN;
 	}
 
-	used = htx_used_space(htx);
 	flags = h1m_htx_sl_flags(h1m);
 	sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, vsn, status, reason);
 	if (!sl || !htx_add_all_headers(htx, hdrs))
 		goto error;
 	sl->info.res.status = code;
-
-	/* Set bytes used in the HTX message for the headers now */
-	sl->hdrs_bytes = htx_used_space(htx) - used;
 
 	/* If body length cannot be determined, set htx->extra to
 	 * ULLONG_MAX. This value is impossible in other cases.

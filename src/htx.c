@@ -808,7 +808,6 @@ struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const st
 	sl = htx_get_blk_ptr(htx, blk);
 	tmp.info = sl->info;
 	tmp.flags = sl->flags;
-	tmp.hdrs_bytes = sl->hdrs_bytes;
 
 	sz = htx_get_blksz(blk);
 	delta = sizeof(*sl) + p1.len + p2.len + p3.len - sz;
@@ -829,7 +828,6 @@ struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const st
 	sl = htx_get_blk_ptr(htx, blk);
 	sl->info = tmp.info;
 	sl->flags = tmp.flags;
-	sl->hdrs_bytes = tmp.hdrs_bytes;
 
 	HTX_SL_P1_LEN(sl) = p1.len;
 	HTX_SL_P2_LEN(sl) = p2.len;

@@ -446,7 +446,6 @@ static inline struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type t
 	blk->info += size;
 
 	sl = htx_get_blk_ptr(htx, blk);
-	sl->hdrs_bytes = -1;
 	sl->flags = flags;
 
 	HTX_SL_P1_LEN(sl) = p1.len;

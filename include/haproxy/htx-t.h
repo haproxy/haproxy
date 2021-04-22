@@ -187,10 +187,6 @@ struct htx_sl {
 
 	/* XXX 2 bytes unused */
 
-	int32_t hdrs_bytes;  /* Bytes held by all headers, as seen by the mux
-			      * during parsing, from this start-line to the
-			      * corresponding EOH. -1 if unknown */
-
 	unsigned int len[3]; /* length of different parts of the start-line */
 	char         l[VAR_ARRAY];
 };

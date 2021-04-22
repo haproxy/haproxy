@@ -369,7 +369,6 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	int phdr;
 	int ret;
 	int i;
-	uint32_t used = htx_used_space(htx);
 	struct htx_sl *sl = NULL;
 	unsigned int sl_flags = 0;
 	const char *ctl;
@@ -554,9 +553,6 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto fail;
 
-	/* Set bytes used in the HTX message for the headers now */
-	sl->hdrs_bytes = htx_used_space(htx) - used;
-
 	ret = 1;
 	return ret;
 
@@ -670,7 +666,6 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 	int phdr;
 	int ret;
 	int i;
-	uint32_t used = htx_used_space(htx);
 	struct htx_sl *sl = NULL;
 	unsigned int sl_flags = 0;
 	const char *ctl;
@@ -800,9 +795,6 @@ int h2_make_htx_response(struct http_hdr *list, struct htx *htx, unsigned int *m
 	/* now send the end of headers marker */
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto fail;
-
-	/* Set bytes used in the HTX message for the headers now */
-	sl->hdrs_bytes = htx_used_space(htx) - used;
 
 	ret = 1;
 	return ret;
