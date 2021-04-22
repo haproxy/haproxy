@@ -32,14 +32,14 @@ are a few build examples :
   - recent Linux system with all options, make and install :
     $ make clean
     $ make -j $(nproc) TARGET=linux-glibc \
-                USE_OPENSSL=1 USE_ZLIB=1 USE_LUA=1 USE_PCRE=1 USE_SYSTEMD=1
+                USE_OPENSSL=1 USE_LUA=1 USE_PCRE=1 USE_SYSTEMD=1
     $ sudo make install
 
   - FreeBSD and OpenBSD, build with all options :
-    $ gmake -j 4 TARGET=freebsd USE_OPENSSL=1 USE_ZLIB=1 USE_LUA=1 USE_PCRE=1
+    $ gmake -j 4 TARGET=freebsd USE_OPENSSL=1 USE_LUA=1 USE_PCRE=1
 
   - embedded Linux, build using a cross-compiler :
-    $ make -j $(nproc) TARGET=linux-glibc USE_OPENSSL=1 USE_SLZ=1 USE_PCRE=1 \
+    $ make -j $(nproc) TARGET=linux-glibc USE_OPENSSL=1 USE_PCRE=1 \
                 CC=/opt/cross/gcc730-arm/bin/gcc ADDLIB=-latomic
 
   - Build with static PCRE on Solaris / UltraSPARC :
@@ -278,26 +278,34 @@ acceleration that might be present on your system.
 ----------------
 HAProxy can compress HTTP responses before delivering them to clients, in order
 to save network bandwidth. Two compression options are available. The first one
-involves the widely known zlib library, which is very likely installed on your
-system. In order to use zlib, simply pass "USE_ZLIB=1" to the command line. If
-the library is not installed in your default system's path, it is possible to
-specify the path to the include files using ZLIB_INC, and the path to the
-library files using ZLIB_LIB :
+relies on the libslz library (http://libslz.org) that is embedded in haproxy.
+It is enabled by default as it is very fast and does not keep a copy of the
+contents in memory. It is possible to disable it, for example for very small
+systems, by passing "USE_SLZ=" to the "make" command.
+
+Please note that SLZ will benefit from some CPU-specific instructions like the
+availability of the CRC32 extension on some ARM processors. Thus it can further
+improve its performance to build with "CPU=native" on the target system.
+
+A second option involves the widely known zlib library, which is very likely
+installed on your system. In order to use zlib, simply pass "USE_ZLIB=1" to the
+"make" command line, which will also automatically disable SLZ. If the library
+is not installed in your default system's path, it is possible to specify the
+path to the include files using ZLIB_INC, and the path to the library files
+using ZLIB_LIB :
 
   $ make TARGET=generic \
     USE_ZLIB=1 ZLIB_INC=/opt/zlib-1.2.11/include ZLIB_LIB=/opt/zlib-1.2.11/lib
 
-However, zlib maintains an in-memory context for each compressed stream, which
-is not always welcome when dealing with large sites. An alternative solution is
-to use libslz instead, which doesn't consume memory, which is much faster, but
-compresses slightly less efficiently. For this, please use "USE_SLZ=1", and
-optionally make "SLZ_INC" and "SLZ_LIB" point to the library's include and
-library paths, respectively.
-
 Zlib is commonly found on most systems, otherwise updates can be retrieved from
 http://www.zlib.net/. It is easy and fast to build, and new versions sometimes
-provide better performance so it might be worth using an up-to-date one. Libslz
-can be downloaded http://libslz.org/ and is even easier to build.
+provide better performance so it might be worth using an up-to-date one.
+
+Zlib compresses a bit better than libslz but at the expense of more CPU usage
+(about 3.5 times more minimum), and a huge memory usage (~260 kB per compressed
+stream). The only valid reason for uzing Zlib instead of SLZ here usually is to
+deal with a very limited internet bandwidth while CPU and RAM are abundant so
+that the last few percent of compression ratio are worth the invested hardware.
 
 
 4.7) Lua
@@ -547,10 +555,10 @@ multithreading via USE_THREAD.
 
 You can easily define your own target with the GNU Makefile. Unknown targets
 are processed with no default option except USE_POLL=default. So you can very
-well use that property to define your own set of options. USE_POLL can even be
-disabled by setting USE_POLL="". For example :
+well use that property to define your own set of options. USE_POLL and USE_SLZ
+can even be disabled by setting them to an empty string. For example :
 
-  $ gmake TARGET=tiny USE_POLL="" TARGET_CFLAGS=-fomit-frame-pointer
+  $ gmake TARGET=tiny USE_POLL="" USE_SLZ="" TARGET_CFLAGS=-fomit-frame-pointer
 
 If you need to pass some defines to the preprocessor or compiler, you may pass
 them all in the DEFINE variable. Example:

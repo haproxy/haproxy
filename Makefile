@@ -39,8 +39,8 @@
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
 #   USE_CLOSEFROM        : enable use of closefrom() on *bsd, solaris. Automatic.
 #   USE_PRCTL            : enable use of prctl(). Automatic.
-#   USE_ZLIB             : enable zlib library support.
-#   USE_SLZ              : enable slz library instead of zlib (pick at most one).
+#   USE_ZLIB             : enable zlib library support and disable SLZ
+#   USE_SLZ              : enable slz library instead of zlib (default=enabled)
 #   USE_CPU_AFFINITY     : enable pinning processes to CPU on Linux. Automatic.
 #   USE_TFO              : enable TCP fast open. Supported on Linux >= 3.7.
 #   USE_NS               : enable network namespace support. Supported on Linux >= 2.6.24.
@@ -323,6 +323,12 @@ default_opts = $(foreach name,$(1),$(eval $(name)=implicit))
 # on the make command line.
 USE_POLL   = default
 
+# SLZ is always supported unless explicitly disabled by passing USE_SLZ=""
+# or disabled by enabling ZLIB using USE_ZLIB=1
+ifeq ($(USE_ZLIB),)
+USE_SLZ    = default
+endif
+
 # Always enable threads support by default and let the Makefile detect if
 # HAProxy can be compiled with threads or not.
 
@@ -513,20 +519,16 @@ endif
 endif
 endif
 
-ifneq ($(USE_SLZ),)
-# Use SLZ_INC and SLZ_LIB to force path to zlib.h and libz.{a,so} if needed.
-SLZ_INC =
-SLZ_LIB =
-OPTIONS_CFLAGS  += $(if $(SLZ_INC),-I$(SLZ_INC))
-OPTIONS_LDFLAGS += $(if $(SLZ_LIB),-L$(SLZ_LIB)) -lslz
-endif
-
 ifneq ($(USE_ZLIB),)
 # Use ZLIB_INC and ZLIB_LIB to force path to zlib.h and libz.{a,so} if needed.
 ZLIB_INC =
 ZLIB_LIB =
 OPTIONS_CFLAGS  += $(if $(ZLIB_INC),-I$(ZLIB_INC))
 OPTIONS_LDFLAGS += $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
+endif
+
+ifneq ($(USE_SLZ),)
+OPTIONS_OBJS   += src/slz.o
 endif
 
 ifneq ($(USE_POLL),)

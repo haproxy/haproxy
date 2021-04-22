@@ -27,7 +27,7 @@
 #ifdef USE_ZLIB
 #error "Cannot build with both USE_SLZ and USE_ZLIB at the same time."
 #endif
-#include <slz.h>
+#include <import/slz.h>
 #elif defined(USE_ZLIB)
 #include <zlib.h>
 #endif

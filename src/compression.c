@@ -13,9 +13,7 @@
 
 #include <stdio.h>
 
-#if defined(USE_SLZ)
-#include <slz.h>
-#elif defined(USE_ZLIB)
+#if defined(USE_ZLIB)
 /* Note: the crappy zlib and openssl libs both define the "free_func" type.
  * That's a very clever idea to use such a generic name in general purpose
  * libraries, really... The zlib one is easier to redefine than openssl's,
