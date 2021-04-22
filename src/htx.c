@@ -448,7 +448,10 @@ struct htx_ret htx_drain(struct htx *htx, uint32_t count)
 	struct htx_ret htxret = { .blk = NULL, .ret = 0 };
 
 	if (count == htx->data) {
+		uint32_t flags = htx->flags;
+
 		htx_reset(htx);
+		htx->flags = flags; /* restore flags */
 		htxret.ret = count;
 		return htxret;
 	}
