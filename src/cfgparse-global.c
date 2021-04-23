@@ -13,7 +13,9 @@
 
 #include <haproxy/buf.h>
 #include <haproxy/cfgparse.h>
+#ifdef USE_CPU_AFFINITY
 #include <haproxy/cpuset.h>
+#endif
 #include <haproxy/compression.h>
 #include <haproxy/global.h>
 #include <haproxy/log.h>

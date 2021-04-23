@@ -92,7 +92,9 @@
 #include <haproxy/chunk.h>
 #include <haproxy/cli.h>
 #include <haproxy/connection.h>
+#ifdef USE_CPU_AFFINITY
 #include <haproxy/cpuset.h>
+#endif
 #include <haproxy/dns.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/errors.h>
@@ -1270,7 +1272,6 @@ static void init(int argc, char **argv)
 	struct proxy *px;
 	struct post_check_fct *pcf;
 	int ideal_maxconn;
-	int i;
 
 	global.mode = MODE_STARTING;
 	old_argv = copy_argv(argc, argv);
@@ -1579,11 +1580,16 @@ static void init(int argc, char **argv)
 
 	global.maxsock = 10; /* reserve 10 fds ; will be incremented by socket eaters */
 
-	for (i = 0; i < MAX_PROCS; ++i) {
-		ha_cpuset_zero(&global.cpu_map.proc[i]);
-		ha_cpuset_zero(&global.cpu_map.proc_t1[i]);
-		ha_cpuset_zero(&global.cpu_map.thread[i]);
+#ifdef USE_CPU_AFFINITY
+	{
+		int i;
+		for (i = 0; i < MAX_PROCS; ++i) {
+			ha_cpuset_zero(&global.cpu_map.proc[i]);
+			ha_cpuset_zero(&global.cpu_map.proc_t1[i]);
+			ha_cpuset_zero(&global.cpu_map.thread[i]);
+		}
 	}
+#endif
 
 	/* in wait mode, we don't try to read the configuration files */
 	if (!(global.mode & MODE_MWORKER_WAIT)) {

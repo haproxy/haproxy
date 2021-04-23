@@ -24,7 +24,9 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
+#ifdef USE_CPU_AFFINITY
 #include <haproxy/cpuset-t.h>
+#endif
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/vars-t.h>
 

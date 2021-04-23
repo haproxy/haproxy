@@ -44,7 +44,9 @@
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/chunk.h>
+#ifdef USE_CPU_AFFINITY
 #include <haproxy/cpuset.h>
+#endif
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/filters.h>
