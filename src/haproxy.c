@@ -2936,10 +2936,11 @@ int main(int argc, char **argv)
 		    proc < MAX_PROCS &&       /* only the first 32/64 processes may be pinned */
 		    ha_cpuset_count(&global.cpu_map.proc[proc])) {   /* only do this if the process has a CPU map */
 
-			struct hap_cpuset *set = &global.cpu_map.proc[proc];
 #ifdef __FreeBSD__
+			struct hap_cpuset *set = &global.cpu_map.proc[proc];
 			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(set->cpuset), &set->cpuset);
 #elif defined(__linux__) || defined(__DragonFly__)
+			struct hap_cpuset *set = &global.cpu_map.proc[proc];
 			sched_setaffinity(0, sizeof(set->cpuset), &set->cpuset);
 #endif
 		}
