@@ -140,14 +140,14 @@ static inline struct timeval *tv_zero(struct timeval *tv) {
 #define tv_iszero(tv)           (((tv)->tv_sec | (tv)->tv_usec) == 0)
 
 /*
- * Converts a struct timeval to a number of milliseconds.
+ * Converts a struct timeval to a wrapping number of milliseconds.
  */
-static inline unsigned long __tv_to_ms(const struct timeval *tv)
+static inline uint __tv_to_ms(const struct timeval *tv)
 {
-	unsigned long ret;
+	unsigned int ret;
 
-	ret  = tv->tv_sec * 1000;
-	ret += tv->tv_usec / 1000;
+	ret  = (uint)tv->tv_sec  * 1000;
+	ret += (uint)tv->tv_usec / 1000;
 	return ret;
 }
 
