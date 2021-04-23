@@ -89,7 +89,9 @@
 #endif // USE_OBSOLETE_LINKER
 
 /* use this attribute on a variable to move it to the read_mostly section */
+#if !defined(__DragonFly__)
 #define __read_mostly           HA_SECTION("read_mostly")
+#endif
 
 /* This allows gcc to know that some locations are never reached, for example
  * after a longjmp() in the Lua code, hence that some errors caught by such
