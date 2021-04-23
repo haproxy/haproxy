@@ -184,7 +184,7 @@ void tv_update_date(int max_wait, int interrupted)
 	unsigned int old_now_ms;
 	unsigned long long old_now;
 	unsigned long long new_now;
-	ullong ofs = HA_ATOMIC_LOAD(&now_offset);
+	ullong ofs, ofs_new;
 	uint sec_ofs, usec_ofs;
 
 	gettimeofday(&date, NULL);
@@ -202,6 +202,8 @@ void tv_update_date(int max_wait, int interrupted)
 	 */
 	_tv_ms_add(&min_deadline, &before_poll, max_wait);
 	_tv_ms_add(&max_deadline, &before_poll, max_wait + 100);
+
+	ofs = HA_ATOMIC_LOAD(&now_offset);
 
 	if (unlikely(__tv_islt(&date, &before_poll)                    || // big jump backwards
 		     (!interrupted && __tv_islt(&date, &min_deadline)) || // small jump backwards
@@ -265,8 +267,9 @@ void tv_update_date(int max_wait, int interrupted)
 		usec_ofs += 1000000;
 		sec_ofs  -= 1;
 	}
-	ofs = ((ullong)sec_ofs << 32) + usec_ofs;
-	HA_ATOMIC_STORE(&now_offset, ofs);
+	ofs_new = ((ullong)sec_ofs << 32) + usec_ofs;
+	if (ofs_new != ofs)
+		HA_ATOMIC_STORE(&now_offset, ofs_new);
 }
 
 /* must be called once at boot to initialize some global variables */
