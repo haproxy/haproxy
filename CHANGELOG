@@ -1,6 +1,176 @@
 ChangeLog :
 ===========
 
+2021/04/23 : 2.4-dev17
+    - MINOIR: mux-pt/trace: Register a new trace source with its events
+    - BUG/MINOR: mux-pt: Fix a possible UAF because of traces in mux_pt_io_cb
+    - CI: travis: Drastically clean up .travis.yml
+    - CLEANUP: pattern: make all pattern tables read-only
+    - MINOR: trace: replace the trace() inline function with an equivalent macro
+    - MINOR: initcall: uniformize the section names between MacOS and other unixes
+    - CLEANUP: initcall: rename HA_SECTION to HA_INIT_SECTION
+    - MINOR: compiler: add macros to declare section names
+    - CLEANUP: initcall: rely on HA_SECTION_* instead of defining its own
+    - MINOR: global: declare a read_mostly section
+    - MINOR: fd: move a few read-mostly variables to their own section
+    - MINOR: epoll: move epoll_fd to read_mostly
+    - MINOR: kqueue: move kqueue_fd to read_mostly
+    - MINOR: pool: move pool declarations to read_mostly
+    - MINOR: threads: mark all_threads_mask as read_mostly
+    - MINOR: server: move idle_conn_task to read_mostly
+    - MINOR: protocol: move __protocol_by_family to read_mostly
+    - MINOR: pattern: make the pat_lru_seed read_mostly
+    - MINOR: trace: make trace sources read_mostly
+    - MINOR: freq_ctr: add a generic function to report the total value
+    - MEDIUM: freq_ctr: make read_freq_ctr_period() use freq_ctr_total()
+    - MEDIUM: freq_ctr: reimplement freq_ctr_remain_period() from freq_ctr_total()
+    - MINOR: freq_ctr: add the missing next_event_delay_period()
+    - MINOR: freq_ctr: unify freq_ctr and freq_ctr_period into freq_ctr
+    - MEDIUM: freq_ctr: replace the per-second counters with the generic ones
+    - MINOR: freq_ctr: add cpu_relax in the rotation loop of update_freq_ctr_period()
+    - MINOR: freq_ctr: simplify and improve the update function
+    - CLEANUP: time: remove the now unused ms_left_scaled
+    - MINOR: time: move the time initialization out of tv_update_date()
+    - MINOR: time: remove useless variable copies in tv_update_date()
+    - MINOR: time: change the global timeval and the the global tick at once
+    - MEDIUM: time: make the clock offset global and no per-thread
+    - MINOR: atomic: reimplement the relaxed version of x86 BTS/BTR
+    - MINOR: trace: Add the checks as a possible trace source
+    - MINOIR: checks/trace: Register a new trace source with its events
+    - MINOR: hlua: Add function to release a lua function
+    - BUG/MINOR: hlua: Fix memory leaks on error path when registering a task
+    - BUG/MINOR: hlua: Fix memory leaks on error path when registering a converter
+    - BUG/MINOR: hlua: Fix memory leaks on error path when registering a fetch
+    - BUG/MINOR: hlua: Fix memory leaks on error path when parsing a lua action
+    - BUG/MINOR: hlua: Fix memory leaks on error path when registering an action
+    - BUG/MINOR: hlua: Fix memory leaks on error path when registering a service
+    - BUG/MINOR: hlua: Fix memory leaks on error path when registering a cli keyword
+    - BUG/MINOR: cfgparse/proxy: Fix some leaks during proxy section parsing
+    - BUG/MINOR: listener: Handle allocation error when allocating a new bind_conf
+    - BUG/MINOR: cfgparse/proxy: Hande allocation errors during proxy section parsing
+    - MINOR: cfgparse/proxy: Group alloc error handling during proxy section parsing
+    - DOC: internals: update the SSL architecture schema
+    - BUG/MEDIUM: sample: Fix adjusting size in field converter
+    - MINOR: sample: add ub64dec and ub64enc converters
+    - CLEANUP: sample: align samples list in sample.c
+    - MINOR: ist: Add `istclear(struct ist*)`
+    - CI: cirrus: install "pcre" package
+    - MINOR: opentracing: correct calculation of the number of arguments in the args[]
+    - MINOR: opentracing: transfer of context names without prefix
+    - MINOR: sample: converter: Add mjson library.
+    - MINOR: sample: converter: Add json_query converter
+    - CI: travis-ci: enable weekly graviton2 builds
+    - DOC: ssl: Certificate hot update only works on fronted certificates
+    - DOC: ssl: Certificate hot update works on server certificates
+    - BUG/MEDIUM: threads: Ignore current thread to end its harmless period
+    - MINOR: threads: Only consider running threads to end a thread harmeless period
+    - BUG/MINOR: checks: Set missing id to the dummy checks frontend
+    - MINOR: logs: Add support of checks as session origin to format lf strings
+    - BUG/MINOR: connection: Fix fc_http_major and bc_http_major for TCP connections
+    - MINOR: connection: Make bc_http_major compatible with tcp-checks
+    - BUG/MINOR: ssl-samples: Fix ssl_bc_* samples when called from a health-check
+    - BUG/MINOR: http-fetch: Make method smp safe if headers were already forwarded
+    - MINOR: tcp_samples: Add samples to get src/dst info of the backend connection
+    - MINOR: tcp_samples: Be able to call bc_src/bc_dst from the health-checks
+    - BUG/MINOR: http_htx: Remove BUG_ON() from http_get_stline() function
+    - BUG/MINOR: logs: Report the true number of retries if there was no connection
+    - BUILD: makefile: Redirect stderr to /dev/null when probing options
+    - MINOR: uri_normalizer: Add uri_normalizer module
+    - MINOR: uri_normalizer: Add `enum uri_normalizer_err`
+    - MINOR: uri_normalizer: Add `http-request normalize-uri`
+    - MINOR: uri_normalizer: Add a `merge-slashes` normalizer to http-request normalize-uri
+    - MINOR: uri_normalizer: Add a `dotdot` normalizer to http-request normalize-uri
+    - MINOR: uri_normalizer: Add support for supressing leading `../` for dotdot normalizer
+    - MINOR: uri_normalizer: Add a `sort-query` normalizer
+    - MINOR: uri_normalizer: Add a `percent-upper` normalizer
+    - MEDIUM: http_act: Rename uri-normalizers
+    - DOC: Add introduction to http-request normalize-uri
+    - DOC: Note that URI normalization is experimental
+    - BUG/MINOR: pools: maintain consistent ->allocated count on alloc failures
+    - BUG/MINOR: pools/buffers: make sure to always reserve the required buffers
+    - MINOR: pools: drop the unused static history of artificially failed allocs
+    - CLEANUP: pools: remove unused arguments to pool_evict_from_cache()
+    - MEDIUM: pools: move the cache into the pool header
+    - MINOR: pool: remove the size field from pool_cache_head
+    - MINOR: pools: rename CONFIG_HAP_LOCAL_POOLS to CONFIG_HAP_POOLS
+    - MINOR: pools: enable the fault injector in all allocation modes
+    - MINOR: pools: make the basic pool_refill_alloc()/pool_free() update needed_avg
+    - MEDIUM: pools: unify pool_refill_alloc() across all models
+    - CLEANUP: pools: re-merge pool_refill_alloc() and __pool_refill_alloc()
+    - MINOR: pools: call pool_alloc_nocache() out of the pool's lock
+    - CLEANUP: pools: move the lock to the only __pool_get_first() that needs it
+    - CLEANUP: pools: rename __pool_get_first() to pool_get_from_shared_cache()
+    - CLEANUP: pools: rename pool_*_{from,to}_cache() to *_local_cache()
+    - CLEANUP: pools: rename __pool_free() to pool_put_to_shared_cache()
+    - MINOR: tools: add statistical_prng_range() to get a random number over a range
+    - MINOR: pools: use cheaper randoms for fault injections
+    - MINOR: pools: move the fault injector to __pool_alloc()
+    - MINOR: pools: split the OS-based allocator in two
+    - MINOR: pools: always use atomic ops to maintain counters
+    - MINOR: pools: move pool_free_area() out of the lock in the locked version
+    - MINOR: pools: factor the release code into pool_put_to_os()
+    - MEDIUM: pools: make CONFIG_HAP_POOLS control both local and shared pools
+    - MINOR: pools: create unified pool_{get_from,put_to}_cache()
+    - MINOR: pools: evict excess objects using pool_evict_from_local_cache()
+    - MEDIUM: pools: make pool_put_to_cache() always call pool_put_to_local_cache()
+    - CLEANUP: pools: make the local cache allocator fall back to the shared cache
+    - CLEANUP: pools: merge pool_{get_from,put_to}_local_caches with generic ones
+    - CLEANUP: pools: uninline pool_put_to_cache()
+    - CLEANUP: pools: declare dummy pool functions to remove some ifdefs
+    - BUILD: pools: fix build with DEBUG_FAIL_ALLOC
+    - BUG/MINOR: server: make srv_alloc_lb() allocate lb_nodes for consistent hash
+    - CONTRIB: mod_defender: import the minimal number of includes
+    - CONTRIB: mod_defender: make the code build with the embedded includes
+    - CONTRIB: modsecurity: import the minimal number of includes
+    - CONTRIB: modsecurity: make the code build with the embedded includes
+    - CLEANUP: sample: Improve local variables in sample_conv_json_query
+    - CLEANUP: sample: Explicitly handle all possible enum values from mjson
+    - CLEANUP: sample: Use explicit return for successful `json_query`s
+    - CLEANUP: lists/tree-wide: rename some list operations to avoid some confusion
+    - CONTRIB: move spoa_example out of the tree
+    - BUG/MINOR: server: free srv.lb_nodes in free_server
+    - BUG/MINOR: logs: free logsrv.conf.file on exit
+    - BUG/MEDIUM: server: ensure thread-safety of server runtime creation
+    - MINOR: server: add log on dynamic server creation
+    - MINOR: server: implement delete server cli command
+    - CONTRIB: move spoa_server out of the tree
+    - CONTRIB: move modsecurity out of the tree
+    - BUG/MINOR: server: fix potential null gcc error in delete server
+    - BUG/MAJOR: mux-h2: Properly detect too large frames when decoding headers
+    - BUG/MEDIUM: mux-h2: Fix dfl calculation when merging CONTINUATION frames
+    - BUG/MINOR: uri_normalizer: Use delim parameter when building the sorted query in uri_normalizer_query_sort
+    - CLEANUP: uri_normalizer: Remove trailing whitespace
+    - MINOR: uri_normalizer: Add a `strip-dot` normalizer
+    - CONTRIB: move mod_defender out of the tree
+    - CLEANUP: contrib: remove the last references to the now dead contrib/ directory
+    - BUG/MEDIUM: config: fix cpu-map notation with both process and threads
+    - MINOR: config: add a diag for invalid cpu-map statement
+    - BUG/MINOR: mworker/init: don't reset nb_oldpids in non-mworker cases
+    - BUG/MINOR: mworker: don't use oldpids[] anymore for reload
+    - BUILD: makefile: fix the "make clean" target on strict bourne shells
+    - IMPORT: slz: import slz into the tree
+    - BUILD: compression: switch SLZ from out-of-tree to in-tree
+    - CI: github: do not build libslz any more
+    - CLEANUP: compression: remove calls to SLZ init functions
+    - BUG/MEDIUM: mux-h2: Properly handle shutdowns when received with data
+    - MINOR: cpuset: define a platform-independent cpuset type
+    - MINOR: cfgparse: use hap_cpuset for parse_cpu_set
+    - MEDIUM: config: use platform independent type hap_cpuset for cpu-map
+    - MINOR: thread: implement the detection of forced cpu affinity
+    - MINOR: cfgparse: support the comma separator on parse_cpu_set
+    - MEDIUM: cfgparse: detect numa and set affinity if needed
+    - MINOR: global: add option to disable numa detection
+    - BUG/MINOR: haproxy: fix compilation on macOS
+    - BUG/MINOR: cpuset: fix compilation on platform without cpu affinity
+    - MINOR: time: avoid unneeded updates to now_offset
+    - MINOR: time: avoid overwriting the same values of global_now
+    - CLEANUP: time: use __tv_to_ms() in tv_update_date() instead of open-coding
+    - MINOR: time: avoid u64 needlessly expensive computations for the 32-bit now_ms
+    - BUG/MINOR: peers: remove useless table check if initial resync is finished
+    - BUG/MEDIUM: peers: re-work connection to new process during reload.
+    - BUG/MEDIUM: peers: re-work refcnt on table to protect against flush
+    - BUG/MEDIUM: config: fix missing initialization in numa_detect_topology()
+
 2021/04/09 : 2.4-dev16
     - CLEANUP: dev/flags: remove useless test in the stdin number parser
     - MINOR: No longer rely on deprecated sample fetches for predefined ACLs
