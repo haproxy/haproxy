@@ -1,0 +1,146 @@
+#REGTEST_TYPE=devel
+
+# This reg-test uses the "set ssl crl-file" command to update a CRL file over the CLI.
+# It also tests the "abort ssl crl-file" and "show ssl crl-file" commands.
+#
+# The frontend's certificate is signed by set_cafile_interCA1.crt and is revoked in interCA1_crl.pem
+# but not in interCA1_crl_empty.pem.
+# The backend's certificate is signed by set_cafile_interCA2.crt and is revoked in interCA2_crl.pem
+# but not in interCA2_crl_empty.pem.
+#
+# The test consists in replacing the two empty CRLs by their not empty equivalent thanks to CLI
+# calls and to check that the certificates (frontend and backend) are indeed revoked after the
+# update.
+#
+# It requires socat to upload the certificate
+#
+# If this test does not work anymore:
+# - Check that you have socat
+
+varnishtest "Test the 'set ssl crl-file' feature of the CLI"
+#REQUIRE_VERSION=2.5
+#REQUIRE_OPTIONS=OPENSSL
+#REQUIRE_BINARIES=socat
+feature ignore_unknown_macro
+
+server s1 -repeat 4 {
+  rxreq
+  txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httplog
+        ${no-htx} option http-use-htx
+        log stderr local0 debug err
+        option logasap
+        timeout connect 100ms
+        timeout client  1s
+        timeout server  1s
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        server s1 "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt crl-file ${testdir}/interCA2_crl_empty.pem verify required
+
+    listen ssl-lst
+        # crt: certificate of the server
+        # ca-file: CA used for client authentication request
+        # crl-file: revocation list for client auth
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA1.crt ca-verify-file ${testdir}/set_cafile_rootCA.crt crl-file ${testdir}/interCA1_crl_empty.pem verify required crt-ignore-err all
+        http-response add-header X-SSL-Client-Verify %[ssl_c_verify]
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+# Test the "show ssl ca-file" command
+haproxy h1 -cli {
+    send "show ssl ca-file"
+    expect ~ ".*${testdir}/set_cafile_interCA1.crt - 1 certificate.*"
+    send "show ssl ca-file"
+    expect ~ ".*${testdir}/set_cafile_interCA2.crt - 1 certificate.*"
+}
+
+# Add the rootCA certificate to set_cafile_interCA2.crt in order for the frontend to
+# be able to validate the server's certificate
+shell {
+    printf "set ssl ca-file ${testdir}/set_cafile_interCA2.crt <<\n$(cat ${testdir}/set_cafile_interCA2.crt)\n$(cat ${testdir}/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/set_cafile_interCA2.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+haproxy h1 -cli {
+    send "show ssl ca-file"
+    expect ~ ".*${testdir}/set_cafile_interCA2.crt - 2 certificate.*"
+
+    send "show ssl ca-file ${testdir}/set_cafile_interCA2.crt"
+    expect ~ ".*Subject.*/CN=Root CA"
+}
+
+# This first connection should succeed
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.X-SSL-Client-Verify == 0
+} -run
+
+# Change the frontend's crl-file to one in which the server certificate is revoked
+shell {
+    printf "set ssl crl-file ${testdir}/interCA2_crl_empty.pem <<\n$(cat ${testdir}/interCA2_crl.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+}
+
+# Check that the transaction is displayed in the output of "show ssl crl-list"
+haproxy h1 -cli {
+    send "show ssl crl-file"
+    expect ~ "\\*${testdir}/interCA2_crl_empty.pem"
+
+    send "show ssl crl-file \\*${testdir}/interCA2_crl_empty.pem"
+    expect ~ "Revoked Certificates:"
+    send "show ssl crl-file \\*${testdir}/interCA2_crl_empty.pem:1"
+    expect ~ "Serial Number: 1008"
+}
+
+# This connection should still succeed since the transaction was not committed
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.X-SSL-Client-Verify == 0
+} -run
+
+haproxy h1 -cli {
+    send "commit ssl crl-file ${testdir}/interCA2_crl_empty.pem"
+    expect ~ "Committing ${testdir}/interCA2_crl_empty.pem"
+}
+
+# This connection should fail, the server's certificate is revoked in the newly updated CRL file
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 503
+} -run
+
+# Restore the frontend's CRL
+shell {
+    printf "set ssl crl-file ${testdir}/interCA2_crl_empty.pem <<\n$(cat ${testdir}/interCA2_crl_empty.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl crl-file ${testdir}/interCA2_crl_empty.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+# Change the backend's CRL file to one in which the frontend's certificate is revoked
+shell {
+    printf "set ssl crl-file ${testdir}/interCA1_crl_empty.pem <<\n$(cat ${testdir}/interCA1_crl.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl crl-file ${testdir}/interCA1_crl_empty.pem" | socat "${tmpdir}/h1/stats" -
+}
+
+# This connection should fail, the client's certificate is revoked in the newly updated CRL file
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+    # Revoked certificate
+    expect resp.http.X-SSL-Client-Verify == 23
+} -run
