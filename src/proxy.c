@@ -1851,7 +1851,13 @@ struct task *manage_proxy(struct task *t, void *context, unsigned int state)
 	 * However we protect tables that are being synced to peers.
 	 */
 	if (unlikely(stopping && p->disabled && p->table && p->table->current)) {
-		if (!p->table->syncing) {
+
+		if (!p->table->refcnt) {
+			/* !table->refcnt means there
+			 * is no more pending full resync
+			 * to push to a new process and
+			 * we are free to flush the table.
+			 */
 			stktable_trash_oldest(p->table, p->table->current);
 			pool_gc(NULL);
 		}

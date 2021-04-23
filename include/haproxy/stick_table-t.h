@@ -192,7 +192,8 @@ struct stktable {
 	unsigned int localupdate;
 	unsigned int commitupdate;/* used to identify the latest local updates
 				     pending for sync */
-	unsigned int syncing;     /* number of sync tasks watching this table now */
+	unsigned int refcnt;     /* number of local peer over all peers sections
+				    attached to this table */
 	union {
 		struct peers *p; /* sync peers */
 		char *name;
