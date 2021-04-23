@@ -2079,6 +2079,7 @@ static int numa_detect_topology()
 	ha_cpuset_zero(&node_cpu_set);
 
 	/* 1. count the sysfs node<X> directories */
+	node_dirlist = NULL;
 	node_dirlist_size = scandir(NUMA_DETECT_SYSTEM_SYSFS_PATH"/node", &node_dirlist, numa_filter, alphasort);
 	if (node_dirlist_size <= 1)
 		goto free_scandir_entries;
