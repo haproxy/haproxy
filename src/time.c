@@ -252,8 +252,9 @@ void tv_update_date(int max_wait, int interrupted)
 		/* let's try to update the global <now> (both in timeval
 		 * and ms forms) or loop again.
 		 */
-	} while (!_HA_ATOMIC_CAS(&global_now, &old_now, new_now) ||
-		 !_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, now_ms));
+	} while (((new_now != old_now    && !_HA_ATOMIC_CAS(&global_now, &old_now, new_now)) ||
+		  (now_ms  != old_now_ms && !_HA_ATOMIC_CAS(&global_now_ms, &old_now_ms, now_ms))) &&
+		 __ha_cpu_relax());
 
 	/* <now> and <now_ms> are now updated to the last value of global_now
 	 * and global_now_ms, which were also monotonically updated. We can
