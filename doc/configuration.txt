@@ -16255,7 +16255,7 @@ mod(<value>)
   This prefix is followed by a name. The separator is a '.'. The name may only
   contain characters 'a-z', 'A-Z', '0-9', '.' and '_'.
 
-mqtt_field_value(<packettype>,<fieldname or property ID>)
+mqtt_field_value(<packettype>,<fieldname_or_property_ID>)
   Returns value of <fieldname> found in input MQTT payload of type
   <packettype>.
   <packettype> can be either a string (case insensitive matching) or a numeric
@@ -17318,17 +17318,17 @@ srv_sess_rate([<backend>/]<server>) : integer
         acl srv2_full srv_sess_rate(be1/srv2) gt 50
         use_backend be2 if srv1_full or srv2_full
 
-srv_iweight([<backend>/]<server>): integer
+srv_iweight([<backend>/]<server>) : integer
   Returns an integer corresponding to the server's initial weight. If <backend>
   is omitted, then the server is looked up in the current backend. See also
   "srv_weight" and "srv_uweight".
 
-srv_uweight([<backend>/]<server>): integer
+srv_uweight([<backend>/]<server>) : integer
   Returns an integer corresponding to the user visible server's weight. If
   <backend> is omitted, then the server is looked up in the current
   backend. See also "srv_weight" and "srv_iweight".
 
-srv_weight([<backend>/]<server>): integer
+srv_weight([<backend>/]<server>) : integer
   Returns an integer corresponding to the current (or effective) server's
   weight. If <backend> is omitted, then the server is looked up in the current
   backend. See also "srv_iweight" and "srv_uweight".
