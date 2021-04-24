@@ -337,7 +337,7 @@ __decl_thread(__decl_rwlock(fd_mig_lock));
 void fd_delete(int fd)
 {
 	/* we must postpone removal of an FD that may currently be in use
-	 * by another thread. This can happend in the following two situations:
+	 * by another thread. This can happen in the following two situations:
 	 *   - after a takeover, the owning thread closes the connection but
 	 *     the previous one just woke up from the poller and entered
 	 *     the FD handler iocb. That thread holds an entry in running_mask

@@ -930,7 +930,7 @@ err:
  * it returns NULL.
  *
  * Note: the sink is created using the name
- *       specified inot logsrv->ring_name
+ *       specified into logsrv->ring_name
  */
 struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 {
@@ -998,7 +998,7 @@ struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 	sft->ofs = ~0;
 	HA_SPIN_INIT(&sft->lock);
 
-	/* prepare descrition for sink */
+	/* prepare description for the sink */
 	chunk_reset(&trash);
 	chunk_printf(&trash, "created from logserver declared into '%s' at line %d", logsrv->conf.file, logsrv->conf.line);
 

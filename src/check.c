@@ -1201,7 +1201,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 			}
 			else if (check->result == CHK_RES_CONDPASS) {
 				/* check is OK but asks for stopping mode */
-				TRACE_DEVEL("report conditionnal success", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_SUCC, check);
+				TRACE_DEVEL("report conditional success", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_SUCC, check);
 				check_notify_stopping(check);
 			}
 			else if (check->result == CHK_RES_PASSED) {

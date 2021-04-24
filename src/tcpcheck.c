@@ -925,7 +925,7 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 	if (ps) {
 		const char *msg;
 
-		TRACE_DEVEL("change server weigth", CHK_EV_TCPCHK_EXP, check);
+		TRACE_DEVEL("change server weight", CHK_EV_TCPCHK_EXP, check);
 		msg = server_parse_weight_change_request(check->server, ps);
 		if (!wrn || !*wrn)
 			wrn = msg;
@@ -1261,7 +1261,7 @@ enum tcpcheck_eval_ret tcpcheck_eval_connect(struct check *check, struct tcpchec
   out:
 	if (conn && check->result == CHK_RES_FAILED) {
 		conn->flags |= CO_FL_ERROR;
-		TRACE_ERROR("connect failed, report conncetion error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
+		TRACE_ERROR("connect failed, report connection error", CHK_EV_TCPCHK_CONN|CHK_EV_TCPCHK_ERR, check);
 	}
 
 	if (ret == TCPCHK_EVAL_CONTINUE && check->proxy->timeout.check)

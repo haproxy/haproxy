@@ -2335,8 +2335,8 @@ static enum act_parse_ret parse_http_return(const char **args, int *orig_arg, st
  * function. it returns ACT_RET_CONT when conditions are met to stop to wait.
  * Otherwise ACT_RET_YIELD is returned to wait for more data. ACT_RET_INV is
  * returned if a parsing error is raised by lower level and ACT_RET_ERR if an
- * internal error occured. Finally ACT_RET_ABRT is returned when a timeout
- * occured.
+ * internal error occurred. Finally ACT_RET_ABRT is returned when a timeout
+ * occurred.
  */
 static enum act_return http_action_wait_for_body(struct act_rule *rule, struct proxy *px,
 						 struct session *sess, struct stream *s, int flags)

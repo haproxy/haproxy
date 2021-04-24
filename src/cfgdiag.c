@@ -8,7 +8,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/server.h>
 
-/* Use this fonction to emit diagnostic.
+/* Use this function to emit diagnostic.
  * This can be used as a shortcut to set value pointed by <ret> to 1 at the
  * same time.
  */

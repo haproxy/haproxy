@@ -308,7 +308,7 @@ static inline void send_eob(struct slz_stream *strm)
 	enqueue8(strm, 0, 7); // direct encoding of 256 = EOB (cf RFC1951)
 }
 
-/* copies <len> litterals from <buf>. <more> indicates that there are data past
+/* copies <len> literals from <buf>. <more> indicates that there are data past
  * buf + <len>. <len> must not be null.
  */
 static void copy_lit(struct slz_stream *strm, const void *buf, uint32_t len, int more)
@@ -337,7 +337,7 @@ static void copy_lit(struct slz_stream *strm, const void *buf, uint32_t len, int
 	} while (len);
 }
 
-/* copies <len> litterals from <buf>. <more> indicates that there are data past
+/* copies <len> literals from <buf>. <more> indicates that there are data past
  * buf + <len>. <len> must not be null.
  */
 static void copy_lit_huff(struct slz_stream *strm, const unsigned char *buf, uint32_t len, int more)
@@ -1029,7 +1029,7 @@ int slz_rfc1952_init(struct slz_stream *strm, int level)
  * returns the number of bytes emitted. The trailer consists in flushing the
  * possibly pending bits from the queue (up to 24 bits), rounding to the next
  * byte, then 4 bytes for the CRC and another 4 bytes for the input length.
- * That may abount to 4+4+4 = 12 bytes, that the caller must ensure are
+ * That may about to 4+4+4 = 12 bytes, that the caller must ensure are
  * available before calling the function. Note that if the initial header was
  * never sent, it will be sent first as well (10 extra bytes).
  */
@@ -1283,7 +1283,7 @@ int slz_rfc1950_init(struct slz_stream *strm, int level)
  * buffer <buf>. When it's done, the stream state is updated to SLZ_ST_END. It
  * returns the number of bytes emitted. The trailer consists in flushing the
  * possibly pending bits from the queue (up to 24 bits), rounding to the next
- * byte, then 4 bytes for the CRC. That may abount to 4+4 = 8 bytes, that the
+ * byte, then 4 bytes for the CRC. That may about to 4+4 = 8 bytes, that the
  * caller must ensure are available before calling the function. Note that if
  * the initial header was never sent, it will be sent first as well (2 extra
  * bytes).

@@ -27,7 +27,7 @@ int ha_cpuset_count(const struct hap_cpuset *set);
 
 /* Returns the first index set plus one in <set> starting from the lowest.
  * Returns 0 if no index set.
- * Do not forget to substract the result by one if using it for set/clr.
+ * Do not forget to subtract the result by one if using it for set/clr.
  */
 int ha_cpuset_ffs(const struct hap_cpuset *set);
 

@@ -25,7 +25,7 @@
 
 
 /* Check an action ruleset validity. It returns the number of error encountered
- * andd err_code is updated if a warning is emitted.
+ * and err_code is updated if a warning is emitted.
  */
 int check_action_rules(struct list *rules, struct proxy *px, int *err_code)
 {

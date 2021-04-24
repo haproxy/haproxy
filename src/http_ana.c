@@ -4107,11 +4107,11 @@ static int http_handle_stats(struct stream *s, struct channel *req)
  *
  *   - HTTP_RULE_RES_CONT when  conditions are met to stop waiting
  *   - HTTP_RULE_RES_YIELD to wait for more data
- *   - HTTP_RULE_RES_ABRT when a timeout occured.
+ *   - HTTP_RULE_RES_ABRT when a timeout occurred.
  *   - HTTP_RULE_RES_BADREQ if a parsing error is raised by lower level
- *   - HTTP_RULE_RES_ERROR if an internal error occured
+ *   - HTTP_RULE_RES_ERROR if an internal error occurred
  *
- * If a timeout occured, this function is responsible to emit the right response
+ * If a timeout occurred, this function is responsible to emit the right response
  * to the client, depending on the channel (408 on request side, 504 on response
  * side). All other errors must be handled by the caller.
  */
