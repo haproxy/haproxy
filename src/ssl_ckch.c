@@ -2935,6 +2935,52 @@ error:
 	return cli_dynerr(appctx, err);
 }
 
+/* parsing function of 'new ssl crl-file' */
+static int cli_parse_new_crlfile(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct cafile_entry *cafile_entry;
+	char *err = NULL;
+	char *path;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "'new ssl crl-file' expects a filename\n");
+
+	path = args[3];
+
+	/* The operations on the CKCH architecture are locked so we can
+	 * manipulate ckch_store and ckch_inst */
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't create a CA file!\nOperations on certificates are currently locked!\n");
+
+	cafile_entry = ssl_store_get_cafile_entry(path, 0);
+	if (cafile_entry) {
+		memprintf(&err, "CRL file '%s' already exists!\n", path);
+		goto error;
+	}
+
+	cafile_entry = ssl_store_create_cafile_entry(path, NULL, CAFILE_CRL);
+	if (!cafile_entry) {
+		memprintf(&err, "%sCannot allocate memory!\n", err ? err : "");
+		goto error;
+	}
+
+	/* Add the newly created cafile_entry to the tree so that
+	 * any new ckch instance created from now can use it. */
+	if (ssl_store_add_uncommitted_cafile_entry(cafile_entry))
+		goto error;
+
+	memprintf(&err, "New CRL file created '%s'!\n", path);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynmsg(appctx, LOG_NOTICE, err);
+error:
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynerr(appctx, err);
+}
+
 /* Parsing function of `set ssl crl-file` */
 static int cli_parse_set_crlfile(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -3112,6 +3158,54 @@ static void cli_release_commit_crlfile(struct appctx *appctx)
 	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
 }
 
+/* parsing function of 'del ssl crl-file' */
+static int cli_parse_del_crlfile(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct cafile_entry *cafile_entry;
+	char *err = NULL;
+	char *filename;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "'del ssl crl-file' expects a CRL file name\n");
+
+	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
+		return cli_err(appctx, "Can't delete the CRL file!\nOperations on certificates are currently locked!\n");
+
+	filename = args[3];
+
+	cafile_entry = ssl_store_get_cafile_entry(filename, 0);
+	if (!cafile_entry) {
+		memprintf(&err, "CRL file '%s' doesn't exist!\n", filename);
+		goto error;
+	}
+	if (cafile_entry->type != CAFILE_CRL) {
+		memprintf(&err, "'del ssl crl-file' does not work on CA files!\n");
+		goto error;
+	}
+
+	if (!LIST_ISEMPTY(&cafile_entry->ckch_inst_link)) {
+		memprintf(&err, "CRL file '%s' in use, can't be deleted!\n", filename);
+		goto error;
+	}
+
+	/* Remove the cafile_entry from the tree */
+	ebmb_delete(&cafile_entry->node);
+	ssl_store_delete_cafile_entry(cafile_entry);
+
+	memprintf(&err, "CRL file '%s' deleted!\n", filename);
+
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynmsg(appctx, LOG_NOTICE, err);
+
+error:
+	memprintf(&err, "Can't remove the CRL file: %s\n", err ? err : "");
+	HA_SPIN_UNLOCK(CKCH_LOCK, &ckch_lock);
+	return cli_dynerr(appctx, err);
+}
+
 
 void ckch_deinit()
 {
@@ -3143,8 +3237,10 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "del", "ssl", "ca-file", NULL },    "del ssl ca-file <cafile>                : delete an unused CA file",                                              cli_parse_del_cafile, NULL, NULL },
 	{ { "show", "ssl", "ca-file", NULL },   "show ssl ca-file [<cafile>[:<index>]]   : display the SSL CA files used in memory, or the details of a <cafile>, or a single certificate of index <index> of a CA file <cafile>", cli_parse_show_cafile, cli_io_handler_show_cafile, cli_release_show_cafile },
 
+	{ { "new", "ssl", "crl-file", NULL },   "new ssl crlfile <crlfile>               : create a new CRL file to be used in a crt-list",                        cli_parse_new_crlfile, NULL, NULL },
 	{ { "set", "ssl", "crl-file", NULL },   "set ssl crl-file <crlfile> <payload>    : replace a CRL file",                                                    cli_parse_set_crlfile, NULL, NULL },
 	{ { "commit", "ssl", "crl-file", NULL },"commit ssl crl-file <crlfile>           : commit a CRL file",                                                     cli_parse_commit_crlfile, cli_io_handler_commit_cafile_crlfile, cli_release_commit_crlfile },
+	{ { "del", "ssl", "crl-file", NULL },   "del ssl crl-file <crlfile>              : delete an unused CRL file",                                             cli_parse_del_crlfile, NULL, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
