@@ -1239,7 +1239,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		chunk_memcat(params->p, p.ptr, p.len);
 	}
 	if (!(params->mask & FCGI_SP_REQ_URI)) {
-		p  = htx_sl_req_uri(sl);
+		p = h1_get_uri(sl);
 		params->uri = ist2(b_tail(params->p), p.len);
 		chunk_memcat(params->p, p.ptr, p.len);
 	}

@@ -607,17 +607,7 @@ int h1_format_htx_reqline(const struct htx_sl *sl, struct buffer *chk)
 	struct ist uri;
 	size_t sz = chk->data;
 
-	uri = htx_sl_req_uri(sl);
-	if (sl->flags & HTX_SL_F_NORMALIZED_URI) {
-		uri = http_get_path(uri);
-		if (unlikely(!uri.len)) {
-			if (sl->info.req.meth == HTTP_METH_OPTIONS)
-				uri = ist("*");
-			else
-				uri = ist("/");
-		}
-	}
-
+	uri = h1_get_uri(sl);
 	if (!chunk_memcat(chk, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl)) ||
 	    !chunk_memcat(chk, " ", 1) ||
 	    !chunk_memcat(chk, uri.ptr, uri.len) ||
