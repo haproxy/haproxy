@@ -44,19 +44,12 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 struct htx_ret htx_xfer_blks(struct htx *dst, struct htx *src, uint32_t count,
 			     enum htx_blk_type mark);
 
-struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type type, unsigned int flags,
-			      const struct ist p1, const struct ist p2, const struct ist p3);
 struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const struct ist p1,
 				  const struct ist p2, const struct ist p3);
 
 struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 				   const struct ist name, const struct ist value);
 
-struct htx_blk *htx_add_header(struct htx *htx, const struct ist name, const struct ist value);
-struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist name, const struct ist value);
-struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs);
-struct htx_blk *htx_add_all_trailers(struct htx *htx, const struct http_hdr *hdrs);
-struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type);
 struct htx_ret htx_reserve_max_data(struct htx *htx);
 struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data);
 size_t htx_add_data(struct htx *htx, const struct ist data);
@@ -429,6 +422,123 @@ static inline struct ist htx_get_blk_value(const struct htx *htx, const struct h
 			return ist("");
 	}
 	return ret;
+}
+
+/* Add a new start-line. It returns it on success, otherwise it returns NULL. It
+ * is the caller responsibility to set sl->info, if necessary.
+ */
+static inline struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type type, unsigned int flags,
+					    const struct ist p1, const struct ist p2, const struct ist p3)
+{
+	struct htx_blk *blk;
+	struct htx_sl  *sl;
+	uint32_t size;
+
+	if (type != HTX_BLK_REQ_SL && type != HTX_BLK_RES_SL)
+		return NULL;
+
+	size = sizeof(*sl) + p1.len + p2.len + p3.len;
+
+	/* FIXME: check size (< 256MB) */
+	blk = htx_add_blk(htx, type, size);
+	if (!blk)
+		return NULL;
+	blk->info += size;
+
+	sl = htx_get_blk_ptr(htx, blk);
+	sl->hdrs_bytes = -1;
+	sl->flags = flags;
+
+	HTX_SL_P1_LEN(sl) = p1.len;
+	HTX_SL_P2_LEN(sl) = p2.len;
+	HTX_SL_P3_LEN(sl) = p3.len;
+
+	memcpy(HTX_SL_P1_PTR(sl), p1.ptr, p1.len);
+	memcpy(HTX_SL_P2_PTR(sl), p2.ptr, p2.len);
+	memcpy(HTX_SL_P3_PTR(sl), p3.ptr, p3.len);
+
+	return sl;
+}
+
+/* Adds an HTX block of type HDR in <htx>. It returns the new block on
+ * success. Otherwise, it returns NULL. The header name is always lower cased.
+ */
+static inline struct htx_blk *htx_add_header(struct htx *htx, const struct ist name,
+					     const struct ist value)
+{
+	struct htx_blk *blk;
+
+	/* FIXME: check name.len (< 256B) and value.len (< 1MB) */
+	blk = htx_add_blk(htx, HTX_BLK_HDR, name.len + value.len);
+	if (!blk)
+		return NULL;
+
+	blk->info += (value.len << 8) + name.len;
+	ist2bin_lc(htx_get_blk_ptr(htx, blk), name);
+	memcpy(htx_get_blk_ptr(htx, blk)  + name.len, value.ptr, value.len);
+	return blk;
+}
+
+/* Adds an HTX block of type TLR in <htx>. It returns the new block on
+ * success. Otherwise, it returns NULL. The trailer name is always lower cased.
+ */
+static inline struct htx_blk *htx_add_trailer(struct htx *htx, const struct ist name,
+					      const struct ist value)
+{
+	struct htx_blk *blk;
+
+	/* FIXME: check name.len (< 256B) and value.len (< 1MB) */
+	blk = htx_add_blk(htx, HTX_BLK_TLR, name.len + value.len);
+	if (!blk)
+		return NULL;
+
+	blk->info += (value.len << 8) + name.len;
+	ist2bin_lc(htx_get_blk_ptr(htx, blk), name);
+	memcpy(htx_get_blk_ptr(htx, blk)  + name.len, value.ptr, value.len);
+	return blk;
+}
+
+/* Adds an HTX block of type EOH or EOT in <htx>. It returns the new block on
+ * success. Otherwise, it returns NULL.
+ */
+static inline struct htx_blk *htx_add_endof(struct htx *htx, enum htx_blk_type type)
+{
+	struct htx_blk *blk;
+
+	blk = htx_add_blk(htx, type, 1);
+	if (!blk)
+		return NULL;
+
+	blk->info += 1;
+	return blk;
+}
+
+/* Add all headers from the list <hdrs> into the HTX message <htx>, followed by
+ * the EOH. On success, it returns the last block inserted (the EOH), otherwise
+ * NULL is returned. */
+static inline struct htx_blk *htx_add_all_headers(struct htx *htx, const struct http_hdr *hdrs)
+{
+	int i;
+
+	for (i = 0; hdrs[i].n.len; i++) {
+		if (!htx_add_header(htx, hdrs[i].n, hdrs[i].v))
+			return NULL;
+	}
+	return htx_add_endof(htx, HTX_BLK_EOH);
+}
+
+/* Add all trailers from the list <hdrs> into the HTX message <htx>, followed by
+ * the EOT. On success, it returns the last block inserted (the EOT), otherwise
+ * NULL is returned. */
+static inline struct htx_blk *htx_add_all_trailers(struct htx *htx, const struct http_hdr *hdrs)
+{
+	int i;
+
+	for (i = 0; hdrs[i].n.len; i++) {
+		if (!htx_add_trailer(htx, hdrs[i].n, hdrs[i].v))
+			return NULL;
+	}
+	return htx_add_endof(htx, HTX_BLK_EOT);
 }
 
 /* Removes <n> bytes from the beginning of DATA block <blk>. The block's start
