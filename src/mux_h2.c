@@ -4736,9 +4736,10 @@ next_frame:
 	else
 		outlen = h2_make_htx_request(list, htx, &msgf, body_len);
 
-	if (outlen < 0) {
+	if (outlen < 0 || htx_free_space(htx) < global.tune.maxrewrite) {
 		/* too large headers? this is a stream error only */
-		TRACE_STATE("request headers too large", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR|H2_EV_PROTO_ERR, h2c->conn);
+		TRACE_STATE("message headers too large", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2S_ERR|H2_EV_PROTO_ERR, h2c->conn);
+		htx->flags |= HTX_FL_PARSING_ERROR;
 		goto fail;
 	}
 
