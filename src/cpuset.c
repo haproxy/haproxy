@@ -5,6 +5,8 @@
 #include <haproxy/cpuset.h>
 #include <haproxy/intops.h>
 
+struct cpu_map cpu_map;
+
 void ha_cpuset_zero(struct hap_cpuset *set)
 {
 #if defined(CPUSET_USE_CPUSET) || defined(CPUSET_USE_FREEBSD_CPUSET)

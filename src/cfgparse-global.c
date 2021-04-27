@@ -1,3 +1,4 @@
+#define _GNU_SOURCE  /* for cpu_set_t from haproxy/cpuset.h */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1109,12 +1110,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					continue;
 
 				if (!autoinc)
-					ha_cpuset_assign(&global.cpu_map.proc[i], &cpus);
+					ha_cpuset_assign(&cpu_map.proc[i], &cpus);
 				else {
-					ha_cpuset_zero(&global.cpu_map.proc[i]);
+					ha_cpuset_zero(&cpu_map.proc[i]);
 					n = ha_cpuset_ffs(&cpus_copy) - 1;
 					ha_cpuset_clr(&cpus_copy, n);
-					ha_cpuset_set(&global.cpu_map.proc[i], n);
+					ha_cpuset_set(&cpu_map.proc[i], n);
 				}
 			}
 		} else {
@@ -1135,8 +1136,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					/* For first process, thread[0] is used.
 					 * Use proc_t1[N] for all others
 					 */
-					dst = i ? &global.cpu_map.proc_t1[i] :
-					          &global.cpu_map.thread[0];
+					dst = i ? &cpu_map.proc_t1[i] :
+					          &cpu_map.thread[0];
 
 					if (!autoinc) {
 						ha_cpuset_assign(dst, &cpus);
@@ -1159,12 +1160,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 						continue;
 
 					if (!autoinc)
-						ha_cpuset_assign(&global.cpu_map.thread[j], &cpus);
+						ha_cpuset_assign(&cpu_map.thread[j], &cpus);
 					else {
-						ha_cpuset_zero(&global.cpu_map.thread[j]);
+						ha_cpuset_zero(&cpu_map.thread[j]);
 						n = ha_cpuset_ffs(&cpus_copy) - 1;
 						ha_cpuset_clr(&cpus_copy, n);
-						ha_cpuset_set(&global.cpu_map.thread[j], n);
+						ha_cpuset_set(&cpu_map.thread[j], n);
 					}
 				}
 			}

@@ -3,6 +3,8 @@
 
 #include <haproxy/cpuset-t.h>
 
+extern struct cpu_map cpu_map;
+
 /* Unset all indexes in <set>.
  */
 void ha_cpuset_zero(struct hap_cpuset *set);

@@ -1584,9 +1584,9 @@ static void init(int argc, char **argv)
 	{
 		int i;
 		for (i = 0; i < MAX_PROCS; ++i) {
-			ha_cpuset_zero(&global.cpu_map.proc[i]);
-			ha_cpuset_zero(&global.cpu_map.proc_t1[i]);
-			ha_cpuset_zero(&global.cpu_map.thread[i]);
+			ha_cpuset_zero(&cpu_map.proc[i]);
+			ha_cpuset_zero(&cpu_map.proc_t1[i]);
+			ha_cpuset_zero(&cpu_map.thread[i]);
 		}
 	}
 #endif
@@ -2940,13 +2940,13 @@ int main(int argc, char **argv)
 #ifdef USE_CPU_AFFINITY
 		if (proc < global.nbproc &&  /* child */
 		    proc < MAX_PROCS &&       /* only the first 32/64 processes may be pinned */
-		    ha_cpuset_count(&global.cpu_map.proc[proc])) {   /* only do this if the process has a CPU map */
+		    ha_cpuset_count(&cpu_map.proc[proc])) {   /* only do this if the process has a CPU map */
 
 #ifdef __FreeBSD__
-			struct hap_cpuset *set = &global.cpu_map.proc[proc];
+			struct hap_cpuset *set = &cpu_map.proc[proc];
 			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(set->cpuset), &set->cpuset);
 #elif defined(__linux__) || defined(__DragonFly__)
-			struct hap_cpuset *set = &global.cpu_map.proc[proc];
+			struct hap_cpuset *set = &cpu_map.proc[proc];
 			sched_setaffinity(0, sizeof(set->cpuset), &set->cpuset);
 #endif
 		}
@@ -3184,17 +3184,17 @@ int main(int argc, char **argv)
 		/* If on multiprocess, use proc_t1 except for the first process.
 		 */
 		if ((relative_pid - 1) > 0)
-			global.cpu_map.thread[0] = global.cpu_map.proc_t1[relative_pid-1];
+			cpu_map.thread[0] = cpu_map.proc_t1[relative_pid-1];
 
 		for (i = 0; i < global.nbthread; i++) {
-			if (ha_cpuset_count(&global.cpu_map.proc[relative_pid-1]))
-				ha_cpuset_and(&global.cpu_map.thread[i], &global.cpu_map.proc[relative_pid-1]);
+			if (ha_cpuset_count(&cpu_map.proc[relative_pid-1]))
+				ha_cpuset_and(&cpu_map.thread[i], &cpu_map.proc[relative_pid-1]);
 
 			if (i < MAX_THREADS &&       /* only the first 32/64 threads may be pinned */
-			    ha_cpuset_count(&global.cpu_map.thread[i])) {/* only do this if the thread has a THREAD map */
+			    ha_cpuset_count(&cpu_map.thread[i])) {/* only do this if the thread has a THREAD map */
 #if defined(__APPLE__)
 				int j;
-				unsigned long cpu_map = global.cpu_map.thread[i].cpuset;
+				unsigned long cpu_map = cpu_map.thread[i].cpuset;
 
 				while ((j = ffsl(cpu_map)) > 0) {
 					thread_affinity_policy_data_t cpu_set = { j - 1 };
@@ -3203,7 +3203,7 @@ int main(int argc, char **argv)
 					cpu_map &= ~(1UL << (j - 1));
 				}
 #else
-				struct hap_cpuset *set = &global.cpu_map.thread[i];
+				struct hap_cpuset *set = &cpu_map.thread[i];
 				pthread_setaffinity_np(ha_thread_info[i].pthread,
 				                       sizeof(set->cpuset), &set->cpuset);
 #endif
