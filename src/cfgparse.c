@@ -1500,7 +1500,8 @@ static void check_section_position(char *section_name,
 
 /*
  * This function reads and parses the configuration file given in the argument.
- * Returns the error code, 0 if OK, or any combination of :
+ * Returns the error code, 0 if OK, -1 if the config file couldn't be opened,
+ * or any combination of :
  *  - ERR_ABORT: must abort ASAP
  *  - ERR_FATAL: we can continue parsing but not start the service
  *  - ERR_WARN: a warning has been emitted
@@ -1510,9 +1511,9 @@ static void check_section_position(char *section_name,
  */
 int readcfgfile(const char *file)
 {
-	char *thisline;
+	char *thisline = NULL;
 	int linesize = LINESIZE;
-	FILE *f;
+	FILE *f = NULL;
 	int linenum = 0;
 	int err_code = 0;
 	struct cfg_section *cs = NULL, *pcs = NULL;
@@ -1528,13 +1529,14 @@ int readcfgfile(const char *file)
 	int non_global_section_parsed = 0;
 
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
-		ha_alert("parsing [%s] : out of memory.\n", file);
-		return -1;
+		ha_alert("Out of memory trying to allocate a buffer for a configuration line.\n");
+		err_code = -1;
+		goto err;
 	}
 
-	if ((f=fopen(file,"r")) == NULL) {
-		free(thisline);
-		return -1;
+	if ((f = fopen(file,"r")) == NULL) {
+		err_code = -1;
+		goto err;
 	}
 
 next_line:
@@ -1922,7 +1924,9 @@ err:
 	cursection = NULL;
 	free(thisline);
 	free(outline);
-	fclose(f);
+	if (f)
+		fclose(f);
+
 	return err_code;
 }
 
