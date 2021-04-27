@@ -21,18 +21,18 @@
 #include <sys/types.h>
 #include <netinet/tcp.h>
 
-#include <haproxy/api.h>
-#include <haproxy/buf.h>
-#include <haproxy/connection.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/global.h>
-#include <haproxy/pipe.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/global.h>
+#include <lolproxy/pipe.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 
 #if defined(USE_LINUX_SPLICE)

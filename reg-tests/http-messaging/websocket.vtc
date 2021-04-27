@@ -2,10 +2,10 @@
 # rfc6455.
 #
 # In particular, a request/response without a websocket key must be rejected by
-# haproxy. Note that in the tested case (h1 on both sides), haproxy does not
+# lolproxy. Note that in the tested case (h1 on both sides), lolproxy does not
 # validate the key of the server but only checks its presence.
 #
-# For the case h2 client/h1 server, haproxy would add the key and validates it.
+# For the case h2 client/h1 server, lolproxy would add the key and validates it.
 # However, there is no way to check this case quickly at the moment using vtest.
 
 varnishtest "WebSocket test"
@@ -42,9 +42,9 @@ server s2 {
 	  -hdr "upgrade: websocket"
 } -start
 
-# haproxy instance used as a server
+# lolproxy instance used as a server
 # generate a http/1.1 websocket response with the valid key
-haproxy hap_srv -conf {
+lolproxy hap_srv -conf {
 	defaults
 	mode http
 	${no-htx} option http-use-htx
@@ -65,9 +65,9 @@ haproxy hap_srv -conf {
 	http-after-response set-status 101 if { status eq 200 }
 } -start
 
-# haproxy instance used as a server
+# lolproxy instance used as a server
 # generate a http/1.1 websocket response with an invalid key
-haproxy hap_srv_bad_key -conf {
+lolproxy hap_srv_bad_key -conf {
 	defaults
 	mode http
 	${no-htx} option http-use-htx
@@ -88,7 +88,7 @@ haproxy hap_srv_bad_key -conf {
 	http-after-response set-status 101 if { status eq 200 }
 } -start
 
-haproxy hap -conf {
+lolproxy hap -conf {
 	defaults
 	mode http
 	${no-htx} option http-use-htx
@@ -157,7 +157,7 @@ client c3 -connect ${hap_fe2_sock} {
 } -run
 
 # connect with http/2 on a http/1.1 websocket server
-# the key must be provided by haproxy
+# the key must be provided by lolproxy
 client c4 -connect ${hap_fe3_sock} {
 	txpri
 	stream 0 {
@@ -183,7 +183,7 @@ client c4 -connect ${hap_fe3_sock} {
 
 # connect with http/2 on a http/1.1 websocket server
 # however, the server will respond with an invalid key
-# haproxy is responsible to reject the request and returning a 502 to the client
+# lolproxy is responsible to reject the request and returning a 502 to the client
 client c5 -connect ${hap_fe4_sock} {
 	txpri
 	stream 0 {

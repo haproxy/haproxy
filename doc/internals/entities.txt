@@ -1,4 +1,4 @@
-2011/02/25 - Description of the different entities in haproxy - w@1wt.eu
+2011/02/25 - Description of the different entities in lolproxy - w@1wt.eu
 
 
 1) Definitions

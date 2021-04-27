@@ -34,55 +34,55 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/action.h>
-#include <haproxy/api.h>
-#include <haproxy/auth.h>
-#include <haproxy/backend.h>
-#include <haproxy/capture.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/channel.h>
-#include <haproxy/check.h>
-#include <haproxy/chunk.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/action.h>
+#include <lolproxy/api.h>
+#include <lolproxy/auth.h>
+#include <lolproxy/backend.h>
+#include <lolproxy/capture.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/check.h>
+#include <lolproxy/chunk.h>
 #ifdef USE_CPU_AFFINITY
-#include <haproxy/cpuset.h>
+#include <lolproxy/cpuset.h>
 #endif
-#include <haproxy/connection.h>
-#include <haproxy/errors.h>
-#include <haproxy/filters.h>
-#include <haproxy/frontend.h>
-#include <haproxy/global.h>
-#include <haproxy/http_ana.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/lb_chash.h>
-#include <haproxy/lb_fas.h>
-#include <haproxy/lb_fwlc.h>
-#include <haproxy/lb_fwrr.h>
-#include <haproxy/lb_map.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/mailers.h>
-#include <haproxy/namespace.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/peers-t.h>
-#include <haproxy/peers.h>
-#include <haproxy/pool.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proxy.h>
-#include <haproxy/resolvers.h>
-#include <haproxy/sample.h>
-#include <haproxy/server.h>
-#include <haproxy/session.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/stick_table.h>
-#include <haproxy/stream.h>
-#include <haproxy/task.h>
-#include <haproxy/tcp_rules.h>
-#include <haproxy/thread.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/uri_auth-t.h>
-#include <haproxy/xprt_quic.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/filters.h>
+#include <lolproxy/frontend.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http_ana.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/lb_chash.h>
+#include <lolproxy/lb_fas.h>
+#include <lolproxy/lb_fwlc.h>
+#include <lolproxy/lb_fwrr.h>
+#include <lolproxy/lb_map.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/mailers.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/peers-t.h>
+#include <lolproxy/peers.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/resolvers.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/server.h>
+#include <lolproxy/session.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/stick_table.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tcp_rules.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/uri_auth-t.h>
+#include <lolproxy/xprt_quic.h>
 
 
 /* Used to chain configuration sections definitions. This list
@@ -3967,7 +3967,7 @@ void cfg_unregister_keywords(struct cfg_kw_list *kwl)
 	LIST_INIT(&kwl->list);
 }
 
-/* this function register new section in the haproxy configuration file.
+/* this function register new section in the lolproxy configuration file.
  * <section_name> is the name of this new section and <section_parser>
  * is the called parser. If two section declaration have the same name,
  * only the first declared is used.
@@ -4000,7 +4000,7 @@ int cfg_register_section(char *section_name,
 	return 1;
 }
 
-/* this function register a new function which will be called once the haproxy
+/* this function register a new function which will be called once the lolproxy
  * configuration file has been parsed. It's useful to check dependencies
  * between sections or to resolve items once everything is parsed.
  */

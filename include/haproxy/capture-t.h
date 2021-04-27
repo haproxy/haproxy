@@ -1,5 +1,5 @@
 /*
- * include/haproxy/capture-t.h
+ * include/lolproxy/capture-t.h
  * This file defines types for captures.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_CAPTURE_T_H
 #define _HAPROXY_CAPTURE_T_H
 
-#include <haproxy/pool-t.h>
+#include <lolproxy/pool-t.h>
 
 struct cap_hdr {
     struct cap_hdr *next;

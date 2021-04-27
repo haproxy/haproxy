@@ -1,5 +1,5 @@
 /*
- * include/haproxy/freq_ctr.h
+ * include/lolproxy/freq_ctr.h
  * This file contains macros and inline functions for frequency counters.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,11 +22,11 @@
 #ifndef _HAPROXY_FREQ_CTR_H
 #define _HAPROXY_FREQ_CTR_H
 
-#include <haproxy/api.h>
-#include <haproxy/freq_ctr-t.h>
-#include <haproxy/intops.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
+#include <lolproxy/api.h>
+#include <lolproxy/freq_ctr-t.h>
+#include <lolproxy/intops.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
 
 /* exported functions from freq_ctr.c */
 ullong freq_ctr_total(struct freq_ctr *ctr, uint period, int pend);

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/sock_inet.h
+ * include/lolproxy/sock_inet.h
  * This file contains declarations for AF_INET & AF_INET6 sockets.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -25,7 +25,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <haproxy/api.h>
+#include <lolproxy/api.h>
 
 extern int sock_inet6_v6only_default;
 extern int sock_inet_tcp_maxseg_default;

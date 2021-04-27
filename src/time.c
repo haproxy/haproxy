@@ -13,10 +13,10 @@
 #include <unistd.h>
 #include <sys/time.h>
 
-#include <haproxy/api.h>
-#include <haproxy/time.h>
-#include <haproxy/ticks.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/time.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/tools.h>
 
 THREAD_LOCAL unsigned int   now_ms;          /* internal date in milliseconds (may wrap) */
 THREAD_LOCAL unsigned int   samp_time;       /* total elapsed time over current sample */

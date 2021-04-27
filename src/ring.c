@@ -19,13 +19,13 @@
  */
 
 #include <stdlib.h>
-#include <haproxy/api.h>
-#include <haproxy/applet.h>
-#include <haproxy/buf.h>
-#include <haproxy/cli.h>
-#include <haproxy/ring.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/ring.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/thread.h>
 
 /* Initialize a pre-allocated ring with the buffer area
  * of size */

@@ -70,19 +70,19 @@ s *     queue's lock.
  */
 
 #include <import/eb32tree.h>
-#include <haproxy/api.h>
-#include <haproxy/backend.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/pool.h>
-#include <haproxy/queue.h>
-#include <haproxy/sample.h>
-#include <haproxy/server-t.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/tcp_rules.h>
-#include <haproxy/thread.h>
-#include <haproxy/time.h>
+#include <lolproxy/api.h>
+#include <lolproxy/backend.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/queue.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tcp_rules.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/time.h>
 
 
 #define NOW_OFFSET_BOUNDARY()          ((now_ms - (TIMER_LOOK_BACK >> 12)) & 0xfffff)

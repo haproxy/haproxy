@@ -13,13 +13,13 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include <haproxy/api.h>
-#include <haproxy/errors.h>
-#include <haproxy/list.h>
-#include <haproxy/listener.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proxy.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/tools.h>
 
 
 /* List head of all registered protocols */

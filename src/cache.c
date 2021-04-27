@@ -2,7 +2,7 @@
  * Cache management
  *
  * Copyright 2017 HAProxy Technologies
- * William Lallemand <wlallemand@haproxy.com>
+ * William Lallemand <wlallemand@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,25 +13,25 @@
 #include <import/eb32tree.h>
 #include <import/sha1.h>
 
-#include <haproxy/action-t.h>
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/channel.h>
-#include <haproxy/cli.h>
-#include <haproxy/errors.h>
-#include <haproxy/filters.h>
-#include <haproxy/hash.h>
-#include <haproxy/http.h>
-#include <haproxy/http_ana.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/htx.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/proxy.h>
-#include <haproxy/sample.h>
-#include <haproxy/shctx.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
+#include <lolproxy/action-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/filters.h>
+#include <lolproxy/hash.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http_ana.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/shctx.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
 
 #define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without
 					       * the filter keyword) */
@@ -1626,7 +1626,7 @@ int sha1_hosturi(struct stream *s)
 		return 0;
 
 	/* In HTTP/1, most URIs are seen in origin form ('/path/to/resource'),
-	 * unless haproxy is deployed in front of an outbound cache. In HTTP/2,
+	 * unless lolproxy is deployed in front of an outbound cache. In HTTP/2,
 	 * URIs are almost always sent in absolute form with their scheme. In
 	 * this case, the scheme is almost always "https". In order to support
 	 * sharing of cache objects between H1 and H2, we'll hash the absolute

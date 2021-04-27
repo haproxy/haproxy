@@ -13,11 +13,11 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <haproxy/api.h>
-#include <haproxy/global.h>
-#include <haproxy/pipe-t.h>
-#include <haproxy/pool.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api.h>
+#include <lolproxy/global.h>
+#include <lolproxy/pipe-t.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/thread.h>
 
 
 DECLARE_STATIC_POOL(pool_head_pipe, "pipe", sizeof(struct pipe));

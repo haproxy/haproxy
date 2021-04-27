@@ -1,8 +1,8 @@
 /*
- * include/haproxy/quic_cc-t.h
+ * include/lolproxy/quic_cc-t.h
  * This file contains definitions for QUIC congestion control.
  *
- * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,7 +29,7 @@
 #include <stddef.h> /* size_t */
 #include <stdint.h>
 
-#include <haproxy/buf-t.h>
+#include <lolproxy/buf-t.h>
 
 #define QUIC_CC_INFINITE_SSTHESH ((uint64_t)-1)
 

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/proxy-t.h
+ * include/lolproxy/proxy-t.h
  * This file defines everything related to proxies.
  *
  * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
@@ -30,19 +30,19 @@
 #include <import/eb32tree.h>
 #include <import/ebpttree.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/arg-t.h>
-#include <haproxy/backend-t.h>
-#include <haproxy/compression-t.h>
-#include <haproxy/counters-t.h>
-#include <haproxy/freq_ctr-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/tcpcheck-t.h>
-#include <haproxy/thread-t.h>
-#include <haproxy/tools-t.h>
-#include <haproxy/uri_auth-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/arg-t.h>
+#include <lolproxy/backend-t.h>
+#include <lolproxy/compression-t.h>
+#include <lolproxy/counters-t.h>
+#include <lolproxy/freq_ctr-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/tcpcheck-t.h>
+#include <lolproxy/thread-t.h>
+#include <lolproxy/tools-t.h>
+#include <lolproxy/uri_auth-t.h>
 
 /* values for proxy->mode */
 enum pr_mode {

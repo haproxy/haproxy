@@ -13,12 +13,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <haproxy/api.h>
-#include <haproxy/base64.h>
-#include <haproxy/errors.h>
-#include <haproxy/list.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/uri_auth.h>
+#include <lolproxy/api.h>
+#include <lolproxy/base64.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/list.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/uri_auth.h>
 
 
 /*

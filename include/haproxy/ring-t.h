@@ -1,5 +1,5 @@
 /*
- * include/haproxy/ring-t.h
+ * include/lolproxy/ring-t.h
  * This file provides definitions for ring buffers used for disposable data.
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -22,9 +22,9 @@
 #ifndef _HAPROXY_RING_T_H
 #define _HAPROXY_RING_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/thread.h>
 
 /* The code below handles circular buffers with single-producer and multiple
  * readers (up to 255). The buffer storage area must remain always allocated.

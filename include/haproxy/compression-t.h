@@ -1,5 +1,5 @@
 /*
- * include/haproxy/compression-t.h
+ * include/lolproxy/compression-t.h
  * This file defines everything related to compression.
  *
  * Copyright 2012 Exceliance, David Du Colombier <dducolombier@exceliance.fr>
@@ -32,7 +32,7 @@
 #include <zlib.h>
 #endif
 
-#include <haproxy/buf-t.h>
+#include <lolproxy/buf-t.h>
 
 struct comp {
 	struct comp_algo *algos;

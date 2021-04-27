@@ -18,7 +18,7 @@ server s2 -repeat 3 {
 	  -body "resp from s2"
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
 	defaults
 		mode http
 		${no-htx} option http-use-htx
@@ -35,7 +35,7 @@ haproxy h1 -conf {
 } -start
 
 # add a new dynamic server to be able to delete it then
-haproxy h1 -cli {
+lolproxy h1 -cli {
 	# add a dynamic server and enable it
 	send "experimental-mode on; add server test/s2 ${s2_addr}:${s2_port}"
 	expect ~ "New server registered."
@@ -44,7 +44,7 @@ haproxy h1 -cli {
 	expect ~ ".*"
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
 	# experimental mode disabled
 	send "del server test/s1"
 	expect ~ "This command is restricted to experimental mode only."
@@ -74,7 +74,7 @@ client c1 -connect ${h1_feS_sock} {
 } -run
 
 # delete the dynamic server
-haproxy h1 -cli {
+lolproxy h1 -cli {
 	# server not in maintenance mode
 	send "experimental-mode on; del server test/s2"
 	expect ~ "Only servers in maintenance mode can be deleted."

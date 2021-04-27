@@ -1,5 +1,5 @@
 /*
- * include/haproxy/compat.h
+ * include/lolproxy/compat.h
  * Operating system compatibility interface.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu

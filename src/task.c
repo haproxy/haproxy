@@ -15,16 +15,16 @@
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/list.h>
-#include <haproxy/pool.h>
-#include <haproxy/stream.h>
-#include <haproxy/task.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/list.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/task.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 
 DECLARE_POOL(pool_head_task,    "task",    sizeof(struct task));

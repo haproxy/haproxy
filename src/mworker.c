@@ -1,7 +1,7 @@
 /*
  * Master Worker
  *
- * Copyright HAProxy Technologies 2019 - William Lallemand <wlallemand@haproxy.com>
+ * Copyright HAProxy Technologies 2019 - William Lallemand <wlallemand@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,21 +23,21 @@
 #include <systemd/sd-daemon.h>
 #endif
 
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/cli.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/list.h>
-#include <haproxy/listener.h>
-#include <haproxy/mworker.h>
-#include <haproxy/peers.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/signal.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/version.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/mworker.h>
+#include <lolproxy/peers.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/signal.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/version.h>
 
 
 static int exitcode = -1;
@@ -211,7 +211,7 @@ void mworker_block_signals()
 
 void mworker_unblock_signals()
 {
-	haproxy_unblock_signals();
+	lolproxy_unblock_signals();
 }
 
 /* ----- mworker signal handlers ----- */
@@ -223,7 +223,7 @@ void mworker_broadcast_signal(struct sig_handler *sh)
 }
 
 /*
- * When called, this function reexec haproxy with -sf followed by current
+ * When called, this function reexec lolproxy with -sf followed by current
  * children PIDs and possibly old children PIDs if they didn't leave yet.
  */
 void mworker_catch_sighup(struct sig_handler *sh)
@@ -457,7 +457,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 
 	chunk_printf(&trash, "#%-14s %-15s %-15s %-15s %-15s %-15s\n", "<PID>", "<type>", "<relative PID>", "<reloads>", "<uptime>", "<version>");
 	memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-	chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s %-15s\n", (unsigned int)getpid(), "master", 0, proc_self->reloads, uptime, haproxy_version);
+	chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s %-15s\n", (unsigned int)getpid(), "master", 0, proc_self->reloads, uptime, lolproxy_version);
 	ha_free(&uptime);
 
 	/* displays current processes */
@@ -622,7 +622,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "@!<pid>", NULL }, "@!<pid>        : send a command to the <pid> process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "@master", NULL }, "@master        : send a command to the master process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{ { "show", "proc", NULL }, "show proc      : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
-	{ { "reload", NULL },    "reload         : reload haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "reload", NULL },    "reload         : reload lolproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{{},}
 }};
 

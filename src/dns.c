@@ -19,20 +19,20 @@
 
 #include <sys/types.h>
 
-#include <haproxy/action.h>
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/channel.h>
-#include <haproxy/check.h>
-#include <haproxy/cli.h>
-#include <haproxy/dgram.h>
-#include <haproxy/dns.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/log.h>
-#include <haproxy/ring.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
+#include <lolproxy/action.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/check.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/dgram.h>
+#include <lolproxy/dns.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/log.h>
+#include <lolproxy/ring.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
 
 static THREAD_LOCAL char *dns_msg_trash;
 

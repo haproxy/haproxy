@@ -41,7 +41,7 @@
 /admin/halog/halog
 /admin/iprange/ip6range
 /admin/iprange/iprange
-/admin/systemd/haproxy.service
+/admin/systemd/lolproxy.service
 dev/base64/base64rev-gen
 dev/flags/flags
 dev/poll/poll

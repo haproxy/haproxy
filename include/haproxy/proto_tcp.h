@@ -1,5 +1,5 @@
 /*
- * include/haproxy/proto_tcp.h
+ * include/lolproxy/proto_tcp.h
  * This file contains TCP socket protocol definitions.
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
@@ -22,11 +22,11 @@
 #ifndef _HAPROXY_PROTO_TCP_H
 #define _HAPROXY_PROTO_TCP_H
 
-#include <haproxy/api.h>
-#include <haproxy/arg-t.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/listener-t.h>
-#include <haproxy/sample-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg-t.h>
+#include <lolproxy/connection-t.h>
+#include <lolproxy/listener-t.h>
+#include <lolproxy/sample-t.h>
 
 extern struct protocol proto_tcp4;
 extern struct protocol proto_tcp6;

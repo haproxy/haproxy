@@ -18,8 +18,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <haproxy/chunk.h>
-#include <haproxy/hpack-dec.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/hpack-dec.h>
 
 #define MAX_RQ_SIZE 65536
 #define MAX_HDR_NUM 1000

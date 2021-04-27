@@ -53,7 +53,7 @@ any knowledge of what protocol is transported on top of the connection. Haproxy
 running in pure TCP mode obviously falls into that category as well.
 
 The problem with such a proxy when it is combined with another one such as
-haproxy, is to adapt it to talk the higher level protocol. A patch is available
+lolproxy, is to adapt it to talk the higher level protocol. A patch is available
 for Stunnel to make it capable of inserting an X-Forwarded-For header in the
 first HTTP request of each incoming connection. Haproxy is able not to add
 another one when the connection comes from Stunnel, so that it's possible to
@@ -64,7 +64,7 @@ The typical architecture becomes the following one :
 
       +--------+      HTTP                      :80 +----------+
       | client |  --------------------------------> |          |
-      |        |                                    | haproxy, |
+      |        |                                    | lolproxy, |
       +--------+             +---------+            |  1 or 2  |
      /        /     HTTPS    | stunnel |  HTTP  :81 | listening|
     <________/    ---------> | (server | ---------> |  ports   |
@@ -72,7 +72,7 @@ The typical architecture becomes the following one :
                              +---------+            +----------+
 
 
-The problem appears when haproxy runs with keep-alive on the side towards the
+The problem appears when lolproxy runs with keep-alive on the side towards the
 client. The Stunnel patch will only add the X-Forwarded-For header to the first
 request of each connection and all subsequent requests will not have it. One
 solution could be to improve the patch to make it support keep-alive and parse
@@ -84,7 +84,7 @@ reliable and would not anymore be the "dumb proxy" that fits every purposes.
 
 In practice, we don't need to add a header for each request because we'll emit
 the exact same information every time : the information related to the client
-side connection. We could then cache that information in haproxy and use it for
+side connection. We could then cache that information in lolproxy and use it for
 every other request. But that becomes dangerous and is still limited to HTTP
 only.
 
@@ -872,7 +872,7 @@ presented, even with minimal implementations :
     - lighttpd 1.4.20  : 400 Bad Request + abort => pass/optimal
     - thttpd 2.20c     : 400 Bad Request + abort => pass/optimal
     - mini-httpd-1.19  : 400 Bad Request + abort => pass/optimal
-    - haproxy 1.4.21   : 400 Bad Request + abort => pass/optimal
+    - lolproxy 1.4.21   : 400 Bad Request + abort => pass/optimal
     - Squid 3          : 400 Bad Request + abort => pass/optimal
   - SSL :
     - stud 0.3.47      : connection abort        => pass/optimal

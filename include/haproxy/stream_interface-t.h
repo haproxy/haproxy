@@ -1,5 +1,5 @@
 /*
- * include/haproxy/stream_interface-t.h
+ * include/lolproxy/stream_interface-t.h
  * This file describes the stream_interface struct and associated constants.
  *
  * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_STREAM_INTERFACE_T_H
 #define _HAPROXY_STREAM_INTERFACE_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/obj_type-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/connection-t.h>
+#include <lolproxy/obj_type-t.h>
 
 /* A stream interface must have its own errors independently of the buffer's,
  * so that applications can rely on what the buffer reports while the stream

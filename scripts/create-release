@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# creates a new haproxy release at the current commit
+# creates a new lolproxy release at the current commit
 # Copyright (c) 2006-2016 Willy Tarreau <w@1wt.eu>
 #
 # In short :
@@ -191,17 +191,17 @@ for file in doc/intro.txt doc/configuration.txt doc/management.txt $(git diff --
 	    -i "$file"
 done
 
-echo "Updating haproxy.c ..."
-sed -e "s:Copyright 2000-[0-9]*\s*Willy Tarreau.*>:Copyright 2000-$YEAR Willy Tarreau <willy@haproxy.org>:" \
-    -i src/haproxy.c
+echo "Updating lolproxy.c ..."
+sed -e "s:Copyright 2000-[0-9]*\s*Willy Tarreau.*>:Copyright 2000-$YEAR Willy Tarreau <willy@lolproxy.org>:" \
+    -i src/lolproxy.c
 
 echo "Updating version.h ..."
 sed -e "s:^\(#define\s*PRODUCT_BRANCH\s*\)\"[^\"]*\":\1\"$BRANCH\":" \
-    -i include/haproxy/version.h
+    -i include/lolproxy/version.h
 
 if [ -n "$INTERACTIVE" ]; then
 	vi CHANGELOG VERSION VERDATE \
-	   src/haproxy.c doc/configuration.txt \
+	   src/lolproxy.c doc/configuration.txt \
 	   $(git diff --name-only v${OLD}.. -- doc)
 fi
 

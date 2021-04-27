@@ -1,5 +1,5 @@
 /*
- * include/haproxy/lb_fwrr.h
+ * include/lolproxy/lb_fwrr.h
  * Fast Weighted Round Robin load balancing algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_LB_FWRR_H
 #define _HAPROXY_LB_FWRR_H
 
-#include <haproxy/api.h>
-#include <haproxy/lb_fwrr-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/server-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/lb_fwrr-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/server-t.h>
 
 void fwrr_init_server_groups(struct proxy *p);
 struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid);

@@ -9,10 +9,10 @@
 #include <openssl/kdf.h>
 #endif
 
-#include <haproxy/buf.h>
-#include <haproxy/chunk.h>
-//#include <haproxy/quic_tls-t.h>
-#include <haproxy/xprt_quic.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/chunk.h>
+//#include <lolproxy/quic_tls-t.h>
+#include <lolproxy/xprt_quic.h>
 
 
 __attribute__((format (printf, 3, 4)))

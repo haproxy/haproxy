@@ -1,4 +1,4 @@
-varnishtest "haproxy host header: map / redirect tests"
+varnishtest "lolproxy host header: map / redirect tests"
 #REQUIRE_OPTIONS=PCRE|PCRE2
 feature ignore_unknown_macro
 
@@ -32,7 +32,7 @@ server s4 {
    txresp -body "test1 after del map ok"
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
   defaults
     mode http
     ${no-htx} option http-use-htx
@@ -145,7 +145,7 @@ client c7 -connect ${h1_fe1_sock} {
 } -run
 
 # cli show maps
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show map ${testdir}/map_redirect.map"
     expect ~ "^0x[a-f0-9]+ example\\.org https://www\\.example\\.org\\n0x[a-f0-9]+ subdomain\\.example\\.org https://www\\.subdomain\\.example\\.org\\n$"
 
@@ -153,7 +153,7 @@ haproxy h1 -cli {
     expect ~ "^0x[a-f0-9]+ test1\\.example\\.com test1_be\\n0x[a-f0-9]+ test1\\.example\\.invalid test1_be\\n0x[a-f0-9]+ test2\\.example\\.com test2_be\\n$"
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     # clear map ${testdir}/map_redirect.map
     send "clear map ${testdir}/map_redirect.map"
     expect ~ "^\\n"

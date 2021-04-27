@@ -16,28 +16,28 @@
 #include <string.h>
 #include <time.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/action.h>
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/capture-t.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/chunk.h>
-#include <haproxy/global.h>
-#include <haproxy/http.h>
-#include <haproxy/http_ana.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/log.h>
-#include <haproxy/pattern.h>
-#include <haproxy/pool.h>
-#include <haproxy/regex.h>
-#include <haproxy/sample.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/tools.h>
-#include <haproxy/uri_auth-t.h>
-#include <haproxy/uri_normalizer.h>
-#include <haproxy/version.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/action.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/capture-t.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http_ana.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/log.h>
+#include <lolproxy/pattern.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/uri_auth-t.h>
+#include <lolproxy/uri_normalizer.h>
+#include <lolproxy/version.h>
 
 
 /* Release memory allocated by most of HTTP actions. Concretly, it releases

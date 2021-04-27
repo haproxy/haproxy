@@ -28,7 +28,7 @@ syslog S4 -level notice {
 } -start
 
 
-haproxy htst -conf {
+lolproxy htst -conf {
     global
         tune.ssl.default-dh-param 2048
 
@@ -42,8 +42,8 @@ haproxy htst -conf {
         bind "fd@${li1}"
         tcp-request inspect-delay 100ms
         tcp-request content reject if  { req.ssl_hello_type 0 }
-        tcp-request content accept if { req.ssl_sni check.haproxy.org }
-        tcp-request content accept if { req.ssl_sni connect.haproxy.org }
+        tcp-request content accept if { req.ssl_sni check.lolproxy.org }
+        tcp-request content accept if { req.ssl_sni connect.lolproxy.org }
         tcp-request content reject
 	server fe1 ${htst_fe1_addr}:${htst_fe1_port}
 
@@ -61,7 +61,7 @@ haproxy htst -conf {
 
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode tcp
         timeout client 1s
@@ -71,25 +71,25 @@ haproxy h1 -conf {
     backend be1
         log ${S_ok_addr}:${S_ok_port} daemon
         option log-health-checks
-        server srv ${htst_li1_addr}:${htst_li1_port} check check-ssl check-sni check.haproxy.org inter 1s rise 1 fall 1 verify none
+        server srv ${htst_li1_addr}:${htst_li1_port} check check-ssl check-sni check.lolproxy.org inter 1s rise 1 fall 1 verify none
 
     backend be2
         log ${S_ok_addr}:${S_ok_port} daemon
         option log-health-checks
         option tcp-check
-	tcp-check connect ssl sni connect.haproxy.org
+	tcp-check connect ssl sni connect.lolproxy.org
         server srv ${htst_li1_addr}:${htst_li1_port} check inter 1s rise 1 fall 1 verify none
 
     backend be3
         log ${S3_addr}:${S3_port} daemon
         option log-health-checks
-        server srv ${htst_li1_addr}:${htst_li1_port} check check-ssl check-sni bad.haproxy.org inter 1s rise 1 fall 1 verify none
+        server srv ${htst_li1_addr}:${htst_li1_port} check check-ssl check-sni bad.lolproxy.org inter 1s rise 1 fall 1 verify none
 
     backend be4
         log ${S4_addr}:${S4_port} daemon
         option log-health-checks
         option tcp-check
-	tcp-check connect ssl sni bad.haproxy.org
+	tcp-check connect ssl sni bad.lolproxy.org
         server srv ${htst_li1_addr}:${htst_li1_port} check inter 1s rise 1 fall 1 verify none
 
     backend be5
@@ -97,7 +97,7 @@ haproxy h1 -conf {
         option log-health-checks
 	option tcp-check
 	tcp-check connect default
-        server srv ${htst_li1_addr}:${htst_li1_port} check check-ssl check-sni check.haproxy.org inter 1s rise 1 fall 1 verify none
+        server srv ${htst_li1_addr}:${htst_li1_port} check check-ssl check-sni check.lolproxy.org inter 1s rise 1 fall 1 verify none
 
    backend be6
        log ${S_ok_addr}:${S_ok_port} daemon

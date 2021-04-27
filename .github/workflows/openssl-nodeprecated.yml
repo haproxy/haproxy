@@ -5,8 +5,8 @@
 # for example, OpenWRT uses such OpenSSL builds (those builds are smaller)
 #
 #
-# some details might be found at NL: https://www.mail-archive.com/haproxy@formilux.org/msg35759.html
-#                                GH: https://github.com/haproxy/haproxy/issues/367
+# some details might be found at NL: https://www.mail-archive.com/lolproxy@formilux.org/msg35759.html
+#                                GH: https://github.com/lolproxy/lolproxy/issues/367
 
 name: openssl no-deprecated
 
@@ -25,7 +25,7 @@ jobs:
       run: |
         git clone https://github.com/VTest/VTest.git ../vtest
         make -C ../vtest FLAGS="-O2 -s -Wall"
-    - name: build haproxy
+    - name: build lolproxy
       run: |
         make DEFINE="-DOPENSSL_API_COMPAT=0x10100000L -DOPENSSL_NO_DEPRECATED" -j3 CC=gcc ERR=1 TARGET=linux-glibc USE_OPENSSL=1
     - name: run reg-tests

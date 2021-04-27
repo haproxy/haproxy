@@ -1,5 +1,5 @@
 /*
- * include/haproxy/stream_interface.h
+ * include/lolproxy/stream_interface.h
  * This file contains stream_interface function prototypes
  *
  * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
@@ -22,12 +22,12 @@
 #ifndef _HAPROXY_STREAM_INTERFACE_H
 #define _HAPROXY_STREAM_INTERFACE_H
 
-#include <haproxy/api.h>
-#include <haproxy/applet.h>
-#include <haproxy/channel.h>
-#include <haproxy/connection.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/stream_interface-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/stream_interface-t.h>
 
 
 extern struct si_ops si_embedded_ops;

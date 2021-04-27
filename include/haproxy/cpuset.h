@@ -1,7 +1,7 @@
 #ifndef _HAPROXY_CPUSET_H
 #define _HAPROXY_CPUSET_H
 
-#include <haproxy/cpuset-t.h>
+#include <lolproxy/cpuset-t.h>
 
 extern struct cpu_map cpu_map;
 

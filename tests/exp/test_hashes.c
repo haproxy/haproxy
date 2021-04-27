@@ -30,7 +30,7 @@ static double timeval_elapsed(struct timeval *tv)
 
 #define HAPROXY_BACKENDS 4
 
-unsigned long haproxy_uri_hash(char *uri, int uri_len){
+unsigned long lolproxy_uri_hash(char *uri, int uri_len){
 
   unsigned long hash = 0;
   int c;
@@ -43,7 +43,7 @@ unsigned long haproxy_uri_hash(char *uri, int uri_len){
   }
 
   return hash%HAPROXY_BACKENDS; /* I assume 4 active backends */
-} /* end haproxy_hash() */
+} /* end lolproxy_hash() */
 
 /*
  * http://eternallyconfuzzled.com/tuts/algorithms/jsw_tut_hashing.aspx
@@ -62,7 +62,7 @@ unsigned sax_hash ( void *key, int len )
 
 #include <arpa/inet.h>
 /* len 4 for ipv4 and 16 for ipv6 */
-unsigned int haproxy_server_hash(const char *addr, int len){
+unsigned int lolproxy_server_hash(const char *addr, int len){
   unsigned int h, l;
   l = h = 0;
 
@@ -71,7 +71,7 @@ unsigned int haproxy_server_hash(const char *addr, int len){
     l += sizeof (int);
   }
   return h %= HAPROXY_BACKENDS;
-}/* end haproxy_server_hash() */
+}/* end lolproxy_server_hash() */
 
 
 int hashpjw(const void *key) {
@@ -542,8 +542,8 @@ int main(){
   run_test(wt_hash, (*urls, len));
   run_test(SuperFastHash2, (*urls, len));
   run_test(SuperFastHash, (*urls, len));
-  run_test(haproxy_uri_hash, (*urls, len));
-  run_test(haproxy_server_hash, (*urls, len));
+  run_test(lolproxy_uri_hash, (*urls, len));
+  run_test(lolproxy_server_hash, (*urls, len));
   run_test(hashpjw, (*urls));
   run_test(hash_djbx33, ((unsigned char *)*urls, len));
   run_test(bernstein, ((unsigned char *)*urls, len, 4));

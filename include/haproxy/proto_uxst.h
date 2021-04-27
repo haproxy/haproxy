@@ -1,5 +1,5 @@
 /*
- * include/haproxy/proto_uxst.h
+ * include/lolproxy/proto_uxst.h
  * This file contains UNIX stream socket protocol definitions.
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu

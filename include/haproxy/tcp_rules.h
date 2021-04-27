@@ -1,5 +1,5 @@
 /*
- * include/haproxy/tcp_rules.h
+ * include/lolproxy/tcp_rules.h
  * This file contains "tcp" rules definitions
  *
  * Copyright (C) 2000-2016 Willy Tarreau - w@1wt.eu
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_TCP_RULES_H
 #define _HAPROXY_TCP_RULES_H
 
-#include <haproxy/action-t.h>
-#include <haproxy/api.h>
-#include <haproxy/session-t.h>
-#include <haproxy/stream-t.h>
+#include <lolproxy/action-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/session-t.h>
+#include <lolproxy/stream-t.h>
 
 int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit);
 int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit);

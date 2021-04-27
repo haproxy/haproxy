@@ -1,7 +1,7 @@
 #ifndef _HAPROXY_INIT_T_H
 #define _HAPROXY_INIT_T_H
 
-#include <haproxy/list-t.h>
+#include <lolproxy/list-t.h>
 
 struct proxy;
 struct server;

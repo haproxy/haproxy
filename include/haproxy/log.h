@@ -1,5 +1,5 @@
 /*
- * include/haproxy/log.h
+ * include/lolproxy/log.h
  * This file contains definitions of log-related functions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -24,11 +24,11 @@
 
 #include <syslog.h>
 
-#include <haproxy/api.h>
-#include <haproxy/log-t.h>
-#include <haproxy/pool-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/stream.h>
+#include <lolproxy/api.h>
+#include <lolproxy/log-t.h>
+#include <lolproxy/pool-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/stream.h>
 
 extern struct pool_head *pool_head_requri;
 extern struct pool_head *pool_head_uniqueid;

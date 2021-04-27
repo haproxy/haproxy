@@ -1,9 +1,9 @@
 /*
  * UDP protocol layer on top of AF_INET/AF_INET6
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
- * Partial merge by Emeric Brun <ebrun@haproxy.com>
+ * Partial merge by Emeric Brun <ebrun@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -27,18 +27,18 @@
 #include <netinet/udp.h>
 #include <netinet/in.h>
 
-#include <haproxy/fd.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/namespace.h>
-#include <haproxy/port_range.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proto_udp.h>
-#include <haproxy/proxy.h>
-#include <haproxy/server.h>
-#include <haproxy/sock.h>
-#include <haproxy/sock_inet.h>
-#include <haproxy/task.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/port_range.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proto_udp.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/server.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/sock_inet.h>
+#include <lolproxy/task.h>
 
 static int udp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static void udp_enable_listener(struct listener *listener);

@@ -1,7 +1,7 @@
 /*
  * FastCGI protocol processing
  *
- * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -24,9 +24,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <haproxy/buf.h>
-#include <haproxy/fcgi.h>
-#include <haproxy/istbuf.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/fcgi.h>
+#include <lolproxy/istbuf.h>
 
 /* Encodes header of a FCGI record into the chunk <out>. It returns non-zero on
  * success and 0 on failure (buffer full). <out> is a chunk, so the wrapping is

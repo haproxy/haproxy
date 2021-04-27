@@ -10,10 +10,10 @@
  *
  */
 
-#include <haproxy/api.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 /* Returns the total number of events over the current + last period, including
  * a number of already pending events <pend>. The average frequency will be

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/lb_map-t.h
+ * include/lolproxy/lb_map-t.h
  * Types for map-based load-balancing (RR and HASH)
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_LB_MAP_T_H
 #define _HAPROXY_LB_MAP_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/server-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/server-t.h>
 
 struct lb_map {
 	struct server **srv;	/* the server map used to apply weights */

@@ -47,9 +47,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <haproxy/api.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 static FILE *log;
 static int level;

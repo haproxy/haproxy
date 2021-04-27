@@ -14,11 +14,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <haproxy/api.h>
-#include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/regex.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/global.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/tools.h>
 
 /* regex trash buffer used by various regex tests */
 THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */

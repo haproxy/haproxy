@@ -1,5 +1,5 @@
 /*
- * include/haproxy/base64.h
+ * include/lolproxy/base64.h
  * Ascii to Base64 conversion as described in RFC1421.
  *
  * Copyright 2006-2020 Willy Tarreau <w@1wt.eu>
@@ -14,7 +14,7 @@
 #ifndef _HAPROXY_BASE64_H
 #define _HAPROXY_BASE64_H
 
-#include <haproxy/api.h>
+#include <lolproxy/api.h>
 
 int a2base64(char *in, int ilen, char *out, int olen);
 int a2base64url(const char *in, size_t ilen, char *out, size_t olen);

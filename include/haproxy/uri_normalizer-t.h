@@ -1,5 +1,5 @@
 /*
- * include/haproxy/uri_normalizer.h
+ * include/lolproxy/uri_normalizer.h
  * HTTP request URI normalization.
  *
  * Copyright 2021 Tim Duesterhus <tim@bastelstu.be>

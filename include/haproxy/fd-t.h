@@ -1,5 +1,5 @@
 /*
- * include/haproxy/fd-t.h
+ * include/lolproxy/fd-t.h
  * File descriptors states - check src/fd.c for explanations.
  *
  * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_FD_T_H
 #define _HAPROXY_FD_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/port_range-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/port_range-t.h>
 
 /* Direction for each FD event update */
 enum {

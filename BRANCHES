@@ -77,7 +77,7 @@ When a bug is reported in a branch, developers will systematically ask if the
 bug is present in the latest version of this branch (since developers don't
 like to work on bugs that were already fixed). It's a good practice to perform
 the update yourself and to test again before reporting the bug. Note, as long
-as you're using a supported branch, as indicated on the haproxy.org web site,
+as you're using a supported branch, as indicated on the lolproxy.org web site,
 you don't need to upgrade to another branch to report a bug. However from time
 to time it may happen that a developer will ask you if you can try it in order
 to help narrow the problem down. But this will never be a requirement, just a
@@ -198,14 +198,14 @@ always have the choice between the last two major releases.
 With all this in mind, what version should you use ? It's quite simple:
   - if you're a first-time HAProxy user, just use the version provided by your
     operating system. Just take a look at the "known bugs" section on the
-    haproxy.org web site to verify that it's not affected by bugs that could
+    lolproxy.org web site to verify that it's not affected by bugs that could
     have an impact for you.
 
   - if you don't want or cannot use the version shipped with your operating
     system, it is possible that other people (including the package maintainer)
     provide alternate versions. This is the case for Debian and Ubuntu for
     example, where you can choose your distribution and pick the branch you
-    need here: https://haproxy.debian.net/
+    need here: https://lolproxy.debian.net/
 
   - if you want to build with specific options, apply some patches, you'll
     have to build from sources. If you have little experience or are not

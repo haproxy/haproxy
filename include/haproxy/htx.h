@@ -1,8 +1,8 @@
 /*
- * include/haproxy/htx.h
+ * include/lolproxy/htx.h
  * This file defines everything related to the internal HTTP messages.
  *
- * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,12 +23,12 @@
 #define _HAPROXY_HTX_H
 
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/buf.h>
-#include <haproxy/chunk.h>
-#include <haproxy/http-hdr-t.h>
-#include <haproxy/http-t.h>
-#include <haproxy/htx-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/http-hdr-t.h>
+#include <lolproxy/http-t.h>
+#include <lolproxy/htx-t.h>
 
 extern struct htx htx_empty;
 

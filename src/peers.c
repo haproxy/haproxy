@@ -20,29 +20,29 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <haproxy/api.h>
-#include <haproxy/applet.h>
-#include <haproxy/channel.h>
-#include <haproxy/cli.h>
-#include <haproxy/dict.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/frontend.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/peers.h>
-#include <haproxy/proxy.h>
-#include <haproxy/session-t.h>
-#include <haproxy/signal.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/stick_table.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/thread.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/trace.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/dict.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/frontend.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/peers.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/session-t.h>
+#include <lolproxy/signal.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/stick_table.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/trace.h>
 
 
 /*******************************/

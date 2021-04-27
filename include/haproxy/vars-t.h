@@ -1,5 +1,5 @@
 /*
- * include/haproxy/vars-t.h
+ * include/lolproxy/vars-t.h
  * Macros and structures definitions for variables.
  *
  * Copyright (C) 2015 Thierry FOURNIER <tfournier@arpalert.org>
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_VARS_T_H
 #define _HAPROXY_VARS_T_H
 
-#include <haproxy/sample_data-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/sample_data-t.h>
+#include <lolproxy/thread-t.h>
 
 enum vars_scope {
 	SCOPE_SESS = 0,

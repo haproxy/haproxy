@@ -1,5 +1,5 @@
 /*
- * include/haproxy/connection-t.h
+ * include/lolproxy/connection-t.h
  * This file describes the connection struct and associated constants.
  *
  * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
@@ -32,12 +32,12 @@
 #include <import/ist.h>
 #include <import/xxhash.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/listener-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/port_range-t.h>
-#include <haproxy/protocol-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/listener-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/port_range-t.h>
+#include <lolproxy/protocol-t.h>
 
 /* referenced below */
 struct connection;

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/intops.h
+ * include/lolproxy/intops.h
  * Functions for integer operations.
  *
  * Copyright (C) 2020 Willy Tarreau - w@1wt.eu
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_INTOPS_H
 #define _HAPROXY_INTOPS_H
 
-#include <haproxy/api.h>
+#include <lolproxy/api.h>
 
 /* exported functions, mostly integer parsing */
 /* rounds <i> down to the closest value having max 2 digits */

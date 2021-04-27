@@ -24,21 +24,21 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
-#include <haproxy/api.h>
-#include <haproxy/connection.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/list.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proto_uxst.h>
-#include <haproxy/sock.h>
-#include <haproxy/sock_unix.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/version.h>
+#include <lolproxy/api.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proto_uxst.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/sock_unix.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/version.h>
 
 
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);

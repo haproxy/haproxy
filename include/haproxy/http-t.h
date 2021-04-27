@@ -1,5 +1,5 @@
 /*
- * include/haproxy/http-t.h
+ * include/lolproxy/http-t.h
  *
  * Version-agnostic and implementation-agnostic HTTP protocol definitions.
  *
@@ -25,7 +25,7 @@
 
 #include <inttypes.h>
 #include <import/ist.h>
-#include <haproxy/buf-t.h>
+#include <lolproxy/buf-t.h>
 
 /*
  * some macros mainly used when parsing header fields.

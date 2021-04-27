@@ -1,7 +1,7 @@
 /*
  * internal HTTP message
  *
- * Copyright 2018 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright 2018 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -10,8 +10,8 @@
  *
  */
 
-#include <haproxy/chunk.h>
-#include <haproxy/htx.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/htx.h>
 
 struct htx htx_empty = { .size = 0, .data = 0, .head  = -1, .tail = -1, .first = -1 };
 

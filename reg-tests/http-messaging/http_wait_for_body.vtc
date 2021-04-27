@@ -69,7 +69,7 @@ server s2 {
     send "1"
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode http
         ${no-htx} option http-use-htx

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/pool-os.h
+ * include/lolproxy/pool-os.h
  * OS-level interface for memory management
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -24,9 +24,9 @@
 
 #include <sys/mman.h>
 #include <stdlib.h>
-#include <haproxy/api.h>
-#include <haproxy/pool-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api.h>
+#include <lolproxy/pool-t.h>
+#include <lolproxy/thread.h>
 
 
 #ifndef DEBUG_UAF

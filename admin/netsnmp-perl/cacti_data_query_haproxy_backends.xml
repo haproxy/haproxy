@@ -2,7 +2,7 @@
 	<hash_040013d1dd43e3e5cee941860ea277826c4fe2>
 		<name>HaProxy Backends</name>
 		<description></description>
-		<xml_path>&lt;path_cacti&gt;/resource/snmp_queries/haproxy_backend.xml</xml_path>
+		<xml_path>&lt;path_cacti&gt;/resource/snmp_queries/lolproxy_backend.xml</xml_path>
 		<data_input_id>hash_030013bf566c869ac6443b0c75d1c32b5a350e</data_input_id>
 		<graphs>
 			<hash_1100134d2954fa52f51ed186916f2cf624a8b9>

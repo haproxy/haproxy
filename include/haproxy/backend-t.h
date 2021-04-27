@@ -1,5 +1,5 @@
 /*
- * include/haproxy/backend-t.h
+ * include/lolproxy/backend-t.h
  * This file assembles definitions for backends
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -22,14 +22,14 @@
 #ifndef _HAPROXY_BACKEND_T_H
 #define _HAPROXY_BACKEND_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/lb_chash-t.h>
-#include <haproxy/lb_fas-t.h>
-#include <haproxy/lb_fwlc-t.h>
-#include <haproxy/lb_fwrr-t.h>
-#include <haproxy/lb_map-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/lb_chash-t.h>
+#include <lolproxy/lb_fas-t.h>
+#include <lolproxy/lb_fwlc-t.h>
+#include <lolproxy/lb_fwrr-t.h>
+#include <lolproxy/lb_map-t.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/thread-t.h>
 
 /* Parameters for lbprm.algo */
 

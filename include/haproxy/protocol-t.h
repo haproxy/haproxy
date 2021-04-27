@@ -1,5 +1,5 @@
 /*
- * include/haproxy/protocol-t.h
+ * include/lolproxy/protocol-t.h
  * This file defines the structures used by generic network protocols.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -26,7 +26,7 @@
 #include <sys/socket.h>
 
 #include <import/eb32tree.h>
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 /* some pointer types referenced below */
 struct listener;

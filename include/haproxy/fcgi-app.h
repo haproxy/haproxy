@@ -1,8 +1,8 @@
 /*
- * include/haproxy/fcgi-app.h
+ * include/lolproxy/fcgi-app.h
  * This file defines function prototypes for FCGI applications.
  *
- * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,9 +22,9 @@
 #ifndef _HAPROXY_HTTP_FCGI_H
 #define _HAPROXY_HTTP_FCGI_H
 
-#include <haproxy/fcgi-app-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/stream-t.h>
+#include <lolproxy/fcgi-app-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/stream-t.h>
 
 struct fcgi_app *fcgi_app_find_by_name(const char *name);
 struct fcgi_flt_conf *find_px_fcgi_conf(struct proxy *px);

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/compression.h
+ * include/lolproxy/compression.h
  * This file defines function prototypes for compression.
  *
  * Copyright 2012 (C) Exceliance, David Du Colombier <dducolombier@exceliance.fr>
@@ -23,7 +23,7 @@
 #ifndef _HAPROXY_COMP_H
 #define _HAPROXY_COMP_H
 
-#include <haproxy/compression-t.h>
+#include <lolproxy/compression-t.h>
 
 extern unsigned int compress_min_idle;
 

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/sample-t.h
+ * include/lolproxy/sample-t.h
  * Macros, variables and structures for sample management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -23,8 +23,8 @@
 #ifndef _HAPROXY_SAMPLE_T_H
 #define _HAPROXY_SAMPLE_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/sample_data-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/sample_data-t.h>
 
 /* input and output sample types */
 enum {

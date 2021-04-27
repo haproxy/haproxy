@@ -1,5 +1,5 @@
 /*
- * include/haproxy/arg.h
+ * include/lolproxy/arg.h
  * This file contains functions and macros declarations for generic argument parsing.
  *
  * Copyright 2012 Willy Tarreau <w@1wt.eu>
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_ARG_H
 #define _HAPROXY_ARG_H
 
-#include <haproxy/arg-t.h>
+#include <lolproxy/arg-t.h>
 
 /* Some macros used to build some arg list. We can declare various argument
  * combinations from 0 to 7 args using a single 32-bit integer. The first

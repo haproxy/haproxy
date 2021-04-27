@@ -1,5 +1,5 @@
 /*
- * include/haproxy/frontend.h
+ * include/lolproxy/frontend.h
  * This file declares frontend-specific functions.
  *
  * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_FRONTEND_H
 #define _HAPROXY_FRONTEND_H
 
-#include <haproxy/stream-t.h>
+#include <lolproxy/stream-t.h>
 
 int frontend_accept(struct stream *s);
 

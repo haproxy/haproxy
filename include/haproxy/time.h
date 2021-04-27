@@ -1,5 +1,5 @@
 /*
- * include/haproxy/time.h
+ * include/lolproxy/time.h
  * Time calculation functions and macros.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -24,8 +24,8 @@
 
 #include <sys/time.h>
 #include <time.h>
-#include <haproxy/api.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api.h>
+#include <lolproxy/thread.h>
 
 /* eternity when exprimed in timeval */
 #ifndef TV_ETERNITY

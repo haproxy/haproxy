@@ -1,5 +1,5 @@
 /*
- * include/haproxy/uri_normalizer.h
+ * include/lolproxy/uri_normalizer.h
  * HTTP request URI normalization.
  *
  * Copyright 2021 Tim Duesterhus <tim@bastelstu.be>
@@ -16,7 +16,7 @@
 
 #include <import/ist.h>
 
-#include <haproxy/uri_normalizer-t.h>
+#include <lolproxy/uri_normalizer-t.h>
 
 enum uri_normalizer_err uri_normalizer_percent_decode_unreserved(const struct ist input, int strict, struct ist *dst);
 enum uri_normalizer_err uri_normalizer_percent_upper(const struct ist input, int strict, struct ist *dst);

@@ -5,7 +5,7 @@
  * Copyright 2007-2010 Krzysztof Piotr Oledzki <ole@ans.pl>
  * Copyright 2013 Baptiste Assmann <bedis9@gmail.com>
  * Copyright 2020 Gaetan Rivet <grive@u256.net>
- * Copyright 2020 Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright 2020 Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,33 +33,33 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <haproxy/action.h>
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/check.h>
-#include <haproxy/chunk.h>
-#include <haproxy/connection.h>
-#include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/h1.h>
-#include <haproxy/http.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-#include <haproxy/istbuf.h>
-#include <haproxy/list.h>
-#include <haproxy/log.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/regex.h>
-#include <haproxy/sample.h>
-#include <haproxy/server.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/task.h>
-#include <haproxy/tcpcheck.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/trace.h>
-#include <haproxy/vars.h>
+#include <lolproxy/action.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/check.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/global.h>
+#include <lolproxy/h1.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/istbuf.h>
+#include <lolproxy/list.h>
+#include <lolproxy/log.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/server.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tcpcheck.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/trace.h>
+#include <lolproxy/vars.h>
 
 
 #define TRACE_SOURCE &trace_check
@@ -4474,7 +4474,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	 * 	"\x01"		// packet number
 	 * 	"\x00\x00"	// client capabilities
 	 * 	"\x00\x00\x01"	// max packet
-	 * 	"haproxy\x00"	// username (null terminated string)
+	 * 	"lolproxy\x00"	// username (null terminated string)
 	 * 	"\x00"		// filler (always 0x00)
 	 * 	"\x01\x00\x00"	// packet length
 	 * 	"\x00"		// packet number
@@ -4501,7 +4501,7 @@ int proxy_parse_mysql_check_opt(char **args, int cur_arg, struct proxy *curpx, c
 	 * 	"\x00\x00\x00\x01"	// max packet
 	 *	"\x21"			// character set (UTF-8)
 	 *	char[23]		// All zeroes
-	 * 	"haproxy\x00"		// username (null terminated string)
+	 * 	"lolproxy\x00"		// username (null terminated string)
 	 * 	"\x00"			// filler (always 0x00)
 	 * 	"\x01\x00\x00"		// packet length
 	 * 	"\x00"			// packet number

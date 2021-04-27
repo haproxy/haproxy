@@ -1,7 +1,7 @@
 /*
  * functions about threads.
  *
- * Copyright (C) 2017 Christopher Fauet - cfaulet@haproxy.com
+ * Copyright (C) 2017 Christopher Fauet - cfaulet@lolproxy.com
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,11 +23,11 @@
 #include <sys/cpuset.h>
 #endif
 
-#include <haproxy/cfgparse.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/thread.h>
-#include <haproxy/tools.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/tools.h>
 
 struct thread_info ha_thread_info[MAX_THREADS] = { };
 THREAD_LOCAL struct thread_info *ti = &ha_thread_info[0];

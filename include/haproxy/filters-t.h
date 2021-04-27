@@ -1,5 +1,5 @@
 /*
- * include/haproxy/filteers-t.h
+ * include/lolproxy/filteers-t.h
  * This file defines everything related to stream filters.
  *
  * Copyright (C) 2015 Qualys Inc., Christopher Faulet <cfaulet@qualys.com>
@@ -21,7 +21,7 @@
 #ifndef _HAPROXY_FILTERS_T_H
 #define _HAPROXY_FILTERS_T_H
 
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 /* Flags set on a filter config */
 #define FLT_CFG_FL_HTX    0x00000001  /* The filter can filter HTX streams */

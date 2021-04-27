@@ -1,5 +1,5 @@
 /*
- * include/haproxy/receiver-t.h
+ * include/lolproxy/receiver-t.h
  * This file defines the structures needed to manage receivers.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -25,9 +25,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/namespace-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/namespace-t.h>
+#include <lolproxy/thread.h>
 
 /* Bit values for receiver->flags */
 #define RX_F_BOUND              0x00000001  /* receiver already bound */

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/queue.h
+ * include/lolproxy/queue.h
  * This file defines everything related to queues.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,13 +22,13 @@
 #ifndef _HAPROXY_QUEUE_H
 #define _HAPROXY_QUEUE_H
 
-#include <haproxy/api.h>
-#include <haproxy/backend.h>
-#include <haproxy/pool.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/queue-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/stream-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/backend.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/queue-t.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/stream-t.h>
 
 extern struct pool_head *pool_head_pendconn;
 

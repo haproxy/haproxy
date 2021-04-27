@@ -1,5 +1,5 @@
 /*
- * include/haproxy/pattern-t.h
+ * include/lolproxy/pattern-t.h
  * This file provides structures and types for ACLs.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -24,10 +24,10 @@
 
 #include <import/ebmbtree.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/regex-t.h>
-#include <haproxy/sample_data-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/regex-t.h>
+#include <lolproxy/sample_data-t.h>
+#include <lolproxy/thread-t.h>
 
 
 /* Pattern matching function result.

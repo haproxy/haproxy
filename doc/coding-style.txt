@@ -1152,7 +1152,7 @@ Includes are as much as possible listed in alphabetically ordered groups :
   - the includes more or less system-specific (sys/*, netinet/*, ...)
   - the libc-standard includes (those without any path component)
   - includes from the local "import" subdirectory
-  - includes from the local "haproxy" subdirectory
+  - includes from the local "lolproxy" subdirectory
 
 Each section is just visually delimited from the other ones using an empty
 line. The two first ones above may be merged into a single section depending on
@@ -1162,7 +1162,7 @@ hard to find which ones are needed later. Just include what you need and if
 possible in alphabetical order so that when something is missing, it becomes
 obvious where to look for it and where to add it.
 
-All files should include <haproxy/api.h> because this is where build options
+All files should include <lolproxy/api.h> because this is where build options
 are prepared.
 
 Haproxy header files are split in two, those exporting the types only (named
@@ -1234,7 +1234,7 @@ Right use of comments :
 -------------------
 
 There are many projects where use of assembly code is not welcome. There is no
-problem with use of assembly in haproxy, provided that :
+problem with use of assembly in lolproxy, provided that :
 
   a) an alternate C-form is provided for architectures not covered
   b) the code is small enough and well commented enough to be maintained
@@ -1267,7 +1267,7 @@ Example :
 ------------
 
 A lot could be said about pointers, there's enough to fill entire books. Misuse
-of pointers is one of the primary reasons for bugs in haproxy, and this rate
+of pointers is one of the primary reasons for bugs in lolproxy, and this rate
 has significantly increased with the use of threads. Moreover, bogus pointers
 cause the hardest to analyse bugs, because usually they result in modifications
 to reassigned areas or accesses to unmapped areas, and in each case, bugs that
@@ -1282,7 +1282,7 @@ detected late!
 13.1) No test before freeing
 ----------------------------
 
-All platforms where haproxy is supported have a well-defined and documented
+All platforms where lolproxy is supported have a well-defined and documented
 behavior for free(NULL), which is to do nothing at all. In other words, free()
 does test for the pointer's nullity. As such, there is no point in testing
 if a pointer is NULL or not before calling free(). And further, you must not
@@ -1480,7 +1480,7 @@ types are supported, generally their type can be passed using a side channel,
 and the void* can be turned into a union that makes the code more readable and
 more verifiable.
 
-An alternative in haproxy is to use a pointer to an obj_type enum. Usually it
+An alternative in lolproxy is to use a pointer to an obj_type enum. Usually it
 is placed at the beginning of a structure. It works like a void* except that
 the type is read directly from the object. This is convenient when a small set
 of remote objects may be attached to another one because a single of them will
@@ -1519,7 +1519,7 @@ There are a few rules to respect in order to do this:
     includes 32-bit platforms where structures may be aligned on as little as
     32-bit. 32-bit alignment leaves only two LSB available. When doing so, make
     sure the target structures are not labelled with the "packed" attribute, or
-    that they're always perfectly aligned. All platforms where haproxy runs
+    that they're always perfectly aligned. All platforms where lolproxy runs
     have their NULL pointer mapped at address zero, and use page sizes at least
     4096 bytes large, leaving all values form 1 to 4095 unused. Anything
     outside of this is unsafe. In particular, never use negative numbers to

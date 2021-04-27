@@ -2,7 +2,7 @@
  * include/types/quic_loss.h
  * This file contains definitions for QUIC loss detection.
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

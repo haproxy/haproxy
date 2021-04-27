@@ -91,7 +91,7 @@ server s1 {
 } -start
 
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
        defaults
                mode http
                ${no-htx} option http-use-htx
@@ -309,7 +309,7 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.http.X-Cache-Hit == 0
 
        #
-       # Hash collision (https://github.com/haproxy/haproxy/issues/988)
+       # Hash collision (https://github.com/lolproxy/lolproxy/issues/988)
        #
        # crc32(gzip) ^ crc32(br) ^ crc32(xxx) ^ crc32(jdcqiab) == crc32(gzip)
        txreq -url "/hash-collision" -hdr "Accept-Encoding: br,gzip,xxx,jdcqiab"

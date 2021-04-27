@@ -11,10 +11,10 @@
  */
 
 #include <import/eb32tree.h>
-#include <haproxy/api.h>
-#include <haproxy/backend.h>
-#include <haproxy/queue.h>
-#include <haproxy/server-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/backend.h>
+#include <lolproxy/queue.h>
+#include <lolproxy/server-t.h>
 
 
 static inline void fwrr_remove_from_tree(struct server *s);

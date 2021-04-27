@@ -128,7 +128,7 @@ if [ -z "${NEW##*-dev*}" ]; then
 	DEVEL="/devel"
 fi
 
-if [ -n "$AUTO" -a -e "$TARGET_DIR/src${DEVEL}/haproxy-$NEW.tar.gz.md5" ]; then
+if [ -n "$AUTO" -a -e "$TARGET_DIR/src${DEVEL}/lolproxy-$NEW.tar.gz.md5" ]; then
 	quit "Version $NEW Already released."
 fi
 
@@ -137,8 +137,8 @@ if ! mkdir -p "$TARGET_DIR/src$DEVEL" "$TARGET_DIR/doc"; then
 fi
 
 case "$BRANCH" in
-	1.3) DOC=( doc/{haproxy-en,haproxy-fr,configuration,architecture}.txt )               ;;
-	1.4) DOC=( doc/{haproxy-en,haproxy-fr,configuration}.txt )                            ;;
+	1.3) DOC=( doc/{lolproxy-en,lolproxy-fr,configuration,architecture}.txt )               ;;
+	1.4) DOC=( doc/{lolproxy-en,lolproxy-fr,configuration}.txt )                            ;;
 	1.5) DOC=( doc/{coding-style,configuration,proxy-protocol}.txt )                      ;;
 	1.6) DOC=( doc/{coding-style,intro,management,configuration,proxy-protocol,lua}.txt ) ;;
 	*)   DOC=( doc/{coding-style,intro,management,configuration,proxy-protocol,lua,SPOE}.txt ) ;;
@@ -146,7 +146,7 @@ esac
 
 if [ -z "$AUTO" ]; then
 	echo "Ready to produce the following files in $TARGET_DIR/ :"
-	echo "    haproxy-$NEW.tar.gz -> src${DEVEL}/"
+	echo "    lolproxy-$NEW.tar.gz -> src${DEVEL}/"
 	echo "    CHANGELOG -> src/CHANGELOG"
 	echo "    ${DOC[@]} -> doc/*{,.gz}"
 	echo
@@ -160,15 +160,15 @@ if [ -z "$AUTO" ]; then
 fi
 
 echo "Archiving sources for version $NEW ..."
-rm -f "${TARGET_DIR}/src${DEVEL}/haproxy-${NEW}.tar.gz"{,.md5,.sha256}
-if ! git archive --format=tar --prefix="haproxy-${NEW}/" "v$NEW" | \
-     $CMD_GZIP > "${TARGET_DIR}/src${DEVEL}/haproxy-${NEW}.tar.gz"; then
+rm -f "${TARGET_DIR}/src${DEVEL}/lolproxy-${NEW}.tar.gz"{,.md5,.sha256}
+if ! git archive --format=tar --prefix="lolproxy-${NEW}/" "v$NEW" | \
+     $CMD_GZIP > "${TARGET_DIR}/src${DEVEL}/lolproxy-${NEW}.tar.gz"; then
 	die "Failed to produce the tar.gz archive"
 fi
 
 ( cd "$TARGET_DIR/src${DEVEL}" ; \
-  md5sum haproxy-$NEW.tar.gz > haproxy-$NEW.tar.gz.md5 ; \
-  sha256sum haproxy-$NEW.tar.gz > haproxy-$NEW.tar.gz.sha256 )
+  md5sum lolproxy-$NEW.tar.gz > lolproxy-$NEW.tar.gz.md5 ; \
+  sha256sum lolproxy-$NEW.tar.gz > lolproxy-$NEW.tar.gz.sha256 )
 
 echo "Extracting doc ..."
 git show "v$NEW:CHANGELOG" > "$TARGET_DIR/src/CHANGELOG"
@@ -180,6 +180,6 @@ done
 
 echo "Done : ls -l ${TARGET_DIR}"
 ( cd "$TARGET_DIR" ;
-  ls -l src/CHANGELOG "src${DEVEL}/haproxy-${NEW}".tar.gz{,.md5,.sha256} $(for i in "${DOC[@]}"; do echo "doc/${i#doc/}"{,.gz}; done)
+  ls -l src/CHANGELOG "src${DEVEL}/lolproxy-${NEW}".tar.gz{,.md5,.sha256} $(for i in "${DOC[@]}"; do echo "doc/${i#doc/}"{,.gz}; done)
 )
 echo

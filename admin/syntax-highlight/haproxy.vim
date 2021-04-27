@@ -1,13 +1,13 @@
 " Vim syntax file
-" Language:    HAproxy
+" Language:    LOLproxy
 " Maintainer:  Bruno Michel <brmichel@free.fr>
 " Last Change: Mar 30, 2007
 " Version:     0.3
-" URL:         http://haproxy.1wt.eu/
+" URL:         http://lolproxy.1wt.eu/
 " URL:         http://vim.sourceforge.net/scripts/script.php?script_id=1845
 
 " It is suggested to add the following line to $HOME/.vimrc :
-"    au BufRead,BufNewFile haproxy* set ft=haproxy
+"    au BufRead,BufNewFile lolproxy* set ft=lolproxy
 
 " For version 5.x: Clear all syntax items
 " For version 6.x: Quit when a syntax file was already loaded
@@ -160,5 +160,5 @@ HiLink      hapSrvKey    hapOption
 
 delcommand HiLink
 
-let b:current_syntax = "haproxy"
+let b:current_syntax = "lolproxy"
 " vim: ts=8

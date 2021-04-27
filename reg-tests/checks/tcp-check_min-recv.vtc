@@ -30,7 +30,7 @@ server s2 {
     expect_close
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
   defaults
     mode tcp
     timeout connect 200ms

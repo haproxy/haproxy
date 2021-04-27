@@ -1,8 +1,8 @@
 /*
- * include/haproxy/xprt_quic-t.h
+ * include/lolproxy/xprt_quic-t.h
  * This file contains applet function prototypes
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,13 +29,13 @@
 #include <sys/socket.h>
 #include <openssl/ssl.h>
 
-#include <haproxy/list.h>
+#include <lolproxy/list.h>
 
-#include <haproxy/quic_cc-t.h>
-#include <haproxy/quic_frame-t.h>
-#include <haproxy/quic_tls-t.h>
-#include <haproxy/quic_loss-t.h>
-#include <haproxy/task.h>
+#include <lolproxy/quic_cc-t.h>
+#include <lolproxy/quic_frame-t.h>
+#include <lolproxy/quic_tls-t.h>
+#include <lolproxy/quic_loss-t.h>
+#include <lolproxy/task.h>
 
 #include <import/eb64tree.h>
 #include <import/ebmbtree.h>

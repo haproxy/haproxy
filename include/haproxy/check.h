@@ -1,5 +1,5 @@
 /*
- * include/haproxy/check.h
+ * include/lolproxy/check.h
  * Functions prototypes for the checks.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_CHECKS_H
 #define _HAPROXY_CHECKS_H
 
-#include <haproxy/check-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/trace-t.h>
+#include <lolproxy/check-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/trace-t.h>
 
 extern struct trace_source trace_check;
 

@@ -24,7 +24,7 @@ syslog S1 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/srv succeeded.*code: 202"
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode http
         timeout client 1s

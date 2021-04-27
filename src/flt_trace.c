@@ -12,18 +12,18 @@
 
 #include <ctype.h>
 
-#include <haproxy/api.h>
-#include <haproxy/channel-t.h>
-#include <haproxy/errors.h>
-#include <haproxy/filters.h>
-#include <haproxy/global.h>
-#include <haproxy/http_ana-t.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/stream.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/channel-t.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/filters.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http_ana-t.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 const char *trace_flt_id = "trace filter";
 

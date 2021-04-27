@@ -1,5 +1,5 @@
 /*
- * include/haproxy/uri_auth-t.h
+ * include/lolproxy/uri_auth-t.h
  * Definitions for URI-based user authentication using the HTTP basic method.
  *
  * Copyright 2006-2020 Willy Tarreau <w@1wt.eu>
@@ -14,8 +14,8 @@
 #ifndef _HAPROXY_URI_AUTH_T_H
 #define _HAPROXY_URI_AUTH_T_H
 
-#include <haproxy/acl-t.h>
-#include <haproxy/auth-t.h>
+#include <lolproxy/acl-t.h>
+#include <lolproxy/auth-t.h>
 
 /* This is a list of proxies we are allowed to see. Later, it should go in the
  * user list, but before this we need to support de/re-authentication.

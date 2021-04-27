@@ -61,7 +61,7 @@ server s2 {
 
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         tune.bufsize 2048
         tune.maxrewrite 128

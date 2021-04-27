@@ -1,21 +1,21 @@
 #include <ctype.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/buf.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/check.h>
-#include <haproxy/cli.h>
-#include <haproxy/global.h>
-#include <haproxy/http.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/list.h>
-#include <haproxy/log.h>
-#include <haproxy/sample.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/tcp_rules.h>
-#include <haproxy/tcpcheck.h>
-#include <haproxy/vars.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/check.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/list.h>
+#include <lolproxy/log.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/tcp_rules.h>
+#include <lolproxy/tcpcheck.h>
+#include <lolproxy/vars.h>
 
 
 /* This contains a pool of struct vars */

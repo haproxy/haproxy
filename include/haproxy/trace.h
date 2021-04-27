@@ -1,5 +1,5 @@
 /*
- * include/haproxy/trace.h
+ * include/lolproxy/trace.h
  * This file provides functions for runtime tracing
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -23,11 +23,11 @@
 #define _HAPROXY_TRACE_H
 
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/list.h>
-#include <haproxy/sink-t.h>
-#include <haproxy/tools.h>
-#include <haproxy/trace-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/list.h>
+#include <lolproxy/sink-t.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/trace-t.h>
 
 /* Make a string from the location of the trace producer as "file:line" */
 #define TRC_LOC  _TRC_LOC(__FILE__, __LINE__)

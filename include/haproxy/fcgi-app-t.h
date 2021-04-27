@@ -1,8 +1,8 @@
 /*
- * include/haproxy/fcgi-app-t.h
+ * include/lolproxy/fcgi-app-t.h
  * This file defines everything related to FCGI applications.
  *
- * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,12 +25,12 @@
 #include <import/ebpttree.h>
 #include <import/ist.h>
 
-#include <haproxy/acl-t.h>
-#include <haproxy/api-t.h>
-#include <haproxy/arg-t.h>
-#include <haproxy/fcgi.h>
-#include <haproxy/filters-t.h>
-#include <haproxy/regex-t.h>
+#include <lolproxy/acl-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/arg-t.h>
+#include <lolproxy/fcgi.h>
+#include <lolproxy/filters-t.h>
+#include <lolproxy/regex-t.h>
 
 #define FCGI_APP_FL_KEEP_CONN     0x00000001 /* Keep the connection alive */
 #define FCGI_APP_FL_GET_VALUES    0x00000002 /* Retrieve FCGI variables on connection establishment */

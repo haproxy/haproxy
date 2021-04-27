@@ -4,12 +4,12 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-EnvironmentFile=-/etc/default/haproxy
-EnvironmentFile=-/etc/sysconfig/haproxy
-Environment="CONFIG=/etc/haproxy/haproxy.cfg" "PIDFILE=/run/haproxy.pid" "EXTRAOPTS=-S /run/haproxy-master.sock"
-ExecStartPre=@SBINDIR@/haproxy -f $CONFIG -c -q $EXTRAOPTS
-ExecStart=@SBINDIR@/haproxy -Ws -f $CONFIG -p $PIDFILE $EXTRAOPTS
-ExecReload=@SBINDIR@/haproxy -f $CONFIG -c -q $EXTRAOPTS
+EnvironmentFile=-/etc/default/lolproxy
+EnvironmentFile=-/etc/sysconfig/lolproxy
+Environment="CONFIG=/etc/lolproxy/lolproxy.cfg" "PIDFILE=/run/lolproxy.pid" "EXTRAOPTS=-S /run/lolproxy-master.sock"
+ExecStartPre=@SBINDIR@/lolproxy -f $CONFIG -c -q $EXTRAOPTS
+ExecStart=@SBINDIR@/lolproxy -Ws -f $CONFIG -p $PIDFILE $EXTRAOPTS
+ExecReload=@SBINDIR@/lolproxy -f $CONFIG -c -q $EXTRAOPTS
 ExecReload=/bin/kill -USR2 $MAINPID
 KillMode=mixed
 Restart=always

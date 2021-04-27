@@ -1,4 +1,4 @@
-varnishtest "haproxy ACL, CLI and mCLI spaces"
+varnishtest "lolproxy ACL, CLI and mCLI spaces"
 feature ignore_unknown_macro
 
 #REQUIRE_VERSION=2.0
@@ -9,7 +9,7 @@ server s1 {
    txresp
 } -repeat 2 -start
 
-haproxy h1 -W -S -conf {
+lolproxy h1 -W -S -conf {
   defaults
     mode http
     ${no-htx} option http-use-htx
@@ -37,7 +37,7 @@ client c1 -connect ${h1_fe1_sock} {
     expect resp.status == 200
 } -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
   send "add acl ${testdir}/agents.acl Mon\\ User\\ Agent\\;"
   expect ~ .*
 
@@ -52,7 +52,7 @@ client c1 -connect ${h1_fe1_sock} {
 } -run
 
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
   send "del acl ${testdir}/agents.acl Mon\\ User\\ Agent\\;"
   expect ~ .*
 
@@ -68,7 +68,7 @@ client c1 -connect ${h1_fe1_sock} {
 
 
 # Try it with the master CLI
-haproxy h1 -mcli {
+lolproxy h1 -mcli {
   send "@1 add acl ${testdir}/agents.acl Mon\\ User\\ Agent\\;;@1 show acl ${testdir}/agents.acl"
   expect ~ ".*Mon User Agent;.*"
 }

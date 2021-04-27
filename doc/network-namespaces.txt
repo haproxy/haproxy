@@ -53,7 +53,7 @@ namespace_list
 
 ## Namespace information flow
 
-The haproxy process always runs in the namespace it was started on.
+The lolproxy process always runs in the namespace it was started on.
 This is the default namespace.
 
 The bind addresses of listeners can have their namespace specified in

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/pattern.h
+ * include/lolproxy/pattern.h
  * This file provides structures and types for pattern matching.
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
@@ -24,9 +24,9 @@
 
 #include <string.h>
 
-#include <haproxy/api.h>
-#include <haproxy/pattern-t.h>
-#include <haproxy/sample-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/pattern-t.h>
+#include <lolproxy/sample-t.h>
 
 /* pattern management function arrays */
 extern const char *const pat_match_names[PAT_MATCH_NUM];

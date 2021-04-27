@@ -5,7 +5,7 @@
 #
 # this check does 3 requests, the first one will use "www.test1.com" as SNI,
 # the second one with the same but that must fail and the third one will use
-# "localhost". Since vtest can't do SSL, we use haproxy as an SSL client with 2
+# "localhost". Since vtest can't do SSL, we use lolproxy as an SSL client with 2
 # chained listen section.
 #
 # If this test does not work anymore:
@@ -22,7 +22,7 @@ server s1 -repeat 3 {
   txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         tune.ssl.default-dh-param 2048
         tune.ssl.capture-cipherlist-size 1
@@ -54,7 +54,7 @@ haproxy h1 -conf {
 } -start
 
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl cert ${testdir}/common.crt"
     expect ~ ".*SHA1 FingerPrint: 2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
 }
@@ -71,7 +71,7 @@ shell {
     echo "commit ssl cert ${testdir}/common.crt" | socat "${tmpdir}/h1/stats" -
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl cert ${testdir}/common.crt"
     expect ~ ".*SHA1 FingerPrint: A490D069DBAFBEE66DE434BEC34030ADE8BCCBF1"
 }

@@ -77,17 +77,17 @@ qthelp:
 	@echo
 	@echo "Build finished; now you can run "qcollectiongenerator" with the" \
 	      ".qhcp project file in $(BUILDDIR)/qthelp, like this:"
-	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/haproxy-lua.qhcp"
+	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/lolproxy-lua.qhcp"
 	@echo "To view the help file:"
-	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/haproxy-lua.qhc"
+	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/lolproxy-lua.qhc"
 
 devhelp:
 	$(SPHINXBUILD) -b devhelp $(ALLSPHINXOPTS) $(BUILDDIR)/devhelp
 	@echo
 	@echo "Build finished."
 	@echo "To view the help file:"
-	@echo "# mkdir -p $$HOME/.local/share/devhelp/haproxy-lua"
-	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/haproxy-lua"
+	@echo "# mkdir -p $$HOME/.local/share/devhelp/lolproxy-lua"
+	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/lolproxy-lua"
 	@echo "# devhelp"
 
 epub:

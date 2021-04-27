@@ -1,5 +1,5 @@
 /*
- * include/haproxy/dgram-t.h
+ * include/lolproxy/dgram-t.h
  * This file provides structures and types for datagram processing
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>

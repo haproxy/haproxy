@@ -48,7 +48,7 @@ _help()
           \${no-htx} option http-use-htx
 
   Including text below into a .vtc file will check for its requirements
-  related to haproxy's target and compilation options
+  related to lolproxy's target and compilation options
     # Below targets are not capable of completing this test successfully
     #EXCLUDE_TARGET=freebsd, abns sockets are not available on freebsd
 
@@ -68,12 +68,12 @@ _help()
     # To define required binaries for a test:
     #REQUIRE_BINARIES=socat,curl
 
-  Configure environment variables to set the haproxy and vtest binaries to use
-    setenv HAPROXY_PROGRAM /usr/local/sbin/haproxy
+  Configure environment variables to set the lolproxy and vtest binaries to use
+    setenv HAPROXY_PROGRAM /usr/local/sbin/lolproxy
     setenv VTEST_PROGRAM /usr/local/bin/vtest
     setenv HAPROXY_ARGS "-dM -de -m 50"
   or
-    export HAPROXY_PROGRAM=/usr/local/sbin/haproxy
+    export HAPROXY_PROGRAM=/usr/local/sbin/lolproxy
     export VTEST_PROGRAM=/usr/local/bin/vtest
     export HAPROXY_ARGS="-dM -de -m 50"
 EOF
@@ -166,14 +166,14 @@ _findtests() {
 
     if [ -n "$require_version" ]; then
       if [ $(_version "$HAPROXY_VERSION") -lt $(_version "$require_version") ]; then
-        echo "  Skip $i because option haproxy is version: $HAPROXY_VERSION"
+        echo "  Skip $i because option lolproxy is version: $HAPROXY_VERSION"
         echo "    REASON: this test requires at least version: $require_version"
         skiptest=1
       fi
     fi
     if [ -n "$require_version_below" ]; then
       if [ $(_version "$HAPROXY_VERSION") -ge $(_version "$require_version_below") ]; then
-        echo "  Skip $i because option haproxy is version: $HAPROXY_VERSION"
+        echo "  Skip $i because option lolproxy is version: $HAPROXY_VERSION"
         echo "    REASON: this test requires a version below: $require_version_below"
         skiptest=1
       fi
@@ -181,7 +181,7 @@ _findtests() {
 
     for excludedtarget in $exclude_targets; do
       if [ "$excludedtarget" = "$TARGET" ]; then
-        echo "  Skip $i because haproxy is compiled for the excluded target $TARGET"
+        echo "  Skip $i because lolproxy is compiled for the excluded target $TARGET"
         skiptest=1
       fi
     done
@@ -195,7 +195,7 @@ _findtests() {
 	fi
       done
       if [ -z $found ]; then
-        echo "  Skip $i because haproxy is not compiled with the required option $requiredoption"
+        echo "  Skip $i because lolproxy is not compiled with the required option $requiredoption"
         skiptest=1
       fi
     done
@@ -209,7 +209,7 @@ _findtests() {
 	fi
       done
       if [ -z $found ]; then
-        echo "  Skip $i because haproxy is not compiled with the required service $requiredservice"
+        echo "  Skip $i because lolproxy is not compiled with the required service $requiredservice"
         skiptest=1
       fi
     done
@@ -313,7 +313,7 @@ _version() {
 }
 
 
-HAPROXY_PROGRAM="${HAPROXY_PROGRAM:-${PWD}/haproxy}"
+HAPROXY_PROGRAM="${HAPROXY_PROGRAM:-${PWD}/lolproxy}"
 HAPROXY_ARGS="${HAPROXY_ARGS--dM}"
 VTEST_PROGRAM="${VTEST_PROGRAM:-vtest}"
 TESTDIR="${TMPDIR:-/tmp}"
@@ -333,7 +333,7 @@ echo "########################## Preparing to run tests ########################
 
 preparefailed=
 if ! [ -x "$(command -v $HAPROXY_PROGRAM)" ]; then
-  echo "haproxy not found in path, please specify HAPROXY_PROGRAM environment variable"
+  echo "lolproxy not found in path, please specify HAPROXY_PROGRAM environment variable"
   preparefailed=1
 fi
 if ! [ -x "$(command -v $VTEST_PROGRAM)" ]; then
@@ -349,7 +349,7 @@ $($HAPROXY_PROGRAM $HAPROXY_ARGS -vv | grep 'HA-Proxy version\|TARGET.*=\|^Featu
 EOF
 
 HAPROXY_VERSION=$(echo $HAPROXY_VERSION | cut -d " " -f 3)
-echo "Testing with haproxy version: $HAPROXY_VERSION"
+echo "Testing with lolproxy version: $HAPROXY_VERSION"
 
 TESTRUNDATETIME="$(date '+%Y-%m-%d_%H-%M-%S')"
 
@@ -381,7 +381,7 @@ else
 fi
 
 echo "########################## Starting vtest ##########################"
-echo "Testing with haproxy version: $HAPROXY_VERSION"
+echo "Testing with lolproxy version: $HAPROXY_VERSION"
 _vtresult=0
 if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then

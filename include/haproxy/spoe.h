@@ -1,8 +1,8 @@
 /*
- * include/haproxy/spoe.h
+ * include/lolproxy/spoe.h
  * Encoding/Decoding functions for the SPOE filters (and other helpers).
  *
- * Copyright (C) 2017 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2017 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_SPOE_H
 #define _HAPROXY_SPOE_H
 
-#include <haproxy/api.h>
-#include <haproxy/intops.h>
-#include <haproxy/sample-t.h>
-#include <haproxy/spoe-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/intops.h>
+#include <lolproxy/sample-t.h>
+#include <lolproxy/spoe-t.h>
 
 
 /* Encode a buffer. Its length <len> is encoded as a varint, followed by a copy

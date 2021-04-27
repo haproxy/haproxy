@@ -20,29 +20,29 @@
 #include <import/sha1.h>
 #include <import/xxhash.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/auth.h>
-#include <haproxy/base64.h>
-#include <haproxy/buf.h>
-#include <haproxy/chunk.h>
-#include <haproxy/errors.h>
-#include <haproxy/fix.h>
-#include <haproxy/global.h>
-#include <haproxy/hash.h>
-#include <haproxy/http.h>
-#include <haproxy/istbuf.h>
-#include <haproxy/mqtt.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/protobuf.h>
-#include <haproxy/proxy.h>
-#include <haproxy/regex.h>
-#include <haproxy/sample.h>
-#include <haproxy/sink.h>
-#include <haproxy/stick_table.h>
-#include <haproxy/tools.h>
-#include <haproxy/uri_auth-t.h>
-#include <haproxy/vars.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/auth.h>
+#include <lolproxy/base64.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fix.h>
+#include <lolproxy/global.h>
+#include <lolproxy/hash.h>
+#include <lolproxy/http.h>
+#include <lolproxy/istbuf.h>
+#include <lolproxy/mqtt.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/protobuf.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/sink.h>
+#include <lolproxy/stick_table.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/uri_auth-t.h>
+#include <lolproxy/vars.h>
 
 /* sample type names */
 const char *smp_to_type[SMP_TYPES] = {
@@ -2265,7 +2265,7 @@ static int sample_conv_xxh32(const struct arg *arg_p, struct sample *smp, void *
 
 /* hashes the binary input into a 64-bit unsigned int using xxh.
  * In fact, the function returns a 64 bit unsigned, but the sample
- * storage of haproxy only proposes 64-bits signed, so the value is
+ * storage of lolproxy only proposes 64-bits signed, so the value is
  * cast as signed. This cast doesn't impact the hash repartition.
  * The seed of the hash defaults to 0 but can be changd in argument 1.
  */

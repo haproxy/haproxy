@@ -1,7 +1,7 @@
 /*
  * HTTP protocol analyzer
  *
- * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -10,32 +10,32 @@
  *
  */
 
-#include <haproxy/acl.h>
-#include <haproxy/action-t.h>
-#include <haproxy/api.h>
-#include <haproxy/backend.h>
-#include <haproxy/base64.h>
-#include <haproxy/capture-t.h>
-#include <haproxy/channel.h>
-#include <haproxy/check.h>
-#include <haproxy/connection.h>
-#include <haproxy/errors.h>
-#include <haproxy/filters.h>
-#include <haproxy/http.h>
-#include <haproxy/http_ana.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-#include <haproxy/log.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/proxy.h>
-#include <haproxy/regex.h>
-#include <haproxy/server-t.h>
-#include <haproxy/stats.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/trace.h>
-#include <haproxy/uri_auth-t.h>
-#include <haproxy/vars.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/action-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/backend.h>
+#include <lolproxy/base64.h>
+#include <lolproxy/capture-t.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/check.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/filters.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http_ana.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/log.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/stats.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/trace.h>
+#include <lolproxy/uri_auth-t.h>
+#include <lolproxy/vars.h>
 
 
 #define TRACE_SOURCE &trace_strm

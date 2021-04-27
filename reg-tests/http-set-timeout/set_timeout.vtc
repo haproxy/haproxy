@@ -24,7 +24,7 @@ syslog Slog3 -level info {
     expect ~ "^.*timeout: 1000 3000.*$"
 } -start
 
-haproxy hap -conf {
+lolproxy hap -conf {
     defaults
         timeout connect 1s
         timeout client 1s

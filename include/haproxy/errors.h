@@ -1,5 +1,5 @@
 /*
- * include/haproxy/errors.h
+ * include/lolproxy/errors.h
  * Global error macros and constants
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu

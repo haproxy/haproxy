@@ -3,7 +3,7 @@
  *
  * This file contains definitions for QUIC congestion control.
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,9 +20,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <haproxy/quic_cc.h>
-#include <haproxy/trace.h>
-#include <haproxy/xprt_quic.h>
+#include <lolproxy/quic_cc.h>
+#include <lolproxy/trace.h>
+#include <lolproxy/xprt_quic.h>
 
 #define TRACE_SOURCE    &trace_quic
 

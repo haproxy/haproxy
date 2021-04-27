@@ -10,8 +10,8 @@
  *
  */
 
-#include <haproxy/chunk.h>
-#include <haproxy/mqtt.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/mqtt.h>
 
 uint8_t mqtt_cpt_flags[MQTT_CPT_ENTRIES] = {
 	[MQTT_CPT_INVALID]     = 0x00,

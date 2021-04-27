@@ -2,7 +2,7 @@ DeviceAtlas Device Detection
 ----------------------------
 
 In order to add DeviceAtlas Device Detection support, you would need to download
-the API source code from https://deviceatlas.com/deviceatlas-haproxy-module.
+the API source code from https://deviceatlas.com/deviceatlas-lolproxy-module.
 The build supports the USE_PCRE and USE_PCRE2 options. Once extracted :
 
     $ make TARGET=<target> USE_PCRE=1 (or USE_PCRE2=1) USE_DEVICEATLAS=1 DEVICEATLAS_SRC=<path to the API root folder>
@@ -15,7 +15,7 @@ For HAProxy developers who need to verify that their changes didn't accidentally
 break the DeviceAtlas code, it is possible to build a dummy library provided in
 the addons/deviceatlas/dummy directory and to use it as an alternative for the
 full library. This will not provide the full functionalities, it will just allow
-haproxy to start with a deviceatlas configuration, which generally is enough to
+lolproxy to start with a deviceatlas configuration, which generally is enough to
 validate API changes :
 
     $ make TARGET=<target> USE_PCRE=1 USE_DEVICEATLAS=1 DEVICEATLAS_SRC=$PWD/addons/deviceatlas/dummy

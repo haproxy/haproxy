@@ -3,10 +3,10 @@ feature ignore_unknown_macro
 
 # This script tests "cookie <name> insert indirect" directive.
 # The client sends a wrong "SRVID=s2" cookie.
-# haproxy removes it.
+# lolproxy removes it.
 # The server replies with "SRVID=S1" after having checked that
-# no cookies were sent by haproxy.
-# haproxy replies "SRVID=server-one" to the client.
+# no cookies were sent by lolproxy.
+# lolproxy replies "SRVID=server-one" to the client.
 # We log the HTTP request to a syslog server and check their "--II"
 # (invalid, insert) flags.
 
@@ -21,7 +21,7 @@ server s1 {
     txresp -hdr "Cookie: SRVID=S1"
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
 	global
         log ${S1_addr}:${S1_port} len 2048 local0 debug err
 

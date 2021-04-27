@@ -19,21 +19,21 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <haproxy/api.h>
-#include <haproxy/applet.h>
-#include <haproxy/channel.h>
-#include <haproxy/connection.h>
-#include <haproxy/dynbuf.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/pipe-t.h>
-#include <haproxy/pipe.h>
-#include <haproxy/proxy.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/dynbuf.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/pipe-t.h>
+#include <lolproxy/pipe.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 
 /* functions used by default on a detached stream-interface */

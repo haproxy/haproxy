@@ -1,5 +1,5 @@
 /*
- * include/haproxy/istbuf.h
+ * include/lolproxy/istbuf.h
  * Functions used to manipulate indirect strings with wrapping buffers.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -30,7 +30,7 @@
 
 #include <sys/types.h>
 #include <import/ist.h>
-#include <haproxy/buf.h>
+#include <lolproxy/buf.h>
 
 
 /* b_isteq() : returns > 0 if the first <n> characters of buffer <b> starting

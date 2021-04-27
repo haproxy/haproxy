@@ -11,7 +11,7 @@ feature ignore_unknown_macro
 server s1 {
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         ssl-server-verify none
 
@@ -34,7 +34,7 @@ haproxy h1 -conf {
         server www0 ${s1_addr}:${s1_port} no-ssl
 } -start
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     # supported case
     send "show servers state test0"
     expect ~ "test0 1 www0 ${s1_addr} .* - ${s1_port} - -1"

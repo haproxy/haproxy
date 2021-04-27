@@ -15,9 +15,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <haproxy/api.h>
-#include <haproxy/buf.h>
-#include <haproxy/channel.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/channel.h>
 
 
 /* Schedule up to <bytes> more bytes to be forwarded via the channel without

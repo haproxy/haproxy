@@ -24,16 +24,16 @@
 #undef free_func
 #endif /* USE_ZLIB */
 
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/compression-t.h>
-#include <haproxy/compression.h>
-#include <haproxy/dynbuf.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/global.h>
-#include <haproxy/pool.h>
-#include <haproxy/stream.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/compression-t.h>
+#include <lolproxy/compression.h>
+#include <lolproxy/dynbuf.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/global.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/thread.h>
 
 
 #if defined(USE_ZLIB)

@@ -2,7 +2,7 @@
  * include/proto/quic_tls.h
  * This file provides definitions for QUIC-TLS.
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,10 +22,10 @@
 #include <stdlib.h>
 #include <openssl/ssl.h>
 
-#include <haproxy/dynbuf.h>
-#include <haproxy/quic_tls-t.h>
-#include <haproxy/trace.h>
-#include <haproxy/xprt_quic.h>
+#include <lolproxy/dynbuf.h>
+#include <lolproxy/quic_tls-t.h>
+#include <lolproxy/trace.h>
+#include <lolproxy/xprt_quic.h>
 
 void quic_tls_keys_hexdump(struct buffer *buf, struct quic_tls_secrets *secs);
 

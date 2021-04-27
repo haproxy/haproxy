@@ -1,5 +1,5 @@
 /*
- * include/haproxy/stats.h
+ * include/lolproxy/stats.h
  * This file contains definitions of some primitives to dedicated to
  * statistics output.
  *
@@ -23,11 +23,11 @@
 #ifndef _HAPROXY_STATS_H
 #define _HAPROXY_STATS_H
 
-#include <haproxy/api.h>
-#include <haproxy/applet-t.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/stream_interface-t.h>
-#include <haproxy/tools-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet-t.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/stream_interface-t.h>
+#include <lolproxy/tools-t.h>
 
 
 /* These two structs contains all field names and descriptions according to

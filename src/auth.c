@@ -25,13 +25,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <haproxy/api.h>
-#include <haproxy/auth-t.h>
-#include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/pattern-t.h>
-#include <haproxy/sample-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api.h>
+#include <lolproxy/auth-t.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/global.h>
+#include <lolproxy/pattern-t.h>
+#include <lolproxy/sample-t.h>
+#include <lolproxy/thread.h>
 
 struct userlist *userlist = NULL;    /* list of all existing userlists */
 

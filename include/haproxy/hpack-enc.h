@@ -1,7 +1,7 @@
 /*
  * HPACK compressor (RFC7541)
  *
- * Copyright (C) 2014-2020 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2020 Willy Tarreau <willy@lolproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -30,9 +30,9 @@
 
 #include <string.h>
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/http-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/http-t.h>
 
 int hpack_encode_header(struct buffer *out, const struct ist n,
 			const struct ist v);

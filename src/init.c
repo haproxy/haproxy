@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <haproxy/init.h>
-#include <haproxy/list.h>
+#include <lolproxy/init.h>
+#include <lolproxy/list.h>
 
 /* These functions are called just after the point where the program exits
  * after a config validity check, so they are generally suited for resource

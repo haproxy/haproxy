@@ -1,5 +1,5 @@
 /*
- * include/haproxy/activity-t.h
+ * include/lolproxy/activity-t.h
  * This file contains structure declarations for activity measurements.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_ACTIVITY_T_H
 #define _HAPROXY_ACTIVITY_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/freq_ctr-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/freq_ctr-t.h>
 
 /* bit fields for the "profiling" global variable */
 #define HA_PROF_TASKS_OFF   0x00000000     /* per-task CPU profiling forced disabled */

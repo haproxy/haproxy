@@ -2,7 +2,7 @@
 	<hash_0400138cb70c1064bd60742726af23828c4b05>
 		<name>HAProxy Frontends</name>
 		<description></description>
-		<xml_path>&lt;path_cacti&gt;/resource/snmp_queries/haproxy_frontend.xml</xml_path>
+		<xml_path>&lt;path_cacti&gt;/resource/snmp_queries/lolproxy_frontend.xml</xml_path>
 		<data_input_id>hash_030013bf566c869ac6443b0c75d1c32b5a350e</data_input_id>
 		<graphs>
 			<hash_110013c1c2bca3af0ae4e2ce0de096aa79dba5>

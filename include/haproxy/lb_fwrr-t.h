@@ -1,5 +1,5 @@
 /*
- * include/haproxy/lb_fwrr-t.h
+ * include/lolproxy/lb_fwrr-t.h
  * Types for Fast Weighted Round Robin load balancing algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu

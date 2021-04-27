@@ -1,5 +1,5 @@
 /*
- * include/haproxy/stream.h
+ * include/lolproxy/stream.h
  * This file defines everything related to streams.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,17 +22,17 @@
 #ifndef _HAPROXY_STREAM_H
 #define _HAPROXY_STREAM_H
 
-#include <haproxy/action-t.h>
-#include <haproxy/api.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/obj_type.h>
-#include <haproxy/pool-t.h>
-#include <haproxy/queue.h>
-#include <haproxy/stick_table.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/task-t.h>
-#include <haproxy/trace-t.h>
+#include <lolproxy/action-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/obj_type.h>
+#include <lolproxy/pool-t.h>
+#include <lolproxy/queue.h>
+#include <lolproxy/stick_table.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/task-t.h>
+#include <lolproxy/trace-t.h>
 
 extern struct trace_source trace_strm;
 

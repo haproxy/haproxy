@@ -1,8 +1,8 @@
 /*
- * include/haproxy/mworker-t.h
+ * include/lolproxy/mworker-t.h
  * Master Worker type definitions.
  *
- * Copyright HAProxy Technologies 2019 - William Lallemand <wlallemand@haproxy.com>
+ * Copyright HAProxy Technologies 2019 - William Lallemand <wlallemand@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -14,8 +14,8 @@
 #ifndef _HAPROXY_MWORKER_T_H_
 #define _HAPROXY_MWORKER_T_H_
 
-#include <haproxy/list.h>
-#include <haproxy/signal-t.h>
+#include <lolproxy/list.h>
+#include <lolproxy/signal-t.h>
 
 /* options for mworker_proc */
 

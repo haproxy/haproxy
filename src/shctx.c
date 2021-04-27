@@ -14,8 +14,8 @@
 #include <sys/mman.h>
 #include <arpa/inet.h>
 #include <import/ebmbtree.h>
-#include <haproxy/list.h>
-#include <haproxy/shctx.h>
+#include <lolproxy/list.h>
+#include <lolproxy/shctx.h>
 
 #if !defined (USE_PRIVATE_CACHE)
 

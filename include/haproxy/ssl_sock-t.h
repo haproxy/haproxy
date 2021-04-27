@@ -1,5 +1,5 @@
 /*
- * include/haproxy/ssl_sock-t.h
+ * include/lolproxy/ssl_sock-t.h
  * SSL settings for listeners and servers
  *
  * Copyright (C) 2012 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -27,13 +27,13 @@
 #include <import/ebmbtree.h>
 #include <import/ebpttree.h>
 
-#include <haproxy/buf-t.h>
-#include <haproxy/connection-t.h> /* struct wait_event */
-#include <haproxy/listener-t.h>
-#include <haproxy/openssl-compat.h>
-#include <haproxy/ssl_ckch-t.h>
-#include <haproxy/ssl_crtlist-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/connection-t.h> /* struct wait_event */
+#include <lolproxy/listener-t.h>
+#include <lolproxy/openssl-compat.h>
+#include <lolproxy/ssl_ckch-t.h>
+#include <lolproxy/ssl_crtlist-t.h>
+#include <lolproxy/thread-t.h>
 
 /* ***** READ THIS before adding code here! *****
  *

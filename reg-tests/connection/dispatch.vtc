@@ -11,7 +11,7 @@ server s2 {
     txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
 defaults
     log global
     timeout connect 1s

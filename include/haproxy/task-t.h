@@ -1,5 +1,5 @@
 /*
- * include/haproxy/task-t.h
+ * include/lolproxy/task-t.h
  * Macros, variables and structures for task management.
  *
  * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
@@ -27,8 +27,8 @@
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/thread-t.h>
 
 /* values for task->state (32 bits) */
 #define TASK_SLEEPING     0x00000000  /* task sleeping */

@@ -1,7 +1,7 @@
 /*
  * DGRAM protocol layer on top of AF_UNIX
  *
- * Copyright 2020 HAProxy Technologies, Emeric Brun <ebrun@haproxy.com>
+ * Copyright 2020 HAProxy Technologies, Emeric Brun <ebrun@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,13 +23,13 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
-#include <haproxy/fd.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/namespace.h>
-#include <haproxy/protocol.h>
-#include <haproxy/sock.h>
-#include <haproxy/sock_unix.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/sock_unix.h>
 
 static int uxdg_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static void uxdg_enable_listener(struct listener *listener);

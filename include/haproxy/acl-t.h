@@ -1,5 +1,5 @@
 /*
- * include/haproxy/acl-t.h
+ * include/lolproxy/acl-t.h
  * This file provides structures and types for ACLs.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_ACL_T_H
 #define _HAPROXY_ACL_T_H
 
-#include <haproxy/pattern-t.h>
-#include <haproxy/sample-t.h>
+#include <lolproxy/pattern-t.h>
+#include <lolproxy/sample-t.h>
 
 /* ACL test result.
  *

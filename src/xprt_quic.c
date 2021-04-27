@@ -1,7 +1,7 @@
 /*
  * QUIC transport layer over SOCK_DGRAM sockets.
  *
- * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,30 +22,30 @@
 
 #include <netinet/tcp.h>
 
-#include <haproxy/buf-t.h>
-#include <haproxy/compat.h>
-#include <haproxy/api.h>
-#include <haproxy/debug.h>
-#include <haproxy/tools.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/compat.h>
+#include <lolproxy/api.h>
+#include <lolproxy/debug.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
 
-#include <haproxy/connection.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/global.h>
-#include <haproxy/log.h>
-#include <haproxy/pipe.h>
-#include <haproxy/proxy.h>
-#include <haproxy/quic_cc.h>
-#include <haproxy/quic_frame.h>
-#include <haproxy/quic_loss.h>
-#include <haproxy/quic_tls.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/trace.h>
-#include <haproxy/xprt_quic.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/global.h>
+#include <lolproxy/log.h>
+#include <lolproxy/pipe.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/quic_cc.h>
+#include <lolproxy/quic_frame.h>
+#include <lolproxy/quic_loss.h>
+#include <lolproxy/quic_tls.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/trace.h>
+#include <lolproxy/xprt_quic.h>
 
 struct quic_transport_params quic_dflt_transport_params = {
 	.max_packet_size    = QUIC_DFLT_MAX_PACKET_SIZE,

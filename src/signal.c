@@ -13,9 +13,9 @@
 #include <signal.h>
 #include <string.h>
 
-#include <haproxy/errors.h>
-#include <haproxy/signal.h>
-#include <haproxy/task.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/signal.h>
+#include <lolproxy/task.h>
 
 /* Principle : we keep an in-order list of the first occurrence of all received
  * signals. All occurrences of a same signal are grouped though. The signal
@@ -132,7 +132,7 @@ static void signal_init()
 /*
  * This function should be called to unblock all signals
  */
-void haproxy_unblock_signals()
+void lolproxy_unblock_signals()
 {
 	sigset_t set;
 

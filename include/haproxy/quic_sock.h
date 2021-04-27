@@ -1,8 +1,8 @@
 /*
- * include/haproxy/quic_sock.h
+ * include/lolproxy/quic_sock.h
  * This file contains declarations for QUIC sockets.
  *
- * Copyright 2020 Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,9 +29,9 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <haproxy/api.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/listener-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/connection-t.h>
+#include <lolproxy/listener-t.h>
 
 int quic_sock_accepting_conn(const struct receiver *rx);
 struct connection *quic_sock_accept_conn(struct listener *l, int *status);

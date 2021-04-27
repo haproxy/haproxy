@@ -4,7 +4,7 @@
 
 
     Peers protocol has been implemented over TCP. Its aim is to transmit
-    stick-table entries information between several haproxy processes.
+    stick-table entries information between several lolproxy processes.
 
     This protocol is symmetrical. This means that at any time, each peer
     may connect to other peers they have been configured for, so that to send
@@ -34,7 +34,7 @@
     remote peer identifier: the peer name this "hello" message is sent to.
     local peer identifier : the name of the peer which sends this "hello" message.
     process ID            : the ID of the process handling this peer session.
-    relative process ID   : the haproxy's relative process ID (0 if nbproc == 1).
+    relative process ID   : the lolproxy's relative process ID (0 if nbproc == 1).
 
     The "status" message is made of a unique line terminated by a line feed
     character as follows:
@@ -382,7 +382,7 @@
      in "Data types bitfield" field.
 
      "Expiry" field and the remaining ones are not used by all the existing
-     version of haproxy peers. But they are MANDATORY, so that to make a
+     version of lolproxy peers. But they are MANDATORY, so that to make a
      stick-table aggregator peer be able to autoconfigure itself.
 
 

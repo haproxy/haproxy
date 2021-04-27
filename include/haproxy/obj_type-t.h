@@ -1,5 +1,5 @@
 /*
- * include/haproxy/obj_type-t.h
+ * include/lolproxy/obj_type-t.h
  * This file declares some object types for use in various structures.
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu

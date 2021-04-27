@@ -1,6 +1,6 @@
 	Haproxy's peers v2.0 protocol 08/18/2016
 
-Author: Emeric Brun ebrun@haproxy.com
+Author: Emeric Brun ebrun@lolproxy.com
 
 
 I) Encoded Integer and Bitfield.
@@ -41,7 +41,7 @@ version: current value is "2.0"
 remotepeerid: is the name of the target peer as defined in the configuration peers section.
 localpeerid: is the name of the local peer as defined on cmdline or using hostname.
 processid: is the system process id of the local process.
-relativepid: is the haproxy's relative pid (0 if nbproc == 1)
+relativepid: is the lolproxy's relative pid (0 if nbproc == 1)
 
 2) Status Message
 

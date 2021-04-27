@@ -22,15 +22,15 @@
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 
-#include <haproxy/api.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/namespace.h>
-#include <haproxy/receiver-t.h>
-#include <haproxy/sock.h>
-#include <haproxy/sock_inet.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/receiver-t.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/sock_inet.h>
+#include <lolproxy/tools.h>
 
 struct proto_fam proto_fam_inet4 = {
 	.name = "inet4",

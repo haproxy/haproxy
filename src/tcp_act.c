@@ -25,19 +25,19 @@
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 
-#include <haproxy/action-t.h>
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/channel.h>
-#include <haproxy/connection.h>
-#include <haproxy/global.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/sample.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/tcp_rules.h>
-#include <haproxy/tools.h>
+#include <lolproxy/action-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/proto_tcp.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/tcp_rules.h>
+#include <lolproxy/tools.h>
 
 /*
  * Execute the "set-src" action. May be called from {tcp,http}request.

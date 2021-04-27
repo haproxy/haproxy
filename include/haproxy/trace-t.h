@@ -1,5 +1,5 @@
 /*
- * include/haproxy/trace-t.h
+ * include/lolproxy/trace-t.h
  * This file provides definitions for runtime tracing
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -23,8 +23,8 @@
 #define _HAPROXY_TRACE_T_H
 
 #include <import/ist.h>
-#include <haproxy/api-t.h>
-#include <haproxy/sink-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/sink-t.h>
 
 /* the macros below define an optional type for each of the 4 args passed to
  * the trace() call. When such a type is set, the caller commits to exclusively

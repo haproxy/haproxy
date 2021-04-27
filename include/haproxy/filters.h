@@ -1,5 +1,5 @@
 /*
- * include/haproxy/filters.h
+ * include/lolproxy/filters.h
  * This file defines function prototypes for stream filters management.
  *
  * Copyright (C) 2015 Qualys Inc., Christopher Faulet <cfaulet@qualys.com>
@@ -21,11 +21,11 @@
 #ifndef _HAPROXY_FILTERS_H
 #define _HAPROXY_FILTERS_H
 
-#include <haproxy/channel.h>
-#include <haproxy/filters-t.h>
-#include <haproxy/http_ana-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/stream-t.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/filters-t.h>
+#include <lolproxy/http_ana-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/stream-t.h>
 
 extern const char *trace_flt_id;
 extern const char *http_comp_flt_id;

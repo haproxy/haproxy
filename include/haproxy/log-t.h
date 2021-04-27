@@ -1,5 +1,5 @@
 /*
- * include/haproxy/log-t.h
+ * include/lolproxy/log-t.h
  * This file contains definitions of log-related structures and macros.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -26,9 +26,9 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/ring-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/ring-t.h>
+#include <lolproxy/thread-t.h>
 
 
 #define NB_LOG_FACILITIES       24

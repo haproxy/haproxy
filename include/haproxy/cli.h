@@ -1,5 +1,5 @@
 /*
- * include/haproxy/cli.h
+ * include/lolproxy/cli.h
  * This file contains definitions of some primitives to dedicated to
  * statistics output.
  *
@@ -23,11 +23,11 @@
 #ifndef _HAPROXY_CLI_H
 #define _HAPROXY_CLI_H
 
-#include <haproxy/applet-t.h>
-#include <haproxy/channel-t.h>
-#include <haproxy/cli-t.h>
-#include <haproxy/global.h>
-#include <haproxy/stream-t.h>
+#include <lolproxy/applet-t.h>
+#include <lolproxy/channel-t.h>
+#include <lolproxy/cli-t.h>
+#include <lolproxy/global.h>
+#include <lolproxy/stream-t.h>
 
 
 void cli_register_kw(struct cli_kw_list *kw_list);

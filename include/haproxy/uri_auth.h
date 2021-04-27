@@ -1,5 +1,5 @@
 /*
- * include/haproxy/uri_auth.h
+ * include/lolproxy/uri_auth.h
  * Functions for URI-based user authentication using the HTTP basic method.
  *
  * Copyright 2006-2020 Willy Tarreau <w@1wt.eu>
@@ -14,8 +14,8 @@
 #ifndef _HAPROXY_URI_AUTH_H
 #define _HAPROXY_URI_AUTH_H
 
-#include <haproxy/api.h>
-#include <haproxy/uri_auth-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/uri_auth-t.h>
 
 /* Various functions used to set the fields during the configuration parsing.
  * Please that all those function can initialize the root entry in order not to

@@ -1,8 +1,8 @@
 /*
- * include/haproxy/spoe-t.h
+ * include/lolproxy/spoe-t.h
  * Macros, variables and structures for the SPOE filter.
  *
- * Copyright (C) 2017 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2017 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,15 +24,15 @@
 
 #include <sys/time.h>
 
-#include <haproxy/buf-t.h>
-#include <haproxy/dynbuf-t.h>
-#include <haproxy/filters-t.h>
-#include <haproxy/freq_ctr-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/sample-t.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/task-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/dynbuf-t.h>
+#include <lolproxy/filters-t.h>
+#include <lolproxy/freq_ctr-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/sample-t.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/task-t.h>
+#include <lolproxy/thread-t.h>
 
 /* Type of list of messages */
 #define SPOE_MSGS_BY_EVENT 0x01

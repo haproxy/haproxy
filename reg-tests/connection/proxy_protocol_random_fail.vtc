@@ -22,7 +22,7 @@ syslog Slog_1 -repeat 8 -level info {
     expect ~ "ssl-offload-http/http .* \"POST (https://.*:${h1_ssl_port})?/[1-8] HTTP/(2\\.0|1\\.1)\""
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         nbproc 4
         tune.ssl.default-dh-param 2048

@@ -17,24 +17,24 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/connection.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/global.h>
-#include <haproxy/list.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/protocol-t.h>
-#include <haproxy/protocol.h>
-#include <haproxy/sample.h>
-#include <haproxy/stream.h>
-#include <haproxy/task.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/global.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/protocol-t.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/task.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 
 /* List head of all known bind keywords */

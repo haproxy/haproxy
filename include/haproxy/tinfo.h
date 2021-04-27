@@ -1,5 +1,5 @@
 /*
- * include/haproxy/tinfo.h
+ * include/lolproxy/tinfo.h
  * Export of ha_thread_info[] and ti pointer.
  *
  * Copyright (C) 2020 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_TINFO_H
 #define _HAPROXY_TINFO_H
 
-#include <haproxy/api.h>
-#include <haproxy/tinfo-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/tinfo-t.h>
 
 /* the struct is in thread.c */
 extern struct thread_info ha_thread_info[MAX_THREADS];

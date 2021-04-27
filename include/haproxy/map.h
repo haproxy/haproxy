@@ -1,5 +1,5 @@
 /*
- * include/haproxy/map.h
+ * include/lolproxy/map.h
  * This file provides structures and types for pattern matching.
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_MAP_H
 #define _HAPROXY_MAP_H
 
-#include <haproxy/map-t.h>
-#include <haproxy/sample-t.h>
+#include <lolproxy/map-t.h>
+#include <lolproxy/sample-t.h>
 
 /* maps output sample parser */
 int map_parse_ip(const char *text, struct sample_data *data);

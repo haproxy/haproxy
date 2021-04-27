@@ -1,5 +1,5 @@
 /*
- * include/haproxy/sock_unix.h
+ * include/lolproxy/sock_unix.h
  * This file contains declarations for AF_UNIX sockets.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -25,8 +25,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <haproxy/api.h>
-#include <haproxy/receiver-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/receiver-t.h>
 
 extern struct proto_fam proto_fam_unix;
 

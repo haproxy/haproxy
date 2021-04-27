@@ -1,5 +1,5 @@
 /*
- * include/haproxy/mqtt.h
+ * include/lolproxy/mqtt.h
  * This file contains structure declarations for MQTT protocol.
  *
  * Copyright 2020 Baptiste Assmann <bedis9@gmail.com>

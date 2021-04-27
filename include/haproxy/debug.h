@@ -1,5 +1,5 @@
 /*
- * include/haproxy/debug.h
+ * include/lolproxy/debug.h
  * This files contains some macros to help debugging.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu

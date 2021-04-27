@@ -104,7 +104,7 @@
   protocol. A per-stream equivalent will surely be needed if implementations
   do not quickly generalize the use of Forward.
 
-- simplified protocol for local devices (eg: haproxy->varnish in clear and
+- simplified protocol for local devices (eg: lolproxy->varnish in clear and
   without handshake, and possibly even with splicing if the connection's
   settings are shared)
 

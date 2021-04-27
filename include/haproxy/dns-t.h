@@ -1,5 +1,5 @@
 /*
- * include/haproxy/dns-t.h
+ * include/lolproxy/dns-t.h
  * This file provides structures and types for DNS.
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>
@@ -24,14 +24,14 @@
 
 #include <import/eb32tree.h>
 
-#include <haproxy/connection-t.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/dgram-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/ring-t.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/task-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/connection-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/dgram-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/ring-t.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/task-t.h>
+#include <lolproxy/thread.h>
 
 /* DNS header size */
 #define DNS_HEADER_SIZE  ((int)sizeof(struct dns_header))

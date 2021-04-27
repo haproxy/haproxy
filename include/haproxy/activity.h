@@ -1,5 +1,5 @@
 /*
- * include/haproxy/activity.h
+ * include/lolproxy/activity.h
  * This file contains macros and inline functions for activity measurements.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -23,10 +23,10 @@
 #define _HAPROXY_ACTIVITY_H
 
 #include <import/xxhash.h>
-#include <haproxy/activity-t.h>
-#include <haproxy/api.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/time.h>
+#include <lolproxy/activity-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/time.h>
 
 extern unsigned int profiling;
 extern unsigned long task_profiling_mask;

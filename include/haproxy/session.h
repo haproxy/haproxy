@@ -1,5 +1,5 @@
 /*
- * include/haproxy/session.h
+ * include/lolproxy/session.h
  * This file contains functions used to manage sessions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,13 +22,13 @@
 #ifndef _HAPROXY_SESSION_H
 #define _HAPROXY_SESSION_H
 
-#include <haproxy/api.h>
-#include <haproxy/global-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/pool.h>
-#include <haproxy/server.h>
-#include <haproxy/session-t.h>
-#include <haproxy/stick_table.h>
+#include <lolproxy/api.h>
+#include <lolproxy/global-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/server.h>
+#include <lolproxy/session-t.h>
+#include <lolproxy/stick_table.h>
 
 extern struct pool_head *pool_head_session;
 extern struct pool_head *pool_head_sess_srv_list;

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/tools.h
+ * include/lolproxy/tools.h
  * This files contains some general purpose functions and macros.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -39,12 +39,12 @@
 #include <arpa/inet.h>
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
-#include <haproxy/api.h>
-#include <haproxy/chunk.h>
-#include <haproxy/intops.h>
-#include <haproxy/namespace-t.h>
-#include <haproxy/protocol-t.h>
-#include <haproxy/tools-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/intops.h>
+#include <lolproxy/namespace-t.h>
+#include <lolproxy/protocol-t.h>
+#include <lolproxy/tools-t.h>
 
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */

@@ -92,7 +92,7 @@ syslog S4 -level notice {
 } -start
 
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         timeout client  1s
         timeout server  1s
@@ -136,59 +136,59 @@ haproxy h1 -conf {
         server srv4 ${s4_addr}:${s4_port}
 } -start
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     barrier b1 sync
     send "show servers state"
     expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord srv_use_ssl srv_check_port srv_check_addr srv_agent_addr srv_agent_port\n6 be1 1 srv1 ${s1_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 [67] 0 0 0 - ${s1_port} - 0 0 - - 0\n7 be2 1 srv2 ${s2_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 [67] 0 0 0 - ${s2_port} - 0 0 - - 0\n8 be3 1 srv3 ${s3_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 [67] 0 0 0 - ${s3_port} - 0 0 - - 0\n9 be4 1 srv4 ${s4_addr} 2 0 1 1 [[:digit:]]+ 6 3 1 [67] 0 0 0 - ${s4_port} - 0 0 - - 0"
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "disable server be1/srv1"
     expect ~ .*
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "disable server be2/srv2"
     expect ~ .*
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "disable server be3/srv3"
     expect ~ .*
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "disable server be4/srv4"
     expect ~ .*
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     barrier b1 sync
     send "show servers state"
     expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord srv_use_ssl srv_check_port srv_check_addr srv_agent_addr srv_agent_port\n6 be1 1 srv1 ${s1_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 1[45] 0 0 0 - ${s1_port} - 0 0 - - 0\n7 be2 1 srv2 ${s2_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 1[45] 0 0 0 - ${s2_port} - 0 0 - - 0\n8 be3 1 srv3 ${s3_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 1[45] 0 0 0 - ${s3_port} - 0 0 - - 0\n9 be4 1 srv4 ${s4_addr} 0 1 1 1 [[:digit:]]+ 6 3 [01] 1[45] 0 0 0 - ${s4_port} - 0 0 - - 0"
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "enable server be1/srv1"
     expect ~ .*
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "enable server be2/srv2"
     expect ~ .*
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "enable server be3/srv3"
     expect ~ .*
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "enable server be4/srv4"
     expect ~ .*
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     barrier b1 sync
     send "show servers state"
     expect ~ "# be_id be_name srv_id srv_name srv_addr srv_op_state srv_admin_state srv_uweight srv_iweight srv_time_since_last_change srv_check_status srv_check_result srv_check_health srv_check_state srv_agent_state bk_f_forced_id srv_f_forced_id srv_fqdn srv_port srvrecord srv_use_ssl srv_check_port srv_check_addr srv_agent_addr srv_agent_port\n6 be1 1 srv1 ${s1_addr} 2 0 1 1 [[:digit:]]+ 6 [03] 1 [67] 0 0 0 - ${s1_port} - 0 0 - - 0\n7 be2 1 srv2 ${s2_addr} 2 0 1 1 [[:digit:]]+ 6 [03] 1 [67] 0 0 0 - ${s2_port} - 0 0 - - 0\n8 be3 1 srv3 ${s3_addr} 2 0 1 1 [[:digit:]]+ 6 [03] 1 [67] 0 0 0 - ${s3_port} - 0 0 - - 0\n9 be4 1 srv4 ${s4_addr} 2 0 1 1 [[:digit:]]+ 6 [03] 1 [67] 0 0 0 - ${s4_port} - 0 0 - - 0"

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/check-t.h
+ * include/lolproxy/check-t.h
  * Health-checks definitions, enums, macros and bitfields.
  *
  * Copyright 2008-2009 Krzysztof Piotr Oledzki <ole@ans.pl>
@@ -17,12 +17,12 @@
 
 #include <import/ebpttree.h>
 #include <import/ist.h>
-#include <haproxy/api-t.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/dynbuf-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/vars-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/connection-t.h>
+#include <lolproxy/dynbuf-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/vars-t.h>
 
 /* Please note: this file tends to commonly be part of circular dependencies,
  * so it is important to keep its includes list to the minimum possible (i.e.

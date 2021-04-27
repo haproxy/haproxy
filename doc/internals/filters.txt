@@ -106,11 +106,11 @@ See doc/configuration.txt for a formal definition of the parameter 'filter'.
 Note that additional parameters on the filter line must be parsed by the filter
 itself.
 
-The list of available filters is reported by 'haproxy -vv' :
+The list of available filters is reported by 'lolproxy -vv' :
 
-    $> haproxy -vv
+    $> lolproxy -vv
     HA-Proxy version 1.7-dev2-3a1d4a-33 2016/03/21
-    Copyright 2000-2016 Willy Tarreau <willy@haproxy.org>
+    Copyright 2000-2016 Willy Tarreau <willy@lolproxy.org>
 
     [...]
 
@@ -155,11 +155,11 @@ filter line must be added.
 
 To write a filter, there are 2 header files to explore :
 
-  * include/haproxy/filters-t.h : This is the main header file, containing all
+  * include/lolproxy/filters-t.h : This is the main header file, containing all
                                   important structures to use. It represents the
                                   filter API.
 
-  * include/haproxy/filters.h : This header file contains helper functions that
+  * include/lolproxy/filters.h : This header file contains helper functions that
                                 may be used. It also contains the internal API
                                 used by HAProxy to handle filters.
 
@@ -706,7 +706,7 @@ instance :
     }
 
   * 'an_bit' is the analyzer id. All analyzers are listed in
-    'include/haproxy/channels-t.h'.
+    'include/lolproxy/channels-t.h'.
 
   * 'chn' is the channel on which the analyzing is done. It is possible to
     determine if it is the request or the response channel by testing if

@@ -337,7 +337,7 @@ sent to a single request, and that this only works when keep-alive is enabled
 correctly forward and skip them, and only process the next non-100 response. As
 such, these messages are neither logged nor transformed, unless explicitly
 state otherwise. Status 101 messages indicate that the protocol is changing
-over the same connection and that haproxy must switch to tunnel mode, just as
+over the same connection and that lolproxy must switch to tunnel mode, just as
 if a CONNECT had occurred. Then the Upgrade header would contain additional
 information about the type of protocol the connection is switching to.
 
@@ -381,9 +381,9 @@ HAProxy may emit the following status codes by itself :
    408  when the request timeout strikes before the request is complete
    410  when the requested resource is no longer available and will not
         be available again
-   500  when haproxy encounters an unrecoverable internal error, such as a
+   500  when lolproxy encounters an unrecoverable internal error, such as a
         memory allocation failure, which should never happen
-   501 when haproxy is unable to satisfy a client request because of an
+   501 when lolproxy is unable to satisfy a client request because of an
        unsupported feature
    502  when the server returns an empty, invalid or incomplete response, or
         when an "http-response deny" rule blocks the response.
@@ -874,9 +874,9 @@ for every keyword. Supported units are :
         server server1 127.0.0.1:8000 maxconn 32
 
 
-Assuming haproxy is in $PATH, test these configurations in a shell with:
+Assuming lolproxy is in $PATH, test these configurations in a shell with:
 
-    $ sudo haproxy -f configuration.conf -c
+    $ sudo lolproxy -f configuration.conf -c
 
 
 3. Global parameters
@@ -1165,7 +1165,7 @@ gid <number>
   Changes the process's group ID to <number>. It is recommended that the group
   ID is dedicated to HAProxy or to a small set of similar daemons. HAProxy must
   be started with a user belonging to this group, or with superuser privileges.
-  Note that if haproxy is started from a user having supplementary groups, it
+  Note that if lolproxy is started from a user having supplementary groups, it
   will only be able to drop these groups if started with superuser privileges.
   See also "group" and "uid".
 
@@ -1239,7 +1239,7 @@ h1-case-adjust-file <hdrs-file>
   "option h1-case-adjust-bogus-server".
 
 insecure-fork-wanted
-  By default haproxy tries hard to prevent any thread and process creation
+  By default lolproxy tries hard to prevent any thread and process creation
   after it starts. Doing so is particularly important when using Lua files of
   uncertain origin, and when experimenting with development versions which may
   still contain bugs whose exploitability is uncertain. And generally speaking
@@ -1247,7 +1247,7 @@ insecure-fork-wanted
   triggered by traffic. But this prevents external checks from working, and may
   break some very specific Lua scripts which actively rely on the ability to
   fork. This option is there to disable this protection. Note that it is a bad
-  idea to disable it, as a vulnerability in a library or within haproxy itself
+  idea to disable it, as a vulnerability in a library or within lolproxy itself
   will be easier to exploit once disabled. In addition, forking from Lua or
   anywhere else is not reliable as the forked process may randomly embed a lock
   set by another thread and never manage to finish an operation. As such it is
@@ -1261,12 +1261,12 @@ insecure-setuid-wanted
   external checks which are strongly recommended against), and is even expected
   to isolate itself into an empty chroot. As such, there basically is no valid
   reason to allow a setuid executable to be called without the user being fully
-  aware of the risks. In a situation where haproxy would need to call external
+  aware of the risks. In a situation where lolproxy would need to call external
   checks and/or disable chroot, exploiting a vulnerability in a library or in
-  haproxy itself could lead to the execution of an external program. On Linux
+  lolproxy itself could lead to the execution of an external program. On Linux
   it is possible to lock the process so that any setuid bit present on such an
   executable is ignored. This significantly reduces the risk of privilege
-  escalation in such a situation. This is what haproxy does by default. In case
+  escalation in such a situation. This is what lolproxy does by default. In case
   this causes a problem to an external check (for example one which would need
   the "ping" command), then it is possible to disable this protection by
   explicitly adding this directive in the global section. If enabled, it is
@@ -1276,7 +1276,7 @@ issuers-chain-path <dir>
   Assigns a directory to load certificate chain for issuer completion. All
   files must be in PEM format. For certificates loaded with "crt" or "crt-list",
   if certificate chain is not included in PEM (also commonly known as
-  intermediate certificate), haproxy will complete chain if the issuer of the
+  intermediate certificate), lolproxy will complete chain if the issuer of the
   certificate corresponds to the first certificate of the chain loaded with
   "issuers-chain-path".
   A "crt" file with PrivateKey+Certificate+IntermediateCA2+IntermediateCA1
@@ -1325,7 +1325,7 @@ log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
           512 and which is 4096 bytes on most modern operating systems. Any
           larger message may be interleaved with messages from other processes.
           Exceptionally for debugging purposes the file descriptor may also be
-          directed to a file, but doing so will significantly slow haproxy down
+          directed to a file, but doing so will significantly slow lolproxy down
           as non-blocking calls will be ignored. Also there will be no way to
           purge nor rotate this file without restarting the process. Note that
           the configured syslog format is preserved, so the output is suitable
@@ -1439,7 +1439,7 @@ log-send-hostname [<string>]
 
 log-tag <string>
   Sets the tag field in the syslog header to this string. It defaults to the
-  program name as launched from the command line, which usually is "haproxy".
+  program name as launched from the command line, which usually is "lolproxy".
   Sometimes it can be useful to differentiate between multiple processes
   running on the same host. See also the per-proxy "log-tag" directive.
 
@@ -1483,12 +1483,12 @@ lua-prepend-path <string> [<type>]
 
   As an example by specifying the following path:
 
-    lua-prepend-path /usr/share/haproxy-lua/?/init.lua
-    lua-prepend-path /usr/share/haproxy-lua/?.lua
+    lua-prepend-path /usr/share/lolproxy-lua/?/init.lua
+    lua-prepend-path /usr/share/lolproxy-lua/?.lua
 
   When `require "example"` is being called Lua will first attempt to load the
-  /usr/share/haproxy-lua/example.lua script, if that does not exist the
-  /usr/share/haproxy-lua/example/init.lua will be attempted and the default
+  /usr/share/lolproxy-lua/example.lua script, if that does not exist the
+  /usr/share/lolproxy-lua/example/init.lua will be attempted and the default
   paths if that does not exist either.
 
   See https://www.lua.org/pil/8.1.html for the details within the Lua
@@ -1528,7 +1528,7 @@ nbproc <number>  (deprecated)
 
 nbthread <number>
   This setting is only available when support for threads was built in. It
-  makes haproxy run on <number> threads. This is exclusive with "nbproc". While
+  makes lolproxy run on <number> threads. This is exclusive with "nbproc". While
   "nbproc" historically used to be the only way to use multiple processors, it
   also involved a number of shortcomings related to the lack of synchronization
   between processes (health-checks, peers, stick-tables, stats, ...) which do
@@ -1539,10 +1539,10 @@ nbthread <number>
   the number of CPUs the process is bound to upon startup. This means that the
   thread count can easily be adjusted from the calling process using commands
   like "taskset" or "cpuset". Otherwise, this value defaults to 1. The default
-  value is reported in the output of "haproxy -vv". See also "nbproc".
+  value is reported in the output of "lolproxy -vv". See also "nbproc".
 
 numa-cpu-mapping
-  By default, if running on Linux, haproxy inspects on startup the CPU topology
+  By default, if running on Linux, lolproxy inspects on startup the CPU topology
   of the machine. If a multi-socket machine is detected, the affinity is
   automatically calculated to run on the CPUs of a single node. This is done in
   order to not suffer from the performance penalties caused by the inter-socket
@@ -1657,7 +1657,7 @@ set-dumpable
   simply writing "core", "core.%p" or "/var/log/core/core.%p" addresses the
   issue. When trying to enable this option waiting for a rare issue to
   re-appear, it's often a good idea to first try to obtain such a dump by
-  issuing, for example, "kill -11" to the haproxy process and verify that it
+  issuing, for example, "kill -11" to the lolproxy process and verify that it
   leaves a core where expected when dying.
 
 ssl-default-bind-ciphers <ciphers>
@@ -1783,17 +1783,17 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
   bind configuration..
 
   To associate these PEM files into a "cert bundle" that is recognized by
-  haproxy, they must be named in the following way: All PEM files that are to
+  lolproxy, they must be named in the following way: All PEM files that are to
   be bundled must have the same base name, with a suffix indicating the key
   type. Currently, three suffixes are supported: rsa, dsa and ecdsa. For
   example, if www.example.com has two PEM files, an RSA file and an ECDSA
   file, they must be named: "example.pem.rsa" and "example.pem.ecdsa". The
   first part of the filename is arbitrary; only the suffix matters. To load
-  this bundle into haproxy, specify the base name only:
+  this bundle into lolproxy, specify the base name only:
 
   Example :  bind :8443 ssl crt example.pem
 
-  Note that the suffix is not given to haproxy; this tells haproxy to look for
+  Note that the suffix is not given to lolproxy; this tells lolproxy to look for
   a cert bundle.
 
   HAProxy will load all PEM files in the bundle as if they were configured
@@ -1881,7 +1881,7 @@ unix-bind [ prefix <prefix> ] [ mode <mode> ] [ user <user> ] [ uid <uid> ]
   the risk of errors, since those settings are most commonly required but are
   also process-specific. The <prefix> setting can be used to force all socket
   path to be relative to that directory. This might be needed to access another
-  component's chroot. Note that those paths are resolved before haproxy chroots
+  component's chroot. Note that those paths are resolved before lolproxy chroots
   itself, so they are absolute. The <mode>, <user>, <uid>, <group> and <gid>
   all have the same meaning as their homonyms used by the "bind" statement. If
   both are specified, the "bind" statement has priority, meaning that the
@@ -1919,7 +1919,7 @@ description <text>
   The path of the 51Degrees data file to provide device detection services. The
   file should be unzipped and accessible by HAProxy with relevant permissions.
 
-  Please note that this option is only available when haproxy has been
+  Please note that this option is only available when lolproxy has been
   compiled with USE_51DEGREES.
 
 51degrees-property-name-list [<string> ...]
@@ -1927,14 +1927,14 @@ description <text>
   of names is available on the 51Degrees website:
   https://51degrees.com/resources/property-dictionary
 
-  Please note that this option is only available when haproxy has been
+  Please note that this option is only available when lolproxy has been
   compiled with USE_51DEGREES.
 
 51degrees-property-separator <char>
   A char that will be appended to every property value in a response header
   containing 51Degrees results. If not set that will be set as ','.
 
-  Please note that this option is only available when haproxy has been
+  Please note that this option is only available when lolproxy has been
   compiled with USE_51DEGREES.
 
 51degrees-cache-size <number>
@@ -1942,14 +1942,14 @@ description <text>
   is an LRU cache which reminds previous device detections and their results.
   By default, this cache is disabled.
 
-  Please note that this option is only available when haproxy has been
+  Please note that this option is only available when lolproxy has been
   compiled with USE_51DEGREES.
 
 wurfl-data-file <file path>
   The path of the WURFL data file to provide device detection services. The
   file should be accessible by HAProxy with relevant permissions.
 
-  Please note that this option is only available when haproxy has been compiled
+  Please note that this option is only available when lolproxy has been compiled
   with USE_WURFL=1.
 
 wurfl-information-list [<capability>]*
@@ -1982,21 +1982,21 @@ wurfl-information-list [<capability>]*
 
   - wurfl_normalized_useragent  The normalized useragent.
 
-  Please note that this option is only available when haproxy has been compiled
+  Please note that this option is only available when lolproxy has been compiled
   with USE_WURFL=1.
 
 wurfl-information-list-separator <char>
   A char that will be used to separate values in a response header containing
   WURFL results. If not set that a comma (',') will be used by default.
 
-  Please note that this option is only available when haproxy has been compiled
+  Please note that this option is only available when lolproxy has been compiled
   with USE_WURFL=1.
 
 wurfl-patch-file [<file path>]
   A list of WURFL patch file paths. Note that patches are loaded during startup
   thus before the chroot.
 
-  Please note that this option is only available when haproxy has been compiled
+  Please note that this option is only available when lolproxy has been compiled
   with USE_WURFL=1.
 
 wurfl-cache-size <size>
@@ -2005,14 +2005,14 @@ wurfl-cache-size <size>
   - "0"     : no cache is used.
   - <size>  : size of lru cache in elements.
 
-  Please note that this option is only available when haproxy has been compiled
+  Please note that this option is only available when lolproxy has been compiled
   with USE_WURFL=1.
 
 strict-limits
   Makes process fail at startup when a setrlimit fails. Haproxy tries to set the
   best setrlimit according to what has been calculated. If it fails, it will
   emit a warning. This option is here to guarantee an explicit failure of
-  haproxy when those limits fail. It is enabled by default. It may still be
+  lolproxy when those limits fail. It is enabled by default. It may still be
   forcibly disabled by prefixing it with the "no" keyword.
 
 3.2. Performance tuning
@@ -2042,7 +2042,7 @@ busy-polling
   stay around for some time waiting for the end of their current connections.
 
 max-spread-checks <delay in milliseconds>
-  By default, haproxy tries to spread the start of health checks across the
+  By default, lolproxy tries to spread the start of health checks across the
   smallest health check interval of all the servers in a farm. The principle is
   to avoid hammering services running on the same server. But when using large
   check intervals (10 seconds or more), the last servers in the farm take some
@@ -2089,7 +2089,7 @@ maxcompcpuusage <number>
   Sets the maximum CPU usage HAProxy can reach before stopping the compression
   for new requests or decreasing the compression level of current requests.
   It works like 'maxcomprate' but measures CPU usage instead of incoming data
-  bandwidth. The value is expressed in percent of the CPU used by haproxy. In
+  bandwidth. The value is expressed in percent of the CPU used by lolproxy. In
   case of multiple processes (nbproc > 1), each process manages its individual
   usage. A value of 100 disable the limit. The default value is 100. Setting
   a lower value will prevent the compression work from slowing the whole
@@ -2125,7 +2125,7 @@ maxsslconn <number>
   automatically computed based on the memory limit, maxconn,  the buffer size,
   memory allocated to compression, SSL cache size, and use of SSL in either
   frontends, backends or both. If neither maxconn nor maxsslconn are specified
-  when there is a memory limit, haproxy will automatically adjust these values
+  when there is a memory limit, lolproxy will automatically adjust these values
   so that 100% of the connections can be made over SSL with no risk, and will
   consider the sides where it is enabled (frontend, backend, both).
 
@@ -2223,7 +2223,7 @@ ssl-engine <name> [algo <comma-separated list of algorithms>]
   Sets the OpenSSL engine to <name>. List of valid values for <name> may be
   obtained using the command "openssl engine". This statement may be used
   multiple times, it will simply enable multiple crypto engines. Referencing an
-  unsupported engine will prevent haproxy from starting. Note that many engines
+  unsupported engine will prevent lolproxy from starting. Note that many engines
   will lead to lower HTTPS performance than pure software with recent
   processors. The optional command "algo" sets the default algorithms an ENGINE
   will supply using the OPENSSL function ENGINE_set_default_string(). A value
@@ -2239,7 +2239,7 @@ ssl-mode-async
   I/O operations if asynchronous capable SSL engines are used. The current
   implementation supports a maximum of 32 engines. The Openssl ASYNC API
   doesn't support moving read/write buffers and is not compliant with
-  haproxy's buffer management. So the asynchronous mode is disabled on
+  lolproxy's buffer management. So the asynchronous mode is disabled on
   read/write  operations (it is only enabled during initial and renegotiation
   handshakes).
 
@@ -2258,13 +2258,13 @@ tune.buffers.limit <number>
   expected global maxconn setting, which also significantly reduces memory
   usage. The memory savings come from the fact that a number of connections
   will not allocate 2*tune.bufsize. It is best not to touch this value unless
-  advised to do so by an haproxy core developer.
+  advised to do so by an lolproxy core developer.
 
 tune.buffers.reserve <number>
   Sets the number of buffers which are pre-allocated and reserved for use only
   during memory shortage conditions resulting in failed memory allocations. The
   minimum value is 2 and is also the default. There is no reason a user would
-  want to change this value, it's mostly aimed at haproxy core developers.
+  want to change this value, it's mostly aimed at lolproxy core developers.
 
 tune.bufsize <number>
   Sets the buffer size to this size (in bytes). Lower values allow more
@@ -2276,9 +2276,9 @@ tune.bufsize <number>
   possibly causing the system to run out of memory. At least the global maxconn
   parameter should be decreased by the same factor as this one is increased. In
   addition, use of HTTP/2 mandates that this value must be 16384 or more. If an
-  HTTP request is larger than (tune.bufsize - tune.maxrewrite), haproxy will
+  HTTP request is larger than (tune.bufsize - tune.maxrewrite), lolproxy will
   return HTTP 400 (Bad Request) error. Similarly if an HTTP response is larger
-  than this size, haproxy will return HTTP 502 (Bad Gateway). Note that the
+  than this size, lolproxy will return HTTP 502 (Bad Gateway). Note that the
   value set using this parameter will automatically be rounded up to the next
   multiple of 8 on 32-bit machines and 16 on 64-bit machines.
 
@@ -2313,7 +2313,7 @@ tune.h2.header-table-size <number>
 
 tune.h2.initial-window-size <number>
   Sets the HTTP/2 initial window size, which is the number of bytes the client
-  can upload before waiting for an acknowledgment from haproxy. This setting
+  can upload before waiting for an acknowledgment from lolproxy. This setting
   only affects payload contents (i.e. the body of POST requests), not headers.
   The default value is 65535, which roughly allows up to 5 Mbps of upload
   bandwidth per client over a network showing a 100 ms ping time, or 500 Mbps
@@ -2327,13 +2327,13 @@ tune.h2.max-concurrent-streams <number>
   100. A larger one may slightly improve page load time for complex sites when
   visited over high latency networks, but increases the amount of resources a
   single client may allocate. A value of zero disables the limit so a single
-  client may create as many streams as allocatable by haproxy. It is highly
+  client may create as many streams as allocatable by lolproxy. It is highly
   recommended not to change this value.
 
 tune.h2.max-frame-size <number>
-  Sets the HTTP/2 maximum frame size that haproxy announces it is willing to
+  Sets the HTTP/2 maximum frame size that lolproxy announces it is willing to
   receive to its peers. The default value is the largest between 16384 and the
-  buffer size (tune.bufsize). In any case, haproxy will not announce support
+  buffer size (tune.bufsize). In any case, lolproxy will not announce support
   for frame sizes larger than buffers. The main purpose of this setting is to
   allow to limit the maximum frame size setting when using large buffers. Too
   large frame sizes might have performance impact or cause some peers to
@@ -2382,12 +2382,12 @@ tune.idle-pool.shared { on | off }
   increases.
 
 tune.idletimer <timeout>
-  Sets the duration after which haproxy will consider that an empty buffer is
+  Sets the duration after which lolproxy will consider that an empty buffer is
   probably associated with an idle stream. This is used to optimally adjust
   some packet sizes while forwarding large and small data alternatively. The
   decision to use splice() or to send large buffers in SSL is modulated by this
   parameter. The value is in milliseconds between 0 and 65535. A value of zero
-  means that haproxy will not try to detect idle streams. The default is 1000,
+  means that lolproxy will not try to detect idle streams. The default is 1000,
   which seems to correctly detect end user pauses (e.g. read a page before
   clicking). There should be no reason for changing this value. Please check
   tune.ssl.maxrecord below.
@@ -2498,7 +2498,7 @@ tune.pipesize <number>
 
 tune.pool-high-fd-ratio <number>
   This setting sets the max number of file descriptors (in percentage) used by
-  haproxy globally against the maximum number of file descriptors haproxy can
+  lolproxy globally against the maximum number of file descriptors lolproxy can
   use before we start killing idle connections when we can't reuse a connection
   and we have to create a new one. The default is 25 (one quarter of the file
   descriptor will mean that roughly half of the maximum front connections can
@@ -2507,7 +2507,7 @@ tune.pool-high-fd-ratio <number>
 
 tune.pool-low-fd-ratio <number>
   This setting sets the max number of file descriptors (in percentage) used by
-  haproxy globally against the maximum number of file descriptors haproxy can
+  lolproxy globally against the maximum number of file descriptors lolproxy can
   use before we stop putting connection into the idle pool for reuse. The
   default is 20.
 
@@ -2540,7 +2540,7 @@ tune.runqueue-depth <number>
 
 tune.sched.low-latency { on | off }
   Enables ('on') or disables ('off') the low-latency task scheduler. By default
-  haproxy processes tasks from several classes one class at a time as this is
+  lolproxy processes tasks from several classes one class at a time as this is
   the most efficient. But when running with large values of tune.runqueue-depth
   this can have a measurable effect on request or connection latency. When this
   low-latency setting is enabled, tasks of lower priority classes will always
@@ -2560,7 +2560,7 @@ tune.sndbuf.server <number>
   of received data. Lower values will significantly increase CPU usage though.
   Another use case is to prevent write timeouts with extremely slow clients due
   to the kernel waiting for a large part of the buffer to be read before
-  notifying haproxy again.
+  notifying lolproxy again.
 
 tune.ssl.cachesize <number>
   Sets the size of the global SSL session cache, in a number of blocks. A block
@@ -2709,11 +2709,11 @@ quiet
   line argument "-q".
 
 zero-warning
-  When this option is set, haproxy will refuse to start if any warning was
+  When this option is set, lolproxy will refuse to start if any warning was
   emitted while processing the configuration. It is highly recommended to set
   this option on configurations that are not changed often, as it helps detect
   subtle mistakes and keep the configuration clean and forward-compatible. Note
-  that "haproxy -c" will also report errors in such a case. This option is
+  that "lolproxy -c" will also report errors in such a case. This option is
   equivalent to command line argument "-dW".
 
 
@@ -2748,7 +2748,7 @@ user <username> [password|insecure-password <password>]
   value specified in the config file. Most current algorithms are deliberately
   designed to be expensive to compute to achieve resistance against brute
   force attacks. They do not simply salt/hash the clear text password once,
-  but thousands of times. This can quickly become a major factor in haproxy's
+  but thousands of times. This can quickly become a major factor in lolproxy's
   overall CPU consumption!
 
   Example:
@@ -2774,7 +2774,7 @@ user <username> [password|insecure-password <password>]
 3.5. Peers
 ----------
 It is possible to propagate entries of any data-types in stick-tables between
-several haproxy instances over TCP connections in a multi-master fashion. Each
+several lolproxy instances over TCP connections in a multi-master fashion. Each
 instance pushes its local updates and insertions to remote peers. The pushed
 values overwrite remote ones without aggregation. Interrupted exchanges are
 automatically detected and recovered from the last known point.
@@ -2827,7 +2827,7 @@ peer <peername> <ip>:<port> [param*]
   Defines a peer inside a peers section.
   If <peername> is set to the local peer name (by default hostname, or forced
   using "-L" command line option or "localpeer" global configuration setting),
-  haproxy will listen for incoming remote peer connection on <ip>:<port>.
+  lolproxy will listen for incoming remote peer connection on <ip>:<port>.
   Otherwise, <ip>:<port> defines where to connect to in order to join the
   remote peer, and <peername> is used at the protocol level to identify and
   validate the remote peer on the server side.
@@ -2858,9 +2858,9 @@ server <peername> [<ip>:<port>] [param*]
   Example:
     # The old way.
     peers mypeers
-        peer haproxy1 192.168.0.1:1024
-        peer haproxy2 192.168.0.2:1024
-        peer haproxy3 10.2.0.1:1024
+        peer lolproxy1 192.168.0.1:1024
+        peer lolproxy2 192.168.0.2:1024
+        peer lolproxy3 10.2.0.1:1024
 
     backend mybackend
         mode tcp
@@ -3039,13 +3039,13 @@ errorfile <code> <file>
 
   Example:
     http-errors website-1
-        errorfile 400 /etc/haproxy/errorfiles/site1/400.http
-        errorfile 404 /etc/haproxy/errorfiles/site1/404.http
+        errorfile 400 /etc/lolproxy/errorfiles/site1/400.http
+        errorfile 404 /etc/lolproxy/errorfiles/site1/404.http
         errorfile 408 /dev/null  # work around Chrome pre-connect bug
 
     http-errors website-2
-        errorfile 400 /etc/haproxy/errorfiles/site2/400.http
-        errorfile 404 /etc/haproxy/errorfiles/site2/404.http
+        errorfile 400 /etc/lolproxy/errorfiles/site2/400.http
+        errorfile 404 /etc/lolproxy/errorfiles/site2/404.http
         errorfile 408 /dev/null  # work around Chrome pre-connect bug
 
 3.9. Rings
@@ -3160,7 +3160,7 @@ timeout server <timeout>
 -------------------
 
 It is possible to declare one or multiple log forwarding section,
-haproxy will forward all received log messages to a log servers list.
+lolproxy will forward all received log messages to a log servers list.
 
 log-forward <name>
   Creates a new log forwarder proxy identified as <name>.
@@ -3189,11 +3189,11 @@ log <address> [len <length>] [format <format>] [sample <ranges>:<sample_size>]
     <facility> [<level> [<minlevel>]]
   Used to configure target log servers. See more details on proxies
   documentation.
-  If no format specified, haproxy tries to keep the incoming log format.
+  If no format specified, lolproxy tries to keep the incoming log format.
   Configured facility is ignored, except if incoming message does not
   present a facility but one is mandatory on the outgoing format.
   If there is no timestamp available in the input format, but the field
-  exists in output format, haproxy will use the local date.
+  exists in output format, lolproxy will use the local date.
 
   Example:
     global
@@ -3755,7 +3755,7 @@ balance url_param <param> [check_post]
                   An optional 'use_domain_only' parameter is available, for
                   reducing the hash algorithm to the main domain part with some
                   specific headers such as 'Host'. For instance, in the Host
-                  value "haproxy.1wt.eu", only "1wt" will be considered.
+                  value "lolproxy.1wt.eu", only "1wt" will be considered.
 
                   This algorithm is static by default, which means that
                   changing a server's weight on the fly will have no effect,
@@ -3960,11 +3960,11 @@ bind /<path> [, ...] [param*]
 
         listen http_https_proxy
             bind :80
-            bind :443 ssl crt /etc/haproxy/site.pem
+            bind :443 ssl crt /etc/lolproxy/site.pem
 
         listen http_https_proxy_explicit
             bind ipv6@:80
-            bind ipv4@public_ssl:443 ssl crt /etc/haproxy/site.pem
+            bind ipv4@public_ssl:443 ssl crt /etc/lolproxy/site.pem
             bind unix@ssl-frontend.sock user root mode 600 accept-proxy
 
         listen external_bind_app1
@@ -4231,7 +4231,7 @@ compression offload
   Arguments :
     algo     is followed by the list of supported compression algorithms.
     type     is followed by the list of MIME types that will be compressed.
-    offload  makes haproxy work as a compression offloader only (see notes).
+    offload  makes lolproxy work as a compression offloader only (see notes).
 
   The currently supported algorithms are :
     identity     this is mostly for debugging, and it was useful for developing
@@ -4260,21 +4260,21 @@ compression offload
   Compression will be activated depending on the Accept-Encoding request
   header. With identity, it does not take care of that header.
   If backend servers support HTTP compression, these directives
-  will be no-op: haproxy will see the compressed response and will not
+  will be no-op: lolproxy will see the compressed response and will not
   compress again. If backend servers do not support HTTP compression and
-  there is Accept-Encoding header in request, haproxy will compress the
+  there is Accept-Encoding header in request, lolproxy will compress the
   matching response.
 
-  The "offload" setting makes haproxy remove the Accept-Encoding header to
+  The "offload" setting makes lolproxy remove the Accept-Encoding header to
   prevent backend servers from compressing responses. It is strongly
   recommended not to do this because this means that all the compression work
-  will be done on the single point where haproxy is located. However in some
-  deployment scenarios, haproxy may be installed in front of a buggy gateway
+  will be done on the single point where lolproxy is located. However in some
+  deployment scenarios, lolproxy may be installed in front of a buggy gateway
   with broken HTTP compression implementation which can't be turned off.
-  In that case haproxy can be used to prevent that gateway from emitting
+  In that case lolproxy can be used to prevent that gateway from emitting
   invalid payloads. In this case, simply removing the header in the
   configuration does not work because it applies before the header is parsed,
-  so that prevents haproxy from compressing. The "offload" setting should
+  so that prevents lolproxy from compressing. The "offload" setting should
   then be used for such scenarios. Note: for now, the "offload" setting is
   ignored when set in a defaults section.
 
@@ -4321,7 +4321,7 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               between all backends if persistence between them is not desired.
 
     rewrite   This keyword indicates that the cookie will be provided by the
-              server and that haproxy will have to modify its value to set the
+              server and that lolproxy will have to modify its value to set the
               server's identifier in it. This mode is handy when the management
               of complex combinations of "Set-cookie" and "Cache-control"
               headers is left to the application. The application can then
@@ -4333,7 +4333,7 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               incompatible with "insert" and "prefix".
 
     insert    This keyword indicates that the persistence cookie will have to
-              be inserted by haproxy in server responses if the client did not
+              be inserted by lolproxy in server responses if the client did not
 
               already have a cookie that would have permitted it to access this
               server. When used without the "preserve" option, if the server
@@ -4394,7 +4394,7 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
 
     preserve  This option may only be used with "insert" and/or "indirect". It
               allows the server to emit the persistence cookie itself. In this
-              case, if a cookie is found in the response, haproxy will leave it
+              case, if a cookie is found in the response, lolproxy will leave it
               untouched. This is useful in order to end persistence after a
               logout request for instance. For this, the server just has to
               emit a cookie with an invalid value (e.g. empty) or with a date in
@@ -4403,12 +4403,12 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               shutdown because users will definitely leave the server after
               they logout.
 
-    httponly  This option tells haproxy to add an "HttpOnly" cookie attribute
+    httponly  This option tells lolproxy to add an "HttpOnly" cookie attribute
               when a cookie is inserted. This attribute is used so that a
               user agent doesn't share the cookie with non-HTTP components.
               Please check RFC6265 for more information on this attribute.
 
-    secure    This option tells haproxy to add a "Secure" cookie attribute when
+    secure    This option tells lolproxy to add a "Secure" cookie attribute when
               a cookie is inserted. This attribute is used so that a user agent
               never emits this cookie over non-secure channels, which means
               that a cookie learned with this flag will be presented only over
@@ -4464,7 +4464,7 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               The cookie will be regenerated each time the IP address change,
               and is only generated for IPv4/IPv6.
 
-    attr      This option tells haproxy to add an extra attribute when a
+    attr      This option tells lolproxy to add an extra attribute when a
               cookie is inserted. The attribute value can contain any
               characters except control ones or ";". This option may be
               repeated.
@@ -4654,10 +4654,10 @@ errorfile <code> <file>
   See also : "http-error", "errorloc", "errorloc302", "errorloc303"
 
   Example :
-        errorfile 400 /etc/haproxy/errorfiles/400badreq.http
+        errorfile 400 /etc/lolproxy/errorfiles/400badreq.http
         errorfile 408 /dev/null  # work around Chrome pre-connect bug
-        errorfile 403 /etc/haproxy/errorfiles/403forbid.http
-        errorfile 503 /etc/haproxy/errorfiles/503sorry.http
+        errorfile 403 /etc/lolproxy/errorfiles/403forbid.http
+        errorfile 503 /etc/lolproxy/errorfiles/503sorry.http
 
 
 errorfiles <name> [<code> ...]
@@ -4934,7 +4934,7 @@ fullconn <conns>
   push it further for important loads without overloading the servers during
   exceptional loads.
 
-  Since it's hard to get this value right, haproxy automatically sets it to
+  Since it's hard to get this value right, lolproxy automatically sets it to
   10% of the sum of the maxconns of all frontends that may branch to this
   backend (based on "use_backend" and "default_backend" rules). That way it's
   safe to leave it unset. However, "use_backend" involving dynamic names are
@@ -5052,7 +5052,7 @@ hash-type <method> <function> <modifier>
               poorly with numeric-only input or when the total server weight is
               a multiple of 33, unless the avalanche modifier is also used.
 
-       wt6    this function was designed for haproxy while testing other
+       wt6    this function was designed for lolproxy while testing other
               functions in the past. It is not as smooth as the other ones, but
               is much less sensible to the input data set or to the number of
               servers. It can make sense as an alternative to sdbm+avalanche or
@@ -5296,7 +5296,7 @@ http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
     proto <name> forces the multiplexer's protocol to use for this connection.
                  It must be an HTTP mux protocol and it must be usable on the
                  backend side. The list of available protocols is reported in
-                 haproxy -vv.
+                 lolproxy -vv.
 
     linger       cleanly close the connection instead of using a single RST.
 
@@ -5323,10 +5323,10 @@ http-check connect [default] [port <expr>] [addr <ip>] [send-proxy]
          option httpchk
 
          http-check connect
-         http-check send meth GET uri / ver HTTP/1.1 hdr host haproxy.1wt.eu
+         http-check send meth GET uri / ver HTTP/1.1 hdr host lolproxy.1wt.eu
          http-check expect status 200-399
-         http-check connect port 443 ssl sni haproxy.1wt.eu
-         http-check send meth GET uri / ver HTTP/1.1 hdr host haproxy.1wt.eu
+         http-check connect port 443 ssl sni lolproxy.1wt.eu
+         http-check send meth GET uri / ver HTTP/1.1 hdr host lolproxy.1wt.eu
          http-check expect status 200-399
 
          server www 10.0.0.1 check port 80
@@ -5618,11 +5618,11 @@ http-check send-state
                                  yes   |    no    |   yes  |   yes
   Arguments : none
 
-  When this option is set, haproxy will systematically send a special header
+  When this option is set, lolproxy will systematically send a special header
   "X-Haproxy-Server-State" with a list of parameters indicating to each server
-  how they are seen by haproxy. This can be used for instance when a server is
-  manipulated without access to haproxy and the operator needs to know whether
-  haproxy still sees it up or not, or if the server is the last one in a farm.
+  how they are seen by lolproxy. This can be used for instance when a server is
+  manipulated without access to lolproxy and the operator needs to know whether
+  lolproxy still sees it up or not, or if the server is the last one in a farm.
 
   The header is composed of fields delimited by semi-colons, the first of which
   is a word ("UP", "DOWN", "NOLB"), possibly followed by a number of valid
@@ -5641,7 +5641,7 @@ http-check send-state
       ("/") then the name of the server. This can be used when a server is
       checked in multiple backends.
 
-    - a variable "node" containing the name of the haproxy node, as set in the
+    - a variable "node" containing the name of the lolproxy node, as set in the
       global "node" variable, otherwise the system's hostname if unspecified.
 
     - a variable "weight" indicating the weight of the server, a slash ("/")
@@ -6302,20 +6302,20 @@ http-request return [status <code>] [content-type <type>]
 
   * If "default-errorfiles" argument is set, the proxy's errorfiles are
     considered.  If the "status" argument is defined, it must be one of the
-    status code handled by haproxy (200, 400, 403, 404, 405, 408, 410, 413,
+    status code handled by lolproxy (200, 400, 403, 404, 405, 408, 410, 413,
     425, 429, 500, 501, 502, 503, and 504). The "content-type" argument, if
     any, is ignored.
 
   * If a specific errorfile is defined, with an "errorfile" argument, the
     corresponding file, containing a full HTTP response, is returned. Only the
     "status" argument is considered. It must be one of the status code handled
-    by haproxy (200, 400, 403, 404, 405, 408, 410, 413, 425, 429, 500, 501,
+    by lolproxy (200, 400, 403, 404, 405, 408, 410, 413, 425, 429, 500, 501,
     502, 503, and 504). The "content-type" argument, if any, is ignored.
 
   * If an http-errors section is defined, with an "errorfiles" argument, the
     corresponding file in the specified http-errors section, containing a full
     HTTP response, is returned. Only the "status" argument is considered. It
-    must be one of the status code handled by haproxy (200, 400, 403, 404, 405,
+    must be one of the status code handled by lolproxy (200, 400, 403, 404, 405,
     408, 410, 413, 425, 429, 500, 501, 502, 503, and 504). The "content-type"
     argument, if any, is ignored.
 
@@ -6344,7 +6344,7 @@ http-request return [status <code>] [content-type <type>]
   No further "http-request" rules are evaluated.
 
   Example:
-    http-request return errorfile /etc/haproxy/errorfiles/200.http \
+    http-request return errorfile /etc/lolproxy/errorfiles/200.http \
         if { path /ping }
 
     http-request return content-type image/x-icon file /var/www/favicon.ico  \
@@ -6352,7 +6352,7 @@ http-request return [status <code>] [content-type <type>]
 
     http-request return status 403 content-type text/plain    \
         lf-string "Access denied. IP %[src] is blacklisted."  \
-        if { src -f /etc/haproxy/blacklist.lst }
+        if { src -f /etc/lolproxy/blacklist.lst }
 
 http-request sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
 http-request sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
@@ -6701,7 +6701,7 @@ http-request tarpit [ { status | deny_status } <code>] [content-type <type>]
   on the number of concurrent requests. It can be very efficient against very
   dumb robots, and will significantly reduce the load on firewalls compared to
   a "deny" rule. But when facing "correctly" developed robots, it can make
-  things worse by forcing haproxy and the front firewall to support insane
+  things worse by forcing lolproxy and the front firewall to support insane
   number of concurrent connections. By default an HTTP error 500 is returned.
   But the response may be customized using same syntax than
   "http-request return" rules. Thus, see "http-request return" for details.
@@ -6719,7 +6719,7 @@ http-request track-sc2 <key> [table <table>] [ { if | unless } <condition> ]
   This enables tracking of sticky counters from current request. These rules do
   not stop evaluation and do not change default action. The number of counters
   that may be simultaneously tracked by the same connection is set in
-  MAX_SESS_STKCTR at build time (reported in haproxy -vv) which defaults to 3,
+  MAX_SESS_STKCTR at build time (reported in lolproxy -vv) which defaults to 3,
   so the track-sc number is between 0 and (MAX_SESS_STKCTR-1). The first
   "track-sc0" rule executed enables tracking of the counters of the specified
   table as the first set. The first "track-sc1" rule executed enables tracking
@@ -7002,20 +7002,20 @@ http-response return [status <code>] [content-type <type>]
 
   * If "default-errorfiles" argument is set, the proxy's errorfiles are
     considered.  If the "status" argument is defined, it must be one of the
-    status code handled by haproxy (200, 400, 403, 404, 405, 408, 410, 413,
+    status code handled by lolproxy (200, 400, 403, 404, 405, 408, 410, 413,
     425, 429, 500, 501, 502, 503, and 504). The "content-type" argument, if
     any, is ignored.
 
   * If a specific errorfile is defined, with an "errorfile" argument, the
     corresponding file, containing a full HTTP response, is returned. Only the
     "status" argument is considered. It must be one of the status code handled
-    by haproxy (200, 400, 403, 404, 405, 408, 410, 413, 425, 429, 500, 501,
+    by lolproxy (200, 400, 403, 404, 405, 408, 410, 413, 425, 429, 500, 501,
     502, 503, and 504). The "content-type" argument, if any, is ignored.
 
   * If an http-errors section is defined, with an "errorfiles" argument, the
     corresponding file in the specified http-errors section, containing a full
     HTTP response, is returned. Only the "status" argument is considered. It
-    must be one of the status code handled by haproxy (200, 400, 403, 404, 405,
+    must be one of the status code handled by lolproxy (200, 400, 403, 404, 405,
     408, 410, 413, 425, 429, 500, 501, 502, 503, and 504). The "content-type"
     argument, if any, is ignored.
 
@@ -7044,7 +7044,7 @@ http-response return [status <code>] [content-type <type>]
   No further "http-response" rules are evaluated.
 
   Example:
-    http-response return errorfile /etc/haproxy/errorfiles/200.http \
+    http-response return errorfile /etc/lolproxy/errorfiles/200.http \
         if { status eq 404 }
 
     http-response return content-type text/plain  \
@@ -7222,7 +7222,7 @@ http-response track-sc2 <key> [table <table>] [ { if | unless } <condition> ]
   from "http-request track-sc" is the <key> sample expression can only make use
   of samples in response (e.g. res.*, status etc.) and samples below Layer 6
   (e.g. SSL-related samples, see section 7.3.4). If the sample is not
-  supported, haproxy will fail and warn while parsing the config.
+  supported, lolproxy will fail and warn while parsing the config.
 
 http-response unset-var(<var-name>) [ { if | unless } <condition> ]
 
@@ -7260,7 +7260,7 @@ http-reuse { never | safe | aggressive | always }
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
 
-  By default, a connection established between haproxy and the backend server
+  By default, a connection established between lolproxy and the backend server
   which is considered safe for reuse is moved back to the server's idle
   connections pool so that any other request can make use of it. This is the
   "safe" strategy below.
@@ -7274,7 +7274,7 @@ http-reuse { never | safe | aggressive | always }
                  the same connection come from the same client and it is not
                  possible to fix the application, it may be desirable to
                  disable connection sharing in a single backend. An example of
-                 such an application could be an old haproxy using cookie
+                 such an application could be an old lolproxy using cookie
                  insertion in tunnel mode and not checking any request past the
                  first one.
 
@@ -7405,7 +7405,7 @@ load-server-state-from-file { global | local | none }
   running process has been saved. That way, when starting up, before handling
   traffic, the new process can apply old states to servers exactly has if no
   reload occurred. The purpose of the "load-server-state-from-file" directive is
-  to tell haproxy which file to use. For now, only 2 arguments to either prevent
+  to tell lolproxy which file to use. For now, only 2 arguments to either prevent
   loading state or load states from a file containing all backends and servers.
   The state file can be generated by running the command "show servers state"
   over the stats socket and redirect output.
@@ -7463,7 +7463,7 @@ load-server-state-from-file { global | local | none }
 
     global
      stats socket /tmp/socket
-     server-state-base /etc/haproxy/states
+     server-state-base /etc/lolproxy/states
 
     defaults
      load-server-state-from-file local
@@ -7475,9 +7475,9 @@ load-server-state-from-file { global | local | none }
 
   Then one can run :
 
-    socat /tmp/socket - <<< "show servers state bk" > /etc/haproxy/states/bk
+    socat /tmp/socket - <<< "show servers state bk" > /etc/lolproxy/states/bk
 
-  Content of the file /etc/haproxy/states/bk would be like this:
+  Content of the file /etc/lolproxy/states/bk would be like this:
 
     1
     # <field names skipped for the doc example>
@@ -7537,7 +7537,7 @@ no log
                  larger message may be interleaved with messages from other
                  processes.  Exceptionally for debugging purposes the file
                  descriptor may also be directed to a file, but doing so will
-                 significantly slow haproxy down as non-blocking calls will be
+                 significantly slow lolproxy down as non-blocking calls will be
                  ignored. Also there will be no way to purge nor rotate this
                  file without restarting the process. Note that the configured
                  syslog format is preserved, so the output is suitable for use
@@ -7712,7 +7712,7 @@ log-tag <string>
 
   Sets the tag field in the syslog header to this string. It defaults to the
   log-tag set in the global section, otherwise the program name as launched
-  from the command line, which usually is "haproxy". Sometimes it can be useful
+  from the command line, which usually is "lolproxy". Sometimes it can be useful
   to differentiate between multiple processes running on the same host, or to
   differentiate customer instances running in the same process. In the backend,
   logs about servers up/down will use this tag. As a hint, it can be convenient
@@ -7731,7 +7731,7 @@ max-keep-alive-queue <value>
   servers.
 
   The purpose of this setting is to set a threshold on the number of queued
-  connections at which haproxy stops trying to reuse the same server and prefers
+  connections at which lolproxy stops trying to reuse the same server and prefers
   to find another one. The default value, -1, means there is no limit. A value
   of zero means that keep-alive requests will never be queued. For very close
   servers which can be reached with a low latency and which are not sensible to
@@ -7763,7 +7763,7 @@ maxconn <conns>
               closes.
 
   If the system supports it, it can be useful on big sites to raise this limit
-  very high so that haproxy manages connection queues, instead of leaving the
+  very high so that lolproxy manages connection queues, instead of leaving the
   clients with unanswered connection attempts. This value should not exceed the
   global maxconn. Also, keep in mind that a connection contains two buffers
   of tune.bufsize (16kB by default) each, as well as some other data resulting
@@ -7825,10 +7825,10 @@ monitor fail { if | unless } <condition>
   This statement adds a condition which can force the response to a monitor
   request to report a failure. By default, when an external component queries
   the URI dedicated to monitoring, a 200 response is returned. When one of the
-  conditions above is met, haproxy will return 503 instead of 200. This is
+  conditions above is met, lolproxy will return 503 instead of 200. This is
   very useful to report a site failure to an external component which may base
   routing advertisements between multiple sites on the availability reported by
-  haproxy. In this case, one would rely on an ACL involving the "nbsrv"
+  lolproxy. In this case, one would rely on an ACL involving the "nbsrv"
   criterion. Note that "monitor fail" only works in HTTP mode. Both status
   messages may be tweaked using "errorfile" or "errorloc" if needed.
 
@@ -7874,10 +7874,10 @@ monitor-uri <uri>
         are encouraged to send absolute URIs only.
 
   Example :
-    # Use /haproxy_test to report haproxy's status
+    # Use /lolproxy_test to report lolproxy's status
     frontend www
         mode http
-        monitor-uri /haproxy_test
+        monitor-uri /lolproxy_test
 
   See also : "monitor fail"
 
@@ -8122,7 +8122,7 @@ option contstats
   By default, counters used for statistics calculation are incremented
   only when a session finishes. It works quite well when serving small
   objects, but with big ones (for example large images or archives) or
-  with A/V streaming, a graph generated from haproxy counters looks like
+  with A/V streaming, a graph generated from lolproxy counters looks like
   a hedgehog. With this option enabled counters get incremented frequently
   along the session, typically every 5 seconds, which is often enough to
   produce clean graphs. Recounting touches a hotpath directly so it is not
@@ -8240,7 +8240,7 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
 
   Alternatively, the keyword "if-none" states that the header will only be
   added if it is not present. This should only be used in perfectly trusted
-  environment, as this might cause a security issue if headers reaching haproxy
+  environment, as this might cause a security issue if headers reaching lolproxy
   are under the control of the end-user.
 
   This option may be specified either in the frontend or in the backend. If at
@@ -8461,7 +8461,7 @@ no option http-no-delay
   interleaved data chunks in both directions within a single request. This is
   absolutely not supported by the HTTP specification and will not work across
   most proxies or servers. When such applications attempt to do this through
-  haproxy, it works but they will experience high delays due to the network
+  lolproxy, it works but they will experience high delays due to the network
   optimizations which favor performance by instructing the system to wait for
   enough data to be available in order to only send full packets. Typical
   delays are around 200 ms per round trip. Note that this only happens with
@@ -8483,23 +8483,23 @@ no option http-no-delay
 
 option http-pretend-keepalive
 no option http-pretend-keepalive
-  Define whether haproxy will announce keepalive to the server or not
+  Define whether lolproxy will announce keepalive to the server or not
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no   |   yes  |   yes
   Arguments : none
 
-  When running with "option http-server-close" or "option httpclose", haproxy
+  When running with "option http-server-close" or "option httpclose", lolproxy
   adds a "Connection: close" header to the request forwarded to the server.
   Unfortunately, when some servers see this header, they automatically refrain
   from using the chunked encoding for responses of unknown length, while this
-  is totally unrelated. The immediate effect is that this prevents haproxy from
+  is totally unrelated. The immediate effect is that this prevents lolproxy from
   maintaining the client connection alive. A second effect is that a client or
   a cache could receive an incomplete response without being aware of it, and
   consider the response complete.
 
-  By setting "option http-pretend-keepalive", haproxy will make the server
+  By setting "option http-pretend-keepalive", lolproxy will make the server
   believe it will keep the connection alive. The server will then not fall back
-  to the abnormal undesired above. When haproxy gets the whole response, it
+  to the abnormal undesired above. When lolproxy gets the whole response, it
   will close the connection with the server just as it would do with the
   "option httpclose". That way the client gets a normal response and the
   connection is correctly closed on the server side.
@@ -8508,8 +8508,8 @@ no option http-pretend-keepalive
   will more efficiently close the connection themselves after the last packet,
   and release its buffers slightly earlier. Also, the added packet on the
   network could slightly reduce the overall peak performance. However it is
-  worth noting that when this option is enabled, haproxy will have slightly
-  less work to do. So if haproxy is the bottleneck on the whole architecture,
+  worth noting that when this option is enabled, lolproxy will have slightly
+  less work to do. So if lolproxy is the bottleneck on the whole architecture,
   enabling this option might save a few CPU cycles.
 
   This option may be set in backend and listen sections. Using it in a frontend
@@ -8581,9 +8581,9 @@ no option http-use-proxy-header
   connections and make use of the undocumented, non-standard Proxy-Connection
   header instead. The issue begins when trying to put a load balancer between
   browsers and such proxies, because there will be a difference between what
-  haproxy understands and what the client and the proxy agree on.
+  lolproxy understands and what the client and the proxy agree on.
 
-  By setting this option in a frontend, haproxy can automatically switch to use
+  By setting this option in a frontend, lolproxy can automatically switch to use
   that non-standard header if it sees proxied requests. A proxied request is
   defined here as one where the URI begins with neither a '/' nor a '*'. This
   is incompatible with the HTTP tunnel mode. Note that this option can only be
@@ -8855,7 +8855,7 @@ no option log-separate-errors
                                  yes   |    yes   |   yes  |   no
   Arguments : none
 
-  Sometimes looking for errors in logs is not easy. This option makes haproxy
+  Sometimes looking for errors in logs is not easy. This option makes lolproxy
   raise the level of logs containing potentially interesting information such
   as errors, timeouts, retries, redispatches, or HTTP status codes 5xx. The
   level changes from "info" to "err". This makes it possible to log them
@@ -8903,7 +8903,7 @@ no option logasap
           log 192.168.2.200 local3
 
     >>> Feb  6 12:14:14 localhost \
-          haproxy[14389]: 10.0.1.2:33317 [06/Feb/2009:12:14:14.655] http-in \
+          lolproxy[14389]: 10.0.1.2:33317 [06/Feb/2009:12:14:14.655] http-in \
           static/srv1 9/10/7/14/+30 200 +243 - - ---- 3/1/1/1/0 1/0 \
           "GET /image.iso HTTP/1.0"
 
@@ -8929,7 +8929,7 @@ option mysql-check [ user <username> [ { post-41 | pre-41 } ] ]
   in the MySQL table, like this :
 
       USE mysql;
-      INSERT INTO user (Host,User) values ('<ip_of_haproxy>','<username>');
+      INSERT INTO user (Host,User) values ('<ip_of_lolproxy>','<username>');
       FLUSH PRIVILEGES;
 
   If you don't specify a username (it is deprecated and not recommended), the
@@ -8952,7 +8952,7 @@ option mysql-check [ user <username> [ { post-41 | pre-41 } ] ]
   When possible, it is often wise to masquerade the client's IP address when
   connecting to the server using the "usesrc" argument of the "source" keyword,
   which requires the transparent proxy feature to be compiled in, and the MySQL
-  server to route the client via the machine hosting haproxy.
+  server to route the client via the machine hosting lolproxy.
 
   See also: "option httpchk"
 
@@ -9107,16 +9107,16 @@ no option prefer-last-server
   Arguments : none
 
   When the load balancing algorithm in use is not deterministic, and a previous
-  request was sent to a server to which haproxy still holds a connection, it is
+  request was sent to a server to which lolproxy still holds a connection, it is
   sometimes desirable that subsequent requests on a same session go to the same
   server as much as possible. Note that this is different from persistence, as
-  we only indicate a preference which haproxy tries to apply without any form
+  we only indicate a preference which lolproxy tries to apply without any form
   of warranty. The real use is for keep-alive connections sent to servers. When
-  this option is used, haproxy will try to reuse the same connection that is
+  this option is used, lolproxy will try to reuse the same connection that is
   attached to the server instead of rebalancing to another server, causing a
   close of the connection. This can make sense for static file servers. It does
   not make much sense to use this in combination with hashing algorithms. Note,
-  haproxy already automatically tries to stick to a server which sends a 401 or
+  lolproxy already automatically tries to stick to a server which sends a 401 or
   to a proxy which sends a 407 (authentication required), when the load
   balancing algorithm is not deterministic. This is mandatory for use with the
   broken NTLM authentication challenge, and significantly helps in
@@ -9257,7 +9257,7 @@ no option splice-auto
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  When this option is enabled either on a frontend or on a backend, haproxy
+  When this option is enabled either on a frontend or on a backend, lolproxy
   will automatically evaluate the opportunity to use kernel tcp splicing to
   forward data between the client and the server, in either direction. HAProxy
   uses heuristics to estimate if kernel splicing might improve performance or
@@ -9295,7 +9295,7 @@ no option splice-request
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  When this option is enabled either on a frontend or on a backend, haproxy
+  When this option is enabled either on a frontend or on a backend, lolproxy
   will use kernel tcp splicing whenever possible to forward data going from
   the client to the server. It might still use the recv/send scheme if there
   are no spare pipes left. This option requires splicing to be enabled at
@@ -9321,7 +9321,7 @@ no option splice-response
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  When this option is enabled either on a frontend or on a backend, haproxy
+  When this option is enabled either on a frontend or on a backend, lolproxy
   will use kernel tcp splicing whenever possible to forward data going from
   the server to the client. It might still use the recv/send scheme if there
   are no spare pipes left. This option requires splicing to be enabled at
@@ -9410,7 +9410,7 @@ option ssl-hello-chk
   and most servers tested do not even log the requests containing only hello
   messages, which is appreciable.
 
-  Note that this check works even when SSL support was not built into haproxy
+  Note that this check works even when SSL support was not built into lolproxy
   because it forges the SSL message. When SSL support is available, it is best
   to use native SSL health checks instead of this one.
 
@@ -9437,7 +9437,7 @@ option tcp-check
       only.
 
     - "tcp-check expect" only is mentioned : this is used to test a banner.
-      The connection is opened and haproxy waits for the server to present some
+      The connection is opened and lolproxy waits for the server to present some
       contents which must validate some rules. The check result will be based
       on the matching between the contents and the rules. This is suited for
       POP, IMAP, SMTP, FTP, SSH, TELNET.
@@ -9777,7 +9777,7 @@ rate-limit sessions <rate>
   When the frontend reaches the specified number of new sessions per second, it
   stops accepting new connections until the rate drops below the limit again.
   During this time, the pending sessions will be kept in the socket's backlog
-  (in system buffers) and haproxy will not even be aware that sessions are
+  (in system buffers) and lolproxy will not even be aware that sessions are
   pending. When applying very low limit on a highly loaded service, it may make
   sense to increase the socket's backlog using the "backlog" keyword.
 
@@ -9897,7 +9897,7 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
         acl missing_slash path_reg ^/article/[^/]*$
         redirect code 301 prefix / drop-query append-slash if missing_slash
 
-  Example: redirect all HTTP traffic to HTTPS when SSL is handled by haproxy.
+  Example: redirect all HTTP traffic to HTTPS when SSL is handled by lolproxy.
         redirect scheme https if !{ ssl_fc }
 
   Example: append 'www.' prefix in front of all hosts not having it
@@ -10031,7 +10031,7 @@ server <name> <address>[:[port]] [param*]
               It indicates that the connection will be forwarded to the same IP
               address as the one from the client connection. This is useful in
               transparent proxy architectures where the client's connection is
-              intercepted and haproxy must forward to the original destination
+              intercepted and lolproxy must forward to the original destination
               address. This is more or less what the "transparent" keyword does
               except that with a server it's possible to limit concurrency and
               to report statistics. Optionally, an address family prefix may be
@@ -10093,10 +10093,10 @@ server-state-file-name [ { use-backend-name | <file> } ]
   concatenated to the global directive "server-state-base".
 
   Example: the minimal configuration below would make HAProxy look for the
-           state server file '/etc/haproxy/states/bk':
+           state server file '/etc/lolproxy/states/bk':
 
     global
-      server-state-file-base /etc/haproxy/states
+      server-state-file-base /etc/lolproxy/states
 
     backend bk
       load-server-state-from-file
@@ -10377,8 +10377,8 @@ stats admin { if | unless } <cond>
     userlist stats-auth
         group admin    users admin
         user  admin    insecure-password AdMiN123
-        group readonly users haproxy
-        user  haproxy  insecure-password haproxy
+        group readonly users lolproxy
+        user  lolproxy  insecure-password lolproxy
 
     backend stats_auth
         stats enable
@@ -10449,7 +10449,7 @@ stats enable
 
   This statement enables statistics reporting with default settings defined
   at build time. Unless stated otherwise, these settings are used :
-    - stats uri   : /haproxy?stats
+    - stats uri   : /lolproxy?stats
     - stats realm : "HAProxy Statistics"
     - stats auth  : no authentication
     - stats scope : no restriction
@@ -10766,7 +10766,7 @@ stats uri <prefix>
   selected URI will never appear in the application, otherwise it will never be
   possible to reach it in the application.
 
-  The default URI compiled in haproxy is "/haproxy?stats", but this may be
+  The default URI compiled in lolproxy is "/lolproxy?stats", but this may be
   changed at build time, so it's better to always explicitly specify it here.
   It is generally a good idea to include a question mark in the URI so that
   intermediate proxies refrain from caching the results. Also, since any string
@@ -11059,7 +11059,7 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                supports suffixes "k", "m", "g" for 2^10, 2^20 and 2^30 factors.
 
     [nopurge]  indicates that we refuse to purge older entries when the table
-               is full. When not specified and the table is full when haproxy
+               is full. When not specified and the table is full when lolproxy
                wants to store an entry in it, it will flush a few of the oldest
                entries in order to release some space for the new ones. This is
                most often the desired behavior. In some specific cases, it
@@ -11419,7 +11419,7 @@ tcp-check connect [default] [port <expr>] [addr <ip>] [send-proxy] [via-socks4]
     proto <name> forces the multiplexer's protocol to use for this connection.
                  It must be a TCP mux protocol and it must be usable on the
                  backend side. The list of available protocols is reported in
-                 haproxy -vv.
+                 lolproxy -vv.
 
     linger       cleanly close the connection instead of using a single RST.
 
@@ -11445,12 +11445,12 @@ tcp-check connect [default] [port <expr>] [addr <ip>] [send-proxy] [via-socks4]
          option tcp-check
          tcp-check connect
          tcp-check send GET\ /\ HTTP/1.0\r\n
-         tcp-check send Host:\ haproxy.1wt.eu\r\n
+         tcp-check send Host:\ lolproxy.1wt.eu\r\n
          tcp-check send \r\n
          tcp-check expect rstring (2..|3..)
          tcp-check connect port 443 ssl
          tcp-check send GET\ /\ HTTP/1.0\r\n
-         tcp-check send Host:\ haproxy.1wt.eu\r\n
+         tcp-check send Host:\ lolproxy.1wt.eu\r\n
          tcp-check send \r\n
          tcp-check expect rstring (2..|3..)
          server www 10.0.0.1 check port 80
@@ -11808,7 +11808,7 @@ tcp-request connection <action> [{if | unless} <condition>]
         rules do not stop evaluation and do not change default action. The
         number of counters that may be simultaneously tracked by the same
         connection is set in MAX_SESS_STKCTR at build time (reported in
-        haproxy -vv) which defaults to 3, so the track-sc number is between 0
+        lolproxy -vv) which defaults to 3, so the track-sc number is between 0
         and (MAX_SESS_STKCTR-1). The first "track-sc0" rule executed enables
         tracking of the counters of the specified table as the first set. The
         first "track-sc1" rule executed enables tracking of the counters of the
@@ -11955,7 +11955,7 @@ tcp-request connection <action> [{if | unless} <condition>]
            connection without counting them, and track accepted connections.
            This results in connection rate being capped from abusive sources.
 
-        tcp-request connection accept if { src -f /etc/haproxy/whitelist.lst }
+        tcp-request connection accept if { src -f /etc/lolproxy/whitelist.lst }
         tcp-request connection reject if { src_conn_rate gt 10 }
         tcp-request connection track-sc0 src
 
@@ -11963,7 +11963,7 @@ tcp-request connection <action> [{if | unless} <condition>]
            connections and reject too fast ones. This results in abusive ones
            being blocked as long as they don't slow down.
 
-        tcp-request connection accept if { src -f /etc/haproxy/whitelist.lst }
+        tcp-request connection accept if { src -f /etc/lolproxy/whitelist.lst }
         tcp-request connection track-sc0 src
         tcp-request connection reject if { sc0_conn_rate gt 10 }
 
@@ -11997,7 +11997,7 @@ tcp-request content <action> [{if | unless} <condition>]
   decision. Most often, these decisions will consider a protocol recognition or
   validity. The second difference is that content-based rules can be used in
   both frontends and backends. In case of HTTP keep-alive with the client, all
-  tcp-request content rules are evaluated again, so haproxy keeps a record of
+  tcp-request content rules are evaluated again, so lolproxy keeps a record of
   what sticky counters were assigned by a "tcp-request connection" versus a
   "tcp-request content" rule, and flushes all the content-related ones after
   processing an HTTP request, so that they may be evaluated again by the rules
@@ -12145,7 +12145,7 @@ tcp-request content <action> [{if | unless} <condition>]
   evaluated.
 
   Example:
-    tcp-request content use-service lua.deny { src -f /etc/haproxy/blacklist.lst }
+    tcp-request content use-service lua.deny { src -f /etc/lolproxy/blacklist.lst }
 
   Example:
 
@@ -12229,7 +12229,7 @@ tcp-request inspect-delay <timeout>
               can be in any other unit if the number is suffixed by the unit,
               as explained at the top of this document.
 
-  People using haproxy primarily as a TCP relay are often worried about the
+  People using lolproxy primarily as a TCP relay are often worried about the
   risk of passing any type of protocol to a server without any analysis. In
   order to be able to analyze the request contents, we must first withhold
   the data then analyze them. This statement simply enables withholding of
@@ -12240,11 +12240,11 @@ tcp-request inspect-delay <timeout>
   means that a connection may experience a first delay in the frontend and a
   second delay in the backend if both have tcp-request rules.
 
-  Note that when performing content inspection, haproxy will evaluate the whole
+  Note that when performing content inspection, lolproxy will evaluate the whole
   rules for every new chunk which gets in, taking into account the fact that
   those data are partial. If no rule matches before the aforementioned delay,
   a last check is performed upon expiration, this time considering that the
-  contents are definitive. If no delay is set, haproxy will not wait at all
+  contents are definitive. If no delay is set, lolproxy will not wait at all
   and will immediately apply a verdict based on the available information.
   Obviously this is unlikely to be very useful and might even be racy, so such
   setups are not recommended.
@@ -12478,7 +12478,7 @@ tcp-request session <action> [{if | unless} <condition>]
            sessions without counting them, and track accepted sessions.
            This results in session rate being capped from abusive sources.
 
-        tcp-request session accept if { src -f /etc/haproxy/whitelist.lst }
+        tcp-request session accept if { src -f /etc/lolproxy/whitelist.lst }
         tcp-request session reject if { src_sess_rate gt 10 }
         tcp-request session track-sc0 src
 
@@ -12486,7 +12486,7 @@ tcp-request session <action> [{if | unless} <condition>]
            sessions and reject too fast ones. This results in abusive ones
            being blocked as long as they don't slow down.
 
-        tcp-request session accept if { src -f /etc/haproxy/whitelist.lst }
+        tcp-request session accept if { src -f /etc/lolproxy/whitelist.lst }
         tcp-request session track-sc0 src
         tcp-request session reject if { sc0_sess_rate gt 10 }
 
@@ -12518,7 +12518,7 @@ timeout check <timeout>
               can be in any other unit if the number is suffixed by the unit,
               as explained at the top of this document.
 
-  If set, haproxy uses min("timeout connect", "inter") as a connect timeout
+  If set, lolproxy uses min("timeout connect", "inter") as a connect timeout
   for check and "timeout check" as an additional read timeout. The "min" is
   used so that people running with *very* long "timeout connect" (e.g. those
   who needed this due to the queue or tarpit) do not slow down their checks.
@@ -12526,7 +12526,7 @@ timeout check <timeout>
   timeouts, because "timeout queue" and "timeout tarpit" can always be used to
   avoid that).
 
-  If "timeout check" is not set haproxy uses "inter" for complete check
+  If "timeout check" is not set lolproxy uses "inter" for complete check
   timeout (connect + read) exactly like all <1.3.15 version.
 
   In most cases check request is much simpler and faster to handle than normal
@@ -12615,7 +12615,7 @@ timeout connect <timeout>
               can be in any other unit if the number is suffixed by the unit,
               as explained at the top of this document.
 
-  If the server is located on the same LAN as haproxy, the connection should be
+  If the server is located on the same LAN as lolproxy, the connection should be
   immediate (less than a few milliseconds). Anyway, it is a good practice to
   cover one or several TCP packet losses by specifying timeouts that are
   slightly above multiples of 3 seconds (e.g. 4 or 5 seconds). By default, the
@@ -12917,7 +12917,7 @@ unique-id-format <string>
   %ID tag the log-format string.
 
   The format should be composed from elements that are guaranteed to be
-  unique when combined together. For instance, if multiple haproxy instances
+  unique when combined together. For instance, if multiple lolproxy instances
   are involved, it might be important to include the node name. It is often
   needed to log the incoming connection's source and destination addresses
   and ports. Note that since multiple requests may be performed over the same
@@ -13146,7 +13146,7 @@ alpn <protocols>
   list as supported on top of ALPN. The protocol list consists in a comma-
   delimited list of protocol names, for instance: "http/1.1,http/1.0" (without
   quotes). This requires that the SSL library is built with support for TLS
-  extensions enabled (check with haproxy -vv). The ALPN extension replaces the
+  extensions enabled (check with lolproxy -vv). The ALPN extension replaces the
   initial NPN extension. ALPN is required to enable HTTP/2 on an HTTP frontend.
   Versions of OpenSSL prior to 1.0.2 didn't support ALPN and only supposed the
   now obsolete NPN extension. At the time of writing this, most browsers still
@@ -13269,7 +13269,7 @@ crt <cert>
   others, e.g. nginx, result in a wrong bundle that will not work for some
   clients).
 
-  For each PEM file, haproxy checks for the presence of file at the same path
+  For each PEM file, lolproxy checks for the presence of file at the same path
   suffixed by ".ocsp". If such file is found, support for the TLS Certificate
   Status Request extension (also known as "OCSP stapling") is automatically
   enabled. The content of this file is optional. If not empty, it must contain
@@ -13283,7 +13283,7 @@ crt <cert>
   be loaded from a file at the same path as the PEM file suffixed by ".issuer"
   if it exists otherwise it will fail with an error.
 
-  For each PEM file, haproxy also checks for the presence of file at the same
+  For each PEM file, lolproxy also checks for the presence of file at the same
   path suffixed by ".sctl". If such file is found, support for Certificate
   Transparency (RFC6962) TLS extension is enabled. The file must contain a
   valid Signed Certificate Timestamp List, as described in RFC. File is parsed
@@ -13334,7 +13334,7 @@ crt-list <file>
   Empty lines as well as lines beginning with a hash ('#') will be ignored.
 
   The first declared certificate of a bind line is used as the default
-  certificate, either from crt or crt-list option, which haproxy should use in
+  certificate, either from crt or crt-list option, which lolproxy should use in
   the TLS handshake if no other certificate matches. This certificate will also
   be used if the provided SNI matches its CN or SAN, even if a matching SNI
   filter is found on any crt-list. The SNI filter !* can be used after the first
@@ -13583,7 +13583,7 @@ npn <protocols>
   as supported on top of NPN. The protocol list consists in a comma-delimited
   list of protocol names, for instance: "http/1.1,http/1.0" (without quotes).
   This requires that the SSL library is built with support for TLS extensions
-  enabled (check with haproxy -vv). Note that the NPN extension has been
+  enabled (check with lolproxy -vv). Note that the NPN extension has been
   replaced with the ALPN extension (see the "alpn" keyword), though this one is
   only available starting with OpenSSL 1.0.2. If HTTP/2 is desired on an older
   version of OpenSSL, NPN might still be used as most clients still support it
@@ -13628,7 +13628,7 @@ proto <name>
   Forces the multiplexer's protocol to use for the incoming connections. It
   must be compatible with the mode of the frontend (TCP or HTTP). It must also
   be usable on the frontend side. The list of available protocols is reported
-  in haproxy -vv. The protocols properties are reported : the mode (TCP/HTTP),
+  in lolproxy -vv. The protocols properties are reported : the mode (TCP/HTTP),
   the side (FE/BE), the mux name and its flags.
 
   Some protocols report errors on aborts (flag=CLEAN_ABRT). Some others are
@@ -13678,7 +13678,7 @@ strict-sni
 tcp-ut <delay>
   Sets the TCP User Timeout for all incoming connections instantiated from this
   listening socket. This option is available on Linux since version 2.6.37. It
-  allows haproxy to configure a timeout for sockets which contain data not
+  allows lolproxy to configure a timeout for sockets which contain data not
   receiving an acknowledgment for the configured delay. This is especially
   useful on long-lived connections experiencing long idle periods such as
   remote terminals or database connection pools, where the client and server
@@ -13803,7 +13803,7 @@ agent-check
 
   - An ASCII representation of a positive integer percentage, e.g. "75%".
     Values in this format will set the weight proportional to the initial
-    weight of a server as configured when haproxy starts. Note that a zero
+    weight of a server as configured when lolproxy starts. Note that a zero
     weight is reported on the stats page as "DRAIN" since it has the same
     effect on the server (it's removed from the LB farm).
 
@@ -13856,7 +13856,7 @@ agent-check
   and "no-agent-check" parameters.
 
 agent-send <string>
-  If this option is specified, haproxy will send the given string (verbatim)
+  If this option is specified, lolproxy will send the given string (verbatim)
   to the agent server upon connection. You could, for example, encode
   the backend name into this string, which would enable your agent to send
   different responses based on the backend. Make sure to include a '\n' if
@@ -13882,7 +13882,7 @@ agent-addr <addr>
   The "agent-addr" parameter sets address for agent check.
 
   You can offload agent-check to another target, so you can make single place
-  managing status and weights of servers defined in haproxy in case you can't
+  managing status and weights of servers defined in lolproxy in case you can't
   make self-aware and self-managing services. You can specify both IP or
   hostname, it will be resolved.
 
@@ -13901,7 +13901,7 @@ alpn <protocols>
   list as supported on top of ALPN. The protocol list consists in a comma-
   delimited list of protocol names, for instance: "http/1.1,http/1.0" (without
   quotes). This requires that the SSL library is built with support for TLS
-  extensions enabled (check with haproxy -vv). The ALPN extension replaces the
+  extensions enabled (check with lolproxy -vv). The ALPN extension replaces the
   initial NPN extension. ALPN is required to connect to HTTP/2 servers.
   Versions of OpenSSL prior to 1.0.2 didn't support ALPN and only supposed the
   now obsolete NPN extension.
@@ -13992,7 +13992,7 @@ check-proto <name>
   Forces the multiplexer's protocol to use for the server's health-check
   connections. It must be compatible with the health-check type (TCP or
   HTTP). It must also be usable on the backend side. The list of available
-  protocols is reported in haproxy -vv. The protocols properties are
+  protocols is reported in lolproxy -vv. The protocols properties are
   reported : the mode (TCP/HTTP), the side (FE/BE), the mux name and its flags.
 
   Some protocols report errors on aborts (flag=CLEAN_ABRT). Some others are
@@ -14405,7 +14405,7 @@ npn <protocols>
   as supported on top of NPN. The protocol list consists in a comma-delimited
   list of protocol names, for instance: "http/1.1,http/1.0" (without quotes).
   This requires that the SSL library is built with support for TLS extensions
-  enabled (check with haproxy -vv). Note that the NPN extension has been
+  enabled (check with lolproxy -vv). Note that the NPN extension has been
   replaced with the ALPN extension (see the "alpn" keyword), though this one is
   only available starting with OpenSSL 1.0.2.
 
@@ -14500,7 +14500,7 @@ proto <name>
   Forces the multiplexer's protocol to use for the outgoing connections to this
   server. It must be compatible with the mode of the backend (TCP or HTTP). It
   must also be usable on the backend side. The list of available protocols is
-  reported in haproxy -vv.The protocols properties are reported : the mode
+  reported in lolproxy -vv.The protocols properties are reported : the mode
   (TCP/HTTP), the side (FE/BE), the mux name and its flags.
 
   Some protocols report errors on aborts (flag=CLEAN_ABRT). Some others are
@@ -14624,7 +14624,7 @@ send-proxy
   "accept-netscaler-cip" listener, the advertised address will be used. Only
   TCPv4 and TCPv6 address families are supported. Other families such as
   Unix sockets, will report an UNKNOWN family. Servers using this option can
-  fully be chained to another instance of haproxy listening with an
+  fully be chained to another instance of lolproxy listening with an
   "accept-proxy" setting. This setting must not be used if the server isn't
   aware of the protocol. When health checks are sent to the server, the PROXY
   protocol is automatically used when this option is set, unless there is an
@@ -14701,7 +14701,7 @@ slowstart <start_time_in_ms>
     health-check. For this reason, it is important that the "inter" parameter
     is smaller than the "slowstart", in order to maximize the number of steps.
 
-  The slowstart never applies when haproxy starts, otherwise it would cause
+  The slowstart never applies when lolproxy starts, otherwise it would cause
   trouble to running servers. It only applies when a server has been previously
   seen as failed.
 
@@ -14776,7 +14776,7 @@ socks4 <addr>:<port>
 
 tcp-ut <delay>
   Sets the TCP User Timeout for all outgoing connections to this server. This
-  option is available on Linux since version 2.6.37. It allows haproxy to
+  option is available on Linux since version 2.6.37. It allows lolproxy to
   configure a timeout for sockets which contain data not receiving an
   acknowledgment for the configured delay. This is especially useful on
   long-lived connections experiencing long idle periods such as remote
@@ -14794,7 +14794,7 @@ tfo
   systems that support it (currently only the Linux kernel >= 4.11).
   See the "tfo" bind option for more information about TCP fast open.
   Please note that when using tfo, you should also use the "conn-failure",
-  "empty-response" and "response-timeout" keywords for "retry-on", or haproxy
+  "empty-response" and "response-timeout" keywords for "retry-on", or lolproxy
   won't be able to retry the connection on failure. See also "no-tfo".
 
 track [<proxy>/]<server>
@@ -14889,7 +14889,7 @@ When using resolvers, the server name can either be a hostname, or a SRV label.
 HAProxy considers anything that starts with an underscore as a SRV label. If a
 SRV label is specified, then the corresponding SRV records will be retrieved
 from the DNS server, and the provided hostnames will be used. The SRV label
-will be checked periodically, and if any server are added or removed, haproxy
+will be checked periodically, and if any server are added or removed, lolproxy
 will automatically do the same.
 
 A few things important to notice:
@@ -14944,7 +14944,7 @@ following scenarios are possible:
   - Query timed out for both name servers, then HAProxy retries it with the
     same query type
 
-As a DNS server may not answer all the IPs in one DNS request, haproxy keeps
+As a DNS server may not answer all the IPs in one DNS request, lolproxy keeps
 a cache of previous answers, an answer will be considered obsolete after
 <hold obsolete> seconds without the IP returned.
 
@@ -15269,7 +15269,7 @@ if the patterns are to be loaded from multiple files. Empty lines as well as
 lines beginning with a sharp ('#') will be ignored. All leading spaces and tabs
 will be stripped. If it is absolutely necessary to insert a valid pattern
 beginning with a sharp, just prefix it with a space so that it is not taken for
-a comment. Depending on the data type and match method, haproxy may load the
+a comment. Depending on the data type and match method, lolproxy may load the
 lines into a binary tree, allowing very fast lookups. This is true for IPv4 and
 exact string matching. In this case, duplicates will automatically be removed.
 
@@ -15308,7 +15308,7 @@ The "-n" flag forbids the dns resolutions. It is used with the load of ip files.
 By default, if the parser cannot parse ip address it considers that the parsed
 string is maybe a domain name and try dns resolution. The flag "-n" disable this
 resolution. It is useful for detecting malformed ip lists. Note that if the DNS
-server is not reachable, the haproxy configuration parsing may last many minutes
+server is not reachable, the lolproxy configuration parsing may last many minutes
 waiting for the timeout. During this time no error messages are displayed. The
 flag "-n" disable this behavior. Note also that during the runtime, this
 function is disabled for the dynamic acl modifications.
@@ -15879,7 +15879,7 @@ da-csv-conv(<prop>[,<prop>*])
   input, and to emit a string made of the concatenation of the properties
   enumerated in argument, delimited by the separator defined by the global
   keyword "deviceatlas-property-separator", or by default the pipe character
-  ('|'). There's a limit of 12 different properties imposed by the haproxy
+  ('|'). There's a limit of 12 different properties imposed by the lolproxy
   configuration language.
 
   Example:
@@ -15907,7 +15907,7 @@ digest(<algorithm>)
   Converts a binary input sample to a message digest. The result is a binary
   sample. The <algorithm> must be an OpenSSL message digest name (e.g. sha256).
 
-  Please note that this converter is only available when haproxy has been
+  Please note that this converter is only available when lolproxy has been
   compiled with USE_OPENSSL.
 
 div(<value>)
@@ -16022,7 +16022,7 @@ hmac(<algorithm>,<key>)
   registered OpenSSL message digest names (e.g. sha256). The <key> parameter must
   be base64 encoded and can either be a string or a variable.
 
-  Please note that this converter is only available when haproxy has been
+  Please note that this converter is only available when lolproxy has been
   compiled with USE_OPENSSL.
 
 http_date([<offset],[<unit>])
@@ -16478,7 +16478,7 @@ secure_memcmp(<var>)
   If both binary strings have the same length then the comparison will be
   performed in constant time.
 
-  Please note that this converter is only available when haproxy has been
+  Please note that this converter is only available when lolproxy has been
   compiled with USE_OPENSSL.
 
   Example :
@@ -16512,7 +16512,7 @@ sha2([<bits>])
   Valid values for <bits> are 224, 256, 384, 512, each corresponding to
   SHA-<bits>. The default value is 256.
 
-  Please note that this converter is only available when haproxy has been
+  Please note that this converter is only available when lolproxy has been
   compiled with USE_OPENSSL.
 
 srv_queue
@@ -17086,7 +17086,7 @@ distcc_body(<token>[,<occ>]) : binary
   of the token <token>. Occurrences start at 1, and when unspecified, any may
   match though in practice only the first one is checked for now. This can be
   used to extract file names or arguments in files built using distcc through
-  haproxy. Please refer to distcc's protocol documentation for the complete
+  lolproxy. Please refer to distcc's protocol documentation for the complete
   list of supported tokens.
 
 distcc_param(<token>[,<occ>]) : integer
@@ -17094,7 +17094,7 @@ distcc_param(<token>[,<occ>]) : integer
   #<occ> of the token <token>. Occurrences start at 1, and when unspecified,
   any may match though in practice only the first one is checked for now. This
   can be used to extract certain information such as the protocol version, the
-  file size or the argument in files built using distcc through haproxy.
+  file size or the argument in files built using distcc through lolproxy.
   Another use case consists in waiting for the start of the preprocessed file
   contents before connecting to the server to avoid keeping idle connections.
   Please refer to distcc's protocol documentation for the complete list of
@@ -17371,7 +17371,7 @@ var(<var-name>) : undefined
 7.3.3. Fetching samples at Layer 4
 ----------------------------------
 
-The layer 4 usually describes just the transport layer which in haproxy is
+The layer 4 usually describes just the transport layer which in lolproxy is
 closest to the connection, where no content is yet made available. The fetch
 methods described here are usable as low as the "tcp-request connection" rule
 sets unless they require some future information. Those generally include
@@ -17394,7 +17394,7 @@ bc_dst : ip
 
 bc_dst_port : integer
   Returns an integer value corresponding to the destination TCP port of the
-  connection on the server side, which is the port HAproxy connected to.
+  connection on the server side, which is the port LOLproxy connected to.
 
 bc_http_major : integer
   Returns the backend connection's HTTP major version encoding, which may be 1
@@ -17403,13 +17403,13 @@ bc_http_major : integer
 
 bc_src : ip
   This is the source ip address of the connection on the server side, which is
-  the server address haproxy connected from. It is of type IP and works on both
+  the server address lolproxy connected from. It is of type IP and works on both
   IPv4 and IPv6 tables. On IPv6 tables, IPv4 addresses are mapped to their IPv6
   equivalent, according to RFC 4291.
 
 bc_src_port : integer
   Returns an integer value corresponding to the TCP source port of the
-  connection on the server side, which is the port HAproxy connected from.
+  connection on the server side, which is the port LOLproxy connected from.
 
 be_id : integer
   Returns an integer containing the current backend's id. It can be used in
@@ -18076,7 +18076,7 @@ srv_name : string
 7.3.4. Fetching samples at Layer 5
 ----------------------------------
 
-The layer 5 usually describes just the session layer which in haproxy is
+The layer 5 usually describes just the session layer which in lolproxy is
 closest to the session once all the connection handshakes are finished, but
 when no content is yet made available. The fetch methods described here are
 usable as low as the "tcp-request content" rule sets unless they require some
@@ -18115,7 +18115,7 @@ ssl_bc_alpn : string
   outgoing connection made via a TLS transport layer.
   The result is a string containing the protocol name negotiated with the
   server. The SSL library must have been built with support for TLS
-  extensions enabled (check haproxy -vv). Note that the TLS ALPN extension is
+  extensions enabled (check lolproxy -vv). Note that the TLS ALPN extension is
   not advertised unless the "alpn" keyword on the "server" line specifies a
   protocol list. Also, nothing forces the server to pick a protocol from this
   list, any other one may be requested. The TLS ALPN extension is meant to
@@ -18143,7 +18143,7 @@ ssl_bc_npn : string
   This extracts the Next Protocol Negotiation field from an outgoing connection
   made via a TLS transport layer. The result is a string containing the
   protocol name negotiated with the server . The SSL library must have been
-  built with support for TLS extensions enabled (check haproxy -vv). Note that
+  built with support for TLS extensions enabled (check lolproxy -vv). Note that
   the TLS NPN extension is not advertised unless the "npn" keyword on the
   "server" line specifies a protocol list. Also, nothing forces the server to
   pick a protocol from this list, any other one may be used. Please note that
@@ -18373,7 +18373,7 @@ ssl_fc : boolean
         # This passes "X-Proto: https" to servers when client connects over SSL
         listen http-https
             bind :80
-            bind :443 ssl crt /etc/haproxy.pem
+            bind :443 ssl crt /etc/lolproxy.pem
             http-request add-header X-Proto https if { ssl_fc }
 
 ssl_fc_alg_keysize : integer
@@ -18383,9 +18383,9 @@ ssl_fc_alg_keysize : integer
 ssl_fc_alpn : string
   This extracts the Application Layer Protocol Negotiation field from an
   incoming connection made via a TLS transport layer and locally deciphered by
-  haproxy. The result is a string containing the protocol name advertised by
+  lolproxy. The result is a string containing the protocol name advertised by
   the client. The SSL library must have been built with support for TLS
-  extensions enabled (check haproxy -vv). Note that the TLS ALPN extension is
+  extensions enabled (check lolproxy -vv). Note that the TLS ALPN extension is
   not advertised unless the "alpn" keyword on the "bind" line specifies a
   protocol list. Also, nothing forces the client to pick a protocol from this
   list, any other one may be requested. The TLS ALPN extension is meant to
@@ -18485,7 +18485,7 @@ ssl_fc_has_sni : boolean
   in an incoming connection was made over an SSL/TLS transport layer. Returns
   true when the incoming connection presents a TLS SNI field. This requires
   that the SSL library is built with support for TLS extensions enabled (check
-  haproxy -vv).
+  lolproxy -vv).
 
 ssl_fc_is_resumed : boolean
   Returns true if the SSL/TLS session has been resumed through the use of
@@ -18494,10 +18494,10 @@ ssl_fc_is_resumed : boolean
 
 ssl_fc_npn : string
   This extracts the Next Protocol Negotiation field from an incoming connection
-  made via a TLS transport layer and locally deciphered by haproxy. The result
+  made via a TLS transport layer and locally deciphered by lolproxy. The result
   is a string containing the protocol name advertised by the client. The SSL
   library must have been built with support for TLS extensions enabled (check
-  haproxy -vv). Note that the TLS NPN extension is not advertised unless the
+  lolproxy -vv). Note that the TLS NPN extension is not advertised unless the
   "npn" keyword on the "bind" line specifies a protocol list. Also, nothing
   forces the client to pick a protocol from this list, any other one may be
   requested. Please note that the TLS NPN extension was replaced with ALPN.
@@ -18550,15 +18550,15 @@ ssl_fc_session_key : binary
 ssl_fc_sni : string
   This extracts the Server Name Indication TLS extension (SNI) field from an
   incoming connection made via an SSL/TLS transport layer and locally
-  deciphered by haproxy. The result (when present) typically is a string
+  deciphered by lolproxy. The result (when present) typically is a string
   matching the HTTPS host name (253 chars or less). The SSL library must have
-  been built with support for TLS extensions enabled (check haproxy -vv).
+  been built with support for TLS extensions enabled (check lolproxy -vv).
 
   This fetch is different from "req_ssl_sni" above in that it applies to the
-  connection being deciphered by haproxy and not to SSL contents being blindly
+  connection being deciphered by lolproxy and not to SSL contents being blindly
   forwarded. See also "ssl_fc_sni_end" and "ssl_fc_sni_reg" below. This
   requires that the SSL library is built with support for TLS extensions
-  enabled (check haproxy -vv).
+  enabled (check lolproxy -vv).
 
   ACL derivatives :
     ssl_fc_sni_end : suffix match
@@ -18682,7 +18682,7 @@ req_len : integer (deprecated)
   that this test does not return false as long as the buffer is changing. This
   means that a check with equality to zero will almost always immediately match
   at the beginning of the session, while a test for more data will wait for
-  that data to come in and return false only when haproxy is certain that no
+  that data to come in and return false only when lolproxy is certain that no
   more data will come in. This test was designed to be used with TCP request
   content inspection.
 
@@ -18866,7 +18866,7 @@ res.len : integer
   that this test does not return false as long as the buffer is changing. This
   means that a check with equality to zero will almost always immediately match
   at the beginning of the session, while a test for more data will wait for
-  that data to come in and return false only when haproxy is certain that no
+  that data to come in and return false only when lolproxy is certain that no
   more data will come in. This test was designed to be used with TCP response
   content inspection. But it may also be used in tcp-check based expect rules.
 
@@ -19834,11 +19834,11 @@ format which logs the request's destination IP and ports.
             server srv1 127.0.0.1:8000
 
     >>> Feb  6 12:12:09 localhost \
-          haproxy[14385]: Connect from 10.0.1.2:33312 to 10.0.3.31:8012 \
+          lolproxy[14385]: Connect from 10.0.1.2:33312 to 10.0.3.31:8012 \
           (www/HTTP)
 
   Field   Format                                Extract from the example above
-      1   process_name '[' pid ']:'                            haproxy[14385]:
+      1   process_name '[' pid ']:'                            lolproxy[14385]:
       2   'Connect from'                                          Connect from
       3   source_ip ':' source_port                             10.0.1.2:33312
       4   'to'                                                              to
@@ -19889,11 +19889,11 @@ marked with a star ('*') after the field name below.
             server srv1 127.0.0.1:8000
 
     >>> Feb  6 12:12:56 localhost \
-          haproxy[14387]: 10.0.1.2:33313 [06/Feb/2009:12:12:51.443] fnt \
+          lolproxy[14387]: 10.0.1.2:33313 [06/Feb/2009:12:12:51.443] fnt \
           bck/srv1 0/0/5007 212 -- 0/0/0/0/3 0/0
 
   Field   Format                                Extract from the example above
-      1   process_name '[' pid ']:'                            haproxy[14387]:
+      1   process_name '[' pid ']:'                            lolproxy[14387]:
       2   client_ip ':' client_port                             10.0.1.2:33313
       3   '[' accept_date ']'                       [06/Feb/2009:12:12:51.443]
       4   frontend_name                                                    fnt
@@ -19906,7 +19906,7 @@ marked with a star ('*') after the field name below.
 
 Detailed fields description :
   - "client_ip" is the IP address of the client which initiated the TCP
-    connection to haproxy. If the connection was accepted on a UNIX socket
+    connection to lolproxy. If the connection was accepted on a UNIX socket
     instead, the IP address would be replaced with the word "unix". Note that
     when the connection is accepted on a socket configured with "accept-proxy"
     and the PROXY protocol is correctly used, or with a "accept-netscaler-cip"
@@ -19918,7 +19918,7 @@ Detailed fields description :
     replaced with the ID of the accepting socket, which is also reported in the
     stats interface.
 
-  - "accept_date" is the exact date when the connection was received by haproxy
+  - "accept_date" is the exact date when the connection was received by lolproxy
     (which might be very slightly different from the date observed on the
     network if there was some queuing in the system's backlog). This is usually
     the same date which may appear in any upstream firewall's log. When used in
@@ -20006,7 +20006,7 @@ Detailed fields description :
     when trying to connect to the server. It must normally be zero, unless a
     server is being stopped at the same moment the connection was attempted.
     Frequent retries generally indicate either a network problem between
-    haproxy and the server, or a misconfigured system backlog on the server
+    lolproxy and the server, or a misconfigured system backlog on the server
     preventing new connections from being queued. This field may optionally be
     prefixed with a '+' sign, indicating that the session has experienced a
     redispatch after the maximal retry count has been reached on the initial
@@ -20065,12 +20065,12 @@ with a star ('*') after the field name below.
             server srv1 127.0.0.1:8000
 
     >>> Feb  6 12:14:14 localhost \
-          haproxy[14389]: 10.0.1.2:33317 [06/Feb/2009:12:14:14.655] http-in \
+          lolproxy[14389]: 10.0.1.2:33317 [06/Feb/2009:12:14:14.655] http-in \
           static/srv1 10/0/30/69/109 200 2750 - - ---- 1/1/1/1/0 0/0 {1wt.eu} \
           {} "GET /index.html HTTP/1.1"
 
   Field   Format                                Extract from the example above
-      1   process_name '[' pid ']:'                            haproxy[14389]:
+      1   process_name '[' pid ']:'                            lolproxy[14389]:
       2   client_ip ':' client_port                             10.0.1.2:33317
       3   '[' request_date ']'                      [06/Feb/2009:12:14:14.655]
       4   frontend_name                                                http-in
@@ -20083,13 +20083,13 @@ with a star ('*') after the field name below.
      11   termination_state                                               ----
      12   actconn '/' feconn '/' beconn '/' srv_conn '/' retries*    1/1/1/1/0
      13   srv_queue '/' backend_queue                                      0/0
-     14   '{' captured_request_headers* '}'                   {haproxy.1wt.eu}
+     14   '{' captured_request_headers* '}'                   {lolproxy.1wt.eu}
      15   '{' captured_response_headers* '}'                                {}
      16   '"' http_request '"'                      "GET /index.html HTTP/1.1"
 
 Detailed fields description :
   - "client_ip" is the IP address of the client which initiated the TCP
-    connection to haproxy. If the connection was accepted on a UNIX socket
+    connection to lolproxy. If the connection was accepted on a UNIX socket
     instead, the IP address would be replaced with the word "unix". Note that
     when the connection is accepted on a socket configured with "accept-proxy"
     and the PROXY protocol is correctly used, or with a "accept-netscaler-cip"
@@ -20102,7 +20102,7 @@ Detailed fields description :
     stats interface.
 
   - "request_date" is the exact date when the first byte of the HTTP request
-    was received by haproxy (log field %tr).
+    was received by lolproxy (log field %tr).
 
   - "frontend_name" is the name of the frontend (or listener) which received
     and processed the connection.
@@ -20124,7 +20124,7 @@ Detailed fields description :
     request could be received or a bad request was received. It should
     always be very small because a request generally fits in one single packet.
     Large times here generally indicate network issues between the client and
-    haproxy or requests being typed by hand. See section 8.4 "Timing Events"
+    lolproxy or requests being typed by hand. See section 8.4 "Timing Events"
     for more details.
 
   - "Tw" is the total time in milliseconds spent waiting in the various queues.
@@ -20144,7 +20144,7 @@ Detailed fields description :
     "GET" requests generally indicate an overloaded server. See section 8.4
     "Timing Events" for more details.
 
-  - "Ta" is the time the request remained active in haproxy, which is the total
+  - "Ta" is the time the request remained active in lolproxy, which is the total
     time in milliseconds elapsed between the first byte of the request was
     received and the last byte of response was sent. It covers all possible
     processing except the handshake (see Th) and idle time (see Ti). There is
@@ -20154,8 +20154,8 @@ Detailed fields description :
     See section 8.4 "Timing Events" for more details.
 
   - "status_code" is the HTTP status code returned to the client. This status
-    is generally set by the server, but it might also be set by haproxy when
-    the server cannot be reached or when its response is blocked by haproxy.
+    is generally set by the server, but it might also be set by lolproxy when
+    the server cannot be reached or when its response is blocked by lolproxy.
 
   - "bytes_read" is the total number of bytes transmitted to the client when
     the log is emitted. This does include HTTP headers. If "option logasap" is
@@ -20228,7 +20228,7 @@ Detailed fields description :
     when trying to connect to the server. It must normally be zero, unless a
     server is being stopped at the same moment the connection was attempted.
     Frequent retries generally indicate either a network problem between
-    haproxy and the server, or a misconfigured system backlog on the server
+    lolproxy and the server, or a misconfigured system backlog on the server
     preventing new connections from being queued. This field may optionally be
     prefixed with a '+' sign, indicating that the session has experienced a
     redispatch after the maximal retry count has been reached on the initial
@@ -20423,7 +20423,7 @@ Please refer to the table below for currently defined variables :
 -----------------------
 
 When an incoming connection fails due to an SSL handshake or an invalid PROXY
-protocol header, haproxy will log the event using a shorter, fixed line format.
+protocol header, lolproxy will log the event using a shorter, fixed line format.
 By default, logs are emitted at the LOG_INFO level, unless the option
 "log-separate-errors" is set in the backend, in which case the LOG_ERR level
 will be used. Connections on which no data are exchanged (e.g. probes) are not
@@ -20432,11 +20432,11 @@ logged if the "dontlognull" option is set.
 The format looks like this :
 
     >>> Dec  3 18:27:14 localhost \
-          haproxy[6103]: 127.0.0.1:56059 [03/Dec/2012:17:35:10.380] frt/f1: \
+          lolproxy[6103]: 127.0.0.1:56059 [03/Dec/2012:17:35:10.380] frt/f1: \
           Connection error during SSL handshake
 
   Field   Format                                Extract from the example above
-      1   process_name '[' pid ']:'                             haproxy[6103]:
+      1   process_name '[' pid ']:'                             lolproxy[6103]:
       2   client_ip ':' client_port                            127.0.0.1:56059
       3   '[' accept_date ']'                       [03/Dec/2012:17:35:10.380]
       4   frontend_name "/" bind_name ":"                              frt/f1:
@@ -20459,7 +20459,7 @@ for more information about their usage.
 ------------------------------------------
 
 It is quite common to have some monitoring tools perform health checks on
-haproxy. Sometimes it will be a layer 3 load-balancer such as LVS or any
+lolproxy. Sometimes it will be a layer 3 load-balancer such as LVS or any
 commercial load-balancer, and sometimes it will simply be a more complete
 monitoring system such as Nagios. When the tests are very frequent, users often
 ask how to disable logging for those checks. There are three possibilities :
@@ -20660,7 +20660,7 @@ Most common cases :
     happen when clients are on far remote networks and send large requests. It
     may happen that values larger than usual appear here without any network
     cause. Sometimes, during an attack or just after a resource starvation has
-    ended, haproxy may accept thousands of connections in a few milliseconds.
+    ended, lolproxy may accept thousands of connections in a few milliseconds.
     The time spent accepting these connections will inevitably slightly delay
     processing of other connections, and it can happen that request times in the
     order of a few tens of milliseconds are measured after a few thousands of
@@ -20679,7 +20679,7 @@ Most common cases :
 
   - If "Ta" is large even for small byte counts, it generally is because
     neither the client nor the server decides to close the connection while
-    haproxy is running in tunnel mode and both have agreed on a keep-alive
+    lolproxy is running in tunnel mode and both have agreed on a keep-alive
     connection mode. In order to solve this issue, it will be needed to specify
     one of the HTTP options to manipulate keep-alive or close options on either
     the frontend or the backend. Having the smallest possible 'Ta' or 'Tt' is
@@ -20737,7 +20737,7 @@ each of which has a special meaning :
             error in server response which might have caused information leak
             (e.g. cacheable cookie).
 
-        L : the session was locally processed by haproxy and was not passed to
+        L : the session was locally processed by lolproxy and was not passed to
             a server. This is what happens for stats and redirects.
 
         R : a resource on the proxy has been exhausted (memory, sockets, source
@@ -20752,14 +20752,14 @@ each of which has a special meaning :
             would be wise to preventively restart the process after such an
             event too, in case it would be caused by memory corruption.
 
-        D : the session was killed by haproxy because the server was detected
+        D : the session was killed by lolproxy because the server was detected
             as down and was configured to kill all connections when going down.
 
-        U : the session was killed by haproxy on this backup server because an
+        U : the session was killed by lolproxy on this backup server because an
             active server was detected as up and was configured to kill all
             backup connections when going up.
 
-        K : the session was actively killed by an admin operating on haproxy.
+        K : the session was actively killed by an admin operating on lolproxy.
 
         c : the client-side timeout expired while waiting for the client to
             send or receive data.
@@ -20873,14 +20873,14 @@ easier finding and understanding.
      --   Normal termination.
 
      CC   The client aborted before the connection could be established to the
-          server. This can happen when haproxy tries to connect to a recently
-          dead (or unchecked) server, and the client aborts while haproxy is
+          server. This can happen when lolproxy tries to connect to a recently
+          dead (or unchecked) server, and the client aborts while lolproxy is
           waiting for the server to respond or for "timeout connect" to expire.
 
      CD   The client unexpectedly aborted during data transfer. This can be
           caused by a browser crash, by an intermediate equipment between the
-          client and haproxy which decided to actively break the connection,
-          by network routing issues between the client and haproxy, or by a
+          client and lolproxy which decided to actively break the connection,
+          by network routing issues between the client and lolproxy, or by a
           keep-alive session between the server and the client terminated first
           by the client.
 
@@ -20906,7 +20906,7 @@ easier finding and understanding.
      CR   The client aborted before sending a full HTTP request. Most likely
           the request was typed by hand using a telnet client, and aborted
           too early. The HTTP status code is likely a 400 here. Sometimes this
-          might also be caused by an IDS killing the connection between haproxy
+          might also be caused by an IDS killing the connection between lolproxy
           and the client. "option http-ignore-probes" can be used to ignore
           connections without any data transfer.
 
@@ -20936,10 +20936,10 @@ easier finding and understanding.
           closer to the average reported "Tw" timer, in order not to consume
           resources for just a few attackers.
 
-     LR   The request was intercepted and locally handled by haproxy. Generally
+     LR   The request was intercepted and locally handled by lolproxy. Generally
           it means that this was a redirect or a stats request.
 
-     SC   The server or an equipment between it and haproxy explicitly refused
+     SC   The server or an equipment between it and lolproxy explicitly refused
           the TCP connection (the proxy received a TCP RST or an ICMP message
           in return). Under some circumstances, it can also be the network
           stack telling the proxy that the server is unreachable (e.g. no route,
@@ -20951,7 +20951,7 @@ easier finding and understanding.
           503 or 504 here.
 
      SD   The connection to the server died with an error during the data
-          transfer. This usually means that haproxy has received an RST from
+          transfer. This usually means that lolproxy has received an RST from
           the server or an ICMP message from an intermediate equipment while
           exchanging data with the server. This can be caused by a server crash
           or by a network issue on an intermediate equipment.
@@ -20960,7 +20960,7 @@ easier finding and understanding.
           "timeout server" setting during the data phase. This is often caused
           by too short timeouts on L4 equipment before the server (firewalls,
           load-balancers, ...), as well as keep-alive sessions maintained
-          between the client and the server expiring first on haproxy.
+          between the client and the server expiring first on lolproxy.
 
      SH   The server aborted before sending its full HTTP response headers, or
           it crashed while processing the request. Since a server aborting at
@@ -20968,7 +20968,7 @@ easier finding and understanding.
           control whether it crashed and why. The logged request may indicate a
           small set of faulty requests, demonstrating bugs in the application.
           Sometimes this might also be caused by an IDS killing the connection
-          between haproxy and the server.
+          between lolproxy and the server.
 
      sH   The "timeout server" stroke before the server could return its
           response headers. This is the most common anomaly, indicating too
@@ -21023,7 +21023,7 @@ easier finding and understanding.
           only be solved by proper system tuning.
 
 The combination of the two last flags gives a lot of information about how
-persistence was handled by the client, the server and by haproxy. This is very
+persistence was handled by the client, the server and by lolproxy. This is very
 important to troubleshoot disconnections, when users complain they have to
 re-authenticate. The commonly encountered flags are :
 
@@ -21171,19 +21171,19 @@ an HTTP backend if the request is then switched to this HTTP backend.
             capture response header Location len 20
 
     >>> Aug  9 20:26:09 localhost \
-          haproxy[2022]: 127.0.0.1:34014 [09/Aug/2004:20:26:09] proxy-out \
+          lolproxy[2022]: 127.0.0.1:34014 [09/Aug/2004:20:26:09] proxy-out \
           proxy-out/cache1 0/0/0/162/+162 200 +350 - - ---- 0/0/0/0/0 0/0 \
           {fr.adserver.yahoo.co||http://fr.f416.mail.} {|864|private||} \
           "GET http://fr.adserver.yahoo.com/"
 
     >>> Aug  9 20:30:46 localhost \
-          haproxy[2022]: 127.0.0.1:34020 [09/Aug/2004:20:30:46] proxy-out \
+          lolproxy[2022]: 127.0.0.1:34020 [09/Aug/2004:20:30:46] proxy-out \
           proxy-out/cache1 0/0/0/182/+182 200 +279 - - ---- 0/0/0/0/0 0/0 \
           {w.ods.org||} {Formilux/0.1.8|3495|||} \
           "GET http://trafic.1wt.eu/ HTTP/1.1"
 
     >>> Aug  9 20:30:46 localhost \
-          haproxy[2022]: 127.0.0.1:34028 [09/Aug/2004:20:30:46] proxy-out \
+          lolproxy[2022]: 127.0.0.1:34028 [09/Aug/2004:20:30:46] proxy-out \
           proxy-out/cache1 0/0/2/126/+128 301 +223 - - ---- 0/0/0/0/0 0/0 \
           {www.sytadin.equipement.gouv.fr||http://trafic.1wt.eu/} \
           {Apache|230|||http://www.sytadin.} \
@@ -21197,21 +21197,21 @@ These are real-world examples of logs accompanied with an explanation. Some of
 them have been made up by hand. The syslog part has been removed for better
 reading. Their sole purpose is to explain how to decipher them.
 
-    >>> haproxy[674]: 127.0.0.1:33318 [15/Oct/2003:08:31:57.130] px-http \
+    >>> lolproxy[674]: 127.0.0.1:33318 [15/Oct/2003:08:31:57.130] px-http \
           px-http/srv1 6559/0/7/147/6723 200 243 - - ---- 5/3/3/1/0 0/0 \
           "HEAD / HTTP/1.0"
 
     => long request (6.5s) entered by hand through 'telnet'. The server replied
        in 147 ms, and the session ended normally ('----')
 
-    >>> haproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57.149] px-http \
+    >>> lolproxy[674]: 127.0.0.1:33319 [15/Oct/2003:08:31:57.149] px-http \
           px-http/srv1 6559/1230/7/147/6870 200 243 - - ---- 324/239/239/99/0 \
           0/9 "HEAD / HTTP/1.0"
 
     => Idem, but the request was queued in the global queue behind 9 other
        requests, and waited there for 1230 ms.
 
-    >>> haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17.654] px-http \
+    >>> lolproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17.654] px-http \
           px-http/srv1 9/0/7/14/+30 200 +243 - - ---- 3/3/3/1/0 0/0 \
           "GET /image.iso HTTP/1.0"
 
@@ -21220,7 +21220,7 @@ reading. Their sole purpose is to explain how to decipher them.
        14 ms, 243 bytes of headers were sent to the client, and total time from
        accept to first data byte is 30 ms.
 
-    >>> haproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17.925] px-http \
+    >>> lolproxy[674]: 127.0.0.1:33320 [15/Oct/2003:08:32:17.925] px-http \
           px-http/srv1 9/0/7/14/30 502 243 - - PH-- 3/2/2/0/0 0/0 \
           "GET /cgi-bin/bug.cgi? HTTP/1.0"
 
@@ -21228,17 +21228,17 @@ reading. Their sole purpose is to explain how to decipher them.
        deny" rule, or because the response was improperly formatted and not
        HTTP-compliant, or because it blocked sensitive information which risked
        being cached. In this case, the response is replaced with a "502 bad
-       gateway". The flags ("PH--") tell us that it was haproxy who decided to
+       gateway". The flags ("PH--") tell us that it was lolproxy who decided to
        return the 502 and not the server.
 
-    >>> haproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55.798] px-http \
+    >>> lolproxy[18113]: 127.0.0.1:34548 [15/Oct/2003:15:18:55.798] px-http \
           px-http/<NOSRV> -1/-1/-1/-1/8490 -1 0 - - CR-- 2/2/2/0/0 0/0 ""
 
     => the client never completed its request and aborted itself ("C---") after
        8.5s, while the proxy was waiting for the request headers ("-R--").
        Nothing was sent to any server.
 
-    >>> haproxy[18113]: 127.0.0.1:34549 [15/Oct/2003:15:19:06.103] px-http \
+    >>> lolproxy[18113]: 127.0.0.1:34549 [15/Oct/2003:15:19:06.103] px-http \
          px-http/<NOSRV> -1/-1/-1/-1/50001 408 0 - - cR-- 2/2/2/0/0 0/0 ""
 
     => The client never completed its request, which was aborted by the
@@ -21246,13 +21246,13 @@ reading. Their sole purpose is to explain how to decipher them.
        headers ("-R--"). Nothing was sent to any server, but the proxy could
        send a 408 return code to the client.
 
-    >>> haproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28.312] px-tcp \
+    >>> lolproxy[18989]: 127.0.0.1:34550 [15/Oct/2003:15:24:28.312] px-tcp \
           px-tcp/srv1 0/0/5007 0 cD 0/0/0/0/0 0/0
 
     => This log was produced with "option tcplog". The client timed out after
        5 seconds ("c----").
 
-    >>> haproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31.462] px-http \
+    >>> lolproxy[18989]: 10.0.0.1:34552 [15/Oct/2003:15:26:31.462] px-http \
           px-http/srv1 3183/-1/-1/-1/11215 503 0 - - SC-- 205/202/202/115/3 \
           0/0 "HEAD / HTTP/1.0"
 
@@ -21270,7 +21270,7 @@ reading. Their sole purpose is to explain how to decipher them.
 
 Here are listed officially supported filters with the list of parameters they
 accept. Depending on compile options, some of these filters might be
-unavailable. The list of available filters is reported in haproxy -vv.
+unavailable. The list of available filters is reported in lolproxy -vv.
 
 See also : "filter"
 
@@ -21402,7 +21402,7 @@ HAProxy. This is enabled by sending an OpenTracing compliant request to one
 of the supported tracers such as Datadog, Jaeger, Lightstep and Zipkin tracers.
 Please note: tracers are not listed by any preference, but alphabetically.
 
-This feature is only enabled when haproxy was built with USE_OT=1.
+This feature is only enabled when lolproxy was built with USE_OT=1.
 
 The OpenTracing filter activation is done explicitly by specifying it in the
 HAProxy configuration. If this is not done, the OpenTracing filter in no way

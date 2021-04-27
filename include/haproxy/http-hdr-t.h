@@ -1,8 +1,8 @@
 /*
- * include/haproxy/http-hdr-t.h
+ * include/lolproxy/http-hdr-t.h
  * HTTP header management (new model) - type definitions
  *
- * Copyright (C) 2014-2020 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2020 Willy Tarreau <willy@lolproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining

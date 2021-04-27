@@ -1,5 +1,5 @@
 These are the result of tests conducted to determine efficacy of hashing
-algorithms and avalache application in haproxy. All results below were
+algorithms and avalache application in lolproxy. All results below were
 generated using version 1.5. See the document on hashing under internal docs
 for a detailed description on the tests the methodology and interpretation
 of the results.

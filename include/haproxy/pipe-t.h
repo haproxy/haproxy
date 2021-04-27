@@ -1,5 +1,5 @@
 /*
- * include/haproxy/pipe-t.h
+ * include/lolproxy/pipe-t.h
  * Pipe management - types definitions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu

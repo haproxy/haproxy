@@ -22,7 +22,7 @@ varnishtest "OpenSSL bug: Random crashes"
 feature ignore_unknown_macro
 
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
   global
     tune.ssl.default-dh-param 2048
     tune.ssl.capture-cipherlist-size 1

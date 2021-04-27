@@ -1,5 +1,5 @@
 /*
- * include/haproxy/h2.h
+ * include/lolproxy/h2.h
  * This file contains types and macros used for the HTTP/2 protocol
  *
  * Copyright (C) 2000-2017 Willy Tarreau - w@1wt.eu
@@ -30,9 +30,9 @@
 #define _HAPROXY_H2_H
 
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/http-hdr-t.h>
-#include <haproxy/htx-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/http-hdr-t.h>
+#include <lolproxy/htx-t.h>
 
 /* indexes of most important pseudo headers can be simplified to an almost
  * linear array by dividing the index by 2 for all values from 1 to 9, and

@@ -15,7 +15,7 @@ server s2 {
 	txresp
 } -repeat 2 -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
 	mode http
 	timeout connect 1s
@@ -42,43 +42,43 @@ client c1 -connect ${h1_stats_sock} {
 	rxresp
 	# test general metrics
 	expect resp.status == 200
-	expect resp.body ~ ".*haproxy_process.*"
-	expect resp.body ~ ".*haproxy_frontend.*"
-	expect resp.body ~ ".*haproxy_listener.*"
-	expect resp.body ~ ".*haproxy_backend.*"
-	expect resp.body ~ ".*haproxy_server.*"
-	expect resp.body ~ ".*haproxy_sticktable.*"
+	expect resp.body ~ ".*lolproxy_process.*"
+	expect resp.body ~ ".*lolproxy_frontend.*"
+	expect resp.body ~ ".*lolproxy_listener.*"
+	expect resp.body ~ ".*lolproxy_backend.*"
+	expect resp.body ~ ".*lolproxy_server.*"
+	expect resp.body ~ ".*lolproxy_sticktable.*"
 
 	# test expected NaN values
-	expect resp.body ~ ".*haproxy_server_check_failures_total{proxy=\"be\",server=\"s1\"} NaN.*"
-	expect resp.body ~ ".*haproxy_server_check_up_down_total{proxy=\"be\",server=\"s1\"} NaN.*"
-	expect resp.body ~ ".*haproxy_server_check_failures_total{proxy=\"be\",server=\"s2\"} 0.*"
-	expect resp.body ~ ".*haproxy_server_check_up_down_total{proxy=\"be\",server=\"s2\"} 0.*"
+	expect resp.body ~ ".*lolproxy_server_check_failures_total{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*lolproxy_server_check_up_down_total{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*lolproxy_server_check_failures_total{proxy=\"be\",server=\"s2\"} 0.*"
+	expect resp.body ~ ".*lolproxy_server_check_up_down_total{proxy=\"be\",server=\"s2\"} 0.*"
 
-	expect resp.body ~ ".*haproxy_server_queue_limit{proxy=\"be\",server=\"s1\"} NaN.*"
-	expect resp.body ~ ".*haproxy_server_queue_limit{proxy=\"be\",server=\"s2\"} 10.*"
+	expect resp.body ~ ".*lolproxy_server_queue_limit{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*lolproxy_server_queue_limit{proxy=\"be\",server=\"s2\"} 10.*"
 
-	expect resp.body ~ ".*haproxy_server_limit_sessions{proxy=\"be\",server=\"s1\"} NaN.*"
-	expect resp.body ~ ".*haproxy_server_limit_sessions{proxy=\"be\",server=\"s2\"} 12.*"
+	expect resp.body ~ ".*lolproxy_server_limit_sessions{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*lolproxy_server_limit_sessions{proxy=\"be\",server=\"s2\"} 12.*"
 
-	expect resp.body ~ ".*haproxy_backend_downtime_seconds_total{proxy=\"stats\"} NaN.*"
-	expect resp.body ~ ".*haproxy_backend_downtime_seconds_total{proxy=\"be\"} 0.*"
-	expect resp.body ~ ".*haproxy_server_downtime_seconds_total{proxy=\"be\",server=\"s1\"} NaN.*"
-	expect resp.body ~ ".*haproxy_server_downtime_seconds_total{proxy=\"be\",server=\"s2\"} 0.*"
+	expect resp.body ~ ".*lolproxy_backend_downtime_seconds_total{proxy=\"stats\"} NaN.*"
+	expect resp.body ~ ".*lolproxy_backend_downtime_seconds_total{proxy=\"be\"} 0.*"
+	expect resp.body ~ ".*lolproxy_server_downtime_seconds_total{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*lolproxy_server_downtime_seconds_total{proxy=\"be\",server=\"s2\"} 0.*"
 
-	expect resp.body ~ ".*haproxy_server_current_throttle{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*lolproxy_server_current_throttle{proxy=\"be\",server=\"s1\"} NaN.*"
 
-	expect resp.body ~ ".*haproxy_server_idle_connections_limit{proxy=\"be\",server=\"s1\"} NaN.*"
-	expect resp.body ~ ".*haproxy_server_idle_connections_limit{proxy=\"be\",server=\"s2\"} 42.*"
+	expect resp.body ~ ".*lolproxy_server_idle_connections_limit{proxy=\"be\",server=\"s1\"} NaN.*"
+	expect resp.body ~ ".*lolproxy_server_idle_connections_limit{proxy=\"be\",server=\"s2\"} 42.*"
 
 	# test well known labels presence
-	expect resp.body ~ ".*haproxy_process_build_info{version=\".*\"} 1.*"
-	expect resp.body ~ ".*haproxy_frontend_http_responses_total{proxy=\"stats\",code=\"4xx\"} 0.*"
-	expect resp.body ~ ".*haproxy_frontend_status{proxy=\"fe\",state=\"UP\"} 1.*"
-	expect resp.body ~ ".*haproxy_listener_status{proxy=\"stats\",listener=\"sock-1\",state=\"WAITING\"} 0.*"
-	expect resp.body ~ ".*haproxy_backend_status{proxy=\"be\",state=\"UP\"} 1.*"
-	expect resp.body ~ ".*haproxy_server_status{proxy=\"be\",server=\"s1\",state=\"DOWN\"} 0.*"
-	expect resp.body ~ ".*haproxy_server_check_status{proxy=\"be\",server=\"s2\",state=\"HANA\"} 0.*"
+	expect resp.body ~ ".*lolproxy_process_build_info{version=\".*\"} 1.*"
+	expect resp.body ~ ".*lolproxy_frontend_http_responses_total{proxy=\"stats\",code=\"4xx\"} 0.*"
+	expect resp.body ~ ".*lolproxy_frontend_status{proxy=\"fe\",state=\"UP\"} 1.*"
+	expect resp.body ~ ".*lolproxy_listener_status{proxy=\"stats\",listener=\"sock-1\",state=\"WAITING\"} 0.*"
+	expect resp.body ~ ".*lolproxy_backend_status{proxy=\"be\",state=\"UP\"} 1.*"
+	expect resp.body ~ ".*lolproxy_server_status{proxy=\"be\",server=\"s1\",state=\"DOWN\"} 0.*"
+	expect resp.body ~ ".*lolproxy_server_check_status{proxy=\"be\",server=\"s2\",state=\"HANA\"} 0.*"
 
 	# test scope
 	txreq -url "/metrics?scope="
@@ -89,22 +89,22 @@ client c1 -connect ${h1_stats_sock} {
 	txreq -url "/metrics?scope=server"
 	rxresp
 	expect resp.status == 200
-	expect resp.body !~ ".*haproxy_process.*"
-	expect resp.body !~ ".*haproxy_frontend.*"
-	expect resp.body !~ ".*haproxy_listener.*"
-	expect resp.body !~ ".*haproxy_backend.*"
-	expect resp.body ~ ".*haproxy_server.*"
-	expect resp.body !~ ".*haproxy_sticktable.*"
+	expect resp.body !~ ".*lolproxy_process.*"
+	expect resp.body !~ ".*lolproxy_frontend.*"
+	expect resp.body !~ ".*lolproxy_listener.*"
+	expect resp.body !~ ".*lolproxy_backend.*"
+	expect resp.body ~ ".*lolproxy_server.*"
+	expect resp.body !~ ".*lolproxy_sticktable.*"
 
 	txreq -url "/metrics?scope=frontend&scope=backend"
 	rxresp
 	expect resp.status == 200
-	expect resp.body !~ ".*haproxy_process.*"
-	expect resp.body ~ ".*haproxy_frontend.*"
-	expect resp.body !~ ".*haproxy_listener.*"
-	expect resp.body ~ ".*haproxy_backend.*"
-	expect resp.body !~ ".*haproxy_server.*"
-	expect resp.body !~ ".*haproxy_sticktable.*"
+	expect resp.body !~ ".*lolproxy_process.*"
+	expect resp.body ~ ".*lolproxy_frontend.*"
+	expect resp.body !~ ".*lolproxy_listener.*"
+	expect resp.body ~ ".*lolproxy_backend.*"
+	expect resp.body !~ ".*lolproxy_server.*"
+	expect resp.body !~ ".*lolproxy_sticktable.*"
 
 	txreq -url "/metrics?scope"
 	rxresp

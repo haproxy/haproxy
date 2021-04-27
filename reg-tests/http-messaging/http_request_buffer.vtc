@@ -22,7 +22,7 @@ syslog S -level info {
 	expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/[0-9]*/[0-9]*/[0-9]* 200 .* - - ---- .* .* \"GET / HTTP/1\\.1\""
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
 	defaults
 		mode http
 		${no-htx} option http-use-htx

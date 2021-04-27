@@ -1,5 +1,5 @@
 /*
- * include/haproxy/connection.h
+ * include/lolproxy/connection.h
  * This file contains connection function prototypes
  *
  * Copyright (C) 2000-2002 Willy Tarreau - w@1wt.eu
@@ -24,17 +24,17 @@
 
 #include <import/ist.h>
 
-#include <haproxy/api.h>
-#include <haproxy/buf.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/fd.h>
-#include <haproxy/http_ana.h>
-#include <haproxy/listener-t.h>
-#include <haproxy/obj_type.h>
-#include <haproxy/pool.h>
-#include <haproxy/session.h>
-#include <haproxy/task-t.h>
-#include <haproxy/tcpcheck-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/connection-t.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/http_ana.h>
+#include <lolproxy/listener-t.h>
+#include <lolproxy/obj_type.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/session.h>
+#include <lolproxy/task-t.h>
+#include <lolproxy/tcpcheck-t.h>
 
 
 extern struct pool_head *pool_head_connection;

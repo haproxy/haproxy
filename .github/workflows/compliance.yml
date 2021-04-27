@@ -39,15 +39,15 @@ jobs:
         echo "::group::Show dynamic libraries."
         if command -v ldd > /dev/null; then
           # Linux
-          ldd $(which haproxy)
+          ldd $(which lolproxy)
         else
           # macOS
-          otool -L $(which haproxy)
+          otool -L $(which lolproxy)
         fi
         echo "::endgroup::"
-        haproxy -vv
-        echo "::set-output name=version::$(haproxy -v |awk 'NR==1{print $3}')"
+        lolproxy -vv
+        echo "::set-output name=version::$(lolproxy -v |awk 'NR==1{print $3}')"
     - name: Launch HAProxy ${{ steps.show-version.outputs.version }}
-      run: haproxy -f .github/h2spec.config -D
+      run: lolproxy -f .github/h2spec.config -D
     - name: Run h2spec
       run: h2spec -Svtk -h 127.0.0.1 -p 8443

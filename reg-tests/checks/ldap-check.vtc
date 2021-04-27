@@ -38,7 +38,7 @@ syslog S3 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer7 wrong status.+code: 1.+info: \"See RFC: http://tools.ietf.org/html/rfc4511#section-4.1.9\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode tcp
         timeout client 1s

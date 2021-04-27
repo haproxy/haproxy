@@ -1,7 +1,7 @@
 /*
  * Pseudo-xprt to handle any handshake except the SSL handshake
  *
- * Copyright 2019 HAProxy Technologies, Olivier Houchard <ohouchard@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Olivier Houchard <ohouchard@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -10,8 +10,8 @@
  *
  */
 
-#include <haproxy/connection.h>
-#include <haproxy/stream_interface.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/stream_interface.h>
 
 struct xprt_handshake_ctx {
 	struct connection *conn;

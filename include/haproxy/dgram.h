@@ -1,5 +1,5 @@
 /*
- * include/haproxy/proto_dgram.h
+ * include/lolproxy/proto_dgram.h
  * This file provides functions related to DGRAM processing.
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_PROTO_DGRAM_H
 #define _HAPROXY_PROTO_DGRAM_H
 
-#include <haproxy/dgram-t.h>
+#include <lolproxy/dgram-t.h>
 
 void dgram_fd_handler(int);
 

@@ -1,4 +1,4 @@
-2011/12/16 - How ACLs work internally in haproxy - w@1wt.eu
+2011/12/16 - How ACLs work internally in lolproxy - w@1wt.eu
 
 An ACL is declared by the keyword "acl" followed by a name, followed by a
 matching method, followed by one or multiple pattern values :

@@ -1,12 +1,12 @@
 /*
- * include/haproxy/tcpcheck-t.h
+ * include/lolproxy/tcpcheck-t.h
  * TCP check definitions, enums, macros and bitfields.
  *
  * Copyright 2000-2009,2020 Willy Tarreau <w@1wt.eu>
  * Copyright 2007-2010 Krzysztof Piotr Oledzki <ole@ans.pl>
  * Copyright 2013 Baptiste Assmann <bedis9@gmail.com>
  * Copyright 2020 Gaetan Rivet <grive@u256.net>
- * Copyright 2020 Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright 2020 Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,12 +20,12 @@
 
 #include <import/ebpttree.h>
 #include <import/ist.h>
-#include <haproxy/api-t.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/check-t.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/vars-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/check-t.h>
+#include <lolproxy/connection-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/vars-t.h>
 
 /* options for tcp-check connect */
 #define TCPCHK_OPT_NONE            0x0000  /* no options specified, default */

@@ -21,7 +21,7 @@ print("FD1={} FD2={}".format(FD1, FD2))
 os.environ["FD1"] = str(FD1)
 os.environ["FD2"] = str(FD2)
 
-cmd = ["./haproxy",
+cmd = ["./lolproxy",
        "-f",
        "{}".format(sys.argv[1])
 ]

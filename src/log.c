@@ -24,26 +24,26 @@
 #include <sys/time.h>
 #include <sys/uio.h>
 
-#include <haproxy/api.h>
-#include <haproxy/applet-t.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/cli.h>
-#include <haproxy/fd.h>
-#include <haproxy/frontend.h>
-#include <haproxy/global.h>
-#include <haproxy/http.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/proxy.h>
-#include <haproxy/ring.h>
-#include <haproxy/sample.h>
-#include <haproxy/sink.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/version.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet-t.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/frontend.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/ring.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/sink.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/version.h>
 
 /* global recv logs counter */
 int cum_log_messages;
@@ -1127,7 +1127,7 @@ void ha_alert(const char *fmt, ...)
 			const char *path = get_exec_path();
 
 			warned |= WARN_EXEC_PATH;
-			ha_notice("haproxy version is %s\n", haproxy_version);
+			ha_notice("lolproxy version is %s\n", lolproxy_version);
 			if (path)
 				ha_notice("path to executable is %s\n", path);
 		}
@@ -2104,7 +2104,7 @@ static void init_log()
 	 *
 	 * All the chars are encoded except "VCHAR", "obs-text", SP and HTAB.
 	 * The encoded chars are form 0x00 to 0x08, 0x0a to 0x1f and 0x7f. The
-	 * "obs-fold" is voluntarily forgotten because haproxy remove this.
+	 * "obs-fold" is voluntarily forgotten because lolproxy remove this.
 	 */
 	memset(http_encode_map, 0, sizeof(http_encode_map));
 	for (i = 0x00; i <= 0x08; i++)

@@ -1,7 +1,7 @@
 /*
  * Functions to manipulate HTTP messages using the internal representation.
  *
- * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -14,18 +14,18 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/global.h>
-#include <haproxy/h1.h>
-#include <haproxy/http.h>
-#include <haproxy/http_fetch.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-#include <haproxy/log.h>
-#include <haproxy/regex.h>
-#include <haproxy/sample.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/global.h>
+#include <lolproxy/h1.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http_fetch.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/log.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/sample.h>
 
 
 struct buffer http_err_chunks[HTTP_ERR_SIZE];

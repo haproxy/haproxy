@@ -1,5 +1,5 @@
 /*
- * include/haproxy/extchecks.h
+ * include/lolproxy/extchecks.h
  * Functions prototypes for the external checks.
  *
  * Copyright 2000-2009,2020 Willy Tarreau <w@1wt.eu>
@@ -23,9 +23,9 @@
 #ifndef _HAPROXY_EXTCHECK_H
 #define _HAPROXY_EXTCHECK_H
 
-#include <haproxy/check-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/task-t.h>
+#include <lolproxy/check-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/task-t.h>
 
 struct task *process_chk_proc(struct task *t, void *context, unsigned int state);
 int prepare_external_check(struct check *check);

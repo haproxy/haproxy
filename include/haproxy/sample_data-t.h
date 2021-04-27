@@ -1,5 +1,5 @@
 /*
- * include/haproxy/sample_data-t.h
+ * include/lolproxy/sample_data-t.h
  * Definitions of sample data
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -25,8 +25,8 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/http-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/http-t.h>
 
 /* Note: the strings below make use of chunks. Chunks may carry an allocated
  * size in addition to the length. The size counts from the beginning (str)

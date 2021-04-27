@@ -2,7 +2,7 @@
  * include/types/quic_frame.h
  * This file contains QUIC frame definitions.
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include <haproxy/list.h>
+#include <lolproxy/list.h>
 
 /* QUIC frame types. */
 enum quic_frame_type {

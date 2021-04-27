@@ -1,5 +1,5 @@
 /*
- * include/haproxy/hlua_fcn.h
+ * include/lolproxy/hlua_fcn.h
  * Lua user-level management functions
  *
  * Copyright (C) 2015-2016 Thierry Fournier <tfournier@arpalert.org>

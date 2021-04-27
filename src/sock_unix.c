@@ -25,16 +25,16 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
-#include <haproxy/api.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/listener.h>
-#include <haproxy/receiver-t.h>
-#include <haproxy/namespace.h>
-#include <haproxy/sock.h>
-#include <haproxy/sock_unix.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/receiver-t.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/sock_unix.h>
+#include <lolproxy/tools.h>
 
 
 struct proto_fam proto_fam_unix = {

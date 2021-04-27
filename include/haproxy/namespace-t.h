@@ -1,5 +1,5 @@
 /*
- * include/haproxy/namespace-t.h
+ * include/lolproxy/namespace-t.h
  * Linux network namespaces types definitions
  *
  * Copyright (C) 2014 Tamas Kovacs, Sarkozi Laszlo, Krisztian Kovacs
@@ -24,7 +24,7 @@
 #define _HAPROXY_NAMESPACE_T_H
 
 #include <import/ebpttree.h>
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 /* the struct is just empty if namespaces are not supported */
 struct netns_entry

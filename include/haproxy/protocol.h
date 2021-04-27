@@ -1,5 +1,5 @@
 /*
- * include/haproxy/protocol.h
+ * include/lolproxy/protocol.h
  * This file declares generic protocol management primitives.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -23,8 +23,8 @@
 #define _HAPROXY_PROTOCOL_H
 
 #include <sys/socket.h>
-#include <haproxy/protocol-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/protocol-t.h>
+#include <lolproxy/thread.h>
 
 /* [AF][sock_dgram][ctrl_dgram] */
 extern struct protocol *__protocol_by_family[AF_CUST_MAX][2][2];

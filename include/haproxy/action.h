@@ -1,5 +1,5 @@
 /*
- * include/haproxy/action.h
+ * include/lolproxy/action.h
  * This file contains actions prototypes.
  *
  * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
@@ -23,9 +23,9 @@
 #define _HAPROXY_ACTION_H
 
 #include <stdio.h>
-#include <haproxy/action-t.h>
-#include <haproxy/list.h>
-#include <haproxy/sample.h>
+#include <lolproxy/action-t.h>
+#include <lolproxy/list.h>
+#include <lolproxy/sample.h>
 
 int act_resolution_cb(struct resolv_requester *requester, struct dns_counters *counters);
 int act_resolution_error_cb(struct resolv_requester *requester, int error_code);

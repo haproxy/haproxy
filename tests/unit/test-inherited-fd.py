@@ -1,7 +1,7 @@
 #!/usr/bin/python
 """
 Python wrapper example to test the fd@ function,
-You have to bind on fd@${NEWFD} in your haproxy configuration
+You have to bind on fd@${NEWFD} in your lolproxy configuration
 
 The configuration parsing should still work upon a reload with the master-worker
 mode.
@@ -20,4 +20,4 @@ s.bind((socket.gethostname(), 5555))
 s.listen(1)
 FD = s.fileno()
 
-subprocess.Popen('NEWFD={} ./haproxy -W -f haproxy.cfg'.format(FD), shell=True, close_fds=False)
+subprocess.Popen('NEWFD={} ./lolproxy -W -f lolproxy.cfg'.format(FD), shell=True, close_fds=False)

@@ -19,17 +19,17 @@
  */
 
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/cli.h>
-#include <haproxy/errors.h>
-#include <haproxy/list.h>
-#include <haproxy/log.h>
-#include <haproxy/ring.h>
-#include <haproxy/signal.h>
-#include <haproxy/sink.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/time.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/list.h>
+#include <lolproxy/log.h>
+#include <lolproxy/ring.h>
+#include <lolproxy/signal.h>
+#include <lolproxy/sink.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/time.h>
 
 struct list sink_list = LIST_HEAD_INIT(sink_list);
 

@@ -5,7 +5,7 @@ core.register_service("fakeserv", "http", function(applet)
 	vtc_port = applet.headers["vtcport"][0]
 	core.Info("APPLET START")
 	local response = "OK"
-	applet:add_header("Server", "haproxy/webstats")
+	applet:add_header("Server", "lolproxy/webstats")
 	applet:add_header("Content-Length", string.len(response))
 	applet:add_header("Content-Type", "text/html")
 	applet:start_response()

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/port_range-t.h
+ * include/lolproxy/port_range-t.h
  * This file defines the prt_range type
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -23,7 +23,7 @@
 #define _HAPROXY_PORT_RANGE_T_H
 
 #include <netinet/in.h>
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 struct port_range {
 	int size, get, put_h, put_t;	/* range size, and get/put positions */

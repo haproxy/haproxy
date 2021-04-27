@@ -8,7 +8,7 @@ varnishtest "Test the proper interaction between http-reuse and backend in trans
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
 	defaults
 		mode http
 

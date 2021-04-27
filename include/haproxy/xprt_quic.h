@@ -1,8 +1,8 @@
 /*
- * include/haproxy/xprt_quic.h
+ * include/lolproxy/xprt_quic.h
  * This file contains QUIC xprt function prototypes
  *
- * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,18 +28,18 @@
 
 #include <stdint.h>
 
-#include <haproxy/buf.h>
-#include <haproxy/chunk.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/openssl-compat.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/openssl-compat.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
 
-#include <haproxy/listener.h>
-#include <haproxy/quic_cc.h>
-#include <haproxy/quic_frame.h>
-#include <haproxy/quic_loss.h>
-#include <haproxy/xprt_quic-t.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/quic_cc.h>
+#include <lolproxy/quic_frame.h>
+#include <lolproxy/quic_loss.h>
+#include <lolproxy/xprt_quic-t.h>
 
 #include <openssl/rand.h>
 
@@ -513,8 +513,8 @@ static inline void quic_dflt_transport_params_cpy(struct quic_transport_params *
 }
 
 /* Initialize <p> transport parameters depending <server> boolean value which
- * must be set to 1 for a server (haproxy listener), 0 for a client (connection
- * to haproxy server).
+ * must be set to 1 for a server (lolproxy listener), 0 for a client (connection
+ * to lolproxy server).
  * Never fails.
  */
 static inline void quic_transport_params_init(struct quic_transport_params *p,
@@ -619,8 +619,8 @@ static inline int quic_transport_param_dec_pref_addr(struct preferred_address *a
 
 /* Decode into <p> struct a transport parameter found in <*buf> buffer with
  * <type> as type and <len> as length, depending on <server> boolean value which
- * must be set to 1 for a server (haproxy listener) or 0 for a client (connection
- * to an haproxy server).
+ * must be set to 1 for a server (lolproxy listener) or 0 for a client (connection
+ * to an lolproxy server).
  */
 static inline int quic_transport_param_decode(struct quic_transport_params *p,
                                               int server, uint64_t type,
@@ -806,8 +806,8 @@ static inline int quic_transport_param_enc_pref_addr(unsigned char **buf,
 }
 
 /* Encode <p> transport parameter into <buf> depending on <server> value which
- * must be set to 1 for a server (haproxy listener) or 0 for a client
- * (connection to a haproxy server).
+ * must be set to 1 for a server (lolproxy listener) or 0 for a client
+ * (connection to a lolproxy server).
  * Return the number of bytes consumed if succeeded, 0 if not.
  */
 static inline int quic_transport_params_encode(unsigned char *buf,
@@ -912,8 +912,8 @@ static inline int quic_transport_params_encode(unsigned char *buf,
 }
 
 /* Decode transport parameters found in <buf> buffer into <p>, depending on
- * <server> boolean value which must be set to 1 for a server (haproxy listener)
- * or 0 for a client (connection to a haproxy server).
+ * <server> boolean value which must be set to 1 for a server (lolproxy listener)
+ * or 0 for a client (connection to a lolproxy server).
  * Returns 1 if succeeded, 0 if not.
  */
 static inline int quic_transport_params_decode(struct quic_transport_params *p, int server,
@@ -950,8 +950,8 @@ static inline int quic_transport_params_decode(struct quic_transport_params *p, 
 }
 
 /* Store transport parameters found in <buf> buffer into <conn> QUIC connection
- * depending on <server> value which must be 1 for a server (haproxy listener)
- * or 0 for a client (connection to a haproxy server).
+ * depending on <server> value which must be 1 for a server (lolproxy listener)
+ * or 0 for a client (connection to a lolproxy server).
  * Returns 1 if succeeded, 0 if not.
  */
 static inline int quic_transport_params_store(struct quic_conn *conn, int server,

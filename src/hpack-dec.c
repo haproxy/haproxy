@@ -1,7 +1,7 @@
 /*
  * HPACK decompressor (RFC7541)
  *
- * Copyright (C) 2014-2017 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2017 Willy Tarreau <willy@lolproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -31,12 +31,12 @@
 #include <string.h>
 
 #include <import/ist.h>
-#include <haproxy/chunk.h>
-#include <haproxy/h2.h>
-#include <haproxy/hpack-dec.h>
-#include <haproxy/hpack-huff.h>
-#include <haproxy/hpack-tbl.h>
-#include <haproxy/tools.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/h2.h>
+#include <lolproxy/hpack-dec.h>
+#include <lolproxy/hpack-huff.h>
+#include <lolproxy/hpack-tbl.h>
+#include <lolproxy/tools.h>
 
 
 #if defined(DEBUG_HPACK)

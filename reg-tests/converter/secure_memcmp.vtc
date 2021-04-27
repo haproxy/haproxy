@@ -15,7 +15,7 @@ server s2 {
 	txresp
 } -repeat 7 -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
 	mode http
 	timeout connect 1s

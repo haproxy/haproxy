@@ -11,7 +11,7 @@ varnishtest "Composite HTTP manipulation test (H1 and H2 clear to H1 clear)"
 # If some modifications are performed, the crc values need to be adjusted based
 # on the failed logs.
 #
-# Run it with HAPROXY_PROGRAM=$PWD/haproxy varnishtest -l -k -t 1 "$1"
+# Run it with HAPROXY_PROGRAM=$PWD/lolproxy varnishtest -l -k -t 1 "$1"
 
 feature ignore_unknown_macro
 
@@ -35,7 +35,7 @@ server s1 {
 	expect req.http.be-hdr-crc == 3634102538
 } -repeat 2 -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
 	mode http
 	${no-htx} option http-use-htx

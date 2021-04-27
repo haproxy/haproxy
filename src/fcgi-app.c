@@ -1,7 +1,7 @@
 /*
  * Functions about FCGI applications and filters.
  *
- * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -10,23 +10,23 @@
  *
  */
 
-#include <haproxy/acl.h>
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/chunk.h>
-#include <haproxy/errors.h>
-#include <haproxy/fcgi-app.h>
-#include <haproxy/filters.h>
-#include <haproxy/http_fetch.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/log.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/regex.h>
-#include <haproxy/sample.h>
-#include <haproxy/server-t.h>
-#include <haproxy/session.h>
-#include <haproxy/sink.h>
-#include <haproxy/tools.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fcgi-app.h>
+#include <lolproxy/filters.h>
+#include <lolproxy/http_fetch.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/log.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/session.h>
+#include <lolproxy/sink.h>
+#include <lolproxy/tools.h>
 
 
 /* Global list of all FCGI applications */

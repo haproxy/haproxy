@@ -1,5 +1,5 @@
 /*
- * include/haproxy/hlua.h
+ * include/lolproxy/hlua.h
  * Lua core management functions
  *
  * Copyright (C) 2015-2016 Thierry Fournier <tfournier@arpalert.org>
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_HLUA_H
 #define _HAPROXY_HLUA_H
 
-#include <haproxy/hlua-t.h>
+#include <lolproxy/hlua-t.h>
 
 #ifdef USE_LUA
 

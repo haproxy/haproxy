@@ -29,44 +29,44 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 
-#include <haproxy/action.h>
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/check.h>
-#include <haproxy/chunk.h>
-#include <haproxy/dgram.h>
-#include <haproxy/dynbuf-t.h>
-#include <haproxy/extcheck.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/h1.h>
-#include <haproxy/http.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-#include <haproxy/istbuf.h>
-#include <haproxy/list.h>
-#include <haproxy/log.h>
-#include <haproxy/mailers.h>
-#include <haproxy/port_range.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proxy.h>
-#include <haproxy/queue.h>
-#include <haproxy/regex.h>
-#include <haproxy/resolvers.h>
-#include <haproxy/sample.h>
-#include <haproxy/server.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/tcpcheck.h>
-#include <haproxy/thread.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/trace.h>
-#include <haproxy/vars.h>
+#include <lolproxy/action.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/check.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/dgram.h>
+#include <lolproxy/dynbuf-t.h>
+#include <lolproxy/extcheck.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/h1.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/istbuf.h>
+#include <lolproxy/list.h>
+#include <lolproxy/log.h>
+#include <lolproxy/mailers.h>
+#include <lolproxy/port_range.h>
+#include <lolproxy/proto_tcp.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/queue.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/resolvers.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/server.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tcpcheck.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/trace.h>
+#include <lolproxy/vars.h>
 
 /* trace source and events */
 static void check_trace(enum trace_level level, uint64_t mask,
@@ -77,7 +77,7 @@ static void check_trace(enum trace_level level, uint64_t mask,
 /* The event representation is split like this :
  *   check  - check
  *
- * CHECK_EV_* macros are defined in <haproxy/check.h>
+ * CHECK_EV_* macros are defined in <lolproxy/check.h>
  */
 static const struct trace_event check_trace_events[] = {
 	{ .mask = CHK_EV_TASK_WAKE,   .name = "task_wake",        .desc = "Check task woken up" },

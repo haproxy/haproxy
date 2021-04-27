@@ -1,5 +1,5 @@
 /*
- * include/haproxy/backend.h
+ * include/lolproxy/backend.h
  * Functions prototypes for the backend.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -22,12 +22,12 @@
 #ifndef _HAPROXY_BACKEND_H
 #define _HAPROXY_BACKEND_H
 
-#include <haproxy/api.h>
-#include <haproxy/backend-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/time.h>
+#include <lolproxy/api.h>
+#include <lolproxy/backend-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/time.h>
 
 int assign_server(struct stream *s);
 int assign_server_address(struct stream *s);

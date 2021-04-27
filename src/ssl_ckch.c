@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
+ * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,15 +24,15 @@
 
 #include <import/ebsttree.h>
 
-#include <haproxy/base64.h>
-#include <haproxy/channel.h>
-#include <haproxy/cli.h>
-#include <haproxy/errors.h>
-#include <haproxy/ssl_ckch.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/ssl_utils.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/tools.h>
+#include <lolproxy/base64.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/ssl_ckch.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/ssl_utils.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/tools.h>
 
 /* Uncommitted CKCH transaction */
 

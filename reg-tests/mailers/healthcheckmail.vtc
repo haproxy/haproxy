@@ -10,7 +10,7 @@ server s1 {
     txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         lua-load ${testdir}/healthcheckmail.lua
 defaults

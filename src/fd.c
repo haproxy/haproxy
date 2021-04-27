@@ -87,12 +87,12 @@
 #include <errno.h>
 #endif
 
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/port_range.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/port_range.h>
+#include <lolproxy/tools.h>
 
 
 struct fdtab *fdtab             __read_mostly = NULL;  /* array of all the file descriptors */

@@ -53,7 +53,7 @@ server s2 {
 
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode tcp
         timeout connect 1s

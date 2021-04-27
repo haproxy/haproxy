@@ -1,7 +1,7 @@
 /*
  * Process debugging functions.
  *
- * Copyright 2000-2019 Willy Tarreau <willy@haproxy.org>.
+ * Copyright 2000-2019 Willy Tarreau <willy@lolproxy.org>.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,19 +20,19 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <haproxy/api.h>
-#include <haproxy/buf.h>
-#include <haproxy/cli.h>
-#include <haproxy/debug.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/hlua.h>
-#include <haproxy/log.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/thread.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/debug.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/hlua.h>
+#include <lolproxy/log.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/tools.h>
 #include <import/ist.h>
 
 

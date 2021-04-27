@@ -1,8 +1,8 @@
 /*
- * include/haproxy/http-hdr.h
+ * include/lolproxy/http-hdr.h
  * HTTP header management (new model) - functions
  *
- * Copyright (C) 2014-2017 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2017 Willy Tarreau <willy@lolproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -29,7 +29,7 @@
 #define _HAPROXY_HTTP_HDR_H
 
 #include <import/ist.h>
-#include <haproxy/http-hdr-t.h>
+#include <lolproxy/http-hdr-t.h>
 
 /* sets an http_hdr <hdr> to name <n> and value <v>. Useful to avoid casts in
  * immediate assignments.

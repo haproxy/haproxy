@@ -52,10 +52,10 @@ HAProxy is a multi-threaded, event-driven, non-blocking daemon. This means is
 uses event multiplexing to schedule all of its activities instead of relying on
 the system to schedule between multiple activities. Most of the time it runs as
 a single process, so the output of "ps aux" on a system will report only one
-"haproxy" process, unless a soft reload is in progress and an older process is
+"lolproxy" process, unless a soft reload is in progress and an older process is
 finishing its job in parallel to the new one. It is thus always easy to trace
 its activity using the strace utility. In order to scale with the number of
-available processors, by default haproxy will start one worker thread per
+available processors, by default lolproxy will start one worker thread per
 processor it is allowed to run on. Unless explicitly configured differently,
 the incoming traffic is spread over all these threads, all running the same
 event loop. A great care is taken to limit inter-thread dependencies to the
@@ -110,17 +110,17 @@ to show listening sockets. Example :
   Active Internet connections (only servers)
   Proto Recv-Q Send-Q Local Address   Foreign Address   State    PID/Program name
   tcp        0      0 0.0.0.0:22      0.0.0.0:*         LISTEN   1629/sshd
-  tcp        0      0 0.0.0.0:80      0.0.0.0:*         LISTEN   2847/haproxy
-  tcp        0      0 0.0.0.0:443     0.0.0.0:*         LISTEN   2847/haproxy
+  tcp        0      0 0.0.0.0:80      0.0.0.0:*         LISTEN   2847/lolproxy
+  tcp        0      0 0.0.0.0:443     0.0.0.0:*         LISTEN   2847/lolproxy
 
 
 3. Starting HAProxy
 -------------------
 
-HAProxy is started by invoking the "haproxy" program with a number of arguments
+HAProxy is started by invoking the "lolproxy" program with a number of arguments
 passed on the command line. The actual syntax is :
 
-  $ haproxy [<options>]*
+  $ lolproxy [<options>]*
 
 where [<options>]* is any number of options. An option always starts with '-'
 followed by one of more letters, and possibly followed by one or multiple extra
@@ -161,7 +161,7 @@ list of options is :
   -C <dir> : changes to directory <dir> before loading configuration
     files. This is useful when using relative paths. Warning when using
     wildcards after "--" which are in fact replaced by the shell before
-    starting haproxy.
+    starting lolproxy.
 
   -D : start as a daemon. The process detaches from the current terminal after
     forking, and errors are not reported anymore in the terminal. It is
@@ -216,7 +216,7 @@ list of options is :
     useful to reliably trigger issues resulting from missing initializations in
     the code that cause random crashes. Note that -dM0 has the effect of
     turning any malloc() into a calloc(). In any case if a bug appears or
-    disappears when using this option it means there is a bug in haproxy, so
+    disappears when using this option it means there is a bug in lolproxy, so
     please report it.
 
   -dS : disable use of the splice() system call. It is equivalent to the
@@ -231,7 +231,7 @@ list of options is :
     environment. Never use this in an init script as it degrades SSL security
     to the servers.
 
-  -dW : if set, haproxy will refuse to start if any warning was emitted while
+  -dW : if set, lolproxy will refuse to start if any warning was emitted while
    processing the configuration. This helps detect subtle mistakes and keep the
    configuration clean and portable across versions. It is recommended to set
    this option in service scripts when configurations are managed by humans,
@@ -328,38 +328,38 @@ A safe way to start HAProxy from an init file consists in forcing the daemon
 mode, storing existing pids to a pid file and using this pid file to notify
 older processes to finish before leaving :
 
-   haproxy -f /etc/haproxy.cfg \
-           -D -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)
+   lolproxy -f /etc/lolproxy.cfg \
+           -D -p /var/run/lolproxy.pid -sf $(cat /var/run/lolproxy.pid)
 
 When the configuration is split into a few specific files (eg: tcp vs http),
 it is recommended to use the "-f" option :
 
-   haproxy -f /etc/haproxy/global.cfg -f /etc/haproxy/stats.cfg \
-           -f /etc/haproxy/default-tcp.cfg -f /etc/haproxy/tcp.cfg \
-           -f /etc/haproxy/default-http.cfg -f /etc/haproxy/http.cfg \
-           -D -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)
+   lolproxy -f /etc/lolproxy/global.cfg -f /etc/lolproxy/stats.cfg \
+           -f /etc/lolproxy/default-tcp.cfg -f /etc/lolproxy/tcp.cfg \
+           -f /etc/lolproxy/default-http.cfg -f /etc/lolproxy/http.cfg \
+           -D -p /var/run/lolproxy.pid -sf $(cat /var/run/lolproxy.pid)
 
 When an unknown number of files is expected, such as customer-specific files,
 it is recommended to assign them a name starting with a fixed-size sequence
 number and to use "--" to load them, possibly after loading some defaults :
 
-   haproxy -f /etc/haproxy/global.cfg -f /etc/haproxy/stats.cfg \
-           -f /etc/haproxy/default-tcp.cfg -f /etc/haproxy/tcp.cfg \
-           -f /etc/haproxy/default-http.cfg -f /etc/haproxy/http.cfg \
-           -D -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid) \
-           -f /etc/haproxy/default-customers.cfg -- /etc/haproxy/customers/*
+   lolproxy -f /etc/lolproxy/global.cfg -f /etc/lolproxy/stats.cfg \
+           -f /etc/lolproxy/default-tcp.cfg -f /etc/lolproxy/tcp.cfg \
+           -f /etc/lolproxy/default-http.cfg -f /etc/lolproxy/http.cfg \
+           -D -p /var/run/lolproxy.pid -sf $(cat /var/run/lolproxy.pid) \
+           -f /etc/lolproxy/default-customers.cfg -- /etc/lolproxy/customers/*
 
 Sometimes a failure to start may happen for whatever reason. Then it is
 important to verify if the version of HAProxy you are invoking is the expected
 version and if it supports the features you are expecting (eg: SSL, PCRE,
-compression, Lua, etc). This can be verified using "haproxy -vv". Some
+compression, Lua, etc). This can be verified using "lolproxy -vv". Some
 important information such as certain build options, the target system and
 the versions of the libraries being used are reported there. It is also what
 you will systematically be asked for when posting a bug report :
 
-  $ haproxy -vv
+  $ lolproxy -vv
   HA-Proxy version 1.6-dev7-a088d3-4 2015/10/08
-  Copyright 2000-2015 Willy Tarreau <willy@haproxy.org>
+  Copyright 2000-2015 Willy Tarreau <willy@lolproxy.org>
 
   Build options :
     TARGET  = linux2628
@@ -445,9 +445,9 @@ The relevant information that many non-developer users can verify here are :
 ----------------------------------
 
 HAProxy supports a graceful and a hard stop. The hard stop is simple, when the
-SIGTERM signal is sent to the haproxy process, it immediately quits and all
+SIGTERM signal is sent to the lolproxy process, it immediately quits and all
 established connections are closed. The graceful stop is triggered when the
-SIGUSR1 signal is sent to the haproxy process. It consists in only unbinding
+SIGUSR1 signal is sent to the lolproxy process. It consists in only unbinding
 from listening ports, but continue to process existing connections until they
 close. Once the last connection is closed, the process leaves.
 
@@ -455,12 +455,12 @@ The hard stop method is used for the "stop" or "restart" actions of the service
 management script. The graceful stop is used for the "reload" action which
 tries to seamlessly reload a new configuration in a new process.
 
-Both of these signals may be sent by the new haproxy process itself during a
+Both of these signals may be sent by the new lolproxy process itself during a
 reload or restart, so that they are sent at the latest possible moment and only
 if absolutely required. This is what is performed by the "-st" (hard) and "-sf"
 (graceful) options respectively.
 
-In master-worker mode, it is not needed to start a new haproxy process in
+In master-worker mode, it is not needed to start a new lolproxy process in
 order to reload the configuration. The master process reacts to the SIGUSR2
 signal by reexecuting itself with the -sf parameter followed by the PIDs of
 the workers. The master will then parse the configuration file and fork new
@@ -469,19 +469,19 @@ workers.
 To understand better how these signals are used, it is important to understand
 the whole restart mechanism.
 
-First, an existing haproxy process is running. The administrator uses a system
-specific command such as "/etc/init.d/haproxy reload" to indicate they want to
+First, an existing lolproxy process is running. The administrator uses a system
+specific command such as "/etc/init.d/lolproxy reload" to indicate they want to
 take the new configuration file into effect. What happens then is the following.
-First, the service script (/etc/init.d/haproxy or equivalent) will verify that
-the configuration file parses correctly using "haproxy -c". After that it will
-try to start haproxy with this configuration file, using "-st" or "-sf".
+First, the service script (/etc/init.d/lolproxy or equivalent) will verify that
+the configuration file parses correctly using "lolproxy -c". After that it will
+try to start lolproxy with this configuration file, using "-st" or "-sf".
 
 Then HAProxy tries to bind to all listening ports. If some fatal errors happen
 (eg: address not present on the system, permission denied), the process quits
 with an error. If a socket binding fails because a port is already in use, then
 the process will first send a SIGTTOU signal to all the pids specified in the
 "-st" or "-sf" pid list. This is what is called the "pause" signal. It instructs
-all existing haproxy processes to temporarily stop listening to their ports so
+all existing lolproxy processes to temporarily stop listening to their ports so
 that the new process can try to bind again. During this time, the old process
 continues to process existing connections. If the binding still fails (because
 for example a port is shared with another daemon), then the new process sends a
@@ -528,7 +528,7 @@ where this happens are :
     as some systems might be able to visit other listening queues and avoid
     this RST. A second case concerns the ACK from the client on a local socket
     that was in SYN_RECV state just before the close. This ACK will lead to an
-    RST packet while the haproxy process is still not aware of it. This one is
+    RST packet while the lolproxy process is still not aware of it. This one is
     harder to get rid of, though the firewall filtering rules mentioned above
     will work well if applied one second or so before restarting the process.
 
@@ -582,13 +582,13 @@ be used. It's a much more scalable mechanism relying on callbacks in the kernel
 that guarantee a constant wake up time regardless of the number of registered
 monitored file descriptors. It is automatically used where detected, provided
 that HAProxy had been built for one of the Linux flavors. Its presence and
-support can be verified using "haproxy -vv".
+support can be verified using "lolproxy -vv".
 
 For BSD systems which support it, kqueue() is available as an alternative. It
 is much faster than poll() and even slightly faster than epoll() thanks to its
 batched handling of changes. At least FreeBSD and OpenBSD support it. Just like
 with Linux's epoll(), its support and availability are reported in the output
-of "haproxy -vv".
+of "lolproxy -vv".
 
 Having a good poller is one thing, but it is mandatory that the process can
 reach the limits. When HAProxy starts, it immediately sets the new process's
@@ -596,7 +596,7 @@ file descriptor limits and verifies if it succeeds. In case of failure, it
 reports it before forking so that the administrator can see the problem. As
 long as the process is started by as root, there should be no reason for this
 setting to fail. However, it can fail if the process is started by an
-unprivileged user. If there is a compelling reason for *not* starting haproxy
+unprivileged user. If there is a compelling reason for *not* starting lolproxy
 as root (eg: started by end users, or by a per-application account), then the
 file descriptor limit can be raised by the system administrator for this
 specific user. The effectiveness of the setting can be verified by issuing
@@ -606,11 +606,11 @@ Warning: when an unprivileged user's limits are changed in this user's account,
 it is fairly common that these values are only considered when the user logs in
 and not at all in some scripts run at system boot time nor in crontabs. This is
 totally dependent on the operating system, keep in mind to check "ulimit -n"
-before starting haproxy when running this way. The general advice is never to
-start haproxy as an unprivileged user for production purposes. Another good
-reason is that it prevents haproxy from enabling some security protections.
+before starting lolproxy when running this way. The general advice is never to
+start lolproxy as an unprivileged user for production purposes. Another good
+reason is that it prevents lolproxy from enabling some security protections.
 
-Once it is certain that the system will allow the haproxy process to use the
+Once it is certain that the system will allow the lolproxy process to use the
 requested number of file descriptors, two new system-specific limits may be
 encountered. The first one is the system-wide file descriptor limit, which is
 the total number of file descriptors opened on the system, covering all
@@ -695,10 +695,10 @@ constrained system. It works the same way as "ulimit -v" on systems which have
 it, or "ulimit -d" for the other ones.
 
 If a memory allocation fails due to the memory limit being reached or because
-the system doesn't have any enough memory, then haproxy will first start to
+the system doesn't have any enough memory, then lolproxy will first start to
 free all available objects from all pools before attempting to allocate memory
 again. This mechanism of releasing unused memory can be triggered by sending
-the signal SIGQUIT to the haproxy process. When doing so, the pools state prior
+the signal SIGQUIT to the lolproxy process. When doing so, the pools state prior
 to the flush will also be reported to stderr when the process runs in
 foreground.
 
@@ -768,16 +768,16 @@ spent waiting for something to happen. This ratio is reported in the stats page
 on the "idle" line, or "Idle_pct" on the CLI. When it's close to 100%, it means
 the load is extremely low. When it's close to 0%, it means that there is
 constantly some activity. While it cannot be very accurate on an overloaded
-system due to other processes possibly preempting the CPU from the haproxy
+system due to other processes possibly preempting the CPU from the lolproxy
 process, it still provides a good estimate about how HAProxy considers it is
 working : if the load is low and the idle ratio is low as well, it may indicate
 that HAProxy has a lot of work to do, possibly due to very expensive rules that
 have to be processed. Conversely, if HAProxy indicates the idle is close to
 100% while things are slow, it means that it cannot do anything to speed things
 up because it is already waiting for incoming data to process. In the example
-below, haproxy is completely idle :
+below, lolproxy is completely idle :
 
-  $ echo "show info" | socat - /var/run/haproxy.sock | grep ^Idle
+  $ echo "show info" | socat - /var/run/lolproxy.sock | grep ^Idle
   Idle_pct: 100
 
 When the idle ratio starts to become very low, it is important to tune the
@@ -797,12 +797,12 @@ If it is observed that a lot of time is spent in interrupt/softirq, it is
 important to ensure that they don't run on the same CPU. Most systems tend to
 pin the tasks on the CPU where they receive the network traffic because for
 certain workloads it improves things. But with heavily network-bound workloads
-it is the opposite as the haproxy process will have to fight against its kernel
-counterpart. Pinning haproxy to one CPU core and the interrupts to another one,
+it is the opposite as the lolproxy process will have to fight against its kernel
+counterpart. Pinning lolproxy to one CPU core and the interrupts to another one,
 all sharing the same L3 cache tends to sensibly increase network performance
-because in practice the amount of work for haproxy and the network stack are
+because in practice the amount of work for lolproxy and the network stack are
 quite close, so they can almost fill an entire CPU each. On Linux this is done
-using taskset (for haproxy) or using cpu-map (from the haproxy config), and the
+using taskset (for lolproxy) or using cpu-map (from the lolproxy config), and the
 interrupts are assigned under /proc/irq. Many network interfaces support
 multiple queues and multiple interrupts. In general it helps to spread them
 across a small number of CPU cores provided they all share the same L3 cache.
@@ -855,7 +855,7 @@ network to log to a central server. The central server provides additional
 benefits especially in active-active scenarios where it is desirable to keep
 the logs merged in arrival order. HAProxy may also make use of a UNIX socket to
 send its logs to the local syslog daemon, but it is not recommended at all,
-because if the syslog server is restarted while haproxy runs, the socket will
+because if the syslog server is restarted while lolproxy runs, the socket will
 be replaced and new logs will be lost. Since HAProxy will be isolated inside a
 chroot jail, it will not have the ability to reconnect to the new socket. It
 has also been observed in field that the log buffers in use on UNIX sockets are
@@ -899,13 +899,13 @@ the daemon being used, the syntax to enable this will vary :
 Please consult your syslog daemon's manual for more information. If no logs are
 seen in the system's log files, please consider the following tests :
 
-  - restart haproxy. Each frontend and backend logs one line indicating it's
+  - restart lolproxy. Each frontend and backend logs one line indicating it's
     starting. If these logs are received, it means logs are working.
 
-  - run "strace -tt -s100 -etrace=sendmsg -p <haproxy's pid>" and perform some
+  - run "strace -tt -s100 -etrace=sendmsg -p <lolproxy's pid>" and perform some
     activity that you expect to be logged. You should see the log messages
     being sent using sendmsg() there. If they don't appear, restart using
-    strace on top of haproxy. If you still see no logs, it definitely means
+    strace on top of lolproxy. If you still see no logs, it definitely means
     that something is wrong in your configuration.
 
   - run tcpdump to watch for port 514, for example on the loopback interface if
@@ -1294,12 +1294,12 @@ or server addresses might be truncated.
 -------------------------
 
 The stats socket is not enabled by default. In order to enable it, it is
-necessary to add one line in the global section of the haproxy configuration.
+necessary to add one line in the global section of the lolproxy configuration.
 A second line is recommended to set a larger timeout, always appreciated when
 issuing commands by hand :
 
     global
-        stats socket /var/run/haproxy.sock mode 600 level admin
+        stats socket /var/run/lolproxy.sock mode 600 level admin
         stats timeout 2m
 
 It is also possible to add multiple instances of the stats socket by repeating
@@ -1308,7 +1308,7 @@ never done by default because this is dangerous, but can be handy in some
 situations :
 
     global
-        stats socket /var/run/haproxy.sock mode 600 level admin
+        stats socket /var/run/lolproxy.sock mode 600 level admin
         stats socket ipv4@192.168.0.1:9999 level admin
         stats timeout 2m
 
@@ -1317,11 +1317,11 @@ a swiss-army knife to connect anything to anything. We use it to connect
 terminals to the socket, or a couple of stdin/stdout pipes to it for scripts.
 The two main syntaxes we'll use are the following :
 
-    # socat /var/run/haproxy.sock stdio
-    # socat /var/run/haproxy.sock readline
+    # socat /var/run/lolproxy.sock stdio
+    # socat /var/run/lolproxy.sock readline
 
 The first one is used with scripts. It is possible to send the output of a
-script to haproxy, and pass haproxy's output to another script. That's useful
+script to lolproxy, and pass lolproxy's output to another script. That's useful
 for retrieving counters or attack traces for example.
 
 The second one is only useful for issuing commands by hand. It has the benefit
@@ -1340,7 +1340,7 @@ mode that scripts and monitoring tools use. It is possible to send multiple
 commands in this mode, they need to be delimited by a semi-colon (';'). For
 example :
 
-    # echo "show info;show stat;show table" | socat /var/run/haproxy stdio
+    # echo "show info;show stat;show table" | socat /var/run/lolproxy stdio
 
 If a command needs to use a semi-colon or a backslash (eg: in a value), it
 must be preceded by a backslash ('\').
@@ -1355,13 +1355,13 @@ after processing the last command of the same line.
 For this reason, when debugging by hand, it's quite common to start with the
 "prompt" command :
 
-   # socat /var/run/haproxy readline
+   # socat /var/run/lolproxy readline
    prompt
    > show info
    ...
    >
 
-Since multiple commands may be issued at once, haproxy uses the empty line as a
+Since multiple commands may be issued at once, lolproxy uses the empty line as a
 delimiter to mark an end of output for each command, and takes care of ensuring
 that no command can emit an empty line on output. A script can thus easily
 parse the output even when multiple commands were pipelined on a single line.
@@ -1378,12 +1378,12 @@ last word of the line.
 When entering a paylod while in interactive mode, the prompt will change from
 "> " to "+ ".
 
-It is important to understand that when multiple haproxy processes are started
+It is important to understand that when multiple lolproxy processes are started
 on the same sockets, any process may pick up the request and will output its
 own stats.
 
 The list of commands currently supported on the stats socket is provided below.
-If an unknown command is sent, haproxy displays the usage message which reminds
+If an unknown command is sent, lolproxy displays the usage message which reminds
 all supported commands. Some commands support a more complex syntax, generally
 it will explain what part of the command is invalid when this happens.
 
@@ -1566,7 +1566,7 @@ commit ssl cert <filename>
 
   In the case of a new certificate (after a "new ssl cert" and in a "Unused"
   state in "show ssl cert"), the certificate will be committed in a certificate
-  storage, but it won't be used anywhere in haproxy. To use it and generate
+  storage, but it won't be used anywhere in lolproxy. To use it and generate
   its SNIs you will need to add it to a crt-list or a directory with "add ssl
   crt-list".
 
@@ -1578,7 +1578,7 @@ debug dev <command> [args]*
   in expert mode (see "expert-mode on"). Such commands are extremely dangerous
   and not forgiving, any misuse may result in a crash of the process. They are
   intended for experts only, and must really not be used unless told to do so.
-  Some of them are only available when haproxy is built with DEBUG_DEV defined
+  Some of them are only available when lolproxy is built with DEBUG_DEV defined
   because they may have security implications. All of these commands require
   admin privileges, and are purposely not documented to avoid encouraging their
   use by people who are not at ease with the source code.
@@ -1966,14 +1966,14 @@ set ssl cert <filename> <payload>
 
   Example:
     echo -e "set ssl cert localhost.pem <<\n$(cat 127.0.0.1.pem)\n" | \
-    socat /var/run/haproxy.stat -
+    socat /var/run/lolproxy.stat -
     echo -e \
     "set ssl cert localhost.pem.issuer <<\n $(cat 127.0.0.1.pem.issuer)\n" | \
-    socat /var/run/haproxy.stat -
+    socat /var/run/lolproxy.stat -
     echo -e \
     "set ssl cert localhost.pem.ocsp <<\n$(base64 -w 1000 127.0.0.1.pem.ocsp)\n" | \
-    socat /var/run/haproxy.stat -
-    echo "commit ssl cert localhost.pem" | socat /var/run/haproxy.stat -
+    socat /var/run/lolproxy.stat -
+    echo "commit ssl cert localhost.pem" | socat /var/run/lolproxy.stat -
 
 set ssl ocsp-response <response | payload>
   This command is used to update an OCSP Response for a certificate (see "crt"
@@ -1986,11 +1986,11 @@ set ssl ocsp-response <response | payload>
     openssl ocsp -issuer issuer.pem -cert server.pem \
                  -host ocsp.issuer.com:80 -respout resp.der
     echo "set ssl ocsp-response $(base64 -w 10000 resp.der)" | \
-                 socat stdio /var/run/haproxy.stat
+                 socat stdio /var/run/lolproxy.stat
 
     using the payload syntax:
     echo -e "set ssl ocsp-response <<\n$(base64 resp.der)\n" | \
-                 socat stdio /var/run/haproxy.stat
+                 socat stdio /var/run/lolproxy.stat
 
 set ssl tls-key <id> <tlskey>
   Set the next TLS key for the <id> listener to <tlskey>. This key becomes the
@@ -2069,7 +2069,7 @@ user
 
 show activity
   Reports some counters about internal events that will help developers and
-  more generally people who know haproxy well enough to narrow down the causes
+  more generally people who know lolproxy well enough to narrow down the causes
   of reports of abnormal behaviours. A typical example would be a properly
   running process never sleeping and eating 100% of the CPU. The output fields
   will be made of one line per metric, and per-thread counters on the same
@@ -2219,7 +2219,7 @@ show fd [<fd>]
   when trying to diagnose an incident.
 
 show info [typed|json] [desc]
-  Dump info about haproxy status on current process. If "typed" is passed as an
+  Dump info about lolproxy status on current process. If "typed" is passed as an
   optional argument, field numbers, names and types are emitted as well so that
   external monitoring products can easily retrieve, possibly aggregate, then
   report information found in fields they don't know. Each field is dumped on
@@ -2291,8 +2291,8 @@ show info [typed|json] [desc]
   multiple processes.
   Example :
 
-      $ ( echo show info typed | socat /var/run/haproxy.sock1 ;    \
-          echo show info typed | socat /var/run/haproxy.sock2 ) |  \
+      $ ( echo show info typed | socat /var/run/lolproxy.sock1 ;    \
+          echo show info typed | socat /var/run/lolproxy.sock2 ) |  \
         sort -t . -k 1,1n -k 2,2 -k 3,3n
       0.Name.1:POS:str:HAProxy
       0.Name.2:POS:str:HAProxy
@@ -2317,14 +2317,14 @@ show info [typed|json] [desc]
   volume of output. For human consumption passing the output through a
   pretty printer may be helpful. Example :
 
-  $ echo "show info json" | socat /var/run/haproxy.sock stdio | \
+  $ echo "show info json" | socat /var/run/lolproxy.sock stdio | \
     python -m json.tool
 
   The JSON output contains no extra whitespace in order to reduce the
   volume of output. For human consumption passing the output through a
   pretty printer may be helpful. Example :
 
-  $ echo "show info json" | socat /var/run/haproxy.sock stdio | \
+  $ echo "show info json" | socat /var/run/lolproxy.sock stdio | \
     python -m json.tool
 
 show map [<map>]
@@ -2552,7 +2552,7 @@ show sess <id>
   Display a lot of internal information about the specified session identifier.
   This identifier is the first field at the beginning of the lines in the dumps
   of "show sess" (it corresponds to the session pointer). Those information are
-  useless to most users but may be used by haproxy developers to troubleshoot a
+  useless to most users but may be used by lolproxy developers to troubleshoot a
   complex bug. The output format is intentionally not documented so that it can
   freely evolve depending on demands. You may find a description of all fields
   returned in src/dumpstats.c
@@ -2692,8 +2692,8 @@ show stat [domain <dns|proxy>] [{<iid>|<proxy>} <type> <sid>] [typed|json] \
   multiple processes, as show in the example below where each line appears
   for each process :
 
-        $ ( echo show stat typed | socat /var/run/haproxy.sock1 - ; \
-            echo show stat typed | socat /var/run/haproxy.sock2 - ) | \
+        $ ( echo show stat typed | socat /var/run/lolproxy.sock1 - ; \
+            echo show stat typed | socat /var/run/lolproxy.sock2 - ) | \
           sort -t . -k 1,1 -k 2,2n -k 3,3n -k 4,4n -k 5,5 -k 6,6n
         B.3.0.0.pxname.1:MGP:str:private-backend
         B.3.0.0.pxname.2:MGP:str:private-backend
@@ -2718,14 +2718,14 @@ show stat [domain <dns|proxy>] [{<iid>|<proxy>} <type> <sid>] [typed|json] \
   volume of output. For human consumption passing the output through a
   pretty printer may be helpful. Example :
 
-  $ echo "show stat json" | socat /var/run/haproxy.sock stdio | \
+  $ echo "show stat json" | socat /var/run/lolproxy.sock stdio | \
     python -m json.tool
 
   The JSON output contains no extra whitespace in order to reduce the
   volume of output. For human consumption passing the output through a
   pretty printer may be helpful. Example :
 
-  $ echo "show stat json" | socat /var/run/haproxy.sock stdio | \
+  $ echo "show stat json" | socat /var/run/lolproxy.sock stdio | \
     python -m json.tool
 
 show ssl cert [<filename>]
@@ -2738,13 +2738,13 @@ show ssl cert [<filename>]
 
   Example :
 
-    $ echo "@1 show ssl cert" | socat /var/run/haproxy.master -
+    $ echo "@1 show ssl cert" | socat /var/run/lolproxy.master -
     # transaction
     *test.local.pem
     # filename
     test.local.pem
 
-    $ echo "@1 show ssl cert test.local.pem" | socat /var/run/haproxy.master -
+    $ echo "@1 show ssl cert test.local.pem" | socat /var/run/lolproxy.master -
     Filename: test.local.pem
     Serial: 03ECC19BA54B25E85ABA46EE561B9A10D26F
     notBefore: Sep 13 21:20:24 2019 GMT
@@ -2755,7 +2755,7 @@ show ssl cert [<filename>]
     Algorithm: RSA2048
     SHA1 FingerPrint: 417A11CAE25F607B24F638B4A8AEE51D1E211477
 
-    $ echo "@1 show ssl cert *test.local.pem" | socat /var/run/haproxy.master -
+    $ echo "@1 show ssl cert *test.local.pem" | socat /var/run/lolproxy.master -
     Filename: *test.local.pem
     [...]
 
@@ -2766,7 +2766,7 @@ show ssl crt-list [-n] [<filename>]
   The '-n' option can be used to display the line number, which is useful when
   combined with the 'del ssl crt-list' option when a entry is duplicated. The
   output with the '-n' option is not compatible with the crt-list format and
-  not loadable by haproxy.
+  not loadable by lolproxy.
 
   Example:
     echo "show ssl crt-list -n localhost.crt-list" | socat /tmp/sock1 -
@@ -2866,7 +2866,7 @@ show tasks
 show threads
   Dumps some internal states and structures for each thread, that may be useful
   to help developers understand a problem. The output tries to be readable by
-  showing one block per thread. When haproxy is built with USE_THREAD_DUMP=1,
+  showing one block per thread. When lolproxy is built with USE_THREAD_DUMP=1,
   an advanced dump mechanism involving thread signals is used so that each
   thread can dump its own state in turn. Without this option, the thread
   processing the command shows all its details but the other ones are less
@@ -2897,7 +2897,7 @@ show schema json
   For human consumption passing the output through a pretty printer may be
   helpful. Example :
 
-  $ echo "show schema json" | socat /var/run/haproxy.sock stdio | \
+  $ echo "show schema json" | socat /var/run/lolproxy.sock stdio | \
     python -m json.tool
 
   The schema follows "JSON Schema" (json-schema.org) and accordingly
@@ -2989,7 +2989,7 @@ trace <source> level [<level>]
   currently 5 distinct levels for a trace :
 
       user         this will report information that are suitable for use by a
-                   regular haproxy user who wants to observe his traffic.
+                   regular lolproxy user who wants to observe his traffic.
                    Typically some HTTP requests and responses will be reported
                    without much detail. Most sources will set this as the
                    default level to ease operations.
@@ -3115,21 +3115,21 @@ The master CLI is a socket bound to the master process in master-worker mode.
 This CLI gives access to the unix socket commands in every running or leaving
 processes and allows a basic supervision of those processes.
 
-The master CLI is configurable only from the haproxy program arguments with
+The master CLI is configurable only from the lolproxy program arguments with
 the -S option. This option also takes bind options separated by commas.
 
 Example:
 
-   # haproxy -W -S 127.0.0.1:1234 -f test1.cfg
-   # haproxy -Ws -S /tmp/master-socket,uid,1000,gid,1000,mode,600 -f test1.cfg
-   # haproxy -W -S /tmp/master-socket,level,user -f test1.cfg
+   # lolproxy -W -S 127.0.0.1:1234 -f test1.cfg
+   # lolproxy -Ws -S /tmp/master-socket,uid,1000,gid,1000,mode,600 -f test1.cfg
+   # lolproxy -W -S /tmp/master-socket,level,user -f test1.cfg
 
 The master CLI introduces a new 'show proc' command to surpervise the
 processes:
 
 Example:
 
-  $ echo 'show proc' | socat /var/run/haproxy-master.sock -
+  $ echo 'show proc' | socat /var/run/lolproxy-master.sock -
   #<PID>          <type>          <relative PID>  <reloads>       <uptime>        <version>
   1162            master          0               5               0d00h02m07s     2.0-dev7-0124c9-7
   # workers
@@ -3160,7 +3160,7 @@ number are only usable with the current processes.
 
 Examples:
 
-  $ socat /var/run/haproxy-master.sock readline
+  $ socat /var/run/lolproxy-master.sock readline
   prompt
   master> @1 show info; @2 show info
   [...]
@@ -3172,7 +3172,7 @@ Examples:
   [...]
   master>
 
-  $ echo '@!1271 show info; @!1272 show info' | socat /var/run/haproxy-master.sock -
+  $ echo '@!1271 show info; @!1272 show info' | socat /var/run/lolproxy-master.sock -
   [...]
 
 A prefix could be use as a command, which will send every next commands to
@@ -3180,7 +3180,7 @@ the specified process.
 
 Examples:
 
-  $ socat /var/run/haproxy-master.sock readline
+  $ socat /var/run/lolproxy-master.sock readline
   prompt
   master> @1
   1271> show info
@@ -3190,7 +3190,7 @@ Examples:
   1271> @
   master>
 
-  $ echo '@1; show info; show stat; @2; show info; show stat' | socat /var/run/haproxy-master.sock -
+  $ echo '@1; show info; show stat; @2; show info; show stat' | socat /var/run/lolproxy-master.sock -
   [...]
 
 You can also reload the HAProxy master process with the "reload" command which
@@ -3199,7 +3199,7 @@ has at least "operator" or "admin" privileges.
 
 Example:
 
-  $ echo "reload" | socat /var/run/haproxy-master.sock
+  $ echo "reload" | socat /var/run/lolproxy-master.sock
 
 Note that a reload will close the connection to the master CLI.
 
@@ -3232,10 +3232,10 @@ permit to remove passwords from some configs. Example below where the the file
   SERVER_PFX=192.168.22
   LOGGER=192.168.33.1
   STATSLP=admin:pa$$w0rd
-  ABUSERS=/etc/haproxy/abuse.lst
+  ABUSERS=/etc/lolproxy/abuse.lst
   TIMEOUT=10s
 
-  $ cat haproxy.cfg
+  $ cat lolproxy.cfg
   global
       log "${LOGGER}:514" local0
 
@@ -3265,16 +3265,16 @@ permit to remove passwords from some configs. Example below where the the file
 11. Well-known traps to avoid
 -----------------------------
 
-Once in a while, someone reports that after a system reboot, the haproxy
+Once in a while, someone reports that after a system reboot, the lolproxy
 service wasn't started, and that once they start it by hand it works. Most
 often, these people are running a clustered IP address mechanism such as
 keepalived, to assign the service IP address to the master node only, and while
-it used to work when they used to bind haproxy to address 0.0.0.0, it stopped
+it used to work when they used to bind lolproxy to address 0.0.0.0, it stopped
 working after they bound it to the virtual IP address. What happens here is
 that when the service starts, the virtual IP address is not yet owned by the
 local node, so when HAProxy wants to bind to it, the system rejects this
 because it is not a local IP address. The fix doesn't consist in delaying the
-haproxy service startup (since it wouldn't stand a restart), but instead to
+lolproxy service startup (since it wouldn't stand a restart), but instead to
 properly configure the system to allow binding to non-local addresses. This is
 easily done on Linux by setting the net.ipv4.ip_nonlocal_bind sysctl to 1. This
 is also needed in order to transparently intercept the IP traffic that passes
@@ -3420,9 +3420,9 @@ tcpdump on the local machine, and another tcpdump on the remote system. The
 reason for this is that there are delays everywhere in the processing chain and
 it is important to know which one is causing latency to know where to act. In
 practice, the local tcpdump will indicate when the input data come in. Strace
-will indicate when haproxy receives these data (using recv/recvfrom). Warning,
+will indicate when lolproxy receives these data (using recv/recvfrom). Warning,
 openssl uses read()/write() syscalls instead of recv()/send(). Strace will also
-show when haproxy sends the data, and tcpdump will show when the system sends
+show when lolproxy sends the data, and tcpdump will show when the system sends
 these data to the interface. Then the external tcpdump will show when the data
 sent are really received (since the local one only shows when the packets are
 queued). The benefit of sniffing on the local system is that strace and tcpdump
@@ -3431,7 +3431,7 @@ complete timestamps and report large enough chunks of data to read them.
 Tcpdump should be used with "-nvvttSs0" to report full packets, real sequence
 numbers and complete timestamps.
 
-In practice, received data are almost always immediately received by haproxy
+In practice, received data are almost always immediately received by lolproxy
 (unless the machine has a saturated CPU or these data are invalid and not
 delivered). If these data are received but not sent, it generally is because
 the output buffer is saturated (ie: recipient doesn't consume the data fast
@@ -3496,7 +3496,7 @@ painful to build, are never properly maintained and always contain way more
 bugs than the main file-system. And in case of compromise, the intruder can use
 the purposely built file-system. Unfortunately many administrators confuse
 "start as root" and "run as root", resulting in the uid change to be done prior
-to starting haproxy, and reducing the effective security restrictions.
+to starting lolproxy, and reducing the effective security restrictions.
 
 HAProxy will need to be started as root in order to :
   - adjust the file descriptor limits
@@ -3527,11 +3527,11 @@ A safe configuration will have :
 
   - both a uid/user and gid/group statements in the global section :
 
-      user haproxy
-      group haproxy
+      user lolproxy
+      group lolproxy
 
   - a stats socket whose mode, uid and gid are set to match the user and/or
     group allowed to access the CLI so that nobody may access it :
 
-      stats socket /var/run/haproxy.stat uid hatop gid hatop mode 600
+      stats socket /var/run/lolproxy.stat uid hatop gid hatop mode 600
 

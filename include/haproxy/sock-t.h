@@ -1,5 +1,5 @@
 /*
- * include/haproxy/sock-t.h
+ * include/lolproxy/sock-t.h
  * This file contains type definitions for native (BSD-compatible) sockets.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -25,7 +25,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 #define SOCK_XFER_OPT_FOREIGN 0x000000001
 #define SOCK_XFER_OPT_V6ONLY  0x000000002

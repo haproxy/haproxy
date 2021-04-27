@@ -18,7 +18,7 @@
  *   the good works, guys !
  *
  *   Stud is an extremely efficient and scalable SSL/TLS proxy which combines
- *   particularly well with haproxy. For more info about this project, visit :
+ *   particularly well with lolproxy. For more info about this project, visit :
  *       https://github.com/bumptech/stud
  *
  */
@@ -45,40 +45,40 @@
 #include <import/lru.h>
 #include <import/xxhash.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/base64.h>
-#include <haproxy/channel.h>
-#include <haproxy/chunk.h>
-#include <haproxy/cli.h>
-#include <haproxy/connection.h>
-#include <haproxy/dynbuf.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/frontend.h>
-#include <haproxy/global.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/log.h>
-#include <haproxy/openssl-compat.h>
-#include <haproxy/pattern-t.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/proxy.h>
-#include <haproxy/server.h>
-#include <haproxy/shctx.h>
-#include <haproxy/ssl_ckch.h>
-#include <haproxy/ssl_crtlist.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/ssl_utils.h>
-#include <haproxy/stats.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/vars.h>
-#include <haproxy/xprt_quic.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/base64.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/dynbuf.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/frontend.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/log.h>
+#include <lolproxy/openssl-compat.h>
+#include <lolproxy/pattern-t.h>
+#include <lolproxy/proto_tcp.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/server.h>
+#include <lolproxy/shctx.h>
+#include <lolproxy/ssl_ckch.h>
+#include <lolproxy/ssl_crtlist.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/ssl_utils.h>
+#include <lolproxy/stats.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/vars.h>
+#include <lolproxy/xprt_quic.h>
 
 
 /* ***** READ THIS before adding code here! *****
@@ -742,7 +742,7 @@ void ssl_async_fd_free(int fd)
 	 */
 	SSL_get_all_async_fds(ssl, NULL, &num_all_fds);
 	if (num_all_fds > 32) {
-		send_log(NULL, LOG_EMERG, "haproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
+		send_log(NULL, LOG_EMERG, "lolproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
 		return;
 	}
 
@@ -771,7 +771,7 @@ static inline void ssl_async_process_fds(struct ssl_sock_ctx *ctx)
 	SSL_get_changed_async_fds(ssl, NULL, &num_add_fds, NULL,
 			&num_del_fds);
 	if (num_add_fds > 32 || num_del_fds > 32) {
-		send_log(NULL, LOG_EMERG, "haproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
+		send_log(NULL, LOG_EMERG, "lolproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
 		return;
 	}
 
@@ -789,7 +789,7 @@ static inline void ssl_async_process_fds(struct ssl_sock_ctx *ctx)
 	num_add_fds = 0;
 	SSL_get_all_async_fds(ssl, NULL, &num_add_fds);
 	if (num_add_fds > 32) {
-		send_log(NULL, LOG_EMERG, "haproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
+		send_log(NULL, LOG_EMERG, "lolproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
 		return;
 	}
 
@@ -3862,7 +3862,7 @@ ssl_sock_initial_ctx(struct bind_conf *bind_conf)
 	conf_ssl_methods->max = max;
 
 #if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
-	/* Keep force-xxx implementation as it is in older haproxy. It's a
+	/* Keep force-xxx implementation as it is in older lolproxy. It's a
 	   precautionary measure to avoid any surprise with older openssl version. */
 	if (min == max)
 		methodVersions[min].ctx_set_version(ctx, SET_SERVER);
@@ -4753,7 +4753,7 @@ int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 	}
 
 #if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL)
-	/* Keep force-xxx implementation as it is in older haproxy. It's a
+	/* Keep force-xxx implementation as it is in older lolproxy. It's a
 	   precautionary measure to avoid any surprise with older openssl version. */
 	if (min == max)
 		methodVersions[min].ctx_set_version(ctx, SET_CLIENT);
@@ -6228,7 +6228,7 @@ static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 
 			SSL_get_all_async_fds(ctx->ssl, NULL, &num_all_fds);
 			if (num_all_fds > 32) {
-				send_log(NULL, LOG_EMERG, "haproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
+				send_log(NULL, LOG_EMERG, "lolproxy: openssl returns too many async fds. It seems a bug. Process may crash\n");
 				return;
 			}
 

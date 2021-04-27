@@ -1,5 +1,5 @@
 /*
- * include/haproxy/counters-t.h
+ * include/lolproxy/counters-t.h
  * This file contains structure declarations for statistics counters.
  *
  * Copyright 2008-2009 Krzysztof Piotr Oledzki <ole@ans.pl>

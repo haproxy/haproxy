@@ -10,7 +10,7 @@ server s0 {
 	txresp
 } -start
 
-haproxy h0 -conf {
+lolproxy h0 -conf {
 	defaults
 		timeout connect 5000ms
 		timeout client 50000ms

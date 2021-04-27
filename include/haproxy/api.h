@@ -1,7 +1,7 @@
 /*
- * include/haproxy/api.h
+ * include/lolproxy/api.h
  *
- * Include wrapper that assembles all includes required by every haproxy file.
+ * Include wrapper that assembles all includes required by every lolproxy file.
  * Please do not add direct definitions into this file.
  *
  * Copyright (C) 2020 Willy Tarreau - w@1wt.eu
@@ -30,9 +30,9 @@
 #ifndef _HAPROXY_BASE_H
 #define _HAPROXY_BASE_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/atomic.h>
-#include <haproxy/bug.h>
-#include <haproxy/init.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/atomic.h>
+#include <lolproxy/bug.h>
+#include <lolproxy/init.h>
 
 #endif

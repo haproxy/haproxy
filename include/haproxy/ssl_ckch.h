@@ -1,8 +1,8 @@
 /*
- * include/haproxy/ssl_ckch.h
+ * include/lolproxy/ssl_ckch.h
  * ckch function prototypes
  *
- * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
+ * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,7 @@
 #define _HAPROXY_SSL_CKCH_H
 #ifdef USE_OPENSSL
 
-#include <haproxy/ssl_ckch-t.h>
+#include <lolproxy/ssl_ckch-t.h>
 
 /* cert_key_and_chain functions */
 

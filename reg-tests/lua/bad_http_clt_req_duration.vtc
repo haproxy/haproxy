@@ -33,7 +33,7 @@ syslog Slog {
     expect ~ "[^:\\[ ]\\[[0-9]*\\]: Tc=[0-9]* Td=[0-9]* Th=[0-9]* Tt=[0-9]* Tw=[0-9]*$"
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         lua-load ${testdir}/bad_http_clt_req_duration.lua
 

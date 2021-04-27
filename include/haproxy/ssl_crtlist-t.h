@@ -1,8 +1,8 @@
 /*
- * include/haproxy/ssl_crtlist-t.h
+ * include/lolproxy/ssl_crtlist-t.h
  * crt-list structures
  *
- * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
+ * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

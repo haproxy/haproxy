@@ -24,45 +24,45 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <haproxy/api.h>
-#include <haproxy/applet-t.h>
-#include <haproxy/backend.h>
-#include <haproxy/base64.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/channel.h>
-#include <haproxy/check.h>
-#include <haproxy/cli.h>
-#include <haproxy/compression.h>
-#include <haproxy/debug.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/frontend.h>
-#include <haproxy/global.h>
-#include <haproxy/http.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-#include <haproxy/list.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/map-t.h>
-#include <haproxy/pattern-t.h>
-#include <haproxy/pipe.h>
-#include <haproxy/pool.h>
-#include <haproxy/proxy.h>
-#include <haproxy/resolvers.h>
-#include <haproxy/server.h>
-#include <haproxy/session.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/stats.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/uri_auth-t.h>
-#include <haproxy/version.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet-t.h>
+#include <lolproxy/backend.h>
+#include <lolproxy/base64.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/check.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/compression.h>
+#include <lolproxy/debug.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/frontend.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/map-t.h>
+#include <lolproxy/pattern-t.h>
+#include <lolproxy/pipe.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/resolvers.h>
+#include <lolproxy/server.h>
+#include <lolproxy/session.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/stats.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/uri_auth-t.h>
+#include <lolproxy/version.h>
 
 
 /* status codes available for the stats admin page (strictly 4 chars length) */
@@ -4303,9 +4303,9 @@ int stats_fill_info(struct field *info, int len)
 	memset(info, 0, sizeof(*info) * len);
 
 	info[INF_NAME]                           = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, PRODUCT_NAME);
-	info[INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
-	info[INF_BUILD_INFO]                     = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_version);
-	info[INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_date);
+	info[INF_VERSION]                        = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, lolproxy_version);
+	info[INF_BUILD_INFO]                     = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, lolproxy_version);
+	info[INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, lolproxy_date);
 
 	info[INF_NBTHREAD]                       = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
 	info[INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbproc);

@@ -35,7 +35,7 @@ load-balancing would not work.
 
 Replacing the web server with a bigger SMP system would cost much more than
 adding low-cost pizza boxes. The solution is to buy N cheap boxes and install
-the application on them. Install haproxy on the old one which will spread the
+the application on them. Install lolproxy on the old one which will spread the
 load across the new boxes.
 
   192.168.1.1    192.168.1.11-192.168.1.14   192.168.1.2
@@ -44,10 +44,10 @@ load across the new boxes.
      +--+--+      +-+-+ +-+-+ +-+-+ +-+-+    (___)
      | LB1 |      | A | | B | | C | | D |    (___)
      +-----+      +---+ +---+ +---+ +---+    (___)
-     haproxy        4 cheap web servers
+     lolproxy        4 cheap web servers
 
 
-Config on haproxy (LB1) :
+Config on lolproxy (LB1) :
 -------------------------
        
     listen webfarm 192.168.1.1:80
@@ -78,9 +78,9 @@ Description :
 Flows :
 -------
 
-(client)                           (haproxy)                         (server A)
+(client)                           (lolproxy)                         (server A)
   >-- GET /URI1 HTTP/1.0 ------------> |
-               ( no cookie, haproxy forwards in load-balancing mode. )
+               ( no cookie, lolproxy forwards in load-balancing mode. )
                                        | >-- GET /URI1 HTTP/1.0 ---------->
                                        | <-- HTTP/1.0 200 OK -------------<
                ( the proxy now adds the server cookie in return )
@@ -196,7 +196,7 @@ proxy to bind to the shared IP on Linux 2.4, you must enable it in /proc :
      +--+--+      +--+--+      +-+-+ +-+-+ +-+-+ +-+-+    (___)
      | LB1 |      | LB2 |      | A | | B | | C | | D |    (___)
      +-----+      +-----+      +---+ +---+ +---+ +---+    (___)
-     haproxy      haproxy        4 cheap web servers
+     lolproxy      lolproxy        4 cheap web servers
      keepalived   keepalived
 
 
@@ -227,8 +227,8 @@ option.
 Configuration for keepalived on LB1/LB2 :
 -----------------------------------------
 
-    vrrp_script chk_haproxy {           # Requires keepalived-1.1.13
-        script "killall -0 haproxy"     # cheaper than pidof
+    vrrp_script chk_lolproxy {           # Requires keepalived-1.1.13
+        script "killall -0 lolproxy"     # cheaper than pidof
         interval 2                      # check every 2 seconds
 	weight 2                        # add 2 points of prio if OK
     }
@@ -242,14 +242,14 @@ Configuration for keepalived on LB1/LB2 :
             192.168.1.1
         }
         track_script {
-            chk_haproxy
+            chk_lolproxy
         }
     }
 
 
 Description :
 -------------
- - LB1 is VRRP master (keepalived), LB2 is backup. Both monitor the haproxy
+ - LB1 is VRRP master (keepalived), LB2 is backup. Both monitor the lolproxy
    process, and lower their prio if it fails, leading to a failover to the
    other node.
  - LB1 will receive clients requests on IP 192.168.1.1.
@@ -268,16 +268,16 @@ Description :
 Flows :
 -------
 
-(client)                           (haproxy)                         (server A)
+(client)                           (lolproxy)                         (server A)
   >-- GET /URI1 HTTP/1.0 ------------> |
-               ( no cookie, haproxy forwards in load-balancing mode. )
+               ( no cookie, lolproxy forwards in load-balancing mode. )
                                        | >-- GET /URI1 HTTP/1.0 ---------->
                                        |     X-Forwarded-For: 10.1.2.3
                                        | <-- HTTP/1.0 200 OK -------------<
                         ( no cookie, nothing changed )
   <-- HTTP/1.0 200 OK ---------------< |
   >-- GET /URI2 HTTP/1.0 ------------> |
-    ( no cookie, haproxy forwards in lb mode, possibly to another server. )
+    ( no cookie, lolproxy forwards in lb mode, possibly to another server. )
                                        | >-- GET /URI2 HTTP/1.0 ---------->
                                        |     X-Forwarded-For: 10.1.2.3
                                        | <-- HTTP/1.0 200 OK -------------<
@@ -300,11 +300,11 @@ Flows :
 Hints :
 -------
 Sometimes, there will be some powerful servers in the farm, and some smaller
-ones. In this situation, it may be desirable to tell haproxy to respect the
+ones. In this situation, it may be desirable to tell lolproxy to respect the
 difference in performance. Let's consider that WebA and WebB are two old
 P3-1.2 GHz while WebC and WebD are shiny new Opteron-2.6 GHz. If your
 application scales with CPU, you may assume a very rough 2.6/1.2 performance
-ratio between the servers. You can inform haproxy about this using the "weight"
+ratio between the servers. You can inform lolproxy about this using the "weight"
 keyword, with values between 1 and 256. It will then spread the load the most
 smoothly possible respecting those ratios :
 
@@ -333,7 +333,7 @@ which will also check that the services run fine on both proxies :
      +--+--+      +--+--+      +-+-+ +-+-+ +-+-+ +-+-+    (___)
      | LB1 |      | LB2 |      | A | | B | | C | | D |    (___)
      +-----+      +-----+      +---+ +---+ +---+ +---+    (___)
-     haproxy      haproxy        4 cheap web servers
+     lolproxy      lolproxy        4 cheap web servers
 
 
 Config on both proxies (LB1 and LB2) :
@@ -399,7 +399,7 @@ when you use external load-balancers which need to send periodic health-checks
 to the proxies, because these health-checks get forwarded to the end servers.
 The solution is to specify a network which will be dedicated to monitoring
 systems and must not lead to a forwarding connection nor to any log, using the
-"monitor-net" keyword. Note: this feature expects a version of haproxy greater
+"monitor-net" keyword. Note: this feature expects a version of lolproxy greater
 than or equal to 1.1.32 or 1.2.6.
 
 
@@ -414,7 +414,7 @@ than or equal to 1.1.32 or 1.2.6.
                  +--+--+      +--+--+
                  | LB1 |      | LB2 |
                  +-----+      +-----+
-                 haproxy      haproxy
+                 lolproxy      lolproxy
 
 
 Config on both proxies (LB1 and LB2) :
@@ -505,12 +505,12 @@ server uses HTTPS.
                    192.168.1.1   192.168.1.2
 
 
-Since haproxy does not handle SSL, this part will have to be extracted from the
+Since lolproxy does not handle SSL, this part will have to be extracted from the
 servers (freeing even more resources) and installed on the load-balancer
-itself. Install haproxy and apache+mod_ssl on the old box which will spread the
+itself. Install lolproxy and apache+mod_ssl on the old box which will spread the
 load between the new boxes. Apache will work in SSL reverse-proxy-cache. If the
 application is correctly developed, it might even lower its load. However,
-since there now is a cache between the clients and haproxy, some security
+since there now is a cache between the clients and lolproxy, some security
 measures must be taken to ensure that inserted cookies will not be cached.
 
 
@@ -522,10 +522,10 @@ measures must be taken to ensure that inserted cookies will not be cached.
      +-----+      +---+ +---+ +---+ +---+    (___)
      apache         4 cheap web servers
      mod_ssl
-     haproxy 
+     lolproxy 
 
 
-Config on haproxy (LB1) :
+Config on lolproxy (LB1) :
 -------------------------
        
     listen 127.0.0.1:8000
@@ -542,7 +542,7 @@ Config on haproxy (LB1) :
 Description :
 -------------
  - apache on LB1 will receive clients requests on port 443
- - it forwards it to haproxy bound to 127.0.0.1:8000
+ - it forwards it to lolproxy bound to 127.0.0.1:8000
  - if a request does not contain a cookie, it will be forwarded to a valid
    server
  - in return, a cookie "SERVERID" will be inserted in the response holding the
@@ -559,19 +559,19 @@ Notes :
  - if the cookie works in "prefix" mode, there is no need to add the "nocache"
    option because it is an application cookie which will be modified, and the
    application flags will be preserved.
- - if apache 1.3 is used as a front-end before haproxy, it always disables
+ - if apache 1.3 is used as a front-end before lolproxy, it always disables
    HTTP keep-alive on the back-end, so there is no need for the "httpclose"
-   option on haproxy.
+   option on lolproxy.
  - configure apache to set the X-Forwarded-For header itself, and do not do
-   it on haproxy if you need the application to know about the client's IP.
+   it on lolproxy if you need the application to know about the client's IP.
 
 
 Flows :
 -------
 
-(apache)                           (haproxy)                         (server A)
+(apache)                           (lolproxy)                         (server A)
   >-- GET /URI1 HTTP/1.0 ------------> |
-               ( no cookie, haproxy forwards in load-balancing mode. )
+               ( no cookie, lolproxy forwards in load-balancing mode. )
                                        | >-- GET /URI1 HTTP/1.0 ---------->
                                        | <-- HTTP/1.0 200 OK -------------<
                ( the proxy now adds the server cookie in return )
@@ -598,13 +598,13 @@ Flows :
 When only SSL is required and cache is not needed, stunnel is a cheaper
 solution than Apache+mod_ssl. By default, stunnel does not process HTTP and
 does not add any X-Forwarded-For header, but there is a patch on the official
-haproxy site to provide this feature to recent stunnel versions.
+lolproxy site to provide this feature to recent stunnel versions.
 
 This time, stunnel will only process HTTPS and not HTTP. This means that
-haproxy will get all HTTP traffic, so haproxy will have to add the
+lolproxy will get all HTTP traffic, so lolproxy will have to add the
 X-Forwarded-For header for HTTP traffic, but not for HTTPS traffic since
 stunnel will already have done it. We will use the "except" keyword to tell
-haproxy that connections from local host already have a valid header.
+lolproxy that connections from local host already have a valid header.
 
 
   192.168.1.1    192.168.1.11-192.168.1.14   192.168.1.2
@@ -614,7 +614,7 @@ haproxy that connections from local host already have a valid header.
      | LB1 |      | A | | B | | C | | D |    (___)
      +-----+      +---+ +---+ +---+ +---+    (___)
      stunnel        4 cheap web servers
-     haproxy 
+     lolproxy 
 
 
 Config on stunnel (LB1) :
@@ -633,7 +633,7 @@ Config on stunnel (LB1) :
     xforwardedfor=yes
 
 
-Config on haproxy (LB1) :
+Config on lolproxy (LB1) :
 -------------------------
        
     listen 192.168.1.1:80
@@ -650,11 +650,11 @@ Config on haproxy (LB1) :
 Description :
 -------------
  - stunnel on LB1 will receive clients requests on port 443
- - it forwards them to haproxy bound to port 80
- - haproxy will receive HTTP client requests on port 80 and decrypted SSL
+ - it forwards them to lolproxy bound to port 80
+ - lolproxy will receive HTTP client requests on port 80 and decrypted SSL
    requests from Stunnel on the same port.
  - stunnel will add the X-Forwarded-For header
- - haproxy will add the X-Forwarded-For header for everyone except the local
+ - lolproxy will add the X-Forwarded-For header for everyone except the local
    address (stunnel).
 
 
@@ -665,7 +665,7 @@ Description :
 When an application is spread across several servers, the time to update all
 instances increases, so the application seems jerky for a longer period.
 
-HAproxy offers several solutions for this. Although it cannot be reconfigured
+LOLproxy offers several solutions for this. Although it cannot be reconfigured
 without being stopped, nor does it offer any external command, there are other
 working solutions.
 
@@ -697,12 +697,12 @@ stop the server when it does not receive anymore connections.
 
 Description :
 -------------
- - every 2 seconds, haproxy will try to access the file "/running" on the
+ - every 2 seconds, lolproxy will try to access the file "/running" on the
    servers, and declare the server as down after 2 attempts (4 seconds).
  - only the servers which respond with a 200 or 3XX response will be used.
  - if a request does not contain a cookie, it will be forwarded to a valid
    server
- - if a request contains a cookie for a failed server, haproxy will insist
+ - if a request contains a cookie for a failed server, lolproxy will insist
    on trying to reach the server anyway, to let the user finish what they were
    doing. ("persist" option)
  - if the server is totally stopped, the connection will fail and the proxy
@@ -765,7 +765,7 @@ for the same cookie.
 
 When the web servers are started, only the backup servers are seen as
 available. On the web servers, you need to redirect port 81 to local
-port 80, either with a local proxy (eg: a simple haproxy tcp instance),
+port 80, either with a local proxy (eg: a simple lolproxy tcp instance),
 or with iptables (linux) or pf (openbsd). This is because we want the
 real web server to reply on this port, and not a fake one. Eg, with
 iptables :
@@ -773,7 +773,7 @@ iptables :
   # /etc/init.d/httpd start
   # iptables -t nat -A PREROUTING -p tcp --dport 81 -j REDIRECT --to-port 80
 
-A few seconds later, the standard server is seen up and haproxy starts to send
+A few seconds later, the standard server is seen up and lolproxy starts to send
 it new requests on its real port 80 (only new users with no cookie, of course).
 
 If a server completely crashes (even if it does not respond at the IP level),
@@ -810,12 +810,12 @@ maintenance. The people managing the servers can make them disappear smoothly.
 
 The downside is that you need a redirection solution on the server just for
 the health-checks. If the server OS does not support any firewall software,
-this redirection can also be handled by a simple haproxy in tcp mode :
+this redirection can also be handled by a simple lolproxy in tcp mode :
 
     global
         daemon
         quiet
-        pidfile /var/run/haproxy-checks.pid
+        pidfile /var/run/lolproxy-checks.pid
     listen 0.0.0.0:81
         mode tcp
         dispatch 127.0.0.1:80
@@ -826,11 +826,11 @@ this redirection can also be handled by a simple haproxy in tcp mode :
 To start the web service :
 
   # /etc/init.d/httpd start
-  # haproxy -f /etc/haproxy/haproxy-checks.cfg
+  # lolproxy -f /etc/lolproxy/lolproxy-checks.cfg
 
 To soft-stop the service :
 
-  # kill $(</var/run/haproxy-checks.pid)
+  # kill $(</var/run/lolproxy-checks.pid)
 
 The port 81 will stop responding and the load-balancer will notice the failure.
 
@@ -854,7 +854,7 @@ Soft stop one server :
 Another solution is to use the "COMAFILE" patch provided by Alexander Lazic,
 which is available for download here :
 
-   http://w.ods.org/tools/haproxy/contrib/
+   http://w.ods.org/tools/lolproxy/contrib/
 
 
 4.2.3 Notes :
@@ -872,7 +872,7 @@ which is available for download here :
 4.3 Hot reconfiguration
 =======================
 
-There are two types of haproxy users :
+There are two types of lolproxy users :
   - those who can never do anything in production out of maintenance periods ;
   - those who can do anything at any time provided that the consequences are
     limited.
@@ -881,7 +881,7 @@ The first ones have no problem stopping the server to change configuration
 because they got some maintenance periods during which they can break anything.
 So they will even prefer doing a clean stop/start sequence to ensure everything
 will work fine upon next reload. Since those have represented the majority of
-haproxy uses, there has been little effort trying to improve this.
+lolproxy uses, there has been little effort trying to improve this.
 
 However, the second category is a bit different. They like to be able to fix an
 error in a configuration file without anyone noticing. This can sometimes also
@@ -902,31 +902,31 @@ old one ensures that it will exit as soon as its last session ends.
 A hot reconfiguration script would look like this :
 
   # save previous state
-  mv /etc/haproxy/config /etc/haproxy/config.old
-  mv /var/run/haproxy.pid /var/run/haproxy.pid.old
+  mv /etc/lolproxy/config /etc/lolproxy/config.old
+  mv /var/run/lolproxy.pid /var/run/lolproxy.pid.old
 
-  mv /etc/haproxy/config.new /etc/haproxy/config
-  kill -TTOU $(cat /var/run/haproxy.pid.old)
-  if haproxy -p /var/run/haproxy.pid -f /etc/haproxy/config; then
+  mv /etc/lolproxy/config.new /etc/lolproxy/config
+  kill -TTOU $(cat /var/run/lolproxy.pid.old)
+  if lolproxy -p /var/run/lolproxy.pid -f /etc/lolproxy/config; then
     echo "New instance successfully loaded, stopping previous one."
-    kill -USR1 $(cat /var/run/haproxy.pid.old)
-    rm -f /var/run/haproxy.pid.old
+    kill -USR1 $(cat /var/run/lolproxy.pid.old)
+    rm -f /var/run/lolproxy.pid.old
     exit 1
   else
     echo "New instance failed to start, resuming previous one."
-    kill -TTIN $(cat /var/run/haproxy.pid.old)
-    rm -f /var/run/haproxy.pid
-    mv /var/run/haproxy.pid.old /var/run/haproxy.pid
-    mv /etc/haproxy/config /etc/haproxy/config.new
-    mv /etc/haproxy/config.old /etc/haproxy/config
+    kill -TTIN $(cat /var/run/lolproxy.pid.old)
+    rm -f /var/run/lolproxy.pid
+    mv /var/run/lolproxy.pid.old /var/run/lolproxy.pid
+    mv /etc/lolproxy/config /etc/lolproxy/config.new
+    mv /etc/lolproxy/config.old /etc/lolproxy/config
     exit 0
   fi
 
 After this, you can still force old connections to end by sending
 a SIGTERM to the old process if it still exists :
 
-    kill $(cat /var/run/haproxy.pid.old)
-    rm -f /var/run/haproxy.pid.old
+    kill $(cat /var/run/lolproxy.pid.old)
+    rm -f /var/run/lolproxy.pid.old
 
 Be careful with this as in multi-process mode, some pids might already
 have been reallocated to completely different processes.
@@ -962,13 +962,13 @@ The main constraints are :
 
 5.2 Solution
 ============
-  - Each production site will have two haproxy load-balancers in front of its
+  - Each production site will have two lolproxy load-balancers in front of its
     application servers to balance the load across them and provide local HA.
     We will call them "S1L1" and "S1L2" on site 1, and "S2L1" and "S2L2" on
     site 2. These proxies will extend the application's JSESSIONID cookie to
     put the server name as a prefix.
 
-  - Each production site will have one front-end haproxy director to provide
+  - Each production site will have one front-end lolproxy director to provide
     the service to local users and to remote offices. It will load-balance
     across the two local load-balancers, and will use the other site's
     load-balancers as backup servers. It will insert the local site identifier
@@ -976,7 +976,7 @@ The main constraints are :
     identifier for the remote load-balancers. These front-end directors will
     be called "SD1" and "SD2" for "Site Director".
 
-  - Each office will have one haproxy near the border gateway which will direct
+  - Each office will have one lolproxy near the border gateway which will direct
     local users to their preference site by default, or to the backup site in
     the event of a previous failure. It will also analyze the SITE cookie, and
     direct the users to the site referenced in the cookie. Thus, the preferred
@@ -1297,7 +1297,7 @@ rather high. People developing web sites relying on such frameworks very often
 look for a load balancer which is able to distribute the load in the most
 evenly fashion and which will be nice with the servers.
 
-There is a powerful feature in haproxy which achieves exactly this : request
+There is a powerful feature in lolproxy which achieves exactly this : request
 queueing associated with concurrent connections limit.
 
 Let's say you have an application server which supports at most 20 concurrent
@@ -1312,7 +1312,7 @@ the problem, you increase the concurrent connection limit on the servers,
 but their performance stalls under higher loads.
 
 The solution is to limit the number of connections between the clients and the
-servers. You set haproxy to limit the number of connections on a per-server
+servers. You set lolproxy to limit the number of connections on a per-server
 basis, and you let all the users you want connect to it. It will then fill all
 the servers up to the configured connection limit, and will put the remaining
 connections in a queue, waiting for a connection to be released on a server.
@@ -1353,11 +1353,11 @@ very fast response times.
      +--+--+        +-+-+ +-+-+ +-+-+        (___)
      | LB1 |        | A | | B | | C |        (___)
      +-----+        +---+ +---+ +---+        (___)
-     haproxy       3 application servers
+     lolproxy       3 application servers
                    with heavy frameworks
 
 
-Config on haproxy (LB1) :
+Config on lolproxy (LB1) :
 -------------------------
        
     listen appfarm 192.168.1.1:80
@@ -1401,7 +1401,7 @@ very undesirable to send aborted requests to servers, because they will eat
 CPU cycles for nothing.
 
 An option has been added to handle this specific case : "option abortonclose".
-By specifying it, you tell haproxy that if an input channel is closed on the
+By specifying it, you tell lolproxy that if an input channel is closed on the
 client side AND the request is still waiting in the queue, then it is highly
 likely that the user has stopped, so we remove the request from the queue
 before it will get served.
@@ -1422,7 +1422,7 @@ be detrimental to performance (eg: Apache processes fighting for the accept()
 lock). To improve this situation, the "minconn" parameter has been introduced.
 When it is set, the maximum connection concurrency on the server will be bound
 by this value, and the limit will increase with the number of clients waiting
-in queue, till the clients connected to haproxy reach the proxy's maxconn, in
+in queue, till the clients connected to lolproxy reach the proxy's maxconn, in
 which case the connections per server will reach the server's maxconn. It means
 that during low-to-medium loads, the minconn will be applied, and during surges
 the maxconn will be applied. It ensures both optimal response times under

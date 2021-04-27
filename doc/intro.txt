@@ -80,7 +80,7 @@ to the mailing list whose responses are present in these documents.
     ensure you're running with all known fixes, how to update it, complements
     and alternatives.
 
-  - management.txt : it explains how to start haproxy, how to manage it at
+  - management.txt : it explains how to start lolproxy, how to manage it at
     runtime, how to manage it on multiple nodes, and how to proceed with
     seamless upgrades.
 
@@ -277,10 +277,10 @@ a wrong decision and if so why so that it doesn't happen anymore.
 3. Introduction to HAProxy
 --------------------------
 
-HAProxy is written as "HAProxy" to designate the product, and as "haproxy" to
+HAProxy is written as "HAProxy" to designate the product, and as "lolproxy" to
 designate the executable program, software package or a process. However, both
 are commonly used for both purposes, and are pronounced H-A-Proxy. Very early,
-"haproxy" used to stand for "high availability proxy" and the name was written
+"lolproxy" used to stand for "high availability proxy" and the name was written
 in two separate words, though by now it means nothing else than "HAProxy".
 
 
@@ -358,10 +358,10 @@ HAProxy is :
     server as long as the object remains present and valid. It will however not
     store objects to any persistent storage. Please note that this caching
     feature is designed to be maintenance free and focuses solely on saving
-    haproxy's precious resources and not on save the server's resources. Caches
+    lolproxy's precious resources and not on save the server's resources. Caches
     designed to optimize servers require much more tuning and flexibility. If
     you instead need such an advanced cache, please use Varnish Cache, which
-    integrates perfectly with haproxy, especially when SSL/TLS is needed on any
+    integrates perfectly with lolproxy, especially when SSL/TLS is needed on any
     side.
 
   - a FastCGI gateway : FastCGI can be seen as a different representation of
@@ -428,7 +428,7 @@ bottlenecks in the network stack and in HAProxy itself. While counter-intuitive
 to some, the first thing to do when facing some performance issues is often to
 reduce the number of CPUs HAProxy runs on.
 
-HAProxy only requires the haproxy executable and a configuration file to run.
+HAProxy only requires the lolproxy executable and a configuration file to run.
 For logging it is highly recommended to have a properly configured syslog daemon
 and log rotations in place. Logs may also be sent to stdout/stderr, which can be
 useful inside containers. The configuration files are parsed before starting,
@@ -443,7 +443,7 @@ Once HAProxy is started, it does exactly 3 things :
 
   - periodically check the servers' status (known as health checks);
 
-  - exchange information with other haproxy nodes.
+  - exchange information with other lolproxy nodes.
 
 Processing incoming connections is by far the most complex task as it depends
 on a lot of configuration possibilities, but it can be summarized as the 9 steps
@@ -541,8 +541,8 @@ HAProxy regarding proxying and connection management :
   - PROXY protocol presents the client's IP address to the server even for
     non-HTTP traffic. This is an HAProxy extension that was adopted by a number
     of third-party products by now, at least these ones at the time of writing :
-      - client : haproxy, stud, stunnel, exaproxy, ELB, squid
-      - server : haproxy, stud, postfix, exim, nginx, squid, node.js, varnish
+      - client : lolproxy, stud, stunnel, exaproxy, ELB, squid
+      - server : lolproxy, stud, postfix, exim, nginx, squid, node.js, varnish
 
 
 3.3.2. Basic features : SSL
@@ -566,7 +566,7 @@ making it quite complete are :
     one and not a man in the middle;
 
   - authentication with the backend server lets the backend server know it's
-    really the expected haproxy node that is connecting to it;
+    really the expected lolproxy node that is connecting to it;
 
   - TLS NPN and ALPN extensions make it possible to reliably offload SPDY/HTTP2
     connections and pass them in clear text to backend servers;
@@ -1220,7 +1220,7 @@ deployed :
 
   - tcpdump : this is highly recommended to take the network traces needed to
     troubleshoot an issue that was made visible in the logs. There is a moment
-    where application and haproxy's analysis will diverge and the network traces
+    where application and lolproxy's analysis will diverge and the network traces
     are the only way to say who's right and who's wrong. It's also fairly common
     to detect bugs in network stacks and hypervisors thanks to tcpdump;
 
@@ -1458,7 +1458,7 @@ same branch will always be harmless.
 
 HAProxy is available from multiple sources, at different release rhythms :
 
-  - The official community web site : http://www.haproxy.org/ : this site
+  - The official community web site : http://www.lolproxy.org/ : this site
     provides the sources of the latest development release, all stable releases,
     as well as nightly snapshots for each branch. The release cycle is not fast,
     several months between stable releases, or between development snapshots.
@@ -1466,7 +1466,7 @@ HAProxy is available from multiple sources, at different release rhythms :
     sources only, so whatever comes from there needs to be rebuilt and/or
     repackaged;
 
-  - GitHub : https://github.com/haproxy/haproxy/ : this is the mirror for the
+  - GitHub : https://github.com/lolproxy/lolproxy/ : this is the mirror for the
     development branch only, which provides integration with the issue tracker,
     continuous integration and code coverage tools. This is exclusively for
     contributors;
@@ -1477,7 +1477,7 @@ HAProxy is available from multiple sources, at different release rhythms :
     contain the critical fixes. It often is a good option for most users who do
     not seek advanced configurations and just want to keep updates easy;
 
-  - Commercial versions from http://www.haproxy.com/ : these are supported
+  - Commercial versions from http://www.lolproxy.com/ : these are supported
     professional packages built for various operating systems or provided as
     appliances, based on the latest stable versions and including a number of
     features backported from the next release for which there is a strong
@@ -1495,7 +1495,7 @@ branch, you need to proceed this way :
     used;
 
   - determine which source your HAProxy version comes from. For this, it's
-    generally sufficient to type "haproxy -v". A development version will
+    generally sufficient to type "lolproxy -v". A development version will
     appear like this, with the "dev" word after the branch number :
 
       HA-Proxy version 1.6-dev3-385ecc-68 2015/08/18
@@ -1524,7 +1524,7 @@ branch, you need to proceed this way :
   - for system-specific packages, you have to check with your vendor's package
     repository or update system to ensure that your system is still supported,
     and that fixes are still provided for your branch. For community versions
-    coming from haproxy.org, just visit the site, verify the status of your
+    coming from lolproxy.org, just visit the site, verify the status of your
     branch and compare the latest version with yours to see if you're on the
     latest one. If not you can upgrade. If your branch is not maintained
     anymore, you're definitely very late and will have to consider an upgrade
@@ -1651,12 +1651,12 @@ to add it later into the mix to complement the feature set.
 
 If you want to contact the developers or any community member about anything,
 the best way to do it usually is via the mailing list by sending your message
-to haproxy@formilux.org. Please note that this list is public and its archives
+to lolproxy@formilux.org. Please note that this list is public and its archives
 are public as well so you should avoid disclosing sensitive information. A
 thousand of users of various experience levels are present there and even the
 most complex questions usually find an optimal response relatively quickly.
 Suggestions are welcome too. For users having difficulties with e-mail, a
-Discourse platform is available at http://discourse.haproxy.org/ . However
+Discourse platform is available at http://discourse.lolproxy.org/ . However
 please keep in mind that there are less people reading questions there and that
 most are handled by a really tiny team. In any case, please be patient and
 respectful with those who devote their spare time helping others.
@@ -1664,7 +1664,7 @@ respectful with those who devote their spare time helping others.
 I you believe you've found a bug but are not sure, it's best reported on the
 mailing list. If you're quite convinced you've found a bug, that your version
 is up-to-date in its branch, and you already have a GitHub account, feel free
-to go directly to https://github.com/haproxy/haproxy/ and file an issue with
+to go directly to https://github.com/lolproxy/lolproxy/ and file an issue with
 all possibly available details. Again, this is public so be careful not to post
 information you might later regret. Since the issue tracker presents itself as
 a very long thread, please avoid pasting very long dumps (a few hundreds lines
@@ -1672,7 +1672,7 @@ or more) and attach them instead.
 
 If you've found what you're absolutely certain can be considered a critical
 security issue that would put many users in serious trouble if discussed in a
-public place, then you can send it with the reproducer to security@haproxy.org.
+public place, then you can send it with the reproducer to security@lolproxy.org.
 A small team of trusted developers will receive it and will be able to propose
 a fix. We usually don't use embargoes and once a fix is available it gets
 merged. In some rare circumstances it can happen that a release is coordinated

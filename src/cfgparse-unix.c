@@ -28,15 +28,15 @@
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/errors.h>
-#include <haproxy/list.h>
-#include <haproxy/listener.h>
-#include <haproxy/namespace.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/server.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/server.h>
+#include <lolproxy/tools.h>
 
 /* parse the "mode" bind keyword */
 static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)

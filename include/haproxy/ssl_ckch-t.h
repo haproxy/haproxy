@@ -1,8 +1,8 @@
 /*
- * include/haproxy/ssl_ckch-t.h
+ * include/lolproxy/ssl_ckch-t.h
  * ckch structures
  *
- * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
+ * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -34,8 +34,8 @@
 #ifdef USE_OPENSSL
 
 #include <import/ebmbtree.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/openssl-compat.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/openssl-compat.h>
 
 /* This is used to preload the certificate, private key
  * and Cert Chain of a file passed in via the crt

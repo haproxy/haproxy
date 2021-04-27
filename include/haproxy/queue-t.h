@@ -1,5 +1,5 @@
 /*
- * include/haproxy/queue-t.h
+ * include/lolproxy/queue-t.h
  * This file defines variables and structures needed for queues.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -23,7 +23,7 @@
 #define _HAPROXY_QUEUE_T_H
 
 #include <import/eb32tree.h>
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 struct proxy;
 struct server;

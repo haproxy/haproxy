@@ -1,5 +1,5 @@
 /*
- * include/haproxy/xref-t.h
+ * include/lolproxy/xref-t.h
  * Atomic cross-references between two elements - types
  *
  * Copyright (C) 2017 Thierry Fournier <thierry.fournier@ozon.io>

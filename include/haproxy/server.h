@@ -1,5 +1,5 @@
 /*
- * include/haproxy/server.h
+ * include/lolproxy/server.h
  * This file defines everything related to servers.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -24,15 +24,15 @@
 
 #include <unistd.h>
 
-#include <haproxy/api.h>
-#include <haproxy/applet-t.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/resolvers-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/task.h>
-#include <haproxy/thread-t.h>
-#include <haproxy/time.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet-t.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/resolvers-t.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/task.h>
+#include <lolproxy/thread-t.h>
+#include <lolproxy/time.h>
 
 
 __decl_thread(extern HA_SPINLOCK_T idle_conn_srv_lock);

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/tools-t.h
+ * include/lolproxy/tools-t.h
  * This files contains some general purpose macros and structures.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu

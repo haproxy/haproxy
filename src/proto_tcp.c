@@ -25,23 +25,23 @@
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/connection.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/list.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/namespace.h>
-#include <haproxy/port_range.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/sock.h>
-#include <haproxy/sock_inet.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/port_range.h>
+#include <lolproxy/proto_tcp.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/sock_inet.h>
+#include <lolproxy/tools.h>
 
 
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);

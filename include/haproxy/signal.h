@@ -1,5 +1,5 @@
 /*
- * include/haproxy/signal.h
+ * include/lolproxy/signal.h
  * Asynchronous signal delivery functions.
  *
  * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
@@ -13,10 +13,10 @@
 
 #include <signal.h>
 
-#include <haproxy/api.h>
-#include <haproxy/signal-t.h>
-#include <haproxy/task-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api.h>
+#include <lolproxy/signal-t.h>
+#include <lolproxy/task-t.h>
+#include <lolproxy/thread.h>
 
 extern int signal_queue_len;
 extern struct signal_descriptor signal_state[];
@@ -31,7 +31,7 @@ struct sig_handler *signal_register_task(int sig, struct task *task, int reason)
 void signal_unregister_handler(struct sig_handler *handler);
 void signal_unregister_target(int sig, void *target);
 void signal_unregister(int sig);
-void haproxy_unblock_signals();
+void lolproxy_unblock_signals();
 
 static inline void signal_process_queue()
 {

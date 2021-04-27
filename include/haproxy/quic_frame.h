@@ -1,8 +1,8 @@
 /*
- * include/haproxy/quic_frame.h
+ * include/lolproxy/quic_frame.h
  * This file contains prototypes for QUIC frames.
  *
- * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,8 +26,8 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <haproxy/quic_frame-t.h>
-#include <haproxy/xprt_quic-t.h>
+#include <lolproxy/quic_frame-t.h>
+#include <lolproxy/xprt_quic-t.h>
 
 const char *quic_frame_type_string(enum quic_frame_type ft);
 

@@ -1,8 +1,8 @@
 /*
- * include/haproxy/dict-t.h
+ * include/lolproxy/dict-t.h
  * Dictionaries - types definitions
  *
- * Copyright 2019 Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 Frï¿½dï¿½ric Lï¿½caille <flecaille@lolproxy.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -28,8 +28,8 @@
 #define _HAPROXY_DICT_T_H
 
 #include <import/ebpttree.h>
-#include <haproxy/api-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/thread-t.h>
 
 struct dict_entry {
 	struct ebpt_node value;

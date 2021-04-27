@@ -1,5 +1,5 @@
 /*
- * include/haproxy/freq_ctr.h
+ * include/lolproxy/freq_ctr.h
  * This file contains structure declarations for frequency counters.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_FREQ_CTR_T_H
 #define _HAPROXY_FREQ_CTR_T_H
 
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 /* The generic freq_ctr counter counts a rate of events per period, where the
  * period has to be known by the user. The period is measured in ticks and

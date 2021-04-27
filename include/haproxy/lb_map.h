@@ -1,5 +1,5 @@
 /*
- * include/haproxy/lb_map.h
+ * include/lolproxy/lb_map.h
  * Map-based load-balancing (RR and HASH)
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -22,9 +22,9 @@
 #ifndef _HAPROXY_LB_MAP_H
 #define _HAPROXY_LB_MAP_H
 
-#include <haproxy/api.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/server-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/server-t.h>
 
 void recalc_server_map(struct proxy *px);
 void init_server_map(struct proxy *p);

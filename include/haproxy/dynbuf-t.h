@@ -1,5 +1,5 @@
 /*
- * include/haproxy/dynbuf-t.h
+ * include/lolproxy/dynbuf-t.h
  * Structure definitions for dynamic buffer management.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu

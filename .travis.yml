@@ -44,8 +44,8 @@ install:
 
 script:
   - make -j$(nproc) ERR=1 TARGET=linux-glibc CC=$CC DEBUG=-DDEBUG_STRICT=1 $FLAGS
-  - ./haproxy -vv
-  - ldd haproxy
+  - ./lolproxy -vv
+  - ldd lolproxy
   - make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
 
 after_failure:

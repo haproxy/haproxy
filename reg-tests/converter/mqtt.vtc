@@ -50,7 +50,7 @@ server s2 {
     sendhex "20250000221100000078217fff24012501270000ffff22000a2600016100016226000163000164"
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode tcp
         timeout connect 1s

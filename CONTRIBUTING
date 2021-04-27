@@ -108,12 +108,12 @@ There is no other place where you'll find as many skilled people on the project,
 and these people can help you get your code integrated quickly. You can
 subscribe to it by sending an empty e-mail at the following address :
 
-                        haproxy+subscribe@formilux.org
+                        lolproxy+subscribe@formilux.org
 
 It is not even necessary to subscribe, you can post there and verify via the
 public list archives that your message was properly delivered. In this case you
 should indicate in your message that you'd like responders to keep you CCed.
-Please visit http://haproxy.org/ to figure available options to join the list.
+Please visit http://lolproxy.org/ to figure available options to join the list.
 
 If you have an idea about something to implement, *please* discuss it on the
 list first. It has already happened several times that two persons did the same
@@ -159,7 +159,7 @@ provide a patch for OpenSSL you don't need to test its derivatives, but if you
 provide a patch for a derivative you also need to test with OpenSSL.
 
 If your work is very confidential and you can't publicly discuss it, you can
-also mail willy@haproxy.org directly about it, but your mail may be waiting
+also mail willy@lolproxy.org directly about it, but your mail may be waiting
 several days in the queue before you get a response, if you get a response at
 all. Retransmit if you don't get a response by one week. Please note that
 direct sent e-mails to this address for non-confidential subjects may simply
@@ -884,7 +884,7 @@ want, without making your mistakes visible to the rest of the world. It will
 definitely help you contribute quality code and take other people's feedback
 in consideration. In order to clone the HAProxy Git repository :
 
-   $ git clone http://git.haproxy.org/git/haproxy.git/       (development)
+   $ git clone http://git.lolproxy.org/git/lolproxy.git/       (development)
 
 If you decide to use Git for your developments, then your commit messages will
 have the subject line in the format described above, then the whole description
@@ -926,7 +926,7 @@ The output files are the patches ready to be sent over e-mail, either via a
 regular e-mail or via git send-email (carefully check the man page). Don't
 destroy your other work branches until your patches get merged, it may happen
 that earlier designs will be preferred for various reasons. Patches should be
-sent to the mailing list : haproxy@formilux.org and CCed to relevant subsystem
+sent to the mailing list : lolproxy@formilux.org and CCed to relevant subsystem
 maintainers or authors of the modified files if their address appears at the
 top of the file.
 
@@ -942,7 +942,7 @@ What to do if your patch is ignored
 All patches merged are acknowledged by the maintainer who picked it. If you
 didn't get an acknowledgement, check the mailing list archives to see if your
 mail was properly delivered there and possibly if anyone responded and you did
-not get their response (please look at http://haproxy.org/ for the mailing list
+not get their response (please look at http://lolproxy.org/ for the mailing list
 archive's address).
 
 If you see that your mail is there but nobody responded, please recheck:

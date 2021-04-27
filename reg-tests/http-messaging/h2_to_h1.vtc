@@ -1,7 +1,7 @@
 varnishtest "HTTP request tests: H2 to H1 (HTX and legacy mode)"
 #REQUIRE_VERSION=1.9
 
-# Run it with HAPROXY_PROGRAM=$PWD/haproxy varnishtest -l -k -t 1 "$1"
+# Run it with HAPROXY_PROGRAM=$PWD/lolproxy varnishtest -l -k -t 1 "$1"
 
 feature ignore_unknown_macro
 
@@ -33,7 +33,7 @@ server s1 {
 	# the next request is never received
 } -repeat 2 -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
 	#log stdout format raw daemon
 	mode http

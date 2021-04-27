@@ -9,27 +9,27 @@
  * 2 of the License, or (at your option) any later version.
  *
  */
-#include <haproxy/acl.h>
-#include <haproxy/action.h>
-#include <haproxy/api.h>
-#include <haproxy/arg-t.h>
-#include <haproxy/capture-t.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/channel.h>
-#include <haproxy/connection.h>
-#include <haproxy/global.h>
-#include <haproxy/list.h>
-#include <haproxy/log.h>
-#include <haproxy/proxy.h>
-#include <haproxy/sample.h>
-#include <haproxy/stick_table.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/tcp_rules.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/trace.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/action.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg-t.h>
+#include <lolproxy/capture-t.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/global.h>
+#include <lolproxy/list.h>
+#include <lolproxy/log.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stick_table.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/tcp_rules.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/trace.h>
 
 
 #define TRACE_SOURCE &trace_strm

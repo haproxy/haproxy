@@ -18,30 +18,30 @@
 #include <import/ebsttree.h>
 #include <import/ebistree.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/cli.h>
-#include <haproxy/dict.h>
-#include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/list.h>
-#include <haproxy/log.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/peers.h>
-#include <haproxy/pool.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/proxy.h>
-#include <haproxy/sample.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/stick_table.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/tcp_rules.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/dict.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/list.h>
+#include <lolproxy/log.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/peers.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/proto_tcp.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/stick_table.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tcp_rules.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 
 /* structure used to return a table key built from a sample */

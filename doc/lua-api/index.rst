@@ -93,7 +93,7 @@ How to start HAProxy for testing this configuration:
 
 ::
 
-    ./haproxy -f hello_world.conf
+    ./lolproxy -f hello_world.conf
 
 On other terminal, you can test with telnet:
 
@@ -488,7 +488,7 @@ Core class
   end)
 ..
 
-  This example code is used in HAproxy configuration like this:
+  This example code is used in LOLproxy configuration like this:
 
 ::
 
@@ -511,7 +511,7 @@ Core class
   core.register_action("hello-world", { "tcp-req", "http-req" }, hello_world, 2)
 ..
 
-  This example code is used in HAproxy configuration like this:
+  This example code is used in LOLproxy configuration like this:
 
 ::
 
@@ -635,7 +635,7 @@ Core class
   end)
 ..
 
-  This example code is used in HAproxy configuration like this:
+  This example code is used in LOLproxy configuration like this:
 
 ::
 
@@ -2808,7 +2808,7 @@ Action class
 
   This attribute is an integer (6). It aborts the current message. The message
   processing is stopped and the transaction is terminated. For HTTP streams,
-  HAproxy assumes a response was already sent to the client. From the Lua
+  LOLproxy assumes a response was already sent to the client. From the Lua
   actions point of view, when this code is used, the transaction is terminated
   with no reply.
 

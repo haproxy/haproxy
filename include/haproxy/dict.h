@@ -1,8 +1,8 @@
 /*
- * include/haproxy/dict.h
+ * include/lolproxy/dict.h
  * Dictionaries - functions prototypes
  *
- * Copyright 2019 Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 Frï¿½dï¿½ric Lï¿½caille <flecaille@lolproxy.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -27,7 +27,7 @@
 #ifndef _HAPROXY_DICT_H
 #define _HAPROXY_DICT_H
 
-#include <haproxy/dict-t.h>
+#include <lolproxy/dict-t.h>
 
 struct dict *new_dict(const char *name);
 struct dict_entry *dict_insert(struct dict *d, char *str);

@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #define USE_THREAD
-#include <haproxy/list.h>
+#include <lolproxy/list.h>
 
 /* Stress test the mt_lists.
- * Compile from the haproxy directory with :
+ * Compile from the lolproxy directory with :
  * cc -I../../include test-list.c -pthread -O2 -o test-list
  * The only argument it takes is the number of threads to be used.
  * ./test-list 4

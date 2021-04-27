@@ -1,8 +1,8 @@
 /*
- * include/haproxy/atomic.h
+ * include/lolproxy/atomic.h
  * Macros and inline functions for thread-safe atomic operations.
  *
- * Copyright (C) 2017 Christopher Faulet - cfaulet@haproxy.com
+ * Copyright (C) 2017 Christopher Faulet - cfaulet@lolproxy.com
  * Copyright (C) 2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or

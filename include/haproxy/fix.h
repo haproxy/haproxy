@@ -1,5 +1,5 @@
 /*
- * include/haproxy/fix.h
+ * include/lolproxy/fix.h
  * This file contains functions and macros declarations for FIX protocol decoding.
  *
  * Copyright 2020 Baptiste Assmann <bedis9@gmail.com>
@@ -24,8 +24,8 @@
 
 #include <import/ist.h>
 
-#include <haproxy/fix-t.h>
-#include <haproxy/tools.h>
+#include <lolproxy/fix-t.h>
+#include <lolproxy/tools.h>
 
 unsigned int fix_check_id(const struct ist str, const struct ist version);
 int fix_validate_message(const struct ist msg);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -8,9 +8,9 @@
  */
 
 #include <import/eb64tree.h>
-#include <haproxy/quic_frame.h>
-#include <haproxy/trace.h>
-#include <haproxy/xprt_quic.h>
+#include <lolproxy/quic_frame.h>
+#include <lolproxy/trace.h>
+#include <lolproxy/xprt_quic.h>
 
 #define TRACE_SOURCE    &trace_quic
 

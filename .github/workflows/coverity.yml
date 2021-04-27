@@ -1,6 +1,6 @@
 
 #
-# scan results: https://scan.coverity.com/projects/haproxy
+# scan results: https://scan.coverity.com/projects/lolproxy
 #
 
 name: Coverity
@@ -12,7 +12,7 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'haproxy' }}
+    if: ${{ github.repository_owner == 'lolproxy' }}
     env:
       COVERITY_SCAN_PROJECT_NAME: 'Haproxy'
       COVERITY_SCAN_BRANCH_PATTERN: '*'

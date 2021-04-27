@@ -69,7 +69,7 @@ server s2 {
 
 
 # ipmask tests with accept-proxy bind
-haproxy h1 -conf {
+lolproxy h1 -conf {
   defaults
     mode http
     ${no-htx} option http-use-htx
@@ -124,8 +124,8 @@ haproxy h1 -conf {
     server s1 ${s1_addr}:${s1_port}
 } -start
 
-# concat,strcmp,word,field haproxy
-haproxy h2 -conf {
+# concat,strcmp,word,field lolproxy
+lolproxy h2 -conf {
   defaults
     mode http
     ${no-htx} option http-use-htx
@@ -202,7 +202,7 @@ client c1 -connect ${h1_fe1_sock} -proxy2 "192.168.1.101:1234 127.0.0.1:2345" {
 } -run
 
 # cli show be1 stick table
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show table be1"
     expect ~ "^# table: be1, type: ipv6, size:20, used:3\\n0x[a-f0-9]+: key=::ffff:192\\.168\\.1\\.0 use=0 exp=[[:digit:]]+ gpc0=0 conn_cnt=1\\n0x[a-f0-9]+: key=::ffff:192\\.168\\.1\\.101 use=0 exp=[[:digit:]]+ gpc0=0 conn_cnt=1\\n0x[a-f0-9]+: key=2001:db8:c001:c01a:[0:]+ use=0 exp=[[:digit:]]+ gpc0=0 conn_cnt=1\\n"
 }

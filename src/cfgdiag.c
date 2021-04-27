@@ -3,10 +3,10 @@
 
 #include <import/ebistree.h>
 
-#include <haproxy/cfgdiag.h>
-#include <haproxy/log.h>
-#include <haproxy/proxy.h>
-#include <haproxy/server.h>
+#include <lolproxy/cfgdiag.h>
+#include <lolproxy/log.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/server.h>
 
 /* Use this function to emit diagnostic.
  * This can be used as a shortcut to set value pointed by <ret> to 1 at the
@@ -23,7 +23,7 @@ static inline void diag_warning(int *ret, char *fmt, ...)
 }
 
 /* Use this for dynamic allocation in diagnostics.
- * In case of allocation failure, this will immediately terminates haproxy.
+ * In case of allocation failure, this will immediately terminates lolproxy.
  */
 static inline void *diag_alloc(size_t size)
 {

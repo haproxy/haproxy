@@ -1,10 +1,10 @@
 # commit f874a83
 # BUG/MINOR: lua: Segfaults with wrong usage of types.
 #
-# Patrick reported that this simple configuration made haproxy segfaults:
+# Patrick reported that this simple configuration made lolproxy segfaults:
 #
 #     global
-#         lua-load /tmp/haproxy.lua
+#         lua-load /tmp/lolproxy.lua
 #
 #     frontend f1
 #         mode http
@@ -17,7 +17,7 @@
 #         mode http
 #         server s1 127.0.0.1:8080
 #
-# with this '/tmp/haproxy.lua' script:
+# with this '/tmp/lolproxy.lua' script:
 #
 #     core.register_action("foo", { "http-req" }, function(txn)
 #         txn.sc:ipmask(txn.f:src(), 24, 112)
@@ -41,7 +41,7 @@ server s1 -repeat 2 {
     txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         lua-load ${testdir}/wrong_types_usage.lua
 

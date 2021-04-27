@@ -11,7 +11,7 @@ server s1 -repeat 4 {
     txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         tune.ssl.default-dh-param 2048
         crt-base ${testdir}

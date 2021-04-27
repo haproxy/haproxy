@@ -1,12 +1,12 @@
 /*
- * include/haproxy/tcpcheck.h
+ * include/lolproxy/tcpcheck.h
  * Functions prototypes for the TCP checks.
  *
  * Copyright 2000-2009,2020 Willy Tarreau <w@1wt.eu>
  * Copyright 2007-2010 Krzysztof Piotr Oledzki <ole@ans.pl>
  * Copyright 2013 Baptiste Assmann <bedis9@gmail.com>
  * Copyright 2020 Gaetan Rivet <grive@u256.net>
- * Copyright 2020 Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright 2020 Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,11 +26,11 @@
 #ifndef _HAPROXY_TCPCHECK_H
 #define _HAPROXY_TCPCHECK_H
 
-#include <haproxy/action.h>
-#include <haproxy/check-t.h>
-#include <haproxy/pool-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/tcpcheck-t.h>
+#include <lolproxy/action.h>
+#include <lolproxy/check-t.h>
+#include <lolproxy/pool-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/tcpcheck-t.h>
 
 extern struct action_kw_list tcp_check_keywords;
 extern struct pool_head *pool_head_tcpcheck_rule;

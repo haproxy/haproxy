@@ -19,7 +19,7 @@ syslog Slg_1 -level info {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* hpo=/r/4 hp=http://localhost/r/4 hu=http://localhost/r/4\\?q=4 hq=\\?q=4"
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         nbthread 1
 

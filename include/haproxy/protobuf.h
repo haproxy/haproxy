@@ -1,5 +1,5 @@
 /*
- * include/haproxy/protobuf.h
+ * include/lolproxy/protobuf.h
  * This file contains functions and macros declarations for protocol buffers decoding.
  *
  * Copyright 2012 Willy Tarreau <w@1wt.eu>
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_PROTOBUF_H
 #define _HAPROXY_PROTOBUF_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/arg-t.h>
-#include <haproxy/protobuf-t.h>
-#include <haproxy/sample-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/arg-t.h>
+#include <lolproxy/protobuf-t.h>
+#include <lolproxy/sample-t.h>
 
 #define PBUF_VARINT_DONT_STOP_BIT       7
 #define PBUF_VARINT_DONT_STOP_BITMASK  (1 << PBUF_VARINT_DONT_STOP_BIT)

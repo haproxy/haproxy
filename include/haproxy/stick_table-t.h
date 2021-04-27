@@ -1,5 +1,5 @@
 /*
- * include/haproxy/stick_table-t.h
+ * include/lolproxy/stick_table-t.h
  * Macros, variables and structures for stick tables management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -30,9 +30,9 @@
 #include <import/ebmbtree.h>
 #include <import/ebpttree.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/freq_ctr-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/freq_ctr-t.h>
+#include <lolproxy/thread-t.h>
 
 
 /* The types of extra data we can store in a stick table */

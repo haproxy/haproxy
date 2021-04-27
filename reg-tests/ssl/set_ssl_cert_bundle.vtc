@@ -25,7 +25,7 @@ server s1 -repeat 9 {
   txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         tune.ssl.default-dh-param 2048
         tune.ssl.capture-cipherlist-size 1
@@ -62,7 +62,7 @@ haproxy h1 -conf {
 } -start
 
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl cert ${testdir}/cert1-example.com.pem.rsa"
     expect ~ ".*SHA1 FingerPrint: 94F720DACA71B8B1A0AC9BD48C65BA688FF047DE"
     send "show ssl cert ${testdir}/cert1-example.com.pem.ecdsa"
@@ -89,7 +89,7 @@ shell {
     echo "commit ssl cert ${testdir}/cert1-example.com.pem.ecdsa" | socat "${tmpdir}/h1/stats" -
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl cert ${testdir}/cert1-example.com.pem.rsa"
     expect ~ ".*SHA1 FingerPrint: ADC863817FC40C2A9CA913CE45C9A92232558F90"
     send "show ssl cert ${testdir}/cert1-example.com.pem.ecdsa"

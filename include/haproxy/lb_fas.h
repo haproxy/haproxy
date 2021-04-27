@@ -1,5 +1,5 @@
 /*
- * include/haproxy/lb_fas.h
+ * include/lolproxy/lb_fas.h
  * First Available Server load balancing algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_LB_FAS_H
 #define _HAPROXY_LB_FAS_H
 
-#include <haproxy/api.h>
-#include <haproxy/lb_fas-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/server-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/lb_fas-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/server-t.h>
 
 struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid);
 void fas_init_server_tree(struct proxy *p);

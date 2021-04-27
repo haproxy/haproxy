@@ -12,17 +12,17 @@
 
 #include <stdio.h>
 
-#include <haproxy/api.h>
-#include <haproxy/applet-t.h>
-#include <haproxy/arg.h>
-#include <haproxy/cli.h>
-#include <haproxy/map.h>
-#include <haproxy/pattern.h>
-#include <haproxy/regex.h>
-#include <haproxy/sample.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet-t.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/map.h>
+#include <lolproxy/pattern.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/tools.h>
 
 
 /* Parse an IPv4 or IPv6 address and store it into the sample.
@@ -129,7 +129,7 @@ int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	case SMP_T_SINT: desc->pat.parse_smp = map_parse_int;  break;
 	case SMP_T_ADDR: desc->pat.parse_smp = map_parse_ip;   break;
 	default:
-		memprintf(err, "map: internal haproxy error: no default parse case for the input type <%d>.",
+		memprintf(err, "map: internal lolproxy error: no default parse case for the input type <%d>.",
 		          conv->out_type);
 		free(desc);
 		return 0;

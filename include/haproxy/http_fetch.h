@@ -1,5 +1,5 @@
 /*
- * include/haproxy/http_fetch.h
+ * include/lolproxy/http_fetch.h
  * This file contains the minimally required http sample fetch declarations.
  *
  * Copyright (C) 2000-2018 Willy Tarreau - w@1wt.eu
@@ -22,11 +22,11 @@
 #ifndef _HAPROXY_HTTP_FETCH_H
 #define _HAPROXY_HTTP_FETCH_H
 
-#include <haproxy/api.h>
-#include <haproxy/arg-t.h>
-#include <haproxy/channel-t.h>
-#include <haproxy/check-t.h>
-#include <haproxy/sample-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg-t.h>
+#include <lolproxy/channel-t.h>
+#include <lolproxy/check-t.h>
+#include <lolproxy/sample-t.h>
 
 struct htx *smp_prefetch_htx(struct sample *smp, struct channel *chn, struct check *check, int vol);
 int val_hdr(struct arg *arg, char **err_msg);

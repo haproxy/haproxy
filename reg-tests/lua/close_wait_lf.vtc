@@ -24,7 +24,7 @@ syslog Slog -level info -repeat 100 {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Ta=[0-9]* Tc=[0-9]* Td=[0-9]* Th=[0-9]* Ti=[0-9]* Tq=[0-9]* TR=[0-9]* Tr=[0-9]* Tt=[0-9]* Tw=[0-9]*"
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         timeout client  1s
         timeout connect 1s
@@ -49,6 +49,6 @@ client c1 -connect ${h1_frt_sock} -repeat 100  {
 syslog Slog -wait
 
 shell {
-    ss -pt | grep CLOSE-WAIT.*haproxy.*pid=${h1_pid}
+    ss -pt | grep CLOSE-WAIT.*lolproxy.*pid=${h1_pid}
     exit $((!$?))
 }

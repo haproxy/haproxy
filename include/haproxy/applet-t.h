@@ -1,5 +1,5 @@
 /*
- * include/haproxy/applet-t.h
+ * include/lolproxy/applet-t.h
  * This file describes the applet struct and associated constants.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,15 +22,15 @@
 #ifndef _HAPROXY_APPLET_T_H
 #define _HAPROXY_APPLET_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/dynbuf-t.h>
-#include <haproxy/freq_ctr-t.h>
-#include <haproxy/hlua-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/xref-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/dynbuf-t.h>
+#include <lolproxy/freq_ctr-t.h>
+#include <lolproxy/hlua-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/xref-t.h>
 
 /* flags for appctx->state */
 #define APPLET_WANT_DIE     0x01  /* applet was running and requested to die */

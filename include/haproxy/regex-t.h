@@ -1,5 +1,5 @@
 /*
- * include/haproxy/regex-t.h
+ * include/lolproxy/regex-t.h
  * Types and macros definitions for regular expressions
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <haproxy/api.h>
+#include <lolproxy/api.h>
 
 #ifdef USE_PCRE
 #include <pcre.h>

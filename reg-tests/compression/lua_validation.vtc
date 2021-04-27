@@ -7,7 +7,7 @@ varnishtest "Compression validation"
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
 global
 #	log stdout format short daemon
 	lua-load		${testdir}/lua_validation.lua

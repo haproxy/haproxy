@@ -3,7 +3,7 @@
  * Mostly generic functions that retrieve information from certificates
  *
  * Copyright (C) 2012 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
- * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
+ * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -12,10 +12,10 @@
  */
 
 
-#include <haproxy/api.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/openssl-compat.h>
-#include <haproxy/ssl_sock.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/openssl-compat.h>
+#include <lolproxy/ssl_sock.h>
 
 /* fill a buffer with the algorithm and size of a public key */
 int cert_get_pkey_algo(X509 *crt, struct buffer *out)

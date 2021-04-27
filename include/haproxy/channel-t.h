@@ -1,5 +1,5 @@
 /*
- * include/haproxy/channel-t.h
+ * include/lolproxy/channel-t.h
  * Channel management definitions, macros and inline functions.
  *
  * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_CHANNEL_T_H
 #define _HAPROXY_CHANNEL_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/buf-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/buf-t.h>
 
 /* The CF_* macros designate Channel Flags, which may be ORed in the bit field
  * member 'flags' in struct channel. Here we have several types of flags :

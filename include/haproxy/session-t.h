@@ -1,5 +1,5 @@
 /*
- * include/haproxy/session-t.h
+ * include/lolproxy/session-t.h
  * This file defines everything related to sessions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -28,11 +28,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/stick_table-t.h>
-#include <haproxy/task-t.h>
-#include <haproxy/vars-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/stick_table-t.h>
+#include <lolproxy/task-t.h>
+#include <lolproxy/vars-t.h>
 
 
 /* session flags */

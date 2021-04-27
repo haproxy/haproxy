@@ -4,7 +4,7 @@
 # It requires socat to upload the certificate
 
 # this check does 2 requests, the first one will use "www.test1.com" as SNI, and
-# the second one will use "localhost". Since vtest can't do SSL, we use haproxy
+# the second one will use "localhost". Since vtest can't do SSL, we use lolproxy
 # as an SSL client with 2 chained listen section.
 
 # If this test does not work anymore:
@@ -21,7 +21,7 @@ server s1 -repeat 2 {
     txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         tune.ssl.default-dh-param 2048
         tune.ssl.capture-cipherlist-size 1
@@ -55,7 +55,7 @@ haproxy h1 -conf {
 } -start
 
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl cert ${testdir}/common.pem"
     expect ~ ".*SHA1 FingerPrint: 2195C9F0FD58470313013FC27C1B9CF9864BD1C6"
 }
@@ -77,12 +77,12 @@ shell {
     printf "add ssl crt-list ${testdir}/localhost.crt-list// ${testdir}/ecdsa.pem\n" | socat "${tmpdir}/h1/stats" -
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl cert ${testdir}/ecdsa.pem"
     expect ~ ".*SHA1 FingerPrint: A490D069DBAFBEE66DE434BEC34030ADE8BCCBF1"
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl crt-list ${testdir}/localhost.crt-list//"
     # check the options and the filters in any order
     expect ~ ".*${testdir}/ecdsa.pem \\[(?=.*verify none)(?=.*allow-0rtt)(?=.*ssl-min-ver SSLv3).*\\](?=.*!www.test1.com)(?=.*localhost).*"
@@ -108,7 +108,7 @@ shell {
 }
 
 # Check that the new line was not added to the crt-list.
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl crt-list ${testdir}/localhost.crt-list//"
     expect !~ ".*ca-file ${testdir}/ca-auth.crt"
 }

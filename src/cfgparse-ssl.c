@@ -1,7 +1,7 @@
 /*
  *
  * Copyright (C) 2012 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
- * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
+ * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,12 +31,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <haproxy/api.h>
-#include <haproxy/base64.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/listener.h>
-#include <haproxy/openssl-compat.h>
-#include <haproxy/ssl_sock.h>
+#include <lolproxy/api.h>
+#include <lolproxy/base64.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/openssl-compat.h>
+#include <lolproxy/ssl_sock.h>
 
 
 /****************** Global Section Parsing ********************************************/

@@ -33,7 +33,7 @@ server s1 {
    txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
   global
     log ${S1_addr}:${S1_port} local0 debug err
 

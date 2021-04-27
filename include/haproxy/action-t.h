@@ -1,5 +1,5 @@
 /*
- * include/haproxy/action-t.h
+ * include/lolproxy/action-t.h
  * This file contains actions definitions.
  *
  * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
@@ -22,9 +22,9 @@
 #ifndef _HAPROXY_ACTION_T_H
 #define _HAPROXY_ACTION_T_H
 
-#include <haproxy/applet-t.h>
-#include <haproxy/regex-t.h>
-#include <haproxy/stick_table-t.h>
+#include <lolproxy/applet-t.h>
+#include <lolproxy/regex-t.h>
+#include <lolproxy/stick_table-t.h>
 
 enum act_from {
 	ACT_F_TCP_REQ_CON, /* tcp-request connection */

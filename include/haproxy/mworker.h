@@ -1,8 +1,8 @@
 /*
- * include/haproxy/mworker-t.h
+ * include/lolproxy/mworker-t.h
  * Master Worker function prototypes.
  *
- * Copyright HAProxy Technologies 2019 - William Lallemand <wlallemand@haproxy.com>
+ * Copyright HAProxy Technologies 2019 - William Lallemand <wlallemand@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -14,8 +14,8 @@
 #ifndef _HAPROXY_MWORKER_H_
 #define _HAPROXY_MWORKER_H_
 
-#include <haproxy/mworker-t.h>
-#include <haproxy/signal-t.h>
+#include <lolproxy/mworker-t.h>
+#include <lolproxy/signal-t.h>
 
 void mworker_proc_list_to_env();
 void mworker_env_to_proc_list();

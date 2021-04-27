@@ -13,20 +13,20 @@
 
 #include <stdlib.h>
 
-#include <haproxy/action-t.h>
-#include <haproxy/api.h>
-#include <haproxy/check.h>
-#include <haproxy/errors.h>
-#include <haproxy/list.h>
-#include <haproxy/mailers.h>
-#include <haproxy/pool.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/task.h>
-#include <haproxy/tcpcheck.h>
-#include <haproxy/thread.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/action-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/check.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/list.h>
+#include <lolproxy/mailers.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tcpcheck.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 
 struct mailers *mailers = NULL;
@@ -237,7 +237,7 @@ static int enqueue_one_email_alert(struct proxy *p, struct server *s,
 			"From: ", p->email_alert.from, "\r\n",
 			"To: ", p->email_alert.to, "\r\n",
 			"Date: ", datestr, "\r\n",
-			"Subject: [HAproxy Alert] ", msg, "\r\n",
+			"Subject: [LOLproxy Alert] ", msg, "\r\n",
 			"\r\n",
 			msg, "\r\n",
 			"\r\n",

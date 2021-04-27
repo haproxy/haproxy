@@ -12,11 +12,11 @@
 
 #include <import/ist.h>
 
-#include <haproxy/api.h>
-#include <haproxy/buf.h>
-#include <haproxy/chunk.h>
-#include <haproxy/tools.h>
-#include <haproxy/uri_normalizer.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/uri_normalizer.h>
 
 /* Returns 1 if the given character is part of the 'unreserved' set in the
  * RFC 3986 ABNF.

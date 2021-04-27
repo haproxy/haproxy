@@ -5,5 +5,5 @@ special headers.
 
 They can be used with the 'errorfile' keyword like this :
 
-    errorfile 503 /etc/haproxy/errors/503.http
+    errorfile 503 /etc/lolproxy/errors/503.http
 

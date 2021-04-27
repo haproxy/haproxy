@@ -6,7 +6,7 @@ HAProxy \- fast and reliable http reverse proxy and load balancer
 
 .SH SYNOPSIS
 
-haproxy \-f <configuration\ file|dir> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-W] [\-Ws] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [\-x <unix_socket>] [{\-sf|\-st}\ pidlist...]
+lolproxy \-f <configuration\ file|dir> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-W] [\-Ws] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [\-x <unix_socket>] [{\-sf|\-st}\ pidlist...]
 
 .SH DESCRIPTION
 
@@ -190,7 +190,7 @@ package have UDP disabled by default. The \fB\-r\fP option must be passed
 to the daemon in order to enable UDP.
 
 .SH SIGNALS
-Some signals have a special meaning for the haproxy daemon. Generally, they are used between daemons and need not be used by the administrator.
+Some signals have a special meaning for the lolproxy daemon. Generally, they are used between daemons and need not be used by the administrator.
 .TP
 \- \fBSIGUSR1\fP
 Tells the daemon to stop all proxies and exit once all sessions are closed. It is often referred to as the "soft-stop" signal.
@@ -219,7 +219,7 @@ This signal is intercepted and ignored on systems without \fBMSG_NOSIGNAL\fP.
 .SH SEE ALSO
 
 A much better documentation can be found in configuration.txt. On Debian
-systems, you can find this file in /usr/share/doc/haproxy/configuration.txt.gz.
+systems, you can find this file in /usr/share/doc/lolproxy/configuration.txt.gz.
 
 .SH AUTHOR
 

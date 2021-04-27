@@ -16,16 +16,16 @@
 #include <string.h>
 #include <time.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/auth.h>
-#include <haproxy/chunk.h>
-#include <haproxy/http.h>
-#include <haproxy/pattern.h>
-#include <haproxy/pool.h>
-#include <haproxy/tools.h>
-#include <haproxy/version.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/auth.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/http.h>
+#include <lolproxy/pattern.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/version.h>
 
 
 /* We use the pre-parsed method if it is known, and store its number as an

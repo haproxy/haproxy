@@ -1,10 +1,10 @@
 /*
- * include/haproxy/proto_udp.h
+ * include/lolproxy/proto_udp.h
  * This file contains UDP socket protocol definitions.
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
- * Partial merge by Emeric Brun <ebrun@haproxy.com>
+ * Partial merge by Emeric Brun <ebrun@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

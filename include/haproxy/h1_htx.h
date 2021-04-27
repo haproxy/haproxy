@@ -1,9 +1,9 @@
 /*
- * include/haproxy/h1_htx.h
+ * include/lolproxy/h1_htx.h
  * This file defines function prototypes for H1 manipulation using the
  * internal representation.
  *
- * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,10 +24,10 @@
 #define _HAPROXY_H1_HTX_H
 
 #include <import/ist.h>
-#include <haproxy/api-t.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/h1.h>
-#include <haproxy/htx.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/h1.h>
+#include <lolproxy/htx.h>
 
 int h1_parse_msg_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx *dsthtx,
 		      struct buffer *srcbuf, size_t ofs, size_t max);

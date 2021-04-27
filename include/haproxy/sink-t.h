@@ -1,5 +1,5 @@
 /*
- * include/haproxy/sink-t.h
+ * include/lolproxy/sink-t.h
  * This file provides definitions for event sinks
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -23,8 +23,8 @@
 #define _HAPROXY_SINK_T_H
 
 #include <import/ist.h>
-#include <haproxy/api-t.h>
-#include <haproxy/log-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/log-t.h>
 
 /* A sink may be of 4 distinct types :
  *   - file descriptor (such as stdout)

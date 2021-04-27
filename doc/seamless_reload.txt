@@ -19,9 +19,9 @@ HAProxy configuration
 
   global
     [...]
-    stats socket /var/run/haproxy/socket
+    stats socket /var/run/lolproxy/socket
     server-state-file global
-    server-state-base /var/state/haproxy/
+    server-state-base /var/state/lolproxy/
 
   defaults
     [...]
@@ -32,7 +32,7 @@ HAProxy init script
 
 Run the following command BEFORE reloading:
 
-  socat /var/run/haproxy/socket - <<< "show servers state" > /var/state/haproxy/global
+  socat /var/run/lolproxy/socket - <<< "show servers state" > /var/state/lolproxy/global
 
 
 Using one state file per backend
@@ -43,8 +43,8 @@ HAProxy configuration
 
   global
     [...]
-    stats socket /var/run/haproxy/socket
-    server-state-base /var/state/haproxy/
+    stats socket /var/run/lolproxy/socket
+    server-state-base /var/state/lolproxy/
 
   defaults
     [...]
@@ -55,8 +55,8 @@ HAProxy init script
 
 Run the following command BEFORE reloading:
 
-  for b in $(socat /var/run/haproxy/socket - <<< "show backend" | fgrep -v '#')
+  for b in $(socat /var/run/lolproxy/socket - <<< "show backend" | fgrep -v '#')
   do
-    socat /var/run/haproxy/socket - <<< "show servers state $b" > /var/state/haproxy/$b
+    socat /var/run/lolproxy/socket - <<< "show servers state $b" > /var/state/lolproxy/$b
   done
 

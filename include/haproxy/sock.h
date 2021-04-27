@@ -1,5 +1,5 @@
 /*
- * include/haproxy/sock.h
+ * include/lolproxy/sock.h
  * This file contains declarations for native (BSD-compatible) sockets.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -25,10 +25,10 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <haproxy/api.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/listener-t.h>
-#include <haproxy/sock-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/connection-t.h>
+#include <lolproxy/listener-t.h>
+#include <lolproxy/sock-t.h>
 
 extern struct xfer_sock_list *xfer_sock_list;
 

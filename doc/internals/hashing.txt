@@ -1,4 +1,4 @@
-2013/11/20 - How hashing works internally in haproxy - maddalab@gmail.com
+2013/11/20 - How hashing works internally in lolproxy - maddalab@gmail.com
 
 This document describes how Haproxy implements hashing both map-based and
 consistent hashing, both prior to versions 1.5 and the motivation and tests
@@ -20,7 +20,7 @@ output bits should change with a probability of one half for an arbitrary
 selection of the remaining input bits.
 
 To guard against a combination of hash function and input that results in
-high rate of collisions, haproxy implements an avalanche algorithm on the
+high rate of collisions, lolproxy implements an avalanche algorithm on the
 result of the hashing function. In all versions 1.4 and prior avalanche is
 always applied when using the consistent hashing directive. It is intended
 to provide quite a good distribution for little input variations. The result
@@ -58,7 +58,7 @@ The following was the set up used
 (e) 17 servers in backend, all servers were assigned the same weight
 
 Result of the hashing were obtained across the server via monitoring log
-files for haproxy. Population Standard deviation was used to evaluate the
+files for lolproxy. Population Standard deviation was used to evaluate the
 efficacy of the hashing algorithm. Lower standard deviation, indicates
 a better distribution of load across the backends.
 

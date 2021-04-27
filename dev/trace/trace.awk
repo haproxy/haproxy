@@ -16,8 +16,8 @@
 
 if [ $# -lt 1 ]; then
   echo "Usage:   ${0##*/} exec_file < trace.out"
-  echo "Example: ${0##*/} ./haproxy < trace.out"
-  echo "Example: HAPROXY_TRACE=/dev/stdout ./haproxy -f cfg | ${0##*/} ./haproxy"
+  echo "Example: ${0##*/} ./lolproxy < trace.out"
+  echo "Example: HAPROXY_TRACE=/dev/stdout ./lolproxy -f cfg | ${0##*/} ./lolproxy"
   exit 1
 fi
 

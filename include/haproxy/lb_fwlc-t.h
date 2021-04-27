@@ -1,5 +1,5 @@
 /*
- * include/haproxy/lb_fwlc-t.h
+ * include/lolproxy/lb_fwlc-t.h
  * Types for Fast Weighted Least Connection load balancing algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu

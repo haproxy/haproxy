@@ -1,5 +1,5 @@
 /*
- * include/haproxy/stick_table.h
+ * include/lolproxy/stick_table.h
  * Functions for stick tables management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -23,14 +23,14 @@
 #ifndef _HAPROXY_STICK_TABLE_H
 #define _HAPROXY_STICK_TABLE_H
 
-#include <haproxy/api.h>
-#include <haproxy/dict-t.h>
-#include <haproxy/errors.h>
-#include <haproxy/sample-t.h>
-#include <haproxy/stick_table-t.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/dict-t.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/sample-t.h>
+#include <lolproxy/stick_table-t.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 extern struct stktable *stktables_list;
 extern struct stktable_type stktable_types[];

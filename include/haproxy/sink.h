@@ -1,5 +1,5 @@
 /*
- * include/haproxy/sink.h
+ * include/lolproxy/sink.h
  * This file provides declarations for event sinks management
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -23,8 +23,8 @@
 #define _HAPROXY_SINK_H
 
 #include <sys/types.h>
-#include <haproxy/sink-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/sink-t.h>
+#include <lolproxy/thread.h>
 
 extern struct list sink_list;
 

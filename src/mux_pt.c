@@ -10,13 +10,13 @@
  *
  */
 
-#include <haproxy/api.h>
-#include <haproxy/buf.h>
-#include <haproxy/connection.h>
-#include <haproxy/pipe-t.h>
-#include <haproxy/stream.h>
-#include <haproxy/task.h>
-#include <haproxy/trace.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/pipe-t.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/task.h>
+#include <lolproxy/trace.h>
 
 struct mux_pt_ctx {
 	struct conn_stream *cs;

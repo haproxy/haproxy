@@ -1,4 +1,4 @@
-#define _GNU_SOURCE  /* for cpu_set_t from haproxy/cpuset.h */
+#define _GNU_SOURCE  /* for cpu_set_t from lolproxy/cpuset.h */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,16 +12,16 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <haproxy/buf.h>
-#include <haproxy/cfgparse.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/cfgparse.h>
 #ifdef USE_CPU_AFFINITY
-#include <haproxy/cpuset.h>
+#include <lolproxy/cpuset.h>
 #endif
-#include <haproxy/compression.h>
-#include <haproxy/global.h>
-#include <haproxy/log.h>
-#include <haproxy/peers.h>
-#include <haproxy/tools.h>
+#include <lolproxy/compression.h>
+#include <lolproxy/global.h>
+#include <lolproxy/log.h>
+#include <lolproxy/peers.h>
+#include <lolproxy/tools.h>
 
 /* some keywords that are still being parsed using strcmp() and are not
  * registered anywhere. They are used as suggestions for mistyped words.

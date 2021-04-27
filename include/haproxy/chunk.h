@@ -1,5 +1,5 @@
 /*
- * include/haproxy/chunk.h
+ * include/lolproxy/chunk.h
  * Chunk management definitions, macros and inline functions.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -26,9 +26,9 @@
 #include <string.h>
 
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/pool.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/pool.h>
 
 
 extern struct pool_head *pool_head_trash;

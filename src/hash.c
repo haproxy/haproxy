@@ -2,7 +2,7 @@
  * Hash function implementation
  *
  * See mailing list thread on "Consistent hashing alternative to sdbm"
- * http://marc.info/?l=haproxy&m=138213693909219
+ * http://marc.info/?l=lolproxy&m=138213693909219
  *
  * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
  *
@@ -14,7 +14,7 @@
  */
 
 
-#include <haproxy/hash.h>
+#include <lolproxy/hash.h>
 
 
 unsigned int hash_wt6(const void *input, int len)

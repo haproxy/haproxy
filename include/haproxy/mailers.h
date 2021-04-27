@@ -1,11 +1,11 @@
 /*
- * include/haproxy/mailer.h
+ * include/lolproxy/mailer.h
  * This file lists exported variables and functions for mailers.
  *
  * Copyright 2015 Horms Solutions Ltd., Simon Horman <horms@verge.net.au>
  * Copyright 2020 Willy Tarreau <w@1wt.eu>
  *
- * Based on include/haproxy/peers-t.h
+ * Based on include/lolproxy/peers-t.h
  *
  * Copyright 2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
  *
@@ -27,9 +27,9 @@
 #ifndef _HAPROXY_MAILERS_H
 #define _HAPROXY_MAILERS_H
 
-#include <haproxy/mailers-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/server-t.h>
+#include <lolproxy/mailers-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/server-t.h>
 
 extern struct mailers *mailers;
 

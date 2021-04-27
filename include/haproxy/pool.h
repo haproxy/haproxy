@@ -1,5 +1,5 @@
 /*
- * include/haproxy/pool.h
+ * include/lolproxy/pool.h
  * Memory management definitions..
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -24,12 +24,12 @@
 
 #include <string.h>
 
-#include <haproxy/api.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/list.h>
-#include <haproxy/pool-os.h>
-#include <haproxy/pool-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/list.h>
+#include <lolproxy/pool-os.h>
+#include <lolproxy/pool-t.h>
+#include <lolproxy/thread.h>
 
 /* This registers a call to create_pool_callback(ptr, name, size) */
 #define REGISTER_POOL(ptr, name, size)  \

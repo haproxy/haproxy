@@ -1,7 +1,7 @@
 /*
  * QUIC socket management.
  *
- * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,9 +15,9 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <haproxy/connection.h>
-#include <haproxy/listener.h>
-#include <haproxy/xprt_quic.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/xprt_quic.h>
 
 /* This function is called from the protocol layer accept() in order to
  * instantiate a new session on behalf of a given listener and frontend. It

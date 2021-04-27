@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <haproxy/channel-t.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/http_ana-t.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/stream_interface-t.h>
-#include <haproxy/task-t.h>
+#include <lolproxy/channel-t.h>
+#include <lolproxy/connection-t.h>
+#include <lolproxy/http_ana-t.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/stream_interface-t.h>
+#include <lolproxy/task-t.h>
 
 // 1 bit per flag, no hole permitted here
 #define SHOW_AS_ANA   0x00000001

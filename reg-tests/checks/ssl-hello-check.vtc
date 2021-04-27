@@ -23,7 +23,7 @@ syslog S3 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be3/srv failed, reason: Layer6 invalid response.+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
-haproxy htst -conf {
+lolproxy htst -conf {
     global
         tune.ssl.default-dh-param 2048
 
@@ -45,7 +45,7 @@ haproxy htst -conf {
 
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode tcp
         timeout client 1s

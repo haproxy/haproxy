@@ -1,5 +1,5 @@
 /*
- * include/haproxy/dynbuf.h
+ * include/lolproxy/dynbuf.h
  * Buffer management functions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -27,12 +27,12 @@
 #include <string.h>
 
 #include <import/ist.h>
-#include <haproxy/activity.h>
-#include <haproxy/api.h>
-#include <haproxy/buf.h>
-#include <haproxy/chunk.h>
-#include <haproxy/dynbuf-t.h>
-#include <haproxy/pool.h>
+#include <lolproxy/activity.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/dynbuf-t.h>
+#include <lolproxy/pool.h>
 
 extern struct pool_head *pool_head_buffer;
 

@@ -160,7 +160,7 @@ ChangeLog :
     - MINOR: cfgparse: support the comma separator on parse_cpu_set
     - MEDIUM: cfgparse: detect numa and set affinity if needed
     - MINOR: global: add option to disable numa detection
-    - BUG/MINOR: haproxy: fix compilation on macOS
+    - BUG/MINOR: lolproxy: fix compilation on macOS
     - BUG/MINOR: cpuset: fix compilation on platform without cpu affinity
     - MINOR: time: avoid unneeded updates to now_offset
     - MINOR: time: avoid overwriting the same values of global_now
@@ -1201,7 +1201,7 @@ ChangeLog :
     - MEDIUM: lua-thread: Add the lua-load-per-thread directive
     - MINOR: lua-thread: Add verbosity in errors
     - REGTESTS: add a test for the threaded Lua code
-    - BUILD/MINOR: haproxy DragonFlyBSD affinity build update.
+    - BUILD/MINOR: lolproxy DragonFlyBSD affinity build update.
     - DOC/MINOR: Fix formatting in Management Guide
     - MINOR: cache: Do not store stale entry
     - MINOR: cache: Add extra "cache-control" value checks
@@ -1307,7 +1307,7 @@ ChangeLog :
 
 2020/12/01 : 2.4-dev2
     - BUILD: Make DEBUG part of .build_opts
-    - BUILD: Show the value of DEBUG= in haproxy -vv
+    - BUILD: Show the value of DEBUG= in lolproxy -vv
     - CI: Set DEBUG=-DDEBUG_STRICT=1 in GitHub Actions
     - MINOR: stream: Add level 7 retries on http error 401, 403
     - CLEANUP: remove unused function "ssl_sock_is_ckch_valid"
@@ -1495,7 +1495,7 @@ ChangeLog :
     - DOC: Add dns as an available domain to show stat
     - BUILD: makefile: usual reorder of objects for faster builds
     - DOC: update INSTALL to mention that TCC is supported
-    - DOC: mention in INSTALL that haproxy 2.3 is a stable version
+    - DOC: mention in INSTALL that lolproxy 2.3 is a stable version
     - MINOR: version: mention that it's stable now
 
 2020/10/31 : 2.3-dev9
@@ -1927,7 +1927,7 @@ ChangeLog :
     - MINOR: sock: add interface and namespace length to xfer_sock_list
     - MINOR: sock: implement sock_find_compatible_fd()
     - MINOR: sock_inet: move the IPv4/v6 transparent mode code to sock_inet
-    - REORG: sock: move get_old_sockets() from haproxy.c
+    - REORG: sock: move get_old_sockets() from lolproxy.c
     - MINOR: sock: do not use LI_O_* in xfer_sock_list anymore
     - MINOR: sock: distinguish dgram from stream types when retrieving old sockets
     - BUILD: sock_unix: fix build issue with isdigit()
@@ -1949,7 +1949,7 @@ ChangeLog :
     - MINOR: protocol: do not call proto->unbind_all() anymore
     - CLEANUP: protocol: remove all ->bind_all() and ->unbind_all() functions
     - MAJOR: init: start all listeners via protocols and not via proxies anymore
-    - BUG/MINOR: startup: haproxy -s cause 100% cpu
+    - BUG/MINOR: startup: lolproxy -s cause 100% cpu
     - Revert "BUG/MINOR: http-rules: Replace path and query-string in "replace-path" action"
     - BUG/MEDIUM: doc: Fix replace-path action description
     - MINOR: http-rules: Add set-pathq and replace-pathq actions
@@ -1969,11 +1969,11 @@ ChangeLog :
     - BUILD: intops: on x86_64, the bswap instruction is called bswapq
     - BUILD: trace: always have an argument before variadic args in macros
     - BUILD: traces: don't pass an empty argument for missing ones
-    - BUG/MINOR: haproxy: Free uri_auth->scope during deinit
+    - BUG/MINOR: lolproxy: Free uri_auth->scope during deinit
     - CLEANUP: Free old_argv on deinit
-    - CLEANUP: haproxy: Free post_proxy_check_list in deinit()
-    - CLEANUP: haproxy: Free per_thread_*_list in deinit()
-    - CLEANUP: haproxy: Free post_check_list in deinit()
+    - CLEANUP: lolproxy: Free post_proxy_check_list in deinit()
+    - CLEANUP: lolproxy: Free per_thread_*_list in deinit()
+    - CLEANUP: lolproxy: Free post_check_list in deinit()
     - BUG/MEDIUM: pattern: Renew the pattern expression revision when it is pruned
     - REORG: tools: move PARSE_OPT_* from tools.h to tools-t.h
     - MINOR: sample: Add iif(<true>,<false>) converter
@@ -2068,17 +2068,17 @@ ChangeLog :
     - MINOR: config: make strict limits enabled by default
     - BUG/MINOR: acl: Fix freeing of expr->smp in prune_acl_expr
     - BUG/MINOR: sample: Fix freeing of conv_exprs in release_sample_expr
-    - BUG/MINOR: haproxy: Free proxy->format_unique_id during deinit
-    - BUG/MINOR: haproxy: Add missing free of server->(hostname|resolvers_id)
-    - BUG/MINOR: haproxy: Free proxy->unique_id_header during deinit
-    - BUG/MINOR: haproxy: Free srule->file during deinit
-    - BUG/MINOR: haproxy: Free srule->expr during deinit
+    - BUG/MINOR: lolproxy: Free proxy->format_unique_id during deinit
+    - BUG/MINOR: lolproxy: Add missing free of server->(hostname|resolvers_id)
+    - BUG/MINOR: lolproxy: Free proxy->unique_id_header during deinit
+    - BUG/MINOR: lolproxy: Free srule->file during deinit
+    - BUG/MINOR: lolproxy: Free srule->expr during deinit
     - BUG/MINOR: sample: Free str.area in smp_check_const_bool
     - BUG/MINOR: sample: Free str.area in smp_check_const_meth
-    - CLEANUP: haproxy: Free proxy_deinit_list in deinit()
-    - CLEANUP: haproxy: Free post_deinit_list in deinit()
-    - CLEANUP: haproxy: Free server_deinit_list in deinit()
-    - CLEANUP: haproxy: Free post_server_check_list in deinit()
+    - CLEANUP: lolproxy: Free proxy_deinit_list in deinit()
+    - CLEANUP: lolproxy: Free post_deinit_list in deinit()
+    - CLEANUP: lolproxy: Free server_deinit_list in deinit()
+    - CLEANUP: lolproxy: Free post_server_check_list in deinit()
     - CLEANUP: Add static void vars_deinit()
     - CLEANUP: Add static void hlua_deinit()
     - CLEANUP: contrib/prometheus-exporter: typo fixes for ssl reuse metric
@@ -2181,7 +2181,7 @@ ChangeLog :
     - BUG/MINOR: threads: Don't forget to init each thread toremove_lock.
     - BUG/MEDIUM: lists: Lock the element while we check if it is in a list.
     - Revert "BUG/MEDIUM: lists: Lock the element while we check if it is in a list."
-    - BUG/MINOR: haproxy: don't wake already stopping threads on exit
+    - BUG/MINOR: lolproxy: don't wake already stopping threads on exit
     - BUG/MINOR: server: always count one idle slot for current thread
     - MEDIUM: server: use the two thresholds for the connection release algorithm
     - BUG/MINOR: http-rules: Fix ACLs parsing for http deny rules
@@ -2220,7 +2220,7 @@ ChangeLog :
     - BUG/MAJOR: sched: make sure task_kill() always queues the task
     - BUG/MEDIUM: muxes: Make sure nobody stole the connection before using it.
     - BUG/MEDIUM: cli/proxy: don't try to dump idle connection state if there's none
-    - BUILD: haproxy: fix build error when RLIMIT_AS is not set
+    - BUILD: lolproxy: fix build error when RLIMIT_AS is not set
     - BUG/MAJOR: sched: make it work also when not building with DEBUG_STRICT
     - MINOR: log: add time second fraction field to rfc5424 log timestamp.
     - BUG/MINOR: log: missing timezone on iso dates.
@@ -2294,14 +2294,14 @@ ChangeLog :
     - BUILD: proto_uxst: shut up yet another gcc's absurd warning
     - BUG/MEDIUM: checks: Fix off-by-one in allocation of SMTP greeting cmd
     - CI: travis-ci: use "-O1" for clang builds
-    - MINOR: haproxy: Add void deinit_and_exit(int)
-    - MINOR: haproxy: Make use of deinit_and_exit() for clean exits
-    - BUG/MINOR: haproxy: Free rule->arg.vars.expr during deinit_act_rules
+    - MINOR: lolproxy: Add void deinit_and_exit(int)
+    - MINOR: lolproxy: Make use of deinit_and_exit() for clean exits
+    - BUG/MINOR: lolproxy: Free rule->arg.vars.expr during deinit_act_rules
     - BUILD: compression: make gcc 10 happy with free_zlib()
     - BUILD: atomic: add string.h for memcpy() on ARM64
     - BUG/MINOR: http: make smp_fetch_body() report that the contents may change
     - BUG/MINOR: tcp-rules: tcp-response must check the buffer's fullness
-    - BUILD: haproxy: mark deinit_and_exit() as noreturn
+    - BUILD: lolproxy: mark deinit_and_exit() as noreturn
     - BUG/MAJOR: vars: Fix bogus free() during deinit() for http-request rules
     - BUG/MEDIUM: ebtree: use a byte-per-byte memcmp() to compare memory blocks
     - MINOR: tools: add a new configurable line parse, parse_line()
@@ -2310,10 +2310,10 @@ ChangeLog :
     - MINOR: http: do not close connections anymore after internal responses
     - BUG/MINOR: cfgparse: Add missing fatal++ in PARSE_ERR_HEX case
     - BUG/MINOR: spoe: add missing key length check before checking key names
-    - MINOR: version: put the compiler version output into version.c not haproxy.c
+    - MINOR: version: put the compiler version output into version.c not lolproxy.c
     - MINOR: compiler: always define __has_feature()
     - MINOR: version: report the presence of the compiler's address sanitizer
-    - BUILD: Fix build by including haproxy/global.h
+    - BUILD: Fix build by including lolproxy/global.h
     - BUG/MAJOR: connection: always disable ready events once reported
     - CLEANUP: activity: remove unused counter fd_lock
     - DOC: fd: make it clear that some fields ordering must absolutely be respected
@@ -2331,7 +2331,7 @@ ChangeLog :
     - MEDIUM: peers: add the "localpeer" global option
     - MEDIUM: fd: add experimental support for edge-triggered polling
     - CONTRIB: debug: add the missing flags CO_FL_SAFE_LIST and CO_FL_IDLE_LIST
-    - MINOR: haproxy: process signals before runnable tasks
+    - MINOR: lolproxy: process signals before runnable tasks
     - MEDIUM: tasks: clean up the front side of the wait queue in wake_expired_tasks()
     - MEDIUM: tasks: also process late wakeups in process_runnable_tasks()
     - BUG/MINOR: cli: allow space escaping on the CLI
@@ -2410,132 +2410,132 @@ ChangeLog :
     - REORG: ebtree: move the C files from ebtree/ to src/
     - REORG: ebtree: move the include files from ebtree to include/import/
     - REORG: ebtree: clean up remains of the ebtree/ directory
-    - REORG: include: create new file haproxy/api-t.h
-    - REORG: include: create new file haproxy/api.h
-    - REORG: include: update all files to use haproxy/api.h or api-t.h if needed
+    - REORG: include: create new file lolproxy/api-t.h
+    - REORG: include: create new file lolproxy/api.h
+    - REORG: include: update all files to use lolproxy/api.h or api-t.h if needed
     - CLEANUP: include: remove common/config.h
     - CLEANUP: include: remove unused template.h
     - REORG: include: move MIN/MAX from tools.h to compat.h
     - REORG: include: move SWAP/MID_RANGE/MAX_RANGE from tools.h to standard.h
     - CLEANUP: include: remove unused common/tools.h
-    - REORG: include: move the base files from common/ to haproxy/
-    - REORG: include: move version.h to haproxy/
-    - REORG: include: move base64.h, errors.h and hash.h from common to to haproxy/
-    - REORG: include: move openssl-compat.h from common/ to haproxy/
+    - REORG: include: move the base files from common/ to lolproxy/
+    - REORG: include: move version.h to lolproxy/
+    - REORG: include: move base64.h, errors.h and hash.h from common to to lolproxy/
+    - REORG: include: move openssl-compat.h from common/ to lolproxy/
     - REORG: include: move ist.h from common/ to import/
-    - REORG: include: move the BUG_ON() code to haproxy/bug.h
-    - REORG: include: move debug.h from common/ to haproxy/
+    - REORG: include: move the BUG_ON() code to lolproxy/bug.h
+    - REORG: include: move debug.h from common/ to lolproxy/
     - CLEANUP: debug: drop unused function p_malloc()
-    - REORG: include: split buf.h into haproxy/buf-t.h and haproxy/buf.h
-    - REORG: include: move istbuf.h to haproxy/
-    - REORG: include: split mini-clist into haproxy/list and list-t.h
+    - REORG: include: split buf.h into lolproxy/buf-t.h and lolproxy/buf.h
+    - REORG: include: move istbuf.h to lolproxy/
+    - REORG: include: split mini-clist into lolproxy/list and list-t.h
     - REORG: threads: extract atomic ops from hathreads.h
     - CLEANUP: threads: remove a few needless includes of hathreads.h
-    - REORG: include: split hathreads into haproxy/thread.h and haproxy/thread-t.h
+    - REORG: include: split hathreads into lolproxy/thread.h and lolproxy/thread-t.h
     - CLEANUP: thread: rename __decl_hathreads() to __decl_thread()
-    - REORG: include: move time.h from common/ to haproxy/
+    - REORG: include: move time.h from common/ to lolproxy/
     - REORG: include: move integer manipulation functions from standard.h to intops.h
     - CLEANUP: include: remove excessive includes of common/standard.h
-    - REORG: include: move freq_ctr to haproxy/
+    - REORG: include: move freq_ctr to lolproxy/
     - CLEANUP: pool: include freq_ctr.h and remove locally duplicated functions
-    - REORG: memory: move the pool type definitions to haproxy/pool-t.h
-    - REORG: memory: move the OS-level allocator to haproxy/pool-os.h
+    - REORG: memory: move the pool type definitions to lolproxy/pool-t.h
+    - REORG: memory: move the OS-level allocator to lolproxy/pool-os.h
     - MINOR: memory: don't let __pool_get_first() pick from the cache
     - MEDIUM: memory: don't let pool_put_to_cache() free the objects itself
     - MINOR: memory: move pool-specific path of the locked pool_free() to __pool_free()
     - MEDIUM: memory: make local pools independent on lockless pools
-    - REORG: include: move common/memory.h to haproxy/pool.h
-    - REORG: include: move common/chunk.h to haproxy/chunk.h
-    - REORG: include: move activity to haproxy/
-    - REORG: include: move common/buffer.h to haproxy/dynbuf{,-t}.h
-    - REORG: include: move common/net_helper.h to haproxy/net_helper.h
-    - REORG: include: move common/namespace.h to haproxy/namespace{,-t}.h
-    - REORG: include: split common/regex.h into haproxy/regex{,-t}.h
-    - REORG: include: split common/xref.h into haproxy/xref{,-t}.h
-    - REORG: include: move common/ticks.h to haproxy/ticks.h
-    - REORG: include: split common/http.h into haproxy/http{,-t}.h
-    - REORG: include: split common/http-hdr.h into haproxy/http-hdr{,-t}.h
-    - REORG: include: move common/h1.h to haproxy/h1.h
-    - REORG: include: split common/htx.h into haproxy/htx{,-t}.h
-    - REORG: include: move hpack*.h to haproxy/ and split hpack-tbl
-    - REORG: include: move common/h2.h to haproxy/h2.h
-    - REORG: include: move common/fcgi.h to haproxy/
-    - REORG: include: move protocol.h to haproxy/protocol{,-t}.h
-    - REORG: tools: split common/standard.h into haproxy/tools{,-t}.h
+    - REORG: include: move common/memory.h to lolproxy/pool.h
+    - REORG: include: move common/chunk.h to lolproxy/chunk.h
+    - REORG: include: move activity to lolproxy/
+    - REORG: include: move common/buffer.h to lolproxy/dynbuf{,-t}.h
+    - REORG: include: move common/net_helper.h to lolproxy/net_helper.h
+    - REORG: include: move common/namespace.h to lolproxy/namespace{,-t}.h
+    - REORG: include: split common/regex.h into lolproxy/regex{,-t}.h
+    - REORG: include: split common/xref.h into lolproxy/xref{,-t}.h
+    - REORG: include: move common/ticks.h to lolproxy/ticks.h
+    - REORG: include: split common/http.h into lolproxy/http{,-t}.h
+    - REORG: include: split common/http-hdr.h into lolproxy/http-hdr{,-t}.h
+    - REORG: include: move common/h1.h to lolproxy/h1.h
+    - REORG: include: split common/htx.h into lolproxy/htx{,-t}.h
+    - REORG: include: move hpack*.h to lolproxy/ and split hpack-tbl
+    - REORG: include: move common/h2.h to lolproxy/h2.h
+    - REORG: include: move common/fcgi.h to lolproxy/
+    - REORG: include: move protocol.h to lolproxy/protocol{,-t}.h
+    - REORG: tools: split common/standard.h into lolproxy/tools{,-t}.h
     - REORG: include: move dict.h to hparoxy/dict{,-t}.h
-    - REORG: include: move shctx to haproxy/shctx{,-t}.h
-    - REORG: include: move port_range.h to haproxy/port_range{,-t}.h
-    - REORG: include: move fd.h to haproxy/fd{,-t}.h
-    - REORG: include: move ring to haproxy/ring{,-t}.h
-    - REORG: include: move sink.h to haproxy/sink{,-t}.h
-    - REORG: include: move pipe.h to haproxy/pipe{,-t}.h
+    - REORG: include: move shctx to lolproxy/shctx{,-t}.h
+    - REORG: include: move port_range.h to lolproxy/port_range{,-t}.h
+    - REORG: include: move fd.h to lolproxy/fd{,-t}.h
+    - REORG: include: move ring to lolproxy/ring{,-t}.h
+    - REORG: include: move sink.h to lolproxy/sink{,-t}.h
+    - REORG: include: move pipe.h to lolproxy/pipe{,-t}.h
     - CLEANUP: include: remove empty raw_sock.h
-    - REORG: include: move proto_udp.h to haproxy/proto_udp{,-t}.h
-    - REORG: include: move proto/proto_sockpair.h to haproxy/proto_sockpair.h
-    - REORG: include: move compression.h to haproxy/compression{,-t}.h
-    - REORG: include: move h1_htx.h to haproxy/h1_htx.h
-    - REORG: include: move http_htx.h to haproxy/http_htx{,-t}.h
-    - REORG: include: move hlua.h to haproxy/hlua{,-t}.h
-    - REORG: include: move hlua_fcn.h to haproxy/hlua_fcn.h
-    - REORG: include: move action.h to haproxy/action{,-t}.h
-    - REORG: include: move arg.h to haproxy/arg{,-t}.h
-    - REORG: include: move auth.h to haproxy/auth{,-t}.h
-    - REORG: include: move dns.h to haproxy/dns{,-t}.h
-    - REORG: include: move flt_http_comp.h to haproxy/
-    - REORG: include: move counters.h to haproxy/counters-t.h
-    - REORG: include: split mailers.h into haproxy/mailers{,-t}.h
-    - REORG: include: move capture.h to haproxy/capture{,-t}.h
-    - REORG: include: move frontend.h to haproxy/frontend.h
-    - REORG: include: move obj_type.h to haproxy/obj_type{,-t}.h
-    - REORG: include: move http_rules.h to haproxy/http_rules.h
+    - REORG: include: move proto_udp.h to lolproxy/proto_udp{,-t}.h
+    - REORG: include: move proto/proto_sockpair.h to lolproxy/proto_sockpair.h
+    - REORG: include: move compression.h to lolproxy/compression{,-t}.h
+    - REORG: include: move h1_htx.h to lolproxy/h1_htx.h
+    - REORG: include: move http_htx.h to lolproxy/http_htx{,-t}.h
+    - REORG: include: move hlua.h to lolproxy/hlua{,-t}.h
+    - REORG: include: move hlua_fcn.h to lolproxy/hlua_fcn.h
+    - REORG: include: move action.h to lolproxy/action{,-t}.h
+    - REORG: include: move arg.h to lolproxy/arg{,-t}.h
+    - REORG: include: move auth.h to lolproxy/auth{,-t}.h
+    - REORG: include: move dns.h to lolproxy/dns{,-t}.h
+    - REORG: include: move flt_http_comp.h to lolproxy/
+    - REORG: include: move counters.h to lolproxy/counters-t.h
+    - REORG: include: split mailers.h into lolproxy/mailers{,-t}.h
+    - REORG: include: move capture.h to lolproxy/capture{,-t}.h
+    - REORG: include: move frontend.h to lolproxy/frontend.h
+    - REORG: include: move obj_type.h to lolproxy/obj_type{,-t}.h
+    - REORG: include: move http_rules.h to lolproxy/http_rules.h
     - CLEANUP: include: remove unused mux_pt.h
-    - REORG: include: move mworker.h to haproxy/mworker{,-t}.h
-    - REORG: include: move ssl_utils.h to haproxy/ssl_utils.h
-    - REORG: include: move ssl_ckch.h to haproxy/ssl_ckch{,-t}.h
-    - REORG: move ssl_crtlist.h to haproxy/ssl_crtlist{,-t}.h
-    - REORG: include: move lb_chash.h to haproxy/lb_chash{,-t}.h
-    - REORG: include: move lb_fas.h to haproxy/lb_fas{,-t}.h
-    - REORG: include: move lb_fwlc.h to haproxy/lb_fwlc{,-t}.h
-    - REORG: include: move lb_fwrr.h to haproxy/lb_fwrr{,-t}.h
-    - REORG: include: move listener.h to haproxy/listener{,-t}.h
-    - REORG: include: move pattern.h to haproxy/pattern{,-t}.h
-    - REORG: include: move map to haproxy/map{,-t}.h
-    - REORG: include: move payload.h to haproxy/payload.h
-    - REORG: include: move sample.h to haproxy/sample{,-t}.h
-    - REORG: include: move protocol_buffers.h to haproxy/protobuf{,-t}.h
-    - REORG: include: move vars.h to haproxy/vars{,-t}.h
-    - REORG: include: split global.h into haproxy/global{,-t}.h
-    - REORG: include: move task.h to haproxy/task{,-t}.h
-    - REORG: include: move proto_tcp.h to haproxy/proto_tcp.h
-    - REORG: include: move signal.h to haproxy/signal{,-t}.h
-    - REORG: include: move tcp_rules.h to haproxy/tcp_rules.h
-    - REORG: include: move connection.h to haproxy/connection{,-t}.h
-    - REORG: include: move checks.h to haproxy/check{,-t}.h
-    - REORG: include: move http_fetch.h to haproxy/http_fetch.h
-    - REORG: include: move peers.h to haproxy/peers{,-t}.h
-    - REORG: include: move stick_table.h to haproxy/stick_table{,-t}.h
-    - REORG: include: move session.h to haproxy/session{,-t}.h
-    - REORG: include: move trace.h to haproxy/trace{,-t}.h
-    - REORG: include: move acl.h to haproxy/acl.h{,-t}.h
-    - REORG: include: split common/uri_auth.h into haproxy/uri_auth{,-t}.h
-    - REORG: move applet.h to haproxy/applet{,-t}.h
-    - REORG: include: move stats.h to haproxy/stats{,-t}.h
-    - REORG: include: move cli.h to haproxy/cli{,-t}.h
-    - REORG: include: move lb_map.h to haproxy/lb_map{,-t}.h
-    - REORG: include: move ssl_sock.h to haproxy/ssl_sock{,-t}.h
-    - REORG: include: move stream_interface.h to haproxy/stream_interface{,-t}.h
-    - REORG: include: move channel.h to haproxy/channel{,-t}.h
-    - REORG: include: move http_ana.h to haproxy/http_ana{,-t}.h
-    - REORG: include: move filters.h to haproxy/filters{,-t}.h
-    - REORG: include: move fcgi-app.h to haproxy/fcgi-app{,-t}.h
-    - REORG: include: move log.h to haproxy/log{,-t}.h
-    - REORG: include: move proxy.h to haproxy/proxy{,-t}.h
-    - REORG: include: move spoe.h to haproxy/spoe{,-t}.h
-    - REORG: include: move backend.h to haproxy/backend{,-t}.h
-    - REORG: include: move queue.h to haproxy/queue{,-t}.h
-    - REORG: include: move server.h to haproxy/server{,-t}.h
-    - REORG: include: move stream.h to haproxy/stream{,-t}.h
-    - REORG: include: move cfgparse.h to haproxy/cfgparse.h
+    - REORG: include: move mworker.h to lolproxy/mworker{,-t}.h
+    - REORG: include: move ssl_utils.h to lolproxy/ssl_utils.h
+    - REORG: include: move ssl_ckch.h to lolproxy/ssl_ckch{,-t}.h
+    - REORG: move ssl_crtlist.h to lolproxy/ssl_crtlist{,-t}.h
+    - REORG: include: move lb_chash.h to lolproxy/lb_chash{,-t}.h
+    - REORG: include: move lb_fas.h to lolproxy/lb_fas{,-t}.h
+    - REORG: include: move lb_fwlc.h to lolproxy/lb_fwlc{,-t}.h
+    - REORG: include: move lb_fwrr.h to lolproxy/lb_fwrr{,-t}.h
+    - REORG: include: move listener.h to lolproxy/listener{,-t}.h
+    - REORG: include: move pattern.h to lolproxy/pattern{,-t}.h
+    - REORG: include: move map to lolproxy/map{,-t}.h
+    - REORG: include: move payload.h to lolproxy/payload.h
+    - REORG: include: move sample.h to lolproxy/sample{,-t}.h
+    - REORG: include: move protocol_buffers.h to lolproxy/protobuf{,-t}.h
+    - REORG: include: move vars.h to lolproxy/vars{,-t}.h
+    - REORG: include: split global.h into lolproxy/global{,-t}.h
+    - REORG: include: move task.h to lolproxy/task{,-t}.h
+    - REORG: include: move proto_tcp.h to lolproxy/proto_tcp.h
+    - REORG: include: move signal.h to lolproxy/signal{,-t}.h
+    - REORG: include: move tcp_rules.h to lolproxy/tcp_rules.h
+    - REORG: include: move connection.h to lolproxy/connection{,-t}.h
+    - REORG: include: move checks.h to lolproxy/check{,-t}.h
+    - REORG: include: move http_fetch.h to lolproxy/http_fetch.h
+    - REORG: include: move peers.h to lolproxy/peers{,-t}.h
+    - REORG: include: move stick_table.h to lolproxy/stick_table{,-t}.h
+    - REORG: include: move session.h to lolproxy/session{,-t}.h
+    - REORG: include: move trace.h to lolproxy/trace{,-t}.h
+    - REORG: include: move acl.h to lolproxy/acl.h{,-t}.h
+    - REORG: include: split common/uri_auth.h into lolproxy/uri_auth{,-t}.h
+    - REORG: move applet.h to lolproxy/applet{,-t}.h
+    - REORG: include: move stats.h to lolproxy/stats{,-t}.h
+    - REORG: include: move cli.h to lolproxy/cli{,-t}.h
+    - REORG: include: move lb_map.h to lolproxy/lb_map{,-t}.h
+    - REORG: include: move ssl_sock.h to lolproxy/ssl_sock{,-t}.h
+    - REORG: include: move stream_interface.h to lolproxy/stream_interface{,-t}.h
+    - REORG: include: move channel.h to lolproxy/channel{,-t}.h
+    - REORG: include: move http_ana.h to lolproxy/http_ana{,-t}.h
+    - REORG: include: move filters.h to lolproxy/filters{,-t}.h
+    - REORG: include: move fcgi-app.h to lolproxy/fcgi-app{,-t}.h
+    - REORG: include: move log.h to lolproxy/log{,-t}.h
+    - REORG: include: move proxy.h to lolproxy/proxy{,-t}.h
+    - REORG: include: move spoe.h to lolproxy/spoe{,-t}.h
+    - REORG: include: move backend.h to lolproxy/backend{,-t}.h
+    - REORG: include: move queue.h to lolproxy/queue{,-t}.h
+    - REORG: include: move server.h to lolproxy/server{,-t}.h
+    - REORG: include: move stream.h to lolproxy/stream{,-t}.h
+    - REORG: include: move cfgparse.h to lolproxy/cfgparse.h
     - CLEANUP: hpack: export debug functions and move inlines to .h
     - REORG: check: move the e-mail alerting code to mailers.c
     - REORG: check: move tcpchecks away from check.c
@@ -2966,11 +2966,11 @@ ChangeLog :
     - MINOR: ssl: don't alloc ssl_conf if no option found
     - BUG/MINOR: connection: always send address-less LOCAL PROXY connections
     - BUG/MINOR: peers: Incomplete peers sections should be validated.
-    - MINOR: init: report in "haproxy -c" whether there were warnings or not
+    - MINOR: init: report in "lolproxy -c" whether there were warnings or not
     - MINOR: init: add -dW and "zero-warning" to reject configs with warnings
-    - MINOR: init: report the compiler version in haproxy -vv
+    - MINOR: init: report the compiler version in lolproxy -vv
     - CLEANUP: assorted typo fixes in the code and comments
-    - MINOR: init: report the haproxy version and executable path once on errors
+    - MINOR: init: report the lolproxy version and executable path once on errors
     - DOC: Make how "option redispatch" works more explicit
     - BUILD: Makefile: add linux-musl to TARGET
     - CLEANUP: assorted typo fixes in the code and comments
@@ -3003,9 +3003,9 @@ ChangeLog :
     - BUG/MEDIUM: random: align the state on 2*64 bits for ARM64
     - BUG/MEDIUM: connections: Don't assume the connection has a valid session.
     - BUG/MEDIUM: pools: Always update free_list in pool_gc().
-    - BUG/MINOR: haproxy: always initialize sleeping_thread_mask
+    - BUG/MINOR: lolproxy: always initialize sleeping_thread_mask
     - BUG/MINOR: listener/mq: do not dispatch connections to remote threads when stopping
-    - BUG/MINOR: haproxy/threads: try to make all threads leave together
+    - BUG/MINOR: lolproxy/threads: try to make all threads leave together
     - Revert "BUILD: travis-ci: enable s390x builds"
     - BUILD: travis-ci: enable regular s390x builds
     - DOC: proxy_protocol: Reserve TLV type 0x05 as PP2_TYPE_UNIQUE_ID
@@ -3075,8 +3075,8 @@ ChangeLog :
     - BUG/MINOR: connections: Set idle_time before adding to idle list.
     - MINOR: muxes: Note that we can't usee a connection when added to the srv idle.
     - REGTEST: increase timeouts on the seamless-reload test
-    - BUG/MINOR: haproxy/threads: close a possible race in soft-stop detection
-    - CLEANUP: haproxy/threads: don't check global_tasks_mask twice
+    - BUG/MINOR: lolproxy/threads: close a possible race in soft-stop detection
+    - CLEANUP: lolproxy/threads: don't check global_tasks_mask twice
 
 2020/03/09 : 2.2-dev4
     - MEDIUM: buffer: remove the buffer_wq lock
@@ -3106,8 +3106,8 @@ ChangeLog :
     - MINOR: tools: make sure to correctly check the returned 'ms' in date2std_log
     - MINOR: debug: report the task handler's pointer relative to main
     - BUG/MEDIUM: debug: make the debug_handler check for the thread in threads_to_dump
-    - MINOR: haproxy: export main to ease access from debugger
-    - MINOR: haproxy: export run_poll_loop
+    - MINOR: lolproxy: export main to ease access from debugger
+    - MINOR: lolproxy: export run_poll_loop
     - MINOR: task: export run_tasks_from_list
     - BUILD: tools: remove obsolete and conflicting trace() from standard.c
     - MINOR: tools: add new function dump_addr_and_bytes()
@@ -3553,7 +3553,7 @@ ChangeLog :
     - CLEANUP: ssl: remove opendir call in ssl_sock_load_cert
     - MEDIUM: lua: don't call the GC as often when dealing with outgoing connections
     - BUG/MEDIUM: mux-h2: don't stop sending when crossing a buffer boundary
-    - BUG/MINOR: cli/mworker: can't start haproxy with 2 programs
+    - BUG/MINOR: cli/mworker: can't start lolproxy with 2 programs
     - REGTEST: mcli/mcli_start_progs: start 2 programs
     - BUG/MEDIUM: mworker: remain in mworker mode during reload
     - DOC: clarify crt-base usage
@@ -3697,8 +3697,8 @@ ChangeLog :
     - MINOR: ssl: ssl_sock_prepare_ctx() return an error code
     - MEDIUM: ssl/cli: apply SSL configuration on SSL_CTX during commit
     - MINOR: ssl/cli: display warning during 'commit ssl cert'
-    - MINOR: version: report the version status in "haproxy -v"
-    - MINOR: version: emit the link to the known bugs in output of "haproxy -v"
+    - MINOR: version: report the version status in "lolproxy -v"
+    - MINOR: version: emit the link to the known bugs in output of "lolproxy -v"
     - DOC: Add documentation about the use-service action
     - MINOR: ssl: fix possible null dereference in error handling
     - BUG/MINOR: ssl: fix curve setup with LibreSSL
@@ -3715,7 +3715,7 @@ ChangeLog :
     - SCRIPTS: git-show-backports: add "-s" to proposed cherry-pick commands
     - BUG/MEDIUM: trace: fix a typo causing an incorrect startup error
     - BUILD: reorder the objects in the makefile
-    - DOC: mention in INSTALL haproxy 2.1 is a stable stable version
+    - DOC: mention in INSTALL lolproxy 2.1 is a stable stable version
     - MINOR: version: indicate that this version is stable
 
 2019/11/15 : 2.1-dev5
@@ -4507,7 +4507,7 @@ ChangeLog :
     - DOC: Fix typos in CONTRIBUTING
     - DOC: update the outdated ROADMAP file
     - DOC: create a BRANCHES file to explain the life cycle
-    - DOC: mention in INSTALL haproxy 2.0 is a long-term supported stable version
+    - DOC: mention in INSTALL lolproxy 2.0 is a long-term supported stable version
     - BUILD: travis-ci: TFO and GETADDRINFO are now enabled by default
     - BUILD: makefile: make the obsolete target detection compatible with make-3.80
     - BUILD: tools: work around an internal compiler bug in gcc-3.4
@@ -4786,7 +4786,7 @@ ChangeLog :
     - MINOR: threads: add a timer_t per thread in thread_info
     - MAJOR: watchdog: implement a thread lockup detection mechanism
     - MINOR: stream: remove the cpu time detection from process_stream()
-    - MINOR: connection: report the mux names in "haproxy -vv"
+    - MINOR: connection: report the mux names in "lolproxy -vv"
     - CLEANUP: mux-h1: use "H1" and not "h1" as the mux's name
     - BUG/MEDIUM: WURFL: segfault in wurfl-get() with missing info.
     - MINOR: WURFL: call header_retireve_callback() in dummy library
@@ -4821,7 +4821,7 @@ ChangeLog :
     - BUILD: Makefile: also report disabled options in the BUILD_OPTIONS variable
     - BUILD: Makefile: shorten default settings declaration
     - BUILD: Makefile: clean up the target declarations
-    - BUILD: report the whole feature set with their status in haproxy -vv
+    - BUILD: report the whole feature set with their status in lolproxy -vv
     - BUILD: pass all "USE_*" variables as -DUSE_* to the compiler
     - REGTEST: script: make the script use the new features list
     - REGTEST: script: remove platform-specific assigments of OPTIONS
@@ -4998,7 +4998,7 @@ ChangeLog :
     - MINOR: ssl/cli: async fd io-handlers printable on show fd
     - Revert "CLEANUP: wurfl: remove dead, broken and unmaintained code"
     - BUILD: add USE_WURFL to the list of known build options
-    - MINOR: wurfl: indicate in haproxy -vv the wurfl version in use
+    - MINOR: wurfl: indicate in lolproxy -vv the wurfl version in use
     - BUILD: wurfl: build fix for 1.9/2.0 code base
     - CLEANUP: wurfl: removed deprecated methods
     - DOC: wurfl: added point of contact in MAINTAINERS file
@@ -5062,7 +5062,7 @@ ChangeLog :
     - CLEANUP: config: Don't alter listener->maxaccept when nbproc is set to 1
     - BUG/MEDIUM: servers: fix typo "src" instead of "srv"
     - BUG/MEDIUM: ssl: Don't pretend we can retry a recv/send if we got a shutr/w.
-    - BUG/MINOR: haproxy: fix rule->file memory leak
+    - BUG/MINOR: lolproxy: fix rule->file memory leak
     - BUG/MINOR: log: properly free memory on logformat parse error and deinit()
     - BUG/MINOR: checks: free memory allocated for tasklets
     - BUG/MEDIUM: pattern: fix memory leak in regex pattern functions
@@ -5113,7 +5113,7 @@ ChangeLog :
     - REGTEST: Wrong renaming for one reg test.
     - REGTEST: Wrong assumption in IP:port logging test.
     - BUG/MINOR: mworker/ssl: close OpenSSL FDs on reload
-    - MINOR: systemd: Use the variables from /etc/default/haproxy
+    - MINOR: systemd: Use the variables from /etc/default/lolproxy
     - MINOR: systemd: Make use of master socket in systemd unit
     - MINOR: systemd: support /etc/sysconfig/ for redhat based distrib
     - BUG/MEDIUM: stick-table: fix regression caused by a change in proxy struct
@@ -5863,7 +5863,7 @@ ChangeLog :
     - BUG: dns: Prevent out-of-bounds read in dns_validate_dns_response()
     - BUG: dns: Fix out-of-bounds read via signedness error in dns_validate_dns_response()
     - BUG: dns: Fix off-by-one write in dns_validate_dns_response()
-    - REGTEST: the cache regtest requires haproxy 1.9
+    - REGTEST: the cache regtest requires lolproxy 1.9
     - MEDIUM: cli: store CLI level in the appctx
     - MEDIUM: cli: show and change CLI permissions
     - CLEANUP: cli: use dedicated define instead of appctx ones
@@ -6330,7 +6330,7 @@ ChangeLog :
     - MEDIUM: mux-h1: Handle errors and timeouts in the stream
     - MINOR: filters/htx: Forbid filters when the HTX is enabled on a proxy
     - MINOR: lua/htx: Forbid lua usage when the HTX is enabled on a proxy
-    - CLEANUP: Fix some typos in the haproxy subsystem
+    - CLEANUP: Fix some typos in the lolproxy subsystem
     - CLEANUP: Fix typos in the dns subsystem
     - CLEANUP: Fix typos in the pattern subsystem
     - CLEANUP: fix 2 typos in the xxhash subsystem
@@ -6489,7 +6489,7 @@ ChangeLog :
     - MINOR: ssl: generate-certificates for BoringSSL
     - BUG/MEDIUM: buffers: Make sure we don't wrap in ci_insert_line2/b_rep_blk.
     - MEDIUM: ssl: add support for ciphersuites option for TLSv1.3
-    - CLEANUP: haproxy: Remove unused variable
+    - CLEANUP: lolproxy: Remove unused variable
     - CLEANUP: h1: Fix debug warnings for h1 headers
     - CLEANUP: stick-tables: Remove unneeded double (()) around conditional clause
     - MEDIUM: task: perform a single tree lookup per run queue batch
@@ -6623,7 +6623,7 @@ ChangeLog :
     - MINOR: mux: Unlink ALPN and multiplexers to rather speak of mux protocols
     - MINOR: mux: Print the list of existing mux protocols during HA startup
     - MEDIUM: checks: use the new rendez-vous point to spread check result
-    - MEDIUM: haproxy: don't use sync_poll_loop() anymore in the main loop
+    - MEDIUM: lolproxy: don't use sync_poll_loop() anymore in the main loop
     - MINOR: threads: remove the previous synchronization point
     - MAJOR: server: make server state changes synchronous again
     - CLEANUP: server: remove the update list and the update lock
@@ -6748,7 +6748,7 @@ ChangeLog :
     - MEDIUM: snapshots: dynamically allocate the snapshots
     - MEDIUM: snapshot: merge the captured data after the descriptor
     - MEDIUM: mworker: remove register/unregister signal functions
-    - MEDIUM: mworker: use the haproxy poll loop
+    - MEDIUM: mworker: use the lolproxy poll loop
     - BUG/MINOR: mworker: no need to stop peers for each proxy
     - MINOR: mworker: mworker_cleanlisteners() delete the listeners
     - MEDIUM: mworker: block SIGCHLD until the master is ready
@@ -6818,14 +6818,14 @@ ChangeLog :
     - BUG/MEDIUM: cache: bad computation of the remaining size
     - BUILD: checks: don't include server.h
     - BUG/MEDIUM: stream: fix session leak on applet-initiated connections
-    - BUILD/MINOR: haproxy : FreeBSD/cpu affinity needs pthread_np header
+    - BUILD/MINOR: lolproxy : FreeBSD/cpu affinity needs pthread_np header
     - BUILD/MINOR: Makefile : enabling USE_CPU_AFFINITY
     - BUG/MINOR: ssl: CO_FL_EARLY_DATA removal is managed by stream
     - BUG/MEDIUM: threads/peers: decrement, not increment jobs on quitting
     - BUG/MEDIUM: h2: don't report an error after parsing a 100-continue response
     - BUG/MEDIUM: peers: fix some track counter rules dont register entries for sync.
     - BUG/MAJOR: thread/peers: fix deadlock on peers sync.
-    - BUILD/MINOR: haproxy: compiling config cpu parsing handling when needed
+    - BUILD/MINOR: lolproxy: compiling config cpu parsing handling when needed
     - MINOR: config: report when "monitor fail" rules are misplaced
     - BUG/MINOR: mworker: fix validity check for the pipe FDs
     - BUG/MINOR: mworker: detach from tty when in daemon mode
@@ -7573,7 +7573,7 @@ ChangeLog :
     - BUG/MAJOR: ebtree/scope: fix lookup of next node in scope-aware trees
     - MINOR: ebtree/scope: add a function to find next node from a parent
     - MINOR: ebtree/scope: simplify the lookup functions by using eb32sc_next_with_parent()
-    - BUG/MEDIUM: mworker: Fix re-exec when haproxy is started from PATH
+    - BUG/MEDIUM: mworker: Fix re-exec when lolproxy is started from PATH
     - BUG/MEDIUM: cache: use msg->sov to forward header
     - MINOR: cache: forward data with headers
     - MINOR: cache: disable cache if shctx_row_data_append fail
@@ -7696,7 +7696,7 @@ ChangeLog :
     - BUG/MINOR: lua: fix missing lock protection on server.
     - BUILD: enable USE_THREAD for OpenBSD build.
     - BUG/MAJOR: mux_pt: don't dereference a connstream after ->wake()
-    - MINOR: thread: report multi-thread support in haproxy -vv
+    - MINOR: thread: report multi-thread support in lolproxy -vv
 
 2017/10/31 : 1.8-rc1
     - BUG/MEDIUM: server: Allocate tmptrash before using it.
@@ -7951,7 +7951,7 @@ ChangeLog :
     - BUG/MAJOR: ssl: fix segfault on connection close using async engines.
     - BUG/MAJOR: ssl: buffer overflow using offloaded ciphering on async engine
     - BUG/MINOR: ssl: do not call directly the conn_fd_handler from async_fd_handler
-    - BUG/MINOR: haproxy/cli : fix for solaris/illumos distros for CMSG* macros
+    - BUG/MINOR: lolproxy/cli : fix for solaris/illumos distros for CMSG* macros
     - BUG/MEDIUM: build without openssl broken
     - BUG/MINOR: warning: need_resend may be used uninitialized
     - BUG/MEDIUM: misplaced exit and wrong exit code
@@ -8027,7 +8027,7 @@ ChangeLog :
     - BUG/MINOR: http: Fix bug introduced in previous patch in http_resync_states
     - BUG/MINOR: contrib/modsecurity: BSD build fix
     - BUG/MINOR: contrib/mod_defender: build fix
-    - BUG/MINOR: ssl: remove haproxy SSLv3 support when ssl lib have no SSLv3
+    - BUG/MINOR: ssl: remove lolproxy SSLv3 support when ssl lib have no SSLv3
     - MINOR: ssl: remove an unecessary SSL_OP_NO_* dependancy
     - BUILD: ssl: fix compatibility with openssl without TLSEXT_signature_*
     - MINOR: tools: add a portable timegm() alternative
@@ -8431,8 +8431,8 @@ ChangeLog :
     - BUG/MINOR: lua: bad return code
     - BUG/MINOR: lua: memleak when Lua/cli fails
     - MEDIUM: lua: remove Lua struct from session, and allocate it with memory pools
-    - CLEANUP: haproxy: statify unexported functions
-    - MINOR: haproxy: add a registration for build options
+    - CLEANUP: lolproxy: statify unexported functions
+    - MINOR: lolproxy: add a registration for build options
     - CLEANUP: wurfl: use the build options list to report it
     - CLEANUP: 51d: use the build options list to report it
     - CLEANUP: da: use the build options list to report it
@@ -8443,13 +8443,13 @@ ChangeLog :
     - CLEANUP: ssl: use the build options list to report the SSL details
     - CLEANUP: compression: use the build options list to report the algos
     - CLEANUP: auth: use the build options list to report its support
-    - MINOR: haproxy: add a registration for post-check functions
+    - MINOR: lolproxy: add a registration for post-check functions
     - CLEANUP: checks: make use of the post-init registration to start checks
     - CLEANUP: filters: use the function registration to initialize all proxies
     - CLEANUP: wurfl: make use of the late init registration
     - CLEANUP: 51d: make use of the late init registration
     - CLEANUP: da: make use of the late init registration code
-    - MINOR: haproxy: add a registration for post-deinit functions
+    - MINOR: lolproxy: add a registration for post-deinit functions
     - CLEANUP: wurfl: register the deinit function via the dedicated list
     - CLEANUP: 51d: register the deinitialization function
     - CLEANUP: da: register the deinitialization function
@@ -8794,7 +8794,7 @@ ChangeLog :
     - DOC: fix the entry for hash-balance-factor config option
     - DOC: Fix typo in description of `-st` parameter in man page
     - CLEANUP: cfgparse: Very minor spelling correction
-    - MINOR: examples: Update haproxy.spec URLs to haproxy.org
+    - MINOR: examples: Update lolproxy.spec URLs to lolproxy.org
     - BUG/MEDIUM: peers: on shutdown, wake up the appctx, not the stream
     - BUG/MEDIUM: peers: fix use after free in peer_session_create()
     - MINOR: peers: make peer_session_forceshutdown() use the appctx and not the stream
@@ -8817,7 +8817,7 @@ ChangeLog :
     - MEDIUM: ssl: Add support for OpenSSL 1.1.0
     - MINOR: stream: make option contstats usable again
     - MEDIUM: tools: make str2sa_range() return the FQDN even when not resolving
-    - MINOR: init: move apply_server_state in haproxy.c before MODE_CHECK
+    - MINOR: init: move apply_server_state in lolproxy.c before MODE_CHECK
     - MAJOR: server: postpone address resolution
     - MINOR: new srv_admin flag: SRV_ADMF_RMAINT
     - MINOR: server: indicate in the logs when RMAINT is cleared
@@ -8911,7 +8911,7 @@ ChangeLog :
     - BUG/MINOR: systemd: always restore signals before execve()
     - BUG/MINOR: systemd: check return value of calloc()
     - MINOR: systemd: report it when execve() fails
-    - BUG/MEDIUM: systemd: let the wrapper know that haproxy has completed or failed
+    - BUG/MEDIUM: systemd: let the wrapper know that lolproxy has completed or failed
     - MINOR: proxy: add 'served' field to proxy, equal to total of all servers'
     - MINOR: backend: add hash-balance-factor option for hash-type consistent
     - MINOR: server: compute a "cumulative weight" to allow chash balancing to hit its target
@@ -8922,7 +8922,7 @@ ChangeLog :
 
 2016/08/14 : 1.7-dev4
     - MINOR: add list_append_word function
-    - MEDIUM: init: use list_append_word in haproxy.c
+    - MEDIUM: init: use list_append_word in lolproxy.c
     - MEDIUM: init: allow directory as argument of -f
     - CLEANUP: config: detect double registration of a config section
     - MINOR: log: add the %Td log-format specifier
@@ -9007,7 +9007,7 @@ ChangeLog :
     - BUG/MEDIUM: lua: somme HTTP manipulation functions are called without valid requests
     - DOC: fix json converter example and error message
     - BUG/MEDIUM: stream-int: completely detach connection on connect error
-    - DOC: minor typo fixes to improve HTML parsing by haproxy-dconv
+    - DOC: minor typo fixes to improve HTML parsing by lolproxy-dconv
     - BUILD: make proto_tcp.c compatible with musl library
     - BUG/MAJOR: compression: initialize avail_in/next_in even during flush
     - BUG/MEDIUM: samples: make smp_dup() always duplicate the sample
@@ -9165,7 +9165,7 @@ ChangeLog :
     - MINOR: rename master process name in -Ds (systemd mode)
     - DOC: fix a few spelling mistakes
     - DOC: fix "workaround" spelling
-    - BUG/MINOR: examples: Fixing haproxy.spec to remove references to .cfg files
+    - BUG/MINOR: examples: Fixing lolproxy.spec to remove references to .cfg files
     - MINOR: fix the return type for dns_response_get_query_id() function
     - MINOR: server state: missing LF (\n) on error message printed when parsing server state file
     - BUG/MEDIUM: dns: no DNS resolution happens if no ports provided to the nameserver
@@ -9240,7 +9240,7 @@ ChangeLog :
     - BUG/MEDIUM: chunks: always reject negative-length chunks
     - BUG/MINOR: systemd: ensure we don't miss signals
     - BUG/MINOR: systemd: report the correct signal in debug message output
-    - BUG/MINOR: systemd: propagate the correct signal to haproxy
+    - BUG/MINOR: systemd: propagate the correct signal to lolproxy
     - MINOR: systemd: ensure a reload doesn't mask a stop
     - BUG/MEDIUM: cfgparse: wrong argument offset after parsing server "sni" keyword
     - CLEANUP: stats: Avoid computation with uninitialized bits.
@@ -9330,10 +9330,10 @@ ChangeLog :
     - BUG/MEDIUM: config: count memory limits on 64 bits, not 32
     - BUG/MAJOR: dns: first DNS response packet not matching queried hostname may lead to a loop
     - BUG/MINOR: dns: unable to parse CNAMEs response
-    - BUG/MINOR: examples/haproxy.init: missing brace in quiet_check()
+    - BUG/MINOR: examples/lolproxy.init: missing brace in quiet_check()
     - DOC: deviceatlas: more example use cases.
     - MINOR: config: allow IPv6 bracketed literals
-    - BUG/BUILD: replace haproxy-systemd-wrapper with $(EXTRA) in install-bin.
+    - BUG/BUILD: replace lolproxy-systemd-wrapper with $(EXTRA) in install-bin.
     - BUILD: add Haiku as supported target.
     - BUG/MAJOR: http: don't requeue an idle connection that is already queued
     - DOC: typo on capture.res.hdr and capture.req.hdr
@@ -9372,7 +9372,7 @@ ChangeLog :
     - BUG/MINOR: tcpcheck: conf parsing error when no port configured on server and first rule(s) is (are) COMMENT
     - BUG/MEDIUM: http: fix http-reuse when frontend and backend differ
     - DOC: prefer using http-request/response over reqXXX/rspXXX directives
-    - CLEANUP: haproxy: using _GNU_SOURCE instead of __USE_GNU macro.
+    - CLEANUP: lolproxy: using _GNU_SOURCE instead of __USE_GNU macro.
     - MINOR: ssl: Added cert_key_and_chain struct
     - MEDIUM: ssl: Added support for creating SSL_CTX with multiple certs
     - MINOR: ssl: Added multi cert support for crt-list config keyword
@@ -9424,9 +9424,9 @@ ChangeLog :
     - DOC: mention the "namespace" options for bind and server lines
     - DOC: add the "management" documentation
     - DOC: move the stats socket documentation from config to management
-    - MINOR: examples: update haproxy.spec to mention new docs
+    - MINOR: examples: update lolproxy.spec to mention new docs
     - DOC: mention management.txt in README
-    - DOC: remove haproxy-{en,fr}.txt
+    - DOC: remove lolproxy-{en,fr}.txt
     - BUILD: properly report when USE_ZLIB and USE_SLZ are used together
     - MINOR: init: report use of libslz instead of "no compression"
     - CLEANUP: examples: remove some obsolete and confusing files
@@ -9637,8 +9637,8 @@ ChangeLog :
     - BUG/MEDIUM: dns: wrong first time DNS resolution
     - BUG/MEDIUM: lua: Lua tasks fail to start.
     - BUILD: add USE_LUA to BUILD_OPTIONS when it's used
-    - DOC/MINOR: fix OpenBSD versions where haproxy works
-    - MINOR: 51d: unable to start haproxy without "51degrees-data-file"
+    - DOC/MINOR: fix OpenBSD versions where lolproxy works
+    - MINOR: 51d: unable to start lolproxy without "51degrees-data-file"
     - BUG/MEDIUM: peers: fix wrong message id on stick table updates acknowledgement.
     - BUG/MAJOR: peers: fix current table pointer not re-initialized on session release.
     - BUILD: ssl: Allow building against libssl without SSLv3.
@@ -10163,7 +10163,7 @@ ChangeLog :
     - CLEANUP: extract temporary $PIDFILE to eliminate duplication
     - CLEANUP: extract temporary $LOCKFILE to eliminate duplication
     - CLEANUP: extract quiet_check() to avoid duplication
-    - BUG/MINOR: don't start haproxy on reload
+    - BUG/MINOR: don't start lolproxy on reload
     - DOC: Address issue where documentation is excluded due to a gitignore rule.
     - BUG/MEDIUM: systemd: set KillMode to 'mixed'
     - BUILD: fix "make install" to support spaces in the install dirs
@@ -10194,7 +10194,7 @@ ChangeLog :
     - MINOR: lua: typo in an error message
     - MINOR: report the Lua version in -vv
     - MINOR: lua: add a compilation error message when compiled with an incompatible version
-    - BUG/MEDIUM: lua: segfault when calling haproxy sample fetches from lua
+    - BUG/MEDIUM: lua: segfault when calling lolproxy sample fetches from lua
     - BUILD: try to automatically detect the Lua library name
     - BUILD/CLEANUP: systemd: avoid a warning due to mixed code and declaration
     - BUG/MEDIUM: backend: Update hash to use unsigned int throughout
@@ -10219,7 +10219,7 @@ ChangeLog :
     - BUG/MINOR: http: fix typo: "401 Unauthorized" => "407 Unauthorized"
     - BUG/MINOR: parse: refer curproxy instead of proxy
     - BUG/MINOR: parse: check the validity of size string in a more strict way
-    - BUILD: add new target 'make uninstall' to support uninstalling haproxy from OS
+    - BUILD: add new target 'make uninstall' to support uninstalling lolproxy from OS
     - DOC: expand the docs for the provided stats.
     - BUG/MEDIUM: unix: do not unlink() abstract namespace sockets upon failure.
     - MEDIUM: ssl: Certificate Transparency support
@@ -10929,7 +10929,7 @@ ChangeLog :
     - BUILD/MEDIUM: cfgparse: get rid of sprintf()
     - BUILD/MEDIUM: checks: get rid of sprintf()
     - BUILD/MEDIUM: http: remove calls to sprintf()
-    - BUG/MEDIUM: systemd-wrapper: fix locating of haproxy binary
+    - BUG/MEDIUM: systemd-wrapper: fix locating of lolproxy binary
     - BUILD/MINOR: ssl: remove one call to sprintf()
     - MEDIUM: http: don't reject anymore message bodies not containing the url param
     - MEDIUM: http: wait for the first chunk or message body length in http_process_body
@@ -11078,7 +11078,7 @@ ChangeLog :
 2013/12/16 : 1.5-dev20
     - DOC: add missing options to the manpage
     - DOC: add manpage references to all system calls
-    - DOC: update manpage reference to haproxy-en.txt
+    - DOC: update manpage reference to lolproxy-en.txt
     - DOC: remove -s and -l options from the manpage
     - DOC: missing information for the "description" keyword
     - DOC: missing http-send-name-header keyword in keyword table
@@ -11108,7 +11108,7 @@ ChangeLog :
     - CLEANUP: code style: use tabs to indent codes
     - DOC: checkcache: block responses with cacheable cookies
     - BUG/MINOR: check_config_validity: check the returned value of stktable_init()
-    - MEDIUM: haproxy-systemd-wrapper: Use haproxy in same directory
+    - MEDIUM: lolproxy-systemd-wrapper: Use lolproxy in same directory
     - MEDIUM: systemd-wrapper: Kill child processes when interrupted
     - LOW: systemd-wrapper: Write debug information to stdout
     - BUG/MINOR: http: fix "set-tos" not working in certain configurations
@@ -11265,8 +11265,8 @@ ChangeLog :
     - MINOR: stats: report correct throttling percentage for servers in slowstart
     - OPTIM: connection: fold the error handling with handshake handling
     - MINOR: peers: accept to learn strings of different lengths
-    - BUG/MAJOR: fix haproxy crash when using server tracking instead of checks
-    - BUG/MAJOR: check: fix haproxy crash during soft-stop/soft-start
+    - BUG/MAJOR: fix lolproxy crash when using server tracking instead of checks
+    - BUG/MAJOR: check: fix lolproxy crash during soft-stop/soft-start
     - BUG/MINOR: stats: do not report "via" on tracking servers in maintenance
     - BUG/MINOR: connection: fix typo in error message report
     - BUG/MINOR: backend: fix target address retrieval in transparent mode
@@ -11516,7 +11516,7 @@ ChangeLog :
     - DOC: tfo: bump required kernel to linux-3.7
     - BUILD: add explicit support for TFO with USE_TFO
     - MEDIUM: New cli option -Ds for systemd compatibility
-    - MEDIUM: add haproxy-systemd-wrapper
+    - MEDIUM: add lolproxy-systemd-wrapper
     - MEDIUM: add systemd service
     - BUG/MEDIUM: systemd-wrapper: don't leak zombie processes
     - BUG/MEDIUM: remove supplementary groups when changing gid
@@ -11798,7 +11798,7 @@ ChangeLog :
     - BUG/MEDIUM: acls using IPv6 subnets patterns incorrectly match IPs
     - BUG/MAJOR: fix a segfault on option http_proxy and url_ip acl
     - MEDIUM: http: accept IPv6 values with (s)hdr_ip acl
-    - BUILD: report zlib support in haproxy -vv
+    - BUILD: report zlib support in lolproxy -vv
     - DOC: compression: add some details and clean up the formatting
     - DOC: Change is_ssl acl to ssl_fc acl in example
     - DOC: make it clear what the HTTP request size is
@@ -12228,7 +12228,7 @@ ChangeLog :
     - BUILD: shut a gcc warning introduced by commit 269ab31
     - MEDIUM: config: centralize handling of SSL config per bind line
     - BUILD: makefile: report USE_OPENSSL status in build options
-    - BUILD: report openssl build settings in haproxy -vv
+    - BUILD: report openssl build settings in lolproxy -vv
     - MEDIUM: ssl: add sample fetches for is_ssl, ssl_has_sni, ssl_sni_*
     - DOC: add a special acknowledgement for the stud project
     - DOC: add missing SSL options for servers and listeners
@@ -12567,7 +12567,7 @@ ChangeLog :
     - [BUG] checks: http-check expect could fail a check on multi-packet responses
     - [DOC] fix minor typo in the "dispatch" doc
     - [BUG] proto_tcp: fix address binding on remote source
-    - [MINOR] http: don't report the "haproxy" word on the monitoring response
+    - [MINOR] http: don't report the "lolproxy" word on the monitoring response
     - [REORG] http: move HTTP error codes back to proto_http.h
     - [MINOR] http: make the "HTTP 200" status code configurable.
     - [MINOR] http: partially revert the chunking optimization for now
@@ -12842,7 +12842,7 @@ ChangeLog :
     - [MINOR] checks: add support for LDAPv3 health checks
     - [MINOR] add better support to "mysql-check"
     - [BUG] Restore info about available active/backup servers
-    - [CONTRIB] Update haproxy.pl
+    - [CONTRIB] Update lolproxy.pl
     - [CONTRIB] Update Cacti Tempates
     - [CONTRIB] add templates for Cacti.
     - [BUG] http: don't consider commas as a header delimitor within quotes
@@ -13349,7 +13349,7 @@ ChangeLog :
     - [IMPORT] import ebtree v5.0 into directory ebtree/
     - [MEDIUM] build: switch ebtree users to use new ebtree version
     - [CLEANUP] ebtree: remove old unused files
-    - [BUG] definitely fix regparm issues between haproxy core and ebtree
+    - [BUG] definitely fix regparm issues between lolproxy core and ebtree
     - [CLEANUP] ebtree: cast to char * to get rid of gcc warning
     - [BUILD] missing #ifndef in ebmbtree.h
     - [BUILD] missing #ifndef in ebsttree.h
@@ -13431,7 +13431,7 @@ ChangeLog :
     - [MINOR] health checks logging unification
     - [MINOR] add "description", "node" and show-node"/"show-desc", remove "node-name", v2
     - [MINOR] Allow dots in show-node & add "white-space: nowrap" in th.pxname.
-    - [DOC] Add information about http://haproxy.1wt.eu/contrib.html
+    - [DOC] Add information about http://lolproxy.1wt.eu/contrib.html
     - [MINOR] Introduce include/types/counters.h
     - [CLEANUP] Move counters to dedicated structures
     - [MINOR] Add "clear counters" to clear statistics counters
@@ -13488,7 +13488,7 @@ ChangeLog :
     - [OPTIM] stats: check free space before trying to print
 
 2009/09/24 : 1.4-dev3
-    - [BUILD] compilation of haproxy-1.4-dev2 on FreeBSD
+    - [BUILD] compilation of lolproxy-1.4-dev2 on FreeBSD
     - [MEDIUM] Collect & show information about last health check, v3
     - [MINOR] export the hostname variable so that all the code can access it
     - [MINOR] stats: add a new node-name setting
@@ -13620,7 +13620,7 @@ ChangeLog :
     - [MINOR] fix several printf formats and missing arguments
     - [BUG] stats: total and lbtot are unsigned
     - [MINOR] fix a few remaining printf-like formats on 64-bit platforms
-    - [CLEANUP] remove unused make option from haproxy.spec
+    - [CLEANUP] remove unused make option from lolproxy.spec
     - [BUILD] make it possible to pass alternative arch at build time
     - [MINOR] switch all stat counters to 64-bit
     - [MEDIUM] ensure we don't recursively call pool_gc2()
@@ -13658,12 +13658,12 @@ ChangeLog :
     - [BUG] don't set an expiration date directly from now_ms
     - [MINOR] implement ulltoh() to write HTML-formatted numbers
     - [MINOR] stats/html: group digits by 3 to clarify numbers
-    - [BUILD] remove haproxy-small.spec
+    - [BUILD] remove lolproxy-small.spec
     - [BUILD] makefile: remove unused references to linux24eold and EPOLL_CTL_WORKAROUND
 
 2009/03/22 : 1.3.16
     - [BUILD] Fixed Makefile for linking pcre
-    - [CONTRIB] selinux policy for haproxy
+    - [CONTRIB] selinux policy for lolproxy
     - [MINOR] show errors: encode backslash as well as non-ascii characters
     - [MINOR] cfgparse: some cleanups in the consistency checks
     - [MINOR] cfgparse: set backends to "balance roundrobin" by default
@@ -13715,7 +13715,7 @@ ChangeLog :
     - [MEDIUM] reduce risk of event starvation in ev_sepoll
     - [MEDIUM] detect streaming buffers and tag them as such
     - [MEDIUM] add support for conditional HTTP redirection
-    - [BUILD] make install should depend on haproxy not "all"
+    - [BUILD] make install should depend on lolproxy not "all"
     - [DEBUG] add a TRACE macro to facilitate runtime data extraction
     - [BUG] event pollers must not wait if a task exists in the run queue
     - [BUG] queue management: wake oldest request in queues
@@ -13966,7 +13966,7 @@ ChangeLog :
     - [MEDIUM] rearrange forwarding condition to enable splice during analysis
     - [BUILD] build fixes for Solaris
     - [BUILD] proto_http did not build on gcc-2.95 (again)
-    - [CONTRIB] halog: fast log parser for haproxy
+    - [CONTRIB] halog: fast log parser for lolproxy
     - [CONTRIB] halog: faster fgets() and add support for percentile reporting
 
 2008/04/19 : 1.3.15
@@ -14140,7 +14140,7 @@ ChangeLog :
 2007/10/18 : 1.3.13
     - replace the code under O'Reilly license (Arnaud Cornet)
     - add a small man page (Arnaud Cornet)
-    - stats: report haproxy's version by default (Krzysztof Oledzki)
+    - stats: report lolproxy's version by default (Krzysztof Oledzki)
     - stats: count server retries and redispatches (Krzysztof Oledzki)
     - core: added easy support for Doug Lea's malloc (dlmalloc)
     - core: fade out memory usage when stopping proxies
@@ -14344,13 +14344,13 @@ ChangeLog :
     - added the new "reqtarpit" and "reqitarpit" protection features
 
 2006/07/09 : 1.3.1 (1.2.15)
-   - now, haproxy warns about missing timeout during startup to try to
+   - now, lolproxy warns about missing timeout during startup to try to
      eliminate all those buggy configurations.
    - added "Content-Type: text/html" in responses wherever appropriate, as
      suggested by Cameron Simpson.
    - implemented "option ssl-hello-chk" to use SSLv3 CLIENT HELLO messages to
      test server's health
-   - implemented "monitor-uri" so that haproxy can reply to a specific URI with
+   - implemented "monitor-uri" so that lolproxy can reply to a specific URI with
      an "HTTP/1.0 200 OK" response. This is useful to validate multiple proxies
      at once.
 
@@ -14440,7 +14440,7 @@ ChangeLog :
   - Separated OpenBSD build from the main Makefile into a new one.
 
 2006/03/15 : 1.2.9
-  - haproxy could not be stopped after being paused, it had to be woken up
+  - lolproxy could not be stopped after being paused, it had to be woken up
     first. This has been fixed.
   - the 'ulimit-n' parameter is now optional and by default computed from
     maxconn + the number of listeners + the number of health-checks.
@@ -14685,7 +14685,7 @@ ChangeLog :
 
 2003/09/21 : 1.1.24
   - if a client sent a full request then shut its write connection down, then
-    the request was aborted. This case was detected only when using haproxy
+    the request was aborted. This case was detected only when using lolproxy
     both as health-check client and as a server.
   - if 'option httpchk' is used in a 'health' mode server, then responses will
     change from 'OK' to 'HTTP/1.0 200 OK'.
@@ -14743,7 +14743,7 @@ ChangeLog :
     conditions depending on the state of the HTTP FSM.
 
 2003/04/16 : 1.1.19
-  - haproxy was NOT RFC compliant because it was case-sensitive on HTTP
+  - lolproxy was NOT RFC compliant because it was case-sensitive on HTTP
     "Cookie:" and "Set-Cookie:" headers. This caused JVM 1.4 to fail on
     cookie persistence because it uses "cookie:". Two memcmp() have been
     replaced with strncasecmp().

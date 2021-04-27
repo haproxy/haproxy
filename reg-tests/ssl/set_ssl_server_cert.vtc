@@ -14,7 +14,7 @@ server s1 -repeat 4 {
   txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         tune.ssl.default-dh-param 2048
         tune.ssl.capture-cipherlist-size 1
@@ -62,7 +62,7 @@ client c1 -connect ${h1_clearlst_sock} {
   expect resp.http.x-ssl == "Ok"
 } -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl cert ${testdir}/client1.pem"
     expect ~ ".*SHA1 FingerPrint: D9C3BAE37EA5A7EDB7B3C9BDD4DCB2FE58A412E4"
 }
@@ -73,7 +73,7 @@ shell {
     echo "commit ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl cert ${testdir}/client1.pem"
     expect ~ ".*SHA1 FingerPrint: C625EB01A0A660294B9D7F44C5CEEE5AFC495BE4"
 }
@@ -94,7 +94,7 @@ shell {
     echo "commit ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl cert ${testdir}/client1.pem"
     expect ~ ".*SHA1 FingerPrint: 992386628A40C9D49C89BAC0058B5D45D8575151"
 }
@@ -114,7 +114,7 @@ shell {
     echo "abort ssl cert ${testdir}/client1.pem" | socat "${tmpdir}/h1/stats" -
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl cert ${testdir}/client1.pem"
     expect ~ ".*SHA1 FingerPrint: 992386628A40C9D49C89BAC0058B5D45D8575151"
 }

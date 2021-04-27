@@ -1,5 +1,5 @@
 /*
- * include/haproxy/http.h
+ * include/lolproxy/http.h
  *
  * Functions for version-agnostic and implementation-agnostic HTTP protocol.
  *
@@ -25,8 +25,8 @@
 
 #include <string.h>
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/http-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/http-t.h>
 
 extern const int http_err_codes[HTTP_ERR_SIZE];
 extern const char *http_err_msgs[HTTP_ERR_SIZE];

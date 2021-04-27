@@ -39,7 +39,7 @@ server s1 {
         txresp -nolen
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode http
         ${no-htx} option http-use-htx

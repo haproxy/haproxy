@@ -1,7 +1,7 @@
 /*
  * Server-state management functions.
  *
- * Copyright (C) 2021 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2021 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -15,18 +15,18 @@
 #include <import/eb64tree.h>
 #include <import/xxhash.h>
 
-#include <haproxy/api.h>
-#include <haproxy/backend.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/check.h>
-#include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/log.h>
-#include <haproxy/port_range.h>
-#include <haproxy/proxy.h>
-#include <haproxy/resolvers.h>
-#include <haproxy/server.h>
-#include <haproxy/ssl_sock.h>
+#include <lolproxy/api.h>
+#include <lolproxy/backend.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/check.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/global.h>
+#include <lolproxy/log.h>
+#include <lolproxy/port_range.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/resolvers.h>
+#include <lolproxy/server.h>
+#include <lolproxy/ssl_sock.h>
 
 
 /* Update a server state using the parameters available in the params list.

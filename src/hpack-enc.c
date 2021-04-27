@@ -1,7 +1,7 @@
 /*
  * HPACK decompressor (RFC7541)
  *
- * Copyright (C) 2014-2017 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2017 Willy Tarreau <willy@lolproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -31,8 +31,8 @@
 #include <string.h>
 
 #include <import/ist.h>
-#include <haproxy/hpack-enc.h>
-#include <haproxy/http-hdr-t.h>
+#include <lolproxy/hpack-enc.h>
+#include <lolproxy/http-hdr-t.h>
 
 /*
  * HPACK encoding: these tables were generated using gen-enc.c

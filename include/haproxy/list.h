@@ -1,5 +1,5 @@
 /*
- * include/haproxy/list.h
+ * include/lolproxy/list.h
  * Circular list manipulation macros and functions.
  *
  * Copyright (C) 2002-2020 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_LIST_H
 #define _HAPROXY_LIST_H
 
-#include <haproxy/api.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api.h>
+#include <lolproxy/thread.h>
 
 /* First undefine some macros which happen to also be defined on OpenBSD,
  * in sys/queue.h, used by sys/event.h

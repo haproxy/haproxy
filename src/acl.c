@@ -16,18 +16,18 @@
 
 #include <import/ebsttree.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/auth.h>
-#include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/list.h>
-#include <haproxy/pattern.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/sample.h>
-#include <haproxy/stick_table.h>
-#include <haproxy/tools.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/auth.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/global.h>
+#include <lolproxy/list.h>
+#include <lolproxy/pattern.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stick_table.h>
+#include <lolproxy/tools.h>
 
 /* List head of all known ACL keywords */
 static struct acl_kw_list acl_keywords = {

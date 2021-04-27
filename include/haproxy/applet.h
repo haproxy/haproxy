@@ -1,5 +1,5 @@
 /*
- * include/haproxy/applet.h
+ * include/lolproxy/applet.h
  * This file contains applet function prototypes
  *
  * Copyright (C) 2000-2015 Willy Tarreau - w@1wt.eu
@@ -24,11 +24,11 @@
 
 #include <stdlib.h>
 
-#include <haproxy/api.h>
-#include <haproxy/applet-t.h>
-#include <haproxy/list.h>
-#include <haproxy/pool.h>
-#include <haproxy/task.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet-t.h>
+#include <lolproxy/list.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/task.h>
 
 extern unsigned int nb_applets;
 extern struct pool_head *pool_head_appctx;

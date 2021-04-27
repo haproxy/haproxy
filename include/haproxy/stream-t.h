@@ -1,5 +1,5 @@
 /*
- * include/haproxy/stream-t.h
+ * include/lolproxy/stream-t.h
  * This file defines everything related to streams.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -26,21 +26,21 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/channel-t.h>
-#include <haproxy/dynbuf-t.h>
-#include <haproxy/filters-t.h>
-#include <haproxy/hlua-t.h>
-#include <haproxy/http_ana-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/queue-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/session-t.h>
-#include <haproxy/stick_table-t.h>
-#include <haproxy/stream_interface-t.h>
-#include <haproxy/task-t.h>
-#include <haproxy/vars-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/channel-t.h>
+#include <lolproxy/dynbuf-t.h>
+#include <lolproxy/filters-t.h>
+#include <lolproxy/hlua-t.h>
+#include <lolproxy/http_ana-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/queue-t.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/session-t.h>
+#include <lolproxy/stick_table-t.h>
+#include <lolproxy/stream_interface-t.h>
+#include <lolproxy/task-t.h>
+#include <lolproxy/vars-t.h>
 
 
 /* Various Stream Flags, bits values 0x01 to 0x100 (shift 0) */

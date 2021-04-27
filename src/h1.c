@@ -14,11 +14,11 @@
 
 #include <import/sha1.h>
 
-#include <haproxy/api.h>
-#include <haproxy/base64.h>
-#include <haproxy/h1.h>
-#include <haproxy/http-hdr.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/base64.h>
+#include <lolproxy/h1.h>
+#include <lolproxy/http-hdr.h>
+#include <lolproxy/tools.h>
 
 /* Parse the Content-Length header field of an HTTP/1 request. The function
  * checks all possible occurrences of a comma-delimited value, and verifies
@@ -279,7 +279,7 @@ void h1_parse_upgrade_header(struct h1m *h1m, struct ist value)
  * the parser will fill it with whatever it found.
  *
  * The code derived from the main HTTP/1 parser above but was simplified and
- * optimized to process responses produced or forwarded by haproxy. The caller
+ * optimized to process responses produced or forwarded by lolproxy. The caller
  * is responsible for ensuring that the message doesn't wrap, and should ensure
  * it is complete to avoid having to retry the operation after a failed
  * attempt. The message is not supposed to be invalid, which is why a few

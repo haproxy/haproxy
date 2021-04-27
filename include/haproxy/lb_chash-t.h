@@ -1,5 +1,5 @@
 /*
- * include/haproxy/lb_chash-t.h
+ * include/lolproxy/lb_chash-t.h
  * Types for Consistent Hash LB algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu

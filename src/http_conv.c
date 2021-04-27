@@ -16,16 +16,16 @@
 #include <string.h>
 #include <time.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/capture-t.h>
-#include <haproxy/chunk.h>
-#include <haproxy/http.h>
-#include <haproxy/pool.h>
-#include <haproxy/sample.h>
-#include <haproxy/stream.h>
-#include <haproxy/tools.h>
-#include <haproxy/version.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/capture-t.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/http.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/version.h>
 
 static int smp_check_http_date_unit(struct arg *args, struct sample_conv *conv,
                                     const char *file, int line, char **err)

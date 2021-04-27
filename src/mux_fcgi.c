@@ -1,7 +1,7 @@
 /*
  * FastCGI mux-demux for connections
  *
- * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -12,26 +12,26 @@
 
 #include <import/ist.h>
 
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/connection.h>
-#include <haproxy/errors.h>
-#include <haproxy/fcgi-app.h>
-#include <haproxy/fcgi.h>
-#include <haproxy/h1.h>
-#include <haproxy/h1_htx.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-#include <haproxy/list.h>
-#include <haproxy/log.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/regex.h>
-#include <haproxy/session-t.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/trace.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fcgi-app.h>
+#include <lolproxy/fcgi.h>
+#include <lolproxy/h1.h>
+#include <lolproxy/h1_htx.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/list.h>
+#include <lolproxy/log.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/session-t.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/trace.h>
 
 
 /* FCGI Connection flags (32 bits) */
@@ -60,7 +60,7 @@
 #define FCGI_CF_ABRTS_SENT      0x00000200  /* a record ABORT was successfully sent to all active streams */
 #define FCGI_CF_ABRTS_FAILED    0x00000400  /* failed to abort processing of all streams */
 #define FCGI_CF_WAIT_FOR_HS     0x00000800  /* We did check that at least a stream was waiting for handshake */
-#define FCGI_CF_KEEP_CONN       0x00001000  /* HAproxy is responsible to close the connection */
+#define FCGI_CF_KEEP_CONN       0x00001000  /* LOLproxy is responsible to close the connection */
 #define FCGI_CF_GET_VALUES      0x00002000  /* retrieve settings */
 
 /* FCGI connection state (fcgi_conn->state) */

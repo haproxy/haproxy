@@ -1,5 +1,5 @@
 /*
- * include/haproxy/listener.h
+ * include/lolproxy/listener.h
  * This file declares listener management primitives.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -25,10 +25,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <haproxy/api.h>
-#include <haproxy/cli-t.h>
-#include <haproxy/list.h>
-#include <haproxy/listener-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cli-t.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener-t.h>
 
 /* adjust the listener's state and its proxy's listener counters if needed */
 void listener_set_state(struct listener *l, enum li_state st);

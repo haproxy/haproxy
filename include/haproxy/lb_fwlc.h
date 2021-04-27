@@ -1,5 +1,5 @@
 /*
- * include/haproxy/lb_fwlc.h
+ * include/lolproxy/lb_fwlc.h
  * Fast Weighted Least Connection load balancing algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_LB_FWLC_H
 #define _HAPROXY_LB_FWLC_H
 
-#include <haproxy/api.h>
-#include <haproxy/lb_fwlc-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/server-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/lb_fwlc-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/server-t.h>
 
 struct server *fwlc_get_next_server(struct proxy *p, struct server *srvtoavoid);
 void fwlc_init_server_tree(struct proxy *p);

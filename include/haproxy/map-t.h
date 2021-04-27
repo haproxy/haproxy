@@ -1,5 +1,5 @@
 /*
- * include/haproxy/map-t.h
+ * include/lolproxy/map-t.h
  * This file provides structures and types for MAPs.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_MAP_T_H
 #define _HAPROXY_MAP_T_H
 
-#include <haproxy/pattern-t.h>
-#include <haproxy/sample-t.h>
+#include <lolproxy/pattern-t.h>
+#include <lolproxy/sample-t.h>
 
 struct map_descriptor {
 	struct sample_conv *conv;      /* original converter descriptor */

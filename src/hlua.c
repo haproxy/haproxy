@@ -25,40 +25,40 @@
 
 #include <import/ebpttree.h>
 
-#include <haproxy/api.h>
-#include <haproxy/applet.h>
-#include <haproxy/arg.h>
-#include <haproxy/auth.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/channel.h>
-#include <haproxy/cli.h>
-#include <haproxy/connection.h>
-#include <haproxy/h1.h>
-#include <haproxy/hlua.h>
-#include <haproxy/hlua_fcn.h>
-#include <haproxy/http_ana.h>
-#include <haproxy/http_fetch.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/log.h>
-#include <haproxy/map.h>
-#include <haproxy/obj_type.h>
-#include <haproxy/pattern.h>
-#include <haproxy/payload.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/regex.h>
-#include <haproxy/sample.h>
-#include <haproxy/server.h>
-#include <haproxy/session.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/tcp_rules.h>
-#include <haproxy/thread.h>
-#include <haproxy/tools.h>
-#include <haproxy/vars.h>
-#include <haproxy/xref.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/auth.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/h1.h>
+#include <lolproxy/hlua.h>
+#include <lolproxy/hlua_fcn.h>
+#include <lolproxy/http_ana.h>
+#include <lolproxy/http_fetch.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/log.h>
+#include <lolproxy/map.h>
+#include <lolproxy/obj_type.h>
+#include <lolproxy/pattern.h>
+#include <lolproxy/payload.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/server.h>
+#include <lolproxy/session.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tcp_rules.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/vars.h>
+#include <lolproxy/xref.h>
 
 
 /* Lua uses longjmp to perform yield or throwing errors. This
@@ -127,7 +127,7 @@ static int hlua_panic_safe(lua_State *L) { return 0; }
 static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1)); }
 
 /* This is the chained list of struct hlua_function referenced
- * for haproxy action, sample-fetches, converters, cli and
+ * for lolproxy action, sample-fetches, converters, cli and
  * applet bindings. It is used for a post-initialisation control.
  */
 static struct list referenced_functions = LIST_HEAD_INIT(referenced_functions);
@@ -228,7 +228,7 @@ static int class_txn_reply_ref;
 /* Global Lua execution timeout. By default Lua, execution linked
  * with stream (actions, sample-fetches and converters) have a
  * short timeout. Lua linked with tasks doesn't have a timeout
- * because a task may remain alive during all the haproxy execution.
+ * because a task may remain alive during all the lolproxy execution.
  */
 static unsigned int hlua_timeout_session = 4000; /* session timeout. */
 static unsigned int hlua_timeout_task = TICK_ETERNITY; /* task timeout. */
@@ -4852,7 +4852,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 
 	/* If we don't have a content-length set, and the HTTP version is 1.1
 	 * and the status code implies the presence of a message body, we must
-	 * announce a transfer encoding chunked. This is required by haproxy
+	 * announce a transfer encoding chunked. This is required by lolproxy
 	 * for the keepalive compliance. If the applet announces a transfer-encoding
 	 * chunked itself, don't do anything.
 	 */
@@ -6733,7 +6733,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 
 /* This function is an LUA binding used for registering
  * "sample-conv" functions. It expects a converter name used
- * in the haproxy configuration file, and an LUA function.
+ * in the lolproxy configuration file, and an LUA function.
  */
 __LJMP static int hlua_register_converters(lua_State *L)
 {
@@ -6812,7 +6812,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 
 /* This function is an LUA binding used for registering
  * "sample-fetch" functions. It expects a converter name used
- * in the haproxy configuration file, and an LUA function.
+ * in the lolproxy configuration file, and an LUA function.
  */
 __LJMP static int hlua_register_fetches(lua_State *L)
 {
@@ -7668,7 +7668,7 @@ static enum act_parse_ret action_register_service_http(const char **args, int *c
 
 /* This function is an LUA binding used for registering
  * "sample-conv" functions. It expects a converter name used
- * in the haproxy configuration file, and an LUA function.
+ * in the lolproxy configuration file, and an LUA function.
  */
 __LJMP static int hlua_register_action(lua_State *L)
 {
@@ -7838,7 +7838,7 @@ static enum act_parse_ret action_register_service_tcp(const char **args, int *cu
 
 /* This function is an LUA binding used for registering
  * "sample-conv" functions. It expects a converter name used
- * in the haproxy configuration file, and an LUA function.
+ * in the lolproxy configuration file, and an LUA function.
  */
 __LJMP static int hlua_register_service(lua_State *L)
 {

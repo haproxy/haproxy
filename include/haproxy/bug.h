@@ -1,5 +1,5 @@
 /*
- * include/haproxy/bug.h
+ * include/lolproxy/bug.h
  * Assertions and instant crash macros needed everywhere.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -28,7 +28,7 @@
 #ifndef _HAPROXY_BUG_H
 #define _HAPROXY_BUG_H
 
-#include <haproxy/compiler.h>
+#include <lolproxy/compiler.h>
 
 /* quick debugging hack, should really be removed ASAP */
 #ifdef DEBUG_FULL

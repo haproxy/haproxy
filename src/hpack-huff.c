@@ -1,7 +1,7 @@
 /*
  * Huffman decoding and encoding for HPACK (RFC7541)
  *
- * Copyright (C) 2014-2017 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2017 Willy Tarreau <willy@lolproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -29,8 +29,8 @@
 #include <inttypes.h>
 #include <string.h>
 
-#include <haproxy/api.h>
-#include <haproxy/hpack-huff.h>
+#include <lolproxy/api.h>
+#include <lolproxy/hpack-huff.h>
 
 struct huff {
 	uint32_t c; /* code point */

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/signal-t.h
+ * include/lolproxy/signal-t.h
  * Asynchronous signal delivery functions descriptors.
  *
  * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
@@ -15,7 +15,7 @@
 #define _HAPROXY_SIGNAL_T_H
 
 #include <signal.h>
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 /* flags for -> flags */
 #define SIG_F_ONE_SHOOT         0x0001  /* unregister handler before calling it */

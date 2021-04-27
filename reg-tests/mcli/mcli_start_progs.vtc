@@ -9,7 +9,7 @@ feature ignore_unknown_macro
 server s1 {
 } -start
 
-haproxy h1 -W -S -conf {
+lolproxy h1 -W -S -conf {
     global
         nbproc 1
     defaults
@@ -34,7 +34,7 @@ haproxy h1 -W -S -conf {
 
 } -start
 
-haproxy h1 -mcli {
+lolproxy h1 -mcli {
     send "show proc"
     expect ~ ".*foo.*\n.*bar.*\n"
 } -wait

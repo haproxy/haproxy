@@ -1,5 +1,5 @@
 /*
- * include/haproxy/xref.h
+ * include/lolproxy/xref.h
  * Atomic cross-references between two elements - functions
  *
  * Copyright (C) 2017 Thierry Fournier <thierry.fournier@ozon.io>
@@ -28,7 +28,7 @@
 #ifndef __HAPROXY_XREF_H__
 #define __HAPROXY_XREF_H__
 
-#include <haproxy/xref-t.h>
+#include <lolproxy/xref-t.h>
 
 /* xref is used to create relation between two elements.
  * Once an element is released, it breaks the relation. If the

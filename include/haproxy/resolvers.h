@@ -1,5 +1,5 @@
 /*
- * include/haproxy/dns.h
+ * include/lolproxy/dns.h
  * This file provides functions related to DNS protocol
  *
  * Copyright (C) 2014 Baptiste Assmann <bedis9@gmail.com>
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_RESOLVERS_H
 #define _HAPROXY_RESOLVERS_H
 
-#include <haproxy/action-t.h>
-#include <haproxy/resolvers-t.h>
+#include <lolproxy/action-t.h>
+#include <lolproxy/resolvers-t.h>
 
 extern struct list sec_resolvers;
 extern unsigned int resolv_failed_resolutions;

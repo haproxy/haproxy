@@ -1,5 +1,5 @@
 /*
- * include/haproxy/auth.h
+ * include/lolproxy/auth.h
  * Functions for user authentication & authorization.
  *
  * Copyright 2010 Krzysztof Piotr Oledzki <ole@ans.pl>
@@ -14,10 +14,10 @@
 #ifndef _HAPROXY_AUTH_H
 #define _HAPROXY_AUTH_H
 
-#include <haproxy/api.h>
-#include <haproxy/auth-t.h>
-#include <haproxy/pattern-t.h>
-#include <haproxy/sample-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/auth-t.h>
+#include <lolproxy/pattern-t.h>
+#include <lolproxy/sample-t.h>
 
 extern struct userlist *userlist;
 

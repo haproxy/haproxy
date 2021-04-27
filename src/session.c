@@ -10,17 +10,17 @@
  *
  */
 
-#include <haproxy/api.h>
-#include <haproxy/connection.h>
-#include <haproxy/global.h>
-#include <haproxy/http.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/pool.h>
-#include <haproxy/proxy.h>
-#include <haproxy/session.h>
-#include <haproxy/tcp_rules.h>
-#include <haproxy/vars.h>
+#include <lolproxy/api.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/session.h>
+#include <lolproxy/tcp_rules.h>
+#include <lolproxy/vars.h>
 
 
 DECLARE_POOL(pool_head_session, "session", sizeof(struct session));

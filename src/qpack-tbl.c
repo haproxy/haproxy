@@ -1,7 +1,7 @@
 /*
  * QPACK header table management (draft-ietf-quic-qpack-20)
  *
- * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -25,8 +25,8 @@
  */
 
 #include <import/ist.h>
-#include <haproxy/http-hdr-t.h>
-#include <haproxy/qpack-tbl-t.h>
+#include <lolproxy/http-hdr-t.h>
+#include <lolproxy/qpack-tbl-t.h>
 
 /* static header table as in draft-ietf-quic-qpack-20 Appendix A. [0] unused. */
 const struct http_hdr qpack_sht[QPACK_SHT_SIZE] = {

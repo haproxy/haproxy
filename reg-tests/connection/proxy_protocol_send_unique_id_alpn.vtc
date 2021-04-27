@@ -5,7 +5,7 @@ varnishtest "Check that the unique ID TLV is properly sent for servers with ALPN
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode http
         log global

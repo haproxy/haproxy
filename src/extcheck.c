@@ -27,19 +27,19 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/check.h>
-#include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/list.h>
-#include <haproxy/proxy.h>
-#include <haproxy/server.h>
-#include <haproxy/signal.h>
-#include <haproxy/task.h>
-#include <haproxy/thread.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/check.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/global.h>
+#include <lolproxy/list.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/server.h>
+#include <lolproxy/signal.h>
+#include <lolproxy/task.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 
 static struct list pid_list = LIST_HEAD_INIT(pid_list);
@@ -435,7 +435,7 @@ static int connect_proc_chk(struct task *t)
 			snprintf(check->argv[4], EXTCHK_SIZE_UINT, "%u", s->svc_port);
 		EXTCHK_SETENV(check, EXTCHK_HAPROXY_SERVER_PORT, check->argv[4], fail);
 
-		haproxy_unblock_signals();
+		lolproxy_unblock_signals();
 		execvp(px->check_command, check->argv);
 		ha_alert("Failed to exec process for external health check: %s. Aborting.\n",
 			 strerror(errno));

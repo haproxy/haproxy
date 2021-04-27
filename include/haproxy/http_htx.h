@@ -1,9 +1,9 @@
 /*
- * include/haproxy/http_htx-t.h
+ * include/lolproxy/http_htx-t.h
  * This file defines function prototypes for HTTP manipulation using the
  * internal representation.
  *
- * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,10 +24,10 @@
 #define _HAPROXY_HTTP_HTX_H
 
 #include <import/ist.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/http_htx-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/regex-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/http_htx-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/regex-t.h>
 
 extern struct buffer http_err_chunks[HTTP_ERR_SIZE];
 extern struct http_reply http_err_replies[HTTP_ERR_SIZE];

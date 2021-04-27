@@ -1,5 +1,5 @@
 /*
- * include/haproxy/defaults.h
+ * include/lolproxy/defaults.h
  * Miscellaneous default values.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -230,7 +230,7 @@
 
 /* Default connections limit.
  *
- * A system limit can be enforced at build time in order to avoid using haproxy
+ * A system limit can be enforced at build time in order to avoid using lolproxy
  * beyond reasonable system limits. For this, just define SYSTEM_MAXCONN to the
  * absolute limit accepted by the system. If the configuration specifies a
  * higher value, it will be capped to SYSTEM_MAXCONN and a warning will be
@@ -268,7 +268,7 @@
 #ifdef CONFIG_STATS_DEFAULT_URI
 #define STATS_DEFAULT_URI CONFIG_STATS_DEFAULT_URI
 #else
-#define STATS_DEFAULT_URI "/haproxy?stats"
+#define STATS_DEFAULT_URI "/lolproxy?stats"
 #endif
 
 /* This is the default statistics realm */

@@ -1,9 +1,9 @@
 /*
- * include/haproxy/http_htx-t.h
+ * include/lolproxy/http_htx-t.h
  * This file defines everything related to HTTP manipulation using the internal
  * representation.
  *
- * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,9 +26,9 @@
 #include <import/ebistree.h>
 #include <import/ist.h>
 
-#include <haproxy/buf-t.h>
-#include <haproxy/http-t.h>
-#include <haproxy/htx-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/http-t.h>
+#include <lolproxy/htx-t.h>
 
 /* Context used to find/remove an HTTP header. */
 struct http_hdr_ctx {

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/ring.h
+ * include/lolproxy/ring.h
  * Exported functions for ring buffers used for disposable data.
  *
  * Copyright (C) 2000-2019 Willy Tarreau - w@1wt.eu
@@ -24,7 +24,7 @@
 
 #include <stdlib.h>
 #include <import/ist.h>
-#include <haproxy/ring-t.h>
+#include <lolproxy/ring-t.h>
 
 struct ring *ring_new(size_t size);
 void ring_init(struct ring *ring, void* area, size_t size);

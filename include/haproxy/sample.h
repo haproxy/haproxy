@@ -1,5 +1,5 @@
 /*
- * include/haproxy/sample.h
+ * include/lolproxy/sample.h
  * Functions for samples management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -23,10 +23,10 @@
 #ifndef _HAPROXY_SAMPLE_H
 #define _HAPROXY_SAMPLE_H
 
-#include <haproxy/api.h>
-#include <haproxy/arg-t.h>
-#include <haproxy/sample-t.h>
-#include <haproxy/stick_table-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg-t.h>
+#include <lolproxy/sample-t.h>
+#include <lolproxy/stick_table-t.h>
 
 extern sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES];
 extern const unsigned int fetch_cap[SMP_SRC_ENTRIES];

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/auth-t.h
+ * include/lolproxy/auth-t.h
  * Types definitions for user authentication & authorization.
  *
  * Copyright 2010 Krzysztof Piotr Oledzki <ole@ans.pl>
@@ -14,7 +14,7 @@
 #ifndef _HAPROXY_AUTH_T_H
 #define _HAPROXY_AUTH_T_H
 
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 #define AU_O_INSECURE	0x00000001		/* insecure, unencrypted password */
 

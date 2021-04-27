@@ -10,8 +10,8 @@
  *
  */
 
-#include <haproxy/intops.h>
-#include <haproxy/fix.h>
+#include <lolproxy/intops.h>
+#include <lolproxy/fix.h>
 /*
  * Return the corresponding numerical tag id if <str> looks like a valid FIX
  * protocol tag ID. Otherwise, 0 is returned (0 is an invalid id).

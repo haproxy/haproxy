@@ -9,7 +9,7 @@ server s1 {
 	txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
 	defaults
 		mode http
 		${no-htx} option http-use-htx
@@ -38,7 +38,7 @@ client c1 -connect ${h1_feS_sock} {
 	expect resp.status == 503
 } -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
 	# experimental mode disabled
 	send "add server foo/s1 ${s1_addr}:${s1_port}"
 	expect ~ "This command is restricted to experimental mode only."
@@ -80,7 +80,7 @@ client c2 -connect ${h1_feS_sock} {
 	expect resp.status == 503
 } -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
 	send "enable server test/s1"
 	expect ~ ".*"
 }

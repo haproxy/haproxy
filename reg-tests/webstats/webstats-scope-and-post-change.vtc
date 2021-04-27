@@ -6,9 +6,9 @@ feature ignore_unknown_macro
 server s1 {
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
   global
-    stats socket /tmp/haproxy.socket level admin
+    stats socket /tmp/lolproxy.socket level admin
 
   defaults
     mode http
@@ -44,7 +44,7 @@ client c2 -connect ${h1_fe1_sock} {
     expect resp.status == 200
 } -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show stat"
     expect ~ .*
 } 
@@ -77,7 +77,7 @@ client c3 -connect ${h1_fe1_sock} {
     expect resp.status == 200
 } -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show stat"
     expect ~ "\nb1,srv1.*MAINT.*\nb1,srv2.*DRAIN.*\nb1,srv3.*MAINT.*\nb1,BACKEND.*DOWN.*\nb2,srv1.*MAINT.*\nb2,srv2.*no check.*\nb2,BACKEND.*UP"
 } -wait

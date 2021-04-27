@@ -1,4 +1,4 @@
-2018-02-21 - Layering in haproxy 1.9
+2018-02-21 - Layering in lolproxy 1.9
 ------------------------------------
 
 2 main zones :
@@ -144,7 +144,7 @@ One solution consists in thinking about buffers using 3 representations :
   - a raw stream, consisting in sequences of bytes. That's typically what
     happens in data sequences or in tunnel.
 
-  - a pipe, which contains data to be forwarded, and that haproxy cannot have
+  - a pipe, which contains data to be forwarded, and that lolproxy cannot have
     access to.
 
 The processing efficiency decreases with the higher complexity above, but the

@@ -247,7 +247,7 @@
 #define _EBTREE_H
 
 #include <stdlib.h>
-#include <haproxy/api.h>
+#include <lolproxy/api.h>
 
 static inline int flsnz8_generic(unsigned int x)
 {

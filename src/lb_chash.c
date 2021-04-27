@@ -17,11 +17,11 @@
  */
 
 #include <import/eb32tree.h>
-#include <haproxy/api.h>
-#include <haproxy/backend.h>
-#include <haproxy/queue.h>
-#include <haproxy/server-t.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/backend.h>
+#include <lolproxy/queue.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/tools.h>
 
 /* Return next tree node after <node> which must still be in the tree, or be
  * NULL. Lookup wraps around the end to the beginning. If the next node is the

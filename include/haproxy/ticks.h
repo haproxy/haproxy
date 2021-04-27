@@ -1,5 +1,5 @@
 /*
- * include/haproxy/ticks.h
+ * include/lolproxy/ticks.h
  * Functions and macros for manipulation of expiration timers
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -52,7 +52,7 @@
 #ifndef _HAPROXY_TICKS_H
 #define _HAPROXY_TICKS_H
 
-#include <haproxy/api.h>
+#include <lolproxy/api.h>
 
 #define TICK_ETERNITY   0
 

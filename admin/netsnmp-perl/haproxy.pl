@@ -22,7 +22,7 @@ use IO::Socket::UNIX;
 use strict;
 
 my $agent = new NetSNMP::agent('Name' => 'Haproxy');
-my $sa = "/var/run/haproxy.stat";
+my $sa = "/var/run/lolproxy.stat";
 
 use constant OID_HAPROXY => '1.3.6.1.4.1.29385.106';
 use constant OID_HAPROXY_STATS => OID_HAPROXY . '.1';
@@ -101,7 +101,7 @@ sub find_next_stat_id {
 	return "$type.$field.$np.$nl"
 }
 
-sub haproxy_stat {
+sub lolproxy_stat {
 	my($handler, $registration_info, $request_info, $requests) = @_;
 
 	for(my $request = $requests; $request; $request = $request->next()) {
@@ -179,7 +179,7 @@ sub haproxy_stat {
   	}
 }
 
-sub haproxy_info {
+sub lolproxy_info {
 	my($handler, $registration_info, $request_info, $requests) = @_;
 
 	for(my $request = $requests; $request; $request = $request->next()) {
@@ -244,6 +244,6 @@ sub haproxy_info {
 	}
 }
 
-$agent->register('Haproxy stat', OID_HAPROXY_STATS, \&haproxy_stat);
-$agent->register('Haproxy info', OID_HAPROXY_INFO, \&haproxy_info);
+$agent->register('Haproxy stat', OID_HAPROXY_STATS, \&lolproxy_stat);
+$agent->register('Haproxy info', OID_HAPROXY_INFO, \&lolproxy_info);
 

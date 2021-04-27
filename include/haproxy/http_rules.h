@@ -1,5 +1,5 @@
 /*
- * include/haproxy/http_rules.h
+ * include/lolproxy/http_rules.h
  * This file contains "http" rules definitions
  *
  * Copyright (C) 2000-2018 Willy Tarreau - w@1wt.eu
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_HTTP_RULES_H
 #define _HAPROXY_HTTP_RULES_H
 
-#include <haproxy/action-t.h>
-#include <haproxy/api.h>
-#include <haproxy/list.h>
-#include <haproxy/proxy-t.h>
+#include <lolproxy/action-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/list.h>
+#include <lolproxy/proxy-t.h>
 
 extern struct action_kw_list http_req_keywords;
 extern struct action_kw_list http_res_keywords;

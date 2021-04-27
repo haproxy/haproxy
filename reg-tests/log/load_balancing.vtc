@@ -35,7 +35,7 @@ syslog Slg_2 -level info {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* \"GET /client_c8 HTTP/1.1\""
 } -repeat 50 -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
 	global
 		nbthread 1
 

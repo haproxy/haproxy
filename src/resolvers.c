@@ -19,31 +19,31 @@
 
 #include <sys/types.h>
 
-#include <haproxy/action.h>
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/channel.h>
-#include <haproxy/check.h>
-#include <haproxy/cli.h>
-#include <haproxy/dns.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/log.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proxy.h>
-#include <haproxy/resolvers.h>
-#include <haproxy/ring.h>
-#include <haproxy/sample.h>
-#include <haproxy/server.h>
-#include <haproxy/stats.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/tcp_rules.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
-#include <haproxy/vars.h>
+#include <lolproxy/action.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/check.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/dns.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/log.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/resolvers.h>
+#include <lolproxy/ring.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/server.h>
+#include <lolproxy/stats.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tcp_rules.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
+#include <lolproxy/vars.h>
 
 
 struct list sec_resolvers  = LIST_HEAD_INIT(sec_resolvers);
@@ -1532,7 +1532,7 @@ int resolv_dn_label_to_str(const char *dn, int dn_len, char *str, int str_len)
 	return (ptr - str);
 }
 
-/* Turns a string into domain name label: www.haproxy.org into 3www7haproxy3org
+/* Turns a string into domain name label: www.lolproxy.org into 3www7lolproxy3org
  *
  * <str> must be a null-terminated string. <str_len> must include the
  * terminating null byte. <dn> buffer must be allocated and its size must be

@@ -23,21 +23,21 @@ Maintainer: Ben Shillito <ben@51degrees.com>
 Files: addons/51degrees, doc/51Degrees-device-detection.txt
 
 Cache
-Maintainer: William Lallemand <wlallemand@haproxy.com>
-Files: src/cache.c, include/haproxy/cache*.h
+Maintainer: William Lallemand <wlallemand@lolproxy.com>
+Files: src/cache.c, include/lolproxy/cache*.h
 
 DeviceAtlas device identification
 Maintainer: David Carlier <dcarlier@deviceatlas.com>
 Files: addons/deviceatlas, doc/DeviceAtlas-device-detection.txt
 
 DNS and Resolvers
-Maintainer: Emeric Brun <ebrun@haproxy.com>
+Maintainer: Emeric Brun <ebrun@lolproxy.com>
 Maintainer: Baptiste Assmann <bedis9@gmail.com>
-Files: src/dns.c, include/haproxy/dns*.h
-Files: src/resolvers.c, include/haproxy/resolvers*.h
+Files: src/dns.c, include/lolproxy/dns*.h
+Files: src/resolvers.c, include/lolproxy/resolvers*.h
 
 Doc to HTML converter (dconv)
-Maintainer: Cyril Bonté <cyril.bonte@free.fr>
+Maintainer: Cyril Bontï¿½ <cyril.bonte@free.fr>
 Files: doc/*.txt
 Note: ask Cyril before changing any doc's format or structure.
 
@@ -46,61 +46,61 @@ Maintainer: Willy Tarreau <w@1wt.eu>
 Files: src/eb*.c, include/import/eb*.h
 
 FCGI:
-Maintainer: Christopher Faulet <cfaulet@haproxy.com>
-Files: src/mux_fcgi.c, src/fcgi*.c, include/haproxy/fcgi*.h
+Maintainer: Christopher Faulet <cfaulet@lolproxy.com>
+Files: src/mux_fcgi.c, src/fcgi*.c, include/lolproxy/fcgi*.h
 
 Filters:
-Maintainer: Christopher Faulet <cfaulet@haproxy.com>
-Files: src/filters.c, src/flt_*.c, include/haproxy/filters*.h
+Maintainer: Christopher Faulet <cfaulet@lolproxy.com>
+Files: src/filters.c, src/flt_*.c, include/lolproxy/filters*.h
 Files: doc/internals/filters.txt
 
 H1 and HTX
-Maintainer: Christopher Faulet <cfaulet@haproxy.com>
-Files: src/mux_h1.c src/h1_htx.c, include/haproxy/h1_htx.h
+Maintainer: Christopher Faulet <cfaulet@lolproxy.com>
+Files: src/mux_h1.c src/h1_htx.c, include/lolproxy/h1_htx.h
 
 H2 and HPACK
 Maintainer: Willy Tarreau <w@1wt.eu>
 Files: src/mux_h2.c src/h2.c src/hpack*.c
-Files: include/haproxy/h2.h, include/haproxy/hpack*.h
+Files: include/lolproxy/h2.h, include/lolproxy/hpack*.h
 
 Health checks
-Maintainer: Christopher Faulet <cfaulet@haproxy.com>
-Files: src/checks.c, include/haproxy/check*.h
-Files: src/tcpcheck.c, include/haproxy/tcpcheck*.h
+Maintainer: Christopher Faulet <cfaulet@lolproxy.com>
+Files: src/checks.c, include/lolproxy/check*.h
+Files: src/tcpcheck.c, include/lolproxy/tcpcheck*.h
 Note: health checks are fragile and have been broken many times, so please
       consult the relevant maintainers if you want to change these specific
       parts.
 
 HTTP
 Maintainer: Willy Tarreau <w@1wt.eu>
-Maintainer: Christopher Faulet <cfaulet@haproxy.com>
-Files: src/http*.h, include/haproxy/http*.h
+Maintainer: Christopher Faulet <cfaulet@lolproxy.com>
+Files: src/http*.h, include/lolproxy/http*.h
 
 HTX
-Maintainer: Christopher Faulet <cfaulet@haproxy.com>
-Files: src/htx.c, include/haproxy/htx*.c, doc/internals/htx-api.txt
+Maintainer: Christopher Faulet <cfaulet@lolproxy.com>
+Files: src/htx.c, include/lolproxy/htx*.c, doc/internals/htx-api.txt
 
 Lua
 Maintainer: Thierry Fournier <tfournier@arpalert.org>
-Files: src/hlua.c, include/haproxy/hlua*.h
+Files: src/hlua.c, include/lolproxy/hlua*.h
 
 Mailers
 Maintainer: Simon Horman <horms@verge.net.au>
-Files: src/mailers.c, include/haproxy/mailers*.h
+Files: src/mailers.c, include/lolproxy/mailers*.h
 
 Maps and pattern matching
 Maintainer: Thierry Fournier <tfournier@arpalert.org>
-Files: src/map.c, include/haproxy/map*.h
-Files: src/pattern.c, include/haproxy/pattern*.h
+Files: src/map.c, include/lolproxy/map*.h
+Files: src/pattern.c, include/lolproxy/pattern*.h
 
 Master-worker
-Maintainer: William Lallemand <wlallemand@haproxy.com>
-Note: Please CC William when touching src/haproxy.c and admin/systemd
+Maintainer: William Lallemand <wlallemand@lolproxy.com>
+Note: Please CC William when touching src/lolproxy.c and admin/systemd
 
 Multi-threading
-Maintainer: Christopher Faulet <cfaulet@haproxy.com>
-Maintainer: Emeric Brun <ebrun@haproxy.com>
-Files: src/thread.c, include/haproxy/thread*.h
+Maintainer: Christopher Faulet <cfaulet@lolproxy.com>
+Maintainer: Emeric Brun <ebrun@lolproxy.com>
+Files: src/thread.c, include/lolproxy/thread*.h
 Note: every change around the locking or synchronization point will require
       approval from one of these maintainers. Problems which only appear when
       nbthread is greater than 1 and which disappear otherwise are also
@@ -109,15 +109,15 @@ Note: every change around the locking or synchronization point will require
 Multi-threaded task scheduler
 Maintainer: Willy Tarreau <w@1wt.eu>
 Maintainer: Olivier Houchard <cognet@ci0.org>
-Files: include/haproxy/task*.h src/task.c
+Files: include/lolproxy/task*.h src/task.c
 
 Peers
-Maintainer: Emeric Brun <ebrun@haproxy.com>
-Frédéric Lécaille <flecaille@haproxy.com>
-Files: src/peers.c, include/haproxy/peers*.h
+Maintainer: Emeric Brun <ebrun@lolproxy.com>
+Frï¿½dï¿½ric Lï¿½caille <flecaille@lolproxy.com>
+Files: src/peers.c, include/lolproxy/peers*.h
 
 Prometheus Exporter
-Maintainer: Christopher Faulet <cfaulet@haproxy.com>
+Maintainer: Christopher Faulet <cfaulet@lolproxy.com>
 Maintainer: William Dauchy <wdauchy@gmail.com>
 Files: addons/promex
 Note: William is the referent regarding Prometheus. He should be consulted for
@@ -126,18 +126,18 @@ Note: William is the referent regarding Prometheus. He should be consulted for
       exporter integration into HAProxy, as well as for the bugs.
 
 ScientiaMobile WURFL Device Detection
-Maintainer: Paul Borile, Massimiliano Bellomi <wurfl-haproxy-support@scientiamobile.com>
+Maintainer: Paul Borile, Massimiliano Bellomi <wurfl-lolproxy-support@scientiamobile.com>
 Files: addons/wurfl, doc/WURFL-device-detection.txt
 
 SPOE
-Maintainer: Christopher Faulet <cfaulet@haproxy.com>
-Files: src/flt_spoe.c, include/haproxy/spoe*.h, doc/SPOE.txt
+Maintainer: Christopher Faulet <cfaulet@lolproxy.com>
+Files: src/flt_spoe.c, include/lolproxy/spoe*.h, doc/SPOE.txt
 
 SSL
-Maintainer: Emeric Brun <ebrun@haproxy.com>
-Maintainer: William Lallemand <wlallemand@haproxy.com>
-Files: src/cfgparse-ssl.c, src/ssl_*.c, include/haproxy/ssl_*.h
+Maintainer: Emeric Brun <ebrun@lolproxy.com>
+Maintainer: William Lallemand <wlallemand@lolproxy.com>
+Files: src/cfgparse-ssl.c, src/ssl_*.c, include/lolproxy/ssl_*.h
 
 Thread-safe lists
 Maintainer: Olivier Houchard <cognet@ci0.org>
-Files: include/haproxy/list*.h
+Files: include/lolproxy/list*.h

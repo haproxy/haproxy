@@ -1,5 +1,5 @@
 /*
- * include/haproxy/tinfo-t.h
+ * include/lolproxy/tinfo-t.h
  * Definitions of the thread_info structure.
  *
  * Copyright (C) 2020 Willy Tarreau - w@1wt.eu
@@ -23,8 +23,8 @@
 #define _HAPROXY_TINFO_T_H
 
 #include <time.h>
-#include <haproxy/api-t.h>
-#include <haproxy/pool-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/pool-t.h>
 
 /* thread info flags, for ha_thread_info[].flags */
 #define TI_FL_STUCK             0x00000001

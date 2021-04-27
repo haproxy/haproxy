@@ -1,20 +1,20 @@
-policy_module(haproxy,1.0.0)
+policy_module(lolproxy,1.0.0)
 
 ########################################
 #
 # Declarations
 #
 
-type haproxy_t;
-type haproxy_exec_t;
-type haproxy_port_t;
-init_daemon_domain(haproxy_t, haproxy_exec_t)
+type lolproxy_t;
+type lolproxy_exec_t;
+type lolproxy_port_t;
+init_daemon_domain(lolproxy_t, lolproxy_exec_t)
 
-type haproxy_var_run_t;
-files_pid_file(haproxy_var_run_t)
+type lolproxy_var_run_t;
+files_pid_file(lolproxy_var_run_t)
 
-type haproxy_conf_t;
-files_config_file(haproxy_conf_t)
+type lolproxy_conf_t;
+files_config_file(lolproxy_conf_t)
 
 ########################################
 #
@@ -22,45 +22,45 @@ files_config_file(haproxy_conf_t)
 #
 
 # Configuration files - read
-allow haproxy_t haproxy_conf_t : dir list_dir_perms;
-allow haproxy_t haproxy_conf_t : file read_file_perms;
-allow haproxy_t haproxy_conf_t : lnk_file read_file_perms;
+allow lolproxy_t lolproxy_conf_t : dir list_dir_perms;
+allow lolproxy_t lolproxy_conf_t : file read_file_perms;
+allow lolproxy_t lolproxy_conf_t : lnk_file read_file_perms;
 
 # PID and socket file - create, read, and write
-files_pid_filetrans(haproxy_t, haproxy_var_run_t, { file sock_file })
-allow haproxy_t haproxy_var_run_t:file manage_file_perms;
-allow haproxy_t haproxy_var_run_t:sock_file { create rename link setattr unlink };
+files_pid_filetrans(lolproxy_t, lolproxy_var_run_t, { file sock_file })
+allow lolproxy_t lolproxy_var_run_t:file manage_file_perms;
+allow lolproxy_t lolproxy_var_run_t:sock_file { create rename link setattr unlink };
 
-allow haproxy_t self : tcp_socket create_stream_socket_perms;
-allow haproxy_t self: udp_socket create_socket_perms;
-allow haproxy_t self: capability { setgid setuid sys_chroot sys_resource kill };
-allow haproxy_t self: process { setrlimit signal };
+allow lolproxy_t self : tcp_socket create_stream_socket_perms;
+allow lolproxy_t self: udp_socket create_socket_perms;
+allow lolproxy_t self: capability { setgid setuid sys_chroot sys_resource kill };
+allow lolproxy_t self: process { setrlimit signal };
 
 
-logging_send_syslog_msg(haproxy_t)
+logging_send_syslog_msg(lolproxy_t)
 
-corenet_tcp_bind_all_ports(haproxy_t)
-corenet_tcp_connect_all_ports(haproxy_t)
-corenet_tcp_bind_all_nodes(haproxy_t)
-corenet_tcp_sendrecv_all_ports(haproxy_t)
-corenet_tcp_recvfrom_unlabeled(haproxy_t)
+corenet_tcp_bind_all_ports(lolproxy_t)
+corenet_tcp_connect_all_ports(lolproxy_t)
+corenet_tcp_bind_all_nodes(lolproxy_t)
+corenet_tcp_sendrecv_all_ports(lolproxy_t)
+corenet_tcp_recvfrom_unlabeled(lolproxy_t)
 
 # use shared libraries
-libs_use_ld_so(haproxy_t)
-libs_use_shared_libs(haproxy_t)
+libs_use_ld_so(lolproxy_t)
+libs_use_shared_libs(lolproxy_t)
 
 # Read /etc/localtime:
-miscfiles_read_localization(haproxy_t)
+miscfiles_read_localization(lolproxy_t)
 # Read /etc/passwd and more.
-files_read_etc_files(haproxy_t)
+files_read_etc_files(lolproxy_t)
 
 # RHEL5 specific:
 require {
 	type unlabeled_t;
-	type haproxy_t;
+	type lolproxy_t;
 	class packet send;
 	class packet recv;
 }
 
-allow haproxy_t unlabeled_t:packet { send recv };
+allow lolproxy_t unlabeled_t:packet { send recv };
 

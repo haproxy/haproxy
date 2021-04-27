@@ -26,12 +26,12 @@
  */
 
 #include <inttypes.h>
-#include <haproxy/api.h>
-#include <haproxy/global.h>
-#include <haproxy/h2.h>
-#include <haproxy/http-hdr-t.h>
-#include <haproxy/http.h>
-#include <haproxy/htx.h>
+#include <lolproxy/api.h>
+#include <lolproxy/global.h>
+#include <lolproxy/h2.h>
+#include <lolproxy/http-hdr-t.h>
+#include <lolproxy/http.h>
+#include <lolproxy/htx.h>
 #include <import/ist.h>
 
 

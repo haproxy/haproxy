@@ -1,5 +1,5 @@
 /*
- * include/haproxy/ssl_sock.h
+ * include/lolproxy/ssl_sock.h
  * This file contains definition for ssl stream socket operations
  *
  * Copyright (C) 2012 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -24,12 +24,12 @@
 #ifdef USE_OPENSSL
 
 
-#include <haproxy/connection.h>
-#include <haproxy/openssl-compat.h>
-#include <haproxy/pool-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/ssl_sock-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/openssl-compat.h>
+#include <lolproxy/pool-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/ssl_sock-t.h>
+#include <lolproxy/thread.h>
 
 extern struct list tlskeys_reference;
 extern int sslconns;

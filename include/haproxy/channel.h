@@ -1,5 +1,5 @@
 /*
- * include/haproxy/channel.h
+ * include/lolproxy/channel.h
  * Channel management definitions, macros and inline functions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,17 +22,17 @@
 #ifndef _HAPROXY_CHANNEL_H
 #define _HAPROXY_CHANNEL_H
 
-#include <haproxy/api.h>
-#include <haproxy/channel-t.h>
-#include <haproxy/dynbuf.h>
-#include <haproxy/global.h>
-#include <haproxy/htx.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface-t.h>
-#include <haproxy/task.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
-#include <haproxy/tools-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/channel-t.h>
+#include <lolproxy/dynbuf.h>
+#include <lolproxy/global.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface-t.h>
+#include <lolproxy/task.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools-t.h>
 
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */

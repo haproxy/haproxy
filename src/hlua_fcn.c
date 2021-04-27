@@ -21,19 +21,19 @@
 #include <lua.h>
 #include <lualib.h>
 
-#include <haproxy/cli-t.h>
-#include <haproxy/errors.h>
-#include <haproxy/hlua-t.h>
-#include <haproxy/http.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/pattern-t.h>
-#include <haproxy/proxy.h>
-#include <haproxy/regex.h>
-#include <haproxy/server.h>
-#include <haproxy/stats.h>
-#include <haproxy/stick_table.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/cli-t.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/hlua-t.h>
+#include <lolproxy/http.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/pattern-t.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/server.h>
+#include <lolproxy/stats.h>
+#include <lolproxy/stick_table.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 /* Contains the class reference of the concat object. */
 static int class_concat_ref;

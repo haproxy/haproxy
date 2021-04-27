@@ -1,5 +1,5 @@
 /*
- * include/haproxy/peers-t.h
+ * include/lolproxy/peers-t.h
  * This file defines everything related to peers.
  *
  * Copyright 2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -29,9 +29,9 @@
 
 #include <import/eb32tree.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/dict-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/dict-t.h>
+#include <lolproxy/thread-t.h>
 
 
 struct shared_table {

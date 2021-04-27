@@ -1,5 +1,5 @@
 /*
- * include/haproxy/listener-t.h
+ * include/lolproxy/listener-t.h
  * This file defines the structures needed to manage listeners.
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -27,16 +27,16 @@
 
 #include <import/eb32tree.h>
 
-#include <haproxy/api-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/receiver-t.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/thread.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/receiver-t.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/thread.h>
 
 #ifdef USE_OPENSSL
-#include <haproxy/openssl-compat.h>
+#include <lolproxy/openssl-compat.h>
 #endif
-#include <haproxy/xprt_quic-t.h>
+#include <lolproxy/xprt_quic-t.h>
 
 /* Some pointer types reference below */
 struct task;

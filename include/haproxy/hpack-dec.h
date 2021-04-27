@@ -1,7 +1,7 @@
 /*
  * HPACK decompressor (RFC7541)
  *
- * Copyright (C) 2014-2020 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2020 Willy Tarreau <willy@lolproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -28,9 +28,9 @@
 #ifndef _COMMON_HPACK_DEC_H
 #define _COMMON_HPACK_DEC_H
 
-#include <haproxy/api.h>
-#include <haproxy/chunk.h>
-#include <haproxy/hpack-tbl.h>
+#include <lolproxy/api.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/hpack-tbl.h>
 
 int hpack_decode_frame(struct hpack_dht *dht, const uint8_t *raw, uint32_t len,
                        struct http_hdr *list, int list_size,

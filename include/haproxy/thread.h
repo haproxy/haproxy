@@ -1,8 +1,8 @@
 /*
- * include/haproxy/thread.h
+ * include/lolproxy/thread.h
  * definitions, macros and inline functions used by threads.
  *
- * Copyright (C) 2017 Christopher Faulet - cfaulet@haproxy.com
+ * Copyright (C) 2017 Christopher Faulet - cfaulet@lolproxy.com
  * Copyright (C) 2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
@@ -29,9 +29,9 @@
 #include <sched.h>
 #endif
 
-#include <haproxy/api.h>
-#include <haproxy/thread-t.h>
-#include <haproxy/tinfo.h>
+#include <lolproxy/api.h>
+#include <lolproxy/thread-t.h>
+#include <lolproxy/tinfo.h>
 
 
 /* Note: this file mainly contains 5 sections:

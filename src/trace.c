@@ -19,15 +19,15 @@
  */
 
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/buf.h>
-#include <haproxy/cli.h>
-#include <haproxy/errors.h>
-#include <haproxy/istbuf.h>
-#include <haproxy/list.h>
-#include <haproxy/log.h>
-#include <haproxy/sink.h>
-#include <haproxy/trace.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/istbuf.h>
+#include <lolproxy/list.h>
+#include <lolproxy/log.h>
+#include <lolproxy/sink.h>
+#include <lolproxy/trace.h>
 
 struct list trace_sources = LIST_HEAD_INIT(trace_sources);
 THREAD_LOCAL struct buffer trace_buf = { };

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/stats-t.h
+ * include/lolproxy/stats-t.h
  * This file provides structures and types for stats.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_STATS_T_H
 #define _HAPROXY_STATS_T_H
 
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 /* Flags for applet.ctx.stats.flags */
 #define STAT_FMT_HTML   0x00000001      /* dump the stats in HTML format */
@@ -154,7 +154,7 @@ enum {
  *    integer, unsigned 64-bit integer, string
  *
  *  - the field origin : how was the value retrieved and what it depends on.
- *    5 origins are currently defined : product (eg: haproxy version or
+ *    5 origins are currently defined : product (eg: lolproxy version or
  *    release date), configuration (eg: a configured limit), key (identifier
  *    used to group values at a certain level), metric (a measure of something),
  *    status (something discrete which by definition cannot be averaged nor

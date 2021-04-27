@@ -15,7 +15,7 @@ server s1 {
 } -start
 
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode tcp
         timeout client 1s
@@ -28,7 +28,7 @@ haproxy h1 -conf {
         server srv ${s1_addr}:${s1_port} weight 100 agent-check agent-addr ${s1_addr} agent-port ${s1_port} agent-send "pouet" agent-inter 100ms
 } -start
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show servers state"
     expect ~ "be1 1 srv 127.0.0.1 2 0 100 100 [[:digit:]]+ 1 0 [[:digit:]] 0 [[:digit:]]+ 0 0 - ${s1_port} -"
     barrier b1 sync

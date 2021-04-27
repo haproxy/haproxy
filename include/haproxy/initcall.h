@@ -1,5 +1,5 @@
 /*
- * include/haproxy/initcall.h
+ * include/lolproxy/initcall.h
  *
  * Initcall management.
  *
@@ -29,7 +29,7 @@
 #ifndef _HAPROXY_INITCALL_H
 #define _HAPROXY_INITCALL_H
 
-#include <haproxy/compiler.h>
+#include <lolproxy/compiler.h>
 
 /* List of known init stages. If others are added, please declare their
  * section at the end of the file below.
@@ -205,7 +205,7 @@ DECLARE_INIT_SECTION(STG_POOL);
 DECLARE_INIT_SECTION(STG_REGISTER);
 DECLARE_INIT_SECTION(STG_INIT);
 
-// for use in the main haproxy.c file
+// for use in the main lolproxy.c file
 #define DECLARE_INIT_STAGES asm("")
 
 /* not needed anymore */
@@ -215,7 +215,7 @@ DECLARE_INIT_SECTION(STG_INIT);
 
 extern struct initcall *__initstg[STG_SIZE];
 
-// for use in the main haproxy.c file
+// for use in the main lolproxy.c file
 #define DECLARE_INIT_STAGES struct initcall *__initstg[STG_SIZE]
 
 #endif // USE_OBSOLETE_LINKER

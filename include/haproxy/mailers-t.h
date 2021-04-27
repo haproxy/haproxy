@@ -1,10 +1,10 @@
 /*
- * include/haproxy/mailer-t.h
+ * include/lolproxy/mailer-t.h
  * This file defines everything related to mailer.
  *
  * Copyright 2015 Horms Solutions Ltd., Simon Horman <horms@verge.net.au>
  *
- * Based on include/haproxy/peers-t.h
+ * Based on include/lolproxy/peers-t.h
  *
  * Copyright 2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
  *
@@ -31,9 +31,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <haproxy/check-t.h>
-#include <haproxy/tcpcheck-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/check-t.h>
+#include <lolproxy/tcpcheck-t.h>
+#include <lolproxy/thread-t.h>
 
 struct mailer {
 	char *id;

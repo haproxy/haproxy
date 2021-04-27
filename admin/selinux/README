@@ -1,18 +1,18 @@
-This directory includes an selinux policy for haproxy. It assumes
+This directory includes an selinux policy for lolproxy. It assumes
 the following file locations:
 
-	/usr/sbin/haproxy		-- binary
-	/etc/haproxy/haproxy\.cfg	-- configuration
-	/var/run/haproxy\.pid		-- pid-file
-	/var/run/haproxy\.sock(.*)	-- stats socket
-	/var/empty/haproxy		-- chroot dir
+	/usr/sbin/lolproxy		-- binary
+	/etc/lolproxy/lolproxy\.cfg	-- configuration
+	/var/run/lolproxy\.pid		-- pid-file
+	/var/run/lolproxy\.sock(.*)	-- stats socket
+	/var/empty/lolproxy		-- chroot dir
 
 To build and load it on RHEL5 you'll need the "selinux-policy-devel" package,
 and from within this directory run:
 
 	make -f /usr/share/selinux/devel/Makefile
-	sudo semodule -i haproxy.pp
-	restorecon /usr/sbin/haproxy /etc/haproxy/haproxy.cfg /var/run/haproxy.pid /var/run/haproxy.sock*
+	sudo semodule -i lolproxy.pp
+	restorecon /usr/sbin/lolproxy /etc/lolproxy/lolproxy.cfg /var/run/lolproxy.pid /var/run/lolproxy.sock*
 
 
 Feedback to Jan-Frode Myklebust <janfrode@tanso.no> is much appreciated,

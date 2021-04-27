@@ -39,21 +39,21 @@
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 
-#include <haproxy/api.h>
-#include <haproxy/chunk.h>
-#include <haproxy/dgram.h>
-#include <haproxy/global.h>
-#include <haproxy/hlua.h>
-#include <haproxy/listener.h>
-#include <haproxy/namespace.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/protocol.h>
-#include <haproxy/resolvers.h>
-#include <haproxy/sock.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/dgram.h>
+#include <lolproxy/global.h>
+#include <lolproxy/hlua.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/resolvers.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tools.h>
 
 /* This macro returns false if the test __x is false. Many
  * of the following parsing function must be abort the processing
@@ -1532,7 +1532,7 @@ int url2ipv4(const char *addr, struct in_addr *dst)
  * url like http://host:port/path, because the consumed length corresponds to
  * the first character of the path. If the conversion fails, it returns -1.
  *
- * This function tries to resolve the DNS name if haproxy is in starting mode.
+ * This function tries to resolve the DNS name if lolproxy is in starting mode.
  * So, this function may be used during the configuration parsing.
  */
 int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct split_url *out)

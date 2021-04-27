@@ -33,7 +33,7 @@ syslog Slg_1 -level notice {
     expect ~ \"dip\":\"${h1_fe_1_addr}\",\"dport\":\"${h1_fe_1_port}.*\"ts\":\"[cC]D\",\"
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         log ${Slg_1_addr}:${Slg_1_port} local0
 

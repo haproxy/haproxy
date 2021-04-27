@@ -29,7 +29,7 @@ syslog S2 -level notice {
 } -start
 
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode tcp
         timeout client 1s

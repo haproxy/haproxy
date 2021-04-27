@@ -48,7 +48,7 @@ syslog S4 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be4/srv failed, reason: Layer7 invalid response.+info: \"unsupported version\".+check duration: [[:digit:]]+ms, status: 0/1 DOWN."
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode tcp
         timeout client 1s

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/h1.h
+ * include/lolproxy/h1.h
  * This file contains HTTP/1 protocol definitions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -23,11 +23,11 @@
 #define _HAPROXY_H1_H
 
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/buf.h>
-#include <haproxy/http.h>
-#include <haproxy/http-hdr-t.h>
-#include <haproxy/intops.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http-hdr-t.h>
+#include <lolproxy/intops.h>
 
 
 /* Possible states while parsing HTTP/1 messages (request|response) */

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/api-t.h
+ * include/lolproxy/api-t.h
  * This provides definitions for all common types or type modifiers used
  * everywhere in the code, and suitable for use in structure fields.
  *
@@ -32,9 +32,9 @@
 #include <inttypes.h>
 #include <stddef.h>
 
-#include <haproxy/compat.h>
-#include <haproxy/compiler.h>
-#include <haproxy/defaults.h>
-#include <haproxy/list-t.h>
+#include <lolproxy/compat.h>
+#include <lolproxy/compiler.h>
+#include <lolproxy/defaults.h>
+#include <lolproxy/list-t.h>
 
 #endif /* _HAPROXY_TYPES_H */

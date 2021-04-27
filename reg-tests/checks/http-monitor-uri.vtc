@@ -7,7 +7,7 @@ varnishtest "Test the HTTP directive monitor-uri"
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode http
         timeout connect 1s
@@ -20,7 +20,7 @@ haproxy h1 -conf {
 
     frontend fe2
         bind "fd@${fe2}"
-        monitor-uri http://www.haproxy.org/health
+        monitor-uri http://www.lolproxy.org/health
 } -start
 
 client c1  -connect ${h1_fe1_sock} {
@@ -30,8 +30,8 @@ client c1  -connect ${h1_fe1_sock} {
 } -run
 
 client c2  -connect ${h1_fe1_sock} {
-    txreq -req GET -url http://www.haproxy.org/health \
-          -hdr "Host: www.haproxy.org"
+    txreq -req GET -url http://www.lolproxy.org/health \
+          -hdr "Host: www.lolproxy.org"
     rxresp
     expect resp.status == 200
 } -run
@@ -43,8 +43,8 @@ client c3  -connect ${h1_fe1_sock} {
 } -run
 
 client c4  -connect ${h1_fe2_sock} {
-    txreq -req GET -url http://www.haproxy.org/health \
-          -hdr "Host: www.haproxy.org"
+    txreq -req GET -url http://www.lolproxy.org/health \
+          -hdr "Host: www.lolproxy.org"
     rxresp
     expect resp.status == 200
 } -run

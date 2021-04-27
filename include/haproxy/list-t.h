@@ -1,5 +1,5 @@
 /*
- * include/haproxy/list-t.h
+ * include/lolproxy/list-t.h
  * Circular list manipulation types definitions
  *
  * Copyright (C) 2002-2020 Willy Tarreau - w@1wt.eu

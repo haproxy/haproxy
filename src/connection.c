@@ -12,19 +12,19 @@
 
 #include <errno.h>
 
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/connection.h>
-#include <haproxy/fd.h>
-#include <haproxy/frontend.h>
-#include <haproxy/hash.h>
-#include <haproxy/log-t.h>
-#include <haproxy/namespace.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/sample.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/stream_interface.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/frontend.h>
+#include <lolproxy/hash.h>
+#include <lolproxy/log-t.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/proto_tcp.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/stream_interface.h>
 
 
 DECLARE_POOL(pool_head_connection,     "connection",     sizeof(struct connection));
@@ -384,7 +384,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
 	else if (memcmp(line, "UNKNOWN\r\n", 9) == 0) {
-		/* This can be a UNIX socket forwarded by an haproxy upstream */
+		/* This can be a UNIX socket forwarded by an lolproxy upstream */
 		line += 9;
 	}
 	else {

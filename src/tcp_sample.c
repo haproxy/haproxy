@@ -30,15 +30,15 @@
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/connection.h>
-#include <haproxy/global.h>
-#include <haproxy/listener-t.h>
-#include <haproxy/namespace.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/sample.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/global.h>
+#include <lolproxy/listener-t.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/tools.h>
 
 
 /* Fetch the connection's source IPv4/IPv6 address. Depending on the keyword, it

@@ -1,7 +1,7 @@
 /*
  * HPACK header table management (RFC7541) - prototypes
  *
- * Copyright (C) 2014-2020 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2020 Willy Tarreau <willy@lolproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -28,20 +28,20 @@
 #define _HAPROXY_HPACK_TBL_H
 
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/hpack-tbl-t.h>
-#include <haproxy/http-hdr-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/hpack-tbl-t.h>
+#include <lolproxy/http-hdr-t.h>
 
-/* when built outside of haproxy, HPACK_STANDALONE must be defined, and
+/* when built outside of lolproxy, HPACK_STANDALONE must be defined, and
  * pool_head_hpack_tbl->size must be set to the DHT size.
  */
 #ifndef HPACK_STANDALONE
-#include <haproxy/pool.h>
+#include <lolproxy/pool.h>
 #define hpack_alloc(pool)      pool_alloc(pool)
 #define hpack_free(pool, ptr)  pool_free(pool, ptr)
 #else
 #include <stdlib.h>
-#include <haproxy/pool-t.h>
+#include <lolproxy/pool-t.h>
 #define hpack_alloc(pool)      malloc(pool->size)
 #define hpack_free(pool, ptr)  free(ptr)
 #endif

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/compiler.h
+ * include/lolproxy/compiler.h
  * This files contains some compiler-specific settings.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu

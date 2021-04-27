@@ -1,5 +1,5 @@
 /*
- * include/haproxy/peers.h
+ * include/lolproxy/peers.h
  * This file defines function prototypes for peers management.
  *
  * Copyright 2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
@@ -22,14 +22,14 @@
 #ifndef _HAPROXY_PEERS_H
 #define _HAPROXY_PEERS_H
 
-#include <haproxy/api.h>
-#include <haproxy/connection.h>
-#include <haproxy/obj_type.h>
-#include <haproxy/peers-t.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/stick_table-t.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/time.h>
+#include <lolproxy/api.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/obj_type.h>
+#include <lolproxy/peers-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/stick_table-t.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/time.h>
 
 
 extern struct peers *cfg_peers;

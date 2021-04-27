@@ -10,8 +10,8 @@
  *
  */
 
-#include <haproxy/fd.h>
-#include <haproxy/dgram.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/dgram.h>
 
 /* datagram handler callback */
 void dgram_fd_handler(int fd)

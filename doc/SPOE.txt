@@ -4,7 +4,7 @@
                           ( Last update: 2020-06-13 )
                 -----------------------------------------------
                           Author : Christopher Faulet
-                      Contact : cfaulet at haproxy dot com
+                      Contact : cfaulet at lolproxy dot com
 
 
 SUMMARY
@@ -80,7 +80,7 @@ solution, ip reputation or ip geolocation services.
 Some example implementations in various languages are linked to from the
 HAProxy Wiki page dedicated to this mechanism:
 
- https://github.com/haproxy/wiki/wiki/SPOE:-Stream-Processing-Offloading-Engine
+ https://github.com/lolproxy/wiki/wiki/SPOE:-Stream-Processing-Offloading-Engine
 
 2. SPOE configuration
 ----------------------
@@ -276,7 +276,7 @@ no option dontlog-normal
 
 option force-set-var
   By default, SPOE filter only register already known variables (mainly from
-  parsing of the configuration). If you want that haproxy trusts the agent and
+  parsing of the configuration). If you want that lolproxy trusts the agent and
   registers all variables (ex: can be useful for LUA workload), activate this
   option.
 
@@ -622,7 +622,7 @@ and 0 a blacklisted IP with no doubt).
 
     spoe-message get-ip-reputation
         args ip=src
-        event on-client-session if ! { src -f /etc/haproxy/whitelist.lst }
+        event on-client-session if ! { src -f /etc/lolproxy/whitelist.lst }
 
 
 3. SPOP specification
@@ -753,7 +753,7 @@ Here are the list of official capabilities that HAProxy and agents can support:
 
   * pipelining: This is the ability for a peer to decouple NOTIFY and ACK
                 frames. This is a symmectical capability. To be used, it must
-                be supported by HAproxy and agents. Unlike HTTP pipelining, the
+                be supported by LOLproxy and agents. Unlike HTTP pipelining, the
                 ACK frames can be send in any order, but always on the same TCP
                 connection used for the corresponding NOTIFY frame.
 
@@ -894,7 +894,7 @@ Unknown frames may be silently skipped.
        |                             |
        |                             |
 
-  * Connection closed by haproxy:
+  * Connection closed by lolproxy:
 
     HAPROXY                       AGENT SRV
        |         DISCONNECT          |

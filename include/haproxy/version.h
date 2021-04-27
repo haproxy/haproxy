@@ -1,5 +1,5 @@
 /*
- * include/haproxy/version.h
+ * include/lolproxy/version.h
  * This file serves as a template for future include files.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_VERSION_H
 #define _HAPROXY_VERSION_H
 
-#include <haproxy/api.h>
+#include <lolproxy/api.h>
 
 #ifdef  CONFIG_PRODUCT_NAME
 #define PRODUCT_NAME    CONFIG_PRODUCT_NAME
@@ -45,25 +45,25 @@
 #ifdef CONFIG_PRODUCT_URL_BUGS
 #define PRODUCT_URL_BUGS  CONFIG_PRODUCT_URL_BUGS
 #else
-#define PRODUCT_URL_BUGS "http://www.haproxy.org/bugs/bugs-%s.html"
+#define PRODUCT_URL_BUGS "http://www.lolproxy.org/bugs/bugs-%s.html"
 #endif
 
 #ifdef  CONFIG_PRODUCT_URL
 #define PRODUCT_URL    CONFIG_PRODUCT_URL
 #else
-#define PRODUCT_URL    "http://www.haproxy.org/"
+#define PRODUCT_URL    "http://www.lolproxy.org/"
 #endif
 
 #ifdef  CONFIG_PRODUCT_URL_UPD
 #define PRODUCT_URL_UPD  CONFIG_PRODUCT_URL_UPD
 #else
-#define PRODUCT_URL_UPD "http://www.haproxy.org/#down"
+#define PRODUCT_URL_UPD "http://www.lolproxy.org/#down"
 #endif
 
 #ifdef  CONFIG_PRODUCT_URL_DOC
 #define PRODUCT_URL_DOC  CONFIG_PRODUCT_URL_DOC
 #else
-#define PRODUCT_URL_DOC "http://www.haproxy.org/#docs"
+#define PRODUCT_URL_DOC "http://www.lolproxy.org/#docs"
 #endif
 
 #ifdef CONFIG_HAPROXY_VERSION
@@ -78,8 +78,8 @@
 #error "Must define CONFIG_HAPROXY_DATE"
 #endif
 
-extern char haproxy_version[];
-extern char haproxy_date[];
+extern char lolproxy_version[];
+extern char lolproxy_date[];
 extern char stats_version_string[];
 
 #endif /* _HAPROXY_VERSION_H */

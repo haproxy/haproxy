@@ -2,7 +2,7 @@
  * This file contains the sample fetches related to the SSL
  *
  * Copyright (C) 2012 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
- * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@haproxy.com>
+ * Copyright (C) 2020 HAProxy Technologies, William Lallemand <wlallemand@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,16 +20,16 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/obj_type.h>
-#include <haproxy/openssl-compat.h>
-#include <haproxy/sample.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/ssl_utils.h>
-#include <haproxy/tools.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/obj_type.h>
+#include <lolproxy/openssl-compat.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/ssl_utils.h>
+#include <lolproxy/tools.h>
 
 
 /***** Below are some sample fetching functions for ACL/patterns *****/

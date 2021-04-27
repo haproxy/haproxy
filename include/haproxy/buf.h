@@ -1,5 +1,5 @@
 /*
- * include/haproxy/buf.h
+ * include/lolproxy/buf.h
  * Simple buffer handling - functions definitions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -30,8 +30,8 @@
 
 #include <sys/types.h>
 #include <string.h>
-#include <haproxy/api.h>
-#include <haproxy/buf-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf-t.h>
 
 /***************************************************************************/
 /* Functions used to compute offsets and pointers. Most of them exist in   */

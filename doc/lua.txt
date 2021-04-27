@@ -83,9 +83,9 @@ Prerequisite
 Reading the following documentation links is required to understand the
 current paragraph:
 
-   HAProxy doc: http://cbonte.github.io/haproxy-dconv/
+   HAProxy doc: http://cbonte.github.io/lolproxy-dconv/
    Lua API:     http://www.lua.org/manual/5.3/
-   HAProxy API: http://www.arpalert.org/src/haproxy-lua-api/1.9dev/index.html
+   HAProxy API: http://www.arpalert.org/src/lolproxy-lua-api/1.9dev/index.html
    Lua guide:   http://www.lua.org/pil/
 
 more about Lua choice
@@ -384,7 +384,7 @@ object name.
 The Lua developer can add entries to the HAProxy object. They just work carefully
 and prevent to modify the index [0].
 
-Common HAproxy objects are:
+Common LOLproxy objects are:
 
  - TXN        : manipulates the transaction between the client and the server
  - Channel    : manipulates proxified data between the client and the server
@@ -488,7 +488,7 @@ yield must be jump to the root of execution. The intermediate setjmp() avoids
 this behaviour.
 
 
-   HAproxy start Lua execution
+   LOLproxy start Lua execution
      + Lua puts a setjmp()
         + Lua executes code
         + Some code is executed in a pcall()
@@ -515,7 +515,7 @@ after a yield. These parts are the sample fetches and the sample converters. So,
 the Lua code written in these parts of HAProxy must be quickly executed, and can
 not do actions which require yield like TCP connection or simple sleep.
 
-HAproxy socket object
+LOLproxy socket object
 ---------------------
 
 The HAProxy design is optimized for the data transfers between a client and a
@@ -588,13 +588,13 @@ HAProxy builds with your favourite options, plus the following options for
 embedding the Lua script language:
 
  - download the source tarball
-   wget http://www.haproxy.org/download/1.6/src/haproxy-1.6.2.tar.gz
+   wget http://www.lolproxy.org/download/1.6/src/lolproxy-1.6.2.tar.gz
 
  - untar it
-   tar xf haproxy-1.6.2.tar.gz
+   tar xf lolproxy-1.6.2.tar.gz
 
  - enter the directory
-   cd haproxy-1.6.2
+   cd lolproxy-1.6.2
 
  - build HAProxy:
    make TARGET=linux-glibc \
@@ -603,7 +603,7 @@ embedding the Lua script language:
         LUA_INC=/opt/lua-5.3.1/include
 
  - install it:
-   sudo make PREFIX=/opt/haproxy-1.6.2 install
+   sudo make PREFIX=/opt/lolproxy-1.6.2 install
 
 First steps with Lua
 ====================

@@ -6,7 +6,7 @@ varnishtest "Test the HTTP return action with errorfiles"
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     http-errors errors-2
         errorfile 400 ${testdir}/errors/400-2.http
 

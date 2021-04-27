@@ -1,5 +1,5 @@
 /*
- * include/haproxy/shctx.h - shared context management functions for SSL
+ * include/lolproxy/shctx.h - shared context management functions for SSL
  *
  * Copyright (C) 2011-2012 EXCELIANCE
  *
@@ -14,9 +14,9 @@
 #ifndef __HAPROXY_SHCTX_H
 #define __HAPROXY_SHCTX_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/list.h>
-#include <haproxy/shctx-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/list.h>
+#include <lolproxy/shctx-t.h>
 
 #ifndef USE_PRIVATE_CACHE
 #ifdef USE_PTHREAD_PSHARED

@@ -1,5 +1,5 @@
 /*
- * include/haproxy/cfgparse.h
+ * include/lolproxy/cfgparse.h
  * Configuration parsing functions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,9 +22,9 @@
 #ifndef _HAPROXY_CFGPARSE_H
 #define _HAPROXY_CFGPARSE_H
 
-#include <haproxy/api.h>
-#include <haproxy/errors.h>
-#include <haproxy/proxy.h>
+#include <lolproxy/api.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/proxy.h>
 
 struct hap_cpuset;
 

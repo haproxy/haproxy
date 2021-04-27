@@ -1,5 +1,5 @@
 /*
- * include/haproxy/pipe.h
+ * include/lolproxy/pipe.h
  * Pipe management - exported functions
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_PIPE_H
 #define _HAPROXY_PIPE_H
 
-#include <haproxy/api.h>
-#include <haproxy/pipe-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/pipe-t.h>
 
 extern int pipes_used;	/* # of pipes in use (2 fds each) */
 extern int pipes_free;	/* # of pipes unused (2 fds each) */

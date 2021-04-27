@@ -1,5 +1,5 @@
 /*
- * include/haproxy/hash.h
+ * include/lolproxy/hash.h
  * Macros for different hashing function.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu

@@ -7,7 +7,7 @@ feature ignore_unknown_macro
 # We need one HAProxy for each test, because apparently the connection by
 # the client is reused, leading to connection resets.
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode http
         timeout connect 1s
@@ -40,7 +40,7 @@ client c1 -connect ${h1_fe1_sock} {
     expect resp.http.echo == "3132333435"
 } -run
 
-haproxy h2 -conf {
+lolproxy h2 -conf {
     defaults
         mode http
         timeout connect 1s
@@ -77,7 +77,7 @@ client c2 -connect ${h2_fe1_sock} {
     expect resp.http.echo == <undef>
 } -run
 
-haproxy h3 -conf {
+lolproxy h3 -conf {
     defaults
         mode http
         timeout connect 1s
@@ -109,7 +109,7 @@ client c3 -connect ${h3_fe1_sock} {
     expect_close
 } -run
 
-haproxy h4 -conf {
+lolproxy h4 -conf {
     defaults
         mode http
         timeout connect 1s

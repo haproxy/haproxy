@@ -4,7 +4,7 @@ varnishtest "ub64dec sample fetche Test"
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     defaults
         mode http
         timeout connect 1s

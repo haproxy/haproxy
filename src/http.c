@@ -11,9 +11,9 @@
  */
 
 #include <ctype.h>
-#include <haproxy/api.h>
-#include <haproxy/http.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/http.h>
+#include <lolproxy/tools.h>
 
 /* It is about twice as fast on recent architectures to lookup a byte in a
  * table than to perform a boolean AND or OR between two tests. Refer to

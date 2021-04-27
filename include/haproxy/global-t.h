@@ -1,5 +1,5 @@
 /*
- * include/haproxy/global-t.h
+ * include/lolproxy/global-t.h
  * Global types and macros. Please avoid adding more stuff here!
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_GLOBAL_T_H
 #define _HAPROXY_GLOBAL_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/freq_ctr-t.h>
-#include <haproxy/vars-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/freq_ctr-t.h>
+#include <lolproxy/vars-t.h>
 
 /* modes of operation (global.mode) */
 #define	MODE_DEBUG	0x01

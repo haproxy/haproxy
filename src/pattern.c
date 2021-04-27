@@ -18,14 +18,14 @@
 #include <import/lru.h>
 #include <import/xxhash.h>
 
-#include <haproxy/api.h>
-#include <haproxy/global.h>
-#include <haproxy/log.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/pattern.h>
-#include <haproxy/regex.h>
-#include <haproxy/sample.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/global.h>
+#include <lolproxy/log.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/pattern.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/tools.h>
 
 
 const char *const pat_match_names[PAT_MATCH_NUM] = {

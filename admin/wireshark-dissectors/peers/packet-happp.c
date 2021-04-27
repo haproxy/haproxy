@@ -1,6 +1,6 @@
 /* packet-happp.c
  * Routines for HAProxy Peers Protocol (HAPPP) dissection
- * Copyright 2016, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2016, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>

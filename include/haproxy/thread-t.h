@@ -1,8 +1,8 @@
 /*
- * include/haproxy/thread-t.h
+ * include/lolproxy/thread-t.h
  * Definitions and types for thread support.
  *
- * Copyright (C) 2017 Christopher Faulet - cfaulet@haproxy.com
+ * Copyright (C) 2017 Christopher Faulet - cfaulet@lolproxy.com
  * Copyright (C) 2020 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@
 #include <pthread.h>
 #endif
 
-#include <haproxy/defaults.h>
+#include <lolproxy/defaults.h>
 
 /* Note: this file mainly contains 3 sections:
  *   - one used solely when USE_THREAD is *not* set

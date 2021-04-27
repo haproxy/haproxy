@@ -1,8 +1,8 @@
 #ifndef _HAPROXY_INIT_H
 #define _HAPROXY_INIT_H
 
-#include <haproxy/init-t.h>
-#include <haproxy/initcall.h>
+#include <lolproxy/init-t.h>
+#include <lolproxy/initcall.h>
 
 struct proxy;
 struct server;

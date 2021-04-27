@@ -1,7 +1,7 @@
 /*
  * AF_INET/AF_INET6 QUIC protocol layer.
  *
- * Copyright 2020 Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2020 Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -25,25 +25,25 @@
 #include <netinet/udp.h>
 #include <netinet/in.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/connection.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/list.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/namespace.h>
-#include <haproxy/port_range.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proto_quic.h>
-#include <haproxy/proto_udp.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/sock.h>
-#include <haproxy/quic_sock.h>
-#include <haproxy/sock_inet.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/port_range.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proto_quic.h>
+#include <lolproxy/proto_udp.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/quic_sock.h>
+#include <lolproxy/sock_inet.h>
+#include <lolproxy/tools.h>
 
 
 static void quic_add_listener(struct protocol *proto, struct listener *listener);

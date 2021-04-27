@@ -22,7 +22,7 @@ feature ignore_unknown_macro
 #REQUIRE_VERSION=1.8
 #REGTEST_TYPE=broken
 
-haproxy h1 -W -conf {
+lolproxy h1 -W -conf {
   global
     stats socket "${tmpdir}/h1/stats" level admin expose-fd listeners
 

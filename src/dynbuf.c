@@ -14,11 +14,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <haproxy/api.h>
-#include <haproxy/dynbuf.h>
-#include <haproxy/global.h>
-#include <haproxy/list.h>
-#include <haproxy/pool.h>
+#include <lolproxy/api.h>
+#include <lolproxy/dynbuf.h>
+#include <lolproxy/global.h>
+#include <lolproxy/list.h>
+#include <lolproxy/pool.h>
 
 struct pool_head *pool_head_buffer __read_mostly;
 

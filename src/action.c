@@ -1,7 +1,7 @@
 /*
  * Action management functions.
  *
- * Copyright 2017 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright 2017 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -10,18 +10,18 @@
  *
  */
 
-#include <haproxy/acl.h>
-#include <haproxy/action.h>
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/errors.h>
-#include <haproxy/list.h>
-#include <haproxy/obj_type.h>
-#include <haproxy/pool.h>
-#include <haproxy/proxy.h>
-#include <haproxy/stick_table.h>
-#include <haproxy/task.h>
-#include <haproxy/tools.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/action.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/list.h>
+#include <lolproxy/obj_type.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/stick_table.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tools.h>
 
 
 /* Check an action ruleset validity. It returns the number of error encountered

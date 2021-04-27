@@ -1,5 +1,5 @@
 /*
- * include/haproxy/fix-t.h
+ * include/lolproxy/fix-t.h
  * This file contains structure declarations for FIX protocol.
  *
  * Copyright 2020 Baptiste Assmann <bedis9@gmail.com>

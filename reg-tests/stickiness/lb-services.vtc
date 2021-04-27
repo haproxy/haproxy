@@ -43,7 +43,7 @@ server s4 {
     txresp -hdr "Server: be2/s4"
 } -repeat 2 -start
 
-haproxy h1 -arg "-L A" -conf {
+lolproxy h1 -arg "-L A" -conf {
     defaults
         mode http
         ${no-htx} option http-use-htx
@@ -107,7 +107,7 @@ server s8 {
 } -repeat 2 -start
 
 
-haproxy h2 -arg "-L B" -conf {
+lolproxy h2 -arg "-L B" -conf {
     defaults
         mode http
         ${no-htx} option http-use-htx
@@ -162,12 +162,12 @@ client cx -connect ${h1_fe_sock} {
     expect resp.http.Server ~ be1/s1
 } -repeat 2 -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
 
-haproxy h2 -cli {
+lolproxy h2 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
@@ -179,12 +179,12 @@ client cy -connect ${h1_fe_sock} {
     expect resp.http.Server ~ be2/s3
 } -repeat 2 -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
 
-haproxy h2 -cli {
+lolproxy h2 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
@@ -196,12 +196,12 @@ client cx -connect ${h2_fe_sock} {
     expect resp.http.Server ~ be1/s5
 } -repeat 2 -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
 
-haproxy h2 -cli {
+lolproxy h2 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
@@ -213,12 +213,12 @@ client cy -connect ${h2_fe_sock} {
     expect resp.http.Server ~ be2/s7
 } -repeat 2 -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
 
-haproxy h2 -cli {
+lolproxy h2 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
@@ -230,12 +230,12 @@ client cX -connect ${h1_fe_sock} {
     expect resp.http.Server ~ be1/s2
 } -repeat 2 -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
 
-haproxy h2 -cli {
+lolproxy h2 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
@@ -247,12 +247,12 @@ client cY -connect ${h1_fe_sock} {
     expect resp.http.Server ~ be2/s4
 } -repeat 2 -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
 
-haproxy h2 -cli {
+lolproxy h2 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
@@ -264,12 +264,12 @@ client cX -connect ${h2_fe_sock} {
     expect resp.http.Server ~ be1/s6
 } -repeat 2 -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
 
-haproxy h2 -cli {
+lolproxy h2 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
@@ -281,12 +281,12 @@ client cY -connect ${h2_fe_sock} {
     expect resp.http.Server ~ be2/s8
 } -repeat 2 -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }
 
-haproxy h2 -cli {
+lolproxy h2 -cli {
     send "show table mypeers/mytable"
     expect ~ .*
 }

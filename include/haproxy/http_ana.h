@@ -1,5 +1,5 @@
 /*
- * include/haproxy/http_ana.h
+ * include/lolproxy/http_ana.h
  * This file contains HTTP protocol definitions.
  *
  * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
@@ -22,11 +22,11 @@
 #ifndef _HAPROXY_PROTO_HTTP_H
 #define _HAPROXY_PROTO_HTTP_H
 
-#include <haproxy/api.h>
-#include <haproxy/channel-t.h>
-#include <haproxy/http_ana-t.h>
-#include <haproxy/htx-t.h>
-#include <haproxy/stream-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/channel-t.h>
+#include <lolproxy/http_ana-t.h>
+#include <lolproxy/htx-t.h>
+#include <lolproxy/stream-t.h>
 
 extern struct pool_head *pool_head_uniqueid;
 extern struct pool_head *pool_head_http_txn;

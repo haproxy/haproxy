@@ -16,21 +16,21 @@
 #include <string.h>
 #include <time.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/action.h>
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/capture-t.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/chunk.h>
-#include <haproxy/global.h>
-#include <haproxy/http.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/log.h>
-#include <haproxy/pool.h>
-#include <haproxy/sample.h>
-#include <haproxy/tools.h>
-#include <haproxy/version.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/action.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/capture-t.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/log.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/version.h>
 
 
 /* List head of all known action keywords for "http-request" */

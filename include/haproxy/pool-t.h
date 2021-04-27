@@ -1,5 +1,5 @@
 /*
- * include/haproxy/pool-t.h
+ * include/lolproxy/pool-t.h
  * Memory pools configuration and type definitions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,9 +22,9 @@
 #ifndef _HAPROXY_POOL_T_H
 #define _HAPROXY_POOL_T_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/list-t.h>
-#include <haproxy/thread-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/list-t.h>
+#include <lolproxy/thread-t.h>
 
 /* Pools are always enabled unless explicitly disabled. When disabled, the
  * calls are directly passed to the underlying OS functions.

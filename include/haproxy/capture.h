@@ -1,5 +1,5 @@
 /*
- * include/haproxy/capture.h
+ * include/lolproxy/capture.h
  * This file defines prototypes for captures.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_CAPTURE_H
 #define _HAPROXY_CAPTURE_H
 
-#include <haproxy/capture-t.h>
-#include <haproxy/pool-t.h>
+#include <lolproxy/capture-t.h>
+#include <lolproxy/pool-t.h>
 
 extern struct pool_head *pool_head_capture;
 

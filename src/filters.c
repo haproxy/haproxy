@@ -10,21 +10,21 @@
  *
  */
 
-#include <haproxy/api.h>
-#include <haproxy/buf-t.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/compression.h>
-#include <haproxy/errors.h>
-#include <haproxy/filters.h>
-#include <haproxy/flt_http_comp.h>
-#include <haproxy/http_ana.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-#include <haproxy/namespace.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/tools.h>
-#include <haproxy/trace.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/compression.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/filters.h>
+#include <lolproxy/flt_http_comp.h>
+#include <lolproxy/http_ana.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/trace.h>
 
 
 #define TRACE_SOURCE &trace_strm

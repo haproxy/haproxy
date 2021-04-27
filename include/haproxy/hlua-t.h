@@ -1,5 +1,5 @@
 /*
- * include/haproxy/hlua-t.h
+ * include/lolproxy/hlua-t.h
  * Lua core types definitions
  *
  * Copyright (C) 2015-2016 Thierry Fournier <tfournier@arpalert.org>
@@ -29,11 +29,11 @@
 
 #include <import/ebpttree.h>
 
-#include <haproxy/proxy-t.h>
-#include <haproxy/regex-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/stick_table-t.h>
-#include <haproxy/xref-t.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/regex-t.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/stick_table-t.h>
+#include <lolproxy/xref-t.h>
 
 #define CLASS_CORE         "Core"
 #define CLASS_TXN          "TXN"

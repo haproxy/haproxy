@@ -73,19 +73,19 @@
 #   ADDINC may be used to complete the include path in the form -Ipath.
 #   ADDLIB may be used to complete the library list in the form -Lpath -llib.
 #   DEFINE may be used to specify any additional define, which will be reported
-#          by "haproxy -vv" in CFLAGS.
+#          by "lolproxy -vv" in CFLAGS.
 #   SILENT_DEFINE may be used to specify other defines which will not be
-#     reported by "haproxy -vv".
+#     reported by "lolproxy -vv".
 #   EXTRA   is used to force building or not building some extra tools.
 #   DESTDIR is not set by default and is used for installation only.
-#           It might be useful to set DESTDIR if you want to install haproxy
+#           It might be useful to set DESTDIR if you want to install lolproxy
 #           in a sandbox.
 #   PREFIX  is set to "/usr/local" by default and is used for installation only.
 #   SBINDIR is set to "$(PREFIX)/sbin" by default and is used for installation
 #           only.
 #   MANDIR  is set to "$(PREFIX)/share/man" by default and is used for
 #           installation only.
-#   DOCDIR  is set to "$(PREFIX)/doc/haproxy" by default and is used for
+#   DOCDIR  is set to "$(PREFIX)/doc/lolproxy" by default and is used for
 #           installation only.
 #   HLUA_PREPEND_PATH may be used to prepend a folder to Lua's default package.path.
 #   HLUA_PREPEND_CPATH may be used to prepend a folder to Lua's default package.cpath.
@@ -107,14 +107,14 @@
 #   OT_DEBUG       : compile the OpenTracing filter in debug mode
 #   OT_INC         : force the include path to libopentracing-c-wrapper
 #   OT_LIB         : force the lib path to libopentracing-c-wrapper
-#   OT_RUNPATH     : add RUNPATH for libopentracing-c-wrapper to haproxy executable
+#   OT_RUNPATH     : add RUNPATH for libopentracing-c-wrapper to lolproxy executable
 #   IGNOREGIT      : ignore GIT commit versions if set.
-#   VERSION        : force haproxy version reporting.
+#   VERSION        : force lolproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
 #   EXTRAVERSION   : local version string to append (e.g. build number etc)
-#   VERDATE        : force haproxy's release date.
+#   VERDATE        : force lolproxy's release date.
 #   VTEST_PROGRAM  : location of the vtest program to run reg-tests.
-#   DEBUG_USE_ABORT: use abort() for program termination, see include/haproxy/bug.h for details
+#   DEBUG_USE_ABORT: use abort() for program termination, see include/lolproxy/bug.h for details
 
 # verbosity: pass V=1 for verbose shell invocation
 V = 0
@@ -148,7 +148,7 @@ DESTDIR =
 PREFIX = /usr/local
 SBINDIR = $(PREFIX)/sbin
 MANDIR = $(PREFIX)/share/man
-DOCDIR = $(PREFIX)/doc/haproxy
+DOCDIR = $(PREFIX)/doc/lolproxy
 
 #### TARGET system
 # Use TARGET=<target_name> to optimize for a specific target OS among the
@@ -246,7 +246,7 @@ ADDLIB =
 
 #### Specific macro definitions
 # Use DEFINE=-Dxxx to set any tunable macro. Anything declared here will appear
-# in the build options reported by "haproxy -vv". Use SILENT_DEFINE if you do
+# in the build options reported by "lolproxy -vv". Use SILENT_DEFINE if you do
 # not want to pollute the report with complex defines.
 # The following settings might be of interest when SSL is enabled :
 #   LISTEN_DEFAULT_CIPHERS is a cipher suite string used to set the default SSL
@@ -853,7 +853,7 @@ all:
 	@echo
 	@exit 1
 else
-all: haproxy dev/flags/flags $(EXTRA)
+all: lolproxy dev/flags/flags $(EXTRA)
 endif
 endif
 
@@ -868,7 +868,7 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/http_ana.o src/stream.o                \
         src/tcpcheck.o src/server.o src/tools.o src/cli.o                      \
         src/cfgparse.o src/log.o src/cfgparse-listen.o src/check.o             \
         src/stick_table.o src/peers.o src/resolvers.o src/stream_interface.o   \
-        src/sample.o src/http_htx.o src/haproxy.o src/http_act.o               \
+        src/sample.o src/http_htx.o src/lolproxy.o src/http_act.o               \
         src/proxy.o src/pattern.o src/listener.o src/cache.o                   \
         src/http_fetch.o src/session.o src/connection.o src/sink.o             \
         src/task.o src/filters.o src/fcgi-app.o src/tcp_rules.o                \
@@ -934,10 +934,10 @@ else
 .build_opts:
 endif
 
-haproxy: $(OPTIONS_OBJS) $(OBJS)
+lolproxy: $(OPTIONS_OBJS) $(OBJS)
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
-objsize: haproxy
+objsize: lolproxy
 	$(Q)objdump -t $^|grep ' g '|grep -F '.text'|awk '{print $$5 FS $$6}'|sort
 
 %.o:	%.c $(DEP)
@@ -964,7 +964,7 @@ dev/tcploop/tcploop:
 src/calltrace.o: src/calltrace.c $(DEP)
 	$(cmd_CC) $(TRACE_COPTS) -c -o $@ $<
 
-src/haproxy.o:	src/haproxy.c $(DEP)
+src/lolproxy.o:	src/lolproxy.c $(DEP)
 	$(cmd_CC) $(COPTS) \
 	      -DBUILD_TARGET='"$(strip $(TARGET))"' \
 	      -DBUILD_ARCH='"$(strip $(ARCH))"' \
@@ -978,7 +978,7 @@ src/haproxy.o:	src/haproxy.c $(DEP)
 
 install-man:
 	$(Q)install -v -d "$(DESTDIR)$(MANDIR)"/man1
-	$(Q)install -v -m 644 doc/haproxy.1 "$(DESTDIR)$(MANDIR)"/man1
+	$(Q)install -v -m 644 doc/lolproxy.1 "$(DESTDIR)$(MANDIR)"/man1
 
 EXCLUDE_DOCUMENTATION = lgpl gpl coding-style
 DOCUMENTATION = $(filter-out $(EXCLUDE_DOCUMENTATION),$(patsubst doc/%.txt,%,$(wildcard doc/*.txt)))
@@ -990,30 +990,30 @@ install-doc:
 	done
 
 install-bin:
-	$(Q)for i in haproxy $(EXTRA); do \
+	$(Q)for i in lolproxy $(EXTRA); do \
 		if ! [ -e "$$i" ]; then \
 			echo "Please run 'make' before 'make install'."; \
 			exit 1; \
 		fi; \
 	done
 	$(Q)install -v -d "$(DESTDIR)$(SBINDIR)"
-	$(Q)install -v haproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
+	$(Q)install -v lolproxy $(EXTRA) "$(DESTDIR)$(SBINDIR)"
 
 install: install-bin install-man install-doc
 
 uninstall:
-	$(Q)rm -f "$(DESTDIR)$(MANDIR)"/man1/haproxy.1
+	$(Q)rm -f "$(DESTDIR)$(MANDIR)"/man1/lolproxy.1
 	$(Q)for x in $(DOCUMENTATION); do \
 		rm -f "$(DESTDIR)$(DOCDIR)"/$$x.txt ; \
 	done
 	$(Q)-rmdir "$(DESTDIR)$(DOCDIR)"
-	$(Q)rm -f "$(DESTDIR)$(SBINDIR)"/haproxy
+	$(Q)rm -f "$(DESTDIR)$(SBINDIR)"/lolproxy
 
 clean:
-	$(Q)rm -f *.[oas] src/*.[oas] haproxy test .build_opts .build_opts.new
+	$(Q)rm -f *.[oas] src/*.[oas] lolproxy test .build_opts .build_opts.new
 	$(Q)for dir in . src dev/* admin/* addons/* include/* doc; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
-	$(Q)rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
-	$(Q)rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
+	$(Q)rm -f lolproxy-$(VERSION).tar.gz lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
+	$(Q)rm -f lolproxy-$(VERSION) lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) nohup.out gmon.out
 	$(Q)rm -f addons/promex/*.[oas]
 	$(Q)rm -f addons/51degrees/*.[oas] addons/51degrees/dummy/*.[oas] addons/51degrees/dummy/*/*.[oas]
 	$(Q)rm -f addons/deviceatlas/*.[oas] addons/deviceatlas/dummy/*.[oas]
@@ -1033,17 +1033,17 @@ cscope:
 	$(Q)find src include -name "*.[ch]" -print | cscope -q -b -i -
 
 tar:	clean
-	$(Q)ln -s . haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)
-	$(Q)tar --exclude=haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/.git \
-	    --exclude=haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) \
-	    --exclude=haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz \
-	    -cf - haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/* | gzip -c9 >haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
-	$(Q)echo haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
-	$(Q)rm -f haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)
+	$(Q)ln -s . lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)
+	$(Q)tar --exclude=lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/.git \
+	    --exclude=lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION) \
+	    --exclude=lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz \
+	    -cf - lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/* | gzip -c9 >lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
+	$(Q)echo lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
+	$(Q)rm -f lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)
 
 git-tar:
-	$(Q)git archive --format=tar --prefix="haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/" HEAD | gzip -9 > haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
-	$(Q)echo haproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
+	$(Q)git archive --format=tar --prefix="lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION)/" HEAD | gzip -9 > lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
+	$(Q)echo lolproxy-$(VERSION)$(SUBVERS)$(EXTRAVERSION).tar.gz
 
 version:
 	@echo "VERSION: $(VERSION)"
@@ -1090,14 +1090,14 @@ reg-tests:
 
 reg-tests-help:
 	@echo
-	@echo "To launch the reg tests for haproxy, first export to your environment "
+	@echo "To launch the reg tests for lolproxy, first export to your environment "
 	@echo "VTEST_PROGRAM variable to point to your vtest program:"
 	@echo "    $$ export VTEST_PROGRAM=/opt/local/bin/vtest"
 	@echo "or"
 	@echo "    $$ setenv VTEST_PROGRAM /opt/local/bin/vtest"
 	@echo
-	@echo "The same thing may be done to set your haproxy program with HAPROXY_PROGRAM "
-	@echo "but with ./haproxy as default value."
+	@echo "The same thing may be done to set your lolproxy program with HAPROXY_PROGRAM "
+	@echo "but with ./lolproxy as default value."
 	@echo
 	@echo "To run all the tests:"
 	@echo "    $$ make reg-tests"
@@ -1113,7 +1113,7 @@ reg-tests-help:
 	@echo "About the reg test types:"
 	@echo "    any         : all the tests without distinction (this is the default"
 	@echo "                  value of REGTESTS_TYPES."
-	@echo "    default     : dedicated to pure haproxy compliance tests."
+	@echo "    default     : dedicated to pure lolproxy compliance tests."
 	@echo "    slow        : scripts which take non negligible time to run."
 	@echo "    bug         : scripts in relation with bugs they help to reproduce."
 	@echo "    broken      : scripts triggering known broken behaviors for which"

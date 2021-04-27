@@ -1,5 +1,5 @@
 /*
- * include/haproxy/namespace.h
+ * include/lolproxy/namespace.h
  * Linux network namespaces management
  *
  * Copyright (C) 2014 Tamas Kovacs, Sarkozi Laszlo, Krisztian Kovacs
@@ -26,7 +26,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <import/ebistree.h>
-#include <haproxy/namespace-t.h>
+#include <lolproxy/namespace-t.h>
 
 #ifdef USE_NS
 

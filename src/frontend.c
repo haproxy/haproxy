@@ -22,23 +22,23 @@
 
 #include <netinet/tcp.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/chunk.h>
-#include <haproxy/fd.h>
-#include <haproxy/frontend.h>
-#include <haproxy/global.h>
-#include <haproxy/http_ana.h>
-#include <haproxy/log.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/proxy.h>
-#include <haproxy/sample.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/frontend.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http_ana.h>
+#include <lolproxy/log.h>
+#include <lolproxy/proto_tcp.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
 
 
 /* Finish a stream accept() for a proxy (TCP or HTTP). It returns a negative

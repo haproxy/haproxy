@@ -1,5 +1,5 @@
 /*
- * include/haproxy/port_range.h
+ * include/lolproxy/port_range.h
  * This file defines everything needed to manage port ranges
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -23,8 +23,8 @@
 #define _HAPROXY_PORT_RANGE_H
 
 #include <stdlib.h>
-#include <haproxy/api.h>
-#include <haproxy/port_range-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/port_range-t.h>
 
 #define GET_NEXT_OFF(range, off) ((off) == (range)->size - 1 ? 0 : (off) + 1)
 

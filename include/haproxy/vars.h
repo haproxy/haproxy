@@ -1,5 +1,5 @@
 /*
- * include/haproxy/vars.h
+ * include/lolproxy/vars.h
  * Prototypes for variables.
  *
  * Copyright (C) 2015 Thierry FOURNIER <tfournier@arpalert.org>
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_VARS_H
 #define _HAPROXY_VARS_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/session-t.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/vars-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/session-t.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/vars-t.h>
 
 void vars_init(struct vars *vars, enum vars_scope scope);
 void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size);

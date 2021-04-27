@@ -1,5 +1,5 @@
 /*
- * include/haproxy/net_helper.h
+ * include/lolproxy/net_helper.h
  * This file contains miscellaneous network helper functions.
  *
  * Copyright (C) 2017 Olivier Houchard
@@ -28,8 +28,8 @@
 #define _HAPROXY_NET_HELPER_H
 
 #include <arpa/inet.h>
-#include <haproxy/api.h>
-#include <haproxy/intops.h>
+#include <lolproxy/api.h>
+#include <lolproxy/intops.h>
 
 /* Functions to read/write various integers that may be unaligned */
 

@@ -19,7 +19,7 @@ server s1 -repeat 2 {
     txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         tune.ssl.default-dh-param 2048
         tune.ssl.capture-cipherlist-size 1
@@ -72,12 +72,12 @@ client c1 -connect ${h1_clearlst_sock} {
     expect resp.status == 200
 } -run
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "del ssl crt-list ${testdir}/simple.crt-list ${testdir}/common.pem:2"
     expect ~ "Entry '${testdir}/common.pem' deleted in crtlist '${testdir}/simple.crt-list'!"
 }
 
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "show ssl crt-list -n ${testdir}/simple.crt-list"
     expect !~ "common.pem:2"
 }
@@ -92,13 +92,13 @@ client c1 -connect ${h1_clearlst_sock} {
 
 # We should not be able to delete the crt-list's first line since it is the
 # default certificate of this bind line and the strict-sni option is not enabled.
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "del ssl crt-list ${testdir}/localhost.crt-list ${testdir}/common.pem:1"
     expect ~ "Can't delete the entry: certificate '${testdir}/common.pem' cannot be deleted, it is used as default certificate by the following frontends:"
 }
 
 # We should be able to delete any line of the crt-list since the strict-sni option is enabled.
-haproxy h1 -cli {
+lolproxy h1 -cli {
     send "del ssl crt-list ${testdir}/simple.crt-list ${testdir}/common.pem:1"
     expect ~ "Entry '${testdir}/common.pem' deleted in crtlist '${testdir}/simple.crt-list'!"
 }

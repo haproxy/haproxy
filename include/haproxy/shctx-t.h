@@ -1,5 +1,5 @@
 /*
- * include/haproxy/shctx-t.h - shared context management functions for SSL
+ * include/lolproxy/shctx-t.h - shared context management functions for SSL
  *
  * Copyright (C) 2011-2012 EXCELIANCE
  *
@@ -17,7 +17,7 @@
 #if !defined (USE_PRIVATE_CACHE) && defined(USE_PTHREAD_PSHARED)
 #include <pthread.h>
 #endif
-#include <haproxy/list.h>
+#include <lolproxy/list.h>
 
 #ifndef SHSESS_BLOCK_MIN_SIZE
 #define SHSESS_BLOCK_MIN_SIZE 128
@@ -28,7 +28,7 @@
 #endif
 
 #ifndef SHCTX_APPNAME
-#define SHCTX_APPNAME "haproxy"
+#define SHCTX_APPNAME "lolproxy"
 #endif
 
 #define SHCTX_E_ALLOC_CACHE -1

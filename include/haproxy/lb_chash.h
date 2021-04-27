@@ -1,5 +1,5 @@
 /*
- * include/haproxy/lb_chash.h
+ * include/lolproxy/lb_chash.h
  * Function declarations for Consistent Hash LB algorithm.
  *
  * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_LB_CHASH_H
 #define _HAPROXY_LB_CHASH_H
 
-#include <haproxy/api.h>
-#include <haproxy/lb_chash-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/lb_chash-t.h>
 
 struct proxy;
 struct server;

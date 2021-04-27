@@ -25,14 +25,14 @@
 
 #include <net/if.h>
 
-#include <haproxy/api.h>
-#include <haproxy/connection.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/namespace.h>
-#include <haproxy/sock.h>
-#include <haproxy/sock_inet.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/sock_inet.h>
+#include <lolproxy/tools.h>
 
 /* the list of remaining sockets transferred from an older process */
 struct xfer_sock_list *xfer_sock_list = NULL;

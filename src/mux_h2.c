@@ -11,23 +11,23 @@
  */
 
 #include <import/eb32tree.h>
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/connection.h>
-#include <haproxy/h2.h>
-#include <haproxy/hpack-dec.h>
-#include <haproxy/hpack-enc.h>
-#include <haproxy/hpack-tbl.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-#include <haproxy/istbuf.h>
-#include <haproxy/log.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/session-t.h>
-#include <haproxy/stats.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/trace.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/h2.h>
+#include <lolproxy/hpack-dec.h>
+#include <lolproxy/hpack-enc.h>
+#include <lolproxy/hpack-tbl.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/istbuf.h>
+#include <lolproxy/log.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/session-t.h>
+#include <lolproxy/stats.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/trace.h>
 
 
 /* dummy streams returned for closed, error, refused, idle and states */
@@ -1614,7 +1614,7 @@ static int h2c_send_settings(struct h2c *h2c)
 	if (h2_settings_max_concurrent_streams != 0) {
 		char str[6] = "\x00\x03"; /* max_concurrent_streams */
 
-		/* Note: 0 means "unlimited" for haproxy's config but not for
+		/* Note: 0 means "unlimited" for lolproxy's config but not for
 		 * the protocol, so never send this value!
 		 */
 		write_n32(str + 2, h2_settings_max_concurrent_streams);

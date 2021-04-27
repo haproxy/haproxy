@@ -1,5 +1,5 @@
 /*
- * include/haproxy/obj_type.h
+ * include/lolproxy/obj_type.h
  * This file contains function prototypes to manipulate object types
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
@@ -22,17 +22,17 @@
 #ifndef _HAPROXY_OBJ_TYPE_H
 #define _HAPROXY_OBJ_TYPE_H
 
-#include <haproxy/api.h>
-#include <haproxy/applet-t.h>
-#include <haproxy/check-t.h>
-#include <haproxy/connection-t.h>
-#include <haproxy/listener-t.h>
-#include <haproxy/obj_type-t.h>
-#include <haproxy/pool.h>
-#include <haproxy/proxy-t.h>
-#include <haproxy/server-t.h>
-#include <haproxy/stream-t.h>
-#include <haproxy/stream_interface-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet-t.h>
+#include <lolproxy/check-t.h>
+#include <lolproxy/connection-t.h>
+#include <lolproxy/listener-t.h>
+#include <lolproxy/obj_type-t.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/proxy-t.h>
+#include <lolproxy/server-t.h>
+#include <lolproxy/stream-t.h>
+#include <lolproxy/stream_interface-t.h>
 
 static inline enum obj_type obj_type(const enum obj_type *t)
 {

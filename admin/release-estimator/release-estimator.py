@@ -6,7 +6,7 @@
 # release date for the next minor release based on the bug fixes that are in
 # the queue.
 #
-# Copyright 2020 HAProxy Technologies, Daniel Corbett <dcorbett@haproxy.com>
+# Copyright 2020 HAProxy Technologies, Daniel Corbett <dcorbett@lolproxy.com>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -74,7 +74,7 @@ def main():
     BUGS = { "bugs" :[] }
     email_message = """Hi,
 
-This is a friendly bot that watches fixes pending for the next haproxy-stable release!  One such e-mail is sent periodically once patches are waiting in the last maintenance branch, and an ideal release date is computed based on the severity of these fixes and their merge date.  Responses to this mail must be sent to the mailing list.
+This is a friendly bot that watches fixes pending for the next lolproxy-stable release!  One such e-mail is sent periodically once patches are waiting in the last maintenance branch, and an ideal release date is computed based on the severity of these fixes and their merge date.  Responses to this mail must be sent to the mailing list.
 
 """
 
@@ -120,7 +120,7 @@ This is a friendly bot that watches fixes pending for the next haproxy-stable re
     # Let's get the list of the current stable versions
     #
 
-    page = requests.get('http://www.haproxy.org/bugs/')
+    page = requests.get('http://www.lolproxy.org/bugs/')
     tree = html.fromstring(page.content)
 
     for x in (tree.xpath('//th')):
@@ -166,7 +166,7 @@ This is a friendly bot that watches fixes pending for the next haproxy-stable re
         BUGQUEUE[version] = { "total" : 0, "last": ""  }
         VERSION_THRESHOLDS = copy.deepcopy(THRESHOLDS)
         print("Collecting information on %s" % (version))
-        page = requests.get('http://www.haproxy.org/bugs/bugs-%s.html' % (version))
+        page = requests.get('http://www.lolproxy.org/bugs/bugs-%s.html' % (version))
         tree = html.fromstring(page.content)
 
         issues[version] = {}
@@ -387,7 +387,7 @@ This is a friendly bot that watches fixes pending for the next haproxy-stable re
     for bug in BUGS["bugs"]:
         email_message = "%s - %s %s %s : %s\n" % (email_message, ", ".join(bug["affected_versions"]).ljust(14), "-".rjust(12), bug["severity"].ljust(7), bug["bug"])
 
-    email_message="%s\n-- \nThe haproxy stable-bot is freely provided by HAProxy Technologies to help improve the quality of each HAProxy release.  If you have any issue with these emails or if you want to suggest some improvements, please post them on the list so that the solutions suiting the most users can be found.\n" % (email_message)
+    email_message="%s\n-- \nThe lolproxy stable-bot is freely provided by HAProxy Technologies to help improve the quality of each HAProxy release.  If you have any issue with these emails or if you want to suggest some improvements, please post them on the list so that the solutions suiting the most users can be found.\n" % (email_message)
 
     # If a message with actual issues exists let's either print it or send out
     # an email.

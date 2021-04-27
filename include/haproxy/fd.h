@@ -1,5 +1,5 @@
 /*
- * include/haproxy/fd.h
+ * include/lolproxy/fd.h
  * File descriptors states - exported variables and functions
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -27,13 +27,13 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <import/ist.h>
-#include <haproxy/activity.h>
-#include <haproxy/api.h>
-#include <haproxy/fd-t.h>
-#include <haproxy/global.h>
-#include <haproxy/thread.h>
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
+#include <lolproxy/activity.h>
+#include <lolproxy/api.h>
+#include <lolproxy/fd-t.h>
+#include <lolproxy/global.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
 
 /* public variables */
 

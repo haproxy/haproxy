@@ -2,7 +2,7 @@
  * include/proto/quic_cc.h
  * This file contains prototypes for QUIC congestion control.
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,10 +26,10 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <haproxy/api.h>
-#include <haproxy/chunk.h>
-#include <haproxy/quic_cc-t.h>
-#include <haproxy/xprt_quic-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/quic_cc-t.h>
+#include <lolproxy/xprt_quic-t.h>
 
 void quic_cc_init(struct quic_cc *cc, struct quic_cc_algo *algo, struct quic_conn *qc);
 void quic_cc_event(struct quic_cc *cc, struct quic_cc_event *ev);

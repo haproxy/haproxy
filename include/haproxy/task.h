@@ -1,5 +1,5 @@
 /*
- * include/haproxy/task.h
+ * include/lolproxy/task.h
  * Functions for task management.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -28,15 +28,15 @@
 #include <import/eb32sctree.h>
 #include <import/eb32tree.h>
 
-#include <haproxy/api.h>
-#include <haproxy/fd.h>
-#include <haproxy/global.h>
-#include <haproxy/intops.h>
-#include <haproxy/list.h>
-#include <haproxy/pool.h>
-#include <haproxy/task-t.h>
-#include <haproxy/thread.h>
-#include <haproxy/ticks.h>
+#include <lolproxy/api.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/global.h>
+#include <lolproxy/intops.h>
+#include <lolproxy/list.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/task-t.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/ticks.h>
 
 
 /* Principle of the wait queue.

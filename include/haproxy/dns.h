@@ -1,5 +1,5 @@
 /*
- * include/haproxy/dns.h
+ * include/lolproxy/dns.h
  * This file provides functions related to DNS protocol
  *
  * Copyright (C) 2020 Haproxy Technologies
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_DNS_H
 #define _HAPROXY_DNS_H
 
-#include <haproxy/dns-t.h>
-#include <haproxy/server-t.h>
+#include <lolproxy/dns-t.h>
+#include <lolproxy/server-t.h>
 
 int dns_send_nameserver(struct dns_nameserver *ns, void *buf, size_t len);
 ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size);

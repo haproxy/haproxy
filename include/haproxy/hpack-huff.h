@@ -1,7 +1,7 @@
 /*
  * Huffman decoding and encoding for HPACK (RFC7541)
  *
- * Copyright (C) 2014-2020 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2020 Willy Tarreau <willy@lolproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining

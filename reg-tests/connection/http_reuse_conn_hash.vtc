@@ -4,7 +4,7 @@ varnishtest "Test the http-reuse with special connection parameters"
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
 	defaults
 		mode http
 

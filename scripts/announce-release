@@ -158,8 +158,8 @@ if [ -z "$DATE" ]; then
 fi
 YEAR="${DATE%%/*}"
 
-OUTPUT="$DIR/mail-haproxy-$NEWVER.txt"
-HTML="$DIR/web-haproxy-$NEWVER.html"
+OUTPUT="$DIR/mail-lolproxy-$NEWVER.txt"
+HTML="$DIR/web-lolproxy-$NEWVER.html"
 
 [ -z "$FORCE" ] || rm -f "${OUTPUT}" "${HTML}"
 
@@ -173,7 +173,7 @@ fi
 
 (
  echo "# Send this using:"
- echo "#   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEWVER\" haproxy@formilux.org"
+ echo "#   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] lolproxy-$NEWVER\" lolproxy@formilux.org"
 ) >> "$OUTPUT"
 
 (echo
@@ -204,22 +204,22 @@ fi
 
 # report the download paths
 if [ -z "${NEWVER##*-dev*}" ]; then
-	gitdir="haproxy.git"
+	gitdir="lolproxy.git"
 else
-	gitdir="haproxy-$BRANCH.git"
+	gitdir="lolproxy-$BRANCH.git"
 fi
 
 (echo "Please find the usual URLs below :"
- echo "   Site index       : http://www.haproxy.org/"
- echo "   Discourse        : http://discourse.haproxy.org/"
- echo "   Slack channel    : https://slack.haproxy.org/"
- echo "   Issue tracker    : https://github.com/haproxy/haproxy/issues"
- echo "   Wiki             : https://github.com/haproxy/wiki/wiki"
- echo "   Sources          : http://www.haproxy.org/download/${BRANCH}/src/"
- echo "   Git repository   : http://git.haproxy.org/git/${gitdir}/"
- echo "   Git Web browsing : http://git.haproxy.org/?p=${gitdir}"
- echo "   Changelog        : http://www.haproxy.org/download/${BRANCH}/src/CHANGELOG"
- echo "   Cyril's HTML doc : http://cbonte.github.io/haproxy-dconv/"
+ echo "   Site index       : http://www.lolproxy.org/"
+ echo "   Discourse        : http://discourse.lolproxy.org/"
+ echo "   Slack channel    : https://slack.lolproxy.org/"
+ echo "   Issue tracker    : https://github.com/lolproxy/lolproxy/issues"
+ echo "   Wiki             : https://github.com/lolproxy/wiki/wiki"
+ echo "   Sources          : http://www.lolproxy.org/download/${BRANCH}/src/"
+ echo "   Git repository   : http://git.lolproxy.org/git/${gitdir}/"
+ echo "   Git Web browsing : http://git.lolproxy.org/?p=${gitdir}"
+ echo "   Changelog        : http://www.lolproxy.org/download/${BRANCH}/src/CHANGELOG"
+ echo "   Cyril's HTML doc : http://cbonte.github.io/lolproxy-dconv/"
 ) >> "$OUTPUT"
 
 # sign
@@ -268,7 +268,7 @@ humandate=$(date "+%B, $day, %Y" -d "$DATE")
 echo "The announce was emitted into file $OUTPUT."
 echo "You can edit it and send it this way :"
 echo
-echo "   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] haproxy-$NEWVER\" haproxy@formilux.org"
+echo "   mutt -H <(tail -n +4 ${OUTPUT##*/}) -s \"[ANNOUNCE] lolproxy-$NEWVER\" lolproxy@formilux.org"
 echo
 echo "The HTML block was emitted into $HTML and needs to be finished by hand."
 echo

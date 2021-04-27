@@ -4,7 +4,7 @@ varnishtest "Lua: set_var"
 
 feature ignore_unknown_macro
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         lua-load ${testdir}/set_var.lua
 

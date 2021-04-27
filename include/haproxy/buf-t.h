@@ -1,5 +1,5 @@
 /*
- * include/haproxy/buf-t.h
+ * include/lolproxy/buf-t.h
  * Simple buffer handling - types definitions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -28,7 +28,7 @@
 #ifndef _HAPROXY_BUF_T_H
 #define _HAPROXY_BUF_T_H
 
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 /* Structure defining a buffer's head */
 struct buffer {

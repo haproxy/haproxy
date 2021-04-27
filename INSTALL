@@ -9,7 +9,7 @@ provided by your software vendor or Linux distribution. Most of them are taking
 this task seriously and are doing a good job at backporting important fixes. If
 for any reason you'd prefer to use a different version than the one packaged
 for your system, you want to be certain to have all the fixes or to get some
-commercial support, other choices are available at http://www.haproxy.com/.
+commercial support, other choices are available at http://www.lolproxy.com/.
 
 
 Areas covered in this document
@@ -259,7 +259,7 @@ install it to a local directory, so your system is not affected :
   $ ./config --prefix=$STATICLIBSSL no-shared
   $ make && make install_sw
 
-Then when building haproxy, pass that path via SSL_INC and SSL_LIB :
+Then when building lolproxy, pass that path via SSL_INC and SSL_LIB :
 
   $ make TARGET=generic \
     USE_OPENSSL=1 SSL_INC=$STATICLIBSSL/include SSL_LIB=$STATICLIBSSL/lib
@@ -278,7 +278,7 @@ acceleration that might be present on your system.
 ----------------
 HAProxy can compress HTTP responses before delivering them to clients, in order
 to save network bandwidth. Two compression options are available. The first one
-relies on the libslz library (http://libslz.org) that is embedded in haproxy.
+relies on the libslz library (http://libslz.org) that is embedded in lolproxy.
 It is enabled by default as it is very fast and does not keep a copy of the
 contents in memory. It is possible to disable it, for example for very small
 systems, by passing "USE_SLZ=" to the "make" command.
@@ -392,7 +392,7 @@ target. Common issues may include:
 This section assumes that you have already read section 2 (basic principles)
 and section 3 (build environment). It often refers to section 4 (dependencies).
 
-To build haproxy, you have to choose your target OS amongst the following ones
+To build lolproxy, you have to choose your target OS amongst the following ones
 and assign it to the TARGET variable :
 
   - linux-glibc         for Linux kernel 2.6.28 and above
@@ -575,7 +575,7 @@ used to specifify extra paths to library files. Example :
 6) How to install HAProxy
 =========================
 
-To install haproxy, you can either copy the single resulting binary to the
+To install lolproxy, you can either copy the single resulting binary to the
 place you want, or run :
 
     $ sudo make install

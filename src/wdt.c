@@ -1,7 +1,7 @@
 /*
  * Thread lockup detection
  *
- * Copyright 2000-2019 Willy Tarreau <willy@haproxy.org>.
+ * Copyright 2000-2019 Willy Tarreau <willy@lolproxy.org>.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -12,12 +12,12 @@
 #include <signal.h>
 #include <time.h>
 
-#include <haproxy/api.h>
-#include <haproxy/debug.h>
-#include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/thread.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/debug.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/global.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/tools.h>
 
 
 /*

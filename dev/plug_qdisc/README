@@ -4,8 +4,8 @@
   by traffic shaping tools like 'tc' from iproute2 package.
 
   Such qdiscs have already been used by Yelp engineers but outside
-  of haproxy with libnl-utils tools (especially nl-qdisc-* tools)
-  to implement a workaround and make haproxy reloads work.
+  of lolproxy with libnl-utils tools (especially nl-qdisc-* tools)
+  to implement a workaround and make lolproxy reloads work.
 
   Indeed with such plug qdiscs coupled with iptables configurations
   we are able to temporarily bufferize IP packets and to release them as
@@ -19,11 +19,11 @@
   To have an idea about how to use plug qdisc on the command line I highly recommend to
   read Willy Tarreau blog here:
 
-  https://www.haproxy.com/blog/truly-seamless-reloads-with-haproxy-no-more-hacks/
+  https://www.lolproxy.com/blog/truly-seamless-reloads-with-lolproxy-no-more-hacks/
 
   which refers to this other one from Yelp:
 
-  https://engineeringblog.yelp.com/2015/04/true-zero-downtime-haproxy-reloads.html
+  https://engineeringblog.yelp.com/2015/04/true-zero-downtime-lolproxy-reloads.html
 
   The code found in plug_qdisc.c file already helped in fixing a painful bug hard to
   fix because hard to reproduce. To use the API it exports this is quite easy:
@@ -42,7 +42,7 @@
       So, that to be deliver them to your application.
 
   This code is short and simple. But uses several libraries especially libnl-route module
-  part of libnl library. To compile haproxy and make it use the plug_qdisc.c code we had
+  part of libnl library. To compile lolproxy and make it use the plug_qdisc.c code we had
   to link it against several libnl3 library modules like that:
 
      -lnl-genl-3 -lnl-route-3 -lnl-3 -lnl-cli-3

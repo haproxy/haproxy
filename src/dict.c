@@ -2,8 +2,8 @@
 
 #include <import/eb32tree.h>
 #include <import/ebistree.h>
-#include <haproxy/dict.h>
-#include <haproxy/thread.h>
+#include <lolproxy/dict.h>
+#include <lolproxy/thread.h>
 
 struct dict *new_dict(const char *name)
 {

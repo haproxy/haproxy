@@ -11,27 +11,27 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/buf.h>
-#include <haproxy/capture-t.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/check.h>
-#include <haproxy/compression-t.h>
-#include <haproxy/connection.h>
-#include <haproxy/extcheck.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/peers.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proxy.h>
-#include <haproxy/sample.h>
-#include <haproxy/server.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/stick_table.h>
-#include <haproxy/tcpcheck.h>
-#include <haproxy/uri_auth.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/buf.h>
+#include <lolproxy/capture-t.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/check.h>
+#include <lolproxy/compression-t.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/extcheck.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/peers.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/server.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/stick_table.h>
+#include <lolproxy/tcpcheck.h>
+#include <lolproxy/uri_auth.h>
 
 /* some keywords that are still being parsed using strcmp() and are not
  * registered anywhere. They are used as suggestions for mistyped words.

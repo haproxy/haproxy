@@ -1,7 +1,7 @@
 # This reg-test checks the full support of HTTP protocol upgrade, using a GET
 # method and a Connection: Upgrade header. The equivalent mechanism has been
 # defined in rfc8441 for HTTP/2 using CONNECT and a new pseudo-header
-# :protocol. Check that haproxy handles properly h1/h2 translation of protocol
+# :protocol. Check that lolproxy handles properly h1/h2 translation of protocol
 # upgrade requests and responses.
 
 varnishtest "h1/h2 support for protocol upgrade test"
@@ -48,7 +48,7 @@ server srv_h2 {
 	} -run
 } -repeat 2 -start
 
-haproxy hap -conf {
+lolproxy hap -conf {
 	defaults
 	mode http
 	${no-htx} option http-use-htx

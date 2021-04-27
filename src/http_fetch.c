@@ -16,27 +16,27 @@
 #include <string.h>
 #include <time.h>
 
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/auth.h>
-#include <haproxy/base64.h>
-#include <haproxy/channel.h>
-#include <haproxy/chunk.h>
-#include <haproxy/connection.h>
-#include <haproxy/global.h>
-#include <haproxy/h1.h>
-#include <haproxy/h1_htx.h>
-#include <haproxy/http.h>
-#include <haproxy/http_ana.h>
-#include <haproxy/http_fetch.h>
-#include <haproxy/http_htx.h>
-#include <haproxy/htx.h>
-#include <haproxy/obj_type.h>
-#include <haproxy/pool.h>
-#include <haproxy/sample.h>
-#include <haproxy/stream.h>
-#include <haproxy/tools.h>
-#include <haproxy/version.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/auth.h>
+#include <lolproxy/base64.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/global.h>
+#include <lolproxy/h1.h>
+#include <lolproxy/h1_htx.h>
+#include <lolproxy/http.h>
+#include <lolproxy/http_ana.h>
+#include <lolproxy/http_fetch.h>
+#include <lolproxy/http_htx.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/obj_type.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/version.h>
 
 
 /* this struct is used between calls to smp_fetch_hdr() or smp_fetch_cookie() */

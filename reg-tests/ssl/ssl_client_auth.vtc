@@ -12,7 +12,7 @@
 # Certificates, CA and CRL are expiring in 2050 so it should be fine for the CI.
 #
 # Detail about configuration is explained there:
-# https://www.haproxy.com/blog/ssl-client-certificate-management-at-application-level/
+# https://www.lolproxy.com/blog/ssl-client-certificate-management-at-application-level/
 
 varnishtest "Test the client auth"
 #REQUIRE_VERSION=1.6
@@ -24,7 +24,7 @@ server s1 -repeat 3 {
   txresp
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         tune.ssl.default-dh-param 2048
 

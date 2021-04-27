@@ -1,6 +1,6 @@
 /*
  * HA-Proxy : High Availability-enabled HTTP/TCP proxy
- * Copyright 2000-2021 Willy Tarreau <willy@haproxy.org>.
+ * Copyright 2000-2021 Willy Tarreau <willy@lolproxy.org>.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -79,60 +79,60 @@
 
 #include <import/sha1.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/action.h>
-#include <haproxy/activity.h>
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/auth.h>
-#include <haproxy/base64.h>
-#include <haproxy/capture-t.h>
-#include <haproxy/cfgdiag.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/chunk.h>
-#include <haproxy/cli.h>
-#include <haproxy/connection.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/action.h>
+#include <lolproxy/activity.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/auth.h>
+#include <lolproxy/base64.h>
+#include <lolproxy/capture-t.h>
+#include <lolproxy/cfgdiag.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/chunk.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/connection.h>
 #ifdef USE_CPU_AFFINITY
-#include <haproxy/cpuset.h>
+#include <lolproxy/cpuset.h>
 #endif
-#include <haproxy/dns.h>
-#include <haproxy/dynbuf.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/filters.h>
-#include <haproxy/global.h>
-#include <haproxy/hlua.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/list.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/mworker.h>
-#include <haproxy/namespace.h>
-#include <haproxy/net_helper.h>
-#include <haproxy/openssl-compat.h>
-#include <haproxy/pattern.h>
-#include <haproxy/peers.h>
-#include <haproxy/pool.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proto_tcp.h>
-#include <haproxy/proxy.h>
-#include <haproxy/regex.h>
-#include <haproxy/sample.h>
-#include <haproxy/server.h>
-#include <haproxy/session.h>
-#include <haproxy/signal.h>
-#include <haproxy/sock.h>
-#include <haproxy/sock_inet.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/stats-t.h>
-#include <haproxy/stream.h>
-#include <haproxy/task.h>
-#include <haproxy/thread.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/uri_auth-t.h>
-#include <haproxy/vars.h>
-#include <haproxy/version.h>
+#include <lolproxy/dns.h>
+#include <lolproxy/dynbuf.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/filters.h>
+#include <lolproxy/global.h>
+#include <lolproxy/hlua.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/mworker.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/net_helper.h>
+#include <lolproxy/openssl-compat.h>
+#include <lolproxy/pattern.h>
+#include <lolproxy/peers.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proto_tcp.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/regex.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/server.h>
+#include <lolproxy/session.h>
+#include <lolproxy/signal.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/sock_inet.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/stats-t.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/task.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/uri_auth-t.h>
+#include <lolproxy/vars.h>
+#include <lolproxy/version.h>
 
 
 /* array of init calls for older platforms */
@@ -256,7 +256,7 @@ unsigned int warned = 0;
 /* master CLI configuration (-S flag) */
 struct list mworker_cli_conf = LIST_HEAD_INIT(mworker_cli_conf);
 
-/* These are strings to be reported in the output of "haproxy -vv". They may
+/* These are strings to be reported in the output of "lolproxy -vv". They may
  * either be constants (in which case must_free must be zero) or dynamically
  * allocated strings to pass to free() on exit, and in this case must_free
  * must be non-zero.
@@ -293,8 +293,8 @@ static void display_version()
 {
 	struct utsname utsname;
 
-	printf("HA-Proxy version %s %s - https://haproxy.org/\n"
-	       PRODUCT_STATUS "\n", haproxy_version, haproxy_date);
+	printf("HA-Proxy version %s %s - https://lolproxy.org/\n"
+	       PRODUCT_STATUS "\n", lolproxy_version, lolproxy_date);
 
 	if (strlen(PRODUCT_URL_BUGS) > 0) {
 		char base_version[20];
@@ -302,16 +302,16 @@ static void display_version()
 		char *del;
 
 		/* only retrieve the base version without distro-specific extensions */
-		for (del = haproxy_version; *del; del++) {
+		for (del = lolproxy_version; *del; del++) {
 			if (*del == '.')
 				dots++;
 			else if (*del < '0' || *del > '9')
 				break;
 		}
 
-		strlcpy2(base_version, haproxy_version, del - haproxy_version + 1);
+		strlcpy2(base_version, lolproxy_version, del - lolproxy_version + 1);
 		if (dots < 2)
-			printf("Known bugs: https://github.com/haproxy/haproxy/issues?q=is:issue+is:open\n");
+			printf("Known bugs: https://github.com/lolproxy/lolproxy/issues?q=is:issue+is:open\n");
 		else
 			printf("Known bugs: " PRODUCT_URL_BUGS "\n", base_version);
 	}
@@ -503,7 +503,7 @@ static void get_cur_unixsocket()
 }
 
 /*
- * When called, this function reexec haproxy with -sf followed by current
+ * When called, this function reexec lolproxy with -sf followed by current
  * children PIDs and possibly old children PIDs if they didn't leave yet.
  */
 void mworker_reload()
@@ -558,7 +558,7 @@ void mworker_reload()
 	while (old_argv[old_argc])
 		old_argc++;
 
-	/* 1 for haproxy -sf, 2 for -x /socket */
+	/* 1 for lolproxy -sf, 2 for -x /socket */
 	next_argv = calloc(old_argc + 1 + 2 + mworker_child_nb() + 1,
 			   sizeof(*next_argv));
 	if (next_argv == NULL)
@@ -1728,7 +1728,7 @@ static void init(int argc, char **argv)
 	if (global.nbproc > 1 && !global.nbthread) {
 		ha_warning("nbproc is deprecated!\n"
 			   "  | For suffering many limitations, the 'nbproc' directive is now deprecated\n"
-			   "  | and scheduled for removal in 2.5. Just comment it out: haproxy will use\n"
+			   "  | and scheduled for removal in 2.5. Just comment it out: lolproxy will use\n"
 			   "  | threads and will run on all allocated processors. You may also switch to\n"
 			   "  | 'nbthread %d' to keep the same number of processors. If you absolutely\n"
 			   "  | want to run in multi-process mode, you can silence this warning by adding\n"
@@ -2140,14 +2140,14 @@ static void init(int argc, char **argv)
 
 	if (!init_pollers()) {
 		ha_alert("No polling mechanism available.\n"
-			 "  It is likely that haproxy was built with TARGET=generic and that FD_SETSIZE\n"
+			 "  It is likely that lolproxy was built with TARGET=generic and that FD_SETSIZE\n"
 			 "  is too low on this platform to support maxconn and the number of listeners\n"
-			 "  and servers. You should rebuild haproxy specifying your system using TARGET=\n"
+			 "  and servers. You should rebuild lolproxy specifying your system using TARGET=\n"
 			 "  in order to support other polling systems (poll, epoll, kqueue) or reduce the\n"
 			 "  global maxconn setting to accommodate the system's limitation. For reference,\n"
 			 "  FD_SETSIZE=%d on this system, global.maxconn=%d resulting in a maximum of\n"
 			 "  %d file descriptors. You should thus reduce global.maxconn by %d. Also,\n"
-			 "  check build settings using 'haproxy -vv'.\n\n",
+			 "  check build settings using 'lolproxy -vv'.\n\n",
 			 FD_SETSIZE, global.maxconn, global.maxsock, (global.maxsock + 1 - FD_SETSIZE) / 2);
 		exit(1);
 	}
@@ -2922,7 +2922,7 @@ int main(int argc, char **argv)
 						    child->reloads == 0 && child->options & PROC_O_TYPE_WORKER) {
 							child->timestamp = now.tv_sec;
 							child->pid = ret;
-							child->version = strdup(haproxy_version);
+							child->version = strdup(lolproxy_version);
 							break;
 						}
 					}
@@ -3212,7 +3212,7 @@ int main(int argc, char **argv)
 #endif /* !USE_CPU_AFFINITY */
 
 		/* when multithreading we need to let only the thread 0 handle the signals */
-		haproxy_unblock_signals();
+		lolproxy_unblock_signals();
 
 		/* Finally, start the poll loop for the first thread */
 		run_thread_poll_loop(0);
@@ -3226,7 +3226,7 @@ int main(int argc, char **argv)
 #endif
 	}
 #else /* ! USE_THREAD */
-	haproxy_unblock_signals();
+	lolproxy_unblock_signals();
 	run_thread_poll_loop(0);
 #endif
 

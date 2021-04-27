@@ -1,5 +1,5 @@
 /*
- * include/haproxy/acl.h
+ * include/lolproxy/acl.h
  * This file provides interface definitions for ACL manipulation.
  *
  * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
@@ -22,9 +22,9 @@
 #ifndef _HAPROXY_ACL_H
 #define _HAPROXY_ACL_H
 
-#include <haproxy/acl-t.h>
-#include <haproxy/api.h>
-#include <haproxy/arg-t.h>
+#include <lolproxy/acl-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg-t.h>
 
 struct stream;
 

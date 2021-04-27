@@ -1,7 +1,7 @@
 /*
  * Functions to manipulate H1 messages using the internal representation.
  *
- * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -10,14 +10,14 @@
  *
  */
 
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/global.h>
-#include <haproxy/h1.h>
-#include <haproxy/h1_htx.h>
-#include <haproxy/http.h>
-#include <haproxy/htx.h>
-#include <haproxy/tools.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/global.h>
+#include <lolproxy/h1.h>
+#include <lolproxy/h1_htx.h>
+#include <lolproxy/http.h>
+#include <lolproxy/htx.h>
+#include <lolproxy/tools.h>
 
 /* Estimate the size of the HTX headers after the parsing, including the EOH. */
 static size_t h1_eval_htx_hdrs_size(const struct http_hdr *hdrs)

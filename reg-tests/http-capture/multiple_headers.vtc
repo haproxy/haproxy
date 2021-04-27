@@ -38,7 +38,7 @@ server s {
            -bodylen 16384
 } -start
 
-haproxy h -conf {
+lolproxy h -conf {
     defaults
         mode http
         ${no-htx} option http-use-htx

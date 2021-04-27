@@ -13,13 +13,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <haproxy/api.h>
-#include <haproxy/applet.h>
-#include <haproxy/channel.h>
-#include <haproxy/list.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet.h>
+#include <lolproxy/channel.h>
+#include <lolproxy/list.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
 
 unsigned int nb_applets = 0;
 

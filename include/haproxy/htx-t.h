@@ -1,8 +1,8 @@
 /*
- * include/haproxy/htx-t.h
+ * include/lolproxy/htx-t.h
  * This file declares the types and constants used the internal HTTP messages
  *
- * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2018 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,8 +22,8 @@
 #ifndef _HAPROXY_HTX_T_H
 #define _HAPROXY_HTX_T_H
 
-#include <haproxy/api.h>
-#include <haproxy/http-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/http-t.h>
 
 /*
  * The internal representation of an HTTP message, called HTX, is a structure

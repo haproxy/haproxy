@@ -1,7 +1,7 @@
 /*
  * Socket Pair protocol layer (sockpair)
  *
- * Copyright HAProxy Technologies - William Lallemand <wlallemand@haproxy.com>
+ * Copyright HAProxy Technologies - William Lallemand <wlallemand@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,21 +26,21 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
-#include <haproxy/api.h>
-#include <haproxy/connection.h>
-#include <haproxy/errors.h>
-#include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/global.h>
-#include <haproxy/list.h>
-#include <haproxy/listener.h>
-#include <haproxy/log.h>
-#include <haproxy/protocol.h>
-#include <haproxy/proto_sockpair.h>
-#include <haproxy/sock.h>
-#include <haproxy/time.h>
-#include <haproxy/tools.h>
-#include <haproxy/version.h>
+#include <lolproxy/api.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/fd.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/global.h>
+#include <lolproxy/list.h>
+#include <lolproxy/listener.h>
+#include <lolproxy/log.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/proto_sockpair.h>
+#include <lolproxy/sock.h>
+#include <lolproxy/time.h>
+#include <lolproxy/tools.h>
+#include <lolproxy/version.h>
 
 
 static int sockpair_bind_listener(struct listener *listener, char *errmsg, int errlen);

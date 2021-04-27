@@ -1,5 +1,5 @@
 /*
- * include/haproxy/global.h
+ * include/lolproxy/global.h
  * Exported global variables and functions.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,10 +22,10 @@
 #ifndef _HAPROXY_GLOBAL_H
 #define _HAPROXY_GLOBAL_H
 
-#include <haproxy/api-t.h>
-#include <haproxy/global-t.h>
-#include <haproxy/mworker-t.h>
-#include <haproxy/vars-t.h>
+#include <lolproxy/api-t.h>
+#include <lolproxy/global-t.h>
+#include <lolproxy/mworker-t.h>
+#include <lolproxy/vars-t.h>
 
 extern struct global global;
 extern int  pid;                /* current process id */

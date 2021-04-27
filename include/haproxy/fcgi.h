@@ -1,8 +1,8 @@
 /*
- * include/haproxy/fcgi.h
+ * include/lolproxy/fcgi.h
  * This file contains FastCGI protocol definitions.
  *
- * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright (C) 2019 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,8 +23,8 @@
 #define _HAPROXY_FCGI_H
 
 #include <import/ist.h>
-#include <haproxy/api.h>
-#include <haproxy/buf-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/buf-t.h>
 
 /* FCGI protocol version */
 #define FCGI_VERSION    0x1

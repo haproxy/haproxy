@@ -1,7 +1,7 @@
 /*
  * Stream processing offload engine management.
  *
- * Copyright 2016 HAProxy Technologies, Christopher Faulet <cfaulet@haproxy.com>
+ * Copyright 2016 HAProxy Technologies, Christopher Faulet <cfaulet@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -12,31 +12,31 @@
 #include <ctype.h>
 #include <errno.h>
 
-#include <haproxy/acl.h>
-#include <haproxy/action-t.h>
-#include <haproxy/api.h>
-#include <haproxy/arg.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/filters.h>
-#include <haproxy/freq_ctr.h>
-#include <haproxy/frontend.h>
-#include <haproxy/global.h>
-#include <haproxy/http_rules.h>
-#include <haproxy/log.h>
-#include <haproxy/pool.h>
-#include <haproxy/proxy.h>
-#include <haproxy/sample.h>
-#include <haproxy/session.h>
-#include <haproxy/signal.h>
-#include <haproxy/sink.h>
-#include <haproxy/spoe.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/tcp_rules.h>
-#include <haproxy/thread.h>
-#include <haproxy/time.h>
-#include <haproxy/vars.h>
+#include <lolproxy/acl.h>
+#include <lolproxy/action-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/arg.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/filters.h>
+#include <lolproxy/freq_ctr.h>
+#include <lolproxy/frontend.h>
+#include <lolproxy/global.h>
+#include <lolproxy/http_rules.h>
+#include <lolproxy/log.h>
+#include <lolproxy/pool.h>
+#include <lolproxy/proxy.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/session.h>
+#include <lolproxy/signal.h>
+#include <lolproxy/sink.h>
+#include <lolproxy/spoe.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tcp_rules.h>
+#include <lolproxy/thread.h>
+#include <lolproxy/time.h>
+#include <lolproxy/vars.h>
 
 
 #if defined(DEBUG_SPOE) || defined(DEBUG_FULL)

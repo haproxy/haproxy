@@ -1,5 +1,5 @@
 /*
- * include/haproxy/regex.h
+ * include/lolproxy/regex.h
  * Compatibility layer for various regular expression engines
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -25,8 +25,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <haproxy/api.h>
-#include <haproxy/regex-t.h>
+#include <lolproxy/api.h>
+#include <lolproxy/regex-t.h>
 
 extern THREAD_LOCAL regmatch_t pmatch[MAX_MATCH];
 

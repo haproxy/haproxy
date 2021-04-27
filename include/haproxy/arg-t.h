@@ -1,5 +1,5 @@
 /*
- * include/haproxy/arg-t.h
+ * include/lolproxy/arg-t.h
  * This file contains structure declarations for generaic argument parsing.
  *
  * Copyright 2012 Willy Tarreau <w@1wt.eu>
@@ -25,10 +25,10 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include <haproxy/buf-t.h>
-#include <haproxy/protobuf-t.h>
-#include <haproxy/stick_table-t.h>
-#include <haproxy/vars-t.h>
+#include <lolproxy/buf-t.h>
+#include <lolproxy/protobuf-t.h>
+#include <lolproxy/stick_table-t.h>
+#include <lolproxy/vars-t.h>
 
 /* encoding of each arg type : up to 31 types are supported */
 #define ARGT_BITS      5

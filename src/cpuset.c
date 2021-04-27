@@ -1,9 +1,9 @@
 #define _GNU_SOURCE
 #include <sched.h>
 
-#include <haproxy/compat.h>
-#include <haproxy/cpuset.h>
-#include <haproxy/intops.h>
+#include <lolproxy/compat.h>
+#include <lolproxy/cpuset.h>
+#include <lolproxy/intops.h>
 
 struct cpu_map cpu_map;
 

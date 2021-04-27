@@ -1,7 +1,7 @@
 /*
  * Master Worker - program
  *
- * Copyright HAProxy Technologies - William Lallemand <wlallemand@haproxy.com>
+ * Copyright HAProxy Technologies - William Lallemand <wlallemand@lolproxy.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -20,12 +20,12 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <haproxy/api.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/mworker.h>
-#include <haproxy/task.h>
+#include <lolproxy/api.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/global.h>
+#include <lolproxy/mworker.h>
+#include <lolproxy/task.h>
 
 
 static int use_program = 0; /* do we use the program section ? */

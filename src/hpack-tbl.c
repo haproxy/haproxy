@@ -1,7 +1,7 @@
 /*
  * HPACK header table management (RFC7541)
  *
- * Copyright (C) 2014-2017 Willy Tarreau <willy@haproxy.org>
+ * Copyright (C) 2014-2017 Willy Tarreau <willy@lolproxy.org>
  * Copyright (C) 2017 HAProxy Technologies
  *
  * Permission is hereby granted, free of charge, to any person obtaining
@@ -31,8 +31,8 @@
 #include <string.h>
 
 #include <import/ist.h>
-#include <haproxy/hpack-huff.h>
-#include <haproxy/hpack-tbl.h>
+#include <lolproxy/hpack-huff.h>
+#include <lolproxy/hpack-tbl.h>
 
 /* static header table as in RFC7541 Appendix A. [0] unused. */
 const struct http_hdr hpack_sht[HPACK_SHT_SIZE] = {

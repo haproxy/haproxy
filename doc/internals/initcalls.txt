@@ -42,7 +42,7 @@ make sure to respect this ordering when adding new ones.
 - void hap_register_build_opts(const char *str, int must_free)
 
   This appends the zero-terminated constant string <str> to the list of known
-  build options that will be reported on the output of "haproxy -vv". A line
+  build options that will be reported on the output of "lolproxy -vv". A line
   feed character ('\n') will automatically be appended after the string when it
   is displayed. The <must_free> argument must be zero, unless the string was
   allocated by any malloc-compatible function such as malloc()/calloc()/

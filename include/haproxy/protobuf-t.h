@@ -1,5 +1,5 @@
 /*
- * include/haproxy/protobuf-t.h
+ * include/lolproxy/protobuf-t.h
  * This file contains structure declarations for protocol buffers.
  *
  * Copyright 2012 Willy Tarreau <w@1wt.eu>
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_PROTOBUF_T_H
 #define _HAPROXY_PROTOBUF_T_H
 
-#include <haproxy/api-t.h>
+#include <lolproxy/api-t.h>
 
 enum protobuf_wire_type {
 	PBUF_TYPE_VARINT,

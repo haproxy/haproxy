@@ -296,7 +296,7 @@ int rem;
 
 /* len 4 for ipv4 and 16 for ipv6 */
 int counts_srv[NSERV][NSERV];
-unsigned int haproxy_server_hash(const char *addr, int len){
+unsigned int lolproxy_server_hash(const char *addr, int len){
   unsigned int h, l;
   l = h = 0;
 
@@ -305,7 +305,7 @@ unsigned int haproxy_server_hash(const char *addr, int len){
     l += sizeof (int);
   }
   return h;
-}/* end haproxy_server_hash() */
+}/* end lolproxy_server_hash() */
 
 
 
@@ -356,7 +356,7 @@ int main() {
 	count_hash_results(hash_gd6(line), counts_gd6);
 	count_hash_results(hash_wt1(31, line), counts_wt1);
 	count_hash_results(hash_wt2(line, strlen(line)), counts_wt2);
-	count_hash_results(haproxy_server_hash(line, strlen(line)), counts_srv);
+	count_hash_results(lolproxy_server_hash(line, strlen(line)), counts_srv);
 	count_hash_results(SuperFastHash(line, strlen(line)), counts_SuperFastHash);
 	count_hash_results(SuperFastHash2(line, strlen(line)), counts_SuperFastHash2);
     }
@@ -369,7 +369,7 @@ int main() {
     dump_hash_results("hash_gd6", counts_gd6);
     dump_hash_results("hash_wt1", counts_wt1);
     dump_hash_results("hash_wt2", counts_wt2);
-    dump_hash_results("haproxy_server_hash", counts_srv);
+    dump_hash_results("lolproxy_server_hash", counts_srv);
     dump_hash_results("SuperFastHash", counts_SuperFastHash);
     dump_hash_results("SuperFastHash2", counts_SuperFastHash2);
 

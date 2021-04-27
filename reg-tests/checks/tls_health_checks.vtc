@@ -5,7 +5,7 @@ feature ignore_unknown_macro
 
 
 # This script tests health-checks for a TLS/SSL backend with "option httpchk"
-# and "check-ssl" option enabled attached to h2 haproxy process. This haproxy
+# and "check-ssl" option enabled attached to h2 lolproxy process. This lolproxy
 # h2 process is chained to h1 other one.
 #
 server s1 {
@@ -32,7 +32,7 @@ syslog S1 -level notice {
     expect ~ "[^:\\[ ]\\[${h1_pid}\\]: .* fe1~ be1/srv1 .* 200 [[:digit:]]+ - - ---- .* \"OPTIONS \\* HTTP/1.1\""
 } -start
 
-haproxy h1 -conf {
+lolproxy h1 -conf {
     global
         tune.ssl.default-dh-param 2048
 
@@ -83,7 +83,7 @@ syslog S6 -level notice {
     expect ~ "[^:\\[ ]\\[${h2_pid}\\]: Health check for server be6/srv3 succeeded, reason: Layer7 check passed.+code: 200.+check duration: [[:digit:]]+ms, status: 1/1 UP."
 } -start
 
-haproxy h2 -conf {
+lolproxy h2 -conf {
     global
         tune.ssl.default-dh-param 2048
 

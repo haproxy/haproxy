@@ -2,7 +2,7 @@
  * include/proto/quic_loss.h
  * This file provides interface definition for QUIC loss detection.
  *
- * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@haproxy.com>
+ * Copyright 2019 HAProxy Technologies, Frédéric Lécaille <flecaille@lolproxy.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,11 +26,11 @@
 #error "Must define USE_OPENSSL"
 #endif
 
-#include <haproxy/ticks.h>
-#include <haproxy/time.h>
-#include <haproxy/xprt_quic-t.h>
+#include <lolproxy/ticks.h>
+#include <lolproxy/time.h>
+#include <lolproxy/xprt_quic-t.h>
 
-#include <haproxy/trace.h>
+#include <lolproxy/trace.h>
 
 #define TRACE_SOURCE &trace_quic
 

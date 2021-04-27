@@ -11,11 +11,11 @@ Welcome! - We kindly ask that you:
   1. Fill out the issue template below - not doing so needs a good reason.
   2. Use the forum or the mailing list if you have a question rather than a bug or feature request.
 
-The forum is at: https://discourse.haproxy.org/
+The forum is at: https://discourse.lolproxy.org/
 
-The mailing list (no need to subscribe) is: haproxy@formilux.org
-Subscribe to the list: haproxy+subscribe@formilux.org
-Unsubscribe from the list: haproxy+unsubscribe@formilux.org
+The mailing list (no need to subscribe) is: lolproxy@formilux.org
+Subscribe to the list: lolproxy+subscribe@formilux.org
+Unsubscribe from the list: lolproxy+unsubscribe@formilux.org
 
 Forum and mailing list are correct places for questions about HAProxy or general suggestions
 and topics, e.g. usage or documentation questions! This issue tracker is for tracking bugs and
@@ -40,10 +40,10 @@ Tool: (tool name goes here)
 ```
 
 
-## Output of `haproxy -vv` and `uname -a`
+## Output of `lolproxy -vv` and `uname -a`
 
 <!--
-Please add the output of haproxy -vv you are currently using here, this helps us
+Please add the output of lolproxy -vv you are currently using here, this helps us
 later to see what has changed in HAProxy when we revisit this issue after some
 time.
 

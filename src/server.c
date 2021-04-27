@@ -18,32 +18,32 @@
 
 #include <import/xxhash.h>
 
-#include <haproxy/api.h>
-#include <haproxy/applet-t.h>
-#include <haproxy/backend.h>
-#include <haproxy/cfgparse.h>
-#include <haproxy/check.h>
-#include <haproxy/cli.h>
-#include <haproxy/connection.h>
-#include <haproxy/dict-t.h>
-#include <haproxy/errors.h>
-#include <haproxy/global.h>
-#include <haproxy/log.h>
-#include <haproxy/mailers.h>
-#include <haproxy/namespace.h>
-#include <haproxy/port_range.h>
-#include <haproxy/protocol.h>
-#include <haproxy/queue.h>
-#include <haproxy/resolvers.h>
-#include <haproxy/sample.h>
-#include <haproxy/server.h>
-#include <haproxy/ssl_sock.h>
-#include <haproxy/stats.h>
-#include <haproxy/stream.h>
-#include <haproxy/stream_interface.h>
-#include <haproxy/task.h>
-#include <haproxy/tcpcheck.h>
-#include <haproxy/time.h>
+#include <lolproxy/api.h>
+#include <lolproxy/applet-t.h>
+#include <lolproxy/backend.h>
+#include <lolproxy/cfgparse.h>
+#include <lolproxy/check.h>
+#include <lolproxy/cli.h>
+#include <lolproxy/connection.h>
+#include <lolproxy/dict-t.h>
+#include <lolproxy/errors.h>
+#include <lolproxy/global.h>
+#include <lolproxy/log.h>
+#include <lolproxy/mailers.h>
+#include <lolproxy/namespace.h>
+#include <lolproxy/port_range.h>
+#include <lolproxy/protocol.h>
+#include <lolproxy/queue.h>
+#include <lolproxy/resolvers.h>
+#include <lolproxy/sample.h>
+#include <lolproxy/server.h>
+#include <lolproxy/ssl_sock.h>
+#include <lolproxy/stats.h>
+#include <lolproxy/stream.h>
+#include <lolproxy/stream_interface.h>
+#include <lolproxy/task.h>
+#include <lolproxy/tcpcheck.h>
+#include <lolproxy/time.h>
 
 
 static void srv_update_status(struct server *s);
@@ -3770,7 +3770,7 @@ out:
  * This function parses all backends and all servers within each backend
  * and performs servers' addr resolution based on information provided by:
  *   - configuration file
- *   - server-state file (states provided by an 'old' haproxy process)
+ *   - server-state file (states provided by an 'old' lolproxy process)
  *
  * Returns 0 if no error, otherwise, a combination of ERR_ flags.
  */

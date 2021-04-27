@@ -1,5 +1,5 @@
 /*
- * include/haproxy/cli-t.h
+ * include/lolproxy/cli-t.h
  * This file provides structures and types for CLI.
  *
  * Copyright (C) 2000-2020 Willy Tarreau - w@1wt.eu
@@ -22,7 +22,7 @@
 #ifndef _HAPROXY_CLI_T_H
 #define _HAPROXY_CLI_T_H
 
-#include <haproxy/applet-t.h>
+#include <lolproxy/applet-t.h>
 
 /* Access level for a stats socket (appctx->cli_level) */
 #define ACCESS_LVL_NONE     0x0000
