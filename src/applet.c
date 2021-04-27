@@ -63,6 +63,7 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	struct appctx *app = context;
 	struct stream_interface *si = app->owner;
 	unsigned int rate;
+	size_t count;
 
 	if (app->state & APPLET_WANT_DIE) {
 		__appctx_free(app);
@@ -85,7 +86,16 @@ struct task *task_run_applet(struct task *t, void *context, unsigned int state)
 	if (!si_alloc_ibuf(si, &app->buffer_wait))
 		si_rx_endp_more(si);
 
+	count = co_data(si_oc(si));
 	app->applet->fct(app);
+
+	/* now check if the applet has released some room and forgot to
+	 * notify the other side about it.
+	 */
+	if (count != co_data(si_oc(si))) {
+		si_oc(si)->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
+		si_rx_room_rdy(si_opposite(si));
+	}
 
 	/* measure the call rate and check for anomalies when too high */
 	rate = update_freq_ctr(&app->call_rate, 1);
