@@ -5703,6 +5703,13 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 			goto end;
 		}
 
+		if (htx->flags & HTX_FL_EOM) {
+			/* EOM+empty: we may need to add END_STREAM (except for tunneled
+			 * message)
+			 */
+			if (!(h2s->flags & H2_SF_BODY_TUNNEL))
+				es_now = 1;
+		}
 		/* map an H2 frame to the HTX block so that we can put the
 		 * frame header there.
 		 */
@@ -5712,6 +5719,8 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 		/* prepend an H2 DATA frame header just before the DATA block */
 		memcpy(outbuf.area, "\x00\x00\x00\x00\x00", 5);
 		write_n32(outbuf.area + 5, h2s->id); // 4 bytes
+		if (es_now)
+			outbuf.area[4] |= H2_F_DATA_END_STREAM;
 		h2_set_frame_size(outbuf.area, fsize);
 
 		/* update windows */
@@ -5722,9 +5731,10 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 		buf->area = old_area;
 		buf->data = buf->head = 0;
 		total += fsize;
+		fsize = 0;
 
 		TRACE_PROTO("sent H2 DATA frame (zero-copy)", H2_EV_TX_FRAME|H2_EV_TX_DATA, h2c->conn, h2s);
-		goto end;
+		goto out;
 	}
 
  copy:
@@ -5847,6 +5857,7 @@ static size_t h2s_make_data(struct h2s *h2s, struct buffer *buf, size_t count)
 	/* commit the H2 response */
 	b_add(mbuf, fsize + 9);
 
+ out:
 	if (es_now) {
 		if (h2s->st == H2_SS_OPEN)
 			h2s->st = H2_SS_HLOC;
