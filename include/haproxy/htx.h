@@ -805,8 +805,8 @@ static inline void htx_dump(struct buffer *chunk, const struct htx *htx, int ful
 		else if (type == HTX_BLK_HDR || type == HTX_BLK_TLR)
 			chunk_appendf(chunk, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u\t%.*s: %.*s\n",
 				      pos, htx_blk_type_str(type), sz, blk->addr,
-				      (int)n.len, n.ptr,
-				      (int)v.len, v.ptr);
+				      (int)MIN(n.len, 32), n.ptr,
+				      (int)MIN(v.len, 64), v.ptr);
 		else
 			chunk_appendf(chunk, "\t\t[%u] type=%-17s - size=%-6u - addr=%-6u%s\n",
 				      pos, htx_blk_type_str(type), sz, blk->addr,
