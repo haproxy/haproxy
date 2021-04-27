@@ -925,36 +925,26 @@ static inline int32_t channel_htx_fwd_headers(struct channel *chn, struct htx *h
  * when data have been read directly from the buffer. It is illegal to call
  * this function with <len> causing a wrapping at the end of the buffer. It's
  * the caller's responsibility to ensure that <len> is never larger than
- * chn->o. Channel flags WRITE_PARTIAL and WROTE_DATA are set.
+ * chn->o.
  */
 static inline void co_skip(struct channel *chn, int len)
 {
 	b_del(&chn->buf, len);
 	chn->output -= len;
 	c_realign_if_empty(chn);
-
-	/* notify that some data was written to the SI from the buffer */
-	chn->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
-	chn_prod(chn)->flags &= ~SI_FL_RXBLK_ROOM; // si_rx_room_rdy()
 }
 
 /* HTX version of co_skip(). This function skips at most <len> bytes from the
  * output of the channel <chn>. Depending on how data are stored in <htx> less
- * than <len> bytes can be skipped. Channel flags WRITE_PARTIAL and WROTE_DATA
- * are set.
+ * than <len> bytes can be skipped..
  */
 static inline void co_htx_skip(struct channel *chn, struct htx *htx, int len)
 {
 	struct htx_ret htxret;
 
 	htxret = htx_drain(htx, len);
-	if (htxret.ret) {
+	if (htxret.ret)
 		chn->output -= htxret.ret;
-
-		/* notify that some data was written to the SI from the buffer */
-		chn->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
-		chn_prod(chn)->flags &= ~SI_FL_RXBLK_ROOM; // si_rx_room_rdy()
-	}
 }
 
 /* Tries to copy chunk <chunk> into the channel's buffer after length controls.
