@@ -1402,6 +1402,11 @@ abort ssl cert <filename>
 
   See also "set ssl cert" and "commit ssl cert".
 
+abort ssl crl-file <crlfile>
+  Abort and destroy a temporary CRL file update transaction.
+
+  See also "set ssl crl-file" and "commit ssl crl-file".
+
 add acl [@<ver>] <acl> <pattern>
   Add an entry into the acl <acl>. <acl> is the #<id> or the <file> returned by
   "show acl". This command does not verify if the entry already exists. Entries
@@ -1645,6 +1650,28 @@ commit ssl cert <filename>
   See also "new ssl cert", "set ssl cert", "abort ssl cert" and
   "add ssl crt-list".
 
+commit ssl crl-file <crlfile>
+  Commit a temporary SSL CRL file update transaction.
+
+  In the case of an existing CRL file (in a "Used" state in "show ssl
+  crl-file"), the new CRL file entry is inserted in the CA file tree (which
+  holds both the CA files and the CRL files) and every instance that used the
+  CRL file entry is rebuilt, along with the SSL contexts it needs.
+  All the contexts previously used by the rebuilt instances are removed.
+  Upon success, the previous CRL file entry is removed from the tree.
+  Upon failure, nothing is removed or deleted, and all the original SSL
+  contexts are kept and used.
+  Once the temporary transaction is committed, it is destroyed.
+
+  In the case of a new CRL file (after a "new ssl crl-file" and in a "Unused"
+  state in "show ssl crl-file"), the CRL file will be inserted in the CRL file
+  tree but it won't be used anywhere in HAProxy. To use it and generate SSL
+  contexts that use it, you will need to add it to a crt-list with "add ssl
+  crt-list".
+
+  See also "new ssl crl-file", "set ssl crl-file", "abort ssl crl-file" and
+  "add ssl crt-list".
+
 debug dev <command> [args]*
   Call a developer-specific command. Only supported on a CLI connection running
   in expert mode (see "expert-mode on"). Such commands are extremely dangerous
@@ -1680,6 +1707,12 @@ del ssl cert <certfile>
   removed from any crt-list or directory. "show ssl cert" displays the status
   of the certificate. The deletion doesn't work with a certificate referenced
   directly with the "crt" directive in the configuration.
+
+del ssl crl-file <crlfile>
+  Delete a CRL file tree entry from HAProxy. The CRL file must be unused and
+  removed from any crt-list. "show ssl crl-file" displays the status of the CRL
+  files. The deletion doesn't work with a certificate referenced directly with
+  the "crl-file" directive in the configuration.
 
 del ssl crt-list <filename> <certfile[:line]>
   Delete an entry in a crt-list. This will delete every SNIs used for this
@@ -1887,6 +1920,11 @@ new ssl cert <filename>
   added to a directory or a crt-list. This command should be used in
   combination with "set ssl cert" and "add ssl crt-list".
 
+new ssl crl-file <crlfile>
+  Create a new empty CRL file tree entry to be filled with a set of CRLs
+  and added to a crt-list. This command should be used in combination with "set
+  ssl crl-file" and "add ssl crt-list".
+
 prepare acl <acl>
   Allocate a new version number in ACL <acl> for atomic replacement. <acl> is
   the #<id> or the <file> returned by "show acl". The new version number is
@@ -2090,6 +2128,22 @@ set ssl cert <filename> <payload>
     "set ssl cert localhost.pem.ocsp <<\n$(base64 -w 1000 127.0.0.1.pem.ocsp)\n" | \
     socat /var/run/haproxy.stat -
     echo "commit ssl cert localhost.pem" | socat /var/run/haproxy.stat -
+
+set ssl crl-file <crlfile> <payload>
+  This command is part of a transaction system, the "commit ssl crl-file" and
+  "abort ssl crl-file" commands could be required.
+  If there is no on-going transaction, it will create a CRL file tree entry into
+  which the Revocation Lists contained in the payload will be stored. The CRL
+  file entry will not be stored in the CRL file tree and will only be kept in a
+  temporary transaction. If a transaction with the same filename already exists,
+  the previous CRL file entry will be deleted and replaced by the new one.
+  Once the modifications are done, you have to commit the transaction through
+  a "commit ssl crl-file" call.
+
+  Example:
+    echo -e "set ssl crl-file crlfile.pem <<\n$(cat rootCRL.pem)\n" | \
+    socat /var/run/haproxy.stat -
+    echo "commit ssl crl-file crlfile.pem" | socat /var/run/haproxy.stat -
 
 set ssl ocsp-response <response | payload>
   This command is used to update an OCSP Response for a certificate (see "crt"
@@ -2953,6 +3007,50 @@ show ssl cert [<filename>]
     $ echo "@1 show ssl cert *test.local.pem" | socat /var/run/haproxy.master -
     Filename: *test.local.pem
     [...]
+
+show ssl crl-file [<crlfile>[:<index>]]
+  Display the list of CRL files used by HAProxy.
+  If a filename is prefixed by an asterisk, it is a transaction which is not
+  committed yet. If a <crlfile> is specified without <index>, it will show the
+  status of the CRL file ("Used"/"Unused") followed by details about all the
+  Revocation Lists contained in the CRL file. The details displayed for every
+  list are based on the output of "openssl crl -text -noout -in <file>".
+  If a <crlfile> is specified followed by an <index>, it will only display the
+  details of the list having the specified index. Indexes start from 1.
+  If the index is invalid (too big for instance), nothing will be displayed.
+  This command can be useful to check if a CRL file was properly updated.
+  You can also display the details of an ongoing transaction by prefixing the
+  filename by an asterisk.
+
+  Example :
+
+    $ echo "show ssl crl-file" | socat /var/run/haproxy.master -
+    # transaction
+    *crlfile.pem
+    # filename
+    crlfile.pem
+
+    $ echo "show ssl crl-file crlfile.pem" | socat /var/run/haproxy.master -
+    Filename: /home/tricot/work/haproxy/reg-tests/ssl/crlfile.pem
+    Status: Used
+
+    Certificate Revocation List #1:
+    Version 1
+    Signature Algorithm: sha256WithRSAEncryption
+    Issuer: /C=FR/O=HAProxy Technologies/CN=Intermediate CA2
+    Last Update: Apr 23 14:45:39 2021 GMT
+    Next Update: Sep  8 14:45:39 2048 GMT
+    Revoked Certificates:
+        Serial Number: 1008
+            Revocation Date: Apr 23 14:45:36 2021 GMT
+
+    Certificate Revocation List #2:
+    Version 1
+    Signature Algorithm: sha256WithRSAEncryption
+    Issuer: /C=FR/O=HAProxy Technologies/CN=Root CA
+    Last Update: Apr 23 14:30:44 2021 GMT
+    Next Update: Sep  8 14:30:44 2048 GMT
+    No Revoked Certificates.
 
 show ssl crt-list [-n] [<filename>]
   Display the list of crt-list and directories used in the HAProxy
