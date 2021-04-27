@@ -6571,7 +6571,7 @@ http-request set-src-port <expr> [ { if | unless } <condition> ]
   the address family supports a port, otherwise it forces the source address to
   IPv4 "0.0.0.0" before rewriting the port.
 
-http-request set-timeout server|tunnel { <timeout> | <expr> }
+http-request set-timeout { server | tunnel } { <timeout> | <expr> }
                                        [ { if | unless } <condition> ]
 
   This action overrides the specified "server" or "tunnel" timeout for the
@@ -6586,8 +6586,8 @@ http-request set-timeout server|tunnel { <timeout> | <expr> }
   results.
 
   Example:
-    http-request set-timeout server 5s
-    http-request set-timeout hdr(host),map_int(host.lst)
+    http-request set-timeout tunnel 5s
+    http-request set-timeout server req.hdr(host),map_int(host.lst)
 
 http-request set-tos <tos> [ { if | unless } <condition> ]
 
