@@ -1013,7 +1013,13 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	    ((req->flags & CF_SHUTW) && (req->to_forward || co_data(req)))) {
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
+		 *
+		 * If we have finished to send the request and the response is
+		 * still in progress, don't catch write error on the request
+		 * side if it is in fact a read error on the server side.
 		 */
+		if (msg->msg_state == HTTP_MSG_DONE && (s->res.flags & CF_READ_ERROR) && s->res.analysers)
+			return 0;
 
 		/* Don't abort yet if we had L7 retries activated and it
 		 * was a write error, we may recover.
