@@ -3194,13 +3194,13 @@ int main(int argc, char **argv)
 			    ha_cpuset_count(&cpu_map.thread[i])) {/* only do this if the thread has a THREAD map */
 #if defined(__APPLE__)
 				int j;
-				unsigned long cpu_map = cpu_map.thread[i].cpuset;
+				unsigned long set = cpu_map.thread[i].cpuset;
 
-				while ((j = ffsl(cpu_map)) > 0) {
+				while ((j = ffsl(set)) > 0) {
 					thread_affinity_policy_data_t cpu_set = { j - 1 };
 					thread_port_t mthread = pthread_mach_thread_np(ha_thread_info[i].pthread);
 					thread_policy_set(mthread, THREAD_AFFINITY_POLICY, (thread_policy_t)&cpu_set, 1);
-					cpu_map &= ~(1UL << (j - 1));
+					set &= ~(1UL << (j - 1));
 				}
 #else
 				struct hap_cpuset *set = &cpu_map.thread[i];
