@@ -894,6 +894,7 @@ The following keywords are supported in the "global" section :
    - crt-base
    - cpu-map
    - daemon
+   - default-path
    - description
    - deviceatlas-json-file
    - deviceatlas-log-level
@@ -1134,6 +1135,58 @@ daemon
   operation. It is equivalent to the command line "-D" argument. It can be
   disabled by the command line "-db" argument. This option is ignored in
   systemd mode.
+
+default-path { current | config | parent | origin <path> }
+  By default haproxy loads all files designated by a relative path from the
+  location the process is started in. In some circumstances it might be
+  desirable to force all relative paths to start from a different location
+  just as if the process was started from such locations. This is what this
+  directive is made for. Technically it will perform a temporary chdir() to
+  the designated location while processing each configuration file, and will
+  return to the original directory after processing each file. It takes an
+  argument indicating the policy to use when loading files whose path does
+  not start with a slash ('/'):
+    - "current" indicates that all relative files are to be loaded from the
+      directory the process is started in ; this is the default.
+
+    - "config" indicates that all relative files should be loaded from the
+      directory containing the configuration file. More specifically, if the
+      configuration file contains a slash ('/'), the longest part up to the
+      last slash is used as the directory to change to, otherwise the current
+      directory is used. This mode is convenient to bundle maps, errorfiles,
+      certificates and Lua scripts together as relocatable packages. When
+      multiple configuration files are loaded, the directory is updated for
+      each of them.
+
+    - "parent" indicates that all relative files should be loaded from the
+      parent of the directory containing the configuration file. More
+      specifically, if the configuration file contains a slash ('/'), ".."
+      is appended to the longest part up to the last slash is used as the
+      directory to change to, otherwise the directory is "..". This mode is
+      convenient to bundle maps, errorfiles,  certificates and Lua scripts
+      together as relocatable packages, but where each part is located in a
+      different subdirectory (e.g. "config/", "certs/", "maps/", ...).
+
+    - "origin" indicates that all relative files should be loaded from the
+      designated (mandatory) path. This may be used to ease management of
+      different haproxy instances running in parallel on a system, where each
+      instance uses a different prefix but where the rest of the sections are
+      made easily relocatable.
+
+  Each "default-path" directive instantly replaces any previous one and will
+  possibly result in switching to a different directory. While this should
+  always result in the desired behavior, it is really not a good practice to
+  use multiple default-path directives, and if used, the policy ought to remain
+  consistent across all configuration files.
+
+  Warning: some configuration elements such as maps or certificates are
+  uniquely identified by their configured path. By using a relocatable layout,
+  it becomes possible for several of them to end up with the same unique name,
+  making it difficult to update them at run time, especially when multiple
+  configuration files are loaded from different directories. It is essential to
+  observe a strict collision-free file naming scheme before adopting relative
+  paths. A robust approach could consist in prefixing all files names with
+  their respective site name, or in doing so at the directory level.
 
 deviceatlas-json-file <path>
   Sets the path of the DeviceAtlas JSON data file to be loaded by the API.

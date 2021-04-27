@@ -99,6 +99,17 @@ int cfg_maxpconn = 0;                   /* # of simultaneous connections per pro
 int cfg_maxconn = 0;			/* # of simultaneous connections, (-n) */
 char *cfg_scope = NULL;                 /* the current scope during the configuration parsing */
 
+/* how to handle default paths */
+static enum default_path_mode {
+	DEFAULT_PATH_CURRENT = 0,  /* "current": paths are relative to CWD (this is the default) */
+	DEFAULT_PATH_CONFIG,       /* "config": paths are relative to config file */
+	DEFAULT_PATH_PARENT,       /* "parent": paths are relative to config file's ".." */
+	DEFAULT_PATH_ORIGIN,       /* "origin": paths are relative to default_path_origin */
+} default_path_mode;
+
+static char initial_cwd[PATH_MAX];
+static char current_cwd[PATH_MAX];
+
 /* List head of all known configuration keywords */
 struct cfg_kw_list cfg_keywords = {
 	.list = LIST_HEAD_INIT(cfg_keywords.list)
@@ -1498,6 +1509,132 @@ static void check_section_position(char *section_name,
 	}
 }
 
+/* apply the current default_path setting for config file <file>, and
+ * optionally replace the current path to <origin> if not NULL while the
+ * default-path mode is set to "origin". Errors are returned into an
+ * allocated string passed to <err> if it's not NULL. Returns 0 on failure
+ * or non-zero on success.
+ */
+static int cfg_apply_default_path(const char *file, const char *origin, char **err)
+{
+	const char *beg, *end;
+
+	/* make path start at <beg> and end before <end>, and switch it to ""
+	 * if no slash was passed.
+	 */
+	beg = file;
+	end = strrchr(beg, '/');
+	if (!end)
+		end = beg;
+
+	if (!*initial_cwd) {
+		if (getcwd(initial_cwd, sizeof(initial_cwd)) == NULL) {
+			if (err)
+				memprintf(err, "Impossible to retrieve startup directory name: %s", strerror(errno));
+			return 0;
+		}
+	}
+	else if (chdir(initial_cwd) == -1) {
+		if (err)
+			memprintf(err, "Impossible to get back to initial directory '%s': %s", initial_cwd, strerror(errno));
+		return 0;
+	}
+
+	/* OK now we're (back) to initial_cwd */
+
+	switch (default_path_mode) {
+	case DEFAULT_PATH_CURRENT:
+		/* current_cwd never set, nothing to do */
+		return 1;
+
+	case DEFAULT_PATH_ORIGIN:
+		/* current_cwd set in the config */
+		if (origin &&
+		    snprintf(current_cwd, sizeof(current_cwd), "%s", origin) > sizeof(current_cwd)) {
+			if (err)
+				memprintf(err, "Absolute path too long: '%s'", origin);
+			return 0;
+		}
+		break;
+
+	case DEFAULT_PATH_CONFIG:
+		if (end - beg >= sizeof(current_cwd)) {
+			if (err)
+				memprintf(err, "Config file path too long, cannot use for relative paths: '%s'", file);
+			return 0;
+		}
+		memcpy(current_cwd, beg, end - beg);
+		current_cwd[end - beg] = 0;
+		break;
+
+	case DEFAULT_PATH_PARENT:
+		if (end - beg + 3 >= sizeof(current_cwd)) {
+			if (err)
+				memprintf(err, "Config file path too long, cannot use for relative paths: '%s'", file);
+			return 0;
+		}
+		memcpy(current_cwd, beg, end - beg);
+		if (end > beg)
+			memcpy(current_cwd + (end - beg), "/..\0", 4);
+		else
+			memcpy(current_cwd + (end - beg), "..\0", 3);
+		break;
+	}
+
+	if (*current_cwd && chdir(current_cwd) == -1) {
+		if (err)
+			memprintf(err, "Impossible to get back to directory '%s': %s", initial_cwd, strerror(errno));
+		return 0;
+	}
+
+	return 1;
+}
+
+/* parses a global "default-path" directive. */
+static int cfg_parse_global_def_path(char **args, int section_type, struct proxy *curpx,
+                                     const struct proxy *defpx, const char *file, int line,
+                                     char **err)
+{
+	int ret = -1;
+
+	/* "current", "config", "parent", "origin <path>" */
+
+	if (strcmp(args[1], "current") == 0)
+		default_path_mode = DEFAULT_PATH_CURRENT;
+	else if (strcmp(args[1], "config") == 0)
+		default_path_mode = DEFAULT_PATH_CONFIG;
+	else if (strcmp(args[1], "parent") == 0)
+		default_path_mode = DEFAULT_PATH_PARENT;
+	else if (strcmp(args[1], "origin") == 0)
+		default_path_mode = DEFAULT_PATH_ORIGIN;
+	else {
+		memprintf(err, "%s default-path mode '%s' for '%s', supported modes include 'current', 'config', 'parent', and 'origin'.", *args[1] ? "unsupported" : "missing", args[1], args[0]);
+		goto end;
+	}
+
+	if (default_path_mode == DEFAULT_PATH_ORIGIN) {
+		if (!*args[2]) {
+			memprintf(err, "'%s %s' expects a directory as an argument.", args[0], args[1]);
+			goto end;
+		}
+		if (!cfg_apply_default_path(file, args[2], err)) {
+			memprintf(err, "couldn't set '%s' to origin '%s': %s.", args[0], args[2], *err);
+			goto end;
+		}
+	}
+	else if (!cfg_apply_default_path(file, NULL, err)) {
+		memprintf(err, "couldn't set '%s' to '%s': %s.", args[0], args[1], *err);
+		goto end;
+	}
+
+	/* note that once applied, the path is immediately updated */
+
+	ret = 0;
+ end:
+	return ret;
+}
+
+
 /*
  * This function reads and parses the configuration file given in the argument.
  * Returns the error code, 0 if OK, -1 if the config file couldn't be opened,
@@ -1527,6 +1664,7 @@ int readcfgfile(const char *file)
 	int nested_cond_lvl = 0;
 	enum nested_cond_state nested_conds[MAXNESTEDCONDS];
 	int non_global_section_parsed = 0;
+	char *errmsg = NULL;
 
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
 		ha_alert("Out of memory trying to allocate a buffer for a configuration line.\n");
@@ -1535,6 +1673,14 @@ int readcfgfile(const char *file)
 	}
 
 	if ((f = fopen(file,"r")) == NULL) {
+		err_code = -1;
+		goto err;
+	}
+
+	/* change to the new dir if required */
+	if (!cfg_apply_default_path(file, NULL, &errmsg)) {
+		ha_alert("parsing [%s:%d]: failed to apply default-path: %s.\n", file, linenum, errmsg);
+		free(errmsg);
 		err_code = -1;
 		goto err;
 	}
@@ -1919,6 +2065,12 @@ next_line:
 		ha_alert("parsing [%s:%d]: non-terminated '.if' block.\n", file, linenum);
 		err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 	}
+
+	if (*initial_cwd && chdir(initial_cwd) == -1) {
+		ha_alert("Impossible to get back to initial directory '%s' : %s\n", initial_cwd, strerror(errno));
+		err_code |= ERR_ALERT | ERR_FATAL;
+	}
+
 err:
 	ha_free(&cfg_scope);
 	cursection = NULL;
@@ -4068,6 +4220,13 @@ REGISTER_CONFIG_SECTION("userlist",       cfg_parse_users,     NULL);
 REGISTER_CONFIG_SECTION("peers",          cfg_parse_peers,     NULL);
 REGISTER_CONFIG_SECTION("mailers",        cfg_parse_mailers,   NULL);
 REGISTER_CONFIG_SECTION("namespace_list", cfg_parse_netns,     NULL);
+
+static struct cfg_kw_list cfg_kws = {{ },{
+	{ CFG_GLOBAL, "default-path",     cfg_parse_global_def_path },
+	{ /* END */ }
+}};
+
+INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /*
  * Local variables:
