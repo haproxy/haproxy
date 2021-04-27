@@ -1,3 +1,6 @@
+#ifndef _HAPROXY_CPUSET_T_H
+#define _HAPROXY_CPUSET_T_H
+
 #define _GNU_SOURCE
 #include <sched.h>
 
@@ -8,9 +11,6 @@
 #include <sys/cpuset.h>
 #endif
 #endif
-
-#ifndef _HAPROXY_CPUSET_T_H
-#define _HAPROXY_CPUSET_T_H
 
 #if defined(__linux__) || defined(__DragonFly__)
 
