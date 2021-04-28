@@ -1331,13 +1331,17 @@ static inline struct stksess *peer_teach_process_stksess_lookup(struct shared_ta
 	eb = eb32_lookup_ge(&st->table->updates, st->last_pushed+1);
 	if (!eb) {
 		eb = eb32_first(&st->table->updates);
-		if (!eb || ((int)(eb->key - st->last_pushed) <= 0)) {
+		if (!eb || (eb->key == st->last_pushed)) {
 			st->table->commitupdate = st->last_pushed = st->table->localupdate;
 			return NULL;
 		}
 	}
 
-	if ((int)(eb->key - st->table->localupdate) > 0) {
+	/* if distance between the last pushed and the retrieved key
+	 * is greater than the distance last_pushed and the local_update
+	 * this means we are beyond localupdate.
+	 */
+	if ((eb->key - st->last_pushed) > (st->table->localupdate - st->last_pushed)) {
 		st->table->commitupdate = st->last_pushed = st->table->localupdate;
 		return NULL;
 	}
@@ -2217,7 +2221,7 @@ static inline int peer_send_msgs(struct appctx *appctx,
 			if (!(peer->flags & PEER_F_TEACH_PROCESS)) {
 				HA_SPIN_LOCK(STK_TABLE_LOCK, &st->table->lock);
 				if (!(peer->flags & PEER_F_LEARN_ASSIGN) &&
-					((int)(st->last_pushed - st->table->localupdate) < 0)) {
+					(st->last_pushed != st->table->localupdate)) {
 
 					repl = peer_send_teach_process_msgs(appctx, peer, st);
 					if (repl <= 0) {
@@ -3003,7 +3007,7 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 
 						/* Awake session if there is data to push */
 						for (st = ps->tables; st ; st = st->next) {
-							if ((int)(st->last_pushed - st->table->localupdate) < 0) {
+							if (st->last_pushed != st->table->localupdate) {
 								/* wake up the peer handler to push local updates */
 								update_to_push = 1;
 								/* There is no need to send a heartbeat message
@@ -3140,7 +3144,7 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 			/* current peer connection is active and established
 			 * wake up all peer handlers to push remaining local updates */
 			for (st = ps->tables; st ; st = st->next) {
-				if ((int)(st->last_pushed - st->table->localupdate) < 0) {
+				if (st->last_pushed != st->table->localupdate) {
 					appctx_wakeup(ps->appctx);
 					break;
 				}
