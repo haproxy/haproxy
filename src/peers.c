@@ -52,12 +52,23 @@
 /******************************/
 /* Current peers section resync state */
 /******************************/
-#define PEERS_F_RESYNC_LOCAL        0x00000001 /* Learn from local finished or no more needed */
-#define PEERS_F_RESYNC_REMOTE       0x00000002 /* Learn from remote finished or no more needed */
-#define PEERS_F_RESYNC_ASSIGN       0x00000004 /* A peer was assigned to learn our lesson */
-#define PEERS_F_RESYNC_PROCESS      0x00000008 /* The assigned peer was requested for resync */
-#define PEERS_F_DONOTSTOP           0x00010000 /* Main table sync task block process during soft stop
-                                                  to push data to new process */
+#define PEERS_F_RESYNC_LOCAL          0x00000001 /* Learn from local finished or no more needed */
+#define PEERS_F_RESYNC_REMOTE         0x00000002 /* Learn from remote finished or no more needed */
+#define PEERS_F_RESYNC_ASSIGN         0x00000004 /* A peer was assigned to learn our lesson */
+#define PEERS_F_RESYNC_PROCESS        0x00000008 /* The assigned peer was requested for resync */
+#define PEERS_F_RESYNC_LOCALTIMEOUT   0x00000010 /* Timeout waiting for a full resync from a local node */
+#define PEERS_F_RESYNC_REMOTETIMEOUT  0x00000020 /* Timeout waiting for a full resync from a remote node */
+#define PEERS_F_RESYNC_LOCALABORT     0x00000040 /* Session aborted learning from a local node */
+#define PEERS_F_RESYNC_REMOTEABORT    0x00000080 /* Session aborted learning from a remote node */
+#define PEERS_F_RESYNC_LOCALFINISHED  0x00000100 /* A local node teach us and was fully up to date */
+#define PEERS_F_RESYNC_REMOTEFINISHED 0x00000200 /* A remote node teach us and was fully up to date */
+#define PEERS_F_RESYNC_LOCALPARTIAL   0x00000400 /* A local node teach us but was partially up to date */
+#define PEERS_F_RESYNC_REMOTEPARTIAL  0x00000800 /* A remote node teach us but was partially up to date */
+#define PEERS_F_RESYNC_LOCALASSIGN    0x00001000 /* A local node was assigned for a full resync */
+#define PEERS_F_RESYNC_REMOTEASSIGN   0x00002000 /* A remote node was assigned for a full resync */
+#define PEERS_F_RESYNC_REQUESTED      0x00004000 /* A resync was explicitly requested */
+#define PEERS_F_DONOTSTOP             0x00010000 /* Main table sync task block process during soft stop
+                                                    to push data to new process */
 
 #define PEERS_RESYNC_STATEMASK      (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE)
 #define PEERS_RESYNC_FROMLOCAL      0x00000000
@@ -948,6 +959,10 @@ void __peer_session_deinit(struct peer *peer)
 		peer->flags &= ~(PEER_F_LEARN_ASSIGN);
 		peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
 
+		if (peer->local)
+			 peers->flags |= PEERS_F_RESYNC_LOCALABORT;
+		else
+			 peers->flags |= PEERS_F_RESYNC_REMOTEABORT;
 		/* reschedule a resync */
 		peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(5000));
 	}
@@ -2085,6 +2100,7 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 
 			/* flag to start to teach lesson */
 			peer->flags |= PEER_F_TEACH_PROCESS;
+			peers->flags |= PEERS_F_RESYNC_REQUESTED;
 		}
 		else if (msg_head[1] == PEER_MSG_CTRL_RESYNCFINISHED) {
 			TRACE_PROTO("received control message", PEERS_EV_CTRLMSG,
@@ -2093,6 +2109,10 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 				peer->flags &= ~PEER_F_LEARN_ASSIGN;
 				peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
 				peers->flags |= (PEERS_F_RESYNC_LOCAL|PEERS_F_RESYNC_REMOTE);
+				if (peer->local)
+					peers->flags |= PEERS_F_RESYNC_LOCALFINISHED;
+				else
+					peers->flags |= PEERS_F_RESYNC_REMOTEFINISHED;
 			}
 			peer->confirm++;
 		}
@@ -2103,6 +2123,10 @@ static inline int peer_treat_awaited_msg(struct appctx *appctx, struct peer *pee
 				peer->flags &= ~PEER_F_LEARN_ASSIGN;
 				peers->flags &= ~(PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
 
+				if (peer->local)
+					peers->flags |= PEERS_F_RESYNC_LOCALPARTIAL;
+				else
+					peers->flags |= PEERS_F_RESYNC_REMOTEPARTIAL;
 				peer->flags |= PEER_F_LEARN_NOTUP2DATE;
 				peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
 				task_wakeup(peers->sync_task, TASK_WOKEN_MSG);
@@ -2431,6 +2455,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 			/* assign local peer for a lesson, consider lesson already requested */
 			peer->flags |= PEER_F_LEARN_ASSIGN;
 			peers->flags |= (PEERS_F_RESYNC_ASSIGN|PEERS_F_RESYNC_PROCESS);
+			peers->flags |= PEERS_F_RESYNC_LOCALASSIGN;
 		}
 
 	}
@@ -2439,6 +2464,7 @@ static inline void init_accepted_peer(struct peer *peer, struct peers *peers)
 		/* assign peer for a lesson  */
 		peer->flags |= PEER_F_LEARN_ASSIGN;
 		peers->flags |= PEERS_F_RESYNC_ASSIGN;
+		peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
 	}
 }
 
@@ -2492,6 +2518,7 @@ static inline void init_connected_peer(struct peer *peer, struct peers *peers)
 		/* assign peer for a lesson */
 		peer->flags |= PEER_F_LEARN_ASSIGN;
 		peers->flags |= PEERS_F_RESYNC_ASSIGN;
+		peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
 	}
 }
 
@@ -2955,6 +2982,7 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 
 			/* flag no more resync from local, to try resync from remotes */
 			peers->flags |= PEERS_F_RESYNC_LOCAL;
+			peers->flags |= PEERS_F_RESYNC_LOCALTIMEOUT;
 
 			/* reschedule a resync */
 			peers->resync_timeout = tick_add(now_ms, MS_TO_TICKS(PEER_RESYNC_TIMEOUT));
@@ -3000,6 +3028,7 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 						/* assign peer for the lesson */
 						ps->flags |= PEER_F_LEARN_ASSIGN;
 						peers->flags |= PEERS_F_RESYNC_ASSIGN;
+						peers->flags |= PEERS_F_RESYNC_REMOTEASSIGN;
 
 						/* wake up peer handler to handle a request of resync */
 						appctx_wakeup(ps->appctx);
@@ -3070,6 +3099,7 @@ struct task *process_peer_sync(struct task * task, void *context, unsigned int s
 
 			/* flag no more resync from remote, consider resync is finished */
 			peers->flags |= PEERS_F_RESYNC_REMOTE;
+			peers->flags |= PEERS_F_RESYNC_REMOTETIMEOUT;
 		}
 
 		if ((peers->flags & PEERS_RESYNC_STATEMASK) != PEERS_RESYNC_FINISHED) {
