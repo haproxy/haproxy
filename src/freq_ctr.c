@@ -25,7 +25,7 @@
  * read_freq_ctr_period() to avoid reporting ups and downs on low-frequency
  * events when the past value is <= 1.
  */
-ullong freq_ctr_total(struct freq_ctr *ctr, uint period, int pend)
+ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend)
 {
 	ullong curr, past;
 	uint curr_tick;
