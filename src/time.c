@@ -236,7 +236,6 @@ void tv_update_date(int max_wait, int interrupted)
 	do {
 		tmp_now.tv_sec  = (unsigned int)(old_now >> 32);
 		tmp_now.tv_usec = old_now & 0xFFFFFFFFU;
-		old_now_ms = __tv_to_ms(&tmp_now);
 
 		if (__tv_islt(&now, &tmp_now))
 			now = tmp_now;
@@ -246,8 +245,6 @@ void tv_update_date(int max_wait, int interrupted)
 		 */
 		new_now = ((ullong)now.tv_sec << 32) + (uint)now.tv_usec;
 		now_ms = __tv_to_ms(&now);
-		if (tick_is_lt(now_ms, old_now_ms))
-			now_ms = old_now_ms;
 
 		/* let's try to update the global <now> (both in timeval
 		 * and ms forms) or loop again.
