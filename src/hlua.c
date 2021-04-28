@@ -3704,7 +3704,7 @@ __LJMP static struct hlua_appctx *hlua_checkapplet_tcp(lua_State *L, int ud)
  */
 static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 {
-	struct hlua_appctx *appctx;
+	struct hlua_appctx *luactx;
 	struct stream_interface *si = ctx->owner;
 	struct stream *s = si_strm(si);
 	struct proxy *p = s->be;
@@ -3718,33 +3718,33 @@ static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 	 * same than the TXN object.
 	 */
 	lua_newtable(L);
-	appctx = lua_newuserdata(L, sizeof(*appctx));
+	luactx = lua_newuserdata(L, sizeof(*luactx));
 	lua_rawseti(L, -2, 0);
-	appctx->appctx = ctx;
-	appctx->htxn.s = s;
-	appctx->htxn.p = p;
+	luactx->appctx = ctx;
+	luactx->htxn.s = s;
+	luactx->htxn.p = p;
 
 	/* Create the "f" field that contains a list of fetches. */
 	lua_pushstring(L, "f");
-	if (!hlua_fetches_new(L, &appctx->htxn, 0))
+	if (!hlua_fetches_new(L, &luactx->htxn, 0))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "sf" field that contains a list of stringsafe fetches. */
 	lua_pushstring(L, "sf");
-	if (!hlua_fetches_new(L, &appctx->htxn, HLUA_F_AS_STRING))
+	if (!hlua_fetches_new(L, &luactx->htxn, HLUA_F_AS_STRING))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "c" field that contains a list of converters. */
 	lua_pushstring(L, "c");
-	if (!hlua_converters_new(L, &appctx->htxn, 0))
+	if (!hlua_converters_new(L, &luactx->htxn, 0))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "sc" field that contains a list of stringsafe converters. */
 	lua_pushstring(L, "sc");
-	if (!hlua_converters_new(L, &appctx->htxn, HLUA_F_AS_STRING))
+	if (!hlua_converters_new(L, &luactx->htxn, HLUA_F_AS_STRING))
 		return 0;
 	lua_settable(L, -3);
 
@@ -3757,7 +3757,7 @@ static int hlua_applet_tcp_new(lua_State *L, struct appctx *ctx)
 
 __LJMP static int hlua_applet_tcp_set_var(lua_State *L)
 {
-	struct hlua_appctx *appctx;
+	struct hlua_appctx *luactx;
 	struct stream *s;
 	const char *name;
 	size_t len;
@@ -3769,9 +3769,9 @@ __LJMP static int hlua_applet_tcp_set_var(lua_State *L)
 	/* It is useles to retrieve the stream, but this function
 	 * runs only in a stream context.
 	 */
-	appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
-	s = appctx->htxn.s;
+	s = luactx->htxn.s;
 
 	/* Converts the third argument in a sample. */
 	memset(&smp, 0, sizeof(smp));
@@ -3790,7 +3790,7 @@ __LJMP static int hlua_applet_tcp_set_var(lua_State *L)
 
 __LJMP static int hlua_applet_tcp_unset_var(lua_State *L)
 {
-	struct hlua_appctx *appctx;
+	struct hlua_appctx *luactx;
 	struct stream *s;
 	const char *name;
 	size_t len;
@@ -3801,9 +3801,9 @@ __LJMP static int hlua_applet_tcp_unset_var(lua_State *L)
 	/* It is useles to retrieve the stream, but this function
 	 * runs only in a stream context.
 	 */
-	appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
-	s = appctx->htxn.s;
+	s = luactx->htxn.s;
 
 	/* Unset the variable. */
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
@@ -3813,7 +3813,7 @@ __LJMP static int hlua_applet_tcp_unset_var(lua_State *L)
 
 __LJMP static int hlua_applet_tcp_get_var(lua_State *L)
 {
-	struct hlua_appctx *appctx;
+	struct hlua_appctx *luactx;
 	struct stream *s;
 	const char *name;
 	size_t len;
@@ -3824,9 +3824,9 @@ __LJMP static int hlua_applet_tcp_get_var(lua_State *L)
 	/* It is useles to retrieve the stream, but this function
 	 * runs only in a stream context.
 	 */
-	appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
-	s = appctx->htxn.s;
+	s = luactx->htxn.s;
 
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
 	if (!vars_get_by_name(name, len, &smp)) {
@@ -3839,8 +3839,8 @@ __LJMP static int hlua_applet_tcp_get_var(lua_State *L)
 
 __LJMP static int hlua_applet_tcp_set_priv(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct stream *s = appctx->htxn.s;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct stream *s = luactx->htxn.s;
 	struct hlua *hlua;
 
 	/* Note that this hlua struct is from the session and not from the applet. */
@@ -3862,8 +3862,8 @@ __LJMP static int hlua_applet_tcp_set_priv(lua_State *L)
 
 __LJMP static int hlua_applet_tcp_get_priv(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct stream *s = appctx->htxn.s;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct stream *s = luactx->htxn.s;
 	struct hlua *hlua;
 
 	/* Note that this hlua struct is from the session and not from the applet. */
@@ -3885,8 +3885,8 @@ __LJMP static int hlua_applet_tcp_get_priv(lua_State *L)
  */
 __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct stream_interface *si = appctx->appctx->owner;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct stream_interface *si = luactx->appctx->owner;
 	int ret;
 	const char *blk1;
 	size_t len1;
@@ -3904,7 +3904,7 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 
 	/* End of data: commit the total strings and return. */
 	if (ret < 0) {
-		luaL_pushresult(&appctx->b);
+		luaL_pushresult(&luactx->b);
 		return 1;
 	}
 
@@ -3913,22 +3913,22 @@ __LJMP static int hlua_applet_tcp_getline_yield(lua_State *L, int status, lua_KC
 		len2 = 0;
 
 	/* don't check the max length read and don't check. */
-	luaL_addlstring(&appctx->b, blk1, len1);
-	luaL_addlstring(&appctx->b, blk2, len2);
+	luaL_addlstring(&luactx->b, blk1, len1);
+	luaL_addlstring(&luactx->b, blk2, len2);
 
 	/* Consume input channel output buffer data. */
 	co_skip(si_oc(si), len1 + len2);
-	luaL_pushresult(&appctx->b);
+	luaL_pushresult(&luactx->b);
 	return 1;
 }
 
 /* Check arguments for the function "hlua_channel_get_yield". */
 __LJMP static int hlua_applet_tcp_getline(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 
 	/* Initialise the string catenation. */
-	luaL_buffinit(L, &appctx->b);
+	luaL_buffinit(L, &luactx->b);
 
 	return MAY_LJMP(hlua_applet_tcp_getline_yield(L, 0, 0));
 }
@@ -3939,8 +3939,8 @@ __LJMP static int hlua_applet_tcp_getline(lua_State *L)
  */
 __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KContext ctx)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
-	struct stream_interface *si = appctx->appctx->owner;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct stream_interface *si = luactx->appctx->owner;
 	size_t len = MAY_LJMP(luaL_checkinteger(L, 2));
 	int ret;
 	const char *blk1;
@@ -3959,7 +3959,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 
 	/* End of data: commit the total strings and return. */
 	if (ret < 0) {
-		luaL_pushresult(&appctx->b);
+		luaL_pushresult(&luactx->b);
 		return 1;
 	}
 
@@ -3973,8 +3973,8 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		 * yield because we want to get all the data until
 		 * the end of data stream.
 		 */
-		luaL_addlstring(&appctx->b, blk1, len1);
-		luaL_addlstring(&appctx->b, blk2, len2);
+		luaL_addlstring(&luactx->b, blk1, len1);
+		luaL_addlstring(&luactx->b, blk2, len2);
 		co_skip(si_oc(si), len1 + len2);
 		si_cant_get(si);
 		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_applet_tcp_recv_yield, TICK_ETERNITY, 0));
@@ -3984,13 +3984,13 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		/* Copy the first block caping to the length required. */
 		if (len1 > len)
 			len1 = len;
-		luaL_addlstring(&appctx->b, blk1, len1);
+		luaL_addlstring(&luactx->b, blk1, len1);
 		len -= len1;
 
 		/* Copy the second block. */
 		if (len2 > len)
 			len2 = len;
-		luaL_addlstring(&appctx->b, blk2, len2);
+		luaL_addlstring(&luactx->b, blk2, len2);
 		len -= len2;
 
 		/* Consume input channel output buffer data. */
@@ -4005,7 +4005,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 		}
 
 		/* return the result. */
-		luaL_pushresult(&appctx->b);
+		luaL_pushresult(&luactx->b);
 		return 1;
 	}
 
@@ -4018,7 +4018,7 @@ __LJMP static int hlua_applet_tcp_recv_yield(lua_State *L, int status, lua_KCont
 /* Check arguments for the function "hlua_channel_get_yield". */
 __LJMP static int hlua_applet_tcp_recv(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	int len = -1;
 
 	if (lua_gettop(L) > 2)
@@ -4032,7 +4032,7 @@ __LJMP static int hlua_applet_tcp_recv(lua_State *L)
 	lua_pushinteger(L, len);
 
 	/* Initialise the string catenation. */
-	luaL_buffinit(L, &appctx->b);
+	luaL_buffinit(L, &luactx->b);
 
 	return MAY_LJMP(hlua_applet_tcp_recv_yield(L, 0, 0));
 }
@@ -4045,10 +4045,10 @@ __LJMP static int hlua_applet_tcp_recv(lua_State *L)
 __LJMP static int hlua_applet_tcp_send_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	size_t len;
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_tcp(L, 1));
 	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
-	struct stream_interface *si = appctx->appctx->owner;
+	struct stream_interface *si = luactx->appctx->owner;
 	struct channel *chn = si_ic(si);
 	int max;
 
@@ -4109,7 +4109,7 @@ __LJMP static struct hlua_appctx *hlua_checkapplet_http(lua_State *L, int ud)
  */
 static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 {
-	struct hlua_appctx *appctx;
+	struct hlua_appctx *luactx;
 	struct hlua_txn htxn;
 	struct stream_interface *si = ctx->owner;
 	struct stream *s = si_strm(si);
@@ -4130,35 +4130,35 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	 * same than the TXN object.
 	 */
 	lua_newtable(L);
-	appctx = lua_newuserdata(L, sizeof(*appctx));
+	luactx = lua_newuserdata(L, sizeof(*luactx));
 	lua_rawseti(L, -2, 0);
-	appctx->appctx = ctx;
-	appctx->appctx->ctx.hlua_apphttp.status = 200; /* Default status code returned. */
-	appctx->appctx->ctx.hlua_apphttp.reason = NULL; /* Use default reason based on status */
-	appctx->htxn.s = s;
-	appctx->htxn.p = px;
+	luactx->appctx = ctx;
+	luactx->appctx->ctx.hlua_apphttp.status = 200; /* Default status code returned. */
+	luactx->appctx->ctx.hlua_apphttp.reason = NULL; /* Use default reason based on status */
+	luactx->htxn.s = s;
+	luactx->htxn.p = px;
 
 	/* Create the "f" field that contains a list of fetches. */
 	lua_pushstring(L, "f");
-	if (!hlua_fetches_new(L, &appctx->htxn, 0))
+	if (!hlua_fetches_new(L, &luactx->htxn, 0))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "sf" field that contains a list of stringsafe fetches. */
 	lua_pushstring(L, "sf");
-	if (!hlua_fetches_new(L, &appctx->htxn, HLUA_F_AS_STRING))
+	if (!hlua_fetches_new(L, &luactx->htxn, HLUA_F_AS_STRING))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "c" field that contains a list of converters. */
 	lua_pushstring(L, "c");
-	if (!hlua_converters_new(L, &appctx->htxn, 0))
+	if (!hlua_converters_new(L, &luactx->htxn, 0))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "sc" field that contains a list of stringsafe converters. */
 	lua_pushstring(L, "sc");
-	if (!hlua_converters_new(L, &appctx->htxn, HLUA_F_AS_STRING))
+	if (!hlua_converters_new(L, &luactx->htxn, HLUA_F_AS_STRING))
 		return 0;
 	lua_settable(L, -3);
 
@@ -4242,7 +4242,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 
 __LJMP static int hlua_applet_http_set_var(lua_State *L)
 {
-	struct hlua_appctx *appctx;
+	struct hlua_appctx *luactx;
 	struct stream *s;
 	const char *name;
 	size_t len;
@@ -4254,9 +4254,9 @@ __LJMP static int hlua_applet_http_set_var(lua_State *L)
 	/* It is useles to retrieve the stream, but this function
 	 * runs only in a stream context.
 	 */
-	appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
-	s = appctx->htxn.s;
+	s = luactx->htxn.s;
 
 	/* Converts the third argument in a sample. */
 	memset(&smp, 0, sizeof(smp));
@@ -4275,7 +4275,7 @@ __LJMP static int hlua_applet_http_set_var(lua_State *L)
 
 __LJMP static int hlua_applet_http_unset_var(lua_State *L)
 {
-	struct hlua_appctx *appctx;
+	struct hlua_appctx *luactx;
 	struct stream *s;
 	const char *name;
 	size_t len;
@@ -4286,9 +4286,9 @@ __LJMP static int hlua_applet_http_unset_var(lua_State *L)
 	/* It is useles to retrieve the stream, but this function
 	 * runs only in a stream context.
 	 */
-	appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
-	s = appctx->htxn.s;
+	s = luactx->htxn.s;
 
 	/* Unset the variable. */
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
@@ -4298,7 +4298,7 @@ __LJMP static int hlua_applet_http_unset_var(lua_State *L)
 
 __LJMP static int hlua_applet_http_get_var(lua_State *L)
 {
-	struct hlua_appctx *appctx;
+	struct hlua_appctx *luactx;
 	struct stream *s;
 	const char *name;
 	size_t len;
@@ -4309,9 +4309,9 @@ __LJMP static int hlua_applet_http_get_var(lua_State *L)
 	/* It is useles to retrieve the stream, but this function
 	 * runs only in a stream context.
 	 */
-	appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
-	s = appctx->htxn.s;
+	s = luactx->htxn.s;
 
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
 	if (!vars_get_by_name(name, len, &smp)) {
@@ -4324,8 +4324,8 @@ __LJMP static int hlua_applet_http_get_var(lua_State *L)
 
 __LJMP static int hlua_applet_http_set_priv(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream *s = appctx->htxn.s;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct stream *s = luactx->htxn.s;
 	struct hlua *hlua;
 
 	/* Note that this hlua struct is from the session and not from the applet. */
@@ -4347,8 +4347,8 @@ __LJMP static int hlua_applet_http_set_priv(lua_State *L)
 
 __LJMP static int hlua_applet_http_get_priv(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream *s = appctx->htxn.s;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct stream *s = luactx->htxn.s;
 	struct hlua *hlua;
 
 	/* Note that this hlua struct is from the session and not from the applet. */
@@ -4370,8 +4370,8 @@ __LJMP static int hlua_applet_http_get_priv(lua_State *L)
  */
 __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = appctx->appctx->owner;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct stream_interface *si = luactx->appctx->owner;
 	struct channel *req = si_oc(si);
 	struct htx *htx;
 	struct htx_blk *blk;
@@ -4408,7 +4408,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 					stop = 1;
 					vlen = nl - v.ptr + 1;
 				}
-				luaL_addlstring(&appctx->b, v.ptr, vlen);
+				luaL_addlstring(&luactx->b, v.ptr, vlen);
 				break;
 
 			case HTX_BLK_TLR:
@@ -4443,7 +4443,7 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 	}
 
 	/* return the result. */
-	luaL_pushresult(&appctx->b);
+	luaL_pushresult(&luactx->b);
 	return 1;
 }
 
@@ -4451,10 +4451,10 @@ __LJMP static int hlua_applet_http_getline_yield(lua_State *L, int status, lua_K
 /* Check arguments for the function "hlua_channel_get_yield". */
 __LJMP static int hlua_applet_http_getline(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 
 	/* Initialise the string catenation. */
-	luaL_buffinit(L, &appctx->b);
+	luaL_buffinit(L, &luactx->b);
 
 	return MAY_LJMP(hlua_applet_http_getline_yield(L, 0, 0));
 }
@@ -4465,8 +4465,8 @@ __LJMP static int hlua_applet_http_getline(lua_State *L)
  */
 __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KContext ctx)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = appctx->appctx->owner;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct stream_interface *si = luactx->appctx->owner;
 	struct channel *req = si_oc(si);
 	struct htx *htx;
 	struct htx_blk *blk;
@@ -4498,7 +4498,7 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 
 			case HTX_BLK_DATA:
 				v = htx_get_blk_value(htx, blk);
-				luaL_addlstring(&appctx->b, v.ptr, vlen);
+				luaL_addlstring(&luactx->b, v.ptr, vlen);
 				break;
 
 			case HTX_BLK_TLR:
@@ -4541,14 +4541,14 @@ __LJMP static int hlua_applet_http_recv_yield(lua_State *L, int status, lua_KCon
 	}
 
 	/* return the result. */
-	luaL_pushresult(&appctx->b);
+	luaL_pushresult(&luactx->b);
 	return 1;
 }
 
 /* Check arguments for the function "hlua_channel_get_yield". */
 __LJMP static int hlua_applet_http_recv(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	int len = -1;
 
 	/* Check arguments. */
@@ -4562,7 +4562,7 @@ __LJMP static int hlua_applet_http_recv(lua_State *L)
 	lua_pushinteger(L, len);
 
 	/* Initialise the string catenation. */
-	luaL_buffinit(L, &appctx->b);
+	luaL_buffinit(L, &luactx->b);
 
 	return MAY_LJMP(hlua_applet_http_recv_yield(L, 0, 0));
 }
@@ -4574,8 +4574,8 @@ __LJMP static int hlua_applet_http_recv(lua_State *L)
  */
 __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KContext ctx)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = appctx->appctx->owner;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct stream_interface *si = luactx->appctx->owner;
 	struct channel *res = si_ic(si);
 	struct htx *htx = htx_from_buf(&res->buf);
 	const char *data;
@@ -4622,10 +4622,10 @@ __LJMP static int hlua_applet_http_send_yield(lua_State *L, int status, lua_KCon
  */
 __LJMP static int hlua_applet_http_send(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 
 	/* We want to send some data. Headers must be sent. */
-	if (!(appctx->appctx->ctx.hlua_apphttp.flags & APPLET_HDR_SENT)) {
+	if (!(luactx->appctx->ctx.hlua_apphttp.flags & APPLET_HDR_SENT)) {
 		hlua_pusherror(L, "Lua: 'send' you must call start_response() before sending data.");
 		WILL_LJMP(lua_error(L));
 	}
@@ -4690,7 +4690,7 @@ __LJMP static int hlua_applet_http_addheader(lua_State *L)
 
 __LJMP static int hlua_applet_http_status(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
 	int status = MAY_LJMP(luaL_checkinteger(L, 2));
 	const char *reason = MAY_LJMP(luaL_optlstring(L, 3, NULL, NULL));
 
@@ -4699,8 +4699,8 @@ __LJMP static int hlua_applet_http_status(lua_State *L)
 		return 1;
 	}
 
-	appctx->appctx->ctx.hlua_apphttp.status = status;
-	appctx->appctx->ctx.hlua_apphttp.reason = reason;
+	luactx->appctx->ctx.hlua_apphttp.status = status;
+	luactx->appctx->ctx.hlua_apphttp.reason = reason;
 	lua_pushboolean(L, 1);
 	return 1;
 }
@@ -4708,8 +4708,8 @@ __LJMP static int hlua_applet_http_status(lua_State *L)
 
 __LJMP static int hlua_applet_http_send_response(lua_State *L)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = appctx->appctx->owner;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct stream_interface *si = luactx->appctx->owner;
 	struct channel *res = si_ic(si);
 	struct htx *htx;
 	struct htx_sl *sl;
@@ -4724,11 +4724,11 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	h1m_init_res(&h1m);
 
 	/* Use the same http version than the request. */
-	status = ultoa_r(appctx->appctx->ctx.hlua_apphttp.status, trash.area, trash.size);
-	reason = appctx->appctx->ctx.hlua_apphttp.reason;
+	status = ultoa_r(luactx->appctx->ctx.hlua_apphttp.status, trash.area, trash.size);
+	reason = luactx->appctx->ctx.hlua_apphttp.reason;
 	if (reason == NULL)
-		reason = http_get_reason(appctx->appctx->ctx.hlua_apphttp.status);
-	if (appctx->appctx->ctx.hlua_apphttp.flags & APPLET_HTTP11) {
+		reason = http_get_reason(luactx->appctx->ctx.hlua_apphttp.status);
+	if (luactx->appctx->ctx.hlua_apphttp.flags & APPLET_HTTP11) {
 		flags = (HTX_SL_F_IS_RESP|HTX_SL_F_VER_11);
 		sl = htx_add_stline(htx, HTX_BLK_RES_SL, flags, ist("HTTP/1.1"), ist(status), ist(reason));
 	}
@@ -4738,16 +4738,16 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	}
 	if (!sl) {
 		hlua_pusherror(L, "Lua applet http '%s': Failed to create response.\n",
-		               appctx->appctx->rule->arg.hlua_rule->fcn->name);
+		               luactx->appctx->rule->arg.hlua_rule->fcn->name);
 		WILL_LJMP(lua_error(L));
 	}
-	sl->info.res.status = appctx->appctx->ctx.hlua_apphttp.status;
+	sl->info.res.status = luactx->appctx->ctx.hlua_apphttp.status;
 
 	/* Get the array associated to the field "response" in the object AppletHTTP. */
 	lua_pushvalue(L, 0);
 	if (lua_getfield(L, 1, "response") != LUA_TTABLE) {
 		hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response'] missing.\n",
-		               appctx->appctx->rule->arg.hlua_rule->fcn->name);
+		               luactx->appctx->rule->arg.hlua_rule->fcn->name);
 		WILL_LJMP(lua_error(L));
 	}
 
@@ -4757,7 +4757,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 		/* We expect a string as -2. */
 		if (lua_type(L, -2) != LUA_TSTRING) {
 			hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response'][] element must be a string. got %s.\n",
-				       appctx->appctx->rule->arg.hlua_rule->fcn->name,
+				       luactx->appctx->rule->arg.hlua_rule->fcn->name,
 			               lua_typename(L, lua_type(L, -2)));
 			WILL_LJMP(lua_error(L));
 		}
@@ -4766,7 +4766,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 		/* We expect an array as -1. */
 		if (lua_type(L, -1) != LUA_TTABLE) {
 			hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response']['%s'] element must be an table. got %s.\n",
-				       appctx->appctx->rule->arg.hlua_rule->fcn->name,
+				       luactx->appctx->rule->arg.hlua_rule->fcn->name,
 				       name,
 			               lua_typename(L, lua_type(L, -1)));
 			WILL_LJMP(lua_error(L));
@@ -4780,7 +4780,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 			/* We expect a number as -2. */
 			if (lua_type(L, -2) != LUA_TNUMBER) {
 				hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response']['%s'][] element must be a number. got %s.\n",
-					       appctx->appctx->rule->arg.hlua_rule->fcn->name,
+					       luactx->appctx->rule->arg.hlua_rule->fcn->name,
 					       name,
 				               lua_typename(L, lua_type(L, -2)));
 				WILL_LJMP(lua_error(L));
@@ -4790,7 +4790,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 			/* We expect a string as -2. */
 			if (lua_type(L, -1) != LUA_TSTRING) {
 				hlua_pusherror(L, "Lua applet http '%s': AppletHTTP['response']['%s'][%d] element must be a string. got %s.\n",
-					       appctx->appctx->rule->arg.hlua_rule->fcn->name,
+					       luactx->appctx->rule->arg.hlua_rule->fcn->name,
 					       name, id,
 				               lua_typename(L, lua_type(L, -1)));
 				WILL_LJMP(lua_error(L));
@@ -4807,7 +4807,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 				ret = h1_parse_cont_len_header(&h1m, &v);
 				if (ret < 0) {
 					hlua_pusherror(L, "Lua applet http '%s': Invalid '%s' header.\n",
-						       appctx->appctx->rule->arg.hlua_rule->fcn->name,
+						       luactx->appctx->rule->arg.hlua_rule->fcn->name,
 						       name);
 					WILL_LJMP(lua_error(L));
 				}
@@ -4818,7 +4818,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 			/* Add a new header */
 			if (!htx_add_header(htx, ist2(name, nlen), ist2(value, vlen))) {
 				hlua_pusherror(L, "Lua applet http '%s': Failed to add header '%s' in the response.\n",
-					       appctx->appctx->rule->arg.hlua_rule->fcn->name,
+					       luactx->appctx->rule->arg.hlua_rule->fcn->name,
 					       name);
 				WILL_LJMP(lua_error(L));
 			}
@@ -4857,14 +4857,14 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	 * chunked itself, don't do anything.
 	 */
 	if ((flags & (HTX_SL_F_VER_11|HTX_SL_F_XFER_LEN)) == HTX_SL_F_VER_11 &&
-	    appctx->appctx->ctx.hlua_apphttp.status >= 200 &&
-	    appctx->appctx->ctx.hlua_apphttp.status != 204 &&
-	    appctx->appctx->ctx.hlua_apphttp.status != 304) {
+	    luactx->appctx->ctx.hlua_apphttp.status >= 200 &&
+	    luactx->appctx->ctx.hlua_apphttp.status != 204 &&
+	    luactx->appctx->ctx.hlua_apphttp.status != 304) {
 		/* Add a new header */
 		sl->flags |= (HTX_SL_F_XFER_ENC|H1_MF_CHNK|H1_MF_XFER_LEN);
 		if (!htx_add_header(htx, ist("transfer-encoding"), ist("chunked"))) {
 			hlua_pusherror(L, "Lua applet http '%s': Failed to add header 'transfer-encoding' in the response.\n",
-				       appctx->appctx->rule->arg.hlua_rule->fcn->name);
+				       luactx->appctx->rule->arg.hlua_rule->fcn->name);
 			WILL_LJMP(lua_error(L));
 		}
 	}
@@ -4872,7 +4872,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	/* Finalize headers. */
 	if (!htx_add_endof(htx, HTX_BLK_EOH)) {
 		hlua_pusherror(L, "Lua applet http '%s': Failed create the response.\n",
-			       appctx->appctx->rule->arg.hlua_rule->fcn->name);
+			       luactx->appctx->rule->arg.hlua_rule->fcn->name);
 		WILL_LJMP(lua_error(L));
 	}
 
@@ -4886,7 +4886,7 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
 	channel_add_input(res, htx->data);
 
 	/* Headers sent, set the flag. */
-	appctx->appctx->ctx.hlua_apphttp.flags |= APPLET_HDR_SENT;
+	luactx->appctx->ctx.hlua_apphttp.flags |= APPLET_HDR_SENT;
 	return 0;
 
 }
@@ -4896,8 +4896,8 @@ __LJMP static int hlua_applet_http_send_response(lua_State *L)
  */
 __LJMP static int hlua_applet_http_start_response_yield(lua_State *L, int status, lua_KContext ctx)
 {
-	struct hlua_appctx *appctx = MAY_LJMP(hlua_checkapplet_http(L, 1));
-	struct stream_interface *si = appctx->appctx->owner;
+	struct hlua_appctx *luactx = MAY_LJMP(hlua_checkapplet_http(L, 1));
+	struct stream_interface *si = luactx->appctx->owner;
 	struct channel *res = si_ic(si);
 
 	if (co_data(res)) {
