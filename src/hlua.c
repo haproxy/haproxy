@@ -7419,37 +7419,10 @@ void hlua_applet_http_fct(struct appctx *ctx)
 	/* Set the currently running flag. */
 	if (!HLUA_IS_RUNNING(hlua) &&
 	    !(ctx->ctx.hlua_apphttp.flags & APPLET_DONE)) {
-		struct htx_blk *blk;
-		size_t count = co_data(req);
-
-		if (!count) {
+		if (!co_data(req)) {
 			si_cant_get(si);
 			goto out;
 		}
-
-		/* We need to flush the request header. This left the body for
-		 * the Lua.
-		 */
-		req_htx = htx_from_buf(&req->buf);
-		blk = htx_get_first_blk(req_htx);
-		while (count && blk) {
-			enum htx_blk_type type = htx_get_blk_type(blk);
-			uint32_t sz = htx_get_blksz(blk);
-
-			if (sz > count) {
-				si_cant_get(si);
-				htx_to_buf(req_htx, &req->buf);
-				goto out;
-			}
-
-			count -= sz;
-			co_set_data(req, co_data(req) - sz);
-			blk = htx_remove_blk(req_htx, blk);
-
-			if (type == HTX_BLK_EOH)
-				break;
-		}
-		htx_to_buf(req_htx, &req->buf);
 	}
 
 	/* Executes The applet if it is not done. */
