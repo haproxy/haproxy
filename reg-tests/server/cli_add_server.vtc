@@ -53,7 +53,7 @@ haproxy h1 -cli {
 
 	# invalid load-balancing algo
 	send "experimental-mode on; add server other/s1 ${s1_addr}:${s1_port}"
-	expect ~ "Backend must use a consistent hashing method for load balancing to support dynamic servers."
+	expect ~ "Backend must use a dynamic load balancing to support dynamic servers."
 
 	# invalid mux proto
 	send "experimental-mode on; add server other2/s1 ${s1_addr}:${s1_port} proto h2"
