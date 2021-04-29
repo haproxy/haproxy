@@ -804,25 +804,24 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 				       "This ACL is shared with a map containing samples. "
 				       "You must use the command 'add map' to add values.\n");
 		}
-		/* Add value(s). */
+
+		/* Add value(s). If no payload is used, key and value are read
+		 * from the command line and only one key is set. If a payload
+		 * is passed, one key/value pair is read per line till the end
+		 * of the payload is reached.
+		 */
 		err = NULL;
-		if (!payload) {
-			ret = map_add_key_value(appctx, args[3], args[4], &err);
-			if (!ret) {
-				if (err)
-					return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));
-				else
-					return cli_err(appctx, "Failed to add an entry.\n");
-			}
-		}
-		else {
-			const char *end = payload + strlen(payload);
 
-			while (payload < end) {
-				char *key, *value;
-				size_t l;
+		do {
+			char *key   = args[3];
+			char *value = args[4];
+			size_t l;
 
-				/* key */
+			if (payload) {
+				/* key and value passed as payload, one pair per line */
+				if (!*payload)
+					break;
+
 				key = payload;
 				l = strcspn(key, " \t");
 				payload += l;
@@ -841,16 +840,16 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 				if (*payload)
 					payload++;
 				value[l] = 0;
-
-				ret = map_add_key_value(appctx, key, value, &err);
-				if (!ret) {
-					if (err)
-						return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));
-					else
-						return cli_err(appctx, "Failed to add a key.\n");
-				}
 			}
-		}
+
+			ret = map_add_key_value(appctx, key, value, &err);
+			if (!ret) {
+				if (err)
+					return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));
+				else
+					return cli_err(appctx, "Failed to add a key.\n");
+			}
+		} while (payload && *payload);
 
 		/* The add is done, send message. */
 		appctx->st0 = CLI_ST_PROMPT;
