@@ -5317,6 +5317,43 @@ remove:
 	return task;
 }
 
+/* Close remaining idle connections. This functions is designed to be run on
+ * process shutdown. This guarantees a proper socket shutdown to avoid
+ * TIME_WAIT state. For a quick operation, only ctrl is closed, xprt stack is
+ * bypassed.
+ *
+ * This function is not thread-safe so it must only be called via a global
+ * deinit function.
+ */
+static void srv_close_idle_conns(struct server *srv)
+{
+	struct eb_root **cleaned_tree;
+	int i;
+
+	for (i = 0; i < global.nbthread; ++i) {
+		struct eb_root *conn_trees[] = {
+			&srv->per_thr[i].idle_conns,
+			&srv->per_thr[i].safe_conns,
+			&srv->per_thr[i].avail_conns,
+			NULL
+		};
+
+		for (cleaned_tree = conn_trees; *cleaned_tree; ++cleaned_tree) {
+			while (!eb_is_empty(*cleaned_tree)) {
+				struct ebmb_node *node = ebmb_first(*cleaned_tree);
+				struct conn_hash_node *conn_hash_node = ebmb_entry(node, struct conn_hash_node, node);
+				struct connection *conn = conn_hash_node->conn;
+
+				if (conn->ctrl->ctrl_close)
+					conn->ctrl->ctrl_close(conn);
+				ebmb_delete(node);
+			}
+		}
+	}
+}
+
+REGISTER_SERVER_DEINIT(srv_close_idle_conns);
+
 /* config parser for global "tune.idle-pool.shared", accepts "on" or "off" */
 static int cfg_parse_idle_pool_shared(char **args, int section_type, struct proxy *curpx,
                                       const struct proxy *defpx, const char *file, int line,
