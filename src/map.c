@@ -744,20 +744,6 @@ static int cli_parse_set_map(char **args, char *payload, struct appctx *appctx, 
 	return 1;
 }
 
-static int map_add_key_value(struct appctx *appctx, const char *key, const char *value, char **err)
-{
-	int ret;
-
-	HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-	if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-		ret = pat_ref_add(appctx->ctx.map.ref, key, value, err);
-	else
-		ret = pat_ref_add(appctx->ctx.map.ref, key, NULL, err);
-	HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-
-	return ret;
-}
-
 static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	if (strcmp(args[1], "map") == 0 ||
@@ -842,7 +828,13 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 				value[l] = 0;
 			}
 
-			ret = map_add_key_value(appctx, key, value, &err);
+			if (appctx->ctx.map.display_flags != PAT_REF_MAP)
+				value = NULL;
+
+			HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+			ret = !!pat_ref_load(appctx->ctx.map.ref, appctx->ctx.map.ref->curr_gen, key, value, -1, &err);
+			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+
 			if (!ret) {
 				if (err)
 					return cli_dynerr(appctx, memprintf(&err, "%s.\n", err));
