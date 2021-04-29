@@ -1433,11 +1433,10 @@ add server <backend>/<server> [args]*
   This method is still in development and may change in the future.
 
   The <server> name must not be already used in the backend. A special
-  restriction is put on the backend which must used a compatible load-balancing
-  algorithm with consistent hashing method. A subset of keywords from the
-  server config file statement can be used to configure the server behavior.
-  Also note that no settings will be reused from an hypothetical
-  'defaut-server' statement in the same backend.
+  restriction is put on the backend which must used a dynamic load-balancing
+  algorithm. A subset of keywords from the server config file statement can be
+  used to configure the server behavior. Also note that no settings will be
+  reused from an hypothetical 'default-server' statement in the same backend.
 
   Here is the list of the currently supported keywords :
 

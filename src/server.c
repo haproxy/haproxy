@@ -4352,7 +4352,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		return cli_err(appctx, "No such backend.");
 
 	if (!(be->lbprm.algo & BE_LB_PROP_DYN)) {
-		cli_err(appctx, "Backend must use a consistent hashing method for load balancing to support dynamic servers.");
+		cli_err(appctx, "Backend must use a dynamic load balancing to support dynamic servers.");
 		return 1;
 	}
 
