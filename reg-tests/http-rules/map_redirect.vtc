@@ -161,6 +161,17 @@ haproxy h1 -cli {
     send "show map ${testdir}/map_redirect.map"
     expect ~ "^\\n"
 
+    # add map ${testdir}/map_redirect.map
+    send "add map ${testdir}/map_redirect.map site1_key site1_value"
+    expect ~ "^\\n"
+
+    # add 2 more entries as payload
+    send "add map ${testdir}/map_redirect.map <<\nsite2_key site2_value\nsite3_key site3_value\n"
+    expect ~ "^\\n"
+
+    send "show map ${testdir}/map_redirect.map"
+    expect ~ "^0x[a-f0-9]+ site1_key site1_value\\n0x[a-f0-9]+ site2_key site2_value\\n0x[a-f0-9]+ site3_key site3_value\\n$"
+
     # del map ${testdir}/map_redirect-be.map test1.example.{com,invalid}
     send "del map ${testdir}/map_redirect-be.map test1.example.com"
     expect ~ "^\\n"
