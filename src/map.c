@@ -1040,17 +1040,83 @@ static int cli_parse_clear_map(char **args, char *payload, struct appctx *appctx
 	return 1;
 }
 
+/* note: sets appctx->ctx.cli.i0 and appctx->ctx.cli.i1 to the oldest and
+ * latest generations to clear, respectively, and will call the clear_map
+ * handler.
+ */
+static int cli_parse_commit_map(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (strcmp(args[1], "map") == 0 || strcmp(args[1], "acl") == 0) {
+		const char *gen = NULL;
+		uint genid;
+		uint ret;
+
+		/* Set ACL or MAP flags. */
+		if (args[1][0] == 'm')
+			appctx->ctx.map.display_flags = PAT_REF_MAP;
+		else
+			appctx->ctx.map.display_flags = PAT_REF_ACL;
+
+		if (*args[2] != '@')
+			return cli_err(appctx, "Missing version number.\n");
+
+		/* The generation number is mandatory for a commit. The range
+		 * of generations that get trashed by a commit starts from the
+		 * opposite of the current one and ends at the previous one.
+		 */
+		gen = args[2] + 1;
+		genid = str2uic(gen);
+		appctx->ctx.cli.i1 = genid - 1;
+		appctx->ctx.cli.i0 = appctx->ctx.cli.i1 - ((~0U) >> 1);
+
+		/* no parameter */
+		if (!*args[3]) {
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+				return cli_err(appctx, "Missing map identifier.\n");
+			else
+				return cli_err(appctx, "Missing ACL identifier.\n");
+		}
+
+		/* lookup into the refs and check the map flag */
+		appctx->ctx.map.ref = pat_ref_lookup_ref(args[3]);
+		if (!appctx->ctx.map.ref ||
+		    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+				return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
+			else
+				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
+		}
+
+		HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+		if (genid - (appctx->ctx.map.ref->curr_gen + 1) <
+		    appctx->ctx.map.ref->next_gen - appctx->ctx.map.ref->curr_gen)
+			ret = pat_ref_commit(appctx->ctx.map.ref, genid);
+		else
+			ret = 1;
+		HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
+
+		if (ret != 0)
+			return cli_err(appctx, "Version number out of range.\n");
+
+		/* delegate the clearing to the I/O handler which can yield */
+		return 0;
+	}
+	return 1;
+}
+
 /* register cli keywords */
 
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "add",   "acl", NULL }, "add acl        : add acl entry", cli_parse_add_map, NULL },
 	{ { "clear", "acl", NULL }, "clear acl [@ver] <id> : clear the content of this acl", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
+	{ { "commit","acl", NULL }, "commit acl @<ver> <id> : commit the ACL at this version", cli_parse_commit_map, cli_io_handler_clear_map, NULL },
 	{ { "del",   "acl", NULL }, "del acl        : delete acl entry", cli_parse_del_map, NULL },
 	{ { "get",   "acl", NULL }, "get acl        : report the patterns matching a sample for an ACL", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
 	{ { "prepare","acl",NULL }, "prepare acl <id>: prepare a new version for atomic ACL replacement", cli_parse_prepare_map, NULL },
 	{ { "show",  "acl", NULL }, "show acl [@ver] [id] : report available acls or dump an acl's contents", cli_parse_show_map, NULL },
 	{ { "add",   "map", NULL }, "add map        : add map entry", cli_parse_add_map, NULL },
 	{ { "clear", "map", NULL }, "clear map [@ver] <id> : clear the content of this map", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
+	{ { "commit","map", NULL }, "commit map @<ver> <id> : commit the map at this version", cli_parse_commit_map, cli_io_handler_clear_map, NULL },
 	{ { "del",   "map", NULL }, "del map        : delete map entry", cli_parse_del_map, NULL },
 	{ { "get",   "map", NULL }, "get map        : report the keys and values matching a sample for a map", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
 	{ { "prepare","map",NULL }, "prepare map <id>: prepare a new version for atomic map replacement", cli_parse_prepare_map, NULL },

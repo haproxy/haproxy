@@ -1557,6 +1557,35 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:1
 
+commit acl @<ver> <acl>
+  Commit all changes made to version <ver> of ACL <acl>, and deletes all past
+  versions. <acl> is the #<id> or the <file> returned by "show acl". The
+  version number must be between "curr_ver"+1 and "next_ver" as reported in
+  "show acl". The contents to be committed to the ACL can be consulted with
+  "show acl @<ver> <acl>" if desired. The specified version number has normally
+  been created with the "prepare acl" command. The replacement is atomic. It
+  consists in atomically updating the current version to the specified version,
+  which will instantly cause all entries in other versions to become invisible,
+  and all entries in the new version to become visible. It is also possible to
+  use this command to perform an atomic removal of all visible entries of an
+  ACL by calling "prepare acl" first then committing without adding any
+  entries. This command cannot be used if the reference <acl> is a file also
+  used as a map. In this case, the "commit map" command must be used instead.
+
+commit map @<ver> <map>
+  Commit all changes made to version <ver> of map <map>, and deletes all past
+  versions. <map> is the #<id> or the <file> returned by "show map". The
+  version number must be between "curr_ver"+1 and "next_ver" as reported in
+  "show map". The contents to be committed to the map can be consulted with
+  "show map @<ver> <map>" if desired. The specified version number has normally
+  been created with the "prepare map" command. The replacement is atomic. It
+  consists in atomically updating the current version to the specified version,
+  which will instantly cause all entries in other versions to become invisible,
+  and all entries in the new version to become visible. It is also possible to
+  use this command to perform an atomic removal of all visible entries of an
+  map by calling "prepare map" first then committing without adding any
+  entries.
+
 commit ssl cert <filename>
   Commit a temporary SSL certificate update transaction.
 
