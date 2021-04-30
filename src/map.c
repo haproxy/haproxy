@@ -11,6 +11,7 @@
  */
 
 #include <stdio.h>
+#include <syslog.h>
 
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
@@ -631,6 +632,35 @@ static int cli_parse_get_map(char **args, char *payload, struct appctx *appctx, 
 	return 1;
 }
 
+static int cli_parse_prepare_map(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (strcmp(args[1], "map") == 0 ||
+	    strcmp(args[1], "acl") == 0) {
+		uint next_gen;
+		char *msg = NULL;
+
+		/* Set ACL or MAP flags. */
+		if (args[1][0] == 'm')
+			appctx->ctx.map.display_flags = PAT_REF_MAP;
+		else
+			appctx->ctx.map.display_flags = PAT_REF_ACL;
+
+		/* lookup into the refs and check the map flag */
+		appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
+		if (!appctx->ctx.map.ref ||
+		    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+				return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
+			else
+				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
+		}
+		next_gen = pat_ref_newgen(appctx->ctx.map.ref);
+		return cli_dynmsg(appctx, LOG_INFO, memprintf(&msg, "New version created: %u\n", next_gen));
+	}
+
+	return 0;
+}
+
 static void cli_release_show_map(struct appctx *appctx)
 {
 	if (appctx->st2 == STAT_ST_LIST) {
@@ -1017,11 +1047,13 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "clear", "acl", NULL }, "clear acl [@ver] <id> : clear the content of this acl", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
 	{ { "del",   "acl", NULL }, "del acl        : delete acl entry", cli_parse_del_map, NULL },
 	{ { "get",   "acl", NULL }, "get acl        : report the patterns matching a sample for an ACL", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
+	{ { "prepare","acl",NULL }, "prepare acl <id>: prepare a new version for atomic ACL replacement", cli_parse_prepare_map, NULL },
 	{ { "show",  "acl", NULL }, "show acl [@ver] [id] : report available acls or dump an acl's contents", cli_parse_show_map, NULL },
 	{ { "add",   "map", NULL }, "add map        : add map entry", cli_parse_add_map, NULL },
 	{ { "clear", "map", NULL }, "clear map [@ver] <id> : clear the content of this map", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
 	{ { "del",   "map", NULL }, "del map        : delete map entry", cli_parse_del_map, NULL },
 	{ { "get",   "map", NULL }, "get map        : report the keys and values matching a sample for a map", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
+	{ { "prepare","map",NULL }, "prepare map <id>: prepare a new version for atomic map replacement", cli_parse_prepare_map, NULL },
 	{ { "set",   "map", NULL }, "set map        : modify map entry", cli_parse_set_map, NULL },
 	{ { "show",  "map", NULL }, "show map [@ver] [id] : report available maps or dump a map's contents", cli_parse_show_map, NULL },
 	{ { NULL }, NULL, NULL, NULL }

@@ -1806,6 +1806,30 @@ new ssl cert <filename>
   added to a directory or a crt-list. This command should be used in
   combination with "set ssl cert" and "add ssl crt-list".
 
+prepare acl <acl>
+  Allocate a new version number in ACL <acl> for atomic replacement. <acl> is
+  the #<id> or the <file> returned by "show acl". The new version number is
+  shown in response after "New version created:". This number will then be
+  usable to prepare additions of new entries into the ACL which will then
+  atomically replace the current ones once committed. It is reported as
+  "next_ver" in "show acl". There is no impact of allocating new versions, as
+  unused versions will automatically be removed once a more recent version is
+  committed. Version numbers are unsigned 32-bit values which wrap at the end,
+  so care must be taken when comparing them in an external program. This
+  command cannot be used if the reference <acl> is a file also used as a map.
+  In this case, the "prepare map" command must be used instead.
+
+prepare map <map>
+  Allocate a new version number in map <map> for atomic replacement. <map> is
+  the #<id> or the <file> returned by "show map". The new version number is
+  shown in response after "New version created:". This number will then be
+  usable to prepare additions of new entries into the map which will then
+  atomically replace the current ones once committed. It is reported as
+  "next_ver" in "show map". There is no impact of allocating new versions, as
+  unused versions will automatically be removed once a more recent version is
+  committed. Version numbers are unsigned 32-bit values which wrap at the end,
+  so care must be taken when comparing them in an external program.
+
 prompt
   Toggle the prompt at the beginning of the line and enter or leave interactive
   mode. In interactive mode, the connection is not closed after a command
