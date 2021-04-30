@@ -319,6 +319,7 @@ struct pattern_expr *pat_expr_get_next(struct pattern_expr *getnext, struct list
 	return expr;
 }
 
+/* expects the current generation ID in appctx->cli.cli.i0 */
 static int cli_io_handler_pat_list(struct appctx *appctx)
 {
 	struct stream_interface *si = appctx->owner;
@@ -368,7 +369,7 @@ static int cli_io_handler_pat_list(struct appctx *appctx)
 
 			elt = LIST_ELEM(appctx->ctx.map.bref.ref, struct pat_ref_elt *, list);
 
-			if (elt->gen_id != appctx->ctx.map.ref->curr_gen)
+			if (elt->gen_id != appctx->ctx.cli.i0)
 				goto skip;
 
 			/* build messages */
@@ -644,6 +645,7 @@ static int cli_parse_show_map(char **args, char *payload, struct appctx *appctx,
 {
 	if (strcmp(args[1], "map") == 0 ||
 	    strcmp(args[1], "acl") == 0) {
+		const char *gen = NULL;
 
 		/* Set ACL or MAP flags. */
 		if (args[1][0] == 'm')
@@ -657,6 +659,15 @@ static int cli_parse_show_map(char **args, char *payload, struct appctx *appctx,
 			return 0;
 		}
 
+		/* For both "map" and "acl" we may have an optional generation
+		 * number specified using a "@" character before the pattern
+		 * file name.
+		 */
+		if (*args[2] == '@') {
+			gen = args[2] + 1;
+			args++;
+		}
+
 		/* lookup into the refs and check the map flag */
 		appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 		if (!appctx->ctx.map.ref ||
@@ -666,6 +677,13 @@ static int cli_parse_show_map(char **args, char *payload, struct appctx *appctx,
 			else
 				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
 		}
+
+		/* set the desired generation id in cli.i0 */
+		if (gen)
+			appctx->ctx.cli.i0 = str2uic(gen);
+		else
+			appctx->ctx.cli.i0 = appctx->ctx.map.ref->curr_gen;
+
 		appctx->io_handler = cli_io_handler_pat_list;
 		appctx->io_release = cli_release_show_map;
 		return 0;
@@ -976,13 +994,13 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "clear", "acl", NULL }, "clear acl <id> : clear the content of this acl", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
 	{ { "del",   "acl", NULL }, "del acl        : delete acl entry", cli_parse_del_map, NULL },
 	{ { "get",   "acl", NULL }, "get acl        : report the patterns matching a sample for an ACL", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
-	{ { "show",  "acl", NULL }, "show acl [id]  : report available acls or dump an acl's contents", cli_parse_show_map, NULL },
+	{ { "show",  "acl", NULL }, "show acl [@ver] [id] : report available acls or dump an acl's contents", cli_parse_show_map, NULL },
 	{ { "add",   "map", NULL }, "add map        : add map entry", cli_parse_add_map, NULL },
 	{ { "clear", "map", NULL }, "clear map <id> : clear the content of this map", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
 	{ { "del",   "map", NULL }, "del map        : delete map entry", cli_parse_del_map, NULL },
 	{ { "get",   "map", NULL }, "get map        : report the keys and values matching a sample for a map", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
 	{ { "set",   "map", NULL }, "set map        : modify map entry", cli_parse_set_map, NULL },
-	{ { "show",  "map", NULL }, "show map [id]  : report available maps or dump a map's contents", cli_parse_show_map, NULL },
+	{ { "show",  "map", NULL }, "show map [@ver] [id] : report available maps or dump a map's contents", cli_parse_show_map, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
