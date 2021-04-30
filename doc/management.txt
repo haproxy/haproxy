@@ -1397,22 +1397,36 @@ abort ssl cert <filename>
 
   See also "set ssl cert" and "commit ssl cert".
 
-add acl <acl> <pattern>
+add acl [@<ver>] <acl> <pattern>
   Add an entry into the acl <acl>. <acl> is the #<id> or the <file> returned by
-  "show acl". This command does not verify if the entry already exists. This
-  command cannot be used if the reference <acl> is a file also used with a map.
-  In this case, you must use the command "add map" in place of "add acl".
+  "show acl". This command does not verify if the entry already exists. Entries
+  are added to the current version of the ACL, unless a specific version is
+  specified with "@<ver>". This version number must have preliminary been
+  allocated by "prepare acl", and it will be comprised between the versions
+  reported in "curr_ver" and "next_ver" on the output of "show acl". Entries
+  added with a specific version number will not match until a "commit acl"
+  operation is performed on them. They may however be consulted using the
+  "show acl @<ver>" command, and cleared using a "clear acl @<ver>" command.
+  This command cannot be used if the reference <acl> is a file also used with
+  a map. In this case, the "add map" command must be used instead.
 
-add map <map> <key> <value>
-add map <map> <payload>
+add map [@<ver>] <map> <key> <value>
+add map [@<ver>] <map> <payload>
   Add an entry into the map <map> to associate the value <value> to the key
   <key>. This command does not verify if the entry already exists. It is
-  mainly used to fill a map after a clear operation. Note that if the reference
-  <map> is a file and is shared with a map, this map will contain also a new
-  pattern entry. Using the payload syntax it is possible to add multiple
-  key/value pairs by entering them on separate lines. On each new line, the
-  first word is the key and the rest of the line is considered to be the value
-  which can even contains spaces.
+  mainly used to fill a map after a "clear" or "prepare" operation. Entries
+  are added to the current version of the ACL, unless a specific version is
+  specified with "@<ver>". This version number must have preliminary been
+  allocated by "prepare acl", and it will be comprised between the versions
+  reported in "curr_ver" and "next_ver" on the output of "show acl". Entries
+  added with a specific version number will not match until a "commit map"
+  operation is performed on them. They may however be consulted using the
+  "show map @<ver>" command, and cleared using a "clear acl @<ver>" command.
+  If the designated map is also used as an ACL, the ACL will only match the
+  <key> part and will ignore the <value> part. Using the payload syntax it is
+  possible to add multiple key/value pairs by entering them on separate lines.
+  On each new line, the first word is the key and the rest of the line is
+  considered to be the value which can even contains spaces.
 
   Example:
 

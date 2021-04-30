@@ -796,6 +796,8 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 {
 	if (strcmp(args[1], "map") == 0 ||
 	    strcmp(args[1], "acl") == 0) {
+		const char *gen = NULL;
+		uint genid = 0;
 		int ret;
 		char *err;
 
@@ -804,6 +806,15 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 			appctx->ctx.map.display_flags = PAT_REF_MAP;
 		else
 			appctx->ctx.map.display_flags = PAT_REF_ACL;
+
+		/* For both "map" and "acl" we may have an optional generation
+		 * number specified using a "@" character before the pattern
+		 * file name.
+		 */
+		if (*args[2] == '@') {
+			gen = args[2] + 1;
+			args++;
+		}
 
 		/* If the keyword is "map", we expect:
 		 *   - three parameters if there is no payload
@@ -827,6 +838,16 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 				return cli_err(appctx, "Unknown map identifier. Please use #<id> or <file>.\n");
 			else
 				return cli_err(appctx, "Unknown ACL identifier. Please use #<id> or <file>.\n");
+		}
+
+		if (gen) {
+			genid = str2uic(gen);
+			if ((int)(genid - appctx->ctx.map.ref->next_gen) > 0) {
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+					return cli_err(appctx, "Version number in the future, please use 'prepare map' before.\n");
+				else
+					return cli_err(appctx, "Version number in the future, please use 'prepare acl' before.\n");
+			}
 		}
 
 		/* The command "add acl" is prohibited if the reference
@@ -880,7 +901,7 @@ static int cli_parse_add_map(char **args, char *payload, struct appctx *appctx, 
 				value = NULL;
 
 			HA_SPIN_LOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
-			ret = !!pat_ref_load(appctx->ctx.map.ref, appctx->ctx.map.ref->curr_gen, key, value, -1, &err);
+			ret = !!pat_ref_load(appctx->ctx.map.ref, gen ? genid : appctx->ctx.map.ref->curr_gen, key, value, -1, &err);
 			HA_SPIN_UNLOCK(PATREF_LOCK, &appctx->ctx.map.ref->lock);
 
 			if (!ret) {
@@ -1107,14 +1128,14 @@ static int cli_parse_commit_map(char **args, char *payload, struct appctx *appct
 /* register cli keywords */
 
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "add",   "acl", NULL }, "add acl        : add acl entry", cli_parse_add_map, NULL },
+	{ { "add",   "acl", NULL }, "add acl [@ver] : add acl entry", cli_parse_add_map, NULL },
 	{ { "clear", "acl", NULL }, "clear acl [@ver] <id> : clear the content of this acl", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
 	{ { "commit","acl", NULL }, "commit acl @<ver> <id> : commit the ACL at this version", cli_parse_commit_map, cli_io_handler_clear_map, NULL },
 	{ { "del",   "acl", NULL }, "del acl        : delete acl entry", cli_parse_del_map, NULL },
 	{ { "get",   "acl", NULL }, "get acl        : report the patterns matching a sample for an ACL", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
 	{ { "prepare","acl",NULL }, "prepare acl <id>: prepare a new version for atomic ACL replacement", cli_parse_prepare_map, NULL },
 	{ { "show",  "acl", NULL }, "show acl [@ver] [id] : report available acls or dump an acl's contents", cli_parse_show_map, NULL },
-	{ { "add",   "map", NULL }, "add map        : add map entry", cli_parse_add_map, NULL },
+	{ { "add",   "map", NULL }, "add map [@ver] : add map entry", cli_parse_add_map, NULL },
 	{ { "clear", "map", NULL }, "clear map [@ver] <id> : clear the content of this map", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
 	{ { "commit","map", NULL }, "commit map @<ver> <id> : commit the map at this version", cli_parse_commit_map, cli_io_handler_clear_map, NULL },
 	{ { "del",   "map", NULL }, "del map        : delete map entry", cli_parse_del_map, NULL },
