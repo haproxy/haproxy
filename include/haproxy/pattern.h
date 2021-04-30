@@ -192,7 +192,7 @@ void pat_ref_delete_by_ptr(struct pat_ref *ref, struct pat_ref_elt *elt);
 int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt);
 int pat_ref_prune(struct pat_ref *ref);
 int pat_ref_commit_elt(struct pat_ref *ref, struct pat_ref_elt *elt, char **err);
-int pat_ref_purge_older(struct pat_ref *ref, unsigned int oldest, int budget);
+int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget);
 void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace);
 
 /* Create a new generation number for next pattern updates and returns it. This
@@ -236,6 +236,20 @@ static inline int pat_ref_commit(struct pat_ref *ref, unsigned int gen)
 		ref->curr_gen = gen;
 	return gen - ref->curr_gen;
 }
+
+/* This function purges all elements from <ref> that are older than generation
+ * <oldest>. It will not purge more than <budget> entries at once, in order to
+ * remain responsive. If budget is negative, no limit is applied.
+ * The caller must already hold the PATREF_LOCK on <ref>. The function will
+ * take the PATEXP_LOCK on all expressions of the pattern as needed. It returns
+ * non-zero on completion, or zero if it had to stop before the end after
+ * <budget> was depleted.
+ */
+static inline int pat_ref_purge_older(struct pat_ref *ref, uint oldest, int budget)
+{
+	return pat_ref_purge_range(ref, oldest + 1, oldest - 1, budget);
+}
+
 
 /*
  * pattern_head manipulation.

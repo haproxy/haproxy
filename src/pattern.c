@@ -2016,15 +2016,16 @@ int pat_ref_add(struct pat_ref *ref,
 	return !!pat_ref_load(ref, ref->curr_gen, pattern, sample, -1, err);
 }
 
-/* This function purges all elements from <ref> that are older than generation
- * <oldest>. It will not purge more than <budget> entries at once, in order to
- * remain responsive. If budget is negative, no limit is applied.
+/* This function purges all elements from <ref> whose generation is included in
+ * the range of <from> to <to> (inclusive), taking wrapping into consideration.
+ * It will not purge more than <budget> entries at once, in order to remain
+ * responsive. If budget is negative, no limit is applied.
  * The caller must already hold the PATREF_LOCK on <ref>. The function will
  * take the PATEXP_LOCK on all expressions of the pattern as needed. It returns
  * non-zero on completion, or zero if it had to stop before the end after
  * <budget> was depleted.
  */
-int pat_ref_purge_older(struct pat_ref *ref, unsigned int oldest, int budget)
+int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget)
 {
 	struct pat_ref_elt *elt, *elt_bck;
 	struct bref *bref, *bref_bck;
@@ -2039,7 +2040,7 @@ int pat_ref_purge_older(struct pat_ref *ref, unsigned int oldest, int budget)
 	/* assume completion for e.g. empty lists */
 	done = 1;
 	list_for_each_entry_safe(elt, elt_bck, &ref->head, list) {
-		if ((int)(elt->gen_id - oldest) >= 0)
+		if (elt->gen_id - from > to - from)
 			continue;
 
 		if (budget >= 0 && !budget--) {
@@ -2178,8 +2179,7 @@ void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
  */
 int pat_ref_prune(struct pat_ref *ref)
 {
-	return pat_ref_purge_older(ref, ref->curr_gen + 1, 100) &&
-	       pat_ref_purge_older(ref, ref->next_gen + 1, 100);
+	return pat_ref_purge_range(ref, 0, ~0, 100);
 }
 
 /* This function looks up any existing reference <ref> in pattern_head <head>, and
