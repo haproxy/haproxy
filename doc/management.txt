@@ -1495,15 +1495,19 @@ clear counters all
   server. This has the same effect as restarting. This command is restricted
   and can only be issued on sockets configured for level "admin".
 
-clear acl <acl>
+clear acl [@<ver>] <acl>
   Remove all entries from the acl <acl>. <acl> is the #<id> or the <file>
   returned by "show acl". Note that if the reference <acl> is a file and is
-  shared with a map, this map will be also cleared.
+  shared with a map, this map will be also cleared. By default only the current
+  version of the ACL is cleared (the one being matched against). However it is
+  possible to specify another version using '@' followed by this version.
 
-clear map <map>
+clear map [@<ver>] <map>
   Remove all entries from the map <map>. <map> is the #<id> or the <file>
   returned by "show map". Note that if the reference <map> is a file and is
-  shared with a acl, this acl will be also cleared.
+  shared with a acl, this acl will be also cleared. By default only the current
+  version of the map is cleared (the one being matched against). However it is
+  possible to specify another version using '@' followed by this version.
 
 clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
   Remove entries from the stick-table <table>.
