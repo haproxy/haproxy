@@ -1128,21 +1128,21 @@ static int cli_parse_commit_map(char **args, char *payload, struct appctx *appct
 /* register cli keywords */
 
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "add",   "acl", NULL }, "add acl [@ver] : add acl entry", cli_parse_add_map, NULL },
-	{ { "clear", "acl", NULL }, "clear acl [@ver] <id> : clear the content of this acl", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
+	{ { "add",   "acl", NULL }, "add acl [@ver]         : add acl entry", cli_parse_add_map, NULL },
+	{ { "clear", "acl", NULL }, "clear acl [@ver] <id>  : clear the content of this acl", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
 	{ { "commit","acl", NULL }, "commit acl @<ver> <id> : commit the ACL at this version", cli_parse_commit_map, cli_io_handler_clear_map, NULL },
-	{ { "del",   "acl", NULL }, "del acl        : delete acl entry", cli_parse_del_map, NULL },
-	{ { "get",   "acl", NULL }, "get acl        : report the patterns matching a sample for an ACL", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
-	{ { "prepare","acl",NULL }, "prepare acl <id>: prepare a new version for atomic ACL replacement", cli_parse_prepare_map, NULL },
-	{ { "show",  "acl", NULL }, "show acl [@ver] [id] : report available acls or dump an acl's contents", cli_parse_show_map, NULL },
-	{ { "add",   "map", NULL }, "add map [@ver] : add map entry", cli_parse_add_map, NULL },
-	{ { "clear", "map", NULL }, "clear map [@ver] <id> : clear the content of this map", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
+	{ { "del",   "acl", NULL }, "del acl                : delete acl entry", cli_parse_del_map, NULL },
+	{ { "get",   "acl", NULL }, "get acl                : report the patterns matching a sample for an ACL", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
+	{ { "prepare","acl",NULL }, "prepare acl <id>       : prepare a new version for atomic ACL replacement", cli_parse_prepare_map, NULL },
+	{ { "show",  "acl", NULL }, "show acl [@ver] [id]   : report available acls or dump an acl's contents", cli_parse_show_map, NULL },
+	{ { "add",   "map", NULL }, "add map [@ver]         : add map entry", cli_parse_add_map, NULL },
+	{ { "clear", "map", NULL }, "clear map [@ver] <id>  : clear the content of this map", cli_parse_clear_map, cli_io_handler_clear_map, NULL },
 	{ { "commit","map", NULL }, "commit map @<ver> <id> : commit the map at this version", cli_parse_commit_map, cli_io_handler_clear_map, NULL },
-	{ { "del",   "map", NULL }, "del map        : delete map entry", cli_parse_del_map, NULL },
-	{ { "get",   "map", NULL }, "get map        : report the keys and values matching a sample for a map", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
-	{ { "prepare","map",NULL }, "prepare map <id>: prepare a new version for atomic map replacement", cli_parse_prepare_map, NULL },
-	{ { "set",   "map", NULL }, "set map        : modify map entry", cli_parse_set_map, NULL },
-	{ { "show",  "map", NULL }, "show map [@ver] [id] : report available maps or dump a map's contents", cli_parse_show_map, NULL },
+	{ { "del",   "map", NULL }, "del map                : delete map entry", cli_parse_del_map, NULL },
+	{ { "get",   "map", NULL }, "get map                : report the keys and values matching a sample for a map", cli_parse_get_map, cli_io_handler_map_lookup, cli_release_mlook },
+	{ { "prepare","map",NULL }, "prepare map <id>       : prepare a new version for atomic map replacement", cli_parse_prepare_map, NULL },
+	{ { "set",   "map", NULL }, "set map                : modify map entry", cli_parse_set_map, NULL },
+	{ { "show",  "map", NULL }, "show map [@ver] [id]   : report available maps or dump a map's contents", cli_parse_show_map, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
