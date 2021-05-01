@@ -1,6 +1,59 @@
 ChangeLog :
 ===========
 
+2021/05/01 : 2.4-dev18
+    - DOC: Fix indentation for `path-strip-dot` normalizer
+    - DOC: Fix RFC reference for the percent-to-uppercase normalizer
+    - DOC: Add RFC references for the path-strip-dot(dot)? normalizers
+    - MINOR: uri_normalizer: Add a `percent-decode-unreserved` normalizer
+    - BUG/MINOR: mux-fcgi: Don't send normalized uri to FCGI application
+    - REORG: htx: Inline htx functions to add HTX blocks in a message
+    - CLEANUP: assorted typo fixes in the code and comments
+    - DOC: general: fix white spaces for HTML converter
+    - BUG/MINOR: ssl: ssl_sock_prepare_ssl_ctx does not return an error code
+    - BUG/MINOR: cpuset: move include guard at the very beginning
+    - BUG/MAJOR: fix build on musl with cpu_set_t support
+    - BUG/MEDIUM: cpuset: fix build on MacOS
+    - BUG/MINOR: htx: Preserve HTX flags when draining data from an HTX message
+    - MEDIUM: htx: Refactor htx_xfer_blks() to not rely on hdrs_bytes field
+    - CLEANUP: htx: Remove unsued hdrs_bytes field from the HTX start-line
+    - BUG/MINOR: mux-h2: Don't encroach on the reserve when decoding headers
+    - MEDIUM: http-ana: handle read error on server side if waiting for response
+    - MINOR: htx: Limit length of headers name/value when a HTX message is dumped
+    - BUG/MINOR: applet: Notify the other side if data were consumed by an applet
+    - BUG/MINOR: hlua: Don't consume headers when starting an HTTP lua service
+    - BUG/MEDIUM: mux-h2: Handle EOM flag when sending a DATA frame with zero-copy
+    - CLEANUP: channel: No longer notify the producer in co_skip()/co_htx_skip()
+    - DOC: general: fix example in set-timeout
+    - CLEANUP: cfgparse: de-uglify early file error handling in readcfgfile()
+    - MINOR: config: add a new "default-path" global directive
+    - BUG/MEDIUM: peers: initialize resync timer to get an initial full resync
+    - BUG/MEDIUM: peers: register last acked value as origin receiving a resync req
+    - BUG/MEDIUM: peers: stop considering ack messages teaching a full resync
+    - BUG/MEDIUM: peers: reset starting point if peers appears longly disconnected
+    - BUG/MEDIUM: peers: reset commitupdate value in new conns
+    - BUG/MEDIUM: peers: re-work updates lookup during the sync on the fly
+    - BUG/MEDIUM: peers: reset tables stage flags stages on new conns
+    - MINOR: peers: add informative flags about resync process for debugging
+    - BUG/MEDIUM: time: fix updating of global_now upon clock drift
+    - CLEANUP: freq_ctr: make arguments of freq_ctr_total() const
+    - CLEANUP: hlua: rename hlua_appctx* appctx to luactx
+    - MINOR: server: fix doc/trace on lb algo for dynamic server creation
+    - REGTESTS: server: fix cli_add_server due to previous trace update
+    - REGTESTS: add minimal CLI "add map" tests
+    - DOC: management: move "set var" to the proper place
+    - CLEANUP: map: slightly reorder the add map function
+    - MINOR: map: get rid of map_add_key_value()
+    - MINOR: map: show the current and next pattern version in "show map"
+    - MINOR: map/acl: add the possibility to specify the version in "show map/acl"
+    - MINOR: pattern: support purging arbitrary ranges of generations
+    - MINOR: map/acl: add the possibility to specify the version in "clear map/acl"
+    - MINOR: map/acl: add the "prepare map/acl" CLI command
+    - MINOR: map/acl: add the "commit map/acl" CLI command
+    - MINOR: map/acl: make "add map/acl" support an optional version number
+    - CLEANUP: map/cli: properly align the map/acl help
+    - BUILD: compiler: do not use already defined __read_mostly on dragonfly
+
 2021/04/23 : 2.4-dev17
     - MINOIR: mux-pt/trace: Register a new trace source with its events
     - BUG/MINOR: mux-pt: Fix a possible UAF because of traces in mux_pt_io_cb
