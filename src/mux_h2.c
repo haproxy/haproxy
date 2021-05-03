@@ -955,6 +955,15 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	h2c->wait_event.tasklet->process = h2_io_cb;
 	h2c->wait_event.tasklet->context = h2c;
 	h2c->wait_event.events = 0;
+	if (!conn_is_back(conn)) {
+		/* Connection might already be in the stopping_list if subject
+		 * to h1->h2 upgrade.
+		 */
+		if (!LIST_INLIST(&conn->stopping_list)) {
+			LIST_APPEND(&mux_stopping_data[tid].list,
+			            &conn->stopping_list);
+		}
+	}
 
 	h2c->ddht = hpack_dht_alloc();
 	if (!h2c->ddht)
@@ -1097,6 +1106,9 @@ static void h2_release(struct h2c *h2c)
 	}
 
 	if (conn) {
+		if (!conn_is_back(conn))
+			LIST_DEL_INIT(&conn->stopping_list);
+
 		conn->mux = NULL;
 		conn->ctx = NULL;
 		TRACE_DEVEL("freeing conn", H2_EV_H2C_END, conn);

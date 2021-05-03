@@ -41,6 +41,8 @@ struct mux_proto_list mux_proto_list = {
         .list = LIST_HEAD_INIT(mux_proto_list.list)
 };
 
+struct mux_stopping_data mux_stopping_data[MAX_THREADS];
+
 /* disables sending of proxy-protocol-v2's LOCAL command */
 static int pp2_never_send_local;
 

@@ -816,6 +816,9 @@ static int h1_init(struct connection *conn, struct proxy *proxy, struct session 
 		h1c->shut_timeout = h1c->timeout = proxy->timeout.client;
 		if (tick_isset(proxy->timeout.clientfin))
 			h1c->shut_timeout = proxy->timeout.clientfin;
+
+		LIST_APPEND(&mux_stopping_data[tid].list,
+		            &h1c->conn->stopping_list);
 	}
 	if (tick_isset(h1c->timeout)) {
 		t = task_new(tid_bit);
@@ -936,6 +939,9 @@ static void h1_release(struct h1c *h1c)
 	}
 
 	if (conn) {
+		if (!conn_is_back(conn))
+			LIST_DEL_INIT(&conn->stopping_list);
+
 		conn->mux = NULL;
 		conn->ctx = NULL;
 		TRACE_DEVEL("freeing conn", H1_EV_H1C_END, conn);

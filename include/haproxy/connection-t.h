@@ -424,6 +424,14 @@ struct mux_ops {
 	char name[8];                                 /* mux layer name, zero-terminated */
 };
 
+/* list of frontend connections. Used to call mux wake operation on soft-stop
+ * to close idling connections.
+ */
+struct mux_stopping_data {
+	struct list list; /* list of registered frontend connections */
+	struct task *task; /* task woken up on soft-stop */
+};
+
 /* data_cb describes the data layer's recv and send callbacks which are called
  * when I/O activity was detected after the transport layer is ready. These
  * callbacks are supposed to make use of the xprt_ops above to exchange data
@@ -528,6 +536,7 @@ struct connection {
 	struct mt_list toremove_list; /* list for connection to clean up */
 	union {
 		struct list session_list;  /* used by backend conns, list of attached connections to a session */
+		struct list stopping_list; /* used by frontend conns, attach point in mux stopping list */
 	};
 	union conn_handle handle;     /* connection handle at the socket layer */
 	const struct netns_entry *proxy_netns;

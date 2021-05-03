@@ -2370,10 +2370,30 @@ __attribute__((noreturn)) void deinit_and_exit(int status)
 	exit(status);
 }
 
+/* Handler of the task of mux_stopping_data.
+ * Called on soft-stop.
+ */
+struct task *mux_stopping_process(struct task *t, void *ctx, unsigned int state)
+{
+	struct connection *conn, *back;
+
+	list_for_each_entry_safe(conn, back, &mux_stopping_data[tid].list, stopping_list) {
+		if (conn->mux && conn->mux->wake)
+			conn->mux->wake(conn);
+	}
+
+	return t;
+}
+
 /* Runs the polling loop */
 void run_poll_loop()
 {
 	int next, wake;
+
+	/* allocates the thread bound mux_stopping_data task */
+	mux_stopping_data[tid].task = task_new(tid_bit);
+	mux_stopping_data[tid].task->process = mux_stopping_process;
+	LIST_INIT(&mux_stopping_data[tid].list);
 
 	tv_update_date(0,1);
 	while (1) {
@@ -2411,6 +2431,12 @@ void run_poll_loop()
 			int i;
 
 			if (stopping) {
+				/* stop muxes before acknowleding stopping */
+				if (!(stopping_thread_mask & tid_bit)) {
+					task_wakeup(mux_stopping_data[tid].task, TASK_WOKEN_OTHER);
+					wake = 1;
+				}
+
 				if (_HA_ATOMIC_OR_FETCH(&stopping_thread_mask, tid_bit) == tid_bit) {
 					/* notify all threads that stopping was just set */
 					for (i = 0; i < global.nbthread; i++)
@@ -2438,6 +2464,8 @@ void run_poll_loop()
 
 		activity[tid].loops++;
 	}
+
+	task_destroy(mux_stopping_data[tid].task);
 }
 
 static void *run_thread_poll_loop(void *data)
