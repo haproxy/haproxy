@@ -2130,7 +2130,7 @@ __LJMP static int hlua_socket_receive(struct lua_State *L)
 {
 	int wanted = HLSR_READ_LINE;
 	const char *pattern;
-	int type;
+	int lastarg, type;
 	char *error;
 	size_t len;
 	struct hlua_socket *socket;
@@ -2175,11 +2175,16 @@ __LJMP static int hlua_socket_receive(struct lua_State *L)
 	if (lua_gettop(L) != 2)
 		lua_replace(L, 2);
 
+	/* Save index of the top of the stack because since buffers are used, it
+	 * may change
+	 */
+	lastarg = lua_gettop(L);
+
 	/* init buffer, and fill it with prefix. */
 	luaL_buffinit(L, &socket->b);
 
 	/* Check prefix. */
-	if (lua_gettop(L) >= 3) {
+	if (lastarg >= 3) {
 		if (lua_type(L, 3) != LUA_TSTRING)
 			WILL_LJMP(luaL_error(L, "Expect a 'string' for the prefix"));
 		pattern = lua_tolstring(L, 3, &len);
