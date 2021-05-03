@@ -343,6 +343,15 @@ static inline void cs_init(struct conn_stream *cs, struct connection *conn)
 	cs->conn = conn;
 }
 
+/* returns 0 if the connection is valid and is a frontend connection, otherwise
+ * returns 1 indicating it's a backend connection. And uninitialized connection
+ * also returns 1 to better handle the usage in the middle of initialization.
+ */
+static inline int conn_is_back(const struct connection *conn)
+{
+	return !objt_listener(conn->target);
+}
+
 /* Initializes all required fields for a new connection. Note that it does the
  * minimum acceptable initialization for a connection that already exists and
  * is about to be reused. It also leaves the addresses untouched, which makes
@@ -362,7 +371,8 @@ static inline void conn_init(struct connection *conn, void *target)
 	conn->destroy_cb = NULL;
 	conn->proxy_netns = NULL;
 	MT_LIST_INIT(&conn->toremove_list);
-	LIST_INIT(&conn->session_list);
+	if (conn_is_back(conn))
+		LIST_INIT(&conn->session_list);
 	conn->subs = NULL;
 	conn->src = NULL;
 	conn->dst = NULL;
@@ -438,15 +448,6 @@ static inline void sockaddr_free(struct sockaddr_storage **sap)
 		return;
 	pool_free(pool_head_sockaddr, *sap);
 	*sap = NULL;
-}
-
-/* returns 0 if the connection is valid and is a frontend connection, otherwise
- * returns 1 indicating it's a backend connection. And uninitialized connection
- * also returns 1 to better handle the usage in the middle of initialization.
- */
-static inline int conn_is_back(const struct connection *conn)
-{
-	return !objt_listener(conn->target);
 }
 
 /* Tries to allocate a new connection and initialized its main fields. The
@@ -545,7 +546,7 @@ static inline void conn_free(struct connection *conn)
 {
 	/* If the connection is owned by the session, remove it from its list
 	 */
-	if (LIST_INLIST(&conn->session_list)) {
+	if (conn_is_back(conn) && LIST_INLIST(&conn->session_list)) {
 		session_unown_conn(conn->owner, conn);
 	}
 	else if (!(conn->flags & CO_FL_PRIVATE)) {

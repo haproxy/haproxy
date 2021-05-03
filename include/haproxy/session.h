@@ -116,6 +116,8 @@ static inline void session_unown_conn(struct session *sess, struct connection *c
 {
 	struct sess_srv_list *srv_list = NULL;
 
+	BUG_ON(objt_listener(conn->target));
+
 	/* WT: this currently is a workaround for an inconsistency between
 	 * the link status of the connection in the session list and the
 	 * connection's owner. This should be removed as soon as all this
@@ -150,6 +152,8 @@ static inline int session_add_conn(struct session *sess, struct connection *conn
 {
 	struct sess_srv_list *srv_list = NULL;
 	int found = 0;
+
+	BUG_ON(objt_listener(conn->target));
 
 	/* Already attach to the session or not the connection owner */
 	if (!LIST_ISEMPTY(&conn->session_list) || (conn->owner && conn->owner != sess))

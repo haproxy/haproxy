@@ -526,7 +526,9 @@ struct connection {
 	/* second cache line */
 	struct wait_event *subs; /* Task to wake when awaited events are ready */
 	struct mt_list toremove_list; /* list for connection to clean up */
-	struct list session_list;     /* List of attached connections to a session */
+	union {
+		struct list session_list;  /* used by backend conns, list of attached connections to a session */
+	};
 	union conn_handle handle;     /* connection handle at the socket layer */
 	const struct netns_entry *proxy_netns;
 
