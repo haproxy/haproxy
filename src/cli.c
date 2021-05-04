@@ -832,6 +832,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 */
 			si_shutw(si);
 			free_trash_chunk(appctx->chunk);
+			appctx->chunk = NULL;
 			break;
 		}
 		else if (appctx->st0 == CLI_ST_GETREQ) {
@@ -1078,6 +1079,9 @@ static void cli_io_handler(struct appctx *appctx)
  */
 static void cli_release_handler(struct appctx *appctx)
 {
+	free_trash_chunk(appctx->chunk);
+	appctx->chunk = NULL;
+
 	if (appctx->io_release) {
 		appctx->io_release(appctx);
 		appctx->io_release = NULL;
