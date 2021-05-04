@@ -528,6 +528,27 @@ static int debug_parse_cli_hex(char **args, char *payload, struct appctx *appctx
 	return cli_msg(appctx, LOG_INFO, trash.area);
 }
 
+/* parse a "debug dev sym <addr>" command. It always returns 1. */
+static int debug_parse_cli_sym(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	unsigned long addr;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[3])
+		return cli_err(appctx, "Missing memory address to be resolved.\n");
+
+	_HA_ATOMIC_INC(&debug_commands_issued);
+
+	addr = strtoul(args[3], NULL, 0);
+	chunk_printf(&trash, "%#lx resolves to ", addr);
+	resolve_sym_name(&trash, NULL, (const void *)addr);
+	chunk_appendf(&trash, "\n");
+
+	return cli_msg(appctx, LOG_INFO, trash.area);
+}
+
 /* parse a "debug dev tkill" command. It always returns 1. */
 static int debug_parse_cli_tkill(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1176,6 +1197,7 @@ static struct cli_kw_list cli_kws = {{ },{
 	{{ "debug", "dev", "panic", NULL }, "debug dev panic             : immediately trigger a panic",     debug_parse_cli_panic, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "sched", NULL }, "debug dev sched ...         : stress the scheduler",            debug_parse_cli_sched, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "stream",NULL }, "debug dev stream ...        : show/manipulate stream flags",    debug_parse_cli_stream,NULL, NULL, NULL, ACCESS_EXPERT },
+	{{ "debug", "dev", "sym",   NULL }, "debug dev sym <addr>        : resolve symbol address",          debug_parse_cli_sym,   NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "tkill", NULL }, "debug dev tkill [thr] [sig] : send signal to thread",           debug_parse_cli_tkill, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "debug", "dev", "write", NULL }, "debug dev write [size]      : write that many bytes",           debug_parse_cli_write, NULL, NULL, NULL, ACCESS_EXPERT },
 	{{ "show", "threads", NULL, NULL }, "show threads   : show some threads debugging information",  NULL, cli_io_handler_show_threads, NULL },
