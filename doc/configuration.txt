@@ -13373,7 +13373,8 @@ ciphersuites <ciphersuites>
 crl-file <crlfile>
   This setting is only available when support for OpenSSL was built in. It
   designates a PEM file from which to load certificate revocation list used
-  to verify client's certificate.
+  to verify client's certificate. You need to provide a certificate revocation
+  list for every certificate of your certificate authority chain.
 
 crt <cert>
   This setting is only available when support for OpenSSL was built in. It
