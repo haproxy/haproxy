@@ -1560,8 +1560,11 @@ static int cli_parse_set_cert(char **args, char *payload, struct appctx *appctx,
 	if (HA_SPIN_TRYLOCK(CKCH_LOCK, &ckch_lock))
 		return cli_err(appctx, "Can't update the certificate!\nOperations on certificates are currently locked!\n");
 
-	if ((buf = alloc_trash_chunk()) == NULL)
-		return cli_err(appctx, "Can't allocate memory\n");
+	if ((buf = alloc_trash_chunk()) == NULL) {
+		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
+		errcode |= ERR_ALERT | ERR_FATAL;
+		goto end;
+	}
 
 	if (!chunk_strcpy(buf, args[3])) {
 		memprintf(&err, "%sCan't allocate memory\n", err ? err : "");
