@@ -259,6 +259,9 @@ static void *run_thread_poll_loop(void *data);
 /* bitfield of a few warnings to emit just once (WARN_*) */
 unsigned int warned = 0;
 
+/* set if experimental features have been used for the current process */
+static unsigned int tainted = 0;
+
 /* master CLI configuration (-S flag) */
 struct list mworker_cli_conf = LIST_HEAD_INIT(mworker_cli_conf);
 
@@ -1417,6 +1420,17 @@ static int check_if_maxsock_permitted(int maxsock)
 	return ret == 0;
 }
 
+void mark_tainted(const enum tainted_flags flag)
+{
+	HA_ATOMIC_OR(&tainted, flag);
+}
+
+unsigned int get_tainted()
+{
+	int tainted_state;
+	HA_ATOMIC_STORE(&tainted_state, tainted);
+	return tainted_state;
+}
 
 /*
  * This function initializes all the necessary variables. It only returns

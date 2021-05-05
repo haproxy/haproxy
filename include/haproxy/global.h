@@ -96,6 +96,13 @@ static inline unsigned long thread_mask(unsigned long mask)
 	return mask ? mask : all_threads_mask;
 }
 
+/* handle 'tainted' status */
+enum tainted_flags {
+	TAINTED_UNIMPLEMENTED,  // TO REMOVE once an enum value is implemented
+};
+void mark_tainted(const enum tainted_flags flag);
+unsigned int get_tainted();
+
 /* simplified way to declare static build options in a file */
 #define REGISTER_BUILD_OPTS(str) \
 	INITCALL2(STG_REGISTER, hap_register_build_opts, (str), 0)
