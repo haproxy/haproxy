@@ -2243,6 +2243,17 @@ noreuseport
   Disables the use of SO_REUSEPORT - see socket(7). It is equivalent to the
   command line argument "-dR".
 
+profiling.memory { on | off }
+  Enables ('on') or disables ('off') per-function memory profiling. This will
+  keep usage statistics of malloc/calloc/realloc/free calls anywhere in the
+  process (including libraries) which will be reported on the CLI using the
+  "show profiling" command. This is essentially meant to be used when an
+  abnormal memory usage is observed that cannot be explained by the pools and
+  other info are required. The performance hit will typically be around 1%,
+  maybe a bit more on highly threaded machines, so it is normally suitable for
+  use in production. The same may be achieved at run time on the CLI using the
+  "set profiling memory" command, please consult the management manual.
+
 profiling.tasks { auto | on | off }
   Enables ('on') or disables ('off') per-task CPU profiling. When set to 'auto'
   the profiling automatically turns on a thread when it starts to suffer from

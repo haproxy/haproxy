@@ -331,6 +331,27 @@ void report_stolen_time(uint64_t stolen)
 	update_freq_ctr_period(&activity[tid].cpust_15s, 15000, stolen);
 }
 
+#ifdef USE_MEMORY_PROFILING
+/* config parser for global "profiling.memory", accepts "on" or "off" */
+static int cfg_parse_prof_memory(char **args, int section_type, struct proxy *curpx,
+                                const struct proxy *defpx, const char *file, int line,
+                                char **err)
+{
+	if (too_many_args(1, args, err, NULL))
+		return -1;
+
+	if (strcmp(args[1], "on") == 0)
+		profiling |= HA_PROF_MEMORY;
+	else if (strcmp(args[1], "off") == 0)
+		profiling &= ~HA_PROF_MEMORY;
+	else {
+		memprintf(err, "'%s' expects either 'on' or 'off' but got '%s'.", args[0], args[1]);
+		return -1;
+	}
+	return 0;
+}
+#endif // USE_MEMORY_PROFILING
+
 /* config parser for global "profiling.tasks", accepts "on" or "off" */
 static int cfg_parse_prof_tasks(char **args, int section_type, struct proxy *curpx,
                                 const struct proxy *defpx, const char *file, int line,
@@ -802,6 +823,9 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
+#ifdef USE_MEMORY_PROFILING
+	{ CFG_GLOBAL, "profiling.memory",     cfg_parse_prof_memory     },
+#endif
 	{ CFG_GLOBAL, "profiling.tasks",      cfg_parse_prof_tasks      },
 	{ 0, NULL, NULL }
 }};
