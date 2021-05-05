@@ -20,6 +20,14 @@
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
+#if defined(DEBUG_MEM_STATS)
+/* these ones are macros in bug.h when DEBUG_MEM_STATS is set, and will
+ * prevent the new ones from being redefined.
+ */
+#undef calloc
+#undef malloc
+#undef realloc
+#endif
 
 /* bit field of profiling options. Beware, may be modified at runtime! */
 unsigned int profiling __read_mostly = HA_PROF_TASKS_AOFF;
@@ -55,6 +63,261 @@ struct memprof_stats {
 
 /* last one is for hash collisions ("others") and has no caller address */
 struct memprof_stats memprof_stats[MEMPROF_HASH_BUCKETS + 1] = { };
+
+/* used to detect recursive calls */
+static THREAD_LOCAL int in_memprof = 0;
+
+/* perform a pointer hash by scrambling its bits and retrieving the most
+ * mixed ones (topmost ones in 32-bit, middle ones in 64-bit).
+ */
+static unsigned int memprof_hash_ptr(const void *p)
+{
+	unsigned long long x = (unsigned long)p;
+
+	x = 0xcbda9653U * x;
+	if (sizeof(long) == 4)
+		x >>= 32;
+	else
+		x >>= 33 - MEMPROF_HASH_BITS / 2;
+	return x & (MEMPROF_HASH_BUCKETS - 1);
+}
+
+/* These ones are used by glibc and will be called early. They are in charge of
+ * initializing the handlers with the original functions.
+ */
+static void *memprof_malloc_initial_handler(size_t size);
+static void *memprof_calloc_initial_handler(size_t nmemb, size_t size);
+static void *memprof_realloc_initial_handler(void *ptr, size_t size);
+static void  memprof_free_initial_handler(void *ptr);
+
+/* Fallback handlers for the main alloc/free functions. They are preset to
+ * the initializer in order to save a test in the functions's critical path.
+ */
+static void *(*memprof_malloc_handler)(size_t size)               = memprof_malloc_initial_handler;
+static void *(*memprof_calloc_handler)(size_t nmemb, size_t size) = memprof_calloc_initial_handler;
+static void *(*memprof_realloc_handler)(void *ptr, size_t size)   = memprof_realloc_initial_handler;
+static void  (*memprof_free_handler)(void *ptr)                   = memprof_free_initial_handler;
+
+/* Used to force to die if it's not possible to retrieve the allocation
+ * functions. We cannot even use stdio in this case.
+ */
+static __attribute__((noreturn)) void memprof_die(const char *msg)
+{
+	DISGUISE(write(2, msg, strlen(msg)));
+	exit(1);
+}
+
+/* Resolve original allocation functions and initialize all handlers.
+ * This must be called very early at boot, before the very first malloc()
+ * call, and is not thread-safe! It's not even possible to use stdio there.
+ * Worse, we have to account for the risk of reentrance from dlsym() when
+ * it tries to prepare its error messages. Here its ahndled by in_memprof
+ * that makes allocators return NULL. dlsym() handles it gracefully. An
+ * alternate approch consists in calling aligned_alloc() from these places
+ * but that would mean not being able to intercept it later if considered
+ * useful to do so.
+ */
+static void memprof_init()
+{
+	in_memprof++;
+	memprof_malloc_handler  = get_sym_next_addr("malloc");
+	if (!memprof_malloc_handler)
+		memprof_die("FATAL: malloc() function not found.\n");
+
+	memprof_calloc_handler  = get_sym_next_addr("calloc");
+	if (!memprof_calloc_handler)
+		memprof_die("FATAL: calloc() function not found.\n");
+
+	memprof_realloc_handler = get_sym_next_addr("realloc");
+	if (!memprof_realloc_handler)
+		memprof_die("FATAL: realloc() function not found.\n");
+
+	memprof_free_handler    = get_sym_next_addr("free");
+	if (!memprof_free_handler)
+		memprof_die("FATAL: free() function not found.\n");
+	in_memprof--;
+}
+
+/* the initial handlers will initialize all regular handlers and will call the
+ * one they correspond to. A single one of these functions will typically be
+ * called, though it's unknown which one (as any might be called before main).
+ */
+static void *memprof_malloc_initial_handler(size_t size)
+{
+	if (in_memprof) {
+		/* it's likely that dlsym() needs malloc(), let's fail */
+		return NULL;
+	}
+
+	memprof_init();
+	return memprof_malloc_handler(size);
+}
+
+static void *memprof_calloc_initial_handler(size_t nmemb, size_t size)
+{
+	if (in_memprof) {
+		/* it's likely that dlsym() needs calloc(), let's fail */
+		return NULL;
+	}
+	memprof_init();
+	return memprof_calloc_handler(nmemb, size);
+}
+
+static void *memprof_realloc_initial_handler(void *ptr, size_t size)
+{
+	if (in_memprof) {
+		/* it's likely that dlsym() needs realloc(), let's fail */
+		return NULL;
+	}
+
+	memprof_init();
+	return memprof_realloc_handler(ptr, size);
+}
+
+static void  memprof_free_initial_handler(void *ptr)
+{
+	memprof_init();
+	memprof_free_handler(ptr);
+}
+
+/* Assign a bin for the memprof_stats to the return address. May perform a few
+ * attempts before finding the right one, but always succeeds (in the worst
+ * case, returns a default bin). The caller address is atomically set except
+ * for the default one which is never set.
+ */
+static struct memprof_stats *memprof_get_bin(const void *ra)
+{
+	int retries = 16; // up to 16 consecutive entries may be tested.
+	void *old;
+	unsigned int bin;
+
+	bin = memprof_hash_ptr(ra);
+	for (; memprof_stats[bin].caller != ra; bin = (bin + 1) & (MEMPROF_HASH_BUCKETS - 1)) {
+		if (!--retries) {
+			bin = MEMPROF_HASH_BUCKETS;
+			break;
+		}
+
+		old = NULL;
+		if (!memprof_stats[bin].caller &&
+		    HA_ATOMIC_CAS(&memprof_stats[bin].caller, &old, ra))
+			break;
+	}
+	return &memprof_stats[bin];
+}
+
+/* This is the new global malloc() function. It must optimize for the normal
+ * case (i.e. profiling disabled) hence the first test to permit a direct jump.
+ * It must remain simple to guarantee the lack of reentrance. stdio is not
+ * possible there even for debugging. The reported size is the really allocated
+ * one as returned by malloc_usable_size(), because this will allow it to be
+ * compared to the one before realloc() or free(). This is a GNU and jemalloc
+ * extension but other systems may also store this size in ptr[-1].
+ */
+void *malloc(size_t size)
+{
+	struct memprof_stats *bin;
+	void *ret;
+
+	if (likely(!(profiling & HA_PROF_MEMORY)))
+		return memprof_malloc_handler(size);
+
+	ret = memprof_malloc_handler(size);
+	size = malloc_usable_size(ret);
+
+	bin = memprof_get_bin(__builtin_return_address(0));
+	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
+	return ret;
+}
+
+/* This is the new global calloc() function. It must optimize for the normal
+ * case (i.e. profiling disabled) hence the first test to permit a direct jump.
+ * It must remain simple to guarantee the lack of reentrance. stdio is not
+ * possible there even for debugging. The reported size is the really allocated
+ * one as returned by malloc_usable_size(), because this will allow it to be
+ * compared to the one before realloc() or free(). This is a GNU and jemalloc
+ * extension but other systems may also store this size in ptr[-1].
+ */
+void *calloc(size_t nmemb, size_t size)
+{
+	struct memprof_stats *bin;
+	void *ret;
+
+	if (likely(!(profiling & HA_PROF_MEMORY)))
+		return memprof_calloc_handler(nmemb, size);
+
+	ret = memprof_calloc_handler(nmemb, size);
+	size = malloc_usable_size(ret);
+
+	bin = memprof_get_bin(__builtin_return_address(0));
+	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
+	return ret;
+}
+
+/* This is the new global realloc() function. It must optimize for the normal
+ * case (i.e. profiling disabled) hence the first test to permit a direct jump.
+ * It must remain simple to guarantee the lack of reentrance. stdio is not
+ * possible there even for debugging. The reported size is the really allocated
+ * one as returned by malloc_usable_size(), because this will allow it to be
+ * compared to the one before realloc() or free(). This is a GNU and jemalloc
+ * extension but other systems may also store this size in ptr[-1].
+ * Depending on the old vs new size, it's considered as an allocation or a free
+ * (or neither if the size remains the same).
+ */
+void *realloc(void *ptr, size_t size)
+{
+	struct memprof_stats *bin;
+	size_t size_before;
+	void *ret;
+
+	if (likely(!(profiling & HA_PROF_MEMORY)))
+		return memprof_realloc_handler(ptr, size);
+
+	size_before = malloc_usable_size(ptr);
+	ret = memprof_realloc_handler(ptr, size);
+	size = malloc_usable_size(ptr);
+
+	bin = memprof_get_bin(__builtin_return_address(0));
+	if (size > size_before) {
+		_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
+		_HA_ATOMIC_ADD(&bin->alloc_tot, size);
+	} else if (size < size_before) {
+		_HA_ATOMIC_ADD(&bin->free_calls, 1);
+		_HA_ATOMIC_ADD(&bin->free_tot, size_before);
+	}
+	return ret;
+}
+
+/* This is the new global free() function. It must optimize for the normal
+ * case (i.e. profiling disabled) hence the first test to permit a direct jump.
+ * It must remain simple to guarantee the lack of reentrance. stdio is not
+ * possible there even for debugging. The reported size is the really allocated
+ * one as returned by malloc_usable_size(), because this will allow it to be
+ * compared to the one before realloc() or free(). This is a GNU and jemalloc
+ * extension but other systems may also store this size in ptr[-1]. Since
+ * free() is often called on NULL pointers to collect garbage at the end of
+ * many functions or during config parsing, as a special case free(NULL)
+ * doesn't update any stats.
+ */
+void free(void *ptr)
+{
+	struct memprof_stats *bin;
+	size_t size_before;
+
+	if (likely(!(profiling & HA_PROF_MEMORY) || !ptr)) {
+		memprof_free_handler(ptr);
+		return;
+	}
+
+	size_before = malloc_usable_size(ptr);
+	memprof_free_handler(ptr);
+
+	bin = memprof_get_bin(__builtin_return_address(0));
+	_HA_ATOMIC_ADD(&bin->free_calls, 1);
+	_HA_ATOMIC_ADD(&bin->free_tot, size_before);
+}
 
 #endif // USE_MEMORY_PROFILING
 
