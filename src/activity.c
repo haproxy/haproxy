@@ -552,6 +552,40 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	return 1;
 }
 
+/* parse a "show profiling" command. It returns 1 on failure, 0 if it starts to dump. */
+static int cli_parse_show_profiling(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (strcmp(args[2], "all") == 0) {
+		appctx->ctx.cli.i0 = 0; // will cycle through 0,1,2; default
+		args++;
+	}
+	else if (strcmp(args[2], "status") == 0) {
+		appctx->ctx.cli.i0 = 4; // will visit status only
+		args++;
+	}
+	else if (strcmp(args[2], "tasks") == 0) {
+		appctx->ctx.cli.i0 = 5; // will visit tasks only
+		args++;
+	}
+	else if (strcmp(args[2], "memory") == 0) {
+		appctx->ctx.cli.i0 = 6; // will visit memory only
+		args++;
+	}
+	else if (*args[2] && !isdigit((unsigned char)*args[2]))
+		return cli_err(appctx, "Expects either 'all', 'status', 'tasks' or 'memory'.\n");
+
+	if (*args[2]) {
+		/* Second arg may set a limit to number of entries to dump; default is
+		 * not set and means no limit.
+		 */
+		appctx->ctx.cli.o0 = atoi(args[2]);
+	}
+	return 0;
+}
+
 /* This function scans all threads' run queues and collects statistics about
  * running tasks. It returns 0 if the output buffer is full and it needs to be
  * called again, otherwise non-zero.
@@ -704,7 +738,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "profiling", NULL }, "show profiling : show CPU profiling options",   NULL, cli_io_handler_show_profiling, NULL },
+	{ { "show", "profiling", NULL }, "show profiling : show CPU profiling options",   cli_parse_show_profiling, cli_io_handler_show_profiling, NULL },
 	{ { "show", "tasks", NULL },     "show tasks     : show running tasks",           NULL, cli_io_handler_show_tasks,     NULL },
 	{ { "set",  "profiling", NULL }, "set  profiling : enable/disable resource profiling", cli_parse_set_profiling,  NULL },
 	{{},}
