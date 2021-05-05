@@ -10,6 +10,7 @@
  *
  */
 
+#include <malloc.h>
 #include <haproxy/activity-t.h>
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
@@ -29,6 +30,33 @@ struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
 
 /* One struct per function pointer hash entry (256 values, 0=collision) */
 struct sched_activity sched_activity[256] __attribute__((aligned(64))) = { };
+
+
+#if USE_MEMORY_PROFILING
+/* determine the number of buckets to store stats */
+#define MEMPROF_HASH_BITS 10
+#define MEMPROF_HASH_BUCKETS (1U << MEMPROF_HASH_BITS)
+
+/* stats:
+ *   - malloc increases alloc
+ *   - free increases free (if non null)
+ *   - realloc increases either depending on the size change.
+ * when the real size is known (malloc_usable_size()), it's used in free_tot
+ * and alloc_tot, otherwise the requested size is reported in alloc_tot and
+ * zero in free_tot.
+ */
+struct memprof_stats {
+	const void *caller;
+	unsigned long long alloc_calls;
+	unsigned long long free_calls;
+	unsigned long long alloc_tot;
+	unsigned long long free_tot;
+};
+
+/* last one is for hash collisions ("others") and has no caller address */
+struct memprof_stats memprof_stats[MEMPROF_HASH_BUCKETS + 1] = { };
+
+#endif // USE_MEMORY_PROFILING
 
 /* Updates the current thread's statistics about stolen CPU time. The unit for
  * <stolen> is half-milliseconds.
@@ -68,7 +96,35 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 		return 1;
 
 	if (strcmp(args[2], "memory") == 0) {
+#ifdef USE_MEMORY_PROFILING
+		if (strcmp(args[3], "on") == 0) {
+			unsigned int old = profiling;
+			int i;
+
+			while (!_HA_ATOMIC_CAS(&profiling, &old, old | HA_PROF_MEMORY))
+				;
+
+			/* also flush current profiling stats */
+			for (i = 0; i < sizeof(memprof_stats) / sizeof(memprof_stats[0]); i++) {
+				HA_ATOMIC_STORE(&memprof_stats[i].alloc_calls, 0);
+				HA_ATOMIC_STORE(&memprof_stats[i].free_calls, 0);
+				HA_ATOMIC_STORE(&memprof_stats[i].alloc_tot, 0);
+				HA_ATOMIC_STORE(&memprof_stats[i].free_tot, 0);
+				HA_ATOMIC_STORE(&memprof_stats[i].caller, NULL);
+			}
+		}
+		else if (strcmp(args[3], "off") == 0) {
+			unsigned int old = profiling;
+
+			while (!_HA_ATOMIC_CAS(&profiling, &old, old & ~HA_PROF_MEMORY))
+				;
+		}
+		else
+			return cli_err(appctx, "Expects either 'on' or 'off'.\n");
+		return 1;
+#else
 		return cli_err(appctx, "Memory profiling not compiled in.\n");
+#endif
 	}
 
 	if (strcmp(args[2], "tasks") != 0)
