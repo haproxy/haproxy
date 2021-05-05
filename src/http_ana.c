@@ -1295,8 +1295,13 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	if (b_is_null(&req->buf) && !channel_alloc_buffer(req, &s->buffer_wait))
 		goto no_retry;
 
-	if (objt_server(s->target))
+	if (objt_server(s->target)) {
+		if (s->flags & SF_CURR_SESS) {
+			s->flags &= ~SF_CURR_SESS;
+			_HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
+		}
 		_HA_ATOMIC_INC(&__objt_server(s->target)->counters.retries);
+	}
 	_HA_ATOMIC_INC(&s->be->be_counters.retries);
 
 	/* Remove any write error from the request, and read error from the response */
