@@ -1309,14 +1309,14 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_NULL | CF_SHUTR_NOW);
 	res->analysers = 0;
 	si->flags &= ~(SI_FL_ERR | SI_FL_EXP | SI_FL_RXBLK_SHUT);
-	s->flags &= ~SF_ADDR_SET;
+	si->err_type = SI_ET_NONE;
+	s->flags &= ~(SF_ERR_MASK | SF_FINST_MASK);
 	stream_choose_redispatch(s);
 	si->exp = TICK_ETERNITY;
 	res->rex = TICK_ETERNITY;
 	res->to_forward = 0;
 	res->analyse_exp = TICK_ETERNITY;
 	res->total = 0;
-	s->flags &= ~SF_ERR_MASK;
 	si_release_endpoint(&s->si[1]);
 
 	b_reset(&req->buf);
