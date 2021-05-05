@@ -442,6 +442,22 @@ static int cmp_sched_activity(const void *a, const void *b)
 		return 0;
 }
 
+#if USE_MEMORY_PROFILING
+/* used by qsort below */
+static int cmp_memprof_stats(const void *a, const void *b)
+{
+	const struct memprof_stats *l = (const struct memprof_stats *)a;
+	const struct memprof_stats *r = (const struct memprof_stats *)b;
+
+	if (l->alloc_tot + l->free_tot > r->alloc_tot + r->free_tot)
+		return -1;
+	else if (l->alloc_tot + l->free_tot < r->alloc_tot + r->free_tot)
+		return 1;
+	else
+		return 0;
+}
+#endif // USE_MEMORY_PROFILING
+
 /* This function dumps all profiling settings. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero.
  * It dumps some parts depending on the following states:
@@ -457,6 +473,9 @@ static int cmp_sched_activity(const void *a, const void *b)
 static int cli_io_handler_show_profiling(struct appctx *appctx)
 {
 	struct sched_activity tmp_activity[256] __attribute__((aligned(64)));
+#if USE_MEMORY_PROFILING
+	struct memprof_stats tmp_memstats[MEMPROF_HASH_BUCKETS + 1];
+#endif
 	struct stream_interface *si = appctx->owner;
 	struct buffer *name_buffer = get_trash_chunk();
 	const char *str;
@@ -548,6 +567,59 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		appctx->ctx.cli.i0++; // next step
 
  skip_tasks:
+
+#if USE_MEMORY_PROFILING
+	if ((appctx->ctx.cli.i0 & 3) != 2)
+		goto skip_mem;
+
+	memcpy(tmp_memstats, memprof_stats, sizeof(tmp_memstats));
+	qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_stats);
+
+	if (!appctx->ctx.cli.i1)
+		chunk_appendf(&trash,
+		              "Alloc/Free statistics by call place:\n"
+		              "         Calls         |         Tot Bytes           |       Caller\n"
+		              "<- alloc -> <- free  ->|<-- alloc ---> <-- free ---->|\n");
+
+	max_lines = appctx->ctx.cli.o0;
+	if (!max_lines)
+		max_lines = MEMPROF_HASH_BUCKETS + 1;
+
+	for (i = appctx->ctx.cli.i1; i < max_lines; i++) {
+		struct memprof_stats *entry = &tmp_memstats[i];
+
+		appctx->ctx.cli.i1 = i;
+		if (!entry->alloc_calls && !entry->free_calls)
+			continue;
+		chunk_appendf(&trash, "%11llu %11llu %14llu %14llu| %16p ",
+			      entry->alloc_calls, entry->free_calls,
+			      entry->alloc_tot, entry->free_tot,
+			      entry->caller);
+
+		if (entry->caller)
+			resolve_sym_name(&trash, NULL, entry->caller);
+		else
+			chunk_appendf(&trash, "[other]");
+
+		chunk_appendf(&trash,"\n");
+
+		if (ci_putchk(si_ic(si), &trash) == -1) {
+			si_rx_room_blk(si);
+			return 0;
+		}
+	}
+
+	if (ci_putchk(si_ic(si), &trash) == -1) {
+		si_rx_room_blk(si);
+		return 0;
+	}
+
+	appctx->ctx.cli.i1 = 0; // reset first line to dump
+	if ((appctx->ctx.cli.i0 & 4) == 0)
+		appctx->ctx.cli.i0++; // next step
+
+ skip_mem:
+#endif // USE_MEMORY_PROFILING
 
 	return 1;
 }
