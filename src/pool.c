@@ -80,7 +80,11 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			 * we look for a shareable one or for the next position
 			 * before which we will insert a new one.
 			 */
-			if (flags & entry->flags & MEM_F_SHARED) {
+			if ((flags & entry->flags & MEM_F_SHARED)
+#ifdef DEBUG_DONT_SHARE_POOLS
+			    && strcmp(name, entry->name) == 0
+#endif
+			    ) {
 				/* we can share this one */
 				pool = entry;
 				DPRINTF(stderr, "Sharing %s with %s\n", name, pool->name);

@@ -50,14 +50,7 @@
 #define CONFIG_HAP_NO_GLOBAL_POOLS
 #endif
 
-/* Pools of very similar size are shared by default, unless macro
- * DEBUG_DONT_SHARE_POOLS is set.
- */
-#ifndef DEBUG_DONT_SHARE_POOLS
 #define MEM_F_SHARED	0x1
-#else
-#define MEM_F_SHARED	0
-#endif
 #define MEM_F_EXACT	0x2
 
 /* By default, free objects are linked by a pointer stored at the beginning of
