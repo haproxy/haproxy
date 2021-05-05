@@ -2769,6 +2769,15 @@ static int h1_process(struct h1c * h1c)
 	if (!b_data(&h1c->ibuf))
 		h1_release_buf(h1c, &h1c->ibuf);
 
+	/* Check if a soft-stop is in progress.
+	 * Release idling front connection if this is the case.
+	 */
+	if (!(h1c->flags & H1C_F_IS_BACK)) {
+		if (unlikely(h1c->px->disabled)) {
+			if (h1c->flags & H1C_F_WAIT_NEXT_REQ)
+				goto release;
+		}
+	}
 
 	if ((h1c->flags & H1C_F_WANT_SPLICE) && !h1s_data_pending(h1s)) {
 		TRACE_DEVEL("xprt rcv_buf blocked (want_splice), notify h1s for recv", H1_EV_H1C_RECV, h1c->conn);
