@@ -32,6 +32,8 @@
 #define HA_PROF_TASKS_ON    0x00000003     /* per-task CPU profiling forced enabled */
 #define HA_PROF_TASKS_MASK  0x00000003     /* per-task CPU profiling mask */
 
+#define HA_PROF_MEMORY      0x00000004     /* memory profiling */
+
 /* per-thread activity reports. It's important that it's aligned on cache lines
  * because some elements will be updated very often. Most counters are OK on
  * 32-bit since this will be used during debugging sessions for troubleshooting

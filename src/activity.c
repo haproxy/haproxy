@@ -67,8 +67,12 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
+	if (strcmp(args[2], "memory") == 0) {
+		return cli_err(appctx, "Memory profiling not compiled in.\n");
+	}
+
 	if (strcmp(args[2], "tasks") != 0)
-		return cli_err(appctx, "Expects 'tasks'.\n");
+		return cli_err(appctx, "Expects etiher 'tasks' or 'memory'.\n");
 
 	if (strcmp(args[3], "on") == 0) {
 		unsigned int old = profiling;
@@ -146,8 +150,9 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity);
 
 	chunk_printf(&trash,
-	             "Per-task CPU profiling              : %s      # set profiling tasks {on|auto|off}\n",
-	             str);
+	             "Per-task CPU profiling              : %-8s      # set profiling tasks {on|auto|off}\n"
+	             "Memory usage profiling              : %-8s      # set profiling memory {on|off}\n",
+	             str, (profiling & HA_PROF_MEMORY) ? "on" : "off");
 
 	chunk_appendf(&trash, "Tasks activity:\n"
 		      "  function                      calls   cpu_tot   cpu_avg   lat_tot   lat_avg\n");
@@ -336,7 +341,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "show", "profiling", NULL }, "show profiling : show CPU profiling options",   NULL, cli_io_handler_show_profiling, NULL },
 	{ { "show", "tasks", NULL },     "show tasks     : show running tasks",           NULL, cli_io_handler_show_tasks,     NULL },
-	{ { "set",  "profiling", NULL }, "set  profiling : enable/disable CPU profiling", cli_parse_set_profiling,  NULL },
+	{ { "set",  "profiling", NULL }, "set  profiling : enable/disable resource profiling", cli_parse_set_profiling,  NULL },
 	{{},}
 }};
 
