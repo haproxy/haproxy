@@ -444,6 +444,15 @@ static int cmp_sched_activity(const void *a, const void *b)
 
 /* This function dumps all profiling settings. It returns 0 if the output
  * buffer is full and it needs to be called again, otherwise non-zero.
+ * It dumps some parts depending on the following states:
+ *    ctx.cli.i0:
+ *       0, 4: dump status, then jump to 1 if 0
+ *       1, 5: dump tasks, then jump to 2 if 1
+ *       2, 6: dump memory, then stop
+ *    ctx.cli.i1:
+ *       restart line for each step (starts at zero)
+ *    ctx.cli.o0:
+ *       may contain a configured max line count for each step (0=not set)
  */
 static int cli_io_handler_show_profiling(struct appctx *appctx)
 {
@@ -451,6 +460,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	struct stream_interface *si = appctx->owner;
 	struct buffer *name_buffer = get_trash_chunk();
 	const char *str;
+	int max_lines;
 	int i, max;
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
@@ -465,18 +475,41 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	default:                 str="off"; break;
 	}
 
-	memcpy(tmp_activity, sched_activity, sizeof(tmp_activity));
-	qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity);
+	if ((appctx->ctx.cli.i0 & 3) != 0)
+		goto skip_status;
 
 	chunk_printf(&trash,
 	             "Per-task CPU profiling              : %-8s      # set profiling tasks {on|auto|off}\n"
 	             "Memory usage profiling              : %-8s      # set profiling memory {on|off}\n",
 	             str, (profiling & HA_PROF_MEMORY) ? "on" : "off");
 
-	chunk_appendf(&trash, "Tasks activity:\n"
-		      "  function                      calls   cpu_tot   cpu_avg   lat_tot   lat_avg\n");
+	if (ci_putchk(si_ic(si), &trash) == -1) {
+		/* failed, try again */
+		si_rx_room_blk(si);
+		return 0;
+	}
 
-	for (i = 0; i < 256 && tmp_activity[i].calls; i++) {
+	appctx->ctx.cli.i1 = 0; // reset first line to dump
+	if ((appctx->ctx.cli.i0 & 4) == 0)
+		appctx->ctx.cli.i0++; // next step
+
+ skip_status:
+	if ((appctx->ctx.cli.i0 & 3) != 1)
+		goto skip_tasks;
+
+	memcpy(tmp_activity, sched_activity, sizeof(tmp_activity));
+	qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity);
+
+	if (!appctx->ctx.cli.i1)
+		chunk_appendf(&trash, "Tasks activity:\n"
+		                      "  function                      calls   cpu_tot   cpu_avg   lat_tot   lat_avg\n");
+
+	max_lines = appctx->ctx.cli.o0;
+	if (!max_lines)
+		max_lines = 256;
+
+	for (i = appctx->ctx.cli.i1; i < max_lines && tmp_activity[i].calls; i++) {
+		appctx->ctx.cli.i1 = i;
 		chunk_reset(name_buffer);
 
 		if (!tmp_activity[i].func)
@@ -496,6 +529,12 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		print_time_short(&trash, "   ", tmp_activity[i].cpu_time / tmp_activity[i].calls, "");
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time, "");
 		print_time_short(&trash, "   ", tmp_activity[i].lat_time / tmp_activity[i].calls, "\n");
+
+		if (ci_putchk(si_ic(si), &trash) == -1) {
+			/* failed, try again */
+			si_rx_room_blk(si);
+			return 0;
+		}
 	}
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
@@ -503,6 +542,13 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		si_rx_room_blk(si);
 		return 0;
 	}
+
+	appctx->ctx.cli.i1 = 0; // reset first line to dump
+	if ((appctx->ctx.cli.i0 & 4) == 0)
+		appctx->ctx.cli.i0++; // next step
+
+ skip_tasks:
+
 	return 1;
 }
 
