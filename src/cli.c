@@ -739,6 +739,11 @@ static int cli_parse_request(struct appctx *appctx)
 		return 0;
 	}
 
+	if (kw->level == ACCESS_EXPERT)
+		mark_tainted(TAINTED_CLI_EXPERT_MODE);
+	else if (kw->level == ACCESS_EXPERIMENTAL)
+		mark_tainted(TAINTED_CLI_EXPERIMENTAL_MODE);
+
 	appctx->io_handler = kw->io_handler;
 	appctx->io_release = kw->io_release;
 

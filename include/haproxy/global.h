@@ -100,6 +100,8 @@ static inline unsigned long thread_mask(unsigned long mask)
 enum tainted_flags {
 	TAINTED_CONFIG_EXP_KW_DECLARED = 0x1,
 	TAINTED_ACTION_EXP_EXECUTED    = 0x2,
+	TAINTED_CLI_EXPERT_MODE        = 0x4,
+	TAINTED_CLI_EXPERIMENTAL_MODE  = 0x8,
 };
 void mark_tainted(const enum tainted_flags flag);
 unsigned int get_tainted();
