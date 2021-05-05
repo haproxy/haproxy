@@ -4740,7 +4740,50 @@ static int dladdr_and_size(const void *addr, Dl_info *dli, size_t *size)
 #endif
 	return ret;
 }
+
+/* Tries to retrieve the address of the first occurrence symbol <name>.
+ * Note that NULL in return is not always an error as a symbol may have that
+ * address in special situations.
+ */
+void *get_sym_curr_addr(const char *name)
+{
+	void *ptr = NULL;
+
+#ifdef RTLD_DEFAULT
+	ptr = dlsym(RTLD_DEFAULT, name);
 #endif
+	return ptr;
+}
+
+
+/* Tries to retrieve the address of the next occurrence of symbol <name>
+ * Note that NULL in return is not always an error as a symbol may have that
+ * address in special situations.
+ */
+void *get_sym_next_addr(const char *name)
+{
+	void *ptr = NULL;
+
+#ifdef RTLD_NEXT
+	ptr = dlsym(RTLD_NEXT, name);
+#endif
+	return ptr;
+}
+
+#else /* elf & linux & dl */
+
+/* no possible resolving on other platforms at the moment */
+void *get_sym_curr_addr(const char *name)
+{
+	return NULL;
+}
+
+void *get_sym_next_addr(const char *name)
+{
+	return NULL;
+}
+
+#endif /* elf & linux & dl */
 
 /* Tries to append to buffer <buf> some indications about the symbol at address
  * <addr> using the following form:

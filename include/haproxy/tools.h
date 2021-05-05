@@ -1003,6 +1003,8 @@ void dump_hex(struct buffer *out, const char *pfx, const void *buf, int len, int
 int may_access(const void *ptr);
 const void *resolve_sym_name(struct buffer *buf, const char *pfx, const void *addr);
 const char *get_exec_path();
+void *get_sym_curr_addr(const char *name);
+void *get_sym_next_addr(const char *name);
 
 /* Note that this may result in opening libgcc() on first call, so it may need
  * to have been called once before chrooting.
