@@ -37,6 +37,7 @@
 #include <haproxy/acl.h>
 #include <haproxy/action.h>
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/auth.h>
 #include <haproxy/backend.h>
 #include <haproxy/capture.h>
@@ -131,6 +132,22 @@ enum nested_cond_state {
 
 /* 100 levels of nested conditions should already be sufficient */
 #define MAXNESTEDCONDS 100
+
+/* supported conditional predicates for .if/.elif */
+enum cond_predicate {
+	CFG_PRED_NONE,            // none
+};
+
+struct cond_pred_kw {
+	const char *word;         // NULL marks the end of the list
+	enum cond_predicate prd;  // one of the CFG_PRED_* above
+	uint64_t arg_mask;        // mask of supported arguments (strings only)
+};
+
+/* supported condition predicates */
+const struct cond_pred_kw cond_predicates[] = {
+	{ NULL, CFG_PRED_NONE, 0 }
+};
 
 /*
  * converts <str> to a list of listeners which are dynamically allocated.
@@ -1634,6 +1651,24 @@ static int cfg_parse_global_def_path(char **args, int section_type, struct proxy
 	return ret;
 }
 
+/* looks up a cond predicate matching the keyword in <str>, possibly followed
+ * by a parenthesis. Returns a pointer to it or NULL if not found.
+ */
+static const struct cond_pred_kw *cfg_lookup_cond_pred(const char *str)
+{
+	const struct cond_pred_kw *ret;
+	int len = strcspn(str, " (");
+
+	for (ret = &cond_predicates[0]; ret->word; ret++) {
+		if (len != strlen(ret->word))
+			continue;
+		if (strncmp(str, ret->word, len) != 0)
+			continue;
+		return ret;
+	}
+	return NULL;
+}
+
 /* evaluate a condition on a .if/.elif line. The condition is already tokenized
  * in <err>. Returns -1 on error (in which case err is filled with a message,
  * and only in this case), 0 if the condition is false, 1 if it's true. If
@@ -1641,6 +1676,12 @@ static int cfg_parse_global_def_path(char **args, int section_type, struct proxy
  */
 static int cfg_eval_condition(char **args, char **err, const char **errptr)
 {
+	const struct cond_pred_kw *cond_pred = NULL;
+	const char *end_ptr;
+	struct arg *argp = NULL;
+	int err_arg;
+	int nbargs;
+	int ret = -1;
 	char *end;
 	long val;
 
@@ -1651,10 +1692,44 @@ static int cfg_eval_condition(char **args, char **err, const char **errptr)
 	if (end && *end == '\0')
 		return val != 0;
 
+	/* below we'll likely all make_arg_list() so we must return only via
+	 * the <done> label which frees the arg list.
+	 */
+	cond_pred = cfg_lookup_cond_pred(args[0]);
+	if (cond_pred) {
+		nbargs = make_arg_list(args[0] + strlen(cond_pred->word), -1,
+		                       cond_pred->arg_mask, &argp, err,
+		                       &end_ptr, &err_arg, NULL);
+
+		if (nbargs < 0) {
+			memprintf(err, "%s in argument %d of predicate '%s' used in conditional expression", *err, err_arg, cond_pred->word);
+			if (errptr)
+				*errptr = end_ptr;
+			goto done;
+		}
+
+		/* here we know we have a valid predicate with <nbargs> valid
+		 * arguments, placed in <argp> (which we'll need to free).
+		 */
+		switch (cond_pred->prd) {
+		default:
+			memprintf(err, "internal error: unhandled conditional expression predicate '%s'", cond_pred->word);
+			if (errptr)
+				*errptr = args[0];
+			goto done;
+		}
+	}
+
 	memprintf(err, "unparsable conditional expression '%s'", args[0]);
 	if (errptr)
 		*errptr = args[0];
-	return -1;
+ done:
+	for (nbargs = 0; argp && argp[nbargs].type != ARGT_STOP; nbargs++) {
+		if (argp[nbargs].type == ARGT_STR)
+			free(argp[nbargs].data.str.area);
+	}
+	free(argp);
+	return ret;
 }
 
 /*
