@@ -2449,7 +2449,7 @@ static struct action_kw_list http_req_actions = {
 		{ "deny",             parse_http_deny,                 0 },
 		{ "disable-l7-retry", parse_http_req_disable_l7_retry, 0 },
 		{ "early-hint",       parse_http_set_header,           0 },
-		{ "normalize-uri",    parse_http_normalize_uri,        0 },
+		{ "normalize-uri",    parse_http_normalize_uri,        KWF_EXPERIMENTAL },
 		{ "redirect",         parse_http_redirect,             0 },
 		{ "reject",           parse_http_action_reject,        0 },
 		{ "replace-header",   parse_http_replace_header,       0 },

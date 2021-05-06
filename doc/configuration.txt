@@ -6174,9 +6174,10 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
   Performs normalization of the request's URI.
 
   URI normalization in HAProxy 2.4 is currently available as an experimental
-  technical preview. You should be prepared that the behavior of normalizers
-  might change to fix possible issues, possibly breaking proper request
-  processing in your infrastructure.
+  technical preview. As such, it requires the global directive
+  'expose-experimental-directives' first to be able to invoke it. You should be
+  prepared that the behavior of normalizers might change to fix possible
+  issues, possibly breaking proper request processing in your infrastructure.
 
   Each normalizer handles a single type of normalization to allow for a
   fine-grained selection of the level of normalization that is appropriate for

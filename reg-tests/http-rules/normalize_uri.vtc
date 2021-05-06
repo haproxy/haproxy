@@ -11,6 +11,9 @@ server s1 {
 } -repeat 63 -start
 
 haproxy h1 -conf {
+    global
+        expose-experimental-directives
+
     defaults
         mode http
         timeout connect 1s
