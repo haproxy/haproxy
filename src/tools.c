@@ -5300,14 +5300,14 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 			 */
 			char *var_name;
 			char save_char;
-			char *value;
+			const char *value;
 
 			in++;
 
 			if (*in == '{')
 				brace = in++;
 
-			if (!isalpha((unsigned char)*in) && *in != '_') {
+			if (!isalpha((unsigned char)*in) && *in != '_' && *in != '.') {
 				/* unacceptable character in variable name */
 				err |= PARSE_ERR_VARNAME;
 				if (errptr)
@@ -5316,12 +5316,31 @@ uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbarg
 			}
 
 			var_name = in;
+			if (*in == '.')
+				in++;
 			while (isalnum((unsigned char)*in) || *in == '_')
 				in++;
 
 			save_char = *in;
 			*in = '\0';
-			value = getenv(var_name);
+			if (unlikely(*var_name == '.')) {
+				/* internal pseudo-variables */
+				if (strcmp(var_name, ".LINE") == 0)
+					value = ultoa(global.cfg_curr_line);
+				else if (strcmp(var_name, ".FILE") == 0)
+					value = global.cfg_curr_file;
+				else if (strcmp(var_name, ".SECTION") == 0)
+					value = global.cfg_curr_section;
+				else {
+					/* unsupported internal variable name */
+					err |= PARSE_ERR_VARNAME;
+					if (errptr)
+						*errptr = var_name;
+					goto leave;
+				}
+			} else {
+				value = getenv(var_name);
+			}
 			*in = save_char;
 
 			/* support for '[*]' sequence to force word expansion,

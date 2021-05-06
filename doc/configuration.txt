@@ -746,6 +746,29 @@ file, or could be inherited by a program (See 3.7. Programs):
 * HAPROXY_MASTER_CLI: In master-worker mode, listeners addresses of the master
   CLI, separated by semicolons.
 
+In addition, some pseudo-variables are internally resolved and may be used as
+regular variables. Pseudo-variables always start with a dot ('.'), and are the
+only ones where the dot is permitted. The current list of pseudo-variables is:
+
+* .FILE: the name of the configuration file currently being parsed.
+
+* .LINE: the line number of the configuration file currently being parsed,
+  starting at one.
+
+* .SECTION: the name of the section currently being parsed, or its type if the
+  section doesn't have a name (e.g. "global"), or an empty string before the
+  first section.
+
+These variables are resolved at the location where they are parsed. For example
+if a ".LINE" variable is used in a "log-format" directive located in a defaults
+section, its line number will be resolved before parsing and compiling the
+"log-format" directive, so this same line number will be reused by subsequent
+proxies.
+
+This way it is possible to emit information to help locate a rule in variables,
+logs, error statuses, health checks, header values, or even to use line numbers
+to name some config objects like servers for example.
+
 See also "external-check command" for other variables.
 
 
