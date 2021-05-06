@@ -148,6 +148,12 @@ DECLARE_INIT_STAGES;
  */
 empty_t __read_mostly_align HA_SECTION("read_mostly") ALIGNED(64);
 
+#ifdef BUILD_FEATURES
+const char *build_features = BUILD_FEATURES;
+#else
+const char *build_features = "";
+#endif
+
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */

@@ -27,6 +27,7 @@
 #include <haproxy/mworker-t.h>
 #include <haproxy/vars-t.h>
 
+extern const char *build_features;
 extern struct global global;
 extern int  pid;                /* current process id */
 extern int  relative_pid;       /* process id starting at 1 */
