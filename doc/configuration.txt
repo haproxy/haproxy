@@ -807,9 +807,20 @@ The conditions are currently limited to:
   - an empty string, always returns "false"
   - the integer zero ('0'), always returns "false"
   - a non-nul integer (e.g. '1'), always returns "true".
+  - a predicate optionally followed by argument(s) in parenthesis.
 
-Other patterns are not supported yet but the purpose is to bring a few
-functions to test for certain build options and supported features.
+The list of currently supported predicates is the following:
+
+  - defined(<name>)       : returns true if an environment variable <name>
+                            exists, regardless of its contents
+
+Example:
+
+   .if defined(HAPROXY_MWORKER)
+       listen mwcli_px
+          bind :1111
+          ...
+   .endif
 
 Three other directives are provided to report some status:
 

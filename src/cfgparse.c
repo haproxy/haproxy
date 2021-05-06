@@ -136,6 +136,7 @@ enum nested_cond_state {
 /* supported conditional predicates for .if/.elif */
 enum cond_predicate {
 	CFG_PRED_NONE,            // none
+	CFG_PRED_DEFINED,         // "defined"
 };
 
 struct cond_pred_kw {
@@ -146,6 +147,7 @@ struct cond_pred_kw {
 
 /* supported condition predicates */
 const struct cond_pred_kw cond_predicates[] = {
+	{ "defined",          CFG_PRED_DEFINED,         ARG1(1, STR)         },
 	{ NULL, CFG_PRED_NONE, 0 }
 };
 
@@ -1712,6 +1714,10 @@ static int cfg_eval_condition(char **args, char **err, const char **errptr)
 		 * arguments, placed in <argp> (which we'll need to free).
 		 */
 		switch (cond_pred->prd) {
+		case CFG_PRED_DEFINED:  // checks if arg exists as an environment variable
+			ret = getenv(argp[0].data.str.area) != NULL;
+			goto done;
+
 		default:
 			memprintf(err, "internal error: unhandled conditional expression predicate '%s'", cond_pred->word);
 			if (errptr)
