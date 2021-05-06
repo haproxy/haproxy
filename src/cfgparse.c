@@ -1636,9 +1636,10 @@ static int cfg_parse_global_def_path(char **args, int section_type, struct proxy
 
 /* evaluate a condition on a .if/.elif line. The condition is already tokenized
  * in <err>. Returns -1 on error (in which case err is filled with a message,
- * and only in this case), 0 if the condition is false, 1 if it's true.
+ * and only in this case), 0 if the condition is false, 1 if it's true. If
+ * <errptr> is not NULL, it's set to the first invalid character on error.
  */
-static int cfg_eval_condition(char **args, char **err)
+static int cfg_eval_condition(char **args, char **err, const char **errptr)
 {
 	char *end;
 	long val;
@@ -1650,7 +1651,9 @@ static int cfg_eval_condition(char **args, char **err)
 	if (end && *end == '\0')
 		return val != 0;
 
-	memprintf(err, "unparsable conditional expression '%s'.\n", args[0]);
+	memprintf(err, "unparsable conditional expression '%s'", args[0]);
+	if (errptr)
+		*errptr = args[0];
 	return -1;
 }
 
@@ -1871,6 +1874,7 @@ next_line:
 		/* check for config macros */
 		if (*args[0] == '.') {
 			if (strcmp(args[0], ".if") == 0) {
+				const char *errptr = NULL;
 				char *errmsg = NULL;
 				int cond;
 
@@ -1891,9 +1895,14 @@ next_line:
 					goto next_line;
 				}
 
-				cond = cfg_eval_condition(args + 1, &errmsg);
+				cond = cfg_eval_condition(args + 1, &errmsg, &errptr);
 				if (cond < 0) {
-					ha_alert("parsing [%s:%d]: %s in '.if'\n", file, linenum, errmsg);
+					size_t newpos = sanitize_for_printing(args[1], errptr - args[1], 76);
+
+					ha_alert("parsing [%s:%d]: %s in '.if' at position %d:\n  .if %s\n  %*s\n",
+						 file, linenum, errmsg,
+					         (int)(errptr-args[1]+1), args[1], (int)(newpos+5), "^");
+
 					free(errmsg);
 					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 					goto err;
@@ -1907,6 +1916,7 @@ next_line:
 				goto next_line;
 			}
 			else if (strcmp(args[0], ".elif") == 0) {
+				const char *errptr = NULL;
 				char *errmsg = NULL;
 				int cond;
 
@@ -1931,9 +1941,14 @@ next_line:
 					goto next_line;
 				}
 
-				cond = cfg_eval_condition(args + 1, &errmsg);
+				cond = cfg_eval_condition(args + 1, &errmsg, &errptr);
 				if (cond < 0) {
-					ha_alert("parsing [%s:%d]: %s in '.elif'\n", file, linenum, errmsg);
+					size_t newpos = sanitize_for_printing(args[1], errptr - args[1], 74);
+
+					ha_alert("parsing [%s:%d]: %s in '.elif' at position %d:\n  .elif %s\n  %*s\n",
+						 file, linenum, errmsg,
+					         (int)(errptr-args[1]+1), args[1], (int)(newpos+7), "^");
+
 					free(errmsg);
 					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 					goto err;
