@@ -1865,7 +1865,7 @@ next_line:
 				} else if (!*args[1] || *args[1] == '0') {
 					/* empty = false */
 					nested_conds[nested_cond_lvl] = NESTED_COND_IF_DROP;
-				} else if (atoi(args[1]) > 0) {
+				} else if (atoi(args[1]) != 0) {
 					/* true */
 					nested_conds[nested_cond_lvl] = NESTED_COND_IF_TAKE;
 				} else {
@@ -1897,7 +1897,7 @@ next_line:
 				} else if (!*args[1] || *args[1] == '0') {
 					/* empty = false */
 					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_DROP;
-				} else if (atoi(args[1]) > 0) {
+				} else if (atoi(args[1]) != 0) {
 					/* true */
 					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_TAKE;
 				} else {
