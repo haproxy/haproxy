@@ -1634,6 +1634,25 @@ static int cfg_parse_global_def_path(char **args, int section_type, struct proxy
 	return ret;
 }
 
+/* evaluate a condition on a .if/.elif line. The condition is already tokenized
+ * in <err>. Returns -1 on error (in which case err is filled with a message,
+ * and only in this case), 0 if the condition is false, 1 if it's true.
+ */
+static int cfg_eval_condition(char **args, char **err)
+{
+	char *end;
+	long val;
+
+	if (!*args[0]) /* note: empty = false */
+		return 0;
+
+	val = strtol(args[0], &end, 0);
+	if (end && *end == '\0')
+		return val != 0;
+
+	memprintf(err, "unparsable conditional expression '%s'.\n", args[0]);
+	return -1;
+}
 
 /*
  * This function reads and parses the configuration file given in the argument.
@@ -1848,6 +1867,9 @@ next_line:
 		/* check for config macros */
 		if (*args[0] == '.') {
 			if (strcmp(args[0], ".if") == 0) {
+				char *errmsg = NULL;
+				int cond;
+
 				nested_cond_lvl++;
 				if (nested_cond_lvl >= MAXNESTEDCONDS) {
 					ha_alert("parsing [%s:%d]: too many nested '.if', max is %d.\n", file, linenum, MAXNESTEDCONDS);
@@ -1862,20 +1884,28 @@ next_line:
 				     nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELIF_SKIP ||
 				     nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELSE_DROP)) {
 					nested_conds[nested_cond_lvl] = NESTED_COND_IF_SKIP;
-				} else if (!*args[1] || *args[1] == '0') {
-					/* empty = false */
-					nested_conds[nested_cond_lvl] = NESTED_COND_IF_DROP;
-				} else if (atoi(args[1]) != 0) {
-					/* true */
-					nested_conds[nested_cond_lvl] = NESTED_COND_IF_TAKE;
-				} else {
-					ha_alert("parsing [%s:%d]: unparsable conditional expression '%s'.\n", file, linenum, args[1]);
+					goto next_line;
+				}
+
+				cond = cfg_eval_condition(args + 1, &errmsg);
+				if (cond < 0) {
+					ha_alert("parsing [%s:%d]: %s in '.if'\n", file, linenum, errmsg);
+					free(errmsg);
 					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 					goto err;
 				}
+
+				if (cond)
+					nested_conds[nested_cond_lvl] = NESTED_COND_IF_TAKE;
+				else
+					nested_conds[nested_cond_lvl] = NESTED_COND_IF_DROP;
+
 				goto next_line;
 			}
 			else if (strcmp(args[0], ".elif") == 0) {
+				char *errmsg = NULL;
+				int cond;
+
 				if (!nested_cond_lvl) {
 					ha_alert("parsing [%s:%d]: lone '.elif' with no matching '.if'.\n", file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
@@ -1894,17 +1924,22 @@ next_line:
 				    nested_conds[nested_cond_lvl] == NESTED_COND_ELIF_TAKE ||
 				    nested_conds[nested_cond_lvl] == NESTED_COND_ELIF_SKIP) {
 					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_SKIP;
-				} else if (!*args[1] || *args[1] == '0') {
-					/* empty = false */
-					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_DROP;
-				} else if (atoi(args[1]) != 0) {
-					/* true */
-					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_TAKE;
-				} else {
-					ha_alert("parsing [%s:%d]: unparsable conditional expression '%s'.\n", file, linenum, args[1]);
+					goto next_line;
+				}
+
+				cond = cfg_eval_condition(args + 1, &errmsg);
+				if (cond < 0) {
+					ha_alert("parsing [%s:%d]: %s in '.elif'\n", file, linenum, errmsg);
+					free(errmsg);
 					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 					goto err;
 				}
+
+				if (cond)
+					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_TAKE;
+				else
+					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_DROP;
+
 				goto next_line;
 			}
 			else if (strcmp(args[0], ".else") == 0) {
