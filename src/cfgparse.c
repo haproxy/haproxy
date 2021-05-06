@@ -1891,6 +1891,7 @@ next_line:
 
 				if (nested_conds[nested_cond_lvl] == NESTED_COND_IF_TAKE ||
 				    nested_conds[nested_cond_lvl] == NESTED_COND_IF_SKIP ||
+				    nested_conds[nested_cond_lvl] == NESTED_COND_ELIF_TAKE ||
 				    nested_conds[nested_cond_lvl] == NESTED_COND_ELIF_SKIP) {
 					nested_conds[nested_cond_lvl] = NESTED_COND_ELIF_SKIP;
 				} else if (!*args[1] || *args[1] == '0') {
