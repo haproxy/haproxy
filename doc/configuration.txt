@@ -969,6 +969,7 @@ The following keywords are supported in the "global" section :
    - deviceatlas-log-level
    - deviceatlas-separator
    - deviceatlas-properties-cookie
+   - expose-experimental-directives
    - external-check
    - gid
    - group
@@ -1273,6 +1274,10 @@ deviceatlas-properties-cookie <name>
   Sets the client cookie's name used for the detection if the DeviceAtlas
   Client-side component was used during the request. This directive is optional
   and set to DAPROPS by default if not set.
+
+expose-experimental-directives
+  This statement must appear before using directives tagged as experimental or
+  the config file will be rejected.
 
 external-check
   Allows the use of an external agent to perform health checks. This is

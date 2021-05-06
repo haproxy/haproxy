@@ -70,6 +70,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		alertif_too_many_args(0, file, linenum, args, &err_code);
 		goto out;
 	}
+	else if (strcmp(args[0], "expose-experimental-directives") == 0) {
+		experimental_directives_allowed = 1;
+	}
 	else if (strcmp(args[0], "daemon") == 0) {
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
@@ -1306,6 +1309,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				if (kwl->kw[index].section != CFG_GLOBAL)
 					continue;
 				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
+					if (check_kw_experimental(&kwl->kw[index], file, linenum, &errmsg)) {
+						ha_alert(errmsg);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+
 					rc = kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, file, linenum, &errmsg);
 					if (rc < 0) {
 						ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);

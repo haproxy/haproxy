@@ -43,7 +43,7 @@ enum kw_mod {
 };
 
 enum cfg_keyword_flags {
-	KWF_UNIMPLEMENTED,  // TO REMOVE once an enum value is implemented
+	KWF_EXPERIMENTAL = 0x1,
 };
 
 struct cfg_keyword {

@@ -262,6 +262,23 @@ unsigned int warned = 0;
 /* set if experimental features have been used for the current process */
 static unsigned int tainted = 0;
 
+unsigned int experimental_directives_allowed = 0;
+
+int check_kw_experimental(struct cfg_keyword *kw, const char *file, int linenum,
+                          char **errmsg)
+{
+	if (kw->flags & KWF_EXPERIMENTAL) {
+		if (!experimental_directives_allowed) {
+			memprintf(errmsg, "parsing [%s:%d] : '%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'\n",
+			          file, linenum, kw->kw);
+			return 1;
+		}
+		mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+	}
+
+	return 0;
+}
+
 /* master CLI configuration (-S flag) */
 struct list mworker_cli_conf = LIST_HEAD_INIT(mworker_cli_conf);
 

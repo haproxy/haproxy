@@ -3040,6 +3040,12 @@ stats_error_parsing:
 				if (kwl->kw[index].section != CFG_LISTEN)
 					continue;
 				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
+					if (check_kw_experimental(&kwl->kw[index], file, linenum, &errmsg)) {
+						ha_alert(errmsg);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+
 					/* prepare error message just in case */
 					rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, curr_defproxy, file, linenum, &errmsg);
 					if (rc < 0) {

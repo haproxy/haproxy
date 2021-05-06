@@ -98,10 +98,16 @@ static inline unsigned long thread_mask(unsigned long mask)
 
 /* handle 'tainted' status */
 enum tainted_flags {
-	TAINTED_UNIMPLEMENTED,  // TO REMOVE once an enum value is implemented
+	TAINTED_CONFIG_EXP_KW_DECLARED = 0x1,
 };
 void mark_tainted(const enum tainted_flags flag);
 unsigned int get_tainted();
+
+extern unsigned int experimental_directives_allowed;
+
+struct cfg_keyword;
+int check_kw_experimental(struct cfg_keyword *kw, const char *file, int linenum,
+                          char **errmsg);
 
 /* simplified way to declare static build options in a file */
 #define REGISTER_BUILD_OPTS(str) \
