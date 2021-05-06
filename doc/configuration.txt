@@ -814,6 +814,10 @@ The list of currently supported predicates is the following:
   - defined(<name>)       : returns true if an environment variable <name>
                             exists, regardless of its contents
 
+  - feature(<name>)       : returns true if feature <name> is listed as present
+                            in the features list reported by "haproxy -vv"
+                            (which means a <name> appears after a '+')
+
   - streq(<str1>,<str2>)  : returns true only if the two strings are equal
   - strneq(<str1>,<str2>) : returns true only if the two strings differ
 
@@ -830,7 +834,9 @@ Example:
    .endif
 
    .if streq("$WITH_SSL",yes)
+     .if feature(OPENSSL)
           bind :443 ssl crt ...
+     .endif
    .endif
 
 Three other directives are provided to report some status:

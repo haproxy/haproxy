@@ -137,6 +137,7 @@ enum nested_cond_state {
 enum cond_predicate {
 	CFG_PRED_NONE,            // none
 	CFG_PRED_DEFINED,         // "defined"
+	CFG_PRED_FEATURE,         // "feature"
 	CFG_PRED_STREQ,           // "streq"
 	CFG_PRED_STRNEQ,          // "strneq"
 };
@@ -150,6 +151,7 @@ struct cond_pred_kw {
 /* supported condition predicates */
 const struct cond_pred_kw cond_predicates[] = {
 	{ "defined",          CFG_PRED_DEFINED,         ARG1(1, STR)         },
+	{ "feature",          CFG_PRED_FEATURE,         ARG1(1, STR)         },
 	{ "streq",            CFG_PRED_STREQ,           ARG2(2, STR, STR)    },
 	{ "strneq",           CFG_PRED_STRNEQ,          ARG2(2, STR, STR)    },
 	{ NULL, CFG_PRED_NONE, 0 }
@@ -1722,6 +1724,27 @@ static int cfg_eval_condition(char **args, char **err, const char **errptr)
 			ret = getenv(argp[0].data.str.area) != NULL;
 			goto done;
 
+		case CFG_PRED_FEATURE: { // checks if the arg matches an enabled feature
+			const char *p;
+
+			for (p = build_features; (p = strstr(p, argp[0].data.str.area)); p++) {
+				if ((p[argp[0].data.str.data] == ' ' || p[argp[0].data.str.data] == 0) &&
+				    p > build_features) {
+					if (*(p-1) == '+') { // "+OPENSSL"
+						ret = 1;
+						goto done;
+					}
+					else if (*(p-1) == '-') { // "-OPENSSL"
+						ret = 0;
+						goto done;
+					}
+					/* it was a sub-word, let's restart from next place */
+				}
+			}
+			/* not found */
+			ret = 0;
+			goto done;
+		}
 		case CFG_PRED_STREQ:    // checks if the two arg are equal
 			ret = strcmp(argp[0].data.str.area, argp[1].data.str.area) == 0;
 			goto done;
