@@ -295,6 +295,163 @@ void hap_register_build_opts(const char *str, int must_free)
 	LIST_APPEND(&build_opts_list, &b->list);
 }
 
+#define VERSION_MAX_ELTS  7
+
+/* This function splits an haproxy version string into an array of integers.
+ * The syntax of the supported version string is the following:
+ *
+ *    <a>[.<b>[.<c>[.<d>]]][-{dev,pre,rc}<f>][-*][-<g>]
+ *
+ * This validates for example:
+ *   1.2.1-pre2, 1.2.1, 1.2.10.1, 1.3.16-rc1, 1.4-dev3, 1.5-dev18, 1.5-dev18-43
+ *   2.4-dev18-f6818d-20
+ *
+ * The result is set in a array of <VERSION_MAX_ELTS> elements. Each letter has
+ * one fixed place in the array. The tags take a numeric value called <e> which
+ * defaults to 3. "dev" is 1, "rc" and "pre" are 2. Numbers not encountered are
+ * considered as zero (henxe 1.5 and 1.5.0 are the same).
+ *
+ * The resulting values are:
+ *   1.2.1-pre2            1, 2,  1, 0, 2,  2,  0
+ *   1.2.1                 1, 2,  1, 0, 3,  0,  0
+ *   1.2.10.1              1, 2, 10, 1, 3,  0,  0
+ *   1.3.16-rc1            1, 3, 16, 0, 2,  1,  0
+ *   1.4-dev3              1, 4,  0, 0, 1,  3,  0
+ *   1.5-dev18             1, 5,  0, 0, 1, 18,  0
+ *   1.5-dev18-43          1, 5,  0, 0, 1, 18, 43
+ *   2.4-dev18-f6818d-20   2, 4,  0, 0, 1, 18, 20
+ *
+ * The function returns non-zero if the conversion succeeded, or zero if it
+ * failed.
+ */
+int split_version(const char *version, unsigned int *value)
+{
+	const char *p, *s;
+	char *error;
+	int nelts;
+
+	/* Initialize array with zeroes */
+	for (nelts = 0; nelts < VERSION_MAX_ELTS; nelts++)
+		value[nelts] = 0;
+	value[4] = 3;
+
+	p = version;
+
+	/* If the version number is empty, return false */
+	if (*p == '\0')
+		return 0;
+
+	/* Convert first number <a> */
+	value[0] = strtol(p, &error, 10);
+	p = error + 1;
+	if (*error == '\0')
+		return 1;
+	if (*error == '-')
+		goto split_version_tag;
+	if (*error != '.')
+		return 0;
+
+	/* Convert first number <b> */
+	value[1] = strtol(p, &error, 10);
+	p = error + 1;
+	if (*error == '\0')
+		return 1;
+	if (*error == '-')
+		goto split_version_tag;
+	if (*error != '.')
+		return 0;
+
+	/* Convert first number <c> */
+	value[2] = strtol(p, &error, 10);
+	p = error + 1;
+	if (*error == '\0')
+		return 1;
+	if (*error == '-')
+		goto split_version_tag;
+	if (*error != '.')
+		return 0;
+
+	/* Convert first number <d> */
+	value[3] = strtol(p, &error, 10);
+	p = error + 1;
+	if (*error == '\0')
+		return 1;
+	if (*error != '-')
+		return 0;
+
+ split_version_tag:
+	/* Check for commit number */
+	if (*p >= '0' && *p <= '9')
+		goto split_version_commit;
+
+	/* Read tag */
+	if (strncmp(p, "dev", 3) == 0)      { value[4] = 1; p += 3; }
+	else if (strncmp(p, "rc", 2) == 0)  { value[4] = 2; p += 2; }
+	else if (strncmp(p, "pre", 3) == 0) { value[4] = 2; p += 3; }
+	else
+		goto split_version_commit;
+
+	/* Convert tag number */
+	value[5] = strtol(p, &error, 10);
+	p = error + 1;
+	if (*error == '\0')
+		return 1;
+	if (*error != '-')
+		return 0;
+
+ split_version_commit:
+	/* Search the last "-" */
+	s = strrchr(p, '-');
+	if (s) {
+		s++;
+		if (*s == '\0')
+			return 0;
+		value[6] = strtol(s, &error, 10);
+		if (*error != '\0')
+			value[6] = 0;
+		return 1;
+	}
+
+	/* convert the version */
+	value[6] = strtol(p, &error, 10);
+	if (*error != '\0')
+		value[6] = 0;
+
+	return 1;
+}
+
+/* This function compares the current haproxy version with an arbitrary version
+ * string. It returns:
+ *  -1 : the version in argument is older than the current haproxy version
+ *   0 : the version in argument is the same as the current haproxy version
+ *   1 : the version in argument is newer than the current haproxy version
+ *
+ * Or some errors:
+ *  -2 : the current haproxy version is not parsable
+ *  -3 : the version in argument is not parsable
+ */
+int compare_current_version(const char *version)
+{
+	unsigned int loc[VERSION_MAX_ELTS];
+	unsigned int mod[VERSION_MAX_ELTS];
+	int i;
+
+	/* split versions */
+	if (!split_version(haproxy_version, loc))
+		return -2;
+	if (!split_version(version, mod))
+		return -3;
+
+	/* compare versions */
+	for (i = 0; i < VERSION_MAX_ELTS; i++) {
+		if (mod[i] < loc[i])
+			return -1;
+		else if (mod[i] > loc[i])
+			return 1;
+	}
+	return 0;
+}
+
 static void display_version()
 {
 	struct utsname utsname;
