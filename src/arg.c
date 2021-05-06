@@ -359,7 +359,12 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	} else {
 		/* the caller is responsible for freeing this message */
 		char *word = (len > 0) ? my_strndup(in, len) : (char *)in;
-		memprintf(err_msg, "expected ')' before '%s'", word);
+
+		if (*word)
+			memprintf(err_msg, "expected ')' before '%s'", word);
+		else
+			memprintf(err_msg, "expected ')'");
+
 		if (len > 0)
 			free(word);
 		/* when we're missing a right paren, the empty part preceding
