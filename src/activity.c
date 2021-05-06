@@ -10,7 +10,6 @@
  *
  */
 
-#include <malloc.h>
 #include <haproxy/activity-t.h>
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
