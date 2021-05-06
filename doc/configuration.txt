@@ -821,6 +821,16 @@ The list of currently supported predicates is the following:
   - streq(<str1>,<str2>)  : returns true only if the two strings are equal
   - strneq(<str1>,<str2>) : returns true only if the two strings differ
 
+  - version_atleast(<ver>): returns true if the current haproxy version is
+                            at least as recent as <ver> otherwise false. The
+                            version syntax is the same as shown by "haproxy -v"
+                            and missing components are assumed as being zero.
+
+  - version_before(<ver>) : returns true if the current haproxy version is
+                            strictly older than <ver> otherwise false. The
+                            version syntax is the same as shown by "haproxy -v"
+                            and missing components are assumed as being zero.
+
 Example:
 
    .if defined(HAPROXY_MWORKER)
@@ -837,6 +847,10 @@ Example:
      .if feature(OPENSSL)
           bind :443 ssl crt ...
      .endif
+   .endif
+
+   .if version_atleast(2.4-dev19)
+       profiling.memory on
    .endif
 
 Three other directives are provided to report some status:

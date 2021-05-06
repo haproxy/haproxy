@@ -140,6 +140,8 @@ enum cond_predicate {
 	CFG_PRED_FEATURE,         // "feature"
 	CFG_PRED_STREQ,           // "streq"
 	CFG_PRED_STRNEQ,          // "strneq"
+	CFG_PRED_VERSION_ATLEAST, // "version_atleast"
+	CFG_PRED_VERSION_BEFORE,  // "version_before"
 };
 
 struct cond_pred_kw {
@@ -154,6 +156,8 @@ const struct cond_pred_kw cond_predicates[] = {
 	{ "feature",          CFG_PRED_FEATURE,         ARG1(1, STR)         },
 	{ "streq",            CFG_PRED_STREQ,           ARG2(2, STR, STR)    },
 	{ "strneq",           CFG_PRED_STRNEQ,          ARG2(2, STR, STR)    },
+	{ "version_atleast",  CFG_PRED_VERSION_ATLEAST, ARG1(1, STR)         },
+	{ "version_before",   CFG_PRED_VERSION_BEFORE,  ARG1(1, STR)         },
 	{ NULL, CFG_PRED_NONE, 0 }
 };
 
@@ -1751,6 +1755,14 @@ static int cfg_eval_condition(char **args, char **err, const char **errptr)
 
 		case CFG_PRED_STRNEQ:   // checks if the two arg are different
 			ret = strcmp(argp[0].data.str.area, argp[1].data.str.area) != 0;
+			goto done;
+
+		case CFG_PRED_VERSION_ATLEAST: // checks if the current version is at least this one
+			ret = compare_current_version(argp[0].data.str.area) <= 0;
+			goto done;
+
+		case CFG_PRED_VERSION_BEFORE:  // checks if the current version is older than this one
+			ret = compare_current_version(argp[0].data.str.area) > 0;
 			goto done;
 
 		default:
