@@ -42,6 +42,10 @@ enum kw_mod {
 	KWM_DEF,      /* "default" prefixed before the keyword */
 };
 
+enum cfg_keyword_flags {
+	KWF_UNIMPLEMENTED,  // TO REMOVE once an enum value is implemented
+};
+
 struct cfg_keyword {
 	int section;                            /* section type for this keyword */
 	const char *kw;                         /* the keyword itself */
@@ -53,6 +57,7 @@ struct cfg_keyword {
 		     const char *file,          /* config file name */
 		     int line,                  /* config file line number */
 		     char **err);               /* error or warning message output pointer */
+	int flags;
 };
 
 /* A keyword list. It is a NULL-terminated array of keywords. It embeds a
