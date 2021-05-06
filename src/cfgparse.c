@@ -1685,6 +1685,9 @@ int readcfgfile(const char *file)
 	int non_global_section_parsed = 0;
 	char *errmsg = NULL;
 
+	global.cfg_curr_line = 0;
+	global.cfg_curr_file = file;
+
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
 		ha_alert("Out of memory trying to allocate a buffer for a configuration line.\n");
 		err_code = -1;
@@ -1720,6 +1723,7 @@ next_line:
 		}
 
 		linenum++;
+		global.cfg_curr_line = linenum;
 
 		if (fatal >= 50) {
 			ha_alert("parsing [%s:%d]: too many fatal errors (%d), stopping now.\n", file, linenum, fatal);
@@ -2049,6 +2053,8 @@ next_line:
 				cursection = ics->section_name;
 				pcs = cs;
 				cs = ics;
+				free(global.cfg_curr_section);
+				global.cfg_curr_section = strdup(*args[1] ? args[1] : args[0]);
 
 				if (global.mode & MODE_DIAG) {
 					check_section_position(args[0], file, linenum,
@@ -2095,6 +2101,7 @@ next_line:
 		err_code |= ERR_ALERT | ERR_FATAL;
 	}
 
+	ha_free(&global.cfg_curr_section);
 	if (cs && cs->post_section_parser)
 		err_code |= cs->post_section_parser();
 
@@ -2113,6 +2120,9 @@ err:
 	cursection = NULL;
 	free(thisline);
 	free(outline);
+	global.cfg_curr_line = 0;
+	global.cfg_curr_file = NULL;
+
 	if (f)
 		fclose(f);
 

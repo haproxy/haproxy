@@ -159,6 +159,10 @@ struct global {
 	} unix_bind;
 	struct proxy *cli_fe;           /* the frontend holding the stats settings */
 	int numa_cpu_mapping;
+	int cfg_curr_line;              /* line number currently being parsed */
+	const char *cfg_curr_file;      /* config file currently being parsed or NULL */
+	char *cfg_curr_section;         /* config section name currently being parsed or NULL */
+
 	/* The info above is config stuff, it doesn't change during the process' life */
 	/* A number of the elements below are updated by all threads in real time and
 	 * suffer high contention, so we need to put them in their own cache lines, if
