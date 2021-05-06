@@ -1855,11 +1855,12 @@ next_line:
 					goto err;
 				}
 
-				if (nested_conds[nested_cond_lvl - 1] == NESTED_COND_IF_DROP ||
-				    nested_conds[nested_cond_lvl - 1] == NESTED_COND_IF_SKIP ||
-				    nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELIF_DROP ||
-				    nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELIF_SKIP ||
-				    nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELSE_DROP) {
+				if (nested_cond_lvl > 1 &&
+				    (nested_conds[nested_cond_lvl - 1] == NESTED_COND_IF_DROP ||
+				     nested_conds[nested_cond_lvl - 1] == NESTED_COND_IF_SKIP ||
+				     nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELIF_DROP ||
+				     nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELIF_SKIP ||
+				     nested_conds[nested_cond_lvl - 1] == NESTED_COND_ELSE_DROP)) {
 					nested_conds[nested_cond_lvl] = NESTED_COND_IF_SKIP;
 				} else if (!*args[1] || *args[1] == '0') {
 					/* empty = false */
