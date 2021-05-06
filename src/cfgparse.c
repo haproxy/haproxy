@@ -137,6 +137,8 @@ enum nested_cond_state {
 enum cond_predicate {
 	CFG_PRED_NONE,            // none
 	CFG_PRED_DEFINED,         // "defined"
+	CFG_PRED_STREQ,           // "streq"
+	CFG_PRED_STRNEQ,          // "strneq"
 };
 
 struct cond_pred_kw {
@@ -148,6 +150,8 @@ struct cond_pred_kw {
 /* supported condition predicates */
 const struct cond_pred_kw cond_predicates[] = {
 	{ "defined",          CFG_PRED_DEFINED,         ARG1(1, STR)         },
+	{ "streq",            CFG_PRED_STREQ,           ARG2(2, STR, STR)    },
+	{ "strneq",           CFG_PRED_STRNEQ,          ARG2(2, STR, STR)    },
 	{ NULL, CFG_PRED_NONE, 0 }
 };
 
@@ -1716,6 +1720,14 @@ static int cfg_eval_condition(char **args, char **err, const char **errptr)
 		switch (cond_pred->prd) {
 		case CFG_PRED_DEFINED:  // checks if arg exists as an environment variable
 			ret = getenv(argp[0].data.str.area) != NULL;
+			goto done;
+
+		case CFG_PRED_STREQ:    // checks if the two arg are equal
+			ret = strcmp(argp[0].data.str.area, argp[1].data.str.area) == 0;
+			goto done;
+
+		case CFG_PRED_STRNEQ:   // checks if the two arg are different
+			ret = strcmp(argp[0].data.str.area, argp[1].data.str.area) != 0;
 			goto done;
 
 		default:

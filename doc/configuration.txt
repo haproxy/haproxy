@@ -814,12 +814,23 @@ The list of currently supported predicates is the following:
   - defined(<name>)       : returns true if an environment variable <name>
                             exists, regardless of its contents
 
+  - streq(<str1>,<str2>)  : returns true only if the two strings are equal
+  - strneq(<str1>,<str2>) : returns true only if the two strings differ
+
 Example:
 
    .if defined(HAPROXY_MWORKER)
        listen mwcli_px
           bind :1111
           ...
+   .endif
+
+   .if strneq("$SSL_ONLY",yes)
+          bind :80
+   .endif
+
+   .if streq("$WITH_SSL",yes)
+          bind :443 ssl crt ...
    .endif
 
 Three other directives are provided to report some status:
