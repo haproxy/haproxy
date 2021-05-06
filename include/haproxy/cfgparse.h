@@ -44,6 +44,7 @@ enum kw_mod {
 
 enum cfg_keyword_flags {
 	KWF_EXPERIMENTAL = 0x1,
+	KWF_MATCH_PREFIX = 0x2,
 };
 
 struct cfg_keyword {

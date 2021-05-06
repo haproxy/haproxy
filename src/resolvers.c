@@ -2829,14 +2829,14 @@ enum act_parse_ret resolv_parse_do_resolve(const char **args, int *orig_arg, str
 }
 
 static struct action_kw_list http_req_kws = { { }, {
-	{ "do-resolve", resolv_parse_do_resolve, 1 },
+	{ "do-resolve", resolv_parse_do_resolve, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_kws);
 
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
-	{ "do-resolve", resolv_parse_do_resolve, 1 },
+	{ "do-resolve", resolv_parse_do_resolve, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 

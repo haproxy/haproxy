@@ -187,7 +187,7 @@ struct action_kw {
 	const char *kw;
 	enum act_parse_ret (*parse)(const char **args, int *cur_arg, struct proxy *px,
 	                            struct act_rule *rule, char **err);
-	int match_pfx;
+	int flags;
 	void *private;
 };
 

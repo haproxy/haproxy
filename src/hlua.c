@@ -7741,7 +7741,7 @@ __LJMP static int hlua_register_action(lua_State *L)
 
 		snprintf((char *)akl->kw[0].kw, len, "lua.%s", name);
 
-		akl->kw[0].match_pfx = 0;
+		akl->kw[0].flags = 0;
 		akl->kw[0].private = fcn;
 		akl->kw[0].parse = action_register_lua;
 
@@ -7895,7 +7895,7 @@ __LJMP static int hlua_register_service(lua_State *L)
 		                        "'tcp' or 'http' are expected.", env));
 	}
 
-	akl->kw[0].match_pfx = 0;
+	akl->kw[0].flags = 0;
 	akl->kw[0].private = fcn;
 
 	/* End of array. */

@@ -277,8 +277,8 @@ const char *action_suggest(const char *word, const struct list *keywords, const 
 	 * when they're known to exist (not from extra list).
 	 */
 	if (best_ptr &&
-	    (best_dist > (2 + (best_kw && best_kw->match_pfx)) * strlen(word) ||
-	     best_dist > (2 + (best_kw && best_kw->match_pfx)) * strlen(best_ptr)))
+	    (best_dist > (2 + (best_kw && (best_kw->flags & KWF_MATCH_PREFIX))) * strlen(word) ||
+	     best_dist > (2 + (best_kw && (best_kw->flags & KWF_MATCH_PREFIX))) * strlen(best_ptr)))
 		best_ptr = NULL;
 
 	return best_ptr;

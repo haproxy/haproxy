@@ -24,6 +24,7 @@
 
 #include <stdio.h>
 #include <haproxy/action-t.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/list.h>
 #include <haproxy/sample.h>
 
@@ -41,7 +42,7 @@ static inline struct action_kw *action_lookup(struct list *keywords, const char 
 
 	list_for_each_entry(kw_list, keywords, list) {
 		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
-			if (kw_list->kw[i].match_pfx &&
+			if ((kw_list->kw[i].flags & KWF_MATCH_PREFIX) &&
 			    strncmp(kw, kw_list->kw[i].kw, strlen(kw_list->kw[i].kw)) == 0)
 				return &kw_list->kw[i];
 			if (strcmp(kw, kw_list->kw[i].kw) == 0)
@@ -64,7 +65,7 @@ static inline void action_build_list(struct list *keywords,
 	end = p + chk->size - 1;
 	list_for_each_entry(kw_list, keywords, list) {
 		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
-			l = snprintf(p, end - p, "'%s%s', ", kw_list->kw[i].kw, kw_list->kw[i].match_pfx ? "(*)" : "");
+			l = snprintf(p, end - p, "'%s%s', ", kw_list->kw[i].kw, (kw_list->kw[i].flags & KWF_MATCH_PREFIX) ? "(*)" : "");
 			if (l > end - p)
 				continue;
 			p += l;

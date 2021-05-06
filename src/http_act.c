@@ -2438,14 +2438,14 @@ static enum act_parse_ret parse_http_wait_for_body(const char **args, int *orig_
 
 static struct action_kw_list http_req_actions = {
 	.kw = {
-		{ "add-acl",          parse_http_set_map,              1 },
+		{ "add-acl",          parse_http_set_map,              KWF_MATCH_PREFIX },
 		{ "add-header",       parse_http_set_header,           0 },
 		{ "allow",            parse_http_allow,                0 },
 		{ "auth",             parse_http_auth,                 0 },
 		{ "capture",          parse_http_req_capture,          0 },
-		{ "del-acl",          parse_http_set_map,              1 },
+		{ "del-acl",          parse_http_set_map,              KWF_MATCH_PREFIX },
 		{ "del-header",       parse_http_del_header,           0 },
-		{ "del-map",          parse_http_set_map,              1 },
+		{ "del-map",          parse_http_set_map,              KWF_MATCH_PREFIX },
 		{ "deny",             parse_http_deny,                 0 },
 		{ "disable-l7-retry", parse_http_req_disable_l7_retry, 0 },
 		{ "early-hint",       parse_http_set_header,           0 },
@@ -2460,7 +2460,7 @@ static struct action_kw_list http_req_actions = {
 		{ "return",           parse_http_return,               0 },
 		{ "set-header",       parse_http_set_header,           0 },
 		{ "set-log-level",    parse_http_set_log_level,        0 },
-		{ "set-map",          parse_http_set_map,              1 },
+		{ "set-map",          parse_http_set_map,              KWF_MATCH_PREFIX },
 		{ "set-method",       parse_set_req_line,              0 },
 		{ "set-mark",         parse_http_set_mark,             0 },
 		{ "set-nice",         parse_http_set_nice,             0 },
@@ -2471,7 +2471,7 @@ static struct action_kw_list http_req_actions = {
 		{ "set-uri",          parse_set_req_line,              0 },
 		{ "strict-mode",      parse_http_strict_mode,          0 },
 		{ "tarpit",           parse_http_deny,                 0 },
-		{ "track-sc",         parse_http_track_sc,             1 },
+		{ "track-sc",         parse_http_track_sc,             KWF_MATCH_PREFIX },
 		{ "set-timeout",      parse_http_set_timeout,          0 },
 		{ "wait-for-body",    parse_http_wait_for_body,        0 },
 		{ NULL, NULL }
@@ -2482,13 +2482,13 @@ INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
 
 static struct action_kw_list http_res_actions = {
 	.kw = {
-		{ "add-acl",         parse_http_set_map,        1 },
+		{ "add-acl",         parse_http_set_map,        KWF_MATCH_PREFIX },
 		{ "add-header",      parse_http_set_header,     0 },
 		{ "allow",           parse_http_allow,          0 },
 		{ "capture",         parse_http_res_capture,    0 },
-		{ "del-acl",         parse_http_set_map,        1 },
+		{ "del-acl",         parse_http_set_map,        KWF_MATCH_PREFIX },
 		{ "del-header",      parse_http_del_header,     0 },
-		{ "del-map",         parse_http_set_map,        1 },
+		{ "del-map",         parse_http_set_map,        KWF_MATCH_PREFIX },
 		{ "deny",            parse_http_deny,           0 },
 		{ "redirect",        parse_http_redirect,       0 },
 		{ "replace-header",  parse_http_replace_header, 0 },
@@ -2496,13 +2496,13 @@ static struct action_kw_list http_res_actions = {
 		{ "return",          parse_http_return,         0 },
 		{ "set-header",      parse_http_set_header,     0 },
 		{ "set-log-level",   parse_http_set_log_level,  0 },
-		{ "set-map",         parse_http_set_map,        1 },
+		{ "set-map",         parse_http_set_map,        KWF_MATCH_PREFIX },
 		{ "set-mark",        parse_http_set_mark,       0 },
 		{ "set-nice",        parse_http_set_nice,       0 },
 		{ "set-status",      parse_http_set_status,     0 },
 		{ "set-tos",         parse_http_set_tos,        0 },
 		{ "strict-mode",     parse_http_strict_mode,    0 },
-		{ "track-sc",        parse_http_track_sc,       1 },
+		{ "track-sc",        parse_http_track_sc,       KWF_MATCH_PREFIX },
 		{ "wait-for-body",   parse_http_wait_for_body,  0 },
 		{ NULL, NULL }
 	}

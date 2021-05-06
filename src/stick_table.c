@@ -4068,54 +4068,54 @@ static struct cli_kw_list cli_kws = {{ },{
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 static struct action_kw_list tcp_conn_kws = { { }, {
-	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
-	{ "sc-inc-gpc1", parse_inc_gpc1, 1 },
-	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
+	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, tcp_req_conn_keywords_register, &tcp_conn_kws);
 
 static struct action_kw_list tcp_sess_kws = { { }, {
-	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
-	{ "sc-inc-gpc1", parse_inc_gpc1, 1 },
-	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
+	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_sess_kws);
 
 static struct action_kw_list tcp_req_kws = { { }, {
-	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
-	{ "sc-inc-gpc1", parse_inc_gpc1, 1 },
-	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
+	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_kws);
 
 static struct action_kw_list tcp_res_kws = { { }, {
-	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
-	{ "sc-inc-gpc1", parse_inc_gpc1, 1 },
-	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
+	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_kws);
 
 static struct action_kw_list http_req_kws = { { }, {
-	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
-	{ "sc-inc-gpc1", parse_inc_gpc1, 1 },
-	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
+	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_kws);
 
 static struct action_kw_list http_res_kws = { { }, {
-	{ "sc-inc-gpc0", parse_inc_gpc0, 1 },
-	{ "sc-inc-gpc1", parse_inc_gpc1, 1 },
-	{ "sc-set-gpt0", parse_set_gpt0, 1 },
+	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
+	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 

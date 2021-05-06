@@ -1056,56 +1056,56 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
 
 static struct action_kw_list tcp_req_sess_kws = { { }, {
-	{ "set-var",   parse_store, 1 },
-	{ "unset-var", parse_store, 1 },
+	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
+	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_kws);
 
 static struct action_kw_list tcp_req_cont_kws = { { }, {
-	{ "set-var",   parse_store, 1 },
-	{ "unset-var", parse_store, 1 },
+	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
+	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_cont_kws);
 
 static struct action_kw_list tcp_res_kws = { { }, {
-	{ "set-var",   parse_store, 1 },
-	{ "unset-var", parse_store, 1 },
+	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
+	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_kws);
 
 static struct action_kw_list tcp_check_kws = {ILH, {
-	{ "set-var",   parse_store, 1 },
-	{ "unset-var", parse_store, 1 },
+	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
+	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, tcp_check_keywords_register, &tcp_check_kws);
 
 static struct action_kw_list http_req_kws = { { }, {
-	{ "set-var",   parse_store, 1 },
-	{ "unset-var", parse_store, 1 },
+	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
+	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_kws);
 
 static struct action_kw_list http_res_kws = { { }, {
-	{ "set-var",   parse_store, 1 },
-	{ "unset-var", parse_store, 1 },
+	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
+	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_kws);
 
 static struct action_kw_list http_after_res_kws = { { }, {
-	{ "set-var",   parse_store, 1 },
-	{ "unset-var", parse_store, 1 },
+	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
+	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
