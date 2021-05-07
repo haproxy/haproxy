@@ -1081,14 +1081,19 @@ int parse_logsrv(char **args, struct list *logsrvs, int do_del, const char *file
 /* Generic function to display messages prefixed by a label */
 static void print_message(const char *label, const char *fmt, va_list argp)
 {
-	struct tm tm;
 	char *head, *msg;
+	char prefix[11]; // '[' + 8 chars + ']' + 0.
+
+	*prefix = '[';
+	strncpy(prefix + 1, label, sizeof(prefix) - 2);
+	msg = prefix + strlen(prefix);
+	*msg++ = ']';
+	while (msg < prefix + sizeof(prefix) - 1)
+		*msg++ = ' ';
+	*msg = 0;
 
 	head = msg = NULL;
-
-	get_localtime(date.tv_sec, &tm);
-	memprintf(&head, "[%s] %03d/%02d%02d%02d (%d) : ",
-		  label, tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec, (int)getpid());
+	memprintf(&head, "%s (%u) : ", prefix, (uint)getpid());
 	memvprintf(&msg, fmt, argp);
 
 	if (global.mode & MODE_STARTING) {
@@ -1160,7 +1165,7 @@ void ha_warning(const char *fmt, ...)
  */
 void _ha_vdiag_warning(const char *fmt, va_list argp)
 {
-	print_message("DIAG/WARNING", fmt, argp);
+	print_message("DIAG", fmt, argp);
 }
 
 /*

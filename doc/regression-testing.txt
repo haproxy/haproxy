@@ -228,9 +228,9 @@ as expected (verbose mode execution):
     **** h1    0.0 macro def h1_name=/tmp/vtc.25540.59b6ec5d/h1
     **   h1    0.0 Wait
     **   h1    0.0 Stop HAproxy pid=25558
-    ***  h1    0.0 debug|[ALERT] 157/135318 (25558) : parsing [/tmp/vtc.25540.59b6ec5d/h1/cfg:10] : 'filter' : ''spoe' : missing config file'
-    ***  h1    0.0 debug|[ALERT] 157/135318 (25558) : Error(s) found in configuration file : /tmp/vtc.25540.59b6ec5d/h1/cfg
-    ***  h1    0.0 debug|[ALERT] 157/135318 (25558) : Fatal errors found in configuration.
+    ***  h1    0.0 debug|[ALERT]    (25558) : parsing [/tmp/vtc.25540.59b6ec5d/h1/cfg:10] : 'filter' : ''spoe' : missing config file'
+    ***  h1    0.0 debug|[ALERT]    (25558) : Error(s) found in configuration file : /tmp/vtc.25540.59b6ec5d/h1/cfg
+    ***  h1    0.0 debug|[ALERT]    (25558) : Fatal errors found in configuration.
     **** h1    0.0 STDOUT poll 0x10
     **   h1    0.0 WAIT4 pid=25558 status=0x0100 (user 0.000000 sys 0.000000)
     **   h1    0.0 Found expected ''

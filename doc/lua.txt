@@ -642,7 +642,7 @@ the associated error.
 
    open("./luac/concat.so", O_RDONLY|O_CLOEXEC) = 4
 
-	[ALERT] 293/175822 (22806) : parsing [commonstats.conf:15] : lua runtime
+	[ALERT]    (22806) : parsing [commonstats.conf:15] : lua runtime
 	error: error loading module 'luac/concat' from file './luac/concat.so':
 	        ./luac/concat.so: undefined symbol: luaopen_luac/concat
 
