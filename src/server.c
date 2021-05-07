@@ -2703,7 +2703,7 @@ int parse_server(const char *file, int linenum, char **args,
 	if (parse_flags & SRV_PARSE_TEMPLATE)
 		_srv_parse_tmpl_init(newsrv, curproxy);
 
-	HA_DIAG_WARNING_COND(!newsrv->uweight,
+	HA_DIAG_WARNING_COND((curproxy->cap & PR_CAP_LB) && !newsrv->uweight,
 	                     "parsing [%s:%d] : 'server %s' : configured with weight of 0 will never be selected by load balancing algorithms\n",
 	                     file, linenum, newsrv->id);
 
