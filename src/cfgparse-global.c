@@ -1310,7 +1310,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					continue;
 				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
 					if (check_kw_experimental(&kwl->kw[index], file, linenum, &errmsg)) {
-						ha_alert(errmsg);
+						ha_alert("%s\n", errmsg);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}

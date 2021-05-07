@@ -3041,7 +3041,7 @@ stats_error_parsing:
 					continue;
 				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
 					if (check_kw_experimental(&kwl->kw[index], file, linenum, &errmsg)) {
-						ha_alert(errmsg);
+						ha_alert("%s\n", errmsg);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}

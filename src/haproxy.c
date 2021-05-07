@@ -269,7 +269,7 @@ int check_kw_experimental(struct cfg_keyword *kw, const char *file, int linenum,
 {
 	if (kw->flags & KWF_EXPERIMENTAL) {
 		if (!experimental_directives_allowed) {
-			memprintf(errmsg, "parsing [%s:%d] : '%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'\n",
+			memprintf(errmsg, "parsing [%s:%d] : '%s' directive is experimental, must be allowed via a global 'expose-experimental-directives'",
 			          file, linenum, kw->kw);
 			return 1;
 		}
