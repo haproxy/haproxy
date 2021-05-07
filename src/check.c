@@ -716,7 +716,7 @@ void __health_adjust(struct server *s, short status)
 	s->consecutive_errors = 0;
 	_HA_ATOMIC_INC(&s->counters.failed_hana);
 
-	if (tick_is_lt(expire, s->check.task->expire)) {
+	if (tick_isset(expire) && tick_is_lt(expire, s->check.task->expire)) {
 		/* requeue check task with new expire */
 		task_schedule(s->check.task, expire);
 	}
