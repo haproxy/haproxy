@@ -2136,7 +2136,7 @@ next_line:
 			goto next_line;
 		}
 
-		/* .warning/.error/.notice */
+		/* .warning/.error/.notice/.diag */
 		if (*args[0] == '.') {
 			if (strcmp(args[0], ".alert") == 0) {
 				ha_alert("parsing [%s:%d]: '%s'.\n", file, linenum, args[1]);
@@ -2150,6 +2150,10 @@ next_line:
 			}
 			else if (strcmp(args[0], ".notice") == 0) {
 				ha_notice("parsing [%s:%d]: '%s'.\n", file, linenum, args[1]);
+				goto next_line;
+			}
+			else if (strcmp(args[0], ".diag") == 0) {
+				ha_diag_warning("parsing [%s:%d]: '%s'.\n", file, linenum, args[1]);
 				goto next_line;
 			}
 			else {

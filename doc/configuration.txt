@@ -853,8 +853,9 @@ Example:
        profiling.memory on
    .endif
 
-Three other directives are provided to report some status:
+Four other directives are provided to report some status:
 
+  - .diag "message"    : emit this message only when in diagnostic mode (-dD)
   - .notice "message"  : emit this message at level NOTICE
   - .warning "message" : emit this message at level WARNING
   - .alert "message"   : emit this message at level ALERT
@@ -879,6 +880,9 @@ Example:
   .else
        .notice "A=0"
   .endif
+
+  .diag "WTA/2021-05-07: replace 'redirect' with 'return' after switch to 2.4"
+        http-request redirect location /goaway if ABUSE
 
 
 2.5. Time format
