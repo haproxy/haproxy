@@ -1885,8 +1885,9 @@ ssl-load-extra-del-ext
 
 ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
   This setting alters the way HAProxy will look for unspecified files during
-  the loading of the SSL certificates associated to "bind" lines. It does not
-  apply to certificates used for client authentication on "server" lines.
+  the loading of the SSL certificates. This option applies to certificates
+  associated to "bind" lines as well as "server" lines but some of the extra
+  files will not have any functional impact for "server" line certificates.
 
   By default, HAProxy discovers automatically a lot of files not specified in
   the configuration, and you may want to disable this behavior if you want to
@@ -1900,14 +1901,15 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
   bundles, sctl, ocsp, issuer, key.
 
   "bundle": When a file specified in the configuration does not exist, HAProxy
-  will try to load a "cert bundle".
+  will try to load a "cert bundle". Certificate bundles are only managed on the
+  frontend side and will not work for backend certificates.
 
   Starting from HAProxy 2.3, the bundles are not loaded in the same OpenSSL
   certificate store, instead it will loads each certificate in a separate
   store which is equivalent to declaring multiple "crt". OpenSSL 1.1.1 is
   required to achieve this. Which means that bundles are now used only for
   backward compatibility and are not mandatory anymore to do an hybrid RSA/ECC
-  bind configuration..
+  bind configuration.
 
   To associate these PEM files into a "cert bundle" that is recognized by
   haproxy, they must be named in the following way: All PEM files that are to
@@ -1935,12 +1937,17 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
   OCSP files (.ocsp), issuer files (.issuer), Certificate Transparency (.sctl)
   as well as private keys (.key) are supported with multi-cert bundling.
 
-  "sctl": Try to load "<basename>.sctl" for each crt keyword.
+  "sctl": Try to load "<basename>.sctl" for each crt keyword. If provided for
+  a backend certificate, it will be loaded but will not have any functional
+  impact.
 
-  "ocsp": Try to load "<basename>.ocsp" for each crt keyword.
+  "ocsp": Try to load "<basename>.ocsp" for each crt keyword. If provided for
+  a backend certificate, it will be loaded but will not have any functional
+  impact.
 
   "issuer": Try to load "<basename>.issuer" if the issuer of the OCSP file is
-  not provided in the PEM file.
+  not provided in the PEM file. If provided for a backend certificate, it will
+  be loaded but will not have any functional impact.
 
   "key": If the private key was not provided by the PEM file, try to load a
   file "<basename>.key" containing a private key.
@@ -1952,7 +1959,8 @@ ssl-load-extra-files <none|all|bundle|sctl|ocsp|issuer|key>*
     ssl-load-extra-files sctl ocsp issuer
     ssl-load-extra-files none
 
-  See also: "crt", section 5.1 about bind options.
+  See also: "crt", section 5.1 about bind options and section 5.2 about server
+  options.
 
 ssl-server-verify [none|required]
   The default behavior for SSL verify on servers side. If specified to 'none',
@@ -14212,6 +14220,10 @@ crt <cert>
   associated private key. This file can be built by concatenating both PEM
   files into one. This certificate will be sent if the server send a client
   certificate request.
+
+  If the file does not contain a private key, HAProxy will try to load the key
+  at the same path suffixed by a ".key" (provided the "ssl-load-extra-files"
+  option is set accordingly).
 
 disabled
   The "disabled" keyword starts the server in the "disabled" state. That means
