@@ -223,11 +223,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	}
 
 	if (strcmp(args[0], "listen") == 0)
-		rc = PR_CAP_LISTEN;
+		rc = PR_CAP_LISTEN | PR_CAP_LB;
 	else if (strcmp(args[0], "frontend") == 0)
-		rc = PR_CAP_FE;
+		rc = PR_CAP_FE | PR_CAP_LB;
 	else if (strcmp(args[0], "backend") == 0)
-		rc = PR_CAP_BE;
+		rc = PR_CAP_BE | PR_CAP_LB;
 	else if (strcmp(args[0], "defaults") == 0) {
 		/* "defaults" must first delete the last no-name defaults if any */
 		proxy_destroy_defaults(proxy_find_by_name("", PR_CAP_DEF, 0));
