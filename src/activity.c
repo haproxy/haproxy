@@ -276,7 +276,7 @@ void *realloc(void *ptr, size_t size)
 
 	size_before = malloc_usable_size(ptr);
 	ret = memprof_realloc_handler(ptr, size);
-	size = malloc_usable_size(ptr);
+	size = malloc_usable_size(ret);
 
 	bin = memprof_get_bin(__builtin_return_address(0));
 	if (size > size_before) {
