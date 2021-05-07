@@ -4595,19 +4595,18 @@ out:
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "disable", "agent",  NULL }, "disable agent  : disable agent checks (use 'set server' instead)", cli_parse_disable_agent, NULL },
-	{ { "disable", "health",  NULL }, "disable health : disable health checks (use 'set server' instead)", cli_parse_disable_health, NULL },
-	{ { "disable", "server",  NULL }, "disable server : disable a server for maintenance (use 'set server' instead)", cli_parse_disable_server, NULL },
-	{ { "enable", "agent",  NULL }, "enable agent   : enable agent checks (use 'set server' instead)", cli_parse_enable_agent, NULL },
-	{ { "enable", "health",  NULL }, "enable health  : enable health checks (use 'set server' instead)", cli_parse_enable_health, NULL },
-	{ { "enable", "server",  NULL }, "enable server  : enable a disabled server (use 'set server' instead)", cli_parse_enable_server, NULL },
-	{ { "set", "maxconn", "server",  NULL }, "set maxconn server : change a server's maxconn setting", cli_parse_set_maxconn_server, NULL },
-	{ { "set", "server", NULL }, "set server     : change a server's state, weight, address or ssl",  cli_parse_set_server },
-	{ { "get", "weight", NULL }, "get weight     : report a server's current weight",  cli_parse_get_weight },
-	{ { "set", "weight", NULL }, "set weight     : change a server's weight (deprecated)",  cli_parse_set_weight },
-	{ { "add", "server", NULL }, "add server     : create a new server (EXPERIMENTAL)", cli_parse_add_server, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
-	{ { "del", "server", NULL }, "del server     : remove a dynamically added server (EXPERIMENTAL)", cli_parse_delete_server, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
-
+	{ { "disable", "agent",  NULL },         "disable agent  (DEPRECATED)             : disable agent checks (use 'set server' instead)",             cli_parse_disable_agent, NULL },
+	{ { "disable", "health",  NULL },        "disable health (DEPRECATED)             : disable health checks (use 'set server' instead)",            cli_parse_disable_health, NULL },
+	{ { "disable", "server",  NULL },        "disable server (DEPRECATED)             : disable a server for maintenance (use 'set server' instead)", cli_parse_disable_server, NULL },
+	{ { "enable", "agent",  NULL },          "enable agent   (DEPRECATED)             : enable agent checks (use 'set server' instead)",              cli_parse_enable_agent, NULL },
+	{ { "enable", "health",  NULL },         "enable health  (DEPRECATED)             : enable health checks (use 'set server' instead)",             cli_parse_enable_health, NULL },
+	{ { "enable", "server",  NULL },         "enable server  (DEPRECATED)             : enable a disabled server (use 'set server' instead)",         cli_parse_enable_server, NULL },
+	{ { "set", "maxconn", "server",  NULL }, "set maxconn server <bk>/<srv>           : change a server's maxconn setting",                           cli_parse_set_maxconn_server, NULL },
+	{ { "set", "server", NULL },             "set server <bk>/<srv> [opts]            : change a server's state, weight, address or ssl",             cli_parse_set_server },
+	{ { "get", "weight", NULL },             "get weight <bk>/<srv>                   : report a server's current weight",                            cli_parse_get_weight },
+	{ { "set", "weight", NULL },             "set weight <bk>/<srv>  (DEPRECATED)     : change a server's weight (use 'set server' instead)",         cli_parse_set_weight },
+	{ { "add", "server", NULL },             "add server <bk>/<srv>                   : create a new server (EXPERIMENTAL)",                          cli_parse_add_server, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
+	{ { "del", "server", NULL },             "del server <bk>/<srv>                   : remove a dynamically added server (EXPERIMENTAL)",            cli_parse_delete_server, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
 	{{},}
 }};
 

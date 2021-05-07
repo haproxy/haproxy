@@ -3700,7 +3700,7 @@ static int cli_io_handler_show_peers(struct appctx *appctx)
  * CLI keywords.
  */
 static struct cli_kw_list cli_kws = {{ }, {
-	{ { "show", "peers", NULL }, "show peers [peers section]: dump some information about all the peers or this peers section", cli_parse_show_peers, cli_io_handler_show_peers, },
+	{ { "show", "peers", NULL }, "show peers [dict|-] [section]           : dump some information about all the peers or this peers section", cli_parse_show_peers, cli_io_handler_show_peers, },
 	{},
 }};
 

@@ -1454,9 +1454,9 @@ void crtlist_deinit()
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "add", "ssl", "crt-list", NULL }, "add ssl crt-list <filename> <certfile> [options] : add a line <certfile> to a crt-list <filename>", cli_parse_add_crtlist, cli_io_handler_add_crtlist, cli_release_add_crtlist },
-	{ { "del", "ssl", "crt-list", NULL }, "del ssl crt-list <filename> <certfile[:line]> : delete a line <certfile> in a crt-list <filename>", cli_parse_del_crtlist, NULL, NULL },
-	{ { "show", "ssl", "crt-list", NULL }, "show ssl crt-list [-n] [<filename>] : show the list of crt-lists or the content of a crt-list <filename>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
+	{ { "add", "ssl", "crt-list", NULL }, "add ssl crt-list <list> <cert> [opts]*  : add to crt-list file <list> a line <cert> or a payload",               cli_parse_add_crtlist, cli_io_handler_add_crtlist, cli_release_add_crtlist },
+	{ { "del", "ssl", "crt-list", NULL }, "del ssl crt-list <list> <cert[:line]>   : delete a line <cert> from crt-list file <list>",                       cli_parse_del_crtlist, NULL, NULL },
+	{ { "show", "ssl", "crt-list", NULL }, "show ssl crt-list [-n] [<list>]         : show the list of crt-lists or the content of a crt-list file <list>", cli_parse_dump_crtlist, cli_io_handler_dump_crtlist, NULL },
 	{ { NULL }, NULL, NULL, NULL } }
 };
 

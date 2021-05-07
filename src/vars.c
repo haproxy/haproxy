@@ -1127,8 +1127,8 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "get",   "var", NULL }, "get var <name> : retrieve contents of a process-wide variable", vars_parse_cli_get_var, NULL },
-	{ { "set",   "var", NULL }, "set var <name> <expr> : set variable from an expression", vars_parse_cli_set_var, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
+	{ { "get",   "var", NULL }, "get var <name>                          : retrieve contents of a process-wide variable", vars_parse_cli_get_var, NULL },
+	{ { "set",   "var", NULL }, "set var <name> <expr>                   : set variable from an expression",              vars_parse_cli_set_var, NULL, NULL, NULL, ACCESS_EXPERIMENTAL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);

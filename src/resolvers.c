@@ -2543,8 +2543,7 @@ static int cli_io_handler_dump_resolvers_to_buffer(struct appctx *appctx)
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ }, {
-		{ { "show", "resolvers", NULL }, "show resolvers [id]: dumps counters from all resolvers section and\n"
-		  "                     associated name servers",
+		{ { "show", "resolvers", NULL }, "show resolvers [id]                     : dumps counters from all resolvers section and associated name servers",
 		  cli_parse_stat_resolvers, cli_io_handler_dump_resolvers_to_buffer },
 		{{},}
 	}

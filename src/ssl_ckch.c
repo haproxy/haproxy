@@ -1859,12 +1859,12 @@ void ckch_deinit()
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "new", "ssl", "cert", NULL }, "new ssl cert <certfile> : create a new certificate file to be used in a crt-list or a directory", cli_parse_new_cert, NULL, NULL },
-	{ { "set", "ssl", "cert", NULL }, "set ssl cert <certfile> <payload> : replace a certificate file", cli_parse_set_cert, NULL, NULL },
-	{ { "commit", "ssl", "cert", NULL }, "commit ssl cert <certfile> : commit a certificate file", cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
-	{ { "abort", "ssl", "cert", NULL }, "abort ssl cert <certfile> : abort a transaction for a certificate file", cli_parse_abort_cert, NULL, NULL },
-	{ { "del", "ssl", "cert", NULL }, "del ssl cert <certfile> : delete an unused certificate file", cli_parse_del_cert, NULL, NULL },
-	{ { "show", "ssl", "cert", NULL }, "show ssl cert [<certfile>] : display the SSL certificates used in memory, or the details of a <certfile>", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
+	{ { "new", "ssl", "cert", NULL },    "new ssl cert <certfile>                 : create a new certificate file to be used in a crt-list or a directory", cli_parse_new_cert, NULL, NULL },
+	{ { "set", "ssl", "cert", NULL },    "set ssl cert <certfile> <payload>       : replace a certificate file",                                            cli_parse_set_cert, NULL, NULL },
+	{ { "commit", "ssl", "cert", NULL }, "commit ssl cert <certfile>              : commit a certificate file",                                             cli_parse_commit_cert, cli_io_handler_commit_cert, cli_release_commit_cert },
+	{ { "abort", "ssl", "cert", NULL },  "abort ssl cert <certfile>               : abort a transaction for a certificate file",                            cli_parse_abort_cert, NULL, NULL },
+	{ { "del", "ssl", "cert", NULL },    "del ssl cert <certfile>                 : delete an unused certificate file",                                     cli_parse_del_cert, NULL, NULL },
+	{ { "show", "ssl", "cert", NULL },   "show ssl cert [<certfile>]              : display the SSL certificates used in memory, or the details of a file", cli_parse_show_cert, cli_io_handler_show_cert, cli_release_show_cert },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 

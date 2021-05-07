@@ -674,8 +674,8 @@ static int cli_parse_show_trace(char **args, char *payload, struct appctx *appct
 }
 
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "trace", NULL }, "trace <module> [cmd [args...]] : manage live tracing", cli_parse_trace, NULL, NULL },
-	{ { "show", "trace", NULL }, "show trace [<module>] : show live tracing state", cli_parse_show_trace, NULL, NULL },
+	{ { "trace", NULL },         "trace [<module>|0] [cmd [args...]]      : manage live tracing (empty to list, 0 to stop all)", cli_parse_trace, NULL, NULL },
+	{ { "show", "trace", NULL }, "show trace [<module>]                   : show live tracing state",                            cli_parse_show_trace, NULL, NULL },
 	{{},}
 }};
 

@@ -254,9 +254,9 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 
 	/* always show the prompt/help/quit commands */
 	chunk_strcat(tmp,
-	             "  help           : full commands list\n"
-	             "  prompt         : toggle interactive mode with prompt\n"
-	             "  quit           : disconnect\n");
+	             "  help                                    : full commands list\n"
+	             "  prompt                                  : toggle interactive mode with prompt\n"
+	             "  quit                                    : disconnect\n");
 
 	chunk_init(&out, NULL, 0);
 	chunk_dup(&out, tmp);
@@ -2943,23 +2943,23 @@ static struct applet mcli_applet = {
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "help", NULL }, NULL, cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
-	{ { "prompt", NULL }, NULL, cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
-	{ { "quit", NULL }, NULL, cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
-	{ { "set", "maxconn", "global",  NULL }, "set maxconn global : change the per-process maxconn setting", cli_parse_set_maxconn_global, NULL },
-	{ { "set", "rate-limit", NULL }, "set rate-limit : change a rate limiting value", cli_parse_set_ratelimit, NULL },
-	{ { "set", "severity-output",  NULL }, "set severity-output [none|number|string] : set presence of severity level in feedback information", cli_parse_set_severity_output, NULL, NULL },
-	{ { "set", "timeout",  NULL }, "set timeout    : change a timeout setting", cli_parse_set_timeout, NULL, NULL },
-	{ { "show", "env",  NULL }, "show env [var] : dump environment variables known to the process", cli_parse_show_env, cli_io_handler_show_env, NULL },
-	{ { "show", "cli", "sockets",  NULL }, "show cli sockets : dump list of cli sockets", cli_parse_default, cli_io_handler_show_cli_sock, NULL, NULL, ACCESS_MASTER },
-	{ { "show", "cli", "level", NULL },    "show cli level   : display the level of the current CLI session", cli_parse_show_lvl, NULL, NULL, NULL, ACCESS_MASTER},
-	{ { "show", "fd", NULL }, "show fd [num] : dump list of file descriptors in use", cli_parse_show_fd, cli_io_handler_show_fd, NULL },
-	{ { "show", "activity", NULL }, "show activity : show per-thread activity stats (for support/developers)", cli_parse_default, cli_io_handler_show_activity, NULL },
-	{ { "operator", NULL },  "operator       : lower the level of the current CLI session to operator", cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
-	{ { "user", NULL },      "user           : lower the level of the current CLI session to user", cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
-	{ { "_getsocks", NULL }, NULL,  _getsocks, NULL },
-	{ { "expert-mode", NULL },  NULL,  cli_parse_expert_experimental_mode, NULL }, // not listed
-	{ { "experimental-mode", NULL },  NULL,  cli_parse_expert_experimental_mode, NULL }, // not listed
+	{ { "help", NULL },                      NULL,                                                                                                cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
+	{ { "prompt", NULL },                    NULL,                                                                                                cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
+	{ { "quit", NULL },                      NULL,                                                                                                cli_parse_simple, NULL, NULL, NULL, ACCESS_MASTER },
+	{ { "_getsocks", NULL },                 NULL,                                                                                                _getsocks, NULL },
+	{ { "expert-mode", NULL },               NULL,                                                                                                cli_parse_expert_experimental_mode, NULL }, // not listed
+	{ { "experimental-mode", NULL },         NULL,                                                                                                cli_parse_expert_experimental_mode, NULL }, // not listed
+	{ { "set", "maxconn", "global",  NULL }, "set maxconn global <value>              : change the per-process maxconn setting",                  cli_parse_set_maxconn_global, NULL },
+	{ { "set", "rate-limit", NULL },         "set rate-limit <setting> <value>        : change a rate limiting value",                            cli_parse_set_ratelimit, NULL },
+	{ { "set", "severity-output",  NULL },   "set severity-output [none|number|string]: set presence of severity level in feedback information",  cli_parse_set_severity_output, NULL, NULL },
+	{ { "set", "timeout",  NULL },           "set timeout [cli] <delay>               : change a timeout setting",                                cli_parse_set_timeout, NULL, NULL },
+	{ { "show", "env",  NULL },              "show env [var]                          : dump environment variables known to the process",         cli_parse_show_env, cli_io_handler_show_env, NULL },
+	{ { "show", "cli", "sockets",  NULL },   "show cli sockets                        : dump list of cli sockets",                                cli_parse_default, cli_io_handler_show_cli_sock, NULL, NULL, ACCESS_MASTER },
+	{ { "show", "cli", "level", NULL },      "show cli level                          : display the level of the current CLI session",            cli_parse_show_lvl, NULL, NULL, NULL, ACCESS_MASTER},
+	{ { "show", "fd", NULL },                "show fd [num]                           : dump list of file descriptors in use or a specific one",  cli_parse_show_fd, cli_io_handler_show_fd, NULL },
+	{ { "show", "activity", NULL },          "show activity                           : show per-thread activity stats (for support/developers)", cli_parse_default, cli_io_handler_show_activity, NULL },
+	{ { "operator", NULL },                  "operator                                : lower the level of the current CLI session to operator",  cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
+	{ { "user", NULL },                      "user                                    : lower the level of the current CLI session to user",      cli_parse_set_lvl, NULL, NULL, NULL, ACCESS_MASTER},
 	{{},}
 }};
 

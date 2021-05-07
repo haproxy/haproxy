@@ -570,7 +570,7 @@ INITCALL0(STG_PREPARE, init_pools);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "pools",  NULL }, "show pools     : report information about the memory pools usage", NULL, cli_io_handler_dump_pools },
+	{ { "show", "pools",  NULL }, "show pools                              : report information about the memory pools usage", NULL, cli_io_handler_dump_pools },
 	{{},}
 }};
 

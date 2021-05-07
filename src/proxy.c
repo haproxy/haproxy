@@ -3081,17 +3081,17 @@ static int cli_io_handler_show_errors(struct appctx *appctx)
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "disable", "frontend",  NULL }, "disable frontend : temporarily disable specific frontend", cli_parse_disable_frontend, NULL, NULL },
-	{ { "enable", "frontend",  NULL }, "enable frontend : re-enable specific frontend", cli_parse_enable_frontend, NULL, NULL },
-	{ { "set", "maxconn", "frontend",  NULL }, "set maxconn frontend : change a frontend's maxconn setting", cli_parse_set_maxconn_frontend, NULL },
-	{ { "show","servers", "conn",  NULL }, "show servers conn [id]: dump server connections status (for backend <id>)", cli_parse_show_servers, cli_io_handler_servers_state },
-	{ { "show","servers", "state",  NULL }, "show servers state [id]: dump volatile server information (for backend <id>)", cli_parse_show_servers, cli_io_handler_servers_state },
-	{ { "show", "backend", NULL }, "show backend   : list backends in the current running config", NULL, cli_io_handler_show_backend },
-	{ { "shutdown", "frontend",  NULL }, "shutdown frontend : stop a specific frontend", cli_parse_shutdown_frontend, NULL, NULL },
-	{ { "set", "dynamic-cookie-key", "backend", NULL }, "set dynamic-cookie-key backend : change a backend secret key for dynamic cookies", cli_parse_set_dyncookie_key_backend, NULL },
-	{ { "enable", "dynamic-cookie", "backend", NULL }, "enable dynamic-cookie backend : enable dynamic cookies on a specific backend", cli_parse_enable_dyncookie_backend, NULL },
-	{ { "disable", "dynamic-cookie", "backend", NULL }, "disable dynamic-cookie backend : disable dynamic cookies on a specific backend", cli_parse_disable_dyncookie_backend, NULL },
-	{ { "show", "errors", NULL }, "show errors    : report last request and response errors for each proxy", cli_parse_show_errors, cli_io_handler_show_errors, NULL },
+	{ { "disable", "frontend",  NULL },                 "disable frontend <frontend>             : temporarily disable specific frontend",                          cli_parse_disable_frontend, NULL, NULL },
+	{ { "enable", "frontend",  NULL },                  "enable frontend <frontend>              : re-enable specific frontend",                                    cli_parse_enable_frontend, NULL, NULL },
+	{ { "set", "maxconn", "frontend",  NULL },          "set maxconn frontend <frontend> <value> : change a frontend's maxconn setting",                            cli_parse_set_maxconn_frontend, NULL },
+	{ { "show","servers", "conn",  NULL },              "show servers conn [<backend>]           : dump server connections status (all or for a single backend)",   cli_parse_show_servers, cli_io_handler_servers_state },
+	{ { "show","servers", "state",  NULL },             "show servers state [<backend>]          : dump volatile server information (all or for a single backend)", cli_parse_show_servers, cli_io_handler_servers_state },
+	{ { "show", "backend", NULL },                      "show backend                            : list backends in the current running config", NULL,              cli_io_handler_show_backend },
+	{ { "shutdown", "frontend",  NULL },                "shutdown frontend <frontend>            : stop a specific frontend",                                       cli_parse_shutdown_frontend, NULL, NULL },
+	{ { "set", "dynamic-cookie-key", "backend", NULL }, "set dynamic-cookie-key backend <bk> <k> : change a backend secret key for dynamic cookies",                cli_parse_set_dyncookie_key_backend, NULL },
+	{ { "enable", "dynamic-cookie", "backend", NULL },  "enable dynamic-cookie backend <bk>      : enable dynamic cookies on a specific backend",                   cli_parse_enable_dyncookie_backend, NULL },
+	{ { "disable", "dynamic-cookie", "backend", NULL }, "disable dynamic-cookie backend <bk>     : disable dynamic cookies on a specific backend",                  cli_parse_disable_dyncookie_backend, NULL },
+	{ { "show", "errors", NULL },                       "show errors [<px>] [request|response]   : report last request and/or response errors for each proxy",      cli_parse_show_errors, cli_io_handler_show_errors, NULL },
 	{{},}
 }};
 

@@ -2666,7 +2666,7 @@ static struct flt_kw_list filter_kws = { "CACHE", { }, {
 INITCALL1(STG_REGISTER, flt_register_keywords, &filter_kws);
 
 static struct cli_kw_list cli_kws = {{},{
-	{ { "show", "cache", NULL }, "show cache     : show cache status", cli_parse_show_cache, cli_io_handler_show_cache, NULL, NULL },
+	{ { "show", "cache", NULL }, "show cache                              : show cache status", cli_parse_show_cache, cli_io_handler_show_cache, NULL, NULL },
 	{{},}
 }};
 

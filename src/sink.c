@@ -1267,7 +1267,7 @@ INITCALL0(STG_REGISTER, sink_init);
 REGISTER_POST_DEINIT(sink_deinit);
 
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "events", NULL }, "show events [<sink>] : show event sink state", cli_parse_show_events, NULL, NULL },
+	{ { "show", "events", NULL }, "show events [<sink>] [-w] [-n]          : show event sink state", cli_parse_show_events, NULL, NULL },
 	{{},}
 }};
 

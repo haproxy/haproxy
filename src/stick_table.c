@@ -4059,9 +4059,9 @@ INITCALL0(STG_INIT, stkt_late_init);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "clear", "table", NULL }, "clear table    : remove an entry from a table", cli_parse_table_req, cli_io_handler_table, cli_release_show_table, (void *)STK_CLI_ACT_CLR },
-	{ { "set",   "table", NULL }, "set table [id] : update or create a table entry's data", cli_parse_table_req, cli_io_handler_table, NULL, (void *)STK_CLI_ACT_SET },
-	{ { "show",  "table", NULL }, "show table [id]: report table usage stats or dump this table's contents", cli_parse_table_req, cli_io_handler_table, cli_release_show_table, (void *)STK_CLI_ACT_SHOW },
+	{ { "clear", "table", NULL }, "clear table <table> [<filter>]*         : remove an entry from a table (filter: data/key)",                           cli_parse_table_req, cli_io_handler_table, cli_release_show_table, (void *)STK_CLI_ACT_CLR },
+	{ { "set",   "table", NULL }, "set table <table> key <k> [data.* <v>]* : update or create a table entry's data",                                     cli_parse_table_req, cli_io_handler_table, NULL, (void *)STK_CLI_ACT_SET },
+	{ { "show",  "table", NULL }, "show table <table> [<filter>]*          : report table usage stats or dump this table's contents (filter: data/key)", cli_parse_table_req, cli_io_handler_table, cli_release_show_table, (void *)STK_CLI_ACT_SHOW },
 	{{},}
 }};
 

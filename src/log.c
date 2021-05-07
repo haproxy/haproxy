@@ -4175,8 +4175,7 @@ static int cli_parse_show_startup_logs(char **args, char *payload, struct appctx
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "show", "startup-logs",  NULL },
-	  "show startup-logs : report logs emitted during HAProxy startup", cli_parse_show_startup_logs, NULL, NULL },
+	{ { "show", "startup-logs",  NULL }, "show startup-logs                       : report logs emitted during HAProxy startup", cli_parse_show_startup_logs, NULL, NULL },
 	{{},}
 }};
 
