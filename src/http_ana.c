@@ -1316,7 +1316,7 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	res->to_forward = 0;
 	res->analyse_exp = TICK_ETERNITY;
 	res->total = 0;
-	s->flags &= ~(SF_ERR_SRVTO | SF_ERR_SRVCL);
+	s->flags &= ~SF_ERR_MASK;
 	si_release_endpoint(&s->si[1]);
 
 	b_reset(&req->buf);
