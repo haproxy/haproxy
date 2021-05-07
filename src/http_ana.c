@@ -16,6 +16,7 @@
 #include <haproxy/backend.h>
 #include <haproxy/base64.h>
 #include <haproxy/capture-t.h>
+#include <haproxy/cfgparse.h>
 #include <haproxy/channel.h>
 #include <haproxy/check.h>
 #include <haproxy/connection.h>
@@ -2798,6 +2799,9 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 
 		act_opts |= ACT_OPT_FIRST;
   resume_execution:
+		if (rule->kw->flags & KWF_EXPERIMENTAL)
+			mark_tainted(TAINTED_ACTION_EXP_EXECUTED);
+
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {
 			if ((s->req.flags & CF_READ_ERROR) ||
@@ -2943,6 +2947,8 @@ static enum rule_result http_res_get_intercept_rule(struct proxy *px, struct lis
 
 		act_opts |= ACT_OPT_FIRST;
 resume_execution:
+		if (rule->kw->flags & KWF_EXPERIMENTAL)
+			mark_tainted(TAINTED_ACTION_EXP_EXECUTED);
 
 		/* Always call the action function if defined */
 		if (rule->action_ptr) {

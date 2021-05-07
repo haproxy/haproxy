@@ -92,6 +92,16 @@ struct act_rule *parse_http_req_cond(const char **args, const char *file, int li
 		cur_arg = 1;
 		/* try in the module list */
 		rule->kw = custom;
+
+		if (custom->flags & KWF_EXPERIMENTAL) {
+			if (!experimental_directives_allowed) {
+				ha_alert("parsing [%s:%d] : '%s' action is experimental, must be allowed via a global 'expose-experimental-directives'\n",
+				         file, linenum, custom->kw);
+				goto out_err;
+			}
+			mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+		}
+
 		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) == ACT_RET_PRS_ERR) {
 			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
 				 file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
@@ -161,6 +171,16 @@ struct act_rule *parse_http_res_cond(const char **args, const char *file, int li
 		cur_arg = 1;
 		/* try in the module list */
 		rule->kw = custom;
+
+		if (custom->flags & KWF_EXPERIMENTAL) {
+			if (!experimental_directives_allowed) {
+				ha_alert("parsing [%s:%d] : '%s' action is experimental, must be allowed via a global 'expose-experimental-directives'\n",
+				         file, linenum, custom->kw);
+				goto out_err;
+			}
+			mark_tainted(TAINTED_CONFIG_EXP_KW_DECLARED);
+		}
+
 		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) == ACT_RET_PRS_ERR) {
 			ha_alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
 				 file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
