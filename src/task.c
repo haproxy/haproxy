@@ -18,12 +18,10 @@
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/fd.h>
-#include <haproxy/freq_ctr.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
-#include <haproxy/time.h>
 #include <haproxy/tools.h>
 
 
