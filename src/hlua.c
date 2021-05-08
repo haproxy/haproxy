@@ -45,7 +45,7 @@
 #include <haproxy/obj_type.h>
 #include <haproxy/pattern.h>
 #include <haproxy/payload.h>
-#include <haproxy/proxy-t.h>
+#include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
 #include <haproxy/server.h>
