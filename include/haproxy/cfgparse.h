@@ -27,6 +27,9 @@
 #include <haproxy/proxy.h>
 
 struct hap_cpuset;
+struct proxy;
+struct bind_conf;
+struct acl_cond;
 
 /* configuration sections */
 #define CFG_NONE	0
@@ -123,56 +126,8 @@ int parse_process_number(const char *arg, unsigned long *proc, int max, int *aut
 unsigned long parse_cpu_set(const char **args, struct hap_cpuset *cpu_set, int comma_allowed, char **err);
 void free_email_alert(struct proxy *p);
 const char *cfg_find_best_match(const char *word, const struct list *list, int section, const char **extra);
-
-/*
- * Sends a warning if proxy <proxy> does not have at least one of the
- * capabilities in <cap>. An optional <hint> may be added at the end
- * of the warning to help the user. Returns 1 if a warning was emitted
- * or 0 if the condition is valid.
- */
-static inline int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint)
-{
-	char *msg;
-
-	switch (cap) {
-	case PR_CAP_BE: msg = "no backend"; break;
-	case PR_CAP_FE: msg = "no frontend"; break;
-	case PR_CAP_BE|PR_CAP_FE: msg = "neither frontend nor backend"; break;
-	default: msg = "not enough"; break;
-	}
-
-	if (!(proxy->cap & cap)) {
-		ha_warning("parsing [%s:%d] : '%s' ignored because %s '%s' has %s capability.%s\n",
-			   file, line, arg, proxy_type_str(proxy), proxy->id, msg, hint ? hint : "");
-		return 1;
-	}
-	return 0;
-}
-
-/*
- * Sends an alert if proxy <proxy> does not have at least one of the
- * capabilities in <cap>. An optional <hint> may be added at the end
- * of the alert to help the user. Returns 1 if an alert was emitted
- * or 0 if the condition is valid.
- */
-static inline int failifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint)
-{
-	char *msg;
-
-	switch (cap) {
-	case PR_CAP_BE: msg = "no backend"; break;
-	case PR_CAP_FE: msg = "no frontend"; break;
-	case PR_CAP_BE|PR_CAP_FE: msg = "neither frontend nor backend"; break;
-	default: msg = "not enough"; break;
-	}
-
-	if (!(proxy->cap & cap)) {
-		ha_alert("parsing [%s:%d] : '%s' not allowed because %s '%s' has %s capability.%s\n",
-			 file, line, arg, proxy_type_str(proxy), proxy->id, msg, hint ? hint : "");
-		return 1;
-	}
-	return 0;
-}
+int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint);
+int failifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint);
 
 /* simplified way to define a section parser */
 #define REGISTER_CONFIG_SECTION(name, parse, post)                            \
