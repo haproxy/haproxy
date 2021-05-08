@@ -2731,7 +2731,7 @@ show stat [domain <dns|proxy>] [{<iid>|<proxy>} <type> <sid>] [typed|json] \
   The rest of the line starting after the first colon follows the "typed output
   format" described in the section above. In short, the second column (after the
   first ':') indicates the origin, nature and scope of the variable. The third
-  column indicates the type of the field, among "s32", "s64", "u32", "u64" and
+  column indicates the field type, among "s32", "s64", "u32", "u64", "flt' and
   "str". Then the fourth column is the value itself, which the consumer knows
   how to parse thanks to column 3 and how to process thanks to column 2.
 
