@@ -16,6 +16,7 @@
 #include <haproxy/debug.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
+#include <haproxy/signal-t.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 
