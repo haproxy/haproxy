@@ -33,7 +33,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/mworker.h>
 #include <haproxy/peers.h>
-#include <haproxy/proxy-t.h>
+#include <haproxy/proxy.h>
 #include <haproxy/signal.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
