@@ -23,8 +23,6 @@
 #define _HAPROXY_CFGPARSE_H
 
 #include <haproxy/api.h>
-#include <haproxy/errors.h>
-#include <haproxy/proxy.h>
 
 struct hap_cpuset;
 struct proxy;
