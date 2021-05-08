@@ -707,6 +707,46 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 	return 1;
 }
 
+/* reserve some space for data type <type>, and associate argument at <sa> if
+ * not NULL. Returns PE_NONE (0) if OK or an error code among :
+ *   - PE_ENUM_OOR if <type> does not exist
+ *   - PE_EXIST if <type> is already registered
+ *   - PE_ARG_NOT_USE if <sa> was provided but not expected
+ *   - PE_ARG_MISSING if <sa> was expected but not provided
+ */
+int stktable_alloc_data_type(struct stktable *t, int type, const char *sa)
+{
+	if (type >= STKTABLE_DATA_TYPES)
+		return PE_ENUM_OOR;
+
+	if (t->data_ofs[type])
+		/* already allocated */
+		return PE_EXIST;
+
+	switch (stktable_data_types[type].arg_type) {
+	case ARG_T_NONE:
+		if (sa)
+			return PE_ARG_NOT_USED;
+		break;
+	case ARG_T_INT:
+		if (!sa)
+			return PE_ARG_MISSING;
+		t->data_arg[type].i = atoi(sa);
+		break;
+	case ARG_T_DELAY:
+		if (!sa)
+			return PE_ARG_MISSING;
+		sa = parse_time_err(sa, &t->data_arg[type].u, TIME_UNIT_MS);
+		if (sa)
+			return PE_ARG_INVC; /* invalid char */
+		break;
+	}
+
+	t->data_size      += stktable_type_size(stktable_data_types[type].std_type);
+	t->data_ofs[type]  = -t->data_size;
+	return PE_NONE;
+}
+
 /*
  * Parse a line with <linenum> as number in <file> configuration file to configure
  * the stick-table with <t> as address and  <id> as ID.
