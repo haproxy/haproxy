@@ -48,6 +48,7 @@
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 #include <haproxy/xprt_quic.h>
 
 
