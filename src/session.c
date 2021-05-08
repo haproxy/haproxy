@@ -20,6 +20,7 @@
 #include <haproxy/proxy.h>
 #include <haproxy/session.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/tools.h>
 #include <haproxy/vars.h>
 
 
