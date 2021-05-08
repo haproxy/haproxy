@@ -25,6 +25,7 @@
 #include <haproxy/errors.h>
 #include <haproxy/list.h>
 #include <haproxy/log.h>
+#include <haproxy/proxy.h>
 #include <haproxy/ring.h>
 #include <haproxy/signal.h>
 #include <haproxy/sink.h>
