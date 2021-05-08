@@ -37,6 +37,7 @@
 #include <haproxy/listener.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/tools.h>
 
 
 /****************** Global Section Parsing ********************************************/
