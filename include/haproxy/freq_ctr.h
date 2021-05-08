@@ -104,12 +104,30 @@ static inline uint read_freq_ctr_period(struct freq_ctr *ctr, uint period)
 	return div64_32(total, period);
 }
 
+/* same as read_freq_ctr_period() above except that floats are used for the
+ * output so that low rates can be more precise.
+ */
+static inline double read_freq_ctr_period_flt(struct freq_ctr *ctr, uint period)
+{
+	ullong total = freq_ctr_total(ctr, period, -1);
+
+	return (double)total / (double)period;
+}
+
 /* Read a 1-sec frequency counter taking history into account for missing time
  * in current period.
  */
 static inline unsigned int read_freq_ctr(struct freq_ctr *ctr)
 {
 	return read_freq_ctr_period(ctr, MS_TO_TICKS(1000));
+}
+
+/* same as read_freq_ctr() above except that floats are used for the
+ * output so that low rates can be more precise.
+ */
+static inline double read_freq_ctr_flt(struct freq_ctr *ctr)
+{
+	return read_freq_ctr_period_flt(ctr, MS_TO_TICKS(1000));
 }
 
 /* Returns the number of remaining events that can occur on this freq counter
