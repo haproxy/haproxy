@@ -23,6 +23,7 @@
 #include <haproxy/pattern.h>
 #include <haproxy/payload.h>
 #include <haproxy/sample.h>
+#include <haproxy/tools.h>
 
 
 /************************************************************************/
