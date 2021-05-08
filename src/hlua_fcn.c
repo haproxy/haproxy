@@ -356,7 +356,7 @@ static int hlua_get_info(lua_State *L)
 {
 	int i;
 
-	stats_fill_info(stats, STATS_LEN);
+	stats_fill_info(stats, STATS_LEN, 0);
 
 	lua_newtable(L);
 	for (i=0; i<INF_TOTAL_FIELDS; i++) {

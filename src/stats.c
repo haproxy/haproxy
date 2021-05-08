@@ -4285,12 +4285,13 @@ static int stats_dump_typed_info_fields(struct buffer *out,
 	return 1;
 }
 
-/* Fill <info> with HAProxy global info. <info> is preallocated
- * array of length <len>. The length of the array must be
- * INF_TOTAL_FIELDS. If this length is less then this value, the
- * function returns 0, otherwise, it returns 1.
+/* Fill <info> with HAProxy global info. <info> is preallocated array of length
+ * <len>. The length of the array must be INF_TOTAL_FIELDS. If this length is
+ * less then this value, the function returns 0, otherwise, it returns 1. Some
+ * fields' presence or precision may depend on some of the STAT_* flags present
+ * in <flags>.
  */
-int stats_fill_info(struct field *info, int len)
+int stats_fill_info(struct field *info, int len, uint flags)
 {
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 	struct buffer *out = get_trash_chunk();
@@ -4410,7 +4411,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 
-	if (!stats_fill_info(info, INF_TOTAL_FIELDS))
+	if (!stats_fill_info(info, INF_TOTAL_FIELDS, appctx->ctx.stats.flags))
 		return 0;
 
 	chunk_reset(&trash);

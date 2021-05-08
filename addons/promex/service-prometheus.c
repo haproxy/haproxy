@@ -545,7 +545,7 @@ static int promex_dump_global_metrics(struct appctx *appctx, struct htx *htx)
 	size_t max = htx_get_max_blksz(htx, channel_htx_recv_max(chn, htx));
 	int ret = 1;
 
-	if (!stats_fill_info(info, INF_TOTAL_FIELDS))
+	if (!stats_fill_info(info, INF_TOTAL_FIELDS, 0))
 		return -1;
 
 	for (; appctx->st2 < INF_TOTAL_FIELDS; appctx->st2++) {
