@@ -28,6 +28,7 @@
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
 #include <haproxy/pool.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
