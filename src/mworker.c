@@ -42,6 +42,7 @@
 
 static int exitcode = -1;
 static int max_reloads = -1; /* number max of reloads a worker can have until they are killed */
+struct mworker_proc *proc_self = NULL; /* process structure of current process */
 
 /* ----- children processes handling ----- */
 

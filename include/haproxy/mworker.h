@@ -17,6 +17,8 @@
 #include <haproxy/mworker-t.h>
 #include <haproxy/signal-t.h>
 
+extern struct mworker_proc *proc_self;
+
 void mworker_proc_list_to_env();
 void mworker_env_to_proc_list();
 

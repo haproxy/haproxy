@@ -252,8 +252,6 @@ unsigned int rlim_fd_max_at_boot = 0;
 /* per-boot randomness */
 unsigned char boot_seed[20];        /* per-boot random seed (160 bits initially) */
 
-struct mworker_proc *proc_self = NULL;
-
 static void *run_thread_poll_loop(void *data);
 
 /* bitfield of a few warnings to emit just once (WARN_*) */

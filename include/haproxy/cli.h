@@ -27,6 +27,7 @@
 #include <haproxy/channel-t.h>
 #include <haproxy/cli-t.h>
 #include <haproxy/global.h>
+#include <haproxy/mworker-t.h>
 #include <haproxy/stream-t.h>
 
 
