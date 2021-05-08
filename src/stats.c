@@ -4328,8 +4328,8 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	info[INF_UPTIME]                         = mkf_str(FN_DURATION, chunk_newstr(out));
 	chunk_appendf(out, "%ud %uh%02um%02us", (uint)up.tv_sec / 86400, ((uint)up.tv_sec % 86400) / 3600, ((uint)up.tv_sec % 3600) / 60, ((uint)up.tv_sec % 60));
 
-	info[INF_UPTIME_SEC]                     = mkf_u32(FN_DURATION, up.tv_sec);
-	info[INF_START_TIME_SEC]                 = mkf_u32(FN_DURATION, start_date.tv_sec);
+	info[INF_UPTIME_SEC]                     = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, up.tv_sec + up.tv_usec / 1000000.0) : mkf_u32(FN_DURATION, up.tv_sec);
+	info[INF_START_TIME_SEC]                 = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_DURATION, start_date.tv_sec + start_date.tv_usec / 1000000.0) : mkf_u32(FN_DURATION, start_date.tv_sec);
 	info[INF_MEMMAX_MB]                      = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax);
 	info[INF_MEMMAX_BYTES]                   = mkf_u32(FO_CONFIG|FN_LIMIT, global.rlimit_memmax * 1048576L);
 	info[INF_POOL_ALLOC_MB]                  = mkf_u32(0, (unsigned)(pool_total_allocated() / 1048576L));
