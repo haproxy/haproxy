@@ -89,12 +89,6 @@ static inline unsigned long proc_mask(unsigned long mask)
 	return mask ? mask : all_proc_mask;
 }
 
-/* returns a mask if set, otherwise all_threads_mask */
-static inline unsigned long thread_mask(unsigned long mask)
-{
-	return mask ? mask : all_threads_mask;
-}
-
 /* handle 'tainted' status */
 enum tainted_flags {
 	TAINTED_CONFIG_EXP_KW_DECLARED = 0x1,
