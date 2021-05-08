@@ -26,6 +26,7 @@
 #include <haproxy/log.h>
 #include <haproxy/regex.h>
 #include <haproxy/sample.h>
+#include <haproxy/tools.h>
 
 
 struct buffer http_err_chunks[HTTP_ERR_SIZE];
