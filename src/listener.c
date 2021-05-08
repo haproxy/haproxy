@@ -28,8 +28,8 @@
 #include <haproxy/list.h>
 #include <haproxy/listener.h>
 #include <haproxy/log.h>
-#include <haproxy/protocol-t.h>
 #include <haproxy/protocol.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
