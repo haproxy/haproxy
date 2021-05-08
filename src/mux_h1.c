@@ -22,7 +22,7 @@
 #include <haproxy/istbuf.h>
 #include <haproxy/log.h>
 #include <haproxy/pipe-t.h>
-#include <haproxy/proxy-t.h>
+#include <haproxy/proxy.h>
 #include <haproxy/session-t.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
