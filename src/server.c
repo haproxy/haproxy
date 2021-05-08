@@ -33,6 +33,7 @@
 #include <haproxy/namespace.h>
 #include <haproxy/port_range.h>
 #include <haproxy/protocol.h>
+#include <haproxy/proxy.h>
 #include <haproxy/queue.h>
 #include <haproxy/resolvers.h>
 #include <haproxy/sample.h>
