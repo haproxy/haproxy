@@ -91,6 +91,7 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
+#include <haproxy/log.h>
 #include <haproxy/port_range.h>
 #include <haproxy/tools.h>
 
