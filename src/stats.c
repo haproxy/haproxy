@@ -4297,14 +4297,12 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	struct buffer *out = get_trash_chunk();
 
 #ifdef USE_OPENSSL
-	int ssl_sess_rate = read_freq_ctr(&global.ssl_per_sec);
-	int ssl_key_rate = read_freq_ctr(&global.ssl_fe_keys_per_sec);
-	int ssl_reuse = 0;
+	double ssl_sess_rate = read_freq_ctr_flt(&global.ssl_per_sec);
+	double ssl_key_rate  = read_freq_ctr_flt(&global.ssl_fe_keys_per_sec);
+	double ssl_reuse = 0;
 
-	if (ssl_key_rate < ssl_sess_rate) {
-		/* count the ssl reuse ratio and avoid overflows in both directions */
-		ssl_reuse = 100 - (100 * ssl_key_rate + (ssl_sess_rate - 1) / 2) / ssl_sess_rate;
-	}
+	if (ssl_key_rate < ssl_sess_rate)
+		ssl_reuse = 100.0 * (1.0 - ssl_key_rate / ssl_sess_rate);
 #endif
 
 	tv_remain(&start_date, &now, &up);
@@ -4352,27 +4350,27 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	info[INF_MAXPIPES]                       = mkf_u32(FO_CONFIG|FN_LIMIT, global.maxpipes);
 	info[INF_PIPES_USED]                     = mkf_u32(0, pipes_used);
 	info[INF_PIPES_FREE]                     = mkf_u32(0, pipes_free);
-	info[INF_CONN_RATE]                      = mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
+	info[INF_CONN_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.conn_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.conn_per_sec));
 	info[INF_CONN_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.cps_lim);
 	info[INF_MAX_CONN_RATE]                  = mkf_u32(FN_MAX, global.cps_max);
-	info[INF_SESS_RATE]                      = mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
+	info[INF_SESS_RATE]                      = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.sess_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.sess_per_sec));
 	info[INF_SESS_RATE_LIMIT]                = mkf_u32(FO_CONFIG|FN_LIMIT, global.sps_lim);
 	info[INF_MAX_SESS_RATE]                  = mkf_u32(FN_RATE, global.sps_max);
 
 #ifdef USE_OPENSSL
-	info[INF_SSL_RATE]                       = mkf_u32(FN_RATE, ssl_sess_rate);
+	info[INF_SSL_RATE]                       = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_sess_rate) : mkf_u32(FN_RATE, ssl_sess_rate);
 	info[INF_SSL_RATE_LIMIT]                 = mkf_u32(FO_CONFIG|FN_LIMIT, global.ssl_lim);
 	info[INF_MAX_SSL_RATE]                   = mkf_u32(FN_MAX, global.ssl_max);
-	info[INF_SSL_FRONTEND_KEY_RATE]          = mkf_u32(0, ssl_key_rate);
+	info[INF_SSL_FRONTEND_KEY_RATE]          = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_key_rate) : mkf_u32(0, ssl_key_rate);
 	info[INF_SSL_FRONTEND_MAX_KEY_RATE]      = mkf_u32(FN_MAX, global.ssl_fe_keys_max);
-	info[INF_SSL_FRONTEND_SESSION_REUSE_PCT] = mkf_u32(0, ssl_reuse);
-	info[INF_SSL_BACKEND_KEY_RATE]           = mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
+	info[INF_SSL_FRONTEND_SESSION_REUSE_PCT] = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, ssl_reuse) : mkf_u32(0, ssl_reuse);
+	info[INF_SSL_BACKEND_KEY_RATE]           = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.ssl_be_keys_per_sec)) : mkf_u32(FN_RATE, read_freq_ctr(&global.ssl_be_keys_per_sec));
 	info[INF_SSL_BACKEND_MAX_KEY_RATE]       = mkf_u32(FN_MAX, global.ssl_be_keys_max);
 	info[INF_SSL_CACHE_LOOKUPS]              = mkf_u32(FN_COUNTER, global.shctx_lookups);
 	info[INF_SSL_CACHE_MISSES]               = mkf_u32(FN_COUNTER, global.shctx_misses);
 #endif
-	info[INF_COMPRESS_BPS_IN]                = mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
-	info[INF_COMPRESS_BPS_OUT]               = mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
+	info[INF_COMPRESS_BPS_IN]                = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_in)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_in));
+	info[INF_COMPRESS_BPS_OUT]               = (flags & STAT_USE_FLOAT) ? mkf_flt(FN_RATE, read_freq_ctr_flt(&global.comp_bps_out)) : mkf_u32(FN_RATE, read_freq_ctr(&global.comp_bps_out));
 	info[INF_COMPRESS_BPS_RATE_LIM]          = mkf_u32(FO_CONFIG|FN_LIMIT, global.comp_rate_lim);
 #ifdef USE_ZLIB
 	info[INF_ZLIB_MEM_USAGE]                 = mkf_u32(0, zlib_used_memory);
