@@ -27,6 +27,7 @@
 #include <haproxy/resolvers.h>
 #include <haproxy/server.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/tools.h>
 
 
 /* Update a server state using the parameters available in the params list.
