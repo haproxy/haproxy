@@ -83,6 +83,7 @@ s *     queue's lock.
 #include <haproxy/tcp_rules.h>
 #include <haproxy/thread.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 
 #define NOW_OFFSET_BOUNDARY()          ((now_ms - (TIMER_LOOK_BACK >> 12)) & 0xfffff)
