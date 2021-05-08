@@ -30,6 +30,7 @@
 #include <haproxy/sink.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 struct list sink_list = LIST_HEAD_INIT(sink_list);
 
