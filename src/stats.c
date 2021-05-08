@@ -391,6 +391,7 @@ const char *field_to_html_str(const struct field *f)
 	case FF_S64: return U2H(f->u.s64);
 	case FF_U64: return U2H(f->u.u64);
 	case FF_U32: return U2H(f->u.u32);
+	case FF_FLT: return F2H(f->u.flt);
 	case FF_STR: return field_str(f, 0);
 	case FF_EMPTY:
 	default:
