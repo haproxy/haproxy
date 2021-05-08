@@ -851,7 +851,7 @@ static int cfg_parse_tune_fd_edge_triggered(char **args, int section_type, struc
 
 /* config keyword parsers */
 static struct cfg_kw_list cfg_kws = {ILH, {
-	{ CFG_GLOBAL, "tune.fd.edge-triggered", cfg_parse_tune_fd_edge_triggered },
+	{ CFG_GLOBAL, "tune.fd.edge-triggered", cfg_parse_tune_fd_edge_triggered, KWF_EXPERIMENTAL },
 	{ 0, NULL, NULL }
 }};
 
