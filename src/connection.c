@@ -987,6 +987,53 @@ int conn_recv_socks4_proxy_response(struct connection *conn)
 	return 0;
 }
 
+/* Lists the known proto mux on <out> */
+void list_mux_proto(FILE *out)
+{
+	struct mux_proto_list *item;
+	struct buffer *chk = get_trash_chunk();
+	struct ist proto;
+	char *mode, *side;
+
+	fprintf(out, "Available multiplexer protocols :\n"
+		"(protocols marked as <default> cannot be specified using 'proto' keyword)\n");
+	list_for_each_entry(item, &mux_proto_list.list, list) {
+		proto = item->token;
+
+		if (item->mode == PROTO_MODE_ANY)
+			mode = "TCP|HTTP";
+		else if (item->mode == PROTO_MODE_TCP)
+			mode = "TCP";
+		else if (item->mode == PROTO_MODE_HTTP)
+			mode = "HTTP";
+		else
+			mode = "NONE";
+
+		if (item->side == PROTO_SIDE_BOTH)
+			side = "FE|BE";
+		else if (item->side == PROTO_SIDE_FE)
+			side = "FE";
+		else if (item->side == PROTO_SIDE_BE)
+			side = "BE";
+		else
+			side = "NONE";
+
+		chunk_reset(chk);
+		if (item->mux->flags & MX_FL_HTX)
+			chunk_strcpy(chk, "HTX");
+		if (item->mux->flags & MX_FL_CLEAN_ABRT)
+			chunk_appendf(chk, "%sCLEAN_ABRT", (b_data(chk) ? "|": ""));
+		if (item->mux->flags & MX_FL_HOL_RISK)
+			chunk_appendf(chk, "%sHOL_RISK", (b_data(chk) ? "|": ""));
+		if (item->mux->flags & MX_FL_NO_UPG)
+			chunk_appendf(chk, "%sNO_UPG", (b_data(chk) ? "|": ""));
+
+		fprintf(out, " %15s : mode=%-10s side=%-8s  mux=%-8s flags=%.*s\n",
+			(proto.len ? proto.ptr : "<default>"), mode, side, item->mux->name,
+			(int)b_data(chk), b_orig(chk));
+	}
+}
+
 /* Note: <remote> is explicitly allowed to be NULL */
 int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm)
 {
