@@ -31,6 +31,7 @@
 #include <haproxy/stats-t.h>
 #include <haproxy/stick_table.h>
 #include <haproxy/tcpcheck.h>
+#include <haproxy/tools.h>
 #include <haproxy/uri_auth.h>
 
 /* some keywords that are still being parsed using strcmp() and are not
