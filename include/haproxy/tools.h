@@ -75,6 +75,7 @@ extern char *lltoa_r(long long int n, char *buffer, int size);
 extern char *sltoa_r(long n, char *buffer, int size);
 extern const char *ulltoh_r(unsigned long long n, char *buffer, int size);
 size_t flt_trim(char *buffer, size_t num_start, size_t len);
+char *ftoa_r(double n, char *buffer, int size);
 static inline const char *ultoa(unsigned long n)
 {
 	return ultoa_r(n, itoa_str[0], sizeof(itoa_str[0]));
@@ -151,6 +152,32 @@ static inline const char *U2A(unsigned long n)
 static inline const char *U2H(unsigned long long n)
 {
 	const char *ret = ulltoh_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]));
+	if (++itoa_idx >= NB_ITOA_STR)
+		itoa_idx = 0;
+	return ret;
+}
+
+/* returns a locally allocated string containing the ASCII representation of
+ * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
+ * function call (eg: printf), shared with the other similar functions making
+ * use of itoa_str[].
+ */
+static inline const char *F2A(double n)
+{
+	const char *ret = ftoa_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]));
+	if (++itoa_idx >= NB_ITOA_STR)
+		itoa_idx = 0;
+	return ret;
+}
+
+/* returns a locally allocated string containing the HTML representation of
+ * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
+ * function call (eg: printf), shared with the other similar functions making
+ * use of itoa_str[].
+ */
+static inline const char *F2H(double n)
+{
+	const char *ret = ftoa_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]));
 	if (++itoa_idx >= NB_ITOA_STR)
 		itoa_idx = 0;
 	return ret;

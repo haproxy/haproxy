@@ -568,6 +568,17 @@ size_t flt_trim(char *buffer, size_t num_start, size_t len)
 	return trim - buffer;
 }
 
+/*
+ * This function simply returns a locally allocated string containing
+ * the ascii representation for number 'n' in decimal with useless trailing
+ * zeroes trimmed.
+ */
+char *ftoa_r(double n, char *buffer, int size)
+{
+	flt_trim(buffer, 0, snprintf(buffer, size, "%f", n));
+	return buffer;
+}
+
 /* returns a locally allocated string containing the quoted encoding of the
  * input string. The output may be truncated to QSTR_SIZE chars, but it is
  * guaranteed that the string will always be properly terminated. Quotes are
