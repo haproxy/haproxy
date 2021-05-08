@@ -934,55 +934,6 @@ static inline int fix_pointer_if_wrap(const char **chunks, const char **ptr)
 	return 1;
 }
 
-/************************* Composite address manipulation *********************
- * Composite addresses are simply unsigned long data in which the higher bits
- * represent a pointer, and the two lower bits are flags. There are several
- * places where we just want to associate one or two flags to a pointer (eg,
- * to type it), and these functions permit this. The pointer is necessarily a
- * 32-bit aligned pointer, as its two lower bits will be cleared and replaced
- * with the flags.
- *****************************************************************************/
-
-/* Masks the two lower bits of a composite address and converts it to a
- * pointer. This is used to mix some bits with some aligned pointers to
- * structs and to retrieve the original (32-bit aligned) pointer.
- */
-static inline void *caddr_to_ptr(unsigned long caddr)
-{
-	return (void *)(caddr & ~3UL);
-}
-
-/* Only retrieves the two lower bits of a composite address. This is used to mix
- * some bits with some aligned pointers to structs and to retrieve the original
- * data (2 bits).
- */
-static inline unsigned int caddr_to_data(unsigned long caddr)
-{
-	return (caddr & 3UL);
-}
-
-/* Combines the aligned pointer whose 2 lower bits will be masked with the bits
- * from <data> to form a composite address. This is used to mix some bits with
- * some aligned pointers to structs and to retrieve the original (32-bit aligned)
- * pointer.
- */
-static inline unsigned long caddr_from_ptr(void *ptr, unsigned int data)
-{
-	return (((unsigned long)ptr) & ~3UL) + (data & 3);
-}
-
-/* sets the 2 bits of <data> in the <caddr> composite address */
-static inline unsigned long caddr_set_flags(unsigned long caddr, unsigned int data)
-{
-	return caddr | (data & 3);
-}
-
-/* clears the 2 bits of <data> in the <caddr> composite address */
-static inline unsigned long caddr_clr_flags(unsigned long caddr, unsigned int data)
-{
-	return caddr & ~(unsigned long)(data & 3);
-}
-
 unsigned char utf8_next(const char *s, int len, unsigned int *c);
 
 static inline unsigned char utf8_return_code(unsigned int code)
