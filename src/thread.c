@@ -26,6 +26,7 @@
 #include <haproxy/cfgparse.h>
 #include <haproxy/fd.h>
 #include <haproxy/global.h>
+#include <haproxy/log.h>
 #include <haproxy/thread.h>
 #include <haproxy/tools.h>
 
