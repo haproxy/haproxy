@@ -32,6 +32,7 @@
 #include <haproxy/shctx.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
+#include <haproxy/tools.h>
 
 #define CACHE_FLT_F_IMPLICIT_DECL  0x00000001 /* The cache filtre was implicitly declared (ie without
 					       * the filter keyword) */
