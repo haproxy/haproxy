@@ -33,6 +33,7 @@
 #include <haproxy/ring.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
+#include <haproxy/tools.h>
 
 static THREAD_LOCAL char *dns_msg_trash;
 
