@@ -14,6 +14,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/buf-t.h>
+#include <haproxy/chunk.h>
 #include <haproxy/openssl-compat.h>
 #include <haproxy/ssl_sock.h>
 
