@@ -20,7 +20,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/list.h>
-#include <haproxy/proxy-t.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/stream.h>
 #include <haproxy/tools.h>
