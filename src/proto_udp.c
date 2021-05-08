@@ -39,6 +39,7 @@
 #include <haproxy/sock.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/task.h>
+#include <haproxy/tools.h>
 
 static int udp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static void udp_enable_listener(struct listener *listener);
