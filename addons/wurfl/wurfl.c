@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#include <import/ebmbtree.h>
+#include <import/ebsttree.h>
+
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
 #include <haproxy/buf-t.h>
@@ -13,8 +16,7 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/log.h>
 #include <haproxy/sample.h>
-#include <import/ebmbtree.h>
-#include <import/ebsttree.h>
+#include <haproxy/tools.h>
 
 #include <wurfl/wurfl.h>
 
