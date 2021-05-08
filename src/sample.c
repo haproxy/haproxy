@@ -3591,6 +3591,11 @@ static int sample_conv_mqtt_is_valid(const struct arg *arg_p, struct sample *smp
 static int smp_check_strcmp(struct arg *args, struct sample_conv *conv,
                            const char *file, int line, char **err)
 {
+	if (!args[0].data.str.data) {
+		memprintf(err, "missing variable name");
+		return 0;
+	}
+
 	/* Try to decode a variable. */
 	if (vars_check_arg(&args[0], NULL))
 		return 1;
@@ -3607,6 +3612,11 @@ static int smp_check_strcmp(struct arg *args, struct sample_conv *conv,
 static int smp_check_secure_memcmp(struct arg *args, struct sample_conv *conv,
                            const char *file, int line, char **err)
 {
+	if (!args[0].data.str.data) {
+		memprintf(err, "missing variable name");
+		return 0;
+	}
+
 	/* Try to decode a variable. */
 	if (vars_check_arg(&args[0], NULL))
 		return 1;
