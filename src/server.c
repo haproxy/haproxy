@@ -44,6 +44,7 @@
 #include <haproxy/task.h>
 #include <haproxy/tcpcheck.h>
 #include <haproxy/time.h>
+#include <haproxy/tools.h>
 
 
 static void srv_update_status(struct server *s);
