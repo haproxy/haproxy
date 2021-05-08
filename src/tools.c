@@ -535,6 +535,39 @@ const char *limit_r(unsigned long n, char *buffer, int size, const char *alt)
 	return (n) ? ultoa_r(n, buffer, size) : (alt ? alt : "");
 }
 
+/* Trims the first "%f" float in a string to its minimum number of digits after
+ * the decimal point by trimming trailing zeroes, even dropping the decimal
+ * point if not needed. The string is in <buffer> of length <len>, and the
+ * number is expected to start at or after position <num_start> (the first
+ * point appearing there is considered). A NUL character is always placed at
+ * the end if some trimming occurs. The new buffer length is returned.
+ */
+size_t flt_trim(char *buffer, size_t num_start, size_t len)
+{
+	char *end = buffer + len;
+	char *p = buffer + num_start;
+	char *trim;
+
+	do {
+		if (p >= end)
+			return len;
+		trim = p++;
+	} while (*trim != '.');
+
+	/* For now <trim> is on the decimal point. Let's look for any other
+	 * meaningful digit after it.
+	 */
+	while (p < end) {
+		if (*p++ != '0')
+			trim = p;
+	}
+
+	if (trim < end)
+		*trim = 0;
+
+	return trim - buffer;
+}
+
 /* returns a locally allocated string containing the quoted encoding of the
  * input string. The output may be truncated to QSTR_SIZE chars, but it is
  * guaranteed that the string will always be properly terminated. Quotes are

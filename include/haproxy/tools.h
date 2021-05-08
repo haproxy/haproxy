@@ -74,6 +74,7 @@ extern char *ultoa_r(unsigned long n, char *buffer, int size);
 extern char *lltoa_r(long long int n, char *buffer, int size);
 extern char *sltoa_r(long n, char *buffer, int size);
 extern const char *ulltoh_r(unsigned long long n, char *buffer, int size);
+size_t flt_trim(char *buffer, size_t num_start, size_t len);
 static inline const char *ultoa(unsigned long n)
 {
 	return ultoa_r(n, itoa_str[0], sizeof(itoa_str[0]));
