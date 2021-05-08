@@ -72,7 +72,7 @@ void flt_ot_vars_dump(struct stream *s)
 	 * source here to get the value of the 'vars' pointer, but it is defined
 	 * as 'static inline', so unfortunately none of this is possible.
 	 */
-	flt_ot_vars_scope_dump(&(global.vars), "PROC");
+	flt_ot_vars_scope_dump(&(proc_vars), "PROC");
 	flt_ot_vars_scope_dump(&(s->sess->vars), "SESS");
 	flt_ot_vars_scope_dump(&(s->vars_txn), "TXN");
 	flt_ot_vars_scope_dump(&(s->vars_reqres), "REQ/RES");
@@ -102,7 +102,7 @@ static inline struct vars *flt_ot_get_vars(struct stream *s, const char *scope)
 	struct vars *retptr = NULL;
 
 	if (strcasecmp(scope, "proc") == 0)
-		retptr = &(global.vars);
+		retptr = &(proc_vars);
 	else if (strcasecmp(scope, "sess") == 0)
 		retptr = (&(s->sess->vars));
 	else if (strcasecmp(scope, "txn") == 0)

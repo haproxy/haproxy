@@ -1521,7 +1521,7 @@ static void init(int argc, char **argv)
 	hlua_init();
 
 	/* Initialize process vars */
-	vars_init(&global.vars, SCOPE_PROC);
+	vars_init(&proc_vars, SCOPE_PROC);
 
 	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
 #if defined(USE_POLL)
@@ -2553,7 +2553,7 @@ void deinit(void)
 		free(tff);
 	}
 
-	vars_prune(&global.vars, NULL, NULL);
+	vars_prune(&proc_vars, NULL, NULL);
 	pool_destroy_all();
 	deinit_pollers();
 } /* end deinit() */

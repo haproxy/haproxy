@@ -21,6 +21,9 @@
 /* This contains a pool of struct vars */
 DECLARE_STATIC_POOL(var_pool, "vars", sizeof(struct var));
 
+/* list of variables for the process scope. */
+struct vars proc_vars THREAD_ALIGNED(64);
+
 /* This array contain all the names of all the HAProxy vars.
  * This permits to identify two variables name with
  * only one pointer. It permits to not using  strdup() for
@@ -47,7 +50,7 @@ static inline struct vars *get_vars(struct session *sess, struct stream *strm, e
 {
 	switch (scope) {
 	case SCOPE_PROC:
-		return &global.vars;
+		return &proc_vars;
 	case SCOPE_SESS:
 		return sess ? &sess->vars : NULL;
 	case SCOPE_CHECK: {
@@ -91,7 +94,7 @@ scope_sess:
 		_HA_ATOMIC_ADD(&sess->vars.size, size);
 		/* fall through */
 	case SCOPE_PROC:
-		_HA_ATOMIC_ADD(&global.vars.size, size);
+		_HA_ATOMIC_ADD(&proc_vars.size, size);
 		_HA_ATOMIC_ADD(&var_global_size, size);
 	}
 }
@@ -128,7 +131,7 @@ scope_sess:
 			return 0;
 		/* fall through */
 	case SCOPE_PROC:
-		if (var_proc_limit && global.vars.size + size > var_proc_limit)
+		if (var_proc_limit && proc_vars.size + size > var_proc_limit)
 			return 0;
 		if (var_global_limit && var_global_size + size > var_global_limit)
 			return 0;
@@ -187,7 +190,7 @@ void vars_prune_per_sess(struct vars *vars)
 	HA_RWLOCK_WRUNLOCK(VARS_LOCK, &vars->rwlock);
 
 	_HA_ATOMIC_SUB(&vars->size, size);
-	_HA_ATOMIC_SUB(&global.vars.size, size);
+	_HA_ATOMIC_SUB(&proc_vars.size, size);
 	_HA_ATOMIC_SUB(&var_global_size, size);
 }
 

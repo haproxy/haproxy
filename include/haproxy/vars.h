@@ -27,6 +27,8 @@
 #include <haproxy/stream-t.h>
 #include <haproxy/vars-t.h>
 
+extern struct vars proc_vars;
+
 void vars_init(struct vars *vars, enum vars_scope scope);
 void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size);
 unsigned int var_clear(struct var *var);

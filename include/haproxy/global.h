@@ -25,7 +25,6 @@
 #include <haproxy/api-t.h>
 #include <haproxy/global-t.h>
 #include <haproxy/mworker-t.h>
-#include <haproxy/vars-t.h>
 
 extern const char *build_features;
 extern struct global global;

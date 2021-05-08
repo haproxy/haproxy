@@ -25,7 +25,6 @@
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
 #include <haproxy/freq_ctr-t.h>
-#include <haproxy/vars-t.h>
 
 /* modes of operation (global.mode) */
 #define	MODE_DEBUG	0x01
@@ -186,7 +185,6 @@ struct global {
 	unsigned int shctx_lookups, shctx_misses;
 	unsigned int req_count; /* request counter (HTTP or TCP session) for logs and unique_id */
 	int last_checks;
-	struct vars   vars;         /* list of variables for the process scope. */
 
 	/* leave this at the end to make sure we don't share this cache line by accident */
 	ALWAYS_ALIGN(64);
