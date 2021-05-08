@@ -26,6 +26,7 @@
 #include <haproxy/api.h>
 #include <haproxy/dict-t.h>
 #include <haproxy/errors.h>
+#include <haproxy/freq_ctr.h>
 #include <haproxy/sample-t.h>
 #include <haproxy/stick_table-t.h>
 #include <haproxy/ticks.h>
