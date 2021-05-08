@@ -20,10 +20,10 @@
 #include <haproxy/fd.h>
 #include <haproxy/list.h>
 #include <haproxy/pool.h>
-#include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
 
+extern struct task *process_stream(struct task *t, void *context, unsigned int state);
 
 DECLARE_POOL(pool_head_task,    "task",    sizeof(struct task));
 DECLARE_POOL(pool_head_tasklet, "tasklet", sizeof(struct tasklet));
