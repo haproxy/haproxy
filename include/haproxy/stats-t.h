@@ -42,6 +42,7 @@
 #define STAT_SHMODULES  0x00002000      /* conf: show modules */
 #define STAT_HIDE_MAINT 0x00004000	/* hide maint/disabled servers */
 #define STAT_CONVDONE   0x00008000	/* conf: rules conversion done */
+#define STAT_USE_FLOAT  0x00010000      /* use floats where possible in the outputs */
 
 #define STAT_BOUND      0x00800000	/* bound statistics to selected proxies/types/services */
 #define STAT_STARTED    0x01000000	/* some output has occurred */

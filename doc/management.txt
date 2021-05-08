@@ -2295,7 +2295,7 @@ show fd [<fd>]
   suffixed with an exclamation mark ('!'). This may help find a starting point
   when trying to diagnose an incident.
 
-show info [typed|json] [desc]
+show info [typed|json] [desc] [float]
   Dump info about haproxy status on current process. If "typed" is passed as an
   optional argument, field numbers, names and types are emitted as well so that
   external monitoring products can easily retrieve, possibly aggregate, then
@@ -2306,7 +2306,11 @@ show info [typed|json] [desc]
   delimited by a colon (':'). The left one is the field name and the right
   one is the value.  It is very important to note that in typed output
   format, the dump for a single object is contiguous so that there is no
-  need for a consumer to store everything at once.
+  need for a consumer to store everything at once. If "float" is passed as an
+  optional argument, some fields usually emitted as integers may switch to
+  floats for higher accuracy. It is purposely unspecified which ones are
+  concerned as this might evolve over time. Using this option implies that the
+  consumer is able to process floats. The output format used is sprintf("%f").
 
   When using the typed output format, each line is made of 4 columns delimited
   by colons (':'). The first column is a dot-delimited series of 3 elements. The

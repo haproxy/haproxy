@@ -4788,6 +4788,8 @@ static int cli_parse_show_info(char **args, char *payload, struct appctx *appctx
 			appctx->ctx.stats.flags = (appctx->ctx.stats.flags & ~STAT_FMT_MASK) | STAT_FMT_JSON;
 		else if (strcmp(args[arg], "desc") == 0)
 			appctx->ctx.stats.flags |= STAT_SHOW_FDESC;
+		else if (strcmp(args[arg], "float") == 0)
+			appctx->ctx.stats.flags |= STAT_USE_FLOAT;
 		arg++;
 	}
 	return 0;
@@ -5111,7 +5113,7 @@ REGISTER_PER_THREAD_FREE(free_trash_counters);
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "clear", "counters",  NULL },      "clear counters [all]                    : clear max statistics counters (or all counters)", cli_parse_clear_counters, NULL, NULL },
-	{ { "show", "info",  NULL },           "show info [desc|json|typed]*            : report information about the running process",    cli_parse_show_info, cli_io_handler_dump_info, NULL },
+	{ { "show", "info",  NULL },           "show info [desc|json|typed|float]*      : report information about the running process",    cli_parse_show_info, cli_io_handler_dump_info, NULL },
 	{ { "show", "stat",  NULL },           "show stat [desc|json|no-maint|typed|up]*: report counters for each proxy and server",       cli_parse_show_stat, cli_io_handler_dump_stat, NULL },
 	{ { "show", "schema",  "json", NULL }, "show schema json                        : report schema used for stats",                    NULL, cli_io_handler_dump_json_schema, NULL },
 	{{},}
