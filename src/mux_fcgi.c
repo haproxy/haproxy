@@ -25,7 +25,7 @@
 #include <haproxy/list.h>
 #include <haproxy/log.h>
 #include <haproxy/net_helper.h>
-#include <haproxy/proxy-t.h>
+#include <haproxy/proxy.h>
 #include <haproxy/regex.h>
 #include <haproxy/session-t.h>
 #include <haproxy/ssl_sock.h>
