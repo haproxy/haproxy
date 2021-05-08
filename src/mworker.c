@@ -37,6 +37,7 @@
 #include <haproxy/signal.h>
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
+#include <haproxy/tools.h>
 #include <haproxy/version.h>
 
 
