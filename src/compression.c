@@ -34,6 +34,7 @@
 #include <haproxy/pool.h>
 #include <haproxy/stream.h>
 #include <haproxy/thread.h>
+#include <haproxy/tools.h>
 
 
 #if defined(USE_ZLIB)
