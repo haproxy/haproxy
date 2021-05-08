@@ -34,10 +34,10 @@
 
 #include <haproxy/api-t.h>
 #include <haproxy/buf-t.h>
-#include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/port_range-t.h>
 #include <haproxy/protocol-t.h>
+#include <haproxy/thread-t.h>
 
 /* referenced below */
 struct connection;
@@ -49,6 +49,7 @@ struct server;
 struct session;
 struct pipe;
 struct quic_conn;
+struct bind_conf;
 
 /* Note: subscribing to these events is only valid after the caller has really
  * attempted to perform the operation, and failed to proceed or complete.
