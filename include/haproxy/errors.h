@@ -22,6 +22,7 @@
 #ifndef _HAPROXY_ERRORS_H
 #define _HAPROXY_ERRORS_H
 
+#include <stdarg.h>
 #include <stdio.h>
 
 /* These flags may be used in various functions which are called from within
