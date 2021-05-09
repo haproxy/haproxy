@@ -620,11 +620,11 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &mworker_kws);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "@<relative pid>", NULL }, "@<relative pid> : send a command to the <relative pid> process", NULL, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
-	{ { "@!<pid>", NULL }, "@!<pid>        : send a command to the <pid> process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
-	{ { "@master", NULL }, "@master        : send a command to the master process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
-	{ { "show", "proc", NULL }, "show proc      : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
-	{ { "reload", NULL },    "reload         : reload haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "@<relative pid>", NULL }, "@<relative pid>                         : send a command to the <relative pid> process", NULL, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "@!<pid>", NULL },         "@!<pid>                                 : send a command to the <pid> process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "@master", NULL },         "@master                                 : send a command to the master process", cli_parse_default, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "show", "proc", NULL },    "show proc                               : show processes status", cli_parse_default, cli_io_handler_show_proc, NULL, NULL, ACCESS_MASTER_ONLY},
+	{ { "reload", NULL },          "reload                                  : reload haproxy", cli_parse_reload, NULL, NULL, NULL, ACCESS_MASTER_ONLY},
 	{{},}
 }};
 
