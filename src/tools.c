@@ -5021,7 +5021,6 @@ static uint64_t ha_random_state[2] ALIGNED(2*sizeof(uint64_t));
  */
 uint64_t ha_random64()
 {
-	uint64_t result;
 	uint64_t old[2] ALIGNED(2*sizeof(uint64_t));
 	uint64_t new[2] ALIGNED(2*sizeof(uint64_t));
 
@@ -5037,7 +5036,6 @@ uint64_t ha_random64()
 #if defined(USE_THREAD) && defined(HA_CAS_IS_8B) && defined(HA_HAVE_CAS_DW)
 	do {
 #endif
-		result = rotl64(old[0] * 5, 7) * 9;
 		new[1] = old[0] ^ old[1];
 		new[0] = rotl64(old[0], 24) ^ new[1] ^ (new[1] << 16); // a, b
 		new[1] = rotl64(new[1], 37); // c
@@ -5051,7 +5049,7 @@ uint64_t ha_random64()
 	HA_SPIN_UNLOCK(OTHER_LOCK, &rand_lock);
 #endif
 #endif
-	return result;
+	return rotl64(old[0] * 5, 7) * 9;
 }
 
 /* seeds the random state using up to <len> bytes from <seed>, starting with
