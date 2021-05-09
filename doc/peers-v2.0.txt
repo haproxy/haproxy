@@ -1,4 +1,4 @@
-	Haproxy's peers v2.0 protocol 08/18/2016
+	HAProxy's peers v2.0 protocol 08/18/2016
 
 Author: Emeric Brun ebrun@haproxy.com
 
@@ -36,7 +36,7 @@ Hello message is composed of 3 lines:
 <remotepeerid>
 <localpeerid> <processpid> <relativepid>
 
-protocol: current value is "HaproxyS"
+protocol: current value is "HAProxyS"
 version: current value is "2.0"
 remotepeerid: is the name of the target peer as defined in the configuration peers section.
 localpeerid: is the name of the local peer as defined on cmdline or using hostname.
