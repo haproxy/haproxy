@@ -109,7 +109,7 @@ itself.
 The list of available filters is reported by 'haproxy -vv' :
 
     $> haproxy -vv
-    HA-Proxy version 1.7-dev2-3a1d4a-33 2016/03/21
+    HAProxy version 1.7-dev2-3a1d4a-33 2016/03/21
     Copyright 2000-2016 Willy Tarreau <willy@haproxy.org>
 
     [...]

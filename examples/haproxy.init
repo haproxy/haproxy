@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # chkconfig: - 85 15
-# description: HA-Proxy is a TCP/HTTP reverse proxy which is particularly suited \
+# description: HAProxy is a TCP/HTTP reverse proxy which is particularly suited \
 #              for high availability environments.
 # processname: haproxy
 # config: /etc/haproxy/haproxy.cfg

@@ -358,7 +358,7 @@ the versions of the libraries being used are reported there. It is also what
 you will systematically be asked for when posting a bug report :
 
   $ haproxy -vv
-  HA-Proxy version 1.6-dev7-a088d3-4 2015/10/08
+  HAProxy version 1.6-dev7-a088d3-4 2015/10/08
   Copyright 2000-2015 Willy Tarreau <willy@haproxy.org>
 
   Build options :

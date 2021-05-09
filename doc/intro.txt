@@ -1498,26 +1498,32 @@ branch, you need to proceed this way :
     generally sufficient to type "haproxy -v". A development version will
     appear like this, with the "dev" word after the branch number :
 
-      HA-Proxy version 1.6-dev3-385ecc-68 2015/08/18
+      HAProxy version 2.4-dev18-a5357c-137 2021/05/09 - https://haproxy.org/
 
     A stable version will appear like this, as well as unmodified stable
     versions provided by operating system vendors :
 
-      HA-Proxy version 1.5.14 2015/07/02
+      HAProxy version 1.5.14 2015/07/02
 
     And a nightly snapshot of a stable version will appear like this with an
     hexadecimal sequence after the version, and with the date of the snapshot
     instead of the date of the release :
 
-      HA-Proxy version 1.5.14-e4766ba 2015/07/29
+      HAProxy version 1.5.14-e4766ba 2015/07/29
 
     Any other format may indicate a system-specific package with its own
     patch set. For example HAProxy Enterprise versions will appear with the
     following format (<branch>-<latest commit>-<revision>) :
 
-      HA-Proxy version 1.5.0-994126-357 2015/07/02
+      HAProxy version 1.5.0-994126-357 2015/07/02
 
-    In addition, versions 2.1 and above will include a "Status" line indicating
+    Please note that historically versions prior to 2.4 used to report the
+    process name with a hyphen between "HA" and "Proxy", including those above
+    which were adjusted to show the correct format only, so better ignore this
+    word or use a relaxed match in scripts. Additionally, modern versions add
+    a URL linking to the project's home.
+
+    Finally, versions 2.1 and above will include a "Status" line indicating
     whether the version is safe for production or not, and if so, till when, as
     well as a link to the list of known bugs affecting this version.
 
