@@ -517,7 +517,7 @@
 		<name>HAProxy Frontend Session Stats</name>
 		<ds>
 			<t_name></t_name>
-			<name>|host_description| - Haproxy - |query_fePxName| Frontend Session Stats</name>
+			<name>|host_description| - HAProxy - |query_fePxName| Frontend Session Stats</name>
 			<data_input_id>hash_030013bf566c869ac6443b0c75d1c32b5a350e</data_input_id>
 			<t_rra_id></t_rra_id>
 			<t_rrd_step></t_rrd_step>
@@ -608,7 +608,7 @@
 		<name>HAProxy Frontend Traffic Stats</name>
 		<ds>
 			<t_name></t_name>
-			<name>|host_description| - Haproxy - |query_fePxName| Frontend Traffic Stats</name>
+			<name>|host_description| - HAProxy - |query_fePxName| Frontend Traffic Stats</name>
 			<data_input_id>hash_030013bf566c869ac6443b0c75d1c32b5a350e</data_input_id>
 			<t_rra_id></t_rra_id>
 			<t_rrd_step></t_rrd_step>

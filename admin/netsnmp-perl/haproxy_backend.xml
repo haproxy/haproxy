@@ -1,5 +1,5 @@
 <interface>
-	<name>Haproxy - backend</name>
+	<name>HAProxy - backend</name>
 	<oid_index>.1.3.6.1.4.1.29385.106.1.1.10001</oid_index>
 	<fields>
 		<beIID>

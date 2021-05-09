@@ -1,5 +1,5 @@
 #
-# Net-SNMP perl plugin for Haproxy
+# Net-SNMP perl plugin for HAProxy
 # Version 0.30
 #
 # Copyright 2007-2010 Krzysztof Piotr Oledzki <ole@ans.pl>
@@ -21,7 +21,7 @@ use IO::Socket::UNIX;
 
 use strict;
 
-my $agent = new NetSNMP::agent('Name' => 'Haproxy');
+my $agent = new NetSNMP::agent('Name' => 'HAProxy');
 my $sa = "/var/run/haproxy.stat";
 
 use constant OID_HAPROXY => '1.3.6.1.4.1.29385.106';
@@ -244,6 +244,6 @@ sub haproxy_info {
 	}
 }
 
-$agent->register('Haproxy stat', OID_HAPROXY_STATS, \&haproxy_stat);
-$agent->register('Haproxy info', OID_HAPROXY_INFO, \&haproxy_info);
+$agent->register('HAProxy stat', OID_HAPROXY_STATS, \&haproxy_stat);
+$agent->register('HAProxy info', OID_HAPROXY_INFO, \&haproxy_info);
 
