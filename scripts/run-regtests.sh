@@ -345,7 +345,7 @@ if [ $preparefailed ]; then
 fi
 
 { read HAPROXY_VERSION; read TARGET; read FEATURES; read SERVICES; } << EOF
-$($HAPROXY_PROGRAM $HAPROXY_ARGS -vv | grep 'HA-Proxy version\|TARGET.*=\|^Feature\|^Available services' | sed 's/.* [:=] //')
+$($HAPROXY_PROGRAM $HAPROXY_ARGS -vv | grep 'HA-\?Proxy version\|TARGET.*=\|^Feature\|^Available services' | sed 's/.* [:=] //')
 EOF
 
 HAPROXY_VERSION=$(echo $HAPROXY_VERSION | cut -d " " -f 3)
