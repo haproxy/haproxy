@@ -1840,9 +1840,10 @@ get weight <backend>/<server>
   may be specified either by their name or by their numeric ID, prefixed with a
   sharp ('#').
 
-help
-  Print the list of known keywords and their basic usage. The same help screen
-  is also displayed for unknown commands.
+help [<command>]
+  Print the list of known keywords and their basic usage, or commands matching
+  the requested one. The same help screen is also displayed for unknown
+  commands.
 
 new ssl cert <filename>
   Create a new empty SSL certificate store to be filled with a certificate and

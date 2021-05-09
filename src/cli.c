@@ -96,9 +96,15 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	struct buffer out;
 	struct { struct cli_kw *kw; int dist; } matches[CLI_MAX_MATCHES], swp;
 	int idx;
+	int ishelp = 0;
 	int length = 0;
 
 	ha_free(&dynamic_usage_msg);
+
+	if (args && *args && strcmp(*args, "help") == 0) {
+		args++;
+		ishelp = 1;
+	}
 
 	/* first, let's measure the longest match */
 	list_for_each_entry(kw_list, &cli_keywords.list, list) {
@@ -125,7 +131,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 
 	/* now <length> equals the number of exactly matching words */
 	chunk_reset(tmp);
-	if (!args) // this is the help message.
+	if (ishelp) // this is the help message.
 		chunk_strcat(tmp, "The following commands are valid at this level:\n");
 	else if (!length && (!*args || !**args)) // no match
 		chunk_strcat(tmp, "Unknown command. Please enter one of the following commands only:\n");
@@ -254,7 +260,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 
 	/* always show the prompt/help/quit commands */
 	chunk_strcat(tmp,
-	             "  help                                    : full commands list\n"
+	             "  help [<command>]                        : list matching or all commands\n"
 	             "  prompt                                  : toggle interactive mode with prompt\n"
 	             "  quit                                    : disconnect\n");
 
@@ -2040,7 +2046,7 @@ static int cli_parse_simple(char **args, char *payload, struct appctx *appctx, v
 {
 	if (*args[0] == 'h')
 		/* help */
-		cli_gen_usage_msg(appctx, NULL);
+		cli_gen_usage_msg(appctx, args);
 	else if (*args[0] == 'p')
 		/* prompt */
 		appctx->st1 ^= APPCTX_CLI_ST1_PROMPT;
