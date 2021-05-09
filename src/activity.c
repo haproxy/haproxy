@@ -187,7 +187,7 @@ static void  memprof_free_initial_handler(void *ptr)
 static struct memprof_stats *memprof_get_bin(const void *ra)
 {
 	int retries = 16; // up to 16 consecutive entries may be tested.
-	void *old;
+	const void *old;
 	unsigned int bin;
 
 	bin = memprof_hash_ptr(ra);
