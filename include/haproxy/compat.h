@@ -272,6 +272,11 @@ typedef struct { } empty_t;
 #define HA_HAVE_FAST_MALLOC
 #endif
 
+/* FreeBSD also has malloc_usable_size() but it requires malloc_np.h */
+#if defined(USE_MEMORY_PROFILING) && defined(__FreeBSD__) && (__FreeBSD_version >= 700002)
+#include <malloc_np.h>
+#endif
+
 /* Max number of file descriptors we send in one sendmsg(). Linux seems to be
  * able to send 253 fds per sendmsg(), not sure about the other OSes.
  */
