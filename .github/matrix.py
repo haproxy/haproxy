@@ -109,6 +109,8 @@ for CC in ["gcc", "clang"]:
         "BORINGSSL=yes",
     ]:
         flags = ["USE_OPENSSL=1"]
+        if ssl == "BORINGSSL=yes":
+            flags.append("USE_QUIC=1")
         if ssl != "stock":
             flags.append("SSL_LIB=${HOME}/opt/lib")
             flags.append("SSL_INC=${HOME}/opt/include")
