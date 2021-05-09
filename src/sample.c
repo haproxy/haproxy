@@ -3278,7 +3278,7 @@ static int sample_conv_strcmp(const struct arg *arg_p, struct sample *smp, void 
 	return 1;
 }
 
-#ifdef USE_OPENSSL
+#if defined(HAVE_CRYPTO_memcmp)
 /* Compares bytestring with a variable containing a bytestring. Return value
  * is `true` if both bytestrings are bytewise identical and `false` otherwise.
  *
@@ -3605,7 +3605,7 @@ static int smp_check_strcmp(struct arg *args, struct sample_conv *conv,
 	return 0;
 }
 
-#ifdef USE_OPENSSL
+#if defined(HAVE_CRYPTO_memcmp)
 /* This function checks the "secure_memcmp" converter's arguments and extracts the
  * variable name and its scope.
  */
@@ -4287,7 +4287,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 #endif
 	{ "concat", sample_conv_concat,    ARG3(1,STR,STR,STR), smp_check_concat, SMP_T_STR,  SMP_T_STR },
 	{ "strcmp", sample_conv_strcmp,    ARG1(1,STR), smp_check_strcmp, SMP_T_STR,  SMP_T_SINT },
-#ifdef USE_OPENSSL
+#if defined(HAVE_CRYPTO_memcmp)
 	{ "secure_memcmp", sample_conv_secure_memcmp,    ARG1(1,STR), smp_check_secure_memcmp, SMP_T_BIN,  SMP_T_BOOL },
 #endif
 
