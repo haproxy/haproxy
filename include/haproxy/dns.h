@@ -2,7 +2,7 @@
  * include/haproxy/dns.h
  * This file provides functions related to DNS protocol
  *
- * Copyright (C) 2020 Haproxy Technologies
+ * Copyright (C) 2020 HAProxy Technologies
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

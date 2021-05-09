@@ -49,13 +49,13 @@ Then comes a new class of products which we'll call "dumb proxies", not because
 they don't do anything, but because they're processing protocol-agnostic data.
 Both Stunnel[3] and Stud[4] are examples of such "dumb proxies". They talk raw
 TCP on one side, and raw SSL on the other one, and do that reliably, without
-any knowledge of what protocol is transported on top of the connection. Haproxy
+any knowledge of what protocol is transported on top of the connection. HAProxy
 running in pure TCP mode obviously falls into that category as well.
 
 The problem with such a proxy when it is combined with another one such as
 haproxy, is to adapt it to talk the higher level protocol. A patch is available
 for Stunnel to make it capable of inserting an X-Forwarded-For header in the
-first HTTP request of each incoming connection. Haproxy is able not to add
+first HTTP request of each incoming connection. HAProxy is able not to add
 another one when the connection comes from Stunnel, so that it's possible to
 hide it from the servers.
 
@@ -698,7 +698,7 @@ extend the protocol with multibyte type values.
 
 3. Implementations
 
-Haproxy 1.5 implements version 1 of the PROXY protocol on both sides :
+HAProxy 1.5 implements version 1 of the PROXY protocol on both sides :
   - the listening sockets accept the protocol when the "accept-proxy" setting
     is passed to the "bind" keyword. Connections accepted on such listeners
     will behave just as if the source really was the one advertised in the
@@ -712,7 +712,7 @@ Haproxy 1.5 implements version 1 of the PROXY protocol on both sides :
     "accept-proxy", then the relayed information is the one advertised in this
     connection's PROXY line.
 
-  - Haproxy 1.5 also implements version 2 of the PROXY protocol as a sender. In
+  - HAProxy 1.5 also implements version 2 of the PROXY protocol as a sender. In
     addition, a TLV with limited, optional, SSL information has been added.
 
 Stunnel added support for version 1 of the protocol for outgoing connections in

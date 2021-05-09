@@ -145,7 +145,7 @@ struct flt_kw_list {
  *                          that can be detected if s->txn->status is 10X, or
  *                          if we're attempting a L7 retry.
  *                          Returns nothing.
- *  - http_reply          : Called when, at any time, HA proxy decides to stop
+ *  - http_reply          : Called when, at any time, HAProxy decides to stop
  *                          the HTTP message's processing and to send a message
  *                          to the client (mainly, when an error or a redirect
  *                          occur).

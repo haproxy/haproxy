@@ -1,6 +1,6 @@
 2013/11/20 - How hashing works internally in haproxy - maddalab@gmail.com
 
-This document describes how Haproxy implements hashing both map-based and
+This document describes how HAProxy implements hashing both map-based and
 consistent hashing, both prior to versions 1.5 and the motivation and tests
 that were done when providing additional options starting in version 2.2
 
@@ -28,7 +28,7 @@ is quite suited to fit over a 32-bit space with enough variations so that
 a randomly picked number falls equally before any server position, which is
 ideal for consistently hashed backends, a common use case for caches.
 
-In all versions 1.4 and prior Haproxy implements the SDBM hashing function.
+In all versions 1.4 and prior HAProxy implements the SDBM hashing function.
 However tests show that alternatives to SDBM have a better cache
 distribution on different hashing criteria. Additional tests involving
 alternatives for hash input and an option to trigger avalanche, we found

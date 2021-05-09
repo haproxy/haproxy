@@ -1,5 +1,5 @@
 " Vim syntax file
-" Language:    HAproxy
+" Language:    HAProxy
 " Maintainer:  Bruno Michel <brmichel@free.fr>
 " Last Change: Mar 30, 2007
 " Version:     0.3

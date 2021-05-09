@@ -60,7 +60,7 @@
 #define FCGI_CF_ABRTS_SENT      0x00000200  /* a record ABORT was successfully sent to all active streams */
 #define FCGI_CF_ABRTS_FAILED    0x00000400  /* failed to abort processing of all streams */
 #define FCGI_CF_WAIT_FOR_HS     0x00000800  /* We did check that at least a stream was waiting for handshake */
-#define FCGI_CF_KEEP_CONN       0x00001000  /* HAproxy is responsible to close the connection */
+#define FCGI_CF_KEEP_CONN       0x00001000  /* HAProxy is responsible to close the connection */
 #define FCGI_CF_GET_VALUES      0x00002000  /* retrieve settings */
 
 /* FCGI connection state (fcgi_conn->state) */

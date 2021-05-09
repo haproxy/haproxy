@@ -179,7 +179,7 @@ status. Here is the output when running this VTC file:
     **** h1    0.0 macro def h1_pid=6395
     **** h1    0.0 macro def h1_name=/tmp/vtc.6377.64329194/h1
     **   h1    0.0 Wait
-    **   h1    0.0 Stop HAproxy pid=6395
+    **   h1    0.0 Stop HAProxy pid=6395
     **** h1    0.0 STDOUT poll 0x10
     **   h1    0.0 WAIT4 pid=6395 status=0x008b (user 0.000000 sys 0.000000)
     *    h1    0.0 Expected exit: 0x1 signal: 0 core: 0
@@ -227,7 +227,7 @@ as expected (verbose mode execution):
     **** h1    0.0 macro def h1_pid=25558
     **** h1    0.0 macro def h1_name=/tmp/vtc.25540.59b6ec5d/h1
     **   h1    0.0 Wait
-    **   h1    0.0 Stop HAproxy pid=25558
+    **   h1    0.0 Stop HAProxy pid=25558
     ***  h1    0.0 debug|[ALERT]    (25558) : parsing [/tmp/vtc.25540.59b6ec5d/h1/cfg:10] : 'filter' : ''spoe' : missing config file'
     ***  h1    0.0 debug|[ALERT]    (25558) : Error(s) found in configuration file : /tmp/vtc.25540.59b6ec5d/h1/cfg
     ***  h1    0.0 debug|[ALERT]    (25558) : Fatal errors found in configuration.
@@ -318,7 +318,7 @@ client and 's1' server with 'http1' as haproxy frontend. This frontend listen
 on TCP socket with 'my_frontend_fd' as file descriptor.
 
     # Mandatory line
-    varnishtest "Basic HAproxy test"
+    varnishtest "Basic HAProxy test"
 
     # As some macros for haproxy are used in this file, this line is mandatory.
     feature ignore_unknown_macro
@@ -558,7 +558,7 @@ Here is the output produced by varnishtest with the latter VTC file:
     *    top   0.0 RESETTING after /home/fred/src/varnish-cache-haproxy/d02286d.vtc
     **   h1    0.0 Reset and free h1 haproxy 15787
     **   h1    0.0 Wait
-    **   h1    0.0 Stop HAproxy pid=15787
+    **   h1    0.0 Stop HAProxy pid=15787
     **** h1    0.0 Kill(2)=0: Success
     **** h1    0.0 STDOUT poll 0x10
     **   h1    0.1 WAIT4 pid=15787 status=0x0002 (user 0.000000 sys 0.004000)
@@ -693,7 +693,7 @@ of the "syslog" "expect" command:
     *    top   0.0 RESETTING after /home/fred/src/varnish-cache-haproxy/d02286d.vtc
     **   h1    0.0 Reset and free h1 haproxy 12728
     **   h1    0.0 Wait
-    **   h1    0.0 Stop HAproxy pid=12728
+    **   h1    0.0 Stop HAProxy pid=12728
     **** h1    0.0 Kill(2)=0: Success
     **** h1    0.0 STDOUT poll 0x10
     **   h1    0.1 WAIT4 pid=12728 status=0x0002 (user 0.000000 sys 0.004000)

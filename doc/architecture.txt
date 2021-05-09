@@ -665,7 +665,7 @@ Description :
 When an application is spread across several servers, the time to update all
 instances increases, so the application seems jerky for a longer period.
 
-HAproxy offers several solutions for this. Although it cannot be reconfigured
+HAProxy offers several solutions for this. Although it cannot be reconfigured
 without being stopped, nor does it offer any external command, there are other
 working solutions.
 
@@ -1342,7 +1342,7 @@ This ensures five essential principles :
 Example :
 ---------
 
-Haproxy is installed in front of an application servers farm. It will limit
+HAProxy is installed in front of an application servers farm. It will limit
 the concurrent connections to 4 per server (one thread per CPU), thus ensuring
 very fast response times.
 

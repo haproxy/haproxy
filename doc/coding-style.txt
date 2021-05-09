@@ -1165,7 +1165,7 @@ obvious where to look for it and where to add it.
 All files should include <haproxy/api.h> because this is where build options
 are prepared.
 
-Haproxy header files are split in two, those exporting the types only (named
+HAProxy header files are split in two, those exporting the types only (named
 with a trailing "-t") and those exporting variables, functions and inline
 functions. Types, structures, enums and #defines must go into the types files
 which are the only ones that may be included by othertype files. Function

@@ -299,7 +299,7 @@ buffer. There are 2 functions to do so, the second one relying on the first :
 Both functions return a "zero-sized" HTX message if the buffer is null. This
 way, the HTX message is always valid. The first function is the default function
 to use. The second one is only useful when some content will be added. For
-instance, it used by the HTX analyzers when HAproxy generates a response. Thus,
+instance, it used by the HTX analyzers when HAProxy generates a response. Thus,
 the buffer is in a right state.
 
 Once the processing done, if the HTX message has been modified, the underlying

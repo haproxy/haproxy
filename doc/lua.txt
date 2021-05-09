@@ -384,7 +384,7 @@ object name.
 The Lua developer can add entries to the HAProxy object. They just work carefully
 and prevent to modify the index [0].
 
-Common HAproxy objects are:
+Common HAProxy objects are:
 
  - TXN        : manipulates the transaction between the client and the server
  - Channel    : manipulates proxified data between the client and the server
@@ -488,7 +488,7 @@ yield must be jump to the root of execution. The intermediate setjmp() avoids
 this behaviour.
 
 
-   HAproxy start Lua execution
+   HAProxy start Lua execution
      + Lua puts a setjmp()
         + Lua executes code
         + Some code is executed in a pcall()
@@ -515,7 +515,7 @@ after a yield. These parts are the sample fetches and the sample converters. So,
 the Lua code written in these parts of HAProxy must be quickly executed, and can
 not do actions which require yield like TCP connection or simple sleep.
 
-HAproxy socket object
+HAProxy socket object
 ---------------------
 
 The HAProxy design is optimized for the data transfers between a client and a
