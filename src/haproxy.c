@@ -1,5 +1,5 @@
 /*
- * HA-Proxy : High Availability-enabled HTTP/TCP proxy
+ * HAProxy : High Availability-enabled HTTP/TCP proxy
  * Copyright 2000-2021 Willy Tarreau <willy@haproxy.org>.
  *
  * This program is free software; you can redistribute it and/or
@@ -474,7 +474,7 @@ static void display_version()
 {
 	struct utsname utsname;
 
-	printf("HA-Proxy version %s %s - https://haproxy.org/\n"
+	printf("HAProxy version %s %s - https://haproxy.org/\n"
 	       PRODUCT_STATUS "\n", haproxy_version, haproxy_date);
 
 	if (strlen(PRODUCT_URL_BUGS) > 0) {
