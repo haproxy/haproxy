@@ -710,7 +710,7 @@ static int smp_fetch_url_ip(const struct arg *args, struct sample *smp, const ch
 	sl = http_get_stline(htx);
 	url2sa(HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl), &addr, NULL);
 
-	if (((struct sockaddr_in *)&addr)->sin_family != AF_INET)
+	if (addr.ss_family != AF_INET)
 		return 0;
 
 	smp->data.type = SMP_T_IPV4;
@@ -731,11 +731,11 @@ static int smp_fetch_url_port(const struct arg *args, struct sample *smp, const 
 	sl = http_get_stline(htx);
 	url2sa(HTX_SL_REQ_UPTR(sl), HTX_SL_REQ_ULEN(sl), &addr, NULL);
 
-	if (((struct sockaddr_in *)&addr)->sin_family != AF_INET)
+	if (addr.ss_family != AF_INET)
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = ntohs(((struct sockaddr_in *)&addr)->sin_port);
+	smp->data.u.sint = get_host_port(&addr);
 	smp->flags = 0;
 	return 1;
 }
