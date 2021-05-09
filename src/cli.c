@@ -84,12 +84,21 @@ extern const char *stat_status_codes[];
 
 struct proxy *mworker_proxy; /* CLI proxy of the master */
 
+static int cmp_kw_entries(const void *a, const void *b)
+{
+	const struct cli_kw *l = *(const struct cli_kw **)a;
+	const struct cli_kw *r = *(const struct cli_kw **)b;
+
+	return strcmp(l->usage ? l->usage : "", r->usage ? r->usage : "");
+}
+
 /* This will show the help message and list the commands supported at the
  * current level that match all of the first words of <args> if args is not
  * NULL, or all args if none matches or if args is null.
  */
 static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 {
+	struct cli_kw *entries[CLI_MAX_HELP_ENTRIES];
 	struct cli_kw_list *kw_list;
 	struct cli_kw *kw;
 	struct buffer *tmp = get_trash_chunk();
@@ -98,6 +107,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	int idx;
 	int ishelp = 0;
 	int length = 0;
+	int help_entries = 0;
 
 	ha_free(&dynamic_usage_msg);
 
@@ -220,7 +230,8 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 			if (matches[idx].dist > 5*matches[0].dist/2)
 				break;
 
-			chunk_appendf(tmp, "  %s\n", kw->usage);
+			if (help_entries < CLI_MAX_HELP_ENTRIES)
+				entries[help_entries++] = kw;
 		}
 	}
 
@@ -253,10 +264,15 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 					break;
 			}
 
-			if (kw->usage && idx == length)
-				chunk_appendf(tmp, "  %s\n", kw->usage);
+			if (kw->usage && idx == length && help_entries < CLI_MAX_HELP_ENTRIES)
+				entries[help_entries++] = kw;
 		}
 	}
+
+	qsort(entries, help_entries, sizeof(*entries), cmp_kw_entries);
+
+	for (idx = 0; idx < help_entries; idx++)
+		chunk_appendf(tmp, "  %s\n", entries[idx]->usage);
 
 	/* always show the prompt/help/quit commands */
 	chunk_strcat(tmp,

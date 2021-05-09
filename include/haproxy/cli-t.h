@@ -44,6 +44,7 @@
 
 #define CLI_PREFIX_KW_NB 5
 #define CLI_MAX_MATCHES 5
+#define CLI_MAX_HELP_ENTRIES 1024
 
 /* CLI states */
 enum {
