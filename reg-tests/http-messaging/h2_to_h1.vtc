@@ -34,6 +34,12 @@ server s1 {
 } -repeat 2 -start
 
 haproxy h1 -conf {
+    global
+        # WT: limit false-positives causing "HTTP header incomplete" due to
+        # idle server connections being randomly used and randomly expiring
+        # under us.
+        tune.idle-pool.shared off
+
     defaults
 	#log stdout format raw daemon
 	mode http

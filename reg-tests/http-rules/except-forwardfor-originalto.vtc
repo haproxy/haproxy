@@ -7,6 +7,12 @@ varnishtest "Test IPv4/IPv6 except param for the forwardfor and originalto optio
 feature ignore_unknown_macro
 
 haproxy h1 -conf {
+    global
+        # WT: limit false-positives causing "HTTP header incomplete" due to
+        # idle server connections being randomly used and randomly expiring
+        # under us.
+        tune.idle-pool.shared off
+
     defaults
         mode http
         timeout connect 1s

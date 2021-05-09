@@ -7,6 +7,11 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
     global
+        # WT: limit false-positives causing "HTTP header incomplete" due to
+        # idle server connections being randomly used and randomly expiring
+        # under us.
+        tune.idle-pool.shared off
+
         lua-load-per-thread ${testdir}/txn_get_priv.lua
         lua-load-per-thread ${testdir}/txn_get_priv-print_r.lua
 
