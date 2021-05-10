@@ -2623,7 +2623,7 @@ void run_poll_loop()
 			int i;
 
 			if (stopping) {
-				/* stop muxes before acknowleding stopping */
+				/* stop muxes before acknowledging stopping */
 				if (!(stopping_thread_mask & tid_bit)) {
 					task_wakeup(mux_stopping_data[tid].task, TASK_WOKEN_OTHER);
 					wake = 1;

@@ -112,7 +112,7 @@ static __attribute__((noreturn)) void memprof_die(const char *msg)
  * Worse, we have to account for the risk of reentrance from dlsym() when
  * it tries to prepare its error messages. Here its ahndled by in_memprof
  * that makes allocators return NULL. dlsym() handles it gracefully. An
- * alternate approch consists in calling aligned_alloc() from these places
+ * alternate approach consists in calling aligned_alloc() from these places
  * but that would mean not being able to intercept it later if considered
  * useful to do so.
  */
@@ -411,7 +411,7 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 	}
 
 	if (strcmp(args[2], "tasks") != 0)
-		return cli_err(appctx, "Expects etiher 'tasks' or 'memory'.\n");
+		return cli_err(appctx, "Expects either 'tasks' or 'memory'.\n");
 
 	if (strcmp(args[3], "on") == 0) {
 		unsigned int old = profiling;

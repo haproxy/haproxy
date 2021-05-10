@@ -12247,7 +12247,7 @@ tcp-request content <action> [{if | unless} <condition>]
   "tcp-request content" rules are not evaluated. This upgrade method should be
   preferred to the implicit one consisting to rely on the backend mode. When
   used, it is possible to set HTTP directives in a frontend without any
-  warning. These directives will be conditionaly evaluated if the HTTP upgrade
+  warning. These directives will be conditionally evaluated if the HTTP upgrade
   is performed. However, an HTTP backend must still be selected. It remains
   unsupported to route an HTTP connection (upgraded or not) to a TCP server.
 
