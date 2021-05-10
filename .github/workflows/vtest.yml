@@ -63,7 +63,7 @@ jobs:
         curl -fsSL https://github.com/vtest/VTest/archive/master.tar.gz -o VTest.tar.gz
         mkdir VTest
         tar xvf VTest.tar.gz -C VTest --strip-components=1
-        make -C VTest -j$(nproc) FLAGS="-O2 -s -Wall"
+        make -C VTest -j$(nproc) FLAGS="-O2 -s -Wall" CC=clang
         sudo install -m755 VTest/vtest /usr/local/bin/vtest
     - name: Install SSL ${{ matrix.ssl }}
       if: ${{ matrix.ssl && matrix.ssl != 'stock' }}

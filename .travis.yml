@@ -40,7 +40,7 @@ matrix:
 install:
   - git clone https://github.com/VTest/VTest.git ../vtest
   # Special flags due to: https://github.com/vtest/VTest/issues/12
-  - make -C ../vtest FLAGS="-O2 -s -Wall"
+  - make -C ../vtest FLAGS="-O2 -s -Wall" CC=clang
 
 script:
   - make -j$(nproc) ERR=1 TARGET=linux-glibc CC=$CC DEBUG=-DDEBUG_STRICT=1 $FLAGS
