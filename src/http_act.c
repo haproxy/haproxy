@@ -401,7 +401,7 @@ static enum act_parse_ret parse_http_normalize_uri(const char **args, int *orig_
 			rule->action = ACT_NORMALIZE_URI_PATH_STRIP_DOTDOT;
 		}
 		else if (strcmp(args[cur_arg], "if") != 0 && strcmp(args[cur_arg], "unless") != 0) {
-			memprintf(err, "unknown argument '%s' for 'dotdot' normalizer", args[cur_arg]);
+			memprintf(err, "unknown argument '%s' for 'path-strip-dotdot' normalizer", args[cur_arg]);
 			return ACT_RET_PRS_ERR;
 		}
 	}
@@ -421,7 +421,7 @@ static enum act_parse_ret parse_http_normalize_uri(const char **args, int *orig_
 			rule->action = ACT_NORMALIZE_URI_PERCENT_TO_UPPERCASE;
 		}
 		else if (strcmp(args[cur_arg], "if") != 0 && strcmp(args[cur_arg], "unless") != 0) {
-			memprintf(err, "unknown argument '%s' for 'percent-upper' normalizer", args[cur_arg]);
+			memprintf(err, "unknown argument '%s' for 'percent-to-uppercase' normalizer", args[cur_arg]);
 			return ACT_RET_PRS_ERR;
 		}
 	}
