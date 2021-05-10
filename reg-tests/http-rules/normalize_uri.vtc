@@ -8,7 +8,7 @@ feature ignore_unknown_macro
 server s1 {
     rxreq
     txresp
-} -repeat 66 -start
+} -repeat 70 -start
 
 haproxy h1 -conf {
     global
@@ -130,6 +130,18 @@ haproxy h1 -conf {
 
         http-request set-var(txn.before) url
         http-request normalize-uri fragment-strip
+        http-request set-var(txn.after) url
+
+        http-response add-header before  %[var(txn.before)]
+        http-response add-header after  %[var(txn.after)]
+
+        default_backend be
+
+    frontend fe_fragment_encode
+        bind "fd@${fe_fragment_encode}"
+
+        http-request set-var(txn.before) url
+        http-request normalize-uri fragment-encode
         http-request set-var(txn.after) url
 
         http-response add-header before  %[var(txn.before)]
@@ -489,6 +501,28 @@ client c9 -connect ${h1_fe_fragment_strip_sock} {
     rxresp
     expect resp.http.before == "/#foo"
     expect resp.http.after == "/"
+
+    txreq -url "/%23foo"
+    rxresp
+    expect resp.http.before == "/%23foo"
+    expect resp.http.after == "/%23foo"
+
+    txreq -req OPTIONS -url "*"
+    rxresp
+    expect resp.http.before == "*"
+    expect resp.http.after == "*"
+} -run
+
+client c10 -connect ${h1_fe_fragment_encode_sock} {
+    txreq -url "/#foo"
+    rxresp
+    expect resp.http.before == "/#foo"
+    expect resp.http.after == "/%23foo"
+
+    txreq -url "/#foo/#foo"
+    rxresp
+    expect resp.http.before == "/#foo/#foo"
+    expect resp.http.after == "/%23foo/%23foo"
 
     txreq -url "/%23foo"
     rxresp

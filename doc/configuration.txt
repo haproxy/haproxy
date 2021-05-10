@@ -6172,6 +6172,7 @@ http-request early-hint <name> <fmt> [ { if | unless } <condition> ]
   See RFC 8297 for more information.
 
 http-request normalize-uri <normalizer> [ { if | unless } <condition> ]
+http-request normalize-uri fragment-encode [ { if | unless } <condition> ]
 http-request normalize-uri fragment-strip [ { if | unless } <condition> ]
 http-request normalize-uri path-merge-slashes [ { if | unless } <condition> ]
 http-request normalize-uri path-strip-dot [ { if | unless } <condition> ]
@@ -6209,6 +6210,14 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
   such a broken URI would safely be rejected.
 
   The following normalizers are available:
+
+  - fragment-encode: Encodes "#" as "%23".
+
+      The "fragment-strip" normalizer should be preferred, unless it is known
+      that broken clients do not correctly encode '#' within the path component.
+
+      Example:
+      - /#foo  -> /%23foo
 
   - fragment-strip: Removes the URI's "fragment" component.
 

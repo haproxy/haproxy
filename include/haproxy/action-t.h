@@ -112,6 +112,7 @@ enum act_normalize_uri {
 	ACT_NORMALIZE_URI_PERCENT_DECODE_UNRESERVED,
 	ACT_NORMALIZE_URI_PERCENT_DECODE_UNRESERVED_STRICT,
 	ACT_NORMALIZE_URI_FRAGMENT_STRIP,
+	ACT_NORMALIZE_URI_FRAGMENT_ENCODE,
 };
 
 /* NOTE: if <.action_ptr> is defined, the referenced function will always be

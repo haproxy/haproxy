@@ -18,6 +18,41 @@
 #include <haproxy/tools.h>
 #include <haproxy/uri_normalizer.h>
 
+/* Encodes '#' as '%23'. */
+enum uri_normalizer_err uri_normalizer_fragment_encode(const struct ist input, struct ist *dst)
+{
+	enum uri_normalizer_err err;
+
+	const size_t size = istclear(dst);
+	struct ist output = *dst;
+
+	struct ist scanner = input;
+
+	while (istlen(scanner)) {
+		const struct ist before_hash = istsplit(&scanner, '#');
+
+		if (istcat(&output, before_hash, size) < 0) {
+			err = URI_NORMALIZER_ERR_ALLOC;
+			goto fail;
+		}
+
+		if (istend(before_hash) != istend(scanner)) {
+			if (istcat(&output, ist("%23"), size) < 0) {
+				err = URI_NORMALIZER_ERR_ALLOC;
+				goto fail;
+			}
+		}
+	}
+
+	*dst = output;
+
+	return URI_NORMALIZER_ERR_NONE;
+
+  fail:
+
+	return err;
+}
+
 /* Returns 1 if the given character is part of the 'unreserved' set in the
  * RFC 3986 ABNF.
  * Returns 0 if not.
