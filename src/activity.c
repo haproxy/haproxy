@@ -833,7 +833,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "set",  "profiling", NULL }, "set  profiling  <what>  {auto|on|off}   : enable/disable resource profiling (tasks,memory)", cli_parse_set_profiling,  NULL },
+	{ { "set",  "profiling", NULL }, "set profiling <what> {auto|on|off}      : enable/disable resource profiling (tasks,memory)", cli_parse_set_profiling,  NULL },
 	{ { "show", "profiling", NULL }, "show profiling [<what>] [<max_lines>]   : show profiling state (all,status,tasks,memory)",   cli_parse_show_profiling, cli_io_handler_show_profiling, NULL },
 	{ { "show", "tasks", NULL },     "show tasks                              : show running tasks",                               NULL, cli_io_handler_show_tasks,     NULL },
 	{{},}
