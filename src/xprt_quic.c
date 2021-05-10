@@ -4164,7 +4164,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	return 0;
 
  err:
-	if (ctx->wait_event.tasklet)
+	if (ctx && ctx->wait_event.tasklet)
 		tasklet_free(ctx->wait_event.tasklet);
 	pool_free(pool_head_quic_conn_ctx, ctx);
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_NEW, conn);
