@@ -3296,7 +3296,7 @@ has at least "operator" or "admin" privileges.
 
 Example:
 
-  $ echo "reload" | socat /var/run/haproxy-master.sock
+  $ echo "reload" | socat /var/run/haproxy-master.sock stdin
 
 Note that a reload will close the connection to the master CLI.
 
