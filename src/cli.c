@@ -143,7 +143,7 @@ static char *cli_gen_usage_msg(struct appctx *appctx, char * const *args)
 	chunk_reset(tmp);
 	if (ishelp) // this is the help message.
 		chunk_strcat(tmp, "The following commands are valid at this level:\n");
-	else if (!length && (!*args || !**args)) // no match
+	else if (!length && (!args || !*args || !**args)) // no match
 		chunk_strcat(tmp, "Unknown command. Please enter one of the following commands only:\n");
 	else // partial match
 		chunk_strcat(tmp, "Unknown command, but maybe one of the following ones is a better match:\n");
