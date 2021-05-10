@@ -6172,6 +6172,7 @@ http-request early-hint <name> <fmt> [ { if | unless } <condition> ]
   See RFC 8297 for more information.
 
 http-request normalize-uri <normalizer> [ { if | unless } <condition> ]
+http-request normalize-uri fragment-strip [ { if | unless } <condition> ]
 http-request normalize-uri path-merge-slashes [ { if | unless } <condition> ]
 http-request normalize-uri path-strip-dot [ { if | unless } <condition> ]
 http-request normalize-uri path-strip-dotdot [ full ] [ { if | unless } <condition> ]
@@ -6208,6 +6209,17 @@ http-request normalize-uri query-sort-by-name [ { if | unless } <condition> ]
   such a broken URI would safely be rejected.
 
   The following normalizers are available:
+
+  - fragment-strip: Removes the URI's "fragment" component.
+
+      According to RFC 3986#3.5 the "fragment" component of an URI should not
+      be sent, but handled by the User Agent after retrieving a resource.
+
+      This normalizer should be applied first to ensure that the fragment is
+      not interpreted as part of the request's path component.
+
+      Example:
+      - /#foo  -> /
 
   - path-strip-dot: Removes "/./" segments within the "path" component
       (RFC 3986#6.2.2.3).

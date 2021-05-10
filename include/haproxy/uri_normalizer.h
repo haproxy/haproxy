@@ -18,6 +18,14 @@
 
 #include <haproxy/uri_normalizer-t.h>
 
+/* Cuts the input at the first '#'. */
+static inline enum uri_normalizer_err uri_normalizer_fragment_strip(const struct ist input, struct ist *dst)
+{
+	*dst = iststop(input, '#');
+
+	return URI_NORMALIZER_ERR_NONE;
+}
+
 enum uri_normalizer_err uri_normalizer_percent_decode_unreserved(const struct ist input, int strict, struct ist *dst);
 enum uri_normalizer_err uri_normalizer_percent_upper(const struct ist input, int strict, struct ist *dst);
 enum uri_normalizer_err uri_normalizer_path_dot(const struct ist path, struct ist *dst);
