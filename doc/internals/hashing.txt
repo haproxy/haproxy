@@ -2,7 +2,7 @@
 
 This document describes how HAProxy implements hashing both map-based and
 consistent hashing, both prior to versions 1.5 and the motivation and tests
-that were done when providing additional options starting in version 2.2
+that were done when providing additional options starting in version 2.4
 
 A note on hashing in general, hash functions strive to have little
 correlation between input and output. The heart of a hash function is its

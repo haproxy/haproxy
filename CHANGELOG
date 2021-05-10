@@ -1,6 +1,163 @@
 ChangeLog :
 ===========
 
+2021/05/10 : 2.4-dev19
+    - BUG/MINOR: hlua: Don't rely on top of the stack when using Lua buffers
+    - BUG/MEDIUM: cli: prevent memory leak on write errors
+    - BUG/MINOR: ssl/cli: fix a lock leak when no memory available
+    - MINOR: debug: add a new "debug dev sym" command in expert mode
+    - MINOR: pools/debug: slightly relax DEBUG_DONT_SHARE_POOLS
+    - CI: Github Actions: switch to LibreSSL-3.3.3
+    - MINOR: srv: close all idle connections on shutdown
+    - MINOR: connection: move session_list member in a union
+    - MEDIUM: mux_h1: release idling frontend conns on soft-stop
+    - MEDIUM: connection: close front idling connection on soft-stop
+    - MINOR: tools: add functions to retrieve the address of a symbol
+    - CLEANUP: activity: mark the profiling and task_profiling_mask __read_mostly
+    - MINOR: activity: add a "memory" entry to "profiling"
+    - MINOR: activity: declare the storage for memory usage statistics
+    - MEDIUM: activity: collect memory allocator statistics with USE_MEMORY_PROFILING
+    - MINOR: activity: clean up the show profiling io_handler a little bit
+    - MINOR: activity: make "show profiling" support a few arguments
+    - MINOR: activity: make "show profiling" also dump the memoery usage
+    - MINOR: activity: add the profiling.memory global setting
+    - BUILD: makefile: add new option USE_MEMORY_PROFILING
+    - MINOR: channel: Rely on HTX version if appropriate in channel_may_recv()
+    - BUG/MINOR: stream-int: Don't block reads in si_update_rx() if chn may receive
+    - MINOR: conn-stream: Force mux to wait for read events if abortonclose is set
+    - MEDIUM: mux-h1: Don't block reads when waiting for the other side
+    - BUG/MEDIUM: mux-h1: Properly report client close if abortonclose option is set
+    - REGTESTS: Add script to test abortonclose option
+    - MINOR: mux-h1: clean up conditions to enabled and disabled splicing
+    - MINOR: mux-h1: Subscribe for sends if output buffer is not empty in h1_snd_pipe
+    - MINOR: mux-h1: Always subscribe for reads when splicing is disabled
+    - MEDIUM: mux-h1: Wake H1 stream when both sides a synchronized
+    - CLEANUP: mux-h1: rename WAIT_INPUT/WAIT_OUTPUT flags
+    - MINOR: mux-h1: Manage processing blocking flags on the H1 stream
+    - BUG/MINOR: stream: Decrement server current session counter on L7 retry
+    - BUG/MINOR: config: fix uninitialized initial state in ".if" block evaluator
+    - BUG/MINOR: config: add a missing "ELIF_TAKE" test for ".elif" condition evaluator
+    - BUG/MINOR: config: .if/.elif should also accept negative integers
+    - MINOR: config: centralize the ".if"/".elif" condition parser and evaluator
+    - MINOR: config: keep up-to-date current file/line/section in the global struct
+    - MINOR: config: support some pseudo-variables for file/line/section
+    - BUILD: activity: do not include malloc.h
+    - MINOR: arg: improve the error message on missing closing parenthesis
+    - MINOR: global: export the build features string list
+    - MINOR: global: add version comparison functions
+    - MINOR: config: improve .if condition error reporting
+    - MINOR: config: make cfg_eval_condition() support predicates with arguments
+    - MINOR: config: add predicate "defined()" to conditional expression blocks
+    - MINOR: config: add predicates "streq()" and "strneq()" to conditional expressions
+    - MINOR: config: add predicate "feature" to detect certain built-in features
+    - MINOR: config: add predicates "version_atleast" and "version_before" to cond blocks
+    - BUG/MINOR: activity: use the new pointer to calculate the new size in realloc()
+    - BUG/MINOR: stream: properly clear the previous error mask on L7 retries
+    - MEDIUM: log: slightly refine the output format of alerts/warnings/etc
+    - MINOR: config: add a new message directive: .diag
+    - CLEANUP: cli/tree-wide: properly re-align the CLI commands' help messages
+    - BUG/MINOR: stream: Reset stream final state and si error type on L7 retry
+    - BUG/MINOR: checks: Handle synchronous connect when a tcpcheck is started
+    - BUG/MINOR: checks: Reschedule check on observe mode only if fastinter is set
+    - MINOR: global: define tainted flag
+    - MINOR: cfgparse: add a new field flags in cfg_keyword
+    - MINOR: cfgparse: implement experimental config keywords
+    - MINOR: action: replace match_pfx by a keyword flags field
+    - MINOR: action: implement experimental actions
+    - MINOR: cli: set tainted when using CLI expert/experimental mode
+    - MINOR: stats: report tainted on show info
+    - MINOR: http_act: mark normalize-uri as experimental
+    - BUILD: fix usage of ha_alert without format string
+    - MINOR: proxy: define PR_CAP_LB
+    - BUG/MINOR: server: do not report diag for peer servers with null weight
+    - DOC: ssl: Extra files loading now works for backends too
+    - ADDONS: make addons/ discoverable by git via .gitignore
+    - DOC: ssl: Add information about crl-file option
+    - MINOR: sample: improve error reporting on missing arg to strcmp() converter
+    - DOC: management: mention that some fields may be emitted as floats
+    - MINOR: tools: implement trimming of floating point numbers
+    - MINOR: tools: add a float-to-ascii conversion function
+    - MINOR: freq_ctr: add new functions to report float measurements
+    - MINOR: stats: avoid excessive padding of float values with trailing zeroes
+    - MINOR: stats: add the HTML conversion for float types
+    - MINOR: stats: pass the appctx flags to stats_fill_info()
+    - MINOR: stats: support an optional "float" option to "show info"
+    - MINOR: stats: use tv_remain() to precisely compute the uptime
+    - MINOR: stats: report uptime and start time as floats with subsecond resolution
+    - MINOR: stats: make "show info" able to report rates as floats when asked
+    - MINOR: config: mark tune.fd.edge-triggered as experimental
+    - REORG: vars: move the "proc" scope variables out of the global struct
+    - REORG: threads: move all_thread_mask() to thread.h
+    - BUILD: wdt: include signal-t.h
+    - BUILD: auth: include missing list.h
+    - REORG: mworker: move proc_self from global to mworker
+    - BUILD: ssl: ssl_utils requires chunk.h
+    - BUILD: config: cfgparse-ssl.c needs tools.h
+    - BUILD: wurfl: wurfl.c needs tools.h
+    - BUILD: spoe: flt_spoe.c needs tools.h
+    - BUILD: promex: service-prometheus.c needs tools.h
+    - BUILD: resolvers: include tools.h
+    - BUILD: config: include tools.h in cfgparse-listen.c
+    - BUILD: htx: include tools.h in http_htx.c
+    - BUILD: proxy: include tools.h in proxy.c
+    - BUILD: session: include tools.h in session.c
+    - BUILD: cache: include tools.h in cache.c
+    - BUILD: sink: include tools.h in sink.c
+    - BUILD: connection: include tools.h in connection.c
+    - BUILD: server-state: include tools.h from server_state.c
+    - BUILD: dns: include tools.h in dns.c
+    - BUILD: payload: include tools.h in payload.c
+    - BUILD: vars: include tools.h in vars.c
+    - BUILD: compression: include tools.h in compression.c
+    - BUILD: mworker: include tools.h from mworker.c
+    - BUILD: queue: include tools.h from queue.c
+    - BUILD: udp: include tools.h from proto_udp.c
+    - BUILD: stick-table: include freq_ctr.h from stick_table.h
+    - BUILD: server: include tools.h from server.c
+    - BUILD: server: include missing proxy.h in server.c
+    - BUILD: sink: include proxy.h in sink.c
+    - BUILD: mworker: include proxy.h in mworker.c
+    - BUILD: filters: include proxy.h in filters.c
+    - BUILD: fcgi-app: include proxy.h in fcgi-app.c
+    - BUILD: connection: move list_mux_proto() to connection.c
+    - REORG: stick-table: uninline stktable_alloc_data_type()
+    - REORG: stick-table: move composite address functions to stick_table.h
+    - REORG: config: uninline warnifnotcap() and failifnotcap()
+    - BUILD: task: remove unused includes from task.c
+    - MINOR: task: stop including stream.h from task.c
+    - BUILD: connection: stop including listener-t.h
+    - BUILD: hlua: include proxy.h from hlua.c
+    - BUILD: mux-h1: include proxy.h from mux-h1.c
+    - BUILD: mux-fcgi: include proxy.h from mux-fcgi.c
+    - BUILD: listener: include proxy.h from listener.c
+    - BUILD: http-rules: include proxy.h from http_rules.c
+    - BUILD: thread: include log.h from thread.c
+    - BUILD: comp: include proxy.h from flt_http_comp.c
+    - BUILD: fd: include log.h from fd.c
+    - BUILD: config: do not include proxy.h nor errors.h anymore in cfgparse.h
+    - BUILD: makefile: reorder object files by build time
+    - DOC: Fix a few grammar/spelling issues and casing of HAProxy
+    - REGTESTS: run-regtests: match both "HAProxy" and "HA-Proxy" in the version
+    - MINOR: version: report "HAProxy" not "HA-Proxy" in the version output
+    - DOC: remove last occurrences of "HA-Proxy" syntax
+    - DOC: peers: fix the protocol tag name in the doc
+    - ADMIN: netsnmp: report "HAProxy" and not "Haproxy" in output descriptions
+    - MEDIUM: mailers: use "HAProxy" nor "HAproxy" in the subject of messages
+    - DOC: fix a few remainig cases of "Haproxy" and "HAproxy" in doc and comments
+    - MINOR: tools/rnd: compute the result outside of the CAS loop
+    - BUILD: http_fetch: address a few aliasing warnings with older compilers
+    - BUILD: ssl: define HAVE_CRYPTO_memcmp() based on the library version
+    - BUILD: errors: include stdarg in errors.h
+    - REGTESTS: disable inter-thread idle connection sharing on sensitive tests
+    - MINOR: cli: make "help" support a command in argument
+    - MINOR: cli: sort the output of the "help" keywords
+    - CLEANUP: cli/mworker: properly align the help messages
+    - BUILD: memprof: make the old caller pointer a const in get_prof_bin()
+    - BUILD: compat: include malloc_np.h for USE_MEMORY_PROFILING on FreeBSD
+    - CI: Github Actions: enable USE_QUIC=1 for BoringSSL builds
+    - BUG/MEDIUM: quic: fix null deref on error path in qc_conn_init()
+    - BUILD: cli: appease a null-deref warning in cli_gen_usage_msg()
+
 2021/05/01 : 2.4-dev18
     - DOC: Fix indentation for `path-strip-dot` normalizer
     - DOC: Fix RFC reference for the percent-to-uppercase normalizer
