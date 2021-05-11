@@ -31,8 +31,10 @@
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>
+#include <haproxy/proxy.h>
 #include <haproxy/sample.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/tools.h>
 #include <haproxy/vars.h>
 
 #include "config.h"
