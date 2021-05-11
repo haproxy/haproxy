@@ -193,7 +193,6 @@ int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt);
 int pat_ref_prune(struct pat_ref *ref);
 int pat_ref_commit_elt(struct pat_ref *ref, struct pat_ref_elt *elt, char **err);
 int pat_ref_purge_range(struct pat_ref *ref, uint from, uint to, int budget);
-void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace);
 
 /* Create a new generation number for next pattern updates and returns it. This
  * must be used to atomically insert new patterns that will atomically replace
