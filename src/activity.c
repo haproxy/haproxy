@@ -281,10 +281,10 @@ void *realloc(void *ptr, size_t size)
 	bin = memprof_get_bin(__builtin_return_address(0));
 	if (size > size_before) {
 		_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
-		_HA_ATOMIC_ADD(&bin->alloc_tot, size);
+		_HA_ATOMIC_ADD(&bin->alloc_tot, size - size_before);
 	} else if (size < size_before) {
 		_HA_ATOMIC_ADD(&bin->free_calls, 1);
-		_HA_ATOMIC_ADD(&bin->free_tot, size_before);
+		_HA_ATOMIC_ADD(&bin->free_tot, size_before - size);
 	}
 	return ret;
 }
