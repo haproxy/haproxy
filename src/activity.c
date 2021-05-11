@@ -44,6 +44,19 @@ struct sched_activity sched_activity[256] __attribute__((aligned(64))) = { };
 #define MEMPROF_HASH_BITS 10
 #define MEMPROF_HASH_BUCKETS (1U << MEMPROF_HASH_BITS)
 
+enum memprof_method {
+	MEMPROF_METH_UNKNOWN = 0,
+	MEMPROF_METH_MALLOC,
+	MEMPROF_METH_CALLOC,
+	MEMPROF_METH_REALLOC,
+	MEMPROF_METH_FREE,
+	MEMPROF_METH_METHODS /* count, must be last */
+};
+
+static const char *const memprof_methods[MEMPROF_METH_METHODS] = {
+	"unknown", "malloc", "calloc", "realloc", "free",
+};
+
 /* stats:
  *   - malloc increases alloc
  *   - free increases free (if non null)
@@ -54,6 +67,8 @@ struct sched_activity sched_activity[256] __attribute__((aligned(64))) = { };
  */
 struct memprof_stats {
 	const void *caller;
+	enum memprof_method method;
+	/* 4-7 bytes hole here */
 	unsigned long long alloc_calls;
 	unsigned long long free_calls;
 	unsigned long long alloc_tot;
@@ -184,7 +199,7 @@ static void  memprof_free_initial_handler(void *ptr)
  * case, returns a default bin). The caller address is atomically set except
  * for the default one which is never set.
  */
-static struct memprof_stats *memprof_get_bin(const void *ra)
+static struct memprof_stats *memprof_get_bin(const void *ra, enum memprof_method meth)
 {
 	int retries = 16; // up to 16 consecutive entries may be tested.
 	const void *old;
@@ -199,8 +214,10 @@ static struct memprof_stats *memprof_get_bin(const void *ra)
 
 		old = NULL;
 		if (!memprof_stats[bin].caller &&
-		    HA_ATOMIC_CAS(&memprof_stats[bin].caller, &old, ra))
+		    HA_ATOMIC_CAS(&memprof_stats[bin].caller, &old, ra)) {
+			memprof_stats[bin].method = meth;
 			break;
+		}
 	}
 	return &memprof_stats[bin];
 }
@@ -224,7 +241,7 @@ void *malloc(size_t size)
 	ret = memprof_malloc_handler(size);
 	size = malloc_usable_size(ret);
 
-	bin = memprof_get_bin(__builtin_return_address(0));
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_MALLOC);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -249,7 +266,7 @@ void *calloc(size_t nmemb, size_t size)
 	ret = memprof_calloc_handler(nmemb, size);
 	size = malloc_usable_size(ret);
 
-	bin = memprof_get_bin(__builtin_return_address(0));
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_CALLOC);
 	_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 	_HA_ATOMIC_ADD(&bin->alloc_tot, size);
 	return ret;
@@ -278,7 +295,7 @@ void *realloc(void *ptr, size_t size)
 	ret = memprof_realloc_handler(ptr, size);
 	size = malloc_usable_size(ret);
 
-	bin = memprof_get_bin(__builtin_return_address(0));
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_REALLOC);
 	if (size > size_before) {
 		_HA_ATOMIC_ADD(&bin->alloc_calls, 1);
 		_HA_ATOMIC_ADD(&bin->alloc_tot, size - size_before);
@@ -313,7 +330,7 @@ void free(void *ptr)
 	size_before = malloc_usable_size(ptr);
 	memprof_free_handler(ptr);
 
-	bin = memprof_get_bin(__builtin_return_address(0));
+	bin = memprof_get_bin(__builtin_return_address(0), MEMPROF_METH_FREE);
 	_HA_ATOMIC_ADD(&bin->free_calls, 1);
 	_HA_ATOMIC_ADD(&bin->free_tot, size_before);
 }
@@ -598,7 +615,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	if (!appctx->ctx.cli.i1)
 		chunk_appendf(&trash,
 		              "Alloc/Free statistics by call place:\n"
-		              "         Calls         |         Tot Bytes           |       Caller\n"
+		              "         Calls         |         Tot Bytes           |       Caller and method\n"
 		              "<- alloc -> <- free  ->|<-- alloc ---> <-- free ---->|\n");
 
 	max_lines = appctx->ctx.cli.o0;
@@ -621,7 +638,8 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		else
 			chunk_appendf(&trash, "[other]");
 
-		chunk_appendf(&trash,"\n");
+		chunk_appendf(&trash," %s(%lld)\n", memprof_methods[entry->method],
+			      (long long)(entry->alloc_tot - entry->free_tot) / (long long)(entry->alloc_calls + entry->free_calls));
 
 		if (ci_putchk(si_ic(si), &trash) == -1) {
 			si_rx_room_blk(si);
