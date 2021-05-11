@@ -512,6 +512,8 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	struct sched_activity tmp_activity[256] __attribute__((aligned(64)));
 #if USE_MEMORY_PROFILING
 	struct memprof_stats tmp_memstats[MEMPROF_HASH_BUCKETS + 1];
+	unsigned long long tot_alloc_calls, tot_free_calls;
+	unsigned long long tot_alloc_bytes, tot_free_bytes;
 #endif
 	struct stream_interface *si = appctx->owner;
 	struct buffer *name_buffer = get_trash_chunk();
@@ -646,6 +648,27 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 			return 0;
 		}
 	}
+
+	if (ci_putchk(si_ic(si), &trash) == -1) {
+		si_rx_room_blk(si);
+		return 0;
+	}
+
+	tot_alloc_calls = tot_free_calls = tot_alloc_bytes = tot_free_bytes = 0;
+	for (i = 0; i < max_lines; i++) {
+		tot_alloc_calls += tmp_memstats[i].alloc_calls;
+		tot_free_calls  += tmp_memstats[i].free_calls;
+		tot_alloc_bytes += tmp_memstats[i].alloc_tot;
+		tot_free_bytes  += tmp_memstats[i].free_tot;
+	}
+
+	chunk_appendf(&trash,
+	              "-----------------------|-----------------------------|\n"
+		      "%11llu %11llu %14llu %14llu| <- Total; Delta_calls=%lld; Delta_bytes=%lld\n",
+		      tot_alloc_calls, tot_free_calls,
+		      tot_alloc_bytes, tot_free_bytes,
+		      tot_alloc_calls - tot_free_calls,
+		      tot_alloc_bytes - tot_free_bytes);
 
 	if (ci_putchk(si_ic(si), &trash) == -1) {
 		si_rx_room_blk(si);
