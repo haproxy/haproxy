@@ -1717,6 +1717,10 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	/* default compression options */
 	if (defproxy->comp != NULL) {
 		curproxy->comp = calloc(1, sizeof(*curproxy->comp));
+		if (!curproxy->comp) {
+			memprintf(errmsg, "proxy '%s': out of memory for default compression options", curproxy->id);
+			return 1;
+		}
 		curproxy->comp->algos = defproxy->comp->algos;
 		curproxy->comp->types = defproxy->comp->types;
 	}
