@@ -285,7 +285,10 @@ systems, by passing "USE_SLZ=" to the "make" command.
 
 Please note that SLZ will benefit from some CPU-specific instructions like the
 availability of the CRC32 extension on some ARM processors. Thus it can further
-improve its performance to build with "CPU=native" on the target system.
+improve its performance to build with "CPU=native" on the target system, or
+"CPU=armv81" (modern systems such as Graviton2 or A55/A75 and beyond),
+"CPU=a72" (e.g. for RPi4, or AWS Graviton), "CPU=a53" (e.g. for RPi3), or
+"CPU=armv8-auto" (automatic detection with minor runtime penalty).
 
 A second option involves the widely known zlib library, which is very likely
 installed on your system. In order to use zlib, simply pass "USE_ZLIB=1" to the
@@ -421,6 +424,11 @@ one of the following choices to the CPU variable :
   - ultrasparc : Sun UltraSparc I/II/III/IV processor
   - power8 : IBM POWER8 processor
   - power9 : IBM POWER9 processor
+  - armv81 : modern ARM cores (Cortex A55/A75/A76/A78/X1, Neoverse, Graviton2)
+  - a72    : ARM Cortex-A72 or A73 (e.g. RPi4, Odroid N2, AWS Graviton)
+  - a53    : ARM Cortex-A53 or any of its successors in 64-bit mode (e.g. RPi3)
+  - armv8-auto : support both older and newer armv8 cores with a minor penalty,
+                 thanks to gcc 10's outline atomics (default with gcc 10.2).
   - native : use the build machine's specific processor optimizations. Use with
     extreme care, and never in virtualized environments (known to break).
   - generic : any other processor or no CPU-specific optimization. (default)

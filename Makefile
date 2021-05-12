@@ -162,7 +162,8 @@ TARGET =
 #### TARGET CPU
 # Use CPU=<cpu_name> to optimize for a particular CPU, among the following
 # list :
-#    generic, native, i586, i686, ultrasparc, power8, power9, custom
+#    generic, native, i586, i686, ultrasparc, power8, power9, custom,
+#    a53, a72, armv81, armv8-auto
 CPU = generic
 
 #### Architecture, used when not building for native architecture
@@ -274,6 +275,10 @@ CPU_CFLAGS.i686       = -O2 -march=i686
 CPU_CFLAGS.ultrasparc = -O6 -mcpu=v9 -mtune=ultrasparc
 CPU_CFLAGS.power8     = -O2 -mcpu=power8 -mtune=power8
 CPU_CFLAGS.power9     = -O2 -mcpu=power9 -mtune=power9
+CPU_CFLAGS.a53        = -O2 -mcpu=cortex-a53
+CPU_CFLAGS.a72        = -O2 -mcpu=cortex-a72
+CPU_CFLAGS.armv81     = -O2 -march=armv8.1-a
+CPU_CFLAGS.armv8-auto = -O2 -march=armv8-a+crc -moutline-atomics
 CPU_CFLAGS            = $(CPU_CFLAGS.$(CPU))
 
 #### ARCH dependent flags, may be overridden by CPU flags
