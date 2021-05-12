@@ -4161,14 +4161,6 @@ static struct action_kw_list http_res_kws = { { }, {
 
 INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_kws);
 
-///* Note: must not be declared <const> as its list will be overwritten.
-// * Please take care of keeping this list alphabetically sorted.
-// */
-//static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
-//	{ "table_avl",          smp_fetch_table_avl,         ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
-//	{ "table_cnt",          smp_fetch_table_cnt,         ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_INTRN, },
-//	{ /* END */ },
-//}};
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
