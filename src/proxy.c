@@ -756,6 +756,10 @@ static int proxy_parse_declare(char **args, int section, struct proxy *curpx,
 
 		/* register the capture. */
 		hdr = calloc(1, sizeof(*hdr));
+		if (!hdr) {
+			memprintf(err, "proxy '%s': out of memory while registering a capture", curpx->id);
+			return -1;
+		}
 		hdr->name = NULL; /* not a header capture */
 		hdr->namelen = 0;
 		hdr->len = len;
