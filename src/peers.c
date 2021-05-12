@@ -3366,16 +3366,21 @@ int peers_alloc_dcache(struct peers *peers)
 
 /*
  * Function used to register a table for sync on a group of peers
- *
+ * Returns 0 in case of success.
  */
-void peers_register_table(struct peers *peers, struct stktable *table)
+int peers_register_table(struct peers *peers, struct stktable *table)
 {
 	struct shared_table *st;
 	struct peer * curpeer;
 	int id = 0;
+	int retval = 0;
 
 	for (curpeer = peers->remote; curpeer; curpeer = curpeer->next) {
 		st = calloc(1,sizeof(*st));
+		if (!st) {
+			retval = 1;
+			break;
+		}
 		st->table = table;
 		st->next = curpeer->tables;
 		if (curpeer->tables)
@@ -3393,6 +3398,8 @@ void peers_register_table(struct peers *peers, struct stktable *table)
 	}
 
 	table->sync_task = peers->sync_task;
+
+	return retval;
 }
 
 /*

@@ -36,7 +36,7 @@ extern struct peers *cfg_peers;
 
 int peers_init_sync(struct peers *peers);
 int peers_alloc_dcache(struct peers *peers);
-void peers_register_table(struct peers *, struct stktable *table);
+int peers_register_table(struct peers *, struct stktable *table);
 void peers_setup_frontend(struct proxy *fe);
 
 #if defined(USE_OPENSSL)

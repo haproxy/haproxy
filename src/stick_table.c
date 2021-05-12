@@ -637,6 +637,7 @@ struct task *process_table_expire(struct task *task, void *context, unsigned int
 /* Perform minimal stick table intializations, report 0 in case of error, 1 if OK. */
 int stktable_init(struct stktable *t)
 {
+	int peers_retval = 0;
 	if (t->size) {
 		t->keys = EB_ROOT_UNIQUE;
 		memset(&t->exps, 0, sizeof(t->exps));
@@ -654,10 +655,10 @@ int stktable_init(struct stktable *t)
 			t->exp_task->context = (void *)t;
 		}
 		if (t->peers.p && t->peers.p->peers_fe && !t->peers.p->peers_fe->disabled) {
-			peers_register_table(t->peers.p, t);
+			peers_retval = peers_register_table(t->peers.p, t);
 		}
 
-		return t->pool != NULL;
+		return (t->pool != NULL) && !peers_retval;
 	}
 	return 1;
 }
