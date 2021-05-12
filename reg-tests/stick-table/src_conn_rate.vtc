@@ -1,0 +1,44 @@
+varnishtest "stick table: src_conn_rate"
+feature ignore_unknown_macro
+
+haproxy h0 -conf {
+	defaults
+		mode http
+		timeout connect 5s
+		timeout client 5s
+		timeout server 5s
+
+		listen li
+			${no-htx} option http-use-htx
+			bind "fd@${fe1}"
+			http-request track-sc0 src table conn_rate_table
+			http-request deny if { src_conn_rate(conn_rate_table) gt 3 }
+			http-request return status 200
+
+		backend conn_rate_table
+			stick-table type ip size 1m expire 1m store conn_rate(1m)
+} -start
+
+client c0 -connect ${h0_fe1_addr}:${h0_fe1_port} {
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c1 -connect ${h0_fe1_addr}:${h0_fe1_port} {
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c2 -connect ${h0_fe1_addr}:${h0_fe1_port} {
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run
+
+client c3 -connect ${h0_fe1_addr}:${h0_fe1_port} {
+	txreq
+	rxresp
+	expect resp.status == 403
+} -run
