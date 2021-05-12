@@ -931,6 +931,11 @@ static enum act_parse_ret parse_http_req_capture(const char **args, int *orig_ar
 		cur_arg++;
 
 		hdr = calloc(1, sizeof(*hdr));
+		if (!hdr) {
+			memprintf(err, "out of memory");
+			release_sample_expr(expr);
+			return ACT_RET_PRS_ERR;
+		}
 		hdr->next = px->req_cap;
 		hdr->name = NULL; /* not a header capture */
 		hdr->namelen = 0;
