@@ -969,7 +969,7 @@ uint32_t slz_crc32_by4(uint32_t crc, const unsigned char *buf, int len)
 	}
 
 	while (buf < end)
-		crc = crc32_fast[0][(crc ^ *buf++) & 0xff] ^ (crc >> 8);
+		crc = crc32_char(crc, *buf++);
 	return crc;
 }
 
