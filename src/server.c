@@ -1060,6 +1060,10 @@ static int srv_parse_source(char **args, int *cur_arg,
 		int i;
 
 		newsrv->conn_src.sport_range = port_range_alloc_range(port_high - port_low + 1);
+		if (!newsrv->conn_src.sport_range) {
+			ha_alert("Server '%s': Out of memory (sport_range)\n", args[0]);
+			goto err;
+		}
 		for (i = 0; i < newsrv->conn_src.sport_range->size; i++)
 			newsrv->conn_src.sport_range->ports[i] = port_low + i;
 	}
@@ -1096,6 +1100,10 @@ static int srv_parse_source(char **args, int *cur_arg,
 				newsrv->conn_src.opts |= CO_SRC_TPROXY_DYN;
 				free(newsrv->conn_src.bind_hdr_name);
 				newsrv->conn_src.bind_hdr_name = calloc(1, end - name + 1);
+				if (!newsrv->conn_src.bind_hdr_name) {
+					ha_alert("Server '%s': Out of memory (bind_hdr_name)\n", args[0]);
+					goto err;
+				}
 				newsrv->conn_src.bind_hdr_len = end - name;
 				memcpy(newsrv->conn_src.bind_hdr_name, name, end - name);
 				newsrv->conn_src.bind_hdr_name[end - name] = '\0';

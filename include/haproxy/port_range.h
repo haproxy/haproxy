@@ -87,6 +87,8 @@ static inline struct port_range *port_range_alloc_range(int n)
 	struct port_range *ret;
 	ret = calloc(1, sizeof(struct port_range) +
 		     (n + 1) * sizeof(((struct port_range *)0)->ports[0]));
+	if (!ret)
+		return NULL;
 	ret->size = n + 1;
 	/* Start at the first free element */
 	ret->put_h = ret->put_t = n;
