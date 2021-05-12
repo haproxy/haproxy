@@ -124,9 +124,13 @@ static const uint32_t len_fh[259] = {
 	0x0d1d23,  0x0d1e23,  0x0800a3               /* 256-258 */
 };
 
+#if !defined(__ARM_FEATURE_CRC32)
 static uint32_t crc32_fast[4][256];
+#endif
+
 static uint32_t fh_dist_table[32768];
 
+#if !defined(__ARM_FEATURE_CRC32)
 /* Make the table for a fast CRC.
  * Not thread-safe, must be called exactly once.
  */
@@ -159,6 +163,7 @@ static inline void __slz_make_crc_table(void)
 		crc32_fast[3][n] = 0xff000000 ^ crc32_fast[0][(0x0000ff00 ^ crc32_fast[2][n] ^ 0xff) & 0xff] ^ (crc32_fast[2][n] >> 8);
 	}
 }
+#endif
 
 /* Returns code for lengths 1 to 32768. The bit size for the next value can be
  * found this way :
