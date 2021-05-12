@@ -2299,7 +2299,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 					chunk_strcat(out, get_check_status_info(sv->check.status));
 					if (!(sv->check.state & CHK_ST_INPROGRESS))
 						fld_chksts += 2; // skip "* "
-					stats[ST_F_CHECK_STATUS] = mkf_str(FN_OUTPUT, fld_chksts);
+					metric = mkf_str(FN_OUTPUT, fld_chksts);
 				}
 				break;
 			case ST_F_CHECK_CODE:
