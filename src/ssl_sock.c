@@ -6203,7 +6203,7 @@ static size_t ssl_sock_from_buf(struct connection *conn, void *xprt_ctx, const s
 	goto leave;
 }
 
-static void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
+void ssl_sock_close(struct connection *conn, void *xprt_ctx) {
 
 	struct ssl_sock_ctx *ctx = xprt_ctx;
 
