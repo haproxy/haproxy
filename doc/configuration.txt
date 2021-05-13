@@ -16513,7 +16513,7 @@ mqtt_is_valid
   Example:
 
       acl data_in_buffer req.len ge 4
-      tcp-request content reject unless req.payload(0,0),mqtt_is_valid
+      tcp-request content reject unless { req.payload(0,0),mqtt_is_valid }
 
 mul(<value>)
   Multiplies the input value of type signed integer by <value>, and returns
