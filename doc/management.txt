@@ -2485,7 +2485,7 @@ show pools
   as the SIGQUIT when running in foreground except that it does not flush
   the pools.
 
-show profiling [{all | status | tasks | memory}] [max_lines]
+show profiling [{all | status | tasks | memory}] [byaddr] [<max_lines>]
   Dumps the current profiling settings, one per line, as well as the command
   needed to change them. When tasks profiling is enabled, some per-function
   statistics collected by the scheduler will also be emitted, with a summary
@@ -2495,10 +2495,11 @@ show profiling [{all | status | tasks | memory}] [max_lines]
   limit the dump to only the profiling status, the tasks, or the memory
   profiling by specifying the respective keywords; by default all profiling
   information are dumped. It is also possible to limit the number of lines
-  of output of each category by specifying a numeric limit. Please note that
-  profiling is essentially aimed at developers since it gives hints about
-  where CPU cycles or memory are wasted in the code. There is nothing useful
-  to monitor there.
+  of output of each category by specifying a numeric limit. If is possible to
+  request that the output is sorted by address instead of usage, e.g. to ease
+  comparisons between subsequent calls. Please note that profiling is
+  essentially aimed at developers since it gives hints about where CPU cycles
+  or memory are wasted in the code. There is nothing useful to monitor there.
 
 show resolvers [<resolvers section id>]
   Dump statistics for the given resolvers section, or all resolvers sections

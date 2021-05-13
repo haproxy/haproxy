@@ -466,7 +466,7 @@ static int cli_parse_set_profiling(char **args, char *payload, struct appctx *ap
 	return 1;
 }
 
-static int cmp_sched_activity(const void *a, const void *b)
+static int cmp_sched_activity_calls(const void *a, const void *b)
 {
 	const struct sched_activity *l = (const struct sched_activity *)a;
 	const struct sched_activity *r = (const struct sched_activity *)b;
@@ -474,6 +474,19 @@ static int cmp_sched_activity(const void *a, const void *b)
 	if (l->calls > r->calls)
 		return -1;
 	else if (l->calls < r->calls)
+		return 1;
+	else
+		return 0;
+}
+
+static int cmp_sched_activity_addr(const void *a, const void *b)
+{
+	const struct sched_activity *l = (const struct sched_activity *)a;
+	const struct sched_activity *r = (const struct sched_activity *)b;
+
+	if (l->func > r->func)
+		return -1;
+	else if (l->func < r->func)
 		return 1;
 	else
 		return 0;
@@ -493,6 +506,19 @@ static int cmp_memprof_stats(const void *a, const void *b)
 	else
 		return 0;
 }
+
+static int cmp_memprof_addr(const void *a, const void *b)
+{
+	const struct memprof_stats *l = (const struct memprof_stats *)a;
+	const struct memprof_stats *r = (const struct memprof_stats *)b;
+
+	if (l->caller > r->caller)
+		return -1;
+	else if (l->caller < r->caller)
+		return 1;
+	else
+		return 0;
+}
 #endif // USE_MEMORY_PROFILING
 
 /* This function dumps all profiling settings. It returns 0 if the output
@@ -506,6 +532,9 @@ static int cmp_memprof_stats(const void *a, const void *b)
  *       restart line for each step (starts at zero)
  *    ctx.cli.o0:
  *       may contain a configured max line count for each step (0=not set)
+ *    ctx.cli.o1:
+ *       0: sort by usage
+ *       1: sort by address
  */
 static int cli_io_handler_show_profiling(struct appctx *appctx)
 {
@@ -556,7 +585,10 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		goto skip_tasks;
 
 	memcpy(tmp_activity, sched_activity, sizeof(tmp_activity));
-	qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity);
+	if (appctx->ctx.cli.o1)
+		qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity_addr);
+	else
+		qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity_calls);
 
 	if (!appctx->ctx.cli.i1)
 		chunk_appendf(&trash, "Tasks activity:\n"
@@ -612,7 +644,10 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 		goto skip_mem;
 
 	memcpy(tmp_memstats, memprof_stats, sizeof(tmp_memstats));
-	qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_stats);
+	if (appctx->ctx.cli.o1)
+		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_addr);
+	else
+		qsort(tmp_memstats, MEMPROF_HASH_BUCKETS+1, sizeof(tmp_memstats[0]), cmp_memprof_stats);
 
 	if (!appctx->ctx.cli.i1)
 		chunk_appendf(&trash,
@@ -685,36 +720,39 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 	return 1;
 }
 
-/* parse a "show profiling" command. It returns 1 on failure, 0 if it starts to dump. */
+/* parse a "show profiling" command. It returns 1 on failure, 0 if it starts to dump.
+ *  - cli.i0 is set to the first state (0=all, 4=status, 5=tasks, 6=memory)
+ *  - cli.o1 is set to 1 if the output must be sorted by addr instead of usage
+ *  - cli.o0 is set to the number of lines of output
+ */
 static int cli_parse_show_profiling(char **args, char *payload, struct appctx *appctx, void *private)
 {
+	int arg;
+
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
 
-	if (strcmp(args[2], "all") == 0) {
-		appctx->ctx.cli.i0 = 0; // will cycle through 0,1,2; default
-		args++;
-	}
-	else if (strcmp(args[2], "status") == 0) {
-		appctx->ctx.cli.i0 = 4; // will visit status only
-		args++;
-	}
-	else if (strcmp(args[2], "tasks") == 0) {
-		appctx->ctx.cli.i0 = 5; // will visit tasks only
-		args++;
-	}
-	else if (strcmp(args[2], "memory") == 0) {
-		appctx->ctx.cli.i0 = 6; // will visit memory only
-		args++;
-	}
-	else if (*args[2] && !isdigit((unsigned char)*args[2]))
-		return cli_err(appctx, "Expects either 'all', 'status', 'tasks' or 'memory'.\n");
-
-	if (*args[2]) {
-		/* Second arg may set a limit to number of entries to dump; default is
-		 * not set and means no limit.
-		 */
-		appctx->ctx.cli.o0 = atoi(args[2]);
+	for (arg = 2; *args[arg]; arg++) {
+		if (strcmp(args[arg], "all") == 0) {
+			appctx->ctx.cli.i0 = 0; // will cycle through 0,1,2; default
+		}
+		else if (strcmp(args[arg], "status") == 0) {
+			appctx->ctx.cli.i0 = 4; // will visit status only
+		}
+		else if (strcmp(args[arg], "tasks") == 0) {
+			appctx->ctx.cli.i0 = 5; // will visit tasks only
+		}
+		else if (strcmp(args[arg], "memory") == 0) {
+			appctx->ctx.cli.i0 = 6; // will visit memory only
+		}
+		else if (strcmp(args[arg], "byaddr") == 0) {
+			appctx->ctx.cli.o1 = 1; // sort output by address instead of usage
+		}
+		else if (isdigit((unsigned char)*args[arg])) {
+			appctx->ctx.cli.o0 = atoi(args[arg]); // number of entries to dump
+		}
+		else
+			return cli_err(appctx, "Expects either 'all', 'status', 'tasks', 'memory', 'byaddr' or a max number of output lines.\n");
 	}
 	return 0;
 }
@@ -825,7 +863,7 @@ static int cli_io_handler_show_tasks(struct appctx *appctx)
 	for (i = 0; i < 256; i++)
 		tot_calls += tmp_activity[i].calls;
 
-	qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity);
+	qsort(tmp_activity, 256, sizeof(tmp_activity[0]), cmp_sched_activity_calls);
 
 	chunk_appendf(&trash, "Running tasks: %d (%d threads)\n"
 		      "  function                     places     %%    lat_tot   lat_avg\n",
@@ -875,7 +913,7 @@ INITCALL1(STG_REGISTER, cfg_register_keywords, &cfg_kws);
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 	{ { "set",  "profiling", NULL }, "set profiling <what> {auto|on|off}      : enable/disable resource profiling (tasks,memory)", cli_parse_set_profiling,  NULL },
-	{ { "show", "profiling", NULL }, "show profiling [<what>] [<max_lines>]   : show profiling state (all,status,tasks,memory)",   cli_parse_show_profiling, cli_io_handler_show_profiling, NULL },
+	{ { "show", "profiling", NULL }, "show profiling [<what>|<#lines>|byaddr]*: show profiling state (all,status,tasks,memory)",   cli_parse_show_profiling, cli_io_handler_show_profiling, NULL },
 	{ { "show", "tasks", NULL },     "show tasks                              : show running tasks",                               NULL, cli_io_handler_show_tasks,     NULL },
 	{{},}
 }};
