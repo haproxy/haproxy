@@ -583,7 +583,7 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp)
 	enum vars_scope scope;
 
 	/* Resolve name and scope. */
-	name = register_name(name, len, &scope, 1, NULL);
+	name = register_name(name, len, &scope, 0, NULL);
 	if (!name)
 		return 0;
 
