@@ -1,6 +1,42 @@
 ChangeLog :
 ===========
 
+2021/05/14 : 2.4.0
+    - BUG/MINOR: http_fetch: fix possible uninit sockaddr in fetch_url_ip/port
+    - CLEANUP: cli/activity: Remove double spacing in set profiling command
+    - CI: Build VTest with clang
+    - CI: extend spellchecker whitelist, add "ists" as well
+    - CLEANUP: assorted typo fixes in the code and comments
+    - BUG/MINOR: memprof: properly account for differences for realloc()
+    - MINOR: memprof: also report the method used by each call
+    - MINOR: memprof: also report the totals and delta alloc-free
+    - CLEANUP: pattern: remove the unused and dangerous pat_ref_reload()
+    - BUG/MINOR: http_act: Fix normalizer names in error messages
+    - MINOR: uri_normalizer: Add `fragment-strip` normalizer
+    - MINOR: uri_normalizer: Add `fragment-encode` normalizer
+    - IMPORT: slz: use the generic function for the last bytes of the crc32
+    - IMPORT: slz: do not produce the crc32_fast table when CRC is natively supported
+    - BUILD/MINOR: opentracing: fixed compilation with filter enabled
+    - BUILD: makefile: add a few popular ARMv8 CPU targets
+    - BUG/MEDIUM: stick_table: fix crash when using tcp smp_fetch_src
+    - REGTESTS: stick-table: add src_conn_rate test
+    - CLEANUP: stick-table: remove a leftover of an old keyword declaration
+    - BUG/MINOR: stats: fix lastchk metric that got accidently lost
+    - EXAMPLES: add a "basic-config-edge" example config
+    - EXAMPLES: add a trivial config for quick testing
+    - DOC: management: Correct example reload command in the document
+    - Revert "CI: Build VTest with clang"
+    - MINOR: activity/cli: optionally support sorting by address on "show profiling"
+    - DEBUG: ssl: export ssl_sock_close() to see its symbol resolved in profiling
+    - BUG/MINOR: lua/vars: prevent get_var() from allocating a new name
+    - DOC: config: Fix configuration example for mqtt
+    - BUG/MAJOR: config: properly initialize cpu_map.thread[] up to MAX_THREADS
+    - BUILD: config: avoid a build warning on numa_detect_topology() without threads
+    - DOC: update min requirements in INSTALL
+    - IMPORT: slz: use inttypes.h instead of stdint.h
+    - BUILD: sample: use strtoll() instead of atoll()
+    - MINOR: version: mention that it's LTS now.
+
 2021/05/10 : 2.4-dev19
     - BUG/MINOR: hlua: Don't rely on top of the stack when using Lua buffers
     - BUG/MEDIUM: cli: prevent memory leak on write errors
