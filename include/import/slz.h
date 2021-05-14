@@ -25,7 +25,7 @@
 #ifndef _SLZ_H
 #define _SLZ_H
 
-#include <stdint.h>
+#include <inttypes.h>
 
 /* We have two macros UNALIGNED_LE_OK and UNALIGNED_FASTER. The latter indicates
  * that using unaligned data is faster than a simple shift. On x86 32-bit at
