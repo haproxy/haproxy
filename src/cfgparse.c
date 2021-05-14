@@ -2380,7 +2380,7 @@ void propagate_processes(struct proxy *from, struct proxy *to)
 	}
 }
 
-#if defined(__linux__) && defined USE_CPU_AFFINITY
+#if defined(USE_THREAD) && defined(__linux__) && defined USE_CPU_AFFINITY
 /* filter directory name of the pattern node<X> */
 static int numa_filter(const struct dirent *dir)
 {
