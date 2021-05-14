@@ -101,7 +101,7 @@ HAProxy requires a working GCC or Clang toolchain and GNU make :
     may want to retry with "gmake" which is the name commonly used for GNU make
     on BSD systems.
 
-  - GCC >= 3.4 (up to 10.1 tested). Older versions can be made to work with a
+  - GCC >= 3.4 (up to 11 tested). Older versions can be made to work with a
     few minor adaptations if really needed. Newer versions may sometimes break
     due to compiler regressions or behaviour changes. The version shipped with
     your operating system is very likely to work with no trouble. Clang >= 3.0
@@ -133,7 +133,7 @@ It is also possible to build HAProxy for another system or platform using a
 cross-compiler but in this case you probably already have installed these
 tools.
 
-Building HAProxy may require between 10 and 40 MB of free space in the
+Building HAProxy may require between 60 and 80 MB of free space in the
 directory where the sources have been extracted, depending on the debugging
 options involved.
 
