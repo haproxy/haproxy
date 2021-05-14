@@ -1778,6 +1778,8 @@ static void init(int argc, char **argv)
 		for (i = 0; i < MAX_PROCS; ++i) {
 			ha_cpuset_zero(&cpu_map.proc[i]);
 			ha_cpuset_zero(&cpu_map.proc_t1[i]);
+		}
+		for (i = 0; i < MAX_THREADS; ++i) {
 			ha_cpuset_zero(&cpu_map.thread[i]);
 		}
 	}
