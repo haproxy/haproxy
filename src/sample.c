@@ -3743,7 +3743,7 @@ static int sample_conv_json_query(const struct arg *args, struct sample *smp, vo
 	switch (token_type) {
 		case MJSON_TOK_NUMBER:
 			if (args[1].type == ARGT_SINT) {
-				smp->data.u.sint = atoll(token);
+				smp->data.u.sint = strtoll(token, NULL, 0);
 
 				if (smp->data.u.sint < JSON_INT_MIN || smp->data.u.sint > JSON_INT_MAX)
 					return 0;
