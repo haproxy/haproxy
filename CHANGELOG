@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2021/05/14 : 2.5-dev0
+    - MINOR: version: it's development again
+
 2021/05/14 : 2.4.0
     - BUG/MINOR: http_fetch: fix possible uninit sockaddr in fetch_url_ip/port
     - CLEANUP: cli/activity: Remove double spacing in set profiling command
