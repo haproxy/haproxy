@@ -6,8 +6,7 @@ FreeBSD_task:
   install_script:
     - pkg update -f && pkg upgrade -y && pkg install -y openssl git gmake lua53 socat pcre
   script:
-    - git clone https://github.com/VTest/VTest.git ../vtest
-    - make -C ../vtest
+    - scripts/build-vtest.sh
     - gmake CC=clang V=1 ERR=1 TARGET=freebsd USE_ZLIB=1 USE_PCRE=1 USE_OPENSSL=1 USE_LUA=1 LUA_INC=/usr/local/include/lua53 LUA_LIB=/usr/local/lib LUA_LIB_NAME=lua-5.3
     - ./haproxy -vv
     - ldd haproxy

@@ -23,8 +23,7 @@ jobs:
     - uses: actions/checkout@v1
     - name: prepare VTest
       run: |
-        git clone https://github.com/VTest/VTest.git ../vtest
-        make -C ../vtest FLAGS="-O2 -s -Wall"
+        scripts/build-vtest.sh
     - name: build haproxy
       run: |
         make DEFINE="-DOPENSSL_API_COMPAT=0x10100000L -DOPENSSL_NO_DEPRECATED" -j3 CC=gcc ERR=1 TARGET=linux-glibc USE_OPENSSL=1

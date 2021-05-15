@@ -60,11 +60,7 @@ jobs:
         brew install lua
     - name: Install VTest
       run: |
-        curl -fsSL https://github.com/vtest/VTest/archive/master.tar.gz -o VTest.tar.gz
-        mkdir VTest
-        tar xvf VTest.tar.gz -C VTest --strip-components=1
-        make -C VTest -j$(nproc) FLAGS="-O2 -s -Wall"
-        sudo install -m755 VTest/vtest /usr/local/bin/vtest
+        scripts/build-vtest.sh
     - name: Install SSL ${{ matrix.ssl }}
       if: ${{ matrix.ssl && matrix.ssl != 'stock' }}
       run: env ${{ matrix.ssl }} scripts/build-ssl.sh
@@ -101,7 +97,7 @@ jobs:
     - name: Run VTest for HAProxy ${{ steps.show-version.outputs.version }}
       id: vtest
       # sudo is required, because macOS fails due to an open files limit.
-      run: sudo make reg-tests REGTESTS_TYPES=default,bug,devel
+      run: sudo make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
     - name: Show results
       if: ${{ failure() }}
       # The chmod / sudo is necessary due to the `sudo` while running the tests.
