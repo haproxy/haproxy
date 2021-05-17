@@ -50,9 +50,9 @@
 #include <haproxy/xprt_quic.h>
 
 struct quic_transport_params quic_dflt_transport_params = {
-	.max_packet_size    = QUIC_DFLT_MAX_PACKET_SIZE,
-	.ack_delay_exponent = QUIC_DFLT_ACK_DELAY_COMPONENT,
-	.max_ack_delay      = QUIC_DFLT_MAX_ACK_DELAY,
+	.max_udp_payload_size = QUIC_DFLT_MAX_UDP_PAYLOAD_SIZE,
+	.ack_delay_exponent   = QUIC_DFLT_ACK_DELAY_COMPONENT,
+	.max_ack_delay        = QUIC_DFLT_MAX_ACK_DELAY,
 };
 
 /* trace source and events */

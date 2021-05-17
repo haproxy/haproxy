@@ -422,9 +422,9 @@ static inline unsigned int quic_ack_delay_ms(struct quic_ack *ack_frm,
  */
 static inline void quic_dflt_transport_params_cpy(struct quic_transport_params *dst)
 {
-	dst->max_packet_size    = quic_dflt_transport_params.max_packet_size;
-	dst->ack_delay_exponent = quic_dflt_transport_params.ack_delay_exponent;
-	dst->max_ack_delay      = quic_dflt_transport_params.max_ack_delay;
+	dst->max_udp_payload_size = quic_dflt_transport_params.max_udp_payload_size;
+	dst->ack_delay_exponent   = quic_dflt_transport_params.ack_delay_exponent;
+	dst->max_ack_delay        = quic_dflt_transport_params.max_ack_delay;
 }
 
 /* Initialize <p> transport parameters depending <server> boolean value which
@@ -582,8 +582,8 @@ static inline int quic_transport_param_decode(struct quic_transport_params *p,
 		if (!quic_dec_int(&p->idle_timeout, buf, end))
 			return 0;
 		break;
-	case QUIC_TP_MAX_PACKET_SIZE:
-		if (!quic_dec_int(&p->max_packet_size, buf, end))
+	case QUIC_TP_MAX_UDP_PAYLOAD_SIZE:
+		if (!quic_dec_int(&p->max_udp_payload_size, buf, end))
 			return 0;
 		break;
 	case QUIC_TP_INITIAL_MAX_DATA:
@@ -764,8 +764,8 @@ static inline int quic_transport_params_encode(unsigned char *buf,
 	 * "max_packet_size" transport parameter must be transmitted only if different
 	 * of the default value.
 	 */
-	if (p->max_packet_size != QUIC_DFLT_MAX_PACKET_SIZE &&
-	    !quic_transport_param_enc_int(&pos, end, QUIC_TP_MAX_PACKET_SIZE, p->max_packet_size))
+	if (p->max_udp_payload_size != QUIC_DFLT_MAX_UDP_PAYLOAD_SIZE &&
+	    !quic_transport_param_enc_int(&pos, end, QUIC_TP_MAX_UDP_PAYLOAD_SIZE, p->max_udp_payload_size))
 		return 0;
 
 	if (p->initial_max_data &&

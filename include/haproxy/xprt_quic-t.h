@@ -257,15 +257,15 @@ struct preferred_address {
 };
 
 /* Default values for some of transport parameters */
-#define QUIC_DFLT_MAX_PACKET_SIZE     65527
-#define QUIC_DFLT_ACK_DELAY_COMPONENT     3 /* milliseconds */
-#define QUIC_DFLT_MAX_ACK_DELAY          25 /* milliseconds */
+#define QUIC_DFLT_MAX_UDP_PAYLOAD_SIZE   65527 /* bytes */
+#define QUIC_DFLT_ACK_DELAY_COMPONENT        3 /* milliseconds */
+#define QUIC_DFLT_MAX_ACK_DELAY             25 /* milliseconds */
 
 /* Types of QUIC transport parameters */
 #define QUIC_TP_ORIGINAL_DESTINATION_CONNECTION_ID   0
 #define QUIC_TP_IDLE_TIMEOUT                         1
 #define QUIC_TP_STATELESS_RESET_TOKEN                2
-#define QUIC_TP_MAX_PACKET_SIZE                      3
+#define QUIC_TP_MAX_UDP_PAYLOAD_SIZE                 3
 #define QUIC_TP_INITIAL_MAX_DATA                     4
 #define QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL   5
 #define QUIC_TP_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE  6
@@ -294,15 +294,15 @@ struct preferred_address {
  */
 struct quic_transport_params {
 	uint64_t idle_timeout;
-	uint64_t max_packet_size;                                      /* Default: 65527 (max of UDP payload for IPv6) */
+	uint64_t max_udp_payload_size;                 /* Default: 65527 bytes (max of UDP payload for IPv6) */
 	uint64_t initial_max_data;
 	uint64_t initial_max_stream_data_bidi_local;
 	uint64_t initial_max_stream_data_bidi_remote;
 	uint64_t initial_max_stream_data_uni;
 	uint64_t initial_max_streams_bidi;
 	uint64_t initial_max_streams_uni;
-	uint64_t ack_delay_exponent;                                   /* Default: 3, max: 20 */
-	uint64_t max_ack_delay;                                        /* Default: 3ms, max: 2^14ms*/
+	uint64_t ack_delay_exponent;                   /* Default: 3, max: 20 */
+	uint64_t max_ack_delay;                        /* Default: 3ms, max: 2^14ms*/
 	uint64_t active_connection_id_limit;
 
 	/* Booleans */
