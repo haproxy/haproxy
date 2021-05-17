@@ -2432,7 +2432,7 @@ enum {
 };
 
 static inline int __create_new_instance(struct appctx *appctx, struct ckch_inst *ckchi, int *count,
-					struct buffer *trash, char *err)
+					struct buffer *trash, char **err)
 {
 	struct ckch_inst *new_inst;
 
@@ -2445,7 +2445,7 @@ static inline int __create_new_instance(struct appctx *appctx, struct ckch_inst 
 
 	/* Rebuild a new ckch instance that uses the same ckch_store
 	 * than a reference ckchi instance but will use a new CA file. */
-	if (ckch_inst_rebuild(ckchi->ckch_store, ckchi, &new_inst, &err))
+	if (ckch_inst_rebuild(ckchi->ckch_store, ckchi, &new_inst, err))
 		return CREATE_NEW_INST_ERR;
 
 	/* display one dot per new instance */
@@ -2529,7 +2529,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 				}
 
 				list_for_each_entry_from(ckchi_link, &old_cafile_entry->ckch_inst_link, list) {
-					switch (__create_new_instance(appctx, ckchi_link->ckch_inst, &y, trash, err)) {
+					switch (__create_new_instance(appctx, ckchi_link->ckch_inst, &y, trash, &err)) {
 					case CREATE_NEW_INST_YIELD:
 						appctx->ctx.ssl.next_ckchi_link = ckchi_link;
 						goto yield;
@@ -3292,7 +3292,8 @@ static int show_crl_detail(X509_CRL *crl, struct buffer *out)
 	/* Last Update */
 	chunk_appendf(out, "Last Update: ");
 	chunk_reset(tmp);
-	BIO_reset(bio);
+	if (BIO_reset(bio) == -1)
+		goto end;
 	if (ASN1_TIME_print(bio, X509_CRL_get0_lastUpdate(crl)) == 0)
 		goto end;
 	write = BIO_read(bio, tmp->area, tmp->size-1);
@@ -3303,7 +3304,8 @@ static int show_crl_detail(X509_CRL *crl, struct buffer *out)
 	/* Next Update */
 	chunk_appendf(out, "Next Update: ");
 	chunk_reset(tmp);
-	BIO_reset(bio);
+	if (BIO_reset(bio) == -1)
+		goto end;
 	if (ASN1_TIME_print(bio, X509_CRL_get0_nextUpdate(crl)) == 0)
 		goto end;
 	write = BIO_read(bio, tmp->area, tmp->size-1);
@@ -3322,7 +3324,8 @@ static int show_crl_detail(X509_CRL *crl, struct buffer *out)
 		rev_entry = sk_X509_REVOKED_value(rev, i);
 
 		/* Serial Number and Revocation Date */
-		BIO_reset(bio);
+		if (BIO_reset(bio) == -1)
+			goto end;
 		BIO_printf(bio , "    Serial Number: ");
 		i2a_ASN1_INTEGER(bio, X509_REVOKED_get0_serialNumber(rev_entry));
 		BIO_printf(bio, "\n        Revocation Date: ");

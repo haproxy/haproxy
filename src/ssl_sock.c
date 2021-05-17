@@ -319,7 +319,7 @@ __decl_thread(HA_SPINLOCK_T ckch_lock);
 /* mimic what X509_STORE_load_locations do with store_ctx */
 static int ssl_set_cert_crl_file(X509_STORE *store_ctx, char *path)
 {
-	X509_STORE *store;
+	X509_STORE *store = NULL;
 	struct cafile_entry *ca_e = ssl_store_get_cafile_entry(path, 0);
 	if (ca_e)
 		store = ca_e->ca_store;
