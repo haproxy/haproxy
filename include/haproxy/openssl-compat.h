@@ -261,6 +261,31 @@ static inline void SSL_CTX_up_ref(SSL_CTX *ctx)
 {
     CRYPTO_add(&ctx->references, 1, CRYPTO_LOCK_SSL_CTX);
 }
+
+static inline int X509_CRL_get_signature_nid(const X509_CRL *crl)
+{
+	return OBJ_obj2nid(crl->sig_alg->algorithm);
+}
+
+static inline const ASN1_TIME *X509_CRL_get0_lastUpdate(const X509_CRL *crl)
+{
+	return X509_CRL_get_lastUpdate(crl);
+}
+
+static inline const ASN1_TIME *X509_CRL_get0_nextUpdate(const X509_CRL *crl)
+{
+	return X509_CRL_get_nextUpdate(crl);
+}
+
+static inline const ASN1_INTEGER *X509_REVOKED_get0_serialNumber(const X509_REVOKED *x)
+{
+    return x->serialNumber;
+}
+
+static inline const ASN1_TIME *X509_REVOKED_get0_revocationDate(const X509_REVOKED *x)
+{
+    return x->revocationDate;
+}
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) || (LIBRESSL_VERSION_NUMBER >= 0x2070200fL)

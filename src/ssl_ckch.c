@@ -3327,7 +3327,7 @@ static int show_crl_detail(X509_CRL *crl, struct buffer *out)
 		if (BIO_reset(bio) == -1)
 			goto end;
 		BIO_printf(bio , "    Serial Number: ");
-		i2a_ASN1_INTEGER(bio, X509_REVOKED_get0_serialNumber(rev_entry));
+		i2a_ASN1_INTEGER(bio, (ASN1_INTEGER*)X509_REVOKED_get0_serialNumber(rev_entry));
 		BIO_printf(bio, "\n        Revocation Date: ");
 		ASN1_TIME_print(bio, X509_REVOKED_get0_revocationDate(rev_entry));
 		BIO_printf(bio, "\n");
