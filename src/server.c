@@ -1800,11 +1800,13 @@ const char *server_parse_maxconn_change_request(struct server *sv,
 	else if (end[0] != '\0')
 		return "Trailing garbage in maxconn string";
 
+	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 	if (sv->maxconn == sv->minconn) { // static maxconn
 		sv->maxconn = sv->minconn = v;
 	} else { // dynamic maxconn
 		sv->maxconn = v;
 	}
+	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 
 	if (may_dequeue_tasks(sv, sv->proxy))
 		process_srv_queue(sv);
@@ -4141,13 +4143,9 @@ static int cli_parse_set_maxconn_server(char **args, char *payload, struct appct
 	if (!sv)
 		return 1;
 
-	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
-
 	warning = server_parse_maxconn_change_request(sv, args[4]);
 	if (warning)
 		cli_err(appctx, warning);
-
-	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 
 	return 1;
 }
