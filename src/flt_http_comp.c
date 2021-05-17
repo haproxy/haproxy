@@ -635,11 +635,17 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			return -1;
 		}
 		while (*(args[cur_arg])) {
-			if (comp_append_algo(comp, args[cur_arg]) < 0) {
-				memprintf(err, "'%s' : '%s' is not a supported algorithm.\n",
-					  args[0], args[cur_arg]);
+			int retval = comp_append_algo(comp, args[cur_arg]);
+			if (retval) {
+				if (retval < 0)
+					memprintf(err, "'%s' : '%s' is not a supported algorithm.\n",
+						  args[0], args[cur_arg]);
+				else
+					memprintf(err, "'%s' : out of memory while parsing algo '%s'.\n",
+						  args[0], args[cur_arg]);
 				return -1;
 			}
+
 			if (proxy->comp->algos->init(&ctx, 9) == 0)
 				proxy->comp->algos->end(&ctx);
 			else {
@@ -661,7 +667,10 @@ parse_compression_options(char **args, int section, struct proxy *proxy,
 			return -1;
 		}
 		while (*(args[cur_arg])) {
-			comp_append_type(comp, args[cur_arg]);
+			if (comp_append_type(comp, args[cur_arg])) {
+				memprintf(err, "'%s': out of memory.", args[0]);
+				return -1;
+			}
 			cur_arg++;
 			continue;
 		}
