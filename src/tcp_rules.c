@@ -826,6 +826,11 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		}
 
 		hdr = calloc(1, sizeof(*hdr));
+		if (!hdr) {
+			memprintf(err, "parsing [%s:%d] : out of memory", file, line);
+			release_sample_expr(expr);
+			return -1;
+		}
 		hdr->next = curpx->req_cap;
 		hdr->name = NULL; /* not a header capture */
 		hdr->namelen = 0;
