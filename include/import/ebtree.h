@@ -615,12 +615,16 @@ static inline struct eb_node *eb_next_dup(struct eb_node *node)
 		t = (eb_root_to_node(eb_untag(t, EB_RGHT)))->node_p;
 	}
 
-	/* Note that <t> cannot be NULL at this stage */
+	/* Note that <t> cannot be NULL at this stage. If our leaf is directly
+	 * under the root, we must not try to cast the leaf_p into a eb_node*
+	 * since it is a pointer to an eb_root.
+	 */
+	if (eb_clrtag((eb_untag(t, EB_LEFT))->b[EB_RGHT]) == NULL)
+		return NULL;
+
 	if ((eb_root_to_node(eb_untag(t, EB_LEFT)))->bit >= 0)
 		return NULL;
 	t = (eb_untag(t, EB_LEFT))->b[EB_RGHT];
-	if (eb_clrtag(t) == NULL)
-		return NULL;
 	return eb_walk_down(t, EB_LEFT);
 }
 
