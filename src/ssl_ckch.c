@@ -1695,7 +1695,6 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 	struct stream_interface *si = appctx->owner;
 	int y = 0;
 	char *err = NULL;
-	int errcode = 0;
 	struct ckch_store *old_ckchs, *new_ckchs = NULL;
 	struct ckch_inst *ckchi, *ckchis;
 	struct buffer *trash = alloc_trash_chunk();
@@ -1811,8 +1810,6 @@ static int cli_io_handler_commit_cert(struct appctx *appctx)
 end:
 
 	chunk_appendf(trash, "\n");
-	if (errcode & ERR_WARN)
-		chunk_appendf(trash, "%s", err);
 	chunk_appendf(trash, "Success!\n");
 	if (ci_putchk(si_ic(si), trash) == -1)
 		si_rx_room_blk(si);
@@ -2465,8 +2462,7 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 	struct stream_interface *si = appctx->owner;
 	int y = 0;
 	char *err = NULL;
-	int errcode = 0;
-	struct cafile_entry *old_cafile_entry, *new_cafile_entry;
+	struct cafile_entry *old_cafile_entry = NULL, *new_cafile_entry = NULL;
 	struct ckch_inst_link *ckchi_link;
 	struct buffer *trash = alloc_trash_chunk();
 
@@ -2600,8 +2596,6 @@ static int cli_io_handler_commit_cafile_crlfile(struct appctx *appctx)
 end:
 
 	chunk_appendf(trash, "\n");
-	if (errcode & ERR_WARN)
-		chunk_appendf(trash, "%s", err);
 	chunk_appendf(trash, "Success!\n");
 	if (ci_putchk(si_ic(si), trash) == -1)
 		si_rx_room_blk(si);
@@ -3329,7 +3323,8 @@ static int show_crl_detail(X509_CRL *crl, struct buffer *out)
 		BIO_printf(bio , "    Serial Number: ");
 		i2a_ASN1_INTEGER(bio, (ASN1_INTEGER*)X509_REVOKED_get0_serialNumber(rev_entry));
 		BIO_printf(bio, "\n        Revocation Date: ");
-		ASN1_TIME_print(bio, X509_REVOKED_get0_revocationDate(rev_entry));
+		if (ASN1_TIME_print(bio, X509_REVOKED_get0_revocationDate(rev_entry)) == 0)
+			goto end;
 		BIO_printf(bio, "\n");
 
 		write = BIO_read(bio, tmp->area, tmp->size-1);
