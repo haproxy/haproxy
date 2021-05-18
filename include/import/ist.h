@@ -862,7 +862,15 @@ static inline int istissame(const struct ist ist1, const struct ist ist2)
  */
 static inline struct ist istalloc(const size_t size)
 {
-	return ist2(malloc(size), 0);
+	/* Note: do not use ist2 here, as it triggers a gcc11 warning.
+	 * ‘<unknown>’ may be used uninitialized [-Werror=maybe-uninitialized]
+	 *
+	 * This warning is reported because the uninitialized memory block
+	 * allocated by malloc should not be passed to a const argument as in
+	 * ist2.
+	 * See https://gcc.gnu.org/onlinedocs/gcc-11.1.0/gcc/Warning-Options.html#index-Wmaybe-uninitialized
+	 */
+	return (struct ist){ .ptr = malloc(size), .len = 0 };
 }
 
 /* This function performs the equivalent of free() on the given <ist>.
