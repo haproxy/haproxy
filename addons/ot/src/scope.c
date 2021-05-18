@@ -116,8 +116,8 @@ struct flt_ot_runtime_context *flt_ot_runtime_context_init(struct stream *s, str
 	(void)snprintf(retptr->uuid.s, sizeof(retptr->uuid.s), "%08x-%04hx-%04hx-%04hx-%012" PRIx64,
 	               retptr->uuid.time_low,
 	               retptr->uuid.time_mid,
-	               (retptr->uuid.time_hi_and_version & UINT16_C(0xfff)) | UINT16_C(0x4000),
-	               retptr->uuid.clock_seq | UINT16_C(0x8000),
+	               (uint16_t)((retptr->uuid.time_hi_and_version & UINT16_C(0xfff)) | UINT16_C(0x4000)),
+	               (uint16_t)(retptr->uuid.clock_seq | UINT16_C(0x8000)),
 	               (uint64_t)retptr->uuid.node);
 
 	if (flt_ot_var_register(FTL_OT_VAR_UUID, err) != -1)
