@@ -64,6 +64,9 @@ jobs:
     - name: Install SSL ${{ matrix.ssl }}
       if: ${{ matrix.ssl && matrix.ssl != 'stock' }}
       run: env ${{ matrix.ssl }} scripts/build-ssl.sh
+    - name: Install OpenTracing libs
+      if: ${{ contains(matrix.FLAGS, 'USE_OT=1') }}
+      run: scripts/build-ot.sh
     - name: Build WURFL
       if: ${{ contains(matrix.FLAGS, 'USE_WURFL=1') }}
       run: make -C addons/wurfl/dummy
