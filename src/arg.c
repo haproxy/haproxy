@@ -149,6 +149,9 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 
 	arg = *argp = calloc(nbarg + 1, sizeof(**argp));
 
+	if (!arg)
+		goto alloc_err;
+
 	/* Note: empty arguments after a comma always exist. */
 	while (pos < nbarg) {
 		unsigned int uint;
@@ -439,4 +442,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 	          in, trash.area, arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK], pos + 1);
 	goto err;
 
+alloc_err:
+	memprintf(err_msg, "out of memory");
+	goto err;
 }
