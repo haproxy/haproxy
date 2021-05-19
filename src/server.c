@@ -4491,6 +4491,13 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		goto out;
 	}
 
+	if (srv->use_ssl == 1) {
+		if (xprt_get(XPRT_SSL) && xprt_get(XPRT_SSL)->prepare_srv) {
+			if (xprt_get(XPRT_SSL)->prepare_srv(srv))
+				goto out;
+		}
+	}
+
 	/* Attach the server to the end of the proxy linked list. Note that this
 	 * operation is not thread-safe so this is executed under thread
 	 * isolation.

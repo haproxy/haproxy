@@ -1911,7 +1911,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,     0, 1, 1 }, /* send PROXY protocol header v2 with SSL info */
 	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,      0, 1, 1 }, /* send PROXY protocol header v2 with CN */
 	{ "sni",                     srv_parse_sni,                1, 1, 1 }, /* send SNI extension */
-	{ "ssl",                     srv_parse_ssl,                0, 1, 0 }, /* enable SSL processing */
+	{ "ssl",                     srv_parse_ssl,                0, 1, 1 }, /* enable SSL processing */
 	{ "ssl-min-ver",             srv_parse_tls_method_minmax,  1, 1, 1 }, /* minimum version */
 	{ "ssl-max-ver",             srv_parse_tls_method_minmax,  1, 1, 1 }, /* maximum version */
 	{ "ssl-reuse",               srv_parse_ssl_reuse,          0, 1, 0 }, /* enable session reuse */

@@ -1472,13 +1472,25 @@ add server <backend>/<server> [args]*
 
   Here is the list of the currently supported keywords :
 
+  - allow-0rtt
+  - alpn
   - backup
+  - ca-file
+  - ciphers
+  - ciphersuites
+  - crl-file
+  - crt
   - disabled
   - enabled
+  - force-sslv3/tlsv10/tlsv11/tlsv12/tlsv13
   - id
   - maxconn
   - maxqueue
   - minconn
+  - no-ssl-reuse
+  - no-sslv3/tlsv10/tlsv11/tlsv12/tlsv13
+  - no-tls-tickets
+  - npn
   - pool-low-conn
   - pool-max-conn
   - pool-purge-delay
@@ -1486,9 +1498,18 @@ add server <backend>/<server> [args]*
   - proxy-v2-options
   - send-proxy
   - send-proxy-v2
+  - send-proxy-v2-ssl
+  - send-proxy-v2-ssl-cn
+  - sni
   - source
+  - ssl
+  - ssl-max-ver
+  - ssl-min-ver
   - tfo
+  - tls-tickets
   - usesrc
+  - verify
+  - verifyhost
   - weight
 
   Their syntax is similar to the server line from the configuration file,
