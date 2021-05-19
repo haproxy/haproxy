@@ -120,6 +120,7 @@ int ssl_load_global_issuer_from_BIO(BIO *in, char *fp, char **err);
 int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err);
 int ssl_sock_load_srv_cert(char *path, struct server *server, char **err);
 void ssl_free_global_issuers(void);
+int ssl_initialize_random(void);
 int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_conf, struct proxy *curproxy, char **err);
 int ssl_init_single_engine(const char *engine_id, const char *def_algorithms);
 #if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)

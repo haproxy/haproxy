@@ -3536,7 +3536,7 @@ static int ssl_sock_load_srv_ckchs(const char *path, struct ckch_store *ckchs,
  * if the random is said as not implemented, because we expect that openssl
  * will use another method once needed.
  */
-static int ssl_initialize_random()
+int ssl_initialize_random(void)
 {
 	unsigned char random;
 	static int random_initialized = 0;
@@ -4640,12 +4640,6 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	int cfgerr = 0;
 	SSL_CTX *ctx = srv->ssl_ctx.ctx;
 
-	/* Make sure openssl opens /dev/urandom before the chroot */
-	if (!ssl_initialize_random()) {
-		ha_alert("OpenSSL random data generator initialization failed.\n");
-		cfgerr++;
-	}
-
 	/* Automatic memory computations need to know we use SSL there */
 	global.ssl_used_backend = 1;
 
@@ -4898,11 +4892,6 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf)
 	/* Automatic memory computations need to know we use SSL there */
 	global.ssl_used_frontend = 1;
 
-	/* Make sure openssl opens /dev/urandom before the chroot */
-	if (!ssl_initialize_random()) {
-		ha_alert("OpenSSL random data generator initialization failed.\n");
-		err++;
-	}
 	/* Create initial_ctx used to start the ssl connection before do switchctx */
 	if (!bind_conf->initial_ctx) {
 		err += ssl_initial_ctx(bind_conf);

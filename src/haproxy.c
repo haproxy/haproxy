@@ -1510,6 +1510,16 @@ static void init(int argc, char **argv)
 	if (init_acl() != 0)
 		exit(1);
 
+#ifdef USE_OPENSSL
+	/* Initialize the random generator.
+	 * Must be called before chroot for access to /dev/urandom
+	 */
+	if (!ssl_initialize_random()) {
+		ha_alert("OpenSSL random data generator initialization failed.\n");
+		exit(1);
+	}
+#endif
+
 	/* Initialise lua. */
 	hlua_init();
 
