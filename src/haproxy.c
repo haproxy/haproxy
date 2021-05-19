@@ -1892,8 +1892,10 @@ static void init(int argc, char **argv)
 	if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT)) {
 		struct wordlist *it, *c;
 
-		mworker_env_to_proc_list(); /* get the info of the children in the env */
-
+		/* get the info of the children in the env */
+		if (mworker_env_to_proc_list() < 0) {
+			exit(EXIT_FAILURE);
+		}
 
 		if (!LIST_ISEMPTY(&mworker_cli_conf)) {
 
