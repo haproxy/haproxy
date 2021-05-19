@@ -3658,7 +3658,9 @@ out_uri_auth_compat:
 				init_server_map(curproxy);
 			} else if ((curproxy->lbprm.algo & BE_LB_PARM) == BE_LB_RR_RANDOM) {
 				curproxy->lbprm.algo |= BE_LB_LKUP_CHTREE | BE_LB_PROP_DYN;
-				chash_init_server_tree(curproxy);
+				if (chash_init_server_tree(curproxy) < 0) {
+					cfgerr++;
+				}
 			} else {
 				curproxy->lbprm.algo |= BE_LB_LKUP_RRTREE | BE_LB_PROP_DYN;
 				fwrr_init_server_groups(curproxy);
@@ -3678,7 +3680,9 @@ out_uri_auth_compat:
 		case BE_LB_KIND_HI:
 			if ((curproxy->lbprm.algo & BE_LB_HASH_TYPE) == BE_LB_HASH_CONS) {
 				curproxy->lbprm.algo |= BE_LB_LKUP_CHTREE | BE_LB_PROP_DYN;
-				chash_init_server_tree(curproxy);
+				if (chash_init_server_tree(curproxy) < 0) {
+					cfgerr++;
+				}
 			} else {
 				curproxy->lbprm.algo |= BE_LB_LKUP_MAP;
 				init_server_map(curproxy);
@@ -3964,6 +3968,7 @@ out_uri_auth_compat:
 				cfgerr++;
 				continue;
 			}
+
 		}
 	}
 

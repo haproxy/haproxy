@@ -19,6 +19,7 @@
 #include <import/eb32tree.h>
 #include <haproxy/api.h>
 #include <haproxy/backend.h>
+#include <haproxy/errors.h>
 #include <haproxy/queue.h>
 #include <haproxy/server-t.h>
 #include <haproxy/tools.h>
@@ -462,8 +463,9 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
  * constistent hashing. The servers receive an array of initialized nodes
  * with their assigned keys. It also sets p->lbprm.wdiv to the eweight to
  * uweight ratio.
+ * Return 0 in case of success, -1 in case of allocation failure.
  */
-void chash_init_server_tree(struct proxy *p)
+int chash_init_server_tree(struct proxy *p)
 {
 	struct server *srv;
 	struct eb_root init_head = EB_ROOT;
@@ -495,6 +497,10 @@ void chash_init_server_tree(struct proxy *p)
 		srv->lb_nodes_now = 0;
 		srv->lb_nodes = calloc(srv->lb_nodes_tot,
 				       sizeof(*srv->lb_nodes));
+		if (!srv->lb_nodes) {
+			ha_alert("failed to allocate lb_nodes for server %s.\n", srv->id);
+			return -1;
+		}
 		for (node = 0; node < srv->lb_nodes_tot; node++) {
 			srv->lb_nodes[node].server = srv;
 			srv->lb_nodes[node].node.key = full_hash(srv->puid * SRV_EWGHT_RANGE + node);
@@ -503,4 +509,5 @@ void chash_init_server_tree(struct proxy *p)
 		if (srv_currently_usable(srv))
 			chash_queue_dequeue_srv(srv);
 	}
+	return 0;
 }
