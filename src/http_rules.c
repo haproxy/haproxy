@@ -408,6 +408,10 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 	}
 
 	rule = calloc(1, sizeof(*rule));
+	if (!rule) {
+		memprintf(errmsg, "parsing [%s:%d]: out of memory.", file, linenum);
+		return NULL;
+	}
 	rule->cond = cond;
 	LIST_INIT(&rule->rdr_fmt);
 
