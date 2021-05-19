@@ -1414,6 +1414,12 @@ static int srv_parse_ciphers(char **args, int *cur_arg, struct proxy *px, struct
 
 	free(newsrv->ssl_ctx.ciphers);
 	newsrv->ssl_ctx.ciphers = strdup(args[*cur_arg + 1]);
+
+	if (!newsrv->ssl_ctx.ciphers) {
+		memprintf(err, "'%s' : not enough memory", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
 	return 0;
 }
 
@@ -1428,6 +1434,12 @@ static int srv_parse_ciphersuites(char **args, int *cur_arg, struct proxy *px, s
 
 	free(newsrv->ssl_ctx.ciphersuites);
 	newsrv->ssl_ctx.ciphersuites = strdup(args[*cur_arg + 1]);
+
+	if (!newsrv->ssl_ctx.ciphersuites) {
+		memprintf(err, "'%s' : not enough memory", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
 	return 0;
 }
 #endif
@@ -1640,6 +1652,11 @@ static int srv_parse_verifyhost(char **args, int *cur_arg, struct proxy *px, str
 
 	free(newsrv->ssl_ctx.verify_host);
 	newsrv->ssl_ctx.verify_host = strdup(args[*cur_arg + 1]);
+
+	if (!newsrv->ssl_ctx.verify_host) {
+		memprintf(err, "'%s' : not enough memory", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
 
 	return 0;
 }
