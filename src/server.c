@@ -4081,6 +4081,11 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 	}
 	else if (strcmp(args[3], "ssl") == 0) {
 #ifdef USE_OPENSSL
+		if (sv->flags & SRV_F_DYNAMIC) {
+			cli_err(appctx, "'set server <srv> ssl' not supported on dynamic servers\n");
+			goto out;
+		}
+
 		if (sv->ssl_ctx.ctx == NULL) {
 			cli_err(appctx, "'set server <srv> ssl' cannot be set. "
 					" default-server should define ssl settings\n");
