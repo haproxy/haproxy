@@ -1369,13 +1369,16 @@ static int srv_parse_check_sni(char **args, int *cur_arg, struct proxy *px, stru
 }
 
 /* common function to init ssl_ctx */
-static void ssl_sock_init_srv(struct server *s)
+static int ssl_sock_init_srv(struct server *s)
 {
 	if (global_ssl.connect_default_ciphers && !s->ssl_ctx.ciphers)
 		s->ssl_ctx.ciphers = strdup(global_ssl.connect_default_ciphers);
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
-	if (global_ssl.connect_default_ciphersuites && !s->ssl_ctx.ciphersuites)
+	if (global_ssl.connect_default_ciphersuites && !s->ssl_ctx.ciphersuites) {
 		s->ssl_ctx.ciphersuites = strdup(global_ssl.connect_default_ciphersuites);
+		if (!s->ssl_ctx.ciphersuites)
+			return 1;
+	}
 #endif
 	s->ssl_ctx.options |= global_ssl.connect_default_ssloptions;
 	s->ssl_ctx.methods.flags |= global_ssl.connect_default_sslmethods.flags;
@@ -1385,13 +1388,19 @@ static void ssl_sock_init_srv(struct server *s)
 
 	if (!s->ssl_ctx.methods.max)
 		s->ssl_ctx.methods.max = global_ssl.connect_default_sslmethods.max;
+
+	return 0;
 }
 
 /* parse the "check-ssl" server keyword */
 static int srv_parse_check_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	newsrv->check.use_ssl = 1;
-	ssl_sock_init_srv(newsrv);
+	if (ssl_sock_init_srv(newsrv)) {
+		memprintf(err, "'%s' : not enough memory", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
 	return 0;
 }
 
@@ -1502,8 +1511,12 @@ static int srv_parse_no_send_proxy_cn(char **args, int *cur_arg, struct proxy *p
 static int srv_parse_no_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	/* if default-server have use_ssl, prepare ssl settings */
-	if (newsrv->use_ssl == 1)
-		ssl_sock_init_srv(newsrv);
+	if (newsrv->use_ssl == 1) {
+		if (ssl_sock_init_srv(newsrv)) {
+			memprintf(err, "'%s' : not enough memory", args[*cur_arg]);
+			return ERR_ALERT | ERR_FATAL;
+		}
+	}
 	else {
 		ha_free(&newsrv->ssl_ctx.ciphers);
 	}
@@ -1574,7 +1587,11 @@ static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct ser
 static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 	newsrv->use_ssl = 1;
-	ssl_sock_init_srv(newsrv);
+	if (ssl_sock_init_srv(newsrv)) {
+		memprintf(err, "'%s' : not enough memory", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
 	return 0;
 }
 
