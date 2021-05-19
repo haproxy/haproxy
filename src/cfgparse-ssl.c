@@ -1351,6 +1351,8 @@ static int srv_parse_check_alpn(char **args, int *cur_arg, struct proxy *px, str
 /* parse the "ca-file" server keyword */
 static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
+	const int create_if_none = newsrv->flags & SRV_F_DYNAMIC ? 0 : 1;
+
 	if (!*args[*cur_arg + 1]) {
 		memprintf(err, "'%s' : missing CAfile path", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
@@ -1361,10 +1363,11 @@ static int srv_parse_ca_file(char **args, int *cur_arg, struct proxy *px, struct
 	else
 		memprintf(&newsrv->ssl_ctx.ca_file, "%s", args[*cur_arg + 1]);
 
-	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.ca_file, 1, CAFILE_CERT)) {
+	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.ca_file, create_if_none, CAFILE_CERT)) {
 		memprintf(err, "'%s' : unable to load %s", args[*cur_arg], newsrv->ssl_ctx.ca_file);
 		return ERR_ALERT | ERR_FATAL;
 	}
+
 	return 0;
 }
 
@@ -1875,7 +1878,7 @@ INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
 static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "allow-0rtt",              srv_parse_allow_0rtt,         0, 1, 0 }, /* Allow using early data on this server */
 	{ "alpn",                    srv_parse_alpn,               1, 1, 0 }, /* Set ALPN supported protocols */
-	{ "ca-file",                 srv_parse_ca_file,            1, 1, 0 }, /* set CAfile to process verify server cert */
+	{ "ca-file",                 srv_parse_ca_file,            1, 1, 1 }, /* set CAfile to process verify server cert */
 	{ "check-alpn",              srv_parse_check_alpn,         1, 1, 0 }, /* Set ALPN used for checks */
 	{ "check-sni",               srv_parse_check_sni,          1, 1, 0 }, /* set SNI */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1, 0 }, /* enable SSL for health checks */
