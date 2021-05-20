@@ -757,6 +757,7 @@ flt_pre_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 			ret = FLT_OPS(filter)->channel_pre_analyze(s, filter, chn, an_bit);
 			if (ret <= 0)
 				BREAK_EXECUTION(s, chn, check_result);
+			filter->pre_analyzers &= ~an_bit;
 		}
 	} RESUME_FILTER_END;
 
@@ -789,6 +790,7 @@ flt_post_analyze(struct stream *s, struct channel *chn, unsigned int an_bit)
 			ret = FLT_OPS(filter)->channel_post_analyze(s, filter, chn, an_bit);
 			if (ret < 0)
 				break;
+			filter->post_analyzers &= ~an_bit;
 		}
 	}
 	ret = handle_analyzer_result(s, chn, 0, ret);
