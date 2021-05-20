@@ -1879,45 +1879,45 @@ INITCALL1(STG_REGISTER, bind_register_keywords, &bind_kws);
  * not enabled.
  */
 static struct srv_kw_list srv_kws = { "SSL", { }, {
-	{ "allow-0rtt",              srv_parse_allow_0rtt,         0, 1, 0 }, /* Allow using early data on this server */
-	{ "alpn",                    srv_parse_alpn,               1, 1, 0 }, /* Set ALPN supported protocols */
+	{ "allow-0rtt",              srv_parse_allow_0rtt,         0, 1, 1 }, /* Allow using early data on this server */
+	{ "alpn",                    srv_parse_alpn,               1, 1, 1 }, /* Set ALPN supported protocols */
 	{ "ca-file",                 srv_parse_ca_file,            1, 1, 1 }, /* set CAfile to process verify server cert */
 	{ "check-alpn",              srv_parse_check_alpn,         1, 1, 0 }, /* Set ALPN used for checks */
 	{ "check-sni",               srv_parse_check_sni,          1, 1, 0 }, /* set SNI */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1, 0 }, /* enable SSL for health checks */
-	{ "ciphers",                 srv_parse_ciphers,            1, 1, 0 }, /* select the cipher suite */
+	{ "ciphers",                 srv_parse_ciphers,            1, 1, 1 }, /* select the cipher suite */
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
-	{ "ciphersuites",            srv_parse_ciphersuites,       1, 1, 0 }, /* select the cipher suite */
+	{ "ciphersuites",            srv_parse_ciphersuites,       1, 1, 1 }, /* select the cipher suite */
 #endif
 	{ "crl-file",                srv_parse_crl_file,           1, 1, 1 }, /* set certificate revocation list file use on server cert verify */
 	{ "crt",                     srv_parse_crt,                1, 1, 1 }, /* set client certificate */
-	{ "force-sslv3",             srv_parse_tls_method_options, 0, 1, 0 }, /* force SSLv3 */
-	{ "force-tlsv10",            srv_parse_tls_method_options, 0, 1, 0 }, /* force TLSv10 */
-	{ "force-tlsv11",            srv_parse_tls_method_options, 0, 1, 0 }, /* force TLSv11 */
-	{ "force-tlsv12",            srv_parse_tls_method_options, 0, 1, 0 }, /* force TLSv12 */
-	{ "force-tlsv13",            srv_parse_tls_method_options, 0, 1, 0 }, /* force TLSv13 */
+	{ "force-sslv3",             srv_parse_tls_method_options, 0, 1, 1 }, /* force SSLv3 */
+	{ "force-tlsv10",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv10 */
+	{ "force-tlsv11",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv11 */
+	{ "force-tlsv12",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv12 */
+	{ "force-tlsv13",            srv_parse_tls_method_options, 0, 1, 1 }, /* force TLSv13 */
 	{ "no-check-ssl",            srv_parse_no_check_ssl,       0, 1, 0 }, /* disable SSL for health checks */
 	{ "no-send-proxy-v2-ssl",    srv_parse_no_send_proxy_ssl,  0, 1, 0 }, /* do not send PROXY protocol header v2 with SSL info */
 	{ "no-send-proxy-v2-ssl-cn", srv_parse_no_send_proxy_cn,   0, 1, 0 }, /* do not send PROXY protocol header v2 with CN */
 	{ "no-ssl",                  srv_parse_no_ssl,             0, 1, 0 }, /* disable SSL processing */
-	{ "no-ssl-reuse",            srv_parse_no_ssl_reuse,       0, 1, 0 }, /* disable session reuse */
-	{ "no-sslv3",                srv_parse_tls_method_options, 0, 0, 0 }, /* disable SSLv3 */
-	{ "no-tlsv10",               srv_parse_tls_method_options, 0, 0, 0 }, /* disable TLSv10 */
-	{ "no-tlsv11",               srv_parse_tls_method_options, 0, 0, 0 }, /* disable TLSv11 */
-	{ "no-tlsv12",               srv_parse_tls_method_options, 0, 0, 0 }, /* disable TLSv12 */
-	{ "no-tlsv13",               srv_parse_tls_method_options, 0, 0, 0 }, /* disable TLSv13 */
-	{ "no-tls-tickets",          srv_parse_no_tls_tickets,     0, 1, 0 }, /* disable session resumption tickets */
-	{ "npn",                     srv_parse_npn,                1, 1, 0 }, /* Set NPN supported protocols */
-	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,     0, 1, 0 }, /* send PROXY protocol header v2 with SSL info */
-	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,      0, 1, 0 }, /* send PROXY protocol header v2 with CN */
-	{ "sni",                     srv_parse_sni,                1, 1, 0 }, /* send SNI extension */
+	{ "no-ssl-reuse",            srv_parse_no_ssl_reuse,       0, 1, 1 }, /* disable session reuse */
+	{ "no-sslv3",                srv_parse_tls_method_options, 0, 0, 1 }, /* disable SSLv3 */
+	{ "no-tlsv10",               srv_parse_tls_method_options, 0, 0, 1 }, /* disable TLSv10 */
+	{ "no-tlsv11",               srv_parse_tls_method_options, 0, 0, 1 }, /* disable TLSv11 */
+	{ "no-tlsv12",               srv_parse_tls_method_options, 0, 0, 1 }, /* disable TLSv12 */
+	{ "no-tlsv13",               srv_parse_tls_method_options, 0, 0, 1 }, /* disable TLSv13 */
+	{ "no-tls-tickets",          srv_parse_no_tls_tickets,     0, 1, 1 }, /* disable session resumption tickets */
+	{ "npn",                     srv_parse_npn,                1, 1, 1 }, /* Set NPN supported protocols */
+	{ "send-proxy-v2-ssl",       srv_parse_send_proxy_ssl,     0, 1, 1 }, /* send PROXY protocol header v2 with SSL info */
+	{ "send-proxy-v2-ssl-cn",    srv_parse_send_proxy_cn,      0, 1, 1 }, /* send PROXY protocol header v2 with CN */
+	{ "sni",                     srv_parse_sni,                1, 1, 1 }, /* send SNI extension */
 	{ "ssl",                     srv_parse_ssl,                0, 1, 0 }, /* enable SSL processing */
-	{ "ssl-min-ver",             srv_parse_tls_method_minmax,  1, 1, 0 }, /* minimum version */
-	{ "ssl-max-ver",             srv_parse_tls_method_minmax,  1, 1, 0 }, /* maximum version */
+	{ "ssl-min-ver",             srv_parse_tls_method_minmax,  1, 1, 1 }, /* minimum version */
+	{ "ssl-max-ver",             srv_parse_tls_method_minmax,  1, 1, 1 }, /* maximum version */
 	{ "ssl-reuse",               srv_parse_ssl_reuse,          0, 1, 0 }, /* enable session reuse */
-	{ "tls-tickets",             srv_parse_tls_tickets,        0, 1, 0 }, /* enable session resumption tickets */
-	{ "verify",                  srv_parse_verify,             1, 1, 0 }, /* set SSL verify method */
-	{ "verifyhost",              srv_parse_verifyhost,         1, 1, 0 }, /* require that SSL cert verifies for hostname */
+	{ "tls-tickets",             srv_parse_tls_tickets,        0, 1, 1 }, /* enable session resumption tickets */
+	{ "verify",                  srv_parse_verify,             1, 1, 1 }, /* set SSL verify method */
+	{ "verifyhost",              srv_parse_verifyhost,         1, 1, 1 }, /* require that SSL cert verifies for hostname */
 	{ NULL, NULL, 0, 0 },
 }};
 
