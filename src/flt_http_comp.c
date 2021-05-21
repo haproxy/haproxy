@@ -183,9 +183,6 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 		while (next && htx_get_blk_type(next) == HTX_BLK_UNUSED)
 			next = htx_get_next_blk(htx, blk);
 
-		if (!(msg->flags & HTTP_MSGF_COMPRESSING))
-			goto consume;
-
 		if (htx_compression_buffer_init(htx, &trash) < 0) {
 			msg->chn->flags |= CF_WAKE_WRITE;
 			goto end;
@@ -215,8 +212,6 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 				len -= ret;
 				consumed += ret;
 				to_forward += b_data(&trash);
-				if (last)
-					msg->flags &= ~HTTP_MSGF_COMPRESSING;
 				break;
 
 			case HTX_BLK_TLR:
@@ -232,7 +227,6 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 						goto error;
 					to_forward += b_data(&trash);
 				}
-				msg->flags &= ~HTTP_MSGF_COMPRESSING;
 				/* fall through */
 
 			default:
