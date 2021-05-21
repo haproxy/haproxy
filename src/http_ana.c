@@ -1119,27 +1119,6 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	else {
 		msg->msg_state = HTTP_MSG_DONE;
 		req->to_forward = 0;
-
-		if ((s->be->retry_type &~ PR_RE_CONN_FAILED) && !(s->si[1].flags & SI_FL_D_L7_RETRY)) {
-			struct stream_interface *si = &s->si[1];
-
-			/* If we want to be able to do L7 retries, copy the
-			 * request, so that we are able to resend them if
-			 * needed.
-			 *
-			 * Try to allocate a buffer if we had none.  If it
-			 * fails, the next test will just disable the l7
-			 * retries.
-			 */
-			DBG_TRACE_STATE("enable L7 retry, save the request", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
-			si->flags |= SI_FL_L7_RETRY;
-			if (b_alloc(&si->l7_buffer) == NULL)
-				si->flags &= ~SI_FL_L7_RETRY;
-			else {
-				memcpy(b_orig(&si->l7_buffer), b_orig(&req->buf), b_size(&req->buf));
-				b_add(&si->l7_buffer, co_data(req));
-			}
-		}
 	}
 
   done:
@@ -1158,7 +1137,6 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			}
 			goto return_bad_req;
 		}
-
 		DBG_TRACE_LEAVE(STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
 		return 1;
 	}
@@ -1286,14 +1264,11 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 /* Returns 0 if we can attempt to retry, -1 otherwise */
 static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 {
-	struct channel *req = &s->req;
-	struct channel *res = &s->res;
+	struct channel *req, *res;
+	int co_data;
 
 	si->conn_retries--;
 	if (si->conn_retries < 0)
-		goto no_retry;
-
-	if (b_is_null(&req->buf) && !channel_alloc_buffer(req, &s->buffer_wait))
 		goto no_retry;
 
 	if (objt_server(s->target)) {
@@ -1305,6 +1280,8 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	}
 	_HA_ATOMIC_INC(&s->be->be_counters.retries);
 
+	req = &s->req;
+	res = &s->res;
 	/* Remove any write error from the request, and read error from the response */
 	req->flags &= ~(CF_WRITE_ERROR | CF_WRITE_TIMEOUT | CF_SHUTW | CF_SHUTW_NOW);
 	res->flags &= ~(CF_READ_ERROR | CF_READ_TIMEOUT | CF_SHUTR | CF_EOI | CF_READ_NULL | CF_SHUTR_NOW);
@@ -1320,19 +1297,20 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 	res->total = 0;
 	si_release_endpoint(&s->si[1]);
 
-	b_reset(&req->buf);
-	memcpy(b_orig(&req->buf), b_orig(&si->l7_buffer), b_size(&si->l7_buffer));
-	b_set_data(&req->buf, b_size(&req->buf));
-	co_set_data(req, b_data(&si->l7_buffer));
+	b_free(&req->buf);
+	/* Swap the L7 buffer with the channel buffer */
+	/* We know we stored the co_data as b_data, so get it there */
+	co_data = b_data(&si->l7_buffer);
+	b_set_data(&si->l7_buffer, b_size(&si->l7_buffer));
+	b_xfer(&req->buf, &si->l7_buffer, b_data(&si->l7_buffer));
+	co_set_data(req, co_data);
 
 	DBG_TRACE_DEVEL("perform a L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, s->txn);
+
+  no_retry:
 	b_reset(&res->buf);
 	co_set_data(res, 0);
 	return 0;
-
-  no_retry:
-	b_free(&si->l7_buffer);
-	return -1;
 }
 
 /* This stream analyser waits for a complete HTTP response. It returns 1 if the
@@ -1399,11 +1377,8 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				 * the SI_FL_L7_RETRY flag, so it's ok not
 				 * to check s->be->retry_type.
 				 */
-				if (co_data(rep) || do_l7_retry(s, si_b) == 0) {
-					DBG_TRACE_DEVEL("leaving on L7 retry",
-							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
+				if (co_data(rep) || do_l7_retry(s, si_b) == 0)
 					return 0;
-				}
 			}
 
 			if (txn->flags & TX_NOT_FIRST)
@@ -1568,18 +1543,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * response which at least looks like HTTP. We have an indicator
 	 * of each header's length, so we can parse them quickly.
 	 */
+	msg->msg_state = HTTP_MSG_BODY;
 	BUG_ON(htx_get_first_type(htx) != HTX_BLK_RES_SL);
 	sl = http_get_stline(htx);
-
-	if ((si_b->flags & SI_FL_L7_RETRY) &&
-	    l7_status_match(s->be, sl->info.res.status) &&
-	    do_l7_retry(s, si_b) == 0) {
-		DBG_TRACE_DEVEL("leaving on L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
-		return 0;
-	}
-	b_free(&s->si[1].l7_buffer);
-
-	msg->msg_state = HTTP_MSG_BODY;
 
 	/* 0: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&

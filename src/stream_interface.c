@@ -726,6 +726,35 @@ int si_cs_send(struct conn_stream *cs)
 		if (oc->flags & CF_STREAMER)
 			send_flag |= CO_SFL_STREAMER;
 
+		if ((si->flags & SI_FL_L7_RETRY) && !b_data(&si->l7_buffer)) {
+			struct stream *s = si_strm(si);
+			/* If we want to be able to do L7 retries, copy
+			 * the data we're about to send, so that we are able
+			 * to resend them if needed
+			 */
+			/* Try to allocate a buffer if we had none.
+			 * If it fails, the next test will just
+			 * disable the l7 retries by setting
+			 * l7_conn_retries to 0.
+			 */
+			if (!s->txn || (s->txn->req.msg_state != HTTP_MSG_DONE))
+				si->flags &= ~SI_FL_L7_RETRY;
+			else {
+				if (b_is_null(&si->l7_buffer))
+					b_alloc(&si->l7_buffer);
+				if (b_is_null(&si->l7_buffer))
+					si->flags &= ~SI_FL_L7_RETRY;
+				else {
+					memcpy(b_orig(&si->l7_buffer),
+					       b_orig(&oc->buf),
+					       b_size(&oc->buf));
+					si->l7_buffer.head = co_data(oc);
+					b_add(&si->l7_buffer, co_data(oc));
+				}
+
+			}
+		}
+
 		ret = cs->conn->mux->snd_buf(cs, &oc->buf, co_data(oc), send_flag);
 		if (ret > 0) {
 			did_send = 1;
@@ -1338,6 +1367,28 @@ int si_cs_recv(struct conn_stream *cs)
 			break;
 		}
 
+		/* L7 retries enabled and maximum connection retries not reached */
+		if ((si->flags & SI_FL_L7_RETRY) && si->conn_retries) {
+			struct htx *htx;
+			struct htx_sl *sl;
+
+			htx = htxbuf(&ic->buf);
+			if (htx) {
+				sl = http_get_stline(htx);
+				if (sl && l7_status_match(si_strm(si)->be,
+				    sl->info.res.status)) {
+					/* If we got a status for which we would
+					 * like to retry the request, empty
+					 * the buffer and pretend there's an
+					 * error on the channel.
+					 */
+					ic->flags |= CF_READ_ERROR;
+					htx_reset(htx);
+					return 1;
+				}
+			}
+			si->flags &= ~SI_FL_L7_RETRY;
+		}
 		cur_read += ret;
 
 		/* if we're allowed to directly forward data, we must update ->o */
