@@ -110,6 +110,7 @@ struct pat_ref {
 	unsigned int next_gen; /* next generation number (insertions use this one) */
 	int unique_id; /* Each pattern reference have unique id. */
 	unsigned long long revision; /* updated for each update */
+	unsigned long long entry_cnt; /* the total number of entries */
 	__decl_thread(HA_SPINLOCK_T lock); /* Lock used to protect pat ref elements */
 };
 

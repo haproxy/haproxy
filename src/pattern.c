@@ -1177,6 +1177,7 @@ void pat_prune_gen(struct pattern_expr *expr)
 	free_pattern_tree(&expr->pattern_tree_2);
 	LIST_INIT(&expr->patterns);
 	expr->ref->revision = rdtsc();
+	expr->ref->entry_cnt = 0;
 }
 
 /*
@@ -1205,6 +1206,7 @@ int pat_idx_list_val(struct pattern_expr *expr, struct pattern *pat, char **err)
 	patl->from_ref = pat->ref->list_head;
 	pat->ref->list_head = &patl->from_ref;
 	expr->ref->revision = rdtsc();
+	expr->ref->entry_cnt++;
 
 	/* that's ok */
 	return 1;
@@ -1237,6 +1239,7 @@ int pat_idx_list_ptr(struct pattern_expr *expr, struct pattern *pat, char **err)
 	patl->from_ref = pat->ref->list_head;
 	pat->ref->list_head = &patl->from_ref;
 	expr->ref->revision = rdtsc();
+	expr->ref->entry_cnt++;
 
 	/* that's ok */
 	return 1;
@@ -1270,6 +1273,7 @@ int pat_idx_list_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	patl->from_ref = pat->ref->list_head;
 	pat->ref->list_head = &patl->from_ref;
 	expr->ref->revision = rdtsc();
+	expr->ref->entry_cnt++;
 
 	/* that's ok */
 	return 1;
@@ -1303,6 +1307,7 @@ int pat_idx_list_reg_cap(struct pattern_expr *expr, struct pattern *pat, int cap
 	patl->from_ref = pat->ref->list_head;
 	pat->ref->list_head = &patl->from_ref;
 	expr->ref->revision = rdtsc();
+	expr->ref->entry_cnt++;
 
 	/* that's ok */
 	return 1;
@@ -1354,6 +1359,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 			node->from_ref = pat->ref->tree_head;
 			pat->ref->tree_head = &node->from_ref;
 			expr->ref->revision = rdtsc();
+			expr->ref->entry_cnt++;
 
 			/* that's ok */
 			return 1;
@@ -1384,6 +1390,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 		node->from_ref = pat->ref->tree_head;
 		pat->ref->tree_head = &node->from_ref;
 		expr->ref->revision = rdtsc();
+		expr->ref->entry_cnt++;
 
 		/* that's ok */
 		return 1;
@@ -1430,6 +1437,7 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	node->from_ref = pat->ref->tree_head;
 	pat->ref->tree_head = &node->from_ref;
 	expr->ref->revision = rdtsc();
+	expr->ref->entry_cnt++;
 
 	/* that's ok */
 	return 1;
@@ -1474,6 +1482,7 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
 	node->from_ref = pat->ref->tree_head;
 	pat->ref->tree_head = &node->from_ref;
 	expr->ref->revision = rdtsc();
+	expr->ref->entry_cnt++;
 
 	/* that's ok */
 	return 1;
@@ -1517,6 +1526,7 @@ void pat_delete_gen(struct pat_ref *ref, struct pat_ref_elt *elt)
 
 	/* update revision number to refresh the cache */
 	ref->revision = rdtsc();
+	ref->entry_cnt--;
 	elt->tree_head = NULL;
 	elt->list_head = NULL;
 }
@@ -1819,6 +1829,7 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 	ref->flags = flags;
 	ref->unique_id = -1;
 	ref->revision = 0;
+	ref->entry_cnt = 0;
 
 	LIST_INIT(&ref->head);
 	LIST_INIT(&ref->pat);

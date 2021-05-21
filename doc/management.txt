@@ -2220,7 +2220,9 @@ show acl [[@<ver>] <acl>]
   versions will simply report no result. The dump format is the same as for the
   maps even for the sample values. The data returned are not a list of
   available ACL, but are the list of all patterns composing any ACL. Many of
-  these patterns can be shared with maps.
+  these patterns can be shared with maps. The 'entry_cnt' value represents the
+  count of all the ACL entries, not just the active ones, which means that it
+  also includes entries currently being added.
 
 show backend
   Dump the list of backends available in the running process
@@ -2523,7 +2525,9 @@ show map [[@<ver>] <map>]
   version currently being matched against and reported as 'curr_ver' in the map
   list). It is possible to instead dump other versions by prepending '@<ver>'
   before the map's identifier. The version works as a filter and non-existing
-  versions will simply report no result.
+  versions will simply report no result. The 'entry_cnt' value represents the
+  count of all the map entries, not just the active ones, which means that it
+  also includes entries currently being added.
 
   In the output, the first column is a unique entry identifier, which is usable
   as a reference for operations "del map" and "set map". The second column is

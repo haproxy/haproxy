@@ -439,9 +439,10 @@ static int cli_io_handler_pats_list(struct appctx *appctx)
 			/* Build messages. If the reference is used by another category than
 			 * the listed categories, display the information in the message.
 			 */
-			chunk_appendf(&trash, "%d (%s) %s. curr_ver=%u next_ver=%u\n", appctx->ctx.map.ref->unique_id,
+			chunk_appendf(&trash, "%d (%s) %s. curr_ver=%u next_ver=%u entry_cnt=%llu\n", appctx->ctx.map.ref->unique_id,
 			              appctx->ctx.map.ref->reference ? appctx->ctx.map.ref->reference : "",
-			              appctx->ctx.map.ref->display, appctx->ctx.map.ref->curr_gen, appctx->ctx.map.ref->next_gen);
+			              appctx->ctx.map.ref->display, appctx->ctx.map.ref->curr_gen, appctx->ctx.map.ref->next_gen,
+			              appctx->ctx.map.ref->entry_cnt);
 
 			if (ci_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this stream. We add ourselves into
