@@ -451,30 +451,33 @@ static size_t h1_copy_msg_data(struct htx **dsthtx, struct buffer *srcbuf, size_
 	return ret;
 }
 
-/* Parses medium/large HTTP chunks. This version try to performed zero-copy if
- * possible.
+/* Generic function to parse the current HTTP chunk. It may be used to parsed
+ * any kind of chunks, including incomplete HTTP chunks or splitted chunks
+ * because the buffer wraps. This version tries to performed zero-copy on large
+ * chunks if possible.
  */
-static size_t h1_parse_msg_chunks(struct h1m *h1m, struct htx **dsthtx,
-			 struct buffer *srcbuf, size_t ofs, size_t max,
-			 struct buffer *htxbuf)
+static size_t h1_parse_chunk(struct h1m *h1m, struct htx **dsthtx,
+			     struct buffer *srcbuf, size_t ofs, size_t *max,
+			     struct buffer *htxbuf)
 {
 	uint64_t chksz;
-	size_t sz, used, total = 0;
+	size_t sz, used, lmax, total = 0;
 	int ret = 0;
 
+	lmax = *max;
 	switch (h1m->state) {
 	case H1_MSG_DATA:
 	  new_chunk:
 		used = htx_used_space(*dsthtx);
 
-		if (b_data(srcbuf) == ofs || !max)
+		if (b_data(srcbuf) == ofs || !lmax)
 			break;
 
 		sz =  b_data(srcbuf) - ofs;
 		if (unlikely(sz > h1m->curr_len))
 			sz = h1m->curr_len;
-		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, max, htxbuf);
-		max -= htx_used_space(*dsthtx) - used;
+		sz = h1_copy_msg_data(dsthtx, srcbuf, ofs, sz, lmax, htxbuf);
+		lmax -= htx_used_space(*dsthtx) - used;
 		ofs += sz;
 		total += sz;
 		h1m->curr_len -= sz;
@@ -490,8 +493,10 @@ static size_t h1_parse_msg_chunks(struct h1m *h1m, struct htx **dsthtx,
 			break;
 		ofs += ret;
 		total += ret;
+
+		/* Don't parse next chunk to try to handle contiguous chunks if possible */
 		h1m->state = H1_MSG_CHUNK_SIZE;
-		/* fall through */
+		break;
 
 	case H1_MSG_CHUNK_SIZE:
 		ret = h1_parse_chunk_size(srcbuf, ofs, b_data(srcbuf), &chksz);
@@ -525,6 +530,36 @@ static size_t h1_parse_msg_chunks(struct h1m *h1m, struct htx **dsthtx,
 
 	/* Don't forget to update htx->extra */
 	(*dsthtx)->extra = h1m->curr_len;
+	*max = lmax;
+	return total;
+}
+
+/* Parse HTTP chunks */
+static size_t h1_parse_msg_chunks(struct h1m *h1m, struct htx **dsthtx,
+			 struct buffer *srcbuf, size_t ofs, size_t max,
+			 struct buffer *htxbuf)
+{
+	size_t ret, total = 0;
+
+	while (ofs < b_data(srcbuf)) {
+		ret = 0;
+
+		if (h1m->state < H1_MSG_TRAILERS) {
+			ret = h1_parse_chunk(h1m, dsthtx, srcbuf, ofs, &max, htxbuf);
+			total += ret;
+			ofs   += ret;
+		}
+
+		/* nothing more was parsed, we can exit, handling parsing error
+		 * if necessary.
+		 */
+		if (!ret) {
+			if ((*dsthtx)->flags & HTX_FL_PARSING_ERROR)
+				total = 0;
+			break;
+		}
+	}
+
 	return total;
 }
 
