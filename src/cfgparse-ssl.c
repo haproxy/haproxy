@@ -1491,7 +1491,7 @@ static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct ser
 		memprintf(&path, "%s", args[*cur_arg + 1]);
 
 	if (path) {
-		retval = ssl_sock_load_srv_cert(path, newsrv, err);
+		retval = ssl_sock_load_srv_cert(path, newsrv, 1, err);
 		free(path);
 	}
 

@@ -3718,7 +3718,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, char **err)
  * backend server (server configuration line).
  * Returns a set of ERR_* flags possibly with an error in <err>.
  */
-int ssl_sock_load_srv_cert(char *path, struct server *server, char **err)
+int ssl_sock_load_srv_cert(char *path, struct server *server, int create_if_none, char **err)
 {
 	struct stat buf;
 	int cfgerr = 0;
@@ -3729,14 +3729,23 @@ int ssl_sock_load_srv_cert(char *path, struct server *server, char **err)
 		/* we found the ckchs in the tree, we can use it directly */
 		 cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, server, &server->ssl_ctx.inst, err);
 		 found++;
-	} else if (stat(path, &buf) == 0) {
-		/* We do not manage directories on backend side. */
-		if (S_ISDIR(buf.st_mode) == 0) {
-			++found;
-			ckchs =  ckchs_load_cert_file(path, err);
-			if (!ckchs)
-				cfgerr |= ERR_ALERT | ERR_FATAL;
-			cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, server, &server->ssl_ctx.inst, err);
+	} else {
+		if (!create_if_none) {
+			memprintf(err, "%sunable to stat SSL certificate '%s'.\n",
+			          err && *err ? *err : "", path);
+			cfgerr |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (stat(path, &buf) == 0) {
+			/* We do not manage directories on backend side. */
+			if (S_ISDIR(buf.st_mode) == 0) {
+				++found;
+				ckchs =  ckchs_load_cert_file(path, err);
+				if (!ckchs)
+					cfgerr |= ERR_ALERT | ERR_FATAL;
+				cfgerr |= ssl_sock_load_srv_ckchs(path, ckchs, server, &server->ssl_ctx.inst, err);
+			}
 		}
 	}
 	if (!found) {
@@ -3745,6 +3754,7 @@ int ssl_sock_load_srv_cert(char *path, struct server *server, char **err)
 		cfgerr |= ERR_ALERT | ERR_FATAL;
 	}
 
+out:
 	return cfgerr;
 }
 
