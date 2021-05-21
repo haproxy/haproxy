@@ -265,7 +265,6 @@ struct pattern_expr *pattern_lookup_expr(struct pattern_head *head, struct pat_r
 struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref *ref,
                                       int patflags, char **err, int *reuse);
 struct sample_data **pattern_find_smp(struct pattern_expr *expr, struct pat_ref_elt *elt);
-int pattern_delete(struct pattern_expr *expr, struct pat_ref_elt *ref);
 
 
 #endif
