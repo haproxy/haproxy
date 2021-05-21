@@ -1308,25 +1308,37 @@ static int srv_parse_npn(char **args, int *cur_arg, struct proxy *px, struct ser
 #endif
 }
 
-/* parse the "alpn" or the "check-alpn" server keyword */
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+static int parse_alpn(char *alpn, char **out_alpn_str, int *out_alpn_len, char **err)
+{
+	free(*out_alpn_str);
+	return ssl_sock_parse_alpn(alpn, out_alpn_str, out_alpn_len, err);
+}
+#endif
+
+/* parse the "alpn" server keyword */
 static int srv_parse_alpn(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
-	char **alpn_str;
-	int *alpn_len;
-	int ret;
+	int ret = parse_alpn(args[*cur_arg + 1],
+	                     &newsrv->ssl_ctx.alpn_str,
+	                     &newsrv->ssl_ctx.alpn_len, err);
+	if (ret)
+		memprintf(err, "'%s' : %s", args[*cur_arg], *err);
+	return ret;
+#else
+	memprintf(err, "'%s' : library does not support TLS ALPN extension", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
 
-	if (*args[*cur_arg] == 'c') {
-		alpn_str = &newsrv->check.alpn_str;
-		alpn_len = &newsrv->check.alpn_len;
-	} else {
-		alpn_str = &newsrv->ssl_ctx.alpn_str;
-		alpn_len = &newsrv->ssl_ctx.alpn_len;
-
-	}
-
-	free(*alpn_str);
-	ret = ssl_sock_parse_alpn(args[*cur_arg + 1], alpn_str, alpn_len, err);
+/* parse the "check-alpn" server keyword */
+static int srv_parse_check_alpn(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
+	int ret = parse_alpn(args[*cur_arg + 1],
+	                     &newsrv->check.alpn_str,
+	                     &newsrv->check.alpn_len, err);
 	if (ret)
 		memprintf(err, "'%s' : %s", args[*cur_arg], *err);
 	return ret;
@@ -1864,7 +1876,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "allow-0rtt",              srv_parse_allow_0rtt,         0, 1, 0 }, /* Allow using early data on this server */
 	{ "alpn",                    srv_parse_alpn,               1, 1, 0 }, /* Set ALPN supported protocols */
 	{ "ca-file",                 srv_parse_ca_file,            1, 1, 0 }, /* set CAfile to process verify server cert */
-	{ "check-alpn",              srv_parse_alpn,               1, 1, 0 }, /* Set ALPN used for checks */
+	{ "check-alpn",              srv_parse_check_alpn,         1, 1, 0 }, /* Set ALPN used for checks */
 	{ "check-sni",               srv_parse_check_sni,          1, 1, 0 }, /* set SNI */
 	{ "check-ssl",               srv_parse_check_ssl,          0, 1, 0 }, /* enable SSL for health checks */
 	{ "ciphers",                 srv_parse_ciphers,            1, 1, 0 }, /* select the cipher suite */
