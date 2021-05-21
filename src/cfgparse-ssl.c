@@ -1492,6 +1492,7 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 /* parse the "crt" server keyword */
 static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
+	const int create_if_none = newsrv->flags & SRV_F_DYNAMIC ? 0 : 1;
 	int retval = -1;
 	char *path = NULL;
 
@@ -1506,7 +1507,7 @@ static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct ser
 		memprintf(&path, "%s", args[*cur_arg + 1]);
 
 	if (path) {
-		retval = ssl_sock_load_srv_cert(path, newsrv, 1, err);
+		retval = ssl_sock_load_srv_cert(path, newsrv, create_if_none, err);
 		free(path);
 	}
 
@@ -1887,7 +1888,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "ciphersuites",            srv_parse_ciphersuites,       1, 1, 0 }, /* select the cipher suite */
 #endif
 	{ "crl-file",                srv_parse_crl_file,           1, 1, 0 }, /* set certificate revocation list file use on server cert verify */
-	{ "crt",                     srv_parse_crt,                1, 1, 0 }, /* set client certificate */
+	{ "crt",                     srv_parse_crt,                1, 1, 1 }, /* set client certificate */
 	{ "force-sslv3",             srv_parse_tls_method_options, 0, 1, 0 }, /* force SSLv3 */
 	{ "force-tlsv10",            srv_parse_tls_method_options, 0, 1, 0 }, /* force TLSv10 */
 	{ "force-tlsv11",            srv_parse_tls_method_options, 0, 1, 0 }, /* force TLSv11 */
