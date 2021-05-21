@@ -534,7 +534,204 @@ static size_t h1_parse_chunk(struct h1m *h1m, struct htx **dsthtx,
 	return total;
 }
 
-/* Parse HTTP chunks */
+/* Parses full contiguous HTTP chunks. This version is optimized for small
+ * chunks and does not performed zero-copy. It must be called in
+ * H1_MSG_CHUNK_SIZE state. Be carefull if you change something in this
+ * function. It is really sensitive, any change may have an impact on
+ * performance.
+ */
+static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
+					  struct buffer *srcbuf, size_t ofs, size_t *max,
+					  struct buffer *htxbuf)
+{
+	char *start, *end, *dptr;
+	ssize_t dpos, ridx, save;
+	size_t lmax, total = 0;
+	uint64_t chksz;
+	struct htx_ret htxret;
+
+	/* source info :
+	 *  start : pointer at <ofs> position
+	 *  end   : pointer marking the end of data to parse
+	 *  ridx  : the reverse index (negative) marking the parser position (end[ridx])
+	 */
+	ridx = -b_contig_data(srcbuf, ofs);
+	if (!ridx)
+		goto out;
+	start = b_peek(srcbuf, ofs);
+	end = start - ridx;
+
+	/* Reserve the maximum possible size for the data */
+	htxret = htx_reserve_max_data(*dsthtx);
+	if (!htxret.blk)
+		goto out;
+
+	/* destination info :
+	 *  dptr : pointer on the beginning of the data
+	 *  dpos : current position where to copy data
+	 */
+	dptr = htx_get_blk_ptr(*dsthtx, htxret.blk);
+	dpos = htxret.ret;
+
+	/* Empty DATA block is not possible, thus if <dpos> is the beginning of
+	 * the block, it means it is a new block. We can remove the block size
+	 * from <max>. Then we must adjust it if it exceeds the free size in the
+	 * block.
+	 */
+	lmax = *max;
+	if (!dpos)
+		lmax -= sizeof(struct htx_blk);
+	if (lmax > htx_get_blksz(htxret.blk) - dpos)
+		lmax = htx_get_blksz(htxret.blk) - dpos;
+
+	while (1) {
+		/* The chunk size is in the following form, though we are only
+		 * interested in the size and CRLF :
+		 *    1*HEXDIGIT *WSP *[ ';' extensions ] CRLF
+		 */
+		chksz = 0;
+		save = ridx; /* Save the parser position to rewind if necessary */
+		while (1) {
+			int c;
+
+			if (!ridx)
+				goto end_parsing;
+
+			/* Convert current character */
+			c = hex2i(end[ridx]);
+
+			/* not a hex digit anymore */
+			if (c < 0)
+				break;
+
+			/* Update current chunk size */
+			chksz = (chksz << 4) + c;
+
+			if (unlikely(chksz & 0xF0000000000000)) {
+				/* Don't get more than 13 hexa-digit (2^52 - 1)
+				 * to never fed possibly bogus values from
+				 * languages that use floats for their integers
+				 */
+				goto parsing_error;
+			}
+			++ridx;
+		}
+
+		if (unlikely(chksz > lmax))
+			goto end_parsing;
+
+		if (unlikely(ridx == save)) {
+			/* empty size not allowed */
+			goto parsing_error;
+		}
+
+		/* Skip spaces */
+		while (HTTP_IS_SPHT(end[ridx])) {
+			if (!++ridx)
+				goto end_parsing;
+		}
+
+		/* Up to there, we know that at least one byte is present. Check
+		 * for the end of chunk size.
+		 */
+		while (1) {
+			if (likely(end[ridx] == '\r')) {
+				/* Parse CRLF */
+				if (!++ridx)
+					goto end_parsing;
+				if (unlikely(end[ridx] != '\n')) {
+					/* CR must be followed by LF */
+					goto parsing_error;
+				}
+
+				/* done */
+				++ridx;
+				break;
+			}
+			else if (end[ridx] == '\n') {
+				/* Parse LF only, nothing more to do */
+				++ridx;
+				break;
+			}
+			else if (likely(end[ridx] == ';')) {
+				/* chunk extension, ends at next CRLF */
+				if (!++ridx)
+					goto end_parsing;
+				while (!HTTP_IS_CRLF(end[ridx])) {
+					if (!++ridx)
+						goto end_parsing;
+				}
+				/* we have a CRLF now, loop above */
+				continue;
+			}
+			else {
+				/* all other characters are unexpected */
+				goto parsing_error;
+			}
+		}
+
+		/* Exit if it is the last chunk */
+		if (unlikely(!chksz)) {
+			h1m->state = H1_MSG_TRAILERS;
+			save = ridx;
+			goto end_parsing;
+		}
+
+		/* Now check if the whole chunk is here (including the CRLF at
+		 * the end), otherise we switch in H1_MSG_DATA stae.
+		 */
+		if (chksz + 2 > -ridx) {
+			h1m->curr_len = chksz;
+			h1m->body_len += chksz;
+			h1m->state = H1_MSG_DATA;
+			(*dsthtx)->extra = h1m->curr_len;
+			save = ridx;
+			goto end_parsing;
+		}
+
+		memcpy(dptr + dpos, end + ridx, chksz);
+		h1m->body_len += chksz;
+		lmax  -= chksz;
+		dpos += chksz;
+		ridx += chksz;
+
+		/* Parse CRLF or LF (always present) */
+		if (likely(end[ridx] == '\r'))
+			++ridx;
+		if (end[ridx] != '\n') {
+			h1m->state = H1_MSG_CHUNK_CRLF;
+			goto parsing_error;
+		}
+		++ridx;
+	}
+
+  end_parsing:
+	ridx = save;
+
+	/* Adjust the HTX block size or remove the block if nothing was copied
+	 * (Empty HTX data block are not supported).
+	 */
+	if (!dpos)
+		htx_remove_blk(*dsthtx, htxret.blk);
+	else
+		htx_change_blk_value_len(*dsthtx, htxret.blk, dpos);
+	total = end + ridx - start;
+	*max = lmax;
+
+  out:
+	return total;
+
+  parsing_error:
+	(*dsthtx)->flags |= HTX_FL_PARSING_ERROR;
+	h1m->err_state = h1m->state;
+	h1m->err_pos = ofs + end + ridx - start;
+	return 0;
+}
+
+/* Parse HTTP chunks. This function relies on an optimized function to parse
+ * contiguous chunks if possible. Otherwise, when a chunk is incomplete or when
+ * the underlying buffer is wrapping, a generic function is used.
+ */
 static size_t h1_parse_msg_chunks(struct h1m *h1m, struct htx **dsthtx,
 			 struct buffer *srcbuf, size_t ofs, size_t max,
 			 struct buffer *htxbuf)
@@ -544,16 +741,36 @@ static size_t h1_parse_msg_chunks(struct h1m *h1m, struct htx **dsthtx,
 	while (ofs < b_data(srcbuf)) {
 		ret = 0;
 
-		if (h1m->state < H1_MSG_TRAILERS) {
+		/* First parse full contiguous chunks. It is only possible if we
+		 * are waiting for the next chunk size.
+		 */
+		if (h1m->state == H1_MSG_CHUNK_SIZE) {
+			ret = h1_parse_full_contig_chunks(h1m, dsthtx, srcbuf, ofs, &max, htxbuf);
+			/* exit on error */
+			if (!ret && (*dsthtx)->flags & HTX_FL_PARSING_ERROR) {
+				total = 0;
+				break;
+			}
+			/* or let a chance to parse remaining data */
+			total += ret;
+			ofs   += ret;
+			ret = 0;
+		}
+
+		/* If some data remains, try to parse it using the generic
+		 * function handling incomplete chunks and splitted chunks
+		 * because of a wrapping buffer.
+		 */
+		if (h1m->state < H1_MSG_TRAILERS && ofs < b_data(srcbuf)) {
 			ret = h1_parse_chunk(h1m, dsthtx, srcbuf, ofs, &max, htxbuf);
 			total += ret;
 			ofs   += ret;
 		}
 
-		/* nothing more was parsed, we can exit, handling parsing error
-		 * if necessary.
+		/* nothing more was parsed or parsing was stopped on incomplete
+		 * chunk, we can exit, handling parsing error if necessary.
 		 */
-		if (!ret) {
+		if (!ret || h1m->state != H1_MSG_CHUNK_SIZE) {
 			if ((*dsthtx)->flags & HTX_FL_PARSING_ERROR)
 				total = 0;
 			break;
