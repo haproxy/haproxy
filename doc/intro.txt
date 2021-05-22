@@ -1122,7 +1122,7 @@ server for example.
 Each frontend and backend may use multiple independent log outputs, which eases
 multi-tenancy. Logs are preferably sent over UDP, maybe JSON-encoded, and are
 truncated after a configurable line length in order to guarantee delivery. But
-it is also possible to sned them to stdout/stderr or any file descriptor, as
+it is also possible to send them to stdout/stderr or any file descriptor, as
 well as to a ring buffer that a client can subscribe to in order to retrieve
 them.
 
