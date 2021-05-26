@@ -129,8 +129,9 @@ void ha_alert(const char *fmt, ...)
 {
 	va_list argp;
 
-	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
-		if (!(warned & WARN_EXEC_PATH)) {
+	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE) ||
+	    !(global.mode & MODE_STARTING)) {
+		if (!(warned & WARN_EXEC_PATH) && (global.mode & MODE_STARTING)) {
 			const char *path = get_exec_path();
 
 			warned |= WARN_EXEC_PATH;
@@ -153,7 +154,8 @@ void ha_warning(const char *fmt, ...)
 
 	warned |= WARN_ANY;
 
-	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
+	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE) ||
+	    !(global.mode & MODE_STARTING)) {
 		va_start(argp, fmt);
 		print_message("WARNING", fmt, argp);
 		va_end(argp);
@@ -203,7 +205,8 @@ void ha_notice(const char *fmt, ...)
 {
 	va_list argp;
 
-	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) {
+	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE) ||
+	    !(global.mode & MODE_STARTING)) {
 		va_start(argp, fmt);
 		print_message("NOTICE", fmt, argp);
 		va_end(argp);
