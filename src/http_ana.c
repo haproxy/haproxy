@@ -1269,7 +1269,7 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 
 	si->conn_retries--;
 	if (si->conn_retries < 0)
-		goto no_retry;
+		return -1;
 
 	if (objt_server(s->target)) {
 		if (s->flags & SF_CURR_SESS) {
@@ -1307,7 +1307,6 @@ static __inline int do_l7_retry(struct stream *s, struct stream_interface *si)
 
 	DBG_TRACE_DEVEL("perform a L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, s->txn);
 
-  no_retry:
 	b_reset(&res->buf);
 	co_set_data(res, 0);
 	return 0;
