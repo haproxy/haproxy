@@ -1367,28 +1367,6 @@ int si_cs_recv(struct conn_stream *cs)
 			break;
 		}
 
-		/* L7 retries enabled and maximum connection retries not reached */
-		if ((si->flags & SI_FL_L7_RETRY) && si->conn_retries) {
-			struct htx *htx;
-			struct htx_sl *sl;
-
-			htx = htxbuf(&ic->buf);
-			if (htx) {
-				sl = http_get_stline(htx);
-				if (sl && l7_status_match(si_strm(si)->be,
-				    sl->info.res.status)) {
-					/* If we got a status for which we would
-					 * like to retry the request, empty
-					 * the buffer and pretend there's an
-					 * error on the channel.
-					 */
-					ic->flags |= CF_READ_ERROR;
-					htx_reset(htx);
-					return 1;
-				}
-			}
-			si->flags &= ~SI_FL_L7_RETRY;
-		}
 		cur_read += ret;
 
 		/* if we're allowed to directly forward data, we must update ->o */

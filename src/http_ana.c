@@ -1542,9 +1542,22 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * response which at least looks like HTTP. We have an indicator
 	 * of each header's length, so we can parse them quickly.
 	 */
-	msg->msg_state = HTTP_MSG_BODY;
 	BUG_ON(htx_get_first_type(htx) != HTX_BLK_RES_SL);
 	sl = http_get_stline(htx);
+
+	/* Perform a L7 retry because of the status code */
+	if ((si_b->flags & SI_FL_L7_RETRY) &&
+	    l7_status_match(s->be, sl->info.res.status) &&
+	    do_l7_retry(s, si_b) == 0) {
+		DBG_TRACE_DEVEL("leaving on L7 retry", STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
+		return 0;
+	}
+
+	/* Now, L7 buffer is useless, it can be released */
+	b_free(&s->si[1].l7_buffer);
+
+	msg->msg_state = HTTP_MSG_BODY;
+
 
 	/* 0: we might have to print this header in debug mode */
 	if (unlikely((global.mode & MODE_DEBUG) &&
