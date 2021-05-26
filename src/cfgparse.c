@@ -2056,6 +2056,13 @@ next_line:
 				char *errmsg = NULL;
 				int cond;
 
+				if (*args[2]) {
+					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'.\n",
+					         file, linenum, args[2], args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					break;
+				}
+
 				nested_cond_lvl++;
 				if (nested_cond_lvl >= MAXNESTEDCONDS) {
 					ha_alert("parsing [%s:%d]: too many nested '.if', max is %d.\n", file, linenum, MAXNESTEDCONDS);
@@ -2097,6 +2104,13 @@ next_line:
 				const char *errptr = NULL;
 				char *errmsg = NULL;
 				int cond;
+
+				if (*args[2]) {
+					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'.\n",
+					         file, linenum, args[2], args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					break;
+				}
 
 				if (!nested_cond_lvl) {
 					ha_alert("parsing [%s:%d]: lone '.elif' with no matching '.if'.\n", file, linenum);
@@ -2140,6 +2154,13 @@ next_line:
 				goto next_line;
 			}
 			else if (strcmp(args[0], ".else") == 0) {
+				if (*args[1]) {
+					ha_alert("parsing [%s:%d]: Unxpected argument '%s' for '%s'.\n",
+					         file, linenum, args[1], args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					break;
+				}
+
 				if (!nested_cond_lvl) {
 					ha_alert("parsing [%s:%d]: lone '.else' with no matching '.if'.\n", file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
@@ -2165,10 +2186,16 @@ next_line:
 				goto next_line;
 			}
 			else if (strcmp(args[0], ".endif") == 0) {
+				if (*args[1]) {
+					ha_alert("parsing [%s:%d]: Unxpected argument '%s' for '%s'.\n",
+					         file, linenum, args[1], args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
+					break;
+				}
+
 				if (!nested_cond_lvl) {
 					ha_alert("parsing [%s:%d]: lone '.endif' with no matching '.if'.\n", file, linenum);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					fatal++;
+					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 					break;
 				}
 				nested_cond_lvl--;
@@ -2189,20 +2216,48 @@ next_line:
 		/* .warning/.error/.notice/.diag */
 		if (*args[0] == '.') {
 			if (strcmp(args[0], ".alert") == 0) {
+				if (*args[2]) {
+					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'. Use quotes if the message should contain spaces.\n",
+					           file, linenum, args[2], args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto next_line;
+				}
+
 				ha_alert("parsing [%s:%d]: '%s'.\n", file, linenum, args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 				goto err;
 			}
 			else if (strcmp(args[0], ".warning") == 0) {
+				if (*args[2]) {
+					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'. Use quotes if the message should contain spaces.\n",
+					           file, linenum, args[2], args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto next_line;
+				}
+
 				ha_warning("parsing [%s:%d]: '%s'.\n", file, linenum, args[1]);
 				err_code |= ERR_WARN;
 				goto next_line;
 			}
 			else if (strcmp(args[0], ".notice") == 0) {
+				if (*args[2]) {
+					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'. Use quotes if the message should contain spaces.\n",
+					         file, linenum, args[2], args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto next_line;
+				}
+
 				ha_notice("parsing [%s:%d]: '%s'.\n", file, linenum, args[1]);
 				goto next_line;
 			}
 			else if (strcmp(args[0], ".diag") == 0) {
+				if (*args[2]) {
+					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'. Use quotes if the message should contain spaces.\n",
+					         file, linenum, args[2], args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto next_line;
+				}
+
 				ha_diag_warning("parsing [%s:%d]: '%s'.\n", file, linenum, args[1]);
 				goto next_line;
 			}
