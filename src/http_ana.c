@@ -1380,6 +1380,16 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 					return 0;
 			}
 
+			/* Perform a L7 retry because server refuses the early data. */
+			if ((si_b->flags & SI_FL_L7_RETRY) &&
+			    (s->be->retry_type & PR_RE_EARLY_ERROR) &&
+			    conn && conn->err_code == CO_ER_SSL_EARLY_FAILED &&
+			    do_l7_retry(s, si_b) == 0) {
+				DBG_TRACE_DEVEL("leaving on L7 retry",
+						STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
+				return 0;
+			}
+
 			if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
@@ -1389,25 +1399,15 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				health_adjust(__objt_server(s->target), HANA_STATUS_HTTP_READ_ERROR);
 			}
 
-			rep->analysers &= AN_RES_FLT_END;
-			txn->status = 502;
-
-			/* Check to see if the server refused the early data.
-			 * If so, just send a 425
-			 */
-			if (conn && conn->err_code == CO_ER_SSL_EARLY_FAILED) {
-				if ((s->be->retry_type & PR_RE_EARLY_ERROR) &&
-				    (si_b->flags & SI_FL_L7_RETRY) &&
-				    do_l7_retry(s, si_b) == 0) {
-					DBG_TRACE_DEVEL("leaving on L7 retry",
-							STRM_EV_STRM_ANA|STRM_EV_HTTP_ANA, s, txn);
-					return 0;
-				}
+			/* if the server refused the early data, just send a 425 */
+			if (conn && conn->err_code == CO_ER_SSL_EARLY_FAILED)
 				txn->status = 425;
-			}
-			else
+			else {
+				txn->status = 502;
 				stream_inc_http_fail_ctr(s);
+			}
 
+			rep->analysers &= AN_RES_FLT_END;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			http_reply_and_close(s, txn->status, http_error_message(s));
 
