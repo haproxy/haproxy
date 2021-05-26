@@ -60,6 +60,10 @@ enum {
 };
 
 
+void usermsgs_clr(void);
+int usermsgs_empty(void);
+const char *usermsgs_str(void);
+
 /************ Error reporting functions ***********/
 
 /*

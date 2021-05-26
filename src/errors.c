@@ -4,6 +4,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/applet-t.h>
+#include <haproxy/buf.h>
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
@@ -15,9 +16,67 @@
  * retrieve on the CLI. */
 static struct ring *startup_logs = NULL;
 
+/* A thread local buffer used to store all alerts/warnings. It can be used to
+ * retrieve them for CLI commands after startup.
+ */
+#define USER_MESSAGES_BUFSIZE 1024
+static THREAD_LOCAL struct buffer usermsgs_buf = BUF_NULL;
+
+/* Put msg in usermsgs_buf.
+ *
+ * The message should not be terminated by a newline because this function
+ * manually insert it.
+ *
+ * If there is not enough room in the buffer, the message is silently discarded.
+ * Do not forget to frequently clear the buffer.
+ */
+static void usermsgs_put(const struct ist *msg)
+{
+	/* Allocate the buffer if not already done. */
+	if (unlikely(b_is_null(&usermsgs_buf))) {
+		usermsgs_buf.area = malloc(USER_MESSAGES_BUFSIZE * sizeof(char));
+		usermsgs_buf.size = USER_MESSAGES_BUFSIZE;
+	}
+
+	if (likely(!b_is_null(&usermsgs_buf))) {
+		if (b_room(&usermsgs_buf) >= msg->len + 2) {
+			/* Insert the message + newline. */
+			b_putblk(&usermsgs_buf, msg->ptr, msg->len);
+			b_putchr(&usermsgs_buf, '\n');
+			/* Insert NUL outside of the buffer. */
+			*b_tail(&usermsgs_buf) = '\0';
+		}
+	}
+}
+
+/* Clear the messages log buffer. */
+void usermsgs_clr(void)
+{
+	if (likely(!b_is_null(&usermsgs_buf))) {
+		b_reset(&usermsgs_buf);
+		usermsgs_buf.area[0] = '\0';
+	}
+}
+
+/* Check if the user messages buffer is empty. */
+int usermsgs_empty(void)
+{
+	return !!(b_is_null(&usermsgs_buf) || !b_data(&usermsgs_buf));
+}
+
+/* Return the messages log buffer content. */
+const char *usermsgs_str(void)
+{
+	if (unlikely(b_is_null(&usermsgs_buf)))
+		return "";
+
+	return b_head(&usermsgs_buf);
+}
+
 /* Generic function to display messages prefixed by a label */
 static void print_message(const char *label, const char *fmt, va_list argp)
 {
+	struct ist msg_ist = IST_NULL;
 	char *head, *msg;
 	char prefix[11]; // '[' + 8 chars + ']' + 0.
 
@@ -33,6 +92,11 @@ static void print_message(const char *label, const char *fmt, va_list argp)
 	memprintf(&head, "%s (%u) : ", prefix, (uint)getpid());
 	memvprintf(&msg, fmt, argp);
 
+	/* trim the trailing '\n' */
+	msg_ist = ist(msg);
+	if (msg_ist.len > 0 && msg_ist.ptr[msg_ist.len - 1] == '\n')
+		msg_ist.len--;
+
 	if (global.mode & MODE_STARTING) {
 		if (unlikely(!startup_logs))
 			startup_logs = ring_new(STARTUP_LOG_SIZE);
@@ -41,12 +105,13 @@ static void print_message(const char *label, const char *fmt, va_list argp)
 			struct ist m[2];
 
 			m[0] = ist(head);
-			m[1] = ist(msg);
-			/* trim the trailing '\n' */
-			if (m[1].len > 0 && m[1].ptr[m[1].len - 1] == '\n')
-				m[1].len--;
+			m[1] = msg_ist;
+
 			ring_write(startup_logs, ~0, 0, 0, m, 2);
 		}
+	}
+	else {
+		usermsgs_put(&msg_ist);
 	}
 
 	fprintf(stderr, "%s%s", head, msg);
@@ -185,6 +250,7 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 static void deinit_errors_buffers()
 {
 	ring_free(_HA_ATOMIC_XCHG(&startup_logs, NULL));
+	ha_free(&usermsgs_buf.area);
 }
 
 REGISTER_PER_THREAD_FREE(deinit_errors_buffers);
