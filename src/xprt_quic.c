@@ -3280,8 +3280,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			/* This is the DCID node sent in this packet by the client. */
 			node = &qc->odcid_node;
 			conn_ctx = qc->conn->xprt_ctx;
-			SSL_set_quic_transport_params(conn_ctx->ssl,
-			                              qc->enc_params, qc->enc_params_len);
 		}
 		else {
 			if (pkt->type == QUIC_PACKET_TYPE_INITIAL && cids == &l->rx.odcids)
@@ -4388,6 +4386,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	else if (objt_listener(conn->target)) {
 		/* Listener */
 		struct bind_conf *bc = __objt_listener(conn->target)->bind_conf;
+		struct quic_conn *qc = ctx->conn->qc;
 
 		ctx->state = QUIC_HS_ST_SERVER_INITIAL;
 
@@ -4395,6 +4394,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		                          &ctx->ssl, &ctx->bio, ha_quic_meth, ctx) == -1)
 			goto err;
 
+		SSL_set_quic_transport_params(ctx->ssl, qc->enc_params, qc->enc_params_len);
 		SSL_set_accept_state(ctx->ssl);
 	}
 
