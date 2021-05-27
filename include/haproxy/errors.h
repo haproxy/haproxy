@@ -60,11 +60,21 @@ enum {
 };
 
 
-void usermsgs_clr(void);
+void usermsgs_clr(const char *prefix);
 int usermsgs_empty(void);
 const char *usermsgs_str(void);
 
 /************ Error reporting functions ***********/
+
+struct usermsgs_ctx {
+	const char *prefix;  /* prefix of every output */
+	const char *file;    /* related filename for config parsing */
+	int line;            /* related line number for config parsing */
+	enum obj_type *obj;  /* related proxy, server, ... */
+};
+void set_usermsgs_ctx(const char *file, int line, enum obj_type *obj);
+void register_parsing_obj(enum obj_type *obj);
+void reset_usermsgs_ctx(void);
 
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet

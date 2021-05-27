@@ -3380,6 +3380,8 @@ int main(int argc, char **argv)
 	}
 
 	global.mode &= ~MODE_STARTING;
+	reset_usermsgs_ctx();
+
 	/*
 	 * That's it : the central polling loop. Run until we stop.
 	 */

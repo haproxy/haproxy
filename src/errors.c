@@ -22,6 +22,10 @@ static struct ring *startup_logs = NULL;
 #define USER_MESSAGES_BUFSIZE 1024
 static THREAD_LOCAL struct buffer usermsgs_buf = BUF_NULL;
 
+/* A thread local context used for stderr output via ha_alert/warning/notice/diag.
+ */
+static THREAD_LOCAL struct usermsgs_ctx usermsgs_ctx = { };
+
 /* Put msg in usermsgs_buf.
  *
  * The message should not be terminated by a newline because this function
@@ -49,13 +53,19 @@ static void usermsgs_put(const struct ist *msg)
 	}
 }
 
-/* Clear the messages log buffer. */
-void usermsgs_clr(void)
+/* Clear the user messages log buffer.
+ *
+ * <prefix> will set the local-thread context appended to every output
+ * following this call. It can be NULL if not necessary.
+ */
+void usermsgs_clr(const char *prefix)
 {
 	if (likely(!b_is_null(&usermsgs_buf))) {
 		b_reset(&usermsgs_buf);
 		usermsgs_buf.area[0] = '\0';
 	}
+
+	usermsgs_ctx.prefix = prefix;
 }
 
 /* Check if the user messages buffer is empty. */
@@ -71,6 +81,40 @@ const char *usermsgs_str(void)
 		return "";
 
 	return b_head(&usermsgs_buf);
+}
+
+/* Set thread-local context infos to prefix forthcoming stderr output during
+ * configuration parsing.
+ *
+ * <file> and <line> specify the location of the parsed configuration.
+ *
+ * <obj> can be of various types. If not NULL, the string prefix generated will
+ * depend on its type.
+ */
+void set_usermsgs_ctx(const char *file, int line, enum obj_type *obj)
+{
+	usermsgs_ctx.file = file;
+	usermsgs_ctx.line = line;
+	usermsgs_ctx.obj = obj;
+}
+
+/* Set thread-local context infos to prefix forthcoming stderr output. It will
+ * be set as a complement to possibly already defined file/line.
+ *
+ * <obj> can be of various types. If not NULL, the string prefix generated will
+ * depend on its type.
+ */
+void register_parsing_obj(enum obj_type *obj)
+{
+	usermsgs_ctx.obj = obj;
+}
+
+/* Reset thread-local context infos for stderr output. */
+void reset_usermsgs_ctx(void)
+{
+	usermsgs_ctx.file = NULL;
+	usermsgs_ctx.line = 0;
+	usermsgs_ctx.obj = NULL;
 }
 
 /* Generic function to display messages prefixed by a label */
