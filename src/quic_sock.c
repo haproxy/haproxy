@@ -57,16 +57,16 @@ int quic_session_accept(struct connection *cli_conn)
 			goto out_free_conn;
 	}
 
-	if (conn_xprt_start(cli_conn) < 0)
-		goto out_free_conn;
-
 	sess = session_new(p, l, &cli_conn->obj_type);
 	if (!sess)
 		goto out_free_conn;
 
 	conn_set_owner(cli_conn, sess, NULL);
 
-	if (conn_complete_session(cli_conn) >= 0)
+	if (conn_complete_session(cli_conn) < 0)
+		goto out_free_sess;
+
+	if (conn_xprt_start(cli_conn) >= 0)
 		return 1;
 
  out_free_sess:
