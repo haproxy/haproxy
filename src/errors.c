@@ -8,6 +8,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/errors.h>
 #include <haproxy/global.h>
+#include <haproxy/obj_type.h>
 #include <haproxy/ring.h>
 #include <haproxy/tools.h>
 #include <haproxy/version.h>
@@ -117,11 +118,32 @@ void reset_usermsgs_ctx(void)
 	usermsgs_ctx.obj = NULL;
 }
 
+static void generate_usermsgs_ctx_str(char **str)
+{
+	const struct usermsgs_ctx *ctx = &usermsgs_ctx;
+	const char prefix_fmt[] = "%1$s : ";
+	const char file_line_fmt[] = "[%2$s:%3$d] : ";
+
+	/* fmt must be big enough to contains the full format string before
+	 * memprintf */
+	char fmt[56];
+
+	switch (obj_type(ctx->obj)) {
+	case OBJ_TYPE_NONE:
+	default:
+		sprintf(fmt, "%s%s",
+		        ctx->prefix ? prefix_fmt : "",
+		        ctx->file ? file_line_fmt : "");
+		memprintf(str, fmt, ctx->prefix, ctx->file, ctx->line);
+		break;
+	}
+}
+
 /* Generic function to display messages prefixed by a label */
-static void print_message(const char *label, const char *fmt, va_list argp)
+static void print_message(int use_usermsgs_ctx, const char *label, const char *fmt, va_list argp)
 {
 	struct ist msg_ist = IST_NULL;
-	char *head, *msg;
+	char *head, *parsing_str, *msg;
 	char prefix[11]; // '[' + 8 chars + ']' + 0.
 
 	*prefix = '[';
@@ -132,7 +154,7 @@ static void print_message(const char *label, const char *fmt, va_list argp)
 		*msg++ = ' ';
 	*msg = 0;
 
-	head = msg = NULL;
+	head = parsing_str = msg = NULL;
 	memprintf(&head, "%s (%u) : ", prefix, (uint)getpid());
 	memvprintf(&msg, fmt, argp);
 
@@ -141,28 +163,46 @@ static void print_message(const char *label, const char *fmt, va_list argp)
 	if (msg_ist.len > 0 && msg_ist.ptr[msg_ist.len - 1] == '\n')
 		msg_ist.len--;
 
+	if (use_usermsgs_ctx) {
+		generate_usermsgs_ctx_str(&parsing_str);
+		reset_usermsgs_ctx();
+	}
+	else {
+		memprintf(&parsing_str, "%s", "");
+	}
+
 	if (global.mode & MODE_STARTING) {
 		if (unlikely(!startup_logs))
 			startup_logs = ring_new(STARTUP_LOG_SIZE);
 
 		if (likely(startup_logs)) {
-			struct ist m[2];
+			struct ist m[3];
 
 			m[0] = ist(head);
-			m[1] = msg_ist;
+			m[1] = ist(parsing_str);
+			m[2] = msg_ist;
 
-			ring_write(startup_logs, ~0, 0, 0, m, 2);
+			ring_write(startup_logs, ~0, 0, 0, m, 3);
 		}
 	}
 	else {
 		usermsgs_put(&msg_ist);
 	}
 
-	fprintf(stderr, "%s%s", head, msg);
+	fprintf(stderr, "%s%s%s", head, parsing_str, msg);
 	fflush(stderr);
 
 	free(head);
+	free(parsing_str);
 	free(msg);
+}
+
+static void print_message_args(int use_usermsgs_ctx, const char *label, const char *fmt, ...)
+{
+	va_list argp;
+	va_start(argp, fmt);
+	print_message(use_usermsgs_ctx, label, fmt, argp);
+	va_end(argp);
 }
 
 /*
@@ -179,12 +219,12 @@ void ha_alert(const char *fmt, ...)
 			const char *path = get_exec_path();
 
 			warned |= WARN_EXEC_PATH;
-			ha_notice("haproxy version is %s\n", haproxy_version);
+			print_message_args(0, "NOTICE", "haproxy version is %s\n", haproxy_version);
 			if (path)
-				ha_notice("path to executable is %s\n", path);
+				print_message_args(0, "NOTICE", "path to executable is %s\n", path);
 		}
 		va_start(argp, fmt);
-		print_message("ALERT", fmt, argp);
+		print_message(1, "ALERT", fmt, argp);
 		va_end(argp);
 	}
 }
@@ -201,7 +241,7 @@ void ha_warning(const char *fmt, ...)
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE) ||
 	    !(global.mode & MODE_STARTING)) {
 		va_start(argp, fmt);
-		print_message("WARNING", fmt, argp);
+		print_message(1, "WARNING", fmt, argp);
 		va_end(argp);
 	}
 }
@@ -212,7 +252,7 @@ void ha_warning(const char *fmt, ...)
  */
 void _ha_vdiag_warning(const char *fmt, va_list argp)
 {
-	print_message("DIAG", fmt, argp);
+	print_message(1, "DIAG", fmt, argp);
 }
 
 /*
@@ -252,7 +292,7 @@ void ha_notice(const char *fmt, ...)
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE) ||
 	    !(global.mode & MODE_STARTING)) {
 		va_start(argp, fmt);
-		print_message("NOTICE", fmt, argp);
+		print_message(1, "NOTICE", fmt, argp);
 		va_end(argp);
 	}
 }
