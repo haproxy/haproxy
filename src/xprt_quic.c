@@ -3267,11 +3267,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			LIST_APPEND(&l->rx.qpkts, &pkt->rx_list);
 			/* Try to accept a new connection. */
 			listener_accept(l);
-			if (!qc->conn) {
-				TRACE_PROTO("Non accepted connection", QUIC_EV_CONN_LPKT, qc->conn);
-				goto err;
-			}
-
 			if (!quic_conn_init_timer(qc)) {
 				TRACE_PROTO("Non initialized timer", QUIC_EV_CONN_LPKT, qc->conn);
 				goto err;
