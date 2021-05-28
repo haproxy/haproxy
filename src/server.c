@@ -2341,13 +2341,14 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
  */
 static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
                            struct proxy *curproxy,
-                           int parse_flags, char **errmsg)
+                           int parse_flags)
 {
 	struct server *newsrv = NULL;
 	const char *err = NULL;
 	int err_code = 0;
 	char *fqdn = NULL;
 	int tmpl_range_low = 0, tmpl_range_high = 0;
+	char *errmsg = NULL;
 
 	*srv = NULL;
 
@@ -2356,8 +2357,8 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		if (parse_flags & SRV_PARSE_TEMPLATE) {
 			if (!*args[3]) {
 				/* 'server-template' line number of argument check. */
-				memprintf(errmsg, "'%s' expects <prefix> <nb | range> <addr>[:<port>] as arguments.",
-				          args[0]);
+				ha_alert("'%s' expects <prefix> <nb | range> <addr>[:<port>] as arguments.\n",
+				         args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -2367,8 +2368,8 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		else {
 			if (!*args[2]) {
 				/* 'server' line number of argument check. */
-				memprintf(errmsg, "'%s' expects <name> and <addr>[:<port>] as arguments.",
-				          args[0]);
+				ha_alert("'%s' expects <name> and <addr>[:<port>] as arguments.\n",
+				         args[0]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -2377,8 +2378,8 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		}
 
 		if (err) {
-			memprintf(errmsg, "character '%c' is not permitted in %s %s '%s'.",
-			          *err, args[0], !(parse_flags & SRV_PARSE_TEMPLATE) ? "name" : "prefix", args[1]);
+			ha_alert("character '%c' is not permitted in %s %s '%s'.\n",
+			         *err, args[0], !(parse_flags & SRV_PARSE_TEMPLATE) ? "name" : "prefix", args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2388,8 +2389,8 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 	if (parse_flags & SRV_PARSE_TEMPLATE) {
 		/* Parse server-template <nb | range> arg. */
 		if (_srv_parse_tmpl_range(newsrv, args[*cur_arg], &tmpl_range_low, &tmpl_range_high) < 0) {
-			memprintf(errmsg, "Wrong %s number or range arg '%s'.",
-			          args[0], args[*cur_arg]);
+			ha_alert("Wrong %s number or range arg '%s'.\n",
+			         args[0], args[*cur_arg]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2402,7 +2403,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 
 		*srv = newsrv = new_server(curproxy);
 		if (!newsrv) {
-			memprintf(errmsg, "out of memory.");
+			ha_alert("out of memory.\n");
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
@@ -2436,10 +2437,12 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 			goto skip_addr;
 
 		sk = str2sa_range(args[*cur_arg], &port, &port1, &port2, NULL, NULL,
-		                  errmsg, NULL, &fqdn,
+		                  &errmsg, NULL, &fqdn,
 		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK | PA_O_PORT_OFS | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 		if (!sk) {
+			ha_alert("%s\n", errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			ha_free(&errmsg);
 			goto out;
 		}
 
@@ -2460,8 +2463,8 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 				}
 			}
 			else if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
-				memprintf(errmsg, "Can't create DNS resolution for server '%s'",
-				          newsrv->id);
+				ha_alert("Can't create DNS resolution for server '%s'\n",
+				         newsrv->id);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -2474,8 +2477,8 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		srv_set_addr_desc(newsrv);
 
 		if (!newsrv->srvrq && !newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
-			memprintf(errmsg, "Unknown protocol family %d '%s'",
-			          newsrv->addr.ss_family, args[*cur_arg]);
+			ha_alert("Unknown protocol family %d '%s'\n",
+			         newsrv->addr.ss_family, args[*cur_arg]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2523,46 +2526,50 @@ out:
  */
 static int _srv_parse_kw(struct server *srv, char **args, int *cur_arg,
                          struct proxy *curproxy,
-                         int parse_flags, char **errmsg)
+                         int parse_flags)
 {
 	int err_code = 0;
 	struct srv_kw *kw;
 	const char *best;
+	char *errmsg = NULL;
 
 	kw = srv_find_kw(args[*cur_arg]);
 	if (!kw) {
 		best = srv_find_best_kw(args[*cur_arg]);
 		if (best)
-			memprintf(errmsg, "unknown keyword '%s'; did you mean '%s' maybe ?",
-			          args[*cur_arg], best);
+			ha_alert("unknown keyword '%s'; did you mean '%s' maybe ?\n",
+			         args[*cur_arg], best);
 		else
-			memprintf(errmsg, "unknown keyword '%s'.",
-			          args[*cur_arg]);
+			ha_alert("unknown keyword '%s'.\n", args[*cur_arg]);
 
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	if (!kw->parse) {
-		memprintf(errmsg, "'%s' option is not implemented in this version (check build options)",
-		          args[*cur_arg]);
+		ha_alert("'%s' option is not implemented in this version (check build options)\n",
+		         args[*cur_arg]);
 		err_code = ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
 
 	if ((parse_flags & SRV_PARSE_DEFAULT_SERVER) && !kw->default_ok) {
-		memprintf(errmsg, "'%s' option is not accepted in default-server sections",
-		          args[*cur_arg]);
+		ha_alert("'%s' option is not accepted in default-server sections\n",
+		         args[*cur_arg]);
 		err_code = ERR_ALERT;
 		goto out;
 	}
 	else if ((parse_flags & SRV_PARSE_DYNAMIC) && !kw->dynamic_ok) {
-		memprintf(errmsg, "'%s' option is not accepted for dynamic server",
-		          args[*cur_arg]);
+		ha_alert("'%s' option is not accepted for dynamic server\n",
+		         args[*cur_arg]);
 		err_code |= ERR_ALERT;
 		goto out;
 	}
 
-	err_code = kw->parse(args, cur_arg, curproxy, srv, errmsg);
+	err_code = kw->parse(args, cur_arg, curproxy, srv, &errmsg);
+	if (err_code) {
+		display_parser_err(NULL, 0, args, *cur_arg, err_code, &errmsg);
+		free(errmsg);
+	}
 
 out:
 	if (kw->skip != -1)
@@ -2601,26 +2608,32 @@ static int _srv_parse_sni_expr_init(char **args, int cur_arg,
  */
 static int _srv_parse_finalize(char **args, int cur_arg,
                                struct server *srv, struct proxy *px,
-                               int parse_flags, char **errmsg)
+                               int parse_flags)
 {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	int ret;
+	char *errmsg = NULL;
 #endif
 
 	if (srv->do_check && srv->trackit) {
-		memprintf(errmsg, "unable to enable checks and tracking at the same time!");
+		ha_alert("unable to enable checks and tracking at the same time!\n");
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	if (srv->do_agent && !srv->agent.port) {
-		memprintf(errmsg, "server %s does not have agent port. Agent check has been disabled.",
-		          srv->id);
+		ha_alert("server %s does not have agent port. Agent check has been disabled.\n",
+		         srv->id);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	if ((ret = _srv_parse_sni_expr_init(args, cur_arg, srv, px, errmsg)) != 0)
+	if ((ret = _srv_parse_sni_expr_init(args, cur_arg, srv, px, &errmsg)) != 0) {
+		if (errmsg) {
+			ha_alert("%s\n", errmsg);
+			free(errmsg);
+		}
 		return ret;
+	}
 #endif
 
 	/* A dynamic server is disabled on startup. It must not be counted as
@@ -2643,7 +2656,6 @@ int parse_server(const char *file, int linenum, char **args,
                  int parse_flags)
 {
 	struct server *newsrv = NULL;
-	char *errmsg = NULL;
 	int err_code = 0;
 
 	int cur_arg;
@@ -2667,11 +2679,7 @@ int parse_server(const char *file, int linenum, char **args,
 	}
 
 	err_code = _srv_parse_init(&newsrv, args, &cur_arg, curproxy,
-	                           parse_flags, &errmsg);
-	if (errmsg) {
-		ha_alert("%s\n", errmsg);
-		free(errmsg);
-	}
+	                           parse_flags);
 
 	/* the servers are linked backwards first */
 	if (newsrv && !(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {
@@ -2686,26 +2694,14 @@ int parse_server(const char *file, int linenum, char **args,
 	newsrv->conf.line = linenum;
 
 	while (*args[cur_arg]) {
-		errmsg = NULL;
 		err_code = _srv_parse_kw(newsrv, args, &cur_arg, curproxy,
-		                         parse_flags, &errmsg);
-
-		if (err_code & ERR_ALERT) {
-			display_parser_err(file, linenum, args, cur_arg, err_code, &errmsg);
-			free(errmsg);
-		}
-
+		                         parse_flags);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 
 	if (!(parse_flags & SRV_PARSE_DEFAULT_SERVER)) {
-		err_code |= _srv_parse_finalize(args, cur_arg, newsrv, curproxy, parse_flags, &errmsg);
-		if (err_code) {
-			display_parser_err(file, linenum, args, cur_arg, err_code, &errmsg);
-			free(errmsg);
-		}
-
+		err_code |= _srv_parse_finalize(args, cur_arg, newsrv, curproxy, parse_flags);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
@@ -4330,10 +4326,11 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	struct proxy *be;
 	struct server *srv;
 	char *be_name, *sv_name;
-	char *errmsg = NULL;
 	int errcode, argc;
 	int i;
 	const int parse_flags = SRV_PARSE_DYNAMIC|SRV_PARSE_PARSE_ADDR;
+
+	usermsgs_clr("CLI");
 
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		return 1;
@@ -4363,39 +4360,31 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	}
 
 	args[1] = sv_name;
-	errcode = _srv_parse_init(&srv, args, &argc, be, parse_flags, &errmsg);
-	if (errcode) {
-		if (errmsg)
-			cli_dynerr(appctx, errmsg);
+	errcode = _srv_parse_init(&srv, args, &argc, be, parse_flags);
+	if (errcode)
 		goto out;
-	}
 
 	while (*args[argc]) {
-		errcode = _srv_parse_kw(srv, args, &argc, be, parse_flags, &errmsg);
+		errcode = _srv_parse_kw(srv, args, &argc, be, parse_flags);
 
-		if (errcode) {
-			if (errmsg)
-				cli_dynerr(appctx, errmsg);
+		if (errcode)
 			goto out;
-		}
 	}
 
-	_srv_parse_finalize(args, argc, srv, be, parse_flags, &errmsg);
-	if (errmsg) {
-		cli_dynerr(appctx, errmsg);
+	errcode = _srv_parse_finalize(args, argc, srv, be, parse_flags);
+	if (errcode)
 		goto out;
-	}
 
 	if (srv->mux_proto) {
 		if (!conn_get_best_mux_entry(srv->mux_proto->token, PROTO_SIDE_BE, be->mode)) {
-			cli_err(appctx, "MUX protocol is not usable for server.");
+			ha_alert("MUX protocol is not usable for server.\n");
 			goto out;
 		}
 	}
 
 	srv->per_thr = calloc(global.nbthread, sizeof(*srv->per_thr));
 	if (!srv->per_thr) {
-		cli_err(appctx, "failed to allocate per-thread lists for server.");
+		ha_alert("failed to allocate per-thread lists for server.\n");
 		goto out;
 	}
 
@@ -4409,20 +4398,20 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (srv->max_idle_conns != 0) {
 		srv->curr_idle_thr = calloc(global.nbthread, sizeof(*srv->curr_idle_thr));
 		if (!srv->curr_idle_thr) {
-			cli_err(appctx, "failed to allocate counters for server.");
+			ha_alert("failed to allocate counters for server.\n");
 			goto out;
 		}
 	}
 
 	if (!srv_alloc_lb(srv, be)) {
-		cli_err(appctx, "Failed to initialize load-balancing data.");
+		ha_alert("Failed to initialize load-balancing data.\n");
 		goto out;
 	}
 
 	if (!stats_allocate_proxy_counters_internal(&srv->extra_counters,
 	                                            COUNTERS_SV,
 	                                            STATS_PX_CAP_SRV)) {
-		cli_err(appctx, "failed to allocate extra counters for server.");
+		ha_alert("failed to allocate extra counters for server.\n");
 		goto out;
 	}
 
@@ -4444,7 +4433,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 			/* check for duplicate server */
 			if (!strcmp(srv->id, next->id)) {
 				thread_release();
-				cli_err(appctx, "Already exists a server with the same name in backend.");
+				ha_alert("Already exists a server with the same name in backend.\n");
 				goto out;
 			}
 
@@ -4463,12 +4452,15 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 
 	thread_release();
 
-	ha_notice("New server %s/%s registered.\n", be->id, srv->id);
-	cli_msg(appctx, LOG_INFO, "New server registered.");
+	ha_notice("New server registered.\n");
+	cli_msg(appctx, LOG_INFO, usermsgs_str());
 
 	return 0;
 
 out:
+	if (!usermsgs_empty())
+		cli_err(appctx, usermsgs_str());
+
 	if (srv)
 		free_server(srv);
 	return 1;
@@ -4586,7 +4578,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 
 	thread_release();
 
-	ha_notice("Server %s/%s deleted.\n", be->id, srv->id);
+	ha_notice("Server deleted.\n");
 	free_server(srv);
 
 	cli_msg(appctx, LOG_INFO, "Server deleted.");
