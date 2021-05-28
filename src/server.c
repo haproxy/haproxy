@@ -3742,16 +3742,16 @@ static int srv_iterate_initaddr(struct server *srv)
 		case SRV_IADDR_NONE:
 			srv_set_admin_flag(srv, SRV_ADMF_RMAINT, NULL);
 			if (return_code) {
-				ha_warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', disabling server.\n",
-					   srv->conf.file, srv->conf.line, srv->id, name);
+				ha_warning("could not resolve address '%s', disabling server.\n",
+					   name);
 			}
 			return return_code;
 
 		case SRV_IADDR_IP:
 			ipcpy(&srv->init_addr, &srv->addr);
 			if (return_code) {
-				ha_warning("parsing [%s:%d] : 'server %s' : could not resolve address '%s', falling back to configured address.\n",
-					   srv->conf.file, srv->conf.line, srv->id, name);
+				ha_warning("could not resolve address '%s', falling back to configured address.\n",
+					   name);
 			}
 			goto out;
 
@@ -3760,14 +3760,10 @@ static int srv_iterate_initaddr(struct server *srv)
 		}
 	}
 
-	if (!return_code) {
-		ha_alert("parsing [%s:%d] : 'server %s' : no method found to resolve address '%s'\n",
-		      srv->conf.file, srv->conf.line, srv->id, name);
-	}
-	else {
-		ha_alert("parsing [%s:%d] : 'server %s' : could not resolve address '%s'.\n",
-		      srv->conf.file, srv->conf.line, srv->id, name);
-	}
+	if (!return_code)
+		ha_alert("no method found to resolve address '%s'.\n", name);
+	else
+		ha_alert("could not resolve address '%s'.\n", name);
 
 	return_code |= ERR_ALERT | ERR_FATAL;
 	return return_code;
@@ -3798,9 +3794,12 @@ int srv_init_addr(void)
 		if (!(curproxy->cap & PR_CAP_BE) || curproxy->disabled)
 			goto srv_init_addr_next;
 
-		for (srv = curproxy->srv; srv; srv = srv->next)
+		for (srv = curproxy->srv; srv; srv = srv->next) {
+			set_usermsgs_ctx(srv->conf.file, srv->conf.line, &srv->obj_type);
 			if (srv->hostname || srv->srvrq)
 				return_code |= srv_iterate_initaddr(srv);
+			reset_usermsgs_ctx();
+		}
 
  srv_init_addr_next:
 		curproxy = curproxy->next;
