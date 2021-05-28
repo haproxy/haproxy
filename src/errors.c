@@ -240,6 +240,14 @@ void ha_warning(const char *fmt, ...)
 
 	if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE) ||
 	    !(global.mode & MODE_STARTING)) {
+		if (!(warned & WARN_EXEC_PATH) && (global.mode & MODE_STARTING)) {
+			const char *path = get_exec_path();
+
+			warned |= WARN_EXEC_PATH;
+			print_message_args(0, "NOTICE", "haproxy version is %s\n", haproxy_version);
+			if (path)
+				print_message_args(0, "NOTICE", "path to executable is %s\n", path);
+		}
 		va_start(argp, fmt);
 		print_message(1, "WARNING", fmt, argp);
 		va_end(argp);
