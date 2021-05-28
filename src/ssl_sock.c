@@ -4619,7 +4619,6 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 /* prepare ssl context from servers options. Returns an error count */
 int ssl_sock_prepare_srv_ctx(struct server *srv)
 {
-	struct proxy *curproxy = srv->proxy;
 	int cfgerr = 0;
 	SSL_CTX *ctx = srv->ssl_ctx.ctx;
 
@@ -4635,9 +4634,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	/* Initiate SSL context for current server */
 	if (!srv->ssl_ctx.reused_sess) {
 		if ((srv->ssl_ctx.reused_sess = calloc(1, global.nbthread*sizeof(*srv->ssl_ctx.reused_sess))) == NULL) {
-			ha_alert("Proxy '%s', server '%s' [%s:%d] out of memory.\n",
-				 curproxy->id, srv->id,
-				 srv->conf.file, srv->conf.line);
+			ha_alert("out of memory.\n");
 			cfgerr++;
 			return cfgerr;
 		}
@@ -4650,9 +4647,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv)
 	if (!ctx) {
 		ctx = SSL_CTX_new(SSLv23_client_method());
 		if (!ctx) {
-			ha_alert("config : %s '%s', server '%s': unable to allocate ssl context.\n",
-				 proxy_type_str(curproxy), curproxy->id,
-				 srv->id);
+			ha_alert("unable to allocate ssl context.\n");
 			cfgerr++;
 			return cfgerr;
 		}
@@ -4687,9 +4682,8 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 	int flags = MC_SSL_O_ALL;
 
 	if (conf_ssl_methods->flags && (conf_ssl_methods->min || conf_ssl_methods->max))
-		ha_warning("config : %s '%s': no-sslv3/no-tlsv1x are ignored for server '%s'. "
-			   "Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
-			   proxy_type_str(curproxy), curproxy->id, srv->id);
+		ha_warning("no-sslv3/no-tlsv1x are ignored for this server. "
+			   "Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n");
 	else
 		flags = conf_ssl_methods->flags;
 
@@ -4770,21 +4764,16 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 		if (srv->ssl_ctx.ca_file) {
 			/* set CAfile to verify */
 			if (!ssl_set_verify_locations_file(ctx, srv->ssl_ctx.ca_file)) {
-				ha_alert("Proxy '%s', server '%s' [%s:%d] unable to set CA file '%s'.\n",
-					 curproxy->id, srv->id,
-					 srv->conf.file, srv->conf.line, srv->ssl_ctx.ca_file);
+				ha_alert("unable to set CA file '%s'.\n",
+					 srv->ssl_ctx.ca_file);
 				cfgerr++;
 			}
 		}
 		else {
 			if (global.ssl_server_verify == SSL_SERVER_VERIFY_REQUIRED)
-				ha_alert("Proxy '%s', server '%s' [%s:%d] verify is enabled by default but no CA file specified. If you're running on a LAN where you're certain to trust the server's certificate, please set an explicit 'verify none' statement on the 'server' line, or use 'ssl-server-verify none' in the global section to disable server-side verifications by default.\n",
-					 curproxy->id, srv->id,
-					 srv->conf.file, srv->conf.line);
+				ha_alert("verify is enabled by default but no CA file specified. If you're running on a LAN where you're certain to trust the server's certificate, please set an explicit 'verify none' statement on the 'server' line, or use 'ssl-server-verify none' in the global section to disable server-side verifications by default.\n");
 			else
-				ha_alert("Proxy '%s', server '%s' [%s:%d] verify is enabled but no CA file specified.\n",
-					 curproxy->id, srv->id,
-					 srv->conf.file, srv->conf.line);
+				ha_alert("verify is enabled but no CA file specified.\n");
 			cfgerr++;
 		}
 #ifdef X509_V_FLAG_CRL_CHECK
@@ -4792,9 +4781,8 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 			X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
 			if (!ssl_set_cert_crl_file(store, srv->ssl_ctx.crl_file)) {
-				ha_alert("Proxy '%s', server '%s' [%s:%d] unable to configure CRL file '%s'.\n",
-					 curproxy->id, srv->id,
-					 srv->conf.file, srv->conf.line, srv->ssl_ctx.crl_file);
+				ha_alert("unable to configure CRL file '%s'.\n",
+					 srv->ssl_ctx.crl_file);
 				cfgerr++;
 			}
 			else {
@@ -4808,18 +4796,16 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 	SSL_CTX_sess_set_new_cb(ctx, ssl_sess_new_srv_cb);
 	if (srv->ssl_ctx.ciphers &&
 		!SSL_CTX_set_cipher_list(ctx, srv->ssl_ctx.ciphers)) {
-		ha_alert("Proxy '%s', server '%s' [%s:%d] : unable to set SSL cipher list to '%s'.\n",
-			 curproxy->id, srv->id,
-			 srv->conf.file, srv->conf.line, srv->ssl_ctx.ciphers);
+		ha_alert("unable to set SSL cipher list to '%s'.\n",
+			 srv->ssl_ctx.ciphers);
 		cfgerr++;
 	}
 
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	if (srv->ssl_ctx.ciphersuites &&
 		!SSL_CTX_set_ciphersuites(ctx, srv->ssl_ctx.ciphersuites)) {
-		ha_alert("Proxy '%s', server '%s' [%s:%d] : unable to set TLS 1.3 cipher suites to '%s'.\n",
-			 curproxy->id, srv->id,
-			 srv->conf.file, srv->conf.line, srv->ssl_ctx.ciphersuites);
+		ha_alert("unable to set TLS 1.3 cipher suites to '%s'.\n",
+			 srv->ssl_ctx.ciphersuites);
 		cfgerr++;
 	}
 #endif

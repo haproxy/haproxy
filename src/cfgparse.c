@@ -3523,6 +3523,8 @@ out_uri_auth_compat:
 		 */
 		newsrv = curproxy->srv;
 		while (newsrv != NULL) {
+			set_usermsgs_ctx(newsrv->conf.file, newsrv->conf.line, &newsrv->obj_type);
+
 			if (newsrv->minconn > newsrv->maxconn) {
 				/* Only 'minconn' was specified, or it was higher than or equal
 				 * to 'maxconn'. Let's turn this into maxconn and clean it, as
@@ -3548,10 +3550,7 @@ out_uri_auth_compat:
 			if ((newsrv->flags & SRV_F_FASTOPEN) &&
 			    ((curproxy->retry_type & (PR_RE_DISCONNECTED | PR_RE_TIMEOUT)) !=
 			     (PR_RE_DISCONNECTED | PR_RE_TIMEOUT)))
-				ha_warning("parsing [%s:%d] : %s '%s': server '%s' has tfo activated, the backend should be configured with at least 'conn-failure', 'empty-response' and 'response-timeout' or we wouldn't be able to retry the connection on failure.\n",
-				    newsrv->conf.file, newsrv->conf.line,
-				    proxy_type_str(curproxy), curproxy->id,
-				    newsrv->id);
+				ha_warning("server has tfo activated, the backend should be configured with at least 'conn-failure', 'empty-response' and 'response-timeout' or we wouldn't be able to retry the connection on failure.\n");
 
 			if (newsrv->trackit) {
 				struct proxy *px;
@@ -3571,9 +3570,8 @@ out_uri_auth_compat:
 				if (pname) {
 					px = proxy_be_by_name(pname);
 					if (!px) {
-						ha_alert("config : %s '%s', server '%s': unable to find required proxy '%s' for tracking.\n",
-							 proxy_type_str(curproxy), curproxy->id,
-							 newsrv->id, pname);
+						ha_alert("unable to find required proxy '%s' for tracking.\n",
+						         pname);
 						cfgerr++;
 						goto next_srv;
 					}
@@ -3582,18 +3580,16 @@ out_uri_auth_compat:
 
 				srv = findserver(px, sname);
 				if (!srv) {
-					ha_alert("config : %s '%s', server '%s': unable to find required server '%s' for tracking.\n",
-						 proxy_type_str(curproxy), curproxy->id,
-						 newsrv->id, sname);
+					ha_alert("unable to find required server '%s' for tracking.\n",
+						 sname);
 					cfgerr++;
 					goto next_srv;
 				}
 
 				if (!srv->do_check && !srv->do_agent && !srv->track && !srv->trackit) {
-					ha_alert("config : %s '%s', server '%s': unable to use %s/%s for "
+					ha_alert("unable to use %s/%s for "
 						 "tracking as it does not have any check nor agent enabled.\n",
-						 proxy_type_str(curproxy), curproxy->id,
-						 newsrv->id, px->id, srv->id);
+						 px->id, srv->id);
 					cfgerr++;
 					goto next_srv;
 				}
@@ -3601,10 +3597,9 @@ out_uri_auth_compat:
 				for (loop = srv->track; loop && loop != newsrv; loop = loop->track);
 
 				if (newsrv == srv || loop) {
-					ha_alert("config : %s '%s', server '%s': unable to track %s/%s as it "
+					ha_alert("unable to track %s/%s as it "
 						 "belongs to a tracking chain looping back to %s/%s.\n",
-						 proxy_type_str(curproxy), curproxy->id,
-						 newsrv->id, px->id, srv->id, px->id,
+						 px->id, srv->id, px->id,
 						 newsrv == srv ? srv->id : loop->id);
 					cfgerr++;
 					goto next_srv;
@@ -3612,10 +3607,9 @@ out_uri_auth_compat:
 
 				if (curproxy != px &&
 					(curproxy->options & PR_O_DISABLE404) != (px->options & PR_O_DISABLE404)) {
-					ha_alert("config : %s '%s', server '%s': unable to use %s/%s for"
+					ha_alert("unable to use %s/%s for"
 						 "tracking: disable-on-404 option inconsistency.\n",
-						 proxy_type_str(curproxy), curproxy->id,
-						 newsrv->id, px->id, srv->id);
+						 px->id, srv->id);
 					cfgerr++;
 					goto next_srv;
 				}
@@ -3628,6 +3622,7 @@ out_uri_auth_compat:
 			}
 
 		next_srv:
+			reset_usermsgs_ctx();
 			newsrv = newsrv->next;
 		}
 
