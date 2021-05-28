@@ -1878,13 +1878,9 @@ static void display_parser_err(const char *file, int linenum, char **args, int c
 	}
 
 	if (err_code & ERR_WARN && !(err_code & ERR_ALERT))
-		ha_warning("parsing [%s:%d] : '%s %s' : %s%s%s%s.\n",
-		           file, linenum, args[0], args[1],
-		           msg, quote, token, quote);
+		ha_warning("%s%s%s%s.\n", msg, quote, token, quote);
 	else
-		ha_alert("parsing [%s:%d] : '%s %s' : %s%s%s%s.\n",
-		         file, linenum, args[0], args[1],
-		         msg, quote, token, quote);
+		ha_alert("%s%s%s%s.\n", msg, quote, token, quote);
 }
 
 static void srv_conn_src_sport_range_cpy(struct server *srv,
@@ -2410,6 +2406,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
+		register_parsing_obj(&newsrv->obj_type);
 
 		if (parse_flags & SRV_PARSE_TEMPLATE) {
 			newsrv->tmpl_info.nb_low = tmpl_range_low;
@@ -2442,7 +2439,6 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 		                  errmsg, NULL, &fqdn,
 		                  (parse_flags & SRV_PARSE_INITIAL_RESOLVE ? PA_O_RESOLVE : 0) | PA_O_PORT_OK | PA_O_PORT_OFS | PA_O_STREAM | PA_O_XPRT | PA_O_CONNECT);
 		if (!sk) {
-			memprintf(errmsg, "'%s %s' : %s", args[0], args[1], *errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2652,8 +2648,10 @@ int parse_server(const char *file, int linenum, char **args,
 
 	int cur_arg;
 
+	set_usermsgs_ctx(file, linenum, NULL);
+
 	if (!(parse_flags & SRV_PARSE_DEFAULT_SERVER) && curproxy == defproxy) {
-		ha_alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+		ha_alert("'%s' not allowed in 'defaults' section.\n", args[0]);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
@@ -2671,7 +2669,7 @@ int parse_server(const char *file, int linenum, char **args,
 	err_code = _srv_parse_init(&newsrv, args, &cur_arg, curproxy,
 	                           parse_flags, &errmsg);
 	if (errmsg) {
-		ha_alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
+		ha_alert("%s\n", errmsg);
 		free(errmsg);
 	}
 
@@ -2716,12 +2714,13 @@ int parse_server(const char *file, int linenum, char **args,
 		_srv_parse_tmpl_init(newsrv, curproxy);
 
 	HA_DIAG_WARNING_COND((curproxy->cap & PR_CAP_LB) && !newsrv->uweight,
-	                     "parsing [%s:%d] : 'server %s' : configured with weight of 0 will never be selected by load balancing algorithms\n",
-	                     file, linenum, newsrv->id);
+	                     "configured with weight of 0 will never be selected by load balancing algorithms\n");
 
+	reset_usermsgs_ctx();
 	return 0;
 
  out:
+	reset_usermsgs_ctx();
 	return err_code;
 }
 
