@@ -1851,7 +1851,7 @@ static int server_parse_sni_expr(struct server *newsrv, struct proxy *px, char *
 	if (!(expr->fetch->val & SMP_VAL_BE_SRV_CON)) {
 		memprintf(err, "error detected while parsing sni expression : "
 		          " fetch method '%s' extracts information from '%s', "
-		          "none of which is available here.\n",
+		          "none of which is available here.",
 		          newsrv->sni_expr, sample_src_names(expr->fetch->use));
 		return ERR_ALERT | ERR_FATAL;
 	}
