@@ -123,12 +123,23 @@ static void generate_usermsgs_ctx_str(char **str)
 	const struct usermsgs_ctx *ctx = &usermsgs_ctx;
 	const char prefix_fmt[] = "%1$s : ";
 	const char file_line_fmt[] = "[%2$s:%3$d] : ";
+	const char obj_line_fmt[] = "%4$s/%5$s";
 
 	/* fmt must be big enough to contains the full format string before
 	 * memprintf */
 	char fmt[56];
 
 	switch (obj_type(ctx->obj)) {
+	case OBJ_TYPE_SERVER:
+		sprintf(fmt, "%s%s'server %s' : ",
+		        ctx->prefix ? prefix_fmt : "",
+		        ctx->file ? file_line_fmt : "",
+		        obj_line_fmt);
+		memprintf(str, fmt, ctx->prefix, ctx->file, ctx->line,
+		          __objt_server(ctx->obj)->proxy->id,
+		          __objt_server(ctx->obj)->id);
+		break;
+
 	case OBJ_TYPE_NONE:
 	default:
 		sprintf(fmt, "%s%s",
