@@ -384,7 +384,7 @@ static inline void quic_tls_discard_keys(struct quic_enc_level *qel)
  * depending on <server> boolean value.
  * Return 1 if succeeded or 0 if not.
  */
-static inline int qc_new_isecs(struct connection *conn,
+static inline int qc_new_isecs(struct quic_conn *qc,
                                const unsigned char *cid, size_t cidlen, int server)
 {
 	unsigned char initial_secret[32];
@@ -395,8 +395,8 @@ static inline int qc_new_isecs(struct connection *conn,
 	struct quic_tls_secrets *rx_ctx, *tx_ctx;
 	struct quic_tls_ctx *ctx;
 
-	TRACE_ENTER(QUIC_EV_CONN_ISEC, conn);
-	ctx = &conn->qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].tls_ctx;
+	TRACE_ENTER(QUIC_EV_CONN_ISEC);
+	ctx = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].tls_ctx;
 	quic_initial_tls_ctx_init(ctx);
 	if (!quic_derive_initial_secret(ctx->rx.md,
 	                                initial_secret, sizeof initial_secret,
@@ -427,12 +427,12 @@ static inline int qc_new_isecs(struct connection *conn,
 		goto err;
 
 	tx_ctx->flags |= QUIC_FL_TLS_SECRETS_SET;
-	TRACE_LEAVE(QUIC_EV_CONN_ISEC, conn, rx_init_sec, tx_init_sec);
+	TRACE_LEAVE(QUIC_EV_CONN_ISEC, NULL, rx_init_sec, tx_init_sec);
 
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_ISEC, conn);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_ISEC);
 	return 0;
 }
 

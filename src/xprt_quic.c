@@ -3291,6 +3291,14 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			if (!qc->enc_params_len)
 				goto err;
 
+			/* NOTE: the socket address has been concatenated to the destination ID
+			 * chosen by the client for Initial packets.
+			 */
+			if (!qc_new_isecs(qc, pkt->dcid.data, pkt->odcid_len, 1)) {
+				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
+				goto err;
+			}
+
 			pkt->qc = qc;
 			/* This is the DCID node sent in this packet by the client. */
 			node = &qc->odcid_node;
@@ -3306,8 +3314,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
 			uint64_t token_len;
-			struct quic_tls_ctx *ctx =
-				&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].tls_ctx;
 
 			if (!quic_dec_int(&token_len, (const unsigned char **)buf, end) ||
 			    end - *buf < token_len) {
@@ -3323,14 +3329,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			 * The token must be provided in a Retry packet or NEW_TOKEN frame.
 			 */
 			pkt->token_len = token_len;
-			/* NOTE: the socket address has been concatenated to the destination ID
-			 * chosen by the client for Initial packets.
-			 */
-			if (conn_ctx && !ctx->rx.hp &&
-			    !qc_new_isecs(qc->conn, pkt->dcid.data, pkt->odcid_len, 1)) {
-				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
-				goto err;
-			}
 		}
 	}
 	else {
@@ -4372,7 +4370,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		                      dcid, sizeof dcid, NULL, 0, 0))
 			goto err;
 
-		if (!qc_new_isecs(conn, dcid, sizeof dcid, 0))
+		if (!qc_new_isecs(quic_conn, dcid, sizeof dcid, 0))
 			goto err;
 
 		ctx->state = QUIC_HS_ST_CLIENT_INITIAL;
