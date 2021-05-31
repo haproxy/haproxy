@@ -17,20 +17,17 @@ haproxy h1 -conf {
 
     frontend fe1
         mode http
-        ${no-htx} option http-use-htx
         bind "fd@${fe1}"
         default_backend b1
 
     frontend fe2
         mode http
-        ${no-htx} option http-use-htx
         bind ":8443" ssl crt ${testdir}/common.pem
         stats enable
         stats uri /
 
     backend b1
         mode http
-        ${no-htx} option http-use-htx
         http-request use-service lua.fakeserv
 } -start
 

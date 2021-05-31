@@ -31,7 +31,6 @@ haproxy h1 -conf {
     defaults
         mode http
         option httplog
-        ${no-htx} option http-use-htx
         log stderr local0 debug err
         option logasap
         timeout connect 1s

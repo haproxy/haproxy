@@ -35,7 +35,6 @@ server s2 {
 haproxy h1 -arg "-L A" -conf {
     defaults
         mode http
-        ${no-htx} option http-use-htx
         timeout server 1s
         timeout connect 1s
         timeout client 1s
@@ -77,7 +76,6 @@ haproxy h1 -arg "-L A" -conf {
 haproxy h2 -arg "-L B" -conf {
     defaults
         mode http
-        ${no-htx} option http-use-htx
         timeout server 1s
         timeout connect 1s
         timeout client 1s

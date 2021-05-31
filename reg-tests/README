@@ -38,7 +38,7 @@ See also: doc/regression-testing.txt
   You must set HAPROXY_PROGRAM environment variable to give the location
   of the HAProxy program to test to vtest:
 
-    $ HAPROXY_PROGRAM=<my haproxy program> vtest [-Dno-htx=] ...
+    $ HAPROXY_PROGRAM=<my haproxy program> vtest ...
 
   The HAProxy VTC files found in HAProxy sources may be run with the reg-tests
   Makefile target. You must set the VTEST_PROGRAM environment variable to

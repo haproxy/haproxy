@@ -30,7 +30,6 @@ haproxy h1 -conf {
     # Configuration file of 'h1' haproxy instance.
     defaults
         mode   http
-        ${no-htx} option http-use-htx
         timeout connect         5s
         timeout server          30s
         timeout client          30s

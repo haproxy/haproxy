@@ -44,7 +44,6 @@ haproxy h1 -conf {
 
     frontend f1
         mode http
-        ${no-htx} option http-use-htx
         bind "fd@${f1}"
         log ${Slog_addr}:${Slog_port} daemon
         log-format Ta=%Ta\ Tc=%Tc\ Td=%Td\ Th=%Th\ Ti=%Ti\ Tq=%Tq\ TR=%TR\ Tr=%Tr\ Tt=%Tt\ Tw=%Tw
@@ -52,7 +51,6 @@ haproxy h1 -conf {
 
     backend b1
         mode http
-        ${no-htx} option http-use-htx
         http-request use-service lua.foo.http
 
     frontend f2

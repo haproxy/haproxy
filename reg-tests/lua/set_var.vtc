@@ -16,14 +16,12 @@ haproxy h1 -conf {
 
     frontend fe1
         mode http
-        ${no-htx} option http-use-htx
         bind "fd@${fe1}"
 
         http-request use-service lua.set_var
 
     frontend fe2
         mode http
-        ${no-htx} option http-use-htx
         bind "fd@${fe2}"
 
         http-request set-header Dummy %[var(txn.fe2_foo)]

@@ -44,7 +44,6 @@ haproxy h1 -conf {
 	#log stdout format raw daemon
 	mode http
 	option http-buffer-request
-	${no-htx} option http-use-htx
 	timeout connect 1s
 	timeout client  1s
 	timeout server  1s

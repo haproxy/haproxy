@@ -37,7 +37,6 @@ haproxy h1 -conf {
 
     listen ssl-lst
         mode http
-        ${no-htx} option http-use-htx
         bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/simple.crt-list
 
         server s1 ${s1_addr}:${s1_port}

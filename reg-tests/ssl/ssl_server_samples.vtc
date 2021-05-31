@@ -20,7 +20,6 @@ haproxy h1 -conf {
     defaults
         mode http
         option httplog
-        ${no-htx} option http-use-htx
         log stderr local0 debug err
         option logasap
         timeout connect 1s
@@ -47,7 +46,6 @@ haproxy h1 -conf {
 
     listen ssl-lst
         mode http
-        ${no-htx} option http-use-htx
 
         bind "${tmpdir}/ssl.sock" ssl strict-sni crt-list ${testdir}/localhost.crt-list
 

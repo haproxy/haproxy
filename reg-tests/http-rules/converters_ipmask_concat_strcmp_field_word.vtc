@@ -72,7 +72,6 @@ server s2 {
 haproxy h1 -conf {
   defaults
     mode http
-    ${no-htx} option http-use-htx
     log global
     option httplog
     timeout connect         1s
@@ -128,7 +127,6 @@ haproxy h1 -conf {
 haproxy h2 -conf {
   defaults
     mode http
-    ${no-htx} option http-use-htx
     log global
     option httplog
     timeout connect         1s

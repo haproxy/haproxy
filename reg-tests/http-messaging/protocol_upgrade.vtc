@@ -51,7 +51,6 @@ server srv_h2 {
 haproxy hap -conf {
 	defaults
 	mode http
-	${no-htx} option http-use-htx
 	timeout connect 1s
 	timeout client  1s
 	timeout server  1s

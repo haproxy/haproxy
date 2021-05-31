@@ -25,7 +25,6 @@ syslog S -level info {
 haproxy h1 -conf {
 	defaults
 		mode http
-		${no-htx} option http-use-htx
 		timeout client  100ms
 		timeout server  1s
 		timeout connect 1s

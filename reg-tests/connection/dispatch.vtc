@@ -26,7 +26,6 @@ listen fe_tcp
 listen fe_http
     bind "fd@${fe_http}"
     mode http
-    ${no-htx} option http-use-htx
     dispatch ${s2_addr}:${s2_port}
 } -start
 

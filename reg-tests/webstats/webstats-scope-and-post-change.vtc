@@ -17,7 +17,6 @@ haproxy h1 -conf {
 
   defaults
     mode http
-    ${no-htx} option http-use-htx
 
   frontend fe1
     bind "fd@${fe1}"

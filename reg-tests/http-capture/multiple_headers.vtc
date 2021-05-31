@@ -41,7 +41,6 @@ server s {
 haproxy h -conf {
     defaults
         mode http
-        ${no-htx} option http-use-htx
         timeout client 1s
         timeout server 1s
         timeout connect 1s

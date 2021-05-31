@@ -18,7 +18,6 @@ haproxy h0 -conf {
 
 	frontend test
 		mode http
-		${no-htx} option http-use-htx
 		bind "fd@${fe1}"
 		stick-table type ip size 1m expire 1h store gpc0
 		http-request deny if { src,table_trackers(test) eq 1 }

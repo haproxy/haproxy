@@ -47,7 +47,6 @@ haproxy h1 -conf {
 
     frontend fe1
         mode http
-        ${no-htx} option http-use-htx
         bind "fd@${fe1}"
         default_backend b1
 
@@ -55,7 +54,6 @@ haproxy h1 -conf {
 
     backend b1
         mode http
-        ${no-htx} option http-use-htx
         server s1 ${s1_addr}:${s1_port}
 
 } -start

@@ -38,15 +38,6 @@ _help()
     --clean to cleanup previous reg-tests log directories and exit
       run-regtests.sh --clean
 
-    --use-htx to use the HTX in tests (deprecated, the default mode now)
-
-    --no-htx to use the legacy HTTP in tests
-      run-regtests.sh --no-htx, sets the macro \${no-htx}
-      In .vtc files, in HAProxy configuration, you should use the following line
-      to "templatize" your tests:
-
-          \${no-htx} option http-use-htx
-
   Including text below into a .vtc file will check for its requirements
   related to haproxy's target and compilation options
     # Below targets are not capable of completing this test successfully
@@ -283,12 +274,6 @@ _process() {
 	      REGTESTS_TYPES="$2"
 	      shift
 	      ;;
-        --use-htx)
-          no_htx=""
-          ;;
-        --no-htx)
-          no_htx="no "
-          ;;
         --clean)
           _cleanup
           exit 0
@@ -323,7 +308,6 @@ jobcount=""
 verbose="-q"
 debug=""
 keep_logs="-l"
-no_htx=""
 testlist=""
 
 _process "$@";
@@ -367,10 +351,6 @@ echo "Options : $FEATURES"
 echo "Services : $SERVICES"
 
 echo "########################## Gathering tests to run ##########################"
-# if htx is enable, but HAProxy version is lower to 1.9, disable it
-if [ $(_version "$HAPROXY_VERSION") -lt $(_version "1.9") ]; then
-  no_htx="#"
-fi
 
 if [ -z "$REGTESTS" ]; then
   _findtests reg-tests/
@@ -387,7 +367,7 @@ if [ -n "$testlist" ]; then
   if [ -n "$jobcount" ]; then
     jobcount="-j $jobcount"
   fi
-  cmd="$VTEST_PROGRAM -b $((2<<20)) -k -t 10 -Dno-htx=${no_htx} $keep_logs $verbose $debug $jobcount $vtestparams $testlist"
+  cmd="$VTEST_PROGRAM -b $((2<<20)) -k -t 10 $keep_logs $verbose $debug $jobcount $vtestparams $testlist"
   eval $cmd
   _vtresult=$?
 else

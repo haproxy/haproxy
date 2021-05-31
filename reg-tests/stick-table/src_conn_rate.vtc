@@ -9,7 +9,6 @@ haproxy h0 -conf {
 		timeout server 5s
 
 		listen li
-			${no-htx} option http-use-htx
 			bind "fd@${fe1}"
 			http-request track-sc0 src table conn_rate_table
 			http-request deny if { src_conn_rate(conn_rate_table) gt 3 }

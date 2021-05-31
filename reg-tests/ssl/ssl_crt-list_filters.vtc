@@ -38,7 +38,6 @@ haproxy h1 -conf {
 
     listen ssl-lst
         mode http
-        ${no-htx} option http-use-htx
         bind "${tmpdir}/ssl.sock" ssl strict-sni ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.2 ciphers "kRSA:aECDSA" crt-list ${testdir}/filters.crt-list
 
         server s1 ${s1_addr}:${s1_port}

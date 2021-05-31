@@ -15,7 +15,6 @@ global
 defaults
 	mode			http
 	log			global
-	${no-htx} option http-use-htx
 	option			httplog
 
 frontend main-https

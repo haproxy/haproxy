@@ -29,7 +29,6 @@ haproxy h1 -conf {
 
   listen frt
     mode http
-    ${no-htx} option http-use-htx
     bind "fd@${frt}" ssl crt ${testdir}/common.pem
     http-request redirect location /
 } -start

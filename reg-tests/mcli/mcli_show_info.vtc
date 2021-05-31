@@ -13,7 +13,6 @@ haproxy h1 -W -S -conf {
         nbproc 4
     defaults
         mode http
-        ${no-htx} option http-use-htx
         timeout connect 1s
         timeout client  1s
         timeout server  1s
