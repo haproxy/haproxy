@@ -3188,8 +3188,13 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	struct listener *l;
 	struct quic_conn_ctx *conn_ctx;
 	int long_header = 0;
+	/* boolean to denote if a connection exists for this packet.
+	 * This does not mean there is an xprt context for it.
+	 */
+	int found_conn = 0;
 
 	qc = NULL;
+	conn_ctx = NULL;
 	TRACE_ENTER(QUIC_EV_CONN_LPKT);
 	if (end <= *buf)
 		goto err;
@@ -3287,19 +3292,16 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 				goto err;
 
 			pkt->qc = qc;
-			/* Enqueue this packet. */
-			LIST_APPEND(&l->rx.qpkts, &pkt->rx_list);
-			/* Try to accept a new connection. */
-			listener_accept(l);
 			/* This is the DCID node sent in this packet by the client. */
 			node = &qc->odcid_node;
-			conn_ctx = qc->conn->xprt_ctx;
 		}
 		else {
 			if (pkt->type == QUIC_PACKET_TYPE_INITIAL && cids == &l->rx.odcids)
 				qc = ebmb_entry(node, struct quic_conn, odcid_node);
 			else
 				qc = ebmb_entry(node, struct quic_conn, scid_node);
+			conn_ctx = qc->conn->xprt_ctx;
+			found_conn = 1;
 		}
 
 		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
@@ -3324,8 +3326,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			/* NOTE: the socket address has been concatenated to the destination ID
 			 * chosen by the client for Initial packets.
 			 */
-			if (!ctx->rx.hp && !qc_new_isecs(qc->conn, pkt->dcid.data,
-			                                 pkt->odcid_len, 1)) {
+			if (conn_ctx && !ctx->rx.hp &&
+			    !qc_new_isecs(qc->conn, pkt->dcid.data, pkt->odcid_len, 1)) {
 				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
 				goto err;
 			}
@@ -3344,7 +3346,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			goto err;
 		}
 
+		found_conn = 1;
 		qc = ebmb_entry(node, struct quic_conn, scid_node);
+		conn_ctx = qc->conn->xprt_ctx;
 		*buf += QUIC_CID_LEN;
 	}
 
@@ -3373,9 +3377,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		pkt->len = end - *buf;
 	}
 
-	/* Update the state if needed. */
-	conn_ctx = qc->conn->xprt_ctx;
-
 	/* Increase the total length of this packet by the header length. */
 	pkt->len += *buf - beg;
 	/* Do not check the DCID node before the length. */
@@ -3389,14 +3390,22 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		goto err;
 	}
 
-	if (!qc_try_rm_hp(pkt, buf, beg, end, conn_ctx)) {
-		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
-		goto err;
+	if (conn_ctx) {
+		if (!qc_try_rm_hp(pkt, buf, beg, end, conn_ctx)) {
+			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
+			goto err;
+		}
+
+		/* Wake the tasklet of the QUIC connection packet handler. */
+		tasklet_wakeup(conn_ctx->wait_event.tasklet);
+	}
+	else if (!found_conn) {
+		/* Enqueue this packet. */
+		LIST_APPEND(&l->rx.qpkts, &pkt->rx_list);
+		/* Try to accept a new connection. */
+		listener_accept(l);
 	}
 
-	/* Wake the tasklet of the QUIC connection packet handler. */
-	if (conn_ctx)
-		tasklet_wakeup(conn_ctx->wait_event.tasklet);
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc->conn, pkt);
 
 	return pkt->len;
