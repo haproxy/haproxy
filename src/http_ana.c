@@ -1368,18 +1368,6 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			if (objt_cs(s->si[1].end))
 				conn = objt_cs(s->si[1].end)->conn;
 
-			if (si_b->flags & SI_FL_L7_RETRY &&
-			    (!conn || conn->err_code != CO_ER_SSL_EARLY_FAILED)) {
-				/* If we arrive here, then CF_READ_ERROR was
-				 * set by si_cs_recv() because we matched a
-				 * status, otherwise it would have removed
-				 * the SI_FL_L7_RETRY flag, so it's ok not
-				 * to check s->be->retry_type.
-				 */
-				if (co_data(rep) || do_l7_retry(s, si_b) == 0)
-					return 0;
-			}
-
 			/* Perform a L7 retry because server refuses the early data. */
 			if ((si_b->flags & SI_FL_L7_RETRY) &&
 			    (s->be->retry_type & PR_RE_EARLY_ERROR) &&
