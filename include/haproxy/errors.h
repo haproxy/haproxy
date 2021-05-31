@@ -88,7 +88,7 @@ void ha_diag_warning(const char *fmt, ...)
 #define HA_DIAG_WARNING_COND(cond, fmt, ...)                  \
 	do {                                                  \
 		if ((global.mode & MODE_DIAG) && (cond))      \
-			_ha_diag_warning((fmt), __VA_ARGS__); \
+			_ha_diag_warning((fmt), ##__VA_ARGS__); \
 	} while (0)
 
 /*
