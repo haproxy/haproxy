@@ -2946,6 +2946,42 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
 	return 1;
 }
 
+/* If the header protection of <pkt> packet attached to <qc> connection with <ctx>
+ * as context may be removed, return 1, 0 if not. Also set <*qel> to the associated
+ * encryption level matching with the packet type. <*qel> may be null if not found.
+ * Note that <ctx> may be null (for Initial packets).
+ */
+static int qc_pkt_may_rm_hp(struct quic_rx_packet *pkt,
+                            struct quic_conn *qc, struct quic_conn_ctx *ctx,
+                            struct quic_enc_level **qel)
+{
+	enum quic_tls_enc_level tel;
+
+	/* Special case without connection context (firt Initial packets) */
+	if (!ctx) {
+		*qel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
+		return 1;
+	}
+
+	tel = quic_packet_type_enc_level(pkt->type);
+	if (tel == QUIC_TLS_ENC_LEVEL_NONE) {
+		*qel = NULL;
+		return 0;
+	}
+
+	*qel = &qc->els[tel];
+	if ((*qel)->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD) {
+		TRACE_DEVEL("Discarded keys", QUIC_EV_CONN_TRMHP, ctx->conn);
+		return 0;
+	}
+
+	if (((*qel)->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
+	    (tel != QUIC_TLS_ENC_LEVEL_APP || ctx->state >= QUIC_HS_ST_COMPLETE))
+		return 1;
+
+	return 0;
+}
+
 /* Try to remove the header protecttion of <pkt> QUIC packet attached to <conn>
  * QUIC connection with <buf> as packet number field address, <end> a pointer to one
  * byte past the end of the buffer containing this packet and <beg> the address of
@@ -2956,43 +2992,28 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
 static inline int qc_try_rm_hp(struct quic_rx_packet *pkt,
                                unsigned char **buf, unsigned char *beg,
                                const unsigned char *end,
-                               struct quic_conn_ctx *ctx)
+                               struct quic_conn *qc, struct quic_conn_ctx *ctx)
 {
 	unsigned char *pn = NULL; /* Packet number field */
-	enum quic_tls_enc_level tel;
 	struct quic_enc_level *qel;
 	/* Only for traces. */
 	struct quic_rx_packet *qpkt_trace;
 
 	qpkt_trace = NULL;
-	TRACE_ENTER(QUIC_EV_CONN_TRMHP, ctx->conn);
+	TRACE_ENTER(QUIC_EV_CONN_TRMHP, ctx ? ctx->conn : NULL);
 	/* The packet number is here. This is also the start minus
 	 * QUIC_PACKET_PN_MAXLEN of the sample used to add/remove the header
 	 * protection.
 	 */
 	pn = *buf;
-	tel = quic_packet_type_enc_level(pkt->type);
-	if (tel == QUIC_TLS_ENC_LEVEL_NONE) {
-		TRACE_DEVEL("Wrong enc. level", QUIC_EV_CONN_TRMHP, ctx->conn);
-		goto err;
-	}
-
-	qel = &ctx->conn->qc->els[tel];
-
-	if (qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_DCD) {
-		TRACE_DEVEL("Discarded keys", QUIC_EV_CONN_TRMHP, ctx->conn);
-		goto err;
-	}
-
-	if ((qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
-	    (tel != QUIC_TLS_ENC_LEVEL_APP || ctx->state >= QUIC_HS_ST_COMPLETE)) {
+	if (qc_pkt_may_rm_hp(pkt, qc, ctx, &qel)) {
 		 /* Note that the following function enables us to unprotect the packet
 		 * number and its length subsequently used to decrypt the entire
 		 * packets.
 		 */
 		if (!qc_do_rm_hp(pkt, &qel->tls_ctx,
 		                 qel->pktns->rx.largest_pn, pn, beg, end, ctx)) {
-			TRACE_PROTO("hp error", QUIC_EV_CONN_TRMHP, ctx->conn);
+			TRACE_PROTO("hp error", QUIC_EV_CONN_TRMHP, ctx ? ctx->conn : NULL);
 			goto err;
 		}
 
@@ -3003,8 +3024,8 @@ static inline int qc_try_rm_hp(struct quic_rx_packet *pkt,
 		pkt->pn_node.key = pkt->pn;
 		quic_rx_packet_eb64_insert(&qel->rx.pkts, &pkt->pn_node);
 	}
-	else {
-		TRACE_PROTO("hp not removed", QUIC_EV_CONN_TRMHP, ctx->conn, pkt);
+	else if (qel) {
+		TRACE_PROTO("hp not removed", QUIC_EV_CONN_TRMHP, ctx ? ctx->conn : NULL, pkt);
 		pkt->pn_offset = pn - beg;
 		quic_rx_packet_list_addq(&qel->rx.pqpkts, pkt);
 	}
@@ -3013,11 +3034,11 @@ static inline int qc_try_rm_hp(struct quic_rx_packet *pkt,
 	/* Updtate the offset of <*buf> for the next QUIC packet. */
 	*buf = beg + pkt->len;
 
-	TRACE_LEAVE(QUIC_EV_CONN_TRMHP, ctx->conn, qpkt_trace);
+	TRACE_LEAVE(QUIC_EV_CONN_TRMHP, ctx ? ctx->conn : NULL, qpkt_trace);
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_TRMHP, ctx->conn, qpkt_trace);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_TRMHP, ctx ? ctx->conn : NULL, qpkt_trace);
 	return 0;
 }
 
@@ -3159,7 +3180,7 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		goto err;
 	}
 
-	if (!qc_try_rm_hp(pkt, buf, beg, end, conn_ctx))
+	if (!qc_try_rm_hp(pkt, buf, beg, end, qc, conn_ctx))
 		goto err;
 
 	/* Wake the tasklet of the QUIC connection packet handler. */
@@ -3388,12 +3409,12 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		goto err;
 	}
 
-	if (conn_ctx) {
-		if (!qc_try_rm_hp(pkt, buf, beg, end, conn_ctx)) {
-			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
-			goto err;
-		}
+	if (!qc_try_rm_hp(pkt, buf, beg, end, qc, conn_ctx)) {
+		TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
+		goto err;
+	}
 
+	if (conn_ctx) {
 		/* Wake the tasklet of the QUIC connection packet handler. */
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
 	}
