@@ -2796,20 +2796,20 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
  * <scid> is the source connection ID with <scid_len> as length.
  * Returns 1 if succeeded, 0 if not.
  */
-int qc_new_conn_init(struct quic_conn *qc, int ipv4,
-                     struct eb_root *quic_initial_clients,
-                     struct eb_root *quic_clients,
-                     unsigned char *dcid, size_t dcid_len,
-                     unsigned char *scid, size_t scid_len)
+static int qc_new_conn_init(struct quic_conn *qc, int ipv4,
+                            struct eb_root *quic_initial_clients,
+                            struct eb_root *quic_clients,
+                            unsigned char *dcid, size_t dcid_len,
+                            unsigned char *scid, size_t scid_len, int server)
 {
 	int i;
 	/* Initial CID. */
 	struct quic_connection_id *icid;
 
-	TRACE_ENTER(QUIC_EV_CONN_INIT, qc->conn);
+	TRACE_ENTER(QUIC_EV_CONN_INIT);
 	qc->cids = EB_ROOT;
 	/* QUIC Server (or listener). */
-	if (objt_listener(qc->conn->target)) {
+	if (server) {
 		/* Copy the initial DCID. */
 		qc->odcid.len = dcid_len;
 		if (qc->odcid.len)
@@ -2838,7 +2838,7 @@ int qc_new_conn_init(struct quic_conn *qc, int ipv4,
 	qc->scid = icid->cid;
 
 	/* Insert the DCID the QUIC client has chosen (only for listeners) */
-	if (objt_listener(qc->conn->target))
+	if (server)
 		ebmb_insert(quic_initial_clients, &qc->odcid_node, qc->odcid.len);
 
 	/* Insert our SCID, the connection ID for the QUIC client. */
@@ -2872,12 +2872,12 @@ int qc_new_conn_init(struct quic_conn *qc, int ipv4,
 	qc->path = &qc->paths[0];
 	quic_path_init(qc->path, ipv4, default_quic_cc_algo, qc);
 
-	TRACE_LEAVE(QUIC_EV_CONN_INIT, qc->conn);
+	TRACE_LEAVE(QUIC_EV_CONN_INIT);
 
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_INIT, qc->conn);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_INIT);
 	quic_conn_free(qc);
 	return 0;
 }
@@ -3246,6 +3246,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		}
 
 		if (!node) {
+			int ipv4;
+			struct quic_cid *odcid;
+
 			if (pkt->type != QUIC_PACKET_TYPE_INITIAL) {
 				TRACE_PROTO("Non Initiial packet", QUIC_EV_CONN_LPKT);
 				goto err;
@@ -3257,21 +3260,37 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 				goto err;
 			}
 
-			pkt->qc = qc;
 			pkt->saddr = *saddr;
 			/* Note that here, odcid_len equals to pkt->dcid.len minus the length
 			 * of <saddr>.
 			 */
 			pkt->odcid_len = dcid_len;
+			ipv4 = saddr->ss_family == AF_INET;
+			if (!qc_new_conn_init(qc, ipv4, &l->rx.odcids, &l->rx.cids,
+			                      pkt->dcid.data, pkt->dcid.len,
+			                      pkt->scid.data, pkt->scid.len, 1))
+				goto err;
+
+			odcid = &qc->rx.params.original_destination_connection_id;
+			/* Copy the transport parameters. */
+			qc->rx.params = l->bind_conf->quic_params;
+			/* Copy original_destination_connection_id transport parameter. */
+			memcpy(odcid->data, &pkt->dcid, pkt->odcid_len);
+			odcid->len = pkt->odcid_len;
+			/* Copy the initial source connection ID. */
+			quic_cid_cpy(&qc->rx.params.initial_source_connection_id, &qc->scid);
+			qc->enc_params_len =
+				quic_transport_params_encode(qc->enc_params,
+				                             qc->enc_params + sizeof qc->enc_params,
+				                             &qc->rx.params, 1);
+			if (!qc->enc_params_len)
+				goto err;
+
+			pkt->qc = qc;
 			/* Enqueue this packet. */
 			LIST_APPEND(&l->rx.qpkts, &pkt->rx_list);
 			/* Try to accept a new connection. */
 			listener_accept(l);
-			if (!quic_conn_init_timer(qc)) {
-				TRACE_PROTO("Non initialized timer", QUIC_EV_CONN_LPKT, qc->conn);
-				goto err;
-			}
-
 			/* This is the DCID node sent in this packet by the client. */
 			node = &qc->odcid_node;
 			conn_ctx = qc->conn->xprt_ctx;
@@ -4341,7 +4360,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		quic_conn->conn = conn;
 		ipv4 = conn->dst->ss_family == AF_INET;
 		if (!qc_new_conn_init(quic_conn, ipv4, NULL, &srv->cids,
-		                      dcid, sizeof dcid, NULL, 0))
+		                      dcid, sizeof dcid, NULL, 0, 0))
 			goto err;
 
 		if (!qc_new_isecs(conn, dcid, sizeof dcid, 0))
@@ -4397,8 +4416,6 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 
 	/* Leave init state and start handshake */
 	conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
-	/* Start the handshake */
-	tasklet_wakeup(ctx->wait_event.tasklet);
 
  out:
 	TRACE_LEAVE(QUIC_EV_CONN_NEW, conn);
@@ -4413,6 +4430,22 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 	return -1;
 }
 
+/* Start the QUIC transport layer */
+static int qc_xprt_start(struct connection *conn, void *ctx)
+{
+	struct quic_conn *qc;
+	struct quic_conn_ctx *qctx = ctx;
+
+	qc = conn->qc;
+	if (!quic_conn_init_timer(qc)) {
+		TRACE_PROTO("Non initialized timer", QUIC_EV_CONN_LPKT, conn);
+		return 0;
+	}
+
+	tasklet_wakeup(qctx->wait_event.tasklet);
+	return 1;
+}
+
 /* transport-layer operations for QUIC connections. */
 static struct xprt_ops ssl_quic = {
 	.snd_buf  = quic_conn_from_buf,
@@ -4420,6 +4453,7 @@ static struct xprt_ops ssl_quic = {
 	.subscribe = quic_conn_subscribe,
 	.unsubscribe = quic_conn_unsubscribe,
 	.init     = qc_conn_init,
+	.start    = qc_xprt_start,
 	.prepare_bind_conf = ssl_sock_prepare_bind_conf,
 	.destroy_bind_conf = ssl_sock_destroy_bind_conf,
 	.name     = "QUIC",

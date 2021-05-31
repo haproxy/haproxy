@@ -142,8 +142,7 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 {
 	struct quic_conn *qc;
 	struct quic_rx_packet *pkt;
-	struct quic_cid *odcid;
-	int ret, ipv4;
+	int ret;
 
 	qc = NULL;
 	pkt = LIST_ELEM(l->rx.qpkts.n, struct quic_rx_packet *, rx_list);
@@ -154,27 +153,6 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 	qc = pkt->qc;
 	LIST_DELETE(&pkt->rx_list);
 	if (!new_quic_cli_conn(qc, l, &pkt->saddr))
-		goto err;
-
-	ipv4 = pkt->saddr.ss_family == AF_INET;
-	if (!qc_new_conn_init(qc, ipv4, &l->rx.odcids, &l->rx.cids,
-	                      pkt->dcid.data, pkt->dcid.len,
-	                      pkt->scid.data, pkt->scid.len))
-		goto err;
-
-	odcid = &qc->rx.params.original_destination_connection_id;
-	/* Copy the transport parameters. */
-	qc->rx.params = l->bind_conf->quic_params;
-	/* Copy original_destination_connection_id transport parameter. */
-	memcpy(odcid->data, &pkt->dcid, pkt->odcid_len);
-	odcid->len = pkt->odcid_len;
-	/* Copy the initial source connection ID. */
-	quic_cid_cpy(&qc->rx.params.initial_source_connection_id, &qc->scid);
-	qc->enc_params_len =
-		quic_transport_params_encode(qc->enc_params,
-		                             qc->enc_params + sizeof qc->enc_params,
-		                             &qc->rx.params, 1);
-	if (!qc->enc_params_len)
 		goto err;
 
 	ret = CO_AC_DONE;

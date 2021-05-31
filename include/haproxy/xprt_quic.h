@@ -1135,11 +1135,6 @@ static inline void free_quic_rx_packet(struct quic_rx_packet *pkt)
 	quic_rx_packet_refdec(pkt);
 }
 
-int qc_new_conn_init(struct quic_conn *conn, int ipv4,
-                     struct eb_root *quic_initial_clients,
-                     struct eb_root *quic_clients,
-                     unsigned char *dcid, size_t dcid_len,
-                     unsigned char *scid, size_t scid_len);
 ssize_t quic_lstnr_dgram_read(char *buf, size_t len, void *owner,
                               struct sockaddr_storage *saddr);
 ssize_t quic_srv_dgram_read(char *buf, size_t len, void *owner,
