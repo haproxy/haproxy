@@ -1625,8 +1625,10 @@ skip_reuse:
 		return err;
 
 #ifdef USE_OPENSSL
-	if (smp_make_safe(sni_smp))
-		ssl_sock_set_servername(srv_conn, sni_smp->data.u.str.area);
+	if (!(s->flags & SF_SRV_REUSED)) {
+		if (smp_make_safe(sni_smp))
+			ssl_sock_set_servername(srv_conn, sni_smp->data.u.str.area);
+	}
 #endif /* USE_OPENSSL */
 
 	/* The CO_FL_SEND_PROXY flag may have been set by the connect method,
