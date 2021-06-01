@@ -1334,11 +1334,6 @@ int connect_server(struct stream *s)
 
 	hash = conn_calculate_hash(&hash_params);
 
-	/* This will catch some corner cases such as lying connections resulting from
-	 * retries or connect timeouts but will rarely trigger.
-	 */
-	si_release_endpoint(&s->si[1]);
-
 	/* do not reuse if mode is not http */
 	if (!IS_HTX_STRM(s))
 		goto skip_reuse;
