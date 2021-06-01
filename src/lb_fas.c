@@ -292,7 +292,7 @@ void fas_init_server_tree(struct proxy *p)
 /* Return next server from the FS tree in backend <p>. If the tree is empty,
  * return NULL. Saturated servers are skipped.
  *
- * The server's lock must be held. The lbprm's lock will be used.
+ * The lbprm's lock will be used. The server's lock is not used.
  */
 struct server *fas_get_next_server(struct proxy *p, struct server *srvtoavoid)
 {

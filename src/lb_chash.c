@@ -316,6 +316,8 @@ int chash_server_is_eligible(struct server *s)
  * will still both receive traffic. If any server is found, it will be returned.
  * It will also skip server <avoid> if the hash result ends on this one.
  * If no valid server is found, NULL is returned.
+ *
+ * The lbprm's lock will be used in R/O mode. The server's lock is not used.
  */
 struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const struct server *avoid)
 {
@@ -386,6 +388,8 @@ struct server *chash_get_server_hash(struct proxy *p, unsigned int hash, const s
 
 /* Return next server from the CHASH tree in backend <p>. If the tree is empty,
  * return NULL. Saturated servers are skipped.
+ *
+ * The lbprm's lock will be used in R/W mode. The server's lock is not used.
  */
 struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 {

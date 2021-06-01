@@ -506,7 +506,7 @@ static inline void fwrr_update_position(struct fwrr_group *grp, struct server *s
  * the init tree if appropriate. If both trees are empty, return NULL.
  * Saturated servers are skipped and requeued.
  *
- * The lbprm's lock will be used. The server's lock is not used.
+ * The lbprm's lock will be used in R/W mode. The server's lock is not used.
  */
 struct server *fwrr_get_next_server(struct proxy *p, struct server *srvtoavoid)
 {
