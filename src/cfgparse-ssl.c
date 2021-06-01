@@ -1270,6 +1270,11 @@ static int srv_parse_npn(char **args, int *cur_arg, struct proxy *px, struct ser
 	 */
 	newsrv->ssl_ctx.npn_len = strlen(args[*cur_arg + 1]) + 1;
 	newsrv->ssl_ctx.npn_str = calloc(1, newsrv->ssl_ctx.npn_len + 1);
+	if (!newsrv->ssl_ctx.npn_str) {
+		memprintf(err, "out of memory");
+		return ERR_ALERT | ERR_FATAL;
+	}
+
 	memcpy(newsrv->ssl_ctx.npn_str + 1, args[*cur_arg + 1],
 	    newsrv->ssl_ctx.npn_len);
 
@@ -1590,6 +1595,10 @@ static int srv_parse_sni(char **args, int *cur_arg, struct proxy *px, struct ser
 
 	free(newsrv->sni_expr);
 	newsrv->sni_expr = strdup(arg);
+	if (!newsrv->sni_expr) {
+		memprintf(err, "out of memory");
+		return ERR_ALERT | ERR_FATAL;
+	}
 
 	return 0;
 #endif
