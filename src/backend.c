@@ -2254,6 +2254,18 @@ void back_handle_st_cer(struct stream *s)
 		goto end;
 	}
 
+	/* At this stage, we will trigger a connection retry (with or without
+	 * redispatch). Thus we must release the SI endpoint on the server side
+	 * an close the attached connection. It is especially important to do it
+	 * now if the retry is not immediately performed, to be sure to release
+	 * ressources as soon as possible and to not catch errors from the lower
+	 * layers in an unexpected state (i.e < ST_CONN).
+	 *
+	 * Note: the stream-interface will be switched to ST_REQ, ST_ASS or
+	 * ST_TAR and SI_FL_ERR and SI_FL_EXP flags will be unset.
+	 */
+	si_release_endpoint(&s->si[1]);
+
 	stream_choose_redispatch(s);
 
 	if (si->flags & SI_FL_ERR) {
