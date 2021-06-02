@@ -55,7 +55,7 @@ static inline struct vars *get_vars(struct session *sess, struct stream *strm, e
 	case SCOPE_SESS:
 		return sess ? &sess->vars : NULL;
 	case SCOPE_CHECK: {
-			struct check *check = objt_check(sess->origin);
+			struct check *check = sess ? objt_check(sess->origin) : NULL;
 
 			return check ? &check->vars : NULL;
 		}
