@@ -2329,7 +2329,7 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 			eb64_entry(&le->node, struct quic_arng_node, first);
 
 		/* Already existing range */
-		if (le_ar->first.key <= ar->first && le_ar->last >= ar->last)
+		if (le_ar->last >= ar->last)
 			return 1;
 
 		if (le_ar->last + 1 >= ar->first) {
