@@ -4,7 +4,7 @@ feature ignore_unknown_macro
 # NOTE : This test may fail if too many vtest are running in parallel because
 #        the port reserved for closed s1 server may be reused by another vtest
 
-#REQUIRE_VERSION=2.3
+#REQUIRE_VERSION=2.5
 #REGTEST_TYPE=slow
 
 # b1 : Don't send /c4 before /c3 was received by s2 server
@@ -36,10 +36,10 @@ syslog S -level info {
     expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/-1/-1/[0-9]* 503 .* - - SC-- .* .* \"GET /c1 HTTP/1\\.1\""
     barrier b2 sync
     recv
-    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/-1/-1/[0-9]* 503 .* - - CC-- .* .* \"GET /c2 HTTP/1\\.1\""
+    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe1 be1/srv1 [0-9]*/[0-9]*/-1/-1/[0-9]* -1 .* - - CC-- .* .* \"GET /c2 HTTP/1\\.1\""
 
     recv
-    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be2/<NOSRV> [0-9]*/[0-9]*/-1/-1/[0-9]* 503 .* - - CQ-- .* .* \"GET /c4 HTTP/1\\.1\""
+    expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be2/<NOSRV> [0-9]*/[0-9]*/-1/-1/[0-9]* -1 .* - - CQ-- .* .* \"GET /c4 HTTP/1\\.1\""
     barrier b2 sync
     recv
     expect ~ "[^:\\[ ]*\\[[0-9]*\\]: .* .* fe2 be2/srv1 [0-9]*/[0-9]*/[0-9]*/-1/[0-9]* 400 .* - - CH-- .* .* \"GET /c3 HTTP/1\\.1\""
