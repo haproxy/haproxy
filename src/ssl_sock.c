@@ -2217,13 +2217,13 @@ static void ssl_set_TLSv12_func(SSL *ssl, set_context_func c) {
 		: SSL_set_min_proto_version(ssl, TLS1_2_VERSION);
 }
 static void ctx_set_TLSv13_func(SSL_CTX *ctx, set_context_func c) {
-#if SSL_OP_NO_TLSv1_3
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	c == SET_MAX ? SSL_CTX_set_max_proto_version(ctx, TLS1_3_VERSION)
 		: SSL_CTX_set_min_proto_version(ctx, TLS1_3_VERSION);
 #endif
 }
 static void ssl_set_TLSv13_func(SSL *ssl, set_context_func c) {
-#if SSL_OP_NO_TLSv1_3
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
 	c == SET_MAX ? SSL_set_max_proto_version(ssl, TLS1_3_VERSION)
 		: SSL_set_min_proto_version(ssl, TLS1_3_VERSION);
 #endif
