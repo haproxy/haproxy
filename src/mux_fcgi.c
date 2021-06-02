@@ -3410,7 +3410,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 		}
 		else if (h1m->state < H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing response payload", FCGI_EV_RSP_DATA|FCGI_EV_RSP_BODY, fconn->conn, fstrm);
-			ret = fcgi_strm_parse_data(fstrm, h1m, &htx, &fstrm->rxbuf, &total, count, buf);
+			fcgi_strm_parse_data(fstrm, h1m, &htx, &fstrm->rxbuf, &total, count, buf);
 
 			if (!(h1m->flags & H1_MF_XFER_LEN) && fstrm->state != FCGI_SS_ERROR &&
 			    (fstrm->flags & FCGI_SF_ES_RCVD) && b_data(&fstrm->rxbuf) == total) {
@@ -3427,7 +3427,7 @@ static size_t fcgi_strm_parse_response(struct fcgi_strm *fstrm, struct buffer *b
 		}
 		else if (h1m->state == H1_MSG_TRAILERS) {
 			TRACE_PROTO("parsing response trailers", FCGI_EV_RSP_DATA|FCGI_EV_RSP_TLRS, fconn->conn, fstrm);
-			ret = fcgi_strm_parse_trailers(fstrm, h1m, htx, &fstrm->rxbuf, &total, count);
+			fcgi_strm_parse_trailers(fstrm, h1m, htx, &fstrm->rxbuf, &total, count);
 			if (h1m->state != H1_MSG_DONE)
 				break;
 
