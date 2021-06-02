@@ -2348,15 +2348,13 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 	 * which follow it.
 	 */
 	if (new) {
-		uint64_t new_node_last;
 		struct eb64_node *next;
 		struct quic_arng_node *next_node;
 
-		new_node_last = new_node->last;
 		while ((next = eb64_next(new))) {
 			next_node =
 				eb64_entry(&next->node, struct quic_arng_node, first);
-			if (new_node_last + 1 < next_node->first.key)
+			if (new_node->last + 1 < next_node->first.key)
 				break;
 
 			if (next_node->last > new_node->last)
