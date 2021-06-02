@@ -2260,17 +2260,24 @@ static void quic_arngs_set_enc_sz(struct quic_arngs *arngs)
 	}
 }
 
-/* Insert in <root> ebtree <node> node with <ar> as range value.
- * Returns the ebtree node which has been inserted.
+/* Insert <ar> ack range into <argns> tree of ack ranges.
+ * Returns the ack range node which has been inserted if succeeded, NULL if not.
  */
 static inline
-struct eb64_node *quic_insert_new_range(struct eb_root *root,
-                                        struct quic_arng_node *node,
-                                        struct quic_arng *ar)
+struct quic_arng_node *quic_insert_new_range(struct quic_arngs *arngs,
+                                             struct quic_arng *ar)
 {
-	node->first.key = ar->first;
-	node->last = ar->last;
-	return eb64_insert(root, &node->first);
+	struct quic_arng_node *new_ar;
+
+	new_ar = pool_alloc(pool_head_quic_arng);
+	if (new_ar) {
+		new_ar->first.key = ar->first;
+		new_ar->last = ar->last;
+		eb64_insert(&arngs->root, &new_ar->first);
+		arngs->sz++;
+	}
+
+	return new_ar;
 }
 
 /* Update <arngs> tree of ACK ranges with <ar> as new ACK range value.
@@ -2304,27 +2311,18 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 
 	new = NULL;
 	if (eb_is_empty(&arngs->root)) {
-		/* First range insertion. */
-		new_node = pool_alloc(pool_head_quic_arng);
+		new_node = quic_insert_new_range(arngs, ar);
 		if (!new_node)
 			return 0;
 
-		quic_insert_new_range(&arngs->root, new_node, ar);
-		/* Increment the size of these ranges. */
-		arngs->sz++;
 		goto out;
 	}
 
 	le = eb64_lookup_le(&arngs->root, ar->first);
 	if (!le) {
-		/* New insertion */
-		new_node = pool_alloc(pool_head_quic_arng);
+		new_node = quic_insert_new_range(arngs, ar);
 		if (!new_node)
 			return 0;
-
-		new = quic_insert_new_range(&arngs->root, new_node, ar);
-		/* Increment the size of these ranges. */
-		arngs->sz++;
 	}
 	else {
 		struct quic_arng_node *le_ar =
@@ -2340,14 +2338,9 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 			new_node = le_ar;
 		}
 		else {
-			/* New insertion */
-			new_node = pool_alloc(pool_head_quic_arng);
+			new_node = quic_insert_new_range(arngs, ar);
 			if (!new_node)
 				return 0;
-
-			new = quic_insert_new_range(&arngs->root, new_node, ar);
-			/* Increment the size of these ranges. */
-			arngs->sz++;
 		}
 	}
 
