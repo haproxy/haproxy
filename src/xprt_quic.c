@@ -2369,7 +2369,7 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 			if (next_node->last > new_node->last)
 				new_node->last = next_node->last;
 			eb64_delete(next);
-			free(next_node);
+			pool_free(pool_head_quic_arng, next_node);
 			/* Decrement the size of these ranges. */
 			arngs->sz--;
 		}
