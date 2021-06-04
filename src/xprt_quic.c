@@ -129,19 +129,8 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 static BIO_METHOD *ha_quic_meth;
 
-/* QUIC xprt connection context. */
-struct quic_conn_ctx {
-	struct connection *conn;
-	SSL *ssl;
-	BIO *bio;
-	const struct xprt_ops *xprt;
-	void *xprt_ctx;
-	struct wait_event wait_event;
-	struct wait_event *subs;
-};
-
 DECLARE_STATIC_POOL(pool_head_quic_conn_ctx,
-                    "quic_conn_ctx_pool", sizeof(struct quic_conn_ctx));
+                    "quic_conn_ctx_pool", sizeof(struct ssl_sock_ctx));
 
 DECLARE_STATIC_POOL(pool_head_quic_conn, "quic_conn", sizeof(struct quic_conn));
 
@@ -603,7 +592,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 }
 
 /* Returns 1 if the peer has validated <qc> QUIC connection address, 0 if not. */
-static inline int quic_peer_validated_addr(struct quic_conn_ctx *ctx)
+static inline int quic_peer_validated_addr(struct ssl_sock_ctx *ctx)
 {
 	struct quic_conn *qc;
 
@@ -622,7 +611,7 @@ static inline int quic_peer_validated_addr(struct quic_conn_ctx *ctx)
 /* Set the timer attached to the QUIC connection with <ctx> as I/O handler and used for
  * both loss detection and PTO and schedule the task assiated to this timer if needed.
  */
-static inline void qc_set_timer(struct quic_conn_ctx *ctx)
+static inline void qc_set_timer(struct ssl_sock_ctx *ctx)
 {
 	struct quic_conn *qc;
 	struct quic_pktns *pktns;
@@ -1045,7 +1034,7 @@ static uint64_t decode_packet_number(uint64_t largest_pn,
 static int qc_do_rm_hp(struct quic_rx_packet *pkt, struct quic_tls_ctx *tls_ctx,
                        int64_t largest_pn, unsigned char *pn,
                        unsigned char *byte0, const unsigned char *end,
-                       struct quic_conn_ctx *ctx)
+                       struct ssl_sock_ctx *ctx)
 {
 	int ret, outlen, i, pnlen;
 	uint64_t packet_number;
@@ -1159,7 +1148,7 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_tls_ctx *tls_c
 
 /* Treat <frm> frame whose packet it is attached to has just been acknowledged. */
 static inline void qc_treat_acked_tx_frm(struct quic_tx_frm *frm,
-                                         struct quic_conn_ctx *ctx)
+                                         struct ssl_sock_ctx *ctx)
 {
 	TRACE_PROTO("Removing frame", QUIC_EV_CONN_PRSAFRM, ctx->conn, frm);
 	LIST_DELETE(&frm->list);
@@ -1175,7 +1164,7 @@ static inline struct eb64_node *qc_ackrng_pkts(struct eb_root *pkts, unsigned in
                                                struct list *newly_acked_pkts,
                                                struct eb64_node *largest_node,
                                                uint64_t largest, uint64_t smallest,
-                                               struct quic_conn_ctx *ctx)
+                                               struct ssl_sock_ctx *ctx)
 {
 	struct eb64_node *node;
 	struct quic_tx_packet *pkt;
@@ -1210,7 +1199,7 @@ static inline struct eb64_node *qc_ackrng_pkts(struct eb_root *pkts, unsigned in
  */
 static inline void qc_treat_nacked_tx_frm(struct quic_tx_frm *frm,
                                           struct quic_pktns *pktns,
-                                          struct quic_conn_ctx *ctx)
+                                          struct ssl_sock_ctx *ctx)
 {
 	TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, ctx->conn, frm);
 	LIST_DELETE(&frm->list);
@@ -1258,7 +1247,7 @@ static inline void qc_cc_loss_event(struct quic_conn *qc,
  * <newly_acked_pkts> list and free them.
  * Always succeeds.
  */
-static inline void qc_treat_newly_acked_pkts(struct quic_conn_ctx *ctx,
+static inline void qc_treat_newly_acked_pkts(struct ssl_sock_ctx *ctx,
                                              struct list *newly_acked_pkts)
 {
 	struct quic_conn *qc = ctx->conn->qc;
@@ -1288,7 +1277,7 @@ static inline void qc_treat_newly_acked_pkts(struct quic_conn_ctx *ctx,
  * Never fails.
  */
 static inline void qc_release_lost_pkts(struct quic_pktns *pktns,
-                                        struct quic_conn_ctx *ctx,
+                                        struct ssl_sock_ctx *ctx,
                                         struct list *pkts,
                                         uint64_t now_us)
 {
@@ -1391,7 +1380,7 @@ static void qc_packet_loss_lookup(struct quic_pktns *pktns,
  * acked ack-eliciting packet.
  * Return 1, if succeeded, 0 if not.
  */
-static inline int qc_parse_ack_frm(struct quic_frame *frm, struct quic_conn_ctx *ctx,
+static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *ctx,
                                    struct quic_enc_level *qel,
                                    unsigned int *rtt_sample,
                                    const unsigned char **pos, const unsigned char *end)
@@ -1508,7 +1497,7 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct quic_conn_ctx 
  * Return 1 if succeeded, 0 if not.
  */
 static inline int qc_provide_cdata(struct quic_enc_level *el,
-                                   struct quic_conn_ctx *ctx,
+                                   struct ssl_sock_ctx *ctx,
                                    const unsigned char *data, size_t len,
                                    struct quic_rx_packet *pkt,
                                    struct quic_rx_crypto_frm *cf)
@@ -1852,7 +1841,7 @@ static inline int qc_handle_strm_frm(struct quic_rx_packet *pkt,
  * as I/O handler context and <qel> as encryption level.
  * Returns 1 if succeeded, 0 if failed.
  */
-static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct quic_conn_ctx *ctx,
+static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct ssl_sock_ctx *ctx,
                              struct quic_enc_level *qel)
 {
 	struct quic_frame frm;
@@ -1988,7 +1977,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct quic_conn_ctx *c
  * with <ctx> as I/O handler context.
  * Returns 1 if succeeded, or 0 if something wrong happened.
  */
-static int qc_prep_hdshk_pkts(struct quic_conn_ctx *ctx)
+static int qc_prep_hdshk_pkts(struct ssl_sock_ctx *ctx)
 {
 	struct quic_conn *qc;
 	enum quic_tls_enc_level tel, next_tel;
@@ -2100,7 +2089,7 @@ static int qc_prep_hdshk_pkts(struct quic_conn_ctx *ctx)
 /* Send the QUIC packets which have been prepared for QUIC connections
  * with <ctx> as I/O handler context.
  */
-int qc_send_ppkts(struct quic_conn_ctx *ctx)
+int qc_send_ppkts(struct ssl_sock_ctx *ctx)
 {
 	struct quic_conn *qc;
 	struct buffer tmpbuf = { };
@@ -2377,7 +2366,7 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 /* Remove the header protection of packets at <el> encryption level.
  * Always succeeds.
  */
-static inline void qc_rm_hp_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
+static inline void qc_rm_hp_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
 {
 	struct quic_tls_ctx *tls_ctx;
 	struct quic_rx_packet *pqpkt, *qqpkt;
@@ -2421,7 +2410,7 @@ static inline void qc_rm_hp_pkts(struct quic_enc_level *el, struct quic_conn_ctx
  * Return 1 if succeeded, 0 if not.
  */
 static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
-                                          struct quic_conn_ctx *ctx)
+                                          struct ssl_sock_ctx *ctx)
 {
 	struct eb64_node *node;
 
@@ -2454,7 +2443,7 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 /* Process all the packets at <el> encryption level.
  * Return 1 if succeeded, 0 if not.
  */
-int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
+int qc_treat_rx_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
 {
 	struct quic_tls_ctx *tls_ctx;
 	struct eb64_node *node;
@@ -2517,7 +2506,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
  * connections with <ctx> as I/O handler context.
  * Returns 1 if succeeded, 0 if not.
  */
-int qc_do_hdshk(struct quic_conn_ctx *ctx)
+int qc_do_hdshk(struct ssl_sock_ctx *ctx)
 {
 	int ssl_err;
 	struct quic_conn *qc;
@@ -2731,7 +2720,7 @@ static void quic_conn_free(struct quic_conn *conn)
 /* Callback called upon loss detection and PTO timer expirations. */
 static struct task *process_timer(struct task *task, void *ctx, unsigned int state)
 {
-	struct quic_conn_ctx *conn_ctx;
+	struct ssl_sock_ctx *conn_ctx;
 	struct quic_conn *qc;
 	struct quic_pktns *pktns;
 
@@ -2940,7 +2929,7 @@ static inline int quic_packet_read_long_header(unsigned char **buf, const unsign
  * Note that <ctx> may be null (for Initial packets).
  */
 static int qc_pkt_may_rm_hp(struct quic_rx_packet *pkt,
-                            struct quic_conn *qc, struct quic_conn_ctx *ctx,
+                            struct quic_conn *qc, struct ssl_sock_ctx *ctx,
                             struct quic_enc_level **qel)
 {
 	enum quic_tls_enc_level tel;
@@ -2980,7 +2969,7 @@ static int qc_pkt_may_rm_hp(struct quic_rx_packet *pkt,
 static inline int qc_try_rm_hp(struct quic_rx_packet *pkt,
                                unsigned char **buf, unsigned char *beg,
                                const unsigned char *end,
-                               struct quic_conn *qc, struct quic_conn_ctx *ctx)
+                               struct quic_conn *qc, struct ssl_sock_ctx *ctx)
 {
 	unsigned char *pn = NULL; /* Packet number field */
 	struct quic_enc_level *qel;
@@ -3060,7 +3049,7 @@ static ssize_t qc_srv_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	struct eb_root *cids;
 	struct ebmb_node *node;
 	struct connection *srv_conn;
-	struct quic_conn_ctx *conn_ctx;
+	struct ssl_sock_ctx *conn_ctx;
 	int long_header;
 
 	qc = NULL;
@@ -3197,7 +3186,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	struct eb_root *cids;
 	struct ebmb_node *node;
 	struct listener *l;
-	struct quic_conn_ctx *conn_ctx;
+	struct ssl_sock_ctx *conn_ctx;
 	int long_header = 0;
 	/* boolean to denote if a connection exists for this packet.
 	 * This does not mean there is an xprt context for it.
@@ -4161,7 +4150,7 @@ int qc_prep_phdshk_pkts(struct quic_conn *qc)
 /* QUIC connection packet handler task. */
 struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 {
-	struct quic_conn_ctx *ctx = context;
+	struct ssl_sock_ctx *ctx = context;
 
 	if (ctx->conn->qc->state < QUIC_HS_ST_COMPLETE) {
 		qc_do_hdshk(ctx);
@@ -4332,7 +4321,7 @@ static int quic_conn_unsubscribe(struct connection *conn, void *xprt_ctx, int ev
  */
 static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 {
-	struct quic_conn_ctx *ctx;
+	struct ssl_sock_ctx *ctx;
 
 	TRACE_ENTER(QUIC_EV_CONN_NEW, conn);
 
@@ -4448,7 +4437,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 static int qc_xprt_start(struct connection *conn, void *ctx)
 {
 	struct quic_conn *qc;
-	struct quic_conn_ctx *qctx = ctx;
+	struct ssl_sock_ctx *qctx = ctx;
 
 	qc = conn->qc;
 	if (!quic_conn_init_timer(qc)) {
