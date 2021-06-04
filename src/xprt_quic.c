@@ -2487,14 +2487,9 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
 					el->pktns->rx.largest_pn = pkt->pn;
 
 				/* Update the list of ranges to acknowledge. */
-				if (!quic_update_ack_ranges_list(&el->pktns->rx.arngs, &ar)) {
+				if (!quic_update_ack_ranges_list(&el->pktns->rx.arngs, &ar))
 					TRACE_DEVEL("Could not update ack range list",
 					            QUIC_EV_CONN_ELRXPKTS, ctx->conn);
-					node = eb64_next(node);
-					quic_rx_packet_eb64_delete(&pkt->pn_node);
-					goto err;
-				}
-
 			}
 		}
 		node = eb64_next(node);
