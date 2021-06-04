@@ -2492,7 +2492,6 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
 					            QUIC_EV_CONN_ELRXPKTS, ctx->conn);
 					node = eb64_next(node);
 					quic_rx_packet_eb64_delete(&pkt->pn_node);
-					free_quic_rx_packet(pkt);
 					goto err;
 				}
 
@@ -2500,7 +2499,6 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
 		}
 		node = eb64_next(node);
 		quic_rx_packet_eb64_delete(&pkt->pn_node);
-		free_quic_rx_packet(pkt);
 	}
 
 	if (!qc_treat_rx_crypto_frms(el, ctx))
