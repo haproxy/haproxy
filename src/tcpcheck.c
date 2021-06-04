@@ -3615,7 +3615,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	ha_free(&px->check_path);
 
 	if (!px->tcpcheck_rules.list) {
-		ha_alert("config : proxy '%s' : tcp-check configured but no ruleset defined.\n", px->id);
+		ha_alert("proxy '%s' : tcp-check configured but no ruleset defined.\n", px->id);
 		ret |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
@@ -3648,7 +3648,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 						     1, px, px->tcpcheck_rules.list, TCPCHK_RULES_HTTP_CHK,
 						     px->conf.file, px->conf.line, &errmsg);
 			if (!next) {
-				ha_alert("config : proxy '%s': unable to add implicit http-check expect rule "
+				ha_alert("proxy '%s': unable to add implicit http-check expect rule "
 					 "(%s).\n", px->id, errmsg);
 				free(errmsg);
 				ret |= ERR_ALERT | ERR_FATAL;
@@ -3668,7 +3668,7 @@ static int check_proxy_tcpcheck(struct proxy *px)
 	if (!chk || chk->action != TCPCHK_ACT_CONNECT) {
 		chk = calloc(1, sizeof(*chk));
 		if (!chk) {
-			ha_alert("config : proxy '%s': unable to add implicit tcp-check connect rule "
+			ha_alert("proxy '%s': unable to add implicit tcp-check connect rule "
 				 "(out of memory).\n", px->id);
 			ret |= ERR_ALERT | ERR_FATAL;
 			goto out;

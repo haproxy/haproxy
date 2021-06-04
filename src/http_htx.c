@@ -2016,7 +2016,7 @@ static int proxy_check_errors(struct proxy *px)
 
 			/* unknown http-errors section */
 			if (&http_errs->list == &http_errors_list) {
-				ha_alert("config : proxy '%s': unknown http-errors section '%s' (at %s:%d).\n",
+				ha_alert("proxy '%s': unknown http-errors section '%s' (at %s:%d).\n",
 					 px->id, conf_err->info.errorfiles.name, conf_err->file, conf_err->line);
 				err |= ERR_ALERT | ERR_FATAL;
 				free(conf_err->info.errorfiles.name);

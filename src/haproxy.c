@@ -1785,6 +1785,8 @@ static void init(int argc, char **argv)
 	}
 #endif
 
+	usermsgs_clr("config");
+
 	/* in wait mode, we don't try to read the configuration files */
 	if (!(global.mode & MODE_MWORKER_WAIT)) {
 		char *env_cfgfiles = NULL;
@@ -2263,6 +2265,8 @@ static void init(int argc, char **argv)
 
 	if (global.tune.maxrewrite >= global.tune.bufsize / 2)
 		global.tune.maxrewrite = global.tune.bufsize / 2;
+
+	usermsgs_clr(NULL);
 
 	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
 		/* command line debug mode inhibits configuration mode */

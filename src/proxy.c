@@ -1254,17 +1254,17 @@ struct server *findserver(const struct proxy *px, const char *name) {
 int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 {
 	if (curproxy->cookie_name != NULL) {
-		ha_warning("config : cookie will be ignored for %s '%s' (needs 'mode http').\n",
+		ha_warning("cookie will be ignored for %s '%s' (needs 'mode http').\n",
 			   proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->monitor_uri != NULL) {
-		ha_warning("config : monitor-uri will be ignored for %s '%s' (needs 'mode http').\n",
+		ha_warning("monitor-uri will be ignored for %s '%s' (needs 'mode http').\n",
 			   proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->lbprm.algo & BE_LB_NEED_HTTP) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_RR;
-		ha_warning("config : Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
+		ha_warning("Layer 7 hash not possible for %s '%s' (needs 'mode http'). Falling back to round robin.\n",
 			   proxy_type_str(curproxy), curproxy->id);
 	}
 	if (curproxy->to_log & (LW_REQ | LW_RESP)) {

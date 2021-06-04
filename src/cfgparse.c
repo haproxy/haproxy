@@ -2660,7 +2660,7 @@ int check_config_validity()
 	}
 
 	if (global.nbproc > 1 && global.nbthread > 1) {
-		ha_alert("config : cannot enable multiple processes if multiple threads are configured. Please use either nbproc or nbthread but not both.\n");
+		ha_alert("cannot enable multiple processes if multiple threads are configured. Please use either nbproc or nbthread but not both.\n");
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
@@ -2749,7 +2749,7 @@ int check_config_validity()
 #ifdef OPENSSL_NPN_NEGOTIATED
 				/* check NPN */
 				if (bind_conf->ssl_conf.npn_str && strstr(bind_conf->ssl_conf.npn_str, "\002h2")) {
-					ha_alert("config : HTTP frontend '%s' enables HTTP/2 via NPN at [%s:%d], so global.tune.bufsize must be at least 16384 bytes (%d now).\n",
+					ha_alert("HTTP frontend '%s' enables HTTP/2 via NPN at [%s:%d], so global.tune.bufsize must be at least 16384 bytes (%d now).\n",
 						 curproxy->id, bind_conf->file, bind_conf->line, global.tune.bufsize);
 					cfgerr++;
 				}
@@ -2757,7 +2757,7 @@ int check_config_validity()
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 				/* check ALPN */
 				if (bind_conf->ssl_conf.alpn_str && strstr(bind_conf->ssl_conf.alpn_str, "\002h2")) {
-					ha_alert("config : HTTP frontend '%s' enables HTTP/2 via ALPN at [%s:%d], so global.tune.bufsize must be at least 16384 bytes (%d now).\n",
+					ha_alert("HTTP frontend '%s' enables HTTP/2 via ALPN at [%s:%d], so global.tune.bufsize must be at least 16384 bytes (%d now).\n",
 						 curproxy->id, bind_conf->file, bind_conf->line, global.tune.bufsize);
 					cfgerr++;
 				}
@@ -2816,14 +2816,14 @@ int check_config_validity()
 		case PR_MODE_PEERS:
 		case PR_MODES:
 			/* should not happen, bug gcc warn missing switch statement */
-			ha_alert("config : %s '%s' cannot use peers or syslog mode for this proxy. NOTE: PLEASE REPORT THIS TO DEVELOPERS AS YOU'RE NOT SUPPOSED TO BE ABLE TO CREATE A CONFIGURATION TRIGGERING THIS!\n",
+			ha_alert("%s '%s' cannot use peers or syslog mode for this proxy. NOTE: PLEASE REPORT THIS TO DEVELOPERS AS YOU'RE NOT SUPPOSED TO BE ABLE TO CREATE A CONFIGURATION TRIGGERING THIS!\n",
 				 proxy_type_str(curproxy), curproxy->id);
 			cfgerr++;
 			break;
 		}
 
 		if (curproxy != global.cli_fe && (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners)) {
-			ha_warning("config : %s '%s' has no 'bind' directive. Please declare it as a backend if this was intended.\n",
+			ha_warning("%s '%s' has no 'bind' directive. Please declare it as a backend if this was intended.\n",
 				   proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;
 		}
@@ -2831,19 +2831,19 @@ int check_config_validity()
 		if (curproxy->cap & PR_CAP_BE) {
 			if (curproxy->lbprm.algo & BE_LB_KIND) {
 				if (curproxy->options & PR_O_TRANSP) {
-					ha_alert("config : %s '%s' cannot use both transparent and balance mode.\n",
+					ha_alert("%s '%s' cannot use both transparent and balance mode.\n",
 						 proxy_type_str(curproxy), curproxy->id);
 					cfgerr++;
 				}
 #ifdef WE_DONT_SUPPORT_SERVERLESS_LISTENERS
 				else if (curproxy->srv == NULL) {
-					ha_alert("config : %s '%s' needs at least 1 server in balance mode.\n",
+					ha_alert("%s '%s' needs at least 1 server in balance mode.\n",
 						 proxy_type_str(curproxy), curproxy->id);
 					cfgerr++;
 				}
 #endif
 				else if (curproxy->options & PR_O_DISPATCH) {
-					ha_warning("config : dispatch address of %s '%s' will be ignored in balance mode.\n",
+					ha_warning("dispatch address of %s '%s' will be ignored in balance mode.\n",
 						   proxy_type_str(curproxy), curproxy->id);
 					err_code |= ERR_WARN;
 				}
@@ -2866,7 +2866,7 @@ int check_config_validity()
 			curproxy->options &= ~(PR_O_DISPATCH | PR_O_HTTP_PROXY);
 
 		if ((curproxy->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_HTTP_RS)) {
-			ha_warning("config : %s '%s' uses http-check rules without 'option httpchk', so the rules are ignored.\n",
+			ha_warning("%s '%s' uses http-check rules without 'option httpchk', so the rules are ignored.\n",
 				   proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;
 		}
@@ -2874,13 +2874,13 @@ int check_config_validity()
 		if ((curproxy->options2 & PR_O2_CHK_ANY) == PR_O2_TCPCHK_CHK &&
 		    (curproxy->tcpcheck_rules.flags & TCPCHK_RULES_PROTO_CHK) != TCPCHK_RULES_HTTP_CHK) {
 			if (curproxy->options & PR_O_DISABLE404) {
-				ha_warning("config : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
+				ha_warning("'%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
 					   "disable-on-404", proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 				curproxy->options &= ~PR_O_DISABLE404;
 			}
 			if (curproxy->options2 & PR_O2_CHK_SNDST) {
-				ha_warning("config : '%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
+				ha_warning("'%s' will be ignored for %s '%s' (requires 'option httpchk').\n",
 					   "send-state", proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 				curproxy->options &= ~PR_O2_CHK_SNDST;
@@ -2907,7 +2907,7 @@ int check_config_validity()
 
 		if (curproxy->email_alert.set) {
 		    if (!(curproxy->email_alert.mailers.name && curproxy->email_alert.from && curproxy->email_alert.to)) {
-			    ha_warning("config : 'email-alert' will be ignored for %s '%s' (the presence any of "
+			    ha_warning("'email-alert' will be ignored for %s '%s' (the presence any of "
 				       "'email-alert from', 'email-alert level' 'email-alert mailers', "
 				       "'email-alert myhostname', or 'email-alert to' "
 				       "requires each of 'email-alert from', 'email-alert mailers' and 'email-alert to' "
@@ -2923,7 +2923,7 @@ int check_config_validity()
 		if (curproxy->check_command) {
 			int clear = 0;
 			if ((curproxy->options2 & PR_O2_CHK_ANY) != PR_O2_EXT_CHK) {
-				ha_warning("config : '%s' will be ignored for %s '%s' (requires 'option external-check').\n",
+				ha_warning("'%s' will be ignored for %s '%s' (requires 'option external-check').\n",
 					   "external-check command", proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 				clear = 1;
@@ -2940,7 +2940,7 @@ int check_config_validity()
 
 		if (curproxy->check_path) {
 			if ((curproxy->options2 & PR_O2_CHK_ANY) != PR_O2_EXT_CHK) {
-				ha_warning("config : '%s' will be ignored for %s '%s' (requires 'option external-check').\n",
+				ha_warning("'%s' will be ignored for %s '%s' (requires 'option external-check').\n",
 					   "external-check path", proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 				ha_free(&curproxy->check_path);
@@ -3092,7 +3092,7 @@ int check_config_validity()
 			err_code |= warnif_tcp_http_cond(curproxy, srule->cond);
 
 			if (!target) {
-				ha_alert("config : %s '%s' : unable to find server '%s' referenced in a 'use-server' rule.\n",
+				ha_alert("%s '%s' : unable to find server '%s' referenced in a 'use-server' rule.\n",
 					 proxy_type_str(curproxy), curproxy->id, srule->srv.name);
 				cfgerr++;
 				continue;
@@ -3400,7 +3400,7 @@ out_uri_auth_compat:
 		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) &&
 		      (!curproxy->timeout.connect ||
 		       (!curproxy->timeout.server && (curproxy->mode == PR_MODE_HTTP || !curproxy->timeout.tunnel)))))) {
-			ha_warning("config : missing timeouts for %s '%s'.\n"
+			ha_warning("missing timeouts for %s '%s'.\n"
 				   "   | While not properly invalid, you will certainly encounter various problems\n"
 				   "   | with such a configuration. To fix this, please ensure that all following\n"
 				   "   | timeouts are set to a non-zero value: 'client', 'connect', 'server'.\n",
@@ -3418,14 +3418,14 @@ out_uri_auth_compat:
 			curproxy->timeout.queue = curproxy->timeout.connect;
 
 		if ((curproxy->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_TCP_RS)) {
-			ha_warning("config : %s '%s' uses tcp-check rules without 'option tcp-check', so the rules are ignored.\n",
+			ha_warning("%s '%s' uses tcp-check rules without 'option tcp-check', so the rules are ignored.\n",
 				   proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;
 		}
 
 		/* ensure that cookie capture length is not too large */
 		if (curproxy->capture_len >= global.tune.cookie_len) {
-			ha_warning("config : truncating capture length to %d bytes for %s '%s'.\n",
+			ha_warning("truncating capture length to %d bytes for %s '%s'.\n",
 				   global.tune.cookie_len - 1, proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;
 			curproxy->capture_len = global.tune.cookie_len - 1;
@@ -3450,7 +3450,7 @@ out_uri_auth_compat:
 				break;
 			case PR_SRV_STATE_FILE_GLOBAL:
 				if (!global.server_state_file) {
-					ha_warning("config : backend '%s' configured to load server state file from global section 'server-state-file' directive. Unfortunately, 'server-state-file' is not set!\n",
+					ha_warning("backend '%s' configured to load server state file from global section 'server-state-file' directive. Unfortunately, 'server-state-file' is not set!\n",
 						   curproxy->id);
 					err_code |= ERR_WARN;
 				}
@@ -3697,7 +3697,7 @@ out_uri_auth_compat:
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
 		    (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->logsrvs) &&
 		    (!LIST_ISEMPTY(&curproxy->logformat) || !LIST_ISEMPTY(&curproxy->logformat_sd))) {
-			ha_warning("config : log format ignored for %s '%s' since it has no log address.\n",
+			ha_warning("log format ignored for %s '%s' since it has no log address.\n",
 				   proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;
 		}
@@ -3706,51 +3706,51 @@ out_uri_auth_compat:
 			int optnum;
 
 			if (curproxy->uri_auth) {
-				ha_warning("config : 'stats' statement ignored for %s '%s' as it requires HTTP mode.\n",
+				ha_warning("'stats' statement ignored for %s '%s' as it requires HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 				curproxy->uri_auth = NULL;
 			}
 
 			if (curproxy->capture_name) {
-				ha_warning("config : 'capture' statement ignored for %s '%s' as it requires HTTP mode.\n",
+				ha_warning("'capture' statement ignored for %s '%s' as it requires HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 			}
 
 			if (!LIST_ISEMPTY(&curproxy->http_req_rules)) {
-				ha_warning("config : 'http-request' rules ignored for %s '%s' as they require HTTP mode.\n",
+				ha_warning("'http-request' rules ignored for %s '%s' as they require HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 			}
 
 			if (!LIST_ISEMPTY(&curproxy->http_res_rules)) {
-				ha_warning("config : 'http-response' rules ignored for %s '%s' as they require HTTP mode.\n",
+				ha_warning("'http-response' rules ignored for %s '%s' as they require HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 			}
 
 			if (!LIST_ISEMPTY(&curproxy->http_after_res_rules)) {
-				ha_warning("config : 'http-after-response' rules ignored for %s '%s' as they require HTTP mode.\n",
+				ha_warning("'http-after-response' rules ignored for %s '%s' as they require HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 			}
 
 			if (!LIST_ISEMPTY(&curproxy->redirect_rules)) {
-				ha_warning("config : 'redirect' rules ignored for %s '%s' as they require HTTP mode.\n",
+				ha_warning("'redirect' rules ignored for %s '%s' as they require HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 			}
 
 			if (curproxy->options & (PR_O_FWDFOR | PR_O_FF_ALWAYS)) {
-				ha_warning("config : 'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
 					   "forwardfor", proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 				curproxy->options &= ~(PR_O_FWDFOR | PR_O_FF_ALWAYS);
 			}
 
 			if (curproxy->options & PR_O_ORGTO) {
-				ha_warning("config : 'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+				ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
 					   "originalto", proxy_type_str(curproxy), curproxy->id);
 				err_code |= ERR_WARN;
 				curproxy->options &= ~PR_O_ORGTO;
@@ -3760,7 +3760,7 @@ out_uri_auth_compat:
 				if (cfg_opts[optnum].mode == PR_MODE_HTTP &&
 				    (curproxy->cap & cfg_opts[optnum].cap) &&
 				    (curproxy->options & cfg_opts[optnum].val)) {
-					ha_warning("config : 'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+					ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
 						   cfg_opts[optnum].name, proxy_type_str(curproxy), curproxy->id);
 					err_code |= ERR_WARN;
 					curproxy->options &= ~cfg_opts[optnum].val;
@@ -3771,7 +3771,7 @@ out_uri_auth_compat:
 				if (cfg_opts2[optnum].mode == PR_MODE_HTTP &&
 				    (curproxy->cap & cfg_opts2[optnum].cap) &&
 				    (curproxy->options2 & cfg_opts2[optnum].val)) {
-					ha_warning("config : 'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
+					ha_warning("'option %s' ignored for %s '%s' as it requires HTTP mode.\n",
 						   cfg_opts2[optnum].name, proxy_type_str(curproxy), curproxy->id);
 					err_code |= ERR_WARN;
 					curproxy->options2 &= ~cfg_opts2[optnum].val;
@@ -3781,7 +3781,7 @@ out_uri_auth_compat:
 #if defined(CONFIG_HAP_TRANSPARENT)
 			if (curproxy->conn_src.bind_hdr_occ) {
 				curproxy->conn_src.bind_hdr_occ = 0;
-				ha_warning("config : %s '%s' : ignoring use of header %s as source IP in non-HTTP mode.\n",
+				ha_warning("%s '%s' : ignoring use of header %s as source IP in non-HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id, curproxy->conn_src.bind_hdr_name);
 				err_code |= ERR_WARN;
 			}
@@ -3794,19 +3794,19 @@ out_uri_auth_compat:
 		newsrv = curproxy->srv;
 		while (newsrv != NULL) {
 			if ((curproxy->mode != PR_MODE_HTTP) && newsrv->rdr_len) {
-				ha_alert("config : %s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
+				ha_alert("%s '%s' : server cannot have cookie or redirect prefix in non-HTTP mode.\n",
 					 proxy_type_str(curproxy), curproxy->id);
 				cfgerr++;
 			}
 
 			if ((curproxy->mode != PR_MODE_HTTP) && newsrv->cklen) {
-				ha_warning("config : %s '%s' : ignoring cookie for server '%s' as HTTP mode is disabled.\n",
+				ha_warning("%s '%s' : ignoring cookie for server '%s' as HTTP mode is disabled.\n",
 					   proxy_type_str(curproxy), curproxy->id, newsrv->id);
 				err_code |= ERR_WARN;
 			}
 
 			if ((newsrv->flags & SRV_F_MAPPORTS) && (curproxy->options2 & PR_O2_RDPC_PRST)) {
-				ha_warning("config : %s '%s' : RDP cookie persistence will not work for server '%s' because it lacks an explicit port number.\n",
+				ha_warning("%s '%s' : RDP cookie persistence will not work for server '%s' because it lacks an explicit port number.\n",
 					   proxy_type_str(curproxy), curproxy->id, newsrv->id);
 				err_code |= ERR_WARN;
 			}
@@ -3814,7 +3814,7 @@ out_uri_auth_compat:
 #if defined(CONFIG_HAP_TRANSPARENT)
 			if (curproxy->mode != PR_MODE_HTTP && newsrv->conn_src.bind_hdr_occ) {
 				newsrv->conn_src.bind_hdr_occ = 0;
-				ha_warning("config : %s '%s' : server %s cannot use header %s as source IP in non-HTTP mode.\n",
+				ha_warning("%s '%s' : server %s cannot use header %s as source IP in non-HTTP mode.\n",
 					   proxy_type_str(curproxy), curproxy->id, newsrv->id, newsrv->conn_src.bind_hdr_name);
 				err_code |= ERR_WARN;
 			}
@@ -3899,7 +3899,7 @@ out_uri_auth_compat:
 			mux_ent = conn_get_best_mux_entry(bind_conf->mux_proto->token, PROTO_SIDE_FE, mode);
 
 			if (!mux_ent || !isteq(mux_ent->token, bind_conf->mux_proto->token)) {
-				ha_alert("config : %s '%s' : MUX protocol '%.*s' is not usable for 'bind %s' at [%s:%d].\n",
+				ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for 'bind %s' at [%s:%d].\n",
 					 proxy_type_str(curproxy), curproxy->id,
 					 (int)bind_conf->mux_proto->token.len,
 					 bind_conf->mux_proto->token.ptr,
@@ -3924,7 +3924,7 @@ out_uri_auth_compat:
 			mux_ent = conn_get_best_mux_entry(newsrv->mux_proto->token, PROTO_SIDE_BE, mode);
 
 			if (!mux_ent || !isteq(mux_ent->token, newsrv->mux_proto->token)) {
-				ha_alert("config : %s '%s' : MUX protocol '%.*s' is not usable for server '%s' at [%s:%d].\n",
+				ha_alert("%s '%s' : MUX protocol '%.*s' is not usable for server '%s' at [%s:%d].\n",
 					 proxy_type_str(curproxy), curproxy->id,
 					 (int)newsrv->mux_proto->token.len,
 					 newsrv->mux_proto->token.ptr,
@@ -4391,7 +4391,7 @@ out_uri_auth_compat:
 
 	list_for_each_entry(curr_resolvers, &sec_resolvers, list) {
 		if (LIST_ISEMPTY(&curr_resolvers->nameservers)) {
-			ha_warning("config : resolvers '%s' [%s:%d] has no nameservers configured!\n",
+			ha_warning("resolvers '%s' [%s:%d] has no nameservers configured!\n",
 				   curr_resolvers->id, curr_resolvers->conf.file,
 				   curr_resolvers->conf.line);
 			err_code |= ERR_WARN;

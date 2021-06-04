@@ -4707,7 +4707,7 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 		if (methodVersions[i].option && !(flags & methodVersions[i].flag)) {
 			if (min) {
 				if (hole) {
-					ha_warning("config : %s '%s': SSL/TLS versions range not contiguous for server '%s'. "
+					ha_warning("%s '%s': SSL/TLS versions range not contiguous for server '%s'. "
 						   "Hole find for %s. Use only 'ssl-min-ver' and 'ssl-max-ver' to fix.\n",
 						   proxy_type_str(curproxy), curproxy->id, srv->id,
 						   methodVersions[hole].name);
@@ -4724,7 +4724,7 @@ static int ssl_sock_prepare_srv_ssl_ctx(const struct server *srv, SSL_CTX *ctx)
 				hole = i;
 		}
 	if (!min) {
-		ha_alert("config : %s '%s': all SSL/TLS versions are disabled for server '%s'.\n",
+		ha_alert("%s '%s': all SSL/TLS versions are disabled for server '%s'.\n",
 			 proxy_type_str(curproxy), curproxy->id, srv->id);
 		cfgerr += 1;
 	}

@@ -3696,7 +3696,7 @@ static int cfg_h1_headers_case_adjust_postparser()
 
 	file = fopen(hdrs_map.name, "r");
 	if (!file) {
-		ha_alert("config : h1-outgoing-headers-case-adjust-file '%s': failed to open file.\n",
+		ha_alert("h1-outgoing-headers-case-adjust-file '%s': failed to open file.\n",
 			 hdrs_map.name);
                 err_code |= ERR_ALERT | ERR_FATAL;
 		goto end;
@@ -3745,14 +3745,14 @@ static int cfg_h1_headers_case_adjust_postparser()
 		err = NULL;
 		rc = add_hdr_case_adjust(key_beg, value_beg, &err);
 		if (rc < 0) {
-			ha_alert("config : h1-outgoing-headers-case-adjust-file '%s' : %s at line %d.\n",
+			ha_alert("h1-outgoing-headers-case-adjust-file '%s' : %s at line %d.\n",
 				 hdrs_map.name, err, line);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			free(err);
 			goto end;
 		}
 		if (rc > 0) {
-			ha_warning("config : h1-outgoing-headers-case-adjust-file '%s' : %s at line %d.\n",
+			ha_warning("h1-outgoing-headers-case-adjust-file '%s' : %s at line %d.\n",
 				   hdrs_map.name, err, line);
 			err_code |= ERR_WARN;
 			free(err);

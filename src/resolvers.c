@@ -191,13 +191,13 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 	hostname_dn_len = resolv_str_to_dn_label(fqdn, fqdn_len + 1, trash.area,
 					      trash.size);
 	if (hostname_dn_len == -1) {
-		ha_alert("config : %s '%s', server '%s': failed to parse FQDN '%s'\n",
+		ha_alert("%s '%s', server '%s': failed to parse FQDN '%s'\n",
 			 proxy_type_str(px), px->id, srv->id, fqdn);
 		goto err;
 	}
 
 	if ((srvrq = calloc(1, sizeof(*srvrq))) == NULL) {
-		ha_alert("config : %s '%s', server '%s': out of memory\n",
+		ha_alert("%s '%s', server '%s': out of memory\n",
 			 proxy_type_str(px), px->id, srv->id);
 		goto err;
 	}
@@ -207,7 +207,7 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 	srvrq->hostname_dn     = strdup(trash.area);
 	srvrq->hostname_dn_len = hostname_dn_len;
 	if (!srvrq->name || !srvrq->hostname_dn) {
-		ha_alert("config : %s '%s', server '%s': out of memory\n",
+		ha_alert("%s '%s', server '%s': out of memory\n",
 			 proxy_type_str(px), px->id, srv->id);
 		goto err;
 	}
@@ -2244,13 +2244,13 @@ static int resolvers_finalize_config(void)
 			if (ns->dgram) {
 				/* Check nameserver info */
 				if ((fd = socket(ns->dgram->conn.addr.to.ss_family, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-					ha_alert("config : resolvers '%s': can't create socket for nameserver '%s'.\n",
+					ha_alert("resolvers '%s': can't create socket for nameserver '%s'.\n",
 						 resolvers->id, ns->id);
 					err_code |= (ERR_ALERT|ERR_ABORT);
 					continue;
 				}
 				if (connect(fd, (struct sockaddr*)&ns->dgram->conn.addr.to, get_addr_len(&ns->dgram->conn.addr.to)) == -1) {
-					ha_alert("config : resolvers '%s': can't connect socket for nameserver '%s'.\n",
+					ha_alert("resolvers '%s': can't connect socket for nameserver '%s'.\n",
 						 resolvers->id, ns->id);
 					close(fd);
 					err_code |= (ERR_ALERT|ERR_ABORT);
@@ -2262,7 +2262,7 @@ static int resolvers_finalize_config(void)
 
 		/* Create the task associated to the resolvers section */
 		if ((t = task_new(MAX_THREADS_MASK)) == NULL) {
-			ha_alert("config : resolvers '%s' : out of memory.\n", resolvers->id);
+			ha_alert("resolvers '%s' : out of memory.\n", resolvers->id);
 			err_code |= (ERR_ALERT|ERR_ABORT);
 			goto err;
 		}
@@ -2284,7 +2284,7 @@ static int resolvers_finalize_config(void)
 				continue;
 
 			if ((resolvers = find_resolvers_by_id(srv->resolvers_id)) == NULL) {
-				ha_alert("config : %s '%s', server '%s': unable to find required resolvers '%s'\n",
+				ha_alert("%s '%s', server '%s': unable to find required resolvers '%s'\n",
 					 proxy_type_str(px), px->id, srv->id, srv->resolvers_id);
 				err_code |= (ERR_ALERT|ERR_ABORT);
 				continue;
@@ -2294,14 +2294,14 @@ static int resolvers_finalize_config(void)
 			if (srv->srvrq && !srv->srvrq->resolvers) {
 				srv->srvrq->resolvers = srv->resolvers;
 				if (resolv_link_resolution(srv->srvrq, OBJ_TYPE_SRVRQ, 0) == -1) {
-					ha_alert("config : %s '%s' : unable to set DNS resolution for server '%s'.\n",
+					ha_alert("%s '%s' : unable to set DNS resolution for server '%s'.\n",
 						 proxy_type_str(px), px->id, srv->id);
 					err_code |= (ERR_ALERT|ERR_ABORT);
 					continue;
 				}
 			}
 			if (!srv->srvrq && resolv_link_resolution(srv, OBJ_TYPE_SERVER, 0) == -1) {
-				ha_alert("config : %s '%s', unable to set DNS resolution for server '%s'.\n",
+				ha_alert("%s '%s', unable to set DNS resolution for server '%s'.\n",
 					 proxy_type_str(px), px->id, srv->id);
 				err_code |= (ERR_ALERT|ERR_ABORT);
 				continue;

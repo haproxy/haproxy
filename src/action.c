@@ -94,7 +94,7 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 
 	if (rule->from == ACT_F_TCP_REQ_CNT && (px->cap & PR_CAP_FE)) {
 		if (!px->tcp_req.inspect_delay && !(rule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC)) {
-			ha_warning("config : %s '%s' : a 'tcp-request content track-sc*' rule explicitly depending on request"
+			ha_warning("%s '%s' : a 'tcp-request content track-sc*' rule explicitly depending on request"
 				   " contents without any 'tcp-request inspect-delay' setting."
 				   " This means that this rule will randomly find its contents. This can be fixed by"
 				   " setting the tcp-request inspect-delay.\n",
@@ -111,7 +111,7 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 		if (px->mode == PR_MODE_HTTP &&
 		    !(rule->arg.trk_ctr.expr->fetch->use & (SMP_USE_L6REQ|SMP_USE_HRQHV|SMP_USE_HRQHP|SMP_USE_HRQBO)) &&
 		    (!rule->cond || !(rule->cond->use & (SMP_USE_L6REQ|SMP_USE_HRQHV|SMP_USE_HRQHP|SMP_USE_HRQBO)))) {
-			ha_warning("config : %s '%s' : a 'tcp-request content track-sc*' rule not depending on request"
+			ha_warning("%s '%s' : a 'tcp-request content track-sc*' rule not depending on request"
 				   " contents for an HTTP frontend should be executed at the session level, using a"
 				   " 'tcp-request session' rule (mandatory to track invalid HTTP requests).\n",
 				   proxy_type_str(px), px->id);
@@ -131,7 +131,7 @@ int check_capture(struct act_rule *rule, struct proxy *px, char **err)
 {
 	if (rule->from == ACT_F_TCP_REQ_CNT && (px->cap & PR_CAP_FE) && !px->tcp_req.inspect_delay &&
 	    !(rule->arg.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC)) {
-		ha_warning("config : %s '%s' : a 'tcp-request capture' rule explicitly depending on request"
+		ha_warning("%s '%s' : a 'tcp-request capture' rule explicitly depending on request"
 			   " contents without any 'tcp-request inspect-delay' setting."
 			   " This means that this rule will randomly find its contents. This can be fixed by"
 			   " setting the tcp-request inspect-delay.\n",

@@ -227,7 +227,7 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 
 	fcgi_conf->app = fcgi_app_find_by_name(fcgi_conf->name);
 	if (!fcgi_conf->app) {
-		ha_alert("config : proxy '%s' : fcgi-app '%s' not found.\n",
+		ha_alert("proxy '%s' : fcgi-app '%s' not found.\n",
 			 px->id, fcgi_conf->name);
 		goto err;
 	}
@@ -236,7 +236,7 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 		if (f->id == http_comp_flt_id || f->id == cache_store_flt_id)
 			continue;
 		else if ((f->id == fconf->id) && f->conf != fcgi_conf) {
-			ha_alert("config : proxy '%s' : only one fcgi-app supported per backend.\n",
+			ha_alert("proxy '%s' : only one fcgi-app supported per backend.\n",
 				 px->id);
 			goto err;
 		}
@@ -253,7 +253,7 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 	list_for_each_entry_safe(crule, back, &fcgi_conf->app->conf.rules, list) {
 		rule = calloc(1, sizeof(*rule));
 		if (!rule) {
-			ha_alert("config : proxy '%s' : out of memory.\n", px->id);
+			ha_alert("proxy '%s' : out of memory.\n", px->id);
 			goto err;
 		}
 		rule->type = crule->type;
@@ -264,7 +264,7 @@ static int fcgi_flt_check(struct proxy *px, struct flt_conf *fconf)
 		if (crule->value) {
 			if (!parse_logformat_string(crule->value, px, &rule->value, LOG_OPT_HTTP,
 						    SMP_VAL_BE_HRQ_HDR, &errmsg)) {
-				ha_alert("config : proxy '%s' : %s.\n", px->id, errmsg);
+				ha_alert("proxy '%s' : %s.\n", px->id, errmsg);
 				goto err;
 			}
 		}
@@ -655,7 +655,7 @@ static int cfg_fcgi_apps_postparser()
 		int nb_fcgi_srv = 0;
 
 		if (px->mode == PR_MODE_TCP && fcgi_conf) {
-			ha_alert("config : proxy '%s': FCGI application cannot be used in non-HTTP mode.\n",
+			ha_alert("proxy '%s': FCGI application cannot be used in non-HTTP mode.\n",
 				 px->id);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto end;
@@ -666,14 +666,14 @@ static int cfg_fcgi_apps_postparser()
 				nb_fcgi_srv++;
 				if (fcgi_conf)
 					continue;
-				ha_alert("config : proxy '%s': FCGI server '%s' has no FCGI app configured.\n",
+				ha_alert("proxy '%s': FCGI server '%s' has no FCGI app configured.\n",
 					 px->id, srv->id);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto end;
 			}
 		}
 		if (fcgi_conf && !nb_fcgi_srv) {
-			ha_alert("config : proxy '%s': FCGI app configured but no FCGI server found.\n",
+			ha_alert("proxy '%s': FCGI app configured but no FCGI server found.\n",
 				 px->id);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto end;
@@ -682,14 +682,14 @@ static int cfg_fcgi_apps_postparser()
 
 	for (curapp = fcgi_apps; curapp != NULL; curapp = curapp->next) {
 		if (!istlen(curapp->docroot)) {
-			ha_alert("config : fcgi-app '%s': no docroot configured.\n",
+			ha_alert("fcgi-app '%s': no docroot configured.\n",
 				 curapp->name);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto end;
 		}
 		if (!(curapp->flags & (FCGI_APP_FL_MPXS_CONNS|FCGI_APP_FL_GET_VALUES))) {
 			if (curapp->maxreqs > 1) {
-				ha_warning("config : fcgi-app '%s': multiplexing not supported, "
+				ha_warning("fcgi-app '%s': multiplexing not supported, "
 					   "ignore the option 'max-reqs'.\n",
 					   curapp->name);
 				err_code |= ERR_WARN;
@@ -702,7 +702,7 @@ static int cfg_fcgi_apps_postparser()
 				struct sink *sink = sink_find(logsrv->ring_name);
 
 				if (!sink || sink->type != SINK_TYPE_BUFFER) {
-					ha_alert("config : fcgi-app '%s' : log server uses unknown ring named '%s'.\n",
+					ha_alert("fcgi-app '%s' : log server uses unknown ring named '%s'.\n",
 						 curapp->name, logsrv->ring_name);
 					err_code |= ERR_ALERT | ERR_FATAL;
 				}

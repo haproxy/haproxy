@@ -1696,7 +1696,7 @@ static int init_srv_agent_check(struct server *srv)
 	if (!chk || chk->action != TCPCHK_ACT_CONNECT) {
 		chk = calloc(1, sizeof(*chk));
 		if (!chk) {
-			ha_alert("config : %s '%s': unable to add implicit tcp-check connect rule"
+			ha_alert("%s '%s': unable to add implicit tcp-check connect rule"
 				 " to agent-check for server '%s' (out of memory).\n",
 				 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
 			ret |= ERR_ALERT | ERR_FATAL;
