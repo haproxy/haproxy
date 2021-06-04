@@ -2468,13 +2468,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
 			            QUIC_EV_CONN_ELRXPKTS, ctx->conn, pkt);
 		}
 		else {
-			int drop;
-
-			drop = 0;
-			if (!qc_parse_pkt_frms(pkt, ctx, el))
-				drop = 1;
-
-			if (drop) {
+			if (!qc_parse_pkt_frms(pkt, ctx, el)) {
 				/* Drop the packet */
 				TRACE_PROTO("packet parsing failed -> dropped",
 				            QUIC_EV_CONN_ELRXPKTS, ctx->conn, pkt);
