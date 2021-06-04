@@ -60,7 +60,7 @@ enum {
 };
 
 
-/************ Error reporting functions from log.c ***********/
+/************ Error reporting functions ***********/
 
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet

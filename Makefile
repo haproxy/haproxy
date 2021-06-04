@@ -896,7 +896,7 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/http_ana.o src/mux_h1.o src/stream.o   \
         src/hpack-tbl.o src/ebimtree.o src/auth.o src/ebsttree.o               \
         src/ebistree.o src/base64.o src/wdt.o src/pipe.o src/http_acl.o        \
         src/hpack-enc.o src/dict.o src/dgram.o src/init.o src/hpack-huff.o     \
-        src/freq_ctr.o src/ebtree.o src/hash.o src/version.o
+        src/freq_ctr.o src/ebtree.o src/hash.o src/version.o src/errors.o
 
 ifneq ($(TRACE),)
 OBJS += src/calltrace.o
