@@ -581,6 +581,7 @@ struct quic_path {
 struct quic_conn {
 	uint32_t version;
 
+	int state;
 	unsigned char enc_params[QUIC_TP_MAX_ENCLEN]; /* encoded QUIC transport parameters */
 	size_t enc_params_len;
 

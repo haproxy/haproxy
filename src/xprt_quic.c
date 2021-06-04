@@ -134,7 +134,6 @@ struct quic_conn_ctx {
 	struct connection *conn;
 	SSL *ssl;
 	BIO *bio;
-	int state;
 	const struct xprt_ops *xprt;
 	void *xprt_ctx;
 	struct wait_event wait_event;
@@ -614,7 +613,7 @@ static inline int quic_peer_validated_addr(struct quic_conn_ctx *ctx)
 
 	if ((qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->flags & QUIC_FL_PKTNS_ACK_RECEIVED) ||
 	    (qc->els[QUIC_TLS_ENC_LEVEL_APP].pktns->flags & QUIC_FL_PKTNS_ACK_RECEIVED) ||
-	    (ctx->state & QUIC_HS_ST_COMPLETE))
+	    (qc->state & QUIC_HS_ST_COMPLETE))
 		return 1;
 
 	return 0;
@@ -649,7 +648,7 @@ static inline void qc_set_timer(struct quic_conn_ctx *ctx)
 		goto out;
 	}
 
-	pktns = quic_pto_pktns(qc, ctx->state & QUIC_HS_ST_COMPLETE, &pto);
+	pktns = quic_pto_pktns(qc, qc->state & QUIC_HS_ST_COMPLETE, &pto);
 	if (tick_isset(pto))
 		qc->timer = pto;
  out:
@@ -1515,9 +1514,11 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
                                    struct quic_rx_crypto_frm *cf)
 {
 	int ssl_err;
+	struct quic_conn *qc;
 
 	TRACE_ENTER(QUIC_EV_CONN_SSLDATA, ctx->conn);
 	ssl_err = SSL_ERROR_NONE;
+	qc = ctx->conn->qc;
 	if (SSL_provide_quic_data(ctx->ssl, el->level, data, len) != 1) {
 		TRACE_PROTO("SSL_provide_quic_data() error",
 		            QUIC_EV_CONN_SSLDATA, ctx->conn, pkt, cf, ctx->ssl);
@@ -1528,43 +1529,43 @@ static inline int qc_provide_cdata(struct quic_enc_level *el,
 	TRACE_PROTO("in order CRYPTO data",
 	            QUIC_EV_CONN_SSLDATA, ctx->conn,, cf, ctx->ssl);
 
-	if (ctx->state < QUIC_HS_ST_COMPLETE) {
+	if (qc->state < QUIC_HS_ST_COMPLETE) {
 		ssl_err = SSL_do_handshake(ctx->ssl);
 		if (ssl_err != 1) {
 			ssl_err = SSL_get_error(ctx->ssl, ssl_err);
 			if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
 				TRACE_PROTO("SSL handshake",
-				            QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state, &ssl_err);
+				            QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state, &ssl_err);
 				goto out;
 			}
 
 			TRACE_DEVEL("SSL handshake error",
-			            QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state, &ssl_err);
+			            QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state, &ssl_err);
 			goto err;
 		}
 
-		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state);
+		TRACE_PROTO("SSL handshake OK", QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state);
 		if (objt_listener(ctx->conn->target))
-			ctx->state = QUIC_HS_ST_CONFIRMED;
+			qc->state = QUIC_HS_ST_CONFIRMED;
 		else
-			ctx->state = QUIC_HS_ST_COMPLETE;
+			qc->state = QUIC_HS_ST_COMPLETE;
 	} else {
 		ssl_err = SSL_process_quic_post_handshake(ctx->ssl);
 		if (ssl_err != 1) {
 			ssl_err = SSL_get_error(ctx->ssl, ssl_err);
 			if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
 				TRACE_DEVEL("SSL post handshake",
-				            QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state, &ssl_err);
+				            QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state, &ssl_err);
 				goto out;
 			}
 
 			TRACE_DEVEL("SSL post handshake error",
-			            QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state, &ssl_err);
+			            QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state, &ssl_err);
 			goto err;
 		}
 
 		TRACE_PROTO("SSL post handshake succeeded",
-		            QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state);
+		            QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state);
 	}
 
  out:
@@ -1956,7 +1957,7 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct quic_conn_ctx *c
 			if (objt_listener(ctx->conn->target))
 				goto err;
 
-			ctx->state = QUIC_HS_ST_CONFIRMED;
+			conn->state = QUIC_HS_ST_CONFIRMED;
 			break;
 		default:
 			goto err;
@@ -1967,12 +1968,12 @@ static int qc_parse_pkt_frms(struct quic_rx_packet *pkt, struct quic_conn_ctx *c
 	 * has successfully parse a Handshake packet. The Initial encryption must also
 	 * be discarded.
 	 */
-	if (ctx->state == QUIC_HS_ST_SERVER_INITIAL &&
+	if (conn->state == QUIC_HS_ST_SERVER_INITIAL &&
 	    pkt->type == QUIC_PACKET_TYPE_HANDSHAKE) {
 		quic_tls_discard_keys(&conn->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
 		quic_pktns_discard(conn->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, conn);
 		qc_set_timer(ctx);
-		ctx->state = QUIC_HS_ST_SERVER_HANDSHAKE;
+		conn->state = QUIC_HS_ST_SERVER_HANDSHAKE;
 	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_PRSHPKT, ctx->conn);
@@ -1998,7 +1999,7 @@ static int qc_prep_hdshk_pkts(struct quic_conn_ctx *ctx)
 
 	TRACE_ENTER(QUIC_EV_CONN_PHPKTS, ctx->conn);
 	qc = ctx->conn->qc;
-	if (!quic_get_tls_enc_levels(&tel, &next_tel, ctx->state)) {
+	if (!quic_get_tls_enc_levels(&tel, &next_tel, qc->state)) {
 		TRACE_DEVEL("unknown enc. levels",
 		            QUIC_EV_CONN_PHPKTS, ctx->conn);
 		goto err;
@@ -2053,12 +2054,12 @@ static int qc_prep_hdshk_pkts(struct quic_conn_ctx *ctx)
 			/* Discard the Initial encryption keys as soon as
 			 * a handshake packet could be built.
 			 */
-			if (ctx->state == QUIC_HS_ST_CLIENT_INITIAL &&
+			if (qc->state == QUIC_HS_ST_CLIENT_INITIAL &&
 			    pkt_type == QUIC_PACKET_TYPE_HANDSHAKE) {
 				quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_INITIAL]);
 				quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].pktns, qc);
 				qc_set_timer(ctx);
-				ctx->state = QUIC_HS_ST_CLIENT_HANDSHAKE;
+				qc->state = QUIC_HS_ST_CLIENT_HANDSHAKE;
 			}
 			/* Special case for Initial packets: when they have all
 			 * been sent, select the next level.
@@ -2385,7 +2386,8 @@ static inline void qc_rm_hp_pkts(struct quic_enc_level *el, struct quic_conn_ctx
 	TRACE_ENTER(QUIC_EV_CONN_ELRMHP, ctx->conn);
 	app_qel = &ctx->conn->qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	/* A server must not process incoming 1-RTT packets before the handshake is complete. */
-	if (el == app_qel && objt_listener(ctx->conn->target) && ctx->state < QUIC_HS_ST_COMPLETE) {
+	if (el == app_qel && objt_listener(ctx->conn->target) &&
+	    ctx->conn->qc->state < QUIC_HS_ST_COMPLETE) {
 		TRACE_PROTO("hp not removed (handshake not completed)",
 		            QUIC_EV_CONN_ELRMHP, ctx->conn);
 		goto out;
@@ -2518,20 +2520,19 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
 int qc_do_hdshk(struct quic_conn_ctx *ctx)
 {
 	int ssl_err;
-	struct quic_conn *quic_conn;
+	struct quic_conn *qc;
 	enum quic_tls_enc_level tel, next_tel;
 	struct quic_enc_level *qel, *next_qel;
 	struct quic_tls_ctx *tls_ctx;
 
-	TRACE_ENTER(QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state);
-
+	qc = ctx->conn->qc;
+	TRACE_ENTER(QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state);
 	ssl_err = SSL_ERROR_NONE;
-	quic_conn = ctx->conn->qc;
-	if (!quic_get_tls_enc_levels(&tel, &next_tel, ctx->state))
+	if (!quic_get_tls_enc_levels(&tel, &next_tel, qc->state))
 		goto err;
 
-	qel = &quic_conn->els[tel];
-	next_qel = &quic_conn->els[next_tel];
+	qel = &qc->els[tel];
+	next_qel = &qc->els[next_tel];
 
  next_level:
 	tls_ctx = &qel->tls_ctx;
@@ -2562,38 +2563,38 @@ int qc_do_hdshk(struct quic_conn_ctx *ctx)
 	}
 
 	/* If the handshake has not been completed -> out! */
-	if (ctx->state < QUIC_HS_ST_COMPLETE)
+	if (qc->state < QUIC_HS_ST_COMPLETE)
 		goto out;
 
 	/* Discard the Handshake keys. */
-	quic_tls_discard_keys(&quic_conn->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
-	quic_pktns_discard(quic_conn->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns, quic_conn);
+	quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
+	quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns, qc);
 	qc_set_timer(ctx);
-	if (!quic_build_post_handshake_frames(quic_conn) ||
-	    !qc_prep_phdshk_pkts(quic_conn) ||
+	if (!quic_build_post_handshake_frames(qc) ||
+	    !qc_prep_phdshk_pkts(qc) ||
 	    !qc_send_ppkts(ctx))
 		goto err;
 
  out:
-	TRACE_LEAVE(QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state);
+	TRACE_LEAVE(QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state);
 	return 1;
 
  err:
-	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state, &ssl_err);
+	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state, &ssl_err);
 	return 0;
 }
 
 /* Allocate a new QUIC connection and return it if succeeded, NULL if not. */
 struct quic_conn *new_quic_conn(uint32_t version)
 {
-	struct quic_conn *quic_conn;
+	struct quic_conn *qc;
 
-	quic_conn = pool_zalloc(pool_head_quic_conn);
-	if (quic_conn) {
-		quic_conn->version = version;
+	qc = pool_zalloc(pool_head_quic_conn);
+	if (qc) {
+		qc->version = version;
 	}
 
-	return quic_conn;
+	return qc;
 }
 
 /* Uninitialize <qel> QUIC encryption level. Never fails. */
@@ -2752,10 +2753,10 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
 	}
 
 	if (qc->path->in_flight) {
-		pktns = quic_pto_pktns(qc, conn_ctx->state >= QUIC_HS_ST_COMPLETE, NULL);
+		pktns = quic_pto_pktns(qc, qc->state >= QUIC_HS_ST_COMPLETE, NULL);
 		pktns->tx.pto_probe = 1;
 	}
-	else if (objt_server(qc->conn->target) && conn_ctx->state <= QUIC_HS_ST_COMPLETE) {
+	else if (objt_server(qc->conn->target) && qc->state <= QUIC_HS_ST_COMPLETE) {
 		struct quic_enc_level *iel = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL];
 		struct quic_enc_level *hel = &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
 
@@ -2795,6 +2796,7 @@ static int qc_new_conn_init(struct quic_conn *qc, int ipv4,
 	qc->cids = EB_ROOT;
 	/* QUIC Server (or listener). */
 	if (server) {
+		qc->state = QUIC_HS_ST_SERVER_INITIAL;
 		/* Copy the initial DCID. */
 		qc->odcid.len = dcid_len;
 		if (qc->odcid.len)
@@ -2807,6 +2809,7 @@ static int qc_new_conn_init(struct quic_conn *qc, int ipv4,
 	}
 	/* QUIC Client (outgoing connection to servers) */
 	else {
+		qc->state = QUIC_HS_ST_CLIENT_INITIAL;
 		if (dcid_len)
 			memcpy(qc->dcid.data, dcid, dcid_len);
 		qc->dcid.len = dcid_len;
@@ -2961,7 +2964,7 @@ static int qc_pkt_may_rm_hp(struct quic_rx_packet *pkt,
 	}
 
 	if (((*qel)->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
-	    (tel != QUIC_TLS_ENC_LEVEL_APP || ctx->state >= QUIC_HS_ST_COMPLETE))
+	    (tel != QUIC_TLS_ENC_LEVEL_APP || ctx->conn->qc->state >= QUIC_HS_ST_COMPLETE))
 		return 1;
 
 	return 0;
@@ -4160,7 +4163,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 {
 	struct quic_conn_ctx *ctx = context;
 
-	if (ctx->state < QUIC_HS_ST_COMPLETE) {
+	if (ctx->conn->qc->state < QUIC_HS_ST_COMPLETE) {
 		qc_do_hdshk(ctx);
 	}
 	else {
@@ -4360,7 +4363,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		/* Server */
 		struct server *srv = __objt_server(conn->target);
 		unsigned char dcid[QUIC_CID_LEN];
-		struct quic_conn *quic_conn;
+		struct quic_conn *qc;
 		int ssl_err, ipv4;
 
 		ssl_err = SSL_ERROR_NONE;
@@ -4371,43 +4374,41 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		if (!conn->qc)
 			goto err;
 
-		quic_conn = conn->qc;
-		quic_conn->conn = conn;
+		qc = conn->qc;
+		qc->conn = conn;
 		ipv4 = conn->dst->ss_family == AF_INET;
-		if (!qc_new_conn_init(quic_conn, ipv4, NULL, &srv->cids,
+		if (!qc_new_conn_init(qc, ipv4, NULL, &srv->cids,
 		                      dcid, sizeof dcid, NULL, 0, 0))
 			goto err;
 
-		if (!qc_new_isecs(quic_conn, dcid, sizeof dcid, 0))
+		if (!qc_new_isecs(qc, dcid, sizeof dcid, 0))
 			goto err;
 
-		ctx->state = QUIC_HS_ST_CLIENT_INITIAL;
 		if (ssl_bio_and_sess_init(conn, srv->ssl_ctx.ctx,
 		                          &ctx->ssl, &ctx->bio, ha_quic_meth, ctx) == -1) 
 			goto err;
 
-		quic_conn->rx.params = srv->quic_params;
+		qc->rx.params = srv->quic_params;
 		/* Copy the initial source connection ID. */
-		quic_cid_cpy(&quic_conn->rx.params.initial_source_connection_id, &quic_conn->scid);
-		quic_conn->enc_params_len =
-			quic_transport_params_encode(quic_conn->enc_params,
-			                             quic_conn->enc_params + sizeof quic_conn->enc_params,
-			                             &quic_conn->rx.params, 0);
-		if (!quic_conn->enc_params_len)
+		quic_cid_cpy(&qc->rx.params.initial_source_connection_id, &qc->scid);
+		qc->enc_params_len =
+			quic_transport_params_encode(qc->enc_params, qc->enc_params + sizeof qc->enc_params,
+			                             &qc->rx.params, 0);
+		if (!qc->enc_params_len)
 			goto err;
 
-		SSL_set_quic_transport_params(ctx->ssl, quic_conn->enc_params, quic_conn->enc_params_len);
+		SSL_set_quic_transport_params(ctx->ssl, qc->enc_params, qc->enc_params_len);
 		SSL_set_connect_state(ctx->ssl);
 		ssl_err = SSL_do_handshake(ctx->ssl);
 		if (ssl_err != 1) {
 			ssl_err = SSL_get_error(ctx->ssl, ssl_err);
 			if (ssl_err == SSL_ERROR_WANT_READ || ssl_err == SSL_ERROR_WANT_WRITE) {
 				TRACE_PROTO("SSL handshake",
-				            QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state, &ssl_err);
+				            QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state, &ssl_err);
 			}
 			else {
 				TRACE_DEVEL("SSL handshake error",
-				            QUIC_EV_CONN_HDSHK, ctx->conn, &ctx->state, &ssl_err);
+				            QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state, &ssl_err);
 				goto err;
 			}
 		}
@@ -4416,8 +4417,6 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		/* Listener */
 		struct bind_conf *bc = __objt_listener(conn->target)->bind_conf;
 		struct quic_conn *qc = ctx->conn->qc;
-
-		ctx->state = QUIC_HS_ST_SERVER_INITIAL;
 
 		if (ssl_bio_and_sess_init(conn, bc->initial_ctx,
 		                          &ctx->ssl, &ctx->bio, ha_quic_meth, ctx) == -1)
