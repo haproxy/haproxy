@@ -530,6 +530,8 @@ struct quic_enc_level {
 		/* The packets received by the listener I/O handler
 		   with header protection removed. */
 		struct eb_root pkts;
+		/* <pkts> must be protected from concurrent accesses */
+		__decl_thread(HA_RWLOCK_T rwlock);
 		/* Liste of QUIC packets with protected header. */
 		struct list pqpkts;
 		/* Crypto frames */

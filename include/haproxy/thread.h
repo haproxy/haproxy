@@ -413,6 +413,7 @@ enum lock_label {
 	SSL_SERVER_LOCK,
 	SFT_LOCK, /* sink forward target */
 	IDLE_CONNS_LOCK,
+	QUIC_LOCK,
 	OTHER_LOCK,
 	/* WT: make sure never to use these ones outside of development,
 	 * we need them for lock profiling!
@@ -466,6 +467,7 @@ static inline const char *lock_label(enum lock_label label)
 	case SSL_SERVER_LOCK:      return "SSL_SERVER";
 	case SFT_LOCK:             return "SFT";
 	case IDLE_CONNS_LOCK:      return "IDLE_CONNS";
+	case QUIC_LOCK:            return "QUIC";
 	case OTHER_LOCK:           return "OTHER";
 	case DEBUG1_LOCK:          return "DEBUG1";
 	case DEBUG2_LOCK:          return "DEBUG2";

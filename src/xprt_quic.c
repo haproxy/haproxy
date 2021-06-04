@@ -2403,7 +2403,9 @@ static inline void qc_rm_hp_pkts(struct quic_enc_level *el, struct quic_conn_ctx
 			pqpkt->aad_len = pqpkt->pn_offset + pqpkt->pnl;
 			/* Store the packet into the tree of packets to decrypt. */
 			pqpkt->pn_node.key = pqpkt->pn;
+			HA_RWLOCK_WRLOCK(QUIC_LOCK, &el->rx.rwlock);
 			quic_rx_packet_eb64_insert(&el->rx.pkts, &pqpkt->pn_node);
+			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.rwlock);
 			TRACE_PROTO("hp removed", QUIC_EV_CONN_ELRMHP, ctx->conn, pqpkt);
 		}
 		quic_rx_packet_list_del(pqpkt);
@@ -2457,6 +2459,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
 
 	TRACE_ENTER(QUIC_EV_CONN_ELRXPKTS, ctx->conn);
 	tls_ctx = &el->tls_ctx;
+	HA_RWLOCK_WRLOCK(QUIC_LOCK, &el->rx.rwlock);
 	node = eb64_first(&el->rx.pkts);
 	while (node) {
 		struct quic_rx_packet *pkt;
@@ -2495,6 +2498,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct quic_conn_ctx *ctx)
 		node = eb64_next(node);
 		quic_rx_packet_eb64_delete(&pkt->pn_node);
 	}
+	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.rwlock);
 
 	if (!qc_treat_rx_crypto_frms(el, ctx))
 		goto err;
@@ -2624,6 +2628,7 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	qel->tls_ctx.tx.flags = 0;
 
 	qel->rx.pkts = EB_ROOT;
+	HA_RWLOCK_INIT(&qel->rx.rwlock);
 	LIST_INIT(&qel->rx.pqpkts);
 
 	/* Allocate only one buffer. */
@@ -3002,7 +3007,9 @@ static inline int qc_try_rm_hp(struct quic_rx_packet *pkt,
 		qpkt_trace = pkt;
 		/* Store the packet */
 		pkt->pn_node.key = pkt->pn;
+		HA_RWLOCK_WRLOCK(QUIC_LOCK, &qel->rx.rwlock);
 		quic_rx_packet_eb64_insert(&qel->rx.pkts, &pkt->pn_node);
+		HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.rwlock);
 	}
 	else if (qel) {
 		TRACE_PROTO("hp not removed", QUIC_EV_CONN_TRMHP, ctx ? ctx->conn : NULL, pkt);
