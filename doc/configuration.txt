@@ -802,6 +802,9 @@ Comments may be placed on the same line if needed after a '#', they will be
 ignored. The directives are tokenized like other configuration directives, and
 as such it is possible to use environment variables in conditions.
 
+Conditions can also be evaluated on startup with the -cc parameter.
+See "3. Starting HAProxy" in the management doc.
+
 The conditions are currently limited to:
 
   - an empty string, always returns "false"

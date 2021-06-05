@@ -1736,7 +1736,7 @@ static const struct cond_pred_kw *cfg_lookup_cond_pred(const char *str)
  * and only in this case), 0 if the condition is false, 1 if it's true. If
  * <errptr> is not NULL, it's set to the first invalid character on error.
  */
-static int cfg_eval_condition(char **args, char **err, const char **errptr)
+int cfg_eval_condition(char **args, char **err, const char **errptr)
 {
 	const struct cond_pred_kw *cond_pred = NULL;
 	const char *end_ptr;

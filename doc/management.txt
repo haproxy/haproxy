@@ -195,6 +195,10 @@ list of options is :
     to bind. The exit status is zero if everything is OK, or non-zero if an
     error is encountered. Presence of warnings will be reported if any.
 
+  -cc : evaluates a condition as used within a conditional block of the
+    configuration. The exit status is zero if the condition is true, 1 if the
+    condition is false or 2 if an error is encountered.
+
   -d : enable debug mode. This disables daemon mode, forces the process to stay
     in foreground and to show incoming and outgoing events. It must never be
     used in an init script.

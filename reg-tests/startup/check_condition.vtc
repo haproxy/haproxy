@@ -1,0 +1,13 @@
+varnishtest "Tests the -cc argument"
+
+#REQUIRE_VERSION=2.5
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+
+shell {
+    $HAPROXY_PROGRAM -cc "version_atleast(2.4)"
+    ! $HAPROXY_PROGRAM -cc "version_atleast(1024)"
+
+    $HAPROXY_PROGRAM -cc "streq(foo,'foo')"
+    $HAPROXY_PROGRAM -cc "streq(\"foo bar\",'foo bar')"
+    ! $HAPROXY_PROGRAM -cc "streq(foo,bar)"
+} -run

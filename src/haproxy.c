@@ -570,6 +570,7 @@ static void usage(char *name)
 #endif
 		"        -q quiet mode : don't display messages\n"
 		"        -c check mode : only check config files and exit\n"
+		"        -cc check condition : evaluate a condition and exit\n"
 		"        -n sets the maximum total # of connections (uses ulimit -n)\n"
 		"        -m limits the usable amount of memory (in MB)\n"
 		"        -N sets the default, per-proxy maximum # of connections (%d)\n"
@@ -1464,6 +1465,7 @@ static void init(int argc, char **argv)
 	struct proxy *px;
 	struct post_check_fct *pcf;
 	int ideal_maxconn;
+	char *check_condition = NULL;
 
 	global.mode = MODE_STARTING;
 	old_argv = copy_argv(argc, argv);
@@ -1619,6 +1621,12 @@ static void init(int argc, char **argv)
 				global.tune.options |= GTUNE_RESOLVE_DONTFAIL;
 			else if (*flag == 'd')
 				arg_mode |= MODE_DEBUG;
+			else if (*flag == 'c' && flag[1] == 'c') {
+				arg_mode |= MODE_CHECK_CONDITION;
+				argv++;
+				argc--;
+				check_condition = *argv;
+			}
 			else if (*flag == 'c')
 				arg_mode |= MODE_CHECK;
 			else if (*flag == 'D')
@@ -1752,7 +1760,7 @@ static void init(int argc, char **argv)
 
 	global.mode |= (arg_mode & (MODE_DAEMON | MODE_MWORKER | MODE_FOREGROUND | MODE_VERBOSE
 				    | MODE_QUIET | MODE_CHECK | MODE_DEBUG | MODE_ZERO_WARNING
-				    | MODE_DIAG));
+				    | MODE_DIAG | MODE_CHECK_CONDITION));
 
 	if (getenv("HAPROXY_MWORKER_WAIT_ONLY")) {
 		unsetenv("HAPROXY_MWORKER_WAIT_ONLY");
@@ -1786,6 +1794,58 @@ static void init(int argc, char **argv)
 #endif
 
 	usermsgs_clr("config");
+
+	if (global.mode & MODE_CHECK_CONDITION) {
+		int result;
+
+		uint32_t err;
+		const char *errptr;
+		char *errmsg = NULL;
+
+		char *args[MAX_LINE_ARGS+1];
+		int arg = sizeof(args) / sizeof(*args);
+		size_t outlen = strlen(check_condition) + 1;
+
+		err = parse_line(check_condition, check_condition, &outlen, args, &arg,
+		                 PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE | PARSE_OPT_BKSLASH,
+		                 &errptr);
+
+		if (err & PARSE_ERR_QUOTE) {
+			ha_alert("Syntax Error in condition: Unmatched quote.\n");
+			exit(2);
+		}
+
+		if (err & PARSE_ERR_HEX) {
+			ha_alert("Syntax Error in condition: Truncated or invalid hexadecimal sequence.\n");
+			exit(2);
+		}
+
+		if (err & (PARSE_ERR_TOOLARGE|PARSE_ERR_OVERLAP)) {
+			ha_alert("Error in condition: Line too long.\n");
+			exit(2);
+		}
+
+		if (err & PARSE_ERR_TOOMANY) {
+			ha_alert("Error in condition: Too many words.\n");
+			exit(2);
+		}
+
+		if (err) {
+			ha_alert("Unhandled error in condition, please report this to the developers.\n");
+			exit(2);
+		}
+
+		result = cfg_eval_condition(args, &errmsg, &errptr);
+
+		if (result < 0) {
+			if (errmsg)
+				ha_alert("Failed to evaluate condition: %s\n", errmsg);
+
+			exit(2);
+		}
+
+		exit(result ? 0 : 1);
+	}
 
 	/* in wait mode, we don't try to read the configuration files */
 	if (!(global.mode & MODE_MWORKER_WAIT)) {
