@@ -13228,16 +13228,16 @@ use-server <server> unless <condition>
   The "use-server" statement works both in HTTP and TCP mode. This makes it
   suitable for use with content-based inspection. For instance, a server could
   be selected in a farm according to the TLS SNI field when using protocols with
-  implicit TLS (also see "req_ssl_sni"). And if these servers have their weight
+  implicit TLS (also see "req.ssl_sni"). And if these servers have their weight
   set to zero, they will not be used for other traffic.
 
   Example :
      # intercept incoming TLS requests based on the SNI field
-     use-server www if { req_ssl_sni -i www.example.com }
+     use-server www if { req.ssl_sni -i www.example.com }
      server     www 192.168.0.1:443 weight 0
-     use-server mail if { req_ssl_sni -i mail.example.com }
+     use-server mail if { req.ssl_sni -i mail.example.com }
      server     mail 192.168.0.1:465 weight 0
-     use-server imap if { req_ssl_sni -i imap.example.com }
+     use-server imap if { req.ssl_sni -i imap.example.com }
      server     imap 192.168.0.1:993 weight 0
      # all the rest is forwarded to this server
      server  default 192.168.0.2:443 check
@@ -18727,7 +18727,7 @@ ssl_fc_sni : string
   matching the HTTPS host name (253 chars or less). The SSL library must have
   been built with support for TLS extensions enabled (check haproxy -vv).
 
-  This fetch is different from "req_ssl_sni" above in that it applies to the
+  This fetch is different from "req.ssl_sni" above in that it applies to the
   connection being deciphered by HAProxy and not to SSL contents being blindly
   forwarded. See also "ssl_fc_sni_end" and "ssl_fc_sni_reg" below. This
   requires that the SSL library is built with support for TLS extensions
@@ -18998,13 +18998,13 @@ req_ssl_sni : string (deprecated)
   the example below. See also "ssl_fc_sni".
 
   ACL derivatives :
-    req_ssl_sni : exact string match
+    req.ssl_sni : exact string match
 
   Examples :
      # Wait for a client hello for at most 5 seconds
      tcp-request inspect-delay 5s
      tcp-request content accept if { req_ssl_hello_type 1 }
-     use_backend bk_allow if { req_ssl_sni -f allowed_sites }
+     use_backend bk_allow if { req.ssl_sni -f allowed_sites }
      default_backend bk_sorry_page
 
 req.ssl_st_ext : integer
