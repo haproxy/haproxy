@@ -1959,7 +1959,7 @@ next_line:
 
 		while (1) {
 			uint32_t err;
-			char *errptr;
+			const char *errptr;
 
 			arg = sizeof(args) / sizeof(*args);
 			outlen = outlinesize;

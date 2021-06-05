@@ -5183,7 +5183,7 @@ void ha_generate_uuid(struct buffer *output)
  * the string. One solution for the caller may consist in replacing all args
  * delimiters with spaces in this case.
  */
-uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbargs, uint32_t opts, char **errptr)
+uint32_t parse_line(char *in, char *out, size_t *outlen, char **args, int *nbargs, uint32_t opts, const char **errptr)
 {
 	char *quote = NULL;
 	char *brace = NULL;
