@@ -1961,7 +1961,7 @@ next_line:
 			uint32_t err;
 			char *errptr;
 
-			arg = MAX_LINE_ARGS + 1;
+			arg = sizeof(args) / sizeof(*args);
 			outlen = outlinesize;
 			err = parse_line(line, outline, &outlen, args, &arg,
 					 PARSE_OPT_ENV | PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE |
