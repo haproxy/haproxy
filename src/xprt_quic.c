@@ -2369,7 +2369,8 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 static inline void qc_rm_hp_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
 {
 	struct quic_tls_ctx *tls_ctx;
-	struct quic_rx_packet *pqpkt, *qqpkt;
+	struct quic_rx_packet *pqpkt;
+	struct mt_list *pkttmp1, pkttmp2;
 	struct quic_enc_level *app_qel;
 
 	TRACE_ENTER(QUIC_EV_CONN_ELRMHP, ctx->conn);
@@ -2382,7 +2383,7 @@ static inline void qc_rm_hp_pkts(struct quic_enc_level *el, struct ssl_sock_ctx 
 		goto out;
 	}
 	tls_ctx = &el->tls_ctx;
-	list_for_each_entry_safe(pqpkt, qqpkt, &el->rx.pqpkts, list) {
+	mt_list_for_each_entry_safe(pqpkt, &el->rx.pqpkts, list, pkttmp1, pkttmp2) {
 		if (!qc_do_rm_hp(pqpkt, tls_ctx, el->pktns->rx.largest_pn,
 		                 pqpkt->data + pqpkt->pn_offset,
 		                 pqpkt->data, pqpkt->data + pqpkt->len, ctx)) {
@@ -2399,7 +2400,8 @@ static inline void qc_rm_hp_pkts(struct quic_enc_level *el, struct ssl_sock_ctx 
 			HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.rwlock);
 			TRACE_PROTO("hp removed", QUIC_EV_CONN_ELRMHP, ctx->conn, pqpkt);
 		}
-		quic_rx_packet_list_del(pqpkt);
+		MT_LIST_DELETE_SAFE(pkttmp1);
+		quic_rx_packet_refdec(pqpkt);
 	}
 
   out:
@@ -2529,7 +2531,7 @@ int qc_do_hdshk(struct ssl_sock_ctx *ctx)
 	/* If the header protection key for this level has been derived,
 	 * remove the packet header protections.
 	 */
-	if (!LIST_ISEMPTY(&qel->rx.pqpkts) &&
+	if (!MT_LIST_ISEMPTY(&qel->rx.pqpkts) &&
 	    (tls_ctx->rx.flags & QUIC_FL_TLS_SECRETS_SET))
 		qc_rm_hp_pkts(qel, ctx);
 
@@ -2546,7 +2548,7 @@ int qc_do_hdshk(struct ssl_sock_ctx *ctx)
 	/* Check if there is something to do for the next level.
 	 */
 	if ((next_qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
-	    (!LIST_ISEMPTY(&next_qel->rx.pqpkts) || !eb_is_empty(&next_qel->rx.pkts))) {
+	    (!MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) || !eb_is_empty(&next_qel->rx.pkts))) {
 		qel = next_qel;
 		goto next_level;
 	}
@@ -2619,7 +2621,7 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 
 	qel->rx.pkts = EB_ROOT;
 	HA_RWLOCK_INIT(&qel->rx.rwlock);
-	LIST_INIT(&qel->rx.pqpkts);
+	MT_LIST_INIT(&qel->rx.pqpkts);
 
 	/* Allocate only one buffer. */
 	qel->tx.crypto.bufs = malloc(sizeof *qel->tx.crypto.bufs);

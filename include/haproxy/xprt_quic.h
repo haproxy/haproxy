@@ -1100,17 +1100,17 @@ static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
 }
 
 /* Add <pkt> RX packet to <list>, incrementing its reference counter. */
-static inline void quic_rx_packet_list_addq(struct list *list,
+static inline void quic_rx_packet_list_addq(struct mt_list *list,
                                             struct quic_rx_packet *pkt)
 {
-	LIST_APPEND(list, &pkt->list);
+	MT_LIST_APPEND(list, &pkt->list);
 	quic_rx_packet_refinc(pkt);
 }
 
 /* Remove <pkt> RX packet from <list>, decrementing its reference counter. */
 static inline void quic_rx_packet_list_del(struct quic_rx_packet *pkt)
 {
-	LIST_DELETE(&pkt->list);
+	MT_LIST_DELETE(&pkt->list);
 	quic_rx_packet_refdec(pkt);
 }
 
