@@ -514,7 +514,7 @@ int quic_connect_server(struct connection *conn, int flags)
  */
 static void quic_add_listener(struct protocol *proto, struct listener *listener)
 {
-	LIST_INIT(&listener->rx.qpkts);
+	MT_LIST_INIT(&listener->rx.pkts);
 	listener->rx.odcids = EB_ROOT_UNIQUE;
 	listener->rx.cids = EB_ROOT_UNIQUE;
 	default_add_listener(proto, listener);

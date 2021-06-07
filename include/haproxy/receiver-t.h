@@ -62,7 +62,7 @@ struct receiver {
 	struct rx_settings *settings;    /* points to the settings used by this receiver */
 	struct list proto_list;          /* list in the protocol header */
 #ifdef USE_QUIC
-	struct list qpkts;               /* QUIC Initial packets to accept new connections */
+	struct mt_list pkts;             /* QUIC Initial packets to accept new connections */
 	struct eb_root odcids;           /* QUIC original destination connection IDs. */
 	struct eb_root cids;             /* QUIC connection IDs. */
 #endif

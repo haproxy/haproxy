@@ -3399,7 +3399,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	}
 	else if (!found_conn) {
 		/* Enqueue this packet. */
-		LIST_APPEND(&l->rx.qpkts, &pkt->rx_list);
+		MT_LIST_APPEND(&l->rx.pkts, &pkt->rx_list);
 		/* Try to accept a new connection. */
 		listener_accept(l);
 	}

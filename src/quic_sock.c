@@ -145,13 +145,12 @@ struct connection *quic_sock_accept_conn(struct listener *l, int *status)
 	int ret;
 
 	qc = NULL;
-	pkt = LIST_ELEM(l->rx.qpkts.n, struct quic_rx_packet *, rx_list);
+	pkt = MT_LIST_POP(&l->rx.pkts, struct quic_rx_packet *, rx_list);
 	/* Should never happen. */
-	if (&pkt->rx_list == &l->rx.qpkts)
+	if (!pkt)
 		goto err;
 
 	qc = pkt->qc;
-	LIST_DELETE(&pkt->rx_list);
 	if (!new_quic_cli_conn(qc, l, &pkt->saddr))
 		goto err;
 

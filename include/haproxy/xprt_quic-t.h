@@ -395,7 +395,7 @@ extern struct quic_transport_params quic_dflt_transport_params;
 
 struct quic_rx_packet {
 	struct list list;
-	struct list rx_list;
+	struct mt_list rx_list;
 	struct quic_conn *qc;
 	unsigned char type;
 	uint32_t version;
