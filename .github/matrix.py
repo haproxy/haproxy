@@ -116,6 +116,8 @@ for CC in ["gcc", "clang"]:
         flags = ["USE_OPENSSL=1"]
         if ssl == "BORINGSSL=yes":
             flags.append("USE_QUIC=1")
+        if ssl == "OPENSSL_VERSION=3.0.0-alpha17":
+            flags.append('DEBUG_CFLAGS="-g -Wno-deprecated-declarations"')
         if ssl != "stock":
             flags.append("SSL_LIB=${HOME}/opt/lib")
             flags.append("SSL_INC=${HOME}/opt/include")
