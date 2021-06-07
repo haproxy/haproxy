@@ -25,7 +25,8 @@ static THREAD_LOCAL struct buffer usermsgs_buf = BUF_NULL;
 
 /* A thread local context used for stderr output via ha_alert/warning/notice/diag.
  */
-static THREAD_LOCAL struct usermsgs_ctx usermsgs_ctx = { };
+#define USERMSGS_CTX_BUFSIZE   PATH_MAX
+static THREAD_LOCAL struct usermsgs_ctx usermsgs_ctx = { .str = BUF_NULL, };
 
 /* Put msg in usermsgs_buf.
  *
@@ -118,35 +119,49 @@ void reset_usermsgs_ctx(void)
 	usermsgs_ctx.obj = NULL;
 }
 
-static void generate_usermsgs_ctx_str(char **str)
+static void generate_usermsgs_ctx_str(void)
 {
-	const struct usermsgs_ctx *ctx = &usermsgs_ctx;
-	const char prefix_fmt[] = "%1$s : ";
-	const char file_line_fmt[] = "[%2$s:%3$d] : ";
-	const char obj_line_fmt[] = "%4$s/%5$s";
+	struct usermsgs_ctx *ctx = &usermsgs_ctx;
+	void *area;
+	int ret;
 
-	/* fmt must be big enough to contains the full format string before
-	 * memprintf */
-	char fmt[56];
+	if (unlikely(b_is_null(&ctx->str))) {
+		area = calloc(USERMSGS_CTX_BUFSIZE, sizeof(char));
+		if (area)
+			ctx->str = b_make(area, USERMSGS_CTX_BUFSIZE, 0, 0);
+	}
 
-	switch (obj_type(ctx->obj)) {
-	case OBJ_TYPE_SERVER:
-		sprintf(fmt, "%s%s'server %s' : ",
-		        ctx->prefix ? prefix_fmt : "",
-		        ctx->file ? file_line_fmt : "",
-		        obj_line_fmt);
-		memprintf(str, fmt, ctx->prefix, ctx->file, ctx->line,
-		          __objt_server(ctx->obj)->proxy->id,
-		          __objt_server(ctx->obj)->id);
-		break;
+	if (likely(!b_is_null(&ctx->str))) {
+		b_reset(&ctx->str);
 
-	case OBJ_TYPE_NONE:
-	default:
-		sprintf(fmt, "%s%s",
-		        ctx->prefix ? prefix_fmt : "",
-		        ctx->file ? file_line_fmt : "");
-		memprintf(str, fmt, ctx->prefix, ctx->file, ctx->line);
-		break;
+		if (ctx->prefix) {
+			ret = snprintf(b_tail(&ctx->str), b_room(&ctx->str),
+			               "%s : ", ctx->prefix);
+			b_add(&ctx->str, MIN(ret, b_room(&ctx->str)));
+		}
+
+		if (ctx->file) {
+			ret = snprintf(b_tail(&ctx->str), b_room(&ctx->str),
+			               "[%s:%d] : ", ctx->file, ctx->line);
+			b_add(&ctx->str, MIN(ret, b_room(&ctx->str)));
+		}
+
+		switch (obj_type(ctx->obj)) {
+		case OBJ_TYPE_SERVER:
+			ret = snprintf(b_tail(&ctx->str), b_room(&ctx->str),
+			               "'server %s/%s' : ",
+			               __objt_server(ctx->obj)->proxy->id,
+			               __objt_server(ctx->obj)->id);
+			b_add(&ctx->str, MIN(ret, b_room(&ctx->str)));
+			break;
+
+		case OBJ_TYPE_NONE:
+		default:
+			break;
+		}
+
+		if (!b_data(&ctx->str))
+			snprintf(b_tail(&ctx->str), b_room(&ctx->str), "%s", "");
 	}
 }
 
@@ -175,11 +190,12 @@ static void print_message(int use_usermsgs_ctx, const char *label, const char *f
 		msg_ist.len--;
 
 	if (use_usermsgs_ctx) {
-		generate_usermsgs_ctx_str(&parsing_str);
+		generate_usermsgs_ctx_str();
+		parsing_str = b_head(&usermsgs_ctx.str);
 		reset_usermsgs_ctx();
 	}
 	else {
-		memprintf(&parsing_str, "%s", "");
+		parsing_str = "";
 	}
 
 	if (global.mode & MODE_STARTING) {
@@ -204,7 +220,6 @@ static void print_message(int use_usermsgs_ctx, const char *label, const char *f
 	fflush(stderr);
 
 	free(head);
-	free(parsing_str);
 	free(msg);
 }
 
@@ -357,6 +372,7 @@ static void deinit_errors_buffers()
 {
 	ring_free(_HA_ATOMIC_XCHG(&startup_logs, NULL));
 	ha_free(&usermsgs_buf.area);
+	ha_free(&usermsgs_ctx.str.area);
 }
 
 REGISTER_PER_THREAD_FREE(deinit_errors_buffers);

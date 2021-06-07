@@ -25,6 +25,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include <haproxy/buf-t.h>
+
 /* These flags may be used in various functions which are called from within
  * loops (eg: to start all listeners from all proxies). They provide enough
  * information to let the caller decide what to do. ERR_WARN and ERR_ALERT
@@ -67,6 +69,8 @@ const char *usermsgs_str(void);
 /************ Error reporting functions ***********/
 
 struct usermsgs_ctx {
+	struct buffer str;
+
 	const char *prefix;  /* prefix of every output */
 	const char *file;    /* related filename for config parsing */
 	int line;            /* related line number for config parsing */
