@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 # Copyright 2019 Ilya Shipitsin <chipitsine@gmail.com>
 # Copyright 2020 Tim Duesterhus <tim@bastelstu.be>
 #
