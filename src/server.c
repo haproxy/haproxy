@@ -198,9 +198,12 @@ void srv_set_dyncookie(struct server *s)
 }
 
 /*
- * Must be called with the server lock held, and will write-lock the proxy.
+ * Must be called with the server lock held. The server is first removed from
+ * the proxy tree if it was already attached. If <reattach> is true, the server
+ * will then be attached in the proxy tree. The proxy lock is held to
+ * manipulate the tree.
  */
-static void srv_set_addr_desc(struct server *s)
+static void srv_set_addr_desc(struct server *s, int reattach)
 {
 	struct proxy *p = s->proxy;
 	char *key;
@@ -222,10 +225,12 @@ static void srv_set_addr_desc(struct server *s)
 
 	s->addr_node.key = key;
 
-	if (s->addr_node.key) {
-		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
-		ebis_insert(&p->used_server_addr, &s->addr_node);
-		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
+	if (reattach) {
+		if (s->addr_node.key) {
+			HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->lock);
+			ebis_insert(&p->used_server_addr, &s->addr_node);
+			HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);
+		}
 	}
 }
 
@@ -2477,9 +2482,14 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 
 		newsrv->addr = *sk;
 		newsrv->svc_port = port;
-		// we don't need to lock the server here, because
-		// we are in the process of initializing
-		srv_set_addr_desc(newsrv);
+		/*
+		 * we don't need to lock the server here, because
+		 * we are in the process of initializing.
+		 *
+		 * Note that the server is not attached into the proxy tree if
+		 * this is a dynamic server.
+		 */
+		srv_set_addr_desc(newsrv, !(parse_flags & SRV_PARSE_DYNAMIC));
 
 		if (!newsrv->srvrq && !newsrv->hostname && !protocol_by_family(newsrv->addr.ss_family)) {
 			ha_alert("Unknown protocol family %d '%s'\n",
@@ -2936,7 +2946,7 @@ int srv_update_addr(struct server *s, void *ip, int ip_sin_family, const char *u
 		break;
 	};
 	srv_set_dyncookie(s);
-	srv_set_addr_desc(s);
+	srv_set_addr_desc(s, 1);
 
 	return 0;
 }
@@ -3193,7 +3203,7 @@ out:
 		/* force connection cleanup on the given server */
 		srv_cleanup_connections(s);
 		srv_set_dyncookie(s);
-		srv_set_addr_desc(s);
+		srv_set_addr_desc(s, 1);
 	}
 	if (updater)
 		chunk_appendf(msg, " by '%s'", updater);
@@ -3763,7 +3773,7 @@ static int srv_iterate_initaddr(struct server *srv)
 	return return_code;
 out:
 	srv_set_dyncookie(srv);
-	srv_set_addr_desc(srv);
+	srv_set_addr_desc(srv, 1);
 	return return_code;
 }
 
@@ -4474,6 +4484,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	/* insert the server in the backend trees */
 	eb32_insert(&be->conf.used_server_id, &srv->conf.id);
 	ebis_insert(&be->conf.used_server_name, &srv->conf.name);
+	ebis_insert(&be->used_server_addr, &srv->addr_node);
 
 	thread_release();
 
