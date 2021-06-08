@@ -610,7 +610,6 @@ static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struc
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
 	newsrv->flags |= SRV_F_FORCED_ID;
 	return 0;
 }
@@ -2715,6 +2714,15 @@ int parse_server(const char *file, int linenum, char **args,
 	if (parse_flags & SRV_PARSE_TEMPLATE)
 		_srv_parse_tmpl_init(newsrv, curproxy);
 
+	/* If the server id is fixed, insert it in the proxy used_id tree.
+	 * This is needed to detect a later duplicate id via srv_parse_id.
+	 *
+	 * If no is specified, a dynamic one is generated in
+	 * check_config_validity.
+	 */
+	if (newsrv->flags & SRV_F_FORCED_ID)
+		eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
+
 	HA_DIAG_WARNING_COND((curproxy->cap & PR_CAP_LB) && !newsrv->uweight,
 	                     "configured with weight of 0 will never be selected by load balancing algorithms\n");
 
@@ -4464,10 +4472,8 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	}
 
 	/* insert the server in the backend trees */
-	if (!(srv->flags & SRV_F_FORCED_ID)) {
-		eb32_insert(&be->conf.used_server_id, &srv->conf.id);
-		ebis_insert(&be->conf.used_server_name, &srv->conf.name);
-	}
+	eb32_insert(&be->conf.used_server_id, &srv->conf.id);
+	ebis_insert(&be->conf.used_server_name, &srv->conf.name);
 
 	thread_release();
 
