@@ -293,21 +293,26 @@ void pool_gc(struct pool_head *pool_ctx)
  */
 void pool_flush(struct pool_head *pool)
 {
-	struct pool_free_list cmp, new;
-	void **next, *temp;
+	void *next, *temp;
 
 	if (!pool)
 		return;
-	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
+
+	/* The loop below atomically detaches the head of the free list and
+	 * replaces it with a NULL. Then the list can be released.
+	 */
+	next = pool->free_list;
 	do {
-		cmp.free_list = pool->free_list;
-		cmp.seq = pool->seq;
-		new.free_list = NULL;
-		new.seq = cmp.seq + 1;
-	} while (!_HA_ATOMIC_DWCAS(&pool->free_list, &cmp, &new));
+		while (unlikely(next == POOL_BUSY)) {
+			__ha_cpu_relax();
+			next = _HA_ATOMIC_LOAD(&pool->free_list);
+		}
+		if (next == NULL)
+			return;
+	} while (unlikely((next = _HA_ATOMIC_XCHG(&pool->free_list, POOL_BUSY)) == POOL_BUSY));
+	_HA_ATOMIC_STORE(&pool->free_list, NULL);
 	__ha_barrier_atomic_store();
-	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-	next = cmp.free_list;
+
 	while (next) {
 		temp = next;
 		next = *POOL_LINK(pool, temp);

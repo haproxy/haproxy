@@ -112,27 +112,39 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
  */
 static inline void *pool_get_from_shared_cache(struct pool_head *pool)
 {
-	struct pool_free_list cmp, new;
+	void *ret;
 
-	cmp.seq = pool->seq;
-	__ha_barrier_load();
-
-	cmp.free_list = pool->free_list;
+	/* we'll need to reference the first element to figure the next one. We
+	 * must temporarily lock it so that nobody allocates then releases it,
+	 * or the dereference could fail.
+	 */
+	ret = pool->free_list;
 	do {
-		if (cmp.free_list == NULL)
-			return NULL;
-		new.seq = cmp.seq + 1;
-		__ha_barrier_load();
-		new.free_list = *POOL_LINK(pool, cmp.free_list);
-	} while (HA_ATOMIC_DWCAS((void *)&pool->free_list, (void *)&cmp, (void *)&new) == 0);
-	__ha_barrier_atomic_store();
+		while (unlikely(ret == POOL_BUSY)) {
+			__ha_cpu_relax();
+			ret = _HA_ATOMIC_LOAD(&pool->free_list);
+		}
+		if (ret == NULL)
+			return ret;
+	} while (unlikely((ret = _HA_ATOMIC_XCHG(&pool->free_list, POOL_BUSY)) == POOL_BUSY));
 
+	if (unlikely(ret == NULL)) {
+		_HA_ATOMIC_STORE(&pool->free_list, NULL);
+		goto out;
+	}
+
+	/* this releases the lock */
+	_HA_ATOMIC_STORE(&pool->free_list, *POOL_LINK(pool, ret));
 	_HA_ATOMIC_INC(&pool->used);
+
 #ifdef DEBUG_MEMORY_POOLS
 	/* keep track of where the element was allocated from */
-	*POOL_LINK(pool, cmp.free_list) = (void *)pool;
+	*POOL_LINK(pool, ret) = (void *)pool;
 #endif
-	return cmp.free_list;
+
+ out:
+	__ha_barrier_atomic_store();
+	return ret;
 }
 
 /* Locklessly add item <ptr> to pool <pool>, then update the pool used count.
@@ -141,16 +153,21 @@ static inline void *pool_get_from_shared_cache(struct pool_head *pool)
  */
 static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 {
-	void **free_list = pool->free_list;
+	void **free_list;
 
 	_HA_ATOMIC_DEC(&pool->used);
 
 	if (unlikely(pool_is_crowded(pool))) {
 		pool_put_to_os(pool, ptr);
 	} else {
+		free_list = _HA_ATOMIC_LOAD(&pool->free_list);
 		do {
-			*POOL_LINK(pool, ptr) = (void *)free_list;
-			__ha_barrier_store();
+			while (unlikely(free_list == POOL_BUSY)) {
+				__ha_cpu_relax();
+				free_list = _HA_ATOMIC_LOAD(&pool->free_list);
+			}
+			_HA_ATOMIC_STORE(POOL_LINK(pool, ptr), (void *)free_list);
+			__ha_barrier_atomic_store();
 		} while (!_HA_ATOMIC_CAS(&pool->free_list, &free_list, ptr));
 		__ha_barrier_atomic_store();
 	}
