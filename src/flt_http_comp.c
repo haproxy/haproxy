@@ -181,7 +181,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 
 		next = htx_get_next_blk(htx, blk);
 		while (next && htx_get_blk_type(next) == HTX_BLK_UNUSED)
-			next = htx_get_next_blk(htx, blk);
+			next = htx_get_next_blk(htx, next);
 
 		if (htx_compression_buffer_init(htx, &trash) < 0) {
 			msg->chn->flags |= CF_WAKE_WRITE;
