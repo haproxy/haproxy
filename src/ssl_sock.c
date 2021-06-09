@@ -778,7 +778,7 @@ static long asn1_generalizedtime_to_epoch(ASN1_GENERALIZEDTIME *d)
 	const unsigned short month_offset[12] = {
 		0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
 	};
-	int year, month;
+	unsigned long year, month;
 
 	if (!d || (d->type != V_ASN1_GENERALIZEDTIME)) return -1;
 
@@ -996,6 +996,10 @@ static int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	}
 
 	ocsp->expire = asn1_generalizedtime_to_epoch(nextupd) - OCSP_MAX_RESPONSE_TIME_SKEW;
+	if (ocsp->expire < 0) {
+		memprintf(err, "OCSP single response: Invalid \"Next Update\" time");
+		goto out;
+	}
 
 	ret = 0;
 out:
