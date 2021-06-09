@@ -4317,7 +4317,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	struct server *srv;
 	char *be_name, *sv_name;
 	int errcode, argc;
-	int i;
+	int next_id, i;
 	const int parse_flags = SRV_PARSE_DYNAMIC|SRV_PARSE_PARSE_ADDR;
 
 	usermsgs_clr("CLI");
@@ -4449,6 +4449,24 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	else {
 		srv->next = be->srv;
 		be->srv = srv;
+	}
+
+	/* generate the server id if not manually specified */
+	if (!srv->puid) {
+		next_id = get_next_id(&be->conf.used_server_id, 1);
+		if (!next_id) {
+			ha_alert("Cannot attach server : no id left in proxy\n");
+			goto out;
+		}
+
+		srv->conf.id.key = srv->puid = next_id;
+		srv->conf.name.key = srv->id;
+	}
+
+	/* insert the server in the backend trees */
+	if (!(srv->flags & SRV_F_FORCED_ID)) {
+		eb32_insert(&be->conf.used_server_id, &srv->conf.id);
+		ebis_insert(&be->conf.used_server_name, &srv->conf.name);
 	}
 
 	thread_release();
