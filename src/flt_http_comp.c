@@ -206,8 +206,10 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 
 				if (ret == sz && !b_data(&trash))
 					next = htx_remove_blk(htx, blk);
-				else
+				else {
 					blk = htx_replace_blk_value(htx, blk, v, ist2(b_head(&trash), b_data(&trash)));
+					next = htx_get_next_blk(htx, blk);
+				}
 
 				len -= ret;
 				consumed += ret;
@@ -225,6 +227,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 					blk = htx_get_next_blk(htx, last);
 					if (!blk)
 						goto error;
+					next = htx_get_next_blk(htx, blk);
 					to_forward += b_data(&trash);
 				}
 				/* fall through */
