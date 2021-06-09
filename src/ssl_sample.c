@@ -1189,7 +1189,7 @@ smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char
 }
 
 /* Dump the SSL keylog, it only works with "tune.ssl.keylog 1" */
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 static int smp_fetch_ssl_x_keylog(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
@@ -1520,7 +1520,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 #endif
 
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 	{ "ssl_fc_client_early_traffic_secret",     smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_client_handshake_traffic_secret", smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_server_handshake_traffic_secret", smp_fetch_ssl_x_keylog,       0,   NULL,    SMP_T_STR,  SMP_USE_L5CLI },

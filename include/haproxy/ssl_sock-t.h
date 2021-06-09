@@ -206,7 +206,7 @@ struct ssl_capture {
 	char ciphersuite[VAR_ARRAY];
 };
 
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 #define SSL_KEYLOG_MAX_SECRET_SIZE 129
 
 struct ssl_keylog {

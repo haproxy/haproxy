@@ -127,7 +127,7 @@ struct global_ssl global_ssl = {
 	.capture_cipherlist = 0,
 	.extra_files = SSL_GF_ALL,
 	.extra_files_noext = 0,
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 	.keylog = 0
 #endif
 };
@@ -437,7 +437,7 @@ struct pool_head *pool_head_ssl_capture __read_mostly = NULL;
 int ssl_capture_ptr_index = -1;
 int ssl_app_data_index = -1;
 
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 int ssl_keylog_index = -1;
 struct pool_head *pool_head_ssl_keylog __read_mostly = NULL;
 struct pool_head *pool_head_ssl_keylog_str __read_mostly = NULL;
@@ -513,7 +513,7 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
                                        int content_type, const void *buf, size_t len,
                                        SSL *ssl);
 
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 static void ssl_init_keylog(struct connection *conn, int write_p, int version,
                             int content_type, const void *buf, size_t len,
                             SSL *ssl);
@@ -558,7 +558,7 @@ static int ssl_sock_register_msg_callbacks(void)
 		if (!ssl_sock_register_msg_callback(ssl_sock_parse_clienthello))
 			return ERR_ABORT;
 	}
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 	if (global_ssl.keylog > 0) {
 		if (!ssl_sock_register_msg_callback(ssl_init_keylog))
 			return ERR_ABORT;
@@ -1737,7 +1737,7 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 }
 
 
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 static void ssl_init_keylog(struct connection *conn, int write_p, int version,
                             int content_type, const void *buf, size_t len,
                             SSL *ssl)
@@ -4147,7 +4147,7 @@ void ssl_set_shctx(SSL_CTX *ctx)
  * We only need to copy the secret as there is a sample fetch for the ClientRandom
  */
 
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 void SSL_CTX_keylog(const SSL *ssl, const char *line)
 {
 	struct ssl_keylog *keylog;
@@ -4383,7 +4383,7 @@ static int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, struct ssl_bind_con
 #ifdef SSL_CTRL_SET_MSG_CALLBACK
 	SSL_CTX_set_msg_callback(ctx, ssl_sock_msgcbk);
 #endif
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 	SSL_CTX_set_keylog_callback(ctx, SSL_CTX_keylog);
 #endif
 
@@ -7037,7 +7037,7 @@ static void ssl_sock_capture_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *
 	pool_free(pool_head_ssl_capture, ptr);
 }
 
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 static void ssl_sock_keylog_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
 {
 	struct ssl_keylog *keylog;
@@ -7104,7 +7104,7 @@ static void __ssl_sock_init(void)
 
 	ssl_app_data_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, NULL);
 	ssl_capture_ptr_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_capture_free_func);
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 	ssl_keylog_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_keylog_free_func);
 #endif
 #ifndef OPENSSL_NO_ENGINE

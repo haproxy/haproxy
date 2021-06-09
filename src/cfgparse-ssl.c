@@ -319,7 +319,7 @@ static int ssl_parse_global_capture_cipherlist(char **args, int section_type, st
 }
 
 /* init the SSLKEYLOGFILE pool */
-#ifdef HAVE_OPENSSL_KEYLOG
+#ifdef HAVE_SSL_KEYLOG
 static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *curpx,
                                        const struct proxy *defpx, const char *file, int line,
                                        char **err)
@@ -353,6 +353,14 @@ static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *
 	}
 
 	return 0;
+}
+#else
+static int ssl_parse_global_keylog(char **args, int section_type, struct proxy *curpx,
+                                       const struct proxy *defpx, const char *file, int line,
+                                       char **err)
+{
+	memprintf(err, "'%s' requires at least OpenSSL 1.1.1.", args[0]);
+	return -1;
 }
 #endif
 
@@ -1878,9 +1886,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.maxrecord", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.ssl-ctx-cache-size", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_cipherlist },
-#ifdef HAVE_OPENSSL_KEYLOG
 	{ CFG_GLOBAL, "tune.ssl.keylog", ssl_parse_global_keylog },
-#endif
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },
 	{ CFG_GLOBAL, "ssl-default-server-ciphers", ssl_parse_global_ciphers },
 #if defined(SSL_CTX_set1_curves_list)

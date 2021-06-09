@@ -74,6 +74,10 @@
 #define HAVE_SSL_SCTL
 #endif
 
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L)
+#define HAVE_SSL_KEYLOG
+#endif
+
 #if (HA_OPENSSL_VERSION_NUMBER < 0x0090800fL)
 /* Functions present in OpenSSL 0.9.8, older not tested */
 static inline const unsigned char *SSL_SESSION_get_id(const SSL_SESSION *sess, unsigned int *sid_length)
