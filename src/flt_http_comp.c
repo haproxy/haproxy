@@ -25,6 +25,8 @@
 #include <haproxy/stream.h>
 #include <haproxy/tools.h>
 
+#define COMP_STATE_PROCESSING 0x01
+
 const char *http_comp_flt_id = "compression filter";
 
 struct flt_ops comp_ops;
@@ -32,6 +34,7 @@ struct flt_ops comp_ops;
 struct comp_state {
 	struct comp_ctx  *comp_ctx;   /* compression context */
 	struct comp_algo *comp_algo;  /* compression algorithm if not NULL */
+	unsigned int      flags;      /* COMP_STATE_* */
 };
 
 /* Pools used to allocate comp_state structs */
@@ -93,6 +96,7 @@ comp_strm_init(struct stream *s, struct filter *filter)
 
 	st->comp_algo = NULL;
 	st->comp_ctx  = NULL;
+	st->flags     = 0;
 	filter->ctx   = st;
 
 	/* Register post-analyzer on AN_RES_WAIT_HTTP because we need to
@@ -135,6 +139,7 @@ comp_http_headers(struct stream *s, struct filter *filter, struct http_msg *msg)
 			if (!set_compression_response_header(st, s, msg))
 				goto end;
 			register_data_filter(s, msg->chn, filter);
+			st->flags |= COMP_STATE_PROCESSING;
 		}
 	}
 
@@ -183,6 +188,9 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 		while (next && htx_get_blk_type(next) == HTX_BLK_UNUSED)
 			next = htx_get_next_blk(htx, next);
 
+		if (!(st->flags & COMP_STATE_PROCESSING))
+			goto consume;
+
 		if (htx_compression_buffer_init(htx, &trash) < 0) {
 			msg->chn->flags |= CF_WAKE_WRITE;
 			goto end;
@@ -214,6 +222,8 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 				len -= ret;
 				consumed += ret;
 				to_forward += b_data(&trash);
+				if (last)
+					st->flags &= ~COMP_STATE_PROCESSING;
 				break;
 
 			case HTX_BLK_TLR:
@@ -230,6 +240,7 @@ comp_http_payload(struct stream *s, struct filter *filter, struct http_msg *msg,
 					next = htx_get_next_blk(htx, blk);
 					to_forward += b_data(&trash);
 				}
+				st->flags &= ~COMP_STATE_PROCESSING;
 				/* fall through */
 
 			default:
