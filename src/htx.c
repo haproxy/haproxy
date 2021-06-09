@@ -16,12 +16,15 @@
 struct htx htx_empty = { .size = 0, .data = 0, .head  = -1, .tail = -1, .first = -1 };
 
 /* Defragments an HTX message. It removes unused blocks and unwraps the payloads
- * part. A temporary buffer is used to do so. This function never fails. if
- * <blk> is not NULL, we replace it by the new block address, after the
- * defragmentation. The new <blk> is returned.
+ * part. A temporary buffer is used to do so. This function never fails. Most of
+ * time, we need keep a ref on a specific HTX block. Thus is <blk> is set, the
+ * pointer on its new position, after defrag, is returned. In addition, if the
+ * size of the block must be altered, <blkinfo> info must be provided (!=
+ * 0). But in this case, it remains the caller responsibility to update the
+ * block content.
  */
 /* TODO: merge data blocks into one */
-struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
+struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk, uint32_t blkinfo)
 {
 	struct buffer *chunk = get_trash_chunk();
 	struct htx *tmp = htxbuf(chunk);
@@ -38,6 +41,7 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 	new  = 0;
 	addr = 0;
 	tmp->size = htx->size;
+	tmp->data = 0;
 
 	/* start from the head */
 	for (old = htx_get_head(htx); old != -1; old = htx_get_next(htx, old)) {
@@ -45,25 +49,31 @@ struct htx_blk *htx_defrag(struct htx *htx, struct htx_blk *blk)
 		if (htx_get_blk_type(oldblk) == HTX_BLK_UNUSED)
 			continue;
 
-		newblk = htx_get_blk(tmp, new);
-		newblk->addr = addr;
-		newblk->info = oldblk->info;
 		blksz = htx_get_blksz(oldblk);
+		memcpy((void *)tmp->blocks + addr, htx_get_blk_ptr(htx, oldblk), blksz);
 
 		/* update the start-line position */
 		if (htx->first == old)
 			first = new;
 
+		newblk = htx_get_blk(tmp, new);
+		newblk->addr = addr;
+		newblk->info = oldblk->info;
+
 		/* if <blk> is defined, save its new position */
-		if (blk != NULL && blk == oldblk)
+		if (blk != NULL && blk == oldblk) {
+			if (blkinfo)
+				newblk->info = blkinfo;
 			blkpos = new;
+		}
 
-		memcpy((void *)tmp->blocks + addr, htx_get_blk_ptr(htx, oldblk), blksz);
-		new++;
+		blksz = htx_get_blksz(newblk);
 		addr += blksz;
-
+		tmp->data += blksz;
+		new++;
 	}
 
+	htx->data = tmp->data;
 	htx->first = first;
 	htx->head = 0;
 	htx->tail = new - 1;
@@ -174,7 +184,7 @@ static struct htx_blk *htx_reserve_nxblk(struct htx *htx, uint32_t blksz)
 	else {
 	  defrag:
 		/* need to defragment the message before inserting upfront */
-		htx_defrag(htx, NULL);
+		htx_defrag(htx, NULL, 0);
 		tail = htx->tail + 1;
 		blk = htx_get_blk(htx, tail);
 		blk->addr = htx->tail_addr;
@@ -584,11 +594,6 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 	if (!ret)
 		return NULL; /* not enough space */
 
-	/* Before updating the payload, set the new block size and update HTX
-	 * message */
-	htx_set_blk_value_len(blk, v.len + delta);
-	htx->data += delta;
-
 	if (ret == 1) { /* Replace in place */
 		if (delta <= 0) {
 			/* compression: copy new data first then move the end */
@@ -600,6 +605,10 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 			memmove(old.ptr + new.len, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
 			memcpy(old.ptr, new.ptr, new.len);
 		}
+
+		/* set the new block size and update HTX message */
+		htx_set_blk_value_len(blk, v.len + delta);
+		htx->data += delta;
 	}
 	else if (ret == 2) { /* New address but no defrag */
 		void *ptr = htx_get_blk_ptr(htx, blk);
@@ -618,26 +627,32 @@ struct htx_blk *htx_replace_blk_value(struct htx *htx, struct htx_blk *blk,
 
 		/* Copy value after old part, if any */
 		memcpy(ptr, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
+
+		/* set the new block size and update HTX message */
+		htx_set_blk_value_len(blk, v.len + delta);
+		htx->data += delta;
 	}
-	else { /* Do a degrag first */
-		struct buffer *tmp = get_trash_chunk();
+	else { /* Do a degrag first (it is always an expansion) */
+		struct htx_blk tmpblk;
+		int32_t offset;
 
-		/* Copy the header name, if any */
-		chunk_memcat(tmp, n.ptr, n.len);
+		/* use tmpblk to set new block size before defrag and to compute
+		 * the offset after defrag
+		 */
+		tmpblk.addr = blk->addr;
+		tmpblk.info = blk->info;
+		htx_set_blk_value_len(&tmpblk, v.len + delta);
 
-		/* Copy value before old part, if any */
-		chunk_memcat(tmp, v.ptr, old.ptr - v.ptr);
+		/* htx_defrag() will take care to update the block size and the htx message */
+		blk = htx_defrag(htx, blk, tmpblk.info);
 
-		/* Copy new value */
-		chunk_memcat(tmp, new.ptr, new.len);
+		/* newblk is now the new HTX block. Compute the offset to copy/move payload */
+		offset = blk->addr - tmpblk.addr;
 
-		/* Copy value after old part if any */
-                chunk_memcat(tmp, old.ptr + old.len, (v.ptr + v.len) - (old.ptr + old.len));
-
-		blk = htx_defrag(htx, blk);
-
-		/* Finally, copy data. */
-		memcpy(htx_get_blk_ptr(htx, blk), tmp->area, tmp->data);
+		/* move the end first and copy new data
+		 */
+		memmove(old.ptr + offset + new.len, old.ptr + offset + old.len, (v.ptr + v.len) - (old.ptr + old.len));
+		memcpy(old.ptr + offset, new.ptr, new.len);
 	}
 	return blk;
 }
@@ -769,15 +784,17 @@ struct htx_blk *htx_replace_header(struct htx *htx, struct htx_blk *blk,
 	if (!ret)
 		return NULL; /* not enough space */
 
-	/* Set the new block size and update HTX message */
-	blk->info = (type << 28) + (value.len << 8) + name.len;
-	htx->data += delta;
 
 	/* Replace in place or at a new address is the same. We replace all the
 	 * header (name+value). Only take care to defrag the message if
 	 * necessary. */
 	if (ret == 3)
-		blk = htx_defrag(htx, blk);
+		blk = htx_defrag(htx, blk, (type << 28) + (value.len << 8) + name.len);
+	else {
+		/* Set the new block size and update HTX message */
+		blk->info = (type << 28) + (value.len << 8) + name.len;
+		htx->data += delta;
+	}
 
 	/* Finally, copy data. */
 	ptr = htx_get_blk_ptr(htx, blk);
@@ -815,14 +832,16 @@ struct htx_sl *htx_replace_stline(struct htx *htx, struct htx_blk *blk, const st
 	if (!ret)
 		return NULL; /* not enough space */
 
-	/* Set the new block size and update HTX message */
-	htx_set_blk_value_len(blk, sz+delta);
-	htx->data += delta;
-
 	/* Replace in place or at a new address is the same. We replace all the
 	 * start-line. Only take care to defrag the message if necessary. */
-	if (ret == 3)
-		blk = htx_defrag(htx, blk);
+	if (ret == 3)  {
+		blk = htx_defrag(htx, blk, (type << 28) + sz + delta);
+	}
+	else {
+		/* Set the new block size and update HTX message */
+		blk->info = (type << 28) + sz + delta;
+		htx->data += delta;
+	}
 
 	/* Restore start-line info and flags and copy parts of the start-line */
 	sl = htx_get_blk_ptr(htx, blk);
