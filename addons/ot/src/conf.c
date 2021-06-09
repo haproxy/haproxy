@@ -671,6 +671,7 @@ void flt_ot_conf_tracer_free(struct flt_ot_conf_tracer **ptr)
 
 	FLT_OT_FREE((*ptr)->id);
 	FLT_OT_FREE((*ptr)->config);
+	FLT_OT_FREE((*ptr)->cfgbuf);
 	FLT_OT_FREE((*ptr)->plugin);
 	FLT_OT_DBG(2, "- deleting acls list %s", flt_ot_list_debug(&((*ptr)->acls)));
 	list_for_each_entry_safe(acl, aclback, &((*ptr)->acls), list) {

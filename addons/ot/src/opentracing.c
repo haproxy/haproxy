@@ -138,7 +138,6 @@ static void ot_mem_free(FLT_OT_DBG_ARGS(const char *func, int line, ) void *ptr)
  *
  * ARGUMENTS
  *   tracer -
- *   config -
  *   plugin -
  *   err    -
  *
@@ -148,12 +147,12 @@ static void ot_mem_free(FLT_OT_DBG_ARGS(const char *func, int line, ) void *ptr)
  * RETURN VALUE
  *   -
  */
-int ot_init(struct otc_tracer **tracer, const char *config, const char *plugin, char **err)
+int ot_init(struct otc_tracer **tracer, const char *plugin, char **err)
 {
 	char cwd[PATH_MAX], path[PATH_MAX], errbuf[BUFSIZ] = "";
 	int  rc, retval = -1;
 
-	FLT_OT_FUNC("%p:%p \"%s\", \"%s\", %p:%p", FLT_OT_DPTR_ARGS(tracer), config, plugin, FLT_OT_DPTR_ARGS(err));
+	FLT_OT_FUNC("%p:%p, \"%s\", %p:%p", FLT_OT_DPTR_ARGS(tracer), plugin, FLT_OT_DPTR_ARGS(err));
 
 	flt_ot_pools_info();
 #ifdef USE_POOL_OT_SPAN_CONTEXT
@@ -172,7 +171,7 @@ int ot_init(struct otc_tracer **tracer, const char *config, const char *plugin, 
 		FLT_OT_RETURN(retval);
 	}
 
-	*tracer = otc_tracer_init(path, config, NULL, errbuf, sizeof(errbuf));
+	*tracer = otc_tracer_load(path, errbuf, sizeof(errbuf));
 	if (*tracer == NULL) {
 		FLT_OT_ERR("%s", (*errbuf == '\0') ? "failed to initialize tracing library" : errbuf);
 	} else {
@@ -180,6 +179,39 @@ int ot_init(struct otc_tracer **tracer, const char *config, const char *plugin, 
 
 		retval = 0;
 	}
+
+	FLT_OT_RETURN(retval);
+}
+
+
+/***
+ * NAME
+ *   ot_start -
+ *
+ * ARGUMENTS
+ *   tracer -
+ *   cfgbuf -
+ *   err    -
+ *
+ * DESCRIPTION
+ *   -
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+int ot_start(struct otc_tracer *tracer, const char *cfgbuf, char **err)
+{
+	char errbuf[BUFSIZ] = "";
+	int  retval = -1;
+
+	FLT_OT_FUNC("%p, %p, %p:%p", tracer, cfgbuf, FLT_OT_DPTR_ARGS(err));
+
+	if (cfgbuf == NULL)
+		FLT_OT_RETURN(retval);
+
+	retval = otc_tracer_start(NULL, cfgbuf, errbuf, sizeof(errbuf));
+	if (retval == -1)
+		FLT_OT_ERR("%s", (*errbuf == '\0') ? "failed to start tracer" : errbuf);
 
 	FLT_OT_RETURN(retval);
 }

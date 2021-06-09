@@ -574,7 +574,8 @@ static int flt_ot_parse_cfg_tracer(const char *file, int linenum, char **args, i
  */
 static int flt_ot_post_parse_cfg_tracer(void)
 {
-	int retval = ERR_NONE;
+	char errbuf[BUFSIZ] = "";
+	int  retval = ERR_NONE;
 
 	FLT_OT_FUNC("");
 
@@ -586,8 +587,13 @@ static int flt_ot_post_parse_cfg_tracer(void)
 	if (flt_ot_current_tracer->id == NULL)
 		FLT_OT_RETURN(retval);
 
-	if (flt_ot_current_tracer->config == NULL)
+	if (flt_ot_current_tracer->config == NULL) {
 		FLT_OT_POST_PARSE_ALERT("tracer '%s' has no configuration file specified", flt_ot_current_tracer->cfg_line, flt_ot_current_tracer->id);
+	} else {
+		flt_ot_current_tracer->cfgbuf = otc_file_read(flt_ot_current_tracer->config, "#", errbuf, sizeof(errbuf));
+		if (flt_ot_current_tracer->cfgbuf == NULL)
+			FLT_OT_POST_PARSE_ALERT("tracer '%s' %s", flt_ot_current_tracer->cfg_line, flt_ot_current_tracer->id, (*errbuf == '\0') ? "cannot load configuration file" : errbuf);
+	}
 
 	if (flt_ot_current_tracer->plugin == NULL)
 		FLT_OT_POST_PARSE_ALERT("tracer '%s' has no plugin library specified", flt_ot_current_tracer->cfg_line, flt_ot_current_tracer->id);

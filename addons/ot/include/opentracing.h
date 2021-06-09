@@ -51,7 +51,8 @@
 void                     ot_text_map_show(const struct otc_text_map *text_map);
 void                     ot_debug(void);
 #endif
-int                      ot_init(struct otc_tracer **tracer, const char *config, const char *plugin, char **err);
+int                      ot_init(struct otc_tracer **tracer, const char *plugin, char **err);
+int                      ot_start(struct otc_tracer *tracer, const char *cfgbuf, char **err);
 struct otc_span         *ot_span_init(struct otc_tracer *tracer, const char *operation_name, const struct timespec *ts_steady, const struct timespec *ts_system, int ref_type, int ref_ctx_idx, const struct otc_span *ref_span, const struct otc_tag *tags, int num_tags, char **err);
 int                      ot_span_tag(struct otc_span *span, const struct otc_tag *tags, int num_tags);
 int                      ot_span_log(struct otc_span *span, const struct otc_log_field *log_fields, int num_fields);

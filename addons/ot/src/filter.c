@@ -168,11 +168,10 @@ static int flt_ot_init(struct proxy *p, struct flt_conf *fconf)
 
 	/*
 	 * Initialize the OpenTracing library.
-	 * Enable HTX streams filtering.
 	 */
-	retval = ot_init(&(conf->tracer->tracer), conf->tracer->config, conf->tracer->plugin, &err);
+	retval = ot_init(&(conf->tracer->tracer), conf->tracer->plugin, &err);
 	if (retval != FLT_OT_RET_ERROR)
-		fconf->flags |= FLT_CFG_FL_HTX;
+		/* Do nothing. */;
 	else if (err != NULL) {
 		FLT_OT_ALERT("%s", err);
 
@@ -426,8 +425,6 @@ static int flt_ot_check(struct proxy *p, struct flt_conf *fconf)
 }
 
 
-#ifdef DEBUG_OT
-
 /***
  * NAME
  *   flt_ot_init_per_thread -
@@ -446,13 +443,37 @@ static int flt_ot_check(struct proxy *p, struct flt_conf *fconf)
  */
 static int flt_ot_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 {
-	int retval = FLT_OT_RET_OK;
+	struct flt_ot_conf *conf = FLT_OT_DEREF(fconf, conf, NULL);
+	char               *err = NULL;
+	int                 retval = FLT_OT_RET_ERROR;
 
 	FLT_OT_FUNC("%p, %p", p, fconf);
+
+	if (conf == NULL)
+		FLT_OT_RETURN(retval);
+
+	/*
+	 * Start the OpenTracing library tracer thread.
+	 * Enable HTX streams filtering.
+	 */
+	if (!(fconf->flags & FLT_CFG_FL_HTX)) {
+		retval = ot_start(conf->tracer->tracer, conf->tracer->cfgbuf, &err);
+		if (retval != FLT_OT_RET_ERROR)
+			fconf->flags |= FLT_CFG_FL_HTX;
+		else if (err != NULL) {
+			FLT_OT_ALERT("%s", err);
+
+			FLT_OT_ERR_FREE(err);
+		}
+	} else {
+		retval = FLT_OT_RET_OK;
+	}
 
 	FLT_OT_RETURN(retval);
 }
 
+
+#ifdef DEBUG_OT
 
 /***
  * NAME
@@ -1112,7 +1133,7 @@ struct flt_ops flt_ot_ops = {
 	.init                  = flt_ot_init,
 	.deinit                = flt_ot_deinit,
 	.check                 = flt_ot_check,
-	.init_per_thread       = FLT_OT_DBG_IFDEF(flt_ot_init_per_thread, NULL),
+	.init_per_thread       = flt_ot_init_per_thread,
 	.deinit_per_thread     = FLT_OT_DBG_IFDEF(flt_ot_deinit_per_thread, NULL),
 
 	/* Stream callbacks. */
