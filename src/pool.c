@@ -147,6 +147,14 @@ void *pool_get_from_os(struct pool_head *pool)
  */
 void pool_put_to_os(struct pool_head *pool, void *ptr)
 {
+#ifdef DEBUG_UAF
+	/* This object will be released for real in order to detect a use after
+	 * free. We also force a write to the area to ensure we crash on double
+	 * free or free of a const area.
+	 */
+	*(uint32_t *)ptr = 0xDEADADD4;
+#endif /* DEBUG_UAF */
+
 	pool_free_area(ptr, pool->size + POOL_EXTRA);
 	_HA_ATOMIC_DEC(&pool->allocated);
 }

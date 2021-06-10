@@ -194,8 +194,6 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 {
 	_HA_ATOMIC_DEC(&pool->used);
 
-#ifndef DEBUG_UAF /* normal pool behaviour */
-
 	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
 	if (!pool_is_crowded(pool)) {
 		*POOL_LINK(pool, ptr) = (void *)pool->free_list;
@@ -203,13 +201,6 @@ static inline void pool_put_to_shared_cache(struct pool_head *pool, void *ptr)
 		ptr = NULL;
 	}
 	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-
-#else
-	/* release the entry for real to detect use after free */
-	/* ensure we crash on double free or free of a const area */
-	*(uint32_t *)ptr = 0xDEADADD4;
-
-#endif /* DEBUG_UAF */
 
 	if (ptr) {
 		/* still not freed */
