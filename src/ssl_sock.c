@@ -853,6 +853,7 @@ nosec:
 struct certificate_ocsp {
 	struct ebmb_node key;
 	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
+	unsigned int key_length;
 	struct buffer response;
 	int refcount;
 	long expire;
@@ -1364,7 +1365,7 @@ static int ssl_sock_load_ocsp(SSL_CTX *ctx, const struct cert_key_and_chain *ckc
 		goto out;
 
 	p = ocsp->key_data;
-	i2d_OCSP_CERTID(cid, &p);
+	ocsp->key_length = i2d_OCSP_CERTID(cid, &p);
 
 	iocsp = (struct certificate_ocsp *)ebmb_insert(&cert_ocsp_tree, &ocsp->key, OCSP_MAX_CERTID_ASN1_LENGTH);
 	if (iocsp == ocsp)
