@@ -2992,6 +2992,11 @@ show ssl cert [<filename>]
   certificate. This command can be useful to check if a certificate was well
   updated. You can also display details on a transaction by prefixing the
   filename by an asterisk.
+  This command can also be used to display the details of a certificate's OCSP
+  response by suffixing the filename with a ".ocsp" extension. It works for
+  committed certificates as well as for ongoing transactions. On a committed
+  certificate, this command is equivalent to calling "show ssl ocsp-response"
+  with the certificate's corresponding OCSP response ID.
 
   Example :
 

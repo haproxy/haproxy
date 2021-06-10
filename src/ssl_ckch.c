@@ -1599,6 +1599,52 @@ yield:
 	return 0; /* should come back */
 }
 
+
+/* IO handler of the details "show ssl cert <filename.ocsp>" */
+static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
+{
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+	struct stream_interface *si = appctx->owner;
+	struct ckch_store *ckchs = appctx->ctx.cli.p0;
+	struct buffer *out = alloc_trash_chunk();
+	int from_transaction = appctx->ctx.cli.i0;
+
+	if (!out)
+		goto end_no_putchk;
+
+	/* If we try to display an ongoing transaction's OCSP response, we
+	 * need to dump the ckch's ocsp_response buffer directly.
+	 * Otherwise, we must rebuild the certificate's certid in order to
+	 * look for the current OCSP response in the tree. */
+	if (from_transaction && ckchs->ckch->ocsp_response) {
+		ssl_ocsp_response_print(ckchs->ckch->ocsp_response, out);
+	}
+	else {
+		unsigned char key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
+		unsigned int key_length = 0;
+
+		if (ckch_store_build_certid(ckchs, (unsigned char*)key, &key_length) < 0)
+			goto end_no_putchk;
+
+		ssl_get_ocspresponse_detail(key, out);
+	}
+
+	if (ci_putchk(si_ic(si), out) == -1) {
+		si_rx_room_blk(si);
+		goto yield;
+	}
+
+end_no_putchk:
+	free_trash_chunk(out);
+	return 1;
+yield:
+	free_trash_chunk(out);
+	return 0; /* should come back */
+#else
+	return cli_err(appctx, "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n");
+#endif
+}
+
 /* parsing function for 'show ssl cert [certfile]' */
 static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1614,7 +1660,20 @@ static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx
 
 	/* check if there is a certificate to lookup */
 	if (*args[3]) {
+		int show_ocsp_detail = 0;
+		int from_transaction = 0;
+		char *end;
+
+		/* We manage the special case "certname.ocsp" through which we
+		 * can show the details of an OCSP response. */
+		end = strrchr(args[3], '.');
+		if (end && strcmp(end+1, "ocsp") == 0) {
+			*end = '\0';
+			show_ocsp_detail = 1;
+		}
+
 		if (*args[3] == '*') {
+			from_transaction = 1;
 			if (!ckchs_transaction.new_ckchs)
 				goto error;
 
@@ -1631,7 +1690,12 @@ static int cli_parse_show_cert(char **args, char *payload, struct appctx *appctx
 
 		appctx->ctx.cli.p0 = ckchs;
 		/* use the IO handler that shows details */
-		appctx->io_handler = cli_io_handler_show_cert_detail;
+		if (show_ocsp_detail) {
+			appctx->ctx.cli.i0 = from_transaction;
+			appctx->io_handler = cli_io_handler_show_cert_ocsp_detail;
+		}
+		else
+			appctx->io_handler = cli_io_handler_show_cert_detail;
 	}
 
 	return 0;
