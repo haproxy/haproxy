@@ -345,12 +345,11 @@ void pool_gc(struct pool_head *pool_ctx)
 		}
 	}
 
-	if (!isolated)
-		thread_release();
-
 #if defined(HA_HAVE_MALLOC_TRIM)
 	malloc_trim(0);
 #endif
+	if (!isolated)
+		thread_release();
 }
 
 #else /* CONFIG_HAP_LOCKLESS_POOLS */
@@ -401,6 +400,10 @@ void pool_gc(struct pool_head *pool_ctx)
 			pool_put_to_os(entry, temp);
 		}
 	}
+
+#if defined(HA_HAVE_MALLOC_TRIM)
+	malloc_trim(0);
+#endif
 
 	if (!isolated)
 		thread_release();
