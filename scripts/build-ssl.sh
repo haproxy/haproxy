@@ -21,7 +21,7 @@ build_openssl_linux () {
     (
         cd "openssl-${OPENSSL_VERSION}/"
         ./config shared --prefix="${HOME}/opt" --openssldir="${HOME}/opt" -DPURIFY
-        make -j$(nproc) all
+        make -j$(nproc) build_sw
         make install_sw
     )
 }
@@ -31,7 +31,7 @@ build_openssl_osx () {
         cd "openssl-${OPENSSL_VERSION}/"
         ./Configure darwin64-x86_64-cc shared \
             --prefix="${HOME}/opt" --openssldir="${HOME}/opt" -DPURIFY
-        make depend all install_sw
+        make depend build_sw install_sw
     )
 }
 
