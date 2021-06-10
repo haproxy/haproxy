@@ -19,7 +19,7 @@ if [ "$(cat ${HOME}/opt/.ot-cpp-version)" != "${OT_CPP_VERSION}" ]; then
     mkdir build
     cd build
     cmake -DCMAKE_INSTALL_PREFIX=${HOME}/opt -DBUILD_STATIC_LIBS=OFF -DBUILD_MOCKTRACER=OFF -DBUILD_TESTING=OFF ..
-    make
+    make -j$(nproc)
     make install
     echo "${OT_CPP_VERSION}" > "${HOME}/opt/.ot-cpp-version"
 fi
@@ -28,7 +28,7 @@ git clone https://github.com/haproxytech/opentracing-c-wrapper.git
 cd opentracing-c-wrapper
  ./scripts/bootstrap
  ./configure --prefix=${HOME}/opt --with-opentracing=${HOME}/opt
- make
+ make -j$(nproc)
  make install
 
 
