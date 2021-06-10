@@ -4349,6 +4349,14 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		return 1;
 	}
 
+	/* At this point, some operations might not be thread-safe anymore. This
+	 * might be the case for parsing handlers which were designed to run
+	 * only at the starting stage on single-thread mode.
+	 *
+	 * Activate thread isolation to ensure thread-safety.
+	 */
+	thread_isolate();
+
 	args[1] = sv_name;
 	errcode = _srv_parse_init(&srv, args, &argc, be, parse_flags);
 	if (errcode)
@@ -4412,15 +4420,12 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		goto out;
 	}
 
-	/* Attach the server to the end of the proxy linked list. The proxy
-	 * servers list is currently not protected by a lock, so this requires
-	 * thread_isolate/release.
+	/* Attach the server to the end of the proxy linked list. Note that this
+	 * operation is not thread-safe so this is executed under thread
+	 * isolation.
 	 *
-	 * If a server with the same name is found, reject the new one. This
-	 * operation requires thread-safety and thus cannot be executed at the
-	 * beginning without having server allocation under locks/isolation.
+	 * If a server with the same name is found, reject the new one.
 	 */
-	thread_isolate();
 
 	/* TODO use a double-linked list for px->srv */
 	if (be->srv) {
@@ -4429,7 +4434,6 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		while (1) {
 			/* check for duplicate server */
 			if (!strcmp(srv->id, next->id)) {
-				thread_release();
 				ha_alert("Already exists a server with the same name in backend.\n");
 				goto out;
 			}
@@ -4455,6 +4459,8 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	return 0;
 
 out:
+	thread_release();
+
 	if (!usermsgs_empty())
 		cli_err(appctx, usermsgs_str());
 
