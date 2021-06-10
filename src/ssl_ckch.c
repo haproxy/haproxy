@@ -1478,6 +1478,80 @@ end:
 	return 0;
 }
 
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+/*
+ * Build the OCSP tree entry's key for a given ckch_store.
+ * Returns a negative value in case of error.
+ */
+static int ckch_store_build_certid(struct ckch_store *ckch_store, unsigned char certid[128], unsigned int *key_length)
+{
+	OCSP_RESPONSE *resp;
+	OCSP_BASICRESP *bs = NULL;
+	OCSP_SINGLERESP *sr;
+	OCSP_CERTID *id;
+	unsigned char *p = NULL;
+
+	if (!key_length)
+		return -1;
+
+	*key_length = 0;
+
+	if (!ckch_store->ckch->ocsp_response)
+		return 0;
+
+	p = (unsigned char *) ckch_store->ckch->ocsp_response->area;
+
+	resp = d2i_OCSP_RESPONSE(NULL, (const unsigned char **)&p,
+				 ckch_store->ckch->ocsp_response->data);
+	if (!resp) {
+		goto end;
+	}
+
+	bs = OCSP_response_get1_basic(resp);
+	if (!bs) {
+		goto end;
+	}
+
+	sr = OCSP_resp_get0(bs, 0);
+	if (!sr) {
+		goto end;
+	}
+
+	id = (OCSP_CERTID*)OCSP_SINGLERESP_get0_id(sr);
+
+	p = certid;
+	*key_length = i2d_OCSP_CERTID(id, &p);
+
+end:
+	return *key_length > 0;
+}
+#endif
+
+/*
+ * Dump the OCSP certificate key (if it exists) of certificate <ckch> into
+ * buffer <out>.
+ * Returns 0 in case of success.
+ */
+static int ckch_store_show_ocsp_certid(struct ckch_store *ckch_store, struct buffer *out)
+{
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+	unsigned char key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
+	unsigned int key_length = 0;
+	int i;
+
+	if (ckch_store_build_certid(ckch_store, (unsigned char*)key, &key_length) >= 0) {
+		/* Dump the CERTID info */
+		chunk_appendf(out, "OCSP Response Key: ");
+		for (i = 0; i < key_length; ++i) {
+			chunk_appendf(out, "%02x", key[i]);
+		}
+		chunk_appendf(out, "\n");
+	}
+#endif
+
+	return 0;
+}
+
 
 /* IO handler of the details "show ssl cert <filename>" */
 static int cli_io_handler_show_cert_detail(struct appctx *appctx)
@@ -1508,6 +1582,8 @@ static int cli_io_handler_show_cert_detail(struct appctx *appctx)
 		goto end_no_putchk;
 	else if (retval)
 		goto end;
+
+	ckch_store_show_ocsp_certid(ckchs, out);
 
 end:
 	if (ci_putchk(si_ic(si), out) == -1) {
