@@ -3436,8 +3436,8 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 /*
  * SRV record error management callback
  * returns:
- *  0 on error
- *  1 when no error or safe ignore
+ *  0 if we can trash answser items.
+ *  1 when safely ignored and we must kept answer items
  *
  * Grabs the server's lock.
  */
@@ -3452,7 +3452,7 @@ int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code
 	/* SRV records */
 	srvrq = objt_resolv_srvrq(requester->owner);
 	if (!srvrq)
-		return 1;
+		return 0;
 
 	resolvers = srvrq->resolvers;
 	res = requester->resolution;
@@ -3502,16 +3502,14 @@ int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 	}
 
-	resolv_purge_resolution_answer_records(res);
-
-	return 1;
+	return 0;
 }
 
 /*
  * Server Name Resolution error management callback
  * returns:
- *  0 on error
- *  1 when no error or safe ignore
+ *  0 if we can trash answser items.
+ *  1 when safely ignored and we must kept answer items
  *
  * Grabs the server's lock.
  */
@@ -3521,11 +3519,16 @@ int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 
 	s = objt_server(requester->owner);
 	if (!s)
-		return 1;
+		return 0;
+
 	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
-	if (!snr_update_srv_status(s, 1))
+	if (!snr_update_srv_status(s, 1)) {
 		memset(&s->addr, 0, sizeof(s->addr));
+		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+		return 0;
+	}
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+
 	return 1;
 }
 

@@ -1900,6 +1900,7 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 	unsigned short query_id;
 	struct eb32_node *eb;
 	struct resolv_requester *req;
+	int keep_answer_items;
 
 	resolvers = ns->parent;
 	HA_SPIN_LOCK(DNS_LOCK, &resolvers->lock);
@@ -2034,8 +2035,11 @@ static int resolv_process_responses(struct dns_nameserver *ns)
 		goto report_res_success;
 
 	report_res_error:
+		keep_answer_items = 0;
 		list_for_each_entry(req, &res->requesters, list)
-			req->requester_error_cb(req, dns_resp);
+			keep_answer_items |= req->requester_error_cb(req, dns_resp);
+		if (!keep_answer_items)
+			resolv_purge_resolution_answer_records(res);
 		resolv_reset_resolution(res);
 		LIST_DELETE(&res->list);
 		LIST_APPEND(&resolvers->resolutions.wait, &res->list);
@@ -2097,12 +2101,15 @@ static struct task *process_resolvers(struct task *t, void *context, unsigned in
 		 * the list */
 		if (!res->try) {
 			struct resolv_requester *req;
+			int keep_answer_items = 0;
 
 			/* Notify the result to the requesters */
 			if (!res->nb_responses)
 				res->status = RSLV_STATUS_TIMEOUT;
 			list_for_each_entry(req, &res->requesters, list)
-				req->requester_error_cb(req, res->status);
+				keep_answer_items |= req->requester_error_cb(req, res->status);
+			if (!keep_answer_items)
+				resolv_purge_resolution_answer_records(res);
 
 			/* Clean up resolution info and remove it from the
 			 * current list */
