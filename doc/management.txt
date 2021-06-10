@@ -3077,6 +3077,43 @@ show ssl crt-list [-n] [<filename>]
     ecdsa.pem:3 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3] localhost !www.test1.com
     ecdsa.pem:4 [verify none allow-0rtt ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.3]
 
+show ssl ocsp-response [<id>]
+  Display the IDs of the OCSP tree entries corresponding to all the OCSP
+  responses used in HAProxy, as well as the issuer's name and key hash and the
+  serial number of the certificate for which the OCSP response was built.
+  If a valid <id> is provided, display the contents of the corresponding OCSP
+  response. The information displayed is the same as in an "openssl ocsp -respin
+  <ocsp-response> -text" call.
+
+  Example :
+
+    $ echo "show ssl ocsp-response" | socat /var/run/haproxy.master -
+    # Certificate IDs
+      Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100a
+        Certificate ID:
+
+          Issuer Name Hash: 8A83E0060FAFF709CA7E9B95522A2E81635FDA0A
+          Issuer Key Hash: F652B0E435D5EA923851508F0ADBE92D85DE007A
+          Serial Number: 100A
+
+    $ echo "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100a" | socat /var/run/haproxy.master -
+    OCSP Response Data:
+      OCSP Response Status: successful (0x0)
+      Response Type: Basic OCSP Response
+      Version: 1 (0x0)
+      Responder Id: C = FR, O = HAProxy Technologies, CN = ocsp.haproxy.com
+      Produced At: May 27 15:43:38 2021 GMT
+      Responses:
+      Certificate ID:
+        Hash Algorithm: sha1
+        Issuer Name Hash: 8A83E0060FAFF709CA7E9B95522A2E81635FDA0A
+        Issuer Key Hash: F652B0E435D5EA923851508F0ADBE92D85DE007A
+        Serial Number: 100A
+      Cert Status: good
+      This Update: May 27 15:43:38 2021 GMT
+      Next Update: Oct 12 15:43:38 2048 GMT
+      [...]
+
 show table
   Dump general information on all known stick-tables. Their name is returned
   (the name of the proxy which holds them), their type (currently zero, always

@@ -6929,6 +6929,254 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 
 }
 
+
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx);
+#endif
+
+/* parsing function for 'show ssl ocsp-response [id]' */
+static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx *appctx, void *private)
+{
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+	if (*args[3]) {
+		struct certificate_ocsp *ocsp = NULL;
+		char *key = NULL;
+		int key_length = 0;
+
+		if (strlen(args[3]) > OCSP_MAX_CERTID_ASN1_LENGTH*2) {
+			return cli_err(appctx, "'show ssl ocsp-response' received a too big key.\n");
+		}
+
+		if (parse_binary(args[3], &key, &key_length, NULL)) {
+
+			char full_key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
+			memcpy(full_key, key, key_length);
+
+			ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, full_key, OCSP_MAX_CERTID_ASN1_LENGTH);
+		}
+		if (key)
+			ha_free(&key);
+
+		if (!ocsp) {
+			return cli_err(appctx, "Certificate ID does not match any certificate.\n");
+		}
+
+		appctx->ctx.cli.p0 = ocsp;
+		appctx->io_handler = cli_io_handler_show_ocspresponse_detail;
+	}
+
+	return 0;
+
+#else
+	return cli_err(appctx, "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n");
+#endif
+}
+
+
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+/*
+ * This function dumps the details of an OCSP_CERTID. It is based on
+ * ocsp_certid_print in OpenSSL.
+ */
+static inline int ocsp_certid_print(BIO *bp, OCSP_CERTID *certid, int indent)
+{
+	ASN1_OCTET_STRING *piNameHash = NULL;
+	ASN1_OCTET_STRING *piKeyHash = NULL;
+	ASN1_INTEGER *pSerial = NULL;
+
+	if (OCSP_id_get0_info(&piNameHash, NULL, &piKeyHash, &pSerial, certid)) {
+
+		BIO_printf(bp, "%*sCertificate ID:\n", indent, "");
+		indent += 2;
+		BIO_printf(bp, "\n%*sIssuer Name Hash: ", indent, "");
+		i2a_ASN1_STRING(bp, piNameHash, 0);
+		BIO_printf(bp, "\n%*sIssuer Key Hash: ", indent, "");
+		i2a_ASN1_STRING(bp, piKeyHash, 0);
+		BIO_printf(bp, "\n%*sSerial Number: ", indent, "");
+		i2a_ASN1_INTEGER(bp, pSerial);
+		BIO_printf(bp, "\n");
+	}
+	return 1;
+}
+#endif
+
+/*
+ * IO handler of "show ssl ocsp-response". The command taking a specific ID
+ * is managed in cli_io_handler_show_ocspresponse_detail.
+ */
+static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
+{
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+	struct buffer *trash = alloc_trash_chunk();
+	struct buffer *tmp = NULL;
+	struct ebmb_node *node;
+	struct stream_interface *si = appctx->owner;
+	struct certificate_ocsp *ocsp = NULL;
+	BIO *bio = NULL;
+	int write = -1;
+
+	if (trash == NULL)
+		return 1;
+
+	tmp = alloc_trash_chunk();
+	if (!tmp)
+		goto end;
+
+	if ((bio = BIO_new(BIO_s_mem())) == NULL)
+		goto end;
+
+	if (!appctx->ctx.cli.p0) {
+		chunk_appendf(trash, "# Certificate IDs\n");
+		node = ebmb_first(&cert_ocsp_tree);
+	} else {
+		node = &((struct certificate_ocsp *)appctx->ctx.cli.p0)->key;
+	}
+
+	while (node) {
+		OCSP_CERTID *certid = NULL;
+		const unsigned char *p = NULL;
+		int i;
+
+		ocsp = ebmb_entry(node, struct certificate_ocsp, key);
+
+		/* Dump the key in hexadecimal */
+		chunk_appendf(trash, "Certificate ID key : ");
+		for (i = 0; i < ocsp->key_length; ++i) {
+			chunk_appendf(trash, "%02x", ocsp->key_data[i]);
+		}
+		chunk_appendf(trash, "\n");
+
+		p = ocsp->key_data;
+
+		/* Decode the certificate ID (serialized into the key). */
+		d2i_OCSP_CERTID(&certid, &p, ocsp->key_length);
+
+		/* Dump the CERTID info */
+		ocsp_certid_print(bio, certid, 1);
+		write = BIO_read(bio, tmp->area, tmp->size-1);
+		tmp->area[write] = '\0';
+
+		chunk_appendf(trash, "%s\n", tmp->area);
+
+		node = ebmb_next(node);
+		if (ci_putchk(si_ic(si), trash) == -1) {
+			si_rx_room_blk(si);
+			goto yield;
+		}
+	}
+
+end:
+	appctx->ctx.cli.p0 = NULL;
+	if (trash)
+		free_trash_chunk(trash);
+	if (tmp)
+		free_trash_chunk(tmp);
+	if (bio)
+		BIO_free(bio);
+	return 1;
+
+yield:
+
+	if (trash)
+		free_trash_chunk(trash);
+	if (tmp)
+		free_trash_chunk(tmp);
+	if (bio)
+		BIO_free(bio);
+	appctx->ctx.cli.p0 = ocsp;
+	return 0;
+#else
+	return cli_err(appctx, "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n");
+#endif
+}
+
+
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+/*
+ * Dump the details about an OCSP response in DER format stored in
+ * <ocsp_response> into buffer <out>.
+ * Returns 0 in case of success.
+ */
+int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out)
+{
+	BIO *bio = NULL;
+	int write = -1;
+	OCSP_RESPONSE *resp;
+	const unsigned char *p;
+
+	if (!ocsp_response)
+		return -1;
+
+	if ((bio = BIO_new(BIO_s_mem())) == NULL)
+		return -1;
+
+	p = (const unsigned char*)ocsp_response->area;
+
+	resp = d2i_OCSP_RESPONSE(NULL, &p, ocsp_response->data);
+	if (!resp) {
+		chunk_appendf(out, "Unable to parse OCSP response");
+		return -1;
+	}
+
+	if (OCSP_RESPONSE_print(bio, resp, 0) != 0) {
+		write = BIO_read(bio, out->area, out->size - 1);
+		out->area[write] = '\0';
+		out->data = write;
+	}
+
+	if (bio)
+		BIO_free(bio);
+
+	return 0;
+}
+
+/*
+ * Dump the details of the OCSP response of ID <ocsp_certid> into buffer <out>.
+ * Returns 0 in case of success.
+ */
+int ssl_get_ocspresponse_detail(unsigned char *ocsp_certid, struct buffer *out)
+{
+	struct certificate_ocsp *ocsp;
+
+	ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, ocsp_certid, OCSP_MAX_CERTID_ASN1_LENGTH);
+	if (!ocsp)
+		return -1;
+
+	return ssl_ocsp_response_print(&ocsp->response, out);
+}
+
+
+/* IO handler of details "show ssl ocsp-response <id>". */
+static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx)
+{
+	struct buffer *trash = alloc_trash_chunk();
+	struct certificate_ocsp *ocsp = NULL;
+	struct stream_interface *si = appctx->owner;
+
+	ocsp = appctx->ctx.cli.p0;
+
+	if (trash == NULL)
+		return 1;
+
+	ssl_ocsp_response_print(&ocsp->response, trash);
+
+	if (ci_putchk(si_ic(si), trash) == -1) {
+		si_rx_room_blk(si);
+		goto yield;
+	}
+	appctx->ctx.cli.p0 = NULL;
+	if (trash)
+		free_trash_chunk(trash);
+	return 1;
+
+yield:
+	if (trash)
+		free_trash_chunk(trash);
+
+	return 0;
+}
+#endif
+
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
@@ -6936,6 +7184,8 @@ static struct cli_kw_list cli_kws = {{ },{
 	{ { "set", "ssl", "tls-key", NULL },       "set ssl tls-key [id|file] <key>         : set the next TLS key for the <id> or <file> listener to <key>",      cli_parse_set_tlskeys, NULL },
 #endif
 	{ { "set", "ssl", "ocsp-response", NULL }, "set ssl ocsp-response <resp|payload>    : update a certificate's OCSP Response from a base64-encode DER",      cli_parse_set_ocspresponse, NULL },
+
+	{ { "show", "ssl", "ocsp-response", NULL },"show ssl ocsp-response [id]             : display the IDs of the OCSP responses used in memory, or the details of a single OCSP response", cli_parse_show_ocspresponse, cli_io_handler_show_ocspresponse, NULL },
 	{ { NULL }, NULL, NULL, NULL }
 }};
 
