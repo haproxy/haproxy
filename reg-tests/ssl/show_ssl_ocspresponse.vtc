@@ -1,0 +1,133 @@
+#REGTEST_TYPE=devel
+
+# This reg-test uses the "show ssl ocsp-response" command to display the details
+# of the OCSP responses used by HAProxy.
+# It also uses the new special cases of the "show ssl cert" command, where an OCSP
+# extension is provided to the certificate name (with or without preceding * for an
+# ongoing transaction).
+#
+# It uses the show_ocsp_server.pem server certificate, signed off by set_cafile_rootCA.crt,
+# which has two OCSP responses, show_ocsp_server.pem.ocsp which is loaded by default and in
+# which it is valid, and show_ocsp_server.pem.ocsp.revoked in which it is revoked.
+# The OSCP response is updated through the two means available in the CLI, the
+# "set ssl ocsp-response" command and the update through a "set ssl cert foo.ocsp".
+#
+# It requires socat to upload the new OCSP responses.
+#
+# If this test does not work anymore:
+# - Check that you have socat
+
+varnishtest "Test the 'show ssl ocsp-response' and 'show ssl cert foo.pem.ocsp' features of the CLI"
+#REQUIRE_VERSION=2.5
+#REQUIRE_OPTIONS=OPENSSL
+#REQUIRE_BINARIES=socat
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect 100ms
+        timeout client  1s
+        timeout server  1s
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        server s1 "${tmpdir}/ssl.sock" ssl ca-file ${testdir}/set_cafile_rootCA.crt verify none
+
+    listen ssl-lst
+        # crt: certificate of the server
+        # ca-file: CA used for client authentication request
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/show_ocsp_server.pem ca-file ${testdir}/set_cafile_rootCA.crt verify none crt-ignore-err all
+        http-response add-header X-SSL-Client-Verify %[ssl_c_verify]
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+# Test the "show ssl ocsp-response" command
+haproxy h1 -cli {
+    send "show ssl ocsp-response"
+    expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+    expect ~ "Responder Id: C = FR, O = HAProxy Technologies, CN = ocsp.haproxy.com"
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+    expect ~ "Cert Status: good"
+}
+
+# Test the "show ssl cert foo.pem.ocsp" command
+haproxy h1 -cli {
+    send "show ssl cert"
+    expect ~ ".*show_ocsp_server.pem"
+
+    send "show ssl cert ${testdir}/show_ocsp_server.pem"
+    expect ~ "Serial: 100F"
+    send "show ssl cert ${testdir}/show_ocsp_server.pem"
+    expect ~ "OCSP Response Key: 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+
+    send "show ssl cert ${testdir}/show_ocsp_server.pem.ocsp"
+    expect ~ "Responder Id: C = FR, O = HAProxy Technologies, CN = ocsp.haproxy.com"
+    send "show ssl cert ${testdir}/show_ocsp_server.pem.ocsp"
+    expect ~ "Cert Status: good"
+}
+
+
+# Change the server certificate's OCSP response through "set ssl ocsp-response"
+shell {
+    printf "set ssl ocsp-response <<\n$(base64 ${testdir}/show_ocsp_server.pem.ocsp.revoked)\n\n" | socat "${tmpdir}/h1/stats" -
+}
+
+# Check that the change was taken into account
+haproxy h1 -cli {
+    send "show ssl ocsp-response"
+    expect ~ "Certificate ID key : 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+    expect ~ "Responder Id: C = FR, O = HAProxy Technologies, CN = ocsp.haproxy.com"
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+    expect ~ "Cert Status: revoked"
+
+    send "show ssl cert ${testdir}/show_ocsp_server.pem.ocsp"
+    expect ~ "Cert Status: revoked"
+}
+
+
+# Change the server certificate's OCSP response through a transaction
+shell {
+    printf "set ssl cert ${testdir}/show_ocsp_server.pem <<\n$(cat ${testdir}/show_ocsp_server.pem)\n\n" | socat  "${tmpdir}/h1/stats" -
+    printf "set ssl cert ${testdir}/show_ocsp_server.pem.ocsp <<\n$(base64 ${testdir}/show_ocsp_server.pem.ocsp)\n\n" | socat  "${tmpdir}/h1/stats" -
+}
+
+
+# Check that the actual tree entry was not changed and that the uncommitted
+# transaction's OCSP response is the new one
+haproxy h1 -cli {
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+    expect ~ "Cert Status: revoked"
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+    expect ~ "This Update: Jun 10 08:57:45 2021 GMT"
+
+    send "show ssl cert *${testdir}/show_ocsp_server.pem.ocsp"
+    expect ~ "Cert Status: good"
+    send "show ssl cert *${testdir}/show_ocsp_server.pem.ocsp"
+    expect ~ "This Update: Jun 10 08:55:04 2021 GMT"
+}
+
+
+# Commit the transaction and check that it was taken into account
+haproxy h1 -cli {
+    send "commit ssl cert ${testdir}/show_ocsp_server.pem"
+    expect ~ "Success!"
+
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+    expect ~ "Cert Status: good"
+    send "show ssl ocsp-response 303b300906052b0e03021a050004148a83e0060faff709ca7e9b95522a2e81635fda0a0414f652b0e435d5ea923851508f0adbe92d85de007a0202100f"
+    expect ~ "This Update: Jun 10 08:55:04 2021 GMT"
+}
