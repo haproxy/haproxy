@@ -6930,14 +6930,14 @@ static int cli_parse_set_ocspresponse(char **args, char *payload, struct appctx 
 }
 
 
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 static int cli_io_handler_show_ocspresponse_detail(struct appctx *appctx);
 #endif
 
 /* parsing function for 'show ssl ocsp-response [id]' */
 static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx *appctx, void *private)
 {
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	if (*args[3]) {
 		struct certificate_ocsp *ocsp = NULL;
 		char *key = NULL;
@@ -6973,7 +6973,7 @@ static int cli_parse_show_ocspresponse(char **args, char *payload, struct appctx
 }
 
 
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 /*
  * This function dumps the details of an OCSP_CERTID. It is based on
  * ocsp_certid_print in OpenSSL.
@@ -7006,7 +7006,7 @@ static inline int ocsp_certid_print(BIO *bp, OCSP_CERTID *certid, int indent)
  */
 static int cli_io_handler_show_ocspresponse(struct appctx *appctx)
 {
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	struct buffer *trash = alloc_trash_chunk();
 	struct buffer *tmp = NULL;
 	struct ebmb_node *node;
@@ -7091,7 +7091,7 @@ yield:
 }
 
 
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 /*
  * Dump the details about an OCSP response in DER format stored in
  * <ocsp_response> into buffer <out>.

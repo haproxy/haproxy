@@ -1478,7 +1478,7 @@ end:
 	return 0;
 }
 
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 /*
  * Build the OCSP tree entry's key for a given ckch_store.
  * Returns a negative value in case of error.
@@ -1534,7 +1534,7 @@ end:
  */
 static int ckch_store_show_ocsp_certid(struct ckch_store *ckch_store, struct buffer *out)
 {
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	unsigned char key[OCSP_MAX_CERTID_ASN1_LENGTH] = {};
 	unsigned int key_length = 0;
 	int i;
@@ -1603,7 +1603,7 @@ yield:
 /* IO handler of the details "show ssl cert <filename.ocsp>" */
 static int cli_io_handler_show_cert_ocsp_detail(struct appctx *appctx)
 {
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 	struct stream_interface *si = appctx->owner;
 	struct ckch_store *ckchs = appctx->ctx.cli.p0;
 	struct buffer *out = alloc_trash_chunk();

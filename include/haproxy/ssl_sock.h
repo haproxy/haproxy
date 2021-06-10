@@ -122,7 +122,7 @@ int ssl_sock_load_srv_cert(char *path, struct server *server, char **err);
 void ssl_free_global_issuers(void);
 int ssl_sock_load_cert_list_file(char *file, int dir, struct bind_conf *bind_conf, struct proxy *curproxy, char **err);
 int ssl_init_single_engine(const char *engine_id, const char *def_algorithms);
-#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) || defined OPENSSL_IS_BORINGSSL)
+#if ((defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP) && !defined OPENSSL_IS_BORINGSSL)
 int ssl_get_ocspresponse_detail(unsigned char *ocsp_certid, struct buffer *out);
 int ssl_ocsp_response_print(struct buffer *ocsp_response, struct buffer *out);
 #endif
