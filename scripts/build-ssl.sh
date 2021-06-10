@@ -21,7 +21,8 @@ build_openssl_linux () {
     (
         cd "openssl-${OPENSSL_VERSION}/"
         ./config shared --prefix="${HOME}/opt" --openssldir="${HOME}/opt" -DPURIFY
-        make all install_sw
+        make -j$(nproc) all
+        make install_sw
     )
 }
 
