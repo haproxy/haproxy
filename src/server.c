@@ -4375,6 +4375,13 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	if (errcode)
 		goto out;
 
+	/* A dynamic server does not currently support resolution.
+	 *
+	 * Initialize it explicitly to the "none" method to ensure no
+	 * resolution will ever be executed.
+	 */
+	srv->init_addr_methods = SRV_IADDR_NONE;
+
 	if (srv->mux_proto) {
 		if (!conn_get_best_mux_entry(srv->mux_proto->token, PROTO_SIDE_BE, be->mode)) {
 			ha_alert("MUX protocol is not usable for server.\n");
