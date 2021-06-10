@@ -583,10 +583,10 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		const struct quic_rx_packet *pkt = a2;
 
 		if (conn)
-			chunk_appendf(&trace_buf, " xprt_ctx@%p", conn->xprt_ctx);
+			chunk_appendf(&trace_buf, " xprt_ctx@%p qc@%p", conn->xprt_ctx, conn->qc);
 		if (pkt)
-			chunk_appendf(&trace_buf, " type=0x%02x %s",
-			              pkt->type, qc_pkt_long(pkt) ? "long" : "short");
+			chunk_appendf(&trace_buf, " pkt@%p type=0x%02x %s pkt->qc@%p",
+			              pkt, pkt->type, qc_pkt_long(pkt) ? "long" : "short", pkt->qc);
 	}
 
 }
@@ -3197,7 +3197,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 	qc = NULL;
 	conn_ctx = NULL;
-	TRACE_ENTER(QUIC_EV_CONN_LPKT);
+	TRACE_ENTER(QUIC_EV_CONN_LPKT, NULL, pkt);
 	if (end <= *buf)
 		goto err;
 
@@ -3395,6 +3395,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		goto err;
 	}
 
+
+	TRACE_PROTO("New packet", QUIC_EV_CONN_LPKT, qc->conn, pkt);
 	if (conn_ctx) {
 		/* Wake the tasklet of the QUIC connection packet handler. */
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
