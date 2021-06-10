@@ -33,13 +33,6 @@
 #define CONFIG_HAP_POOLS
 #endif
 
-/* On architectures supporting threads and double-word CAS, we can implement
- * lock-less memory pools. This isn't supported for debugging modes however.
- */
-#if defined(USE_THREAD) && defined(HA_HAVE_CAS_DW) && defined(CONFIG_HAP_POOLS) && !defined(DEBUG_NO_LOCKLESS_POOLS)
-#define CONFIG_HAP_LOCKLESS_POOLS
-#endif
-
 /* On modern architectures with many threads, a fast memory allocator, and
  * local pools, the global pools with their single list can be way slower than
  * the standard allocator which already has its own per-thread arenas. In this
@@ -93,7 +86,6 @@ struct pool_cache_item {
 
 struct pool_head {
 	void **free_list;
-	__decl_thread(HA_SPINLOCK_T lock); /* the spin lock */
 	unsigned int used;	/* how many chunks are currently in use */
 	unsigned int needed_avg;/* floating indicator between used and allocated */
 	unsigned int allocated;	/* how many chunks have been allocated */

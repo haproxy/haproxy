@@ -116,7 +116,6 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 			LIST_INIT(&pool->cache[thr].list);
 		}
 #endif
-		HA_SPIN_INIT(&pool->lock);
 	}
 	pool->users++;
 	return pool;
@@ -124,8 +123,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 
 /* Tries to allocate an object for the pool <pool> using the system's allocator
  * and directly returns it. The pool's allocated counter is checked and updated,
- * but no other checks are performed. The pool's lock is not used and is not a
- * problem either.
+ * but no other checks are performed.
  */
 void *pool_get_from_os(struct pool_head *pool)
 {
@@ -162,8 +160,6 @@ void pool_put_to_os(struct pool_head *pool, void *ptr)
 /* Tries to allocate an object for the pool <pool> using the system's allocator
  * and directly returns it. The pool's counters are updated but the object is
  * never cached, so this is usable with and without local or shared caches.
- * This may be called with or without the pool lock held, so it must not use
- * the pool's lock.
  */
 void *pool_alloc_nocache(struct pool_head *pool)
 {
@@ -286,8 +282,6 @@ void pool_gc(struct pool_head *pool_ctx)
 
 #else /* CONFIG_HAP_NO_GLOBAL_POOLS */
 
-#if defined(CONFIG_HAP_LOCKLESS_POOLS)
-
 /*
  * This function frees whatever can be freed in pool <pool>.
  */
@@ -320,33 +314,6 @@ void pool_flush(struct pool_head *pool)
 	}
 	/* here, we should have pool->allocated == pool->used */
 }
-
-#else /* CONFIG_HAP_LOCKLESS_POOLS */
-
-/*
- * This function frees whatever can be freed in pool <pool>.
- */
-void pool_flush(struct pool_head *pool)
-{
-	void *temp, **next;
-
-	if (!pool)
-		return;
-
-	HA_SPIN_LOCK(POOL_LOCK, &pool->lock);
-	next = pool->free_list;
-	pool->free_list = NULL;
-	HA_SPIN_UNLOCK(POOL_LOCK, &pool->lock);
-
-	while (next) {
-		temp = next;
-		next = *POOL_LINK(pool, temp);
-		pool_put_to_os(pool, temp);
-	}
-	/* here, we should have pool->allocated == pool->used */
-}
-
-#endif /* CONFIG_HAP_LOCKLESS_POOLS */
 
 /*
  * This function frees whatever can be freed in all pools, but respecting
@@ -414,9 +381,6 @@ void *pool_destroy(struct pool_head *pool)
 		pool->users--;
 		if (!pool->users) {
 			LIST_DELETE(&pool->list);
-#ifndef CONFIG_HAP_LOCKLESS_POOLS
-			HA_SPIN_DESTROY(&pool->lock);
-#endif
 			/* note that if used == 0, the cache is empty */
 			free(pool);
 		}
@@ -443,9 +407,6 @@ void dump_pools_to_trash()
 	allocated = used = nbpools = 0;
 	chunk_printf(&trash, "Dumping pools usage. Use SIGQUIT to flush them.\n");
 	list_for_each_entry(entry, &pools, list) {
-#ifndef CONFIG_HAP_LOCKLESS_POOLS
-		HA_SPIN_LOCK(POOL_LOCK, &entry->lock);
-#endif
 		chunk_appendf(&trash, "  - Pool %s (%u bytes) : %u allocated (%u bytes), %u used, needed_avg %u, %u failures, %u users, @%p%s\n",
 			 entry->name, entry->size, entry->allocated,
 		         entry->size * entry->allocated, entry->used,
@@ -456,9 +417,6 @@ void dump_pools_to_trash()
 		allocated += entry->allocated * entry->size;
 		used += entry->used * entry->size;
 		nbpools++;
-#ifndef CONFIG_HAP_LOCKLESS_POOLS
-		HA_SPIN_UNLOCK(POOL_LOCK, &entry->lock);
-#endif
 	}
 	chunk_appendf(&trash, "Total: %d pools, %lu bytes allocated, %lu used.\n",
 		 nbpools, allocated, used);

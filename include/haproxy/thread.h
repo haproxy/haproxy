@@ -371,7 +371,6 @@ int thread_cpu_mask_forced();
 enum lock_label {
 	TASK_RQ_LOCK,
 	TASK_WQ_LOCK,
-	POOL_LOCK,
 	LISTENER_LOCK,
 	PROXY_LOCK,
 	SERVER_LOCK,
@@ -423,7 +422,6 @@ static inline const char *lock_label(enum lock_label label)
 	switch (label) {
 	case TASK_RQ_LOCK:         return "TASK_RQ";
 	case TASK_WQ_LOCK:         return "TASK_WQ";
-	case POOL_LOCK:            return "POOL";
 	case LISTENER_LOCK:        return "LISTENER";
 	case PROXY_LOCK:           return "PROXY";
 	case SERVER_LOCK:          return "SERVER";

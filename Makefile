@@ -230,7 +230,7 @@ SMALL_OPTS =
 # passed as-is to CFLAGS). Please check sources for their exact meaning or do
 # not use them at all. Some even more obscure ones might also be available
 # without appearing here. Currently defined DEBUG macros include DEBUG_FULL,
-# DEBUG_MEM_STATS, DEBUG_DONT_SHARE_POOLS, DEBUG_NO_LOCKLESS_POOLS, DEBUG_FD,
+# DEBUG_MEM_STATS, DEBUG_DONT_SHARE_POOLS, DEBUG_FD,
 # DEBUG_NO_POOLS, DEBUG_FAIL_ALLOC, DEBUG_STRICT_NOCRASH, DEBUG_HPACK,
 # DEBUG_AUTH, DEBUG_SPOE, DEBUG_UAF, DEBUG_THREAD, DEBUG_STRICT, DEBUG_DEV,
 # DEBUG_TASK.
