@@ -303,8 +303,7 @@ void pool_flush(struct pool_head *pool)
 		next = *POOL_LINK(pool, temp);
 		pool_put_to_os(pool, temp);
 	}
-	pool->free_list = next;
-	/* here, we should have pool->allocate == pool->used */
+	/* here, we should have pool->allocated == pool->used */
 }
 
 /*
