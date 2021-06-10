@@ -91,16 +91,8 @@ struct pool_cache_item {
 	struct list by_lru;  /* link to objects by LRU order */
 };
 
-struct pool_free_list {
-	void **free_list;
-	uintptr_t seq;
-};
-
 struct pool_head {
 	void **free_list;
-#ifdef CONFIG_HAP_LOCKLESS_POOLS
-	uintptr_t seq;
-#endif
 	__decl_thread(HA_SPINLOCK_T lock); /* the spin lock */
 	unsigned int used;	/* how many chunks are currently in use */
 	unsigned int needed_avg;/* floating indicator between used and allocated */
@@ -111,6 +103,7 @@ struct pool_head {
 	unsigned int flags;	/* MEM_F_* */
 	unsigned int users;	/* number of pools sharing this zone */
 	unsigned int failed;	/* failed allocations */
+	/* 32-bit hole here */
 	struct list list;	/* list of all known pools */
 	char name[12];		/* name of the pool */
 #ifdef CONFIG_HAP_POOLS
