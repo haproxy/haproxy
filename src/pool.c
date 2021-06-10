@@ -284,7 +284,9 @@ void pool_gc(struct pool_head *pool_ctx)
 #endif
 }
 
-#elif defined(CONFIG_HAP_LOCKLESS_POOLS)
+#else /* CONFIG_HAP_NO_GLOBAL_POOLS */
+
+#if defined(CONFIG_HAP_LOCKLESS_POOLS)
 
 /*
  * This function frees whatever can be freed in pool <pool>.
@@ -314,44 +316,6 @@ void pool_flush(struct pool_head *pool)
 	/* here, we should have pool->allocated == pool->used */
 }
 
-/*
- * This function frees whatever can be freed in all pools, but respecting
- * the minimum thresholds imposed by owners. It makes sure to be alone to
- * run by using thread_isolate(). <pool_ctx> is unused.
- */
-void pool_gc(struct pool_head *pool_ctx)
-{
-	struct pool_head *entry;
-	int isolated = thread_isolated();
-
-	if (!isolated)
-		thread_isolate();
-
-	list_for_each_entry(entry, &pools, list) {
-		while ((int)((volatile int)entry->allocated - (volatile int)entry->used) > (int)entry->minavail) {
-			struct pool_free_list cmp, new;
-
-			cmp.seq = entry->seq;
-			__ha_barrier_load();
-			cmp.free_list = entry->free_list;
-			__ha_barrier_load();
-			if (cmp.free_list == NULL)
-				break;
-			new.free_list = *POOL_LINK(entry, cmp.free_list);
-			new.seq = cmp.seq + 1;
-			if (HA_ATOMIC_DWCAS(&entry->free_list, &cmp, &new) == 0)
-				continue;
-			pool_put_to_os(entry, cmp.free_list);
-		}
-	}
-
-#if defined(HA_HAVE_MALLOC_TRIM)
-	malloc_trim(0);
-#endif
-	if (!isolated)
-		thread_release();
-}
-
 #else /* CONFIG_HAP_LOCKLESS_POOLS */
 
 /*
@@ -376,6 +340,8 @@ void pool_flush(struct pool_head *pool)
 	}
 	/* here, we should have pool->allocated == pool->used */
 }
+
+#endif /* CONFIG_HAP_LOCKLESS_POOLS */
 
 /*
  * This function frees whatever can be freed in all pools, but respecting
@@ -408,7 +374,7 @@ void pool_gc(struct pool_head *pool_ctx)
 	if (!isolated)
 		thread_release();
 }
-#endif /* CONFIG_HAP_LOCKLESS_POOLS */
+#endif /* CONFIG_HAP_NO_GLOBAL_POOLS */
 
 #else  /* CONFIG_HAP_POOLS */
 
