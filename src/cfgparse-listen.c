@@ -57,7 +57,7 @@ static const char *common_kw_list[] = {
 
 static const char *common_options[] = {
 	"httpclose", "http-server-close", "http-keep-alive",
-	"http-tunnel", "redispatch", "httplog", "tcplog", "tcpka", "httpchk",
+	"redispatch", "httplog", "tcplog", "tcpka", "httpchk",
 	"ssl-hello-chk", "smtpchk", "pgsql-check", "redis-check",
 	"mysql-check", "ldap-check", "spop-check", "tcp-check",
 	"external-check", "forwardfor", "original-to",
@@ -1986,9 +1986,9 @@ stats_error_parsing:
 			}
 		}
 		else if (strcmp(args[1], "http-tunnel") == 0) {
-			ha_warning("parsing [%s:%d]: the option '%s' is deprecated and will be removed in next version.\n",
+			ha_alert("parsing [%s:%d]: option '%s' is not supported any more since HAProxy 2.1, please just remove it, it shouldn't be needed.\n",
 				 file, linenum, args[1]);
-			err_code |= ERR_WARN;
+			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
