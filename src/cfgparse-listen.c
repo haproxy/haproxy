@@ -1915,17 +1915,6 @@ stats_error_parsing:
 					goto out;
 				}
 
-				/* "[no] option http-use-htx" is deprecated */
-				if (strcmp(cfg_opts2[optnum].name, "http-use-htx") == 0) {
-					if (kwm ==KWM_NO) {
-						ha_warning("parsing [%s:%d]: option '%s' is deprecated and ignored."
-							   " The HTX mode is now the only supported mode.\n",
-							   file, linenum, cfg_opts2[optnum].name);
-						err_code |= ERR_WARN;
-					}
-					goto out;
-				}
-
 				curproxy->no_options2 &= ~cfg_opts2[optnum].val;
 				curproxy->options2    &= ~cfg_opts2[optnum].val;
 
