@@ -15,7 +15,6 @@
 # https://www.haproxy.com/blog/ssl-client-certificate-management-at-application-level/
 
 varnishtest "Test the client auth"
-#REQUIRE_VERSION=1.6
 #REQUIRE_OPTIONS=OPENSSL
 feature ignore_unknown_macro
 

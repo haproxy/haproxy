@@ -1,5 +1,4 @@
 varnishtest "Webgui stats page check filtering with scope and changing server state"
-#REQUIRE_VERSION=1.6
 
 feature ignore_unknown_macro
 

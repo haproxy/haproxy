@@ -1,6 +1,5 @@
 varnishtest "json converter test"
 
-#REQUIRE_VERSION=1.6
 
 feature ignore_unknown_macro
 

@@ -1,7 +1,6 @@
 # Checks that compression doesn't cause corruption..
 
 varnishtest "Compression validation"
-#REQUIRE_VERSION=1.6
 #REQUIRE_OPTIONS=ZLIB|SLZ,LUA,OPENSSL
 #REGTEST_TYPE=slow
 

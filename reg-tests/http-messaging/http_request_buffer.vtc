@@ -1,7 +1,6 @@
 varnishtest "A test for http-request-buffer option"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=1.6
 
 # This test checks HTTP request buffering feature.
 # We run one server s1 which can serve only one client (no -repeat argument here).

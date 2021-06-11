@@ -1,5 +1,4 @@
 varnishtest "Composite HTTP manipulation test (H1 clear to H1 clear)"
-#REQUIRE_VERSION=1.6
 #REQUIRE_VERSION_BELOW=1.9
 
 # This config tests several http-request features and their interactions.
