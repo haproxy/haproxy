@@ -14,7 +14,7 @@
 varnishtest "Test the 'set ssl cert' feature of the CLI with separate key and crt"
 #REQUIRE_VERSION=2.2
 #REQUIRE_OPTIONS=OPENSSL
-#REQUIRE_BINARIES=socat
+feature cmd "command -v socat"
 feature ignore_unknown_macro
 
 server s1 -repeat 3 {

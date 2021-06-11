@@ -11,7 +11,7 @@
 varnishtest "Test the 'new ssl ca-file' and 'del ssl ca-file' commands of the CLI"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
 feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
-#REQUIRE_BINARIES=socat
+feature cmd "command -v socat"
 feature ignore_unknown_macro
 
 server s1 -repeat 2 {
