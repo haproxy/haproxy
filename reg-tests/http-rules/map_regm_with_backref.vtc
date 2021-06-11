@@ -10,7 +10,6 @@
 varnishtest "map_regm get_trash_chunk test"
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=1.7
 #REGTEST_TYPE=bug
 
 syslog S1 -level notice {
