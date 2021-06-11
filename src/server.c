@@ -2160,6 +2160,7 @@ struct server *new_server(struct proxy *proxy)
 	srv->proxy = proxy;
 	srv->pendconns = EB_ROOT;
 	LIST_APPEND(&servers_list, &srv->global_list);
+	LIST_INIT(&srv->ip_rec_item);
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
 	srv->last_change = now.tv_sec;
@@ -3525,6 +3526,7 @@ int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 	if (!snr_update_srv_status(s, 1)) {
 		memset(&s->addr, 0, sizeof(s->addr));
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+		LIST_DEL_INIT(&s->ip_rec_item);
 		return 0;
 	}
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);

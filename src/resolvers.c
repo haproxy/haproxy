@@ -575,7 +575,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 	struct resolvers   *resolvers = res->resolvers;
 	struct resolv_requester   *req;
 	struct resolv_answer_item *item, *itemback;
-	struct server          *srv;
+	struct server          *srv, *srvback;
 	struct resolv_srvrq       *srvrq;
 
 	list_for_each_entry_safe(item, itemback, &res->response.answer_list, list) {
@@ -592,32 +592,36 @@ static void resolv_check_response(struct resolv_resolution *res)
 
 		/* Remove obsolete items */
 		if (tick_is_lt(tick_add(item->last_seen, resolvers->hold.obsolete), now_ms)) {
-			if (item->type != DNS_RTYPE_SRV)
-				goto rm_obselete_item;
-
-			list_for_each_entry(req, &res->requesters, list) {
-				if ((srvrq = objt_resolv_srvrq(req->owner)) == NULL)
-					continue;
-
+			if (item->type == DNS_RTYPE_A || item->type == DNS_RTYPE_AAAA) {
 				/* Remove any associated server */
-				for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
-					HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-					if (srv->srvrq == srvrq && srv->svc_port == item->port &&
-					    item->data_len == srv->hostname_dn_len &&
-					    !resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
-						resolv_unlink_resolution(srv->resolv_requester, 0);
-						srvrq_update_srv_status(srv, 1);
-						ha_free(&srv->hostname);
-						ha_free(&srv->hostname_dn);
-						srv->hostname_dn_len = 0;
-						memset(&srv->addr, 0, sizeof(srv->addr));
-						srv->svc_port = 0;
+				list_for_each_entry_safe(srv, srvback, &item->attached_servers, ip_rec_item) {
+					LIST_DEL_INIT(&srv->ip_rec_item);
+				}
+			}
+			else if (item->type == DNS_RTYPE_SRV) {
+				list_for_each_entry(req, &res->requesters, list) {
+					if ((srvrq = objt_resolv_srvrq(req->owner)) == NULL)
+						continue;
+
+					/* Remove any associated server */
+					for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+						HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+						if (srv->srvrq == srvrq && srv->svc_port == item->port &&
+						    item->data_len == srv->hostname_dn_len &&
+						    !resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
+							resolv_unlink_resolution(srv->resolv_requester, 0);
+							srvrq_update_srv_status(srv, 1);
+							ha_free(&srv->hostname);
+							ha_free(&srv->hostname_dn);
+							srv->hostname_dn_len = 0;
+							memset(&srv->addr, 0, sizeof(srv->addr));
+							srv->svc_port = 0;
+						}
+						HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 					}
-					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 				}
 			}
 
-		  rm_obselete_item:
 			LIST_DELETE(&item->list);
 			if (item->ar_item) {
 				pool_free(resolv_answer_item_pool, item->ar_item);
@@ -902,6 +906,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		/* initialization */
 		answer_record->ar_item = NULL;
 		answer_record->last_seen = TICK_ETERNITY;
+		LIST_INIT(&answer_record->attached_servers);
 
 		offset = 0;
 		len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
@@ -1153,6 +1158,7 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 		if (answer_record == NULL)
 			goto invalid_resp;
 		answer_record->last_seen = TICK_ETERNITY;
+		LIST_INIT(&answer_record->attached_servers);
 
 		offset = 0;
 		len = resolv_read_name(resp, bufend, reader, tmpname, DNS_MAX_NAME_SIZE, &offset, 0);
@@ -1311,7 +1317,6 @@ static int resolv_validate_dns_response(unsigned char *resp, unsigned char *bufe
 
 	/* Save the number of records we really own */
 	r_res->header.arcount = nb_saved_records;
-
 	resolv_check_response(resolution);
 	return RSLV_RESP_VALID;
 
@@ -1335,9 +1340,9 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
                              struct resolv_options *resolv_opts, void *currentip,
                              short currentip_sin_family,
                              void **newip, short *newip_sin_family,
-                             void *owner)
+                             struct server *owner)
 {
-	struct resolv_answer_item *record;
+	struct resolv_answer_item *record, *found_record = NULL;
 	int family_priority;
 	int currentip_found;
 	unsigned char *newip4, *newip6;
@@ -1345,6 +1350,10 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 	int j;
 	int score, max_score;
 	int allowed_duplicated_ip;
+
+	/* srv is linked to an alive ip record */
+	if (owner && LIST_INLIST(&owner->ip_rec_item))
+		return RSLV_UPD_NO;
 
 	family_priority   = resolv_opts->family_prio;
 	allowed_duplicated_ip = resolv_opts->accept_duplicate_ip;
@@ -1410,9 +1419,25 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 		/* Check if the IP found in the record is already affected to a
 		 * member of a group.  If not, the score should be incremented
 		 * by 2. */
-		if (owner && snr_check_ip_callback(owner, ip, &ip_type)) {
-			if (!allowed_duplicated_ip) {
-				continue;
+		if (owner) {
+			struct server *srv;
+			int already_used = 0;
+
+			list_for_each_entry(srv, &record->attached_servers, ip_rec_item) {
+				if (srv == owner)
+					continue;
+				if (srv->proxy == owner->proxy) {
+					already_used = 1;
+					break;
+				}
+			}
+			if (already_used) {
+				if (!allowed_duplicated_ip) {
+					continue;
+				}
+			}
+			else {
+				score += 2;
 			}
 		} else {
 			score += 2;
@@ -1439,9 +1464,15 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 				newip4 = ip;
 			else
 				newip6 = ip;
+			found_record = record;
 			currentip_found = currentip_sel;
-			if (score == 15)
+			if (score == 15) {
+				/* this was not registered on the current record but it matches
+				 * let's fix it (it may comes from state file */
+				if (owner)
+					LIST_APPEND(&found_record->attached_servers, &owner->ip_rec_item);
 				return RSLV_UPD_NO;
+			}
 			max_score = score;
 		}
 	} /* list for each record entries */
@@ -1494,6 +1525,12 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 	return RSLV_UPD_NO;
 
  not_found:
+
+	/* the ip of this record was chosen for the server */
+	if (owner && found_record) {
+		LIST_APPEND(&found_record->attached_servers, &owner->ip_rec_item);
+	}
+
 	list_for_each_entry(record, &r_res->answer_list, list) {
 		/* Move the first record to the end of the list, for internal
 		 * round robin */
@@ -1832,11 +1869,17 @@ void resolv_unlink_resolution(struct resolv_requester *requester, int safe)
 {
 	struct resolv_resolution *res;
 	struct resolv_requester  *req;
+	struct server *srv;
 
 	/* Nothing to do */
 	if (!requester || !requester->resolution)
 		return;
 	res = requester->resolution;
+
+	/* remove ref from the resolution answer item list to the requester */
+	if ((srv = objt_server(requester->owner)) != NULL) {
+		LIST_DEL_INIT(&srv->ip_rec_item);
+	}
 
 	/* Clean up the requester */
 	LIST_DELETE(&requester->list);

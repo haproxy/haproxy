@@ -41,7 +41,7 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
                              struct resolv_options *resolv_opts, void *currentip,
                              short currentip_sin_family,
                              void **newip, short *newip_sin_family,
-                             void *owner);
+                             struct server *owner);
 
 void resolv_purge_resolution_answer_records(struct resolv_resolution *resolution);
 int resolv_link_resolution(void *requester, int requester_type, int requester_locked);

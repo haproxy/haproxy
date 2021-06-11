@@ -365,6 +365,7 @@ struct server {
 #endif
 #endif
 	struct resolv_srvrq *srvrq;		/* Pointer representing the DNS SRV requeest, if any */
+	struct list ip_rec_item;		/* to attach server to a A or AAAA record item */
 	struct {
 		const char *file;		/* file where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */

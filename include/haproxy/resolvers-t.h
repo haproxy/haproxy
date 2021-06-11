@@ -115,6 +115,7 @@ struct resolv_answer_item {
 	char            target[DNS_MAX_NAME_SIZE+1]; /* Response data: SRV or CNAME type target */
 	unsigned int    last_seen;                   /* When was the answer was last seen */
 	struct resolv_answer_item *ar_item;          /* pointer to a RRset from the additional section, if exists */
+	struct list	attached_servers;            /* attached server head */
 	struct list     list;
 };
 
