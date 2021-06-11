@@ -2574,19 +2574,6 @@ int qc_do_hdshk(struct ssl_sock_ctx *ctx)
 	return 0;
 }
 
-/* Allocate a new QUIC connection and return it if succeeded, NULL if not. */
-struct quic_conn *new_quic_conn(uint32_t version)
-{
-	struct quic_conn *qc;
-
-	qc = pool_zalloc(pool_head_quic_conn);
-	if (qc) {
-		qc->version = version;
-	}
-
-	return qc;
-}
-
 /* Uninitialize <qel> QUIC encryption level. Never fails. */
 static void quic_conn_enc_level_uninit(struct quic_enc_level *qel)
 {
@@ -2709,6 +2696,9 @@ static void quic_conn_free(struct quic_conn *conn)
 {
 	int i;
 
+	if (!conn)
+		return;
+
 	free_quic_conn_cids(conn);
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
 		quic_conn_enc_level_uninit(&conn->els[i]);
@@ -2772,17 +2762,22 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
  * <scid> is the source connection ID with <scid_len> as length.
  * Returns 1 if succeeded, 0 if not.
  */
-static int qc_new_conn_init(struct quic_conn *qc, int ipv4,
-                            struct eb_root *quic_initial_clients,
-                            struct eb_root *quic_clients,
-                            unsigned char *dcid, size_t dcid_len,
-                            unsigned char *scid, size_t scid_len, int server)
+static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
+                                    unsigned char *dcid, size_t dcid_len,
+                                    unsigned char *scid, size_t scid_len, int server)
 {
 	int i;
+	struct quic_conn *qc;
 	/* Initial CID. */
 	struct quic_connection_id *icid;
 
 	TRACE_ENTER(QUIC_EV_CONN_INIT);
+	qc = pool_zalloc(pool_head_quic_conn);
+	if (!qc) {
+		TRACE_PROTO("Could not allocate a new connection", QUIC_EV_CONN_INIT);
+		goto err;
+	}
+
 	qc->cids = EB_ROOT;
 	/* QUIC Server (or listener). */
 	if (server) {
@@ -2809,26 +2804,23 @@ static int qc_new_conn_init(struct quic_conn *qc, int ipv4,
 	qc->obuf.pos = qc->obuf.data;
 
 	icid = new_quic_cid(&qc->cids, 0);
-	if (!icid)
-		return 0;
+	if (!icid) {
+		TRACE_PROTO("Could not allocate a new connection ID", QUIC_EV_CONN_INIT);
+		goto err;
+	}
 
 	/* Select our SCID which is the first CID with 0 as sequence number. */
 	qc->scid = icid->cid;
-
-	/* Insert the DCID the QUIC client has chosen (only for listeners) */
-	if (server)
-		ebmb_insert(quic_initial_clients, &qc->odcid_node, qc->odcid.len);
-
-	/* Insert our SCID, the connection ID for the QUIC client. */
-	ebmb_insert(quic_clients, &qc->scid_node, qc->scid.len);
 
 	/* Packet number spaces initialization. */
 	for (i = 0; i < QUIC_TLS_PKTNS_MAX; i++)
 		quic_pktns_init(&qc->pktns[i]);
 	/* QUIC encryption level context initialization. */
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++) {
-		if (!quic_conn_enc_level_init(qc, i))
+		if (!quic_conn_enc_level_init(qc, i)) {
+			TRACE_PROTO("Could not initialize an encryption level", QUIC_EV_CONN_INIT);
 			goto err;
+		}
 		/* Initialize the packet number space. */
 		qc->els[i].pktns = &qc->pktns[quic_tls_pktns(i)];
 	}
@@ -2836,9 +2828,12 @@ static int qc_new_conn_init(struct quic_conn *qc, int ipv4,
 	/* TX part. */
 	LIST_INIT(&qc->tx.frms_to_send);
 	qc->tx.bufs = quic_conn_tx_bufs_alloc(QUIC_CONN_TX_BUFS_NB, QUIC_CONN_TX_BUF_SZ);
-	if (!qc->tx.bufs)
+	if (!qc->tx.bufs) {
+		TRACE_PROTO("Could not allocate TX bufs", QUIC_EV_CONN_INIT);
 		goto err;
+	}
 
+	qc->version = version;
 	qc->tx.nb_buf = QUIC_CONN_TX_BUFS_NB;
 	qc->tx.wbuf = qc->tx.rbuf = 0;
 	qc->tx.bytes = 0;
@@ -2852,12 +2847,12 @@ static int qc_new_conn_init(struct quic_conn *qc, int ipv4,
 
 	TRACE_LEAVE(QUIC_EV_CONN_INIT);
 
-	return 1;
+	return qc;
 
  err:
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_INIT);
 	quic_conn_free(qc);
-	return 0;
+	return NULL;
 }
 
 /* Initialize the timer task of <qc> QUIC connection.
@@ -3260,22 +3255,21 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 				goto err;
 			}
 
-			qc = new_quic_conn(pkt->version);
-			if (!qc) {
-				TRACE_PROTO("Non allocated new connection", QUIC_EV_CONN_LPKT);
-				goto err;
-			}
-
 			pkt->saddr = *saddr;
 			/* Note that here, odcid_len equals to pkt->dcid.len minus the length
 			 * of <saddr>.
 			 */
 			pkt->odcid_len = dcid_len;
 			ipv4 = saddr->ss_family == AF_INET;
-			if (!qc_new_conn_init(qc, ipv4, &l->rx.odcids, &l->rx.cids,
-			                      pkt->dcid.data, pkt->dcid.len,
-			                      pkt->scid.data, pkt->scid.len, 1))
+			qc = qc_new_conn(pkt->version, ipv4, pkt->dcid.data, pkt->dcid.len,
+			                 pkt->scid.data, pkt->scid.len, 1);
+			if (qc == NULL)
 				goto err;
+
+			/* Insert the DCID the QUIC client has chosen (only for listeners) */
+			ebmb_insert(&l->rx.odcids, &qc->odcid_node, qc->odcid.len);
+			/* Insert our SCID, the connection ID for the QUIC client. */
+			ebmb_insert(&l->rx.cids, &qc->scid_node, qc->scid.len);
 
 			odcid = &qc->rx.params.original_destination_connection_id;
 			/* Copy the transport parameters. */
@@ -4362,17 +4356,17 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		if (RAND_bytes(dcid, sizeof dcid) != 1)
 			goto err;
 
-		conn->qc = new_quic_conn(QUIC_PROTOCOL_VERSION_DRAFT_28);
-		if (!conn->qc)
-			goto err;
-
-		qc = conn->qc;
-		qc->conn = conn;
 		ipv4 = conn->dst->ss_family == AF_INET;
-		if (!qc_new_conn_init(qc, ipv4, NULL, &srv->cids,
-		                      dcid, sizeof dcid, NULL, 0, 0))
+		qc = qc_new_conn(QUIC_PROTOCOL_VERSION_DRAFT_28, ipv4,
+		                 dcid, sizeof dcid, NULL, 0, 0);
+		if (qc == NULL)
 			goto err;
 
+		/* Insert our SCID, the connection ID for the QUIC client. */
+		ebmb_insert(&srv->cids, &qc->scid_node, qc->scid.len);
+
+		conn->qc = qc;
+		qc->conn = conn;
 		if (!qc_new_isecs(qc, dcid, sizeof dcid, 0))
 			goto err;
 
