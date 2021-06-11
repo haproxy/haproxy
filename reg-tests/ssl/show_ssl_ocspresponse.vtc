@@ -1,4 +1,5 @@
-#REGTEST_TYPE=devel
+#REGTEST_TYPE=broken
+# broken because it can't work with BoringSSL.
 
 # This reg-test uses the "show ssl ocsp-response" command to display the details
 # of the OCSP responses used by HAProxy.
