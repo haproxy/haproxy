@@ -56,7 +56,7 @@ static const char *common_kw_list[] = {
 };
 
 static const char *common_options[] = {
-	"httpclose", "forceclose", "http-server-close", "http-keep-alive",
+	"httpclose", "http-server-close", "http-keep-alive",
 	"http-tunnel", "redispatch", "httplog", "tcplog", "tcpka", "httpchk",
 	"ssl-hello-chk", "smtpchk", "pgsql-check", "redis-check",
 	"mysql-check", "ldap-check", "spop-check", "tcp-check",
@@ -1937,13 +1937,13 @@ stats_error_parsing:
 		 * was this one (useful for cancelling options set in defaults
 		 * sections).
 		 */
-		if (strcmp(args[1], "httpclose") == 0 || strcmp(args[1], "forceclose") == 0) {
-			if (strcmp(args[1], "forceclose") == 0) {
-				if (!already_warned(WARN_FORCECLOSE_DEPRECATED))
-					ha_warning("parsing [%s:%d]: keyword '%s' is deprecated in favor of 'httpclose', and will not be supported by future versions.\n",
-					  file, linenum, args[1]);
-				err_code |= ERR_WARN;
-			}
+		if (strcmp(args[1], "forceclose") == 0) {
+			ha_alert("parsing [%s:%d]: option '%s' is not supported any more since HAProxy 2.0, please just remove it, or use 'option httpclose' if absolutely needed.\n",
+				   file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		else if (strcmp(args[1], "httpclose") == 0) {
 			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
 				goto out;
 			if (kwm == KWM_STD) {
