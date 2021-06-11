@@ -740,9 +740,7 @@ int si_cs_send(struct conn_stream *cs)
 			if (!s->txn || (s->txn->req.msg_state != HTTP_MSG_DONE))
 				si->flags &= ~SI_FL_L7_RETRY;
 			else {
-				if (b_is_null(&si->l7_buffer))
-					b_alloc(&si->l7_buffer);
-				if (b_is_null(&si->l7_buffer))
+				if (b_alloc(&si->l7_buffer) == NULL)
 					si->flags &= ~SI_FL_L7_RETRY;
 				else {
 					memcpy(b_orig(&si->l7_buffer),
