@@ -26,6 +26,7 @@
 #include <stdio.h>
 
 #include <haproxy/buf-t.h>
+#include <haproxy/obj_type-t.h>
 
 /* These flags may be used in various functions which are called from within
  * loops (eg: to start all listeners from all proxies). They provide enough
