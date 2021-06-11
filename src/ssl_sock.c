@@ -763,7 +763,7 @@ static inline void ssl_async_process_fds(struct ssl_sock_ctx *ctx)
 }
 #endif
 
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP && !defined HAVE_ASN1_TIME_TO_TM)
 /*
  *  This function returns the number of seconds  elapsed
  *  since the Epoch, 1970-01-01 00:00:00 +0000 (UTC) and the
@@ -845,7 +845,9 @@ nosec:
 
 	return -1;
 }
+#endif
 
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 /*
  * struct alignment works here such that the key.key is the same as key_data
  * Do not change the placement of key_data
@@ -906,6 +908,9 @@ static int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 	ASN1_GENERALIZEDTIME *revtime, *thisupd, *nextupd = NULL;
 	int reason;
 	int ret = 1;
+#ifdef HAVE_ASN1_TIME_TO_TM
+	struct tm nextupd_tm = {0};
+#endif
 
 	resp = d2i_OCSP_RESPONSE(NULL, (const unsigned char **)&p,
 				 ocsp_response->data);
@@ -996,11 +1001,19 @@ static int ssl_sock_load_ocsp_response(struct buffer *ocsp_response,
 		goto out;
 	}
 
+#ifdef HAVE_ASN1_TIME_TO_TM
+	if (ASN1_TIME_to_tm(nextupd, &nextupd_tm) == 0) {
+		memprintf(err, "OCSP single response: Invalid \"Next Update\" time");
+		goto out;
+	}
+	ocsp->expire = my_timegm(&nextupd_tm) - OCSP_MAX_RESPONSE_TIME_SKEW;
+#else
 	ocsp->expire = asn1_generalizedtime_to_epoch(nextupd) - OCSP_MAX_RESPONSE_TIME_SKEW;
 	if (ocsp->expire < 0) {
 		memprintf(err, "OCSP single response: Invalid \"Next Update\" time");
 		goto out;
 	}
+#endif
 
 	ret = 0;
 out:
