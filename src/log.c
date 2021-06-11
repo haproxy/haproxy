@@ -229,47 +229,6 @@ struct logformat_var_args var_args_list[] = {
 	{  0,  0 }
 };
 
-/* return the name of the directive used in the current proxy for which we're
- * currently parsing a header, when it is known.
- */
-static inline const char *fmt_directive(const struct proxy *curproxy)
-{
-	switch (curproxy->conf.args.ctx) {
-	case ARGC_ACL:
-		return "acl";
-	case ARGC_STK:
-		return "stick";
-	case ARGC_TRK:
-		return "track-sc";
-	case ARGC_LOG:
-		return "log-format";
-	case ARGC_LOGSD:
-		return "log-format-sd";
-	case ARGC_HRQ:
-		return "http-request";
-	case ARGC_HRS:
-		return "http-response";
-	case ARGC_UIF:
-		return "unique-id-format";
-	case ARGC_RDR:
-		return "redirect";
-	case ARGC_CAP:
-		return "capture";
-	case ARGC_SRV:
-		return "server";
-	case ARGC_SPOE:
-		return "spoe-message";
-	case ARGC_UBK:
-		return "use_backend";
-	case ARGC_HERR:
-		return "http-error";
-	case ARGC_OT:
-		return "ot-scope";
-	default:
-		return "undefined(please report this bug)"; /* must never happen */
-	}
-}
-
 /*
  * callback used to configure addr source retrieval
  */
