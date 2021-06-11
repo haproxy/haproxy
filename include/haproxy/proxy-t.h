@@ -389,7 +389,6 @@ struct proxy {
 	char *check_path;			/* PATH environment to use for external agent checks */
 	struct http_reply *replies[HTTP_ERR_SIZE]; /* HTTP replies for known errors */
 	unsigned int log_count;			/* number of logs produced by the frontend */
-	int grace;				/* grace time after stop request */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
 	unsigned long bind_proc;		/* bitmask of processes using this proxy */

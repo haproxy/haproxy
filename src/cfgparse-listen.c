@@ -49,7 +49,7 @@ static const char *common_kw_list[] = {
 	"use-server", "force-persist", "ignore-persist", "force-persist",
 	"stick-table", "stick", "stats", "option", "default_backend",
 	"http-reuse", "monitor", "transparent", "maxconn", "backlog",
-	"fullconn", "grace", "dispatch", "balance", "hash-type",
+	"fullconn", "dispatch", "balance", "hash-type",
 	"hash-balance-factor", "unique-id-format", "unique-id-header",
 	"log-format", "log-format-sd", "log-tag", "log", "source", "usesrc",
 	NULL /* must be last */
@@ -204,7 +204,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	static struct proxy *last_defproxy = NULL;
 	const char *err;
 	int rc;
-	unsigned val;
 	int err_code = 0;
 	struct acl_cond *cond = NULL;
 	char *errmsg = NULL;
@@ -2464,36 +2463,10 @@ stats_error_parsing:
 			goto out;
 	}
 	else if (strcmp(args[0], "grace") == 0) {  /* grace time (ms) */
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects a time in milliseconds.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
-		if (err == PARSE_TIME_OVER) {
-			ha_alert("parsing [%s:%d]: timer overflow in argument <%s> to grace time, maximum value is 2147483647 ms (~24.8 days).\n",
-			         file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (err == PARSE_TIME_UNDER) {
-			ha_alert("parsing [%s:%d]: timer underflow in argument <%s> to grace time, minimum non-null value is 1 ms.\n",
-			         file, linenum, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		else if (err) {
-			ha_alert("parsing [%s:%d] : unexpected character '%c' in grace time.\n",
-				 file, linenum, *err);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		curproxy->grace = val;
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-
-		ha_warning("parsing [%s:%d]: the '%s' is deprecated and will be removed in a future version.\n",
+		ha_alert("parsing [%s:%d]: the '%s' keyword is not supported any more since HAProxy version 2.5.\n",
 			   file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (strcmp(args[0], "dispatch") == 0) {  /* dispatch address */
 		struct sockaddr_storage *sk;

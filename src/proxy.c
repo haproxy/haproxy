@@ -1724,8 +1724,6 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		curproxy->comp->types = defproxy->comp->types;
 	}
 
-	curproxy->grace  = defproxy->grace;
-
 	if (defproxy->check_path)
 		curproxy->check_path = strdup(defproxy->check_path);
 	if (defproxy->check_command)
@@ -1978,12 +1976,10 @@ struct task *hard_stop(struct task *t, void *context, unsigned int state)
 
 /*
  * this function disables health-check servers so that the process will quickly be ignored
- * by load balancers. Note that if a proxy was already in the PAUSED state, then its grace
- * time will not be used since it would already not listen anymore to the socket.
+ * by load balancers.
  */
 void soft_stop(void)
 {
-	struct proxy *p;
 	struct task *task;
 
 	stopping = 1;
@@ -2000,30 +1996,8 @@ void soft_stop(void)
 		}
 	}
 
-	/* stop all stoppable listeners, resulting in disabling all proxies
-	 * that don't use a grace period.
-	 */
+	/* stop all stoppable listeners */
 	protocol_stop_now();
-
-	p = proxies_list;
-	tv_update_date(0,1); /* else, the old time before select will be used */
-	while (p) {
-		if (!p->disabled) {
-			ha_warning("Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
-			send_log(p, LOG_WARNING, "Stopping %s %s in %d ms.\n", proxy_cap_str(p->cap), p->id, p->grace);
-			p->stop_time = tick_add(now_ms, p->grace);
-
-			/* Note: do not wake up stopped proxies' task nor their tables'
-			 * tasks as these ones might point to already released entries.
-			 */
-			if (p->table && p->table->size && p->table->sync_task)
-				task_wakeup(p->table->sync_task, TASK_WOKEN_MSG);
-
-			if (p->task)
-				task_wakeup(p->task, TASK_WOKEN_MSG);
-		}
-		p = p->next;
-	}
 
 	/* signal zero is used to broadcast the "stopping" event */
 	signal_handler(0);

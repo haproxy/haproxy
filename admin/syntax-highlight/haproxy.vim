@@ -44,7 +44,7 @@ syn keyword hapParam     chroot cliexp
 syn keyword hapParam     daemon debug disabled
 syn keyword hapParam     enabled
 syn keyword hapParam     fullconn
-syn keyword hapParam     gid grace group
+syn keyword hapParam     gid group
 syn keyword hapParam     maxconn monitor-uri
 syn keyword hapParam     nbproc noepoll nopoll
 syn keyword hapParam     pidfile

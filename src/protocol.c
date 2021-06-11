@@ -140,11 +140,9 @@ int protocol_unbind_all(void)
 	return err;
 }
 
-/* stops all listeners of all registered protocols, except when the belong to a
- * proxy configured with a grace time. This will normally catch every single
- * listener, all protocols included, and the grace ones will have to be handled
- * by the proxy stopping loop. This is to be used during soft_stop() only. It
- * does not return any error.
+/* stops all listeners of all registered protocols. This will normally catch
+ * every single listener, all protocols included. This is to be used during
+ * soft_stop() only. It does not return any error.
  */
 void protocol_stop_now(void)
 {
@@ -154,8 +152,7 @@ void protocol_stop_now(void)
 	HA_SPIN_LOCK(PROTO_LOCK, &proto_lock);
 	list_for_each_entry(proto, &protocols, list) {
 		list_for_each_entry_safe(listener, lback, &proto->receivers, rx.proto_list)
-			if (!listener->bind_conf->frontend->grace)
-				stop_listener(listener, 0, 1, 0);
+			stop_listener(listener, 0, 1, 0);
 	}
 	HA_SPIN_UNLOCK(PROTO_LOCK, &proto_lock);
 }

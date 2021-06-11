@@ -3562,7 +3562,6 @@ errorloc303                               X          X         X         X
 force-persist                             -          -         X         X
 filter                                    -          X         X         X
 fullconn                                  X          -         X         X
-grace                                     X          X         X         X
 hash-type                                 X          -         X         X
 http-after-response                       -          X         X         X
 http-check comment                        X          -         X         X
@@ -5095,25 +5094,6 @@ fullconn <conns>
         server     srv2   dyn2:80 minconn 100 maxconn 1000
 
   See also : "maxconn", "server"
-
-
-grace <time> (deprecated)
-  Maintain a proxy operational for some time after a soft stop
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
-  Arguments :
-    <time>    is the time (by default in milliseconds) for which the instance
-              will remain operational with the frontend sockets still listening
-              when a soft-stop is received via the SIGUSR1 signal.
-
-  This may be used to ensure that the services disappear in a certain order.
-  This was designed so that frontends which are dedicated to monitoring by an
-  external equipment fail immediately while other ones remain up for the time
-  needed by the equipment to detect the failure.
-
-  Note that currently, there is very little benefit in using this parameter,
-  and it may in fact complicate the soft-reconfiguration process more than
-  simplify it.
 
 
 hash-balance-factor <factor>
