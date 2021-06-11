@@ -32,7 +32,7 @@ static const char *common_kw_list[] = {
 	"insecure-fork-wanted", "insecure-setuid-wanted", "nosplice",
 	"nogetaddrinfo", "noreuseport", "quiet", "zero-warning",
 	"tune.runqueue-depth", "tune.maxpollevents", "tune.maxaccept",
-	"tune.chksize", "tune.recv_enough", "tune.buffers.limit",
+	"tune.recv_enough", "tune.buffers.limit",
 	"tune.buffers.reserve", "tune.bufsize", "tune.maxrewrite",
 	"tune.idletimer", "tune.rcvbuf.client", "tune.rcvbuf.server",
 	"tune.sndbuf.client", "tune.sndbuf.server", "tune.pipesize",
@@ -224,8 +224,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.maxaccept = max;
 	}
 	else if (strcmp(args[0], "tune.chksize") == 0) {
-		ha_warning("parsing [%s:%d]: the option '%s' is deprecated and will be removed in next version.\n",
-			   file, linenum, args[0]);
+		ha_alert("parsing [%s:%d]: option '%s' is not supported any more (tune.bufsize is used instead).\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (strcmp(args[0], "tune.recv_enough") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))

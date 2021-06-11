@@ -1055,7 +1055,6 @@ The following keywords are supported in the "global" section :
    - tune.buffers.limit
    - tune.buffers.reserve
    - tune.bufsize
-   - tune.chksize
    - tune.comp.maxlevel
    - tune.fd.edge-triggered
    - tune.h2.header-table-size
@@ -2430,9 +2429,6 @@ tune.bufsize <number>
   than this size, HAProxy will return HTTP 502 (Bad Gateway). Note that the
   value set using this parameter will automatically be rounded up to the next
   multiple of 8 on 32-bit machines and 16 on 64-bit machines.
-
-tune.chksize <number> (deprecated)
-  This option is deprecated and ignored.
 
 tune.comp.maxlevel <number>
   Sets the maximum compression level. The compression level affects CPU
