@@ -10,8 +10,6 @@ server s1 {
 } -start
 
 haproxy h1 -W -S -conf {
-    global
-        nbproc 1
     defaults
         mode http
         timeout connect 1s

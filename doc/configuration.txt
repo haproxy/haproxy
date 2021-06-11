@@ -990,7 +990,6 @@ The following keywords are supported in the "global" section :
    - lua-load-per-thread
    - lua-prepend-path
    - mworker-max-reloads
-   - nbproc
    - nbthread
    - node
    - numa-cpu-mapping
@@ -1645,30 +1644,15 @@ mworker-max-reloads <number>
   SIGTERM. This option helps to keep under control the number of workers.
   See also "show proc" in the Management Guide.
 
-nbproc <number>  (deprecated)
-  Creates <number> processes when going daemon. This requires the "daemon"
-  mode. By default, only one process is created, which is the recommended mode
-  of operation. For systems limited to small sets of file descriptors per
-  process, it may be needed to fork multiple daemons. When set to a value
-  larger than 1, threads are automatically disabled. USING MULTIPLE PROCESSES
-  IS HARDER TO DEBUG AND IS REALLY DISCOURAGED. This directive is deprecated
-  and scheduled for removal in 2.5. Please use "nbthread" instead. See also
-  "daemon" and "nbthread".
-
 nbthread <number>
   This setting is only available when support for threads was built in. It
-  makes HAProxy run on <number> threads. This is exclusive with "nbproc". While
-  "nbproc" historically used to be the only way to use multiple processors, it
-  also involved a number of shortcomings related to the lack of synchronization
-  between processes (health-checks, peers, stick-tables, stats, ...) which do
-  not affect threads. As such, any modern configuration is strongly encouraged
-  to migrate away from "nbproc" to "nbthread". "nbthread" also works when
-  HAProxy is started in foreground. On some platforms supporting CPU affinity,
-  when nbproc is not used, the default "nbthread" value is automatically set to
-  the number of CPUs the process is bound to upon startup. This means that the
-  thread count can easily be adjusted from the calling process using commands
-  like "taskset" or "cpuset". Otherwise, this value defaults to 1. The default
-  value is reported in the output of "haproxy -vv". See also "nbproc".
+  makes HAProxy run on <number> threads. "nbthread" also works when HAProxy is
+  started in foreground. On some platforms supporting CPU affinity, the default
+  "nbthread" value is automatically set to the number of CPUs the process is
+  bound to upon startup. This means that the thread count can easily be
+  adjusted from the calling process using commands like "taskset" or "cpuset".
+  Otherwise, this value defaults to 1. The default value is reported in the
+  output of "haproxy -vv".
 
 numa-cpu-mapping
   By default, if running on Linux, HAProxy inspects on startup the CPU topology
@@ -2226,11 +2210,10 @@ maxcompcpuusage <number>
   Sets the maximum CPU usage HAProxy can reach before stopping the compression
   for new requests or decreasing the compression level of current requests.
   It works like 'maxcomprate' but measures CPU usage instead of incoming data
-  bandwidth. The value is expressed in percent of the CPU used by HAProxy. In
-  case of multiple processes (nbproc > 1), each process manages its individual
-  usage. A value of 100 disable the limit. The default value is 100. Setting
-  a lower value will prevent the compression work from slowing the whole
-  process down and from introducing high latencies.
+  bandwidth. The value is expressed in percent of the CPU used by HAProxy. A
+  value of 100 disable the limit. The default value is 100. Setting a lower
+  value will prevent the compression work from slowing the whole process down
+  and from introducing high latencies.
 
 maxpipes <number>
   Sets the maximum per-process number of pipes to <number>. Currently, pipes
@@ -2718,8 +2701,8 @@ tune.ssl.cachesize <number>
   idle entries are purged and reassigned. Higher values reduce the occurrence
   of such a purge, hence the number of CPU-intensive SSL handshakes by ensuring
   that all users keep their session as long as possible. All entries are
-  pre-allocated upon startup and are shared between all processes if "nbproc"
-  is greater than 1. Setting this value to 0 disables the SSL session cache.
+  pre-allocated upon startup. Setting this value to 0 disables the SSL session
+  cache.
 
 tune.ssl.force-private-cache
   This option disables SSL session cache sharing between all processes. It
@@ -4039,12 +4022,6 @@ bind /<path> [, ...] [param*]
                       only in log-forward sections.
                     - 'unix@'  -> address is a path to a local unix socket
                     - 'abns@'  -> address is in abstract namespace (Linux only).
-                      Note: since abstract sockets are not "rebindable", they
-                            do not cope well with multi-process mode during
-                            soft-restart, so it is better to avoid them if
-                            nbproc is greater than 1. The effect is that if the
-                            new process fails to start, only one of the old ones
-                            will be able to rebind to the socket.
                     - 'fd@<n>' -> use file descriptor <n> inherited from the
                       parent. The fd must be bound and may or may not already
                       be listening.
@@ -4187,7 +4164,7 @@ bind-process [ all | odd | even | <process_num>[-[<process_num>]] ] ...
             bind 10.0.0.4:80
             bind-process 1-4
 
-  See also : "nbproc" in global section, and "process" in section 5.1.
+  See also : "process" in section 5.1.
 
 
 capture cookie <name> len <length>
@@ -10497,10 +10474,6 @@ stats admin { if | unless } <cond>
   The admin level allows to enable/disable servers from the web interface. By
   default, statistics page is read-only for security reasons.
 
-  Note : Consider not using this feature in multi-process mode (nbproc > 1)
-         unless you know what you do : memory is not shared between the
-         processes, which can result in random behaviors.
-
   Currently, the POST request is limited to the buffer size minus the reserved
   buffer space, which means that if the list of servers is too long, the
   request won't be processed. It is recommended to alter few servers at a
@@ -10534,7 +10507,7 @@ stats admin { if | unless } <cond>
         stats http-request auth unless AUTH
         stats admin if AUTH_ADMIN
 
-  See also : "stats enable", "stats auth", "stats http-request", "nbproc",
+  See also : "stats enable", "stats auth", "stats http-request",
              "bind-process", section 3.4 about userlists and section 7 about
              ACL usage.
 
@@ -10998,10 +10971,6 @@ stick match <pattern> [table <table>] [{if | unless} <cond>]
   way, it becomes very easy to insert cookies and match on IP addresses in
   order to maintain stickiness between HTTP and HTTPS.
 
-  Note : Consider not using this feature in multi-process mode (nbproc > 1)
-         unless you know what you do : memory is not shared between the
-         processes, which can result in random behaviors.
-
   Example :
     # forward SMTP users to the same server they just used for POP in the
     # last 30 minutes
@@ -11020,7 +10989,7 @@ stick match <pattern> [table <table>] [{if | unless} <cond>]
         server s1 192.168.1.1:25
         server s2 192.168.1.1:25
 
-  See also : "stick-table", "stick on", "nbproc", "bind-process" and section 7
+  See also : "stick-table", "stick on", "bind-process" and section 7
              about ACLs and samples fetching.
 
 
@@ -11033,10 +11002,6 @@ stick on <pattern> [table <table>] [{if | unless} <condition>]
          "stick store-request", all with the same arguments. Please refer
          to both keywords for details. It is only provided as a convenience
          for writing more maintainable configurations.
-
-  Note : Consider not using this feature in multi-process mode (nbproc > 1)
-         unless you know what you do : memory is not shared between the
-         processes, which can result in random behaviors.
 
   Examples :
     # The following form ...
@@ -11065,7 +11030,7 @@ stick on <pattern> [table <table>] [{if | unless} <condition>]
         server s1 192.168.1.1:443
         server s2 192.168.1.1:443
 
-  See also : "stick match", "stick store-request", "nbproc" and "bind-process".
+  See also : "stick match", "stick store-request" and "bind-process".
 
 
 stick store-request <pattern> [table <table>] [{if | unless} <condition>]
@@ -11131,10 +11096,6 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
   established, so that the table will contain the real server that processed
   the request.
 
-  Note : Consider not using this feature in multi-process mode (nbproc > 1)
-         unless you know what you do : memory is not shared between the
-         processes, which can result in random behaviors.
-
   Example :
     # forward SMTP users to the same server they just used for POP in the
     # last 30 minutes
@@ -11153,7 +11114,7 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
         server s1 192.168.1.1:25
         server s2 192.168.1.1:25
 
-  See also : "stick-table", "stick on", "nbproc", "bind-process" and section 7
+  See also : "stick-table", "stick on", "bind-process" and section 7
              about ACLs and sample fetching.
 
 
@@ -13770,7 +13731,7 @@ process <process-set>[/<thread-set>]
   the same IP:port but not the same process in a listener, so that the system
   can distribute the incoming connections into multiple queues and allow a
   smoother inter-process load balancing. Currently Linux 3.9 and above is known
-  for supporting this. See also "bind-process" and "nbproc".
+  for supporting this. See also "bind-process".
 
 proto <name>
   Forces the multiplexer's protocol to use for the incoming connections. It
@@ -17366,11 +17327,6 @@ lat_ns_tot : integer
 meth(<method>) : method
   Returns a method.
 
-nbproc : integer
-  Returns an integer value corresponding to the number of processes that were
-  started (it equals the global "nbproc" setting). This is useful for logging
-  and debugging purposes.
-
 nbsrv([<backend>]) : integer
   Returns an integer value corresponding to the number of usable servers of
   either the current backend or the named backend. This is mostly used with
@@ -17391,9 +17347,8 @@ prio_offset : integer
   set-priority-offset".
 
 proc : integer
-  Returns an integer value corresponding to the position of the process calling
-  the function, between 1 and global.nbproc. This is useful for logging and
-  debugging purposes.
+  Always returns value 1 (historically it would return the calling process
+  number).
 
 queue([<backend>]) : integer
   Returns the total number of queued connections of the designated backend,

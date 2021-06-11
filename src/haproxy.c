@@ -1983,17 +1983,6 @@ static void init(int argc, char **argv)
 		ha_warning("a master CLI socket was defined, but master-worker mode (-W) is not enabled.\n");
 	}
 
-	if (global.nbproc > 1 && !global.nbthread) {
-		ha_warning("nbproc is deprecated!\n"
-			   "  | For suffering many limitations, the 'nbproc' directive is now deprecated\n"
-			   "  | and scheduled for removal in 2.5. Just comment it out: haproxy will use\n"
-			   "  | threads and will run on all allocated processors. You may also switch to\n"
-			   "  | 'nbthread %d' to keep the same number of processors. If you absolutely\n"
-			   "  | want to run in multi-process mode, you can silence this warning by adding\n"
-			   "  | 'nbthread 1', but then please report your use case to developers.\n",
-		           global.nbproc);
-	}
-
 	/* defaults sections are not needed anymore */
 	proxy_destroy_all_defaults();
 

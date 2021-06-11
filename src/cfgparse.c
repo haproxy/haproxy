@@ -2646,7 +2646,7 @@ int check_config_validity()
 		global.nbthread = 1;
 
 #if defined(USE_THREAD)
-		if (global.nbproc == 1) {
+		{
 			int numa_cores = 0;
 #if defined(__linux__) && defined USE_CPU_AFFINITY
 			if (global.numa_cpu_mapping && !thread_cpu_mask_forced())
@@ -2657,12 +2657,6 @@ int check_config_validity()
 		}
 		all_threads_mask = nbits(global.nbthread);
 #endif
-	}
-
-	if (global.nbproc > 1 && global.nbthread > 1) {
-		ha_alert("cannot enable multiple processes if multiple threads are configured. Please use either nbproc or nbthread but not both.\n");
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
 	}
 
 	pool_head_requri = create_pool("requri", global.tune.requri_len , MEM_F_SHARED);
@@ -2730,10 +2724,6 @@ int check_config_validity()
 			if (!curproxy->bind_proc && nbproc == 1) {
 				ha_warning("Proxy '%s': the process specified on the 'bind-process' directive refers to a process number that is higher than global.nbproc. The proxy has been forced to run on process 1 only.\n", curproxy->id);
 				curproxy->bind_proc = 1;
-			}
-			else if (!curproxy->bind_proc && nbproc > 1) {
-				ha_warning("Proxy '%s': all processes specified on the 'bind-process' directive refer to numbers that are all higher than global.nbproc. The directive was ignored and the proxy will run on all processes.\n", curproxy->id);
-				curproxy->bind_proc = 0;
 			}
 		}
 
@@ -3992,22 +3982,6 @@ out_uri_auth_compat:
 	}
 
 	/* Check multi-process mode compatibility */
-
-	if (global.nbproc > 1 && global.cli_fe) {
-		list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
-			unsigned long mask;
-
-			mask  = proc_mask(global.cli_fe->bind_proc) && all_proc_mask;
-			mask &= proc_mask(bind_conf->settings.bind_proc);
-
-			/* stop here if more than one process is used */
-			if (atleast2(mask))
-				break;
-		}
-		if (&bind_conf->by_fe != &global.cli_fe->conf.bind) {
-			ha_warning("stats socket will not work as expected in multi-process mode (nbproc > 1), you should force process binding globally using 'stats bind-process' or per socket using the 'process' attribute.\n");
-		}
-	}
 
 	/* Make each frontend inherit bind-process from its listeners when not specified. */
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {

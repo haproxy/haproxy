@@ -27,7 +27,7 @@
  * resources on embedded systems.
  */
 #ifndef MAX_PROCS
-#define MAX_PROCS LONGBITS
+#define MAX_PROCS 1
 #endif
 
 /* MAX_THREADS defines the highest limit for the global nbthread value. It

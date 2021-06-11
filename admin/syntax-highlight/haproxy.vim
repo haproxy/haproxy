@@ -46,7 +46,7 @@ syn keyword hapParam     enabled
 syn keyword hapParam     fullconn
 syn keyword hapParam     gid group
 syn keyword hapParam     maxconn monitor-uri
-syn keyword hapParam     nbproc noepoll nopoll
+syn keyword hapParam     noepoll nopoll
 syn keyword hapParam     pidfile
 syn keyword hapParam     quiet
 syn keyword hapParam     redispatch retries

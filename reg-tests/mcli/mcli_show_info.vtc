@@ -1,4 +1,4 @@
-varnishtest "Show info of process 3"
+varnishtest "Show info of process 1"
 
 #REQUIRE_VERSION=1.9
 
@@ -9,8 +9,6 @@ server s1 {
 } -start
 
 haproxy h1 -W -S -conf {
-    global
-        nbproc 4
     defaults
         mode http
         timeout connect 1s
@@ -26,6 +24,6 @@ haproxy h1 -W -S -conf {
 } -start
 
 haproxy h1 -mcli {
-    send "@3 show info"
-    expect ~ ".*\nProcess_num: 3\n.*"
+    send "@1 show info"
+    expect ~ ".*\nProcess_num: 1\n.*"
 } -wait

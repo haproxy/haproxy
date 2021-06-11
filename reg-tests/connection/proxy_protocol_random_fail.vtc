@@ -24,7 +24,6 @@ syslog Slog_1 -repeat 8 -level info {
 
 haproxy h1 -conf {
     global
-        nbproc 4
         tune.ssl.default-dh-param 2048
         stats bind-process 1
         log ${Slog_1_addr}:${Slog_1_port} len 2048 local0 debug err
@@ -37,13 +36,11 @@ haproxy h1 -conf {
         log global
 
     listen http
-        bind-process 1
         bind unix@"${tmpdir}/http.socket" accept-proxy name ssl-offload-http
         option forwardfor
 
     listen ssl-offload-http
         option httplog
-        bind-process 2-4
         bind "fd@${ssl}" ssl crt ${testdir}/common.pem ssl no-sslv3 alpn h2,http/1.1
         server http unix@"${tmpdir}/http.socket" send-proxy
 } -start

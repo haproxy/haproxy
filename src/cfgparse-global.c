@@ -564,21 +564,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	/* end of user/group name handling*/
 	else if (strcmp(args[0], "nbproc") == 0) {
-		if (alertif_too_many_args(1, file, linenum, args, &err_code))
-			goto out;
-		if (*(args[1]) == 0) {
-			ha_alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		global.nbproc = atol(args[1]);
-		all_proc_mask = nbits(global.nbproc);
-		if (global.nbproc < 1 || global.nbproc > MAX_PROCS) {
-			ha_alert("parsing [%s:%d] : '%s' must be between 1 and %d (was %d).\n",
-				 file, linenum, args[0], MAX_PROCS, global.nbproc);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
+		ha_alert("parsing [%s:%d] : nbproc is not supported any more since HAProxy 2.5. Threads will automatically be used on multi-processor machines if available.\n", file, linenum);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 	}
 	else if (strcmp(args[0], "nbthread") == 0) {
 		if (alertif_too_many_args(1, file, linenum, args, &err_code))
