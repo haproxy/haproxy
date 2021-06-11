@@ -612,7 +612,7 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 			c = hextable[(unsigned char)end[ridx]];
 
 			/* not a hex digit anymore */
-			if (c < 0)
+			if (c & 0xF0)
 				break;
 
 			/* Update current chunk size */
