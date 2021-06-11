@@ -9,7 +9,7 @@
 # - Check that you have socat
 
 varnishtest "Test the 'new ssl crl-file' and 'del ssl crl-file' commands of the CLI"
-#REQUIRE_VERSION=2.5
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
 #REQUIRE_OPTIONS=OPENSSL
 #REQUIRE_BINARIES=socat
 feature ignore_unknown_macro

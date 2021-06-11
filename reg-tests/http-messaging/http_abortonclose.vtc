@@ -4,7 +4,7 @@ feature ignore_unknown_macro
 # NOTE : This test may fail if too many vtest are running in parallel because
 #        the port reserved for closed s1 server may be reused by another vtest
 
-#REQUIRE_VERSION=2.5
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
 #REGTEST_TYPE=slow
 
 # b1 : Don't send /c4 before /c3 was received by s2 server
