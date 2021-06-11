@@ -117,7 +117,6 @@ struct logformat_type {
 	int mode;
 	int lw; /* logwait bitsfield */
 	int (*config_callback)(struct logformat_node *node, struct proxy *curproxy);
-	const char *replace_by; /* new option to use instead of old one */
 };
 
 int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
@@ -190,19 +189,6 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "trl",LOG_FMT_trl, PR_MODE_HTTP, LW_INIT, NULL },     /* date of start of request, local */
 	{ "ts", LOG_FMT_TERMSTATE, PR_MODE_TCP, LW_BYTES, NULL },/* termination state */
 	{ "tsc", LOG_FMT_TERMSTATE_CK, PR_MODE_TCP, LW_INIT, NULL },/* termination state */
-
-	/* The following tags are deprecated and will be removed soon */
-	{ "Bi", LOG_FMT_BACKENDIP, PR_MODE_TCP, LW_BCKIP, prepare_addrsource, "bi" }, /* backend source ip */
-	{ "Bp", LOG_FMT_BACKENDPORT, PR_MODE_TCP, LW_BCKIP, prepare_addrsource, "bp" }, /* backend source port */
-	{ "Ci", LOG_FMT_CLIENTIP, PR_MODE_TCP, LW_CLIP | LW_XPRT, NULL, "ci" },  /* client ip */
-	{ "Cp", LOG_FMT_CLIENTPORT, PR_MODE_TCP, LW_CLIP | LW_XPRT, NULL, "cp" }, /* client port */
-	{ "Fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, LW_FRTIP | LW_XPRT, NULL, "fi" }, /* frontend ip */
-	{ "Fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, LW_FRTIP | LW_XPRT, NULL, "fp" }, /* frontend port */
-	{ "Si", LOG_FMT_SERVERIP, PR_MODE_TCP, LW_SVIP, NULL, "si" }, /* server destination ip */
-	{ "Sp", LOG_FMT_SERVERPORT, PR_MODE_TCP, LW_SVIP, NULL, "sp" }, /* server destination port */
-	{ "cc", LOG_FMT_CCLIENT, PR_MODE_HTTP, LW_REQHDR, NULL, "CC" },  /* client cookie */
-	{ "cs", LOG_FMT_CSERVER, PR_MODE_HTTP, LW_RSPHDR, NULL, "CS" },  /* server cookie */
-	{ "st", LOG_FMT_STATUS, PR_MODE_HTTP, LW_RESP, NULL, "ST" },   /* status code */
 	{ 0, 0, 0, 0, NULL }
 };
 
@@ -388,10 +374,6 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 					curproxy->to_log |= logformat_keywords[j].lw;
 					LIST_APPEND(list_format, &node->list);
 				}
-				if (logformat_keywords[j].replace_by)
-					ha_warning("parsing [%s:%d] : deprecated variable '%s' in '%s', please replace it with '%s'.\n",
-						   curproxy->conf.args.file, curproxy->conf.args.line,
-						   logformat_keywords[j].name, fmt_directive(curproxy), logformat_keywords[j].replace_by);
 				return 1;
 			} else {
 				memprintf(err, "format variable '%s' is reserved for HTTP mode",
