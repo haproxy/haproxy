@@ -3460,11 +3460,6 @@ int main(int argc, char **argv)
 #ifdef USE_CPU_AFFINITY
 		/* Now the CPU affinity for all threads */
 
-		/* If on multiprocess, use proc_t1 except for the first process.
-		 */
-		if ((relative_pid - 1) > 0)
-			cpu_map.thread[0] = cpu_map.proc_t1[relative_pid-1];
-
 		for (i = 0; i < global.nbthread; i++) {
 			if (ha_cpuset_count(&cpu_map.proc[relative_pid-1]))
 				ha_cpuset_and(&cpu_map.thread[i], &cpu_map.proc[relative_pid-1]);
