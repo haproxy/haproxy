@@ -19,6 +19,8 @@
 
 #include <sys/types.h>
 
+#include <import/ebistree.h>
+
 #include <haproxy/action.h>
 #include <haproxy/api.h>
 #include <haproxy/cfgparse.h>
@@ -211,6 +213,8 @@ struct resolv_srvrq *new_resolv_srvrq(struct server *srv, char *fqdn)
 			 proxy_type_str(px), px->id, srv->id);
 		goto err;
 	}
+	LIST_INIT(&srvrq->attached_servers);
+	srvrq->named_servers = EB_ROOT;
 	LIST_APPEND(&resolv_srvrq_list, &srvrq->list);
 	return srvrq;
 
@@ -599,26 +603,20 @@ static void resolv_check_response(struct resolv_resolution *res)
 				}
 			}
 			else if (item->type == DNS_RTYPE_SRV) {
-				list_for_each_entry(req, &res->requesters, list) {
-					if ((srvrq = objt_resolv_srvrq(req->owner)) == NULL)
-						continue;
-
-					/* Remove any associated server */
-					for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
-						HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-						if (srv->srvrq == srvrq && srv->svc_port == item->port &&
-						    item->data_len == srv->hostname_dn_len &&
-						    !resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
-							resolv_unlink_resolution(srv->resolv_requester, 0);
-							srvrq_update_srv_status(srv, 1);
-							ha_free(&srv->hostname);
-							ha_free(&srv->hostname_dn);
-							srv->hostname_dn_len = 0;
-							memset(&srv->addr, 0, sizeof(srv->addr));
-							srv->svc_port = 0;
-						}
-						HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
-					}
+				/* Remove any associated server */
+				list_for_each_entry_safe(srv, srvback, &item->attached_servers, srv_rec_item) {
+					resolv_unlink_resolution(srv->resolv_requester, 0);
+					HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+					srvrq_update_srv_status(srv, 1);
+					ha_free(&srv->hostname);
+					ha_free(&srv->hostname_dn);
+					srv->hostname_dn_len = 0;
+					memset(&srv->addr, 0, sizeof(srv->addr));
+					srv->svc_port = 0;
+					srv->flags |= SRV_F_NO_RESOLUTION;
+					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+					LIST_DELETE(&srv->srv_rec_item);
+					LIST_APPEND(&srv->srvrq->attached_servers, &srv->srv_rec_item);
 				}
 			}
 
@@ -636,30 +634,81 @@ static void resolv_check_response(struct resolv_resolution *res)
 
 		/* Now process SRV records */
 		list_for_each_entry(req, &res->requesters, list) {
+			struct ebpt_node *node;
+			char target[DNS_MAX_NAME_SIZE+1];
+
+			int i;
 			if ((srvrq = objt_resolv_srvrq(req->owner)) == NULL)
 				continue;
 
-			/* Check if a server already uses that hostname */
-			for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
-				HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-				if (srv->srvrq == srvrq && srv->svc_port == item->port &&
-				    item->data_len == srv->hostname_dn_len &&
-				    !resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
-					break;
-				}
-				HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
-			}
-
-			/* If not, try to find a server with undefined hostname */
-			if (!srv) {
-				for (srv = srvrq->proxy->srv; srv != NULL; srv = srv->next) {
+			/* Check if a server already uses that record */
+			srv = NULL;
+			list_for_each_entry(srv, &item->attached_servers, srv_rec_item) {
+				if (srv->srvrq == srvrq) {
 					HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
-					if (srv->srvrq == srvrq && !srv->hostname_dn)
-						break;
-					HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+					goto srv_found;
 				}
 			}
 
+
+			/* If not empty we try to match a server
+			 * in server state file tree with the same hostname
+			 */
+			if (!eb_is_empty(&srvrq->named_servers)) {
+				srv = NULL;
+
+				/* convert the key to lookup in lower case */
+				for (i = 0 ; item->target[i] ; i++)
+					target[i] = tolower(item->target[i]);
+
+				node = ebis_lookup(&srvrq->named_servers, target);
+				if (node) {
+					srv = ebpt_entry(node, struct server, host_dn);
+					HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+
+					/* an entry was found with the same hostname
+					 * let check this node if the port matches
+					 * and try next node if the hostname
+					 * is still the same
+					 */
+					while (1) {
+						if (srv->svc_port == item->port) {
+							/* server found, we remove it from tree */
+							ebpt_delete(node);
+							free(srv->host_dn.key);
+							goto srv_found;
+						}
+
+						HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+
+						node = ebpt_next(node);
+						if (!node)
+							break;
+
+						srv = ebpt_entry(node, struct server, host_dn);
+						HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+
+						if ((item->data_len != srv->hostname_dn_len)
+						    || resolv_hostname_cmp(srv->hostname_dn, item->target, item->data_len)) {
+							HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+							break;
+						}
+					}
+				}
+			}
+
+			/* Pick the first server listed in srvrq (those ones don't
+			 * have hostname and are free to use)
+			 */
+			srv = NULL;
+			list_for_each_entry(srv, &srvrq->attached_servers, srv_rec_item) {
+				LIST_DEL_INIT(&srv->srv_rec_item);
+				HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+				goto srv_found;
+			}
+			srv = NULL;
+
+srv_found:
 			/* And update this server, if found (srv is locked here) */
 			if (srv) {
 				/* re-enable DNS resolution for this server by default */
@@ -704,6 +753,9 @@ static void resolv_check_response(struct resolv_resolution *res)
 					if (msg)
 						send_log(srv->proxy, LOG_NOTICE, "%s", msg);
 				}
+
+				if (!LIST_INLIST(&srv->srv_rec_item))
+					LIST_APPEND(&item->attached_servers, &srv->srv_rec_item);
 
 				if (!(srv->flags & SRV_F_NO_RESOLUTION)) {
 					/* If there is no AR item responsible of the FQDN resolution,
@@ -1861,6 +1913,43 @@ int resolv_link_resolution(void *requester, int requester_type, int requester_lo
 	return -1;
 }
 
+/* This function removes all server/srvrq references on answer items
+ * if <safe> is set to 1, in case of srvrq, sub server resquesters unlink
+ * is called using safe == 1 to make it usable into callbacks
+ */
+void resolv_detach_from_resolution_answer_items(struct resolv_resolution *res,  struct resolv_requester *req, int safe)
+{
+	struct resolv_answer_item *item, *itemback;
+	struct server *srv, *srvback;
+	struct resolv_srvrq    *srvrq;
+
+	if ((srv = objt_server(req->owner)) != NULL) {
+		LIST_DEL_INIT(&srv->ip_rec_item);
+	}
+	else if ((srvrq = objt_resolv_srvrq(req->owner)) != NULL) {
+		list_for_each_entry_safe(item, itemback, &res->response.answer_list, list) {
+			if (item->type == DNS_RTYPE_SRV) {
+				list_for_each_entry_safe(srv, srvback, &item->attached_servers, srv_rec_item) {
+					if (srv->srvrq == srvrq) {
+						HA_SPIN_LOCK(SERVER_LOCK, &srv->lock);
+						resolv_unlink_resolution(srv->resolv_requester, safe);
+						srvrq_update_srv_status(srv, 1);
+						ha_free(&srv->hostname);
+						ha_free(&srv->hostname_dn);
+						srv->hostname_dn_len = 0;
+						memset(&srv->addr, 0, sizeof(srv->addr));
+						srv->svc_port = 0;
+						srv->flags |= SRV_F_NO_RESOLUTION;
+						HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
+						LIST_DELETE(&srv->srv_rec_item);
+						LIST_APPEND(&srvrq->attached_servers, &srv->srv_rec_item);
+					}
+				}
+			}
+		}
+	}
+}
+
 /* Removes a requester from a DNS resolution. It takes takes care of all the
  * consequences. It also cleans up some parameters from the requester.
  * if <safe> is set to 1, the corresponding resolution is not released.
@@ -1869,7 +1958,6 @@ void resolv_unlink_resolution(struct resolv_requester *requester, int safe)
 {
 	struct resolv_resolution *res;
 	struct resolv_requester  *req;
-	struct server *srv;
 
 	/* Nothing to do */
 	if (!requester || !requester->resolution)
@@ -1877,9 +1965,7 @@ void resolv_unlink_resolution(struct resolv_requester *requester, int safe)
 	res = requester->resolution;
 
 	/* remove ref from the resolution answer item list to the requester */
-	if ((srv = objt_server(requester->owner)) != NULL) {
-		LIST_DEL_INIT(&srv->ip_rec_item);
-	}
+	resolv_detach_from_resolution_answer_items(res,  requester, safe);
 
 	/* Clean up the requester */
 	LIST_DELETE(&requester->list);

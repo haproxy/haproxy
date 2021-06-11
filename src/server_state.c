@@ -14,6 +14,7 @@
 
 #include <import/eb64tree.h>
 #include <import/xxhash.h>
+#include <import/ebistree.h>
 
 #include <haproxy/api.h>
 #include <haproxy/backend.h>
@@ -392,6 +393,8 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 	 */
 	else if (fqdn && !srv->hostname && srvrecord) {
 		int res;
+		int i;
+		char *tmp;
 
 		/* we can't apply previous state if SRV record has changed */
 		if (srv->srvrq && strcmp(srv->srvrq->name, srvrecord) != 0) {
@@ -413,6 +416,21 @@ static void srv_state_srv_update(struct server *srv, int version, char **params)
 			chunk_appendf(msg, ", can't allocate memory for DNS resolution for server '%s'", srv->id);
 			goto out;
 		}
+
+		/* Remove from available list and insert in tree
+		 * since this server has an hostname
+		 */
+		LIST_DEL_INIT(&srv->srv_rec_item);
+		srv->host_dn.key = tmp = strdup(srv->hostname_dn);
+
+		/* convert the key in lowercase because tree
+		 * lookup is case sensitive but we don't care
+		 */
+		for (i = 0; tmp[i]; i++)
+			tmp[i] = tolower(tmp[i]);
+
+		/* insert in tree */
+		ebis_insert(&srv->srvrq->named_servers, &srv->host_dn);
 
 		/* Unset SRV_F_MAPPORTS for SRV records.
 		 * SRV_F_MAPPORTS is unfortunately set by parse_server()

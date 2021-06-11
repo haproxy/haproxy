@@ -2160,6 +2160,7 @@ struct server *new_server(struct proxy *proxy)
 	srv->proxy = proxy;
 	srv->pendconns = EB_ROOT;
 	LIST_APPEND(&servers_list, &srv->global_list);
+	LIST_INIT(&srv->srv_rec_item);
 	LIST_INIT(&srv->ip_rec_item);
 
 	srv->next_state = SRV_ST_RUNNING; /* early server setup */
@@ -2304,6 +2305,9 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 				goto err;
 		}
 #endif
+		/* append to list of servers available to receive an hostname */
+		LIST_APPEND(&newsrv->srvrq->attached_servers, &newsrv->srv_rec_item);
+
 		/* Set this new server ID. */
 		_srv_parse_set_id_from_prefix(newsrv, srv->tmpl_info.prefix, i);
 
@@ -3339,18 +3343,11 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		return 1;
 
 	if (s->srvrq) {
-		struct resolv_answer_item *srv_item;
-
-		/* If DNS resolution is disabled ignore it. */
-		if (s->flags & SRV_F_NO_RESOLUTION)
-			return 1;
-
-		/* The server is based on a SRV record, thus, find the
-		 * associated answer record. If not found, it means the SRV item
-		 * has expired and this resolution must be ignored.
+		/* If DNS resolution is disabled ignore it.
+		 * This is the case if the server was associated to
+		 * a SRV record and this record is now expired.
 		 */
-		srv_item = find_srvrq_answer_record(requester);
-		if (!srv_item)
+		if (s->flags & SRV_F_NO_RESOLUTION)
 			return 1;
 	}
 
@@ -3444,7 +3441,6 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
  */
 int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code)
 {
-	struct server *s;
 	struct resolv_srvrq *srvrq;
 	struct resolv_resolution *res;
 	struct resolvers *resolvers;
@@ -3488,20 +3484,8 @@ int srvrq_resolution_error_cb(struct resolv_requester *requester, int error_code
 				return 1;
 	}
 
-	/* Remove any associated server */
-	for (s = srvrq->proxy->srv; s != NULL; s = s->next) {
-		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
-		if (s->srvrq == srvrq) {
-			resolv_unlink_resolution(s->resolv_requester, 1);
-			srvrq_update_srv_status(s, 1);
-			memset(&s->addr, 0, sizeof(s->addr));
-			ha_free(&s->hostname);
-			ha_free(&s->hostname_dn);
-			s->hostname_dn_len = 0;
-			s->svc_port = 0;
-		}
-		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
-	}
+	/* Remove any associated server ref */
+	resolv_detach_from_resolution_answer_items(res,  requester, 1);
 
 	return 0;
 }
@@ -3526,7 +3510,7 @@ int snr_resolution_error_cb(struct resolv_requester *requester, int error_code)
 	if (!snr_update_srv_status(s, 1)) {
 		memset(&s->addr, 0, sizeof(s->addr));
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
-		LIST_DEL_INIT(&s->ip_rec_item);
+		resolv_detach_from_resolution_answer_items(requester->resolution, requester, 1);
 		return 0;
 	}
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
