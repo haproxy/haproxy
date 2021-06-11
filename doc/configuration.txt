@@ -21898,6 +21898,10 @@ applications. All these variables may be overwritten, with caution though.
   | SERVER_PROTOCOL   | Contains the request's protocol.                    |
   |                   |                                                     |
   +-------------------+-----------------------------------------------------+
+  | SERVER_SOFTWARE   | Contains the string "HAProxy" followed by the       |
+  |                   | current HAProxy version.                            |
+  |                   |                                                     |
+  +-------------------+-----------------------------------------------------+
   | HTTPS             | Set to a non-empty value ("on") if the script was   |
   |                   | queried through the HTTPS protocol.                 |
   |                   |                                                     |

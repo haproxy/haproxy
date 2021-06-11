@@ -32,6 +32,7 @@
 #include <haproxy/stream.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/trace.h>
+#include <haproxy/version.h>
 
 
 /* FCGI Connection flags (32 bits) */
@@ -188,7 +189,8 @@ struct fcgi_strm {
 #define FCGI_SP_PATH_TRANS     0x00002000
 #define FCGI_SP_CONT_LEN       0x00004000
 #define FCGI_SP_HTTPS          0x00008000
-#define FCGI_SP_MASK           0x0000FFFF
+#define FCGI_SP_SRV_SOFT       0x00010000
+#define FCGI_SP_MASK           0x0001FFFF
 #define FCGI_SP_URI_MASK       (FCGI_SP_SCRIPT_NAME|FCGI_SP_PATH_INFO|FCGI_SP_REQ_QS)
 
 /* FCGI parameters used when PARAMS record is sent */
@@ -206,6 +208,7 @@ struct fcgi_strm_params {
 	struct ist rem_addr;
 	struct ist rem_port;
 	struct ist cont_len;
+	struct ist srv_soft;
 	int https;
 	struct buffer *p;
 };
@@ -1413,6 +1416,12 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 		}
 	}
 
+	if (!(params->mask & FCGI_SP_SRV_SOFT)) {
+		params->srv_soft = ist2(b_tail(params->p), 0);
+		chunk_appendf(params->p, "HAProxy %s", haproxy_version);
+		params->srv_soft.len = b_tail(params->p) - params->srv_soft.ptr;
+	}
+
   end:
 	return 1;
   error:
@@ -1501,6 +1510,10 @@ static int fcgi_encode_default_param(struct fcgi_conn *fconn, struct fcgi_strm *
 				goto skip;
 			p.n = ist("HTTPS");
 			p.v = ist("on");
+			goto encode;
+		case FCGI_SP_SRV_SOFT:
+			p.n = ist("SERVER_SOFTWARE");
+			p.v = params->srv_soft;
 			goto encode;
 		default:
 			goto skip;
@@ -2002,6 +2015,8 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 						params.mask |= FCGI_SP_PATH_TRANS;
 					else if (isteq(p.n, ist("https")))
 						params.mask |= FCGI_SP_HTTPS;
+					else if (isteq(p.n, ist("server_software")))
+						params.mask |= FCGI_SP_SRV_SOFT;
 				}
 				else if (isteq(p.n, ist("content-length"))) {
 					p.n = ist("CONTENT_LENGTH");
@@ -2082,6 +2097,7 @@ static size_t fcgi_strm_send_params(struct fcgi_conn *fconn, struct fcgi_strm *f
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_SCRIPT_FILE) ||
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_PATH_TRANS)  ||
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_CONT_LEN)    ||
+	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_SRV_SOFT)    ||
 	    !fcgi_encode_default_param(fconn, fstrm, &params, &outbuf, FCGI_SP_HTTPS)) {
 		TRACE_ERROR("error encoding default params", FCGI_EV_TX_RECORD|FCGI_EV_STRM_ERR, fconn->conn, fstrm);
 		goto error;
