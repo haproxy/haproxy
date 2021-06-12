@@ -1,0 +1,38 @@
+name: alpine/musl
+
+on: [push]
+
+jobs:
+  musl:
+      name: gcc
+      runs-on: ubuntu-latest
+      container:
+        image: alpine:latest
+      steps:
+        - uses: actions/checkout@master
+        - name: Install dependencies
+          run: apk add gcc make tar git python3 libc-dev linux-headers pcre-dev pcre2-dev openssl-dev lua5.3-dev grep socat curl
+        - name: Install VTest
+          run: scripts/build-vtest.sh
+        - name: Build
+          run: make -j$(nproc) CC=cc V=1 TARGET=linux-musl USE_LUA=1 LUA_INC=/usr/include/lua5.3 LUA_LIB=/usr/lib/lua5.3 USE_OPENSSL=1 USE_PCRE2=1 USE_PCRE2_JIT=1 USE_PROMEX=1
+        - name: Show version
+          run: ./haproxy -vv
+        - name: Show linked libraries
+          run: ldd haproxy
+        - name: Install problem matcher for VTest
+          # This allows one to more easily see which tests fail.
+          run: echo "::add-matcher::.github/vtest.json"
+        - name: Run VTest
+          id: vtest
+          run: make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+        - name: Show results
+          if: ${{ failure() }}
+          run: |
+            for folder in /tmp/haregtests-*/vtc.*; do
+              printf "::group::"
+              cat $folder/INFO
+              cat $folder/LOG
+              echo "::endgroup::"
+            done
+            shopt -s nullglob
