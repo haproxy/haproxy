@@ -2253,7 +2253,7 @@ void back_handle_st_cer(struct stream *s)
 	 * redispatch). Thus we must release the SI endpoint on the server side
 	 * an close the attached connection. It is especially important to do it
 	 * now if the retry is not immediately performed, to be sure to release
-	 * ressources as soon as possible and to not catch errors from the lower
+	 * resources as soon as possible and to not catch errors from the lower
 	 * layers in an unexpected state (i.e < ST_CONN).
 	 *
 	 * Note: the stream-interface will be switched to ST_REQ, ST_ASS or

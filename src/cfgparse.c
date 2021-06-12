@@ -2155,7 +2155,7 @@ next_line:
 			}
 			else if (strcmp(args[0], ".else") == 0) {
 				if (*args[1]) {
-					ha_alert("parsing [%s:%d]: Unxpected argument '%s' for '%s'.\n",
+					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'.\n",
 					         file, linenum, args[1], args[0]);
 					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 					break;
@@ -2187,7 +2187,7 @@ next_line:
 			}
 			else if (strcmp(args[0], ".endif") == 0) {
 				if (*args[1]) {
-					ha_alert("parsing [%s:%d]: Unxpected argument '%s' for '%s'.\n",
+					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'.\n",
 					         file, linenum, args[1], args[0]);
 					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
 					break;

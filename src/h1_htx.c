@@ -463,7 +463,7 @@ static const char hextable[] = {
 };
 
 /* Generic function to parse the current HTTP chunk. It may be used to parsed
- * any kind of chunks, including incomplete HTTP chunks or splitted chunks
+ * any kind of chunks, including incomplete HTTP chunks or split chunks
  * because the buffer wraps. This version tries to performed zero-copy on large
  * chunks if possible.
  */
@@ -547,7 +547,7 @@ static size_t h1_parse_chunk(struct h1m *h1m, struct htx **dsthtx,
 
 /* Parses full contiguous HTTP chunks. This version is optimized for small
  * chunks and does not performed zero-copy. It must be called in
- * H1_MSG_CHUNK_SIZE state. Be carefull if you change something in this
+ * H1_MSG_CHUNK_SIZE state. Be careful if you change something in this
  * function. It is really sensitive, any change may have an impact on
  * performance.
  */
@@ -689,7 +689,7 @@ static size_t h1_parse_full_contig_chunks(struct h1m *h1m, struct htx **dsthtx,
 		}
 
 		/* Now check if the whole chunk is here (including the CRLF at
-		 * the end), otherise we switch in H1_MSG_DATA stae.
+		 * the end), otherwise we switch in H1_MSG_DATA state.
 		 */
 		if (chksz + 2 > -ridx) {
 			h1m->curr_len = chksz;
@@ -769,7 +769,7 @@ static size_t h1_parse_msg_chunks(struct h1m *h1m, struct htx **dsthtx,
 		}
 
 		/* If some data remains, try to parse it using the generic
-		 * function handling incomplete chunks and splitted chunks
+		 * function handling incomplete chunks and split chunks
 		 * because of a wrapping buffer.
 		 */
 		if (h1m->state < H1_MSG_TRAILERS && ofs < b_data(srcbuf)) {
