@@ -99,13 +99,14 @@ jobs:
       run: echo "::add-matcher::.github/vtest.json"
     - name: Run VTest for HAProxy ${{ steps.show-version.outputs.version }}
       id: vtest
-      # sudo is required, because macOS fails due to an open files limit.
-      run: sudo make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
+      run: |
+        # This is required for macOS which does not actually allow to increase
+        # the '-n' soft limit to the hard limit, thus failing to run.
+        ulimit -n 5000
+        make reg-tests VTEST_PROGRAM=../vtest/vtest REGTESTS_TYPES=default,bug,devel
     - name: Show results
       if: ${{ failure() }}
-      # The chmod / sudo is necessary due to the `sudo` while running the tests.
       run: |
-        sudo chmod a+rX ${TMPDIR}/haregtests-*/
         for folder in ${TMPDIR}/haregtests-*/vtc.*; do
           printf "::group::"
           cat $folder/INFO
@@ -115,6 +116,6 @@ jobs:
         shopt -s nullglob
         for asan in asan.log*; do
           echo "::group::$asan"
-          sudo cat $asan
+          cat $asan
           echo "::endgroup::"
         done
