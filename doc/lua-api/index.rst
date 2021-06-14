@@ -1281,6 +1281,10 @@ Channel class
   **Warning**: It is not possible to read from the response in request action,
   and it is not possible to read for the request channel in response action.
 
+  **Warning**: It is forbidden to alter the Channels buffer from HTTP contexts.
+  So only :js:func:`Channel.get_in_length`, :js:func:`Channel.get_out_length`
+  and :js:func:`Channel.is_full` can be called from an HTTP conetext.
+
 .. image:: _static/channel.png
 
 .. js:function:: Channel.dup(channel)
