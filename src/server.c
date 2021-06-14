@@ -2306,7 +2306,8 @@ static int _srv_parse_tmpl_init(struct server *srv, struct proxy *px)
 		}
 #endif
 		/* append to list of servers available to receive an hostname */
-		LIST_APPEND(&newsrv->srvrq->attached_servers, &newsrv->srv_rec_item);
+		if (newsrv->srvrq)
+			LIST_APPEND(&newsrv->srvrq->attached_servers, &newsrv->srv_rec_item);
 
 		/* Set this new server ID. */
 		_srv_parse_set_id_from_prefix(newsrv, srv->tmpl_info.prefix, i);
