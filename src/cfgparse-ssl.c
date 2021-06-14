@@ -1471,6 +1471,8 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 	memprintf(err, "'%s' : library does not support CRL verify", args[*cur_arg]);
 	return ERR_ALERT | ERR_FATAL;
 #else
+	const int create_if_none = newsrv->flags & SRV_F_DYNAMIC ? 0 : 1;
+
 	if (!*args[*cur_arg + 1]) {
 		memprintf(err, "'%s' : missing CRLfile path", args[*cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
@@ -1481,7 +1483,7 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 	else
 		memprintf(&newsrv->ssl_ctx.crl_file, "%s", args[*cur_arg + 1]);
 
-	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.crl_file, 1, CAFILE_CRL)) {
+	if (!ssl_store_load_locations_file(newsrv->ssl_ctx.crl_file, create_if_none, CAFILE_CRL)) {
 		memprintf(err, "'%s' : unable to load %s", args[*cur_arg], newsrv->ssl_ctx.crl_file);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -1887,7 +1889,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 #ifdef HAVE_SSL_CTX_SET_CIPHERSUITES
 	{ "ciphersuites",            srv_parse_ciphersuites,       1, 1, 0 }, /* select the cipher suite */
 #endif
-	{ "crl-file",                srv_parse_crl_file,           1, 1, 0 }, /* set certificate revocation list file use on server cert verify */
+	{ "crl-file",                srv_parse_crl_file,           1, 1, 1 }, /* set certificate revocation list file use on server cert verify */
 	{ "crt",                     srv_parse_crt,                1, 1, 1 }, /* set client certificate */
 	{ "force-sslv3",             srv_parse_tls_method_options, 0, 1, 0 }, /* force SSLv3 */
 	{ "force-tlsv10",            srv_parse_tls_method_options, 0, 1, 0 }, /* force TLSv10 */
