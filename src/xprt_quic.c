@@ -3177,17 +3177,12 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
                                 struct sockaddr_storage *saddr)
 {
 	unsigned char *beg;
-	uint64_t len;
 	struct quic_conn *qc;
 	struct eb_root *cids;
 	struct ebmb_node *node;
 	struct listener *l;
 	struct ssl_sock_ctx *conn_ctx;
 	int long_header = 0;
-	/* boolean to denote if a connection exists for this packet.
-	 * This does not mean there is an xprt context for it.
-	 */
-	int found_conn = 0;
 
 	qc = NULL;
 	conn_ctx = NULL;
@@ -3219,11 +3214,27 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 		 * there is no Initial connection IDs storage.
 		 */
 		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
+			uint64_t token_len;
 			/* DCIDs of first packets coming from clients may have the same values.
 			 * Let's distinguish them concatenating the socket addresses to the DCIDs.
 			 */
 			quic_cid_saddr_cat(&pkt->dcid, saddr);
 			cids = &l->rx.odcids;
+
+			if (!quic_dec_int(&token_len, (const unsigned char **)buf, end) ||
+			    end - *buf < token_len) {
+				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+				goto err;
+			}
+
+			/* XXX TO DO XXX 0 value means "the token is not present".
+			 * A server which sends an Initial packet must not set the token.
+			 * So, a client which receives an Initial packet with a token
+			 * MUST discard the packet or generate a connection error with
+			 * PROTOCOL_VIOLATION as type.
+			 * The token must be provided in a Retry packet or NEW_TOKEN frame.
+			 */
+			pkt->token_len = token_len;
 		}
 		else {
 			if (pkt->dcid.len != QUIC_CID_LEN) {
@@ -3234,6 +3245,23 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			cids = &l->rx.cids;
 		}
 
+		/* Only packets packets with long headers and not RETRY or VERSION as type
+		 * have a length field.
+		 */
+		if (pkt->type != QUIC_PACKET_TYPE_RETRY && pkt->version) {
+			uint64_t len;
+
+			if (!quic_dec_int(&len, (const unsigned char **)buf, end) ||
+				end - *buf < len) {
+				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT);
+				goto err;
+			}
+
+			pkt->len = len;
+		}
+
+
+		HA_RWLOCK_RDLOCK(OTHER_LOCK, &l->rx.cids_lock);
 		node = ebmb_lookup(cids, pkt->dcid.data, pkt->dcid.len);
 		if (!node && pkt->type == QUIC_PACKET_TYPE_INITIAL && dcid_len == QUIC_CID_LEN &&
 		    cids == &l->rx.odcids) {
@@ -3245,10 +3273,12 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 				cids = NULL;
 			}
 		}
+		HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &l->rx.cids_lock);
 
 		if (!node) {
 			int ipv4;
 			struct quic_cid *odcid;
+			struct ebmb_node *n = NULL;
 
 			if (pkt->type != QUIC_PACKET_TYPE_INITIAL) {
 				TRACE_PROTO("Non Initiial packet", QUIC_EV_CONN_LPKT);
@@ -3265,11 +3295,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			                 pkt->scid.data, pkt->scid.len, 1);
 			if (qc == NULL)
 				goto err;
-
-			/* Insert the DCID the QUIC client has chosen (only for listeners) */
-			ebmb_insert(&l->rx.odcids, &qc->odcid_node, qc->odcid.len);
-			/* Insert our SCID, the connection ID for the QUIC client. */
-			ebmb_insert(&l->rx.cids, &qc->scid_node, qc->scid.len);
 
 			odcid = &qc->rx.params.original_destination_connection_id;
 			/* Copy the transport parameters. */
@@ -3297,6 +3322,21 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			pkt->qc = qc;
 			/* This is the DCID node sent in this packet by the client. */
 			node = &qc->odcid_node;
+			/* Enqueue this packet. */
+			MT_LIST_APPEND(&l->rx.pkts, &pkt->rx_list);
+			/* Try to accept a new connection. */
+			listener_accept(l);
+
+			HA_RWLOCK_WRLOCK(OTHER_LOCK, &l->rx.cids_lock);
+			/* Insert the DCID the QUIC client has chosen (only for listeners) */
+			ebmb_insert(&l->rx.odcids, &qc->odcid_node, qc->odcid.len);
+			/* Insert our SCID, the connection ID for the QUIC client. */
+			n = ebmb_insert(&l->rx.cids, &qc->scid_node, qc->scid.len);
+			HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &l->rx.cids_lock);
+			if (n != &qc->scid_node) {
+				quic_conn_free(qc);
+				qc = ebmb_entry(n, struct quic_conn, scid_node);
+			}
 		}
 		else {
 			if (pkt->type == QUIC_PACKET_TYPE_INITIAL && cids == &l->rx.odcids)
@@ -3304,26 +3344,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			else
 				qc = ebmb_entry(node, struct quic_conn, scid_node);
 			conn_ctx = qc->conn->xprt_ctx;
-			found_conn = 1;
-		}
-
-		if (pkt->type == QUIC_PACKET_TYPE_INITIAL) {
-			uint64_t token_len;
-
-			if (!quic_dec_int(&token_len, (const unsigned char **)buf, end) ||
-			    end - *buf < token_len) {
-				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
-				goto err;
-			}
-
-			/* XXX TO DO XXX 0 value means "the token is not present".
-			 * A server which sends an Initial packet must not set the token.
-			 * So, a client which receives an Initial packet with a token
-			 * MUST discard the packet or generate a connection error with
-			 * PROTOCOL_VIOLATION as type.
-			 * The token must be provided in a Retry packet or NEW_TOKEN frame.
-			 */
-			pkt->token_len = token_len;
 		}
 	}
 	else {
@@ -3339,10 +3359,11 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			goto err;
 		}
 
-		found_conn = 1;
 		qc = ebmb_entry(node, struct quic_conn, scid_node);
 		conn_ctx = qc->conn->xprt_ctx;
 		*buf += QUIC_CID_LEN;
+		/* A short packet is the last one of an UDP datagram. */
+		pkt->len = end - *buf;
 	}
 
 	/* Store the DCID used for this packet to check the packet which
@@ -3351,23 +3372,6 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 	if (!dgram_ctx->dcid_node) {
 		dgram_ctx->dcid_node = node;
 		dgram_ctx->qc = qc;
-	}
-
-	/* Only packets packets with long headers and not RETRY or VERSION as type
-	 * have a length field.
-	 */
-	if (long_header && pkt->type != QUIC_PACKET_TYPE_RETRY && pkt->version) {
-		if (!quic_dec_int(&len, (const unsigned char **)buf, end) ||
-		    end - *buf < len) {
-			TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
-			goto err;
-		}
-
-		pkt->len = len;
-	}
-	else if (!long_header) {
-		/* A short packet is the last one of an UDP datagram. */
-		pkt->len = end - *buf;
 	}
 
 	/* Increase the total length of this packet by the header length. */
@@ -3390,16 +3394,9 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 
 	TRACE_PROTO("New packet", QUIC_EV_CONN_LPKT, qc->conn, pkt);
-	if (conn_ctx) {
+	if (conn_ctx)
 		/* Wake the tasklet of the QUIC connection packet handler. */
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
-	}
-	else if (!found_conn) {
-		/* Enqueue this packet. */
-		MT_LIST_APPEND(&l->rx.pkts, &pkt->rx_list);
-		/* Try to accept a new connection. */
-		listener_accept(l);
-	}
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc->conn, pkt);
 

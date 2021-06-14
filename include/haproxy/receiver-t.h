@@ -65,6 +65,7 @@ struct receiver {
 	struct mt_list pkts;             /* QUIC Initial packets to accept new connections */
 	struct eb_root odcids;           /* QUIC original destination connection IDs. */
 	struct eb_root cids;             /* QUIC connection IDs. */
+	__decl_thread(HA_RWLOCK_T cids_lock); /* RW lock for connection IDs tree accesses */
 #endif
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;    /* the address the socket is bound to */
