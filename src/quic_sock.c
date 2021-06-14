@@ -35,9 +35,6 @@ int quic_session_accept(struct connection *cli_conn)
 	struct session *sess;
 
 	cli_conn->proxy_netns = l->rx.settings->netns;
-	if (conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt) < 0)
-		goto out_free_conn;
-
 	/* This flag is ordinarily set by conn_ctrl_init() which cannot
 	 * be called for now.
 	 */
@@ -113,14 +110,19 @@ static int new_quic_cli_conn(struct quic_conn *qc, struct listener *l,
 
 	/* XXX Should not be there. */
 	l->accept = quic_session_accept;
+	/* We need the xprt context before accepting (->accept()) the connection:
+	 * we may receive packet before this connection acception.
+	 */
+	if (conn_prepare(cli_conn, l->rx.proto, l->bind_conf->xprt) < 0)
+		goto out_free_conn;
 
 	return 1;
 
  out_free_conn:
+	qc->conn = NULL;
 	conn_stop_tracking(cli_conn);
 	conn_xprt_close(cli_conn);
 	conn_free(cli_conn);
-	qc->conn = NULL;
  out:
 
 	return 0;
