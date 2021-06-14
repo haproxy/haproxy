@@ -3496,9 +3496,10 @@ out_uri_auth_compat:
 				next_id = get_next_id(&curproxy->conf.used_server_id, next_id);
 				newsrv->conf.id.key = newsrv->puid = next_id;
 				eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
-				newsrv->conf.name.key = newsrv->id;
-				ebis_insert(&curproxy->conf.used_server_name, &newsrv->conf.name);
 			}
+			newsrv->conf.name.key = newsrv->id;
+			ebis_insert(&curproxy->conf.used_server_name, &newsrv->conf.name);
+
 			next_id++;
 			newsrv = newsrv->next;
 		}
