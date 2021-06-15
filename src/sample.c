@@ -3948,7 +3948,7 @@ static int
 smp_fetch_nbproc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = global.nbproc;
+	smp->data.u.sint = 1;
 	return 1;
 }
 

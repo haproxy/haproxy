@@ -86,7 +86,7 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_VERSION]                        = { .name = "Version",                     .desc = "Product version" },
 	[INF_RELEASE_DATE]                   = { .name = "Release_date",                .desc = "Date of latest source code update" },
 	[INF_NBTHREAD]                       = { .name = "Nbthread",                    .desc = "Number of started threads (global.nbthread)" },
-	[INF_NBPROC]                         = { .name = "Nbproc",                      .desc = "Number of started worker processes (global.nbproc)" },
+	[INF_NBPROC]                         = { .name = "Nbproc",                      .desc = "Number of started worker processes (historical, always 1)" },
 	[INF_PROCESS_NUM]                    = { .name = "Process_num",                 .desc = "Relative worker process number (1..Nbproc)" },
 	[INF_PID]                            = { .name = "Pid",                         .desc = "This worker process identifier for the system" },
 	[INF_UPTIME]                         = { .name = "Uptime",                      .desc = "How long ago this worker process was started (days+hours+minutes+seconds)" },
@@ -3339,7 +3339,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 		      (appctx->ctx.stats.flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : "",
 	              (appctx->ctx.stats.flags & STAT_SHDESC) ? ": " : "",
 		      (appctx->ctx.stats.flags & STAT_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
-	              pid, relative_pid, global.nbproc, global.nbthread,
+	              pid, relative_pid, 1, global.nbthread,
 	              up / 86400, (up % 86400) / 3600,
 	              (up % 3600) / 60, (up % 60),
 	              global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
@@ -4319,7 +4319,7 @@ int stats_fill_info(struct field *info, int len, uint flags)
 	info[INF_RELEASE_DATE]                   = mkf_str(FO_PRODUCT|FN_OUTPUT|FS_SERVICE, haproxy_date);
 
 	info[INF_NBTHREAD]                       = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
-	info[INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbproc);
+	info[INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, 1);
 	info[INF_PROCESS_NUM]                    = mkf_u32(FO_KEY, relative_pid);
 	info[INF_PID]                            = mkf_u32(FO_STATUS, pid);
 

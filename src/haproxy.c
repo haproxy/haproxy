@@ -167,7 +167,6 @@ volatile unsigned long stopping_thread_mask = 0; /* Threads acknowledged stoppin
 /* global options */
 struct global global = {
 	.hard_stop_after = TICK_ETERNITY,
-	.nbproc = 1,
 	.numa_cpu_mapping = 1,
 	.nbthread = 0,
 	.req_count = 0,
@@ -2009,19 +2008,18 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
-	/* recompute the amount of per-process memory depending on nbproc and
-	 * the shared SSL cache size (allowed to exist in all processes).
+	/* recompute the amount of per-process memory depending on
+	 * the shared SSL cache size
 	 */
 	if (global.rlimit_memmax_all) {
 #if defined (USE_OPENSSL) && !defined(USE_PRIVATE_CACHE)
 		int64_t ssl_cache_bytes = global.tune.sslcachesize * 200LL;
 
 		global.rlimit_memmax =
-			((((int64_t)global.rlimit_memmax_all * 1048576LL) -
-			  ssl_cache_bytes) / global.nbproc +
+			((((int64_t)global.rlimit_memmax_all * 1048576LL) - ssl_cache_bytes) +
 			 ssl_cache_bytes + 1048575LL) / 1048576LL;
 #else
-		global.rlimit_memmax = global.rlimit_memmax_all / global.nbproc;
+		global.rlimit_memmax = global.rlimit_memmax_all;
 #endif
 	}
 
@@ -2331,15 +2329,6 @@ static void init(int argc, char **argv)
 		ha_warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
 		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
 	}
-
-	if ((global.nbproc > 1) && !(global.mode & (MODE_DAEMON | MODE_MWORKER))) {
-		if (!(global.mode & (MODE_FOREGROUND | MODE_DEBUG)))
-			ha_warning("<nbproc> is only meaningful in daemon mode or master-worker mode. Setting limit to 1 process.\n");
-		global.nbproc = 1;
-	}
-
-	if (global.nbproc < 1)
-		global.nbproc = 1;
 
 	if (global.nbthread < 1)
 		global.nbthread = 1;
@@ -3206,7 +3195,6 @@ int main(int argc, char **argv)
 
 		} else {
 			/* wait mode */
-			global.nbproc = 1;
 			in_parent = 1;
 		}
 
