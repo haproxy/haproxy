@@ -29,8 +29,6 @@ extern const char *build_features;
 extern struct global global;
 extern int  pid;                /* current process id */
 extern int  relative_pid;       /* process id starting at 1 */
-extern unsigned long pid_bit;   /* bit corresponding to the process id */
-extern unsigned long all_proc_mask; /* mask of all processes */
 extern int  actconn;            /* # of active sessions */
 extern int  listeners;
 extern int  jobs;               /* # of active jobs (listeners, sessions, open devices) */
@@ -79,10 +77,10 @@ static inline int already_warned(unsigned int warning)
 	return 0;
 }
 
-/* returns a mask if set, otherwise all_proc_mask */
+/* returns a mask if set, otherwise 1 */
 static inline unsigned long proc_mask(unsigned long mask)
 {
-	return mask ? mask : all_proc_mask;
+	return mask ? mask : 1;
 }
 
 /* handle 'tainted' status */

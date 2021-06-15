@@ -277,7 +277,7 @@ void enable_listener(struct listener *listener)
 		BUG_ON(listener->rx.fd == -1);
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
 		    (!!master != !!(listener->rx.flags & RX_F_MWORKER) ||
-		     !(proc_mask(listener->rx.settings->bind_proc) & pid_bit))) {
+		     !(proc_mask(listener->rx.settings->bind_proc) & 1))) {
 			/* we don't want to enable this listener and don't
 			 * want any fd event to reach it.
 			 */
@@ -431,7 +431,7 @@ int pause_listener(struct listener *l)
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 
 	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
-	    !(proc_mask(l->rx.settings->bind_proc) & pid_bit))
+	    !(proc_mask(l->rx.settings->bind_proc) & 1))
 		goto end;
 
 	if (l->state <= LI_PAUSED)
@@ -478,7 +478,7 @@ int resume_listener(struct listener *l)
 		goto end;
 
 	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
-	    !(proc_mask(l->rx.settings->bind_proc) & pid_bit))
+	    !(proc_mask(l->rx.settings->bind_proc) & 1))
 		goto end;
 
 	if (l->state == LI_READY)

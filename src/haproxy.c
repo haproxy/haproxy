@@ -158,8 +158,6 @@ const char *build_features = "";
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
 int  relative_pid = 1;		/* process id starting at 1 */
-unsigned long pid_bit = 1;      /* bit corresponding to the process id */
-unsigned long all_proc_mask = 1; /* mask of all processes */
 
 volatile unsigned long sleeping_thread_mask = 0; /* Threads that are about to sleep in poll() */
 volatile unsigned long stopping_thread_mask = 0; /* Threads acknowledged stopping */
@@ -824,8 +822,6 @@ static void mworker_loop()
 
 	global.nbthread = 1;
 	relative_pid = 1;
-	pid_bit = 1;
-	all_proc_mask = 1;
 
 #ifdef USE_THREAD
 	tid_bit = 1;

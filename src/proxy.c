@@ -1794,7 +1794,7 @@ void proxy_cond_disable(struct proxy *p)
 
 	p->disabled = 1;
 
-	if (!(proc_mask(p->bind_proc) & pid_bit))
+	if (!(proc_mask(p->bind_proc) & 1))
 		goto silent;
 
 	/* Note: syslog proxies use their own loggers so while it's somewhat OK
@@ -2475,7 +2475,7 @@ static int dump_servers_state(struct stream_interface *si)
 	char *srvrecord;
 
 	/* we don't want to report any state if the backend is not enabled on this process */
-	if (!(proc_mask(px->bind_proc) & pid_bit))
+	if (!(proc_mask(px->bind_proc) & 1))
 		return 1;
 
 	if (!appctx->ctx.cli.p1)
@@ -2614,7 +2614,7 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 			continue;
 
 		/* we don't want to list a backend which is bound to this process */
-		if (!(proc_mask(curproxy->bind_proc) & pid_bit))
+		if (!(proc_mask(curproxy->bind_proc) & 1))
 			continue;
 
 		chunk_appendf(&trash, "%s\n", curproxy->id);

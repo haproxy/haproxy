@@ -2720,7 +2720,7 @@ int check_config_validity()
 			 */
 			nbproc = my_popcountl(curproxy->bind_proc);
 
-			curproxy->bind_proc &= all_proc_mask;
+			curproxy->bind_proc &= 1;
 			if (!curproxy->bind_proc && nbproc == 1) {
 				ha_warning("Proxy '%s': the process specified on the 'bind-process' directive refers to a process number that is higher than global.nbproc. The proxy has been forced to run on process 1 only.\n", curproxy->id);
 				curproxy->bind_proc = 1;
@@ -2772,8 +2772,8 @@ int check_config_validity()
 
 			/* detect process and nbproc affinity inconsistencies */
 			mask = proc_mask(bind_conf->settings.bind_proc) & proc_mask(curproxy->bind_proc);
-			if (!(mask & all_proc_mask)) {
-				mask = proc_mask(curproxy->bind_proc) & all_proc_mask;
+			if (!(mask & 1)) {
+				mask = proc_mask(curproxy->bind_proc) & 1;
 				nbproc = my_popcountl(bind_conf->settings.bind_proc);
 				bind_conf->settings.bind_proc = proc_mask(bind_conf->settings.bind_proc) & mask;
 
@@ -4048,8 +4048,7 @@ out_uri_auth_compat:
 			int nbproc;
 
 			nbproc = my_popcountl(curproxy->bind_proc &
-			                      (listener->bind_conf->settings.bind_proc ? listener->bind_conf->settings.bind_proc : curproxy->bind_proc) &
-			                      all_proc_mask);
+			                      (listener->bind_conf->settings.bind_proc ? listener->bind_conf->settings.bind_proc : curproxy->bind_proc) & 1);
 
 			if (!nbproc) /* no intersection between listener and frontend */
 				nbproc = 1;
@@ -4111,7 +4110,7 @@ out_uri_auth_compat:
 				bind_conf->xprt->destroy_bind_conf(bind_conf);
 		}
 
-		if (atleast2(curproxy->bind_proc & all_proc_mask)) {
+		if (atleast2(curproxy->bind_proc & 1)) {
 			if (curproxy->uri_auth) {
 				int count, maxproc = 0;
 
