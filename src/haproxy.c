@@ -1903,7 +1903,6 @@ static void init(int argc, char **argv)
 
 	}
 	if (global.mode & MODE_MWORKER) {
-		int proc;
 		struct mworker_proc *tmproc;
 
 		setenv("HAPROXY_MWORKER", "1", 1);
@@ -1928,28 +1927,25 @@ static void init(int argc, char **argv)
 			LIST_APPEND(&proc_list, &tmproc->list);
 		}
 
-		for (proc = 0; proc < global.nbproc; proc++) {
-
-			tmproc = calloc(1, sizeof(*tmproc));
-			if (!tmproc) {
-				ha_alert("Cannot allocate process structures.\n");
-				exit(EXIT_FAILURE);
-			}
-
-			tmproc->options |= PROC_O_TYPE_WORKER; /* worker */
-			tmproc->pid = -1;
-			tmproc->reloads = 0;
-			tmproc->timestamp = -1;
-			tmproc->relative_pid = 1 + proc;
-			tmproc->ipc_fd[0] = -1;
-			tmproc->ipc_fd[1] = -1;
-
-			if (mworker_cli_sockpair_new(tmproc, proc) < 0) {
-				exit(EXIT_FAILURE);
-			}
-
-			LIST_APPEND(&proc_list, &tmproc->list);
+		tmproc = calloc(1, sizeof(*tmproc));
+		if (!tmproc) {
+			ha_alert("Cannot allocate process structures.\n");
+			exit(EXIT_FAILURE);
 		}
+
+		tmproc->options |= PROC_O_TYPE_WORKER; /* worker */
+		tmproc->pid = -1;
+		tmproc->reloads = 0;
+		tmproc->timestamp = -1;
+		tmproc->relative_pid = 1;
+		tmproc->ipc_fd[0] = -1;
+		tmproc->ipc_fd[1] = -1;
+
+		if (mworker_cli_sockpair_new(tmproc, 0) < 0) {
+			exit(EXIT_FAILURE);
+		}
+
+		LIST_APPEND(&proc_list, &tmproc->list);
 	}
 	if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT)) {
 		struct wordlist *it, *c;
