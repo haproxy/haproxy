@@ -1778,10 +1778,8 @@ static void init(int argc, char **argv)
 #ifdef USE_CPU_AFFINITY
 	{
 		int i;
-		for (i = 0; i < MAX_PROCS; ++i) {
-			ha_cpuset_zero(&cpu_map.proc[i]);
-			ha_cpuset_zero(&cpu_map.proc_t1[i]);
-		}
+		ha_cpuset_zero(&cpu_map.proc);
+		ha_cpuset_zero(&cpu_map.proc_t1);
 		for (i = 0; i < MAX_THREADS; ++i) {
 			ha_cpuset_zero(&cpu_map.thread[i]);
 		}
@@ -3193,13 +3191,13 @@ int main(int argc, char **argv)
 		}
 
 #ifdef USE_CPU_AFFINITY
-		if (!in_parent && ha_cpuset_count(&cpu_map.proc[0])) {   /* only do this if the process has a CPU map */
+		if (!in_parent && ha_cpuset_count(&cpu_map.proc)) {   /* only do this if the process has a CPU map */
 
 #ifdef __FreeBSD__
-			struct hap_cpuset *set = &cpu_map.proc[0];
+			struct hap_cpuset *set = &cpu_map.proc;
 			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(set->cpuset), &set->cpuset);
 #elif defined(__linux__) || defined(__DragonFly__)
-			struct hap_cpuset *set = &cpu_map.proc[0];
+			struct hap_cpuset *set = &cpu_map.proc;
 			sched_setaffinity(0, sizeof(set->cpuset), &set->cpuset);
 #endif
 		}
@@ -3397,8 +3395,8 @@ int main(int argc, char **argv)
 		/* Now the CPU affinity for all threads */
 
 		for (i = 0; i < global.nbthread; i++) {
-			if (ha_cpuset_count(&cpu_map.proc[relative_pid-1]))
-				ha_cpuset_and(&cpu_map.thread[i], &cpu_map.proc[relative_pid-1]);
+			if (ha_cpuset_count(&cpu_map.proc))
+				ha_cpuset_and(&cpu_map.thread[i], &cpu_map.proc);
 
 			if (i < MAX_THREADS &&       /* only the first 32/64 threads may be pinned */
 			    ha_cpuset_count(&cpu_map.thread[i])) {/* only do this if the thread has a THREAD map */

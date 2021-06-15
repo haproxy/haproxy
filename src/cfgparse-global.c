@@ -1091,12 +1091,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			ha_cpuset_assign(&cpus_copy, &cpus);
 
 			if (!autoinc)
-				ha_cpuset_assign(&cpu_map.proc[0], &cpus);
+				ha_cpuset_assign(&cpu_map.proc, &cpus);
 			else {
-				ha_cpuset_zero(&cpu_map.proc[0]);
+				ha_cpuset_zero(&cpu_map.proc);
 				n = ha_cpuset_ffs(&cpus_copy) - 1;
 				ha_cpuset_clr(&cpus_copy, n);
-				ha_cpuset_set(&cpu_map.proc[0], n);
+				ha_cpuset_set(&cpu_map.proc, n);
 			}
 		} else {
 			/* first process, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
