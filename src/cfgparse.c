@@ -3832,19 +3832,11 @@ out_uri_auth_compat:
 
 	list_for_each_entry(newsrv, &servers_list, global_list) {
 		/* initialize idle conns lists */
-		newsrv->per_thr = calloc(global.nbthread, sizeof(*newsrv->per_thr));
-		if (!newsrv->per_thr) {
+		if (srv_init_per_thr(newsrv) == -1) {
 			ha_alert("parsing [%s:%d] : failed to allocate per-thread lists for server '%s'.\n",
 			         newsrv->conf.file, newsrv->conf.line, newsrv->id);
 			cfgerr++;
 			continue;
-		}
-
-		for (i = 0; i < global.nbthread; i++) {
-			newsrv->per_thr[i].idle_conns = EB_ROOT;
-			newsrv->per_thr[i].safe_conns = EB_ROOT;
-			newsrv->per_thr[i].avail_conns = EB_ROOT;
-			MT_LIST_INIT(&newsrv->per_thr[i].streams);
 		}
 
 		if (newsrv->max_idle_conns != 0) {

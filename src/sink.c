@@ -939,7 +939,6 @@ struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 	struct sink *sink = NULL;
 	struct server *srv = NULL;
 	struct sink_forward_target *sft = NULL;
-	int i;
 
 	/* allocate new proxy to handle
 	 * forward to a stream server
@@ -971,16 +970,8 @@ struct sink *sink_new_from_logsrv(struct logsrv *logsrv)
 	HA_SPIN_INIT(&srv->lock);
 
 	/* process per thread init */
-	srv->per_thr = calloc(global.nbthread, sizeof(*srv->per_thr));
-	if (!srv->per_thr)
+	if (srv_init_per_thr(srv) == -1)
 		goto error;
-
-	for (i = 0; i < global.nbthread; i++) {
-		srv->per_thr[i].idle_conns = EB_ROOT;
-		srv->per_thr[i].safe_conns = EB_ROOT;
-		srv->per_thr[i].avail_conns = EB_ROOT;
-		MT_LIST_INIT(&srv->per_thr[i].streams);
-	}
 
 	/* the servers are linked backwards
 	 * first into proxy

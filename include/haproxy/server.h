@@ -60,6 +60,7 @@ int srv_init_addr(void);
 struct server *cli_find_server(struct appctx *appctx, char *arg);
 struct server *new_server(struct proxy *proxy);
 void free_server(struct server *srv);
+int srv_init_per_thr(struct server *srv);
 
 /* functions related to server name resolution */
 int srv_prepare_for_resolution(struct server *srv, const char *hostname);

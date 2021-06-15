@@ -4326,6 +4326,27 @@ static int srv_alloc_lb(struct server *sv, struct proxy *be)
 	return 1;
 }
 
+/* Memory allocation and initialization of the per_thr field.
+ * Returns 0 if the field has been successfully initialized, -1 on failure.
+ */
+int srv_init_per_thr(struct server *srv)
+{
+	int i;
+
+	srv->per_thr = calloc(global.nbthread, sizeof(*srv->per_thr));
+	if (!srv->per_thr)
+		return -1;
+
+	for (i = 0; i < global.nbthread; i++) {
+		srv->per_thr[i].idle_conns = EB_ROOT;
+		srv->per_thr[i].safe_conns = EB_ROOT;
+		srv->per_thr[i].avail_conns = EB_ROOT;
+		MT_LIST_INIT(&srv->per_thr[i].streams);
+	}
+
+	return 0;
+}
+
 /* Parse a "add server" command
  * Returns 0 if the server has been successfully initialized, 1 on failure.
  */
@@ -4335,7 +4356,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	struct server *srv;
 	char *be_name, *sv_name;
 	int errcode, argc;
-	int next_id, i;
+	int next_id;
 	const int parse_flags = SRV_PARSE_DYNAMIC|SRV_PARSE_PARSE_ADDR;
 
 	usermsgs_clr("CLI");
@@ -4405,17 +4426,9 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		}
 	}
 
-	srv->per_thr = calloc(global.nbthread, sizeof(*srv->per_thr));
-	if (!srv->per_thr) {
+	if (srv_init_per_thr(srv) == -1) {
 		ha_alert("failed to allocate per-thread lists for server.\n");
 		goto out;
-	}
-
-	for (i = 0; i < global.nbthread; i++) {
-		srv->per_thr[i].idle_conns = EB_ROOT;
-		srv->per_thr[i].safe_conns = EB_ROOT;
-		srv->per_thr[i].avail_conns = EB_ROOT;
-		MT_LIST_INIT(&srv->per_thr[i].streams);
 	}
 
 	if (srv->max_idle_conns != 0) {
