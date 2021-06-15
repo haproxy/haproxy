@@ -3302,7 +3302,7 @@ int main(int argc, char **argv)
 		/* chroot if needed */
 		if (global.chroot != NULL) {
 			if (chroot(global.chroot) == -1 || chdir("/") == -1) {
-				ha_alert("[%s.main()] Cannot chroot1(%s).\n", argv[0], global.chroot);
+				ha_alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
 				if (nb_oldpids)
 					tell_old_pids(SIGTTIN);
 				protocol_unbind_all();
