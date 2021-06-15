@@ -4061,7 +4061,7 @@ SSL_SESSION *sh_ssl_sess_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *k
 	SSL_SESSION *sess;
 	struct shared_block *first;
 
-	global.shctx_lookups++;
+	_HA_ATOMIC_INC(&global.shctx_lookups);
 
 	/* allow the session to be freed automatically by openssl */
 	*do_copy = 0;
@@ -4081,7 +4081,7 @@ SSL_SESSION *sh_ssl_sess_get_cb(SSL *ssl, __OPENSSL_110_CONST__ unsigned char *k
 	if (!sh_ssl_sess) {
 		/* no session found: unlock cache and exit */
 		shctx_unlock(ssl_shctx);
-		global.shctx_misses++;
+		_HA_ATOMIC_INC(&global.shctx_misses);
 		return NULL;
 	}
 
