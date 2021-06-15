@@ -2864,7 +2864,6 @@ void peers_setup_frontend(struct proxy *fe)
 	fe->accept = frontend_accept;
 	fe->default_target = &peer_applet.obj_type;
 	fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
-	fe->bind_proc = 0; /* will be filled by users */
 }
 
 /*

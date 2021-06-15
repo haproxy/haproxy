@@ -391,7 +391,6 @@ struct proxy {
 	unsigned int log_count;			/* number of logs produced by the frontend */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
-	unsigned long bind_proc;		/* bitmask of processes using this proxy */
 	unsigned int li_all;                    /* total number of listeners attached to this proxy */
 	unsigned int li_paused;                 /* total number of listeners paused (LI_PAUSED) */
 	unsigned int li_bound;                  /* total number of listeners ready (LI_LISTEN)  */

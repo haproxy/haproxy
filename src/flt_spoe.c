@@ -3072,14 +3072,6 @@ spoe_check(struct proxy *px, struct flt_conf *fconf)
 		return 1;
 	}
 
-	if (px->bind_proc & ~target->bind_proc) {
-		ha_alert("Proxy %s : backend '%s' used by SPOE agent '%s' declared"
-			 " at %s:%d does not cover all of its processes.\n",
-			 px->id, target->id, conf->agent->id,
-			 conf->agent->conf.file, conf->agent->conf.line);
-		return 1;
-	}
-
 	if ((conf->agent->rt = calloc(global.nbthread, sizeof(*conf->agent->rt))) == NULL) {
 		ha_alert("Proxy %s : out of memory initializing SPOE agent '%s' declared at %s:%d.\n",
 			 px->id, conf->agent->id, conf->agent->conf.file, conf->agent->conf.line);

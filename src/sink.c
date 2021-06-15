@@ -287,7 +287,6 @@ void sink_setup_proxy(struct proxy *px)
 	px->timeout.connect = TICK_ETERNITY;
 	px->accept = NULL;
 	px->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
-	px->bind_proc = 0; /* will be filled by users */
 }
 
 /*

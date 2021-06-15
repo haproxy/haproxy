@@ -276,8 +276,7 @@ void enable_listener(struct listener *listener)
 	if (listener->state == LI_LISTEN) {
 		BUG_ON(listener->rx.fd == -1);
 		if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
-		    (!!master != !!(listener->rx.flags & RX_F_MWORKER) ||
-		     !(proc_mask(listener->rx.settings->bind_proc) & 1))) {
+		    (!!master != !!(listener->rx.flags & RX_F_MWORKER))) {
 			/* we don't want to enable this listener and don't
 			 * want any fd event to reach it.
 			 */
@@ -430,10 +429,6 @@ int pause_listener(struct listener *l)
 
 	HA_SPIN_LOCK(LISTENER_LOCK, &l->lock);
 
-	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
-	    !(proc_mask(l->rx.settings->bind_proc) & 1))
-		goto end;
-
 	if (l->state <= LI_PAUSED)
 		goto end;
 
@@ -475,10 +470,6 @@ int resume_listener(struct listener *l)
 	 * end of listen_accept() while we'd come from dequeue_all_listeners().
 	 */
 	if (MT_LIST_INLIST(&l->wait_queue))
-		goto end;
-
-	if ((global.mode & (MODE_DAEMON | MODE_MWORKER)) &&
-	    !(proc_mask(l->rx.settings->bind_proc) & 1))
 		goto end;
 
 	if (l->state == LI_READY)
@@ -1499,7 +1490,7 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 	if ((slash = strchr(args[cur_arg + 1], '/')) != NULL)
 		*slash = 0;
 
-	if (parse_process_number(args[cur_arg + 1], &proc, MAX_PROCS, NULL, err)) {
+	if (parse_process_number(args[cur_arg + 1], &proc, 1, NULL, err)) {
 		memprintf(err, "'%s' : %s", args[cur_arg], *err);
 		return ERR_ALERT | ERR_FATAL;
 	}
@@ -1512,7 +1503,6 @@ static int bind_parse_process(char **args, int cur_arg, struct proxy *px, struct
 		*slash = '/';
 	}
 
-	conf->settings.bind_proc |= proc;
 	conf->settings.bind_thread |= thread;
 	return 0;
 }

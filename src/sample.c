@@ -1296,13 +1296,6 @@ int smp_resolve_args(struct proxy *p, char **err)
 				break;
 			}
 
-			if (t->proxy && (p->bind_proc & ~t->proxy->bind_proc)) {
-				memprintf(err, "%sparsing [%s:%d]: stick-table '%s' not present on all processes covered by proxy '%s'.\n",
-					 *err ? *err : "", cur->file, cur->line, t->proxy->id, p->id);
-				cfgerr++;
-				break;
-			}
-
 			if (!in_proxies_list(t->proxies_list, p)) {
 				p->next_stkt_ref = t->proxies_list;
 				t->proxies_list = p;

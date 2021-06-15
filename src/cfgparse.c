@@ -2381,60 +2381,6 @@ err:
 	return err_code;
 }
 
-/* This function propagates processes from frontend <from> to backend <to> so
- * that it is always guaranteed that a backend pointed to by a frontend is
- * bound to all of its processes. After that, if the target is a "listen"
- * instance, the function recursively descends the target's own targets along
- * default_backend and use_backend rules. Since the bits are
- * checked first to ensure that <to> is already bound to all processes of
- * <from>, there is no risk of looping and we ensure to follow the shortest
- * path to the destination.
- *
- * It is possible to set <to> to NULL for the first call so that the function
- * takes care of visiting the initial frontend in <from>.
- *
- * It is important to note that the function relies on the fact that all names
- * have already been resolved.
- */
-void propagate_processes(struct proxy *from, struct proxy *to)
-{
-	struct switching_rule *rule;
-
-	if (to) {
-		/* check whether we need to go down */
-		if (from->bind_proc &&
-		    (from->bind_proc & to->bind_proc) == from->bind_proc)
-			return;
-
-		if (!from->bind_proc && !to->bind_proc)
-			return;
-
-		to->bind_proc = from->bind_proc ?
-			(to->bind_proc | from->bind_proc) : 0;
-
-		/* now propagate down */
-		from = to;
-	}
-
-	if (!(from->cap & PR_CAP_FE))
-		return;
-
-	if (from->disabled)
-		return;
-
-	/* default_backend */
-	if (from->defbe.be)
-		propagate_processes(from, from->defbe.be);
-
-	/* use_backend */
-	list_for_each_entry(rule, &from->switching_rules, list) {
-		if (rule->dynamic)
-			continue;
-		to = rule->be.backend;
-		propagate_processes(from, to);
-	}
-}
-
 #if defined(USE_THREAD) && defined(__linux__) && defined USE_CPU_AFFINITY
 /* filter directory name of the pattern node<X> */
 static int numa_filter(const struct dirent *dir)
@@ -2687,7 +2633,6 @@ int check_config_validity()
 		struct sticking_rule *mrule;
 		struct logsrv *tmplogsrv;
 		unsigned int next_id;
-		int nbproc;
 
 		if (curproxy->uuid < 0) {
 			/* proxy ID not set, use automatic numbering with first
@@ -2710,21 +2655,6 @@ int check_config_validity()
 				curproxy->table->peers.p = NULL;
 			}
 			continue;
-		}
-
-		/* Check multi-process mode compatibility for the current proxy */
-
-		if (curproxy->bind_proc) {
-			/* an explicit bind-process was specified, let's check how many
-			 * processes remain.
-			 */
-			nbproc = my_popcountl(curproxy->bind_proc);
-
-			curproxy->bind_proc &= 1;
-			if (!curproxy->bind_proc && nbproc == 1) {
-				ha_warning("Proxy '%s': the process specified on the 'bind-process' directive refers to a process number that is higher than global.nbproc. The proxy has been forced to run on process 1 only.\n", curproxy->id);
-				curproxy->bind_proc = 1;
-			}
 		}
 
 		/* check and reduce the bind-proc of each listener */
@@ -2768,25 +2698,6 @@ int check_config_validity()
 				bind_conf->settings.bind_thread = new_mask;
 				ha_warning("Proxy '%s': the thread range specified on the 'process' directive of 'bind %s' at [%s:%d] only refers to thread numbers out of the range defined by the global 'nbthread' directive. The thread numbers were remapped to existing threads instead (mask 0x%lx).\n",
 					   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line, new_mask);
-			}
-
-			/* detect process and nbproc affinity inconsistencies */
-			mask = proc_mask(bind_conf->settings.bind_proc) & proc_mask(curproxy->bind_proc);
-			if (!(mask & 1)) {
-				mask = proc_mask(curproxy->bind_proc) & 1;
-				nbproc = my_popcountl(bind_conf->settings.bind_proc);
-				bind_conf->settings.bind_proc = proc_mask(bind_conf->settings.bind_proc) & mask;
-
-				if (!bind_conf->settings.bind_proc && nbproc == 1) {
-					ha_warning("Proxy '%s': the process number specified on the 'process' directive of 'bind %s' at [%s:%d] refers to a process not covered by the proxy. This has been fixed by forcing it to run on the proxy's first process only.\n",
-						   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-					bind_conf->settings.bind_proc = mask & ~(mask - 1);
-				}
-				else if (!bind_conf->settings.bind_proc && nbproc > 1) {
-					ha_warning("Proxy '%s': the process range specified on the 'process' directive of 'bind %s' at [%s:%d] only refers to processes not covered by the proxy. The directive was ignored so that all of the proxy's processes are used.\n",
-						   curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
-					bind_conf->settings.bind_proc = 0;
-				}
 			}
 		}
 
@@ -3114,11 +3025,6 @@ int check_config_validity()
 					 curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}
-			else if (target->proxy && curproxy->bind_proc & ~target->proxy->bind_proc) {
-				ha_alert("Proxy '%s': stick-table '%s' referenced 'stick-store' rule not present on all processes covered by proxy '%s'.\n",
-				         curproxy->id, target->id, curproxy->id);
-				cfgerr++;
-			}
 			else {
 				ha_free(&mrule->table.name);
 				mrule->table.t = target;
@@ -3151,11 +3057,6 @@ int check_config_validity()
 			else if (!stktable_compatible_sample(mrule->expr, target->type)) {
 				ha_alert("Proxy '%s': type of fetch not usable with type of stick-table '%s'.\n",
 					 curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
-				cfgerr++;
-			}
-			else if (target->proxy && (curproxy->bind_proc & ~target->proxy->bind_proc)) {
-				ha_alert("Proxy '%s': stick-table '%s' referenced 'stick-store' rule not present on all processes covered by proxy '%s'.\n",
-				         curproxy->id, target->id, curproxy->id);
 				cfgerr++;
 			}
 			else {
@@ -3982,50 +3883,6 @@ out_uri_auth_compat:
 		}
 	}
 
-	/* Check multi-process mode compatibility */
-
-	/* Make each frontend inherit bind-process from its listeners when not specified. */
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-		if (curproxy->bind_proc)
-			continue;
-
-		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-			unsigned long mask;
-
-			mask = proc_mask(bind_conf->settings.bind_proc);
-			curproxy->bind_proc |= mask;
-		}
-		curproxy->bind_proc = proc_mask(curproxy->bind_proc);
-	}
-
-	if (global.cli_fe) {
-		list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
-			unsigned long mask;
-
-			mask = bind_conf->settings.bind_proc ? bind_conf->settings.bind_proc : 0;
-			global.cli_fe->bind_proc |= mask;
-		}
-		global.cli_fe->bind_proc = proc_mask(global.cli_fe->bind_proc);
-	}
-
-	/* propagate bindings from frontends to backends. Don't do it if there
-	 * are any fatal errors as we must not call it with unresolved proxies.
-	 */
-	if (!cfgerr) {
-		for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
-			if (curproxy->cap & PR_CAP_FE)
-				propagate_processes(curproxy, NULL);
-		}
-	}
-
-	/* Bind each unbound backend to all processes when not specified. */
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next)
-		curproxy->bind_proc = proc_mask(curproxy->bind_proc);
-
-	/*******************************************************/
-	/* At this step, all proxies have a non-null bind_proc */
-	/*******************************************************/
-
 	/* perform the final checks before creating tasks */
 
 	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next) {
@@ -4045,14 +3902,6 @@ out_uri_auth_compat:
 		/* adjust this proxy's listeners */
 		next_id = 1;
 		list_for_each_entry(listener, &curproxy->conf.listeners, by_fe) {
-			int nbproc;
-
-			nbproc = my_popcountl(curproxy->bind_proc &
-			                      (listener->bind_conf->settings.bind_proc ? listener->bind_conf->settings.bind_proc : curproxy->bind_proc) & 1);
-
-			if (!nbproc) /* no intersection between listener and frontend */
-				nbproc = 1;
-
 			if (!listener->luid) {
 				/* listener ID not set, use automatic numbering with first
 				 * spare entry starting with next_luid.
@@ -4075,18 +3924,6 @@ out_uri_auth_compat:
 			if (!listener->maxaccept)
 				listener->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : MAX_ACCEPT;
 
-			/* we want to have an optimal behaviour on single process mode to
-			 * maximize the work at once, but in multi-process we want to keep
-			 * some fairness between processes, so we target half of the max
-			 * number of events to be balanced over all the processes the proxy
-			 * is bound to. Remember that maxaccept = -1 must be kept as it is
-			 * used to disable the limit.
-			 */
-			if (listener->maxaccept > 0 && nbproc > 1) {
-				listener->maxaccept = (listener->maxaccept + 1) / 2;
-				listener->maxaccept = (listener->maxaccept + nbproc - 1) / nbproc;
-			}
-
 			listener->accept = session_accept_fd;
 			listener->analysers |= curproxy->fe_req_ana;
 			listener->default_target = curproxy->default_target;
@@ -4108,32 +3945,6 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			if (!bind_conf->is_ssl && bind_conf->xprt->destroy_bind_conf)
 				bind_conf->xprt->destroy_bind_conf(bind_conf);
-		}
-
-		if (atleast2(curproxy->bind_proc & 1)) {
-			if (curproxy->uri_auth) {
-				int count, maxproc = 0;
-
-				list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-					count = my_popcountl(bind_conf->settings.bind_proc);
-					if (count > maxproc)
-						maxproc = count;
-				}
-				/* backends have 0, frontends have 1 or more */
-				if (maxproc != 1)
-					ha_warning("Proxy '%s': in multi-process mode, stats will be"
-						   " limited to process assigned to the current request.\n",
-						   curproxy->id);
-
-				if (!LIST_ISEMPTY(&curproxy->uri_auth->admin_rules)) {
-					ha_warning("Proxy '%s': stats admin will not work correctly in multi-process mode.\n",
-						   curproxy->id);
-				}
-			}
-			if (!LIST_ISEMPTY(&curproxy->sticking_rules)) {
-				ha_warning("Proxy '%s': sticking rules will not work correctly in multi-process mode.\n",
-					   curproxy->id);
-			}
 		}
 
 		/* create the task associated with the proxy */
@@ -4164,40 +3975,10 @@ out_uri_auth_compat:
 				global.last_checks |= cfg_opts2[optnum].checks;
 	}
 
-	/* compute the required process bindings for the peers */
-	for (curproxy = proxies_list; curproxy; curproxy = curproxy->next)
-		if (curproxy->table && curproxy->table->peers.p)
-			curproxy->table->peers.p->peers_fe->bind_proc |= curproxy->bind_proc;
-
-	/* compute the required process bindings for the peers from <stktables_list>
-	 * for all the stick-tables, the ones coming with "peers" sections included.
-	 */
-	for (t = stktables_list; t; t = t->next) {
-		struct proxy *p;
-
-		for (p = t->proxies_list; p; p = p->next_stkt_ref) {
-			if (t->peers.p && t->peers.p->peers_fe) {
-				t->peers.p->peers_fe->bind_proc |= p->bind_proc;
-			}
-		}
-	}
-
 	if (cfg_peers) {
 		struct peers *curpeers = cfg_peers, **last;
 		struct peer *p, *pb;
 
-		/* In the case the peers frontend was not initialized by a
-		 stick-table used in the configuration, set its bind_proc
-		 by default to the first process. */
-		while (curpeers) {
-			if (curpeers->peers_fe) {
-				if (curpeers->peers_fe->bind_proc == 0)
-					curpeers->peers_fe->bind_proc = 1;
-			}
-			curpeers = curpeers->next;
-		}
-
-		curpeers = cfg_peers;
 		/* Remove all peers sections which don't have a valid listener,
 		 * which are not used by any table, or which are bound to more
 		 * than one process.
@@ -4218,18 +3999,6 @@ out_uri_auth_compat:
 					   curpeers->id, localpeer);
 				if (curpeers->peers_fe)
 					stop_proxy(curpeers->peers_fe);
-				curpeers->peers_fe = NULL;
-			}
-			else if (atleast2(curpeers->peers_fe->bind_proc)) {
-				/* either it's totally stopped or too much used */
-				if (curpeers->peers_fe->bind_proc) {
-					ha_alert("Peers section '%s': peers referenced by sections "
-						 "running in different processes (%d different ones). "
-						 "Check global.nbproc and all tables' bind-process "
-						 "settings.\n", curpeers->id, my_popcountl(curpeers->peers_fe->bind_proc));
-					cfgerr++;
-				}
-				stop_proxy(curpeers->peers_fe);
 				curpeers->peers_fe = NULL;
 			}
 			else {

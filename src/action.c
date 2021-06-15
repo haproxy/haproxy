@@ -74,11 +74,6 @@ int check_trk_action(struct act_rule *rule, struct proxy *px, char **err)
 			  rule->action);
 		return 0;
 	}
-	else if (target->proxy && (px->bind_proc & ~target->proxy->bind_proc)) {
-		memprintf(err, "stick-table '%s' referenced by 'track-sc%d' rule not present on all processes covered by proxy '%s'",
-			  target->id, rule->action, px->id);
-		return 0;
-	}
 	else {
 		if (!in_proxies_list(target->proxies_list, px)) {
 			px->next_stkt_ref = target->proxies_list;

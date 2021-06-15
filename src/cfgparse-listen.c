@@ -609,14 +609,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				set = 0;
 				break;
 			}
-			if (parse_process_number(args[cur_arg], &set, MAX_PROCS, NULL, &errmsg)) {
+			if (parse_process_number(args[cur_arg], &set, 1, NULL, &errmsg)) {
 				ha_alert("parsing [%s:%d] : %s : %s\n", file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
 			cur_arg++;
 		}
-		curproxy->bind_proc = set;
 	}
 	else if (strcmp(args[0], "acl") == 0) {  /* add an ACL */
 		if (curproxy->cap & PR_CAP_DEF) {

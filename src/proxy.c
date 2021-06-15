@@ -1515,7 +1515,6 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 	curproxy->options2 = defproxy->options2;
 	curproxy->no_options = defproxy->no_options;
 	curproxy->no_options2 = defproxy->no_options2;
-	curproxy->bind_proc = defproxy->bind_proc;
 	curproxy->except_xff_net = defproxy->except_xff_net;
 	curproxy->except_xot_net = defproxy->except_xot_net;
 	curproxy->retry_type = defproxy->retry_type;
@@ -1794,9 +1793,6 @@ void proxy_cond_disable(struct proxy *p)
 
 	p->disabled = 1;
 
-	if (!(proc_mask(p->bind_proc) & 1))
-		goto silent;
-
 	/* Note: syslog proxies use their own loggers so while it's somewhat OK
 	 * to report them being stopped as a warning, we must not spam their log
 	 * servers which are in fact production servers. For other types (CLI,
@@ -1811,7 +1807,6 @@ void proxy_cond_disable(struct proxy *p)
 		send_log(p, LOG_WARNING, "Proxy %s stopped (cumulated conns: FE: %lld, BE: %lld).\n",
 			 p->id, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 
- silent:
 	if (p->table && p->table->size && p->table->sync_task)
 		task_wakeup(p->table->sync_task, TASK_WOKEN_MSG);
 
@@ -2474,10 +2469,6 @@ static int dump_servers_state(struct stream_interface *si)
 	int bk_f_forced_id, srv_f_forced_id;
 	char *srvrecord;
 
-	/* we don't want to report any state if the backend is not enabled on this process */
-	if (!(proc_mask(px->bind_proc) & 1))
-		return 1;
-
 	if (!appctx->ctx.cli.p1)
 		appctx->ctx.cli.p1 = px->srv;
 
@@ -2611,10 +2602,6 @@ static int cli_io_handler_show_backend(struct appctx *appctx)
 
 		/* looking for backends only */
 		if (!(curproxy->cap & PR_CAP_BE))
-			continue;
-
-		/* we don't want to list a backend which is bound to this process */
-		if (!(proc_mask(curproxy->bind_proc) & 1))
 			continue;
 
 		chunk_appendf(&trash, "%s\n", curproxy->id);

@@ -543,13 +543,12 @@ static int cli_parse_global(char **args, int section_type, struct proxy *curpx,
 				set = 0;
 				break;
 			}
-			if (parse_process_number(args[cur_arg], &set, MAX_PROCS, NULL, err)) {
+			if (parse_process_number(args[cur_arg], &set, 1, NULL, err)) {
 				memprintf(err, "'%s %s' : %s", args[0], args[1], *err);
 				return -1;
 			}
 			cur_arg++;
 		}
-		global.cli_fe->bind_proc = set;
 	}
 	else {
 		memprintf(err, "'%s' only supports 'socket', 'maxconn', 'bind-process' and 'timeout' (got '%s')", args[0], args[1]);
@@ -1526,19 +1525,7 @@ static int cli_io_handler_show_cli_sock(struct appctx *appctx)
 						else
 							chunk_appendf(&trash, "  ");
 
-						if (bind_conf->settings.bind_proc != 0) {
-							int pos;
-							for (pos = 0; pos < 8 * sizeof(bind_conf->settings.bind_proc); pos++) {
-								if (bind_conf->settings.bind_proc & (1UL << pos)) {
-									chunk_appendf(&trash, "%d,", pos+1);
-								}
-							}
-							/* replace the latest comma by a newline */
-							trash.area[trash.data-1] = '\n';
-
-						} else {
-							chunk_appendf(&trash, "all\n");
-						}
+						chunk_appendf(&trash, "all\n");
 
 						if (ci_putchk(si_ic(si), &trash) == -1) {
 							si_rx_room_blk(si);
@@ -2916,9 +2903,6 @@ int mworker_cli_sockpair_new(struct mworker_proc *mworker_proc, int proc)
 
 	bind_conf->level &= ~ACCESS_LVL_MASK;
 	bind_conf->level |= ACCESS_LVL_ADMIN; /* TODO: need to lower the rights with a CLI keyword*/
-
-	bind_conf->settings.bind_proc = 1UL << proc;
-	global.cli_fe->bind_proc = 0; /* XXX: we should be careful with that, it can be removed by configuration */
 
 	if (!memprintf(&path, "sockpair@%d", mworker_proc->ipc_fd[1])) {
 		ha_alert("Cannot allocate listener.\n");

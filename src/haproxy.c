@@ -3116,8 +3116,6 @@ int main(int argc, char **argv)
 	}
 
 	if (global.mode & (MODE_DAEMON | MODE_MWORKER | MODE_MWORKER_WAIT)) {
-		struct proxy *px;
-		struct peers *curpeers;
 		int ret = 0;
 		int in_parent = 0;
 		int devnullfd = -1;
@@ -3301,50 +3299,10 @@ int main(int argc, char **argv)
 
 			list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
 				if (bind_conf->level & ACCESS_FD_LISTENERS) {
-					if (!bind_conf->settings.bind_proc || bind_conf->settings.bind_proc & 1UL) {
-						global.tune.options |= GTUNE_SOCKET_TRANSFER;
-						break;
-					}
+					global.tune.options |= GTUNE_SOCKET_TRANSFER;
+					break;
 				}
 			}
-		}
-
-		/* we might have to unbind some proxies from some processes */
-		px = proxies_list;
-		while (px != NULL) {
-			if (px->bind_proc && !px->disabled) {
-				if (!(px->bind_proc & 1UL))
-					stop_proxy(px);
-			}
-			px = px->next;
-		}
-
-		/* we might have to unbind some log forward proxies from some processes */
-		px = cfg_log_forward;
-		while (px != NULL) {
-			if (px->bind_proc && !px->disabled) {
-				if (!(px->bind_proc & 1UL))
-					stop_proxy(px);
-			}
-			px = px->next;
-		}
-
-		/* we might have to unbind some peers sections from some processes */
-		for (curpeers = cfg_peers; curpeers; curpeers = curpeers->next) {
-			if (!curpeers->peers_fe)
-				continue;
-
-			if (curpeers->peers_fe->bind_proc & 1UL)
-				continue;
-
-			stop_proxy(curpeers->peers_fe);
-			/* disable this peer section so that it kills itself */
-			signal_unregister_handler(curpeers->sighandler);
-			task_destroy(curpeers->sync_task);
-			curpeers->sync_task = NULL;
-			task_destroy(curpeers->peers_fe->task);
-			curpeers->peers_fe->task = NULL;
-			curpeers->peers_fe = NULL;
 		}
 
 		/*
