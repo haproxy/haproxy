@@ -368,6 +368,7 @@ struct server {
 	struct list srv_rec_item;		/* to attach server to a srv record item */
 	struct list ip_rec_item;		/* to attach server to a A or AAAA record item */
 	struct ebpt_node host_dn;		/* hostdn store for srvrq and state file matching*/
+	struct task *srvrq_check;               /* Task testing SRV record expiration date for this server */
 	struct {
 		const char *file;		/* file where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */

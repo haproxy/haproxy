@@ -2201,6 +2201,7 @@ struct server *new_server(struct proxy *proxy)
 void free_server(struct server *srv)
 {
 	task_destroy(srv->warmup);
+	task_destroy(srv->srvrq_check);
 
 	free(srv->id);
 	free(srv->cookie);
