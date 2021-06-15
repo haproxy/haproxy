@@ -22,14 +22,6 @@
 #ifndef _HAPROXY_DEFAULTS_H
 #define _HAPROXY_DEFAULTS_H
 
-/* MAX_PROCS defines the highest limit for the global "nbproc" value. It
- * defaults to the number of bits in a long integer but may be lowered to save
- * resources on embedded systems.
- */
-#ifndef MAX_PROCS
-#define MAX_PROCS 1
-#endif
-
 /* MAX_THREADS defines the highest limit for the global nbthread value. It
  * defaults to the number of bits in a long integer when threads are enabled
  * but may be lowered to save resources on embedded systems.

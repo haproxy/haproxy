@@ -2854,16 +2854,6 @@ int main(int argc, char **argv)
 
 	setvbuf(stdout, NULL, _IONBF, 0);
 
-	/* this can only safely be done here, though it's optimized away by
-	 * the compiler.
-	 */
-	if (MAX_PROCS < 1 || MAX_PROCS > LONGBITS) {
-		ha_alert("MAX_PROCS value must be between 1 and %d inclusive; "
-		         "HAProxy was built with value %d, please fix it and rebuild.\n",
-			 LONGBITS, MAX_PROCS);
-		exit(1);
-	}
-
 	/* take a copy of initial limits before we possibly change them */
 	getrlimit(RLIMIT_NOFILE, &limit);
 
