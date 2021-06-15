@@ -55,8 +55,6 @@ extern int atexit_flag;
 extern unsigned char boot_seed[20];  // per-boot random seed (160 bits initially)
 extern THREAD_LOCAL struct buffer trash;
 
-extern struct task *stopping_task[MAX_PROCS];
-
 struct proxy;
 struct server;
 int main(int argc, char **argv);
