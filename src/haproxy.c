@@ -3138,7 +3138,7 @@ int main(int argc, char **argv)
 		struct proxy *px;
 		struct peers *curpeers;
 		int ret = 0;
-		int proc;
+		int in_parent = 0;
 		int devnullfd = -1;
 
 		/*
@@ -3173,17 +3173,19 @@ int main(int argc, char **argv)
 		if (!(global.mode & MODE_MWORKER_WAIT)) {
 			if (global.mode & MODE_MWORKER)
 				mworker_ext_launch_all();
-			for (proc = 0; proc < global.nbproc; proc++) {
-				ret = fork();
-				if (ret < 0) {
-					ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
-					protocol_unbind_all();
-					exit(1); /* there has been an error */
-				}
-				else if (ret == 0) { /* child breaks here */
-					ha_random_jump96(relative_pid);
-					break;
-				}
+
+			ret = fork();
+			if (ret < 0) {
+				ha_alert("[%s.main()] Cannot fork.\n", argv[0]);
+				protocol_unbind_all();
+				exit(1); /* there has been an error */
+			}
+			else if (ret == 0) { /* child breaks here */
+				ha_random_jump96(relative_pid);
+			}
+			else { /* parent here */
+				in_parent = 1;
+
 				if (pidfd >= 0 && !(global.mode & MODE_MWORKER)) {
 					char pidstr[100];
 					snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
@@ -3204,26 +3206,22 @@ int main(int argc, char **argv)
 						}
 					}
 				}
-
-				relative_pid++; /* each child will get a different one */
-				pid_bit <<= 1;
 			}
+
 		} else {
 			/* wait mode */
 			global.nbproc = 1;
-			proc = 1;
+			in_parent = 1;
 		}
 
 #ifdef USE_CPU_AFFINITY
-		if (proc < global.nbproc &&  /* child */
-		    proc < MAX_PROCS &&       /* only the first 32/64 processes may be pinned */
-		    ha_cpuset_count(&cpu_map.proc[proc])) {   /* only do this if the process has a CPU map */
+		if (!in_parent && ha_cpuset_count(&cpu_map.proc[0])) {   /* only do this if the process has a CPU map */
 
 #ifdef __FreeBSD__
-			struct hap_cpuset *set = &cpu_map.proc[proc];
+			struct hap_cpuset *set = &cpu_map.proc[0];
 			ret = cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, -1, sizeof(set->cpuset), &set->cpuset);
 #elif defined(__linux__) || defined(__DragonFly__)
-			struct hap_cpuset *set = &cpu_map.proc[proc];
+			struct hap_cpuset *set = &cpu_map.proc[0];
 			sched_setaffinity(0, sizeof(set->cpuset), &set->cpuset);
 #endif
 		}
@@ -3237,7 +3235,7 @@ int main(int argc, char **argv)
 		/* We won't ever use this anymore */
 		ha_free(&global.pidfile);
 
-		if (proc == global.nbproc) {
+		if (in_parent) {
 			if (global.mode & (MODE_MWORKER|MODE_MWORKER_WAIT)) {
 
 				if ((!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)) &&
@@ -3323,7 +3321,7 @@ int main(int argc, char **argv)
 
 			list_for_each_entry(bind_conf, &global.cli_fe->conf.bind, by_fe) {
 				if (bind_conf->level & ACCESS_FD_LISTENERS) {
-					if (!bind_conf->settings.bind_proc || bind_conf->settings.bind_proc & (1UL << proc)) {
+					if (!bind_conf->settings.bind_proc || bind_conf->settings.bind_proc & 1UL) {
 						global.tune.options |= GTUNE_SOCKET_TRANSFER;
 						break;
 					}
@@ -3335,7 +3333,7 @@ int main(int argc, char **argv)
 		px = proxies_list;
 		while (px != NULL) {
 			if (px->bind_proc && !px->disabled) {
-				if (!(px->bind_proc & (1UL << proc)))
+				if (!(px->bind_proc & 1UL))
 					stop_proxy(px);
 			}
 			px = px->next;
@@ -3345,7 +3343,7 @@ int main(int argc, char **argv)
 		px = cfg_log_forward;
 		while (px != NULL) {
 			if (px->bind_proc && !px->disabled) {
-				if (!(px->bind_proc & (1UL << proc)))
+				if (!(px->bind_proc & 1UL))
 					stop_proxy(px);
 			}
 			px = px->next;
@@ -3356,7 +3354,7 @@ int main(int argc, char **argv)
 			if (!curpeers->peers_fe)
 				continue;
 
-			if (curpeers->peers_fe->bind_proc & (1UL << proc))
+			if (curpeers->peers_fe->bind_proc & 1UL)
 				continue;
 
 			stop_proxy(curpeers->peers_fe);
