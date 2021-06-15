@@ -1998,21 +1998,6 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
-	/* recompute the amount of per-process memory depending on
-	 * the shared SSL cache size
-	 */
-	if (global.rlimit_memmax_all) {
-#if defined (USE_OPENSSL) && !defined(USE_PRIVATE_CACHE)
-		int64_t ssl_cache_bytes = global.tune.sslcachesize * 200LL;
-
-		global.rlimit_memmax =
-			((((int64_t)global.rlimit_memmax_all * 1048576LL) - ssl_cache_bytes) +
-			 ssl_cache_bytes + 1048575LL) / 1048576LL;
-#else
-		global.rlimit_memmax = global.rlimit_memmax_all;
-#endif
-	}
-
 #ifdef USE_NS
         err_code |= netns_init();
         if (err_code & (ERR_ABORT|ERR_FATAL)) {

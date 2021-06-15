@@ -22,9 +22,7 @@
 #   USE_PCRE2            : enable use of libpcre2 for regex.
 #   USE_PCRE2_JIT        : enable JIT for faster regex on libpcre2
 #   USE_POLL             : enable poll(). Automatic.
-#   USE_PRIVATE_CACHE    : disable shared memory cache of ssl sessions.
 #   USE_THREAD           : enable threads support.
-#   USE_PTHREAD_PSHARED  : enable pthread process shared mutex on sslcache.
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
 #   USE_STATIC_PCRE2     : enable static libpcre2.
 #   USE_TPROXY           : enable transparent proxy. Automatic.
@@ -35,7 +33,6 @@
 #   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
 #   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
 #   USE_LUA              : enable Lua support.
-#   USE_FUTEX            : enable use of futex on kernel 2.6. Automatic.
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
 #   USE_CLOSEFROM        : enable use of closefrom() on *bsd, solaris. Automatic.
 #   USE_PRCTL            : enable use of prctl(). Automatic.
@@ -308,10 +305,10 @@ LDFLAGS = $(ARCH_FLAGS) -g
 # the reported build options.
 use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_PCRE USE_PCRE_JIT USE_PCRE2 USE_PCRE2_JIT USE_POLL             \
-           USE_PRIVATE_CACHE USE_THREAD USE_PTHREAD_PSHARED USE_BACKTRACE     \
+           USE_THREAD USE_BACKTRACE                                           \
            USE_STATIC_PCRE USE_STATIC_PCRE2 USE_TPROXY USE_LINUX_TPROXY       \
            USE_LINUX_SPLICE USE_LIBCRYPT USE_CRYPT_H                          \
-           USE_GETADDRINFO USE_OPENSSL USE_LUA USE_FUTEX USE_ACCEPT4          \
+           USE_GETADDRINFO USE_OPENSSL USE_LUA USE_ACCEPT4                    \
            USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS     \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
            USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP USE_EVPORTS USE_OT   \
@@ -353,7 +350,7 @@ endif
 ifeq ($(TARGET),linux-glibc)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
-    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
+    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
     USE_GETADDRINFO USE_BACKTRACE)
 ifneq ($(shell echo __arm__/__aarch64__ | $(CC) -E -xc - | grep '^[^\#]'),__arm__/__aarch64__)
@@ -365,7 +362,7 @@ endif
 ifeq ($(TARGET),linux-glibc-legacy)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
-    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
+    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_GETADDRINFO)
 endif
 
@@ -373,7 +370,7 @@ endif
 ifeq ($(TARGET),linux-musl)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_DL USE_RT USE_CRYPT_H USE_NETFILTER  \
-    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_FUTEX USE_LINUX_TPROXY          \
+    USE_CPU_AFFINITY USE_THREAD USE_EPOLL USE_LINUX_TPROXY                    \
     USE_ACCEPT4 USE_LINUX_SPLICE USE_PRCTL USE_THREAD_DUMP USE_NS USE_TFO     \
     USE_GETADDRINFO)
 ifneq ($(shell echo __arm__/__aarch64__ | $(CC) -E -xc - | grep '^[^\#]'),__arm__/__aarch64__)
@@ -429,7 +426,7 @@ endif
 # AIX 5.1 only
 ifeq ($(TARGET),aix51)
   set_target_defaults = $(call default_opts, \
-    USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER USE_PRIVATE_CACHE)
+    USE_POLL USE_LIBCRYPT USE_OBSOLETE_LINKER)
   TARGET_CFLAGS   = -Dss_family=__ss_family -Dip6_hdr=ip6hdr -DSTEVENS_API -D_LINUX_SOURCE_COMPAT -Dunsetenv=my_unsetenv
   DEBUG_CFLAGS    =
 endif
@@ -591,13 +588,6 @@ endif
 ifneq ($(USE_QUIC),)
 OPTIONS_OBJS += src/quic_sock.o src/proto_quic.o src/xprt_quic.o src/quic_tls.o \
                 src/quic_frame.o src/quic_cc.o src/quic_cc_newreno.o
-endif
-
-# The private cache option affect the way the shctx is built
-ifeq ($(USE_PRIVATE_CACHE),)
-ifneq ($(USE_PTHREAD_PSHARED),)
-OPTIONS_LDFLAGS += -lpthread
-endif
 endif
 
 ifneq ($(USE_LUA),)

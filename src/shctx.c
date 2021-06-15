@@ -292,9 +292,6 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 	int i;
 	struct shared_context *shctx;
 	int ret;
-#ifdef USE_PTHREAD_PSHARED
-	pthread_mutexattr_t attr;
-#endif
 	void *cur;
 	int maptype = MAP_PRIVATE;
 
@@ -305,8 +302,10 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 	blocksize = (blocksize + sizeof(void *) - 1) & -sizeof(void *);
 	extra     = (extra     + sizeof(void *) - 1) & -sizeof(void *);
 
-	if (shared)
+	if (shared) {
 		maptype = MAP_SHARED;
+		use_shared_mem = 1;
+	}
 
 	shctx = (struct shared_context *)mmap(NULL, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)),
 	                                      PROT_READ | PROT_WRITE, maptype | MAP_ANON, -1, 0);
@@ -316,41 +315,8 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 		goto err;
 	}
 
+	HA_SPIN_INIT(&shctx->lock);
 	shctx->nbav = 0;
-
-	if (maptype == MAP_SHARED) {
-#ifndef USE_PRIVATE_CACHE
-#ifdef USE_PTHREAD_PSHARED
-		if (pthread_mutexattr_init(&attr)) {
-			munmap(shctx, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)));
-			shctx = NULL;
-			ret = SHCTX_E_INIT_LOCK;
-			goto err;
-		}
-
-		if (pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED)) {
-			pthread_mutexattr_destroy(&attr);
-			munmap(shctx, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)));
-			shctx = NULL;
-			ret = SHCTX_E_INIT_LOCK;
-			goto err;
-		}
-
-		if (pthread_mutex_init(&shctx->mutex, &attr)) {
-			pthread_mutexattr_destroy(&attr);
-			munmap(shctx, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)));
-			shctx = NULL;
-			ret = SHCTX_E_INIT_LOCK;
-			goto err;
-		}
-#else
-		shctx->waiters = 0;
-#endif
-#else
-		HA_SPIN_INIT(&shctx->lock);
-#endif
-		use_shared_mem = 1;
-	}
 
 	LIST_INIT(&shctx->avail);
 	LIST_INIT(&shctx->hot);

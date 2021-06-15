@@ -14,9 +14,6 @@
 #ifndef __HAPROXY_SHCTX_T_H
 #define __HAPROXY_SHCTX_T_H
 
-#if !defined (USE_PRIVATE_CACHE) && defined(USE_PTHREAD_PSHARED)
-#include <pthread.h>
-#endif
 #include <haproxy/api-t.h>
 #include <haproxy/thread-t.h>
 
@@ -49,15 +46,7 @@ struct shared_block {
 };
 
 struct shared_context {
-#ifndef USE_PRIVATE_CACHE
-#ifdef USE_PTHREAD_PSHARED
-	pthread_mutex_t mutex;
-#else
-	unsigned int waiters;
-#endif
-#else
-	__decl_thread(HA_SPINLOCK_T lock);  // used when USE_PRIVATE_CACHE=1
-#endif
+	__decl_thread(HA_SPINLOCK_T lock);
 	struct list avail;  /* list for active and free blocks */
 	struct list hot;     /* list for locked blocks */
 	unsigned int nbav;  /* number of available blocks */

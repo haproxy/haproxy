@@ -379,11 +379,8 @@ target. Common issues may include:
   - clock_gettime() not found
     => your system needs USE_RT=1
 
-  - __sync_sub_and_fetch undefined in cache.o
-    => your system needs either USE_PTHREAD_PSHARED=1 or USE_PRIVATE_CACHE=1
-
   - many __sync_<something> errors in many files
-    => your gcc is too old, build without threads and with private cache.
+    => your gcc is too old, build without threads.
 
   - many openssl errors
     => your OpenSSL version really is too old, do not enable OpenSSL
@@ -504,44 +501,6 @@ If the ERR variable is set to any non-empty value, then -Werror will be added
 to the compiler so that any build warning will trigger an error. This is the
 recommended way to build when developing, and it is expected that contributed
 patches were tested with ERR=1.
-
-The SSL stack supports session cache synchronization between all running
-processes. This involves some atomic operations and synchronization operations
-which come in multiple flavors depending on the system and architecture :
-
-  Atomic operations :
-    - internal assembler versions for x86/x86_64 architectures
-
-    - gcc builtins for other architectures. Some architectures might not
-      be fully supported or might require a more recent version of gcc.
-      If your architecture is not supported, you willy have to either use
-      pthread if supported, or to disable the shared cache.
-
-    - pthread (posix threads). Pthreads are very common but inter-process
-      support is not that common, and some older operating systems did not
-      report an error when enabling multi-process mode, so they used to
-      silently fail, possibly causing crashes. Linux's implementation is
-      fine. OpenBSD doesn't support them and doesn't build. FreeBSD 9 builds
-      and reports an error at runtime, while certain older versions might
-      silently fail. Pthreads are enabled using USE_PTHREAD_PSHARED=1.
-
-  Synchronization operations :
-    - internal spinlock : this mode is OS-independent, light but will not
-      scale well to many processes. However, accesses to the session cache
-      are rare enough that this mode could certainly always be used. This
-      is the default mode.
-
-    - Futexes, which are Linux-specific highly scalable light weight mutexes
-      implemented in user-space with some limited assistance from the kernel.
-      This is the default on Linux 2.6 and above and is enabled by passing
-      USE_FUTEX=1
-
-    - pthread (posix threads). See above.
-
-If none of these mechanisms is supported by your platform, you may need to
-build with USE_PRIVATE_CACHE=1 to totally disable SSL cache sharing. Then it
-is better not to run SSL on multiple processes. Note that you don't need these
-features if you only intend to use multi-threading and never multi-process.
 
 If you need to pass other defines, includes, libraries, etc... then please
 check the Makefile to see which ones will be available in your case, and
