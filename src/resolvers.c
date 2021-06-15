@@ -588,6 +588,10 @@ static void resolv_srvrq_cleanup_srv(struct server *srv)
 	memset(&srv->addr, 0, sizeof(srv->addr));
 	srv->svc_port = 0;
 	srv->flags |= SRV_F_NO_RESOLUTION;
+
+	ebpt_delete(&srv->host_dn);
+	ha_free(&srv->host_dn.key);
+
 	HA_SPIN_UNLOCK(SERVER_LOCK, &srv->lock);
 	LIST_DELETE(&srv->srv_rec_item);
 	LIST_APPEND(&srv->srvrq->attached_servers, &srv->srv_rec_item);
@@ -685,7 +689,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 						if (srv->svc_port == item->port) {
 							/* server found, we remove it from tree */
 							ebpt_delete(node);
-							free(srv->host_dn.key);
+							ha_free(&srv->host_dn.key);
 							goto srv_found;
 						}
 
