@@ -17,11 +17,7 @@
 #include <haproxy/list.h>
 #include <haproxy/shctx.h>
 
-#if !defined (USE_PRIVATE_CACHE)
-
 int use_shared_mem = 0;
-
-#endif
 
 /*
  * Reserve a new row if <first> is null, put it in the hotlist, set the refcount to 1
@@ -296,10 +292,8 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 	int i;
 	struct shared_context *shctx;
 	int ret;
-#ifndef USE_PRIVATE_CACHE
 #ifdef USE_PTHREAD_PSHARED
 	pthread_mutexattr_t attr;
-#endif
 #endif
 	void *cur;
 	int maptype = MAP_PRIVATE;
@@ -311,10 +305,8 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 	blocksize = (blocksize + sizeof(void *) - 1) & -sizeof(void *);
 	extra     = (extra     + sizeof(void *) - 1) & -sizeof(void *);
 
-#ifndef USE_PRIVATE_CACHE
 	if (shared)
 		maptype = MAP_SHARED;
-#endif
 
 	shctx = (struct shared_context *)mmap(NULL, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)),
 	                                      PROT_READ | PROT_WRITE, maptype | MAP_ANON, -1, 0);
@@ -326,8 +318,8 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 
 	shctx->nbav = 0;
 
-#ifndef USE_PRIVATE_CACHE
 	if (maptype == MAP_SHARED) {
+#ifndef USE_PRIVATE_CACHE
 #ifdef USE_PTHREAD_PSHARED
 		if (pthread_mutexattr_init(&attr)) {
 			munmap(shctx, sizeof(struct shared_context) + extra + (maxblocks * (sizeof(struct shared_block) + blocksize)));
@@ -354,9 +346,11 @@ int shctx_init(struct shared_context **orig_shctx, int maxblocks, int blocksize,
 #else
 		shctx->waiters = 0;
 #endif
+#else
+		HA_SPIN_INIT(&shctx->lock);
+#endif
 		use_shared_mem = 1;
 	}
-#endif
 
 	LIST_INIT(&shctx->avail);
 	LIST_INIT(&shctx->hot);

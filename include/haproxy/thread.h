@@ -380,6 +380,7 @@ enum lock_label {
 	STK_SESS_LOCK,
 	APPLETS_LOCK,
 	PEER_LOCK,
+	SHCTX_LOCK,
 	SSL_LOCK,
 	SSL_GEN_CERTS_LOCK,
 	PATREF_LOCK,
@@ -431,6 +432,7 @@ static inline const char *lock_label(enum lock_label label)
 	case STK_SESS_LOCK:        return "STK_SESS";
 	case APPLETS_LOCK:         return "APPLETS";
 	case PEER_LOCK:            return "PEER";
+	case SHCTX_LOCK:           return "SHCTX";
 	case SSL_LOCK:             return "SSL";
 	case SSL_GEN_CERTS_LOCK:   return "SSL_GEN_CERTS";
 	case PATREF_LOCK:          return "PATREF";

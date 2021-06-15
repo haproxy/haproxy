@@ -14,7 +14,7 @@
 #ifndef __HAPROXY_SHCTX_H
 #define __HAPROXY_SHCTX_H
 
-#include <haproxy/api-t.h>
+#include <haproxy/api.h>
 #include <haproxy/list.h>
 #include <haproxy/shctx-t.h>
 
@@ -28,6 +28,8 @@
 #include <sys/syscall.h>
 #endif
 #endif
+#else
+#include <haproxy/thread.h>
 #endif
 
 int shctx_init(struct shared_context **orig_shctx,
@@ -47,9 +49,10 @@ int shctx_row_data_get(struct shared_context *shctx, struct shared_block *first,
 /* Lock functions */
 
 #if defined (USE_PRIVATE_CACHE)
+extern int use_shared_mem;
 
-#define shctx_lock(shctx)
-#define shctx_unlock(shctx)
+#define shctx_lock(shctx)   if (use_shared_mem) HA_SPIN_LOCK(SHCTX_LOCK, &shctx->lock)
+#define shctx_unlock(shctx) if (use_shared_mem) HA_SPIN_UNLOCK(SHCTX_LOCK, &shctx->lock)
 
 #elif defined (USE_PTHREAD_PSHARED)
 extern int use_shared_mem;
