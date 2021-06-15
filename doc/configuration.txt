@@ -1122,7 +1122,7 @@ chroot <jail dir>
   empty and non-writable to anyone.
 
 cpu-map [auto:]<process-set>[/<thread-set>] <cpu-set>...
-  On Linux 2.6 and above, it is possible to bind a process or a thread to a
+  On some operating systems, it is possible to bind a process or a thread to a
   specific CPU set. This means that the process or the thread will never run on
   other CPUs. The "cpu-map" directive specifies CPU sets for process or thread
   sets. The first argument is a process set, eventually followed by a thread
@@ -1130,10 +1130,10 @@ cpu-map [auto:]<process-set>[/<thread-set>] <cpu-set>...
 
       all | odd | even | number[-[number]]
 
-  <number>> must be a number between 1 and 32 or 64, depending on the machine's
-  word size. Any process IDs above nbproc and any thread IDs above nbthread are
+  <number> must be a number between 1 and 32 or 64, depending on the machine's
+  word size. Any process IDs above 1 and any thread IDs above nbthread are
   ignored. It is possible to specify a range with two such number delimited by
-  a dash ('-'). It also is possible to specify all processes at once using
+  a dash ('-'). It also is possible to specify all thraeds at once using
   "all", only odd numbers using "odd" or even numbers using "even", just like
   with the "bind-process" directive. The second and forthcoming arguments are
   CPU sets. Each CPU set is either a unique number starting at 0 for the first
@@ -1152,28 +1152,25 @@ cpu-map [auto:]<process-set>[/<thread-set>] <cpu-set>...
   on the machine's word size.
 
   The prefix "auto:" can be added before the process set to let HAProxy
-  automatically bind a process or a thread to a CPU by incrementing
-  process/thread and CPU sets. To be valid, both sets must have the same
-  size. No matter the declaration order of the CPU sets, it will be bound from
-  the lowest to the highest bound. Having a process and a thread range with the
-  "auto:" prefix is not supported. Only one range is supported, the other one
-  must be a fixed number.
+  automatically bind a process or a thread to a CPU by incrementing threads and
+  CPU sets. To be valid, both sets must have the same size. No matter the
+  declaration order of the CPU sets, it will be bound from the lowest to the
+  highest bound. Having both a process and a thread range with the "auto:"
+  prefix is not supported. Only one range is supported, the other one must be
+  a fixed number.
+
+  Note that process ranges are supported for historical reasons. Nowadays, a
+  lone number designates a process and must be 1, and specifying a thread range
+  or number requires to prepend "1/" in front of it. Finally, "1" is strictly
+  equivalent to "1/all" and designates all threads on the process.
 
   Examples:
-      cpu-map 1-4 0-3   # bind processes 1 to 4 on the first 4 CPUs
-
       cpu-map 1/all 0-3 # bind all threads of the first process on the
                         # first 4 CPUs
 
-      cpu-map 1- 0-     # will be replaced by "cpu-map 1-64 0-63"
-                        # or "cpu-map 1-32 0-31" depending on the machine's
+      cpu-map 1/1- 0-   # will be replaced by "cpu-map 1/1-64 0-63"
+                        # or "cpu-map 1/1-32 0-31" depending on the machine's
                         # word size.
-
-      # all these lines bind the process 1 to the cpu 0, the process 2 to cpu 1
-      # and so on.
-      cpu-map auto:1-4   0-3
-      cpu-map auto:1-4   0-1 2-3
-      cpu-map auto:1-4   3 2 1 0
 
       # all these lines bind the thread 1 to the cpu 0, the thread 2 to cpu 1
       # and so on.
@@ -1181,20 +1178,14 @@ cpu-map [auto:]<process-set>[/<thread-set>] <cpu-set>...
       cpu-map auto:1/1-4   0-1 2-3
       cpu-map auto:1/1-4   3 2 1 0
 
-      # bind each process to exactly one CPU using all/odd/even keyword
-      cpu-map auto:all   0-63
-      cpu-map auto:even  0-31
-      cpu-map auto:odd   32-63
+      # bind each thread to exactly one CPU using all/odd/even keyword
+      cpu-map auto:1/all   0-63
+      cpu-map auto:1/even  0-31
+      cpu-map auto:1/odd   32-63
 
-      # invalid cpu-map because process and CPU sets have different sizes.
-      cpu-map auto:1-4   0    # invalid
-      cpu-map auto:1     0-3  # invalid
-
-      # invalid cpu-map because automatic binding is used with a process range
-      # and a thread range.
-      cpu-map auto:all/all   0 # invalid
-      cpu-map auto:all/1-4   0 # invalid
-      cpu-map auto:1-4/all   0 # invalid
+      # invalid cpu-map because thread and CPU sets have different sizes.
+      cpu-map auto:1/1-4   0    # invalid
+      cpu-map auto:1/1     0-3  # invalid
 
 crt-base <dir>
   Assigns a default directory to fetch SSL certificates from when a relative
@@ -1627,8 +1618,8 @@ master-worker [no-exit-on-failure]
   This mode will launch a "master" which will monitor the "workers". Using
   this mode, you can reload HAProxy directly by sending a SIGUSR2 signal to
   the master. The master-worker mode is compatible either with the foreground
-  or daemon mode. It is recommended to use this mode with multiprocess and
-  systemd.
+  or daemon mode.
+
   By default, if a worker exits with a bad return code, in the case of a
   segfault for example, all workers will be killed, and the master will leave.
   It is convenient to combine this behavior with Restart=on-failure in a
@@ -1701,17 +1692,9 @@ resetenv [<name> ...]
   "setenv", "presetenv", and "unsetenv".
 
 stats bind-process [ all | odd | even | <process_num>[-[process_num>]] ] ...
-  Limits the stats socket to a certain set of processes numbers. By default the
-  stats socket is bound to all processes, causing a warning to be emitted when
-  nbproc is greater than 1 because there is no way to select the target process
-  when connecting. However, by using this setting, it becomes possible to pin
-  the stats socket to a specific set of processes, typically the first one. The
-  warning will automatically be disabled when this setting is used, whatever
-  the number of processes used. The maximum process ID depends on the machine's
-  word size (32 or 64). Ranges can be partially defined. The higher bound can
-  be omitted. In such case, it is replaced by the corresponding maximum
-  value. A better option consists in using the "process" setting of the "stats
-  socket" line to force the process on each line.
+  Deprecated. Before threads were supported, this was used to force some stats
+  instances on certain processes only. The default and only accepted value is
+  "1" (along with "all" and "odd" which alias it). Do not use this setting.
 
 server-state-base <directory>
   Specifies the directory prefix to be prepended in front of all servers state
@@ -4102,67 +4085,15 @@ bind /<path> [, ...] [param*]
 
 
 bind-process [ all | odd | even | <process_num>[-[<process_num>]] ] ...
-  Limit visibility of an instance to a certain set of processes numbers.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
-  Arguments :
-    all           All process will see this instance. This is the default. It
-                  may be used to override a default value.
 
-    odd           This instance will be enabled on processes 1,3,5,...63. This
-                  option may be combined with other numbers.
-
-    even          This instance will be enabled on processes 2,4,6,...64. This
-                  option may be combined with other numbers. Do not use it
-                  with less than 2 processes otherwise some instances might be
-                  missing from all processes.
-
-    process_num   The instance will be enabled on this process number or range,
-                  whose values must all be between 1 and 32 or 64 depending on
-                  the machine's word size. Ranges can be partially defined. The
-                  higher bound can be omitted. In such case, it is replaced by
-                  the corresponding maximum value. If a proxy is bound to
-                  process numbers greater than the configured global.nbproc, it
-                  will either be forced to process #1 if a single process was
-                  specified, or to all processes otherwise.
-
-  This keyword limits binding of certain instances to certain processes. This
-  is useful in order not to have too many processes listening to the same
-  ports. For instance, on a dual-core machine, it might make sense to set
-  'nbproc 2' in the global section, then distributes the listeners among 'odd'
-  and 'even' instances.
-
-  At the moment, it is not possible to reference more than 32 or 64 processes
-  using this keyword, but this should be more than enough for most setups.
-  Please note that 'all' really means all processes regardless of the machine's
-  word size, and is not limited to the first 32 or 64.
-
-  Each "bind" line may further be limited to a subset of the proxy's processes,
-  please consult the "process" bind keyword in section 5.1.
-
-  When a frontend has no explicit "bind-process" line, it tries to bind to all
-  the processes referenced by its "bind" lines. That means that frontends can
-  easily adapt to their listeners' processes.
-
-  If some backends are referenced by frontends bound to other processes, the
-  backend automatically inherits the frontend's processes.
-
-  Example :
-        listen app_ip1
-            bind 10.0.0.1:80
-            bind-process odd
-
-        listen app_ip2
-            bind 10.0.0.2:80
-            bind-process even
-
-        listen management
-            bind 10.0.0.3:80
-            bind-process 1 2 3 4
-
-        listen management
-            bind 10.0.0.4:80
-            bind-process 1-4
+  Deprecated. Before threads were supported, this was used to force some
+  frontends on certain processes only, or to adjust backends so that they
+  could match the frontends that used them. The default and only accepted
+  value is "1" (along with "all" and "odd" which alias it). Do not use this
+  setting. Threads can still be bound per-socket using the "process" bind
+  keyword.
 
   See also : "process" in section 5.1.
 
@@ -10507,9 +10438,8 @@ stats admin { if | unless } <cond>
         stats http-request auth unless AUTH
         stats admin if AUTH_ADMIN
 
-  See also : "stats enable", "stats auth", "stats http-request",
-             "bind-process", section 3.4 about userlists and section 7 about
-             ACL usage.
+  See also : "stats enable", "stats auth", "stats http-request", section 3.4
+             about userlists and section 7 about ACL usage.
 
 
 stats auth <user>:<passwd>
@@ -10989,8 +10919,8 @@ stick match <pattern> [table <table>] [{if | unless} <cond>]
         server s1 192.168.1.1:25
         server s2 192.168.1.1:25
 
-  See also : "stick-table", "stick on", "bind-process" and section 7
-             about ACLs and samples fetching.
+  See also : "stick-table", "stick on", and section 7 about ACLs and samples
+             fetching.
 
 
 stick on <pattern> [table <table>] [{if | unless} <condition>]
@@ -11030,7 +10960,7 @@ stick on <pattern> [table <table>] [{if | unless} <condition>]
         server s1 192.168.1.1:443
         server s2 192.168.1.1:443
 
-  See also : "stick match", "stick store-request" and "bind-process".
+  See also : "stick match", "stick store-request".
 
 
 stick store-request <pattern> [table <table>] [{if | unless} <condition>]
@@ -11114,8 +11044,7 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
         server s1 192.168.1.1:25
         server s2 192.168.1.1:25
 
-  See also : "stick-table", "stick on", "bind-process" and section 7
-             about ACLs and sample fetching.
+  See also : "stick-table", "stick on", about ACLs and sample fetching.
 
 
 stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
@@ -11183,9 +11112,6 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                the remote peers declared in this section. All entries are also
                automatically learned from the local peer (old process) during a
                soft restart.
-
-               NOTE : each peers section may be referenced only by tables
-                      belonging to the same unique process.
 
     <expire>   defines the maximum duration of an entry in the table since it
                was last created, refreshed or matched. The expiration delay is
@@ -13708,30 +13634,21 @@ prefer-client-ciphers
   the client cipher list.
 
 process <process-set>[/<thread-set>]
-  This restricts the list of processes or threads on which this listener is
-  allowed to run. It does not enforce any process but eliminates those which do
-  not match. If the frontend uses a "bind-process" setting, the intersection
-  between the two is applied. If in the end the listener is not allowed to run
-  on any remaining process, a warning is emitted, and the listener will either
-  run on the first process of the listener if a single process was specified,
-  or on all of its processes if multiple processes were specified. If a thread
-  set is specified, it limits the threads allowed to process incoming
-  connections for this listener, for the the process set. If multiple processes
-  and threads are configured, a warning is emitted, as it either results from a
-  configuration error or a misunderstanding of these models. For the unlikely
-  case where several ranges are needed, this directive may be repeated.
-  <process-set> and <thread-set> must use the format
+  This restricts the list of threads on which this listener is allowed to run.
+  It does not enforce any of them but eliminates those which do not match. Note
+  that only process number 1 is permitted. If a thread set is specified, it
+  limits the threads allowed to process incoming connections for this listener.
+  For the unlikely case where several ranges are needed, this directive may be
+  repeated. <process-set> and <thread-set> must use the format
 
       all | odd | even | number[-[number]]
 
   Ranges can be partially defined. The higher bound can be omitted. In such
-  case, it is replaced by the corresponding maximum value. The main purpose of
-  this directive is to be used with the stats sockets and have one different
-  socket per process. The second purpose is to have multiple bind lines sharing
-  the same IP:port but not the same process in a listener, so that the system
-  can distribute the incoming connections into multiple queues and allow a
-  smoother inter-process load balancing. Currently Linux 3.9 and above is known
-  for supporting this. See also "bind-process".
+  case, it is replaced by the corresponding maximum value. The main purpose is
+  to have multiple bind lines sharing the same IP:port but not the same thread
+  in a listener, so that the system can distribute the incoming connections
+  into multiple queues, bypassing haproxy's internal queue load balancing.
+  Currently Linux 3.9 and above is known for supporting this.
 
 proto <name>
   Forces the multiplexer's protocol to use for the incoming connections. It
@@ -15155,8 +15072,8 @@ HAProxy provides a cache, which was designed to perform cache on small objects
 (favicon, css...). This is a minimalist low-maintenance cache which runs in
 RAM.
 
-The cache is based on a memory which is shared between processes and threads,
-this memory is split in blocks of 1k.
+The cache is based on a memory area shared between all threads, and split in 1kB
+blocks.
 
 If an object is not used anymore, it can be deleted to store a new object
 independently of its expiration date. The oldest objects are deleted first
