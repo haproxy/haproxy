@@ -156,7 +156,6 @@ int cfg_parse_program(const char *file, int linenum, char **args, int kwm)
 		ext_child->path = NULL;
 		ext_child->id = NULL;
 		ext_child->pid = -1;
-		ext_child->relative_pid = -1;
 		ext_child->reloads = 0;
 		ext_child->timestamp = -1;
 		ext_child->ipc_fd[0] = -1;

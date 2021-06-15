@@ -3950,7 +3950,7 @@ static int
 smp_fetch_proc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = relative_pid;
+	smp->data.u.sint = 1;
 	return 1;
 }
 

@@ -157,7 +157,6 @@ const char *build_features = "";
 /* list of config files */
 static struct list cfg_cfgfiles = LIST_HEAD_INIT(cfg_cfgfiles);
 int  pid;			/* current process id */
-int  relative_pid = 1;		/* process id starting at 1 */
 
 volatile unsigned long sleeping_thread_mask = 0; /* Threads that are about to sleep in poll() */
 volatile unsigned long stopping_thread_mask = 0; /* Threads acknowledged stopping */
@@ -821,7 +820,6 @@ static void mworker_loop()
 				     some SIGCHLD were lost */
 
 	global.nbthread = 1;
-	relative_pid = 1;
 
 #ifdef USE_THREAD
 	tid_bit = 1;
@@ -1909,7 +1907,6 @@ static void init(int argc, char **argv)
 			}
 			tmproc->options |= PROC_O_TYPE_MASTER; /* master */
 			tmproc->reloads = 0;
-			tmproc->relative_pid = 0;
 			tmproc->pid = pid;
 			tmproc->timestamp = start_date.tv_sec;
 			tmproc->ipc_fd[0] = -1;
@@ -1930,7 +1927,6 @@ static void init(int argc, char **argv)
 		tmproc->pid = -1;
 		tmproc->reloads = 0;
 		tmproc->timestamp = -1;
-		tmproc->relative_pid = 1;
 		tmproc->ipc_fd[0] = -1;
 		tmproc->ipc_fd[1] = -1;
 
@@ -3148,7 +3144,7 @@ int main(int argc, char **argv)
 				exit(1); /* there has been an error */
 			}
 			else if (ret == 0) { /* child breaks here */
-				ha_random_jump96(relative_pid);
+				ha_random_jump96(1);
 			}
 			else { /* parent here */
 				in_parent = 1;
@@ -3161,11 +3157,10 @@ int main(int argc, char **argv)
 				if (global.mode & MODE_MWORKER) {
 					struct mworker_proc *child;
 
-					ha_notice("New worker #%d (%d) forked\n", relative_pid, ret);
+					ha_notice("New worker #%d (%d) forked\n", 1, ret);
 					/* find the right mworker_proc */
 					list_for_each_entry(child, &proc_list, list) {
-						if (child->relative_pid == relative_pid &&
-						    child->reloads == 0 && child->options & PROC_O_TYPE_WORKER) {
+						if (child->reloads == 0 && child->options & PROC_O_TYPE_WORKER) {
 							child->timestamp = now.tv_sec;
 							child->pid = ret;
 							child->version = strdup(haproxy_version);
@@ -3242,7 +3237,7 @@ int main(int argc, char **argv)
 				 * the bind_proc */
 				if (child->ipc_fd[0] >= 0)
 					close(child->ipc_fd[0]);
-				if (child->relative_pid == relative_pid &&
+				if (child->options & PROC_O_TYPE_WORKER &&
 				    child->reloads == 0) {
 					/* keep this struct if this is our pid */
 					proc_self = child;

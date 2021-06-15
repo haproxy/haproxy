@@ -28,7 +28,6 @@
 extern const char *build_features;
 extern struct global global;
 extern int  pid;                /* current process id */
-extern int  relative_pid;       /* process id starting at 1 */
 extern int  actconn;            /* # of active sessions */
 extern int  listeners;
 extern int  jobs;               /* # of active jobs (listeners, sessions, open devices) */

@@ -567,7 +567,7 @@ static int peer_prepare_hellomsg(char *msg, size_t size, struct peer_prep_params
 	min_ver = (peer->flags & PEER_F_DWNGRD) ? PEER_DWNGRD_MINOR_VER : PEER_MINOR_VER;
 	/* Prepare headers */
 	ret = snprintf(msg, size, PEER_SESSION_PROTO_NAME " %u.%u\n%s\n%s %d %d\n",
-	              PEER_MAJOR_VER, min_ver, peer->id, localpeer, (int)getpid(), relative_pid);
+	              PEER_MAJOR_VER, min_ver, peer->id, localpeer, (int)getpid(), 1);
 	if (ret >= size)
 		return 0;
 

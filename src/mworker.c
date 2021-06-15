@@ -122,7 +122,7 @@ void mworker_proc_list_to_env()
 			type = 'w';
 
 		if (child->pid > -1)
-			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d;id=%s;version=%s", msg ? msg : "", type, child->ipc_fd[0], child->pid, child->relative_pid, child->reloads, child->timestamp, child->id ? child->id : "", child->version);
+			memprintf(&msg, "%s|type=%c;fd=%d;pid=%d;rpid=%d;reloads=%d;timestamp=%d;id=%s;version=%s", msg ? msg : "", type, child->ipc_fd[0], child->pid, 1, child->reloads, child->timestamp, child->id ? child->id : "", child->version);
 	}
 	if (msg)
 		setenv("HAPROXY_PROCESSES", msg, 1);
@@ -173,8 +173,6 @@ int mworker_env_to_proc_list()
 				child->ipc_fd[0] = atoi(subtoken+3);
 			} else if (strncmp(subtoken, "pid=", 4) == 0) {
 				child->pid = atoi(subtoken+4);
-			} else if (strncmp(subtoken, "rpid=", 5) == 0) {
-				child->relative_pid = atoi(subtoken+5);
 			} else if (strncmp(subtoken, "reloads=", 8) == 0) {
 				/* we reloaded this process once more */
 				child->reloads = atoi(subtoken+8) + 1;
@@ -298,9 +296,9 @@ restart_wait:
 			if (!(child->options & PROC_O_LEAVING)) {
 				if (child->options & PROC_O_TYPE_WORKER) {
 					if (status < 128)
-						ha_warning("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, "Exit");
+						ha_warning("Current worker #%d (%d) exited with code %d (%s)\n", 1, exitpid, status, "Exit");
 					else
-						ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, strsignal(status - 128));
+						ha_alert("Current worker #%d (%d) exited with code %d (%s)\n", 1, exitpid, status, strsignal(status - 128));
 				}
 				else if (child->options & PROC_O_TYPE_PROG)
 					ha_alert("Current program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
@@ -315,7 +313,7 @@ restart_wait:
 					exitcode = status;
 			} else {
 				if (child->options & PROC_O_TYPE_WORKER) {
-					ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", child->relative_pid, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
+					ha_warning("Former worker #%d (%d) exited with code %d (%s)\n", 1, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
 					delete_oldpid(exitpid);
 				} else if (child->options & PROC_O_TYPE_PROG) {
 					ha_warning("Former program '%s' (%d) exited with code %d (%s)\n", child->id, exitpid, status, (status >= 128) ? strsignal(status - 128) : "Exit");
@@ -482,7 +480,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 			continue;
 		}
 		memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
-		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s %-15s\n", child->pid, "worker", child->relative_pid, child->reloads, uptime, child->version);
+		chunk_appendf(&trash, "%-15u %-15s %-15u %-15d %-15s %-15s\n", child->pid, "worker", 1, child->reloads, uptime, child->version);
 		ha_free(&uptime);
 	}
 
@@ -499,7 +497,7 @@ static int cli_io_handler_show_proc(struct appctx *appctx)
 				continue;
 
 			if (child->options & PROC_O_LEAVING) {
-				memprintf(&msg, "[was: %u]", child->relative_pid);
+				memprintf(&msg, "[was: %u]", 1);
 				memprintf(&uptime, "%dd%02dh%02dm%02ds", up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60));
 				chunk_appendf(&trash, "%-15u %-15s %-15s %-15d %-15s %-15s\n", child->pid, "worker", msg, child->reloads, uptime, child->version);
 				ha_free(&uptime);

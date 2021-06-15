@@ -87,7 +87,7 @@ const struct name_desc info_fields[INF_TOTAL_FIELDS] = {
 	[INF_RELEASE_DATE]                   = { .name = "Release_date",                .desc = "Date of latest source code update" },
 	[INF_NBTHREAD]                       = { .name = "Nbthread",                    .desc = "Number of started threads (global.nbthread)" },
 	[INF_NBPROC]                         = { .name = "Nbproc",                      .desc = "Number of started worker processes (historical, always 1)" },
-	[INF_PROCESS_NUM]                    = { .name = "Process_num",                 .desc = "Relative worker process number (1..Nbproc)" },
+	[INF_PROCESS_NUM]                    = { .name = "Process_num",                 .desc = "Relative worker process number (1)" },
 	[INF_PID]                            = { .name = "Pid",                         .desc = "This worker process identifier for the system" },
 	[INF_UPTIME]                         = { .name = "Uptime",                      .desc = "How long ago this worker process was started (days+hours+minutes+seconds)" },
 	[INF_UPTIME_SEC]                     = { .name = "Uptime_sec",                  .desc = "How long ago this worker process was started (seconds)" },
@@ -183,7 +183,7 @@ const struct name_desc stat_fields[ST_F_TOTAL_FIELDS] = {
 	[ST_F_LASTCHG]                       = { .name = "lastchg",                     .desc = "How long ago the last server state changed, in seconds" },
 	[ST_F_DOWNTIME]                      = { .name = "downtime",                    .desc = "Total time spent in DOWN state, for server or backend" },
 	[ST_F_QLIMIT]                        = { .name = "qlimit",                      .desc = "Limit on the number of connections in queue, for servers only (maxqueue argument)" },
-	[ST_F_PID]                           = { .name = "pid",                         .desc = "Relative worker process number (1..nbproc)" },
+	[ST_F_PID]                           = { .name = "pid",                         .desc = "Relative worker process number (1)" },
 	[ST_F_IID]                           = { .name = "iid",                         .desc = "Frontend or Backend numeric identifier ('id' setting)" },
 	[ST_F_SID]                           = { .name = "sid",                         .desc = "Server numeric identifier ('id' setting)" },
 	[ST_F_THROTTLE]                      = { .name = "throttle",                    .desc = "Throttling ratio applied to a server's maxconn and weight during the slowstart period (0 to 100%)" },
@@ -1696,7 +1696,7 @@ int stats_fill_fe_stats(struct proxy *px, struct field *stats, int len,
 				metric = mkf_str(FO_STATUS, px->disabled ? "STOP" : "OPEN");
 				break;
 			case ST_F_PID:
-				metric = mkf_u32(FO_KEY, relative_pid);
+				metric = mkf_u32(FO_KEY, 1);
 				break;
 			case ST_F_IID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
@@ -1911,7 +1911,7 @@ int stats_fill_li_stats(struct proxy *px, struct listener *l, int flags,
 				metric = mkf_str(FO_STATUS, li_status_st[get_li_status(l)]);
 				break;
 			case ST_F_PID:
-				metric = mkf_u32(FO_KEY, relative_pid);
+				metric = mkf_u32(FO_KEY, 1);
 				break;
 			case ST_F_IID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
@@ -2259,7 +2259,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->maxqueue);
 				break;
 			case ST_F_PID:
-				metric = mkf_u32(FO_KEY, relative_pid);
+				metric = mkf_u32(FO_KEY, 1);
 				break;
 			case ST_F_IID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
@@ -2638,7 +2638,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 					metric = mkf_u32(FN_COUNTER, be_downtime(px));
 				break;
 			case ST_F_PID:
-				metric = mkf_u32(FO_KEY, relative_pid);
+				metric = mkf_u32(FO_KEY, 1);
 				break;
 			case ST_F_IID:
 				metric = mkf_u32(FO_KEY|FS_SERVICE, px->uuid);
@@ -3339,7 +3339,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 		      (appctx->ctx.stats.flags & STAT_SHNODE) ? (uri->node ? uri->node : global.node) : "",
 	              (appctx->ctx.stats.flags & STAT_SHDESC) ? ": " : "",
 		      (appctx->ctx.stats.flags & STAT_SHDESC) ? (uri->desc ? uri->desc : global.desc) : "",
-	              pid, relative_pid, 1, global.nbthread,
+	              pid, 1, 1, global.nbthread,
 	              up / 86400, (up % 86400) / 3600,
 	              (up % 3600) / 60, (up % 60),
 	              global.rlimit_memmax ? ultoa(global.rlimit_memmax) : "unlimited",
@@ -4320,7 +4320,7 @@ int stats_fill_info(struct field *info, int len, uint flags)
 
 	info[INF_NBTHREAD]                       = mkf_u32(FO_CONFIG|FS_SERVICE, global.nbthread);
 	info[INF_NBPROC]                         = mkf_u32(FO_CONFIG|FS_SERVICE, 1);
-	info[INF_PROCESS_NUM]                    = mkf_u32(FO_KEY, relative_pid);
+	info[INF_PROCESS_NUM]                    = mkf_u32(FO_KEY, 1);
 	info[INF_PID]                            = mkf_u32(FO_STATUS, pid);
 
 	info[INF_UPTIME]                         = mkf_str(FN_DURATION, chunk_newstr(out));

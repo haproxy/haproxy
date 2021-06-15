@@ -2159,12 +2159,10 @@ static int pcli_prefix_to_pid(const char *prefix)
 		list_for_each_entry(child, &proc_list, list) {
 			if (!(child->options & PROC_O_TYPE_WORKER))
 				continue;
-			if (child->relative_pid == proc_pid){
-				if (child->reloads == 0)
-					return child->pid;
-				else if (chosen == NULL || child->reloads < chosen->reloads)
-					chosen = child;
-			}
+			if (child->reloads == 0)
+				return child->pid;
+			else if (chosen == NULL || child->reloads < chosen->reloads)
+				chosen = child;
 		}
 		if (chosen)
 			return chosen->pid;
@@ -2721,7 +2719,7 @@ int mworker_cli_proxy_create()
 
 		/* we don't know the new pid yet */
 		if (child->pid == -1)
-			memprintf(&msg, "cur-%d", child->relative_pid);
+			memprintf(&msg, "cur-%d", 1);
 		else
 			memprintf(&msg, "old-%d", child->pid);
 
