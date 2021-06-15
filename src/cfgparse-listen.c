@@ -616,6 +616,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			cur_arg++;
 		}
+		ha_warning("parsing [%s:%d]: '%s' has no effect, is deprecated, and will be removed in version 2.7.\n",
+			   file, linenum, args[0]);
+		err_code |= ERR_WARN;
 	}
 	else if (strcmp(args[0], "acl") == 0) {  /* add an ACL */
 		if (curproxy->cap & PR_CAP_DEF) {
