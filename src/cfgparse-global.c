@@ -1024,7 +1024,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 #ifdef USE_CPU_AFFINITY
 		char *slash;
 		unsigned long proc = 0, thread = 0;
-		int i, j, n, autoinc;
+		int j, n, autoinc;
 		struct hap_cpuset cpus, cpus_copy;
 
 		if (!*args[1] || !*args[2]) {
@@ -1056,14 +1056,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 			*slash = '/';
-
-			if (autoinc && atleast2(proc) && atleast2(thread)) {
-				ha_alert("parsing [%s:%d] : %s : '%s' : unable to automatically bind "
-					 "a process range _AND_ a thread range\n",
-					 file, linenum, args[0], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
 		}
 
 		if (parse_cpu_set((const char **)args+2, &cpus, 0, &errmsg)) {
@@ -1086,6 +1078,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		 *    cpu-map P-Q    => mapping for whole processes, numbers P to Q
 		 *    cpu-map P-Q/1  => mapping of first thread of processes P to Q
 		 *    cpu-map 1/T-U  => mapping of threads T to U of process 1
+		 * (note: P=Q=1 since 2.5).
 		 * Otherwise other combinations are silently ignored since nbthread
 		 * and nbproc cannot both be >1 :
 		 *    cpu-map P-Q/T  => mapping for thread T for processes P to Q.
@@ -1093,72 +1086,33 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		 *    cpu-map P/T-U  => mapping for threads T to U of process P. Only
 		 *                      one of P,U may be > 1, others ignored.
 		 */
-		if (!thread) {
-			/* mapping for whole processes. E.g. cpu-map 1-4 0-3 */
+		if (!thread || thread == 0x1) {
+			/* mapping for whole process. E.g. cpu-map 1 0-3 or cpu-map 1/1 0-3 */
 			ha_cpuset_assign(&cpus_copy, &cpus);
-			for (i = n = 0; i < MAX_PROCS; i++) {
-				/* No mapping for this process */
-				if (!(proc & (1UL << i)))
+
+			if (!autoinc)
+				ha_cpuset_assign(&cpu_map.proc[0], &cpus);
+			else {
+				ha_cpuset_zero(&cpu_map.proc[0]);
+				n = ha_cpuset_ffs(&cpus_copy) - 1;
+				ha_cpuset_clr(&cpus_copy, n);
+				ha_cpuset_set(&cpu_map.proc[0], n);
+			}
+		} else {
+			/* first process, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
+			ha_cpuset_assign(&cpus_copy, &cpus);
+			for (j = n = 0; j < MAX_THREADS; j++) {
+				/* No mapping for this thread */
+				if (!(thread & (1UL << j)))
 					continue;
 
 				if (!autoinc)
-					ha_cpuset_assign(&cpu_map.proc[i], &cpus);
+					ha_cpuset_assign(&cpu_map.thread[j], &cpus);
 				else {
-					ha_cpuset_zero(&cpu_map.proc[i]);
+					ha_cpuset_zero(&cpu_map.thread[j]);
 					n = ha_cpuset_ffs(&cpus_copy) - 1;
 					ha_cpuset_clr(&cpus_copy, n);
-					ha_cpuset_set(&cpu_map.proc[i], n);
-				}
-			}
-		} else {
-			/* Mapping at the thread level.
-			 * Either proc and/or thread must be 1 and only 1. All
-			 * other combinations are silently ignored.
-			 */
-			if (thread == 0x1) {
-				/* first thread, iterate on processes. E.g. cpu-map 1-4/1 0-3 */
-				struct hap_cpuset *dst;
-
-				ha_cpuset_assign(&cpus_copy, &cpus);
-				for (i = n = 0; i < MAX_PROCS; i++) {
-					/* No mapping for this process */
-					if (!(proc & (1UL << i)))
-						continue;
-
-					/* For first process, thread[0] is used.
-					 * Use proc_t1[N] for all others
-					 */
-					dst = i ? &cpu_map.proc_t1[i] :
-					          &cpu_map.thread[0];
-
-					if (!autoinc) {
-						ha_cpuset_assign(dst, &cpus);
-					}
-					else {
-						ha_cpuset_zero(dst);
-						n = ha_cpuset_ffs(&cpus_copy) - 1;
-						ha_cpuset_clr(&cpus_copy, n);
-						ha_cpuset_set(dst, n);
-					}
-				}
-			}
-
-			if (proc == 0x1) {
-				/* first process, iterate on threads. E.g. cpu-map 1/1-4 0-3 */
-				ha_cpuset_assign(&cpus_copy, &cpus);
-				for (j = n = 0; j < MAX_THREADS; j++) {
-					/* No mapping for this thread */
-					if (!(thread & (1UL << j)))
-						continue;
-
-					if (!autoinc)
-						ha_cpuset_assign(&cpu_map.thread[j], &cpus);
-					else {
-						ha_cpuset_zero(&cpu_map.thread[j]);
-						n = ha_cpuset_ffs(&cpus_copy) - 1;
-						ha_cpuset_clr(&cpus_copy, n);
-						ha_cpuset_set(&cpu_map.thread[j], n);
-					}
+					ha_cpuset_set(&cpu_map.thread[j], n);
 				}
 			}
 
