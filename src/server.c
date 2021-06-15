@@ -4040,6 +4040,10 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 			cli_err(appctx, "set server <b>/<s> fqdn requires a FQDN.\n");
 			goto out_unlock;
 		}
+		if (sv->srvrq) {
+			cli_err(appctx, "set server <b>/<s> fqdn failed because SRV resolution is configured.\n");
+			goto out_unlock;
+		}
 		/* ensure runtime resolver will process this new fqdn */
 		if (sv->flags & SRV_F_NO_RESOLUTION) {
 			sv->flags &= ~SRV_F_NO_RESOLUTION;
