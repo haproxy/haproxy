@@ -27,7 +27,7 @@ haproxy h1 -conf {
 
 haproxy h1 -cli {
     send "set server test/www1 fqdn foo.fqdn"
-    expect ~ "could not update test/www1 FQDN by 'stats socket command'"
+    expect ~ "set server <b>/<s> fqdn failed because no resolution is configured."
     send "show servers state test"
     expect ~ "test 1 www1 ${s1_addr} .* - ${s1_port}"
 } -wait

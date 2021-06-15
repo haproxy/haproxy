@@ -3906,14 +3906,15 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 	if (!sv)
 		return 1;
 
-	HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
-
 	if (strcmp(args[3], "weight") == 0) {
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		warning = server_parse_weight_change_request(sv, args[4]);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 		if (warning)
 			cli_err(appctx, warning);
 	}
 	else if (strcmp(args[3], "state") == 0) {
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		if (strcmp(args[4], "ready") == 0)
 			srv_adm_set_ready(sv);
 		else if (strcmp(args[4], "drain") == 0)
@@ -3922,8 +3923,10 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 			srv_adm_set_maint(sv);
 		else
 			cli_err(appctx, "'set server <srv> state' expects 'ready', 'drain' and 'maint'.\n");
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	}
 	else if (strcmp(args[3], "health") == 0) {
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		if (sv->track)
 			cli_err(appctx, "cannot change health on a tracking server.\n");
 		else if (strcmp(args[4], "up") == 0) {
@@ -3940,8 +3943,10 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		}
 		else
 			cli_err(appctx, "'set server <srv> health' expects 'up', 'stopping', or 'down'.\n");
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	}
 	else if (strcmp(args[3], "agent") == 0) {
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		if (!(sv->agent.state & CHK_ST_ENABLED))
 			cli_err(appctx, "agent checks are not enabled on this server.\n");
 		else if (strcmp(args[4], "up") == 0) {
@@ -3954,6 +3959,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		}
 		else
 			cli_err(appctx, "'set server <srv> agent' expects 'up' or 'down'.\n");
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	}
 	else if (strcmp(args[3], "agent-addr") == 0) {
 		char *addr = NULL;
@@ -3961,12 +3967,14 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (strlen(args[4]) == 0) {
 			cli_err(appctx, "set server <b>/<s> agent-addr requires"
 					" an address and optionally a port.\n");
-			goto out_unlock;
+			goto out;
 		}
 		addr = args[4];
 		if (strcmp(args[5], "port") == 0)
 			port = args[6];
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		warning = srv_update_agent_addr_port(sv, addr, port);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
@@ -3975,10 +3983,12 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (strlen(args[4]) == 0) {
 			cli_err(appctx, "set server <b>/<s> agent-port requires"
 					" a port.\n");
-			goto out_unlock;
+			goto out;
 		}
 		port = args[4];
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		warning = srv_update_agent_addr_port(sv, NULL, port);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
@@ -3996,12 +4006,14 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (strlen(args[4]) == 0) {
 			cli_err(appctx, "set server <b>/<s> check-addr requires"
 					" an address and optionally a port.\n");
-			goto out_unlock;
+			goto out;
 		}
 		addr = args[4];
 		if (strcmp(args[5], "port") == 0)
 			port = args[6];
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		warning = srv_update_check_addr_port(sv, addr, port);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
@@ -4010,10 +4022,12 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (strlen(args[4]) == 0) {
 			cli_err(appctx, "set server <b>/<s> check-port requires"
 					" a port.\n");
-			goto out_unlock;
+			goto out;
 		}
 		port = args[4];
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		warning = srv_update_check_addr_port(sv, NULL, port);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
@@ -4022,7 +4036,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		char *port = NULL;
 		if (strlen(args[4]) == 0) {
 			cli_err(appctx, "set server <b>/<s> addr requires an address and optionally a port.\n");
-			goto out_unlock;
+			goto out;
 		}
 		else {
 			addr = args[4];
@@ -4030,25 +4044,35 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (strcmp(args[5], "port") == 0) {
 			port = args[6];
 		}
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		warning = srv_update_addr_port(sv, addr, port, "stats socket command");
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 		srv_clr_admin_flag(sv, SRV_ADMF_RMAINT);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 	}
 	else if (strcmp(args[3], "fqdn") == 0) {
 		if (!*args[4]) {
 			cli_err(appctx, "set server <b>/<s> fqdn requires a FQDN.\n");
-			goto out_unlock;
+			goto out;
+		}
+		if (!sv->resolvers) {
+			cli_err(appctx, "set server <b>/<s> fqdn failed because no resolution is configured.\n");
+			goto out;
 		}
 		if (sv->srvrq) {
 			cli_err(appctx, "set server <b>/<s> fqdn failed because SRV resolution is configured.\n");
-			goto out_unlock;
+			goto out;
 		}
+		HA_SPIN_LOCK(DNS_LOCK, &sv->resolvers->lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
 		/* ensure runtime resolver will process this new fqdn */
 		if (sv->flags & SRV_F_NO_RESOLUTION) {
 			sv->flags &= ~SRV_F_NO_RESOLUTION;
 		}
-		warning = srv_update_fqdn(sv, args[4], "stats socket command", 0);
+		warning = srv_update_fqdn(sv, args[4], "stats socket command", 1);
+		HA_SPIN_UNLOCK(SERVER_UNLOCK, &sv->lock);
+		HA_SPIN_UNLOCK(DNS_LOCK, &sv->resolvers->lock);
 		if (warning)
 			cli_msg(appctx, LOG_WARNING, warning);
 	}
@@ -4057,16 +4081,21 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 		if (sv->ssl_ctx.ctx == NULL) {
 			cli_err(appctx, "'set server <srv> ssl' cannot be set. "
 					" default-server should define ssl settings\n");
-			goto out_unlock;
-		} else if (strcmp(args[4], "on") == 0) {
+			goto out;
+		}
+
+		HA_SPIN_LOCK(SERVER_LOCK, &sv->lock);
+		if (strcmp(args[4], "on") == 0) {
 			ssl_sock_set_srv(sv, 1);
 		} else if (strcmp(args[4], "off") == 0) {
 			ssl_sock_set_srv(sv, 0);
 		} else {
+			HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 			cli_err(appctx, "'set server <srv> ssl' expects 'on' or 'off'.\n");
-			goto out_unlock;
+			goto out;
 		}
 		srv_cleanup_connections(sv);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
 		cli_msg(appctx, LOG_NOTICE, "server ssl setting updated.\n");
 #else
 		cli_msg(appctx, LOG_NOTICE, "server ssl setting not supported.\n");
@@ -4078,8 +4107,7 @@ static int cli_parse_set_server(char **args, char *payload, struct appctx *appct
 			"check-addr | check-port | fqdn | health | ssl | "
 			"state | weight\n");
 	}
- out_unlock:
-	HA_SPIN_UNLOCK(SERVER_LOCK, &sv->lock);
+ out:
 	return 1;
 }
 
