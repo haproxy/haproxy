@@ -618,6 +618,9 @@ static void h2_trace(enum trace_level level, uint64_t mask, const struct trace_s
 	if (src->verbosity > H2_VERB_CLEAN) {
 		chunk_appendf(&trace_buf, " : h2c=%p(%c,%s)", h2c, conn_is_back(conn) ? 'B' : 'F', h2c_st_to_str(h2c->st0));
 
+		if (mask & H2_EV_H2C_NEW) // inside h2_init, otherwise it's hard to match conn & h2c
+			conn_append_debug_info(&trace_buf, conn, " : ");
+
 		if (h2c->errcode)
 			chunk_appendf(&trace_buf, " err=%s/%02x", h2_err_str(h2c->errcode), h2c->errcode);
 
@@ -999,6 +1002,8 @@ static int h2_init(struct connection *conn, struct proxy *prx, struct session *s
 	LIST_INIT(&h2c->buf_wait.list);
 
 	conn->ctx = h2c;
+
+	TRACE_USER("new H2 connection", H2_EV_H2C_NEW, conn);
 
 	if (t)
 		task_queue(t);
