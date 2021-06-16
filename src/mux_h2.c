@@ -2728,7 +2728,7 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 	if (h2s->id > h2c->max_id)
 		h2c->max_id = h2s->id;
 
-	TRACE_USER("rcvd H2 request ", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW, h2c->conn, 0, &rxbuf);
+	TRACE_USER("rcvd H2 request  ", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_STRM_NEW, h2c->conn, 0, &rxbuf);
 	return h2s;
 
  conn_err:
@@ -2833,7 +2833,7 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 		h2s->flags &= ~H2_SF_BLK_MBUSY;
 	}
 
-	TRACE_USER("rcvd H2 response", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, 0, &h2s->rxbuf);
+	TRACE_USER("rcvd H2 response ", H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, 0, &h2s->rxbuf);
 	TRACE_LEAVE(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 	return h2s;
  fail:
@@ -5156,7 +5156,7 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* commit the H2 response */
-	TRACE_USER("sent H2 response", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
+	TRACE_USER("sent H2 response ", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
 	b_add(mbuf, outbuf.data);
 
 	/* indicates the HEADERS frame was sent, except for 1xx responses. For
@@ -5563,7 +5563,7 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* commit the H2 response */
-	TRACE_USER("sent H2 request", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
+	TRACE_USER("sent H2 request  ", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
 	b_add(mbuf, outbuf.data);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 	h2s->st = H2_SS_OPEN;
