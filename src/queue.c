@@ -555,11 +555,15 @@ int pendconn_dequeue(struct stream *strm)
 	/* the pendconn is not queued anymore and will not be so we're safe
 	 * to proceed.
 	 */
-	if (p->target)
-		strm->target = &p->target->obj_type;
-
 	strm->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 	strm->flags |= p->strm_flags & (SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
+
+	if (p->target) {
+		/* a server picked this pendconn, it must skip LB */
+		strm->target = &p->target->obj_type;
+		strm->flags |= SF_ASSIGNED;
+	}
+
 	strm->pend_pos = NULL;
 	pool_free(pool_head_pendconn, p);
 	return 0;
