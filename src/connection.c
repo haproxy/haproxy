@@ -1357,6 +1357,45 @@ static int cfg_parse_pp2_never_send_local(char **args, int section_type, struct 
 	return 0;
 }
 
+/* extracts some info from the connection and appends them to buffer <buf>. The
+ * connection's pointer, its direction, target (fe/be/srv), xprt/ctrl, source
+ * when set, destination when set, are printed in a compact human-readable format
+ * fitting on a single line. This is handy to complete traces or debug output.
+ * It is permitted to pass a NULL conn pointer. The number of characters emitted
+ * is returned. A prefix <pfx> might be prepended before the first field if not
+ * NULL.
+ */
+int conn_append_debug_info(struct buffer *buf, const struct connection *conn, const char *pfx)
+{
+	const struct listener *li;
+	const struct server   *sv;
+	const struct proxy    *px;
+	char addr[40];
+	int old_len = buf->data;
+
+	if (!conn)
+		return 0;
+
+	chunk_appendf(buf, "%sconn=%p(%s)", pfx ? pfx : "", conn, conn_is_back(conn) ? "OUT" : "IN");
+
+	if ((li = objt_listener(conn->target)))
+		chunk_appendf(buf, " fe=%s", li->bind_conf->frontend->id);
+	else if ((sv = objt_server(conn->target)))
+		chunk_appendf(buf, " sv=%s/%s", sv->proxy->id, sv->id);
+	else if ((px = objt_proxy(conn->target)))
+		chunk_appendf(buf, " be=%s", px->id);
+
+	chunk_appendf(buf, " %s/%s", conn_get_xprt_name(conn), conn_get_ctrl_name(conn));
+
+	if (conn->flags & CO_FL_ADDR_FROM_SET && addr_to_str(conn->src, addr, sizeof(addr)))
+		chunk_appendf(buf, " src=%s:%d", addr, get_host_port(conn->src));
+
+	if (conn->flags & CO_FL_ADDR_TO_SET && addr_to_str(conn->dst, addr, sizeof(addr)))
+		chunk_appendf(buf, " dst=%s:%d", addr, get_host_port(conn->dst));
+
+	return buf->data - old_len;
+}
+
 /* return the major HTTP version as 1 or 2 depending on how the request arrived
  * before being processed.
  *

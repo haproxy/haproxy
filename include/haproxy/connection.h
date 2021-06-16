@@ -55,6 +55,8 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote, struct stream *strm);
 
+int conn_append_debug_info(struct buffer *buf, const struct connection *conn, const char *pfx);
+
 int conn_subscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es);
 int conn_unsubscribe(struct connection *conn, void *xprt_ctx, int event_type, struct wait_event *es);
 
