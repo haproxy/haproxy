@@ -1711,7 +1711,6 @@ static size_t h1_process_demux(struct h1c *h1c, struct buffer *buf, size_t count
 	return ret;
 
   err:
-	b_reset(&h1c->ibuf);
 	htx_to_buf(htx, buf);
 	if (h1s->cs)
 		h1s->cs->flags |= CS_FL_EOI;
