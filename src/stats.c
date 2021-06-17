@@ -637,8 +637,8 @@ static int stats_dump_fields_typed(struct buffer *out,
 		if (!stats_emit_typed_data_field(out, &stats[field]))
 			return 0;
 
-		if (flags & STAT_SHOW_FDESC
-		    && !chunk_appendf(out, ":\"%s\"", stat_f[domain][field].name)) {
+		if (flags & STAT_SHOW_FDESC &&
+		    !chunk_appendf(out, ":\"%s\"", stat_f[domain][field].desc)) {
 			return 0;
 		}
 
