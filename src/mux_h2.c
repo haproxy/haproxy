@@ -5131,6 +5131,8 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
+	TRACE_USER("sent H2 response ", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
+
 	/* remove all header blocks including the EOH and compute the
 	 * corresponding size.
 	 */
@@ -5161,7 +5163,6 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* commit the H2 response */
-	TRACE_USER("sent H2 response ", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
 	b_add(mbuf, outbuf.data);
 
 	/* indicates the HEADERS frame was sent, except for 1xx responses. For
@@ -5538,6 +5539,8 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		}
 	}
 
+	TRACE_USER("sent H2 request  ", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
+
 	/* remove all header blocks including the EOH and compute the
 	 * corresponding size.
 	 */
@@ -5568,7 +5571,6 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		outbuf.area[4] |= H2_F_HEADERS_END_STREAM;
 
 	/* commit the H2 response */
-	TRACE_USER("sent H2 request  ", H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, h2s, htx);
 	b_add(mbuf, outbuf.data);
 	h2s->flags |= H2_SF_HEADERS_SENT;
 	h2s->st = H2_SS_OPEN;
