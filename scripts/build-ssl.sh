@@ -17,11 +17,17 @@ download_openssl () {
     fi
 }
 
+# recent openssl versions support parallel builds and skipping the docs,
+# while older ones require to build everything sequentially.
 build_openssl_linux () {
     (
         cd "openssl-${OPENSSL_VERSION}/"
         ./config shared --prefix="${HOME}/opt" --openssldir="${HOME}/opt" -DPURIFY
-        make -j$(nproc) build_sw
+        if [ -z "${OPENSSL_VERSION##1.*}" ]; then
+            make all
+        else
+            make -j$(nproc) build_sw
+        fi
         make install_sw
     )
 }
