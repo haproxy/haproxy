@@ -255,8 +255,8 @@ static struct pendconn *pendconn_first(struct eb_root *pendconns)
  *
  * The proxy's queue will be consulted only if px_ok is non-zero.
  *
- * This function must only be called if the server queue _AND_ the proxy queue
- * are locked (if pk_ok is set). Today it is only called by process_srv_queue.
+ * This function uses both the proxy and the server queues' lock. Today it is
+ * only called by process_srv_queue.
  *
  * The function returns the dequeued pendconn on success or NULL if none is
  * available. It's up to the caller to add the corresponding stream to the
@@ -270,15 +270,20 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
 	u32 pkey, ppkey;
 
 	p = NULL;
+	HA_SPIN_LOCK(QUEUE_LOCK, &srv->queue.lock);
 	if (srv->queue.length)
 		p = pendconn_first(&srv->queue.head);
 
 	pp = NULL;
+	HA_SPIN_LOCK(QUEUE_LOCK, &px->queue.lock);
 	if (px_ok && px->queue.length)
 		pp = pendconn_first(&px->queue.head);
 
-	if (!p && !pp)
+	if (!p && !pp) {
+		HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
+		HA_SPIN_UNLOCK(QUEUE_LOCK, &srv->queue.lock);
 		return NULL;
+	}
 	else if (!pp)
 		goto use_p; /*  p != NULL */
 	else if (!p)
@@ -307,13 +312,17 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
  use_pp:
 	/* Let's switch from the server pendconn to the proxy pendconn */
 	__pendconn_unlink_prx(pp);
+	HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
+	HA_SPIN_UNLOCK(QUEUE_LOCK, &srv->queue.lock);
 	_HA_ATOMIC_INC(&px->queue.idx);
 	_HA_ATOMIC_DEC(&px->queue.length);
 	_HA_ATOMIC_DEC(&px->totpend);
 	p = pp;
 	goto unlinked;
  use_p:
+	HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
 	__pendconn_unlink_srv(p);
+	HA_SPIN_UNLOCK(QUEUE_LOCK, &srv->queue.lock);
 	_HA_ATOMIC_INC(&srv->queue.idx);
 	_HA_ATOMIC_DEC(&srv->queue.length);
 	_HA_ATOMIC_DEC(&px->totpend);
@@ -347,13 +356,7 @@ void process_srv_queue(struct server *s)
 	while (s->served < maxconn) {
 		struct pendconn *pc;
 
-		HA_SPIN_LOCK(QUEUE_LOCK, &s->queue.lock);
-		HA_SPIN_LOCK(QUEUE_LOCK, &p->queue.lock);
-
 		pc = pendconn_process_next_strm(s, p, px_ok);
-
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->queue.lock);
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &s->queue.lock);
 
 		if (!pc)
 			break;
