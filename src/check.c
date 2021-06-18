@@ -1897,7 +1897,7 @@ static int srv_parse_agent_check(char **args, int *cur_arg, struct proxy *curpx,
 	srv->do_agent = 1;
 
   out:
-	return 0;
+	return err_code;
 
   error:
 	deinit_srv_agent_check(srv);
@@ -2155,7 +2155,6 @@ static int srv_parse_check_rise(char **args, int *cur_arg, struct proxy *curpx, 
 	deinit_srv_agent_check(srv);
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
-	return 0;
 }
 
 /* Parse the "fall" server keyword */
@@ -2182,7 +2181,6 @@ static int srv_parse_check_fall(char **args, int *cur_arg, struct proxy *curpx, 
 	deinit_srv_agent_check(srv);
 	err_code |= ERR_ALERT | ERR_FATAL;
 	goto out;
-	return 0;
 }
 
 /* Parse the "inter" server keyword */
