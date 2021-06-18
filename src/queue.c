@@ -133,7 +133,7 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
  */
 static void __pendconn_unlink_srv(struct pendconn *p)
 {
-	p->strm->logs.srv_queue_pos += p->srv->queue.idx - p->queue_idx;
+	p->strm->logs.srv_queue_pos += _HA_ATOMIC_LOAD(&p->srv->queue.idx) - p->queue_idx;
 	eb32_delete(&p->node);
 }
 
@@ -146,7 +146,7 @@ static void __pendconn_unlink_srv(struct pendconn *p)
  */
 static void __pendconn_unlink_prx(struct pendconn *p)
 {
-	p->strm->logs.prx_queue_pos += p->px->queue.idx - p->queue_idx;
+	p->strm->logs.prx_queue_pos += _HA_ATOMIC_LOAD(&p->px->queue.idx) - p->queue_idx;
 	eb32_delete(&p->node);
 }
 
@@ -305,13 +305,13 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 	/* Let's switch from the server pendconn to the proxy pendconn */
 	__pendconn_unlink_prx(pp);
 	_HA_ATOMIC_DEC(&px->queue.length);
-	px->queue.idx++;
+	_HA_ATOMIC_INC(&px->queue.idx);
 	p = pp;
 	goto unlinked;
  use_p:
 	__pendconn_unlink_srv(p);
 	_HA_ATOMIC_DEC(&srv->queue.length);
-	srv->queue.idx++;
+	_HA_ATOMIC_INC(&srv->queue.idx);
  unlinked:
 	p->strm_flags |= SF_ASSIGNED;
 	p->target = srv;
@@ -419,6 +419,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 		max_ptr = &px->be_counters.nbpend_max;
 	}
 
+	p->queue_idx  = _HA_ATOMIC_LOAD(&q->idx) - 1; // for logging only
 	new_max = _HA_ATOMIC_ADD_FETCH(&q->length, 1);
 	old_max = _HA_ATOMIC_LOAD(max_ptr);
 	while (new_max > old_max) {
@@ -428,7 +429,6 @@ struct pendconn *pendconn_add(struct stream *strm)
 	__ha_barrier_atomic_store();
 
 	HA_SPIN_LOCK(QUEUE_LOCK, &q->lock);
-	p->queue_idx = q->idx - 1; // for increment
 	eb32_insert(&q->head, &p->node);
 	HA_SPIN_UNLOCK(QUEUE_LOCK, &q->lock);
 
