@@ -39,6 +39,12 @@ struct pendconn {
 	struct eb32_node node;
 };
 
+struct queue {
+	struct eb_root head;                    /* queued pendconnds */
+	unsigned int idx;			/* current queuing index */
+	unsigned int length;                    /* number of entries */
+};
+
 #endif /* _HAPROXY_QUEUE_T_H */
 
 /*
