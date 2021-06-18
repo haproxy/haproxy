@@ -819,7 +819,7 @@ out_ok:
 			sess_change_server(s, srv);
 		} else {
 			if (may_dequeue_tasks(conn_slot, s->be))
-				process_srv_queue(conn_slot);
+				process_srv_queue(conn_slot, 0);
 		}
 	}
 
@@ -1831,7 +1831,7 @@ int srv_redispatch_connect(struct stream *s)
 
 		/* release other streams waiting for this server */
 		if (may_dequeue_tasks(srv, s->be))
-			process_srv_queue(srv);
+			process_srv_queue(srv, 0);
 		return 1;
 	}
 	/* if we get here, it's because we got SRV_STATUS_OK, which also
@@ -1907,7 +1907,7 @@ void back_try_conn_req(struct stream *s)
 			/* release other streams waiting for this server */
 			sess_change_server(s, NULL);
 			if (may_dequeue_tasks(srv, s->be))
-				process_srv_queue(srv);
+				process_srv_queue(srv, 0);
 
 			/* Failed and not retryable. */
 			si_shutr(si);
@@ -2235,7 +2235,7 @@ void back_handle_st_cer(struct stream *s)
 		_HA_ATOMIC_INC(&s->be->be_counters.failed_conns);
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
-			process_srv_queue(objt_server(s->target));
+			process_srv_queue(objt_server(s->target), 0);
 
 		/* shutw is enough so stop a connecting socket */
 		si_shutw(si);

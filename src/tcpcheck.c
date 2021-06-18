@@ -937,6 +937,9 @@ enum tcpcheck_eval_ret tcpcheck_agent_expect_reply(struct check *check, struct t
 		cs += strlen("maxconn:");
 
 		TRACE_DEVEL("change server maxconn", CHK_EV_TCPCHK_EXP, check);
+		/* This is safe to call server_parse_maxconn_change_request
+		 * because the server lock is held during the check.
+		 */
 		msg = server_parse_maxconn_change_request(check->server, cs);
 		if (!wrn || !*wrn)
 			wrn = msg;

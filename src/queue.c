@@ -337,14 +337,16 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 }
 
 /* Manages a server's connection queue. This function will try to dequeue as
- * many pending streams as possible, and wake them up.
+ * many pending streams as possible, and wake them up. <server_locked> must
+ * only be set if the caller already hold the server lock.
  */
-void process_srv_queue(struct server *s)
+void process_srv_queue(struct server *s, int server_locked)
 {
 	struct proxy  *p = s->proxy;
 	int maxconn;
 
-	HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
+	if (!server_locked)
+		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
 	HA_RWLOCK_WRLOCK(PROXY_LOCK,  &p->lock);
 	maxconn = srv_dynamic_maxconn(s);
 	while (s->served < maxconn) {
@@ -353,7 +355,8 @@ void process_srv_queue(struct server *s)
 			break;
 	}
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK,  &p->lock);
-	HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+	if (!server_locked)
+		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 }
 
 /* Adds the stream <strm> to the pending connection queue of server <strm>->srv
