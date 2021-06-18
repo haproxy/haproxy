@@ -399,6 +399,7 @@ enum lock_label {
 	LOGSRV_LOCK,
 	DICT_LOCK,
 	PROTO_LOCK,
+	QUEUE_LOCK,
 	CKCH_LOCK,
 	SNI_LOCK,
 	SSL_SERVER_LOCK,
@@ -451,6 +452,7 @@ static inline const char *lock_label(enum lock_label label)
 	case LOGSRV_LOCK:          return "LOGSRV";
 	case DICT_LOCK:            return "DICT";
 	case PROTO_LOCK:           return "PROTO";
+	case QUEUE_LOCK:           return "QUEUE";
 	case CKCH_LOCK:            return "CKCH";
 	case SNI_LOCK:             return "SNI";
 	case SSL_SERVER_LOCK:      return "SSL_SERVER";
