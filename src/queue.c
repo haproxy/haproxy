@@ -253,34 +253,28 @@ static struct pendconn *pendconn_first(struct eb_root *pendconns)
  * immediately marked as "assigned", and both its <srv> and <srv_conn> are set
  * to <srv>.
  *
+ * The proxy's queue will be consulted only if px_ok is non-zero.
+ *
  * This function must only be called if the server queue _AND_ the proxy queue
- * are locked. Today it is only called by process_srv_queue.
+ * are locked (if pk_ok is set). Today it is only called by process_srv_queue.
  *
  * The function returns the dequeued pendconn on success or NULL if none is
  * available. It's up to the caller to add the corresponding stream to the
  * server's list, to update the LB algo, update ->served, and to wake up the
  * stream's task.
  */
-static struct pendconn *pendconn_process_next_strm(struct server *srv, struct proxy *px)
+static struct pendconn *pendconn_process_next_strm(struct server *srv, struct proxy *px, int px_ok)
 {
 	struct pendconn *p = NULL;
 	struct pendconn *pp = NULL;
-	struct server   *rsrv;
 	u32 pkey, ppkey;
-
-	rsrv = srv->track;
-	if (!rsrv)
-		rsrv = srv;
 
 	p = NULL;
 	if (srv->queue.length)
 		p = pendconn_first(&srv->queue.head);
 
 	pp = NULL;
-	if (srv_currently_usable(rsrv) && px->queue.length &&
-	    (!(srv->flags & SRV_F_BACKUP) ||
-	     (!px->srv_act &&
-	      (srv == px->lbprm.fbck || (px->options & PR_O_USE_ALL_BK)))))
+	if (px_ok && px->queue.length)
 		pp = pendconn_first(&px->queue.head);
 
 	if (!p && !pp)
@@ -335,9 +329,19 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
  */
 void process_srv_queue(struct server *s)
 {
+	struct server *ref = s->track ? s->track : s;
 	struct proxy  *p = s->proxy;
 	int done = 0;
 	int maxconn;
+	int px_ok;
+
+	/* if a server is not usable or backup and must not be used
+	 * to dequeue backend requests.
+	 */
+	px_ok = srv_currently_usable(ref) &&
+	        (!(s->flags & SRV_F_BACKUP) ||
+	         (!p->srv_act &&
+	          (s == p->lbprm.fbck || (p->options & PR_O_USE_ALL_BK))));
 
 	maxconn = srv_dynamic_maxconn(s);
 	while (s->served < maxconn) {
@@ -346,7 +350,7 @@ void process_srv_queue(struct server *s)
 		HA_SPIN_LOCK(QUEUE_LOCK, &s->queue.lock);
 		HA_SPIN_LOCK(QUEUE_LOCK, &p->queue.lock);
 
-		pc = pendconn_process_next_strm(s, p);
+		pc = pendconn_process_next_strm(s, p, px_ok);
 
 		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->queue.lock);
 		HA_SPIN_UNLOCK(QUEUE_LOCK, &s->queue.lock);
