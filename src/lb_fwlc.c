@@ -57,7 +57,7 @@ static inline void fwlc_dequeue_srv(struct server *s)
  */
 static inline void fwlc_queue_srv(struct server *s, unsigned int eweight)
 {
-	unsigned int inflight = _HA_ATOMIC_LOAD(&s->served) + _HA_ATOMIC_LOAD(&s->nbpend);
+	unsigned int inflight = _HA_ATOMIC_LOAD(&s->served) + _HA_ATOMIC_LOAD(&s->queue.length);
 
 	s->lb_node.key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / eweight : 0;
 	eb32_insert(s->lb_tree, &s->lb_node);
@@ -70,7 +70,7 @@ static inline void fwlc_queue_srv(struct server *s, unsigned int eweight)
  */
 static void fwlc_srv_reposition(struct server *s)
 {
-	unsigned int inflight = _HA_ATOMIC_LOAD(&s->served) + _HA_ATOMIC_LOAD(&s->nbpend);
+	unsigned int inflight = _HA_ATOMIC_LOAD(&s->served) + _HA_ATOMIC_LOAD(&s->queue.length);
 	unsigned int new_key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / s->cur_eweight : 0;
 
 	/* some calls will be made for no change (e.g connect_server() after
@@ -86,7 +86,7 @@ static void fwlc_srv_reposition(struct server *s)
 		 * likely to have released a connection or taken one leading
 		 * to our target value (50% of the case in measurements).
 		 */
-		inflight = _HA_ATOMIC_LOAD(&s->served) + _HA_ATOMIC_LOAD(&s->nbpend);
+		inflight = _HA_ATOMIC_LOAD(&s->served) + _HA_ATOMIC_LOAD(&s->queue.length);
 		new_key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / s->cur_eweight : 0;
 		if (!s->lb_node.node.leaf_p || s->lb_node.key != new_key) {
 			eb32_delete(&s->lb_node);
@@ -347,7 +347,7 @@ struct server *fwlc_get_next_server(struct proxy *p, struct server *srvtoavoid)
 		struct server *s;
 
 		s = eb32_entry(node, struct server, lb_node);
-		if (!s->maxconn || s->served + s->nbpend < srv_dynamic_maxconn(s) + s->maxqueue) {
+		if (!s->maxconn || s->served + s->queue.length < srv_dynamic_maxconn(s) + s->maxqueue) {
 			if (s != srvtoavoid) {
 				srv = s;
 				break;

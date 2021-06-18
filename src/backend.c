@@ -552,7 +552,7 @@ static struct server *get_server_rnd(struct stream *s, const struct server *avoi
 	 * the backend's queue instead.
 	 */
 	if (curr &&
-	    (curr->nbpend || (curr->maxconn && curr->served >= srv_dynamic_maxconn(curr))))
+	    (curr->queue.length || (curr->maxconn && curr->served >= srv_dynamic_maxconn(curr))))
 		curr = NULL;
 
 	return curr;
@@ -624,7 +624,7 @@ int assign_server(struct stream *s)
 			    ((s->sess->flags & SESS_FL_PREFER_LAST) ||
 			     (!s->be->max_ka_queue ||
 			      server_has_room(tmpsrv) || (
-			      tmpsrv->nbpend + 1 < s->be->max_ka_queue))) &&
+			      tmpsrv->queue.length + 1 < s->be->max_ka_queue))) &&
 			    srv_currently_usable(tmpsrv)) {
 				list_for_each_entry(conn, &srv_list->conn_list, session_list) {
 					if (!(conn->flags & CO_FL_WAIT_XPRT)) {
@@ -1001,9 +1001,9 @@ int assign_server_and_queue(struct stream *s)
 		 * not full, in which case we have to return FULL.
 		 */
 		if (srv->maxconn &&
-		    (srv->nbpend || srv->served >= srv_dynamic_maxconn(srv))) {
+		    (srv->queue.length || srv->served >= srv_dynamic_maxconn(srv))) {
 
-			if (srv->maxqueue > 0 && srv->nbpend >= srv->maxqueue)
+			if (srv->maxqueue > 0 && srv->queue.length >= srv->maxqueue)
 				return SRV_STATUS_FULL;
 
 			p = pendconn_add(s);
@@ -2734,7 +2734,7 @@ smp_fetch_connslots(const struct arg *args, struct sample *smp, const char *kw, 
 		}
 
 		smp->data.u.sint += (iterator->maxconn - iterator->cur_sess)
-		                       +  (iterator->maxqueue - iterator->nbpend);
+		                       +  (iterator->maxqueue - iterator->queue.length);
 	}
 
 	return 1;
@@ -2981,7 +2981,7 @@ smp_fetch_srv_queue(const struct arg *args, struct sample *smp, const char *kw, 
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = args->data.srv->nbpend;
+	smp->data.u.sint = args->data.srv->queue.length;
 	return 1;
 }
 
@@ -3123,7 +3123,7 @@ sample_conv_srv_queue(const struct arg *args, struct sample *smp, void *private)
 		return 0;
 
 	smp->data.type = SMP_T_SINT;
-	smp->data.u.sint = srv->nbpend;
+	smp->data.u.sint = srv->queue.length;
 	return 1;
 }
 

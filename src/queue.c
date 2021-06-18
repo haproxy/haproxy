@@ -133,7 +133,7 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
  */
 static void __pendconn_unlink_srv(struct pendconn *p)
 {
-	p->strm->logs.srv_queue_pos += p->srv->queue_idx - p->queue_idx;
+	p->strm->logs.srv_queue_pos += p->srv->queue.idx - p->queue_idx;
 	eb32_delete(&p->node);
 }
 
@@ -194,7 +194,7 @@ void pendconn_unlink(struct pendconn *p)
 		}
 		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
 		if (done) {
-			_HA_ATOMIC_DEC(&p->srv->nbpend);
+			_HA_ATOMIC_DEC(&p->srv->queue.length);
 			_HA_ATOMIC_DEC(&p->px->totpend);
 		}
 	}
@@ -273,8 +273,8 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
 		rsrv = srv;
 
 	p = NULL;
-	if (srv->nbpend)
-		p = pendconn_first(&srv->pendconns);
+	if (srv->queue.length)
+		p = pendconn_first(&srv->queue.head);
 
 	pp = NULL;
 	if (srv_currently_usable(rsrv) && px->queue.length &&
@@ -320,9 +320,9 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
 	goto unlinked;
  use_p:
 	__pendconn_unlink_srv(p);
-	_HA_ATOMIC_DEC(&srv->nbpend);
+	_HA_ATOMIC_DEC(&srv->queue.length);
 	_HA_ATOMIC_DEC(&px->totpend);
-	srv->queue_idx++;
+	srv->queue.idx++;
  unlinked:
 	p->strm_flags |= SF_ASSIGNED;
 	p->target = srv;
@@ -416,7 +416,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	if (srv) {
 		unsigned int old_max, new_max;
 
-		new_max = _HA_ATOMIC_ADD_FETCH(&srv->nbpend, 1);
+		new_max = _HA_ATOMIC_ADD_FETCH(&srv->queue.length, 1);
 		old_max = srv->counters.nbpend_max;
 		while (new_max > old_max) {
 			if (likely(_HA_ATOMIC_CAS(&srv->counters.nbpend_max, &old_max, new_max)))
@@ -425,8 +425,8 @@ struct pendconn *pendconn_add(struct stream *strm)
 		__ha_barrier_atomic_store();
 
 		HA_SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
-		p->queue_idx = srv->queue_idx - 1; // for increment
-		eb32_insert(&srv->pendconns, &p->node);
+		p->queue_idx = srv->queue.idx - 1; // for increment
+		eb32_insert(&srv->queue.head, &p->node);
 		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
 	}
 	else {
@@ -465,7 +465,7 @@ int pendconn_redistribute(struct server *s)
 	if ((s->proxy->options & (PR_O_REDISP|PR_O_PERSIST)) != PR_O_REDISP)
 		return 0;
 
-	for (node = eb32_first(&s->pendconns); node; node = nodeb) {
+	for (node = eb32_first(&s->queue.head); node; node = nodeb) {
 		nodeb =	eb32_next(node);
 
 		p = eb32_entry(node, struct pendconn, node);
@@ -480,7 +480,7 @@ int pendconn_redistribute(struct server *s)
 		xferred++;
 	}
 	if (xferred) {
-		_HA_ATOMIC_SUB(&s->nbpend, xferred);
+		_HA_ATOMIC_SUB(&s->queue.length, xferred);
 		_HA_ATOMIC_SUB(&s->proxy->totpend, xferred);
 	}
 	return xferred;

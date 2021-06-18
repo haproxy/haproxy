@@ -1728,7 +1728,7 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 		 */
 		if (global.nbthread > 1 &&
 		    (agent->b.be->queue.length ||
-		     (srv && (srv->nbpend || (srv->maxconn && srv->served >=srv_dynamic_maxconn(srv)))))) {
+		     (srv && (srv->queue.length || (srv->maxconn && srv->served >=srv_dynamic_maxconn(srv)))))) {
 			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NONE;
 			appctx->st0 = SPOE_APPCTX_ST_DISCONNECT;
 			appctx->st1 = SPOE_APPCTX_ERR_NONE;

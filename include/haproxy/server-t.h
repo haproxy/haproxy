@@ -36,6 +36,7 @@
 #include <haproxy/listener-t.h>
 #include <haproxy/obj_type-t.h>
 #include <haproxy/openssl-compat.h>
+#include <haproxy/queue-t.h>
 #include <haproxy/resolvers-t.h>
 #include <haproxy/ssl_sock-t.h>
 #include <haproxy/stats-t.h>
@@ -271,7 +272,7 @@ struct server {
 	unsigned int est_need_conns;            /* Estimate on the number of needed connections (max of curr and previous max_used) */
 	unsigned int next_takeover;             /* thread ID to try to steal connections from next time */
 
-	struct eb_root pendconns;		/* pending connections */
+	struct queue queue;			/* pending connections */
 
 	/* Element below are usd by LB algorithms and must be doable in
 	 * parallel to other threads reusing connections above.
@@ -286,10 +287,8 @@ struct server {
 	ALWAYS_ALIGN(64);
 	int cur_sess;				/* number of currently active sessions (including syn_sent) */
 	int served;				/* # of active sessions currently being served (ie not pending) */
-	int nbpend;				/* number of pending connections */
 	int consecutive_errors;			/* current number of consecutive errors */
 	struct freq_ctr sess_per_sec;		/* sessions per second on this server */
-	unsigned int queue_idx;			/* count of pending connections which have been de-queued */
 	struct be_counters counters;		/* statistics counters */
 
 	/* Below are some relatively stable settings, only changed under the lock */

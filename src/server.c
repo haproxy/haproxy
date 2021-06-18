@@ -1370,13 +1370,13 @@ void srv_append_status(struct buffer *msg, struct server *s,
 				" %d sessions active, %d requeued, %d remaining in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
 				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-				s->cur_sess, xferred, s->nbpend);
+				s->cur_sess, xferred, s->queue.length);
 		else
 			chunk_appendf(msg, ". %d active and %d backup servers online.%s"
 				" %d sessions requeued, %d total in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
 				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-				xferred, s->nbpend);
+				xferred, s->queue.length);
 	}
 }
 
@@ -2163,7 +2163,7 @@ struct server *new_server(struct proxy *proxy)
 
 	srv->obj_type = OBJ_TYPE_SERVER;
 	srv->proxy = proxy;
-	srv->pendconns = EB_ROOT;
+	srv->queue.head = EB_ROOT;
 	LIST_APPEND(&servers_list, &srv->global_list);
 	LIST_INIT(&srv->srv_rec_item);
 	LIST_INIT(&srv->ip_rec_item);
@@ -4642,7 +4642,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	 * cleanup function should be implemented to be used here.
 	 */
 	if (srv->cur_sess || srv->curr_idle_conns ||
-	    !eb_is_empty(&srv->pendconns)) {
+	    !eb_is_empty(&srv->queue.head)) {
 		cli_err(appctx, "Server still has connections attached to it, cannot remove it.");
 		goto out;
 	}

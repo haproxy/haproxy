@@ -2141,7 +2141,7 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
 			case ST_F_QCUR:
-				metric = mkf_u32(0, sv->nbpend);
+				metric = mkf_u32(0, sv->queue.length);
 				break;
 			case ST_F_QMAX:
 				metric = mkf_u32(FN_MAX, sv->counters.nbpend_max);

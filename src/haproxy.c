@@ -904,7 +904,7 @@ static void sig_dump_state(struct sig_handler *sh)
 			             "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %lld tot.",
 			             p->id, s->id,
 			             (s->cur_state != SRV_ST_STOPPED) ? "UP" : "DOWN",
-			             s->cur_sess, s->nbpend, s->counters.cum_sess);
+			             s->cur_sess, s->queue.length, s->counters.cum_sess);
 			ha_warning("%s\n", trash.area);
 			send_log(p, LOG_NOTICE, "%s\n", trash.area);
 			s = s->next;
