@@ -609,9 +609,9 @@ static struct task *resolv_srvrq_expire_task(struct task *t, void *context, unsi
 	if (!tick_is_expired(t->expire, now_ms))
 		goto end;
 
-	HA_SPIN_LOCK(DNS_LOCK, &srv->srvrq->resolvers);
+	HA_SPIN_LOCK(DNS_LOCK, &srv->srvrq->resolvers->lock);
 	resolv_srvrq_cleanup_srv(srv);
-	HA_SPIN_UNLOCK(DNS_LOCK, &srv->srvrq->resolvers);
+	HA_SPIN_UNLOCK(DNS_LOCK, &srv->srvrq->resolvers->lock);
 
   end:
 	return t;
