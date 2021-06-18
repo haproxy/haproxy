@@ -1702,7 +1702,7 @@ skip_reuse:
 		count = _HA_ATOMIC_ADD_FETCH(&srv->cur_sess, 1);
 		HA_ATOMIC_UPDATE_MAX(&srv->counters.cur_sess_max, count);
 		if (s->be->lbprm.server_take_conn)
-			s->be->lbprm.server_take_conn(srv, 0);
+			s->be->lbprm.server_take_conn(srv);
 	}
 
 	/* Now handle synchronously connected sockets. We know the stream-int

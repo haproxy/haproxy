@@ -367,7 +367,7 @@ void process_srv_queue(struct server *s, int server_locked)
 	_HA_ATOMIC_ADD(&p->served, done);
 
 	if (done && p->lbprm.server_take_conn)
-		p->lbprm.server_take_conn(s, server_locked);
+		p->lbprm.server_take_conn(s);
 }
 
 /* Adds the stream <strm> to the pending connection queue of server <strm>->srv

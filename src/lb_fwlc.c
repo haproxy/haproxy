@@ -66,11 +66,9 @@ static inline void fwlc_queue_srv(struct server *s, unsigned int eweight)
 /* Re-position the server in the FWLC tree after it has been assigned one
  * connection or after it has released one. Note that it is possible that
  * the server has been moved out of the tree due to failed health-checks.
- *
- * <locked> must reflect the server's lock ownership. The lbprm's lock will
- * be used.
+ * The lbprm's lock will be used.
  */
-static void fwlc_srv_reposition(struct server *s, int locked)
+static void fwlc_srv_reposition(struct server *s)
 {
 	unsigned int inflight = _HA_ATOMIC_LOAD(&s->served) + _HA_ATOMIC_LOAD(&s->nbpend);
 	unsigned int new_key = inflight ? (inflight + 1) * SRV_EWGHT_MAX / s->cur_eweight : 0;

@@ -2619,7 +2619,7 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 		_HA_ATOMIC_DEC(&oldsrv->proxy->served);
 		__ha_barrier_atomic_store();
 		if (oldsrv->proxy->lbprm.server_drop_conn)
-			oldsrv->proxy->lbprm.server_drop_conn(oldsrv, 0);
+			oldsrv->proxy->lbprm.server_drop_conn(oldsrv);
 		stream_del_srv_conn(strm);
 	}
 
@@ -2628,7 +2628,7 @@ void sess_change_server(struct stream *strm, struct server *newsrv)
 		_HA_ATOMIC_INC(&newsrv->proxy->served);
 		__ha_barrier_atomic_store();
 		if (newsrv->proxy->lbprm.server_take_conn)
-			newsrv->proxy->lbprm.server_take_conn(newsrv, 0);
+			newsrv->proxy->lbprm.server_take_conn(newsrv);
 		stream_add_srv_conn(strm, newsrv);
 	}
 }

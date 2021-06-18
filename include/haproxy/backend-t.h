@@ -162,13 +162,13 @@ struct lbprm {
 
 	/* Call backs for some actions. Any of them may be NULL (thus should be ignored).
 	 * Those marked "srvlock" will need to be called with the server lock held.
-	 * The other ones might take it themselves if needed, based on indications.
+	 * The other ones might take it themselves if needed.
 	 */
 	void (*update_server_eweight)(struct server *);  /* to be called after eweight change // srvlock */
 	void (*set_server_status_up)(struct server *);   /* to be called after status changes to UP // srvlock */
 	void (*set_server_status_down)(struct server *); /* to be called after status changes to DOWN // srvlock */
-	void (*server_take_conn)(struct server *, int locked); /* to be called when connection is assigned */
-	void (*server_drop_conn)(struct server *, int locked); /* to be called when connection is dropped */
+	void (*server_take_conn)(struct server *);       /* to be called when connection is assigned */
+	void (*server_drop_conn)(struct server *);       /* to be called when connection is dropped */
 };
 
 #endif /* _HAPROXY_BACKEND_T_H */
