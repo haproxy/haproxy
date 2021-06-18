@@ -37,6 +37,7 @@
 #include <haproxy/counters-t.h>
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/obj_type-t.h>
+#include <haproxy/queue-t.h>
 #include <haproxy/server-t.h>
 #include <haproxy/stats-t.h>
 #include <haproxy/tcpcheck-t.h>
@@ -332,10 +333,8 @@ struct proxy {
 	__decl_thread(HA_RWLOCK_T lock);        /* may be taken under the server's lock */
 
 	char *id, *desc;			/* proxy id (name) and description */
-	struct eb_root pendconns;		/* pending connections with no server assigned yet */
-	int nbpend;				/* number of pending connections with no server assigned yet */
+	struct queue queue;			/* queued requests (pendconns) */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
-	unsigned int queue_idx;			/* number of pending connections which have been de-queued */
 	unsigned int feconn, beconn;		/* # of active frontend and backends streams */
 	struct freq_ctr fe_req_per_sec;		/* HTTP requests per second on the frontend */
 	struct freq_ctr fe_conn_per_sec;	/* received connections per second on the frontend */

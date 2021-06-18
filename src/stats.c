@@ -2555,7 +2555,7 @@ int stats_fill_be_stats(struct proxy *px, int flags, struct field *stats, int le
 				metric = mkf_str(FO_CONFIG|FS_SERVICE, proxy_mode_str(px->mode));
 				break;
 			case ST_F_QCUR:
-				metric = mkf_u32(0, px->nbpend);
+				metric = mkf_u32(0, px->queue.length);
 				break;
 			case ST_F_QMAX:
 				metric = mkf_u32(FN_MAX, px->be_counters.nbpend_max);

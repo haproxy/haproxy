@@ -146,7 +146,7 @@ static void __pendconn_unlink_srv(struct pendconn *p)
  */
 static void __pendconn_unlink_prx(struct pendconn *p)
 {
-	p->strm->logs.prx_queue_pos += p->px->queue_idx - p->queue_idx;
+	p->strm->logs.prx_queue_pos += p->px->queue.idx - p->queue_idx;
 	eb32_delete(&p->node);
 }
 
@@ -207,7 +207,7 @@ void pendconn_unlink(struct pendconn *p)
 		}
 		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->px->lock);
 		if (done) {
-			_HA_ATOMIC_DEC(&p->px->nbpend);
+			_HA_ATOMIC_DEC(&p->px->queue.length);
 			_HA_ATOMIC_DEC(&p->px->totpend);
 		}
 	}
@@ -277,11 +277,11 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
 		p = pendconn_first(&srv->pendconns);
 
 	pp = NULL;
-	if (srv_currently_usable(rsrv) && px->nbpend &&
+	if (srv_currently_usable(rsrv) && px->queue.length &&
 	    (!(srv->flags & SRV_F_BACKUP) ||
 	     (!px->srv_act &&
 	      (srv == px->lbprm.fbck || (px->options & PR_O_USE_ALL_BK)))))
-		pp = pendconn_first(&px->pendconns);
+		pp = pendconn_first(&px->queue.head);
 
 	if (!p && !pp)
 		return NULL;
@@ -313,9 +313,9 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
  use_pp:
 	/* Let's switch from the server pendconn to the proxy pendconn */
 	__pendconn_unlink_prx(pp);
-	_HA_ATOMIC_DEC(&px->nbpend);
+	_HA_ATOMIC_DEC(&px->queue.length);
 	_HA_ATOMIC_DEC(&px->totpend);
-	px->queue_idx++;
+	px->queue.idx++;
 	p = pp;
 	goto unlinked;
  use_p:
@@ -432,7 +432,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	else {
 		unsigned int old_max, new_max;
 
-		new_max = _HA_ATOMIC_ADD_FETCH(&px->nbpend, 1);
+		new_max = _HA_ATOMIC_ADD_FETCH(&px->queue.length, 1);
 		old_max = px->be_counters.nbpend_max;
 		while (new_max > old_max) {
 			if (likely(_HA_ATOMIC_CAS(&px->be_counters.nbpend_max, &old_max, new_max)))
@@ -441,8 +441,8 @@ struct pendconn *pendconn_add(struct stream *strm)
 		__ha_barrier_atomic_store();
 
 		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->px->lock);
-		p->queue_idx = px->queue_idx - 1; // for increment
-		eb32_insert(&px->pendconns, &p->node);
+		p->queue_idx = px->queue.idx - 1; // for increment
+		eb32_insert(&px->queue.head, &p->node);
 		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->px->lock);
 	}
 
@@ -511,7 +511,7 @@ int pendconn_grab_from_px(struct server *s)
 
 	HA_RWLOCK_WRLOCK(PROXY_LOCK, &s->proxy->lock);
 	maxconn = srv_dynamic_maxconn(s);
-	while ((p = pendconn_first(&s->proxy->pendconns))) {
+	while ((p = pendconn_first(&s->proxy->queue.head))) {
 		if (s->maxconn && s->served + xferred >= maxconn)
 			break;
 
@@ -523,7 +523,7 @@ int pendconn_grab_from_px(struct server *s)
 	}
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &s->proxy->lock);
 	if (xferred) {
-		_HA_ATOMIC_SUB(&s->proxy->nbpend, xferred);
+		_HA_ATOMIC_SUB(&s->proxy->queue.length, xferred);
 		_HA_ATOMIC_SUB(&s->proxy->totpend, xferred);
 	}
 	return xferred;

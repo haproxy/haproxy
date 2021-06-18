@@ -1727,7 +1727,7 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 		 * applet in the idle list.
 		 */
 		if (global.nbthread > 1 &&
-		    (agent->b.be->nbpend ||
+		    (agent->b.be->queue.length ||
 		     (srv && (srv->nbpend || (srv->maxconn && srv->served >=srv_dynamic_maxconn(srv)))))) {
 			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NONE;
 			appctx->st0 = SPOE_APPCTX_ST_DISCONNECT;
