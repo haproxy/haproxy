@@ -213,22 +213,32 @@ void pendconn_unlink(struct pendconn *p)
 	}
 }
 
-/* Retrieve the first pendconn from tree <pendconns>. Classes are always
- * considered first, then the time offset. The time does wrap, so the
- * lookup is performed twice, one to retrieve the first class and a second
- * time to retrieve the earliest time in this class.
+/* Retrieve the first pendconn from queue <queue>, which must *not* be
+ * locked. The queue will be locked as needed, and will be left locked
+ * if an element is returned, in which case it will be up to the caller
+ * to unlock it.
+ * Classes are always considered first, then the time offset. The time
+ * does wrap, so the lookup is performed twice, one to retrieve the first
+ * class and a second time to retrieve the earliest time in this class.
  */
-static struct pendconn *pendconn_first(struct eb_root *pendconns)
+static struct pendconn *pendconn_first(struct queue *queue)
 {
 	struct eb32_node *node, *node2 = NULL;
 	u32 key;
 
-	node = eb32_first(pendconns);
-	if (!node)
+	if (!queue->length)
 		return NULL;
 
+	HA_SPIN_LOCK(QUEUE_LOCK, &queue->lock);
+
+	node = eb32_first(&queue->head);
+	if (!node) {
+		HA_SPIN_UNLOCK(QUEUE_LOCK, &queue->lock);
+		return NULL;
+	}
+
 	key = KEY_CLASS_OFFSET_BOUNDARY(node->key);
-	node2 = eb32_lookup_ge(pendconns, key);
+	node2 = eb32_lookup_ge(&queue->head, key);
 
 	if (!node2 ||
 	    KEY_CLASS(node2->key) != KEY_CLASS(node->key)) {
@@ -269,21 +279,9 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
 	struct pendconn *pp = NULL;
 	u32 pkey, ppkey;
 
-	p = NULL;
-	if (srv->queue.length) {
-		HA_SPIN_LOCK(QUEUE_LOCK, &srv->queue.lock);
-		p = pendconn_first(&srv->queue.head);
-		if (!p)
-			HA_SPIN_UNLOCK(QUEUE_LOCK, &srv->queue.lock);
-	}
-
-	pp = NULL;
-	if (px_ok && px->queue.length) {
-		HA_SPIN_LOCK(QUEUE_LOCK, &px->queue.lock);
-		pp = pendconn_first(&px->queue.head);
-		if (!pp)
-			HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
-	}
+	p = pendconn_first(&srv->queue);
+	if (px_ok)
+		pp = pendconn_first(&px->queue);
 
 	if (!p && !pp)
 		return NULL;
@@ -510,19 +508,17 @@ int pendconn_grab_from_px(struct server *s)
 	     ((s != s->proxy->lbprm.fbck) && !(s->proxy->options & PR_O_USE_ALL_BK))))
 		return 0;
 
-	HA_SPIN_LOCK(QUEUE_LOCK, &s->proxy->queue.lock);
 	maxconn = srv_dynamic_maxconn(s);
-	while ((p = pendconn_first(&s->proxy->queue.head))) {
-		if (s->maxconn && s->served + xferred >= maxconn)
-			break;
-
+	while ((!s->maxconn || s->served + xferred < maxconn) &&
+	       (p = pendconn_first(&s->proxy->queue))) {
 		__pendconn_unlink_prx(p);
+		HA_SPIN_UNLOCK(QUEUE_LOCK, &s->proxy->queue.lock);
+
 		p->target = s;
 
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 		xferred++;
 	}
-	HA_SPIN_UNLOCK(QUEUE_LOCK, &s->proxy->queue.lock);
 	if (xferred) {
 		_HA_ATOMIC_SUB(&s->proxy->queue.length, xferred);
 		_HA_ATOMIC_SUB(&s->proxy->totpend, xferred);
