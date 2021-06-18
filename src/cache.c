@@ -2280,6 +2280,19 @@ static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 	/* Iterate over all the ACCEPT_ENCODING_MAX_ENTRIES first accept-encoding
 	 * values that might span acrosse multiple accept-encoding headers. */
 	while (http_find_header(htx, hdr_name, &ctx, 0) && count < ACCEPT_ENCODING_MAX_ENTRIES) {
+		count++;
+
+		/* As per RFC7231#5.3.4, "An Accept-Encoding header field with a
+		 * combined field-value that is empty implies that the user agent
+		 * does not want any content-coding in response."
+		 *
+		 * We must (and did) count the existence of this empty header to not
+		 * hit the `count == 0` case below, but must ignore the value to not
+		 * include VARY_ENCODING_OTHER into the final bitmap.
+		 */
+		if (istlen(ctx.value) == 0)
+			continue;
+
 		/* Turn accept-encoding value to lower case */
 		ist2bin_lc(istptr(ctx.value), ctx.value);
 
@@ -2294,8 +2307,6 @@ static int accept_encoding_normalizer(struct htx *htx, struct ist hdr_name,
 			/* Unknown encoding */
 			encoding_bitmap |= VARY_ENCODING_OTHER;
 		}
-
-		count++;
 	}
 
 	/* If a "*" was found in the accepted encodings (without a null weight),

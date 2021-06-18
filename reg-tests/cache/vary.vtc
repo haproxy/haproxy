@@ -108,7 +108,18 @@ server s1 {
                -hdr "Content-Encoding: gzip" \
               -bodylen 188
 
+       rxreq
+       expect req.url == "/empty-vs-missing"
+       txresp -hdr "Content-Encoding: gzip" \
+               -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 234
 
+       rxreq
+       expect req.url == "/empty-vs-missing"
+       txresp -hdr "Vary: accept-encoding" \
+               -hdr "Cache-Control: max-age=5" \
+               -bodylen 256
 } -start
 
 server s2 {
@@ -344,6 +355,42 @@ client c1 -connect ${h1_fe_sock} {
        expect resp.bodylen == 188
        expect resp.http.X-Cache-Hit == 0
 
+       # A missing 'Accept-Encoding' implies that anything is acceptable,
+       # while an empty 'Accept-Encoding' implies nothing is acceptable.
+
+       # Start by caching a gzip response.
+       txreq -url "/empty-vs-missing" -hdr "Accept-Encoding: gzip"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 234
+       expect resp.http.content-encoding == "gzip"
+       expect resp.http.X-Cache-Hit == 0
+
+       # Check that it is cached.
+       txreq -url "/empty-vs-missing" -hdr "Accept-Encoding: gzip"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 234
+       expect resp.http.content-encoding == "gzip"
+       expect resp.http.X-Cache-Hit == 1
+
+       # Check that the cached response is returned when no accept-encoding is
+       # specified.
+       txreq -url "/empty-vs-missing"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 234
+       expect resp.http.content-encoding == "gzip"
+       expect resp.http.X-Cache-Hit == 1
+
+       # Check that the cached response is not returned when an empty
+       # accept-encoding is specified.
+       txreq -url "/empty-vs-missing" -hdr "Accept-Encoding:"
+       rxresp
+       expect resp.status == 200
+       expect resp.bodylen == 256
+       expect resp.http.content-encoding == "<undef>"
+       expect resp.http.X-Cache-Hit == 0
 
        # The following requests are treated by a backend that does not cache
        # responses containing a Vary header
