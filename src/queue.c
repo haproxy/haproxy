@@ -397,6 +397,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	p->px         = px;
 	p->strm       = strm;
 	p->strm_flags = strm->flags;
+	strm->pend_pos = p;
 
 	if (srv) {
 		unsigned int old_max, new_max;
@@ -430,7 +431,6 @@ struct pendconn *pendconn_add(struct stream *strm)
 		eb32_insert(&px->pendconns, &p->node);
 		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->px->lock);
 	}
-	strm->pend_pos = p;
 
 	_HA_ATOMIC_INC(&px->totpend);
 	return p;
