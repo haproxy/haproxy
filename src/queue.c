@@ -391,6 +391,9 @@ struct pendconn *pendconn_add(struct stream *strm)
 	struct pendconn *p;
 	struct proxy    *px;
 	struct server   *srv;
+	struct queue    *q;
+	unsigned int *max_ptr;
+	unsigned int old_max, new_max;
 
 	p = pool_alloc(pool_head_pendconn);
 	if (!p)
@@ -411,37 +414,26 @@ struct pendconn *pendconn_add(struct stream *strm)
 	strm->pend_pos = p;
 
 	if (srv) {
-		unsigned int old_max, new_max;
-
-		new_max = _HA_ATOMIC_ADD_FETCH(&srv->queue.length, 1);
-		old_max = srv->counters.nbpend_max;
-		while (new_max > old_max) {
-			if (likely(_HA_ATOMIC_CAS(&srv->counters.nbpend_max, &old_max, new_max)))
-				break;
-		}
-		__ha_barrier_atomic_store();
-
-		HA_SPIN_LOCK(QUEUE_LOCK, &p->srv->queue.lock);
-		p->queue_idx = srv->queue.idx - 1; // for increment
-		eb32_insert(&srv->queue.head, &p->node);
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->srv->queue.lock);
+		q = &srv->queue;
+		max_ptr = &srv->counters.nbpend_max;
 	}
 	else {
-		unsigned int old_max, new_max;
-
-		new_max = _HA_ATOMIC_ADD_FETCH(&px->queue.length, 1);
-		old_max = px->be_counters.nbpend_max;
-		while (new_max > old_max) {
-			if (likely(_HA_ATOMIC_CAS(&px->be_counters.nbpend_max, &old_max, new_max)))
-				break;
-		}
-		__ha_barrier_atomic_store();
-
-		HA_SPIN_LOCK(QUEUE_LOCK, &p->px->queue.lock);
-		p->queue_idx = px->queue.idx - 1; // for increment
-		eb32_insert(&px->queue.head, &p->node);
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->px->queue.lock);
+		q = &px->queue;
+		max_ptr = &px->be_counters.nbpend_max;
 	}
+
+	new_max = _HA_ATOMIC_ADD_FETCH(&q->length, 1);
+	old_max = _HA_ATOMIC_LOAD(max_ptr);
+	while (new_max > old_max) {
+		if (likely(_HA_ATOMIC_CAS(max_ptr, &old_max, new_max)))
+			break;
+	}
+	__ha_barrier_atomic_store();
+
+	HA_SPIN_LOCK(QUEUE_LOCK, &q->lock);
+	p->queue_idx = q->idx - 1; // for increment
+	eb32_insert(&q->head, &p->node);
+	HA_SPIN_UNLOCK(QUEUE_LOCK, &q->lock);
 
 	_HA_ATOMIC_INC(&px->totpend);
 	return p;
