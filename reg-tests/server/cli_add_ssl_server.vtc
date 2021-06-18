@@ -1,0 +1,63 @@
+varnishtest "Add server via cli with SSL activated"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature cmd "command -v socat"
+feature ignore_unknown_macro
+
+haproxy h1 -conf {
+	global
+		stats socket "${tmpdir}/h1/stats" level admin
+
+	defaults
+		mode http
+		timeout connect 1s
+		timeout client  1s
+		timeout server  1s
+
+	# proxy to attach a ssl server
+	listen li-ssl
+		bind "fd@${feSsl}"
+		balance random
+
+	# frontend used to respond to ssl connection
+	frontend fe-ssl-term
+		bind "fd@${feSslTerm}" ssl crt ${testdir}/common.pem
+		http-request return status 200
+} -start
+
+### SSL SUPPORT
+# 1. first create a ca-file using CLI
+# 2. create an SSL server and use it
+
+client c1 -connect ${h1_feSsl_sock} {
+	txreq
+	rxresp
+	expect resp.status == 503
+} -run
+
+shell {
+	echo "new ssl ca-file common.pem" | socat "${tmpdir}/h1/stats" -
+	printf "set ssl ca-file common.pem <<\n$(cat ${testdir}/common.pem)\n\n" | socat "${tmpdir}/h1/stats" -
+	echo "commit ssl ca-file common.pem" | socat "${tmpdir}/h1/stats" -
+} -run
+
+haproxy h1 -cli {
+    send "show ssl ca-file common.pem"
+    expect ~ ".*SHA1 FingerPrint: 9A6418E498C43EDBCF5DD3C4C6FCD1EE0D7A946D"
+}
+
+haproxy h1 -cli {
+	# non existent backend
+	send "experimental-mode on; add server li-ssl/s1 ${h1_feSslTerm_addr}:${h1_feSslTerm_port} ssl ca-file common.pem verify none"
+	expect ~ "New server registered."
+
+	send "enable server li-ssl/s1"
+	expect ~ ".*"
+}
+
+client c2 -connect ${h1_feSsl_sock} {
+	txreq
+	rxresp
+	expect resp.status == 200
+} -run
