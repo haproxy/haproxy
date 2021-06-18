@@ -253,31 +253,25 @@ static struct pendconn *pendconn_first(struct eb_root *pendconns)
  * immediately marked as "assigned", and both its <srv> and <srv_conn> are set
  * to <srv>.
  *
+ * The proxy's queue will be consulted only if px_ok is non-zero.
+ *
  * This function must only be called if the server queue _AND_ the proxy queue
- * are locked. Today it is only called by process_srv_queue. When a pending
- * connection is dequeued, this function returns 1 if the pending connection can
- * be handled by the current thread, else it returns 2.
+ * are locked (if px_ok is set). Today it is only called by process_srv_queue.
+ * When a pending connection is dequeued, this function returns 1 if a pendconn
+ * is dequeued, otherwise 0.
  */
-static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
+static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int px_ok)
 {
 	struct pendconn *p = NULL;
 	struct pendconn *pp = NULL;
-	struct server   *rsrv;
 	u32 pkey, ppkey;
-
-	rsrv = srv->track;
-	if (!rsrv)
-		rsrv = srv;
 
 	p = NULL;
 	if (srv->queue.length)
 		p = pendconn_first(&srv->queue.head);
 
 	pp = NULL;
-	if (srv_currently_usable(rsrv) && px->queue.length &&
-	    (!(srv->flags & SRV_F_BACKUP) ||
-	     (!px->srv_act &&
-	      (srv == px->lbprm.fbck || (px->options & PR_O_USE_ALL_BK)))))
+	if (px_ok && px->queue.length)
 		pp = pendconn_first(&px->queue.head);
 
 	if (!p && !pp)
@@ -334,15 +328,25 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
  */
 void process_srv_queue(struct server *s)
 {
+	struct server *ref = s->track ? s->track : s;
 	struct proxy  *p = s->proxy;
 	int maxconn;
 	int done = 0;
+	int px_ok;
+
+	/* if a server is not usable or backup and must not be used
+	 * to dequeue backend requests.
+	 */
+	px_ok = srv_currently_usable(ref) &&
+	        (!(s->flags & SRV_F_BACKUP) ||
+	         (!p->srv_act &&
+	          (s == p->lbprm.fbck || (p->options & PR_O_USE_ALL_BK))));
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->queue.lock);
 	HA_SPIN_LOCK(PROXY_LOCK,  &p->queue.lock);
 	maxconn = srv_dynamic_maxconn(s);
 	while (s->served < maxconn) {
-		int ret = pendconn_process_next_strm(s, p);
+		int ret = pendconn_process_next_strm(s, p, px_ok);
 		if (!ret)
 			break;
 		_HA_ATOMIC_INC(&s->served);
