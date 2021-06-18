@@ -340,27 +340,29 @@ void process_srv_queue(struct server *s, int server_locked)
 	int done = 0;
 	int maxconn;
 
-	if (!server_locked)
-		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
-	HA_RWLOCK_WRLOCK(PROXY_LOCK,  &p->lock);
 	maxconn = srv_dynamic_maxconn(s);
 	while (s->served < maxconn) {
 		struct pendconn *pc;
 
+		if (!server_locked)
+			HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
+		HA_RWLOCK_WRLOCK(PROXY_LOCK,  &p->lock);
+
 		pc = pendconn_process_next_strm(s, p);
+
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK,  &p->lock);
+		if (!server_locked)
+			HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+
 		if (!pc)
 			break;
 
 		done++;
 
 		_HA_ATOMIC_INC(&s->served);
-
 		stream_add_srv_conn(pc->strm, s);
 		task_wakeup(pc->strm->task, TASK_WOKEN_RES);
 	}
-	HA_RWLOCK_WRUNLOCK(PROXY_LOCK,  &p->lock);
-	if (!server_locked)
-		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 
 	_HA_ATOMIC_ADD(&p->served, done);
 
