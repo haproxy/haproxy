@@ -343,7 +343,7 @@ endif
 # Haiku
 ifeq ($(TARGET),haiku)
   TARGET_LDFLAGS = -lnetwork
-  set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY)
+  set_target_defaults = $(call default_opts,USE_POLL USE_TPROXY USE_OBSOLETE_LINKER)
 endif
 
 # For linux >= 2.6.28 and glibc
