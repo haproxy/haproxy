@@ -679,10 +679,9 @@ int assign_server(struct stream *s)
 		case BE_LB_LKUP_CHTREE:
 		case BE_LB_LKUP_MAP:
 			if ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR) {
+				/* static-rr (map) or random (chash) */
 				if ((s->be->lbprm.algo & BE_LB_PARM) == BE_LB_RR_RANDOM)
 					srv = get_server_rnd(s, prev_srv);
-				else if ((s->be->lbprm.algo & BE_LB_LKUP) == BE_LB_LKUP_CHTREE)
-					srv = chash_get_next_server(s->be, prev_srv);
 				else
 					srv = map_get_server_rr(s->be, prev_srv);
 				break;
