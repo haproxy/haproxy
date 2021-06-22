@@ -9,7 +9,7 @@ barrier b2 cond 2 -cyclic
 server s1 {
   barrier b1 sync
   recv 5
-  send "75%,max-conn:30,maint,down\n"
+  send "75%,maxconn:30,maint,down\n"
   expect_close
   barrier b2 sync
 } -start
@@ -31,8 +31,13 @@ haproxy h1 -conf {
 haproxy h1 -cli {
     send "show servers state"
     expect ~ "be1 1 srv 127.0.0.1 2 0 100 100 [[:digit:]]+ 1 0 [[:digit:]] 0 [[:digit:]]+ 0 0 - ${s1_port} -"
+    send "show stat"
+    expect ~ "be1,srv,0,0,0,0,,"
+
     barrier b1 sync
     barrier b2 sync
     send "show servers state"
     expect ~ "be1 1 srv 127.0.0.1 0 1 75 100 [[:digit:]]+ 1 0 [[:digit:]] 0 [[:digit:]]+ 0 0 - ${s1_port} -"
+    send "show stat"
+    expect ~ "be1,srv,0,0,0,0,30"
 }
