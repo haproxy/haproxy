@@ -2565,7 +2565,7 @@ int pcli_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
 			}
 			if (may_dequeue_tasks(__objt_server(s->target), be))
-				process_srv_queue(__objt_server(s->target), 0);
+				process_srv_queue(__objt_server(s->target));
 		}
 
 		s->target = NULL;

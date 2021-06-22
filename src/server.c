@@ -1818,11 +1818,8 @@ const char *server_parse_maxconn_change_request(struct server *sv,
 		sv->maxconn = v;
 	}
 
-	/* server_parse_maxconn_change_request requires the server lock held.
-	 * Specify it to process_srv_queue to prevent a deadlock.
-	 */
 	if (may_dequeue_tasks(sv, sv->proxy))
-		process_srv_queue(sv, 1);
+		process_srv_queue(sv);
 
 	return NULL;
 }

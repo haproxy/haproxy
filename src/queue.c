@@ -331,10 +331,9 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
 }
 
 /* Manages a server's connection queue. This function will try to dequeue as
- * many pending streams as possible, and wake them up. <server_locked> must
- * only be set if the caller already hold the server lock.
+ * many pending streams as possible, and wake them up.
  */
-void process_srv_queue(struct server *s, int server_locked)
+void process_srv_queue(struct server *s)
 {
 	struct proxy  *p = s->proxy;
 	int done = 0;

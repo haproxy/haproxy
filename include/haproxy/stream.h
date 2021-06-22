@@ -339,7 +339,7 @@ static inline void stream_choose_redispatch(struct stream *s)
 	      ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR)))) {
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
-			process_srv_queue(objt_server(s->target), 0);
+			process_srv_queue(objt_server(s->target));
 
 		s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 		si->state = SI_ST_REQ;
