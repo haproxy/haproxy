@@ -172,41 +172,33 @@ static inline void pendconn_queue_unlock(struct pendconn *p)
  * connection is not really dequeued. It will be done during process_stream().
  * This function takes all the required locks for the operation. The pendconn
  * must be valid, though it doesn't matter if it was already unlinked. Prefer
- * pendconn_cond_unlink() to first check <p>. When the locks are already held,
- * please use __pendconn_unlink_{srv,prx}() instead.
+ * pendconn_cond_unlink() to first check <p>.
  */
 void pendconn_unlink(struct pendconn *p)
 {
-	int done = 0;
 	struct queue  *q  = p->queue;
 	struct proxy  *px = q->px;
 	struct server *sv = q->sv;
+	uint oldidx;
+	int done = 0;
 
-	if (sv) {
-		/* queued in the server */
-		HA_SPIN_LOCK(QUEUE_LOCK, &q->lock);
-		if (p->node.node.leaf_p) {
-			__pendconn_unlink_srv(p);
-			done = 1;
-		}
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &q->lock);
-		if (done) {
-			_HA_ATOMIC_DEC(&q->length);
-			_HA_ATOMIC_DEC(&px->totpend);
-		}
+	oldidx = _HA_ATOMIC_LOAD(&p->queue->idx);
+	HA_SPIN_LOCK(QUEUE_LOCK, &q->lock);
+	if (p->node.node.leaf_p) {
+		eb32_delete(&p->node);
+		done = 1;
 	}
-	else {
-		/* queued in the proxy */
-		HA_SPIN_LOCK(QUEUE_LOCK, &q->lock);
-		if (p->node.node.leaf_p) {
-			__pendconn_unlink_prx(p);
-			done = 1;
-		}
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &q->lock);
-		if (done) {
-			_HA_ATOMIC_DEC(&q->length);
-			_HA_ATOMIC_DEC(&px->totpend);
-		}
+	HA_SPIN_UNLOCK(QUEUE_LOCK, &q->lock);
+
+	if (done) {
+		oldidx -= p->queue_idx;
+		if (sv)
+			p->strm->logs.srv_queue_pos += oldidx;
+		else
+			p->strm->logs.prx_queue_pos += oldidx;
+
+		_HA_ATOMIC_DEC(&q->length);
+		_HA_ATOMIC_DEC(&px->totpend);
 	}
 }
 
