@@ -109,11 +109,18 @@ static inline int queue_limit_offset(int offset)
 	return offset;
 }
 
-static inline void queue_init(struct queue *queue)
+/* initialize the queue <queue> for proxy <px> and server <sv>. A server's
+ * always has both a valid proxy and a valid server. A proxy's queue only
+ * has a valid proxy and NULL for the server queue. This is how they're
+ * distinguished during operations.
+ */
+static inline void queue_init(struct queue *queue, struct proxy *px, struct server *sv)
 {
 	queue->head = EB_ROOT;
 	queue->length = 0;
 	queue->idx = 0;
+	queue->px = px;
+	queue->sv = sv;
 	HA_SPIN_INIT(&queue->lock);
 }
 

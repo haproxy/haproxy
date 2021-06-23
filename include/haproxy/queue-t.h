@@ -41,6 +41,8 @@ struct pendconn {
 
 struct queue {
 	struct eb_root head;                    /* queued pendconnds */
+	struct proxy  *px;                      /* the proxy we're waiting for, never NULL in queue */
+	struct server *sv;                      /* the server we are waiting for, may be NULL if don't care */
 	__decl_thread(HA_SPINLOCK_T lock);      /* for manipulations in the tree */
 	unsigned int idx;			/* current queuing index */
 	unsigned int length;                    /* number of entries */
