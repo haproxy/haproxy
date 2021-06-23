@@ -28,11 +28,13 @@
 struct proxy;
 struct server;
 struct stream;
+struct queue;
 
 struct pendconn {
 	int            strm_flags; /* stream flags */
 	unsigned int   queue_idx;  /* value of proxy/server queue_idx at time of enqueue */
 	struct stream *strm;
+	struct queue  *queue;      /* the queue the entry is queued into */
 	struct proxy  *px;
 	struct server *srv;        /* the server we are waiting for, may be NULL if don't care */
 	struct server *target;     /* the server that was assigned, = srv except if srv==NULL */
