@@ -1292,8 +1292,7 @@ void init_new_proxy(struct proxy *p)
 {
 	memset(p, 0, sizeof(struct proxy));
 	p->obj_type = OBJ_TYPE_PROXY;
-	p->queue.head = EB_ROOT;
-	HA_SPIN_INIT(&p->queue.lock);
+	queue_init(&p->queue);
 	LIST_INIT(&p->acl);
 	LIST_INIT(&p->http_req_rules);
 	LIST_INIT(&p->http_res_rules);

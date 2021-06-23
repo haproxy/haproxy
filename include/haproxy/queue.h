@@ -109,6 +109,13 @@ static inline int queue_limit_offset(int offset)
 	return offset;
 }
 
+static inline void queue_init(struct queue *queue)
+{
+	queue->head = EB_ROOT;
+	queue->length = 0;
+	queue->idx = 0;
+	HA_SPIN_INIT(&queue->lock);
+}
 
 #endif /* _HAPROXY_QUEUE_H */
 
