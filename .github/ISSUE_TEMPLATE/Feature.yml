@@ -1,0 +1,50 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for HAProxy.
+labels:
+- 'type: feature'
+body:
+- type: markdown
+  attributes:
+    value: |
+      ## Welcome!
+
+      You are about to *request a feature* you are missing in HAProxy.
+
+      This issue tracker is used to track feature requests and bug reports. Please use [the forum](https://discourse.haproxy.org/) or mailing list if you have a question, e.g. to get help with building a configuration to achieve your desired behavior.
+
+      The forum is at: https://discourse.haproxy.org/
+
+      The mailing list (no need to subscribe) is: haproxy@formilux.org
+      Subscribe to the list: haproxy+subscribe@formilux.org
+      Unsubscribe from the list: haproxy+unsubscribe@formilux.org
+
+      Forum and mailing list are correct places for questions about HAProxy or general suggestions and topics, e.g. usage or documentation questions! This issue tracker is for tracking bugs and feature requests directly relating to the development of the software itself.
+
+      Thanks for understanding, and for contributing to the project!
+- type: textarea
+  id: feature-request
+  attributes:
+    label: Your Feature Request
+    description: |
+      What should HAProxy do differently? Which functionality do you think we should add? Please describe the feature you would like us to add here.
+  validations:
+    required: true
+- type: textarea
+  id: feature-explanation
+  attributes:
+    label: What are you trying to do?
+    description: |
+      This section should contain a brief description what you're trying to do, which would be possible after implementing the new feature.
+  validations:
+    required: true
+- type: textarea
+  id: haproxy-vv
+  attributes:
+    label: 'Output of `haproxy -vv`'
+    render: plain
+    description: >
+      Please add the output of `haproxy -vv` you are currently using here, this helps us later to see what has changed in HAProxy when we revisit this issue after some time.
+
+      Please *do not* enter "future version" or something similar. We are interested in the version you are *currently using*.
+  validations:
+    required: true

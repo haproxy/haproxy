@@ -1,0 +1,43 @@
+name: Code Report
+description: File a Code Report (for example from coverity or valgrind)
+labels:
+- 'type: code-report'
+body:
+- type: markdown
+  attributes:
+    value: |
+      ## Welcome!
+
+      You are about to *report an issue found using an automated tool*. Please use the 'Bug Report' template if you encountered a regular bug.
+
+      Please use the forum or mailing list if you have a question, e.g. to get help with building a configuration to achieve your desired behavior.
+- type: input
+  id: tool
+  attributes:
+    label: Tool Name and Version
+    description: The name and version of the tool you used (e.g. valgrind-3.13.0, or Coverity)
+  validations:
+    required: true
+- type: textarea
+  id: code-report
+  attributes:
+    label: Code Report
+    description: Please provide the full output of the tool here.
+    render: plain
+  validations:
+    required: true
+- type: textarea
+  id: additional
+  attributes:
+    label: Additional Information
+    description: |
+      Any additional information about your environment (e.g. example configurations to trigger a memory leak).
+- type: textarea
+  id: haproxy-vv
+  attributes:
+    label: 'Output of `haproxy -vv`'
+    render: plain
+    description: |
+      Please add the output of `haproxy -vv` you are currently using here, this helps us later to see what has changed in HAProxy when we revisit this issue after some time.
+  validations:
+    required: true

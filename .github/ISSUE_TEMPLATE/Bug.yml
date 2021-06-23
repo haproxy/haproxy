@@ -1,0 +1,108 @@
+name: Bug Report
+description: Report a problem with HAProxy to help us resolve it.
+labels:
+- 'type: bug'
+- 'status: needs-triage'
+body:
+- type: markdown
+  attributes:
+    value: |
+      ## Welcome!
+
+      You are about to *report a bug* you encountered in HAProxy. Please use the 'Feature Request' template if you want to propose a new feature instead.
+
+      This issue tracker is used to track actual bugs. Please use [the forum](https://discourse.haproxy.org/) or mailing list if you have a question, e.g. to get help with building a configuration to achieve your desired behavior.
+
+      The forum is at: https://discourse.haproxy.org/
+
+      The mailing list (no need to subscribe) is: haproxy@formilux.org
+      Subscribe to the list: haproxy+subscribe@formilux.org
+      Unsubscribe from the list: haproxy+unsubscribe@formilux.org
+
+      Forum and mailing list are correct places for questions about HAProxy or general suggestions and topics, e.g. usage or documentation questions! This issue tracker is for tracking bugs and feature requests directly relating to the development of the software itself.
+
+      Thanks for understanding, and for contributing to the project!
+- type: textarea
+  id: description
+  attributes:
+    label: Detailed Description of the Problem
+    description: |
+      In this section, please try to concentrate on observations. Only describe what you observed directly.
+  validations:
+    required: true
+- type: textarea
+  id: expected-behavior
+  attributes:
+    label: Expected Behavior
+    description: |
+      Explain why you consider the described behavior (above) to be wrong. What did you expect instead?
+
+      Most likely this is a mismatch between HAProxy's documentation and HAProxy's behavior.
+  validations:
+    required: true
+- type: textarea
+  id: steps
+  attributes:
+    label: Steps to Reproduce the Behavior
+    description: |
+      The more time you spend describing an easy way to reproduce the behavior (if this is possible), the easier it is for the project developers to fix it!
+    placeholder: |
+      1.
+      2.
+      3.
+  validations:
+    required: true
+- type: textarea
+  id: possible-cause
+  attributes:
+    label: Do you have any idea what may have caused this?
+    description: |
+      Simply leave this empty if you do not.
+- type: textarea
+  id: possible-solution
+  attributes:
+    label: Do you have an idea how to solve the issue?
+    description: |
+      Simply leave this empty if you do not.
+- type: textarea
+  id: configuration
+  attributes:
+    label: What is your configuration?
+    description: |
+      - Include as much configuration as possible, including global and default sections.
+      - Replace confidential data like domain names and IP addresses.
+    render: haproxy
+  validations:
+    required: true
+- type: textarea
+  id: haproxy-vv
+  attributes:
+    label: 'Output of `haproxy -vv`'
+    description: |
+      Please run `haproxy -vv` (with two `v`) and paste the output into this field.
+
+      Please also include the output of `uname -a` if you use HAProxy 2.1 or older.
+    render: plain
+  validations:
+    required: true
+- type: textarea
+  id: last-output
+  attributes:
+    label: Last Outputs and Backtraces
+    description: |
+      If HAProxy crashed then please provide:
+
+        1. The last output from your HAProxy logs (e.g. from journalctl or syslog).
+        2. A backtrace from a coredump (`t a a bt full`).
+    render: plain
+- type: textarea
+  id: additional
+  attributes:
+    label: Additional Information
+    description: |
+      Any additional information about your environment that may be useful to know about. For example:
+
+        - Any local patches applied
+        - Environment specificities
+        - Unusual workload
+        - Interesting observations or coincidences with events on other components
