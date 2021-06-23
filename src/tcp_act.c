@@ -509,6 +509,8 @@ static struct action_kw_list tcp_req_sess_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_actions);
 
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
+	{ "set-src",      tcp_parse_set_src_dst },
+	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-mark",     tcp_parse_set_mark    },
