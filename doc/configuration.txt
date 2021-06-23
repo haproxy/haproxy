@@ -12056,6 +12056,8 @@ tcp-request content <action> [{if | unless} <condition>]
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - set-dst <expr>
     - set-dst-port <expr>
+    - set-src <expr>
+    - set-src-port <expr>
     - set-var(<var-name>) <expr>
     - switch-mode http [ proto <name> ]
     - unset-var(<var-name>)
@@ -12105,6 +12107,9 @@ tcp-request content <action> [{if | unless} <condition>]
 
   The "set-dst" and "set-dst-port" are used to set respectively the destination
   IP and port. More information on how to use it at "http-request set-dst".
+
+  The "set-src" and "set-src-port" are used to set respectively the source IP
+  and port. More information on how to use it at "http-request set-src".
 
   The "set-var" is used to set the content of a variable. The variable is
   declared inline. For "tcp-request session" rules, only session-level
