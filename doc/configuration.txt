@@ -12492,6 +12492,10 @@ tcp-request session <action> [{if | unless} <condition>]
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
+    - set-dst <expr>
+    - set-dst-port <expr>
+    - set-src <expr>
+    - set-src-port <expr>
     - set-var(<var-name>) <expr>
     - unset-var(<var-name>)
     - silent-drop
