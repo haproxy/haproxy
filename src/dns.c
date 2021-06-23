@@ -170,7 +170,6 @@ ssize_t dns_recv_nameserver(struct dns_nameserver *ns, void *data, size_t size)
 
 		if (!LIST_ISEMPTY(&dss->wait_sess)) {
 			ds = LIST_NEXT(&dss->wait_sess, struct dns_session *, waiter);
-			fprintf(stderr, "ds: %p\n", ds);
 			ret = ds->rx_msg.len < size ? ds->rx_msg.len : size;
 			memcpy(data, ds->rx_msg.area, ret);
 
