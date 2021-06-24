@@ -330,6 +330,7 @@ void process_srv_queue(struct server *s)
 	struct server *ref = s->track ? s->track : s;
 	struct proxy  *p = s->proxy;
 	int maxconn;
+	int stop = 0;
 	int done = 0;
 	int px_ok;
 
@@ -345,13 +346,13 @@ void process_srv_queue(struct server *s)
 	 * for the same server will give up, knowing that at least one of
 	 * them will check the conditions again before quitting.
 	 */
-	while (s->served < (maxconn = srv_dynamic_maxconn(s))) {
+	while (!stop && s->served < (maxconn = srv_dynamic_maxconn(s))) {
 		if (HA_SPIN_TRYLOCK(SERVER_LOCK, &s->queue.lock) != 0)
 			break;
 
 		while (s->served < maxconn) {
-			int ret = pendconn_process_next_strm(s, p, px_ok);
-			if (!ret)
+			stop = !pendconn_process_next_strm(s, p, px_ok);
+			if (stop)
 				break;
 			_HA_ATOMIC_INC(&s->served);
 			done++;
