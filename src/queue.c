@@ -352,16 +352,23 @@ void process_srv_queue(struct server *s)
 	         (!p->srv_act &&
 	          (s == p->lbprm.fbck || (p->options & PR_O_USE_ALL_BK))));
 
-	HA_SPIN_LOCK(SERVER_LOCK, &s->queue.lock);
-	maxconn = srv_dynamic_maxconn(s);
-	while (s->served < maxconn) {
-		int ret = pendconn_process_next_strm(s, p, px_ok);
-		if (!ret)
+	/* let's repeat that under the lock on each round. Threads competing
+	 * for the same server will give up, knowing that at least one of
+	 * them will check the conditions again before quitting.
+	 */
+	while (s->served < (maxconn = srv_dynamic_maxconn(s))) {
+		if (HA_SPIN_TRYLOCK(SERVER_LOCK, &s->queue.lock) != 0)
 			break;
-		_HA_ATOMIC_INC(&s->served);
-		done++;
+
+		while (s->served < maxconn) {
+			int ret = pendconn_process_next_strm(s, p, px_ok);
+			if (!ret)
+				break;
+			_HA_ATOMIC_INC(&s->served);
+			done++;
+		}
+		HA_SPIN_UNLOCK(SERVER_LOCK, &s->queue.lock);
 	}
-	HA_SPIN_UNLOCK(SERVER_LOCK, &s->queue.lock);
 
 	if (done) {
 		_HA_ATOMIC_SUB(&p->totpend, done);
