@@ -271,8 +271,15 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 		p = pendconn_first(&srv->queue.head);
 
 	pp = NULL;
-	if (px_ok && px->queue.length)
+	if (px_ok && px->queue.length) {
+		/* the lock only remains held as long as the pp is
+		 * in the proxy's queue.
+		 */
+		HA_SPIN_LOCK(PROXY_LOCK,  &px->queue.lock);
 		pp = pendconn_first(&px->queue.head);
+		if (!pp)
+			HA_SPIN_UNLOCK(PROXY_LOCK,  &px->queue.lock);
+	}
 
 	if (!p && !pp)
 		return 0;
@@ -304,11 +311,14 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
  use_pp:
 	/* Let's switch from the server pendconn to the proxy pendconn */
 	__pendconn_unlink_prx(pp);
+	HA_SPIN_UNLOCK(PROXY_LOCK,  &px->queue.lock);
 	_HA_ATOMIC_DEC(&px->queue.length);
 	_HA_ATOMIC_INC(&px->queue.idx);
 	p = pp;
 	goto unlinked;
  use_p:
+	if (pp)
+		HA_SPIN_UNLOCK(PROXY_LOCK,  &px->queue.lock);
 	__pendconn_unlink_srv(p);
 	_HA_ATOMIC_DEC(&srv->queue.length);
 	_HA_ATOMIC_INC(&srv->queue.idx);
@@ -343,7 +353,6 @@ void process_srv_queue(struct server *s)
 	          (s == p->lbprm.fbck || (p->options & PR_O_USE_ALL_BK))));
 
 	HA_SPIN_LOCK(SERVER_LOCK, &s->queue.lock);
-	HA_SPIN_LOCK(PROXY_LOCK,  &p->queue.lock);
 	maxconn = srv_dynamic_maxconn(s);
 	while (s->served < maxconn) {
 		int ret = pendconn_process_next_strm(s, p, px_ok);
@@ -352,7 +361,6 @@ void process_srv_queue(struct server *s)
 		_HA_ATOMIC_INC(&s->served);
 		done++;
 	}
-	HA_SPIN_UNLOCK(PROXY_LOCK,  &p->queue.lock);
 	HA_SPIN_UNLOCK(SERVER_LOCK, &s->queue.lock);
 
 	if (done) {
