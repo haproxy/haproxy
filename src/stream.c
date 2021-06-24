@@ -623,7 +623,7 @@ static void stream_free(struct stream *s)
 			_HA_ATOMIC_DEC(&__objt_server(s->target)->cur_sess);
 		}
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
-			process_srv_queue(objt_server(s->target));
+			process_srv_queue(objt_server(s->target), 0);
 	}
 
 	if (unlikely(s->srv_conn)) {
@@ -1815,7 +1815,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 			}
 			sess_change_server(s, NULL);
 			if (may_dequeue_tasks(srv, s->be))
-				process_srv_queue(srv);
+				process_srv_queue(srv, 0);
 		}
 	}
 
