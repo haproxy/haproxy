@@ -3408,9 +3408,6 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		case RSLV_UPD_SRVIP_NOT_FOUND:
 			goto save_ip;
 
-		case RSLV_UPD_CNAME:
-			goto invalid;
-
 		case RSLV_UPD_NO_IP_FOUND:
 			has_no_ip = 1;
 			goto update_status;
@@ -3418,9 +3415,11 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		case RSLV_UPD_NAME_ERROR:
 			/* update resolution status to OTHER error type */
 			resolution->status = RSLV_STATUS_OTHER;
+			has_no_ip = 1;
 			goto update_status;
 
 		default:
+			has_no_ip = 1;
 			goto invalid;
 
 	}
@@ -3445,7 +3444,8 @@ int snr_resolution_cb(struct resolv_requester *requester, struct dns_counters *c
 		counters->invalid++;
 		goto update_status;
 	}
-	snr_update_srv_status(s, has_no_ip);
+	if (!snr_update_srv_status(s, has_no_ip) && has_no_ip)
+		memset(&s->addr, 0, sizeof(s->addr));
 	return 0;
 }
 
