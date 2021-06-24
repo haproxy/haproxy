@@ -41,7 +41,6 @@ struct pendconn {
 
 struct queue {
 	struct eb_root head;                    /* queued pendconnds */
-	__decl_thread(HA_SPINLOCK_T lock);      /* for manipulations in the tree */
 	unsigned int idx;			/* current queuing index */
 	unsigned int length;                    /* number of entries */
 };

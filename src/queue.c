@@ -157,9 +157,9 @@ static void __pendconn_unlink_prx(struct pendconn *p)
 static inline void pendconn_queue_lock(struct pendconn *p)
 {
 	if (p->srv)
-		HA_SPIN_LOCK(QUEUE_LOCK, &p->srv->queue.lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
 	else
-		HA_SPIN_LOCK(QUEUE_LOCK, &p->px->queue.lock);
+		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->px->lock);
 }
 
 /* Unlocks the queue the pendconn element belongs to. This relies on both p->px
@@ -169,9 +169,9 @@ static inline void pendconn_queue_lock(struct pendconn *p)
 static inline void pendconn_queue_unlock(struct pendconn *p)
 {
 	if (p->srv)
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->srv->queue.lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
 	else
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->px->queue.lock);
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->px->lock);
 }
 
 /* Removes the pendconn from the server/proxy queue. At this stage, the
@@ -187,12 +187,12 @@ void pendconn_unlink(struct pendconn *p)
 
 	if (p->srv) {
 		/* queued in the server */
-		HA_SPIN_LOCK(QUEUE_LOCK, &p->srv->queue.lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
 		if (p->node.node.leaf_p) {
 			__pendconn_unlink_srv(p);
 			done = 1;
 		}
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->srv->queue.lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
 		if (done) {
 			_HA_ATOMIC_DEC(&p->srv->queue.length);
 			_HA_ATOMIC_DEC(&p->px->totpend);
@@ -200,12 +200,12 @@ void pendconn_unlink(struct pendconn *p)
 	}
 	else {
 		/* queued in the proxy */
-		HA_SPIN_LOCK(QUEUE_LOCK, &p->px->queue.lock);
+		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->px->lock);
 		if (p->node.node.leaf_p) {
 			__pendconn_unlink_prx(p);
 			done = 1;
 		}
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->px->queue.lock);
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->px->lock);
 		if (done) {
 			_HA_ATOMIC_DEC(&p->px->queue.length);
 			_HA_ATOMIC_DEC(&p->px->totpend);
@@ -344,13 +344,15 @@ void process_srv_queue(struct server *s, int server_locked)
 	while (s->served < maxconn) {
 		struct pendconn *pc;
 
-		HA_SPIN_LOCK(QUEUE_LOCK, &s->queue.lock);
-		HA_SPIN_LOCK(QUEUE_LOCK, &p->queue.lock);
+		if (!server_locked)
+			HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
+		HA_RWLOCK_WRLOCK(PROXY_LOCK,  &p->lock);
 
 		pc = pendconn_process_next_strm(s, p);
 
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->queue.lock);
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &s->queue.lock);
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK,  &p->lock);
+		if (!server_locked)
+			HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
 
 		if (!pc)
 			break;
@@ -422,10 +424,10 @@ struct pendconn *pendconn_add(struct stream *strm)
 		}
 		__ha_barrier_atomic_store();
 
-		HA_SPIN_LOCK(QUEUE_LOCK, &p->srv->queue.lock);
+		HA_SPIN_LOCK(SERVER_LOCK, &p->srv->lock);
 		p->queue_idx = srv->queue.idx - 1; // for increment
 		eb32_insert(&srv->queue.head, &p->node);
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->srv->queue.lock);
+		HA_SPIN_UNLOCK(SERVER_LOCK, &p->srv->lock);
 	}
 	else {
 		unsigned int old_max, new_max;
@@ -438,10 +440,10 @@ struct pendconn *pendconn_add(struct stream *strm)
 		}
 		__ha_barrier_atomic_store();
 
-		HA_SPIN_LOCK(QUEUE_LOCK, &p->px->queue.lock);
+		HA_RWLOCK_WRLOCK(PROXY_LOCK, &p->px->lock);
 		p->queue_idx = px->queue.idx - 1; // for increment
 		eb32_insert(&px->queue.head, &p->node);
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &p->px->queue.lock);
+		HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->px->lock);
 	}
 
 	_HA_ATOMIC_INC(&px->totpend);
@@ -450,7 +452,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 
 /* Redistribute pending connections when a server goes down. The number of
  * connections redistributed is returned. It must be called with the server
- * queue lock held.
+ * lock held.
  */
 int pendconn_redistribute(struct server *s)
 {
@@ -487,8 +489,8 @@ int pendconn_redistribute(struct server *s)
 /* Check for pending connections at the backend, and assign some of them to
  * the server coming up. The server's weight is checked before being assigned
  * connections it may not be able to handle. The total number of transferred
- * connections is returned. It must be called with the server queue lock held,
- * and will take the proxy's queue lock.
+ * connections is returned. It must be called with the server lock held, and
+ * will take the proxy's lock.
  */
 int pendconn_grab_from_px(struct server *s)
 {
@@ -507,7 +509,7 @@ int pendconn_grab_from_px(struct server *s)
 	     ((s != s->proxy->lbprm.fbck) && !(s->proxy->options & PR_O_USE_ALL_BK))))
 		return 0;
 
-	HA_SPIN_LOCK(QUEUE_LOCK, &s->proxy->queue.lock);
+	HA_RWLOCK_WRLOCK(PROXY_LOCK, &s->proxy->lock);
 	maxconn = srv_dynamic_maxconn(s);
 	while ((p = pendconn_first(&s->proxy->queue.head))) {
 		if (s->maxconn && s->served + xferred >= maxconn)
@@ -519,7 +521,7 @@ int pendconn_grab_from_px(struct server *s)
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 		xferred++;
 	}
-	HA_SPIN_UNLOCK(QUEUE_LOCK, &s->proxy->queue.lock);
+	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &s->proxy->lock);
 	if (xferred) {
 		_HA_ATOMIC_SUB(&s->proxy->queue.length, xferred);
 		_HA_ATOMIC_SUB(&s->proxy->totpend, xferred);
