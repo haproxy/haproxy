@@ -270,23 +270,20 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
 	u32 pkey, ppkey;
 
 	p = NULL;
-	if (srv->queue.length) {
-		HA_SPIN_LOCK(QUEUE_LOCK, &srv->queue.lock);
+	HA_SPIN_LOCK(QUEUE_LOCK, &srv->queue.lock);
+	if (srv->queue.length)
 		p = pendconn_first(&srv->queue.head);
-		if (!p)
-			HA_SPIN_UNLOCK(QUEUE_LOCK, &srv->queue.lock);
-	}
 
 	pp = NULL;
-	if (px_ok && px->queue.length) {
-		HA_SPIN_LOCK(QUEUE_LOCK, &px->queue.lock);
+	HA_SPIN_LOCK(QUEUE_LOCK, &px->queue.lock);
+	if (px_ok && px->queue.length)
 		pp = pendconn_first(&px->queue.head);
-		if (!pp)
-			HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
-	}
 
-	if (!p && !pp)
+	if (!p && !pp) {
+		HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
+		HA_SPIN_UNLOCK(QUEUE_LOCK, &srv->queue.lock);
 		return NULL;
+	}
 	else if (!pp)
 		goto use_p; /*  p != NULL */
 	else if (!p)
@@ -314,18 +311,16 @@ static struct pendconn *pendconn_process_next_strm(struct server *srv, struct pr
 
  use_pp:
 	/* Let's switch from the server pendconn to the proxy pendconn */
-	if (p)
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &srv->queue.lock);
 	__pendconn_unlink_prx(pp);
 	HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
+	HA_SPIN_UNLOCK(QUEUE_LOCK, &srv->queue.lock);
 	_HA_ATOMIC_INC(&px->queue.idx);
 	_HA_ATOMIC_DEC(&px->queue.length);
 	_HA_ATOMIC_DEC(&px->totpend);
 	p = pp;
 	goto unlinked;
  use_p:
-	if (pp)
-		HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
+	HA_SPIN_UNLOCK(QUEUE_LOCK, &px->queue.lock);
 	__pendconn_unlink_srv(p);
 	HA_SPIN_UNLOCK(QUEUE_LOCK, &srv->queue.lock);
 	_HA_ATOMIC_INC(&srv->queue.idx);
