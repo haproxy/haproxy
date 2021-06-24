@@ -1578,8 +1578,6 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 			*newip = newip6;
 			*newip_sin_family = AF_INET6;
 		}
-		if (!currentip_found)
-			goto not_found;
 	}
 	/* Case when the caller looks first for an IPv6 address */
 	else if (family_priority == AF_INET6) {
@@ -1591,8 +1589,6 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 			*newip = newip4;
 			*newip_sin_family = AF_INET;
 		}
-		if (!currentip_found)
-			goto not_found;
 	}
 	/* Case when the caller have no preference (we prefer IPv6) */
 	else if (family_priority == AF_UNSPEC) {
@@ -1604,17 +1600,11 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 			*newip = newip4;
 			*newip_sin_family = AF_INET;
 		}
-		if (!currentip_found)
-			goto not_found;
 	}
-
-	/* No reason why we should change the server's IP address */
-	return RSLV_UPD_NO;
-
- not_found:
 
 	/* the ip of this record was chosen for the server */
 	if (owner && found_record) {
+		LIST_DEL_INIT(&owner->ip_rec_item);
 		LIST_APPEND(&found_record->attached_servers, &owner->ip_rec_item);
 	}
 
@@ -1625,7 +1615,8 @@ int resolv_get_ip_from_response(struct resolv_response *r_res,
 		LIST_APPEND(&r_res->answer_list, &record->list);
 		break;
 	}
-	return RSLV_UPD_SRVIP_NOT_FOUND;
+
+	return (currentip_found ? RSLV_UPD_NO : RSLV_UPD_SRVIP_NOT_FOUND);
 }
 
 /* Turns a domain name label into a string.
