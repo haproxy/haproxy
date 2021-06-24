@@ -311,24 +311,17 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px)
 	/* Let's switch from the server pendconn to the proxy pendconn */
 	__pendconn_unlink_prx(pp);
 	_HA_ATOMIC_DEC(&px->queue.length);
-	_HA_ATOMIC_DEC(&px->totpend);
 	px->queue.idx++;
 	p = pp;
 	goto unlinked;
  use_p:
 	__pendconn_unlink_srv(p);
 	_HA_ATOMIC_DEC(&srv->queue.length);
-	_HA_ATOMIC_DEC(&px->totpend);
 	srv->queue.idx++;
  unlinked:
 	p->strm_flags |= SF_ASSIGNED;
 	p->target = srv;
 
-	_HA_ATOMIC_INC(&srv->served);
-	_HA_ATOMIC_INC(&srv->proxy->served);
-	__ha_barrier_atomic_store();
-	if (px->lbprm.server_take_conn)
-		px->lbprm.server_take_conn(srv);
 	stream_add_srv_conn(p->strm, srv);
 
 	task_wakeup(p->strm->task, TASK_WOKEN_RES);
@@ -344,6 +337,7 @@ void process_srv_queue(struct server *s, int server_locked)
 {
 	struct proxy  *p = s->proxy;
 	int maxconn;
+	int done = 0;
 
 	if (!server_locked)
 		HA_SPIN_LOCK(SERVER_LOCK, &s->lock);
@@ -353,10 +347,20 @@ void process_srv_queue(struct server *s, int server_locked)
 		int ret = pendconn_process_next_strm(s, p);
 		if (!ret)
 			break;
+		_HA_ATOMIC_INC(&s->served);
+		done++;
 	}
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK,  &p->lock);
 	if (!server_locked)
 		HA_SPIN_UNLOCK(SERVER_LOCK, &s->lock);
+
+	if (done) {
+		_HA_ATOMIC_SUB(&p->totpend, done);
+		_HA_ATOMIC_ADD(&p->served, done);
+		__ha_barrier_atomic_store();
+		if (p->lbprm.server_take_conn)
+			p->lbprm.server_take_conn(s);
+	}
 }
 
 /* Adds the stream <strm> to the pending connection queue of server <strm>->srv
