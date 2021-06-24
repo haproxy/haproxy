@@ -264,10 +264,10 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
 		/* the lock only remains held as long as the pp is
 		 * in the proxy's queue.
 		 */
-		HA_SPIN_LOCK(PROXY_LOCK,  &px->queue.lock);
+		HA_SPIN_LOCK(QUEUE_LOCK,  &px->queue.lock);
 		pp = pendconn_first(&px->queue.head);
 		if (!pp)
-			HA_SPIN_UNLOCK(PROXY_LOCK,  &px->queue.lock);
+			HA_SPIN_UNLOCK(QUEUE_LOCK,  &px->queue.lock);
 	}
 
 	if (!p && !pp)
@@ -300,14 +300,14 @@ static int pendconn_process_next_strm(struct server *srv, struct proxy *px, int 
  use_pp:
 	/* Let's switch from the server pendconn to the proxy pendconn */
 	__pendconn_unlink_prx(pp);
-	HA_SPIN_UNLOCK(PROXY_LOCK,  &px->queue.lock);
+	HA_SPIN_UNLOCK(QUEUE_LOCK,  &px->queue.lock);
 	_HA_ATOMIC_DEC(&px->queue.length);
 	_HA_ATOMIC_INC(&px->queue.idx);
 	p = pp;
 	goto unlinked;
  use_p:
 	if (pp)
-		HA_SPIN_UNLOCK(PROXY_LOCK,  &px->queue.lock);
+		HA_SPIN_UNLOCK(QUEUE_LOCK,  &px->queue.lock);
 	__pendconn_unlink_srv(p);
 	_HA_ATOMIC_DEC(&srv->queue.length);
 	_HA_ATOMIC_INC(&srv->queue.idx);
@@ -347,7 +347,7 @@ void process_srv_queue(struct server *s)
 	 * them will check the conditions again before quitting.
 	 */
 	while (!stop && s->served < (maxconn = srv_dynamic_maxconn(s))) {
-		if (HA_SPIN_TRYLOCK(SERVER_LOCK, &s->queue.lock) != 0)
+		if (HA_SPIN_TRYLOCK(QUEUE_LOCK, &s->queue.lock) != 0)
 			break;
 
 		while (s->served < maxconn) {
@@ -357,7 +357,7 @@ void process_srv_queue(struct server *s)
 			_HA_ATOMIC_INC(&s->served);
 			done++;
 		}
-		HA_SPIN_UNLOCK(SERVER_LOCK, &s->queue.lock);
+		HA_SPIN_UNLOCK(QUEUE_LOCK, &s->queue.lock);
 	}
 
 	if (done) {
@@ -455,7 +455,7 @@ int pendconn_redistribute(struct server *s)
 	if ((s->proxy->options & (PR_O_REDISP|PR_O_PERSIST)) != PR_O_REDISP)
 		return 0;
 
-	HA_SPIN_LOCK(SERVER_LOCK, &s->queue.lock);
+	HA_SPIN_LOCK(QUEUE_LOCK, &s->queue.lock);
 	for (node = eb32_first(&s->queue.head); node; node = nodeb) {
 		nodeb =	eb32_next(node);
 
@@ -470,7 +470,7 @@ int pendconn_redistribute(struct server *s)
 		task_wakeup(p->strm->task, TASK_WOKEN_RES);
 		xferred++;
 	}
-	HA_SPIN_UNLOCK(SERVER_LOCK, &s->queue.lock);
+	HA_SPIN_UNLOCK(QUEUE_LOCK, &s->queue.lock);
 
 	if (xferred) {
 		_HA_ATOMIC_SUB(&s->queue.length, xferred);
