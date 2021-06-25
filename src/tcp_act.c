@@ -381,11 +381,11 @@ static enum act_parse_ret tcp_parse_silent_drop(const char **args, int *orig_arg
 
 
 static struct action_kw_list tcp_req_conn_actions = {ILH, {
+	{ "set-dst"     , tcp_parse_set_src_dst },
+	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-mark",     tcp_parse_set_mark    },
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
-	{ "set-dst"     , tcp_parse_set_src_dst },
-	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-tos",      tcp_parse_set_tos     },
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
@@ -394,11 +394,11 @@ static struct action_kw_list tcp_req_conn_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_req_conn_keywords_register, &tcp_req_conn_actions);
 
 static struct action_kw_list tcp_req_sess_actions = {ILH, {
+	{ "set-dst"     , tcp_parse_set_src_dst },
+	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-mark",     tcp_parse_set_mark    },
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
-	{ "set-dst"     , tcp_parse_set_src_dst },
-	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-tos",      tcp_parse_set_tos     },
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
@@ -407,11 +407,11 @@ static struct action_kw_list tcp_req_sess_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_actions);
 
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
+	{ "set-dst"     , tcp_parse_set_src_dst },
+	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-mark",     tcp_parse_set_mark    },
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
-	{ "set-dst"     , tcp_parse_set_src_dst },
-	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-tos",      tcp_parse_set_tos     },
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
@@ -429,13 +429,13 @@ static struct action_kw_list tcp_res_cont_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_cont_actions);
 
 static struct action_kw_list http_req_actions = {ILH, {
-	{ "set-mark",     tcp_parse_set_mark    },
-	{ "silent-drop",  tcp_parse_silent_drop },
-	{ "set-src",      tcp_parse_set_src_dst },
-	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-dst",      tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
+	{ "set-mark",     tcp_parse_set_mark    },
+	{ "set-src",      tcp_parse_set_src_dst },
+	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-tos",      tcp_parse_set_tos     },
+	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
 
