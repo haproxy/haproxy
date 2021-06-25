@@ -2885,6 +2885,43 @@ static enum act_parse_ret stream_parse_set_log_level(const char **args, int *cur
 	return ACT_RET_PRS_OK;
 }
 
+static enum act_return stream_action_set_nice(struct act_rule *rule, struct proxy *px,
+					      struct session *sess, struct stream *s, int flags)
+{
+	s->task->nice = (uintptr_t)rule->arg.act.p[0];
+	return ACT_RET_CONT;
+}
+
+
+/* Parse a "set-nice" action. It takes the nice value as argument. It returns
+ * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret stream_parse_set_nice(const char **args, int *cur_arg, struct proxy *px,
+						struct act_rule *rule, char **err)
+{
+	int nice;
+
+	if (!*args[*cur_arg]) {
+	  bad_log_level:
+		memprintf(err, "expects exactly 1 argument (integer value)");
+		return ACT_RET_PRS_ERR;
+	}
+
+	nice = atoi(args[*cur_arg]);
+	if (nice < -1024)
+		nice = -1024;
+	else if (nice > 1024)
+		nice = 1024;
+
+	(*cur_arg)++;
+
+	/* Register processing function. */
+	rule->action_ptr = stream_action_set_nice;
+	rule->action = ACT_CUSTOM;
+	rule->arg.act.p[0] = (void *)(uintptr_t)nice;
+	return ACT_RET_PRS_OK;
+}
+
 
 static enum act_return tcp_action_switch_stream_mode(struct act_rule *rule, struct proxy *px,
 						  struct session *sess, struct stream *s, int flags)
@@ -3743,6 +3780,7 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 /* main configuration keyword registration. */
 static struct action_kw_list stream_tcp_req_keywords = { ILH, {
 	{ "set-log-level", stream_parse_set_log_level },
+	{ "set-nice",      stream_parse_set_nice },
 	{ "switch-mode",   stream_parse_switch_mode },
 	{ "use-service",   stream_parse_use_service },
 	{ /* END */ }
@@ -3753,6 +3791,7 @@ INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &stream_tcp_req_keywords
 /* main configuration keyword registration. */
 static struct action_kw_list stream_tcp_res_keywords = { ILH, {
 	{ "set-log-level", stream_parse_set_log_level },
+	{ "set-nice",     stream_parse_set_nice },
 	{ /* END */ }
 }};
 
@@ -3760,6 +3799,7 @@ INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &stream_tcp_res_keywords
 
 static struct action_kw_list stream_http_req_keywords = { ILH, {
 	{ "set-log-level", stream_parse_set_log_level },
+	{ "set-nice",      stream_parse_set_nice },
 	{ "use-service",   stream_parse_use_service },
 	{ /* END */ }
 }};
@@ -3768,6 +3808,7 @@ INITCALL1(STG_REGISTER, http_req_keywords_register, &stream_http_req_keywords);
 
 static struct action_kw_list stream_http_res_keywords = { ILH, {
 	{ "set-log-level", stream_parse_set_log_level },
+	{ "set-nice",      stream_parse_set_nice },
 	{ /* END */ }
 }};
 

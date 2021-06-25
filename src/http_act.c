@@ -1315,32 +1315,6 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 	return ACT_RET_PRS_OK;
 }
 
-/* Parse a "set-nice" action. It takes the nice value as argument. It returns
- * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
- */
-static enum act_parse_ret parse_http_set_nice(const char **args, int *orig_arg, struct proxy *px,
-					      struct act_rule *rule, char **err)
-{
-	int cur_arg;
-
-	rule->action = ACT_HTTP_SET_NICE;
-
-	cur_arg = *orig_arg;
-	if (!*args[cur_arg]) {
-		memprintf(err, "expects exactly 1 argument (integer value)");
-		return ACT_RET_PRS_ERR;
-	}
-	rule->arg.http.i = atoi(args[cur_arg]);
-	if (rule->arg.http.i < -1024)
-		rule->arg.http.i = -1024;
-	else if (rule->arg.http.i > 1024)
-		rule->arg.http.i = 1024;
-
-	LIST_INIT(&rule->arg.http.fmt);
-	*orig_arg = cur_arg + 1;
-	return ACT_RET_PRS_OK;
-}
-
 /* Parse a "set-tos" action. It takes the TOS value as argument. It returns
  * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
  */
@@ -2485,7 +2459,6 @@ static struct action_kw_list http_req_actions = {
 		{ "set-map",          parse_http_set_map,              KWF_MATCH_PREFIX },
 		{ "set-method",       parse_set_req_line,              0 },
 		{ "set-mark",         parse_http_set_mark,             0 },
-		{ "set-nice",         parse_http_set_nice,             0 },
 		{ "set-path",         parse_set_req_line,              0 },
 		{ "set-pathq",        parse_set_req_line,              0 },
 		{ "set-query",        parse_set_req_line,              0 },
@@ -2519,7 +2492,6 @@ static struct action_kw_list http_res_actions = {
 		{ "set-header",      parse_http_set_header,     0 },
 		{ "set-map",         parse_http_set_map,        KWF_MATCH_PREFIX },
 		{ "set-mark",        parse_http_set_mark,       0 },
-		{ "set-nice",        parse_http_set_nice,       0 },
 		{ "set-status",      parse_http_set_status,     0 },
 		{ "set-tos",         parse_http_set_tos,        0 },
 		{ "strict-mode",     parse_http_strict_mode,    0 },

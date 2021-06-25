@@ -12057,6 +12057,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - set-dst <expr>
     - set-dst-port <expr>
     - set-log-level <level>
+    - set-nice <nice>
     - set-src <expr>
     - set-src-port <expr>
     - set-var(<var-name>) <expr>
@@ -12111,6 +12112,9 @@ tcp-request content <action> [{if | unless} <condition>]
 
   The "set-log-level" is used to set the log level of the current session. More
   information on how to use it at "http-request set-log-level".
+
+  The "set-nice" is used to set the "nice" factor of the current session. More
+  information on how to use it at "http-request set-nice".
 
   The "set-src" and "set-src-port" are used to set respectively the source IP
   and port. More information on how to use it at "http-request set-src".
@@ -12358,6 +12362,11 @@ tcp-response content <action> [{if | unless} <condition>]
         The "set-log-level" is used to set the log level of the current
         session. More information on how to use it at "http-response
         set-log-level".
+
+    - set-nice <nice>
+        The "set-nice" is used to set the "nice" factor of the current
+        session. More information on how to use it at "http-response
+        set-nice".
 
     - set-var(<var-name>) <expr>
         Sets a variable.

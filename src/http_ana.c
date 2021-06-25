@@ -2831,10 +2831,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 					rule_ret = HTTP_RULE_RES_ERROR;
 				goto end;
 
-			case ACT_HTTP_SET_NICE:
-				s->task->nice = rule->arg.http.i;
-				break;
-
 			case ACT_HTTP_SET_TOS:
 				conn_set_tos(objt_conn(sess->origin), rule->arg.http.i);
 				break;
@@ -2961,10 +2957,6 @@ resume_execution:
 				txn->http_reply = rule->arg.http_reply;
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
-
-			case ACT_HTTP_SET_NICE:
-				s->task->nice = rule->arg.http.i;
-				break;
 
 			case ACT_HTTP_SET_TOS:
 				conn_set_tos(objt_conn(sess->origin), rule->arg.http.i);
