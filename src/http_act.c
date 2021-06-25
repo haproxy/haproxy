@@ -1315,71 +1315,6 @@ static enum act_parse_ret parse_http_auth(const char **args, int *orig_arg, stru
 	return ACT_RET_PRS_OK;
 }
 
-/* Parse a "set-tos" action. It takes the TOS value as argument. It returns
- * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
- */
-static enum act_parse_ret parse_http_set_tos(const char **args, int *orig_arg, struct proxy *px,
-					      struct act_rule *rule, char **err)
-{
-#ifdef IP_TOS
-	char *endp;
-	int cur_arg;
-
-	rule->action = ACT_HTTP_SET_TOS;
-
-	cur_arg = *orig_arg;
-	if (!*args[cur_arg]) {
-		memprintf(err, "expects exactly 1 argument (integer/hex value)");
-		return ACT_RET_PRS_ERR;
-	}
-	rule->arg.http.i = strtol(args[cur_arg], &endp, 0);
-	if (endp && *endp != '\0') {
-		memprintf(err, "invalid character starting at '%s' (integer/hex value expected)", endp);
-		return ACT_RET_PRS_ERR;
-	}
-
-	LIST_INIT(&rule->arg.http.fmt);
-	*orig_arg = cur_arg + 1;
-	return ACT_RET_PRS_OK;
-#else
-	memprintf(err, "not supported on this platform (IP_TOS undefined)");
-	return ACT_RET_PRS_ERR;
-#endif
-}
-
-/* Parse a "set-mark" action. It takes the MARK value as argument. It returns
- * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
- */
-static enum act_parse_ret parse_http_set_mark(const char **args, int *orig_arg, struct proxy *px,
-					      struct act_rule *rule, char **err)
-{
-#ifdef SO_MARK
-	char *endp;
-	int cur_arg;
-
-	rule->action = ACT_HTTP_SET_MARK;
-
-	cur_arg = *orig_arg;
-	if (!*args[cur_arg]) {
-		memprintf(err, "expects exactly 1 argument (integer/hex value)");
-		return ACT_RET_PRS_ERR;
-	}
-	rule->arg.http.i = strtoul(args[cur_arg], &endp, 0);
-	if (endp && *endp != '\0') {
-		memprintf(err, "invalid character starting at '%s' (integer/hex value expected)", endp);
-		return ACT_RET_PRS_ERR;
-	}
-
-	LIST_INIT(&rule->arg.http.fmt);
-	*orig_arg = cur_arg + 1;
-	global.last_checks |= LSTCHK_NETADM;
-	return ACT_RET_PRS_OK;
-#else
-	memprintf(err, "not supported on this platform (SO_MARK undefined)");
-	return ACT_RET_PRS_ERR;
-#endif
-}
-
 /* This function executes a early-hint action. It adds an HTTP Early Hint HTTP
  * 103 response header with <.arg.http.str> name and with a value built
  * according to <.arg.http.fmt> log line format. If it is the first early-hint
@@ -2458,11 +2393,9 @@ static struct action_kw_list http_req_actions = {
 		{ "set-header",       parse_http_set_header,           0 },
 		{ "set-map",          parse_http_set_map,              KWF_MATCH_PREFIX },
 		{ "set-method",       parse_set_req_line,              0 },
-		{ "set-mark",         parse_http_set_mark,             0 },
 		{ "set-path",         parse_set_req_line,              0 },
 		{ "set-pathq",        parse_set_req_line,              0 },
 		{ "set-query",        parse_set_req_line,              0 },
-		{ "set-tos",          parse_http_set_tos,              0 },
 		{ "set-uri",          parse_set_req_line,              0 },
 		{ "strict-mode",      parse_http_strict_mode,          0 },
 		{ "tarpit",           parse_http_deny,                 0 },
@@ -2491,9 +2424,7 @@ static struct action_kw_list http_res_actions = {
 		{ "return",          parse_http_return,         0 },
 		{ "set-header",      parse_http_set_header,     0 },
 		{ "set-map",         parse_http_set_map,        KWF_MATCH_PREFIX },
-		{ "set-mark",        parse_http_set_mark,       0 },
 		{ "set-status",      parse_http_set_status,     0 },
-		{ "set-tos",         parse_http_set_tos,        0 },
 		{ "strict-mode",     parse_http_strict_mode,    0 },
 		{ "track-sc",        parse_http_track_sc,       KWF_MATCH_PREFIX },
 		{ "wait-for-body",   parse_http_wait_for_body,  0 },

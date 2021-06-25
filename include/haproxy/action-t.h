@@ -81,8 +81,6 @@ enum act_name {
 
 	/* common http actions .*/
 	ACT_HTTP_REDIR,
-	ACT_HTTP_SET_TOS,
-	ACT_HTTP_SET_MARK,
 
 	/* http request actions. */
 	ACT_HTTP_REQ_TARPIT,

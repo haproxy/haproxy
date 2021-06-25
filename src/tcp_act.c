@@ -236,6 +236,22 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 	return ACT_RET_ABRT;
 }
 
+
+static enum act_return tcp_action_set_mark(struct act_rule *rule, struct proxy *px,
+					   struct session *sess, struct stream *s, int flags)
+{
+	conn_set_mark(objt_conn(sess->origin), (uintptr_t)rule->arg.act.p[0]);
+	return ACT_RET_CONT;
+}
+
+static enum act_return tcp_action_set_tos(struct act_rule *rule, struct proxy *px,
+					  struct session *sess, struct stream *s, int flags)
+{
+	conn_set_tos(objt_conn(sess->origin), (uintptr_t)rule->arg.act.p[0]);
+	return ACT_RET_CONT;
+}
+
+
 /* parse "set-{src,dst}[-port]" action */
 static enum act_parse_ret tcp_parse_set_src_dst(const char **args, int *orig_arg, struct proxy *px,
                                                 struct act_rule *rule, char **err)
@@ -283,6 +299,75 @@ static enum act_parse_ret tcp_parse_set_src_dst(const char **args, int *orig_arg
 }
 
 
+/* Parse a "set-mark" action. It takes the MARK value as argument. It returns
+ * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret tcp_parse_set_mark(const char **args, int *cur_arg, struct proxy *px,
+					     struct act_rule *rule, char **err)
+{
+#ifdef SO_MARK
+	char *endp;
+	unsigned int mark;
+
+	if (!*args[*cur_arg]) {
+		memprintf(err, "expects exactly 1 argument (integer/hex value)");
+		return ACT_RET_PRS_ERR;
+	}
+	mark = strtoul(args[*cur_arg], &endp, 0);
+	if (endp && *endp != '\0') {
+		memprintf(err, "invalid character starting at '%s' (integer/hex value expected)", endp);
+		return ACT_RET_PRS_ERR;
+	}
+
+	(*cur_arg)++;
+
+	/* Register processing function. */
+	rule->action_ptr = tcp_action_set_mark;
+	rule->action = ACT_CUSTOM;
+	rule->arg.act.p[0] = (void *)(uintptr_t)mark;
+	global.last_checks |= LSTCHK_NETADM;
+	return ACT_RET_PRS_OK;
+#else
+	memprintf(err, "not supported on this platform (SO_MARK undefined)");
+	return ACT_RET_PRS_ERR;
+#endif
+}
+
+
+/* Parse a "set-tos" action. It takes the TOS value as argument. It returns
+ * ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret tcp_parse_set_tos(const char **args, int *cur_arg, struct proxy *px,
+					     struct act_rule *rule, char **err)
+{
+#ifdef IP_TOS
+	char *endp;
+	int tos;
+
+	if (!*args[*cur_arg]) {
+		memprintf(err, "expects exactly 1 argument (integer/hex value)");
+		return ACT_RET_PRS_ERR;
+	}
+	tos = strtol(args[*cur_arg], &endp, 0);
+	if (endp && *endp != '\0') {
+		memprintf(err, "invalid character starting at '%s' (integer/hex value expected)", endp);
+		return ACT_RET_PRS_ERR;
+	}
+
+	(*cur_arg)++;
+
+	/* Register processing function. */
+	rule->action_ptr = tcp_action_set_tos;
+	rule->action = ACT_CUSTOM;
+	rule->arg.act.p[0] = (void *)(uintptr_t)tos;
+	return ACT_RET_PRS_OK;
+#else
+	memprintf(err, "not supported on this platform (IP_TOS undefined)");
+	return ACT_RET_PRS_ERR;
+#endif
+}
+
+
 /* Parse a "silent-drop" action. It takes no argument. It returns ACT_RET_PRS_OK on
  * success, ACT_RET_PRS_ERR on error.
  */
@@ -296,10 +381,12 @@ static enum act_parse_ret tcp_parse_silent_drop(const char **args, int *orig_arg
 
 
 static struct action_kw_list tcp_req_conn_actions = {ILH, {
+	{ "set-mark",     tcp_parse_set_mark    },
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
+	{ "set-tos",      tcp_parse_set_tos     },
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
@@ -307,10 +394,12 @@ static struct action_kw_list tcp_req_conn_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_req_conn_keywords_register, &tcp_req_conn_actions);
 
 static struct action_kw_list tcp_req_sess_actions = {ILH, {
+	{ "set-mark",     tcp_parse_set_mark    },
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
+	{ "set-tos",      tcp_parse_set_tos     },
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
@@ -318,10 +407,12 @@ static struct action_kw_list tcp_req_sess_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_actions);
 
 static struct action_kw_list tcp_req_cont_actions = {ILH, {
+	{ "set-mark",     tcp_parse_set_mark    },
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
+	{ "set-tos",      tcp_parse_set_tos     },
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
 }};
@@ -329,6 +420,8 @@ static struct action_kw_list tcp_req_cont_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_cont_actions);
 
 static struct action_kw_list tcp_res_cont_actions = {ILH, {
+	{ "set-mark",     tcp_parse_set_mark   },
+	{ "set-tos",      tcp_parse_set_tos     },
 	{ "silent-drop", tcp_parse_silent_drop },
 	{ /* END */ }
 }};
@@ -336,17 +429,21 @@ static struct action_kw_list tcp_res_cont_actions = {ILH, {
 INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_cont_actions);
 
 static struct action_kw_list http_req_actions = {ILH, {
+	{ "set-mark",     tcp_parse_set_mark    },
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ "set-src",      tcp_parse_set_src_dst },
 	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-dst",      tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
+	{ "set-tos",      tcp_parse_set_tos     },
 	{ /* END */ }
 }};
 
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_actions);
 
 static struct action_kw_list http_res_actions = {ILH, {
+	{ "set-mark",    tcp_parse_set_mark    },
+	{ "set-tos",     tcp_parse_set_tos    },
 	{ "silent-drop", tcp_parse_silent_drop },
 	{ /* END */ }
 }};
