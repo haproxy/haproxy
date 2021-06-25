@@ -2850,6 +2850,42 @@ struct ist stream_generate_unique_id(struct stream *strm, struct list *format)
 /************************************************************************/
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
+static enum act_return stream_action_set_log_level(struct act_rule *rule, struct proxy *px,
+						   struct session *sess, struct stream *s, int flags)
+{
+	s->logs.level = (uintptr_t)rule->arg.act.p[0];
+	return ACT_RET_CONT;
+}
+
+
+/* Parse a "set-log-level" action. It takes the level value as argument. It
+ * returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
+ */
+static enum act_parse_ret stream_parse_set_log_level(const char **args, int *cur_arg, struct proxy *px,
+						     struct act_rule *rule, char **err)
+{
+	int level;
+
+	if (!*args[*cur_arg]) {
+	  bad_log_level:
+		memprintf(err, "expects exactly 1 argument (log level name or 'silent')");
+		return ACT_RET_PRS_ERR;
+	}
+	if (strcmp(args[*cur_arg], "silent") == 0)
+		level = -1;
+	else if ((level = get_log_level(args[*cur_arg]) + 1) == 0)
+		goto bad_log_level;
+
+	(*cur_arg)++;
+
+	/* Register processing function. */
+	rule->action_ptr = stream_action_set_log_level;
+	rule->action = ACT_CUSTOM;
+	rule->arg.act.p[0] = (void *)(uintptr_t)level;
+	return ACT_RET_PRS_OK;
+}
+
+
 static enum act_return tcp_action_switch_stream_mode(struct act_rule *rule, struct proxy *px,
 						  struct session *sess, struct stream *s, int flags)
 {
@@ -3705,20 +3741,37 @@ static struct cli_kw_list cli_kws = {{ },{
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
 /* main configuration keyword registration. */
-static struct action_kw_list stream_tcp_keywords = { ILH, {
-	{ "switch-mode", stream_parse_switch_mode },
-	{ "use-service", stream_parse_use_service },
+static struct action_kw_list stream_tcp_req_keywords = { ILH, {
+	{ "set-log-level", stream_parse_set_log_level },
+	{ "switch-mode",   stream_parse_switch_mode },
+	{ "use-service",   stream_parse_use_service },
 	{ /* END */ }
 }};
 
-INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &stream_tcp_keywords);
+INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &stream_tcp_req_keywords);
 
-static struct action_kw_list stream_http_keywords = { ILH, {
-	{ "use-service", stream_parse_use_service },
+/* main configuration keyword registration. */
+static struct action_kw_list stream_tcp_res_keywords = { ILH, {
+	{ "set-log-level", stream_parse_set_log_level },
 	{ /* END */ }
 }};
 
-INITCALL1(STG_REGISTER, http_req_keywords_register, &stream_http_keywords);
+INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &stream_tcp_res_keywords);
+
+static struct action_kw_list stream_http_req_keywords = { ILH, {
+	{ "set-log-level", stream_parse_set_log_level },
+	{ "use-service",   stream_parse_use_service },
+	{ /* END */ }
+}};
+
+INITCALL1(STG_REGISTER, http_req_keywords_register, &stream_http_req_keywords);
+
+static struct action_kw_list stream_http_res_keywords = { ILH, {
+	{ "set-log-level", stream_parse_set_log_level },
+	{ /* END */ }
+}};
+
+INITCALL1(STG_REGISTER, http_res_keywords_register, &stream_http_res_keywords);
 
 static int smp_fetch_cur_server_timeout(const struct arg *args, struct sample *smp, const char *km, void *private)
 {

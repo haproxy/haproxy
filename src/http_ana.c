@@ -2843,10 +2843,6 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				conn_set_mark(objt_conn(sess->origin), rule->arg.http.i);
 				break;
 
-			case ACT_HTTP_SET_LOGL:
-				s->logs.level = rule->arg.http.i;
-				break;
-
 			/* other flags exists, but normally, they never be matched. */
 			default:
 				break;
@@ -2976,10 +2972,6 @@ resume_execution:
 
 			case ACT_HTTP_SET_MARK:
 				conn_set_mark(objt_conn(sess->origin), rule->arg.http.i);
-				break;
-
-			case ACT_HTTP_SET_LOGL:
-				s->logs.level = rule->arg.http.i;
 				break;
 
 			case ACT_HTTP_REDIR:

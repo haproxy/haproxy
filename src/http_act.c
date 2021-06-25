@@ -1406,32 +1406,6 @@ static enum act_parse_ret parse_http_set_mark(const char **args, int *orig_arg, 
 #endif
 }
 
-/* Parse a "set-log-level" action. It takes the level value as argument. It
- * returns ACT_RET_PRS_OK on success, ACT_RET_PRS_ERR on error.
- */
-static enum act_parse_ret parse_http_set_log_level(const char **args, int *orig_arg, struct proxy *px,
-						   struct act_rule *rule, char **err)
-{
-	int cur_arg;
-
-	rule->action = ACT_HTTP_SET_LOGL;
-
-	cur_arg = *orig_arg;
-	if (!*args[cur_arg]) {
-	  bad_log_level:
-		memprintf(err, "expects exactly 1 argument (log level name or 'silent')");
-		return ACT_RET_PRS_ERR;
-	}
-	if (strcmp(args[cur_arg], "silent") == 0)
-		rule->arg.http.i = -1;
-	else if ((rule->arg.http.i = get_log_level(args[cur_arg]) + 1) == 0)
-		goto bad_log_level;
-
-	LIST_INIT(&rule->arg.http.fmt);
-	*orig_arg = cur_arg + 1;
-	return ACT_RET_PRS_OK;
-}
-
 /* This function executes a early-hint action. It adds an HTTP Early Hint HTTP
  * 103 response header with <.arg.http.str> name and with a value built
  * according to <.arg.http.fmt> log line format. If it is the first early-hint
@@ -2508,7 +2482,6 @@ static struct action_kw_list http_req_actions = {
 		{ "replace-value",    parse_http_replace_header,       0 },
 		{ "return",           parse_http_return,               0 },
 		{ "set-header",       parse_http_set_header,           0 },
-		{ "set-log-level",    parse_http_set_log_level,        0 },
 		{ "set-map",          parse_http_set_map,              KWF_MATCH_PREFIX },
 		{ "set-method",       parse_set_req_line,              0 },
 		{ "set-mark",         parse_http_set_mark,             0 },
@@ -2544,7 +2517,6 @@ static struct action_kw_list http_res_actions = {
 		{ "replace-value",   parse_http_replace_header, 0 },
 		{ "return",          parse_http_return,         0 },
 		{ "set-header",      parse_http_set_header,     0 },
-		{ "set-log-level",   parse_http_set_log_level,  0 },
 		{ "set-map",         parse_http_set_map,        KWF_MATCH_PREFIX },
 		{ "set-mark",        parse_http_set_mark,       0 },
 		{ "set-nice",        parse_http_set_nice,       0 },
