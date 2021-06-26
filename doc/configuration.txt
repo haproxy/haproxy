@@ -6503,13 +6503,14 @@ http-request set-map(<file-name>) <key fmt> <value fmt>
 
 http-request set-mark <mark> [ { if | unless } <condition> ]
 
-  This is used to set the Netfilter MARK on all packets sent to the client to
-  the value passed in <mark> on platforms which support it. This value is an
-  unsigned 32 bit value which can be matched by netfilter and by the routing
-  table. It can be expressed both in decimal or hexadecimal format (prefixed by
-  "0x"). This can be useful to force certain packets to take a different route
-  (for example a cheaper network path for bulk downloads). This works on Linux
-  kernels 2.6.32 and above and requires admin privileges.
+  This is used to set the Netfilter/IPFW MARK on all packets sent to the client
+  to the value passed in <mark> on platforms which support it. This value is an
+  unsigned 32 bit value which can be matched by netfilter/ipfw and by the
+  routing table or monitoring the packets through DTrace. It can be expressed
+  both in decimal or hexadecimal format (prefixed by "0x").
+  This can be useful to force certain packets to take a different route (for
+  example a cheaper network path for bulk downloads). This works on Linux
+  kernels 2.6.32 and above and requires admin privileges, as well on FreeBSD.
 
 http-request set-method <fmt> [ { if | unless } <condition> ]
 
@@ -7163,13 +7164,14 @@ http-response set-map(<file-name>) <key fmt> <value fmt>
 
 http-response set-mark <mark> [ { if | unless } <condition> ]
 
-  This is used to set the Netfilter MARK on all packets sent to the client to
-  the value passed in <mark> on platforms which support it. This value is an
-  unsigned 32 bit value which can be matched by netfilter and by the routing
-  table. It can be expressed both in decimal or hexadecimal format (prefixed
-  by "0x"). This can be useful to force certain packets to take a different
-  route (for example a cheaper network path for bulk downloads). This works on
-  Linux kernels 2.6.32 and above and requires admin privileges.
+  This is used to set the Netfilter/IPFW MARK on all packets sent to the client
+  to the value passed in <mark> on platforms which support it. This value is an
+  unsigned 32 bit value which can be matched by netfilter/ipfw and by the
+  routing table or monitoring the packets through DTrace.
+  It can be expressed both in decimal or hexadecimal format (prefixed by "0x").
+  This can be useful to force certain packets to take a different route (for
+  example a cheaper network path for bulk downloads). This works on Linux
+  kernels 2.6.32 and above and requires admin privileges, as well on FreeBSD.
 
 http-response set-nice <nice> [ { if | unless } <condition> ]
 
@@ -11898,14 +11900,15 @@ tcp-request connection <action> [{if | unless} <condition>]
         fails and the actions evaluation continues.
 
     - set-mark <mark>:
-      Is used to set the Netfilter MARK in all packets sent to the client to
-      the value passed in <mark> on platforms which support it. This value is
-      an unsigned 32 bit value which can be matched by netfilter and by the
-      routing table. It can be expressed both in decimal or hexadecimal format
-      (prefixed by "0x"). This can be useful to force certain packets to take a
-      different route (for example a cheaper network path for bulk
-      downloads). This works on Linux kernels 2.6.32 and above and requires
-      admin privileges.
+      Is used to set the Netfilter/IPFW MARK in all packets sent to the client
+      to the value passed in <mark> on platforms which support it. This value
+      is an unsigned 32 bit value which can be matched by netfilter/ipfw and by
+      the routing table or monitoring the packets through DTrace.
+      It can be expressed both in decimal or hexadecimal format (prefixed by
+      "0x"). This can be useful to force certain packets to take a different
+      route (for example a cheaper network path for bulk downloads). This works
+      on Linux kernels 2.6.32 and above and requires admin privileges, as well
+      on FreeBSD.
 
     - set-src <expr> :
       Is used to set the source IP address to the value of specified

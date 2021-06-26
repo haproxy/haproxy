@@ -694,8 +694,11 @@ static inline void conn_set_mark(const struct connection *conn, int mark)
 	if (!conn || !conn_ctrl_ready(conn))
 		return;
 
-#ifdef SO_MARK
+#if defined(SO_MARK)
 	setsockopt(conn->handle.fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
+#elif defined(SO_USER_COOKIE)
+	uint32_t mval = (uint32_t)mark;
+	setsockopt(conn->handle.fd, SOL_SOCKET, SO_USER_COOKIE, &mval, sizeof(mval));
 #endif
 }
 

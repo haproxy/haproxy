@@ -305,7 +305,7 @@ static enum act_parse_ret tcp_parse_set_src_dst(const char **args, int *orig_arg
 static enum act_parse_ret tcp_parse_set_mark(const char **args, int *cur_arg, struct proxy *px,
 					     struct act_rule *rule, char **err)
 {
-#ifdef SO_MARK
+#if defined(SO_MARK) || defined(SO_USER_COOKIE)
 	char *endp;
 	unsigned int mark;
 
@@ -328,7 +328,7 @@ static enum act_parse_ret tcp_parse_set_mark(const char **args, int *cur_arg, st
 	global.last_checks |= LSTCHK_NETADM;
 	return ACT_RET_PRS_OK;
 #else
-	memprintf(err, "not supported on this platform (SO_MARK undefined)");
+	memprintf(err, "not supported on this platform (SO_MARK|SO_USER_COOKIE undefined)");
 	return ACT_RET_PRS_ERR;
 #endif
 }
