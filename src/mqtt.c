@@ -291,7 +291,7 @@ static inline struct ist mqtt_read_string(struct ist parser, struct ist *str)
 	uint16_t len = 0;
 
 	/* read and compute the string length */
-	if (istlen(parser) <= 2)
+	if (istlen(parser) < 2)
 		goto error;
 
 	parser = mqtt_read_2byte_int(parser, &len);
@@ -862,7 +862,7 @@ static int mqtt_parse_connect(struct ist parser, struct mqtt_pkt *mpkt)
 	 */
 	/* read client identifier */
 	parser = mqtt_read_string(parser, &mpkt->data.connect.payload.client_identifier);
-	if (!isttest(parser) || !istlen(mpkt->data.connect.payload.client_identifier))
+	if (!isttest(parser))
 		goto end;
 
 	/* read Will Properties, for MQTT v5 only

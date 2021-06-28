@@ -9,9 +9,9 @@ server s1 {
     sendhex "20020000"
     close
 
-    # MQTT 3.1.1 CONNECT packet (id: test_sub - username: test - passwd: passwd)
+    # MQTT 3.1.1 CONNECT packet (id: <empty> - username: test - passwd: passwd)
     accept
-    recv 36
+    recv 28
     sendhex "20020000"
     close
 
@@ -120,8 +120,8 @@ client c1_311_1 -connect ${h1_fe1_sock} {
 } -run
 
 client c1_311_2 -connect ${h1_fe1_sock} {
-    # Valid MQTT 3.1.1 CONNECT packet (id: test_sub - username: test - passwd: passwd)
-    sendhex "102200044d51545404c2003c0008746573745f7375620004746573740006706173737764"
+    # Valid MQTT 3.1.1 CONNECT packet (id: <empty> - username: test - passwd: passwd)
+    sendhex "101a00044d51545404c2003c00000004746573740006706173737764"
     recv 4
     expect_close
 } -run
