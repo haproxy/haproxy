@@ -288,15 +288,14 @@ static inline struct ist mqtt_read_varint(struct ist parser, uint32_t *i)
  */
 static inline struct ist mqtt_read_string(struct ist parser, struct ist *str)
 {
-	uint16_t len;
+	uint16_t len = 0;
 
 	/* read and compute the string length */
 	if (istlen(parser) <= 2)
 		goto error;
 
-	len = ((uint16_t)*istptr(parser) << 8) + (uint16_t)*(istptr(parser) + 1);
-	parser = istadv(parser, 2);
-	if (istlen(parser) < len)
+	parser = mqtt_read_2byte_int(parser, &len);
+	if (!isttest(parser) || istlen(parser) < len)
 		goto error;
 
 	if (str) {
