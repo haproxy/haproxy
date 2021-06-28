@@ -237,20 +237,23 @@ static enum act_return tcp_exec_action_silent_drop(struct act_rule *rule, struct
 }
 
 
+#if defined(SO_MARK) || defined(SO_USER_COOKIE)
 static enum act_return tcp_action_set_mark(struct act_rule *rule, struct proxy *px,
 					   struct session *sess, struct stream *s, int flags)
 {
 	conn_set_mark(objt_conn(sess->origin), (uintptr_t)rule->arg.act.p[0]);
 	return ACT_RET_CONT;
 }
+#endif
 
+#ifdef IP_TOS
 static enum act_return tcp_action_set_tos(struct act_rule *rule, struct proxy *px,
 					  struct session *sess, struct stream *s, int flags)
 {
 	conn_set_tos(objt_conn(sess->origin), (uintptr_t)rule->arg.act.p[0]);
 	return ACT_RET_CONT;
 }
-
+#endif
 
 /* parse "set-{src,dst}[-port]" action */
 static enum act_parse_ret tcp_parse_set_src_dst(const char **args, int *orig_arg, struct proxy *px,
