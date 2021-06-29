@@ -2470,6 +2470,7 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				LIST_APPEND(&newsrv->srvrq->attached_servers, &newsrv->srv_rec_item);
 			}
 			else if (srv_prepare_for_resolution(newsrv, fqdn) == -1) {
 				ha_alert("Can't create DNS resolution for server '%s'\n",
