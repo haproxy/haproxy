@@ -3615,7 +3615,7 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 		if (t->data_ofs[dt] == 0)
 			continue;
 		if (stktable_data_types[dt].arg_type == ARG_T_DELAY)
-			chunk_appendf(msg, " %s(%d)=", stktable_data_types[dt].name, t->data_arg[dt].u);
+			chunk_appendf(msg, " %s(%u)=", stktable_data_types[dt].name, t->data_arg[dt].u);
 		else
 			chunk_appendf(msg, " %s=", stktable_data_types[dt].name);
 
@@ -3628,10 +3628,10 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 			chunk_appendf(msg, "%u", stktable_data_cast(ptr, std_t_uint));
 			break;
 		case STD_T_ULL:
-			chunk_appendf(msg, "%lld", stktable_data_cast(ptr, std_t_ull));
+			chunk_appendf(msg, "%llu", stktable_data_cast(ptr, std_t_ull));
 			break;
 		case STD_T_FRQP:
-			chunk_appendf(msg, "%d",
+			chunk_appendf(msg, "%u",
 				     read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 							  t->data_arg[dt].u));
 			break;
