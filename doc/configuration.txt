@@ -11217,6 +11217,9 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       that a large amount of counters will increase the data size and the
       traffic load using peers protocol since all data/counters are pushed
       each time any of them is updated.
+      This data_type will exclude the usage of the legacy data_type 'gpt0'
+      on the same table. Using the 'gpt' array data_type, all 'gpt0' related
+      fetches and actions will apply to the first element of this array.
 
     - gpt0 : first General Purpose Tag. It is a positive 32-bit integer
       integer which may be used for anything. Most of the time it will be used

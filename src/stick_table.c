@@ -949,6 +949,12 @@ int parse_stick_table(const char *file, int linenum, char **args,
 				}
 			}
 			idx++;
+			if (t->data_ofs[STKTABLE_DT_GPT] && t->data_ofs[STKTABLE_DT_GPT0]) {
+				ha_alert("parsing [%s:%d] : %s: simultaneous usage of 'gpt' and 'gpt0' in a same table is not permitted as 'gpt' overrides 'gpt0'.\n",
+					 file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 		}
 		else if (strcmp(args[idx], "srvkey") == 0) {
 			char *keytype;
@@ -1475,6 +1481,9 @@ static int sample_conv_table_gpt0(const struct arg *arg_p, struct sample *smp, v
 		return 1;
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPT0);
+	if (!ptr)
+		ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPT, 0);
+
 	if (ptr)
 		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
@@ -2319,6 +2328,9 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 
 	/* Store the sample in the required sc, and ignore errors. */
 	ptr = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPT0);
+	if (!ptr)
+		ptr = stktable_data_ptr_idx(stkctr->table, ts, STKTABLE_DT_GPT, 0);
+
 	if (ptr) {
 		if (!rule->arg.gpt.expr)
 			value = (unsigned int)(rule->arg.gpt.value);
@@ -2698,6 +2710,9 @@ smp_fetch_sc_get_gpt0(const struct arg *args, struct sample *smp, const char *kw
 		void *ptr;
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT0);
+		if (!ptr)
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT, 0);
+
 		if (!ptr) {
 			if (stkctr == &tmpstkctr)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
