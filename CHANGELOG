@@ -1,6 +1,290 @@
 ChangeLog :
 ===========
 
+2021/06/30 : 2.5-dev1
+    - CLEANUP: ssl: Move ssl_store related code to ssl_ckch.c
+    - MINOR: ssl: Allow duplicated entries in the cafile_tree
+    - MEDIUM: ssl: Chain ckch instances in ca-file entries
+    - MINOR: ssl: Add reference to default ckch instance in bind_conf
+    - MINOR: ssl: Add helper functions to create/delete cafile entries
+    - MEDIUM: ssl: Add a way to load a ca-file content from memory
+    - MINOR: ssl: Add helper function to add cafile entries
+    - MINOR: ssl: Ckch instance rebuild and cleanup factorization in CLI handler
+    - MEDIUM: ssl: Add "set+commit ssl ca-file" CLI commands
+    - REGTESTS: ssl: Add new ca-file update tests
+    - MINOR: ssl: Add "abort ssl ca-file" CLI command
+    - MINOR: ssl: Add a cafile_entry type field
+    - MINOR: ssl: Refactorize the "show certificate details" code
+    - MEDIUM: ssl: Add "show ssl ca-file" CLI command
+    - MEDIUM: ssl: Add "new ssl ca-file" CLI command
+    - MINOR: ssl: Add "del ssl ca-file" CLI command
+    - REGTESTS: ssl: Add "new/del ssl ca-file" tests
+    - DOC: ssl: Add documentation about CA file hot update commands
+    - DOC: internals: update the SSL architecture schema
+    - MINOR: ssl: Chain instances in ca-file entries
+    - MEDIUM: ssl: Add "set+commit ssl crl-file" CLI commands
+    - MEDIUM: ssl: Add "new+del crl-file" CLI commands
+    - MINOR: ssl: Add "abort ssl crl-file" CLI command
+    - MEDIUM: ssl: Add "show ssl crl-file" CLI command
+    - REGTESTS: ssl: Add "new/del ssl crl-file" tests
+    - REGTESTS: ssl: Add "set/commit ssl crl-file" test
+    - DOC: ssl: Add documentation about CRL file hot update commands
+    - BUILD/MINOR: ssl: Fix compilation with SSL enabled
+    - BUILD/MINOR: ssl: Fix compilation with OpenSSL 1.0.2
+    - CI: introduce scripts/build-vtest.sh for installing VTest
+    - CLEANUP: ssl: Fix coverity issues found in CA file hot update code
+    - CI: github actions: add OpenTracing builds
+    - BUG/MEDIUM: ebtree: Invalid read when looking for dup entry
+    - BUG/MAJOR: server: prevent deadlock when using 'set maxconn server'
+    - BUILD/MINOR: opentracing: fixed build when using clang
+    - BUG/MEDIUM: filters: Exec pre/post analysers only one time per filter
+    - BUG/MINOR: http-comp: Preserve HTTP_MSGF_COMPRESSIONG flag on the response
+    - MINOR: map/acl: print the count of all the map/acl entries in "show map/acl"
+    - CLEANUP: pattern: remove export of non-existent function pattern_delete()
+    - MINOR: h1-htx: Update h1 parsing functions to return result as a size_t
+    - MEDIUM: h1-htx: Adapt H1 data parsing to copy wrapping data in one call
+    - MINOR: mux-h1/mux-fcgi: Don't needlessly loop on data parsing
+    - MINOR: h1-htx: Move HTTP chunks parsing into a dedicated function
+    - MEDIUM: h1-htx: Split function to parse a chunk and the loop on the buffer
+    - MEDIUM: h1-htx: Add a function to parse contiguous small chunks
+    - MINOR: h1-htx: Use a correlation table to speed-up small chunks parsing
+    - MINOR: buf: Add function to realign a buffer with a specific head position
+    - MINOR: muxes/h1-htx: Realign input buffer using b_slow_realign_ofs()
+    - CLEANUP: mux-h1: Rename functions parsing input buf and filling output buf
+    - Revert "MEDIUM: http-ana: Deal with L7 retries in HTTP analysers"
+    - BUG/MINOR: http-ana: Send the right error if max retries is reached on L7 retry
+    - BUG/MINOR: http-ana: Handle L7 retries on refused early data before K/A aborts
+    - MINOR: http-ana: Perform L7 retries because of status codes in response analyser
+    - MINOR: cfgparse: Fail when encountering extra arguments in macro
+    - DOC: intro: Fix typo in starter guide
+    - BUG/MINOR: server: Missing calloc return value check in srv_parse_source
+    - BUG/MINOR: peers: Missing calloc return value check in peers_register_table
+    - BUG/MINOR: ssl: Missing calloc return value check in ssl_init_single_engine
+    - BUG/MINOR: http: Missing calloc return value check in parse_http_req_capture
+    - BUG/MINOR: proxy: Missing calloc return value check in proxy_parse_declare
+    - BUG/MINOR: proxy: Missing calloc return value check in proxy_defproxy_cpy
+    - BUG/MINOR: http: Missing calloc return value check while parsing tcp-request/tcp-response
+    - BUG/MINOR: http: Missing calloc return value check while parsing tcp-request rule
+    - BUG/MINOR: compression: Missing calloc return value check in comp_append_type/algo
+    - BUG/MINOR: worker: Missing calloc return value check in mworker_env_to_proc_list
+    - BUG/MINOR: http: Missing calloc return value check while parsing redirect rule
+    - BUG/MINOR: http: Missing calloc return value check in make_arg_list
+    - BUG/MINOR: proxy: Missing calloc return value check in chash_init_server_tree
+    - CLEANUP: http-ana: Remove useless if statement about L7 retries
+    - BUG/MAJOR: stream-int: Release SI endpoint on server side ASAP on retry
+    - MINOR: backend: Don't release SI endpoint anymore in connect_server()
+    - BUG/MINOR: vars: Be sure to have a session to get checks variables
+    - DOC/MINOR: move uuid in the configuration to the right alphabetical order
+    - CLEANUP: mux-fcgi: Don't needlessly store result of data/trailers parsing
+    - BUILD: fix compilation for OpenSSL-3.0.0-alpha17
+    - MINOR: http-ana: Use -1 status for client aborts during queuing and connect
+    - REGTESTS: Fix http_abortonclose.vtc to support -1 status for some client aborts
+    - CLEANUP: backend: fix incorrect comments on locking conditions for lb functions
+    - CLEANUP: reg-tests: Remove obsolete no-htx parameter for reg-tests
+    - CI: github actions: add OpenSSL-3.0.0 builds
+    - CI: github actions: -Wno-deprecated-declarations with OpenSSL 3.0.0
+    - MINOR: errors: allow empty va_args for diag variadic macro
+    - REORG: errors: split errors reporting function from log.c
+    - CLEANUP: server: fix cosmetic of error message on sni parsing
+    - MEDIUM: errors: implement user messages buffer
+    - MINOR: log: do not discard stderr when starting is over
+    - MEDIUM: errors: implement parsing context type
+    - MINOR: errors: use user messages context in print_message
+    - MINOR: log: display exec path on first warning
+    - MINOR: errors: specify prefix "config" for parsing output
+    - MINOR: log: define server user message format
+    - REORG: server: use parsing ctx for server parsing
+    - REORG: config: use parsing ctx for server config check
+    - MINOR: server: use parsing ctx for server init addr
+    - MINOR: server: use ha_alert in server parsing functions
+    - DOC: use the req.ssl_sni in examples
+    - CLEANUP: cfgparse: Remove duplication of `MAX_LINE_ARGS + 1`
+    - CLEANUP: tools: Make errptr const in `parse_line()`
+    - MINOR: haproxy: Add `-cc` argument
+    - BUG: errors: remove printf positional args for user messages context
+    - CI: Make matrix.py executable and add shebang
+    - BUILD: make tune.ssl.keylog available again
+    - BUG/MINOR: ssl: OCSP stapling does not work if expire too far in the future
+    - Revert "BUG/MINOR: opentracing: initialization after establishing daemon mode"
+    - BUG/MEDIUM: opentracing: initialization before establishing daemon and/or chroot mode
+    - SCRIPTS: opentracing: enable parallel builds in build-ot.sh
+    - BUG/MEDIUM: compression: Fix loop skipping unused blocks to get the next block
+    - BUG/MEDIUM: compression: Properly get the next block to iterate on payload
+    - BUG/MEDIUM: compression: Add a flag to know the filter is still processing data
+    - MINOR: ssl: Keep the actual key length in the certificate_ocsp structure
+    - MINOR: ssl: Add new "show ssl ocsp-response" CLI command
+    - MINOR: ssl: Add the OCSP entry key when displaying the details of a certificate
+    - MINOR: ssl: Add the "show ssl cert foo.pem.ocsp" CLI command
+    - REGTESTS: ssl: Add "show ssl ocsp-response" test
+    - BUG/MINOR: server: explicitly set "none" init-addr for dynamic servers
+    - BUG/MINOR: pools: fix a possible memory leak in the lockless pool_flush()
+    - BUG/MINOR: pools: make DEBUG_UAF always write to the to-be-freed location
+    - MINOR: pools: do not maintain the lock during pool_flush()
+    - MINOR: pools: call malloc_trim() under thread isolation
+    - MEDIUM: pools: use a single pool_gc() function for locked and lockless
+    - BUG/MAJOR: pools: fix possible race with free() in the lockless variant
+    - CLEANUP: pools: remove now unused seq and pool_free_list
+    - MEDIUM: pools: remove the locked pools implementation
+    - BUILD: ssl: Fix compilation with BoringSSL
+    - BUG/MEDIUM: errors: include missing obj_type file
+    - REGTESTS: ssl: show_ssl_ocspresponce.vtc is broken with BoringSSL
+    - BUG/MAJOR: htx: Fix htx_defrag() when an HTX block is expanded
+    - BUG/MINOR: mux-fcgi: Expose SERVER_SOFTWARE parameter by default
+    - BUG/MINOR: h1-htx: Fix a signess bug with char data type when parsing chunk size
+    - CLEANUP: l7-retries: do not test the buffer before calling b_alloc()
+    - BUG/MINOR: resolvers: answser item list was randomly purged or errors
+    - MEDIUM: resolvers: add a ref on server to the used A/AAAA answer item
+    - MEDIUM: resolvers: add a ref between servers and srv request or used SRV record
+    - BUG/MINOR: server-state: load SRV resolution only if params match the config
+    - MINOR: config: remove support for deprecated option "tune.chksize"
+    - MINOR: config: completely remove support for "no option http-use-htx"
+    - MINOR: log: remove the long-deprecated early log-format tags
+    - MINOR: http: remove the long deprecated "set-cookie()" sample fetch function
+    - MINOR: config: reject long-deprecated "option forceclose"
+    - MINOR: config: remove deprecated option "http-tunnel"
+    - MEDIUM: proxy: remove the deprecated "grace" keyword
+    - MAJOR: config: remove parsing of the global "nbproc" directive
+    - BUILD: init: remove initialization of multi-process thread mappings
+    - BUILD: log: remove unused fmt_directive()
+    - REGTESTS: Remove REQUIRE_VERSION=1.6 from all tests
+    - REGTESTS: Remove REQUIRE_VERSION=1.7 from all tests
+    - CI: github actions: enable alpine/musl builds
+    - BUG/MAJOR: resolvers: segfault using server template without SRV RECORDs
+    - DOC: lua: Add a warning about buffers modification in HTTP
+    - MINOR: ssl: Use OpenSSL's ASN1_TIME convertor when available
+    - BUG/MINOR: stick-table: insert srv in used_name tree even with fixed id
+    - BUG/MEDIUM: server: extend thread-isolate over much of CLI 'add server'
+    - BUG/MEDIUM: server: clear dynamic srv on delete from proxy id/name trees
+    - BUG/MEDIUM: server: do not forget to generate the dynamic servers ids
+    - BUG/MINOR: server: do not keep an invalid dynamic server in px ids tree
+    - BUG/MEDIUM: server: do not auto insert a dynamic server in px addr_node
+    - BUG/MEDIUM: shctx: use at least thread-based locking on USE_PRIVATE_CACHE
+    - BUG/MINOR: ssl: use atomic ops to update global shctx stats
+    - BUG/MINOR: mworker: fix typo in chroot error message
+    - CLEANUP: global: remove unused definition of stopping_task[]
+    - MEDIUM: init: remove the loop over processes during init
+    - MINOR: mworker: remove the initialization loop over processes
+    - CLEANUP: global: remove the nbproc field from the global structure
+    - CLEANUP: global: remove pid_bit and all_proc_mask
+    - MEDIUM: global: remove dead code from nbproc/bind_proc removal
+    - MEDIUM: config: simplify cpu-map handling
+    - MEDIUM: cpu-set: make the proc a single bit field and not an array
+    - CLEANUP: global: remove unused definition of MAX_PROCS
+    - MEDIUM: global: remove the relative_pid from global and mworker
+    - DOC: update references to process numbers in cpu-map and bind-process
+    - MEDIUM: config: warn about "bind-process" deprecation
+    - CLEANUP: shctx: remove the different inter-process locking techniques
+    - BUG/MAJOR: queue: set SF_ASSIGNED when setting strm->target on dequeue
+    - MINOR: backend: only skip LB when there are actual connections
+    - BUG/MINOR: mux-h1: do not skip the error response on bad requests
+    - MINOR: connection: add helper conn_append_debug_info()
+    - MINOR: mux-h2/trace: report a few connection-level info during h2_init()
+    - CLEANUP: mux-h2/traces: better align user messages
+    - BUG/MINOR: stats: make "show stat typed desc" work again
+    - MINOR: mux-h2: obey http-ignore-probes during the preface
+    - BUG/MINOR: mux-h2/traces: bring back the lost "rcvd H2 REQ" trace
+    - BUG/MINOR: mux-h2/traces: bring back the lost "sent H2 REQ/RES" traces
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CI: Replace the requirement for 'sudo' with a call to 'ulimit -n'
+    - REGTESTS: Replace REQUIRE_VERSION=2.5 with 'haproxy -cc'
+    - REGTESTS: Replace REQUIRE_OPTIONS with 'haproxy -cc' for 2.5+ tests
+    - REGTESTS: Replace REQUIRE_BINARIES with 'command -v'
+    - REGTESTS: Remove support for REQUIRE_BINARIES
+    - CI: ssl: enable parallel builds for OpenSSL on Linux
+    - CI: ssl: do not needlessly build the OpenSSL docs
+    - CI: ssl: keep the old method for ancient OpenSSL versions
+    - CLEANUP: server: a separate function for initializing the per_thr field
+    - BUG/MINOR: server: Forbid to set fqdn on the CLI if SRV resolution is enabled
+    - BUG/MEDIUM: server/cli: Fix ABBA deadlock when fqdn is set from the CLI
+    - MINOR: resolvers: Clean server in a dedicated function when removing a SRV item
+    - MINOR: resolvers: Remove server from named_servers tree when removing a SRV item
+    - BUG/MEDIUM: resolvers: Add a task on servers to check SRV resolution status
+    - BUG/MINOR: backend: restore the SF_SRV_REUSED flag original purpose
+    - BUG/MINOR: backend: do not set sni on connection reuse
+    - BUG/MINOR: resolvers: Use resolver's lock in resolv_srvrq_expire_task()
+    - BUG/MINOR: server/cli: Fix locking in function processing "set server" command
+    - BUG/MINOR: cache: Correctly handle existing-but-empty 'accept-encoding' header
+    - MINOR: ssl: fix typo in usage for 'new ssl ca-file'
+    - MINOR: ssl: always initialize random generator
+    - MINOR: ssl: check allocation in ssl_sock_init_srv
+    - MINOR: ssl: check allocation in parse ciphers/ciphersuites/verifyhost
+    - MINOR: ssl: check allocation in parse npn/sni
+    - MINOR: server: disable CLI 'set server ssl' for dynamic servers
+    - MINOR: ssl: render file-access optional on server crt loading
+    - MINOR: ssl: split parse functions for alpn/check-alpn
+    - MINOR: ssl: support ca-file arg for dynamic servers
+    - MINOR: ssl: support crt arg for dynamic servers
+    - MINOR: ssl: support crl arg for dynamic servers
+    - MINOR: ssl: enable a series of ssl keywords for dynamic servers
+    - MINOR: ssl: support ssl keyword for dynamic servers
+    - REGTESTS: server: test ssl support for dynamic servers
+    - MINOR: queue: update the stream's pend_pos before queuing it
+    - CLEANUP: Prevent channel-t.h from being detected as C++ by GitHub
+    - BUG/MAJOR: server: fix deadlock when changing maxconn via agent-check
+    - REGTESTS: fix maxconn update with agent-check
+    - MEDIUM: queue: make pendconn_process_next_strm() only return the pendconn
+    - MINOR: queue: update proxy->served once out of the loop
+    - MEDIUM: queue: refine the locking in process_srv_queue()
+    - MINOR: lb/api: remove the locked argument from take_conn/drop_conn
+    - MINOR: queue: create a new structure type "queue"
+    - MINOR: proxy: replace the pendconns-related stuff with a struct queue
+    - MINOR: server: replace the pendconns-related stuff with a struct queue
+    - MEDIUM: queue: use a dedicated lock for the queues
+    - MEDIUM: queue: simplify again the process_srv_queue() API
+    - MINOR: queue: factor out the proxy/server queuing code
+    - MINOR: queue: use atomic-ops to update the queue's index
+    - MEDIUM: queue: determine in process_srv_queue() if the proxy is usable
+    - MEDIUM: queue: move the queue lock manipulation to pendconn_process_next_strm()
+    - MEDIUM: queue: unlock as soon as possible
+    - MINOR: queue: make pendconn_first() take the lock by itself
+    - CLEANUP: backend: remove impossible case of round-robin + consistent hash
+    - MINOR: tcp-act: Add set-src/set-src-port for "tcp-request content" rules
+    - DOC: config: Add missing actions in "tcp-request session" documentation
+    - CLEANUP: dns: Remove a forgotten debug message
+    - DOC: Replace issue templates by issue forms
+    - Revert "MINOR: queue: make pendconn_first() take the lock by itself"
+    - Revert "MEDIUM: queue: unlock as soon as possible"
+    - Revert "MEDIUM: queue: move the queue lock manipulation to pendconn_process_next_strm()"
+    - Revert "MEDIUM: queue: determine in process_srv_queue() if the proxy is usable"
+    - Revert "MINOR: queue: use atomic-ops to update the queue's index"
+    - Revert "MINOR: queue: factor out the proxy/server queuing code"
+    - Revert "MEDIUM: queue: simplify again the process_srv_queue() API"
+    - Revert "MEDIUM: queue: use a dedicated lock for the queues"
+    - Revert "MEDIUM: queue: refine the locking in process_srv_queue()"
+    - Revert "MINOR: queue: update proxy->served once out of the loop"
+    - Revert "MEDIUM: queue: make pendconn_process_next_strm() only return the pendconn"
+    - MEDIUM: queue: update px->served and lb's take_conn once per loop
+    - MEDIUM: queue: use a dedicated lock for the queues (v2)
+    - MEDIUM: queue: simplify again the process_srv_queue() API (v2)
+    - MEDIUM: queue: determine in process_srv_queue() if the proxy is usable (v2)
+    - MINOR: queue: factor out the proxy/server queuing code (v2)
+    - MINOR: queue: use atomic-ops to update the queue's index (v2)
+    - MEDIUM: queue: take the proxy lock only during the px queue accesses
+    - MEDIUM: queue: use a trylock on the server's queue
+    - MINOR: queue: add queue_init() to initialize a queue
+    - MINOR: queue: add a pointer to the server and the proxy in the queue
+    - MINOR: queue: store a pointer to the queue into the pendconn
+    - MINOR: queue: remove the px/srv fields from pendconn
+    - MINOR: queue: simplify pendconn_unlink() regarding srv vs px
+    - BUG: backend: stop looking for queued connections once there's no more
+    - BUG/MINOR: queue/debug: use the correct lock labels on the queue lock
+    - BUG/MINOR: resolvers: Always attach server on matching record on resolution
+    - BUG/MINOR: resolvers: Reset server IP when no ip is found in the response
+    - MINOR: resolvers: Reset server IP on error in resolv_get_ip_from_response()
+    - BUG/MINOR: checks: return correct error code for srv_parse_agent_check
+    - BUILD: Makefile: fix linkage for Haiku.
+    - BUG/MINOR: tcpcheck: Fix numbering of implicit HTTP send/expect rules
+    - MINOR: http-act/tcp-act: Add "set-log-level" for tcp content rules
+    - MINOR: http-act/tcp-act: Add "set-nice" for tcp content rules
+    - MINOR: http-act/tcp-act: Add "set-mark" and "set-tos" for tcp content rules
+    - CLEANUP: tcp-act: Sort action lists
+    - BUILD/MEDIUM: tcp: set-mark setting support for FreeBSD.
+    - BUILD: tcp-act: avoid warning when set-mark / set-tos are not supported
+    - BUG/MINOR: mqtt: Fix parser for string with more than 127 characters
+    - BUG/MINOR: mqtt: Support empty client ID in CONNECT message
+    - BUG/MEDIUM: resolvers: Make 1st server of a template take part to SRV resolution
+    - CLEANUP: peers: re-write intdecode function comment.
+
 2021/05/14 : 2.5-dev0
     - MINOR: version: it's development again
 
