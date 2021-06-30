@@ -168,6 +168,7 @@ struct act_rule {
 		} vars;
 		struct {
 			int sc;
+			unsigned int idx;
 		} gpc;
 		struct {
 			int sc;

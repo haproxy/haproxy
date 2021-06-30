@@ -61,6 +61,8 @@ enum {
 	STKTABLE_DT_HTTP_FAIL_CNT, /* cumulated number of HTTP server failures */
 	STKTABLE_DT_HTTP_FAIL_RATE,/* HTTP server failures rate */
 	STKTABLE_DT_GPT,           /* array of gpt */
+	STKTABLE_DT_GPC,           /* array of gpc */
+	STKTABLE_DT_GPC_RATE,      /* array of gpc_rate */
 
 
 	STKTABLE_STATIC_DATA_TYPES,/* number of types above */

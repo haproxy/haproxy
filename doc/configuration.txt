@@ -6409,6 +6409,17 @@ http-request return [status <code>] [content-type <type>]
         lf-string "Access denied. IP %[src] is blacklisted."  \
         if { src -f /etc/haproxy/blacklist.lst }
 
+http-request sc-inc-gpc(<idx>,<sc-id>) [ { if | unless } <condition> ]
+
+  This actions increments the General Purpose Counter at the index <idx>
+  of the array associated to the sticky counter designated by <sc-id>.
+  If an error occurs, this action silently fails and the actions evaluation
+  continues. <idx> is an integer between 0 and 99 and <sc-id> is an integer
+  between 0 and 2. It also silently fails if the there is no GPC stored
+  at this index.
+  This action applies only to the 'gpc' and 'gpc_rate' array data_types (and
+  not to the legacy 'gpc0', 'gpc1', 'gpc0_rate' nor 'gpc1_rate' data_types).
+
 http-request sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
 http-request sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
 
@@ -7119,6 +7130,17 @@ http-response return [status <code>] [content-type <type>]
     http-response return content-type text/plain  \
         string "This is the end !"                \
         if { status eq 500 }
+
+http-response sc-inc-gpc(<idx>,<sc-id>) [ { if | unless } <condition> ]
+
+  This actions increments the General Purpose Counter at the index <idx>
+  of the array associated to the sticky counter designated by <sc-id>.
+  If an error occurs, this action silently fails and the actions evaluation
+  continues. <idx> is an integer between 0 and 99 and <sc-id> is an integer
+  between 0 and 2. It also silently fails if the there is no GPC stored
+  at this index.
+  This action applies only to the 'gpc' and 'gpc_rate' array data_types (and
+  not to the legacy 'gpc0', 'gpc1', 'gpc0_rate' nor 'gpc1_rate' data_types).
 
 http-response sc-inc-gpc0(<sc-id>) [ { if | unless } <condition> ]
 http-response sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
@@ -11183,6 +11205,30 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       request was assigned to. It is used by the "stick match", "stick store",
       and "stick on" rules. It is automatically enabled when referenced.
 
+    - gpc(<nb>) : General Purpose Counters Array of <nb> elements. This is an
+      array of positive 32-bit integers which may be used to count anything.
+      Most of the time they will be used as a incremental counters on some
+      entries, for instance to note that a limit is reached and trigger some
+      actions. This array is limited to a maximum of 100 elements:
+      gpc0 to gpc99, to ensure that the build of a peer update
+      message can fit into the buffer. Users should take in consideration
+      that a large amount of counters will increase the data size and the
+      traffic load using peers protocol since all data/counters are pushed
+      each time any of them is updated.
+
+    - gpc_rate(<nb>,<period>) : Array of increment rates of General Purpose
+      Counters over a period. Those elements are positive 32-bit integers which
+      may be used for anything. Just like <gpc>, the count events, but instead
+      of keeping a cumulative number, they maintain the rate at which the
+      counter is incremented. Most of the time it will be used to measure the
+      frequency of occurrence of certain events (e.g. requests to a specific
+      URL). This array is limited to a maximum of 100 elements: gpc0 to gpc99,
+      to ensure that the build of a peer update message can fit into the
+      buffer. Users should take in consideration that a large amount of
+      counters will increase the data size and the traffic load using peers
+      protocol since all data/counters are pushed each time any of them is
+      updated.
+
     - gpc0 : first General Purpose Counter. It is a positive 32-bit integer
       integer which may be used for anything. Most of the time it will be used
       to put a special tag on some entries, for instance to note that a
@@ -11930,6 +11976,17 @@ tcp-request connection <action> [{if | unless} <condition>]
         advantage over just checking the keys, because only one table lookup is
         performed for all ACL checks that make use of it.
 
+    - sc-inc-gpc(<idx>,<sc-id>):
+        This actions increments the General Purpose Counter at the index <idx>
+        of the array associated to the sticky counter designated by <sc-id>.
+        If an error occurs, this action silently fails and the actions
+        evaluation continues. <idx> is an integer between 0 and 99 and <sc-id>
+        is an integer between 0 and 2. It also silently fails if the there is
+        no GPC stored at this index.
+        This action applies only to the 'gpc' and 'gpc_rate' array data_types
+        (and not to the legacy 'gpc0', 'gpc1', 'gpc0_rate' nor 'gpc1_rate'
+        data_types).
+
     - sc-inc-gpc0(<sc-id>):
         The "sc-inc-gpc0" increments the GPC0 counter according to the sticky
         counter designated by <sc-id>. If an error occurs, this action silently
@@ -12133,6 +12190,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - capture : the specified sample expression is captured
     - set-priority-class <expr> | set-priority-offset <expr>
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
+    - sc-inc-gpc(<idx>,<sc-id>)
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
     - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
@@ -12475,6 +12533,17 @@ tcp-response content <action> [{if | unless} <condition>]
     - unset-var(<var-name>)
         Unsets a variable.
 
+    - sc-inc-gpc(<idx>,<sc-id>):
+        This actions increments the General Purpose Counter at the index <idx>
+        of the array associated to the sticky counter designated by <sc-id>.
+        If an error occurs, this action silently fails and the actions
+        evaluation continues. <idx> is an integer between 0 and 99 and <sc-id>
+        is an integer between 0 and 2. It also silently fails if the there is
+        no GPC stored at this index.
+        This action applies only to the 'gpc' and 'gpc_rate' array data_types
+        (and not to the legacy 'gpc0', 'gpc1', 'gpc0_rate' nor 'gpc1_rate'
+        data_types).
+
     - sc-inc-gpc0(<sc-id>):
         This action increments the GPC0 counter according to the sticky
         counter designated by <sc-id>. If an error occurs, this action fails
@@ -12619,6 +12688,7 @@ tcp-request session <action> [{if | unless} <condition>]
     - accept : the request is accepted
     - reject : the request is rejected and the connection is closed
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
+    - sc-inc-gpc(<idx>,<sc-id>)
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
     - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
@@ -16783,6 +16853,31 @@ table_gpt0(<table>)
   general purpose tag associated with the input sample in the designated table.
   See also the sc_get_gpt0 sample fetch keyword.
 
+table_gpc(<idx>,<table>)
+  Uses the string representation of the input sample to perform a lookup in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the current value of the
+  General Purpose Counter at the index <idx> of the array associated
+  to the input sample in the designated <table>. <idx> is an integer
+  between 0 and 99.
+  If there is no GPC stored at this index, it also returns the boolean value 0.
+  This applies only to the 'gpc' array data_type (and not to the legacy
+  'gpc0' nor 'gpc1' data_types).
+  See also the sc_get_gpc sample fetch keyword.
+
+table_gpc_rate(<idx>,<table>)
+  Uses the string representation of the input sample to perform a lookup in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the frequency which the Global
+  Purpose Counter at index <idx> of the array (associated to the input sample
+  in the designated stick-table <table>) was incremented over the
+  configured period. <idx> is an integer between 0 and 99.
+  If there is no gpc_rate stored at this index, it also returns the boolean
+  value 0.
+  This applies only to the 'gpc_rate' array data_type (and not to the
+  legacy 'gpc0_rate' nor 'gpc1_rate' data_types).
+  See also the sc_gpc_rate sample fetch keyword.
+
 table_gpc0(<table>)
   Uses the string representation of the input sample to perform a look up in
   the specified table. If the key is not found in the table, integer value zero
@@ -17761,6 +17856,17 @@ sc2_bytes_out_rate([<table>]) : integer
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_out_rate.
 
+sc_clr_gpc(<idx>,<ctr>[,<table>]) : integer
+  Clears the General Purpose Counter at the index <idx> of the array
+  associated to the designated tracked counter of ID <ctr> from current
+  proxy's stick table or from the designated stick-table <table>, and
+  returns its previous value. <idx> is an integer between 0 and 99 and
+  <ctr> an integer between 0 and 2.
+  Before the first invocation, the stored value is zero, so first invocation
+  will always return zero.
+  This fetch applies only to the 'gpc' array data_type (and not to the legacy
+  'gpc0' nor 'gpc1' data_types).
+
 sc_clr_gpc0(<ctr>[,<table>]) : integer
 sc0_clr_gpc0([<table>]) : integer
 sc1_clr_gpc0([<table>]) : integer
@@ -17813,6 +17919,16 @@ sc2_conn_rate([<table>]) : integer
   measured in amount of connections over the period configured in the table.
   See also src_conn_rate.
 
+sc_get_gpc(<idx>,<ctr>[,<table>]) : integer
+  Returns the value of the General Purpose Counter at the index <idx>
+  in the GPC array and associated to the currently tracked counter of
+  ID <ctr> from the current proxy's stick-table or from the designated
+  stick-table <table>. <idx> is an integer between 0 and 99 and
+  <ctr> an integer between 0 and 2. If there is not gpc stored at this
+  index, zero is returned.
+  This fetch applies only to the 'gpc' array data_type (and not to the legacy
+  'gpc0' nor 'gpc1' data_types). See also src_get_gpc and sc_inc_gpc.
+
 sc_get_gpc0(<ctr>[,<table>]) : integer
 sc0_get_gpc0([<table>]) : integer
 sc1_get_gpc0([<table>]) : integer
@@ -17842,6 +17958,19 @@ sc1_get_gpt0([<table>]) : integer
 sc2_get_gpt0([<table>]) : integer
   Returns the value of the first General Purpose Tag associated to the
   currently tracked counters. See also src_get_gpt0.
+
+sc_gpc_rate(<idx>,<ctr>[,<table>]) : integer
+  Returns the average increment rate of the General Purpose Counter at the
+  index <idx> of the array associated to the tracked counter of ID <ctr> from
+  the current proxy's table or from the designated stick-table <table>.
+  It reports the frequency which the gpc counter was incremented over the
+  configured period. <idx> is an integer between 0 and 99 and <ctr> an integer
+  between 0 and 2.
+  Note that the 'gpc_rate' counter array  must be stored in the stick-table
+  for a value to be returned, as 'gpc' only holds the event count.
+  This fetch applies only to the 'gpc_rate' array data_type (and not to
+  the legacy 'gpc0_rate' nor 'gpc1_rate' data_types).
+  See also src_gpc_rate, sc_get_gpc, and sc_inc_gpc.
 
 sc_gpc0_rate(<ctr>[,<table>]) : integer
 sc0_gpc0_rate([<table>]) : integer
@@ -17915,6 +18044,17 @@ sc2_http_req_rate([<table>]) : integer
   counters, measured in amount of requests over the period configured in
   the table. This includes every started request, valid or not. See also
   src_http_req_rate.
+
+sc_inc_gpc(<idx>,<ctr>[,<table>]) : integer
+  Increments the General Purpose Counter at the index <idx> of the array
+  associated to the designated tracked counter of ID <ctr> from current
+  proxy's stick table or from the designated stick-table <table>, and
+  returns its new value. <idx> is an integer between 0 and 99 and
+  <ctr> an integer between 0 and 2.
+  Before the first invocation, the stored value is zero, so first invocation
+  will increase it to 1 and will return 1.
+  This fetch applies only to the 'gpc' array data_type (and not to the legacy
+  'gpc0' nor 'gpc1' data_types).
 
 sc_inc_gpc0(<ctr>[,<table>]) : integer
 sc0_inc_gpc0([<table>]) : integer
@@ -18042,6 +18182,16 @@ src_bytes_out_rate([<table>]) : integer
   amount of bytes over the period configured in the table. If the address is
   not found, zero is returned. See also sc/sc0/sc1/sc2_bytes_out_rate.
 
+src_clr_gpc(<idx>,[<table>]) : integer
+  Clears the General Purpose Counter at the index <idx> of the array
+  associated to the incoming connection's source address in the current proxy's
+  stick-table or in the designated stick-table <table>, and returns its
+  previous value. <idx> is an integer between 0 and 99.
+  If the address is not found, an entry is created and 0 is returned.
+  This fetch applies only to the 'gpc' array data_type (and not to the legacy
+  'gpc0' nor 'gpc1' data_types).
+  See also sc_clr_gpc.
+
 src_clr_gpc0([<table>]) : integer
   Clears the first General Purpose Counter associated to the incoming
   connection's source address in the current proxy's stick-table or in the
@@ -18085,6 +18235,17 @@ src_conn_rate([<table>]) : integer
   measured in amount of connections over the period configured in the table. If
   the address is not found, zero is returned. See also sc/sc0/sc1/sc2_conn_rate.
 
+src_get_gpc(<idx>,[<table>]) : integer
+  Returns the value of the General Purpose Counter at the index <idx> of the
+  array associated to the incoming connection's source address in the
+  current proxy's stick-table or in the designated stick-table <table>. <idx>
+  is an integer between 0 and 99.
+  If the address is not found or there is no gpc stored at this index, zero
+  is returned.
+  This fetch applies only to the 'gpc' array data_type (and not on the legacy
+  'gpc0' nor 'gpc1' data_types).
+  See also sc_get_gpc and src_inc_gpc.
+
 src_get_gpc0([<table>]) : integer
   Returns the value of the first General Purpose Counter associated to the
   incoming connection's source address in the current proxy's stick-table or in
@@ -18110,6 +18271,18 @@ src_get_gpt0([<table>]) : integer
   incoming connection's source address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
   See also sc/sc0/sc1/sc2_get_gpt0.
+
+src_gpc_rate(<idx>[,<table>]) : integer
+  Returns the average increment rate of the General Purpose Counter at the
+  index <idx> of the array associated to the incoming connection's
+  source address in the current proxy's stick-table or in the designated
+  stick-table <table>. It reports the frequency which the gpc counter was
+  incremented over the configured period. <idx> is an integer between 0 and 99.
+  Note that the 'gpc_rate' counter must be stored in the stick-table for a
+  value to be returned, as 'gpc' only holds the event count.
+  This fetch applies only to the 'gpc_rate' array data_type (and not to
+  the legacy 'gpc0_rate' nor 'gpc1_rate' data_types).
+  See also sc_gpc_rate, src_get_gpc, and sc_inc_gpc.
 
 src_gpc0_rate([<table>]) : integer
   Returns the average increment rate of the first General Purpose Counter
@@ -18170,6 +18343,16 @@ src_http_req_rate([<table>]) : integer
   table, measured in amount of requests over the period configured in the
   table. This includes every started request, valid or not. If the address is
   not found, zero is returned. See also sc/sc0/sc1/sc2_http_req_rate.
+
+src_inc_gpc(<idx>,[<table>]) : integer
+  Increments the General Purpose Counter at index <idx> of the array
+  associated to the incoming connection's source address in the current proxy's
+  stick-table or in the designated stick-table <table>, and returns its new
+  value. <idx> is an integer between 0 and 99.
+  If the address is not found, an entry is created and 1 is returned.
+  This fetch applies only to the 'gpc' array data_type (and not to the legacy
+  'gpc0' nor 'gpc1' data_types).
+  See also sc_inc_gpc.
 
 src_inc_gpc0([<table>]) : integer
   Increments the first General Purpose Counter associated to the incoming
