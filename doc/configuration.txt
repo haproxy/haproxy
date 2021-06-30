@@ -11215,6 +11215,10 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       that a large amount of counters will increase the data size and the
       traffic load using peers protocol since all data/counters are pushed
       each time any of them is updated.
+      This data_type will exclude the usage of the legacy data_types 'gpc0'
+      and 'gpc1' on the same table. Using the 'gpc' array data_type, all 'gpc0'
+      and 'gpc1' related fetches and actions will apply to the two first
+      elements of this array.
 
     - gpc_rate(<nb>,<period>) : Array of increment rates of General Purpose
       Counters over a period. Those elements are positive 32-bit integers which
@@ -11228,6 +11232,10 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       counters will increase the data size and the traffic load using peers
       protocol since all data/counters are pushed each time any of them is
       updated.
+      This data_type will exclude the usage of the legacy data_types
+      'gpc0_rate' and 'gpc1_rate' on the same table. Using the 'gpc_rate'
+      array data_type, all 'gpc0' and 'gpc1' related fetches and actions
+      will apply to the two first elements of this array.
 
     - gpc0 : first General Purpose Counter. It is a positive 32-bit integer
       integer which may be used for anything. Most of the time it will be used

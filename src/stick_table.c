@@ -955,6 +955,18 @@ int parse_stick_table(const char *file, int linenum, char **args,
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+			else if (t->data_ofs[STKTABLE_DT_GPC] && (t->data_ofs[STKTABLE_DT_GPC0] || t->data_ofs[STKTABLE_DT_GPC1])) {
+				ha_alert("parsing [%s:%d] : %s: simultaneous usage of 'gpc' and 'gpc[0/1]' in a same table is not permitted as 'gpc' overrides 'gpc[0/1]'.\n",
+					 file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			else if (t->data_ofs[STKTABLE_DT_GPC_RATE] && (t->data_ofs[STKTABLE_DT_GPC0_RATE] || t->data_ofs[STKTABLE_DT_GPC1_RATE])) {
+				ha_alert("parsing [%s:%d] : %s: simultaneous usage of 'gpc_rate' and 'gpc[0/1]_rate' in a same table is not permitted as 'gpc_rate' overrides 'gpc[0/1]_rate'.\n",
+					 file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 		}
 		else if (strcmp(args[idx], "srvkey") == 0) {
 			char *keytype;
@@ -1601,6 +1613,11 @@ static int sample_conv_table_gpc0(const struct arg *arg_p, struct sample *smp, v
 		return 1;
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC0);
+	if (!ptr) {
+		/* fallback on the gpc array */
+		ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPC, 0);
+	}
+
 	if (ptr)
 		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
@@ -1640,6 +1657,13 @@ static int sample_conv_table_gpc0_rate(const struct arg *arg_p, struct sample *s
 	if (ptr)
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_GPC0_RATE].u);
+	else {
+		/* fallback on the gpc array */
+		ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPC_RATE, 0);
+		if (ptr)
+			smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+			                                        t->data_arg[STKTABLE_DT_GPC_RATE].u);
+	}
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1674,6 +1698,11 @@ static int sample_conv_table_gpc1(const struct arg *arg_p, struct sample *smp, v
 		return 1;
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC1);
+	if (!ptr) {
+		/* fallback on the gpc array */
+		ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPC, 1);
+	}
+
 	if (ptr)
 		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
@@ -1713,6 +1742,13 @@ static int sample_conv_table_gpc1_rate(const struct arg *arg_p, struct sample *s
 	if (ptr)
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_GPC1_RATE].u);
+	else {
+		/* fallback on the gpc array */
+		ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPC_RATE, 1);
+		if (ptr)
+			smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+			                                        t->data_arg[STKTABLE_DT_GPC_RATE].u);
+	}
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -2202,6 +2238,7 @@ static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
 {
 	struct stksess *ts;
 	struct stkctr *stkctr;
+	unsigned int period;
 
 	/* Extract the stksess, return OK if no stksess available. */
 	if (s)
@@ -2215,13 +2252,28 @@ static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
 
 		/* First, update gpc0_rate if it's tracked. Second, update its gpc0 if tracked. */
 		ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0_RATE);
+		if (ptr1) {
+			period = stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u;
+		}
+		else {
+			/* fallback on the gpc array */
+			ptr1 = stktable_data_ptr_idx(stkctr->table, ts, STKTABLE_DT_GPC_RATE, 0);
+			if (ptr1)
+				period = stkctr->table->data_arg[STKTABLE_DT_GPC_RATE].u;
+		}
+
 		ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC0);
+		if (!ptr2) {
+			/* fallback on the gpc array */
+			ptr2 = stktable_data_ptr_idx(stkctr->table, ts, STKTABLE_DT_GPC, 0);
+		}
+
 		if (ptr1 || ptr2) {
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 			if (ptr1)
 				update_freq_ctr_period(&stktable_data_cast(ptr1, std_t_frqp),
-					       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
+				                       period, 1);
 
 			if (ptr2)
 				stktable_data_cast(ptr2, std_t_uint)++;
@@ -2241,6 +2293,7 @@ static enum act_return action_inc_gpc1(struct act_rule *rule, struct proxy *px,
 {
 	struct stksess *ts;
 	struct stkctr *stkctr;
+	unsigned int period;
 
 	/* Extract the stksess, return OK if no stksess available. */
 	if (s)
@@ -2254,13 +2307,28 @@ static enum act_return action_inc_gpc1(struct act_rule *rule, struct proxy *px,
 
 		/* First, update gpc1_rate if it's tracked. Second, update its gpc1 if tracked. */
 		ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC1_RATE);
+		if (ptr1) {
+			period = stkctr->table->data_arg[STKTABLE_DT_GPC1_RATE].u;
+		}
+		else {
+			/* fallback on the gpc array */
+			ptr1 = stktable_data_ptr_idx(stkctr->table, ts, STKTABLE_DT_GPC_RATE, 1);
+			if (ptr1)
+				period = stkctr->table->data_arg[STKTABLE_DT_GPC_RATE].u;
+		}
+
 		ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_GPC1);
+		if (!ptr2) {
+			/* fallback on the gpc array */
+			ptr2 = stktable_data_ptr_idx(stkctr->table, ts, STKTABLE_DT_GPC, 1);
+		}
+
 		if (ptr1 || ptr2) {
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 			if (ptr1)
 				update_freq_ctr_period(&stktable_data_cast(ptr1, std_t_frqp),
-					       stkctr->table->data_arg[STKTABLE_DT_GPC1_RATE].u, 1);
+				                       period, 1);
 
 			if (ptr2)
 				stktable_data_cast(ptr2, std_t_uint)++;
@@ -2920,6 +2988,11 @@ smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw
 
 		ptr  = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (!ptr) {
+			/* fallback on the gpc array */
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 0);
+		}
+
+		if (!ptr) {
 			if (stkctr == &tmpstkctr)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
@@ -2960,6 +3033,11 @@ smp_fetch_sc_get_gpc1(const struct arg *args, struct sample *smp, const char *kw
 		void *ptr;
 
 		ptr  = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC1);
+		if (!ptr) {
+			/* fallback on the gpc array */
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 1);
+		}
+
 		if (!ptr) {
 			if (stkctr == &tmpstkctr)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -3033,6 +3111,7 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 {
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
+	unsigned int period;
 
 	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
@@ -3045,6 +3124,16 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 		void *ptr;
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
+		if (ptr) {
+			period = stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u;
+		}
+		else {
+			/* fallback on the gpc array */
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC_RATE, 0);
+			if (ptr)
+				period = stkctr->table->data_arg[STKTABLE_DT_GPC_RATE].u;
+		}
+
 		if (!ptr) {
 			if (stkctr == &tmpstkctr)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -3053,8 +3142,7 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-		                  stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u);
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp), period);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -3074,6 +3162,7 @@ smp_fetch_sc_gpc1_rate(const struct arg *args, struct sample *smp, const char *k
 {
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
+	unsigned int period;
 
 	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
@@ -3086,6 +3175,16 @@ smp_fetch_sc_gpc1_rate(const struct arg *args, struct sample *smp, const char *k
 		void *ptr;
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC1_RATE);
+		if (ptr) {
+			period = stkctr->table->data_arg[STKTABLE_DT_GPC1_RATE].u;
+		}
+		else {
+			/* fallback on the gpc array */
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC_RATE, 1);
+			if (ptr)
+				period = stkctr->table->data_arg[STKTABLE_DT_GPC_RATE].u;
+		}
+
 		if (!ptr) {
 			if (stkctr == &tmpstkctr)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
@@ -3094,8 +3193,7 @@ smp_fetch_sc_gpc1_rate(const struct arg *args, struct sample *smp, const char *k
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
-		                  stkctr->table->data_arg[STKTABLE_DT_GPC1_RATE].u);
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp), period);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -3171,6 +3269,7 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 {
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
+	unsigned int period;
 
 	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
@@ -3191,13 +3290,28 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 		 * gpc0 if tracked. Returns gpc0's value otherwise the curr_ctr.
 		 */
 		ptr1 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
+		if (ptr1) {
+			period = stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u;
+		}
+		else {
+			/* fallback on the gpc array */
+			ptr1 = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC_RATE, 0);
+			if (ptr1)
+				period = stkctr->table->data_arg[STKTABLE_DT_GPC_RATE].u;
+		}
+
 		ptr2 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
+		if (!ptr2) {
+			/* fallback on the gpc array */
+			ptr2 = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 0);
+		}
+
 		if (ptr1 || ptr2) {
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 			if (ptr1) {
 				update_freq_ctr_period(&stktable_data_cast(ptr1, std_t_frqp),
-						       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
+						       period, 1);
 				smp->data.u.sint = (&stktable_data_cast(ptr1, std_t_frqp))->curr_ctr;
 			}
 
@@ -3224,6 +3338,7 @@ smp_fetch_sc_inc_gpc1(const struct arg *args, struct sample *smp, const char *kw
 {
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
+	unsigned int period;
 
 	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
@@ -3244,13 +3359,28 @@ smp_fetch_sc_inc_gpc1(const struct arg *args, struct sample *smp, const char *kw
 		 * gpc1 if tracked. Returns gpc1's value otherwise the curr_ctr.
 		 */
 		ptr1 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC1_RATE);
+		if (ptr1) {
+			period = stkctr->table->data_arg[STKTABLE_DT_GPC1_RATE].u;
+		}
+		else {
+			/* fallback on the gpc array */
+			ptr1 = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC_RATE, 1);
+			if (ptr1)
+				period = stkctr->table->data_arg[STKTABLE_DT_GPC_RATE].u;
+		}
+
 		ptr2 = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC1);
+		if (!ptr2) {
+			/* fallback on the gpc array */
+			ptr2 = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 1);
+		}
+
 		if (ptr1 || ptr2) {
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 			if (ptr1) {
 				update_freq_ctr_period(&stktable_data_cast(ptr1, std_t_frqp),
-						       stkctr->table->data_arg[STKTABLE_DT_GPC1_RATE].u, 1);
+						       period, 1);
 				smp->data.u.sint = (&stktable_data_cast(ptr1, std_t_frqp))->curr_ctr;
 			}
 
@@ -3342,6 +3472,11 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (!ptr) {
+			/* fallback on the gpc array */
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 0);
+		}
+
+		if (!ptr) {
 			if (stkctr == &tmpstkctr)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
 			return 0; /* parameter not stored */
@@ -3385,6 +3520,11 @@ smp_fetch_sc_clr_gpc1(const struct arg *args, struct sample *smp, const char *kw
 		void *ptr;
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC1);
+		if (!ptr) {
+			/* fallback on the gpc array */
+			ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC, 1);
+		}
+
 		if (!ptr) {
 			if (stkctr == &tmpstkctr)
 				stktable_release(stkctr->table, stkctr_entry(stkctr));
