@@ -708,14 +708,18 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 	return 1;
 }
 
-/* reserve some space for data type <type>, and associate argument at <sa> if
- * not NULL. Returns PE_NONE (0) if OK or an error code among :
+/* reserve some space for data type <type>, there is 2 optionnals
+ * argument at <sa> and <sa2> to configure this data type and
+ * they can be NULL if unused for a given type.
+ * Returns PE_NONE (0) if OK or an error code among :
  *   - PE_ENUM_OOR if <type> does not exist
  *   - PE_EXIST if <type> is already registered
- *   - PE_ARG_NOT_USE if <sa> was provided but not expected
- *   - PE_ARG_MISSING if <sa> was expected but not provided
+ *   - PE_ARG_NOT_USE if <sa>/<sa2> was provided but not expected
+ *   - PE_ARG_MISSING if <sa>/<sa2> was expected but not provided
+ *   - PE_ARG_VALUE_OOR if type is an array and <sa> it out of array size range.
  */
-int stktable_alloc_data_type(struct stktable *t, int type, const char *sa)
+int stktable_alloc_data_type(struct stktable *t, int type, const char *sa, const char *sa2)
+
 {
 	if (type >= STKTABLE_DATA_TYPES)
 		return PE_ENUM_OOR;
@@ -723,6 +727,17 @@ int stktable_alloc_data_type(struct stktable *t, int type, const char *sa)
 	if (t->data_ofs[type])
 		/* already allocated */
 		return PE_EXIST;
+
+	t->data_nbelem[type] = 1;
+	if (stktable_data_types[type].is_array) {
+		/* arrays take their element count on first argument */
+		if (!sa)
+			return PE_ARG_MISSING;
+		t->data_nbelem[type] = atoi(sa);
+		if (!t->data_nbelem[type] || (t->data_nbelem[type] > STKTABLE_MAX_DT_ARRAY_SIZE))
+			return PE_ARG_VALUE_OOR;
+		sa = sa2;
+	}
 
 	switch (stktable_data_types[type].arg_type) {
 	case ARG_T_NONE:
@@ -743,7 +758,7 @@ int stktable_alloc_data_type(struct stktable *t, int type, const char *sa)
 		break;
 	}
 
-	t->data_size      += stktable_type_size(stktable_data_types[type].std_type);
+	t->data_size      += t->data_nbelem[type] * stktable_type_size(stktable_data_types[type].std_type);
 	t->data_ofs[type]  = -t->data_size;
 	return PE_NONE;
 }
@@ -860,7 +875,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 		}
 		else if (strcmp(args[idx], "store") == 0) {
 			int type, err;
-			char *cw, *nw, *sa;
+			char *cw, *nw, *sa, *sa2;
 
 			idx++;
 			nw = args[idx];
@@ -868,6 +883,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 				/* the "store" keyword supports a comma-separated list */
 				cw = nw;
 				sa = NULL; /* store arg */
+				sa2 = NULL;
 				while (*nw && *nw != ',') {
 					if (*nw == '(') {
 						*nw = 0;
@@ -878,6 +894,10 @@ int parse_stick_table(const char *file, int linenum, char **args,
 									 file, linenum, args[0], cw);
 								err_code |= ERR_ALERT | ERR_FATAL;
 								goto out;
+							}
+							if (*nw == ',') {
+								*nw = '\0';
+								sa2 = nw + 1;
 							}
 							nw++;
 						}
@@ -895,7 +915,7 @@ int parse_stick_table(const char *file, int linenum, char **args,
 					goto out;
 				}
 
-				err = stktable_alloc_data_type(t, type, sa);
+				err = stktable_alloc_data_type(t, type, sa, sa2);
 				switch (err) {
 				case PE_NONE: break;
 				case PE_EXIST:
@@ -913,6 +933,11 @@ int parse_stick_table(const char *file, int linenum, char **args,
 				case PE_ARG_NOT_USED:
 					ha_alert("parsing [%s:%d] : %s: unexpected argument to store option '%s'.\n",
 						 file, linenum, args[0], cw);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				case PE_ARG_VALUE_OOR:
+					ha_alert("parsing [%s:%d] : %s: array size is out of allowed range (1-%d) for store option '%s'.\n",
+						 file, linenum, args[0], STKTABLE_MAX_DT_ARRAY_SIZE, cw);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 
@@ -3614,6 +3639,53 @@ static int table_dump_entry_to_buffer(struct buffer *msg,
 
 		if (t->data_ofs[dt] == 0)
 			continue;
+		if (stktable_data_types[dt].is_array) {
+			char tmp[16] = {};
+			const char *name_pfx = stktable_data_types[dt].name;
+			const char *name_sfx = NULL;
+			unsigned int idx = 0;
+			int i = 0;
+
+			/* split name to show index before first _ of the name
+			 * for example: 'gpc3_rate' if array name is 'gpc_rate'.
+			 */
+			for (i = 0 ; i < (sizeof(tmp) - 1); i++) {
+				if (!name_pfx[i])
+					break;
+				if (name_pfx[i] == '_') {
+					name_pfx = &tmp[0];
+					name_sfx = &stktable_data_types[dt].name[i];
+					break;
+				}
+				tmp[i] = name_pfx[i];
+			}
+
+			ptr = stktable_data_ptr_idx(t, entry, dt, idx);
+			while (ptr) {
+				if (stktable_data_types[dt].arg_type == ARG_T_DELAY)
+					chunk_appendf(msg, " %s%u%s(%u)=", name_pfx, idx, name_sfx ? name_sfx : "", t->data_arg[dt].u);
+				else
+					chunk_appendf(msg, " %s%u%s=", name_pfx, idx, name_sfx ? name_sfx : "");
+				switch (stktable_data_types[dt].std_type) {
+				case STD_T_SINT:
+					chunk_appendf(msg, "%d", stktable_data_cast(ptr, std_t_sint));
+					break;
+				case STD_T_UINT:
+					chunk_appendf(msg, "%u", stktable_data_cast(ptr, std_t_uint));
+					break;
+				case STD_T_ULL:
+					chunk_appendf(msg, "%llu", stktable_data_cast(ptr, std_t_ull));
+					break;
+				case STD_T_FRQP:
+					chunk_appendf(msg, "%u",
+						     read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
+									  t->data_arg[dt].u));
+					break;
+				}
+				ptr = stktable_data_ptr_idx(t, entry, dt, ++idx);
+			}
+			continue;
+		}
 		if (stktable_data_types[dt].arg_type == ARG_T_DELAY)
 			chunk_appendf(msg, " %s(%u)=", stktable_data_types[dt].name, t->data_arg[dt].u);
 		else

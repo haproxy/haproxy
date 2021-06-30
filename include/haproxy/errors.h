@@ -60,6 +60,7 @@ enum {
 	PE_ARG_INVC,      /* invalid char in argument (pointer not provided) */
 	PE_ARG_INVC_PTR,  /* invalid char in argument (pointer provided) */
 	PE_ARG_NOT_FOUND, /* argument references something not found */
+	PE_ARG_VALUE_OOR, /* argument value is out of range */
 };
 
 

@@ -3028,8 +3028,8 @@ int check_config_validity()
 			else {
 				ha_free(&mrule->table.name);
 				mrule->table.t = target;
-				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL);
-				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_KEY, NULL);
+				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL, NULL);
+				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_KEY, NULL, NULL);
 				if (!in_proxies_list(target->proxies_list, curproxy)) {
 					curproxy->next_stkt_ref = target->proxies_list;
 					target->proxies_list = curproxy;
@@ -3062,8 +3062,8 @@ int check_config_validity()
 			else {
 				ha_free(&mrule->table.name);
 				mrule->table.t = target;
-				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL);
-				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_KEY, NULL);
+				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_ID, NULL, NULL);
+				stktable_alloc_data_type(target, STKTABLE_DT_SERVER_KEY, NULL, NULL);
 				if (!in_proxies_list(target->proxies_list, curproxy)) {
 					curproxy->next_stkt_ref = target->proxies_list;
 					target->proxies_list = curproxy;

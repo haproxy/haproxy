@@ -136,7 +136,7 @@ static inline int stktable_type_size(int type)
 	return 0;
 }
 
-int stktable_alloc_data_type(struct stktable *t, int type, const char *sa);
+int stktable_alloc_data_type(struct stktable *t, int type, const char *sa, const char *sa2);
 
 /* return pointer for data type <type> in sticky session <ts> of table <t>, all
  * of which must exist (otherwise use stktable_data_ptr() if unsure).
@@ -161,6 +161,31 @@ static inline void *stktable_data_ptr(struct stktable *t, struct stksess *ts, in
 		return NULL;
 
 	return __stktable_data_ptr(t, ts, type);
+}
+
+/* return pointer on the element of index <idx> from the array data type <type>
+ * in sticky session <ts> of table <t>, or NULL if either <ts> is NULL
+ * or this element is not stored because this type is not stored or
+ * requested index is greater than the number of elements of the array.
+ * Note: this function is also usable on non array types, they are
+ * considered as array of size 1, so a call with <idx> at 0
+ * as the same behavior than 'stktable_data_ptr'.
+ */
+static inline void *stktable_data_ptr_idx(struct stktable *t, struct stksess *ts, int type, unsigned int idx)
+{
+	if (type >= STKTABLE_DATA_TYPES)
+		return NULL;
+
+	if (!t->data_ofs[type]) /* type not stored */
+		return NULL;
+
+	if (!ts)
+		return NULL;
+
+	if (t->data_nbelem[type] <= idx)
+		return NULL;
+
+	return __stktable_data_ptr(t, ts, type) + idx*stktable_type_size(stktable_data_types[type].std_type);
 }
 
 /* kill an entry if it's expired and its ref_cnt is zero */

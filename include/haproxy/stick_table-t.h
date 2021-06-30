@@ -34,6 +34,7 @@
 #include <haproxy/freq_ctr-t.h>
 #include <haproxy/thread-t.h>
 
+#define STKTABLE_MAX_DT_ARRAY_SIZE 100
 
 /* The types of extra data we can store in a stick table */
 enum {
@@ -125,6 +126,7 @@ struct stktable_data_type {
 	const char *name; /* name of the data type */
 	int std_type;     /* standard type we can use for this data, STD_T_* */
 	int arg_type;     /* type of optional argument, ARG_T_* */
+	int is_array;
 };
 
 /* stick table keyword type */
@@ -185,6 +187,7 @@ struct stktable {
 	int expire;               /* time to live for sticky sessions (milliseconds) */
 	int data_size;            /* the size of the data that is prepended *before* stksess */
 	int data_ofs[STKTABLE_DATA_TYPES]; /* negative offsets of present data types, or 0 if absent */
+	unsigned int data_nbelem[STKTABLE_DATA_TYPES]; /* to store nb_elem in case of array types */
 	union {
 		int i;
 		unsigned int u;
