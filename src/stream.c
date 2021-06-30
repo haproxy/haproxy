@@ -1245,7 +1245,7 @@ static inline void sticking_rule_find_target(struct stream *s,
 	/* Look for the server name previously stored in <t> stick-table */
 	HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
 	ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
-	de = stktable_data_cast(ptr, server_key);
+	de = stktable_data_cast(ptr, std_t_dict);
 	HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 	if (de) {
@@ -1271,7 +1271,7 @@ static inline void sticking_rule_find_target(struct stream *s,
 	/* Look for the server ID */
 	HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &ts->lock);
 	ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_ID);
-	node = eb32_lookup(&px->conf.used_server_id, stktable_data_cast(ptr, server_id));
+	node = eb32_lookup(&px->conf.used_server_id, stktable_data_cast(ptr, std_t_sint));
 	HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 	if (!node)
@@ -1449,7 +1449,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 		ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_ID);
-		stktable_data_cast(ptr, server_id) = __objt_server(s->target)->puid;
+		stktable_data_cast(ptr, std_t_sint) = __objt_server(s->target)->puid;
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
 		if (t->server_key_type == STKTABLE_SRV_NAME)
@@ -1463,7 +1463,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 		de = dict_insert(&server_key_dict, key);
 		if (de) {
 			ptr = __stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
-			stktable_data_cast(ptr, server_key) = de;
+			stktable_data_cast(ptr, std_t_dict) = de;
 		}
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 

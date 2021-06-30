@@ -232,11 +232,11 @@ static inline int stkctr_inc_http_req_ctr(struct stkctr *stkctr)
 
 	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_REQ_CNT);
 	if (ptr1)
-		stktable_data_cast(ptr1, http_req_cnt)++;
+		stktable_data_cast(ptr1, std_t_uint)++;
 
 	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_REQ_RATE);
 	if (ptr2)
-		update_freq_ctr_period(&stktable_data_cast(ptr2, http_req_rate),
+		update_freq_ctr_period(&stktable_data_cast(ptr2, std_t_frqp),
 				       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
@@ -264,11 +264,11 @@ static inline int stkctr_inc_http_err_ctr(struct stkctr *stkctr)
 
 	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_ERR_CNT);
 	if (ptr1)
-		stktable_data_cast(ptr1, http_err_cnt)++;
+		stktable_data_cast(ptr1, std_t_uint)++;
 
 	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_ERR_RATE);
 	if (ptr2)
-		update_freq_ctr_period(&stktable_data_cast(ptr2, http_err_rate),
+		update_freq_ctr_period(&stktable_data_cast(ptr2, std_t_frqp),
 				       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
 
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
@@ -296,11 +296,11 @@ static inline int stkctr_inc_http_fail_ctr(struct stkctr *stkctr)
 
 	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_FAIL_CNT);
 	if (ptr1)
-		stktable_data_cast(ptr1, http_fail_cnt)++;
+		stktable_data_cast(ptr1, std_t_uint)++;
 
 	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_HTTP_FAIL_RATE);
 	if (ptr2)
-		update_freq_ctr_period(&stktable_data_cast(ptr2, http_fail_rate),
+		update_freq_ctr_period(&stktable_data_cast(ptr2, std_t_frqp),
 				       stkctr->table->data_arg[STKTABLE_DT_HTTP_FAIL_RATE].u, 1);
 
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
@@ -327,11 +327,11 @@ static inline int stkctr_inc_bytes_in_ctr(struct stkctr *stkctr, unsigned long l
 	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_IN_CNT);
 	if (ptr1)
-		stktable_data_cast(ptr1, bytes_in_cnt) += bytes;
+		stktable_data_cast(ptr1, std_t_ull) += bytes;
 
 	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_IN_RATE);
 	if (ptr2)
-		update_freq_ctr_period(&stktable_data_cast(ptr2, bytes_in_rate),
+		update_freq_ctr_period(&stktable_data_cast(ptr2, std_t_frqp),
 				       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
@@ -358,11 +358,11 @@ static inline int stkctr_inc_bytes_out_ctr(struct stkctr *stkctr, unsigned long 
 	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 	ptr1 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_OUT_CNT);
 	if (ptr1)
-		stktable_data_cast(ptr1, bytes_out_cnt) += bytes;
+		stktable_data_cast(ptr1, std_t_ull) += bytes;
 
 	ptr2 = stktable_data_ptr(stkctr->table, ts, STKTABLE_DT_BYTES_OUT_RATE);
 	if (ptr2)
-		update_freq_ctr_period(&stktable_data_cast(ptr2, bytes_out_rate),
+		update_freq_ctr_period(&stktable_data_cast(ptr2, std_t_frqp),
 				       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 

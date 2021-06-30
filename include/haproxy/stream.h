@@ -126,8 +126,8 @@ static inline void stream_store_counters(struct stream *s)
 		if (ptr) {
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
-			if (stktable_data_cast(ptr, conn_cur) > 0)
-				stktable_data_cast(ptr, conn_cur)--;
+			if (stktable_data_cast(ptr, std_t_uint) > 0)
+				stktable_data_cast(ptr, std_t_uint)--;
 
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
@@ -165,8 +165,8 @@ static inline void stream_stop_content_counters(struct stream *s)
 		if (ptr) {
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
-			if (stktable_data_cast(ptr, conn_cur) > 0)
-				stktable_data_cast(ptr, conn_cur)--;
+			if (stktable_data_cast(ptr, std_t_uint) > 0)
+				stktable_data_cast(ptr, std_t_uint)--;
 
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
@@ -190,15 +190,15 @@ static inline void stream_start_counters(struct stktable *t, struct stksess *ts)
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CUR);
 	if (ptr)
-		stktable_data_cast(ptr, conn_cur)++;
+		stktable_data_cast(ptr, std_t_uint)++;
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CNT);
 	if (ptr)
-		stktable_data_cast(ptr, conn_cnt)++;
+		stktable_data_cast(ptr, std_t_uint)++;
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_RATE);
 	if (ptr)
-		update_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+		update_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 				       t->data_arg[STKTABLE_DT_CONN_RATE].u, 1);
 	if (tick_isset(t->expire))
 		ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));

@@ -2011,19 +2011,19 @@ static enum act_return http_action_track_sc(struct act_rule *rule, struct proxy 
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 		if (ptr1)
-			stktable_data_cast(ptr1, http_req_cnt)++;
+			stktable_data_cast(ptr1, std_t_uint)++;
 		if (ptr2)
-			update_freq_ctr_period(&stktable_data_cast(ptr2, http_req_rate),
+			update_freq_ctr_period(&stktable_data_cast(ptr2, std_t_frqp),
 					       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 		if (ptr3)
-			stktable_data_cast(ptr3, http_err_cnt)++;
+			stktable_data_cast(ptr3, std_t_uint)++;
 		if (ptr4)
-			update_freq_ctr_period(&stktable_data_cast(ptr4, http_err_rate),
+			update_freq_ctr_period(&stktable_data_cast(ptr4, std_t_frqp),
 					       t->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
 		if (ptr5)
-			stktable_data_cast(ptr5, http_fail_cnt)++;
+			stktable_data_cast(ptr5, std_t_uint)++;
 		if (ptr6)
-			update_freq_ctr_period(&stktable_data_cast(ptr6, http_fail_rate),
+			update_freq_ctr_period(&stktable_data_cast(ptr6, std_t_frqp),
 					       t->data_arg[STKTABLE_DT_HTTP_FAIL_RATE].u, 1);
 
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);

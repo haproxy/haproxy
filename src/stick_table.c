@@ -98,8 +98,8 @@ void stksess_free(struct stktable *t, struct stksess *ts)
 	void *data;
 	data = stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_KEY);
 	if (data) {
-		dict_entry_unref(&server_key_dict, stktable_data_cast(data, server_key));
-		stktable_data_cast(data, server_key) = NULL;
+		dict_entry_unref(&server_key_dict, stktable_data_cast(data, std_t_dict));
+		stktable_data_cast(data, std_t_dict) = NULL;
 	}
 	HA_SPIN_LOCK(STK_TABLE_LOCK, &t->lock);
 	__stksess_free(t, ts);
@@ -1228,7 +1228,7 @@ static int sample_conv_table_bytes_in_rate(const struct arg *arg_p, struct sampl
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_IN_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_BYTES_IN_RATE].u);
 
 	stktable_release(t, ts);
@@ -1265,7 +1265,7 @@ static int sample_conv_table_conn_cnt(const struct arg *arg_p, struct sample *sm
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CNT);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, conn_cnt);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1301,7 +1301,7 @@ static int sample_conv_table_conn_cur(const struct arg *arg_p, struct sample *sm
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CUR);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, conn_cur);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1337,7 +1337,7 @@ static int sample_conv_table_conn_rate(const struct arg *arg_p, struct sample *s
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_CONN_RATE].u);
 
 	stktable_release(t, ts);
@@ -1374,7 +1374,7 @@ static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct samp
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_OUT_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
 
 	stktable_release(t, ts);
@@ -1411,7 +1411,7 @@ static int sample_conv_table_gpt0(const struct arg *arg_p, struct sample *smp, v
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPT0);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, gpt0);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1447,7 +1447,7 @@ static int sample_conv_table_gpc0(const struct arg *arg_p, struct sample *smp, v
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC0);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, gpc0);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1483,7 +1483,7 @@ static int sample_conv_table_gpc0_rate(const struct arg *arg_p, struct sample *s
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC0_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_GPC0_RATE].u);
 
 	stktable_release(t, ts);
@@ -1520,7 +1520,7 @@ static int sample_conv_table_gpc1(const struct arg *arg_p, struct sample *smp, v
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC1);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, gpc1);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1556,7 +1556,7 @@ static int sample_conv_table_gpc1_rate(const struct arg *arg_p, struct sample *s
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC1_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc1_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_GPC1_RATE].u);
 
 	stktable_release(t, ts);
@@ -1593,7 +1593,7 @@ static int sample_conv_table_http_err_cnt(const struct arg *arg_p, struct sample
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_CNT);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, http_err_cnt);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1629,7 +1629,7 @@ static int sample_conv_table_http_err_rate(const struct arg *arg_p, struct sampl
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
 
 	stktable_release(t, ts);
@@ -1666,7 +1666,7 @@ static int sample_conv_table_http_fail_cnt(const struct arg *arg_p, struct sampl
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_FAIL_CNT);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, http_fail_cnt);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1702,7 +1702,7 @@ static int sample_conv_table_http_fail_rate(const struct arg *arg_p, struct samp
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_FAIL_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_fail_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_HTTP_FAIL_RATE].u);
 
 	stktable_release(t, ts);
@@ -1739,7 +1739,7 @@ static int sample_conv_table_http_req_cnt(const struct arg *arg_p, struct sample
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, http_req_cnt);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1775,7 +1775,7 @@ static int sample_conv_table_http_req_rate(const struct arg *arg_p, struct sampl
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
 
 	stktable_release(t, ts);
@@ -1812,7 +1812,7 @@ static int sample_conv_table_kbytes_in(const struct arg *arg_p, struct sample *s
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_IN_CNT);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_ull) >> 10;
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1848,7 +1848,7 @@ static int sample_conv_table_kbytes_out(const struct arg *arg_p, struct sample *
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_OUT_CNT);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_ull) >> 10;
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1884,7 +1884,7 @@ static int sample_conv_table_server_id(const struct arg *arg_p, struct sample *s
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_ID);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, server_id);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_sint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1920,7 +1920,7 @@ static int sample_conv_table_sess_cnt(const struct arg *arg_p, struct sample *sm
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_SESS_CNT);
 	if (ptr)
-		smp->data.u.sint = stktable_data_cast(ptr, sess_cnt);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -1956,7 +1956,7 @@ static int sample_conv_table_sess_rate(const struct arg *arg_p, struct sample *s
 
 	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_SESS_RATE);
 	if (ptr)
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_SESS_RATE].u);
 
 	stktable_release(t, ts);
@@ -2020,11 +2020,11 @@ static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 			if (ptr1)
-				update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
+				update_freq_ctr_period(&stktable_data_cast(ptr1, std_t_frqp),
 					       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
 
 			if (ptr2)
-				stktable_data_cast(ptr2, gpc0)++;
+				stktable_data_cast(ptr2, std_t_uint)++;
 
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
@@ -2102,11 +2102,11 @@ static enum act_return action_inc_gpc1(struct act_rule *rule, struct proxy *px,
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
 			if (ptr1)
-				update_freq_ctr_period(&stktable_data_cast(ptr1, gpc1_rate),
+				update_freq_ctr_period(&stktable_data_cast(ptr1, std_t_frqp),
 					       stkctr->table->data_arg[STKTABLE_DT_GPC1_RATE].u, 1);
 
 			if (ptr2)
-				stktable_data_cast(ptr2, gpc1)++;
+				stktable_data_cast(ptr2, std_t_uint)++;
 
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
@@ -2213,7 +2213,7 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
-		stktable_data_cast(ptr, gpt0) = value;
+		stktable_data_cast(ptr, std_t_uint) = value;
 
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
@@ -2494,7 +2494,7 @@ smp_fetch_sc_get_gpt0(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, gpt0);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -2535,7 +2535,7 @@ smp_fetch_sc_get_gpc0(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, gpc0);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -2576,7 +2576,7 @@ smp_fetch_sc_get_gpc1(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, gpc1);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -2616,7 +2616,7 @@ smp_fetch_sc_gpc0_rate(const struct arg *args, struct sample *smp, const char *k
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 		                  stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
@@ -2657,7 +2657,7 @@ smp_fetch_sc_gpc1_rate(const struct arg *args, struct sample *smp, const char *k
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc1_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 		                  stkctr->table->data_arg[STKTABLE_DT_GPC1_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
@@ -2702,13 +2702,13 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 			if (ptr1) {
-				update_freq_ctr_period(&stktable_data_cast(ptr1, gpc0_rate),
+				update_freq_ctr_period(&stktable_data_cast(ptr1, std_t_frqp),
 						       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
-				smp->data.u.sint = (&stktable_data_cast(ptr1, gpc0_rate))->curr_ctr;
+				smp->data.u.sint = (&stktable_data_cast(ptr1, std_t_frqp))->curr_ctr;
 			}
 
 			if (ptr2)
-				smp->data.u.sint = ++stktable_data_cast(ptr2, gpc0);
+				smp->data.u.sint = ++stktable_data_cast(ptr2, std_t_uint);
 
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -2755,13 +2755,13 @@ smp_fetch_sc_inc_gpc1(const struct arg *args, struct sample *smp, const char *kw
 			HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
 			if (ptr1) {
-				update_freq_ctr_period(&stktable_data_cast(ptr1, gpc1_rate),
+				update_freq_ctr_period(&stktable_data_cast(ptr1, std_t_frqp),
 						       stkctr->table->data_arg[STKTABLE_DT_GPC1_RATE].u, 1);
-				smp->data.u.sint = (&stktable_data_cast(ptr1, gpc1_rate))->curr_ctr;
+				smp->data.u.sint = (&stktable_data_cast(ptr1, std_t_frqp))->curr_ctr;
 			}
 
 			if (ptr2)
-				smp->data.u.sint = ++stktable_data_cast(ptr2, gpc1);
+				smp->data.u.sint = ++stktable_data_cast(ptr2, std_t_uint);
 
 			HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -2807,8 +2807,8 @@ smp_fetch_sc_clr_gpc0(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, gpc0);
-		stktable_data_cast(ptr, gpc0) = 0;
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+		stktable_data_cast(ptr, std_t_uint) = 0;
 
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -2851,8 +2851,8 @@ smp_fetch_sc_clr_gpc1(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, gpc1);
-		stktable_data_cast(ptr, gpc1) = 0;
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+		stktable_data_cast(ptr, std_t_uint) = 0;
 
 		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -2891,7 +2891,7 @@ smp_fetch_sc_conn_cnt(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, conn_cnt);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -2932,7 +2932,7 @@ smp_fetch_sc_conn_rate(const struct arg *args, struct sample *smp, const char *k
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 					       stkctr->table->data_arg[STKTABLE_DT_CONN_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
@@ -2983,7 +2983,7 @@ smp_fetch_src_updt_conn_cnt(const struct arg *args, struct sample *smp, const ch
 
 	HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
 
-	smp->data.u.sint = ++stktable_data_cast(ptr, conn_cnt);
+	smp->data.u.sint = ++stktable_data_cast(ptr, std_t_uint);
 
 	HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
 
@@ -3024,7 +3024,7 @@ smp_fetch_sc_conn_cur(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, conn_cur);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -3063,7 +3063,7 @@ smp_fetch_sc_sess_cnt(const struct arg *args, struct sample *smp, const char *kw
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, sess_cnt);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -3101,7 +3101,7 @@ smp_fetch_sc_sess_rate(const struct arg *args, struct sample *smp, const char *k
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
@@ -3141,7 +3141,7 @@ smp_fetch_sc_http_req_cnt(const struct arg *args, struct sample *smp, const char
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, http_req_cnt);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -3180,7 +3180,7 @@ smp_fetch_sc_http_req_rate(const struct arg *args, struct sample *smp, const cha
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
@@ -3220,7 +3220,7 @@ smp_fetch_sc_http_err_cnt(const struct arg *args, struct sample *smp, const char
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, http_err_cnt);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -3259,7 +3259,7 @@ smp_fetch_sc_http_err_rate(const struct arg *args, struct sample *smp, const cha
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
@@ -3299,7 +3299,7 @@ smp_fetch_sc_http_fail_cnt(const struct arg *args, struct sample *smp, const cha
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, http_fail_cnt);
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -3338,7 +3338,7 @@ smp_fetch_sc_http_fail_rate(const struct arg *args, struct sample *smp, const ch
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, http_fail_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 					       stkctr->table->data_arg[STKTABLE_DT_HTTP_FAIL_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
@@ -3378,7 +3378,7 @@ smp_fetch_sc_kbytes_in(const struct arg *args, struct sample *smp, const char *k
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_ull) >> 10;
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -3417,7 +3417,7 @@ smp_fetch_sc_bytes_in_rate(const struct arg *args, struct sample *smp, const cha
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 					       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
@@ -3457,7 +3457,7 @@ smp_fetch_sc_kbytes_out(const struct arg *args, struct sample *smp, const char *
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_ull) >> 10;
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
@@ -3496,7 +3496,7 @@ smp_fetch_sc_bytes_out_rate(const struct arg *args, struct sample *smp, const ch
 
 		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
 
-		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
+		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 					       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
 
 		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);

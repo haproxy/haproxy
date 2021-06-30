@@ -119,11 +119,11 @@ static void session_count_new(struct session *sess)
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
 		if (ptr)
-			HA_ATOMIC_INC(&stktable_data_cast(ptr, sess_cnt));
+			HA_ATOMIC_INC(&stktable_data_cast(ptr, std_t_uint));
 
 		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
 		if (ptr)
-			update_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+			update_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
 					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
 	}
 }

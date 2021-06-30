@@ -118,30 +118,6 @@ union stktable_data {
 	unsigned long long std_t_ull;
 	struct freq_ctr std_t_frqp;
 	struct dict_entry *std_t_dict;
-
-	/* types of each storable data */
-	int server_id;
-	struct dict_entry *server_key;
-	unsigned int gpt0;
-	unsigned int gpc0;
-	struct freq_ctr gpc0_rate;
-	unsigned int gpc1;
-	struct freq_ctr gpc1_rate;
-	unsigned int conn_cnt;
-	struct freq_ctr conn_rate;
-	unsigned int conn_cur;
-	unsigned int sess_cnt;
-	struct freq_ctr sess_rate;
-	unsigned int http_req_cnt;
-	struct freq_ctr http_req_rate;
-	unsigned int http_err_cnt;
-	struct freq_ctr http_err_rate;
-	unsigned long long bytes_in_cnt;
-	struct freq_ctr bytes_in_rate;
-	unsigned long long bytes_out_cnt;
-	struct freq_ctr bytes_out_rate;
-	unsigned int http_fail_cnt;
-	struct freq_ctr http_fail_rate;
 };
 
 /* known data types */
