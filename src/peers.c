@@ -517,11 +517,25 @@ int intencode(uint64_t i, char **str) {
 }
 
 
-/* This function returns the decoded integer or 0
-   if decode failed
-   *str point on the beginning of the integer to decode
-   at the end of decoding *str point on the end of the
-   encoded integer or to null if end is reached */
+/* This function returns a decoded 64bits unsigned integer
+ * from a varint
+ *
+ * Calling:
+ * - *str must point on the first byte of the buffer to decode.
+ * - end must point on the next byte after the end of the buffer
+ *   we are authorized to parse (buf + buflen)
+ *
+ * At return:
+ *
+ * On success *str will point at the byte following
+ * the fully decoded integer into the buffer. and
+ * the decoded value is returned.
+ *
+ * If end is reached before the integer was fully decoded,
+ * *str is set to NULL and the caller have to check this
+ * to know  there is a decoding error. In this case
+ * the returned integer is also forced to 0
+ */
 uint64_t intdecode(char **str, char *end)
 {
 	unsigned char *msg;
