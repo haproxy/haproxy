@@ -171,6 +171,7 @@ struct act_rule {
 		} gpc;
 		struct {
 			int sc;
+			unsigned int idx;
 			long long int value;
 			struct sample_expr *expr;
 		} gpt;

@@ -1143,6 +1143,7 @@ struct stktable_data_type stktable_data_types[STKTABLE_DATA_TYPES] = {
 	[STKTABLE_DT_SERVER_KEY]    = { .name = "server_key",     .std_type = STD_T_DICT  },
 	[STKTABLE_DT_HTTP_FAIL_CNT] = { .name = "http_fail_cnt",  .std_type = STD_T_UINT  },
 	[STKTABLE_DT_HTTP_FAIL_RATE]= { .name = "http_fail_rate", .std_type = STD_T_FRQP, .arg_type = ARG_T_DELAY  },
+	[STKTABLE_DT_GPT]           = { .name = "gpt",            .std_type = STD_T_UINT, .is_array = 1 },
 };
 
 /* Registers stick-table extra data type with index <idx>, name <name>, type
@@ -1401,6 +1402,45 @@ static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct samp
 	if (ptr)
 		smp->data.u.sint = read_freq_ctr_period(&stktable_data_cast(ptr, std_t_frqp),
                                                        t->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
+
+	stktable_release(t, ts);
+	return !!ptr;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg_p(1), and looks
+ * it up into this table. Returns the value of the GPT[arg_p(0)] tag for the key
+ * if the key is present in the table, otherwise false, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_gpt(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+	unsigned int idx;
+
+	idx = arg_p[0].data.sint;
+
+	t = arg_p[1].data.t;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	ts = stktable_lookup_key(t, key);
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr_idx(t, ts, STKTABLE_DT_GPT, idx);
+	if (ptr)
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
 
 	stktable_release(t, ts);
 	return !!ptr;
@@ -2185,6 +2225,77 @@ static enum act_parse_ret parse_inc_gpc1(const char **args, int *arg, struct pro
 	return ACT_RET_PRS_OK;
 }
 
+/* This function sets the gpt at index 'rule->arg.gpt.idx' of the array on the
+ * tracksc counter of index 'rule->arg.gpt.sc' stored into the <stream> or
+ * directly in the session <sess> if <stream> is set to NULL. This gpt is
+ * set to the value computed by the expression 'rule->arg.gpt.expr' or if
+ * 'rule->arg.gpt.expr' is null directly to the value of 'rule->arg.gpt.value'.
+ *
+ * This function always returns ACT_RET_CONT and parameter flags is unused.
+ */
+static enum act_return action_set_gpt(struct act_rule *rule, struct proxy *px,
+                                      struct session *sess, struct stream *s, int flags)
+{
+	void *ptr;
+	struct stksess *ts;
+	struct stkctr *stkctr;
+	unsigned int value = 0;
+	struct sample *smp;
+	int smp_opt_dir;
+
+	/* Extract the stksess, return OK if no stksess available. */
+	if (s)
+		stkctr = &s->stkctr[rule->arg.gpt.sc];
+	else
+		stkctr = &sess->stkctr[rule->arg.gpt.sc];
+
+	ts = stkctr_entry(stkctr);
+	if (!ts)
+		return ACT_RET_CONT;
+
+	/* Store the sample in the required sc, and ignore errors. */
+	ptr = stktable_data_ptr_idx(stkctr->table, ts, STKTABLE_DT_GPT, rule->arg.gpt.idx);
+	if (ptr) {
+
+		if (!rule->arg.gpt.expr)
+			value = (unsigned int)(rule->arg.gpt.value);
+		else {
+			switch (rule->from) {
+			case ACT_F_TCP_REQ_SES: smp_opt_dir = SMP_OPT_DIR_REQ; break;
+			case ACT_F_TCP_REQ_CNT: smp_opt_dir = SMP_OPT_DIR_REQ; break;
+			case ACT_F_TCP_RES_CNT: smp_opt_dir = SMP_OPT_DIR_RES; break;
+			case ACT_F_HTTP_REQ:    smp_opt_dir = SMP_OPT_DIR_REQ; break;
+			case ACT_F_HTTP_RES:    smp_opt_dir = SMP_OPT_DIR_RES; break;
+			default:
+				send_log(px, LOG_ERR, "stick table: internal error while setting gpt%u.", rule->arg.gpt.idx);
+				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+					ha_alert("stick table: internal error while executing setting gpt%u.\n", rule->arg.gpt.idx);
+				return ACT_RET_CONT;
+			}
+
+			/* Fetch and cast the expression. */
+			smp = sample_fetch_as_type(px, sess, s, smp_opt_dir|SMP_OPT_FINAL, rule->arg.gpt.expr, SMP_T_SINT);
+			if (!smp) {
+				send_log(px, LOG_WARNING, "stick table: invalid expression or data type while setting gpt%u.", rule->arg.gpt.idx);
+				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+					ha_alert("stick table: invalid expression or data type while setting gpt%u.\n", rule->arg.gpt.idx);
+				return ACT_RET_CONT;
+			}
+			value = (unsigned int)(smp->data.u.sint);
+		}
+
+		HA_RWLOCK_WRLOCK(STK_SESS_LOCK, &ts->lock);
+
+		stktable_data_cast(ptr, std_t_uint) = value;
+
+		HA_RWLOCK_WRUNLOCK(STK_SESS_LOCK, &ts->lock);
+
+		stktable_touch_local(stkctr->table, ts, 0);
+	}
+
+	return ACT_RET_CONT;
+}
+
 /* Always returns 1. */
 static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
                                        struct session *sess, struct stream *s, int flags)
@@ -2248,46 +2359,78 @@ static enum act_return action_set_gpt0(struct act_rule *rule, struct proxy *px,
 	return ACT_RET_CONT;
 }
 
-/* This function is a common parser for using variables. It understands
- * the format:
+/* This function is a parser for the "sc-set-gpt" and "sc-set-gpt0" actions.
+ * It understands the formats:
  *
- *   set-gpt0(<stick-table ID>) <expression>
+ *   sc-set-gpt(<gpt IDX>,<track ID>) <expression>
+ *   sc-set-gpt0(<track ID>) <expression>
  *
- * It returns 0 if fails and <err> is filled with an error message. Otherwise,
- * it returns 1 and the variable <expr> is filled with the pointer to the
- * expression to execute.
+ * It returns ACT_RET_PRS_ERR if fails and <err> is filled with an error message.
+ * Otherwise, it returns ACT_RET_PRS_OK and the variable 'rule->arg.gpt.expr'
+ * is filled with the pointer to the expression to execute or NULL if the arg
+ * is directly an integer stored into 'rule->arg.gpt.value'.
  */
-static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct proxy *px,
+static enum act_parse_ret parse_set_gpt(const char **args, int *arg, struct proxy *px,
                                          struct act_rule *rule, char **err)
-
-
 {
 	const char *cmd_name = args[*arg-1];
 	char *error;
 	int smp_val;
 
-	cmd_name += strlen("sc-set-gpt0");
-	if (*cmd_name == '\0') {
-		/* default stick table id. */
-		rule->arg.gpt.sc = 0;
-	} else {
-		/* parse the stick table id. */
-		if (*cmd_name != '(') {
-			memprintf(err, "invalid stick table track ID '%s'. Expects sc-set-gpt0(<Track ID>)", args[*arg-1]);
+	cmd_name += strlen("sc-set-gpt");
+	if (*cmd_name == '(') {
+		cmd_name++; /* skip the '(' */
+		rule->arg.gpt.idx = strtoul(cmd_name, &error, 10); /* Convert stick table id. */
+		if (*error != ',') {
+			memprintf(err, "Missing gpt ID '%s'. Expects sc-set-gpt(<GPT ID>,<Track ID>)", args[*arg-1]);
 			return ACT_RET_PRS_ERR;
 		}
-		cmd_name++; /* jump the '(' */
-		rule->arg.gpt.sc = strtol(cmd_name, &error, 10); /* Convert stick table id. */
-		if (*error != ')') {
-			memprintf(err, "invalid stick table track ID '%s'. Expects sc-set-gpt0(<Track ID>)", args[*arg-1]);
-			return ACT_RET_PRS_ERR;
-		}
+		else {
+			cmd_name = error + 1; /* skip the ',' */
+			rule->arg.gpt.sc = strtol(cmd_name, &error, 10); /* Convert stick table id. */
+			if (*error != ')') {
+				memprintf(err, "invalid stick table track ID '%s'. Expects sc-set-gpt(<GPT ID>,<Track ID>)", args[*arg-1]);
+				return ACT_RET_PRS_ERR;
+			}
 
-		if (rule->arg.gpt.sc >= MAX_SESS_STKCTR) {
-			memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d",
-			          args[*arg-1], MAX_SESS_STKCTR-1);
-			return ACT_RET_PRS_ERR;
+			if (rule->arg.gpt.sc >= MAX_SESS_STKCTR) {
+				memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d",
+				          args[*arg-1], MAX_SESS_STKCTR-1);
+				return ACT_RET_PRS_ERR;
+			}
 		}
+		rule->action_ptr = action_set_gpt;
+	}
+	else if (*cmd_name == '0') {
+		cmd_name++;
+		if (*cmd_name == '\0') {
+			/* default stick table id. */
+			rule->arg.gpt.sc = 0;
+		} else {
+			/* parse the stick table id. */
+			if (*cmd_name != '(') {
+				memprintf(err, "invalid stick table track ID '%s'. Expects sc-set-gpt0(<Track ID>)", args[*arg-1]);
+				return ACT_RET_PRS_ERR;
+			}
+			cmd_name++; /* jump the '(' */
+			rule->arg.gpt.sc = strtol(cmd_name, &error, 10); /* Convert stick table id. */
+			if (*error != ')') {
+				memprintf(err, "invalid stick table track ID '%s'. Expects sc-set-gpt0(<Track ID>)", args[*arg-1]);
+				return ACT_RET_PRS_ERR;
+			}
+
+			if (rule->arg.gpt.sc >= MAX_SESS_STKCTR) {
+				memprintf(err, "invalid stick table track ID '%s'. The max allowed ID is %d",
+				          args[*arg-1], MAX_SESS_STKCTR-1);
+				return ACT_RET_PRS_ERR;
+			}
+		}
+		rule->action_ptr = action_set_gpt0;
+	}
+	else {
+		/* default stick table id. */
+		memprintf(err, "invalid gpt ID '%s'. Expects sc-set-gpt(<GPT ID>,<Track ID>)", args[*arg-1]);
+		return ACT_RET_PRS_ERR;
 	}
 
 	rule->arg.gpt.expr = NULL;
@@ -2318,7 +2461,6 @@ static enum act_parse_ret parse_set_gpt0(const char **args, int *arg, struct pro
 	(*arg)++;
 
 	rule->action = ACT_CUSTOM;
-	rule->action_ptr = action_set_gpt0;
 
 	return ACT_RET_PRS_OK;
 }
@@ -2485,6 +2627,51 @@ smp_fetch_sc_tracked(const struct arg *args, struct sample *smp, const char *kw,
 	if (stkctr == &tmpstkctr)
 		stktable_release(stkctr->table, stkctr_entry(stkctr));
 
+	return 1;
+}
+
+/* set <smp> to the General Purpose Tag of index set as first arg
+ * to value from the stream's tracked frontend counters or from the src.
+ * Supports being called as "sc_get_gpt(<gpt-idx>,<sc-idx>[,<table>])" or
+ * "src_get_gpt(<gpt-idx>[,<table>])" only. Value zero is returned if
+ * the key is new or gpt is not stored.
+ */
+static int
+smp_fetch_sc_get_gpt(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct stkctr tmpstkctr;
+	struct stkctr *stkctr;
+	unsigned int idx;
+
+	idx = args[0].data.sint;
+
+	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args + 1, kw, &tmpstkctr);
+	if (!stkctr)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = 0;
+
+	if (stkctr_entry(stkctr)) {
+		void *ptr;
+
+		ptr = stktable_data_ptr_idx(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPT, idx);
+		if (!ptr) {
+			if (stkctr == &tmpstkctr)
+				stktable_release(stkctr->table, stkctr_entry(stkctr));
+			return 0; /* parameter not stored */
+		}
+
+		HA_RWLOCK_RDLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		smp->data.u.sint = stktable_data_cast(ptr, std_t_uint);
+
+		HA_RWLOCK_RDUNLOCK(STK_SESS_LOCK, &stkctr_entry(stkctr)->lock);
+
+		if (stkctr == &tmpstkctr)
+			stktable_release(stkctr->table, stkctr_entry(stkctr));
+	}
 	return 1;
 }
 
@@ -4183,7 +4370,8 @@ INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 static struct action_kw_list tcp_conn_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
-	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt",  parse_set_gpt,  KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt,  KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -4192,7 +4380,8 @@ INITCALL1(STG_REGISTER, tcp_req_conn_keywords_register, &tcp_conn_kws);
 static struct action_kw_list tcp_sess_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
-	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt",  parse_set_gpt,  KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt,  KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -4201,7 +4390,8 @@ INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_sess_kws);
 static struct action_kw_list tcp_req_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
-	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt",  parse_set_gpt,  KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt,  KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -4210,7 +4400,8 @@ INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_kws);
 static struct action_kw_list tcp_res_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
-	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt",  parse_set_gpt,  KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt,  KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -4219,7 +4410,8 @@ INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_kws);
 static struct action_kw_list http_req_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
-	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt",  parse_set_gpt,  KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt,  KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -4228,7 +4420,8 @@ INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_kws);
 static struct action_kw_list http_res_kws = { { }, {
 	{ "sc-inc-gpc0", parse_inc_gpc0, KWF_MATCH_PREFIX },
 	{ "sc-inc-gpc1", parse_inc_gpc1, KWF_MATCH_PREFIX },
-	{ "sc-set-gpt0", parse_set_gpt0, KWF_MATCH_PREFIX },
+	{ "sc-set-gpt",  parse_set_gpt,  KWF_MATCH_PREFIX },
+	{ "sc-set-gpt0", parse_set_gpt,  KWF_MATCH_PREFIX },
 	{ /* END */ }
 }};
 
@@ -4245,6 +4438,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc_conn_cnt",        smp_fetch_sc_conn_cnt,       ARG2(1,SINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "sc_conn_cur",        smp_fetch_sc_conn_cur,       ARG2(1,SINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "sc_conn_rate",       smp_fetch_sc_conn_rate,      ARG2(1,SINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
+	{ "sc_get_gpt",         smp_fetch_sc_get_gpt,        ARG3(2,SINT,SINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "sc_get_gpt0",        smp_fetch_sc_get_gpt0,       ARG2(1,SINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "sc_get_gpc0",        smp_fetch_sc_get_gpc0,       ARG2(1,SINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN, },
 	{ "sc_get_gpc1",        smp_fetch_sc_get_gpc1,       ARG2(1,SINT,TAB), NULL, SMP_T_SINT, SMP_USE_INTRN },
@@ -4349,6 +4543,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "src_conn_cnt",       smp_fetch_sc_conn_cnt,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
 	{ "src_conn_cur",       smp_fetch_sc_conn_cur,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
 	{ "src_conn_rate",      smp_fetch_sc_conn_rate,      ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
+	{ "src_get_gpt" ,       smp_fetch_sc_get_gpt,        ARG2(2,SINT,TAB), NULL, SMP_T_SINT, SMP_USE_L4CLI, },
 	{ "src_get_gpt0",       smp_fetch_sc_get_gpt0,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
 	{ "src_get_gpc0",       smp_fetch_sc_get_gpc0,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
 	{ "src_get_gpc1",       smp_fetch_sc_get_gpc1,       ARG1(1,TAB),      NULL, SMP_T_SINT, SMP_USE_L4CLI, },
@@ -4382,6 +4577,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "table_conn_cnt",       sample_conv_table_conn_cnt,       ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_conn_cur",       sample_conv_table_conn_cur,       ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_conn_rate",      sample_conv_table_conn_rate,      ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
+	{ "table_gpt",            sample_conv_table_gpt,            ARG2(2,SINT,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_gpt0",           sample_conv_table_gpt0,           ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_gpc0",           sample_conv_table_gpc0,           ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },
 	{ "table_gpc1",           sample_conv_table_gpc1,           ARG1(1,TAB),  NULL, SMP_T_ANY,  SMP_T_SINT  },

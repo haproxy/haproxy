@@ -6416,6 +6416,18 @@ http-request sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
   counter designated by <sc-id>. If an error occurs, this action silently fails
   and the actions evaluation continues.
 
+http-request sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
+                                           [ { if | unless } <condition> ]
+  This action sets the 32-bit unsigned GPT at the index <idx> of the array
+  associated to the sticky counter designated by <sc-id> at the value of
+  <int>/<expr>. The expected result is a boolean.
+  If an error occurs, this action silently fails and the actions evaluation
+  continues. <idx> is an integer between 0 and 99 and <sc-id> is an integer
+  between 0 and 2. It also silently fails if the there is no GPT stored
+  at this index.
+  This action applies only to the 'gpt' array data_type (and not to the
+  legacy 'gpt0' data-type).
+
 http-request sc-set-gpt0(<sc-id>) { <int> | <expr> }
                                   [ { if | unless } <condition> ]
 
@@ -7114,6 +7126,19 @@ http-response sc-inc-gpc1(<sc-id>) [ { if | unless } <condition> ]
   This action increments the GPC0 or GPC1 counter according with the sticky
   counter designated by <sc-id>. If an error occurs, this action silently fails
   and the actions evaluation continues.
+
+http-response sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
+                                           [ { if | unless } <condition> ]
+
+  This action sets the 32-bit unsigned GPT at the index <idx> of the array
+  associated to the sticky counter designated by <sc-id> at the value of
+  <int>/<expr>. The expected result is a boolean.
+  If an error occurs, this action silently fails and the actions evaluation
+  continues. <idx> is an integer between 0 and 99 and <sc-id> is an integer
+  between 0 and 2. It also silently fails if the there is no GPT stored
+  at this index.
+  This action applies only to the 'gpt' array data_type (and not to the
+  legacy 'gpt0' data-type).
 
 http-response sc-set-gpt0(<sc-id>) { <int> | <expr> }
                                    [ { if | unless } <condition> ]
@@ -11182,6 +11207,17 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       incremented. Most of the time it will be used to measure the frequency of
       occurrence of certain events (e.g. requests to a specific URL).
 
+    - gpt(<nb>) : General Purpose Tags Array of <nb> elements. This is an array
+      of positive 32-bit integers which may be used for anything.
+      Most of the time they will be used to put a special tags on some entries,
+      for instance to note that a specific behavior was detected and must be
+      known for future matches. This array is limited to a maximum of 100
+      elements: gpt0 to gpt99, to ensure that the build of a peer update
+      message can fit into the buffer. Users should take in consideration
+      that a large amount of counters will increase the data size and the
+      traffic load using peers protocol since all data/counters are pushed
+      each time any of them is updated.
+
     - gpt0 : first General Purpose Tag. It is a positive 32-bit integer
       integer which may be used for anything. Most of the time it will be used
       to put a special tag on some entries, for instance to note that a
@@ -11901,6 +11937,17 @@ tcp-request connection <action> [{if | unless} <condition>]
         counter designated by <sc-id>. If an error occurs, this action silently
         fails and the actions evaluation continues.
 
+    - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }:
+        This action sets the 32-bit unsigned GPT at the index <idx> of the
+        array associated to the sticky counter designated by <sc-id> at the
+        value of <int>/<expr>. The expected result is a boolean.
+        If an error occurs, this action silently fails and the actions
+        evaluation continues. <idx> is an integer between 0 and 99 and <sc-id>
+        is an integer between 0 and 2. It also silently fails if the there is
+        no GPT stored at this index.
+        This action applies only to the 'gpt' array data_type (and not to the
+        legacy 'gpt0' data-type).
+
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }:
         This action sets the 32-bit unsigned GPT0 tag according to the sticky
         counter designated by <sc-id> and the value of <int>/<expr>. The
@@ -12085,6 +12132,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
+    - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - set-dst <expr>
     - set-dst-port <expr>
@@ -12434,6 +12482,17 @@ tcp-response content <action> [{if | unless} <condition>]
         counter designated by <sc-id>. If an error occurs, this action fails
         silently and the actions evaluation continues.
 
+    - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
+        This action sets the 32-bit unsigned GPT at the index <idx> of the
+        array associated to the sticky counter designated by <sc-id> at the
+        value of <int>/<expr>. The expected result is a boolean.
+        If an error occurs, this action silently fails and the actions
+        evaluation continues. <idx> is an integer between 0 and 99 and <sc-id>
+        is an integer between 0 and 2. It also silently fails if the there is
+        no GPT stored at this index.
+        This action applies only to the 'gpt' array data_type (and not to the
+        legacy 'gpt0' data-type).
+
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
         This action sets the 32-bit unsigned GPT0 tag according to the sticky
         counter designated by <sc-id> and the value of <int>/<expr>. The
@@ -12559,6 +12618,7 @@ tcp-request session <action> [{if | unless} <condition>]
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
     - sc-inc-gpc0(<sc-id>)
     - sc-inc-gpc1(<sc-id>)
+    - sc-set-gpt(<idx>,<sc-id>) { <int> | <expr> }
     - sc-set-gpt0(<sc-id>) { <int> | <expr> }
     - set-mark <mark>
     - set-dst <expr>
@@ -16702,6 +16762,17 @@ table_conn_rate(<table>)
   rate associated with the input sample in the designated table. See also the
   sc_conn_rate sample fetch keyword.
 
+table_gpt(<idx>,<table>)
+  Uses the string representation of the input sample to perform a lookup in
+  the specified table. If the key is not found in the table, boolean value zero
+  is returned. Otherwise the converter returns the current value of the general
+  purpose tag at the index <idx> of the array associated to the input sample
+  in the designated <table>. <idx> is an integer between 0 and 99.
+  If there is no GPT stored at this index, it also returns the boolean value 0.
+  This applies only to the 'gpt' array data_type (and not on the legacy 'gpt0'
+  data-type).
+  See also the sc_get_gpt sample fetch keyword.
+
 table_gpt0(<table>)
   Uses the string representation of the input sample to perform a look up in
   the specified table. If the key is not found in the table, boolean value zero
@@ -17753,6 +17824,15 @@ sc2_get_gpc1([<table>]) : integer
   Returns the value of the second General Purpose Counter associated to the
   currently tracked counters. See also src_get_gpc1 and sc/sc0/sc1/sc2_inc_gpc1.
 
+sc_get_gpt(<idx>,<ctr>[,<table>]) : integer
+  Returns the value of the first General Purpose Tag at the index <idx> of
+  the array associated to the tracked counter of ID <ctr> and from the
+  current proxy's sitck-table or the designated stick-table <table>. <idx>
+  is an integer between 0 and 99 and <ctr> an integer between 0 and 2.
+  If there is no GPT stored at this index, zero is returned.
+  This fetch applies only to the 'gpt' array data_type (and not on
+  the legacy 'gpt0' data-type). See also src_get_gpt.
+
 sc_get_gpt0(<ctr>[,<table>]) : integer
 sc0_get_gpt0([<table>]) : integer
 sc1_get_gpt0([<table>]) : integer
@@ -18013,6 +18093,14 @@ src_get_gpc1([<table>]) : integer
   incoming connection's source address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
   See also sc/sc0/sc1/sc2_get_gpc1 and src_inc_gpc1.
+
+src_get_gpt(<idx>[,<table>]) : integer
+  Returns the value of the first General Purpose Tag at the index <idx> of
+  the array associated to the incoming connection's source address in the
+  current proxy's stick-table or in the designated stick-table <table>.
+  <idx> is an integer between 0 and 99.
+  If the address is not found or the GPT is not stored, zero is returned.
+  See also the sc_get_gpt sample fetch keyword.
 
 src_get_gpt0([<table>]) : integer
   Returns the value of the first General Purpose Tag associated to the

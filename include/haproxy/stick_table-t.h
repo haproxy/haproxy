@@ -60,6 +60,8 @@ enum {
 	STKTABLE_DT_SERVER_KEY,   /* The server key */
 	STKTABLE_DT_HTTP_FAIL_CNT, /* cumulated number of HTTP server failures */
 	STKTABLE_DT_HTTP_FAIL_RATE,/* HTTP server failures rate */
+	STKTABLE_DT_GPT,           /* array of gpt */
+
 
 	STKTABLE_STATIC_DATA_TYPES,/* number of types above */
 	/* up to STKTABLE_EXTRA_DATA_TYPES types may be registered here, always
