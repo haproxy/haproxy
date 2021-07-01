@@ -8984,12 +8984,13 @@ option mysql-check [ user <username> [ { post-41 | pre-41 } ] ]
   one Client Authentication packet, and one QUIT packet, to correctly close
   MySQL session. We then parse the MySQL Handshake Initialization packet and/or
   Error packet. It is a basic but useful test which does not produce error nor
-  aborted connect on the server. However, it requires adding an authorization
-  in the MySQL table, like this :
+  aborted connect on the server. However, it requires an unlocked authorised
+  user without a password. To create a basic limited user in MySQL with
+  optional resource limits:
 
-      USE mysql;
-      INSERT INTO user (Host,User) values ('<ip_of_haproxy>','<username>');
-      FLUSH PRIVILEGES;
+      CREATE USER '<username>'@'<ip_of_haproxy|network_of_haproxy/netmask>'
+      /*!50701 WITH MAX_QUERIES_PER_HOUR 1 MAX_UPDATES_PER_HOUR 0 */
+      /*M!100201 MAX_STATEMENT_TIME 0.0001 */;
 
   If you don't specify a username (it is deprecated and not recommended), the
   check only consists in parsing the Mysql Handshake Initialization packet or
