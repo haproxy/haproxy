@@ -11182,6 +11182,11 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       incremented. Most of the time it will be used to measure the frequency of
       occurrence of certain events (e.g. requests to a specific URL).
 
+    - gpt0 : first General Purpose Tag. It is a positive 32-bit integer
+      integer which may be used for anything. Most of the time it will be used
+      to put a special tag on some entries, for instance to note that a
+      specific behavior was detected and must be known for future matches
+
     - conn_cnt : Connection Count. It is a positive 32-bit integer which counts
       the absolute number of connections received from clients which matched
       this entry. It does not mean the connections were accepted, just that
