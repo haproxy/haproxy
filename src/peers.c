@@ -859,10 +859,10 @@ static int peer_prepare_switchmsg(char *msg, size_t size, struct peer_prep_param
 				case STD_T_UINT:
 				case STD_T_ULL:
 				case STD_T_DICT:
-					data |= 1 << data_type;
+					data |= 1ULL << data_type;
 					break;
 				case STD_T_FRQP:
-					data |= 1 << data_type;
+					data |= 1ULL << data_type;
 					intencode(data_type, &chunkq);
 					intencode(st->table->data_arg[data_type].u, &chunkq);
 					break;
@@ -1671,7 +1671,7 @@ static int peer_treat_updatemsg(struct appctx *appctx, struct peer *p, int updt,
 	for (data_type = 0 ; data_type < STKTABLE_DATA_TYPES ; data_type++) {
 		uint64_t decoded_int;
 
-		if (!((1 << data_type) & st->remote_data))
+		if (!((1ULL << data_type) & st->remote_data))
 			continue;
 
 		decoded_int = intdecode(msg_cur, msg_end);
