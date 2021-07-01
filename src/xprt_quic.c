@@ -942,7 +942,7 @@ int ssl_quic_initial_ctx(struct bind_conf *bind_conf)
 		"TLS_CHACHA20_POLY1305_SHA256:"
 		"TLS_AES_128_CCM_SHA256";
 #endif
-	const char *groups = "P-256:X25519:P-384:P-521";
+	const char *groups = "X25519:P-256:P-384:P-521";
 	long options =
 		(SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) |
 		SSL_OP_SINGLE_ECDH_USE |
