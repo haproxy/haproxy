@@ -3662,8 +3662,6 @@ static ssize_t qc_do_build_hdshk_pkt(struct q_buf *wbuf,
 		goto err;
 	}
 
-	/* Reserve enough room at the end of the packet for the AEAD TAG. */
-	end -= QUIC_TLS_TAG_LEN;
 	largest_acked_pn = qel->pktns->tx.largest_acked_pn;
 	/* packet number length */
 	*pn_len = quic_packet_number_length(pn, largest_acked_pn);
