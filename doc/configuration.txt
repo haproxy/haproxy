@@ -6510,7 +6510,8 @@ http-request set-mark <mark> [ { if | unless } <condition> ]
   both in decimal or hexadecimal format (prefixed by "0x").
   This can be useful to force certain packets to take a different route (for
   example a cheaper network path for bulk downloads). This works on Linux
-  kernels 2.6.32 and above and requires admin privileges, as well on FreeBSD.
+  kernels 2.6.32 and above and requires admin privileges, as well on FreeBSD
+  and OpenBSD.
 
 http-request set-method <fmt> [ { if | unless } <condition> ]
 
@@ -7171,7 +7172,8 @@ http-response set-mark <mark> [ { if | unless } <condition> ]
   It can be expressed both in decimal or hexadecimal format (prefixed by "0x").
   This can be useful to force certain packets to take a different route (for
   example a cheaper network path for bulk downloads). This works on Linux
-  kernels 2.6.32 and above and requires admin privileges, as well on FreeBSD.
+  kernels 2.6.32 and above and requires admin privileges, as well on FreeBSD
+  and OpenBSD.
 
 http-response set-nice <nice> [ { if | unless } <condition> ]
 
@@ -11908,7 +11910,7 @@ tcp-request connection <action> [{if | unless} <condition>]
       "0x"). This can be useful to force certain packets to take a different
       route (for example a cheaper network path for bulk downloads). This works
       on Linux kernels 2.6.32 and above and requires admin privileges, as well
-      on FreeBSD.
+      on FreeBSD and OpenBSD.
 
     - set-src <expr> :
       Is used to set the source IP address to the value of specified
