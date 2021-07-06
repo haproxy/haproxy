@@ -2238,7 +2238,7 @@ static enum act_return action_inc_gpc0(struct act_rule *rule, struct proxy *px,
 {
 	struct stksess *ts;
 	struct stkctr *stkctr;
-	unsigned int period;
+	unsigned int period = 0;
 
 	/* Extract the stksess, return OK if no stksess available. */
 	if (s)
@@ -2293,7 +2293,7 @@ static enum act_return action_inc_gpc1(struct act_rule *rule, struct proxy *px,
 {
 	struct stksess *ts;
 	struct stkctr *stkctr;
-	unsigned int period;
+	unsigned int period = 0;
 
 	/* Extract the stksess, return OK if no stksess available. */
 	if (s)
@@ -3269,7 +3269,7 @@ smp_fetch_sc_inc_gpc0(const struct arg *args, struct sample *smp, const char *kw
 {
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
-	unsigned int period;
+	unsigned int period = 0;
 
 	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
@@ -3338,7 +3338,7 @@ smp_fetch_sc_inc_gpc1(const struct arg *args, struct sample *smp, const char *kw
 {
 	struct stkctr tmpstkctr;
 	struct stkctr *stkctr;
-	unsigned int period;
+	unsigned int period = 0;
 
 	stkctr = smp_fetch_sc_stkctr(smp->sess, smp->strm, args, kw, &tmpstkctr);
 	if (!stkctr)
