@@ -465,6 +465,8 @@ struct quic_rx_strm_frm {
 struct quic_tx_packet {
 	/* List entry point. */
 	struct list list;
+	/* Packet length */
+	size_t len;
 	/* This is not the packet length but the length of outstanding data
 	 * for in flight TX packet.
 	 */
@@ -480,6 +482,8 @@ struct quic_tx_packet {
 	struct quic_pktns *pktns;
 	/* Flags. */
 	unsigned int flags;
+	/* Next packet in the same datagram */
+	struct quic_tx_packet *next;
 };
 
 /* Structure to stora enough information about the TX frames. */
