@@ -203,40 +203,44 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * used. It is a workaround to let HTTP/2 health-checks work as
 	 * expected.
 	 */
-	if (unlikely((sess->fe->monitor_uri_len != 0) &&
-		     ((*sess->fe->monitor_uri == '/' && isteq(http_get_path(htx_sl_req_uri(sl)),
-							      ist2(sess->fe->monitor_uri, sess->fe->monitor_uri_len))) ||
-		      isteq(htx_sl_req_uri(sl), ist2(sess->fe->monitor_uri, sess->fe->monitor_uri_len))))) {
-		/*
-		 * We have found the monitor URI
-		 */
-		struct acl_cond *cond;
+	if (unlikely(sess->fe->monitor_uri_len != 0)) {
+		const struct ist monitor_uri = ist2(sess->fe->monitor_uri,
+		                                    sess->fe->monitor_uri_len);
 
-		s->flags |= SF_MONITOR;
-		_HA_ATOMIC_INC(&sess->fe->fe_counters.intercepted_req);
+		if ((istptr(monitor_uri)[0] == '/' &&
+		     isteq(http_get_path(htx_sl_req_uri(sl)), monitor_uri)) ||
+		    isteq(htx_sl_req_uri(sl), monitor_uri)) {
+			/*
+			 * We have found the monitor URI
+			 */
+			struct acl_cond *cond;
 
-		/* Check if we want to fail this monitor request or not */
-		list_for_each_entry(cond, &sess->fe->mon_fail_cond, list) {
-			int ret = acl_exec_cond(cond, sess->fe, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+			s->flags |= SF_MONITOR;
+			_HA_ATOMIC_INC(&sess->fe->fe_counters.intercepted_req);
 
-			ret = acl_pass(ret);
-			if (cond->pol == ACL_COND_UNLESS)
-				ret = !ret;
+			/* Check if we want to fail this monitor request or not */
+			list_for_each_entry(cond, &sess->fe->mon_fail_cond, list) {
+				int ret = acl_exec_cond(cond, sess->fe, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 
-			if (ret) {
-				/* we fail this request, let's return 503 service unavail */
-				txn->status = 503;
-				if (!(s->flags & SF_ERR_MASK))
-					s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
-				goto return_prx_cond;
+				ret = acl_pass(ret);
+				if (cond->pol == ACL_COND_UNLESS)
+					ret = !ret;
+
+				if (ret) {
+					/* we fail this request, let's return 503 service unavail */
+					txn->status = 503;
+					if (!(s->flags & SF_ERR_MASK))
+						s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
+					goto return_prx_cond;
+				}
 			}
-		}
 
-		/* nothing to fail, let's reply normally */
-		txn->status = 200;
-		if (!(s->flags & SF_ERR_MASK))
-			s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
-		goto return_prx_cond;
+			/* nothing to fail, let's reply normally */
+			txn->status = 200;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
+			goto return_prx_cond;
+		}
 	}
 
 	/*
