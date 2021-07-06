@@ -1280,7 +1280,7 @@ static int cli_io_handler_show_fd(struct appctx *appctx)
 			if (px)
 				chunk_appendf(&trash, " px=%s", px->id);
 			else if (sv)
-				chunk_appendf(&trash, " sv=%s/%s", sv->id, sv->proxy->id);
+				chunk_appendf(&trash, " sv=%s/%s", sv->proxy->id, sv->id);
 			else if (li)
 				chunk_appendf(&trash, " fe=%s", li->bind_conf->frontend->id);
 
