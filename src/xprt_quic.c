@@ -2741,66 +2741,6 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	return 0;
 }
 
-/* Release the memory allocated for <buf> array of buffers, with <nb> as size.
- * Never fails.
- */
-static inline void free_quic_conn_tx_bufs(struct q_buf **bufs, size_t nb)
-{
-	struct q_buf **p;
-
-	if (!bufs)
-		return;
-
-	p = bufs;
-	while (--nb) {
-		if (!*p) {
-			p++;
-			continue;
-		}
-		ha_free(&(*p)->area);
-		ha_free(p);
-		p++;
-	}
-	free(bufs);
-}
-
-/* Allocate an array or <nb> buffers of <sz> bytes each.
- * Return this array if succeeded, NULL if failed.
- */
-static inline struct q_buf **quic_conn_tx_bufs_alloc(size_t nb, size_t sz)
-{
-	int i;
-	struct q_buf **bufs, **p;
-
-	bufs = calloc(nb, sizeof *bufs);
-	if (!bufs)
-		return NULL;
-
-	i = 0;
-	p = bufs;
-	while (i++ < nb) {
-		*p = calloc(1, sizeof **p);
-		if (!*p)
-			goto err;
-
-		(*p)->area = malloc(sz);
-		if (!(*p)->area)
-		    goto err;
-
-		(*p)->pos = (*p)->area;
-		(*p)->end = (*p)->area + sz;
-		(*p)->data = 0;
-		LIST_INIT(&(*p)->pkts);
-		p++;
-	}
-
-	return bufs;
-
- err:
-	free_quic_conn_tx_bufs(bufs, nb);
-	return NULL;
-}
-
 /* Release all the memory allocated for <conn> QUIC connection. */
 static void quic_conn_free(struct quic_conn *conn)
 {
@@ -2812,7 +2752,6 @@ static void quic_conn_free(struct quic_conn *conn)
 	free_quic_conn_cids(conn);
 	for (i = 0; i < QUIC_TLS_ENC_LEVEL_MAX; i++)
 		quic_conn_enc_level_uninit(&conn->els[i]);
-	free_quic_conn_tx_bufs(conn->tx.bufs, conn->tx.nb_buf);
 	if (conn->timer_task)
 		task_destroy(conn->timer_task);
 	pool_free(pool_head_quic_conn, conn);
@@ -2938,15 +2877,9 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 		qc->els[i].pktns = &qc->pktns[quic_tls_pktns(i)];
 	}
 
+	qc->version = version;
 	/* TX part. */
 	LIST_INIT(&qc->tx.frms_to_send);
-	qc->tx.bufs = quic_conn_tx_bufs_alloc(QUIC_CONN_TX_BUFS_NB, QUIC_CONN_TX_BUF_SZ);
-	if (!qc->tx.bufs) {
-		TRACE_PROTO("Could not allocate TX bufs", QUIC_EV_CONN_INIT);
-		goto err;
-	}
-
-	qc->version = version;
 	qc->tx.nb_buf = QUIC_CONN_TX_BUFS_NB;
 	qc->tx.wbuf = qc->tx.rbuf = 0;
 	qc->tx.bytes = 0;

@@ -623,8 +623,6 @@ struct quic_conn {
 		/* The remaining frames to send. */
 		struct list frms_to_send;
 
-		/* Array of buffers. */
-		struct q_buf **bufs;
 		/* The size of the previous array. */
 		size_t nb_buf;
 		/* Writer index. */
