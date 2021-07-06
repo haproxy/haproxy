@@ -413,8 +413,6 @@ static struct action_kw_list tcp_req_cont_actions = {ILH, {
 	{ "set-dst"     , tcp_parse_set_src_dst },
 	{ "set-dst-port", tcp_parse_set_src_dst },
 	{ "set-mark",     tcp_parse_set_mark    },
-	{ "set-src",      tcp_parse_set_src_dst },
-	{ "set-src-port", tcp_parse_set_src_dst },
 	{ "set-tos",      tcp_parse_set_tos     },
 	{ "silent-drop",  tcp_parse_silent_drop },
 	{ /* END */ }
