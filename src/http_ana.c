@@ -206,9 +206,10 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if (unlikely(sess->fe->monitor_uri_len != 0)) {
 		const struct ist monitor_uri = ist2(sess->fe->monitor_uri,
 		                                    sess->fe->monitor_uri_len);
+		struct http_uri_parser parser = http_uri_parser_init(htx_sl_req_uri(sl));
 
 		if ((istptr(monitor_uri)[0] == '/' &&
-		     isteq(http_get_path(htx_sl_req_uri(sl)), monitor_uri)) ||
+		     isteq(http_parse_path(&parser), monitor_uri)) ||
 		    isteq(htx_sl_req_uri(sl), monitor_uri)) {
 			/*
 			 * We have found the monitor URI
@@ -622,6 +623,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SF_ADDR_SET)) {
 		struct htx_sl *sl;
 		struct ist uri, path;
+		struct http_uri_parser parser = http_uri_parser_init(uri);
 
 		if (!sockaddr_alloc(&s->target_addr, NULL, 0)) {
 			if (!(s->flags & SF_ERR_MASK))
@@ -630,7 +632,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		}
 		sl = http_get_stline(htx);
 		uri = htx_sl_req_uri(sl);
-		path = http_get_path(uri);
+		path = http_parse_path(&parser);
 
 		if (url2sa(uri.ptr, uri.len - path.len, s->target_addr, NULL) == -1)
 			goto return_bad_req;
@@ -2409,6 +2411,7 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 		case REDIRECT_TYPE_SCHEME: {
 			struct http_hdr_ctx ctx;
 			struct ist path, host;
+			struct http_uri_parser parser;
 
 			host = ist("");
 			ctx.blk = NULL;
@@ -2416,7 +2419,8 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 				host = ctx.value;
 
 			sl = http_get_stline(htx);
-			path = http_get_path(htx_sl_req_uri(sl));
+			parser = http_uri_parser_init(htx_sl_req_uri(sl));
+			path = http_parse_path(&parser);
 			/* build message using path */
 			if (isttest(path)) {
 				if (rule->flags & REDIRECT_FLAG_DROP_QS) {
@@ -2462,9 +2466,11 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 
 		case REDIRECT_TYPE_PREFIX: {
 			struct ist path;
+			struct http_uri_parser parser;
 
 			sl = http_get_stline(htx);
-			path = http_get_path(htx_sl_req_uri(sl));
+			parser = http_uri_parser_init(htx_sl_req_uri(sl));
+			path = http_parse_path(&parser);
 			/* build message using path */
 			if (isttest(path)) {
 				if (rule->flags & REDIRECT_FLAG_DROP_QS) {
@@ -3858,8 +3864,10 @@ static int http_stats_check_uri(struct stream *s, struct http_txn *txn, struct p
 	htx = htxbuf(&s->req.buf);
 	sl = http_get_stline(htx);
 	uri = htx_sl_req_uri(sl);
-	if (*uri_auth->uri_prefix == '/')
-		uri = http_get_path(uri);
+	if (*uri_auth->uri_prefix == '/') {
+		struct http_uri_parser parser = http_uri_parser_init(uri);
+		uri = http_parse_path(&parser);
+	}
 
 	/* check URI size */
 	if (uri_auth->uri_len > uri.len)
@@ -4173,6 +4181,7 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	struct htx_sl *sl;
 	struct ist path, location;
 	unsigned int flags;
+	struct http_uri_parser parser;
 
 	/*
 	 * Create the location
@@ -4190,7 +4199,8 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	/* 2: add the request Path */
 	htx = htxbuf(&req->buf);
 	sl = http_get_stline(htx);
-	path = http_get_path(htx_sl_req_uri(sl));
+	parser = http_uri_parser_init(htx_sl_req_uri(sl));
+	path = http_parse_path(&parser);
 	if (!isttest(path))
 		return;
 

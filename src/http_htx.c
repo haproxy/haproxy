@@ -407,12 +407,14 @@ int http_replace_req_path(struct htx *htx, const struct ist path, int with_qs)
 	struct htx_sl *sl = http_get_stline(htx);
 	struct ist meth, uri, vsn, p;
 	size_t plen = 0;
+	struct http_uri_parser parser;
 
 	if (!sl)
 		return 0;
 
 	uri = htx_sl_req_uri(sl);
-	p = http_get_path(uri);
+	parser = http_uri_parser_init(uri);
+	p = http_parse_path(&parser);
 	if (!isttest(p))
 		p = uri;
 	if (with_qs)
@@ -1791,7 +1793,7 @@ int http_scheme_based_normalize(struct htx *htx)
 		vsn = ist2(temp->area + meth.len, HTX_SL_REQ_VLEN(sl));
 
 		/* reconstruct uri without port */
-		path = http_get_path(uri);
+		path = http_parse_path(&parser);
 		chunk_istcat(temp, scheme);
 		chunk_istcat(temp, host);
 		chunk_istcat(temp, path);

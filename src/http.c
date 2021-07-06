@@ -563,50 +563,52 @@ struct ist http_parse_authority(struct http_uri_parser *parser, int no_userinfo)
 /* Parse the URI from the given transaction (which is assumed to be in request
  * phase) and look for the "/" beginning the PATH. If not found, ist2(0,0) is
  * returned. Otherwise the pointer and length are returned.
+ *
+ * <parser> must have been initialized via http_uri_parser_init. See the
+ * related http_uri_parser documentation for the specific API usage.
  */
-struct ist http_get_path(const struct ist uri)
+struct ist http_parse_path(struct http_uri_parser *parser)
 {
 	const char *ptr, *end;
 
-	if (!uri.len)
+	if (parser->state >= URI_PARSER_STATE_PATH_DONE)
 		goto not_found;
 
-	ptr = uri.ptr;
-	end = ptr + uri.len;
+	if (parser->format == URI_PARSER_FORMAT_EMPTY ||
+	    parser->format == URI_PARSER_FORMAT_ASTERISK) {
+		goto not_found;
+	}
 
-	/* RFC7230, par. 2.7 :
-	 * Request-URI = "*" | absuri | abspath | authority
+	ptr = istptr(parser->uri);
+	end = istend(parser->uri);
+
+	/* If the uri is in absolute-path format, first skip the scheme and
+	 * authority parts. No scheme will be found if the uri is in authority
+	 * format, which indicates that the path won't be present.
 	 */
+	if (parser->format == URI_PARSER_FORMAT_ABSURI_OR_AUTHORITY) {
+		if (parser->state < URI_PARSER_STATE_SCHEME_DONE) {
+			/* If no scheme found, uri is in authority format. No
+			 * path is present.
+			 */
+			if (!isttest(http_parse_scheme(parser)))
+				goto not_found;
+		}
 
-	if (*ptr == '*')
-		goto not_found;
+		if (parser->state < URI_PARSER_STATE_AUTHORITY_DONE)
+			http_parse_authority(parser, 1);
 
-	if (isalpha((unsigned char)*ptr)) {
-		/* this is a scheme as described by RFC3986, par. 3.1 */
-		ptr++;
-		while (ptr < end &&
-		       (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
-			ptr++;
-		/* skip '://' */
-		if (ptr == end || *ptr++ != ':')
-			goto not_found;
-		if (ptr == end || *ptr++ != '/')
-			goto not_found;
-		if (ptr == end || *ptr++ != '/')
+		ptr = istptr(parser->uri);
+
+		if (ptr == end)
 			goto not_found;
 	}
-	/* skip [user[:passwd]@]host[:[port]] */
 
-	while (ptr < end && *ptr != '/')
-		ptr++;
-
-	if (ptr == end)
-		goto not_found;
-
-	/* OK, we got the '/' ! */
+	parser->state = URI_PARSER_STATE_PATH_DONE;
 	return ist2(ptr, end - ptr);
 
  not_found:
+	parser->state = URI_PARSER_STATE_PATH_DONE;
 	return IST_NULL;
 }
 

@@ -719,7 +719,10 @@ int assign_server(struct stream *s)
 
 					uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 					if (s->be->lbprm.arg_opt1 & 2) {
-						uri = http_get_path(uri);
+						struct http_uri_parser parser =
+						  http_uri_parser_init(uri);
+
+						uri = http_parse_path(&parser);
 						if (!isttest(uri))
 							uri = ist("");
 					}

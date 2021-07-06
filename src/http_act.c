@@ -216,7 +216,8 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 
 	switch ((enum act_normalize_uri) rule->action) {
 		case ACT_NORMALIZE_URI_PATH_MERGE_SLASHES: {
-			const struct ist path = http_get_path(uri);
+			struct http_uri_parser parser = http_uri_parser_init(uri);
+			const struct ist path = http_parse_path(&parser);
 			struct ist newpath = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
@@ -233,7 +234,8 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 			break;
 		}
 		case ACT_NORMALIZE_URI_PATH_STRIP_DOT: {
-			const struct ist path = http_get_path(uri);
+			struct http_uri_parser parser = http_uri_parser_init(uri);
+			const struct ist path = http_parse_path(&parser);
 			struct ist newpath = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
@@ -251,7 +253,8 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 		}
 		case ACT_NORMALIZE_URI_PATH_STRIP_DOTDOT:
 		case ACT_NORMALIZE_URI_PATH_STRIP_DOTDOT_FULL: {
-			const struct ist path = http_get_path(uri);
+			struct http_uri_parser parser = http_uri_parser_init(uri);
+			const struct ist path = http_parse_path(&parser);
 			struct ist newpath = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
@@ -268,7 +271,8 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 			break;
 		}
 		case ACT_NORMALIZE_URI_QUERY_SORT_BY_NAME: {
-			const struct ist path = http_get_path(uri);
+			struct http_uri_parser parser = http_uri_parser_init(uri);
+			const struct ist path = http_parse_path(&parser);
 			struct ist newquery = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
@@ -286,7 +290,8 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 		}
 		case ACT_NORMALIZE_URI_PERCENT_TO_UPPERCASE:
 		case ACT_NORMALIZE_URI_PERCENT_TO_UPPERCASE_STRICT: {
-			const struct ist path = http_get_path(uri);
+			struct http_uri_parser parser = http_uri_parser_init(uri);
+			const struct ist path = http_parse_path(&parser);
 			struct ist newpath = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
@@ -304,7 +309,8 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 		}
 		case ACT_NORMALIZE_URI_PERCENT_DECODE_UNRESERVED:
 		case ACT_NORMALIZE_URI_PERCENT_DECODE_UNRESERVED_STRICT: {
-			const struct ist path = http_get_path(uri);
+			struct http_uri_parser parser = http_uri_parser_init(uri);
+			const struct ist path = http_parse_path(&parser);
 			struct ist newpath = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
@@ -321,7 +327,8 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 			break;
 		}
 		case ACT_NORMALIZE_URI_FRAGMENT_STRIP: {
-			const struct ist path = http_get_path(uri);
+			struct http_uri_parser parser = http_uri_parser_init(uri);
+			const struct ist path = http_parse_path(&parser);
 			struct ist newpath = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
@@ -338,7 +345,8 @@ static enum act_return http_action_normalize_uri(struct act_rule *rule, struct p
 			break;
 		}
 		case ACT_NORMALIZE_URI_FRAGMENT_ENCODE: {
-			const struct ist path = http_get_path(uri);
+			struct http_uri_parser parser = http_uri_parser_init(uri);
+			const struct ist path = http_parse_path(&parser);
 			struct ist newpath = ist2(replace->area, replace->size);
 
 			if (!isttest(path))
@@ -517,10 +525,14 @@ static enum act_return http_action_replace_uri(struct act_rule *rule, struct pro
 		goto fail_alloc;
 	uri = htx_sl_req_uri(http_get_stline(htxbuf(&s->req.buf)));
 
-	if (rule->action == 1) // replace-path
-		uri = iststop(http_get_path(uri), '?');
-	else if (rule->action == 4) // replace-pathq
-		uri = http_get_path(uri);
+	if (rule->action == 1) { // replace-path
+		struct http_uri_parser parser = http_uri_parser_init(uri);
+		uri = iststop(http_parse_path(&parser), '?');
+	}
+	else if (rule->action == 4) { // replace-pathq
+		struct http_uri_parser parser = http_uri_parser_init(uri);
+		uri = http_parse_path(&parser);
+	}
 
 	if (!regex_exec_match2(rule->arg.http.re, uri.ptr, uri.len, MAX_MATCH, pmatch, 0))
 		goto leave;

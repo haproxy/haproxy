@@ -38,7 +38,7 @@ int http_get_status_idx(unsigned int status);
 const char *http_get_reason(unsigned int status);
 struct ist http_parse_scheme(struct http_uri_parser *parser);
 struct ist http_parse_authority(struct http_uri_parser *parser, int no_userinfo);
-struct ist http_get_path(const struct ist uri);
+struct ist http_parse_path(struct http_uri_parser *parser);
 int http_header_match2(const char *hdr, const char *end,
                        const char *name, int len);
 char *http_find_hdr_value_end(char *s, const char *e);

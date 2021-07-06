@@ -1327,7 +1327,8 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 #endif
 	if ((params->mask & FCGI_SP_URI_MASK) != FCGI_SP_URI_MASK) {
 		/* one of scriptname, pathinfo or query_string is no set */
-		struct ist path = http_get_path(params->uri);
+		struct http_uri_parser parser = http_uri_parser_init(params->uri);
+		struct ist path = http_parse_path(&parser);
 		int len;
 
 		/* No scrit_name set but no valid path ==> error */

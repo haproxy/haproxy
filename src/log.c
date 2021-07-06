@@ -1961,6 +1961,7 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 	struct timeval tv;
 	struct strm_logs tmp_strm_log;
 	struct ist path;
+	struct http_uri_parser parser;
 
 	/* FIXME: let's limit ourselves to frontend logging for now. */
 
@@ -2790,7 +2791,8 @@ int sess_build_logline(struct session *sess, struct stream *s, char *dst, size_t
 				path = ist2(uri, spc - uri);
 
 				// extract relative path without query params from url
-				path = iststop(http_get_path(path), '?');
+				parser = http_uri_parser_init(path);
+				path = iststop(http_parse_path(&parser), '?');
 				if (!txn || !txn->uri || nspaces == 0) {
 					chunk.area = "<BADREQ>";
 					chunk.data = strlen("<BADREQ>");

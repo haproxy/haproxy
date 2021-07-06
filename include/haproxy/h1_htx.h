@@ -49,7 +49,8 @@ static inline struct ist h1_get_uri(const struct htx_sl *sl)
 
 	uri = htx_sl_req_uri(sl);
 	if (sl->flags & HTX_SL_F_NORMALIZED_URI) {
-		uri = http_get_path(uri);
+		struct http_uri_parser parser = http_uri_parser_init(uri);
+		uri = http_parse_path(&parser);
 		if (unlikely(!uri.len)) {
 			if (sl->info.req.meth == HTTP_METH_OPTIONS)
 				uri = ist("*");

@@ -4125,6 +4125,7 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 	struct ist path;
 	unsigned long long len = 0;
 	int32_t pos;
+	struct http_uri_parser parser;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))
@@ -4193,7 +4194,8 @@ static int hlua_applet_http_new(lua_State *L, struct appctx *ctx)
 		return 0;
 	lua_settable(L, -3);
 
-	path = http_get_path(htx_sl_req_uri(sl));
+	parser = http_uri_parser_init(htx_sl_req_uri(sl));
+	path = http_parse_path(&parser);
 	if (isttest(path)) {
 		char *p, *q, *end;
 

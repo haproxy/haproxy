@@ -1039,17 +1039,18 @@ static int smp_fetch_path(const struct arg *args, struct sample *smp, const char
 	struct htx *htx = smp_prefetch_htx(smp, chn, NULL, 1);
 	struct htx_sl *sl;
 	struct ist path;
+	struct http_uri_parser parser;
 
 	if (!htx)
 		return 0;
 
 	sl = http_get_stline(htx);
-	path = http_get_path(htx_sl_req_uri(sl));
+	parser = http_uri_parser_init(htx_sl_req_uri(sl));
 
 	if (kw[4] == 'q' && (kw[0] == 'p' || kw[0] == 'b')) // pathq or baseq
-		path = http_get_path(htx_sl_req_uri(sl));
+		path = http_parse_path(&parser);
 	else
-		path = iststop(http_get_path(htx_sl_req_uri(sl)), '?');
+		path = iststop(http_parse_path(&parser), '?');
 
 	if (!isttest(path))
 		return 0;
@@ -1077,6 +1078,7 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 	struct buffer *temp;
 	struct http_hdr_ctx ctx;
 	struct ist path;
+	struct http_uri_parser parser;
 
 	if (!htx)
 		return 0;
@@ -1091,7 +1093,8 @@ static int smp_fetch_base(const struct arg *args, struct sample *smp, const char
 
 	/* now retrieve the path */
 	sl = http_get_stline(htx);
-	path = http_get_path(htx_sl_req_uri(sl));
+	parser = http_uri_parser_init(htx_sl_req_uri(sl));
+	path = http_parse_path(&parser);
 	if (isttest(path)) {
 		size_t len;
 
@@ -1128,6 +1131,7 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
 	struct http_hdr_ctx ctx;
 	struct ist path;
 	unsigned int hash = 0;
+	struct http_uri_parser parser;
 
 	if (!htx)
 		return 0;
@@ -1141,7 +1145,8 @@ static int smp_fetch_base32(const struct arg *args, struct sample *smp, const ch
 
 	/* now retrieve the path */
 	sl = http_get_stline(htx);
-	path = http_get_path(htx_sl_req_uri(sl));
+	parser = http_uri_parser_init(htx_sl_req_uri(sl));
+	path = http_parse_path(&parser);
 	if (isttest(path)) {
 		size_t len;
 
@@ -1486,6 +1491,7 @@ static int smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp,
 	struct http_txn *txn;
 	struct ist path;
 	const char *ptr;
+	struct http_uri_parser parser;
 
 	if (!smp->strm)
 		return 0;
@@ -1508,7 +1514,8 @@ static int smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp,
 		ptr++;
 	path.len = ptr - path.ptr;
 
-	path = http_get_path(path);
+	parser = http_uri_parser_init(path);
+	path = http_parse_path(&parser);
 	if (!isttest(path))
 		return 0;
 
@@ -1952,6 +1959,7 @@ static int smp_fetch_url32(const struct arg *args, struct sample *smp, const cha
 	struct htx_sl *sl;
 	struct ist path;
 	unsigned int hash = 0;
+	struct http_uri_parser parser;
 
 	if (!htx)
 		return 0;
@@ -1965,7 +1973,8 @@ static int smp_fetch_url32(const struct arg *args, struct sample *smp, const cha
 
 	/* now retrieve the path */
 	sl = http_get_stline(htx);
-	path = http_get_path(htx_sl_req_uri(sl));
+	parser = http_uri_parser_init(htx_sl_req_uri(sl));
+	path = http_parse_path(&parser);
 	if (path.len && *(path.ptr) == '/') {
 		while (path.len--)
 			hash = *(path.ptr++) + (hash << 6) + (hash << 16) - hash;

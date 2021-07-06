@@ -136,6 +136,7 @@ enum http_uri_parser_state {
 	URI_PARSER_STATE_BEFORE = 0,
 	URI_PARSER_STATE_SCHEME_DONE,
 	URI_PARSER_STATE_AUTHORITY_DONE,
+	URI_PARSER_STATE_PATH_DONE,
 };
 
 /* HTTP URI format as described in rfc 7230 5.3.
