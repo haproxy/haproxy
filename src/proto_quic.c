@@ -27,6 +27,7 @@
 
 #include <haproxy/api.h>
 #include <haproxy/arg.h>
+#include <haproxy/cbuf.h>
 #include <haproxy/connection.h>
 #include <haproxy/errors.h>
 #include <haproxy/fd.h>
@@ -44,6 +45,7 @@
 #include <haproxy/quic_sock.h>
 #include <haproxy/sock_inet.h>
 #include <haproxy/tools.h>
+#include <haproxy/xprt_quic-t.h>
 
 
 static void quic_add_listener(struct protocol *proto, struct listener *listener);
@@ -521,6 +523,38 @@ static void quic_add_listener(struct protocol *proto, struct listener *listener)
 	default_add_listener(proto, listener);
 }
 
+/* Allocate the TX ring buffers for <l> listener.
+ * Return 1 if succeeded, 0 if not.
+ */
+static int quic_alloc_rings_listener(struct listener *l)
+{
+	struct qring *qr;
+	int i;
+
+	l->rx.qrings = calloc(global.nbthread, sizeof *l->rx.qrings);
+	if (!l->rx.qrings)
+		return 0;
+
+	MT_LIST_INIT(&l->rx.tx_qrings);
+	for (i = 0; i < global.nbthread; i++) {
+		struct qring *qr = &l->rx.qrings[i];
+
+		qr->cbuf = cbuf_new();
+		if (!qr->cbuf)
+			goto err;
+
+		MT_LIST_APPEND(&l->rx.tx_qrings, &qr->mt_list);
+	}
+
+	return 1;
+
+ err:
+	while ((qr = MT_LIST_POP(&l->rx.tx_qrings, typeof(qr), mt_list)))
+		cbuf_free(qr->cbuf);
+	free(l->rx.qrings);
+	return 0;
+}
+
 /* This function tries to bind a QUIC4/6 listener. It may return a warning or
  * an error message in <errmsg> if the message is at most <errlen> bytes long
  * (including '\0'). Note that <errmsg> may be NULL if <errlen> is also zero.
@@ -548,6 +582,12 @@ static int quic_bind_listener(struct listener *listener, char *errmsg, int errle
 
 	if (!(listener->rx.flags & RX_F_BOUND)) {
 		msg = "receiving socket not bound";
+		goto udp_return;
+	}
+
+	if (!quic_alloc_rings_listener(listener)) {
+		msg = "could not initialize tx rings";
+		err |= ERR_WARN;
 		goto udp_return;
 	}
 
