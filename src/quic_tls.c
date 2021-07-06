@@ -228,7 +228,7 @@ int quic_derive_initial_secret(const EVP_MD *md,
                                const unsigned char *secret, size_t secret_sz)
 {
 	if (!quic_hkdf_extract(md, initial_secret, &initial_secret_sz, secret, secret_sz,
-	                       initial_salt, sizeof initial_salt))
+	                       initial_salt_v1, sizeof initial_salt_v1))
 		return 0;
 
 	return 1;
