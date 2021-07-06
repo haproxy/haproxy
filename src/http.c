@@ -523,55 +523,40 @@ struct ist http_parse_scheme(struct http_uri_parser *parser)
  * path. if no_userinfo is not zero, the part before the '@' (including it) is
  * skipped. If not found, an empty ist is returned. Otherwise, the ist pointing
  * on the authority is returned.
+ *
+ * <parser> must have been initialized via http_uri_parser_init. See the
+ * related http_uri_parser documentation for the specific API usage.
  */
-struct ist http_get_authority(const struct ist uri, int no_userinfo)
+struct ist http_parse_authority(struct http_uri_parser *parser, int no_userinfo)
 {
 	const char *ptr, *start, *end;
 
-	if (!uri.len)
+	if (parser->state >= URI_PARSER_STATE_AUTHORITY_DONE)
 		goto not_found;
 
-	ptr = uri.ptr;
-	start = ptr;
-	end = ptr + uri.len;
-
-	/* RFC7230, par. 2.7 :
-	 * Request-URI = "*" | absuri | abspath | authority
-	 */
-
-	if (*ptr == '*' || *ptr == '/')
+	if (parser->format != URI_PARSER_FORMAT_ABSURI_OR_AUTHORITY)
 		goto not_found;
 
-	if (isalpha((unsigned char)*ptr)) {
-		/* this is a scheme as described by RFC3986, par. 3.1, or only
-		 * an authority (in case of a CONNECT method).
-		 */
-		ptr++;
-		while (ptr < end &&
-		       (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
-			ptr++;
-		/* skip '://' or take the whole as authority if not found */
-		if (ptr == end || *ptr++ != ':')
-			goto authority;
-		if (ptr == end || *ptr++ != '/')
-			goto authority;
-		if (ptr == end || *ptr++ != '/')
-			goto authority;
-	}
+	if (parser->state < URI_PARSER_STATE_SCHEME_DONE)
+		http_parse_scheme(parser);
 
-	start = ptr;
+	ptr = start = istptr(parser->uri);
+	end = istend(parser->uri);
+
 	while (ptr < end && *ptr != '/') {
 		if (*ptr++ == '@' && no_userinfo)
 			start = ptr;
 	}
 
 	/* OK, ptr point on the '/' or the end */
-	end = ptr;
 
   authority:
-	return ist2(start, end - start);
+	parser->uri = ist2(ptr, end - ptr);
+	parser->state = URI_PARSER_STATE_AUTHORITY_DONE;
+	return ist2(start, ptr - start);
 
   not_found:
+	parser->state = URI_PARSER_STATE_AUTHORITY_DONE;
 	return IST_NULL;
 }
 

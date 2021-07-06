@@ -871,8 +871,9 @@ int h1_headers_to_hdr_list(char *start, const char *stop,
 				else if (!(h1m->flags & (H1_MF_HDRS_ONLY|H1_MF_RESP)) && isteqi(n, ist("host"))) {
 					if (host_idx == -1) {
 						struct ist authority;
+						struct http_uri_parser parser = http_uri_parser_init(sl.rq.u);
 
-						authority = http_get_authority(sl.rq.u, 1);
+						authority = http_parse_authority(&parser, 1);
 						if (authority.len && !isteqi(v, authority)) {
 							if (h1m->err_pos < -1) {
 								state = H1_MSG_HDR_L2_LWS;

@@ -37,7 +37,7 @@ enum http_meth_t find_http_meth(const char *str, const int len);
 int http_get_status_idx(unsigned int status);
 const char *http_get_reason(unsigned int status);
 struct ist http_parse_scheme(struct http_uri_parser *parser);
-struct ist http_get_authority(const struct ist uri, int no_userinfo);
+struct ist http_parse_authority(struct http_uri_parser *parser, int no_userinfo);
 struct ist http_get_path(const struct ist uri);
 int http_header_match2(const char *hdr, const char *end,
                        const char *name, int len);

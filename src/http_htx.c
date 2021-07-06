@@ -691,9 +691,11 @@ int http_update_authority(struct htx *htx, struct htx_sl *sl, const struct ist h
 {
 	struct buffer *temp = get_trash_chunk();
 	struct ist meth, vsn, uri, authority;
+	struct http_uri_parser parser;
 
 	uri = htx_sl_req_uri(sl);
-	authority = http_get_authority(uri, 1);
+	parser = http_uri_parser_init(uri);
+	authority = http_parse_authority(&parser, 1);
 	if (!authority.len)
 		return 0;
 
@@ -728,9 +730,11 @@ int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri)
 {
 	struct ist authority;
 	struct http_hdr_ctx ctx;
+	struct http_uri_parser parser = http_uri_parser_init(uri);
 
-	if (!uri.len || uri.ptr[0] == '/' ||  uri.ptr[0] == '*') {
-		// origin-form or a asterisk-form (RFC7320 #5.3.1 and #5.3.4)
+	if (parser.format == URI_PARSER_FORMAT_EMPTY ||
+	    parser.format == URI_PARSER_FORMAT_ASTERISK ||
+	    parser.format == URI_PARSER_FORMAT_ABSPATH) {
 		sl->flags &= ~HTX_SL_F_HAS_AUTHORITY;
 	}
 	else {
@@ -741,7 +745,7 @@ int http_update_host(struct htx *htx, struct htx_sl *sl, const struct ist uri)
 			if (uri.len > 4 && (uri.ptr[0] | 0x20) == 'h')
 				sl->flags |= ((uri.ptr[4] == ':') ? HTX_SL_F_SCHM_HTTP : HTX_SL_F_SCHM_HTTPS);
 
-			authority = http_get_authority(uri, 1);
+			authority = http_parse_authority(&parser, 1);
 			if (!authority.len)
 				goto fail;
 		}
@@ -1759,7 +1763,7 @@ int http_scheme_based_normalize(struct htx *htx)
 	 * hostnames, do a reverse search on the last ':' separator as long as
 	 * digits are found.
 	 */
-	authority = http_get_authority(uri, 0);
+	authority = http_parse_authority(&parser, 0);
 	start = istptr(authority);
 	end = istend(authority);
 	for (ptr = end; ptr > start && isdigit((unsigned char)*--ptr); )
