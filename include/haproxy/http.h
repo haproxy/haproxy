@@ -131,6 +131,42 @@ static inline enum http_etag_type http_get_etag_type(const struct ist etag)
 	return ETAG_INVALID;
 }
 
+/* Initialize a HTTP URI parser to use it with http URI parsing functions. The
+ * URI format is detected according to its first character.
+ */
+static inline struct http_uri_parser http_uri_parser_init(const struct ist uri)
+{
+	struct http_uri_parser parser = {
+	  .uri    = uri,
+	  .state  = URI_PARSER_STATE_BEFORE,
+	};
+
+	/* RFC7230, par. 2.7 :
+	 * Request-URI = "*" | absuri | abspath | authority
+	 */
+
+	if (!istlen(parser.uri)) {
+		parser.format = URI_PARSER_FORMAT_EMPTY;
+	}
+	else {
+		/* detect the format according to the first URI character */
+		switch (*istptr(parser.uri)) {
+		case '*':
+			parser.format = URI_PARSER_FORMAT_ASTERISK;
+			break;
+
+		case '/':
+			parser.format = URI_PARSER_FORMAT_ABSPATH;
+			break;
+
+		default:
+			parser.format = URI_PARSER_FORMAT_ABSURI_OR_AUTHORITY;
+			break;
+		}
+	}
+
+	return parser;
+}
 
 #endif /* _HAPROXY_HTTP_H */
 

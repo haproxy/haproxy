@@ -131,6 +131,44 @@ enum http_etag_type {
 	ETAG_WEAK
 };
 
+/* Indicates what elements have been parsed in a HTTP URI. */
+enum http_uri_parser_state {
+	URI_PARSER_STATE_BEFORE = 0,
+};
+
+/* HTTP URI format as described in rfc 7230 5.3.
+ * As the first character is used to identify the format, absolute-form and
+ * authority-form are not differentiated.
+ */
+enum http_uri_parser_format {
+	URI_PARSER_FORMAT_EMPTY,
+	URI_PARSER_FORMAT_ASTERISK,
+	URI_PARSER_FORMAT_ABSPATH,
+	URI_PARSER_FORMAT_ABSURI_OR_AUTHORITY,
+};
+
+/* Parser context for a HTTP URI. Must be initialized with http_uri_parser_init
+ * before its usage.
+ *
+ * The parser API is not idempotent. For an initialized parser instance, each
+ * URI element can be extracted only once using its related function :
+ * - http_parse_scheme
+ * - http_parse_authority
+ * - http_parse_path
+ *
+ * Also each element must be extracted in the order of its appearance in the
+ * URI according to the rfc 3986. However, it is possible to skip the parsing
+ * of elements which are of no interest.
+ *
+ * If the above rules are not respected, the parsing functions return an empty
+ * ist.
+ */
+struct http_uri_parser {
+	struct ist uri;                     /* HTTP URI for parsing */
+	enum http_uri_parser_state state;   /* already parsed HTTP URI elements */
+	enum http_uri_parser_format format; /* rfc 7230 5.3 HTTP URI format */
+};
+
 #endif /* _HAPROXY_HTTP_T_H */
 
 /*
