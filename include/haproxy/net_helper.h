@@ -75,6 +75,22 @@ static inline void write_u64(void *p, const uint64_t u64)
 	u->u64 = u64;
 }
 
+/* Read a void* in native host order */
+static inline void *read_ptr(const void *p)
+{
+	const union {  void *ptr; } __attribute__((packed))*u = p;
+	return u->ptr;
+}
+
+/* Write a void* in native host order */
+static inline void write_ptr(void *p, const void *ptr)
+{
+	if (sizeof(ptr) == 4)
+		return write_u32(p, (uintptr_t)ptr);
+	else
+		return write_u64(p, (uintptr_t)ptr);
+}
+
 /* Read a possibly wrapping number of bytes <bytes> into destination <dst>. The
  * first segment is composed of <s1> bytes at p1. The remaining byte(s), if any,
  * are read from <p2>. <s1> may be zero and may also be larger than <bytes>. The
