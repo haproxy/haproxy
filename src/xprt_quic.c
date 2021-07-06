@@ -2764,7 +2764,7 @@ static struct task *process_timer(struct task *task, void *ctx, unsigned int sta
  */
 static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
                                     unsigned char *dcid, size_t dcid_len,
-                                    unsigned char *scid, size_t scid_len, int server)
+                                    unsigned char *scid, size_t scid_len, int server, void *owner)
 {
 	int i;
 	struct quic_conn *qc;
@@ -2781,6 +2781,8 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->cids = EB_ROOT;
 	/* QUIC Server (or listener). */
 	if (server) {
+		struct listener *l = owner;
+
 		qc->state = QUIC_HS_ST_SERVER_INITIAL;
 		/* Copy the initial DCID. */
 		qc->odcid.len = dcid_len;
@@ -2791,6 +2793,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 		if (scid_len)
 			memcpy(qc->dcid.data, scid, scid_len);
 		qc->dcid.len = scid_len;
+		qc->tx.qring_list = &l->rx.tx_qrings;
 	}
 	/* QUIC Client (outgoing connection to servers) */
 	else {
@@ -3292,7 +3295,7 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			pkt->odcid_len = dcid_len;
 			ipv4 = saddr->ss_family == AF_INET;
 			qc = qc_new_conn(pkt->version, ipv4, pkt->dcid.data, pkt->dcid.len,
-			                 pkt->scid.data, pkt->scid.len, 1);
+			                 pkt->scid.data, pkt->scid.len, 1, l);
 			if (qc == NULL)
 				goto err;
 
@@ -4353,7 +4356,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 
 		ipv4 = conn->dst->ss_family == AF_INET;
 		qc = qc_new_conn(QUIC_PROTOCOL_VERSION_DRAFT_28, ipv4,
-		                 dcid, sizeof dcid, NULL, 0, 0);
+		                 dcid, sizeof dcid, NULL, 0, 0, srv);
 		if (qc == NULL)
 			goto err;
 

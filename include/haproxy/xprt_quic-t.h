@@ -635,6 +635,8 @@ struct quic_conn {
 		int nb_pto_dgrams;
 		/* Transport parameters sent by the peer */
 		struct quic_transport_params params;
+		/* A pointer to a list of TX ring buffers */
+		struct mt_list *qring_list;
 	} tx;
 	struct {
 		/* Number of received bytes. */
