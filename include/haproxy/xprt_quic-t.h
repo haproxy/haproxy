@@ -29,6 +29,7 @@
 #include <sys/socket.h>
 #include <openssl/ssl.h>
 
+#include <haproxy/cbuf-t.h>
 #include <haproxy/list.h>
 
 #include <haproxy/quic_cc-t.h>
@@ -572,6 +573,12 @@ struct quic_path {
 	uint64_t in_flight;
 	/* Number of in flight ack-eliciting packets. */
 	uint64_t ifae_pkts;
+};
+
+/* QUIC ring buffer */
+struct qring {
+	struct cbuf *cbuf;
+	struct mt_list mt_list;
 };
 
 /* The number of buffers for outgoing packets (must be a power of two). */
