@@ -470,24 +470,22 @@ const char *http_get_reason(unsigned int status)
 
 /* Parse the uri and looks for the scheme. If not found, an empty ist is
  * returned. Otherwise, the ist pointing to the scheme is returned.
+ *
+ * <parser> must have been initialized via http_uri_parser_init. See the
+ * related http_uri_parser documentation for the specific API usage.
  */
-struct ist http_get_scheme(const struct ist uri)
+struct ist http_parse_scheme(struct http_uri_parser *parser)
 {
 	const char *ptr, *start, *end;
 
-	if (!uri.len)
+	if (parser->state >= URI_PARSER_STATE_SCHEME_DONE)
 		goto not_found;
 
-	ptr = uri.ptr;
-	start = ptr;
-	end = ptr + uri.len;
-
-	/* RFC7230, par. 2.7 :
-	 * Request-URI = "*" | absuri | abspath | authority
-	 */
-
-	if (*ptr == '*' || *ptr == '/')
+	if (parser->format != URI_PARSER_FORMAT_ABSURI_OR_AUTHORITY)
 		goto not_found;
+
+	ptr = start = istptr(parser->uri);
+	end = istend(parser->uri);
 
 	if (isalpha((unsigned char)*ptr)) {
 		/* this is a scheme as described by RFC3986, par. 3.1, or only
@@ -512,9 +510,12 @@ struct ist http_get_scheme(const struct ist uri)
 		goto not_found;
 	}
 
+	parser->uri = ist2(ptr, end - ptr);
+	parser->state = URI_PARSER_STATE_SCHEME_DONE;
 	return ist2(start, ptr - start);
 
  not_found:
+	parser->state = URI_PARSER_STATE_SCHEME_DONE;
 	return IST_NULL;
 }
 

@@ -1740,6 +1740,7 @@ int http_scheme_based_normalize(struct htx *htx)
 	struct htx_sl *sl;
 	struct ist uri, scheme, authority, host, port;
 	char *start, *end, *ptr;
+	struct http_uri_parser parser;
 
 	sl = http_get_stline(htx);
 
@@ -1748,7 +1749,8 @@ int http_scheme_based_normalize(struct htx *htx)
 
 	uri = htx_sl_req_uri(sl);
 
-	scheme = http_get_scheme(uri);
+	parser = http_uri_parser_init(uri);
+	scheme = http_parse_scheme(&parser);
 	/* if no scheme found, no normalization to proceed */
 	if (!isttest(scheme))
 		return 0;
