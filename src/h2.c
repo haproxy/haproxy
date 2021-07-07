@@ -31,6 +31,7 @@
 #include <haproxy/h2.h>
 #include <haproxy/http-hdr-t.h>
 #include <haproxy/http.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <import/ist.h>
 
@@ -552,6 +553,10 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	/* now send the end of headers marker */
 	if (!htx_add_endof(htx, HTX_BLK_EOH))
 		goto fail;
+
+	/* proceed to scheme-based normalization on target-URI */
+	if (fields & H2_PHDR_FND_SCHM)
+		http_scheme_based_normalize(htx);
 
 	ret = 1;
 	return ret;
