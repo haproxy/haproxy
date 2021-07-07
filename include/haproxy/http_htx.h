@@ -66,6 +66,8 @@ int http_check_http_reply(struct http_reply *reply, struct proxy*px, char **errm
 struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struct proxy *px,
 					 int default_status, char **errmsg);
 
+int http_scheme_based_normalize(struct htx *htx);
+
 struct buffer *http_load_errorfile(const char *file, char **errmsg);
 struct buffer *http_load_errormsg(const char *key, const struct ist msg, char **errmsg);
 struct buffer *http_parse_errorfile(int status, const char *file, char **errmsg);

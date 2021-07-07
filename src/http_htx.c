@@ -11,6 +11,7 @@
  */
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <ctype.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -1716,6 +1717,95 @@ struct http_reply *http_parse_http_reply(const char **args, int *orig_arg, struc
 		close(fd);
 	release_http_reply(reply);
 	return NULL;
+}
+
+static int uri_is_default_port(const struct ist scheme, const struct ist port)
+{
+	return (isteq(port, ist("443")) && isteqi(scheme, ist("https://"))) ||
+	        (isteq(port, ist("80")) && isteqi(scheme, ist("http://")));
+}
+
+/* Apply schemed-based normalization as described on rfc3986 on section 6.3.2.
+ * Returns 0 if no error has been found else non-zero.
+ *
+ * The normalization is processed on the target-uri at the condition that it is
+ * in absolute-form. In the case where the target-uri was normalized, every
+ * host headers values found are also replaced by the normalized hostname. This
+ * assumes that the target-uri and host headers were properly identify as
+ * similar before calling this function.
+ */
+int http_scheme_based_normalize(struct htx *htx)
+{
+	struct http_hdr_ctx ctx;
+	struct htx_sl *sl;
+	struct ist uri, scheme, authority, host, port;
+	char *start, *end, *ptr;
+
+	sl = http_get_stline(htx);
+
+	if (!sl || !(sl->flags & (HTX_SL_F_HAS_SCHM|HTX_SL_F_HAS_AUTHORITY)))
+		return 0;
+
+	uri = htx_sl_req_uri(sl);
+
+	scheme = http_get_scheme(uri);
+	/* if no scheme found, no normalization to proceed */
+	if (!isttest(scheme))
+		return 0;
+
+	/* Extract the port if present in authority. To properly support ipv6
+	 * hostnames, do a reverse search on the last ':' separator as long as
+	 * digits are found.
+	 */
+	authority = http_get_authority(uri, 0);
+	start = istptr(authority);
+	end = istend(authority);
+	for (ptr = end; ptr > start && isdigit(*--ptr); )
+		;
+
+	/* if no port found, no normalization to proceed */
+	if (likely(*ptr != ':'))
+		return 0;
+
+	/* split host/port on the ':' separator found */
+	host = ist2(start, ptr - start);
+	port = istnext(ist2(ptr, end - ptr));
+
+	if (istlen(port) && uri_is_default_port(scheme, port)) {
+		/* reconstruct the uri with removal of the port */
+		struct buffer *temp = get_trash_chunk();
+		struct ist meth, vsn, path;
+
+		/* meth */
+		chunk_memcat(temp, HTX_SL_REQ_MPTR(sl), HTX_SL_REQ_MLEN(sl));
+		meth = ist2(temp->area, HTX_SL_REQ_MLEN(sl));
+
+		/* vsn */
+		chunk_memcat(temp, HTX_SL_REQ_VPTR(sl), HTX_SL_REQ_VLEN(sl));
+		vsn = ist2(temp->area + meth.len, HTX_SL_REQ_VLEN(sl));
+
+		/* reconstruct uri without port */
+		path = http_get_path(uri);
+		chunk_istcat(temp, scheme);
+		chunk_istcat(temp, host);
+		chunk_istcat(temp, path);
+		uri = ist2(temp->area + meth.len + vsn.len,
+		           scheme.len + host.len + path.len);
+
+		http_replace_stline(htx, meth, uri, vsn);
+
+		/* replace every host headers values by the normalized host */
+		ctx.blk = NULL;
+		while (http_find_header(htx, ist("host"), &ctx, 0)) {
+			if (!http_replace_header_value(htx, &ctx, host))
+				goto fail;
+		}
+	}
+
+	return 0;
+
+ fail:
+	return 1;
 }
 
 /* Parses the "errorloc[302|303]" proxy keyword */
