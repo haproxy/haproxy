@@ -16,6 +16,7 @@
 #include <haproxy/h1.h>
 #include <haproxy/h1_htx.h>
 #include <haproxy/http.h>
+#include <haproxy/http_htx.h>
 #include <haproxy/htx.h>
 #include <haproxy/tools.h>
 
@@ -191,6 +192,10 @@ static int h1_postparse_req_hdrs(struct h1m *h1m, union h1_sl *h1sl, struct htx 
 		sl->flags |= (HTX_SL_F_HAS_AUTHORITY|HTX_SL_F_HAS_SCHM);
 		if (uri.len > 4 && (uri.ptr[0] | 0x20) == 'h')
 			sl->flags |= ((uri.ptr[4] == ':') ? HTX_SL_F_SCHM_HTTP : HTX_SL_F_SCHM_HTTPS);
+
+		/* absolute-form target URI present, proceed to scheme-based
+		 * normalization */
+		http_scheme_based_normalize(htx);
 	}
 
 	/* If body length cannot be determined, set htx->extra to
