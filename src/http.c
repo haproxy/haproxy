@@ -468,6 +468,56 @@ const char *http_get_reason(unsigned int status)
 	}
 }
 
+/* Parse the uri and looks for the scheme. If not found, an empty ist is
+ * returned. Otherwise, the ist pointing to the scheme is returned.
+ */
+struct ist http_get_scheme(const struct ist uri)
+{
+	const char *ptr, *start, *end;
+
+	if (!uri.len)
+		goto not_found;
+
+	ptr = uri.ptr;
+	start = ptr;
+	end = ptr + uri.len;
+
+	/* RFC7230, par. 2.7 :
+	 * Request-URI = "*" | absuri | abspath | authority
+	 */
+
+	if (*ptr == '*' || *ptr == '/')
+		goto not_found;
+
+	if (isalpha((unsigned char)*ptr)) {
+		/* this is a scheme as described by RFC3986, par. 3.1, or only
+		 * an authority (in case of a CONNECT method).
+		 */
+		ptr++;
+		/* retrieve the scheme up to the suffix '://'. If the suffix is
+		 * not found, this means there is no scheme and it is an
+		 * authority-only uri.
+		 */
+		while (ptr < end &&
+		       (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.'))
+			ptr++;
+		if (ptr == end || *ptr++ != ':')
+			goto not_found;
+		if (ptr == end || *ptr++ != '/')
+			goto not_found;
+		if (ptr == end || *ptr++ != '/')
+			goto not_found;
+	}
+	else {
+		goto not_found;
+	}
+
+	return ist2(start, ptr - start);
+
+ not_found:
+	return IST_NULL;
+}
+
 /* Parse the uri and looks for the authority, between the scheme and the
  * path. if no_userinfo is not zero, the part before the '@' (including it) is
  * skipped. If not found, an empty ist is returned. Otherwise, the ist pointing
