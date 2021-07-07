@@ -1,0 +1,125 @@
+varnishtest "scheme based normalization (rfc3982 6.3.2)"
+#REQUIRE_VERSION=2.5
+
+feature ignore_unknown_macro
+
+syslog S1 -level info {
+	recv
+	expect ~ "^.* uri: GET http://hostname/ HTTP/2.0; host: {hostname}$"
+
+	recv
+	expect ~ "^.* uri: GET http://hostname:8080/ HTTP/2.0; host: {hostname:8080}$"
+
+	recv
+	expect ~ "^.* uri: GET https://hostname/ HTTP/2.0; host: {hostname}$"
+
+	recv
+	expect ~ "^.* uri: GET https://hostname:80/ HTTP/2.0; host: {hostname:80}$"
+} -start
+
+haproxy h1 -conf {
+	defaults
+		mode http
+		timeout connect 5s
+		timeout client  5s
+		timeout server  5s
+
+	frontend fe
+		bind "fd@${fe}" proto h2
+
+		http-request capture req.hdr(host) len 512
+		log-format "uri: %r; host: %hr"
+		log ${S1_addr}:${S1_port} len 2048 local0 debug err
+
+		http-request return status 200
+} -start
+
+# default port 80 with http scheme => should be normalized
+client c1 -connect ${h1_fe_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -req "GET" \
+		  -scheme "http" \
+		  -url "/" \
+		  -hdr ":authority" "hostname:80"
+		rxhdrs
+		expect resp.status == 200
+	} -run
+} -run
+
+# port 8080 with http scheme => no normalization
+client c2 -connect ${h1_fe_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -req "GET" \
+		  -scheme "http" \
+		  -url "/" \
+		  -hdr ":authority" "hostname:8080"
+		rxhdrs
+		expect resp.status == 200
+	} -run
+} -run
+
+# default port 443 with https scheme => should be normalized
+client c3 -connect ${h1_fe_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -req "GET" \
+		  -scheme "https" \
+		  -url "/" \
+		  -hdr ":authority" "hostname:443"
+		rxhdrs
+		expect resp.status == 200
+	} -run
+} -run
+
+# port 80 with https scheme => no normalization
+client c4 -connect ${h1_fe_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -req "GET" \
+		  -scheme "https" \
+		  -url "/" \
+		  -hdr ":authority" "hostname:80"
+		rxhdrs
+		expect resp.status == 200
+	} -run
+} -run
+
+syslog S1 -wait
