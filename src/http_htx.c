@@ -1760,7 +1760,7 @@ int http_scheme_based_normalize(struct htx *htx)
 	authority = http_get_authority(uri, 0);
 	start = istptr(authority);
 	end = istend(authority);
-	for (ptr = end; ptr > start && isdigit(*--ptr); )
+	for (ptr = end; ptr > start && isdigit((unsigned char)*--ptr); )
 		;
 
 	/* if no port found, no normalization to proceed */
