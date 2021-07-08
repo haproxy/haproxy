@@ -623,7 +623,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SF_ADDR_SET)) {
 		struct htx_sl *sl;
 		struct ist uri, path;
-		struct http_uri_parser parser = http_uri_parser_init(uri);
+		struct http_uri_parser parser;
 
 		if (!sockaddr_alloc(&s->target_addr, NULL, 0)) {
 			if (!(s->flags & SF_ERR_MASK))
@@ -632,6 +632,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		}
 		sl = http_get_stline(htx);
 		uri = htx_sl_req_uri(sl);
+		parser = http_uri_parser_init(uri);
 		path = http_parse_path(&parser);
 
 		if (url2sa(uri.ptr, uri.len - path.len, s->target_addr, NULL) == -1)
