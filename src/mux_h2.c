@@ -1610,9 +1610,10 @@ static int h2c_send_settings(struct h2c *h2c)
 		chunk_memcat(&buf, "\x00\x02\x00\x00\x00\x00", 6);
 	}
 
-	/* rfc 8441 #3 SETTINGS_ENABLE_CONNECT_PROTOCOL=1
-	 * sent automatically */
-	chunk_memcat(&buf, "\x00\x08\x00\x00\x00\x01", 6);
+	/* rfc 8441 #3 SETTINGS_ENABLE_CONNECT_PROTOCOL=1,
+	 * sent automatically unless disabled in the global config */
+	if (!(global.tune.options & GTUNE_DISABLE_H2_WEBSOCKET))
+		chunk_memcat(&buf, "\x00\x08\x00\x00\x00\x01", 6);
 
 	if (h2_settings_header_table_size != 4096) {
 		char str[6] = "\x00\x01"; /* header_table_size */

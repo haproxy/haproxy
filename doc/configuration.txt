@@ -982,6 +982,7 @@ The following keywords are supported in the "global" section :
    - insecure-fork-wanted
    - insecure-setuid-wanted
    - issuers-chain-path
+   - h2-workaround-bogus-websocket-clients
    - localpeer
    - log
    - log-tag
@@ -1403,6 +1404,15 @@ issuers-chain-path <dir>
   chain if a file with IntermediateCA2+IntermediateCA1 is present in
   "issuers-chain-path" directory. All other certificates with the same issuer
   will share the chain in memory.
+
+h2-workaround-bogus-websocket-clients
+  This disables the announcement of the support for h2 websockets to clients.
+  This can be use to overcome clients which have issues when implementing the
+  relatively fresh RFC8441, such as Firefox 88. To allow clients to
+  automatically downgrade to http/1.1 for the websocket tunnel, specify h2
+  support on the bind line using "alpn" without an explicit "proto" keyword. If
+  this statement was previously activated, this can be disabled by prefixing
+  the keyword with "no'.
 
 localpeer <name>
   Sets the local instance's peer name. It will be ignored if the "-L"

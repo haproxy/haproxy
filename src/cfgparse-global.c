@@ -128,6 +128,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		else
 			global.tune.options |=  GTUNE_SET_DUMPABLE;
 	}
+	else if (strcmp(args[0], "h2-workaround-bogus-websocket-clients") == 0) { /* "no h2-workaround-bogus-websocket-clients" or "h2-workaround-bogus-websocket-clients" */
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
+		if (kwm == KWM_NO)
+			global.tune.options &= ~GTUNE_DISABLE_H2_WEBSOCKET;
+		else
+			global.tune.options |=  GTUNE_DISABLE_H2_WEBSOCKET;
+	}
 	else if (strcmp(args[0], "insecure-fork-wanted") == 0) { /* "no insecure-fork-wanted" or "insecure-fork-wanted" */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;

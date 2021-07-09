@@ -70,6 +70,7 @@
 #define GTUNE_FD_ET              (1<<18)
 #define GTUNE_SCHED_LOW_LATENCY  (1<<19)
 #define GTUNE_IDLE_POOL_SHARED   (1<<20)
+#define GTUNE_DISABLE_H2_WEBSOCKET (1<<21)
 
 /* SSL server verify mode */
 enum {
