@@ -644,7 +644,7 @@ Supported types and their representation are:
      32bits signed integer     |  2  |  INT32  : <2><VALUE:varint>
      32bits unsigned integer   |  3  |  UINT32 : <3><VALUE:varint>
      64bits signed integer     |  4  |  INT64  : <4><VALUE:varint>
-     32bits unsigned integer   |  5  |  UNIT64 : <5><VALUE:varint>
+     64bits unsigned integer   |  5  |  UINT64 : <5><VALUE:varint>
      IPV4                      |  6  |  IPV4   : <6><STRUCT IN_ADDR:4 bytes>
      IPV6                      |  7  |  IPV6   : <7><STRUCT IN_ADDR6:16 bytes>
      String                    |  8  |  STRING : <8><LENGTH:varint><BYTES>
