@@ -1145,7 +1145,7 @@ smp_fetch_ssl_fc_cl_bin(const struct arg *args, struct sample *smp, const char *
 
 	smp->flags = SMP_F_VOL_TEST | SMP_F_CONST;
 	smp->data.type = SMP_T_BIN;
-	smp->data.u.str.area = capture->ciphersuite;
+	smp->data.u.str.area = capture->data + capture->ciphersuite_offset;
 	smp->data.u.str.data = capture->ciphersuite_len;
 	return 1;
 }

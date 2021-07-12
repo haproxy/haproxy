@@ -1682,9 +1682,18 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
                                        SSL *ssl)
 {
 	struct ssl_capture *capture;
-	unsigned char *msg;
-	unsigned char *end;
-	size_t rec_len;
+	uchar *msg;
+	uchar *end;
+	uchar *extensions_end;
+	uchar *ec_start = NULL;
+	uchar *ec_formats_start = NULL;
+	uchar *list_end;
+	ushort protocol_version;
+	ushort extension_id;
+	ushort ec_len = 0;
+	uchar ec_formats_len = 0;
+	int offset = 0;
+	int rec_len;
 
 	/* This function is called for "from client" and "to server"
 	 * connections. The combination of write_p == 0 and content_type == 22
@@ -1746,11 +1755,18 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 	if (end < msg)
 		return;
 
-	/* Expect 2 bytes for protocol version (1 byte for major and 1 byte
-	 * for minor, the random, composed by 4 bytes for the unix time and
-	 * 28 bytes for unix payload. So we jump 1 + 1 + 4 + 28.
+	/* Expect 2 bytes for protocol version
+	 * (1 byte for major and 1 byte for minor)
 	 */
-	msg += 1 + 1 + 4 + 28;
+	if (msg + 2 > end)
+		return;
+	protocol_version = (msg[0] << 8) + msg[1];
+	msg += 2;
+
+	/* Expect the random, composed by 4 bytes for the unix time and
+	 * 28 bytes for unix payload. So we jump 4 + 28.
+	 */
+	msg += 4 + 28;
 	if (msg > end)
 		return;
 
@@ -1772,17 +1788,116 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 	if (msg + rec_len > end || msg + rec_len < msg)
 		return;
 
-	capture = pool_alloc(pool_head_ssl_capture);
+	capture = pool_zalloc(pool_head_ssl_capture);
 	if (!capture)
 		return;
 	/* Compute the xxh64 of the ciphersuite. */
 	capture->xxh64 = XXH64(msg, rec_len, 0);
 
 	/* Capture the ciphersuite. */
-	capture->ciphersuite_len = (global_ssl.capture_cipherlist < rec_len) ?
-		global_ssl.capture_cipherlist : rec_len;
-	memcpy(capture->ciphersuite, msg, capture->ciphersuite_len);
+	capture->ciphersuite_len = MIN(global_ssl.capture_cipherlist, rec_len);
+	capture->ciphersuite_offset = 0;
+	memcpy(capture->data, msg, capture->ciphersuite_len);
+	msg += rec_len;
+	offset += capture->ciphersuite_len;
 
+	/* Initialize other data */
+	capture->protocol_version = protocol_version;
+
+	/* Next, compression methods:
+	 * if present, we have to jump by length + 1 for the size information
+	 * if not present, we have to jump by 1 only
+	 */
+	if (msg[0] > 0)
+		msg += msg[0];
+	msg += 1;
+	if (msg > end)
+		goto store_capture;
+
+	/* We reached extensions */
+	if (msg + 2 > end)
+		goto store_capture;
+	rec_len = (msg[0] << 8) + msg[1];
+	msg += 2;
+	if (msg + rec_len > end || msg + rec_len < msg)
+		goto store_capture;
+	extensions_end = msg + rec_len;
+	capture->extensions_offset = offset;
+
+	/* Parse each extension */
+	while (msg + 4 < extensions_end) {
+		/* Add 2 bytes of extension_id */
+		if (global_ssl.capture_cipherlist >= offset + 2) {
+			capture->data[offset++] = msg[0];
+			capture->data[offset++] = msg[1];
+			capture->extensions_len += 2;
+		}
+		else
+			break;
+		extension_id = (msg[0] << 8) + msg[1];
+		/* Length of the extension */
+		rec_len = (msg[2] << 8) + msg[3];
+
+		/* Expect 2 bytes extension id + 2 bytes extension size */
+		msg += 2 + 2;
+		if (msg + rec_len > extensions_end || msg + rec_len < msg)
+			goto store_capture;
+		/* TLS Extensions
+		 * https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml */
+		if (extension_id == 0x000a) {
+			/* Elliptic Curves:
+			 * https://www.rfc-editor.org/rfc/rfc8422.html
+			 * https://www.rfc-editor.org/rfc/rfc7919.html */
+			list_end = msg + rec_len;
+			if (msg + 2 > list_end)
+				goto store_capture;
+			rec_len = (msg[0] << 8) + msg[1];
+			msg += 2;
+
+			if (msg + rec_len > list_end || msg + rec_len < msg)
+				goto store_capture;
+			/* Store location/size of the list */
+			ec_start = msg;
+			ec_len = rec_len;
+		}
+		else if (extension_id == 0x000b) {
+			/* Elliptic Curves Point Formats:
+			 * https://www.rfc-editor.org/rfc/rfc8422.html */
+			list_end = msg + rec_len;
+			if (msg + 1 > list_end)
+				goto store_capture;
+			rec_len = msg[0];
+			msg += 1;
+
+			if (msg + rec_len > list_end || msg + rec_len < msg)
+				goto store_capture;
+			/* Store location/size of the list */
+			ec_formats_start = msg;
+			ec_formats_len = rec_len;
+		}
+		msg += rec_len;
+	}
+
+	if (ec_start) {
+		rec_len = ec_len;
+		if (offset + rec_len > global_ssl.capture_cipherlist)
+			 rec_len = global_ssl.capture_cipherlist - offset;
+		memcpy(capture->data + offset, ec_start, rec_len);
+		capture->ec_offset = offset;
+		capture->ec_len = rec_len;
+		offset += rec_len;
+	}
+	if (ec_formats_start) {
+		rec_len = ec_formats_len;
+		if (offset + rec_len > global_ssl.capture_cipherlist)
+			rec_len = global_ssl.capture_cipherlist - offset;
+		memcpy(capture->data + offset, ec_formats_start, rec_len);
+		capture->ec_formats_offset = offset;
+		capture->ec_formats_len = rec_len;
+		offset += rec_len;
+	}
+
+ store_capture:
 	SSL_set_ex_data(ssl, ssl_capture_ptr_index, capture);
 }
 

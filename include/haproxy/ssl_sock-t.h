@@ -201,9 +201,17 @@ struct ssl_sock_msg_callback {
 
 /* This memory pool is used for capturing clienthello parameters. */
 struct ssl_capture {
-	unsigned long long int xxh64;
-	unsigned char ciphersuite_len;
-	char ciphersuite[VAR_ARRAY];
+	ullong xxh64;
+	ushort protocol_version;
+	ushort ciphersuite_len;
+	ushort extensions_len;
+	ushort ec_len;
+	uint ciphersuite_offset;
+	uint extensions_offset;
+	uint ec_offset;
+	uint ec_formats_offset;
+	uchar ec_formats_len;
+	char data[VAR_ARRAY];
 };
 
 #ifdef HAVE_SSL_KEYLOG

@@ -2806,9 +2806,10 @@ tune.ssl.ssl-ctx-cache-size <number>
   1000 entries.
 
 tune.ssl.capture-cipherlist-size <number>
-  Sets the maximum size of the buffer used for capturing client-hello cipher
-  list. If the value is 0 (default value) the capture is disabled, otherwise
-  a buffer is allocated for each SSL/TLS connection.
+  Sets the maximum size of the buffer used for capturing client hello cipher
+  list, extensions list, elliptic curves list and elliptic curve point
+  formats. If the value is 0 (default value) the capture is disabled,
+  otherwise a buffer is allocated for each SSL/TLS connection.
 
 tune.vars.global-max-size <size>
 tune.vars.proc-max-size <size>
