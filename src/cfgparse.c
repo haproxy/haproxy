@@ -3445,72 +3445,10 @@ out_uri_auth_compat:
 				ha_warning("server has tfo activated, the backend should be configured with at least 'conn-failure', 'empty-response' and 'response-timeout' or we wouldn't be able to retry the connection on failure.\n");
 
 			if (newsrv->trackit) {
-				struct proxy *px;
-				struct server *srv, *loop;
-				char *pname, *sname;
-
-				pname = newsrv->trackit;
-				sname = strrchr(pname, '/');
-
-				if (sname)
-					*sname++ = '\0';
-				else {
-					sname = pname;
-					pname = NULL;
-				}
-
-				if (pname) {
-					px = proxy_be_by_name(pname);
-					if (!px) {
-						ha_alert("unable to find required proxy '%s' for tracking.\n",
-						         pname);
-						cfgerr++;
-						goto next_srv;
-					}
-				} else
-					px = curproxy;
-
-				srv = findserver(px, sname);
-				if (!srv) {
-					ha_alert("unable to find required server '%s' for tracking.\n",
-						 sname);
-					cfgerr++;
+				if (srv_apply_track(newsrv, curproxy)) {
+					++cfgerr;
 					goto next_srv;
 				}
-
-				if (!srv->do_check && !srv->do_agent && !srv->track && !srv->trackit) {
-					ha_alert("unable to use %s/%s for "
-						 "tracking as it does not have any check nor agent enabled.\n",
-						 px->id, srv->id);
-					cfgerr++;
-					goto next_srv;
-				}
-
-				for (loop = srv->track; loop && loop != newsrv; loop = loop->track);
-
-				if (newsrv == srv || loop) {
-					ha_alert("unable to track %s/%s as it "
-						 "belongs to a tracking chain looping back to %s/%s.\n",
-						 px->id, srv->id, px->id,
-						 newsrv == srv ? srv->id : loop->id);
-					cfgerr++;
-					goto next_srv;
-				}
-
-				if (curproxy != px &&
-					(curproxy->options & PR_O_DISABLE404) != (px->options & PR_O_DISABLE404)) {
-					ha_alert("unable to use %s/%s for"
-						 "tracking: disable-on-404 option inconsistency.\n",
-						 px->id, srv->id);
-					cfgerr++;
-					goto next_srv;
-				}
-
-				newsrv->track = srv;
-				newsrv->tracknext = srv->trackers;
-				srv->trackers = newsrv;
-
-				ha_free(&newsrv->trackit);
 			}
 
 		next_srv:

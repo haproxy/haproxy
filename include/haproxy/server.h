@@ -75,6 +75,8 @@ struct server *snr_check_ip_callback(struct server *srv, void *ip, unsigned char
 struct task *srv_cleanup_idle_conns(struct task *task, void *ctx, unsigned int state);
 struct task *srv_cleanup_toremove_conns(struct task *task, void *context, unsigned int state);
 
+int srv_apply_track(struct server *srv, struct proxy *curproxy);
+
 /*
  * Registers the server keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.

@@ -4715,6 +4715,91 @@ static struct cli_kw_list cli_kws = {{ },{
 
 INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
 
+/* Prepare a server <srv> to track check status of another one. <srv>.<trackit>
+ * field is used to retrieve the identifier of the tracked server, either with
+ * the format "proxy/server" or just "server". <curproxy> must point to the
+ * backend owning <srv>; if no proxy is specified in <trackit>, it will be used
+ * to find the tracked server.
+ *
+ * Returns 0 if the server track has been activated else non-zero.
+ *
+ * Not thread-safe.
+ */
+int srv_apply_track(struct server *srv, struct proxy *curproxy)
+{
+	struct proxy *px;
+	struct server *strack, *loop;
+	char *pname, *sname;
+
+	if (!srv->trackit)
+		return 1;
+
+	pname = srv->trackit;
+	sname = strrchr(pname, '/');
+
+	if (sname) {
+		*sname++ = '\0';
+	}
+	else {
+		sname = pname;
+		pname = NULL;
+	}
+
+	if (pname) {
+		px = proxy_be_by_name(pname);
+		if (!px) {
+			ha_alert("unable to find required proxy '%s' for tracking.\n",
+			         pname);
+			return 1;
+		}
+	}
+	else {
+		px = curproxy;
+	}
+
+	strack = findserver(px, sname);
+	if (!strack) {
+		ha_alert("unable to find required server '%s' for tracking.\n",
+		         sname);
+		return 1;
+	}
+
+	if (!strack->do_check && !strack->do_agent && !strack->track &&
+	    !strack->trackit) {
+		ha_alert("unable to use %s/%s for "
+		         "tracking as it does not have any check nor agent enabled.\n",
+		         px->id, strack->id);
+		return 1;
+	}
+
+	for (loop = strack->track; loop && loop != srv; loop = loop->track)
+		;
+
+	if (srv == strack || loop) {
+		ha_alert("unable to track %s/%s as it "
+		         "belongs to a tracking chain looping back to %s/%s.\n",
+		         px->id, strack->id, px->id,
+		         srv == strack ? strack->id : loop->id);
+		return 1;
+	}
+
+	if (curproxy != px &&
+	    (curproxy->options & PR_O_DISABLE404) != (px->options & PR_O_DISABLE404)) {
+		ha_alert("unable to use %s/%s for"
+		         "tracking: disable-on-404 option inconsistency.\n",
+		         px->id, strack->id);
+		return 1;
+	}
+
+	srv->track = strack;
+	srv->tracknext = strack->trackers;
+	strack->trackers = srv;
+
+	ha_free(&srv->trackit);
+
+	return 0;
+}
+
 /*
  * This function applies server's status changes, it is
  * is designed to be called asynchronously.
