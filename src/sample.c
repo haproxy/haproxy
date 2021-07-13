@@ -2059,6 +2059,70 @@ err:
 
 #endif /* USE_OPENSSL */
 
+static int sample_conv_be2dec_check(struct arg *args, struct sample_conv *conv,
+                                    const char *file, int line, char **err)
+{
+	if (args[1].data.sint <= 0 || args[1].data.sint > sizeof(unsigned long long)) {
+		memprintf(err, "chunk_size out of [1..%ld] range (%lld)", sizeof(unsigned long long), args[1].data.sint);
+		return 0;
+	}
+
+	if (args[2].data.sint != 0 && args[2].data.sint != 1) {
+		memprintf(err, "Unsupported truncate value (%lld)", args[2].data.sint);
+		return 0;
+	}
+
+	return 1;
+}
+
+/* Converts big-endian binary input sample to a string containing an unsigned
+ * integer number per <chunk_size> input bytes separated with <separator>.
+ * Optional <truncate> flag indicates if input is truncated at <chunk_size>
+ * boundaries.
+ * Arguments: separator (string), chunk_size (integer), truncate (0,1)
+ */
+static int sample_conv_be2dec(const struct arg *args, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	const int last = args[2].data.sint ? smp->data.u.str.data - args[1].data.sint + 1 : smp->data.u.str.data;
+	int max_size = trash->size - 2;
+	int i;
+	int start;
+	int ptr = 0;
+	unsigned long long number;
+	char *pos;
+
+	trash->data = 0;
+
+	while (ptr < last && trash->data <= max_size) {
+		start = trash->data;
+		if (ptr) {
+			/* Add separator */
+			memcpy(trash->area + trash->data, args[0].data.str.area, args[0].data.str.data);
+			trash->data += args[0].data.str.data;
+		}
+		else
+			max_size -= args[0].data.str.data;
+
+		/* Add integer */
+		for (number = 0, i = 0; i < args[1].data.sint && ptr < smp->data.u.str.data; i++)
+			number = (number << 8) + (unsigned char)smp->data.u.str.area[ptr++];
+
+		pos = ulltoa(number, trash->area + trash->data, trash->size - trash->data);
+		if (pos)
+			trash->data = pos - trash->area;
+		else {
+			trash->data = start;
+			break;
+		}
+	}
+
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_STR;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct buffer *trash = get_trash_chunk();
@@ -4253,6 +4317,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "upper",   sample_conv_str2upper,    0,                     NULL,                     SMP_T_STR,  SMP_T_STR  },
 	{ "lower",   sample_conv_str2lower,    0,                     NULL,                     SMP_T_STR,  SMP_T_STR  },
 	{ "length",  sample_conv_length,       0,                     NULL,                     SMP_T_STR,  SMP_T_SINT },
+	{ "be2dec",  sample_conv_be2dec,       ARG3(1,STR,SINT,SINT), sample_conv_be2dec_check, SMP_T_BIN,  SMP_T_STR  },
 	{ "hex",     sample_conv_bin2hex,      0,                     NULL,                     SMP_T_BIN,  SMP_T_STR  },
 	{ "hex2i",   sample_conv_hex2int,      0,                     NULL,                     SMP_T_STR,  SMP_T_SINT },
 	{ "ipmask",  sample_conv_ipmask,       ARG2(1,MSK4,MSK6),     NULL,                     SMP_T_ADDR, SMP_T_IPV4 },

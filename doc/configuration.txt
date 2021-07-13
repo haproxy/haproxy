@@ -16092,6 +16092,19 @@ base64
   an SSL ID can be copied in a header). For base64url("URL and Filename
   Safe Alphabet" (RFC 4648)) variant see "ub64enc".
 
+be2dec(<separator>,<chunk_size>,[<truncate>])
+  Converts big-endian binary input sample to a string containing an unsigned
+  integer number per <chunk_size> input bytes. <separator> is put every
+  <chunk_size> binary input bytes if specified. <truncate> flag indicates
+  whatever binary input is truncated at <chunk_size> boundaries. <chunk_size>
+  maximum value is limited by the size of long long int (8 bytes).
+
+  Example:
+      bin(01020304050607),be2dec(:,2)   # 258:772:1286:7
+      bin(01020304050607),be2dec(-,2,1) # 258-772-1286
+      bin(01020304050607),be2dec(,2,1)  # 2587721286
+      bin(7f000001),be2dec(.,1)         # 127.0.0.1
+
 bool
   Returns a boolean TRUE if the input value of type signed integer is
   non-null, otherwise returns FALSE. Used in conjunction with and(), it can be

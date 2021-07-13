@@ -1,0 +1,56 @@
+varnishtest "be2dec converter Test"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 3 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    frontend fe
+	bind "fd@${fe}"
+
+	#### requests
+	http-request  set-var(txn.input) req.hdr(input)
+
+	http-response set-header be2dec-1   "%[var(txn.input),be2dec(:,1)]"
+	http-response set-header be2dec-2   "%[var(txn.input),be2dec(-,3)]"
+	http-response set-header be2dec-3   "%[var(txn.input),be2dec(::,3,1)]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/" \
+	  -hdr "input:"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.be2dec-1 == ""
+	expect resp.http.be2dec-2 == ""
+	expect resp.http.be2dec-3 == ""
+	txreq -url "/" \
+	  -hdr "input: 0123456789"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.be2dec-1 == "48:49:50:51:52:53:54:55:56:57"
+	expect resp.http.be2dec-2 == "3158322-3355701-3553080-57"
+	expect resp.http.be2dec-3 == "3158322::3355701::3553080"
+	txreq -url "/" \
+	  -hdr "input: abcdefghijklmnopqrstuvwxyz"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.be2dec-1 == "97:98:99:100:101:102:103:104:105:106:107:108:109:110:111:112:113:114:115:116:117:118:119:120:121:122"
+	expect resp.http.be2dec-2 == "6382179-6579558-6776937-6974316-7171695-7369074-7566453-7763832-31098"
+	expect resp.http.be2dec-3 == "6382179::6579558::6776937::6974316::7171695::7369074::7566453::7763832"
+} -run
