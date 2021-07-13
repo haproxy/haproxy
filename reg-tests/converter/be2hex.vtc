@@ -1,0 +1,60 @@
+varnishtest "be2hex converter Test"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	txresp
+} -repeat 3 -start
+
+haproxy h1 -conf {
+    defaults
+	mode http
+	timeout connect 1s
+	timeout client  1s
+	timeout server  1s
+
+    frontend fe
+	bind "fd@${fe}"
+
+	#### requests
+	http-request  set-var(txn.input) req.hdr(input)
+
+	http-response set-header be2hex     "%[var(txn.input),be2hex,lower]"
+	http-response set-header be2hex-1   "%[var(txn.input),be2hex(:,1),lower]"
+	http-response set-header be2hex-2   "%[var(txn.input),be2hex(--,3),lower]"
+	http-response set-header be2hex-3   "%[var(txn.input),be2hex(.,3,1),lower]"
+
+	default_backend be
+
+    backend be
+	server s1 ${s1_addr}:${s1_port}
+} -start
+
+client c1 -connect ${h1_fe_sock} {
+	txreq -url "/" \
+	  -hdr "input:"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.be2hex   == ""
+	expect resp.http.be2hex-1 == ""
+	expect resp.http.be2hex-2 == ""
+	expect resp.http.be2hex-3 == ""
+	txreq -url "/" \
+	  -hdr "input: 0123456789"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.be2hex   == "30313233343536373839"
+	expect resp.http.be2hex-1 == "30:31:32:33:34:35:36:37:38:39"
+	expect resp.http.be2hex-2 == "303132--333435--363738--39"
+	expect resp.http.be2hex-3 == "303132.333435.363738"
+	txreq -url "/" \
+	  -hdr "input: abcdefghijklmnopqrstuvwxyz"
+	rxresp
+	expect resp.status == 200
+	expect resp.http.be2hex   == "6162636465666768696a6b6c6d6e6f707172737475767778797a"
+	expect resp.http.be2hex-1 == "61:62:63:64:65:66:67:68:69:6a:6b:6c:6d:6e:6f:70:71:72:73:74:75:76:77:78:79:7a"
+	expect resp.http.be2hex-2 == "616263--646566--676869--6a6b6c--6d6e6f--707172--737475--767778--797a"
+	expect resp.http.be2hex-3 == "616263.646566.676869.6a6b6c.6d6e6f.707172.737475.767778"
+} -run

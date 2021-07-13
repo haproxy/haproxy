@@ -2123,6 +2123,66 @@ static int sample_conv_be2dec(const struct arg *args, struct sample *smp, void *
 	return 1;
 }
 
+static int sample_conv_be2hex_check(struct arg *args, struct sample_conv *conv,
+                                    const char *file, int line, char **err)
+{
+	if (args[1].data.sint <= 0 && (args[0].data.str.data > 0 || args[2].data.sint != 0)) {
+		memprintf(err, "chunk_size needs to be positive (%lld)", args[1].data.sint);
+		return 0;
+	}
+
+	if (args[2].data.sint != 0 && args[2].data.sint != 1) {
+		memprintf(err, "Unsupported truncate value (%lld)", args[2].data.sint);
+		return 0;
+	}
+
+	return 1;
+}
+
+/* Converts big-endian binary input sample to a hex string containing two hex
+ * digits per input byte. <separator> is put every <chunk_size> binary input
+ * bytes if specified. Optional <truncate> flag indicates if input is truncated
+ * at <chunk_size> boundaries.
+ * Arguments: separator (string), chunk_size (integer), truncate (0,1)
+ */
+static int sample_conv_be2hex(const struct arg *args, struct sample *smp, void *private)
+{
+	struct buffer *trash = get_trash_chunk();
+	int chunk_size = args[1].data.sint;
+	const int last = args[2].data.sint ? smp->data.u.str.data - chunk_size + 1 : smp->data.u.str.data;
+	int i;
+	int max_size;
+	int ptr = 0;
+	unsigned char c;
+
+	trash->data = 0;
+	if (args[0].data.str.data == 0 && args[2].data.sint == 0)
+		chunk_size = smp->data.u.str.data;
+	max_size = trash->size - 2 * chunk_size;
+
+	while (ptr < last && trash->data <= max_size) {
+		if (ptr) {
+			/* Add separator */
+			memcpy(trash->area + trash->data, args[0].data.str.area, args[0].data.str.data);
+			trash->data += args[0].data.str.data;
+		}
+		else
+			max_size -= args[0].data.str.data;
+
+		/* Add hex */
+		for (i = 0; i < chunk_size && ptr < smp->data.u.str.data; i++) {
+			c = smp->data.u.str.area[ptr++];
+			trash->area[trash->data++] = hextab[(c >> 4) & 0xF];
+			trash->area[trash->data++] = hextab[c & 0xF];
+		}
+	}
+
+	smp->data.u.str = *trash;
+	smp->data.type = SMP_T_STR;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct buffer *trash = get_trash_chunk();
@@ -4318,6 +4378,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "lower",   sample_conv_str2lower,    0,                     NULL,                     SMP_T_STR,  SMP_T_STR  },
 	{ "length",  sample_conv_length,       0,                     NULL,                     SMP_T_STR,  SMP_T_SINT },
 	{ "be2dec",  sample_conv_be2dec,       ARG3(1,STR,SINT,SINT), sample_conv_be2dec_check, SMP_T_BIN,  SMP_T_STR  },
+	{ "be2hex",  sample_conv_be2hex,       ARG3(1,STR,SINT,SINT), sample_conv_be2hex_check, SMP_T_BIN,  SMP_T_STR  },
 	{ "hex",     sample_conv_bin2hex,      0,                     NULL,                     SMP_T_BIN,  SMP_T_STR  },
 	{ "hex2i",   sample_conv_hex2int,      0,                     NULL,                     SMP_T_STR,  SMP_T_SINT },
 	{ "ipmask",  sample_conv_ipmask,       ARG2(1,MSK4,MSK6),     NULL,                     SMP_T_ADDR, SMP_T_IPV4 },

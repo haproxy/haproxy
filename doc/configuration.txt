@@ -16105,6 +16105,20 @@ be2dec(<separator>,<chunk_size>,[<truncate>])
       bin(01020304050607),be2dec(,2,1)  # 2587721286
       bin(7f000001),be2dec(.,1)         # 127.0.0.1
 
+be2hex([<separator>],[<chunk_size>],[<truncate>])
+  Converts big-endian binary input sample to a hex string containing two hex
+  digits per input byte. It is used to log or transfer hex dumps of some
+  binary input data in a way that can be reliably transferred (e.g. an SSL ID
+  can be copied in a header). <separator> is put every <chunk_size> binary
+  input bytes if specified. <truncate> flag indicates whatever binary input is
+  truncated at <chunk_size> boundaries.
+
+  Example:
+      bin(01020304050607),be2hex         # 01020304050607
+      bin(01020304050607),be2hex(:,2)    # 0102:0304:0506:07
+      bin(01020304050607),be2hex(--,2,1) # 0102--0304--0506
+      bin(0102030405060708),be2hex(,3,1) # 010203040506
+
 bool
   Returns a boolean TRUE if the input value of type signed integer is
   non-null, otherwise returns FALSE. Used in conjunction with and(), it can be
