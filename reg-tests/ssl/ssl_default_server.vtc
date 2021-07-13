@@ -1,0 +1,142 @@
+#REGTEST_TYPE=devel
+
+# This reg-test ensures that SSL related configuration specified in a
+# default-server option are properly taken into account by the servers
+# (frontend). It mainly focuses on the client certificate used by the frontend,
+# that can either be defined in the server line itself, in the default-server
+# line or in both.
+#
+# It was created following a bug raised in redmine (issue #3906) in which a
+# server used an "empty" SSL context instead of the proper one.
+#
+
+varnishtest "Test the 'set ssl cert' feature of the CLI"
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature ignore_unknown_macro
+
+server s1 -repeat 7 {
+  rxreq
+  txresp
+} -start
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        stats socket "${tmpdir}/h1/stats" level admin
+        crt-base ${testdir}
+        ca-base ${testdir}
+
+    defaults
+        mode http
+        option httplog
+        log stderr local0 debug err
+        option logasap
+        timeout connect 100ms
+        timeout client  1s
+        timeout server  1s
+
+    listen clear-lst
+        bind "fd@${clearlst}"
+        use_backend first_be if { path /first }
+        use_backend second_be if { path /second }
+        use_backend third_be if { path /third }
+        use_backend fourth_be if { path /fourth }
+        use_backend fifth_be if { path /fifth }
+
+
+    backend first_be
+        default-server ssl crt client1.pem ca-file ca-auth.crt verify none
+        server s1 "${tmpdir}/ssl.sock"
+
+    backend second_be
+        default-server ssl ca-file ca-auth.crt verify none
+        server s1 "${tmpdir}/ssl.sock" crt client1.pem
+
+    backend third_be
+        default-server ssl crt client1.pem ca-file ca-auth.crt verify none
+        server s1 "${tmpdir}/ssl.sock" crt client2_expired.pem
+
+    backend fourth_be
+        default-server ssl crt client1.pem verify none
+        server s1 "${tmpdir}/ssl.sock" ca-file ca-auth.crt
+
+    backend fifth_be
+        balance roundrobin
+        default-server ssl crt client1.pem verify none
+        server s1 "${tmpdir}/ssl.sock"
+        server s2 "${tmpdir}/ssl.sock" crt client2_expired.pem
+        server s3 "${tmpdir}/ssl.sock"
+
+
+    listen ssl-lst
+        bind "${tmpdir}/ssl.sock" ssl crt ${testdir}/common.pem ca-file ca-auth.crt verify required crt-ignore-err all
+
+        acl cert_expired ssl_c_verify 10
+        acl cert_revoked ssl_c_verify 23
+        acl cert_ok ssl_c_verify 0
+
+        http-response add-header X-SSL Ok if cert_ok
+        http-response add-header X-SSL Expired if cert_expired
+        http-response add-header X-SSL Revoked if cert_revoked
+
+        server s1 ${s1_addr}:${s1_port}
+} -start
+
+
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/first"
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Ok"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/second"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Ok"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/third"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Expired"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/fourth"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Ok"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/fifth"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Ok"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/fifth"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Expired"
+} -run
+
+client c1 -connect ${h1_clearlst_sock} {
+    txreq -url "/fifth"
+    txreq
+    rxresp
+    expect resp.status == 200
+    expect resp.http.x-ssl == "Ok"
+} -run

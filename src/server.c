@@ -1942,6 +1942,8 @@ static void srv_ssl_settings_cpy(struct server *srv, struct server *src)
 
 	srv->ssl_ctx.verify = src->ssl_ctx.verify;
 
+	srv->ssl_ctx.ctx = src->ssl_ctx.ctx;
+
 	if (src->ssl_ctx.verify_host != NULL)
 		srv->ssl_ctx.verify_host = strdup(src->ssl_ctx.verify_host);
 	if (src->ssl_ctx.ciphers != NULL)
