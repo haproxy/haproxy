@@ -397,3 +397,22 @@ error:
 	return 0;
 
 }
+
+/* Exclude GREASE (RFC8701) values from input buffer */
+void exclude_tls_grease(char *input, int len, struct buffer *output)
+{
+	int ptr = 0;
+
+	while (ptr < len - 1) {
+		if (input[ptr] != input[ptr+1] || (input[ptr] & 0x0f) != 0x0a) {
+			if (output->data <= output->size - 2) {
+				memcpy(output->area + output->data, input + ptr, 2);
+				output->data += 2;
+			} else
+				break;
+		}
+		ptr += 2;
+	}
+	if (output->size - output->data > 0 && len - ptr > 0)
+		output->area[output->data++] = input[ptr];
+}

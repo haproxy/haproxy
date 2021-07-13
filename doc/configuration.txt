@@ -18875,27 +18875,103 @@ ssl_fc_cipher : string
   Returns the name of the used cipher when the incoming connection was made
   over an SSL/TLS transport layer.
 
-ssl_fc_cipherlist_bin : binary
-  Returns the binary form of the client hello cipher list. The maximum returned
-  value length is according with the value of
-  "tune.ssl.capture-cipherlist-size".
+ssl_fc_cipherlist_bin([<filter_option>]) : binary
+  Returns the binary form of the client hello cipher list. The maximum
+  returned value length is limited by the shared capture buffer size
+  controlled by "tune.ssl.capture-cipherlist-size" setting. Setting
+  <filter_option> allows to filter returned data. Accepted values:
+    0 : return the full list of ciphers (default)
+    1 : exclude GREASE (RFC8701) values from the output
 
-ssl_fc_cipherlist_hex : string
+  Example:
+      http-request set-header X-SSL-JA3 %[ssl_fc_protocol_hello_id],\
+          %[ssl_fc_cipherlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_extlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_eclist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_ecformats_bin,be2dec(-,1)]
+      acl is_malware req.fhdr(x-ssl-ja3),digest(md5),hex \
+          -f /path/to/file/with/malware-ja3.lst
+      http-request set-header X-Malware True if is_malware
+      http-request set-header X-Malware False if !is_malware
+
+ssl_fc_cipherlist_hex([<filter_option>]) : string
   Returns the binary form of the client hello cipher list encoded as
-  hexadecimal. The maximum returned value length is according with the value of
-  "tune.ssl.capture-cipherlist-size".
+  hexadecimal. The maximum returned value length is limited by the shared
+  capture buffer size controlled by "tune.ssl.capture-cipherlist-size"
+  setting.  Setting <filter_option> allows to filter returned data. Accepted
+  values:
+    0 : return the full list of ciphers (default)
+    1 : exclude GREASE (RFC8701) values from the output
 
-ssl_fc_cipherlist_str : string
+ssl_fc_cipherlist_str([<filter_option>]) : string
   Returns the decoded text form of the client hello cipher list. The maximum
-  number of ciphers returned is according with the value of
-  "tune.ssl.capture-cipherlist-size". Note that this sample-fetch is only
-  available with OpenSSL >= 1.0.2. If the function is not enabled, this
-  sample-fetch returns the hash like "ssl_fc_cipherlist_xxh".
+  returned value length is limited by the shared capture buffer size
+  controlled by "tune.ssl.capture-cipherlist-size" setting. Setting
+  <filter_option> allows to filter returned data. Accepted values:
+    0 : return the full list of ciphers (default)
+    1 : exclude GREASE (RFC8701) values from the output
+  Note that this sample-fetch is only available with OpenSSL >= 1.0.2. If the
+  function is not enabled, this sample-fetch returns the hash like
+  "ssl_fc_cipherlist_xxh".
 
 ssl_fc_cipherlist_xxh : integer
-  Returns a xxh64 of the cipher list. This hash can be return only is the value
+  Returns a xxh64 of the cipher list. This hash can return only if the value
   "tune.ssl.capture-cipherlist-size" is set greater than 0, however the hash
-  take in account all the data of the cipher list.
+  take into account all the data of the cipher list.
+
+ssl_fc_ecformats_bin : binary
+  Return the binary form of the client hello supported elliptic curve point
+  formats. The maximum returned value length is limited by the shared capture
+  buffer size controlled by "tune.ssl.capture-cipherlist-size" setting.
+
+  Example:
+      http-request set-header X-SSL-JA3 %[ssl_fc_protocol_hello_id],\
+          %[ssl_fc_cipherlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_extlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_eclist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_ecformats_bin,be2dec(-,1)]
+      acl is_malware req.fhdr(x-ssl-ja3),digest(md5),hex \
+          -f /path/to/file/with/malware-ja3.lst
+      http-request set-header X-Malware True if is_malware
+      http-request set-header X-Malware False if !is_malware
+
+ssl_fc_eclist_bin([<filter_option>]) : binary
+  Returns the binary form of the client hello supported elliptic curves. The
+  maximum returned value length is limited by the shared capture buffer size
+  controlled by "tune.ssl.capture-cipherlist-size" setting. Setting
+  <filter_option> allows to filter returned data. Accepted values:
+    0 : return the full list of supported elliptic curves (default)
+    1 : exclude GREASE (RFC8701) values from the output
+
+  Example:
+      http-request set-header X-SSL-JA3 %[ssl_fc_protocol_hello_id],\
+          %[ssl_fc_cipherlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_extlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_eclist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_ecformats_bin,be2dec(-,1)]
+      acl is_malware req.fhdr(x-ssl-ja3),digest(md5),hex \
+          -f /path/to/file/with/malware-ja3.lst
+      http-request set-header X-Malware True if is_malware
+      http-request set-header X-Malware False if !is_malware
+
+ssl_fc_extlist_bin([<filter_option>]) : binary
+  Returns the binary form of the client hello extension list. The maximum
+  returned value length is limited by the shared capture buffer size
+  controlled by "tune.ssl.capture-cipherlist-size" setting. Setting
+  <filter_option> allows to filter returned data. Accepted values:
+    0 : return the full list of extensions (default)
+    1 : exclude GREASE (RFC8701) values from the output
+
+  Example:
+      http-request set-header X-SSL-JA3 %[ssl_fc_protocol_hello_id],\
+          %[ssl_fc_cipherlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_extlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_eclist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_ecformats_bin,be2dec(-,1)]
+      acl is_malware req.fhdr(x-ssl-ja3),digest(md5),hex \
+          -f /path/to/file/with/malware-ja3.lst
+      http-request set-header X-Malware True if is_malware
+      http-request set-header X-Malware False if !is_malware
 
 ssl_fc_client_random : binary
   Returns the client random of the front connection when the incoming connection
@@ -19004,6 +19080,23 @@ ssl_fc_npn : string
 ssl_fc_protocol : string
   Returns the name of the used protocol when the incoming connection was made
   over an SSL/TLS transport layer.
+
+ssl_fc_protocol_hello_id : integer
+  The version of the TLS protocol by which the client wishes to communicate
+  during the session as indicated in client hello message. This value can
+  return only if the value "tune.ssl.capture-cipherlist-size" is set greater
+  than 0.
+
+  Example:
+      http-request set-header X-SSL-JA3 %[ssl_fc_protocol_hello_id],\
+          %[ssl_fc_cipherlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_extlist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_eclist_bin(1),be2dec(-,2)],\
+          %[ssl_fc_ecformats_bin,be2dec(-,1)]
+      acl is_malware req.fhdr(x-ssl-ja3),digest(md5),hex \
+          -f /path/to/file/with/malware-ja3.lst
+      http-request set-header X-Malware True if is_malware
+      http-request set-header X-Malware False if !is_malware
 
 ssl_fc_unique_id : binary
   When the incoming connection was made over an SSL/TLS transport layer,

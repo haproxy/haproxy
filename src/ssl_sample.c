@@ -1127,9 +1127,13 @@ smp_fetch_ssl_fc_sni(const struct arg *args, struct sample *smp, const char *kw,
 }
 #endif
 
+/* binary, returns tls client hello cipher list.
+ * Arguments: filter_option (0,1)
+ */
 static int
 smp_fetch_ssl_fc_cl_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
+	struct buffer *smp_trash;
 	struct connection *conn;
 	struct ssl_capture *capture;
 	SSL *ssl;
@@ -1143,13 +1147,26 @@ smp_fetch_ssl_fc_cl_bin(const struct arg *args, struct sample *smp, const char *
 	if (!capture)
 		return 0;
 
-	smp->flags = SMP_F_VOL_TEST | SMP_F_CONST;
+	if (args[0].data.sint) {
+		smp_trash = get_trash_chunk();
+		exclude_tls_grease(capture->data + capture->ciphersuite_offset, capture->ciphersuite_len, smp_trash);
+		smp->data.u.str.area = smp_trash->area;
+		smp->data.u.str.data = smp_trash->data;
+		smp->flags = SMP_F_VOL_SESS;
+	}
+	else {
+		smp->data.u.str.area = capture->data + capture->ciphersuite_offset;
+		smp->data.u.str.data = capture->ciphersuite_len;
+		smp->flags = SMP_F_VOL_TEST | SMP_F_CONST;
+	}
+
 	smp->data.type = SMP_T_BIN;
-	smp->data.u.str.area = capture->data + capture->ciphersuite_offset;
-	smp->data.u.str.data = capture->ciphersuite_len;
 	return 1;
 }
 
+/* binary, returns tls client hello cipher list as hexadecimal string.
+ * Arguments: filter_option (0,1)
+ */
 static int
 smp_fetch_ssl_fc_cl_hex(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1166,6 +1183,7 @@ smp_fetch_ssl_fc_cl_hex(const struct arg *args, struct sample *smp, const char *
 	return 1;
 }
 
+/* integer, returns xxh64 hash of tls client hello cipher list. */
 static int
 smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
@@ -1214,6 +1232,28 @@ smp_fetch_ssl_fc_hsk_err(const struct arg *args, struct sample *smp, const char 
 }
 
 static int
+smp_fetch_ssl_fc_protocol_hello_id(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	struct ssl_capture *capture;
+	SSL *ssl;
+
+	conn = objt_conn(smp->sess->origin);
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	capture = SSL_get_ex_data(ssl, ssl_capture_ptr_index);
+	if (!capture)
+		return 0;
+
+	smp->flags = SMP_F_VOL_SESS;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = capture->protocol_version;
+	return 1;
+}
+
+static int
 smp_fetch_ssl_fc_hsk_err_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn;
@@ -1240,6 +1280,104 @@ smp_fetch_ssl_fc_hsk_err_str(const struct arg *args, struct sample *smp, const c
 	smp->data.u.str.area = (char*)err_code_str;
 	smp->data.u.str.data = strlen(err_code_str);
 
+	return 1;
+}
+
+/* binary, returns tls client hello extensions list.
+ * Arguments: filter_option (0,1)
+ */
+static int
+smp_fetch_ssl_fc_ext_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct buffer *smp_trash;
+	struct connection *conn;
+	struct ssl_capture *capture;
+	SSL *ssl;
+
+	conn = objt_conn(smp->sess->origin);
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	capture = SSL_get_ex_data(ssl, ssl_capture_ptr_index);
+	if (!capture)
+		return 0;
+
+	if (args[0].data.sint) {
+		smp_trash = get_trash_chunk();
+		exclude_tls_grease(capture->data + capture->extensions_offset, capture->extensions_len, smp_trash);
+		smp->data.u.str.area = smp_trash->area;
+		smp->data.u.str.data = smp_trash->data;
+		smp->flags = SMP_F_VOL_SESS;
+	}
+	else {
+		smp->data.u.str.area = capture->data + capture->extensions_offset;
+		smp->data.u.str.data = capture->extensions_len;
+		smp->flags = SMP_F_VOL_TEST | SMP_F_CONST;
+	}
+
+	smp->data.type = SMP_T_BIN;
+	return 1;
+}
+
+/* binary, returns tls client hello supported elliptic curves.
+ * Arguments: filter_option (0,1)
+ */
+static int
+smp_fetch_ssl_fc_ecl_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct buffer *smp_trash;
+	struct connection *conn;
+	struct ssl_capture *capture;
+	SSL *ssl;
+
+	conn = objt_conn(smp->sess->origin);
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	capture = SSL_get_ex_data(ssl, ssl_capture_ptr_index);
+	if (!capture)
+		return 0;
+
+	if (args[0].data.sint) {
+		smp_trash = get_trash_chunk();
+		exclude_tls_grease(capture->data + capture->ec_offset, capture->ec_len, smp_trash);
+		smp->data.u.str.area = smp_trash->area;
+		smp->data.u.str.data = smp_trash->data;
+		smp->flags = SMP_F_VOL_SESS;
+	}
+	else {
+		smp->data.u.str.area = capture->data + capture->ec_offset;
+		smp->data.u.str.data = capture->ec_len;
+		smp->flags = SMP_F_VOL_TEST | SMP_F_CONST;
+	}
+
+	smp->data.type = SMP_T_BIN;
+	return 1;
+}
+
+/* binary, returns tls client hello supported elliptic curve point formats */
+static int
+smp_fetch_ssl_fc_ecf_bin(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	struct ssl_capture *capture;
+	SSL *ssl;
+
+	conn = objt_conn(smp->sess->origin);
+	ssl = ssl_sock_get_ssl_object(conn);
+	if (!ssl)
+		return 0;
+
+	capture = SSL_get_ex_data(ssl, ssl_capture_ptr_index);
+	if (!capture)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST | SMP_F_CONST;
+	smp->data.type = SMP_T_BIN;
+	smp->data.u.str.area = capture->data + capture->ec_formats_offset;
+	smp->data.u.str.data = capture->ec_formats_len;
 	return 1;
 }
 
@@ -1597,12 +1735,16 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 #endif
-	{ "ssl_fc_cipherlist_bin",  smp_fetch_ssl_fc_cl_bin,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
-	{ "ssl_fc_cipherlist_hex",  smp_fetch_ssl_fc_cl_hex,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
-	{ "ssl_fc_cipherlist_str",  smp_fetch_ssl_fc_cl_str,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_cipherlist_bin",  smp_fetch_ssl_fc_cl_bin,      ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_cipherlist_hex",  smp_fetch_ssl_fc_cl_hex,      ARG1(0,SINT),        NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+	{ "ssl_fc_cipherlist_str",  smp_fetch_ssl_fc_cl_str,      ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_xxh",  smp_fetch_ssl_fc_cl_xxh64,    0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_fc_hsk_err",         smp_fetch_ssl_fc_hsk_err,     0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_fc_hsk_err_str",     smp_fetch_ssl_fc_hsk_err_str, 0,                   NULL,    SMP_T_STR, SMP_USE_L5CLI },
+	{ "ssl_fc_protocol_hello_id",smp_fetch_ssl_fc_protocol_hello_id,0,             NULL,    SMP_T_SINT, SMP_USE_L5CLI },
+	{ "ssl_fc_extlist_bin",     smp_fetch_ssl_fc_ext_bin,     ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_eclist_bin",      smp_fetch_ssl_fc_ecl_bin,     ARG1(0,SINT),        NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_ecformats_bin",   smp_fetch_ssl_fc_ecf_bin,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 
 /* SSL server certificate fetches */
 	{ "ssl_s_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
