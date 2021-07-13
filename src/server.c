@@ -4627,6 +4627,9 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 		goto out;
 	}
 
+	/* A dynamic server cannot be tracked. */
+	BUG_ON(srv->trackers);
+
 	/* Only servers in maintenance can be deleted. This ensures that the
 	 * server is not present anymore in the lb structures (through
 	 * lbprm.set_server_status_down).
@@ -4761,6 +4764,12 @@ int srv_apply_track(struct server *srv, struct proxy *curproxy)
 	if (!strack) {
 		ha_alert("unable to find required server '%s' for tracking.\n",
 		         sname);
+		return 1;
+	}
+
+	if (strack->flags & SRV_F_DYNAMIC) {
+		ha_alert("unable to use %s/%s for tracking as it is a dynamic server.\n",
+		         px->id, strack->id);
 		return 1;
 	}
 
