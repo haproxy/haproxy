@@ -276,7 +276,7 @@ struct global_ssl {
 	unsigned int max_record; /* SSL max record size */
 	unsigned int default_dh_param; /* SSL maximum DH parameter size */
 	int ctx_cache; /* max number of entries in the ssl_ctx cache. */
-	int capture_cipherlist; /* Size of the cipherlist buffer. */
+	int capture_buffer_size; /* Size of the capture buffer. */
 	int keylog; /* activate keylog  */
 	int extra_files; /* which files not defined in the configuration file are we looking for */
 	int extra_files_noext; /* whether we remove the extension when looking up a extra file */

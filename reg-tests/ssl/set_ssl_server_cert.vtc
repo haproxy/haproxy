@@ -17,7 +17,7 @@ server s1 -repeat 4 {
 haproxy h1 -conf {
     global
         tune.ssl.default-dh-param 2048
-        tune.ssl.capture-cipherlist-size 1
+        tune.ssl.capture-buffer-size 1
         stats socket "${tmpdir}/h1/stats" level admin
         nbthread 1
 

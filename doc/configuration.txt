@@ -1110,7 +1110,8 @@ The following keywords are supported in the "global" section :
    - tune.ssl.maxrecord
    - tune.ssl.default-dh-param
    - tune.ssl.ssl-ctx-cache-size
-   - tune.ssl.capture-cipherlist-size
+   - tune.ssl.capture-buffer-size
+   - tune.ssl.capture-cipherlist-size (deprecated)
    - tune.vars.global-max-size
    - tune.vars.proc-max-size
    - tune.vars.reqres-max-size
@@ -2805,7 +2806,8 @@ tune.ssl.ssl-ctx-cache-size <number>
   dynamically is expensive, they are cached. The default cache size is set to
   1000 entries.
 
-tune.ssl.capture-cipherlist-size <number>
+tune.ssl.capture-buffer-size <number>
+tune.ssl.capture-cipherlist-size <number> (deprecated)
   Sets the maximum size of the buffer used for capturing client hello cipher
   list, extensions list, elliptic curves list and elliptic curve point
   formats. If the value is 0 (default value) the capture is disabled,
@@ -18905,7 +18907,7 @@ ssl_fc_cipher : string
 ssl_fc_cipherlist_bin([<filter_option>]) : binary
   Returns the binary form of the client hello cipher list. The maximum
   returned value length is limited by the shared capture buffer size
-  controlled by "tune.ssl.capture-cipherlist-size" setting. Setting
+  controlled by "tune.ssl.capture-buffer-size" setting. Setting
   <filter_option> allows to filter returned data. Accepted values:
     0 : return the full list of ciphers (default)
     1 : exclude GREASE (RFC8701) values from the output
@@ -18924,16 +18926,15 @@ ssl_fc_cipherlist_bin([<filter_option>]) : binary
 ssl_fc_cipherlist_hex([<filter_option>]) : string
   Returns the binary form of the client hello cipher list encoded as
   hexadecimal. The maximum returned value length is limited by the shared
-  capture buffer size controlled by "tune.ssl.capture-cipherlist-size"
-  setting.  Setting <filter_option> allows to filter returned data. Accepted
-  values:
+  capture buffer size controlled by "tune.ssl.capture-buffer-size" setting.
+  Setting <filter_option> allows to filter returned data. Accepted values:
     0 : return the full list of ciphers (default)
     1 : exclude GREASE (RFC8701) values from the output
 
 ssl_fc_cipherlist_str([<filter_option>]) : string
   Returns the decoded text form of the client hello cipher list. The maximum
   returned value length is limited by the shared capture buffer size
-  controlled by "tune.ssl.capture-cipherlist-size" setting. Setting
+  controlled by "tune.ssl.capture-buffer-size" setting. Setting
   <filter_option> allows to filter returned data. Accepted values:
     0 : return the full list of ciphers (default)
     1 : exclude GREASE (RFC8701) values from the output
@@ -18943,13 +18944,13 @@ ssl_fc_cipherlist_str([<filter_option>]) : string
 
 ssl_fc_cipherlist_xxh : integer
   Returns a xxh64 of the cipher list. This hash can return only if the value
-  "tune.ssl.capture-cipherlist-size" is set greater than 0, however the hash
-  take into account all the data of the cipher list.
+  "tune.ssl.capture-buffer-size" is set greater than 0, however the hash take
+  into account all the data of the cipher list.
 
 ssl_fc_ecformats_bin : binary
   Return the binary form of the client hello supported elliptic curve point
   formats. The maximum returned value length is limited by the shared capture
-  buffer size controlled by "tune.ssl.capture-cipherlist-size" setting.
+  buffer size controlled by "tune.ssl.capture-buffer-size" setting.
 
   Example:
       http-request set-header X-SSL-JA3 %[ssl_fc_protocol_hello_id],\
@@ -18965,7 +18966,7 @@ ssl_fc_ecformats_bin : binary
 ssl_fc_eclist_bin([<filter_option>]) : binary
   Returns the binary form of the client hello supported elliptic curves. The
   maximum returned value length is limited by the shared capture buffer size
-  controlled by "tune.ssl.capture-cipherlist-size" setting. Setting
+  controlled by "tune.ssl.capture-buffer-size" setting. Setting
   <filter_option> allows to filter returned data. Accepted values:
     0 : return the full list of supported elliptic curves (default)
     1 : exclude GREASE (RFC8701) values from the output
@@ -18984,7 +18985,7 @@ ssl_fc_eclist_bin([<filter_option>]) : binary
 ssl_fc_extlist_bin([<filter_option>]) : binary
   Returns the binary form of the client hello extension list. The maximum
   returned value length is limited by the shared capture buffer size
-  controlled by "tune.ssl.capture-cipherlist-size" setting. Setting
+  controlled by "tune.ssl.capture-buffer-size" setting. Setting
   <filter_option> allows to filter returned data. Accepted values:
     0 : return the full list of extensions (default)
     1 : exclude GREASE (RFC8701) values from the output
@@ -19111,8 +19112,8 @@ ssl_fc_protocol : string
 ssl_fc_protocol_hello_id : integer
   The version of the TLS protocol by which the client wishes to communicate
   during the session as indicated in client hello message. This value can
-  return only if the value "tune.ssl.capture-cipherlist-size" is set greater
-  than 0.
+  return only if the value "tune.ssl.capture-buffer-size" is set greater than
+  0.
 
   Example:
       http-request set-header X-SSL-JA3 %[ssl_fc_protocol_hello_id],\

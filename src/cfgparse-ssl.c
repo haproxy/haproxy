@@ -272,8 +272,13 @@ static int ssl_parse_global_int(char **args, int section_type, struct proxy *cur
 		target = &global_ssl.ctx_cache;
 	else if (strcmp(args[0], "maxsslconn") == 0)
 		target = &global.maxsslconn;
-	else if (strcmp(args[0], "tune.ssl.capture-cipherlist-size") == 0)
-		target = &global_ssl.capture_cipherlist;
+	else if (strcmp(args[0], "tune.ssl.capture-buffer-size") == 0)
+		target = &global_ssl.capture_buffer_size;
+	else if (strcmp(args[0], "tune.ssl.capture-cipherlist-size") == 0) {
+		target = &global_ssl.capture_buffer_size;
+		ha_warning("parsing [%s:%d]: '%s' is deprecated and will be removed in version 2.7. Please use 'tune.ssl.capture-buffer-size' instead.\n",
+		           file, line, args[0]);
+	}
 	else {
 		memprintf(err, "'%s' keyword not unhandled (please report this bug).", args[0]);
 		return -1;
@@ -295,9 +300,9 @@ static int ssl_parse_global_int(char **args, int section_type, struct proxy *cur
 	return 0;
 }
 
-static int ssl_parse_global_capture_cipherlist(char **args, int section_type, struct proxy *curpx,
-                                               const struct proxy *defpx, const char *file, int line,
-                                               char **err)
+static int ssl_parse_global_capture_buffer(char **args, int section_type, struct proxy *curpx,
+                                           const struct proxy *defpx, const char *file, int line,
+                                           char **err)
 {
 	int ret;
 
@@ -310,7 +315,7 @@ static int ssl_parse_global_capture_cipherlist(char **args, int section_type, st
 		return -1;
 	}
 
-	pool_head_ssl_capture = create_pool("ssl-capture", sizeof(struct ssl_capture) + global_ssl.capture_cipherlist, MEM_F_SHARED);
+	pool_head_ssl_capture = create_pool("ssl-capture", sizeof(struct ssl_capture) + global_ssl.capture_buffer_size, MEM_F_SHARED);
 	if (!pool_head_ssl_capture) {
 		memprintf(err, "Out of memory error.");
 		return -1;
@@ -1946,7 +1951,8 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "tune.ssl.lifetime", ssl_parse_global_lifetime },
 	{ CFG_GLOBAL, "tune.ssl.maxrecord", ssl_parse_global_int },
 	{ CFG_GLOBAL, "tune.ssl.ssl-ctx-cache-size", ssl_parse_global_int },
-	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_cipherlist },
+	{ CFG_GLOBAL, "tune.ssl.capture-cipherlist-size", ssl_parse_global_capture_buffer },
+	{ CFG_GLOBAL, "tune.ssl.capture-buffer-size", ssl_parse_global_capture_buffer },
 	{ CFG_GLOBAL, "tune.ssl.keylog", ssl_parse_global_keylog },
 	{ CFG_GLOBAL, "ssl-default-bind-ciphers", ssl_parse_global_ciphers },
 	{ CFG_GLOBAL, "ssl-default-server-ciphers", ssl_parse_global_ciphers },

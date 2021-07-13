@@ -124,7 +124,7 @@ struct global_ssl global_ssl = {
 #endif
 	.default_dh_param = SSL_DEFAULT_DH_PARAM,
 	.ctx_cache = DEFAULT_SSL_CTX_CACHE,
-	.capture_cipherlist = 0,
+	.capture_buffer_size = 0,
 	.extra_files = SSL_GF_ALL,
 	.extra_files_noext = 0,
 #ifdef HAVE_SSL_KEYLOG
@@ -556,7 +556,7 @@ static int ssl_sock_register_msg_callbacks(void)
 	if (!ssl_sock_register_msg_callback(ssl_sock_parse_heartbeat))
 		return ERR_ABORT;
 #endif
-	if (global_ssl.capture_cipherlist > 0) {
+	if (global_ssl.capture_buffer_size > 0) {
 		if (!ssl_sock_register_msg_callback(ssl_sock_parse_clienthello))
 			return ERR_ABORT;
 	}
@@ -1795,7 +1795,7 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 	capture->xxh64 = XXH64(msg, rec_len, 0);
 
 	/* Capture the ciphersuite. */
-	capture->ciphersuite_len = MIN(global_ssl.capture_cipherlist, rec_len);
+	capture->ciphersuite_len = MIN(global_ssl.capture_buffer_size, rec_len);
 	capture->ciphersuite_offset = 0;
 	memcpy(capture->data, msg, capture->ciphersuite_len);
 	msg += rec_len;
@@ -1827,7 +1827,7 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 	/* Parse each extension */
 	while (msg + 4 < extensions_end) {
 		/* Add 2 bytes of extension_id */
-		if (global_ssl.capture_cipherlist >= offset + 2) {
+		if (global_ssl.capture_buffer_size >= offset + 2) {
 			capture->data[offset++] = msg[0];
 			capture->data[offset++] = msg[1];
 			capture->extensions_len += 2;
@@ -1880,8 +1880,8 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 
 	if (ec_start) {
 		rec_len = ec_len;
-		if (offset + rec_len > global_ssl.capture_cipherlist)
-			 rec_len = global_ssl.capture_cipherlist - offset;
+		if (offset + rec_len > global_ssl.capture_buffer_size)
+			 rec_len = global_ssl.capture_buffer_size - offset;
 		memcpy(capture->data + offset, ec_start, rec_len);
 		capture->ec_offset = offset;
 		capture->ec_len = rec_len;
@@ -1889,8 +1889,8 @@ static void ssl_sock_parse_clienthello(struct connection *conn, int write_p, int
 	}
 	if (ec_formats_start) {
 		rec_len = ec_formats_len;
-		if (offset + rec_len > global_ssl.capture_cipherlist)
-			rec_len = global_ssl.capture_cipherlist - offset;
+		if (offset + rec_len > global_ssl.capture_buffer_size)
+			rec_len = global_ssl.capture_buffer_size - offset;
 		memcpy(capture->data + offset, ec_formats_start, rec_len);
 		capture->ec_formats_offset = offset;
 		capture->ec_formats_len = rec_len;
