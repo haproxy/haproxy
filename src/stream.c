@@ -3303,7 +3303,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 				      tmpctx->st1,
 				      tmpctx->st2,
 			              tmpctx->applet->name,
-			              tmpctx->thread_mask,
+			              tmpctx->t->thread_mask,
 			              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate),
 			              (unsigned long long)tmpctx->t->cpu_time, (unsigned long long)tmpctx->t->lat_time);
 		}
@@ -3339,7 +3339,7 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 				      tmpctx->st1,
 				      tmpctx->st2,
 			              tmpctx->applet->name,
-			              tmpctx->thread_mask,
+			              tmpctx->t->thread_mask,
 			              tmpctx->t->nice, tmpctx->t->calls, read_freq_ctr(&tmpctx->call_rate),
 			              (unsigned long long)tmpctx->t->cpu_time, (unsigned long long)tmpctx->t->lat_time);
 		}

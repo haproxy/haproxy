@@ -42,12 +42,11 @@ int appctx_buf_available(void *arg);
  * 3 integer states st0, st1, st2 and the chunk used to gather unfinished
  * commands are zeroed
  */
-static inline void appctx_init(struct appctx *appctx, unsigned long thread_mask)
+static inline void appctx_init(struct appctx *appctx)
 {
 	appctx->st0 = appctx->st1 = appctx->st2 = 0;
 	appctx->chunk = NULL;
 	appctx->io_release = NULL;
-	appctx->thread_mask = thread_mask;
 	appctx->call_rate.curr_tick = 0;
 	appctx->call_rate.curr_ctr = 0;
 	appctx->call_rate.prev_ctr = 0;
@@ -67,7 +66,7 @@ static inline struct appctx *appctx_new(struct applet *applet, unsigned long thr
 	if (likely(appctx != NULL)) {
 		appctx->obj_type = OBJ_TYPE_APPCTX;
 		appctx->applet = applet;
-		appctx_init(appctx, thread_mask);
+		appctx_init(appctx);
 		appctx->t = task_new(thread_mask);
 		if (unlikely(appctx->t == NULL)) {
 			pool_free(pool_head_appctx, appctx);

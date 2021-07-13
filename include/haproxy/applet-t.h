@@ -67,7 +67,6 @@ struct appctx {
 	int cli_severity_output;        /* used within the cli_io_handler to format severity output of informational feedback */
 	int cli_level;              /* the level of CLI which can be lowered dynamically */
 	struct buffer_wait buffer_wait; /* position in the list of objects waiting for a buffer */
-	unsigned long thread_mask;      /* mask of thread IDs authorized to process the applet */
 	struct task *t;                  /* task associated to the applet */
 	struct freq_ctr call_rate;       /* appctx call rate */
 	struct list wait_entry;          /* entry in a list of waiters for an event (e.g. ring events) */
