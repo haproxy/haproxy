@@ -1470,6 +1470,11 @@ add server <backend>/<server> [args]*
   init-addr method. This means that no resolution will be undertaken if a FQDN
   is specified as an address, even if the server creation will be validated.
 
+  A dynamic server may use the "track" keyword to follow the check status of
+  another server from the configuration. However, it is not possible to track
+  another dynamic server. This is to ensure that the tracking chain is kept
+  consistent even in the case of dynamic servers deletion.
+
   Here is the list of the currently supported keywords :
 
   - allow-0rtt
@@ -1507,6 +1512,7 @@ add server <backend>/<server> [args]*
   - ssl-min-ver
   - tfo
   - tls-tickets
+  - track
   - usesrc
   - verify
   - verifyhost

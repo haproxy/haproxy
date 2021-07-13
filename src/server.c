@@ -1678,7 +1678,7 @@ static struct srv_kw_list srv_kws = { "ALL", { }, {
 	{ "source",              srv_parse_source,             -1,  1,  1 }, /* Set the source address to be used to connect to the server */
 	{ "stick",               srv_parse_stick,               0,  1,  0 }, /* Enable stick-table persistence */
 	{ "tfo",                 srv_parse_tfo,                 0,  1,  1 }, /* enable TCP Fast Open of server */
-	{ "track",               srv_parse_track,               1,  1,  0 }, /* Set the current state of the server, tracking another one */
+	{ "track",               srv_parse_track,               1,  1,  1 }, /* Set the current state of the server, tracking another one */
 	{ "socks4",              srv_parse_socks4,              1,  1,  0 }, /* Set the socks4 proxy of the server*/
 	{ "usesrc",              srv_parse_usesrc,              0,  1,  1 }, /* safe-guard against usesrc without preceding <source> keyword */
 	{ "weight",              srv_parse_weight,              1,  1,  1 }, /* Set the load-balancing weight */
@@ -2226,6 +2226,31 @@ void free_server(struct server *srv)
 
 	free(srv);
 	srv = NULL;
+}
+
+/* Remove a server <srv> from a tracking list if <srv> is tracking another
+ * server. No special care is taken if <srv> is tracked itself by another one :
+ * this situation should be avoided by the caller.
+ *
+ * Not thread-safe.
+ */
+static void release_server_track(struct server *srv)
+{
+	struct server *strack = srv->track;
+	struct server **base;
+
+	if (!strack)
+		return;
+
+	for (base = &strack->trackers; *base; base = &((*base)->tracknext)) {
+		if (*base == srv) {
+			*base = srv->tracknext;
+			return;
+		}
+	}
+
+	/* srv not found on the tracking list, this should never happen */
+	BUG_ON(!*base);
 }
 
 /*
@@ -4503,6 +4528,11 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		}
 	}
 
+	if (srv->trackit) {
+		if (srv_apply_track(srv, be))
+			goto out;
+	}
+
 	/* Attach the server to the end of the proxy linked list. Note that this
 	 * operation is not thread-safe so this is executed under thread
 	 * isolation.
@@ -4564,8 +4594,11 @@ out:
 	if (!usermsgs_empty())
 		cli_err(appctx, usermsgs_str());
 
-	if (srv)
+	if (srv) {
+		release_server_track(srv);
 		free_server(srv);
+	}
+
 	return 1;
 }
 
@@ -4649,6 +4682,10 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 		cli_err(appctx, "Server still has connections attached to it, cannot remove it.");
 		goto out;
 	}
+
+	/* remove srv from tracking list */
+	if (srv->track)
+		release_server_track(srv);
 
 	/* TODO remove server for check list once 'check' will be implemented for
 	 * dynamic servers
