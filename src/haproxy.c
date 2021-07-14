@@ -2842,6 +2842,38 @@ int main(int argc, char **argv)
 	int err, retry;
 	struct rlimit limit;
 	int pidfd = -1;
+	int intovf = (unsigned char)argc + 1; /* let the compiler know it's strictly positive */
+
+	/* Catch forced CFLAGS that miss 2-complement integer overflow */
+	if (intovf + 0x7FFFFFFF >= intovf) {
+		fprintf(stderr,
+		        "FATAL ERROR: invalid code detected -- cannot go further, please recompile!\n"
+			"The source code was miscompiled by the compiler, which usually indicates that\n"
+			"some of the CFLAGS needed to work around overzealous compiler optimizations\n"
+			"were overwritten at build time. Please do not force CFLAGS, and read Makefile\n"
+			"and INSTALL files to decide on the best way to pass your local build options.\n"
+		        "\nBuild options :"
+#ifdef BUILD_TARGET
+		       "\n  TARGET  = " BUILD_TARGET
+#endif
+#ifdef BUILD_CPU
+		       "\n  CPU     = " BUILD_CPU
+#endif
+#ifdef BUILD_CC
+		       "\n  CC      = " BUILD_CC
+#endif
+#ifdef BUILD_CFLAGS
+		       "\n  CFLAGS  = " BUILD_CFLAGS
+#endif
+#ifdef BUILD_OPTIONS
+		       "\n  OPTIONS = " BUILD_OPTIONS
+#endif
+#ifdef BUILD_DEBUG
+		       "\n  DEBUG   = " BUILD_DEBUG
+#endif
+		       "\n\n");
+		return 1;
+	}
 
 	setvbuf(stdout, NULL, _IONBF, 0);
 
