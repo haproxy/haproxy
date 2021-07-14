@@ -124,7 +124,7 @@
 __decl_spinlock(hlua_global_lock);
 THREAD_LOCAL jmp_buf safe_ljmp_env;
 static int hlua_panic_safe(lua_State *L) { return 0; }
-static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1)); }
+static int hlua_panic_ljmp(lua_State *L) { WILL_LJMP(longjmp(safe_ljmp_env, 1)); return 0; }
 
 /* This is the chained list of struct hlua_function referenced
  * for haproxy action, sample-fetches, converters, cli and
