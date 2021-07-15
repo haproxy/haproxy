@@ -306,9 +306,9 @@
 
 /* gcc >= 4.7 or clang */
 
-#define HA_ATOMIC_STORE(val, new)    __atomic_store_n(val, new, __ATOMIC_SEQ_CST)
-#define HA_ATOMIC_LOAD(val)          __atomic_load_n(val, __ATOMIC_SEQ_CST)
-#define HA_ATOMIC_XCHG(val, new)     __atomic_exchange_n(val, new, __ATOMIC_SEQ_CST)
+#define HA_ATOMIC_STORE(val, new)    __atomic_store_n(val, new,    __ATOMIC_RELEASE)
+#define HA_ATOMIC_LOAD(val)          __atomic_load_n(val,          __ATOMIC_ACQUIRE)
+#define HA_ATOMIC_XCHG(val, new)     __atomic_exchange_n(val, new, __ATOMIC_ACQ_REL)
 
 #define HA_ATOMIC_AND(val, flags)    do { __atomic_and_fetch(val, flags, __ATOMIC_SEQ_CST); } while (0)
 #define HA_ATOMIC_OR(val, flags)     do { __atomic_or_fetch(val,  flags, __ATOMIC_SEQ_CST); } while (0)
