@@ -27,36 +27,56 @@
  */
 ullong freq_ctr_total(const struct freq_ctr *ctr, uint period, int pend)
 {
-	ullong curr, past;
-	uint curr_tick;
+	ullong curr, past, old_curr, old_past;
+	uint tick, old_tick;
 	int remain;
 
-	for (;; __ha_cpu_relax()) {
-		curr = ctr->curr_ctr;
-		past = ctr->prev_ctr;
-		curr_tick = ctr->curr_tick;
+	tick = HA_ATOMIC_LOAD(&ctr->curr_tick);
+	curr = HA_ATOMIC_LOAD(&ctr->curr_ctr);
+	past = HA_ATOMIC_LOAD(&ctr->prev_ctr);
 
-		/* now let's make sure the second loads retrieve the most
-		 * up-to-date values. If no value changed after a load barrier,
-		 * we're certain the values we got were stable.
+	while (1) {
+		if (tick & 0x1) // change in progress
+			goto redo0;
+
+		old_tick = tick;
+		old_curr = curr;
+		old_past = past;
+
+		/* now let's load the values a second time and make sure they
+		 * did not change, which will indicate it was a stable reading.
 		 */
-		__ha_barrier_load();
 
-		if (curr_tick & 0x1)
-			continue;
+		tick = HA_ATOMIC_LOAD(&ctr->curr_tick);
+		if (tick & 0x1) // change in progress
+			goto redo0;
 
-		if (curr != ctr->curr_ctr)
-			continue;
+		if (tick != old_tick)
+			goto redo1;
 
-		if (past != ctr->prev_ctr)
-			continue;
+		curr = HA_ATOMIC_LOAD(&ctr->curr_ctr);
+		if (curr != old_curr)
+			goto redo2;
 
-		if (curr_tick != ctr->curr_tick)
-			continue;
+		past = HA_ATOMIC_LOAD(&ctr->prev_ctr);
+		if (past != old_past)
+			goto redo3;
+
+		/* all values match between two loads, they're stable, let's
+		 * quit now.
+		 */
 		break;
+	redo0:
+		tick = HA_ATOMIC_LOAD(&ctr->curr_tick);
+	redo1:
+		curr = HA_ATOMIC_LOAD(&ctr->curr_ctr);
+	redo2:
+		past = HA_ATOMIC_LOAD(&ctr->prev_ctr);
+	redo3:
+		__ha_cpu_relax();
 	};
 
-	remain = curr_tick + period - global_now_ms;
+	remain = tick + period - HA_ATOMIC_LOAD(&global_now_ms);
 	if (unlikely(remain < 0)) {
 		/* We're past the first period, check if we can still report a
 		 * part of last period or if we're too far away.

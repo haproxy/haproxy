@@ -46,12 +46,11 @@ static inline unsigned int update_freq_ctr_period(struct freq_ctr *ctr,
 	 * a rotation is in progress (no big deal).
 	 */
 	for (;; __ha_cpu_relax()) {
-		__ha_barrier_load();
-		now_ms_tmp = global_now_ms;
-		curr_tick = ctr->curr_tick;
+		curr_tick  = HA_ATOMIC_LOAD(&ctr->curr_tick);
+		now_ms_tmp = HA_ATOMIC_LOAD(&global_now_ms);
 
 		if (now_ms_tmp - curr_tick < period)
-			return _HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
+			return HA_ATOMIC_ADD_FETCH(&ctr->curr_ctr, inc);
 
 		/* a rotation is needed */
 		if (!(curr_tick & 1) &&
@@ -60,19 +59,20 @@ static inline unsigned int update_freq_ctr_period(struct freq_ctr *ctr,
 	}
 
 	/* atomically switch the new period into the old one without losing any
-	 * potential concurrent update.
+	 * potential concurrent update. We're the only one performing the rotate
+	 * (locked above), others are only adding positive values to curr_ctr.
 	 */
-	_HA_ATOMIC_STORE(&ctr->prev_ctr, _HA_ATOMIC_FETCH_SUB(&ctr->curr_ctr, ctr->curr_ctr - inc));
+	HA_ATOMIC_STORE(&ctr->prev_ctr, HA_ATOMIC_XCHG(&ctr->curr_ctr, inc));
 	curr_tick += period;
 	if (likely(now_ms_tmp - curr_tick >= period)) {
 		/* we missed at least two periods */
-		_HA_ATOMIC_STORE(&ctr->prev_ctr, 0);
+		HA_ATOMIC_STORE(&ctr->prev_ctr, 0);
 		curr_tick = now_ms_tmp;
 	}
 
 	/* release the lock and update the time in case of rotate. */
-	_HA_ATOMIC_STORE(&ctr->curr_tick, curr_tick & ~1);
-	return ctr->curr_ctr;
+	HA_ATOMIC_STORE(&ctr->curr_tick, curr_tick & ~1);
+	return inc;
 }
 
 /* Update a 1-sec frequency counter by <inc> incremental units. It is automatically
@@ -312,7 +312,7 @@ static inline unsigned int swrate_add(unsigned int *sum, unsigned int n, unsigne
 	old_sum = *sum;
 	do {
 		new_sum = old_sum - (old_sum + n - 1) / n + v;
-	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum) && __ha_cpu_relax());
+	} while (!HA_ATOMIC_CAS(sum, &old_sum, new_sum) && __ha_cpu_relax());
 	return new_sum;
 }
 
@@ -330,7 +330,7 @@ static inline unsigned int swrate_add_dynamic(unsigned int *sum, unsigned int n,
 	old_sum = *sum;
 	do {
 		new_sum = old_sum - (n ? (old_sum + n - 1) / n : 0) + v;
-	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum) && __ha_cpu_relax());
+	} while (!HA_ATOMIC_CAS(sum, &old_sum, new_sum) && __ha_cpu_relax());
 	return new_sum;
 }
 
@@ -364,7 +364,7 @@ static inline unsigned int swrate_add_scaled(unsigned int *sum, unsigned int n, 
 	old_sum = *sum;
 	do {
 		new_sum = old_sum + v * s - div64_32((unsigned long long)(old_sum + n) * s, n);
-	} while (!_HA_ATOMIC_CAS(sum, &old_sum, new_sum) && __ha_cpu_relax());
+	} while (!HA_ATOMIC_CAS(sum, &old_sum, new_sum) && __ha_cpu_relax());
 	return new_sum;
 }
 
