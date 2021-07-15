@@ -530,13 +530,13 @@
 static __inline void
 __ha_barrier_load(void)
 {
-	__asm __volatile("lfence" ::: "memory");
+	__asm __volatile("" ::: "memory");
 }
 
 static __inline void
 __ha_barrier_store(void)
 {
-	__asm __volatile("sfence" ::: "memory");
+	__asm __volatile("" ::: "memory");
 }
 
 static __inline void
