@@ -1,0 +1,242 @@
+varnishtest "Add/Delete server via cli with track support"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature ignore_unknown_macro
+
+
+# just use to provide s1_{addr,port} macros
+server s1 {
+}
+
+
+# scenario 1
+# -> 3 dynamic servers, delete the first one
+syslog S1 {
+	recv notice
+	expect ~ "Server be1/s1 is UP/READY"
+	recv notice
+	expect ~ "Server be1/s2 is UP/READY"
+	recv notice
+	expect ~ "Server be1/s3 is UP/READY"
+
+	recv alert
+	expect ~ "Server be1/srv is going DOWN for maintenance."
+	recv alert
+	expect ~ "Server be1/s3 is going DOWN for maintenance."
+	recv alert
+	expect ~ "Server be1/s2 is going DOWN for maintenance."
+	recv alert
+	expect ~ "Server be1/s1 is going DOWN for maintenance."
+
+	recv notice
+	expect ~ "Server be1/srv is UP/READY"
+	recv notice
+	expect ~ "Server be1/s3 is UP/READY"
+	recv notice
+	expect ~ "Server be1/s2 is UP/READY"
+} -start
+
+# scenario 2
+# -> 3 dynamic servers, delete the middle one
+syslog S2 {
+	recv notice
+	expect ~ "Server be2/s1 is UP/READY"
+	recv notice
+	expect ~ "Server be2/s2 is UP/READY"
+	recv notice
+	expect ~ "Server be2/s3 is UP/READY"
+
+	recv alert
+	expect ~ "Server be2/srv is going DOWN for maintenance."
+	recv alert
+	expect ~ "Server be2/s3 is going DOWN for maintenance."
+	recv alert
+	expect ~ "Server be2/s2 is going DOWN for maintenance."
+	recv alert
+	expect ~ "Server be2/s1 is going DOWN for maintenance."
+
+	recv notice
+	expect ~ "Server be2/srv is UP/READY"
+	recv notice
+	expect ~ "Server be2/s3 is UP/READY"
+	recv notice
+	expect ~ "Server be2/s1 is UP/READY"
+} -start
+
+# scenario 3
+# -> 3 dynamic servers, delete all of them
+syslog S3 {
+	recv notice
+	expect ~ "Server be3/s1 is UP/READY"
+	recv notice
+	expect ~ "Server be3/s2 is UP/READY"
+	recv notice
+	expect ~ "Server be3/s3 is UP/READY"
+
+	recv alert
+	expect ~ "Server be3/s1 is going DOWN for maintenance."
+	recv alert
+	expect ~ "Server be3/s3 is going DOWN for maintenance."
+	recv alert
+	expect ~ "Server be3/s2 is going DOWN for maintenance."
+
+	recv alert
+	expect ~ "Server be3/srv is going DOWN for maintenance."
+
+	recv notice
+	expect ~ "Server be3/srv is UP/READY"
+} -start
+
+
+haproxy h1 -conf {
+	global
+		stats socket "${tmpdir}/h1/stats" level admin
+
+	backend be_check
+		server srv_check ${s1_addr}:${s1_port} check
+		server srv_no_check ${s1_addr}:${s1_port}
+
+	backend be1
+		log ${S1_addr}:${S1_port} daemon
+		server srv ${s1_addr}:${s1_port} check
+
+	backend be2
+		log ${S2_addr}:${S2_port} daemon
+		server srv ${s1_addr}:${s1_port} check
+
+	backend be3
+		log ${S3_addr}:${S3_port} daemon
+		server srv ${s1_addr}:${s1_port} check
+} -start
+
+
+###
+# check the support of the 'track' keyword on 'add server' CLI command.
+# rejection must happen if track on a non-checked or a dynamic server
+###
+haproxy h1 -cli {
+	# invalid command: track on a non-checked server
+	send "experimental-mode on; add server be_check/s1 ${s1_addr}:${s1_port} track be_check/srv_no_check"
+	expect ~ "unable to use be_check/srv_no_check for tracking as it does not have any check nor agent enabled."
+
+	# valid track usage
+	send "experimental-mode on; add server be_check/s1 ${s1_addr}:${s1_port} track be_check/srv_check"
+	expect ~ "New server registered."
+
+	# invalid command: track on a dynamic server
+	send "experimental-mode on; add server be_check/s3 ${s1_addr}:${s1_port} track be_check/s1"
+	expect ~ "unable to use be_check/s1 for tracking as it is a dynamic server."
+}
+
+###
+# scenario 1
+#
+# Add 3 dynamic servers with tracking on be1/srv
+# Disable be1/srv, S1 should report all servers DOWN
+# Delete the first dynamic server, enable be1/srv, S1 should report s1 and s3 UP
+####
+haproxy h1 -cli {
+	send "experimental-mode on; add server be1/s1 ${s1_addr}:${s1_port} track be1/srv"
+	expect ~ "New server registered."
+	send "enable server be1/s1"
+	expect ~ ".*"
+
+	send "experimental-mode on; add server be1/s2 ${s1_addr}:${s1_port} track be1/srv"
+	expect ~ "New server registered."
+	send "enable server be1/s2"
+	expect ~ ".*"
+
+	send "experimental-mode on; add server be1/s3 ${s1_addr}:${s1_port} track be1/srv"
+	expect ~ "New server registered."
+	send "enable server be1/s3"
+	expect ~ ".*"
+
+	send "disable server be1/srv"
+	expect ~ ".*"
+
+	send "experimental-mode on; del server be1/s1"
+	expect ~ "Server deleted."
+
+	send "enable server be1/srv"
+	expect ~ ".*"
+}
+
+###
+# scenario 2
+#
+# Add 3 dynamic servers with tracking on be2/srv
+# Disable be2/srv, S3 should report all servers DOWN
+# Delete the second dynamic server, enable be2/srv, S2 should report s2 and s3 UP
+####
+haproxy h1 -cli {
+	send "experimental-mode on; add server be2/s1 ${s1_addr}:${s1_port} track be2/srv"
+	expect ~ "New server registered."
+	send "enable server be2/s1"
+	expect ~ ".*"
+
+	send "experimental-mode on; add server be2/s2 ${s1_addr}:${s1_port} track be2/srv"
+	expect ~ "New server registered."
+	send "enable server be2/s2"
+	expect ~ ".*"
+
+	send "experimental-mode on; add server be2/s3 ${s1_addr}:${s1_port} track be2/srv"
+	expect ~ "New server registered."
+	send "enable server be2/s3"
+	expect ~ ".*"
+
+	send "disable server be2/srv"
+	expect ~ ".*"
+
+	send "experimental-mode on; del server be2/s2"
+	expect ~ "Server deleted."
+
+	send "enable server be2/srv"
+	expect ~ ".*"
+}
+
+###
+# scenario 3
+#
+# Add 3 dynamic servers with tracking on be3/srv
+# Delete all of them, disable/enable be3/srv, only be3/srv should be reported
+# as DOWN/UP.
+####
+haproxy h1 -cli {
+	# create server 1, track on be3/srv
+	send "experimental-mode on; add server be3/s1 ${s1_addr}:${s1_port} track be3/srv"
+	expect ~ "New server registered."
+	send "enable server be3/s1"
+	expect ~ ".*"
+
+	# create server 2, track on be3/srv
+	send "experimental-mode on; add server be3/s2 ${s1_addr}:${s1_port} track be3/srv"
+	expect ~ "New server registered."
+	send "enable server be3/s2"
+	expect ~ ".*"
+
+	# create server 3, track on be3/srv
+	send "experimental-mode on; add server be3/s3 ${s1_addr}:${s1_port} track be3/srv"
+	expect ~ "New server registered."
+	send "enable server be3/s3"
+	expect ~ ".*"
+
+	# delete all dynamic servers
+	send "experimental-mode on; disable server be3/s1; del server be3/s1"
+	expect ~ "Server deleted."
+	send "experimental-mode on; disable server be3/s3; del server be3/s3"
+	expect ~ "Server deleted."
+	send "experimental-mode on; disable server be3/s2; del server be3/s2"
+	expect ~ "Server deleted."
+
+	# disable / enable the static server
+	send "disable server be3/srv"
+	expect ~ ".*"
+	send "enable server be3/srv"
+	expect ~ ".*"
+}
+
+
+syslog S1 -wait
+syslog S2 -wait
+syslog S3 -wait
