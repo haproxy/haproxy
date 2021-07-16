@@ -82,6 +82,7 @@ struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos);
 int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
                   char **err_msg, const char **end_ptr, int *err_arg,
                   struct arg_list *al);
+struct arg *free_args(struct arg *args);
 
 #endif /* _HAPROXY_ARG_H */
 

@@ -17,6 +17,7 @@
 #include <haproxy/arg.h>
 #include <haproxy/chunk.h>
 #include <haproxy/global.h>
+#include <haproxy/regex.h>
 #include <haproxy/tools.h>
 
 const char *arg_type_names[ARGT_NBTYPES] = {
@@ -445,4 +446,25 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 alloc_err:
 	memprintf(err_msg, "out of memory");
 	goto err;
+}
+
+/* Free all args of an args array, taking care of unresolved arguments as well.
+ * It stops at the ARGT_STOP, which must be present. The array itself is not
+ * freed, it's up to the caller to do it. However it is returned, allowing to
+ * call free(free_args(argptr)). It is valid to call it with a NULL args, and
+ * nothing will be done).
+ */
+struct arg *free_args(struct arg *args)
+{
+	struct arg *arg;
+
+	for (arg = args; arg && arg->type != ARGT_STOP; arg++) {
+		if (arg->type == ARGT_STR || arg->unresolved)
+			chunk_destroy(&arg->data.str);
+		else if (arg->type == ARGT_REG)
+			regex_free(arg->data.reg);
+		else if (arg->type == ARGT_PBUF_FNUM)
+			ha_free(&arg->data.fid.ids);
+	}
+	return args;
 }
