@@ -71,6 +71,7 @@ struct cond_pred_kw {
 struct cfg_cond_term {
 	enum cfg_cond_term_type type; // CCTT_*
 	struct arg *args;             // arguments for predicates
+	int neg;                      // 0: direct result; 1: negate
 	union {
 		const struct cond_pred_kw *pred; // predicate (function)
 	};

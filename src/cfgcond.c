@@ -65,12 +65,19 @@ int cfg_parse_cond_term(const char **text, struct cfg_cond_term *term, char **er
 
 	term->type = CCTT_NONE;
 	term->args = NULL;
+	term->neg  = 0;
 
 	while (*in == ' ' || *in == '\t')
 		in++;
 
 	if (!*in) /* empty term does not parse */
 		return 0;
+
+	/* !<term> negates the term. White spaces permitted */
+	while (*in == '!') {
+		term->neg = !term->neg;
+		do { in++; } while (*in == ' ' || *in == '\t');
+	}
 
 	val = strtol(in, &end, 0);
 	if (end != in) {
@@ -173,6 +180,9 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 	else {
 		memprintf(err, "internal error: unhandled condition term type %d", (int)term->type);
 	}
+
+	if (ret >= 0 && term->neg)
+		ret = !ret;
 	return ret;
 }
 
