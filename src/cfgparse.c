@@ -1827,11 +1827,8 @@ int cfg_eval_condition(char **args, char **err, const char **errptr)
 	if (errptr)
 		*errptr = args[0];
  done:
-	for (nbargs = 0; argp && argp[nbargs].type != ARGT_STOP; nbargs++) {
-		if (argp[nbargs].type == ARGT_STR)
-			free(argp[nbargs].data.str.area);
-	}
-	free(argp);
+	free_args(argp);
+	ha_free(&argp);
 	return ret;
 }
 
