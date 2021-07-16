@@ -77,4 +77,22 @@ struct cfg_cond_term {
 	};
 };
 
+/* condition sub-expression for an AND:
+ *   expr_and = <term> '&&' <expr_and>
+ *            | <term>
+ */
+struct cfg_cond_and {
+	struct cfg_cond_term *left;
+	struct cfg_cond_and *right; // may be NULL
+};
+
+/* condition expression:
+ *   expr = <expr_and> '||' <expr>
+ *        | <expr_and>
+ */
+struct cfg_cond_expr {
+	struct cfg_cond_and *left;
+	struct cfg_cond_expr *right; // may be NULL
+};
+
 #endif /* _HAPROXY_CFGCOND_T_H */

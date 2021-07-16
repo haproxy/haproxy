@@ -29,6 +29,15 @@ const struct cond_pred_kw *cfg_lookup_cond_pred(const char *str);
 int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **err, const char **errptr);
 int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err);
 void cfg_free_cond_term(struct cfg_cond_term **term);
+
+int cfg_parse_cond_and(const char **text, struct cfg_cond_and **expr, char **err, const char **errptr);
+int cfg_eval_cond_and(struct cfg_cond_and *expr, char **err);
+void cfg_free_cond_and(struct cfg_cond_and **expr);
+
+int cfg_parse_cond_expr(const char **text, struct cfg_cond_expr **expr, char **err, const char **errptr);
+int cfg_eval_cond_expr(struct cfg_cond_expr *expr, char **err);
+void cfg_free_cond_expr(struct cfg_cond_expr **expr);
+
 int cfg_eval_condition(char **args, char **err, const char **errptr);
 
 #endif

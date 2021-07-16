@@ -206,6 +206,178 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 }
 
 
+/* Frees <expr> and its terms and args. NULL is supported and does nothing. */
+void cfg_free_cond_and(struct cfg_cond_and **expr)
+{
+	while (expr && *expr) {
+		cfg_free_cond_term(&(*expr)->left);
+		expr = &(*expr)->right;
+	}
+}
+
+/* Frees <expr> and its terms and args. NULL is supported and does nothing. */
+void cfg_free_cond_expr(struct cfg_cond_expr **expr)
+{
+	while (expr && *expr) {
+		cfg_free_cond_and(&(*expr)->left);
+		expr = &(*expr)->right;
+	}
+}
+
+/* Parse an indirect input text as a possible config condition sub-expr.
+ * Returns <0 on parsing error, 0 if the parser is desynchronized, or >0 on
+ * success. <expr> is filled with the parsed info, and <text> is updated on
+ * success to point to the first unparsed character, or is left untouched
+ * on failure. On success, the caller will have to free all lower-level
+ * allocated structs using cfg_free_cond_expr(). An error will be set in
+ * <err> on error, and only in this case. In this case the first bad
+ * character will be reported in <errptr>.
+ */
+int cfg_parse_cond_and(const char **text, struct cfg_cond_and **expr, char **err, const char **errptr)
+{
+	struct cfg_cond_and *e;
+	const char *in = *text;
+	int ret = -1;
+
+	if (!*in) /* empty expr does not parse */
+		return 0;
+
+	e = *expr = calloc(1, sizeof(**expr));
+	if (!e) {
+		memprintf(err, "memory allocation error while parsing conditional expression '%s'", *text);
+		goto done;
+	}
+
+	ret = cfg_parse_cond_term(&in, &e->left, err, errptr);
+	if (ret == -1) // parse error, error already reported
+		goto done;
+
+	if (ret == 0) {
+		/* ret == 0, no other way to parse this */
+		memprintf(err, "unparsable conditional sub-expression '%s'", in);
+		if (errptr)
+			*errptr = in;
+		ret = -1;
+		goto done;
+	}
+
+	/* ret=1, we have a term in the left hand set */
+
+	/* find an optionnal '&&' */
+	while (*in == ' ' || *in == '\t')
+		in++;
+
+	*text = in;
+	if (in[0] != '&' || in[1] != '&')
+		goto done;
+
+	/* we have a '&&', let's parse the right handset's subexp */
+	in += 2;
+	while (*in == ' ' || *in == '\t')
+		in++;
+
+	ret = cfg_parse_cond_and(&in, &e->right, err, errptr);
+	if (ret > 0)
+		*text = in;
+ done:
+	if (ret < 0)
+		cfg_free_cond_and(expr);
+	return ret;
+}
+
+/* Parse an indirect input text as a possible config condition term.
+ * Returns <0 on parsing error, 0 if the parser is desynchronized, or >0 on
+ * success. <expr> is filled with the parsed info, and <text> is updated on
+ * success to point to the first unparsed character, or is left untouched
+ * on failure. On success, the caller will have to free all lower-level
+ * allocated structs using cfg_free_cond_expr(). An error will be set in
+ * <err> on error, and only in this case. In this case the first bad
+ * character will be reported in <errptr>.
+ */
+int cfg_parse_cond_expr(const char **text, struct cfg_cond_expr **expr, char **err, const char **errptr)
+{
+	struct cfg_cond_expr *e;
+	const char *in = *text;
+	int ret = -1;
+
+	if (!*in) /* empty expr does not parse */
+		return 0;
+
+	e = *expr = calloc(1, sizeof(**expr));
+	if (!e) {
+		memprintf(err, "memory allocation error while parsing conditional expression '%s'", *text);
+		goto done;
+	}
+
+	ret = cfg_parse_cond_and(&in, &e->left, err, errptr);
+	if (ret == -1) // parse error, error already reported
+		goto done;
+
+	if (ret == 0) {
+		/* ret == 0, no other way to parse this */
+		memprintf(err, "unparsable conditional expression '%s'", in);
+		if (errptr)
+			*errptr = in;
+		ret = -1;
+		goto done;
+	}
+
+	/* ret=1, we have a sub-expr in the left hand set */
+
+	/* find an optionnal '||' */
+	while (*in == ' ' || *in == '\t')
+		in++;
+
+	*text = in;
+	if (in[0] != '|' || in[1] != '|')
+		goto done;
+
+	/* we have a '||', let's parse the right handset's subexp */
+	in += 2;
+	while (*in == ' ' || *in == '\t')
+		in++;
+
+	ret = cfg_parse_cond_expr(&in, &e->right, err, errptr);
+	if (ret > 0)
+		*text = in;
+ done:
+	if (ret < 0)
+		cfg_free_cond_expr(expr);
+	return ret;
+}
+
+/* evaluate an sub-expression on a .if/.elif line. The expression is valid and
+ * was already parsed in <expr>. Returns -1 on error (in which case err is
+ * filled with a message, and only in this case), 0 if the condition is false,
+ * 1 if it's true.
+ */
+int cfg_eval_cond_and(struct cfg_cond_and *expr, char **err)
+{
+	int ret;
+
+	/* AND: loop on terms and sub-exp's terms as long as they're TRUE
+	 * (stop on FALSE and ERROR).
+	 */
+	while ((ret = cfg_eval_cond_term(expr->left, err)) > 0 && expr->right)
+		expr = expr->right;
+	return ret;
+}
+
+/* evaluate an expression on a .if/.elif line. The expression is valid and was
+ * already parsed in <expr>. Returns -1 on error (in which case err is filled
+ * with a message, and only in this case), 0 if the condition is false, 1 if
+ * it's true.
+ */
+int cfg_eval_cond_expr(struct cfg_cond_expr *expr, char **err)
+{
+	int ret;
+
+	/* OR: loop on sub-exps as long as they're FALSE (stop on TRUE and ERROR) */
+	while ((ret = cfg_eval_cond_and(expr->left, err)) == 0 && expr->right)
+		expr = expr->right;
+	return ret;
+}
+
 /* evaluate a condition on a .if/.elif line. The condition is already tokenized
  * in <err>. Returns -1 on error (in which case err is filled with a message,
  * and only in this case), 0 if the condition is false, 1 if it's true. If
@@ -213,14 +385,14 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
  */
 int cfg_eval_condition(char **args, char **err, const char **errptr)
 {
-	struct cfg_cond_term *term = NULL;
+	struct cfg_cond_expr *expr = NULL;
 	const char *text = args[0];
 	int ret = -1;
 
 	if (!*text) /* note: empty = false */
 		return 0;
 
-	ret = cfg_parse_cond_term(&text, &term, err, errptr);
+	ret = cfg_parse_cond_expr(&text, &expr, err, errptr);
 	if (ret != 0) {
 		if (ret == -1) // parse error, error already reported
 			goto done;
@@ -234,7 +406,7 @@ int cfg_eval_condition(char **args, char **err, const char **errptr)
 			goto fail;
 		}
 
-		ret = cfg_eval_cond_term(term, err);
+		ret = cfg_eval_cond_expr(expr, err);
 		goto done;
 	}
 
@@ -245,6 +417,6 @@ int cfg_eval_condition(char **args, char **err, const char **errptr)
 	if (errptr)
 		*errptr = text;
  done:
-	cfg_free_cond_term(&term);
+	cfg_free_cond_expr(&expr);
 	return ret;
 }

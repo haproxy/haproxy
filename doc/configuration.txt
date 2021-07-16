@@ -805,14 +805,21 @@ as such it is possible to use environment variables in conditions.
 Conditions can also be evaluated on startup with the -cc parameter.
 See "3. Starting HAProxy" in the management doc.
 
-The conditions are currently limited to:
+The conditions are either an empty string (which then returns false), or an
+expression made of any combination of:
 
-  - an empty string, always returns "false"
   - the integer zero ('0'), always returns "false"
   - a non-nul integer (e.g. '1'), always returns "true".
   - a predicate optionally followed by argument(s) in parenthesis.
   - a question mark ('!') preceeding any of the non-empty elements above, and
     which will negate its status.
+  - expressions combined with a logical AND ('&&'), which will be evaluated
+    from left to right until one returns false
+  - expressions combined with a logical OR ('||'), which will be evaluated
+    from right to left until one returns true
+
+Note that like in other languages, the AND operator has precedence over the OR
+operator, so that "A && B || C && D" evalues as "(A && B) || (C && D)".
 
 The list of currently supported predicates is the following:
 
@@ -852,6 +859,10 @@ Example:
      .if feature(OPENSSL)
           bind :443 ssl crt ...
      .endif
+   .endif
+
+   .if streq("$WITH_SSL",yes) && feature(OPENSSL)
+          bind :443 ssl crt ...
    .endif
 
    .if version_atleast(2.4-dev19)
