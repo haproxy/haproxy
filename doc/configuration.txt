@@ -811,6 +811,7 @@ expression made of any combination of:
   - the integer zero ('0'), always returns "false"
   - a non-nul integer (e.g. '1'), always returns "true".
   - a predicate optionally followed by argument(s) in parenthesis.
+  - a condition placed between a pair of parenthesis '(' and ')'
   - a question mark ('!') preceeding any of the non-empty elements above, and
     which will negate its status.
   - expressions combined with a logical AND ('&&'), which will be evaluated
@@ -861,7 +862,7 @@ Example:
      .endif
    .endif
 
-   .if streq("$WITH_SSL",yes) && feature(OPENSSL)
+   .if feature(OPENSSL) && (streq("$WITH_SSL",yes) || streq("$SSL_ONLY",yes))
           bind :443 ssl crt ...
    .endif
 

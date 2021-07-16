@@ -58,6 +58,7 @@ enum cfg_cond_term_type {
 	CCTT_FALSE,
 	CCTT_TRUE,
 	CCTT_PRED,
+	CCTT_PAREN, // '(' EXPR ')'
 };
 
 /* keyword for a condition predicate */
@@ -74,6 +75,7 @@ struct cfg_cond_term {
 	int neg;                      // 0: direct result; 1: negate
 	union {
 		const struct cond_pred_kw *pred; // predicate (function)
+		struct cfg_cond_expr *expr;      // expression for CCTT_PAREN
 	};
 };
 

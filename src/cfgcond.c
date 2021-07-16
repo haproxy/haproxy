@@ -51,6 +51,9 @@ void cfg_free_cond_term(struct cfg_cond_term **term)
 	if (!term || !*term)
 		return;
 
+	if ((*term)->type == CCTT_PAREN)
+		cfg_free_cond_expr(&(*term)->expr);
+
 	free_args((*term)->args);
 	free((*term)->args);
 	ha_free(term);
@@ -104,6 +107,32 @@ int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **e
 		return 1;
 	}
 
+	/* Try to parse '(' EXPR ')' */
+	if (*in == '(') {
+		int ret;
+
+		t->type = CCTT_PAREN;
+		t->args = NULL;
+
+		do { in++; } while (*in == ' ' || *in == '\t');
+		ret = cfg_parse_cond_expr(&in, &t->expr, err, errptr);
+		if (ret == -1)
+			goto fail2;
+		if (ret == 0)
+			goto fail0;
+
+		/* find the closing ')' */
+		while (*in == ' ' || *in == '\t')
+			in++;
+		if (*in != ')') {
+			memprintf(err, "expected ')' after conditional expression '%s'", *text);
+			goto fail1;
+		}
+		do { in++; } while (*in == ' ' || *in == '\t');
+		*text = in;
+		return 1;
+	}
+
 	/* below we'll likely all make_arg_list() so we must return only via
 	 * the <done> label which frees the arg list.
 	 */
@@ -123,6 +152,7 @@ int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **e
 		return 1;
 	}
 
+ fail0:
 	memprintf(err, "unparsable conditional expression '%s'", *text);
  fail1:
 	if (errptr)
@@ -195,6 +225,9 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 			memprintf(err, "internal error: unhandled conditional expression predicate '%s'", term->pred->word);
 			break;
 		}
+	}
+	else if (term->type == CCTT_PAREN) {
+		ret = cfg_eval_cond_expr(term->expr, err);
 	}
 	else {
 		memprintf(err, "internal error: unhandled condition term type %d", (int)term->type);
