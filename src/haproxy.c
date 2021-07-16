@@ -1808,7 +1808,7 @@ static void init(int argc, char **argv)
 		size_t outlen = strlen(check_condition) + 1;
 
 		err = parse_line(check_condition, check_condition, &outlen, args, &arg,
-		                 PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE | PARSE_OPT_BKSLASH,
+		                 PARSE_OPT_ENV | PARSE_OPT_WORD_EXPAND | PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE | PARSE_OPT_BKSLASH,
 		                 &errptr);
 
 		if (err & PARSE_ERR_QUOTE) {
