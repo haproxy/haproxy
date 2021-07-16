@@ -482,6 +482,8 @@ struct quic_tx_packet {
 	struct quic_pktns *pktns;
 	/* Flags. */
 	unsigned int flags;
+	/* Reference counter */
+	int refcnt;
 	/* Next packet in the same datagram */
 	struct quic_tx_packet *next;
 };

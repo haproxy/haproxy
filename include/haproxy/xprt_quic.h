@@ -1064,6 +1064,19 @@ static inline void free_quic_rx_packet(struct quic_rx_packet *pkt)
 	quic_rx_packet_refdec(pkt);
 }
 
+/* Increment the reference counter of <pkt> */
+static inline void quic_tx_packet_refinc(struct quic_tx_packet *pkt)
+{
+	HA_ATOMIC_ADD(&pkt->refcnt, 1);
+}
+
+/* Decrement the reference counter of <pkt> */
+static inline void quic_tx_packet_refdec(struct quic_tx_packet *pkt)
+{
+	if (!HA_ATOMIC_SUB_FETCH(&pkt->refcnt, 1))
+		pool_free(pool_head_quic_tx_packet, pkt);
+}
+
 ssize_t quic_lstnr_dgram_read(char *buf, size_t len, void *owner,
                               struct sockaddr_storage *saddr);
 ssize_t quic_srv_dgram_read(char *buf, size_t len, void *owner,
