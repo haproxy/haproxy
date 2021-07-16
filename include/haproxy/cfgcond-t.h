@@ -52,11 +52,28 @@ enum cond_predicate {
 	CFG_PRED_VERSION_BEFORE,  // "version_before"
 };
 
+/* types for condition terms */
+enum cfg_cond_term_type {
+	CCTT_NONE = 0,
+	CCTT_FALSE,
+	CCTT_TRUE,
+	CCTT_PRED,
+};
+
 /* keyword for a condition predicate */
 struct cond_pred_kw {
 	const char *word;         // NULL marks the end of the list
 	enum cond_predicate prd;  // one of the CFG_PRED_* above
 	uint64_t arg_mask;        // mask of supported arguments (strings only)
+};
+
+/* condition term */
+struct cfg_cond_term {
+	enum cfg_cond_term_type type; // CCTT_*
+	struct arg *args;             // arguments for predicates
+	union {
+		const struct cond_pred_kw *pred; // predicate (function)
+	};
 };
 
 #endif /* _HAPROXY_CFGCOND_T_H */

@@ -45,6 +45,138 @@ const struct cond_pred_kw *cfg_lookup_cond_pred(const char *str)
 	return NULL;
 }
 
+/* Parse an indirect input text as a possible config condition term.
+ * Returns <0 on parsing error, 0 if the parser is desynchronized, or >0 on
+ * success. <term> is filled with the parsed info, and <text> is updated on
+ * success to point to the first unparsed character, or is left untouched
+ * on failure. On success, the caller must free term->args using free_args()
+ * and free the array itself. An error will be set in <err> on error, and only
+ * in this case. In this case the first bad character will be reported in
+ * <errptr>.
+ */
+int cfg_parse_cond_term(const char **text, struct cfg_cond_term *term, char **err, const char **errptr)
+{
+	const char *in = *text;
+	const char *end_ptr;
+	int err_arg;
+	int nbargs;
+	char *end;
+	long val;
+
+	term->type = CCTT_NONE;
+	term->args = NULL;
+
+	while (*in == ' ' || *in == '\t')
+		in++;
+
+	if (!*in) /* empty term does not parse */
+		return 0;
+
+	val = strtol(in, &end, 0);
+	if (end != in) {
+		term->type = val ? CCTT_TRUE : CCTT_FALSE;
+		*text = end;
+		return 1;
+	}
+
+	/* below we'll likely all make_arg_list() so we must return only via
+	 * the <done> label which frees the arg list.
+	 */
+	term->pred = cfg_lookup_cond_pred(in);
+	if (term->pred) {
+		term->type = CCTT_PRED;
+		nbargs = make_arg_list(in + strlen(term->pred->word), -1,
+		                       term->pred->arg_mask, &term->args, err,
+		                       &end_ptr, &err_arg, NULL);
+		if (nbargs < 0) {
+			free_args(term->args);
+			ha_free(&term->args);
+			memprintf(err, "%s in argument %d of predicate '%s' used in conditional expression", *err, err_arg, term->pred->word);
+			if (errptr)
+				*errptr = end_ptr;
+			return -1;
+		}
+		*text = end_ptr;
+		return 1;
+	}
+
+	memprintf(err, "unparsable conditional expression '%s'", *text);
+	if (errptr)
+		*errptr = *text;
+	return -1;
+}
+
+/* evaluate a condition term on a .if/.elif line. The condition was already
+ * parsed in <term>. Returns -1 on error (in which case err is filled with a
+ * message, and only in this case), 0 if the condition is false, 1 if it's
+ * true.
+ */
+int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
+{
+	int ret = -1;
+
+	if (term->type == CCTT_FALSE)
+		ret = 0;
+	else if (term->type == CCTT_TRUE)
+		ret = 1;
+	else if (term->type == CCTT_PRED) {
+		/* here we know we have a valid predicate with valid arguments
+		 * placed in term->args (which the caller will free).
+		 */
+		switch (term->pred->prd) {
+		case CFG_PRED_DEFINED:  // checks if arg exists as an environment variable
+			ret = getenv(term->args[0].data.str.area) != NULL;
+			break;
+
+		case CFG_PRED_FEATURE: { // checks if the arg matches an enabled feature
+			const char *p;
+
+			ret = 0; // assume feature not found
+			for (p = build_features; (p = strstr(p, term->args[0].data.str.area)); p++) {
+				if (p > build_features &&
+				    (p[term->args[0].data.str.data] == ' ' ||
+				     p[term->args[0].data.str.data] == 0)) {
+					if (*(p-1) == '+') {       // e.g. "+OPENSSL"
+						ret = 1;
+						break;
+					}
+					else if (*(p-1) == '-') {  // e.g. "-OPENSSL"
+						ret = 0;
+						break;
+					}
+					/* it was a sub-word, let's restart from next place */
+				}
+			}
+			break;
+		}
+		case CFG_PRED_STREQ:    // checks if the two arg are equal
+			ret = strcmp(term->args[0].data.str.area, term->args[1].data.str.area) == 0;
+			break;
+
+		case CFG_PRED_STRNEQ:   // checks if the two arg are different
+			ret = strcmp(term->args[0].data.str.area, term->args[1].data.str.area) != 0;
+			break;
+
+		case CFG_PRED_VERSION_ATLEAST: // checks if the current version is at least this one
+			ret = compare_current_version(term->args[0].data.str.area) <= 0;
+			break;
+
+		case CFG_PRED_VERSION_BEFORE:  // checks if the current version is older than this one
+			ret = compare_current_version(term->args[0].data.str.area) > 0;
+			break;
+
+		default:
+			memprintf(err, "internal error: unhandled conditional expression predicate '%s'", term->pred->word);
+			break;
+		}
+	}
+	else {
+		memprintf(err, "internal error: unhandled condition term type %d", (int)term->type);
+	}
+	return ret;
+}
+
+
 /* evaluate a condition on a .if/.elif line. The condition is already tokenized
  * in <err>. Returns -1 on error (in which case err is filled with a message,
  * and only in this case), 0 if the condition is false, 1 if it's true. If
@@ -52,96 +184,28 @@ const struct cond_pred_kw *cfg_lookup_cond_pred(const char *str)
  */
 int cfg_eval_condition(char **args, char **err, const char **errptr)
 {
-	const struct cond_pred_kw *cond_pred = NULL;
-	const char *end_ptr;
-	struct arg *argp = NULL;
-	int err_arg;
-	int nbargs;
+	struct cfg_cond_term term = { };
+	const char *text = args[0];
 	int ret = -1;
-	char *end;
-	long val;
 
-	if (!*args[0]) /* note: empty = false */
+	if (!*text) /* note: empty = false */
 		return 0;
 
-	val = strtol(args[0], &end, 0);
-	if (end && *end == '\0')
-		return val != 0;
-
-	/* below we'll likely all make_arg_list() so we must return only via
-	 * the <done> label which frees the arg list.
-	 */
-	cond_pred = cfg_lookup_cond_pred(args[0]);
-	if (cond_pred) {
-		nbargs = make_arg_list(args[0] + strlen(cond_pred->word), -1,
-		                       cond_pred->arg_mask, &argp, err,
-		                       &end_ptr, &err_arg, NULL);
-
-		if (nbargs < 0) {
-			memprintf(err, "%s in argument %d of predicate '%s' used in conditional expression", *err, err_arg, cond_pred->word);
-			if (errptr)
-				*errptr = end_ptr;
+	ret = cfg_parse_cond_term(&text, &term, err, errptr);
+	if (ret != 0) {
+		if (ret == -1) // parse error, error already reported
 			goto done;
-		}
-
-		/* here we know we have a valid predicate with <nbargs> valid
-		 * arguments, placed in <argp> (which we'll need to free).
-		 */
-		switch (cond_pred->prd) {
-		case CFG_PRED_DEFINED:  // checks if arg exists as an environment variable
-			ret = getenv(argp[0].data.str.area) != NULL;
-			goto done;
-
-		case CFG_PRED_FEATURE: { // checks if the arg matches an enabled feature
-			const char *p;
-
-			for (p = build_features; (p = strstr(p, argp[0].data.str.area)); p++) {
-				if ((p[argp[0].data.str.data] == ' ' || p[argp[0].data.str.data] == 0) &&
-				    p > build_features) {
-					if (*(p-1) == '+') { // "+OPENSSL"
-						ret = 1;
-						goto done;
-					}
-					else if (*(p-1) == '-') { // "-OPENSSL"
-						ret = 0;
-						goto done;
-					}
-					/* it was a sub-word, let's restart from next place */
-				}
-			}
-			/* not found */
-			ret = 0;
-			goto done;
-		}
-		case CFG_PRED_STREQ:    // checks if the two arg are equal
-			ret = strcmp(argp[0].data.str.area, argp[1].data.str.area) == 0;
-			goto done;
-
-		case CFG_PRED_STRNEQ:   // checks if the two arg are different
-			ret = strcmp(argp[0].data.str.area, argp[1].data.str.area) != 0;
-			goto done;
-
-		case CFG_PRED_VERSION_ATLEAST: // checks if the current version is at least this one
-			ret = compare_current_version(argp[0].data.str.area) <= 0;
-			goto done;
-
-		case CFG_PRED_VERSION_BEFORE:  // checks if the current version is older than this one
-			ret = compare_current_version(argp[0].data.str.area) > 0;
-			goto done;
-
-		default:
-			memprintf(err, "internal error: unhandled conditional expression predicate '%s'", cond_pred->word);
-			if (errptr)
-				*errptr = args[0];
-			goto done;
-		}
+		ret = cfg_eval_cond_term(&term, err);
+		goto done;
 	}
 
+	/* ret == 0, no other way to parse this */
+	ret = -1;
 	memprintf(err, "unparsable conditional expression '%s'", args[0]);
 	if (errptr)
-		*errptr = args[0];
+		*errptr = text;
  done:
-	free_args(argp);
-	ha_free(&argp);
+	free_args(term.args);
+	ha_free(&term.args);
 	return ret;
 }
