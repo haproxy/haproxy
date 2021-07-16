@@ -1826,7 +1826,7 @@ static void init(int argc, char **argv)
 			exit(2);
 		}
 
-		if (err & PARSE_ERR_TOOMANY) {
+		if ((err & PARSE_ERR_TOOMANY) || *args[1]) {
 			ha_alert("Error in condition: Too many words.\n");
 			exit(2);
 		}
