@@ -663,13 +663,13 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
  * returns true or false. It can be adjust the types if there compatibles.
  *
  * This function assumes that the argp argument contains ARGM_NBARGS + 1
- * entries.
+ * entries and that there is at least one stop at the last position.
  */
 __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
                               uint64_t mask, struct proxy *p)
 {
 	int min_arg;
-	int i, idx;
+	int idx;
 	struct proxy *px;
 	struct userlist *ul;
 	struct my_regex *reg;
@@ -682,12 +682,6 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 
 	while (1) {
 		struct buffer tmp = BUF_NULL;
-
-		/* Check oversize. */
-		if (idx >= ARGM_NBARGS && argp[idx].type != ARGT_STOP) {
-			msg = "Malformed argument mask";
-			goto error;
-		}
 
 		/* Check for mandatory arguments. */
 		if (argp[idx].type == ARGT_STOP) {
@@ -966,12 +960,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 	return 0;
 
   error:
-	for (i = 0; i < idx; i++) {
-		if (argp[i].type == ARGT_STR)
-			chunk_destroy(&argp[i].data.str);
-		else if (argp[i].type == ARGT_REG)
-			regex_free(argp[i].data.reg);
-	}
+	free_args(argp);
 	WILL_LJMP(luaL_argerror(L, first + idx, msg));
 	return 0; /* Never reached */
 }
@@ -3529,21 +3518,11 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 		hlua_smp2lua(L, &smp);
 
   end:
-	for (i = 0; args[i].type != ARGT_STOP; i++) {
-		if (args[i].type == ARGT_STR)
-			chunk_destroy(&args[i].data.str);
-		else if (args[i].type == ARGT_REG)
-			regex_free(args[i].data.reg);
-	}
+	free_args(args);
 	return 1;
 
   error:
-	for (i = 0; args[i].type != ARGT_STOP; i++) {
-		if (args[i].type == ARGT_STR)
-			chunk_destroy(&args[i].data.str);
-		else if (args[i].type == ARGT_REG)
-			regex_free(args[i].data.reg);
-	}
+	free_args(args);
 	WILL_LJMP(lua_error(L));
 	return 0; /* Never reached */
 }
@@ -3669,21 +3648,11 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	else
 		hlua_smp2lua(L, &smp);
   end:
-	for (i = 0; args[i].type != ARGT_STOP; i++) {
-		if (args[i].type == ARGT_STR)
-			chunk_destroy(&args[i].data.str);
-		else if (args[i].type == ARGT_REG)
-			regex_free(args[i].data.reg);
-	}
+	free_args(args);
 	return 1;
 
   error:
-	for (i = 0; args[i].type != ARGT_STOP; i++) {
-		if (args[i].type == ARGT_STR)
-			chunk_destroy(&args[i].data.str);
-		else if (args[i].type == ARGT_REG)
-			regex_free(args[i].data.reg);
-	}
+	free_args(args);
 	WILL_LJMP(lua_error(L));
 	return 0; /* Never reached */
 }
