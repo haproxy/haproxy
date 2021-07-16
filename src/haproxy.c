@@ -87,6 +87,7 @@
 #include <haproxy/auth.h>
 #include <haproxy/base64.h>
 #include <haproxy/capture-t.h>
+#include <haproxy/cfgcond.h>
 #include <haproxy/cfgdiag.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/chunk.h>

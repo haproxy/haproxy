@@ -868,7 +868,7 @@ OBJS += src/mux_h2.o src/mux_fcgi.o src/http_ana.o src/mux_h1.o src/stream.o   \
         src/listener.o src/dns.o src/connection.o src/tcp_rules.o src/debug.o  \
         src/sink.o src/payload.o src/mux_pt.o src/filters.o src/fcgi-app.o     \
         src/server_state.o src/vars.o src/map.o src/cfgparse-global.o          \
-        src/task.o src/flt_http_comp.o src/session.o src/sock.o                \
+        src/task.o src/flt_http_comp.o src/session.o src/sock.o src/cfgcond.o  \
         src/flt_trace.o src/acl.o src/trace.o src/http_rules.o src/queue.o     \
         src/mjson.o src/h2.o src/h1.o src/mworker.o src/lb_chash.o src/ring.o  \
         src/activity.o src/tcp_sample.o src/proto_tcp.o src/htx.o src/h1_htx.o \
