@@ -1807,6 +1807,7 @@ static void init(int argc, char **argv)
 		char *args[MAX_LINE_ARGS+1];
 		int arg = sizeof(args) / sizeof(*args);
 		size_t outlen = strlen(check_condition) + 1;
+		char *w;
 
 		err = parse_line(check_condition, check_condition, &outlen, args, &arg,
 		                 PARSE_OPT_ENV | PARSE_OPT_WORD_EXPAND | PARSE_OPT_DQUOTE | PARSE_OPT_SQUOTE | PARSE_OPT_BKSLASH,
@@ -1827,7 +1828,7 @@ static void init(int argc, char **argv)
 			exit(2);
 		}
 
-		if ((err & PARSE_ERR_TOOMANY) || *args[1]) {
+		if (err & PARSE_ERR_TOOMANY) {
 			ha_alert("Error in condition: Too many words.\n");
 			exit(2);
 		}
@@ -1836,6 +1837,10 @@ static void init(int argc, char **argv)
 			ha_alert("Unhandled error in condition, please report this to the developers.\n");
 			exit(2);
 		}
+
+		/* remerge all words into a single expression */
+		for (w = *args; (w += strlen(w)) < check_condition + outlen - 1; *w = ' ')
+			;
 
 		result = cfg_eval_condition(args, &errmsg, &errptr);
 

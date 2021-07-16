@@ -1889,13 +1889,11 @@ next_line:
 				const char *errptr = NULL;
 				char *errmsg = NULL;
 				int cond;
+				char *w;
 
-				if (*args[2]) {
-					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'.\n",
-					         file, linenum, args[2], args[0]);
-					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
-					break;
-				}
+				/* remerge all words into a single expression */
+				for (w = *args; (w += strlen(w)) < outline + outlen - 1; *w = ' ')
+					;
 
 				nested_cond_lvl++;
 				if (nested_cond_lvl >= MAXNESTEDCONDS) {
@@ -1938,13 +1936,11 @@ next_line:
 				const char *errptr = NULL;
 				char *errmsg = NULL;
 				int cond;
+				char *w;
 
-				if (*args[2]) {
-					ha_alert("parsing [%s:%d]: Unexpected argument '%s' for '%s'.\n",
-					         file, linenum, args[2], args[0]);
-					err_code |= ERR_ALERT | ERR_FATAL | ERR_ABORT;
-					break;
-				}
+				/* remerge all words into a single expression */
+				for (w = *args; (w += strlen(w)) < outline + outlen - 1; *w = ' ')
+					;
 
 				if (!nested_cond_lvl) {
 					ha_alert("parsing [%s:%d]: lone '.elif' with no matching '.if'.\n", file, linenum);
