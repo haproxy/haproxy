@@ -45,17 +45,29 @@ const struct cond_pred_kw *cfg_lookup_cond_pred(const char *str)
 	return NULL;
 }
 
+/* Frees <term> and its args. NULL is supported and does nothing. */
+void cfg_free_cond_term(struct cfg_cond_term **term)
+{
+	if (!term || !*term)
+		return;
+
+	free_args((*term)->args);
+	free((*term)->args);
+	ha_free(term);
+}
+
 /* Parse an indirect input text as a possible config condition term.
  * Returns <0 on parsing error, 0 if the parser is desynchronized, or >0 on
- * success. <term> is filled with the parsed info, and <text> is updated on
- * success to point to the first unparsed character, or is left untouched
- * on failure. On success, the caller must free term->args using free_args()
- * and free the array itself. An error will be set in <err> on error, and only
+ * success. <term> is allocated and filled with the parsed info, and <text>
+ * is updated on success to point to the first unparsed character, or is left
+ * untouched on failure. On success, the caller must free <term> using
+ * cfg_free_cond_term(). An error will be set in <err> on error, and only
  * in this case. In this case the first bad character will be reported in
  * <errptr>.
  */
-int cfg_parse_cond_term(const char **text, struct cfg_cond_term *term, char **err, const char **errptr)
+int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **err, const char **errptr)
 {
+	struct cfg_cond_term *t;
 	const char *in = *text;
 	const char *end_ptr;
 	int err_arg;
@@ -63,25 +75,31 @@ int cfg_parse_cond_term(const char **text, struct cfg_cond_term *term, char **er
 	char *end;
 	long val;
 
-	term->type = CCTT_NONE;
-	term->args = NULL;
-	term->neg  = 0;
-
 	while (*in == ' ' || *in == '\t')
 		in++;
 
 	if (!*in) /* empty term does not parse */
 		return 0;
 
+	t = *term = calloc(1, sizeof(**term));
+	if (!t) {
+		memprintf(err, "memory allocation error while parsing conditional expression '%s'", *text);
+		goto fail1;
+	}
+
+	t->type = CCTT_NONE;
+	t->args = NULL;
+	t->neg  = 0;
+
 	/* !<term> negates the term. White spaces permitted */
 	while (*in == '!') {
-		term->neg = !term->neg;
+		t->neg = !t->neg;
 		do { in++; } while (*in == ' ' || *in == '\t');
 	}
 
 	val = strtol(in, &end, 0);
 	if (end != in) {
-		term->type = val ? CCTT_TRUE : CCTT_FALSE;
+		t->type = val ? CCTT_TRUE : CCTT_FALSE;
 		*text = end;
 		return 1;
 	}
@@ -89,27 +107,28 @@ int cfg_parse_cond_term(const char **text, struct cfg_cond_term *term, char **er
 	/* below we'll likely all make_arg_list() so we must return only via
 	 * the <done> label which frees the arg list.
 	 */
-	term->pred = cfg_lookup_cond_pred(in);
-	if (term->pred) {
-		term->type = CCTT_PRED;
-		nbargs = make_arg_list(in + strlen(term->pred->word), -1,
-		                       term->pred->arg_mask, &term->args, err,
+	t->pred = cfg_lookup_cond_pred(in);
+	if (t->pred) {
+		t->type = CCTT_PRED;
+		nbargs = make_arg_list(in + strlen(t->pred->word), -1,
+		                       t->pred->arg_mask, &t->args, err,
 		                       &end_ptr, &err_arg, NULL);
 		if (nbargs < 0) {
-			free_args(term->args);
-			ha_free(&term->args);
-			memprintf(err, "%s in argument %d of predicate '%s' used in conditional expression", *err, err_arg, term->pred->word);
+			memprintf(err, "%s in argument %d of predicate '%s' used in conditional expression", *err, err_arg, t->pred->word);
 			if (errptr)
 				*errptr = end_ptr;
-			return -1;
+			goto fail2;
 		}
 		*text = end_ptr;
 		return 1;
 	}
 
 	memprintf(err, "unparsable conditional expression '%s'", *text);
+ fail1:
 	if (errptr)
 		*errptr = *text;
+ fail2:
+	cfg_free_cond_term(term);
 	return -1;
 }
 
@@ -194,7 +213,7 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
  */
 int cfg_eval_condition(char **args, char **err, const char **errptr)
 {
-	struct cfg_cond_term term = { };
+	struct cfg_cond_term *term = NULL;
 	const char *text = args[0];
 	int ret = -1;
 
@@ -215,7 +234,7 @@ int cfg_eval_condition(char **args, char **err, const char **errptr)
 			goto fail;
 		}
 
-		ret = cfg_eval_cond_term(&term, err);
+		ret = cfg_eval_cond_term(term, err);
 		goto done;
 	}
 
@@ -226,7 +245,6 @@ int cfg_eval_condition(char **args, char **err, const char **errptr)
 	if (errptr)
 		*errptr = text;
  done:
-	free_args(term.args);
-	ha_free(&term.args);
+	cfg_free_cond_term(&term);
 	return ret;
 }

@@ -26,8 +26,9 @@
 #include <haproxy/cfgcond-t.h>
 
 const struct cond_pred_kw *cfg_lookup_cond_pred(const char *str);
-int cfg_parse_cond_term(const char **text, struct cfg_cond_term *term, char **err, const char **errptr);
+int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **err, const char **errptr);
 int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err);
+void cfg_free_cond_term(struct cfg_cond_term **term);
 int cfg_eval_condition(char **args, char **err, const char **errptr);
 
 #endif
