@@ -195,6 +195,16 @@ int cfg_eval_condition(char **args, char **err, const char **errptr)
 	if (ret != 0) {
 		if (ret == -1) // parse error, error already reported
 			goto done;
+		while (*text == ' ' || *text == '\t')
+			text++;
+
+		if (*text) {
+			ret = -1;
+			memprintf(err, "unexpected character '%c' at the end of conditional expression '%s'",
+				  *text, args[0]);
+			goto fail;
+		}
+
 		ret = cfg_eval_cond_term(&term, err);
 		goto done;
 	}
@@ -202,6 +212,7 @@ int cfg_eval_condition(char **args, char **err, const char **errptr)
 	/* ret == 0, no other way to parse this */
 	ret = -1;
 	memprintf(err, "unparsable conditional expression '%s'", args[0]);
+ fail:
 	if (errptr)
 		*errptr = text;
  done:
