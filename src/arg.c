@@ -394,6 +394,7 @@ int make_arg_list(const char *in, int len, uint64_t mask, struct arg **argp,
 		/* only free the arg area if we have not queued unresolved args
 		 * still pointing to it.
 		 */
+		free_args(*argp);
 		free(*argp);
 	}
 	*argp = NULL;
