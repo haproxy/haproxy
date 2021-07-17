@@ -10,4 +10,23 @@ shell {
     $HAPROXY_PROGRAM -cc "streq(foo,'foo')"
     $HAPROXY_PROGRAM -cc "streq(\"foo bar\",'foo bar')"
     ! $HAPROXY_PROGRAM -cc "streq(foo,bar)"
+
+    if $HAPROXY_PROGRAM -cc "version_atleast(2.5-dev2)"; then
+        export TESTVAR=1
+        $HAPROXY_PROGRAM   -cc 'defined(TESTVAR) && streq("$TESTVAR","1")'
+        $HAPROXY_PROGRAM   -cc 'feature(OPENSSL) || !feature(OPENSSL)'
+        $HAPROXY_PROGRAM   -cc '1&&!0&&!((streq(a,b)||!streq(a,a)&&1)||strneq(a,a))'
+        $HAPROXY_PROGRAM   -cc '1   &&!   0&&    !((streq(a,b)||!streq(a,a)&&1)||strneq(a,a))'
+        $HAPROXY_PROGRAM   -cc '1 && !0 && !((streq(a,b) || !streq(a,a) && 1) || strneq(a,a))'
+        ! $HAPROXY_PROGRAM -cc '1 && !0 && !((streq(a,b) || !streq(a,a) && 1) || strneq(a,b))'
+        ! $HAPROXY_PROGRAM -cc '1 && !0 && !((streq(a,a) || !streq(a,a) && 1) || strneq(a,a))'
+        # empty string is always false
+        ! $HAPROXY_PROGRAM -cc ''
+        # non-zero is true
+        $HAPROXY_PROGRAM   -cc '-1000 && 200'
+        # check for various parsing errors (extra/missing chars)
+        ! $HAPROXY_PROGRAM   -cc '200rrr'
+        ! $HAPROXY_PROGRAM   -cc '!(0))'
+        ! $HAPROXY_PROGRAM   -cc 'streq(a,"a)'
+    fi
 } -run
