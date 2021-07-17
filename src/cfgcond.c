@@ -46,17 +46,19 @@ const struct cond_pred_kw *cfg_lookup_cond_pred(const char *str)
 }
 
 /* Frees <term> and its args. NULL is supported and does nothing. */
-void cfg_free_cond_term(struct cfg_cond_term **term)
+void cfg_free_cond_term(struct cfg_cond_term *term)
 {
-	if (!term || !*term)
+	if (!term)
 		return;
 
-	if ((*term)->type == CCTT_PAREN)
-		cfg_free_cond_expr(&(*term)->expr);
+	if (term->type == CCTT_PAREN) {
+		cfg_free_cond_expr(term->expr);
+		term->expr = NULL;
+	}
 
-	free_args((*term)->args);
-	free((*term)->args);
-	ha_free(term);
+	free_args(term->args);
+	free(term->args);
+	free(term);
 }
 
 /* Parse an indirect input text as a possible config condition term.
@@ -158,7 +160,8 @@ int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **e
 	if (errptr)
 		*errptr = *text;
  fail2:
-	cfg_free_cond_term(term);
+	cfg_free_cond_term(*term);
+	*term = NULL;
 	return -1;
 }
 
@@ -240,20 +243,28 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 
 
 /* Frees <expr> and its terms and args. NULL is supported and does nothing. */
-void cfg_free_cond_and(struct cfg_cond_and **expr)
+void cfg_free_cond_and(struct cfg_cond_and *expr)
 {
-	while (expr && *expr) {
-		cfg_free_cond_term(&(*expr)->left);
-		expr = &(*expr)->right;
+	struct cfg_cond_and *prev;
+
+	while (expr) {
+		cfg_free_cond_term(expr->left);
+		prev = expr;
+		expr = expr->right;
+		free(prev);
 	}
 }
 
 /* Frees <expr> and its terms and args. NULL is supported and does nothing. */
-void cfg_free_cond_expr(struct cfg_cond_expr **expr)
+void cfg_free_cond_expr(struct cfg_cond_expr *expr)
 {
-	while (expr && *expr) {
-		cfg_free_cond_and(&(*expr)->left);
-		expr = &(*expr)->right;
+	struct cfg_cond_expr *prev;
+
+	while (expr) {
+		cfg_free_cond_and(expr->left);
+		prev = expr;
+		expr = expr->right;
+		free(prev);
 	}
 }
 
@@ -313,8 +324,10 @@ int cfg_parse_cond_and(const char **text, struct cfg_cond_and **expr, char **err
 	if (ret > 0)
 		*text = in;
  done:
-	if (ret < 0)
-		cfg_free_cond_and(expr);
+	if (ret < 0) {
+		cfg_free_cond_and(*expr);
+		*expr = NULL;
+	}
 	return ret;
 }
 
@@ -374,8 +387,10 @@ int cfg_parse_cond_expr(const char **text, struct cfg_cond_expr **expr, char **e
 	if (ret > 0)
 		*text = in;
  done:
-	if (ret < 0)
-		cfg_free_cond_expr(expr);
+	if (ret < 0) {
+		cfg_free_cond_expr(*expr);
+		*expr = NULL;
+	}
 	return ret;
 }
 
@@ -450,6 +465,6 @@ int cfg_eval_condition(char **args, char **err, const char **errptr)
 	if (errptr)
 		*errptr = text;
  done:
-	cfg_free_cond_expr(&expr);
+	cfg_free_cond_expr(expr);
 	return ret;
 }
