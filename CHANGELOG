@@ -1,6 +1,62 @@
 ChangeLog :
 ===========
 
+2021/07/17 : 2.5-dev2
+    - BUILD/MEDIUM: tcp: set-mark support for OpenBSD
+    - DOC: config: use CREATE USER for mysql-check
+    - BUG/MINOR: stick-table: fix several printf sign errors dumping tables
+    - BUG/MINOR: peers: fix data_type bit computation more than 32 data_types
+    - MINOR: stick-table: make skttable_data_cast to use only std types
+    - MEDIUM: stick-table: handle arrays of standard types into stick-tables
+    - MEDIUM: peers: handle arrays of std types in peers protocol
+    - DOC: stick-table: add missing documentation about gpt0 stored type
+    - MEDIUM: stick-table: add the new array of gpt data_type
+    - MEDIUM: stick-table: make the use of 'gpt' excluding the use of 'gpt0'
+    - MEDIUM: stick-table: add the new arrays of gpc and gpc_rate
+    - MEDIUM: stick-table: make the use of 'gpc' excluding the use of 'gpc0/1''
+    - BUG/MEDIUM: sock: make sure to never miss early connection failures
+    - BUG/MINOR: cli: fix server name output in "show fd"
+    - Revert "MINOR: tcp-act: Add set-src/set-src-port for "tcp-request content" rules"
+    - MEDIUM: stats: include disabled proxies that hold active sessions to stats
+    - BUILD: stick-table: shut up invalid "uninitialized" warning in gcc 8.3
+    - MINOR: http: implement http_get_scheme
+    - MEDIUM: http: implement scheme-based normalization
+    - MEDIUM: h1-htx: apply scheme-based normalization on h1 requests
+    - MEDIUM: h2: apply scheme-based normalization on h2 requests
+    - REGTESTS: add http scheme-based normalization test
+    - BUILD: http_htx: fix ci compilation error with isdigit for Windows
+    - MINOR: http: implement http uri parser
+    - MINOR: http: use http uri parser for scheme
+    - MINOR: http: use http uri parser for authority
+    - REORG: http_ana: split conditions for monitor-uri in wait for request
+    - MINOR: http: use http uri parser for path
+    - BUG/MEDIUM: http_ana: fix crash for http_proxy mode during uri rewrite
+    - MINOR: mux_h2: define config to disable h2 websocket support
+    - CLEANUP: applet: remove unused thread_mask
+    - BUG/MINOR: ssl: Default-server configuration ignored by server
+    - BUILD: add detection of missing important CFLAGS
+    - BUILD: lua: silence a build warning with TCC
+    - MINOR: srv: extract tracking server config function
+    - MINOR: srv: do not allow to track a dynamic server
+    - MEDIUM: server: support track keyword for dynamic servers
+    - REGTESTS: test track support for dynamic servers
+    - MINOR: init: verify that there is a single word on "-cc"
+    - MINOR: init: make -cc support environment variables expansion
+    - MINOR: arg: add a free_args() function to free an args array
+    - CLEANUP: config: use free_args() to release args array in cfg_eval_condition()
+    - CLEANUP: hlua: use free_args() to release args arrays
+    - REORG: config: move the condition preprocessing code to its own file
+    - MINOR: cfgcond: start to split the condition parser to introduce terms
+    - MEDIUM: cfgcond: report invalid trailing chars after expressions
+    - MINOR: cfgcond: remerge all arguments into a single line
+    - MINOR: cfgcond: support negating conditional expressions
+    - MINOR: cfgcond: make the conditional term parser automatically allocate nodes
+    - MINOR: cfgcond: insert an expression between the condition and the term
+    - MINOR: cfgcond: support terms made of parenthesis around expressions
+    - REGTEST: make check_condition.vtc fail as soon as possible
+    - REGTESTS: add more complex check conditions to check_conditions.vtc
+    - BUG/MEDIUM: init: restore behavior of command-line "-m" for memory limitation
+
 2021/06/30 : 2.5-dev1
     - CLEANUP: ssl: Move ssl_store related code to ssl_ckch.c
     - MINOR: ssl: Allow duplicated entries in the cafile_tree
