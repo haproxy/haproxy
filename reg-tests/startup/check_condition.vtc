@@ -3,6 +3,7 @@ varnishtest "Tests the -cc argument"
 feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
 
 shell {
+    set -e
     $HAPROXY_PROGRAM -cc "version_atleast(2.4)"
     ! $HAPROXY_PROGRAM -cc "version_atleast(1024)"
 
