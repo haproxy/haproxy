@@ -2014,6 +2014,9 @@ static void init(int argc, char **argv)
 		exit(1);
 	}
 
+	if (global.rlimit_memmax_all)
+		global.rlimit_memmax = global.rlimit_memmax_all;
+
 #ifdef USE_NS
         err_code |= netns_init();
         if (err_code & (ERR_ABORT|ERR_FATAL)) {
