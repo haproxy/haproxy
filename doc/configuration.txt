@@ -3607,7 +3607,6 @@ option http-use-proxy-header         (*)  X          X         X         -
 option httpchk                            X          -         X         X
 option httpclose                     (*)  X          X         X         X
 option httplog                            X          X         X         -
-option http_proxy                    (*)  X          X         X         X
 option independent-streams           (*)  X          X         X         X
 option ldap-check                         X          -         X         X
 option external-check                     X          -         X         X
@@ -4002,7 +4001,7 @@ balance url_param <param> [check_post]
       might be a URL parameter list. This is probably not a concern with SGML
       type message bodies.
 
-  See also : "dispatch", "cookie", "transparent", "hash-type" and "http_proxy".
+  See also : "dispatch", "cookie", "transparent", "hash-type".
 
 
 bind [<address>]:<port_range> [, ...] [param*]
@@ -8855,36 +8854,6 @@ option httplog [ clf ]
   "option httplog" overrides any previous "log-format" directive.
 
   See also :  section 8 about logging.
-
-
-option http_proxy
-no option http_proxy
-  Enable or disable plain HTTP proxy mode
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    yes   |   yes  |   yes
-  Arguments : none
-
-  It sometimes happens that people need a pure HTTP proxy which understands
-  basic proxy requests without caching nor any fancy feature. In this case,
-  it may be worth setting up an HAProxy instance with the "option http_proxy"
-  set. In this mode, no server is declared, and the connection is forwarded to
-  the IP address and port found in the URL after the "http://" scheme.
-
-  No host address resolution is performed, so this only works when pure IP
-  addresses are passed. Since this option's usage perimeter is rather limited,
-  it will probably be used only by experts who know they need exactly it. This
-  is incompatible with the HTTP tunnel mode.
-
-  If this option has been enabled in a "defaults" section, it can be disabled
-  in a specific instance by prepending the "no" keyword before it.
-
-  Example :
-    # this backend understands HTTP proxy requests and forwards them directly.
-    backend direct_forward
-        option httpclose
-        option http_proxy
-
-  See also : "option httpclose"
 
 
 option independent-streams
@@ -19941,15 +19910,12 @@ url_ip : ip
   presented as an IP address. Its use is very limited. For instance, a
   monitoring system might use this field as an alternative for the source IP in
   order to test what path a given source address would follow, or to force an
-  entry in a table for a given source address. With ACLs it can be used to
-  restrict access to certain systems through a proxy, for example when combined
-  with option "http_proxy".
+  entry in a table for a given source address. It may be used in combination
+  with 'http-request set-dst' to emulate the older 'option http_proxy'.
 
 url_port : integer
   This extracts the port part from the request's URL. Note that if the port is
-  not specified in the request, port 80 is assumed. With ACLs it can be used to
-  restrict access to certain systems through a proxy, for example when combined
-  with option "http_proxy".
+  not specified in the request, port 80 is assumed..
 
 urlp([<name>[,<delim>]]) : string
 url_param([<name>[,<delim>]]) : string

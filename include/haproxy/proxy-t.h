@@ -112,7 +112,7 @@ enum PR_SRV_STATE_FILE {
 
 #define PR_O_TCPCHK_SSL 0x08000000	/* at least one TCPCHECK connect rule requires SSL */
 #define PR_O_CONTSTATS	0x10000000	/* continuous counters */
-#define PR_O_HTTP_PROXY 0x20000000	/* Enable stream to use HTTP proxy operations */
+/* unused: 0x20000000 */
 #define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */
 #define PR_O_ORGTO      0x80000000      /* insert x-original-to with destination address */
 

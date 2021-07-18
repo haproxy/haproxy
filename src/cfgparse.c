@@ -2579,7 +2579,7 @@ int check_config_validity()
 					err_code |= ERR_WARN;
 				}
 			}
-			else if (!(curproxy->options & (PR_O_TRANSP | PR_O_DISPATCH | PR_O_HTTP_PROXY))) {
+			else if (!(curproxy->options & (PR_O_TRANSP | PR_O_DISPATCH))) {
 				/* If no LB algo is set in a backend, and we're not in
 				 * transparent mode, dispatch mode nor proxy mode, we
 				 * want to use balance roundrobin by default.
@@ -2590,11 +2590,9 @@ int check_config_validity()
 		}
 
 		if (curproxy->options & PR_O_DISPATCH)
-			curproxy->options &= ~(PR_O_TRANSP | PR_O_HTTP_PROXY);
-		else if (curproxy->options & PR_O_HTTP_PROXY)
-			curproxy->options &= ~(PR_O_DISPATCH | PR_O_TRANSP);
+			curproxy->options &= ~PR_O_TRANSP;
 		else if (curproxy->options & PR_O_TRANSP)
-			curproxy->options &= ~(PR_O_DISPATCH | PR_O_HTTP_PROXY);
+			curproxy->options &= ~PR_O_DISPATCH;
 
 		if ((curproxy->tcpcheck_rules.flags & TCPCHK_RULES_UNUSED_HTTP_RS)) {
 			ha_warning("%s '%s' uses http-check rules without 'option httpchk', so the rules are ignored.\n",

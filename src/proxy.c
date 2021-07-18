@@ -68,7 +68,6 @@ const struct cfg_opt cfg_opts[] =
 	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE, 0, 0 },
 	{ "contstats",    PR_O_CONTSTATS,  PR_CAP_FE, 0, 0 },
 	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE, 0, 0 },
-	{ "http_proxy",	  PR_O_HTTP_PROXY, PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ "http-buffer-request", PR_O_WREQ_BODY,  PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ "http-ignore-probes", PR_O_IGNORE_PRB, PR_CAP_FE, 0, PR_MODE_HTTP },
 	{ "prefer-last-server", PR_O_PREF_LAST,  PR_CAP_BE, 0, PR_MODE_HTTP },

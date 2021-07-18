@@ -2024,6 +2024,13 @@ stats_error_parsing:
 			goto out;
 		}
 
+		if (strcmp(args[1], "http_proxy") == 0) {
+			ha_alert("parsing [%s:%d]: option '%s' is not supported any more since HAProxy 2.5. This option stopped working in HAProxy 1.9 and usually had nasty side effects. It can be more reliably implemented with combinations of 'http-request set-dst' and 'http-request set-uri', and even 'http-request do-resolve' if DNS resolution is desired.\n",
+				   file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		if (kwm != KWM_STD) {
 			ha_alert("parsing [%s:%d]: negation/default is not supported for option '%s'.\n",
 				 file, linenum, args[1]);

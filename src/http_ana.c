@@ -617,42 +617,6 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	htx = htxbuf(&req->buf);
 
 	/*
-	 * If HTTP PROXY is set we simply get remote server address parsing
-	 * incoming request.
-	 */
-	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SF_ADDR_SET)) {
-		struct htx_sl *sl;
-		struct ist uri, path;
-		struct http_uri_parser parser;
-
-		if (!sockaddr_alloc(&s->target_addr, NULL, 0)) {
-			if (!(s->flags & SF_ERR_MASK))
-				s->flags |= SF_ERR_RESOURCE;
-			goto return_int_err;
-		}
-		sl = http_get_stline(htx);
-		uri = htx_sl_req_uri(sl);
-		parser = http_uri_parser_init(uri);
-		path = http_parse_path(&parser);
-
-		if (url2sa(uri.ptr, uri.len - path.len, s->target_addr, NULL) == -1)
-			goto return_bad_req;
-
-		s->target = &s->be->obj_type;
-		s->flags |= SF_ADDR_SET | SF_ASSIGNED;
-
-		/* if the path was found, we have to remove everything between
-		 * uri.ptr and path.ptr (excluded). If it was not found, we need
-		 * to replace from all the uri by a single "/".
-		 *
-		 * Instead of rewriting the whole start line, we just update
-		 * the star-line URI. Some space will be lost but it should be
-		 * insignificant.
-		 */
-		istcpy(&uri, (path.len ? path : ist("/")), uri.len);
-	}
-
-	/*
 	 * 7: Now we can work with the cookies.
 	 * Note that doing so might move headers in the request, but
 	 * the fields will stay coherent and the URI will not move.

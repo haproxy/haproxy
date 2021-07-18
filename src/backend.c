@@ -792,17 +792,6 @@ int assign_server(struct stream *s)
 	else if (s->be->options & (PR_O_DISPATCH | PR_O_TRANSP)) {
 		s->target = &s->be->obj_type;
 	}
-	else if ((s->be->options & PR_O_HTTP_PROXY)) {
-		conn = cs_conn(objt_cs(s->si[1].end));
-
-		if (conn && conn->dst && is_addr(conn->dst)) {
-			/* in proxy mode, we need a valid destination address */
-			s->target = &s->be->obj_type;
-		} else {
-			err = SRV_STATUS_NOSRV;
-			goto out;
-		}
-	}
 	else {
 		err = SRV_STATUS_NOSRV;
 		goto out;
@@ -903,10 +892,6 @@ static int alloc_dst_address(struct sockaddr_storage **ss,
 		if (conn_get_dst(cli_conn) &&
 		    (cli_conn->dst->ss_family == AF_INET || cli_conn->dst->ss_family == AF_INET6))
 			**ss = *cli_conn->dst;
-	}
-	else if (s->be->options & PR_O_HTTP_PROXY) {
-		/* If HTTP PROXY option is set, then server is already assigned
-		 * during incoming client request parsing. */
 	}
 	else {
 		/* no server and no LB algorithm ! */
