@@ -2221,6 +2221,7 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 				qc_set_timer(ctx);
 			TRACE_PROTO("sent pkt", QUIC_EV_CONN_SPPKTS, ctx->conn, pkt);
 			next_pkt = pkt->next;
+			eb64_insert(&pkt->pktns->tx.pkts, &pkt->pn_node);
 			quic_tx_packet_refdec(pkt);
 		}
 	}
@@ -3931,7 +3932,6 @@ static struct quic_tx_packet *qc_build_hdshk_pkt(unsigned char **pos,
 		qc->path->prep_in_flight += pkt->len;
 	}
 	pkt->pktns = qel->pktns;
-	eb64_insert(&qel->pktns->tx.pkts, &pkt->pn_node);
 	TRACE_LEAVE(QUIC_EV_CONN_HPKT, qc->conn, pkt);
 
 	return pkt;
@@ -4132,7 +4132,6 @@ static struct quic_tx_packet *qc_build_phdshk_apkt(unsigned char **pos,
 		qc->path->prep_in_flight += pkt->len;
 	}
 	pkt->pktns = qel->pktns;
-	eb64_insert(&qel->pktns->tx.pkts, &pkt->pn_node);
 	TRACE_LEAVE(QUIC_EV_CONN_PAPKT, qc->conn, pkt);
 
 	return pkt;
