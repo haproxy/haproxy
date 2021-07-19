@@ -801,16 +801,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		_HA_ATOMIC_INC(&s->be->be_counters.internal_errors);
 	if (sess->listener && sess->listener->counters)
 		_HA_ATOMIC_INC(&sess->listener->counters->internal_errors);
-	goto return_prx_cond;
 
- return_bad_req: /* let's centralize all bad requests */
-	txn->status = 400;
-	_HA_ATOMIC_INC(&sess->fe->fe_counters.failed_req);
-	if (sess->listener && sess->listener->counters)
-		_HA_ATOMIC_INC(&sess->listener->counters->failed_req);
-	/* fall through */
-
- return_prx_cond:
 	http_reply_and_close(s, txn->status, http_error_message(s));
 
 	if (!(s->flags & SF_ERR_MASK))
