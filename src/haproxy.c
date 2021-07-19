@@ -2739,7 +2739,7 @@ static void *run_thread_poll_loop(void *data)
 	list_for_each_entry(ptaf, &per_thread_alloc_list, list) {
 		if (!ptaf->fct()) {
 			ha_alert("failed to allocate resources for thread %u.\n", tid);
-            pthread_mutex_unlock(&init_mutex);
+			pthread_mutex_unlock(&init_mutex);
 			exit(1);
 		}
 	}
@@ -2751,7 +2751,7 @@ static void *run_thread_poll_loop(void *data)
 	list_for_each_entry(ptif, &per_thread_init_list, list) {
 		if (!ptif->fct()) {
 			ha_alert("failed to initialize thread %u.\n", tid);
-            pthread_mutex_unlock(&init_mutex);
+			pthread_mutex_unlock(&init_mutex);
 			exit(1);
 		}
 	}
