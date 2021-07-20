@@ -277,6 +277,12 @@ typedef struct { } empty_t;
 #include <malloc_np.h>
 #endif
 
+/* macOS has a call similar to malloc_usable_size */
+#if defined(USE_MEMORY_PROFILING) && defined(__APPLE__)
+#include <malloc/malloc.h>
+#define malloc_usable_size malloc_size
+#endif
+
 /* Max number of file descriptors we send in one sendmsg(). Linux seems to be
  * able to send 253 fds per sendmsg(), not sure about the other OSes.
  */
