@@ -68,9 +68,11 @@ void cfg_free_cond_term(struct cfg_cond_term *term)
  * untouched on failure. On success, the caller must free <term> using
  * cfg_free_cond_term(). An error will be set in <err> on error, and only
  * in this case. In this case the first bad character will be reported in
- * <errptr>.
+ * <errptr>. <maxdepth> corresponds to the maximum recursion depth permitted,
+ * it is decremented on each recursive call and the parsing will fail one
+ * reaching <= 0.
  */
-int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **err, const char **errptr)
+int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **err, const char **errptr, int maxdepth)
 {
 	struct cfg_cond_term *t;
 	const char *in = *text;
@@ -85,6 +87,10 @@ int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **e
 
 	if (!*in) /* empty term does not parse */
 		return 0;
+
+	*term = NULL;
+	if (maxdepth <= 0)
+		goto fail0;
 
 	t = *term = calloc(1, sizeof(**term));
 	if (!t) {
@@ -117,7 +123,7 @@ int cfg_parse_cond_term(const char **text, struct cfg_cond_term **term, char **e
 		t->args = NULL;
 
 		do { in++; } while (*in == ' ' || *in == '\t');
-		ret = cfg_parse_cond_expr(&in, &t->expr, err, errptr);
+		ret = cfg_parse_cond_expr(&in, &t->expr, err, errptr, maxdepth - 1);
 		if (ret == -1)
 			goto fail2;
 		if (ret == 0)
@@ -275,9 +281,11 @@ void cfg_free_cond_expr(struct cfg_cond_expr *expr)
  * on failure. On success, the caller will have to free all lower-level
  * allocated structs using cfg_free_cond_expr(). An error will be set in
  * <err> on error, and only in this case. In this case the first bad
- * character will be reported in <errptr>.
+ * character will be reported in <errptr>. <maxdepth> corresponds to the
+ * maximum recursion depth permitted, it is decremented on each recursive
+ * call and the parsing will fail one reaching <= 0.
  */
-int cfg_parse_cond_and(const char **text, struct cfg_cond_and **expr, char **err, const char **errptr)
+int cfg_parse_cond_and(const char **text, struct cfg_cond_and **expr, char **err, const char **errptr, int maxdepth)
 {
 	struct cfg_cond_and *e;
 	const char *in = *text;
@@ -286,13 +294,21 @@ int cfg_parse_cond_and(const char **text, struct cfg_cond_and **expr, char **err
 	if (!*in) /* empty expr does not parse */
 		return 0;
 
+	*expr = NULL;
+	if (maxdepth <= 0) {
+		memprintf(err, "unparsable conditional sub-expression '%s'", in);
+		if (errptr)
+			*errptr = in;
+		goto done;
+	}
+
 	e = *expr = calloc(1, sizeof(**expr));
 	if (!e) {
 		memprintf(err, "memory allocation error while parsing conditional expression '%s'", *text);
 		goto done;
 	}
 
-	ret = cfg_parse_cond_term(&in, &e->left, err, errptr);
+	ret = cfg_parse_cond_term(&in, &e->left, err, errptr, maxdepth - 1);
 	if (ret == -1) // parse error, error already reported
 		goto done;
 
@@ -320,7 +336,7 @@ int cfg_parse_cond_and(const char **text, struct cfg_cond_and **expr, char **err
 	while (*in == ' ' || *in == '\t')
 		in++;
 
-	ret = cfg_parse_cond_and(&in, &e->right, err, errptr);
+	ret = cfg_parse_cond_and(&in, &e->right, err, errptr, maxdepth - 1);
 	if (ret > 0)
 		*text = in;
  done:
@@ -338,9 +354,11 @@ int cfg_parse_cond_and(const char **text, struct cfg_cond_and **expr, char **err
  * on failure. On success, the caller will have to free all lower-level
  * allocated structs using cfg_free_cond_expr(). An error will be set in
  * <err> on error, and only in this case. In this case the first bad
- * character will be reported in <errptr>.
+ * character will be reported in <errptr>. <maxdepth> corresponds to the
+ * maximum recursion depth permitted, it is decremented on each recursive call
+ * and the parsing will fail one reaching <= 0.
  */
-int cfg_parse_cond_expr(const char **text, struct cfg_cond_expr **expr, char **err, const char **errptr)
+int cfg_parse_cond_expr(const char **text, struct cfg_cond_expr **expr, char **err, const char **errptr, int maxdepth)
 {
 	struct cfg_cond_expr *e;
 	const char *in = *text;
@@ -349,13 +367,21 @@ int cfg_parse_cond_expr(const char **text, struct cfg_cond_expr **expr, char **e
 	if (!*in) /* empty expr does not parse */
 		return 0;
 
+	*expr = NULL;
+	if (maxdepth <= 0) {
+		memprintf(err, "unparsable conditional expression '%s'", in);
+		if (errptr)
+			*errptr = in;
+		goto done;
+	}
+
 	e = *expr = calloc(1, sizeof(**expr));
 	if (!e) {
 		memprintf(err, "memory allocation error while parsing conditional expression '%s'", *text);
 		goto done;
 	}
 
-	ret = cfg_parse_cond_and(&in, &e->left, err, errptr);
+	ret = cfg_parse_cond_and(&in, &e->left, err, errptr, maxdepth - 1);
 	if (ret == -1) // parse error, error already reported
 		goto done;
 
@@ -383,7 +409,7 @@ int cfg_parse_cond_expr(const char **text, struct cfg_cond_expr **expr, char **e
 	while (*in == ' ' || *in == '\t')
 		in++;
 
-	ret = cfg_parse_cond_expr(&in, &e->right, err, errptr);
+	ret = cfg_parse_cond_expr(&in, &e->right, err, errptr, maxdepth - 1);
 	if (ret > 0)
 		*text = in;
  done:
@@ -440,7 +466,7 @@ int cfg_eval_condition(char **args, char **err, const char **errptr)
 	if (!*text) /* note: empty = false */
 		return 0;
 
-	ret = cfg_parse_cond_expr(&text, &expr, err, errptr);
+	ret = cfg_parse_cond_expr(&text, &expr, err, errptr, MAX_CFG_RECURSION);
 	if (ret != 0) {
 		if (ret == -1) // parse error, error already reported
 			goto done;

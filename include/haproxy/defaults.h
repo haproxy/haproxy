@@ -106,6 +106,11 @@
 // This should cover at least 5 + twice the # of data_types
 #define MAX_CLI_ARGS  64
 
+// max recursion levels in config condition evaluations
+// (note that binary operators add one recursion level, and
+// that parenthesis may add two).
+#define MAX_CFG_RECURSION 1024
+
 // max # of matches per regexp
 #define	MAX_MATCH       10
 
