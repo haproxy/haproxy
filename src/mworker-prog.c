@@ -110,6 +110,8 @@ int mworker_ext_launch_all()
 					exit(1);
 				}
 
+				/* This one must not be exported, it's internal! */
+				unsetenv("HAPROXY_MWORKER_REEXEC");
 				execvp(child->command[0], child->command);
 
 				ha_alert("Cannot execute %s: %s\n", child->command[0], strerror(errno));
