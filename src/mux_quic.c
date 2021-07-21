@@ -741,7 +741,7 @@ static int qc_init(struct connection *conn, struct proxy *prx,
 	LIST_INIT(&qcc->buf_wait.list);
 	MT_LIST_INIT(&qcc->qcs_rxbuf_wlist);
 
-	conn->ctx = qcc;
+	HA_ATOMIC_STORE(&conn->ctx, qcc);
 
 	if (t)
 		task_queue(t);

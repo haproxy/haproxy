@@ -3441,8 +3441,13 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 
 
 	TRACE_PROTO("New packet", QUIC_EV_CONN_LPKT, qc->conn, pkt);
-	if (conn_ctx)
-		/* Wake the tasklet of the QUIC connection packet handler. */
+	/* Wake up the connection packet handler task from here only if all
+	 * the contexts have been initialized, especially the mux context
+	 * conn_ctx->conn->ctx. Note that this is ->start xprt callback which
+	 * will start it if these contexts for the connection are not already
+	 * initialized.
+	 */
+	if (conn_ctx && HA_ATOMIC_LOAD(&conn_ctx->conn->ctx))
 		tasklet_wakeup(conn_ctx->wait_event.tasklet);
 
 	TRACE_LEAVE(QUIC_EV_CONN_LPKT, qc->conn, pkt);
