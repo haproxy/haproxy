@@ -101,7 +101,7 @@ smp_fetch_ssl_x_der(const struct arg *args, struct sample *smp, const char *kw, 
 	SSL *ssl;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 
@@ -156,7 +156,7 @@ smp_fetch_ssl_x_chain_der(const struct arg *args, struct sample *smp, const char
 	int i;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 
@@ -219,7 +219,7 @@ smp_fetch_ssl_x_serial(const struct arg *args, struct sample *smp, const char *k
 	SSL *ssl;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 	ssl = ssl_sock_get_ssl_object(conn);
@@ -272,7 +272,7 @@ smp_fetch_ssl_x_sha1(const struct arg *args, struct sample *smp, const char *kw,
 	SSL *ssl;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 
@@ -323,7 +323,7 @@ smp_fetch_ssl_x_notafter(const struct arg *args, struct sample *smp, const char 
 	SSL *ssl;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 
@@ -375,7 +375,7 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 	SSL *ssl;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 
@@ -443,7 +443,7 @@ smp_fetch_ssl_x_notbefore(const struct arg *args, struct sample *smp, const char
 	SSL *ssl;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 
@@ -495,7 +495,7 @@ smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw,
 	SSL *ssl;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 
@@ -592,7 +592,7 @@ smp_fetch_ssl_x_version(const struct arg *args, struct sample *smp, const char *
 	SSL *ssl;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 	ssl = ssl_sock_get_ssl_object(conn);
@@ -637,7 +637,7 @@ smp_fetch_ssl_x_sig_alg(const struct arg *args, struct sample *smp, const char *
 	SSL *ssl;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 
@@ -694,7 +694,7 @@ smp_fetch_ssl_x_key_alg(const struct arg *args, struct sample *smp, const char *
 	SSL *ssl;
 
 	if (conn_server)
-		conn = cs_conn(objt_cs(smp->strm->si[1].end));
+		conn = smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
 	else
 		conn = objt_conn(smp->sess->origin);
 	ssl = ssl_sock_get_ssl_object(conn);
