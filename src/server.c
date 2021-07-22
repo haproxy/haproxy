@@ -2538,6 +2538,15 @@ static int _srv_parse_init(struct server **srv, char **args, int *cur_arg,
 			newsrv->next_admin = SRV_ADMF_FMAINT;
 			newsrv->next_state = SRV_ST_STOPPED;
 			server_recalc_eweight(newsrv, 0);
+
+			/* Set default values for checks */
+			newsrv->check.inter = DEF_CHKINTR;
+			newsrv->check.rise = DEF_RISETIME;
+			newsrv->check.fall = DEF_FALLTIME;
+
+			newsrv->agent.inter = DEF_CHKINTR;
+			newsrv->agent.rise = DEF_AGENT_RISETIME;
+			newsrv->agent.fall = DEF_AGENT_FALLTIME;
 		}
 		HA_SPIN_INIT(&newsrv->lock);
 	}
