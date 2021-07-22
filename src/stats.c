@@ -2332,6 +2332,47 @@ int stats_fill_sv_stats(struct proxy *px, struct server *sv, int flags,
 				if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
 					metric = mkf_u32(FO_CONFIG|FS_SERVICE, ref->check.health);
 				break;
+			case ST_F_AGENT_STATUS:
+				if  ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
+					const char *fld_chksts;
+
+					fld_chksts = chunk_newstr(out);
+					chunk_strcat(out, "* "); // for check in progress
+					chunk_strcat(out, get_check_status_info(sv->agent.status));
+					if (!(sv->agent.state & CHK_ST_INPROGRESS))
+						fld_chksts += 2; // skip "* "
+					metric = mkf_str(FN_OUTPUT, fld_chksts);
+				}
+				break;
+			case ST_F_AGENT_CODE:
+				if  ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED &&
+				     (sv->agent.status >= HCHK_STATUS_L57DATA))
+					metric = mkf_u32(FN_OUTPUT, sv->agent.code);
+				break;
+			case ST_F_AGENT_DURATION:
+				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_u64(FN_DURATION, sv->agent.duration);
+				break;
+			case ST_F_AGENT_DESC:
+				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_str(FN_OUTPUT, get_check_status_description(sv->agent.status));
+				break;
+			case ST_F_LAST_AGT:
+				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_str(FN_OUTPUT, sv->agent.desc);
+				break;
+			case ST_F_AGENT_RISE:
+				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.rise);
+				break;
+			case ST_F_AGENT_FALL:
+				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.fall);
+				break;
+			case ST_F_AGENT_HEALTH:
+				if ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED)
+					metric = mkf_u32(FO_CONFIG|FS_SERVICE, sv->agent.health);
+				break;
 			case ST_F_REQ_TOT:
 				if (px->mode == PR_MODE_HTTP)
 					metric = mkf_u64(FN_COUNTER, sv->counters.p.http.cum_req);
