@@ -1629,7 +1629,7 @@ static int init_srv_check(struct server *srv)
 
 	/* scan the tcp-check ruleset to ensure a port has been configured */
 	list_for_each_entry(r, srv->proxy->tcpcheck_rules.list, list) {
-		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->connect.port || !get_host_port(&r->connect.addr))) {
+		if ((r->action == TCPCHK_ACT_CONNECT) && (!r->connect.port && !get_host_port(&r->connect.addr))) {
 			ha_alert("config: %s '%s': server '%s' has neither service port nor check port, "
 				 "and a tcp_check rule 'connect' with no port information.\n",
 				 proxy_type_str(srv->proxy), srv->proxy->id, srv->id);
