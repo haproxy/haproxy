@@ -1475,20 +1475,33 @@ add server <backend>/<server> [args]*
   another dynamic server. This is to ensure that the tracking chain is kept
   consistent even in the case of dynamic servers deletion.
 
+  Use the "check" keyword to enable health-check support. Note that the
+  health-check is disabled by default and must be enabled independently from
+  the server using the "enable health" command.
+
   Here is the list of the currently supported keywords :
 
   - allow-0rtt
   - alpn
+  - addr
   - backup
   - ca-file
+  - check
+  - check-proto
+  - check-send-proxy
+  - check-via-socks4
   - ciphers
   - ciphersuites
   - crl-file
   - crt
   - disabled
+  - downinter
   - enabled
+  - fall
+  - fastinter
   - force-sslv3/tlsv10/tlsv11/tlsv12/tlsv13
   - id
+  - inter
   - maxconn
   - maxqueue
   - minconn
@@ -1499,8 +1512,10 @@ add server <backend>/<server> [args]*
   - pool-low-conn
   - pool-max-conn
   - pool-purge-delay
+  - port
   - proto
   - proxy-v2-options
+  - rise
   - send-proxy
   - send-proxy-v2
   - send-proxy-v2-ssl

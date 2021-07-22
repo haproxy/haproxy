@@ -4564,6 +4564,18 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 			goto out;
 	}
 
+	/* Init check if configured. The check is manually disabled because a
+	 * dynamic server is started in a disable state. It must be manually
+	 * activated via a "enable health" command.
+	 */
+	if (srv->do_check) {
+		if (init_srv_check(srv))
+			goto out;
+
+		srv->check.state &= ~CHK_ST_ENABLED;
+		srv_use_dynsrv(srv);
+	}
+
 	/* Attach the server to the end of the proxy linked list. Note that this
 	 * operation is not thread-safe so this is executed under thread
 	 * isolation.
@@ -4615,6 +4627,16 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	srv_use_dynsrv(srv);
 	thread_release();
 
+	/* Start the check task. The server must be fully initialized.
+	 *
+	 * <srvpos> and <nbcheck> parameters are set to 1 as there should be no
+	 * need to randomly spread the task interval for dynamic servers.
+	 */
+	if (srv->check.state & CHK_ST_CONFIGURED) {
+		if (!start_check_task(&srv->check, 0, 1, 1))
+			ha_alert("System might be unstable, consider to execute a reload");
+	}
+
 	ha_notice("New server registered.\n");
 	cli_msg(appctx, LOG_INFO, usermsgs_str());
 
@@ -4624,6 +4646,9 @@ out:
 	if (srv) {
 		if (srv->track)
 			release_server_track(srv);
+
+		if (srv->check.state & CHK_ST_CONFIGURED)
+			free_check(&srv->check);
 
 		/* remove the server from the proxy linked list */
 		if (be->srv == srv) {
@@ -4728,9 +4753,9 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	if (srv->track)
 		release_server_track(srv);
 
-	/* TODO remove server for check list once 'check' will be implemented for
-	 * dynamic servers
-	 */
+	/* stop the check task if running */
+	if (srv->check.state & CHK_ST_CONFIGURED)
+		check_purge(&srv->check);
 
 	/* detach the server from the proxy linked list
 	 * The proxy servers list is currently not protected by a lock, so this

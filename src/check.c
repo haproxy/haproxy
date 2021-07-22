@@ -2386,7 +2386,7 @@ static struct srv_kw_list srv_kws = { "CHK", { }, {
 	{ "agent-inter",         srv_parse_agent_inter,         1,  1,  1 }, /* Set the interval between two agent checks */
 	{ "agent-port",          srv_parse_agent_port,          1,  1,  1 }, /* Set the TCP port used for agent checks. */
 	{ "agent-send",          srv_parse_agent_send,          1,  1,  1 }, /* Set string to send to agent. */
-	{ "check",               srv_parse_check,               0,  1,  0 }, /* Enable health checks */
+	{ "check",               srv_parse_check,               0,  1,  1 }, /* Enable health checks */
 	{ "check-proto",         srv_parse_check_proto,         1,  1,  1 }, /* Set the mux protocol for health checks  */
 	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1,  1 }, /* Enable PROXY protocol for health checks */
 	{ "check-via-socks4",    srv_parse_check_via_socks4,    0,  1,  1 }, /* Enable socks4 proxy for health checks */
