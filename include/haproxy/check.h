@@ -80,6 +80,10 @@ void check_release_buf(struct check *check, struct buffer *bptr);
 const char *init_check(struct check *check, int type);
 void free_check(struct check *check);
 
+int init_srv_check(struct server *srv);
+int init_srv_agent_check(struct server *srv);
+int start_check_task(struct check *check, int mininter, int nbcheck, int srvpos);
+
 /* Declared here, but the definitions are in flt_spoe.c */
 int spoe_prepare_healthcheck_request(char **req, int *len);
 int spoe_handle_healthcheck_response(char *frame, size_t size, char *err, int errlen);

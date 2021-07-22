@@ -1343,7 +1343,7 @@ struct task *process_chk(struct task *t, void *context, unsigned int state)
 }
 
 
-static int start_check_task(struct check *check, int mininter,
+int start_check_task(struct check *check, int mininter,
 			    int nbcheck, int srvpos)
 {
 	struct task *t;
@@ -1554,7 +1554,7 @@ static int srv_check_healthcheck_port(struct check *chk)
 /* Initializes an health-check attached to the server <srv>. Non-zero is returned
  * if an error occurred.
  */
-static int init_srv_check(struct server *srv)
+int init_srv_check(struct server *srv)
 {
 	const char *err;
 	struct tcpcheck_rule *r;
@@ -1656,7 +1656,7 @@ static int init_srv_check(struct server *srv)
 /* Initializes an agent-check attached to the server <srv>. Non-zero is returned
  * if an error occurred.
  */
-static int init_srv_agent_check(struct server *srv)
+int init_srv_agent_check(struct server *srv)
 {
 	struct tcpcheck_rule *chk;
 	const char *err;
