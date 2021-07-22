@@ -694,6 +694,7 @@ static void resolv_check_response(struct resolv_resolution *res)
 				/* convert the key to lookup in lower case */
 				for (i = 0 ; item->target[i] ; i++)
 					target[i] = tolower(item->target[i]);
+				target[i] = 0;
 
 				node = ebis_lookup(&srvrq->named_servers, target);
 				if (node) {
