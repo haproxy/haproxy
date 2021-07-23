@@ -2380,25 +2380,25 @@ static int srv_parse_check_port(char **args, int *cur_arg, struct proxy *curpx, 
 }
 
 static struct srv_kw_list srv_kws = { "CHK", { }, {
-	{ "addr",                srv_parse_addr,                1,  1,  0 }, /* IP address to send health to or to probe from agent-check */
-	{ "agent-addr",          srv_parse_agent_addr,          1,  1,  0 }, /* Enable an auxiliary agent check */
+	{ "addr",                srv_parse_addr,                1,  1,  1 }, /* IP address to send health to or to probe from agent-check */
+	{ "agent-addr",          srv_parse_agent_addr,          1,  1,  1 }, /* Enable an auxiliary agent check */
 	{ "agent-check",         srv_parse_agent_check,         0,  1,  0 }, /* Enable agent checks */
-	{ "agent-inter",         srv_parse_agent_inter,         1,  1,  0 }, /* Set the interval between two agent checks */
-	{ "agent-port",          srv_parse_agent_port,          1,  1,  0 }, /* Set the TCP port used for agent checks. */
-	{ "agent-send",          srv_parse_agent_send,          1,  1,  0 }, /* Set string to send to agent. */
+	{ "agent-inter",         srv_parse_agent_inter,         1,  1,  1 }, /* Set the interval between two agent checks */
+	{ "agent-port",          srv_parse_agent_port,          1,  1,  1 }, /* Set the TCP port used for agent checks. */
+	{ "agent-send",          srv_parse_agent_send,          1,  1,  1 }, /* Set string to send to agent. */
 	{ "check",               srv_parse_check,               0,  1,  0 }, /* Enable health checks */
-	{ "check-proto",         srv_parse_check_proto,         1,  1,  0 }, /* Set the mux protocol for health checks  */
-	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1,  0 }, /* Enable PROXY protocol for health checks */
-	{ "check-via-socks4",    srv_parse_check_via_socks4,    0,  1,  0 }, /* Enable socks4 proxy for health checks */
+	{ "check-proto",         srv_parse_check_proto,         1,  1,  1 }, /* Set the mux protocol for health checks  */
+	{ "check-send-proxy",    srv_parse_check_send_proxy,    0,  1,  1 }, /* Enable PROXY protocol for health checks */
+	{ "check-via-socks4",    srv_parse_check_via_socks4,    0,  1,  1 }, /* Enable socks4 proxy for health checks */
 	{ "no-agent-check",      srv_parse_no_agent_check,      0,  1,  0 }, /* Do not enable any auxiliary agent check */
 	{ "no-check",            srv_parse_no_check,            0,  1,  0 }, /* Disable health checks */
 	{ "no-check-send-proxy", srv_parse_no_check_send_proxy, 0,  1,  0 }, /* Disable PROXY protocol for health checks */
-	{ "rise",                srv_parse_check_rise,          1,  1,  0 }, /* Set rise value for health checks */
-	{ "fall",                srv_parse_check_fall,          1,  1,  0 }, /* Set fall value for health checks */
-	{ "inter",               srv_parse_check_inter,         1,  1,  0 }, /* Set inter value for health checks */
-	{ "fastinter",           srv_parse_check_fastinter,     1,  1,  0 }, /* Set fastinter value for health checks */
-	{ "downinter",           srv_parse_check_downinter,     1,  1,  0 }, /* Set downinter value for health checks */
-	{ "port",                srv_parse_check_port,          1,  1,  0 }, /* Set the TCP port used for health checks. */
+	{ "rise",                srv_parse_check_rise,          1,  1,  1 }, /* Set rise value for health checks */
+	{ "fall",                srv_parse_check_fall,          1,  1,  1 }, /* Set fall value for health checks */
+	{ "inter",               srv_parse_check_inter,         1,  1,  1 }, /* Set inter value for health checks */
+	{ "fastinter",           srv_parse_check_fastinter,     1,  1,  1 }, /* Set fastinter value for health checks */
+	{ "downinter",           srv_parse_check_downinter,     1,  1,  1 }, /* Set downinter value for health checks */
+	{ "port",                srv_parse_check_port,          1,  1,  1 }, /* Set the TCP port used for health checks. */
 	{ NULL, NULL, 0 },
 }};
 
