@@ -1639,30 +1639,6 @@ static int init_srv_check(struct server *srv)
 	}
 
   init:
-	if (!(srv->proxy->options2 & PR_O2_CHK_ANY)) {
-		struct tcpcheck_ruleset *rs = NULL;
-		struct tcpcheck_rules *rules = &srv->proxy->tcpcheck_rules;
-		//char *errmsg = NULL;
-
-		srv->proxy->options2 &= ~PR_O2_CHK_ANY;
-		srv->proxy->options2 |= PR_O2_TCPCHK_CHK;
-
-		rs = find_tcpcheck_ruleset("*tcp-check");
-		if (!rs) {
-			rs = create_tcpcheck_ruleset("*tcp-check");
-			if (rs == NULL) {
-				ha_alert("config: %s '%s': out of memory.\n",
-					 proxy_type_str(srv->proxy), srv->proxy->id);
-				ret |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-		}
-
-		free_tcpcheck_vars(&rules->preset_vars);
-		rules->list = &rs->rules;
-		rules->flags = 0;
-	}
-
 	err = init_check(&srv->check, srv->proxy->options2 & PR_O2_CHK_ANY);
 	if (err) {
 		ha_alert("config: %s '%s': unable to init check for server '%s' (%s).\n",

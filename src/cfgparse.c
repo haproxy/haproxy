@@ -80,6 +80,7 @@
 #include <haproxy/stream.h>
 #include <haproxy/task.h>
 #include <haproxy/tcp_rules.h>
+#include <haproxy/tcpcheck.h>
 #include <haproxy/thread.h>
 #include <haproxy/time.h>
 #include <haproxy/tools.h>
@@ -3587,6 +3588,32 @@ out_uri_auth_compat:
 
 			/* update the mux */
 			newsrv->mux_proto = mux_ent;
+		}
+
+		/* Allocate default tcp-check rules for proxies without
+		 * explicit rules.
+		 */
+		if (curproxy->cap & PR_CAP_BE) {
+			if (!(curproxy->options2 & PR_O2_CHK_ANY)) {
+				struct tcpcheck_ruleset *rs = NULL;
+				struct tcpcheck_rules *rules = &curproxy->tcpcheck_rules;
+
+				curproxy->options2 |= PR_O2_TCPCHK_CHK;
+
+				rs = find_tcpcheck_ruleset("*tcp-check");
+				if (!rs) {
+					rs = create_tcpcheck_ruleset("*tcp-check");
+					if (rs == NULL) {
+						ha_alert("config: %s '%s': out of memory.\n",
+							 proxy_type_str(curproxy), curproxy->id);
+						cfgerr++;
+					}
+				}
+
+				free_tcpcheck_vars(&rules->preset_vars);
+				rules->list = &rs->rules;
+				rules->flags = 0;
+			}
 		}
 	}
 
