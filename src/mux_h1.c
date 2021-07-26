@@ -3432,6 +3432,7 @@ static int h1_rcv_pipe(struct conn_stream *cs, struct pipe *pipe, unsigned int c
 		goto end;
 	}
 
+	h1c->flags |= H1C_F_WANT_SPLICE;
 	if (h1s_data_pending(h1s)) {
 		TRACE_STATE("flush input buffer before splicing", H1_EV_STRM_RECV, cs->conn, h1s);
 		goto end;
