@@ -1018,13 +1018,13 @@ static inline int qc_pkt_long(const struct quic_rx_packet *pkt)
 /* Increment the reference counter of <pkt> */
 static inline void quic_rx_packet_refinc(struct quic_rx_packet *pkt)
 {
-	pkt->refcnt++;
+	HA_ATOMIC_ADD(&pkt->refcnt, 1);
 }
 
 /* Decrement the reference counter of <pkt> */
 static inline void quic_rx_packet_refdec(struct quic_rx_packet *pkt)
 {
-	if (!--pkt->refcnt)
+	if (!HA_ATOMIC_SUB_FETCH(&pkt->refcnt, 1))
 		pool_free(pool_head_quic_rx_packet, pkt);
 }
 

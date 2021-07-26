@@ -2516,6 +2516,7 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 	struct eb64_node *node;
 
 	TRACE_ENTER(QUIC_EV_CONN_RXCDATA, ctx->conn);
+	HA_RWLOCK_WRLOCK(QUIC_LOCK, &el->rx.crypto.frms_rwlock);
 	node = eb64_first(&el->rx.crypto.frms);
 	while (node) {
 		struct quic_rx_crypto_frm *cf;
@@ -2532,11 +2533,12 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 		eb64_delete(&cf->offset_node);
 		pool_free(pool_head_quic_rx_crypto_frm, cf);
 	}
-
+	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.crypto.frms_rwlock);
 	TRACE_LEAVE(QUIC_EV_CONN_RXCDATA, ctx->conn);
 	return 1;
 
  err:
+	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.crypto.frms_rwlock);
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_RXCDATA, ctx->conn);
 	return 0;
 }
@@ -2548,6 +2550,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
 {
 	struct quic_tls_ctx *tls_ctx;
 	struct eb64_node *node;
+	int64_t largest_pn = -1;
 
 	TRACE_ENTER(QUIC_EV_CONN_ELRXPKTS, ctx->conn);
 	tls_ctx = &el->tls_ctx;
@@ -2571,16 +2574,12 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
 			else {
 				struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
 
-				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING) {
-					el->pktns->rx.nb_ack_eliciting++;
-					if (!(el->pktns->rx.nb_ack_eliciting & 1))
-						el->pktns->flags |= QUIC_FL_PKTNS_ACK_REQUIRED;
-				}
+				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING &&
+					!(HA_ATOMIC_ADD_FETCH(&el->pktns->rx.nb_ack_eliciting, 1) & 1))
+					HA_ATOMIC_OR(&el->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED);
 
-				/* Update the largest packet number. */
-				if (pkt->pn > el->pktns->rx.largest_pn)
-					el->pktns->rx.largest_pn = pkt->pn;
-
+				if (pkt->pn > largest_pn)
+					largest_pn = pkt->pn;
 				/* Update the list of ranges to acknowledge. */
 				if (!quic_update_ack_ranges_list(&el->pktns->rx.arngs, &ar))
 					TRACE_DEVEL("Could not update ack range list",
@@ -2592,6 +2591,9 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
 	}
 	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.pkts_rwlock);
 
+	/* Update the largest packet number. */
+	if (largest_pn != -1)
+		HA_ATOMIC_UPDATE_MAX(&el->pktns->rx.largest_pn, largest_pn);
 	if (!qc_treat_rx_crypto_frms(el, ctx))
 		goto err;
 
@@ -2636,8 +2638,7 @@ int qc_do_hdshk(struct ssl_sock_ctx *ctx)
 	    (tls_ctx->rx.flags & QUIC_FL_TLS_SECRETS_SET))
 		qc_rm_hp_pkts(qel, ctx);
 
-	if (!eb_is_empty(&qel->rx.pkts) &&
-		!qc_treat_rx_pkts(qel, ctx))
+	if (!qc_treat_rx_pkts(qel, ctx))
 		goto err;
 
 	if (!qr)
