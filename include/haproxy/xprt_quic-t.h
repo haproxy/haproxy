@@ -544,7 +544,9 @@ struct quic_enc_level {
 		/* Crypto frames */
 		struct {
 			uint64_t offset;
-			struct eb_root frms; /* XXX TO CHECK XXX */
+			struct eb_root frms;
+			/* <frms> must be protected from concurrent accesses */
+			__decl_thread(HA_RWLOCK_T frms_rwlock);
 		} crypto;
 	} rx;
 	struct {

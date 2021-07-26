@@ -2719,6 +2719,9 @@ static int quic_conn_enc_level_init(struct quic_conn *qc,
 	qel->rx.pkts = EB_ROOT;
 	HA_RWLOCK_INIT(&qel->rx.rwlock);
 	MT_LIST_INIT(&qel->rx.pqpkts);
+	qel->rx.crypto.offset = 0;
+	qel->rx.crypto.frms = EB_ROOT_UNIQUE;
+	HA_RWLOCK_INIT(&qel->rx.crypto.frms_rwlock);
 
 	/* Allocate only one buffer. */
 	qel->tx.crypto.bufs = malloc(sizeof *qel->tx.crypto.bufs);
