@@ -58,6 +58,9 @@ static const struct h2s *h2_idle_stream;
 #define H2_CF_DEM_SFULL         0x00000080  // demux blocked on stream request buffer full
 #define H2_CF_DEM_TOOMANY       0x00000100  // demux blocked waiting for some conn_streams to leave
 #define H2_CF_DEM_BLOCK_ANY     0x000001F0  // aggregate of the demux flags above except DALLOC/DFULL
+                                            // (SHORT_READ is also excluded)
+
+#define H2_CF_DEM_SHORT_READ    0x00080200  // demux blocked on incomplete frame
 
 /* other flags */
 #define H2_CF_GOAWAY_SENT       0x00001000  // a GOAWAY frame was successfully sent
@@ -1699,6 +1702,8 @@ static int h2c_frt_recv_preface(struct h2c *h2c)
 	ret1 = b_isteq(&h2c->dbuf, 0, b_data(&h2c->dbuf), ist(H2_CONN_PREFACE));
 
 	if (unlikely(ret1 <= 0)) {
+		if (!ret1)
+			h2c->flags |= H2_CF_DEM_SHORT_READ;
 		if (ret1 < 0 || conn_xprt_read0_pending(h2c->conn)) {
 			TRACE_ERROR("I/O error or short read", H2_EV_RX_FRAME|H2_EV_RX_PREFACE, h2c->conn);
 			h2c_error(h2c, H2_ERR_PROTOCOL_ERROR);
@@ -2174,8 +2179,10 @@ static int h2c_handle_settings(struct h2c *h2c)
 	}
 
 	/* process full frame only */
-	if (b_data(&h2c->dbuf) < h2c->dfl)
+	if (b_data(&h2c->dbuf) < h2c->dfl) {
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		goto out0;
+	}
 
 	/* parse the frame */
 	for (offset = 0; offset < h2c->dfl; offset += 6) {
@@ -2466,8 +2473,10 @@ static int h2c_handle_window_update(struct h2c *h2c, struct h2s *h2s)
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_WU, h2c->conn);
 
 	/* process full frame only */
-	if (b_data(&h2c->dbuf) < h2c->dfl)
+	if (b_data(&h2c->dbuf) < h2c->dfl) {
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		goto out0;
+	}
 
 	inc = h2_get_n32(&h2c->dbuf, 0);
 
@@ -2548,6 +2557,7 @@ static int h2c_handle_goaway(struct h2c *h2c)
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl) {
 		TRACE_DEVEL("leaving on missing data", H2_EV_RX_FRAME|H2_EV_RX_GOAWAY, h2c->conn);
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		return 0;
 	}
 
@@ -2572,6 +2582,7 @@ static int h2c_handle_priority(struct h2c *h2c)
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl) {
 		TRACE_DEVEL("leaving on missing data", H2_EV_RX_FRAME|H2_EV_RX_PRIO, h2c->conn);
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		return 0;
 	}
 
@@ -2598,6 +2609,7 @@ static int h2c_handle_rst_stream(struct h2c *h2c, struct h2s *h2s)
 	/* process full frame only */
 	if (b_data(&h2c->dbuf) < h2c->dfl) {
 		TRACE_DEVEL("leaving on missing data", H2_EV_RX_FRAME|H2_EV_RX_RST|H2_EV_RX_EOI, h2c->conn, h2s);
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		return 0;
 	}
 
@@ -2636,11 +2648,15 @@ static struct h2s *h2c_frt_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 
-	if (!b_size(&h2c->dbuf))
+	if (!b_size(&h2c->dbuf)) {
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		goto out; // empty buffer
+	}
 
-	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
+	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf)) {
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		goto out; // incomplete frame
+	}
 
 	/* now either the frame is complete or the buffer is complete */
 	if (h2s->st != H2_SS_IDLE) {
@@ -2771,11 +2787,15 @@ static struct h2s *h2c_bck_handle_headers(struct h2c *h2c, struct h2s *h2s)
 
 	TRACE_ENTER(H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, h2s);
 
-	if (!b_size(&h2c->dbuf))
+	if (!b_size(&h2c->dbuf)) {
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		goto fail; // empty buffer
+	}
 
-	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
+	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf)) {
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		goto fail; // incomplete frame
+	}
 
 	if (h2s->st != H2_SS_CLOSED) {
 		error = h2c_decode_headers(h2c, &h2s->rxbuf, &h2s->flags, &h2s->body_len, h2s->upgrade_protocol);
@@ -2870,11 +2890,15 @@ static int h2c_handle_data(struct h2c *h2c, struct h2s *h2s)
 	 * to signal an end of stream (with the ES flag).
 	 */
 
-	if (!b_size(&h2c->dbuf) && h2c->dfl)
+	if (!b_size(&h2c->dbuf) && h2c->dfl) {
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		goto fail; // empty buffer
+	}
 
-	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf))
+	if (b_data(&h2c->dbuf) < h2c->dfl && !b_full(&h2c->dbuf)) {
+		h2c->flags |= H2_CF_DEM_SHORT_READ;
 		goto fail; // incomplete frame
+	}
 
 	/* now either the frame is complete or the buffer is complete */
 
@@ -3136,7 +3160,7 @@ static void h2_process_demux(struct h2c *h2c)
 					    !(((const struct session *)h2c->conn->owner)->fe->options & (PR_O_NULLNOLOG|PR_O_IGNORE_PRB)))
 						sess_log(h2c->conn->owner);
 				}
-				goto fail;
+				goto done;
 			}
 			TRACE_PROTO("received preface", H2_EV_RX_PREFACE, h2c->conn);
 
@@ -3152,13 +3176,14 @@ static void h2_process_demux(struct h2c *h2c)
 			TRACE_STATE("expecting settings", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_SETTINGS, h2c->conn);
 			if (!h2_get_frame_hdr(&h2c->dbuf, &hdr)) {
 				/* RFC7540#3.5: a GOAWAY frame MAY be omitted */
+				h2c->flags |= H2_CF_DEM_SHORT_READ;
 				if (h2c->st0 == H2_CS_ERROR) {
 					TRACE_ERROR("failed to receive settings", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_RX_SETTINGS|H2_EV_PROTO_ERR, h2c->conn);
 					h2c->st0 = H2_CS_ERROR2;
 					if (!(h2c->flags & H2_CF_IS_BACK))
 						sess_log(h2c->conn->owner);
 				}
-				goto fail;
+				goto done;
 			}
 
 			if (hdr.sid || hdr.ft != H2_FT_SETTINGS || hdr.ff & H2_F_SETTINGS_ACK) {
@@ -3169,7 +3194,7 @@ static void h2_process_demux(struct h2c *h2c)
 				if (!(h2c->flags & H2_CF_IS_BACK))
 					sess_log(h2c->conn->owner);
 				HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
-				goto fail;
+				goto done;
 			}
 
 			if ((int)hdr.len < 0 || (int)hdr.len > global.tune.bufsize) {
@@ -3179,7 +3204,7 @@ static void h2_process_demux(struct h2c *h2c)
 				h2c->st0 = H2_CS_ERROR2;
 				if (!(h2c->flags & H2_CF_IS_BACK))
 					sess_log(h2c->conn->owner);
-				goto fail;
+				goto done;
 			}
 
 			/* that's OK, switch to FRAME_P to process it. This is
@@ -3198,7 +3223,8 @@ static void h2_process_demux(struct h2c *h2c)
 
 		if (!b_data(&h2c->dbuf)) {
 			TRACE_DEVEL("no more Rx data", H2_EV_RX_FRAME, h2c->conn);
-			goto dbuf_empty;
+			h2c->flags |= H2_CF_DEM_SHORT_READ;
+			break;
 		}
 
 		if (h2c->st0 >= H2_CS_ERROR) {
@@ -3210,8 +3236,10 @@ static void h2_process_demux(struct h2c *h2c)
 			h2c->rcvd_s = 0;
 
 			TRACE_STATE("expecting H2 frame header", H2_EV_RX_FRAME|H2_EV_RX_FHDR, h2c->conn);
-			if (!h2_peek_frame_hdr(&h2c->dbuf, 0, &hdr))
+			if (!h2_peek_frame_hdr(&h2c->dbuf, 0, &hdr)) {
+				h2c->flags |= H2_CF_DEM_SHORT_READ;
 				break;
+			}
 
 			if ((int)hdr.len < 0 || (int)hdr.len > global.tune.bufsize) {
 				TRACE_ERROR("invalid H2 frame length", H2_EV_RX_FRAME|H2_EV_RX_FHDR|H2_EV_PROTO_ERR, h2c->conn);
@@ -3239,12 +3267,14 @@ static void h2_process_demux(struct h2c *h2c)
 					if (!(h2c->flags & H2_CF_IS_BACK))
 						sess_log(h2c->conn->owner);
 					HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
-					goto fail;
+					goto done;
 				}
 				hdr.len--;
 
-				if (b_data(&h2c->dbuf) < 10)
+				if (b_data(&h2c->dbuf) < 10) {
+					h2c->flags |= H2_CF_DEM_SHORT_READ;
 					break; // missing padlen
+				}
 
 				padlen = *(uint8_t *)b_peek(&h2c->dbuf, 9);
 
@@ -3257,7 +3287,7 @@ static void h2_process_demux(struct h2c *h2c)
 					if (!(h2c->flags & H2_CF_IS_BACK))
 						sess_log(h2c->conn->owner);
 					HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
-					goto fail;
+					goto done;
 				}
 
 				if (h2_ft_bit(hdr.ft) & H2_FT_FC_MASK) {
@@ -3285,7 +3315,7 @@ static void h2_process_demux(struct h2c *h2c)
 				if (!(h2c->flags & H2_CF_IS_BACK))
 					sess_log(h2c->conn->owner);
 				HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
-				goto fail;
+				goto done;
 			}
 		}
 
@@ -3361,7 +3391,7 @@ static void h2_process_demux(struct h2c *h2c)
 			if (!(h2c->flags & H2_CF_IS_BACK))
 				sess_log(h2c->conn->owner);
 			HA_ATOMIC_INC(&h2c->px_counters->conn_proto_err);
-			goto fail;
+			goto done;
 
 		case H2_FT_HEADERS:
 			if (h2c->st0 == H2_CS_FRAME_P) {
@@ -3439,14 +3469,9 @@ static void h2_process_demux(struct h2c *h2c)
 			ret = h2c_send_rst_stream(h2c, h2s);
 		}
 
-	dbuf_empty:
 		/* error or missing data condition met above ? */
-		if (ret <= 0) {
-			TRACE_DEVEL("insufficient data to proceed", H2_EV_RX_FRAME, h2c->conn, h2s);
-			if (h2c->flags & H2_CF_RCVD_SHUT)
-				h2c->flags |= H2_CF_END_REACHED;
+		if (ret <= 0)
 			break;
-		}
 
 		if (h2c->st0 != H2_CS_FRAME_H) {
 			if (h2c->dfl)
@@ -3469,6 +3494,11 @@ static void h2_process_demux(struct h2c *h2c)
 	}
 
  done:
+	if (h2c->st0 >= H2_CS_ERROR || (h2c->flags & H2_CF_DEM_SHORT_READ)) {
+		if (h2c->flags & H2_CF_RCVD_SHUT)
+			h2c->flags |= H2_CF_END_REACHED;
+	}
+
 	if (h2s && h2s->cs &&
 	    (b_data(&h2s->rxbuf) ||
 	     h2c_read0_pending(h2c) ||
@@ -3490,14 +3520,6 @@ static void h2_process_demux(struct h2c *h2c)
  out:
 	TRACE_LEAVE(H2_EV_H2C_WAKE, h2c->conn);
 	return;
-
- fail:
-	/* we can go here on missing data, blocked response or error, but we
-	 * need to check if we've met a short read condition.
-	 */
-	if (h2c->flags & H2_CF_RCVD_SHUT)
-		h2c->flags |= H2_CF_END_REACHED;
-	goto done;
 }
 
 /* resume each h2s eligible for sending in list head <head> */
@@ -3657,8 +3679,10 @@ static int h2_recv(struct h2c *h2c)
 	if (max && !ret && h2_recv_allowed(h2c)) {
 		TRACE_DATA("failed to receive data, subscribing", H2_EV_H2C_RECV, h2c->conn);
 		conn->xprt->subscribe(conn, conn->xprt_ctx, SUB_RETRY_RECV, &h2c->wait_event);
-	} else if (ret)
+	} else if (ret) {
 		TRACE_DATA("received data", H2_EV_H2C_RECV, h2c->conn, 0, 0, (void*)(long)ret);
+		h2c->flags &= ~H2_CF_DEM_SHORT_READ;
+	}
 
 	if (conn_xprt_read0_pending(h2c->conn)) {
 		TRACE_DATA("received read0", H2_EV_H2C_RECV, h2c->conn);
