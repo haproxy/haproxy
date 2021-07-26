@@ -3133,7 +3133,7 @@ static void h2_process_demux(struct h2c *h2c)
 					TRACE_PROTO("failed to receive preface", H2_EV_RX_PREFACE|H2_EV_PROTO_ERR, h2c->conn);
 					h2c->st0 = H2_CS_ERROR2;
 					if (b_data(&h2c->dbuf) ||
-					    !(((const struct session *)h2c->conn->owner)->fe->options & PR_O_IGNORE_PRB))
+					    !(((const struct session *)h2c->conn->owner)->fe->options & (PR_O_NULLNOLOG|PR_O_IGNORE_PRB)))
 						sess_log(h2c->conn->owner);
 				}
 				goto fail;
