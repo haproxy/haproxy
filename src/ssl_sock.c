@@ -5389,14 +5389,14 @@ static int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	/* get counters */
 	switch (obj_type(conn->target)) {
 	case OBJ_TYPE_LISTENER:
-		li = objt_listener(conn->target);
+		li = __objt_listener(conn->target);
 		counters = EXTRA_COUNTERS_GET(li->extra_counters, &ssl_stats_module);
 		counters_px = EXTRA_COUNTERS_GET(li->bind_conf->frontend->extra_counters_fe,
 		                                 &ssl_stats_module);
 		break;
 
 	case OBJ_TYPE_SERVER:
-		srv = objt_server(conn->target);
+		srv = __objt_server(conn->target);
 		counters = EXTRA_COUNTERS_GET(srv->extra_counters, &ssl_stats_module);
 		counters_px = EXTRA_COUNTERS_GET(srv->proxy->extra_counters_be,
 		                                 &ssl_stats_module);
