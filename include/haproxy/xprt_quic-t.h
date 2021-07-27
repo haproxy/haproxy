@@ -228,7 +228,7 @@ enum quic_pkt_type {
 extern struct trace_source trace_quic;
 extern struct pool_head *pool_head_quic_rx_packet;
 extern struct pool_head *pool_head_quic_tx_packet;
-extern struct pool_head *pool_head_quic_tx_frm;
+extern struct pool_head *pool_head_quic_frame;
 
 /*
  * This struct is used by ebmb_node structs as last member of flexible arrays.
@@ -487,18 +487,6 @@ struct quic_tx_packet {
 	/* Next packet in the same datagram */
 	struct quic_tx_packet *next;
 };
-
-/* Structure to stora enough information about the TX frames. */
-struct quic_tx_frm {
-	struct mt_list mt_list;
-	struct list list;
-	unsigned char type;
-	union {
-		struct quic_crypto crypto;
-		struct quic_new_connection_id new_connection_id;
-	};
-};
-
 
 #define QUIC_CRYPTO_BUF_SHIFT  10
 #define QUIC_CRYPTO_BUF_MASK   ((1UL << QUIC_CRYPTO_BUF_SHIFT) - 1)

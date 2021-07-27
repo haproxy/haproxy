@@ -1924,7 +1924,7 @@ static size_t _qcs_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, in
 
 	if (total) {
 
-		frm = pool_alloc(pool_head_quic_tx_frm);
+		frm = pool_alloc(pool_head_quic_frame);
 		if (!frm) { /* XXX XXX */ }
 	}
 

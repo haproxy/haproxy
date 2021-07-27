@@ -132,26 +132,15 @@ static BIO_METHOD *ha_quic_meth;
 
 DECLARE_STATIC_POOL(pool_head_quic_conn_ctx,
                     "quic_conn_ctx_pool", sizeof(struct ssl_sock_ctx));
-
 DECLARE_STATIC_POOL(pool_head_quic_conn, "quic_conn", sizeof(struct quic_conn));
-
 DECLARE_POOL(pool_head_quic_connection_id,
              "quic_connnection_id_pool", sizeof(struct quic_connection_id));
-
 DECLARE_POOL(pool_head_quic_rx_packet, "quic_rx_packet_pool", sizeof(struct quic_rx_packet));
-
 DECLARE_POOL(pool_head_quic_tx_packet, "quic_tx_packet_pool", sizeof(struct quic_tx_packet));
-
 DECLARE_STATIC_POOL(pool_head_quic_rx_crypto_frm, "quic_rx_crypto_frm_pool", sizeof(struct quic_rx_crypto_frm));
-
 DECLARE_POOL(pool_head_quic_rx_strm_frm, "quic_rx_strm_frm", sizeof(struct quic_rx_strm_frm));
-
-DECLARE_POOL(pool_head_quic_tx_frm, "quic_tx_frm_pool", sizeof(struct quic_tx_frm));
-
 DECLARE_STATIC_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf_pool", sizeof(struct quic_crypto_buf));
-
-DECLARE_STATIC_POOL(pool_head_quic_frame, "quic_frame_pool", sizeof(struct quic_frame));
-
+DECLARE_POOL(pool_head_quic_frame, "quic_frame_pool", sizeof(struct quic_frame));
 DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_arng_node));
 
 static struct quic_tx_packet *qc_build_hdshk_pkt(unsigned char **pos, const unsigned char *buf_end,
@@ -161,7 +150,7 @@ int qc_prep_phdshk_pkts(struct qring *qr, struct quic_conn *qc);
 
 /* Add traces to <buf> depending on <frm> TX frame type. */
 static inline void chunk_tx_frm_appendf(struct buffer *buf,
-                                        const struct quic_tx_frm *frm)
+                                        const struct quic_frame *frm)
 {
 	switch (frm->type) {
 	case QUIC_FT_CRYPTO:
@@ -306,7 +295,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              pktns->tx.pto_probe, qc->tx.nb_pto_dgrams);
 			}
 			if (pkt) {
-				const struct quic_tx_frm *frm;
+				const struct quic_frame *frm;
 				chunk_appendf(&trace_buf, " pn=%llu cdlen=%u",
 				              (unsigned long long)pkt->pn_node.key, pkt->cdata_len);
 				list_for_each_entry(frm, &pkt->frms, list)
@@ -432,7 +421,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 		}
 
 		if (mask & QUIC_EV_CONN_PRSAFRM) {
-			const struct quic_tx_frm *frm = a2;
+			const struct quic_frame *frm = a2;
 			const unsigned long *val1 = a3;
 			const unsigned long *val2 = a4;
 
@@ -842,9 +831,9 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 	 * have been buffered.
 	 */
 	if (!len) {
-		struct quic_tx_frm *frm;
+		struct quic_frame *frm;
 
-		frm = pool_alloc(pool_head_quic_tx_frm);
+		frm = pool_alloc(pool_head_quic_frame);
 		if (!frm)
 			return 0;
 
@@ -1148,12 +1137,12 @@ static int qc_pkt_decrypt(struct quic_rx_packet *pkt, struct quic_tls_ctx *tls_c
 }
 
 /* Treat <frm> frame whose packet it is attached to has just been acknowledged. */
-static inline void qc_treat_acked_tx_frm(struct quic_tx_frm *frm,
+static inline void qc_treat_acked_tx_frm(struct quic_frame *frm,
                                          struct ssl_sock_ctx *ctx)
 {
 	TRACE_PROTO("Removing frame", QUIC_EV_CONN_PRSAFRM, ctx->conn, frm);
 	LIST_DELETE(&frm->list);
-	pool_free(pool_head_quic_tx_frm, frm);
+	pool_free(pool_head_quic_frame, frm);
 }
 
 /* Remove <largest> down to <smallest> node entries from <pkts> tree of TX packet,
@@ -1180,7 +1169,7 @@ static inline struct eb64_node *qc_ackrng_pkts(struct eb_root *pkts, unsigned in
 	}
 
 	while (node && node->key >= smallest) {
-		struct quic_tx_frm *frm, *frmbak;
+		struct quic_frame *frm, *frmbak;
 
 		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
 		*pkt_flags |= pkt->flags;
@@ -1198,7 +1187,7 @@ static inline struct eb64_node *qc_ackrng_pkts(struct eb_root *pkts, unsigned in
 /* Treat <frm> frame whose packet it is attached to has just been detected as non
  * acknowledged.
  */
-static inline void qc_treat_nacked_tx_frm(struct quic_tx_frm *frm,
+static inline void qc_treat_nacked_tx_frm(struct quic_frame *frm,
                                           struct quic_pktns *pktns,
                                           struct ssl_sock_ctx *ctx)
 {
@@ -1284,7 +1273,7 @@ static inline void qc_release_lost_pkts(struct quic_pktns *pktns,
 {
 	struct quic_conn *qc = ctx->conn->qc;
 	struct quic_tx_packet *pkt, *tmp, *oldest_lost, *newest_lost;
-	struct quic_tx_frm *frm, *frmbak;
+	struct quic_frame *frm, *frmbak;
 	uint64_t lost_bytes;
 
 	lost_bytes = 0;
@@ -3587,7 +3576,7 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
                                  struct quic_conn *conn)
 {
 	int ret;
-	struct quic_tx_frm *cf;
+	struct quic_frame *cf;
 	struct mt_list *tmp1, tmp2;
 
 	ret = 0;
@@ -3632,9 +3621,9 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
 			LIST_APPEND(&pkt->frms, &cf->list);
 		}
 		else {
-			struct quic_tx_frm *new_cf;
+			struct quic_frame *new_cf;
 
-			new_cf = pool_alloc(pool_head_quic_tx_frm);
+			new_cf = pool_alloc(pool_head_quic_frame);
 			if (!new_cf) {
 				TRACE_PROTO("No memory for new crypto frame", QUIC_EV_CONN_BCFRMS, conn->conn);
 				return 0;
@@ -3795,7 +3784,7 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 
 	/* Crypto frame */
 	if (!LIST_ISEMPTY(&pkt->frms)) {
-		struct quic_tx_frm *cf;
+		struct quic_frame *cf;
 
 		list_for_each_entry(cf, &pkt->frms, list) {
 			crypto->offset = cf->crypto.offset;
@@ -3859,14 +3848,14 @@ static inline void quic_tx_packet_init(struct quic_tx_packet *pkt)
 /* Free <pkt> TX packet which has not already attached to any tree. */
 static inline void free_quic_tx_packet(struct quic_tx_packet *pkt)
 {
-	struct quic_tx_frm *frm, *frmbak;
+	struct quic_frame *frm, *frmbak;
 
 	if (!pkt)
 		return;
 
 	list_for_each_entry_safe(frm, frmbak, &pkt->frms, list) {
 		LIST_DELETE(&frm->list);
-		pool_free(pool_head_quic_tx_frm, frm);
+		pool_free(pool_head_quic_frame, frm);
 	}
 	quic_tx_packet_refdec(pkt);
 }
@@ -4033,7 +4022,7 @@ static int qc_do_build_phdshk_apkt(unsigned char *pos, const unsigned char *end,
 	if (!LIST_ISEMPTY(&pkt->frms)) {
 		struct quic_frame frm = { .type = QUIC_FT_CRYPTO, };
 		struct quic_crypto *crypto = &frm.crypto;
-		struct quic_tx_frm *cf;
+		struct quic_frame *cf;
 
 		list_for_each_entry(cf, &pkt->frms, list) {
 			crypto->offset = cf->crypto.offset;
