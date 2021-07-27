@@ -359,7 +359,7 @@ struct quic_arngs {
 struct quic_pktns {
 	struct {
 		/* List of frames to send. */
-		struct list frms;
+		struct mt_list frms;
 		/* Next packet number to use for transmissions. */
 		int64_t next_pn;
 		/* Largest acked sent packet. */
@@ -490,6 +490,7 @@ struct quic_tx_packet {
 
 /* Structure to stora enough information about the TX frames. */
 struct quic_tx_frm {
+	struct mt_list mt_list;
 	struct list list;
 	unsigned char type;
 	union {

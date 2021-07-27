@@ -887,7 +887,7 @@ static inline int quic_transport_params_store(struct quic_conn *conn, int server
  */
 static inline void quic_pktns_init(struct quic_pktns *pktns)
 {
-	LIST_INIT(&pktns->tx.frms);
+	MT_LIST_INIT(&pktns->tx.frms);
 	pktns->tx.next_pn = -1;
 	pktns->tx.pkts = EB_ROOT_UNIQUE;
 	pktns->tx.largest_acked_pn = -1;

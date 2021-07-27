@@ -851,7 +851,7 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 		frm->type = QUIC_FT_CRYPTO;
 		frm->crypto.offset = cf_offset;
 		frm->crypto.len = cf_len;
-		LIST_APPEND(&qel->pktns->tx.frms, &frm->list);
+		MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
 	}
 
 	return len == 0;
@@ -1204,7 +1204,7 @@ static inline void qc_treat_nacked_tx_frm(struct quic_tx_frm *frm,
 {
 	TRACE_PROTO("to resend frame", QUIC_EV_CONN_PRSAFRM, ctx->conn, frm);
 	LIST_DELETE(&frm->list);
-	LIST_INSERT(&pktns->tx.frms, &frm->list);
+	MT_LIST_INSERT(&pktns->tx.frms, &frm->mt_list);
 }
 
 
@@ -2043,7 +2043,7 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 		if (!(qel->tls_ctx.tx.flags & QUIC_FL_TLS_SECRETS_SET) ||
 		    (!(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
 		    !qc->tx.nb_pto_dgrams &&
-		    (LIST_ISEMPTY(&qel->pktns->tx.frms) ||
+		    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) ||
 		     qc->path->prep_in_flight >= qc->path->cwnd))) {
 			TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, ctx->conn);
 			/* Set the current datagram as prepared into <cbuf> if
@@ -2099,10 +2099,10 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			 * been sent, select the next level.
 			 */
 			if (tel == QUIC_TLS_ENC_LEVEL_INITIAL &&
-			    (LIST_ISEMPTY(&qel->pktns->tx.frms) || qc->els[next_tel].pktns->tx.in_flight)) {
+			    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) || qc->els[next_tel].pktns->tx.in_flight)) {
 				tel = next_tel;
 				qel = &qc->els[tel];
-				if (!LIST_ISEMPTY(&qel->pktns->tx.frms)) {
+				if (!MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
 					/* If there is data for the next level, do not
 					 * consume a datagram. This is the case for a client
 					 * which sends only one Initial packet, then wait
@@ -3587,7 +3587,8 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
                                  struct quic_conn *conn)
 {
 	int ret;
-	struct quic_tx_frm *cf, *cfbak;
+	struct quic_tx_frm *cf;
+	struct mt_list *tmp1, tmp2;
 
 	ret = 0;
 	/* If we are not probing we must take into an account the congestion
@@ -3597,7 +3598,7 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
 		room = QUIC_MIN(room, quic_path_prep_data(conn->path) - headlen);
 	TRACE_PROTO("************** CRYPTO frames build (headlen)",
 	            QUIC_EV_CONN_BCFRMS, conn->conn, &headlen);
-	list_for_each_entry_safe(cf, cfbak, &qel->pktns->tx.frms, list) {
+	mt_list_for_each_entry_safe(cf, &qel->pktns->tx.frms, mt_list, tmp1, tmp2) {
 		/* header length, data length, frame length. */
 		size_t hlen, dlen, cflen;
 
@@ -3627,7 +3628,7 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
 		room -= cflen;
 		if (dlen == cf->crypto.len) {
 			/* <cf> CRYPTO data have been consumed. */
-			LIST_DELETE(&cf->list);
+			MT_LIST_DELETE_SAFE(tmp1);
 			LIST_APPEND(&pkt->frms, &cf->list);
 		}
 		else {
@@ -3739,7 +3740,7 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 
 	/* Length field value without the CRYPTO frames data length. */
 	len = ack_frm_len + *pn_len;
-	if (!LIST_ISEMPTY(&qel->pktns->tx.frms)) {
+	if (!MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
 		ssize_t room = end - pos;
 
 		len_frms = len + QUIC_TLS_TAG_LEN;
@@ -4020,7 +4021,7 @@ static int qc_do_build_phdshk_apkt(unsigned char *pos, const unsigned char *end,
 	}
 
 	fake_len = ack_frm_len;
-	if (!LIST_ISEMPTY(&qel->pktns->tx.frms) &&
+	if (!MT_LIST_ISEMPTY(&qel->pktns->tx.frms) &&
 	    !qc_build_cfrms(pkt, end - pos, &fake_len, pos - beg, qel, conn)) {
 		ssize_t room = end - pos;
 		TRACE_PROTO("some CRYPTO frames could not be built",
@@ -4172,7 +4173,7 @@ int qc_prep_phdshk_pkts(struct qring *qr, struct quic_conn *qc)
 		struct quic_tx_packet *pkt;
 
 		if (!(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) &&
-		    (LIST_ISEMPTY(&qel->pktns->tx.frms) ||
+		    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) ||
 		     qc->path->prep_in_flight >= qc->path->cwnd)) {
 			TRACE_DEVEL("nothing more to do",
 			            QUIC_EV_CONN_PAPKTS, qc->conn);
