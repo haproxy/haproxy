@@ -107,6 +107,7 @@ __decl_thread(extern HA_RWLOCK_T wq_lock);    /* RW lock related to the wait que
 
 void __tasklet_wakeup_on(struct tasklet *tl, int thr);
 void task_kill(struct task *t);
+void tasklet_kill(struct tasklet *t);
 void __task_wakeup(struct task *t);
 void __task_queue(struct task *task, struct eb_root *wq);
 
