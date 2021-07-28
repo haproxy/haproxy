@@ -4589,15 +4589,16 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	return 0;
 
 out:
+	if (srv && srv->track)
+		release_server_track(srv);
+
 	thread_release();
 
 	if (!usermsgs_empty())
 		cli_err(appctx, usermsgs_str());
 
-	if (srv) {
-		release_server_track(srv);
+	if (srv)
 		free_server(srv);
-	}
 
 	return 1;
 }
