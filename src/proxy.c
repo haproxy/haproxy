@@ -1345,13 +1345,13 @@ void proxy_preset_defaults(struct proxy *defproxy)
 {
 	defproxy->mode = PR_MODE_TCP;
 	defproxy->disabled = 0;
-	if (!(defproxy->cap & PR_CAP_LUA)) {
+	if (!(defproxy->cap & PR_CAP_INT)) {
 		defproxy->maxconn = cfg_maxpconn;
 		defproxy->conn_retries = CONN_RETRIES;
 	}
 	defproxy->redispatch_after = 0;
 	defproxy->options = PR_O_REUSE_SAFE;
-	if (defproxy->cap & PR_CAP_LUA)
+	if (defproxy->cap & PR_CAP_INT)
 		defproxy->options2 |= PR_O2_INDEPSTR;
 	defproxy->max_out_conns = MAX_SRV_LIST;
 
@@ -1384,7 +1384,7 @@ void proxy_preset_defaults(struct proxy *defproxy)
 	quic_transport_params_init(&defproxy->defsrv.quic_params, 0);
 #endif
 
-	if (defproxy->cap & PR_CAP_LUA)
+	if (defproxy->cap & PR_CAP_INT)
 		defproxy->timeout.connect = 5000;
 }
 
@@ -1481,7 +1481,7 @@ struct proxy *alloc_new_proxy(const char *name, unsigned int cap, char **errmsg)
 	curproxy->id = strdup(name);
 	curproxy->cap = cap;
 
-	if (!(cap & PR_CAP_LUA))
+	if (!(cap & PR_CAP_INT))
 		proxy_store_name(curproxy);
 
  done:

@@ -9221,7 +9221,7 @@ void hlua_init(void) {
 	hlua_states[1] = hlua_init_state(1);
 
 	/* Proxy and server configuration initialisation. */
-	socket_proxy = alloc_new_proxy("LUA-SOCKET", PR_CAP_FE|PR_CAP_BE|PR_CAP_LUA, &errmsg);
+	socket_proxy = alloc_new_proxy("LUA-SOCKET", PR_CAP_FE|PR_CAP_BE|PR_CAP_INT, &errmsg);
 	if (!socket_proxy) {
 		fprintf(stderr, "Lua init: %s\n", errmsg);
 		exit(1);
