@@ -356,9 +356,21 @@ static inline long fd_clr_running(int fd)
  */
 static inline void fd_update_events(int fd, uint evts)
 {
-	unsigned long locked = atleast2(fdtab[fd].thread_mask);
+	unsigned long locked;
 	uint old, new;
 	uint new_flags, must_stop;
+
+	ti->flags &= ~TI_FL_STUCK; // this thread is still running
+
+	/* do nothing if the FD was taken over under us */
+	if (fd_set_running(fd) == -1)
+		return;
+
+	locked = (fdtab[fd].thread_mask != tid_bit);
+
+	/* OK now we are guaranteed that our thread_mask was present and
+	 * that we're allowed to update the FD.
+	 */
 
 	new_flags =
 	      ((evts & FD_EV_READY_R) ? FD_POLL_IN  : 0) |
@@ -404,12 +416,17 @@ static inline void fd_update_events(int fd, uint evts)
 		fd_may_send(fd);
 
 	if (fdtab[fd].iocb && fd_active(fd)) {
-		if (fd_set_running(fd) == -1)
-			return;
 		fdtab[fd].iocb(fd);
-		if ((fdtab[fd].running_mask & tid_bit) &&
-		    fd_clr_running(fd) == 0 && !fdtab[fd].thread_mask)
-			_fd_delete_orphan(fd);
+	}
+
+	/* another thread might have attempted to close this FD in the mean
+	 * time (e.g. timeout task) striking on a previous thread and closing.
+	 * This is detected by both thread_mask and running_mask being 0 after
+	 * we remove ourselves last.
+	 */
+	if ((fdtab[fd].running_mask & tid_bit) &&
+	    fd_clr_running(fd) == 0 && !fdtab[fd].thread_mask) {
+		_fd_delete_orphan(fd);
 	}
 
 	/* we had to stop this FD and it still must be stopped after the I/O
@@ -421,8 +438,6 @@ static inline void fd_update_events(int fd, uint evts)
 			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
 				fd_updt[fd_nbupdt++] = fd;
 	}
-
-	ti->flags &= ~TI_FL_STUCK; // this thread is still running
 }
 
 /* Prepares <fd> for being polled */
