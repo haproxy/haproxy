@@ -3620,7 +3620,8 @@ static int stats_dump_proxies(struct stream_interface *si,
 		 * Also skip disabled proxies unless they are still holding active sessions.
 		 * This change allows retrieving stats from "old" proxies after a reload.
 		 */
-		if ((!px->disabled || px->served > 0) && px->uuid > 0 && (px->cap & (PR_CAP_FE | PR_CAP_BE))) {
+		if ((!px->disabled || px->served > 0) && px->uuid > 0 &&
+		    (px->cap & (PR_CAP_FE | PR_CAP_BE)) && !(px->cap & PR_CAP_INT)) {
 			if (stats_dump_proxy_to_buffer(si, htx, px, uri) == 0)
 				return 0;
 		}
