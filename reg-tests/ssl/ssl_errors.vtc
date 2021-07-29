@@ -1,4 +1,4 @@
-#REGTEST_TYPE=devel
+#REGTEST_TYPE=broken
 
 # This reg-test checks that the connection and SSL sample fetches related to
 # errors are functioning properly. It also tests the proper behaviour of the
