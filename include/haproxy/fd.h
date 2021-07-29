@@ -397,6 +397,12 @@ static inline void fd_update_events(int fd, uint evts)
 		must_stop = FD_POLL_OUT;
 	}
 
+	if (new_flags & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
+		new_flags |= FD_EV_READY_R;
+
+	if (new_flags & (FD_POLL_OUT | FD_POLL_ERR))
+		new_flags |= FD_EV_READY_W;
+
 	old = fdtab[fd].state;
 	new = (old & ~FD_POLL_UPDT_MASK) | new_flags;
 
@@ -408,12 +414,6 @@ static inline void fd_update_events(int fd, uint evts)
 		if (new != old)
 			fdtab[fd].state = new;
 	}
-
-	if (fdtab[fd].state & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-		fd_may_recv(fd);
-
-	if (fdtab[fd].state & (FD_POLL_OUT | FD_POLL_ERR))
-		fd_may_send(fd);
 
 	if (fdtab[fd].iocb && fd_active(fd)) {
 		fdtab[fd].iocb(fd);
