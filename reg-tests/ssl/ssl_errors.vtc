@@ -1,0 +1,255 @@
+#REGTEST_TYPE=devel
+
+# This reg-test checks that the connection and SSL sample fetches related to
+# errors are functioning properly. It also tests the proper behaviour of the
+# default HTTPS log format and of the dontloglegacyconnerr option which enables
+# or disables the output of a special error message in case of connection
+# failure (otherwise a line following the configured log-format is output).
+#
+# It works by sending request through three different paths, one using a custom
+# log-format line that contains the connection error and SSL handshake error
+# sample fetches, one using the default HTTPS log-format and one using the
+# legacy error log format.
+#
+# The output log lines are caught by syslog blocks (one for each path) and
+# compared to an expected format.
+# Since the syslog is not by design synchronized with the Varnish clients and
+# servers, synchronization is achieved through barriers, which ensure that
+# syslog messages arrive in the right order.
+#
+# In order to ensure that the log line raised in case of connection error if
+# the dontloglegacyconnerr option is disabled still follows the
+# log-separate-error option, the log lines raised by the https_fmt_lst listener
+# will be sent to two separate syslog servers.
+#
+
+varnishtest "Test the connection and SSL error fetches."
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev2)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature cmd "command -v socat"
+feature ignore_unknown_macro
+
+server s1 -repeat 3 {
+  rxreq
+  txresp
+} -start
+
+barrier b1 cond 4 -cyclic
+
+
+syslog Slg_cust_fmt -level info {
+    recv
+    expect ~ ".*conn_status:\"0:Success\" hsk_err:\"0:-\""
+
+    barrier b1 sync
+
+    recv
+    expect ~ ".*conn_status:\"30:SSL client CA chain cannot be verified\" hsk_err:\"337100934:error:1417C086:SSL routines:tls_process_client_certificate:certificate verify failed\""
+
+    barrier b1 sync
+
+    recv
+    expect ~ ".*conn_status:\"31:SSL client certificate not trusted\" hsk_err:\"337100934:error:1417C086:SSL routines:tls_process_client_certificate:certificate verify failed\""
+
+    barrier b1 sync
+
+    recv
+    expect ~ ".*conn_status:\"34:SSL handshake failure\" hsk_err:\"337678529:error:142090C1:SSL routines:tls_early_post_process_client_hello:no shared cipher\""
+} -start
+
+syslog Slg_https_fmt -level info {
+    recv
+    expect ~ ".*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/s1.*0/0000000000000000/0/0 TLSv1.3/TLS_AES_256_GCM_SHA384"
+
+    barrier b1 sync
+} -start
+
+syslog Slg_https_fmt_err -level info {
+    recv
+    expect ~ ".*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*30/000000001417C086/0/2 TLSv1.3/TLS_AES_256_GCM_SHA384"
+
+    barrier b1 sync
+
+    recv
+    expect ~ ".*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*31/000000001417C086/20/0 TLSv1.3/TLS_AES_256_GCM_SHA384"
+
+    barrier b1 sync
+
+    recv
+    expect ~ ".*https_logfmt_ssl_lst~ https_logfmt_ssl_lst/<NOSRV>.*34/00000000142090C1/0/0 TLSv1.3/\\(NONE\\)"
+} -start
+
+syslog Slg_logconnerror -level info {
+    recv
+    expect ~ ".*logconnerror_ssl_lst~ logconnerror_ssl_lst/s1"
+
+    barrier b1 sync
+
+    recv
+    expect ~ ".*logconnerror_ssl_lst/1: SSL client CA chain cannot be verified"
+
+    barrier b1 sync
+
+    recv
+    expect ~ ".*logconnerror_ssl_lst/1: SSL client certificate not trusted"
+
+    barrier b1 sync
+
+    recv
+    expect ~ ".*logconnerror_ssl_lst/1: SSL handshake failure"
+} -start
+
+
+haproxy h1 -conf {
+    global
+        tune.ssl.default-dh-param 2048
+        tune.ssl.capture-cipherlist-size 1
+        stats socket "${tmpdir}/h1/stats" level admin
+
+    defaults
+        timeout connect 100ms
+        timeout client  1s
+        timeout server  1s
+        retries 0
+
+    listen clear_lst
+        bind "fd@${clearlst}"
+        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse
+
+        balance roundrobin
+        server cust_fmt "${tmpdir}/cust_logfmt_ssl.sock"
+        server https_fmt "${tmpdir}/https_logfmt_ssl.sock"
+        server logconnerror "${tmpdir}/logconnerror_ssl.sock"
+
+
+    listen clear_wrong_ciphers_lst
+        bind "fd@${wrongcipherslst}"
+        default-server ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none no-ssl-reuse ciphersuites "TLS_AES_128_GCM_SHA256"
+
+        balance roundrobin
+        server cust_fmt "${tmpdir}/cust_logfmt_ssl.sock"
+        server https_fmt "${tmpdir}/https_logfmt_ssl.sock"
+        server logconnerror "${tmpdir}/logconnerror_ssl.sock"
+
+
+    listen cust_logfmt_ssl_lst
+        log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
+	option dontloglegacyconnerr
+        mode http
+        log-format "conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_hsk_err]:%[ssl_fc_hsk_err_str]\""
+        bind "${tmpdir}/cust_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
+        server s1 ${s1_addr}:${s1_port}
+
+    listen https_logfmt_ssl_lst
+        log ${Slg_https_fmt_addr}:${Slg_https_fmt_port} local0 info
+        log ${Slg_https_fmt_err_addr}:${Slg_https_fmt_err_port} local0 err info
+	option dontloglegacyconnerr
+        option log-separate-errors
+        mode http
+        option httpslog
+        bind "${tmpdir}/https_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
+        server s1 ${s1_addr}:${s1_port}
+
+    listen logconnerror_ssl_lst
+        log ${Slg_logconnerror_addr}:${Slg_logconnerror_port} local0 info
+        mode http
+        option httplog
+        bind "${tmpdir}/logconnerror_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
+        server s1 ${s1_addr}:${s1_port}
+
+} -start
+
+
+# The three following requests should all succeed
+client c1 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c2 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+client c3 -connect ${h1_clearlst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+
+
+barrier b1 sync
+
+
+# Change the root CA in the frontends
+shell {
+    printf "set ssl ca-file ${testdir}/set_cafile_rootCA.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/set_cafile_rootCA.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+client c4 -connect ${h1_clearlst_sock} {
+    txreq
+} -run
+
+client c5 -connect ${h1_clearlst_sock} {
+    txreq
+} -run
+
+client c6 -connect ${h1_clearlst_sock} {
+    txreq
+} -run
+
+barrier b1 sync
+
+
+
+# Restore the root CA
+shell {
+    printf "set ssl ca-file ${testdir}/set_cafile_rootCA.crt <<\n$(cat ${testdir}/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/set_cafile_rootCA.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+# Change the intermediate CA in the frontends
+shell {
+    printf "set ssl ca-file ${testdir}/set_cafile_interCA1.crt <<\n$(cat ${testdir}/set_cafile_interCA2.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/set_cafile_interCA1.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+client c7 -connect ${h1_clearlst_sock} {
+    txreq
+} -run
+
+client c8 -connect ${h1_clearlst_sock} {
+    txreq
+} -run
+
+client c9 -connect ${h1_clearlst_sock} {
+    txreq
+} -run
+
+barrier b1 sync
+
+
+# Restore the intermediate CA in the frontends
+shell {
+    printf "set ssl ca-file ${testdir}/set_cafile_interCA1.crt <<\n$(cat ${testdir}/set_cafile_interCA1.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/set_cafile_interCA1.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+# "No shared cipher" errors
+client c10 -connect ${h1_wrongcipherslst_sock} {
+    txreq
+} -run
+client c11 -connect ${h1_wrongcipherslst_sock} {
+    txreq
+} -run
+client c12 -connect ${h1_wrongcipherslst_sock} {
+    txreq
+} -run
+
+syslog Slg_cust_fmt -wait
+syslog Slg_https_fmt -wait
+syslog Slg_https_fmt_err -wait
+syslog Slg_logconnerror -wait
