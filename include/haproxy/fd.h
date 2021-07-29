@@ -117,7 +117,7 @@ void run_poller();
 void fd_add_to_fd_list(volatile struct fdlist *list, int fd, int off);
 void fd_rm_from_fd_list(volatile struct fdlist *list, int fd, int off);
 void updt_fd_polling(const int fd);
-void fd_update_events(int fd, uint evts);
+int fd_update_events(int fd, uint evts);
 
 /* Called from the poller to acknowledge we read an entry from the global
  * update list, to remove our bit from the update_mask, and remove it from

@@ -448,9 +448,10 @@ void updt_fd_polling(const int fd)
 /* Update events seen for FD <fd> and its state if needed. This should be
  * called by the poller, passing FD_EV_*_{R,W,RW} in <evts>. FD_EV_ERR_*
  * doesn't need to also pass FD_EV_SHUT_*, it's implied. ERR and SHUT are
- * allowed to be reported regardless of R/W readiness.
+ * allowed to be reported regardless of R/W readiness. Returns one of
+ * FD_UPDT_*.
  */
-void fd_update_events(int fd, uint evts)
+int fd_update_events(int fd, uint evts)
 {
 	unsigned long locked;
 	uint old, new;
@@ -458,9 +459,17 @@ void fd_update_events(int fd, uint evts)
 
 	ti->flags &= ~TI_FL_STUCK; // this thread is still running
 
+	/* do nothing on remains of an old dead FD */
+	if (!fdtab[fd].owner) {
+		activity[tid].poll_dead_fd++;
+		return FD_UPDT_DEAD;
+	}
+
 	/* do nothing if the FD was taken over under us */
-	if (fd_set_running(fd) == -1)
-		return;
+	if (fd_set_running(fd) == -1) {
+		activity[tid].poll_skip_fd++;
+		return FD_UPDT_MIGRATED;
+	}
 
 	locked = (fdtab[fd].thread_mask != tid_bit);
 
@@ -523,6 +532,7 @@ void fd_update_events(int fd, uint evts)
 	if ((fdtab[fd].running_mask & tid_bit) &&
 	    fd_clr_running(fd) == 0 && !fdtab[fd].thread_mask) {
 		_fd_delete_orphan(fd);
+		return FD_UPDT_CLOSED;
 	}
 
 	/* we had to stop this FD and it still must be stopped after the I/O
@@ -534,6 +544,8 @@ void fd_update_events(int fd, uint evts)
 			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
 				fd_updt[fd_nbupdt++] = fd;
 	}
+
+	return FD_UPDT_DONE;
 }
 
 /* Tries to send <npfx> parts from <prefix> followed by <nmsg> parts from <msg>

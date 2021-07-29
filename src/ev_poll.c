@@ -215,6 +215,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 	for (count = 0; status > 0 && count < nbfd; count++) {
 		unsigned int n;
+		int ret;
 		int e = poll_events[count].revents;
 		fd = poll_events[count].fd;
 
@@ -230,27 +231,20 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		/* ok, we found one active fd */
 		status--;
 
-		if (!fdtab[fd].owner) {
-			activity[tid].poll_dead_fd++;
-			continue;
-		}
-
-		if (!(fdtab[fd].thread_mask & tid_bit)) {
-			activity[tid].poll_skip_fd++;
-			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
-				fd_updt[fd_nbupdt++] = fd;
-			continue;
-		}
-
 		n = ((e & POLLIN)    ? FD_EV_READY_R : 0) |
 		    ((e & POLLOUT)   ? FD_EV_READY_W : 0) |
 		    ((e & POLLRDHUP) ? FD_EV_SHUT_R  : 0) |
 		    ((e & POLLHUP)   ? FD_EV_SHUT_RW : 0) |
 		    ((e & POLLERR)   ? FD_EV_ERR_RW  : 0);
 
-		fd_update_events(fd, n);
-	}
+		ret = fd_update_events(fd, n);
 
+		if (ret == FD_UPDT_MIGRATED) {
+			/* FD was migrated, let's stop polling it */
+			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+				fd_updt[fd_nbupdt++] = fd;
+		}
+	}
 }
 
 

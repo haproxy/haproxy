@@ -213,24 +213,14 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	for (i = 0; i < nevlist; i++) {
 		unsigned int n = 0;
 		int events, rebind_events;
+		int ret;
+
 		fd = evports_evlist[i].portev_object;
 		events = evports_evlist[i].portev_events;
 
 #ifdef DEBUG_FD
 		_HA_ATOMIC_INC(&fdtab[fd].event_count);
 #endif
-		if (fdtab[fd].owner == NULL) {
-			activity[tid].poll_dead_fd++;
-			continue;
-		}
-
-		if (!(fdtab[fd].thread_mask & tid_bit)) {
-			activity[tid].poll_skip_fd++;
-			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
-				fd_updt[fd_nbupdt++] = fd;
-			continue;
-		}
-
 		/*
 		 * By virtue of receiving an event for this file descriptor, it
 		 * is no longer associated with the port in question.  Store
@@ -255,13 +245,24 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		 * entry.  If it changes, the fd will be placed on the updated
 		 * list for processing the next time we are called.
 		 */
-		fd_update_events(fd, n);
+		ret = fd_update_events(fd, n);
+
+		/* If the FD was already dead , skip it */
+		if (ret == FD_UPDT_DEAD)
+			continue;
+
+		/* disable polling on this instance if the FD was migrated */
+		if (ret == FD_UPDT_MIGRATED) {
+			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+				fd_updt[fd_nbupdt++] = fd;
+			continue;
+		}
 
 		/*
 		 * This file descriptor was closed during the processing of
 		 * polled events.  No need to reassociate.
 		 */
-		if (fdtab[fd].owner == NULL)
+		if (ret == FD_UPDT_CLOSED)
 			continue;
 
 		/*

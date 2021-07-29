@@ -181,23 +181,13 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 	for (count = 0; count < status; count++) {
 		unsigned int n = 0;
+		int ret;
+
 		fd = kev[count].ident;
 
 #ifdef DEBUG_FD
 		_HA_ATOMIC_INC(&fdtab[fd].event_count);
 #endif
-		if (!fdtab[fd].owner) {
-			activity[tid].poll_dead_fd++;
-			continue;
-		}
-
-		if (!(fdtab[fd].thread_mask & tid_bit)) {
-			activity[tid].poll_skip_fd++;
-			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
-				fd_updt[fd_nbupdt++] = fd;
-			continue;
-		}
-
 		if (kev[count].filter == EVFILT_READ) {
 			if (kev[count].data || !(kev[count].flags & EV_EOF))
 				n |= FD_EV_READY_R;
@@ -210,7 +200,13 @@ static void _do_poll(struct poller *p, int exp, int wake)
 				n |= FD_EV_ERR_RW;
 		}
 
-		fd_update_events(fd, n);
+		ret = fd_update_events(fd, n);
+
+		if (ret == FD_UPDT_MIGRATED) {
+			/* FD was migrated, let's stop polling it */
+			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+				fd_updt[fd_nbupdt++] = fd;
+		}
 	}
 }
 

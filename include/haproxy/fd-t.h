@@ -110,6 +110,14 @@ enum {
 #define FD_EXPORTED         (1U << FD_EXPORTED_BIT)
 #define FD_EXCL_SYSCALL     (1U << FD_EXCL_SYSCALL_BIT)
 
+/* FD update status after fd_update_events() */
+enum {
+	FD_UPDT_DONE = 0,    // update done, nothing else to be done
+	FD_UPDT_DEAD,        // FD was already dead, ignore it
+	FD_UPDT_CLOSED,      // FD was closed
+	FD_UPDT_MIGRATED,    // FD was migrated, ignore it now
+};
+
 /* This is the value used to mark a file descriptor as dead. This value is
  * negative, this is important so that tests on fd < 0 properly match. It
  * also has the nice property of being highly negative but neither overflowing

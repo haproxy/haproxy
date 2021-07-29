@@ -218,6 +218,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	for (count = 0; count < status; count++) {
 		struct epoll_event ev;
 		unsigned int n, e;
+		int ret;
 
 		e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
@@ -228,27 +229,20 @@ static void _do_poll(struct poller *p, int exp, int wake)
 #ifdef DEBUG_FD
 		_HA_ATOMIC_INC(&fdtab[fd].event_count);
 #endif
-		if (!fdtab[fd].owner) {
-			activity[tid].poll_dead_fd++;
-			continue;
-		}
-
-		if (!(fdtab[fd].thread_mask & tid_bit)) {
-			/* FD has been migrated */
-			activity[tid].poll_skip_fd++;
-			epoll_ctl(epoll_fd[tid], EPOLL_CTL_DEL, fd, &ev);
-			_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
-			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
-			continue;
-		}
-
 		n = ((e & EPOLLIN)    ? FD_EV_READY_R : 0) |
 		    ((e & EPOLLOUT)   ? FD_EV_READY_W : 0) |
 		    ((e & EPOLLRDHUP) ? FD_EV_SHUT_R  : 0) |
 		    ((e & EPOLLHUP)   ? FD_EV_SHUT_RW : 0) |
 		    ((e & EPOLLERR)   ? FD_EV_ERR_RW  : 0);
 
-		fd_update_events(fd, n);
+		ret = fd_update_events(fd, n);
+
+		if (ret == FD_UPDT_MIGRATED) {
+			/* FD has been migrated */
+			epoll_ctl(epoll_fd[tid], EPOLL_CTL_DEL, fd, &ev);
+			_HA_ATOMIC_AND(&polled_mask[fd].poll_recv, ~tid_bit);
+			_HA_ATOMIC_AND(&polled_mask[fd].poll_send, ~tid_bit);
+		}
 	}
 	/* the caller will take care of cached events */
 }
