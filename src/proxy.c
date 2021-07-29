@@ -160,7 +160,8 @@ void free_proxy(struct proxy *p)
 #endif
 	if (p->conf.logformat_string != default_http_log_format &&
 	    p->conf.logformat_string != default_tcp_log_format &&
-	    p->conf.logformat_string != clf_http_log_format)
+	    p->conf.logformat_string != clf_http_log_format &&
+	    p->conf.logformat_string != default_https_log_format)
 		free(p->conf.logformat_string);
 
 	free(p->conf.lfs_file);
@@ -1279,6 +1280,13 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 			   curproxy->conf.lfs_file, curproxy->conf.lfs_line,
 			   proxy_type_str(curproxy), curproxy->id);
 	}
+	else if (curproxy->conf.logformat_string == default_https_log_format) {
+		/* Note: we don't change the directive's file:line number */
+		curproxy->conf.logformat_string = default_tcp_log_format;
+		ha_warning("parsing [%s:%d] : 'option httpslog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
+			   curproxy->conf.lfs_file, curproxy->conf.lfs_line,
+			   proxy_type_str(curproxy), curproxy->id);
+	}
 
 	return 0;
 }
@@ -1416,7 +1424,8 @@ void proxy_free_defaults(struct proxy *defproxy)
 
 	if (defproxy->conf.logformat_string != default_http_log_format &&
 	    defproxy->conf.logformat_string != default_tcp_log_format &&
-	    defproxy->conf.logformat_string != clf_http_log_format) {
+	    defproxy->conf.logformat_string != clf_http_log_format &&
+	    defproxy->conf.logformat_string != default_https_log_format) {
 		ha_free(&defproxy->conf.logformat_string);
 	}
 
@@ -1639,7 +1648,8 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		if (curproxy->conf.logformat_string &&
 		    curproxy->conf.logformat_string != default_http_log_format &&
 		    curproxy->conf.logformat_string != default_tcp_log_format &&
-		    curproxy->conf.logformat_string != clf_http_log_format)
+		    curproxy->conf.logformat_string != clf_http_log_format &&
+		    curproxy->conf.logformat_string != default_https_log_format)
 			curproxy->conf.logformat_string = strdup(curproxy->conf.logformat_string);
 
 		if (defproxy->conf.lfs_file) {

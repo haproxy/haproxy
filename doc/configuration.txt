@@ -99,8 +99,9 @@ Summary
 8.2.1.        Default log format
 8.2.2.        TCP log format
 8.2.3.        HTTP log format
-8.2.4.        Custom log format
-8.2.5.        Error log format
+8.2.4.        HTTPS log format
+8.2.5.        Custom log format
+8.2.6.        Error log format
 8.3.      Advanced logging options
 8.3.1.        Disabling logging of external tests
 8.3.2.        Logging before waiting for the session to terminate
@@ -3607,6 +3608,7 @@ option http-use-proxy-header         (*)  X          X         X         -
 option httpchk                            X          -         X         X
 option httpclose                     (*)  X          X         X         X
 option httplog                            X          X         X         -
+option httpslog                           X          X         X         -
 option independent-streams           (*)  X          X         X         X
 option ldap-check                         X          -         X         X
 option external-check                     X          -         X         X
@@ -7814,8 +7816,8 @@ log-format <string>
   the same log format. Please see section 8.2.4 which covers the log format
   string in depth.
 
-  "log-format" directive overrides previous "option tcplog", "log-format" and
-  "option httplog" directives.
+  "log-format" directive overrides previous "option tcplog", "log-format",
+  "option httplog" and "option httpslog" directives.
 
 log-format-sd <string>
   Specifies the RFC5424 structured-data log format string
@@ -8852,6 +8854,23 @@ option httplog [ clf ]
   if it was set by default.
 
   "option httplog" overrides any previous "log-format" directive.
+
+  See also :  section 8 about logging.
+
+option httpslog
+  Enable logging of HTTPS request, session state and timers
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+
+  By default, the log output format is very poor, as it only contains the
+  source and destination addresses, and the instance name. By specifying
+  "option httpslog", each log line turns into a much richer format including,
+  but not limited to, the HTTP request, the connection timers, the session
+  status, the connections numbers, the captured headers and cookies, the
+  frontend, backend and server name, the SSL certificate verification and SSL
+  handshake statuses, and of course the source address and ports.
+
+  "option httpslog" overrides any previous "log-format" directive.
 
   See also :  section 8 about logging.
 
@@ -20739,7 +20758,84 @@ Detailed fields description :
     is the reason why this field must always remain the last one.
 
 
-8.2.4. Custom log format
+8.2.4. HTTPS log format
+----------------------
+
+The HTTPS format is the best suited for HTTP over SSL connections. It is an
+extension of the HTTP format (see section 8.2.3) to which SSL related
+information are added. It is enabled when "option httpslog" is specified in the
+frontend. Just like the TCP and HTTP formats, the log is usually emitted at the
+end of the session, unless "option logasap" is specified. A session which
+matches the "monitor" rules will never logged. It is also possible not to log
+sessions for which no data were sent by the client by specifying "option
+dontlognull" in the frontend. Successful connections will not be logged if
+"option dontlog-normal" is specified in the frontend.
+
+This format is basically the HTTP one (see section 8.2.3) with new fields
+appended to it. The new fields (lines 17 and 18) will be detailed here. For the
+HTTP ones, refer to the HTTP section.
+
+  Example :
+        frontend https-in
+            mode http
+            option httpslog
+            log global
+            bind *:443 ssl crt mycerts/srv.pem ...
+            default_backend bck
+
+        backend static
+            server srv1 127.0.0.1:8000 ssl crt mycerts/clt.pem ...
+
+    >>> Feb  6 12:14:14 localhost \
+          haproxy[14389]: 10.0.1.2:33317 [06/Feb/2009:12:14:14.655] https-in \
+          static/srv1 10/0/30/69/109 200 2750 - - ---- 1/1/1/1/0 0/0 {1wt.eu} \
+          {} "GET /index.html HTTP/1.1" 0/0/0/0 TLSv1.3/TLS_AES_256_GCM_SHA384
+
+  Field   Format                                  Extract from the example above
+      1   process_name '[' pid ']:'                              haproxy[14389]:
+      2   client_ip ':' client_port                               10.0.1.2:33317
+      3   '[' request_date ']'                        [06/Feb/2009:12:14:14.655]
+      4   frontend_name                                                 https-in
+      5   backend_name '/' server_name                               static/srv1
+      6   TR '/' Tw '/' Tc '/' Tr '/' Ta*                         10/0/30/69/109
+      7   status_code                                                        200
+      8   bytes_read*                                                       2750
+      9   captured_request_cookie                                              -
+     10   captured_response_cookie                                             -
+     11   termination_state                                                 ----
+     12   actconn '/' feconn '/' beconn '/' srv_conn '/' retries*      1/1/1/1/0
+     13   srv_queue '/' backend_queue                                        0/0
+     14   '{' captured_request_headers* '}'                     {haproxy.1wt.eu}
+     15   '{' captured_response_headers* '}'                                  {}
+     16   '"' http_request '"'                        "GET /index.html HTTP/1.1"
+     17   conn_status '/' ssl_fc_hsk_err '/' ssl_c_err '/' ssl_c_ca_err  0/0/0/0
+     18   ssl_version '/' ssl_ciphers             TLSv1.3/TLS_AES_256_GCM_SHA384
+
+Detailed fields description :
+  - "conn_status" is the status of the connection on the frontend's side. It
+    corresponds to the "fc_conn_err" sample fetch. See the "fc_conn_err" and
+    "fc_conn_err_str" fetches for more information.
+
+  - "ssl_fc_hsk_err" is the status of the SSL handshake from the frontend's
+    point of view. It will be 0 if everything went well. See the
+    "ssl_fc_hsk_err" sample fetch's description for more information.
+
+  - "ssl_c_err" is the status of the client's certificate verification process.
+    The handshake might be successful while having a non-null verification
+    error code if it is an ignored one. See the "ssl_c_err" sample fetch and
+    the "crt-ignore-err" option.
+
+  - "ssl_c_ca_err" is the status of the client's certificate chain verification
+    process.  The handshake might be successful while having a non-null
+    verification error code if it is an ignored one. See the "ssl_c_ca_err"
+    sample fetch and the "ca-ignore-err" option.
+
+  - "ssl_version" is the SSL version of the frontend.
+
+  - "ssl_ciphers" is the SSL cipher used for the connection.
+
+
+8.2.5. Custom log format
 ------------------------
 
 The directive log-format allows you to customize the logs in http mode and tcp
@@ -20792,6 +20888,13 @@ the default CLF format is defined this way :
     log-format "%{+Q}o %{-Q}ci - - [%trg] %r %ST %B \"\" \"\" %cp \
                 %ms %ft %b %s %TR %Tw %Tc %Tr %Ta %tsc %ac %fc \
                 %bc %sc %rc %sq %bq %CC %CS %hrl %hsl"
+
+the default HTTPS format is defined this way :
+
+    log-format "%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC \
+               %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r \
+               %[fc_conn_err]/%[ssl_fc_hsk_err,hex]/%[ssl_c_err]/%[ssl_c_ca_err] \
+               %sslv/%sslc"
 
 and the default TCP format is defined this way :
 
@@ -20873,7 +20976,7 @@ Please refer to the table below for currently defined variables :
     R = Restrictions : H = mode http only ; S = SSL only
 
 
-8.2.5. Error log format
+8.2.6. Error log format
 -----------------------
 
 When an incoming connection fails due to an SSL handshake or an invalid PROXY

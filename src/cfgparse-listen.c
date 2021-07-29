@@ -2064,6 +2064,8 @@ stats_error_parsing:
 					oldlogformat = "option tcplog";
 				else if (curproxy->conf.logformat_string == clf_http_log_format)
 					oldlogformat = "option httplog clf";
+				else if (curproxy->conf.logformat_string == default_https_log_format)
+					oldlogformat = "option httpslog";
 				if (logformat == clf_http_log_format)
 					clflogformat = " clf";
 				ha_warning("parsing [%s:%d]: 'option httplog%s' overrides previous '%s' in 'defaults' section.\n",
@@ -2071,7 +2073,8 @@ stats_error_parsing:
 			}
 			if (curproxy->conf.logformat_string != default_http_log_format &&
 			    curproxy->conf.logformat_string != default_tcp_log_format &&
-			    curproxy->conf.logformat_string != clf_http_log_format)
+			    curproxy->conf.logformat_string != clf_http_log_format &&
+			    curproxy->conf.logformat_string != default_https_log_format)
 				free(curproxy->conf.logformat_string);
 			curproxy->conf.logformat_string = logformat;
 
@@ -2095,13 +2098,16 @@ stats_error_parsing:
 					oldlogformat = "option tcplog";
 				else if (curproxy->conf.logformat_string == clf_http_log_format)
 					oldlogformat = "option httplog clf";
+				else if (curproxy->conf.logformat_string == default_https_log_format)
+					oldlogformat = "option httpslog";
 				ha_warning("parsing [%s:%d]: 'option tcplog' overrides previous '%s' in 'defaults' section.\n",
 					   file, linenum, oldlogformat);
 			}
 			/* generate a detailed TCP log */
 			if (curproxy->conf.logformat_string != default_http_log_format &&
 			    curproxy->conf.logformat_string != default_tcp_log_format &&
-			    curproxy->conf.logformat_string != clf_http_log_format)
+			    curproxy->conf.logformat_string != clf_http_log_format &&
+			    curproxy->conf.logformat_string != default_https_log_format)
 				free(curproxy->conf.logformat_string);
 			curproxy->conf.logformat_string = default_tcp_log_format;
 
@@ -2114,6 +2120,41 @@ stats_error_parsing:
 
 			if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
 				ha_warning("parsing [%s:%d] : backend '%s' : 'option tcplog' directive is ignored in backends.\n",
+					file, linenum, curproxy->id);
+				err_code |= ERR_WARN;
+			}
+		}
+		else if (strcmp(args[1], "httpslog") == 0) {
+			char *logformat;
+			/* generate a complete HTTP log */
+			logformat = default_https_log_format;
+			if (curproxy->conf.logformat_string && curproxy->cap & PR_CAP_DEF) {
+				char *oldlogformat = "log-format";
+
+				if (curproxy->conf.logformat_string == default_http_log_format)
+					oldlogformat = "option httplog";
+				else if (curproxy->conf.logformat_string == default_tcp_log_format)
+					oldlogformat = "option tcplog";
+				else if (curproxy->conf.logformat_string == clf_http_log_format)
+					oldlogformat = "option httplog clf";
+				else if (curproxy->conf.logformat_string == default_https_log_format)
+					oldlogformat = "option httpslog";
+				ha_warning("parsing [%s:%d]: 'option httplog' overrides previous '%s' in 'defaults' section.\n",
+					   file, linenum, oldlogformat);
+			}
+			if (curproxy->conf.logformat_string != default_http_log_format &&
+			    curproxy->conf.logformat_string != default_tcp_log_format &&
+			    curproxy->conf.logformat_string != clf_http_log_format &&
+			    curproxy->conf.logformat_string != default_https_log_format)
+				free(curproxy->conf.logformat_string);
+			curproxy->conf.logformat_string = logformat;
+
+			free(curproxy->conf.lfs_file);
+			curproxy->conf.lfs_file = strdup(curproxy->conf.args.file);
+			curproxy->conf.lfs_line = curproxy->conf.args.line;
+
+			if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
+				ha_warning("parsing [%s:%d] : backend '%s' : 'option httpslog' directive is ignored in backends.\n",
 					file, linenum, curproxy->id);
 				err_code |= ERR_WARN;
 			}
@@ -2654,12 +2695,15 @@ stats_error_parsing:
 				oldlogformat = "option tcplog";
 			else if (curproxy->conf.logformat_string == clf_http_log_format)
 				oldlogformat = "option httplog clf";
+			else if (curproxy->conf.logformat_string == default_https_log_format)
+				oldlogformat = "option httpslog";
 			ha_warning("parsing [%s:%d]: 'log-format' overrides previous '%s' in 'defaults' section.\n",
 				   file, linenum, oldlogformat);
 		}
 		if (curproxy->conf.logformat_string != default_http_log_format &&
 		    curproxy->conf.logformat_string != default_tcp_log_format &&
-		    curproxy->conf.logformat_string != clf_http_log_format)
+		    curproxy->conf.logformat_string != clf_http_log_format &&
+		    curproxy->conf.logformat_string != default_https_log_format)
 			free(curproxy->conf.logformat_string);
 		curproxy->conf.logformat_string = strdup(args[1]);
 		if (!curproxy->conf.logformat_string)
