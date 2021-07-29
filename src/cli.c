@@ -2675,16 +2675,11 @@ int mworker_cli_proxy_create()
 	char *msg = NULL;
 	char *errmsg = NULL;
 
-	mworker_proxy = calloc(1, sizeof(*mworker_proxy));
+	mworker_proxy = alloc_new_proxy("MASTER", PR_CAP_LISTEN|PR_CAP_INT, &errmsg);
 	if (!mworker_proxy)
-		return -1;
+		goto error_proxy;
 
-	init_new_proxy(mworker_proxy);
-	mworker_proxy->next = proxies_list;
-	proxies_list = mworker_proxy;
-	mworker_proxy->id = strdup("MASTER");
 	mworker_proxy->mode = PR_MODE_CLI;
-	mworker_proxy->last_change = now.tv_sec;
 	mworker_proxy->cap = PR_CAP_LISTEN | PR_CAP_INT; /* this is a listen section */
 	mworker_proxy->maxconn = 10;                 /* default to 10 concurrent connections */
 	mworker_proxy->timeout.client = 0; /* no timeout */
@@ -2696,11 +2691,6 @@ int mworker_cli_proxy_create()
 	/* Does not init the default target the CLI applet, but must be done in
 	 * the request parsing code */
 	mworker_proxy->default_target = NULL;
-
-	/* the check_config_validity() will get an ID for the proxy */
-	mworker_proxy->uuid = -1;
-
-	proxy_store_name(mworker_proxy);
 
 	/* create all servers using the mworker_proc list */
 	list_for_each_entry(child, &proc_list, list) {
@@ -2750,21 +2740,25 @@ int mworker_cli_proxy_create()
 
 		child->srv = newsrv;
 	}
+
+	mworker_proxy->next = proxies_list;
+	proxies_list = mworker_proxy;
+
 	return 0;
 
 error:
-	ha_alert("%s\n", errmsg);
 
 	list_for_each_entry(child, &proc_list, list) {
 		free((char *)child->srv->conf.file); /* cast because of const char *  */
 		free(child->srv->id);
 		ha_free(&child->srv);
 	}
-	free(mworker_proxy->id);
-	free(mworker_proxy->conf.file);
-	ha_free(&mworker_proxy);
-	free(errmsg);
+	free_proxy(mworker_proxy);
 	free(msg);
+
+error_proxy:
+	ha_alert("%s\n", errmsg);
+	free(errmsg);
 
 	return -1;
 }
