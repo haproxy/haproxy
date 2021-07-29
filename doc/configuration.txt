@@ -17753,6 +17753,67 @@ dst_port : integer
   a same server, or to pass the destination port information to a server using
   an HTTP header.
 
+fc_conn_err : integer
+  Returns the ID of the error that might have occurred on the current
+  connection. Any strictly positive value of this fetch indicates that the
+  connection did not succeed and would result in an error log being output (as
+  decribed in section 8.2.5). See the "fc_conn_err_str" fetch for a full list of
+  error codes and their corresponding error message.
+
+fc_conn_err_str : string
+  Returns an error message decribing what problem happened on the current
+  connection, resulting in a connection failure. This string corresponds to the
+  "message" part of the error log format (see section 8.2.5). See below for a
+  full list of error codes and their corresponding error messages :
+
+  +----+---------------------------------------------------------------------------+
+  | ID | message                                                                   |
+  +----+---------------------------------------------------------------------------+
+  | 0  | "Success"                                                                 |
+  | 1  | "Reached configured maxconn value"                                        |
+  | 2  | "Too many sockets on the process"                                         |
+  | 3  | "Too many sockets on the system"                                          |
+  | 4  | "Out of system buffers"                                                   |
+  | 5  | "Protocol or address family not supported"                                |
+  | 6  | "General socket error"                                                    |
+  | 7  | "Source port range exhausted"                                             |
+  | 8  | "Can't bind to source address"                                            |
+  | 9  | "Out of local source ports on the system"                                 |
+  | 10 | "Local source address already in use"                                     |
+  | 11 | "Connection closed while waiting for PROXY protocol header"               |
+  | 12 | "Connection error while waiting for PROXY protocol header"                |
+  | 13 | "Timeout while waiting for PROXY protocol header"                         |
+  | 14 | "Truncated PROXY protocol header received"                                |
+  | 15 | "Received something which does not look like a PROXY protocol header"     |
+  | 16 | "Received an invalid PROXY protocol header"                               |
+  | 17 | "Received an unhandled protocol in the PROXY protocol header"             |
+  | 18 | "Connection closed while waiting for NetScaler Client IP header"          |
+  | 19 | "Connection error while waiting for NetScaler Client IP header"           |
+  | 20 | "Timeout while waiting for a NetScaler Client IP header"                  |
+  | 21 | "Truncated NetScaler Client IP header received"                           |
+  | 22 | "Received an invalid NetScaler Client IP magic number"                    |
+  | 23 | "Received an unhandled protocol in the NetScaler Client IP header"        |
+  | 24 | "Connection closed during SSL handshake"                                  |
+  | 25 | "Connection error during SSL handshake"                                   |
+  | 26 | "Timeout during SSL handshake"                                            |
+  | 27 | "Too many SSL connections"                                                |
+  | 28 | "Out of memory when initializing an SSL connection"                       |
+  | 29 | "Rejected a client-initiated SSL renegotiation attempt"                   |
+  | 30 | "SSL client CA chain cannot be verified"                                  |
+  | 31 | "SSL client certificate not trusted"                                      |
+  | 32 | "Server presented an SSL certificate different from the configured one"   |
+  | 33 | "Server presented an SSL certificate different from the expected one"     |
+  | 34 | "SSL handshake failure"                                                   |
+  | 35 | "SSL handshake failure after heartbeat"                                   |
+  | 36 | "Stopped a TLSv1 heartbeat attack (CVE-2014-0160)"                        |
+  | 37 | "Attempt to use SSL on an unknown target (internal error)"                |
+  | 38 | "Server refused early data"                                               |
+  | 39 | "SOCKS4 Proxy write error during handshake"                               |
+  | 40 | "SOCKS4 Proxy read error during handshake"                                |
+  | 41 | "SOCKS4 Proxy deny the request"                                           |
+  | 42 | "SOCKS4 Proxy handshake aborted by server"                                |
+  +----+---------------------------------------------------------------------------+
+
 fc_http_major : integer
   Reports the front connection's HTTP major version encoding, which may be 1
   for HTTP/0.9 to HTTP/1.1 or 2 for HTTP/2. Note, this is based on the on-wire

@@ -1498,6 +1498,55 @@ int smp_fetch_fc_pp_unique_id(const struct arg *args, struct sample *smp, const 
 	return 1;
 }
 
+/* fetch the error code of a connection */
+int smp_fetch_fc_conn_err(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = (unsigned long long int)conn->err_code;
+
+	return 1;
+}
+
+/* fetch a string representation of the error code of a connection */
+int smp_fetch_fc_conn_err_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	const char *err_code_str;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn)
+		return 0;
+
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	err_code_str = conn_err_code_str(conn);
+
+	if (!err_code_str)
+		return 0;
+
+	smp->flags = 0;
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.area = (char*)err_code_str;
+	smp->data.u.str.data = strlen(err_code_str);
+
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types must be declared as the lowest
  * common denominator, the type that can be casted into all other ones. For
@@ -1509,6 +1558,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "fc_rcvd_proxy", smp_fetch_fc_rcvd_proxy, 0, NULL, SMP_T_BOOL, SMP_USE_L4CLI },
 	{ "fc_pp_authority", smp_fetch_fc_pp_authority, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ "fc_pp_unique_id", smp_fetch_fc_pp_unique_id, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
+	{ "fc_conn_err", smp_fetch_fc_conn_err, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
+	{ "fc_conn_err_str", smp_fetch_fc_conn_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ /* END */ },
 }};
 
