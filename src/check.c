@@ -1647,7 +1647,13 @@ int init_srv_check(struct server *srv)
 		goto out;
 	}
 	srv->check.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
-	global.maxsock++;
+
+	/* Only increment maxsock for servers from the configuration. Dynamic
+	 * servers at the moment are not taken into account for the estimation
+	 * of the resources limits.
+	 */
+	if (global.mode & MODE_STARTING)
+		global.maxsock++;
 
   out:
 	return ret;
@@ -1696,7 +1702,13 @@ int init_srv_agent_check(struct server *srv)
 		srv->agent.inter = srv->check.inter;
 
 	srv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_AGENT;
-	global.maxsock++;
+
+	/* Only increment maxsock for servers from the configuration. Dynamic
+	 * servers at the moment are not taken into account for the estimation
+	 * of the resources limits.
+	 */
+	if (global.mode & MODE_STARTING)
+		global.maxsock++;
 
   out:
 	return ret;
@@ -1937,7 +1949,13 @@ static int srv_parse_agent_port(char **args, int *cur_arg, struct proxy *curpx, 
 		goto error;
 	}
 
-	global.maxsock++;
+	/* Only increment maxsock for servers from the configuration. Dynamic
+	 * servers at the moment are not taken into account for the estimation
+	 * of the resources limits.
+	 */
+	if (global.mode & MODE_STARTING)
+		global.maxsock++;
+
 	set_srv_agent_port(srv, atol(args[*cur_arg + 1]));
 
   out:
@@ -2304,7 +2322,13 @@ static int srv_parse_check_port(char **args, int *cur_arg, struct proxy *curpx, 
 		goto error;
 	}
 
-	global.maxsock++;
+	/* Only increment maxsock for servers from the configuration. Dynamic
+	 * servers at the moment are not taken into account for the estimation
+	 * of the resources limits.
+	 */
+	if (global.mode & MODE_STARTING)
+		global.maxsock++;
+
 	srv->check.port = atol(args[*cur_arg+1]);
 	/* if agentport was never set, we can use port */
 	if (!(srv->flags & SRV_F_AGENTPORT))
