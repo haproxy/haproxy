@@ -2680,7 +2680,6 @@ int mworker_cli_proxy_create()
 		goto error_proxy;
 
 	mworker_proxy->mode = PR_MODE_CLI;
-	mworker_proxy->cap = PR_CAP_LISTEN | PR_CAP_INT; /* this is a listen section */
 	mworker_proxy->maxconn = 10;                 /* default to 10 concurrent connections */
 	mworker_proxy->timeout.client = 0; /* no timeout */
 	mworker_proxy->conf.file = strdup("MASTER");
