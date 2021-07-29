@@ -1102,7 +1102,10 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	if (check->server)
 		HA_SPIN_LOCK(SERVER_LOCK, &check->server->lock);
 
-	if (!(check->state & CHK_ST_INPROGRESS)) {
+	if (unlikely(check->state & CHK_ST_PURGE)) {
+		TRACE_STATE("health-check state to purge", CHK_EV_TASK_WAKE, check);
+	}
+	else if (!(check->state & (CHK_ST_INPROGRESS))) {
 		/* no check currently running */
 		if (!expired) /* woke up too early */ {
 			TRACE_STATE("health-check wake up too early", CHK_EV_TASK_WAKE, check);
@@ -1139,7 +1142,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	 * First, let's check whether there was an uncaught error,
 	 * which can happen on connect timeout or error.
 	 */
-	if (check->result == CHK_RES_UNKNOWN) {
+	if (check->result == CHK_RES_UNKNOWN && likely(!(check->state & CHK_ST_PURGE))) {
 		/* Here the connection must be defined. Otherwise the
 		 * error would have already been detected
 		 */
@@ -1197,7 +1200,7 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		check->sess = NULL;
 	}
 
-	if (check->server) {
+	if (check->server && likely(!(check->state & CHK_ST_PURGE))) {
 		if (check->result == CHK_RES_FAILED) {
 			/* a failure or timeout detected */
 			TRACE_DEVEL("report failure", CHK_EV_TASK_WAKE|CHK_EV_HCHK_END|CHK_EV_HCHK_ERR, check);
@@ -1236,6 +1239,23 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		HA_SPIN_UNLOCK(SERVER_LOCK, &check->server->lock);
 
 	TRACE_LEAVE(CHK_EV_TASK_WAKE, check);
+
+	/* Free the check if set to PURGE. After this, the check instance may be
+	 * freed via the free_server invocation, so it must not be accessed
+	 * after this point.
+	 */
+	if (unlikely(check->state & CHK_ST_PURGE)) {
+		/* buf_wait */
+		LIST_DELETE(&check->buf_wait.list);
+		/* tasklet */
+		pool_free(pool_head_tasklet, check->wait_list.tasklet);
+		/* task */
+		task_destroy(check->task);
+		t = NULL;
+
+		free_server(check->server);
+	}
+
 	return t;
 }
 
@@ -1314,6 +1334,11 @@ const char *init_check(struct check *check, int type)
 	return NULL;
 }
 
+/* Liberates the resources allocated for a check.
+ *
+ * This function must only be used at startup when it is known that the check
+ * has never been executed.
+ */
 void free_check(struct check *check)
 {
 	task_destroy(check->task);
@@ -1327,6 +1352,18 @@ void free_check(struct check *check)
 		cs_free(check->cs);
 		check->cs = NULL;
 	}
+}
+
+/* This function must be used in order to free a started check. The check will
+ * be scheduled for a next execution in order to properly close and free all
+ * check elements.
+ *
+ * Non thread-safe.
+ */
+void check_purge(struct check *check)
+{
+	check->state = CHK_ST_PURGE;
+	task_wakeup(check->task, TASK_WOKEN_OTHER);
 }
 
 /* manages a server health-check. Returns the time the task accepts to wait, or

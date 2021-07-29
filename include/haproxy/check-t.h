@@ -53,6 +53,7 @@ enum chk_result {
 #define CHK_ST_IN_ALLOC         0x0040  /* check blocked waiting for input buffer allocation */
 #define CHK_ST_OUT_ALLOC        0x0080  /* check blocked waiting for output buffer allocation */
 #define CHK_ST_CLOSE_CONN       0x0100  /* check is waiting that the connection gets closed */
+#define CHK_ST_PURGE            0x0200  /* check must be freed */
 
 /* check status */
 enum healthcheck_status {
