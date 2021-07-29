@@ -8,6 +8,7 @@ OT_DEFINE    =
 OT_CFLAGS    =
 OT_LDFLAGS   =
 OT_DEBUG_EXT =
+OT_PKGSTAT   =
 OTC_WRAPPER  = opentracing-c-wrapper
 
 ifneq ($(OT_DEBUG),)
@@ -16,6 +17,7 @@ OT_DEFINE    = -DDEBUG_OT
 endif
 
 ifeq ($(OT_INC),)
+OT_PKGSTAT = $(shell pkg-config --exists $(OTC_WRAPPER)$(OT_DEBUG_EXT); echo $$?)
 OT_CFLAGS = $(shell pkg-config --silence-errors --cflags $(OTC_WRAPPER)$(OT_DEBUG_EXT))
 else
 ifneq ($(wildcard $(OT_INC)/$(OTC_WRAPPER)/.*),)
@@ -23,8 +25,14 @@ OT_CFLAGS = -I$(OT_INC) $(if $(OT_DEBUG),-DOTC_DBG_MEM)
 endif
 endif
 
+ifeq ($(OT_PKGSTAT),)
 ifeq ($(OT_CFLAGS),)
 $(error OpenTracing C wrapper : can't find headers)
+endif
+else
+ifneq ($(OT_PKGSTAT),0)
+$(error OpenTracing C wrapper : can't find package)
+endif
 endif
 
 ifeq ($(OT_LIB),)
