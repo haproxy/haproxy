@@ -222,6 +222,9 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
 
+		if ((e & EPOLLRDHUP) && !(cur_poller.flags & HAP_POLL_F_RDHUP))
+			_HA_ATOMIC_OR(&cur_poller.flags, HAP_POLL_F_RDHUP);
+
 #ifdef DEBUG_FD
 		_HA_ATOMIC_INC(&fdtab[fd].event_count);
 #endif
@@ -244,9 +247,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		    ((e & EPOLLRDHUP) ? FD_EV_SHUT_R  : 0) |
 		    ((e & EPOLLHUP)   ? FD_EV_SHUT_RW : 0) |
 		    ((e & EPOLLERR)   ? FD_EV_ERR_RW  : 0);
-
-		if ((e & EPOLLRDHUP) && !(cur_poller.flags & HAP_POLL_F_RDHUP))
-			_HA_ATOMIC_OR(&cur_poller.flags, HAP_POLL_F_RDHUP);
 
 		fd_update_events(fd, n);
 	}
