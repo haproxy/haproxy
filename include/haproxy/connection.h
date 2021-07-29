@@ -780,6 +780,7 @@ static inline const char *conn_err_code_str(struct connection *c)
 
 	case CO_ER_CIP_EMPTY:     return "Connection closed while waiting for NetScaler Client IP header";
 	case CO_ER_CIP_ABORT:     return "Connection error while waiting for NetScaler Client IP header";
+	case CO_ER_CIP_TIMEOUT:   return "Timeout while waiting for a NetScaler Client IP header";
 	case CO_ER_CIP_TRUNCATED: return "Truncated NetScaler Client IP header received";
 	case CO_ER_CIP_BAD_MAGIC: return "Received an invalid NetScaler Client IP magic number";
 	case CO_ER_CIP_BAD_PROTO: return "Received an unhandled protocol in the NetScaler Client IP header";
@@ -798,6 +799,7 @@ static inline const char *conn_err_code_str(struct connection *c)
 	case CO_ER_SSL_HANDSHAKE_HB: return "SSL handshake failure after heartbeat";
 	case CO_ER_SSL_KILLED_HB: return "Stopped a TLSv1 heartbeat attack (CVE-2014-0160)";
 	case CO_ER_SSL_NO_TARGET: return "Attempt to use SSL on an unknown target (internal error)";
+	case CO_ER_SSL_EARLY_FAILED: return "Server refused early data";
 
 	case CO_ER_SOCKS4_SEND:    return "SOCKS4 Proxy write error during handshake";
 	case CO_ER_SOCKS4_RECV:    return "SOCKS4 Proxy read error during handshake";
