@@ -1,0 +1,120 @@
+varnishtest "Add/Delete server via cli with check support"
+
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev3)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
+feature ignore_unknown_macro
+
+barrier b1 cond 2 -cyclic
+barrier b2 cond 2 -cyclic
+
+server s1 {
+	txresp
+} -start
+
+server s2 {
+} -start
+
+# used for agent checks
+server s3 {
+	recv 5
+	send "ready up\n"
+	expect_close
+	barrier b2 sync
+} -start
+
+syslog S1 -level notice {
+	recv
+	expect ~ ".*Server be1/s1 is UP/READY \\(leaving forced maintenance\\)."
+	recv
+	expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/s1 succeeded.+reason: Layer7 check passed, code: 200, check duration: [[:digit:]]+ms.+status: 1/1 UP"
+
+	barrier b1 sync
+
+	recv
+	expect ~ ".*Server be1/s2 is UP/READY \\(leaving forced maintenance\\)."
+	recv
+	expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Health check for server be1/s2 failed.+reason: Layer7 timeout, check duration: [[:digit:]]+ms.+status: 0/1 DOWN"
+
+	barrier b1 sync
+
+	recv
+	expect ~ ".*Server be1/s2 was DOWN and now enters maintenance."
+
+	recv
+	expect ~ ".*Server be1/s3 is UP/READY \\(leaving forced maintenance\\)."
+
+	recv
+	expect ~ "[^:\\[ ]\\[${h1_pid}\\]: Agent check for server be1/s3 succeeded.+reason: Layer7 check passed, code: 0, info: \"via agent : up\", check duration: [[:digit:]]+ms.+status: 1/1 UP"
+
+	barrier b1 sync
+	barrier b2 sync
+} -start
+
+haproxy h1 -conf {
+	global
+		stats socket "${tmpdir}/h1/stats" level admin
+
+	backend be1
+		option log-health-checks
+		option httpchk GET /
+		log ${S1_addr}:${S1_port} daemon
+} -start
+
+# check on a functional server
+haproxy h1 -cli {
+	send "experimental-mode on; add server be1/s1 ${s1_addr}:${s1_port} check inter 200ms rise 1 fall 1"
+	expect ~ "New server registered."
+
+	send "enable server be1/s1"
+	expect ~ ".*"
+	send "enable health be1/s1"
+	expect ~ ".*"
+
+	barrier b1 sync
+
+	send "disable server be1/s1"
+	expect ~ ".*"
+
+	send "experimental-mode on; del server be1/s1"
+	expect ~ "Server deleted."
+}
+
+server s2 -break
+
+# check on a disabled server
+haproxy h1 -cli {
+	send "experimental-mode on; add server be1/s2 ${s2_addr}:${s2_port} check inter 200ms rise 1 fall 1"
+	expect ~ "New server registered."
+
+	send "enable server be1/s2"
+	expect ~ ".*"
+	send "enable health be1/s2"
+	expect ~ ".*"
+
+	barrier b1 sync
+
+	send "disable server be1/s2"
+	expect ~ ".*"
+
+	send "experimental-mode on; del server be1/s2"
+	expect ~ "Server deleted."
+}
+
+# agent check
+haproxy h1 -cli {
+	send "experimental-mode on; add server be1/s3 ${s1_addr}:${s1_port} agent-check agent-addr ${s3_addr} agent-port ${s3_port} agent-send \"hello\" agent-inter 200ms rise 1 fall 1"
+	expect ~ "New server registered."
+
+	send "enable agent be1/s3"
+	expect ~ ".*"
+
+	barrier b1 sync
+
+	send "disable agent be1/s3; disable server be1/s3"
+	expect ~ ".*"
+
+	send "experimental-mode on; del server be1/s3"
+	expect ~ "Server deleted."
+}
+
+syslog S1 -wait
