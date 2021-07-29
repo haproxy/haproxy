@@ -1342,10 +1342,13 @@ smp_fetch_ssl_c_ca_err(const struct arg *args, struct sample *smp, const char *k
 		return 0;
 	ctx = conn->xprt_ctx;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}
+
+	if (!ctx)
+		return 0;
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = (unsigned long long int)SSL_SOCK_ST_TO_CA_ERROR(ctx->xprt_st);
@@ -1365,11 +1368,14 @@ smp_fetch_ssl_c_ca_err_depth(const struct arg *args, struct sample *smp, const c
 	if (!conn || conn->xprt != &ssl_sock)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}
 	ctx = conn->xprt_ctx;
+
+	if (!ctx)
+		return 0;
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = (long long int)SSL_SOCK_ST_TO_CAEDEPTH(ctx->xprt_st);
@@ -1389,12 +1395,15 @@ smp_fetch_ssl_c_err(const struct arg *args, struct sample *smp, const char *kw, 
 	if (!conn || conn->xprt != &ssl_sock)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags = SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	ctx = conn->xprt_ctx;
+
+	if (!ctx)
+		return 0;
 
 	smp->data.type = SMP_T_SINT;
 	smp->data.u.sint = (long long int)SSL_SOCK_ST_TO_CRTERROR(ctx->xprt_st);
