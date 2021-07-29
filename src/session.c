@@ -357,14 +357,20 @@ static void session_kill_embryonic(struct session *sess, unsigned int state)
 				conn->err_code = CO_ER_SSL_TIMEOUT;
 		}
 
-		session_prepare_log_prefix(sess);
-		err_msg = conn_err_code_str(conn);
-		if (err_msg)
-			send_log(sess->fe, level, "%s: %s\n", trash.area,
-				 err_msg);
-		else
-			send_log(sess->fe, level, "%s: unknown connection error (code=%d flags=%08x)\n",
-				 trash.area, conn->err_code, conn->flags);
+		if (sess->fe->options & PR_O_NOLGCYCONNERR) {
+			/* Display a log line following the configured log-format. */
+			sess_log(sess);
+		}
+		else {
+			session_prepare_log_prefix(sess);
+			err_msg = conn_err_code_str(conn);
+			if (err_msg)
+				send_log(sess->fe, level, "%s: %s\n", trash.area,
+					 err_msg);
+			else
+				send_log(sess->fe, level, "%s: unknown connection error (code=%d flags=%08x)\n",
+					 trash.area, conn->err_code, conn->flags);
+		}
 	}
 
 	/* kill the connection now */

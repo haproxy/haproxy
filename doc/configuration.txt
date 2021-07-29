@@ -9033,6 +9033,23 @@ no option logasap
              logging.
 
 
+option dontloglegacyconnerr
+no option dontloglegacyconnerr
+  Enable or disable dedicated connection error logging.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  In case of connection error, if the option is disabled, a log line following
+  the format described in section 8.2.6, the legacy format, will be emitted.
+  Otherwise, a log line following the configured log-format for the listener
+  will be emitted. The error code and the corresponding message found in the
+  error log can be added to a log-format thanks to the "fc_conn_err" and
+  "fc_conn_err_str" sample fetches.
+
+  See also : "option httpslog" and section 8 about logging.
+
+
 option mysql-check [ user <username> [ { post-41 | pre-41 } ] ]
   Use MySQL health checks for server testing
   May be used in sections :   defaults | frontend | listen | backend
@@ -20984,7 +21001,9 @@ protocol header, HAProxy will log the event using a shorter, fixed line format.
 By default, logs are emitted at the LOG_INFO level, unless the option
 "log-separate-errors" is set in the backend, in which case the LOG_ERR level
 will be used. Connections on which no data are exchanged (e.g. probes) are not
-logged if the "dontlognull" option is set.
+logged if the "dontlognull" option is set. If the "dontloglegacyconnerr" option
+is set, those messages are not emitted and a line following the configured
+log-format is emitted instead.
 
 The format looks like this :
 
