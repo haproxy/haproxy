@@ -1188,6 +1188,61 @@ smp_fetch_ssl_fc_cl_xxh64(const struct arg *args, struct sample *smp, const char
 	return 1;
 }
 
+static int
+smp_fetch_ssl_fc_hsk_err(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	struct ssl_sock_ctx *ctx;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn || conn->xprt != &ssl_sock)
+		return 0;
+	ctx = conn->xprt_ctx;
+
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
+		smp->flags = SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (!ctx)
+		return 0;
+
+	smp->flags = SMP_F_VOL_SESS;
+	smp->data.type = SMP_T_SINT;
+	smp->data.u.sint = ctx->hsk_error_code;
+	return 1;
+}
+
+static int
+smp_fetch_ssl_fc_hsk_err_str(const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct connection *conn;
+	struct ssl_sock_ctx *ctx;
+	const char *err_code_str;
+
+	conn = objt_conn(smp->sess->origin);
+	if (!conn || conn->xprt != &ssl_sock)
+		return 0;
+	ctx = conn->xprt_ctx;
+
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
+		smp->flags = SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (!ctx || !ctx->hsk_error_code)
+		return 0;
+
+	err_code_str = ERR_error_string(ctx->hsk_error_code, NULL);
+
+	smp->flags = SMP_F_VOL_SESS;
+	smp->data.type = SMP_T_STR;
+	smp->data.u.str.area = (char*)err_code_str;
+	smp->data.u.str.data = strlen(err_code_str);
+
+	return 1;
+}
+
 /* Dump the SSL keylog, it only works with "tune.ssl.keylog 1" */
 #ifdef HAVE_SSL_KEYLOG
 static int smp_fetch_ssl_x_keylog(const struct arg *args, struct sample *smp, const char *kw, void *private)
@@ -1546,6 +1601,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_cipherlist_hex",  smp_fetch_ssl_fc_cl_hex,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_str",  smp_fetch_ssl_fc_cl_str,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_fc_cipherlist_xxh",  smp_fetch_ssl_fc_cl_xxh64,    0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
+	{ "ssl_fc_hsk_err",         smp_fetch_ssl_fc_hsk_err,     0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
+	{ "ssl_fc_hsk_err_str",     smp_fetch_ssl_fc_hsk_err_str, 0,                   NULL,    SMP_T_STR, SMP_USE_L5CLI },
 
 /* SSL server certificate fetches */
 	{ "ssl_s_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },

@@ -5278,6 +5278,7 @@ static int ssl_sock_init(struct connection *conn, void **xprt_ctx)
 	ctx->subs = NULL;
 	ctx->xprt_st = 0;
 	ctx->xprt_ctx = NULL;
+	ctx->hsk_error_code = 0;
 
 	/* Only work with sockets for now, this should be adapted when we'll
 	 * add QUIC support.
@@ -5555,6 +5556,9 @@ check_error:
 	if (ret != 1) {
 		/* handshake did not complete, let's find why */
 		ret = SSL_get_error(ctx->ssl, ret);
+
+		if (!ctx->hsk_error_code)
+			ctx->hsk_error_code = ERR_peek_error();
 
 		if (ret == SSL_ERROR_WANT_WRITE) {
 			/* SSL handshake needs to write, L4 connection may not be ready */
