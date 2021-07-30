@@ -1,0 +1,105 @@
+2021-07-30 - File descriptor migration between threads
+
+An FD migration may happen on any idle connection that experiences a takeover()
+operation by another thread. In this case the acting thread becomes the owner
+of the connection (and FD) while previous one(s) need to forget about it.
+
+File descriptor migration between threads is a fairly complex operation because
+it is required to maintain a durable consistency between the pollers states and
+the haproxy's desired state. Indeed, very often the FD is registered within one
+thread's poller and that thread might be waiting in the system, so there is no
+way to synchronously update it. This is where thread_mask, polled_mask and per
+thread updates are used:
+
+  - a thread knows if it's allowed to manipulate an FD by looking at its bit in
+    the FD's thread_mask ;
+
+  - each thread knows if it was polling an FD by looking at its bit in the
+    polled_mask field ; a recent migration is usually indicated by a bit being
+    present in polled_mask and absent from thread_mask.
+
+  - other threads know whether it's safe to take over an FD by looking at the
+    running mask: if it contains any other thread's bit, then other threads are
+    using it and it's not safe to take it over.
+
+  - sleeping threads are notified about the need to update their polling via
+    local or global updates to the FD. Each thread has its own local update
+    list and its own bit in the update_mask to know whether there are pending
+    updates for it. This allows to reconverge polling with the desired state
+    at the last instant before polling.
+
+While the description above could be seen as "progressive" (it technically is)
+in that there is always a transition and convergence period in a migrated FD's
+life, functionally speaking it's perfectly atomic thanks to the running bit and
+to the per-thread idle connections lock: no takeover is permitted without
+holding the idle_conns lock, and takeover may only happen by atomically picking
+a connection from the list that is also protected by this lock. In practice, an
+FD is never taken over by itself, but always in the context of a connection,
+and by atomically removing a connection from an idle list, it is possible to
+guarantee that a connection will not be picked, hence that its FD will not be
+taken over.
+
+same thread as list!
+
+The possible entry points to a race to use a file descriptor are the following
+ones, with their respective sequences:
+
+ 1) takeover: requested by conn_backend_get() on behalf of connect_server()
+    - take the idle_conns_lock, protecting against a parallel access from the
+      I/O tasklet or timeout task
+    - pick the first connection from the list
+    - attempt an fd_takeover() on this connection's fd. Usually it works,
+      unless a late wakeup of the owning thread shows up in the FD's running
+      mask. The operation is performed in fd_takeover() using a DWCAS which
+      tries to switch both running and thread_mask to the caller's tid_bit. A
+      concurrent bit in running is enough to make it fail. This guarantees
+      another thread does not wakeup from I/O in the middle of the takeover.
+      In case of conflict, this FD is skipped and the attempt is tried again
+      with the next connection.
+    - resets the task/tasklet contexts to NULL, as a signal that they are not
+      allowed to run anymore. The tasks retrieve their execution context from
+      the scheduler in the arguments, but will check the tasks' context from
+      the structure under the lock to detect this possible change, and abort.
+    - at this point the takeover suceeded, the idle_conns_lock is released and
+      the connection and its FD are now owned by the caller
+
+  2) poll report: happens on late rx, shutdown or error on idle conns
+    - fd_set_running() is called to atomically set the running_mask and check
+      that the caller's tid_bit is still present in the thread_mask. Upon
+      failure the caller arranges itself to stop reporting that FD (e.g. by
+      immediate removal or by an asynchronous update). Upon success, it's
+      guaranteed that any concurrent fd_takeover() will fail the DWCAS and that
+      another connection will need to be picked instead.
+    - FD's state is possibly updated
+    - the iocb is called if needed (almost always)
+    - if the iocb didn't kill the connection, release the bit from running_mask
+      making the connection possibly available to a subsequent fd_takeover().
+
+  3) I/O tasklet, timeout task: timeout or subscribed wakeup
+    - start by taking the idle_conns_lock, ensuring no takeover() will pick the
+      same connection from this point.
+    - check the task/tasklet's context to verify that no recently completed
+      takeover() stole the connection. If it's NULL, the connection was lost,
+      the lock is released and the task/tasklet killed. Otherwise it is
+      guaranted that no other thread may use that connection (current takeover
+      candidates are waiting on the lock, previous owners waking from poll()
+      lost their bit in the thread_mask and will not touch the FD).
+    - the connection is removed from the idle conns list. From this point on,
+      no other thread will even find it there nor even try fd_takeover() on it.
+    - the idle_conns_lock is now released, the connection is protected and its
+      FD is not reachable by other threads anymore.
+    - the task does what it has to do
+    - if the connection is still usable (i.e. not upon timeout), it's inserted
+      again into the idle conns list, meaning it may instantly be taken over
+      by a competing thread.
+
+  4) wake() callback: happens on last user after xfers (may free() the conn)
+    - the connection is still owned by the caller, it's still subscribed to
+      polling but the connection is idle thus inactive. Errors or shutdowns
+      may be reported late, via sock_conn_iocb() and conn_notify_mux(), thus
+      the running bit is set (i.e. a concurrent fd_takeover() will fail).
+    - if the connection is in the list, the idle_conns_lock is grabbed, the
+      connection is removed from the list, and the lock is released.
+    - mux->wake() is called
+    - if the connection previously was in the list, it's reinserted under the
+      idle_conns_lock.
