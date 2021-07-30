@@ -197,6 +197,15 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		for (count = BITS_PER_INT, fd = fds * BITS_PER_INT; count && fd < maxfd; count--, fd++) {
 			unsigned int n = 0;
 
+			if (FD_ISSET(fd, tmp_evts[DIR_RD]))
+				n |= FD_EV_READY_R;
+
+			if (FD_ISSET(fd, tmp_evts[DIR_WR]))
+				n |= FD_EV_READY_W;
+
+			if (!n)
+				continue;
+
 #ifdef DEBUG_FD
 			_HA_ATOMIC_INC(&fdtab[fd].event_count);
 #endif
@@ -209,12 +218,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 				activity[tid].poll_skip_fd++;
 				continue;
 			}
-
-			if (FD_ISSET(fd, tmp_evts[DIR_RD]))
-				n |= FD_EV_READY_R;
-
-			if (FD_ISSET(fd, tmp_evts[DIR_WR]))
-				n |= FD_EV_READY_W;
 
 			fd_update_events(fd, n);
 		}
