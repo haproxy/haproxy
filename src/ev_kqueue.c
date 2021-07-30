@@ -193,6 +193,8 @@ static void _do_poll(struct poller *p, int exp, int wake)
 
 		if (!(fdtab[fd].thread_mask & tid_bit)) {
 			activity[tid].poll_skip_fd++;
+			if (!HA_ATOMIC_BTS(&fdtab[fd].update_mask, tid))
+				fd_updt[fd_nbupdt++] = fd;
 			continue;
 		}
 
