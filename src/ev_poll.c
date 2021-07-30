@@ -165,8 +165,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	} while (!_HA_ATOMIC_CAS(&maxfd, &old_maxfd, new_maxfd));
 
 	thread_harmless_now();
-	if (sleeping_thread_mask & tid_bit)
-		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 
 	fd_nbupdt = 0;
 
@@ -210,6 +208,8 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	tv_leaving_poll(wait_time, status);
 
 	thread_harmless_end();
+	if (sleeping_thread_mask & tid_bit)
+		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 
 	if (status > 0)
 		activity[tid].poll_io++;

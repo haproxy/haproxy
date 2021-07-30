@@ -152,8 +152,6 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	}
 
 	thread_harmless_now();
-	if (sleeping_thread_mask & tid_bit)
-		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 
 	/*
 	 * Determine how long to wait for events to materialise on the port.
@@ -206,6 +204,8 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	tv_leaving_poll(wait_time, nevlist);
 
 	thread_harmless_end();
+	if (sleeping_thread_mask & tid_bit)
+		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 
 	if (nevlist > 0)
 		activity[tid].poll_io++;
