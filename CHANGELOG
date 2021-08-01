@@ -1,6 +1,56 @@
 ChangeLog :
 ===========
 
+2021/08/01 : 2.5-dev3
+    - BUG/MINOR: arg: free all args on make_arg_list()'s error path
+    - BUG/MINOR: cfgcond: revisit the condition freeing mechanism to avoid a leak
+    - MEDIUM: proxy: remove long-broken 'option http_proxy'
+    - CLEANUP: http_ana: Remove now unused label from http_process_request()
+    - MINOR: deinit: always deinit the init_mutex on failed initialization
+    - BUG/MEDIUM: cfgcond: limit recursion level in the condition expression parser
+    - BUG/MEDIUM: mworker: do not register an exit handler if exit is expected
+    - BUG/MINOR: mworker: do not export HAPROXY_MWORKER_REEXEC across programs
+    - BUILD/MINOR: memprof fix macOs build.
+    - BUG/MEDIUM: ssl_sample: fix segfault for srv samples on invalid request
+    - BUG/MINOR: stats: Add missing agent stats on servers
+    - BUG/MINOR: check: fix the condition to validate a port-less server
+    - BUILD: threads: fix pthread_mutex_unlock when !USE_THREAD
+    - BUG/MINOR: resolvers: Use a null-terminated string to lookup in servers tree
+    - MINOR: ssl: use __objt_* variant when retrieving counters
+    - BUG/MINOR: systemd: must check the configuration using -Ws
+    - BUG/MINOR: mux-h1: Obey dontlognull option for empty requests
+    - BUG/MINOR: mux-h2: Obey dontlognull option during the preface
+    - BUG/MINOR: mux-h1: Be sure to swap H1C to splice mode when rcv_pipe() is called
+    - BUG/MEDIUM: mux-h2: Handle remaining read0 cases on partial frames
+    - MINOR: proxy: rename PR_CAP_LUA to PR_CAP_INT
+    - MINOR: mworker: the mworker CLI proxy is internal
+    - MINOR: stats: don't output internal proxies (PR_CAP_INT)
+    - CLEANUP: mworker: use the proxy helper functions in mworker_cli_proxy_create()
+    - CLEANUP: mworker: PR_CAP already initialized with alloc_new_proxy()
+    - BUG/MINOR: connection: Add missing error labels to conn_err_code_str
+    - MINOR: connection: Add a connection error code sample fetch
+    - MINOR: ssl: Enable error fetches in case of handshake error
+    - MINOR: ssl: Add new ssl_fc_hsk_err sample fetch
+    - MINOR: ssl: Define a default https log format
+    - MEDIUM: connection: Add option to disable legacy error log
+    - REGTESTS: ssl: Add tests for the connection and SSL error fetches
+    - REGTESTS: ssl: ssl_errors.vtc does not work with old openssl version
+    - BUG/MEDIUM: connection: close a rare race between idle conn close and takeover
+    - BUG/MEDIUM: pollers: clear the sleeping bit after waking up, not before
+    - BUG/MINOR: select: fix excess number of dead/skip reported
+    - BUG/MINOR: poll: fix abnormally high skip_fd counter
+    - BUG/MINOR: pollers: always program an update for migrated FDs
+    - BUG/MINOR: fd: protect fd state harder against a concurrent takeover
+    - DOC: internals: document the FD takeover process
+    - MINOR: fd: update flags only once in fd_update_events()
+    - MINOR: poll/epoll: move detection of RDHUP support earlier
+    - REORG: fd: uninline fd_update_events()
+    - MEDIUM: fd: rely more on fd_update_events() to detect changes
+    - BUG/MINOR: freq_ctr: use stricter barriers between updates and readings
+    - MEDIUM: atomic: simplify the atomic load/store/exchange operations
+    - MEDIUM: atomic: relax the load/store barriers on x86_64
+    - BUILD: opentracing: fixed build when using pkg-config utility
+
 2021/07/17 : 2.5-dev2
     - BUILD/MEDIUM: tcp: set-mark support for OpenBSD
     - DOC: config: use CREATE USER for mysql-check
