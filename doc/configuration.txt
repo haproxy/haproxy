@@ -20825,11 +20825,11 @@ HTTP ones, refer to the HTTP section.
      14   '{' captured_request_headers* '}'                     {haproxy.1wt.eu}
      15   '{' captured_response_headers* '}'                                  {}
      16   '"' http_request '"'                        "GET /index.html HTTP/1.1"
-     17   conn_status '/' ssl_fc_hsk_err '/' ssl_c_err '/' ssl_c_ca_err  0/0/0/0
+     17   fc_conn_err '/' ssl_fc_hsk_err '/' ssl_c_err '/' ssl_c_ca_err  0/0/0/0
      18   ssl_version '/' ssl_ciphers             TLSv1.3/TLS_AES_256_GCM_SHA384
 
 Detailed fields description :
-  - "conn_status" is the status of the connection on the frontend's side. It
+  - "fc_conn_err" is the status of the connection on the frontend's side. It
     corresponds to the "fc_conn_err" sample fetch. See the "fc_conn_err" and
     "fc_conn_err_str" fetches for more information.
 
