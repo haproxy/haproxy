@@ -103,6 +103,7 @@ struct flt_ops spoe_ops;
 static int  spoe_queue_context(struct spoe_context *ctx);
 static int  spoe_acquire_buffer(struct buffer *buf, struct buffer_wait *buffer_wait);
 static void spoe_release_buffer(struct buffer *buf, struct buffer_wait *buffer_wait);
+static struct appctx *spoe_create_appctx(struct spoe_config *conf);
 
 /********************************************************************
  * helper functions/globals
@@ -1287,27 +1288,37 @@ spoe_release_appctx(struct appctx *appctx)
 		}
 		goto end;
 	}
+	else {
+		/* It is the last running applet and the sending and waiting
+		 * queues are not empty. Try to start a new one if HAproxy is
+		 * not stopping.
+		 */
+		if (!stopping &&
+		    (!LIST_ISEMPTY(&agent->rt[tid].sending_queue) || !LIST_ISEMPTY(&agent->rt[tid].waiting_queue)) &&
+		    spoe_create_appctx(agent->spoe_conf))
+			goto end;
 
-	/* If this was the last running applet, notify all waiting streams */
-	list_for_each_entry_safe(ctx, back, &agent->rt[tid].sending_queue, list) {
-		LIST_DELETE(&ctx->list);
-		LIST_INIT(&ctx->list);
-		_HA_ATOMIC_DEC(&agent->counters.nb_sending);
-		spoe_update_stat_time(&ctx->stats.tv_queue, &ctx->stats.t_queue);
-		ctx->spoe_appctx = NULL;
-		ctx->state = SPOE_CTX_ST_ERROR;
-		ctx->status_code = (spoe_appctx->status_code + 0x100);
-		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
-	}
-	list_for_each_entry_safe(ctx, back, &agent->rt[tid].waiting_queue, list) {
-		LIST_DELETE(&ctx->list);
-		LIST_INIT(&ctx->list);
-		_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
-		spoe_update_stat_time(&ctx->stats.tv_wait, &ctx->stats.t_waiting);
-		ctx->spoe_appctx = NULL;
-		ctx->state = SPOE_CTX_ST_ERROR;
-		ctx->status_code = (spoe_appctx->status_code + 0x100);
-		task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
+		/* otherwise, notify all waiting streams */
+		list_for_each_entry_safe(ctx, back, &agent->rt[tid].sending_queue, list) {
+			LIST_DELETE(&ctx->list);
+			LIST_INIT(&ctx->list);
+			_HA_ATOMIC_DEC(&agent->counters.nb_sending);
+			spoe_update_stat_time(&ctx->stats.tv_queue, &ctx->stats.t_queue);
+			ctx->spoe_appctx = NULL;
+			ctx->state = SPOE_CTX_ST_ERROR;
+			ctx->status_code = (spoe_appctx->status_code + 0x100);
+			task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
+		}
+		list_for_each_entry_safe(ctx, back, &agent->rt[tid].waiting_queue, list) {
+			LIST_DELETE(&ctx->list);
+			LIST_INIT(&ctx->list);
+			_HA_ATOMIC_DEC(&agent->counters.nb_waiting);
+			spoe_update_stat_time(&ctx->stats.tv_wait, &ctx->stats.t_waiting);
+			ctx->spoe_appctx = NULL;
+			ctx->state = SPOE_CTX_ST_ERROR;
+			ctx->status_code = (spoe_appctx->status_code + 0x100);
+			task_wakeup(ctx->strm->task, TASK_WOKEN_MSG);
+		}
 	}
 
   end:
