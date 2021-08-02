@@ -280,6 +280,7 @@ struct spoe_agent {
 	} timeout;
 
 	/* Config info */
+	struct spoe_config  *spoe_conf;       /* SPOE filter config */
 	char                 *var_pfx;        /* Prefix used for vars set by the agent */
 	char                 *var_on_error;   /* Variable to set when an error occurred, in the TXN scope */
 	char                 *var_t_process;  /* Variable to set to report the processing time of the last event/group, in the TXN scope */

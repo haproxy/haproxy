@@ -4405,6 +4405,7 @@ parse_spoe_flt(char **args, int *cur_arg, struct proxy *px,
 
 	conf->id    = strdup(engine ? engine : curagent->id);
 	conf->agent = curagent;
+	curagent->spoe_conf = conf;
 
 	/* Start agent's proxy initialization here. It will be finished during
 	 * the filter init. */
