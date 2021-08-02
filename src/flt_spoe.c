@@ -1656,8 +1656,9 @@ static int
 spoe_handle_processing_appctx(struct appctx *appctx)
 {
 	struct stream_interface *si    = appctx->owner;
+	struct server           *srv   = objt_server(si_strm(si)->target);
 	struct spoe_agent       *agent = SPOE_APPCTX(appctx)->agent;
-	int ret, skip_sending = 0, skip_receiving = 0, active_s = 0, active_r = 0;
+	int ret, skip_sending = 0, skip_receiving = 0, active_s = 0, active_r = 0, close_asap = 0;
 
 	if (si->state == SI_ST_CLO || si_opposite(si)->state == SI_ST_CLO) {
 		SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_IO;
@@ -1678,7 +1679,18 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 		    agent->max_fpa, spoe_appctx_state_str[appctx->st0],
 		    SPOE_APPCTX(appctx)->node.key, SPOE_APPCTX(appctx)->flags);
 
-	if (appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK)
+
+	/* Close the applet ASAP because some sessions are waiting for a free
+	 * connection slot. It is only an issue in multithreaded mode.
+	 */
+	close_asap = (global.nbthread > 1 &&
+		      (agent->b.be->queue.length ||
+		       (srv && (srv->queue.length || (srv->maxconn && srv->served >= srv_dynamic_maxconn(srv))))));
+
+	/* Don"t try to send new frame we are waiting for at lease a ack, in
+	 * sync mode or if applet must be closed ASAP
+	 */
+	if (appctx->st0 == SPOE_APPCTX_ST_WAITING_SYNC_ACK || (close_asap && SPOE_APPCTX(appctx)->cur_fpa))
 		skip_sending = 1;
 
 	/* receiving_frame loop */
@@ -1723,6 +1735,10 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 				active_s++;
 				break;
 		}
+
+		/* if applet must be close ASAP, don't send more than a frame */
+		if (close_asap)
+			break;
 	}
 
 	if (active_s || active_r) {
@@ -1731,15 +1747,12 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 	}
 
 	if (appctx->st0 == SPOE_APPCTX_ST_PROCESSING && SPOE_APPCTX(appctx)->cur_fpa < agent->max_fpa) {
-		struct server *srv = objt_server(si_strm(si)->target);
-
-		/* With several threads, close the applet if there are pending
-		 * connections or if the server is full. Otherwise, add the
-		 * applet in the idle list.
+		/* If applet must be closed, don't switch it in IDLE state and
+		 * close it when the last waiting frame is acknowledged.
 		 */
-		if (global.nbthread > 1 &&
-		    (agent->b.be->queue.length ||
-		     (srv && (srv->queue.length || (srv->maxconn && srv->served >=srv_dynamic_maxconn(srv)))))) {
+		if (close_asap) {
+			if (SPOE_APPCTX(appctx)->cur_fpa)
+				goto out;
 			SPOE_APPCTX(appctx)->status_code = SPOE_FRM_ERR_NONE;
 			appctx->st0 = SPOE_APPCTX_ST_DISCONNECT;
 			appctx->st1 = SPOE_APPCTX_ERR_NONE;
@@ -1749,6 +1762,8 @@ spoe_handle_processing_appctx(struct appctx *appctx)
 		appctx->st0 = SPOE_APPCTX_ST_IDLE;
 		eb32_insert(&agent->rt[tid].idle_applets, &SPOE_APPCTX(appctx)->node);
 	}
+
+  out:
 	return 1;
 
   next:
