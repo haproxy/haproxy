@@ -95,8 +95,7 @@ enum PR_SRV_STATE_FILE {
 #define PR_O_FF_ALWAYS  0x00002000      /* always set x-forwarded-for */
 #define PR_O_PERSIST    0x00004000      /* server persistence stays effective even when server is down */
 #define PR_O_LOGASAP    0x00008000      /* log as soon as possible, without waiting for the stream to complete */
-#define PR_O_NOLGCYCONNERR 0x00010000   /* log a dedicated error log message in case of connection failure instead of the legacy connection error message */
-
+#define PR_O_ERR_LOGFMT 0x00010000      /* use log-format for connection error message */
 #define PR_O_CHK_CACHE  0x00020000      /* require examination of cacheability of the 'set-cookie' field */
 #define PR_O_TCP_CLI_KA 0x00040000      /* enable TCP keep-alive on client-side streams */
 #define PR_O_TCP_SRV_KA 0x00080000      /* enable TCP keep-alive on server-side streams */

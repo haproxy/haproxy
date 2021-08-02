@@ -2,7 +2,7 @@
 
 # This reg-test checks that the connection and SSL sample fetches related to
 # errors are functioning properly. It also tests the proper behaviour of the
-# default HTTPS log format and of the dontloglegacyconnerr option which enables
+# default HTTPS log format and of the log-error-via-logformat option which enables
 # or disables the output of a special error message in case of connection
 # failure (otherwise a line following the configured log-format is output).
 #
@@ -18,7 +18,7 @@
 # syslog messages arrive in the right order.
 #
 # In order to ensure that the log line raised in case of connection error if
-# the dontloglegacyconnerr option is disabled still follows the
+# the log-error-via-logformat option is disabled still follows the
 # log-separate-error option, the log lines raised by the https_fmt_lst listener
 # will be sent to two separate syslog servers.
 #
@@ -134,7 +134,7 @@ haproxy h1 -conf {
 
     listen cust_logfmt_ssl_lst
         log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
-	option dontloglegacyconnerr
+	option log-error-via-logformat
         mode http
         log-format "conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_hsk_err]:%[ssl_fc_hsk_err_str]\""
         bind "${tmpdir}/cust_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
@@ -143,7 +143,7 @@ haproxy h1 -conf {
     listen https_logfmt_ssl_lst
         log ${Slg_https_fmt_addr}:${Slg_https_fmt_port} local0 info
         log ${Slg_https_fmt_err_addr}:${Slg_https_fmt_err_port} local0 err info
-	option dontloglegacyconnerr
+	option log-error-via-logformat
         option log-separate-errors
         mode http
         option httpslog

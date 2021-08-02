@@ -9033,8 +9033,8 @@ no option logasap
              logging.
 
 
-option dontloglegacyconnerr
-no option dontloglegacyconnerr
+option log-error-via-logformat
+no option log-error-via-logformat
   Enable or disable dedicated connection error logging.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   no
@@ -21001,7 +21001,7 @@ protocol header, HAProxy will log the event using a shorter, fixed line format.
 By default, logs are emitted at the LOG_INFO level, unless the option
 "log-separate-errors" is set in the backend, in which case the LOG_ERR level
 will be used. Connections on which no data are exchanged (e.g. probes) are not
-logged if the "dontlognull" option is set. If the "dontloglegacyconnerr" option
+logged if the "dontlognull" option is set. If the "log-error-via-logformat" option
 is set, those messages are not emitted and a line following the configured
 log-format is emitted instead.
 
