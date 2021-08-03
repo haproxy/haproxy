@@ -384,8 +384,9 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 
 				pktns = qc->pktns;
 				chunk_appendf(&trace_buf,
-				              " qel=%c ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u pdg=%llu",
+				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u pdg=%llu",
 				              quic_enc_level_char_from_qel(qel, qc),
+				              quic_hdshk_state_str(HA_ATOMIC_LOAD(&qc->state)),
 				              !!(pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED),
 				              (unsigned long long)qc->path->cwnd,
 				              (unsigned long long)qc->path->prep_in_flight,
