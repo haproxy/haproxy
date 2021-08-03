@@ -3918,11 +3918,10 @@ static struct quic_tx_packet *qc_build_hdshk_pkt(unsigned char **pos,
 	beg = *pos;
 	pn_len = 0;
 	buf_pn = NULL;
-	pn = qel->pktns->tx.next_pn + 1;
-	if (!qc_do_build_hdshk_pkt(*pos, buf_end, pkt, pkt_type, pn, &pn_len, &buf_pn, qel, qc)) {
-		*err = -1;
-		goto err;
-	}
+	/* Consume a packet number. */
+	pn = HA_ATOMIC_ADD_FETCH(&qel->pktns->tx.next_pn, 1);
+	if (!qc_do_build_hdshk_pkt(*pos, buf_end, pkt, pkt_type, pn, &pn_len, &buf_pn, qel, qc))
+		BUG_ON(0);
 
 	end = beg + pkt->len;
 	payload = buf_pn + pn_len;
@@ -3946,10 +3945,8 @@ static struct quic_tx_packet *qc_build_hdshk_pkt(unsigned char **pos,
 
 	/* Now that a correct packet is built, let us consume <*pos> buffer. */
 	*pos = end;
-	/* Consume a packet number. */
-	++qel->pktns->tx.next_pn;
 	/* Attach the built packet to its tree. */
-	pkt->pn_node.key = qel->pktns->tx.next_pn;
+	pkt->pn_node.key = pn;
 	/* Set the packet in fligth length for in flight packet only. */
 	if (pkt->flags & QUIC_FL_TX_PACKET_IN_FLIGHT) {
 		pkt->in_flight_len = pkt->len;
