@@ -328,10 +328,6 @@ void _fd_delete_orphan(int fd)
 	_HA_ATOMIC_DEC(&ha_used_fds);
 }
 
-#ifndef HA_HAVE_CAS_DW
-__decl_thread(__decl_rwlock(fd_mig_lock));
-#endif
-
 /* Deletes an FD from the fdsets. The file descriptor is also closed, possibly
  * asynchronously. Only the owning thread may do this.
  */
@@ -354,13 +350,7 @@ void fd_delete(int fd)
 	 */
 
 	HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
-#ifndef HA_HAVE_CAS_DW
-	HA_RWLOCK_WRLOCK(OTHER_LOCK, &fd_mig_lock);
-#endif
 	HA_ATOMIC_STORE(&fdtab[fd].thread_mask, 0);
-#ifndef HA_HAVE_CAS_DW
-	HA_RWLOCK_WRUNLOCK(OTHER_LOCK, &fd_mig_lock);
-#endif
 	if (fd_clr_running(fd) == 0)
 		_fd_delete_orphan(fd);
 }

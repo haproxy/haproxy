@@ -67,11 +67,6 @@ void _fd_delete_orphan(int fd);
  */
 int fd_takeover(int fd, void *expected_owner);
 
-/* lock used by FD migration */
-#ifndef HA_HAVE_CAS_DW
-__decl_thread(extern HA_RWLOCK_T fd_mig_lock);
-#endif
-
 ssize_t fd_write_frag_line(int fd, size_t maxlen, const struct ist pfx[], size_t npfx, const struct ist msg[], size_t nmsg, int nl);
 
 /* close all FDs starting from <start> */
