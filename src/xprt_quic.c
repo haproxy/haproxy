@@ -2597,19 +2597,19 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
 	return 0;
 }
 
-/* Called during handshakes to parse and build Initial and Handshake packets for QUIC
- * connections with <ctx> as I/O handler context.
- * Returns 1 if succeeded, 0 if not.
- */
-int qc_do_hdshk(struct ssl_sock_ctx *ctx)
+/* QUIC connection packet handler task. */
+struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 {
 	int ret, ssl_err;
+	struct ssl_sock_ctx *ctx;
 	struct quic_conn *qc;
 	enum quic_tls_enc_level tel, next_tel;
 	struct quic_enc_level *qel, *next_qel;
 	struct quic_tls_ctx *tls_ctx;
 	struct qring *qr; // Tx ring
+	int prev_st, st;
 
+	ctx = context;
 	qc = ctx->conn->qc;
 	qr = NULL;
 	TRACE_ENTER(QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state);
@@ -2630,8 +2630,19 @@ int qc_do_hdshk(struct ssl_sock_ctx *ctx)
 	    (tls_ctx->rx.flags & QUIC_FL_TLS_SECRETS_SET))
 		qc_rm_hp_pkts(qel, ctx);
 
+	prev_st = HA_ATOMIC_LOAD(&qc->state);
 	if (!qc_treat_rx_pkts(qel, ctx))
 		goto err;
+
+	st = HA_ATOMIC_LOAD(&qc->state);
+	if (prev_st == QUIC_HS_ST_SERVER_HANDSHAKE && st >= QUIC_HS_ST_COMPLETE) {
+		/* Discard the Handshake keys. */
+		quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
+		quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns, qc);
+		qc_set_timer(ctx);
+		if (!quic_build_post_handshake_frames(qc))
+			goto err;
+	}
 
 	if (!qr)
 		qr = MT_LIST_POP(qc->tx.qring_list, typeof(qr), mt_list);
@@ -2653,29 +2664,16 @@ int qc_do_hdshk(struct ssl_sock_ctx *ctx)
 		goto next_level;
 	}
 
-	/* If the handshake has not been completed -> out! */
-	if (qc->state < QUIC_HS_ST_COMPLETE)
-		goto out;
-
-	/* Discard the Handshake keys. */
-	quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
-	quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns, qc);
-	qc_set_timer(ctx);
-	if (!quic_build_post_handshake_frames(qc) ||
-	    !qc_prep_phdshk_pkts(qr, qc) ||
-	    !qc_send_ppkts(qr, ctx))
-		goto err;
-
  out:
 	MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
 	TRACE_LEAVE(QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state);
-	return 1;
+	return t;
 
  err:
 	if (qr)
 		MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_HDSHK, ctx->conn, &qc->state, &ssl_err);
-	return 0;
+	return t;
 }
 
 /* Uninitialize <qel> QUIC encryption level. Never fails. */
@@ -4218,29 +4216,6 @@ int qc_prep_phdshk_pkts(struct qring *qr, struct quic_conn *qc)
  err:
 	TRACE_DEVEL("leaving in error", QUIC_EV_CONN_PAPKTS, qc->conn);
 	return 0;
-}
-
-/* QUIC connection packet handler task. */
-struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
-{
-	struct ssl_sock_ctx *ctx = context;
-
-	if (ctx->conn->qc->state < QUIC_HS_ST_COMPLETE) {
-		qc_do_hdshk(ctx);
-	}
-	else {
-		struct quic_conn *qc = ctx->conn->qc;
-		struct qring *qr;
-
-		qr = MT_LIST_POP(qc->tx.qring_list, typeof(qr), mt_list);
-		/* XXX TO DO: may fail!!! XXX */
-		qc_treat_rx_pkts(&qc->els[QUIC_TLS_ENC_LEVEL_APP], ctx);
-		qc_prep_phdshk_pkts(qr, qc);
-		qc_send_ppkts(qr, ctx);
-		MT_LIST_APPEND(qc->tx.qring_list, &qr->mt_list);
-	}
-
-	return t;
 }
 
 /* Copy up to <count> bytes from connection <conn> internal stream storage into buffer <buf>.
