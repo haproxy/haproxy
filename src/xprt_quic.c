@@ -2224,37 +2224,39 @@ int qc_send_ppkts(struct qring *qr, struct ssl_sock_ctx *ctx)
  * a HANDSHAKE_DONE frame.
  * Return 1 if succeeded, 0 if not.
  */
-static int quic_build_post_handshake_frames(struct quic_conn *conn)
+static int quic_build_post_handshake_frames(struct quic_conn *qc)
 {
 	int i;
+	struct quic_enc_level *qel;
 	struct quic_frame *frm;
 
+	qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	/* Only servers must send a HANDSHAKE_DONE frame. */
-	if (!objt_server(conn->conn->target)) {
+	if (!objt_server(qc->conn->target)) {
 		frm = pool_alloc(pool_head_quic_frame);
 		if (!frm)
 			return 0;
 
 		frm->type = QUIC_FT_HANDSHAKE_DONE;
-		LIST_APPEND(&conn->tx.frms_to_send, &frm->list);
+		MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
 	}
 
-	for (i = 1; i < conn->tx.params.active_connection_id_limit; i++) {
+	for (i = 1; i < qc->tx.params.active_connection_id_limit; i++) {
 		struct quic_connection_id *cid;
 
 		frm = pool_alloc(pool_head_quic_frame);
-		cid = new_quic_cid(&conn->cids, i);
+		cid = new_quic_cid(&qc->cids, i);
 		if (!frm || !cid)
 			goto err;
 
 		quic_connection_id_to_frm_cpy(frm, cid);
-		LIST_APPEND(&conn->tx.frms_to_send, &frm->list);
+		MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
 	}
 
     return 1;
 
  err:
-	free_quic_conn_cids(conn);
+	free_quic_conn_cids(qc);
 	return 0;
 }
 
