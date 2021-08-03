@@ -46,7 +46,6 @@ struct activity {
 	unsigned int poll_io;      // number of times poll() reported I/O events
 	unsigned int poll_exp;     // number of times poll() sees an expired timeout (includes wake_*)
 	unsigned int poll_drop_fd; // poller dropped a dead FD from the update list
-	unsigned int poll_dead_fd; // poller woke up with a dead FD
 	unsigned int poll_skip_fd; // poller skipped another thread's FD
 	unsigned int conn_dead;    // conn_fd_handler woke up on an FD indicating a dead connection
 	unsigned int stream_calls; // calls to process_stream()

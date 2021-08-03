@@ -459,12 +459,6 @@ int fd_update_events(int fd, uint evts)
 
 	ti->flags &= ~TI_FL_STUCK; // this thread is still running
 
-	/* do nothing on remains of an old dead FD */
-	if (!fdtab[fd].owner) {
-		activity[tid].poll_dead_fd++;
-		return FD_UPDT_DEAD;
-	}
-
 	/* do nothing if the FD was taken over under us */
 	if (fd_set_running(fd) == -1) {
 		activity[tid].poll_skip_fd++;

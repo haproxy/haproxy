@@ -113,7 +113,6 @@ enum {
 /* FD update status after fd_update_events() */
 enum {
 	FD_UPDT_DONE = 0,    // update done, nothing else to be done
-	FD_UPDT_DEAD,        // FD was already dead, ignore it
 	FD_UPDT_CLOSED,      // FD was closed
 	FD_UPDT_MIGRATED,    // FD was migrated, ignore it now
 };
