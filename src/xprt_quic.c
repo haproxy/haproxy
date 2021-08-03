@@ -3588,57 +3588,77 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
 	 */
 	if (!conn->tx.nb_pto_dgrams)
 		room = QUIC_MIN(room, quic_path_prep_data(conn->path) - headlen);
-	TRACE_PROTO("************** CRYPTO frames build (headlen)",
+	TRACE_PROTO("************** frames build (headlen)",
 	            QUIC_EV_CONN_BCFRMS, conn->conn, &headlen);
 	mt_list_for_each_entry_safe(cf, &qel->pktns->tx.frms, mt_list, tmp1, tmp2) {
 		/* header length, data length, frame length. */
-		size_t hlen, dlen, cflen;
+		size_t hlen, dlen, flen;
 
-		TRACE_PROTO("          New CRYPTO frame build (room, len)",
-		            QUIC_EV_CONN_BCFRMS, conn->conn, &room, len);
 		if (!room)
 			break;
 
-		/* Compute the length of this CRYPTO frame header */
-		hlen = 1 + quic_int_getsize(cf->crypto.offset);
-		/* Compute the data length of this CRyPTO frame. */
-		dlen = max_stream_data_size(room, *len + hlen, cf->crypto.len);
-		TRACE_PROTO(" CRYPTO data length (hlen, crypto.len, dlen)",
-		            QUIC_EV_CONN_BCFRMS, conn->conn, &hlen, &cf->crypto.len, &dlen);
-		if (!dlen)
+		switch (cf->type) {
+		case QUIC_FT_CRYPTO:
+			TRACE_PROTO("          New CRYPTO frame build (room, len)",
+						QUIC_EV_CONN_BCFRMS, conn->conn, &room, len);
+			/* Compute the length of this CRYPTO frame header */
+			hlen = 1 + quic_int_getsize(cf->crypto.offset);
+			/* Compute the data length of this CRyPTO frame. */
+			dlen = max_stream_data_size(room, *len + hlen, cf->crypto.len);
+			TRACE_PROTO(" CRYPTO data length (hlen, crypto.len, dlen)",
+						QUIC_EV_CONN_BCFRMS, conn->conn, &hlen, &cf->crypto.len, &dlen);
+			if (!dlen)
+				break;
+
+			pkt->cdata_len += dlen;
+			/* CRYPTO frame length. */
+			flen = hlen + quic_int_getsize(dlen) + dlen;
+			TRACE_PROTO("                 CRYPTO frame length (flen)",
+						QUIC_EV_CONN_BCFRMS, conn->conn, &flen);
+			/* Add the CRYPTO data length and its encoded length to the packet
+			 * length and the length of this length.
+			 */
+			*len += flen;
+			room -= flen;
+			if (dlen == cf->crypto.len) {
+				/* <cf> CRYPTO data have been consumed. */
+				MT_LIST_DELETE_SAFE(tmp1);
+				LIST_APPEND(&pkt->frms, &cf->list);
+			}
+			else {
+				struct quic_frame *new_cf;
+
+				new_cf = pool_alloc(pool_head_quic_frame);
+				if (!new_cf) {
+					TRACE_PROTO("No memory for new crypto frame", QUIC_EV_CONN_BCFRMS, conn->conn);
+					return 0;
+				}
+
+				new_cf->type = QUIC_FT_CRYPTO;
+				new_cf->crypto.len = dlen;
+				new_cf->crypto.offset = cf->crypto.offset;
+				new_cf->crypto.qel = qel;
+				LIST_APPEND(&pkt->frms, &new_cf->list);
+				/* Consume <dlen> bytes of the current frame. */
+				cf->crypto.len -= dlen;
+				cf->crypto.offset += dlen;
+			}
 			break;
 
-		pkt->cdata_len += dlen;
-		/* CRYPTO frame length. */
-		cflen = hlen + quic_int_getsize(dlen) + dlen;
-		TRACE_PROTO("                 CRYPTO frame length (cflen)",
-		            QUIC_EV_CONN_BCFRMS, conn->conn, &cflen);
-		/* Add the CRYPTO data length and its encoded length to the packet
-		 * length and the length of this length.
-		 */
-		*len += cflen;
-		room -= cflen;
-		if (dlen == cf->crypto.len) {
-			/* <cf> CRYPTO data have been consumed. */
+		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
+			break;
+
+		default:
+			flen = qc_frm_len(cf);
+			BUG_ON(!flen);
+			if (flen > room)
+				continue;
+
+			*len += flen;
+			room -= flen;
 			MT_LIST_DELETE_SAFE(tmp1);
 			LIST_APPEND(&pkt->frms, &cf->list);
-		}
-		else {
-			struct quic_frame *new_cf;
-
-			new_cf = pool_alloc(pool_head_quic_frame);
-			if (!new_cf) {
-				TRACE_PROTO("No memory for new crypto frame", QUIC_EV_CONN_BCFRMS, conn->conn);
-				return 0;
-			}
-
-			new_cf->type = QUIC_FT_CRYPTO;
-			new_cf->crypto.len = dlen;
-			new_cf->crypto.offset = cf->crypto.offset;
-			LIST_APPEND(&pkt->frms, &new_cf->list);
-			/* Consume <dlen> bytes of the current frame. */
-			cf->crypto.len -= dlen;
-			cf->crypto.offset += dlen;
+			break;
 		}
 		ret = 1;
 	}
