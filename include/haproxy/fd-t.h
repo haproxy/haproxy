@@ -151,10 +151,6 @@ struct fdlist {
 
 /* info about one given fd. Note: only align on cache lines when using threads;
  * 32-bit small archs can put everything in 32-bytes when threads are disabled.
- *
- * NOTE: DO NOT REORDER THIS STRUCT AT ALL! Some code parts rely on exact field
- * ordering, for example fd_takeover() and fd_set_running() want running_mask
- * immediately followed by thread_mask to perform a double-word-CAS on them.
  */
 struct fdtab {
 	unsigned long running_mask;          /* mask of thread IDs currently using the fd */

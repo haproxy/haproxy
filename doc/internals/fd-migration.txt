@@ -103,3 +103,36 @@ ones, with their respective sequences:
     - mux->wake() is called
     - if the connection previously was in the list, it's reinserted under the
       idle_conns_lock.
+
+
+With the DWCAS removal between running_mask & thread_mask:
+
+fd_takeover:
+     1  if (!CAS(&running_mask, 0, tid_bit))
+     2      return fail;
+     3  atomic_store(&thread_mask, tid_bit);
+     4  atomic_and(&running_mask, ~tid_bit);
+
+poller:
+     1  do {
+     2      /* read consistent running_mask & thread_mask */
+     3      do {
+     4          run = atomic_load(&running_mask);
+     5          thr = atomic_load(&thread_mask);
+     6      } while (run & ~thr);
+     7
+     8      if (!(thr & tid_bit)) {
+     9          /* takeover has started */
+    10          goto disable_fd;
+    11      }
+    12  } while (!CAS(&running_mask, run, run | tid_bit));
+
+fd_delete:
+     1  atomic_or(&running_mask, tid_bit);
+     2  atomic_store(&thread_mask, 0);
+     3  atomic_and(&running_mask, ~tid_bit);
+
+The loop in poller:3-6 is used to make sure the thread_mask we read matches
+the last updated running_mask. If nobody can give up on fd_takeover(), it
+might even be possible to spin on thread_mask only. Late pollers will not
+set running anymore with this.
