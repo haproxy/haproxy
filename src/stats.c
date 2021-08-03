@@ -3617,10 +3617,10 @@ static int stats_dump_proxies(struct stream_interface *si,
 
 		px = appctx->ctx.stats.obj1;
 		/* Skip the global frontend proxies and non-networked ones.
-		 * Also skip disabled proxies unless they are still holding active sessions.
+		 * Also skip proxies that were disabled in the configuration
 		 * This change allows retrieving stats from "old" proxies after a reload.
 		 */
-		if ((!px->disabled || px->served > 0) && px->uuid > 0 &&
+		if (!(px->disabled & PR_DISABLED) && px->uuid > 0 &&
 		    (px->cap & (PR_CAP_FE | PR_CAP_BE)) && !(px->cap & PR_CAP_INT)) {
 			if (stats_dump_proxy_to_buffer(si, htx, px, uri) == 0)
 				return 0;
