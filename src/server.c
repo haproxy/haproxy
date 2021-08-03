@@ -4747,11 +4747,11 @@ out:
 
 /* register cli keywords */
 static struct cli_kw_list cli_kws = {{ },{
-	{ { "disable", "agent",  NULL },         "disable agent  (DEPRECATED)             : disable agent checks (use 'set server' instead)",             cli_parse_disable_agent, NULL },
-	{ { "disable", "health",  NULL },        "disable health (DEPRECATED)             : disable health checks (use 'set server' instead)",            cli_parse_disable_health, NULL },
+	{ { "disable", "agent",  NULL },         "disable agent                           : disable agent checks",                                        cli_parse_disable_agent, NULL },
+	{ { "disable", "health",  NULL },        "disable health                          : disable health checks",                                       cli_parse_disable_health, NULL },
 	{ { "disable", "server",  NULL },        "disable server (DEPRECATED)             : disable a server for maintenance (use 'set server' instead)", cli_parse_disable_server, NULL },
-	{ { "enable", "agent",  NULL },          "enable agent   (DEPRECATED)             : enable agent checks (use 'set server' instead)",              cli_parse_enable_agent, NULL },
-	{ { "enable", "health",  NULL },         "enable health  (DEPRECATED)             : enable health checks (use 'set server' instead)",             cli_parse_enable_health, NULL },
+	{ { "enable", "agent",  NULL },          "enable agent                            : enable agent checks",                                         cli_parse_enable_agent, NULL },
+	{ { "enable", "health",  NULL },         "enable health                           : enable health checks",                                        cli_parse_enable_health, NULL },
 	{ { "enable", "server",  NULL },         "enable server  (DEPRECATED)             : enable a disabled server (use 'set server' instead)",         cli_parse_enable_server, NULL },
 	{ { "set", "maxconn", "server",  NULL }, "set maxconn server <bk>/<srv>           : change a server's maxconn setting",                           cli_parse_set_maxconn_server, NULL },
 	{ { "set", "server", NULL },             "set server <bk>/<srv> [opts]            : change a server's state, weight, address or ssl",             cli_parse_set_server },
