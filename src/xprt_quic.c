@@ -3838,8 +3838,9 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 	return 0;
 }
 
-static inline void quic_tx_packet_init(struct quic_tx_packet *pkt)
+static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
 {
+	pkt->type = type;
 	pkt->len = 0;
 	pkt->cdata_len = 0;
 	pkt->in_flight_len = 0;
@@ -3892,7 +3893,7 @@ static struct quic_tx_packet *qc_build_hdshk_pkt(unsigned char **pos,
 		goto err;
 	}
 
-	quic_tx_packet_init(pkt);
+	quic_tx_packet_init(pkt, pkt_type);
 	beg = *pos;
 	pn_len = 0;
 	buf_pn = NULL;
@@ -4091,7 +4092,7 @@ static struct quic_tx_packet *qc_build_phdshk_apkt(unsigned char **pos,
 		goto err;
 	}
 
-	quic_tx_packet_init(pkt);
+	quic_tx_packet_init(pkt, QUIC_PACKET_TYPE_SHORT);
 	beg = *pos;
 	qel = &qc->els[QUIC_TLS_ENC_LEVEL_APP];
 	pn_len = 0;

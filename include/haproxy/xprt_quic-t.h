@@ -486,6 +486,7 @@ struct quic_tx_packet {
 	int refcnt;
 	/* Next packet in the same datagram */
 	struct quic_tx_packet *next;
+	unsigned char type;
 };
 
 #define QUIC_CRYPTO_BUF_SHIFT  10
