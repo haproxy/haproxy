@@ -311,37 +311,6 @@ static inline void fd_want_send(int fd)
 	updt_fd_polling(fd);
 }
 
-/* Set the fd as currently running on the current thread.
- * Returns 0 if all goes well, or -1 if we no longer own the fd, and should
- * do nothing with it.
- */
-static inline int fd_set_running(int fd)
-{
-#ifndef HA_HAVE_CAS_DW
-	HA_RWLOCK_RDLOCK(OTHER_LOCK, &fd_mig_lock);
-	if (!(fdtab[fd].thread_mask & tid_bit)) {
-		HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &fd_mig_lock);
-		return -1;
-	}
-	_HA_ATOMIC_OR(&fdtab[fd].running_mask, tid_bit);
-	HA_RWLOCK_RDUNLOCK(OTHER_LOCK, &fd_mig_lock);
-	return 0;
-#else
-	unsigned long old_masks[2];
-	unsigned long new_masks[2];
-	old_masks[0] = fdtab[fd].running_mask;
-	old_masks[1] = fdtab[fd].thread_mask;
-	do {
-		if (!(old_masks[1] & tid_bit))
-			return -1;
-		new_masks[0] = fdtab[fd].running_mask | tid_bit;
-		new_masks[1] = old_masks[1];
-
-	} while (!(HA_ATOMIC_DWCAS(&fdtab[fd].running_mask, &old_masks, &new_masks)));
-	return 0;
-#endif
-}
-
 /* remove tid_bit from the fd's running mask and returns the bits that remain
  * after the atomic operation.
  */
