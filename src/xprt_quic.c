@@ -3672,7 +3672,6 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 	size_t len, len_frms, token_fields_len, padding_len;
 	struct quic_frame frm = { .type = QUIC_FT_CRYPTO, };
 	struct quic_frame ack_frm = { .type = QUIC_FT_ACK, };
-	struct quic_crypto *crypto = &frm.crypto;
 	size_t ack_frm_len;
 	int64_t largest_acked_pn;
 	int add_ping_frm;
@@ -3703,11 +3702,14 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 		goto err;
 	}
 
-	largest_acked_pn = qel->pktns->tx.largest_acked_pn;
+	largest_acked_pn = HA_ATOMIC_LOAD(&qel->pktns->tx.largest_acked_pn);
 	/* packet number length */
 	*pn_len = quic_packet_number_length(pn, largest_acked_pn);
 
-	quic_build_packet_long_header(&pos, end, pkt_type, *pn_len, conn);
+	if (pkt_type == QUIC_PACKET_TYPE_SHORT)
+		quic_build_packet_short_header(&pos, end, *pn_len, conn);
+	else
+		quic_build_packet_long_header(&pos, end, pkt_type, *pn_len, conn);
 
 	/* Encode the token length (0) for an Initial packet. */
 	if (pkt_type == QUIC_PACKET_TYPE_INITIAL)
@@ -3770,7 +3772,8 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 		len = len_frms;
 	else
 		len += QUIC_TLS_TAG_LEN;
-	quic_enc_int(&pos, end, len);
+	if (pkt_type != QUIC_PACKET_TYPE_SHORT)
+		quic_enc_int(&pos, end, len);
 
 	/* Packet number field address. */
 	*buf_pn = pos;
