@@ -22,10 +22,10 @@ matrix:
     arch: ppc64le
     compiler: gcc
     if: type == cron
-  - os: linux
-    arch: arm64
-    compiler: gcc
-    if: type == cron
+#  - os: linux
+#    arch: arm64
+#    compiler: gcc
+#    if: type == cron
   - os: linux
     arch: arm64-graviton2
     group: edge
