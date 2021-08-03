@@ -841,6 +841,7 @@ static int quic_crypto_data_cpy(struct quic_enc_level *qel,
 		frm->type = QUIC_FT_CRYPTO;
 		frm->crypto.offset = cf_offset;
 		frm->crypto.len = cf_len;
+		frm->crypto.qel = qel;
 		MT_LIST_APPEND(&qel->pktns->tx.frms, &frm->mt_list);
 	}
 
@@ -3811,10 +3812,7 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 		struct quic_frame *cf;
 
 		list_for_each_entry(cf, &pkt->frms, list) {
-			crypto->offset = cf->crypto.offset;
-			crypto->len = cf->crypto.len;
-			crypto->qel = qel;
-			if (!qc_build_frm(&pos, end, &frm, pkt, conn)) {
+			if (!qc_build_frm(&pos, end, cf, pkt, conn)) {
 				ssize_t room = end - pos;
 				TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 							conn->conn, NULL, NULL, &room);
