@@ -1344,7 +1344,7 @@ static void qc_packet_loss_lookup(struct quic_pktns *pktns,
 		unsigned int loss_time_limit, time_sent;
 
 		pkt = eb64_entry(&node->node, struct quic_tx_packet, pn_node);
-		largest_acked_pn = pktns->tx.largest_acked_pn;
+		largest_acked_pn = HA_ATOMIC_LOAD(&pktns->tx.largest_acked_pn);
 		node = eb64_next(node);
 		if ((int64_t)pkt->pn_node.key > largest_acked_pn)
 			break;
@@ -1403,7 +1403,7 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *
 	largest_node = NULL;
 	time_sent = 0;
 
-	if ((int64_t)ack->largest_ack > qel->pktns->tx.largest_acked_pn) {
+	if ((int64_t)ack->largest_ack > HA_ATOMIC_LOAD(&qel->pktns->tx.largest_acked_pn)) {
 		largest_node = eb64_lookup(pkts, largest);
 		if (!largest_node) {
 			TRACE_DEVEL("Largest acked packet not found",
@@ -1458,7 +1458,7 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *
 
 	if (time_sent && (pkt_flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
 		*rtt_sample = tick_remain(time_sent, now_ms);
-		qel->pktns->tx.largest_acked_pn = ack->largest_ack;
+		HA_ATOMIC_STORE(&qel->pktns->tx.largest_acked_pn, ack->largest_ack);
 	}
 
 	if (!LIST_ISEMPTY(&newly_acked_pkts)) {
