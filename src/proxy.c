@@ -1801,7 +1801,7 @@ void proxy_cond_disable(struct proxy *p)
 	if (p->li_ready + p->li_paused > 0)
 		return;
 
-	p->disabled = 1;
+	p->disabled = PR_STOPPED;
 
 	/* Note: syslog proxies use their own loggers so while it's somewhat OK
 	 * to report them being stopped as a warning, we must not spam their log
@@ -2050,7 +2050,7 @@ void stop_proxy(struct proxy *p)
 
 	if (!p->disabled && !p->li_ready) {
 		/* might be just a backend */
-		p->disabled = 1;
+		p->disabled |= PR_STOPPED;
 	}
 
 	HA_RWLOCK_WRUNLOCK(PROXY_LOCK, &p->lock);

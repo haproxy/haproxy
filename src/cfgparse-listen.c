@@ -593,7 +593,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "disabled") == 0) {  /* disables this proxy */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
 			goto out;
-		curproxy->disabled = 1;
+		curproxy->disabled = PR_DISABLED;
 	}
 	else if (strcmp(args[0], "enabled") == 0) {  /* enables this proxy (used to revert a disabled default) */
 		if (alertif_too_many_args(0, file, linenum, args, &err_code))
