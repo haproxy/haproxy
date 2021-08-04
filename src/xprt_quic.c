@@ -130,6 +130,7 @@ INITCALL1(STG_REGISTER, trace_register_source, TRACE_SOURCE);
 
 static BIO_METHOD *ha_quic_meth;
 
+DECLARE_POOL(pool_head_quic_tx_ring, "quic_tx_ring_pool", QUIC_TX_RING_BUFSZ);
 DECLARE_STATIC_POOL(pool_head_quic_conn_ctx,
                     "quic_conn_ctx_pool", sizeof(struct ssl_sock_ctx));
 DECLARE_STATIC_POOL(pool_head_quic_conn, "quic_conn", sizeof(struct quic_conn));
