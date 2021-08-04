@@ -4631,19 +4631,12 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 		return cli_err(appctx, "Require 'backend/server'.");
 
 	/* The proxy servers list is currently not protected by a lock so this
-	 * requires thread isolation.
+	 * requires thread isolation. In addition, any place referencing the
+	 * server about to be deleted would be unsafe after our operation, so
+	 * we must be certain to be alone so that no other thread has even
+	 * started to grab a temporary reference to this server.
 	 */
-
-	/* WARNING there is maybe a potential violation of the thread isolation
-	 * mechanism by the pool allocator. The allocator marks the thread as
-	 * harmless before the allocation, but a processing outside of it could
-	 * relies on a particular server triggered at the same time by a
-	 * 'delete server'. Currently, it is unknown if such case is present in
-	 * the current code. If it happens to be, the thread isolation
-	 * mechanism should be improved, maybe with a differentiation between
-	 * read and read+write safe sections.
-	 */
-	thread_isolate();
+	thread_isolate_full();
 
 	get_backend_server(be_name, sv_name, &be, &srv);
 	if (!be) {
