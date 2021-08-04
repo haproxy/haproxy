@@ -143,9 +143,9 @@ DECLARE_STATIC_POOL(pool_head_quic_crypto_buf, "quic_crypto_buf_pool", sizeof(st
 DECLARE_POOL(pool_head_quic_frame, "quic_frame_pool", sizeof(struct quic_frame));
 DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_arng_node));
 
-static struct quic_tx_packet *qc_build_hdshk_pkt(unsigned char **pos, const unsigned char *buf_end,
-                                                 struct quic_conn *qc, int pkt_type,
-                                                 struct quic_enc_level *qel, int *err);
+static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
+                                           struct quic_conn *qc, int pkt_type,
+                                           struct quic_enc_level *qel, int *err);
 
 /* Add traces to <buf> depending on <frm> TX frame type. */
 static inline void chunk_tx_frm_appendf(struct buffer *buf,
@@ -2051,7 +2051,7 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			end = pos + qc->path->mtu;
 		}
 
-		cur_pkt = qc_build_hdshk_pkt(&pos, end, qc, pkt_type, qel, &err);
+		cur_pkt = qc_build_pkt(&pos, end, qc, pkt_type, qel, &err);
 		switch (err) {
 		case -2:
 			goto err;
@@ -3559,22 +3559,22 @@ static int quic_ack_frm_reduce_sz(struct quic_frame *ack_frm, size_t limit)
 	return 1 + ack_delay_sz + ack_frm->tx_ack.arngs->enc_sz;
 }
 
-/* Prepare as most as possible CRYPTO frames from prebuilt CRYPTO frames for <qel>
- * encryption level to be encoded in a buffer with <room> as available room,
+/* Prepare as most as possible CRYPTO or STREAM frames from their prebuilt frames
+ * for <qel> encryption level to be encoded in a buffer with <room> as available room,
  * and <*len> the packet Length field initialized with the number of bytes already present
  * in this buffer which must be taken into an account for the Length packet field value.
- * <headlen> is the number of bytes already present in this packet before building
- * CRYPTO frames.
+ * <headlen> is the number of bytes already present in this packet before building frames.
+ *
  * This is the responsibility of the caller to check that <*len> < <room> as this is
  * the responsibility to check that <headlen> < quic_path_prep_data(conn->path).
- * Update consequently <*len> to reflect the size of these CRYPTO frames built
- * by this function. Also attach these CRYPTO frames to <pkt> QUIC packet.
+ * Update consequently <*len> to reflect the size of these frames built
+ * by this function. Also attach these frames to <pkt> QUIC packet.
  * Return 1 if succeeded, 0 if not.
  */
-static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
-                                 size_t room, size_t *len, size_t headlen,
-                                 struct quic_enc_level *qel,
-                                 struct quic_conn *conn)
+static inline int qc_build_frms(struct quic_tx_packet *pkt,
+                                size_t room, size_t *len, size_t headlen,
+                                struct quic_enc_level *qel,
+                                struct quic_conn *conn)
 {
 	int ret;
 	struct quic_frame *cf;
@@ -3664,27 +3664,24 @@ static inline int qc_build_cfrms(struct quic_tx_packet *pkt,
 	return ret;
 }
 
-/* This function builds a clear handshake packet used during a QUIC TLS handshakes
- * into a buffer with <pos> as position pointer and <qel> as QUIC TLS encryption level
- * for <conn> QUIC connection and <qel> as QUIC TLS encryption level, filling the buffer
- * with as much as CRYPTO.
+/* This function builds a clear packet with <pkt_type> as type
+ * into a buffer with <pos> as position pointer and <qel> as QUIC TLS encryption
+ * level for <conn> QUIC connection and <qel> as QUIC TLS encryption level,
+ * filling the buffer with as much frames as possible.
  * The trailing QUIC_TLS_TAG_LEN bytes of this packet are not built. But they are
  * reserved so that to ensure there is enough room to build this AEAD TAG after
- * having successfully returned from this function and to ensure the position
- * pointer <pos> may be safely incremented by QUIC_TLS_TAG_LEN.
- * This function also update the value of <buf_pn> pointer to point to the packet
+ * having returned from this function.
+ * This function also updates the value of <buf_pn> pointer to point to the packet
  * number field in this packet. <pn_len> will also have the packet number
  * length as value.
  *
- * Return 1 packet if succeeded or 0 if failed (not enough room in the buffer to build
- * this packet, QUIC_TLS_TAG_LEN bytes for the encryption TAG included).
+ * Always succeeds: this is the responsability of the caller to ensure there is
+ * enough room to build a packet.
  */
-static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
-                                 struct quic_tx_packet *pkt, int pkt_type,
-                                 int64_t pn, size_t *pn_len,
-                                 unsigned char **buf_pn,
-                                 struct quic_enc_level *qel,
-                                 struct quic_conn *conn)
+static void qc_do_build_pkt(unsigned char *pos, const unsigned char *end,
+                            struct quic_tx_packet *pkt, int pkt_type,
+                            int64_t pn, size_t *pn_len, unsigned char **buf_pn,
+                            struct quic_enc_level *qel, struct quic_conn *conn)
 {
 	unsigned char *beg;
 	size_t len, len_frms, token_fields_len, padding_len;
@@ -3717,7 +3714,7 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 		ssize_t room = end - pos;
 		TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 		            conn->conn, NULL, NULL, &room);
-		goto err;
+		BUG_ON(1);
 	}
 
 	largest_acked_pn = HA_ATOMIC_LOAD(&qel->pktns->tx.largest_acked_pn);
@@ -3744,7 +3741,7 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 			ssize_t room = end - pos;
 			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 			            conn->conn, NULL, NULL, &room);
-			goto err;
+			BUG_ON(1);
 		}
 
 		qel->pktns->flags &= ~QUIC_FL_PKTNS_ACK_REQUIRED;
@@ -3756,10 +3753,10 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 		ssize_t room = end - pos;
 
 		len_frms = len + QUIC_TLS_TAG_LEN;
-		if (!qc_build_cfrms(pkt, end - pos, &len_frms, pos - beg, qel, conn)) {
+		if (!qc_build_frms(pkt, end - pos, &len_frms, pos - beg, qel, conn)) {
 			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 						conn->conn, NULL, NULL, &room);
-			goto err;
+			BUG_ON(1);
 		}
 	}
 
@@ -3803,7 +3800,7 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 		ssize_t room = end - pos;
 		TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 		            conn->conn, NULL, NULL, &room);
-		goto err;
+		BUG_ON(1);
 	}
 
 	/* Crypto frame */
@@ -3815,7 +3812,7 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 				ssize_t room = end - pos;
 				TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 							conn->conn, NULL, NULL, &room);
-				goto err;
+				BUG_ON(1);
 			}
 		}
 	}
@@ -3827,7 +3824,7 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 			ssize_t room = end - pos;
 			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 			            conn->conn, NULL, NULL, &room);
-			goto err;
+			BUG_ON(1);
 		}
 	}
 
@@ -3839,7 +3836,7 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 			ssize_t room = end - pos;
 			TRACE_PROTO("Not enough room", QUIC_EV_CONN_HPKT,
 			            conn->conn, NULL, NULL, &room);
-			goto err;
+			BUG_ON(1);
 		}
 	}
 
@@ -3848,12 +3845,6 @@ static int qc_do_build_hdshk_pkt(unsigned char *pos, const unsigned char *end,
 	 */
 	qel->pktns->tx.pto_probe = 0;
 	pkt->len = pos - beg;
-
- out:
-	return 1;
-
- err:
-	return 0;
 }
 
 static inline void quic_tx_packet_init(struct quic_tx_packet *pkt, int type)
@@ -3882,17 +3873,15 @@ static inline void free_quic_tx_packet(struct quic_tx_packet *pkt)
 	quic_tx_packet_refdec(pkt);
 }
 
-/* Build a handshake packet into <buf> packet buffer with <pkt_type> as packet
- * type for <qc> QUIC connection from CRYPTO data stream at <*offset> offset to
- * be encrypted at <qel> encryption level.
- * Return -2 if the packet could not be encrypted for any reason, -1 if there was
- * not enough room in <buf> to build the packet, or the size of the built packet
- * if succeeded (may be zero if there is too much crypto data in flight to build the packet).
+/* Build a packet into <buf> packet buffer with <pkt_type> as packet
+ * type for <qc> QUIC connection from <qel> encryption level.
+ * Return -2 if the packet could not be allocated or encrypted for any reason,
+ * -1 if there was not enough room to build a packet.
  */
-static struct quic_tx_packet *qc_build_hdshk_pkt(unsigned char **pos,
-                                                 const unsigned char *buf_end,
-                                                 struct quic_conn *qc, int pkt_type,
-                                                 struct quic_enc_level *qel, int *err)
+static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
+                                           const unsigned char *buf_end,
+                                           struct quic_conn *qc, int pkt_type,
+                                           struct quic_enc_level *qel, int *err)
 {
 	/* The pointer to the packet number field. */
 	unsigned char *buf_pn;
@@ -3917,8 +3906,7 @@ static struct quic_tx_packet *qc_build_hdshk_pkt(unsigned char **pos,
 	buf_pn = NULL;
 	/* Consume a packet number. */
 	pn = HA_ATOMIC_ADD_FETCH(&qel->pktns->tx.next_pn, 1);
-	if (!qc_do_build_hdshk_pkt(*pos, buf_end, pkt, pkt_type, pn, &pn_len, &buf_pn, qel, qc))
-		BUG_ON(0);
+	qc_do_build_pkt(*pos, buf_end, pkt, pkt_type, pn, &pn_len, &buf_pn, qel, qc);
 
 	end = beg + pkt->len;
 	payload = buf_pn + pn_len;
