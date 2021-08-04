@@ -491,7 +491,7 @@ continues to process existing connections. If the binding still fails (because
 for example a port is shared with another daemon), then the new process sends a
 SIGTTIN signal to the old processes to instruct them to resume operations just
 as if nothing happened. The old processes will then restart listening to the
-ports and continue to accept connections. Not that this mechanism is system
+ports and continue to accept connections. Note that this mechanism is system
 dependent and some operating systems may not support it in multi-process mode.
 
 If the new process manages to bind correctly to all ports, then it sends either
