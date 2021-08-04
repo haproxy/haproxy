@@ -1477,10 +1477,21 @@ add server <backend>/<server> [args]*
 
   Use the "check" keyword to enable health-check support. Note that the
   health-check is disabled by default and must be enabled independently from
-  the server using the "enable health" command.
+  the server using the "enable health" command. For agent checks, use the
+  "agent-check" keyword and the "enable agent" command. Note that in this case
+  the server may be activated via the agent depending on the status reported,
+  without an explicit "enable server" command. This also means that extra care
+  is required when removing a dynamic server with agent check. The agent should
+  be first deactivated via "disable agent" to be able to put the server in the
+  required maintenance mode before removal.
 
   Here is the list of the currently supported keywords :
 
+  - agent-addr
+  - agent-check
+  - agent-inter
+  - agent-port
+  - agent-send
   - allow-0rtt
   - alpn
   - addr

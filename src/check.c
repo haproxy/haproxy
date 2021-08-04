@@ -2382,7 +2382,7 @@ static int srv_parse_check_port(char **args, int *cur_arg, struct proxy *curpx, 
 static struct srv_kw_list srv_kws = { "CHK", { }, {
 	{ "addr",                srv_parse_addr,                1,  1,  1 }, /* IP address to send health to or to probe from agent-check */
 	{ "agent-addr",          srv_parse_agent_addr,          1,  1,  1 }, /* Enable an auxiliary agent check */
-	{ "agent-check",         srv_parse_agent_check,         0,  1,  0 }, /* Enable agent checks */
+	{ "agent-check",         srv_parse_agent_check,         0,  1,  1 }, /* Enable agent checks */
 	{ "agent-inter",         srv_parse_agent_inter,         1,  1,  1 }, /* Set the interval between two agent checks */
 	{ "agent-port",          srv_parse_agent_port,          1,  1,  1 }, /* Set the TCP port used for agent checks. */
 	{ "agent-send",          srv_parse_agent_send,          1,  1,  1 }, /* Set string to send to agent. */

@@ -4564,15 +4564,22 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 			goto out;
 	}
 
-	/* Init check if configured. The check is manually disabled because a
-	 * dynamic server is started in a disable state. It must be manually
-	 * activated via a "enable health" command.
+	/* Init check/agent if configured. The check is manually disabled
+	 * because a dynamic server is started in a disable state. It must be
+	 * manually activated via a "enable health/agent" command.
 	 */
 	if (srv->do_check) {
 		if (init_srv_check(srv))
 			goto out;
 
 		srv->check.state &= ~CHK_ST_ENABLED;
+		srv_use_dynsrv(srv);
+	}
+	else if (srv->do_agent) {
+		if (init_srv_agent_check(srv))
+			goto out;
+
+		srv->agent.state &= ~CHK_ST_ENABLED;
 		srv_use_dynsrv(srv);
 	}
 
@@ -4636,6 +4643,10 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		if (!start_check_task(&srv->check, 0, 1, 1))
 			ha_alert("System might be unstable, consider to execute a reload");
 	}
+	else if (srv->agent.state & CHK_ST_CONFIGURED) {
+		if (!start_check_task(&srv->agent, 0, 1, 1))
+			ha_alert("System might be unstable, consider to execute a reload");
+	}
 
 	ha_notice("New server registered.\n");
 	cli_msg(appctx, LOG_INFO, usermsgs_str());
@@ -4649,6 +4660,8 @@ out:
 
 		if (srv->check.state & CHK_ST_CONFIGURED)
 			free_check(&srv->check);
+		else if (srv->agent.state & CHK_ST_CONFIGURED)
+			free_check(&srv->agent);
 
 		/* remove the server from the proxy linked list */
 		if (be->srv == srv) {
@@ -4756,6 +4769,8 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	/* stop the check task if running */
 	if (srv->check.state & CHK_ST_CONFIGURED)
 		check_purge(&srv->check);
+	else if (srv->agent.state & CHK_ST_CONFIGURED)
+		check_purge(&srv->agent);
 
 	/* detach the server from the proxy linked list
 	 * The proxy servers list is currently not protected by a lock, so this
