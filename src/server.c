@@ -4589,8 +4589,23 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	return 0;
 
 out:
-	if (srv && srv->track)
-		release_server_track(srv);
+	if (srv) {
+		if (srv->track)
+			release_server_track(srv);
+
+		/* remove the server from the proxy linked list */
+		if (be->srv == srv) {
+			be->srv = srv->next;
+		}
+		else {
+			struct server *prev;
+			for (prev = be->srv; prev && prev->next != srv; prev = prev->next)
+				;
+			if (prev)
+				prev->next = srv->next;
+		}
+
+	}
 
 	thread_release();
 
