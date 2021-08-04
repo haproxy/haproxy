@@ -63,9 +63,10 @@ void thread_harmless_till_end()
 }
 
 /* Isolates the current thread : request the ability to work while all other
- * threads are harmless. Only returns once all of them are harmless, with the
- * current thread's bit in threads_harmless_mask cleared. Needs to be completed
- * using thread_release().
+ * threads are harmless, as defined by thread_harmless_now() (i.e. they're not
+ * going to touch any visible memory area). Only returns once all of them are
+ * harmless, with the current thread's bit in threads_harmless_mask cleared.
+ * Needs to be completed using thread_release().
  */
 void thread_isolate()
 {
@@ -92,18 +93,13 @@ void thread_isolate()
 }
 
 /* Cancels the effect of thread_isolate() by releasing the current thread's bit
- * in threads_want_rdv_mask and by marking this thread as harmless until the
- * last worker finishes.
+ * in threads_want_rdv_mask. This immediately allows other threads to expect be
+ * executed, though they will first have to wait for this thread to become
+ * harmless again (possibly by reaching the poller again).
  */
 void thread_release()
 {
 	_HA_ATOMIC_AND(&threads_want_rdv_mask, ~tid_bit);
-	while (threads_want_rdv_mask & all_threads_mask) {
-		_HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
-		while (threads_want_rdv_mask & all_threads_mask)
-			ha_thread_relax();
-		HA_ATOMIC_AND(&threads_harmless_mask, ~tid_bit);
-	}
 }
 
 /* Cancels the effect of thread_isolate() by releasing the current thread's bit
