@@ -537,11 +537,18 @@ static int quic_alloc_rings_listener(struct listener *l)
 
 	MT_LIST_INIT(&l->rx.tx_qrings);
 	for (i = 0; i < global.nbthread; i++) {
+		unsigned char *buf;
 		struct qring *qr = &l->rx.qrings[i];
 
-		qr->cbuf = cbuf_new();
-		if (!qr->cbuf)
+		buf = pool_alloc(pool_head_quic_tx_ring);
+		if (!buf)
 			goto err;
+
+		qr->cbuf = cbuf_new(buf, QUIC_TX_RING_BUFSZ);
+		if (!qr->cbuf) {
+			pool_free(pool_head_quic_tx_ring, buf);
+			goto err;
+		}
 
 		MT_LIST_APPEND(&l->rx.tx_qrings, &qr->mt_list);
 	}
@@ -549,8 +556,10 @@ static int quic_alloc_rings_listener(struct listener *l)
 	return 1;
 
  err:
-	while ((qr = MT_LIST_POP(&l->rx.tx_qrings, typeof(qr), mt_list)))
+	while ((qr = MT_LIST_POP(&l->rx.tx_qrings, typeof(qr), mt_list))) {
+		pool_free(pool_head_quic_tx_ring, qr->cbuf->buf);
 		cbuf_free(qr->cbuf);
+	}
 	free(l->rx.qrings);
 	return 0;
 }
