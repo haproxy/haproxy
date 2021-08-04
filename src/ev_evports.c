@@ -151,6 +151,7 @@ static void _do_poll(struct poller *p, int exp, int wake)
 		_update_fd(fd);
 	}
 
+	thread_idle_now();
 	thread_harmless_now();
 
 	/*
@@ -204,6 +205,8 @@ static void _do_poll(struct poller *p, int exp, int wake)
 	tv_leaving_poll(wait_time, nevlist);
 
 	thread_harmless_end();
+	thread_idle_end();
+
 	if (sleeping_thread_mask & tid_bit)
 		_HA_ATOMIC_AND(&sleeping_thread_mask, ~tid_bit);
 

@@ -59,6 +59,7 @@ extern int thread_cpus_enabled_at_boot;
  */
 enum { all_threads_mask = 1UL };
 enum { threads_harmless_mask = 0 };
+enum { threads_idle_mask = 0 };
 enum { threads_sync_mask = 0 };
 enum { threads_want_rdv_mask = 0 };
 enum { tid_bit = 1UL };
@@ -119,6 +120,14 @@ static inline void ha_tkillall(int sig)
 	raise(sig);
 }
 
+static inline void thread_idle_now()
+{
+}
+
+static inline void thread_idle_end()
+{
+}
+
 static inline void thread_harmless_now()
 {
 }
@@ -128,6 +137,10 @@ static inline void thread_harmless_end()
 }
 
 static inline void thread_isolate()
+{
+}
+
+static inline void thread_isolate_full()
 {
 }
 
@@ -155,6 +168,7 @@ static inline unsigned long thread_isolated()
 
 void thread_harmless_till_end();
 void thread_isolate();
+void thread_isolate_full();
 void thread_release();
 void thread_sync_release();
 void ha_tkill(unsigned int thr, int sig);
@@ -164,6 +178,7 @@ void ha_rwlock_init(HA_RWLOCK_T *l);
 
 extern volatile unsigned long all_threads_mask;
 extern volatile unsigned long threads_harmless_mask;
+extern volatile unsigned long threads_idle_mask;
 extern volatile unsigned long threads_sync_mask;
 extern volatile unsigned long threads_want_rdv_mask;
 extern THREAD_LOCAL unsigned long tid_bit; /* The bit corresponding to the thread id */
@@ -244,6 +259,36 @@ static inline void ha_thread_relax(void)
 	pl_cpu_relax();
 #endif
 }
+
+/* Marks the thread as idle, which means that not only it's not doing anything
+ * dangerous, but in addition it has not started anything sensitive either.
+ * This essentially means that the thread currently is in the poller, thus
+ * outside of any execution block. Needs to be terminated using
+ * thread_idle_end(). This is needed to release a concurrent call to
+ * thread_isolate_full().
+ */
+static inline void thread_idle_now()
+{
+	HA_ATOMIC_OR(&threads_idle_mask, tid_bit);
+}
+
+/* Ends the harmless period started by thread_idle_now(), i.e. the thread is
+ * about to restart engaging in sensitive operations. This must not be done on
+ * a thread marked harmless, as it could cause a deadlock between another
+ * thread waiting for idle again and thread_harmless_end() in this thread.
+ *
+ * The right sequence is thus:
+ *    thread_idle_now();
+ *      thread_harmless_now();
+ *        poll();
+ *      thread_harmless_end();
+ *    thread_idle_end();
+ */
+static inline void thread_idle_end()
+{
+	HA_ATOMIC_AND(&threads_idle_mask, ~tid_bit);
+}
+
 
 /* Marks the thread as harmless. Note: this must be true, i.e. the thread must
  * not be touching any unprotected shared resource during this period. Usually

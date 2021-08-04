@@ -37,6 +37,7 @@ THREAD_LOCAL struct thread_info *ti = &ha_thread_info[0];
 
 volatile unsigned long threads_want_rdv_mask __read_mostly = 0;
 volatile unsigned long threads_harmless_mask = 0;
+volatile unsigned long threads_idle_mask = 0;
 volatile unsigned long threads_sync_mask = 0;
 volatile unsigned long all_threads_mask __read_mostly  = 1; // nbthread 1 assumed by default
 THREAD_LOCAL unsigned int  tid           = 0;
@@ -90,6 +91,50 @@ void thread_isolate()
 	 * The loss of this bit makes the other one continue to spin while the
 	 * thread is working alone.
 	 */
+}
+
+/* Isolates the current thread : request the ability to work while all other
+ * threads are idle, as defined by thread_idle_now(). It only returns once
+ * all of them are both harmless and idle, with the current thread's bit in
+ * threads_harmless_mask and idle_mask cleared. Needs to be completed using
+ * thread_release(). By doing so the thread also engages in being safe against
+ * any actions that other threads might be about to start under the same
+ * conditions. This specifically targets destruction of any internal structure,
+ * which implies that the current thread may not hold references to any object.
+ *
+ * Note that a concurrent thread_isolate() will usually win against
+ * thread_isolate_full() as it doesn't consider the idle_mask, allowing it to
+ * get back to the poller or any other fully idle location, that will
+ * ultimately release this one.
+ */
+void thread_isolate_full()
+{
+	unsigned long old;
+
+	_HA_ATOMIC_OR(&threads_idle_mask, tid_bit);
+	_HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
+	__ha_barrier_atomic_store();
+	_HA_ATOMIC_OR(&threads_want_rdv_mask, tid_bit);
+
+	/* wait for all threads to become harmless */
+	old = threads_harmless_mask;
+	while (1) {
+		unsigned long idle = _HA_ATOMIC_LOAD(&threads_idle_mask);
+
+		if (unlikely((old & all_threads_mask) != all_threads_mask))
+			old = _HA_ATOMIC_LOAD(&threads_harmless_mask);
+		else if ((idle & all_threads_mask) == all_threads_mask &&
+			 _HA_ATOMIC_CAS(&threads_harmless_mask, &old, old & ~tid_bit))
+			break;
+
+		ha_thread_relax();
+	}
+
+	/* we're not idle anymore at this point. Other threads waiting on this
+	 * condition will need to wait until out next pass to the poller, or
+	 * our next call to thread_isolate_full().
+	 */
+	_HA_ATOMIC_AND(&threads_idle_mask, ~tid_bit);
 }
 
 /* Cancels the effect of thread_isolate() by releasing the current thread's bit
