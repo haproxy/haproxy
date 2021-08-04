@@ -1277,6 +1277,9 @@ resume_execution:
 	HLUA_CLR_CTRLYIELD(lua);
 	HLUA_CLR_WAKERESWR(lua);
 	HLUA_CLR_WAKEREQWR(lua);
+	HLUA_CLR_NOYIELD(lua);
+	if (!yield_allowed)
+		HLUA_SET_NOYIELD(lua);
 
 	/* Update the start time and reset wake_time. */
 	lua->start_time = now_ms;

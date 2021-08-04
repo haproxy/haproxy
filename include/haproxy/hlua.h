@@ -39,6 +39,10 @@
 #define HLUA_SET_WAKEREQWR(__hlua)   do {(__hlua)->flags |= HLUA_WAKEREQWR;} while(0)
 #define HLUA_CLR_WAKEREQWR(__hlua)   do {(__hlua)->flags &= ~HLUA_WAKEREQWR;} while(0)
 #define HLUA_IS_WAKEREQWR(__hlua)    ((__hlua)->flags & HLUA_WAKEREQWR)
+#define HLUA_CLR_NOYIELD(__hlua)     do {(__hlua)->flags &= ~HLUA_NOYIELD;} while(0)
+#define HLUA_SET_NOYIELD(__hlua)     do {(__hlua)->flags |= HLUA_NOYIELD;} while(0)
+#define HLUA_CANT_YIELD(__hlua)      ((__hlua)->flags & HLUA_NOYIELD)
+
 
 #define HLUA_INIT(__hlua) do { (__hlua)->T = 0; } while(0)
 
