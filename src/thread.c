@@ -56,10 +56,10 @@ struct lock_stat lock_stats[LOCK_LABELS];
  */
 void thread_harmless_till_end()
 {
-		_HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
-		while (threads_want_rdv_mask & all_threads_mask & ~tid_bit) {
-			ha_thread_relax();
-		}
+	_HA_ATOMIC_OR(&threads_harmless_mask, tid_bit);
+	while (threads_want_rdv_mask & all_threads_mask & ~tid_bit) {
+		ha_thread_relax();
+	}
 }
 
 /* Isolates the current thread : request the ability to work while all other
