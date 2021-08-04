@@ -29,18 +29,17 @@
 
 #include <haproxy/list-t.h>
 
-/* QUIC circular buffer internal buffer size (must be a power of 2) */
-#define CBUF_BUFSZ  (1UL << 11)
-
 extern struct pool_head *pool_head_cbuf;
 
 struct cbuf {
 	/* buffer */
-	unsigned char buf[CBUF_BUFSZ];
+	unsigned char *buf;
+	/* buffer size */
+	size_t sz;
 	/* Writer index */
-	int wr;
+	size_t wr;
 	/* Reader index */
-	int rd;
+	size_t rd;
 };
 
 #endif /* _HAPROXY_CBUF_T_H */

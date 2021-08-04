@@ -24,13 +24,17 @@
 
 DECLARE_POOL(pool_head_cbuf, "cbuf_pool", sizeof(struct cbuf));
 
-/* Allocate and return a new circular buffer if succeeded, NULL if not. */
-struct cbuf *cbuf_new(void)
+/* Allocate and return a new circular buffer with <buf> as <sz> byte internal buffer
+ * if succeeded, NULL if not.
+ */
+struct cbuf *cbuf_new(unsigned char *buf, size_t sz)
 {
 	struct cbuf *cbuf;
 
 	cbuf = pool_alloc(pool_head_cbuf);
 	if (cbuf) {
+		cbuf->sz = sz;
+		cbuf->buf = buf;
 		cbuf->wr = 0;
 		cbuf->rd = 0;
 	}

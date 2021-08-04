@@ -32,7 +32,7 @@
 #include <haproxy/list.h>
 #include <haproxy/cbuf-t.h>
 
-struct cbuf *cbuf_new(void);
+struct cbuf *cbuf_new(unsigned char *buf, size_t sz);
 void cbuf_free(struct cbuf *cbuf);
 
 /* Amount of data between <rd> and <wr> */
@@ -67,7 +67,7 @@ static inline void cb_wr_reset(struct cbuf *cbuf)
  */
 static inline void cb_add(struct cbuf *cbuf, size_t count)
 {
-	cbuf->wr = (cbuf->wr + count) & (CBUF_BUFSZ - 1);
+	cbuf->wr = (cbuf->wr + count) & (cbuf->sz - 1);
 }
 
 /* Return the reader position in <cbuf>.
@@ -83,55 +83,53 @@ static inline unsigned char *cb_rd(struct cbuf *cbuf)
  */
 static inline void cb_del(struct cbuf *cbuf, size_t count)
 {
-	cbuf->rd = (cbuf->rd + count) & (CBUF_BUFSZ - 1);
+	cbuf->rd = (cbuf->rd + count) & (cbuf->sz - 1);
 }
 
 /* Return the amount of data left in <cbuf>.
  * To be used only by the writer!
  */
-static inline int cb_data(struct cbuf *cbuf)
+static inline size_t cb_data(struct cbuf *cbuf)
 {
-	int rd;
+	size_t rd;
 
 	rd = HA_ATOMIC_LOAD(&cbuf->rd);
-	return CBUF_DATA(cbuf->wr, rd, CBUF_BUFSZ);
+	return CBUF_DATA(cbuf->wr, rd, cbuf->sz);
 }
 
 /* Return the amount of room left in <cbuf> minus 1 to distinguish
  * the case where the buffer is full from the case where is is empty
  * To be used only by the write!
  */
-static inline int cb_room(struct cbuf *cbuf)
+static inline size_t cb_room(struct cbuf *cbuf)
 {
-	int rd;
+	size_t rd;
 
 	rd = HA_ATOMIC_LOAD(&cbuf->rd);
-	return CBUF_DATA(rd, cbuf->wr + 1, CBUF_BUFSZ);
+	return CBUF_DATA(rd, cbuf->wr + 1, cbuf->sz);
 }
 
 /* Return the amount of contiguous data left in <cbuf>.
  * To be used only by the reader!
  */
-static inline int cb_contig_data(struct cbuf *cbuf)
+static inline size_t cb_contig_data(struct cbuf *cbuf)
 {
-	int end, n;
+	size_t end, n;
 
-	end = CBUF_BUFSZ - cbuf->rd;
-	n = (HA_ATOMIC_LOAD(&cbuf->wr) + end) & (CBUF_BUFSZ - 1);
-
+	end = cbuf->sz - cbuf->rd;
+	n = (HA_ATOMIC_LOAD(&cbuf->wr) + end) & (cbuf->sz - 1);
 	return n < end ? n : end;
 }
 
 /* Return the amount of contiguous space left in <cbuf>.
  * To be used only by the writer!
  */
-static inline int cb_contig_space(struct cbuf *cbuf)
+static inline size_t cb_contig_space(struct cbuf *cbuf)
 {
-	int end, n;
+	size_t end, n;
 
-	end = CBUF_BUFSZ - 1 - cbuf->wr;
-	n = (HA_ATOMIC_LOAD(&cbuf->rd) + end) & (CBUF_BUFSZ - 1);
-
+	end = cbuf->sz - 1 - cbuf->wr;
+	n = (HA_ATOMIC_LOAD(&cbuf->rd) + end) & (cbuf->sz - 1);
 	return n <= end ? n : end + 1;
 }
 
