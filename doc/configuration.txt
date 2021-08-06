@@ -2006,6 +2006,10 @@ ulimit-n <number>
   default, it is automatically computed, so it is recommended not to use this
   option.
 
+  Note that the dynamic servers are not taken into account in this automatic
+  resource calculation. If using a large number of them, it may be needed to
+  manually specify this value.
+
 unix-bind [ prefix <prefix> ] [ mode <mode> ] [ user <user> ] [ uid <uid> ]
           [ group <group> ] [ gid <gid> ]
 

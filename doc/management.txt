@@ -1485,6 +1485,10 @@ add server <backend>/<server> [args]*
   be first deactivated via "disable agent" to be able to put the server in the
   required maintenance mode before removal.
 
+  It may be possible to reach the fd limit when using a large number of dynamic
+  servers. Please refer to the "u-limit" global keyword documentation in this
+  case.
+
   Here is the list of the currently supported keywords :
 
   - agent-addr
