@@ -6936,7 +6936,7 @@ static int hlua_sample_fetch_wrapper(const struct arg *arg_p, struct sample *smp
 	struct hlua_function *fcn = private;
 	struct stream *stream = smp->strm;
 	const char *error;
-	unsigned int hflags = HLUA_TXN_NOTERM;
+	unsigned int hflags = HLUA_TXN_NOTERM | HLUA_TXN_SMP_CTX;
 
 	if (!stream)
 		return 0;
@@ -7254,7 +7254,7 @@ static enum act_return hlua_action(struct act_rule *rule, struct proxy *px,
                                    struct session *sess, struct stream *s, int flags)
 {
 	char **arg;
-	unsigned int hflags = 0;
+	unsigned int hflags = HLUA_TXN_ACT_CTX;
 	int dir, act_ret = ACT_RET_CONT;
 	const char *error;
 
