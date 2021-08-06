@@ -2931,22 +2931,14 @@ static int hlua_channel_new(lua_State *L, struct channel *channel)
 
 /* Copies <len> bytes of data present in the channel's buffer, starting at the
 * offset <offset>, and put it in a LUA string variable. It is the caller
-* responsibility to ensure <len> and <offset> are valid. If some data are copied
-* (len != 0), it returns the length of the built string. If no data are copied
-* (len == 0), it returns -1 and push a nil value in the stack if the channel's
-* input is closed. Otherwise it returns 0.
+* responsibility to ensure <len> and <offset> are valid. It always return the
+* length of the built string. <len> may be 0, in this case, an empty string is
+* created and 0 is returned.
 */
 static inline int _hlua_channel_dup(struct channel *chn, lua_State *L, size_t offset, size_t len)
 {
 	size_t block1, block2;
 	luaL_Buffer b;
-
-	if (unlikely(len == 0)) {
-		if (channel_input_closed(chn) || HLUA_CANT_YIELD(hlua_gethlua(L))) {
-			lua_pushnil(L);
-                        return -1;
-		}
-	}
 
 	block1 = len;
 	if (block1 > b_contig_data(&chn->buf, b_peek_ofs(&chn->buf, offset)))
@@ -2961,30 +2953,6 @@ static inline int _hlua_channel_dup(struct channel *chn, lua_State *L, size_t of
 	return len;
 }
 
-/* Copies the first line (including the LF) in the channel's buffer, starting at
- * the offset <offset>, and put it in a LUA string variable. It copies at most
- * <len> bytes. It is the caller responsibility to ensure <len> and <offset> are
- * valid. If LF is found, the line is copied. If no LF is found and the no more
- * data can be received (channel's input is closed or full), <len> bytes are
- * copied. In both cases, the length of the built string is returned. Otherwise
- * nothing is copied, waiting for more data and 0 is returned.
- */
-static inline int _hlua_channel_dupline(struct channel *chn, lua_State *L, size_t offset, size_t len)
-{
-	size_t l;
-
-	for (l = 0; l < len; l++) {
-		if (*(b_peek(&chn->buf, offset+l)) == '\n')
-			return _hlua_channel_dup(chn, L, offset, l+1);
-	}
-
-	/* No LF found, and the channel may still receive new data, so wait */
-	if (!HLUA_CANT_YIELD(chn_strm(chn)->hlua) && !channel_input_closed(chn) && channel_may_recv(chn))
-		return 0;
-
-	return _hlua_channel_dup(chn, L, offset, l);
-}
-
 /* Inserts the string <str> to the channel's buffer at the offset <offset>. This
  * function returns -1 if data cannot be copied. Otherwise, it returns the
  * number of bytes copied.
@@ -2997,7 +2965,7 @@ static int _hlua_channel_insert(struct channel *chn, lua_State *L, struct ist st
 	if (unlikely(istlen(str) == 0))
 		goto end;
 
-	if (istlen(str) > c_room(chn) || channel_input_closed(chn)) {
+	if (istlen(str) > c_room(chn)) {
 		ret = -1;
 		goto end;
 	}
@@ -3019,26 +2987,131 @@ static void _hlua_channel_delete(struct channel *chn, size_t offset, size_t len)
 	b_sub(&chn->buf, len);
 }
 
-/* "_hlua_channel_dup" wrapper. If no data are available, it returns
- * a yield. This function keep the data in the buffer.
+/* Copies input data in the channel's buffer. It is possible to set a specific
+ * offset (0 by default) and a length (all remaining input data starting for the
+ * offset by default). If there is not enough input data and more data can be
+ * received, this function yields.
  */
-__LJMP static int hlua_channel_dup_yield(lua_State *L, int status, lua_KContext ctx)
+__LJMP static int hlua_channel_get_data_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct channel *chn;
 	int offset = 0, len = 0;
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
-	offset = co_data(chn);
-	len = ci_data(chn);
-	if (_hlua_channel_dup(chn, L, offset, len) == 0)
-		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_dup_yield, TICK_ETERNITY, 0));
+
+	if (!ci_data(chn) && channel_input_closed(chn)) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	if (lua_gettop(L) > 1) {
+		offset = MAY_LJMP(luaL_checkinteger(L, 2));
+		if (offset < 0)
+			offset = MAX(0, ci_data(chn) + offset);
+		if (offset > ci_data(chn)) {
+			lua_pushfstring(L, "offset out of range.");
+			WILL_LJMP(lua_error(L));
+		}
+	}
+	len = ci_data(chn) - offset;
+	if (lua_gettop(L) == 3) {
+		len = MAY_LJMP(luaL_checkinteger(L, 3));
+		if (!len)
+			goto dup;
+		if (len == -1)
+			len = global.tune.bufsize;
+		if (len < 0) {
+			lua_pushfstring(L, "length out of range.");
+			WILL_LJMP(lua_error(L));
+		}
+	}
+
+	if (offset + len > ci_data(chn)) {
+		if (!HLUA_CANT_YIELD(hlua_gethlua(L)) && !channel_input_closed(chn) && channel_may_recv(chn)) {
+			/* Yield waiting for more data, as requested */
+			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get_data_yield, TICK_ETERNITY, 0));
+		}
+		len = ci_data(chn) - offset;
+	}
+
+  dup:
+	_hlua_channel_dup(chn, L, co_data(chn) + offset, len);
 	return 1;
 }
 
-/* Check arguments for the function "hlua_channel_dup_yield". */
+/* Copies the first line (including the trailing LF) of input data in the
+ * channel's buffer. It is possible to set a specific offset (0 by default) and
+ * a length (all remaining input data starting for the offset by default). If
+ * there is not enough input data and more data can be received, the function
+ * yields. If a length is explicitly specified, no more data are
+ * copied. Otherwise, if no LF is found and more data can be received, this
+ * function yields.
+ */
+__LJMP static int hlua_channel_get_line_yield(lua_State *L, int status, lua_KContext ctx)
+{
+	struct channel *chn;
+	int l, offset = 0, len = 0;
+
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+
+	if (!ci_data(chn) && channel_input_closed(chn)) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	if (lua_gettop(L) > 1) {
+		offset = MAY_LJMP(luaL_checkinteger(L, 2));
+		if (offset < 0)
+			offset = MAX(0, ci_data(chn) + offset);
+		if (offset > ci_data(chn)) {
+			lua_pushfstring(L, "offset out of range.");
+			WILL_LJMP(lua_error(L));
+		}
+	}
+	len = ci_data(chn) - offset;
+	if (lua_gettop(L) == 3) {
+		len = MAY_LJMP(luaL_checkinteger(L, 3));
+		if (!len)
+			goto dup;
+		if (len == -1)
+			len = global.tune.bufsize;
+		if (len < 0) {
+			lua_pushfstring(L, "length out of range.");
+			WILL_LJMP(lua_error(L));
+		}
+	}
+
+	for (l = 0; l < len; l++) {
+		if (l + offset >= ci_data(chn))
+			break;
+		if (*(b_peek(&chn->buf, co_data(chn) + offset + l)) == '\n') {
+			len = l+1;
+			goto dup;
+		}
+	}
+
+	if (offset + len > ci_data(chn)) {
+		if (!HLUA_CANT_YIELD(hlua_gethlua(L)) && !channel_input_closed(chn) && channel_may_recv(chn)) {
+			/* Yield waiting for more data */
+			MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get_line_yield, TICK_ETERNITY, 0));
+		}
+		len = ci_data(chn) - offset;
+	}
+
+  dup:
+	_hlua_channel_dup(chn, L, co_data(chn) + offset, len);
+	return 1;
+}
+
+/* [ DEPRECATED ]
+ *
+ * Duplicate all input data foud in the channel's buffer. The data are not
+ * removed from the buffer. This function relies on _hlua_channel_dup().
+ */
 __LJMP static int hlua_channel_dup(lua_State *L)
 {
 	struct channel *chn;
+	int offset = 0, len = 0;
 
 	MAY_LJMP(check_args(L, 1, "dup"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
@@ -3046,38 +3119,29 @@ __LJMP static int hlua_channel_dup(lua_State *L)
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
-	return MAY_LJMP(hlua_channel_dup_yield(L, 0, 0));
+	offset = co_data(chn);
+	len = ci_data(chn);
+
+	if (!ci_data(chn) && channel_input_closed(chn)) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	_hlua_channel_dup(chn, L, offset, len);
+	return 1;
 }
 
-/* "_hlua_channel_dup" + "_hlua_channel_erase" wrapper. If no data are
- * available, it returns a yield. This function consumes the data in the
- * buffer. It returns a string containing the data or a nil pointer if no data
- * are available and the channel is closed.
+/* [ DEPRECATED ]
+ *
+ * Get all input data foud in the channel's buffer. The data are removed from
+ * the buffer after the copy. This function relies on _hlua_channel_dup() and
+ * _hlua_channel_delete().
  */
-__LJMP static int hlua_channel_get_yield(lua_State *L, int status, lua_KContext ctx)
+__LJMP static int hlua_channel_get(lua_State *L)
 {
 	struct channel *chn;
 	int offset = 0, len = 0;
 	int ret;
-
-	chn = MAY_LJMP(hlua_checkchannel(L, 1));
-	offset = co_data(chn);
-	len = ci_data(chn);
-
-	ret = _hlua_channel_dup(chn, L, offset, len);
-	if (unlikely(ret == 0))
-		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get_yield, TICK_ETERNITY, 0));
-	if (unlikely(ret == -1))
-		return 1;
-
-	_hlua_channel_delete(chn, offset, ret);
-	return 1;
-}
-
-/* Check arguments for the function "hlua_channel_get_yield". */
-__LJMP static int hlua_channel_get(lua_State *L)
-{
-	struct channel *chn;
 
 	MAY_LJMP(check_args(L, 1, "get"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
@@ -3085,7 +3149,17 @@ __LJMP static int hlua_channel_get(lua_State *L)
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
-	return MAY_LJMP(hlua_channel_get_yield(L, 0, 0));
+	offset = co_data(chn);
+	len = ci_data(chn);
+
+	if (!ci_data(chn) && channel_input_closed(chn)) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	ret = _hlua_channel_dup(chn, L, offset, len);
+	_hlua_channel_delete(chn, offset, ret);
+	return 1;
 }
 
 /* This functions consumes and returns one line. If the channel is closed,
@@ -3096,6 +3170,7 @@ __LJMP static int hlua_channel_get(lua_State *L)
 __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct channel *chn;
+	size_t l;
 	int offset = 0, len = 0;
 	int ret;
 
@@ -3103,17 +3178,33 @@ __LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KCont
 	offset = co_data(chn);
 	len = ci_data(chn);
 
-	ret = _hlua_channel_dupline(chn, L, offset, len);
-	if (ret == 0)
-		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_getline_yield, TICK_ETERNITY, 0));
-	if (unlikely(ret == -1))
+	if (!ci_data(chn) && channel_input_closed(chn)) {
+		lua_pushnil(L);
 		return 1;
+	}
 
+	for (l = 0; l < len; l++) {
+		if (*(b_peek(&chn->buf, offset+l)) == '\n') {
+			len = l+1;
+			goto dup;
+		}
+	}
+
+	if (!HLUA_CANT_YIELD(hlua_gethlua(L)) && !channel_input_closed(chn) && channel_may_recv(chn)) {
+		/* Yield waiting for more data */
+		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_getline_yield, TICK_ETERNITY, 0));
+	}
+
+  dup:
+	ret = _hlua_channel_dup(chn, L, co_data(chn) + offset, len);
 	_hlua_channel_delete(chn, offset, ret);
 	return 1;
 }
 
-/* Check arguments for the function "hlua_channel_getline_yield". */
+/* [ DEPRECATED ]
+ *
+ * Check arguments for the function "hlua_channel_getline_yield".
+ */
 __LJMP static int hlua_channel_getline(lua_State *L)
 {
 	struct channel *chn;
@@ -3127,10 +3218,48 @@ __LJMP static int hlua_channel_getline(lua_State *L)
 	return MAY_LJMP(hlua_channel_getline_yield(L, 0, 0));
 }
 
-/* This function takes a string as argument, and append it at the input side of
- * channel. If data cannot be copied, because there is not enough space to do so
- * or because the channel is closed, it returns -1. Otherwise, it returns the
- * amount of data written (the string length). This function does not yield.
+/* Retrieves a given amount of input data at the given offset. By default all
+ * available input data are returned. The offset may be negactive to start from
+ * the end of input data. The length may be -1 to set it to the maximum buffer
+ * size.
+ */
+__LJMP static int hlua_channel_get_data(lua_State *L)
+{
+	struct channel *chn;
+
+	if (lua_gettop(L) < 1 || lua_gettop(L) > 3)
+		WILL_LJMP(luaL_error(L, "'data' expects at most 2 arguments"));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	if (IS_HTX_STRM(chn_strm(chn))) {
+		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
+		WILL_LJMP(lua_error(L));
+	}
+	return MAY_LJMP(hlua_channel_get_data_yield(L, 0, 0));
+}
+
+/* Retrieves a given amount of input data at the given offset. By default all
+ * available input data are returned. The offset may be negactive to start from
+ * the end of input data. The length may be -1 to set it to the maximum buffer
+ * size.
+ */
+__LJMP static int hlua_channel_get_line(lua_State *L)
+{
+	struct channel *chn;
+
+	if (lua_gettop(L) < 1 || lua_gettop(L) > 3)
+		WILL_LJMP(luaL_error(L, "'line' expects at most 2 arguments"));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	if (IS_HTX_STRM(chn_strm(chn))) {
+		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
+		WILL_LJMP(lua_error(L));
+	}
+	return MAY_LJMP(hlua_channel_get_line_yield(L, 0, 0));
+}
+
+/* Appends a string into the input side of channel. It returns the length of the
+ * written string, or -1 if the channel is closed or if the buffer size is too
+ * little for the data. 0 may be returned if nothing is copied. This function
+ * does not yield.
  */
 __LJMP static int hlua_channel_append(lua_State *L)
 {
@@ -3142,7 +3271,6 @@ __LJMP static int hlua_channel_append(lua_State *L)
 	MAY_LJMP(check_args(L, 2, "append"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	str = MAY_LJMP(luaL_checklstring(L, 2, &len));
-
 	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
@@ -3153,35 +3281,146 @@ __LJMP static int hlua_channel_append(lua_State *L)
 	return 1;
 }
 
-/* The function replaces input data from the channel by the string passed as
- * argument. Before clearing the buffer, we take care the copy will be
- * possible. It returns the amount of data written (the string length) on
- * success or -1 if the copy is not performed. This function does not yield.
+/* Prepends a string into the input side of channel. It returns the length of the
+ * written string, or -1 if the channel is closed or if the buffer size is too
+ * little for the data. 0 may be returned if nothing is copied. This function
+ * does not yield.
  */
-__LJMP static int hlua_channel_set(lua_State *L)
+__LJMP static int hlua_channel_prepend(lua_State *L)
 {
 	struct channel *chn;
 	const char *str;
-	size_t len;
+	size_t sz;
 	int ret;
 
-	MAY_LJMP(check_args(L, 2, "set"));
+	MAY_LJMP(check_args(L, 2, "prepend"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
-	str = MAY_LJMP(luaL_checklstring(L, 2, &len));
-
+	str = MAY_LJMP(luaL_checklstring(L, 2, &sz));
 	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
 
+	ret = _hlua_channel_insert(chn, L, ist2(str, sz), co_data(chn));
+	lua_pushinteger(L, ret);
+	return 1;
+}
+
+/* Inserts a given amount of input data at the given offset by a string
+ * content. By default the string is appended at the end of input data. It
+ * returns the length of the written string, or -1 if the channel is closed or
+ * if the buffer size is too little for the data.
+ */
+__LJMP static int hlua_channel_insert_data(lua_State *L)
+{
+	struct channel *chn;
+	const char *str;
+	size_t sz;
+	int ret, offset;
+
+	if (lua_gettop(L) < 2 || lua_gettop(L) > 3)
+		WILL_LJMP(luaL_error(L, "'insert' expects at least 1 argument and at most 2 arguments"));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	str = MAY_LJMP(luaL_checklstring(L, 2, &sz));
+	offset = ci_data(chn);
+	if (lua_gettop(L) > 2)
+		offset = MAY_LJMP(luaL_checkinteger(L, 3));
+	if (IS_HTX_STRM(chn_strm(chn))) {
+		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
+		WILL_LJMP(lua_error(L));
+	}
+
+	if (offset < 0)
+		offset = MAX(0, ci_data(chn) + offset);
+
+	if (offset > ci_data(chn)) {
+		lua_pushfstring(L, "offset out of range.");
+		WILL_LJMP(lua_error(L));
+	}
+
+	ret = _hlua_channel_insert(chn, L, ist2(str, sz), co_data(chn) + offset);
+	lua_pushinteger(L, ret);
+	return 1;
+}
+/* Replaces a given amount of input data at the given offset by a string
+ * content. By default all remaining data are removed (offset = 0 and len =
+ * -1). It returns the length of the written string, or -1 if the channel is
+ * closed or if the buffer size is too little for the data.
+ */
+__LJMP static int hlua_channel_set_data(lua_State *L)
+{
+	struct channel *chn;
+	const char *str;
+	size_t sz;
+	int ret, offset = 0, len = -1;
+
+	if (lua_gettop(L) < 2 || lua_gettop(L) > 4)
+		WILL_LJMP(luaL_error(L, "'set' expects at least 1 argument and at most 3 arguments"));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	str = MAY_LJMP(luaL_checklstring(L, 2, &sz));
+	if (lua_gettop(L) > 2)
+		offset = MAY_LJMP(luaL_checkinteger(L, 3));
+	if (lua_gettop(L) == 4)
+		len = MAY_LJMP(luaL_checkinteger(L, 4));
+	if (IS_HTX_STRM(chn_strm(chn))) {
+		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
+		WILL_LJMP(lua_error(L));
+	}
+
+	if (offset < 0)
+		offset = MAX(0, ci_data(chn) + offset);
+	if (len < 0)
+		len = ci_data(chn) - offset;
+
+	if (offset + len > ci_data(chn)) {
+		lua_pushfstring(L, "offset or length out of range.");
+		WILL_LJMP(lua_error(L));
+	}
+
 	/* Be sure we can copied the string once input data will be removed. */
-	if (len > c_room(chn) + ci_data(chn) || channel_input_closed(chn))
+	if (sz > c_room(chn) + len)
 		lua_pushinteger(L, -1);
 	else {
-		_hlua_channel_delete(chn, co_data(chn), ci_data(chn));
-		ret = _hlua_channel_insert(chn, L, ist2(str, len), co_data(chn));
+		_hlua_channel_delete(chn, co_data(chn) + offset, len);
+		ret = _hlua_channel_insert(chn, L, ist2(str, sz), co_data(chn) + offset);
 		lua_pushinteger(L, ret);
 	}
+	return 1;
+}
+
+/* Removes a given amount of input data at the given offset. By default all
+ * intput data are removed (offset = 0 and len = -1). It returns the amount of
+ * the removed data.
+ */
+__LJMP static int hlua_channel_del_data(lua_State *L)
+{
+	struct channel *chn;
+	int offset = 0, len = -1;
+
+	if (lua_gettop(L) < 1 || lua_gettop(L) > 3)
+		WILL_LJMP(luaL_error(L, "'remove' expects at most 2 arguments"));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	if (lua_gettop(L) > 1)
+		offset = MAY_LJMP(luaL_checkinteger(L, 2));
+	if (lua_gettop(L) == 3)
+		len = MAY_LJMP(luaL_checkinteger(L, 3));
+	if (IS_HTX_STRM(chn_strm(chn))) {
+		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
+		WILL_LJMP(lua_error(L));
+	}
+
+	if (offset < 0)
+		offset = MAX(0, ci_data(chn) + offset);
+	if (len < 0)
+		len = ci_data(chn) - offset;
+
+	if (offset + len > ci_data(chn)) {
+		lua_pushfstring(L, "offset or length out of range.");
+		WILL_LJMP(lua_error(L));
+	}
+
+	_hlua_channel_delete(chn, co_data(chn) + offset, len);
+	lua_pushinteger(L, len);
 	return 1;
 }
 
@@ -3362,7 +3601,7 @@ __LJMP static int hlua_channel_get_in_len(lua_State *L)
 {
 	struct channel *chn;
 
-	MAY_LJMP(check_args(L, 1, "get_in_len"));
+	MAY_LJMP(check_args(L, 1, "input"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	if (IS_HTX_STRM(chn_strm(chn))) {
 		struct htx *htx = htxbuf(&chn->buf);
@@ -3387,6 +3626,17 @@ __LJMP static int hlua_channel_is_full(lua_State *L)
 	return 1;
 }
 
+/* Returns true if the channel may still receive data. */
+__LJMP static int hlua_channel_may_recv(lua_State *L)
+{
+	struct channel *chn;
+
+	MAY_LJMP(check_args(L, 1, "may_recv"));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	lua_pushboolean(L, (!channel_input_closed(chn) && channel_may_recv(chn)));
+	return 1;
+}
+
 /* Returns true if the channel is the response channel. */
 __LJMP static int hlua_channel_is_resp(lua_State *L)
 {
@@ -3406,7 +3656,7 @@ __LJMP static int hlua_channel_get_out_len(lua_State *L)
 {
 	struct channel *chn;
 
-	MAY_LJMP(check_args(L, 1, "get_out_len"));
+	MAY_LJMP(check_args(L, 1, "output"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	lua_pushinteger(L, co_data(chn));
 	return 1;
@@ -8912,17 +9162,27 @@ lua_State *hlua_init_state(int thread_num)
 	lua_newtable(L);
 
 	/* Register . */
+	hlua_class_function(L, "data",        hlua_channel_get_data);
+	hlua_class_function(L, "line",        hlua_channel_get_line);
+	hlua_class_function(L, "set",         hlua_channel_set_data);
+	hlua_class_function(L, "remove",      hlua_channel_del_data);
+	hlua_class_function(L, "append",      hlua_channel_append);
+	hlua_class_function(L, "prepend",     hlua_channel_prepend);
+	hlua_class_function(L, "insert",      hlua_channel_insert_data);
+	hlua_class_function(L, "send",        hlua_channel_send);
+	hlua_class_function(L, "forward",     hlua_channel_forward);
+	hlua_class_function(L, "input",       hlua_channel_get_in_len);
+	hlua_class_function(L, "output",      hlua_channel_get_out_len);
+	hlua_class_function(L, "may_recv",    hlua_channel_may_recv);
+	hlua_class_function(L, "is_full",     hlua_channel_is_full);
+	hlua_class_function(L, "is_resp",     hlua_channel_is_resp);
+
+	/* Deprecated API */
 	hlua_class_function(L, "get",         hlua_channel_get);
 	hlua_class_function(L, "dup",         hlua_channel_dup);
 	hlua_class_function(L, "getline",     hlua_channel_getline);
-	hlua_class_function(L, "set",         hlua_channel_set);
-	hlua_class_function(L, "append",      hlua_channel_append);
-	hlua_class_function(L, "send",        hlua_channel_send);
-	hlua_class_function(L, "forward",     hlua_channel_forward);
 	hlua_class_function(L, "get_in_len",  hlua_channel_get_in_len);
 	hlua_class_function(L, "get_out_len", hlua_channel_get_out_len);
-	hlua_class_function(L, "is_full",     hlua_channel_is_full);
-	hlua_class_function(L, "is_resp",     hlua_channel_is_resp);
 
 	lua_rawset(L, -3);
 

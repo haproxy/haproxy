@@ -1278,106 +1278,304 @@ Channel class
 
   The following diagram shows where the channel class function are applied.
 
-  **Warning**: It is not possible to read from the response in request action,
-  and it is not possible to read for the request channel in response action.
+  .. image:: _static/channel.png
 
-  **Warning**: It is forbidden to alter the Channels buffer from HTTP contexts.
-  So only :js:func:`Channel.get_in_length`, :js:func:`Channel.get_out_length`
-  and :js:func:`Channel.is_full` can be called from an HTTP conetext.
+  .. warning::
+    It is not possible to read from the response in request action, and it is
+    not possible to read for the request channel in response action.
 
-.. image:: _static/channel.png
+  .. warning::
+    It is forbidden to alter the Channels buffer from HTTP contexts.  So only
+    :js:func:`Channel.input`, :js:func:`Channel.output`,
+    :js:func:`Channel.may_recv`, :js:func:`Channel.is_full` and
+    :js:func:`Channel.is_resp` can be called from an HTTP conetext.
 
-.. js:function:: Channel.dup(channel)
-
-  This function returns a string that contain the entire buffer. The data is
-  not remove from the buffer and can be reprocessed later.
-
-  If the buffer can't receive more data, a 'nil' value is returned.
-
-  :param class_channel channel: The manipulated Channel.
-  :returns: a string containing all the available data or nil.
-
-.. js:function:: Channel.get(channel)
-
-  This function returns a string that contain the entire buffer. The data is
-  consumed from the buffer.
-
-  If the buffer can't receive more data, a 'nil' value is returned.
-
-  :param class_channel channel: The manipulated Channel.
-  :returns: a string containing all the available data or nil.
-
-.. js:function:: Channel.getline(channel)
-
-  This function returns a string that contain the first line of the buffer. The
-  data is consumed. If the data returned doesn't contains a final '\n' its
-  assumed than its the last available data in the buffer.
-
-  If the buffer can't receive more data, a 'nil' value is returned.
-
-  :param class_channel channel: The manipulated Channel.
-  :returns: a string containing the available line or nil.
-
-.. js:function:: Channel.set(channel, string)
-
-  This function replace the content of the buffer by the string. The function
-  returns the copied length, otherwise, it returns -1.
-
-  The data set with this function are not send. They wait for the end of
-  HAProxy processing, so the buffer can be full.
-
-  :param class_channel channel: The manipulated Channel.
-  :param string string: The data which will sent.
-  :returns: an integer containing the amount of bytes copied or -1.
+  .. note::
+    Channel object may only be manipulated in the context of a registered
+    action, sample-fetch or converter. However, only actions are allowed to
+    yield. When it is said one of the following functions may yield, it is only
+    true in the context of an action.
 
 .. js:function:: Channel.append(channel, string)
 
-  This function append the string argument to the content of the buffer. The
-  function returns the copied length, otherwise, it returns -1.
+  This function copies the string **string** at the end of incoming data of the
+  channel buffer. The function returns the copied length on success or -1 if
+  data cannot be copied.
 
-  The data set with this function are not send. They wait for the end of
-  HAProxy processing, so the buffer can be full.
+  Same that :js:func:`Channel.insert(channel, string, channel:input())`.
 
   :param class_channel channel: The manipulated Channel.
-  :param string string: The data which will sent.
+  :param string string: The data to copied into incoming data.
   :returns: an integer containing the amount of bytes copied or -1.
+
+.. js:function:: Channel.data(channel [, offset [, length]])
+
+  This function returns **length** bytes of incoming data from the channel
+  buffer, starting at the offset **offset**. The data are not removed from the
+  buffer.
+
+  By default, if no length is provided, all incoming data found, starting at the
+  given offset, are returned. If **length** is set to -1, the function tries to
+  retrieve a maximum of data and yields if necessary. It also waits for more
+  data if the requested length exceeds the available amount of incoming data. Do
+  not providing an offset is the same that setting it to 0. A positive offset is
+  relative to the begining of incoming data of the channel buffer while negative
+  offset is relative to their end.
+
+  If there is no incoming data and the channel can't receive more data, a 'nil'
+  value is returned.
+
+  :param class_channel channel: The manipulated Channel.
+  :param integer offset: *optional* The offset in incoming data to start to get
+                         data. 0 by default. May be negative to be relative to
+                         the end of incoming data.
+  :param integer length: *optional* The expected length of data to retrieve. All
+                         incoming data by default. May be set to -1 to get a
+                         maximum of data.
+  :returns: a string containing the data found or nil.
+
+.. js:function:: Channel.forward(channel, length)
+
+  This function forwards **length** bytes of data from the channel buffer. If
+  the requested length exceeds the available amount of incoming data, the
+  function yields, waiting for more data to forward. It returns the amount of
+  data forwarded.
+
+  :param class_channel channel: The manipulated Channel.
+  :param integer int: The amount of data to forward.
+
+.. js:function:: Channel.input(channel)
+
+  This function returns the length of incoming data of the channel buffer.
+
+  :param class_channel channel: The manipulated Channel.
+  :returns: an integer containing the amount of available bytes.
+
+.. js:function:: Channel.insert(channel, string [, offset])
+
+  This function copies the string **string** at the offset **offset** in
+  incoming data of the channel buffer. The function returns the copied length on
+  success or -1 if data cannot be copied.
+
+  By default, if no offset is provided, the string is copied in front of
+  incoming data. A positive offset is relative to the begining of incoming data
+  of the channel buffer while negative offset is relative to their end.
+
+  :param class_channel channel: The manipulated Channel.
+  :param string string: The data to copied into incoming data.
+  :param integer offset: *optional* The offset in incomding data where to copied
+                         data. 0 by default. May be negative to be relative to
+                         the end of incoming data.
+  :returns: an integer containing the amount of bytes copied or -1.
+
+.. js:function:: Channel.is_full(channel)
+
+  This function returns true if the channel buffer is full.
+
+  :returns: a boolean
+
+.. js:function:: Channel.is_resp(channel)
+
+  This function returns true if the channel is the response one.
+
+  :returns: a boolean
+
+.. js:function:: Channel.line(channel [, offset [, length]])
+
+  This function parses **length** bytes of incoming data of the channel buffer,
+  starting at offset **offset**, and returns the first line found, including the
+  '\n'.  The data are not removed from the buffer. If no line is found, all data
+  are returned.
+
+  By default, if no length is provided, all incoming data, starting at the given
+  offset, are evaluated. If **length** is set to -1, the function tries to
+  retrieve a maximum of data and yields if necessary. It also waits for more
+  data if the requested length exceeds the available amount of incoming data. Do
+  not providing an offset is the same that setting it to 0. A positive offset is
+  relative to the begining of incoming data of the channel buffer while negative
+  offset is relative to their end.
+
+  If there is no incoming data and the channel can't receive more data, a 'nil'
+  value is returned.
+
+  :param class_channel channel: The manipulated Channel.
+  :param integer offset: *optional* The offset in incomding data to start to
+                         parse data. 0 by default. May be negative to be
+                         relative to the end of incoming data.
+  :param integer length: *optional* The length of data to parse. All incoming
+                         data by default. May be set to -1 to get a maximum of
+                         data.
+  :returns: a string containing the line found or nil.
+
+.. js:function:: Channel.may_recv(channel)
+
+  This function returns true if the channel may still receive data.
+
+  :returns: a boolean
+
+.. js:function:: Channel.output(channel)
+
+  This function returns the length of outgoing data of the channel buffer.
+
+  :param class_channel channel: The manipulated Channel.
+  :returns: an integer containing the amount of available bytes.
+
+.. js:function:: Channel.prepend(channel, string)
+
+  This function copies the string **string** in front of incoming data of the
+  channel buffer. The function returns the copied length on success or -1 if
+  data cannot be copied.
+
+  Same that :js:func:`Channel.insert(channel, string, 0)`.
+
+  :param class_channel channel: The manipulated Channel.
+  :param string string: The data to copied into incoming data.
+  :returns: an integer containing the amount of bytes copied or -1.
+
+.. js:function:: Channel.remove(channel [, offset [, length]])
+
+  This function removes **length** bytes of incoming data of the channel buffer,
+  starting at offset **offset**. This function returns number of bytes removed
+  on success.
+
+  By default, if no length is provided, all incoming data, starting at the given
+  offset, are removed. Do not providing an offset is the same that setting it
+  to 0. A positive offset is relative to the begining of incoming data of the
+  channel buffer while negative offset is relative to their end.
+
+  :param class_channel channel: The manipulated Channel.
+  :param integer offset: *optional* The offset in incomding data where to start
+                         to remove data. 0 by default. May be negative to
+                         be relative to the end of incoming data.
+  :param integer length: *optional* The length of data to remove. All incoming
+                         data by default.
+  :returns: an integer containing the amount of bytes removed.
 
 .. js:function:: Channel.send(channel, string)
 
-  This function required immediate send of the data. Unless if the connection
-  is close, the buffer is regularly flushed and all the string can be sent.
+  This function required immediate send of the string **string**. It means the
+  string is copied at the begining of incoming data of the channel buffer and
+  immediately forwarded. Unless if the connection is close, this function yields
+  to copied and forward all the string.
 
   :param class_channel channel: The manipulated Channel.
-  :param string string: The data which will sent.
+  :param string string: The data to send.
   :returns: an integer containing the amount of bytes copied or -1.
 
-.. js:function:: Channel.get_in_length(channel)
+.. js:function:: Channel.set(channel, string [, offset [, length]])
+
+  This function replace **length** bytes of incoming data of the channel buffer,
+  starting at offset **offset**, by the string **string**. The function returns
+  the copied length on success or -1 if data cannot be copied.
+
+  By default, if no length is provided, all incoming data, starting at the given
+  offset, are replaced. Do not providing an offset is the same that setting it
+  to 0. A positive offset is relative to the begining of incoming data of the
+  channel buffer while negative offset is relative to their end.
+
+  :param class_channel channel: The manipulated Channel.
+  :param string string: The data to copied into incoming data.
+  :param integer offset: *optional* The offset in incomding data where to start
+                         the data replacement. 0 by default. May be negative to
+                         be relative to the end of incoming data.
+  :param integer length: *optional* The length of data to replace. All incoming
+                         data by default.
+  :returns: an integer containing the amount of bytes copied or -1.
+
+.. js:function:: Channel.dup(channel)
+
+  **DEPRECATED**
+
+  This function returns all incoming data found in the channel buffer. The data
+  are not remove from the buffer and can be reprocessed later.
+
+  If there is no incoming data and the channel can't receive more data, a 'nil'
+  value is returned.
+
+  :param class_channel channel: The manipulated Channel.
+  :returns: a string containing all data found or nil.
+
+  .. warning::
+     This function is deprecated. :js:func:`Channel.data()` must be used
+     instead.
+
+.. js:function:: Channel.get(channel)
+
+  **DEPRECATED**
+
+  This function returns all incoming data found in the channel buffer and remove
+  them from the buffer.
+
+  If there is no incoming data and the channel can't receive more data, a 'nil'
+  value is returned.
+
+  :param class_channel channel: The manipulated Channel.
+  :returns: a string containing all the data found or nil.
+
+  .. warning::
+     This function is deprecated. :js:func:`Channel.data()` must be used to
+     retrieve data followed by a call to :js:func:`Channel:remove()` to remove
+     data.
+
+     .. code-block:: lua
+
+       local data = chn:data()
+       chn:remove(0, data:len())
+
+     ..
+
+.. js:function:: Channel.getline(channel)
+
+  **DEPRECATED**
+
+  This function returns the first line found in incoming data of the channel
+  buffer, including the '\n'. The returned data are removed from the buffer. If
+  no line is found, this function yields to wait for more data, except if the
+  channel can't receive more data. In this case all data are returned.
+
+  If there is no incoming data and the channel can't receive more data, a 'nil'
+  value is returned.
+
+  :param class_channel channel: The manipulated Channel.
+  :returns: a string containing the line found or nil.
+
+  .. warning::
+     This function is depdrecated. :js:func:`Channel.line()` must be used to
+     retrieve a line followed by a call to :js:func:`Channel:remove()` to remove
+     data.
+
+     .. code-block:: lua
+
+       local line = chn:line(0, -1)
+       chn:remove(0, line:len())
+
+     ..
+
+.. js:function:: Channel.get_in_len(channel)
+
+  **DEPDRECATED**
 
   This function returns the length of the input part of the buffer.
 
   :param class_channel channel: The manipulated Channel.
   :returns: an integer containing the amount of available bytes.
 
-.. js:function:: Channel.get_out_length(channel)
+  .. warning::
+     This function is deprecated. :js:func:`Channel.input()` must be used
+     instead.
+
+.. js:function:: Channel.get_out_len(channel)
+
+  **DEPDRECATED**
 
   This function returns the length of the output part of the buffer.
 
   :param class_channel channel: The manipulated Channel.
   :returns: an integer containing the amount of available bytes.
 
-.. js:function:: Channel.forward(channel, int)
-
-  This function transfer bytes from the input part of the buffer to the output
-  part.
-
-  :param class_channel channel: The manipulated Channel.
-  :param integer int: The amount of data which will be forwarded.
-
-.. js:function:: Channel.is_full(channel)
-
-  This function returns true if the buffer channel is full.
-
-  :returns: a boolean
+  .. warning::
+     This function is deprecated. :js:func:`Channel.output()` must be used
+     instead.
 
 .. _http_class:
 
