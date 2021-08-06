@@ -8,6 +8,7 @@ barrier b1 cond 2 -cyclic
 barrier b2 cond 2 -cyclic
 
 server s1 {
+	rxreq
 	txresp
 } -start
 
