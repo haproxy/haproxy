@@ -3070,104 +3070,64 @@ __LJMP static int hlua_channel_getline(lua_State *L)
 	return MAY_LJMP(hlua_channel_getline_yield(L, 0, 0));
 }
 
-/* This function takes a string as input, and append it at the
- * input side of channel. If the data is too big, but a space
- * is probably available after sending some data, the function
- * yields. If the data is bigger than the buffer, or if the
- * channel is closed, it returns -1. Otherwise, it returns the
- * amount of data written.
+/* This function takes a string as argument, and append it at the input side of
+ * channel. If data cannot be copied, because there is not enough space to do so
+ * or because the channel is closed, it returns -1. Otherwise, it returns the
+ * amount of data written (the string length). This function does not yield.
  */
-__LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KContext ctx)
+__LJMP static int hlua_channel_append(lua_State *L)
 {
-	struct channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	struct channel *chn;
+	const char *str;
 	size_t len;
-	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
-	int l = MAY_LJMP(luaL_checkinteger(L, 3));
-	int ret;
-	int max;
+
+	MAY_LJMP(check_args(L, 2, "append"));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	str = MAY_LJMP(luaL_checklstring(L, 2, &len));
 
 	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
 
-	/* Check if the buffer is available because HAProxy doesn't allocate
-	 * the request buffer if its not required.
-	 */
-	if (chn->buf.size == 0) {
-		si_rx_buff_blk(chn_prod(chn));
-		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
-	}
-
-	max = channel_recv_limit(chn) - b_data(&chn->buf);
-	if (max > len - l)
-		max = len - l;
-
-	ret = ci_putblk(chn, str + l, max);
-	if (ret < 0) {
-		if (ret == -2 || ret == -3 || HLUA_CANT_YIELD(hlua_gethlua(L))) {
-			lua_pushinteger(L, -1);
-			return 1;
-		}
-		chn->flags |= CF_WAKE_WRITE;
-		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
-	}
-	l += ret;
-	lua_pop(L, 1);
-	lua_pushinteger(L, l);
-
-	if (l < len) {
-		/* If there are no space available, and the output buffer is
-		 * empty, we cannot add more data, so we cannot yield, we return
-		 * the amount of copied data.
-		 */
-		max = channel_recv_limit(chn) - b_data(&chn->buf);
-		if ((max == 0 && co_data(chn) == 0) || HLUA_CANT_YIELD(hlua_gethlua(L)))
-			return 1;
-		MAY_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
-	}
+	if (len > c_room(chn) || ci_putblk(chn, str, len) < 0)
+		lua_pushinteger(L, -1);
+	else
+		lua_pushinteger(L, len);
 	return 1;
 }
 
-/* Just a wrapper of "hlua_channel_append_yield". It returns the length
- * of the written string, or -1 if the channel is closed or if the
- * buffer size is too little for the data.
- */
-__LJMP static int hlua_channel_append(lua_State *L)
-{
-	size_t len;
-
-	MAY_LJMP(check_args(L, 2, "append"));
-	MAY_LJMP(hlua_checkchannel(L, 1));
-	MAY_LJMP(luaL_checklstring(L, 2, &len));
-	MAY_LJMP(luaL_checkinteger(L, 3));
-	lua_pushinteger(L, 0);
-
-	return MAY_LJMP(hlua_channel_append_yield(L, 0, 0));
-}
-
-/* Just a wrapper of "hlua_channel_append_yield". This wrapper starts
- * his process by cleaning the buffer. The result is a replacement
- * of the current data. It returns the length of the written string,
- * or -1 if the channel is closed or if the buffer size is too
- * little for the data.
+/* The function replaces input data from the channel by the string passed as
+ * argument. Before clearing the buffer, we take care the copy will be
+ * possible. It returns the amount of data written (the string length) on
+ * success or -1 if the copy is not performed. This function does not yield.
  */
 __LJMP static int hlua_channel_set(lua_State *L)
 {
 	struct channel *chn;
+	const char *str;
+	size_t len;
 
 	MAY_LJMP(check_args(L, 2, "set"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
-	lua_pushinteger(L, 0);
+	str = MAY_LJMP(luaL_checklstring(L, 2, &len));
 
 	if (IS_HTX_STRM(chn_strm(chn))) {
 		lua_pushfstring(L, "Cannot manipulate HAProxy channels in HTTP mode.");
 		WILL_LJMP(lua_error(L));
 	}
 
-	b_set_data(&chn->buf, co_data(chn));
-
-	return MAY_LJMP(hlua_channel_append_yield(L, 0, 0));
+	/* Be sure we can copied the string once input data will be removed. */
+	if (len > c_room(chn) + ci_data(chn) || channel_input_closed(chn))
+		lua_pushinteger(L, -1);
+	else {
+		b_set_data(&chn->buf, co_data(chn));
+		if (ci_putblk(chn, str, len) < 0)
+			lua_pushinteger(L, -1);
+		else
+			lua_pushinteger(L, len);
+	}
+	return 1;
 }
 
 /* Append data in the output side of the buffer. This data is immediately
