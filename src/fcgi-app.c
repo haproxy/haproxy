@@ -44,7 +44,7 @@ DECLARE_STATIC_POOL(pool_head_fcgi_hdr_rule, "fcgi_hdr_rule", sizeof(struct fcgi
 /**************************************************************************/
 /* Makes a fcgi parameter name (prefixed by ':fcgi-') with <name> (in
  * lowercase). All non alphanumeric character are replaced by an underscore
- * ('_'). The result is copied into <dst>. the corrsponding ist is returned.
+ * ('_'). The result is copied into <dst>. the corresponding ist is returned.
  */
 static struct ist fcgi_param_name(char *dst, const struct ist name)
 {

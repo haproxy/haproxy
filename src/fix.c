@@ -246,7 +246,7 @@ struct ist fix_tag_value(const struct ist msg, unsigned int tagid)
 		if (!id)
 			goto not_found_or_invalid;
 		if (id == tagid) {
-			/* <tagId> found, return the corrsponding value */
+			/* <tagId> found, return the corresponding value */
 			return v;
 		}
 

@@ -178,7 +178,7 @@ compilation errors. Also, some early versions of the GNU libc used to include a
 regex engine which could be slow or even crash on certain patterns.
 
 If you plan on importing a particularly heavy configuration involving a lot of
-regex, you may benefit from using some alternative regex implementations sur as
+regex, you may benefit from using some alternative regex implementations such as
 PCRE. HAProxy natively supports PCRE and PCRE2, both in standard and JIT
 flavors (Just In Time). The following options are available depending on the
 library version provided on your system :

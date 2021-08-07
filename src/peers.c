@@ -951,7 +951,7 @@ static int peer_prepare_switchmsg(char *msg, size_t size, struct peer_prep_param
 				 */
 				intencode(st->table->data_nbelem[data_type], &chunkq);
 
-				/* for array of freq counters, there is an additionnal
+				/* for array of freq counters, there is an additional
 				 * period parameter to encode
 				 */
 				if (stktable_data_types[data_type].std_type == STD_T_FRQP)
@@ -2179,7 +2179,7 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 		goto ignore_msg;
 	}
 
-	/* Check if there there is the additionnal expire data */
+	/* Check if there there is the additional expire data */
 	intdecode(msg_cur, msg_end);
 	if (*msg_cur) {
 		uint64_t data_type;
@@ -2205,7 +2205,7 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 					/* check if the data_type match the current from the bitfield */
 					if (type != data_type) {
 						p->remote_table = NULL;
-						TRACE_PROTO("meta data missmatch type", PEERS_EV_DEFMSG, NULL, p);
+						TRACE_PROTO("meta data mismatch type", PEERS_EV_DEFMSG, NULL, p);
 						goto ignore_msg;
 					}
 
@@ -2242,7 +2242,7 @@ static inline int peer_treat_definemsg(struct appctx *appctx, struct peer *p,
 					/* check if the data_type match the current from the bitfield */
 					if (type != data_type) {
 						p->remote_table = NULL;
-						TRACE_PROTO("meta data missmatch type", PEERS_EV_DEFMSG, NULL, p);
+						TRACE_PROTO("meta data mismatch type", PEERS_EV_DEFMSG, NULL, p);
 						goto ignore_msg;
 					}
 

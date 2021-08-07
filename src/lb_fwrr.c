@@ -340,7 +340,7 @@ static void fwrr_queue_srv(struct server *s)
 	grp = (s->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
 
 	/* Delay everything which does not fit into the window and everything
-	 * which does not fit into the theorical new window.
+	 * which does not fit into the theoretical new window.
 	 */
 	if (!srv_willbe_usable(s)) {
 		fwrr_remove_from_tree(s);

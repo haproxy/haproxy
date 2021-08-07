@@ -1725,7 +1725,7 @@ static int qc_prep_hdshk_pkts(struct quic_conn_ctx *ctx)
 	reuse_wbuf = 0;
 	wbuf = q_wbuf(qc);
 	qel = &qc->els[tel];
-	/* When entering this function, the writter buffer must be empty.
+	/* When entering this function, the writer buffer must be empty.
 	 * Most of the time it points to the reader buffer.
 	 */
 	while ((q_buf_empty(wbuf) || reuse_wbuf)) {

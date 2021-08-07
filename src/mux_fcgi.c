@@ -1375,7 +1375,7 @@ static int fcgi_set_default_param(struct fcgi_conn *fconn, struct fcgi_strm *fst
 			goto check_index;
 
 		/* If some special characters are found in the decoded path (\n
-		 * or \0), the PATH_INFO regex cannot match. This is theorically
+		 * or \0), the PATH_INFO regex cannot match. This is theoretically
 		 * valid, but probably unexpected, to have such characters. So,
 		 * to avoid any surprises, an error is triggered in this
 		 * case.

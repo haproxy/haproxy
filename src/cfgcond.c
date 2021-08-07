@@ -323,7 +323,7 @@ int cfg_parse_cond_and(const char **text, struct cfg_cond_and **expr, char **err
 
 	/* ret=1, we have a term in the left hand set */
 
-	/* find an optionnal '&&' */
+	/* find an optional '&&' */
 	while (*in == ' ' || *in == '\t')
 		in++;
 
@@ -396,7 +396,7 @@ int cfg_parse_cond_expr(const char **text, struct cfg_cond_expr **expr, char **e
 
 	/* ret=1, we have a sub-expr in the left hand set */
 
-	/* find an optionnal '||' */
+	/* find an optional '||' */
 	while (*in == ' ' || *in == '\t')
 		in++;
 

@@ -58,7 +58,7 @@ static inline void dequeue_srv(struct srv *s) {
 void put_srv(struct srv *s) {
 	if (s->w <= 0 ||
 	    s->next >= 2*sw ||    /* delay everything which does not fit into the window */
-	    s->next >= sw+nsw) {  /* and everything which does not fit into the theorical new window */
+	    s->next >= sw+nsw) {  /* and everything which does not fit into the theoretical new window */
 		/* put into next tree */
 		s->next -= sw; // readjust next in case we could finally take this back to current.
 		queue_by_weight_0(next_tree, s);
@@ -348,7 +348,7 @@ main(int argc, char **argv) {
 				s->w = w;
 
 				/* we must measure how far we are from the end of the current window
-				 * and try to fit their as many entries as should theorically be.
+				 * and try to fit their as many entries as should theoretically be.
 				 */
 
 				//s->w = s->w * (2*sw - p) / sw;

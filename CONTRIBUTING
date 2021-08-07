@@ -523,7 +523,7 @@ do not think about them anymore after a few patches.
    should be able to tell whether or not a patch is likely to address an issue
    they are facing. Indicating what the code will do after the fix doesn't help
    if it does not say what problem is encountered without the patch. Note that
-   in some cases the bug is purely theorical and observed by reading the code.
+   in some cases the bug is purely theoretical and observed by reading the code.
    In this case it's perfectly fine to provide an estimate about possible
    effects. Also, in HAProxy, like many projects which take a great care of
    maintaining stable branches, patches are reviewed later so that some of them

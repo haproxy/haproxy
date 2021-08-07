@@ -60,7 +60,7 @@ ones, with their respective sequences:
       allowed to run anymore. The tasks retrieve their execution context from
       the scheduler in the arguments, but will check the tasks' context from
       the structure under the lock to detect this possible change, and abort.
-    - at this point the takeover suceeded, the idle_conns_lock is released and
+    - at this point the takeover succeeded, the idle_conns_lock is released and
       the connection and its FD are now owned by the caller
 
   2) poll report: happens on late rx, shutdown or error on idle conns
@@ -81,7 +81,7 @@ ones, with their respective sequences:
     - check the task/tasklet's context to verify that no recently completed
       takeover() stole the connection. If it's NULL, the connection was lost,
       the lock is released and the task/tasklet killed. Otherwise it is
-      guaranted that no other thread may use that connection (current takeover
+      guaranteed that no other thread may use that connection (current takeover
       candidates are waiting on the lock, previous owners waking from poll()
       lost their bit in the thread_mask and will not touch the FD).
     - the connection is removed from the idle conns list. From this point on,

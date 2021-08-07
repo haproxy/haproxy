@@ -450,7 +450,7 @@ timeout idle <timeout>
 timeout processing <timeout>
   Set the maximum time to wait for a stream to process an event, i.e to acquire
   a stream to talk with an agent, to encode all messages, to send the NOTIFY
-  frame, to receive the corrsponding acknowledgement and to process all
+  frame, to receive the corresponding acknowledgement and to process all
   actions. It is applied on the stream that handle the client and the server
   sessions.
 

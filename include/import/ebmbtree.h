@@ -566,7 +566,7 @@ static forceinline struct ebmb_node *__ebmb_lookup_prefix(struct eb_root *root, 
 
 /* Insert ebmb_node <new> into a prefix subtree starting at node root <root>.
  * Only new->key and new->pfx need be set with the key and its prefix length.
- * Note that bits between <pfx> and <len> are theorically ignored and should be
+ * Note that bits between <pfx> and <len> are theoretically ignored and should be
  * zero, as it is not certain yet that they will always be ignored everywhere
  * (eg in bit compare functions).
  * The ebmb_node is returned.

@@ -813,7 +813,7 @@ expression made of any combination of:
   - a non-nul integer (e.g. '1'), always returns "true".
   - a predicate optionally followed by argument(s) in parenthesis.
   - a condition placed between a pair of parenthesis '(' and ')'
-  - a question mark ('!') preceeding any of the non-empty elements above, and
+  - a question mark ('!') preceding any of the non-empty elements above, and
     which will negate its status.
   - expressions combined with a logical AND ('&&'), which will be evaluated
     from left to right until one returns false
@@ -17798,11 +17798,11 @@ fc_conn_err : integer
   Returns the ID of the error that might have occurred on the current
   connection. Any strictly positive value of this fetch indicates that the
   connection did not succeed and would result in an error log being output (as
-  decribed in section 8.2.5). See the "fc_conn_err_str" fetch for a full list of
+  described in section 8.2.5). See the "fc_conn_err_str" fetch for a full list of
   error codes and their corresponding error message.
 
 fc_conn_err_str : string
-  Returns an error message decribing what problem happened on the current
+  Returns an error message describing what problem happened on the current
   connection, resulting in a connection failure. This string corresponds to the
   "message" part of the error log format (see section 8.2.5). See below for a
   full list of error codes and their corresponding error messages :

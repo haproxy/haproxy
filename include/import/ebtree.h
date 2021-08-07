@@ -32,7 +32,7 @@
 
   Eg, to store 8, 10, 12, 13, 14 :
 
-             ultree          this theorical tree
+             ultree          this theoretical tree
 
                8                   8
               / \                 / \

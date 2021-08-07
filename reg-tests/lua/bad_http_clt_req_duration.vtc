@@ -16,7 +16,7 @@
 #       applet:start_response()
 #   end)
 #
-# This had as a consequence to log %TR field with approximatively the same value as
+# This had as a consequence to log %TR field with approximately the same value as
 # the LUA sleep time.
 
 varnishtest "LUA bug"
