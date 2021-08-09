@@ -2210,16 +2210,20 @@ static uint srv_release_dynsrv(struct server *srv)
 	return HA_ATOMIC_SUB_FETCH(&srv->refcount_dynsrv, 1);
 }
 
-/* Deallocate a server <srv> and its member. <srv> must be allocated.
+/* Deallocate a server <srv> and its member. <srv> must be allocated. For
+ * dynamic servers, its refcount is decremented first. The free operations are
+ * conducted only if the refcount is nul, unless the process is stopping.
  */
 void free_server(struct server *srv)
 {
 	/* For dynamic servers, decrement the reference counter. Only free the
 	 * server when reaching zero.
 	 */
-	if (srv->flags & SRV_F_DYNAMIC) {
-		if (srv_release_dynsrv(srv))
-			return;
+	if (likely(!(global.mode & MODE_STOPPING))) {
+		if (srv->flags & SRV_F_DYNAMIC) {
+			if (srv_release_dynsrv(srv))
+				return;
+		}
 	}
 
 	task_destroy(srv->warmup);
