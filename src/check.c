@@ -1253,7 +1253,8 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 		task_destroy(check->task);
 		t = NULL;
 
-		free_server(check->server);
+		if (check->server)
+			free_server(check->server);
 	}
 
 	return t;
