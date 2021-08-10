@@ -1363,7 +1363,7 @@ void free_check(struct check *check)
  */
 void check_purge(struct check *check)
 {
-	check->state = CHK_ST_PURGE;
+	check->state |= CHK_ST_PURGE;
 	task_wakeup(check->task, TASK_WOKEN_OTHER);
 }
 
