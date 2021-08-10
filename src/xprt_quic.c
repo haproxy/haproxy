@@ -2450,9 +2450,9 @@ int quic_update_ack_ranges_list(struct quic_arngs *arngs,
 		}
 	}
 
+ out:
 	quic_arngs_set_enc_sz(arngs);
 
- out:
 	return 1;
 }
 /* Remove the header protection of packets at <el> encryption level.
