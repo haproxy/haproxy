@@ -468,6 +468,29 @@ const char *http_get_reason(unsigned int status)
 	}
 }
 
+/* Returns non-zero if the scheme <schm> is syntactically correct according to
+ * RFC3986#3.1, otherwise zero. It expects only the scheme and nothing else
+ * (particularly not the following "://").
+ *     Scheme = alpha *(alpha|digit|'+'|'-'|'.')
+ */
+int http_validate_scheme(const struct ist schm)
+{
+	size_t i;
+
+	for (i = 0; i < schm.len; i++) {
+		if (likely((schm.ptr[i] >= 'a' && schm.ptr[i] <= 'z') ||
+			   (schm.ptr[i] >= 'A' && schm.ptr[i] <= 'Z')))
+			continue;
+		if (unlikely(!i)) // first char must be alpha
+			return 0;
+		if ((schm.ptr[i] >= '0' && schm.ptr[i] <= '9') ||
+		    schm.ptr[i] == '+' || schm.ptr[i] == '-' || schm.ptr[i] == '.')
+			continue;
+		return 0;
+	}
+	return !!i;
+}
+
 /* Parse the uri and looks for the scheme. If not found, an empty ist is
  * returned. Otherwise, the ist pointing to the scheme is returned.
  *
