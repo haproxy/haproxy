@@ -203,6 +203,8 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 				flags |= HTX_SL_F_SCHM_HTTP;
 			else if (isteqi(phdr[H2_PHDR_IDX_SCHM], ist("https")))
 				flags |= HTX_SL_F_SCHM_HTTPS;
+			else if (!http_validate_scheme(phdr[H2_PHDR_IDX_SCHM]))
+				htx->flags |= HTX_FL_PARSING_ERROR;
 
 			meth_sl = ist("GET");
 
@@ -267,6 +269,8 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 			flags |= HTX_SL_F_SCHM_HTTP;
 		else if (isteqi(phdr[H2_PHDR_IDX_SCHM], ist("https")))
 			flags |= HTX_SL_F_SCHM_HTTPS;
+		else if (!http_validate_scheme(phdr[H2_PHDR_IDX_SCHM]))
+			htx->flags |= HTX_FL_PARSING_ERROR;
 
 		meth_sl = phdr[H2_PHDR_IDX_METH];
 	}
