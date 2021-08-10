@@ -1245,16 +1245,11 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	 * after this point.
 	 */
 	if (unlikely(check->state & CHK_ST_PURGE)) {
-		/* buf_wait */
-		LIST_DELETE(&check->buf_wait.list);
-		/* tasklet */
-		pool_free(pool_head_tasklet, check->wait_list.tasklet);
-		/* task */
-		task_destroy(check->task);
-		t = NULL;
-
+		free_check(check);
 		if (check->server)
 			free_server(check->server);
+
+		t = NULL;
 	}
 
 	return t;
