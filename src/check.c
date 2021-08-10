@@ -1337,11 +1337,19 @@ const char *init_check(struct check *check, int type)
 
 /* Liberates the resources allocated for a check.
  *
- * This function must only be used at startup when it is known that the check
- * has never been executed.
+ * This function must only be run by the thread owning the check.
  */
 void free_check(struct check *check)
 {
+	/* For agent-check, free the rules / vars from the server. This is not
+	 * done for health-check : the proxy is the owner of the rules / vars
+	 * in this case.
+	 */
+	if (check->state & CHK_ST_AGENT) {
+		free_tcpcheck_vars(&check->tcpcheck_rules->preset_vars);
+		ha_free(&check->tcpcheck_rules);
+	}
+
 	task_destroy(check->task);
 	if (check->wait_list.tasklet)
 		tasklet_free(check->wait_list.tasklet);
@@ -1763,11 +1771,6 @@ static void deinit_srv_check(struct server *srv)
 
 static void deinit_srv_agent_check(struct server *srv)
 {
-	if (srv->agent.tcpcheck_rules) {
-		free_tcpcheck_vars(&srv->agent.tcpcheck_rules->preset_vars);
-		ha_free(&srv->agent.tcpcheck_rules);
-	}
-
 	if (srv->agent.state & CHK_ST_CONFIGURED)
 		free_check(&srv->agent);
 
