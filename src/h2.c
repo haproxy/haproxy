@@ -275,6 +275,22 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		meth_sl = phdr[H2_PHDR_IDX_METH];
 	}
 
+	if (fields & H2_PHDR_FND_PATH) {
+		/* 7540#8.1.2.3: :path must not be empty, and must be either
+		 * '*' or an RFC3986 "path-absolute" starting with a "/" but
+		 * not with "//".
+		 */
+		if (unlikely(!phdr[H2_PHDR_IDX_PATH].len))
+			goto fail;
+		else if (unlikely(phdr[H2_PHDR_IDX_PATH].ptr[0] != '/')) {
+			if (!isteq(phdr[H2_PHDR_IDX_PATH], ist("*")))
+				goto fail;
+		}
+		else if (phdr[H2_PHDR_IDX_PATH].len > 1 &&
+			 phdr[H2_PHDR_IDX_PATH].ptr[1] == '/')
+			goto fail;
+	}
+
 	if (!(flags & HTX_SL_F_HAS_SCHM)) {
 		/* no scheme, use authority only (CONNECT) */
 		uri = phdr[H2_PHDR_IDX_AUTH];
@@ -285,9 +301,6 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		 * use the trash to concatenate them since all of them MUST fit
 		 * in a bufsize since it's where they come from.
 		 */
-		if (unlikely(!phdr[H2_PHDR_IDX_PATH].len))
-			goto fail;   // 7540#8.1.2.3: :path must not be empty
-
 		uri = ist2bin(trash.area, phdr[H2_PHDR_IDX_SCHM]);
 		istcat(&uri, ist("://"), trash.size);
 		istcat(&uri, phdr[H2_PHDR_IDX_AUTH], trash.size);
