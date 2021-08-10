@@ -4579,7 +4579,8 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		srv->check.state &= ~CHK_ST_ENABLED;
 		srv_use_dynsrv(srv);
 	}
-	else if (srv->do_agent) {
+
+	if (srv->do_agent) {
 		if (init_srv_agent_check(srv))
 			goto out;
 
@@ -4647,7 +4648,7 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 		if (!start_check_task(&srv->check, 0, 1, 1))
 			ha_alert("System might be unstable, consider to execute a reload");
 	}
-	else if (srv->agent.state & CHK_ST_CONFIGURED) {
+	if (srv->agent.state & CHK_ST_CONFIGURED) {
 		if (!start_check_task(&srv->agent, 0, 1, 1))
 			ha_alert("System might be unstable, consider to execute a reload");
 	}
@@ -4664,7 +4665,7 @@ out:
 
 		if (srv->check.state & CHK_ST_CONFIGURED)
 			free_check(&srv->check);
-		else if (srv->agent.state & CHK_ST_CONFIGURED)
+		if (srv->agent.state & CHK_ST_CONFIGURED)
 			free_check(&srv->agent);
 
 		/* remove the server from the proxy linked list */
@@ -4773,7 +4774,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	/* stop the check task if running */
 	if (srv->check.state & CHK_ST_CONFIGURED)
 		check_purge(&srv->check);
-	else if (srv->agent.state & CHK_ST_CONFIGURED)
+	if (srv->agent.state & CHK_ST_CONFIGURED)
 		check_purge(&srv->agent);
 
 	/* detach the server from the proxy linked list
