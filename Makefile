@@ -937,6 +937,9 @@ objsize: haproxy
 admin/halog/halog: admin/halog/halog.o admin/halog/fgets2.o src/ebtree.o src/eb32tree.o src/eb64tree.o src/ebmbtree.o src/ebsttree.o src/ebistree.o src/ebimtree.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
+admin/dyncookie/dyncookie: admin/dyncookie/dyncookie.o
+	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+
 dev/flags/flags: dev/flags/flags.o
 	$(cmd_LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
@@ -1012,6 +1015,7 @@ clean:
 	$(Q)rm -f addons/wurfl/*.[oas] addons/wurfl/dummy/*.[oas]
 	$(Q)rm -f admin/*/*.[oas] admin/*/*/*.[oas]
 	$(Q)rm -f admin/iprange/iprange admin/iprange/ip6range admin/halog/halog
+	$(Q)rm -f admin/dyncookie/dyncookie
 	$(Q)rm -f dev/*/*.[oas]
 	$(Q)rm -f dev/flags/flags dev/poll/poll dev/tcploop/tcploop
 	$(Q)rm -f dev/hpack/decode dev/hpack/gen-enc dev/hpack/gen-rht
