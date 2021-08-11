@@ -999,6 +999,18 @@ static inline int co_getchr(struct channel *chn)
 	return *co_head(chn);
 }
 
+/* Remove a block <blk> in a <htx> structure which is used by a channel <chn>
+ * Update the channel output according to the size of the block removed
+ * Return the size of the removed block*/
+static inline int32_t co_htx_remove_blk(struct channel *chn, struct htx *htx, struct htx_blk *blk)
+{
+	int32_t size = htx_get_blksz(blk);
+
+	htx_remove_blk(htx, blk);
+	co_set_data(chn, co_data(chn) - size);
+
+	return size;
+}
 
 #endif /* _HAPROXY_CHANNEL_H */
 
