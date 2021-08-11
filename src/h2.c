@@ -456,10 +456,27 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 			if (!sl)
 				goto fail;
 			fields |= H2_PHDR_FND_NONE;
+
+			/* http2bis draft recommends to drop Host in favor of :authority when
+			 * the latter is present. This is required to make sure there is no
+			 * discrepancy between the authority and the host header, especially
+			 * since routing rules usually involve Host. Here we already know if
+			 * :authority was found so we can emit it right now and mark the host
+			 * as filled so that it's skipped later.
+			 */
+			if (fields & H2_PHDR_FND_AUTH) {
+				if (!htx_add_header(htx, ist("host"), phdr_val[H2_PHDR_IDX_AUTH]))
+					goto fail;
+				fields |= H2_PHDR_FND_HOST;
+			}
 		}
 
-		if (isteq(list[idx].n, ist("host")))
+		if (isteq(list[idx].n, ist("host"))) {
+			if (fields & H2_PHDR_FND_HOST)
+				continue;
+
 			fields |= H2_PHDR_FND_HOST;
+		}
 
 		if (isteq(list[idx].n, ist("content-length"))) {
 			ret = h2_parse_cont_len_header(msgf, &list[idx].v, body_len);
@@ -531,7 +548,9 @@ int h2_make_htx_request(struct http_hdr *list, struct htx *htx, unsigned int *ms
 	/* update the start line with last detected header info */
 	sl->flags |= sl_flags;
 
-	/* complete with missing Host if needed */
+	/* complete with missing Host if needed (we may validate this test if
+	 * no regular header was found).
+	 */
 	if ((fields & (H2_PHDR_FND_HOST|H2_PHDR_FND_AUTH)) == H2_PHDR_FND_AUTH) {
 		/* missing Host field, use :authority instead */
 		if (!htx_add_header(htx, ist("host"), phdr_val[H2_PHDR_IDX_AUTH]))
