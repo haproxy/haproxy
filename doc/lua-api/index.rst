@@ -55,9 +55,10 @@ functions. Lua have 6 execution context.
    function `core.register_fetches()`. Each declared sample-fetch is prefixed by
    the string "lua.".
 
-   **NOTE**: It is possible that this function cannot found the required data
-   in the original HAProxy sample-fetches, in this case, it cannot return the
-   result. This case is not yet supported
+   .. note::
+      It is possible that this function cannot found the required data in the
+      original HAProxy sample-fetches, in this case, it cannot return the
+      result. This case is not yet supported
 
 6. The **converter context**. It is a Lua function that takes a string as input
    and returns another string as output. These types of function are stateless,
@@ -173,8 +174,9 @@ Core class
   proxy give an access to his list of listeners and servers. The table is
   indexed by proxy name, and each entry is of type :ref:`proxy_class`.
 
-  Warning, if you are declared frontend and backend with the same name, only one
-  of these are listed.
+  .. Warning::
+     if you are declared frontend and backend with the same name, only one of
+     these are listed.
 
   :see: :js:attr:`core.backends`
   :see: :js:attr:`core.frontends`
@@ -447,8 +449,9 @@ Core class
   configuration file. The table is indexed by the proxy name, and each entry
   of the proxies table is an object of type :ref:`proxy_class`.
 
-  Warning, if you have declared a frontend and backend with the same name, only
-  one of these are listed.
+  .. warning::
+     if you have declared a frontend and backend with the same name, only one of
+     these are listed.
 
 .. js:function:: core.register_action(name, actions, func [, nb_args])
 
@@ -615,10 +618,11 @@ Core class
     :ref:`applethttp_class`. If the *mode* value is 'tcp', the applet will gets
     a :ref:`applettcp_class`.
 
-  **warning**: Applets of type 'http' cannot be called from 'tcp-*'
-  rulesets. Only the 'http-*' rulesets are authorized, this means
-  that is not possible to call an HTTP applet from a proxy in tcp
-  mode. Applets of type 'tcp' can be called from anywhere.
+  .. warning::
+     Applets of type 'http' cannot be called from 'tcp-*' rulesets. Only the
+     'http-*' rulesets are authorized, this means that is not possible to call
+     an HTTP applet from a proxy in tcp mode. Applets of type 'tcp' can be
+     called from anywhere.
 
   Here, an example of service registration. The service just send an 'Hello world'
   as an http response.
@@ -1209,8 +1213,9 @@ Fetches class
   HAProxy "configuration.txt" documentation for more information about her
   usage. They are the chapters 7.3.2 to 7.3.6.
 
-  **warning** some sample fetches are not available in some context. These
-  limitations are specified in this documentation when they're useful.
+  .. warning::
+     some sample fetches are not available in some context. These limitations
+     are specified in this documentation when they're useful.
 
   :see: :js:attr:`TXN.f`
   :see: :js:attr:`TXN.sf`
@@ -2023,10 +2028,11 @@ TXN class
    }
 ..
 
-  *Warning*: It not make sense to call this function from sample-fetches. In
-  this case the behaviour of this one is the same than core.done(): it quit
-  the Lua execution. The transaction is really aborted only from an action
-  registered function.
+  .. warning::
+    It not make sense to call this function from sample-fetches. In this case
+    the behaviour of this one is the same than core.done(): it quit the Lua
+    execution. The transaction is really aborted only from an action registered
+    function.
 
   :see: :js:func:`TXN.reply`, :js:class:`Reply`
 
