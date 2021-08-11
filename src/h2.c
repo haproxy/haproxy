@@ -328,6 +328,14 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 			flags |= HTX_SL_F_HAS_AUTHORITY;
 	}
 
+	/* The method is a non-empty token (RFC7231#4.1) */
+	if (!meth_sl.len)
+		goto fail;
+	for (i = 0; i < meth_sl.len; i++) {
+		if (!HTTP_IS_TOKEN(meth_sl.ptr[i]))
+			htx->flags |= HTX_FL_PARSING_ERROR;
+	}
+
 	/* make sure the final URI isn't empty. Note that 7540#8.1.2.3 states
 	 * that :path must not be empty.
 	 */
