@@ -7203,7 +7203,8 @@ http-response sc-set-gpt0(<sc-id>) { <int> | <expr> }
   boolean. If an error occurs, this action silently fails and the actions
   evaluation continues.
 
-http-response send-spoe-group [ { if | unless } <condition> ]
+http-response send-spoe-group <engine-name> <group-name>
+                              [ { if | unless } <condition> ]
 
   This action is used to trigger sending of a group of SPOE messages. To do so,
   the SPOE engine used to send messages must be defined, as well as the SPOE
