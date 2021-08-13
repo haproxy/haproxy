@@ -2059,6 +2059,13 @@ static void init(int argc, char **argv)
 			if (!px->disabled && px->li_all)
 				break;
 
+		if (!px) {
+			/* We may only have log-forward section */
+			for (px = cfg_log_forward; px; px = px->next)
+				if (!px->disabled && px->li_all)
+					break;
+		}
+
 		if (pr || px) {
 			/* At least one peer or one listener has been found */
 			qfprintf(stdout, "Configuration file is valid\n");
