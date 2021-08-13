@@ -3120,7 +3120,7 @@ __LJMP static int hlua_channel_get_data_yield(lua_State *L, int status, lua_KCon
 	if (lua_gettop(L) > 1) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 2));
 		if (offset < 0)
-			offset = MAX(0, input + offset);
+			offset = MAX(0, (int)input + offset);
 		offset += output;
 		if (offset < output || offset > input + output) {
 			lua_pushfstring(L, "offset out of range.");
@@ -3183,7 +3183,7 @@ __LJMP static int hlua_channel_get_line_yield(lua_State *L, int status, lua_KCon
 	if (lua_gettop(L) > 1) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 2));
 		if (offset < 0)
-			offset = MAX(0, input + offset);
+			offset = MAX(0, (int)input + offset);
 		offset += output;
 		if (offset < output || offset > input + output) {
 			lua_pushfstring(L, "offset out of range.");
@@ -3519,9 +3519,8 @@ __LJMP static int hlua_channel_insert_data(lua_State *L)
 	if (lua_gettop(L) > 2) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 3));
 		if (offset < 0)
-			offset = MAX(0, input + offset);
+			offset = MAX(0, (int)input + offset);
 		offset += output;
-
 		if (offset < output || offset > output + input) {
 			lua_pushfstring(L, "offset out of range.");
 			WILL_LJMP(lua_error(L));
@@ -3579,7 +3578,7 @@ __LJMP static int hlua_channel_set_data(lua_State *L)
 	if (lua_gettop(L) > 2) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 3));
 		if (offset < 0)
-			offset = MAX(0, input + offset);
+			offset = MAX(0, (int)input + offset);
 		offset += output;
 		if (offset < output || offset > input + output) {
 			lua_pushfstring(L, "offset out of range.");
@@ -3653,7 +3652,7 @@ __LJMP static int hlua_channel_del_data(lua_State *L)
 	if (lua_gettop(L) > 2) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 3));
 		if (offset < 0)
-			offset = MAX(0, input + offset);
+			offset = MAX(0, (int)input + offset);
 		offset += output;
 		if (offset < output || offset > input + output) {
 			lua_pushfstring(L, "offset out of range.");
@@ -6478,7 +6477,7 @@ __LJMP static int hlua_http_msg_get_body(lua_State *L)
 	if (lua_gettop(L) > 1) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 2));
 		if (offset < 0)
-			offset = MAX(0, input + offset);
+			offset = MAX(0, (int)input + offset);
 		offset += output;
 		if (offset < output || offset > input + output) {
 			lua_pushfstring(L, "offset out of range.");
@@ -6596,9 +6595,8 @@ __LJMP static int hlua_http_msg_insert_data(lua_State *L)
 	if (lua_gettop(L) > 2) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 3));
 		if (offset < 0)
-			offset = MAX(0, input + offset);
+			offset = MAX(0, (int)input + offset);
 		offset += output;
-
 		if (offset < output || offset > output + input) {
 			lua_pushfstring(L, "offset out of range.");
 			WILL_LJMP(lua_error(L));
@@ -6639,9 +6637,8 @@ __LJMP static int hlua_http_msg_del_data(lua_State *L)
 	if (lua_gettop(L) > 2) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 3));
 		if (offset < 0)
-			offset = MAX(0, input + offset);
+			offset = MAX(0, (int)input + offset);
 		offset += output;
-
 		if (offset < output || offset > output + input) {
 			lua_pushfstring(L, "offset out of range.");
 			WILL_LJMP(lua_error(L));
@@ -6701,7 +6698,7 @@ __LJMP static int hlua_http_msg_set_data(lua_State *L)
 	if (lua_gettop(L) > 2) {
 		offset = MAY_LJMP(luaL_checkinteger(L, 3));
 		if (offset < 0)
-			offset = MAX(0, input + offset);
+			offset = MAX(0, (int)input + offset);
 		offset += output;
 		if (offset < output || offset > input + output) {
 			lua_pushfstring(L, "offset out of range.");
