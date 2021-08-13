@@ -12,13 +12,23 @@
  *
  */
 #include <haproxy/connection-t.h>
+#include <haproxy/http_client-t.h>
 #include <haproxy/server-t.h>
 
+#include <haproxy/applet.h>
+#include <haproxy/cli.h>
+#include <haproxy/dynbuf.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/connection.h>
 #include <haproxy/global.h>
+#include <haproxy/h1_htx.h>
+#include <haproxy/http.h>
+#include <haproxy/http_client.h>
+#include <haproxy/http_htx.h>
+#include <haproxy/htx.h>
 #include <haproxy/log.h>
 #include <haproxy/proxy.h>
+#include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
 #include <string.h>
@@ -27,6 +37,413 @@
 static struct proxy *httpclient_proxy;
 static struct server *httpclient_srv_raw;
 static struct server *httpclient_srv_ssl;
+
+static struct applet httpclient_applet;
+
+/*
+ * Generate a simple request and fill the httpclient request buffer with it.
+ * The request contains a request line generated from the absolute <url> and
+ * <meth> as well as list of headers <hdrs>.
+ *
+ * If the buffer was filled correctly the function returns 0, if not it returns
+ * an error_code but there is no guarantee that the buffer wasn't modified.
+ */
+int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_meth_t meth, const struct http_hdr *hdrs)
+{
+	struct htx_sl *sl;
+	struct htx *htx;
+	int err_code = 0;
+	struct ist meth_ist, vsn;
+	unsigned int flags = HTX_SL_F_VER_11 | HTX_SL_F_BODYLESS | HTX_SL_F_XFER_LEN | HTX_SL_F_NORMALIZED_URI | HTX_SL_F_HAS_SCHM;
+
+	if (meth >= HTTP_METH_OTHER)
+		goto error;
+
+	meth_ist = http_known_methods[meth];
+
+	vsn = ist("HTTP/1.1");
+
+	htx = htx_from_buf(&hc->req.buf);
+	if (!htx)
+		goto error;
+	sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth_ist, url, vsn);
+	if (!sl) {
+		goto error;
+	}
+	sl->info.req.meth = meth;
+
+	/* Add Host Header from URL */
+	if (!http_update_host(htx, sl, url))
+		goto error;
+
+	/* add the headers and EOH */
+	if (hdrs && !htx_add_all_headers(htx, hdrs))
+		goto error;
+
+	htx->flags |= HTX_FL_EOM;
+
+	htx_to_buf(htx, &hc->req.buf);
+
+	return 0;
+error:
+	err_code |= ERR_ALERT | ERR_ABORT;
+	return err_code;
+}
+
+/*
+ * transfer the response to the destination buffer and wakeup the HTTP client
+ * applet so it could fill again its buffer.
+ *
+ * Return the number of bytes transfered.
+ */
+int httpclient_res_xfer(struct httpclient *hc, struct buffer *dst)
+{
+	int ret;
+
+	ret = b_xfer(dst, &hc->res.buf, MIN(1024, b_data(&hc->res.buf)));
+	/* call the client once we consumed all data */
+	if (!b_data(&hc->res.buf) && hc->appctx)
+		appctx_wakeup(hc->appctx);
+	return ret;
+}
+
+/*
+ * Start the HTTP client
+ * Create the appctx, session, stream and wakeup the applet
+ *
+ * FIXME: It also fill the sockaddr with the IP address, but currently only IP
+ * in the URL are supported, it lacks a resolver.
+ *
+ * Return the <appctx> or NULL if it failed
+ */
+struct appctx *httpclient_start(struct httpclient *hc)
+{
+	struct applet *applet = &httpclient_applet;
+	struct appctx *appctx;
+	struct session *sess;
+	struct stream *s;
+	int len;
+	struct split_url out;
+
+	/* parse URI and fill sockaddr_storage */
+	/* FIXME: use a resolver */
+	len = url2sa(ist0(hc->req.url), istlen(hc->req.url), &hc->dst, &out);
+	if (len == -1) {
+		ha_alert("httpclient: cannot parse uri '%s'.\n", ist0(hc->req.url));
+		goto out;
+	}
+
+	/* The HTTP client will be created in the same thread as the caller,
+	 * avoiding threading issues */
+	appctx = appctx_new(applet, tid_bit);
+	if (!appctx)
+		goto out;
+
+	sess = session_new(httpclient_proxy, NULL, &appctx->obj_type);
+	if (!sess) {
+		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
+		goto out_free_appctx;
+	}
+	if ((s = stream_new(sess, &appctx->obj_type, &BUF_NULL)) == NULL) {
+		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
+		goto out_free_appctx;
+	}
+
+	if (!sockaddr_alloc(&s->target_addr, &hc->dst, sizeof(hc->dst))) {
+		ha_alert("httpclient: Failed to initialize stream in %s:%d.\n", __FUNCTION__, __LINE__);
+		goto out_free_stream;
+	}
+
+	/* choose the SSL server or not */
+	switch (out.scheme) {
+		case SCH_HTTP:
+			s->target = &httpclient_srv_raw->obj_type;
+			break;
+		case SCH_HTTPS:
+			s->target = &httpclient_srv_ssl->obj_type;
+			break;
+	}
+
+	s->flags |= SF_ASSIGNED|SF_ADDR_SET;
+	s->si[1].flags |= SI_FL_NOLINGER;
+	s->res.flags |= CF_READ_DONTWAIT;
+
+	/* applet is waiting for data */
+	si_cant_get(&s->si[0]);
+	appctx_wakeup(appctx);
+
+	task_wakeup(s->task, TASK_WOKEN_INIT);
+	hc->appctx = appctx;
+	appctx->ctx.httpclient.ptr = hc;
+	appctx->st0 = HTTPCLIENT_S_REQ;
+
+	return appctx;
+
+out_free_stream:
+	LIST_DELETE(&s->list);
+	pool_free(pool_head_stream, s);
+out_free_sess:
+	session_free(sess);
+out_free_appctx:
+	appctx_free(appctx);
+out:
+
+	return NULL;
+}
+
+/* Free the httpclient */
+void httpclient_destroy(struct httpclient *hc)
+{
+	if (!hc)
+		return;
+	b_free(&hc->req.buf);
+	b_free(&hc->res.buf);
+	free(hc);
+
+	return;
+}
+
+/* Allocate an httpclient and its buffers
+ * Return NULL on failure */
+struct httpclient *httpclient_new(void *caller, enum http_meth_t meth, struct ist url)
+{
+	struct httpclient *hc;
+	struct buffer *b;
+
+	hc = calloc(1, sizeof(*hc));
+	if (!hc)
+		goto err;
+
+	b = b_alloc(&hc->req.buf);
+	if (!b)
+		goto err;
+	b = b_alloc(&hc->res.buf);
+	if (!b)
+		goto err;
+
+	hc->caller = caller;
+	hc->req.url = url;
+	hc->req.meth = meth;
+
+	return hc;
+
+err:
+	httpclient_destroy(hc);
+	return NULL;
+}
+
+static void httpclient_applet_io_handler(struct appctx *appctx)
+{
+	struct httpclient *hc = appctx->ctx.httpclient.ptr;
+	struct stream_interface *si = appctx->owner;
+	struct stream *s = si_strm(si);
+	struct channel *req = &s->req;
+	struct channel *res = &s->res;
+	struct htx_blk *blk = NULL;
+	struct htx *htx;
+	struct htx_sl *sl;
+	int32_t pos;
+	uint32_t hdr_num;
+
+
+	while (1) {
+		switch(appctx->st0) {
+
+			case HTTPCLIENT_S_REQ:
+				/* copy the request from the hc->req.buf buffer */
+				htx = htx_from_buf(&req->buf);
+				/* We now that it fits the content of a buffer so can
+				 * just push this entirely */
+				b_xfer(&req->buf, &hc->req.buf, b_data(&hc->req.buf));
+				channel_add_input(req, b_data(&req->buf));
+				appctx->st0 = HTTPCLIENT_S_RES_STLINE;
+				goto more; /* we need to leave the IO handler once we wrote the request */
+			break;
+
+			case HTTPCLIENT_S_RES_STLINE:
+				/* copy the start line in the hc structure,then remove the htx block */
+				if (!b_data(&res->buf))
+					goto more;
+				htx = htxbuf(&res->buf);
+				if (!htx)
+					goto more;
+				blk = htx_get_first_blk(htx);
+				if (blk && (htx_get_blk_type(blk) == HTX_BLK_RES_SL))
+					sl = htx_get_blk_ptr(htx, blk);
+				if (!sl || (!(sl->flags & HTX_SL_F_IS_RESP)))
+					goto more;
+
+				/* copy the status line in the httpclient */
+				hc->res.status = sl->info.res.status;
+				hc->res.vsn = istdup(htx_sl_res_vsn(sl));
+				hc->res.reason = istdup(htx_sl_res_reason(sl));
+				co_htx_remove_blk(res, htx, blk);
+				/* caller callback */
+				if (hc->ops.res_stline)
+					hc->ops.res_stline(hc);
+
+				/* if there is no HTX data anymore and the EOM flag is
+				 * set, leave (no body) */
+				if (htx_is_empty(htx) && htx->flags & HTX_FL_EOM)
+					appctx->st0 = HTTPCLIENT_S_RES_END;
+				else
+					appctx->st0 = HTTPCLIENT_S_RES_HDR;
+				break;
+
+			case HTTPCLIENT_S_RES_HDR:
+				/* first copy the headers in a local hdrs
+				 * structure, once we the total numbers of the
+				 * header we allocate the right size and copy
+				 * them. The htx block of the headers are
+				 * removed each time one is read  */
+				{
+					struct http_hdr hdrs[global.tune.max_http_hdr];
+
+					if (!b_data(&res->buf))
+						goto more;
+					htx = htxbuf(&res->buf);
+					if (!htx)
+						goto more;
+
+					hdr_num = 0;
+
+					for (pos = htx_get_first(htx);  pos != -1; pos = htx_get_next(htx, pos)) {
+						struct htx_blk *blk = htx_get_blk(htx, pos);
+						enum htx_blk_type type = htx_get_blk_type(blk);
+
+						if (type == HTX_BLK_EOH) {
+							hdrs[hdr_num].n = IST_NULL;
+							hdrs[hdr_num].v = IST_NULL;
+							co_htx_remove_blk(res, htx, blk);
+							break;
+						}
+
+						if (type != HTX_BLK_HDR)
+							continue;
+
+						hdrs[hdr_num].n = istdup(htx_get_blk_name(htx, blk));
+						hdrs[hdr_num].v = istdup(htx_get_blk_value(htx, blk));
+						if (!isttest(hdrs[hdr_num].v) || !isttest(hdrs[hdr_num].n))
+							goto end;
+						co_htx_remove_blk(res, htx, blk);
+						hdr_num++;
+					}
+
+					/* alloc and copy the headers in the httpclient struct */
+					hc->res.hdrs = calloc((hdr_num + 1), sizeof(*hc->res.hdrs));
+					if (!hc->res.hdrs)
+						goto end;
+					memcpy(hc->res.hdrs, hdrs, sizeof(struct http_hdr) * (hdr_num + 1));
+
+					/* caller callback */
+					if (hc->ops.res_headers)
+						hc->ops.res_headers(hc);
+
+					/* if there is no HTX data anymore and the EOM flag is
+					 * set, leave (no body) */
+					if (htx_is_empty(htx) && htx->flags & HTX_FL_EOM)
+						appctx->st0 = HTTPCLIENT_S_RES_END;
+					else
+						appctx->st0 = HTTPCLIENT_S_RES_BODY;
+				}
+			break;
+
+			case HTTPCLIENT_S_RES_BODY:
+				/*
+				 * The IO handler removes the htx blocks in the response buffer and
+				 * push them in the hc->res.buf buffer in a raw format.
+				 */
+				htx = htxbuf(&res->buf);
+				if (!htx || htx_is_empty(htx))
+					goto more;
+
+				if (b_full(&hc->res.buf))
+				goto process_data;
+
+				/* decapsule the htx data to raw data */
+				for (pos = htx_get_first(htx); pos != -1; pos = htx_get_next(htx, pos)) {
+					enum htx_blk_type type;
+
+					blk = htx_get_blk(htx, pos);
+					type = htx_get_blk_type(blk);
+					if (type == HTX_BLK_DATA) {
+						struct ist v = htx_get_blk_value(htx, blk);
+
+						if ((b_room(&hc->res.buf) < v.len) )
+							goto process_data;
+
+						__b_putblk(&hc->res.buf, v.ptr, v.len);
+						co_htx_remove_blk(res, htx, blk);
+						/* the data must be processed by the caller in the receive phase */
+						if (hc->ops.res_payload)
+							hc->ops.res_payload(hc);
+					} else {
+						/* remove any block which is not a data block */
+						co_htx_remove_blk(res, htx, blk);
+					}
+				}
+				/* if not finished, should be called again */
+				if (!(htx->flags & HTX_FL_EOM))
+					goto more;
+
+				/* end of message, we should quit */
+				appctx->st0 = HTTPCLIENT_S_RES_END;
+			break;
+
+			case HTTPCLIENT_S_RES_END:
+				goto end;
+			break;
+		}
+	}
+
+process_data:
+
+	si_rx_chan_rdy(si);
+
+	return;
+more:
+	/* There was not enough data in the response channel */
+
+	si_rx_room_blk(si);
+
+	if (appctx->st0 == HTTPCLIENT_S_RES_END)
+		goto end;
+
+	/* The state machine tries to handle as much data as possible, if there
+	 * isn't any data to handle and a shutdown is detected, let's stop
+	 * everything */
+	if ((req->flags & (CF_SHUTR|CF_SHUTR_NOW)) ||
+	    (res->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+		goto end;
+	}
+	return;
+
+end:
+	if (hc->ops.res_end)
+		hc->ops.res_end(hc);
+	si_shutw(si);
+	si_shutr(si);
+	return;
+}
+
+static void httpclient_applet_release(struct appctx *appctx)
+{
+	struct httpclient *hc = appctx->ctx.httpclient.ptr;
+
+	/* the applet is leaving, remove the ptr so we don't try to call it
+	 * again from the caller */
+	hc->appctx = NULL;
+
+	return;
+}
+
+/* HTTP client applet */
+static struct applet httpclient_applet = {
+	.obj_type = OBJ_TYPE_APPLET,
+	.name = "<HTTPCLIENT>",
+	.fct = httpclient_applet_io_handler,
+	.release = httpclient_applet_release,
+};
 
 /*
  * Initialize the proxy for the HTTP client with 2 servers, one for raw HTTP,
@@ -98,10 +515,6 @@ err:
 	return err_code;
 }
 
-/*
- *  Post config parser callback, this is used to copy the log line from the
- *  global section and put it in the server proxy
- */
 static int httpclient_cfg_postparser()
 {
 	struct logsrv *logsrv;

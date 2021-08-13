@@ -190,6 +190,9 @@ struct appctx {
 		struct {
 			void *ptr;
 		} sft; /* sink forward target */
+		struct {
+			struct httpclient *ptr;
+		} httpclient;
 
 		/* NOTE: please add regular applet contexts (ie: not
 		 * CLI-specific ones) above, before "cli".
