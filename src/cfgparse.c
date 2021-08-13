@@ -2554,7 +2554,7 @@ int check_config_validity()
 			break;
 		}
 
-		if (curproxy != global.cli_fe && (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners)) {
+		if (!(curproxy->cap & PR_CAP_INT) && (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners)) {
 			ha_warning("%s '%s' has no 'bind' directive. Please declare it as a backend if this was intended.\n",
 				   proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;
@@ -3115,7 +3115,7 @@ out_uri_auth_compat:
 		} else
 			cfgerr += acl_find_targets(curproxy);
 
-		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
+		if (!(curproxy->cap & PR_CAP_INT) && (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
 		    (((curproxy->cap & PR_CAP_FE) && !curproxy->timeout.client) ||
 		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) &&
 		      (!curproxy->timeout.connect ||
@@ -3348,7 +3348,7 @@ out_uri_auth_compat:
 		if (curproxy->options & PR_O_LOGASAP)
 			curproxy->to_log &= ~LW_BYTES;
 
-		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
+		if (!(curproxy->cap & PR_CAP_INT) && (curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
 		    (curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->logsrvs) &&
 		    (!LIST_ISEMPTY(&curproxy->logformat) || !LIST_ISEMPTY(&curproxy->logformat_sd))) {
 			ha_warning("log format ignored for %s '%s' since it has no log address.\n",
