@@ -10350,10 +10350,8 @@ static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 
 	/* Initialize the filter ops with default callbacks */
 	hlua_flt_ops = calloc(1, sizeof(*hlua_flt_ops));
-	if (!hlua_flt_ops) {
-		memprintf(err, "Lua filter '%s' : Lua out of memory error", reg_flt->name);
-		return -1;
-	}
+	if (!hlua_flt_ops)
+		goto error;
 	hlua_flt_ops->init              = hlua_filter_init;
 	hlua_flt_ops->deinit            = hlua_filter_deinit;
 	if (state_id) {
@@ -10396,21 +10394,28 @@ static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 
 	/* Create the filter config */
 	conf = calloc(1, sizeof(*conf));
-	if (!conf) {
-		memprintf(err, "Lua filter '%s' : Lua out of memory error", reg_flt->name);
+	if (!conf)
 		goto error;
-	}
 	conf->reg = reg_flt;
 
 	/* duplicate args */
 	for (pos = 0; *args[*cur_arg + 1 + pos]; pos++);
 	conf->args = calloc(pos + 1, sizeof(*conf->args));
-	for (pos = 0; *args[*cur_arg + 1 + pos]; pos++)
+	if (!conf->args)
+		goto error;
+	for (pos = 0; *args[*cur_arg + 1 + pos]; pos++) {
 		conf->args[pos] = strdup(args[*cur_arg + 1 + pos]);
+		if (!conf->args[pos])
+			goto error;
+	}
 	conf->args[pos] = NULL;
 	*cur_arg += pos + 1;
 
-	fconf->id    = strdup(flt_id);
+	if (flt_id) {
+		fconf->id    = strdup(flt_id);
+		if (!fconf->id)
+			goto error;
+	}
 	fconf->flags = flt_flags;
 	fconf->conf  = conf;
 	fconf->ops   = hlua_flt_ops;
@@ -10419,8 +10424,15 @@ static int hlua_filter_parse_fct(char **args, int *cur_arg, struct proxy *px,
 	return 0;
 
   error:
+	memprintf(err, "Lua filter '%s' : Lua out of memory error", reg_flt->name);
 	free(hlua_flt_ops);
+	if (conf && conf->args) {
+		for (pos = 0; conf->args[pos]; pos++)
+			free(conf->args[pos]);
+		free(conf->args);
+	}
 	free(conf);
+	free((char *)fconf->id);
 	lua_settop(L, 0);
 	return -1;
 }
