@@ -1,0 +1,167 @@
+# This test ensures that h2 requests with invalid pseudo-headers are properly
+# rejected. Also, the host header must be ignored if authority is present. This
+# is necessary to avoid http/2 desync attacks through haproxy as described here
+# https://portswigger.net/research/http2
+
+varnishtest "h2 desync attacks"
+feature ignore_unknown_macro
+
+server s1 {
+	rxreq
+	expect req.http.host == "hostname"
+	txresp
+} -start
+
+# haproxy frontend
+haproxy hap -conf {
+	defaults
+		mode http
+
+	listen feSrvH1
+		bind "fd@${feSrvH1}"
+		http-request return status 200
+
+	listen feSrvH2
+		bind "fd@${feSrvH2}" proto h2
+		http-request return status 200
+
+	listen fe1
+		bind "fd@${fe1}" proto h2
+		server srv-hapSrv "${hap_feSrvH1_addr}:${hap_feSrvH1_port}"
+
+	listen fe2
+		bind "fd@${fe2}" proto h2
+		server srv-hapSrv "${hap_feSrvH2_addr}:${hap_feSrvH2_port}" proto h2
+
+	listen fe3
+		bind "fd@${fe3}" proto h2
+		server s1 "${s1_addr}:${s1_port}"
+} -start
+
+# valid request
+client c1 -connect ${hap_fe1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http" \
+		  -url "/"
+		rxresp
+		expect resp.status == 200
+	} -run
+} -run
+
+# valid request
+client c2 -connect ${hap_fe2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http" \
+		  -url "/"
+		rxresp
+		expect resp.status == 200
+	} -run
+} -run
+
+# invalid path
+client c3-path -connect ${hap_fe1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http" \
+		  -url "hello-world"
+		rxrst
+	} -run
+} -run
+
+# invalid scheme
+client c4-scheme -connect ${hap_fe1_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http://localhost/?" \
+		  -url "/"
+		rxresp
+		expect resp.status == 400
+	} -run
+} -run
+
+# invalid method
+client c5-method -connect ${hap_fe2_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -method "GET?" \
+		  -scheme "http" \
+		  -url "/"
+		rxresp
+		expect resp.status == 400
+	} -run
+} -run
+
+# different authority and host headers
+# in this case, host should be ignored in favor of the authority
+client c6-host-authority -connect ${hap_fe3_sock} {
+	txpri
+	stream 0 {
+		txsettings
+		rxsettings
+		txsettings -ack
+		rxsettings
+		expect settings.ack == true
+	} -run
+
+	stream 1 {
+		txreq \
+		  -method "GET" \
+		  -scheme "http" \
+		  -url "/" \
+		  -hdr ":authority" "hostname" \
+		  -hdr "host" "other_host"
+	} -run
+} -run
+
+server s1 -wait
