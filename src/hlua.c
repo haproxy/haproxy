@@ -7482,7 +7482,10 @@ __LJMP static int hlua_txn_done(lua_State *L)
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= finst;
 
-	lua_pushinteger(L, ACT_RET_ABRT);
+	if ((htxn->flags & HLUA_TXN_CTX_MASK) == HLUA_TXN_FLT_CTX)
+		lua_pushinteger(L, -1);
+	else
+		lua_pushinteger(L, ACT_RET_ABRT);
 	WILL_LJMP(hlua_done(L));
 	return 0;
 }
