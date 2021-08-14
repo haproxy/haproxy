@@ -94,7 +94,7 @@ for CC in ["gcc", "clang"]:
         }
     )
 
-    for compression in ["USE_SLZ=1", "USE_ZLIB=1"]:
+    for compression in ["USE_ZLIB=1"]:
         matrix.append(
             {
                 "name": "{}, {}, gz={}".format(
