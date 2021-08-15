@@ -20,7 +20,7 @@ is the **initialisation mode**, and the second is the **runtime mode**.
   the Lua code seems to be run in blocking, but it is not the case.
 
 The Lua code is loaded in one or more files. These files contains main code and
-functions. Lua have 6 execution context.
+functions. Lua have 7 execution context.
 
 1. The Lua file **body context**. It is executed during the load of the Lua file
    in the HAProxy `[global]` section with the directive `lua-load`. It is
@@ -66,6 +66,19 @@ functions. Lua have 6 execution context.
    The call prototype is `function string fcn(string)`. This function can be
    registered with the Lua function `core.register_converters()`. Each declared
    converter is prefixed by the string "lua.".
+
+7. The **filter context**: It is a Lua object based on a class defining filter
+   callback functions. Lua filters are registered using
+   `core.register_filter()`. Each declared filter is prefixed by the string
+   "lua.".
+
+   .. warning::
+      The Lua filter support is highly experimental. The API is still unstable
+      and may change without notice. No backward compatibility should be
+      expected for now. Use it with an extreme caution and report any issue or
+      comment about it. The feature was unveiled to improve it and to adapt it
+      to real usages.
+
 
 HAProxy Lua Hello world
 -----------------------
@@ -591,6 +604,53 @@ Core class
 
     frontend example
        http-request redirect location /%[lua.hello]
+
+.. js:function:: core.register_filter(name, Flt, func)
+
+  **context**: body
+
+  Register a Lua function used to declare a filter. All the registered filters
+  can by used in HAProxy with the prefix "lua.".
+
+  :param string name: is the name of the filter.
+  :param table Flt: is a Lua class containing the filter definition (id, flags,
+                       callbacks).
+  :param function func: is the Lua function called to create the Lua filter.
+
+  The prototype of the Lua function used as argument is:
+
+.. code-block:: lua
+
+  function(flt, args)
+..
+
+  * **flt** : Is a filter object based on the class provided in
+              :js:func:`core.register_filter()` function.
+
+  * **args**: Is a table of strings containing all arguments provided through
+              the HAProxy configuration file, on the filter line.
+
+  It must return the filter to use or nil to ignore it. Here, an example of
+  filter registration.
+
+.. code-block:: lua
+
+  core.register_filter("my-filter", MyFilter, function(flt, args)
+     flt.args = args -- Save arguments
+     return flt
+  end)
+..
+
+  This example code is used in HAProxy configuration like this:
+
+::
+
+  frontend http
+    mode http
+    filter lua.my-filter arg1 arg2 arg3
+..
+
+  :see: :js:class:`Filter`
 
 .. js:function:: core.register_service(name, mode, func)
 
@@ -1271,6 +1331,8 @@ Channel class
 
 .. js:class:: Channel
 
+  **context**: action, sample-fetch, convert, filter
+
   HAProxy uses two buffers for the processing of the requests. The first one is
   used with the request data (from the client to the server) and the second is
   used for the response data (from the server to the client).
@@ -1295,11 +1357,11 @@ Channel class
     :js:func:`Channel.may_recv`, :js:func:`Channel.is_full` and
     :js:func:`Channel.is_resp` can be called from an HTTP conetext.
 
-  .. note::
-    Channel object may only be manipulated in the context of a registered
-    action, sample-fetch or converter. However, only actions are allowed to
-    yield. When it is said one of the following functions may yield, it is only
-    true in the context of an action.
+  All the functions provided by this class are available in the
+  **sample-fetches**, **actions** and **filters** contexts. For **filters**,
+  incoming data (offset and length) are relative to the filter. Some functions
+  may yield, by only for **actions**. Yield is not possible for
+  **sample-fetches**, **converters** and **filters**.
 
 .. js:function:: Channel.append(channel, string)
 
@@ -1321,11 +1383,11 @@ Channel class
 
   By default, if no length is provided, all incoming data found, starting at the
   given offset, are returned. If **length** is set to -1, the function tries to
-  retrieve a maximum of data and yields if necessary. It also waits for more
-  data if the requested length exceeds the available amount of incoming data. Do
-  not providing an offset is the same that setting it to 0. A positive offset is
-  relative to the begining of incoming data of the channel buffer while negative
-  offset is relative to their end.
+  retrieve a maximum of data and, if called by an action, it yields if
+  necessary. It also waits for more data if the requested length exceeds the
+  available amount of incoming data. Do not providing an offset is the same that
+  setting it to 0. A positive offset is relative to the begining of incoming
+  data of the channel buffer while negative offset is relative to their end.
 
   If there is no incoming data and the channel can't receive more data, a 'nil'
   value is returned.
@@ -1342,16 +1404,17 @@ Channel class
 .. js:function:: Channel.forward(channel, length)
 
   This function forwards **length** bytes of data from the channel buffer. If
-  the requested length exceeds the available amount of incoming data, the
-  function yields, waiting for more data to forward. It returns the amount of
-  data forwarded.
+  the requested length exceeds the available amount of incoming data, and if
+  called by an action, the function yields, waiting for more data to forward. It
+  returns the amount of data forwarded.
 
   :param class_channel channel: The manipulated Channel.
   :param integer int: The amount of data to forward.
 
 .. js:function:: Channel.input(channel)
 
-  This function returns the length of incoming data of the channel buffer.
+  This function returns the length of incoming data in the channel buffer. When
+  called by a filter, this value is relative to the filter.
 
   :param class_channel channel: The manipulated Channel.
   :returns: an integer containing the amount of available bytes.
@@ -1377,28 +1440,30 @@ Channel class
 
   This function returns true if the channel buffer is full.
 
+  :param class_channel channel: The manipulated Channel.
   :returns: a boolean
 
 .. js:function:: Channel.is_resp(channel)
 
   This function returns true if the channel is the response one.
 
+  :param class_channel channel: The manipulated Channel.
   :returns: a boolean
 
 .. js:function:: Channel.line(channel [, offset [, length]])
 
   This function parses **length** bytes of incoming data of the channel buffer,
   starting at offset **offset**, and returns the first line found, including the
-  '\n'.  The data are not removed from the buffer. If no line is found, all data
+  '\\n'.  The data are not removed from the buffer. If no line is found, all data
   are returned.
 
   By default, if no length is provided, all incoming data, starting at the given
   offset, are evaluated. If **length** is set to -1, the function tries to
-  retrieve a maximum of data and yields if necessary. It also waits for more
-  data if the requested length exceeds the available amount of incoming data. Do
-  not providing an offset is the same that setting it to 0. A positive offset is
-  relative to the begining of incoming data of the channel buffer while negative
-  offset is relative to their end.
+  retrieve a maximum of data and, if called by an action, yields if
+  necessary. It also waits for more data if the requested length exceeds the
+  available amount of incoming data. Do not providing an offset is the same that
+  setting it to 0. A positive offset is relative to the begining of incoming
+  data of the channel buffer while negative offset is relative to their end.
 
   If there is no incoming data and the channel can't receive more data, a 'nil'
   value is returned.
@@ -1416,11 +1481,13 @@ Channel class
 
   This function returns true if the channel may still receive data.
 
+  :param class_channel channel: The manipulated Channel.
   :returns: a boolean
 
 .. js:function:: Channel.output(channel)
 
-  This function returns the length of outgoing data of the channel buffer.
+  This function returns the length of outgoing data of the channel buffer. When
+  called by a filter, this value is relative to the filter.
 
   :param class_channel channel: The manipulated Channel.
   :returns: an integer containing the amount of available bytes.
@@ -1458,10 +1525,10 @@ Channel class
 
 .. js:function:: Channel.send(channel, string)
 
-  This function required immediate send of the string **string**. It means the
+  This function requires immediate send of the string **string**. It means the
   string is copied at the begining of incoming data of the channel buffer and
-  immediately forwarded. Unless if the connection is close, this function yields
-  to copied and forward all the string.
+  immediately forwarded. Unless if the connection is close, and if called by an
+  action, this function yields to copied and forward all the string.
 
   :param class_channel channel: The manipulated Channel.
   :param string string: The data to send.
@@ -1534,9 +1601,10 @@ Channel class
   **DEPRECATED**
 
   This function returns the first line found in incoming data of the channel
-  buffer, including the '\n'. The returned data are removed from the buffer. If
-  no line is found, this function yields to wait for more data, except if the
-  channel can't receive more data. In this case all data are returned.
+  buffer, including the '\\n'. The returned data are removed from the buffer. If
+  no line is found, and if called by an action, this function yields to wait for
+  more data, except if the channel can't receive more data. In this case all
+  data are returned.
 
   If there is no incoming data and the channel can't receive more data, a 'nil'
   value is returned.
@@ -1560,7 +1628,8 @@ Channel class
 
   **DEPDRECATED**
 
-  This function returns the length of the input part of the buffer.
+  This function returns the length of the input part of the buffer. When called
+  by a filter, this value is relative to the filter.
 
   :param class_channel channel: The manipulated Channel.
   :returns: an integer containing the amount of available bytes.
@@ -1573,7 +1642,8 @@ Channel class
 
   **DEPDRECATED**
 
-  This function returns the length of the output part of the buffer.
+  This function returns the length of the output part of the buffer. When called
+  by a filter, this value is relative to the filter.
 
   :param class_channel channel: The manipulated Channel.
   :returns: an integer containing the amount of available bytes.
@@ -1781,7 +1851,7 @@ TXN class
   and forward it.
 
   All the functions provided by this class are available in the context
-  **sample-fetches** and **actions**.
+  **sample-fetches**, **actions** and **filters**.
 
 .. js:attribute:: TXN.c
 
@@ -1827,6 +1897,22 @@ TXN class
 
   This attribute contains an HTTP class object. It is available only if the
   proxy has the "mode http" enabled.
+
+.. js:attribute:: TXN.http_req
+
+  :returns: An :ref:`httpmessage_class`.
+
+  This attribute contains the request HTTPMessage class object. It is available
+  only if the proxy has the "mode http" enabled and only in the **filters**
+  context.
+
+.. js:attribute:: TXN.http_res
+
+  :returns: An :ref:`httpmessage_class`.
+
+  This attribute contains the response HTTPMessage class object. It is available
+  only if the proxy has the "mode http" enabled and only in the **filters**
+  context.
 
 .. js:function:: TXN.log(TXN, loglevel, msg)
 
@@ -3043,6 +3129,526 @@ Action class
 
   This function may be used when a lua action returns `act.YIELD`, to force its
   wake-up at most after the specified number of milliseconds.
+
+.. _filter_class:
+
+Filter class
+=============
+
+.. js:class:: filter
+
+  **context**: filter
+
+  This class contains return codes some filter callback functions may return. It
+  also contains configuration flags and some helper functions. To understand how
+  the filter API works, see `doc/internal/filters.txt` documentation.
+
+.. js:attribute:: filter.CONTINUE
+
+  This attribute is an integer (1). It may be returned by some filter callback
+  functions to instruct this filtering step is finished for this filter.
+
+.. js:attribute:: filter.WAIT
+
+  This attribute is an integer (0). It may be returned by some filter callback
+  functions to instruct the filtering must be paused, waiting for more data or
+  for an external event depending on this filter.
+
+.. js:attribute:: filter.ERROR
+
+  This attribute is an integer (-1). It may be returned by some filter callback
+  functions to trigger an error.
+
+.. js:attribute:: filter.FLT_CFG_FL_HTX
+
+  This attribute is a flag corresponding to the filter flag FLT_CFG_FL_HTX. When
+  it is set for a filter, it means the filter is able to filter HTTP streams.
+
+.. js:function:: filter.register_data_filter(chn)
+
+  **context**: filter
+
+  Enable the data filtering on the channel **chn** for the current filter. It
+  may be called at any time from any callback functions preceeding the data
+  analysis.
+
+  :param class_Channel chn: A :ref:`channel_class`.
+
+.. js:function:: filter.unregister_data_filter(chn)
+
+  **context**: filter
+
+  Disable the data filtering on the channel **chn** for the current filter. It
+  may be called at any time from any callback functions.
+
+  :param class_Channel chn: A :ref:`channel_class`.
+
+.. js:function:: filter.wake_time(milliseconds)
+
+  **context**: filter
+
+  Set the script pause timeout to the specified time, defined in
+  milliseconds.
+
+  :param integer milliseconds: the required milliseconds.
+
+  This function may be used from any lua filter callback function to force its
+  wake-up at most after the specified number of milliseconds. Especially, when
+  `filter.CONTINUE` is returned.
+
+
+A filters is declared using :js:func:`core.register_filter()` function. The
+provided class will be used to instantiate filters. It may define following
+attributes:
+
+* id: The filter identifier. It is a string that identifies the filter and is
+      optional.
+
+* flags: The filter flags. Only :js:attr:`filter.FLT_CFG_FL_HTX` may be set for now.
+
+Such filter class must also define all required callback functions in the
+following list. Note that :js:func:`Filter.new()` must be defined otherwise the
+filter is ignored. Others are optionnal.
+
+* .. js:function:: FILTER.new()
+
+  Called to instantiate a new filter. This function must be defined.
+
+  :returns: a Lua object that will be used as filter instance for the current
+            stream.
+
+* .. js:function:: FILTER.start_analyze(flt, txn, chn)
+
+  Called when the analysis starts on the channel **chn**.
+
+* .. js:function:: FILTER.end_analyze(flt, txn, chn)
+
+  Called when the analysis ends on the channel **chn**.
+
+* .. js:function:: FILTER.http_headers(flt, txn, http_msg)
+
+  Called just before the HTTP payload analysis and after any processing on the
+  HTTP message **http_msg**. This callback functions is only called for HTTP
+  streams.
+
+* .. js:function:: FILTER.http_payload(flt, txn, http_msg)
+
+  Called during the HTTP payload analysis on the HTTP message **http_msg**. This
+  callback functions is only called for HTTP streams.
+
+* .. js:function:: FILTER.http_end(flt, txn, http_msg)
+
+  Called after the HTTP payload analysis on the HTTP message **http_msg**. This
+  callback functions is only called for HTTP streams.
+
+* .. js:function:: FILTER.tcp_payload(flt, txn, chn)
+
+  Called during the TCP payload analysis on the channel **chn**.
+
+Here is an full example:
+
+.. code-block:: lua
+
+  Trace = {}
+  Trace.id = "Lua trace filter"
+  Trace.flags = filter.FLT_CFG_FL_HTX;
+  Trace.__index = Trace
+
+  function Trace:new()
+      local trace = {}
+      setmetatable(trace, Trace)
+      trace.req_len = 0
+      trace.res_len = 0
+      return trace
+  end
+
+  function Trace:start_analyze(txn, chn)
+      if chn:is_resp() then
+          print("Start response analysis")
+      else
+          print("Start request analysis")
+      end
+      filter.register_data_filter(self, chn)
+  end
+
+  function Trace:end_analyze(txn, chn)
+      if chn:is_resp() then
+          print("End response analysis: "..self.res_len.." bytes filtered")
+      else
+          print("End request analysis: "..self.req_len.." bytes filtered")
+      end
+  end
+
+  function Trace:http_headers(txn, http_msg)
+      stline  = http_msg:get_stline()
+      if http_msg.channel:is_resp() then
+          print("response:")
+          print(stline.version.." "..stline.code.." "..stline.reason)
+      else
+          print("request:")
+          print(stline.method.." "..stline.uri.." "..stline.version)
+      end
+
+      for n, hdrs in pairs(http_msg:get_headers()) do
+          for i,v in pairs(hdrs) do
+              print(n..": "..v)
+          end
+      end
+      return filter.CONTINUE
+  end
+
+  function Trace:http_payload(txn, http_msg)
+      body = http_msg:body(-20000)
+      if http_msg.channel:is_resp() then
+          self.res_len = self.res_len + body:len()
+      else
+          self.req_len = self.req_len + body:len()
+      end
+  end
+
+  core.register_filter("trace", Trace, function(trace, args)
+      return trace
+  end)
+
+..
+
+.. _httpmessage_class:
+
+HTTPMessage class
+===================
+
+.. js:class:: HTTPMessage
+
+  **context**: filter
+
+  This class contains all functions to manipulate an HTTP message. For now, this
+  class is only available from a filter context.
+
+.. js:function:: HTTPMessage.add_header(http_msg, name, value)
+
+  Appends an HTTP header field in the HTTP message **http_msg** whose name is
+  specified in **name** and whose value is defined in **value**.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string name: The header name.
+  :param string value: The header value.
+
+.. js:function:: HTTPMessage.append(http_msg, string)
+
+  This function copies the string **string** at the end of incoming data of the
+  HTTP message **http_msg**. The function returns the copied length on success
+  or -1 if data cannot be copied.
+
+  Same that :js:func:`HTTPMessage.insert(http_msg, string, http_msg:input())`.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string string: The data to copied into incoming data.
+  :returns: an integer containing the amount of bytes copied or -1.
+
+.. js:function:: HTTPMessage.body(http_msgl[, offset[, length]])
+
+  This function returns **length** bytes of incoming data from the HTTP message
+  **http_msg**, starting at the offset **offset**. The data are not removed from
+  the buffer.
+
+  By default, if no length is provided, all incoming data found, starting at the
+  given offset, are returned. If **length** is set to -1, the function tries to
+  retrieve a maximum of data. Because it is called in the filter context, it
+  never yield. Do not providing an offset is the same that setting it to 0. A
+  positive offset is relative to the begining of incoming data of the
+  http_message buffer while negative offset is relative to their end.
+
+  If there is no incoming data and the HTTP message can't receive more data, a 'nil'
+  value is returned.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param integer offset: *optional* The offset in incoming data to start to get
+                         data. 0 by default. May be negative to be relative to
+                         the end of incoming data.
+  :param integer length: *optional* The expected length of data to retrieve. All
+                         incoming data by default. May be set to -1 to get a
+                         maximum of data.
+  :returns: a string containing the data found or nil.
+
+.. js:function:: HTTPMessage.eom(http_msg)
+
+  This function returns true if the end of message is reached for the HTTP
+  message **http_msg**.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :returns: an integer containing the amount of available bytes.
+
+.. js:function:: HTTPMessage.del_header(http_msg, name)
+
+  Removes all HTTP header fields in the HTTP message **http_msg** whose name is
+  specified in **name**.
+
+  :param class_httpmessage http_msg: The manipulated http message.
+  :param string name: The header name.
+
+.. js:function:: HTTPMessage.get_headers(http_msg)
+
+  Returns a table containing all the headers of the HTTP message **http_msg**.
+
+  :param class_httpmessage http_msg: The manipulated http message.
+  :returns: table of headers.
+
+  This is the form of the returned table:
+
+.. code-block:: lua
+
+  http_msg:get_headers()['<header-name>'][<header-index>] = "<header-value>"
+
+  local hdr = http_msg:get_headers()
+  hdr["host"][0] = "www.test.com"
+  hdr["accept"][0] = "audio/basic q=1"
+  hdr["accept"][1] = "audio/*, q=0.2"
+  hdr["accept"][2] = "*.*, q=0.1"
+..
+
+.. js:function:: HTTPMessage.get_stline(http_msg)
+
+  Returns a table containing the start-line of the HTTP message **http_msg**.
+
+  :param class_httpmessage http_msg: The manipulated http message.
+  :returns: the start-line.
+
+  This is the form of the returned table:
+
+.. code-block:: lua
+
+  -- for the request :
+  {"method" = string, "uri" = string, "version" = string}
+
+  -- for the response:
+  {"version" = string, "code" = string, "reason" = string}
+..
+
+.. js:function:: HTTPMessage.forward(http_msg, length)
+
+  This function forwards **length** bytes of data from the HTTP message
+  **http_msg**. Because it is called in the filter context, it never yield. Only
+  available incoming data may be forwarded, event if the requested length
+  exceeds the available amount of incoming data. It returns the amount of data
+  forwarded.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param integer int: The amount of data to forward.
+
+.. js:function:: HTTPMessage.input(http_msg)
+
+  This function returns the length of incoming data in the HTTP message
+  **http_msg** from the calling filter point of view.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :returns: an integer containing the amount of available bytes.
+
+.. js:function:: HTTPMessage.insert(http_msg, string[, offset])
+
+  This function copies the string **string** at the offset **offset** in
+  incoming data of the HTTP message **http_msg**. The function returns the
+  copied length on success or -1 if data cannot be copied.
+
+  By default, if no offset is provided, the string is copied in front of
+  incoming data. A positive offset is relative to the begining of incoming data
+  of the HTTP message while negative offset is relative to their end.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string string: The data to copied into incoming data.
+  :param integer offset: *optional* The offset in incomding data where to copied
+                         data. 0 by default. May be negative to be relative to
+                         the end of incoming data.
+  :returns: an integer containing the amount of bytes copied or -1.
+
+.. js:function:: HTTPMessage.is_full(http_msg)
+
+  This function returns true if the HTTP message **http_msg** is full.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :returns: a boolean
+
+.. js:function:: HTTPMessage.is_resp(http_msg)
+
+  This function returns true if the HTTP message **http_msg** is the response
+  one.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :returns: a boolean
+
+.. js:function:: HTTPMessage.may_recv(http_msg)
+
+  This function returns true if the HTTP message **http_msg** may still receive
+  data.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :returns: a boolean
+
+.. js:function:: HTTPMessage.output(http_msg)
+
+  This function returns the length of outgoing data of the HTTP message
+  **http_msg**.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :returns: an integer containing the amount of available bytes.
+
+.. js:function:: HTTPMessage.prepend(http_msg, string)
+
+  This function copies the string **string** in front of incoming data of the
+  HTTP message **http_msg**. The function returns the copied length on success
+  or -1 if data cannot be copied.
+
+  Same that :js:func:`HTTPMessage.insert(http_msg, string, 0)`.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string string: The data to copied into incoming data.
+  :returns: an integer containing the amount of bytes copied or -1.
+
+.. js:function:: HTTPMessage.remove(http_msg[, offset[, length]])
+
+  This function removes **length** bytes of incoming data of the HTTP message
+  **http_msg**, starting at offset **offset**. This function returns number of
+  bytes removed on success.
+
+  By default, if no length is provided, all incoming data, starting at the given
+  offset, are removed. Do not providing an offset is the same that setting it
+  to 0. A positive offset is relative to the begining of incoming data of the
+  HTTP message while negative offset is relative to their end.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param integer offset: *optional* The offset in incomding data where to start
+                         to remove data. 0 by default. May be negative to
+                         be relative to the end of incoming data.
+  :param integer length: *optional* The length of data to remove. All incoming
+                         data by default.
+  :returns: an integer containing the amount of bytes removed.
+
+.. js:function:: HTTPMessage.rep_header(http_msg, name, regex, replace)
+
+  Matches the regular expression in all occurrences of header field **name**
+  according to regex **regex**, and replaces them with the string **replace**.
+  The replacement value can contain back references like \1, \2, ... This
+  function acts on whole header lines, regardless of the number of values they
+  may contain.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string name: The header name.
+  :param string regex: The match regular expression.
+  :param string replace: The replacement value.
+
+.. js:function:: HTTPMessage.rep_value(http_msg, name, regex, replace)
+
+  Matches the regular expression on every comma-delimited value of header field
+  **name** according to regex **regex**, and replaces them with the string
+  **replace**.  The replacement value can contain back references like \1, \2,
+  ...
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string name: The header name.
+  :param string regex: The match regular expression.
+  :param string replace: The replacement value.
+
+.. js:function:: HTTPMessage.send(http_msg, string)
+
+  This function required immediate send of the string **string**. It means the
+  string is copied at the begining of incoming data of the HTTP message
+  **http_msg** and immediately forwarded. Because it is called in the filter
+  context, it never yield.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string string: The data to send.
+  :returns: an integer containing the amount of bytes copied or -1.
+
+.. js:function:: HTTPMessage.set(http_msg, string[, offset[, length]])
+
+  This function replace **length** bytes of incoming data of the HTTP message
+  **http_msg**, starting at offset **offset**, by the string **string**. The
+  function returns the copied length on success or -1 if data cannot be copied.
+
+  By default, if no length is provided, all incoming data, starting at the given
+  offset, are replaced. Do not providing an offset is the same that setting it
+  to 0. A positive offset is relative to the begining of incoming data of the
+  HTTP message while negative offset is relative to their end.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string string: The data to copied into incoming data.
+  :param integer offset: *optional* The offset in incomding data where to start
+                         the data replacement. 0 by default. May be negative to
+                         be relative to the end of incoming data.
+  :param integer length: *optional* The length of data to replace. All incoming
+                         data by default.
+  :returns: an integer containing the amount of bytes copied or -1.
+
+.. js:function:: HTTPMessage.set_eom(http_msg)
+
+  This function set the end of message for the HTTP message **http_msg**.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+
+.. js:function:: HTTPMessage.set_header(http_msg, name, value)
+
+  This variable replace all occurrence of all header matching the name **name**,
+  by only one containing the value **value**.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string name: The header name.
+  :param string value: The header value.
+
+  This function does the same work as the following code:
+
+.. code-block:: lua
+
+      http_msg:del_header("header")
+      http_msg:add_header("header", "value")
+..
+
+.. js:function:: HTTPMessage.set_method(http_msg, method)
+
+  Rewrites the request method with the string **method**. The HTTP message
+  **http_msg** must be the request.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string method: The new method.
+
+.. js:function:: HTTPMessage.set_path(http_msg, path)
+
+  Rewrites the request path with the string **path**. The HTTP message
+  **http_msg** must be the request.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string method: The new method.
+
+.. js:function:: HTTPMessage.set_query(http_msg, query)
+
+  Rewrites the request's query string which appears after the first question
+  mark ("?") with the string **query**. The HTTP message **http_msg** must be
+  the request.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string query: The new query.
+
+.. js:function:: HTTPMessage.set_status(http_msg, status[, reason])
+
+  Rewrites the response status code with the integer **code** and optionnal the
+  reason **reason**. If no custom reason is provided, it will be generated from
+  the status. The HTTP message **http_msg** must be the response.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param integer status: The new response status code.
+  :param string reason: The new response reason (optional).
+
+.. js:function:: HTTPMessage.set_uri(http_msg, uri)
+
+  Rewrites the request URI with the string **uri**. The HTTP message
+  **http_msg** must be the request.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
+  :param string uri: The new uri.
+
+.. js:function:: HTTPMessage.unset_eom(http_msg)
+
+  This function remove the end of message for the HTTP message **http_msg**.
+
+  :param class_httpmessage http_msg: The manipulated HTTP message.
 
 External Lua libraries
 ======================

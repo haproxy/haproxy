@@ -52,3 +52,4 @@ dev/hpack/decode
 dev/hpack/gen-rht
 /src/dlmalloc.c
 /tests/test_hashes
+doc/lua-api/_build
