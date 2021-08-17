@@ -16,6 +16,12 @@
 #include <link.h>
 #endif
 
+#if defined(__FreeBSD__)
+#include <elf.h>
+#include <dlfcn.h>
+extern void *__elf_aux_vector;
+#endif
+
 #if defined(__NetBSD__)
 #include <sys/exec_elf.h>
 #include <dlfcn.h>
@@ -4766,6 +4772,14 @@ const char *get_exec_path()
 
 	if (execfn && execfn != ENOENT)
 		ret = (const char *)execfn;
+#elif defined(__FreeBSD__)
+	Elf_Auxinfo *auxv;
+	for (auxv = __elf_aux_vector; auxv->a_type != AT_NULL; ++auxv) {
+		if (auxv->a_type == AT_EXECPATH) {
+			ret = (const char *)auxv->a_un.a_ptr;
+			break;
+		}
+	}
 #elif defined(__NetBSD__)
 	AuxInfo *auxv;
 	for (auxv = _dlauxinfo(); auxv->a_type != AT_NULL; ++auxv) {
