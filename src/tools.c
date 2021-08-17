@@ -16,6 +16,11 @@
 #include <link.h>
 #endif
 
+#if defined(__NetBSD__)
+#include <sys/exec_elf.h>
+#include <dlfcn.h>
+#endif
+
 #include <ctype.h>
 #include <errno.h>
 #include <netdb.h>
@@ -4761,6 +4766,14 @@ const char *get_exec_path()
 
 	if (execfn && execfn != ENOENT)
 		ret = (const char *)execfn;
+#elif defined(__NetBSD__)
+	AuxInfo *auxv;
+	for (auxv = _dlauxinfo(); auxv->a_type != AT_NULL; ++auxv) {
+		if (auxv->a_type == AT_SUN_EXECNAME) {
+			ret = (const char *)auxv->a_v;
+			break;
+		}
+	}
 #endif
 	return ret;
 }
