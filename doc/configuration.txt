@@ -813,8 +813,8 @@ expression made of any combination of:
   - a non-nul integer (e.g. '1'), always returns "true".
   - a predicate optionally followed by argument(s) in parenthesis.
   - a condition placed between a pair of parenthesis '(' and ')'
-  - a question mark ('!') preceding any of the non-empty elements above, and
-    which will negate its status.
+  - an exclamation mark ('!') preceding any of the non-empty elements above,
+    and which will negate its status.
   - expressions combined with a logical AND ('&&'), which will be evaluated
     from left to right until one returns false
   - expressions combined with a logical OR ('||'), which will be evaluated
