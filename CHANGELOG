@@ -1,6 +1,90 @@
 ChangeLog :
 ===========
 
+2021/08/17 : 2.5-dev4
+    - MINOR: log: rename 'dontloglegacyconnerr' to 'log-error-via-logformat'
+    - MINOR: doc: rename conn_status in `option httsplog`
+    - MINOR: proxy: disabled takes a stopping and a disabled state
+    - MINOR: stats: shows proxy in a stopped state
+    - BUG/MINOR: server: fix race on error path of 'add server' CLI if track
+    - CLEANUP: thread: fix fantaisist indentation of thread_harmless_till_end()
+    - MINOR: threads: make thread_release() not wait for other ones to complete
+    - MEDIUM: threads: add a stronger thread_isolate_full() call
+    - MEDIUM: servers: make the server deletion code run under full thread isolation
+    - BUG/MINOR: server: remove srv from px list on CLI 'add server' error
+    - MINOR: activity/fd: remove the dead_fd counter
+    - MAJOR: fd: get rid of the DWCAS when setting the running_mask
+    - CLEANUP: fd: remove the now unused fd_set_running()
+    - CLEANUP: fd: remove the now unneeded fd_mig_lock
+    - BUG/MINOR: server: update last_change on maint->ready transitions too
+    - MINOR: spoe: Add a pointer on the filter config in the spoe_agent structure
+    - BUG/MEDIUM: spoe: Create a SPOE applet if necessary when the last one is released
+    - BUG/MEDIUM: spoe: Fix policy to close applets when SPOE connections are queued
+    - MINOR: server: unmark deprecated on enable health/agent cli
+    - MEDIUM: task: implement tasklet kill
+    - MINOR: server: initialize fields for dynamic server check
+    - MINOR: check: allocate default check ruleset for every backends
+    - MINOR: check: export check init functions
+    - MINOR: check: do not increment global maxsock at runtime
+    - MINOR: server: implement a refcount for dynamic servers
+    - MEDIUM: check: implement check deletion for dynamic servers
+    - MINOR: check: enable safe keywords for dynamic servers
+    - MEDIUM: server: implement check for dynamic servers
+    - MEDIUM: server: implement agent check for dynamic servers
+    - REGTESTS: server: add dynamic check server test
+    - MINOR: doc: specify ulimit-n usage for dynamic servers
+    - REGTESTS: server: fix dynamic server with checks test
+    - CI: travis-ci: temporarily disable arm64 builds
+    - BUG/MINOR: check: test if server is not null in purge
+    - MINOR: global: define MODE_STOPPING
+    - BUG/MINOR: server: do not use refcount in free_server in stopping mode
+    - ADMIN: dyncookie: implement a simple dynamic cookie calculator
+    - BUG/MINOR: check: do not reset check flags on purge
+    - BUG/MINOR: check: fix leak on add dynamic server with agent-check error
+    - BUG/MEDIUM: check: fix leak on agent-check purge
+    - BUG/MEDIUM: server: support both check/agent-check on a dynamic instance
+    - BUG/MINOR: buffer: fix buffer_dump() formatting
+    - MINOR: channel: remove an htx block from a channel
+    - BUG/MINOR: tcpcheck: Properly detect pending HTTP data in output buffer
+    - BUG/MINOR: stream: Don't release a stream if FLT_END is still registered
+    - MINOR: lua: Add a flag on lua context to know the yield capability at run time
+    - BUG/MINOR: lua: Yield in channel functions only if lua context can yield
+    - BUG/MINOR: lua: Don't yield in channel.append() and channel.set()
+    - MINOR: filters/lua: Release filters before the lua context
+    - MINOR: lua: Add a function to get a reference on a table in the stack
+    - MEDIUM: lua: Process buffer data using an offset and a length
+    - MEDIUM: lua: Improve/revisit the lua api to manipulate channels
+    - DOC: Improve the lua documentation
+    - MEDIUM: filters/lua: Add support for dummy filters written in lua
+    - MINOR: lua: Add a function to get a filter attached to a channel class
+    - MINOR: lua: Add flags on the lua TXN to know the execution context
+    - MEDIUM: filters/lua: Be prepared to filter TCP payloads
+    - MEDIUM: filters/lua: Support declaration of some filter callback functions in lua
+    - MEDIUM: filters/lua: Add HTTPMessage class to help HTTP filtering
+    - MINOR: filters/lua: Add request and response HTTP messages in the lua TXN
+    - MINOR: filters/lua: Support the HTTP filtering from filters written in lua
+    - DOC: config: Fix 'http-response send-spoe-group' documentation
+    - BUG/MINOR: lua: Properly check negative offset in Channel/HttpMessage functions
+    - BUG/MINOR: lua: Properly catch alloc errors when parsing lua filter directives
+    - BUG/MEDIUM: cfgcheck: verify existing log-forward listeners during config check
+    - MINOR: cli: delare the CLI frontend as an internal proxy
+    - MINOR: proxy: disable warnings for internal proxies
+    - BUG/MINOR: filters: Always set FLT_END analyser when CF_FLT_ANALYZE flag is set
+    - BUG/MINOR: lua/filters: Return right code when txn:done() is called
+    - DOC: lua-api: Add documentation about lua filters
+    - CI: Remove obsolete USE_SLZ=1 CI job
+    - CLEANUP: assorted typo fixes in the code and comments
+    - CI: github actions: relax OpenSSL-3.0.0 version comparision
+    - BUILD: tools: get the absolute path of the current binary on NetBSD.
+    - DOC: Minor typo fix - 'question mark' -> 'exclamation mark'
+    - DOC/MINOR: fix typo in management document
+    - MINOR: http: add a new function http_validate_scheme() to validate a scheme
+    - BUG/MAJOR: h2: verify early that non-http/https schemes match the valid syntax
+    - BUG/MAJOR: h2: verify that :path starts with a '/' before concatenating it
+    - BUG/MAJOR: h2: enforce stricter syntax checks on the :method pseudo-header
+    - BUG/MEDIUM: h2: give :authority precedence over Host
+    - REGTESTS: add a test to prevent h2 desync attacks
+
 2021/08/01 : 2.5-dev3
     - BUG/MINOR: arg: free all args on make_arg_list()'s error path
     - BUG/MINOR: cfgcond: revisit the condition freeing mechanism to avoid a leak
