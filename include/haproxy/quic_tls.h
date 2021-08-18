@@ -179,9 +179,9 @@ static inline char *quic_hdshk_state_str(const enum quic_handshake_state state)
 	case QUIC_HS_ST_SERVER_HANDSHAKE_FAILED:
 		return "SF";
 	case QUIC_HS_ST_COMPLETE:
-		return "CP";
+		return "HCP";
 	case QUIC_HS_ST_CONFIRMED:
-		return "CF";
+		return "HCF";
 	}
 
 	return NULL;
