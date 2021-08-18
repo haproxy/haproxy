@@ -40,6 +40,202 @@ static struct server *httpclient_srv_ssl;
 
 static struct applet httpclient_applet;
 
+/* --- This part of the file implement an HTTP client over the CLI ---
+ * The functions will be  starting by "hc_cli" for "httpclient cli"
+ */
+
+static struct http_hdr default_httpclient_hdrs[2] = {
+		{ .n = IST("User-Agent"), .v = IST("HAProxy HTTP client") },
+		{ .n = IST_NULL, .v = IST_NULL },
+};
+
+
+/* What kind of data we need to read */
+#define HC_CLI_F_RES_STLINE     0x01
+#define HC_CLI_F_RES_HDR        0x02
+#define	HC_CLI_F_RES_BODY       0x04
+#define HC_CLI_F_RES_END        0x08
+
+
+/* These are the callback used by the HTTP Client when it needs to notify new
+ * data, we only sets a flag in the IO handler  */
+
+void hc_cli_res_stline_cb(struct httpclient *hc)
+{
+	struct appctx *appctx = hc->caller;
+
+	appctx->ctx.cli.i0 |= HC_CLI_F_RES_STLINE;
+	if (appctx)
+		appctx_wakeup(appctx);
+}
+
+void hc_cli_res_headers_cb(struct httpclient *hc)
+{
+	struct appctx *appctx = hc->caller;
+
+	appctx->ctx.cli.i0 |= HC_CLI_F_RES_HDR;
+	if (appctx)
+		appctx_wakeup(appctx);
+}
+
+void hc_cli_res_body_cb(struct httpclient *hc)
+{
+	struct appctx *appctx = hc->caller;
+
+	appctx->ctx.cli.i0 |= HC_CLI_F_RES_BODY;
+	if (appctx)
+		appctx_wakeup(appctx);
+}
+
+void hc_cli_res_end_cb(struct httpclient *hc)
+{
+	struct appctx *appctx = hc->caller;
+
+	appctx->ctx.cli.i0 |= HC_CLI_F_RES_END;
+	if (appctx)
+		appctx_wakeup(appctx);
+}
+
+/*
+ * Parse an httpclient keyword on the cli:
+ * httpclient <ID> <method> <URI>
+ */
+static int hc_cli_parse(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	struct httpclient *hc;
+	char *err = NULL;
+	enum http_meth_t meth;
+	char *meth_str;
+	struct ist uri;
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		return 1;
+
+	if (!*args[1] || !*args[2]) {
+		memprintf(&err, ": not enough parameters");
+		goto err;
+	}
+
+	meth_str = args[1];
+	uri = ist(args[2]);
+
+	meth = find_http_meth(meth_str, strlen(meth_str));
+
+	hc = httpclient_new(appctx, meth, uri);
+	if (!hc) {
+		goto err;
+	}
+
+	/* update the httpclient callbacks */
+	hc->ops.res_stline = hc_cli_res_stline_cb;
+	hc->ops.res_headers = hc_cli_res_headers_cb;
+	hc->ops.res_payload = hc_cli_res_body_cb;
+	hc->ops.res_end = hc_cli_res_end_cb;
+
+	appctx->ctx.cli.p0 = hc; /* store the httpclient ptr in the applet */
+	appctx->ctx.cli.i0 = 0;
+
+	if (httpclient_req_gen(hc, hc->req.url, hc->req.meth, default_httpclient_hdrs) != ERR_NONE)
+		goto err;
+
+
+	if (!httpclient_start(hc))
+		goto err;
+
+	return 0;
+
+err:
+	memprintf(&err, "Can't start the HTTP client%s.\n", err ? err : "");
+	return cli_err(appctx, err);
+}
+
+/* This function dumps the content of the httpclient receive buffer
+ * on the CLI output
+ *
+ * Return 1 when the processing is finished
+ * return 0 if it needs to be called again
+ */
+static int hc_cli_io_handler(struct appctx *appctx)
+{
+	struct stream_interface *si = appctx->owner;
+	struct buffer *trash = alloc_trash_chunk();
+	struct httpclient *hc = appctx->ctx.cli.p0;
+	struct http_hdr *hdrs, *hdr;
+
+	if (!trash)
+		goto out;
+	if (appctx->ctx.cli.i0 & HC_CLI_F_RES_STLINE) {
+		chunk_appendf(trash, "%s %d %s\n",ist0(hc->res.vsn), hc->res.status, ist0(hc->res.reason));
+		if (ci_putchk(si_ic(si), trash) == -1)
+			si_rx_room_blk(si);
+		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_STLINE;
+		goto out;
+	}
+
+	if (appctx->ctx.cli.i0 & HC_CLI_F_RES_HDR) {
+		hdrs = hc->res.hdrs;
+		for (hdr = hdrs; isttest(hdr->v); hdr++) {
+			if (!h1_format_htx_hdr(hdr->n, hdr->v, trash))
+				goto out;
+		}
+		if (!chunk_memcat(trash, "\r\n", 2))
+			goto out;
+		if (ci_putchk(si_ic(si), trash) == -1)
+			si_rx_room_blk(si);
+		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_HDR;
+		goto out;
+	}
+
+	if (appctx->ctx.cli.i0 & HC_CLI_F_RES_BODY) {
+		int ret;
+
+		ret = httpclient_res_xfer(hc, &si_ic(si)->buf);
+		channel_add_input(si_ic(si), ret); /* forward what we put in the buffer channel */
+
+		if (!b_data(&hc->res.buf)) {/* remove the flag if the buffer was emptied */
+			appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_BODY;
+		}
+		goto out;
+	}
+
+	/* we must close only if F_END is the last flag */
+	if (appctx->ctx.cli.i0 ==  HC_CLI_F_RES_END) {
+		si_shutw(si);
+		si_shutr(si);
+		appctx->ctx.cli.i0 &= ~HC_CLI_F_RES_END;
+		goto out;
+	}
+
+out:
+	/* we didn't clear every flags, we should come back to finish things */
+	if (appctx->ctx.cli.i0)
+		si_rx_room_blk(si);
+
+	free_trash_chunk(trash);
+	return 0;
+}
+
+static void hc_cli_release(struct appctx *appctx)
+{
+	struct httpclient *hc = appctx->ctx.cli.p0;
+
+	/* Everything possible was printed on the CLI, we can destroy the client */
+	httpclient_destroy(hc);
+
+	return;
+}
+
+/* register cli keywords */
+static struct cli_kw_list cli_kws = {{ },{
+	{ { "httpclient", NULL }, "httpclient <method> <URI>   : launch an HTTP request", hc_cli_parse, hc_cli_io_handler, hc_cli_release},
+	{ { NULL }, NULL, NULL, NULL }
+}};
+
+INITCALL1(STG_REGISTER, cli_register_kw, &cli_kws);
+
+
+/* --- This part of the file implements the actual HTTP client API --- */
+
 /*
  * Generate a simple request and fill the httpclient request buffer with it.
  * The request contains a request line generated from the absolute <url> and
