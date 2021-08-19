@@ -2661,7 +2661,8 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto err;
 
 	st = HA_ATOMIC_LOAD(&qc->state);
-	if (prev_st == QUIC_HS_ST_SERVER_HANDSHAKE && st >= QUIC_HS_ST_COMPLETE) {
+	if (st >= QUIC_HS_ST_COMPLETE &&
+	    (prev_st == QUIC_HS_ST_SERVER_INITIAL || prev_st == QUIC_HS_ST_SERVER_HANDSHAKE)) {
 		/* Discard the Handshake keys. */
 		quic_tls_discard_keys(&qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE]);
 		quic_pktns_discard(qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns, qc);
