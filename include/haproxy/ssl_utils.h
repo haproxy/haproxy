@@ -39,6 +39,8 @@ int ssl_sock_get_dn_entry(X509_NAME *a, const struct buffer *entry, int pos,
 int ssl_sock_get_dn_formatted(X509_NAME *a, const struct buffer *format, struct buffer *out);
 int ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out);
 
+X509* ssl_sock_get_peer_certificate(SSL *ssl);
+
 #endif /* _HAPROXY_SSL_UTILS_H */
 #endif /* USE_OPENSSL */
 

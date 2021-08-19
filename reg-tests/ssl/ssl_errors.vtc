@@ -39,22 +39,25 @@ barrier b1 cond 4 -cyclic
 
 syslog Slg_cust_fmt -level info {
     recv
-    expect ~ ".*conn_status:\"0:Success\" hsk_err:\"0:-\""
+    expect ~ ".*conn_status:\"0:Success\" hsk_err:\"0:-\" CN=\"/C=FR/O=HAProxy Technologies/CN=Client\",serial=1007,hash=063DCC2E6A9159E66994B325D6D2EF3D17A75B6F"
 
     barrier b1 sync
 
     recv
-    expect ~ ".*conn_status:\"30:SSL client CA chain cannot be verified\" hsk_err:\"337100934:error:1417C086:SSL routines:tls_process_client_certificate:certificate verify failed\""
+    expect ~ ".*conn_status:\"30:SSL client CA chain cannot be verified\" hsk_err:\"337100934:error:1417C086:SSL routines:tls_process_client_certificate:certificate verify failed\" CN=\"/C=FR/O=HAProxy Technologies/CN=Client\",serial=1007,hash=063DCC2E6A9159E66994B325D6D2EF3D17A75B6F"
 
     barrier b1 sync
 
     recv
-    expect ~ ".*conn_status:\"31:SSL client certificate not trusted\" hsk_err:\"337100934:error:1417C086:SSL routines:tls_process_client_certificate:certificate verify failed\""
+    expect ~ ".*conn_status:\"31:SSL client certificate not trusted\" hsk_err:\"337100934:error:1417C086:SSL routines:tls_process_client_certificate:certificate verify failed\" CN=\"/C=FR/O=HAProxy Technologies/CN=Client\",serial=1007,hash=063DCC2E6A9159E66994B325D6D2EF3D17A75B6F"
 
     barrier b1 sync
 
+    # In case of an error occuring before the certificate verification process,
+    # the client certificate chain is never parsed and verified so we can't
+    # have information about the client's certificate.
     recv
-    expect ~ ".*conn_status:\"34:SSL handshake failure\" hsk_err:\"337678529:error:142090C1:SSL routines:tls_early_post_process_client_hello:no shared cipher\""
+    expect ~ ".*conn_status:\"34:SSL handshake failure\" hsk_err:\"337678529:error:142090C1:SSL routines:tls_early_post_process_client_hello:no shared cipher\" CN=\"\",serial=-,hash=-"
 } -start
 
 syslog Slg_https_fmt -level info {
@@ -136,7 +139,7 @@ haproxy h1 -conf {
         log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
 	option log-error-via-logformat
         mode http
-        log-format "conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_hsk_err]:%[ssl_fc_hsk_err_str]\""
+        log-format "conn_status:\"%[fc_conn_err]:%[fc_conn_err_str]\" hsk_err:\"%[ssl_fc_hsk_err]:%[ssl_fc_hsk_err_str]\" CN=%{+Q}[ssl_c_s_dn],serial=%[ssl_c_serial,hex],hash=%[ssl_c_sha1,hex]"
         bind "${tmpdir}/cust_logfmt_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
         server s1 ${s1_addr}:${s1_port}
 

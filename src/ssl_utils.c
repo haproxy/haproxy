@@ -287,3 +287,31 @@ int ssl_sock_get_dn_oneline(X509_NAME *a, struct buffer *out)
 	return 1;
 }
 
+
+extern int ssl_client_crt_ref_index;
+
+/*
+ * This function fetches the SSL certificate for a specific connection (either
+ * client certificate or server certificate depending on the cert_peer
+ * parameter).
+ * When trying to get the peer certificate from the server side, we first try to
+ * use the dedicated SSL_get_peer_certificate function, but we fall back to
+ * trying to get the client certificate reference that might have been stored in
+ * the SSL structure's ex_data during the verification process.
+ * Returns NULL in case of failure.
+ */
+X509* ssl_sock_get_peer_certificate(SSL *ssl)
+{
+	X509* cert;
+
+	cert = SSL_get_peer_certificate(ssl);
+	/* Get the client certificate reference stored in the SSL
+	 * structure's ex_data during the verification process. */
+	if (!cert) {
+		cert = SSL_get_ex_data(ssl, ssl_client_crt_ref_index);
+		if (cert)
+			X509_up_ref(cert);
+	}
+
+	return cert;
+}

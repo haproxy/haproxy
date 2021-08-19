@@ -109,13 +109,13 @@ smp_fetch_ssl_x_der(const struct arg *args, struct sample *smp, const char *kw, 
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	if (cert_peer)
-		crt = SSL_get_peer_certificate(ssl);
+		crt = ssl_sock_get_peer_certificate(ssl);
 	else
 		crt = SSL_get_certificate(ssl);
 
@@ -226,13 +226,13 @@ smp_fetch_ssl_x_serial(const struct arg *args, struct sample *smp, const char *k
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	if (cert_peer)
-		crt = SSL_get_peer_certificate(ssl);
+		crt = ssl_sock_get_peer_certificate(ssl);
 	else
 		crt = SSL_get_certificate(ssl);
 
@@ -280,13 +280,13 @@ smp_fetch_ssl_x_sha1(const struct arg *args, struct sample *smp, const char *kw,
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	if (cert_peer)
-		crt = SSL_get_peer_certificate(ssl);
+		crt = ssl_sock_get_peer_certificate(ssl);
 	else
 		crt = SSL_get_certificate(ssl);
 	if (!crt)
@@ -331,13 +331,13 @@ smp_fetch_ssl_x_notafter(const struct arg *args, struct sample *smp, const char 
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	if (cert_peer)
-		crt = SSL_get_peer_certificate(ssl);
+		crt = ssl_sock_get_peer_certificate(ssl);
 	else
 		crt = SSL_get_certificate(ssl);
 	if (!crt)
@@ -383,13 +383,13 @@ smp_fetch_ssl_x_i_dn(const struct arg *args, struct sample *smp, const char *kw,
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	if (cert_peer)
-		crt = SSL_get_peer_certificate(ssl);
+		crt = ssl_sock_get_peer_certificate(ssl);
 	else
 		crt = SSL_get_certificate(ssl);
 	if (!crt)
@@ -451,13 +451,13 @@ smp_fetch_ssl_x_notbefore(const struct arg *args, struct sample *smp, const char
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	if (cert_peer)
-		crt = SSL_get_peer_certificate(ssl);
+		crt = ssl_sock_get_peer_certificate(ssl);
 	else
 		crt = SSL_get_certificate(ssl);
 	if (!crt)
@@ -503,13 +503,13 @@ smp_fetch_ssl_x_s_dn(const struct arg *args, struct sample *smp, const char *kw,
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	if (cert_peer)
-		crt = SSL_get_peer_certificate(ssl);
+		crt = ssl_sock_get_peer_certificate(ssl);
 	else
 		crt = SSL_get_certificate(ssl);
 	if (!crt)
@@ -560,13 +560,13 @@ smp_fetch_ssl_c_used(const struct arg *args, struct sample *smp, const char *kw,
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	/* SSL_get_peer_certificate returns a ptr on allocated X509 struct */
-	crt = SSL_get_peer_certificate(ssl);
+	crt = ssl_sock_get_peer_certificate(ssl);
 	if (crt) {
 		X509_free(crt);
 	}
@@ -599,13 +599,13 @@ smp_fetch_ssl_x_version(const struct arg *args, struct sample *smp, const char *
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	if (cert_peer)
-		crt = SSL_get_peer_certificate(ssl);
+		crt = ssl_sock_get_peer_certificate(ssl);
 	else
 		crt = SSL_get_certificate(ssl);
 	if (!crt)
@@ -645,13 +645,13 @@ smp_fetch_ssl_x_sig_alg(const struct arg *args, struct sample *smp, const char *
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	if (cert_peer)
-		crt = SSL_get_peer_certificate(ssl);
+		crt = ssl_sock_get_peer_certificate(ssl);
 	else
 		crt = SSL_get_certificate(ssl);
 	if (!crt)
@@ -701,13 +701,13 @@ smp_fetch_ssl_x_key_alg(const struct arg *args, struct sample *smp, const char *
 	if (!ssl)
 		return 0;
 
-	if (conn->flags & CO_FL_WAIT_XPRT) {
+	if (conn->flags & CO_FL_WAIT_XPRT && !conn->err_code) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
 
 	if (cert_peer)
-		crt = SSL_get_peer_certificate(ssl);
+		crt = ssl_sock_get_peer_certificate(ssl);
 	else
 		crt = SSL_get_certificate(ssl);
 	if (!crt)

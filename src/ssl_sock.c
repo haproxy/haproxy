@@ -443,6 +443,8 @@ struct pool_head *pool_head_ssl_keylog __read_mostly = NULL;
 struct pool_head *pool_head_ssl_keylog_str __read_mostly = NULL;
 #endif
 
+int ssl_client_crt_ref_index = -1;
+
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
 struct list tlskeys_reference = LIST_HEAD_INIT(tlskeys_reference);
 #endif
@@ -1557,19 +1559,51 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 	struct connection *conn;
 	struct ssl_sock_ctx *ctx;
 	int err, depth;
+	X509 *client_crt;
+	STACK_OF(X509) *certs;
 
 	ssl = X509_STORE_CTX_get_ex_data(x_store, SSL_get_ex_data_X509_STORE_CTX_idx());
 	conn = SSL_get_ex_data(ssl, ssl_app_data_index);
+	client_crt = SSL_get_ex_data(ssl, ssl_client_crt_ref_index);
 
 	ctx = conn->xprt_ctx;
 
 	ctx->xprt_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
 
+	depth = X509_STORE_CTX_get_error_depth(x_store);
+	err = X509_STORE_CTX_get_error(x_store);
+
 	if (ok) /* no errors */
 		return ok;
 
-	depth = X509_STORE_CTX_get_error_depth(x_store);
-	err = X509_STORE_CTX_get_error(x_store);
+	/* Keep a reference to the client's certificate in order to be able to
+	 * dump some fetches values in a log even when the verification process
+	 * fails. */
+	if (depth == 0) {
+		X509_free(client_crt);
+		client_crt = X509_STORE_CTX_get0_cert(x_store);
+		if (client_crt) {
+			X509_up_ref(client_crt);
+			SSL_set_ex_data(ssl, ssl_client_crt_ref_index, client_crt);
+		}
+	}
+	else {
+		/* An error occurred on a CA certificate of the certificate
+		 * chain, we might never call this verify callback on the client
+		 * certificate's depth (which is 0) so we try to store the
+		 * reference right now. */
+		if (X509_STORE_CTX_get0_chain(x_store) != NULL) {
+			certs = X509_STORE_CTX_get1_chain(x_store);
+			if (certs) {
+				client_crt = sk_X509_value(certs, 0);
+				if (client_crt) {
+					X509_up_ref(client_crt);
+					SSL_set_ex_data(ssl, ssl_client_crt_ref_index, client_crt);
+				}
+			}
+			sk_X509_pop_free(certs, X509_free);
+		}
+	}
 
 	/* check if CA error needs to be ignored */
 	if (depth > 0) {
@@ -7330,6 +7364,14 @@ static void ssl_sock_keylog_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *a
 }
 #endif
 
+static void ssl_sock_clt_crt_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
+{
+	if (!ptr)
+		return;
+
+	X509_free((X509*)ptr);
+}
+
 __attribute__((constructor))
 static void __ssl_sock_init(void)
 {
@@ -7377,6 +7419,7 @@ static void __ssl_sock_init(void)
 #ifdef HAVE_SSL_KEYLOG
 	ssl_keylog_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_keylog_free_func);
 #endif
+	ssl_client_crt_ref_index = SSL_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_clt_crt_free_func);
 #ifndef OPENSSL_NO_ENGINE
 	ENGINE_load_builtin_engines();
 	hap_register_post_check(ssl_check_async_engine_count);
