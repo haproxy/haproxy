@@ -2101,7 +2101,7 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			/* Special case for Initial packets: when they have all
 			 * been sent, select the next level.
 			 */
-			if (tel == QUIC_TLS_ENC_LEVEL_INITIAL &&
+			if ((tel == QUIC_TLS_ENC_LEVEL_INITIAL || tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE) &&
 			    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) || qc->els[next_tel].pktns->tx.in_flight)) {
 				tel = next_tel;
 				qel = &qc->els[tel];
