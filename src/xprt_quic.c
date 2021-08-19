@@ -147,7 +147,7 @@ DECLARE_STATIC_POOL(pool_head_quic_arng, "quic_arng_pool", sizeof(struct quic_ar
 static struct quic_tx_packet *qc_build_pkt(unsigned char **pos, const unsigned char *buf_end,
                                            struct quic_enc_level *qel,
                                            struct quic_conn *qc, int pkt_type,
-                                           int nb_pto_dgrams, int *err);
+                                           int ack, int nb_pto_dgrams, int *err);
 
 /* Add traces to <buf> depending on <frm> TX frame type. */
 static inline void chunk_tx_frm_appendf(struct buffer *buf,
@@ -388,7 +388,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u pdg=%llu",
 				              quic_enc_level_char_from_qel(qel, qc),
 				              quic_hdshk_state_str(HA_ATOMIC_LOAD(&qc->state)),
-				              !!(pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED),
+				              !!(HA_ATOMIC_LOAD(&pktns->flags) & QUIC_FL_PKTNS_ACK_REQUIRED),
 				              (unsigned long long)qc->path->cwnd,
 				              (unsigned long long)qc->path->prep_in_flight,
 				              (unsigned long long)qc->path->in_flight,
@@ -587,13 +587,16 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 static inline int quic_peer_validated_addr(struct ssl_sock_ctx *ctx)
 {
 	struct quic_conn *qc;
+	struct quic_pktns *hdshk_pktns, *app_pktns;
 
 	qc = ctx->conn->qc;
 	if (objt_server(qc->conn->target))
 		return 1;
 
-	if ((qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns->flags & QUIC_FL_PKTNS_ACK_RECEIVED) ||
-	    (qc->els[QUIC_TLS_ENC_LEVEL_APP].pktns->flags & QUIC_FL_PKTNS_ACK_RECEIVED) ||
+	hdshk_pktns = qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE].pktns;
+	app_pktns = qc->els[QUIC_TLS_ENC_LEVEL_APP].pktns;
+	if ((HA_ATOMIC_LOAD(&hdshk_pktns->flags) & QUIC_FL_PKTNS_ACK_RECEIVED) ||
+	    (HA_ATOMIC_LOAD(&app_pktns->flags) & QUIC_FL_PKTNS_ACK_RECEIVED) ||
 	    HA_ATOMIC_LOAD(&qc->state) >= QUIC_HS_ST_COMPLETE)
 		return 1;
 
@@ -1458,7 +1461,7 @@ static inline int qc_parse_ack_frm(struct quic_frame *frm, struct ssl_sock_ctx *
 	} while (1);
 
 	/* Flag this packet number space as having received an ACK. */
-	qel->pktns->flags |= QUIC_FL_PKTNS_ACK_RECEIVED;
+	HA_ATOMIC_OR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_RECEIVED);
 
 	if (time_sent && (pkt_flags & QUIC_FL_TX_PACKET_ACK_ELICITING)) {
 		*rtt_sample = tick_remain(time_sent, now_ms);
@@ -2025,16 +2028,18 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 	end_buf = pos + cb_contig_space(cbuf) - sizeof dglen;
 	first_pkt = prv_pkt = NULL;
 	while (end_buf - pos >= (int)qc->path->mtu + dg_headlen || prv_pkt) {
-		int err, nb_ptos;
+		int err, nb_ptos, ack;
 		enum quic_pkt_type pkt_type;
 
 		TRACE_POINT(QUIC_EV_CONN_PHPKTS, ctx->conn, qel);
+		nb_ptos = 0;
 		if (!prv_pkt) {
 			/* Consume a PTO dgram only if building a new dgrams (!prv_pkt) */
 			do {
 				nb_ptos = HA_ATOMIC_LOAD(&qc->tx.nb_pto_dgrams);
 			} while (nb_ptos && !HA_ATOMIC_CAS(&qc->tx.nb_pto_dgrams, &nb_ptos, nb_ptos - 1));
 		}
+		ack = HA_ATOMIC_BTR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 		/* Do not build any more packet if the TX secrets are not available or
 		 * if there is nothing to send, i.e. if no ACK are required
 		 * and if there is no more packets to send upon PTO expiration
@@ -2042,9 +2047,9 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 		 * congestion control limit is reached for prepared data
 		 */
 		if (!(qel->tls_ctx.tx.flags & QUIC_FL_TLS_SECRETS_SET) ||
-		    (!(qel->pktns->flags & QUIC_FL_PKTNS_ACK_REQUIRED) && !nb_ptos &&
-		    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) ||
-		     qc->path->prep_in_flight >= qc->path->cwnd))) {
+		    (!ack && !nb_ptos &&
+		     (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) ||
+		      qc->path->prep_in_flight >= qc->path->cwnd))) {
 			TRACE_DEVEL("nothing more to do", QUIC_EV_CONN_PHPKTS, ctx->conn);
 			/* Set the current datagram as prepared into <cbuf> if
 			 * the was already a correct packet which was previously written.
@@ -2061,10 +2066,13 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			end = pos + qc->path->mtu;
 		}
 
-		cur_pkt = qc_build_pkt(&pos, end, qel, qc, pkt_type, nb_ptos, &err);
+		cur_pkt = qc_build_pkt(&pos, end, qel, qc, pkt_type, ack, nb_ptos, &err);
 		/* Restore the PTO dgrams counter if a packet could not be built */
-		if (err < 0 && !prv_pkt && nb_ptos)
-			HA_ATOMIC_ADD(&qc->tx.nb_pto_dgrams, 1);
+		if (err < 0) {
+			if (!prv_pkt && nb_ptos)
+				HA_ATOMIC_ADD(&qc->tx.nb_pto_dgrams, 1);
+			HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+		}
 		switch (err) {
 		case -2:
 			goto err;
@@ -2078,6 +2086,10 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			}
 			goto out;
 		default:
+			/* This is to please to GCC. We cannot have (err >= 0 && !cur_pkt) */
+			if (!cur_pkt)
+				goto err;
+
 			total += cur_pkt->len;
 			/* keep trace of the first packet in the datagram */
 			if (!first_pkt)
@@ -2581,7 +2593,7 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
 
 				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING &&
 					!(HA_ATOMIC_ADD_FETCH(&el->pktns->rx.nb_ack_eliciting, 1) & 1))
-					HA_ATOMIC_OR(&el->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED);
+					HA_ATOMIC_BTS(&el->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 
 				if (pkt->pn > largest_pn)
 					largest_pn = pkt->pn;
@@ -3982,7 +3994,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
                                            const unsigned char *buf_end,
                                            struct quic_enc_level *qel,
                                            struct quic_conn *qc, int pkt_type,
-                                           int nb_pto_dgrams, int *err)
+                                           int ack, int nb_pto_dgrams, int *err)
 {
 	/* The pointer to the packet number field. */
 	unsigned char *buf_pn;
@@ -3991,7 +4003,6 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	size_t pn_len, payload_len, aad_len;
 	struct quic_tls_ctx *tls_ctx;
 	struct quic_tx_packet *pkt;
-	int ack;
 
 	TRACE_ENTER(QUIC_EV_CONN_HPKT, qc->conn, NULL, qel);
 	*err = 0;
@@ -4006,10 +4017,7 @@ static struct quic_tx_packet *qc_build_pkt(unsigned char **pos,
 	beg = *pos;
 	pn_len = 0;
 	buf_pn = NULL;
-	ack = HA_ATOMIC_BTR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED);
 	if (!qc_eval_pkt(buf_end - beg, pkt, ack, nb_pto_dgrams, qel, qc)) {
-		if (ack)
-			HA_ATOMIC_OR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED);
 		*err = -1;
 		goto err;
 	}
