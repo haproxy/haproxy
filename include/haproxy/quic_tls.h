@@ -341,6 +341,8 @@ static inline int quic_tls_level_pkt_type(enum quic_tls_enc_level level)
 		return QUIC_PACKET_TYPE_0RTT;
 	case QUIC_TLS_ENC_LEVEL_HANDSHAKE:
 		return QUIC_PACKET_TYPE_HANDSHAKE;
+	case QUIC_TLS_ENC_LEVEL_APP:
+		return QUIC_PACKET_TYPE_SHORT;
 	default:
 		return -1;
 	}
