@@ -45,7 +45,7 @@ static struct applet httpclient_applet;
  */
 
 static struct http_hdr default_httpclient_hdrs[2] = {
-		{ .n = IST("User-Agent"), .v = IST("HAProxy HTTP client") },
+		{ .n = IST("User-Agent"), .v = IST("HAProxy") },
 		{ .n = IST_NULL, .v = IST_NULL },
 };
 
