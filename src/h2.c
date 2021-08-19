@@ -279,6 +279,9 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 		/* 7540#8.1.2.3: :path must not be empty, and must be either
 		 * '*' or an RFC3986 "path-absolute" starting with a "/" but
 		 * not with "//".
+		 * However, this "path-absolute" was a mistake which was
+		 * later fixed in http2bis as "absolute-path" to match
+		 * HTTP/1, thus also allowing "//".
 		 */
 		if (unlikely(!phdr[H2_PHDR_IDX_PATH].len))
 			goto fail;
@@ -286,9 +289,6 @@ static struct htx_sl *h2_prepare_htx_reqline(uint32_t fields, struct ist *phdr, 
 			if (!isteq(phdr[H2_PHDR_IDX_PATH], ist("*")))
 				goto fail;
 		}
-		else if (phdr[H2_PHDR_IDX_PATH].len > 1 &&
-			 phdr[H2_PHDR_IDX_PATH].ptr[1] == '/')
-			goto fail;
 	}
 
 	if (!(flags & HTX_SL_F_HAS_SCHM)) {
