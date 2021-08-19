@@ -2114,7 +2114,8 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 			 * been sent, select the next level.
 			 */
 			if ((tel == QUIC_TLS_ENC_LEVEL_INITIAL || tel == QUIC_TLS_ENC_LEVEL_HANDSHAKE) &&
-			    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) || qc->els[next_tel].pktns->tx.in_flight)) {
+			    (MT_LIST_ISEMPTY(&qel->pktns->tx.frms) ||
+			     (next_tel != QUIC_TLS_ENC_LEVEL_NONE && qc->els[next_tel].pktns->tx.in_flight))) {
 				tel = next_tel;
 				qel = &qc->els[tel];
 				if (!MT_LIST_ISEMPTY(&qel->pktns->tx.frms)) {
@@ -2644,7 +2645,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		goto err;
 
 	qel = &qc->els[tel];
-	next_qel = &qc->els[next_tel];
+	next_qel = next_tel == QUIC_TLS_ENC_LEVEL_NONE ? NULL : &qc->els[next_tel];
 
  next_level:
 	tls_ctx = &qel->tls_ctx;
@@ -2685,7 +2686,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
  skip_send:
 	/* Check if there is something to do for the next level.
 	 */
-	if ((next_qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
+	if (next_qel && (next_qel->tls_ctx.rx.flags & QUIC_FL_TLS_SECRETS_SET) &&
 	    (!MT_LIST_ISEMPTY(&next_qel->rx.pqpkts) || !eb_is_empty(&next_qel->rx.pkts))) {
 		qel = next_qel;
 		goto next_level;

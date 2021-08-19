@@ -361,10 +361,13 @@ static inline int quic_get_tls_enc_levels(enum quic_tls_enc_level *level,
 		break;
 	case QUIC_HS_ST_SERVER_HANDSHAKE:
 	case QUIC_HS_ST_CLIENT_HANDSHAKE:
-	case QUIC_HS_ST_COMPLETE:
-	case QUIC_HS_ST_CONFIRMED:
 		*level = QUIC_TLS_ENC_LEVEL_HANDSHAKE;
 		*next_level = QUIC_TLS_ENC_LEVEL_APP;
+		break;
+	case QUIC_HS_ST_COMPLETE:
+	case QUIC_HS_ST_CONFIRMED:
+		*level = QUIC_TLS_ENC_LEVEL_APP;
+		*next_level = QUIC_TLS_ENC_LEVEL_NONE;
 		break;
 	default:
 		return 0;
