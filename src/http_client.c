@@ -437,7 +437,7 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 	struct channel *res = &s->res;
 	struct htx_blk *blk = NULL;
 	struct htx *htx;
-	struct htx_sl *sl;
+	struct htx_sl *sl = NULL;
 	int32_t pos;
 	uint32_t hdr_num;
 
