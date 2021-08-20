@@ -11,10 +11,8 @@
  * This file implements an HTTP Client API.
  *
  */
-#include <haproxy/connection-t.h>
-#include <haproxy/http_client-t.h>
-#include <haproxy/server-t.h>
 
+#include <haproxy/api.h>
 #include <haproxy/applet.h>
 #include <haproxy/cli.h>
 #include <haproxy/dynbuf.h>
@@ -28,6 +26,7 @@
 #include <haproxy/htx.h>
 #include <haproxy/log.h>
 #include <haproxy/proxy.h>
+#include <haproxy/server.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/tools.h>
 
