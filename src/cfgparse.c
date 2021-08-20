@@ -2465,16 +2465,28 @@ int check_config_validity()
 		struct logsrv *tmplogsrv;
 		unsigned int next_id;
 
-		if (curproxy->uuid < 0) {
+		if (!(curproxy->cap & PR_CAP_INT) && curproxy->uuid < 0) {
 			/* proxy ID not set, use automatic numbering with first
-			 * spare entry starting with next_pxid.
+			 * spare entry starting with next_pxid. We don't assign
+			 * numbers for internal proxies as they may depend on
+			 * build or config options and we don't want them to
+			 * possibly reuse existing IDs.
 			 */
 			next_pxid = get_next_id(&used_proxy_id, next_pxid);
 			curproxy->conf.id.key = curproxy->uuid = next_pxid;
 			eb32_insert(&used_proxy_id, &curproxy->conf.id);
 		}
-		next_pxid++;
 
+		/* next IDs are shifted even if the proxy is disabled, this
+		 * guarantees that a proxy that is temporarily disabled in the
+		 * configuration doesn't cause a renumbering. Internal proxies
+		 * that are not assigned a static ID must never shift the IDs
+		 * either since they may appear in any order (Lua, logs, etc).
+		 * The GLOBAL proxy that carries the stats socket has its ID
+		 * forced to zero.
+		 */
+		if (curproxy->uuid >= 0)
+			next_pxid++;
 
 		if (curproxy->disabled) {
 			/* ensure we don't keep listeners uselessly bound. We
