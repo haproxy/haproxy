@@ -2216,6 +2216,9 @@ static uint srv_release_dynsrv(struct server *srv)
  */
 void free_server(struct server *srv)
 {
+	if (!srv)
+		return;
+
 	/* For dynamic servers, decrement the reference counter. Only free the
 	 * server when reaching zero.
 	 */
