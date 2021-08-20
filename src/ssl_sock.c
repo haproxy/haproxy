@@ -1592,14 +1592,12 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 		 * chain, we might never call this verify callback on the client
 		 * certificate's depth (which is 0) so we try to store the
 		 * reference right now. */
-		if (X509_STORE_CTX_get0_chain(x_store) != NULL) {
-			certs = X509_STORE_CTX_get1_chain(x_store);
-			if (certs) {
-				client_crt = sk_X509_value(certs, 0);
-				if (client_crt) {
-					X509_up_ref(client_crt);
-					SSL_set_ex_data(ssl, ssl_client_crt_ref_index, client_crt);
-				}
+		certs = X509_STORE_CTX_get1_chain(x_store);
+		if (certs) {
+			client_crt = sk_X509_value(certs, 0);
+			if (client_crt) {
+				X509_up_ref(client_crt);
+				SSL_set_ex_data(ssl, ssl_client_crt_ref_index, client_crt);
 			}
 			sk_X509_pop_free(certs, X509_free);
 		}

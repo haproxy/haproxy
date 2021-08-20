@@ -291,6 +291,11 @@ static inline const ASN1_TIME *X509_REVOKED_get0_revocationDate(const X509_REVOK
 {
     return x->revocationDate;
 }
+
+static inline X509 *X509_STORE_CTX_get0_cert(X509_STORE_CTX *ctx)
+{
+    return ctx->cert;
+}
 #endif
 
 #if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) || (LIBRESSL_VERSION_NUMBER >= 0x2070200fL)
