@@ -144,7 +144,8 @@ client c_err1 -connect ${h1_err1h1_sock} {
 # TCP > H1 > H2 upgrade not allowed
 client c_err2 -connect ${h1_err2h1_sock} {
     send "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
-    expect_close
+    rxresp
+    expect resp.status == 400
 } -run
 
 
