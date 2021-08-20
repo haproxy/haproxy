@@ -64,36 +64,44 @@ void hc_cli_res_stline_cb(struct httpclient *hc)
 {
 	struct appctx *appctx = hc->caller;
 
+	if (!appctx)
+		return;
+
 	appctx->ctx.cli.i0 |= HC_CLI_F_RES_STLINE;
-	if (appctx)
-		appctx_wakeup(appctx);
+	appctx_wakeup(appctx);
 }
 
 void hc_cli_res_headers_cb(struct httpclient *hc)
 {
 	struct appctx *appctx = hc->caller;
 
+	if (!appctx)
+		return;
+
 	appctx->ctx.cli.i0 |= HC_CLI_F_RES_HDR;
-	if (appctx)
-		appctx_wakeup(appctx);
+	appctx_wakeup(appctx);
 }
 
 void hc_cli_res_body_cb(struct httpclient *hc)
 {
 	struct appctx *appctx = hc->caller;
 
+	if (!appctx)
+		return;
+
 	appctx->ctx.cli.i0 |= HC_CLI_F_RES_BODY;
-	if (appctx)
-		appctx_wakeup(appctx);
+	appctx_wakeup(appctx);
 }
 
 void hc_cli_res_end_cb(struct httpclient *hc)
 {
 	struct appctx *appctx = hc->caller;
 
+	if (!appctx)
+		return;
+
 	appctx->ctx.cli.i0 |= HC_CLI_F_RES_END;
-	if (appctx)
-		appctx_wakeup(appctx);
+	appctx_wakeup(appctx);
 }
 
 /*
