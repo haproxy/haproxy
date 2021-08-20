@@ -533,15 +533,17 @@ static void httpclient_applet_io_handler(struct appctx *appctx)
 						hdr_num++;
 					}
 
-					/* alloc and copy the headers in the httpclient struct */
-					hc->res.hdrs = calloc((hdr_num + 1), sizeof(*hc->res.hdrs));
-					if (!hc->res.hdrs)
-						goto end;
-					memcpy(hc->res.hdrs, hdrs, sizeof(struct http_hdr) * (hdr_num + 1));
+					if (hdr_num) {
+						/* alloc and copy the headers in the httpclient struct */
+						hc->res.hdrs = calloc((hdr_num + 1), sizeof(*hc->res.hdrs));
+						if (!hc->res.hdrs)
+							goto end;
+						memcpy(hc->res.hdrs, hdrs, sizeof(struct http_hdr) * (hdr_num + 1));
 
-					/* caller callback */
-					if (hc->ops.res_headers)
-						hc->ops.res_headers(hc);
+						/* caller callback */
+						if (hc->ops.res_headers)
+							hc->ops.res_headers(hc);
+					}
 
 					/* if there is no HTX data anymore and the EOM flag is
 					 * set, leave (no body) */
