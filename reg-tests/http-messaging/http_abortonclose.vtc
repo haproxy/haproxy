@@ -83,7 +83,8 @@ haproxy h1 -conf {
 # No server, wait all connection retries : SC--
 client  c1 -connect ${h1_fe1_sock} {
     txreq -url /c1
-    expect_close
+    rxresp
+    expect resp.status == 503
 } -run
 
 # Wait c1 log entry
