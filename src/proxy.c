@@ -144,6 +144,9 @@ void free_proxy(struct proxy *p)
 	struct proxy_deinit_fct *pxdf;
 	struct server_deinit_fct *srvdf;
 
+	if (!p)
+		return;
+
 	free(p->conf.file);
 	free(p->id);
 	free(p->cookie_name);
