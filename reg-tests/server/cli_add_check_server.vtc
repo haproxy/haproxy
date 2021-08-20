@@ -19,7 +19,6 @@ server s2 {
 server s3 {
 	recv 5
 	send "ready up\n"
-	expect_close
 	barrier b2 sync
 } -start
 
@@ -103,7 +102,7 @@ haproxy h1 -cli {
 
 # agent check
 haproxy h1 -cli {
-	send "experimental-mode on; add server be1/s3 ${s1_addr}:${s1_port} agent-check agent-addr ${s3_addr} agent-port ${s3_port} agent-send \"hello\" agent-inter 200ms rise 1 fall 1"
+	send "experimental-mode on; add server be1/s3 ${s1_addr}:${s1_port} agent-check agent-addr ${s3_addr} agent-port ${s3_port} agent-send 'hello' agent-inter 200ms rise 1 fall 1"
 	expect ~ "New server registered."
 
 	send "enable agent be1/s3"
