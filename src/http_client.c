@@ -657,6 +657,8 @@ static int httpclient_init()
 		goto err;
 	}
 
+	proxy_preset_defaults(httpclient_proxy);
+
 	httpclient_proxy->options2 |= PR_O2_INDEPSTR;
 	httpclient_proxy->mode = PR_MODE_HTTP;
 	httpclient_proxy->maxconn = 0;
