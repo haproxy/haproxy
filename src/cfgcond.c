@@ -18,12 +18,14 @@
 
 /* supported condition predicates */
 const struct cond_pred_kw cond_predicates[] = {
-	{ "defined",          CFG_PRED_DEFINED,         ARG1(1, STR)         },
-	{ "feature",          CFG_PRED_FEATURE,         ARG1(1, STR)         },
-	{ "streq",            CFG_PRED_STREQ,           ARG2(2, STR, STR)    },
-	{ "strneq",           CFG_PRED_STRNEQ,          ARG2(2, STR, STR)    },
-	{ "version_atleast",  CFG_PRED_VERSION_ATLEAST, ARG1(1, STR)         },
-	{ "version_before",   CFG_PRED_VERSION_BEFORE,  ARG1(1, STR)         },
+	{ "defined",                  CFG_PRED_DEFINED,              ARG1(1, STR)         },
+	{ "feature",                  CFG_PRED_FEATURE,              ARG1(1, STR)         },
+	{ "streq",                    CFG_PRED_STREQ,                ARG2(2, STR, STR)    },
+	{ "strneq",                   CFG_PRED_STRNEQ,               ARG2(2, STR, STR)    },
+	{ "version_atleast",          CFG_PRED_VERSION_ATLEAST,      ARG1(1, STR)         },
+	{ "version_before",           CFG_PRED_VERSION_BEFORE,       ARG1(1, STR)         },
+	{ "openssl_version_atleast",  CFG_PRED_OSSL_VERSION_ATLEAST, ARG1(1, STR)         },
+	{ "openssl_version_before",   CFG_PRED_OSSL_VERSION_BEFORE,  ARG1(1, STR)         },
 	{ NULL, CFG_PRED_NONE, 0 }
 };
 
@@ -230,6 +232,24 @@ int cfg_eval_cond_term(const struct cfg_cond_term *term, char **err)
 			ret = compare_current_version(term->args[0].data.str.area) > 0;
 			break;
 
+		case CFG_PRED_OSSL_VERSION_ATLEAST: { // checks if the current openssl version is at least this one
+			int opensslret = openssl_compare_current_version(term->args[0].data.str.area);
+
+			if (opensslret < -1) /* can't parse the string or no openssl available */
+				ret = -1;
+			else
+				ret = opensslret <= 0;
+			break;
+		}
+		case CFG_PRED_OSSL_VERSION_BEFORE: { // checks if the current openssl version is older than this one
+			int opensslret = openssl_compare_current_version(term->args[0].data.str.area);
+
+			if (opensslret < -1) /* can't parse the string or no openssl available */
+				ret = -1;
+			else
+				ret = opensslret > 0;
+			break;
+		}
 		default:
 			memprintf(err, "internal error: unhandled conditional expression predicate '%s'", term->pred->word);
 			break;

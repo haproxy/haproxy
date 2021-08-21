@@ -62,6 +62,7 @@ extern void *__elf_aux_vector;
 #include <haproxy/resolvers.h>
 #include <haproxy/sock.h>
 #include <haproxy/ssl_sock.h>
+#include <haproxy/ssl_utils.h>
 #include <haproxy/stream_interface.h>
 #include <haproxy/task.h>
 #include <haproxy/tools.h>
@@ -5590,6 +5591,38 @@ int word_fingerprint_distance(const uint8_t *fp1, const uint8_t *fp2)
 		dist += abs(k);
 	}
 	return dist;
+}
+
+/*
+ * This function compares the loaded openssl version with a string <version>
+ * This function use the same return code as compare_current_version:
+ *
+ *  -1 : the version in argument is older than the current openssl version
+ *   0 : the version in argument is the same as the current openssl version
+ *   1 : the version in argument is newer than the current openssl version
+ *
+ * Or some errors:
+ *  -2 : openssl is not available on this process
+ *  -3 : the version in argument is not parsable
+ */
+int openssl_compare_current_version(const char *version)
+{
+#ifdef USE_OPENSSL
+	int numversion;
+
+	numversion = openssl_version_parser(version);
+	if (numversion == 0)
+		return -3;
+
+	if (numversion < OPENSSL_VERSION_NUMBER)
+		return -1;
+	else if (numversion > OPENSSL_VERSION_NUMBER)
+		return 1;
+	else
+		return 0;
+#else
+	return -2;
+#endif
 }
 
 static int init_tools_per_thread()

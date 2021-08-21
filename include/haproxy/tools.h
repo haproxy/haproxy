@@ -1093,4 +1093,8 @@ static inline void update_char_fingerprint(uint8_t *fp, char prev, char curr)
 	fp[32 * from + to]++;
 }
 
+
+/* compare the current OpenSSL version to a string */
+int openssl_compare_current_version(const char *version);
+
 #endif /* _HAPROXY_TOOLS_H */

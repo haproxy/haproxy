@@ -50,6 +50,8 @@ enum cond_predicate {
 	CFG_PRED_STRNEQ,          // "strneq"
 	CFG_PRED_VERSION_ATLEAST, // "version_atleast"
 	CFG_PRED_VERSION_BEFORE,  // "version_before"
+	CFG_PRED_OSSL_VERSION_ATLEAST, // "openssl_version_atleast"
+	CFG_PRED_OSSL_VERSION_BEFORE,  // "openssl_version_before"
 };
 
 /* types for condition terms */
