@@ -70,6 +70,10 @@
 #include <sys/prctl.h>
 #endif
 
+#if defined(USE_PROCCTL)
+#include <sys/procctl.h>
+#endif
+
 #ifdef DEBUG_FULL
 #include <assert.h>
 #endif
@@ -3400,6 +3404,11 @@ int main(int argc, char **argv)
 #if defined(USE_PRCTL)
 		if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) == -1)
 			ha_warning("[%s.main()] Failed to set the dumpable flag, "
+				   "no core will be dumped.\n", argv[0]);
+#elif defined(USE_PROCCTL)
+		int traceable = PROC_TRACE_CTL_ENABLE;
+		if (procctl(P_PID, getpid(), PROC_TRACE_CTL, &traceable) == -1)
+			ha_warning("[%s.main()] Failed to set the traceable flag, "
 				   "no core will be dumped.\n", argv[0]);
 #endif
 	}

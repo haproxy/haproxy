@@ -36,6 +36,7 @@
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
 #   USE_CLOSEFROM        : enable use of closefrom() on *bsd, solaris. Automatic.
 #   USE_PRCTL            : enable use of prctl(). Automatic.
+#   USE_PROCCTL          : enable use of procctl(). Automatic.
 #   USE_ZLIB             : enable zlib library support and disable SLZ
 #   USE_SLZ              : enable slz library instead of zlib (default=enabled)
 #   USE_CPU_AFFINITY     : enable pinning processes to CPU on Linux. Automatic.
@@ -311,8 +312,8 @@ use_opts = USE_EPOLL USE_KQUEUE USE_NETFILTER                                 \
            USE_GETADDRINFO USE_OPENSSL USE_LUA USE_ACCEPT4                    \
            USE_CLOSEFROM USE_ZLIB USE_SLZ USE_CPU_AFFINITY USE_TFO USE_NS     \
            USE_DL USE_RT USE_DEVICEATLAS USE_51DEGREES USE_WURFL USE_SYSTEMD  \
-           USE_OBSOLETE_LINKER USE_PRCTL USE_THREAD_DUMP USE_EVPORTS USE_OT   \
-           USE_QUIC USE_PROMEX USE_MEMORY_PROFILING
+           USE_OBSOLETE_LINKER USE_PRCTL USE_PROCCTL USE_THREAD_DUMP          \
+           USE_EVPORTS USE_OT USE_QUIC USE_PROMEX USE_MEMORY_PROFILING
 
 #### Target system options
 # Depending on the target platform, some options are set, as well as some
@@ -391,7 +392,7 @@ endif
 ifeq ($(TARGET),freebsd)
   set_target_defaults = $(call default_opts, \
     USE_POLL USE_TPROXY USE_LIBCRYPT USE_THREAD USE_CPU_AFFINITY USE_KQUEUE   \
-    USE_ACCEPT4 USE_CLOSEFROM USE_GETADDRINFO)
+    USE_ACCEPT4 USE_CLOSEFROM USE_GETADDRINFO USE_PROCCTL)
 endif
 
 # DragonFlyBSD 4.3 and above
