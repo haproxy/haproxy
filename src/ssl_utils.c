@@ -315,3 +315,87 @@ X509* ssl_sock_get_peer_certificate(SSL *ssl)
 
 	return cert;
 }
+
+/*
+ * Take an OpenSSL version in text format and return a numeric openssl version
+ * Return 0 if it failed to parse the version
+ *
+ *  https://www.openssl.org/docs/man1.1.1/man3/OPENSSL_VERSION_NUMBER.html
+ *
+ *  MNNFFPPS: major minor fix patch status
+ *
+ *  The status nibble has one of the values 0 for development, 1 to e for betas
+ *  1 to 14, and f for release.
+ *
+ *  for example
+ *
+ *   0x0090821f     0.9.8zh
+ *   0x1000215f     1.0.2u
+ *   0x30000000     3.0.0-alpha17
+ *   0x30000002     3.0.0-beta2
+ *   0x3000000e     3.0.0-beta14
+ *   0x3000000f     3.0.0
+ */
+unsigned int openssl_version_parser(const char *version)
+{
+	unsigned int numversion;
+	unsigned int major = 0, minor = 0, fix = 0, patch = 0, status = 0;
+	char *p, *end;
+
+	p = (char *)version;
+
+	if (!p || !*p)
+		return 0;
+
+	major = strtol(p, &end, 10);
+	if (*end != '.' || major > 0xf)
+		goto error;
+	p = end + 1;
+
+	minor = strtol(p, &end, 10);
+	if (*end != '.' || minor > 0xff)
+		goto error;
+	p = end + 1;
+
+	fix = strtol(p, &end, 10);
+	if (fix > 0xff)
+		goto error;
+	p = end;
+
+	if (!*p) {
+		/* end of the string, that's a release */
+		status = 0xf;
+	} else if (*p == '-') {
+		/* after the hyphen, only the beta will increment the status
+		 * counter, all others versions will be considered as "dev" and
+		 * does not increment anything */
+		p++;
+
+		if (!strncmp(p, "beta", 4)) {
+			p += 4;
+			if (p) {
+				status = strtol(p, &end, 10);
+				if (status > 14)
+					goto error;
+			}
+		}
+	} else {
+		/* that's a patch release */
+		patch = 1;
+
+		/* add the value of each letter */
+		while (*p) {
+			patch += (*p & ~0x20) - 'A';
+			p++;
+		}
+		status = 0xf;
+	}
+
+end:
+	numversion =  ((major & 0xf) << 28) | ((minor & 0xff) << 20) | ((fix & 0xff) << 12) | ((patch & 0xff) << 4) | (status & 0xf);
+	return numversion;
+
+error:
+	return 0;
+
+}
