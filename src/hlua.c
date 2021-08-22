@@ -3025,7 +3025,7 @@ static int hlua_channel_new(lua_State *L, struct channel *channel)
 
 /* Helper function returning a filter attached to a channel at the position <ud>
  * in the stack, filling the current offset and length of the filter. If no
- * filter is attached, NULL is returned and <offet> and <len> are not
+ * filter is attached, NULL is returned and <offset> and <len> are not
  * initialized.
  */
 static struct filter *hlua_channel_filter(lua_State *L, int ud, struct channel *chn, size_t *offset, size_t *len)
@@ -5952,7 +5952,7 @@ static int hlua_http_msg_new(lua_State *L, struct http_msg *msg)
 
 /* Helper function returning a filter attached to the HTTP message at the
  * position <ud> in the stack, filling the current offset and length of the
- * filter. If no filter is attached, NULL is returned and <offet> and <len> are
+ * filter. If no filter is attached, NULL is returned and <offset> and <len> are
  * filled with output and input length respectively.
  */
 static struct filter *hlua_http_msg_filter(lua_State *L, int ud, struct http_msg *msg, size_t *offset, size_t *len)
@@ -6046,7 +6046,7 @@ __LJMP static int hlua_http_msg_del_hdr(lua_State *L)
 	return hlua_http_del_hdr(L, msg);
 }
 
-/* Matches the full value line of all occurences of an header in the HTTP
+/* Matches the full value line of all occurrences of an header in the HTTP
  * message given its name against a regex and replaces it if it matches. It
  * relies on hlua_http_rep_hdr().
  */
@@ -6291,7 +6291,7 @@ __LJMP static int hlua_http_msg_get_out_len(lua_State *L)
 
 /* Copies at most <len> bytes of DATA blocks from the HTTP message <msg>
  * starting at the offset <offset> and put it in a string LUA variables. It
- * returns the length of the builded string. It stops on the first non-DATA HTX
+ * returns the built string length. It stops on the first non-DATA HTX
  * block. This function is called during the payload filtering, so the headers
  * are already scheduled for output (from the filter point of view).
  */
@@ -6343,7 +6343,7 @@ end:
 
 /* Copies the string <str> to the HTTP message <msg> at the offset
  * <offset>. This function returns -1 if data cannot be copied. Otherwise, it
- * returns the amount of data written. This function is responsibile to update
+ * returns the amount of data written. This function is responsible to update
  * the filter context.
  */
 static int _hlua_http_msg_insert(struct http_msg *msg, struct filter *filter, struct ist str, size_t offset)
@@ -6388,7 +6388,7 @@ static int _hlua_http_msg_insert(struct http_msg *msg, struct filter *filter, st
 /* Helper function removing at most <len> bytes of DATA blocks at the absolute
  * position <offset>. It stops on the first non-DATA HTX block. This function is
  * called during the payload filtering, so the headers are already scheduled for
- * output (from the filter point of view). This function is responsibile to
+ * output (from the filter point of view). This function is responsible to
  * update the filter context.
  */
 static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, size_t offset, size_t len)
@@ -6443,7 +6443,7 @@ static void _hlua_http_msg_delete(struct http_msg *msg, struct filter *filter, s
 				goto end;
 		}
 
-		/* Remove oll the data block */
+		/* Remove all the data block */
 		len -= sz;
 		ret += sz;
 		blk = htx_remove_blk(htx, blk);
@@ -6678,7 +6678,7 @@ __LJMP static int hlua_http_msg_del_data(lua_State *L)
 	return 1;
 }
 
-/* Replaces a given amount of data at the given offet by a string. By default,
+/* Replaces a given amount of data at the given offset by a string. By default,
  * all remaining data are removed, accordingly to the filter context. It returns
  * the amount of data written or -1 if nothing was copied. Unlike the channel
  * function used to replace data, this one can only be called inside a filter,
@@ -9874,7 +9874,7 @@ static int hlua_filter_init_per_thread(struct proxy *px, struct flt_conf *fconf)
 		goto error;
 #endif
 	default:
-		ha_alert("Lua filter '%s' : unknonwn error : %s", conf->reg->name, lua_tostring(L, -1));
+		ha_alert("Lua filter '%s' : unknown error : %s", conf->reg->name, lua_tostring(L, -1));
 		goto error;
 	}
 
@@ -10490,7 +10490,7 @@ __LJMP static int hlua_unregister_data_filter(lua_State *L)
 }
 
 /* This function is an LUA binding used for registering a filter. It expects a
- * fileter name used in the haproxy configuration file and a LUA function to
+ * filter name used in the haproxy configuration file and a LUA function to
  * parse configuration arguments.
  */
 __LJMP static int hlua_register_filter(lua_State *L)
@@ -11476,7 +11476,7 @@ lua_State *hlua_init_state(int thread_num)
 	/* Create and fill the metatable. */
 	lua_newtable(L);
 
-	/* Create and fille the __index entry. */
+	/* Create and fill the __index entry. */
 	lua_pushstring(L, "__index");
 	lua_newtable(L);
 

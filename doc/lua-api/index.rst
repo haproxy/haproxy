@@ -1386,7 +1386,7 @@ Channel class
   retrieve a maximum of data and, if called by an action, it yields if
   necessary. It also waits for more data if the requested length exceeds the
   available amount of incoming data. Do not providing an offset is the same that
-  setting it to 0. A positive offset is relative to the begining of incoming
+  setting it to 0. A positive offset is relative to the beginning of incoming
   data of the channel buffer while negative offset is relative to their end.
 
   If there is no incoming data and the channel can't receive more data, a 'nil'
@@ -1426,7 +1426,7 @@ Channel class
   success or -1 if data cannot be copied.
 
   By default, if no offset is provided, the string is copied in front of
-  incoming data. A positive offset is relative to the begining of incoming data
+  incoming data. A positive offset is relative to the beginning of incoming data
   of the channel buffer while negative offset is relative to their end.
 
   :param class_channel channel: The manipulated Channel.
@@ -1462,7 +1462,7 @@ Channel class
   retrieve a maximum of data and, if called by an action, yields if
   necessary. It also waits for more data if the requested length exceeds the
   available amount of incoming data. Do not providing an offset is the same that
-  setting it to 0. A positive offset is relative to the begining of incoming
+  setting it to 0. A positive offset is relative to the beginning of incoming
   data of the channel buffer while negative offset is relative to their end.
 
   If there is no incoming data and the channel can't receive more data, a 'nil'
@@ -1512,7 +1512,7 @@ Channel class
 
   By default, if no length is provided, all incoming data, starting at the given
   offset, are removed. Do not providing an offset is the same that setting it
-  to 0. A positive offset is relative to the begining of incoming data of the
+  to 0. A positive offset is relative to the beginning of incoming data of the
   channel buffer while negative offset is relative to their end.
 
   :param class_channel channel: The manipulated Channel.
@@ -1526,7 +1526,7 @@ Channel class
 .. js:function:: Channel.send(channel, string)
 
   This function requires immediate send of the string **string**. It means the
-  string is copied at the begining of incoming data of the channel buffer and
+  string is copied at the beginning of incoming data of the channel buffer and
   immediately forwarded. Unless if the connection is close, and if called by an
   action, this function yields to copied and forward all the string.
 
@@ -1542,7 +1542,7 @@ Channel class
 
   By default, if no length is provided, all incoming data, starting at the given
   offset, are replaced. Do not providing an offset is the same that setting it
-  to 0. A positive offset is relative to the begining of incoming data of the
+  to 0. A positive offset is relative to the beginning of incoming data of the
   channel buffer while negative offset is relative to their end.
 
   :param class_channel channel: The manipulated Channel.
@@ -2082,7 +2082,7 @@ TXN class
   processing after some data have been returned to the client (eg: a redirect).
   To do so, a reply may be provided. This object is optional and may contain a
   status code, a reason, a header list and a body. All these fields are
-  optionnals. When not provided, the default values are used. By default, with
+  optional. When not provided, the default values are used. By default, with
   an empty reply object, an empty HTTP 200 response is returned to the
   client. If no reply object is provided, the transaction is terminated without
   any reply.
@@ -3169,7 +3169,7 @@ Filter class
   **context**: filter
 
   Enable the data filtering on the channel **chn** for the current filter. It
-  may be called at any time from any callback functions preceeding the data
+  may be called at any time from any callback functions proceeding the data
   analysis.
 
   :param class_Channel chn: A :ref:`channel_class`.
@@ -3208,7 +3208,7 @@ attributes:
 
 Such filter class must also define all required callback functions in the
 following list. Note that :js:func:`Filter.new()` must be defined otherwise the
-filter is ignored. Others are optionnal.
+filter is ignored. Others are optional.
 
 * .. js:function:: FILTER.new()
 
@@ -3355,7 +3355,7 @@ HTTPMessage class
   given offset, are returned. If **length** is set to -1, the function tries to
   retrieve a maximum of data. Because it is called in the filter context, it
   never yield. Do not providing an offset is the same that setting it to 0. A
-  positive offset is relative to the begining of incoming data of the
+  positive offset is relative to the beginning of incoming data of the
   http_message buffer while negative offset is relative to their end.
 
   If there is no incoming data and the HTTP message can't receive more data, a 'nil'
@@ -3450,7 +3450,7 @@ HTTPMessage class
   copied length on success or -1 if data cannot be copied.
 
   By default, if no offset is provided, the string is copied in front of
-  incoming data. A positive offset is relative to the begining of incoming data
+  incoming data. A positive offset is relative to the beginning of incoming data
   of the HTTP message while negative offset is relative to their end.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
@@ -3511,7 +3511,7 @@ HTTPMessage class
 
   By default, if no length is provided, all incoming data, starting at the given
   offset, are removed. Do not providing an offset is the same that setting it
-  to 0. A positive offset is relative to the begining of incoming data of the
+  to 0. A positive offset is relative to the beginning of incoming data of the
   HTTP message while negative offset is relative to their end.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
@@ -3550,7 +3550,7 @@ HTTPMessage class
 .. js:function:: HTTPMessage.send(http_msg, string)
 
   This function required immediate send of the string **string**. It means the
-  string is copied at the begining of incoming data of the HTTP message
+  string is copied at the beginning of incoming data of the HTTP message
   **http_msg** and immediately forwarded. Because it is called in the filter
   context, it never yield.
 
@@ -3566,7 +3566,7 @@ HTTPMessage class
 
   By default, if no length is provided, all incoming data, starting at the given
   offset, are replaced. Do not providing an offset is the same that setting it
-  to 0. A positive offset is relative to the begining of incoming data of the
+  to 0. A positive offset is relative to the beginning of incoming data of the
   HTTP message while negative offset is relative to their end.
 
   :param class_httpmessage http_msg: The manipulated HTTP message.
@@ -3628,7 +3628,7 @@ HTTPMessage class
 
 .. js:function:: HTTPMessage.set_status(http_msg, status[, reason])
 
-  Rewrites the response status code with the integer **code** and optionnal the
+  Rewrites the response status code with the integer **code** and optional the
   reason **reason**. If no custom reason is provided, it will be generated from
   the status. The HTTP message **http_msg** must be the response.
 

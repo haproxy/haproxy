@@ -65,7 +65,7 @@ struct stream;
 #define HLUA_F_MAY_USE_HTTP 0x02
 
 #define HLUA_TXN_NOTERM   0x00000001
-/* 0x00000002 .. 0x00000008 unsued */
+/* 0x00000002 .. 0x00000008 unused */
 #define HLUA_TXN_SMP_CTX  0x00000010 /* Executed from a sample fecth context */
 #define HLUA_TXN_ACT_CTX  0x00000020 /* Executed from a action context */
 #define HLUA_TXN_FLT_CTX  0x00000030 /* Executed from a filter context */
