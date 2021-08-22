@@ -373,11 +373,9 @@ unsigned int openssl_version_parser(const char *version)
 
 		if (!strncmp(p, "beta", 4)) {
 			p += 4;
-			if (p) {
-				status = strtol(p, &end, 10);
-				if (status > 14)
-					goto error;
-			}
+			status = strtol(p, &end, 10);
+			if (status > 14)
+				goto error;
 		}
 	} else {
 		/* that's a patch release */
