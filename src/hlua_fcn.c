@@ -910,7 +910,9 @@ int hlua_fcn_new_server(lua_State *L, struct server *srv)
 
 static struct server *hlua_check_server(lua_State *L, int ud)
 {
-	return hlua_checkudata(L, ud, class_server_ref);
+	struct server *srv = hlua_checkudata(L, ud, class_server_ref);
+	srv->flags |= SRV_F_NON_PURGEABLE;
+	return srv;
 }
 
 int hlua_server_get_stats(lua_State *L)
