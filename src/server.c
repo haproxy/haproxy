@@ -4741,13 +4741,10 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 		goto out;
 	}
 
-	if (!(srv->flags & SRV_F_DYNAMIC)) {
-		cli_err(appctx, "Only servers added at runtime via <add server> CLI cmd can be deleted.");
+	if (srv->flags & SRV_F_NON_PURGEABLE) {
+		cli_err(appctx, "This server cannot be removed at runtime due to other configuration elements pointing to it.");
 		goto out;
 	}
-
-	/* A dynamic server cannot be tracked. */
-	BUG_ON(srv->trackers);
 
 	/* Only servers in maintenance can be deleted. This ensures that the
 	 * server is not present anymore in the lb structures (through

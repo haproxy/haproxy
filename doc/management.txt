@@ -1470,6 +1470,11 @@ add server <backend>/<server> [args]*
   init-addr method. This means that no resolution will be undertaken if a FQDN
   is specified as an address, even if the server creation will be validated.
 
+  To support the reload operations, it is expected that the server created via
+  the CLI is also manually inserted in the relevant haproxy configuration file.
+  A dynamic server not present in the configuration won't be restored after a
+  reload operation.
+
   A dynamic server may use the "track" keyword to follow the check status of
   another server from the configuration. However, it is not possible to track
   another dynamic server. This is to ensure that the tracking chain is kept
@@ -1786,10 +1791,11 @@ del ssl crt-list <filename> <certfile[:line]>
   numbers, use "show ssl crt-list -n <crtlist>".
 
 del server <backend>/<server>
-  Remove a server attached to the backend <backend>. Only valid on a server
-  added at runtime. The server must be put in maintenance mode prior to its
-  deletion. The operation is cancelled if the serveur still has active
-  or idle connection or its connection queue is not empty.
+  Remove a server attached to the backend <backend>. All servers are eligible,
+  except servers which are referenced by other configuration elements. The
+  server must be put in maintenance mode prior to its deletion.  The operation
+  is cancelled if the serveur still has active or idle connection or its
+  connection queue is not empty.
 
 disable agent <backend>/<server>
   Mark the auxiliary agent check as temporarily stopped.
