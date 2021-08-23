@@ -1214,6 +1214,8 @@ int smp_resolve_args(struct proxy *p, char **err)
 				break;
 			}
 
+			srv->flags |= SRV_F_NON_PURGEABLE;
+
 			chunk_destroy(&arg->data.str);
 			arg->unresolved = 0;
 			arg->data.srv = srv;

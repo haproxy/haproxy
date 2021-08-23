@@ -2841,6 +2841,7 @@ int check_config_validity()
 			}
 			ha_free(&srule->srv.name);
 			srule->srv.ptr = target;
+			target->flags |= SRV_F_NON_PURGEABLE;
 		}
 
 		/* find the target table for 'stick' rules */

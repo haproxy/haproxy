@@ -4928,6 +4928,7 @@ int srv_apply_track(struct server *srv, struct proxy *curproxy)
 	srv->track = strack;
 	srv->tracknext = strack->trackers;
 	strack->trackers = srv;
+	strack->flags |= SRV_F_NON_PURGEABLE;
 
 	ha_free(&srv->trackit);
 
