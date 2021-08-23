@@ -411,7 +411,7 @@ static int h3_finalize(void *ctx)
 		return 0;
 
 	/* Wakeup ->lctrl uni-stream */
-	tasklet_wakeup(h3->lctrl.wait_event.tasklet);
+	h3_control_send(&h3->lctrl, h3);
 
 	return 1;
 }
