@@ -759,16 +759,7 @@ err:
 	return 1;
 }
 
-static void httpclient_deinit()
-{
-	free_server(httpclient_srv_raw);
-	free_server(httpclient_srv_ssl);
-	free_proxy(httpclient_proxy);
-
-}
-
 /* initialize the proxy and servers for the HTTP client */
 
 INITCALL0(STG_REGISTER, httpclient_init);
 REGISTER_CONFIG_POSTPARSER("httpclient", httpclient_cfg_postparser);
-REGISTER_POST_DEINIT(httpclient_deinit);
