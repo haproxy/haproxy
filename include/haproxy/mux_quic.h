@@ -122,5 +122,7 @@ static inline void *qcs_new(struct qcc *qcc, uint64_t id)
 		return bidi_qcs_new(qcc, id);
 }
 
+size_t qc_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_MUX_QUIC_H */

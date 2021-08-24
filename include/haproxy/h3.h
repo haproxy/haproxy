@@ -93,5 +93,7 @@ struct h3_uqs {
 
 extern const struct qcc_app_ops h3_ops;
 
+size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags);
+
 #endif /* USE_QUIC */
 #endif /* _HAPROXY_H3_T_H */

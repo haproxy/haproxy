@@ -433,7 +433,54 @@ static struct buffer *get_mux_next_tx_buf(struct qcs *qcs)
 		ABORT_NOW();
 
 	return buf;
+}
 
+size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
+{
+	size_t total = 0;
+	struct qcs *qcs = cs->ctx;
+	struct htx *htx;
+	enum htx_blk_type btype;
+	struct htx_blk *blk;
+	uint32_t bsize;
+	int32_t idx;
+	int ret;
+
+	htx = htx_from_buf(buf);
+
+	while (count && !htx_is_empty(htx)) {
+		idx = htx_get_head(htx);
+		blk = htx_get_blk(htx, idx);
+		btype = htx_get_blk_type(blk);
+		bsize = htx_get_blksz(blk);
+
+		/* Not implemented : QUIC on backend side */
+		BUG_ON(btype == HTX_BLK_REQ_SL);
+
+		switch (btype) {
+		case HTX_BLK_RES_SL:
+			/* TODO HEADERS h3 frame */
+
+		case HTX_BLK_DATA:
+			/* TODO DATA h3 frame */
+
+		case HTX_BLK_TLR:
+		case HTX_BLK_EOT:
+			/* TODO trailers */
+
+		default:
+			htx_remove_blk(htx, blk);
+			total += bsize;
+			count -= bsize;
+			break;
+		}
+	}
+
+	// TODO should I call the mux directly here ?
+	qc_snd_buf(cs, buf, total, flags);
+
+ out:
+	return total;
 }
 
 /* Finalize the initialization of remotely initiated uni-stream <qcs>.
