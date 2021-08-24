@@ -534,6 +534,63 @@ static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
 	return 0;
 }
 
+/* Returns the total of bytes sent. */
+static int h3_resp_data_send(struct qcs *qcs, struct buffer *buf, size_t count)
+{
+	struct buffer outbuf;
+	struct buffer *res;
+	size_t total = 0;
+	struct htx *htx;
+	int bsize, fsize;
+	int frame_length_size;  /* size in bytes of frame length varint field */
+	struct htx_blk *blk;
+	enum htx_blk_type type;
+
+	htx = htx_from_buf(buf);
+
+ new_frame:
+	if (!count || htx_is_empty(htx))
+		goto end;
+
+	blk = htx_get_head_blk(htx);
+	type = htx_get_blk_type(blk);
+	fsize = bsize = htx_get_blksz(blk);
+
+	if (type != HTX_BLK_DATA)
+		goto end;
+
+	res = get_mux_next_tx_buf(qcs);
+
+	if (fsize > count)
+		fsize = count;
+
+	frame_length_size = quic_int_getsize(fsize);
+
+	b_reset(&outbuf);
+	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
+
+	if (1 + fsize + frame_length_size > b_room(&outbuf))
+		ABORT_NOW();
+
+	b_putchr(&outbuf, 0x00); /* h3 frame type = DATA */
+	b_quic_enc_int(&outbuf, fsize);
+
+	total += fsize;
+	b_putblk(&outbuf, htx_get_blk_ptr(htx, blk), fsize);
+	count -= fsize;
+
+	if (fsize == bsize)
+		htx_remove_blk(htx, blk);
+	else
+		htx_cut_data_blk(htx, blk, fsize);
+
+	b_add(res, b_data(&outbuf));
+	goto new_frame;
+
+ end:
+	return total;
+}
+
 size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	size_t total = 0;
@@ -569,7 +626,15 @@ size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int 
 			break;
 
 		case HTX_BLK_DATA:
-			/* TODO DATA h3 frame */
+			ret = h3_resp_data_send(qcs, buf, count);
+			if (ret > 0) {
+				htx = htx_from_buf(buf);
+				total += ret;
+				count -= ret;
+				if (ret < bsize)
+					goto out;
+			}
+			break;
 
 		case HTX_BLK_TLR:
 		case HTX_BLK_EOT:
