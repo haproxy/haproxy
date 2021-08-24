@@ -17,6 +17,7 @@
  */
 
 #include <haproxy/buf.h>
+#include <haproxy/connection.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/h3.h>
 #include <haproxy/http.h>
@@ -25,6 +26,7 @@
 #include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
 #include <haproxy/qpack-dec.h>
+#include <haproxy/stream.h>
 #include <haproxy/tools.h>
 #include <haproxy/xprt_quic.h>
 
@@ -125,6 +127,7 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 	struct h3 *h3 = ctx;
 	struct htx *htx;
 	struct htx_sl *sl;
+	struct conn_stream *cs;
 	struct http_hdr list[global.tune.max_http_hdr];
 	unsigned int flags = HTX_SL_F_NONE;
 	int hdr_idx;
@@ -215,6 +218,14 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 
 			htx_add_endof(htx, HTX_BLK_EOH);
 			htx_to_buf(htx, &htx_buf);
+
+			cs = cs_new(qcs->qcc->conn, qcs->qcc->conn->target);
+			cs->ctx = qcs;
+			stream_create_from_cs(cs, &htx_buf);
+
+			/* buffer is transfered to conn_stream and set to NULL
+			 * except on stream creation error.
+			 */
 			b_free(&htx_buf);
 
 			break;
