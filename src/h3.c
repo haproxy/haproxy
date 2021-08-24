@@ -26,6 +26,8 @@
 #include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
 #include <haproxy/qpack-dec.h>
+#include <haproxy/qpack-enc.h>
+#include <haproxy/quic_enc.h>
 #include <haproxy/stream.h>
 #include <haproxy/tools.h>
 #include <haproxy/xprt_quic.h>
@@ -435,6 +437,103 @@ static struct buffer *get_mux_next_tx_buf(struct qcs *qcs)
 	return buf;
 }
 
+static int h3_resp_headers_send(struct qcs *qcs, struct htx *htx)
+{
+	struct buffer outbuf;
+	struct buffer headers_buf = BUF_NULL;
+	struct buffer *res;
+	struct http_hdr list[global.tune.max_http_hdr];
+	struct htx_sl *sl;
+	struct htx_blk *blk;
+	enum htx_blk_type type;
+	int frame_length_size;  /* size in bytes of frame length varint field */
+	int ret = 0;
+	int hdr;
+	int status = 0;
+
+	sl = NULL;
+	hdr = 0;
+	for (blk = htx_get_head_blk(htx); blk; blk = htx_get_next_blk(htx, blk)) {
+		type = htx_get_blk_type(blk);
+
+		if (type == HTX_BLK_UNUSED)
+			continue;
+
+		if (type == HTX_BLK_EOH)
+			break;
+
+		if (type == HTX_BLK_RES_SL) {
+			/* start-line -> HEADERS h3 frame */
+			BUG_ON(sl);
+			sl = htx_get_blk_ptr(htx, blk);
+			/* TODO should be on h3 layer */
+			status = sl->info.res.status;
+		}
+		else if (type == HTX_BLK_HDR) {
+			list[hdr].n = htx_get_blk_name(htx, blk);
+			list[hdr].v = htx_get_blk_value(htx, blk);
+			hdr++;
+		}
+		else {
+			ABORT_NOW();
+			goto err;
+		}
+	}
+
+	BUG_ON(!sl);
+
+	list[hdr].n = ist("");
+
+	res = get_mux_next_tx_buf(qcs);
+
+	/* At least 5 bytes to store frame type + length as a varint max size */
+	if (b_room(res) < 5)
+		ABORT_NOW();
+
+	b_reset(&outbuf);
+	outbuf = b_make(b_tail(res), b_contig_space(res), 0, 0);
+	/* Start the headers after frame type + length */
+	headers_buf = b_make(b_head(res) + 5, b_size(res) - 5, 0, 0);
+
+	if (qpack_encode_field_section_line(&headers_buf))
+		ABORT_NOW();
+	if (qpack_encode_int_status(&headers_buf, status))
+		ABORT_NOW();
+
+	for (hdr = 0; hdr < sizeof(list) / sizeof(list[0]); ++hdr) {
+		if (isteq(list[hdr].n, ist("")))
+			break;
+
+		if (qpack_encode_header(&headers_buf, list[hdr].n, list[hdr].v))
+			ABORT_NOW();
+	}
+
+	/* Now that all headers are encoded, we are certain that res buffer is
+	 * big enough
+	 */
+	frame_length_size = quic_int_getsize(b_data(&headers_buf));
+	res->head += 4 - frame_length_size;
+	b_putchr(res, 0x01); /* h3 HEADERS frame type */
+	if (!b_quic_enc_int(res, b_data(&headers_buf)))
+		ABORT_NOW();
+	b_add(res, b_data(&headers_buf));
+
+	ret = 0;
+	blk = htx_get_head_blk(htx);
+	while (blk) {
+		type = htx_get_blk_type(blk);
+		ret += htx_get_blksz(blk);
+		blk = htx_remove_blk(htx, blk);
+		if (type == HTX_BLK_EOH)
+			break;
+	}
+
+	return ret;
+
+ err:
+	return 0;
+}
+
 size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int flags)
 {
 	size_t total = 0;
@@ -459,7 +558,15 @@ size_t h3_snd_buf(struct conn_stream *cs, struct buffer *buf, size_t count, int 
 
 		switch (btype) {
 		case HTX_BLK_RES_SL:
-			/* TODO HEADERS h3 frame */
+			/* start-line -> HEADERS h3 frame */
+			ret = h3_resp_headers_send(qcs, htx);
+			if (ret > 0) {
+				total += ret;
+				count -= ret;
+				if (ret < bsize)
+					goto out;
+			}
+			break;
 
 		case HTX_BLK_DATA:
 			/* TODO DATA h3 frame */
