@@ -19,6 +19,8 @@
 #include <haproxy/buf.h>
 #include <haproxy/dynbuf.h>
 #include <haproxy/h3.h>
+#include <haproxy/http.h>
+#include <haproxy/htx.h>
 #include <haproxy/istbuf.h>
 #include <haproxy/mux_quic.h>
 #include <haproxy/pool.h>
@@ -121,7 +123,10 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 {
 	struct buffer *rxbuf = &qcs->rx.buf;
 	struct h3 *h3 = ctx;
+	struct htx *htx;
+	struct htx_sl *sl;
 	struct http_hdr list[global.tune.max_http_hdr];
+	unsigned int flags = HTX_SL_F_NONE;
 	int hdr_idx;
 
 	h3_debug_printf(stderr, "%s: STREAM ID: %llu\n", __func__, qcs->by_id.key);
@@ -153,11 +158,65 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 			const unsigned char *buf = (const unsigned char *)b_head(rxbuf);
 			size_t len = b_data(rxbuf);
 			struct buffer *tmp = get_trash_chunk();
+			struct ist meth = IST_NULL, path = IST_NULL;
+			struct ist scheme = IST_NULL, authority = IST_NULL;
 
 			if (qpack_decode_fs(buf, len, tmp, list) < 0) {
 				h3->err = QPACK_DECOMPRESSION_FAILED;
 				return -1;
 			}
+
+			struct buffer htx_buf = BUF_NULL;
+			b_alloc(&htx_buf);
+			htx = htx_from_buf(&htx_buf);
+
+			/* first treat pseudo-header to build the start line */
+			hdr_idx = 0;
+			while (1) {
+				if (isteq(list[hdr_idx].n, ist("")))
+					break;
+
+				if (istmatch(list[hdr_idx].n, ist(":"))) {
+					/* pseudo-header */
+					if (isteq(list[hdr_idx].n, ist(":method")))
+						meth = list[hdr_idx].v;
+					else if (isteq(list[hdr_idx].n, ist(":path")))
+						path = list[hdr_idx].v;
+					else if (isteq(list[hdr_idx].n, ist(":scheme")))
+						scheme = list[hdr_idx].v;
+					else if (isteq(list[hdr_idx].n, ist(":authority")))
+						authority = list[hdr_idx].v;
+				}
+
+				++hdr_idx;
+			}
+
+			flags |= HTX_SL_F_VER_11;
+
+			sl = htx_add_stline(htx, HTX_BLK_REQ_SL, flags, meth, path, ist("HTTP/3.0"));
+			sl->flags |= HTX_SL_F_BODYLESS;
+			sl->info.req.meth = find_http_meth(meth.ptr, meth.len);
+			BUG_ON(sl->info.req.meth == HTTP_METH_OTHER);
+
+			if (isttest(authority))
+				htx_add_header(htx, ist("host"), authority);
+
+			/* now treat standard headers */
+			hdr_idx = 0;
+			while (1) {
+				if (isteq(list[hdr_idx].n, ist("")))
+					break;
+
+				if (!istmatch(list[hdr_idx].n, ist(":")))
+					htx_add_header(htx, list[hdr_idx].n, list[hdr_idx].v);
+
+				++hdr_idx;
+			}
+
+			htx_add_endof(htx, HTX_BLK_EOH);
+			htx_to_buf(htx, &htx_buf);
+			b_free(&htx_buf);
+
 			break;
 		}
 		case H3_FT_PUSH_PROMISE:
