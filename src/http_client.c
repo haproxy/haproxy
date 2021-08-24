@@ -703,7 +703,7 @@ static int httpclient_init()
 	httpclient_srv_ssl->uweight = 0;
 	httpclient_srv_ssl->xprt = xprt_get(XPRT_SSL);
 	httpclient_srv_ssl->use_ssl = 1;
-	httpclient_srv_ssl->id = strdup("<HTTPCLIENT>");
+	httpclient_srv_ssl->id = strdup("<HTTPSCLIENT>");
 	if (!httpclient_srv_ssl->id)
 		goto err;
 
@@ -712,6 +712,11 @@ static int httpclient_init()
 	/* add the proxy in the proxy list only if everything successed */
 	httpclient_proxy->next = proxies_list;
 	proxies_list = httpclient_proxy;
+
+	/* link the 2 servers in the proxy */
+	httpclient_srv_raw->next = httpclient_proxy->srv;
+	httpclient_srv_ssl->next = httpclient_srv_raw;
+	httpclient_proxy->srv = httpclient_srv_ssl;
 
 	return 0;
 
