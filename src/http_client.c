@@ -707,6 +707,8 @@ static int httpclient_init()
 	if (!httpclient_srv_ssl->id)
 		goto err;
 
+	httpclient_srv_ssl->ssl_ctx.verify = SSL_SOCK_VERIFY_NONE;
+
 	/* add the proxy in the proxy list only if everything successed */
 	httpclient_proxy->next = proxies_list;
 	proxies_list = httpclient_proxy;
