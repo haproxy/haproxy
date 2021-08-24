@@ -590,7 +590,7 @@ endif
 ifneq ($(USE_QUIC),)
 OPTIONS_OBJS += src/quic_sock.o src/proto_quic.o src/xprt_quic.o src/quic_tls.o \
                 src/quic_frame.o src/quic_cc.o src/quic_cc_newreno.o src/mux_quic.o \
-                src/cbuf.o src/qpack-dec.o src/qpack-tbl.o src/h3.o
+                src/cbuf.o src/qpack-dec.o src/qpack-tbl.o src/h3.o src/qpack-enc.o
 endif
 
 ifneq ($(USE_LUA),)
