@@ -167,9 +167,12 @@ int base64dec(const char *in, size_t ilen, char *out, size_t olen) {
 			 */
 
 			/* xx000000 xx001111 xx111122 xx222222 */
-			out[convlen]   = ((t[0] << 2) + (t[1] >> 4));
-			out[convlen+1] = ((t[1] << 4) + (t[2] >> 2));
-			out[convlen+2] = ((t[2] << 6) + (t[3] >> 0));
+			if (convlen < olen)
+				out[convlen]   = ((t[0] << 2) + (t[1] >> 4));
+			if (convlen+1 < olen)
+				out[convlen+1] = ((t[1] << 4) + (t[2] >> 2));
+			if (convlen+2 < olen)
+				out[convlen+2] = ((t[2] << 6) + (t[3] >> 0));
 
 			convlen += 3-pad;
 
@@ -237,9 +240,12 @@ int base64urldec(const char *in, size_t ilen, char *out, size_t olen)
 			 */
 
 			/* xx000000 xx001111 xx111122 xx222222 */
-			out[convlen]   = ((t[0] << 2) + (t[1] >> 4));
-			out[convlen + 1] = ((t[1] << 4) + (t[2] >> 2));
-			out[convlen + 2] = ((t[2] << 6) + (t[3] >> 0));
+			if (convlen < olen)
+				out[convlen]   = ((t[0] << 2) + (t[1] >> 4));
+			if (convlen+1 < olen)
+				out[convlen+1] = ((t[1] << 4) + (t[2] >> 2));
+			if (convlen+2 < olen)
+				out[convlen+2] = ((t[2] << 6) + (t[3] >> 0));
 
 			convlen += 3;
 			i = 0;
