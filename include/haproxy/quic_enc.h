@@ -187,7 +187,7 @@ static inline int quic_enc_int(unsigned char **buf, const unsigned char *end, ui
 static inline int b_quic_enc_int(struct buffer *b, uint64_t val)
 {
 	unsigned int shift;
-	unsigned char size_bits, *head, *pos, *wrap;
+	unsigned char size_bits, *tail, *pos, *wrap;
 	size_t save_len, len;
 	size_t data = b_data(b);
 	size_t size = b_size(b);
@@ -202,7 +202,7 @@ static inline int b_quic_enc_int(struct buffer *b, uint64_t val)
 	shift = (len - 1) * 8;
 	/* set the bits of byte#0 which gives the length of the encoded integer */
 	size_bits = quic_log2(len) << QUIC_VARINT_BYTE_0_SHIFT;
-	pos = head = (unsigned char *)b_head(b);
+	pos = tail = (unsigned char *)b_tail(b);
 	wrap = (unsigned char *)b_wrap(b);
 	while (len--) {
 		*pos++ = val >> shift;
@@ -212,7 +212,7 @@ static inline int b_quic_enc_int(struct buffer *b, uint64_t val)
 		if (++data == size && len)
 			return 0;
 	}
-	*head |= size_bits;
+	*tail |= size_bits;
 	b_add(b, save_len);
 
 	return 1;
