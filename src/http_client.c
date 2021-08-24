@@ -35,8 +35,9 @@
 
 static struct proxy *httpclient_proxy;
 static struct server *httpclient_srv_raw;
+#ifdef USE_OPENSSL
 static struct server *httpclient_srv_ssl;
-
+#endif
 static struct applet httpclient_applet;
 
 /* --- This part of the file implement an HTTP client over the CLI ---
@@ -365,7 +366,12 @@ struct appctx *httpclient_start(struct httpclient *hc)
 			s->target = &httpclient_srv_raw->obj_type;
 			break;
 		case SCH_HTTPS:
+#ifdef USE_OPENSSL
 			s->target = &httpclient_srv_ssl->obj_type;
+#else
+			ha_alert("httpclient: OpenSSL is not available %s:%d.\n", __FUNCTION__, __LINE__);
+			goto out_free_stream;
+#endif
 			break;
 	}
 
@@ -694,6 +700,7 @@ static int httpclient_init()
 	if (!httpclient_srv_raw->id)
 		goto err;
 
+#ifdef USE_OPENSSL
 	/* SSL HTTP server */
 	httpclient_srv_ssl = new_server(httpclient_proxy);
 	if (!httpclient_srv_ssl) {
@@ -710,6 +717,7 @@ static int httpclient_init()
 		goto err;
 
 	httpclient_srv_ssl->ssl_ctx.verify = SSL_SOCK_VERIFY_NONE;
+#endif
 
 	/* add the proxy in the proxy list only if everything successed */
 	httpclient_proxy->next = proxies_list;
@@ -717,8 +725,13 @@ static int httpclient_init()
 
 	/* link the 2 servers in the proxy */
 	httpclient_srv_raw->next = httpclient_proxy->srv;
-	httpclient_srv_ssl->next = httpclient_srv_raw;
+	httpclient_proxy->srv = httpclient_srv_raw;
+
+#ifdef USE_OPENSSL
+	httpclient_srv_ssl->next = httpclient_proxy->srv;
 	httpclient_proxy->srv = httpclient_srv_ssl;
+#endif
+
 
 	return 0;
 
@@ -726,7 +739,9 @@ err:
 	ha_alert("httpclient: cannot initialize.\n");
 	free(errmsg);
 	free_server(httpclient_srv_raw);
+#ifdef USE_OPENSSL
 	free_server(httpclient_srv_ssl);
+#endif
 	free_proxy(httpclient_proxy);
 	return err_code;
 }
