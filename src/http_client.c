@@ -276,6 +276,8 @@ int httpclient_req_gen(struct httpclient *hc, const struct ist url, enum http_me
 	sl->info.req.meth = meth;
 
 	/* Add Host Header from URL */
+	if (!htx_add_header(htx, ist("Host"), IST_NULL))
+		goto error;
 	if (!http_update_host(htx, sl, url))
 		goto error;
 
