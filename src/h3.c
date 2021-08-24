@@ -39,9 +39,9 @@
 #define H3_CF_SETTINGS_SENT  0x00000001
 
 /* Default settings */
-static uint64_t h3_settings_qpack_max_table_capacity = 4096;
-static uint64_t h3_settings_qpack_blocked_streams = 100;
-static uint64_t h3_settings_max_field_section_size; /* Unlimited */
+static uint64_t h3_settings_qpack_max_table_capacity = 0;
+static uint64_t h3_settings_qpack_blocked_streams = 4096;
+static uint64_t h3_settings_max_field_section_size = QUIC_VARINT_8_BYTE_MAX; /* Unlimited */
 
 struct h3 {
 	struct qcc *qcc;
