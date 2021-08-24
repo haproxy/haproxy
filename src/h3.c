@@ -121,6 +121,8 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 {
 	struct buffer *rxbuf = &qcs->rx.buf;
 	struct h3 *h3 = ctx;
+	struct http_hdr list[global.tune.max_http_hdr];
+	int hdr_idx;
 
 	h3_debug_printf(stderr, "%s: STREAM ID: %llu\n", __func__, qcs->by_id.key);
 	if (!b_data(rxbuf))
@@ -152,7 +154,7 @@ static int h3_decode_qcs(struct qcs *qcs, void *ctx)
 			size_t len = b_data(rxbuf);
 			struct buffer *tmp = get_trash_chunk();
 
-			if (qpack_decode_fs(buf, len, tmp) < 0) {
+			if (qpack_decode_fs(buf, len, tmp, list) < 0) {
 				h3->err = QPACK_DECOMPRESSION_FAILED;
 				return -1;
 			}

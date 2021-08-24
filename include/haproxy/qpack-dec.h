@@ -24,6 +24,7 @@
 #include <haproxy/mux_quic-t.h>
 
 struct h3_uqs;
+struct http_hdr;
 
 /* Internal QPACK processing errors.
  *Nothing to see with the RFC.
@@ -43,7 +44,8 @@ struct qpack_dec {
 	uint64_t krc;
 };
 
-int qpack_decode_fs(const unsigned char *buf, uint64_t len, struct buffer *tmp);
+int qpack_decode_fs(const unsigned char *buf, uint64_t len, struct buffer *tmp,
+                    struct http_hdr *list);
 int qpack_decode_enc(struct h3_uqs *h3_uqs, void *ctx);
 int qpack_decode_dec(struct h3_uqs *h3_uqs, void *ctx);
 
