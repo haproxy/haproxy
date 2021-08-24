@@ -984,6 +984,7 @@ struct qcs *bidi_qcs_new(struct qcc *qcc, uint64_t id)
 	qcs->tx.max_data = qcc->strms[qcs_type].tx.max_data;
 	qcs->tx.buf = BUF_NULL;
 	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
+	qcs->tx.left     = 0;
 
 	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
 	qcc->strms[qcs_type].nb_streams++;
@@ -1048,6 +1049,7 @@ struct qcs *luqs_new(struct qcc *qcc)
 	qcs->tx.offset = qcs->tx.bytes = 0;
 	qcs->tx.buf = BUF_NULL;
 	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
+	qcs->tx.left = 0;
 
 	qcs->subs = NULL;
 	LIST_INIT(&qcs->list);
@@ -1089,6 +1091,7 @@ struct qcs *ruqs_new(struct qcc *qcc, uint64_t id)
 	qcs->rx.offset = qcs->rx.bytes = 0;
 	qcs->rx.buf = BUF_NULL;
 	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
+	qcs->tx.left = 0;
 
 	qcs->subs = NULL;
 	LIST_INIT(&qcs->list);
@@ -1448,10 +1451,21 @@ static int qc_process(struct qcc *qcc)
 		for (buf = br_head(qcs->tx.mbuf); b_data(buf); buf = br_del_head(qcs->tx.mbuf)) {
 			if (b_data(buf)) {
 				int ret;
-				ret = qcs_push_frame(qcs, buf, 0, qcs->tx.offset);
+				char fin = 0;
+
+				/* if FIN is activated, ensure the buffer to
+				 * send is the last
+				 */
+				if (qcs->flags & QC_SF_FIN_STREAM) {
+					BUG_ON(qcs->tx.left < b_data(buf));
+					fin = !(qcs->tx.left - b_data(buf));
+				}
+
+				ret = qcs_push_frame(qcs, buf, fin, qcs->tx.offset);
 				if (ret <= 0)
 					ABORT_NOW();
 
+				qcs->tx.left -= ret;
 				qcs->tx.offset += ret;
 				qcs->qcc->wait_event.events &= ~SUB_RETRY_SEND;
 			}
