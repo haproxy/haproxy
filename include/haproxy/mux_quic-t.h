@@ -199,6 +199,7 @@ struct qcs {
 		uint64_t offset;   /* the current offset of data to send */
 		uint64_t bytes;    /* number of bytes sent */
 		struct buffer buf; /* transmit buffer, always valid (buf_empty or real buffer) */
+		struct buffer mbuf[QCC_MBUF_CNT];
 	} tx;
 	struct wait_event *subs;  /* recv wait_event the conn_stream associated is waiting on (via qc_subscribe) */
 	struct list list; /* To be used when adding in qcc->send_list or qcc->fctl_lsit */

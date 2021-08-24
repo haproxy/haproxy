@@ -414,6 +414,28 @@ static int h3_control_send(struct h3_uqs *h3_uqs, void *ctx)
 	return ret;
 }
 
+/* Return next empty buffer of mux.
+ * TODO to optimize memory consumption, a non-full buffer should be used before
+ * allocating a new one.
+ * TODO put this in mux ??
+ */
+static struct buffer *get_mux_next_tx_buf(struct qcs *qcs)
+{
+	struct buffer *buf = br_tail(qcs->tx.mbuf);
+
+	if (b_data(buf))
+		buf = br_tail_add(qcs->tx.mbuf);
+
+	if (!b_size(buf))
+		qc_get_buf(qcs->qcc, buf);
+
+	if (!buf)
+		ABORT_NOW();
+
+	return buf;
+
+}
+
 /* Finalize the initialization of remotely initiated uni-stream <qcs>.
  * Return 1 if succeeded, 0 if not. In this latter case, set the ->err h3 error
  * to inform the QUIC mux layer of the encountered error.

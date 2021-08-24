@@ -982,6 +982,8 @@ struct qcs *bidi_qcs_new(struct qcc *qcc, uint64_t id)
 	qcs->tx.st       = QC_TX_SS_IDLE;
 	qcs->tx.bytes    = qcs->tx.offset = 0;
 	qcs->tx.max_data = qcc->strms[qcs_type].tx.max_data;
+	qcs->tx.buf = BUF_NULL;
+	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
 
 	eb64_insert(&qcc->streams_by_id, &qcs->by_id);
 	qcc->strms[qcs_type].nb_streams++;
@@ -1045,6 +1047,7 @@ struct qcs *luqs_new(struct qcc *qcc)
 	qcs->tx.max_data = qcc->strms[qcs_type].tx.max_data;
 	qcs->tx.offset = qcs->tx.bytes = 0;
 	qcs->tx.buf = BUF_NULL;
+	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
 
 	qcs->subs = NULL;
 	LIST_INIT(&qcs->list);
@@ -1085,6 +1088,7 @@ struct qcs *ruqs_new(struct qcc *qcc, uint64_t id)
 	qcs->rx.max_data = qcc->strms[qcs_type].rx.max_data;
 	qcs->rx.offset = qcs->rx.bytes = 0;
 	qcs->rx.buf = BUF_NULL;
+	br_init(qcs->tx.mbuf, sizeof(qcs->tx.mbuf) / sizeof(qcs->tx.mbuf[0]));
 
 	qcs->subs = NULL;
 	LIST_INIT(&qcs->list);
