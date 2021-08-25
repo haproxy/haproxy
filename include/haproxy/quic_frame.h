@@ -71,8 +71,9 @@ static inline size_t qc_frm_len(struct quic_frame *frm)
 	}
 	case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F: {
 		struct quic_stream *f = &frm->stream;
-		len += 1 + quic_int_getsize(f->id) + quic_int_getsize(f->offset) +
-			quic_int_getsize(f->len) + f->len;
+		len += 1 + quic_int_getsize(f->id) +
+			((frm->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(f->offset) : 0) +
+			((frm->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) ? quic_int_getsize(f->len) : 0) + f->len;
 		break;
 	}
 	case QUIC_FT_MAX_DATA: {
