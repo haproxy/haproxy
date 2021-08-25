@@ -5,7 +5,7 @@ varnishtest "Delete server via cli"
 
 feature ignore_unknown_macro
 
-#REQUIRE_VERSION=2.4
+#REQUIRE_VERSION=2.5
 
 haproxy h1 -conf {
 	defaults
