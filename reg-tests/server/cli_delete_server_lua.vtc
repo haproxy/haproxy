@@ -2,10 +2,9 @@
 # cannot be removed at runtime.
 varnishtest "Delete lua server via cli"
 
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev0)'"
+feature cmd "$HAPROXY_PROGRAM -cc 'feature(LUA)'"
 feature ignore_unknown_macro
-
-#REQUIRE_VERSION=2.5
-#REQUIRE_OPTIONS=LUA
 
 server s1 {
 	rxreq
