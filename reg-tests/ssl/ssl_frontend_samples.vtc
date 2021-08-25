@@ -1,7 +1,6 @@
 #REGTEST_TYPE=devel
 
 varnishtest "Test the ssl_f_* sample fetches"
-#REQUIRE_VERSION=1.5
 #REQUIRE_OPTIONS=OPENSSL
 feature ignore_unknown_macro
 
