@@ -291,7 +291,7 @@ void free_proxy(struct proxy *p)
 	while (s) {
 		list_for_each_entry(srvdf, &server_deinit_list, list)
 			srvdf->fct(s);
-		s = free_server(s);
+		s = srv_drop(s);
 	}/* end while(s) */
 
 	list_for_each_entry_safe(l, l_next, &p->conf.listeners, by_fe) {

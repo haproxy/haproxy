@@ -11759,10 +11759,10 @@ static void hlua_deinit()
 			lua_close(hlua_states[thr]);
 	}
 
-	free_server(socket_tcp);
+	srv_drop(socket_tcp);
 
 #ifdef USE_OPENSSL
-	free_server(socket_ssl);
+	srv_drop(socket_ssl);
 #endif
 
 	free_proxy(socket_proxy);

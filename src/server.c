@@ -2160,6 +2160,8 @@ struct server *new_server(struct proxy *proxy)
 	if (!srv)
 		return NULL;
 
+	srv_take(srv);
+
 	srv->obj_type = OBJ_TYPE_SERVER;
 	srv->proxy = proxy;
 	queue_init(&srv->queue, proxy, srv);
@@ -2196,18 +2198,10 @@ struct server *new_server(struct proxy *proxy)
 	return srv;
 }
 
-/* Increment the dynamic server refcount. */
-void srv_use_dynsrv(struct server *srv)
+/* Increment the server refcount. */
+void srv_take(struct server *srv)
 {
-	BUG_ON(!(srv->flags & SRV_F_DYNAMIC));
-	HA_ATOMIC_INC(&srv->refcount_dynsrv);
-}
-
-/* Decrement the dynamic server refcount. */
-static uint srv_release_dynsrv(struct server *srv)
-{
-	BUG_ON(!(srv->flags & SRV_F_DYNAMIC));
-	return HA_ATOMIC_SUB_FETCH(&srv->refcount_dynsrv, 1);
+	HA_ATOMIC_INC(&srv->refcount);
 }
 
 /* Deallocate a server <srv> and its member. <srv> must be allocated. For
@@ -2215,9 +2209,9 @@ static uint srv_release_dynsrv(struct server *srv)
  * conducted only if the refcount is nul, unless the process is stopping.
  *
  * As a convenience, <srv.next> is returned if srv is not NULL. It may be useful
- * when calling free_server on the list of servers.
+ * when calling srv_drop on the list of servers.
  */
-struct server *free_server(struct server *srv)
+struct server *srv_drop(struct server *srv)
 {
 	struct server *next = NULL;
 
@@ -2230,10 +2224,8 @@ struct server *free_server(struct server *srv)
 	 * server when reaching zero.
 	 */
 	if (likely(!(global.mode & MODE_STOPPING))) {
-		if (srv->flags & SRV_F_DYNAMIC) {
-			if (srv_release_dynsrv(srv))
-				goto end;
-		}
+		if (HA_ATOMIC_SUB_FETCH(&srv->refcount, 1))
+			goto end;
 	}
 
 	task_destroy(srv->warmup);
@@ -4590,7 +4582,6 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 			goto out;
 
 		srv->check.state &= ~CHK_ST_ENABLED;
-		srv_use_dynsrv(srv);
 	}
 
 	if (srv->do_agent) {
@@ -4598,7 +4589,6 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 			goto out;
 
 		srv->agent.state &= ~CHK_ST_ENABLED;
-		srv_use_dynsrv(srv);
 	}
 
 	/* Attach the server to the end of the proxy linked list. Note that this
@@ -4649,7 +4639,6 @@ static int cli_parse_add_server(char **args, char *payload, struct appctx *appct
 	ebis_insert(&be->conf.used_server_name, &srv->conf.name);
 	ebis_insert(&be->used_server_addr, &srv->addr_node);
 
-	srv_use_dynsrv(srv);
 	thread_release();
 
 	/* Start the check task. The server must be fully initialized.
@@ -4701,7 +4690,7 @@ out:
 		cli_err(appctx, usermsgs_str());
 
 	if (srv)
-		free_server(srv);
+		srv_drop(srv);
 
 	return 1;
 }
@@ -4823,7 +4812,7 @@ static int cli_parse_delete_server(char **args, char *payload, struct appctx *ap
 	thread_release();
 
 	ha_notice("Server deleted.\n");
-	free_server(srv);
+	srv_drop(srv);
 
 	cli_msg(appctx, LOG_INFO, "Server deleted.");
 

@@ -259,7 +259,7 @@ struct server {
 	unsigned cumulative_weight;		/* weight of servers prior to this one in the same group, for chash balancing */
 	int maxqueue;				/* maximum number of pending connections allowed */
 
-	uint refcount_dynsrv;                   /* refcount used for dynamic servers */
+	uint refcount;                          /* refcount used to remove a server at runtime */
 
 	/* The elements below may be changed on every single request by any
 	 * thread, and generally at the same time.

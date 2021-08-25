@@ -1241,13 +1241,13 @@ struct task *process_chk_conn(struct task *t, void *context, unsigned int state)
 	TRACE_LEAVE(CHK_EV_TASK_WAKE, check);
 
 	/* Free the check if set to PURGE. After this, the check instance may be
-	 * freed via the free_server invocation, so it must not be accessed
-	 * after this point.
+	 * freed via the srv_drop invocation, so it must not be accessed after
+	 * this point.
 	 */
 	if (unlikely(check->state & CHK_ST_PURGE)) {
 		free_check(check);
 		if (check->server)
-			free_server(check->server);
+			srv_drop(check->server);
 
 		t = NULL;
 	}
@@ -1688,6 +1688,7 @@ int init_srv_check(struct server *srv)
 		goto out;
 	}
 	srv->check.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
+	srv_take(srv);
 
 	/* Only increment maxsock for servers from the configuration. Dynamic
 	 * servers at the moment are not taken into account for the estimation
@@ -1743,6 +1744,7 @@ int init_srv_agent_check(struct server *srv)
 		srv->agent.inter = srv->check.inter;
 
 	srv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_AGENT;
+	srv_take(srv);
 
 	/* Only increment maxsock for servers from the configuration. Dynamic
 	 * servers at the moment are not taken into account for the estimation

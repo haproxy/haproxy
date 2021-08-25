@@ -738,9 +738,9 @@ static int httpclient_init()
 err:
 	ha_alert("httpclient: cannot initialize.\n");
 	free(errmsg);
-	free_server(httpclient_srv_raw);
+	srv_drop(httpclient_srv_raw);
 #ifdef USE_OPENSSL
-	free_server(httpclient_srv_ssl);
+	srv_drop(httpclient_srv_ssl);
 #endif
 	free_proxy(httpclient_proxy);
 	return err_code;
