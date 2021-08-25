@@ -7,15 +7,7 @@ feature ignore_unknown_macro
 
 #REQUIRE_VERSION=2.4
 
-server s1 {
-	rxreq
-	txresp
-} -start
-
 haproxy h1 -conf {
-	global
-		lua-load ${testdir}/get_srv_stats.lua
-
 	defaults
 		mode http
 		timeout connect 1s
@@ -28,13 +20,11 @@ haproxy h1 -conf {
 		default_backend test
 
 	backend test
-		http-request add-header s4-stats %[lua.get_srv_stats(s4)]
 		use-server s3 unless { always_false }
 		server s1 ${s1_addr}:${s1_port}          # referenced in ACL
 		server s2 ${s1_addr}:${s1_port} check    # referenced in track
 		server s3 ${s1_addr}:${s1_port} track s2 # referenced in use-server
-		server s4 ${s1_addr}:${s1_port}          # referenced in lua script
-		server s5 ${s1_addr}:${s1_port}          # removable server
+		server s4 ${s1_addr}:${s1_port}          # removable server
 } -start
 
 haproxy h1 -cli {
@@ -61,26 +51,15 @@ haproxy h1 -cli {
 	# tracked server
 	send "experimental-mode on; del server test/s3"
 	expect ~ "This server cannot be removed at runtime due to other configuration elements pointing to it."
-}
 
-# make a request to force the execution of the lua script which references a
-# server
-client c1 -connect ${h1_feS_sock} {
-	txreq
-	rxresp
-} -run
-
-haproxy h1 -cli {
+	# server in running mode
 	send "experimental-mode on; del server test/s4"
-	expect ~ "This server cannot be removed at runtime due to other configuration elements pointing to it."
-
-	send "experimental-mode on; del server test/s5"
 	expect ~ "Only servers in maintenance mode can be deleted."
 
-	send "disable server test/s5"
+	send "disable server test/s4"
 	expect ~ ".*"
 
 	# valid command
-	send "experimental-mode on; del server test/s5"
+	send "experimental-mode on; del server test/s4"
 	expect ~ "Server deleted."
 }
