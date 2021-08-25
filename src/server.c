@@ -2213,11 +2213,18 @@ static uint srv_release_dynsrv(struct server *srv)
 /* Deallocate a server <srv> and its member. <srv> must be allocated. For
  * dynamic servers, its refcount is decremented first. The free operations are
  * conducted only if the refcount is nul, unless the process is stopping.
+ *
+ * As a convenience, <srv.next> is returned if srv is not NULL. It may be useful
+ * when calling free_server on the list of servers.
  */
-void free_server(struct server *srv)
+struct server *free_server(struct server *srv)
 {
+	struct server *next = NULL;
+
 	if (!srv)
-		return;
+		goto end;
+
+	next = srv->next;
 
 	/* For dynamic servers, decrement the reference counter. Only free the
 	 * server when reaching zero.
@@ -2225,7 +2232,7 @@ void free_server(struct server *srv)
 	if (likely(!(global.mode & MODE_STOPPING))) {
 		if (srv->flags & SRV_F_DYNAMIC) {
 			if (srv_release_dynsrv(srv))
-				return;
+				goto end;
 		}
 	}
 
@@ -2255,6 +2262,9 @@ void free_server(struct server *srv)
 
 	free(srv);
 	srv = NULL;
+
+ end:
+	return next;
 }
 
 /* Remove a server <srv> from a tracking list if <srv> is tracking another

@@ -130,7 +130,7 @@ static void free_stick_rules(struct list *rules)
 
 void free_proxy(struct proxy *p)
 {
-	struct server *s,*s_next;
+	struct server *s;
 	struct cap_hdr *h,*h_next;
 	struct listener *l,*l_next;
 	struct bind_conf *bind_conf, *bind_back;
@@ -289,11 +289,9 @@ void free_proxy(struct proxy *p)
 
 	s = p->srv;
 	while (s) {
-		s_next = s->next;
 		list_for_each_entry(srvdf, &server_deinit_list, list)
 			srvdf->fct(s);
-		free_server(s);
-		s = s_next;
+		s = free_server(s);
 	}/* end while(s) */
 
 	list_for_each_entry_safe(l, l_next, &p->conf.listeners, by_fe) {
