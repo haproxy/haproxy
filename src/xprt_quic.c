@@ -3624,7 +3624,7 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 	            QUIC_EV_CONN_BCFRMS, conn->conn, &headlen);
 	mt_list_for_each_entry_safe(cf, &qel->pktns->tx.frms, mt_list, tmp1, tmp2) {
 		/* header length, data length, frame length. */
-		size_t hlen, dlen, flen;
+		size_t hlen, dlen, dlen_sz, avail_room, flen;
 
 		if (!room)
 			break;
@@ -3678,6 +3678,73 @@ static inline int qc_build_frms(struct quic_tx_packet *pkt,
 			break;
 
 		case QUIC_FT_STREAM_8 ... QUIC_FT_STREAM_F:
+			/* Note that these frames are accepted in short packets only without
+			 * "Length" packet field. Here, <*len> is used only to compute the
+			 * sum of the lengths of the already built frames for this packet.
+			 */
+			TRACE_PROTO("          New STREAM frame build (room, len)",
+						QUIC_EV_CONN_BCFRMS, conn->conn, &room, len);
+			/* Compute the length of this STREAM frame "header" made a all the field
+			 * excepting the variable ones. Note that +1 is for the type of this frame.
+			 */
+			hlen = 1 + quic_int_getsize(cf->stream.id) +
+				((cf->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT) ? quic_int_getsize(cf->stream.offset) : 0);
+			/* Compute the data length of this STREAM frame. */
+			avail_room = room - hlen - *len;
+			if ((ssize_t)avail_room <= 0)
+				continue;
+
+			if (cf->type & QUIC_STREAM_FRAME_TYPE_LEN_BIT) {
+				dlen = max_available_room(avail_room, &dlen_sz);
+				if (dlen > cf->stream.len) {
+					dlen = cf->stream.len;
+				}
+				dlen_sz = quic_int_getsize(dlen);
+				flen = hlen + dlen_sz + dlen;
+			}
+			else {
+				dlen = QUIC_MIN(avail_room, cf->stream.len);
+				flen = hlen + dlen;
+			}
+			TRACE_PROTO(" STREAM data length (hlen, stream.len, dlen)",
+						QUIC_EV_CONN_BCFRMS, conn->conn, &hlen, &cf->stream.len, &dlen);
+			TRACE_PROTO("                 STREAM frame length (flen)",
+						QUIC_EV_CONN_BCFRMS, conn->conn, &flen);
+			/* Add the STREAM data length and its encoded length to the packet
+			 * length and the length of this length.
+			 */
+			*len += flen;
+			room -= flen;
+			if (dlen == cf->stream.len) {
+				/* <cf> STREAM data have been consumed. */
+				MT_LIST_DELETE_SAFE(tmp1);
+				LIST_APPEND(&pkt->frms, &cf->list);
+			}
+			else {
+				struct quic_frame *new_cf;
+
+				new_cf = pool_zalloc(pool_head_quic_frame);
+				if (!new_cf) {
+					TRACE_PROTO("No memory for new STREAM frame", QUIC_EV_CONN_BCFRMS, conn->conn);
+					return 0;
+				}
+
+				new_cf->type = cf->type;
+				new_cf->stream.id = cf->stream.id;
+				if (cf->type & QUIC_STREAM_FRAME_TYPE_OFF_BIT)
+					new_cf->stream.offset = cf->stream.offset;
+				new_cf->stream.len = dlen;
+				new_cf->type |= QUIC_STREAM_FRAME_TYPE_LEN_BIT;
+				/* FIN bit reset */
+				new_cf->type &= ~QUIC_STREAM_FRAME_TYPE_FIN_BIT;
+				new_cf->stream.data = cf->stream.data;
+				LIST_APPEND(&pkt->frms, &new_cf->list);
+				cf->type |= QUIC_STREAM_FRAME_TYPE_OFF_BIT;
+				/* Consume <dlen> bytes of the current frame. */
+				cf->stream.len -= dlen;
+				cf->stream.offset += dlen;
+				cf->stream.data += dlen;
+			}
 			break;
 
 		default:
