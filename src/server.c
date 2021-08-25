@@ -2197,7 +2197,7 @@ struct server *new_server(struct proxy *proxy)
 }
 
 /* Increment the dynamic server refcount. */
-static void srv_use_dynsrv(struct server *srv)
+void srv_use_dynsrv(struct server *srv)
 {
 	BUG_ON(!(srv->flags & SRV_F_DYNAMIC));
 	HA_ATOMIC_INC(&srv->refcount_dynsrv);

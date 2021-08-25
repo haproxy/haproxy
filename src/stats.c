@@ -3111,8 +3111,20 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 		/* fall through */
 
 	case STAT_PX_ST_SV:
-		/* obj2 points to servers list as initialized above */
-		for (; appctx->ctx.stats.obj2 != NULL; appctx->ctx.stats.obj2 = sv->next) {
+		/* obj2 points to servers list as initialized above.
+		 *
+		 * A dynamic server may be removed during the stats dumping.
+		 * Temporarily increment its refcount to prevent its
+		 * anticipated cleaning. Call free_server to release it.
+		 */
+		for (; appctx->ctx.stats.obj2 != NULL;
+		       appctx->ctx.stats.obj2 =
+		        (!(sv->flags & SRV_F_DYNAMIC)) ? sv->next : free_server(sv)) {
+
+			sv = appctx->ctx.stats.obj2;
+			if (sv->flags & SRV_F_DYNAMIC)
+				srv_use_dynsrv(sv);
+
 			if (htx) {
 				if (htx_almost_full(htx))
 					goto full;
@@ -3122,11 +3134,12 @@ int stats_dump_proxy_to_buffer(struct stream_interface *si, struct htx *htx,
 					goto full;
 			}
 
-			sv = appctx->ctx.stats.obj2;
-
 			if (appctx->ctx.stats.flags & STAT_BOUND) {
-				if (!(appctx->ctx.stats.type & (1 << STATS_TYPE_SV)))
+				if (!(appctx->ctx.stats.type & (1 << STATS_TYPE_SV))) {
+					if (sv->flags & SRV_F_DYNAMIC)
+						free_server(appctx->ctx.stats.obj2);
 					break;
+				}
 
 				if (appctx->ctx.stats.sid != -1 && sv->puid != appctx->ctx.stats.sid)
 					continue;

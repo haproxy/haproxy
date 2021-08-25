@@ -59,6 +59,7 @@ int srv_set_addr_via_libc(struct server *srv, int *err_code);
 int srv_init_addr(void);
 struct server *cli_find_server(struct appctx *appctx, char *arg);
 struct server *new_server(struct proxy *proxy);
+void srv_use_dynsrv(struct server *srv);
 struct server *free_server(struct server *srv);
 int srv_init_per_thr(struct server *srv);
 
