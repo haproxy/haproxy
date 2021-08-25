@@ -194,9 +194,6 @@ int base64urldec(const char *in, size_t ilen, char *out, size_t olen)
 	signed char b;
 	int convlen = 0, i = 0, pad = 0, padlen = 0;
 
-	if (olen < ((ilen / 4 * 3)))
-		return -2;
-
 	switch (ilen % 4) {
 		case 0:
 			break;
@@ -209,6 +206,9 @@ int base64urldec(const char *in, size_t ilen, char *out, size_t olen)
 		default:
 			return -1;
 	}
+
+	if (olen < (((ilen + pad) / 4 * 3) - pad))
+		return -2;
 
 	while (ilen + pad) {
 		if (ilen) {
