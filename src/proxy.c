@@ -2577,7 +2577,7 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
 	for (; appctx->ctx.cli.p0 != NULL; appctx->ctx.cli.p0 = curproxy->next) {
 		curproxy = appctx->ctx.cli.p0;
 		/* servers are only in backends */
-		if (curproxy->cap & PR_CAP_BE) {
+		if ((curproxy->cap & PR_CAP_BE) && !(curproxy->cap & PR_CAP_INT)) {
 			if (!dump_servers_state(si))
 				return 0;
 		}
