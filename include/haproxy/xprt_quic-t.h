@@ -68,9 +68,9 @@
 #define QUIC_LONG_PACKET_MINLEN            7
 /*
  * All QUIC packets with short headers are made of at least (in bytes):
- * flags(1), DCID length(1), DCID(0..20)
+ * flags(1), DCID(0..20)
  */
-#define QUIC_SHORT_PACKET_MINLEN           2
+#define QUIC_SHORT_PACKET_MINLEN           1
 /* Byte 0 of QUIC packets. */
 #define QUIC_PACKET_LONG_HEADER_BIT  0x80 /* Long header format if set, short if not. */
 #define QUIC_PACKET_FIXED_BIT        0x40 /* Must always be set for all the headers. */
