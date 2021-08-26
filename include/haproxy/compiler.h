@@ -128,6 +128,14 @@
  */
 #define DISGUISE(v) ({ typeof(v) __v = (v); ALREADY_CHECKED(__v); __v; })
 
+/* Implements a static event counter where it's used. This is typically made to
+ * report some warnings only once, either during boot or at runtime. It only
+ * returns true on the very first call, and zero later. It's thread-safe and
+ * uses a single byte of memory per call place. It relies on the atomic xchg
+ * defined in atomic.h which is also part of the common API.
+ */
+#define ONLY_ONCE() ({ static char __cnt; !_HA_ATOMIC_XCHG(&__cnt, 1); })
+
 /*
  * Gcc >= 3 provides the ability for the program to give hints to the
  * compiler about what branch of an if is most likely to be taken. This
