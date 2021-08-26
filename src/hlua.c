@@ -11372,8 +11372,7 @@ lua_State *hlua_init_state(int thread_num)
 		/* gL.Tua doesn't support '.' and '-' in the function names, replace it
 		 * by an underscore.
 		 */
-		strncpy(trash.area, sf->kw, trash.size);
-		trash.area[trash.size - 1] = '\0';
+		strlcpy2(trash.area, sf->kw, trash.size);
 		for (p = trash.area; *p; p++)
 			if (*p == '.' || *p == '-' || *p == '+')
 				*p = '_';
@@ -11411,8 +11410,7 @@ lua_State *hlua_init_state(int thread_num)
 		/* gL.Tua doesn't support '.' and '-' in the function names, replace it
 		 * by an underscore.
 		 */
-		strncpy(trash.area, sc->kw, trash.size);
-		trash.area[trash.size - 1] = '\0';
+		strlcpy2(trash.area, sc->kw, trash.size);
 		for (p = trash.area; *p; p++)
 			if (*p == '.' || *p == '-' || *p == '+')
 				*p = '_';
