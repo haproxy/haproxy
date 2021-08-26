@@ -2477,6 +2477,12 @@ int check_config_validity()
 			eb32_insert(&used_proxy_id, &curproxy->conf.id);
 		}
 
+		if (curproxy->mode == PR_MODE_HTTP && global.tune.bufsize >= (256 << 20) && ONLY_ONCE()) {
+			ha_alert("global.tune.bufsize must be below 256 MB when HTTP is in use (current value = %d).\n",
+				 global.tune.bufsize);
+			cfgerr++;
+		}
+
 		/* next IDs are shifted even if the proxy is disabled, this
 		 * guarantees that a proxy that is temporarily disabled in the
 		 * configuration doesn't cause a renumbering. Internal proxies
