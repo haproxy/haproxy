@@ -2470,6 +2470,8 @@ static int resolvers_finalize_config(void)
 				err_code |= (ERR_ALERT|ERR_ABORT);
 				continue;
 			}
+
+			srv->flags |= SRV_F_NON_PURGEABLE;
 		}
 	}
 
