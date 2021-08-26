@@ -316,6 +316,7 @@ struct htx_blk *htx_add_blk(struct htx *htx, enum htx_blk_type type, uint32_t bl
 {
 	struct htx_blk *blk;
 
+	BUG_ON(blksz >= 256 << 20);
 	blk = htx_reserve_nxblk(htx, blksz);
 	if (!blk)
 		return NULL;
@@ -546,7 +547,6 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 	goto add_new_block;
 
   append_data:
-	/* FIXME: check v.len + data.len < 256MB */
 	/* Append data and update the block itself */
 	ptr = htx_get_blk_ptr(htx, tailblk);
 	memcpy(ptr+sz, data.ptr, len);
@@ -559,7 +559,6 @@ struct htx_blk *htx_add_data_atonce(struct htx *htx, struct ist data)
 	data = istadv(data, len);
 
   add_new_block:
-	/* FIXME: check data.len (< 256MB) */
 	blk = htx_add_blk(htx, HTX_BLK_DATA, data.len);
 	if (!blk)
 		return NULL;
@@ -915,7 +914,6 @@ struct htx_ret htx_reserve_max_data(struct htx *htx)
        return (struct htx_ret){.ret = sz, .blk = tailblk};
 
   rsv_new_block:
-       /* FIXME: check data.len (< 256MB) */
        blk = htx_add_blk(htx, HTX_BLK_DATA, len);
        if (!blk)
                return (struct htx_ret){.ret = 0, .blk = NULL};
@@ -973,7 +971,6 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 		len = room;
 
   append_data:
-	/* FIXME: check v.len + data.len < 256MB */
 	/* Append data and update the block itself */
 	ptr = htx_get_blk_ptr(htx, tailblk);
 	memcpy(ptr + sz, data.ptr, len);
@@ -986,7 +983,6 @@ size_t htx_add_data(struct htx *htx, const struct ist data)
 	return len;
 
   add_new_block:
-	/* FIXME: check data.len (< 256MB) */
 	blk = htx_add_blk(htx, HTX_BLK_DATA, len);
 	if (!blk)
 		return 0;

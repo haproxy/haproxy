@@ -439,7 +439,6 @@ static inline struct htx_sl *htx_add_stline(struct htx *htx, enum htx_blk_type t
 
 	size = sizeof(*sl) + p1.len + p2.len + p3.len;
 
-	/* FIXME: check size (< 256MB) */
 	blk = htx_add_blk(htx, type, size);
 	if (!blk)
 		return NULL;
