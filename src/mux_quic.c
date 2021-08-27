@@ -1969,6 +1969,7 @@ size_t luqs_snd_buf(struct qcs *qcs, struct buffer *buf, size_t count, int flags
 		count = room;
 
 	total += b_xfer(res, buf, count);
+	qcs_push_frame(qcs, res, 0, 0);
 
  out:
 	TRACE_LEAVE(QC_EV_QCS_SEND|QC_EV_STRM_SEND, qcs->qcc->conn);
