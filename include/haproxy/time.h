@@ -577,7 +577,7 @@ static inline void measure_idle()
 	if (samp_time < 500000)
 		return;
 
-	ti->idle_pct = (100 * idle_time + samp_time / 2) / samp_time;
+	ti->idle_pct = (100ULL * idle_time + samp_time / 2) / samp_time;
 	idle_time = samp_time = 0;
 }
 
