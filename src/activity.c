@@ -39,7 +39,7 @@ struct activity activity[MAX_THREADS] __attribute__((aligned(64))) = { };
 struct sched_activity sched_activity[256] __attribute__((aligned(64))) = { };
 
 
-#if USE_MEMORY_PROFILING
+#ifdef USE_MEMORY_PROFILING
 /* determine the number of buckets to store stats */
 #define MEMPROF_HASH_BITS 10
 #define MEMPROF_HASH_BUCKETS (1U << MEMPROF_HASH_BITS)
@@ -492,7 +492,7 @@ static int cmp_sched_activity_addr(const void *a, const void *b)
 		return 0;
 }
 
-#if USE_MEMORY_PROFILING
+#ifdef USE_MEMORY_PROFILING
 /* used by qsort below */
 static int cmp_memprof_stats(const void *a, const void *b)
 {
@@ -539,7 +539,7 @@ static int cmp_memprof_addr(const void *a, const void *b)
 static int cli_io_handler_show_profiling(struct appctx *appctx)
 {
 	struct sched_activity tmp_activity[256] __attribute__((aligned(64)));
-#if USE_MEMORY_PROFILING
+#ifdef USE_MEMORY_PROFILING
 	struct memprof_stats tmp_memstats[MEMPROF_HASH_BUCKETS + 1];
 	unsigned long long tot_alloc_calls, tot_free_calls;
 	unsigned long long tot_alloc_bytes, tot_free_bytes;
@@ -639,7 +639,7 @@ static int cli_io_handler_show_profiling(struct appctx *appctx)
 
  skip_tasks:
 
-#if USE_MEMORY_PROFILING
+#ifdef USE_MEMORY_PROFILING
 	if ((appctx->ctx.cli.i0 & 3) != 2)
 		goto skip_mem;
 
