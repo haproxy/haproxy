@@ -375,17 +375,21 @@ __eb64_insert(struct eb_root *root, struct eb64_node *new) {
 
 		/* walk down */
 		root = &old->node.branches;
-#if BITS_PER_LONG >= 64
-		side = (newkey >> old_node_bit) & EB_NODE_BRANCH_MASK;
-#else
-		side = newkey;
-		side >>= old_node_bit;
-		if (old_node_bit >= 32) {
-			side = newkey >> 32;
-			side >>= old_node_bit & 0x1F;
+
+		if (sizeof(long) >= 8) {
+			side = newkey >> old_node_bit;
+		} else {
+			/* note: provides the best code on low-register count archs
+			 * such as i386.
+			 */
+			side = newkey;
+			side >>= old_node_bit;
+			if (old_node_bit >= 32) {
+				side = newkey >> 32;
+				side >>= old_node_bit & 0x1F;
+			}
 		}
 		side &= EB_NODE_BRANCH_MASK;
-#endif
 		troot = root->b[side];
 	}
 
@@ -553,17 +557,21 @@ __eb64i_insert(struct eb_root *root, struct eb64_node *new) {
 
 		/* walk down */
 		root = &old->node.branches;
-#if BITS_PER_LONG >= 64
-		side = (newkey >> old_node_bit) & EB_NODE_BRANCH_MASK;
-#else
-		side = newkey;
-		side >>= old_node_bit;
-		if (old_node_bit >= 32) {
-			side = newkey >> 32;
-			side >>= old_node_bit & 0x1F;
+
+		if (sizeof(long) >= 8) {
+			side = newkey >> old_node_bit;
+		} else {
+			/* note: provides the best code on low-register count archs
+			 * such as i386.
+			 */
+			side = newkey;
+			side >>= old_node_bit;
+			if (old_node_bit >= 32) {
+				side = newkey >> 32;
+				side >>= old_node_bit & 0x1F;
+			}
 		}
 		side &= EB_NODE_BRANCH_MASK;
-#endif
 		troot = root->b[side];
 	}
 
