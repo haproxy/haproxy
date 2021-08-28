@@ -4522,9 +4522,9 @@ int may_access(const void *ptr)
 int dump_text(struct buffer *out, const char *buf, int bsize)
 {
 	unsigned char c;
-	int ptr = 0;
+	size_t ptr = 0;
 
-	while (buf[ptr] && ptr < bsize) {
+	while (ptr < bsize && buf[ptr]) {
 		c = buf[ptr];
 		if (isprint((unsigned char)c) && isascii((unsigned char)c) && c != '\\' && c != ' ' && c != '=') {
 			if (out->data > out->size - 1)
