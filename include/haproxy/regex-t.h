@@ -36,7 +36,7 @@
 #define PCRE_STUDY_JIT_COMPILE 0
 #endif
 
-#elif USE_PCRE2
+#elif defined(USE_PCRE2)
 #include <pcre2.h>
 #include <pcre2posix.h>
 
@@ -53,7 +53,7 @@ struct my_regex {
 #error "The PCRE lib doesn't support JIT. Change your lib, or remove the option USE_PCRE_JIT."
 #endif
 #endif
-#elif USE_PCRE2
+#elif defined(USE_PCRE2)
 	int(*mfn)(const pcre2_code *, PCRE2_SPTR, PCRE2_SIZE, PCRE2_SIZE, uint32_t, pcre2_match_data *, pcre2_match_context *);
 	pcre2_code *reg;
 #else /* no PCRE */
