@@ -1,6 +1,73 @@
 ChangeLog :
 ===========
 
+2021/08/28 : 2.5-dev5
+    - MINOR: httpclient: initialize the proxy
+    - MINOR: httpclient: implement a simple HTTP Client API
+    - MINOR: httpclient/cli: implement a simple client over the CLI
+    - MINOR: httpclient/cli: change the User-Agent to "HAProxy"
+    - MEDIUM: ssl: Keep a reference to the client's certificate for use in logs
+    - BUG/MEDIUM: h2: match absolute-path not path-absolute for :path
+    - BUILD/MINOR: ssl: Fix compilation with OpenSSL 1.0.2
+    - MINOR: server: check if srv is NULL in free_server()
+    - MINOR: proxy: check if p is NULL in free_proxy()
+    - BUG/MEDIUM: cfgparse: do not allocate IDs to automatic internal proxies
+    - BUG/MINOR: http_client: make sure to preset the proxy's default settings
+    - REGTESTS: http_upgrade: fix incorrect expectation on TCP->H1->H2
+    - REGTESTS: abortonclose: after retries, 503 is expected, not close
+    - REGTESTS: server: fix agent-check syntax and expectation
+    - BUG/MINOR: httpclient: fix uninitialized sl variable
+    - BUG/MINOR: httpclient/cli: change the appctx test in the callbacks
+    - BUG/MINOR: httpclient: check if hdr_num is not 0
+    - MINOR: httpclient: cleanup the include files
+    - MINOR: hlua: take the global Lua lock inside a global function
+    - MINOR: tools: add FreeBSD support to get_exec_path()
+    - BUG/MINOR: systemd: ExecStartPre must use -Ws
+    - MINOR: systemd: remove the ExecStartPre line in the unit file
+    - MINOR: ssl: add an openssl version string parser
+    - MINOR: cfgcond: implements openssl_version_atleast and openssl_version_before
+    - CLEANUP: ssl: remove useless check on p in openssl_version_parser()
+    - BUG/MINOR: stick-table: fix the sc-set-gpt* parser when using expressions
+    - BUG/MINOR: httpclient: remove deinit of the httpclient
+    - BUG/MEDIUM: base64: check output boundaries within base64{dec,urldec}
+    - MINOR: httpclient: set verify none on the https server
+    - MINOR: httpclient: add the server to the proxy
+    - BUG/MINOR: httpclient: fix Host header
+    - BUILD: httpclient: fix build without OpenSSL
+    - CI: github-actions: remove obsolete options
+    - CLEANUP: assorted typo fixes in the code and comments
+    - MINOR: proc: setting the process to produce a core dump on FreeBSD.
+    - BUILD: adopt script/build-ssl.sh for OpenSSL-3.0.0beta2
+    - MINOR: server: return the next srv instance on free_server
+    - BUG/MINOR: stats: use refcount to protect dynamic server on dump
+    - MEDIUM: server: extend refcount for all servers
+    - MINOR: server: define non purgeable server flag
+    - MINOR: server: mark referenced servers as non purgeable
+    - MINOR: server: mark servers referenced by LUA script as non purgeable
+    - MEDIUM: server: allow to remove servers at runtime except non purgeable
+    - BUG/MINOR: base64: base64urldec() ignores padding in output size check
+    - REGTEST: add missing lua requirements on server removal test
+    - REGTEST: fix haproxy required version for server removal test
+    - BUG/MINOR: proxy: don't dump servers of internal proxies
+    - REGTESTS: Use `feature cmd` for 2.5+ tests
+    - REGTESTS: Remove REQUIRE_VERSION=1.5 from all tests
+    - BUG/MINOR: resolvers: mark servers with name-resolution as non purgeable
+    - MINOR: compiler: implement an ONLY_ONCE() macro
+    - BUG/MINOR: lua: use strlcpy2() not strncpy() to copy sample keywords
+    - MEDIUM: ssl: Capture more info from Client Hello
+    - MINOR: sample: Expose SSL captures using new fetchers
+    - MINOR: sample: Add be2dec converter
+    - MINOR: sample: Add be2hex converter
+    - MEDIUM: config: Deprecate tune.ssl.capture-cipherlist-size
+    - BUG/MINOR: time: fix idle time computation for long sleeps
+    - MINOR: time: add report_idle() to report process-wide idle time
+    - BUG/MINOR: ebtree: remove dependency on incorrect macro for bits per long
+    - BUILD: activity: use #ifdef not #if on USE_MEMORY_PROFILING
+    - BUILD/MINOR: defaults: eliminate warning on MAXHOSTNAMELEN with -Wundef
+    - BUILD/MINOR: ssl: avoid a build warning on LIBRESSL_VERSION with -Wundef
+    - IMPORT: slz: silence a build warning with -Wundef
+    - BUILD/MINOR: regex: avoid a build warning on USE_PCRE2 with -Wundef
+
 2021/08/17 : 2.5-dev4
     - MINOR: log: rename 'dontloglegacyconnerr' to 'log-error-via-logformat'
     - MINOR: doc: rename conn_status in `option httsplog`
