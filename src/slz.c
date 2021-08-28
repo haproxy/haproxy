@@ -550,7 +550,7 @@ long slz_rfc1951_encode(struct slz_stream *strm, unsigned char *out, const unsig
 			refs[h].by32.word = word;
 		}
 
-#if FIND_OPTIMAL_MATCH
+#ifdef FIND_OPTIMAL_MATCH
 		/* Experimental code to see what could be saved with an ideal
 		 * longest match lookup algorithm. This one is very slow but
 		 * scans the whole window. In short, here are the savings :
