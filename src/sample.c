@@ -2300,18 +2300,16 @@ static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *p
 	struct buffer *temp;
 	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
 	time_t curr_date = smp->data.u.sint & 0x007fffffffffffffLL;
-	struct tm *tm;
+	struct tm tm;
 
 	/* add offset */
 	if (args[1].type == ARGT_SINT)
 		curr_date += args[1].data.sint;
 
-	tm = localtime(&curr_date);
-	if (!tm)
-		return 0;
+	get_localtime(curr_date, &tm);
+
 	temp = get_trash_chunk();
-	temp->data = strftime(temp->area, temp->size, args[0].data.str.area,
-			      tm);
+	temp->data = strftime(temp->area, temp->size, args[0].data.str.area, &tm);
 	smp->data.u.str = *temp;
 	smp->data.type = SMP_T_STR;
 	return 1;
@@ -2337,18 +2335,16 @@ static int sample_conv_utime(const struct arg *args, struct sample *smp, void *p
 	struct buffer *temp;
 	/* With high numbers, the date returned can be negative, the 55 bits mask prevent this. */
 	time_t curr_date = smp->data.u.sint & 0x007fffffffffffffLL;
-	struct tm *tm;
+	struct tm tm;
 
 	/* add offset */
 	if (args[1].type == ARGT_SINT)
 		curr_date += args[1].data.sint;
 
-	tm = gmtime(&curr_date);
-	if (!tm)
-		return 0;
+	get_gmtime(curr_date, &tm);
+
 	temp = get_trash_chunk();
-	temp->data = strftime(temp->area, temp->size, args[0].data.str.area,
-			      tm);
+	temp->data = strftime(temp->area, temp->size, args[0].data.str.area, &tm);
 	smp->data.u.str = *temp;
 	smp->data.type = SMP_T_STR;
 	return 1;
