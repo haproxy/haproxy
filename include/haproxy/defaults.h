@@ -284,7 +284,7 @@
 
 /* Maximum host name length */
 #ifndef MAX_HOSTNAME_LEN
-#if MAXHOSTNAMELEN
+#ifdef MAXHOSTNAMELEN
 #define MAX_HOSTNAME_LEN	MAXHOSTNAMELEN
 #else
 #define MAX_HOSTNAME_LEN	64
