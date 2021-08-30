@@ -10952,7 +10952,7 @@ int hlua_post_init()
 	struct hlua_function *fcn;
 	struct hlua_reg_filter *reg_flt;
 
-#if USE_OPENSSL
+#if defined(USE_OPENSSL)
 	/* Initialize SSL server. */
 	if (socket_ssl->xprt->prepare_srv) {
 		int saved_used_backed = global.ssl_used_backend;

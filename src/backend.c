@@ -1662,7 +1662,7 @@ skip_reuse:
 		}
 	}
 
-#if USE_OPENSSL && (defined(OPENSSL_IS_BORINGSSL) || (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L))
+#if defined(USE_OPENSSL) && (defined(OPENSSL_IS_BORINGSSL) || (HA_OPENSSL_VERSION_NUMBER >= 0x10101000L))
 
 	if (!reuse && cli_conn && srv && srv_conn->mux &&
 	    (srv->ssl_ctx.options & SRV_SSL_O_EARLY_DATA) &&
