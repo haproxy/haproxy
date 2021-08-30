@@ -187,7 +187,7 @@ static inline X509_CRL *X509_OBJECT_get0_X509_CRL(const X509_OBJECT *a)
 }
 #endif
 
-#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL) && (LIBRESSL_VERSION_NUMBER < 0x2070000fL)
+#if (HA_OPENSSL_VERSION_NUMBER < 0x1010000fL) && (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER < 0x2070000fL)
 /*
  * Functions introduced in OpenSSL 1.1.0 and in LibreSSL 2.7.0
  */
@@ -298,7 +298,7 @@ static inline X509 *X509_STORE_CTX_get0_cert(X509_STORE_CTX *ctx)
 }
 #endif
 
-#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) || (LIBRESSL_VERSION_NUMBER >= 0x2070200fL)
+#if (HA_OPENSSL_VERSION_NUMBER >= 0x1010000fL) || (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER >= 0x2070200fL)
 #define __OPENSSL_110_CONST__ const
 #else
 #define __OPENSSL_110_CONST__
@@ -334,7 +334,7 @@ static inline X509 *X509_STORE_CTX_get0_cert(X509_STORE_CTX *ctx)
 #define TLSEXT_signature_ecdsa      3
 #endif
 
-#if ((HA_OPENSSL_VERSION_NUMBER < 0x1010000fL) && (LIBRESSL_VERSION_NUMBER < 0x2070000fL)) ||\
+#if ((HA_OPENSSL_VERSION_NUMBER < 0x1010000fL) && (!defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER < 0x2070000fL)) ||\
 	defined(OPENSSL_IS_BORINGSSL)
 #define X509_getm_notBefore     X509_get_notBefore
 #define X509_getm_notAfter      X509_get_notAfter
