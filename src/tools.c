@@ -43,7 +43,7 @@ extern void *__elf_aux_vector;
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#if (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
 #include <sys/auxv.h>
 #endif
 
@@ -4768,7 +4768,7 @@ const char *get_exec_path()
 {
 	const char *ret = NULL;
 
-#if (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 16))
 	long execfn = getauxval(AT_EXECFN);
 
 	if (execfn && execfn != ENOENT)
@@ -4800,7 +4800,7 @@ const char *get_exec_path()
 static int dladdr_and_size(const void *addr, Dl_info *dli, size_t *size)
 {
 	int ret;
-#if (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 3)) // most detailed one
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 3)) // most detailed one
 	const ElfW(Sym) *sym;
 
 	ret = dladdr1(addr, dli, (void **)&sym, RTLD_DL_SYMENT);
