@@ -388,7 +388,7 @@ static void quic_trace(enum trace_level level, uint64_t mask, const struct trace
 				              " qel=%c state=%s ack?%d cwnd=%llu ppif=%lld pif=%llu if=%llu pp=%u pdg=%llu",
 				              quic_enc_level_char_from_qel(qel, qc),
 				              quic_hdshk_state_str(HA_ATOMIC_LOAD(&qc->state)),
-				              !!(HA_ATOMIC_LOAD(&pktns->flags) & QUIC_FL_PKTNS_ACK_REQUIRED),
+				              !!(HA_ATOMIC_LOAD(&qc->flags) & QUIC_FL_PKTNS_ACK_REQUIRED),
 				              (unsigned long long)qc->path->cwnd,
 				              (unsigned long long)qc->path->prep_in_flight,
 				              (unsigned long long)qc->path->in_flight,
@@ -2039,7 +2039,7 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 				nb_ptos = HA_ATOMIC_LOAD(&qc->tx.nb_pto_dgrams);
 			} while (nb_ptos && !HA_ATOMIC_CAS(&qc->tx.nb_pto_dgrams, &nb_ptos, nb_ptos - 1));
 		}
-		ack = HA_ATOMIC_BTR(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+		ack = HA_ATOMIC_BTR(&qc->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 		/* Do not build any more packet if the TX secrets are not available or
 		 * if there is nothing to send, i.e. if no ACK are required
 		 * and if there is no more packets to send upon PTO expiration
@@ -2071,7 +2071,8 @@ static int qc_prep_hdshk_pkts(struct qring *qr, struct ssl_sock_ctx *ctx)
 		if (err < 0) {
 			if (!prv_pkt && nb_ptos)
 				HA_ATOMIC_ADD(&qc->tx.nb_pto_dgrams, 1);
-			HA_ATOMIC_BTS(&qel->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
+			if (ack)
+				HA_ATOMIC_BTS(&qc->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 		}
 		switch (err) {
 		case -2:
@@ -2567,27 +2568,35 @@ static inline int qc_treat_rx_crypto_frms(struct quic_enc_level *el,
 /* Process all the packets at <el> encryption level.
  * Return 1 if succeeded, 0 if not.
  */
-int qc_treat_rx_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
+int qc_treat_rx_pkts(struct quic_enc_level *cur_el, struct quic_enc_level *next_el,
+                     struct ssl_sock_ctx *ctx, int force_ack)
 {
-	struct quic_tls_ctx *tls_ctx;
 	struct eb64_node *node;
 	int64_t largest_pn = -1;
+	struct quic_conn *qc = ctx->conn->qc;
+	struct quic_enc_level *qel = cur_el;
 
 	TRACE_ENTER(QUIC_EV_CONN_ELRXPKTS, ctx->conn);
-	tls_ctx = &el->tls_ctx;
-	HA_RWLOCK_WRLOCK(QUIC_LOCK, &el->rx.pkts_rwlock);
-	node = eb64_first(&el->rx.pkts);
+	qel = cur_el;
+ next_tel:
+	if (!qel)
+		goto out;
+
+	HA_RWLOCK_WRLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
+	node = eb64_first(&qel->rx.pkts);
 	while (node) {
 		struct quic_rx_packet *pkt;
 
 		pkt = eb64_entry(&node->node, struct quic_rx_packet, pn_node);
-		if (!qc_pkt_decrypt(pkt, tls_ctx)) {
+		TRACE_PROTO("new packet", QUIC_EV_CONN_ELRXPKTS,
+		            ctx->conn, pkt, NULL, ctx->ssl);
+		if (!qc_pkt_decrypt(pkt, &qel->tls_ctx)) {
 			/* Drop the packet */
 			TRACE_PROTO("packet decryption failed -> dropped",
 			            QUIC_EV_CONN_ELRXPKTS, ctx->conn, pkt);
 		}
 		else {
-			if (!qc_parse_pkt_frms(pkt, ctx, el)) {
+			if (!qc_parse_pkt_frms(pkt, ctx, qel)) {
 				/* Drop the packet */
 				TRACE_PROTO("packet parsing failed -> dropped",
 				            QUIC_EV_CONN_ELRXPKTS, ctx->conn, pkt);
@@ -2596,13 +2605,12 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
 				struct quic_arng ar = { .first = pkt->pn, .last = pkt->pn };
 
 				if (pkt->flags & QUIC_FL_RX_PACKET_ACK_ELICITING &&
-					!(HA_ATOMIC_ADD_FETCH(&el->pktns->rx.nb_ack_eliciting, 1) & 1))
-					HA_ATOMIC_BTS(&el->pktns->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
-
+				    (!(HA_ATOMIC_ADD_FETCH(&qc->rx.nb_ack_eliciting, 1) & 1) || force_ack))
+					HA_ATOMIC_BTS(&qc->flags, QUIC_FL_PKTNS_ACK_REQUIRED_BIT);
 				if (pkt->pn > largest_pn)
 					largest_pn = pkt->pn;
 				/* Update the list of ranges to acknowledge. */
-				if (!quic_update_ack_ranges_list(&el->pktns->rx.arngs, &ar))
+				if (!quic_update_ack_ranges_list(&qel->pktns->rx.arngs, &ar))
 					TRACE_DEVEL("Could not update ack range list",
 					            QUIC_EV_CONN_ELRXPKTS, ctx->conn);
 			}
@@ -2610,14 +2618,20 @@ int qc_treat_rx_pkts(struct quic_enc_level *el, struct ssl_sock_ctx *ctx)
 		node = eb64_next(node);
 		quic_rx_packet_eb64_delete(&pkt->pn_node);
 	}
-	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &el->rx.pkts_rwlock);
+	HA_RWLOCK_WRUNLOCK(QUIC_LOCK, &qel->rx.pkts_rwlock);
 
 	/* Update the largest packet number. */
 	if (largest_pn != -1)
-		HA_ATOMIC_UPDATE_MAX(&el->pktns->rx.largest_pn, largest_pn);
-	if (!qc_treat_rx_crypto_frms(el, ctx))
+		HA_ATOMIC_UPDATE_MAX(&qel->pktns->rx.largest_pn, largest_pn);
+	if (!qc_treat_rx_crypto_frms(qel, ctx))
 		goto err;
 
+	if (qel == cur_el) {
+		qel = next_el;
+		goto next_tel;
+	}
+
+ out:
 	TRACE_LEAVE(QUIC_EV_CONN_ELRXPKTS, ctx->conn);
 	return 1;
 
@@ -2636,7 +2650,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	struct quic_enc_level *qel, *next_qel;
 	struct quic_tls_ctx *tls_ctx;
 	struct qring *qr; // Tx ring
-	int prev_st, st;
+	int prev_st, st, force_ack;
 
 	ctx = context;
 	qc = ctx->conn->qc;
@@ -2644,6 +2658,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 	st = HA_ATOMIC_LOAD(&qc->state);
 	TRACE_ENTER(QUIC_EV_CONN_HDSHK, ctx->conn, &st);
 	ssl_err = SSL_ERROR_NONE;
+ start:
 	if (!quic_get_tls_enc_levels(&tel, &next_tel, st))
 		goto err;
 
@@ -2661,7 +2676,9 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		qc_rm_hp_pkts(qel, ctx);
 
 	prev_st = HA_ATOMIC_LOAD(&qc->state);
-	if (!qc_treat_rx_pkts(qel, ctx))
+	force_ack = qel == &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL] ||
+		qel == &qc->els[QUIC_TLS_ENC_LEVEL_HANDSHAKE];
+	if (!qc_treat_rx_pkts(qel, next_qel, ctx, force_ack))
 		goto err;
 
 	st = HA_ATOMIC_LOAD(&qc->state);
@@ -2673,6 +2690,7 @@ struct task *quic_conn_io_cb(struct task *t, void *context, unsigned int state)
 		qc_set_timer(ctx);
 		if (!quic_build_post_handshake_frames(qc))
 			goto err;
+		goto start;
 	}
 
 	if (!qr)
@@ -2912,6 +2930,7 @@ static struct quic_conn *qc_new_conn(unsigned int version, int ipv4,
 	qc->tx.nb_pto_dgrams = 0;
 	/* RX part. */
 	qc->rx.bytes = 0;
+	qc->rx.nb_ack_eliciting = 0;
 
 	/* XXX TO DO: Only one path at this time. */
 	qc->path = &qc->paths[0];

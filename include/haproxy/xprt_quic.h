@@ -896,7 +896,6 @@ static inline void quic_pktns_init(struct quic_pktns *pktns)
 	pktns->tx.in_flight = 0;
 
 	pktns->rx.largest_pn = -1;
-	pktns->rx.nb_ack_eliciting = 0;
 	pktns->rx.arngs.root = EB_ROOT_UNIQUE;
 	pktns->rx.arngs.sz = 0;
 	pktns->rx.arngs.enc_sz = 0;

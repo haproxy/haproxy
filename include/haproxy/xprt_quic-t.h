@@ -352,10 +352,8 @@ struct quic_arngs {
 	size_t enc_sz;
 };
 
-/* Flag the packet number space as requiring an ACK frame to be sent. */
-#define QUIC_FL_PKTNS_ACK_REQUIRED_BIT 0
-#define QUIC_FL_PKTNS_ACK_RECEIVED_BIT 1
-#define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << QUIC_FL_PKTNS_ACK_REQUIRED_BIT)
+/* Flag the packet number space as having received an ACK frame */
+#define QUIC_FL_PKTNS_ACK_RECEIVED_BIT 0
 #define QUIC_FL_PKTNS_ACK_RECEIVED  (1UL << QUIC_FL_PKTNS_ACK_RECEIVED_BIT)
 
 /* The maximum number of dgrams which may be sent upon PTO expirations. */
@@ -384,8 +382,6 @@ struct quic_pktns {
 	struct {
 		/* Largest packet number */
 		int64_t largest_pn;
-		/* Number of ack-eliciting packets. */
-		size_t nb_ack_eliciting;
 		struct quic_arngs arngs;
 	} rx;
 	unsigned int flags;
@@ -589,6 +585,9 @@ struct qring {
 #define QUIC_CONN_TX_BUFS_NB 8
 #define QUIC_CONN_TX_BUF_SZ  QUIC_PACKET_MAXLEN
 
+/* Flag the packet number space as requiring an ACK frame to be sent. */
+#define QUIC_FL_PKTNS_ACK_REQUIRED_BIT 0
+#define QUIC_FL_PKTNS_ACK_REQUIRED  (1UL << QUIC_FL_PKTNS_ACK_REQUIRED_BIT)
 struct quic_conn {
 	uint32_t version;
 
@@ -643,6 +642,8 @@ struct quic_conn {
 	struct {
 		/* Number of received bytes. */
 		uint64_t bytes;
+		/* Number of ack-eliciting received packets. */
+		size_t nb_ack_eliciting;
 		/* Transport parameters the peer will receive */
 		struct quic_transport_params params;
 	} rx;
@@ -654,6 +655,7 @@ struct quic_conn {
 	struct qcc *qcc;
 	struct task *timer_task;
 	unsigned int timer;
+	unsigned int flags;
 };
 
 #endif /* USE_QUIC */
