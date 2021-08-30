@@ -191,7 +191,7 @@ REG_TEST_SCRIPT=./scripts/run-regtests.sh
 # We rely on signed integer wraparound on overflow, however clang think it
 # can do whatever it wants since it's an undefined behavior, so use -fwrapv
 # to be sure we get the intended behavior.
-SPEC_CFLAGS := -Wall -Wextra -Wdeclaration-after-statement
+SPEC_CFLAGS := -Wall -Wextra -Wundef -Wdeclaration-after-statement
 SPEC_CFLAGS += $(call cc-opt-alt,-fwrapv,$(call cc-opt,-fno-strict-overflow))
 SPEC_CFLAGS += $(call cc-nowarn,address-of-packed-member)
 SPEC_CFLAGS += $(call cc-nowarn,unused-label)
