@@ -3371,6 +3371,8 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			int ipv4;
 			struct quic_cid *odcid;
 			struct ebmb_node *n = NULL;
+			const unsigned char *salt = initial_salt_v1;
+			size_t salt_len = sizeof initial_salt_v1;
 
 			if (pkt->type != QUIC_PACKET_TYPE_INITIAL) {
 				TRACE_PROTO("Non Initiial packet", QUIC_EV_CONN_LPKT);
@@ -3406,7 +3408,12 @@ static ssize_t qc_lstnr_pkt_rcv(unsigned char **buf, const unsigned char *end,
 			/* NOTE: the socket address has been concatenated to the destination ID
 			 * chosen by the client for Initial packets.
 			 */
-			if (!qc_new_isecs(qc, pkt->dcid.data, pkt->odcid_len, 1)) {
+			if (pkt->version == QUIC_PROTOCOL_VERSION_DRAFT_29) {
+				salt = initial_salt_draft_29;
+				salt_len = sizeof initial_salt_draft_29;
+			}
+			if (!qc_new_isecs(qc, salt, salt_len,
+			                  pkt->dcid.data, pkt->odcid_len, 1)) {
 				TRACE_PROTO("Packet dropped", QUIC_EV_CONN_LPKT, qc->conn);
 				goto err;
 			}
@@ -4360,7 +4367,8 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 
 		conn->qc = qc;
 		qc->conn = conn;
-		if (!qc_new_isecs(qc, dcid, sizeof dcid, 0))
+		if (!qc_new_isecs(qc, initial_salt_v1, sizeof initial_salt_v1,
+		                  dcid, sizeof dcid, 0))
 			goto err;
 
 		if (ssl_bio_and_sess_init(conn, srv->ssl_ctx.ctx,

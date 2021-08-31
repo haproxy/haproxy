@@ -27,12 +27,28 @@
 #include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>
 
+/* Initial salt depending on QUIC version to derive client/server initial secrets.
+ * This one is for draft-29 QUIC version.
+ */
+unsigned char initial_salt_draft_29[20] = {
+	0xaf, 0xbf, 0xec, 0x28, 0x99, 0x93, 0xd2, 0x4c,
+	0x9e, 0x97, 0x86, 0xf1, 0x9c, 0x61, 0x11, 0xe0,
+	0x43, 0x90, 0xa8, 0x99
+};
+
+unsigned char initial_salt_v1[20] = {
+	0x38, 0x76, 0x2c, 0xf7, 0xf5, 0x59, 0x34, 0xb3,
+	0x4d, 0x17, 0x9a, 0xe6, 0xa4, 0xc8, 0x0c, 0xad,
+	0xcc, 0xbb, 0x7f, 0x0a
+};
+
 void quic_tls_keys_hexdump(struct buffer *buf, struct quic_tls_secrets *secs);
 
 void quic_tls_secret_hexdump(struct buffer *buf,
                              const unsigned char *secret, size_t secret_len);
 
 int quic_derive_initial_secret(const EVP_MD *md,
+                               const unsigned char *initial_salt, size_t initial_salt_sz,
                                unsigned char *initial_secret, size_t initial_secret_sz,
                                const unsigned char *secret, size_t secret_sz);
 
@@ -390,6 +406,7 @@ static inline void quic_tls_discard_keys(struct quic_enc_level *qel)
  * Return 1 if succeeded or 0 if not.
  */
 static inline int qc_new_isecs(struct quic_conn *qc,
+                               const unsigned char *salt, size_t salt_len,
                                const unsigned char *cid, size_t cidlen, int server)
 {
 	unsigned char initial_secret[32];
@@ -404,6 +421,7 @@ static inline int qc_new_isecs(struct quic_conn *qc,
 	ctx = &qc->els[QUIC_TLS_ENC_LEVEL_INITIAL].tls_ctx;
 	quic_initial_tls_ctx_init(ctx);
 	if (!quic_derive_initial_secret(ctx->rx.md,
+	                                salt, salt_len,
 	                                initial_secret, sizeof initial_secret,
 	                                cid, cidlen))
 		goto err;
