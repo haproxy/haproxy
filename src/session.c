@@ -357,8 +357,8 @@ static void session_kill_embryonic(struct session *sess, unsigned int state)
 				conn->err_code = CO_ER_SSL_TIMEOUT;
 		}
 
-		if (sess->fe->options & PR_O_ERR_LOGFMT) {
-			/* Display a log line following the configured log-format. */
+		if(!LIST_ISEMPTY(&sess->fe->logformat_error)) {
+			/* Display a log line following the configured error-log-format. */
 			sess_log(sess);
 		}
 		else {

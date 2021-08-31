@@ -3561,6 +3561,7 @@ errorloc                                  X          X         X         X
 errorloc302                               X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 errorloc303                               X          X         X         X
+error-log-format                          X          X         X         -
 force-persist                             -          -         X         X
 filter                                    -          X         X         X
 fullconn                                  X          -         X         X
@@ -4941,6 +4942,24 @@ email-alert to <emailaddr>
 
   See also : "email-alert from", "email-alert level", "email-alert mailers",
              "email-alert myhostname", section 3.6 about mailers.
+
+
+error-log-format <string>
+  Specifies the log format string to use in case of connection error on the frontend side.
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |    no
+
+  This directive specifies the log format string that will be used for logs
+  containing information related to errors, timeouts, retries redispatches or
+  HTTP status code 5xx. This format will in short be used for every log line
+  that would be concerned by the "log-separate-errors" option, including
+  connection errors described in section 8.2.6..
+  If the directive is used in a defaults section, all subsequent frontends will
+  use the same log format. Please see section 8.2.4 which covers the log format
+  string in depth.
+
+  "error-log-format" directive overrides previous "error-log-format"
+  directives.
 
 
 force-persist { if | unless } <condition>
@@ -7823,6 +7842,8 @@ log-format <string>
   directive is used in a defaults section, all subsequent frontends will use
   the same log format. Please see section 8.2.4 which covers the log format
   string in depth.
+  A specific log-format used only in case of connection error can also be
+  defined, see the "error-log-format" option.
 
   "log-format" directive overrides previous "option tcplog", "log-format",
   "option httplog" and "option httpslog" directives.
@@ -21107,13 +21128,14 @@ Please refer to the table below for currently defined variables :
 -----------------------
 
 When an incoming connection fails due to an SSL handshake or an invalid PROXY
-protocol header, HAProxy will log the event using a shorter, fixed line format.
+protocol header, HAProxy will log the event using a shorter, fixed line format,
+unless a dedicated error log format is defined through an "error-log-format"
+line. In the latter case, the legacy log format described below will not be
+used anymore, and all error log lines will follow the defined format.
 By default, logs are emitted at the LOG_INFO level, unless the option
 "log-separate-errors" is set in the backend, in which case the LOG_ERR level
 will be used. Connections on which no data are exchanged (e.g. probes) are not
-logged if the "dontlognull" option is set. If the "log-error-via-logformat" option
-is set, those messages are not emitted and a line following the configured
-log-format is emitted instead.
+logged if the "dontlognull" option is set.
 
 The format looks like this :
 

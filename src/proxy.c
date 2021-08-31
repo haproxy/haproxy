@@ -178,6 +178,9 @@ void free_proxy(struct proxy *p)
 		free(p->conf.logformat_sd_string);
 	free(p->conf.lfsd_file);
 
+	free(p->conf.error_logformat_string);
+	free(p->conf.elfs_file);
+
 	list_for_each_entry_safe(cond, condb, &p->mon_fail_cond, list) {
 		LIST_DELETE(&cond->list);
 		prune_acl_cond(cond);
@@ -251,6 +254,13 @@ void free_proxy(struct proxy *p)
 	}
 
 	list_for_each_entry_safe(lf, lfb, &p->format_unique_id, list) {
+		LIST_DELETE(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+
+	list_for_each_entry_safe(lf, lfb, &p->logformat_error, list) {
 		LIST_DELETE(&lf->list);
 		release_sample_expr(lf->expr);
 		free(lf->arg);
@@ -1321,6 +1331,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->logformat);
 	LIST_INIT(&p->logformat_sd);
 	LIST_INIT(&p->format_unique_id);
+	LIST_INIT(&p->logformat_error);
 	LIST_INIT(&p->conf.bind);
 	LIST_INIT(&p->conf.listeners);
 	LIST_INIT(&p->conf.errors);
@@ -1434,9 +1445,11 @@ void proxy_free_defaults(struct proxy *defproxy)
 		ha_free(&defproxy->conf.logformat_sd_string);
 
 	ha_free(&defproxy->conf.uniqueid_format_string);
+	ha_free(&defproxy->conf.error_logformat_string);
 	ha_free(&defproxy->conf.lfs_file);
 	ha_free(&defproxy->conf.lfsd_file);
 	ha_free(&defproxy->conf.uif_file);
+	ha_free(&defproxy->conf.elfs_file);
 	chunk_destroy(&defproxy->log_tag);
 
 	free_email_alert(defproxy);
@@ -1667,6 +1680,15 @@ static int proxy_defproxy_cpy(struct proxy *curproxy, const struct proxy *defpro
 		if (defproxy->conf.lfsd_file) {
 			curproxy->conf.lfsd_file = strdup(defproxy->conf.lfsd_file);
 			curproxy->conf.lfsd_line = defproxy->conf.lfsd_line;
+		}
+
+		curproxy->conf.error_logformat_string = defproxy->conf.error_logformat_string;
+		if (curproxy->conf.error_logformat_string)
+			curproxy->conf.error_logformat_string = strdup(curproxy->conf.error_logformat_string);
+
+		if (defproxy->conf.elfs_file) {
+			curproxy->conf.elfs_file = strdup(defproxy->conf.elfs_file);
+			curproxy->conf.elfs_line = defproxy->conf.elfs_line;
 		}
 	}
 

@@ -371,6 +371,7 @@ struct proxy {
 	struct list logsrvs;
 	struct list logformat; 			/* log_format linked list */
 	struct list logformat_sd;		/* log_format linked list for the RFC5424 structured-data part */
+	struct list logformat_error;		/* log_format linked list used in case of connection error on the frontend */
 	struct buffer log_tag;                   /* override default syslog tag */
 	struct ist header_unique_id; 		/* unique-id header */
 	struct list format_unique_id;		/* unique-id format */
@@ -429,6 +430,9 @@ struct proxy {
 		char *logformat_sd_string;	/* log format string for the RFC5424 structured-data part */
 		char *lfsd_file;		/* file name where the structured-data logformat string for RFC5424 appears (strdup) */
 		int  lfsd_line;			/* file name where the structured-data logformat string for RFC5424 appears */
+		char *error_logformat_string;
+		char *elfs_file;
+		int elfs_line;
 	} conf;					/* config information */
 	struct eb_root used_server_addr;        /* list of server addresses in use */
 	void *parent;				/* parent of the proxy when applicable */

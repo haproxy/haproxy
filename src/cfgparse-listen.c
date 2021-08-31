@@ -52,6 +52,7 @@ static const char *common_kw_list[] = {
 	"fullconn", "dispatch", "balance", "hash-type",
 	"hash-balance-factor", "unique-id-format", "unique-id-header",
 	"log-format", "log-format-sd", "log-tag", "log", "source", "usesrc",
+	"error-log-format",
 	NULL /* must be last */
 };
 
@@ -2749,6 +2750,39 @@ stats_error_parsing:
 		 */
 		if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
 			ha_warning("parsing [%s:%d] : backend '%s' : 'log-format-sd' directive is ignored in backends.\n",
+				   file, linenum, curproxy->id);
+			err_code |= ERR_WARN;
+		}
+	}
+	else if (strcmp(args[0], "error-log-format") == 0) {
+		if (!*(args[1])) {
+			ha_alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (*(args[2])) {
+			ha_alert("parsing [%s:%d] : %s expects only one argument, don't forget to escape spaces!\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (curproxy->conf.error_logformat_string && curproxy->cap & PR_CAP_DEF) {
+			ha_warning("parsing [%s:%d]: 'error-log-format' overrides previous 'error-log-format' in 'defaults' section.\n",
+				   file, linenum);
+		}
+		free(curproxy->conf.error_logformat_string);
+		curproxy->conf.error_logformat_string = strdup(args[1]);
+		if (!curproxy->conf.error_logformat_string)
+			goto alloc_error;
+
+		free(curproxy->conf.elfs_file);
+		curproxy->conf.elfs_file = strdup(curproxy->conf.args.file);
+		curproxy->conf.elfs_line = curproxy->conf.args.line;
+
+		/* get a chance to improve log-format error reporting by
+		 * reporting the correct line-number when possible.
+		 */
+		if (!(curproxy->cap & PR_CAP_DEF) && !(curproxy->cap & PR_CAP_FE)) {
+			ha_warning("parsing [%s:%d] : backend '%s' : 'error-log-format' directive is ignored in backends.\n",
 				   file, linenum, curproxy->id);
 			err_code |= ERR_WARN;
 		}

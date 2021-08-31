@@ -3126,7 +3126,10 @@ void sess_log(struct session *sess)
 		                             &sess->fe->logformat_sd);
 	}
 
-	size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat);
+	if (!LIST_ISEMPTY(&sess->fe->logformat_error))
+		size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat_error);
+	else
+		size = sess_build_logline(sess, NULL, logline, global.max_syslog_len, &sess->fe->logformat);
 	if (size > 0) {
 		_HA_ATOMIC_INC(&sess->fe->log_count);
 		__send_log(&sess->fe->logsrvs, &sess->fe->log_tag, level,

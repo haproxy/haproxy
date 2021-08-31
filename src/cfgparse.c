@@ -3115,6 +3115,23 @@ out_uri_auth_compat:
 			curproxy->conf.args.line = 0;
 		}
 
+		if (curproxy->conf.error_logformat_string) {
+			curproxy->conf.args.ctx = ARGC_LOG;
+			curproxy->conf.args.file = curproxy->conf.elfs_file;
+			curproxy->conf.args.line = curproxy->conf.elfs_line;
+			err = NULL;
+			if (!parse_logformat_string(curproxy->conf.error_logformat_string, curproxy, &curproxy->logformat_error,
+			                            LOG_OPT_MANDATORY|LOG_OPT_MERGE_SPACES,
+			                            SMP_VAL_FE_LOG_END, &err)) {
+				ha_alert("Parsing [%s:%d]: failed to parse error-log-format : %s.\n",
+					 curproxy->conf.elfs_file, curproxy->conf.elfs_line, err);
+				free(err);
+				cfgerr++;
+			}
+			curproxy->conf.args.file = NULL;
+			curproxy->conf.args.line = 0;
+		}
+
 		/* only now we can check if some args remain unresolved.
 		 * This must be done after the users and groups resolution.
 		 */
