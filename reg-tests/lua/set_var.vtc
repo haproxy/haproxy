@@ -23,18 +23,35 @@ haproxy h1 -conf {
     frontend fe2
         mode http
         bind "fd@${fe2}"
-
-        http-request set-header Dummy %[var(txn.fe2_foo)]
+        # just make sure the variable exists
+        http-request set-header Dummy %[var(proc.fe2_foo)]
 
         http-request use-service lua.set_var_ifexist
 } -start
 
 client c0 -connect ${h1_fe1_sock} {
+    # create var
     txreq -url "/" \
         -hdr "Var: txn.fe1_foo"
     rxresp
     expect resp.status == 202
     expect resp.http.echo == "value"
+
+    # rewrite var
+    txreq -url "/" \
+        -hdr "Var: txn.fe1_foo"
+    rxresp
+    expect resp.status == 202
+    expect resp.http.echo == "value"
+
+    # create var under scope "proc"
+    txreq -url "/" \
+        -hdr "Var: proc.fe1_foo"
+    rxresp
+    expect resp.status == 202
+    expect resp.http.echo == "value"
+
+    # fail to create bad scope
     txreq -url "/" \
         -hdr "Var: invalid.var"
     rxresp
@@ -43,14 +60,24 @@ client c0 -connect ${h1_fe1_sock} {
 } -run
 
 client c1 -connect ${h1_fe2_sock} {
+    # this one exists in the conf, it must succeed
+    txreq -url "/" \
+        -hdr "Var: proc.fe2_foo"
+    rxresp
+    expect resp.status == 202
+    expect resp.http.echo == "value"
+
+    # this one does not exist in the conf, it must fail
+    txreq -url "/" \
+        -hdr "Var: proc.fe2_bar"
+    rxresp
+    expect resp.status == 400
+    expect resp.http.echo == "(nil)"
+
+    # this one is under txn, it must succeed
     txreq -url "/" \
         -hdr "Var: txn.fe2_foo"
     rxresp
     expect resp.status == 202
     expect resp.http.echo == "value"
-    txreq -url "/" \
-        -hdr "Var: txn.fe2_bar"
-    rxresp
-    expect resp.status == 400
-    expect resp.http.echo == "(nil)"
 } -run

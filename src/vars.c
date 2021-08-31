@@ -214,29 +214,19 @@ void vars_init_head(struct vars *vars, enum vars_scope scope)
 	HA_RWLOCK_INIT(&vars->rwlock);
 }
 
-/* This function declares a new variable name. It returns a pointer
- * on the string identifying the name. This function assures that
- * the same name exists only once.
- *
- * This function check if the variable name is acceptable.
- *
- * The function returns NULL if an error occurs, and <err> is filled.
- * In this case, the HAProxy must be stopped because the structs are
- * left inconsistent. Otherwise, it returns the pointer on the global
- * name.
+/* This function returns a hash value and a scope for a variable name of a
+ * specified length. It makes sure that the scope is valid. It returns non-zero
+ * on success, 0 on failure. Neither hash nor scope may be NULL.
  */
-static char *register_name(const char *name, int len, enum vars_scope *scope,
-			   int alloc, char **err)
+static int vars_hash_name(const char *name, int len, enum vars_scope *scope,
+                         uint64_t *hash, char **err)
 {
-	int i;
-	char **var_names2;
 	const char *tmp;
-	char *res = NULL;
 
 	/* Check length. */
 	if (len == 0) {
 		memprintf(err, "Empty variable name cannot be accepted");
-		return res;
+		return 0;
 	}
 
 	/* Check scope. */
@@ -273,73 +263,32 @@ static char *register_name(const char *name, int len, enum vars_scope *scope,
 	else {
 		memprintf(err, "invalid variable name '%.*s'. A variable name must be start by its scope. "
 		               "The scope can be 'proc', 'sess', 'txn', 'req', 'res' or 'check'", len, name);
-		return res;
+		return 0;
 	}
-
-	if (alloc)
-		HA_RWLOCK_WRLOCK(VARS_LOCK, &var_names_rwlock);
-	else
-		HA_RWLOCK_RDLOCK(VARS_LOCK, &var_names_rwlock);
-
-
-	/* Look for existing variable name. */
-	for (i = 0; i < var_names_nb; i++)
-		if (strncmp(var_names[i], name, len) == 0 && var_names[i][len] == '\0') {
-			res = var_names[i];
-			goto end;
-		}
-
-	if (!alloc) {
-		res = NULL;
-		goto end;
-	}
-
-	/* Store variable name. If realloc fails, var_names remains valid */
-	var_names2 = realloc(var_names, (var_names_nb + 1) * sizeof(*var_names));
-	if (!var_names2) {
-		memprintf(err, "out of memory error");
-		res = NULL;
-		goto end;
-	}
-	var_names_nb++;
-	var_names = var_names2;
-	var_names[var_names_nb - 1] = malloc(len + 1);
-	if (!var_names[var_names_nb - 1]) {
-		memprintf(err, "out of memory error");
-		res = NULL;
-		goto end;
-	}
-	memcpy(var_names[var_names_nb - 1], name, len);
-	var_names[var_names_nb - 1][len] = '\0';
 
 	/* Check variable name syntax. */
-	tmp = var_names[var_names_nb - 1];
-	while (*tmp) {
+	for (tmp = name; tmp < name + len; tmp++) {
 		if (!isalnum((unsigned char)*tmp) && *tmp != '_' && *tmp != '.') {
 			memprintf(err, "invalid syntax at char '%s'", tmp);
-			res = NULL;
-			goto end;
+			return 0;
 		}
-		tmp++;
 	}
-	res = var_names[var_names_nb - 1];
 
-  end:
-	if (alloc)
-		HA_RWLOCK_WRUNLOCK(VARS_LOCK, &var_names_rwlock);
-	else
-		HA_RWLOCK_RDUNLOCK(VARS_LOCK, &var_names_rwlock);
-
-	return res;
+	*hash = XXH3(name, len, var_name_hash_seed);
+	return 1;
 }
 
-/* This function returns an existing variable or returns NULL. */
-static inline struct var *var_get(struct vars *vars, const char *name)
+/* This function returns the variable from the given list that matches
+ * <name_hash> or returns NULL if not found. It's only a linked list since it
+ * is not expected to have many variables per scope (a few tens at best).
+ * The caller is responsible for ensuring that <vars> is properly locked.
+ */
+static struct var *var_get(struct vars *vars, uint64_t name_hash)
 {
 	struct var *var;
 
 	list_for_each_entry(var, &vars->head, l)
-		if (var->name == name)
+		if (var->name_hash == name_hash)
 			return var;
 	return NULL;
 }
@@ -356,11 +305,13 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 	return vars_get_by_desc(var_desc, smp, def);
 }
 
-/* This function tries to create variable <name> in scope <scope> and store
- * sample <smp> as its value. The stream and session are extracted from <smp>,
- * and the stream may be NULL when scope is SCOPE_SESS. In case there wouldn't
- * be enough memory to store the sample while the variable was already created,
- * it would be changed to a bool (which is memory-less).
+/* This function tries to create a variable whose name hash is <name_hash> in
+ * scope <scope> and store sample <smp> as its value.
+ *
+ * The stream and session are extracted from <smp>, whose stream may be NULL
+ * when scope is SCOPE_SESS. In case there wouldn't be enough memory to store
+ * the sample while the variable was already created, it would be changed to
+ * a bool (which is memory-less).
  *
  * Flags is a bitfield that may contain one of the following flags:
  *   - VF_UPDATEONLY: if the scope is SCOPE_PROC, the variable may only be
@@ -370,7 +321,7 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
  *
  * It returns 0 on failure, non-zero on success.
  */
-static int var_set(const char *name, enum vars_scope scope, struct sample *smp, uint flags)
+static int var_set(uint64_t name_hash, enum vars_scope scope, struct sample *smp, uint flags)
 {
 	struct vars *vars;
 	struct var *var;
@@ -383,7 +334,7 @@ static int var_set(const char *name, enum vars_scope scope, struct sample *smp, 
 	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
 
 	/* Look for existing variable name. */
-	var = var_get(vars, name);
+	var = var_get(vars, name_hash);
 
 	if (var) {
 		if (flags & VF_CREATEONLY) {
@@ -417,7 +368,7 @@ static int var_set(const char *name, enum vars_scope scope, struct sample *smp, 
 		if (!var)
 			goto unlock;
 		LIST_APPEND(&vars->head, &var->l);
-		var->name = name;
+		var->name_hash = name_hash;
 		var->flags = flags & VF_PERMANENT;
 	}
 
@@ -485,11 +436,11 @@ static int var_set(const char *name, enum vars_scope scope, struct sample *smp, 
 	return ret;
 }
 
-/* This unsets variable <name> from scope <scope>, using the session and stream
- * found in <smp>. Note that stream may be null for SCOPE_SESS. Returns 0 if
- * the scope was not found otherwise 1.
+/* Deletes a variable matching name hash <name_hash> and scope <scope> for the
+ * session and stream found in <smp>. Note that stream may be null for
+ * SCOPE_SESS. Returns 0 if the scope was not found otherwise 1.
  */
-static int var_unset(const char *name, enum vars_scope scope, struct sample *smp)
+static int var_unset(uint64_t name_hash, enum vars_scope scope, struct sample *smp)
 {
 	struct vars *vars;
 	struct var  *var;
@@ -501,7 +452,7 @@ static int var_unset(const char *name, enum vars_scope scope, struct sample *smp
 
 	/* Look for existing variable name. */
 	HA_RWLOCK_WRLOCK(VARS_LOCK, &vars->rwlock);
-	var = var_get(vars, name);
+	var = var_get(vars, name_hash);
 	if (var) {
 		size = var_clear(var, 0);
 		var_accounting_diff(vars, smp->sess, smp->strm, -size);
@@ -513,13 +464,19 @@ static int var_unset(const char *name, enum vars_scope scope, struct sample *smp
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_store(const struct arg *args, struct sample *smp, void *private)
 {
-	return var_set(args[0].data.var.name, args[0].data.var.scope, smp, 0);
+	uint64_t seed = var_name_hash_seed;
+	uint64_t name_hash = XXH3(smp->data.u.str.area, smp->data.u.str.data, seed);
+
+	return var_set(name_hash, args[0].data.var.scope, smp, 0);
 }
 
 /* Returns 0 if fails, else returns 1. */
 static int smp_conv_clear(const struct arg *args, struct sample *smp, void *private)
 {
-	return var_unset(args[0].data.var.name, args[0].data.var.scope, smp);
+	uint64_t seed = var_name_hash_seed;
+	uint64_t name_hash = XXH3(smp->data.u.str.area, smp->data.u.str.data, seed);
+
+	return var_unset(name_hash, args[0].data.var.scope, smp);
 }
 
 /* This functions check an argument entry and fill it with a variable
@@ -528,9 +485,9 @@ static int smp_conv_clear(const struct arg *args, struct sample *smp, void *priv
  */
 int vars_check_arg(struct arg *arg, char **err)
 {
-	char *name;
 	enum vars_scope scope;
 	struct sample empty_smp = { };
+	uint64_t hash;
 
 	/* Check arg type. */
 	if (arg->type != ARGT_STR) {
@@ -539,13 +496,10 @@ int vars_check_arg(struct arg *arg, char **err)
 	}
 
 	/* Register new variable name. */
-	name = register_name(arg->data.str.area, arg->data.str.data, &scope,
-			     1,
-			     err);
-	if (!name)
+	if (!vars_hash_name(arg->data.str.area, arg->data.str.data, &scope, &hash, err))
 		return 0;
 
-	if (scope == SCOPE_PROC && !var_set(name, scope, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
+	if (scope == SCOPE_PROC && !var_set(hash, scope, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
 		return 0;
 
 	/* properly destroy the chunk */
@@ -553,75 +507,76 @@ int vars_check_arg(struct arg *arg, char **err)
 
 	/* Use the global variable name pointer. */
 	arg->type = ARGT_VAR;
-	arg->data.var.name = name;
+	arg->data.var.name_hash = hash;
 	arg->data.var.scope = scope;
 	return 1;
 }
 
-/* This function store a sample in a variable if it was already defined.
+/* This function stores a sample in a variable if it was already defined.
  * Returns zero on failure and non-zero otherwise. The variable not being
  * defined is treated as a failure.
  */
 int vars_set_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 {
 	enum vars_scope scope;
+	uint64_t hash;
 
 	/* Resolve name and scope. */
-	name = register_name(name, len, &scope, 0, NULL);
-	if (!name)
+	if (!vars_hash_name(name, len, &scope, &hash, NULL))
 		return 0;
 
-	return var_set(name, scope, smp, VF_UPDATEONLY);
+	return var_set(hash, scope, smp, VF_UPDATEONLY);
 }
 
 
-/* This function store a sample in a variable.
+/* This function stores a sample in a variable.
  * Returns zero on failure and non-zero otherwise.
  */
 int vars_set_by_name(const char *name, size_t len, struct sample *smp)
 {
 	enum vars_scope scope;
+	uint64_t hash;
 
 	/* Resolve name and scope. */
-	name = register_name(name, len, &scope, 1, NULL);
-	if (!name)
+	if (!vars_hash_name(name, len, &scope, &hash, NULL))
 		return 0;
 
-	return var_set(name, scope, smp, 0);
+	return var_set(hash, scope, smp, 0);
 }
 
-/* This function unset a variable if it was already defined.
+/* This function unsets a variable if it was already defined.
  * Returns zero on failure and non-zero otherwise.
  */
 int vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp)
 {
 	enum vars_scope scope;
+	uint64_t hash;
 
 	/* Resolve name and scope. */
-	name = register_name(name, len, &scope, 0, NULL);
-	if (!name)
+	if (!vars_hash_name(name, len, &scope, &hash, NULL))
 		return 0;
 
-	return var_unset(name, scope, smp);
+	return var_unset(hash, scope, smp);
 }
 
 
-/* This retrieves variable <name> from variables <vars>, and if found and not
- * empty, duplicates the result into sample <smp>. smp_dup() is used in order
- * to release the variables lock ASAP (so a pre-allocated chunk is obtained
- * via get_trash_shunk()). The variables' lock is used for reads.
+/* This retrieves variable whose hash matches <name_hash> from variables <vars>,
+ * and if found and not empty, duplicates the result into sample <smp>.
+ * smp_dup() is used in order to release the variables lock ASAP (so a pre-
+ * allocated chunk is obtained via get_trash_shunk()). The variables' lock is
+ * used for reads.
  *
  * The function returns 0 if the variable was not found and no default
  * value was provided in <def>, otherwise 1 with the sample filled.
  * Default values are always returned as strings.
  */
-static int var_to_smp(struct vars *vars, const char *name, struct sample *smp, const struct buffer *def)
+static int var_to_smp(struct vars *vars, uint64_t name_hash, struct sample *smp, const struct buffer *def)
 {
 	struct var *var;
 
 	/* Get the variable entry. */
 	HA_RWLOCK_RDLOCK(VARS_LOCK, &vars->rwlock);
-	var = var_get(vars, name);
+	var = var_get(vars, name_hash);
 	if (!var || !var->data.type) {
 		if (!def) {
 			HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
@@ -658,10 +613,10 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp, const str
 {
 	struct vars *vars;
 	enum vars_scope scope;
+	uint64_t hash;
 
 	/* Resolve name and scope. */
-	name = register_name(name, len, &scope, 0, NULL);
-	if (!name)
+	if (!vars_hash_name(name, len, &scope, &hash, NULL))
 		return 0;
 
 	/* Select "vars" pool according with the scope. */
@@ -669,8 +624,7 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp, const str
 	if (!vars || vars->scope != scope)
 		return 0;
 
-
-	return var_to_smp(vars, name, smp, def);
+	return var_to_smp(vars, hash, smp, def);
 }
 
 /* This function fills a sample with the content of the variable described
@@ -697,7 +651,7 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp, const 
 	if (!vars || vars->scope != var_desc->scope)
 		return 0;
 
-	return var_to_smp(vars, var_desc->name, smp, def);
+	return var_to_smp(vars, var_desc->name_hash, smp, def);
 }
 
 /* Always returns ACT_RET_CONT even if an error occurs. */
@@ -747,7 +701,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 		smp_set_owner(&smp, px, sess, s, 0);
 		smp.data.type = SMP_T_STR;
 		smp.data.u.str = *fmtstr;
-		var_set(rule->arg.vars.name, rule->arg.vars.scope, &smp, 0);
+		var_set(rule->arg.vars.name_hash, rule->arg.vars.scope, &smp, 0);
 	}
 	else {
 		/* an expression is used */
@@ -757,7 +711,7 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 	}
 
 	/* Store the sample, and ignore errors. */
-	var_set(rule->arg.vars.name, rule->arg.vars.scope, &smp, 0);
+	var_set(rule->arg.vars.name_hash, rule->arg.vars.scope, &smp, 0);
 	free_trash_chunk(fmtstr);
 	return ACT_RET_CONT;
 }
@@ -772,7 +726,7 @@ static enum act_return action_clear(struct act_rule *rule, struct proxy *px,
 	smp_set_owner(&smp, px, sess, s, SMP_OPT_FINAL);
 
 	/* Clear the variable using the sample context, and ignore errors. */
-	var_unset(rule->arg.vars.name, rule->arg.vars.scope, &smp);
+	var_unset(rule->arg.vars.name_hash, rule->arg.vars.scope, &smp);
 	return ACT_RET_CONT;
 }
 
@@ -858,12 +812,11 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	}
 
 	LIST_INIT(&rule->arg.vars.fmt);
-	rule->arg.vars.name = register_name(var_name, var_len, &rule->arg.vars.scope, 1, err);
-	if (!rule->arg.vars.name)
+	if (!vars_hash_name(var_name, var_len, &rule->arg.vars.scope, &rule->arg.vars.name_hash, err))
 		return ACT_RET_PRS_ERR;
 
 	if (rule->arg.vars.scope == SCOPE_PROC &&
-	    !var_set(rule->arg.vars.name, rule->arg.vars.scope, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
+	    !var_set(rule->arg.vars.name_hash, rule->arg.vars.scope, &empty_smp, VF_CREATEONLY|VF_PERMANENT))
 		return 0;
 
 	/* There is no fetch method when variable is unset. Just set the right

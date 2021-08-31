@@ -46,15 +46,15 @@ struct vars {
 	__decl_thread(HA_RWLOCK_T rwlock);
 };
 
-/* This struct describes a variable. */
+/* This struct describes a variable as found in an arg_data */
 struct var_desc {
-	const char *name; /* Contains the normalized variable name. */
+	uint64_t name_hash;
 	enum vars_scope scope;
 };
 
 struct var {
 	struct list l; /* Used for chaining vars. */
-	const char *name; /* Contains the variable name. */
+	uint64_t name_hash;      /* XXH3() of the variable's name */
 	uint flags;       // VF_*
 	/* 32-bit hole here */
 	struct sample_data data; /* data storage. */
