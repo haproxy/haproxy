@@ -451,8 +451,8 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	/* Initialise all the variables contexts even if not used.
 	 * This permits to prune these contexts without errors.
 	 */
-	vars_init(&s->vars_txn,    SCOPE_TXN);
-	vars_init(&s->vars_reqres, SCOPE_REQ);
+	vars_init_head(&s->vars_txn,    SCOPE_TXN);
+	vars_init_head(&s->vars_reqres, SCOPE_REQ);
 
 	/* this part should be common with other protocols */
 	if (si_reset(&s->si[0]) < 0)
@@ -2201,7 +2201,7 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (s->vars_reqres.scope != SCOPE_RES) {
 			if (!LIST_ISEMPTY(&s->vars_reqres.head))
 				vars_prune(&s->vars_reqres, s->sess, s);
-			vars_init(&s->vars_reqres, SCOPE_RES);
+			vars_init_head(&s->vars_reqres, SCOPE_RES);
 		}
 
 		do {

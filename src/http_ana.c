@@ -2967,7 +2967,7 @@ int http_eval_after_res_rules(struct stream *s)
 	if (s->vars_reqres.scope != SCOPE_RES) {
 		if (!LIST_ISEMPTY(&s->vars_reqres.head))
 			vars_prune(&s->vars_reqres, s->sess, s);
-		vars_init(&s->vars_reqres, SCOPE_RES);
+		vars_init_head(&s->vars_reqres, SCOPE_RES);
 	}
 
 	ret = http_res_get_intercept_rule(s->be, &s->be->http_after_res_rules, s);
@@ -5095,8 +5095,8 @@ struct http_txn *http_create_txn(struct stream *s)
 
 	txn->auth.method = HTTP_AUTH_UNKNOWN;
 
-	vars_init(&s->vars_txn,    SCOPE_TXN);
-	vars_init(&s->vars_reqres, SCOPE_REQ);
+	vars_init_head(&s->vars_txn,    SCOPE_TXN);
+	vars_init_head(&s->vars_reqres, SCOPE_REQ);
 
 	return txn;
 }

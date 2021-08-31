@@ -29,7 +29,7 @@
 
 extern struct vars proc_vars;
 
-void vars_init(struct vars *vars, enum vars_scope scope);
+void vars_init_head(struct vars *vars, enum vars_scope scope);
 void var_accounting_diff(struct vars *vars, struct session *sess, struct stream *strm, int size);
 unsigned int var_clear(struct var *var);
 void vars_prune(struct vars *vars, struct session *sess, struct stream *strm);

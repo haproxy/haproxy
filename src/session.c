@@ -47,7 +47,7 @@ struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type
 		sess->accept_date = date; /* user-visible date for logging */
 		sess->tv_accept   = now;  /* corrected date for internal use */
 		memset(sess->stkctr, 0, sizeof(sess->stkctr));
-		vars_init(&sess->vars, SCOPE_SESS);
+		vars_init_head(&sess->vars, SCOPE_SESS);
 		sess->task = NULL;
 		sess->t_handshake = -1; /* handshake not done yet */
 		sess->t_idle = -1;

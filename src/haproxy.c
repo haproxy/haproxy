@@ -1529,7 +1529,7 @@ static void init(int argc, char **argv)
 	hlua_init();
 
 	/* Initialize process vars */
-	vars_init(&proc_vars, SCOPE_PROC);
+	vars_init_head(&proc_vars, SCOPE_PROC);
 
 	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
 #if defined(USE_POLL)

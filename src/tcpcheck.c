@@ -2118,7 +2118,7 @@ int tcpcheck_main(struct check *check)
 			set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.area);
 			goto out_end_tcpcheck;
 		}
-		vars_init(&check->vars, SCOPE_CHECK);
+		vars_init_head(&check->vars, SCOPE_CHECK);
 		rule = LIST_NEXT(check->tcpcheck_rules->list, typeof(rule), list);
 
 		/* Preset tcp-check variables */
