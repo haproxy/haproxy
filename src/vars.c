@@ -26,14 +26,6 @@ DECLARE_STATIC_POOL(var_pool, "vars", sizeof(struct var));
 /* list of variables for the process scope. */
 struct vars proc_vars THREAD_ALIGNED(64);
 
-/* This array contain all the names of all the HAProxy vars.
- * This permits to identify two variables name with
- * only one pointer. It permits to not using  strdup() for
- * each variable name used during the runtime.
- */
-static char **var_names = NULL;
-static int var_names_nb = 0;
-
 /* This array of int contains the system limits per context. */
 static unsigned int var_global_limit = 0;
 static unsigned int var_global_size = 0;
@@ -43,8 +35,6 @@ static unsigned int var_txn_limit = 0;
 static unsigned int var_reqres_limit = 0;
 static unsigned int var_check_limit = 0;
 static uint64_t var_name_hash_seed = 0;
-
-__decl_rwlock(var_names_rwlock);
 
 /* returns the struct vars pointer for a session, stream and scope, or NULL if
  * it does not exist.
@@ -1184,15 +1174,6 @@ static void vars_init()
 }
 
 INITCALL0(STG_PREPARE, vars_init);
-
-static void vars_deinit()
-{
-	while (var_names_nb-- > 0)
-		free(var_names[var_names_nb]);
-	free(var_names);
-}
-
-REGISTER_POST_DEINIT(vars_deinit);
 
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 
