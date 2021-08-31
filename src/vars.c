@@ -42,6 +42,7 @@ static unsigned int var_sess_limit = 0;
 static unsigned int var_txn_limit = 0;
 static unsigned int var_reqres_limit = 0;
 static unsigned int var_check_limit = 0;
+static uint64_t var_name_hash_seed = 0;
 
 __decl_rwlock(var_names_rwlock);
 
@@ -1222,6 +1223,14 @@ static int vars_max_size_check(char **args, int section_type, struct proxy *curp
 {
 	return vars_max_size(args, section_type, curpx, defpx, file, line, err, &var_check_limit);
 }
+
+/* early boot initialization */
+static void vars_init()
+{
+	var_name_hash_seed = ha_random64();
+}
+
+INITCALL0(STG_PREPARE, vars_init);
 
 static void vars_deinit()
 {
