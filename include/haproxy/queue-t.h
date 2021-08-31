@@ -37,6 +37,7 @@ struct pendconn {
 	struct queue  *queue;      /* the queue the entry is queued into */
 	struct server *target;     /* the server that was assigned, = srv except if srv==NULL */
 	struct eb32_node node;
+	__decl_thread(HA_SPINLOCK_T del_lock);  /* use before removal, always under queue's lock */
 };
 
 struct queue {
