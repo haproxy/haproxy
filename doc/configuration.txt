@@ -18646,6 +18646,20 @@ ssl_bc_client_random : binary
   sent using ephemeral ciphers. This requires OpenSSL >= 1.1.0, or BoringSSL.
   It can be used in a tcp-check or an http-check ruleset.
 
+ssl_bc_hsk_err : integer
+  When the outgoing connection was made over an SSL/TLS transport layer,
+  returns the ID of the latest error that happened during the handshake on the
+  backend side, or 0 if no error was encountered. In order to get a text
+  description of this error code, you can either use the "ssl_bc_hsk_err_str"
+  sample fetch or use the "openssl errstr" command (which takes an error code
+  in hexadecimal representation as parameter). Please refer to your SSL
+  library's documentation to find the exhaustive list of error codes.
+
+ssl_bc_hsk_err_str : string
+  When the outgoing connection was made over an SSL/TLS transport layer,
+  returns a string representation of the latest error that happened during the
+  handshake on the backend side. See also "ssl_fc_hsk_err".
+
 ssl_bc_is_resumed : boolean
   Returns true when the back connection was made over an SSL/TLS transport
   layer and the newly created SSL session was resumed using a cached

@@ -1212,7 +1212,12 @@ smp_fetch_ssl_fc_hsk_err(const struct arg *args, struct sample *smp, const char 
 	struct connection *conn;
 	struct ssl_sock_ctx *ctx;
 
-	conn = objt_conn(smp->sess->origin);
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		conn = (kw[4] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+	else
+		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+
 	if (!conn || conn->xprt != &ssl_sock)
 		return 0;
 	ctx = conn->xprt_ctx;
@@ -1260,7 +1265,12 @@ smp_fetch_ssl_fc_hsk_err_str(const struct arg *args, struct sample *smp, const c
 	struct ssl_sock_ctx *ctx;
 	const char *err_code_str;
 
-	conn = objt_conn(smp->sess->origin);
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+		conn = (kw[4] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+	else
+		conn = (kw[4] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+
 	if (!conn || conn->xprt != &ssl_sock)
 		return 0;
 	ctx = conn->xprt_ctx;
@@ -1669,6 +1679,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc_server_random",   smp_fetch_ssl_fc_random,      0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 	{ "ssl_bc_session_key",     smp_fetch_ssl_fc_session_key, 0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 #endif
+	{ "ssl_bc_hsk_err",         smp_fetch_ssl_fc_hsk_err,     0,                   NULL,    SMP_T_SINT, SMP_USE_L5SRV },
+	{ "ssl_bc_hsk_err_str",     smp_fetch_ssl_fc_hsk_err_str, 0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_SINT, SMP_USE_L5CLI },
 	{ "ssl_c_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
