@@ -17733,6 +17733,17 @@ table may be specified with the "sc*" form, in which case the currently
 tracked key will be looked up into this alternate table instead of the table
 currently being tracked.
 
+bc_conn_err : integer
+  Returns the ID of the error that might have occurred on the current backend
+  connection. See the "fc_conn_err_str" fetch for a full list of error codes
+  and their corresponding error message.
+
+bc_conn_err_str : string
+  Returns an error message describing what problem happened on the current
+  backend connection, resulting in a connection failure. See the
+  "fc_conn_err_str" fetch for a full list of error codes and their
+  corresponding error message.
+
 bc_dst : ip
   This is the destination ip address of the connection on the server side,
   which is the server address HAProxy connected to. It is of type IP and works

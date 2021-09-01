@@ -1503,7 +1503,12 @@ int smp_fetch_fc_conn_err(const struct arg *args, struct sample *smp, const char
 {
 	struct connection *conn;
 
-	conn = objt_conn(smp->sess->origin);
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+        else
+                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+
 	if (!conn)
 		return 0;
 
@@ -1525,7 +1530,12 @@ int smp_fetch_fc_conn_err_str(const struct arg *args, struct sample *smp, const 
 	struct connection *conn;
 	const char *err_code_str;
 
-	conn = objt_conn(smp->sess->origin);
+	if (obj_type(smp->sess->origin) == OBJ_TYPE_CHECK)
+                conn = (kw[0] == 'b') ? cs_conn(__objt_check(smp->sess->origin)->cs) : NULL;
+        else
+                conn = (kw[0] != 'b') ? objt_conn(smp->sess->origin) :
+			smp->strm ? cs_conn(objt_cs(smp->strm->si[1].end)) : NULL;
+
 	if (!conn)
 		return 0;
 
@@ -1560,6 +1570,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "fc_pp_unique_id", smp_fetch_fc_pp_unique_id, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
 	{ "fc_conn_err", smp_fetch_fc_conn_err, 0, NULL, SMP_T_SINT, SMP_USE_L4CLI },
 	{ "fc_conn_err_str", smp_fetch_fc_conn_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4CLI },
+	{ "bc_conn_err", smp_fetch_fc_conn_err, 0, NULL, SMP_T_SINT, SMP_USE_L4SRV },
+	{ "bc_conn_err_str", smp_fetch_fc_conn_err_str, 0, NULL, SMP_T_STR, SMP_USE_L4SRV },
 	{ /* END */ },
 }};
 
