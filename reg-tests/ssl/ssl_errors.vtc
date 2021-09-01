@@ -29,12 +29,13 @@ feature cmd "$HAPROXY_PROGRAM -cc 'feature(OPENSSL)'"
 feature cmd "command -v socat"
 feature ignore_unknown_macro
 
-server s1 -repeat 3 {
+server s1 -repeat 4 {
   rxreq
   txresp
 } -start
 
 barrier b1 cond 4 -cyclic
+barrier b2 cond 2 -cyclic
 
 
 syslog Slg_cust_fmt -level info {
@@ -102,6 +103,37 @@ syslog Slg_logconnerror -level info {
     expect ~ ".*logconnerror_ssl_lst/1: SSL handshake failure"
 } -start
 
+syslog Slg_bcknd -level info {
+    recv
+    expect ~ ".*bc_conn_err:0:\"Success\" ssl_bc_hsk_err:0:\"\""
+
+    barrier b2 sync
+
+    recv
+    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_hsk_err:337047686:\"error:1416F086:SSL routines:tls_process_server_certificate:certificate verify failed\""
+
+    barrier b2 sync
+
+    recv
+    expect ~ ".*bc_conn_err:32:\"Server presented an SSL certificate different from the configured one\" ssl_bc_hsk_err:337047686:\"error:1416F086:SSL routines:tls_process_server_certificate:certificate verify failed\""
+
+    barrier b2 sync
+
+    # Verify errors on the server side cannot be caught through those backend fetches yet
+    recv
+    expect ~ ".*bc_conn_err:0:\"Success\" ssl_bc_hsk_err:0:\"\""
+
+    barrier b2 sync
+
+    recv
+    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_hsk_err:336151568:\"error:14094410:SSL routines:ssl3_read_bytes:sslv3 alert handshake failure\""
+
+    barrier b2 sync
+
+    recv
+    expect ~ ".*bc_conn_err:34:\"SSL handshake failure\" ssl_bc_hsk_err:336151568:\"error:14094410:SSL routines:ssl3_read_bytes:sslv3 alert handshake failure\""
+} -start
+
 
 haproxy h1 -conf {
     global
@@ -135,6 +167,24 @@ haproxy h1 -conf {
         server logconnerror "${tmpdir}/logconnerror_ssl.sock"
 
 
+    # This listener will be used to test backend fetches (bc_conn_err and ssl_bc_hsk_err)
+    listen clear_backend_errors_lst
+        bind "fd@${backenderrorslst}"
+        log ${Slg_bcknd_addr}:${Slg_bcknd_port} local0
+        log-format "bc_conn_err:%[bc_conn_err]:%{+Q}[bc_conn_err_str]\ ssl_bc_hsk_err:%[ssl_bc_hsk_err]:%{+Q}[ssl_bc_hsk_err_str]"
+        error-log-format "ERROR bc_conn_err:%[bc_conn_err]:%{+Q}[bc_conn_err_str]\ ssl_bc_hsk_err:%[ssl_bc_hsk_err]:%{+Q}[ssl_bc_hsk_err_str]"
+
+        balance roundrobin
+        server no_err "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required
+        server srv_cert_rejected "${tmpdir}/srv_rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA1.crt verify required
+        server mismatch_frontend "${tmpdir}/mismatch_fe_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required verifyhost str(toto)
+        server clt_cert_rejected "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/set_cafile_client.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
+        server wrong_ciphers "${tmpdir}/wrong_ciphers_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt force-tlsv12 ciphers "aECDSA"
+        server wrong_ciphers_tls13 "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl verify none crt ${testdir}/client1.pem ca-file ${testdir}/ca-auth.crt ciphersuites "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256" force-tlsv13
+
+
+
+
     listen cust_logfmt_ssl_lst
         log ${Slg_cust_fmt_addr}:${Slg_cust_fmt_port} local0
         mode http
@@ -158,6 +208,32 @@ haproxy h1 -conf {
         mode http
         option httplog
         bind "${tmpdir}/logconnerror_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-verify-file ${testdir}/set_cafile_rootCA.crt ca-file ${testdir}/set_cafile_interCA1.crt verify required ciphersuites "TLS_AES_256_GCM_SHA384"
+        server s1 ${s1_addr}:${s1_port}
+
+
+    # The following listeners allow to test backend error fetches
+    listen no_backend_err_ssl_lst
+        bind "${tmpdir}/no_err_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
+        server s1 ${s1_addr}:${s1_port}
+
+    listen srv_rejected_ssl_lst
+        bind "${tmpdir}/srv_rejected_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
+        server s1 ${s1_addr}:${s1_port}
+
+    listen mismatch_fe_ssl_lst
+        bind "${tmpdir}/mismatch_fe_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify none
+        server s1 ${s1_addr}:${s1_port}
+
+    listen rejected_clt_ssl_lst
+        bind "${tmpdir}/rejected_ssl.sock" ssl crt ${testdir}/set_cafile_server.pem ca-file ${testdir}/set_cafile_interCA2.crt verify required
+        server s1 ${s1_addr}:${s1_port}
+
+    listen wrong_ciphers_ssl_lst
+        bind "${tmpdir}/wrong_ciphers_ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify none force-tlsv12 ciphers "kRSA"
+        server s1 ${s1_addr}:${s1_port}
+
+    listen wrong_ciphers_tls13_ssl_lst
+        bind "${tmpdir}/wrong_ciphers_tls13_ssl.sock" ssl crt ${testdir}/common.pem ca-file ${testdir}/ca-auth.crt verify none force-tlsv13 ciphersuites "TLS_AES_128_GCM_SHA256"
         server s1 ${s1_addr}:${s1_port}
 
 } -start
@@ -252,7 +328,40 @@ client c12 -connect ${h1_wrongcipherslst_sock} {
     txreq
 } -run
 
+
+shell {
+    printf "set ssl ca-file ${testdir}/set_cafile_interCA2.crt <<\n$(cat ${testdir}/set_cafile_interCA2.crt)\n$(cat ${testdir}/set_cafile_rootCA.crt)\n\n" | socat "${tmpdir}/h1/stats" -
+    echo "commit ssl ca-file ${testdir}/set_cafile_interCA2.crt" | socat "${tmpdir}/h1/stats" -
+}
+
+client c13 -connect ${h1_backenderrorslst_sock} {
+    txreq
+    rxresp
+    expect resp.status == 200
+} -run
+barrier b2 sync
+client c14 -connect ${h1_backenderrorslst_sock} {
+    txreq
+} -run
+barrier b2 sync
+client c15 -connect ${h1_backenderrorslst_sock} {
+    txreq
+} -run
+barrier b2 sync
+client c16 -connect ${h1_backenderrorslst_sock} {
+    txreq
+} -run
+barrier b2 sync
+client c17 -connect ${h1_backenderrorslst_sock} {
+    txreq
+} -run
+barrier b2 sync
+client c18 -connect ${h1_backenderrorslst_sock} {
+    txreq
+} -run
+
 syslog Slg_cust_fmt -wait
 syslog Slg_https_fmt -wait
 syslog Slg_https_fmt_err -wait
 syslog Slg_logconnerror -wait
+syslog Slg_bcknd -wait
