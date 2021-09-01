@@ -11,6 +11,9 @@
  *
  */
 
+#ifndef _HAPROXY_SIGNAL_H
+#define _HAPROXY_SIGNAL_H
+
 #include <signal.h>
 
 #include <haproxy/api.h>
@@ -38,6 +41,8 @@ static inline void signal_process_queue()
 	if (unlikely(signal_queue_len > 0))
 		__signal_process_queue();
 }
+
+#endif /* _HAPROXY_SIGNAL_H */
 
 /*
  * Local variables:
