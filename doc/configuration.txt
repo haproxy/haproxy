@@ -10015,6 +10015,13 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
         It can be useful to ensure that search engines will only see one URL.
         For this, a return code 301 is preferred.
 
+      - "ignore-empty"
+        This keyword only has effect when a location is produced using a log
+        format expression (i.e. when used in http-request or http-response).
+        It indicates that if the result of the expression is empty, the rule
+        should silently be skipped. The main use is to allow mass-redirects
+        of known paths using a simple map.
+
       - "set-cookie NAME[=value]"
         A "Set-Cookie" header will be added with NAME (and optionally "=value")
         to the response. This is sometimes used to indicate that a user has
@@ -10056,6 +10063,10 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
         http-request redirect code 301 location      \
           http://www.%[hdr(host)]%[capture.req.uri]  \
           unless { hdr_beg(host) -i www }
+
+  Example: permanently redirect only old URLs to new ones
+        http-request redirect code 301 location               \
+          %[path,map_str(old-blog-articles.map)] ignore-empty
 
   See section 7 about ACL usage.
 

@@ -2338,8 +2338,9 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 }
 
 /* Perform an HTTP redirect based on the information in <rule>. The function
- * returns zero on success, or zero in case of a, irrecoverable error such
- * as too large a request to build a valid response.
+ * returns zero in case of an irrecoverable error such as too large a request
+ * to build a valid response, 1 in case of successful redirect (hence the rule
+ * is final), or 2 if the rule has to be silently skipped.
  */
 int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn)
 {
@@ -2482,9 +2483,13 @@ int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struc
 			}
 			else {
 				/* add location with executing log format */
-				chunk->data += build_logline(s, chunk->area + chunk->data,
-							     chunk->size - chunk->data,
-							     &rule->rdr_fmt);
+				int len = build_logline(s, chunk->area + chunk->data,
+				                        chunk->size - chunk->data,
+				                        &rule->rdr_fmt);
+				if (!len && rule->flags & REDIRECT_FLAG_IGNORE_EMPTY)
+					return 2;
+
+				chunk->data += len;
 			}
 			break;
 	}
@@ -2791,11 +2796,15 @@ static enum rule_result http_req_get_intercept_rule(struct proxy *px, struct lis
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
-			case ACT_HTTP_REDIR:
-				rule_ret = HTTP_RULE_RES_ABRT;
-				if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
-					rule_ret = HTTP_RULE_RES_ERROR;
+			case ACT_HTTP_REDIR: {
+				int ret = http_apply_redirect_rule(rule->arg.redir, s, txn);
+
+				if (ret == 2) // 2 == skip
+					break;
+
+				rule_ret = ret ? HTTP_RULE_RES_ABRT : HTTP_RULE_RES_ERROR;
 				goto end;
+			}
 
 			/* other flags exists, but normally, they never be matched. */
 			default:
@@ -2916,12 +2925,15 @@ resume_execution:
 				rule_ret = HTTP_RULE_RES_DENY;
 				goto end;
 
-			case ACT_HTTP_REDIR:
-				rule_ret = HTTP_RULE_RES_ABRT;
-				if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
-					rule_ret = HTTP_RULE_RES_ERROR;
-				goto end;
+			case ACT_HTTP_REDIR: {
+				int ret = http_apply_redirect_rule(rule->arg.redir, s, txn);
 
+				if (ret == 2) // 2 == skip
+					break;
+
+				rule_ret = ret ? HTTP_RULE_RES_ABRT : HTTP_RULE_RES_ERROR;
+				goto end;
+			}
 			/* other flags exists, but normally, they never be matched. */
 			default:
 				break;

@@ -379,6 +379,9 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		else if (strcmp(args[cur_arg], "append-slash") == 0) {
 			flags |= REDIRECT_FLAG_APPEND_SLASH;
 		}
+		else if (strcmp(args[cur_arg], "ignore-empty") == 0) {
+			flags |= REDIRECT_FLAG_IGNORE_EMPTY;
+		}
 		else if (strcmp(args[cur_arg], "if") == 0 ||
 			 strcmp(args[cur_arg], "unless") == 0) {
 			cond = build_acl_cond(file, linenum, &curproxy->acl, curproxy, (const char **)args + cur_arg, errmsg);
@@ -390,7 +393,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		}
 		else {
 			memprintf(errmsg,
-			          "expects 'code', 'prefix', 'location', 'scheme', 'set-cookie', 'clear-cookie', 'drop-query' or 'append-slash' (was '%s')",
+			          "expects 'code', 'prefix', 'location', 'scheme', 'set-cookie', 'clear-cookie', 'drop-query', 'ignore-empty' or 'append-slash' (was '%s')",
 			          args[cur_arg]);
 			return NULL;
 		}

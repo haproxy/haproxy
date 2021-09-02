@@ -1767,7 +1767,6 @@ static enum act_parse_ret parse_http_redirect(const char **args, int *orig_arg, 
 	int dir, cur_arg;
 
 	rule->action = ACT_HTTP_REDIR;
-	rule->flags |= ACT_FLAG_FINAL;
 	rule->release_ptr = release_http_redir;
 
 	cur_arg = *orig_arg;
@@ -1775,6 +1774,9 @@ static enum act_parse_ret parse_http_redirect(const char **args, int *orig_arg, 
 	dir = (rule->from == ACT_F_HTTP_REQ ? 0 : 1);
 	if ((redir = http_parse_redirect_rule(px->conf.args.file, px->conf.args.line, px, &args[cur_arg], err, 1, dir)) == NULL)
 		return ACT_RET_PRS_ERR;
+
+	if (!(redir->flags & REDIRECT_FLAG_IGNORE_EMPTY))
+		rule->flags |= ACT_FLAG_FINAL;
 
 	rule->arg.redir = redir;
 	rule->cond = redir->cond;

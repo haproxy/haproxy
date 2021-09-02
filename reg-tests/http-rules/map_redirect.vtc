@@ -1,5 +1,5 @@
 varnishtest "haproxy host header: map / redirect tests"
-#REQUIRE_OPTIONS=PCRE|PCRE2
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev5) && (feature(PCRE) || feature(PCRE2))'"
 feature ignore_unknown_macro
 
 
@@ -43,6 +43,9 @@ haproxy h1 -conf {
   frontend fe1
     bind "fd@${fe1}"
 
+    # automatically redirect matching paths from maps but skip rule on no-match
+    http-request redirect code 301 location %[path,map_str(${testdir}/map_redirect.map)] ignore-empty
+
     # redirect Host: example.org / subdomain.example.org
     http-request redirect prefix %[req.hdr(Host),lower,regsub(:\d+$,,),map_str(${testdir}/map_redirect.map)] code 301 if { hdr(Host),lower,regsub(:\d+$,,),map_str(${testdir}/map_redirect.map) -m found }
 
@@ -83,6 +86,12 @@ client c1 -connect ${h1_fe1_sock} {
     rxresp
     expect resp.status == 301
     expect resp.http.location ~ "https://www.example.org"
+
+    txreq -url /path/to/old/file
+    rxresp
+    expect resp.status == 301
+    expect resp.http.location ~ "/path/to/new/file"
+
     # Closes connection
 } -run
 
@@ -145,7 +154,7 @@ client c7 -connect ${h1_fe1_sock} {
 # cli show maps
 haproxy h1 -cli {
     send "show map ${testdir}/map_redirect.map"
-    expect ~ "^0x[a-f0-9]+ example\\.org https://www\\.example\\.org\\n0x[a-f0-9]+ subdomain\\.example\\.org https://www\\.subdomain\\.example\\.org\\n$"
+    expect ~ "^0x[a-f0-9]+ example\\.org https://www\\.example\\.org\\n0x[a-f0-9]+ subdomain\\.example\\.org https://www\\.subdomain\\.example\\.org\\n0x[a-f0-9]+ /path/to/old/file /path/to/new/file\n$"
 
     send "show map ${testdir}/map_redirect-be.map"
     expect ~ "^0x[a-f0-9]+ test1\\.example\\.com test1_be\\n0x[a-f0-9]+ test1\\.example\\.invalid test1_be\\n0x[a-f0-9]+ test2\\.example\\.com test2_be\\n$"

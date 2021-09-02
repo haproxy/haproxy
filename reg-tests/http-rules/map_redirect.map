@@ -1,3 +1,5 @@
 # These entries are used for http-request redirect rules
 example.org https://www.example.org
 subdomain.example.org https://www.subdomain.example.org
+
+/path/to/old/file  /path/to/new/file

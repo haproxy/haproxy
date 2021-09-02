@@ -105,6 +105,7 @@ enum {
 	REDIRECT_FLAG_DROP_QS = 1,	/* drop query string */
 	REDIRECT_FLAG_APPEND_SLASH = 2,	/* append a slash if missing at the end */
 	REDIRECT_FLAG_FROM_REQ = 4,     /* redirect rule on the request path */
+	REDIRECT_FLAG_IGNORE_EMPTY = 8, /* silently ignore empty location expressions */
 };
 
 /* Redirect types (location, prefix, extended ) */
