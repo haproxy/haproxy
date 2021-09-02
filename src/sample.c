@@ -1160,8 +1160,8 @@ int smp_resolve_args(struct proxy *p, char **err)
 		case ARGC_TRK:   where = "in tracking rule in"; break;
 		case ARGC_LOG:   where = "in log-format string in"; break;
 		case ARGC_LOGSD: where = "in log-format-sd string in"; break;
-		case ARGC_HRQ:   where = "in http-request header format string in"; break;
-		case ARGC_HRS:   where = "in http-response header format string in"; break;
+		case ARGC_HRQ:   where = "in http-request expression in"; break;
+		case ARGC_HRS:   where = "in http-response response in"; break;
 		case ARGC_UIF:   where = "in unique-id-format string in"; break;
 		case ARGC_RDR:   where = "in redirect format string in"; break;
 		case ARGC_CAP:   where = "in capture rule in"; break;
@@ -1170,6 +1170,13 @@ int smp_resolve_args(struct proxy *p, char **err)
 		case ARGC_SPOE:  where = "in spoe-message directive in"; break;
 		case ARGC_HERR:  where = "in http-error directive in"; break;
 		case ARGC_OT:    where = "in ot-scope directive in"; break;
+		case ARGC_TCO:   where = "in tcp-request connection expression in"; break;
+		case ARGC_TSE:   where = "in tcp-request session expression in"; break;
+		case ARGC_TRQ:   where = "in tcp-request content expression in"; break;
+		case ARGC_TRS:   where = "in tcp-response content expression in"; break;
+		case ARGC_TCK:   where = "in tcp-check expression in"; break;
+		case ARGC_CFG:   where = "in configuration expression in"; break;
+		case ARGC_CLI:   where = "in CLI expression in"; break;
 		}
 
 		/* set a few default settings */
