@@ -736,11 +736,11 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	const char *kw_name;
 	int flags, set_var = 0;
 
-	if (!strncmp(var_name, "set-var", 7)) {
+	if (strncmp(var_name, "set-var", 7) == 0) {
 		var_name += 7;
 		set_var   = 1;
 	}
-	if (!strncmp(var_name, "unset-var", 9)) {
+	else if (strncmp(var_name, "unset-var", 9) == 0) {
 		var_name += 9;
 		set_var   = 0;
 	}
