@@ -12587,7 +12587,7 @@ tcp-response content <action> [{if | unless} <condition>]
         set-tos".
 
     - set-var(<var-name>) <expr>
-        Sets a variable.
+        Sets a variable from an expression.
 
     - unset-var(<var-name>)
         Unsets a variable.
@@ -12681,16 +12681,8 @@ tcp-response content <action> [{if | unless} <condition>]
     <expr>     Is a standard HAProxy expression formed by a sample-fetch
                followed by some converters.
 
-  Example:
-
-        tcp-request content set-var(sess.my_var) src
-
   The "unset-var" is used to unset a variable. See above for details about
   <var-name>.
-
-  Example:
-
-        tcp-request content unset-var(sess.my_var)
 
   The "send-spoe-group" is used to trigger sending of a group of SPOE
   messages. To do so, the SPOE engine used to send messages must be defined, as
