@@ -162,6 +162,7 @@ struct act_rule {
 		} timeout;
 		struct hlua_rule *hlua_rule;
 		struct {
+			struct list fmt;            /* log-format compatible expression */
 			struct sample_expr *expr;
 			const char *name;
 			enum vars_scope scope;

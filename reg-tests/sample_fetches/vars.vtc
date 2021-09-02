@@ -1,5 +1,5 @@
 varnishtest "Test a few set-var() in global, tcp and http rule sets, at different scopes"
-#REQUIRE_VERSION=2.4
+feature cmd "$HAPROXY_PROGRAM -cc 'version_atleast(2.5-dev5)'"
 
 feature ignore_unknown_macro
 
@@ -7,7 +7,9 @@ haproxy h1 -conf {
     global
         set-var proc.int12 int(12)
         set-var proc.int5  str(60),div(proc.int12)
-        set-var proc.str   str("this is")
+        set-var proc.str1  str("this is")
+        set-var proc.str2  str("a string")
+        set-var proc.str   var(proc.str1)
         set-var proc.str   str(""),concat("",proc.str," a string")
         set-var proc.uuid  uuid()
 
@@ -19,11 +21,14 @@ haproxy h1 -conf {
 
     frontend fe1
         bind "fd@${fe1}"
+        tcp-request session set-var-fmt(sess.str3) "%[var(proc.str1)] %[var(proc.str2)]"
         tcp-request session set-var(sess.int5) var(proc.int5)
         tcp-request session set-var(proc.int5) var(proc.int5),add(sess.int5) ## proc. becomes 10
+        tcp-request content set-var-fmt(req.str4) "%[var(sess.str3),regsub(is a,is also a)]"
+        http-request set-var-fmt(txn.str5)  "%[var(req.str4)]"
         http-request set-var(req.int5)  var(sess.int5)
         http-request set-var(sess.int5) var(sess.int5),add(req.int5) ## sess. becomes 10 first time, then 15...
-	http-request return status 200 hdr x-var "proc=%[var(proc.int5)] sess=%[var(sess.int5)] req=%[var(req.int5)] str=%[var(proc.str)] uuid=%[var(proc.uuid)]"
+	http-request return status 200 hdr x-var "proc=%[var(proc.int5)] sess=%[var(sess.int5)] req=%[var(req.int5)] str=%[var(proc.str)] str5=%[var(txn.str5)] uuid=%[var(proc.uuid)]"
 } -start
 
 haproxy h1 -cli {
@@ -35,12 +40,12 @@ client c1 -connect ${h1_fe1_sock} {
     txreq -req GET -url /req1_1
     rxresp
     expect resp.status == 200
-    expect resp.http.x-var ~ "proc=10 sess=10 req=5 str=this is a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
+    expect resp.http.x-var ~ "proc=10 sess=10 req=5 str=this is a string str5=this is also a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
 
     txreq -req GET -url /req1_2
     rxresp
     expect resp.status == 200
-    expect resp.http.x-var ~ "proc=10 sess=20 req=10 str=this is a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
+    expect resp.http.x-var ~ "proc=10 sess=20 req=10 str=this is a string str5=this is also a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
 } -run
 
 haproxy h1 -cli {
@@ -52,12 +57,12 @@ client c2 -connect ${h1_fe1_sock} {
     txreq -req GET -url /req2_1
     rxresp
     expect resp.status == 200
-    expect resp.http.x-var ~ "proc=20 sess=20 req=10 str=this is a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
+    expect resp.http.x-var ~ "proc=20 sess=20 req=10 str=this is a string str5=this is also a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
 
     txreq -req GET -url /req2_2
     rxresp
     expect resp.status == 200
-    expect resp.http.x-var ~ "proc=20 sess=40 req=20 str=this is a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
+    expect resp.http.x-var ~ "proc=20 sess=40 req=20 str=this is a string str5=this is also a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
 } -run
 
 haproxy h1 -cli {
@@ -74,5 +79,5 @@ client c3 -connect ${h1_fe1_sock} {
     txreq -req GET -url /req3_1
     rxresp
     expect resp.status == 200
-    expect resp.http.x-var ~ "proc=40 sess=40 req=20 str=updated uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
+    expect resp.http.x-var ~ "proc=40 sess=40 req=20 str=updated str5=this is also a string uuid=[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*"
 } -run

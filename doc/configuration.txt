@@ -5282,7 +5282,7 @@ http-after-response set-status <status> [reason <str>]
     http-response set-status 503 reason "Slow Down"
 
 http-after-response set-var(<var-name>) <expr> [ { if | unless } <condition> ]
-
+http-after-response set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
   This is used to set the contents of a variable. The variable is declared
   inline.
 
@@ -5304,8 +5304,12 @@ http-after-response set-var(<var-name>) <expr> [ { if | unless } <condition> ]
     <expr>      Is a standard HAProxy expression formed by a sample-fetch
                 followed by some converters.
 
-  Example:
-    http-after-response set-var(sess.last_redir) res.hdr(location)
+    <fmt>       This is the value expressed using log-format rules (see Custom
+                Log Format in section 8.2.4).
+
+  Examples:
+       http-after-response set-var(sess.last_redir) res.hdr(location)
+       http-after-response set-var-fmt(sess.last_be_addr) %[bi]:%[bp]
 
 http-after-response strict-mode { on | off }
 
@@ -5753,6 +5757,7 @@ http-check send-state
 
 
 http-check set-var(<var-name>) <expr>
+http-check set-var-fmt(<var-name>) <fmt>
   This operation sets the content of a variable. The variable is declared inline.
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
@@ -5769,8 +5774,12 @@ http-check set-var(<var-name>) <expr>
 
     <expr>      Is a sample-fetch expression potentially followed by converters.
 
+    <fmt>       This is the value expressed using log-format rules (see Custom
+                Log Format in section 8.2.4).
+
   Examples :
         http-check set-var(check.port) int(1234)
+        http-check set-var-fmt(check.port) "name=%H"
 
 
 http-check unset-var(<var-name>)
@@ -6746,6 +6755,7 @@ http-request set-uri <fmt> [ { if | unless } <condition> ]
   See also "http-request set-path" and "http-request set-query".
 
 http-request set-var(<var-name>) <expr> [ { if | unless } <condition> ]
+http-request set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
 
   This is used to set the contents of a variable. The variable is declared
   inline.
@@ -6768,8 +6778,13 @@ http-request set-var(<var-name>) <expr> [ { if | unless } <condition> ]
     <expr>      Is a standard HAProxy expression formed by a sample-fetch
                 followed by some converters.
 
+    <fmt>       This is the value expressed using log-format rules (see Custom
+                Log Format in section 8.2.4).
+
   Example:
     http-request set-var(req.my_var) req.fhdr(user-agent),lower
+    http-request set-var-fmt(txn.from) %[src]:%[src_port]
+
 
 http-request send-spoe-group <engine-name> <group-name>
                              [ { if | unless } <condition> ]
@@ -7316,6 +7331,7 @@ http-response set-tos <tos> [ { if | unless } <condition> ]
   See RFC 2474, 2597, 3260 and 4594 for more information.
 
 http-response set-var(<var-name>) <expr> [ { if | unless } <condition> ]
+http-response set-var-fmt(<var-name>) <fmt> [ { if | unless } <condition> ]
 
   This is used to set the contents of a variable. The variable is declared
   inline.
@@ -7338,8 +7354,12 @@ http-response set-var(<var-name>) <expr> [ { if | unless } <condition> ]
     <expr>      Is a standard HAProxy expression formed by a sample-fetch
                 followed by some converters.
 
-  Example:
-    http-response set-var(sess.last_redir) res.hdr(location)
+    <fmt>       This is the value expressed using log-format rules (see Custom
+                Log Format in section 8.2.4).
+
+  Examples:
+       http-response set-var(sess.last_redir) res.hdr(location)
+       http-response set-var-fmt(sess.last_be_addr) %[bi]:%[bp]
 
 http-response silent-drop [ { if | unless } <condition> ]
 
@@ -11883,6 +11903,7 @@ tcp-check send-binary-lf <hexfmt> [comment <msg>]
 
 
 tcp-check set-var(<var-name>) <expr>
+tcp-check set-var-fmt(<var-name>) <fmt>
   This operation sets the content of a variable. The variable is declared inline.
   May be used in sections:   defaults | frontend | listen | backend
                                yes    |    no    |   yes  |   yes
@@ -11899,8 +11920,12 @@ tcp-check set-var(<var-name>) <expr>
 
     <expr>      Is a sample-fetch expression potentially followed by converters.
 
+    <fmt>       This is the value expressed using log-format rules (see Custom
+                Log Format in section 8.2.4).
+
   Examples :
     tcp-check set-var(check.port) int(1234)
+    tcp-check set-var-fmt(check.name) "%H"
 
 
 tcp-check unset-var(<var-name>)
@@ -12266,6 +12291,7 @@ tcp-request content <action> [{if | unless} <condition>]
     - set-nice <nice>
     - set-tos <tos>
     - set-var(<var-name>) <expr>
+    - set-var-fmt(<var-name>) <fmt>
     - switch-mode http [ proto <name> ]
     - unset-var(<var-name>)
     - silent-drop
@@ -12327,9 +12353,11 @@ tcp-request content <action> [{if | unless} <condition>]
   The "set-tos" is used to set the TOS or DSCP field value of packets sent to
   the client. More information on how to use it at "http-request set-tos".
 
-  The "set-var" is used to set the content of a variable. The variable is
-  declared inline. For "tcp-request session" rules, only session-level
-  variables can be used, without any layer7 contents.
+  The "set-var" and "set-var-fmt" are used to set the contents of a variable.
+  The variable is declared inline. For "tcp-request session" rules, only
+  session-level variables can be used, without any layer7 contents. The
+  "set-var" action takes a regular expression while "set-var-fmt" takes a
+  format string.
 
     <var-name> The name of the variable starts with an indication about
                its scope. The scopes allowed are:
@@ -12347,6 +12375,9 @@ tcp-request content <action> [{if | unless} <condition>]
 
     <expr>     Is a standard HAProxy expression formed by a sample-fetch
                followed by some converters.
+
+    <fmt>       This is the value expressed using log-format rules (see Custom
+                Log Format in section 8.2.4).
 
   The "switch-mode" is used to perform a connection upgrade. Only HTTP
   upgrades are supported for now. The protocol may optionally be
@@ -12405,6 +12436,7 @@ tcp-request content <action> [{if | unless} <condition>]
   Example:
 
         tcp-request content set-var(sess.my_var) src
+        tcp-request content set-var-fmt(sess.from) %[src]:%[src_port]
         tcp-request content unset-var(sess.my_var2)
 
   Example:
@@ -12589,6 +12621,9 @@ tcp-response content <action> [{if | unless} <condition>]
     - set-var(<var-name>) <expr>
         Sets a variable from an expression.
 
+    - set-var-fmt(<var-name>) <fmt>
+        Sets a variable from a log format string.
+
     - unset-var(<var-name>)
         Unsets a variable.
 
@@ -12681,6 +12716,9 @@ tcp-response content <action> [{if | unless} <condition>]
     <expr>     Is a standard HAProxy expression formed by a sample-fetch
                followed by some converters.
 
+    <fmt>       This is the value expressed using log-format rules (see Custom
+                Log Format in section 8.2.4).
+
   The "unset-var" is used to unset a variable. See above for details about
   <var-name>.
 
@@ -12751,6 +12789,7 @@ tcp-request session <action> [{if | unless} <condition>]
     - set-src-port <expr>
     - set-tos <tos>
     - set-var(<var-name>) <expr>
+    - set-var-fmt(<var-name>) <fmt>
     - unset-var(<var-name>)
     - silent-drop
 
@@ -16153,13 +16192,16 @@ concat([<start>],[<var>],[<end>])
   other variables, such as colon-delimited values. If commas or closing
   parenthesis are needed as delimiters, they must be protected by quotes or
   backslashes, themselves protected so that they are not stripped by the first
-  level parser. See examples below.
+  level parser. This is often used to build composite variables from other
+  ones, but sometimes using a format string with multiple fields may be more
+  convenient. See examples below.
 
   Example:
     tcp-request session set-var(sess.src) src
     tcp-request session set-var(sess.dn)  ssl_c_s_dn
     tcp-request session set-var(txn.sig) str(),concat(<ip=,sess.ip,>),concat(<dn=,sess.dn,>)
     tcp-request session set-var(txn.ipport) "str(),concat('addr=(',sess.ip),concat(',',sess.port,')')"
+    tcp-request session set-var-fmt(txn.ipport) "addr=(%[sess.ip],%[sess.port])"  ## does the same
     http-request set-header x-hap-sig %[var(txn.sig)]
 
 cpl

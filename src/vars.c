@@ -649,6 +649,7 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp)
 static enum act_return action_store(struct act_rule *rule, struct proxy *px,
                                     struct session *sess, struct stream *s, int flags)
 {
+	struct buffer *fmtstr = NULL;
 	struct sample smp;
 	int dir;
 
@@ -670,12 +671,39 @@ static enum act_return action_store(struct act_rule *rule, struct proxy *px,
 
 	/* Process the expression. */
 	memset(&smp, 0, sizeof(smp));
-	if (!sample_process(px, sess, s, dir|SMP_OPT_FINAL,
-	                    rule->arg.vars.expr, &smp))
-		return ACT_RET_CONT;
+
+	if (!LIST_ISEMPTY(&rule->arg.vars.fmt)) {
+		/* a format-string is used */
+
+		fmtstr = alloc_trash_chunk();
+		if (!fmtstr) {
+			send_log(px, LOG_ERR, "Vars: memory allocation failure while processing store rule.");
+			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+				ha_alert("Vars: memory allocation failure while processing store rule.\n");
+			return ACT_RET_CONT;
+		}
+
+		/* execute the log-format expression */
+		fmtstr->data = sess_build_logline(sess, s, fmtstr->area, fmtstr->size, &rule->arg.vars.fmt);
+
+		/* convert it to a sample of type string as it's what the vars
+		 * API consumes, and store it.
+		 */
+		smp_set_owner(&smp, px, sess, s, 0);
+		smp.data.type = SMP_T_STR;
+		smp.data.u.str = *fmtstr;
+		sample_store_stream(rule->arg.vars.name, rule->arg.vars.scope, &smp);
+	}
+	else {
+		/* an expression is used */
+		if (!sample_process(px, sess, s, dir|SMP_OPT_FINAL,
+	                            rule->arg.vars.expr, &smp))
+			return ACT_RET_CONT;
+	}
 
 	/* Store the sample, and ignore errors. */
 	sample_store_stream(rule->arg.vars.name, rule->arg.vars.scope, &smp);
+	free_trash_chunk(fmtstr);
 	return ACT_RET_CONT;
 }
 
@@ -695,6 +723,14 @@ static enum act_return action_clear(struct act_rule *rule, struct proxy *px,
 
 static void release_store_rule(struct act_rule *rule)
 {
+	struct logformat_node *lf, *lfb;
+	list_for_each_entry_safe(lf, lfb, &rule->arg.http.fmt, list) {
+		LIST_DELETE(&lf->list);
+		release_sample_expr(lf->expr);
+		free(lf->arg);
+		free(lf);
+	}
+
 	release_sample_expr(rule->arg.vars.expr);
 }
 
@@ -720,6 +756,7 @@ static int conv_check_var(struct arg *args, struct sample_conv *conv,
 /* This function is a common parser for using variables. It understands
  * the format:
  *
+ *   set-var-fmt(<variable-name>) <format-string>
  *   set-var(<variable-name>) <expression>
  *   unset-var(<variable-name>)
  *
@@ -734,9 +771,13 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	const char *var_name = args[*arg-1];
 	int var_len;
 	const char *kw_name;
-	int flags, set_var = 0;
+	int flags, set_var = 0; /* 0=unset-var, 1=set-var, 2=set-var-fmt */
 
-	if (strncmp(var_name, "set-var", 7) == 0) {
+	if (strncmp(var_name, "set-var-fmt", 11) == 0) {
+		var_name += 11;
+		set_var   = 2;
+	}
+	else if (strncmp(var_name, "set-var", 7) == 0) {
 		var_name += 7;
 		set_var   = 1;
 	}
@@ -746,7 +787,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	}
 
 	if (*var_name != '(') {
-		memprintf(err, "invalid or incomplete action '%s'. Expects 'set-var(<var-name>)' or 'unset-var(<var-name>)'",
+		memprintf(err, "invalid or incomplete action '%s'. Expects 'set-var(<var-name>)', 'set-var-fmt(<var-name>)' or 'unset-var(<var-name>)'",
 			  args[*arg-1]);
 		return ACT_RET_PRS_ERR;
 	}
@@ -754,11 +795,12 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 	var_len = strlen(var_name);
 	var_len--; /* remove the ')' */
 	if (var_name[var_len] != ')') {
-		memprintf(err, "incomplete expression after action '%s'. Expects 'set-var(<var-name>)' or 'unset-var(<var-name>)'",
+		memprintf(err, "incomplete argument after action '%s'. Expects 'set-var(<var-name>)', 'set-var-fmt(<var-name>)' or 'unset-var(<var-name>)'",
 			  args[*arg-1]);
 		return ACT_RET_PRS_ERR;
 	}
 
+	LIST_INIT(&rule->arg.vars.fmt);
 	rule->arg.vars.name = register_name(var_name, var_len, &rule->arg.vars.scope, 1, err);
 	if (!rule->arg.vars.name)
 		return ACT_RET_PRS_ERR;
@@ -814,17 +856,30 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 		return ACT_RET_PRS_ERR;
 	}
 
-	rule->arg.vars.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
-	                                        px->conf.args.line, err, &px->conf.args, NULL);
-	if (!rule->arg.vars.expr)
-		return ACT_RET_PRS_ERR;
+	if (set_var == 2) { /* set-var-fmt */
+		if (!parse_logformat_string(args[*arg], px, &rule->arg.vars.fmt, 0, flags, err))
+			return ACT_RET_PRS_ERR;
 
-	if (!(rule->arg.vars.expr->fetch->val & flags)) {
-		memprintf(err,
-			  "fetch method '%s' extracts information from '%s', none of which is available here",
-			  kw_name, sample_src_names(rule->arg.vars.expr->fetch->use));
-		free(rule->arg.vars.expr);
-		return ACT_RET_PRS_ERR;
+		(*arg)++;
+
+		/* for late error reporting */
+		free(px->conf.lfs_file);
+		px->conf.lfs_file = strdup(px->conf.args.file);
+		px->conf.lfs_line = px->conf.args.line;
+	} else {
+		/* set-var */
+		rule->arg.vars.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
+	                                                px->conf.args.line, err, &px->conf.args, NULL);
+		if (!rule->arg.vars.expr)
+			return ACT_RET_PRS_ERR;
+
+		if (!(rule->arg.vars.expr->fetch->val & flags)) {
+			memprintf(err,
+			          "fetch method '%s' extracts information from '%s', none of which is available here",
+			          kw_name, sample_src_names(rule->arg.vars.expr->fetch->use));
+			free(rule->arg.vars.expr);
+			return ACT_RET_PRS_ERR;
+		}
 	}
 
 	rule->action     = ACT_CUSTOM;
@@ -1085,6 +1140,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 INITCALL1(STG_REGISTER, sample_register_convs, &sample_conv_kws);
 
 static struct action_kw_list tcp_req_sess_kws = { { }, {
+	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
@@ -1093,6 +1149,7 @@ static struct action_kw_list tcp_req_sess_kws = { { }, {
 INITCALL1(STG_REGISTER, tcp_req_sess_keywords_register, &tcp_req_sess_kws);
 
 static struct action_kw_list tcp_req_cont_kws = { { }, {
+	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
@@ -1101,6 +1158,7 @@ static struct action_kw_list tcp_req_cont_kws = { { }, {
 INITCALL1(STG_REGISTER, tcp_req_cont_keywords_register, &tcp_req_cont_kws);
 
 static struct action_kw_list tcp_res_kws = { { }, {
+	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
@@ -1109,6 +1167,7 @@ static struct action_kw_list tcp_res_kws = { { }, {
 INITCALL1(STG_REGISTER, tcp_res_cont_keywords_register, &tcp_res_kws);
 
 static struct action_kw_list tcp_check_kws = {ILH, {
+	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
@@ -1117,6 +1176,7 @@ static struct action_kw_list tcp_check_kws = {ILH, {
 INITCALL1(STG_REGISTER, tcp_check_keywords_register, &tcp_check_kws);
 
 static struct action_kw_list http_req_kws = { { }, {
+	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
@@ -1125,6 +1185,7 @@ static struct action_kw_list http_req_kws = { { }, {
 INITCALL1(STG_REGISTER, http_req_keywords_register, &http_req_kws);
 
 static struct action_kw_list http_res_kws = { { }, {
+	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
@@ -1133,6 +1194,7 @@ static struct action_kw_list http_res_kws = { { }, {
 INITCALL1(STG_REGISTER, http_res_keywords_register, &http_res_kws);
 
 static struct action_kw_list http_after_res_kws = { { }, {
+	{ "set-var-fmt", parse_store, KWF_MATCH_PREFIX },
 	{ "set-var",   parse_store, KWF_MATCH_PREFIX },
 	{ "unset-var", parse_store, KWF_MATCH_PREFIX },
 	{ /* END */ }
