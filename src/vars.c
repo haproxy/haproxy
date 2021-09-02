@@ -774,35 +774,38 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 
 	kw_name = args[*arg-1];
 
-	rule->arg.vars.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
-	                                        px->conf.args.line, err, &px->conf.args, NULL);
-	if (!rule->arg.vars.expr)
-		return ACT_RET_PRS_ERR;
-
 	switch (rule->from) {
 	case ACT_F_TCP_REQ_SES:
 		flags = SMP_VAL_FE_SES_ACC;
+		px->conf.args.ctx = ARGC_TSE;
 		break;
 	case ACT_F_TCP_REQ_CNT:
 		flags = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_REQ_CNT : SMP_VAL_BE_REQ_CNT;
+		px->conf.args.ctx = ARGC_TRQ;
 		break;
 	case ACT_F_TCP_RES_CNT:
 		flags = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_RES_CNT : SMP_VAL_BE_RES_CNT;
+		px->conf.args.ctx = ARGC_TRS;
 		break;
 	case ACT_F_HTTP_REQ:
 		flags = (px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR;
+		px->conf.args.ctx = ARGC_HRQ;
 		break;
 	case ACT_F_HTTP_RES:
 		flags = (px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR;
+		px->conf.args.ctx =  ARGC_HRS;
 		break;
 	case ACT_F_TCP_CHK:
 		flags = SMP_VAL_BE_CHK_RUL;
+		px->conf.args.ctx = ARGC_TCK;
 		break;
 	case ACT_F_CFG_PARSER:
 		flags = SMP_VAL_CFG_PARSER;
+		px->conf.args.ctx = ARGC_CFG;
 		break;
 	case ACT_F_CLI_PARSER:
 		flags = SMP_VAL_CLI_PARSER;
+		px->conf.args.ctx = ARGC_CLI;
 		break;
 	default:
 		memprintf(err,
@@ -810,6 +813,12 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
 			  rule->from);
 		return ACT_RET_PRS_ERR;
 	}
+
+	rule->arg.vars.expr = sample_parse_expr((char **)args, arg, px->conf.args.file,
+	                                        px->conf.args.line, err, &px->conf.args, NULL);
+	if (!rule->arg.vars.expr)
+		return ACT_RET_PRS_ERR;
+
 	if (!(rule->arg.vars.expr->fetch->val & flags)) {
 		memprintf(err,
 			  "fetch method '%s' extracts information from '%s', none of which is available here",
