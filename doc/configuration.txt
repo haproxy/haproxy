@@ -17764,10 +17764,11 @@ uuid([<version>]) : string
   specified, a UUID version 4 (fully random) is returned.
   Currently, only version 4 is supported.
 
-var(<var-name>) : undefined
+var(<var-name>[,<default>]) : undefined
   Returns a variable with the stored type. If the variable is not set, the
-  sample fetch fails. The name of the variable starts with an indication
-  about its scope. The scopes allowed are:
+  sample fetch fails, unless a default value is provided, in which case it will
+  return it as a string. Empty strings are permitted. The name of the variable
+  starts with an indication about its scope. The scopes allowed are:
     "proc" : the variable is shared with the whole process
     "sess" : the variable is shared with the whole session
     "txn"  : the variable is shared with the transaction (request and

@@ -339,8 +339,12 @@ static inline struct var *var_get(struct vars *vars, const char *name)
 static int smp_fetch_var(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	const struct var_desc *var_desc = &args[0].data.var;
+	const struct buffer *def = NULL;
 
-	return vars_get_by_desc(var_desc, smp, NULL);
+	if (args[1].type == ARGT_STR)
+		def = &args[1].data.str;
+
+	return vars_get_by_desc(var_desc, smp, def);
 }
 
 /* This function search in the <head> a variable with the same
@@ -1193,7 +1197,7 @@ REGISTER_POST_DEINIT(vars_deinit);
 
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 
-	{ "var", smp_fetch_var, ARG1(1,STR), smp_check_var, SMP_T_STR, SMP_USE_CONST },
+	{ "var", smp_fetch_var, ARG2(1,STR,STR), smp_check_var, SMP_T_STR, SMP_USE_CONST },
 	{ /* END */ },
 }};
 

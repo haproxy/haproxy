@@ -5,8 +5,9 @@ feature ignore_unknown_macro
 
 haproxy h1 -conf {
     global
+        # note below, str60 is purposely not defined so that the default is used
         set-var proc.int12 int(12)
-        set-var proc.int5  str(60),div(proc.int12)
+        set-var proc.int5  var(proc.str60,60),div(proc.int12)
         set-var proc.str1  str("this is")
         set-var proc.str2  str("a string")
         set-var proc.str   var(proc.str1)
