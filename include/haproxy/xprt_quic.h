@@ -117,6 +117,12 @@ static inline void quic_cid_dump(struct buffer *buf, struct quic_cid *cid)
 	chunk_appendf(buf, ")");
 }
 
+/* Simply compute a thread ID from a CID */
+static inline unsigned long quic_get_cid_tid(const struct quic_cid *cid)
+{
+	return cid->data[0] % global.nbthread;
+}
+
 /* Free the CIDs attached to <conn> QUIC connection.
  * Always succeeds.
  */

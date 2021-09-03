@@ -4406,6 +4406,7 @@ static int qc_conn_init(struct connection *conn, void **xprt_ctx)
 		struct bind_conf *bc = __objt_listener(conn->target)->bind_conf;
 		struct quic_conn *qc = ctx->conn->qc;
 
+		ctx->wait_event.tasklet->tid = quic_get_cid_tid(&qc->scid);
 		if (ssl_bio_and_sess_init(conn, bc->initial_ctx,
 		                          &ctx->ssl, &ctx->bio, ha_quic_meth, ctx) == -1)
 			goto err;
