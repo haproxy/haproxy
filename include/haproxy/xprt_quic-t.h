@@ -263,14 +263,15 @@ struct preferred_address {
 	uint8_t stateless_reset_token[QUIC_STATELESS_RESET_TOKEN_LEN];
 };
 
-/* Default values for some of transport parameters */
+/* Default values for the absent transport parameters */
 #define QUIC_DFLT_MAX_UDP_PAYLOAD_SIZE   65527 /* bytes */
 #define QUIC_DFLT_ACK_DELAY_COMPONENT        3 /* milliseconds */
 #define QUIC_DFLT_MAX_ACK_DELAY             25 /* milliseconds */
+#define QUIC_ACTIVE_CONNECTION_ID_LIMIT      2 /* number of connections */
 
 /* Types of QUIC transport parameters */
 #define QUIC_TP_ORIGINAL_DESTINATION_CONNECTION_ID   0
-#define QUIC_TP_IDLE_TIMEOUT                         1
+#define QUIC_TP_MAX_IDLE_TIMEOUT                     1
 #define QUIC_TP_STATELESS_RESET_TOKEN                2
 #define QUIC_TP_MAX_UDP_PAYLOAD_SIZE                 3
 #define QUIC_TP_INITIAL_MAX_DATA                     4
@@ -300,7 +301,7 @@ struct preferred_address {
  * Note that forbidden parameters sent by clients MUST generate TRANSPORT_PARAMETER_ERROR errors.
  */
 struct quic_transport_params {
-	uint64_t idle_timeout;
+	uint64_t max_idle_timeout;
 	uint64_t max_udp_payload_size;                 /* Default: 65527 bytes (max of UDP payload for IPv6) */
 	uint64_t initial_max_data;
 	uint64_t initial_max_stream_data_bidi_local;

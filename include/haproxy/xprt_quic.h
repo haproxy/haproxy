@@ -423,7 +423,8 @@ static inline unsigned int quic_ack_delay_ms(struct quic_ack *ack_frm,
 	return ack_frm->ack_delay << conn->tx.params.ack_delay_exponent;
 }
 
-/* Initialize <dst> transport parameters from <quic_dflt_trasports_parame>.
+/* Initialize <dst> transport parameters with default values (when absent)
+ * from <quic_dflt_trasports_params>.
  * Never fails.
  */
 static inline void quic_dflt_transport_params_cpy(struct quic_transport_params *dst)
@@ -431,6 +432,7 @@ static inline void quic_dflt_transport_params_cpy(struct quic_transport_params *
 	dst->max_udp_payload_size = quic_dflt_transport_params.max_udp_payload_size;
 	dst->ack_delay_exponent   = quic_dflt_transport_params.ack_delay_exponent;
 	dst->max_ack_delay        = quic_dflt_transport_params.max_ack_delay;
+	dst->active_connection_id_limit = quic_dflt_transport_params.active_connection_id_limit;
 }
 
 /* Initialize <p> transport parameters depending <server> boolean value which
@@ -441,9 +443,10 @@ static inline void quic_dflt_transport_params_cpy(struct quic_transport_params *
 static inline void quic_transport_params_init(struct quic_transport_params *p,
                                               int server)
 {
+	/* Default values (when absent) */
 	quic_dflt_transport_params_cpy(p);
 
-	p->idle_timeout                        = 30000;
+	p->max_idle_timeout                    = 30000;
 
 	p->initial_max_data                    = 1 * 1024 * 1024;
 	p->initial_max_stream_data_bidi_local  = 256 * 1024;
@@ -549,6 +552,7 @@ static inline int quic_transport_param_decode(struct quic_transport_params *p,
 {
 	const unsigned char *end = *buf + len;
 
+	quic_dflt_transport_params_cpy(p);
 	switch (type) {
 	case QUIC_TP_ORIGINAL_DESTINATION_CONNECTION_ID:
 		if (!server || len >= sizeof p->original_destination_connection_id.data)
@@ -584,8 +588,8 @@ static inline int quic_transport_param_decode(struct quic_transport_params *p,
 			return 0;
 		p->with_preferred_address = 1;
 		break;
-	case QUIC_TP_IDLE_TIMEOUT:
-		if (!quic_dec_int(&p->idle_timeout, buf, end))
+	case QUIC_TP_MAX_IDLE_TIMEOUT:
+		if (!quic_dec_int(&p->max_idle_timeout, buf, end))
 			return 0;
 		break;
 	case QUIC_TP_MAX_UDP_PAYLOAD_SIZE:
@@ -762,8 +766,8 @@ static inline int quic_transport_params_encode(unsigned char *buf,
 	                                  p->initial_source_connection_id.len))
 		return 0;
 
-	if (p->idle_timeout &&
-	    !quic_transport_param_enc_int(&pos, end, QUIC_TP_IDLE_TIMEOUT, p->idle_timeout))
+	if (p->max_idle_timeout &&
+	    !quic_transport_param_enc_int(&pos, end, QUIC_TP_MAX_IDLE_TIMEOUT, p->max_idle_timeout))
 		return 0;
 
 	/*
@@ -825,6 +829,7 @@ static inline int quic_transport_params_encode(unsigned char *buf,
 		return 0;
 
 	if (p->active_connection_id_limit &&
+	    p->active_connection_id_limit != QUIC_ACTIVE_CONNECTION_ID_LIMIT &&
 	    !quic_transport_param_enc_int(&pos, end, QUIC_TP_ACTIVE_CONNECTION_ID_LIMIT,
 	                                  p->active_connection_id_limit))
 	    return 0;

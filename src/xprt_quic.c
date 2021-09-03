@@ -50,10 +50,15 @@
 #include <haproxy/trace.h>
 #include <haproxy/xprt_quic.h>
 
+/* This is the values of some QUIC transport parameters when absent.
+ * Should be used to initialize any transport parameters (local or remote)
+ * before updating them with customized values.
+ */
 struct quic_transport_params quic_dflt_transport_params = {
 	.max_udp_payload_size = QUIC_DFLT_MAX_UDP_PAYLOAD_SIZE,
 	.ack_delay_exponent   = QUIC_DFLT_ACK_DELAY_COMPONENT,
 	.max_ack_delay        = QUIC_DFLT_MAX_ACK_DELAY,
+	.active_connection_id_limit = QUIC_ACTIVE_CONNECTION_ID_LIMIT,
 };
 
 /* trace source and events */
