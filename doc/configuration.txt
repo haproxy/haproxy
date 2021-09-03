@@ -1750,7 +1750,7 @@ set-var <var-name> <expr>
   'set-var' action in TCP or HTTP rules except that the expression is evaluated
   at configuration parsing time and that the variable is instantly set. The
   sample fetch functions and converters permitted in the expression are only
-  those using internal data, typically 'int(value)' or 'str(value)'. It's is
+  those using internal data, typically 'int(value)' or 'str(value)'. It is
   possible to reference previously allocated variables as well. These variables
   will then be readable (and modifiable) from the regular rule sets.
 
@@ -1759,6 +1759,23 @@ set-var <var-name> <expr>
           set-var proc.current_state str(primary)
           set-var proc.prio int(100)
           set-var proc.threshold int(200),sub(proc.prio)
+
+set-var-fmt <var-name> <fmt>
+  Sets the process-wide variable '<var-name>' to the string resulting from the
+  evaluation of the log-format <fmt>. The variable '<var-name>' may only be a
+  process-wide variable (using the 'proc.' prefix). It works exactly like the
+  'set-var-fmt' action in TCP or HTTP rules except that the expression is
+  evaluated at configuration parsing time and that the variable is instantly
+  set. The sample fetch functions and converters permitted in the expression
+  are only those using internal data, typically 'int(value)' or 'str(value)'.
+  It is possible to reference previously allocated variables as well. These
+  variables will then be readable (and modifiable) from the regular rule sets.
+  Please see section 8.2.4 for details on the log-format syntax.
+
+  Example:
+      global
+          set-var-fmt proc.current_state "primary"
+          set-var-fmt proc.bootid        "%pid|%t"
 
 setenv <name> <value>
   Sets environment variable <name> to value <value>. If the variable exists, it

@@ -12,6 +12,7 @@
 #include <haproxy/list.h>
 #include <haproxy/log.h>
 #include <haproxy/sample.h>
+#include <haproxy/session.h>
 #include <haproxy/stream-t.h>
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tcpcheck.h>
@@ -894,6 +895,7 @@ static enum act_parse_ret parse_store(const char **args, int *arg, struct proxy 
  * expression that are parsed, processed, and released on the fly so that we
  * respect the real set-var syntax. These directives take the following format:
  *    set-var <name> <expression>
+ *    set-var-fmt <name> <fmt>
  * Note that parse_store() expects "set-var(name) <expression>" so we have to
  * temporarily replace the keyword here.
  */
@@ -910,21 +912,29 @@ static int vars_parse_global_set_var(char **args, int section_type, struct proxy
 		.arg.vars.scope = SCOPE_PROC,
 		.from = ACT_F_CFG_PARSER,
 	};
+	enum obj_type objt = OBJ_TYPE_NONE;
+	struct session *sess = NULL;
 	enum act_parse_ret p_ret;
 	char *old_arg1;
 	char *tmp_arg1;
 	int arg = 2; // variable name
 	int ret = -1;
+	int use_fmt = 0;
 
 	LIST_INIT(&px.conf.args.list);
 
+	use_fmt = strcmp(args[0], "set-var-fmt") == 0;
+
 	if (!*args[1] || !*args[2]) {
-		memprintf(err, "'%s' requires a process-wide variable name ('proc.<name>') and a sample expression.", args[0]);
+		if (use_fmt)
+			memprintf(err, "'%s' requires a process-wide variable name ('proc.<name>') and a format string.", args[0]);
+		else
+			memprintf(err, "'%s' requires a process-wide variable name ('proc.<name>') and a sample expression.", args[0]);
 		goto end;
 	}
 
 	tmp_arg1 = NULL;
-	if (!memprintf(&tmp_arg1, "set-var(%s)", args[1]))
+	if (!memprintf(&tmp_arg1, "set-var%s(%s)", use_fmt ? "-fmt" : "", args[1]))
 		goto end;
 
 	/* parse_store() will always return a message in <err> on error */
@@ -946,8 +956,16 @@ static int vars_parse_global_set_var(char **args, int section_type, struct proxy
 		goto end;
 	}
 
-	action_store(&rule, &px, NULL, NULL, 0);
+	if (use_fmt && !(sess = session_new(&px, NULL, &objt))) {
+		release_sample_expr(rule.arg.vars.expr);
+		memprintf(err, "'%s': out of memory when trying to set variable '%s' in the global section.", args[0], args[1]);
+		goto end;
+	}
+
+	action_store(&rule, &px, sess, NULL, 0);
 	release_sample_expr(rule.arg.vars.expr);
+	if (sess)
+		session_free(sess);
 
 	ret = 0;
  end:
@@ -1205,6 +1223,7 @@ INITCALL1(STG_REGISTER, http_after_res_keywords_register, &http_after_res_kws);
 
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "set-var",              vars_parse_global_set_var },
+	{ CFG_GLOBAL, "set-var-fmt",          vars_parse_global_set_var },
 	{ CFG_GLOBAL, "tune.vars.global-max-size", vars_max_size_global },
 	{ CFG_GLOBAL, "tune.vars.proc-max-size",   vars_max_size_proc   },
 	{ CFG_GLOBAL, "tune.vars.sess-max-size",   vars_max_size_sess   },

@@ -10,7 +10,7 @@ haproxy h1 -conf {
         set-var proc.str1  str("this is")
         set-var proc.str2  str("a string")
         set-var proc.str   var(proc.str1)
-        set-var proc.str   str(""),concat("",proc.str," a string")
+        set-var-fmt proc.str "%[var(proc.str)] a string"
         set-var proc.uuid  uuid()
 
     defaults
