@@ -1,6 +1,40 @@
 ChangeLog :
 ===========
 
+2021/09/03 : 2.5-dev6
+    - BUG/MINOR threads: Use get_(local|gm)time instead of (local|gm)time
+    - BUG/MINOR: tools: Fix loop condition in dump_text()
+    - BUILD: ssl: next round of build warnings on LIBRESSL_VERSION_NUMBER
+    - BUILD: ssl: fix two remaining occurrences of #if USE_OPENSSL
+    - BUILD: tools: properly guard __GLIBC__ with defined()
+    - BUILD: globally enable -Wundef
+    - MINOR: log: Remove log-error-via-logformat option
+    - MINOR: log: Add new "error-log-format" option
+    - BUG/MAJOR: queue: better protect a pendconn being picked from the proxy
+    - CLEANUP: Add missing include guard to signal.h
+    - MINOR: ssl: Add new ssl_bc_hsk_err sample fetch
+    - MINOR: connection: Add a connection error code sample fetch for backend side
+    - REGTESTS: ssl: Add tests for bc_conn_err and ssl_bc_hsk_err sample fetches
+    - MINOR: http-rules: add a new "ignore-empty" option to redirects.
+    - CI: Github Actions: temporarily disable BoringSSL builds
+    - BUG/MINOR: vars: fix set-var/unset-var exclusivity in the keyword parser
+    - BUG/MINOR: vars: improve accuracy of the rules used to check expression validity
+    - MINOR: sample: add missing ARGC_ entries
+    - BUG/MINOR: vars: properly set the argument parsing context in the expression
+    - DOC: configuration: remove wrong tcp-request examples in tcp-response
+    - MEDIUM: vars: add a new "set-var-fmt" action
+    - BUG/MEDIUM: vars: run over the correct list in release_store_rules()
+    - BUG/MINOR: vars: truncate the variable name in error reports about scope.
+    - BUG/MINOR: vars: do not talk about global section in CLI errors for set-var
+    - CLEANUP: vars: name the temporary proxy "CFG" instead of "CLI" for global vars
+    - MINOR: log: make log-format expressions completely usable outside of req/resp
+    - MINOR: vars: add a "set-var-fmt" directive to the global section
+    - MEDIUM: vars: also support format strings in CLI's "set var" command
+    - CLEANUP: vars: factor out common code from vars_get_by_{desc,name}
+    - MINOR: vars: make vars_get_by_* support an optional default value
+    - MINOR: vars: make the vars() sample fetch function support a default value
+    - BUILD: ot: add argument for default value to vars_get_by_name()
+
 2021/08/28 : 2.5-dev5
     - MINOR: httpclient: initialize the proxy
     - MINOR: httpclient: implement a simple HTTP Client API
