@@ -1747,7 +1747,7 @@ static inline int sample_conv_var2smp_str(const struct arg *arg, struct sample *
 		smp->flags = SMP_F_CONST;
 		return 1;
 	case ARGT_VAR:
-		if (!vars_get_by_desc(&arg->data.var, smp))
+		if (!vars_get_by_desc(&arg->data.var, smp, NULL))
 				return 0;
 		if (!sample_casts[smp->data.type][SMP_T_STR])
 				return 0;
@@ -2990,7 +2990,7 @@ static inline int sample_conv_var2smp(const struct arg *arg, struct sample *smp)
 		smp->data.u.sint = arg->data.sint;
 		return 1;
 	case ARGT_VAR:
-		if (!vars_get_by_desc(&arg->data.var, smp))
+		if (!vars_get_by_desc(&arg->data.var, smp, NULL))
 			return 0;
 		if (!sample_casts[smp->data.type][SMP_T_SINT])
 			return 0;
@@ -3317,7 +3317,7 @@ static int sample_conv_concat(const struct arg *arg_p, struct sample *smp, void 
 	 * into a string.
 	 */
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
-	if (arg_p[1].type == ARGT_VAR && vars_get_by_desc(&arg_p[1].data.var, &tmp) &&
+	if (arg_p[1].type == ARGT_VAR && vars_get_by_desc(&arg_p[1].data.var, &tmp, NULL) &&
 	    (sample_casts[tmp.data.type][SMP_T_STR] == c_none ||
 	     sample_casts[tmp.data.type][SMP_T_STR](&tmp))) {
 
@@ -3377,7 +3377,7 @@ static int sample_conv_strcmp(const struct arg *arg_p, struct sample *smp, void 
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (arg_p[0].type != ARGT_VAR)
 		return 0;
-	if (!vars_get_by_desc(&arg_p[0].data.var, &tmp))
+	if (!vars_get_by_desc(&arg_p[0].data.var, &tmp, NULL))
 		return 0;
 	if (!sample_casts[tmp.data.type][SMP_T_STR](&tmp))
 		return 0;
@@ -3415,7 +3415,7 @@ static int sample_conv_secure_memcmp(const struct arg *arg_p, struct sample *smp
 	smp_set_owner(&tmp, smp->px, smp->sess, smp->strm, smp->opt);
 	if (arg_p[0].type != ARGT_VAR)
 		return 0;
-	if (!vars_get_by_desc(&arg_p[0].data.var, &tmp))
+	if (!vars_get_by_desc(&arg_p[0].data.var, &tmp, NULL))
 		return 0;
 	if (!sample_casts[tmp.data.type][SMP_T_BIN](&tmp))
 		return 0;

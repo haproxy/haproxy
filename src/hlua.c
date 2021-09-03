@@ -4382,7 +4382,7 @@ __LJMP static int hlua_applet_tcp_get_var(lua_State *L)
 	s = luactx->htxn.s;
 
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
-	if (!vars_get_by_name(name, len, &smp)) {
+	if (!vars_get_by_name(name, len, &smp, NULL)) {
 		lua_pushnil(L);
 		return 1;
 	}
@@ -4869,7 +4869,7 @@ __LJMP static int hlua_applet_http_get_var(lua_State *L)
 	s = luactx->htxn.s;
 
 	smp_set_owner(&smp, s->be, s->sess, s, 0);
-	if (!vars_get_by_name(name, len, &smp)) {
+	if (!vars_get_by_name(name, len, &smp, NULL)) {
 		lua_pushnil(L);
 		return 1;
 	}
@@ -6966,7 +6966,7 @@ __LJMP static int hlua_get_var(lua_State *L)
 	name = MAY_LJMP(luaL_checklstring(L, 2, &len));
 
 	smp_set_owner(&smp, htxn->p, htxn->s->sess, htxn->s, htxn->dir & SMP_OPT_DIR);
-	if (!vars_get_by_name(name, len, &smp)) {
+	if (!vars_get_by_name(name, len, &smp, NULL)) {
 		lua_pushnil(L);
 		return 1;
 	}

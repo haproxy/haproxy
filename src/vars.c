@@ -340,7 +340,7 @@ static int smp_fetch_var(const struct arg *args, struct sample *smp, const char 
 {
 	const struct var_desc *var_desc = &args[0].data.var;
 
-	return vars_get_by_desc(var_desc, smp);
+	return vars_get_by_desc(var_desc, smp, NULL);
 }
 
 /* This function search in the <head> a variable with the same
@@ -574,10 +574,11 @@ int vars_unset_by_name_ifexist(const char *name, size_t len, struct sample *smp)
  * release the variables lock ASAP (so a pre-allocated chunk is obtained
  * via get_trash_shunk()). The variables' lock is used for reads.
  *
- * The function returns 0 if the variable was not found, otherwise 1
- * with the sample filled.
+ * The function returns 0 if the variable was not found and no default
+ * value was provided in <def>, otherwise 1 with the sample filled.
+ * Default values are always returned as strings.
  */
-static int var_to_smp(struct vars *vars, const char *name, struct sample *smp)
+static int var_to_smp(struct vars *vars, const char *name, struct sample *smp, const struct buffer *def)
 {
 	struct var *var;
 
@@ -585,12 +586,19 @@ static int var_to_smp(struct vars *vars, const char *name, struct sample *smp)
 	HA_RWLOCK_RDLOCK(VARS_LOCK, &vars->rwlock);
 	var = var_get(vars, name);
 	if (!var) {
-		HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
-		return 0;
+		if (!def) {
+			HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
+			return 0;
+		}
+
+		/* not found but we have a default value */
+		smp->data.type = SMP_T_STR;
+		smp->data.u.str = *def;
 	}
+	else
+		smp->data = var->data;
 
 	/* Copy sample. */
-	smp->data = var->data;
 	smp_dup(smp);
 
 	HA_RWLOCK_RDUNLOCK(VARS_LOCK, &vars->rwlock);
@@ -603,9 +611,13 @@ static int var_to_smp(struct vars *vars, const char *name, struct sample *smp)
  * and it therefore uses a pre-allocated trash chunk as returned by
  * get_trash_chunk().
  *
+ * If the variable is not valid in this scope, 0 is always returned.
+ * If the variable is valid but not found, either the default value
+ * <def> is returned if not NULL, or zero is returned.
+ *
  * Returns 1 if the sample is filled, otherwise it returns 0.
  */
-int vars_get_by_name(const char *name, size_t len, struct sample *smp)
+int vars_get_by_name(const char *name, size_t len, struct sample *smp, const struct buffer *def)
 {
 	struct vars *vars;
 	enum vars_scope scope;
@@ -620,7 +632,8 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp)
 	if (!vars || vars->scope != scope)
 		return 0;
 
-	return var_to_smp(vars, name, smp);
+
+	return var_to_smp(vars, name, smp, def);
 }
 
 /* This function fills a sample with the content of the variable described
@@ -630,9 +643,13 @@ int vars_get_by_name(const char *name, size_t len, struct sample *smp)
  * and it therefore uses a pre-allocated trash chunk as returned by
  * get_trash_chunk().
  *
+ * If the variable is not valid in this scope, 0 is always returned.
+ * If the variable is valid but not found, either the default value
+ * <def> is returned if not NULL, or zero is returned.
+ *
  * Returns 1 if the sample is filled, otherwise it returns 0.
  */
-int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp)
+int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp, const struct buffer *def)
 {
 	struct vars *vars;
 
@@ -643,7 +660,7 @@ int vars_get_by_desc(const struct var_desc *var_desc, struct sample *smp)
 	if (!vars || vars->scope != var_desc->scope)
 		return 0;
 
-	return var_to_smp(vars, var_desc->name, smp);
+	return var_to_smp(vars, var_desc->name, smp, def);
 }
 
 /* Always returns ACT_RET_CONT even if an error occurs. */
@@ -739,7 +756,7 @@ static void release_store_rule(struct act_rule *rule)
 /* This two function checks the variable name and replace the
  * configuration string name by the global string name. its
  * the same string, but the global pointer can be easy to
- * compare.
+ * compare. They return non-zero on success, zero on failure.
  *
  * The first function checks a sample-fetch and the second
  * checks a converter.
@@ -989,7 +1006,7 @@ static int vars_parse_cli_get_var(char **args, char *payload, struct appctx *app
 	if (!vars || vars->scope != SCOPE_PROC)
 		return 0;
 
-	if (!vars_get_by_name(args[2], strlen(args[2]), &smp))
+	if (!vars_get_by_name(args[2], strlen(args[2]), &smp, NULL))
 		return cli_err(appctx, "Variable not found.\n");
 
 	/* the sample returned by vars_get_by_name() is allocated into a trash
