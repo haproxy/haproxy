@@ -452,7 +452,7 @@ int flt_ot_var_get(struct stream *s, const char *scope, const char *prefix, cons
 	(void)memset(&smp, 0, sizeof(smp));
 	(void)smp_set_owner(&smp, s->be, s->sess, s, opt | SMP_OPT_FINAL);
 
-	if (vars_get_by_name(var_name, retval, &smp)) {
+	if (vars_get_by_name(var_name, retval, &smp, NULL)) {
 		retval = flt_ot_sample_to_str(&(smp.data), var_value, sizeof(var_value), err);
 		if (retval != -1)
 			FLT_OT_DBG(3, "data type %d: '%s' = '%s'", smp.data.type, var_name, var_value);
